@@ -1,7 +1,7 @@
-using SunExp.Dll.Hooks;
+using Terrias.Dll.Hooks;
 using Witch.Core;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class WunaVisualApi
 {

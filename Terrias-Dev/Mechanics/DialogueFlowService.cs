@@ -1,8 +1,8 @@
 using System;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class DialogueFlowService
 {
@@ -22,7 +22,7 @@ public static class DialogueFlowService
         activeDialogueId = definition.DialogueId;
         if (DialogueApi.ShowDialogue(definition.DialogueId))
         {
-            SunExpLog.Info("[DialogueFlow] started " + definition.FlowId + " -> " + definition.DialogueId);
+            TerriasLog.Info("[DialogueFlow] started " + definition.FlowId + " -> " + definition.DialogueId);
             return true;
         }
 
@@ -44,18 +44,18 @@ public static class DialogueFlowService
         {
             if (!string.Equals(activeDialogueId, dialogueId, StringComparison.Ordinal))
             {
-                SunExpLog.Info("[DialogueFlow] recovering unmanaged active session for " + dialogueId);
+                TerriasLog.Info("[DialogueFlow] recovering unmanaged active session for " + dialogueId);
             }
 
             DialogueApi.EndDialogue();
             ClearActive(definition.FlowId);
             definition.Complete(choiceIndex);
-            SunExpLog.Info("[DialogueFlow] completed " + definition.FlowId + " choice " + choiceIndex);
+            TerriasLog.Info("[DialogueFlow] completed " + definition.FlowId + " choice " + choiceIndex);
             return true;
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[DialogueFlow] completion failed for " + dialogueId, ex);
+            TerriasLog.Error("[DialogueFlow] completion failed for " + dialogueId, ex);
             return false;
         }
         finally

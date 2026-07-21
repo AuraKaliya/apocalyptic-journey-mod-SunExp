@@ -34,7 +34,7 @@ Reject unfinished preparation state. Use a per-run commit token to suppress
 local re-entry and duplicate network delivery.
 
 Remote commits must validate the server-bound sender supplied by
-`SunExpRpcAuthorityRuntime`. Reject missing senders in multiplayer, senders
+`TerriasRpcAuthorityRuntime`. Reject missing senders in multiplayer, senders
 outside the lobby, and sender/`Role.Id` mismatches. Host-local direct commits
 should create a local server sender and pass through the same server apply path.
 

@@ -1,4 +1,4 @@
 interface:
-  display_name: "SunExp Event Dev"
-  short_description: "Build isolated SunExp events and map flows."
-  default_prompt: "Use $sunexp-event-dev to design or fix SunExp event chains, mode-exclusive map nodes, synchronization, and regression checks."
+  display_name: "Terrias Event Dev"
+  short_description: "Build isolated Terrias events and map flows."
+  default_prompt: "Use $terrias-event-dev to design or fix Terrias event chains, mode-exclusive map nodes, synchronization, and regression checks."

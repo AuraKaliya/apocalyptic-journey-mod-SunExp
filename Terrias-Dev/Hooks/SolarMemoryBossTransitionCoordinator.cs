@@ -2,15 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Data.Save;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch;
 using Witch.Core;
 using Witch.Mod;
 using Witch.UI;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class SolarMemoryBossTransitionCoordinator
 {
@@ -22,9 +22,9 @@ public static class SolarMemoryBossTransitionCoordinator
 
     public static void Initialize(ModConfig modConfig)
     {
-        SunExpHookRegistry.After(
+        TerriasHookRegistry.After(
             modConfig,
-            SunExpHookTargets.FightWinResetStates,
+            TerriasHookTargets.FightWinResetStates,
             SettleSolarMemoryBossAfterWin,
             HookOwner);
     }
@@ -37,11 +37,11 @@ public static class SolarMemoryBossTransitionCoordinator
 
     public static void ContinueSaintWunaBossFromPreludeDialogue(string source)
     {
-        SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemorySaintWunaBossPendingKey, true);
-        SunExpLog.Info("[SolarMemoryStory] saint-wuna prelude complete; pending saint-wuna boss flow. source=" + source);
+        SolarMemoryPlayerSetupState.SetFlag(TerriasIds.SolarMemorySaintWunaBossPendingKey, true);
+        TerriasLog.Info("[SolarMemoryStory] saint-wuna prelude complete; pending saint-wuna boss flow. source=" + source);
         if (!TryContinuePendingSaintWunaBoss(source))
         {
-            SunExpLog.Warn("[SolarMemoryStory] saint-wuna boss flow pending after "
+            TerriasLog.Warn("[SolarMemoryStory] saint-wuna boss flow pending after "
                 + source
                 + "; waiting for map runtime recovery.");
         }
@@ -49,7 +49,7 @@ public static class SolarMemoryBossTransitionCoordinator
 
     internal static bool TryContinuePendingSaintWunaBoss(string source)
     {
-        if (!SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemorySaintWunaBossPendingKey))
+        if (!SolarMemoryPlayerSetupState.IsSet(TerriasIds.SolarMemorySaintWunaBossPendingKey))
         {
             return false;
         }
@@ -67,7 +67,7 @@ public static class SolarMemoryBossTransitionCoordinator
 
         if (SolarMemoryMapLifecycleCoordinator.IsClientOnlyPlayer())
         {
-            SunExpLog.Debug("[SolarMemoryStory] saint-wuna boss flow pending on client-only player; host will advance it. source=" + source);
+            TerriasLog.Debug("[SolarMemoryStory] saint-wuna boss flow pending on client-only player; host will advance it. source=" + source);
             return false;
         }
 
@@ -76,7 +76,7 @@ public static class SolarMemoryBossTransitionCoordinator
         var tree = mapManager?.MapTree;
         if (mapManager == null || manager == null || tree == null || RoleTable.Instance == null)
         {
-            SunExpLog.Warn("[SolarMemoryStory] saint-wuna boss flow cannot advance yet from "
+            TerriasLog.Warn("[SolarMemoryStory] saint-wuna boss flow cannot advance yet from "
                 + source
                 + "; map runtime is unavailable.");
             return false;
@@ -91,20 +91,20 @@ public static class SolarMemoryBossTransitionCoordinator
             RepairSaintWunaBossSyncArrays(mapManager);
             CloseSolarMemoryBossTransitionUi(source);
             ClearPendingSaintWunaBossFlow();
-            SunExpLog.Info("[SolarMemoryStory] saint-wuna boss transition requested from "
+            TerriasLog.Info("[SolarMemoryStory] saint-wuna boss transition requested from "
                 + source
                 + "; level="
                 + manager.Level
                 + "; nodeId="
-                + SunExpIds.SolarBossSaintWunaLevelId
+                + TerriasIds.SolarBossSaintWunaLevelId
                 + ".");
             mapManager.CmdNextMap();
             return true;
         }
         catch (Exception ex)
         {
-            SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemorySaintWunaBossPendingKey, true);
-            SunExpLog.Warn("[SolarMemoryStory] saint-wuna boss transition failed from "
+            SolarMemoryPlayerSetupState.SetFlag(TerriasIds.SolarMemorySaintWunaBossPendingKey, true);
+            TerriasLog.Warn("[SolarMemoryStory] saint-wuna boss transition failed from "
                 + source
                 + ": "
                 + ex.Message);
@@ -119,7 +119,7 @@ public static class SolarMemoryBossTransitionCoordinator
     internal static void ClearPendingSaintWunaBossFlow()
     {
         solarMemorySaintWunaBossTransitioning = false;
-        SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemorySaintWunaBossPendingKey, false);
+        SolarMemoryPlayerSetupState.SetFlag(TerriasIds.SolarMemorySaintWunaBossPendingKey, false);
     }
 
     private static void SettleSolarMemoryBossAfterWin(ModHookContext context)
@@ -132,9 +132,9 @@ public static class SolarMemoryBossTransitionCoordinator
             }
 
             var levelId = FightManager.Instance?.level ?? "";
-            if (string.Equals(levelId, SunExpIds.SolarBossSecondSunLevelId, StringComparison.Ordinal))
+            if (string.Equals(levelId, TerriasIds.SolarBossSecondSunLevelId, StringComparison.Ordinal))
             {
-                if (RoleDeckHasCard(SunExpIds.BlazingCrownCollapseCardId))
+                if (RoleDeckHasCard(TerriasIds.BlazingCrownCollapseCardId))
                 {
                     if (TryStartSolarMemoryBossDialogue(
                         SolarMemoryFlowApi.StartSaintWunaPreludeDialogue,
@@ -144,7 +144,7 @@ public static class SolarMemoryBossTransitionCoordinator
                         return;
                     }
 
-                    SunExpLog.Info("[SolarMemoryBoss] second sun defeated; blazing crown collapse found, continuing memory.");
+                    TerriasLog.Info("[SolarMemoryBoss] second sun defeated; blazing crown collapse found, continuing memory.");
                     ContinueSaintWunaBossFromPreludeDialogue("Fight_Win.ResetStates:second_sun_with_key_card:fallback");
                     return;
                 }
@@ -161,7 +161,7 @@ public static class SolarMemoryBossTransitionCoordinator
                 return;
             }
 
-            if (string.Equals(levelId, SunExpIds.SolarBossSaintWunaLevelId, StringComparison.Ordinal))
+            if (string.Equals(levelId, TerriasIds.SolarBossSaintWunaLevelId, StringComparison.Ordinal))
             {
                 if (TryStartSolarMemoryBossDialogue(
                     SolarMemoryFlowApi.StartSaintWunaEndingDialogue,
@@ -176,7 +176,7 @@ public static class SolarMemoryBossTransitionCoordinator
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory boss win settlement failed", ex);
+            TerriasLog.Error("Solar memory boss win settlement failed", ex);
         }
     }
 
@@ -190,7 +190,7 @@ public static class SolarMemoryBossTransitionCoordinator
         UIManager.Instance?.CloseUI("FightUI");
         if (startDialogue())
         {
-            SunExpLog.Info("[SolarMemoryStory] deferred boss flow from " + source + " until dialogue completion.");
+            TerriasLog.Info("[SolarMemoryStory] deferred boss flow from " + source + " until dialogue completion.");
             return true;
         }
 
@@ -199,17 +199,17 @@ public static class SolarMemoryBossTransitionCoordinator
             solarMemoryStorySettlementPending = false;
         }
 
-        SunExpLog.Warn("[SolarMemoryStory] dialogue failed from " + source + "; falling back to immediate boss flow.");
+        TerriasLog.Warn("[SolarMemoryStory] dialogue failed from " + source + "; falling back to immediate boss flow.");
         return false;
     }
 
     private static MapTree.Node CreateSaintWunaBossTransitionNode(MapTree tree, string source)
     {
-        var node = SolarMemoryMapNodePoolFactory.CreateFixedBossNode(tree, SunExpIds.SolarBossSaintWunaMapId);
+        var node = SolarMemoryMapNodePoolFactory.CreateFixedBossNode(tree, TerriasIds.SolarBossSaintWunaMapId);
         node.data ??= new Dictionary<string, string>();
-        node.data["Id"] = SunExpIds.SolarBossSaintWunaMapId;
+        node.data["Id"] = TerriasIds.SolarBossSaintWunaMapId;
         node.data["Type"] = "Fight";
-        node.data["NodeId"] = SunExpIds.SolarBossSaintWunaLevelId;
+        node.data["NodeId"] = TerriasIds.SolarBossSaintWunaLevelId;
         node.data["Level"] = "-1";
         MapNodeSafetyService.EnsureNodeDice(tree, node, source);
         node.SetChild(0, CreateSolarMemoryTerminalNode(tree, source));
@@ -239,8 +239,8 @@ public static class SolarMemoryBossTransitionCoordinator
         }
 
         SolarMemoryMapLifecycleCoordinator.RepairSolarMemoryMapArrays(maps, mapData);
-        maps[SolarMemoryMapNodePoolFactory.EndingSlotIndex] = SunExpIds.SolarBossSaintWunaMapId;
-        mapData[SolarMemoryMapNodePoolFactory.EndingSlotIndex] = SunExpIds.SolarBossSaintWunaLevelId;
+        maps[SolarMemoryMapNodePoolFactory.EndingSlotIndex] = TerriasIds.SolarBossSaintWunaMapId;
+        mapData[SolarMemoryMapNodePoolFactory.EndingSlotIndex] = TerriasIds.SolarBossSaintWunaLevelId;
     }
 
     private static void CloseSolarMemoryBossTransitionUi(string source)
@@ -255,7 +255,7 @@ public static class SolarMemoryBossTransitionCoordinator
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[SolarMemoryStory] saint-wuna transition UI cleanup failed from "
+            TerriasLog.Warn("[SolarMemoryStory] saint-wuna transition UI cleanup failed from "
                 + source
                 + ": "
                 + ex.Message);
@@ -287,7 +287,7 @@ public static class SolarMemoryBossTransitionCoordinator
 
     private static string ShortModId(string id)
     {
-        const string prefix = "SunExp_sunexp_";
+        const string prefix = "Terrias_terrias_";
         return id.StartsWith(prefix, StringComparison.Ordinal) ? id.Substring(prefix.Length) : id;
     }
 }

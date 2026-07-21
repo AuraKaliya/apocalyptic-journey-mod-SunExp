@@ -109,9 +109,9 @@ Resolver 通过注册表、激活状态、路径解析和时钟委托接入运�
 - Aura.Shared 公共 API：1228 项兼容基线通过；
 - AuraDirector：20 项断言通过；
 - AuraToolsExp：632 项断言通过；
-- SunExp：架构检查及 282 项 C# 断言通过；
+- Terrias：架构检查及 282 项 C# 断言通过；
 - shared write、content/tool/shared、RPC authority 与架构边界门禁通过；
-- SunExp、SanGuoShaExp、AuraToolsExp 三个消费者均以 0 警告、0 错误构建；
+- Terrias、SanGuoShaExp、AuraToolsExp 三个消费者均以 0 警告、0 错误构建；
 - 共享发布矩阵与 DLL 打包检查通过；
 - 构建产物和三个打包副本 SHA-256 一致：`8AC735F52C550BFE70F3EBE4EC72790F8CC4EE093A51CB403A0C23C6BC1372B2`。
 

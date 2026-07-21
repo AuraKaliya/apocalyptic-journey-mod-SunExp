@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Generic;
 using AuraShared.Core;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
-public sealed class SunExpBattleLifecycleSubscription
+public sealed class TerriasBattleLifecycleSubscription
 {
     public Action<ModHookContext>? AdventureStarting { get; set; }
 
@@ -26,11 +26,11 @@ public sealed class SunExpBattleLifecycleSubscription
     public Action<ModHookContext>? FightEnded { get; set; }
 }
 
-public static class SunExpBattleLifecycleRouter
+public static class TerriasBattleLifecycleRouter
 {
     private static readonly object SyncRoot = new();
-    private static readonly Dictionary<string, SunExpBattleLifecycleSubscription> Subscriptions = new(StringComparer.Ordinal);
-    private static KeyValuePair<string, SunExpBattleLifecycleSubscription>[]? cachedSubscriptions;
+    private static readonly Dictionary<string, TerriasBattleLifecycleSubscription> Subscriptions = new(StringComparer.Ordinal);
+    private static KeyValuePair<string, TerriasBattleLifecycleSubscription>[]? cachedSubscriptions;
     private static bool initialized;
 
     public static void Initialize(ModConfig modConfig)
@@ -43,7 +43,7 @@ public static class SunExpBattleLifecycleRouter
         initialized = true;
         AuraBattleLifecycleRouter.Register(
             modConfig,
-            SunExpIds.ModId,
+            TerriasIds.ModId,
             "BattleLifecycle",
             new AuraBattleLifecycleSubscription
             {
@@ -56,11 +56,11 @@ public static class SunExpBattleLifecycleRouter
                 FightEnding = context => DispatchFightEnding(context, "Fight lifecycle ending"),
                 FightEnded = context => DispatchFightEnded(context, "Fight lifecycle ended")
             },
-            SunExpLog.Debug,
-            SunExpLog.Warn);
+            TerriasLog.Debug,
+            TerriasLog.Warn);
     }
 
-    public static void Register(string id, SunExpBattleLifecycleSubscription subscription)
+    public static void Register(string id, TerriasBattleLifecycleSubscription subscription)
     {
         if (string.IsNullOrWhiteSpace(id) || subscription == null)
         {
@@ -73,7 +73,7 @@ public static class SunExpBattleLifecycleRouter
             cachedSubscriptions = null;
         }
 
-        SunExpPerformanceCounters.Record("BattleLifecycle.HandlerRegistered");
+        TerriasPerformanceCounters.Record("BattleLifecycle.HandlerRegistered");
     }
 
     private static void DispatchAdventureStarting(ModHookContext context, string source)
@@ -119,7 +119,7 @@ public static class SunExpBattleLifecycleRouter
     private static void Dispatch(
         ModHookContext context,
         string source,
-        Func<SunExpBattleLifecycleSubscription, Action<ModHookContext>?> selector)
+        Func<TerriasBattleLifecycleSubscription, Action<ModHookContext>?> selector)
     {
         foreach (var pair in SnapshotSubscriptions())
         {
@@ -135,12 +135,12 @@ public static class SunExpBattleLifecycleRouter
             }
             catch (Exception ex)
             {
-                SunExpLog.Error("Battle lifecycle handler failed: " + pair.Key + " @ " + source, ex);
+                TerriasLog.Error("Battle lifecycle handler failed: " + pair.Key + " @ " + source, ex);
             }
         }
     }
 
-    private static KeyValuePair<string, SunExpBattleLifecycleSubscription>[] SnapshotSubscriptions()
+    private static KeyValuePair<string, TerriasBattleLifecycleSubscription>[] SnapshotSubscriptions()
     {
         lock (SyncRoot)
         {
@@ -149,7 +149,7 @@ public static class SunExpBattleLifecycleRouter
                 return cachedSubscriptions;
             }
 
-            cachedSubscriptions = new KeyValuePair<string, SunExpBattleLifecycleSubscription>[Subscriptions.Count];
+            cachedSubscriptions = new KeyValuePair<string, TerriasBattleLifecycleSubscription>[Subscriptions.Count];
             var index = 0;
             foreach (var pair in Subscriptions)
             {

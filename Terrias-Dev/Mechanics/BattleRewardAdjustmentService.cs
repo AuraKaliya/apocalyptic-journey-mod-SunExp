@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class BattleRewardAdjustmentService
 {
@@ -61,13 +61,13 @@ public static class BattleRewardAdjustmentService
             {
                 if (rule.Applies(context))
                 {
-                    SunExpLog.Debug("[BattleRewardAdjustment] skipped by exclusive rule: " + rule.Id);
+                    TerriasLog.Debug("[BattleRewardAdjustment] skipped by exclusive rule: " + rule.Id);
                     return true;
                 }
             }
             catch (Exception ex)
             {
-                SunExpLog.Warn("[BattleRewardAdjustment] exclusive rule failed: " + rule.Id + " -> " + ex.Message);
+                TerriasLog.Warn("[BattleRewardAdjustment] exclusive rule failed: " + rule.Id + " -> " + ex.Message);
             }
         }
 
@@ -88,7 +88,7 @@ public static class BattleRewardAdjustmentService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[BattleRewardAdjustment] rule failed: " + rule.Id + " -> " + ex.Message);
+            TerriasLog.Warn("[BattleRewardAdjustment] rule failed: " + rule.Id + " -> " + ex.Message);
         }
     }
 

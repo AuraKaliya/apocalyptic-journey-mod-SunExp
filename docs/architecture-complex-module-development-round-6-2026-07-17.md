@@ -90,8 +90,8 @@ Unity Runtime 只负责把 `Sprite.rect` 与 viewport 转换成标量输入，�
 - AuraDirector 20 项断言通过；
 - AuraToolsExp 632 项断言通过；
 - 网络 RPC authority、共享架构与内容/工具/共享边界门禁通过；
-- SunExp、SanGuoShaExp、AuraToolsExp 三个主消费者 0 警告、0 错误构建；
-- SunExp 架构测试和 282 项 C# 断言通过；
+- Terrias、SanGuoShaExp、AuraToolsExp 三个主消费者 0 警告、0 错误构建；
+- Terrias 架构测试和 282 项 C# 断言通过；
 - 共享发布矩阵和 `Aura.Shared.dll` 打包一致性门禁通过。
 
 ## 6. 剩余工作

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Witch;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public sealed class SolarMemoryMapNodePool
 {

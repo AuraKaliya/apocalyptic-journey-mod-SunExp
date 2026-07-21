@@ -3,31 +3,31 @@ using System.Collections.Generic;
 using AuraJourney.Shared;
 using AuraMode.Shared;
 using Data.Save;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.Core;
 using Witch.Mod;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
-public static class SunExpModeApi
+public static class TerriasModeApi
 {
     public static void Initialize(ModConfig modConfig)
     {
-        AuraModeRuntime.Initialize(modConfig, SunExpIds.ModId);
+        AuraModeRuntime.Initialize(modConfig, TerriasIds.ModId);
         Register(CreateSolarMemoryDefinition());
         Register(CreateEndlessAbyssDefinition());
     }
 
     public static AuraModeTransitionResult ActivateSolarMemory(SaveInfo saveInfo, string source)
     {
-        var result = Activate(SunExpIds.SolarMemorySemanticModeId, saveInfo, source);
+        var result = Activate(TerriasIds.SolarMemorySemanticModeId, saveInfo, source);
         if (result.Success)
         {
             AuraJourneyRuntime.PublishActiveMode(
-                SunExpIds.ModId,
+                TerriasIds.ModId,
                 SolarMemoryJourneyApi.JourneyId,
-                SunExpIds.SolarMemorySemanticModeId,
+                TerriasIds.SolarMemorySemanticModeId,
                 true,
                 source);
         }
@@ -36,7 +36,7 @@ public static class SunExpModeApi
 
     public static AuraModeTransitionResult ActivateEndlessAbyss(SaveInfo saveInfo, string source)
     {
-        return Activate(SunExpIds.EndlessAbyssSemanticModeId, saveInfo, source);
+        return Activate(TerriasIds.EndlessAbyssSemanticModeId, saveInfo, source);
     }
 
     public static void ReconcileSelectedSave(string source)
@@ -45,36 +45,36 @@ public static class SunExpModeApi
         var saveInfo = preferCurrentRun
             ? GameSaveManager.GetNowSave() ?? GameEntryUI.selectedSave
             : GameEntryUI.selectedSave ?? GameSaveManager.GetNowSave();
-        if (IsFlagSet(saveInfo, SunExpIds.SolarMemoryModeKey))
+        if (IsFlagSet(saveInfo, TerriasIds.SolarMemoryModeKey))
         {
             ActivateSolarMemory(saveInfo!, source);
             return;
         }
-        if (IsFlagSet(saveInfo, SunExpIds.EndlessSeaModeKey))
+        if (IsFlagSet(saveInfo, TerriasIds.EndlessSeaModeKey))
         {
             ActivateEndlessAbyss(saveInfo!, source);
             return;
         }
 
-        var current = AuraModeRuntime.Current(SunExpIds.ModId, refresh: true);
+        var current = AuraModeRuntime.Current(TerriasIds.ModId, refresh: true);
         if (current == null
-            || !string.Equals(current.OwnerModId, SunExpIds.ModId, StringComparison.OrdinalIgnoreCase))
+            || !string.Equals(current.OwnerModId, TerriasIds.ModId, StringComparison.OrdinalIgnoreCase))
         {
             return;
         }
 
         var result = AuraModeRuntime.DeactivateMode(
-            SunExpIds.ModId,
+            TerriasIds.ModId,
             current.ModeId,
             "",
             source);
         if (result.Success
-            && string.Equals(current.ModeId, SunExpIds.SolarMemorySemanticModeId, StringComparison.OrdinalIgnoreCase))
+            && string.Equals(current.ModeId, TerriasIds.SolarMemorySemanticModeId, StringComparison.OrdinalIgnoreCase))
         {
             AuraJourneyRuntime.PublishActiveMode(
-                SunExpIds.ModId,
+                TerriasIds.ModId,
                 SolarMemoryJourneyApi.JourneyId,
-                SunExpIds.SolarMemorySemanticModeId,
+                TerriasIds.SolarMemorySemanticModeId,
                 false,
                 source);
         }
@@ -84,7 +84,7 @@ public static class SunExpModeApi
     {
         var runId = RunId(saveInfo);
         return AuraModeRuntime.ActivateMode(
-            SunExpIds.ModId,
+            TerriasIds.ModId,
             modeId,
             new AuraModeRunBinding
             {
@@ -97,10 +97,10 @@ public static class SunExpModeApi
 
     private static void Register(AuraModeDefinition definition)
     {
-        var result = AuraModeRuntime.RegisterMode(SunExpIds.ModId, definition);
+        var result = AuraModeRuntime.RegisterMode(TerriasIds.ModId, definition);
         if (!result.Success)
         {
-            SunExpLog.Warn("Mode registration failed: " + definition.ModeId + " -> " + result.Message);
+            TerriasLog.Warn("Mode registration failed: " + definition.ModeId + " -> " + result.Message);
         }
     }
 
@@ -108,18 +108,18 @@ public static class SunExpModeApi
     {
         return new AuraModeDefinition
         {
-            ModeId = SunExpIds.SolarMemorySemanticModeId,
-            OwnerModId = SunExpIds.ModId,
+            ModeId = TerriasIds.SolarMemorySemanticModeId,
+            OwnerModId = TerriasIds.ModId,
             Aliases = new List<string>
             {
                 "solar-memory",
-                "SunExp.SolarMemory",
-                "SunExp_SolarMemoryMode"
+                "Terrias.SolarMemory",
+                "Terrias_SolarMemoryMode"
             },
             Display = new AuraModeDisplay
             {
-                NameKey = "SunExp.Mode.SolarMemory",
-                FallbackName = SunExpIds.SolarMemoryTitle
+                NameKey = "Terrias.Mode.SolarMemory",
+                FallbackName = TerriasIds.SolarMemoryTitle
             },
             Host = NativeNormalHost(),
             JourneyId = SolarMemoryJourneyApi.JourneyId,
@@ -133,19 +133,19 @@ public static class SunExpModeApi
     {
         return new AuraModeDefinition
         {
-            ModeId = SunExpIds.EndlessAbyssSemanticModeId,
-            OwnerModId = SunExpIds.ModId,
+            ModeId = TerriasIds.EndlessAbyssSemanticModeId,
+            OwnerModId = TerriasIds.ModId,
             Aliases = new List<string>
             {
-                "SunExp.EndlessSea",
-                "SunExpEndlessSea",
-                "SunExp_EndlessSeaMode",
+                "Terrias.EndlessSea",
+                "TerriasEndlessSea",
+                "Terrias_EndlessSeaMode",
                 "endless-abyss"
             },
             Display = new AuraModeDisplay
             {
-                NameKey = "SunExp.Mode.EndlessAbyss",
-                FallbackName = SunExpIds.EndlessSeaTitle
+                NameKey = "Terrias.Mode.EndlessAbyss",
+                FallbackName = TerriasIds.EndlessSeaTitle
             },
             Host = NativeNormalHost(),
             DefaultPolicies = ContentOwnedStarterDeckPolicy(),
@@ -158,7 +158,7 @@ public static class SunExpModeApi
     {
         return new AuraModeHost
         {
-            NativeModeType = SunExpIds.NativeNormalModeType,
+            NativeModeType = TerriasIds.NativeNormalModeType,
             RuntimeManagerHint = "NormalMapManager"
         };
     }
@@ -170,7 +170,7 @@ public static class SunExpModeApi
             StarterDeck = new AuraModeStarterDeckPolicy
             {
                 MutationAuthority = AuraModeStarterDeckAuthorities.ModeOwnerExclusive,
-                ProviderId = SunExpIds.ModId
+                ProviderId = TerriasIds.ModId
             }
         };
     }
@@ -185,8 +185,8 @@ public static class SunExpModeApi
 
     private static string RunId(SaveInfo saveInfo)
     {
-        if (IsFlagSet(saveInfo, SunExpIds.EndlessSeaModeKey)
-            && saveInfo.GameVars.TryGetValue(SunExpIds.EndlessSeaRunIdKey, out var endlessRunId)
+        if (IsFlagSet(saveInfo, TerriasIds.EndlessSeaModeKey)
+            && saveInfo.GameVars.TryGetValue(TerriasIds.EndlessSeaRunIdKey, out var endlessRunId)
             && !string.IsNullOrWhiteSpace(endlessRunId))
         {
             return endlessRunId.Trim();

@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using AuraShared.Core;
 
-namespace SunExp.Dll.Infrastructure;
+namespace Terrias.Dll.Infrastructure;
 
 public static class DictionaryUtil
 {

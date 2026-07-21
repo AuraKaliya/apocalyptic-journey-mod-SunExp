@@ -2,7 +2,7 @@
 
 ## Decision
 
-The Harmony route is approved for the SunExp local director on the verified
+The Harmony route is approved for the Terrias local director on the verified
 game build. It remains an optional provider outside `Aura.Shared.dll`; no other
 MOD receives or auto-enables the dependency.
 
@@ -34,7 +34,7 @@ Installation failure leaves the original method enabled.
 The automated gate verifies suppression and one-shot re-entry, duplicate hold
 and release handling, sink failure-open behavior, teardown release, patch owner
 installation and removal, target fingerprinting, runtime timeout and cleanup
-contracts, local cast construction, silhouette fallback, and SunExp-only binary
+contracts, local cast construction, silhouette fallback, and Terrias-only binary
 packaging. The source contract also rejects legacy `UnityEngine.Input` polling
 and requires the Input System skip path, cue-driven letterbox playback, and the
 10-pixel mesh-bound portrait layout. The gates also require the side-portrait
@@ -45,8 +45,8 @@ sprite bounds, and height-priority wide portraits.
 
 ## Packaging
 
-`SunExp-Dev/SunExp.Dll.csproj` builds the provider project and copies
-`Aura.Director.DetourBackend.dll` plus `0Harmony.dll` to `SunExp/Scripts`.
+`Terrias-Dev/Terrias.Dll.csproj` builds the provider project and copies
+`Aura.Director.DetourBackend.dll` plus `0Harmony.dll` to `Terrias/Scripts`.
 The release test rejects those binaries from every other shipped MOD script
 root. Multiplayer plan distribution is intentionally deferred; each client
 owns only its local opening and local hold.

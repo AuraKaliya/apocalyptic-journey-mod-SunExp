@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class SpecialTagRuntime
 {
@@ -15,8 +15,8 @@ public static class SpecialTagRuntime
     public static void Initialize()
     {
         EnsureHandlerRegistered();
-        SunExpLog.Info("SpecialTag runtime initialized");
-        SunExpActionEventRouter.EnsureRegistered("SpecialTag.Initialize");
+        TerriasLog.Info("SpecialTag runtime initialized");
+        TerriasActionEventRouter.EnsureRegistered("SpecialTag.Initialize");
     }
 
     [HookAfter(typeof(Fight_Start), nameof(Fight_Start.Init))]
@@ -28,12 +28,12 @@ public static class SpecialTagRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Failed to clear runtime card attachments from Fight_Start.Init", ex);
+            TerriasLog.Error("Failed to clear runtime card attachments from Fight_Start.Init", ex);
         }
 
         Pending.Clear();
         EnsureHandlerRegistered();
-        SunExpActionEventRouter.ResetForFight("SpecialTag.Fight_Start.Init");
+        TerriasActionEventRouter.ResetForFight("SpecialTag.Fight_Start.Init");
     }
 
     [HookBefore(typeof(CommonCardItem), nameof(CommonCardItem.TrueUse))]
@@ -51,7 +51,7 @@ public static class SpecialTagRuntime
     private static void TryRegisterForPlayer(string source)
     {
         EnsureHandlerRegistered();
-        SunExpActionEventRouter.EnsureRegistered("SpecialTag." + source);
+        TerriasActionEventRouter.EnsureRegistered("SpecialTag." + source);
     }
 
     private static void EnsureHandlerRegistered()
@@ -61,18 +61,18 @@ public static class SpecialTagRuntime
             return;
         }
 
-        SunExpActionEventRouter.RegisterHandler("SpecialTag.WhiteRadiance", OnAction, OnActionAfter);
+        TerriasActionEventRouter.RegisterHandler("SpecialTag.WhiteRadiance", OnAction, OnActionAfter);
         handlerRegistered = true;
     }
 
-    private static void OnAction(SunExpActionEventContext context)
+    private static void OnAction(TerriasActionEventContext context)
     {
         try
         {
             var config = context.Config;
             if (config == null)
             {
-                SunExpLog.Debug("Action skipped: payload has no IDataConfig");
+                TerriasLog.Debug("Action skipped: payload has no IDataConfig");
                 return;
             }
 
@@ -92,11 +92,11 @@ public static class SpecialTagRuntime
             var kind = isTemporary ? "temporary" : isNative ? "native" : "special";
             var cost = CardConfigApi.CurrentCost(config);
             Pending.Push(new PendingCard(config, cost, kind));
-            SunExpLog.Debug("White radiance captured: kind=" + kind + ", id=" + CardConfigApi.Id(config) + ", cost=" + cost + ", instance=" + config.InstanceID);
+            TerriasLog.Debug("White radiance captured: kind=" + kind + ", id=" + CardConfigApi.Id(config) + ", cost=" + cost + ", instance=" + config.InstanceID);
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Action listener failed", ex);
+            TerriasLog.Error("Action listener failed", ex);
         }
     }
 
@@ -112,14 +112,14 @@ public static class SpecialTagRuntime
             var pending = Pending.Pop();
             if (pending.Kind == "temporary" && !CardConfigApi.TryClaimTemporaryWhiteRadiance(pending.Config))
             {
-                SunExpLog.Debug("Temp white radiance skipped: already resolved, id=" + CardConfigApi.Id(pending.Config));
+                TerriasLog.Debug("Temp white radiance skipped: already resolved, id=" + CardConfigApi.Id(pending.Config));
                 return;
             }
 
             var executor = pending.Config.scriptExecutor as ScriptExecutor;
             if (executor == null)
             {
-                SunExpLog.Warn("Temp white radiance skipped: executor missing, id=" + CardConfigApi.Id(pending.Config));
+                TerriasLog.Warn("Temp white radiance skipped: executor missing, id=" + CardConfigApi.Id(pending.Config));
                 return;
             }
 
@@ -129,7 +129,7 @@ public static class SpecialTagRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("ActionAfter listener failed", ex);
+            TerriasLog.Error("ActionAfter listener failed", ex);
         }
     }
 

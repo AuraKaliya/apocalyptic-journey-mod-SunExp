@@ -1,8 +1,8 @@
 using System;
 using Network.Command;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Mechanics;
 
-namespace SunExp.Dll.Network;
+namespace Terrias.Dll.Network;
 
 [Serializable]
 public sealed class RpcElementalEnemyMagicSnapshot : RpcCommandBase
@@ -45,9 +45,9 @@ public sealed class RpcElementalCrystalSpawn : RpcCommandBase
 }
 
 [Serializable]
-public sealed class RpcElementalCrystalCreateRequest : RpcCommandBase, ISunExpServerBoundRpcCommand
+public sealed class RpcElementalCrystalCreateRequest : RpcCommandBase, ITerriasServerBoundRpcCommand
 {
-    private SunExpRpcSender serverSender = SunExpRpcSender.Unbound;
+    private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 
     public string SourceStatusId { get; set; } = "";
 
@@ -73,9 +73,9 @@ public sealed class RpcElementalCrystalCreateRequest : RpcCommandBase, ISunExpSe
         Token = token ?? "";
     }
 
-    public void BindServerSender(SunExpRpcSender sender)
+    public void BindServerSender(TerriasRpcSender sender)
     {
-        serverSender = sender ?? SunExpRpcSender.Unbound;
+        serverSender = sender ?? TerriasRpcSender.Unbound;
     }
 
     public override void CmdExecute()
@@ -94,9 +94,9 @@ public sealed class RpcElementalCrystalCreateRequest : RpcCommandBase, ISunExpSe
 }
 
 [Serializable]
-public sealed class RpcElementalCrystalClaim : RpcCommandBase, ISunExpServerBoundRpcCommand
+public sealed class RpcElementalCrystalClaim : RpcCommandBase, ITerriasServerBoundRpcCommand
 {
-    private SunExpRpcSender serverSender = SunExpRpcSender.Unbound;
+    private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 
     public string EventId { get; set; } = "";
 
@@ -115,9 +115,9 @@ public sealed class RpcElementalCrystalClaim : RpcCommandBase, ISunExpServerBoun
         BattleEpoch = battleEpoch;
     }
 
-    public void BindServerSender(SunExpRpcSender sender)
+    public void BindServerSender(TerriasRpcSender sender)
     {
-        serverSender = sender ?? SunExpRpcSender.Unbound;
+        serverSender = sender ?? TerriasRpcSender.Unbound;
     }
 
     public override void CmdExecute()

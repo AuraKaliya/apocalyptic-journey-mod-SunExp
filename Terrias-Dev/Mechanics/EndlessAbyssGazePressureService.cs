@@ -1,17 +1,17 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 using Witch;
 using Witch.Core;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class EndlessAbyssGazePressureService
 {
-    private const string CostAppliedMarker = "SunExpAbyssGazeCostApplied";
+    private const string CostAppliedMarker = "TerriasAbyssGazeCostApplied";
     private static readonly Dictionary<string, GazePlayerState> States = new(StringComparer.Ordinal);
 
     public static void ResetPlayerTurn(ScriptExecutor? executor, string source)
@@ -21,9 +21,9 @@ public static class EndlessAbyssGazePressureService
         var status = executor?.Self ?? FightPlayer.Instance?.Status;
         if (status != null && IsLocalStatus(status))
         {
-            BuffApi.SetExactLevel(status, SunExpIds.AbyssGazeBuffI, 0);
-            BuffApi.SetExactLevel(status, SunExpIds.AbyssGazeBuffII, 0);
-            BuffApi.SetExactLevel(status, SunExpIds.AbyssGazeBuffIII, 0);
+            BuffApi.SetExactLevel(status, TerriasIds.AbyssGazeBuffI, 0);
+            BuffApi.SetExactLevel(status, TerriasIds.AbyssGazeBuffII, 0);
+            BuffApi.SetExactLevel(status, TerriasIds.AbyssGazeBuffIII, 0);
         }
 
         ClearPendingCost(state, "ResetPlayerTurn:" + source, true);
@@ -31,7 +31,7 @@ public static class EndlessAbyssGazePressureService
         state.Threshold15Triggered = false;
         state.Threshold20Triggered = false;
         state.SeenCardGainKeys.Clear();
-        SunExpLog.Info("[EndlessAbyssGaze] reset owner="
+        TerriasLog.Info("[EndlessAbyssGaze] reset owner="
             + owner
             + " from "
             + source
@@ -63,12 +63,12 @@ public static class EndlessAbyssGazePressureService
 
             if (ApplyCostToCurrentUse(state, config, source, preview: true))
             {
-                SunExpCardRefreshQueue.RequestCostUpdate(item, "AbyssGazePreview:" + source);
+                TerriasCardRefreshQueue.RequestCostUpdate(item, "AbyssGazePreview:" + source);
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessAbyssGaze] preview failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[EndlessAbyssGaze] preview failed from " + source + ": " + ex.Message);
         }
     }
 
@@ -88,12 +88,12 @@ public static class EndlessAbyssGazePressureService
             }
 
             CancelActiveCost(state, "CancelPreview:" + source);
-            SunExpCardRefreshQueue.RequestCostUpdate(item, "AbyssGazePreviewCancel:" + source);
+            TerriasCardRefreshQueue.RequestCostUpdate(item, "AbyssGazePreviewCancel:" + source);
             return true;
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessAbyssGaze] preview cancel failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[EndlessAbyssGaze] preview cancel failed from " + source + ": " + ex.Message);
             return false;
         }
     }
@@ -117,7 +117,7 @@ public static class EndlessAbyssGazePressureService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessAbyssGaze] card gained hook failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[EndlessAbyssGaze] card gained hook failed from " + source + ": " + ex.Message);
         }
     }
 
@@ -136,7 +136,7 @@ public static class EndlessAbyssGazePressureService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessAbyssGaze] card gained id hook failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[EndlessAbyssGaze] card gained id hook failed from " + source + ": " + ex.Message);
         }
     }
 
@@ -170,12 +170,12 @@ public static class EndlessAbyssGazePressureService
 
             if (ApplyCostToCurrentUse(state, config, source, preview: false))
             {
-                SunExpCardRefreshQueue.RequestCostUpdate(item, "AbyssGazeCost:" + source);
+                TerriasCardRefreshQueue.RequestCostUpdate(item, "AbyssGazeCost:" + source);
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessAbyssGaze] before-use cost hook failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[EndlessAbyssGaze] before-use cost hook failed from " + source + ": " + ex.Message);
         }
     }
 
@@ -199,7 +199,7 @@ public static class EndlessAbyssGazePressureService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessAbyssGaze] after-use cost hook failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[EndlessAbyssGaze] after-use cost hook failed from " + source + ": " + ex.Message);
         }
     }
 
@@ -213,7 +213,7 @@ public static class EndlessAbyssGazePressureService
 
         state.ActiveCostPreview = false;
         state.ActiveCostActionObserved = true;
-        SunExpLog.Debug("[EndlessAbyssGaze] action observed for pending cost from " + source + ".");
+        TerriasLog.Debug("[EndlessAbyssGaze] action observed for pending cost from " + source + ".");
     }
 
     public static void OnCardActionAfter(string source)
@@ -233,7 +233,7 @@ public static class EndlessAbyssGazePressureService
         {
             state.Threshold10Triggered = true;
             EndlessAbyssCurseService.AddRandomCurseToCombatDeck(executor, source + ":10");
-            SunExpLog.Info("[EndlessAbyssGaze] threshold 10 triggered owner=" + state.Owner + " from " + source + ".");
+            TerriasLog.Info("[EndlessAbyssGaze] threshold 10 triggered owner=" + state.Owner + " from " + source + ".");
         }
 
         if (hardLevel >= 2 && stacks >= 15 && !state.Threshold15Triggered)
@@ -241,14 +241,14 @@ public static class EndlessAbyssGazePressureService
             state.Threshold15Triggered = true;
             EndlessAbyssCurseService.AddRandomCurseToCombatDeck(executor, source + ":15");
             state.CostPending = true;
-            SunExpLog.Info("[EndlessAbyssGaze] threshold 15 triggered owner=" + state.Owner + " from " + source + ".");
+            TerriasLog.Info("[EndlessAbyssGaze] threshold 15 triggered owner=" + state.Owner + " from " + source + ".");
         }
 
         if (hardLevel >= 3 && stacks >= 20 && !state.Threshold20Triggered)
         {
             state.Threshold20Triggered = true;
-            SunExpLog.Info("[EndlessAbyssGaze] threshold 20 triggered owner=" + state.Owner + " from " + source + ".");
-            SunExpFrameDispatcher.RunOnceNextFrame(
+            TerriasLog.Info("[EndlessAbyssGaze] threshold 20 triggered owner=" + state.Owner + " from " + source + ".");
+            TerriasFrameDispatcher.RunOnceNextFrame(
                 "EndlessAbyssGaze.ForceEndTurn." + state.Owner,
                 () =>
                 {
@@ -259,7 +259,7 @@ public static class EndlessAbyssGazePressureService
                     }
                     catch (Exception ex)
                     {
-                        SunExpLog.Warn("[EndlessAbyssGaze] force end turn failed: " + ex.Message);
+                        TerriasLog.Warn("[EndlessAbyssGaze] force end turn failed: " + ex.Message);
                     }
                 });
         }
@@ -283,7 +283,7 @@ public static class EndlessAbyssGazePressureService
             PlayerApi.ShowCaption("\u6df1\u6e0a\u51dd\u89c6\uff1a\u672c\u6b21\u51fa\u724c\u8017\u8d39+1\u3002");
         }
 
-        SunExpLog.Debug("[EndlessAbyssGaze] next card cost +1 marker applied to "
+        TerriasLog.Debug("[EndlessAbyssGaze] next card cost +1 marker applied to "
             + CardConfigApi.Id(config)
             + " owner="
             + state.Owner
@@ -301,7 +301,7 @@ public static class EndlessAbyssGazePressureService
         }
 
         RestoreActiveCost(state);
-        SunExpLog.Debug("[EndlessAbyssGaze] cleared pending next-cost owner="
+        TerriasLog.Debug("[EndlessAbyssGaze] cleared pending next-cost owner="
             + state.Owner
             + " from "
             + source
@@ -311,7 +311,7 @@ public static class EndlessAbyssGazePressureService
     private static void CancelActiveCost(GazePlayerState state, string source)
     {
         RestoreActiveCost(state);
-        SunExpLog.Debug("[EndlessAbyssGaze] cancelled active next-cost owner="
+        TerriasLog.Debug("[EndlessAbyssGaze] cancelled active next-cost owner="
             + state.Owner
             + " from "
             + source
@@ -326,8 +326,8 @@ public static class EndlessAbyssGazePressureService
         }
 
         DictionaryUtil.Set(state.ActiveCostConfig.Vars, "OnceExCost", state.ActiveCostOriginalOnce.ToString());
-        DictionaryUtil.Set(state.ActiveCostConfig.Vars, SunExpIds.RuntimeMarkersKey, RemoveToken(
-            DictionaryUtil.Get(state.ActiveCostConfig.Vars, SunExpIds.RuntimeMarkersKey),
+        DictionaryUtil.Set(state.ActiveCostConfig.Vars, TerriasIds.RuntimeMarkersKey, RemoveToken(
+            DictionaryUtil.Get(state.ActiveCostConfig.Vars, TerriasIds.RuntimeMarkersKey),
             CostAppliedMarker));
         state.ActiveCostConfig = null;
         state.ActiveCostOriginalOnce = 0;
@@ -337,7 +337,7 @@ public static class EndlessAbyssGazePressureService
 
     private static int HardLevel()
     {
-        return Math.Max(0, Math.Min(3, SunExpHardTagState.Level(SunExpHardTagIds.AbyssGaze)));
+        return Math.Max(0, Math.Min(3, TerriasHardTagState.Level(TerriasHardTagIds.AbyssGaze)));
     }
 
     private static void AddStackForGain(ScriptExecutor? executor, GazePlayerState state, string source)
@@ -351,7 +351,7 @@ public static class EndlessAbyssGazePressureService
         var buffId = BuffIdForLevel(level);
         executor.Self.AddBuff(buffId, 1);
         var stacks = BuffApi.Level(executor.Self, buffId);
-        SunExpLog.Debug("[EndlessAbyssGaze] stack +1 owner="
+        TerriasLog.Debug("[EndlessAbyssGaze] stack +1 owner="
             + state.Owner
             + " level="
             + level
@@ -368,7 +368,7 @@ public static class EndlessAbyssGazePressureService
         var key = card.InstanceID;
         if (string.IsNullOrWhiteSpace(key))
         {
-            key = CardConfigApi.Id(card) + ":" + DictionaryUtil.Get(card.Vars, "SunExpRuntimeCreatedAt", source);
+            key = CardConfigApi.Id(card) + ":" + DictionaryUtil.Get(card.Vars, "TerriasRuntimeCreatedAt", source);
         }
 
         return string.IsNullOrWhiteSpace(key) || state.SeenCardGainKeys.Add(key);
@@ -417,10 +417,10 @@ public static class EndlessAbyssGazePressureService
     private static string BuffIdForLevel(int level)
     {
         return level >= 3
-            ? SunExpIds.AbyssGazeBuffIII
+            ? TerriasIds.AbyssGazeBuffIII
             : level == 2
-                ? SunExpIds.AbyssGazeBuffII
-                : SunExpIds.AbyssGazeBuffI;
+                ? TerriasIds.AbyssGazeBuffII
+                : TerriasIds.AbyssGazeBuffI;
     }
 
     private static bool IsLocalPlayerExecutor(ScriptExecutor? executor)

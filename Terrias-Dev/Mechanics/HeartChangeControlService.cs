@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Network;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Network;
 using UnityEngine;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class HeartChangeControlService
 {
@@ -40,10 +40,10 @@ public static class HeartChangeControlService
             return false;
         }
 
-        if (SunExpNetworkRuntime.IsMultiplayerSession() && !SunExpNetworkRuntime.IsServer())
+        if (TerriasNetworkRuntime.IsMultiplayerSession() && !TerriasNetworkRuntime.IsServer())
         {
             var token = Guid.NewGuid().ToString("N");
-            SunExpNetworkRuntime.Send(
+            TerriasNetworkRuntime.Send(
                 new RpcHeartChangeControlRequest(StatusId(target), StatusId(self.Self), token),
                 "HeartChangeControlService.TryControlFromCard");
             PlayerApi.ShowCaption("心变：正在同步控制结果。");
@@ -51,7 +51,7 @@ public static class HeartChangeControlService
             return true;
         }
 
-        if (!ExecutorApi.AddStatusBuff(self, target, SunExpIds.HeartChangeBuffId, 1, "Target"))
+        if (!ExecutorApi.AddStatusBuff(self, target, TerriasIds.HeartChangeBuffId, 1, "Target"))
         {
             PlayerApi.ShowCaption("心变：控制效果施加失败。");
             RestoreCardTarget(self, target);
@@ -89,11 +89,11 @@ public static class HeartChangeControlService
             state.Status.UpdateStatus(true);
             QueueProxyAction(state, "Apply");
             BroadcastState(state, active: true, accepted: true, token: "");
-            SunExpPerformanceCounters.Record("HeartChange.Controlled");
+            TerriasPerformanceCounters.Record("HeartChange.Controlled");
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[HeartChange] positioning failed: " + ex.Message);
+            TerriasLog.Warn("[HeartChange] positioning failed: " + ex.Message);
             EndControl(state.Status, "ApplyPositionFailed", removeBuff: true, consumeNativeAction: false);
         }
     }
@@ -117,7 +117,7 @@ public static class HeartChangeControlService
         }
     }
 
-    public static void ResolveNetworkControl(string targetStatusId, string ownerStatusId, string token, SunExpRpcSender sender)
+    public static void ResolveNetworkControl(string targetStatusId, string ownerStatusId, string token, TerriasRpcSender sender)
     {
         if (!ClaimNetworkToken(token))
         {
@@ -137,7 +137,7 @@ public static class HeartChangeControlService
 
         if (!string.IsNullOrWhiteSpace(rejection))
         {
-            SunExpNetworkRuntime.Send(
+            TerriasNetworkRuntime.Send(
                 new RpcHeartChangeControlState(targetStatusId, token, -1, active: false, accepted: false, rejection),
                 "HeartChangeControlService.ResolveNetworkControl.Reject");
             return;
@@ -146,7 +146,7 @@ public static class HeartChangeControlService
         var slotIndex = CompanionSlotService.FindOpenPlayerSlot();
         if (slotIndex == null)
         {
-            SunExpNetworkRuntime.Send(
+            TerriasNetworkRuntime.Send(
                 new RpcHeartChangeControlState(targetStatusId, token, -1, active: false, accepted: false, ReasonNoFriendlySlot),
                 "HeartChangeControlService.ResolveNetworkControl.NoSlot");
             return;
@@ -155,7 +155,7 @@ public static class HeartChangeControlService
         ReserveSlot(targetStatusId, slotIndex.Value);
         try
         {
-            target!.AddBuff(SunExpIds.HeartChangeBuffId, 1);
+            target!.AddBuff(TerriasIds.HeartChangeBuffId, 1);
             if (!IsControlled(target))
             {
                 ApplyNetworkState(
@@ -170,7 +170,7 @@ public static class HeartChangeControlService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[HeartChange] network add buff failed: " + ex.Message);
+            TerriasLog.Warn("[HeartChange] network add buff failed: " + ex.Message);
             ApplyNetworkState(
                 new RpcHeartChangeControlState(targetStatusId, token, slotIndex.Value, active: true, accepted: true),
                 "HeartChangeControlService.ResolveNetworkControl.Fallback");
@@ -190,7 +190,7 @@ public static class HeartChangeControlService
             if (string.Equals(command.RejectionReason, ReasonAlreadyControlled, StringComparison.Ordinal)
                 && IsControlled(status))
             {
-                SunExpPerformanceCounters.Record("HeartChange.NetworkDuplicateAcceptedAsNoOp");
+                TerriasPerformanceCounters.Record("HeartChange.NetworkDuplicateAcceptedAsNoOp");
                 return;
             }
 
@@ -211,7 +211,7 @@ public static class HeartChangeControlService
 
         if (IsControlled(status))
         {
-            SunExpPerformanceCounters.Record("HeartChange.NetworkDuplicateAcceptedAsNoOp");
+            TerriasPerformanceCounters.Record("HeartChange.NetworkDuplicateAcceptedAsNoOp");
             return;
         }
 
@@ -243,7 +243,7 @@ public static class HeartChangeControlService
         }
 
         SuppressNativeAction(state, "UnexpectedNativeAction");
-        SunExpPerformanceCounters.Record("HeartChange.ActionBegin");
+        TerriasPerformanceCounters.Record("HeartChange.ActionBegin");
     }
 
     public static void EndEnemyAction(Enemy? enemy, int actionIndex)
@@ -259,7 +259,7 @@ public static class HeartChangeControlService
         RestoreSuppressedNativeState(state, "EndEnemyAction");
         EndControl(status, "EndEnemyAction.NativeFallback", removeBuff: true, consumeNativeAction: true);
 
-        SunExpPerformanceCounters.Record("HeartChange.ActionEnd");
+        TerriasPerformanceCounters.Record("HeartChange.ActionEnd");
     }
 
     public static void CompleteProxyAction(IStatusManager? status, string source)
@@ -448,13 +448,13 @@ public static class HeartChangeControlService
     {
         if (IsControlled(status))
         {
-            SunExpPerformanceCounters.Record("HeartChange.NetworkDuplicateAcceptedAsNoOp");
+            TerriasPerformanceCounters.Record("HeartChange.NetworkDuplicateAcceptedAsNoOp");
             return;
         }
 
         if (!TryCreateState(status, out var state, out var reason))
         {
-            SunExpLog.Warn("[HeartChange] network state rejected from " + source + ": " + reason);
+            TerriasLog.Warn("[HeartChange] network state rejected from " + source + ": " + reason);
             return;
         }
 
@@ -474,11 +474,11 @@ public static class HeartChangeControlService
             ApplyFriendlyFacing(state);
             state.Status.UpdateStatus(true);
             QueueProxyAction(state, source);
-            SunExpPerformanceCounters.Record("HeartChange.Controlled.Network");
+            TerriasPerformanceCounters.Record("HeartChange.Controlled.Network");
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[HeartChange] network positioning failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[HeartChange] network positioning failed from " + source + ": " + ex.Message);
             EndControl(state.Status, source + ".PositionFailed", removeBuff: false, consumeNativeAction: false, broadcast: false);
         }
     }
@@ -556,7 +556,7 @@ public static class HeartChangeControlService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[HeartChange] restore failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[HeartChange] restore failed from " + source + ": " + ex.Message);
         }
 
         CompanionSlotService.ReflowFriendlyLineup(source + ".Cleared");
@@ -571,7 +571,7 @@ public static class HeartChangeControlService
             BroadcastState(state, active: false, accepted: true, token: "");
         }
 
-        SunExpPerformanceCounters.Record("HeartChange.Cleared");
+        TerriasPerformanceCounters.Record("HeartChange.Cleared");
     }
 
     private static void RestorePosition(HeartChangeState state)
@@ -618,11 +618,11 @@ public static class HeartChangeControlService
                 state.BodyRenderer.flipX = desiredEffectiveMirrored ^ bodyMirrored;
             }
 
-            SunExpPerformanceCounters.Record("HeartChange.FacingMirrored");
+            TerriasPerformanceCounters.Record("HeartChange.FacingMirrored");
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[HeartChange] facing mirror failed: " + ex.Message);
+            TerriasLog.Warn("[HeartChange] facing mirror failed: " + ex.Message);
         }
     }
 
@@ -645,16 +645,16 @@ public static class HeartChangeControlService
             manager.ActionQueue.Add(proxy);
             if (removed > 0)
             {
-                SunExpLog.Info("[HeartChange] queued controlled enemy proxy action: status="
+                TerriasLog.Info("[HeartChange] queued controlled enemy proxy action: status="
                     + state.StatusId
                     + ", intentCount="
                     + proxy.IntentCount);
-                SunExpPerformanceCounters.Record("HeartChange.QueueMoved");
+                TerriasPerformanceCounters.Record("HeartChange.QueueMoved");
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[HeartChange] queue move failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[HeartChange] queue move failed from " + source + ": " + ex.Message);
         }
     }
 
@@ -673,18 +673,18 @@ public static class HeartChangeControlService
 
             if (proxy == null)
             {
-                SunExpLog.Warn("[HeartChange] native fallback has no proxy: status=" + state.StatusId);
+                TerriasLog.Warn("[HeartChange] native fallback has no proxy: status=" + state.StatusId);
                 return;
             }
 
             if (proxy.ResolveNow("NativeFallback." + source))
             {
-                SunExpPerformanceCounters.Record("HeartChange.ProxyNativeFallbackResolved");
+                TerriasPerformanceCounters.Record("HeartChange.ProxyNativeFallbackResolved");
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[HeartChange] native fallback proxy resolve failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[HeartChange] native fallback proxy resolve failed from " + source + ": " + ex.Message);
         }
     }
 
@@ -704,15 +704,15 @@ public static class HeartChangeControlService
             state.SuppressedState = state.Status.state;
             state.NativeActionSuppressed = true;
             state.Status.ChangeState(IStatusManager.State.NoAction);
-            SunExpLog.Info("[HeartChange] suppressed native enemy action: status="
+            TerriasLog.Info("[HeartChange] suppressed native enemy action: status="
                 + state.StatusId
                 + ", reason="
                 + reason);
-            SunExpPerformanceCounters.Record("HeartChange.ActionSuppressed." + reason);
+            TerriasPerformanceCounters.Record("HeartChange.ActionSuppressed." + reason);
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[HeartChange] suppress failed from " + reason + ": " + ex.Message);
+            TerriasLog.Warn("[HeartChange] suppress failed from " + reason + ": " + ex.Message);
         }
     }
 
@@ -729,7 +729,7 @@ public static class HeartChangeControlService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[HeartChange] native action state restore failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[HeartChange] native action state restore failed from " + source + ": " + ex.Message);
         }
         finally
         {
@@ -763,18 +763,18 @@ public static class HeartChangeControlService
             if (!alreadyQueued)
             {
                 manager.ActionQueue.Add(state.Enemy);
-                SunExpLog.Info("[HeartChange] restored native enemy to action queue: status="
+                TerriasLog.Info("[HeartChange] restored native enemy to action queue: status="
                     + state.StatusId
                     + ", source="
                     + source
                     + ", afterConsumedAction="
                     + afterConsumedAction);
-                SunExpPerformanceCounters.Record("HeartChange.NativeRestoreApplied");
+                TerriasPerformanceCounters.Record("HeartChange.NativeRestoreApplied");
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[HeartChange] native queue restore failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[HeartChange] native queue restore failed from " + source + ": " + ex.Message);
         }
     }
 
@@ -785,7 +785,7 @@ public static class HeartChangeControlService
             if (IsAlive(state.Status) && state.Status.state == IStatusManager.State.NoAction)
             {
                 state.Status.ChangeState(IStatusManager.State.Default);
-                SunExpLog.Info("[HeartChange] restored native visible state from NoAction: status="
+                TerriasLog.Info("[HeartChange] restored native visible state from NoAction: status="
                     + state.StatusId
                     + ", source="
                     + source);
@@ -793,7 +793,7 @@ public static class HeartChangeControlService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[HeartChange] native visible state restore failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[HeartChange] native visible state restore failed from " + source + ": " + ex.Message);
         }
     }
 
@@ -815,7 +815,7 @@ public static class HeartChangeControlService
                 || (obj is Enemy && string.Equals(obj.InstanceId, state.StatusId, StringComparison.Ordinal)));
             if (removed > 0)
             {
-                SunExpLog.Info("[HeartChange] removed controlled queue entries: status="
+                TerriasLog.Info("[HeartChange] removed controlled queue entries: status="
                     + state.StatusId
                     + ", count="
                     + removed
@@ -825,7 +825,7 @@ public static class HeartChangeControlService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[HeartChange] controlled queue removal failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[HeartChange] controlled queue removal failed from " + source + ": " + ex.Message);
         }
     }
 
@@ -872,7 +872,7 @@ public static class HeartChangeControlService
         if (opponents.Count == 0)
         {
             ReplaceTargets(executor, Enumerable.Empty<IStatusManager>());
-            SunExpPerformanceCounters.Record("HeartChange.UseScriptNoTarget");
+            TerriasPerformanceCounters.Record("HeartChange.UseScriptNoTarget");
             return;
         }
 
@@ -883,7 +883,7 @@ public static class HeartChangeControlService
         if (preferredTargets.Count > 0)
         {
             ReplaceTargets(executor, requestedTargets.Count <= 1 ? preferredTargets.Take(1) : preferredTargets);
-            SunExpPerformanceCounters.Record("HeartChange.UseScriptRetargeted");
+            TerriasPerformanceCounters.Record("HeartChange.UseScriptRetargeted");
             return;
         }
 
@@ -896,7 +896,7 @@ public static class HeartChangeControlService
             ReplaceTargets(executor, new[] { opponents[UnityEngine.Random.Range(0, opponents.Count)] });
         }
 
-        SunExpPerformanceCounters.Record("HeartChange.UseScriptRetargeted");
+        TerriasPerformanceCounters.Record("HeartChange.UseScriptRetargeted");
     }
 
     private static void AddControlledTargetsForEnemy(ScriptExecutor executor, string clean)
@@ -964,7 +964,7 @@ public static class HeartChangeControlService
         var index = (roll - existingTargets.Count * ExistingTargetWeight) / ControlledTargetWeight;
         index = Math.Max(0, Math.Min(controlled.Count - 1, index));
         ReplaceTargets(executor, new[] { controlled[index] });
-        SunExpPerformanceCounters.Record("HeartChange.TargetedByEnemy");
+        TerriasPerformanceCounters.Record("HeartChange.TargetedByEnemy");
     }
 
     private static void AddActiveControlledToObject(ScriptExecutor executor)
@@ -1081,11 +1081,11 @@ public static class HeartChangeControlService
 
         try
         {
-            status.RemoveBuff(SunExpIds.HeartChangeBuffId);
+            status.RemoveBuff(TerriasIds.HeartChangeBuffId);
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[HeartChange] remove buff failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[HeartChange] remove buff failed from " + source + ": " + ex.Message);
         }
         finally
         {
@@ -1197,19 +1197,19 @@ public static class HeartChangeControlService
 
     private static void BroadcastState(HeartChangeState state, bool active, bool accepted, string token)
     {
-        if (state == null || !SunExpNetworkRuntime.IsMultiplayerSession())
+        if (state == null || !TerriasNetworkRuntime.IsMultiplayerSession())
         {
             return;
         }
 
-        SunExpNetworkRuntime.Send(
+        TerriasNetworkRuntime.Send(
             new RpcHeartChangeControlState(state.StatusId, token, state.SlotIndex, active, accepted),
             "HeartChangeControlService.BroadcastState");
     }
 
-    private static string ValidateNetworkSender(SunExpRpcSender sender, string ownerStatusId)
+    private static string ValidateNetworkSender(TerriasRpcSender sender, string ownerStatusId)
     {
-        if (!SunExpNetworkRuntime.IsMultiplayerSession())
+        if (!TerriasNetworkRuntime.IsMultiplayerSession())
         {
             return "";
         }

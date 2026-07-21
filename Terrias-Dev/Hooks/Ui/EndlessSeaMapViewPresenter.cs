@@ -1,16 +1,16 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
-using SunExp.Dll.Network;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
+using Terrias.Dll.Network;
 using UnityEngine;
 using UnityEngine.UI;
 using Witch;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Hooks.Ui;
+namespace Terrias.Dll.Hooks.Ui;
 
 public static class EndlessSeaMapViewPresenter
 {
@@ -32,7 +32,7 @@ public static class EndlessSeaMapViewPresenter
         if (!EndlessSeaFloorPlanStore.TryLoad(floor, out var plan)
             && !EndlessSeaNetworkSync.TryGetCachedPlan(floor, out plan))
         {
-            if (SunExpNetworkRuntime.IsClientOnly())
+            if (TerriasNetworkRuntime.IsClientOnly())
             {
                 EndlessSeaNetworkSync.RequestSnapshot(source + ":missing-plan");
                 return;
@@ -79,14 +79,14 @@ public static class EndlessSeaMapViewPresenter
         if (sync && changed)
         {
             mapSelect.SendNode();
-            SunExpLog.Info("[EndlessSeaMap] slots applied from " + source + "; floor=" + floor + ".");
+            TerriasLog.Info("[EndlessSeaMap] slots applied from " + source + "; floor=" + floor + ".");
         }
     }
 
     private static bool ClearEditableSlots(MapSelectUI mapSelect, MapTree.Node[] nodes, HashSet<int> fixedSlots)
     {
         var changed = false;
-        var count = Math.Min(nodes.Length, SunExpIds.EndlessSeaLayerNodeCount);
+        var count = Math.Min(nodes.Length, TerriasIds.EndlessSeaLayerNodeCount);
         for (var slot = 0; slot < count; slot++)
         {
             if (fixedSlots.Contains(slot) || nodes[slot] == null)
@@ -137,7 +137,7 @@ public static class EndlessSeaMapViewPresenter
 
     public static void SetLayerTitle(MapSelectUI mapSelect, int floor)
     {
-        var title = SunExpIds.EndlessSeaTitle + " \u7b2c" + Math.Max(1, floor) + "\u5c42";
+        var title = TerriasIds.EndlessSeaTitle + " \u7b2c" + Math.Max(1, floor) + "\u5c42";
         SetTmpText(mapSelect.transform.Find("Title/Text/text"), title);
 
         var text = mapSelect.transform.Find("Title/Text/text")?.GetComponent<Text>();
@@ -155,7 +155,7 @@ public static class EndlessSeaMapViewPresenter
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessSeaMap] skipped slot apply from "
+            TerriasLog.Warn("[EndlessSeaMap] skipped slot apply from "
                 + source
                 + ": map nodes unavailable ("
                 + ex.GetType().Name
@@ -205,7 +205,7 @@ public static class EndlessSeaMapViewPresenter
             var template = mapSelect.transform.Find("MapSelect/" + prefabName);
             if (template == null)
             {
-                SunExpLog.Warn("[EndlessSeaMap] missing map prefab: " + prefabName);
+                TerriasLog.Warn("[EndlessSeaMap] missing map prefab: " + prefabName);
                 return;
             }
 
@@ -285,7 +285,7 @@ public static class EndlessSeaMapViewPresenter
             return root.Find("Start");
         }
 
-        if (slotIndex == SunExpIds.EndlessSeaBossSlotIndex)
+        if (slotIndex == TerriasIds.EndlessSeaBossSlotIndex)
         {
             return root.Find("End");
         }
@@ -330,10 +330,10 @@ public static class EndlessSeaMapViewPresenter
             return;
         }
 
-        var texture = SunExpResourceCache.Load<Texture>(BuildCardTemplatePath, true);
+        var texture = TerriasResourceCache.Load<Texture>(BuildCardTemplatePath, true);
         if (texture != null && !MapItemApi.ApplyCardBackgroundTexture(item, texture, hideIcon: false, out _))
         {
-            SunExpLog.Warn("[EndlessSeaMap] build card texture skipped, renderer missing.");
+            TerriasLog.Warn("[EndlessSeaMap] build card texture skipped, renderer missing.");
         }
     }
 

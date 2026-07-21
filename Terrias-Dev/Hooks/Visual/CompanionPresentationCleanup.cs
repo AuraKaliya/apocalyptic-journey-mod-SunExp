@@ -1,14 +1,14 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 
-namespace SunExp.Dll.Hooks.Visual;
+namespace Terrias.Dll.Hooks.Visual;
 
 internal static class CompanionPresentationCleanup
 {
-    private const string ProjectionProxyPrefix = "SunExp_ProjectionVisualProxy:";
-    private const string SpiritProxyPrefix = "SunExp_SpiritVisualProxy:";
+    private const string ProjectionProxyPrefix = "Terrias_ProjectionVisualProxy:";
+    private const string SpiritProxyPrefix = "Terrias_SpiritVisualProxy:";
 
     public static CompanionPresentationSuppression SuppressAll(string source)
     {

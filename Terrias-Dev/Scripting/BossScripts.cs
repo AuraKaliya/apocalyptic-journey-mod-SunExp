@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 
-namespace SunExp.Dll.Scripting;
+namespace Terrias.Dll.Scripting;
 
 public static class BossScripts
 {
@@ -33,19 +33,19 @@ public static class BossScripts
             switch (bossId)
             {
                 case "orbit_mirror_array":
-                    ApplyBossTraitBuff(self, SunExpIds.BossTraitMirrorArray);
+                    ApplyBossTraitBuff(self, TerriasIds.BossTraitMirrorArray);
                     break;
                 case "second_sun_last_day":
-                    ApplyBossTraitBuff(self, SunExpIds.BossTraitMercilessDaylight);
+                    ApplyBossTraitBuff(self, TerriasIds.BossTraitMercilessDaylight);
                     break;
                 case "saint_wuna":
-                    ApplyBossTraitBuff(self, SunExpIds.BossTraitWhiteRadianceSaint);
+                    ApplyBossTraitBuff(self, TerriasIds.BossTraitWhiteRadianceSaint);
                     break;
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Boss enemy init failed: " + bossId, ex);
+            TerriasLog.Error("Boss enemy init failed: " + bossId, ex);
         }
     }
 
@@ -56,19 +56,19 @@ public static class BossScripts
             switch (traitId)
             {
                 case "boss_trait_mirror_array":
-                    RegisterTraitStartRound(self, traitId, SunExpIds.BossTraitMirrorArray, TriggerMirrorArray);
+                    RegisterTraitStartRound(self, traitId, TerriasIds.BossTraitMirrorArray, TriggerMirrorArray);
                     break;
                 case "boss_trait_merciless_daylight":
-                    RegisterTraitStartRound(self, traitId, SunExpIds.BossTraitMercilessDaylight, TriggerMercilessDaylight);
+                    RegisterTraitStartRound(self, traitId, TerriasIds.BossTraitMercilessDaylight, TriggerMercilessDaylight);
                     break;
                 case "boss_trait_white_radiance_saint":
-                    RegisterTraitStartRound(self, traitId, SunExpIds.BossTraitWhiteRadianceSaint, TriggerWhiteRadianceSaint);
+                    RegisterTraitStartRound(self, traitId, TerriasIds.BossTraitWhiteRadianceSaint, TriggerWhiteRadianceSaint);
                     break;
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Boss trait apply failed: " + traitId, ex);
+            TerriasLog.Error("Boss trait apply failed: " + traitId, ex);
         }
     }
 
@@ -80,7 +80,7 @@ public static class BossScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Boss trait clear failed: " + traitId, ex);
+            TerriasLog.Error("Boss trait clear failed: " + traitId, ex);
         }
     }
 
@@ -95,7 +95,7 @@ public static class BossScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Boss card init failed: " + cardId, ex);
+            TerriasLog.Error("Boss card init failed: " + cardId, ex);
         }
     }
 
@@ -107,7 +107,7 @@ public static class BossScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Boss card target failed: " + target, ex);
+            TerriasLog.Error("Boss card target failed: " + target, ex);
         }
     }
 
@@ -120,15 +120,15 @@ public static class BossScripts
             {
                 case "mirror_calibration":
                     self.SetStatus("All");
-                    self.AddBuff(SunExpIds.Burn, "5");
+                    self.AddBuff(TerriasIds.Burn, "5");
                     self.SetStatus("Self");
                     self.ChangeDefence("10");
                     break;
                 case "orbit_refraction":
                     var target = ExecutorApi.PrimaryTarget(self);
-                    var hadBurn = ExecutorApi.StatusBuffLevel(target, SunExpIds.Burn) > 0;
+                    var hadBurn = ExecutorApi.StatusBuffLevel(target, TerriasIds.Burn) > 0;
                     ExecutorApi.DealDamageToTarget(self, target, 20);
-                    ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, 10);
+                    ExecutorApi.AddStatusBuff(self, target, TerriasIds.Burn, 10);
                     if (hadBurn)
                     {
                         ExecutorApi.TriggerBurn(self, target);
@@ -137,18 +137,18 @@ public static class BossScripts
                     break;
                 case "last_day_morning_prayer":
                     self.SetStatus("All");
-                    self.AddBuff(SunExpIds.Burn, "5");
+                    self.AddBuff(TerriasIds.Burn, "5");
                     self.SetStatus("Self");
-                    self.AddBuff(SunExpIds.GatheredFlame, "10");
+                    self.AddBuff(TerriasIds.GatheredFlame, "10");
                     break;
                 case "last_day_noon_burn":
                     var noonTarget = ExecutorApi.PrimaryTarget(self);
                     ExecutorApi.DealDamageToTarget(self, noonTarget, LastDayNoonDamage);
-                    if (ExecutorApi.StatusBuffLevel(noonTarget, SunExpIds.Burn) >= MercilessDaylightBurnThreshold)
+                    if (ExecutorApi.StatusBuffLevel(noonTarget, TerriasIds.Burn) >= MercilessDaylightBurnThreshold)
                     {
                         ExecutorApi.TriggerBurn(self, noonTarget);
                         ExecutorApi.AddStatusBuff(self, noonTarget, "buff_weak", LastDayNoonWeak);
-                        ExecutorApi.AddStatusBuff(self, noonTarget, SunExpIds.Cripple, LastDayNoonCripple);
+                        ExecutorApi.AddStatusBuff(self, noonTarget, TerriasIds.Cripple, LastDayNoonCripple);
                     }
 
                     break;
@@ -162,10 +162,10 @@ public static class BossScripts
                     UseSaintPurification(self);
                     break;
                 case "abyss_life_theft_intent":
-                    EndlessAbyssCurseService.AddCurseCardsToDeck(self, SunExpIds.AbyssLifeTheftCardId, 2);
+                    EndlessAbyssCurseService.AddCurseCardsToDeck(self, TerriasIds.AbyssLifeTheftCardId, 2);
                     break;
                 case "abyss_deficit_intent":
-                    EndlessAbyssCurseService.AddCurseCardsToDeck(self, SunExpIds.AbyssDeficitCardId, 2);
+                    EndlessAbyssCurseService.AddCurseCardsToDeck(self, TerriasIds.AbyssDeficitCardId, 2);
                     break;
                 default:
                     ExecutorApi.DealDamageToTarget(self, ExecutorApi.PrimaryTarget(self), 10);
@@ -179,7 +179,7 @@ public static class BossScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Boss card use failed: " + cardId, ex);
+            TerriasLog.Error("Boss card use failed: " + cardId, ex);
         }
     }
 
@@ -234,12 +234,12 @@ public static class BossScripts
 
     private static string TraitHookKey(string traitId)
     {
-        return "SunExpBossTrait_" + traitId + "Hook";
+        return "TerriasBossTrait_" + traitId + "Hook";
     }
 
     private static string TraitTokenKey(string traitId)
     {
-        return "SunExpBossTrait_" + traitId + "Token";
+        return "TerriasBossTrait_" + traitId + "Token";
     }
 
     private static void TriggerMirrorArray(ScriptExecutor self)
@@ -253,8 +253,8 @@ public static class BossScripts
         var burnTotal = 0;
         foreach (var target in targets)
         {
-            ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, MirrorArrayBurn);
-            burnTotal += ExecutorApi.StatusBuffLevel(target, SunExpIds.Burn);
+            ExecutorApi.AddStatusBuff(self, target, TerriasIds.Burn, MirrorArrayBurn);
+            burnTotal += ExecutorApi.StatusBuffLevel(target, TerriasIds.Burn);
         }
 
         if (burnTotal <= 0)
@@ -272,7 +272,7 @@ public static class BossScripts
         var burnTotal = 0;
         foreach (var target in targets)
         {
-            burnTotal += ExecutorApi.StatusBuffLevel(target, SunExpIds.Burn);
+            burnTotal += ExecutorApi.StatusBuffLevel(target, TerriasIds.Burn);
         }
 
         if (burnTotal < MercilessDaylightBurnThreshold)
@@ -288,7 +288,7 @@ public static class BossScripts
         {
             foreach (var target in targets)
             {
-                ExecutorApi.AddStatusBuff(self, target, SunExpIds.BodyBurn, MercilessDaylightBodyBurn);
+                ExecutorApi.AddStatusBuff(self, target, TerriasIds.BodyBurn, MercilessDaylightBodyBurn);
             }
 
             PlayerApi.ShowCaption("无名可焚，白昼转为焚身压力。");
@@ -297,10 +297,10 @@ public static class BossScripts
 
     private static void TriggerWhiteRadianceSaint(ScriptExecutor self)
     {
-        if (ExecutorApi.SelfBuffLevel(self, SunExpIds.BodyBurn) <= 0 && MoveSavedNameToBurned())
+        if (ExecutorApi.SelfBuffLevel(self, TerriasIds.BodyBurn) <= 0 && MoveSavedNameToBurned())
         {
             var shield = Math.Max(1, ExecutorApi.StatusMaxHp(self.Self) / 10);
-            AddSelfBuff(self, SunExpIds.SolarRadiance, WhiteRadianceSaintRadiance);
+            AddSelfBuff(self, TerriasIds.SolarRadiance, WhiteRadianceSaintRadiance);
             ChangeSelfDefence(self, shield);
             PlayerApi.ShowCaption("白曜圣女将一个保存名字焚尽。");
         }
@@ -330,9 +330,9 @@ public static class BossScripts
     {
         var target = ExecutorApi.PrimaryTarget(self);
         ExecutorApi.DealDamageToTarget(self, target, SaintPurificationDamage);
-        ExecutorApi.AddStatusBuff(self, target, SunExpIds.BodyBurn, SaintPurificationBodyBurn);
+        ExecutorApi.AddStatusBuff(self, target, TerriasIds.BodyBurn, SaintPurificationBodyBurn);
         ExecutorApi.RemoveAllPositiveBuffs(self, target);
-        AddSelfBuff(self, SunExpIds.SolarRadiance, SaintPurificationRadiance);
+        AddSelfBuff(self, TerriasIds.SolarRadiance, SaintPurificationRadiance);
         EnsureWhiteRadianceCoronation(self);
     }
 
@@ -341,7 +341,7 @@ public static class BossScripts
         ExecutorApi.DealDamageToTarget(self, ExecutorApi.PrimaryTarget(self), SaintReturnDamage);
         if (!MoveSavedNameToNameless())
         {
-            AddSelfBuff(self, SunExpIds.SolarRadiance, SaintReturnRadianceNoName);
+            AddSelfBuff(self, TerriasIds.SolarRadiance, SaintReturnRadianceNoName);
         }
 
         EnsureWhiteRadianceCoronation(self);
@@ -360,8 +360,8 @@ public static class BossScripts
 
     private static bool IsWhiteRadianceCrowned(ScriptExecutor self)
     {
-        return ExecutorApi.SelfBuffLevel(self, SunExpIds.BossWhiteRadianceCrown) > 0
-            || ExecutorApi.GetVar(self, "SunExpBossWhiteRadianceCrowned", "0") == "1";
+        return ExecutorApi.SelfBuffLevel(self, TerriasIds.BossWhiteRadianceCrown) > 0
+            || ExecutorApi.GetVar(self, "TerriasBossWhiteRadianceCrowned", "0") == "1";
     }
 
     private static bool EnsureWhiteRadianceCoronation(ScriptExecutor self)
@@ -371,12 +371,12 @@ public static class BossScripts
             return true;
         }
 
-        if (ExecutorApi.SelfBuffLevel(self, SunExpIds.SolarRadiance) < SaintCoronationRadianceThreshold)
+        if (ExecutorApi.SelfBuffLevel(self, TerriasIds.SolarRadiance) < SaintCoronationRadianceThreshold)
         {
             return false;
         }
 
-        ExecutorApi.SetVar(self, "SunExpBossWhiteRadianceCrowned", "1");
+        ExecutorApi.SetVar(self, "TerriasBossWhiteRadianceCrowned", "1");
         SetWhiteRadianceTier(self, 1);
         PlayerApi.ShowCaption("白曜圣女进入【圣冕显化·白曜】。");
         return true;
@@ -384,15 +384,15 @@ public static class BossScripts
 
     private static int WhiteRadianceTier(ScriptExecutor self)
     {
-        return Math.Max(0, ExecutorApi.SelfBuffLevel(self, SunExpIds.BossWhiteRadianceCrown));
+        return Math.Max(0, ExecutorApi.SelfBuffLevel(self, TerriasIds.BossWhiteRadianceCrown));
     }
 
     private static int SetWhiteRadianceTier(ScriptExecutor self, int tier)
     {
         var next = Math.Max(1, Math.Min(SaintCrownMaxTier, tier));
         self.SetStatus("Self");
-        self.RemoveBuff(SunExpIds.BossWhiteRadianceCrown);
-        self.AddBuff(SunExpIds.BossWhiteRadianceCrown, next.ToString());
+        self.RemoveBuff(TerriasIds.BossWhiteRadianceCrown);
+        self.AddBuff(TerriasIds.BossWhiteRadianceCrown, next.ToString());
         return next;
     }
 
@@ -404,10 +404,10 @@ public static class BossScripts
             return;
         }
 
-        AddSelfBuff(self, SunExpIds.Extraordinary, tier * SaintCrownExtraordinaryPerTier);
+        AddSelfBuff(self, TerriasIds.Extraordinary, tier * SaintCrownExtraordinaryPerTier);
         foreach (var target in ExecutorApi.EnemyTargets(self))
         {
-            ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, tier, "AllTarget");
+            ExecutorApi.AddStatusBuff(self, target, TerriasIds.Burn, tier, "AllTarget");
         }
 
         if (tier >= 1)
@@ -415,7 +415,7 @@ public static class BossScripts
             var negativeTotal = ExecutorApi.NegativeBuffTotal(self.Self);
             if (negativeTotal > 0 && ExecutorApi.RemoveAllNegativeBuffs(self, self.Self))
             {
-                AddSelfBuff(self, SunExpIds.Ember, negativeTotal);
+                AddSelfBuff(self, TerriasIds.Ember, negativeTotal);
             }
         }
 
@@ -437,17 +437,17 @@ public static class BossScripts
 
     private static void AddWhiteRadianceExtraAction(ScriptExecutor self)
     {
-        if (ExecutorApi.GetVar(self, "SunExpBossWhiteRadianceExtraActionQueued", "0") == "1")
+        if (ExecutorApi.GetVar(self, "TerriasBossWhiteRadianceExtraActionQueued", "0") == "1")
         {
             return;
         }
 
-        if (ExecutorApi.AddEnemyAction(self, SunExpIds.EnemyCardSaintWhiteEdict))
+        if (ExecutorApi.AddEnemyAction(self, TerriasIds.EnemyCardSaintWhiteEdict))
         {
-            ExecutorApi.SetVar(self, "SunExpBossWhiteRadianceExtraActionQueued", "1");
+            ExecutorApi.SetVar(self, "TerriasBossWhiteRadianceExtraActionQueued", "1");
             ExecutorApi.TryAddTempEvent(self, "EndRound", new Action(() =>
             {
-                ExecutorApi.SetVar(self, "SunExpBossWhiteRadianceExtraActionQueued", "0");
+                ExecutorApi.SetVar(self, "TerriasBossWhiteRadianceExtraActionQueued", "0");
             }), "boss_white_radiance_extra_action");
         }
     }
@@ -487,8 +487,8 @@ public static class BossScripts
     {
         var statusId = PlayerApi.LocalPlayerStatusId();
         return string.IsNullOrWhiteSpace(statusId)
-            ? "SunExpBossWhiteRadianceAnnihilatedThisRound_Local"
-            : "SunExpBossWhiteRadianceAnnihilatedThisRound_" + statusId;
+            ? "TerriasBossWhiteRadianceAnnihilatedThisRound_Local"
+            : "TerriasBossWhiteRadianceAnnihilatedThisRound_" + statusId;
     }
 
     private static List<IDataConfig> BuildAnnihilationPool(ScriptExecutor self)

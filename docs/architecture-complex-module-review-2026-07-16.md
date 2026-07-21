@@ -1,13 +1,13 @@
-# Aura/SunExp 复杂模块拆分评审
+# Aura/Terrias 复杂模块拆分评审
 
-> 评审日期：2026-07-16  
-> 评审状态：当前实现基线  
-> 评审范围：`AuraSharedCore`、Aura 共享领域组件、`SunExp-Dev`、`AuraToolsExp-Dev`  
+> 评审日期：2026-07-16
+> 评审状态：当前实现基线
+> 评审范围：`AuraSharedCore`、Aura 共享领域组件、`Terrias-Dev`、`AuraToolsExp-Dev`
 > 评审目的：判断复杂模块是否已经达到职责清晰、依赖单向、可独立测试和可安全演进的健康程度
 
 ## 1. 结论
 
-当前架构已经形成健康的宏观依赖方向：Aura 核心层与共享领域层位于底部，SunExp 内容 MOD 与 AuraToolsExp 工具 MOD 是互不依赖的兄弟消费者。共享所有权、初始化隔离、资源注册和发布门禁也已经建立。
+当前架构已经形成健康的宏观依赖方向：Aura 核心层与共享领域层位于底部，Terrias 内容 MOD 与 AuraToolsExp 工具 MOD 是互不依赖的兄弟消费者。共享所有权、初始化隔离、资源注册和发布门禁也已经建立。
 
 复杂模块内部的拆分尚未达到长期健康状态。共享 CG、共享音频、Solar Memory、AuraTools DamageMeter 和 AuraTools StarterDeck 仍存在职责聚合过多的协调器或运行时。它们可以继续开发，但修改成本、回归面和测试难度会随功能增长明显上升。
 
@@ -16,11 +16,11 @@
 | 维度 | 结论 | 说明 |
 | --- | --- | --- |
 | 宏观分层 | 健康 | Core/Shared -> Content/Tool 依赖方向稳定 |
-| 跨 MOD 所有权 | 健康 | SunExp 与 AuraToolsExp 无直接项目或源码依赖 |
+| 跨 MOD 所有权 | 健康 | Terrias 与 AuraToolsExp 无直接项目或源码依赖 |
 | 初始化组织 | 健康 | Entry/RuntimeHooks 使用隔离步骤初始化 |
 | Core 内部拆分 | 基本健康 | 存储、注册、缓存、Hook、调度和后台工作已有独立模块 |
 | 共享领域运行时拆分 | 不足 | CG、Audio、BGM 等仍存在大型单文件运行时 |
-| SunExp 复杂业务拆分 | 部分健康 | 已有多个服务和 Runtime，但 Solar Memory 主运行时仍聚合多条流程 |
+| Terrias 复杂业务拆分 | 部分健康 | 已有多个服务和 Runtime，但 Solar Memory 主运行时仍聚合多条流程 |
 | AuraToolsExp 功能拆分 | 部分健康 | DamageMeter 已有子域，但主 Runtime 仍承担捕获、生命周期和历史处理 |
 | 测试对拆分的支持 | 不足 | 大量源码字符串断言保护结构，但缺少可支撑重构的纯行为测试 |
 
@@ -46,7 +46,7 @@
 
 | 区域 | C# 文件数 | 超过 500 行 | 超过 800 行 | 超过 1200 行 |
 | --- | ---: | ---: | ---: | ---: |
-| SunExp-Dev | 399 | 35 | 17 | 4 |
+| Terrias-Dev | 399 | 35 | 17 | 4 |
 | AuraToolsExp-Dev | 76 | 15 | 9 | 7 |
 | Aura Core/Shared | 116 | 18 | 7 | 6 |
 
@@ -71,13 +71,13 @@ AuraToolsExp 的大型文件占比最高；共享层的大型文件数量较少�
 
 ### 4.1 内容 MOD 与工具 MOD 的依赖方向
 
-`SunExp-Dev/SunExp.Dll.csproj` 与 `AuraToolsExp-Dev/AuraToolsExp.Dll.csproj` 都引用 `AuraSharedRuntime-Dev/Aura.Shared.csproj`，两者没有互相引用。源码中也没有 AuraToolsExp 导入 SunExp 内部命名空间或 SunExp 导入 AuraToolsExp 内部命名空间的情况。
+`Terrias-Dev/Terrias.Dll.csproj` 与 `AuraToolsExp-Dev/AuraToolsExp.Dll.csproj` 都引用 `AuraSharedRuntime-Dev/Aura.Shared.csproj`，两者没有互相引用。源码中也没有 AuraToolsExp 导入 Terrias 内部命名空间或 Terrias 导入 AuraToolsExp 内部命名空间的情况。
 
 这证明当前 `共享层/核心层 -> 内容 MOD/工具 MOD` 的主架构方向是成立的。
 
 ### 4.2 初始化组合根
 
-`SunExp-Dev/Entry.cs`、`SunExp-Dev/Hooks/RuntimeHooks.cs` 和 `AuraToolsExp-Dev/Entry.cs` 使用命名步骤隔离初始化失败。单个功能初始化失败不会直接中断后续无关模块。
+`Terrias-Dev/Entry.cs`、`Terrias-Dev/Hooks/RuntimeHooks.cs` 和 `AuraToolsExp-Dev/Entry.cs` 使用命名步骤隔离初始化失败。单个功能初始化失败不会直接中断后续无关模块。
 
 这类组合根可以继续保持集中，因为它们只声明启动顺序和错误边界，不应承载具体业务实现。
 
@@ -149,7 +149,7 @@ AuraSkinShared 已形成 `Models`、`GameApi`、`Hooks`、`Mechanics`、`Service
 
 ### 5.3 SolarMemoryModeRuntime
 
-`SunExp-Dev/Hooks/SolarMemoryModeRuntime.cs` 当前承担五类职责：
+`Terrias-Dev/Hooks/SolarMemoryModeRuntime.cs` 当前承担五类职责：
 
 1. 注册宿主 Hook 和模式入口。
 2. 重写地图、生成固定节点和修改地图 UI。
@@ -257,7 +257,7 @@ Blessing Picker、Starter Deck Window、Dimension Shop Native Skin 等大型 UI 
 典型影响：
 
 - 把 `RpcAudioPresentationRequest` 移出 `AudioArbiterRuntime.cs` 会触发测试失败，即使行为和公共 API 完全不变；
-- 把 Solar Memory 方法移入 Mechanics 会要求同步修改大量 `Test-SunExpArchitecture.ps1` 变量和字符串断言；
+- 把 Solar Memory 方法移入 Mechanics 会要求同步修改大量 `Test-TerriasArchitecture.ps1` 变量和字符串断言；
 - Unity 运行时的 resolver、去重、状态迁移和 fallback 仍缺少等价的行为测试。
 
 拆分前应补充以下测试面：
@@ -308,14 +308,14 @@ Blessing Picker、Starter Deck Window、Dimension Shop Native Skin 等大型 UI 
 
 每个拆分批次必须满足：
 
-1. SunExp 与 AuraToolsExp 仍无直接项目或源码依赖。
-2. Shared/Core 不出现 SunExp 或 AuraToolsExp 业务 ID 和策略。
+1. Terrias 与 AuraToolsExp 仍无直接项目或源码依赖。
+2. Shared/Core 不出现 Terrias 或 AuraToolsExp 业务 ID 和策略。
 3. 公共 API、序列化字段、RPC command 类型和嵌套全局组件身份保持兼容；语义确实变化时才升级 BuildId/ProtocolVersion。
 4. Facade/Runtime 只负责初始化、协调和委托，不重新复制提取后的实现。
 5. 纯 resolver/policy/service 不依赖 Unity、Witch UI 或 ModHookContext。
 6. 所有队列、缓存、provider、coroutine 和网络去重状态都有明确 owner 与清理生命周期。
 7. `Aura.Shared.dll` 在所有打包消费者中保持哈希一致。
-8. SunExp 架构测试、SunExp C# 测试、AuraToolsExp 测试、AuraSharedCore 测试和共享发布门禁全部通过。
+8. Terrias 架构测试、Terrias C# 测试、AuraToolsExp 测试、AuraSharedCore 测试和共享发布门禁全部通过。
 9. 不以新增全局静态状态或反射调用作为模块拆分手段。
 10. 性能计数、backlog、缓存估算和关键错误日志不因重构丢失。
 

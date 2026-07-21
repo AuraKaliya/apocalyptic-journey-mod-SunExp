@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class TargetApi
 {
@@ -140,7 +140,7 @@ public static class TargetApi
     public static IStatusManager? RandomEnemyTarget(ScriptExecutor? executor, bool requireBurn)
     {
         var candidates = EnemyTargets(executor)
-            .Where(target => !requireBurn || BuffApi.Level(target, SunExpIds.Burn) > 0)
+            .Where(target => !requireBurn || BuffApi.Level(target, TerriasIds.Burn) > 0)
             .ToList();
         return candidates.Count == 0 ? null : candidates[UnityEngine.Random.Range(0, candidates.Count)];
     }
@@ -181,7 +181,7 @@ public static class TargetApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("Primary target unavailable while resolving script display: " + ex.Message);
+            TerriasLog.Debug("Primary target unavailable while resolving script display: " + ex.Message);
             return null;
         }
 
@@ -211,7 +211,7 @@ public static class TargetApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("Primary target unavailable while resolving script display: " + ex.Message);
+            TerriasLog.Debug("Primary target unavailable while resolving script display: " + ex.Message);
         }
 
         return executor.Object?.FirstOrDefault(target => target != null) ?? executor.Self;

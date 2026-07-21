@@ -2,13 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using AuraShared.Core;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class ColumbinaRuntime
 {
@@ -17,19 +17,19 @@ public static class ColumbinaRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
-        SunExpHookRegistry.Before(
+        TerriasHookRegistry.Before(
             modConfig,
             "BuffItem.Init",
             OnBuffItemInitializing,
             "ConstellationPresentation");
-        SunExpActionEventRouter.RegisterHandler("Columbina", null, OnActionAfter);
-        SunExpBattleLifecycleRouter.Register("Columbina", new SunExpBattleLifecycleSubscription
+        TerriasActionEventRouter.RegisterHandler("Columbina", null, OnActionAfter);
+        TerriasBattleLifecycleRouter.Register("Columbina", new TerriasBattleLifecycleSubscription
         {
             FightStarted = _ => OnFightStarted(),
             PlayerRoundStarted = _ => OnPlayerRoundStarted(),
             FightEnded = _ => OnFightEnded()
         });
-        SunExpCardLifecycleRouter.Register("Columbina.CardGain", new SunExpCardLifecycleSubscription
+        TerriasCardLifecycleRouter.Register("Columbina.CardGain", new TerriasCardLifecycleSubscription
         {
             AfterScriptExecutorGetCardFromDeck = OnCardsGained,
             AfterScriptExecutorRandomAddCard = OnCardGained,
@@ -49,7 +49,7 @@ public static class ColumbinaRuntime
             return;
         }
 
-        SunExpActionEventRouter.EnsureRegistered("Columbina.FightStarted");
+        TerriasActionEventRouter.EnsureRegistered("Columbina.FightStarted");
         ColumbinaBattleStateService.BeginBattle();
         ConstellationService.RestoreLocalForBattle("ColumbinaRuntime.FightStarted");
         ConstellationService.SynchronizeBattleState("ColumbinaRuntime.FightStarted");
@@ -73,8 +73,8 @@ public static class ColumbinaRuntime
     {
         if (ColumbinaPassiveService.IsActive(FightPlayer.Instance?.Status))
         {
-            ReduceCooldown(SunExpIds.ColumbinaEternalTideCardId, 1);
-            ReduceCooldown(SunExpIds.ColumbinaHomesicknessCardId, 1);
+            ReduceCooldown(TerriasIds.ColumbinaEternalTideCardId, 1);
+            ReduceCooldown(TerriasIds.ColumbinaHomesicknessCardId, 1);
         }
 
         ConstellationService.ResolveLocalRoundStart();
@@ -160,7 +160,7 @@ public static class ColumbinaRuntime
             return;
         }
 
-        ReduceCooldown(SunExpIds.ColumbinaHomesicknessCardId, Math.Max(1, count));
+        ReduceCooldown(TerriasIds.ColumbinaHomesicknessCardId, Math.Max(1, count));
     }
 
     private static void ReduceCooldown(string skillId, int amount)

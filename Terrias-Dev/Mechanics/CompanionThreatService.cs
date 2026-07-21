@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 [Serializable]
 public sealed class CompanionThreatSnapshot
@@ -48,7 +48,7 @@ public static class CompanionThreatService
             Threats[state.StatusId] = new CompanionThreatState(state.StatusId, 0);
         }
 
-        SunExpPerformanceCounters.Record("Companion.Threat.Registered");
+        TerriasPerformanceCounters.Record("Companion.Threat.Registered");
     }
 
     /// <summary>Compatibility overload. Projections no longer derive threat from HP, armor, attack, or magic.</summary>
@@ -71,7 +71,7 @@ public static class CompanionThreatService
                 0);
         }
 
-        SunExpPerformanceCounters.Record("Companion.Threat.Registered");
+        TerriasPerformanceCounters.Record("Companion.Threat.Registered");
     }
 
     public static void Remove(string? statusId)
@@ -302,7 +302,7 @@ public static class CompanionThreatService
             MarkOwnerTargeted(candidate.Status.InstanceId);
             if (changed)
             {
-                SunExpPerformanceCounters.Record("Companion.Threat.RedirectedToOwner");
+                TerriasPerformanceCounters.Record("Companion.Threat.RedirectedToOwner");
             }
             return changed;
         }

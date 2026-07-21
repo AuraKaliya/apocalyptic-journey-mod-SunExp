@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using Network.Command;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 
-namespace SunExp.Dll.Network;
+namespace Terrias.Dll.Network;
 
 /// <summary>
 /// A sender-bound request to advance one constellation tier. The client never
@@ -12,9 +12,9 @@ namespace SunExp.Dll.Network;
 /// per-owner state, then broadcasts the accepted snapshot in this command.
 /// </summary>
 [Serializable]
-public sealed class RpcConstellationStateCommit : RpcCommandBase, ISunExpServerBoundRpcCommand
+public sealed class RpcConstellationStateCommit : RpcCommandBase, ITerriasServerBoundRpcCommand
 {
-    private SunExpRpcSender serverSender = SunExpRpcSender.Unbound;
+    private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 
     public int ProtocolVersion { get; set; } = ConstellationStateSnapshot.CurrentProtocolVersion;
     public int Token { get; set; }
@@ -25,9 +25,9 @@ public sealed class RpcConstellationStateCommit : RpcCommandBase, ISunExpServerB
     public bool Accepted { get; set; }
     public string RejectionReason { get; set; } = "";
 
-    public void BindServerSender(SunExpRpcSender sender)
+    public void BindServerSender(TerriasRpcSender sender)
     {
-        serverSender = sender ?? SunExpRpcSender.Unbound;
+        serverSender = sender ?? TerriasRpcSender.Unbound;
     }
 
     public override void CmdExecute()
@@ -51,7 +51,7 @@ public sealed class RpcConstellationStateCommit : RpcCommandBase, ISunExpServerB
         {
             if (!string.IsNullOrWhiteSpace(RejectionReason))
             {
-                SunExpLog.Warn("[ConstellationSync] light-up rejected; token="
+                TerriasLog.Warn("[ConstellationSync] light-up rejected; token="
                     + Token
                     + "; reason="
                     + RejectionReason
@@ -75,9 +75,9 @@ public sealed class RpcConstellationStateCommit : RpcCommandBase, ISunExpServerB
 /// the server always captures the response from its own state table.
 /// </summary>
 [Serializable]
-public sealed class RpcConstellationRosterSnapshot : RpcCommandBase, ISunExpServerBoundRpcCommand
+public sealed class RpcConstellationRosterSnapshot : RpcCommandBase, ITerriasServerBoundRpcCommand
 {
-    private SunExpRpcSender serverSender = SunExpRpcSender.Unbound;
+    private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 
     public int ProtocolVersion { get; set; } = ConstellationStateSnapshot.CurrentProtocolVersion;
     public string RequestOwnerStatusId { get; set; } = "";
@@ -87,9 +87,9 @@ public sealed class RpcConstellationRosterSnapshot : RpcCommandBase, ISunExpServ
     public bool Accepted { get; set; }
     public string RejectionReason { get; set; } = "";
 
-    public void BindServerSender(SunExpRpcSender sender)
+    public void BindServerSender(TerriasRpcSender sender)
     {
-        serverSender = sender ?? SunExpRpcSender.Unbound;
+        serverSender = sender ?? TerriasRpcSender.Unbound;
     }
 
     public override void CmdExecute()
@@ -119,7 +119,7 @@ public sealed class RpcConstellationRosterSnapshot : RpcCommandBase, ISunExpServ
         {
             if (!string.IsNullOrWhiteSpace(RejectionReason))
             {
-                SunExpLog.Warn("[ConstellationSync] roster rejected: " + RejectionReason + ".");
+                TerriasLog.Warn("[ConstellationSync] roster rejected: " + RejectionReason + ".");
             }
 
             return;
@@ -130,12 +130,12 @@ public sealed class RpcConstellationRosterSnapshot : RpcCommandBase, ISunExpServ
 
     public static bool Request(IStatusManager? status, string roleId, string source)
     {
-        if (status == null || !SunExpNetworkRuntime.IsClientOnly())
+        if (status == null || !TerriasNetworkRuntime.IsClientOnly())
         {
             return false;
         }
 
-        return SunExpNetworkRuntime.Send(new RpcConstellationRosterSnapshot
+        return TerriasNetworkRuntime.Send(new RpcConstellationRosterSnapshot
         {
             RequestOwnerStatusId = status.InstanceId ?? "",
             RequestRoleId = roleId ?? ""
@@ -144,14 +144,14 @@ public sealed class RpcConstellationRosterSnapshot : RpcCommandBase, ISunExpServ
 
     public static bool Broadcast(string source)
     {
-        if (SunExpNetworkRuntime.IsClientOnly() || !SunExpNetworkRuntime.HasRemotePlayers())
+        if (TerriasNetworkRuntime.IsClientOnly() || !TerriasNetworkRuntime.HasRemotePlayers())
         {
             return false;
         }
 
         var command = new RpcConstellationRosterSnapshot();
-        command.BindServerSender(SunExpRpcAuthorityRuntime.CreateLocalServerSender(source));
-        return SunExpNetworkRuntime.Send(command, source ?? "Constellation.RosterBroadcast");
+        command.BindServerSender(TerriasRpcAuthorityRuntime.CreateLocalServerSender(source));
+        return TerriasNetworkRuntime.Send(command, source ?? "Constellation.RosterBroadcast");
     }
 }
 
@@ -160,9 +160,9 @@ public sealed class RpcConstellationRosterSnapshot : RpcCommandBase, ISunExpServ
 /// real FightPlayer status, avoiding mutations of remote status projections.
 /// </summary>
 [Serializable]
-public sealed class RpcConstellationRoundReward : RpcCommandBase, ISunExpServerBoundRpcCommand
+public sealed class RpcConstellationRoundReward : RpcCommandBase, ITerriasServerBoundRpcCommand
 {
-    private SunExpRpcSender serverSender = SunExpRpcSender.Unbound;
+    private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 
     public ConstellationRoundRewardEvent Reward { get; set; } = new();
     public bool Accepted { get; set; }
@@ -177,9 +177,9 @@ public sealed class RpcConstellationRoundReward : RpcCommandBase, ISunExpServerB
         Reward = reward ?? new ConstellationRoundRewardEvent();
     }
 
-    public void BindServerSender(SunExpRpcSender sender)
+    public void BindServerSender(TerriasRpcSender sender)
     {
-        serverSender = sender ?? SunExpRpcSender.Unbound;
+        serverSender = sender ?? TerriasRpcSender.Unbound;
     }
 
     public override void CmdExecute()
@@ -194,7 +194,7 @@ public sealed class RpcConstellationRoundReward : RpcCommandBase, ISunExpServerB
         {
             if (!string.IsNullOrWhiteSpace(RejectionReason))
             {
-                SunExpLog.Warn("[ConstellationSync] round reward rejected: " + RejectionReason + ".");
+                TerriasLog.Warn("[ConstellationSync] round reward rejected: " + RejectionReason + ".");
             }
 
             return;

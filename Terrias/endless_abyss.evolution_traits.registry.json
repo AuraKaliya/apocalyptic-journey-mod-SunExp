@@ -30,7 +30,7 @@
         { "buffId": "SpecialBuff_TrialsOfWisdom", "weight": 1 },
         { "buffId": "SpecialBuff_BackToBasics", "weight": 1 },
         { "buffId": "SpecialBuff_Transcendent", "weight": 1 },
-        { "buffId": "SunExp_sunexp_boss_trait_mirror_array", "weight": 1 }
+        { "buffId": "Terrias_terrias_boss_trait_mirror_array", "weight": 1 }
       ]
     }
   ]

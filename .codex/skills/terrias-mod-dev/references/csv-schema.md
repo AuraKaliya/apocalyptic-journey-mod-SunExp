@@ -5,9 +5,9 @@ Use this reference when adding or editing Data/Text rows. The first row is the s
 ## ID rules
 
 - Game-loaded mod IDs are composed as `ModName_FileName_Id`.
-- For SunExp rows in `sunexp.csv`, the full runtime ID is usually `SunExp_sunexp_<Id>`.
-- For role-specific files such as `wuna.csv`, the full runtime ID uses the file stem, for example `SunExp_wuna_<Id>`.
-- Use full IDs when scripts reference SunExp content.
+- For Terrias rows in `terrias.csv`, the full runtime ID is usually `Terrias_terrias_<Id>`.
+- For role-specific files such as `wuna.csv`, the full runtime ID uses the file stem, for example `Terrias_wuna_<Id>`.
+- Use full IDs when scripts reference Terrias content.
 - An ID starting with `*` is normally excluded from random pools. Prefer this
   for generated, removed, or hidden reward-pool rows that still need a data row.
 - Do not hide Card, Relic, Buff, Blessing, or EnchTag rows by changing
@@ -16,7 +16,7 @@ Use this reference when adding or editing Data/Text rows. The first row is the s
 
 ## Card
 
-`SunExp/Data/Card/*.csv` fields:
+`Terrias/Data/Card/*.csv` fields:
 
 - `Id`: local card id.
 - `Rarity`: rarity number.
@@ -26,12 +26,12 @@ Use this reference when adding or editing Data/Text rows. The first row is the s
 - `DrawScript`: runs when drawn.
 - `UseScript`: runs when used.
 - `DropScript`: runs when entering discard.
-- `Icon`: resource path without file extension in current SunExp style.
+- `Icon`: resource path without file extension in current Terrias style.
 - `Effects`: effect path.
 - `Action`: usually `Attack` for attack cards.
 - `PackBelong`: full card-pack id.
 
-`SunExp/Text/Card/*.csv` fields include `Type`, `Name`, localized names, and localized descriptions.
+`Terrias/Text/Card/*.csv` fields include `Type`, `Name`, localized names, and localized descriptions.
 
 Required card checks:
 
@@ -43,7 +43,7 @@ Required card checks:
 
 ## Buff
 
-`SunExp/Data/Buff/*.csv` fields:
+`Terrias/Data/Buff/*.csv` fields:
 
 - `InitScript`: display setup.
 - `ApplyScript`: runs when Buff is applied.
@@ -56,7 +56,7 @@ Use Buffs for persistent effects and event hooks. Pair event registration with c
 
 ## Relic
 
-`SunExp/Data/Relic/*.csv` fields:
+`Terrias/Data/Relic/*.csv` fields:
 
 - `Rarity`
 - `OwnScript`: when acquired.
@@ -67,7 +67,7 @@ Use Buffs for persistent effects and event hooks. Pair event registration with c
 When a relic's displayed state can change, expose that update through the C#
 relic script or a supporting wrapper instead of inline CSV logic.
 
-`SunExp/Text/Relic/*.csv` includes display text fields for relic names, descriptions, and tags. `Text/Relic.Tag` can be appended by UI display paths; keep it blank unless a visible relic label is intentionally needed. It is not the same as `Data/Relic.PackBelong` or any logic script field.
+`Terrias/Text/Relic/*.csv` includes display text fields for relic names, descriptions, and tags. `Text/Relic.Tag` can be appended by UI display paths; keep it blank unless a visible relic label is intentionally needed. It is not the same as `Data/Relic.PackBelong` or any logic script field.
 
 ## CardPack
 

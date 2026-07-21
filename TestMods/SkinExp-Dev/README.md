@@ -6,7 +6,7 @@ SkinExp is a thin local-cosmetic consumer of `AuraSkinShared`. Its bundled `care
 Production behavior lives in `TestMods/SkinExp/Scripts/Entry.dll`. Shared runtime behavior, package installation,
 deduplication, selection persistence, redirects, and UI hooks live in `AuraSkinShared`.
 
-WuNa skins are owned and published by SunExp. SkinExp no longer carries or directly scans them. All consumers read only
+WuNa skins are owned and published by Terrias. SkinExp no longer carries or directly scans them. All consumers read only
 the persistent shared skin directory, so an installed skin remains discoverable across restarts without its original
 provider being loaded again.
 

@@ -1,7 +1,7 @@
 using System;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 internal sealed class SolarMemoryMapSelectionReplacement
 {
@@ -20,8 +20,8 @@ internal static class SolarMemoryContentIsolationService
 {
     public static bool RequiresReplacement(string? mapId, string? nodeId)
     {
-        return SunExpIds.IsSolarMemoryExclusiveMapId(mapId)
-               || SunExpIds.IsSolarMemoryExclusiveEventId(nodeId);
+        return TerriasIds.IsSolarMemoryExclusiveMapId(mapId)
+               || TerriasIds.IsSolarMemoryExclusiveEventId(nodeId);
     }
 
     public static int SanitizeSelectionArrays(

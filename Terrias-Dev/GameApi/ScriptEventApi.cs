@@ -1,7 +1,7 @@
 using System;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class ScriptEventApi
 {
@@ -58,7 +58,7 @@ public static class ScriptEventApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("TryAddEvent skipped: " + context + ", event=" + eventName + ", error=" + ex.Message);
+            TerriasLog.Debug("TryAddEvent skipped: " + context + ", event=" + eventName + ", error=" + ex.Message);
             return false;
         }
     }
@@ -94,7 +94,7 @@ public static class ScriptEventApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("TryAddEvent<T> skipped: " + context + ", event=" + eventName + ", error=" + ex.Message);
+            TerriasLog.Debug("TryAddEvent<T> skipped: " + context + ", event=" + eventName + ", error=" + ex.Message);
             return false;
         }
     }
@@ -118,7 +118,7 @@ public static class ScriptEventApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("TryAddOwnedEventListener skipped: " + context + ", event=" + eventName + ", error=" + ex.Message);
+            TerriasLog.Debug("TryAddOwnedEventListener skipped: " + context + ", event=" + eventName + ", error=" + ex.Message);
             return false;
         }
     }
@@ -137,7 +137,7 @@ public static class ScriptEventApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("TryAddTempEvent skipped: " + context + ", event=" + eventName + ", error=" + ex.Message);
+            TerriasLog.Debug("TryAddTempEvent skipped: " + context + ", event=" + eventName + ", error=" + ex.Message);
             return false;
         }
     }

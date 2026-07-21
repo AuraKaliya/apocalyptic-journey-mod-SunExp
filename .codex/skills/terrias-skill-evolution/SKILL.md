@@ -1,13 +1,13 @@
 ---
-name: sunexp-skill-evolution
-description: Project-local skill for distilling SunExp development traces into durable Codex skill updates, including analyzing recent commits, test failures, manual debugging lessons, user corrections, validation gaps, architecture drift, stale old-repository or retired-workflow anchors, reference restructuring, trigger tuning, and iterative improvement of project-local skills under .codex/skills.
+name: terrias-skill-evolution
+description: Project-local skill for distilling Terrias development traces into durable Codex skill updates, including analyzing recent commits, test failures, manual debugging lessons, user corrections, validation gaps, architecture drift, stale old-repository or retired-workflow anchors, reference restructuring, trigger tuning, and iterative improvement of project-local skills under .codex/skills.
 ---
 
-# SunExp Skill Evolution
+# Terrias Skill Evolution
 
 Use this skill when the user asks to update, distill, refactor, rename, or
 iterate the repository skills. Pair it with `skill-creator` and the affected
-SunExp skill bodies.
+Terrias skill bodies.
 
 The goal is to convert repeated development lessons into stable, low-noise
 procedural knowledge. Prefer tests or scripts for fragile invariants and
@@ -16,7 +16,7 @@ references for detailed context.
 ## Workflow
 
 1. Collect evidence:
-   - recent commits: `git log --oneline -n 20 -- .codex/skills SunExp-Dev SunExp tools docs`
+   - recent commits: `git log --oneline -n 20 -- .codex/skills Terrias-Dev Terrias tools docs`
    - changed files and tests from relevant commits;
    - current validation failures or manual debugging notes;
    - user corrections and repeated assistant mistakes.
@@ -37,8 +37,8 @@ references for detailed context.
    packet or patch proposal for a skill update. Use
    `references/stale-anchor-registry.md` when recording old repository roots,
    old decompile folders, retired content ids, or other historical anchors.
-5. Audit for stale SunExp anchors before and after editing:
-   - run `scripts/audit-sunexp-skill-staleness.ps1`;
+5. Audit for stale Terrias anchors before and after editing:
+   - run `scripts/audit-terrias-skill-staleness.ps1`;
    - remove or quarantine references to retired project roots, old mode names,
      retired data-only workflows, and obsolete implementation assumptions;
    - preserve compatibility notes only when they are explicitly labeled as
@@ -56,7 +56,7 @@ references for detailed context.
   regression.
 - Do not promote memory-derived or old-repository facts into current skills
   without verifying them against this repository.
-- Treat retired data-only SunExp workflows, retired project roots, and renamed
+- Treat retired data-only Terrias workflows, retired project roots, and renamed
   mode names as stale by default. Keep them only inside an explicit migration or
   archaeology note.
 - Keep old docs, old content ids, old decompile-folder versions, and historical
@@ -67,7 +67,7 @@ references for detailed context.
 - Keep old skill names stable unless the user explicitly approves a migration
   or the old directory can remain as a compatibility route.
 - When renaming toward a generic Witch mod skill, first create the generic
-  target and keep SunExp-specific skill names as forwarding/project aliases
+  target and keep Terrias-specific skill names as forwarding/project aliases
   until triggers prove stable.
 
 ## Review Checklist
@@ -85,7 +85,7 @@ references for detailed context.
 Run:
 
 ```powershell
- .codex\skills\sunexp-skill-evolution\scripts\audit-sunexp-skill-staleness.ps1
+ .codex\skills\terrias-skill-evolution\scripts\audit-terrias-skill-staleness.ps1
 python C:\Users\75601\.codex\skills\.system\skill-creator\scripts\quick_validate.py .codex\skills\<skill-name>
 ```
 

@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public sealed class DifficultyFieldCandidate
 {
-    public DifficultyFieldCandidate(string hardTagId, SunExpFieldId field, int stacks)
+    public DifficultyFieldCandidate(string hardTagId, TerriasFieldId field, int stacks)
     {
         HardTagId = hardTagId ?? "";
         Field = field;
@@ -16,7 +16,7 @@ public sealed class DifficultyFieldCandidate
 
     public string HardTagId { get; }
 
-    public SunExpFieldId Field { get; }
+    public TerriasFieldId Field { get; }
 
     public int Stacks { get; }
 }
@@ -29,21 +29,21 @@ public static class DifficultyFieldPoolService
         new[]
         {
             new DifficultyFieldSourceDefinition(
-                SunExpHardTagIds.ScorchedWorld,
-                SunExpFieldId.ScorchingCanopy),
+                TerriasHardTagIds.ScorchedWorld,
+                TerriasFieldId.ScorchingCanopy),
             new DifficultyFieldSourceDefinition(
-                SunExpHardTagIds.SamsaraGarden,
-                SunExpFieldId.SamsaraGarden)
+                TerriasHardTagIds.SamsaraGarden,
+                TerriasFieldId.SamsaraGarden)
         };
 
     public static IReadOnlyList<DifficultyFieldCandidate> BuildCandidates()
     {
-        var byField = new Dictionary<SunExpFieldId, DifficultyFieldCandidate>();
+        var byField = new Dictionary<TerriasFieldId, DifficultyFieldCandidate>();
         foreach (var definition in Definitions)
         {
             var level = Math.Min(
                 DifficultyTagMaxStacks,
-                Math.Max(0, SunExpHardTagState.Level(definition.HardTagId)));
+                Math.Max(0, TerriasHardTagState.Level(definition.HardTagId)));
             if (level <= 0)
             {
                 continue;
@@ -76,7 +76,7 @@ public static class DifficultyFieldPoolService
         }
 
         var selected = candidates[UnityEngine.Random.Range(0, candidates.Count)];
-        SunExpLog.Debug("[DifficultyFieldPool] selected "
+        TerriasLog.Debug("[DifficultyFieldPool] selected "
             + FieldEffectRegistry.FieldSlug(selected.Field)
             + " "
             + selected.Stacks
@@ -91,7 +91,7 @@ public static class DifficultyFieldPoolService
 
     private sealed class DifficultyFieldSourceDefinition
     {
-        public DifficultyFieldSourceDefinition(string hardTagId, SunExpFieldId field)
+        public DifficultyFieldSourceDefinition(string hardTagId, TerriasFieldId field)
         {
             HardTagId = hardTagId;
             Field = field;
@@ -99,6 +99,6 @@ public static class DifficultyFieldPoolService
 
         public string HardTagId { get; }
 
-        public SunExpFieldId Field { get; }
+        public TerriasFieldId Field { get; }
     }
 }

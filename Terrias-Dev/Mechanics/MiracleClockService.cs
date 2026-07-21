@@ -1,8 +1,8 @@
 using System;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public readonly struct MiracleClockChangeResult
 {
@@ -36,7 +36,7 @@ public static class MiracleClockService
 
     public static MiracleClockChangeResult ReduceBy(ScriptExecutor self, LoneerCombatState state, int amount, string source)
     {
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         try
         {
             if (self?.Self == null || state == null)
@@ -50,7 +50,7 @@ public static class MiracleClockService
             state.ClockValue = after;
             Sync(self, state);
             var depleted = before > 0 && after <= 0;
-            SunExpLog.Debug("Miracle Clock reduced: owner="
+            TerriasLog.Debug("Miracle Clock reduced: owner="
                 + self.Self.InstanceId
                 + ", before="
                 + before
@@ -64,7 +64,7 @@ public static class MiracleClockService
         }
         finally
         {
-            SunExpPerformanceCounters.RecordDuration("MiracleClock.ReduceBy", start);
+            TerriasPerformanceCounters.RecordDuration("MiracleClock.ReduceBy", start);
         }
     }
 
@@ -83,7 +83,7 @@ public static class MiracleClockService
         }
 
         Sync(self, state);
-        SunExpLog.Info("Miracle Clock cap changed: owner="
+        TerriasLog.Info("Miracle Clock cap changed: owner="
             + self.Self.InstanceId
             + ", beforeMax="
             + before
@@ -96,7 +96,7 @@ public static class MiracleClockService
 
     public static bool ResetToMaxAndGrantStarlight(ScriptExecutor self, LoneerCombatState state, string source)
     {
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         try
         {
             if (self?.Self == null || state == null)
@@ -108,7 +108,7 @@ public static class MiracleClockService
             state.ClockValue = max;
             Sync(self, state);
             StarScoreService.AddStarlight(self, max);
-            SunExpLog.Info("Miracle Clock reset: owner="
+            TerriasLog.Info("Miracle Clock reset: owner="
                 + self.Self.InstanceId
                 + ", clockMax="
                 + max
@@ -120,13 +120,13 @@ public static class MiracleClockService
         }
         finally
         {
-            SunExpPerformanceCounters.RecordDuration("MiracleClock.Reset", start);
+            TerriasPerformanceCounters.RecordDuration("MiracleClock.Reset", start);
         }
     }
 
     public static void Sync(ScriptExecutor self, LoneerCombatState state)
     {
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         try
         {
             if (self?.Self == null || state == null)
@@ -135,8 +135,8 @@ public static class MiracleClockService
             }
 
             EnsureBuffExistsForZero(self, state);
-            BuffApi.SetExactLevel(self.Self, SunExpIds.MiracleClock, state.ClockValue, keepZero: true);
-            var buff = self.Self.GetBuff(SunExpIds.MiracleClock);
+            BuffApi.SetExactLevel(self.Self, TerriasIds.MiracleClock, state.ClockValue, keepZero: true);
+            var buff = self.Self.GetBuff(TerriasIds.MiracleClock);
             if (buff?.buffConfig != null)
             {
                 buff.buffConfig.UpperBound = Math.Max(1, state.ClockMax);
@@ -144,18 +144,18 @@ public static class MiracleClockService
         }
         finally
         {
-            SunExpPerformanceCounters.RecordDuration("MiracleClock.SyncBuff", start);
+            TerriasPerformanceCounters.RecordDuration("MiracleClock.SyncBuff", start);
         }
     }
 
     private static void EnsureBuffExistsForZero(ScriptExecutor self, LoneerCombatState state)
     {
-        if (self?.Self == null || state.ClockValue > 0 || self.Self.GetBuff(SunExpIds.MiracleClock) != null)
+        if (self?.Self == null || state.ClockValue > 0 || self.Self.GetBuff(TerriasIds.MiracleClock) != null)
         {
             return;
         }
 
         self.SetStatus("Self");
-        self.AddBuff(SunExpIds.MiracleClock, Math.Max(1, state.ClockMax).ToString());
+        self.AddBuff(TerriasIds.MiracleClock, Math.Max(1, state.ClockMax).ToString());
     }
 }

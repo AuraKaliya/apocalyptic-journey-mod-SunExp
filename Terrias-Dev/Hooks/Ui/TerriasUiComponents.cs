@@ -3,11 +3,11 @@ using AuraUi.Shared;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace SunExp.Dll.Hooks.Ui;
+namespace Terrias.Dll.Hooks.Ui;
 
-public static class SunExpUiComponents
+public static class TerriasUiComponents
 {
-    public static AuraUiTheme Theme => SunExpUiTheme.Current;
+    public static AuraUiTheme Theme => TerriasUiTheme.Current;
 
     public sealed class ScrollArea
     {
@@ -58,7 +58,7 @@ public static class SunExpUiComponents
         Vector2 pivot,
         Vector2 size)
     {
-        return SunExpUiBuilder.CreateRect(name, parent, anchorMin, anchorMax, pivot, size).gameObject;
+        return TerriasUiBuilder.CreateRect(name, parent, anchorMin, anchorMax, pivot, size).gameObject;
     }
 
     public static RectTransform CreateRectTransform(
@@ -69,7 +69,7 @@ public static class SunExpUiComponents
         Vector2 pivot,
         Vector2 size)
     {
-        return SunExpUiBuilder.CreateRect(name, parent, anchorMin, anchorMax, pivot, size);
+        return TerriasUiBuilder.CreateRect(name, parent, anchorMin, anchorMax, pivot, size);
     }
 
     public static GameObject CreateFillRect(string name, Transform parent)
@@ -93,7 +93,7 @@ public static class SunExpUiComponents
             new Vector2(0.5f, 0.5f),
             new Vector2(0.5f, 0.5f),
             size);
-        SunExpUiBuilder.ApplyPanelImage(window, sprite, tint, true);
+        TerriasUiBuilder.ApplyPanelImage(window, sprite, tint, true);
         ConfigureVerticalLayout(window, padding, spacing, childForceExpandHeight: false);
         return window;
     }
@@ -112,7 +112,7 @@ public static class SunExpUiComponents
         element.minHeight = minHeight;
         element.preferredHeight = preferredHeight;
         element.flexibleHeight = flexibleHeight;
-        SunExpUiBuilder.ApplyPanelImage(section, sprite, tint, true);
+        TerriasUiBuilder.ApplyPanelImage(section, sprite, tint, true);
         return section;
     }
 
@@ -202,7 +202,7 @@ public static class SunExpUiComponents
         element.flexibleHeight = flexibleHeight;
         element.flexibleWidth = 1f;
 
-        var viewport = SunExpUiBuilder.CreateRect("Viewport", root.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        var viewport = TerriasUiBuilder.CreateRect("Viewport", root.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
         viewport.offsetMin = Vector2.zero;
         viewport.offsetMax = Vector2.zero;
         var viewportImage = viewport.gameObject.AddComponent<Image>();
@@ -210,7 +210,7 @@ public static class SunExpUiComponents
         viewportImage.raycastTarget = true;
         viewport.gameObject.AddComponent<Mask>().showMaskGraphic = false;
 
-        var content = SunExpUiBuilder.CreateRect(
+        var content = TerriasUiBuilder.CreateRect(
             "Rows",
             viewport,
             new Vector2(0f, 1f),
@@ -248,7 +248,7 @@ public static class SunExpUiComponents
         element.flexibleHeight = flexibleHeight;
         element.flexibleWidth = 1f;
 
-        var viewport = SunExpUiBuilder.CreateRect("Viewport", root.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        var viewport = TerriasUiBuilder.CreateRect("Viewport", root.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
         viewport.offsetMin = Vector2.zero;
         viewport.offsetMax = Vector2.zero;
         var viewportImage = viewport.gameObject.AddComponent<Image>();
@@ -256,7 +256,7 @@ public static class SunExpUiComponents
         viewportImage.raycastTarget = true;
         viewport.gameObject.AddComponent<Mask>().showMaskGraphic = false;
 
-        var content = SunExpUiBuilder.CreateRect(
+        var content = TerriasUiBuilder.CreateRect(
             "Cards",
             viewport,
             new Vector2(0f, 1f),
@@ -301,7 +301,7 @@ public static class SunExpUiComponents
         Color bodyColor)
     {
         var card = CreateLayoutObject(name, parent);
-        SunExpUiBuilder.ApplyPanelImage(card, sprite, cardTint, true);
+        TerriasUiBuilder.ApplyPanelImage(card, sprite, cardTint, true);
         ConfigureHorizontalLayout(
             card,
             new RectOffset(6, 8, 6, 6),
@@ -316,7 +316,7 @@ public static class SunExpUiComponents
         badgeElement.minWidth = badgeWidth;
         badgeElement.preferredWidth = badgeWidth;
         badgeElement.flexibleWidth = 0f;
-        SunExpUiBuilder.ApplyPanelImage(badgeRoot, null, badgeTint, false);
+        TerriasUiBuilder.ApplyPanelImage(badgeRoot, null, badgeTint, false);
         AddTextFill(badgeRoot.transform, badge, 18, TextAnchor.MiddleCenter, badgeTextColor);
 
         var content = CreateLayoutObject("Content", card.transform);

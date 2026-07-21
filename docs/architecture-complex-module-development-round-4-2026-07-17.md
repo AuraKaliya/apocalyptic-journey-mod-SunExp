@@ -78,7 +78,7 @@ AssetBundle 的 null 负缓存仍参与条目上限，但估算字节为零，�
 
 架构门禁要求字节预算、全局 LRU、引用计数、引用身份比较和延迟 Unity 释放继续存在，并要求缓存四个模块保持无 Unity/Witch 依赖。公共程序集兼容基线仍为 1228 项。
 
-完整共享发布门禁已通过，包括 AuraSharedCore 92 项、AuraCg 79 项、AuraDirector 20 项、AuraToolsExp 632 项、三个主消费者构建及打包 DLL 哈希一致性。SunExp C# 构建为 0 警告、0 错误，282 项源码断言通过。
+完整共享发布门禁已通过，包括 AuraSharedCore 92 项、AuraCg 79 项、AuraDirector 20 项、AuraToolsExp 632 项、三个主消费者构建及打包 DLL 哈希一致性。Terrias C# 构建为 0 警告、0 错误，282 项源码断言通过。
 
 ## 7. 剩余风险
 

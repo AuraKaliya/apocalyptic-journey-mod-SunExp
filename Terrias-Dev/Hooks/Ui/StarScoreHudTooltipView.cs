@@ -1,10 +1,10 @@
 using System;
 using AuraUi.Shared;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace SunExp.Dll.Hooks.Ui;
+namespace Terrias.Dll.Hooks.Ui;
 
 public sealed class StarScoreHudTooltipView : MonoBehaviour
 {
@@ -25,7 +25,7 @@ public sealed class StarScoreHudTooltipView : MonoBehaviour
 
     public static StarScoreHudTooltipView Create(Transform parent, RectTransform hudRect)
     {
-        var go = new GameObject("SunExp_StarScoreHudTooltip", typeof(RectTransform), typeof(CanvasGroup));
+        var go = new GameObject("Terrias_StarScoreHudTooltip", typeof(RectTransform), typeof(CanvasGroup));
         go.transform.SetParent(parent, false);
 
         var view = go.AddComponent<StarScoreHudTooltipView>();
@@ -132,7 +132,7 @@ public sealed class StarScoreHudTooltipView : MonoBehaviour
 
     private static void CreateRow(Transform parent, string value, Color tint, Color? textColor = null)
     {
-        var row = SunExpUiPool.AcquireComponent(
+        var row = TerriasUiPool.AcquireComponent(
             "StarScoreHudTooltip.Row",
             parent,
             "Row",
@@ -194,10 +194,10 @@ public sealed class StarScoreHudTooltipView : MonoBehaviour
 
     private static void ClearChildren(Transform parent)
     {
-        SunExpUiPool.ReleaseOrDestroyChildren(parent, "StarScoreHudTooltip.ClearChildren", "[StarScoreHudTooltip]");
+        TerriasUiPool.ReleaseOrDestroyChildren(parent, "StarScoreHudTooltip.ClearChildren", "[StarScoreHudTooltip]");
     }
 
-    private sealed class TooltipRowView : SunExpPooledUiBehaviour
+    private sealed class TooltipRowView : TerriasPooledUiBehaviour
     {
         private Image? image;
         private Text? text;

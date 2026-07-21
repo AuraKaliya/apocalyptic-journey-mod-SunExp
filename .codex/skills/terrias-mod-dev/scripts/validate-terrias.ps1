@@ -85,9 +85,9 @@ function Test-NoLuaProductionFiles {
     }
 
     $forbiddenToolNames = @(
-        "Build-SunExpEntry.ps1",
+        "Build-TerriasEntry.ps1",
         "Test-LuaSnippets.ps1",
-        "Test-SunExpEntryLoad.ps1"
+        "Test-TerriasEntryLoad.ps1"
     )
     foreach ($toolName in $forbiddenToolNames) {
         $toolPath = Join-Path $RepoRoot "tools\$toolName"
@@ -105,12 +105,12 @@ function Normalize-Id {
     return $Id.TrimStart("*")
 }
 
-function Full-SunExp-Id {
+function Full-Terrias-Id {
     param(
         [string]$Id,
-        [string]$FileStem = "sunexp"
+        [string]$FileStem = "terrias"
     )
-    return "SunExp_${FileStem}_$(Normalize-Id $Id)"
+    return "Terrias_${FileStem}_$(Normalize-Id $Id)"
 }
 
 function Get-Placeholders {
@@ -126,10 +126,10 @@ function Get-AddDescriptionIndexes {
     if ([string]::IsNullOrWhiteSpace($ScriptText)) {
         return @()
     }
-    if ($ScriptText -match "CS\.SunExp\.Dll\.Scripting\.CardScripts\.Init\s*\(") {
+    if ($ScriptText -match "CS\.Terrias\.Dll\.Scripting\.CardScripts\.Init\s*\(") {
         return @(1, 2, 3, 4, 5, 6, 7, 8, 9)
     }
-    $pattern = "(?:SunExp_AddDamageDescription\s*\(\s*[^,]+,\s*|AddDescription\s*\(\s*)[""'](\d+)[""']"
+    $pattern = "(?:Terrias_AddDamageDescription\s*\(\s*[^,]+,\s*|AddDescription\s*\(\s*)[""'](\d+)[""']"
     return @([regex]::Matches($ScriptText, $pattern) | ForEach-Object { [int]$_.Groups[1].Value } | Sort-Object -Unique)
 }
 
@@ -163,7 +163,7 @@ function Test-ScriptResidue {
         "ChoiceScript3", "ChoiceScript4"
     )
     $patterns = @(
-        @{ Pattern = "(^|[^.A-Za-z0-9_])SunExp_[A-Za-z0-9_]+\s*\("; Hint = "Old dynamic helper call is not allowed; use CS.SunExp.Dll.Scripting.*." },
+        @{ Pattern = "(^|[^.A-Za-z0-9_])Terrias_[A-Za-z0-9_]+\s*\("; Hint = "Old dynamic helper call is not allowed; use CS.Terrias.Dll.Scripting.*." },
         @{ Pattern = "\bfunction\s*\("; Hint = "Inline Lua callback in CSV script column is not allowed; use a C# entry point." },
         @{ Pattern = "\bself\s*:"; Hint = "Lua-style ScriptExecutor call in CSV script column is not allowed; use a C# entry point." },
         @{ Pattern = "\bend\s*;?\s*$"; Hint = "Lua-style block ending in CSV script column is not allowed; use a C# entry point." },
@@ -171,7 +171,7 @@ function Test-ScriptResidue {
         @{ Pattern = "\bvar\s+\w+"; Hint = "Inline implementation in CSV script column; move logic into C# and call a stable entry point." },
         @{ Pattern = "\bnew\s+DataConfig\b"; Hint = "Inline object construction in CSV script column; move logic into C#." },
         @{ Pattern = "\b[A-Za-z_][A-Za-z0-9_]*\s*\+\+"; Hint = "Inline implementation in CSV script column; move logic into C# and call a stable entry point." },
-        @{ Pattern = "(^|[^:.])\b(AddBuff|RemoveBuff|Damage|ChangeDefence|DrawCount|ChangePower|SetStatus|AddDescription)\s*\("; Hint = "Direct ScriptExecutor call in CSV script column; prefer a CS.SunExp.Dll.Scripting.* wrapper." }
+        @{ Pattern = "(^|[^:.])\b(AddBuff|RemoveBuff|Damage|ChangeDefence|DrawCount|ChangePower|SetStatus|AddDescription)\s*\("; Hint = "Direct ScriptExecutor call in CSV script column; prefer a CS.Terrias.Dll.Scripting.* wrapper." }
     )
 
     $rowNumber = 1
@@ -255,10 +255,10 @@ function Test-ResourcePaths {
             if ([string]::IsNullOrWhiteSpace($value)) {
                 continue
             }
-            if ($value -notlike "Mods/SunExp/*") {
+            if ($value -notlike "Mods/Terrias/*") {
                 continue
             }
-            $relative = $value -replace "^Mods/SunExp/", "SunExp/"
+            $relative = $value -replace "^Mods/Terrias/", "Terrias/"
             $candidate = Join-Path $RepoRoot $relative
             $exists = (Test-Path -LiteralPath $candidate) -or (Test-Path -LiteralPath ($candidate + ".png")) -or (Test-Path -LiteralPath ($candidate + ".jpg")) -or (Test-Path -LiteralPath ($candidate + ".jpeg"))
             if (-not $exists) {
@@ -335,7 +335,7 @@ function Test-EventListTexts {
     }
 }
 
-function Test-RemovedSunExpEventIds {
+function Test-RemovedTerriasEventIds {
     param([object[]]$EventRows)
     foreach ($event in $EventRows) {
         $id = Normalize-Id $event.Id
@@ -358,11 +358,11 @@ function Test-EnemyAnimationMapResources {
             continue
         }
         $value = $row.Animation
-        if ([string]::IsNullOrWhiteSpace($value) -or $value -notlike "Mods/SunExp/*") {
+        if ([string]::IsNullOrWhiteSpace($value) -or $value -notlike "Mods/Terrias/*") {
             continue
         }
 
-        $relative = $value -replace "^Mods/SunExp/", "SunExp/"
+        $relative = $value -replace "^Mods/Terrias/", "Terrias/"
         $animationRoot = Join-Path $RepoRoot $relative
         $mapRoot = Join-Path $animationRoot "Map"
         $mapFrames = @()
@@ -471,7 +471,7 @@ function Test-RuntimeIdCollisions {
         $kind = $file.Directory.Name
         $fileStem = [System.IO.Path]::GetFileNameWithoutExtension($file.Name)
         foreach ($row in (Read-Rows $file.FullName)) {
-            $fullId = Full-SunExp-Id $row.Id $fileStem
+            $fullId = Full-Terrias-Id $row.Id $fileStem
             if (-not $entriesById.ContainsKey($fullId)) {
                 $entriesById[$fullId] = New-Object System.Collections.Generic.List[object]
             }
@@ -502,7 +502,7 @@ function Test-RuntimeIdCollisions {
 
 $repoRoot = Get-RepoRoot
 if (-not $ModRoot) {
-    $ModRoot = Join-Path $repoRoot "SunExp"
+    $ModRoot = Join-Path $repoRoot "Terrias"
 }
 elseif (-not [System.IO.Path]::IsPathRooted($ModRoot)) {
     $ModRoot = Join-Path $repoRoot $ModRoot
@@ -537,7 +537,7 @@ $packIds = @{}
 foreach ($packFile in $packFiles) {
     $fileStem = [System.IO.Path]::GetFileNameWithoutExtension($packFile.Name)
     foreach ($pack in (Read-Rows $packFile.FullName)) {
-        $packIds[(Full-SunExp-Id $pack.Id $fileStem)] = $true
+        $packIds[(Full-Terrias-Id $pack.Id $fileStem)] = $true
     }
 }
 Test-PackRefs "Card" $cards $packIds
@@ -581,7 +581,7 @@ foreach ($kind in $optionalKinds) {
         Test-ResourcePaths $kind $dataRows $repoRoot
         if ($kind -eq "EventList") {
             Test-EventListTexts $dataRows $textRows
-            Test-RemovedSunExpEventIds $dataRows
+            Test-RemovedTerriasEventIds $dataRows
         }
         if ($kind -eq "Map") {
             Test-MapTextNotes $textRows
@@ -604,4 +604,4 @@ if ($script:Failures.Count -gt 0) {
     exit 1
 }
 
-Write-Host "SunExp validation passed: cards=$($cards.Count), relics=$($relics.Count), buffs=$($buffs.Count), packs=$($packs.Count), enemies=$($enemies.Count), warnings=$($script:Warnings.Count)."
+Write-Host "Terrias validation passed: cards=$($cards.Count), relics=$($relics.Count), buffs=$($buffs.Count), packs=$($packs.Count), enemies=$($enemies.Count), warnings=$($script:Warnings.Count)."

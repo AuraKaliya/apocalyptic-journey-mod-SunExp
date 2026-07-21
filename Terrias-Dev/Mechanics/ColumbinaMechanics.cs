@@ -1,9 +1,9 @@
 using System;
 using System.Linq;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class ColumbinaMechanics
 {
@@ -14,30 +14,30 @@ public static class ColumbinaMechanics
             return;
         }
 
-        if (FieldApi.IsSharedFieldActive(SunExpFieldId.MoonDomain))
+        if (FieldApi.IsSharedFieldActive(TerriasFieldId.MoonDomain))
         {
             var c6Sources = ConstellationService.EligibleColumbinaC6Count();
             if (c6Sources > 0)
             {
-                actor!.AddBuff(SunExpIds.Extraordinary, 80 * c6Sources);
+                actor!.AddBuff(TerriasIds.Extraordinary, 80 * c6Sources);
             }
         }
 
         // Gravity Ripple is owned by the Buff, not by Columbina's currently
         // active career. Polymorph may suppress New Moon Law, but it must not
         // disable an already-applied Ripple or its Gravity Value progression.
-        if (BuffApi.Level(actor, SunExpIds.GravityRipple) <= 0)
+        if (BuffApi.Level(actor, TerriasIds.GravityRipple) <= 0)
         {
             return;
         }
 
         var executor = DamageApi.CreateCardSourceExecutor(
             actor,
-            SunExpIds.ColumbinaEternalTideCardId,
+            TerriasIds.ColumbinaEternalTideCardId,
             "Columbina.GravityRipple");
         if (executor == null)
         {
-            SunExpLog.Warn("[Columbina] gravity ripple skipped because its native damage source is unavailable.");
+            TerriasLog.Warn("[Columbina] gravity ripple skipped because its native damage source is unavailable.");
             return;
         }
 
@@ -50,7 +50,7 @@ public static class ColumbinaMechanics
             AddGravityValue(executor, actor, Math.Abs(result.PrimaryDamage) % 10);
         }
 
-        DamageApi.RemoveBuffStacks(executor, actor, SunExpIds.GravityRipple, 1);
+        DamageApi.RemoveBuffStacks(executor, actor, TerriasIds.GravityRipple, 1);
     }
 
     public static void AddGravityValue(ScriptExecutor executor, IStatusManager source, int amount)
@@ -60,9 +60,9 @@ public static class ColumbinaMechanics
             return;
         }
 
-        var before = Math.Max(0, BuffApi.Level(source, SunExpIds.GravityValue));
+        var before = Math.Max(0, BuffApi.Level(source, TerriasIds.GravityValue));
         var after = Math.Min(100, before + amount);
-        BuffApi.SetExactLevel(source, SunExpIds.GravityValue, after);
+        BuffApi.SetExactLevel(source, TerriasIds.GravityValue, after);
         if (LunarReactionRules.Crossed(before, after, 50))
         {
             PlayerPartyApi.TryGainPower(source, 1);
@@ -81,7 +81,7 @@ public static class ColumbinaMechanics
         if (after >= 100)
         {
             TriggerGravityInterference(executor, source, "Gravity100");
-            BuffApi.SetExactLevel(source, SunExpIds.GravityValue, 0);
+            BuffApi.SetExactLevel(source, TerriasIds.GravityValue, 0);
         }
     }
 

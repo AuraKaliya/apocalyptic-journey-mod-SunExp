@@ -1,9 +1,9 @@
 using System;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 using UnityEngine;
 
-namespace SunExp.Dll.Hooks.Visual;
+namespace Terrias.Dll.Hooks.Visual;
 
 public static class CardVisualSkinSpriteCache
 {
@@ -17,10 +17,10 @@ public static class CardVisualSkinSpriteCache
         Sprite? sprite = null;
         try
         {
-            sprite = SunExpResourceCache.Load<Sprite>(path, true, "visual.card-skin");
+            sprite = TerriasResourceCache.Load<Sprite>(path, true, "visual.card-skin");
             if (sprite == null)
             {
-                SunExpLog.Warn(logPrefix + " sprite missing: " + path);
+                TerriasLog.Warn(logPrefix + " sprite missing: " + path);
             }
             else
             {
@@ -29,7 +29,7 @@ public static class CardVisualSkinSpriteCache
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn(logPrefix + " sprite load failed: " + path + " (" + ex.Message + ")");
+            TerriasLog.Warn(logPrefix + " sprite load failed: " + path + " (" + ex.Message + ")");
         }
 
         return sprite;

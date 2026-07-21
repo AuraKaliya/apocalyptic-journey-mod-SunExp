@@ -1,20 +1,20 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class SolarMemoryCombatRuntime
 {
     private const int EnemyHpMultiplier = 3;
-    private const string AppliedKey = "SunExpSolarMemoryHpScaled";
+    private const string AppliedKey = "TerriasSolarMemoryHpScaled";
 
     public static void Initialize(ModConfig modConfig)
     {
-        SunExpStatusLifecycleRouter.Register("SolarMemoryCombat", new SunExpStatusLifecycleSubscription
+        TerriasStatusLifecycleRouter.Register("SolarMemoryCombat", new TerriasStatusLifecycleSubscription
         {
             AfterEnemyInit = ScaleEnemyHpAfterInit
         });
@@ -44,7 +44,7 @@ public static class SolarMemoryCombatRuntime
             MarkScaled(status);
             RefreshStatusTransfer(enemy, status);
 
-            SunExpLog.Info("[SolarMemoryCombat] scaled enemy HP x"
+            TerriasLog.Info("[SolarMemoryCombat] scaled enemy HP x"
                 + EnemyHpMultiplier
                 + "; id="
                 + DictionaryUtil.Get(enemy.data, "Id")
@@ -58,11 +58,11 @@ public static class SolarMemoryCombatRuntime
         }
         catch (OverflowException ex)
         {
-            SunExpLog.Error("Solar memory enemy HP scaling overflowed", ex);
+            TerriasLog.Error("Solar memory enemy HP scaling overflowed", ex);
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory enemy HP scaling failed", ex);
+            TerriasLog.Error("Solar memory enemy HP scaling failed", ex);
         }
     }
 
@@ -96,7 +96,7 @@ public static class SolarMemoryCombatRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("Solar memory enemy HP status transfer refresh failed: " + ex.Message);
+            TerriasLog.Warn("Solar memory enemy HP status transfer refresh failed: " + ex.Message);
         }
     }
 }

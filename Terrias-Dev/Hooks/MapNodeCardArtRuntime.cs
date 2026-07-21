@@ -2,14 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
 using AuraShared.Core;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class MapNodeCardArtRuntime
 {
@@ -25,12 +25,12 @@ public static class MapNodeCardArtRuntime
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.Before(config, target, action, "MapNodeCardArt");
+        TerriasHookRegistry.Before(config, target, action, "MapNodeCardArt");
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.After(config, target, action, "MapNodeCardArt");
+        TerriasHookRegistry.After(config, target, action, "MapNodeCardArt");
     }
 
     private static void DiagnoseBeforeNativeInit(ModHookContext context)
@@ -48,9 +48,9 @@ public static class MapNodeCardArtRuntime
             var id = DictionaryUtil.Get(data, "Id");
             var type = DictionaryUtil.Get(data, "Type");
             var nodeId = DictionaryUtil.Get(data, "NodeId");
-            if (!string.Equals(id, SunExpIds.DimensionShopMapId, StringComparison.Ordinal)
-                && !string.Equals(id, SunExpIds.DimensionShopMapShortId, StringComparison.Ordinal)
-                && !string.Equals(nodeId, SunExpIds.DimensionShopNodeId, StringComparison.Ordinal))
+            if (!string.Equals(id, TerriasIds.DimensionShopMapId, StringComparison.Ordinal)
+                && !string.Equals(id, TerriasIds.DimensionShopMapShortId, StringComparison.Ordinal)
+                && !string.Equals(nodeId, TerriasIds.DimensionShopNodeId, StringComparison.Ordinal))
             {
                 return;
             }
@@ -58,7 +58,7 @@ public static class MapNodeCardArtRuntime
             var note = DictionaryUtil.Get(data, "Note");
             var level = DictionaryUtil.Get(data, "Level");
             var spec = MapNodeCardArtRegistry.Resolve(data);
-            SunExpLog.InfoAlways("[MapNodeDiagnostic] before MapItem.Init; id="
+            TerriasLog.InfoAlways("[MapNodeDiagnostic] before MapItem.Init; id="
                 + ValueOrMissing(id)
                 + "; type="
                 + ValueOrMissing(type)
@@ -79,7 +79,7 @@ public static class MapNodeCardArtRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[MapNodeDiagnostic] inspection failed before MapItem.Init: " + ex.Message);
+            TerriasLog.Warn("[MapNodeDiagnostic] inspection failed before MapItem.Init: " + ex.Message);
         }
     }
 
@@ -114,7 +114,7 @@ public static class MapNodeCardArtRuntime
             return "";
         }
 
-        var level = SunExpConfigIndex.Row(DataType.Level, levelId);
+        var level = TerriasConfigIndex.Row(DataType.Level, levelId);
         if (level == null)
         {
             return "; levelRow=<missing>";
@@ -128,7 +128,7 @@ public static class MapNodeCardArtRuntime
         var bestHp = int.MinValue;
         foreach (var enemyId in enemyIds)
         {
-            var enemy = SunExpConfigIndex.Row(DataType.Enemy, enemyId);
+            var enemy = TerriasConfigIndex.Row(DataType.Enemy, enemyId);
             if (enemy == null)
             {
                 continue;
@@ -174,7 +174,7 @@ public static class MapNodeCardArtRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[MapNodeCardArt] baseline capture failed: " + ex.Message);
+            TerriasLog.Warn("[MapNodeCardArt] baseline capture failed: " + ex.Message);
         }
     }
 
@@ -190,24 +190,24 @@ public static class MapNodeCardArtRuntime
             Baselines.TryGetValue(item, out var baseline);
             Baselines.Remove(item);
 
-            var texture = SunExpResourceCache.Load<Texture>(spec.TexturePath, true);
+            var texture = TerriasResourceCache.Load<Texture>(spec.TexturePath, true);
             if (texture == null)
             {
-                SunExpLog.Warn("[MapNodeCardArt] texture missing: " + spec.TexturePath);
+                TerriasLog.Warn("[MapNodeCardArt] texture missing: " + spec.TexturePath);
                 return;
             }
 
             if (!MapItemApi.ApplyTexture(item, texture, spec, baseline))
             {
-                SunExpLog.Warn("[MapNodeCardArt] skipped: Front/icon missing for " + spec.TexturePath);
+                TerriasLog.Warn("[MapNodeCardArt] skipped: Front/icon missing for " + spec.TexturePath);
                 return;
             }
 
-            SunExpLog.Info("[MapNodeCardArt] applied texture: " + spec.TexturePath);
+            TerriasLog.Info("[MapNodeCardArt] applied texture: " + spec.TexturePath);
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Map node card art apply failed", ex);
+            TerriasLog.Error("Map node card art apply failed", ex);
         }
     }
 

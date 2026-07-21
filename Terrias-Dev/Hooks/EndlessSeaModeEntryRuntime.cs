@@ -1,9 +1,9 @@
 using System;
 using System.Reflection;
 using AuraUi.Shared;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
@@ -12,14 +12,14 @@ using Witch.Mod;
 using Witch.UI;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class EndlessSeaModeEntryRuntime
 {
-    private const string EntryObjectName = "SunExp_EndlessSeaMode";
+    private const string EntryObjectName = "Terrias_EndlessSeaMode";
     private const string VisualEntryId = "endless_abyss";
-    private const string DefaultEntryTitleSpritePath = "Mods/SunExp/ModResource/Images/UI/endless_sea_title_c.png";
-    private const string DefaultEntryHighlightedTitleSpritePath = "Mods/SunExp/ModResource/Images/UI/endless_sea_title_h.png";
+    private const string DefaultEntryTitleSpritePath = "Mods/Terrias/ModResource/Images/UI/endless_sea_title_c.png";
+    private const string DefaultEntryHighlightedTitleSpritePath = "Mods/Terrias/ModResource/Images/UI/endless_sea_title_h.png";
     private const float DefaultEntryTitleArtHeightRatio = 0.735f;
 
     private static Font? cachedFont;
@@ -44,8 +44,8 @@ public static class EndlessSeaModeEntryRuntime
             110,
             ConfigureRegisteredEntry,
             EndlessSeaRunLauncher.Start,
-            SunExpIds.EndlessSeaTitle,
-            SunExpIds.EndlessAbyssSemanticModeId));
+            TerriasIds.EndlessSeaTitle,
+            TerriasIds.EndlessAbyssSemanticModeId));
     }
 
     private static void ConfigureRegisteredEntry(GameObject entry, ModeChoiceUI modeChoice)
@@ -61,7 +61,7 @@ public static class EndlessSeaModeEntryRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Endless Sea entry injection failed", ex);
+            TerriasLog.Error("Endless Sea entry injection failed", ex);
         }
     }
 
@@ -92,7 +92,7 @@ public static class EndlessSeaModeEntryRuntime
         SetTmpText(entry.Find("Text/Text"), EntryDescription());
         var hasTitleSprites = ConfigureEntryTitleSprites(entry);
 
-        var title = entry.Find("SunExpTitle");
+        var title = entry.Find("TerriasTitle");
         if (hasTitleSprites)
         {
             if (title != null)
@@ -105,7 +105,7 @@ public static class EndlessSeaModeEntryRuntime
 
         if (title == null)
         {
-            var go = new GameObject("SunExpTitle", typeof(RectTransform));
+            var go = new GameObject("TerriasTitle", typeof(RectTransform));
             title = go.transform;
             title.SetParent(entry, false);
             var rect = go.GetComponent<RectTransform>();
@@ -114,14 +114,14 @@ public static class EndlessSeaModeEntryRuntime
             rect.offsetMin = Vector2.zero;
             rect.offsetMax = Vector2.zero;
             var text = go.AddComponent<Text>();
-            ConfigureText(text, SunExpIds.EndlessSeaTitle, 30, FontStyle.Bold, TextAnchor.MiddleCenter, Color.white);
+            ConfigureText(text, TerriasIds.EndlessSeaTitle, 30, FontStyle.Bold, TextAnchor.MiddleCenter, Color.white);
             return;
         }
 
         var titleText = title.GetComponent<Text>();
         if (titleText != null)
         {
-            titleText.text = SunExpIds.EndlessSeaTitle;
+            titleText.text = TerriasIds.EndlessSeaTitle;
         }
 
         title.gameObject.SetActive(true);
@@ -129,8 +129,8 @@ public static class EndlessSeaModeEntryRuntime
 
     private static string EntryDescription()
     {
-        var description = SunExpIds.EndlessSeaDescription;
-        var subtitle = SunExpIds.EndlessSeaSubtitle;
+        var description = TerriasIds.EndlessSeaDescription;
+        var subtitle = TerriasIds.EndlessSeaSubtitle;
         return string.IsNullOrWhiteSpace(subtitle) ? description : description + "\n" + subtitle;
     }
 
@@ -202,10 +202,10 @@ public static class EndlessSeaModeEntryRuntime
     {
         try
         {
-            var sprite = SunExpResourceCache.Load<Sprite>(path, true);
+            var sprite = TerriasResourceCache.Load<Sprite>(path, true);
             if (sprite == null)
             {
-                SunExpLog.Warn("[EndlessSeaMode] entry sprite missing: " + path);
+                TerriasLog.Warn("[EndlessSeaMode] entry sprite missing: " + path);
                 return null;
             }
 
@@ -214,7 +214,7 @@ public static class EndlessSeaModeEntryRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessSeaMode] failed to load entry sprite " + path + ": " + ex.Message);
+            TerriasLog.Warn("[EndlessSeaMode] failed to load entry sprite " + path + ": " + ex.Message);
             return null;
         }
     }
@@ -265,7 +265,7 @@ public static class EndlessSeaModeEntryRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessSeaMode] failed to trim entry sprite: " + ex.Message);
+            TerriasLog.Warn("[EndlessSeaMode] failed to trim entry sprite: " + ex.Message);
             return sprite;
         }
     }
@@ -285,7 +285,7 @@ public static class EndlessSeaModeEntryRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessSeaMode] failed to crop entry title sprite: " + ex.Message);
+            TerriasLog.Warn("[EndlessSeaMode] failed to crop entry title sprite: " + ex.Message);
             return sprite;
         }
     }

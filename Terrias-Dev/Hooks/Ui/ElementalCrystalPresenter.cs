@@ -1,17 +1,17 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace SunExp.Dll.Hooks.Ui;
+namespace Terrias.Dll.Hooks.Ui;
 
 public static class ElementalCrystalPresenter
 {
     private const string RegistryKey = "ElementalCrystal";
-    private const string CrystalSpritePath = "Mods/SunExp/ModResource/Images/Buff/GenshinImpact/元素-岩";
+    private const string CrystalSpritePath = "Mods/Terrias/ModResource/Images/Buff/GenshinImpact/元素-岩";
     private static readonly Dictionary<string, ElementalCrystalIconView> Active = new(StringComparer.Ordinal);
     private static GameObject? root;
     private static RectTransform? iconLayer;
@@ -27,7 +27,7 @@ public static class ElementalCrystalPresenter
         initialized = true;
         ElementalCrystalChallengeService.Spawned += Show;
         ElementalCrystalChallengeService.Resolved += HandleResolution;
-        SunExpTransientUiRegistry.Register(RegistryKey, CloseAll);
+        TerriasTransientUiRegistry.Register(RegistryKey, CloseAll);
     }
 
     public static void CloseAll(string source)
@@ -46,7 +46,7 @@ public static class ElementalCrystalPresenter
         {
             var closing = root;
             root = null;
-            SunExpUiSafety.CloseTransient(closing, source, "[ElementalCrystalUi]");
+            TerriasUiSafety.CloseTransient(closing, source, "[ElementalCrystalUi]");
         }
     }
 
@@ -63,7 +63,7 @@ public static class ElementalCrystalPresenter
             return;
         }
 
-        var rect = SunExpUiComponents.CreateRectTransform(
+        var rect = TerriasUiComponents.CreateRectTransform(
             "Crystal-" + snapshot.EventId,
             iconLayer,
             new Vector2(0.5f, 0.5f),
@@ -73,7 +73,7 @@ public static class ElementalCrystalPresenter
         rect.anchoredPosition = PositionFor(snapshot.EventId);
 
         var image = rect.gameObject.AddComponent<Image>();
-        image.sprite = SunExpResourceCache.Load<Sprite>(CrystalSpritePath, true, "elemental.crystal-ui");
+        image.sprite = TerriasResourceCache.Load<Sprite>(CrystalSpritePath, true, "elemental.crystal-ui");
         image.type = Image.Type.Simple;
         image.preserveAspect = true;
         image.color = image.sprite == null ? new Color(0.95f, 0.72f, 0.16f, 0.95f) : Color.white;
@@ -87,7 +87,7 @@ public static class ElementalCrystalPresenter
         colors.pressedColor = new Color(1f, 0.72f, 0.2f, 1f);
         button.colors = colors;
 
-        var timerRect = SunExpUiComponents.CreateRectTransform(
+        var timerRect = TerriasUiComponents.CreateRectTransform(
             "Timer",
             rect,
             new Vector2(0.5f, 0f),
@@ -95,7 +95,7 @@ public static class ElementalCrystalPresenter
             new Vector2(0.5f, 1f),
             new Vector2(112f, 28f));
         timerRect.anchoredPosition = new Vector2(0f, -5f);
-        var timer = SunExpUiComponents.ConfigureText(
+        var timer = TerriasUiComponents.ConfigureText(
             timerRect.gameObject,
             "",
             19,
@@ -147,7 +147,7 @@ public static class ElementalCrystalPresenter
         }
 
         root = new GameObject(
-            SunExpIds.ElementalCrystalUiRoot,
+            TerriasIds.ElementalCrystalUiRoot,
             typeof(RectTransform),
             typeof(Canvas),
             typeof(CanvasScaler),
@@ -167,7 +167,7 @@ public static class ElementalCrystalPresenter
         group.interactable = true;
         group.blocksRaycasts = true;
 
-        iconLayer = SunExpUiComponents.CreateRectTransform(
+        iconLayer = TerriasUiComponents.CreateRectTransform(
             "CentralCrystalRegion",
             root.transform,
             new Vector2(0.5f, 0.5f),

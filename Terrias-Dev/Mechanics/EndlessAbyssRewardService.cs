@@ -1,16 +1,16 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 using Witch;
 using Witch.Core;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class EndlessAbyssRewardService
 {
-    private const string EvolutionTraitsAppliedKey = "SunExpEndlessAbyssEvolutionTraitsApplied";
+    private const string EvolutionTraitsAppliedKey = "TerriasEndlessAbyssEvolutionTraitsApplied";
 
     private static readonly string[] OriginKeys =
     {
@@ -33,7 +33,7 @@ public static class EndlessAbyssRewardService
             }
             else
             {
-                SunExpLog.Warn("[EndlessAbyssReward] card grant failed: " + error);
+                TerriasLog.Warn("[EndlessAbyssReward] card grant failed: " + error);
             }
         }
 
@@ -56,7 +56,7 @@ public static class EndlessAbyssRewardService
 
         var id = pool[PickIndex(pool.Count, source + ":bless")];
         PlayerApi.AddBless(id);
-        SunExpLog.Info("[EndlessAbyssReward] granted blessing " + id + " from " + source + ".");
+        TerriasLog.Info("[EndlessAbyssReward] granted blessing " + id + " from " + source + ".");
         return true;
     }
 
@@ -84,21 +84,21 @@ public static class EndlessAbyssRewardService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessAbyssReward] origin reward failed: " + ex.Message);
+            TerriasLog.Warn("[EndlessAbyssReward] origin reward failed: " + ex.Message);
             return false;
         }
     }
 
     public static int EvolutionLevel()
     {
-        return Math.Max(0, DictionaryUtil.ParseInt(PlayerApi.GetGameVar(SunExpIds.EndlessAbyssEvolutionLevelKey, "0")));
+        return Math.Max(0, DictionaryUtil.ParseInt(PlayerApi.GetGameVar(TerriasIds.EndlessAbyssEvolutionLevelKey, "0")));
     }
 
     public static int IncreaseEvolution(int amount, string source)
     {
         var next = EvolutionLevel() + Math.Max(0, amount);
-        PlayerApi.SetGameVar(SunExpIds.EndlessAbyssEvolutionLevelKey, next.ToString());
-        SunExpLog.Info("[EndlessAbyssReward] evolution level=" + next + " from " + source + ".");
+        PlayerApi.SetGameVar(TerriasIds.EndlessAbyssEvolutionLevelKey, next.ToString());
+        TerriasLog.Info("[EndlessAbyssReward] evolution level=" + next + " from " + source + ".");
         return next;
     }
 
@@ -119,7 +119,7 @@ public static class EndlessAbyssRewardService
         var pool = EndlessAbyssEvolutionTraitRegistry.EvolutionTraitBuffIds();
         if (pool.Count == 0)
         {
-            SunExpLog.Warn("[EndlessAbyssReward] evolution trait pool is empty.");
+            TerriasLog.Warn("[EndlessAbyssReward] evolution trait pool is empty.");
             return;
         }
 
@@ -157,20 +157,20 @@ public static class EndlessAbyssRewardService
         try
         {
             var enabledPacks = EnabledCardPacks();
-            var rows = SunExpConfigIndex.Rows(DataType.Card);
+            var rows = TerriasConfigIndex.Rows(DataType.Card);
             var result = rows
                 .Where(row => IsOpenRewardCard(row, enabledPacks))
                 .Select(row => CardApi.ResolveCardId(DictionaryUtil.Get(row, "Id")))
                 .Where(id => !string.IsNullOrWhiteSpace(id)
-                    && SunExpConfigIndex.Row(DataType.Card, id) != null)
+                    && TerriasConfigIndex.Row(DataType.Card, id) != null)
                 .Distinct(StringComparer.Ordinal)
                 .ToList();
-            SunExpLog.Info("[EndlessAbyssReward] open card reward pool size=" + result.Count + ".");
+            TerriasLog.Info("[EndlessAbyssReward] open card reward pool size=" + result.Count + ".");
             return result;
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessAbyssReward] card pool failed: " + ex.Message);
+            TerriasLog.Warn("[EndlessAbyssReward] card pool failed: " + ex.Message);
             return new List<string>();
         }
     }
@@ -179,7 +179,7 @@ public static class EndlessAbyssRewardService
     {
         try
         {
-            var rows = Singleton<GameConfigManager>.Instance.CardPackCheck(SunExpConfigIndex.Rows(DataType.Bless));
+            var rows = Singleton<GameConfigManager>.Instance.CardPackCheck(TerriasConfigIndex.Rows(DataType.Bless));
             return rows
                 .Select(row => DictionaryUtil.Get(row, "Id"))
                 .Where(id => !string.IsNullOrWhiteSpace(id)
@@ -189,7 +189,7 @@ public static class EndlessAbyssRewardService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessAbyssReward] blessing pool failed: " + ex.Message);
+            TerriasLog.Warn("[EndlessAbyssReward] blessing pool failed: " + ex.Message);
             return new List<string>();
         }
     }
@@ -238,7 +238,7 @@ public static class EndlessAbyssRewardService
             return true;
         }
 
-        const string prefix = "SunExp_sunexp_";
+        const string prefix = "Terrias_terrias_";
         if (pack.StartsWith(prefix, StringComparison.Ordinal)
             && enabledPacks.Contains(pack.Substring(prefix.Length)))
         {
@@ -259,7 +259,7 @@ public static class EndlessAbyssRewardService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessAbyssReward] enabled card packs unavailable: " + ex.Message);
+            TerriasLog.Warn("[EndlessAbyssReward] enabled card packs unavailable: " + ex.Message);
             return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         }
     }

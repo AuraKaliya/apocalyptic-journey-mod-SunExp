@@ -1,12 +1,12 @@
 using System;
 using AuraShared.Core;
 using Network.Command;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch.Core;
 
-namespace SunExp.Dll.Network;
+namespace Terrias.Dll.Network;
 
 public enum FieldNetworkCommandKind
 {
@@ -49,9 +49,9 @@ public sealed class FieldStateSnapshot
 }
 
 [Serializable]
-public sealed class RpcFieldStateSnapshot : RpcCommandBase, ISunExpServerBoundRpcCommand
+public sealed class RpcFieldStateSnapshot : RpcCommandBase, ITerriasServerBoundRpcCommand
 {
-    private SunExpRpcSender serverSender = SunExpRpcSender.Unbound;
+    private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 
     public FieldStateSnapshot Snapshot { get; set; } = new();
 
@@ -66,9 +66,9 @@ public sealed class RpcFieldStateSnapshot : RpcCommandBase, ISunExpServerBoundRp
         Snapshot = snapshot ?? new FieldStateSnapshot();
     }
 
-    public void BindServerSender(SunExpRpcSender sender)
+    public void BindServerSender(TerriasRpcSender sender)
     {
-        serverSender = sender ?? SunExpRpcSender.Unbound;
+        serverSender = sender ?? TerriasRpcSender.Unbound;
     }
 
     public override void CmdExecute()
@@ -93,9 +93,9 @@ public sealed class RpcFieldStateSnapshot : RpcCommandBase, ISunExpServerBoundRp
 }
 
 [Serializable]
-public sealed class RpcFieldStateRequest : RpcCommandBase, ISunExpServerBoundRpcCommand
+public sealed class RpcFieldStateRequest : RpcCommandBase, ITerriasServerBoundRpcCommand
 {
-    private SunExpRpcSender serverSender = SunExpRpcSender.Unbound;
+    private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 
     public int ProtocolVersion { get; set; } = FieldStateSnapshot.CurrentProtocolVersion;
 
@@ -120,9 +120,9 @@ public sealed class RpcFieldStateRequest : RpcCommandBase, ISunExpServerBoundRpc
 
     public FieldStateSnapshot Snapshot { get; set; } = new();
 
-    public void BindServerSender(SunExpRpcSender sender)
+    public void BindServerSender(TerriasRpcSender sender)
     {
-        serverSender = sender ?? SunExpRpcSender.Unbound;
+        serverSender = sender ?? TerriasRpcSender.Unbound;
     }
 
     public override void CmdExecute()
@@ -130,7 +130,7 @@ public sealed class RpcFieldStateRequest : RpcCommandBase, ISunExpServerBoundRpc
         Snapshot = FieldNetworkSync.ResolveRequest(
             ProtocolVersion,
             (FieldNetworkCommandKind)CommandKind,
-            (SunExpFieldId)FieldId,
+            (TerriasFieldId)FieldId,
             Amount,
             Token,
             BattleSerial,
@@ -146,11 +146,11 @@ public sealed class RpcFieldStateRequest : RpcCommandBase, ISunExpServerBoundRpc
     {
         if (RejectionCode != 0)
         {
-            SunExpLog.Debug("[FieldNetwork] rejected response received: code="
+            TerriasLog.Debug("[FieldNetwork] rejected response received: code="
                 + FieldNetworkSync.RejectionName(RejectionCode)
                 + "(" + RejectionCode + ")"
                 + ", command=" + (FieldNetworkCommandKind)CommandKind
-                + ", field=" + (SunExpFieldId)FieldId
+                + ", field=" + (TerriasFieldId)FieldId
                 + ", intent=" + (IntentId ?? "")
                 + ", owner=" + (OwnerStatusId ?? "")
                 + ", token=" + Token
@@ -169,7 +169,7 @@ public static class FieldNetworkSync
     private static readonly AuraAuthoritativeSyncDomain SyncDomain =
         AuraAuthoritativeSyncRuntime.RegisterDomain(new AuraAuthoritativeSyncDomainOptions
         {
-            OwnerModId = SunExpIds.ModId,
+            OwnerModId = TerriasIds.ModId,
             DomainId = DomainId,
             SnapshotRequestThrottleSeconds = 1.0d,
             MaxResolvedTokens = 256
@@ -181,7 +181,7 @@ public static class FieldNetworkSync
 
     internal static string HostBattleSessionId => hostBattleSessionId;
 
-    public static bool RequestActivate(ScriptExecutor? executor, SunExpFieldId field, int amount, string intentId)
+    public static bool RequestActivate(ScriptExecutor? executor, TerriasFieldId field, int amount, string intentId)
     {
         return SendRequest(
             FieldNetworkCommandKind.Activate,
@@ -193,41 +193,41 @@ public static class FieldNetworkSync
 
     public static void RequestSnapshot(string source)
     {
-        if (!SunExpNetworkRuntime.HasRemotePlayers()
-            || !SunExpNetworkRuntime.IsClientOnly()
+        if (!TerriasNetworkRuntime.HasRemotePlayers()
+            || !TerriasNetworkRuntime.IsClientOnly()
             || !SyncDomain.TryBeginSnapshotRequest())
         {
             return;
         }
 
-        SendRequest(FieldNetworkCommandKind.SnapshotRequest, SunExpFieldId.None, 0, source, "");
+        SendRequest(FieldNetworkCommandKind.SnapshotRequest, TerriasFieldId.None, 0, source, "");
     }
 
     public static void BroadcastSnapshot(string source)
     {
-        if (!SunExpNetworkRuntime.HasRemotePlayers()
-            || !SunExpNetworkRuntime.IsMultiplayerSession()
-            || SunExpNetworkRuntime.IsClientOnly())
+        if (!TerriasNetworkRuntime.HasRemotePlayers()
+            || !TerriasNetworkRuntime.IsMultiplayerSession()
+            || TerriasNetworkRuntime.IsClientOnly())
         {
             return;
         }
 
         var command = new RpcFieldStateSnapshot();
-        command.BindServerSender(SunExpRpcAuthorityRuntime.CreateLocalServerSender(source));
-        SunExpNetworkRuntime.Send(command, source ?? "FieldNetworkSync.BroadcastSnapshot");
+        command.BindServerSender(TerriasRpcAuthorityRuntime.CreateLocalServerSender(source));
+        TerriasNetworkRuntime.Send(command, source ?? "FieldNetworkSync.BroadcastSnapshot");
     }
 
     public static FieldStateSnapshot ResolveRequest(
         int protocolVersion,
         FieldNetworkCommandKind commandKind,
-        SunExpFieldId field,
+        TerriasFieldId field,
         int amount,
         int token,
         int requestBattleSerial,
         string requestBattleSessionId,
         string intentId,
         string ownerStatusId,
-        SunExpRpcSender sender,
+        TerriasRpcSender sender,
         out int rejectionCode)
     {
         rejectionCode = ValidateRequest(protocolVersion, commandKind, field, amount, token, requestBattleSerial, requestBattleSessionId, intentId, ownerStatusId, sender);
@@ -296,13 +296,13 @@ public static class FieldNetworkSync
             remoteBattleSessionId = snapshot.BattleSessionId;
         }
 
-        FieldApi.ApplyNetworkSnapshot((SunExpFieldId)snapshot.FieldId, snapshot.Stacks, snapshot.Epoch, source);
+        FieldApi.ApplyNetworkSnapshot((TerriasFieldId)snapshot.FieldId, snapshot.Stacks, snapshot.Epoch, source);
     }
 
     public static void ResetFightState()
     {
         SyncDomain.ResetSession();
-        if (SunExpNetworkRuntime.IsClientOnly())
+        if (TerriasNetworkRuntime.IsClientOnly())
         {
             remoteBattleSessionId = "";
             return;
@@ -315,21 +315,21 @@ public static class FieldNetworkSync
     private static int ValidateRequest(
         int protocolVersion,
         FieldNetworkCommandKind commandKind,
-        SunExpFieldId field,
+        TerriasFieldId field,
         int amount,
         int token,
         int requestBattleSerial,
         string requestBattleSessionId,
         string intentId,
         string ownerStatusId,
-        SunExpRpcSender sender)
+        TerriasRpcSender sender)
     {
         if (protocolVersion != FieldStateSnapshot.CurrentProtocolVersion)
         {
             return 1;
         }
 
-        if (SunExpNetworkRuntime.IsMultiplayerSession())
+        if (TerriasNetworkRuntime.IsMultiplayerSession())
         {
             if (!sender.IsAvailable)
             {
@@ -343,7 +343,7 @@ public static class FieldNetworkSync
         }
 
         if (commandKind != FieldNetworkCommandKind.SnapshotRequest
-            && field == SunExpFieldId.None)
+            && field == TerriasFieldId.None)
         {
             return 4;
         }
@@ -371,15 +371,15 @@ public static class FieldNetworkSync
         return ValidateActivateIntent(field, intentId, ownerStatusId, sender) ? 0 : 8;
     }
 
-    private static bool SendRequest(FieldNetworkCommandKind commandKind, SunExpFieldId field, int amount, string intentId, string ownerStatusId)
+    private static bool SendRequest(FieldNetworkCommandKind commandKind, TerriasFieldId field, int amount, string intentId, string ownerStatusId)
     {
-        if (!SunExpNetworkRuntime.HasRemotePlayers()
-            || !SunExpNetworkRuntime.IsClientOnly())
+        if (!TerriasNetworkRuntime.HasRemotePlayers()
+            || !TerriasNetworkRuntime.IsClientOnly())
         {
             return false;
         }
 
-        return SunExpNetworkRuntime.Send(new RpcFieldStateRequest
+        return TerriasNetworkRuntime.Send(new RpcFieldStateRequest
         {
             CommandKind = (int)commandKind,
             FieldId = (int)field,
@@ -392,9 +392,9 @@ public static class FieldNetworkSync
         }, "FieldNetworkSync.SendRequest:" + (intentId ?? ""));
     }
 
-    private static bool ValidateActivateIntent(SunExpFieldId field, string intentId, string ownerStatusId, SunExpRpcSender sender)
+    private static bool ValidateActivateIntent(TerriasFieldId field, string intentId, string ownerStatusId, TerriasRpcSender sender)
     {
-        if (!SunExpStatusOwnershipPolicy.SenderOwnsStatus(sender.PlayerId, ownerStatusId, out _))
+        if (!TerriasStatusOwnershipPolicy.SenderOwnsStatus(sender.PlayerId, ownerStatusId, out _))
         {
             return false;
         }
@@ -402,7 +402,7 @@ public static class FieldNetworkSync
         return FieldActivationIntentCatalog.TryResolve(field, intentId, out _);
     }
 
-    private static int ResolveActivateIntent(SunExpFieldId field, string intentId, string ownerStatusId, string senderPlayerId)
+    private static int ResolveActivateIntent(TerriasFieldId field, string intentId, string ownerStatusId, string senderPlayerId)
     {
         if (!FieldActivationIntentCatalog.TryResolve(field, intentId, out var definition))
         {
@@ -433,7 +433,7 @@ public static class FieldNetworkSync
                 return 0;
             }
 
-            return Math.Max(0, status.GetBuff(SunExpIds.ScorchingCanopy)?.buffConfig?.Level ?? 0);
+            return Math.Max(0, status.GetBuff(TerriasIds.ScorchingCanopy)?.buffConfig?.Level ?? 0);
         }
         catch
         {
@@ -473,15 +473,15 @@ public static class FieldNetworkSync
     private static void LogRejectedRequest(
         int rejectionCode,
         FieldNetworkCommandKind commandKind,
-        SunExpFieldId field,
+        TerriasFieldId field,
         string intentId,
         string ownerStatusId,
-        SunExpRpcSender sender,
+        TerriasRpcSender sender,
         int token,
         int requestBattleSerial,
         string requestBattleSessionId)
     {
-        SunExpLog.Warn("[FieldNetwork] request rejected: code="
+        TerriasLog.Warn("[FieldNetwork] request rejected: code="
             + RejectionName(rejectionCode)
             + "(" + rejectionCode + ")"
             + ", command=" + commandKind
@@ -496,16 +496,16 @@ public static class FieldNetworkSync
     }
 
     private static void LogAcceptedActivation(
-        SunExpFieldId field,
+        TerriasFieldId field,
         string intentId,
         string ownerStatusId,
-        SunExpRpcSender sender,
+        TerriasRpcSender sender,
         int token,
         int requestBattleSerial,
         string requestBattleSessionId,
         int resolvedAmount)
     {
-        SunExpLog.InfoAlways("[FieldNetwork] activation accepted: code=Accepted(0)"
+        TerriasLog.InfoAlways("[FieldNetwork] activation accepted: code=Accepted(0)"
             + ", field=" + field + "(" + (int)field + ")"
             + ", intent=" + (intentId ?? "")
             + ", sender=" + (sender?.PlayerId ?? "")

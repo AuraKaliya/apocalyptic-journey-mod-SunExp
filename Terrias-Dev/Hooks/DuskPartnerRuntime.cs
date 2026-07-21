@@ -1,30 +1,30 @@
 using System;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class DuskPartnerRuntime
 {
     private const string PartnerLocalId = "dusk";
-    private const string PartnerFullId = "SunExp_sunexp_dusk";
+    private const string PartnerFullId = "Terrias_terrias_dusk";
     private const string BlessingLocalId = "dusk_afterheat_recovery";
-    private const string BlessingFullId = "SunExp_sunexp_dusk_afterheat_recovery";
+    private const string BlessingFullId = "Terrias_terrias_dusk_afterheat_recovery";
 
     public static void Initialize(ModConfig modConfig)
     {
         DuskAfterheatRecoveryService.Initialize();
         RegisterAfter(modConfig, "GameEntryUI.CheckCareer", CleanupPlaceholderBlessing);
-        SunExpBattleLifecycleRouter.Register("DuskPartner", new SunExpBattleLifecycleSubscription
+        TerriasBattleLifecycleRouter.Register("DuskPartner", new TerriasBattleLifecycleSubscription
         {
             FightStarted = GrantTraitOnFightStart,
             FightEnding = _ => DuskAfterheatRecoveryService.Deactivate(null, "FightEnding")
         });
-        SunExpStatusLifecycleRouter.Register("DuskPartner", new SunExpStatusLifecycleSubscription
+        TerriasStatusLifecycleRouter.Register("DuskPartner", new TerriasStatusLifecycleSubscription
         {
             AfterAddBuff = ObserveBurnAfterAdd,
             AfterEnemyInit = ObserveEnemyAfterInit
@@ -33,7 +33,7 @@ public static class DuskPartnerRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.After(config, target, action, "DuskPartner");
+        TerriasHookRegistry.After(config, target, action, "DuskPartner");
     }
 
     private static void CleanupPlaceholderBlessing(ModHookContext context)
@@ -44,7 +44,7 @@ public static class DuskPartnerRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Dusk placeholder blessing cleanup failed", ex);
+            TerriasLog.Error("Dusk placeholder blessing cleanup failed", ex);
         }
     }
 
@@ -59,18 +59,18 @@ public static class DuskPartnerRuntime
                 return;
             }
 
-            if (status.GetBuff(SunExpIds.DuskAfterheatRecoveryTrait) == null)
+            if (status.GetBuff(TerriasIds.DuskAfterheatRecoveryTrait) == null)
             {
                 DuskAfterheatRecoveryService.Deactivate(null, "FightStarted.NewStatus");
-                status.AddBuff(SunExpIds.DuskAfterheatRecoveryTrait, 1);
-                SunExpLog.Info("Granted Dusk afterheat recovery trait: owner=" + status.InstanceId);
+                status.AddBuff(TerriasIds.DuskAfterheatRecoveryTrait, 1);
+                TerriasLog.Info("Granted Dusk afterheat recovery trait: owner=" + status.InstanceId);
             }
 
             DuskAfterheatRecoveryService.EnsureActive(status, "FightStarted.EnsureActive");
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Dusk fight start trait grant failed", ex);
+            TerriasLog.Error("Dusk fight start trait grant failed", ex);
         }
     }
 
@@ -85,7 +85,7 @@ public static class DuskPartnerRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Dusk burn observer attachment failed after AddBuff", ex);
+            TerriasLog.Error("Dusk burn observer attachment failed after AddBuff", ex);
         }
     }
 
@@ -99,7 +99,7 @@ public static class DuskPartnerRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Dusk burn observer attachment failed after Enemy.Init", ex);
+            TerriasLog.Error("Dusk burn observer attachment failed after Enemy.Init", ex);
         }
     }
 

@@ -1,14 +1,14 @@
 using System;
 using System.Reflection;
 using AuraShared.Core;
-using SunExp.Dll.Hooks.Visual;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Hooks.Visual;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class AnimatedBuffIconRuntime
 {
@@ -22,7 +22,7 @@ public static class AnimatedBuffIconRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.After(config, target, action, "AnimatedBuffIcon");
+        TerriasHookRegistry.After(config, target, action, "AnimatedBuffIcon");
     }
 
     private static void AttachFromContext(ModHookContext context)
@@ -40,7 +40,7 @@ public static class AnimatedBuffIconRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Animated buff icon attach failed", ex);
+            TerriasLog.Error("Animated buff icon attach failed", ex);
         }
     }
 

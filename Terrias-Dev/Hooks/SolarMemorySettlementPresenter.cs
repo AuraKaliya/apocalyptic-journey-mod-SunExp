@@ -1,9 +1,9 @@
 using System;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.UI;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class SolarMemorySettlementPresenter
 {
@@ -17,7 +17,7 @@ public static class SolarMemorySettlementPresenter
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory settlement UI failed", ex);
+            TerriasLog.Error("Solar memory settlement UI failed", ex);
         }
     }
 }

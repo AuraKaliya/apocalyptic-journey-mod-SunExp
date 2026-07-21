@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Newtonsoft.Json;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.Mod;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class EndlessAbyssEvolutionTraitRegistry
 {
@@ -18,11 +18,11 @@ public static class EndlessAbyssEvolutionTraitRegistry
         lock (SyncRoot)
         {
             var fallback = BuiltInWeightedPool();
-            var path = Path.Combine(modConfig.DirectoryName, SunExpIds.EndlessAbyssEvolutionTraitRegistryFile);
+            var path = Path.Combine(modConfig.DirectoryName, TerriasIds.EndlessAbyssEvolutionTraitRegistryFile);
             if (!File.Exists(path))
             {
                 weightedPool = fallback;
-                SunExpLog.Warn("[EndlessAbyssEvolutionTraitRegistry] missing registry; using built-in trait pool.");
+                TerriasLog.Warn("[EndlessAbyssEvolutionTraitRegistry] missing registry; using built-in trait pool.");
                 return;
             }
 
@@ -31,12 +31,12 @@ public static class EndlessAbyssEvolutionTraitRegistry
                 var loaded = JsonConvert.DeserializeObject<EndlessAbyssEvolutionTraitRegistryDocument>(File.ReadAllText(path))
                     ?? new EndlessAbyssEvolutionTraitRegistryDocument();
                 weightedPool = Normalize(loaded, fallback);
-                SunExpLog.Info("[EndlessAbyssEvolutionTraitRegistry] loaded trait pool count=" + weightedPool.Count + ".");
+                TerriasLog.Info("[EndlessAbyssEvolutionTraitRegistry] loaded trait pool count=" + weightedPool.Count + ".");
             }
             catch (Exception ex)
             {
                 weightedPool = fallback;
-                SunExpLog.Warn("[EndlessAbyssEvolutionTraitRegistry] failed to load registry; using built-in trait pool: " + ex.Message);
+                TerriasLog.Warn("[EndlessAbyssEvolutionTraitRegistry] failed to load registry; using built-in trait pool: " + ex.Message);
             }
         }
     }
@@ -54,7 +54,7 @@ public static class EndlessAbyssEvolutionTraitRegistry
         IReadOnlyList<string> fallback)
     {
         var pool = (loaded.Pools ?? new List<EndlessAbyssEvolutionTraitPoolConfig>())
-            .FirstOrDefault(item => string.Equals(item.Id, SunExpIds.EndlessAbyssEvolutionTraitPoolId, StringComparison.Ordinal));
+            .FirstOrDefault(item => string.Equals(item.Id, TerriasIds.EndlessAbyssEvolutionTraitPoolId, StringComparison.Ordinal));
         if (pool?.Entries == null)
         {
             return fallback;
@@ -109,7 +109,7 @@ public static class EndlessAbyssEvolutionTraitRegistry
             "SpecialBuff_TrialsOfWisdom",
             "SpecialBuff_BackToBasics",
             "SpecialBuff_Transcendent",
-            SunExpIds.BossTraitMirrorArray
+            TerriasIds.BossTraitMirrorArray
         };
     }
 }

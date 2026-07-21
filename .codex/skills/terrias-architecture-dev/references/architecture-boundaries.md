@@ -1,32 +1,32 @@
-# SunExp Architecture Boundaries
+# Terrias Architecture Boundaries
 
 Use this reference when deciding where a C# change belongs.
 
 ## Layers
 
-- `SunExp-Dev/Scripting/*Scripts.cs`: stable public static methods called from
+- `Terrias-Dev/Scripting/*Scripts.cs`: stable public static methods called from
   CSV. Keep methods small and parameter lists stable.
-- `SunExp-Dev/GameApi/*`: wrappers around game objects, status, buffs, cards,
+- `Terrias-Dev/GameApi/*`: wrappers around game objects, status, buffs, cards,
   damage, vars, events, audio, flow facades, and compatibility dispatch.
-- `SunExp-Dev/Mechanics/*`: reusable SunExp behavior that does not need to be
+- `Terrias-Dev/Mechanics/*`: reusable Terrias behavior that does not need to be
   CSV-callable directly.
-- `SunExp-Dev/Features/*`: feature runtimes that are initialized by `Entry` or
+- `Terrias-Dev/Features/*`: feature runtimes that are initialized by `Entry` or
   hooks but are not CSV-callable script surfaces, such as Skill CG integration.
-- `SunExp-Dev/Hooks/*`: runtime hook registration, UI integration, map
+- `Terrias-Dev/Hooks/*`: runtime hook registration, UI integration, map
   lifecycle, mode lifecycle, and listener attachment.
-- `SunExp-Dev/Hooks/Ui/*`: reusable UI safety, modal, pooling, sprite, HUD, and
+- `Terrias-Dev/Hooks/Ui/*`: reusable UI safety, modal, pooling, sprite, HUD, and
   tooltip helpers.
-- `SunExp-Dev/Hooks/Visual/*`: Unity visual mutation, shader/material loading,
+- `Terrias-Dev/Hooks/Visual/*`: Unity visual mutation, shader/material loading,
   VisualBundle access, card visual appliers, and visual animation helpers.
-- `SunExp-Dev/Infrastructure/*`: ids, constants, logging, dictionary helpers,
+- `Terrias-Dev/Infrastructure/*`: ids, constants, logging, dictionary helpers,
   field ids, parsing, performance settings/counters, frame dispatch, and
   low-level support.
-- `SunExp-Dev/Network/*`: explicit multiplayer RPC commands and SunExp RPC
+- `Terrias-Dev/Network/*`: explicit multiplayer RPC commands and Terrias RPC
   sender authority binding.
 
 ## Current Mechanics Layout
 
-`SunExp-Dev/Mechanics` is currently a mostly flat directory of focused
+`Terrias-Dev/Mechanics` is currently a mostly flat directory of focused
 services, models, registries, and catalogs. Prefer following the existing flat
 file pattern and clear type names when adding a new mechanic. Create a new
 subdirectory only when the current repository already has a stable sub-domain
@@ -54,7 +54,7 @@ current architectural split includes:
 - `BattleRewardApi`: safe battle reward access and mutation.
 - `CardVisualSkinApi` and `CardVisualEffectApi`: registration facades for
   runtime card skins and visual effects.
-- `SunExpResourceCache`: the central resource-loading choke point.
+- `TerriasResourceCache`: the central resource-loading choke point.
 - `SolarMemoryFlowApi`: CSV-callable facade into Solar Memory hook runtimes.
 - `SolarMemoryRoleCommitApi`: final prepared role submission.
 
@@ -87,8 +87,8 @@ a `GameApi` facade and call that facade.
 
 ## Shared Candidate Boundary
 
-SunExp architecture may contain local routers, factories, pools, caches, and
-preloaders when they serve SunExp content. Do not let those local helpers become
+Terrias architecture may contain local routers, factories, pools, caches, and
+preloaders when they serve Terrias content. Do not let those local helpers become
 the base framework for AuraToolsExp or other mods.
 
 Promote the semantic-free part to an Aura shared runtime when the same
@@ -104,14 +104,14 @@ capability is needed by both content and tool mods:
 - multiplayer presentation event foundations. Put authority fields, duplicate
   suppression, and cleanup rules in the shared sync scenario model.
 
-Keep SunExp-specific semantics, such as cards, modes, rewards, story, and
-SunExp-owned trigger matching, in SunExp. Keep tool-local configuration,
+Keep Terrias-specific semantics, such as cards, modes, rewards, story, and
+Terrias-owned trigger matching, in Terrias. Keep tool-local configuration,
 preview, import/export, and overrides in AuraToolsExp. Shared components should
-be sibling foundations for both, not SunExp internals exposed outward.
+be sibling foundations for both, not Terrias internals exposed outward.
 
 ## Runtime Visual And UI Boundaries
 
-Use `sunexp-visual-runtime-dev` for visual registry, VisualBundle, shader,
+Use `terrias-visual-runtime-dev` for visual registry, VisualBundle, shader,
 card visual skin/effect, Skill CG, animated icon, Star Score HUD, Wuna orbit
 fire, and map-node visual work.
 
@@ -119,10 +119,10 @@ Keep registry and rule matching in `Mechanics` or registry JSON. Keep Unity
 object mutation in `Hooks/Visual` or `Hooks/Ui`. Do not add Unity visual
 mutation to `Scripting`.
 
-## SunExp RPC Authority
+## Terrias RPC Authority
 
-`SunExpRpcAuthorityRuntime` binds server-bound RPC commands to a sender derived
-from the server receive context. SunExp remote commands that mutate shared or
+`TerriasRpcAuthorityRuntime` binds server-bound RPC commands to a sender derived
+from the server receive context. Terrias remote commands that mutate shared or
 authoritative state should implement the server-bound interface and validate the
 bound sender before applying.
 
@@ -132,4 +132,4 @@ use the same sender model through `CreateLocalServerSender`.
 
 For synchronized event shapes, payload fields, timing, and duplicate
 suppression, load
-`sunexp-shared-runtime-dev/references/sync-scenario-model.md`.
+`terrias-shared-runtime-dev/references/sync-scenario-model.md`.

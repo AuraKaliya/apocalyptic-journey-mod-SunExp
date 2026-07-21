@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public sealed class StarStonePouchDrawResult
 {
@@ -156,7 +156,7 @@ public static class StarStonePouchService
 
         InitializeState(state);
         self.SetStatus("Self");
-        self.AddBuff(SunExpIds.StarStonePouch, InitialBlackStones.ToString());
+        self.AddBuff(TerriasIds.StarStonePouch, InitialBlackStones.ToString());
         SyncBuff(self, state);
     }
 
@@ -176,19 +176,19 @@ public static class StarStonePouchService
         EnsureInitialized(state);
         SyncBuff(self, state);
 
-        var token = ExecutorApi.RegisterHook(self, "SunExpStarStonePouchHook", "SunExpStarStonePouchToken");
+        var token = ExecutorApi.RegisterHook(self, "TerriasStarStonePouchHook", "TerriasStarStonePouchToken");
         if (token == null)
         {
             return;
         }
 
-        ExecutorApi.TryAddTokenedEvent(self, "ActionAfter", "SunExpStarStonePouchToken", token,
+        ExecutorApi.TryAddTokenedEvent(self, "ActionAfter", "TerriasStarStonePouchToken", token,
             new Action(() => DrawForAction(self)), "star_stone_pouch");
     }
 
     public static void Clear(ScriptExecutor self)
     {
-        ExecutorApi.ClearHook(self, "SunExpStarStonePouchHook", "SunExpStarStonePouchToken");
+        ExecutorApi.ClearHook(self, "TerriasStarStonePouchHook", "TerriasStarStonePouchToken");
         StarStonePouchStateStore.Remove(self?.Self);
     }
 
@@ -250,7 +250,7 @@ public static class StarStonePouchService
 
     private static void DrawForAction(ScriptExecutor self)
     {
-        if (self?.Self == null || !BuffApi.Has(self.Self, SunExpIds.StarStonePouch))
+        if (self?.Self == null || !BuffApi.Has(self.Self, TerriasIds.StarStonePouch))
         {
             return;
         }
@@ -310,7 +310,7 @@ public static class StarStonePouchService
             }
             catch (Exception ex)
             {
-                SunExpLog.Error("Star stone pouch draw subscriber failed", ex);
+                TerriasLog.Error("Star stone pouch draw subscriber failed", ex);
             }
         }
     }
@@ -385,6 +385,6 @@ public static class StarStonePouchService
 
     private static void SyncBuff(ScriptExecutor self, StarStonePouchState state)
     {
-        BuffApi.SetExactLevel(self?.Self, SunExpIds.StarStonePouch, state.BlackStoneCount(), keepZero: true);
+        BuffApi.SetExactLevel(self?.Self, TerriasIds.StarStonePouch, state.BlackStoneCount(), keepZero: true);
     }
 }

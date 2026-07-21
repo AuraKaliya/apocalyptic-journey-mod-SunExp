@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using UnityEngine;
 using Witch.UI;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class SpiritStateStore
 {
@@ -25,7 +25,7 @@ public static class SpiritStateStore
         {
             for (var i = 0; i < 64; i++)
             {
-                var id = SunExpIds.SpiritStatusIdPrefix + nextIndex++;
+                var id = TerriasIds.SpiritStatusIdPrefix + nextIndex++;
                 if (FightManager.Instance?.statuses?.ContainsKey(id) != true)
                 {
                     return id;
@@ -33,7 +33,7 @@ public static class SpiritStateStore
             }
         }
 
-        return SunExpIds.SpiritStatusIdPrefix + Guid.NewGuid().ToString("N").Substring(0, 6);
+        return TerriasIds.SpiritStatusIdPrefix + Guid.NewGuid().ToString("N").Substring(0, 6);
     }
 
     public static void Register(SpiritState state)
@@ -49,7 +49,7 @@ public static class SpiritStateStore
         }
 
         Registered?.Invoke(state);
-        SunExpPerformanceCounters.Record("Spirit.Registered");
+        TerriasPerformanceCounters.Record("Spirit.Registered");
     }
 
     public static IReadOnlyList<SpiritState> Active()
@@ -138,7 +138,7 @@ public static class SpiritStateStore
             state.Spirit.DeadEffect();
         }
         Retired?.Invoke(state);
-        SunExpLog.Info("[Spirit] retired from " + source + ": status=" + state.StatusId + ", enemy=" + state.Snapshot.EnemyId);
+        TerriasLog.Info("[Spirit] retired from " + source + ": status=" + state.StatusId + ", enemy=" + state.Snapshot.EnemyId);
     }
 
     public static bool Withdraw(string statusId, string source)
@@ -166,8 +166,8 @@ public static class SpiritStateStore
             UnityEngine.Object.Destroy(spirit.gameObject);
         }
         Retired?.Invoke(state);
-        SunExpLog.Info("[Spirit] withdrawn from " + source + ": status=" + state.StatusId + ", enemy=" + state.Snapshot.EnemyId);
-        SunExpPerformanceCounters.Record("Spirit.Withdrawn");
+        TerriasLog.Info("[Spirit] withdrawn from " + source + ": status=" + state.StatusId + ", enemy=" + state.Snapshot.EnemyId);
+        TerriasPerformanceCounters.Record("Spirit.Withdrawn");
         return true;
     }
 
@@ -192,7 +192,7 @@ public static class SpiritStateStore
             Retired?.Invoke(state);
         }
 
-        SunExpLog.Debug("[Spirit] cleared from " + source + ": count=" + states.Length);
+        TerriasLog.Debug("[Spirit] cleared from " + source + ": count=" + states.Length);
     }
 
     private static bool IsAlive(SpiritState state)

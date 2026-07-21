@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using AuraJourney.Shared;
 using Data.Save;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch;
 using Witch.Core;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class MapNodeSafetyService
 {
@@ -19,7 +19,7 @@ public static class MapNodeSafetyService
         }
 
         node.NodeDice = preferDefaultDice ? Dice.Default : tree?.treedice ?? Dice.Default;
-        SunExpLog.Debug("[MapNodeSafety] repaired missing NodeDice; source="
+        TerriasLog.Debug("[MapNodeSafety] repaired missing NodeDice; source="
             + source
             + "; id="
             + NodeField(node, "Id")
@@ -36,8 +36,8 @@ public static class MapNodeSafetyService
             return false;
         }
 
-        return SunExpIds.IsSolarMemoryExclusiveMapId(NodeField(node, "Id"))
-            || SunExpIds.IsSolarMemoryExclusiveEventId(NodeField(node, "NodeId"));
+        return TerriasIds.IsSolarMemoryExclusiveMapId(NodeField(node, "Id"))
+            || TerriasIds.IsSolarMemoryExclusiveEventId(NodeField(node, "NodeId"));
     }
 
     public static bool IsBreakNode(MapTree.Node? node)
@@ -89,7 +89,7 @@ public static class MapNodeSafetyService
             var fallback = FindDeterministicFallbackNode(tree, level);
             if (fallback == null)
             {
-                SunExpLog.Warn("[MapNodeSafety] unable to restore current node; source="
+                TerriasLog.Warn("[MapNodeSafety] unable to restore current node; source="
                     + source
                     + "; reason="
                     + reason
@@ -102,7 +102,7 @@ public static class MapNodeSafetyService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[MapNodeSafety] current node repair failed; source="
+            TerriasLog.Warn("[MapNodeSafety] current node repair failed; source="
                 + source
                 + ": "
                 + ex.Message);
@@ -120,7 +120,7 @@ public static class MapNodeSafetyService
         EnsureNodeDice(tree, node, source);
         tree.currentNode = node;
         GameSaveManager.UpdateNode(node);
-        SunExpLog.Warn("[MapNodeSafety] restored current node; source="
+        TerriasLog.Warn("[MapNodeSafety] restored current node; source="
             + source
             + "; reason="
             + reason
@@ -278,7 +278,7 @@ public static class MapNodeSafetyService
             return null;
         }
 
-        return SunExpConfigIndex.Row(DataType.Map, id);
+        return TerriasConfigIndex.Row(DataType.Map, id);
     }
 
     private static bool IsClientOnlyPlayer()

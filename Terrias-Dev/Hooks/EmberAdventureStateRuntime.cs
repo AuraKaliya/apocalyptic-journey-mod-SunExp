@@ -1,17 +1,17 @@
 using System;
 using AuraShared.Core;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class EmberAdventureStateRuntime
 {
     public static void Initialize(ModConfig modConfig)
     {
-        SunExpHookRegistry.After(
+        TerriasHookRegistry.After(
             modConfig,
             "Fight_Start.Init",
             RestoreForLocalPlayer,
@@ -26,7 +26,7 @@ public static class EmberAdventureStateRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Ember adventure state restore failed", ex);
+            TerriasLog.Error("Ember adventure state restore failed", ex);
         }
     }
 }

@@ -1,19 +1,19 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 using Witch;
 using Witch.Core;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class EndlessAbyssCrackService
 {
     public const string CrackTag = "裂痕";
     private const string FragmentedTag = "Fragmented";
-    private const string CounterKey = "SunExpAbyssCrackCount";
-    private const string TemporaryFragmentedMarker = "SunExpAbyssCrackTemporaryFragmented";
+    private const string CounterKey = "TerriasAbyssCrackCount";
+    private const string TemporaryFragmentedMarker = "TerriasAbyssCrackTemporaryFragmented";
 
     public static void OnCardPlayed(CardItem? card, string source)
     {
@@ -35,14 +35,14 @@ public static class EndlessAbyssCrackService
             CardMutationService.RemoveNativeTags(card, CrackTag);
             CardMutationService.AddNativeTags(card, FragmentedTag);
             CardMutationService.SetRuntimeMarkers(card.dataConfig, TemporaryFragmentedMarker);
-            SunExpLog.Info("[EndlessAbyssCrack] card became temporary Fragmented from "
+            TerriasLog.Info("[EndlessAbyssCrack] card became temporary Fragmented from "
                 + source
                 + ": "
                 + CardConfigApi.Id(card.dataConfig));
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessAbyssCrack] play hook failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[EndlessAbyssCrack] play hook failed from " + source + ": " + ex.Message);
         }
     }
 
@@ -61,8 +61,8 @@ public static class EndlessAbyssCrackService
                 var changed = CardMutationService.RemoveNativeTags(card, FragmentedTag);
                 changed = CardMutationService.AddNativeTags(card, CrackTag) || changed;
                 DictionaryUtil.Set(card.Vars, CounterKey, "0");
-                DictionaryUtil.Set(card.Vars, SunExpIds.RuntimeMarkersKey, RemoveToken(
-                    DictionaryUtil.Get(card.Vars, SunExpIds.RuntimeMarkersKey),
+                DictionaryUtil.Set(card.Vars, TerriasIds.RuntimeMarkersKey, RemoveToken(
+                    DictionaryUtil.Get(card.Vars, TerriasIds.RuntimeMarkersKey),
                     TemporaryFragmentedMarker));
                 if (changed)
                 {
@@ -73,12 +73,12 @@ public static class EndlessAbyssCrackService
             if (restored > 0)
             {
                 EndlessSeaCardAffixService.TryPersistCurrentRole("EndlessAbyssCrack.Restore");
-                SunExpLog.Info("[EndlessAbyssCrack] restored " + restored + " cards from " + source + ".");
+                TerriasLog.Info("[EndlessAbyssCrack] restored " + restored + " cards from " + source + ".");
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessAbyssCrack] restore failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[EndlessAbyssCrack] restore failed from " + source + ": " + ex.Message);
         }
     }
 

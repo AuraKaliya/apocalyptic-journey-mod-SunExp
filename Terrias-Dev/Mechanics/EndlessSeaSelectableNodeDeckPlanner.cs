@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using Witch;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class EndlessSeaSelectableNodeDeckPlanner
 {

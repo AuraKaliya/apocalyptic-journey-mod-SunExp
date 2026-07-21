@@ -1,13 +1,13 @@
 using System;
 using System.Linq;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
-using SunExp.Dll.Network;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
+using Terrias.Dll.Network;
 using UnityEngine;
 using Witch.UI;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class EnemyCaptureSettlementApi
 {
@@ -18,7 +18,7 @@ public static class EnemyCaptureSettlementApi
             return false;
         }
 
-        var started = SunExpPerformanceCounters.Timestamp();
+        var started = TerriasPerformanceCounters.Timestamp();
         var settled = false;
         using var scope = SpiritCaptureResolutionContext.Begin(snapshot, profile, EnemyManager.Instance.enemyList?.Count ?? 0);
         try
@@ -52,14 +52,14 @@ public static class EnemyCaptureSettlementApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[SpiritCapture] native settlement failed for " + snapshot.EnemyId, ex);
+            TerriasLog.Error("[SpiritCapture] native settlement failed for " + snapshot.EnemyId, ex);
             SuppressEnemy(enemy, "captured-target-exception");
             settled = EnemyManager.Instance.enemyList?.Contains(enemy) != true;
             return settled;
         }
         finally
         {
-            SunExpPerformanceCounters.RecordHotspot(
+            TerriasPerformanceCounters.RecordHotspot(
                 "Spirit.Capture.Settlement",
                 started,
                 "enemy=" + snapshot.EnemyId
@@ -118,9 +118,9 @@ public static class EnemyCaptureSettlementApi
             var ui = UIManager.Instance?.GetUI<FightUI>("FightUI");
             ui?.StatusList?.RemoveAll(status => status == null || status.InstanceId == statusId);
             UnityEngine.Object.Destroy(enemy.gameObject);
-            if (SunExpNetworkRuntime.IsMultiplayerSession() && SunExpNetworkRuntime.IsServer())
+            if (TerriasNetworkRuntime.IsMultiplayerSession() && TerriasNetworkRuntime.IsServer())
             {
-                SunExpNetworkRuntime.Send(
+                TerriasNetworkRuntime.Send(
                     new RpcSpiritEnemySuppressed(statusId, DictionaryUtil.Get(enemy.dataConfig?.data, "Id"), source),
                     "EnemyCaptureSettlementApi.SuppressEnemy");
             }
@@ -128,11 +128,11 @@ public static class EnemyCaptureSettlementApi
             {
                 ui?.CanWin();
             }
-            SunExpLog.Info("[SpiritCapture] removed enemy without successor settlement: status=" + statusId + ", source=" + source);
+            TerriasLog.Info("[SpiritCapture] removed enemy without successor settlement: status=" + statusId + ", source=" + source);
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[SpiritCapture] forced removal failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[SpiritCapture] forced removal failed from " + source + ": " + ex.Message);
         }
     }
 

@@ -1,14 +1,14 @@
 # Relic Row Template
 
-- Data file: `SunExp/Data/Relic/sunexp.csv`
-- Text file: `SunExp/Text/Relic/sunexp.csv`
-- Runtime full id: `SunExp_sunexp_<Id>`
+- Data file: `Terrias/Data/Relic/terrias.csv`
+- Text file: `Terrias/Text/Relic/terrias.csv`
+- Runtime full id: `Terrias_terrias_<Id>`
 
 Checklist:
 
-- `OwnScript` / `FightScript` call `CS.SunExp.Dll.Scripting.RelicScripts.*`.
+- `OwnScript` / `FightScript` call `CS.Terrias.Dll.Scripting.RelicScripts.*`.
 - Shared relic behavior lives in C# helpers, not inline CSV logic.
 - Per-fight state is reset on `FightStart` when needed.
 - Display-state refresh is exposed through C# when needed.
-- `PackBelong` points to an existing SunExp card pack.
-- Image path exists under `SunExp/ModResource`.
+- `PackBelong` points to an existing Terrias card pack.
+- Image path exists under `Terrias/ModResource`.

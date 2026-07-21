@@ -3,15 +3,15 @@ using System.Collections.Generic;
 using System.Linq;
 using Data.Save;
 using Network.Command;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch;
 
-namespace SunExp.Dll.Network;
+namespace Terrias.Dll.Network;
 
-public sealed class RpcSolarMemoryRoleCommit : RpcCommandBase, ISunExpServerBoundRpcCommand
+public sealed class RpcSolarMemoryRoleCommit : RpcCommandBase, ITerriasServerBoundRpcCommand
 {
     private static readonly HashSet<string> CommittedTokens = new(StringComparer.Ordinal);
-    private SunExpRpcSender serverSender = SunExpRpcSender.Unbound;
+    private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 
     public RoleTable? Role { get; set; }
 
@@ -27,9 +27,9 @@ public sealed class RpcSolarMemoryRoleCommit : RpcCommandBase, ISunExpServerBoun
         Source = source ?? "";
     }
 
-    public void BindServerSender(SunExpRpcSender sender)
+    public void BindServerSender(TerriasRpcSender sender)
     {
-        serverSender = sender ?? SunExpRpcSender.Unbound;
+        serverSender = sender ?? TerriasRpcSender.Unbound;
     }
 
     public override void CmdExecute()
@@ -44,13 +44,13 @@ public sealed class RpcSolarMemoryRoleCommit : RpcCommandBase, ISunExpServerBoun
 
     internal static bool ApplyOnServer(RoleTable? role, string source)
     {
-        return ApplyOnServer(role, source, SunExpRpcSender.Unbound, remoteRpc: false);
+        return ApplyOnServer(role, source, TerriasRpcSender.Unbound, remoteRpc: false);
     }
 
     internal static bool ApplyOnServer(
         RoleTable? role,
         string source,
-        SunExpRpcSender sender,
+        TerriasRpcSender sender,
         bool remoteRpc)
     {
         var claimedToken = "";
@@ -58,7 +58,7 @@ public sealed class RpcSolarMemoryRoleCommit : RpcCommandBase, ISunExpServerBoun
         {
             if (role == null || string.IsNullOrWhiteSpace(role.Id))
             {
-                SunExpLog.Warn("[SolarMemoryRoleCommit] rejected empty role. source=" + source);
+                TerriasLog.Warn("[SolarMemoryRoleCommit] rejected empty role. source=" + source);
                 return false;
             }
 
@@ -67,24 +67,24 @@ public sealed class RpcSolarMemoryRoleCommit : RpcCommandBase, ISunExpServerBoun
                 return false;
             }
 
-            if (GameSaveManager.GetValue<string>(SunExpIds.SolarMemoryModeKey) != "1")
+            if (GameSaveManager.GetValue<string>(TerriasIds.SolarMemoryModeKey) != "1")
             {
-                SunExpLog.Warn("[SolarMemoryRoleCommit] rejected outside Solar Memory mode. role=" + role.Id + ", source=" + source);
+                TerriasLog.Warn("[SolarMemoryRoleCommit] rejected outside Solar Memory mode. role=" + role.Id + ", source=" + source);
                 return false;
             }
 
             if (role.SpecialVarMap == null
-                || !role.SpecialVarMap.TryGetValue(SunExpIds.SolarMemorySetupFinishedKey, out var setupFinished)
+                || !role.SpecialVarMap.TryGetValue(TerriasIds.SolarMemorySetupFinishedKey, out var setupFinished)
                 || setupFinished != "1")
             {
-                SunExpLog.Warn("[SolarMemoryRoleCommit] rejected unfinished setup. role=" + role.Id + ", source=" + source);
+                TerriasLog.Warn("[SolarMemoryRoleCommit] rejected unfinished setup. role=" + role.Id + ", source=" + source);
                 return false;
             }
 
-            if (!role.SpecialVarMap.TryGetValue(SunExpIds.SolarMemorySetupCommitTokenKey, out var commitToken)
+            if (!role.SpecialVarMap.TryGetValue(TerriasIds.SolarMemorySetupCommitTokenKey, out var commitToken)
                 || string.IsNullOrWhiteSpace(commitToken))
             {
-                SunExpLog.Warn("[SolarMemoryRoleCommit] rejected missing commit token. role=" + role.Id + ", source=" + source);
+                TerriasLog.Warn("[SolarMemoryRoleCommit] rejected missing commit token. role=" + role.Id + ", source=" + source);
                 return false;
             }
 
@@ -94,14 +94,14 @@ public sealed class RpcSolarMemoryRoleCommit : RpcCommandBase, ISunExpServerBoun
                 var players = server.LobbyInfo?.AddedPlayers;
                 if (players != null && players.Count > 0 && !players.Any(player => player.Id == role.Id))
                 {
-                    SunExpLog.Warn("[SolarMemoryRoleCommit] rejected role outside lobby. role=" + role.Id + ", source=" + source);
+                    TerriasLog.Warn("[SolarMemoryRoleCommit] rejected role outside lobby. role=" + role.Id + ", source=" + source);
                     return false;
                 }
             }
 
             if (!CommittedTokens.Add(commitToken))
             {
-                SunExpLog.Info("[SolarMemoryRoleCommit] duplicate network commit ignored. role=" + role.Id + ", token=" + commitToken);
+                TerriasLog.Info("[SolarMemoryRoleCommit] duplicate network commit ignored. role=" + role.Id + ", token=" + commitToken);
                 return true;
             }
 
@@ -112,7 +112,7 @@ public sealed class RpcSolarMemoryRoleCommit : RpcCommandBase, ISunExpServerBoun
             }
 
             GameSaveManager.UpdateRoles(role);
-            SunExpLog.Info("[SolarMemoryRoleCommit] committed final role. role=" + role.Id + ", token=" + commitToken + ", source=" + source);
+            TerriasLog.Info("[SolarMemoryRoleCommit] committed final role. role=" + role.Id + ", token=" + commitToken + ", source=" + source);
             return true;
         }
         catch (Exception ex)
@@ -122,7 +122,7 @@ public sealed class RpcSolarMemoryRoleCommit : RpcCommandBase, ISunExpServerBoun
                 CommittedTokens.Remove(claimedToken);
             }
 
-            SunExpLog.Error("Solar Memory final role commit failed. source=" + source, ex);
+            TerriasLog.Error("Solar Memory final role commit failed. source=" + source, ex);
             return false;
         }
     }
@@ -130,19 +130,19 @@ public sealed class RpcSolarMemoryRoleCommit : RpcCommandBase, ISunExpServerBoun
     private static bool ValidateSender(
         RoleTable role,
         string source,
-        SunExpRpcSender? sender,
+        TerriasRpcSender? sender,
         bool remoteRpc)
     {
-        sender ??= SunExpRpcSender.Unbound;
+        sender ??= TerriasRpcSender.Unbound;
         if ((remoteRpc || IsMultiplayerLobby()) && !sender.IsAvailable)
         {
-            SunExpLog.Warn("[SolarMemoryRoleCommit] rejected missing server sender. role=" + role.Id + ", source=" + source);
+            TerriasLog.Warn("[SolarMemoryRoleCommit] rejected missing server sender. role=" + role.Id + ", source=" + source);
             return false;
         }
 
         if (sender.IsAvailable && !sender.IsLobbyMember)
         {
-            SunExpLog.Warn("[SolarMemoryRoleCommit] rejected sender outside lobby. role="
+            TerriasLog.Warn("[SolarMemoryRoleCommit] rejected sender outside lobby. role="
                            + role.Id
                            + ", sender="
                            + sender.PlayerId
@@ -154,7 +154,7 @@ public sealed class RpcSolarMemoryRoleCommit : RpcCommandBase, ISunExpServerBoun
         if (sender.IsAvailable
             && !string.Equals(role.Id, sender.PlayerId, StringComparison.Ordinal))
         {
-            SunExpLog.Warn("[SolarMemoryRoleCommit] rejected sender mismatch. role="
+            TerriasLog.Warn("[SolarMemoryRoleCommit] rejected sender mismatch. role="
                            + role.Id
                            + ", sender="
                            + sender.PlayerId

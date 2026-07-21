@@ -1,4 +1,4 @@
 interface:
-  display_name: "SunExp Poster Design"
-  short_description: "SunExp MOD poster workflow"
-  default_prompt: "Create or update a SunExp topic poster using the saved analysis-to-GPT-IMAGE2 workflow."
+  display_name: "Terrias Poster Design"
+  short_description: "Terrias MOD poster workflow"
+  default_prompt: "Create or update a Terrias topic poster using the saved analysis-to-GPT-IMAGE2 workflow."

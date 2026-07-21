@@ -1,13 +1,13 @@
 using System;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 using UnityEngine;
 using Witch.Core;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
-public static class SunExpCardPresentationLifecycleBridge
+public static class TerriasCardPresentationLifecycleBridge
 {
     private static int observedSetCardStyle;
     private static int observedLifecycle;
@@ -19,38 +19,38 @@ public static class SunExpCardPresentationLifecycleBridge
 
     public static void Initialize()
     {
-        SunExpCardLifecycleRouter.Register("CardPresentationBridge", new SunExpCardLifecycleSubscription
+        TerriasCardLifecycleRouter.Register("CardPresentationBridge", new TerriasCardLifecycleSubscription
         {
             AfterSetCardStyle = ApplyFromSetCardStyle,
-            AfterCardItemInit = context => ApplyFromLifecycle(context, "CardItem.Init", SunExpCardPresentationSurface.CombatCard),
-            AfterAttackCardItemInit = context => ApplyFromLifecycle(context, "AttackCardItem.Init", SunExpCardPresentationSurface.CombatCard),
-            AfterCardChoiceItemInitialize = context => ApplyFromLifecycle(context, "CardChoiceItem.Initialize", SunExpCardPresentationSurface.RewardChoice),
-            AfterDictItemInit = context => ApplyFromLifecycle(context, "DictItem.Init", SunExpCardPresentationSurface.Dictionary),
-            AfterDictionaryShowItemInit = context => ApplyFromLifecycle(context, "DictionaryShowItem.Init", SunExpCardPresentationSurface.Dictionary),
-            AfterDisplayCardInit = context => ApplyFromLifecycle(context, "DisplayCard.Init", SunExpCardPresentationSurface.Display),
-            AfterShowCardInit = context => ApplyFromLifecycle(context, "ShowCard.Init", SunExpCardPresentationSurface.Display),
-            AfterSafeBoxItemInit = context => ApplyFromLifecycle(context, "SafeBoxItem.Init", SunExpCardPresentationSurface.SafeBox),
-            AfterEnchCardItemInit = context => ApplyFromLifecycle(context, "EnchCardItem.Init", SunExpCardPresentationSurface.Display),
-            AfterPackShowItemInit = context => ApplyFromLifecycle(context, "PackShowItem.Init", SunExpCardPresentationSurface.CardPack),
-            AfterShopItemInit = context => ApplyFromLifecycle(context, "ShopItem.Init", SunExpCardPresentationSurface.Shop),
-            AfterWarehouseItemInit = context => ApplyFromLifecycle(context, "WarehouseItem.Init", SunExpCardPresentationSurface.Warehouse)
+            AfterCardItemInit = context => ApplyFromLifecycle(context, "CardItem.Init", TerriasCardPresentationSurface.CombatCard),
+            AfterAttackCardItemInit = context => ApplyFromLifecycle(context, "AttackCardItem.Init", TerriasCardPresentationSurface.CombatCard),
+            AfterCardChoiceItemInitialize = context => ApplyFromLifecycle(context, "CardChoiceItem.Initialize", TerriasCardPresentationSurface.RewardChoice),
+            AfterDictItemInit = context => ApplyFromLifecycle(context, "DictItem.Init", TerriasCardPresentationSurface.Dictionary),
+            AfterDictionaryShowItemInit = context => ApplyFromLifecycle(context, "DictionaryShowItem.Init", TerriasCardPresentationSurface.Dictionary),
+            AfterDisplayCardInit = context => ApplyFromLifecycle(context, "DisplayCard.Init", TerriasCardPresentationSurface.Display),
+            AfterShowCardInit = context => ApplyFromLifecycle(context, "ShowCard.Init", TerriasCardPresentationSurface.Display),
+            AfterSafeBoxItemInit = context => ApplyFromLifecycle(context, "SafeBoxItem.Init", TerriasCardPresentationSurface.SafeBox),
+            AfterEnchCardItemInit = context => ApplyFromLifecycle(context, "EnchCardItem.Init", TerriasCardPresentationSurface.Display),
+            AfterPackShowItemInit = context => ApplyFromLifecycle(context, "PackShowItem.Init", TerriasCardPresentationSurface.CardPack),
+            AfterShopItemInit = context => ApplyFromLifecycle(context, "ShopItem.Init", TerriasCardPresentationSurface.Shop),
+            AfterWarehouseItemInit = context => ApplyFromLifecycle(context, "WarehouseItem.Init", TerriasCardPresentationSurface.Warehouse)
         });
-        SunExpLog.InfoAlways("Card presentation lifecycle bridge initialized with stable card UI lifecycle hooks");
+        TerriasLog.InfoAlways("Card presentation lifecycle bridge initialized with stable card UI lifecycle hooks");
     }
 
     private static void ApplyFromSetCardStyle(ModHookContext context)
     {
         var args = context.Arguments;
         observedSetCardStyle++;
-        SunExpPerformanceCounters.Record("CardPresentation.SetCardStyleObserved");
+        TerriasPerformanceCounters.Record("CardPresentation.SetCardStyleObserved");
 
         if (!TryExtractSetCardStyleArguments(args, out var transform, out var config))
         {
             if (!loggedMissingArguments)
             {
                 loggedMissingArguments = true;
-                SunExpPerformanceCounters.Record("CardPresentation.SetCardStyleArgumentMiss");
-                SunExpLog.Warn("Card presentation SetCardStyle hook observed but arguments were not Transform + IDataConfig: "
+                TerriasPerformanceCounters.Record("CardPresentation.SetCardStyleArgumentMiss");
+                TerriasLog.Warn("Card presentation SetCardStyle hook observed but arguments were not Transform + IDataConfig: "
                     + ArgumentShape(args)
                     + ", observed="
                     + observedSetCardStyle);
@@ -59,11 +59,11 @@ public static class SunExpCardPresentationLifecycleBridge
             return;
         }
 
-        SunExpPerformanceCounters.Record("CardPresentation.SetCardStyleArgumentHit");
+        TerriasPerformanceCounters.Record("CardPresentation.SetCardStyleArgumentHit");
         if (!loggedFirstDispatch)
         {
             loggedFirstDispatch = true;
-            SunExpLog.InfoAlways("Card presentation SetCardStyle hook dispatching: cardId="
+            TerriasLog.InfoAlways("Card presentation SetCardStyle hook dispatching: cardId="
                 + CardConfigApi.Id(config)
                 + ", root="
                 + (transform == null ? "<null>" : transform.name)
@@ -71,24 +71,24 @@ public static class SunExpCardPresentationLifecycleBridge
                 + ArgumentShape(args));
         }
 
-        SunExpCardPresentationRouter.RequestApply(transform, config, SunExpHookTargets.ICardSetCardStyle, SunExpCardPresentationSurface.CardStyle);
+        TerriasCardPresentationRouter.RequestApply(transform, config, TerriasHookTargets.ICardSetCardStyle, TerriasCardPresentationSurface.CardStyle);
     }
 
-    private static void ApplyFromLifecycle(ModHookContext context, string source, SunExpCardPresentationSurface surface)
+    private static void ApplyFromLifecycle(ModHookContext context, string source, TerriasCardPresentationSurface surface)
     {
         observedLifecycle++;
-        SunExpPerformanceCounters.Record("CardPresentation.LifecycleObserved");
+        TerriasPerformanceCounters.Record("CardPresentation.LifecycleObserved");
         if (!TryExtractLifecycleArguments(context, out var transform, out var config, out var card))
         {
-            SunExpPerformanceCounters.Record("CardPresentation.LifecycleArgumentMiss");
+            TerriasPerformanceCounters.Record("CardPresentation.LifecycleArgumentMiss");
             return;
         }
 
-        SunExpPerformanceCounters.Record("CardPresentation.LifecycleArgumentHit");
+        TerriasPerformanceCounters.Record("CardPresentation.LifecycleArgumentHit");
         if (!loggedFirstLifecycleDispatch)
         {
             loggedFirstLifecycleDispatch = true;
-            SunExpLog.InfoAlways("Card presentation lifecycle dispatching: source="
+            TerriasLog.InfoAlways("Card presentation lifecycle dispatching: source="
                 + source
                 + ", cardId="
                 + CardConfigApi.Id(config)
@@ -98,7 +98,7 @@ public static class SunExpCardPresentationLifecycleBridge
                 + observedLifecycle);
         }
 
-        SunExpCardPresentationRouter.RequestApply(new SunExpCardPresentationContext
+        TerriasCardPresentationRouter.RequestApply(new TerriasCardPresentationContext
         {
             Root = transform,
             Config = config,
@@ -192,8 +192,8 @@ public static class SunExpCardPresentationLifecycleBridge
             if (!loggedRecoveredShape)
             {
                 loggedRecoveredShape = true;
-                SunExpPerformanceCounters.Record("CardPresentation.SetCardStyleArgumentRecovered");
-                SunExpLog.Warn("Card presentation SetCardStyle hook used recovered argument shape: " + ArgumentShape(args));
+                TerriasPerformanceCounters.Record("CardPresentation.SetCardStyleArgumentRecovered");
+                TerriasLog.Warn("Card presentation SetCardStyle hook used recovered argument shape: " + ArgumentShape(args));
             }
 
             return true;
@@ -202,8 +202,8 @@ public static class SunExpCardPresentationLifecycleBridge
         if (!loggedUnexpectedShape)
         {
             loggedUnexpectedShape = true;
-            SunExpPerformanceCounters.Record("CardPresentation.SetCardStyleUnexpectedShape");
-            SunExpLog.Warn("Card presentation SetCardStyle hook argument shape unsupported: " + ArgumentShape(args));
+            TerriasPerformanceCounters.Record("CardPresentation.SetCardStyleUnexpectedShape");
+            TerriasLog.Warn("Card presentation SetCardStyle hook argument shape unsupported: " + ArgumentShape(args));
         }
 
         return false;

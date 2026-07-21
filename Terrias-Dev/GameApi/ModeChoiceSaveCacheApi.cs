@@ -1,9 +1,9 @@
 using System;
 using Data.Save;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class ModeChoiceSaveCacheApi
 {
@@ -24,7 +24,7 @@ public static class ModeChoiceSaveCacheApi
             }
 
             ModeChoiceUI.beforeSave[modeType] = null;
-            SunExpLog.Debug("[ModeChoiceSaveCache] cleared cached "
+            TerriasLog.Debug("[ModeChoiceSaveCache] cleared cached "
                 + modeType
                 + " save from "
                 + source
@@ -34,7 +34,7 @@ public static class ModeChoiceSaveCacheApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[ModeChoiceSaveCache] clear cached save failed from "
+            TerriasLog.Warn("[ModeChoiceSaveCache] clear cached save failed from "
                 + source
                 + ": "
                 + ex.Message);
@@ -57,7 +57,7 @@ public static class ModeChoiceSaveCacheApi
             }
 
             GameEntryUI.selectedSave = null;
-            SunExpLog.Debug("[ModeChoiceSaveCache] cleared selected save from "
+            TerriasLog.Debug("[ModeChoiceSaveCache] cleared selected save from "
                 + source
                 + "; save="
                 + saveInfo.Name
@@ -65,7 +65,7 @@ public static class ModeChoiceSaveCacheApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[ModeChoiceSaveCache] clear selected save failed from "
+            TerriasLog.Warn("[ModeChoiceSaveCache] clear selected save failed from "
                 + source
                 + ": "
                 + ex.Message);

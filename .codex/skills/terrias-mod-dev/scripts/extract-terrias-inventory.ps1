@@ -24,19 +24,19 @@ function Read-Rows {
 
 $repoRoot = Get-RepoRoot
 if (-not $ModRoot) {
-    $ModRoot = Join-Path $repoRoot "SunExp"
+    $ModRoot = Join-Path $repoRoot "Terrias"
 }
 elseif (-not [System.IO.Path]::IsPathRooted($ModRoot)) {
     $ModRoot = Join-Path $repoRoot $ModRoot
 }
 
 $modRootPath = (Resolve-Path -LiteralPath $ModRoot).Path
-$cards = Read-Rows (Join-Path $modRootPath "Data\Card\sunexp.csv")
-$relics = Read-Rows (Join-Path $modRootPath "Data\Relic\sunexp.csv")
-$buffs = Read-Rows (Join-Path $modRootPath "Data\Buff\sunexp.csv")
-$packs = Read-Rows (Join-Path $modRootPath "Data\CardPack\sunexp.csv")
+$cards = Read-Rows (Join-Path $modRootPath "Data\Card\terrias.csv")
+$relics = Read-Rows (Join-Path $modRootPath "Data\Relic\terrias.csv")
+$buffs = Read-Rows (Join-Path $modRootPath "Data\Buff\terrias.csv")
+$packs = Read-Rows (Join-Path $modRootPath "Data\CardPack\terrias.csv")
 
-Write-Host "SunExp inventory"
+Write-Host "Terrias inventory"
 Write-Host "  Cards:  $($cards.Count)"
 Write-Host "  Relics: $($relics.Count)"
 Write-Host "  Buffs:  $($buffs.Count)"

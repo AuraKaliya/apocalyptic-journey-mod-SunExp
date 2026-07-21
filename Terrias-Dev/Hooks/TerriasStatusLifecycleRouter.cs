@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
-public sealed class SunExpStatusLifecycleSubscription
+public sealed class TerriasStatusLifecycleSubscription
 {
     public Action<ModHookContext>? BeforeAddBuff { get; set; }
     public Action<ModHookContext>? AfterAddBuff { get; set; }
@@ -24,11 +24,11 @@ public sealed class SunExpStatusLifecycleSubscription
     public Action<ModHookContext>? AfterFightUiFadeIn { get; set; }
 }
 
-public static class SunExpStatusLifecycleRouter
+public static class TerriasStatusLifecycleRouter
 {
     private static readonly object SyncRoot = new();
-    private static readonly Dictionary<string, SunExpStatusLifecycleSubscription> Subscriptions = new(StringComparer.Ordinal);
-    private static KeyValuePair<string, SunExpStatusLifecycleSubscription>[]? cachedSubscriptions;
+    private static readonly Dictionary<string, TerriasStatusLifecycleSubscription> Subscriptions = new(StringComparer.Ordinal);
+    private static KeyValuePair<string, TerriasStatusLifecycleSubscription>[]? cachedSubscriptions;
     private static bool initialized;
 
     public static void Initialize(ModConfig modConfig)
@@ -39,23 +39,23 @@ public static class SunExpStatusLifecycleRouter
         }
 
         initialized = true;
-        Before(modConfig, SunExpHookTargets.StatusManagerAddBuff, subscription => subscription.BeforeAddBuff);
-        After(modConfig, SunExpHookTargets.StatusManagerAddBuff, subscription => subscription.AfterAddBuff);
-        After(modConfig, SunExpHookTargets.StatusManagerRemoveBuff, subscription => subscription.AfterRemoveBuff);
-        After(modConfig, SunExpHookTargets.BuffItemConfigSetLevel, subscription => subscription.AfterBuffLevelChanged);
-        Before(modConfig, SunExpHookTargets.StatusManagerHit, subscription => subscription.BeforeHit);
-        After(modConfig, SunExpHookTargets.StatusManagerHit, subscription => subscription.AfterHit);
-        Before(modConfig, SunExpHookTargets.StatusManagerEnemyDead, subscription => subscription.BeforeEnemyDead);
-        After(modConfig, SunExpHookTargets.StatusManagerEnemyDead, subscription => subscription.AfterEnemyDead);
-        After(modConfig, SunExpHookTargets.StatusManagerSetCurHp, subscription => subscription.AfterCurHpChanged);
-        After(modConfig, SunExpHookTargets.StatusManagerSetMaxHp, subscription => subscription.AfterMaxHpChanged);
-        After(modConfig, SunExpHookTargets.EnemyInit, subscription => subscription.AfterEnemyInit);
-        After(modConfig, SunExpHookTargets.StatusManagerInitAnimator, subscription => subscription.AfterInitAnimator);
-        After(modConfig, SunExpHookTargets.StatusManagerSetSprite, subscription => subscription.AfterSetSprite);
-        After(modConfig, SunExpHookTargets.FightUiFadeIn, subscription => subscription.AfterFightUiFadeIn);
+        Before(modConfig, TerriasHookTargets.StatusManagerAddBuff, subscription => subscription.BeforeAddBuff);
+        After(modConfig, TerriasHookTargets.StatusManagerAddBuff, subscription => subscription.AfterAddBuff);
+        After(modConfig, TerriasHookTargets.StatusManagerRemoveBuff, subscription => subscription.AfterRemoveBuff);
+        After(modConfig, TerriasHookTargets.BuffItemConfigSetLevel, subscription => subscription.AfterBuffLevelChanged);
+        Before(modConfig, TerriasHookTargets.StatusManagerHit, subscription => subscription.BeforeHit);
+        After(modConfig, TerriasHookTargets.StatusManagerHit, subscription => subscription.AfterHit);
+        Before(modConfig, TerriasHookTargets.StatusManagerEnemyDead, subscription => subscription.BeforeEnemyDead);
+        After(modConfig, TerriasHookTargets.StatusManagerEnemyDead, subscription => subscription.AfterEnemyDead);
+        After(modConfig, TerriasHookTargets.StatusManagerSetCurHp, subscription => subscription.AfterCurHpChanged);
+        After(modConfig, TerriasHookTargets.StatusManagerSetMaxHp, subscription => subscription.AfterMaxHpChanged);
+        After(modConfig, TerriasHookTargets.EnemyInit, subscription => subscription.AfterEnemyInit);
+        After(modConfig, TerriasHookTargets.StatusManagerInitAnimator, subscription => subscription.AfterInitAnimator);
+        After(modConfig, TerriasHookTargets.StatusManagerSetSprite, subscription => subscription.AfterSetSprite);
+        After(modConfig, TerriasHookTargets.FightUiFadeIn, subscription => subscription.AfterFightUiFadeIn);
     }
 
-    public static void Register(string id, SunExpStatusLifecycleSubscription subscription)
+    public static void Register(string id, TerriasStatusLifecycleSubscription subscription)
     {
         if (string.IsNullOrWhiteSpace(id) || subscription == null)
         {
@@ -68,29 +68,29 @@ public static class SunExpStatusLifecycleRouter
             cachedSubscriptions = null;
         }
 
-        SunExpPerformanceCounters.Record("StatusLifecycle.HandlerRegistered");
+        TerriasPerformanceCounters.Record("StatusLifecycle.HandlerRegistered");
     }
 
     private static void Before(
         ModConfig config,
         string target,
-        Func<SunExpStatusLifecycleSubscription, Action<ModHookContext>?> selector)
+        Func<TerriasStatusLifecycleSubscription, Action<ModHookContext>?> selector)
     {
-        SunExpHookRegistry.BeforeRouted(config, target, context => Dispatch(target, context, selector), "StatusLifecycle");
+        TerriasHookRegistry.BeforeRouted(config, target, context => Dispatch(target, context, selector), "StatusLifecycle");
     }
 
     private static void After(
         ModConfig config,
         string target,
-        Func<SunExpStatusLifecycleSubscription, Action<ModHookContext>?> selector)
+        Func<TerriasStatusLifecycleSubscription, Action<ModHookContext>?> selector)
     {
-        SunExpHookRegistry.AfterRouted(config, target, context => Dispatch(target, context, selector), "StatusLifecycle");
+        TerriasHookRegistry.AfterRouted(config, target, context => Dispatch(target, context, selector), "StatusLifecycle");
     }
 
     private static void Dispatch(
         string target,
         ModHookContext context,
-        Func<SunExpStatusLifecycleSubscription, Action<ModHookContext>?> selector)
+        Func<TerriasStatusLifecycleSubscription, Action<ModHookContext>?> selector)
     {
         foreach (var pair in SnapshotSubscriptions())
         {
@@ -106,12 +106,12 @@ public static class SunExpStatusLifecycleRouter
             }
             catch (Exception ex)
             {
-                SunExpLog.Error("Status lifecycle handler failed: " + pair.Key + " @ " + target, ex);
+                TerriasLog.Error("Status lifecycle handler failed: " + pair.Key + " @ " + target, ex);
             }
         }
     }
 
-    private static KeyValuePair<string, SunExpStatusLifecycleSubscription>[] SnapshotSubscriptions()
+    private static KeyValuePair<string, TerriasStatusLifecycleSubscription>[] SnapshotSubscriptions()
     {
         lock (SyncRoot)
         {
@@ -120,7 +120,7 @@ public static class SunExpStatusLifecycleRouter
                 return cachedSubscriptions;
             }
 
-            cachedSubscriptions = new KeyValuePair<string, SunExpStatusLifecycleSubscription>[Subscriptions.Count];
+            cachedSubscriptions = new KeyValuePair<string, TerriasStatusLifecycleSubscription>[Subscriptions.Count];
             var index = 0;
             foreach (var pair in Subscriptions)
             {

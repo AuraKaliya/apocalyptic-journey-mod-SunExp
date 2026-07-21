@@ -1,7 +1,7 @@
 using System;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class CombatCardViewPoolApi
 {
@@ -14,7 +14,7 @@ public static class CombatCardViewPoolApi
 
     public static bool TryMaterialize(ScriptExecutor self, DataConfig config, string source)
     {
-        if (!SunExpPerformanceSettings.CombatCardViewPoolEnabled
+        if (!TerriasPerformanceSettings.CombatCardViewPoolEnabled
             || materialize == null
             || self == null
             || config == null)
@@ -28,7 +28,7 @@ public static class CombatCardViewPoolApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[CombatCardViewPool] materialize facade fallback: " + ex.Message);
+            TerriasLog.Warn("[CombatCardViewPool] materialize facade fallback: " + ex.Message);
             return false;
         }
     }

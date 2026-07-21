@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using AuraGameData.Shared;
 using AuraGameData.Shared.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.Core;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 [Flags]
 public enum FieldEffectPolicyFlags
@@ -20,7 +20,7 @@ public enum FieldEffectPolicyFlags
 public sealed class FieldEffectDefinition
 {
     public FieldEffectDefinition(
-        SunExpFieldId field,
+        TerriasFieldId field,
         string slug,
         string buffId,
         string hudIconPath,
@@ -39,7 +39,7 @@ public sealed class FieldEffectDefinition
         HasBuffAddedPolicy = hasBuffAddedPolicy;
     }
 
-    public SunExpFieldId Field { get; }
+    public TerriasFieldId Field { get; }
 
     public string Slug { get; }
 
@@ -70,7 +70,7 @@ public sealed class FieldEffectDefinition
                 flags |= FieldEffectPolicyFlags.BuffAdded;
             }
 
-            if (Field == SunExpFieldId.ScorchingCanopy)
+            if (Field == TerriasFieldId.ScorchingCanopy)
             {
                 flags |= FieldEffectPolicyFlags.BurnOverflow;
             }
@@ -96,7 +96,7 @@ public sealed class FieldEffectRuntimeSpec
 
     public FieldEffectDefinition Definition { get; }
 
-    public SunExpFieldId Field => Definition.Field;
+    public TerriasFieldId Field => Definition.Field;
 
     public string Slug => Definition.Slug;
 
@@ -125,38 +125,38 @@ public sealed class FieldEffectRuntimeSpec
 
 public static class FieldEffectRegistry
 {
-    private static readonly Dictionary<SunExpFieldId, FieldEffectDefinition> ByField = new()
+    private static readonly Dictionary<TerriasFieldId, FieldEffectDefinition> ByField = new()
     {
-        [SunExpFieldId.ScorchingCanopy] = new FieldEffectDefinition(
-            SunExpFieldId.ScorchingCanopy,
+        [TerriasFieldId.ScorchingCanopy] = new FieldEffectDefinition(
+            TerriasFieldId.ScorchingCanopy,
             "scorching_canopy",
-            SunExpIds.ScorchingCanopy,
-            hudIconPath: "Mods/SunExp/ModResource/Images/Buff/Area/\u707c\u70ed\u5929\u5e55",
+            TerriasIds.ScorchingCanopy,
+            hudIconPath: "Mods/Terrias/ModResource/Images/Buff/Area/\u707c\u70ed\u5929\u5e55",
             maxVisualTier: 9,
             fallbackMaxStacks: 9,
             hasRoundStartHandler: true,
             hasBuffAddedPolicy: true),
-        [SunExpFieldId.SamsaraGarden] = new FieldEffectDefinition(
-            SunExpFieldId.SamsaraGarden,
+        [TerriasFieldId.SamsaraGarden] = new FieldEffectDefinition(
+            TerriasFieldId.SamsaraGarden,
             "samsara_garden",
-            SunExpIds.SamsaraGarden,
-            hudIconPath: "Mods/SunExp/ModResource/Images/Buff/Area/\u8f6e\u56de\u82b1\u5ead",
+            TerriasIds.SamsaraGarden,
+            hudIconPath: "Mods/Terrias/ModResource/Images/Buff/Area/\u8f6e\u56de\u82b1\u5ead",
             maxVisualTier: 4,
             fallbackMaxStacks: 5,
             hasRoundStartHandler: true,
             hasBuffAddedPolicy: false),
-        [SunExpFieldId.MoonDomain] = new FieldEffectDefinition(
-            SunExpFieldId.MoonDomain,
+        [TerriasFieldId.MoonDomain] = new FieldEffectDefinition(
+            TerriasFieldId.MoonDomain,
             "moon_domain",
-            SunExpIds.MoonDomain,
-            hudIconPath: "Mods/SunExp/ModResource/Images/Buff/Area/月之领域",
+            TerriasIds.MoonDomain,
+            hudIconPath: "Mods/Terrias/ModResource/Images/Buff/Area/月之领域",
             maxVisualTier: 1,
             fallbackMaxStacks: 1,
             hasRoundStartHandler: false,
             hasBuffAddedPolicy: false)
     };
     private static readonly object Sync = new();
-    private static volatile Dictionary<SunExpFieldId, FieldEffectRuntimeSpec> RuntimeSpecs = BuildFallbackSpecs();
+    private static volatile Dictionary<TerriasFieldId, FieldEffectRuntimeSpec> RuntimeSpecs = BuildFallbackSpecs();
     private static bool catalogListenerRegistered;
     private static long runtimeSpecsEpoch = -1;
 
@@ -184,17 +184,17 @@ public static class FieldEffectRegistry
         }
     }
 
-    public static bool TryGet(SunExpFieldId field, out FieldEffectDefinition definition)
+    public static bool TryGet(TerriasFieldId field, out FieldEffectDefinition definition)
     {
         return ByField.TryGetValue(field, out definition);
     }
 
-    public static FieldEffectDefinition? DefinitionFor(SunExpFieldId field)
+    public static FieldEffectDefinition? DefinitionFor(TerriasFieldId field)
     {
         return ByField.TryGetValue(field, out var definition) ? definition : null;
     }
 
-    public static FieldEffectRuntimeSpec RuntimeSpecFor(SunExpFieldId field)
+    public static FieldEffectRuntimeSpec RuntimeSpecFor(TerriasFieldId field)
     {
         var specs = RuntimeSpecs;
         if (specs.TryGetValue(field, out var spec))
@@ -205,48 +205,48 @@ public static class FieldEffectRegistry
         var definition = DefinitionFor(field);
         return definition == null
             ? new FieldEffectRuntimeSpec(
-                new FieldEffectDefinition(SunExpFieldId.None, "", "", "", 1, 1, false, false),
+                new FieldEffectDefinition(TerriasFieldId.None, "", "", "", 1, 1, false, false),
                 1,
                 "",
                 "")
             : new FieldEffectRuntimeSpec(definition, definition.FallbackMaxStacks, definition.BuffId, "");
     }
 
-    public static string FieldBuffId(SunExpFieldId field)
+    public static string FieldBuffId(TerriasFieldId field)
     {
         return DefinitionFor(field)?.BuffId ?? "";
     }
 
-    public static string FieldSlug(SunExpFieldId field)
+    public static string FieldSlug(TerriasFieldId field)
     {
         return DefinitionFor(field)?.Slug ?? "";
     }
 
-    public static int FallbackMaxStacks(SunExpFieldId field)
+    public static int FallbackMaxStacks(TerriasFieldId field)
     {
         return DefinitionFor(field)?.FallbackMaxStacks ?? 1;
     }
 
-    public static int MaxStacks(SunExpFieldId field)
+    public static int MaxStacks(TerriasFieldId field)
     {
         return RuntimeSpecFor(field).MaxStacks;
     }
 
-    public static int VisualTierForStacks(SunExpFieldId field, int stacks)
+    public static int VisualTierForStacks(TerriasFieldId field, int stacks)
     {
         return RuntimeSpecFor(field).VisualTierForStacks(stacks);
     }
 
-    public static FieldEffectPolicyFlags PolicyFlags(SunExpFieldId field)
+    public static FieldEffectPolicyFlags PolicyFlags(TerriasFieldId field)
     {
         return RuntimeSpecFor(field).PolicyFlags;
     }
 
-    public static SunExpFieldId ParseFieldId(string? fieldId)
+    public static TerriasFieldId ParseFieldId(string? fieldId)
     {
         if (string.IsNullOrWhiteSpace(fieldId))
         {
-            return SunExpFieldId.None;
+            return TerriasFieldId.None;
         }
 
         var value = fieldId!.Trim();
@@ -258,14 +258,14 @@ public static class FieldEffectRegistry
             }
         }
 
-        return SunExpFieldId.None;
+        return TerriasFieldId.None;
     }
 
-    public static SunExpFieldId FieldIdFromBuffId(string? buffId)
+    public static TerriasFieldId FieldIdFromBuffId(string? buffId)
     {
         if (string.IsNullOrWhiteSpace(buffId))
         {
-            return SunExpFieldId.None;
+            return TerriasFieldId.None;
         }
 
         var value = buffId!.Trim();
@@ -278,12 +278,12 @@ public static class FieldEffectRegistry
             }
         }
 
-        return SunExpFieldId.None;
+        return TerriasFieldId.None;
     }
 
-    private static Dictionary<SunExpFieldId, FieldEffectRuntimeSpec> BuildFallbackSpecs()
+    private static Dictionary<TerriasFieldId, FieldEffectRuntimeSpec> BuildFallbackSpecs()
     {
-        var specs = new Dictionary<SunExpFieldId, FieldEffectRuntimeSpec>();
+        var specs = new Dictionary<TerriasFieldId, FieldEffectRuntimeSpec>();
         foreach (var definition in ByField.Values)
         {
             specs[definition.Field] = new FieldEffectRuntimeSpec(
@@ -305,12 +305,12 @@ public static class FieldEffectRegistry
     {
         if (snapshot == null || !snapshot.Version.NativeReady)
         {
-            SunExpLog.Debug("[FieldEffectRegistry] deferred field config cache until native catalog is ready: "
+            TerriasLog.Debug("[FieldEffectRegistry] deferred field config cache until native catalog is ready: "
                 + (source ?? ""));
             return;
         }
 
-        Dictionary<SunExpFieldId, FieldEffectRuntimeSpec> next;
+        Dictionary<TerriasFieldId, FieldEffectRuntimeSpec> next;
         var resolvedCount = 0;
         lock (Sync)
         {
@@ -320,7 +320,7 @@ public static class FieldEffectRegistry
             }
 
             var previous = RuntimeSpecs;
-            next = new Dictionary<SunExpFieldId, FieldEffectRuntimeSpec>();
+            next = new Dictionary<TerriasFieldId, FieldEffectRuntimeSpec>();
             foreach (var definition in ByField.Values)
             {
                 if (TryBuildRuntimeSpec(snapshot, definition, source, out var resolved))
@@ -344,7 +344,7 @@ public static class FieldEffectRegistry
 
             if (resolvedCount == 0)
             {
-                SunExpLog.WarnOnce("FieldEffectRegistry.ReadySnapshotMissingBuffs",
+                TerriasLog.WarnOnce("FieldEffectRegistry.ReadySnapshotMissingBuffs",
                     "[FieldEffectRegistry] ready game-data snapshot contained none of the registered field Buff rows; keeping the last-good cache.");
                 return;
             }
@@ -353,7 +353,7 @@ public static class FieldEffectRegistry
             runtimeSpecsEpoch = snapshot.Version.Epoch;
         }
 
-        SunExpLog.Debug("[FieldEffectRegistry] warmed field config cache from "
+        TerriasLog.Debug("[FieldEffectRegistry] warmed field config cache from "
             + (source ?? "")
             + "; epoch="
             + snapshot.Version.Epoch
@@ -394,7 +394,7 @@ public static class FieldEffectRegistry
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("[FieldEffectRegistry] field spec fallback: field="
+            TerriasLog.Debug("[FieldEffectRegistry] field spec fallback: field="
                 + definition.Slug
                 + ", source="
                 + (source ?? "")

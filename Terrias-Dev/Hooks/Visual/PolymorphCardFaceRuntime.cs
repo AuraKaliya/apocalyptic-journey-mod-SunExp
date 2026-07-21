@@ -1,30 +1,30 @@
 using System;
-using SunExp.Dll.Hooks;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Hooks;
+using Terrias.Dll.Infrastructure;
 using UnityEngine;
 using UnityEngine.UI;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks.Visual;
+namespace Terrias.Dll.Hooks.Visual;
 
 public static class PolymorphCardFaceRuntime
 {
     public static void Initialize(ModConfig modConfig)
     {
-        SunExpCardPresentationRouter.Register("PolymorphCardFace", new SunExpCardPresentationSubscription
+        TerriasCardPresentationRouter.Register("PolymorphCardFace", new TerriasCardPresentationSubscription
         {
             Apply = ApplyPresentation
         });
-        SunExpLog.Info("Polymorph card face runtime initialized");
+        TerriasLog.Info("Polymorph card face runtime initialized");
     }
 
     public static void ReapplyActiveCombatCards(string source)
     {
-        SunExpCardPresentationRouter.RequestActiveCombatCardsReapply(source);
+        TerriasCardPresentationRouter.RequestActiveCombatCardsReapply(source);
     }
 
-    private static void ApplyPresentation(SunExpCardPresentationContext context)
+    private static void ApplyPresentation(TerriasCardPresentationContext context)
     {
         ApplySafely(context.Root, context.Config, context.Source);
     }
@@ -38,13 +38,13 @@ public static class PolymorphCardFaceRuntime
 
         if (Apply(root, config, source))
         {
-            SunExpPerformanceCounters.Record("Polymorph.CardFaceApply");
+            TerriasPerformanceCounters.Record("Polymorph.CardFaceApply");
         }
 
         if (scheduleDeferred && root != null)
         {
             var key = "PolymorphCardFaceRuntime.Deferred." + source + "." + root.GetInstanceID();
-            SunExpFrameScheduler.RunOnceNextFrame(key, () => ApplySafely(root, config, source + ".deferred", scheduleDeferred: false));
+            TerriasFrameScheduler.RunOnceNextFrame(key, () => ApplySafely(root, config, source + ".deferred", scheduleDeferred: false));
         }
     }
 
@@ -88,7 +88,7 @@ public static class PolymorphCardFaceRuntime
 
         if (changed)
         {
-            SunExpLog.Debug("[PolymorphCardFace] applied " + DictionaryUtil.Get(config?.Vars, SunExpIds.PolymorphRoleIdKey) + " from " + source);
+            TerriasLog.Debug("[PolymorphCardFace] applied " + DictionaryUtil.Get(config?.Vars, TerriasIds.PolymorphRoleIdKey) + " from " + source);
         }
 
         return changed;

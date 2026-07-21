@@ -4,17 +4,17 @@ using System.Linq;
 using AuraShared.Core;
 using AuraUi.Shared;
 using StarterDeckArbiter.Shared;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Hooks.Ui;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Hooks.Ui;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using UnityEngine.UI;
 using Witch;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class SolarMemoryStarterDeckRuntime
 {
@@ -44,7 +44,7 @@ public static class SolarMemoryStarterDeckRuntime
     private static Transform? deckListContent;
     private static Text? deckCounterText;
     private static Text? hintText;
-    private static readonly SunExpDirtyState deckListDirty = new();
+    private static readonly TerriasDirtyState deckListDirty = new();
     private static bool promptShown;
 
     public static void Initialize(ModConfig modConfig)
@@ -68,7 +68,7 @@ public static class SolarMemoryStarterDeckRuntime
         pendingRoleTable = null;
         promptShown = false;
         ClosePanel();
-        SunExpLog.Info("[SolarMemoryStarterDeck] captured packs: " + string.Join("|", selectedPacks.OrderBy(id => id)));
+        TerriasLog.Info("[SolarMemoryStarterDeck] captured packs: " + string.Join("|", selectedPacks.OrderBy(id => id)));
     }
 
     public static void MarkPending(RoleTable roleTable, string source)
@@ -79,14 +79,14 @@ public static class SolarMemoryStarterDeckRuntime
         }
 
         pendingRoleTable = roleTable;
-        ClaimStarterDeckOwnership(roleTable, SunExpIds.StarterDeckStatePending);
+        ClaimStarterDeckOwnership(roleTable, TerriasIds.StarterDeckStatePending);
         if (selectedPacks.Count > 0)
         {
             SolarMemoryPlayerSetupState.SetSelectedPacks(roleTable, selectedPacks);
         }
 
         promptShown = false;
-        SunExpLog.Info("[SolarMemoryStarterDeck] pending after " + source + "; currentDeck=" + roleTable.cardList.Count);
+        TerriasLog.Info("[SolarMemoryStarterDeck] pending after " + source + "; currentDeck=" + roleTable.cardList.Count);
     }
 
     public static bool OpenOrResume()
@@ -95,13 +95,13 @@ public static class SolarMemoryStarterDeckRuntime
         {
             if (!SolarMemoryModeRuntime.IsSolarMemoryRun() || RoleTable.Instance == null)
             {
-                SunExpLog.Warn("[SolarMemoryStarterDeck] OpenOrResume skipped: run or role table unavailable.");
+                TerriasLog.Warn("[SolarMemoryStarterDeck] OpenOrResume skipped: run or role table unavailable.");
                 return false;
             }
 
             if (IsApplied(RoleTable.Instance))
             {
-                SunExpLog.Info("[SolarMemoryStarterDeck] OpenOrResume skipped: starter deck already applied.");
+                TerriasLog.Info("[SolarMemoryStarterDeck] OpenOrResume skipped: starter deck already applied.");
                 return false;
             }
 
@@ -110,14 +110,14 @@ public static class SolarMemoryStarterDeckRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory starter deck OpenOrResume failed", ex);
+            TerriasLog.Error("Solar memory starter deck OpenOrResume failed", ex);
             return false;
         }
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.After(config, target, action, "SolarMemoryStarterDeck");
+        TerriasHookRegistry.After(config, target, action, "SolarMemoryStarterDeck");
     }
 
     private static void MarkPendingFromRoleInit(ModHookContext context)
@@ -132,7 +132,7 @@ public static class SolarMemoryStarterDeckRuntime
             var roleTable = ResolveRoleTable(context);
             if (roleTable == null)
             {
-                SunExpLog.Warn("[SolarMemoryStarterDeck] role table is null after NormalMapManager.InitRoleTable.");
+                TerriasLog.Warn("[SolarMemoryStarterDeck] role table is null after NormalMapManager.InitRoleTable.");
                 return;
             }
 
@@ -141,7 +141,7 @@ public static class SolarMemoryStarterDeckRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory starter deck pending hook failed", ex);
+            TerriasLog.Error("Solar memory starter deck pending hook failed", ex);
         }
     }
 
@@ -162,7 +162,7 @@ public static class SolarMemoryStarterDeckRuntime
             var roleTable = ResolveRoleTable(context);
             if (roleTable == null)
             {
-                SunExpLog.Warn("[SolarMemoryStarterDeck] role table is null after " + source + ".");
+                TerriasLog.Warn("[SolarMemoryStarterDeck] role table is null after " + source + ".");
                 return;
             }
 
@@ -171,7 +171,7 @@ public static class SolarMemoryStarterDeckRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory starter deck pending hook failed", ex);
+            TerriasLog.Error("Solar memory starter deck pending hook failed", ex);
         }
     }
 
@@ -213,17 +213,17 @@ public static class SolarMemoryStarterDeckRuntime
             }
 
             SolarMemoryDeckIsolationRuntime.SanitizeSolarMemoryRoleCards(roleTable, "TryShowStarterDeckEditor:" + source);
-            ClaimStarterDeckOwnership(roleTable, SunExpIds.StarterDeckStatePending);
+            ClaimStarterDeckOwnership(roleTable, TerriasIds.StarterDeckStatePending);
             var candidates = BuildCandidateCardIds();
             if (candidates.Count == 0)
             {
                 KeepOfficialDeck(roleTable, "no-candidate");
-                SunExpLog.Warn("[SolarMemoryStarterDeck] no valid card candidates; keeping official starter deck.");
+                TerriasLog.Warn("[SolarMemoryStarterDeck] no valid card candidates; keeping official starter deck.");
                 return true;
             }
 
             promptShown = true;
-            SunExpLog.Info("[SolarMemoryStarterDeck] opening editor from "
+            TerriasLog.Info("[SolarMemoryStarterDeck] opening editor from "
                 + source
                 + "; candidates="
                 + candidates.Count
@@ -234,7 +234,7 @@ public static class SolarMemoryStarterDeckRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Failed to show solar memory starter deck editor", ex);
+            TerriasLog.Error("Failed to show solar memory starter deck editor", ex);
             return false;
         }
     }
@@ -280,15 +280,15 @@ public static class SolarMemoryStarterDeckRuntime
         editingDeck.Clear();
         editingDeck.AddRange(BuildAutoDeck(candidates));
 
-        var parent = SunExpModalHost.ModalParent();
+        var parent = TerriasModalHost.ModalParent();
         if (parent == null)
         {
-            SunExpLog.Warn("[SolarMemoryStarterDeck] skipped: UI canvas unavailable.");
+            TerriasLog.Warn("[SolarMemoryStarterDeck] skipped: UI canvas unavailable.");
             return;
         }
 
-        activePanel = SunExpModalHost.CreateFullscreenRoot(
-            "SunExpSolarMemoryStarterDeck",
+        activePanel = TerriasModalHost.CreateFullscreenRoot(
+            "TerriasSolarMemoryStarterDeck",
             parent,
             new Color(0f, 0f, 0f, 0.74f));
 
@@ -446,7 +446,7 @@ public static class SolarMemoryStarterDeckRuntime
             return;
         }
 
-        SunExpUiPool.ReleaseOrDestroyChildren(deckListContent, "SolarMemoryStarterDeck.RefreshDeckList", "[SolarMemoryStarterDeck]");
+        TerriasUiPool.ReleaseOrDestroyChildren(deckListContent, "SolarMemoryStarterDeck.RefreshDeckList", "[SolarMemoryStarterDeck]");
 
         for (var i = 0; i < editingDeck.Count; i++)
         {
@@ -610,7 +610,7 @@ public static class SolarMemoryStarterDeckRuntime
     {
         var image = go.AddComponent<Image>();
         image.color = Color.white;
-        image.sprite = SunExpUiSprites.Button("[SolarMemoryStarterDeck]");
+        image.sprite = TerriasUiSprites.Button("[SolarMemoryStarterDeck]");
         image.type = image.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
         image.fillCenter = true;
         if (image.sprite == null)
@@ -624,13 +624,13 @@ public static class SolarMemoryStarterDeckRuntime
     private static Image ApplyInlineButtonImage(GameObject go)
     {
         var image = go.AddComponent<Image>();
-        image.sprite = SunExpUiSprites.Panel("[SolarMemoryStarterDeck]");
+        image.sprite = TerriasUiSprites.Panel("[SolarMemoryStarterDeck]");
         image.type = image.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
         image.fillCenter = true;
         image.color = image.sprite != null ? new Color(1f, 1f, 1f, 0.96f) : new Color(0.04f, 0.04f, 0.18f, 0.96f);
         if (image.sprite != null)
         {
-            SunExpUiBuilder.AddPanelTint(go, new Color(0.035f, 0.035f, 0.15f, 0.96f));
+            TerriasUiBuilder.AddPanelTint(go, new Color(0.035f, 0.035f, 0.15f, 0.96f));
         }
 
         return image;
@@ -638,7 +638,7 @@ public static class SolarMemoryStarterDeckRuntime
 
     private static void ApplyPanelImage(GameObject go, Color fallbackOrTint)
     {
-        SunExpUiBuilder.ApplyPanelImage(go, SunExpUiSprites.Panel("[SolarMemoryStarterDeck]"), fallbackOrTint);
+        TerriasUiBuilder.ApplyPanelImage(go, TerriasUiSprites.Panel("[SolarMemoryStarterDeck]"), fallbackOrTint);
     }
 
     private static GameObject CreateColumnHeader(Transform parent, string title, out Text? counter)
@@ -810,12 +810,12 @@ public static class SolarMemoryStarterDeckRuntime
             var data = CardData(cardId);
             if (data.TryGetValue("Icon", out var iconPath) && !string.IsNullOrWhiteSpace(iconPath))
             {
-                sprite = SunExpResourceCache.Load<Sprite>(iconPath, true);
+                sprite = TerriasResourceCache.Load<Sprite>(iconPath, true);
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[SolarMemoryStarterDeck] failed to load card icon for " + cardId + ": " + ex.Message);
+            TerriasLog.Warn("[SolarMemoryStarterDeck] failed to load card icon for " + cardId + ": " + ex.Message);
         }
 
         cardIconCache[cardId] = sprite;
@@ -865,7 +865,7 @@ public static class SolarMemoryStarterDeckRuntime
 
     private static Dictionary<string, string> CardData(string cardId)
     {
-        return SunExpConfigIndex.Row(DataType.Card, cardId)
+        return TerriasConfigIndex.Row(DataType.Card, cardId)
             ?? new Dictionary<string, string>(StringComparer.Ordinal);
     }
 
@@ -905,14 +905,14 @@ public static class SolarMemoryStarterDeckRuntime
             ClosePanel();
             SolarMemoryPreparationRuntime.CompleteDeckSelection();
 
-            SunExpLog.Info("[SolarMemoryStarterDeck] applied custom starter deck; originalDeck="
+            TerriasLog.Info("[SolarMemoryStarterDeck] applied custom starter deck; originalDeck="
                 + originalDeckCount
                 + "; deck=" + roleTable.cardList.Count
                 + "; cards=" + string.Join("|", filteredDeck));
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Failed to apply solar memory starter deck", ex);
+            TerriasLog.Error("Failed to apply solar memory starter deck", ex);
         }
     }
 
@@ -929,25 +929,25 @@ public static class SolarMemoryStarterDeckRuntime
         SolarMemoryDeckIsolationRuntime.ClearSolarMemoryReservePool(roleTable);
         ClosePanel();
         SolarMemoryPreparationRuntime.CompleteDeckSelection();
-        SunExpLog.Info("[SolarMemoryStarterDeck] kept official starter deck; deck=" + roleTable.cardList.Count);
+        TerriasLog.Info("[SolarMemoryStarterDeck] kept official starter deck; deck=" + roleTable.cardList.Count);
     }
 
     private static bool IsApplied(RoleTable roleTable)
     {
-        return SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryStarterDeckAppliedKey)
+        return SolarMemoryPlayerSetupState.IsSet(TerriasIds.SolarMemoryStarterDeckAppliedKey)
             || StarterDeckArbiterRuntime.HasApplied(
                 roleTable,
-                SunExpIds.SolarMemoryStarterDeckAppliedKey,
-                SunExpIds.StarterDeckOwnerSolarMemory);
+                TerriasIds.SolarMemoryStarterDeckAppliedKey,
+                TerriasIds.StarterDeckOwnerSolarMemory);
     }
 
     private static void MarkPlayerApplied(RoleTable roleTable, string mode)
     {
         roleTable.SpecialVarMap ??= new Dictionary<string, string>();
-        roleTable.SpecialVarMap[SunExpIds.SolarMemoryStarterDeckAppliedKey] = "1";
-        roleTable.SpecialVarMap[SunExpIds.SolarMemoryStarterDeckModeKey] = mode;
-        SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryStarterDeckAppliedKey, true);
-        SolarMemoryPlayerSetupState.SetValue(SunExpIds.SolarMemoryStarterDeckModeKey, mode);
+        roleTable.SpecialVarMap[TerriasIds.SolarMemoryStarterDeckAppliedKey] = "1";
+        roleTable.SpecialVarMap[TerriasIds.SolarMemoryStarterDeckModeKey] = mode;
+        SolarMemoryPlayerSetupState.SetFlag(TerriasIds.SolarMemoryStarterDeckAppliedKey, true);
+        SolarMemoryPlayerSetupState.SetValue(TerriasIds.SolarMemoryStarterDeckModeKey, mode);
         pendingRoleTable = null;
     }
 
@@ -964,20 +964,20 @@ public static class SolarMemoryStarterDeckRuntime
     {
         return new StarterDeckClaim
         {
-            Owner = SunExpIds.StarterDeckOwnerSolarMemory,
-            Scope = SunExpIds.SolarMemoryModeKey,
-            ModeId = "SunExp.SolarMemory",
+            Owner = TerriasIds.StarterDeckOwnerSolarMemory,
+            Scope = TerriasIds.SolarMemoryModeKey,
+            ModeId = "Terrias.SolarMemory",
             Source = "direct-ui",
             State = string.Equals(mode, "official", StringComparison.OrdinalIgnoreCase)
                    || string.Equals(mode, "no-candidate", StringComparison.OrdinalIgnoreCase)
                 ? StarterDeckArbiterRuntime.StateOfficial
                 : StarterDeckArbiterRuntime.StateApplied,
-            AppliedKey = SunExpIds.SolarMemoryStarterDeckAppliedKey,
-            AppliedModeKey = SunExpIds.SolarMemoryStarterDeckModeKey,
+            AppliedKey = TerriasIds.SolarMemoryStarterDeckAppliedKey,
+            AppliedModeKey = TerriasIds.SolarMemoryStarterDeckModeKey,
             AppliedMode = mode,
-            LegacyMode = "sunexp-solar-memory",
+            LegacyMode = "terrias-solar-memory",
             DeckSize = StarterDeckSize,
-            SourceName = "SunExp.SolarMemory.StarterDeck"
+            SourceName = "Terrias.SolarMemory.StarterDeck"
         };
     }
 
@@ -991,7 +991,7 @@ public static class SolarMemoryStarterDeckRuntime
 
     private static CardRowView AcquireCardRow(Transform parent, string name)
     {
-        return SunExpUiPool.AcquireComponent(
+        return TerriasUiPool.AcquireComponent(
             "SolarMemoryStarterDeck.Row",
             parent,
             name,
@@ -1027,9 +1027,9 @@ public static class SolarMemoryStarterDeckRuntime
         return view;
     }
 
-    private sealed class CardRowView : SunExpPooledUiBehaviour
+    private sealed class CardRowView : TerriasPooledUiBehaviour
     {
-        private readonly SunExpUiLifetimeScope lifetime = new();
+        private readonly TerriasUiLifetimeScope lifetime = new();
         private Image? iconImage;
         private Text? badgeText;
         private Text? nameText;
@@ -1123,9 +1123,9 @@ public static class SolarMemoryStarterDeckRuntime
 
     private static void ClosePanel()
     {
-        SunExpUiPool.ReleaseOrDestroyChildren(candidateListContent, "SolarMemoryStarterDeck.ClosePanel.Candidates", "[SolarMemoryStarterDeck]");
-        SunExpUiPool.ReleaseOrDestroyChildren(deckListContent, "SolarMemoryStarterDeck.ClosePanel.Deck", "[SolarMemoryStarterDeck]");
-        SunExpModalHost.Close(ref activePanel, "SolarMemoryStarterDeck.ClosePanel", "[SolarMemoryStarterDeck]");
+        TerriasUiPool.ReleaseOrDestroyChildren(candidateListContent, "SolarMemoryStarterDeck.ClosePanel.Candidates", "[SolarMemoryStarterDeck]");
+        TerriasUiPool.ReleaseOrDestroyChildren(deckListContent, "SolarMemoryStarterDeck.ClosePanel.Deck", "[SolarMemoryStarterDeck]");
+        TerriasModalHost.Close(ref activePanel, "SolarMemoryStarterDeck.ClosePanel", "[SolarMemoryStarterDeck]");
 
         candidateListContent = null;
         deckListContent = null;

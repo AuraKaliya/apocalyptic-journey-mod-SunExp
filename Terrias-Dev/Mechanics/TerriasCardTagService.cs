@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
-public static class SunExpCardTagService
+public static class TerriasCardTagService
 {
     public static int ApplyWhiteRadianceToRunDeck()
     {
@@ -21,7 +21,7 @@ public static class SunExpCardTagService
 
             foreach (var card in cards)
             {
-                if (EnsureDataConfigTag(card, SunExpIds.WhiteRadianceTag))
+                if (EnsureDataConfigTag(card, TerriasIds.WhiteRadianceTag))
                 {
                     changed++;
                 }
@@ -29,7 +29,7 @@ public static class SunExpCardTagService
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("White radiance run deck scan skipped: " + ex.Message);
+            TerriasLog.Debug("White radiance run deck scan skipped: " + ex.Message);
         }
 
         return changed;
@@ -42,7 +42,7 @@ public static class SunExpCardTagService
         {
             foreach (var card in FightUI.cardItemList ?? new List<CardItem>())
             {
-                if (EnsureCardItemTag(card, SunExpIds.WhiteRadianceTag))
+                if (EnsureCardItemTag(card, TerriasIds.WhiteRadianceTag))
                 {
                     changed++;
                 }
@@ -50,7 +50,7 @@ public static class SunExpCardTagService
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("White radiance hand scan skipped: " + ex.Message);
+            TerriasLog.Debug("White radiance hand scan skipped: " + ex.Message);
         }
 
         try
@@ -63,7 +63,7 @@ public static class SunExpCardTagService
 
             foreach (var card in manager.cardList)
             {
-                if (EnsureDataConfigTag(card, SunExpIds.WhiteRadianceTag))
+                if (EnsureDataConfigTag(card, TerriasIds.WhiteRadianceTag))
                 {
                     changed++;
                 }
@@ -71,7 +71,7 @@ public static class SunExpCardTagService
 
             foreach (var card in manager.usedCardList)
             {
-                if (EnsureDataConfigTag(card, SunExpIds.WhiteRadianceTag))
+                if (EnsureDataConfigTag(card, TerriasIds.WhiteRadianceTag))
                 {
                     changed++;
                 }
@@ -79,7 +79,7 @@ public static class SunExpCardTagService
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("White radiance fight deck scan skipped: " + ex.Message);
+            TerriasLog.Debug("White radiance fight deck scan skipped: " + ex.Message);
         }
 
         if (executor != null)
@@ -88,7 +88,7 @@ public static class SunExpCardTagService
             {
                 foreach (var card in executor.HandCard ?? Enumerable.Empty<CardItem>())
                 {
-                    if (EnsureCardItemTag(card, SunExpIds.WhiteRadianceTag))
+                    if (EnsureCardItemTag(card, TerriasIds.WhiteRadianceTag))
                     {
                         changed++;
                     }
@@ -96,7 +96,7 @@ public static class SunExpCardTagService
 
                 foreach (var card in executor.DeckCard ?? new List<DataConfig>())
                 {
-                    if (EnsureDataConfigTag(card, SunExpIds.WhiteRadianceTag))
+                    if (EnsureDataConfigTag(card, TerriasIds.WhiteRadianceTag))
                     {
                         changed++;
                     }
@@ -104,7 +104,7 @@ public static class SunExpCardTagService
 
                 foreach (var card in executor.UsedCard ?? new List<DataConfig>())
                 {
-                    if (EnsureDataConfigTag(card, SunExpIds.WhiteRadianceTag))
+                    if (EnsureDataConfigTag(card, TerriasIds.WhiteRadianceTag))
                     {
                         changed++;
                     }
@@ -112,7 +112,7 @@ public static class SunExpCardTagService
             }
             catch (Exception ex)
             {
-                SunExpLog.Debug("White radiance executor scan skipped: " + ex.Message);
+                TerriasLog.Debug("White radiance executor scan skipped: " + ex.Message);
             }
         }
 
@@ -124,7 +124,7 @@ public static class SunExpCardTagService
         var result = RuntimeCardAttachmentService.AttachToCurrentHand(
             executor,
             RuntimeCardAttachmentService.WunaWhiteSunPrayerHandAttachment());
-        SunExpLog.Info("Wuna hand temporary attachment pass: " + result.ToLogString());
+        TerriasLog.Info("Wuna hand temporary attachment pass: " + result.ToLogString());
         return result.Changed;
     }
 

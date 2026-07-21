@@ -1,8 +1,8 @@
 using System.Collections.Generic;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class CardVisualSkinApi
 {
@@ -25,29 +25,29 @@ public static class CardVisualSkinApi
             priority));
     }
 
-    public static void RegisterSunExpDefaults()
+    public static void RegisterTerriasDefaults()
     {
-        CardVisualSkinRegistry.ClearOwner(SunExpIds.ModId);
+        CardVisualSkinRegistry.ClearOwner(TerriasIds.ModId);
         RegisterTheme(
-            SunExpIds.ModId,
-            SunExpIds.SunCardVisualSkinId,
-            SunExpIds.SunCardFramePath,
-            SunExpIds.SunCardBackgroundPath,
+            TerriasIds.ModId,
+            TerriasIds.SunCardVisualSkinId,
+            TerriasIds.SunCardFramePath,
+            TerriasIds.SunCardBackgroundPath,
             "Sun",
             100,
-            SunExpIds.SunThemeExplicitCardIds,
-            SunExpIds.SunThemeCardPackIds,
-            SunExpIds.SunThemeCardIconPathPrefixes);
+            TerriasIds.SunThemeExplicitCardIds,
+            TerriasIds.SunThemeCardPackIds,
+            TerriasIds.SunThemeCardIconPathPrefixes);
         RegisterTheme(
-            SunExpIds.ModId,
-            SunExpIds.MorningStarCardVisualSkinId,
-            SunExpIds.MorningStarCardFramePath,
+            TerriasIds.ModId,
+            TerriasIds.MorningStarCardVisualSkinId,
+            TerriasIds.MorningStarCardFramePath,
             "",
             "Morning Star",
             120,
-            SunExpIds.StellarOvertureCardEffectIds,
-            SunExpIds.MorningStarThemeCardPackIds,
-            new[] { SunExpIds.StellarOvertureCardIconPathPrefix });
-        SunExpLog.Info("Card visual skin registry initialized: rules=" + CardVisualSkinRegistry.RuleCount);
+            TerriasIds.StellarOvertureCardEffectIds,
+            TerriasIds.MorningStarThemeCardPackIds,
+            new[] { TerriasIds.StellarOvertureCardIconPathPrefix });
+        TerriasLog.Info("Card visual skin registry initialized: rules=" + CardVisualSkinRegistry.RuleCount);
     }
 }

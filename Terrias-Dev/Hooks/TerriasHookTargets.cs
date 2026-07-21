@@ -1,6 +1,6 @@
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
-public static class SunExpHookTargets
+public static class TerriasHookTargets
 {
     public const string GameEntryStartGame = "GameEntryUI.StartGame";
 

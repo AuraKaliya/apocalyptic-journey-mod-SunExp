@@ -1,8 +1,8 @@
 using System;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 
-namespace SunExp.Dll.Scripting;
+namespace Terrias.Dll.Scripting;
 
 public static class HeartChangeScripts
 {
@@ -14,7 +14,7 @@ public static class HeartChangeScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Heart Change action init failed: " + actionId, ex);
+            TerriasLog.Error("Heart Change action init failed: " + actionId, ex);
         }
     }
 
@@ -26,7 +26,7 @@ public static class HeartChangeScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Heart Change action target failed: " + actionId, ex);
+            TerriasLog.Error("Heart Change action target failed: " + actionId, ex);
         }
     }
 
@@ -38,14 +38,14 @@ public static class HeartChangeScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Heart Change action use failed: " + actionId, ex);
+            TerriasLog.Error("Heart Change action use failed: " + actionId, ex);
         }
     }
 
     private static string Normalize(string actionId)
     {
         return string.IsNullOrWhiteSpace(actionId)
-            ? SunExpIds.HeartChangeActionStrike
+            ? TerriasIds.HeartChangeActionStrike
             : actionId.Trim();
     }
 }

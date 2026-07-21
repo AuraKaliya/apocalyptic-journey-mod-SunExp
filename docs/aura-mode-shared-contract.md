@@ -8,12 +8,12 @@ and capabilities to tools.
 ## Ownership
 
 - A content MOD owns and registers immutable mode definitions under an
-  owner-qualified id such as `SunExp:solar-memory`.
+  owner-qualified id such as `Terrias:solar-memory`.
 - The authoritative run launcher activates a self-contained snapshot. It also
   deactivates that snapshot conditionally by owner, mode id, and optional run
   id.
 - Shared code validates, normalizes, persists with revision checks, and
-  evaluates typed policies. It contains no SunExp mode names or ids.
+  evaluates typed policies. It contains no Terrias mode names or ids.
 - Tool MODs read the active snapshot and ask the shared evaluator for a policy
   decision. They do not infer content semantics from native `Normal`, save
   variables, display names, or known MOD ids.

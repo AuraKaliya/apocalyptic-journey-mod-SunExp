@@ -3,39 +3,39 @@ using System.Collections.Generic;
 using AuraDirector.Detour;
 using AuraDirector.Shared;
 using AuraShared.Core;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch.Mod;
 
-namespace SunExp.Dll.Features.Director;
+namespace Terrias.Dll.Features.Director;
 
-public static class SunExpDirectorRuntime
+public static class TerriasDirectorRuntime
 {
     private const string OpeningFeatureId = "Battle.OpeningDirector";
     private static AuraDirectorReadyToStartDetourBackend? startGateProvider;
 
     public static void Initialize(ModConfig modConfig)
     {
-        AuraDirectorRuntime.Initialize(modConfig, SunExpIds.ModId);
+        AuraDirectorRuntime.Initialize(modConfig, TerriasIds.ModId);
         AuraDirectorRuntime.RegisterRequestSource(
-            SunExpIds.ModId,
-            new SunExpBattleOpeningRequestSource());
+            TerriasIds.ModId,
+            new TerriasBattleOpeningRequestSource());
 
         startGateProvider ??= new AuraDirectorReadyToStartDetourBackend(
-            message => SunExpLog.Warn("[AuraDirector] " + message));
-        var result = AuraDirectorRuntime.RegisterStartGateProvider(SunExpIds.ModId, startGateProvider);
+            message => TerriasLog.Warn("[AuraDirector] " + message));
+        var result = AuraDirectorRuntime.RegisterStartGateProvider(TerriasIds.ModId, startGateProvider);
         if (result.Supported)
         {
-            SunExpLog.Info("AuraDirector local opening enabled: " + result.Code);
+            TerriasLog.Info("AuraDirector local opening enabled: " + result.Code);
         }
         else
         {
-            SunExpLog.Warn("AuraDirector local opening unavailable: " + result.Code + "; " + result.Detail);
+            TerriasLog.Warn("AuraDirector local opening unavailable: " + result.Code + "; " + result.Detail);
         }
     }
 
-    private sealed class SunExpBattleOpeningRequestSource : IAuraDirectorRequestSource
+    private sealed class TerriasBattleOpeningRequestSource : IAuraDirectorRequestSource
     {
         public string SourceId => "BattleOpening.LocalCast.v1";
 
@@ -44,7 +44,7 @@ public static class SunExpDirectorRuntime
         public AuraDirectorRequest? BuildRequest(object nativeBattleTarget, long battleSessionId)
         {
             if (nativeBattleTarget is not FightManager
-                || !AuraFeatureSwitchRuntime.IsEnabled(SunExpIds.ModId, OpeningFeatureId))
+                || !AuraFeatureSwitchRuntime.IsEnabled(TerriasIds.ModId, OpeningFeatureId))
             {
                 return null;
             }
@@ -85,7 +85,7 @@ public static class SunExpDirectorRuntime
                 return null;
             }
 
-            SunExpLog.Info("[AuraDirector] opening roster captured; battleSession="
+            TerriasLog.Info("[AuraDirector] opening roster captured; battleSession="
                 + battleSessionId
                 + ", friendlyCount="
                 + friendlyCount
@@ -100,7 +100,7 @@ public static class SunExpDirectorRuntime
                 ContractId = AuraDirectorProtocol.ContractId,
                 SchemaVersion = AuraDirectorProtocol.CurrentSchemaVersion,
                 MinimumReaderSchemaVersion = AuraDirectorProtocol.MinimumSupportedSchemaVersion,
-                OwnerModId = SunExpIds.ModId,
+                OwnerModId = TerriasIds.ModId,
                 RequestId = "battle-opening:" + battleSessionId,
                 BattleSessionId = battleSessionId,
                 Actors = actors,

@@ -2,11 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Data.Save;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch;
 using Witch.Core;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class EndlessSeaPressureService
 {
@@ -31,7 +31,7 @@ public static class EndlessSeaPressureService
             var relic = role.relicList[index];
             role.relicList.RemoveAt(index);
             GameSaveManager.UpdateRoles(role);
-            SunExpLog.Info("[EndlessSeaPressure] destroyed equipped relic from "
+            TerriasLog.Info("[EndlessSeaPressure] destroyed equipped relic from "
                 + source
                 + ": "
                 + DictionaryUtil.Get(relic?.data, "Id"));
@@ -39,7 +39,7 @@ public static class EndlessSeaPressureService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessSeaPressure] destroy relic failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[EndlessSeaPressure] destroy relic failed from " + source + ": " + ex.Message);
             return false;
         }
     }
@@ -77,7 +77,7 @@ public static class EndlessSeaPressureService
             if (changed > 0)
             {
                 GameSaveManager.UpdateRoles(role);
-                SunExpLog.Info("[EndlessSeaPressure] added Annihilation to "
+                TerriasLog.Info("[EndlessSeaPressure] added Annihilation to "
                     + changed
                     + " deck cards from "
                     + source
@@ -88,7 +88,7 @@ public static class EndlessSeaPressureService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessSeaPressure] add Annihilation failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[EndlessSeaPressure] add Annihilation failed from " + source + ": " + ex.Message);
             return 0;
         }
     }
@@ -121,7 +121,7 @@ public static class EndlessSeaPressureService
             if (changed > 0)
             {
                 GameSaveManager.UpdateRoles(role);
-                SunExpLog.Info("[EndlessSeaPressure] added Crack to "
+                TerriasLog.Info("[EndlessSeaPressure] added Crack to "
                     + changed
                     + " deck cards from "
                     + source
@@ -132,7 +132,7 @@ public static class EndlessSeaPressureService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessSeaPressure] add Crack failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[EndlessSeaPressure] add Crack failed from " + source + ": " + ex.Message);
             return 0;
         }
     }

@@ -90,10 +90,10 @@
   },
   "adapterSurfaces": ["Skin", "Audio", "CG", "CardUseFx", "Director", "GameData", "Log", "Journey", "Mode"],
   "releaseScenarios": [
-    "SunExp only",
-    "SunExp + AuraToolsExp",
-    "AuraToolsExp skin + SunExp",
-    "SanGuoShaExp + SunExp",
-    "SunExp + SanGuoShaExp + AuraToolsExp"
+    "Terrias only",
+    "Terrias + AuraToolsExp",
+    "AuraToolsExp skin + Terrias",
+    "SanGuoShaExp + Terrias",
+    "Terrias + SanGuoShaExp + AuraToolsExp"
   ]
 }

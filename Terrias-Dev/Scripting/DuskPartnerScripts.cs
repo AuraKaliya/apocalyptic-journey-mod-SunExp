@@ -1,9 +1,9 @@
 using System;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 
-namespace SunExp.Dll.Scripting;
+namespace Terrias.Dll.Scripting;
 
 public static class DuskPartnerScripts
 {
@@ -15,7 +15,7 @@ public static class DuskPartnerScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Dusk trait apply failed", ex);
+            TerriasLog.Error("Dusk trait apply failed", ex);
         }
     }
 
@@ -23,12 +23,12 @@ public static class DuskPartnerScripts
     {
         try
         {
-            ExecutorApi.ClearHook(self, "SunExpDuskAfterheatHook", "SunExpDuskAfterheatToken");
+            ExecutorApi.ClearHook(self, "TerriasDuskAfterheatHook", "TerriasDuskAfterheatToken");
             DuskAfterheatRecoveryService.Deactivate(self, "TraitCleared");
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Dusk trait clear failed", ex);
+            TerriasLog.Error("Dusk trait clear failed", ex);
         }
     }
 

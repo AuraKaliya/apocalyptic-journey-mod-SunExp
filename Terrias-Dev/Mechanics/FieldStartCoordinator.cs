@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AuraShared.Core;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public enum FieldStartSourceCategory
 {
@@ -30,7 +30,7 @@ public sealed class FieldStartContext
 
 public sealed class FieldStartGrant
 {
-    public FieldStartGrant(string sourceId, SunExpFieldId field, int stacks, int order = 0)
+    public FieldStartGrant(string sourceId, TerriasFieldId field, int stacks, int order = 0)
     {
         SourceId = sourceId ?? "";
         Field = field;
@@ -40,7 +40,7 @@ public sealed class FieldStartGrant
 
     public string SourceId { get; }
 
-    public SunExpFieldId Field { get; }
+    public TerriasFieldId Field { get; }
 
     public int Stacks { get; }
 
@@ -72,20 +72,20 @@ public sealed class FieldStartSourceProvider
 
 public sealed class FieldStartResolution
 {
-    public FieldStartResolution(SunExpFieldId field, int stacks, IReadOnlyList<string> appliedSources)
+    public FieldStartResolution(TerriasFieldId field, int stacks, IReadOnlyList<string> appliedSources)
     {
         Field = field;
         Stacks = Math.Max(0, stacks);
         AppliedSources = appliedSources ?? Array.Empty<string>();
     }
 
-    public SunExpFieldId Field { get; }
+    public TerriasFieldId Field { get; }
 
     public int Stacks { get; }
 
     public IReadOnlyList<string> AppliedSources { get; }
 
-    public bool IsActive => Field != SunExpFieldId.None && Stacks > 0;
+    public bool IsActive => Field != TerriasFieldId.None && Stacks > 0;
 }
 
 public static class FieldStartCoordinator
@@ -120,7 +120,7 @@ public static class FieldStartCoordinator
             ? "local"
             : executor!.Self.InstanceId;
         if (!AuraLifecycleOperationLedger.TryClaimBattleOperation(
-                SunExpIds.ModId,
+                TerriasIds.ModId,
                 "FieldStartCoordinator",
                 "ResolveAndCommit",
                 statusId,
@@ -133,7 +133,7 @@ public static class FieldStartCoordinator
         var resolution = Resolve(new FieldStartContext(executor, source));
         if (!resolution.IsActive)
         {
-            SunExpLog.Debug("[FieldStartCoordinator] no opening field source; source=" + (source ?? ""));
+            TerriasLog.Debug("[FieldStartCoordinator] no opening field source; source=" + (source ?? ""));
             return false;
         }
 
@@ -141,7 +141,7 @@ public static class FieldStartCoordinator
             resolution.Field,
             resolution.Stacks,
             "FieldStartCoordinator:" + (source ?? ""));
-        SunExpLog.Debug("[FieldStartCoordinator] committed field="
+        TerriasLog.Debug("[FieldStartCoordinator] committed field="
             + FieldEffectRegistry.FieldSlug(resolution.Field)
             + ", stacks="
             + resolution.Stacks
@@ -155,7 +155,7 @@ public static class FieldStartCoordinator
     public static FieldStartResolution Resolve(FieldStartContext context)
     {
         EnsureBuiltInProvidersRegistered();
-        var field = SunExpFieldId.None;
+        var field = TerriasFieldId.None;
         var stacks = 0;
         var appliedSources = new List<string>();
 
@@ -172,7 +172,7 @@ public static class FieldStartCoordinator
             }
             catch (Exception ex)
             {
-                SunExpLog.Warn("[FieldStartCoordinator] provider failed: id="
+                TerriasLog.Warn("[FieldStartCoordinator] provider failed: id="
                     + provider.Id
                     + ", error="
                     + ex.Message);
@@ -181,7 +181,7 @@ public static class FieldStartCoordinator
 
             foreach (var grant in grants)
             {
-                if (grant.Field == SunExpFieldId.None || grant.Stacks <= 0)
+                if (grant.Field == TerriasFieldId.None || grant.Stacks <= 0)
                 {
                     continue;
                 }

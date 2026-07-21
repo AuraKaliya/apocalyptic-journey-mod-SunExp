@@ -2,16 +2,16 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Data.Save;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch;
 using Witch.Core;
 using Witch.Mod;
 using Witch.UI;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class SolarMemoryDeckIsolationRuntime
 {
@@ -19,7 +19,7 @@ public static class SolarMemoryDeckIsolationRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
-        SunExpHookRegistry.Before(
+        TerriasHookRegistry.Before(
             modConfig,
             "GameConfigManager.CardPackCheck",
             FilterSolarMemoryCardPackCheck,
@@ -35,10 +35,10 @@ public static class SolarMemoryDeckIsolationRuntime
                 return;
             }
 
-            if (!SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryDeckConfiguredKey)
-                || !SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryStarterDeckAppliedKey))
+            if (!SolarMemoryPlayerSetupState.IsSet(TerriasIds.SolarMemoryDeckConfiguredKey)
+                || !SolarMemoryPlayerSetupState.IsSet(TerriasIds.SolarMemoryStarterDeckAppliedKey))
             {
-                SunExpLog.Info("[SolarMemoryMode] deck window requested before starter deck completion; resuming preparation.");
+                TerriasLog.Info("[SolarMemoryMode] deck window requested before starter deck completion; resuming preparation.");
                 SolarMemoryPreparationRuntime.StartOrResume();
                 return;
             }
@@ -49,7 +49,7 @@ public static class SolarMemoryDeckIsolationRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory deck window failed", ex);
+            TerriasLog.Error("Solar memory deck window failed", ex);
         }
     }
 
@@ -80,7 +80,7 @@ public static class SolarMemoryDeckIsolationRuntime
         if (!PlayerApi.IsMultiplayerSession())
         {
             var saved = SolarMemoryModeRuntime.IsSolarMemoryRun()
-                ? GameSaveManager.GetValue<string>(SunExpIds.SolarMemorySelectedPacksKey)
+                ? GameSaveManager.GetValue<string>(TerriasIds.SolarMemorySelectedPacksKey)
                 : "";
             if (!string.IsNullOrWhiteSpace(saved))
             {
@@ -119,7 +119,7 @@ public static class SolarMemoryDeckIsolationRuntime
 
         try
         {
-            var data = SunExpConfigIndex.Row(DataType.Card, cardId);
+            var data = TerriasConfigIndex.Row(DataType.Card, cardId);
             if (data == null)
             {
                 return false;
@@ -146,7 +146,7 @@ public static class SolarMemoryDeckIsolationRuntime
 
         if (removed.Count > 0)
         {
-            SunExpLog.Info("[SolarMemoryMode] sanitized event cards from " + source + ": " + string.Join("|", removed));
+            TerriasLog.Info("[SolarMemoryMode] sanitized event cards from " + source + ": " + string.Join("|", removed));
         }
 
         return removed.Count;
@@ -169,10 +169,10 @@ public static class SolarMemoryDeckIsolationRuntime
         NormalizeSolarMemoryCardCounts(role);
 
         role.SpecialVarMap ??= new Dictionary<string, string>();
-        role.SpecialVarMap[SunExpIds.SolarMemoryDeckConfiguredKey] = "1";
+        role.SpecialVarMap[TerriasIds.SolarMemoryDeckConfiguredKey] = "1";
         if (ReferenceEquals(role, RoleTable.Instance))
         {
-            SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryDeckConfiguredKey, true);
+            SolarMemoryPlayerSetupState.SetFlag(TerriasIds.SolarMemoryDeckConfiguredKey, true);
         }
 
         UIManager.Instance?.ShowTip("\u65e5\u8000\u56de\u5fc6\u5907\u9009\u724c\u5df2\u6e05\u7a7a", null);
@@ -180,7 +180,7 @@ public static class SolarMemoryDeckIsolationRuntime
 
     private static List<Dictionary<string, string>> VisibleCardPacks()
     {
-        return SunExpConfigIndex.Rows(DataType.CardPack)
+        return TerriasConfigIndex.Rows(DataType.CardPack)
             .Where(pack => !Singleton<GameRuntimeData>.Instance.IsLocked(pack["Id"]) && pack["Id"] != "cardpack_13")
             .ToList();
     }
@@ -218,7 +218,7 @@ public static class SolarMemoryDeckIsolationRuntime
 
         try
         {
-            var data = SunExpConfigIndex.Row(DataType.Card, cardId);
+            var data = TerriasConfigIndex.Row(DataType.Card, cardId);
             if (data == null)
             {
                 return false;
@@ -247,12 +247,12 @@ public static class SolarMemoryDeckIsolationRuntime
             var removed = RemoveEventCardData(cards);
             if (removed.Count > 0)
             {
-                SunExpLog.Info("[SolarMemoryMode] removed event cards from CardPackCheck: " + string.Join("|", removed));
+                TerriasLog.Info("[SolarMemoryMode] removed event cards from CardPackCheck: " + string.Join("|", removed));
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory CardPackCheck filter failed", ex);
+            TerriasLog.Error("Solar memory CardPackCheck filter failed", ex);
         }
     }
 

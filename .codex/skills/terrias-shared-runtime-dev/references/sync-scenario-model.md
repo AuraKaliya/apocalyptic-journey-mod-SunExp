@@ -10,27 +10,27 @@ of duplicating them in top-level skills.
 
 | Scenario | Examples | Authority | Sync shape |
 | --- | --- | --- | --- |
-| Initialization registration | SunExp registers mod-owned roles, CG, audio, skins, starter decks, and unique content extensions. AuraToolsExp registers official-content or tool-owned extensions. | Registering mod's `ownerModId` plus stable domain id. | Startup manifest/provider registration. Do not use gameplay RPC for registration. |
+| Initialization registration | Terrias registers mod-owned roles, CG, audio, skins, starter decks, and unique content extensions. AuraToolsExp registers official-content or tool-owned extensions. | Registering mod's `ownerModId` plus stable domain id. | Startup manifest/provider registration. Do not use gameplay RPC for registration. |
 | Tool configuration | AuraToolsExp reads local persistent settings and forces or overrides effective tool behavior. | Tool-local config store. | Local effective-state overlay. Do not mutate or re-own foreign registrations. |
 | Shared progression | Map state, route state, run counters, shared reward state, final role commit. | Host/server. | Client request -> server validate -> authoritative snapshot/result broadcast. |
 | Player-scoped state | Player choices, Wuna ember, damage submit, role-owned presentation request. | Bound sender/player owner. | Sender-bound command. Server binds sender from receive context before validation. |
 | Presentation event | CG playback, audio, skin visual, temporary overlay, UI cleanup, projection visual. | Local owner may request; host/server may relay in multiplayer. | Transient event with duplicate suppression and lifecycle cleanup. CG relay carries only registered owner/provider/CG ids plus action/session identity; each peer resolves local resources and no resource body crosses the network. It must not advance progression. |
 | Bulk transfer or diagnostic | ModSync host manifest, large snapshots, logs, damage-meter snapshots/history. | Host/server or tool-local producer, depending on feature. | Payload guard, chunking, checksum, expiration, and active-buffer cap. |
 
-## Current SunExp Consensus
+## Current Terrias Consensus
 
-Use this section as the durable routing rule for SunExp/AuraToolsExp sync
+Use this section as the durable routing rule for Terrias/AuraToolsExp sync
 reviews. Put detailed feature rationale in project docs; keep this reference as
 the short operational memory.
 
 - Initialization registration is a startup phase, not a gameplay sync phase.
-  AuraToolsExp may register official-content or tool-owned extensions. SunExp
+  AuraToolsExp may register official-content or tool-owned extensions. Terrias
   may register MOD roles and MOD-unique content extensions. Registered content
   keeps the registering mod's owner identity.
-- Tool configuration is local effective state. SunExp-owned content declarations
-  default to enabled when SunExp configures a shared feature by itself.
+- Tool configuration is local effective state. Terrias-owned content declarations
+  default to enabled when Terrias configures a shared feature by itself.
   AuraToolsExp reads its persistent local configuration and may override or
-  force tool behavior when both SunExp and AuraToolsExp configure the same
+  force tool behavior when both Terrias and AuraToolsExp configure the same
   shared feature, without rewriting foreign registrations.
 - Endless Abyss map, monster, route, and gameplay-level effects are
   host/server-authoritative in multiplayer. Clients may display the result but
@@ -40,11 +40,11 @@ the short operational memory.
   read-only selection panel.
 - Endless Abyss monster injection after battle initialization should follow the
   game's dynamic enemy-add pattern: only the host/server calculates and starts
-  the add; clients receive the game's native enemy sync. SunExp should still
+  the add; clients receive the game's native enemy sync. Terrias should still
   own an explicit wrapper/service for authority checks, planning, logging, and
   duplicate suppression instead of scattering direct native calls.
 - Endless Abyss milestone rewards are player-scoped. Each player opens,
-  chooses, and receives their own reward independently; SunExp should not add a
+  chooses, and receives their own reward independently; Terrias should not add a
   custom cross-player synchronization layer for the reward panel.
 - Ember is a generic player-scoped adventure state, not a Wuna-only state. It
   persists across the whole adventure, survives battle end, and is keyed by the

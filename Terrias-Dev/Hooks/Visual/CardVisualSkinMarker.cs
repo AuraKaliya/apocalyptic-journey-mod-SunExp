@@ -2,11 +2,11 @@ using UnityEngine;
 using UnityEngine.UI;
 using Witch.Core;
 
-namespace SunExp.Dll.Hooks.Visual;
+namespace Terrias.Dll.Hooks.Visual;
 
 internal sealed class CardVisualSkinMarker : MonoBehaviour
 {
-    private const string FaceEffectOverlayName = "SunExp_CardFaceEffectOverlay";
+    private const string FaceEffectOverlayName = "Terrias_CardFaceEffectOverlay";
 
     private Transform? frameNode;
     private Transform? backgroundNode;

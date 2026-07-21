@@ -5,7 +5,7 @@
 Start from repo content, not from a generic art prompt.
 
 - For role posters, read the matching role docs and current role images under
-  `SunExp/ModResource/Images/Character/`.
+  `Terrias/ModResource/Images/Character/`.
 - For card-pack posters, read the card-pack docs, pack covers, and representative
   card icons.
 - For gameplay-mode posters, read the mode docs and use UI title images, map

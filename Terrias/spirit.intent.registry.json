@@ -2418,8 +2418,8 @@
       ]
     },
     {
-      "id": "spirit.pve.sunexp_sunexp_enemycard_last_day_morning_prayer.intent",
-      "enemyCardId": "SunExp_sunexp_enemycard_last_day_morning_prayer",
+      "id": "spirit.pve.terrias_terrias_enemycard_last_day_morning_prayer.intent",
+      "enemyCardId": "Terrias_terrias_enemycard_last_day_morning_prayer",
       "pool": "Pve",
       "adaptationNote": "all-enemy burn adapted from morning prayer; self gathered flame redirected to the owner",
       "type": "Interference",
@@ -2470,7 +2470,7 @@
             "policy": "friendly.owner_or_self_defense"
           },
           "hitCount": 1,
-          "buffId": "SunExp_sunexp_gathered_flame",
+          "buffId": "Terrias_terrias_gathered_flame",
           "buffStacks": 10,
           "flatValue": 0,
           "attackScale": 0,
@@ -2481,8 +2481,8 @@
       ]
     },
     {
-      "id": "spirit.pve.sunexp_sunexp_enemycard_last_day_noon_burn.intent",
-      "enemyCardId": "SunExp_sunexp_enemycard_last_day_noon_burn",
+      "id": "spirit.pve.terrias_terrias_enemycard_last_day_noon_burn.intent",
+      "enemyCardId": "Terrias_terrias_enemycard_last_day_noon_burn",
       "pool": "Pve",
       "adaptationNote": "primary damage preserved; boss phase trigger omitted",
       "type": "Attack",
@@ -2528,8 +2528,8 @@
       ]
     },
     {
-      "id": "spirit.pve.sunexp_sunexp_enemycard_mirror_calibration.intent",
-      "enemyCardId": "SunExp_sunexp_enemycard_mirror_calibration",
+      "id": "spirit.pve.terrias_terrias_enemycard_mirror_calibration.intent",
+      "enemyCardId": "Terrias_terrias_enemycard_mirror_calibration",
       "pool": "Pve",
       "adaptationNote": "self block redirected to the owner; all-enemy burn adapted from mirror calibration",
       "type": "Defense",
@@ -2591,8 +2591,8 @@
       ]
     },
     {
-      "id": "spirit.pve.sunexp_sunexp_enemycard_orbit_refraction.intent",
-      "enemyCardId": "SunExp_sunexp_enemycard_orbit_refraction",
+      "id": "spirit.pve.terrias_terrias_enemycard_orbit_refraction.intent",
+      "enemyCardId": "Terrias_terrias_enemycard_orbit_refraction",
       "pool": "Pve",
       "adaptationNote": "damage component; burn trigger remains safely omitted; burn component adapted without native boss trigger",
       "type": "Attack",
@@ -2654,8 +2654,8 @@
       ]
     },
     {
-      "id": "spirit.pve.sunexp_sunexp_enemycard_saint_purification.intent",
-      "enemyCardId": "SunExp_sunexp_enemycard_saint_purification",
+      "id": "spirit.pve.terrias_terrias_enemycard_saint_purification.intent",
+      "enemyCardId": "Terrias_terrias_enemycard_saint_purification",
       "pool": "Pve",
       "adaptationNote": "primary damage preserved; global coronation logic omitted; body burn component adapted safely",
       "type": "Attack",
@@ -2706,7 +2706,7 @@
             "policy": "enemy.lowest_hp"
           },
           "hitCount": 1,
-          "buffId": "SunExp_sunexp_body_burn",
+          "buffId": "Terrias_terrias_body_burn",
           "buffStacks": 2,
           "flatValue": 0,
           "attackScale": 0,
@@ -2717,8 +2717,8 @@
       ]
     },
     {
-      "id": "spirit.pve.sunexp_sunexp_enemycard_saint_return_to_court.intent",
-      "enemyCardId": "SunExp_sunexp_enemycard_saint_return_to_court",
+      "id": "spirit.pve.terrias_terrias_enemycard_saint_return_to_court.intent",
+      "enemyCardId": "Terrias_terrias_enemycard_saint_return_to_court",
       "pool": "Pve",
       "adaptationNote": "primary damage preserved; saved-name global mechanic omitted",
       "type": "Attack",
@@ -5248,15 +5248,15 @@
       "enemyId": "boss_orbit_mirror_array",
       "variantId": "*",
       "sourceEnemyCardIds": [
-        "SunExp_sunexp_enemycard_mirror_calibration",
-        "SunExp_sunexp_enemycard_orbit_refraction"
+        "Terrias_terrias_enemycard_mirror_calibration",
+        "Terrias_terrias_enemycard_orbit_refraction"
       ],
       "pveAttackTendency": [
-        "spirit.pve.sunexp_sunexp_enemycard_mirror_calibration.intent",
-        "spirit.pve.sunexp_sunexp_enemycard_orbit_refraction.intent"
+        "spirit.pve.terrias_terrias_enemycard_mirror_calibration.intent",
+        "spirit.pve.terrias_terrias_enemycard_orbit_refraction.intent"
       ],
       "pveDefenseTendency": [
-        "spirit.pve.sunexp_sunexp_enemycard_mirror_calibration.intent"
+        "spirit.pve.terrias_terrias_enemycard_mirror_calibration.intent"
       ],
       "pvpAttackTendency": [],
       "pvpDefenseTendency": [],
@@ -5279,12 +5279,12 @@
       "enemyId": "boss_saint_wuna",
       "variantId": "*",
       "sourceEnemyCardIds": [
-        "SunExp_sunexp_enemycard_saint_purification",
-        "SunExp_sunexp_enemycard_saint_return_to_court"
+        "Terrias_terrias_enemycard_saint_purification",
+        "Terrias_terrias_enemycard_saint_return_to_court"
       ],
       "pveAttackTendency": [
-        "spirit.pve.sunexp_sunexp_enemycard_saint_purification.intent",
-        "spirit.pve.sunexp_sunexp_enemycard_saint_return_to_court.intent"
+        "spirit.pve.terrias_terrias_enemycard_saint_purification.intent",
+        "spirit.pve.terrias_terrias_enemycard_saint_return_to_court.intent"
       ],
       "pveDefenseTendency": [],
       "pvpAttackTendency": [],
@@ -5308,15 +5308,15 @@
       "enemyId": "boss_second_sun_last_day",
       "variantId": "*",
       "sourceEnemyCardIds": [
-        "SunExp_sunexp_enemycard_last_day_morning_prayer",
-        "SunExp_sunexp_enemycard_last_day_noon_burn"
+        "Terrias_terrias_enemycard_last_day_morning_prayer",
+        "Terrias_terrias_enemycard_last_day_noon_burn"
       ],
       "pveAttackTendency": [
-        "spirit.pve.sunexp_sunexp_enemycard_last_day_morning_prayer.intent",
-        "spirit.pve.sunexp_sunexp_enemycard_last_day_noon_burn.intent"
+        "spirit.pve.terrias_terrias_enemycard_last_day_morning_prayer.intent",
+        "spirit.pve.terrias_terrias_enemycard_last_day_noon_burn.intent"
       ],
       "pveDefenseTendency": [
-        "spirit.pve.sunexp_sunexp_enemycard_last_day_morning_prayer.intent"
+        "spirit.pve.terrias_terrias_enemycard_last_day_morning_prayer.intent"
       ],
       "pvpAttackTendency": [],
       "pvpDefenseTendency": [],

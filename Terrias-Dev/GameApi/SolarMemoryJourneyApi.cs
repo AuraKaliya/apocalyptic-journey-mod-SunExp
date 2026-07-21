@@ -2,31 +2,31 @@ using System;
 using System.Collections.Generic;
 using AuraJourney.Shared;
 using AuraShared.Core;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.Mod;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class SolarMemoryJourneyApi
 {
-    public const string JourneyId = "SunExp:SunExp.SolarMemory";
+    public const string JourneyId = "Terrias:Terrias.SolarMemory";
 
     public static void Initialize(ModConfig modConfig)
     {
-        AuraJourneyRuntime.Initialize(modConfig, SunExpIds.ModId);
+        AuraJourneyRuntime.Initialize(modConfig, TerriasIds.ModId);
         RegisterMapAliases();
-        var result = AuraJourneyRuntime.RegisterJourney(SunExpIds.ModId, CreateDefinition());
+        var result = AuraJourneyRuntime.RegisterJourney(TerriasIds.ModId, CreateDefinition());
         if (!result.Success)
         {
-            SunExpLog.Warn("Solar Memory journey registration failed: " + result.Message);
+            TerriasLog.Warn("Solar Memory journey registration failed: " + result.Message);
         }
     }
 
     private static void RegisterMapAliases()
     {
         AuraJourneyMapIdAliasRegistry.RegisterPrefixAlias(
-            "SunExp.MapFullToShort",
-            "SunExp_sunexp_",
+            "Terrias.MapFullToShort",
+            "Terrias_terrias_",
             "");
     }
 
@@ -35,9 +35,9 @@ public static class SolarMemoryJourneyApi
         return new AuraJourneyDefinition
         {
             JourneyId = JourneyId,
-            OwnerModId = SunExpIds.ModId,
+            OwnerModId = TerriasIds.ModId,
             DisplayName = "Solar Memory",
-            Description = "Shared route-state contract for SunExp Solar Memory mode.",
+            Description = "Shared route-state contract for Terrias Solar Memory mode.",
             EntryNodeId = "preparation",
             Tags = new List<string> { "solar-memory", "role-pack", "multiplayer-authority" },
             RouteGraph = CreateRouteGraph(),
@@ -90,10 +90,10 @@ public static class SolarMemoryJourneyApi
     {
         var graph = new AuraJourneyRouteGraph
         {
-            GraphId = "SunExp.SolarMemory.RouteGraph"
+            GraphId = "Terrias.SolarMemory.RouteGraph"
         };
 
-        for (var layer = 0; layer < SunExpIds.SolarMemoryMaxLayer; layer++)
+        for (var layer = 0; layer < TerriasIds.SolarMemoryMaxLayer; layer++)
         {
             graph.Layers.Add(new AuraJourneyRouteLayer
             {
@@ -119,12 +119,12 @@ public static class SolarMemoryJourneyApi
 
         if (layer == 1)
         {
-            rules.Add(BossSlot(5, SunExpIds.SolarBossOrbitMirrorMapId, SunExpIds.SolarBossOrbitMirrorLevelId));
+            rules.Add(BossSlot(5, TerriasIds.SolarBossOrbitMirrorMapId, TerriasIds.SolarBossOrbitMirrorLevelId));
         }
         else if (layer == 2)
         {
-            rules.Add(BossSlot(4, SunExpIds.SolarBossSecondSunMapId, SunExpIds.SolarBossSecondSunLevelId));
-            rules.Add(BossSlot(5, SunExpIds.SolarBossSaintWunaMapId, SunExpIds.SolarBossSaintWunaLevelId));
+            rules.Add(BossSlot(4, TerriasIds.SolarBossSecondSunMapId, TerriasIds.SolarBossSecondSunLevelId));
+            rules.Add(BossSlot(5, TerriasIds.SolarBossSaintWunaMapId, TerriasIds.SolarBossSaintWunaLevelId));
         }
 
         return rules;
@@ -147,7 +147,7 @@ public static class SolarMemoryJourneyApi
         int mapSlotIndex,
         string replacementPolicy = AuraJourneyReplacementPolicies.Replace)
     {
-        var eventIndex = Math.Max(0, Math.Min(SunExpIds.SolarMemoryFullEventIds.Length - 1, layer * 2 + (mapSlotIndex >= 3 ? 1 : 0)));
+        var eventIndex = Math.Max(0, Math.Min(TerriasIds.SolarMemoryFullEventIds.Length - 1, layer * 2 + (mapSlotIndex >= 3 ? 1 : 0)));
         return new AuraJourneySlotRule
         {
             SlotIndex = slotIndex,
@@ -156,9 +156,9 @@ public static class SolarMemoryJourneyApi
             MapNode = new AuraJourneyMapNodeSpec
             {
                 NodeKey = "solar_memory_event_" + eventIndex,
-                MapId = SunExpIds.SolarMemoryMapIds[eventIndex],
-                FallbackMapId = SunExpIds.SolarMemoryShortMapIds[eventIndex],
-                NodeId = SunExpIds.SolarMemoryFullEventIds[eventIndex],
+                MapId = TerriasIds.SolarMemoryMapIds[eventIndex],
+                FallbackMapId = TerriasIds.SolarMemoryShortMapIds[eventIndex],
+                NodeId = TerriasIds.SolarMemoryFullEventIds[eventIndex],
                 Type = AuraJourneyNodeKinds.Event,
                 Note = "普通事件",
                 Level = "-1",

@@ -8,7 +8,7 @@
 
 ## 1. 本轮结论
 
-本轮完成 `SolarMemoryBattleExitCoordinator` 拆分。`SolarMemoryModeRuntime` 不再直接注册或实现逃跑、战败 Hook，也不再保存逃跑嵌套状态和直接调用 `SunExpUiSafety` 销毁整备窗口。
+本轮完成 `SolarMemoryBattleExitCoordinator` 拆分。`SolarMemoryModeRuntime` 不再直接注册或实现逃跑、战败 Hook，也不再保存逃跑嵌套状态和直接调用 `TerriasUiSafety` 销毁整备窗口。
 
 新边界负责：
 
@@ -25,7 +25,7 @@
 2. `Fight_Escape.ResetStates` After 仍处理宿主重置后的地图状态和 UI 残留；
 3. `Fight_Loss.Init` After 仍覆盖宿主假失败/逃跑组合路径。
 
-协调器从 `SolarMemoryModeRuntime.Initialize` 原三条 Hook 所在的位置初始化，因此相对 `Fight_Win.ResetStates` 和最终层结算 Hook 的注册顺序没有改变。Hook 目标改用 `SunExpHookTargets.FightEscapeResetStates` 与 `SunExpHookTargets.FightLossInit` 常量。
+协调器从 `SolarMemoryModeRuntime.Initialize` 原三条 Hook 所在的位置初始化，因此相对 `Fight_Win.ResetStates` 和最终层结算 Hook 的注册顺序没有改变。Hook 目标改用 `TerriasHookTargets.FightEscapeResetStates` 与 `TerriasHookTargets.FightLossInit` 常量。
 
 ## 3. currentNode 恢复策略
 
@@ -44,9 +44,9 @@
 
 - `SolarMemorySetupFlowRuntime.ClosePreparationWindows`；
 - `SolarMemoryBlessingPickerRuntime.Close`；
-- 通过 `SunExpUiSafety.DisableRaycastsAndDestroyByName` 清理旧牌包窗口、StarterDeck、OriginSetup、BlessingSetup 和 BlessingPicker 根节点。
+- 通过 `TerriasUiSafety.DisableRaycastsAndDestroyByName` 清理旧牌包窗口、StarterDeck、OriginSetup、BlessingSetup 和 BlessingPicker 根节点。
 
-所有清理继续先关闭射线再销毁对象，并保留 `SunExpUiSafety` 的 Graphic registry 延迟清扫。没有修改 ModalHost、UI 池、Sprite 缓存或窗口结构。
+所有清理继续先关闭射线再销毁对象，并保留 `TerriasUiSafety` 的 Graphic registry 延迟清扫。没有修改 ModalHost、UI 池、Sprite 缓存或窗口结构。
 
 ## 5. 主 Runtime 收缩
 
@@ -60,7 +60,7 @@
 - `SettleSolarMemoryFightLoss`；
 - `EnsureSolarMemoryCurrentNodeForTransition`；
 - `CloseSolarMemoryTransientUi`；
-- 对 `SunExp.Dll.Hooks.Ui` 的直接依赖。
+- 对 `Terrias.Dll.Hooks.Ui` 的直接依赖。
 
 ## 6. 架构护栏
 
@@ -70,7 +70,7 @@
 - 主 Runtime 必须初始化协调器；
 - 三条退出 Hook 必须由协调器通过集中目标常量拥有；
 - 逃跑前后必须执行 currentNode 修复；
-- StarterDeck 清理必须继续通过 `SunExpUiSafety`；
+- StarterDeck 清理必须继续通过 `TerriasUiSafety`；
 - 主 Runtime 禁止重新引入退出战斗处理器、退出状态和直接 UI 安全销毁逻辑。
 
 ## 7. 兼容性
@@ -87,12 +87,12 @@
 
 本轮已通过：
 
-- SunExp Release 构建：0 警告、0 错误；
-- SunExp 架构断言；
-- SunExp C#：312 项行为断言和源码护栏；
+- Terrias Release 构建：0 警告、0 错误；
+- Terrias 架构断言；
+- Terrias C#：312 项行为断言和源码护栏；
 - SolarMemory/Event 校验：6 个事件、10 个地图行、0 警告；
-- SunExp 全量内容校验：56 张卡牌、13 个遗物、33 个 Buff、5 个卡包、3 个敌人、0 警告；
-- SunExp、SanGuoShaExp、AuraToolsExp 三个消费者 Release 构建：均为 0 警告、0 错误；
+- Terrias 全量内容校验：56 张卡牌、13 个遗物、33 个 Buff、5 个卡包、3 个敌人、0 警告；
+- Terrias、SanGuoShaExp、AuraToolsExp 三个消费者 Release 构建：均为 0 警告、0 错误；
 - Aura.Shared：1228 项公共 API 兼容基线；
 - Aura.Shared DLL 打包一致性检查。
 

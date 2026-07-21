@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.UI;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public enum CardPresentationImpact
 {
@@ -72,8 +72,8 @@ public static class CardPresentationInvalidationApi
         try
         {
             snapshot.FightUi.NeedUpdateCardMsg = false;
-            SunExpPerformanceCounters.Record("CardPresentation.FullRefreshSuppressed." + impact);
-            SunExpLog.Debug("[CardPresentation] suppressed newly requested full refresh: impact="
+            TerriasPerformanceCounters.Record("CardPresentation.FullRefreshSuppressed." + impact);
+            TerriasLog.Debug("[CardPresentation] suppressed newly requested full refresh: impact="
                 + impact
                 + ", source="
                 + (string.IsNullOrWhiteSpace(source) ? "unknown" : source.Trim())
@@ -82,7 +82,7 @@ public static class CardPresentationInvalidationApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("[CardPresentation] failed to suppress full refresh from " + source + ": " + ex.Message);
+            TerriasLog.Debug("[CardPresentation] failed to suppress full refresh from " + source + ": " + ex.Message);
             return false;
         }
     }

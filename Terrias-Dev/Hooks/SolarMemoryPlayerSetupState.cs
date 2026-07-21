@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 using Witch;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class SolarMemoryPlayerSetupState
 {
@@ -98,29 +98,29 @@ public static class SolarMemoryPlayerSetupState
 
     public static List<string> SelectedPacks()
     {
-        return SplitList(GetValue(SunExpIds.SolarMemorySelectedPacksKey, "", migrateLegacyWhenSolo: false));
+        return SplitList(GetValue(TerriasIds.SolarMemorySelectedPacksKey, "", migrateLegacyWhenSolo: false));
     }
 
     public static void SetSelectedPacks(IEnumerable<string> packs)
     {
-        SetValue(SunExpIds.SolarMemorySelectedPacksKey, JoinList(packs));
+        SetValue(TerriasIds.SolarMemorySelectedPacksKey, JoinList(packs));
     }
 
     public static void SetSelectedPacks(RoleTable? role, IEnumerable<string> packs)
     {
-        SetValue(role, SunExpIds.SolarMemorySelectedPacksKey, JoinList(packs));
+        SetValue(role, TerriasIds.SolarMemorySelectedPacksKey, JoinList(packs));
     }
 
     public static List<string> SelectedBlessings()
     {
-        return SplitList(GetValue(SunExpIds.SolarMemoryBlessSelectedIdsKey, ""));
+        return SplitList(GetValue(TerriasIds.SolarMemoryBlessSelectedIdsKey, ""));
     }
 
     public static void SetSelectedBlessings(IEnumerable<string> blessingIds)
     {
         var ids = blessingIds.Where(id => !string.IsNullOrWhiteSpace(id)).ToList();
-        SetValue(SunExpIds.SolarMemoryBlessSelectedIdsKey, JoinList(ids));
-        SetInt(SunExpIds.SolarMemoryBlessPickCountKey, ids.Count);
+        SetValue(TerriasIds.SolarMemoryBlessSelectedIdsKey, JoinList(ids));
+        SetInt(TerriasIds.SolarMemoryBlessPickCountKey, ids.Count);
     }
 
     public static string Snapshot()
@@ -128,17 +128,17 @@ public static class SolarMemoryPlayerSetupState
         return "scope="
             + ScopeLabel()
             + "; deck="
-            + GetValue(SunExpIds.SolarMemoryDeckConfiguredKey, "0")
+            + GetValue(TerriasIds.SolarMemoryDeckConfiguredKey, "0")
             + "; starter="
-            + GetValue(SunExpIds.SolarMemoryStarterDeckAppliedKey, "0")
+            + GetValue(TerriasIds.SolarMemoryStarterDeckAppliedKey, "0")
             + "; origin="
-            + GetValue(SunExpIds.SolarMemoryOriginConfiguredKey, "0")
+            + GetValue(TerriasIds.SolarMemoryOriginConfiguredKey, "0")
             + "; bless="
-            + GetValue(SunExpIds.SolarMemoryBlessConfiguredKey, "0")
+            + GetValue(TerriasIds.SolarMemoryBlessConfiguredKey, "0")
             + "; setup="
-            + GetValue(SunExpIds.SolarMemorySetupFinishedKey, "0")
+            + GetValue(TerriasIds.SolarMemorySetupFinishedKey, "0")
             + "; step="
-            + GetValue(SunExpIds.SolarMemoryPrepStepKey, "");
+            + GetValue(TerriasIds.SolarMemoryPrepStepKey, "");
     }
 
     private static string ScopeLabel()

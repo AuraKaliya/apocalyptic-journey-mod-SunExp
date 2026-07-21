@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using AuraUi.Shared;
 using AuraGameData.Shared.GameApi;
 using Michsky.MUIP;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Events;
@@ -14,12 +14,12 @@ using Witch;
 using Witch.UI;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Hooks.Ui;
+namespace Terrias.Dll.Hooks.Ui;
 
 internal sealed class DimensionShopNativeSkin : IDisposable
 {
     private const string NativeShopResourcePath = "UI/ShopUI";
-    private const string GeneratedPrefix = "SunExpDimensionShop_";
+    private const string GeneratedPrefix = "TerriasDimensionShop_";
     private const string OfferCurrencyIconPath = "val/Icon";
     private const string BackpackGoldIconPath = "icon";
     private const string DefaultBackpackHint = "\u9f20\u6807\u53f3\u952e\u53ef\u4ee5\u51fa\u552e\u5361\u724c";
@@ -107,7 +107,7 @@ internal sealed class DimensionShopNativeSkin : IDisposable
         GameObject? shell = null;
         try
         {
-            var prefab = SunExpResourceCache.Load<GameObject>(
+            var prefab = TerriasResourceCache.Load<GameObject>(
                 NativeShopResourcePath,
                 loadFromMod: false,
                 category: "dimension.shop.native.shell");
@@ -119,7 +119,7 @@ internal sealed class DimensionShopNativeSkin : IDisposable
                 || source.SellCardPrefab == null
                 || source.TopRelicPrefab == null)
             {
-                SunExpLog.Warn("[DimensionShop] native ShopUI prefab or serialized templates are unavailable.");
+                TerriasLog.Warn("[DimensionShop] native ShopUI prefab or serialized templates are unavailable.");
                 return false;
             }
 
@@ -168,11 +168,11 @@ internal sealed class DimensionShopNativeSkin : IDisposable
             var truthCurrencySprite = DimensionShopGameApi.TruthCurrencySprite();
             if (truthCurrencySprite == null)
             {
-                SunExpLog.Warn("[DimensionShop] native Truth Crystal currency icon is unavailable; price layout retained with its fallback glyph.");
+                TerriasLog.Warn("[DimensionShop] native Truth Crystal currency icon is unavailable; price layout retained with its fallback glyph.");
             }
             else
             {
-                SunExpLog.Info("[DimensionShop] native Truth Crystal currency icon resolved: " + truthCurrencySprite.name + ".");
+                TerriasLog.Info("[DimensionShop] native Truth Crystal currency icon resolved: " + truthCurrencySprite.name + ".");
             }
 
             var truthBalanceText = ConfigureCurrencyRow(
@@ -221,12 +221,12 @@ internal sealed class DimensionShopNativeSkin : IDisposable
                 sellCard,
                 sellRelic,
                 unequipRelic);
-            SunExpLog.Info("[DimensionShop] native ShopUI visual shell cloned successfully.");
+            TerriasLog.Info("[DimensionShop] native ShopUI visual shell cloned successfully.");
             return true;
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[DimensionShop] native ShopUI visual shell failed; using fallback panel: " + ex.Message);
+            TerriasLog.Warn("[DimensionShop] native ShopUI visual shell failed; using fallback panel: " + ex.Message);
             if (shell != null)
             {
                 shell.SetActive(false);
@@ -290,7 +290,7 @@ internal sealed class DimensionShopNativeSkin : IDisposable
             || item.State == DimensionShopItemState.Empty
             || item.State == DimensionShopItemState.Unavailable)
         {
-            SunExpLog.Debug("[DimensionShop] native offer omitted because no native DataConfig is available: type="
+            TerriasLog.Debug("[DimensionShop] native offer omitted because no native DataConfig is available: type="
                             + type
                             + ", state="
                             + item.State
@@ -510,7 +510,7 @@ internal sealed class DimensionShopNativeSkin : IDisposable
             if ((hasInvalidPointerSurface || hasInvalidNativeButton)
                 && interactionLayoutWarnings.Add(item.name))
             {
-                SunExpLog.Warn("[DimensionShop] interactive native item has an invalid layout rect: " + item.name + ".");
+                TerriasLog.Warn("[DimensionShop] interactive native item has an invalid layout rect: " + item.name + ".");
             }
         }
     }
@@ -645,7 +645,7 @@ internal sealed class DimensionShopNativeSkin : IDisposable
             tooltip.OnShow += () => DimensionShopGameApi.VerifyTooltipVisible(kind, tooltip.transform);
         }
 
-        SunExpLog.InfoOnceAlways(
+        TerriasLog.InfoOnceAlways(
             "dimension-shop-native-component-" + kind,
             "[DimensionShop] native item component active: kind="
             + kind
@@ -709,7 +709,7 @@ internal sealed class DimensionShopNativeSkin : IDisposable
                         sellLabel,
                         () => sell(instanceId)))
                 {
-                    SunExpLog.WarnOnce(
+                    TerriasLog.WarnOnce(
                         "dimension-shop-held-card-menu",
                         "[DimensionShop] held card right-click was received but the native floating menu request was rejected.");
                 }
@@ -739,7 +739,7 @@ internal sealed class DimensionShopNativeSkin : IDisposable
                         "Take off".Localize("Button"),
                         () => unequip(instanceId)))
                 {
-                    SunExpLog.WarnOnce(
+                    TerriasLog.WarnOnce(
                         "dimension-shop-held-relic-menu",
                         "[DimensionShop] held relic right-click was received but the native floating menu request was rejected.");
                 }
@@ -753,7 +753,7 @@ internal sealed class DimensionShopNativeSkin : IDisposable
             return item.NativeConfig;
         }
 
-        SunExpLog.WarnOnce(
+        TerriasLog.WarnOnce(
             "dimension-shop-native-config-fallback-" + type + "-" + item.Id,
             "[DimensionShop] exact held-item DataConfig was unavailable; reconstructing native presenter config: type="
             + type
@@ -934,26 +934,26 @@ internal sealed class DimensionShopNativeSkin : IDisposable
             return;
         }
 
-        var sprite = SunExpResourceCache.Load<Sprite>(
+        var sprite = TerriasResourceCache.Load<Sprite>(
             config.ShopkeeperPortraitResourcePath,
             true,
             "dimension.shop.portrait");
         if (sprite == null)
         {
-            SunExpLog.Warn("[DimensionShop] configured shopkeeper portrait is unavailable; native portrait retained.");
+            TerriasLog.Warn("[DimensionShop] configured shopkeeper portrait is unavailable; native portrait retained.");
             return;
         }
 
         if (string.IsNullOrWhiteSpace(config.ShopkeeperPortraitNodePath))
         {
-            SunExpLog.Warn("[DimensionShop] shopkeeper portrait resource is configured without an explicit native node path; native portrait retained.");
+            TerriasLog.Warn("[DimensionShop] shopkeeper portrait resource is configured without an explicit native node path; native portrait retained.");
             return;
         }
 
         var target = root.Find(config.ShopkeeperPortraitNodePath)?.GetComponent<Image>();
         if (target == null)
         {
-            SunExpLog.Warn("[DimensionShop] shopkeeper portrait node is unavailable; native portrait retained.");
+            TerriasLog.Warn("[DimensionShop] shopkeeper portrait node is unavailable; native portrait retained.");
             return;
         }
 

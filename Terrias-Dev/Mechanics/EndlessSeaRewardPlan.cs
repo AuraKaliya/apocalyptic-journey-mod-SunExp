@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch;
 using Witch.Core;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public sealed class EndlessSeaRewardSpec
 {
@@ -93,7 +93,7 @@ public static class EndlessSeaRewardPlan
             }
 
             var note = DictionaryUtil.Get(data, "Note");
-            var kind = DictionaryUtil.Get(data, SunExpIds.EndlessSeaNodeKindKey);
+            var kind = DictionaryUtil.Get(data, TerriasIds.EndlessSeaNodeKindKey);
             if (Enum.TryParse<EndlessSeaNodeKind>(kind, out var parsed))
             {
                 return parsed;

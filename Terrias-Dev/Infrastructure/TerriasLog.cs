@@ -2,11 +2,11 @@ using System;
 using System.Reflection;
 using AuraShared.Core;
 
-namespace SunExp.Dll.Infrastructure;
+namespace Terrias.Dll.Infrastructure;
 
-public static class SunExpLog
+public static class TerriasLog
 {
-    private const string DebugVarKey = "SunExpDebug";
+    private const string DebugVarKey = "TerriasDebug";
     private const int DebugFlagRefreshMilliseconds = 1000;
     private static MethodInfo? getDebugVarMethod;
     private static bool debugVarMethodResolved;
@@ -15,47 +15,47 @@ public static class SunExpLog
 
     public static void Info(string message)
     {
-        AuraSharedLog.DebugLog(SunExpIds.ModLogTag, message, IsDebugEnabled());
+        AuraSharedLog.DebugLog(TerriasIds.ModLogTag, message, IsDebugEnabled());
     }
 
     public static void InfoAlways(string message)
     {
-        AuraSharedLog.Info(SunExpIds.ModLogTag, message);
+        AuraSharedLog.Info(TerriasIds.ModLogTag, message);
     }
 
     public static void Warn(string message)
     {
-        AuraSharedLog.Warn(SunExpIds.ModLogTag, message);
+        AuraSharedLog.Warn(TerriasIds.ModLogTag, message);
     }
 
     public static void Error(string message, Exception? exception = null)
     {
-        AuraSharedLog.Error(SunExpIds.ModLogTag, message, exception);
+        AuraSharedLog.Error(TerriasIds.ModLogTag, message, exception);
     }
 
     public static void Debug(string message)
     {
-        AuraSharedLog.DebugLog(SunExpIds.ModLogTag, message, IsDebugEnabled());
+        AuraSharedLog.DebugLog(TerriasIds.ModLogTag, message, IsDebugEnabled());
     }
 
     public static void DebugOnce(string key, string message)
     {
-        AuraSharedLog.DebugOnce(SunExpIds.ModLogTag, key, message);
+        AuraSharedLog.DebugOnce(TerriasIds.ModLogTag, key, message);
     }
 
     public static void InfoOnce(string key, string message)
     {
-        AuraSharedLog.DebugOnce(SunExpIds.ModLogTag, "info:" + key, message);
+        AuraSharedLog.DebugOnce(TerriasIds.ModLogTag, "info:" + key, message);
     }
 
     public static void InfoOnceAlways(string key, string message)
     {
-        AuraSharedLog.InfoOnce(SunExpIds.ModLogTag, key, message);
+        AuraSharedLog.InfoOnce(TerriasIds.ModLogTag, key, message);
     }
 
     public static void WarnOnce(string key, string message)
     {
-        AuraSharedLog.WarnOnce(SunExpIds.ModLogTag, key, message);
+        AuraSharedLog.WarnOnce(TerriasIds.ModLogTag, key, message);
     }
 
     private static bool IsDebugEnabled()

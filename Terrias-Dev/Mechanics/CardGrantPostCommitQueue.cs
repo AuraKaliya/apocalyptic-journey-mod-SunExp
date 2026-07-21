@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Hooks;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Hooks;
+using Terrias.Dll.Infrastructure;
 using Witch.Core;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public sealed class CardGrantPostCommitRequest
 {
@@ -29,7 +29,7 @@ public static class CardGrantPostCommitQueue
     private static readonly Dictionary<string, PendingPostCommit> Pending = new(StringComparer.Ordinal);
     private static PropertyInfo? frameCountProperty;
     private static bool frameCountResolved;
-    private static int FlushBudgetPerFrame => Math.Max(4, SunExpPerformanceSettings.FrameSchedulerBudget / 2);
+    private static int FlushBudgetPerFrame => Math.Max(4, TerriasPerformanceSettings.FrameSchedulerBudget / 2);
 
     public static void Request(CardGrantPostCommitRequest? request)
     {
@@ -42,12 +42,12 @@ public static class CardGrantPostCommitQueue
         var requestFrame = FrameCount();
         if (request.RefreshVisuals)
         {
-            SunExpPerformanceCounters.Record("CardGrantPostCommitQueue.RequestVisuals");
+            TerriasPerformanceCounters.Record("CardGrantPostCommitQueue.RequestVisuals");
         }
 
         if (request.RefreshTags)
         {
-            SunExpPerformanceCounters.Record("CardGrantPostCommitQueue.RequestTags");
+            TerriasPerformanceCounters.Record("CardGrantPostCommitQueue.RequestTags");
         }
 
         if (key.Length == 0)
@@ -116,9 +116,9 @@ public static class CardGrantPostCommitQueue
 
     private static void ScheduleFlush()
     {
-        if (!SunExpFrameDispatcher.RunOnceNextFrame("CardGrantPostCommitQueue.Flush", Flush))
+        if (!TerriasFrameDispatcher.RunOnceNextFrame("CardGrantPostCommitQueue.Flush", Flush))
         {
-            SunExpPerformanceCounters.Record("CardGrantPostCommitQueue.Deduped");
+            TerriasPerformanceCounters.Record("CardGrantPostCommitQueue.Deduped");
         }
     }
 
@@ -153,13 +153,13 @@ public static class CardGrantPostCommitQueue
             }
         }
 
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         foreach (var item in items)
         {
             FlushOne(item);
         }
 
-        SunExpPerformanceCounters.RecordDuration("CardGrantPostCommitQueue.Flush", start);
+        TerriasPerformanceCounters.RecordDuration("CardGrantPostCommitQueue.Flush", start);
 
         bool hasMore;
         lock (SyncRoot)
@@ -169,7 +169,7 @@ public static class CardGrantPostCommitQueue
 
         if (hasMore)
         {
-            SunExpPerformanceCounters.Record("CardGrantPostCommitQueue.FlushContinued");
+            TerriasPerformanceCounters.Record("CardGrantPostCommitQueue.FlushContinued");
             ScheduleFlush();
         }
     }
@@ -180,7 +180,7 @@ public static class CardGrantPostCommitQueue
         {
             if (item.RefreshTags)
             {
-                SunExpCardRefreshQueue.RequestConfigTagRefresh(item.Config, "CardGrantPostCommit:" + item.Source);
+                TerriasCardRefreshQueue.RequestConfigTagRefresh(item.Config, "CardGrantPostCommit:" + item.Source);
             }
 
             if (!item.DataUpdate)
@@ -193,13 +193,13 @@ public static class CardGrantPostCommitQueue
                 return;
             }
 
-            var root = SunExpCardPresentationRouter.FindCombatCardRoot(item.Config);
+            var root = TerriasCardPresentationRouter.FindCombatCardRoot(item.Config);
             if (root != null)
             {
                 if (item.DataUpdate)
                 {
                     var card = root.GetComponent<CardItem>();
-                    SunExpCardRefreshQueue.RequestDataUpdate(card, "CardGrantPostCommit:" + item.Source);
+                    TerriasCardRefreshQueue.RequestDataUpdate(card, "CardGrantPostCommit:" + item.Source);
                 }
 
                 if (item.RefreshVisuals)
@@ -217,7 +217,7 @@ public static class CardGrantPostCommitQueue
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Card grant post-commit flush failed from " + item.Source, ex);
+            TerriasLog.Error("Card grant post-commit flush failed from " + item.Source, ex);
         }
     }
 
@@ -225,7 +225,7 @@ public static class CardGrantPostCommitQueue
     {
         if (!CombatVisualPostCommitRefreshEnabled)
         {
-            SunExpPerformanceCounters.Record("CardGrantPostCommitQueue.VisualRefreshSuppressed");
+            TerriasPerformanceCounters.Record("CardGrantPostCommitQueue.VisualRefreshSuppressed");
         }
     }
 

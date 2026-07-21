@@ -1,6 +1,6 @@
 # Shared Runtime Boundaries
 
-Use this reference when changing shared components or their SunExp adapters.
+Use this reference when changing shared components or their Terrias adapters.
 
 ## Component Roles
 
@@ -13,10 +13,10 @@ Use this reference when changing shared components or their SunExp adapters.
 - Utility helper: stateless or local helper with no shared persistent state.
 
 When adding a shared component, decide which role it has before coding.
-For the SunExp/AuraToolsExp split, also check
-`content-tool-shared-boundary.md`: SunExp is the content mod, AuraToolsExp is
+For the Terrias/AuraToolsExp split, also check
+`content-tool-shared-boundary.md`: Terrias is the content mod, AuraToolsExp is
 the tool mod, and shared runtimes are sibling foundations for both, not a
-SunExp-owned base layer.
+Terrias-owned base layer.
 
 ## Ownership And Mutability
 
@@ -35,7 +35,7 @@ Initialization registration is the startup phase where a mod declares the
 resources, rules, providers, or extension metadata that it owns. This is not
 content-mod-exclusive:
 
-- SunExp registers SunExp-owned roles, resources, manifests, and MOD-unique
+- Terrias registers Terrias-owned roles, resources, manifests, and MOD-unique
   content extensions.
 - AuraToolsExp may register official-content extensions or tool-owned providers
   and declarations.
@@ -87,10 +87,10 @@ For Skill CG specifically, content mods should provide CG registry entries with
 `defaultPresentation`, `priority`, and `enabled`. Tool mods may import these as
 rules, but must keep the CG `displayName` on the rule, not on the role.
 
-Skill CG playback is a shared presentation protocol, not a SunExp-private or
+Skill CG playback is a shared presentation protocol, not a Terrias-private or
 AuraTools-private feature. Keep multiplayer relay, sender authority, playback
 identity, and cross-mod de-duplication inside `AuraCgShared`. Content mods such
-as SunExp should install and register CG resources, match local trigger
+as Terrias should install and register CG resources, match local trigger
 semantics, and submit playback requests to the shared runtime. Tool mods such
 as AuraTools should configure enablement, local rules, overrides, and imported
 registry entries without creating a second network playback path.

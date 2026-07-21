@@ -1,9 +1,9 @@
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public sealed class CardVisualSkinSpec
 {
     public CardVisualSkinSpec(string id, string framePath, string backgroundPath, string displayName)
-        : this("SunExp", id, framePath, backgroundPath, displayName, 0)
+        : this("Terrias", id, framePath, backgroundPath, displayName, 0)
     {
     }
 

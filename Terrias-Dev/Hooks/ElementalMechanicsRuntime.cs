@@ -1,14 +1,14 @@
-using SunExp.Dll.Hooks.Ui;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Hooks.Ui;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class ElementalMechanicsRuntime
 {
-    private const string RunnerName = "SunExp_ElementalMechanicsRunner";
+    private const string RunnerName = "Terrias_ElementalMechanicsRunner";
     private static bool initialized;
 
     public static void Initialize(ModConfig modConfig)
@@ -21,13 +21,13 @@ public static class ElementalMechanicsRuntime
         initialized = true;
         ElementalCrystalPresenter.Initialize();
         EnsureRunner();
-        SunExpBattleLifecycleRouter.Register("ElementalMechanics", new SunExpBattleLifecycleSubscription
+        TerriasBattleLifecycleRouter.Register("ElementalMechanics", new TerriasBattleLifecycleSubscription
         {
             FightInitializing = _ => BeginBattle(),
             FightEnding = _ => EndBattle("FightEnding"),
             FightEnded = _ => EndBattle("FightEnded")
         });
-        SunExpStatusLifecycleRouter.Register("ElementalMechanics", new SunExpStatusLifecycleSubscription
+        TerriasStatusLifecycleRouter.Register("ElementalMechanics", new TerriasStatusLifecycleSubscription
         {
             AfterEnemyInit = context =>
             {
@@ -37,7 +37,7 @@ public static class ElementalMechanicsRuntime
                 }
             }
         });
-        SunExpLog.Info("Elemental mechanics runtime initialized");
+        TerriasLog.Info("Elemental mechanics runtime initialized");
     }
 
     private static void BeginBattle()

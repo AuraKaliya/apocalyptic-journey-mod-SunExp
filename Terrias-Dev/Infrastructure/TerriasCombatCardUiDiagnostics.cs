@@ -1,19 +1,19 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.GameApi;
+using Terrias.Dll.GameApi;
 using UnityEngine;
 using Witch.Core;
 using Witch.Mod;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Infrastructure;
+namespace Terrias.Dll.Infrastructure;
 
 /// <summary>
 /// Associates MOD-owned visual work with the native card-UI method currently
 /// being measured.  Disabled performance counters keep this path allocation-free.
 /// </summary>
-public static class SunExpCombatCardUiDiagnostics
+public static class TerriasCombatCardUiDiagnostics
 {
     private const int MaxPendingCauses = 24;
     private const int MaxCauseAgeFrames = 8;
@@ -25,7 +25,7 @@ public static class SunExpCombatCardUiDiagnostics
 
     public static void Begin(string target, ModHookContext context)
     {
-        if (!SunExpPerformanceSettings.CountersEnabled)
+        if (!TerriasPerformanceSettings.CountersEnabled)
         {
             return;
         }
@@ -36,7 +36,7 @@ public static class SunExpCombatCardUiDiagnostics
 
     public static string End(string target, double elapsedMilliseconds)
     {
-        if (!SunExpPerformanceSettings.CountersEnabled || scopes == null || scopes.Count == 0)
+        if (!TerriasPerformanceSettings.CountersEnabled || scopes == null || scopes.Count == 0)
         {
             return "";
         }
@@ -44,7 +44,7 @@ public static class SunExpCombatCardUiDiagnostics
         var scope = scopes.Pop();
         if (!string.Equals(scope.Target, target, StringComparison.Ordinal))
         {
-            SunExpPerformanceCounters.Record("CombatCardUi.Diagnostics.StackMismatch");
+            TerriasPerformanceCounters.Record("CombatCardUi.Diagnostics.StackMismatch");
         }
 
         if (IsDataUpdateTarget(target))
@@ -76,7 +76,7 @@ public static class SunExpCombatCardUiDiagnostics
         foreach (var pair in scope.Segments)
         {
             parts.Add(pair.Key + "=" + pair.Value.ToString("0.###") + "ms");
-            SunExpPerformanceCounters.Record("CombatCardUi." + target + ".Segment." + pair.Key);
+            TerriasPerformanceCounters.Record("CombatCardUi." + target + ".Segment." + pair.Key);
         }
 
         return " card=" + scope.CardId
@@ -114,17 +114,17 @@ public static class SunExpCombatCardUiDiagnostics
 
     public static void RecordCurrentSegment(string name, long startTimestamp)
     {
-        if (!SunExpPerformanceSettings.CountersEnabled || startTimestamp <= 0L || scopes == null || scopes.Count == 0)
+        if (!TerriasPerformanceSettings.CountersEnabled || startTimestamp <= 0L || scopes == null || scopes.Count == 0)
         {
             return;
         }
 
-        RecordSegment(name, SunExpPerformanceCounters.ElapsedMilliseconds(startTimestamp));
+        RecordSegment(name, TerriasPerformanceCounters.ElapsedMilliseconds(startTimestamp));
     }
 
     public static void BeginRefreshBatch(ModHookContext context)
     {
-        if (!SunExpPerformanceSettings.CountersEnabled)
+        if (!TerriasPerformanceSettings.CountersEnabled)
         {
             return;
         }
@@ -154,7 +154,7 @@ public static class SunExpCombatCardUiDiagnostics
 
     public static void RecordRefreshCard(ModHookContext context, double elapsedMilliseconds)
     {
-        if (!SunExpPerformanceSettings.CountersEnabled || refreshBatch == null)
+        if (!TerriasPerformanceSettings.CountersEnabled || refreshBatch == null)
         {
             return;
         }
@@ -170,14 +170,14 @@ public static class SunExpCombatCardUiDiagnostics
 
     public static string EndRefreshBatch(double elapsedMilliseconds)
     {
-        if (!SunExpPerformanceSettings.CountersEnabled || refreshBatch == null)
+        if (!TerriasPerformanceSettings.CountersEnabled || refreshBatch == null)
         {
             return "";
         }
 
         var batch = refreshBatch;
         refreshBatch = null;
-        SunExpPerformanceCounters.Record("CombatCardUi.UpdateCardMsg.Batch");
+        TerriasPerformanceCounters.Record("CombatCardUi.UpdateCardMsg.Batch");
         var slowest = batch.Cards
             .OrderByDescending(card => card.ElapsedMilliseconds)
             .Take(3)
@@ -202,7 +202,7 @@ public static class SunExpCombatCardUiDiagnostics
 
     public static void BeginBuffLevelChange(ModHookContext context)
     {
-        if (!SunExpPerformanceSettings.CountersEnabled || context.Target is not BuffItemConfig config)
+        if (!TerriasPerformanceSettings.CountersEnabled || context.Target is not BuffItemConfig config)
         {
             return;
         }
@@ -218,7 +218,7 @@ public static class SunExpCombatCardUiDiagnostics
 
     public static void EndBuffLevelChange(ModHookContext context)
     {
-        if (!SunExpPerformanceSettings.CountersEnabled
+        if (!TerriasPerformanceSettings.CountersEnabled
             || buffLevelChanges == null
             || buffLevelChanges.Count == 0)
         {
@@ -242,7 +242,7 @@ public static class SunExpCombatCardUiDiagnostics
 
     public static void RecordBuffMutation(string operation, ModHookContext context)
     {
-        if (!SunExpPerformanceSettings.CountersEnabled)
+        if (!TerriasPerformanceSettings.CountersEnabled)
         {
             return;
         }
@@ -267,7 +267,7 @@ public static class SunExpCombatCardUiDiagnostics
 
     public static void RecordRefreshCause(string cause)
     {
-        if (!SunExpPerformanceSettings.CountersEnabled || string.IsNullOrWhiteSpace(cause))
+        if (!TerriasPerformanceSettings.CountersEnabled || string.IsNullOrWhiteSpace(cause))
         {
             return;
         }
@@ -437,8 +437,8 @@ public static class SunExpCombatCardUiDiagnostics
                 + Breakdown.DescriptionMilliseconds.ToString("0.###")
                 + ",translate="
                 + Breakdown.TranslateMilliseconds.ToString("0.###")
-                + ",sunExpInit="
-                + Breakdown.SunExpInitMilliseconds.ToString("0.###")
+                + ",terriasInit="
+                + Breakdown.TerriasInitMilliseconds.ToString("0.###")
                 + ",remainder="
                 + Breakdown.RemainderMilliseconds.ToString("0.###")
                 + "]";
@@ -457,23 +457,23 @@ public static class SunExpCombatCardUiDiagnostics
             double runScriptMilliseconds,
             double descriptionMilliseconds,
             double translateMilliseconds,
-            double sunExpInitMilliseconds)
+            double terriasInitMilliseconds)
         {
             SetCardMsgMilliseconds = setCardMsgMilliseconds;
             RunScriptMilliseconds = runScriptMilliseconds;
             DescriptionMilliseconds = descriptionMilliseconds;
             TranslateMilliseconds = translateMilliseconds;
-            SunExpInitMilliseconds = sunExpInitMilliseconds;
+            TerriasInitMilliseconds = terriasInitMilliseconds;
         }
 
         public double SetCardMsgMilliseconds { get; }
         public double RunScriptMilliseconds { get; }
         public double DescriptionMilliseconds { get; }
         public double TranslateMilliseconds { get; }
-        public double SunExpInitMilliseconds { get; }
+        public double TerriasInitMilliseconds { get; }
         public double RemainderMilliseconds => Math.Max(
             0d,
-            SetCardMsgMilliseconds - Math.Max(RunScriptMilliseconds, SunExpInitMilliseconds) - DescriptionMilliseconds);
+            SetCardMsgMilliseconds - Math.Max(RunScriptMilliseconds, TerriasInitMilliseconds) - DescriptionMilliseconds);
 
         public static CardBreakdown From(Dictionary<string, double>? segments)
         {
@@ -498,7 +498,7 @@ public static class SunExpCombatCardUiDiagnostics
                     RunScriptMilliseconds,
                     DescriptionMilliseconds,
                     TranslateMilliseconds,
-                    SunExpInitMilliseconds);
+                    TerriasInitMilliseconds);
         }
 
         private static double Segment(Dictionary<string, double>? segments, string key)

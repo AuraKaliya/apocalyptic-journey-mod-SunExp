@@ -2,17 +2,17 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Hooks;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Hooks;
+using Terrias.Dll.Infrastructure;
 using UnityEngine;
 using Witch.Core;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class FamiliarFinalBlessingService
 {
-    private const string PocketMarker = "SunExpFamiliarPocketCard";
+    private const string PocketMarker = "TerriasFamiliarPocketCard";
     private const string SoulBuff = "buff_Soul";
     private const string SoulVar = "Soul";
     private const string NetherChaseBuff = "SpecialBuff_meow";
@@ -84,12 +84,12 @@ public static class FamiliarFinalBlessingService
             var kinds = TargetApi.EnemyTargets(currentOwner).Sum(BuffApi.NegativeKindCount);
             if (kinds > 0)
             {
-                currentOwner.Self?.AddBuff(SunExpIds.Extraordinary, kinds * multiplier);
+                currentOwner.Self?.AddBuff(TerriasIds.Extraordinary, kinds * multiplier);
             }
         }
     }
 
-    public static void OnAction(SunExpActionEventContext context)
+    public static void OnAction(TerriasActionEventContext context)
     {
         pendingAction = context.Config;
     }
@@ -175,7 +175,7 @@ public static class FamiliarFinalBlessingService
             DeathBurnSnapshots[target] = stack;
         }
 
-        stack.Push(BuffApi.Level(target, SunExpIds.Burn));
+        stack.Push(BuffApi.Level(target, TerriasIds.Burn));
     }
 
     public static void AfterEnemyDead(ModHookContext context)
@@ -196,7 +196,7 @@ public static class FamiliarFinalBlessingService
                 .ToList();
             if (candidates.Count > 0)
             {
-                candidates[UnityEngine.Random.Range(0, candidates.Count)].AddBuff(SunExpIds.Burn, burn * multiplier);
+                candidates[UnityEngine.Random.Range(0, candidates.Count)].AddBuff(TerriasIds.Burn, burn * multiplier);
             }
         }
     }
@@ -214,8 +214,8 @@ public static class FamiliarFinalBlessingService
     {
         foreach (var effect in Effects("StarlightCycleBuffs"))
         {
-            self.Self?.AddBuff(SunExpIds.SolarRadiance, ParameterInt(effect, "solarRadiance", 2));
-            self.Self?.AddBuff(SunExpIds.Moonlight, ParameterInt(effect, "moonlight", 1));
+            self.Self?.AddBuff(TerriasIds.SolarRadiance, ParameterInt(effect, "solarRadiance", 2));
+            self.Self?.AddBuff(TerriasIds.Moonlight, ParameterInt(effect, "moonlight", 1));
         }
 
         foreach (var effect in Effects("StarlightCycleStarClayShape"))
@@ -223,9 +223,9 @@ public static class FamiliarFinalBlessingService
             var threshold = ParameterInt(effect, "maxHpThreshold", 50);
             if (StatusApi.MaxHp(self.Self) > threshold)
             {
-                if (BuffApi.Level(self.Self, SunExpIds.StarClayBody) <= 0)
+                if (BuffApi.Level(self.Self, TerriasIds.StarClayBody) <= 0)
                 {
-                    self.Self?.AddBuff(SunExpIds.StarClayBody, Math.Max(1, effect.Amount));
+                    self.Self?.AddBuff(TerriasIds.StarClayBody, Math.Max(1, effect.Amount));
                 }
             }
             else
@@ -244,7 +244,7 @@ public static class FamiliarFinalBlessingService
 
         var owned = new HashSet<string>(RoleTable.Instance?.blessingConfigs?
             .Select(CardConfigApi.Id) ?? Enumerable.Empty<string>(), StringComparer.Ordinal);
-        var candidates = Singleton<GameConfigManager>.Instance.CardPackCheck(SunExpConfigIndex.Rows(DataType.Bless))
+        var candidates = Singleton<GameConfigManager>.Instance.CardPackCheck(TerriasConfigIndex.Rows(DataType.Bless))
             .Where(row => DictionaryUtil.GetInt(row, "Rarity") == 1)
             .Select(row => DictionaryUtil.Get(row, "Id"))
             .Where(id => !string.IsNullOrWhiteSpace(id) && !id.StartsWith("*", StringComparison.Ordinal))
@@ -422,7 +422,7 @@ public static class FamiliarFinalBlessingService
         switch (UnityEngine.Random.Range(0, 3))
         {
             case 0:
-                status.AddBuff(SunExpIds.Extraordinary, 100);
+                status.AddBuff(TerriasIds.Extraordinary, 100);
                 break;
             case 1:
                 StatusApi.TryHeal(status, Math.Max(1, StatusApi.MaxHp(status) / 10));
@@ -492,7 +492,7 @@ public static class FamiliarFinalBlessingService
             return;
         }
 
-        var rows = Singleton<GameConfigManager>.Instance.CardPackCheck(SunExpConfigIndex.Rows(DataType.Card))
+        var rows = Singleton<GameConfigManager>.Instance.CardPackCheck(TerriasConfigIndex.Rows(DataType.Card))
             .Where(row => DictionaryUtil.GetInt(row, "Rarity") is >= 1 and <= 3)
             .Where(row => !DictionaryUtil.ContainsToken(DictionaryUtil.Get(row, "Tag"), "Curse"))
             .Select(row => DictionaryUtil.Get(row, "Id"))

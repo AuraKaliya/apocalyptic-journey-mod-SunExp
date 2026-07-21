@@ -1,8 +1,8 @@
 Id,1Script,2Script,3Script,4Script,InitScript,IsHighRisk,EntryScript
 唯一标识,选项1脚本,选项2脚本,选项3脚本;,选项4脚本,更新显示信息用的,是否是高危事件,退出脚本，为后置事件准备的
-Sub_solar_memory_black_sun_after,CS.SunExp.Dll.Scripting.EventScripts.ContinueSolarMemory();,CS.SunExp.Dll.Scripting.EventScripts.OpenSolarMemoryDeck();,,,"CS.SunExp.Dll.Scripting.EventScripts.InitSolarMemoryNode(self);",FALSE,
-Sub_solar_memory_second_sun,CS.SunExp.Dll.Scripting.EventScripts.ContinueSolarMemory();,CS.SunExp.Dll.Scripting.EventScripts.OpenSolarMemoryDeck();,,,"CS.SunExp.Dll.Scripting.EventScripts.InitSolarMemoryNode(self);",FALSE,
-Sub_solar_memory_saint_daily,CS.SunExp.Dll.Scripting.EventScripts.ContinueSolarMemory();,CS.SunExp.Dll.Scripting.EventScripts.OpenSolarMemoryDeck();,,,"CS.SunExp.Dll.Scripting.EventScripts.InitSolarMemoryNode(self);",FALSE,
-Sub_solar_memory_polluted_light,CS.SunExp.Dll.Scripting.EventScripts.ContinueSolarMemory();,CS.SunExp.Dll.Scripting.EventScripts.OpenSolarMemoryDeck();,,,"CS.SunExp.Dll.Scripting.EventScripts.InitSolarMemoryNode(self);",FALSE,
-Sub_solar_memory_grief_struggle,CS.SunExp.Dll.Scripting.EventScripts.ContinueSolarMemory();,CS.SunExp.Dll.Scripting.EventScripts.OpenSolarMemoryDeck();,,,"CS.SunExp.Dll.Scripting.EventScripts.InitSolarMemoryNode(self);",FALSE,
-Sub_solar_memory_above_sacred_wheel,CS.SunExp.Dll.Scripting.EventScripts.ContinueSolarMemory();,CS.SunExp.Dll.Scripting.EventScripts.OpenSolarMemoryDeck();,,,"CS.SunExp.Dll.Scripting.EventScripts.InitSolarMemoryNode(self);",FALSE,
+Sub_solar_memory_black_sun_after,CS.Terrias.Dll.Scripting.EventScripts.ContinueSolarMemory();,CS.Terrias.Dll.Scripting.EventScripts.OpenSolarMemoryDeck();,,,"CS.Terrias.Dll.Scripting.EventScripts.InitSolarMemoryNode(self);",FALSE,
+Sub_solar_memory_second_sun,CS.Terrias.Dll.Scripting.EventScripts.ContinueSolarMemory();,CS.Terrias.Dll.Scripting.EventScripts.OpenSolarMemoryDeck();,,,"CS.Terrias.Dll.Scripting.EventScripts.InitSolarMemoryNode(self);",FALSE,
+Sub_solar_memory_saint_daily,CS.Terrias.Dll.Scripting.EventScripts.ContinueSolarMemory();,CS.Terrias.Dll.Scripting.EventScripts.OpenSolarMemoryDeck();,,,"CS.Terrias.Dll.Scripting.EventScripts.InitSolarMemoryNode(self);",FALSE,
+Sub_solar_memory_polluted_light,CS.Terrias.Dll.Scripting.EventScripts.ContinueSolarMemory();,CS.Terrias.Dll.Scripting.EventScripts.OpenSolarMemoryDeck();,,,"CS.Terrias.Dll.Scripting.EventScripts.InitSolarMemoryNode(self);",FALSE,
+Sub_solar_memory_grief_struggle,CS.Terrias.Dll.Scripting.EventScripts.ContinueSolarMemory();,CS.Terrias.Dll.Scripting.EventScripts.OpenSolarMemoryDeck();,,,"CS.Terrias.Dll.Scripting.EventScripts.InitSolarMemoryNode(self);",FALSE,
+Sub_solar_memory_above_sacred_wheel,CS.Terrias.Dll.Scripting.EventScripts.ContinueSolarMemory();,CS.Terrias.Dll.Scripting.EventScripts.OpenSolarMemoryDeck();,,,"CS.Terrias.Dll.Scripting.EventScripts.InitSolarMemoryNode(self);",FALSE,

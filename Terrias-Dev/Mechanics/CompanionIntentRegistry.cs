@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using AuraShared.Core;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.Mod;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class CompanionIntentRegistry
 {
@@ -42,7 +42,7 @@ public static class CompanionIntentRegistry
             if (!File.Exists(path))
             {
                 SetDocument(Normalize(fallback, fallback));
-                SunExpLog.Warn("[CompanionIntentRegistry] missing registry; using built-in intents.");
+                TerriasLog.Warn("[CompanionIntentRegistry] missing registry; using built-in intents.");
                 return;
             }
 
@@ -55,12 +55,12 @@ public static class CompanionIntentRegistry
                     throw new InvalidDataException("unsupported schemaVersion=" + loaded.SchemaVersion + "; expected 3");
                 }
                 SetDocument(Normalize(loaded, fallback));
-                SunExpLog.Info("[CompanionIntentRegistry] loaded companion intents from " + path);
+                TerriasLog.Info("[CompanionIntentRegistry] loaded companion intents from " + path);
             }
             catch (Exception ex)
             {
                 SetDocument(Normalize(fallback, fallback));
-                SunExpLog.Warn("[CompanionIntentRegistry] failed to load registry; using built-in intents: " + ex.Message);
+                TerriasLog.Warn("[CompanionIntentRegistry] failed to load registry; using built-in intents: " + ex.Message);
             }
         }
     }
@@ -175,7 +175,7 @@ public static class CompanionIntentRegistry
                 || !CompanionTargetPolicyRegistry.ValidateSpec(intent.Target, out _)
                 || !validHandler)
             {
-                SunExpLog.Warn("[CompanionIntentRegistry] rejected invalid intent " + id + ": " + reason);
+                TerriasLog.Warn("[CompanionIntentRegistry] rejected invalid intent " + id + ": " + reason);
                 continue;
             }
             intents[id] = intent;
@@ -227,8 +227,8 @@ public static class CompanionIntentRegistry
             {
                 new()
                 {
-                    Id = SunExpIds.ProjectionActionStaffTap,
-                    EnemyCardId = SunExpIds.ProjectionActionStaffTapCardId,
+                    Id = TerriasIds.ProjectionActionStaffTap,
+                    EnemyCardId = TerriasIds.ProjectionActionStaffTapCardId,
                     Type = nameof(CompanionIntentType.Attack),
                     HandlerId = CompanionIntentHandlerRegistry.DamageSingle,
                     Target = Target("Enemy", "Single", CompanionTargetPolicyRegistry.EnemyLowestHp),
@@ -249,8 +249,8 @@ public static class CompanionIntentRegistry
                 },
                 new()
                 {
-                    Id = SunExpIds.ProjectionActionShieldBlessing,
-                    EnemyCardId = SunExpIds.ProjectionActionShieldBlessingCardId,
+                    Id = TerriasIds.ProjectionActionShieldBlessing,
+                    EnemyCardId = TerriasIds.ProjectionActionShieldBlessingCardId,
                     Type = nameof(CompanionIntentType.Defense),
                     HandlerId = CompanionIntentHandlerRegistry.BlockSingle,
                     Target = Target("Friendly", "Single", CompanionTargetPolicyRegistry.FriendlyOwnerOrSelfDefense),
@@ -270,8 +270,8 @@ public static class CompanionIntentRegistry
                 },
                 new()
                 {
-                    Id = SunExpIds.ProjectionActionStaffCombo,
-                    EnemyCardId = SunExpIds.ProjectionActionStaffComboCardId,
+                    Id = TerriasIds.ProjectionActionStaffCombo,
+                    EnemyCardId = TerriasIds.ProjectionActionStaffComboCardId,
                     Type = nameof(CompanionIntentType.Attack),
                     HandlerId = CompanionIntentHandlerRegistry.DamageMulti,
                     Target = Target("Enemy", "Single", CompanionTargetPolicyRegistry.EnemyLowestHp),
@@ -287,8 +287,8 @@ public static class CompanionIntentRegistry
                 },
                 new()
                 {
-                    Id = SunExpIds.ProjectionActionMagicInterference,
-                    EnemyCardId = SunExpIds.ProjectionActionMagicInterferenceCardId,
+                    Id = TerriasIds.ProjectionActionMagicInterference,
+                    EnemyCardId = TerriasIds.ProjectionActionMagicInterferenceCardId,
                     Type = nameof(CompanionIntentType.Interference),
                     HandlerId = CompanionIntentHandlerRegistry.ApplyBuff,
                     Target = Target("Enemy", "Single", CompanionTargetPolicyRegistry.EnemyLowestBuffThenHp),
@@ -301,12 +301,12 @@ public static class CompanionIntentRegistry
                 },
                 new()
                 {
-                    Id = SunExpIds.ProjectionActionYouAreEnhanced,
-                    EnemyCardId = SunExpIds.ProjectionActionYouAreEnhancedCardId,
+                    Id = TerriasIds.ProjectionActionYouAreEnhanced,
+                    EnemyCardId = TerriasIds.ProjectionActionYouAreEnhancedCardId,
                     Type = nameof(CompanionIntentType.Support),
                     HandlerId = CompanionIntentHandlerRegistry.ApplyBuff,
                     Target = Target("Friendly", "All", CompanionTargetPolicyRegistry.FriendlyAll),
-                    BuffId = SunExpIds.Extraordinary,
+                    BuffId = TerriasIds.Extraordinary,
                     BuffStacks = 50,
                     Cost = 2,
                     Cooldown = 2,
@@ -315,12 +315,12 @@ public static class CompanionIntentRegistry
                 },
                 new()
                 {
-                    Id = SunExpIds.ProjectionActionCharge,
-                    EnemyCardId = SunExpIds.ProjectionActionChargeCardId,
+                    Id = TerriasIds.ProjectionActionCharge,
+                    EnemyCardId = TerriasIds.ProjectionActionChargeCardId,
                     Type = nameof(CompanionIntentType.Support),
                     HandlerId = CompanionIntentHandlerRegistry.ApplyBuff,
                     Target = Target("Self", "Single", CompanionTargetPolicyRegistry.Self),
-                    BuffId = SunExpIds.Extraordinary,
+                    BuffId = TerriasIds.Extraordinary,
                     BuffStacks = 50,
                     Cost = 1,
                     Cooldown = 1,
@@ -329,8 +329,8 @@ public static class CompanionIntentRegistry
                 },
                 new()
                 {
-                    Id = SunExpIds.ProjectionActionHolyHeal,
-                    EnemyCardId = SunExpIds.ProjectionActionHolyHealCardId,
+                    Id = TerriasIds.ProjectionActionHolyHeal,
+                    EnemyCardId = TerriasIds.ProjectionActionHolyHealCardId,
                     Type = nameof(CompanionIntentType.Recovery),
                     HandlerId = CompanionIntentHandlerRegistry.HealSingle,
                     Target = Target("Friendly", "Single", CompanionTargetPolicyRegistry.FriendlyMostWounded),
@@ -350,16 +350,16 @@ public static class CompanionIntentRegistry
                     RoleId = "*",
                     AttackTendency = new List<string>
                     {
-                        SunExpIds.ProjectionActionStaffTap,
-                        SunExpIds.ProjectionActionStaffCombo,
-                        SunExpIds.ProjectionActionMagicInterference
+                        TerriasIds.ProjectionActionStaffTap,
+                        TerriasIds.ProjectionActionStaffCombo,
+                        TerriasIds.ProjectionActionMagicInterference
                     },
                     DefenseTendency = new List<string>
                     {
-                        SunExpIds.ProjectionActionShieldBlessing,
-                        SunExpIds.ProjectionActionYouAreEnhanced,
-                        SunExpIds.ProjectionActionCharge,
-                        SunExpIds.ProjectionActionHolyHeal
+                        TerriasIds.ProjectionActionShieldBlessing,
+                        TerriasIds.ProjectionActionYouAreEnhanced,
+                        TerriasIds.ProjectionActionCharge,
+                        TerriasIds.ProjectionActionHolyHeal
                     },
                     AttackWeight = 60,
                     DefenseWeight = 40

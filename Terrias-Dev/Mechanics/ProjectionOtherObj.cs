@@ -1,14 +1,14 @@
 using System;
 using System.Collections;
 using AuraGameData.Shared.GameApi;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using Witch.UI;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public sealed class ProjectionOtherObj : OtherObj
 {
@@ -156,7 +156,7 @@ public sealed class ProjectionOtherObj : OtherObj
 
     public override void AddCardList()
     {
-        RebuildProjectionAction(SunExpIds.ProjectionActionStaffTapCardId, 1);
+        RebuildProjectionAction(TerriasIds.ProjectionActionStaffTapCardId, 1);
     }
 
     private void RebuildProjectionAction(string cardId, int priority)
@@ -211,7 +211,7 @@ public sealed class ProjectionOtherObj : OtherObj
 
             if (!CompanionIntentExecutor.CanExecute(plan))
             {
-                SunExpLog.Debug("[Projection] committed plan is no longer executable: " + plan.PlanId);
+                TerriasLog.Debug("[Projection] committed plan is no longer executable: " + plan.PlanId);
                 return true;
             }
 
@@ -221,7 +221,7 @@ public sealed class ProjectionOtherObj : OtherObj
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[Projection] action execution failed: status=" + InstanceId + ", index=" + index, ex);
+            TerriasLog.Error("[Projection] action execution failed: status=" + InstanceId + ", index=" + index, ex);
             return false;
         }
     }
@@ -248,7 +248,7 @@ public sealed class ProjectionOtherObj : OtherObj
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[Projection] intent refresh failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[Projection] intent refresh failed from " + source + ": " + ex.Message);
         }
     }
 
@@ -278,11 +278,11 @@ public sealed class ProjectionOtherObj : OtherObj
             RebuildProjectionAction(state.CurrentPlan.EnemyCardId, state.CurrentPlan.Priority);
             ShowCommittedPlan();
             ProjectionSummonService.BroadcastRuntimeState(this, source);
-            SunExpPerformanceCounters.Record("ProjectionIntent.OwnerModifierRefresh");
+            TerriasPerformanceCounters.Record("ProjectionIntent.OwnerModifierRefresh");
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[Projection] committed intent refresh failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[Projection] committed intent refresh failed from " + source + ": " + ex.Message);
         }
     }
 
@@ -309,7 +309,7 @@ public sealed class ProjectionOtherObj : OtherObj
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[Projection] intent show failed at turn start: " + ex.Message);
+            TerriasLog.Warn("[Projection] intent show failed at turn start: " + ex.Message);
         }
     }
 
@@ -328,7 +328,7 @@ public sealed class ProjectionOtherObj : OtherObj
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[Projection] start-round trigger failed: " + ex.Message);
+            TerriasLog.Warn("[Projection] start-round trigger failed: " + ex.Message);
         }
     }
 
@@ -351,7 +351,7 @@ public sealed class ProjectionOtherObj : OtherObj
             var renderer = body?.GetComponent<SpriteRenderer>();
             if (renderer != null)
             {
-                var material = SunExpResourceCache.Load<Material>("Material/EnemyMaterial", true);
+                var material = TerriasResourceCache.Load<Material>("Material/EnemyMaterial", true);
                 if (material != null)
                 {
                     renderer.material = UnityEngine.Object.Instantiate(material);
@@ -362,7 +362,7 @@ public sealed class ProjectionOtherObj : OtherObj
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("[Projection] material fallback used: " + ex.Message);
+            TerriasLog.Debug("[Projection] material fallback used: " + ex.Message);
         }
     }
 

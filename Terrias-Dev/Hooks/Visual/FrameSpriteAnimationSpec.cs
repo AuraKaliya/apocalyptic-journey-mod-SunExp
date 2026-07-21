@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 
-namespace SunExp.Dll.Hooks.Visual;
+namespace Terrias.Dll.Hooks.Visual;
 
 public readonly struct FrameSpriteAnimationSpec
 {

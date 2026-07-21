@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class FamiliarSpeciesCatalog
 {
@@ -11,7 +11,7 @@ public static class FamiliarSpeciesCatalog
     {
         try
         {
-            return SunExpConfigIndex.Rows(DataType.Partner)
+            return TerriasConfigIndex.Rows(DataType.Partner)
                 .Select(ToSpec)
                 .Where(spec => !string.IsNullOrWhiteSpace(spec.SpeciesId))
                 .GroupBy(spec => spec.SpeciesId, StringComparer.Ordinal)
@@ -22,7 +22,7 @@ public static class FamiliarSpeciesCatalog
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[FamiliarGrowth] failed to read partner species: " + ex.Message);
+            TerriasLog.Warn("[FamiliarGrowth] failed to read partner species: " + ex.Message);
             return Array.Empty<FamiliarSpeciesSpec>();
         }
     }
@@ -126,7 +126,7 @@ public static class FamiliarSpeciesCatalog
             return FamiliarId.Sanitize(value).ToLowerInvariant();
         }
 
-        if (value.StartsWith("SunExp_sunexp_", StringComparison.OrdinalIgnoreCase))
+        if (value.StartsWith("Terrias_terrias_", StringComparison.OrdinalIgnoreCase))
         {
             return FamiliarId.NormalizeSpeciesId(value);
         }

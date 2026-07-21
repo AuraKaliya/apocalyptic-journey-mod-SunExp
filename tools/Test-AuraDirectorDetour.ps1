@@ -18,9 +18,9 @@ $sharedProject = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedR
 $runtimeSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraDirectorShared\AuraDirectorRuntime.cs")
 $modelsSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraDirectorShared\AuraDirectorModels.cs")
 $compilerSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraDirectorShared\AuraDirectorPlanCompiler.cs")
-$sunExpSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "SunExp-Dev\Features\Director\SunExpDirectorRuntime.cs")
-$sunExpEntry = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "SunExp-Dev\Entry.cs")
-$sunExpProject = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "SunExp-Dev\SunExp.Dll.csproj")
+$terriasSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "Terrias-Dev\Features\Director\TerriasDirectorRuntime.cs")
+$terriasEntry = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "Terrias-Dev\Entry.cs")
+$terriasProject = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "Terrias-Dev\Terrias.Dll.csproj")
 
 foreach ($required in @(
     "FightManager.ReadyToStart",
@@ -114,23 +114,23 @@ foreach ($required in @(
     "NativeBattleSpriteProviderId",
     "SidePortraitStrategyId"
 )) {
-    if (-not $sunExpSource.Contains($required)) {
-        throw "SunExp director request-source contract is missing: $required"
+    if (-not $terriasSource.Contains($required)) {
+        throw "Terrias director request-source contract is missing: $required"
     }
 }
-if ($sunExpSource.Contains("CreateActor(localPlayer")) {
-    throw "SunExp director request source must not collapse the friendly roster to the local player."
+if ($terriasSource.Contains("CreateActor(localPlayer")) {
+    throw "Terrias director request source must not collapse the friendly roster to the local player."
 }
-if (-not $sunExpEntry.Contains('RunStep("director runtime"')) {
-    throw "SunExp must initialize the local director runtime."
+if (-not $terriasEntry.Contains('RunStep("director runtime"')) {
+    throw "Terrias must initialize the local director runtime."
 }
 foreach ($required in @(
     "AuraDirectorDetour-Dev\Aura.Director.DetourBackend.csproj",
     "Aura.Director.DetourBackend.dll",
     "0Harmony.dll"
 )) {
-    if (-not $sunExpProject.Contains($required)) {
-        throw "SunExp director packaging contract is missing: $required"
+    if (-not $terriasProject.Contains($required)) {
+        throw "Terrias director packaging contract is missing: $required"
     }
 }
 
@@ -142,15 +142,15 @@ foreach ($relative in $shippedScriptRoots) {
     $scriptsPath = Join-Path $repoRoot $relative
     foreach ($technicalBinary in @("0Harmony.dll", "Aura.Director.DetourBackend.dll")) {
         if (Test-Path -LiteralPath (Join-Path $scriptsPath $technicalBinary) -PathType Leaf) {
-            throw "AuraDirector provider must remain scoped to SunExp: $relative\$technicalBinary"
+            throw "AuraDirector provider must remain scoped to Terrias: $relative\$technicalBinary"
         }
     }
 }
 
-$sunExpScripts = Join-Path $repoRoot "SunExp\Scripts"
+$terriasScripts = Join-Path $repoRoot "Terrias\Scripts"
 foreach ($runtimeBinary in @("0Harmony.dll", "Aura.Director.DetourBackend.dll")) {
-    if (-not (Test-Path -LiteralPath (Join-Path $sunExpScripts $runtimeBinary) -PathType Leaf)) {
-        throw "SunExp director runtime binary is missing: SunExp\Scripts\$runtimeBinary"
+    if (-not (Test-Path -LiteralPath (Join-Path $terriasScripts $runtimeBinary) -PathType Leaf)) {
+        throw "Terrias director runtime binary is missing: Terrias\Scripts\$runtimeBinary"
     }
 }
 

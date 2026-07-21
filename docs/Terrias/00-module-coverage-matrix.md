@@ -1,4 +1,4 @@
-# SunExp 模块覆盖矩阵
+# Terrias 模块覆盖矩阵
 
 > 状态：持续维护的覆盖清单；批次 A、B 已完成  
 > 目的：确认“写什么、证据在哪里、如何接入游戏主体”，不替代模块正文。
@@ -7,7 +7,7 @@
 
 ### 1.1 内容交付层
 
-- 卡牌：56（其中 `Card/sunexp.csv` 50，乌娜 3，洛奈尔 1，深渊诅咒 2）。
+- 卡牌：56（其中 `Card/terrias.csv` 50，乌娜 3，洛奈尔 1，深渊诅咒 2）。
 - Buff：32。
 - 遗物：13。
 - 卡包：5。
@@ -16,7 +16,7 @@
 
 数量来自当前仓库盘点脚本；正式“内容实体清单”将逐项记录完整 id，而不是只保存统计数。
 
-### 1.2 SunExp C# 实现层
+### 1.2 Terrias C# 实现层
 
 | 层 | 当前生产文件数 | 覆盖要求 |
 | --- | ---: | --- |
@@ -34,7 +34,7 @@
 | 结构模块 | 主要源码 | 接入方式 | 宿主/共享参考 | 目标文档 | 状态 |
 | --- | --- | --- | --- | --- | --- |
 | MOD 初始化 | `Entry.cs` | `[ModInitialize]`、XLua 程序集注册、隔离步骤 | `Witch.ModInitialize`、`ScriptExecutor.luaEnv`、AuraShared hooks/core | 加载链、整体架构 | 已盘点，待逐方法反编译核验 |
-| CSV 脚本边界 | `Scripting/*Scripts.cs`、`SunExp/Data/*` | `CS.SunExp.Dll.Scripting.*` | `ScriptExecutor`、官方 CSV 脚本形态 | 加载链、基础内容模块 | 已盘点，待生成入口清单 |
+| CSV 脚本边界 | `Scripting/*Scripts.cs`、`Terrias/Data/*` | `CS.Terrias.Dll.Scripting.*` | `ScriptExecutor`、官方 CSV 脚本形态 | 加载链、基础内容模块 | 已盘点，待生成入口清单 |
 | 游戏 API 适配 | `GameApi/*` | 直接 API、反射兼容、确定性回退 | `Witch`、`Witch.Core`、`Managed/` | C# 分层、游戏主体接入 | 已盘点，待签名矩阵 |
 | 业务机制 | `Mechanics/*` | 被脚本、Hook 或 Feature 调用 | 通过 GameApi 间接接入 | 各功能模块 | 已按文件名初分域 |
 | 功能运行时 | `Features/SkillCg` | Entry 初始化、共享 CG 请求 | `AuraCgShared` | 音频/BGM/皮肤/CG | 已盘点 |
@@ -48,10 +48,10 @@
 
 表中的“宿主锚点”首先来自当前 Hook 目标和 API 使用。正式正文仍需打开对应反编译方法体并确认上下游流程。
 
-| 功能域 | 内容/配置入口 | SunExp 实现入口 | Aura 共享依赖 | 当前宿主锚点 | 计划文档 | 优先级 |
+| 功能域 | 内容/配置入口 | Terrias 实现入口 | Aura 共享依赖 | 当前宿主锚点 | 计划文档 | 优先级 |
 | --- | --- | --- | --- | --- | --- | ---: |
 | 卡牌、Buff、遗物与卡包 | `Data/Text/Card`、`Buff`、`Relic`、`CardPack` | `CardScripts`、`BuffScripts`、`RelicScripts`、Card/Buff/Damage API、各 Handler Registry | shared hooks/log/scheduler | `ScriptExecutor`、`CommonCardItem`、`AttackCardItem`、`SkillItem`、`FightPlayer` | 模块 01 | P0 |
-| 场地、Hard 标签与战斗路由 | `Buff`、`Hard`、`EnchTag` | `FieldRuntime`、`SunExpHardTagRuntime`、Action/Card/Status/Lifecycle Router | shared routed hooks、frame scheduler | `Fight_Start`、`FightPlayer.TurnInit`、`ScriptExecutor.SetStatus/RunScript` | 模块 02 | P0 |
+| 场地、Hard 标签与战斗路由 | `Buff`、`Hard`、`EnchTag` | `FieldRuntime`、`TerriasHardTagRuntime`、Action/Card/Status/Lifecycle Router | shared routed hooks、frame scheduler | `Fight_Start`、`FightPlayer.TurnInit`、`ScriptExecutor.SetStatus/RunScript` | 模块 02 | P0 |
 | 乌娜与白曜体系 | `Career/RoleData/Card/Buff` 的 wuna 行 | `WunaScripts`、`WunaRoundRadianceState`、Solar 系服务、动作动画、轨道火 | audio、skin、UI safety | 战斗开始/回合/行动事件、CardItem 使用、角色动画对象 | 模块 03 | P1 |
 | 洛奈尔、晨星与星谱 | loneer Career/RoleData/Card，晨星卡包 | `LoneerScripts`、`MorningStarCardScripts`、StarScore/Miracle/StarStone 服务和 HUD | shared hooks、UI safety、scheduler | `CommonCardItem.OnBeginDrag/OnEndDrag`、`AttackCardItem`、战斗边界 | 模块 04 | P1 |
 | 日耀回忆模式入口与准备 | RoleData、EventList、Map、starter deck、Blessing | `SolarMemoryRunLauncher`、Setup/Preparation/StarterDeck/BlessingPicker、RoleCommit API | Journey、StarterDeck Arbiter、UI guard | `ModeChoiceUI`、`RoleTable.Init`、`MapManager.MapUIStart`、`MapSelectUI.Start` | 模块 05 | P0 |
@@ -68,7 +68,7 @@
 | 卡牌表现与卡框 | visual registry、图片、VisualBundle | CardVisual registries、presentation routers、`Hooks/Visual` | shared scheduler/log/UI | `CardChoiceItem.Initialize`、CardItem 生命周期、`FightUI.UpdateCardItemPos` | 模块 11 | P1 |
 | HUD、图标与临时 UI | Buff/Blessing/Enemy 图标、UI 素材 | StarScore/Field HUD、animated icon runtimes、modal/pool/safety | AuraUiShared、raycast safety、transition guard | `BuffItem.Init`、`BlessItem.Init`、`EnemyItem.Init`、`UIManager.CloseUI`、`UIBase.Close` | 模块 11 | P1 |
 | 音频、BGM、皮肤、CG | audio/visual registry、SharedResources | `AudioApi`、BGM provider、SkillCg feature、resource preloader | AuraAudio/Cg/Skin、Audio/BGM arbiters、Core package | 战斗/角色上下文、Unity Audio/AssetBundle、共享注册协议 | 模块 12 | P1 |
-| 联机 RPC 与状态同步 | 模式、场地、投影、百变、冒险状态 | `SunExpNetworkRuntime`、authority runtime、各 Rpc/NetworkSync | AuraOnline、shared sync/authority conventions | Mirror Command/ClientRpc/TargetRpc、`MapManager` 网络方法 | 模块 13 | P0 |
+| 联机 RPC 与状态同步 | 模式、场地、投影、百变、冒险状态 | `TerriasNetworkRuntime`、authority runtime、各 Rpc/NetworkSync | AuraOnline、shared sync/authority conventions | Mirror Command/ClientRpc/TargetRpc、`MapManager` 网络方法 | 模块 13 | P0 |
 | 生命周期、性能与兼容 | ModConfig、性能设置 | routers、frame scheduler、resource cache、pool、diagnostics、compat APIs | Core hooks/scheduler/log | 战斗、卡牌、UI 生命周期及反射目标 | 模块 14 | P0 |
 | 构建与发布 | csproj、Scripts DLL、VisualBundle、shared manifests | build/test PowerShell、架构与发布门禁 | `Aura.Shared.dll` 全消费者一致性 | `Managed` 编译契约，不属于运行时 Hook | 模块 15 | P0 |
 
@@ -76,7 +76,7 @@
 
 `AuraSharedRuntime-Dev/Aura.Shared.csproj` 当前编入以下组件，正式文档不得遗漏：
 
-| 组件 | 层级 | SunExp 使用面 | 文档归属 |
+| 组件 | 层级 | Terrias 使用面 | 文档归属 |
 | --- | --- | --- | --- |
 | AuraSharedCore | Aura 核心层 | 初始化、包安装、注册表、Hook、调度、配置 | 共享/核心、性能、构建发布 |
 | AuraJourneyShared | 共享领域层 | 日耀回忆 route/state/map projection | 日耀回忆、共享/核心 |
@@ -101,7 +101,7 @@
 | `Witch` | 战斗、卡牌、地图、模式、UI、数据管理、脚本执行器 | P0，尚需逐类型建立映射 |
 | `Witch.Core` | 事件中心、基础数据/状态/接口和核心协议 | P0，尚需逐类型建立映射 |
 | `Mirror` | RPC、sender、序列化和连接语义 | P0，网络章节统一核验 |
-| `UnityEngine.*` | UI、Canvas、资源、音频、材质、Shader、对象生命周期 | P1，仅记录 SunExp 直接依赖面 |
+| `UnityEngine.*` | UI、Canvas、资源、音频、材质、Shader、对象生命周期 | P1，仅记录 Terrias 直接依赖面 |
 | `AllScripts` | 官方数据脚本和脚本调用范式 | P1，作为写法与宿主调用辅助证据 |
 | `Assembly-CSharp` | 少量游戏/插件侧行为 | 按实际命中使用，不预设为主程序集 |
 
@@ -115,7 +115,7 @@
 
 ## 6. 交叉检查清单
 
-- [ ] 每个 `SunExp/Data/**/*.csv` 的脚本列均映射到存在的 `Scripting` 公共入口。
+- [ ] 每个 `Terrias/Data/**/*.csv` 的脚本列均映射到存在的 `Scripting` 公共入口。
 - [ ] 每个 `Scripting` 公共入口均归属一个功能模块。
 - [ ] 每个 `Mechanics`、`Features`、`Hooks`、`Network` 生产文件均归属至少一个章节。
 - [ ] 每个 `AuraSharedHooks.Register*` 或 `[HookBefore/HookAfter]` 目标均进入宿主映射表。

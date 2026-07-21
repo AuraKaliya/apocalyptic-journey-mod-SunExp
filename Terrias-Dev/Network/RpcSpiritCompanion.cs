@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using Network.Command;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Mechanics;
 
-namespace SunExp.Dll.Network;
+namespace Terrias.Dll.Network;
 
 [Serializable]
 public sealed class SpiritCompanionSnapshot
@@ -38,9 +38,9 @@ public sealed class SpiritCompanionSnapshot
 }
 
 [Serializable]
-public sealed class RpcSpiritSummonRequest : RpcCommandBase, ISunExpServerBoundRpcCommand
+public sealed class RpcSpiritSummonRequest : RpcCommandBase, ITerriasServerBoundRpcCommand
 {
-    private SunExpRpcSender serverSender = SunExpRpcSender.Unbound;
+    private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 
     public CapturedEnemySnapshot CapturedEnemy { get; set; } = new();
     public string OwnerStatusId { get; set; } = "";
@@ -75,9 +75,9 @@ public sealed class RpcSpiritSummonRequest : RpcCommandBase, ISunExpServerBoundR
         RegistryHash = SpiritIntentRegistry.RegistryHash;
     }
 
-    public void BindServerSender(SunExpRpcSender sender)
+    public void BindServerSender(TerriasRpcSender sender)
     {
-        serverSender = sender ?? SunExpRpcSender.Unbound;
+        serverSender = sender ?? TerriasRpcSender.Unbound;
     }
 
     public override void CmdExecute()

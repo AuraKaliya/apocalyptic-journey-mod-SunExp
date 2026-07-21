@@ -1,8 +1,8 @@
 using System;
 
-namespace SunExp.Dll.Infrastructure;
+namespace Terrias.Dll.Infrastructure;
 
-public sealed class SunExpDirtyState
+public sealed class TerriasDirtyState
 {
     private string lastKey = "";
     private bool hasLastKey;
@@ -12,13 +12,13 @@ public sealed class SunExpDirtyState
         var normalized = key ?? "";
         if (hasLastKey && string.Equals(lastKey, normalized, StringComparison.Ordinal))
         {
-            SunExpPerformanceCounters.Record("DirtyState.Skipped");
+            TerriasPerformanceCounters.Record("DirtyState.Skipped");
             return false;
         }
 
         lastKey = normalized;
         hasLastKey = true;
-        SunExpPerformanceCounters.Record("DirtyState.Refreshed");
+        TerriasPerformanceCounters.Record("DirtyState.Refreshed");
         return true;
     }
 

@@ -1,12 +1,12 @@
 ---
-name: sunexp-card-art-style
+name: terrias-card-art-style
 description: Project-local skill for drawing or redesigning Witch's Apocalyptic Journey card art and relic icons with a required per-series benchmark approval gate and a real four-step image workflow. Use when artwork must start from the current name, effect, and pack palette; preserve an organic readable silhouette on pure black; be progressively hand-painted and simplified; and finish at 256x256 without rarity-based complexity changes.
 ---
 
 # Witch Mod Card And Relic Art
 
 Use this skill inside this repository for card art and relic icons. Pair it with
-`imagegen` for stages 1-3. Pair it with `sunexp-mod-dev` only when installing
+`imagegen` for stages 1-3. Pair it with `terrias-mod-dev` only when installing
 the approved final image into mod resources. Runtime frames, shaders, visual
 bundles, and skill CG are outside this skill.
 

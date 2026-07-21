@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class CardSelectionApi
 {
@@ -41,7 +41,7 @@ public static class CardSelectionApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("Card selection UI failed: " + ex.Message);
+            TerriasLog.Warn("Card selection UI failed: " + ex.Message);
             return false;
         }
     }
@@ -86,7 +86,7 @@ public static class CardSelectionApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("Card multi-selection UI failed: " + ex.Message);
+            TerriasLog.Warn("Card multi-selection UI failed: " + ex.Message);
             return false;
         }
     }
@@ -122,7 +122,7 @@ public static class CardSelectionApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("Card selection UI failed: " + ex.Message);
+            TerriasLog.Warn("Card selection UI failed: " + ex.Message);
             return false;
         }
     }
@@ -148,7 +148,7 @@ public static class CardSelectionApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("Role deck card collection failed: " + ex.Message);
+            TerriasLog.Warn("Role deck card collection failed: " + ex.Message);
         }
 
         return result;
@@ -169,7 +169,7 @@ public static class CardSelectionApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("Draw pile card collection failed: " + ex.Message);
+            TerriasLog.Warn("Draw pile card collection failed: " + ex.Message);
         }
 
         var discardCollected = false;
@@ -186,7 +186,7 @@ public static class CardSelectionApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("Discard pile card collection failed: " + ex.Message);
+            TerriasLog.Warn("Discard pile card collection failed: " + ex.Message);
         }
 
         if (discardCollected)
@@ -212,7 +212,7 @@ public static class CardSelectionApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("Fallback discard pile card collection failed: " + ex.Message);
+            TerriasLog.Warn("Fallback discard pile card collection failed: " + ex.Message);
         }
 
         return result;

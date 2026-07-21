@@ -1,4 +1,4 @@
 interface:
-  display_name: "SunExp Mod Dev"
-  short_description: "Route SunExp content, runtime, shared boundaries, and validation."
-  default_prompt: "Use $sunexp-mod-dev to route and validate SunExp content-mod work, C# runtime, CSV content, shared integrations, visual runtime, AuraToolsExp boundary questions, and specialized skill work."
+  display_name: "Terrias Mod Dev"
+  short_description: "Route Terrias content, runtime, shared boundaries, and validation."
+  default_prompt: "Use $terrias-mod-dev to route and validate Terrias content-mod work, C# runtime, CSV content, shared integrations, visual runtime, AuraToolsExp boundary questions, and specialized skill work."

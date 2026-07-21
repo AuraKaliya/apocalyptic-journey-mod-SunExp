@@ -7,7 +7,7 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$project = Join-Path $repoRoot "SunExp-Dev\SunExp.Dll.csproj"
+$project = Join-Path $repoRoot "Terrias-Dev\Terrias.Dll.csproj"
 
 if ([string]::IsNullOrWhiteSpace($ManagedPath)) {
     if ([string]::IsNullOrWhiteSpace($GamePath)) {

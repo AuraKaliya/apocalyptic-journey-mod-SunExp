@@ -2,11 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch;
 using Witch.Core;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class EndlessSeaNodePoolService
 {
@@ -54,7 +54,7 @@ public static class EndlessSeaNodePoolService
     public static IReadOnlyList<Dictionary<string, string>> Candidates(EndlessSeaNodeKind kind, int floor)
     {
         var key = "EndlessSea." + kind + ".floor." + Math.Max(1, floor);
-        return SunExpConfigIndex.FilteredRows(DataType.Map, key, row => IsCandidate(row, kind, floor));
+        return TerriasConfigIndex.FilteredRows(DataType.Map, key, row => IsCandidate(row, kind, floor));
     }
 
     private static Dictionary<string, string>? DrawRow(MapTree tree, List<Dictionary<string, string>> candidates)
@@ -70,7 +70,7 @@ public static class EndlessSeaNodePoolService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessSeaNodePool] candidate draw failed: " + ex.Message);
+            TerriasLog.Warn("[EndlessSeaNodePool] candidate draw failed: " + ex.Message);
             return candidates
                 .OrderBy(row => DictionaryUtil.Get(row, "Id"), StringComparer.Ordinal)
                 .FirstOrDefault();
@@ -112,7 +112,7 @@ public static class EndlessSeaNodePoolService
 
     private static List<Dictionary<string, string>> FallbackCandidates(EndlessSeaNodeKind kind)
     {
-        return SunExpConfigIndex.FilteredRows(
+        return TerriasConfigIndex.FilteredRows(
             DataType.Map,
             "EndlessSea.Fallback." + kind,
             row =>
@@ -250,7 +250,7 @@ public static class EndlessSeaNodePoolService
         var nodeId = DictionaryUtil.Get(row, "NodeId");
         try
         {
-            var level = SunExpConfigIndex.Row(DataType.Level, nodeId);
+            var level = TerriasConfigIndex.Row(DataType.Level, nodeId);
             var note = DictionaryUtil.Get(level, "Note");
             return note.IndexOf("boss", StringComparison.OrdinalIgnoreCase) >= 0
                 || note.Contains(BossNote);
@@ -303,11 +303,11 @@ public static class EndlessSeaNodePoolService
         data["Type"] = IsSafeNodeKind(kind) ? "Build" : "Fight";
         data["Note"] = KindNote(kind);
         data["Level"] = DictionaryUtil.Get(data, "Level", "-1");
-        data[SunExpIds.EndlessSeaNodeFloorKey] = Math.Max(1, floor).ToString();
-        data[SunExpIds.EndlessSeaNodeSlotKey] = Math.Max(0, slot).ToString();
-        data[SunExpIds.EndlessSeaNodeKindKey] = kind.ToString();
-        data[SunExpIds.EndlessSeaNodePoolSourceKey] = source;
-        data[SunExpIds.EndlessSeaNodeLockedKey] = IsBossKind(kind) ? "1" : "0";
+        data[TerriasIds.EndlessSeaNodeFloorKey] = Math.Max(1, floor).ToString();
+        data[TerriasIds.EndlessSeaNodeSlotKey] = Math.Max(0, slot).ToString();
+        data[TerriasIds.EndlessSeaNodeKindKey] = kind.ToString();
+        data[TerriasIds.EndlessSeaNodePoolSourceKey] = source;
+        data[TerriasIds.EndlessSeaNodeLockedKey] = IsBossKind(kind) ? "1" : "0";
     }
 
     private static string KindNote(EndlessSeaNodeKind kind)
@@ -361,7 +361,7 @@ public static class EndlessSeaNodePoolService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessSeaNodePool] failed to fork NodeDice: " + ex.Message);
+            TerriasLog.Warn("[EndlessSeaNodePool] failed to fork NodeDice: " + ex.Message);
             return dice;
         }
     }

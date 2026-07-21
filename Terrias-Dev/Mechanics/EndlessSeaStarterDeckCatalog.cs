@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.Core;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public sealed class EndlessSeaStarterDeckProfile
 {
@@ -156,7 +156,7 @@ public static class EndlessSeaStarterDeckCatalog
         var result = ProfilesInternal
             .Where(profile => IsAvailable(profile, enabledPacks))
             .ToList();
-        SunExpLog.Info("[EndlessSeaStarterDeck] available profiles="
+        TerriasLog.Info("[EndlessSeaStarterDeck] available profiles="
             + result.Count
             + "; selectedPacks="
             + string.Join("|", enabledPacks.OrderBy(id => id, StringComparer.OrdinalIgnoreCase)));
@@ -186,7 +186,7 @@ public static class EndlessSeaStarterDeckCatalog
 
         try
         {
-            var data = SunExpConfigIndex.Row(DataType.Card, cardId);
+            var data = TerriasConfigIndex.Row(DataType.Card, cardId);
             return data == null || string.IsNullOrWhiteSpace(DictionaryUtil.Get(data, "Id"));
         }
         catch
@@ -199,7 +199,7 @@ public static class EndlessSeaStarterDeckCatalog
     {
         try
         {
-            var data = SunExpConfigIndex.Row(DataType.Card, cardId);
+            var data = TerriasConfigIndex.Row(DataType.Card, cardId);
             var localizedName = data.Localize("Name");
             if (!string.IsNullOrWhiteSpace(localizedName) && localizedName != "Name")
             {
@@ -224,7 +224,7 @@ public static class EndlessSeaStarterDeckCatalog
     {
         if (profile.CardIds.Count != DeckSize)
         {
-            SunExpLog.Warn("[EndlessSeaStarterDeck] hidden profile "
+            TerriasLog.Warn("[EndlessSeaStarterDeck] hidden profile "
                 + profile.Id
                 + ": expected "
                 + DeckSize
@@ -240,7 +240,7 @@ public static class EndlessSeaStarterDeckCatalog
             .ToList();
         if (invalidCards.Count > 0)
         {
-            SunExpLog.Warn("[EndlessSeaStarterDeck] hidden profile "
+            TerriasLog.Warn("[EndlessSeaStarterDeck] hidden profile "
                 + profile.Id
                 + ": invalidCards="
                 + string.Join("|", invalidCards));
@@ -249,14 +249,14 @@ public static class EndlessSeaStarterDeckCatalog
 
         if (string.IsNullOrWhiteSpace(profile.RequiredPackId))
         {
-            SunExpLog.Info("[EndlessSeaStarterDeck] visible profile "
+            TerriasLog.Info("[EndlessSeaStarterDeck] visible profile "
                 + profile.Id
                 + ": default theme.");
             return true;
         }
 
         var available = enabledPacks.Contains(profile.RequiredPackId);
-        SunExpLog.Info("[EndlessSeaStarterDeck] "
+        TerriasLog.Info("[EndlessSeaStarterDeck] "
             + (available ? "visible" : "hidden")
             + " profile "
             + profile.Id
@@ -278,7 +278,7 @@ public static class EndlessSeaStarterDeckCatalog
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessSeaStarterDeck] failed to read selected card packs: " + ex.Message);
+            TerriasLog.Warn("[EndlessSeaStarterDeck] failed to read selected card packs: " + ex.Message);
             return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         }
     }

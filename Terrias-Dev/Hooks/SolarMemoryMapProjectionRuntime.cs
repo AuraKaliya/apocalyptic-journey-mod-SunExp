@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using AuraShared.Core;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using UnityEngine.UI;
 using Witch;
@@ -12,7 +12,7 @@ using Witch.Mod;
 using Witch.UI;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 internal static class SolarMemoryMapProjectionRuntime
 {
@@ -29,8 +29,8 @@ internal static class SolarMemoryMapProjectionRuntime
             }
 
             var layer = CurrentSolarMemoryLayer();
-            var title = SunExpIds.SolarMemoryLayerNames[
-                Math.Max(0, Math.Min(SunExpIds.SolarMemoryLayerNames.Length - 1, layer))];
+            var title = TerriasIds.SolarMemoryLayerNames[
+                Math.Max(0, Math.Min(TerriasIds.SolarMemoryLayerNames.Length - 1, layer))];
             SetTmpText(mapSelect.transform.Find("Title/Text/text"), title);
 
             var text = mapSelect.transform.Find("Title/Text/text")?.GetComponent<Text>();
@@ -41,7 +41,7 @@ internal static class SolarMemoryMapProjectionRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory layer title failed", ex);
+            TerriasLog.Error("Solar memory layer title failed", ex);
         }
     }
 
@@ -62,7 +62,7 @@ internal static class SolarMemoryMapProjectionRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory fixed slot apply failed", ex);
+            TerriasLog.Error("Solar memory fixed slot apply failed", ex);
         }
     }
 
@@ -113,7 +113,7 @@ internal static class SolarMemoryMapProjectionRuntime
         if (sync && changed)
         {
             mapSelect.SendNode();
-            SunExpLog.Info("[SolarMemoryMapLock] fixed slots applied from " + source + "; layer=" + layer + ".");
+            TerriasLog.Info("[SolarMemoryMapLock] fixed slots applied from " + source + "; layer=" + layer + ".");
         }
     }
 
@@ -134,11 +134,11 @@ internal static class SolarMemoryMapProjectionRuntime
                 + ").";
             if (SolarMemoryMapLifecycleCoordinator.IsClientOnlyPlayer())
             {
-                SunExpLog.Debug(message);
+                TerriasLog.Debug(message);
             }
             else
             {
-                SunExpLog.Warn(message);
+                TerriasLog.Warn(message);
             }
 
             return null;
@@ -152,7 +152,7 @@ internal static class SolarMemoryMapProjectionRuntime
         {
             var eventIndex = SolarMemoryFixedNodeCatalog.EventIndex(spec.Layer, spec.MapSlotIndex);
             var mapId = spec.MapId;
-            var shortMapId = SunExpIds.SolarMemoryShortMapIds[eventIndex];
+            var shortMapId = TerriasIds.SolarMemoryShortMapIds[eventIndex];
             row = MapRow(mapId) ?? MapRow(shortMapId);
             var data = row == null ? new Dictionary<string, string>() : new Dictionary<string, string>(row);
             data["Id"] = mapId;
@@ -165,7 +165,7 @@ internal static class SolarMemoryMapProjectionRuntime
         row = MapRow(spec.MapId);
         if (row == null)
         {
-            SunExpLog.Warn("[SolarMemoryMapLock] missing map row: " + spec.MapId);
+            TerriasLog.Warn("[SolarMemoryMapLock] missing map row: " + spec.MapId);
             return null;
         }
 
@@ -179,7 +179,7 @@ internal static class SolarMemoryMapProjectionRuntime
 
     private static Dictionary<string, string>? MapRow(string mapId)
     {
-        return SunExpConfigIndex.Row(DataType.Map, mapId);
+        return TerriasConfigIndex.Row(DataType.Map, mapId);
     }
 
     private static void EnsureFixedSlotVisual(
@@ -220,7 +220,7 @@ internal static class SolarMemoryMapProjectionRuntime
             var template = mapSelect.transform.Find("MapSelect/" + prefabName);
             if (template == null)
             {
-                SunExpLog.Warn("[SolarMemoryMapLock] missing map prefab: " + prefabName);
+                TerriasLog.Warn("[SolarMemoryMapLock] missing map prefab: " + prefabName);
                 return;
             }
 
@@ -338,7 +338,7 @@ internal static class SolarMemoryMapProjectionRuntime
 
             ApplyMapCardTexture(
                 item,
-                SunExpResourceCache.Load<Texture>(StoryCardTemplatePath, true),
+                TerriasResourceCache.Load<Texture>(StoryCardTemplatePath, true),
                 hideIcon: false,
                 "event fallback");
         }
@@ -346,7 +346,7 @@ internal static class SolarMemoryMapProjectionRuntime
         {
             ApplyMapCardTexture(
                 item,
-                SunExpResourceCache.Load<Texture>(BuildCardTemplatePath, true),
+                TerriasResourceCache.Load<Texture>(BuildCardTemplatePath, true),
                 hideIcon: false,
                 "build fallback");
         }
@@ -356,11 +356,11 @@ internal static class SolarMemoryMapProjectionRuntime
     {
         try
         {
-            return SunExpResourceCache.Load<Texture>(path, true);
+            return TerriasResourceCache.Load<Texture>(path, true);
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[SolarMemoryMapLock] failed to load map card texture " + path + ": " + ex.Message);
+            TerriasLog.Warn("[SolarMemoryMapLock] failed to load map card texture " + path + ": " + ex.Message);
             return null;
         }
     }
@@ -369,17 +369,17 @@ internal static class SolarMemoryMapProjectionRuntime
     {
         if (texture == null)
         {
-            SunExpLog.Warn("[SolarMemoryMapLock] map card texture missing: " + source);
+            TerriasLog.Warn("[SolarMemoryMapLock] map card texture missing: " + source);
             return;
         }
 
         if (!MapItemApi.ApplyCardBackgroundTexture(item, texture, hideIcon, out var appliedTarget))
         {
-            SunExpLog.Warn("[SolarMemoryMapLock] map card texture skipped, renderer missing: " + source);
+            TerriasLog.Warn("[SolarMemoryMapLock] map card texture skipped, renderer missing: " + source);
             return;
         }
 
-        SunExpLog.Debug("[SolarMemoryMapLock] map card texture applied: " + source + " -> " + appliedTarget);
+        TerriasLog.Debug("[SolarMemoryMapLock] map card texture applied: " + source + " -> " + appliedTarget);
     }
 
     private static int CurrentSolarMemoryLayer()

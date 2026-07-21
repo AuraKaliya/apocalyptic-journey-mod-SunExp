@@ -1,25 +1,25 @@
 {
   "schemaVersion": 1,
-  "ownerModId": "SunExp",
+  "ownerModId": "Terrias",
   "textures": [
     {
       "id": "solar_memory.event_map_card",
-      "path": "Mods/SunExp/ModResource/Images/MapNode/日耀回忆-事件.png",
+      "path": "Mods/Terrias/ModResource/Images/MapNode/日耀回忆-事件.png",
       "enabled": true
     }
   ],
   "modeEntries": [
     {
       "id": "solar_memory",
-      "normalTitleSprite": "Mods/SunExp/ModResource/Images/UI/solar_memory_title_c.png",
-      "highlightedTitleSprite": "Mods/SunExp/ModResource/Images/UI/solar_memory_title_c_h.png",
+      "normalTitleSprite": "Mods/Terrias/ModResource/Images/UI/solar_memory_title_c.png",
+      "highlightedTitleSprite": "Mods/Terrias/ModResource/Images/UI/solar_memory_title_c_h.png",
       "titleArtHeightRatio": 0.735,
       "enabled": true
     },
     {
       "id": "endless_abyss",
-      "normalTitleSprite": "Mods/SunExp/ModResource/Images/UI/endless_sea_title_c.png",
-      "highlightedTitleSprite": "Mods/SunExp/ModResource/Images/UI/endless_sea_title_h.png",
+      "normalTitleSprite": "Mods/Terrias/ModResource/Images/UI/endless_sea_title_c.png",
+      "highlightedTitleSprite": "Mods/Terrias/ModResource/Images/UI/endless_sea_title_h.png",
       "titleArtHeightRatio": 0.735,
       "enabled": true
     }
@@ -31,12 +31,12 @@
       "frameSeconds": 0.2,
       "matchSpriteNames": [ "huanghun_1" ],
       "framePaths": [
-        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_1",
-        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_2",
-        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_3",
-        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_4",
-        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_3",
-        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_2"
+        "Mods/Terrias/ModResource/Images/Buff/Terrias/huanghun_1",
+        "Mods/Terrias/ModResource/Images/Buff/Terrias/huanghun_2",
+        "Mods/Terrias/ModResource/Images/Buff/Terrias/huanghun_3",
+        "Mods/Terrias/ModResource/Images/Buff/Terrias/huanghun_4",
+        "Mods/Terrias/ModResource/Images/Buff/Terrias/huanghun_3",
+        "Mods/Terrias/ModResource/Images/Buff/Terrias/huanghun_2"
       ],
       "enabled": true
     },
@@ -46,12 +46,12 @@
       "frameSeconds": 0.2,
       "matchSpriteNames": [ "renkui_1" ],
       "framePaths": [
-        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_1",
-        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_2",
-        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_3",
-        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_4",
-        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_3",
-        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_2"
+        "Mods/Terrias/ModResource/Images/Buff/Loneer/renkui_1",
+        "Mods/Terrias/ModResource/Images/Buff/Loneer/renkui_2",
+        "Mods/Terrias/ModResource/Images/Buff/Loneer/renkui_3",
+        "Mods/Terrias/ModResource/Images/Buff/Loneer/renkui_4",
+        "Mods/Terrias/ModResource/Images/Buff/Loneer/renkui_3",
+        "Mods/Terrias/ModResource/Images/Buff/Loneer/renkui_2"
       ],
       "enabled": true
     },
@@ -59,14 +59,14 @@
       "id": "dusk.afterheat.buff",
       "targetKind": "buff-icon",
       "frameSeconds": 0.2,
-      "matchIds": [ "SunExp_sunexp_dusk_afterheat_recovery_trait" ],
+      "matchIds": [ "Terrias_terrias_dusk_afterheat_recovery_trait" ],
       "framePaths": [
-        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_1",
-        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_2",
-        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_3",
-        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_4",
-        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_3",
-        "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_2"
+        "Mods/Terrias/ModResource/Images/Buff/Terrias/huanghun_1",
+        "Mods/Terrias/ModResource/Images/Buff/Terrias/huanghun_2",
+        "Mods/Terrias/ModResource/Images/Buff/Terrias/huanghun_3",
+        "Mods/Terrias/ModResource/Images/Buff/Terrias/huanghun_4",
+        "Mods/Terrias/ModResource/Images/Buff/Terrias/huanghun_3",
+        "Mods/Terrias/ModResource/Images/Buff/Terrias/huanghun_2"
       ],
       "enabled": true
     },
@@ -75,16 +75,16 @@
       "targetKind": "buff-icon",
       "frameSeconds": 0.2,
       "matchIds": [
-        "SunExp_sunexp_star_clay_body",
-        "SunExp_sunexp_star_clay_doll_trait"
+        "Terrias_terrias_star_clay_body",
+        "Terrias_terrias_star_clay_doll_trait"
       ],
       "framePaths": [
-        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_1",
-        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_2",
-        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_3",
-        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_4",
-        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_3",
-        "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_2"
+        "Mods/Terrias/ModResource/Images/Buff/Loneer/renkui_1",
+        "Mods/Terrias/ModResource/Images/Buff/Loneer/renkui_2",
+        "Mods/Terrias/ModResource/Images/Buff/Loneer/renkui_3",
+        "Mods/Terrias/ModResource/Images/Buff/Loneer/renkui_4",
+        "Mods/Terrias/ModResource/Images/Buff/Loneer/renkui_3",
+        "Mods/Terrias/ModResource/Images/Buff/Loneer/renkui_2"
       ],
       "enabled": true
     },
@@ -92,16 +92,16 @@
       "id": "enemy.saint_wuna.dictionary",
       "targetKind": "enemy-dictionary-icon",
       "frameSeconds": 0.2,
-      "matchIds": [ "SunExp_sunexp_boss_saint_wuna" ],
+      "matchIds": [ "Terrias_terrias_boss_saint_wuna" ],
       "framePaths": [
-        "Mods/SunExp/ModResource/AnimationLib/WuNa_e/Dict/Dict_00",
-        "Mods/SunExp/ModResource/AnimationLib/WuNa_e/Dict/Dict_01",
-        "Mods/SunExp/ModResource/AnimationLib/WuNa_e/Dict/Dict_02",
-        "Mods/SunExp/ModResource/AnimationLib/WuNa_e/Dict/Dict_03",
-        "Mods/SunExp/ModResource/AnimationLib/WuNa_e/Dict/Dict_04",
-        "Mods/SunExp/ModResource/AnimationLib/WuNa_e/Dict/Dict_05",
-        "Mods/SunExp/ModResource/AnimationLib/WuNa_e/Dict/Dict_06",
-        "Mods/SunExp/ModResource/AnimationLib/WuNa_e/Dict/Dict_07"
+        "Mods/Terrias/ModResource/AnimationLib/WuNa_e/Dict/Dict_00",
+        "Mods/Terrias/ModResource/AnimationLib/WuNa_e/Dict/Dict_01",
+        "Mods/Terrias/ModResource/AnimationLib/WuNa_e/Dict/Dict_02",
+        "Mods/Terrias/ModResource/AnimationLib/WuNa_e/Dict/Dict_03",
+        "Mods/Terrias/ModResource/AnimationLib/WuNa_e/Dict/Dict_04",
+        "Mods/Terrias/ModResource/AnimationLib/WuNa_e/Dict/Dict_05",
+        "Mods/Terrias/ModResource/AnimationLib/WuNa_e/Dict/Dict_06",
+        "Mods/Terrias/ModResource/AnimationLib/WuNa_e/Dict/Dict_07"
       ],
       "enabled": true
     },
@@ -109,16 +109,16 @@
       "id": "enemy.second_sun.dictionary",
       "targetKind": "enemy-dictionary-icon",
       "frameSeconds": 0.2,
-      "matchIds": [ "SunExp_sunexp_boss_second_sun_last_day" ],
+      "matchIds": [ "Terrias_terrias_boss_second_sun_last_day" ],
       "framePaths": [
-        "Mods/SunExp/ModResource/AnimationLib/SecondSunWeel_e/Dict/Dict_00",
-        "Mods/SunExp/ModResource/AnimationLib/SecondSunWeel_e/Dict/Dict_01",
-        "Mods/SunExp/ModResource/AnimationLib/SecondSunWeel_e/Dict/Dict_02",
-        "Mods/SunExp/ModResource/AnimationLib/SecondSunWeel_e/Dict/Dict_03",
-        "Mods/SunExp/ModResource/AnimationLib/SecondSunWeel_e/Dict/Dict_04",
-        "Mods/SunExp/ModResource/AnimationLib/SecondSunWeel_e/Dict/Dict_05",
-        "Mods/SunExp/ModResource/AnimationLib/SecondSunWeel_e/Dict/Dict_06",
-        "Mods/SunExp/ModResource/AnimationLib/SecondSunWeel_e/Dict/Dict_07"
+        "Mods/Terrias/ModResource/AnimationLib/SecondSunWeel_e/Dict/Dict_00",
+        "Mods/Terrias/ModResource/AnimationLib/SecondSunWeel_e/Dict/Dict_01",
+        "Mods/Terrias/ModResource/AnimationLib/SecondSunWeel_e/Dict/Dict_02",
+        "Mods/Terrias/ModResource/AnimationLib/SecondSunWeel_e/Dict/Dict_03",
+        "Mods/Terrias/ModResource/AnimationLib/SecondSunWeel_e/Dict/Dict_04",
+        "Mods/Terrias/ModResource/AnimationLib/SecondSunWeel_e/Dict/Dict_05",
+        "Mods/Terrias/ModResource/AnimationLib/SecondSunWeel_e/Dict/Dict_06",
+        "Mods/Terrias/ModResource/AnimationLib/SecondSunWeel_e/Dict/Dict_07"
       ],
       "enabled": true
     }
@@ -126,10 +126,10 @@
   "mapNodeArt": [
     {
       "id": "dimension_shop.map_card",
-      "texturePath": "Mods/SunExp/ModResource/Images/CardPack/more_dimensions.png",
+      "texturePath": "Mods/Terrias/ModResource/Images/CardPack/more_dimensions.png",
       "fitMode": "ContainTrimmed",
       "mapIds": [
-        "SunExp_sunexp_dimension_shop",
+        "Terrias_terrias_dimension_shop",
         "dimension_shop"
       ],
       "levelIds": [],
@@ -139,18 +139,18 @@
     },
     {
       "id": "solar_memory.second_sun.map_card",
-      "texturePath": "Mods/SunExp/ModResource/AnimationLib/SecondSunWeel_e/Map/Map_00.png",
+      "texturePath": "Mods/Terrias/ModResource/AnimationLib/SecondSunWeel_e/Map/Map_00.png",
       "fitMode": "ContainTrimmed",
       "mapIds": [
-        "SunExp_sunexp_solar_memory_boss_second_sun_last_day",
+        "Terrias_terrias_solar_memory_boss_second_sun_last_day",
         "solar_memory_boss_second_sun_last_day"
       ],
       "levelIds": [
-        "SunExp_sunexp_level_second_sun_last_day",
+        "Terrias_terrias_level_second_sun_last_day",
         "level_second_sun_last_day"
       ],
       "enemyIds": [
-        "SunExp_sunexp_boss_second_sun_last_day",
+        "Terrias_terrias_boss_second_sun_last_day",
         "boss_second_sun_last_day"
       ],
       "priority": 100,
@@ -158,18 +158,18 @@
     },
     {
       "id": "solar_memory.saint_wuna.map_card",
-      "texturePath": "Mods/SunExp/ModResource/AnimationLib/WuNa_e/Map/Map_00.png",
+      "texturePath": "Mods/Terrias/ModResource/AnimationLib/WuNa_e/Map/Map_00.png",
       "fitMode": "ContainTrimmed",
       "mapIds": [
-        "SunExp_sunexp_solar_memory_boss_saint_wuna",
+        "Terrias_terrias_solar_memory_boss_saint_wuna",
         "solar_memory_boss_saint_wuna"
       ],
       "levelIds": [
-        "SunExp_sunexp_level_saint_wuna",
+        "Terrias_terrias_level_saint_wuna",
         "level_saint_wuna"
       ],
       "enemyIds": [
-        "SunExp_sunexp_boss_saint_wuna",
+        "Terrias_terrias_boss_saint_wuna",
         "boss_saint_wuna"
       ],
       "priority": 100,
@@ -178,225 +178,225 @@
   ],
   "shaders": [
     {
-      "id": "sunexp.star_score_hud",
-      "shaderName": "SunExp/StarScoreHud",
-      "shaderPath": "SunExp/StarScoreHud",
-      "bundlePath": "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
-      "materialPath": "SunExp/Materials/StarScoreHudLit",
+      "id": "terrias.star_score_hud",
+      "shaderName": "Terrias/StarScoreHud",
+      "shaderPath": "Terrias/StarScoreHud",
+      "bundlePath": "Mods/Terrias/ModResource/VisualBundles/terrias_visuals",
+      "materialPath": "Terrias/Materials/StarScoreHudLit",
       "enabled": true
     },
     {
-      "id": "sunexp.wuna_orbit_fire",
-      "shaderName": "SunExp/WunaOrbitFire",
-      "shaderPath": "SunExp/WunaOrbitFire",
-      "bundlePath": "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
-      "materialPath": "SunExp/Materials/WunaOrbitFireFront",
+      "id": "terrias.wuna_orbit_fire",
+      "shaderName": "Terrias/WunaOrbitFire",
+      "shaderPath": "Terrias/WunaOrbitFire",
+      "bundlePath": "Mods/Terrias/ModResource/VisualBundles/terrias_visuals",
+      "materialPath": "Terrias/Materials/WunaOrbitFireFront",
       "enabled": true
     },
     {
-      "id": "sunexp.card_visual_effect.card_face.shader",
-      "shaderName": "SunExp/CardFaceEffect",
-      "shaderPath": "SunExp/CardFaceEffect",
-      "bundlePath": "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
-      "materialPath": "SunExp/Materials/CardFaceEffect",
+      "id": "terrias.card_visual_effect.card_face.shader",
+      "shaderName": "Terrias/CardFaceEffect",
+      "shaderPath": "Terrias/CardFaceEffect",
+      "bundlePath": "Mods/Terrias/ModResource/VisualBundles/terrias_visuals",
+      "materialPath": "Terrias/Materials/CardFaceEffect",
       "enabled": true
     }
   ],
   "effects": [
     {
-      "id": "sunexp.star_score_hud.lit_slot",
+      "id": "terrias.star_score_hud.lit_slot",
       "kind": "ui-material",
-      "shaderId": "sunexp.star_score_hud",
-      "bundlePath": "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
-      "materialPath": "SunExp/Materials/StarScoreHudLit",
+      "shaderId": "terrias.star_score_hud",
+      "bundlePath": "Mods/Terrias/ModResource/VisualBundles/terrias_visuals",
+      "materialPath": "Terrias/Materials/StarScoreHudLit",
       "textures": {},
       "floats": {
-        "_SunExpFlowSpeed": 0.55,
-        "_SunExpFlowScale": 1.2,
-        "_SunExpEdgeGlow": 0.35
+        "_TerriasFlowSpeed": 0.55,
+        "_TerriasFlowScale": 1.2,
+        "_TerriasEdgeGlow": 0.35
       },
       "colors": {
-        "_SunExpGlowColor": "#FFE08AFF",
-        "_SunExpFlowColor": "#9DDCFFFF"
+        "_TerriasGlowColor": "#FFE08AFF",
+        "_TerriasFlowColor": "#9DDCFFFF"
       },
       "enabled": true
     },
     {
-      "id": "sunexp.card_visual_effect.foil_holo",
+      "id": "terrias.card_visual_effect.foil_holo",
       "kind": "card-visual-face-material",
-      "shaderId": "sunexp.card_visual_effect.card_face.shader",
-      "bundlePath": "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
-      "materialPath": "SunExp/Materials/CardFaceEffect",
+      "shaderId": "terrias.card_visual_effect.card_face.shader",
+      "bundlePath": "Mods/Terrias/ModResource/VisualBundles/terrias_visuals",
+      "materialPath": "Terrias/Materials/CardFaceEffect",
       "textures": {
-        "_NoiseTex": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png",
-        "_FoilTex": "Mods/SunExp/ModResource/Images/Effects/CardFoil/pokemon_holo_foil.png"
+        "_NoiseTex": "Mods/Terrias/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png",
+        "_FoilTex": "Mods/Terrias/ModResource/Images/Effects/CardFoil/pokemon_holo_foil.png"
       },
       "floats": {
-        "_SunExpOverlayMode": 0,
-        "_SunExpFrameOnlyOverlay": 1,
-        "_SunExpEffectMode": 0.23,
-        "_SunExpFoilMode": 1.603,
-        "_SunExpFlowSpeed": -2,
-        "_SunExpFlowScale": 1.603,
-        "_SunExpNoiseScale": 7.722,
-        "_SunExpDistortion": 0.021,
-        "_SunExpEffectIntensity": 1.093,
-        "_SunExpEdgeGlow": 0.12,
-        "_SunExpSweepFrequency": 3.716,
-        "_SunExpSweepWidth": 0.18,
-        "_SunExpSweepIntensity": 0.892,
-        "_SunExpPrismScale": 18.19,
-        "_SunExpPrismStrength": 0.759,
-        "_SunExpFoilGrain": 0.453,
-        "_SunExpMirrorSweep": 0.846,
-        "_SunExpSwirlStrength": 0.206,
-        "_SunExpFoilShardScale": 15.367,
-        "_SunExpFoilShardWarp": 0.162,
-        "_SunExpFoilGalaxyDensity": 0.148,
-        "_SunExpFoilGlintSpeed": 1.1,
-        "_SunExpFoilTextureStrength": 0.967,
-        "_SunExpRainbowStrength": 1.25,
-        "_SunExpRidgeStrength": 0.523,
-        "_SunExpGlareStrength": 1.008,
-        "_SunExpPointerAutoSpeed": 0.646,
-        "_SunExpFoilOverlayAlpha": 1.557,
-        "_SunExpEdgeSample": 3.218
+        "_TerriasOverlayMode": 0,
+        "_TerriasFrameOnlyOverlay": 1,
+        "_TerriasEffectMode": 0.23,
+        "_TerriasFoilMode": 1.603,
+        "_TerriasFlowSpeed": -2,
+        "_TerriasFlowScale": 1.603,
+        "_TerriasNoiseScale": 7.722,
+        "_TerriasDistortion": 0.021,
+        "_TerriasEffectIntensity": 1.093,
+        "_TerriasEdgeGlow": 0.12,
+        "_TerriasSweepFrequency": 3.716,
+        "_TerriasSweepWidth": 0.18,
+        "_TerriasSweepIntensity": 0.892,
+        "_TerriasPrismScale": 18.19,
+        "_TerriasPrismStrength": 0.759,
+        "_TerriasFoilGrain": 0.453,
+        "_TerriasMirrorSweep": 0.846,
+        "_TerriasSwirlStrength": 0.206,
+        "_TerriasFoilShardScale": 15.367,
+        "_TerriasFoilShardWarp": 0.162,
+        "_TerriasFoilGalaxyDensity": 0.148,
+        "_TerriasFoilGlintSpeed": 1.1,
+        "_TerriasFoilTextureStrength": 0.967,
+        "_TerriasRainbowStrength": 1.25,
+        "_TerriasRidgeStrength": 0.523,
+        "_TerriasGlareStrength": 1.008,
+        "_TerriasPointerAutoSpeed": 0.646,
+        "_TerriasFoilOverlayAlpha": 1.557,
+        "_TerriasEdgeSample": 3.218
       },
       "colors": {
-        "_SunExpHoloColorA": "#FFF0A6FF",
-        "_SunExpHoloColorB": "#A6F2FFFF",
-        "_SunExpHoloColorC": "#D2B8FFFF"
+        "_TerriasHoloColorA": "#FFF0A6FF",
+        "_TerriasHoloColorB": "#A6F2FFFF",
+        "_TerriasHoloColorC": "#D2B8FFFF"
       },
       "enabled": true
     },
     {
-      "id": "sunexp.card_visual_effect.stardust_overture",
+      "id": "terrias.card_visual_effect.stardust_overture",
       "kind": "card-visual-face-material",
-      "shaderId": "sunexp.card_visual_effect.card_face.shader",
-      "bundlePath": "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
-      "materialPath": "SunExp/Materials/CardFaceEffect",
+      "shaderId": "terrias.card_visual_effect.card_face.shader",
+      "bundlePath": "Mods/Terrias/ModResource/VisualBundles/terrias_visuals",
+      "materialPath": "Terrias/Materials/CardFaceEffect",
       "textures": {
-        "_NoiseTex": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
+        "_NoiseTex": "Mods/Terrias/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
       },
       "floats": {
-        "_SunExpEffectMode": 1.0,
-        "_SunExpFlowSpeed": 0.72,
-        "_SunExpFlowScale": 1.5,
-        "_SunExpNoiseScale": 6.2,
-        "_SunExpDistortion": 0.004,
-        "_SunExpEffectIntensity": 0.95,
-        "_SunExpEdgeGlow": 0.12,
-        "_SunExpFoilGrain": 0.28,
-        "_SunExpStardustDensity": 0.46,
-        "_SunExpStardustTwinkle": 1.25,
-        "_SunExpStardustTwinkleSpeed": 2.15,
-        "_SunExpStardustOrbit": 0.18,
-        "_SunExpStardustGlowRadius": 0.18,
-        "_SunExpStardustGlowPower": 5.4,
-        "_SunExpStardustSweepSpeed": 1.85,
-        "_SunExpStardustSweepIntensity": 0.62,
-        "_SunExpStardustSweepWidth": 0.045,
-        "_SunExpEdgeSample": 2.0
+        "_TerriasEffectMode": 1.0,
+        "_TerriasFlowSpeed": 0.72,
+        "_TerriasFlowScale": 1.5,
+        "_TerriasNoiseScale": 6.2,
+        "_TerriasDistortion": 0.004,
+        "_TerriasEffectIntensity": 0.95,
+        "_TerriasEdgeGlow": 0.12,
+        "_TerriasFoilGrain": 0.28,
+        "_TerriasStardustDensity": 0.46,
+        "_TerriasStardustTwinkle": 1.25,
+        "_TerriasStardustTwinkleSpeed": 2.15,
+        "_TerriasStardustOrbit": 0.18,
+        "_TerriasStardustGlowRadius": 0.18,
+        "_TerriasStardustGlowPower": 5.4,
+        "_TerriasStardustSweepSpeed": 1.85,
+        "_TerriasStardustSweepIntensity": 0.62,
+        "_TerriasStardustSweepWidth": 0.045,
+        "_TerriasEdgeSample": 2.0
       },
       "colors": {
-        "_SunExpStardustColorA": "#F3FBFFFF",
-        "_SunExpStardustColorB": "#FFE6A8FF"
+        "_TerriasStardustColorA": "#F3FBFFFF",
+        "_TerriasStardustColorB": "#FFE6A8FF"
       },
       "enabled": true
     },
     {
-      "id": "sunexp.wuna.orbit_fire.core.back",
+      "id": "terrias.wuna.orbit_fire.core.back",
       "kind": "character-orbit-core-material",
-      "shaderId": "sunexp.wuna_orbit_fire",
-      "bundlePath": "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
-      "materialPath": "SunExp/Materials/WunaOrbitFireBack",
+      "shaderId": "terrias.wuna_orbit_fire",
+      "bundlePath": "Mods/Terrias/ModResource/VisualBundles/terrias_visuals",
+      "materialPath": "Terrias/Materials/WunaOrbitFireBack",
       "textures": {
-        "_MainTex": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
-        "_NoiseTex": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
+        "_MainTex": "Mods/Terrias/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
+        "_NoiseTex": "Mods/Terrias/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
       },
       "floats": {
-        "_SunExpNoiseScale": 2.0,
-        "_SunExpDistortion": 0.08,
-        "_SunExpAlphaCutoff": 0.01,
-        "_SunExpAlphaSoftness": 0.12,
-        "_SunExpFlowSpeed": 0.34
+        "_TerriasNoiseScale": 2.0,
+        "_TerriasDistortion": 0.08,
+        "_TerriasAlphaCutoff": 0.01,
+        "_TerriasAlphaSoftness": 0.12,
+        "_TerriasFlowSpeed": 0.34
       },
       "colors": {
-        "_SunExpCoreColor": "#FFF5B8D8",
-        "_SunExpEdgeColor": "#FF7A26A8",
-        "_SunExpSmokeColor": "#35100822"
+        "_TerriasCoreColor": "#FFF5B8D8",
+        "_TerriasEdgeColor": "#FF7A26A8",
+        "_TerriasSmokeColor": "#35100822"
       },
       "enabled": true
     },
     {
-      "id": "sunexp.wuna.orbit_fire.core.front",
+      "id": "terrias.wuna.orbit_fire.core.front",
       "kind": "character-orbit-core-material",
-      "shaderId": "sunexp.wuna_orbit_fire",
-      "bundlePath": "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
-      "materialPath": "SunExp/Materials/WunaOrbitFireFront",
+      "shaderId": "terrias.wuna_orbit_fire",
+      "bundlePath": "Mods/Terrias/ModResource/VisualBundles/terrias_visuals",
+      "materialPath": "Terrias/Materials/WunaOrbitFireFront",
       "textures": {
-        "_MainTex": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
-        "_NoiseTex": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
+        "_MainTex": "Mods/Terrias/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
+        "_NoiseTex": "Mods/Terrias/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
       },
       "floats": {
-        "_SunExpNoiseScale": 2.35,
-        "_SunExpDistortion": 0.11,
-        "_SunExpAlphaCutoff": 0.01,
-        "_SunExpAlphaSoftness": 0.1,
-        "_SunExpFlowSpeed": 0.48
+        "_TerriasNoiseScale": 2.35,
+        "_TerriasDistortion": 0.11,
+        "_TerriasAlphaCutoff": 0.01,
+        "_TerriasAlphaSoftness": 0.1,
+        "_TerriasFlowSpeed": 0.48
       },
       "colors": {
-        "_SunExpCoreColor": "#FFFFC8F0",
-        "_SunExpEdgeColor": "#FF9C36D8",
-        "_SunExpSmokeColor": "#42100828"
+        "_TerriasCoreColor": "#FFFFC8F0",
+        "_TerriasEdgeColor": "#FF9C36D8",
+        "_TerriasSmokeColor": "#42100828"
       },
       "enabled": true
     },
     {
-      "id": "sunexp.wuna.orbit_fire.back",
+      "id": "terrias.wuna.orbit_fire.back",
       "kind": "character-orbit-material",
-      "shaderId": "sunexp.wuna_orbit_fire",
-      "bundlePath": "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
-      "materialPath": "SunExp/Materials/WunaOrbitFireBack",
+      "shaderId": "terrias.wuna_orbit_fire",
+      "bundlePath": "Mods/Terrias/ModResource/VisualBundles/terrias_visuals",
+      "materialPath": "Terrias/Materials/WunaOrbitFireBack",
       "textures": {
-        "_MainTex": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
-        "_NoiseTex": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
+        "_MainTex": "Mods/Terrias/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
+        "_NoiseTex": "Mods/Terrias/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
       },
       "floats": {
-        "_SunExpNoiseScale": 2.45,
-        "_SunExpDistortion": 0.18,
-        "_SunExpAlphaCutoff": 0.03,
-        "_SunExpAlphaSoftness": 0.08,
-        "_SunExpFlowSpeed": 0.48
+        "_TerriasNoiseScale": 2.45,
+        "_TerriasDistortion": 0.18,
+        "_TerriasAlphaCutoff": 0.03,
+        "_TerriasAlphaSoftness": 0.08,
+        "_TerriasFlowSpeed": 0.48
       },
       "colors": {
-        "_SunExpCoreColor": "#FFE9A0C0",
-        "_SunExpEdgeColor": "#E85A1A94",
-        "_SunExpSmokeColor": "#38140C30"
+        "_TerriasCoreColor": "#FFE9A0C0",
+        "_TerriasEdgeColor": "#E85A1A94",
+        "_TerriasSmokeColor": "#38140C30"
       },
       "enabled": true
     },
     {
-      "id": "sunexp.wuna.orbit_fire.front",
+      "id": "terrias.wuna.orbit_fire.front",
       "kind": "character-orbit-material",
-      "shaderId": "sunexp.wuna_orbit_fire",
-      "bundlePath": "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
-      "materialPath": "SunExp/Materials/WunaOrbitFireFront",
+      "shaderId": "terrias.wuna_orbit_fire",
+      "bundlePath": "Mods/Terrias/ModResource/VisualBundles/terrias_visuals",
+      "materialPath": "Terrias/Materials/WunaOrbitFireFront",
       "textures": {
-        "_MainTex": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
-        "_NoiseTex": "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
+        "_MainTex": "Mods/Terrias/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
+        "_NoiseTex": "Mods/Terrias/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
       },
       "floats": {
-        "_SunExpNoiseScale": 3.1,
-        "_SunExpDistortion": 0.24,
-        "_SunExpAlphaCutoff": 0.035,
-        "_SunExpAlphaSoftness": 0.07,
-        "_SunExpFlowSpeed": 0.68
+        "_TerriasNoiseScale": 3.1,
+        "_TerriasDistortion": 0.24,
+        "_TerriasAlphaCutoff": 0.035,
+        "_TerriasAlphaSoftness": 0.07,
+        "_TerriasFlowSpeed": 0.68
       },
       "colors": {
-        "_SunExpCoreColor": "#FFF8B8E8",
-        "_SunExpEdgeColor": "#FF6C20C8",
-        "_SunExpSmokeColor": "#45140C34"
+        "_TerriasCoreColor": "#FFF8B8E8",
+        "_TerriasEdgeColor": "#FF6C20C8",
+        "_TerriasSmokeColor": "#45140C34"
       },
       "enabled": true
     }

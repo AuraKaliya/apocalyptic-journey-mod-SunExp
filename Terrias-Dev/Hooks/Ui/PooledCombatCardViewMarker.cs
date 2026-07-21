@@ -1,8 +1,8 @@
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using Witch.UI;
 
-namespace SunExp.Dll.Hooks.Ui;
+namespace Terrias.Dll.Hooks.Ui;
 
 public sealed class PooledCombatCardViewMarker : MonoBehaviour
 {

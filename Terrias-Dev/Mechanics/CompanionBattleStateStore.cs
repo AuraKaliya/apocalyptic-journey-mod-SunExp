@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class CompanionBattleStateStore
 {
@@ -26,7 +26,7 @@ public static class CompanionBattleStateStore
 
         CompanionThreatService.Register(state);
         CompanionOwnershipService.Register(state.Identity);
-        SunExpPerformanceCounters.Record("Companion.State.Created");
+        TerriasPerformanceCounters.Record("Companion.State.Created");
         return state;
     }
 

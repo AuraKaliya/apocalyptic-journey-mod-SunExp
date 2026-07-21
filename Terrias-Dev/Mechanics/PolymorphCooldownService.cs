@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class PolymorphCooldownService
 {
@@ -15,7 +15,7 @@ public static class PolymorphCooldownService
     public static bool IsActive(IStatusManager? ownerStatus)
     {
         return ownerStatus != null
-            && BuffApi.Has(ownerStatus, SunExpIds.PolymorphTraitBuffId)
+            && BuffApi.Has(ownerStatus, TerriasIds.PolymorphTraitBuffId)
             && PolymorphStateStore.ActiveFor(ownerStatus) != null;
     }
 
@@ -55,7 +55,7 @@ public static class PolymorphCooldownService
             roles[NormalizeRoleId(active.RoleId)] = values;
         }
 
-        SunExpLog.Debug("[Polymorph] captured role cooldowns from " + source
+        TerriasLog.Debug("[Polymorph] captured role cooldowns from " + source
             + ": role=" + active.RoleId + ", values=" + FormatCooldowns(values) + ".");
     }
 
@@ -98,7 +98,7 @@ public static class PolymorphCooldownService
             roles[normalizedRole] = current;
         }
 
-        SunExpLog.Info("[Polymorph] prepared role cooldowns from " + source
+        TerriasLog.Info("[Polymorph] prepared role cooldowns from " + source
             + ": role=" + roleId + ", firstEntry=" + (saved == null)
             + ", values=" + FormatCooldowns(current) + ".");
     }
@@ -114,7 +114,7 @@ public static class PolymorphCooldownService
         {
             PlayerApi.ShowCaption("\u767e\u53d8\uff1a\u672c\u56de\u5408\u5df2\u4f7f\u7528\u5176\u4ed6\u5316\u8eab\u7684\u6280\u80fd\u3002");
             ApplyToCurrentRole(self, source + ".blocked");
-            SunExpLog.Debug("[Polymorph] cross-form skill use blocked from " + source
+            TerriasLog.Debug("[Polymorph] cross-form skill use blocked from " + source
                 + "; previousRole=" + previousRole + ".");
             return true;
         }
@@ -132,7 +132,7 @@ public static class PolymorphCooldownService
         MarkCrossFormSkillUse(self?.Self);
         CaptureCurrentRole(self?.Self, source + ".capture");
         ApplyToCurrentRole(self, source + ".used");
-        SunExpPerformanceCounters.Record("Polymorph.CrossFormSkillUsed");
+        TerriasPerformanceCounters.Record("Polymorph.CrossFormSkillUsed");
         return true;
     }
 
@@ -160,7 +160,7 @@ public static class PolymorphCooldownService
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("[Polymorph] skill capture skipped from " + source + ": " + ex.Message);
+            TerriasLog.Debug("[Polymorph] skill capture skipped from " + source + ": " + ex.Message);
             return false;
         }
     }
@@ -187,7 +187,7 @@ public static class PolymorphCooldownService
         CaptureCurrentRole(self?.Self, source + ".capture");
         ApplyToCurrentRole(self, source + ".tick");
         PruneExpiredUse(self?.Self);
-        SunExpPerformanceCounters.Record("Polymorph.CrossFormSkillRoundObserved");
+        TerriasPerformanceCounters.Record("Polymorph.CrossFormSkillRoundObserved");
     }
 
     public static void Clear(IStatusManager? ownerStatus)
@@ -270,7 +270,7 @@ public static class PolymorphCooldownService
             return "fight:" + reflected;
         }
 
-        return "local:" + PlayerApi.GetGameVar(PlayerApi.ScopedGameVarKey("SunExpPolymorphCrossFormRound", ownerStatus), "0");
+        return "local:" + PlayerApi.GetGameVar(PlayerApi.ScopedGameVarKey("TerriasPolymorphCrossFormRound", ownerStatus), "0");
     }
 
     private static void AdvanceFallbackRound(IStatusManager? ownerStatus)
@@ -280,7 +280,7 @@ public static class PolymorphCooldownService
             return;
         }
 
-        var key = PlayerApi.ScopedGameVarKey("SunExpPolymorphCrossFormRound", ownerStatus);
+        var key = PlayerApi.ScopedGameVarKey("TerriasPolymorphCrossFormRound", ownerStatus);
         var next = DictionaryUtil.ParseInt(PlayerApi.GetGameVar(key), 0) + 1;
         PlayerApi.SetGameVar(key, next.ToString());
     }
@@ -341,7 +341,7 @@ public static class PolymorphCooldownService
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("[Polymorph] cooldown UI refresh skipped from " + source + ": " + ex.Message);
+            TerriasLog.Debug("[Polymorph] cooldown UI refresh skipped from " + source + ": " + ex.Message);
         }
     }
 

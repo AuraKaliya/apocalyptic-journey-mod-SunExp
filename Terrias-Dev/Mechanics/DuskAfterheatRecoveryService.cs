@@ -1,14 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Runtime.CompilerServices;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class DuskAfterheatRecoveryService
 {
-    private const string TokenKey = "SunExpDuskAfterheatToken";
+    private const string TokenKey = "TerriasDuskAfterheatToken";
     private static readonly HashSet<IBuffItem> ObservedBurnBuffs = new(BuffReferenceComparer.Instance);
     private static ScriptExecutor? activeOwner;
     private static IBuffItem? activeTraitBuff;
@@ -30,7 +30,7 @@ public static class DuskAfterheatRecoveryService
 
     public static bool ActivateFamiliar(ScriptExecutor owner, string source)
     {
-        var token = ExecutorApi.RegisterHook(owner, "SunExpFamiliarDuskHook", TokenKey);
+        var token = ExecutorApi.RegisterHook(owner, "TerriasFamiliarDuskHook", TokenKey);
         if (string.IsNullOrWhiteSpace(token))
         {
             return false;
@@ -39,7 +39,7 @@ public static class DuskAfterheatRecoveryService
         activeTraitBuff = null;
         Activate(owner, token!);
         familiarAshAvailable = true;
-        SunExpLog.Debug("Dusk familiar effects bound from " + source + ".");
+        TerriasLog.Debug("Dusk familiar effects bound from " + source + ".");
         return true;
     }
 
@@ -50,7 +50,7 @@ public static class DuskAfterheatRecoveryService
 
     public static bool EnsureActive(IStatusManager? status, string source)
     {
-        var trait = status?.GetBuff(SunExpIds.DuskAfterheatRecoveryTrait);
+        var trait = status?.GetBuff(TerriasIds.DuskAfterheatRecoveryTrait);
         var executor = trait?.scriptExecutor as ScriptExecutor;
         if (status == null || trait == null || executor == null)
         {
@@ -74,15 +74,15 @@ public static class DuskAfterheatRecoveryService
 
     public static bool ActivateTrait(ScriptExecutor owner, IBuffItem? trait = null, string source = "TraitApply")
     {
-        var token = ExecutorApi.RegisterHook(owner, "SunExpDuskAfterheatHook", TokenKey);
+        var token = ExecutorApi.RegisterHook(owner, "TerriasDuskAfterheatHook", TokenKey);
         if (string.IsNullOrWhiteSpace(token))
         {
             return false;
         }
 
-        activeTraitBuff = trait ?? owner.Self?.GetBuff(SunExpIds.DuskAfterheatRecoveryTrait);
+        activeTraitBuff = trait ?? owner.Self?.GetBuff(TerriasIds.DuskAfterheatRecoveryTrait);
         Activate(owner, token!);
-        SunExpLog.Debug("Dusk afterheat recovery bound from " + source + ".");
+        TerriasLog.Debug("Dusk afterheat recovery bound from " + source + ".");
         return true;
     }
 
@@ -118,12 +118,12 @@ public static class DuskAfterheatRecoveryService
         activeToken = "";
         ObservedBurnBuffs.Clear();
         familiarAshAvailable = false;
-        SunExpLog.Debug("Dusk afterheat recovery deactivated from " + source + ".");
+        TerriasLog.Debug("Dusk afterheat recovery deactivated from " + source + ".");
     }
 
     public static void ObserveBurnAdded(IStatusManager? target, string buffId, string source)
     {
-        if (!string.Equals(buffId, SunExpIds.Burn, StringComparison.Ordinal))
+        if (!string.Equals(buffId, TerriasIds.Burn, StringComparison.Ordinal))
         {
             return;
         }
@@ -149,7 +149,7 @@ public static class DuskAfterheatRecoveryService
             return false;
         }
 
-        var burn = target.GetBuff(SunExpIds.Burn);
+        var burn = target.GetBuff(TerriasIds.Burn);
         var burnExecutor = burn?.scriptExecutor;
         var targetId = target.InstanceId;
         if (burn == null || burnExecutor == null || string.IsNullOrWhiteSpace(targetId))
@@ -174,7 +174,7 @@ public static class DuskAfterheatRecoveryService
             return false;
         }
 
-        SunExpPerformanceCounters.Record("DuskAfterheat.ObserverAttached");
+        TerriasPerformanceCounters.Record("DuskAfterheat.ObserverAttached");
         return true;
     }
 
@@ -192,7 +192,7 @@ public static class DuskAfterheatRecoveryService
 
         BurnTriggerApi.NotifyActual(
             target,
-            ExecutorApi.StatusBuffLevel(target, SunExpIds.Burn),
+            ExecutorApi.StatusBuffLevel(target, TerriasIds.Burn),
             "NativeBurnStartRound");
     }
 
@@ -241,21 +241,21 @@ public static class DuskAfterheatRecoveryService
         owner.SetStatus("Self");
         if (emberGain > 0)
         {
-            var emberBefore = BuffApi.Level(owner.Self, SunExpIds.Ember);
-            owner.AddBuff(SunExpIds.Ember, emberGain.ToString());
+            var emberBefore = BuffApi.Level(owner.Self, TerriasIds.Ember);
+            owner.AddBuff(TerriasIds.Ember, emberGain.ToString());
             if (duskMultiplier > 0)
             {
                 var cap = FamiliarFinalBlessingService.EffectParameterInt("DuskAfterheatMultiplierAndCap", "cap", 150);
-                BuffApi.SetExactLevel(owner.Self, SunExpIds.Ember, Math.Min(cap, emberBefore + emberGain));
+                BuffApi.SetExactLevel(owner.Self, TerriasIds.Ember, Math.Min(cap, emberBefore + emberGain));
             }
             BuffApi.SyncEmberDamageBonus(owner, owner.Self);
         }
         if (traitGain > 0)
         {
-            owner.AddBuff(SunExpIds.GatheredFlame, traitGain.ToString());
+            owner.AddBuff(TerriasIds.GatheredFlame, traitGain.ToString());
         }
-        SunExpPerformanceCounters.Record("DuskAfterheat.Triggered");
-        SunExpLog.Debug("Dusk afterheat recovery triggered: target=" + target.InstanceId
+        TerriasPerformanceCounters.Record("DuskAfterheat.Triggered");
+        TerriasLog.Debug("Dusk afterheat recovery triggered: target=" + target.InstanceId
             + ", burn=" + snapshot.StacksAtTrigger
             + ", ember=" + emberGain
             + ", gatheredFlame=" + traitGain
@@ -271,7 +271,7 @@ public static class DuskAfterheatRecoveryService
         }
 
         var target = TargetApi.RandomEnemyTarget(executor, requireBurn: false);
-        target?.AddBuff(SunExpIds.Burn, transfer);
+        target?.AddBuff(TerriasIds.Burn, transfer);
     }
 
     private sealed class BuffReferenceComparer : IEqualityComparer<IBuffItem>

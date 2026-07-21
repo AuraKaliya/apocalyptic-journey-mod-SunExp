@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Network;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Network;
 using Witch;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public sealed class EmberAdventureStateSnapshot
 {
@@ -30,32 +30,32 @@ public static class EmberAdventureStateService
     {
         var ownerPlayerId = ResolveOwnerPlayerId(status);
         var ownerStatusId = ResolveOwnerStatusId(status);
-        var ownerValue = ReadOwnerValue(SunExpIds.PersistentEmber, ownerPlayerId);
+        var ownerValue = ReadOwnerValue(TerriasIds.PersistentEmber, ownerPlayerId);
         if (ownerValue >= 0)
         {
             return Clamp(ownerValue);
         }
 
-        ownerValue = ReadOwnerValue(SunExpIds.PersistentEmber, ownerStatusId);
+        ownerValue = ReadOwnerValue(TerriasIds.PersistentEmber, ownerStatusId);
         if (ownerValue >= 0)
         {
             return Clamp(ownerValue);
         }
 
-        ownerValue = ReadOwnerValue(SunExpIds.WunaPersistentEmber, ownerPlayerId);
+        ownerValue = ReadOwnerValue(TerriasIds.WunaPersistentEmber, ownerPlayerId);
         if (ownerValue >= 0)
         {
             return Clamp(ownerValue);
         }
 
-        ownerValue = ReadOwnerValue(SunExpIds.WunaPersistentEmber, ownerStatusId);
+        ownerValue = ReadOwnerValue(TerriasIds.WunaPersistentEmber, ownerStatusId);
         if (ownerValue >= 0)
         {
             return Clamp(ownerValue);
         }
 
         var scopedValue = PlayerApi.GetScopedGameVar(
-            SunExpIds.PersistentEmber,
+            TerriasIds.PersistentEmber,
             status,
             "",
             migrateLegacyWhenSolo: false);
@@ -66,7 +66,7 @@ public static class EmberAdventureStateService
 
         return Clamp(DictionaryUtil.ParseInt(
             PlayerApi.GetScopedGameVar(
-                SunExpIds.WunaPersistentEmber,
+                TerriasIds.WunaPersistentEmber,
                 status,
                 "0",
                 migrateLegacyWhenSolo: true)));
@@ -93,22 +93,22 @@ public static class EmberAdventureStateService
         };
 
         ApplySnapshot(snapshot, "local:" + safeSource);
-        if (!SunExpNetworkRuntime.IsMultiplayerSession())
+        if (!TerriasNetworkRuntime.IsMultiplayerSession())
         {
             return snapshot.Level;
         }
 
-        if (SunExpNetworkRuntime.IsClientOnly())
+        if (TerriasNetworkRuntime.IsClientOnly())
         {
-            SunExpNetworkRuntime.Send(new RpcEmberAdventureStateCommit(snapshot), safeSource);
+            TerriasNetworkRuntime.Send(new RpcEmberAdventureStateCommit(snapshot), safeSource);
             return snapshot.Level;
         }
 
         RpcEmberAdventureStateCommit.ApplyOnServer(
             snapshot,
-            SunExpRpcAuthorityRuntime.CreateLocalServerSender(safeSource),
+            TerriasRpcAuthorityRuntime.CreateLocalServerSender(safeSource),
             false);
-        SunExpNetworkRuntime.Send(new RpcEmberAdventureStateCommit(snapshot)
+        TerriasNetworkRuntime.Send(new RpcEmberAdventureStateCommit(snapshot)
         {
             Accepted = true
         }, safeSource);
@@ -137,7 +137,7 @@ public static class EmberAdventureStateService
                 && LastSequences.TryGetValue(ownerKey, out var previous)
                 && snapshot.Sequence <= previous)
             {
-                SunExpLog.Debug("[EmberAdventureState] stale or duplicate snapshot ignored from "
+                TerriasLog.Debug("[EmberAdventureState] stale or duplicate snapshot ignored from "
                     + source
                     + "; owner="
                     + ownerKey
@@ -162,20 +162,20 @@ public static class EmberAdventureStateService
 
         if (!string.IsNullOrWhiteSpace(snapshot.OwnerPlayerId))
         {
-            PlayerApi.SetGameVar(OwnerGameVarKey(SunExpIds.PersistentEmber, snapshot.OwnerPlayerId), snapshot.Level.ToString());
+            PlayerApi.SetGameVar(OwnerGameVarKey(TerriasIds.PersistentEmber, snapshot.OwnerPlayerId), snapshot.Level.ToString());
         }
 
         if (!string.IsNullOrWhiteSpace(snapshot.OwnerStatusId))
         {
-            PlayerApi.SetGameVar(OwnerGameVarKey(SunExpIds.PersistentEmber, snapshot.OwnerStatusId), snapshot.Level.ToString());
+            PlayerApi.SetGameVar(OwnerGameVarKey(TerriasIds.PersistentEmber, snapshot.OwnerStatusId), snapshot.Level.ToString());
         }
 
         if (IsLocalOwner(snapshot))
         {
-            PlayerApi.SetScopedGameVar(SunExpIds.PersistentEmber, FightPlayer.Instance?.Status, snapshot.Level.ToString());
+            PlayerApi.SetScopedGameVar(TerriasIds.PersistentEmber, FightPlayer.Instance?.Status, snapshot.Level.ToString());
         }
 
-        SunExpLog.Debug("[EmberAdventureState] saved owner="
+        TerriasLog.Debug("[EmberAdventureState] saved owner="
             + ownerKey
             + "; level="
             + snapshot.Level
@@ -208,14 +208,14 @@ public static class EmberAdventureStateService
         }
 
         var safeLevel = Clamp(level);
-        if (BuffApi.Level(status, SunExpIds.Ember) > 0 && safeLevel <= 0)
+        if (BuffApi.Level(status, TerriasIds.Ember) > 0 && safeLevel <= 0)
         {
             BuffApi.ClearEmberDamageBonus(executor, status);
-            status.RemoveBuff(SunExpIds.Ember);
+            status.RemoveBuff(TerriasIds.Ember);
         }
         else if (safeLevel > 0)
         {
-            BuffApi.SetExactLevel(status, SunExpIds.Ember, safeLevel);
+            BuffApi.SetExactLevel(status, TerriasIds.Ember, safeLevel);
             BuffApi.SyncEmberDamageBonus(executor, status);
         }
         else
@@ -241,13 +241,13 @@ public static class EmberAdventureStateService
 
     private static bool IsLocalOwner(string ownerPlayerId, string ownerStatusId)
     {
-        return SunExpNetworkRuntime.IsLocalPlayer(ownerPlayerId)
+        return TerriasNetworkRuntime.IsLocalPlayer(ownerPlayerId)
             || string.Equals(ownerStatusId, PlayerApi.LocalPlayerStatusId(), StringComparison.Ordinal);
     }
 
     private static string ResolveOwnerPlayerId(IStatusManager? status)
     {
-        var playerId = SunExpNetworkRuntime.LocalPlayerId();
+        var playerId = TerriasNetworkRuntime.LocalPlayerId();
         if (!string.IsNullOrWhiteSpace(playerId))
         {
             return NormalizeId(playerId);
@@ -297,8 +297,8 @@ public static class EmberAdventureStateService
     private static bool StorageMatches(string ownerPlayerId, string ownerStatusId, int level)
     {
         var safeLevel = Clamp(level);
-        return OwnerValueMatches(SunExpIds.PersistentEmber, ownerPlayerId, safeLevel)
-               && OwnerValueMatches(SunExpIds.PersistentEmber, ownerStatusId, safeLevel)
+        return OwnerValueMatches(TerriasIds.PersistentEmber, ownerPlayerId, safeLevel)
+               && OwnerValueMatches(TerriasIds.PersistentEmber, ownerStatusId, safeLevel)
                && (!IsLocalOwner(ownerPlayerId, ownerStatusId) || ScopedValueMatches(safeLevel));
     }
 
@@ -310,7 +310,7 @@ public static class EmberAdventureStateService
     private static bool ScopedValueMatches(int level)
     {
         var value = PlayerApi.GetScopedGameVar(
-            SunExpIds.PersistentEmber,
+            TerriasIds.PersistentEmber,
             FightPlayer.Instance?.Status,
             "",
             migrateLegacyWhenSolo: false);

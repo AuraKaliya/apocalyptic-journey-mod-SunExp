@@ -1,7 +1,7 @@
 using System;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class EndlessAbyssEvacuationDepth
 {
@@ -9,7 +9,7 @@ public static class EndlessAbyssEvacuationDepth
     {
         var normalizedFloor = Math.Max(1, floor);
         var normalizedLevel = Math.Max(0, level);
-        var depth = (long)(normalizedFloor - 1) * SunExpIds.EndlessSeaLayerNodeCount + normalizedLevel;
+        var depth = (long)(normalizedFloor - 1) * TerriasIds.EndlessSeaLayerNodeCount + normalizedLevel;
         return (int)Math.Min(int.MaxValue, depth);
     }
 }

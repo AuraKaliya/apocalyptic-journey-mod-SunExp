@@ -2,7 +2,7 @@ using System;
 using UnityEngine;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public sealed class ModeChoiceEntryDefinition
 {

@@ -2,11 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using Data.Save;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch;
 using Witch.Core;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class SolarMemoryMapNodePoolFactory
 {
@@ -41,7 +41,7 @@ public static class SolarMemoryMapNodePoolFactory
                 continue;
             }
 
-            if (i == 2 && layer == 2 && TryCreateFixedBossNode(tree, SunExpIds.SolarBossSecondSunMapId, out var secondSunNode))
+            if (i == 2 && layer == 2 && TryCreateFixedBossNode(tree, TerriasIds.SolarBossSecondSunMapId, out var secondSunNode))
             {
                 defaultNodes.Add(secondSunNode);
                 continue;
@@ -55,7 +55,7 @@ public static class SolarMemoryMapNodePoolFactory
             selectNodes.Add(CreateExpandedBossPoolNode(tree, i, layer));
         }
 
-        SunExpLog.Debug("[SolarMemoryMapNodePool] generated layer="
+        TerriasLog.Debug("[SolarMemoryMapNodePool] generated layer="
             + layer
             + "; level="
             + manager.Level
@@ -99,11 +99,11 @@ public static class SolarMemoryMapNodePoolFactory
             return false;
         }
 
-        return string.Equals(id, SunExpIds.SolarBossOrbitMirrorMapId, StringComparison.Ordinal)
+        return string.Equals(id, TerriasIds.SolarBossOrbitMirrorMapId, StringComparison.Ordinal)
             || string.Equals(id, "solar_memory_boss_orbit_mirror_array", StringComparison.Ordinal)
-            || string.Equals(id, SunExpIds.SolarBossSecondSunMapId, StringComparison.Ordinal)
+            || string.Equals(id, TerriasIds.SolarBossSecondSunMapId, StringComparison.Ordinal)
             || string.Equals(id, "solar_memory_boss_second_sun_last_day", StringComparison.Ordinal)
-            || string.Equals(id, SunExpIds.SolarBossSaintWunaMapId, StringComparison.Ordinal)
+            || string.Equals(id, TerriasIds.SolarBossSaintWunaMapId, StringComparison.Ordinal)
             || string.Equals(id, "solar_memory_boss_saint_wuna", StringComparison.Ordinal);
     }
 
@@ -121,11 +121,11 @@ public static class SolarMemoryMapNodePoolFactory
     private static MapTree.Node CreateSolarMemoryEventNode(int layer, int mapSlotIndex)
     {
         var eventIndex = EventIndex(layer, mapSlotIndex);
-        var mapId = SunExpIds.SolarMemoryMapIds[eventIndex];
-        var shortMapId = SunExpIds.SolarMemoryShortMapIds[eventIndex];
-        var eventId = SunExpIds.SolarMemoryFullEventIds[eventIndex];
-        var data = SunExpConfigIndex.Row(DataType.Map, mapId)
-            ?? SunExpConfigIndex.Row(DataType.Map, shortMapId);
+        var mapId = TerriasIds.SolarMemoryMapIds[eventIndex];
+        var shortMapId = TerriasIds.SolarMemoryShortMapIds[eventIndex];
+        var eventId = TerriasIds.SolarMemoryFullEventIds[eventIndex];
+        var data = TerriasConfigIndex.Row(DataType.Map, mapId)
+            ?? TerriasConfigIndex.Row(DataType.Map, shortMapId);
         var node = new MapTree.Node("普通事件");
         node.type = "普通事件";
         node.data = data == null ? new Dictionary<string, string>() : new Dictionary<string, string>(data);
@@ -148,8 +148,8 @@ public static class SolarMemoryMapNodePoolFactory
 
         var mapId = layer switch
         {
-            1 => SunExpIds.SolarBossOrbitMirrorMapId,
-            2 => SunExpIds.SolarBossSaintWunaMapId,
+            1 => TerriasIds.SolarBossOrbitMirrorMapId,
+            2 => TerriasIds.SolarBossSaintWunaMapId,
             _ => ""
         };
 
@@ -171,7 +171,7 @@ public static class SolarMemoryMapNodePoolFactory
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[SolarMemoryMapNodePool] fixed boss node generation failed; map="
+            TerriasLog.Warn("[SolarMemoryMapNodePool] fixed boss node generation failed; map="
                 + mapId
                 + ": "
                 + ex.Message);
@@ -187,7 +187,7 @@ public static class SolarMemoryMapNodePoolFactory
 
             if (candidates.Count == 0)
             {
-                SunExpLog.Warn("[SolarMemoryMapNodePool] expanded boss pool empty; falling back to TypeGenerate.");
+                TerriasLog.Warn("[SolarMemoryMapNodePool] expanded boss pool empty; falling back to TypeGenerate.");
                 var fallbackNode = tree.TypeGenerate(BossMapNote);
                 MapNodeSafetyService.EnsureNodeDice(tree, fallbackNode, "SolarMemoryMapNodePoolFactory.TypeGenerateFallback");
                 return fallbackNode;
@@ -198,7 +198,7 @@ public static class SolarMemoryMapNodePoolFactory
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[SolarMemoryMapNodePool] boss node generation failed at layer "
+            TerriasLog.Warn("[SolarMemoryMapNodePool] boss node generation failed at layer "
                 + layer
                 + ", slot "
                 + indexInSegment
@@ -255,7 +255,7 @@ public static class SolarMemoryMapNodePoolFactory
 
     private static List<Dictionary<string, string>> ExpandedBossCandidates()
     {
-        return SunExpConfigIndex.FilteredRows(
+        return TerriasConfigIndex.FilteredRows(
             DataType.Map,
             "SolarMemory.ExpandedBossCandidates",
             IsExpandedBossCandidate);
@@ -265,7 +265,7 @@ public static class SolarMemoryMapNodePoolFactory
     {
         try
         {
-            var level = SunExpConfigIndex.Row(DataType.Level, nodeId);
+            var level = TerriasConfigIndex.Row(DataType.Level, nodeId);
             if (level == null)
             {
                 return true;
@@ -282,7 +282,7 @@ public static class SolarMemoryMapNodePoolFactory
 
     private static Dictionary<string, string>? MapRow(string mapId)
     {
-        return SunExpConfigIndex.Row(DataType.Map, mapId);
+        return TerriasConfigIndex.Row(DataType.Map, mapId);
     }
 
     private static MapTree.Node CreateBossNodeFromMapRow(MapTree tree, Dictionary<string, string> row)
@@ -311,7 +311,7 @@ public static class SolarMemoryMapNodePoolFactory
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[SolarMemoryMapNodePool] failed to fork fight NodeDice: " + ex.Message);
+            TerriasLog.Warn("[SolarMemoryMapNodePool] failed to fork fight NodeDice: " + ex.Message);
             return dice;
         }
     }

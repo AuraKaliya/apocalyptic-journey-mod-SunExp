@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using Network.Command;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch.Core;
 
-namespace SunExp.Dll.Network;
+namespace Terrias.Dll.Network;
 
 [Serializable]
 public sealed class ProjectionCompanionSnapshot
@@ -56,9 +56,9 @@ public sealed class ProjectionCompanionSnapshot
 }
 
 [Serializable]
-public sealed class RpcProjectionSummonRequest : RpcCommandBase, ISunExpServerBoundRpcCommand
+public sealed class RpcProjectionSummonRequest : RpcCommandBase, ITerriasServerBoundRpcCommand
 {
-    private SunExpRpcSender serverSender = SunExpRpcSender.Unbound;
+    private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 
     public string RoleId { get; set; } = "";
 
@@ -85,9 +85,9 @@ public sealed class RpcProjectionSummonRequest : RpcCommandBase, ISunExpServerBo
         RegistryHash = CompanionIntentRegistry.RegistryHash;
     }
 
-    public void BindServerSender(SunExpRpcSender sender)
+    public void BindServerSender(TerriasRpcSender sender)
     {
-        serverSender = sender ?? SunExpRpcSender.Unbound;
+        serverSender = sender ?? TerriasRpcSender.Unbound;
     }
 
     public override void CmdExecute()
@@ -121,9 +121,9 @@ public sealed class RpcProjectionCompanionState : RpcCommandBase
 }
 
 [Serializable]
-public sealed class RpcHeartChangeControlRequest : RpcCommandBase, ISunExpServerBoundRpcCommand
+public sealed class RpcHeartChangeControlRequest : RpcCommandBase, ITerriasServerBoundRpcCommand
 {
-    private SunExpRpcSender serverSender = SunExpRpcSender.Unbound;
+    private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 
     public string TargetStatusId { get; set; } = "";
 
@@ -142,9 +142,9 @@ public sealed class RpcHeartChangeControlRequest : RpcCommandBase, ISunExpServer
         Token = token ?? "";
     }
 
-    public void BindServerSender(SunExpRpcSender sender)
+    public void BindServerSender(TerriasRpcSender sender)
     {
-        serverSender = sender ?? SunExpRpcSender.Unbound;
+        serverSender = sender ?? TerriasRpcSender.Unbound;
     }
 
     public override void CmdExecute()

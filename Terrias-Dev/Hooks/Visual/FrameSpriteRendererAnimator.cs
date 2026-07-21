@@ -1,6 +1,6 @@
 using UnityEngine;
 
-namespace SunExp.Dll.Hooks.Visual;
+namespace Terrias.Dll.Hooks.Visual;
 
 public sealed class FrameSpriteRendererAnimator : MonoBehaviour
 {

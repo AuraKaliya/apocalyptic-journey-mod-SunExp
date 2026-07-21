@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Generic;
 using AuraShared.Core;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
-public sealed class SunExpCardLifecycleSubscription
+public sealed class TerriasCardLifecycleSubscription
 {
     public int Priority { get; set; }
 
@@ -46,10 +46,10 @@ public sealed class SunExpCardLifecycleSubscription
     public Action<ModHookContext>? AfterPlayerInfoRandomAddCard { get; set; }
 }
 
-public static class SunExpCardLifecycleRouter
+public static class TerriasCardLifecycleRouter
 {
     private static readonly object SyncRoot = new();
-    private static readonly Dictionary<string, SunExpCardLifecycleSubscription> PendingSubscriptions = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, TerriasCardLifecycleSubscription> PendingSubscriptions = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, IDisposable> SharedRegistrations = new(StringComparer.Ordinal);
     private static ModConfig? activeConfig;
     private static bool initialized;
@@ -72,7 +72,7 @@ public static class SunExpCardLifecycleRouter
         }
     }
 
-    public static void Register(string id, SunExpCardLifecycleSubscription subscription)
+    public static void Register(string id, TerriasCardLifecycleSubscription subscription)
     {
         if (string.IsNullOrWhiteSpace(id) || subscription == null)
         {
@@ -89,10 +89,10 @@ public static class SunExpCardLifecycleRouter
             }
         }
 
-        SunExpPerformanceCounters.Record("CardLifecycle.HandlerRegistered");
+        TerriasPerformanceCounters.Record("CardLifecycle.HandlerRegistered");
     }
 
-    private static void RegisterWithSharedNoLock(string id, SunExpCardLifecycleSubscription subscription)
+    private static void RegisterWithSharedNoLock(string id, TerriasCardLifecycleSubscription subscription)
     {
         if (activeConfig == null)
         {
@@ -106,14 +106,14 @@ public static class SunExpCardLifecycleRouter
 
         SharedRegistrations[id] = AuraCardLifecycleRouter.Register(
             activeConfig,
-            SunExpIds.ModId,
+            TerriasIds.ModId,
             id,
             ToSharedSubscription(subscription),
-            SunExpLog.Info,
-            message => SunExpLog.Warn(message));
+            TerriasLog.Info,
+            message => TerriasLog.Warn(message));
     }
 
-    private static AuraCardLifecycleSubscription ToSharedSubscription(SunExpCardLifecycleSubscription subscription)
+    private static AuraCardLifecycleSubscription ToSharedSubscription(TerriasCardLifecycleSubscription subscription)
     {
         return new AuraCardLifecycleSubscription
         {

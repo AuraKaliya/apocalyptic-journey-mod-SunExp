@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 
-namespace SunExp.Dll.Hooks.Visual;
+namespace Terrias.Dll.Hooks.Visual;
 
 public static class SpiritAttachmentPresenter
 {
@@ -46,7 +46,7 @@ public static class SpiritAttachmentPresenter
                 proxy.SetActive(active);
             }
 
-            SunExpLog.Debug("[SpiritAttachment] owner visibility=" + active + ", source=" + source);
+            TerriasLog.Debug("[SpiritAttachment] owner visibility=" + active + ", source=" + source);
         }
     }
 
@@ -62,14 +62,14 @@ public static class SpiritAttachmentPresenter
             var sourceCollider = spirit?.transform?.GetComponent<BoxCollider>();
             if (owner?.transform == null || spirit?.transform == null || ownerRenderer == null || sourceRenderer == null || sourceCollider == null)
             {
-                SunExpLog.Warn("[SpiritAttachment] visual proxy prerequisites unavailable: " + state.StatusId);
+                TerriasLog.Warn("[SpiritAttachment] visual proxy prerequisites unavailable: " + state.StatusId);
                 return;
             }
 
             RemoveProxy(state.StatusId, true);
             var status = spirit.Status as StatusManager;
             status?.statusBarObj?.SetActive(false);
-            proxy = new GameObject("SunExp_SpiritVisualProxy:" + state.StatusId);
+            proxy = new GameObject("Terrias_SpiritVisualProxy:" + state.StatusId);
             CompanionSceneApi.MoveToOwnerScene(proxy, owner.transform.gameObject, "SpiritAttachment.Attach");
             proxy.layer = ownerRenderer.gameObject.layer;
             var output = proxy.AddComponent<SpriteRenderer>();
@@ -93,7 +93,7 @@ public static class SpiritAttachmentPresenter
 
             Proxies[state.StatusId] = proxy;
             RefreshByOwner(owner, "Attach");
-            SunExpPerformanceCounters.Record("SpiritAttachment.ProxyAttached");
+            TerriasPerformanceCounters.Record("SpiritAttachment.ProxyAttached");
         }
         catch (Exception ex)
         {
@@ -103,7 +103,7 @@ public static class SpiritAttachmentPresenter
                 UnityEngine.Object.Destroy(proxy);
             }
 
-            SunExpLog.Warn("[SpiritAttachment] proxy attach failed: " + ex.Message);
+            TerriasLog.Warn("[SpiritAttachment] proxy attach failed: " + ex.Message);
         }
     }
 
@@ -161,7 +161,7 @@ public static class SpiritAttachmentPresenter
                 var proxy = visual?.gameObject;
                 if (proxy == null
                     || !proxy.scene.IsValid()
-                    || !proxy.name.StartsWith("SunExp_SpiritVisualProxy:", StringComparison.Ordinal))
+                    || !proxy.name.StartsWith("Terrias_SpiritVisualProxy:", StringComparison.Ordinal))
                 {
                     continue;
                 }
@@ -171,7 +171,7 @@ public static class SpiritAttachmentPresenter
             }
         }
 
-        SunExpLog.Debug("[SpiritAttachment] cleared from " + source + ": count=" + proxies.Count);
+        TerriasLog.Debug("[SpiritAttachment] cleared from " + source + ": count=" + proxies.Count);
     }
 
     private static IStatusManager? StatusById(string statusId)

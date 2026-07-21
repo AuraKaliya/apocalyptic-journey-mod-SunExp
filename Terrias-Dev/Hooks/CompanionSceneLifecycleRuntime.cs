@@ -1,13 +1,13 @@
 using System;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Hooks.Visual;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Hooks.Visual;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class CompanionSceneLifecycleRuntime
 {
@@ -29,7 +29,7 @@ public static class CompanionSceneLifecycleRuntime
         RegisterMenuExitBoundary(modConfig, "TopBarUI.ReturnToMenu");
         RegisterMenuExitBoundary(modConfig, "GameApp.ReturnToMenu");
         RegisterMenuExitBoundary(modConfig, "GameEntryUI.Init");
-        SunExpBattleLifecycleRouter.Register("CompanionScene", new SunExpBattleLifecycleSubscription
+        TerriasBattleLifecycleRouter.Register("CompanionScene", new TerriasBattleLifecycleSubscription
         {
             FightInitializing = _ => CleanupAfterSceneBoundary("FightInitializing"),
             FightStarted = _ => CompanionSceneApi.TrackBattleScene(
@@ -37,12 +37,12 @@ public static class CompanionSceneLifecycleRuntime
                 "FightStarted"),
             FightEnded = _ => CleanupAfterSceneBoundary("FightEnded")
         });
-        SunExpLog.Info("Companion scene lifecycle runtime initialized");
+        TerriasLog.Info("Companion scene lifecycle runtime initialized");
     }
 
     private static void RegisterMenuExitBoundary(ModConfig modConfig, string target)
     {
-        SunExpHookRegistry.Before(
+        TerriasHookRegistry.Before(
             modConfig,
             target,
             _ => CleanupAfterSceneBoundary(target),
@@ -67,7 +67,7 @@ public static class CompanionSceneLifecycleRuntime
         }
 
         var previousHandle = previous.handle;
-        SunExpFrameDispatcher.RunOnceNextFrame(
+        TerriasFrameDispatcher.RunOnceNextFrame(
             "CompanionSceneBoundary.ActiveChanged." + previousHandle,
             () =>
             {
@@ -99,15 +99,15 @@ public static class CompanionSceneLifecycleRuntime
 
             if (!cleanupPending && !hasTrackedScenes)
             {
-                SunExpPerformanceCounters.Record("CompanionScene.CleanupDeduplicated");
-                SunExpLog.Debug("[CompanionScene] duplicate cleanup boundary skipped: source=" + source);
+                TerriasPerformanceCounters.Record("CompanionScene.CleanupDeduplicated");
+                TerriasLog.Debug("[CompanionScene] duplicate cleanup boundary skipped: source=" + source);
                 return;
             }
 
             cleanupInProgress = true;
         }
 
-        var cleanupStarted = SunExpPerformanceCounters.Timestamp();
+        var cleanupStarted = TerriasPerformanceCounters.Timestamp();
         try
         {
             var suppression = default(CompanionPresentationSuppression);
@@ -128,7 +128,7 @@ public static class CompanionSceneLifecycleRuntime
                 cleanupSucceeded &= RunCleanupStep("SpiritProxies", source, () => SpiritAttachmentPresenter.ClearAll(source));
             }
 
-            SunExpPerformanceCounters.Record("CompanionScene.Cleared");
+            TerriasPerformanceCounters.Record("CompanionScene.Cleared");
             LogCleanupSummary(source, suppression, cleanupSucceeded, needsOrphanSweep);
             SchedulePostCleanupAudit(source, suppression.Total > 0 || !cleanupSucceeded);
         }
@@ -141,7 +141,7 @@ public static class CompanionSceneLifecycleRuntime
                 cleanupInProgress = false;
             }
 
-            SunExpPerformanceCounters.RecordHotspot(
+            TerriasPerformanceCounters.RecordHotspot(
                 "CompanionScene.Cleanup",
                 cleanupStarted,
                 "source=" + source,
@@ -183,16 +183,16 @@ public static class CompanionSceneLifecycleRuntime
                 CountSceneObjects<ProjectionTurnAnchorObj>(),
                 CountSceneObjects<ProjectionVisualProxy>(component =>
                     component.gameObject.name.StartsWith(
-                        "SunExp_ProjectionVisualProxy:",
+                        "Terrias_ProjectionVisualProxy:",
                         StringComparison.Ordinal)),
                 CountSceneObjects<ProjectionVisualProxy>(component =>
                     component.gameObject.name.StartsWith(
-                        "SunExp_SpiritVisualProxy:",
+                        "Terrias_SpiritVisualProxy:",
                         StringComparison.Ordinal)));
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[CompanionScene] artifact snapshot failed @ " + source + ": " + ex.Message);
+            TerriasLog.Warn("[CompanionScene] artifact snapshot failed @ " + source + ": " + ex.Message);
             return CompanionArtifactSnapshot.Unavailable;
         }
     }
@@ -243,11 +243,11 @@ public static class CompanionSceneLifecycleRuntime
 
         if (!suppression.Available || suppression.Total > 0 || !cleanupSucceeded)
         {
-            SunExpLog.InfoAlways(message);
+            TerriasLog.InfoAlways(message);
             return;
         }
 
-        SunExpLog.Info(message);
+        TerriasLog.Info(message);
     }
 
     private static void SchedulePostCleanupAudit(string source, bool required)
@@ -258,7 +258,7 @@ public static class CompanionSceneLifecycleRuntime
         }
 
         var frame = Time.frameCount;
-        SunExpFrameDispatcher.RunOnceNextFrame(
+        TerriasFrameDispatcher.RunOnceNextFrame(
             "CompanionScene.PostCleanupAudit." + frame,
             () =>
             {
@@ -276,7 +276,7 @@ public static class CompanionSceneLifecycleRuntime
 
                 if (!remaining.Available || remaining.Total > 0)
                 {
-                    SunExpLog.Warn(message);
+                    TerriasLog.Warn(message);
                     MarkCleanupPending();
                     if (remaining.Available && remaining.Total > 0)
                     {
@@ -285,7 +285,7 @@ public static class CompanionSceneLifecycleRuntime
                     return;
                 }
 
-                SunExpLog.InfoAlways(message);
+                TerriasLog.InfoAlways(message);
             });
     }
 
@@ -309,12 +309,12 @@ public static class CompanionSceneLifecycleRuntime
         try
         {
             action();
-            SunExpPerformanceCounters.Record("CompanionScene.CleanupStep." + step);
+            TerriasPerformanceCounters.Record("CompanionScene.CleanupStep." + step);
             return true;
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Companion scene cleanup step failed: " + step + " @ " + source, ex);
+            TerriasLog.Error("Companion scene cleanup step failed: " + step + " @ " + source, ex);
             return false;
         }
     }

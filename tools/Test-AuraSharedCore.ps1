@@ -145,8 +145,8 @@ foreach ($required in @("AuraAuthoritativeSyncRuntime", "AuraAuthoritativeSyncDo
         throw "AuraShared authoritative sync contract is missing: $required"
     }
 }
-if ($authoritativeSyncText.Contains("SunExp") -or $authoritativeSyncText.Contains("ScorchingCanopy")) {
-    throw "AuraShared authoritative sync runtime must remain semantic-free and not mention SunExp field content."
+if ($authoritativeSyncText.Contains("Terrias") -or $authoritativeSyncText.Contains("ScorchingCanopy")) {
+    throw "AuraShared authoritative sync runtime must remain semantic-free and not mention Terrias field content."
 }
 
 $objectPoolText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraSharedObjectPool.cs")
@@ -155,7 +155,7 @@ foreach ($required in @("AuraSharedObjectPool<TKey, TValue>", "capacityPerKey", 
         throw "AuraShared bounded object-pool contract is missing: $required"
     }
 }
-if ($objectPoolText.Contains("SunExp") -or $objectPoolText.Contains("CardItem") -or $objectPoolText.Contains("DataConfig")) {
+if ($objectPoolText.Contains("Terrias") -or $objectPoolText.Contains("CardItem") -or $objectPoolText.Contains("DataConfig")) {
     throw "AuraShared object pool must remain semantic-free."
 }
 
@@ -307,7 +307,7 @@ foreach ($required in @("CreateMapNode", "EnsureNodeDice", "RepairSyncArrays", "
 }
 
 $sharedContentForbidden = @(
-    "SunExp",
+    "Terrias",
     "SanGuoShaExp",
     "solar_memory",
     "SolarMemory",
@@ -339,22 +339,22 @@ if (-not $fileResourceText.Contains("AuraSharedPackageEngine.Install") -or $file
     throw "AuraTools Audio/CG import does not use the shared package engine exclusively."
 }
 
-$sunPackagePath = Join-Path $repoRoot "SunExp\SharedResources\aura.registration.json"
+$sunPackagePath = Join-Path $repoRoot "Terrias\SharedResources\aura.registration.json"
 $sunPackage = Get-Content -Raw -Encoding UTF8 -LiteralPath $sunPackagePath | ConvertFrom-Json
-if ($sunPackage.packageId -ne "SunExp.SharedResources.V4" -or $sunPackage.ownerModId -ne "SunExp" -or
+if ($sunPackage.packageId -ne "Terrias.SharedResources.V4" -or $sunPackage.ownerModId -ne "Terrias" -or
     $sunPackage.schemaVersion -ne 4 -or $sunPackage.packageSourceKind -ne "ModPackage") {
-    throw "SunExp shared resource package manifest is invalid."
+    throw "Terrias shared resource package manifest is invalid."
 }
 $sunPackageRoot = Split-Path -Parent $sunPackagePath
 $sunAudioResource = $sunPackage.resources | Where-Object {
     $_.moduleId -eq "Audio" -and $_.resourceId -eq "wuna.voice-pack" -and $_.kind -eq "Directory"
 } | Select-Object -First 1
 if ($null -eq $sunAudioResource) {
-    throw "SunExp shared Audio package manifest is missing WuNa voice pack."
+    throw "Terrias shared Audio package manifest is missing WuNa voice pack."
 }
 $sunAudioSource = [System.IO.Path]::GetFullPath((Join-Path $sunPackageRoot $sunAudioResource.source))
 if (-not (Test-Path -LiteralPath $sunAudioSource -PathType Container)) {
-    throw "SunExp shared Audio package source is missing: $sunAudioSource"
+    throw "Terrias shared Audio package source is missing: $sunAudioSource"
 }
 
 $v4ContractPath = Join-Path $repoRoot "docs\aura-shared-resource-v4-contract.md"
@@ -371,12 +371,12 @@ $sunColumbinaAudioResource = $sunPackage.resources | Where-Object {
     $_.moduleId -eq "Audio" -and $_.resourceId -eq "columbina.voice-pack" -and $_.kind -eq "Directory"
 } | Select-Object -First 1
 if ($null -eq $sunColumbinaAudioResource) {
-    throw "SunExp shared Audio package manifest is missing Columbina voice pack."
+    throw "Terrias shared Audio package manifest is missing Columbina voice pack."
 }
 $sunColumbinaAudioSource = [System.IO.Path]::GetFullPath((Join-Path $sunPackageRoot $sunColumbinaAudioResource.source))
 if (-not (Test-Path -LiteralPath $sunColumbinaAudioSource -PathType Container) -or
     @(Get-ChildItem -LiteralPath $sunColumbinaAudioSource -Filter "*.ogg" -File).Count -ne 12) {
-    throw "SunExp Columbina shared Audio package must contain exactly 12 Ogg voice variants."
+    throw "Terrias Columbina shared Audio package must contain exactly 12 Ogg voice variants."
 }
 $requiredSunCgResources = @(
     "loneer.morning-star-prayer",
@@ -391,41 +391,41 @@ foreach ($resourceId in $requiredSunCgResources) {
         $_.moduleId -eq "CG" -and $_.resourceId -eq $resourceId -and $_.kind -eq "File"
     } | Select-Object -First 1
     if ($null -eq $resource) {
-        throw "SunExp shared CG package manifest is missing resource: $resourceId"
+        throw "Terrias shared CG package manifest is missing resource: $resourceId"
     }
 
     $source = [System.IO.Path]::GetFullPath((Join-Path $sunPackageRoot $resource.source))
     if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
-        throw "SunExp shared CG package source is missing: $source"
+        throw "Terrias shared CG package source is missing: $source"
     }
 }
 $sunCardUseCgResource = $sunPackage.resources | Where-Object {
-    $_.moduleId -eq "CG" -and $_.resourceId -eq "sunexp.blazing-crown-collapse" -and $_.kind -eq "Directory"
+    $_.moduleId -eq "CG" -and $_.resourceId -eq "terrias.blazing-crown-collapse" -and $_.kind -eq "Directory"
 } | Select-Object -First 1
 if ($null -eq $sunCardUseCgResource -or @($sunCardUseCgResource.tags) -notcontains "card-use-cg") {
-    throw "SunExp shared CG package manifest is missing Blazing Crown Collapse card-use CG semantics."
+    throw "Terrias shared CG package manifest is missing Blazing Crown Collapse card-use CG semantics."
 }
 $sunCardUseCgSource = [System.IO.Path]::GetFullPath((Join-Path $sunPackageRoot $sunCardUseCgResource.source))
 if (-not (Test-Path -LiteralPath $sunCardUseCgSource -PathType Container)) {
-    throw "SunExp shared card-use CG package source is missing: $sunCardUseCgSource"
+    throw "Terrias shared card-use CG package source is missing: $sunCardUseCgSource"
 }
-$sunCgManifestPath = Join-Path $repoRoot "SunExp\SharedResources\cg.registry.json"
+$sunCgManifestPath = Join-Path $repoRoot "Terrias\SharedResources\cg.registry.json"
 $sunCgManifest = Get-Content -Raw -Encoding UTF8 -LiteralPath $sunCgManifestPath | ConvertFrom-Json
-if ($sunCgManifest.ownerModId -ne "SunExp" -or @($sunCgManifest.entries).Count -lt 7) {
-    throw "SunExp CG registry manifest is invalid."
+if ($sunCgManifest.ownerModId -ne "Terrias" -or @($sunCgManifest.entries).Count -lt 7) {
+    throw "Terrias CG registry manifest is invalid."
 }
 foreach ($cgId in @("loneer.morning-star-prayer", "wuna.white-sun-prayer", "columbina.homesickness")) {
     $entry = $sunCgManifest.entries | Where-Object { $_.cgId -eq $cgId } | Select-Object -First 1
     if ($null -eq $entry -or $entry.kind -ne "skill" -or $entry.media.type -ne "image" -or
         [string]::IsNullOrWhiteSpace($entry.media.resource) -or [string]::IsNullOrWhiteSpace($entry.defaultPresentation.mode)) {
-        throw "SunExp CG registry manifest is missing a valid entry: $cgId"
+        throw "Terrias CG registry manifest is missing a valid entry: $cgId"
     }
 }
 $wunaCgEntry = $sunCgManifest.entries | Where-Object { $_.cgId -eq "wuna.white-sun-prayer" } | Select-Object -First 1
 if ($wunaCgEntry.defaultPresentation.mode -ne "fullscreenFade" -or $wunaCgEntry.defaultPresentation.fit -ne "cover") {
     throw "WuNa skill CG must use fullscreenFade with cover fitting."
 }
-$blazingCrownCgEntry = $sunCgManifest.entries | Where-Object { $_.cgId -eq "sunexp.blazing-crown-collapse" } | Select-Object -First 1
+$blazingCrownCgEntry = $sunCgManifest.entries | Where-Object { $_.cgId -eq "terrias.blazing-crown-collapse" } | Select-Object -First 1
 if ($null -eq $blazingCrownCgEntry -or $blazingCrownCgEntry.kind -ne "cardUse" -or
     $blazingCrownCgEntry.media.type -ne "sequence" -or
     @($blazingCrownCgEntry.tags) -notcontains "card-use-cg" -or
@@ -439,26 +439,26 @@ foreach ($cgId in @("loneer.feast", "wuna.feast", "columbina.feast")) {
         $entry.defaultPresentation.mode -ne "fullscreenFade" -or $entry.defaultPresentation.fit -ne "cover" -or
         $entry.defaultActivation.consumerMode -ne "toolManaged" -or
         $entry.defaultActivation.consumerModId -ne "AuraToolsExp") {
-        throw "SunExp Feast CG registry manifest is missing a valid tool-managed entry: $cgId"
+        throw "Terrias Feast CG registry manifest is missing a valid tool-managed entry: $cgId"
     }
 }
-$sunEntryText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "SunExp-Dev\Entry.cs")
-$sunProjectText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "SunExp-Dev\SunExp.Dll.csproj")
+$sunEntryText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "Terrias-Dev\Entry.cs")
+$sunProjectText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "Terrias-Dev\Terrias.Dll.csproj")
 if (-not $sunEntryText.Contains("AuraCgRegistryRuntime.RegisterManifest") -or
     -not $sunProjectText.Contains("AuraSharedRuntime-Dev\Aura.Shared.csproj")) {
-    throw "SunExp does not register CG manifests through AuraCgShared."
+    throw "Terrias does not register CG manifests through AuraCgShared."
 }
-if (Test-Path -LiteralPath (Join-Path $repoRoot "SunExp\ModResource\audio")) {
-    throw "SunExp still carries a direct ModResource/audio runtime source."
+if (Test-Path -LiteralPath (Join-Path $repoRoot "Terrias\ModResource\audio")) {
+    throw "Terrias still carries a direct ModResource/audio runtime source."
 }
 
-$audioManifestText = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "SunExp\audio.registry.json")
-if ($audioManifestText.Contains("ModResource/audio") -or -not $audioManifestText.Contains("Shared:Audio/Role/SunExp_wuna_wuna/Voice/SunExp/wuna.voice-pack/content")) {
-    throw "SunExp audio registry does not resolve through the shared resource layer."
+$audioManifestText = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "Terrias\audio.registry.json")
+if ($audioManifestText.Contains("ModResource/audio") -or -not $audioManifestText.Contains("Shared:Audio/Role/Terrias_wuna_wuna/Voice/Terrias/wuna.voice-pack/content")) {
+    throw "Terrias audio registry does not resolve through the shared resource layer."
 }
-if (-not $audioManifestText.Contains("Shared:Audio/Role/SunExp_columbina_columbina/Voice/SunExp/columbina.voice-pack/content") -or
+if (-not $audioManifestText.Contains("Shared:Audio/Role/Terrias_columbina_columbina/Voice/Terrias/columbina.voice-pack/content") -or
     -not $audioManifestText.Contains('"variantPaths"')) {
-    throw "SunExp Columbina audio registry does not declare shared voice variants."
+    throw "Terrias Columbina audio registry does not declare shared voice variants."
 }
 
 $auraToolsPackagePath = Join-Path $repoRoot "AuraToolsExp\SharedResources\aura.registration.json"
@@ -481,7 +481,7 @@ foreach ($resource in $auraToolsPackage.resources) {
 }
 
 foreach ($v4RelativePath in @(
-    "SunExp\SharedResources\aura.registration.json",
+    "Terrias\SharedResources\aura.registration.json",
     "AuraToolsExp\SharedResources\aura.registration.json"
 )) {
     $v4Path = Join-Path $repoRoot $v4RelativePath
@@ -556,10 +556,10 @@ foreach ($required in @("AuraSharedIdentity.SelectRoleId", "AuraSharedContentId.
     }
 }
 
-$sunSkillCgRuntimeText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "SunExp-Dev\Features\SkillCg\SunExpSkillCgRuntime.cs")
+$sunSkillCgRuntimeText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "Terrias-Dev\Features\SkillCg\TerriasSkillCgRuntime.cs")
 foreach ($required in @("AuraCombatActionRouter.RegisterBefore", "BuildRequests(trigger)", "BuildRegisteredCardUseRequests", "AuraSharedContentId.Matches", "no CG request matched")) {
     if (-not $sunSkillCgRuntimeText.Contains($required)) {
-        throw "SunExp SkillCG runtime is missing trigger diagnostics/role fallback: $required"
+        throw "Terrias SkillCG runtime is missing trigger diagnostics/role fallback: $required"
     }
 }
 
@@ -578,7 +578,7 @@ foreach ($required in @("AuraCardLifecyclePhase", "AuraHookRegistry", "Registere
 }
 
 $sharedConsumerProjects = @(
-    "SunExp-Dev\SunExp.Dll.csproj",
+    "Terrias-Dev\Terrias.Dll.csproj",
     "SanGuoShaExp-Dev\SanGuoShaExp.Dll.csproj",
     "AuraToolsExp-Dev\AuraToolsExp.Dll.csproj"
 )

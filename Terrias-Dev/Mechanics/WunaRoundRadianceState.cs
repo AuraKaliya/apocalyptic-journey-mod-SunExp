@@ -1,14 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class WunaRoundRadianceState
 {
-    private const string LocalRoundKey = "SunExpWunaRadianceLocalRound";
+    private const string LocalRoundKey = "TerriasWunaRadianceLocalRound";
     private static readonly object SyncRoot = new();
     private static readonly Dictionary<string, string> TriggeredRounds = new(StringComparer.Ordinal);
 
@@ -52,7 +52,7 @@ public static class WunaRoundRadianceState
             TriggeredRounds[ownerKey] = roundKey;
         }
 
-        SunExpLog.Debug("[WunaRadiance] marked round trigger from "
+        TerriasLog.Debug("[WunaRadiance] marked round trigger from "
             + source
             + ": owner="
             + ownerKey

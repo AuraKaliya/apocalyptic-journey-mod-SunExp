@@ -2,9 +2,9 @@ using System;
 using System.Linq;
 using System.Reflection;
 using AuraUi.Shared;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
@@ -13,13 +13,13 @@ using Witch.Mod;
 using Witch.UI;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class SolarMemoryModeEntryRuntime
 {
-    private const string EntryObjectName = "SunExp_SolarMemoryMode";
-    private const string DefaultEntryTitleSpritePath = "Mods/SunExp/ModResource/Images/UI/solar_memory_title_c.png";
-    private const string DefaultEntryHighlightedTitleSpritePath = "Mods/SunExp/ModResource/Images/UI/solar_memory_title_c_h.png";
+    private const string EntryObjectName = "Terrias_SolarMemoryMode";
+    private const string DefaultEntryTitleSpritePath = "Mods/Terrias/ModResource/Images/UI/solar_memory_title_c.png";
+    private const string DefaultEntryHighlightedTitleSpritePath = "Mods/Terrias/ModResource/Images/UI/solar_memory_title_c_h.png";
     private const float DefaultEntryTitleArtHeightRatio = 0.735f;
 
     private static Font? cachedFont;
@@ -44,8 +44,8 @@ public static class SolarMemoryModeEntryRuntime
             100,
             ConfigureRegisteredEntry,
             modeChoice => SolarMemoryRunLauncher.Start(modeChoice, SolarMemoryDeckIsolationRuntime.InitialPackSelection().ToList()),
-            SunExpIds.SolarMemoryTitle,
-            SunExpIds.SolarMemorySemanticModeId));
+            TerriasIds.SolarMemoryTitle,
+            TerriasIds.SolarMemorySemanticModeId));
     }
 
     private static void ConfigureRegisteredEntry(GameObject entry, ModeChoiceUI modeChoice)
@@ -61,7 +61,7 @@ public static class SolarMemoryModeEntryRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory entry injection failed", ex);
+            TerriasLog.Error("Solar memory entry injection failed", ex);
         }
     }
 
@@ -89,10 +89,10 @@ public static class SolarMemoryModeEntryRuntime
 
     private static void ConfigureEntryTexts(Transform entry)
     {
-        SetTmpText(entry.Find("Text/Text"), SunExpIds.SolarMemoryDescription + "\n" + SunExpIds.SolarMemorySubtitle);
+        SetTmpText(entry.Find("Text/Text"), TerriasIds.SolarMemoryDescription + "\n" + TerriasIds.SolarMemorySubtitle);
         var hasTitleSprites = ConfigureEntryTitleSprites(entry);
 
-        var title = entry.Find("SunExpTitle");
+        var title = entry.Find("TerriasTitle");
         if (hasTitleSprites)
         {
             if (title != null)
@@ -105,7 +105,7 @@ public static class SolarMemoryModeEntryRuntime
 
         if (title == null)
         {
-            var go = new GameObject("SunExpTitle", typeof(RectTransform));
+            var go = new GameObject("TerriasTitle", typeof(RectTransform));
             title = go.transform;
             title.SetParent(entry, false);
             var rect = go.GetComponent<RectTransform>();
@@ -114,14 +114,14 @@ public static class SolarMemoryModeEntryRuntime
             rect.offsetMin = Vector2.zero;
             rect.offsetMax = Vector2.zero;
             var text = go.AddComponent<Text>();
-            ConfigureText(text, SunExpIds.SolarMemoryTitle, 30, FontStyle.Bold, TextAnchor.MiddleCenter, Color.white);
+            ConfigureText(text, TerriasIds.SolarMemoryTitle, 30, FontStyle.Bold, TextAnchor.MiddleCenter, Color.white);
         }
         else
         {
             var text = title.GetComponent<Text>();
             if (text != null)
             {
-                text.text = SunExpIds.SolarMemoryTitle;
+                text.text = TerriasIds.SolarMemoryTitle;
             }
 
             title.gameObject.SetActive(true);
@@ -196,10 +196,10 @@ public static class SolarMemoryModeEntryRuntime
     {
         try
         {
-            var sprite = SunExpResourceCache.Load<Sprite>(path, true);
+            var sprite = TerriasResourceCache.Load<Sprite>(path, true);
             if (sprite == null)
             {
-                SunExpLog.Warn("[SolarMemoryMode] entry sprite missing: " + path);
+                TerriasLog.Warn("[SolarMemoryMode] entry sprite missing: " + path);
                 return null;
             }
 
@@ -208,7 +208,7 @@ public static class SolarMemoryModeEntryRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[SolarMemoryMode] failed to load entry sprite " + path + ": " + ex.Message);
+            TerriasLog.Warn("[SolarMemoryMode] failed to load entry sprite " + path + ": " + ex.Message);
             return null;
         }
     }
@@ -259,7 +259,7 @@ public static class SolarMemoryModeEntryRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[SolarMemoryMode] failed to trim entry sprite: " + ex.Message);
+            TerriasLog.Warn("[SolarMemoryMode] failed to trim entry sprite: " + ex.Message);
             return sprite;
         }
     }
@@ -279,7 +279,7 @@ public static class SolarMemoryModeEntryRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[SolarMemoryMode] failed to crop entry title sprite: " + ex.Message);
+            TerriasLog.Warn("[SolarMemoryMode] failed to crop entry title sprite: " + ex.Message);
             return sprite;
         }
     }

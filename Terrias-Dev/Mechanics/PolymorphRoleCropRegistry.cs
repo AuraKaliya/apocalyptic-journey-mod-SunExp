@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using Newtonsoft.Json;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.Mod;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public readonly struct PolymorphRoleCrop
 {
@@ -47,10 +47,10 @@ public static class PolymorphRoleCropRegistry
             Crops.Clear();
             defaultCropSize = 512;
 
-            var path = Path.Combine(modConfig.DirectoryName, SunExpIds.PolymorphCropConfigFile);
+            var path = Path.Combine(modConfig.DirectoryName, TerriasIds.PolymorphCropConfigFile);
             if (!File.Exists(path))
             {
-                SunExpLog.Warn("[PolymorphRoleCrop] config missing; using centered 512 crops.");
+                TerriasLog.Warn("[PolymorphRoleCrop] config missing; using centered 512 crops.");
                 return;
             }
 
@@ -74,13 +74,13 @@ public static class PolymorphRoleCropRegistry
                         entry.Size <= 0 ? defaultCropSize : entry.Size);
                 }
 
-                SunExpLog.Info("[PolymorphRoleCrop] loaded crop config: roles=" + Crops.Count);
+                TerriasLog.Info("[PolymorphRoleCrop] loaded crop config: roles=" + Crops.Count);
             }
             catch (Exception ex)
             {
                 Crops.Clear();
                 defaultCropSize = 512;
-                SunExpLog.Warn("[PolymorphRoleCrop] failed to load config; using defaults: " + ex.Message);
+                TerriasLog.Warn("[PolymorphRoleCrop] failed to load config; using defaults: " + ex.Message);
             }
         }
     }

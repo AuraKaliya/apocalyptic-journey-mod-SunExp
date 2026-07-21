@@ -117,9 +117,9 @@ Factory 不读取时钟、不生成 Guid、不访问 Player/Fight/Role 单例，
 - Aura.Shared：1228 项公共 API 兼容基线通过；
 - AuraDirector：20 项断言通过；
 - AuraToolsExp：635 项断言通过；
-- SunExp：架构检查与 282 项 C# 断言通过；
+- Terrias：架构检查与 282 项 C# 断言通过；
 - shared write、content/tool/shared、RPC authority 与架构门禁通过；
-- SunExp、SanGuoShaExp、AuraToolsExp 三个消费者均以 0 警告、0 错误构建；
+- Terrias、SanGuoShaExp、AuraToolsExp 三个消费者均以 0 警告、0 错误构建；
 - 完整共享发布矩阵与 DLL 打包检查通过；
 - 构建产物与三个打包副本 SHA-256 一致：`20C5482C0119F8F6CA6900CBACFF65DBAC09F7CC1D1D18ED096E4F3E03BA47C0`。
 

@@ -1,13 +1,13 @@
 using System;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class PolymorphBuffService
 {
-    private const string HookKey = "SunExpPolymorphTraitHook";
-    private const string TokenKey = "SunExpPolymorphTraitToken";
+    private const string HookKey = "TerriasPolymorphTraitHook";
+    private const string TokenKey = "TerriasPolymorphTraitToken";
 
     public static bool GrantForRole(ScriptExecutor self, PolymorphRoleSpec role)
     {
@@ -18,7 +18,7 @@ public static class PolymorphBuffService
         }
 
         PolymorphStateStore.SetPending(role, self.Self);
-        if (BuffApi.Has(self.Self, SunExpIds.PolymorphTraitBuffId))
+        if (BuffApi.Has(self.Self, TerriasIds.PolymorphTraitBuffId))
         {
             return Apply(self);
         }
@@ -26,13 +26,13 @@ public static class PolymorphBuffService
         try
         {
             self.SetStatus("Self");
-            self.AddBuff(SunExpIds.PolymorphTraitBuffId, "1");
+            self.AddBuff(TerriasIds.PolymorphTraitBuffId, "1");
             return true;
         }
         catch (Exception ex)
         {
             PolymorphStateStore.ClearPending(self.Self);
-            SunExpLog.Warn("[Polymorph] failed to grant trait buff: " + ex.Message);
+            TerriasLog.Warn("[Polymorph] failed to grant trait buff: " + ex.Message);
             PlayerApi.ShowCaption("\u767e\u53d8\uff1a\u5316\u8eab\u5207\u6362\u5931\u8d25\u3002");
             return false;
         }
@@ -48,7 +48,7 @@ public static class PolymorphBuffService
         var role = PolymorphStateStore.PendingFor(self.Self);
         if (role == null)
         {
-            SunExpLog.Warn("[Polymorph] trait buff applied without a pending role; removing inert buff.");
+            TerriasLog.Warn("[Polymorph] trait buff applied without a pending role; removing inert buff.");
             RemoveTraitBuff(self);
             return false;
         }
@@ -65,7 +65,7 @@ public static class PolymorphBuffService
             PolymorphRuntimeService.Enter(self, role, state);
             PolymorphNetworkSync.BroadcastEnter(state, "PolymorphBuffService.Apply");
             PlayerApi.ShowCaption("\u767e\u53d8\uff1a\u5316\u8eab\u4e3a\u3010" + state.DisplayName + "\u3011\u3002");
-            SunExpPerformanceCounters.Record("Polymorph.BuffApplied");
+            TerriasPerformanceCounters.Record("Polymorph.BuffApplied");
             return true;
         }
         catch (Exception ex)
@@ -78,7 +78,7 @@ public static class PolymorphBuffService
 
             PolymorphStateStore.ClearOwner(self.Self, "PolymorphBuffService.ApplyFailed");
             PolymorphCooldownService.Clear(self.Self);
-            SunExpLog.Warn("[Polymorph] trait apply failed: " + ex.Message);
+            TerriasLog.Warn("[Polymorph] trait apply failed: " + ex.Message);
             PlayerApi.ShowCaption("\u767e\u53d8\uff1a\u5316\u8eab\u5207\u6362\u5931\u8d25\u3002");
             return false;
         }
@@ -97,11 +97,11 @@ public static class PolymorphBuffService
 
             PolymorphStateStore.ClearOwner(owner, "PolymorphBuffService.Clear");
             PolymorphCooldownService.Clear(owner);
-            SunExpPerformanceCounters.Record("Polymorph.BuffCleared");
+            TerriasPerformanceCounters.Record("Polymorph.BuffCleared");
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[Polymorph] trait clear failed: " + ex.Message);
+            TerriasLog.Warn("[Polymorph] trait clear failed: " + ex.Message);
         }
     }
 
@@ -115,7 +115,7 @@ public static class PolymorphBuffService
         var description = "\u53d8\u8eab\u6210\u4e3a" + role.DisplayName;
         SetDescription(self.dataConfig, description);
 
-        var buff = self.Self?.GetBuff(SunExpIds.PolymorphTraitBuffId);
+        var buff = self.Self?.GetBuff(TerriasIds.PolymorphTraitBuffId);
         SetDescription(buff?.buffConfig?.dataConfig, description);
         try
         {
@@ -123,7 +123,7 @@ public static class PolymorphBuffService
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("[Polymorph] trait buff message refresh skipped: " + ex.Message);
+            TerriasLog.Debug("[Polymorph] trait buff message refresh skipped: " + ex.Message);
         }
     }
 
@@ -149,11 +149,11 @@ public static class PolymorphBuffService
         try
         {
             self.SetStatus("Self");
-            self.RemoveBuff(SunExpIds.PolymorphTraitBuffId);
+            self.RemoveBuff(TerriasIds.PolymorphTraitBuffId);
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[Polymorph] inert trait buff remove failed: " + ex.Message);
+            TerriasLog.Warn("[Polymorph] inert trait buff remove failed: " + ex.Message);
         }
     }
 

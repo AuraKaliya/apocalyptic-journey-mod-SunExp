@@ -1,8 +1,8 @@
 using System;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class EnemyApi
 {
@@ -41,7 +41,7 @@ public static class EnemyApi
 
         if (!CanAddDynamicEnemyAuthoritatively())
         {
-            SunExpLog.Debug("[EnemyApi] skipped dynamic enemy add on non-authoritative client: "
+            TerriasLog.Debug("[EnemyApi] skipped dynamic enemy add on non-authoritative client: "
                 + enemyId
                 + "; source="
                 + source);
@@ -53,7 +53,7 @@ public static class EnemyApi
             var manager = EnemyManager.Instance;
             if (manager == null)
             {
-                SunExpLog.Warn("[EnemyApi] dynamic enemy add skipped because EnemyManager is unavailable: "
+                TerriasLog.Warn("[EnemyApi] dynamic enemy add skipped because EnemyManager is unavailable: "
                     + enemyId
                     + "; source="
                     + source);
@@ -61,7 +61,7 @@ public static class EnemyApi
             }
 
             manager.AddEnemy(enemyId);
-            SunExpLog.Info("[EnemyApi] authoritative dynamic enemy add: "
+            TerriasLog.Info("[EnemyApi] authoritative dynamic enemy add: "
                 + enemyId
                 + "; source="
                 + source);
@@ -69,7 +69,7 @@ public static class EnemyApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EnemyApi] dynamic enemy add failed: "
+            TerriasLog.Warn("[EnemyApi] dynamic enemy add failed: "
                 + enemyId
                 + "; source="
                 + source

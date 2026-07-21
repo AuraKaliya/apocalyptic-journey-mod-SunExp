@@ -1,16 +1,16 @@
 using System;
 using System.Collections.Generic;
 using Data.Save;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Hooks.Ui;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Hooks.Ui;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch;
 using Witch.Core;
 using Witch.Mod;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class DimensionShopRuntime
 {
@@ -29,7 +29,7 @@ public static class DimensionShopRuntime
         RegisterBefore(modConfig, "MapItem.OnPointerDown", RestoreBeforeMapItemBoundary);
         RegisterBefore(modConfig, "Commands.load", PrepareDimensionShopRoute);
         RegisterAfter(modConfig, "Commands.load", OpenDimensionShop);
-        SunExpBattleLifecycleRouter.Register("DimensionShop", new SunExpBattleLifecycleSubscription
+        TerriasBattleLifecycleRouter.Register("DimensionShop", new TerriasBattleLifecycleSubscription
         {
             AdventureStarting = _ =>
             {
@@ -41,12 +41,12 @@ public static class DimensionShopRuntime
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.Before(config, target, action, "DimensionShop");
+        TerriasHookRegistry.Before(config, target, action, "DimensionShop");
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.After(config, target, action, "DimensionShop");
+        TerriasHookRegistry.After(config, target, action, "DimensionShop");
     }
 
     private static void InjectFirstLayerCandidate(ModHookContext context)
@@ -60,7 +60,7 @@ public static class DimensionShopRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[DimensionShop] first-layer injection failed", ex);
+            TerriasLog.Error("[DimensionShop] first-layer injection failed", ex);
         }
     }
 
@@ -76,7 +76,7 @@ public static class DimensionShopRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[DimensionShop] pre-selection repair failed", ex);
+            TerriasLog.Error("[DimensionShop] pre-selection repair failed", ex);
         }
     }
 
@@ -115,22 +115,22 @@ public static class DimensionShopRuntime
 
         if (replacement < 0)
         {
-            SunExpLog.Warn("[DimensionShop] no replaceable first-layer candidate from " + source + ".");
+            TerriasLog.Warn("[DimensionShop] no replaceable first-layer candidate from " + source + ".");
             return;
         }
 
-        var row = SunExpConfigIndex.Row(DataType.Map, SunExpIds.DimensionShopMapId)
-                  ?? SunExpConfigIndex.Row(DataType.Map, SunExpIds.DimensionShopMapShortId);
+        var row = TerriasConfigIndex.Row(DataType.Map, TerriasIds.DimensionShopMapId)
+                  ?? TerriasConfigIndex.Row(DataType.Map, TerriasIds.DimensionShopMapShortId);
         if (row == null)
         {
-            SunExpLog.Warn("[DimensionShop] map row is unavailable from " + source + ".");
+            TerriasLog.Warn("[DimensionShop] map row is unavailable from " + source + ".");
             return;
         }
 
         var data = new Dictionary<string, string>(row)
         {
             ["Type"] = "Build",
-            ["NodeId"] = SunExpIds.DimensionShopNodeId,
+            ["NodeId"] = TerriasIds.DimensionShopNodeId,
             ["Note"] = "\u5efa\u7b51"
         };
         var previous = nodes[replacement];
@@ -139,7 +139,7 @@ public static class DimensionShopRuntime
             data = data,
             NodeDice = previous.NodeDice
         };
-        SunExpLog.Info("[DimensionShop] injected first-layer candidate at index="
+        TerriasLog.Info("[DimensionShop] injected first-layer candidate at index="
                        + replacement
                        + " from "
                        + source
@@ -159,14 +159,14 @@ public static class DimensionShopRuntime
 
             var nodeId = DictionaryUtil.Get(node.data, "NodeId");
             if (!IsDimensionShopNode(node)
-                || !string.Equals(nodeId, SunExpIds.DimensionShopNodeId, StringComparison.Ordinal))
+                || !string.Equals(nodeId, TerriasIds.DimensionShopNodeId, StringComparison.Ordinal))
             {
                 return;
             }
 
             PendingNativeNodeIds[node] = nodeId;
             node.data["NodeId"] = NativeMapItemNodeId;
-            SunExpLog.InfoAlways("[DimensionShop] native MapItem compatibility applied; id="
+            TerriasLog.InfoAlways("[DimensionShop] native MapItem compatibility applied; id="
                                  + DictionaryUtil.Get(node.data, "Id")
                                  + "; originalNodeId="
                                  + nodeId
@@ -176,7 +176,7 @@ public static class DimensionShopRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[DimensionShop] native MapItem compatibility prepare failed", ex);
+            TerriasLog.Error("[DimensionShop] native MapItem compatibility prepare failed", ex);
         }
     }
 
@@ -204,7 +204,7 @@ public static class DimensionShopRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[DimensionShop] MapItem boundary restore failed", ex);
+            TerriasLog.Error("[DimensionShop] MapItem boundary restore failed", ex);
         }
     }
 
@@ -238,7 +238,7 @@ public static class DimensionShopRuntime
         {
             if (node.data == null)
             {
-                SunExpLog.Warn("[DimensionShop] native MapItem compatibility restore deferred because node data is unavailable; source="
+                TerriasLog.Warn("[DimensionShop] native MapItem compatibility restore deferred because node data is unavailable; source="
                                + source
                                + ".");
                 return false;
@@ -255,18 +255,18 @@ public static class DimensionShopRuntime
                           + ".";
             if (expected)
             {
-                SunExpLog.InfoAlways(message);
+                TerriasLog.InfoAlways(message);
             }
             else
             {
-                SunExpLog.Warn(message);
+                TerriasLog.Warn(message);
             }
 
             return true;
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[DimensionShop] native MapItem compatibility restore failed from " + source, ex);
+            TerriasLog.Error("[DimensionShop] native MapItem compatibility restore failed from " + source, ex);
             return false;
         }
     }
@@ -307,12 +307,12 @@ public static class DimensionShopRuntime
             pendingResidualRoute = true;
             RestorePendingDimensionShopNode(currentNode, "Commands.load:before", expected: false);
             RestorePendingDimensionShopNodes("Commands.load:before");
-            SunExpLog.Warn("[DimensionShop] recovered a residual native NodeId at the command route boundary.");
+            TerriasLog.Warn("[DimensionShop] recovered a residual native NodeId at the command route boundary.");
         }
         catch (Exception ex)
         {
             pendingResidualRoute = false;
-            SunExpLog.Error("[DimensionShop] route compatibility prepare failed", ex);
+            TerriasLog.Error("[DimensionShop] route compatibility prepare failed", ex);
         }
     }
 
@@ -325,7 +325,7 @@ public static class DimensionShopRuntime
             if (context.Arguments == null
                 || context.Arguments.Length < 2
                 || !string.Equals(Convert.ToString(context.Arguments[0]), "build", StringComparison.OrdinalIgnoreCase)
-                || (!string.Equals(Convert.ToString(context.Arguments[1]), SunExpIds.DimensionShopNodeId, StringComparison.Ordinal)
+                || (!string.Equals(Convert.ToString(context.Arguments[1]), TerriasIds.DimensionShopNodeId, StringComparison.Ordinal)
                     && !residualRoute))
             {
                 return;
@@ -342,7 +342,7 @@ public static class DimensionShopRuntime
         catch (Exception ex)
         {
             pendingResidualRoute = false;
-            SunExpLog.Error("[DimensionShop] open route failed", ex);
+            TerriasLog.Error("[DimensionShop] open route failed", ex);
             DimensionShopGameApi.AdvanceMap();
         }
     }
@@ -351,9 +351,9 @@ public static class DimensionShopRuntime
     {
         var id = DictionaryUtil.Get(node?.data, "Id");
         var nodeId = DictionaryUtil.Get(node?.data, "NodeId");
-        return string.Equals(id, SunExpIds.DimensionShopMapId, StringComparison.Ordinal)
-               || string.Equals(id, SunExpIds.DimensionShopMapShortId, StringComparison.Ordinal)
-               || string.Equals(nodeId, SunExpIds.DimensionShopNodeId, StringComparison.Ordinal);
+        return string.Equals(id, TerriasIds.DimensionShopMapId, StringComparison.Ordinal)
+               || string.Equals(id, TerriasIds.DimensionShopMapShortId, StringComparison.Ordinal)
+               || string.Equals(nodeId, TerriasIds.DimensionShopNodeId, StringComparison.Ordinal);
     }
 
     private static bool IsMapAuthority()

@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using System.Globalization;
 using System.Linq;
 using Data.Save;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch;
 using Witch.Core;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class EndlessSeaRunPhase
 {
@@ -31,24 +31,24 @@ public static class EndlessSeaRunStateStore
             return;
         }
 
-        saveInfo.modeType = SunExpIds.NativeNormalModeType;
-        Set(saveInfo, SunExpIds.EndlessSeaModeKey, "1");
-        Set(saveInfo, SunExpIds.EndlessSeaFloorKey, "1");
-        Set(saveInfo, SunExpIds.EndlessSeaGeneratedFloorKey, "0");
-        Set(saveInfo, SunExpIds.EndlessSeaSeedKey, seed ?? "");
-        Set(saveInfo, SunExpIds.EndlessSeaFloorPlanKey, "");
-        Set(saveInfo, SunExpIds.EndlessSeaIntroSeenKey, "0");
-        Set(saveInfo, SunExpIds.EndlessSeaStarterDeckAppliedKey, "0");
-        Set(saveInfo, SunExpIds.EndlessSeaStarterDeckModeKey, "");
-        Set(saveInfo, SunExpIds.EndlessSeaRunIdKey, Guid.NewGuid().ToString("N"));
-        Set(saveInfo, SunExpIds.EndlessSeaRunVersionKey, Version);
-        Set(saveInfo, SunExpIds.EndlessSeaRunPhaseKey, EndlessSeaRunPhase.Intro);
-        Set(saveInfo, SunExpIds.EndlessSeaRunEndedKey, "0");
-        Set(saveInfo, SunExpIds.EndlessAbyssEvacuationTokenKey, "");
-        Set(saveInfo, SunExpIds.EndlessAbyssEvacuationReasonKey, "");
-        Set(saveInfo, SunExpIds.EndlessAbyssEvacuationFloorKey, "0");
-        Set(saveInfo, SunExpIds.EndlessAbyssEvacuationDepthKey, "0");
-        Set(saveInfo, SunExpIds.EndlessAbyssEvacuationAtKey, "");
+        saveInfo.modeType = TerriasIds.NativeNormalModeType;
+        Set(saveInfo, TerriasIds.EndlessSeaModeKey, "1");
+        Set(saveInfo, TerriasIds.EndlessSeaFloorKey, "1");
+        Set(saveInfo, TerriasIds.EndlessSeaGeneratedFloorKey, "0");
+        Set(saveInfo, TerriasIds.EndlessSeaSeedKey, seed ?? "");
+        Set(saveInfo, TerriasIds.EndlessSeaFloorPlanKey, "");
+        Set(saveInfo, TerriasIds.EndlessSeaIntroSeenKey, "0");
+        Set(saveInfo, TerriasIds.EndlessSeaStarterDeckAppliedKey, "0");
+        Set(saveInfo, TerriasIds.EndlessSeaStarterDeckModeKey, "");
+        Set(saveInfo, TerriasIds.EndlessSeaRunIdKey, Guid.NewGuid().ToString("N"));
+        Set(saveInfo, TerriasIds.EndlessSeaRunVersionKey, Version);
+        Set(saveInfo, TerriasIds.EndlessSeaRunPhaseKey, EndlessSeaRunPhase.Intro);
+        Set(saveInfo, TerriasIds.EndlessSeaRunEndedKey, "0");
+        Set(saveInfo, TerriasIds.EndlessAbyssEvacuationTokenKey, "");
+        Set(saveInfo, TerriasIds.EndlessAbyssEvacuationReasonKey, "");
+        Set(saveInfo, TerriasIds.EndlessAbyssEvacuationFloorKey, "0");
+        Set(saveInfo, TerriasIds.EndlessAbyssEvacuationDepthKey, "0");
+        Set(saveInfo, TerriasIds.EndlessAbyssEvacuationAtKey, "");
         EndlessAbyssGazeService.Initialize(saveInfo);
         EndlessAbyssRunLedger.Initialize(saveInfo);
         Touch(saveInfo);
@@ -75,15 +75,15 @@ public static class EndlessSeaRunStateStore
         }
 
         var changed = false;
-        if (!string.Equals(saveInfo.modeType, SunExpIds.NativeNormalModeType, StringComparison.Ordinal))
+        if (!string.Equals(saveInfo.modeType, TerriasIds.NativeNormalModeType, StringComparison.Ordinal))
         {
             var legacyModeType = saveInfo.modeType ?? "";
-            saveInfo.modeType = SunExpIds.NativeNormalModeType;
+            saveInfo.modeType = TerriasIds.NativeNormalModeType;
             changed = true;
-            SunExpLog.Info("[EndlessSeaRunState] migrated save mode from "
+            TerriasLog.Info("[EndlessSeaRunState] migrated save mode from "
                 + legacyModeType
                 + " to "
-                + SunExpIds.NativeNormalModeType
+                + TerriasIds.NativeNormalModeType
                 + " from "
                 + source
                 + "; save="
@@ -91,36 +91,36 @@ public static class EndlessSeaRunStateStore
                 + ".");
         }
 
-        changed |= Ensure(saveInfo, SunExpIds.EndlessSeaModeKey, "1");
-        changed |= Ensure(saveInfo, SunExpIds.EndlessSeaFloorKey, "1");
-        changed |= Ensure(saveInfo, SunExpIds.EndlessSeaGeneratedFloorKey, "0");
-        changed |= Ensure(saveInfo, SunExpIds.EndlessSeaSeedKey, saveInfo.Seed ?? "");
-        changed |= Ensure(saveInfo, SunExpIds.EndlessSeaFloorPlanKey, "");
-        changed |= Ensure(saveInfo, SunExpIds.EndlessSeaIntroSeenKey, "0");
-        changed |= Ensure(saveInfo, SunExpIds.EndlessSeaStarterDeckAppliedKey, "0");
-        changed |= Ensure(saveInfo, SunExpIds.EndlessSeaStarterDeckModeKey, "");
-        changed |= Ensure(saveInfo, SunExpIds.EndlessSeaRunIdKey, Guid.NewGuid().ToString("N"));
-        changed |= Ensure(saveInfo, SunExpIds.EndlessSeaRunVersionKey, Version);
-        changed |= Ensure(saveInfo, SunExpIds.EndlessSeaRunPhaseKey, DefaultPhase(saveInfo));
-        changed |= Ensure(saveInfo, SunExpIds.EndlessSeaRunEndedKey, "0");
-        changed |= Ensure(saveInfo, SunExpIds.EndlessAbyssEvacuationTokenKey, "");
-        changed |= Ensure(saveInfo, SunExpIds.EndlessAbyssEvacuationReasonKey, "");
-        changed |= Ensure(saveInfo, SunExpIds.EndlessAbyssEvacuationFloorKey, "0");
-        changed |= Ensure(saveInfo, SunExpIds.EndlessAbyssEvacuationDepthKey, "0");
-        changed |= Ensure(saveInfo, SunExpIds.EndlessAbyssEvacuationAtKey, "");
-        changed |= Ensure(saveInfo, SunExpIds.EndlessAbyssGazeLevelKey, EndlessAbyssGazeService.InitialLevel.ToString(CultureInfo.InvariantCulture));
-        changed |= Ensure(saveInfo, SunExpIds.EndlessAbyssLedgerKey, "{\"Entries\":[]}");
-        changed |= Ensure(saveInfo, SunExpIds.EndlessAbyssPendingShockKey, "");
+        changed |= Ensure(saveInfo, TerriasIds.EndlessSeaModeKey, "1");
+        changed |= Ensure(saveInfo, TerriasIds.EndlessSeaFloorKey, "1");
+        changed |= Ensure(saveInfo, TerriasIds.EndlessSeaGeneratedFloorKey, "0");
+        changed |= Ensure(saveInfo, TerriasIds.EndlessSeaSeedKey, saveInfo.Seed ?? "");
+        changed |= Ensure(saveInfo, TerriasIds.EndlessSeaFloorPlanKey, "");
+        changed |= Ensure(saveInfo, TerriasIds.EndlessSeaIntroSeenKey, "0");
+        changed |= Ensure(saveInfo, TerriasIds.EndlessSeaStarterDeckAppliedKey, "0");
+        changed |= Ensure(saveInfo, TerriasIds.EndlessSeaStarterDeckModeKey, "");
+        changed |= Ensure(saveInfo, TerriasIds.EndlessSeaRunIdKey, Guid.NewGuid().ToString("N"));
+        changed |= Ensure(saveInfo, TerriasIds.EndlessSeaRunVersionKey, Version);
+        changed |= Ensure(saveInfo, TerriasIds.EndlessSeaRunPhaseKey, DefaultPhase(saveInfo));
+        changed |= Ensure(saveInfo, TerriasIds.EndlessSeaRunEndedKey, "0");
+        changed |= Ensure(saveInfo, TerriasIds.EndlessAbyssEvacuationTokenKey, "");
+        changed |= Ensure(saveInfo, TerriasIds.EndlessAbyssEvacuationReasonKey, "");
+        changed |= Ensure(saveInfo, TerriasIds.EndlessAbyssEvacuationFloorKey, "0");
+        changed |= Ensure(saveInfo, TerriasIds.EndlessAbyssEvacuationDepthKey, "0");
+        changed |= Ensure(saveInfo, TerriasIds.EndlessAbyssEvacuationAtKey, "");
+        changed |= Ensure(saveInfo, TerriasIds.EndlessAbyssGazeLevelKey, EndlessAbyssGazeService.InitialLevel.ToString(CultureInfo.InvariantCulture));
+        changed |= Ensure(saveInfo, TerriasIds.EndlessAbyssLedgerKey, "{\"Entries\":[]}");
+        changed |= Ensure(saveInfo, TerriasIds.EndlessAbyssPendingShockKey, "");
 
         if (changed)
         {
             Touch(saveInfo);
-            SunExpLog.Info("[EndlessSeaRunState] repaired save from "
+            TerriasLog.Info("[EndlessSeaRunState] repaired save from "
                 + source
                 + "; name="
                 + saveInfo.Name
                 + "; floor="
-                + Value(saveInfo, SunExpIds.EndlessSeaFloorKey));
+                + Value(saveInfo, TerriasIds.EndlessSeaFloorKey));
         }
 
         return changed;
@@ -134,10 +134,10 @@ public static class EndlessSeaRunStateStore
             return;
         }
 
-        if (Set(saveInfo, SunExpIds.EndlessSeaRunPhaseKey, phase))
+        if (Set(saveInfo, TerriasIds.EndlessSeaRunPhaseKey, phase))
         {
             Touch(saveInfo);
-            SunExpLog.Debug("[EndlessSeaRunState] phase=" + phase + " from " + source);
+            TerriasLog.Debug("[EndlessSeaRunState] phase=" + phase + " from " + source);
         }
     }
 
@@ -145,7 +145,7 @@ public static class EndlessSeaRunStateStore
     {
         var saveInfo = GameSaveManager.GetNowSave();
         return IsEndlessSeaSave(saveInfo) && saveInfo?.GameVars != null
-            ? Value(saveInfo, SunExpIds.EndlessSeaRunPhaseKey)
+            ? Value(saveInfo, TerriasIds.EndlessSeaRunPhaseKey)
             : "";
     }
 
@@ -165,16 +165,16 @@ public static class EndlessSeaRunStateStore
         if (!IsEndlessSeaSave(saveInfo)
             || saveInfo?.GameVars == null
             || string.IsNullOrWhiteSpace(token)
-            || Value(saveInfo, SunExpIds.EndlessSeaRunEndedKey) == "1")
+            || Value(saveInfo, TerriasIds.EndlessSeaRunEndedKey) == "1")
         {
             return false;
         }
 
-        var phase = Value(saveInfo, SunExpIds.EndlessSeaRunPhaseKey);
+        var phase = Value(saveInfo, TerriasIds.EndlessSeaRunPhaseKey);
         if (string.Equals(phase, EndlessSeaRunPhase.Evacuating, StringComparison.Ordinal))
         {
             return string.Equals(
-                Value(saveInfo, SunExpIds.EndlessAbyssEvacuationTokenKey),
+                Value(saveInfo, TerriasIds.EndlessAbyssEvacuationTokenKey),
                 token,
                 StringComparison.Ordinal);
         }
@@ -184,14 +184,14 @@ public static class EndlessSeaRunStateStore
             return false;
         }
 
-        Set(saveInfo, SunExpIds.EndlessSeaRunPhaseKey, EndlessSeaRunPhase.Evacuating);
-        Set(saveInfo, SunExpIds.EndlessAbyssEvacuationTokenKey, token.Trim());
-        Set(saveInfo, SunExpIds.EndlessAbyssEvacuationReasonKey, "Evacuation");
-        Set(saveInfo, SunExpIds.EndlessAbyssEvacuationFloorKey, Math.Max(1, floor).ToString(CultureInfo.InvariantCulture));
-        Set(saveInfo, SunExpIds.EndlessAbyssEvacuationDepthKey, Math.Max(0, depth).ToString(CultureInfo.InvariantCulture));
-        Set(saveInfo, SunExpIds.EndlessAbyssEvacuationAtKey, evacuatedAt ?? "");
+        Set(saveInfo, TerriasIds.EndlessSeaRunPhaseKey, EndlessSeaRunPhase.Evacuating);
+        Set(saveInfo, TerriasIds.EndlessAbyssEvacuationTokenKey, token.Trim());
+        Set(saveInfo, TerriasIds.EndlessAbyssEvacuationReasonKey, "Evacuation");
+        Set(saveInfo, TerriasIds.EndlessAbyssEvacuationFloorKey, Math.Max(1, floor).ToString(CultureInfo.InvariantCulture));
+        Set(saveInfo, TerriasIds.EndlessAbyssEvacuationDepthKey, Math.Max(0, depth).ToString(CultureInfo.InvariantCulture));
+        Set(saveInfo, TerriasIds.EndlessAbyssEvacuationAtKey, evacuatedAt ?? "");
         Touch(saveInfo);
-        SunExpLog.Info("[EndlessAbyssEvacuation] prepared from "
+        TerriasLog.Info("[EndlessAbyssEvacuation] prepared from "
             + source
             + "; floor="
             + Math.Max(1, floor)
@@ -211,10 +211,10 @@ public static class EndlessSeaRunStateStore
             return;
         }
 
-        Set(saveInfo, SunExpIds.EndlessSeaRunPhaseKey, EndlessSeaRunPhase.Ended);
-        Set(saveInfo, SunExpIds.EndlessSeaRunEndedKey, "1");
+        Set(saveInfo, TerriasIds.EndlessSeaRunPhaseKey, EndlessSeaRunPhase.Ended);
+        Set(saveInfo, TerriasIds.EndlessSeaRunEndedKey, "1");
         Touch(saveInfo);
-        SunExpLog.Info("[EndlessSeaRunState] marked ended from " + source + ".");
+        TerriasLog.Info("[EndlessSeaRunState] marked ended from " + source + ".");
     }
 
     public static SaveInfo? FindLatestUnfinishedRun()
@@ -233,7 +233,7 @@ public static class EndlessSeaRunStateStore
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessSeaRunState] find latest run failed: " + ex.Message);
+            TerriasLog.Warn("[EndlessSeaRunState] find latest run failed: " + ex.Message);
             return null;
         }
     }
@@ -252,15 +252,15 @@ public static class EndlessSeaRunStateStore
         }
 
         if (saveInfo.GameVars != null
-            && saveInfo.GameVars.TryGetValue(SunExpIds.EndlessSeaModeKey, out var value)
+            && saveInfo.GameVars.TryGetValue(TerriasIds.EndlessSeaModeKey, out var value)
             && value == "1")
         {
             return true;
         }
 
-        return string.Equals(saveInfo.modeType, SunExpIds.EndlessSeaModeType, StringComparison.Ordinal)
+        return string.Equals(saveInfo.modeType, TerriasIds.EndlessSeaModeType, StringComparison.Ordinal)
             && saveInfo.Name != null
-            && saveInfo.Name.StartsWith("SunExpEndlessSea", StringComparison.Ordinal);
+            && saveInfo.Name.StartsWith("TerriasEndlessSea", StringComparison.Ordinal);
     }
 
     public static int DeleteUnfinishedRuns(string source)
@@ -276,7 +276,7 @@ public static class EndlessSeaRunStateStore
             }
             catch (Exception ex)
             {
-                SunExpLog.Warn("[EndlessSeaRunState] delete unfinished run failed from "
+                TerriasLog.Warn("[EndlessSeaRunState] delete unfinished run failed from "
                     + source
                     + "; save="
                     + save.Name
@@ -287,7 +287,7 @@ public static class EndlessSeaRunStateStore
 
         if (deleted > 0)
         {
-            SunExpLog.Info("[EndlessSeaRunState] deleted unfinished runs from "
+            TerriasLog.Info("[EndlessSeaRunState] deleted unfinished runs from "
                 + source
                 + ": "
                 + deleted
@@ -328,7 +328,7 @@ public static class EndlessSeaRunStateStore
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("[EndlessSeaRunState] LoadAll skipped: " + ex.Message);
+            TerriasLog.Debug("[EndlessSeaRunState] LoadAll skipped: " + ex.Message);
         }
 
         return byName.Values;
@@ -354,13 +354,13 @@ public static class EndlessSeaRunStateStore
 
     private static bool IsEnded(SaveInfo saveInfo)
     {
-        return Value(saveInfo, SunExpIds.EndlessSeaRunEndedKey) == "1"
-            || Value(saveInfo, SunExpIds.EndlessSeaRunPhaseKey) == EndlessSeaRunPhase.Ended;
+        return Value(saveInfo, TerriasIds.EndlessSeaRunEndedKey) == "1"
+            || Value(saveInfo, TerriasIds.EndlessSeaRunPhaseKey) == EndlessSeaRunPhase.Ended;
     }
 
     private static long SortStamp(SaveInfo saveInfo)
     {
-        var updated = Value(saveInfo, SunExpIds.EndlessSeaRunUpdatedAtKey);
+        var updated = Value(saveInfo, TerriasIds.EndlessSeaRunUpdatedAtKey);
         if (DateTime.TryParse(updated, CultureInfo.InvariantCulture, DateTimeStyles.RoundtripKind, out var parsed))
         {
             return parsed.Ticks;
@@ -371,7 +371,7 @@ public static class EndlessSeaRunStateStore
 
     private static string DefaultPhase(SaveInfo saveInfo)
     {
-        return Value(saveInfo, SunExpIds.EndlessSeaStarterDeckAppliedKey) == "1"
+        return Value(saveInfo, TerriasIds.EndlessSeaStarterDeckAppliedKey) == "1"
             ? EndlessSeaRunPhase.MapPlanning
             : EndlessSeaRunPhase.Intro;
     }
@@ -410,6 +410,6 @@ public static class EndlessSeaRunStateStore
             return;
         }
 
-        saveInfo.GameVars[SunExpIds.EndlessSeaRunUpdatedAtKey] = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
+        saveInfo.GameVars[TerriasIds.EndlessSeaRunUpdatedAtKey] = DateTime.UtcNow.ToString("O", CultureInfo.InvariantCulture);
     }
 }

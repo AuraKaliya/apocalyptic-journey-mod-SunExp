@@ -1,11 +1,11 @@
 using System;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class RelicApi
 {
-    private const string SunExpPrefix = "SunExp_sunexp_";
+    private const string TerriasPrefix = "Terrias_terrias_";
 
     public static bool HasRelic(string localId)
     {
@@ -25,7 +25,7 @@ public static class RelicApi
             foreach (var relic in relics)
             {
                 var id = DictionaryUtil.Get(relic?.data, "Id");
-                if (SameSunExpLocalId(id, localId))
+                if (SameTerriasLocalId(id, localId))
                 {
                     return true;
                 }
@@ -33,13 +33,13 @@ public static class RelicApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("[RelicApi] relic scan skipped: " + ex.Message);
+            TerriasLog.Debug("[RelicApi] relic scan skipped: " + ex.Message);
         }
 
         return false;
     }
 
-    private static bool SameSunExpLocalId(string? id, string localId)
+    private static bool SameTerriasLocalId(string? id, string localId)
     {
         if (string.IsNullOrWhiteSpace(id))
         {
@@ -49,6 +49,6 @@ public static class RelicApi
         var value = id!.Trim().TrimStart('*');
         var expected = localId.Trim().TrimStart('*');
         return string.Equals(value, expected, StringComparison.Ordinal)
-               || string.Equals(value, SunExpPrefix + expected, StringComparison.Ordinal);
+               || string.Equals(value, TerriasPrefix + expected, StringComparison.Ordinal);
     }
 }

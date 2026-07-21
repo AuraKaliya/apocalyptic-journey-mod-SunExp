@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using UnityEngine.Events;
 using UnityEngine.UI;
 
-namespace SunExp.Dll.Hooks.Ui;
+namespace Terrias.Dll.Hooks.Ui;
 
-public sealed class SunExpUiLifetimeScope : IDisposable
+public sealed class TerriasUiLifetimeScope : IDisposable
 {
     private readonly List<Action> cleanup = new();
 

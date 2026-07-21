@@ -1,16 +1,16 @@
 # Skill CG And Shared Resources
 
 Use this reference when editing Skill CG declarations, CG playback, shared
-resource manifests, or AuraTools consumption of SunExp CG entries.
+resource manifests, or AuraTools consumption of Terrias CG entries.
 
-## SunExp Surfaces
+## Terrias Surfaces
 
-- `SunExp/SharedResources/package.json`: installs shared CG files and bundle
+- `Terrias/SharedResources/package.json`: installs shared CG files and bundle
   resources into AuraShared.
-- `SunExp/SharedResources/cg.registry.json`: declares CG entries, display
+- `Terrias/SharedResources/cg.registry.json`: declares CG entries, display
   names, target roles/cards, media resources, presentation, priority, and
   enabled state.
-- `SunExp-Dev/Features/SkillCg/SunExpSkillCgRuntime.cs`: SunExp-side trigger
+- `Terrias-Dev/Features/SkillCg/TerriasSkillCgRuntime.cs`: Terrias-side trigger
   and runtime integration.
 - `AuraCgShared/*`: shared CG registry, activation, overlay playback, and
   runtime protocol.
@@ -19,16 +19,16 @@ resource manifests, or AuraTools consumption of SunExp CG entries.
 
 ## Content/Tool Split
 
-SunExp is a content owner. It installs files, registers CG manifests, and
+Terrias is a content owner. It installs files, registers CG manifests, and
 provides machine-readable semantics. AuraTools consumes the shared declarations
 and may create local tool rules or overrides.
 
 When AuraToolsExp is installed, its local effective CG configuration gates the
 registered entry on that machine, including received multiplayer playback. It
-must not replace a SunExp CG request with a private AuraTools provider; the
+must not replace a Terrias CG request with a private AuraTools provider; the
 network identity remains the content owner's registered `ownerModId + cgId`.
 
-Do not make AuraTools guess SunExp folder layout, scan private content folders,
+Do not make AuraTools guess Terrias folder layout, scan private content folders,
 or copy foreign CG files into a tool-owned default directory unless the user is
 explicitly creating a local override.
 
@@ -42,7 +42,7 @@ explicitly creating a local override.
 - Keep bundled-frame metadata aligned between `package.json`,
   `cg.registry.json`, and the VisualBundle.
 - Treat online de-duplication, relay, and multi-mod coordination as
-  `AuraCgShared` responsibilities. SunExp should request playback; AuraTools
+  `AuraCgShared` responsibilities. Terrias should request playback; AuraTools
   should configure or override playback; neither should implement a private
   Skill CG multiplayer protocol.
 
@@ -67,7 +67,7 @@ Use this shape for synchronized Skill CG playback:
    new events are inserted and played.
 6. If multiple content/tool paths match the same local action, the shared layer
    should reuse the same play id within a short action window so imported
-   AuraTools rules and SunExp declarations cannot produce duplicate playback.
+   AuraTools rules and Terrias declarations cannot produce duplicate playback.
 
 Remote `FightUI.CallActionAnimation` observations are only observations. They
 must not create fresh play ids or local broadcasts. Valid network playback comes
@@ -78,7 +78,7 @@ from the local owner or from a host-authorized relay.
 For Skill CG or shared resource protocol changes, run:
 
 ```powershell
-tools\Build-SunExpDll.ps1
+tools\Build-TerriasDll.ps1
 tools\Build-AuraToolsExpDll.ps1
 tools\Test-AuraSharedCore.ps1
 tools\Test-NetworkRpcAuthority.ps1
@@ -87,5 +87,5 @@ tools\Test-SharedReleaseGate.ps1
 tools\Test-SharedDllPackaging.ps1
 ```
 
-If only SunExp registry data changes, still run SunExp validation and inspect
+If only Terrias registry data changes, still run Terrias validation and inspect
 shared resource paths.

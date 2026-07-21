@@ -11,7 +11,7 @@ source into each Mod assembly.
 
 Important consumers include:
 
-- `SunExp-Dev/SunExp.Dll.csproj`
+- `Terrias-Dev/Terrias.Dll.csproj`
 - `AuraToolsExp-Dev/AuraToolsExp.Dll.csproj`
 - `SanGuoShaExp-Dev/SanGuoShaExp.Dll.csproj`
 - test/prototype consumers listed in `tools/Test-SharedDllPackaging.ps1`
@@ -39,7 +39,7 @@ Current gate families include:
 `tools/Test-NetworkRpcAuthority.ps1` guards the cross-mod authority model:
 
 - server-bound commands receive sender context from receive hooks;
-- SunExp Solar Memory role commit validates sender and role identity;
+- Terrias Solar Memory role commit validates sender and role identity;
 - AuraTools DamageMeter control/snapshot/report paths do not trust payload
   issuer or reporter fields;
 - oversized payloads are blocked or chunked before network serialization.
@@ -49,7 +49,7 @@ Current gate families include:
 Use the broad gate for shared protocol or packaging changes:
 
 ```powershell
-tools\Build-SunExpDll.ps1
+tools\Build-TerriasDll.ps1
 tools\Build-AuraToolsExpDll.ps1
 tools\Test-NetworkRpcAuthority.ps1
 tools\Test-SharedArchitectureGuidelines.ps1

@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "ownerModId": "SunExp",
+  "ownerModId": "Terrias",
   "protocol": {
     "minVersion": 1,
     "preferredVersion": 2
@@ -10,16 +10,16 @@
       "effectId": "stellar-overture-star-trail",
       "displayName": "星辰序曲·星轨织带",
       "cardIds": [
-        "SunExp_sunexp_stellar_overture_start",
-        "SunExp_sunexp_stellar_overture_sustain",
-        "SunExp_sunexp_stellar_overture_turn",
-        "SunExp_sunexp_stellar_overture_close",
+        "Terrias_terrias_stellar_overture_start",
+        "Terrias_terrias_stellar_overture_sustain",
+        "Terrias_terrias_stellar_overture_turn",
+        "Terrias_terrias_stellar_overture_close",
         "stellar_overture_start",
         "stellar_overture_sustain",
         "stellar_overture_turn",
         "stellar_overture_close"
       ],
-      "visualEffectId": "sunexp.card_visual_effect.stardust_overture",
+      "visualEffectId": "terrias.card_visual_effect.stardust_overture",
       "presentationScope": "ownerLocal",
       "stackMode": "stack",
       "exclusiveGroup": "",

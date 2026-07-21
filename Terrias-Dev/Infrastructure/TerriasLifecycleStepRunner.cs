@@ -2,14 +2,14 @@ using System;
 using System.Collections.Generic;
 using AuraShared.Core;
 
-namespace SunExp.Dll.Infrastructure;
+namespace Terrias.Dll.Infrastructure;
 
-public static class SunExpLifecycleStepRunner
+public static class TerriasLifecycleStepRunner
 {
     public static bool RunBattleOnce(
         string featureId,
         string lifecycleId,
-        IEnumerable<SunExpFrameStep> steps,
+        IEnumerable<TerriasFrameStep> steps,
         AuraSharedFramePhase phase = AuraSharedFramePhase.GameplayMutation,
         int priority = 0,
         int estimatedCost = 1,
@@ -72,11 +72,11 @@ public static class SunExpLifecycleStepRunner
         var key = FeatureLifecycleKeyFor(featureId, lifecycleId);
         var enqueued = AuraSharedLifecycleStepRunner.Run(new AuraSharedLifecycleStepRequest
         {
-            OwnerId = SunExpIds.ModId,
+            OwnerId = TerriasIds.ModId,
             FeatureId = featureId,
             LifecycleId = lifecycleId,
             SessionId = AuraBattleLifecycleRouter.EnsureBattleSession().ToString(),
-            Source = "SunExp." + key,
+            Source = "Terrias." + key,
             DeduplicateScope = AuraSharedLifecycleDeduplicateScope.OwnerFeatureLifecycleSession,
             InitialDelayFrames = 1,
             DefaultStepDelayFrames = 1,
@@ -85,29 +85,29 @@ public static class SunExpLifecycleStepRunner
             EstimatedCost = estimatedCost,
             Steps = steps,
             IsCancelled = isCancelled,
-            OnStepFailed = (stepName, ex) => SunExpLog.Error("Lifecycle step failed: " + key + "." + stepName, ex),
-            OnFailed = ex => SunExpPerformanceCounters.Record("LifecycleStep.Failed"),
+            OnStepFailed = (stepName, ex) => TerriasLog.Error("Lifecycle step failed: " + key + "." + stepName, ex),
+            OnFailed = ex => TerriasPerformanceCounters.Record("LifecycleStep.Failed"),
             OnCompleted = onCompleted
         });
 
-        SunExpPerformanceCounters.Record(enqueued ? "LifecycleStep.Enqueued" : "LifecycleStep.Deduped");
-        SunExpPerformanceCounters.Record(enqueued
+        TerriasPerformanceCounters.Record(enqueued ? "LifecycleStep.Enqueued" : "LifecycleStep.Deduped");
+        TerriasPerformanceCounters.Record(enqueued
             ? "LifecycleStep.Enqueued." + key
             : "LifecycleStep.Deduped." + key);
         return enqueued;
     }
 
-    private static void RunMeasuredStep(string key, SunExpFrameStep step)
+    private static void RunMeasuredStep(string key, TerriasFrameStep step)
     {
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         try
         {
             step.Action();
         }
         finally
         {
-            SunExpPerformanceCounters.RecordDuration("LifecycleStep.Action", start);
-            SunExpPerformanceCounters.RecordDuration("LifecycleStep.Action." + CounterKeyFor(key, step.Name), start);
+            TerriasPerformanceCounters.RecordDuration("LifecycleStep.Action", start);
+            TerriasPerformanceCounters.RecordDuration("LifecycleStep.Action." + CounterKeyFor(key, step.Name), start);
         }
     }
 

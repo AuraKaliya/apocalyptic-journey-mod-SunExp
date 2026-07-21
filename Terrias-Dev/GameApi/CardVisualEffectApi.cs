@@ -1,8 +1,8 @@
 using System.Collections.Generic;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class CardVisualEffectApi
 {
@@ -61,23 +61,23 @@ public static class CardVisualEffectApi
             cardIds);
     }
 
-    public static void RegisterSunExpDefaults()
+    public static void RegisterTerriasDefaults()
     {
-        CardVisualEffectRegistry.ClearOwner(SunExpIds.ModId);
+        CardVisualEffectRegistry.ClearOwner(TerriasIds.ModId);
         RegisterFrameEffect(
-            SunExpIds.ModId,
-            SunExpIds.BlazingCrownCollapseHoloEffectBindingId,
-            SunExpIds.CardFaceFoilHoloVisualEffectId,
+            TerriasIds.ModId,
+            TerriasIds.BlazingCrownCollapseHoloEffectBindingId,
+            TerriasIds.CardFaceFoilHoloVisualEffectId,
             "Blazing Crown Collapse Foil Holo",
             100,
-            SunExpIds.BlazingCrownCollapseCardEffectIds);
+            TerriasIds.BlazingCrownCollapseCardEffectIds);
         RegisterFrameEffect(
-            SunExpIds.ModId,
-            SunExpIds.StellarOvertureStardustEffectBindingId,
-            SunExpIds.CardFaceStardustVisualEffectId,
+            TerriasIds.ModId,
+            TerriasIds.StellarOvertureStardustEffectBindingId,
+            TerriasIds.CardFaceStardustVisualEffectId,
             "Stellar Overture Stardust",
             120,
-            SunExpIds.StellarOvertureCardEffectIds);
-        SunExpLog.Info("Card visual effect registry initialized: effects=" + CardVisualEffectRegistry.EffectCount);
+            TerriasIds.StellarOvertureCardEffectIds);
+        TerriasLog.Info("Card visual effect registry initialized: effects=" + CardVisualEffectRegistry.EffectCount);
     }
 }

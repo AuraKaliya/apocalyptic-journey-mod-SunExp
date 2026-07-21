@@ -118,9 +118,9 @@ Runtime 中已移除：
 - Aura.Shared：1228 项公共 API 兼容基线通过；
 - AuraDirector：20 项断言通过；
 - AuraToolsExp：635 项断言通过；
-- SunExp：架构检查、282 项 C# 断言与内容验证通过；
+- Terrias：架构检查、282 项 C# 断言与内容验证通过；
 - shared write、content/tool/shared、RPC authority 与架构门禁通过；
-- SunExp、SanGuoShaExp、AuraToolsExp 三个消费者均以 0 警告、0 错误构建；
+- Terrias、SanGuoShaExp、AuraToolsExp 三个消费者均以 0 警告、0 错误构建；
 - 完整共享发布矩阵与 DLL 打包检查通过；
 - 构建产物与三个打包副本 SHA-256 一致：`F4E8B60AD64C0057342B0602BA223C8AE79D02B84B78DEBD4AA9C5DD2ADAA9AB`。
 

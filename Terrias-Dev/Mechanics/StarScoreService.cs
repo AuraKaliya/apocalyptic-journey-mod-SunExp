@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class StarScoreService
 {
@@ -24,16 +24,16 @@ public static class StarScoreService
     {
         var value = NormalizeId(id);
         return value == "witch_star_score"
-            || value == SunExpIds.WitchStarScoreCardId;
+            || value == TerriasIds.WitchStarScoreCardId;
     }
 
     public static string RandomBlessingOvertureCardId()
     {
         return UnityEngine.Random.Range(0, 3) switch
         {
-            0 => SunExpIds.StellarOvertureStartCardId,
-            1 => SunExpIds.StellarOvertureSustainCardId,
-            _ => SunExpIds.StellarOvertureTurnCardId
+            0 => TerriasIds.StellarOvertureStartCardId,
+            1 => TerriasIds.StellarOvertureSustainCardId,
+            _ => TerriasIds.StellarOvertureTurnCardId
         };
     }
 
@@ -225,15 +225,15 @@ public static class StarScoreService
             return;
         }
 
-        var before = Math.Max(0, ExecutorApi.SelfBuffLevel(self, SunExpIds.Starlight));
+        var before = Math.Max(0, ExecutorApi.SelfBuffLevel(self, TerriasIds.Starlight));
         var total = before + amount;
         var completedCycles = total / 30;
         var remainder = total % 30;
         if (completedCycles <= 0)
         {
             self.SetStatus("Self");
-            self.AddBuff(SunExpIds.Starlight, amount.ToString());
-            GrantBlessingsForThresholds(self, before, ExecutorApi.SelfBuffLevel(self, SunExpIds.Starlight));
+            self.AddBuff(TerriasIds.Starlight, amount.ToString());
+            GrantBlessingsForThresholds(self, before, ExecutorApi.SelfBuffLevel(self, TerriasIds.Starlight));
             return;
         }
 
@@ -245,7 +245,7 @@ public static class StarScoreService
             FamiliarFinalBlessingService.OnStarlightCycle(self);
         }
 
-        BuffApi.SetExactLevel(self.Self, SunExpIds.Starlight, remainder);
+        BuffApi.SetExactLevel(self.Self, TerriasIds.Starlight, remainder);
         if (remainder > 0)
         {
             GrantBlessingsForThresholds(self, 0, remainder);
@@ -254,21 +254,21 @@ public static class StarScoreService
 
     public static void TryApplyResonanceBeforeAddBuff(object[]? args)
     {
-        if (args == null || args.Length == 0 || ExecutorApi.CombatIntGet("SunExpStarScorePlayerActionPending") <= 0)
+        if (args == null || args.Length == 0 || ExecutorApi.CombatIntGet("TerriasStarScorePlayerActionPending") <= 0)
         {
             return;
         }
 
         var player = FightPlayer.Instance?.Status;
-        if (player == null || BuffApi.Level(player, SunExpIds.Resonance) <= 0)
+        if (player == null || BuffApi.Level(player, TerriasIds.Resonance) <= 0)
         {
             return;
         }
 
         var buffId = BuffIdFromArgs(args);
         if (string.IsNullOrWhiteSpace(buffId)
-            || buffId == SunExpIds.Resonance
-            || buffId == SunExpIds.StarScore
+            || buffId == TerriasIds.Resonance
+            || buffId == TerriasIds.StarScore
             || (!BuffApi.IsPositiveBuffId(buffId) && !BuffApi.IsNegativeBuffId(buffId)))
         {
             return;
@@ -279,7 +279,7 @@ public static class StarScoreService
             return;
         }
 
-        ConsumeBuff(player, SunExpIds.Resonance, 1);
+        ConsumeBuff(player, TerriasIds.Resonance, 1);
     }
 
     private static void UseStart(ScriptExecutor self)
@@ -312,7 +312,7 @@ public static class StarScoreService
         var state = StarScoreCombatStateStore.GetOrCreate(self.Self);
         if (state == null)
         {
-            SunExpLog.Warn("Star score record skipped: owner status unavailable.");
+            TerriasLog.Warn("Star score record skipped: owner status unavailable.");
             return;
         }
 
@@ -370,7 +370,7 @@ public static class StarScoreService
         switch (pattern)
         {
             case NoteStart + NoteStart + NoteStart:
-                AddBuffToFriendlyParty(self, SunExpIds.Resonance, 1);
+                AddBuffToFriendlyParty(self, TerriasIds.Resonance, 1);
                 DrawCardsForFriendlyParty(self, 2);
                 PlayerApi.ShowCaption("星律：急板");
                 break;
@@ -392,8 +392,8 @@ public static class StarScoreService
                 break;
             case NoteStart + NoteSustain + NoteTurn:
                 self.SetStatus("Self");
-                self.AddBuff(SunExpIds.Resonance, "1");
-                AddBuffToFriendlyParty(self, SunExpIds.Resonance, 1);
+                self.AddBuff(TerriasIds.Resonance, "1");
+                AddBuffToFriendlyParty(self, TerriasIds.Resonance, 1);
                 PlayerApi.ShowCaption("星律：调律");
                 break;
             case NoteSustain + NoteTurn + NoteClose:
@@ -401,12 +401,12 @@ public static class StarScoreService
                 if (allyBuffKinds > 0)
                 {
                     self.SetStatus("Self");
-                    self.AddBuff(SunExpIds.Extraordinary, allyBuffKinds.ToString());
+                    self.AddBuff(TerriasIds.Extraordinary, allyBuffKinds.ToString());
                 }
                 PlayerApi.ShowCaption("星律：合奏");
                 break;
             case NoteTurn + NoteSustain + NoteStart:
-                AddBuffToFriendlyParty(self, SunExpIds.Rebirth, 30);
+                AddBuffToFriendlyParty(self, TerriasIds.Rebirth, 30);
                 PlayerApi.ShowCaption("星律：回旋");
                 break;
             default:
@@ -514,32 +514,32 @@ public static class StarScoreService
         if (gain > 0)
         {
             self.SetStatus("Self");
-            self.AddBuff(SunExpIds.StarBlessing, gain.ToString());
+            self.AddBuff(TerriasIds.StarBlessing, gain.ToString());
             PlayerApi.ShowCaption("星辰祝福+" + gain + "：下一张非序曲牌耗费减半。");
         }
 
         if (before < 30 && after >= 30)
         {
-            CardApi.AddCardToHand(self, SunExpIds.StellarOvertureCloseCardId);
+            CardApi.AddCardToHand(self, TerriasIds.StellarOvertureCloseCardId);
             PlayerApi.ShowCaption("星辉抵达30：获得星辰序曲·合。");
         }
     }
 
     private static void ClampStarlight(ScriptExecutor self)
     {
-        var level = ExecutorApi.SelfBuffLevel(self, SunExpIds.Starlight);
+        var level = ExecutorApi.SelfBuffLevel(self, TerriasIds.Starlight);
         if (level < 30)
         {
             return;
         }
 
         self.SetStatus("Self");
-        self.RemoveBuff(SunExpIds.Starlight);
+        self.RemoveBuff(TerriasIds.Starlight);
     }
 
     private static void SyncScoreBuff(ScriptExecutor? self, int level)
     {
-        BuffApi.SetExactLevel(self?.Self, SunExpIds.StarScore, level);
+        BuffApi.SetExactLevel(self?.Self, TerriasIds.StarScore, level);
     }
 
     private static string BuffIdFromArgs(object[] args)
@@ -610,7 +610,7 @@ public static class StarScoreService
             }
             catch (Exception ex)
             {
-                SunExpLog.Error("Star score display subscriber failed", ex);
+                TerriasLog.Error("Star score display subscriber failed", ex);
             }
         }
     }

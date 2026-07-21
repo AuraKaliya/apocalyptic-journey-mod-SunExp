@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Threading;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Network;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Network;
 using Witch.Core;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class SpiritCaptureService
 {
@@ -38,10 +38,10 @@ public static class SpiritCaptureService
             return false;
         }
 
-        if (SunExpNetworkRuntime.IsMultiplayerSession() && SunExpNetworkRuntime.IsClientOnly())
+        if (TerriasNetworkRuntime.IsMultiplayerSession() && TerriasNetworkRuntime.IsClientOnly())
         {
             var token = Guid.NewGuid().ToString("N");
-            SunExpNetworkRuntime.Send(
+            TerriasNetworkRuntime.Send(
                 new RpcSpiritCaptureRequest(self.Self.InstanceId, target!.InstanceId, token),
                 "SpiritCaptureService.TryCapture");
             PlayerApi.ShowCaption("精灵球：正在等待主机结算。");
@@ -58,7 +58,7 @@ public static class SpiritCaptureService
         string ownerStatusId,
         string targetStatusId,
         string token,
-        SunExpRpcSender sender,
+        TerriasRpcSender sender,
         int protocolVersion,
         int battleEpoch)
     {
@@ -137,7 +137,7 @@ public static class SpiritCaptureService
         var executor = FightPlayer.Instance?.Status?.MirrorSc as ScriptExecutor;
         if (executor == null || FightPlayer.Instance?.Status == null)
         {
-            SunExpLog.Warn("[SpiritCapture] owner executor unavailable while applying " + source + ".");
+            TerriasLog.Warn("[SpiritCapture] owner executor unavailable while applying " + source + ".");
             return;
         }
 
@@ -146,7 +146,7 @@ public static class SpiritCaptureService
         if (!granted.Success)
         {
             PlayerApi.ShowCaption("精灵球：捕获已结算，但精灵卡同步失败。");
-            SunExpLog.Warn("[SpiritCapture] network card grant failed: " + granted.FailureReason);
+            TerriasLog.Warn("[SpiritCapture] network card grant failed: " + granted.FailureReason);
             return;
         }
 
@@ -160,7 +160,7 @@ public static class SpiritCaptureService
         string seed)
     {
         var success = SpiritCaptureRollService.Succeeds(target.CurHp, target.MaxHp, seed, out var chance, out var roll);
-        SunExpLog.Info("[SpiritCapture] roll enemy=" + snapshot.EnemyId + ", chance=" + chance + ", roll=" + roll + ", success=" + success);
+        TerriasLog.Info("[SpiritCapture] roll enemy=" + snapshot.EnemyId + ", chance=" + chance + ", roll=" + roll + ", success=" + success);
         if (!success)
         {
             PlayerApi.ShowCaption("精灵球：捕获失败（" + chance / 100 + "%）。");
@@ -171,7 +171,7 @@ public static class SpiritCaptureService
         if (!granted.Success)
         {
             PlayerApi.ShowCaption("精灵球：精灵卡生成失败，本次捕获未结算。");
-            SunExpLog.Warn("[SpiritCapture] card grant failed: step=" + granted.FailureStep + ", reason=" + granted.FailureReason);
+            TerriasLog.Warn("[SpiritCapture] card grant failed: step=" + granted.FailureStep + ", reason=" + granted.FailureReason);
             return false;
         }
 
@@ -196,16 +196,16 @@ public static class SpiritCaptureService
             + ", source=" + source;
         if (resolution.UsedGlobalFallback)
         {
-            SunExpLog.WarnOnce(
+            TerriasLog.WarnOnce(
                 "spirit-capture-global:" + resolution.RawEnemyId + "#" + resolution.RawVariantId,
                 message);
             return;
         }
 
-        SunExpLog.InfoAlways(message);
+        TerriasLog.InfoAlways(message);
     }
 
-    private static string ValidateNetworkRequest(string ownerStatusId, SunExpRpcSender sender, int protocolVersion, int battleEpoch)
+    private static string ValidateNetworkRequest(string ownerStatusId, TerriasRpcSender sender, int protocolVersion, int battleEpoch)
     {
         if (protocolVersion != CompanionAuthorityService.ProjectionProtocolVersion)
         {
@@ -245,7 +245,7 @@ public static class SpiritCaptureService
     private static bool IsLocalOwner(string ownerStatusId)
     {
         return string.Equals(FightPlayer.Instance?.Status?.InstanceId, ownerStatusId, StringComparison.Ordinal)
-            || SenderOwnsStatus(SunExpNetworkRuntime.LocalPlayerId(), ownerStatusId);
+            || SenderOwnsStatus(TerriasNetworkRuntime.LocalPlayerId(), ownerStatusId);
     }
 
     private static IStatusManager? StatusById(string statusId)
@@ -266,6 +266,6 @@ public static class SpiritCaptureService
 
     private static void Broadcast(SpiritCaptureNetworkState state, string source)
     {
-        SunExpNetworkRuntime.Send(new RpcSpiritCaptureState(state), source);
+        TerriasNetworkRuntime.Send(new RpcSpiritCaptureState(state), source);
     }
 }

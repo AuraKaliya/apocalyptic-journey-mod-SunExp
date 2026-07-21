@@ -2,14 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AuraShared.Core;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch;
 using Witch.Core;
 using Witch.Mod;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class RoleActionAnimationRuntime
 {
@@ -17,7 +17,7 @@ public static class RoleActionAnimationRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
-        SunExpCombatActionRouter.Register("RoleActionAnimation", new SunExpCombatActionSubscription
+        TerriasCombatActionRouter.Register("RoleActionAnimation", new TerriasCombatActionSubscription
         {
             BeforeFightUiActionAnimation = BeforeCallActionAnimation,
             AfterFightUiActionAnimation = AfterCallActionAnimation
@@ -46,7 +46,7 @@ public static class RoleActionAnimationRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("Role action animation normalization failed: " + ex.Message);
+            TerriasLog.Warn("Role action animation normalization failed: " + ex.Message);
         }
     }
 
@@ -73,7 +73,7 @@ public static class RoleActionAnimationRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("Role action animation effect restore failed: " + ex.Message);
+            TerriasLog.Warn("Role action animation effect restore failed: " + ex.Message);
         }
     }
 
@@ -176,7 +176,7 @@ public static class RoleActionAnimationRuntime
 
         EffectPatches.Push(new EffectPatch(dataConfig, effects));
         dataConfig.data["Effects"] = normalized;
-        SunExpLog.Info("Role action effect normalized: card=" + ReadData(dataConfig, "Id")
+        TerriasLog.Info("Role action effect normalized: card=" + ReadData(dataConfig, "Id")
             + ", action=" + ReadData(dataConfig, "Action")
             + ", from=" + effects + ", to=" + normalized);
     }
@@ -225,7 +225,7 @@ public static class RoleActionAnimationRuntime
         string before,
         string after)
     {
-        SunExpLog.Info("Role action target normalized: card=" + ReadData(dataConfig, "Id")
+        TerriasLog.Info("Role action target normalized: card=" + ReadData(dataConfig, "Id")
             + ", action=" + action
             + ", reason=" + reason
             + ", before=" + before

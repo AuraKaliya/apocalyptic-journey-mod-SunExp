@@ -1,15 +1,15 @@
 using System;
 using System.Collections.Generic;
 using AuraShared.Core;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 using UnityEngine;
 using Witch.Core;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
-public enum SunExpCardPresentationSurface
+public enum TerriasCardPresentationSurface
 {
     Unknown,
     CombatCard,
@@ -25,29 +25,29 @@ public enum SunExpCardPresentationSurface
     PostCommit
 }
 
-public sealed class SunExpCardPresentationContext
+public sealed class TerriasCardPresentationContext
 {
     public Transform? Root { get; set; }
     public IDataConfig? Config { get; set; }
     public CardItem? Card { get; set; }
     public string Source { get; set; } = "";
-    public SunExpCardPresentationSurface Surface { get; set; }
+    public TerriasCardPresentationSurface Surface { get; set; }
 }
 
-public sealed class SunExpCardPresentationSubscription
+public sealed class TerriasCardPresentationSubscription
 {
-    public Action<SunExpCardPresentationContext>? Apply { get; set; }
+    public Action<TerriasCardPresentationContext>? Apply { get; set; }
 }
 
-public static class SunExpCardPresentationRouter
+public static class TerriasCardPresentationRouter
 {
     private static readonly object SyncRoot = new();
-    private static readonly Dictionary<string, SunExpCardPresentationSubscription> Subscriptions = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, TerriasCardPresentationSubscription> Subscriptions = new(StringComparer.Ordinal);
     private static readonly HashSet<string> LoggedCombatRootMissDiagnostics = new(StringComparer.Ordinal);
     private static readonly Dictionary<int, PendingReapply> PendingReapplyByDelay = new();
-    private static KeyValuePair<string, SunExpCardPresentationSubscription>[]? cachedSubscriptions;
+    private static KeyValuePair<string, TerriasCardPresentationSubscription>[]? cachedSubscriptions;
 
-    public static void Register(string id, SunExpCardPresentationSubscription subscription)
+    public static void Register(string id, TerriasCardPresentationSubscription subscription)
     {
         if (string.IsNullOrWhiteSpace(id) || subscription == null)
         {
@@ -60,11 +60,11 @@ public static class SunExpCardPresentationRouter
             cachedSubscriptions = null;
         }
 
-        SunExpPerformanceCounters.Record("CardPresentation.HandlerRegistered");
-        SunExpLog.InfoAlways("Card presentation handler registered: id=" + id.Trim() + ", count=" + SubscriptionCount());
+        TerriasPerformanceCounters.Record("CardPresentation.HandlerRegistered");
+        TerriasLog.InfoAlways("Card presentation handler registered: id=" + id.Trim() + ", count=" + SubscriptionCount());
     }
 
-    public static void RequestApply(SunExpCardPresentationContext context)
+    public static void RequestApply(TerriasCardPresentationContext context)
     {
         if (context.Config == null)
         {
@@ -74,9 +74,9 @@ public static class SunExpCardPresentationRouter
         Dispatch(context);
     }
 
-    public static void RequestApply(Transform? root, IDataConfig? config, string source, SunExpCardPresentationSurface surface)
+    public static void RequestApply(Transform? root, IDataConfig? config, string source, TerriasCardPresentationSurface surface)
     {
-        RequestApply(new SunExpCardPresentationContext
+        RequestApply(new TerriasCardPresentationContext
         {
             Root = root,
             Config = config,
@@ -100,12 +100,12 @@ public static class SunExpCardPresentationRouter
                 : new PendingReapply(source, 1);
         }
 
-        if (!SunExpFrameScheduler.RunOnceAfterFrames(
+        if (!TerriasFrameScheduler.RunOnceAfterFrames(
                 "CardPresentation.ReapplyActiveCombatCards." + normalizedDelay,
                 normalizedDelay,
                 () => FlushActiveCombatCardsReapply(normalizedDelay)))
         {
-            SunExpPerformanceCounters.Record("CardPresentation.ReapplyDeduped");
+            TerriasPerformanceCounters.Record("CardPresentation.ReapplyDeduped");
         }
     }
 
@@ -126,7 +126,7 @@ public static class SunExpCardPresentationRouter
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("Card presentation combat-card lookup failed: " + ex.Message);
+            TerriasLog.Debug("Card presentation combat-card lookup failed: " + ex.Message);
         }
 
         return null;
@@ -134,7 +134,7 @@ public static class SunExpCardPresentationRouter
 
     private static void RecordCombatRootMiss(IDataConfig config)
     {
-        if (!SunExpPerformanceSettings.CountersEnabled)
+        if (!TerriasPerformanceSettings.CountersEnabled)
         {
             return;
         }
@@ -160,10 +160,10 @@ public static class SunExpCardPresentationRouter
 
             if (idMatches > 0)
             {
-                SunExpPerformanceCounters.Record("CardPresentation.CombatRootMiss.IdMatch");
+                TerriasPerformanceCounters.Record("CardPresentation.CombatRootMiss.IdMatch");
                 if (LoggedCombatRootMissDiagnostics.Count < 16 && LoggedCombatRootMissDiagnostics.Add(cardId))
                 {
-                    SunExpLog.Warn("Card presentation combat root lookup missed by IDataConfig reference but found same-id card(s): cardId="
+                    TerriasLog.Warn("Card presentation combat root lookup missed by IDataConfig reference but found same-id card(s): cardId="
                         + cardId
                         + ", sameIdCards="
                         + idMatches
@@ -173,12 +173,12 @@ public static class SunExpCardPresentationRouter
             }
             else
             {
-                SunExpPerformanceCounters.Record("CardPresentation.CombatRootMiss.NoIdMatch");
+                TerriasPerformanceCounters.Record("CardPresentation.CombatRootMiss.NoIdMatch");
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("Card presentation combat-root miss diagnostics failed: " + ex.Message);
+            TerriasLog.Debug("Card presentation combat-root miss diagnostics failed: " + ex.Message);
         }
     }
 
@@ -202,22 +202,22 @@ public static class SunExpCardPresentationRouter
 
     private static void ReapplyActiveCombatCards(string source)
     {
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         try
         {
             var count = ApplyCards(ActiveCombatCardSnapshot(), source);
             if (count > 0)
             {
-                SunExpLog.Debug("Card presentation reapplied from " + source + ": " + count);
+                TerriasLog.Debug("Card presentation reapplied from " + source + ": " + count);
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Card presentation active-combat reapply failed from " + source, ex);
+            TerriasLog.Error("Card presentation active-combat reapply failed from " + source, ex);
         }
         finally
         {
-            SunExpPerformanceCounters.RecordDuration("CardPresentation.ReapplyActiveCombatCards", start);
+            TerriasPerformanceCounters.RecordDuration("CardPresentation.ReapplyActiveCombatCards", start);
         }
     }
 
@@ -231,13 +231,13 @@ public static class SunExpCardPresentationRouter
                 continue;
             }
 
-            RequestApply(new SunExpCardPresentationContext
+            RequestApply(new TerriasCardPresentationContext
             {
                 Root = reference.Root,
                 Config = reference.Config,
                 Card = reference.Card,
                 Source = source + ":" + PresentationSourceSuffix(reference.Zone),
-                Surface = SunExpCardPresentationSurface.CombatCard
+                Surface = TerriasCardPresentationSurface.CombatCard
             });
             count++;
         }
@@ -261,12 +261,12 @@ public static class SunExpCardPresentationRouter
         return zone == AuraCombatCardZoneKind.FightUiWait ? "wait-ui" : "fight-ui";
     }
 
-    private static void Dispatch(SunExpCardPresentationContext context)
+    private static void Dispatch(TerriasCardPresentationContext context)
     {
         var snapshot = SnapshotSubscriptions();
         if (snapshot.Length == 0)
         {
-            SunExpPerformanceCounters.Record("CardPresentation.DispatchNoHandlers");
+            TerriasPerformanceCounters.Record("CardPresentation.DispatchNoHandlers");
             return;
         }
 
@@ -284,12 +284,12 @@ public static class SunExpCardPresentationRouter
             }
             catch (Exception ex)
             {
-                SunExpLog.Error("Card presentation handler failed: " + pair.Key + " @ " + context.Source, ex);
+                TerriasLog.Error("Card presentation handler failed: " + pair.Key + " @ " + context.Source, ex);
             }
         }
     }
 
-    private static KeyValuePair<string, SunExpCardPresentationSubscription>[] SnapshotSubscriptions()
+    private static KeyValuePair<string, TerriasCardPresentationSubscription>[] SnapshotSubscriptions()
     {
         lock (SyncRoot)
         {
@@ -298,7 +298,7 @@ public static class SunExpCardPresentationRouter
                 return cachedSubscriptions;
             }
 
-            cachedSubscriptions = new KeyValuePair<string, SunExpCardPresentationSubscription>[Subscriptions.Count];
+            cachedSubscriptions = new KeyValuePair<string, TerriasCardPresentationSubscription>[Subscriptions.Count];
             var index = 0;
             foreach (var pair in Subscriptions)
             {

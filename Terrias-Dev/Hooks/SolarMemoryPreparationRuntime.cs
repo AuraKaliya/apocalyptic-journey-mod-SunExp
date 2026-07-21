@@ -1,10 +1,10 @@
 using System;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 using Witch;
 using Witch.UI;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public enum SolarMemoryPrepStep
 {
@@ -23,24 +23,24 @@ public static class SolarMemoryPreparationRuntime
         {
             if (!SolarMemoryModeRuntime.IsSolarMemoryRun())
             {
-                SunExpLog.Warn("[SolarMemoryPrep] StartOrResume skipped: not a Solar Memory run.");
+                TerriasLog.Warn("[SolarMemoryPrep] StartOrResume skipped: not a Solar Memory run.");
                 return;
             }
 
             if (RoleTable.Instance == null)
             {
-                SunExpLog.Warn("[SolarMemoryPrep] StartOrResume skipped: RoleTable is null.");
+                TerriasLog.Warn("[SolarMemoryPrep] StartOrResume skipped: RoleTable is null.");
                 return;
             }
 
             var step = ReadOrInferStep();
             WriteStep(step);
-            SunExpLog.Info("[SolarMemoryPrep] StartOrResume: step=" + step + "; inferredState=" + StateSnapshot());
+            TerriasLog.Info("[SolarMemoryPrep] StartOrResume: step=" + step + "; inferredState=" + StateSnapshot());
             EnterStep(step);
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory preparation start failed", ex);
+            TerriasLog.Error("Solar memory preparation start failed", ex);
         }
     }
 
@@ -53,14 +53,14 @@ public static class SolarMemoryPreparationRuntime
                 return;
             }
 
-            SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryDeckConfiguredKey, true);
+            SolarMemoryPlayerSetupState.SetFlag(TerriasIds.SolarMemoryDeckConfiguredKey, true);
             WriteStep(SolarMemoryPrepStep.OriginAllocation);
-            SunExpLog.Info("[SolarMemoryPrep] DeckSelection complete; next=OriginAllocation.");
+            TerriasLog.Info("[SolarMemoryPrep] DeckSelection complete; next=OriginAllocation.");
             EnterStep(SolarMemoryPrepStep.OriginAllocation);
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory deck preparation completion failed", ex);
+            TerriasLog.Error("Solar memory deck preparation completion failed", ex);
         }
     }
 
@@ -73,14 +73,14 @@ public static class SolarMemoryPreparationRuntime
                 return;
             }
 
-            SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryOriginConfiguredKey, true);
+            SolarMemoryPlayerSetupState.SetFlag(TerriasIds.SolarMemoryOriginConfiguredKey, true);
             WriteStep(SolarMemoryPrepStep.BlessingSelection);
-            SunExpLog.Info("[SolarMemoryPrep] OriginAllocation complete; next=BlessingSelection.");
+            TerriasLog.Info("[SolarMemoryPrep] OriginAllocation complete; next=BlessingSelection.");
             EnterStep(SolarMemoryPrepStep.BlessingSelection);
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory origin preparation completion failed", ex);
+            TerriasLog.Error("Solar memory origin preparation completion failed", ex);
         }
     }
 
@@ -93,20 +93,20 @@ public static class SolarMemoryPreparationRuntime
                 return;
             }
 
-            SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryBlessConfiguredKey, true);
+            SolarMemoryPlayerSetupState.SetFlag(TerriasIds.SolarMemoryBlessConfiguredKey, true);
             WriteStep(SolarMemoryPrepStep.Complete);
-            SunExpLog.Info("[SolarMemoryPrep] BlessingSelection complete; next=Complete.");
+            TerriasLog.Info("[SolarMemoryPrep] BlessingSelection complete; next=Complete.");
             FinishPreparation();
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory blessing preparation completion failed", ex);
+            TerriasLog.Error("Solar memory blessing preparation completion failed", ex);
         }
     }
 
     public static bool IsComplete()
     {
-        return SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemorySetupFinishedKey)
+        return SolarMemoryPlayerSetupState.IsSet(TerriasIds.SolarMemorySetupFinishedKey)
             && ReadOrInferStep() == SolarMemoryPrepStep.Complete;
     }
 
@@ -117,7 +117,7 @@ public static class SolarMemoryPreparationRuntime
             case SolarMemoryPrepStep.DeckSelection:
                 if (!SolarMemoryStarterDeckRuntime.OpenOrResume())
                 {
-                    SunExpLog.Info("[SolarMemoryPrep] DeckSelection already satisfied or unavailable; advancing from state snapshot: " + StateSnapshot());
+                    TerriasLog.Info("[SolarMemoryPrep] DeckSelection already satisfied or unavailable; advancing from state snapshot: " + StateSnapshot());
                     CompleteDeckSelection();
                 }
                 return;
@@ -139,26 +139,26 @@ public static class SolarMemoryPreparationRuntime
 
     private static void FinishPreparation()
     {
-        SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryBlessConfiguredKey, true);
-        SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemorySetupFinishedKey, true);
+        SolarMemoryPlayerSetupState.SetFlag(TerriasIds.SolarMemoryBlessConfiguredKey, true);
+        SolarMemoryPlayerSetupState.SetFlag(TerriasIds.SolarMemorySetupFinishedKey, true);
         WriteStep(SolarMemoryPrepStep.Complete);
-        if (!SolarMemoryRoleCommitApi.CommitFinal(RoleTable.Instance, "SunExp.SolarMemory.SetupFinished"))
+        if (!SolarMemoryRoleCommitApi.CommitFinal(RoleTable.Instance, "Terrias.SolarMemory.SetupFinished"))
         {
-            SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemorySetupFinishedKey, false);
-            SolarMemoryPlayerSetupState.SetValue(SunExpIds.SolarMemorySetupCommitTokenKey, "");
-            SunExpLog.Warn("[SolarMemoryPrep] final role commit failed; setup completion is pending retry. snapshot=" + StateSnapshot());
+            SolarMemoryPlayerSetupState.SetFlag(TerriasIds.SolarMemorySetupFinishedKey, false);
+            SolarMemoryPlayerSetupState.SetValue(TerriasIds.SolarMemorySetupCommitTokenKey, "");
+            TerriasLog.Warn("[SolarMemoryPrep] final role commit failed; setup completion is pending retry. snapshot=" + StateSnapshot());
             UIManager.Instance?.ShowTip("日耀回忆整备提交失败，请重试", null);
             return;
         }
 
         SolarMemorySetupFlowRuntime.ClosePreparationWindows();
         UIManager.Instance?.ShowTip("日耀回忆整备完成", null);
-        SunExpLog.Info("[SolarMemoryPrep] Complete; setupFinished=1; snapshot=" + StateSnapshot());
+        TerriasLog.Info("[SolarMemoryPrep] Complete; setupFinished=1; snapshot=" + StateSnapshot());
     }
 
     private static SolarMemoryPrepStep ReadOrInferStep()
     {
-        var saved = SolarMemoryPlayerSetupState.GetValue(SunExpIds.SolarMemoryPrepStepKey, "");
+        var saved = SolarMemoryPlayerSetupState.GetValue(TerriasIds.SolarMemoryPrepStepKey, "");
         if (Enum.TryParse<SolarMemoryPrepStep>(saved, out var parsed)
             && parsed != SolarMemoryPrepStep.None
             && IsStepStillValid(parsed))
@@ -167,7 +167,7 @@ public static class SolarMemoryPreparationRuntime
         }
 
         var inferred = InferStepFromLegacyState();
-        SunExpLog.Info("[SolarMemoryPrep] inferred step from legacy state: saved="
+        TerriasLog.Info("[SolarMemoryPrep] inferred step from legacy state: saved="
             + (string.IsNullOrWhiteSpace(saved) ? "<empty>" : saved)
             + "; inferred="
             + inferred
@@ -181,11 +181,11 @@ public static class SolarMemoryPreparationRuntime
     {
         return step switch
         {
-            SolarMemoryPrepStep.Complete => SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemorySetupFinishedKey),
-            SolarMemoryPrepStep.BlessingSelection => SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryOriginConfiguredKey)
-                && !SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryBlessConfiguredKey),
+            SolarMemoryPrepStep.Complete => SolarMemoryPlayerSetupState.IsSet(TerriasIds.SolarMemorySetupFinishedKey),
+            SolarMemoryPrepStep.BlessingSelection => SolarMemoryPlayerSetupState.IsSet(TerriasIds.SolarMemoryOriginConfiguredKey)
+                && !SolarMemoryPlayerSetupState.IsSet(TerriasIds.SolarMemoryBlessConfiguredKey),
             SolarMemoryPrepStep.OriginAllocation => IsDeckConfigured()
-                && !SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryOriginConfiguredKey),
+                && !SolarMemoryPlayerSetupState.IsSet(TerriasIds.SolarMemoryOriginConfiguredKey),
             SolarMemoryPrepStep.DeckSelection => !IsDeckConfigured(),
             _ => false
         };
@@ -193,13 +193,13 @@ public static class SolarMemoryPreparationRuntime
 
     private static SolarMemoryPrepStep InferStepFromLegacyState()
     {
-        if (SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemorySetupFinishedKey)
-            || SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryBlessConfiguredKey))
+        if (SolarMemoryPlayerSetupState.IsSet(TerriasIds.SolarMemorySetupFinishedKey)
+            || SolarMemoryPlayerSetupState.IsSet(TerriasIds.SolarMemoryBlessConfiguredKey))
         {
             return SolarMemoryPrepStep.Complete;
         }
 
-        if (SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryOriginConfiguredKey))
+        if (SolarMemoryPlayerSetupState.IsSet(TerriasIds.SolarMemoryOriginConfiguredKey))
         {
             return SolarMemoryPrepStep.BlessingSelection;
         }
@@ -211,21 +211,21 @@ public static class SolarMemoryPreparationRuntime
 
     private static bool IsDeckConfigured()
     {
-        if (SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryDeckConfiguredKey)
-            || SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryStarterDeckAppliedKey))
+        if (SolarMemoryPlayerSetupState.IsSet(TerriasIds.SolarMemoryDeckConfiguredKey)
+            || SolarMemoryPlayerSetupState.IsSet(TerriasIds.SolarMemoryStarterDeckAppliedKey))
         {
             return true;
         }
 
         var role = RoleTable.Instance;
         return role?.SpecialVarMap != null
-            && role.SpecialVarMap.TryGetValue(SunExpIds.SolarMemoryStarterDeckAppliedKey, out var value)
+            && role.SpecialVarMap.TryGetValue(TerriasIds.SolarMemoryStarterDeckAppliedKey, out var value)
             && value == "1";
     }
 
     private static void WriteStep(SolarMemoryPrepStep step)
     {
-        SolarMemoryPlayerSetupState.SetValue(SunExpIds.SolarMemoryPrepStepKey, step.ToString());
+        SolarMemoryPlayerSetupState.SetValue(TerriasIds.SolarMemoryPrepStepKey, step.ToString());
     }
 
     private static string StateSnapshot()

@@ -1,9 +1,9 @@
 using System;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 
-namespace SunExp.Dll.Scripting;
+namespace Terrias.Dll.Scripting;
 
 public static class ColumbinaScripts
 {
@@ -11,12 +11,12 @@ public static class ColumbinaScripts
     {
         try
         {
-            PlayerApi.SetSkillTime(SunExpIds.ColumbinaEternalTideCardId, 0);
-            PlayerApi.SetSkillTime(SunExpIds.ColumbinaHomesicknessCardId, 0);
+            PlayerApi.SetSkillTime(TerriasIds.ColumbinaEternalTideCardId, 0);
+            PlayerApi.SetSkillTime(TerriasIds.ColumbinaHomesicknessCardId, 0);
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Columbina InitCareer failed", ex);
+            TerriasLog.Error("Columbina InitCareer failed", ex);
         }
     }
 
@@ -47,13 +47,13 @@ public static class ColumbinaScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Columbina skill failed: " + id, ex);
+            TerriasLog.Error("Columbina skill failed: " + id, ex);
         }
     }
 
     private static void UseEternalTide(ScriptExecutor self)
     {
-        if (PlayerApi.GetSkillTime(SunExpIds.ColumbinaEternalTideCardId) > 0)
+        if (PlayerApi.GetSkillTime(TerriasIds.ColumbinaEternalTideCardId) > 0)
         {
             PlayerApi.ShowCaption("万古潮汐尚未冷却。");
             return;
@@ -61,13 +61,13 @@ public static class ColumbinaScripts
 
         AudioApi.PlayColumbinaEternalTide();
         self.SetStatus("Self");
-        self.AddBuff(SunExpIds.GravityRipple, "20");
-        PlayerApi.SetSkillTime(SunExpIds.ColumbinaEternalTideCardId, 3);
+        self.AddBuff(TerriasIds.GravityRipple, "20");
+        PlayerApi.SetSkillTime(TerriasIds.ColumbinaEternalTideCardId, 3);
     }
 
     private static void UseHomesickness(ScriptExecutor self)
     {
-        if (PlayerApi.GetSkillTime(SunExpIds.ColumbinaHomesicknessCardId) > 0)
+        if (PlayerApi.GetSkillTime(TerriasIds.ColumbinaHomesicknessCardId) > 0)
         {
             PlayerApi.ShowCaption("她的乡愁尚未冷却。");
             return;
@@ -78,7 +78,7 @@ public static class ColumbinaScripts
         var targets = TargetApi.OpposingSideTargets(self, self.Self).ToArray();
         ElementalReactionService.HitAll(self, targets, ElementalType.Hydro, damage, "Columbina.Homesickness");
 
-        FieldApi.ActivateField(self, SunExpFieldId.MoonDomain, 1, "Columbina.Homesickness");
-        PlayerApi.SetSkillTime(SunExpIds.ColumbinaHomesicknessCardId, 7);
+        FieldApi.ActivateField(self, TerriasFieldId.MoonDomain, 1, "Columbina.Homesickness");
+        PlayerApi.SetSkillTime(TerriasIds.ColumbinaHomesicknessCardId, 7);
     }
 }

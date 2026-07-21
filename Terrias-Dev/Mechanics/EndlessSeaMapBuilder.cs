@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using Data.Save;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch;
 using Witch.Core;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class EndlessSeaMapBuilder
 {
@@ -18,7 +18,7 @@ public static class EndlessSeaMapBuilder
         var tree = manager?.MapTree;
         if (tree == null)
         {
-            SunExpLog.Warn("[EndlessSeaMap] skipped build from " + source + ": MapTree is null.");
+            TerriasLog.Warn("[EndlessSeaMap] skipped build from " + source + ": MapTree is null.");
             return false;
         }
 
@@ -36,14 +36,14 @@ public static class EndlessSeaMapBuilder
 
     public static IReadOnlyList<MapTree.Node> VisualDefaultNodes(MapTree? tree)
     {
-        var result = new List<MapTree.Node>(SunExpIds.EndlessSeaLayerNodeCount);
+        var result = new List<MapTree.Node>(TerriasIds.EndlessSeaLayerNodeCount);
         var plan = EndlessSeaFloorPlanStore.Load();
         if (tree == null || plan == null)
         {
             return result;
         }
 
-        for (var slot = 0; slot < SunExpIds.EndlessSeaLayerNodeCount; slot++)
+        for (var slot = 0; slot < TerriasIds.EndlessSeaLayerNodeCount; slot++)
         {
             if (plan.TryGetSlot(slot, out var slotPlan))
             {
@@ -75,8 +75,8 @@ public static class EndlessSeaMapBuilder
         }
 
         var changed = false;
-        changed = RepairMapArraySlot(tree, SunExpIds.EndlessSeaStartSlotIndex, maps, mapData) || changed;
-        changed = RepairMapArraySlot(tree, SunExpIds.EndlessSeaBossSlotIndex, maps, mapData) || changed;
+        changed = RepairMapArraySlot(tree, TerriasIds.EndlessSeaStartSlotIndex, maps, mapData) || changed;
+        changed = RepairMapArraySlot(tree, TerriasIds.EndlessSeaBossSlotIndex, maps, mapData) || changed;
 
         return changed;
     }
@@ -97,7 +97,7 @@ public static class EndlessSeaMapBuilder
         var selectableKinds = EndlessSeaSelectableNodeDeckPlanner.CreateKinds(
             tree,
             floor,
-            SunExpIds.EndlessSeaSelectableNodeCount);
+            TerriasIds.EndlessSeaSelectableNodeCount);
         for (var i = 0; i < selectableKinds.Count; i++)
         {
             var selectNode = EndlessSeaNodePoolService.CreateNode(
@@ -115,9 +115,9 @@ public static class EndlessSeaMapBuilder
         tree.currentNode = tree.root;
         GameSaveManager.UpdateNode(tree.root);
         EnsureNativeGeneratorSuppressed(tree);
-        SetSaveValue(SunExpIds.EndlessSeaGeneratedFloorKey, floor.ToString());
+        SetSaveValue(TerriasIds.EndlessSeaGeneratedFloorKey, floor.ToString());
 
-        SunExpLog.Info("[EndlessSeaMap] floor built from "
+        TerriasLog.Info("[EndlessSeaMap] floor built from "
             + source
             + "; floor="
             + floor
@@ -143,9 +143,9 @@ public static class EndlessSeaMapBuilder
             return false;
         }
 
-        if (tree.DefaultNode.Count < SunExpIds.EndlessSeaNativeDefaultNodeCount
-            || tree.SelectNode.Count < SunExpIds.EndlessSeaSelectableNodeCount
-            || GameSaveManager.GetValue<int>(SunExpIds.EndlessSeaGeneratedFloorKey) != floor)
+        if (tree.DefaultNode.Count < TerriasIds.EndlessSeaNativeDefaultNodeCount
+            || tree.SelectNode.Count < TerriasIds.EndlessSeaSelectableNodeCount
+            || GameSaveManager.GetValue<int>(TerriasIds.EndlessSeaGeneratedFloorKey) != floor)
         {
             return false;
         }
@@ -195,7 +195,7 @@ public static class EndlessSeaMapBuilder
             var id = DictionaryUtil.Get(node.data, "Id");
             var nodeId = DictionaryUtil.Get(node.data, "NodeId", id);
             var type = DictionaryUtil.Get(node.data, "Type");
-            var kind = DictionaryUtil.Get(node.data, SunExpIds.EndlessSeaNodeKindKey, type);
+            var kind = DictionaryUtil.Get(node.data, TerriasIds.EndlessSeaNodeKindKey, type);
             yield return id + "/" + nodeId + ":" + kind;
         }
     }

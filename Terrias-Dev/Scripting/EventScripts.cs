@@ -1,8 +1,8 @@
 using System;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Scripting;
+namespace Terrias.Dll.Scripting;
 
 public static class EventScripts
 {
@@ -16,7 +16,7 @@ public static class EventScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory node init failed", ex);
+            TerriasLog.Error("Solar memory node init failed", ex);
         }
     }
 
@@ -28,7 +28,7 @@ public static class EventScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory continue failed", ex);
+            TerriasLog.Error("Solar memory continue failed", ex);
         }
     }
 
@@ -40,7 +40,7 @@ public static class EventScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory post-preparation dialogue completion failed", ex);
+            TerriasLog.Error("Solar memory post-preparation dialogue completion failed", ex);
         }
     }
 
@@ -52,7 +52,7 @@ public static class EventScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory second-sun ending dialogue completion failed", ex);
+            TerriasLog.Error("Solar memory second-sun ending dialogue completion failed", ex);
         }
     }
 
@@ -64,7 +64,7 @@ public static class EventScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory saint-wuna prelude dialogue completion failed", ex);
+            TerriasLog.Error("Solar memory saint-wuna prelude dialogue completion failed", ex);
         }
     }
 
@@ -76,7 +76,7 @@ public static class EventScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory saint-wuna ending dialogue completion failed", ex);
+            TerriasLog.Error("Solar memory saint-wuna ending dialogue completion failed", ex);
         }
     }
 
@@ -88,7 +88,7 @@ public static class EventScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory origin option failed", ex);
+            TerriasLog.Error("Solar memory origin option failed", ex);
         }
     }
 
@@ -100,7 +100,7 @@ public static class EventScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory blessing option failed", ex);
+            TerriasLog.Error("Solar memory blessing option failed", ex);
         }
     }
 
@@ -112,7 +112,7 @@ public static class EventScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory deck option failed", ex);
+            TerriasLog.Error("Solar memory deck option failed", ex);
         }
     }
 

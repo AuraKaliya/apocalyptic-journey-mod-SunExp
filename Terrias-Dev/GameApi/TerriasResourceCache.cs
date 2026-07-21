@@ -1,34 +1,34 @@
 using System;
 using System.Collections.Generic;
 using AuraShared.Core;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using UnityEngine;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
-public static class SunExpResourceCache
+public static class TerriasResourceCache
 {
     private const double SlowLoadWarningMilliseconds = 16.0;
 
     public static T? Load<T>(string path, bool loadFromMod = true, string category = "")
         where T : UnityEngine.Object
     {
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         T? loaded = null;
         try
         {
             loaded = AuraSharedResourceCache.Load<T>(
-                SunExpIds.ModId,
+                TerriasIds.ModId,
                 path,
                 loadFromMod,
                 category,
-                message => SunExpLog.Warn(message));
-            SunExpPerformanceCounters.Record(loaded == null ? "ResourceCache.Load.Miss" : "ResourceCache.Load.Loaded");
+                message => TerriasLog.Warn(message));
+            TerriasPerformanceCounters.Record(loaded == null ? "ResourceCache.Load.Miss" : "ResourceCache.Load.Loaded");
             return loaded;
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[ResourceCache] load failed: "
+            TerriasLog.Warn("[ResourceCache] load failed: "
                 + typeof(T).Name
                 + " "
                 + path
@@ -39,7 +39,7 @@ public static class SunExpResourceCache
         }
         finally
         {
-            SunExpPerformanceCounters.RecordDuration("ResourceCache.Load", start);
+            TerriasPerformanceCounters.RecordDuration("ResourceCache.Load", start);
             LogSlowLoad("Load", typeof(T).Name, path, category, loaded != null, start);
         }
     }
@@ -47,23 +47,23 @@ public static class SunExpResourceCache
     public static T[]? LoadAll<T>(string path, string category = "")
         where T : UnityEngine.Object
     {
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         T[]? loaded = null;
         try
         {
             loaded = AuraSharedResourceCache.LoadAll<T>(
-                SunExpIds.ModId,
+                TerriasIds.ModId,
                 path,
                 category,
-                message => SunExpLog.Warn(message));
-            SunExpPerformanceCounters.Record((loaded?.Length ?? 0) == 0
+                message => TerriasLog.Warn(message));
+            TerriasPerformanceCounters.Record((loaded?.Length ?? 0) == 0
                 ? "ResourceCache.LoadAll.Miss"
                 : "ResourceCache.LoadAll.Loaded");
             return loaded;
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[ResourceCache] load-all failed: "
+            TerriasLog.Warn("[ResourceCache] load-all failed: "
                 + typeof(T).Name
                 + " "
                 + path
@@ -74,20 +74,20 @@ public static class SunExpResourceCache
         }
         finally
         {
-            SunExpPerformanceCounters.RecordDuration("ResourceCache.LoadAll", start);
+            TerriasPerformanceCounters.RecordDuration("ResourceCache.LoadAll", start);
             LogSlowLoad("LoadAll", typeof(T).Name, path, category, (loaded?.Length ?? 0) > 0, start);
         }
     }
 
     public static void Clear()
     {
-        AuraSharedResourceCache.Clear(SunExpIds.ModId);
+        AuraSharedResourceCache.Clear(TerriasIds.ModId);
     }
 
     public static void ClearCategory(string category)
     {
-        AuraSharedResourceCache.ClearCategory(SunExpIds.ModId, category);
-        SunExpPerformanceCounters.Record("ResourceCache.CategoryCleared");
+        AuraSharedResourceCache.ClearCategory(TerriasIds.ModId, category);
+        TerriasPerformanceCounters.Record("ResourceCache.CategoryCleared");
     }
 
     public static void Preload<T>(IEnumerable<string> paths, string category = "")
@@ -110,18 +110,18 @@ public static class SunExpResourceCache
         bool hit,
         long startTimestamp)
     {
-        if (!SunExpPerformanceSettings.CountersEnabled)
+        if (!TerriasPerformanceSettings.CountersEnabled)
         {
             return;
         }
 
-        var elapsed = SunExpPerformanceCounters.ElapsedMilliseconds(startTimestamp);
+        var elapsed = TerriasPerformanceCounters.ElapsedMilliseconds(startTimestamp);
         if (elapsed < SlowLoadWarningMilliseconds)
         {
             return;
         }
 
-        SunExpLog.Warn("Slow SunExp resource " + operation
+        TerriasLog.Warn("Slow Terrias resource " + operation
             + ": type="
             + typeName
             + ", elapsedMs="

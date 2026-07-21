@@ -506,7 +506,7 @@ void TestResourceProtocolV4()
         ModuleId = "Skin",
         FeatureId = "Skin",
         ScopeType = "Role",
-        ScopeId = "SunExp_columbina_columbina"
+        ScopeId = "Terrias_columbina_columbina"
     };
     var longSkin = new AuraSharedResourceDeclarationV4
     {
@@ -514,16 +514,16 @@ void TestResourceProtocolV4()
         FeatureId = longScope.FeatureId,
         ScopeType = longScope.ScopeType,
         ScopeId = longScope.ScopeId,
-        ScopeOwnerModId = "SunExp",
-        ResourceId = "SunExp.SunExp_columbina_columbina.restore_colors",
+        ScopeOwnerModId = "Terrias",
+        ResourceId = "Terrias.Terrias_columbina_columbina.restore_colors",
         Source = "first.png",
         FileName = "content.png",
         OriginKind = AuraSharedOriginKinds.ContentRegistered,
-        WriterId = "SunExp"
+        WriterId = "Terrias"
     };
-    var logicalSkinPath = AuraSharedResourcePathPolicy.ResourcePath(longScope, "SunExp", longSkin);
-    var physicalSkinPath = AuraSharedResourcePathPolicy.StorageResourcePath(longScope, "SunExp", longSkin);
-    Assert(logicalSkinPath.Contains("SunExp_columbina_columbina", StringComparison.Ordinal)
+    var logicalSkinPath = AuraSharedResourcePathPolicy.ResourcePath(longScope, "Terrias", longSkin);
+    var physicalSkinPath = AuraSharedResourcePathPolicy.StorageResourcePath(longScope, "Terrias", longSkin);
+    Assert(logicalSkinPath.Contains("Terrias_columbina_columbina", StringComparison.Ordinal)
            && physicalSkinPath.StartsWith("Skin/_Store/", StringComparison.Ordinal)
            && physicalSkinPath.Length < logicalSkinPath.Length,
         "v4 keeps logical resource identity while compacting long physical paths");
@@ -535,14 +535,14 @@ void TestResourceProtocolV4()
         "v4 includes the client root length when selecting bounded physical storage");
     var longSkinManifest = new AuraSharedRegistrationManifestV4
     {
-        OwnerModId = "SunExp",
+        OwnerModId = "Terrias",
         ParticipantKind = AuraSharedParticipantKinds.Content,
         PackageSourceKind = AuraSharedPackageSourceKinds.ModPackage,
-        PackageId = "SunExp.LongSkin.V4",
+        PackageId = "Terrias.LongSkin.V4",
         PackageVersion = 1,
         Resources = new List<AuraSharedResourceDeclarationV4> { longSkin }
     };
-    var longSkinRegistered = v4.Register("SunExp", longSkinManifest, sources);
+    var longSkinRegistered = v4.Register("Terrias", longSkinManifest, sources);
     var logicalSkinResolved = v4.Resolve(logicalSkinPath);
     Assert(longSkinRegistered.Success
            && longSkinRegistered.Activated
@@ -558,10 +558,10 @@ void TestResourceProtocolV4()
     {
         var restartedPackages = new AuraSharedPackageCoordinator(restartedStorage);
         var restarted = new AuraSharedRegistrationCoordinator(restartedStorage, restartedPackages, "session-v4-restart");
-        var restartedRegistration = restarted.Register("SunExp", longSkinManifest, sources);
+        var restartedRegistration = restarted.Register("Terrias", longSkinManifest, sources);
         Assert(restartedRegistration.Success
                && restartedRegistration.Activated
-               && restarted.QueryCatalog(new AuraSharedCatalogQueryV4 { OwnerModId = "SunExp" }).Entries.Count == 1,
+               && restarted.QueryCatalog(new AuraSharedCatalogQueryV4 { OwnerModId = "Terrias" }).Entries.Count == 1,
             "v4 reactivates a deduplicated compact resource after restart without a stale lease");
     }
 
@@ -1345,30 +1345,30 @@ void TestLifecycleContracts()
 void TestIdentityContracts()
 {
     Assert(AuraSharedIdentity.NormalizeRoleId("1") == "career_1", "short numeric career id normalizes");
-    Assert(AuraSharedIdentity.NormalizeRoleId("*SunExp_wuna_wuna") == "SunExp_wuna_wuna", "mod role id trims legacy star prefix");
+    Assert(AuraSharedIdentity.NormalizeRoleId("*Terrias_wuna_wuna") == "Terrias_wuna_wuna", "mod role id trims legacy star prefix");
     Assert(AuraSharedIdentity.IsRuntimeNumericId("76561198326385152"), "long numeric runtime owner id detected");
     Assert(!AuraSharedIdentity.IsUsableRoleId("76561198326385152"), "long numeric runtime owner id is not a role");
-    Assert(AuraSharedIdentity.SelectRoleId("76561198326385152", "SunExp_wuna_wuna") == "SunExp_wuna_wuna",
+    Assert(AuraSharedIdentity.SelectRoleId("76561198326385152", "Terrias_wuna_wuna") == "Terrias_wuna_wuna",
         "role selector falls back past runtime owner id");
-    Assert(AuraSharedIdentity.SelectRoleId("wuna", "SunExp_wuna_wuna") == "wuna",
+    Assert(AuraSharedIdentity.SelectRoleId("wuna", "Terrias_wuna_wuna") == "wuna",
         "role selector preserves usable short mod role id");
 
     Assert(AuraSharedContentId.Matches("careercard_*8", "careercard_8", knownPrefixes: new[] { "careercard_" }),
         "content id matcher accepts internal table protocol markers");
     Assert(AuraSharedContentId.Matches("8", "careercard_8", knownPrefixes: new[] { "careercard_" }),
         "content id matcher accepts deterministic official short ids");
-    Assert(AuraSharedContentId.Matches("solar_prayer", "SunExp_solar_prayer", "SunExp"),
+    Assert(AuraSharedContentId.Matches("solar_prayer", "Terrias_solar_prayer", "Terrias"),
         "content id matcher accepts owner-scoped short ids");
 
     var uniqueShort = AuraSharedContentId.Resolve(
         "solar_prayer",
-        new[] { "SunExp_solar_prayer", "Other_card" },
-        "SunExp");
-    Assert(uniqueShort.Success && uniqueShort.ResolvedId == "SunExp_solar_prayer",
+        new[] { "Terrias_solar_prayer", "Other_card" },
+        "Terrias");
+    Assert(uniqueShort.Success && uniqueShort.ResolvedId == "Terrias_solar_prayer",
         "content id resolver returns the unique owner-scoped full id");
     var ambiguousShort = AuraSharedContentId.Resolve(
         "prayer",
-        new[] { "SunExp_solar_prayer", "Other_lunar_prayer" });
+        new[] { "Terrias_solar_prayer", "Other_lunar_prayer" });
     Assert(!ambiguousShort.Success && ambiguousShort.Kind == AuraSharedContentIdResolutionKind.Ambiguous,
         "content id resolver rejects colliding short ids");
 
@@ -1385,7 +1385,7 @@ void TestJourneyContracts()
 {
     var context = new AuraJourneyConditionContext
     {
-        RoleIds = new List<string> { "SunExp_wuna_wuna", "SanGuoShaExp_shenzhugeliang" },
+        RoleIds = new List<string> { "Terrias_wuna_wuna", "SanGuoShaExp_shenzhugeliang" },
         PlayerCount = 2,
         Flags = new Dictionary<string, bool> { ["solar_memory_unlocked"] = true },
         Values = new Dictionary<string, string> { ["route"] = "sun" },
@@ -1397,14 +1397,14 @@ void TestJourneyContracts()
         new AuraJourneyCondition { Kind = AuraJourneyConditionKinds.Flag, Key = "solar_memory_unlocked" },
         new AuraJourneyCondition { Kind = AuraJourneyConditionKinds.Equals, Key = "route", Value = "sun" },
         new AuraJourneyCondition { Kind = AuraJourneyConditionKinds.MinCounter, Key = "embers", Number = 2 },
-        new AuraJourneyCondition { Kind = AuraJourneyConditionKinds.AnyRole, Value = "SunExp_wuna_wuna" },
+        new AuraJourneyCondition { Kind = AuraJourneyConditionKinds.AnyRole, Value = "Terrias_wuna_wuna" },
         new AuraJourneyCondition { Kind = AuraJourneyConditionKinds.PlayerCountAtLeast, Number = 2 }
     }, context), "journey condition evaluator");
 
     var request = new AuraJourneyCommitRequest
     {
-        JourneyId = "SunExp.SolarMemory",
-        OwnerModId = "SunExp",
+        JourneyId = "Terrias.SolarMemory",
+        OwnerModId = "Terrias",
         Action = "SelectNode",
         NodeId = "memory_1",
         Message = "selected first memory",
@@ -1413,7 +1413,7 @@ void TestJourneyContracts()
             Run = new AuraJourneyRunBinding
             {
                 RunId = "solar-memory-run",
-                NativeModeKey = "SunExp_SolarMemoryMode",
+                NativeModeKey = "Terrias_SolarMemoryMode",
                 NativeModeValue = "1",
                 StartedUtc = DateTime.UnixEpoch.ToString("O")
             },
@@ -1436,8 +1436,8 @@ void TestJourneyContracts()
 
     var next = AuraJourneyStateReducer.Apply(state, new AuraJourneyCommitRequest
     {
-        JourneyId = "SunExp.SolarMemory",
-        OwnerModId = "SunExp",
+        JourneyId = "Terrias.SolarMemory",
+        OwnerModId = "Terrias",
         Action = "CompleteNode",
         NodeId = "memory_1",
         Mutation = new AuraJourneyMutation
@@ -1455,21 +1455,21 @@ void TestJourneyContracts()
 
     var projection = AuraJourneyMapNodeDataBuilder.Build(new AuraJourneyMapNodeSpec
     {
-        MapId = "SunExp_sunexp_solar_memory_black_sun_after",
+        MapId = "Terrias_terrias_solar_memory_black_sun_after",
         FallbackMapId = "solar_memory_black_sun_after",
-        NodeId = "SunExp_sunexp_Sub_solar_memory_black_sun_after",
+        NodeId = "Terrias_terrias_Sub_solar_memory_black_sun_after",
         Type = AuraJourneyNodeKinds.Event,
         Note = "普通事件",
         Level = "-1",
         DicePolicy = AuraJourneyDicePolicies.Default
-    }, id => id == "SunExp_sunexp_solar_memory_black_sun_after"
+    }, id => id == "Terrias_terrias_solar_memory_black_sun_after"
         ? new Dictionary<string, string> { ["Id"] = "old", ["Type"] = "", ["Note"] = "", ["Level"] = "" }
         : null);
 
     Assert(projection.Valid
-           && projection.Data["Id"] == "SunExp_sunexp_solar_memory_black_sun_after"
+           && projection.Data["Id"] == "Terrias_terrias_solar_memory_black_sun_after"
            && projection.Data["Type"] == AuraJourneyNodeKinds.Event
-           && projection.Data["NodeId"] == "SunExp_sunexp_Sub_solar_memory_black_sun_after"
+           && projection.Data["NodeId"] == "Terrias_terrias_Sub_solar_memory_black_sun_after"
            && projection.Data["Level"] == "-1"
            && projection.DicePolicy == AuraJourneyDicePolicies.Default,
         "journey map node projection fills native fields");

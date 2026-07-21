@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 using Witch.Core;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class CombatCardViewPoolCatalog
 {
@@ -13,19 +13,19 @@ public static class CombatCardViewPoolCatalog
 
     private static readonly Dictionary<string, string> ExplicitBuckets = new(StringComparer.Ordinal)
     {
-        ["SunExp_sunexp_polymorph"] = CommonBucket,
-        [SunExpIds.PolymorphRoleTemplateCardId] = CommonBucket,
-        ["SunExp_sunexp_witch_projection"] = CommonBucket,
-        [SunExpIds.ProjectionRoleTemplateCardId] = CommonBucket,
-        [SunExpIds.SpiritCardTemplateId] = CommonBucket,
-        [SunExpIds.SpiritBallCardId] = AttackBucket,
-        ["SunExp_sunexp_heart_change"] = AttackBucket,
-        [SunExpIds.WunaCoronationTokenCardId] = CommonBucket,
-        [SunExpIds.WitchStarScoreCardId] = CommonBucket,
-        [SunExpIds.StellarOvertureStartCardId] = CommonBucket,
-        [SunExpIds.StellarOvertureSustainCardId] = CommonBucket,
-        [SunExpIds.StellarOvertureTurnCardId] = AttackBucket,
-        [SunExpIds.StellarOvertureCloseCardId] = AttackBucket
+        ["Terrias_terrias_polymorph"] = CommonBucket,
+        [TerriasIds.PolymorphRoleTemplateCardId] = CommonBucket,
+        ["Terrias_terrias_witch_projection"] = CommonBucket,
+        [TerriasIds.ProjectionRoleTemplateCardId] = CommonBucket,
+        [TerriasIds.SpiritCardTemplateId] = CommonBucket,
+        [TerriasIds.SpiritBallCardId] = AttackBucket,
+        ["Terrias_terrias_heart_change"] = AttackBucket,
+        [TerriasIds.WunaCoronationTokenCardId] = CommonBucket,
+        [TerriasIds.WitchStarScoreCardId] = CommonBucket,
+        [TerriasIds.StellarOvertureStartCardId] = CommonBucket,
+        [TerriasIds.StellarOvertureSustainCardId] = CommonBucket,
+        [TerriasIds.StellarOvertureTurnCardId] = AttackBucket,
+        [TerriasIds.StellarOvertureCloseCardId] = AttackBucket
     };
 
     public static bool TryResolveBucket(IDataConfig? config, out string bucket)
@@ -64,10 +64,10 @@ public static class CombatCardViewPoolCatalog
             return true;
         }
 
-        var markers = DictionaryUtil.Get(config.Vars, SunExpIds.RuntimeMarkersKey);
-        return DictionaryUtil.ContainsToken(markers, SunExpIds.PolymorphRoleCardMarker)
-            || DictionaryUtil.ContainsToken(markers, SunExpIds.ProjectionRoleCardMarker)
-            || DictionaryUtil.ContainsToken(markers, SunExpIds.SpiritCardMarker);
+        var markers = DictionaryUtil.Get(config.Vars, TerriasIds.RuntimeMarkersKey);
+        return DictionaryUtil.ContainsToken(markers, TerriasIds.PolymorphRoleCardMarker)
+            || DictionaryUtil.ContainsToken(markers, TerriasIds.ProjectionRoleCardMarker)
+            || DictionaryUtil.ContainsToken(markers, TerriasIds.SpiritCardMarker);
     }
 
     public static string PresentationSignature(IDataConfig? config, string bucket)

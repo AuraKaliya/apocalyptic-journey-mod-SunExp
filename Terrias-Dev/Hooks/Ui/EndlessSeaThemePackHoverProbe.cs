@@ -2,7 +2,7 @@ using System;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
-namespace SunExp.Dll.Hooks.Ui;
+namespace Terrias.Dll.Hooks.Ui;
 
 public sealed class EndlessSeaThemePackHoverProbe : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
 {

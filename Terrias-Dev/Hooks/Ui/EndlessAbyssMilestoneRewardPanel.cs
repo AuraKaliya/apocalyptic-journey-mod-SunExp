@@ -3,16 +3,16 @@ using System.Collections.Generic;
 using AuraUi.Shared;
 using System.Linq;
 using Data.Save;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace SunExp.Dll.Hooks.Ui;
+namespace Terrias.Dll.Hooks.Ui;
 
 public static class EndlessAbyssMilestoneRewardPanel
 {
-    private const string PanelName = "SunExp_EndlessAbyssMilestoneRewardPanel";
+    private const string PanelName = "Terrias_EndlessAbyssMilestoneRewardPanel";
     private const float HeaderHeight = 96f;
     private const float RewardCardHeight = 96f;
     private const float RowHeight = 56f;
@@ -43,7 +43,7 @@ public static class EndlessAbyssMilestoneRewardPanel
                 return true;
             }
 
-            var floor = Math.Max(1, GameSaveManager.GetValue<int>(SunExpIds.EndlessSeaFloorKey));
+            var floor = Math.Max(1, GameSaveManager.GetValue<int>(TerriasIds.EndlessSeaFloorKey));
             if (!EndlessAbyssMilestoneRewardService.CanClaim(floor))
             {
                 return false;
@@ -54,7 +54,7 @@ public static class EndlessAbyssMilestoneRewardPanel
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Endless abyss milestone reward panel failed", ex);
+            TerriasLog.Error("Endless abyss milestone reward panel failed", ex);
             Close("EndlessAbyssMilestone.OpenFailed");
             return false;
         }
@@ -63,19 +63,19 @@ public static class EndlessAbyssMilestoneRewardPanel
     private static void Open(int floor, string source)
     {
         activeFloor = Math.Max(1, floor);
-        var parent = SunExpModalHost.ModalParent();
+        var parent = TerriasModalHost.ModalParent();
         if (parent == null)
         {
             return;
         }
 
-        activePanel = SunExpModalHost.CreateFullscreenRoot(PanelName, parent, new Color(0f, 0f, 0f, 0.68f));
-        SunExpTransientUiRegistry.Register("EndlessAbyssMilestone", Close);
-        var window = SunExpUiComponents.CreateVerticalWindow(
+        activePanel = TerriasModalHost.CreateFullscreenRoot(PanelName, parent, new Color(0f, 0f, 0f, 0.68f));
+        TerriasTransientUiRegistry.Register("EndlessAbyssMilestone", Close);
+        var window = TerriasUiComponents.CreateVerticalWindow(
             "Window",
             activePanel.transform,
             ResolveWindowSize(parent),
-            SunExpUiSprites.Panel("[EndlessAbyssMilestone]"),
+            TerriasUiSprites.Panel("[EndlessAbyssMilestone]"),
             WindowTint,
             new RectOffset(24, 24, 18, 14),
             12f);
@@ -84,35 +84,35 @@ public static class EndlessAbyssMilestoneRewardPanel
         contentRoot = CreateContentRoot(window.transform);
         CreateFooter(window.transform);
         ShowMainOptions();
-        SunExpLog.Info("[EndlessAbyssMilestone] opened from " + source + "; floor=" + activeFloor + ".");
+        TerriasLog.Info("[EndlessAbyssMilestone] opened from " + source + "; floor=" + activeFloor + ".");
     }
 
     private static void CreateHeader(Transform parent)
     {
-        var header = SunExpUiComponents.CreatePanelSection(
+        var header = TerriasUiComponents.CreatePanelSection(
             "Header",
             parent,
-            SunExpUiSprites.Panel("[EndlessAbyssMilestone]"),
+            TerriasUiSprites.Panel("[EndlessAbyssMilestone]"),
             HeaderTint,
             HeaderHeight,
             HeaderHeight);
-        SunExpUiComponents.ConfigureVerticalLayout(header, new RectOffset(14, 14, 8, 8), 3f);
+        TerriasUiComponents.ConfigureVerticalLayout(header, new RectOffset(14, 14, 8, 8), 3f);
 
-        SunExpUiComponents.AddTextBlock(header.transform, "\u6df1\u6e0a\u91cc\u7a0b\u7891", 28, TextAnchor.MiddleCenter, Gold, 36f);
-        SunExpUiComponents.AddTextBlock(header.transform, "\u7b2c " + activeFloor + " \u5c42\u5956\u52b1\u9009\u62e9", 15, TextAnchor.MiddleCenter, SoftText, 24f);
+        TerriasUiComponents.AddTextBlock(header.transform, "\u6df1\u6e0a\u91cc\u7a0b\u7891", 28, TextAnchor.MiddleCenter, Gold, 36f);
+        TerriasUiComponents.AddTextBlock(header.transform, "\u7b2c " + activeFloor + " \u5c42\u5956\u52b1\u9009\u62e9", 15, TextAnchor.MiddleCenter, SoftText, 24f);
     }
 
     private static Transform CreateContentRoot(Transform parent)
     {
-        var root = SunExpUiComponents.CreatePanelSection(
+        var root = TerriasUiComponents.CreatePanelSection(
             "ContentRoot",
             parent,
-            SunExpUiSprites.Panel("[EndlessAbyssMilestone]"),
+            TerriasUiSprites.Panel("[EndlessAbyssMilestone]"),
             new Color(0.01f, 0.014f, 0.03f, 0.9f),
             330f,
             330f,
             1f);
-        SunExpUiComponents.ConfigureVerticalLayout(
+        TerriasUiComponents.ConfigureVerticalLayout(
             root,
             new RectOffset(18, 18, 18, 18),
             10f,
@@ -122,15 +122,15 @@ public static class EndlessAbyssMilestoneRewardPanel
 
     private static void CreateFooter(Transform parent)
     {
-        var footer = SunExpUiComponents.CreateFooterRow(parent, FooterHeight, new RectOffset(6, 6, 4, 4), 12f);
-        hintText = SunExpUiComponents.AddTextBlock(footer.transform, "", 14, TextAnchor.MiddleLeft, SoftText, 34f, 1f);
+        var footer = TerriasUiComponents.CreateFooterRow(parent, FooterHeight, new RectOffset(6, 6, 4, 4), 12f);
+        hintText = TerriasUiComponents.AddTextBlock(footer.transform, "", 14, TextAnchor.MiddleLeft, SoftText, 34f, 1f);
     }
 
     private static void ShowMainOptions()
     {
         ClearContent();
         ConfigureContentRootLayout(18, 18, 18, 18, 10f, true);
-        var scrollContent = SunExpUiComponents.CreateVerticalScrollArea(
+        var scrollContent = TerriasUiComponents.CreateVerticalScrollArea(
             contentRoot!,
             "RewardOptions",
             220f,
@@ -168,7 +168,7 @@ public static class EndlessAbyssMilestoneRewardPanel
 
     private static void CreateRewardCard(Transform parent, string title, string body, bool enabled, Action action)
     {
-        var go = SunExpUiComponents.CreateLayoutObject("RewardCard", parent);
+        var go = TerriasUiComponents.CreateLayoutObject("RewardCard", parent);
         var element = go.AddComponent<LayoutElement>();
         element.minHeight = RewardCardHeight;
         element.preferredHeight = RewardCardHeight;
@@ -263,7 +263,7 @@ public static class EndlessAbyssMilestoneRewardPanel
 
         ConfigureContentRootLayout(18, 18, 16, 18, 10f, true);
 
-        var titleRow = SunExpUiComponents.CreateLayoutObject("ListTitle", root);
+        var titleRow = TerriasUiComponents.CreateLayoutObject("ListTitle", root);
         var titleElement = titleRow.AddComponent<LayoutElement>();
         titleElement.minHeight = ButtonHeight;
         titleElement.preferredHeight = ButtonHeight;
@@ -275,9 +275,9 @@ public static class EndlessAbyssMilestoneRewardPanel
         titleLayout.childForceExpandHeight = false;
         titleLayout.childAlignment = TextAnchor.MiddleCenter;
         CreateButton(titleRow.transform, "\u8fd4\u56de", new Vector2(ButtonWidth, ButtonHeight), ShowMainOptions);
-        SunExpUiComponents.AddTextBlock(titleRow.transform, title + " (" + options.Count + ")", 18, TextAnchor.MiddleLeft, Gold, 34f, 1f);
+        TerriasUiComponents.AddTextBlock(titleRow.transform, title + " (" + options.Count + ")", 18, TextAnchor.MiddleLeft, Gold, 34f, 1f);
 
-        var scrollContent = SunExpUiComponents.CreateVerticalScrollArea(
+        var scrollContent = TerriasUiComponents.CreateVerticalScrollArea(
             root,
             "List",
             220f,
@@ -295,11 +295,11 @@ public static class EndlessAbyssMilestoneRewardPanel
 
     private static void CreateRow(Transform parent, string badge, string name, Action action)
     {
-        var row = SunExpUiComponents.CreateLayoutObject("Row", parent);
+        var row = TerriasUiComponents.CreateLayoutObject("Row", parent);
         var element = row.AddComponent<LayoutElement>();
         element.minHeight = RowHeight;
         element.preferredHeight = RowHeight;
-        SunExpUiBuilder.ApplyLabelImage(row, SunExpUiSprites.Label("[EndlessAbyssMilestone]"), CardTint, true);
+        TerriasUiBuilder.ApplyLabelImage(row, TerriasUiSprites.Label("[EndlessAbyssMilestone]"), CardTint, true);
         var layout = row.AddComponent<HorizontalLayoutGroup>();
         layout.padding = new RectOffset(12, 12, 5, 5);
         layout.spacing = 10f;
@@ -308,8 +308,8 @@ public static class EndlessAbyssMilestoneRewardPanel
         layout.childForceExpandWidth = false;
         layout.childForceExpandHeight = true;
 
-        SunExpUiComponents.AddTextBlock(row.transform, badge, 13, TextAnchor.MiddleCenter, Gold, 40f, 0f, 74f);
-        SunExpUiComponents.AddTextBlock(row.transform, name, 15, TextAnchor.MiddleLeft, SoftText, 40f, 1f);
+        TerriasUiComponents.AddTextBlock(row.transform, badge, 13, TextAnchor.MiddleCenter, Gold, 40f, 0f, 74f);
+        TerriasUiComponents.AddTextBlock(row.transform, name, 15, TextAnchor.MiddleLeft, SoftText, 40f, 1f);
         CreateButton(row.transform, "\u9009\u62e9", new Vector2(ButtonWidth, ButtonHeight), action);
     }
 
@@ -320,7 +320,7 @@ public static class EndlessAbyssMilestoneRewardPanel
             return;
         }
 
-        SunExpUiPool.ReleaseOrDestroyChildren(contentRoot, "EndlessAbyssMilestone.ClearContent", "[EndlessAbyssMilestone]");
+        TerriasUiPool.ReleaseOrDestroyChildren(contentRoot, "EndlessAbyssMilestone.ClearContent", "[EndlessAbyssMilestone]");
     }
 
     private static void ConfigureContentRootLayout(int left, int right, int top, int bottom, float spacing, bool expandHeight)
@@ -330,7 +330,7 @@ public static class EndlessAbyssMilestoneRewardPanel
             return;
         }
 
-        SunExpUiComponents.ConfigureVerticalLayout(
+        TerriasUiComponents.ConfigureVerticalLayout(
             contentRoot.gameObject,
             new RectOffset(left, right, top, bottom),
             spacing,
@@ -343,8 +343,8 @@ public static class EndlessAbyssMilestoneRewardPanel
         contentRoot = null;
         hintText = null;
         activeFloor = 0;
-        SunExpModalHost.Close(ref activePanel, source, "[EndlessAbyssMilestone]");
-        SunExpTransientUiRegistry.Unregister("EndlessAbyssMilestone");
+        TerriasModalHost.Close(ref activePanel, source, "[EndlessAbyssMilestone]");
+        TerriasTransientUiRegistry.Unregister("EndlessAbyssMilestone");
     }
 
     private static void SetHint(string value)
@@ -357,11 +357,11 @@ public static class EndlessAbyssMilestoneRewardPanel
 
     private static Button CreateButton(Transform parent, string label, Vector2 size, Action action)
     {
-        return SunExpUiComponents.CreateTextButton(
+        return TerriasUiComponents.CreateTextButton(
             parent,
             label,
             size,
-            SunExpUiSprites.Button("[EndlessAbyssMilestone]"),
+            TerriasUiSprites.Button("[EndlessAbyssMilestone]"),
             new Color(0.08f, 0.07f, 0.11f, 0.98f),
             SoftText,
             ButtonFontSize,
@@ -376,7 +376,7 @@ public static class EndlessAbyssMilestoneRewardPanel
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[EndlessAbyssMilestone] UI action failed: " + source, ex);
+            TerriasLog.Error("[EndlessAbyssMilestone] UI action failed: " + source, ex);
             SetHint("\u91cc\u7a0b\u7891\u64cd\u4f5c\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002");
         }
     }

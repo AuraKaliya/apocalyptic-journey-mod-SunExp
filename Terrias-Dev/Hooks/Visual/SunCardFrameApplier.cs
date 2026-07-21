@@ -1,7 +1,7 @@
 using UnityEngine;
 using Witch.Core;
 
-namespace SunExp.Dll.Hooks.Visual;
+namespace Terrias.Dll.Hooks.Visual;
 
 public static class SunCardFrameApplier
 {

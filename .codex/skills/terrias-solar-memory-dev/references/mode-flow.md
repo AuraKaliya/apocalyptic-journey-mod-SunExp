@@ -5,36 +5,36 @@ boss routing, finale routing, or old-save settlement.
 
 ## Core Files
 
-- `SunExp-Dev/Hooks/SolarMemoryModeRuntime.cs`: mode hooks, map lifecycle,
+- `Terrias-Dev/Hooks/SolarMemoryModeRuntime.cs`: mode hooks, map lifecycle,
   completion, fight abort/loss handling, and UI entry integration.
-- `SunExp-Dev/Hooks/ModeChoiceEntryRegistry.cs`: custom mode entry
+- `Terrias-Dev/Hooks/ModeChoiceEntryRegistry.cs`: custom mode entry
   registration.
-- `SunExp-Dev/Hooks/ModeChoiceLayoutRuntime.cs`: mode-choice layout,
+- `Terrias-Dev/Hooks/ModeChoiceLayoutRuntime.cs`: mode-choice layout,
   native-slot protection, fallback entry creation, and drag surface handling.
-- `SunExp-Dev/Hooks/SolarMemoryModeEntryRuntime.cs`: Solar Memory mode entry
+- `Terrias-Dev/Hooks/SolarMemoryModeEntryRuntime.cs`: Solar Memory mode entry
   integration and title art lookup.
-- `SunExp-Dev/Hooks/SolarMemoryRunLauncher.cs`: save creation and preparation
+- `Terrias-Dev/Hooks/SolarMemoryRunLauncher.cs`: save creation and preparation
   state initialization.
-- `SunExp-Dev/Hooks/SolarMemoryPreparationRuntime.cs`: explicit preparation
+- `Terrias-Dev/Hooks/SolarMemoryPreparationRuntime.cs`: explicit preparation
   state machine and legacy boolean-state inference.
-- `SunExp-Dev/Hooks/SolarMemoryStarterDeckRuntime.cs`: starter deck picker and
+- `Terrias-Dev/Hooks/SolarMemoryStarterDeckRuntime.cs`: starter deck picker and
   candidate filtering.
-- `SunExp-Dev/Hooks/SolarMemorySetupFlowRuntime.cs`: origin allocation UI.
-- `SunExp-Dev/Hooks/SolarMemoryBlessingPickerRuntime.cs`: quota blessing picker.
-- `SunExp-Dev/Hooks/Ui/SunExpModalHost.cs`: shared modal parent and close path.
-- `SunExp-Dev/Hooks/Ui/SunExpUiPool.cs`: pooled repeated rows.
-- `SunExp-Dev/Hooks/Ui/SunExpUiSprites.cs`: cached UI sprites and nine-slice
+- `Terrias-Dev/Hooks/SolarMemorySetupFlowRuntime.cs`: origin allocation UI.
+- `Terrias-Dev/Hooks/SolarMemoryBlessingPickerRuntime.cs`: quota blessing picker.
+- `Terrias-Dev/Hooks/Ui/TerriasModalHost.cs`: shared modal parent and close path.
+- `Terrias-Dev/Hooks/Ui/TerriasUiPool.cs`: pooled repeated rows.
+- `Terrias-Dev/Hooks/Ui/TerriasUiSprites.cs`: cached UI sprites and nine-slice
   creation.
-- `SunExp-Dev/GameApi/SolarMemoryFlowApi.cs`: event-script facade into hook
+- `Terrias-Dev/GameApi/SolarMemoryFlowApi.cs`: event-script facade into hook
   runtimes.
-- `SunExp-Dev/Scripting/EventScripts.cs`: CSV-callable event options.
+- `Terrias-Dev/Scripting/EventScripts.cs`: CSV-callable event options.
 
 ## Event Script Boundary
 
 `EventScripts` exposes stable CSV entry points only. It should call
 `SolarMemoryFlowApi` for mode-level behavior such as preparation completion,
 opening setup UI, starting boss rush, finale battle, or settlement. It must not
-import `SunExp.Dll.Hooks` directly.
+import `Terrias.Dll.Hooks` directly.
 
 Keep `Data/EventList` option scripts aligned with localized option text. The
 start event should offer preparation through C# before boss rush starts.
@@ -42,7 +42,7 @@ start event should offer preparation through C# before boss rush starts.
 ## Preparation State
 
 The run starts with an explicit preparation step, normally deck selection, and
-stores progress through `SunExpIds.SolarMemoryPrepStepKey`. The preparation
+stores progress through `TerriasIds.SolarMemoryPrepStepKey`. The preparation
 runtime must be resumable and must infer from legacy boolean keys for old saves.
 
 Current preparation responsibilities:
@@ -65,7 +65,7 @@ overlay placement or sibling-order hacks.
 
 Use `SolarMemoryModeEntryRuntime` for entry display and activation. Resolve
 title art through `VisualRegistry` and route visual work through
-`sunexp-visual-runtime-dev`.
+`terrias-visual-runtime-dev`.
 
 ## Boss And Finale Routing
 
@@ -83,9 +83,9 @@ initialization can index stale map lists.
 ## UI Lifecycle
 
 Transient Solar Memory UI must be safe during fight abort, loss, and map
-transition. Use `SunExpModalHost` for modal close paths, `SunExpUiSafety` for
-safe teardown, `SunExpUiPool` for repeated rows, `SunExpUiSprites` for cached
-button/nine-slice sprites, and `SunExpUiBuilder` for repeated panel
+transition. Use `TerriasModalHost` for modal close paths, `TerriasUiSafety` for
+safe teardown, `TerriasUiPool` for repeated rows, `TerriasUiSprites` for cached
+button/nine-slice sprites, and `TerriasUiBuilder` for repeated panel
 construction. Close setup UI after native fight reset and clear pending finale
 battle state on abort.
 

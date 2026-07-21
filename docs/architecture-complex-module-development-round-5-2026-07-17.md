@@ -66,7 +66,7 @@
 
 架构门禁要求提交检查量、pending、owner pending、并发和每帧启动预算都保持有限，要求 owner rotation、容量拒绝观测和 `finally` 完成路径存在，并禁止纯调度模块依赖 Unity/Witch。公共 API、BuildId、ProtocolVersion 和 RPC 语义未改变，程序集兼容基线仍为 1228 项。
 
-完整共享发布门禁已通过，包括 AuraSharedCore 92 项、AuraCg 97 项、AuraDirector 20 项、AuraToolsExp 632 项、三个主消费者构建及打包 DLL 哈希一致性。SunExp C# 构建为 0 警告、0 错误，282 项源码断言通过。
+完整共享发布门禁已通过，包括 AuraSharedCore 92 项、AuraCg 97 项、AuraDirector 20 项、AuraToolsExp 632 项、三个主消费者构建及打包 DLL 哈希一致性。Terrias C# 构建为 0 警告、0 错误，282 项源码断言通过。
 
 ## 7. 剩余工作
 

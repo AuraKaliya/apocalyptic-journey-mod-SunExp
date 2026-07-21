@@ -2,14 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Data.Save;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch;
 using Witch.Core;
 using Witch.Mod;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 internal static class SolarMemoryMapLifecycleCoordinator
 {
@@ -30,12 +30,12 @@ internal static class SolarMemoryMapLifecycleCoordinator
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.After(config, target, action, "SolarMemoryMapLifecycle");
+        TerriasHookRegistry.After(config, target, action, "SolarMemoryMapLifecycle");
     }
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.Before(config, target, action, "SolarMemoryMapLifecycle");
+        TerriasHookRegistry.Before(config, target, action, "SolarMemoryMapLifecycle");
     }
 
     private static void CaptureSolarMemoryGenerationState(ModHookContext context)
@@ -53,7 +53,7 @@ internal static class SolarMemoryMapLifecycleCoordinator
         catch (Exception ex)
         {
             SolarMemoryMapNodePoolApplier.ResetGenerationCapture();
-            SunExpLog.Error("Solar memory map generation capture failed", ex);
+            TerriasLog.Error("Solar memory map generation capture failed", ex);
         }
     }
 
@@ -70,7 +70,7 @@ internal static class SolarMemoryMapLifecycleCoordinator
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory map rewrite failed", ex);
+            TerriasLog.Error("Solar memory map rewrite failed", ex);
         }
     }
 
@@ -92,7 +92,7 @@ internal static class SolarMemoryMapLifecycleCoordinator
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory pre-select map repair failed", ex);
+            TerriasLog.Error("Solar memory pre-select map repair failed", ex);
         }
     }
 
@@ -113,7 +113,7 @@ internal static class SolarMemoryMapLifecycleCoordinator
             if (!HasSolarMemoryCurrentNodeReady()
                 && !TryRestoreSolarMemoryCurrentNodeFromMapManager("MapSelectUI.ShowMap"))
             {
-                SunExpLog.Debug("[SolarMemoryMapLock] skipped fixed slot apply from MapSelectUI.ShowMap: current node is not ready.");
+                TerriasLog.Debug("[SolarMemoryMapLock] skipped fixed slot apply from MapSelectUI.ShowMap: current node is not ready.");
                 return;
             }
 
@@ -126,13 +126,13 @@ internal static class SolarMemoryMapLifecycleCoordinator
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory fixed slot lock repair failed", ex);
+            TerriasLog.Error("Solar memory fixed slot lock repair failed", ex);
         }
     }
 
     private static Dictionary<string, string>? MapRow(string mapId)
     {
-        return SunExpConfigIndex.Row(DataType.Map, mapId);
+        return TerriasConfigIndex.Row(DataType.Map, mapId);
     }
 
     private static int CurrentSolarMemoryLayer()
@@ -161,7 +161,7 @@ internal static class SolarMemoryMapLifecycleCoordinator
                 {
                     if (RepairSolarMemoryMapArrays(maps, mapData))
                     {
-                        SunExpLog.Info("[SolarMemoryMapSync] map selection arrays repaired.");
+                        TerriasLog.Info("[SolarMemoryMapSync] map selection arrays repaired.");
                     }
 
                     TryRestoreSolarMemoryCurrentNodeFromSyncArrays(maps, mapData, "MapManager.MapSelectionSync");
@@ -170,7 +170,7 @@ internal static class SolarMemoryMapLifecycleCoordinator
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory map selection repair failed", ex);
+            TerriasLog.Error("Solar memory map selection repair failed", ex);
         }
     }
 
@@ -190,7 +190,7 @@ internal static class SolarMemoryMapLifecycleCoordinator
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[SolarMemoryMapSync] pre-next-map current node repair failed: " + ex.Message);
+            TerriasLog.Warn("[SolarMemoryMapSync] pre-next-map current node repair failed: " + ex.Message);
         }
     }
 
@@ -207,12 +207,12 @@ internal static class SolarMemoryMapLifecycleCoordinator
             if (node != null)
             {
                 GameSaveManager.UpdateNode(node);
-                SunExpLog.Debug("[SolarMemoryMapSync] synced client save node after RpcNextMap.");
+                TerriasLog.Debug("[SolarMemoryMapSync] synced client save node after RpcNextMap.");
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[SolarMemoryMapSync] post-next-map save node sync failed: " + ex.Message);
+            TerriasLog.Warn("[SolarMemoryMapSync] post-next-map save node sync failed: " + ex.Message);
         }
     }
 
@@ -221,7 +221,7 @@ internal static class SolarMemoryMapLifecycleCoordinator
         var layer = CurrentSolarMemoryLayer();
         var repairCount = SolarMemoryMapSyncRepairService.Repair(maps, mapData, layer, repair =>
         {
-            SunExpLog.Info("[SolarMemoryMapSync] repaired index="
+            TerriasLog.Info("[SolarMemoryMapSync] repaired index="
                 + repair.SlotIndex
                 + "; layer="
                 + repair.Layer
@@ -270,7 +270,7 @@ internal static class SolarMemoryMapLifecycleCoordinator
 
             tree.currentNode = first;
             GameSaveManager.UpdateNode(first);
-            SunExpLog.Info("[SolarMemoryMapSync] restored client current node from sync arrays; source="
+            TerriasLog.Info("[SolarMemoryMapSync] restored client current node from sync arrays; source="
                 + source
                 + "; count="
                 + count
@@ -279,7 +279,7 @@ internal static class SolarMemoryMapLifecycleCoordinator
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[SolarMemoryMapSync] failed to restore client current node from "
+            TerriasLog.Warn("[SolarMemoryMapSync] failed to restore client current node from "
                 + source
                 + ": "
                 + ex.Message);
@@ -398,7 +398,7 @@ internal static class SolarMemoryMapLifecycleCoordinator
         }
 
         node.NodeDice = tree.treedice ?? Dice.Default;
-        SunExpLog.Debug("[SolarMemoryMapSync] repaired current node dice from " + source + ".");
+        TerriasLog.Debug("[SolarMemoryMapSync] repaired current node dice from " + source + ".");
     }
 
     internal static bool IsClientOnlyPlayer()
@@ -421,8 +421,8 @@ internal static class SolarMemoryMapLifecycleCoordinator
             return false;
         }
 
-        return SunExpIds.SolarMemoryMapIds.Any(value => string.Equals(id, value, StringComparison.Ordinal))
-            || SunExpIds.SolarMemoryShortMapIds.Any(value => string.Equals(id, value, StringComparison.Ordinal));
+        return TerriasIds.SolarMemoryMapIds.Any(value => string.Equals(id, value, StringComparison.Ordinal))
+            || TerriasIds.SolarMemoryShortMapIds.Any(value => string.Equals(id, value, StringComparison.Ordinal));
     }
 
     private static bool IsSolarMemoryEventId(string? id)
@@ -432,8 +432,8 @@ internal static class SolarMemoryMapLifecycleCoordinator
             return false;
         }
 
-        return SunExpIds.SolarMemoryFullEventIds.Any(value => string.Equals(id, value, StringComparison.Ordinal))
-            || SunExpIds.SolarMemoryEventIds.Any(value => string.Equals(id, value, StringComparison.Ordinal));
+        return TerriasIds.SolarMemoryFullEventIds.Any(value => string.Equals(id, value, StringComparison.Ordinal))
+            || TerriasIds.SolarMemoryEventIds.Any(value => string.Equals(id, value, StringComparison.Ordinal));
     }
 
     private static string Field(IDictionary<string, string> data, string key)

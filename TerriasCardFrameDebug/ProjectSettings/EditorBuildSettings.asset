@@ -6,6 +6,6 @@ EditorBuildSettings:
   serializedVersion: 2
   m_Scenes:
   - enabled: 1
-    path: Assets/SunExpCardFrameDebug/Scenes/CardFrameHoloDebug.unity
+    path: Assets/TerriasCardFrameDebug/Scenes/CardFrameHoloDebug.unity
     guid: bd49462100f869d4bac454f8b4f0c2f0
   m_configObjects: {}

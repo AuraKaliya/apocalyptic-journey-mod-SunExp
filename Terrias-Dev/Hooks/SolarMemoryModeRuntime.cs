@@ -1,9 +1,9 @@
 using System;
 using Data.Save;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class SolarMemoryModeRuntime
 {
@@ -30,7 +30,7 @@ public static class SolarMemoryModeRuntime
 
     public static bool IsSolarMemoryRun()
     {
-        return GameSaveManager.GetValue<string>(SunExpIds.SolarMemoryModeKey) == "1";
+        return GameSaveManager.GetValue<string>(TerriasIds.SolarMemoryModeKey) == "1";
     }
 
     private static void StartOrResumePreparation(string source)
@@ -41,7 +41,7 @@ public static class SolarMemoryModeRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory " + source + " window failed", ex);
+            TerriasLog.Error("Solar memory " + source + " window failed", ex);
         }
     }
 }

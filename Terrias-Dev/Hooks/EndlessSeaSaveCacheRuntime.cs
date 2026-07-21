@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Generic;
 using AuraShared.Core;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class EndlessSeaSaveCacheRuntime
 {
@@ -25,19 +25,19 @@ public static class EndlessSeaSaveCacheRuntime
     public static void ClearNativeNormalCache(string source)
     {
         ModeChoiceSaveCacheApi.ClearCachedSaveIf(
-            SunExpIds.NativeNormalModeType,
+            TerriasIds.NativeNormalModeType,
             EndlessSeaRunStateStore.IsEndlessSeaSave,
             source);
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.After(config, target, action, "EndlessSeaSaveCache");
+        TerriasHookRegistry.After(config, target, action, "EndlessSeaSaveCache");
     }
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.Before(config, target, action, "EndlessSeaSaveCache");
+        TerriasHookRegistry.Before(config, target, action, "EndlessSeaSaveCache");
     }
 
     private static void ProtectSeaSavesBeforeNativeDelete(ModHookContext context)
@@ -53,25 +53,25 @@ public static class EndlessSeaSaveCacheRuntime
             foreach (var saveInfo in Singleton<GameRuntimeData>.Instance?.Saves ?? new List<Data.Save.SaveInfo>())
             {
                 if (!EndlessSeaRunStateStore.IsEndlessSeaSave(saveInfo)
-                    || !string.Equals(saveInfo.modeType, SunExpIds.NativeNormalModeType, StringComparison.Ordinal))
+                    || !string.Equals(saveInfo.modeType, TerriasIds.NativeNormalModeType, StringComparison.Ordinal))
                 {
                     continue;
                 }
 
-                saveInfo.modeType = SunExpIds.EndlessSeaModeType;
+                saveInfo.modeType = TerriasIds.EndlessSeaModeType;
                 TemporarilyProtectedSaves.Add(saveInfo.Name);
             }
 
             if (TemporarilyProtectedSaves.Count > 0)
             {
-                SunExpLog.Debug("[EndlessSeaSaveCache] protected "
+                TerriasLog.Debug("[EndlessSeaSaveCache] protected "
                     + TemporarilyProtectedSaves.Count
                     + " Endless Sea saves from native Normal cleanup.");
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessSeaSaveCache] protect before native delete failed: " + ex.Message);
+            TerriasLog.Warn("[EndlessSeaSaveCache] protect before native delete failed: " + ex.Message);
         }
     }
 
@@ -91,16 +91,16 @@ public static class EndlessSeaSaveCacheRuntime
                     continue;
                 }
 
-                saveInfo.modeType = SunExpIds.NativeNormalModeType;
+                saveInfo.modeType = TerriasIds.NativeNormalModeType;
             }
 
-            SunExpLog.Debug("[EndlessSeaSaveCache] restored "
+            TerriasLog.Debug("[EndlessSeaSaveCache] restored "
                 + TemporarilyProtectedSaves.Count
                 + " protected Endless Sea saves after native Normal cleanup.");
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessSeaSaveCache] restore after native delete failed: " + ex.Message);
+            TerriasLog.Warn("[EndlessSeaSaveCache] restore after native delete failed: " + ex.Message);
         }
         finally
         {
@@ -112,6 +112,6 @@ public static class EndlessSeaSaveCacheRuntime
     {
         return context.Arguments != null
             && context.Arguments.Length > 0
-            && string.Equals(Convert.ToString(context.Arguments[0]), SunExpIds.NativeNormalModeType, StringComparison.Ordinal);
+            && string.Equals(Convert.ToString(context.Arguments[0]), TerriasIds.NativeNormalModeType, StringComparison.Ordinal);
     }
 }

@@ -41,7 +41,7 @@ Keep eligibility tied to stable lifecycle state and unresolved pressure/reward g
 
 ### Metadata
 - Source: user_feedback
-- Related Files: SunExp-Dev/Hooks/EndlessAbyssEvacuationRuntime.cs, SunExp-Dev/Mechanics/EndlessAbyssEvacuationDepth.cs
+- Related Files: Terrias-Dev/Hooks/EndlessAbyssEvacuationRuntime.cs, Terrias-Dev/Mechanics/EndlessAbyssEvacuationDepth.cs
 - Tags: endless-abyss, evacuation, multiplayer, settlement
 
 ---

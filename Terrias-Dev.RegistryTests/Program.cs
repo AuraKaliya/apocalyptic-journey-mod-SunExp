@@ -3,7 +3,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using AuraShared.Core;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Mechanics;
 
 if (args.Length != 1 || !File.Exists(args[0]))
 {
@@ -54,12 +54,12 @@ var composedPresentation = SpiritIntentPresentationDataComposer.Compose(
     },
     new System.Collections.Generic.Dictionary<string, string>
     {
-        ["Id"] = "SunExp_sunexp_enemycard_spirit_intent_adapter",
+        ["Id"] = "Terrias_terrias_enemycard_spirit_intent_adapter",
         ["InitScript"] = "adapter-init",
         ["TargetScript"] = "adapter-target",
         ["UseScript"] = "adapter-use"
     });
-Assert(composedPresentation["Id"] == "SunExp_sunexp_enemycard_spirit_intent_adapter", "spirit presentation must use the adapter runtime identity");
+Assert(composedPresentation["Id"] == "Terrias_terrias_enemycard_spirit_intent_adapter", "spirit presentation must use the adapter runtime identity");
 Assert(composedPresentation["InitScript"] == "adapter-init", "spirit presentation must use the adapter init script");
 Assert(composedPresentation["Description"] == "Grant {0} Shield.", "spirit presentation must preserve the source description");
 Assert(composedPresentation["Icon"] == "Icon/ActionIcon/Defence", "spirit presentation must preserve the source icon");

@@ -2,13 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using Data.Save;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Network;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Network;
 using Witch;
 using Witch.Core;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public sealed class EndlessAbyssRelicOption
 {
@@ -50,7 +50,7 @@ public static class EndlessAbyssMilestoneRewardService
     {
         try
         {
-            var rows = SunExpConfigIndex.Rows(DataType.Relic);
+            var rows = TerriasConfigIndex.Rows(DataType.Relic);
             var checkedRows = Singleton<GameConfigManager>.Instance.CardPackCheck(rows);
             var seen = new HashSet<string>(StringComparer.Ordinal);
             return checkedRows
@@ -60,7 +60,7 @@ public static class EndlessAbyssMilestoneRewardService
                     var tier = DictionaryUtil.ParseInt(DictionaryUtil.Get(row, "Rarity"), -1);
                     return !string.IsNullOrWhiteSpace(id)
                         && !id.StartsWith("*", StringComparison.Ordinal)
-                        && !SunExpIds.IsHiddenRelicId(id)
+                        && !TerriasIds.IsHiddenRelicId(id)
                         && tier >= 1
                         && tier <= 3
                         && seen.Add(id)
@@ -79,7 +79,7 @@ public static class EndlessAbyssMilestoneRewardService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessAbyssMilestone] relic candidates failed: " + ex.Message);
+            TerriasLog.Warn("[EndlessAbyssMilestone] relic candidates failed: " + ex.Message);
             return Array.Empty<EndlessAbyssRelicOption>();
         }
     }
@@ -126,7 +126,7 @@ public static class EndlessAbyssMilestoneRewardService
         {
             ids = config.OtherDimensionCardIds
                 .Select(CardApi.ResolveCardId)
-                .Where(id => !string.IsNullOrWhiteSpace(id) && SunExpConfigIndex.Row(DataType.Card, id) != null)
+                .Where(id => !string.IsNullOrWhiteSpace(id) && TerriasConfigIndex.Row(DataType.Card, id) != null)
                 .Distinct(StringComparer.Ordinal)
                 .ToList();
         }
@@ -216,7 +216,7 @@ public static class EndlessAbyssMilestoneRewardService
         catch (Exception ex)
         {
             message = "\u91cc\u7a0b\u7891\u5956\u52b1\u7ed3\u7b97\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002";
-            SunExpLog.Warn("[EndlessAbyssMilestone] resolution failed from "
+            TerriasLog.Warn("[EndlessAbyssMilestone] resolution failed from "
                 + source
                 + ": "
                 + ex.Message);
@@ -250,7 +250,7 @@ public static class EndlessAbyssMilestoneRewardService
         if (!PlayerApi.TryAddCardToDeck(resolution.CardId, out var grantedCardId, out var error))
         {
             message = "\u5f02\u6b21\u5143\u5361\u83b7\u53d6\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002";
-            SunExpLog.Warn("[EndlessAbyssMilestone] other-dimension card grant failed; card="
+            TerriasLog.Warn("[EndlessAbyssMilestone] other-dimension card grant failed; card="
                 + resolution.CardId
                 + "; error="
                 + error);
@@ -369,13 +369,13 @@ public static class EndlessAbyssMilestoneRewardService
 
     private static void BroadcastResolution(EndlessAbyssMilestoneResolution resolution, string source)
     {
-        if (!SunExpNetworkRuntime.IsMultiplayerSession() || SunExpNetworkRuntime.IsClientOnly())
+        if (!TerriasNetworkRuntime.IsMultiplayerSession() || TerriasNetworkRuntime.IsClientOnly())
         {
             return;
         }
 
         var snapshot = EndlessSeaStateSnapshot.Capture(source + ":milestone-resolution");
-        SunExpNetworkRuntime.Send(
+        TerriasNetworkRuntime.Send(
             new RpcEndlessAbyssMilestoneResolution(resolution, snapshot, source),
             source);
     }
@@ -398,7 +398,7 @@ public static class EndlessAbyssMilestoneRewardService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessAbyssMilestone] card scan failed: " + ex.Message);
+            TerriasLog.Warn("[EndlessAbyssMilestone] card scan failed: " + ex.Message);
             return Array.Empty<EndlessAbyssCardOption>();
         }
     }
@@ -446,7 +446,7 @@ public static class EndlessAbyssMilestoneRewardService
 
     private static string PlayerScopeKey()
     {
-        var playerId = SunExpNetworkRuntime.LocalPlayerId();
+        var playerId = TerriasNetworkRuntime.LocalPlayerId();
         if (!string.IsNullOrWhiteSpace(playerId))
         {
             return Sanitize(playerId);
@@ -466,7 +466,7 @@ public static class EndlessAbyssMilestoneRewardService
 
     private static int EndlessSeaModeRuntimeCurrentFloor()
     {
-        return Math.Max(1, GameSaveManager.GetValue<int>(SunExpIds.EndlessSeaFloorKey));
+        return Math.Max(1, GameSaveManager.GetValue<int>(TerriasIds.EndlessSeaFloorKey));
     }
 
     private static bool IsLocked(string id)
@@ -484,7 +484,7 @@ public static class EndlessAbyssMilestoneRewardService
 
     private static string RelicName(string relicId)
     {
-        var row = SunExpConfigIndex.Row(DataType.Relic, relicId);
+        var row = TerriasConfigIndex.Row(DataType.Relic, relicId);
         return row == null ? relicId : DisplayName(row, relicId);
     }
 
@@ -492,8 +492,8 @@ public static class EndlessAbyssMilestoneRewardService
     {
         try
         {
-            var row = SunExpConfigIndex.Row(DataType.Card, CardApi.ResolveCardId(cardId))
-                      ?? SunExpConfigIndex.Row(DataType.Card, cardId);
+            var row = TerriasConfigIndex.Row(DataType.Card, CardApi.ResolveCardId(cardId))
+                      ?? TerriasConfigIndex.Row(DataType.Card, cardId);
             return row == null ? cardId : DisplayName(row, cardId);
         }
         catch

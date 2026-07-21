@@ -1,4 +1,4 @@
 Id,Rarity,Expend,Tag,InitScript,DrawScript,UseScript,DropScript,Icon,Effects,Action
 唯一的标识（不能重复）,稀有度,花费,标签,卡牌初始化脚本,卡牌抽到后执行,卡牌使用后执行,卡牌进入弃牌堆后执行,图标资源的路径,特效路径,动作
-abyss_life_theft,1,0,"Burnout,Curse,Unusable","CS.SunExp.Dll.Scripting.CardScripts.Init(self, ""abyss_life_theft"");","CS.SunExp.Dll.Scripting.CardScripts.Draw(self, ""abyss_life_theft"");",,"CS.SunExp.Dll.Scripting.CardScripts.Drop(self, ""abyss_life_theft"");",Icon/Card/无力感,,
-abyss_deficit,1,0,"Burnout,Curse","CS.SunExp.Dll.Scripting.CardScripts.Init(self, ""abyss_deficit"");","CS.SunExp.Dll.Scripting.CardScripts.Draw(self, ""abyss_deficit"");",,,Icon/Card/无力感,,
+abyss_life_theft,1,0,"Burnout,Curse,Unusable","CS.Terrias.Dll.Scripting.CardScripts.Init(self, ""abyss_life_theft"");","CS.Terrias.Dll.Scripting.CardScripts.Draw(self, ""abyss_life_theft"");",,"CS.Terrias.Dll.Scripting.CardScripts.Drop(self, ""abyss_life_theft"");",Icon/Card/无力感,,
+abyss_deficit,1,0,"Burnout,Curse","CS.Terrias.Dll.Scripting.CardScripts.Init(self, ""abyss_deficit"");","CS.Terrias.Dll.Scripting.CardScripts.Draw(self, ""abyss_deficit"");",,,Icon/Card/无力感,,

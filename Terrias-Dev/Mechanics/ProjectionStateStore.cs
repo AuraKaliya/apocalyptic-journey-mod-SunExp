@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using UnityEngine;
 using Witch.UI;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class ProjectionStateStore
 {
@@ -29,7 +29,7 @@ public static class ProjectionStateStore
             var manager = FightManager.Instance;
             for (var i = 0; i < 64; i++)
             {
-                var id = SunExpIds.ProjectionStatusIdPrefix + nextProjectionIndex++;
+                var id = TerriasIds.ProjectionStatusIdPrefix + nextProjectionIndex++;
                 if (manager?.statuses == null || !manager.statuses.ContainsKey(id))
                 {
                     return id;
@@ -37,7 +37,7 @@ public static class ProjectionStateStore
             }
         }
 
-        return SunExpIds.ProjectionStatusIdPrefix + Guid.NewGuid().ToString("N").Substring(0, 6);
+        return TerriasIds.ProjectionStatusIdPrefix + Guid.NewGuid().ToString("N").Substring(0, 6);
     }
 
     public static void Register(ProjectionState state)
@@ -52,7 +52,7 @@ public static class ProjectionStateStore
             Projections[state.StatusId] = state;
         }
 
-        SunExpPerformanceCounters.Record("Projection.Registered");
+        TerriasPerformanceCounters.Record("Projection.Registered");
         Registered?.Invoke(state);
     }
 
@@ -159,11 +159,11 @@ public static class ProjectionStateStore
             RemoveFromFightState(statusId, removeStatusRecords: false);
             ScheduleStatusRecordCleanup(statusId, source);
             state.Projection.DeadEffect();
-            SunExpLog.Info("[Projection] retired from " + source + ": status=" + statusId + ", role=" + state.RoleId);
+            TerriasLog.Info("[Projection] retired from " + source + ": status=" + statusId + ", role=" + state.RoleId);
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[Projection] retire failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[Projection] retire failed from " + source + ": " + ex.Message);
             try
             {
                 UnityEngine.Object.Destroy(state.Projection.gameObject);
@@ -207,11 +207,11 @@ public static class ProjectionStateStore
             }
             catch (Exception ex)
             {
-                SunExpLog.Warn("[Projection] cleanup failed from " + source + ": " + ex.Message);
+                TerriasLog.Warn("[Projection] cleanup failed from " + source + ": " + ex.Message);
             }
         }
 
-        SunExpPerformanceCounters.Record("Projection.Cleared");
+        TerriasPerformanceCounters.Record("Projection.Cleared");
     }
 
     private static bool IsAlive(ProjectionState state)
@@ -238,10 +238,10 @@ public static class ProjectionStateStore
 
     private static void ScheduleStatusRecordCleanup(string statusId, string source)
     {
-        SunExpFrameDispatcher.RunOnceNextFrame("Projection.RemoveStatusRecords." + statusId, () =>
+        TerriasFrameDispatcher.RunOnceNextFrame("Projection.RemoveStatusRecords." + statusId, () =>
         {
             RemoveStatusRecords(statusId);
-            SunExpLog.Debug("[Projection] status records removed after retire from " + source + ": " + statusId);
+            TerriasLog.Debug("[Projection] status records removed after retire from " + source + ": " + statusId);
         });
     }
 

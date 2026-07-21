@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 using UnityEngine;
 
-namespace SunExp.Dll.Hooks.Visual;
+namespace Terrias.Dll.Hooks.Visual;
 
 public static class FrameSpriteCache
 {
@@ -34,10 +34,10 @@ public static class FrameSpriteCache
         {
             try
             {
-                var sprite = SunExpResourceCache.Load<Sprite>(path, true, "visual.frame-animation");
+                var sprite = TerriasResourceCache.Load<Sprite>(path, true, "visual.frame-animation");
                 if (sprite == null)
                 {
-                    SunExpLog.Warn(logPrefix + " animation frame missing: " + path);
+                    TerriasLog.Warn(logPrefix + " animation frame missing: " + path);
                     continue;
                 }
 
@@ -46,7 +46,7 @@ public static class FrameSpriteCache
             }
             catch (Exception ex)
             {
-                SunExpLog.Warn(logPrefix + " animation frame load failed: " + path + " (" + ex.Message + ")");
+                TerriasLog.Warn(logPrefix + " animation frame load failed: " + path + " (" + ex.Message + ")");
             }
         }
 

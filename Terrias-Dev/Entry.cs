@@ -8,17 +8,17 @@ using AuraShared.Core;
 using AuraSkin.Shared;
 using StarterDeckArbiter.Shared;
 using Witch.Mod;
-using SunExp.Dll.Features.SkillCg;
-using SunExp.Dll.Features.Director;
-using SunExp.Dll.Features;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Hooks;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
-using SunExp.Dll.Network;
+using Terrias.Dll.Features.SkillCg;
+using Terrias.Dll.Features.Director;
+using Terrias.Dll.Features;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Hooks;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
+using Terrias.Dll.Network;
 using UiTransitionGuardShared;
 
-namespace SunExp.Dll;
+namespace Terrias.Dll;
 
 public static class Entry
 {
@@ -26,72 +26,72 @@ public static class Entry
     public static void Initialize(ModConfig modConfig)
     {
         RunStep("XLua assembly registration", RegisterLuaVisibleAssembly);
-        RunStep("shared core", () => AuraSharedRuntime.Initialize(modConfig, "SunExp"));
+        RunStep("shared core", () => AuraSharedRuntime.Initialize(modConfig, "Terrias"));
         RunStep("shared game data", RegisterSharedGameData);
         RunStep("shared feature defaults", RegisterSharedFeatureDefaults);
-        RunStep("rpc authority", () => SunExpRpcAuthorityRuntime.Initialize(modConfig));
+        RunStep("rpc authority", () => TerriasRpcAuthorityRuntime.Initialize(modConfig));
         RunStep("shared resource package", () => RegisterSharedResourcePackage(modConfig));
-        RunStep("role registry", () => AuraRoleRegistryRuntime.RegisterManifest(modConfig, "SunExp"));
+        RunStep("role registry", () => AuraRoleRegistryRuntime.RegisterManifest(modConfig, "Terrias"));
         RunStep("visual registry", () => VisualRegistry.Load(modConfig));
-        RunStep("director runtime", () => SunExpDirectorRuntime.Initialize(modConfig));
+        RunStep("director runtime", () => TerriasDirectorRuntime.Initialize(modConfig));
         RunStep("endless abyss config", () => EndlessAbyssConfigStore.Load(modConfig));
         RunStep("dimension shop config", () => DimensionShopConfigStore.Load(modConfig));
         RunStep("endless abyss evolution traits", () => EndlessAbyssEvolutionTraitRegistry.Load(modConfig));
-        RunStep("card visual skin registry", CardVisualSkinApi.RegisterSunExpDefaults);
-        RunStep("card visual effect registry", CardVisualEffectApi.RegisterSunExpDefaults);
-        RunStep("card use effect runtime", () => SunExpCardUseFxRuntime.Initialize(modConfig));
-        RunStep("CG registry", () => AuraCgRegistryRuntime.RegisterManifest(modConfig, "SunExp"));
-        RunStep("skill CG runtime", () => SunExpSkillCgRuntime.Initialize(modConfig));
-        RunStep("starter deck profiles", () => StarterDeckArbiterRuntime.RegisterProfileManifest(modConfig, "SunExp"));
-        RunStep("shared skin runtime", () => AuraSkinRuntime.Initialize(modConfig, "SunExp"));
+        RunStep("card visual skin registry", CardVisualSkinApi.RegisterTerriasDefaults);
+        RunStep("card visual effect registry", CardVisualEffectApi.RegisterTerriasDefaults);
+        RunStep("card use effect runtime", () => TerriasCardUseFxRuntime.Initialize(modConfig));
+        RunStep("CG registry", () => AuraCgRegistryRuntime.RegisterManifest(modConfig, "Terrias"));
+        RunStep("skill CG runtime", () => TerriasSkillCgRuntime.Initialize(modConfig));
+        RunStep("starter deck profiles", () => StarterDeckArbiterRuntime.RegisterProfileManifest(modConfig, "Terrias"));
+        RunStep("shared skin runtime", () => AuraSkinRuntime.Initialize(modConfig, "Terrias"));
         RunStep("shared skin package", () => RegisterSkinPackage(modConfig));
         RunStep("journey runtime", () => SolarMemoryJourneyApi.Initialize(modConfig));
-        RunStep("mode runtime", () => SunExpModeApi.Initialize(modConfig));
+        RunStep("mode runtime", () => TerriasModeApi.Initialize(modConfig));
         RunStep("audio runtime", () => AudioApi.Initialize(modConfig));
-        RunStep("ui transition guard", () => UiTransitionGuardRuntime.Initialize(modConfig, "SunExp"));
-        RunStep("performance runtime", () => SunExpFrameScheduler.Initialize(modConfig));
-        SunExpLog.Info("SunExp C# entry loaded");
+        RunStep("ui transition guard", () => UiTransitionGuardRuntime.Initialize(modConfig, "Terrias"));
+        RunStep("performance runtime", () => TerriasFrameScheduler.Initialize(modConfig));
+        TerriasLog.Info("Terrias C# entry loaded");
         RunStep("gameplay hooks", () => RuntimeHooks.Initialize(modConfig));
         RunStep("special tags", SpecialTagRuntime.Initialize);
     }
 
     private static void RunStep(string name, Action action)
     {
-        AuraSharedHooks.RunStep(name, action, (step, ex) => SunExpLog.Error("Initialization step failed: " + step, ex));
+        AuraSharedHooks.RunStep(name, action, (step, ex) => TerriasLog.Error("Initialization step failed: " + step, ex));
     }
 
     private static void RegisterSkinPackage(ModConfig modConfig)
     {
-        if (!AuraSkinRuntime.RegisterPackage(modConfig, "SunExp"))
+        if (!AuraSkinRuntime.RegisterPackage(modConfig, "Terrias"))
         {
-            SunExpLog.Warn("SunExp bundled skin package was rejected; skin package registration skipped.");
+            TerriasLog.Warn("Terrias bundled skin package was rejected; skin package registration skipped.");
         }
     }
 
     private static void RegisterSharedFeatureDefaults()
     {
-        AuraFeatureSwitchRuntime.RegisterFeature(SunExpIds.ModId, "Battle.StartTraitBuffs", defaultEnabled: true, "SunExp default");
-        AuraFeatureSwitchRuntime.RegisterFeature(SunExpIds.ModId, "Battle.OpeningDirector", defaultEnabled: true, "SunExp default");
-        AuraFeatureSwitchRuntime.RegisterFeature(SunExpIds.ModId, "SolarMemory", defaultEnabled: true, "SunExp default");
+        AuraFeatureSwitchRuntime.RegisterFeature(TerriasIds.ModId, "Battle.StartTraitBuffs", defaultEnabled: true, "Terrias default");
+        AuraFeatureSwitchRuntime.RegisterFeature(TerriasIds.ModId, "Battle.OpeningDirector", defaultEnabled: true, "Terrias default");
+        AuraFeatureSwitchRuntime.RegisterFeature(TerriasIds.ModId, "SolarMemory", defaultEnabled: true, "Terrias default");
     }
 
     private static void RegisterSharedGameData()
     {
-        var result = AuraGameDataHostApi.RegisterNativeOwnershipV5("SunExp", "SunExp_");
+        var result = AuraGameDataHostApi.RegisterNativeOwnershipV5("Terrias", "Terrias_");
         if (!result.Success)
         {
-            throw new InvalidOperationException("SunExp v5 game-data ownership registration failed: " + result.Message);
+            throw new InvalidOperationException("Terrias v5 game-data ownership registration failed: " + result.Message);
         }
     }
 
     private static void RegisterSharedResourcePackage(ModConfig modConfig)
     {
-        var result = AuraSharedResourceBootstrapper.Bootstrap(modConfig, "SunExp");
+        var result = AuraSharedResourceBootstrapper.Bootstrap(modConfig, "Terrias");
         foreach (var response in result.Responses)
         {
             if (!response.Success)
             {
-                throw new InvalidOperationException("SunExp shared resource package was rejected: " + response.Message);
+                throw new InvalidOperationException("Terrias shared resource package was rejected: " + response.Message);
             }
         }
     }
@@ -103,7 +103,7 @@ public static class Entry
         var luaEnv = ScriptExecutor.luaEnv;
         if (luaEnv == null)
         {
-            SunExpLog.Warn("Unable to register C# script assembly for XLua: LuaEnv is null");
+            TerriasLog.Warn("Unable to register C# script assembly for XLua: LuaEnv is null");
             return;
         }
 
@@ -118,7 +118,7 @@ public static class Entry
 
             if (assemblies == null)
             {
-                SunExpLog.Warn("Unable to register C# script assembly for XLua: translator assembly list missing");
+                TerriasLog.Warn("Unable to register C# script assembly for XLua: translator assembly list missing");
                 return;
             }
 
@@ -138,26 +138,26 @@ public static class Entry
             }
 
             luaEnv.DoString(
-                "assert(xlua.import_type('SunExp.Dll.Scripting.CardScripts'), 'SunExp CardScripts unavailable');"
-                + "assert(xlua.import_type('SunExp.Dll.Scripting.WunaScripts'), 'SunExp WunaScripts unavailable');"
-                + "assert(xlua.import_type('SunExp.Dll.Scripting.LoneerScripts'), 'SunExp LoneerScripts unavailable');"
-                + "assert(xlua.import_type('SunExp.Dll.Scripting.EventScripts'), 'SunExp EventScripts unavailable');"
-                + "assert(xlua.import_type('SunExp.Dll.Scripting.BossScripts'), 'SunExp BossScripts unavailable');"
-                + "assert(xlua.import_type('SunExp.Dll.Scripting.ProjectionScripts'), 'SunExp ProjectionScripts unavailable');"
-                + "assert(xlua.import_type('SunExp.Dll.Scripting.HeartChangeScripts'), 'SunExp HeartChangeScripts unavailable');"
-                + "assert(xlua.import_type('SunExp.Dll.Scripting.BuffScripts'), 'SunExp BuffScripts unavailable');"
-                + "assert(xlua.import_type('SunExp.Dll.Scripting.RelicScripts'), 'SunExp RelicScripts unavailable');"
-                + "assert(xlua.import_type('SunExp.Dll.Scripting.FamiliarGrowthScripts'), 'SunExp FamiliarGrowthScripts unavailable');"
-                + "assert(xlua.import_type('SunExp.Dll.Scripting.DuskPartnerScripts'), 'SunExp DuskPartnerScripts unavailable');"
-                + "assert(xlua.import_type('SunExp.Dll.Scripting.StarClayDollScripts'), 'SunExp StarClayDollScripts unavailable');"
-                + "assert(xlua.import_type('SunExp.Dll.Scripting.ElementalScripts'), 'SunExp ElementalScripts unavailable');"
-                + "assert(xlua.import_type('SunExp.Dll.Scripting.ColumbinaScripts'), 'SunExp ColumbinaScripts unavailable');",
-                "SunExp.RegisterLuaVisibleAssembly");
-            SunExpLog.Info("Registered C# script assembly for XLua: " + assemblyName);
+                "assert(xlua.import_type('Terrias.Dll.Scripting.CardScripts'), 'Terrias CardScripts unavailable');"
+                + "assert(xlua.import_type('Terrias.Dll.Scripting.WunaScripts'), 'Terrias WunaScripts unavailable');"
+                + "assert(xlua.import_type('Terrias.Dll.Scripting.LoneerScripts'), 'Terrias LoneerScripts unavailable');"
+                + "assert(xlua.import_type('Terrias.Dll.Scripting.EventScripts'), 'Terrias EventScripts unavailable');"
+                + "assert(xlua.import_type('Terrias.Dll.Scripting.BossScripts'), 'Terrias BossScripts unavailable');"
+                + "assert(xlua.import_type('Terrias.Dll.Scripting.ProjectionScripts'), 'Terrias ProjectionScripts unavailable');"
+                + "assert(xlua.import_type('Terrias.Dll.Scripting.HeartChangeScripts'), 'Terrias HeartChangeScripts unavailable');"
+                + "assert(xlua.import_type('Terrias.Dll.Scripting.BuffScripts'), 'Terrias BuffScripts unavailable');"
+                + "assert(xlua.import_type('Terrias.Dll.Scripting.RelicScripts'), 'Terrias RelicScripts unavailable');"
+                + "assert(xlua.import_type('Terrias.Dll.Scripting.FamiliarGrowthScripts'), 'Terrias FamiliarGrowthScripts unavailable');"
+                + "assert(xlua.import_type('Terrias.Dll.Scripting.DuskPartnerScripts'), 'Terrias DuskPartnerScripts unavailable');"
+                + "assert(xlua.import_type('Terrias.Dll.Scripting.StarClayDollScripts'), 'Terrias StarClayDollScripts unavailable');"
+                + "assert(xlua.import_type('Terrias.Dll.Scripting.ElementalScripts'), 'Terrias ElementalScripts unavailable');"
+                + "assert(xlua.import_type('Terrias.Dll.Scripting.ColumbinaScripts'), 'Terrias ColumbinaScripts unavailable');",
+                "Terrias.RegisterLuaVisibleAssembly");
+            TerriasLog.Info("Registered C# script assembly for XLua: " + assemblyName);
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Failed to register C# script assembly for XLua: " + assemblyName, ex);
+            TerriasLog.Error("Failed to register C# script assembly for XLua: " + assemblyName, ex);
         }
     }
 }

@@ -1,9 +1,9 @@
 using System;
 using System.Reflection;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class DialogueUiApi
 {
@@ -34,7 +34,7 @@ public static class DialogueUiApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[DialogueUiApi] failed to read current dialogue id: " + ex.Message);
+            TerriasLog.Warn("[DialogueUiApi] failed to read current dialogue id: " + ex.Message);
             return false;
         }
     }

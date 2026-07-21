@@ -1,7 +1,7 @@
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class ProjectionActivationService
 {
@@ -40,7 +40,7 @@ public static class ProjectionActivationService
     private static bool GrantRoleCard(ScriptExecutor self, PolymorphRoleSpec role, bool fixedAnotherMe)
     {
         var request = CardGrantRequest
-            .ToHand(SunExpIds.ProjectionRoleTemplateShortId)
+            .ToHand(TerriasIds.ProjectionRoleTemplateShortId)
             .WithSource("projection:" + role.Id)
             .WithRuntimeTags("Burnout", "Nihility")
             .RequireMutations()
@@ -66,7 +66,7 @@ public static class ProjectionActivationService
             return false;
         }
 
-        var roleId = DictionaryUtil.Get(self.Vars, SunExpIds.ProjectionRoleIdKey);
+        var roleId = DictionaryUtil.Get(self.Vars, TerriasIds.ProjectionRoleIdKey);
         var role = PolymorphRoleRegistry.Find(roleId);
         if (role == null)
         {
@@ -95,11 +95,11 @@ public static class ProjectionActivationService
         DictionaryUtil.Set(config.Vars, "Description_zh-Hant", fixedAnotherMe ? "召喚另一個我。" : "召喚" + role.DisplayName + "的投影。");
         DictionaryUtil.Set(config.Vars, "Description_en", fixedAnotherMe ? "Summon another you." : "Summon " + role.DisplayName + "'s projection.");
         DictionaryUtil.Set(config.Vars, "Description_ja", fixedAnotherMe ? "もう一人の自分を召喚する。" : role.DisplayName + "の投影を召喚する。");
-        DictionaryUtil.Set(config.Vars, SunExpIds.RuntimeMarkersKey,
-            AppendToken(DictionaryUtil.Get(config.Vars, SunExpIds.RuntimeMarkersKey), SunExpIds.ProjectionRoleCardMarker));
-        DictionaryUtil.Set(config.Vars, SunExpIds.ProjectionRoleIdKey, role.Id);
-        DictionaryUtil.Set(config.Vars, SunExpIds.ProjectionRoleNameKey, role.DisplayName);
-        DictionaryUtil.Set(config.Vars, SunExpIds.ProjectionRoleCardFacePathKey, role.CardFacePath);
+        DictionaryUtil.Set(config.Vars, TerriasIds.RuntimeMarkersKey,
+            AppendToken(DictionaryUtil.Get(config.Vars, TerriasIds.RuntimeMarkersKey), TerriasIds.ProjectionRoleCardMarker));
+        DictionaryUtil.Set(config.Vars, TerriasIds.ProjectionRoleIdKey, role.Id);
+        DictionaryUtil.Set(config.Vars, TerriasIds.ProjectionRoleNameKey, role.DisplayName);
+        DictionaryUtil.Set(config.Vars, TerriasIds.ProjectionRoleCardFacePathKey, role.CardFacePath);
     }
 
     private static string AppendToken(string existing, params string[] tokens)

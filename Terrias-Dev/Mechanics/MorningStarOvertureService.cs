@@ -2,15 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AuraGameData.Shared.GameApi;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 using Witch.Core;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class MorningStarOvertureService
 {
-    private const string PendingMeasureKey = "SunExpMorningStarPendingMeasure";
+    private const string PendingMeasureKey = "TerriasMorningStarPendingMeasure";
     private static readonly Dictionary<int, int> PlayedCostCounts = new();
     private static readonly Stack<PendingCard> PendingActions = new();
     private static List<string>? compositionPool;
@@ -105,7 +105,7 @@ public static class MorningStarOvertureService
 
     public static void ClearStarStage(ScriptExecutor? self)
     {
-        ExecutorApi.ClearHook(self, "SunExpStarStageHook", "SunExpStarStageToken");
+        ExecutorApi.ClearHook(self, "TerriasStarStageHook", "TerriasStarStageToken");
     }
 
     public static void Compose(ScriptExecutor self)
@@ -114,7 +114,7 @@ public static class MorningStarOvertureService
         if (candidates.Count == 0)
         {
             self.SetStatus("Self");
-            self.AddBuff(SunExpIds.StarBlessing, "1");
+            self.AddBuff(TerriasIds.StarBlessing, "1");
             PlayerApi.ShowCaption("谱曲：未找到曲牌，星辰祝福+1。");
             return;
         }
@@ -122,12 +122,12 @@ public static class MorningStarOvertureService
         var id = candidates[UnityEngine.Random.Range(0, candidates.Count)];
         var request = CardGrantRequest.ToHand(id)
             .WithSource("morning-star-compose")
-            .Configure(CardMutationService.AddSpecialTagsMutation(SunExpIds.MorningStarSealTag));
+            .Configure(CardMutationService.AddSpecialTagsMutation(TerriasIds.MorningStarSealTag));
         var result = CardApi.GrantCardToHand(self, request);
         if (!result.Success)
         {
             self.SetStatus("Self");
-            self.AddBuff(SunExpIds.StarBlessing, "1");
+            self.AddBuff(TerriasIds.StarBlessing, "1");
         }
     }
 
@@ -147,8 +147,8 @@ public static class MorningStarOvertureService
                 if (card is DataConfig config)
                 {
                     CardMutationService.SetTemporaryCost(config, 1);
-                    CardMutationService.SetRuntimeMarkers(config, "SunExpMorningStarTransposed");
-                    SunExpCardRefreshQueue.RequestConfigTagRefresh(config, "MorningStarTranspose");
+                    CardMutationService.SetRuntimeMarkers(config, "TerriasMorningStarTransposed");
+                    TerriasCardRefreshQueue.RequestConfigTagRefresh(config, "MorningStarTranspose");
                     PlayerApi.ShowCaption("星轨换位：临时费用变为1。");
                 }
             },
@@ -161,7 +161,7 @@ public static class MorningStarOvertureService
 
     private static void TriggerStarStage(ScriptExecutor? executor)
     {
-        var stage = BuffApi.Level(FightPlayer.Instance?.Status, SunExpIds.StarStage);
+        var stage = BuffApi.Level(FightPlayer.Instance?.Status, TerriasIds.StarStage);
         if (stage <= 0 || executor == null)
         {
             return;
@@ -173,22 +173,22 @@ public static class MorningStarOvertureService
 
     private static void EnsureRoundHooks(ScriptExecutor? self)
     {
-        if (self == null || ExecutorApi.GetVar(self, "SunExpMorningStarRoundHook", "0") == "1")
+        if (self == null || ExecutorApi.GetVar(self, "TerriasMorningStarRoundHook", "0") == "1")
         {
             return;
         }
 
-        var token = (DictionaryUtil.ParseInt(ExecutorApi.GetVar(self, "SunExpMorningStarRoundToken", "0")) + 1).ToString();
-        ExecutorApi.SetVar(self, "SunExpMorningStarRoundHook", "1");
-        ExecutorApi.SetVar(self, "SunExpMorningStarRoundToken", token);
-        ExecutorApi.TryAddTokenedEvent(self, "FightStart", "SunExpMorningStarRoundToken", token, new Action(ResetForFight), "morning_star");
-        ExecutorApi.TryAddTokenedEvent(self, "StartRound", "SunExpMorningStarRoundToken", token, new Action(() =>
+        var token = (DictionaryUtil.ParseInt(ExecutorApi.GetVar(self, "TerriasMorningStarRoundToken", "0")) + 1).ToString();
+        ExecutorApi.SetVar(self, "TerriasMorningStarRoundHook", "1");
+        ExecutorApi.SetVar(self, "TerriasMorningStarRoundToken", token);
+        ExecutorApi.TryAddTokenedEvent(self, "FightStart", "TerriasMorningStarRoundToken", token, new Action(ResetForFight), "morning_star");
+        ExecutorApi.TryAddTokenedEvent(self, "StartRound", "TerriasMorningStarRoundToken", token, new Action(() =>
         {
             ResolveScheduledPreludes(self);
             ResetForTurn();
         }), "morning_star");
-        ExecutorApi.TryAddTokenedEvent(self, "Win", "SunExpMorningStarRoundToken", token, new Action(ResetForFight), "morning_star");
-        ExecutorApi.TryAddTokenedEvent(self, "Escape", "SunExpMorningStarRoundToken", token, new Action(ResetForFight), "morning_star");
+        ExecutorApi.TryAddTokenedEvent(self, "Win", "TerriasMorningStarRoundToken", token, new Action(ResetForFight), "morning_star");
+        ExecutorApi.TryAddTokenedEvent(self, "Escape", "TerriasMorningStarRoundToken", token, new Action(ResetForFight), "morning_star");
     }
 
     private static IReadOnlyList<string> CompositionPool()
@@ -205,14 +205,14 @@ public static class MorningStarOvertureService
         }
 
         var enabledPacks = EnabledCardPacks();
-        compositionPool = SunExpConfigIndex.Rows(DataType.Card)
+        compositionPool = TerriasConfigIndex.Rows(DataType.Card)
             .Where(row => IsCompositionCandidate(row, enabledPacks))
             .Select(row => CardApi.ResolveCardId(DictionaryUtil.Get(row, "Id")))
             .Where(id => !string.IsNullOrWhiteSpace(id))
             .Distinct(StringComparer.Ordinal)
             .ToList();
         compositionPoolEpoch = snapshot.Version.Epoch;
-        SunExpLog.Info("[MorningStar] composition pool size=" + compositionPool.Count);
+        TerriasLog.Info("[MorningStar] composition pool size=" + compositionPool.Count);
         return compositionPool;
     }
 
@@ -254,9 +254,9 @@ public static class MorningStarOvertureService
     {
         var normalized = CardApi.ResolveCardId(id);
         return string.Equals(id, "wuna_grave_song", StringComparison.Ordinal)
-            || string.Equals(normalized, "SunExp_wuna_grave_song", StringComparison.Ordinal)
-            || string.Equals(normalized, "SunExp_wuna_wuna_grave_song", StringComparison.Ordinal)
-            || string.Equals(normalized, SunExpIds.WitchStarScoreCardId, StringComparison.Ordinal);
+            || string.Equals(normalized, "Terrias_wuna_grave_song", StringComparison.Ordinal)
+            || string.Equals(normalized, "Terrias_wuna_wuna_grave_song", StringComparison.Ordinal)
+            || string.Equals(normalized, TerriasIds.WitchStarScoreCardId, StringComparison.Ordinal);
     }
 
     private static bool CardNameContainsMusic(Dictionary<string, string> row)
@@ -296,7 +296,7 @@ public static class MorningStarOvertureService
         try
         {
             var id = CardApi.ResolveCardId(DictionaryUtil.Get(row, "Id"));
-            var data = SunExpConfigIndex.Row(DataType.Card, id);
+            var data = TerriasConfigIndex.Row(DataType.Card, id);
             var localized = data.Localize("Name");
             if (!string.IsNullOrWhiteSpace(localized) && localized != "Name")
             {
@@ -315,11 +315,11 @@ public static class MorningStarOvertureService
     {
         return note switch
         {
-            StarScoreNote.Opening => SunExpIds.StellarOvertureStartCardId,
-            StarScoreNote.Sustain => SunExpIds.StellarOvertureSustainCardId,
-            StarScoreNote.Turn => SunExpIds.StellarOvertureTurnCardId,
-            StarScoreNote.Close => SunExpIds.StellarOvertureCloseCardId,
-            _ => SunExpIds.StellarOvertureStartCardId
+            StarScoreNote.Opening => TerriasIds.StellarOvertureStartCardId,
+            StarScoreNote.Sustain => TerriasIds.StellarOvertureSustainCardId,
+            StarScoreNote.Turn => TerriasIds.StellarOvertureTurnCardId,
+            StarScoreNote.Close => TerriasIds.StellarOvertureCloseCardId,
+            _ => TerriasIds.StellarOvertureStartCardId
         };
     }
 

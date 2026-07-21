@@ -150,16 +150,16 @@ function Test-EventScriptCalls {
             if ([string]::IsNullOrWhiteSpace($code)) {
                 continue
             }
-            foreach ($match in [regex]::Matches($code, "CS\.SunExp\.Dll\.Scripting\.EventScripts\.(?<name>[A-Za-z_][A-Za-z0-9_]*)\s*\(")) {
+            foreach ($match in [regex]::Matches($code, "CS\.Terrias\.Dll\.Scripting\.EventScripts\.(?<name>[A-Za-z_][A-Za-z0-9_]*)\s*\(")) {
                 $method = $match.Groups["name"].Value
                 if (-not $methodNames.ContainsKey($method)) {
                     Add-Failure "EventList '$($row.Id)' column '$column' calls missing EventScripts method '$method'."
                 }
             }
-            foreach ($match in [regex]::Matches($code, "(^|[^.A-Za-z0-9_])(SunExp_[A-Za-z0-9_]+)\s*\(")) {
+            foreach ($match in [regex]::Matches($code, "(^|[^.A-Za-z0-9_])(Terrias_[A-Za-z0-9_]+)\s*\(")) {
                 Add-Failure "EventList '$($row.Id)' column '$column' contains old dynamic helper call '$($match.Groups[2].Value)'; use EventScripts instead."
             }
-            if ($code -notmatch "CS\.SunExp\.Dll\.Scripting\.EventScripts\." -and $code -match "\S") {
+            if ($code -notmatch "CS\.Terrias\.Dll\.Scripting\.EventScripts\." -and $code -match "\S") {
                 Add-Warning "EventList '$($row.Id)' column '$column' does not call EventScripts; verify this is intentional."
             }
         }
@@ -169,10 +169,10 @@ function Test-EventScriptCalls {
 function Test-ForbiddenCaptions {
     param([string]$SourceText)
     $forbidden = @(
-        "SunExp card recovered.",
-        "SunExp relic recovered.",
-        "SunExp blessing recovered.",
-        "SunExp note closed."
+        "Terrias card recovered.",
+        "Terrias relic recovered.",
+        "Terrias blessing recovered.",
+        "Terrias note closed."
     )
     foreach ($caption in $forbidden) {
         if ($SourceText.Contains($caption)) {
@@ -202,23 +202,23 @@ function Test-MapEventRows {
         if (-not $textIds.ContainsKey($id)) {
             Add-Failure "Map data row '$id' has no matching text row."
         }
-        if ($row.Type -eq "Event" -and $row.NodeId -match "^SunExp_sunexp_Sub_") {
+        if ($row.Type -eq "Event" -and $row.NodeId -match "^Terrias_terrias_Sub_") {
             Add-Warning "Map event '$id' points directly at story event '$($row.NodeId)'; verify runtime selection still controls the intended row."
         }
     }
 }
 
 $repoRoot = Get-RepoRoot
-$modRootPath = Resolve-RepoPath -Path $ModRoot -DefaultPath (Join-Path $repoRoot "SunExp") -RepoRoot $repoRoot
-$eventScriptsPathResolved = Resolve-RepoPath -Path $EventScriptsPath -DefaultPath (Join-Path $repoRoot "SunExp-Dev\Scripting\EventScripts.cs") -RepoRoot $repoRoot
+$modRootPath = Resolve-RepoPath -Path $ModRoot -DefaultPath (Join-Path $repoRoot "Terrias") -RepoRoot $repoRoot
+$eventScriptsPathResolved = Resolve-RepoPath -Path $EventScriptsPath -DefaultPath (Join-Path $repoRoot "Terrias-Dev\Scripting\EventScripts.cs") -RepoRoot $repoRoot
 
 $script:Failures = New-Object System.Collections.Generic.List[string]
 $script:Warnings = New-Object System.Collections.Generic.List[string]
 
-$eventRows = @(Read-Rows (Join-Path $modRootPath "Data\EventList\sunexp.csv"))
-$eventTextRows = @(Read-Rows (Join-Path $modRootPath "Text\EventList\sunexp.csv"))
-$mapRows = @(Read-Rows (Join-Path $modRootPath "Data\Map\sunexp.csv"))
-$mapTextRows = @(Read-Rows (Join-Path $modRootPath "Text\Map\sunexp.csv"))
+$eventRows = @(Read-Rows (Join-Path $modRootPath "Data\EventList\terrias.csv"))
+$eventTextRows = @(Read-Rows (Join-Path $modRootPath "Text\EventList\terrias.csv"))
+$mapRows = @(Read-Rows (Join-Path $modRootPath "Data\Map\terrias.csv"))
+$mapTextRows = @(Read-Rows (Join-Path $modRootPath "Text\Map\terrias.csv"))
 $eventScriptsText = Read-AllText $eventScriptsPathResolved
 
 Test-DataTextPair "EventList" $eventRows $eventTextRows
@@ -243,4 +243,4 @@ if ($script:Failures.Count -gt 0) {
     exit 1
 }
 
-Write-Host "SunExp event validation passed: events=$($eventRows.Count), mapRows=$($mapRows.Count), warnings=$($script:Warnings.Count)."
+Write-Host "Terrias event validation passed: events=$($eventRows.Count), mapRows=$($mapRows.Count), warnings=$($script:Warnings.Count)."

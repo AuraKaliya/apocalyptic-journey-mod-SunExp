@@ -1,15 +1,15 @@
 using System;
 using Data.Save;
 using Newtonsoft.Json;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class EndlessSeaFloorPlanStore
 {
     public static EndlessSeaFloorPlan? Load()
     {
-        var json = GetSaveValue(SunExpIds.EndlessSeaFloorPlanKey);
+        var json = GetSaveValue(TerriasIds.EndlessSeaFloorPlanKey);
         if (string.IsNullOrWhiteSpace(json))
         {
             return null;
@@ -23,7 +23,7 @@ public static class EndlessSeaFloorPlanStore
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessSeaMap] ignored invalid floor plan: " + ex.Message);
+            TerriasLog.Warn("[EndlessSeaMap] ignored invalid floor plan: " + ex.Message);
             return null;
         }
     }
@@ -37,7 +37,7 @@ public static class EndlessSeaFloorPlanStore
     public static void Save(EndlessSeaFloorPlan plan)
     {
         plan.Normalize();
-        SetSaveValue(SunExpIds.EndlessSeaFloorPlanKey, JsonConvert.SerializeObject(plan));
+        SetSaveValue(TerriasIds.EndlessSeaFloorPlanKey, JsonConvert.SerializeObject(plan));
     }
 
     private static string GetSaveValue(string key)

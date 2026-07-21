@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.GameApi;
+using Terrias.Dll.GameApi;
 using Witch.Core;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class CardVisualEffectRegistry
 {

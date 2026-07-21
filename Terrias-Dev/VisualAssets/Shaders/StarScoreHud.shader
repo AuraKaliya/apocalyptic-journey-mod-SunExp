@@ -1,21 +1,21 @@
-Shader "SunExp/StarScoreHud"
+Shader "Terrias/StarScoreHud"
 {
     Properties
     {
         [PerRendererData] _MainTex ("Sprite Texture", 2D) = "white" {}
         _NoiseTex ("Flow Noise", 2D) = "white" {}
         _Color ("Tint", Color) = (1, 1, 1, 1)
-        _SunExpTint ("SunExp Tint", Color) = (1, 1, 1, 1)
-        _SunExpGlowColor ("SunExp Glow Color", Color) = (1, 0.88, 0.54, 1)
-        _SunExpFlowColor ("SunExp Flow Color", Color) = (0.62, 0.86, 1, 1)
-        _SunExpLitAmount ("SunExp Lit Amount", Range(0, 1)) = 0
-        _SunExpPulse ("SunExp Pulse", Range(0, 1)) = 0
-        _SunExpFlowTime ("SunExp Flow Time", Float) = 0
-        _SunExpFlowStrength ("SunExp Flow Strength", Range(0, 1)) = 0
-        _SunExpSlotIndex ("SunExp Slot Index", Float) = 0
-        _SunExpFlowSpeed ("SunExp Flow Speed", Float) = 0.55
-        _SunExpFlowScale ("SunExp Flow Scale", Float) = 1.2
-        _SunExpEdgeGlow ("SunExp Edge Glow", Range(0, 1)) = 0.35
+        _TerriasTint ("Terrias Tint", Color) = (1, 1, 1, 1)
+        _TerriasGlowColor ("Terrias Glow Color", Color) = (1, 0.88, 0.54, 1)
+        _TerriasFlowColor ("Terrias Flow Color", Color) = (0.62, 0.86, 1, 1)
+        _TerriasLitAmount ("Terrias Lit Amount", Range(0, 1)) = 0
+        _TerriasPulse ("Terrias Pulse", Range(0, 1)) = 0
+        _TerriasFlowTime ("Terrias Flow Time", Float) = 0
+        _TerriasFlowStrength ("Terrias Flow Strength", Range(0, 1)) = 0
+        _TerriasSlotIndex ("Terrias Slot Index", Float) = 0
+        _TerriasFlowSpeed ("Terrias Flow Speed", Float) = 0.55
+        _TerriasFlowScale ("Terrias Flow Scale", Float) = 1.2
+        _TerriasEdgeGlow ("Terrias Edge Glow", Range(0, 1)) = 0.35
 
         _StencilComp ("Stencil Comparison", Float) = 8
         _Stencil ("Stencil ID", Float) = 0
@@ -87,17 +87,17 @@ Shader "SunExp/StarScoreHud"
             fixed4 _TextureSampleAdd;
             float4 _ClipRect;
 
-            fixed4 _SunExpTint;
-            fixed4 _SunExpGlowColor;
-            fixed4 _SunExpFlowColor;
-            float _SunExpLitAmount;
-            float _SunExpPulse;
-            float _SunExpFlowTime;
-            float _SunExpFlowStrength;
-            float _SunExpSlotIndex;
-            float _SunExpFlowSpeed;
-            float _SunExpFlowScale;
-            float _SunExpEdgeGlow;
+            fixed4 _TerriasTint;
+            fixed4 _TerriasGlowColor;
+            fixed4 _TerriasFlowColor;
+            float _TerriasLitAmount;
+            float _TerriasPulse;
+            float _TerriasFlowTime;
+            float _TerriasFlowStrength;
+            float _TerriasSlotIndex;
+            float _TerriasFlowSpeed;
+            float _TerriasFlowScale;
+            float _TerriasEdgeGlow;
 
             v2f vert(appdata_t v)
             {
@@ -113,20 +113,20 @@ Shader "SunExp/StarScoreHud"
             {
                 fixed4 baseColor = (tex2D(_MainTex, i.texcoord) + _TextureSampleAdd) * i.color;
                 float alpha = baseColor.a;
-                float lit = saturate(_SunExpLitAmount);
-                float pulse = saturate(_SunExpPulse);
-                float flowStrength = saturate(_SunExpFlowStrength);
+                float lit = saturate(_TerriasLitAmount);
+                float pulse = saturate(_TerriasPulse);
+                float flowStrength = saturate(_TerriasFlowStrength);
 
-                float2 flowUv = i.texcoord * max(_SunExpFlowScale, 0.001)
-                    + float2(_SunExpFlowTime * _SunExpFlowSpeed, _SunExpSlotIndex * 0.173);
+                float2 flowUv = i.texcoord * max(_TerriasFlowScale, 0.001)
+                    + float2(_TerriasFlowTime * _TerriasFlowSpeed, _TerriasSlotIndex * 0.173);
                 float noise = tex2D(_NoiseTex, flowUv).r;
                 float flow = saturate((noise - 0.42) * 2.25) * flowStrength;
                 float edge = smoothstep(0.02, 0.34, alpha) * (1.0 - smoothstep(0.55, 1.0, alpha));
 
-                fixed3 litColor = lerp(baseColor.rgb * 0.72, baseColor.rgb * _SunExpTint.rgb, lit);
-                litColor += _SunExpFlowColor.rgb * flow * 0.28;
-                litColor += _SunExpGlowColor.rgb * edge * _SunExpEdgeGlow * max(lit, pulse);
-                litColor = lerp(litColor, _SunExpGlowColor.rgb, pulse * 0.38);
+                fixed3 litColor = lerp(baseColor.rgb * 0.72, baseColor.rgb * _TerriasTint.rgb, lit);
+                litColor += _TerriasFlowColor.rgb * flow * 0.28;
+                litColor += _TerriasGlowColor.rgb * edge * _TerriasEdgeGlow * max(lit, pulse);
+                litColor = lerp(litColor, _TerriasGlowColor.rgb, pulse * 0.38);
 
                 baseColor.rgb = litColor;
                 baseColor.a = alpha * saturate(0.35 + lit * 0.65 + pulse * 0.18);

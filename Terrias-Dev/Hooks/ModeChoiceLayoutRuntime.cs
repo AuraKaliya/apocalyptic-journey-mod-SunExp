@@ -4,8 +4,8 @@ using System.Linq;
 using System.Text;
 using AuraShared.Core;
 using AuraUi.Shared;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.Events;
@@ -14,7 +14,7 @@ using Witch.Core;
 using Witch.Mod;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class ModeChoiceLayoutRuntime
 {
@@ -27,12 +27,12 @@ public static class ModeChoiceLayoutRuntime
     private const float FallbackButtonHeight = 78f;
     private const int DiagnosticLogLimit = 4;
     private const int VisibleLayoutSlotCount = 4;
-    private const string OldOverlayRootName = "SunExp_ModeChoiceOverlayRoot";
-    private const string NativeReserveSlotPrefix = "SunExp_NativeReserve_";
-    private const string NativeProxySlotPrefix = "SunExp_NativeProxy_";
-    private const string CustomSlotPrefix = "SunExp_CustomSlot_";
-    private const string LegacyDragSurfaceName = "SunExp_ModeChoiceDragSurface";
-    private const string BackgroundDragSurfaceName = "SunExp_ModeChoiceBackgroundDragSurface";
+    private const string OldOverlayRootName = "Terrias_ModeChoiceOverlayRoot";
+    private const string NativeReserveSlotPrefix = "Terrias_NativeReserve_";
+    private const string NativeProxySlotPrefix = "Terrias_NativeProxy_";
+    private const string CustomSlotPrefix = "Terrias_CustomSlot_";
+    private const string LegacyDragSurfaceName = "Terrias_ModeChoiceDragSurface";
+    private const string BackgroundDragSurfaceName = "Terrias_ModeChoiceBackgroundDragSurface";
     private static readonly string[] KnownNativeEntryNames =
     {
         "NormalMode",
@@ -52,8 +52,8 @@ public static class ModeChoiceLayoutRuntime
         }
 
         initialized = true;
-        SunExpHookRegistry.After(modConfig, "ModeChoiceUI.Init", ApplyRegisteredEntries, "ModeChoice");
-        SunExpHookRegistry.After(modConfig, "ModeChoiceUI.DataUpdate", ApplyRegisteredEntries, "ModeChoice");
+        TerriasHookRegistry.After(modConfig, "ModeChoiceUI.Init", ApplyRegisteredEntries, "ModeChoice");
+        TerriasHookRegistry.After(modConfig, "ModeChoiceUI.DataUpdate", ApplyRegisteredEntries, "ModeChoice");
     }
 
     private static void ApplyRegisteredEntries(ModHookContext context)
@@ -68,7 +68,7 @@ public static class ModeChoiceLayoutRuntime
             var modeList = modeChoice.transform.Find("ModeList");
             if (modeList == null)
             {
-                SunExpLog.Warn("[ModeChoiceLayout] ModeList not found.");
+                TerriasLog.Warn("[ModeChoiceLayout] ModeList not found.");
                 return;
             }
 
@@ -85,7 +85,7 @@ public static class ModeChoiceLayoutRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Mode choice entry layout failed", ex);
+            TerriasLog.Error("Mode choice entry layout failed", ex);
         }
     }
 
@@ -97,7 +97,7 @@ public static class ModeChoiceLayoutRuntime
             var template = FindTemplate(modeList, definition.TemplateName);
             if (template == null)
             {
-                SunExpLog.Warn("[ModeChoiceLayout] template not found for " + definition.ObjectName + ": " + definition.TemplateName);
+                TerriasLog.Warn("[ModeChoiceLayout] template not found for " + definition.ObjectName + ": " + definition.TemplateName);
                 return;
             }
 
@@ -179,7 +179,7 @@ public static class ModeChoiceLayoutRuntime
             if (!slotResult.Success)
             {
                 ActivateFallbackButtons(modeChoice, customEntries, slotResult.Reason);
-                SunExpLog.Warn("[ModeChoiceLayout] slot fallback activated: " + slotResult.Reason);
+                TerriasLog.Warn("[ModeChoiceLayout] slot fallback activated: " + slotResult.Reason);
             }
             else
             {
@@ -197,7 +197,7 @@ public static class ModeChoiceLayoutRuntime
         if (!result.Success)
         {
             ActivateFallbackButtons(modeChoice, customEntries, result.Reason);
-            SunExpLog.Warn("[ModeChoiceLayout] fallback activated: " + result.Reason);
+            TerriasLog.Warn("[ModeChoiceLayout] fallback activated: " + result.Reason);
         }
         else
         {
@@ -221,7 +221,7 @@ public static class ModeChoiceLayoutRuntime
 
             if (!known.gameObject.activeSelf)
             {
-                SunExpLog.Info("[ModeChoiceLayout] known native entry is inactive: " + knownName);
+                TerriasLog.Info("[ModeChoiceLayout] known native entry is inactive: " + knownName);
                 continue;
             }
 
@@ -898,7 +898,7 @@ public static class ModeChoiceLayoutRuntime
 
         if (definition.Activate == null)
         {
-            SunExpLog.Warn("[ModeChoiceLayout] fallback requested but no activate callback is registered for " + definition.ObjectName + ": " + reason);
+            TerriasLog.Warn("[ModeChoiceLayout] fallback requested but no activate callback is registered for " + definition.ObjectName + ": " + reason);
             return;
         }
 
@@ -946,7 +946,7 @@ public static class ModeChoiceLayoutRuntime
         text.raycastTarget = false;
 
         fallback.gameObject.SetActive(true);
-        SunExpLog.Info("[ModeChoiceLayout] fallback button active: " + definition.ObjectName + "; reason=" + reason);
+        TerriasLog.Info("[ModeChoiceLayout] fallback button active: " + definition.ObjectName + "; reason=" + reason);
     }
 
     private static bool ShouldLogDiagnostics()
@@ -1008,14 +1008,14 @@ public static class ModeChoiceLayoutRuntime
             }
         }
 
-        SunExpLog.Info(builder.ToString());
+        TerriasLog.Info(builder.ToString());
     }
 
     private static void LogPlacementResult(bool enabled, string message)
     {
         if (enabled)
         {
-            SunExpLog.Info("[ModeChoiceLayout] placement " + message);
+            TerriasLog.Info("[ModeChoiceLayout] placement " + message);
         }
     }
 

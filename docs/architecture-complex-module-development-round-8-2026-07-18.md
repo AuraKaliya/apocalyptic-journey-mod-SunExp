@@ -92,8 +92,8 @@ Presenter 是普通内部类，不继承 `MonoBehaviour`，也不调用 `StartCo
 - AuraDirector 20 项断言通过；
 - AuraToolsExp 632 项断言通过；
 - 网络 RPC authority、共享架构和内容/工具/共享边界门禁通过；
-- SunExp、SanGuoShaExp、AuraToolsExp 三个主消费者 0 警告、0 错误构建；
-- SunExp 架构检查和 282 项 C# 断言通过；
+- Terrias、SanGuoShaExp、AuraToolsExp 三个主消费者 0 警告、0 错误构建；
+- Terrias 架构检查和 282 项 C# 断言通过；
 - 共享发布矩阵、消费者打包与三个 `Aura.Shared.dll` 哈希一致性检查通过。
 
 ## 8. 下一轮建议

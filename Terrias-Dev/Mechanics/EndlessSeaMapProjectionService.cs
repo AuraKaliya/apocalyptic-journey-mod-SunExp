@@ -1,21 +1,21 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class EndlessSeaMapProjectionService
 {
     public static IReadOnlyList<MapTree.Node> NativeDefaultOrder(MapTree tree, EndlessSeaFloorPlan plan)
     {
-        var result = new List<MapTree.Node>(SunExpIds.EndlessSeaNativeDefaultNodeCount);
-        var boss = SlotOrFallback(plan, SunExpIds.EndlessSeaBossSlotIndex);
+        var result = new List<MapTree.Node>(TerriasIds.EndlessSeaNativeDefaultNodeCount);
+        var boss = SlotOrFallback(plan, TerriasIds.EndlessSeaBossSlotIndex);
         result.Add(EndlessSeaNodePoolService.CreateNode(
             tree,
             plan.Floor,
-            SunExpIds.EndlessSeaStartSlotIndex,
+            TerriasIds.EndlessSeaStartSlotIndex,
             EndlessSeaNodeKind.Rest));
         result.Add(boss.ToNode(tree));
 
@@ -24,7 +24,7 @@ public static class EndlessSeaMapProjectionService
 
     public static bool IsNativeBootstrapReady(MapTree tree, EndlessSeaFloorPlan plan)
     {
-        if (tree?.DefaultNode == null || tree.DefaultNode.Count < SunExpIds.EndlessSeaNativeDefaultNodeCount)
+        if (tree?.DefaultNode == null || tree.DefaultNode.Count < TerriasIds.EndlessSeaNativeDefaultNodeCount)
         {
             return false;
         }
@@ -37,7 +37,7 @@ public static class EndlessSeaMapProjectionService
     public static IEnumerable<int> SlotsToApply(EndlessSeaFloorPlan plan, bool applyAllSlots)
     {
         return applyAllSlots
-            ? Enumerable.Range(0, SunExpIds.EndlessSeaLayerNodeCount)
+            ? Enumerable.Range(0, TerriasIds.EndlessSeaLayerNodeCount)
             : plan.FixedSlots();
     }
 

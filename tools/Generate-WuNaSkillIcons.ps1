@@ -4,7 +4,7 @@ $ErrorActionPreference = "Stop"
 Add-Type -AssemblyName System.Drawing
 
 $repo = Split-Path -Parent $PSScriptRoot
-$roleDir = Join-Path $repo "SunExp\ModResource\Images\Role\WuNa"
+$roleDir = Join-Path $repo "Terrias\ModResource\Images\Role\WuNa"
 $previewDir = Join-Path $repo "tools\previews\wuna_skill_icons"
 $sourcePath = Join-Path $previewDir "wuna_skill_style_source.png"
 

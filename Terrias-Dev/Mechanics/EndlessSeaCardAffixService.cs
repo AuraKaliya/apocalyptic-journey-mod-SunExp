@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using AuraShared.Core;
 using Data.Save;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.Core;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class EndlessSeaCardAffixService
 {
@@ -15,7 +15,7 @@ public static class EndlessSeaCardAffixService
     private static int starterDeckWriteDepth;
     private static readonly CardAttachmentSpec BurnoutSpec = new(
         nativeTags: new[] { BurnoutTag },
-        markers: new[] { SunExpIds.EndlessSeaAutoBurnoutMarker },
+        markers: new[] { TerriasIds.EndlessSeaAutoBurnoutMarker },
         scope: CardAttachmentScope.RunPermanent);
 
     public static bool RunWithStarterDeckSuppressed(Func<bool> action)
@@ -46,7 +46,7 @@ public static class EndlessSeaCardAffixService
         var changed = CardAttachmentService.AttachToConfig(config, BurnoutSpec, source) > 0;
         if (changed)
         {
-            SunExpLog.Debug("[EndlessSeaCardAffix] applied Burnout from " + source);
+            TerriasLog.Debug("[EndlessSeaCardAffix] applied Burnout from " + source);
         }
 
         return changed;
@@ -62,7 +62,7 @@ public static class EndlessSeaCardAffixService
         var changed = CardAttachmentService.AttachToCardItem(card, BurnoutSpec, source) > 0;
         if (changed)
         {
-            SunExpLog.Debug("[EndlessSeaCardAffix] applied Burnout to card item from " + source);
+            TerriasLog.Debug("[EndlessSeaCardAffix] applied Burnout to card item from " + source);
         }
 
         return changed;
@@ -81,7 +81,7 @@ public static class EndlessSeaCardAffixService
         if (changed > 0)
         {
             TryPersistRole(role, source + ":starter-baseline");
-            SunExpLog.Info("[EndlessSeaCardAffix] marked starter deck baseline from "
+            TerriasLog.Info("[EndlessSeaCardAffix] marked starter deck baseline from "
                 + source
                 + ": "
                 + changed
@@ -105,7 +105,7 @@ public static class EndlessSeaCardAffixService
         if (changed > 0)
         {
             TryPersistRole(role, source + ":normalize-owned");
-            SunExpLog.Info("[EndlessSeaCardAffix] normalized owned cards from " + source + ": " + changed + ".");
+            TerriasLog.Info("[EndlessSeaCardAffix] normalized owned cards from " + source + ": " + changed + ".");
         }
 
         return changed;
@@ -126,7 +126,7 @@ public static class EndlessSeaCardAffixService
         if (changed > 0)
         {
             TryPersistRole(role, source + ":normalize-recent-owned");
-            SunExpLog.Info("[EndlessSeaCardAffix] normalized recent owned cards from " + source + ": " + changed + ".");
+            TerriasLog.Info("[EndlessSeaCardAffix] normalized recent owned cards from " + source + ": " + changed + ".");
         }
 
         return changed;
@@ -151,7 +151,7 @@ public static class EndlessSeaCardAffixService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessSeaCardAffix] role persist skipped from "
+            TerriasLog.Warn("[EndlessSeaCardAffix] role persist skipped from "
                 + source
                 + ": "
                 + ex.Message);
@@ -163,7 +163,7 @@ public static class EndlessSeaCardAffixService
     {
         return config == null
             || starterDeckWriteDepth > 0
-            || CardMutationService.HasRuntimeMarker(config, SunExpIds.EndlessSeaStarterDeckBaselineMarker);
+            || CardMutationService.HasRuntimeMarker(config, TerriasIds.EndlessSeaStarterDeckBaselineMarker);
     }
 
     public static int NormalizeCombatCards(ScriptExecutor? executor, string source)
@@ -249,7 +249,7 @@ public static class EndlessSeaCardAffixService
         var changed = 0;
         foreach (var card in cards)
         {
-            if (CardMutationService.SetRuntimeMarkers(card, SunExpIds.EndlessSeaStarterDeckBaselineMarker))
+            if (CardMutationService.SetRuntimeMarkers(card, TerriasIds.EndlessSeaStarterDeckBaselineMarker))
             {
                 changed++;
             }

@@ -1,16 +1,16 @@
 using System;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
-using SunExp.Dll.Network;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
+using Terrias.Dll.Network;
 using Witch.Core;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public sealed class FieldBuffSnapshot
 {
-    public static readonly FieldBuffSnapshot Empty = new(SunExpFieldId.None, "", "", 0, 0, 0);
+    public static readonly FieldBuffSnapshot Empty = new(TerriasFieldId.None, "", "", 0, 0, 0);
 
-    public FieldBuffSnapshot(SunExpFieldId field, string slug, string buffId, int stacks, int maxStacks, int epoch)
+    public FieldBuffSnapshot(TerriasFieldId field, string slug, string buffId, int stacks, int maxStacks, int epoch)
     {
         Field = field;
         Slug = slug;
@@ -20,7 +20,7 @@ public sealed class FieldBuffSnapshot
         Epoch = epoch;
     }
 
-    public SunExpFieldId Field { get; }
+    public TerriasFieldId Field { get; }
 
     public string Slug { get; }
 
@@ -32,16 +32,16 @@ public sealed class FieldBuffSnapshot
 
     public int Epoch { get; }
 
-    public bool IsActive => Field != SunExpFieldId.None && Stacks > 0;
+    public bool IsActive => Field != TerriasFieldId.None && Stacks > 0;
 }
 
 public static class FieldApi
 {
-    private const string ActiveFieldIdKey = "SunExpField_ActiveId";
-    private const string ActiveFieldStacksKey = "SunExpField_ActiveStacks";
-    private const string ActiveFieldEpochKey = "SunExpField_ActiveEpoch";
-    private const string LastRoundStartKey = "SunExpField_LastRoundStart";
-    private const string TriggerLockKey = "SunExpField_TriggerLock";
+    private const string ActiveFieldIdKey = "TerriasField_ActiveId";
+    private const string ActiveFieldStacksKey = "TerriasField_ActiveStacks";
+    private const string ActiveFieldEpochKey = "TerriasField_ActiveEpoch";
+    private const string LastRoundStartKey = "TerriasField_LastRoundStart";
+    private const string TriggerLockKey = "TerriasField_TriggerLock";
     private static FieldEffectPolicyFlags activePolicyFlags = FieldEffectPolicyFlags.None;
 
     public static event Action<FieldBuffSnapshot>? Changed;
@@ -56,9 +56,9 @@ public static class FieldApi
         ActivateField(executor, ParseFieldId(fieldId), amount, source);
     }
 
-    public static void ActivateField(ScriptExecutor? executor, SunExpFieldId field, int amount, string source = "")
+    public static void ActivateField(ScriptExecutor? executor, TerriasFieldId field, int amount, string source = "")
     {
-        if (field == SunExpFieldId.None || amount <= 0)
+        if (field == TerriasFieldId.None || amount <= 0)
         {
             return;
         }
@@ -72,9 +72,9 @@ public static class FieldApi
         ActivateFieldAuthoritative(field, amount, source, broadcast: true);
     }
 
-    internal static bool ActivateFieldAuthoritative(SunExpFieldId field, int amount, string source, bool broadcast)
+    internal static bool ActivateFieldAuthoritative(TerriasFieldId field, int amount, string source, bool broadcast)
     {
-        if (field == SunExpFieldId.None || amount <= 0)
+        if (field == TerriasFieldId.None || amount <= 0)
         {
             return false;
         }
@@ -89,7 +89,7 @@ public static class FieldApi
             FieldNetworkSync.BroadcastSnapshot(source);
         }
 
-        SunExpLog.Debug("[FieldApi] activated field id=" + FieldSlug(field)
+        TerriasLog.Debug("[FieldApi] activated field id=" + FieldSlug(field)
             + ", add=" + amount
             + ", stacks=" + nextStacks
             + ", max=" + maxStacks
@@ -105,7 +105,7 @@ public static class FieldApi
         }
 
         target.RemoveBuff(buffId);
-        SunExpLog.Debug("[FieldApi] removed field buff carrier from status: buff="
+        TerriasLog.Debug("[FieldApi] removed field buff carrier from status: buff="
             + buffId
             + ", target=" + (target.InstanceId ?? "")
             + ", source=" + (source ?? ""));
@@ -119,7 +119,7 @@ public static class FieldApi
 
     public static bool TryClearActiveField(string source, string fieldId = "")
     {
-        var requested = string.IsNullOrWhiteSpace(fieldId) ? SunExpFieldId.None : ParseFieldId(fieldId);
+        var requested = string.IsNullOrWhiteSpace(fieldId) ? TerriasFieldId.None : ParseFieldId(fieldId);
         if (!IsAuthoritativeFieldWriter())
         {
             FieldNetworkSync.RequestSnapshot(source + ":clear-not-authoritative");
@@ -129,15 +129,15 @@ public static class FieldApi
         return TryClearActiveFieldAuthoritative(source, requested, broadcast: true);
     }
 
-    public static bool TryClearActiveField(string source, SunExpFieldId field)
+    public static bool TryClearActiveField(string source, TerriasFieldId field)
     {
         return TryClearActiveField(source, FieldSlug(field));
     }
 
-    internal static bool TryClearActiveFieldAuthoritative(string source, SunExpFieldId requested, bool broadcast)
+    internal static bool TryClearActiveFieldAuthoritative(string source, TerriasFieldId requested, bool broadcast)
     {
         var active = ActiveFieldId();
-        if (active == SunExpFieldId.None || (requested != SunExpFieldId.None && requested != active))
+        if (active == TerriasFieldId.None || (requested != TerriasFieldId.None && requested != active))
         {
             return false;
         }
@@ -161,21 +161,21 @@ public static class FieldApi
         return FieldBuffId(ParseFieldId(fieldId));
     }
 
-    public static string FieldBuffId(SunExpFieldId field)
+    public static string FieldBuffId(TerriasFieldId field)
     {
         return FieldEffectRegistry.FieldBuffId(field);
     }
 
     public static bool IsFieldBuffId(string? buffId)
     {
-        return FieldIdFromBuffId(buffId) != SunExpFieldId.None;
+        return FieldIdFromBuffId(buffId) != TerriasFieldId.None;
     }
 
-    public static SunExpFieldId FieldIdFromBuffId(string? buffId)
+    public static TerriasFieldId FieldIdFromBuffId(string? buffId)
     {
         if (string.IsNullOrWhiteSpace(buffId))
         {
-            return SunExpFieldId.None;
+            return TerriasFieldId.None;
         }
 
         return FieldEffectRegistry.FieldIdFromBuffId(buffId);
@@ -186,17 +186,17 @@ public static class FieldApi
         return FieldCombatKey(ParseFieldId(fieldId), name);
     }
 
-    public static string FieldCombatKey(SunExpFieldId field, string name)
+    public static string FieldCombatKey(TerriasFieldId field, string name)
     {
-        return "SunExpField_" + FieldSlug(field) + "_" + name;
+        return "TerriasField_" + FieldSlug(field) + "_" + name;
     }
 
-    public static string FieldSlug(SunExpFieldId field)
+    public static string FieldSlug(TerriasFieldId field)
     {
         return FieldEffectRegistry.FieldSlug(field);
     }
 
-    public static SunExpFieldId ParseFieldId(string fieldId)
+    public static TerriasFieldId ParseFieldId(string fieldId)
     {
         return FieldEffectRegistry.ParseFieldId(fieldId);
     }
@@ -206,9 +206,9 @@ public static class FieldApi
         SetSharedFieldState(ParseFieldId(fieldId), stacks);
     }
 
-    public static void SetSharedFieldState(SunExpFieldId field, int stacks)
+    public static void SetSharedFieldState(TerriasFieldId field, int stacks)
     {
-        if (field == SunExpFieldId.None)
+        if (field == TerriasFieldId.None)
         {
             return;
         }
@@ -230,9 +230,9 @@ public static class FieldApi
         SetSharedFieldStateAuthoritative(field, stacks, "FieldApi.SetSharedFieldState", broadcast: true);
     }
 
-    internal static bool SetSharedFieldStateAuthoritative(SunExpFieldId field, int stacks, string source, bool broadcast)
+    internal static bool SetSharedFieldStateAuthoritative(TerriasFieldId field, int stacks, string source, bool broadcast)
     {
-        if (field == SunExpFieldId.None)
+        if (field == TerriasFieldId.None)
         {
             return false;
         }
@@ -251,9 +251,9 @@ public static class FieldApi
         return changed;
     }
 
-    public static bool CommitOpeningField(SunExpFieldId field, int stacks, string source)
+    public static bool CommitOpeningField(TerriasFieldId field, int stacks, string source)
     {
-        if (!IsAuthoritativeFieldWriter() || field == SunExpFieldId.None || stacks <= 0)
+        if (!IsAuthoritativeFieldWriter() || field == TerriasFieldId.None || stacks <= 0)
         {
             return false;
         }
@@ -270,7 +270,7 @@ public static class FieldApi
         return IsSharedFieldActive(ParseFieldId(fieldId));
     }
 
-    public static bool IsSharedFieldActive(SunExpFieldId field)
+    public static bool IsSharedFieldActive(TerriasFieldId field)
     {
         return ActiveFieldId() == field && ActiveFieldStacks() > 0;
     }
@@ -280,7 +280,7 @@ public static class FieldApi
         return FieldStacks(ParseFieldId(fieldId));
     }
 
-    public static int FieldStacks(SunExpFieldId field)
+    public static int FieldStacks(TerriasFieldId field)
     {
         return IsSharedFieldActive(field) ? ActiveFieldStacks() : 0;
     }
@@ -290,7 +290,7 @@ public static class FieldApi
         return SyncFieldStacks(executor, ParseFieldId(fieldId));
     }
 
-    public static int SyncFieldStacks(ScriptExecutor? executor, SunExpFieldId field)
+    public static int SyncFieldStacks(ScriptExecutor? executor, TerriasFieldId field)
     {
         return FieldStacks(field);
     }
@@ -300,9 +300,9 @@ public static class FieldApi
         return SetActiveField(executor, ParseFieldId(fieldId));
     }
 
-    public static int SetActiveField(ScriptExecutor? executor, SunExpFieldId field)
+    public static int SetActiveField(ScriptExecutor? executor, TerriasFieldId field)
     {
-        if (field == SunExpFieldId.None)
+        if (field == TerriasFieldId.None)
         {
             return 0;
         }
@@ -331,7 +331,7 @@ public static class FieldApi
         return BeginSharedFieldStartRound(executor, ParseFieldId(fieldId));
     }
 
-    public static bool BeginSharedFieldStartRound(ScriptExecutor? executor, SunExpFieldId field)
+    public static bool BeginSharedFieldStartRound(ScriptExecutor? executor, TerriasFieldId field)
     {
         if (!IsSharedFieldActive(field) || CombatVarApi.GetInt(TriggerLockKey) == 1)
         {
@@ -376,7 +376,7 @@ public static class FieldApi
         return IsActiveField(executor, ParseFieldId(fieldId), epoch, token);
     }
 
-    public static bool IsActiveField(ScriptExecutor? executor, SunExpFieldId field, int? epoch = null, string? token = null)
+    public static bool IsActiveField(ScriptExecutor? executor, TerriasFieldId field, int? epoch = null, string? token = null)
     {
         if (!IsSharedFieldActive(field))
         {
@@ -389,15 +389,15 @@ public static class FieldApi
     public static FieldBuffSnapshot ActiveFieldSnapshot()
     {
         var field = ActiveFieldId();
-        if (field == SunExpFieldId.None)
+        if (field == TerriasFieldId.None)
         {
-            return new FieldBuffSnapshot(SunExpFieldId.None, "", "", 0, 0, ActiveFieldEpoch());
+            return new FieldBuffSnapshot(TerriasFieldId.None, "", "", 0, 0, ActiveFieldEpoch());
         }
 
         var stacks = ActiveFieldStacks();
         if (stacks <= 0)
         {
-            return new FieldBuffSnapshot(SunExpFieldId.None, "", "", 0, 0, ActiveFieldEpoch());
+            return new FieldBuffSnapshot(TerriasFieldId.None, "", "", 0, 0, ActiveFieldEpoch());
         }
 
         return new FieldBuffSnapshot(
@@ -414,16 +414,16 @@ public static class FieldApi
         return MaxStacksFor(ParseFieldId(fieldId));
     }
 
-    public static int MaxStacksFor(SunExpFieldId field)
+    public static int MaxStacksFor(TerriasFieldId field)
     {
         return FieldEffectRegistry.MaxStacks(field);
     }
 
-    private static SunExpFieldId ActiveFieldId()
+    private static TerriasFieldId ActiveFieldId()
     {
-        return Enum.IsDefined(typeof(SunExpFieldId), CombatVarApi.GetInt(ActiveFieldIdKey))
-            ? (SunExpFieldId)CombatVarApi.GetInt(ActiveFieldIdKey)
-            : SunExpFieldId.None;
+        return Enum.IsDefined(typeof(TerriasFieldId), CombatVarApi.GetInt(ActiveFieldIdKey))
+            ? (TerriasFieldId)CombatVarApi.GetInt(ActiveFieldIdKey)
+            : TerriasFieldId.None;
     }
 
     private static int ActiveFieldStacks()
@@ -438,7 +438,7 @@ public static class FieldApi
 
     public static bool IsAuthoritativeFieldWriter()
     {
-        return !SunExpNetworkRuntime.IsMultiplayerSession() || !SunExpNetworkRuntime.IsClientOnly();
+        return !TerriasNetworkRuntime.IsMultiplayerSession() || !TerriasNetworkRuntime.IsClientOnly();
     }
 
     public static bool CanResolveFieldEffects()
@@ -456,19 +456,19 @@ public static class FieldApi
         return (activePolicyFlags & flag) == flag;
     }
 
-    public static bool TryGetActiveField(out SunExpFieldId field, out int stacks, out int epoch)
+    public static bool TryGetActiveField(out TerriasFieldId field, out int stacks, out int epoch)
     {
         field = ActiveFieldId();
         stacks = ActiveFieldStacks();
         epoch = ActiveFieldEpoch();
-        return field != SunExpFieldId.None && stacks > 0;
+        return field != TerriasFieldId.None && stacks > 0;
     }
 
-    public static void ApplyNetworkSnapshot(SunExpFieldId field, int stacks, int epoch, string source)
+    public static void ApplyNetworkSnapshot(TerriasFieldId field, int stacks, int epoch, string source)
     {
         if (epoch < ActiveFieldEpoch())
         {
-            SunExpLog.Debug("[FieldApi] ignored stale field snapshot: incoming="
+            TerriasLog.Debug("[FieldApi] ignored stale field snapshot: incoming="
                 + epoch
                 + ", local="
                 + ActiveFieldEpoch()
@@ -477,9 +477,9 @@ public static class FieldApi
             return;
         }
 
-        if (field == SunExpFieldId.None || stacks <= 0)
+        if (field == TerriasFieldId.None || stacks <= 0)
         {
-            SetActiveFieldStateDirect(SunExpFieldId.None, 0, Math.Max(0, epoch), source);
+            SetActiveFieldStateDirect(TerriasFieldId.None, 0, Math.Max(0, epoch), source);
             return;
         }
 
@@ -488,24 +488,24 @@ public static class FieldApi
 
     public static void ResetFightState(string source)
     {
-        var hadState = ActiveFieldId() != SunExpFieldId.None
+        var hadState = ActiveFieldId() != TerriasFieldId.None
             || ActiveFieldStacks() > 0
             || ActiveFieldEpoch() > 0
             || CombatVarApi.GetInt(LastRoundStartKey) != 0
             || CombatVarApi.GetInt(TriggerLockKey) != 0;
-        CombatVarApi.SetInt(ActiveFieldIdKey, (int)SunExpFieldId.None);
+        CombatVarApi.SetInt(ActiveFieldIdKey, (int)TerriasFieldId.None);
         CombatVarApi.SetInt(ActiveFieldStacksKey, 0);
         CombatVarApi.SetInt(ActiveFieldEpochKey, 0);
         CombatVarApi.SetInt(TriggerLockKey, 0);
         CombatVarApi.SetInt(LastRoundStartKey, 0);
-        UpdateActivePolicyCache(SunExpFieldId.None, 0);
+        UpdateActivePolicyCache(TerriasFieldId.None, 0);
         if (hadState)
         {
             NotifyChanged(source);
         }
     }
 
-    private static bool SetActiveFieldState(SunExpFieldId field, int stacks, string source)
+    private static bool SetActiveFieldState(TerriasFieldId field, int stacks, string source)
     {
         var nextStacks = Math.Min(MaxStacksFor(field), Math.Max(0, stacks));
         var previous = ActiveFieldSnapshot();
@@ -526,11 +526,11 @@ public static class FieldApi
     private static bool ClearActiveFieldState(string source)
     {
         var previous = ActiveFieldSnapshot();
-        CombatVarApi.SetInt(ActiveFieldIdKey, (int)SunExpFieldId.None);
+        CombatVarApi.SetInt(ActiveFieldIdKey, (int)TerriasFieldId.None);
         CombatVarApi.SetInt(ActiveFieldStacksKey, 0);
         CombatVarApi.SetInt(TriggerLockKey, 0);
         CombatVarApi.SetInt(LastRoundStartKey, 0);
-        UpdateActivePolicyCache(SunExpFieldId.None, 0);
+        UpdateActivePolicyCache(TerriasFieldId.None, 0);
         if (!previous.IsActive)
         {
             return false;
@@ -538,15 +538,15 @@ public static class FieldApi
 
         CombatVarApi.AddInt(ActiveFieldEpochKey, 1);
         NotifyChanged(source);
-        SunExpLog.Debug("[FieldApi] cleared active field from " + (source ?? ""));
+        TerriasLog.Debug("[FieldApi] cleared active field from " + (source ?? ""));
         return true;
     }
 
-    private static void SetActiveFieldStateDirect(SunExpFieldId field, int stacks, int epoch, string source)
+    private static void SetActiveFieldStateDirect(TerriasFieldId field, int stacks, int epoch, string source)
     {
         var previous = ActiveFieldSnapshot();
-        var nextStacks = field == SunExpFieldId.None ? 0 : Math.Min(MaxStacksFor(field), Math.Max(0, stacks));
-        CombatVarApi.SetInt(ActiveFieldIdKey, nextStacks <= 0 ? (int)SunExpFieldId.None : (int)field);
+        var nextStacks = field == TerriasFieldId.None ? 0 : Math.Min(MaxStacksFor(field), Math.Max(0, stacks));
+        CombatVarApi.SetInt(ActiveFieldIdKey, nextStacks <= 0 ? (int)TerriasFieldId.None : (int)field);
         CombatVarApi.SetInt(ActiveFieldStacksKey, nextStacks);
         CombatVarApi.SetInt(ActiveFieldEpochKey, Math.Max(0, epoch));
         CombatVarApi.SetInt(TriggerLockKey, 0);
@@ -557,9 +557,9 @@ public static class FieldApi
         }
     }
 
-    private static void UpdateActivePolicyCache(SunExpFieldId field, int stacks)
+    private static void UpdateActivePolicyCache(TerriasFieldId field, int stacks)
     {
-        activePolicyFlags = field == SunExpFieldId.None || stacks <= 0
+        activePolicyFlags = field == TerriasFieldId.None || stacks <= 0
             ? FieldEffectPolicyFlags.None
             : FieldEffectRegistry.PolicyFlags(field);
     }
@@ -572,7 +572,7 @@ public static class FieldApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[FieldApi] field changed handler failed from " + (source ?? "") + ": " + ex.Message);
+            TerriasLog.Warn("[FieldApi] field changed handler failed from " + (source ?? "") + ": " + ex.Message);
         }
     }
 

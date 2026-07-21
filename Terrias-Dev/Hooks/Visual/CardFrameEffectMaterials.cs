@@ -1,20 +1,20 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
-namespace SunExp.Dll.Hooks.Visual;
+namespace Terrias.Dll.Hooks.Visual;
 
 internal static class CardFrameEffectShaderIds
 {
-    public const string ShaderName = "SunExp/CardFaceEffect";
+    public const string ShaderName = "Terrias/CardFaceEffect";
 
     public static readonly int MainTex = Shader.PropertyToID("_MainTex");
-    public static readonly int OverlayMode = Shader.PropertyToID("_SunExpOverlayMode");
-    public static readonly int FrameOnlyOverlay = Shader.PropertyToID("_SunExpFrameOnlyOverlay");
-    public static readonly int QualityScale = Shader.PropertyToID("_SunExpQualityScale");
+    public static readonly int OverlayMode = Shader.PropertyToID("_TerriasOverlayMode");
+    public static readonly int FrameOnlyOverlay = Shader.PropertyToID("_TerriasFrameOnlyOverlay");
+    public static readonly int QualityScale = Shader.PropertyToID("_TerriasQualityScale");
 }
 
 internal static class CardFrameEffectMaterials
@@ -34,17 +34,17 @@ internal static class CardFrameEffectMaterials
 
         var material = EffectMaterialFactory.CreateMaterial(
             spec.VisualEffectId,
-            SunExpIds.CardFrameHoloFlowShaderId,
+            TerriasIds.CardFrameHoloFlowShaderId,
             CardFrameEffectShaderIds.ShaderName,
             LogPrefix);
         if (material != null)
         {
-            material.name = "SunExp_CardFrameEffect_" + spec.Id;
+            material.name = "Terrias_CardFrameEffect_" + spec.Id;
             ApplyQualityScale(material);
         }
         else if (LoggedMissingMaterials.Add(spec.Id))
         {
-            SunExpLog.Warn(LogPrefix + " material unavailable: " + spec.VisualEffectId);
+            TerriasLog.Warn(LogPrefix + " material unavailable: " + spec.VisualEffectId);
         }
 
         UiMaterialCache[spec.Id] = material;

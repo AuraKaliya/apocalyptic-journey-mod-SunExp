@@ -2,10 +2,10 @@ using System;
 using System.IO;
 using System.Linq;
 using Newtonsoft.Json;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.Mod;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public sealed class EndlessAbyssConfigDocument
 {
@@ -66,13 +66,13 @@ public sealed class EndlessAbyssMilestoneConfig
 
 public sealed class EndlessAbyssRewardConfig
 {
-    public string OtherDimensionCardPoolId { get; set; } = SunExpIds.EndlessAbyssOtherDimensionCardPoolId;
+    public string OtherDimensionCardPoolId { get; set; } = TerriasIds.EndlessAbyssOtherDimensionCardPoolId;
 
     public string[] OtherDimensionCardIds { get; set; } =
     {
-        SunExpIds.PolymorphCardShortId,
-        SunExpIds.ProjectionCardShortId,
-        SunExpIds.HeartChangeCardShortId
+        TerriasIds.PolymorphCardShortId,
+        TerriasIds.ProjectionCardShortId,
+        TerriasIds.HeartChangeCardShortId
     };
 }
 
@@ -94,14 +94,14 @@ public sealed class EndlessAbyssRewardPoolConfig
     {
         return new EndlessAbyssRewardPoolConfig
         {
-            Id = SunExpIds.EndlessAbyssOtherDimensionCardPoolId,
+            Id = TerriasIds.EndlessAbyssOtherDimensionCardPoolId,
             Kind = "card",
             Sources = new[]
             {
                 new EndlessAbyssRewardPoolSourceConfig
                 {
                     Type = "cardPack",
-                    Id = SunExpIds.MoreDimensionsCardPackId
+                    Id = TerriasIds.MoreDimensionsCardPackId
                 }
             },
             IncludeCardIds = Array.Empty<string>(),
@@ -139,12 +139,12 @@ public static class EndlessAbyssConfigStore
         lock (SyncRoot)
         {
             var fallback = Normalize(new EndlessAbyssConfigDocument());
-            var path = Path.Combine(modConfig.DirectoryName, SunExpIds.EndlessAbyssConfigFile);
+            var path = Path.Combine(modConfig.DirectoryName, TerriasIds.EndlessAbyssConfigFile);
             if (!File.Exists(path))
             {
                 current = fallback;
                 EndlessAbyssRewardPoolService.Initialize(current.RewardPools);
-                SunExpLog.Warn("[EndlessAbyss] missing config; using built-in defaults.");
+                TerriasLog.Warn("[EndlessAbyss] missing config; using built-in defaults.");
                 return;
             }
 
@@ -154,13 +154,13 @@ public static class EndlessAbyssConfigStore
                              ?? new EndlessAbyssConfigDocument();
                 current = Normalize(loaded);
                 EndlessAbyssRewardPoolService.Initialize(current.RewardPools);
-                SunExpLog.Info("[EndlessAbyss] loaded config from " + path);
+                TerriasLog.Info("[EndlessAbyss] loaded config from " + path);
             }
             catch (Exception ex)
             {
                 current = fallback;
                 EndlessAbyssRewardPoolService.Initialize(current.RewardPools);
-                SunExpLog.Warn("[EndlessAbyss] failed to load config; using built-in defaults: " + ex.Message);
+                TerriasLog.Warn("[EndlessAbyss] failed to load config; using built-in defaults: " + ex.Message);
             }
         }
     }
@@ -192,7 +192,7 @@ public static class EndlessAbyssConfigStore
         document.Shock.CrackThreshold = Math.Max(1, document.Shock.CrackThreshold);
         document.Milestones.MinFloor = Math.Max(1, document.Milestones.MinFloor);
         document.Rewards.OtherDimensionCardPoolId = string.IsNullOrWhiteSpace(document.Rewards.OtherDimensionCardPoolId)
-            ? SunExpIds.EndlessAbyssOtherDimensionCardPoolId
+            ? TerriasIds.EndlessAbyssOtherDimensionCardPoolId
             : document.Rewards.OtherDimensionCardPoolId.Trim();
         document.Rewards.OtherDimensionCardIds ??= Array.Empty<string>();
         document.RewardPools = NormalizeRewardPools(document.RewardPools);
@@ -261,7 +261,7 @@ public static class EndlessAbyssConfigStore
             result.Add(pool);
         }
 
-        if (result.All(pool => !string.Equals(pool.Id, SunExpIds.EndlessAbyssOtherDimensionCardPoolId, StringComparison.Ordinal)))
+        if (result.All(pool => !string.Equals(pool.Id, TerriasIds.EndlessAbyssOtherDimensionCardPoolId, StringComparison.Ordinal)))
         {
             result.Add(EndlessAbyssRewardPoolConfig.DefaultOtherDimensionCardPool());
         }

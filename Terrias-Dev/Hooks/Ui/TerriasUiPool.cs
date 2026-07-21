@@ -1,28 +1,28 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using UiRaycastSafetyShared;
 using UnityEngine;
 using UnityEngine.UI;
 using Object = UnityEngine.Object;
 
-namespace SunExp.Dll.Hooks.Ui;
+namespace Terrias.Dll.Hooks.Ui;
 
-public abstract class SunExpPooledUiBehaviour : MonoBehaviour
+public abstract class TerriasPooledUiBehaviour : MonoBehaviour
 {
     public virtual void ResetForPool()
     {
     }
 }
 
-public sealed class SunExpPooledUiItem : MonoBehaviour
+public sealed class TerriasPooledUiItem : MonoBehaviour
 {
     public string PoolKey = "";
 }
 
-public static class SunExpUiPool
+public static class TerriasUiPool
 {
-    private const string PoolRootName = "SunExp_UiPool";
+    private const string PoolRootName = "Terrias_UiPool";
     private static readonly Dictionary<string, Stack<GameObject>> Pools = new(StringComparer.Ordinal);
     private static GameObject? poolRoot;
     private static bool rootFailureLogged;
@@ -41,7 +41,7 @@ public static class SunExpUiPool
 
         var normalizedKey = NormalizeKey(key);
         GameObject? go = null;
-        if (SunExpPerformanceSettings.UiPoolEnabled && Pools.TryGetValue(normalizedKey, out var stack))
+        if (TerriasPerformanceSettings.UiPoolEnabled && Pools.TryGetValue(normalizedKey, out var stack))
         {
             while (stack.Count > 0 && go == null)
             {
@@ -52,7 +52,7 @@ public static class SunExpUiPool
         T component;
         if (go != null)
         {
-            SunExpPerformanceCounters.Record("UiPool.Acquire.Hit");
+            TerriasPerformanceCounters.Record("UiPool.Acquire.Hit");
             go.name = instanceName;
             go.transform.SetParent(parent, false);
             RestoreReusableTree(go);
@@ -61,12 +61,12 @@ public static class SunExpUiPool
         }
         else
         {
-            SunExpPerformanceCounters.Record("UiPool.Acquire.Miss");
+            TerriasPerformanceCounters.Record("UiPool.Acquire.Miss");
             component = create(parent, instanceName);
             go = component.gameObject;
         }
 
-        var item = go.GetComponent<SunExpPooledUiItem>() ?? go.AddComponent<SunExpPooledUiItem>();
+        var item = go.GetComponent<TerriasPooledUiItem>() ?? go.AddComponent<TerriasPooledUiItem>();
         item.PoolKey = normalizedKey;
         return component;
     }
@@ -91,7 +91,7 @@ public static class SunExpUiPool
 
         var normalizedKey = NormalizeKey(key);
         GameObject? go = null;
-        if (SunExpPerformanceSettings.UiPoolEnabled && Pools.TryGetValue(normalizedKey, out var stack))
+        if (TerriasPerformanceSettings.UiPoolEnabled && Pools.TryGetValue(normalizedKey, out var stack))
         {
             while (stack.Count > 0 && go == null)
             {
@@ -102,7 +102,7 @@ public static class SunExpUiPool
         T component;
         if (go != null)
         {
-            SunExpPerformanceCounters.Record("UiPool.Acquire.Hit");
+            TerriasPerformanceCounters.Record("UiPool.Acquire.Hit");
             go.name = instanceName;
             go.transform.SetParent(parent, false);
             RestoreReusableTree(go);
@@ -110,13 +110,13 @@ public static class SunExpUiPool
         }
         else
         {
-            SunExpPerformanceCounters.Record("UiPool.Acquire.Miss");
+            TerriasPerformanceCounters.Record("UiPool.Acquire.Miss");
             component = create(parent, instanceName);
             go = component.gameObject;
             go.SetActive(false);
         }
 
-        var item = go.GetComponent<SunExpPooledUiItem>() ?? go.AddComponent<SunExpPooledUiItem>();
+        var item = go.GetComponent<TerriasPooledUiItem>() ?? go.AddComponent<TerriasPooledUiItem>();
         item.PoolKey = normalizedKey;
         try
         {
@@ -147,19 +147,19 @@ public static class SunExpUiPool
             }
 
             var go = child.gameObject;
-            if (go.TryGetComponent<SunExpPooledUiItem>(out var item) && !string.IsNullOrWhiteSpace(item.PoolKey))
+            if (go.TryGetComponent<TerriasPooledUiItem>(out var item) && !string.IsNullOrWhiteSpace(item.PoolKey))
             {
                 Release(go, source, logPrefix);
             }
             else
             {
-                UiRaycastSafeDestroyRuntime.DisableAndHide(go, source, SunExpLog.Debug);
+                UiRaycastSafeDestroyRuntime.DisableAndHide(go, source, TerriasLog.Debug);
                 Object.Destroy(go);
             }
         }
 
-        UiRaycastSafeDestroyRuntime.ScrubGraphicRegistryForFrames(2, source + ":children", SunExpLog.Debug);
-        SunExpLog.Debug(logPrefix + " released transient UI children from " + source + ".");
+        UiRaycastSafeDestroyRuntime.ScrubGraphicRegistryForFrames(2, source + ":children", TerriasLog.Debug);
+        TerriasLog.Debug(logPrefix + " released transient UI children from " + source + ".");
     }
 
     public static bool Release(GameObject? go, string source, string logPrefix)
@@ -169,17 +169,17 @@ public static class SunExpUiPool
             return false;
         }
 
-        var item = go.GetComponent<SunExpPooledUiItem>();
+        var item = go.GetComponent<TerriasPooledUiItem>();
         var key = NormalizeKey(item?.PoolKey ?? "");
-        if (!SunExpPerformanceSettings.UiPoolEnabled || key.Length == 0)
+        if (!TerriasPerformanceSettings.UiPoolEnabled || key.Length == 0)
         {
-            UiRaycastSafeDestroyRuntime.DisableAndHide(go, source, SunExpLog.Debug);
+            UiRaycastSafeDestroyRuntime.DisableAndHide(go, source, TerriasLog.Debug);
             Object.Destroy(go);
-            SunExpPerformanceCounters.Record("UiPool.Destroyed");
+            TerriasPerformanceCounters.Record("UiPool.Destroyed");
             return true;
         }
 
-        foreach (var pooled in go.GetComponentsInChildren<SunExpPooledUiBehaviour>(true))
+        foreach (var pooled in go.GetComponentsInChildren<TerriasPooledUiBehaviour>(true))
         {
             try
             {
@@ -187,7 +187,7 @@ public static class SunExpUiPool
             }
             catch (Exception ex)
             {
-                SunExpLog.Warn(logPrefix + " pooled UI reset failed from " + source + ": " + ex.Message);
+                TerriasLog.Warn(logPrefix + " pooled UI reset failed from " + source + ": " + ex.Message);
             }
         }
 
@@ -198,11 +198,11 @@ public static class SunExpUiPool
         }
 
         var root = EnsurePoolRoot();
-        if (root == null || CountFor(key) >= SunExpPerformanceSettings.UiPoolCapacityPerKey)
+        if (root == null || CountFor(key) >= TerriasPerformanceSettings.UiPoolCapacityPerKey)
         {
-            UiRaycastSafeDestroyRuntime.DisableAndHide(go, source, SunExpLog.Debug);
+            UiRaycastSafeDestroyRuntime.DisableAndHide(go, source, TerriasLog.Debug);
             Object.Destroy(go);
-            SunExpPerformanceCounters.Record("UiPool.Discarded");
+            TerriasPerformanceCounters.Record("UiPool.Discarded");
             return true;
         }
 
@@ -215,7 +215,7 @@ public static class SunExpUiPool
         }
 
         stack.Push(go);
-        SunExpPerformanceCounters.Record("UiPool.Released");
+        TerriasPerformanceCounters.Record("UiPool.Released");
         return true;
     }
 
@@ -252,7 +252,7 @@ public static class SunExpUiPool
         {
             if (!rootFailureLogged)
             {
-                SunExpLog.Warn("[SunExpUiPool] unavailable; pooled UI will be destroyed instead: " + ex.Message);
+                TerriasLog.Warn("[TerriasUiPool] unavailable; pooled UI will be destroyed instead: " + ex.Message);
                 rootFailureLogged = true;
             }
 

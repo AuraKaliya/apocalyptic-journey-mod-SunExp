@@ -1,15 +1,15 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 
-namespace SunExp.Dll.Hooks.Ui;
+namespace Terrias.Dll.Hooks.Ui;
 
 public static class StarScoreHudAssets
 {
-    private const string Root = "Mods/SunExp/ModResource/Images/UI/";
+    private const string Root = "Mods/Terrias/ModResource/Images/UI/";
 
     public const string FullPath = Root + "\u661f\u8c31.png";
     public const string BackgroundPath = Root + "\u661f\u8c31-\u80cc\u666f.png";
@@ -67,7 +67,7 @@ public static class StarScoreHudAssets
         Sprite? sprite = null;
         try
         {
-            sprite = SunExpResourceCache.Load<Sprite>(path, true);
+            sprite = TerriasResourceCache.Load<Sprite>(path, true);
             if (sprite?.texture != null)
             {
                 sprite.texture.filterMode = FilterMode.Point;
@@ -76,12 +76,12 @@ public static class StarScoreHudAssets
 
             if (sprite == null)
             {
-                SunExpLog.Warn("[StarScoreHud] UI sprite missing: " + path);
+                TerriasLog.Warn("[StarScoreHud] UI sprite missing: " + path);
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[StarScoreHud] failed to load UI sprite " + path + ": " + ex.Message);
+            TerriasLog.Warn("[StarScoreHud] failed to load UI sprite " + path + ": " + ex.Message);
         }
 
         Cache[path] = sprite;

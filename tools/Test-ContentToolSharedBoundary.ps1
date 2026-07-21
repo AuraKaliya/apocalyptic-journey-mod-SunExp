@@ -94,39 +94,39 @@ $sharedRoots = @(
 )
 
 $auraToolsFiles = @(Get-SourceFiles @("AuraToolsExp-Dev"))
-$sunExpFiles = @(Get-SourceFiles @("SunExp-Dev"))
+$terriasFiles = @(Get-SourceFiles @("Terrias-Dev"))
 $sharedFiles = @(Get-SourceFiles $sharedRoots)
 
-Assert-NoMatches $auraToolsFiles "SunExp-Dev|SunExp\.Dll|using\s+SunExp|CS\.SunExp|SunExpIds|SunExpHook|SunExpUi|SunExpResourceCache" `
-    "AuraToolsExp must not depend on SunExp internals."
+Assert-NoMatches $auraToolsFiles "Terrias-Dev|Terrias\.Dll|using\s+Terrias|CS\.Terrias|TerriasIds|TerriasHook|TerriasUi|TerriasResourceCache" `
+    "AuraToolsExp must not depend on Terrias internals."
 
 $auraToolsDirectHooks = @($auraToolsFiles | Where-Object { $_.Name -ne "AuraToolsHookRegistry.cs" })
 Assert-NoMatches $auraToolsDirectHooks "AuraSharedHooks\.(RegisterBefore|RegisterAfter)" `
     "AuraTools features must register hooks through AuraToolsHookRegistry."
 
-$sunExpDirectHooks = @($sunExpFiles | Where-Object { $_.Name -ne "SunExpHookRegistry.cs" })
-Assert-NoMatches $sunExpDirectHooks "AuraSharedHooks\.(RegisterBefore|RegisterAfter)" `
-    "SunExp features must register hooks through SunExpHookRegistry."
+$terriasDirectHooks = @($terriasFiles | Where-Object { $_.Name -ne "TerriasHookRegistry.cs" })
+Assert-NoMatches $terriasDirectHooks "AuraSharedHooks\.(RegisterBefore|RegisterAfter)" `
+    "Terrias features must register hooks through TerriasHookRegistry."
 
-Assert-NoMatches $sharedFiles "SunExpIds|SunExp\.Dll|CS\.SunExp|晨星|EndlessSea|SolarMemory|TongtianTower" `
-    "Shared runtimes must not contain SunExp content semantics."
+Assert-NoMatches $sharedFiles "TerriasIds|Terrias\.Dll|CS\.Terrias|晨星|EndlessSea|SolarMemory|TongtianTower" `
+    "Shared runtimes must not contain Terrias content semantics."
 
-Assert-NoMatches $sharedFiles "AuraUiStyleIds\.(SunExp|AuraTools)|SunExp:solar|AuraToolsExp:arcane" `
+Assert-NoMatches $sharedFiles "AuraUiStyleIds\.(Terrias|AuraTools)|Terrias:solar|AuraToolsExp:arcane" `
     "Shared UI runtimes must not own consumer-specific style ids."
 
-Assert-NoMatches $sharedFiles '"(?:AuraToolsExp|SunExp|SkinExp|SanGuoShaExp)\.' `
+Assert-NoMatches $sharedFiles '"(?:AuraToolsExp|Terrias|SkinExp|SanGuoShaExp)\.' `
     "Shared runtimes must not hard-code concrete consumer content owner ids."
 
-$sunExpSkillCg = Read-RepoText "SunExp-Dev\Features\SkillCg\SunExpSkillCgRuntime.cs"
-Assert-NotContains $sunExpSkillCg '"AuraToolsExp"' "SunExp SkillCG preload must not hard-code AuraToolsExp ownership."
-Assert-Contains $sunExpSkillCg "SunExpIds.ModId" "SunExp SkillCG must keep SunExp-owned preload registration."
+$terriasSkillCg = Read-RepoText "Terrias-Dev\Features\SkillCg\TerriasSkillCgRuntime.cs"
+Assert-NotContains $terriasSkillCg '"AuraToolsExp"' "Terrias SkillCG preload must not hard-code AuraToolsExp ownership."
+Assert-Contains $terriasSkillCg "TerriasIds.ModId" "Terrias SkillCG must keep Terrias-owned preload registration."
 
 $auraToolsSkillCg = Read-RepoText "AuraToolsExp-Dev\Features\SkillCg\AuraToolsSkillCgRuntime.cs"
 Assert-Contains $auraToolsSkillCg "AuraBattleLifecycleRouter.Register" "AuraTools SkillCG must use the shared battle lifecycle router."
 Assert-NotContains $auraToolsSkillCg 'RegisterBefore("GameEntryUI.StartGame"' "AuraTools SkillCG must not own a private adventure-start hook."
 
 $auraToolsSkillCgSettings = Read-RepoText "AuraToolsExp\Config\SkillCgSettings.json"
-Assert-NotContains $auraToolsSkillCgSettings '"SunExp' "AuraTools SkillCG defaults must not embed SunExp content semantics."
+Assert-NotContains $auraToolsSkillCgSettings '"Terrias' "AuraTools SkillCG defaults must not embed Terrias content semantics."
 
 $starterDeck = (Get-ChildItem -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\StarterDeck") -Recurse -Filter "*.cs" |
     Sort-Object FullName |

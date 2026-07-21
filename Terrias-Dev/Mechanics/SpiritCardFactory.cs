@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AuraShared.Core;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class SpiritCardFactory
 {
@@ -34,7 +34,7 @@ public static class SpiritCardFactory
         bool persistToAdventureDeck,
         string source)
     {
-        var started = SunExpPerformanceCounters.Timestamp();
+        var started = TerriasPerformanceCounters.Timestamp();
         var success = false;
         var failureStep = "";
         try
@@ -43,13 +43,13 @@ public static class SpiritCardFactory
             if (persistToAdventureDeck && adventureDeck == null)
             {
                 failureStep = "adventure-deck";
-                return CardGrantResult.Fail(SunExpIds.SpiritCardTemplateId, null, failureStep, "RoleTable cardList unavailable");
+                return CardGrantResult.Fail(TerriasIds.SpiritCardTemplateId, null, failureStep, "RoleTable cardList unavailable");
             }
 
             var normalizedExchangeCount = NormalizeExchangeCount(exchangeCount);
             var runtime = BuildRuntime(snapshot, normalizedExchangeCount, battleState);
             var request = CardGrantRequest
-                .ToHand(SunExpIds.SpiritCardTemplateShortId)
+                .ToHand(TerriasIds.SpiritCardTemplateShortId)
                 .WithSource((source ?? "spirit-card") + ":" + snapshot.EnemyId)
                 .WithRuntimeTags("Retain", "Burnout")
                 .WithRuntimePresentation(runtime)
@@ -71,7 +71,7 @@ public static class SpiritCardFactory
         }
         finally
         {
-            SunExpPerformanceCounters.RecordHotspot(
+            TerriasPerformanceCounters.RecordHotspot(
                 "Spirit.Card.GrantToHand",
                 started,
                 "enemy=" + (snapshot?.EnemyId ?? "<none>")
@@ -87,7 +87,7 @@ public static class SpiritCardFactory
     {
         return config == null
             ? 0
-            : NormalizeExchangeCount(RuntimeInt(config, SunExpIds.SpiritExchangeCountKey));
+            : NormalizeExchangeCount(RuntimeInt(config, TerriasIds.SpiritExchangeCountKey));
     }
 
     public static SpiritCardBattleState ReadBattleState(IDataConfig? config)
@@ -99,12 +99,12 @@ public static class SpiritCardFactory
 
         var result = new SpiritCardBattleState
         {
-            TurnIndex = Math.Max(0, RuntimeInt(config, SunExpIds.SpiritIntentTurnIndexKey))
+            TurnIndex = Math.Max(0, RuntimeInt(config, TerriasIds.SpiritIntentTurnIndexKey))
         };
         try
         {
             result.ReadyOnTurn = AuraSharedJson.Deserialize<Dictionary<string, int>>(
-                    RuntimeValue(config, SunExpIds.SpiritIntentReadyOnTurnKey))
+                    RuntimeValue(config, TerriasIds.SpiritIntentReadyOnTurnKey))
                 ?? new Dictionary<string, int>(StringComparer.Ordinal);
         }
         catch
@@ -131,7 +131,7 @@ public static class SpiritCardFactory
         }
 
         var runtimeConfig = config!;
-        var enemyId = RuntimeValue(runtimeConfig, SunExpIds.SpiritEnemyIdKey);
+        var enemyId = RuntimeValue(runtimeConfig, TerriasIds.SpiritEnemyIdKey);
         if (enemyId.Length == 0)
         {
             return null;
@@ -139,39 +139,39 @@ public static class SpiritCardFactory
 
         return new CapturedEnemySnapshot
         {
-            SpiritUid = RuntimeValue(runtimeConfig, SunExpIds.SpiritUidKey),
-            SourceModId = RuntimeValue(runtimeConfig, SunExpIds.SpiritSourceModIdKey),
+            SpiritUid = RuntimeValue(runtimeConfig, TerriasIds.SpiritUidKey),
+            SourceModId = RuntimeValue(runtimeConfig, TerriasIds.SpiritSourceModIdKey),
             EnemyId = enemyId,
-            VariantId = RuntimeValue(runtimeConfig, SunExpIds.SpiritVariantIdKey, enemyId),
-            DisplayName = RuntimeValue(runtimeConfig, SunExpIds.SpiritDisplayNameKey, RuntimeValue(runtimeConfig, "Name")),
-            Description = RuntimeValue(runtimeConfig, SunExpIds.SpiritDescriptionKey),
-            AnimationPath = RuntimeValue(runtimeConfig, SunExpIds.SpiritAnimationPathKey),
-            DictPath = RuntimeValue(runtimeConfig, SunExpIds.SpiritDictPathKey),
-            IdlePath = RuntimeValue(runtimeConfig, SunExpIds.SpiritIdlePathKey),
-            CaptureOrigin = RuntimeValue(runtimeConfig, SunExpIds.SpiritCaptureOriginKey),
-            CapturedAt = RuntimeValue(runtimeConfig, SunExpIds.SpiritCapturedAtKey),
-            BaseHp = RuntimeInt(runtimeConfig, "SunExpSpiritBaseHp"),
-            BaseAttack = RuntimeInt(runtimeConfig, "SunExpSpiritBaseAttack"),
-            BaseArmor = RuntimeInt(runtimeConfig, "SunExpSpiritBaseArmor"),
-            Rarity = RuntimeInt(runtimeConfig, "SunExpSpiritEnemyRarity"),
-            SourceEnemyCardIds = Split(RuntimeValue(runtimeConfig, "SunExpSpiritSourceEnemyCardIds"))
+            VariantId = RuntimeValue(runtimeConfig, TerriasIds.SpiritVariantIdKey, enemyId),
+            DisplayName = RuntimeValue(runtimeConfig, TerriasIds.SpiritDisplayNameKey, RuntimeValue(runtimeConfig, "Name")),
+            Description = RuntimeValue(runtimeConfig, TerriasIds.SpiritDescriptionKey),
+            AnimationPath = RuntimeValue(runtimeConfig, TerriasIds.SpiritAnimationPathKey),
+            DictPath = RuntimeValue(runtimeConfig, TerriasIds.SpiritDictPathKey),
+            IdlePath = RuntimeValue(runtimeConfig, TerriasIds.SpiritIdlePathKey),
+            CaptureOrigin = RuntimeValue(runtimeConfig, TerriasIds.SpiritCaptureOriginKey),
+            CapturedAt = RuntimeValue(runtimeConfig, TerriasIds.SpiritCapturedAtKey),
+            BaseHp = RuntimeInt(runtimeConfig, "TerriasSpiritBaseHp"),
+            BaseAttack = RuntimeInt(runtimeConfig, "TerriasSpiritBaseAttack"),
+            BaseArmor = RuntimeInt(runtimeConfig, "TerriasSpiritBaseArmor"),
+            Rarity = RuntimeInt(runtimeConfig, "TerriasSpiritEnemyRarity"),
+            SourceEnemyCardIds = Split(RuntimeValue(runtimeConfig, "TerriasSpiritSourceEnemyCardIds"))
         };
     }
 
     public static bool IsSpiritCard(IDataConfig? config)
     {
         return config != null
-            && (string.Equals(DictionaryUtil.Get(config.data, "Id"), SunExpIds.SpiritCardTemplateId, StringComparison.Ordinal)
-                || string.Equals(DictionaryUtil.Get(config.data, "Id"), SunExpIds.SpiritCardTemplateShortId, StringComparison.Ordinal)
-                || DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.data, SunExpIds.RuntimeMarkersKey), SunExpIds.SpiritCardMarker)
-                || DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, SunExpIds.RuntimeMarkersKey), SunExpIds.SpiritCardMarker));
+            && (string.Equals(DictionaryUtil.Get(config.data, "Id"), TerriasIds.SpiritCardTemplateId, StringComparison.Ordinal)
+                || string.Equals(DictionaryUtil.Get(config.data, "Id"), TerriasIds.SpiritCardTemplateShortId, StringComparison.Ordinal)
+                || DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.data, TerriasIds.RuntimeMarkersKey), TerriasIds.SpiritCardMarker)
+                || DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, TerriasIds.RuntimeMarkersKey), TerriasIds.SpiritCardMarker));
     }
 
     public static bool IsSpiritBall(IDataConfig? config)
     {
         var id = DictionaryUtil.Get(config?.data, "Id").Replace("*", "");
-        return string.Equals(id, SunExpIds.SpiritBallCardId, StringComparison.Ordinal)
-            || string.Equals(id, SunExpIds.SpiritBallCardShortId, StringComparison.Ordinal);
+        return string.Equals(id, TerriasIds.SpiritBallCardId, StringComparison.Ordinal)
+            || string.Equals(id, TerriasIds.SpiritBallCardShortId, StringComparison.Ordinal);
     }
 
     private static Dictionary<string, string> BuildRuntime(
@@ -186,7 +186,7 @@ public static class SpiritCardFactory
         var traditionalDescription = "召喚一隻" + snapshot.DisplayName;
 
         Set(runtime, "Tag", "Retain,Burnout");
-        Set(runtime, "Icon", SunExpIds.SpiritBallIconPath);
+        Set(runtime, "Icon", TerriasIds.SpiritBallIconPath);
         Set(runtime, "Name", name);
         Set(runtime, "Name_zh-Hant", traditionalName);
         Set(runtime, "Name_en", "Spirit: " + snapshot.DisplayName);
@@ -195,29 +195,29 @@ public static class SpiritCardFactory
         Set(runtime, "Description_zh-Hant", traditionalDescription);
         Set(runtime, "Description_en", "Summon one " + snapshot.DisplayName + ".");
         Set(runtime, "Description_ja", snapshot.DisplayName + "を一体召喚する。");
-        Set(runtime, SunExpIds.RuntimeMarkersKey, SunExpIds.SpiritCardMarker);
-        Set(runtime, SunExpIds.SpiritUidKey, snapshot.SpiritUid);
-        Set(runtime, SunExpIds.SpiritSourceModIdKey, snapshot.SourceModId);
-        Set(runtime, SunExpIds.SpiritEnemyIdKey, snapshot.EnemyId);
-        Set(runtime, SunExpIds.SpiritVariantIdKey, snapshot.VariantId);
-        Set(runtime, SunExpIds.SpiritDisplayNameKey, snapshot.DisplayName);
-        Set(runtime, SunExpIds.SpiritDescriptionKey, snapshot.Description);
-        Set(runtime, SunExpIds.SpiritAnimationPathKey, snapshot.AnimationPath);
-        Set(runtime, SunExpIds.SpiritDictPathKey, snapshot.DictPath);
-        Set(runtime, SunExpIds.SpiritIdlePathKey, snapshot.IdlePath);
-        Set(runtime, SunExpIds.SpiritProfileVersionKey, SpiritIntentRegistry.RegistryHash);
-        Set(runtime, SunExpIds.SpiritCaptureOriginKey, snapshot.CaptureOrigin);
-        Set(runtime, SunExpIds.SpiritCapturedAtKey, snapshot.CapturedAt);
-        Set(runtime, SunExpIds.SpiritExchangeCountKey, exchangeCount.ToString());
-        Set(runtime, SunExpIds.SpiritIntentTurnIndexKey, Math.Max(0, battleState?.TurnIndex ?? 0).ToString());
-        Set(runtime, SunExpIds.SpiritIntentReadyOnTurnKey, AuraSharedJson.Serialize(
+        Set(runtime, TerriasIds.RuntimeMarkersKey, TerriasIds.SpiritCardMarker);
+        Set(runtime, TerriasIds.SpiritUidKey, snapshot.SpiritUid);
+        Set(runtime, TerriasIds.SpiritSourceModIdKey, snapshot.SourceModId);
+        Set(runtime, TerriasIds.SpiritEnemyIdKey, snapshot.EnemyId);
+        Set(runtime, TerriasIds.SpiritVariantIdKey, snapshot.VariantId);
+        Set(runtime, TerriasIds.SpiritDisplayNameKey, snapshot.DisplayName);
+        Set(runtime, TerriasIds.SpiritDescriptionKey, snapshot.Description);
+        Set(runtime, TerriasIds.SpiritAnimationPathKey, snapshot.AnimationPath);
+        Set(runtime, TerriasIds.SpiritDictPathKey, snapshot.DictPath);
+        Set(runtime, TerriasIds.SpiritIdlePathKey, snapshot.IdlePath);
+        Set(runtime, TerriasIds.SpiritProfileVersionKey, SpiritIntentRegistry.RegistryHash);
+        Set(runtime, TerriasIds.SpiritCaptureOriginKey, snapshot.CaptureOrigin);
+        Set(runtime, TerriasIds.SpiritCapturedAtKey, snapshot.CapturedAt);
+        Set(runtime, TerriasIds.SpiritExchangeCountKey, exchangeCount.ToString());
+        Set(runtime, TerriasIds.SpiritIntentTurnIndexKey, Math.Max(0, battleState?.TurnIndex ?? 0).ToString());
+        Set(runtime, TerriasIds.SpiritIntentReadyOnTurnKey, AuraSharedJson.Serialize(
             battleState?.ReadyOnTurn ?? new Dictionary<string, int>(StringComparer.Ordinal)));
         Set(runtime, "TotalExCost", exchangeCount.ToString());
-        Set(runtime, "SunExpSpiritBaseHp", snapshot.BaseHp.ToString());
-        Set(runtime, "SunExpSpiritBaseAttack", snapshot.BaseAttack.ToString());
-        Set(runtime, "SunExpSpiritBaseArmor", snapshot.BaseArmor.ToString());
-        Set(runtime, "SunExpSpiritEnemyRarity", snapshot.Rarity.ToString());
-        Set(runtime, "SunExpSpiritSourceEnemyCardIds", string.Join(",", snapshot.SourceEnemyCardIds ?? new List<string>()));
+        Set(runtime, "TerriasSpiritBaseHp", snapshot.BaseHp.ToString());
+        Set(runtime, "TerriasSpiritBaseAttack", snapshot.BaseAttack.ToString());
+        Set(runtime, "TerriasSpiritBaseArmor", snapshot.BaseArmor.ToString());
+        Set(runtime, "TerriasSpiritEnemyRarity", snapshot.Rarity.ToString());
+        Set(runtime, "TerriasSpiritSourceEnemyCardIds", string.Join(",", snapshot.SourceEnemyCardIds ?? new List<string>()));
 
         return runtime;
     }

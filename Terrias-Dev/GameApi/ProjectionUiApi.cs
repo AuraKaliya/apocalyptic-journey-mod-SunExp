@@ -1,6 +1,6 @@
-using SunExp.Dll.Hooks.Ui;
+using Terrias.Dll.Hooks.Ui;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class ProjectionUiApi
 {

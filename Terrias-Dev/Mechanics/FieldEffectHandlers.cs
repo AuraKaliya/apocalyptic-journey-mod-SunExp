@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public sealed class FieldRoundStartContext
 {
@@ -30,11 +30,11 @@ public sealed class FieldRoundStartContext
 
 public static class FieldEffectHandlers
 {
-    private static readonly IReadOnlyDictionary<SunExpFieldId, Func<FieldRoundStartContext, bool>> RoundStartHandlers =
-        new Dictionary<SunExpFieldId, Func<FieldRoundStartContext, bool>>
+    private static readonly IReadOnlyDictionary<TerriasFieldId, Func<FieldRoundStartContext, bool>> RoundStartHandlers =
+        new Dictionary<TerriasFieldId, Func<FieldRoundStartContext, bool>>
         {
-            [SunExpFieldId.ScorchingCanopy] = TriggerScorchingCanopyRoundStart,
-            [SunExpFieldId.SamsaraGarden] = TriggerSamsaraGardenRoundStart
+            [TerriasFieldId.ScorchingCanopy] = TriggerScorchingCanopyRoundStart,
+            [TerriasFieldId.SamsaraGarden] = TriggerSamsaraGardenRoundStart
         };
 
     public static bool ResolveRoundStart(ScriptExecutor? executor, FieldBuffSnapshot snapshot, string source)
@@ -80,7 +80,7 @@ public static class FieldEffectHandlers
             }
             catch (Exception ex)
             {
-                SunExpLog.Warn("[FieldEffect] target failed: field="
+                TerriasLog.Warn("[FieldEffect] target failed: field="
                     + context.Snapshot.Slug
                     + ", effect="
                     + (effectId ?? "")
@@ -112,7 +112,7 @@ public static class FieldEffectHandlers
 
         return field switch
         {
-            SunExpFieldId.ScorchingCanopy => BuffOverflowApi.HandleBurnOverflow(target, buffId, amount),
+            TerriasFieldId.ScorchingCanopy => BuffOverflowApi.HandleBurnOverflow(target, buffId, amount),
             _ => false
         };
     }
@@ -129,13 +129,13 @@ public static class FieldEffectHandlers
             context,
             target =>
             {
-                target.AddBuff(SunExpIds.Burn, count);
+                target.AddBuff(TerriasIds.Burn, count);
                 return true;
             },
             "burn");
 
         ClearSelfBurnIfProtected(context.Executor);
-        SunExpLog.Debug("[FieldEffect] scorching canopy round start: stacks="
+        TerriasLog.Debug("[FieldEffect] scorching canopy round start: stacks="
             + count
             + ", targets="
             + applied
@@ -168,7 +168,7 @@ public static class FieldEffectHandlers
                 var resolved = StatusApi.TryHeal(target, heal);
                 if (atUpperBound)
                 {
-                    target.AddBuff(SunExpIds.Rebirth, 30);
+                    target.AddBuff(TerriasIds.Rebirth, 30);
                     resolved = true;
                 }
 
@@ -176,7 +176,7 @@ public static class FieldEffectHandlers
             },
             "heal-and-rebirth");
 
-        SunExpLog.Debug("[FieldEffect] samsara garden round start: stacks="
+        TerriasLog.Debug("[FieldEffect] samsara garden round start: stacks="
             + stacks
             + ", healPercent="
             + healPercent
@@ -196,6 +196,6 @@ public static class FieldEffectHandlers
             return;
         }
 
-        executor.Self.RemoveBuff(SunExpIds.Burn);
+        executor.Self.RemoveBuff(TerriasIds.Burn);
     }
 }

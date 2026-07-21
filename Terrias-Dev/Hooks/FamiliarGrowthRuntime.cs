@@ -3,25 +3,25 @@ using System.Linq;
 using System.Reflection;
 using AuraShared.Core;
 using AuraUi.Shared;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Hooks.Ui;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Hooks.Ui;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using UnityEngine.UI;
 using Witch.Core;
 using Witch.Mod;
 using Object = UnityEngine.Object;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class FamiliarGrowthRuntime
 {
     private const string LogPrefix = "[FamiliarGrowth]";
-    private const string ButtonName = "SunExp_FamiliarArchiveLibraryButton";
+    private const string ButtonName = "Terrias_FamiliarArchiveLibraryButton";
     private const string ButtonText = "\u4f7f\u9b54\u6863\u6848";
-    private const string ButtonBrushName = "SunExp_FamiliarArchiveBrush";
-    private const string ButtonTextName = "SunExp_FamiliarArchiveText";
+    private const string ButtonBrushName = "Terrias_FamiliarArchiveBrush";
+    private const string ButtonTextName = "Terrias_FamiliarArchiveText";
     private const float FallbackButtonWidth = 156f;
     private const float FallbackButtonHeight = 50f;
     private const float LibraryButtonGap = 12f;
@@ -37,15 +37,15 @@ public static class FamiliarGrowthRuntime
         RegisterAfter(modConfig, "HouseManager.OpenWindowByIndex", EnsureLibraryButton);
         RegisterAfter(modConfig, "HouseManager.OpenLibrary", EnsureLibraryButton);
         RegisterAfter(modConfig, "GameEntryUI.NormalGame", MarkActiveForRun);
-        RegisterBefore(modConfig, SunExpHookTargets.FightWinResetStates, GrantBattleWinExperience);
-        SunExpStatusLifecycleRouter.Register("FamiliarGrowth", new SunExpStatusLifecycleSubscription
+        RegisterBefore(modConfig, TerriasHookTargets.FightWinResetStates, GrantBattleWinExperience);
+        TerriasStatusLifecycleRouter.Register("FamiliarGrowth", new TerriasStatusLifecycleSubscription
         {
             BeforeHit = FamiliarFinalBlessingService.BeforeHit,
             AfterHit = FamiliarFinalBlessingService.AfterHit,
             BeforeEnemyDead = FamiliarFinalBlessingService.BeforeEnemyDead,
             AfterEnemyDead = FamiliarFinalBlessingService.AfterEnemyDead
         });
-        SunExpCombatActionRouter.RegisterActionEventHandler(
+        TerriasCombatActionRouter.RegisterActionEventHandler(
             "FamiliarGrowth",
             FamiliarFinalBlessingService.OnAction,
             () =>
@@ -58,14 +58,14 @@ public static class FamiliarGrowthRuntime
             context => BattleRewardApi.IsCurrentBattleReward()
                        && FamiliarBlessingEffectRuntime.EffectAmount("BattleRewardExtraChoice") > 0,
             context => FamiliarBlessingEffectRuntime.ApplyBattleRewardExtraChoices(context.RewardUi)));
-        SunExpBattleLifecycleRouter.Register("FamiliarGrowth", new SunExpBattleLifecycleSubscription
+        TerriasBattleLifecycleRouter.Register("FamiliarGrowth", new TerriasBattleLifecycleSubscription
         {
             AdventureStarting = MarkActiveForRun,
             FightInitialized = ApplySelectedCombatStartEffects,
             PlayerRoundStarted = context => FamiliarBlessingEffectRuntime.BeginPlayerRound(),
             FightEnding = context => FamiliarBlessingEffectRuntime.EndEpoch()
         });
-        SunExpLog.Info(LogPrefix + " runtime initialized.");
+        TerriasLog.Info(LogPrefix + " runtime initialized.");
     }
 
     public static void OpenPanel()
@@ -76,12 +76,12 @@ public static class FamiliarGrowthRuntime
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.Before(config, target, action, "FamiliarGrowth");
+        TerriasHookRegistry.Before(config, target, action, "FamiliarGrowth");
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.After(config, target, action, "FamiliarGrowth");
+        TerriasHookRegistry.After(config, target, action, "FamiliarGrowth");
     }
 
     private static void EnsureLibraryButton(ModHookContext context)
@@ -178,7 +178,7 @@ public static class FamiliarGrowthRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn(LogPrefix + " failed to create library button: " + ex.Message);
+            TerriasLog.Warn(LogPrefix + " failed to create library button: " + ex.Message);
         }
     }
 
@@ -188,12 +188,12 @@ public static class FamiliarGrowthRuntime
         {
             FamiliarBlessingEffectRuntime.BeginRun();
             var active = FamiliarGrowthApi.BeginRunFromCurrentPartner();
-            PlayerApi.SetGameVar(SunExpIds.FamiliarRunActivePartnerKey, active?.FullSpeciesId ?? "");
-            SunExpLog.Info(LogPrefix + " active run familiar: " + (active?.FullSpeciesId ?? "none"));
+            PlayerApi.SetGameVar(TerriasIds.FamiliarRunActivePartnerKey, active?.FullSpeciesId ?? "");
+            TerriasLog.Info(LogPrefix + " active run familiar: " + (active?.FullSpeciesId ?? "none"));
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn(LogPrefix + " failed to snapshot active familiar: " + ex.Message);
+            TerriasLog.Warn(LogPrefix + " failed to snapshot active familiar: " + ex.Message);
         }
     }
 
@@ -204,7 +204,7 @@ public static class FamiliarGrowthRuntime
             var active = FamiliarGrowthApi.Active();
             if (active == null
                 || !AuraLifecycleOperationLedger.TryClaimBattleOperation(
-                    SunExpIds.ModId,
+                    TerriasIds.ModId,
                     "FamiliarGrowth",
                     "VictoryProgress",
                     active.FullSpeciesId,
@@ -227,11 +227,11 @@ public static class FamiliarGrowthRuntime
                 PlayerApi.ShowCaption("\u4f7f\u9b54\u6210\u957f\uff1a" + result.Value.Instance.Name + " Lv." + result.Value.Instance.Level);
             }
 
-            SunExpLog.Debug(LogPrefix + " battle win exp +" + result.Value.GainedExperience + " -> " + result.Value.Instance.InstanceId);
+            TerriasLog.Debug(LogPrefix + " battle win exp +" + result.Value.GainedExperience + " -> " + result.Value.Instance.InstanceId);
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn(LogPrefix + " failed to grant battle experience: " + ex.Message);
+            TerriasLog.Warn(LogPrefix + " failed to grant battle experience: " + ex.Message);
         }
     }
 
@@ -249,18 +249,18 @@ public static class FamiliarGrowthRuntime
 
             if (applied > 0)
             {
-                SunExpLog.Debug(LogPrefix + " applied combat start effects: " + applied);
+                TerriasLog.Debug(LogPrefix + " applied combat start effects: " + applied);
             }
 
             var unsupported = FamiliarBlessingEffectRuntime.UnsupportedSelectedEffectKinds();
             if (unsupported.Count > 0)
             {
-                SunExpLog.Warn(LogPrefix + " selected effects have no runtime handler: " + string.Join(",", unsupported));
+                TerriasLog.Warn(LogPrefix + " selected effects have no runtime handler: " + string.Join(",", unsupported));
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn(LogPrefix + " failed to apply combat start effects: " + ex.Message);
+            TerriasLog.Warn(LogPrefix + " failed to apply combat start effects: " + ex.Message);
         }
     }
 
@@ -589,7 +589,7 @@ public static class FamiliarGrowthRuntime
             }
             catch (Exception ex)
             {
-                SunExpLog.Warn(LogPrefix + " failed to detach cloned HouseItem language listener: " + ex.Message);
+                TerriasLog.Warn(LogPrefix + " failed to detach cloned HouseItem language listener: " + ex.Message);
             }
 
             component.enabled = false;
@@ -613,13 +613,13 @@ public static class FamiliarGrowthRuntime
         }
 
         loggedNativeButtonFallback = true;
-        SunExpLog.Warn(LogPrefix + " native 查找典籍 style clone rejected; using Aura fallback. reason=" + reason);
+        TerriasLog.Warn(LogPrefix + " native 查找典籍 style clone rejected; using Aura fallback. reason=" + reason);
     }
 
     private static void ApplyLibraryButtonSprites(GameObject go)
     {
-        var normalSprite = SunExpUiSprites.LibrarySubMenuButton(LogPrefix);
-        normalSprite ??= SunExpUiSprites.Button(LogPrefix);
+        var normalSprite = TerriasUiSprites.LibrarySubMenuButton(LogPrefix);
+        normalSprite ??= TerriasUiSprites.Button(LogPrefix);
 
         foreach (Transform child in go.transform)
         {
@@ -701,7 +701,7 @@ public static class FamiliarGrowthRuntime
         button.enabled = true;
         button.interactable = true;
         var visual = FindDirectChild(go.transform, ButtonBrushName)?.GetComponent<Image>() ?? image;
-        AuraUiButtonFeedback.Apply(button, visual, SunExpUiComponents.Theme.Accent);
+        AuraUiButtonFeedback.Apply(button, visual, TerriasUiComponents.Theme.Accent);
         button.onClick.RemoveAllListeners();
         button.onClick.AddListener(OpenPanelFromLibraryButton);
     }

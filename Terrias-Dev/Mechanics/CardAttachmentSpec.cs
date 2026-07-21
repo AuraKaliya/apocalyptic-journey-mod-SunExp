@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public enum CardAttachmentScope
 {
@@ -70,7 +70,7 @@ public static class CardAttachmentService
         var changed = RuntimeCardAttachmentService.AttachToConfig(config, spec.ToRuntimeAttachment());
         if (changed > 0)
         {
-            SunExpLog.Debug("[CardAttachment] attached from "
+            TerriasLog.Debug("[CardAttachment] attached from "
                 + source
                 + "; scope="
                 + spec.Scope
@@ -103,7 +103,7 @@ public static class CardAttachmentService
 
         if (changed > 0)
         {
-            SunExpCardRefreshQueue.RequestFullRefresh(card, "CardAttachment");
+            TerriasCardRefreshQueue.RequestFullRefresh(card, "CardAttachment");
         }
 
         return changed;

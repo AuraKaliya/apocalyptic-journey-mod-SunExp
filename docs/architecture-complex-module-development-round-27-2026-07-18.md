@@ -87,12 +87,12 @@
 
 本轮已通过：
 
-- SunExp Release 构建：0 警告、0 错误；
-- SunExp 架构断言；
-- SunExp C#：312 项行为断言和源码护栏；
+- Terrias Release 构建：0 警告、0 错误；
+- Terrias 架构断言；
+- Terrias C#：312 项行为断言和源码护栏；
 - SolarMemory/Event 校验：6 个事件、10 个地图行、0 警告；
-- SunExp 全量内容校验：56 张卡牌、13 个遗物、33 个 Buff、5 个卡包、3 个敌人、0 警告；
-- SunExp、SanGuoShaExp、AuraToolsExp 三个消费者 Release 构建：均为 0 警告、0 错误；
+- Terrias 全量内容校验：56 张卡牌、13 个遗物、33 个 Buff、5 个卡包、3 个敌人、0 警告；
+- Terrias、SanGuoShaExp、AuraToolsExp 三个消费者 Release 构建：均为 0 警告、0 错误；
 - Aura.Shared：1228 项公共 API 兼容基线；
 - Aura.Shared DLL 打包一致性检查。
 

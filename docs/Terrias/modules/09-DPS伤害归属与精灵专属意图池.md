@@ -1,8 +1,8 @@
 # DPS 伤害归属与精灵专属意图池
 
-> 实现基线：2026-07-13  
-> 涉及模组：`AuraToolsExp`、`SunExp`  
-> 作用域：伤害来源归属、冒险结算、结算 CG、精灵轮换、意图冷却继承、PvE/PvP 意图隔离  
+> 实现基线：2026-07-13
+> 涉及模组：`AuraToolsExp`、`Terrias`
+> 作用域：伤害来源归属、冒险结算、结算 CG、精灵轮换、意图冷却继承、PvE/PvP 意图隔离
 > 关联文档：[08-精灵球捕获与精灵召唤](./08-精灵球捕获与精灵召唤.md)
 
 ## 1. 文档目的
@@ -91,7 +91,7 @@ flowchart LR
 5. 如果拥有者能匹配冒险开始时捕获的真实玩家快照，将来源实例改写为该玩家的规范实例 id，并使用对应角色显示名。
 6. 没有明确拥有者的对象保持原来源；无法确认阵营时保留为 `Unknown`。
 
-该实现不会让 `AuraToolsExp` 编译依赖 `SunExp`。AuraTools 只识别通用的拥有者公开属性，因此未来其他模组的召唤物只要提供相同所有权字段，也可以接入同一归属链。
+该实现不会让 `AuraToolsExp` 编译依赖 `Terrias`。AuraTools 只识别通用的拥有者公开属性，因此未来其他模组的召唤物只要提供相同所有权字段，也可以接入同一归属链。
 
 ### 4.3 召唤物伤害示例
 
@@ -148,10 +148,10 @@ flowchart LR
 
 | Vars 键 | 内容 | 示例 |
 | --- | --- | --- |
-| `SunExpSpiritExchangeCount` | 累计换下次数，也是当前附加耗费 | `2` |
+| `TerriasSpiritExchangeCount` | 累计换下次数，也是当前附加耗费 | `2` |
 | `TotalExCost` | 交给宿主卡牌系统读取的附加耗费 | `2` |
-| `SunExpSpiritIntentTurnIndex` | 该精灵已经推进到的意图回合 | `4` |
-| `SunExpSpiritIntentReadyOnTurn` | `intentId → readyOnTurn` JSON 字典 | `{"intent.a":6}` |
+| `TerriasSpiritIntentTurnIndex` | 该精灵已经推进到的意图回合 | `4` |
+| `TerriasSpiritIntentReadyOnTurn` | `intentId → readyOnTurn` JSON 字典 | `{"intent.a":6}` |
 
 动态展示、捕获快照和上述战斗状态会合并进 `Vars["RawData"]`，用于宿主需要重建动态 DataConfig 的场景；基础 `data` 字典始终只读。
 
@@ -191,7 +191,7 @@ sequenceDiagram
 
 ### 6.1 注册表版本
 
-配置文件：`SunExp/spirit.intent.registry.json`
+配置文件：`Terrias/spirit.intent.registry.json`
 
 逐个敌人、逐张原始意图卡的中文名、原描述及捕获后实际适配结果，见[游戏主体敌人与精灵专属意图总表](./10-游戏主体敌人与精灵专属意图总表.md)。
 
@@ -241,7 +241,7 @@ sequenceDiagram
 | --- | --- | --- |
 | `enemy_10026#enemy_10026` | `10026#10026`、`10026#*` | 命中游戏主体敌人 `10026` 的专属池 |
 | `10026#10026` | `10026#10026`、`10026#*` | 兼容直接保存稳定 id 的数据 |
-| `SunExp_sunexp_boss_orbit_mirror_array#同值` | `boss_orbit_mirror_array#同值短名`、`boss_orbit_mirror_array#*` | 命中日耀敌人的短 id profile |
+| `Terrias_terrias_boss_orbit_mirror_array#同值` | `boss_orbit_mirror_array#同值短名`、`boss_orbit_mirror_array#*` | 命中日耀敌人的短 id profile |
 | 未知 MOD 完整 id | 仅原始精确、原始敌人通配、`*#*` | 不进行危险的任意后缀猜测 |
 
 命中优先级保证“原始精确配置”高于“别名配置”。因此 MOD 作者仍可为完整运行时 id 提供专用 profile，而历史精灵卡也可以在不迁移 `RawData`、不提升联机协议版本的情况下自动恢复专属意图。
@@ -354,16 +354,16 @@ sequenceDiagram
 | `enemycard_Weak` | 给拥有者施加 `buff_weak` ×1，保持原 Self 语义 | `Friendly/Single/friendly.owner_or_self_defense` | 2 | 2 |
 | `enemycard_WeakLight` | 施加 `buff_weak` ×2 | `Enemy/Single/enemy.lowest_hp` | 4 | 2 |
 | `enemycard_Witness` | 施加 `buff_impregnable` ×2 | `Friendly/Single/friendly.owner_or_self_defense` | 2 | 2 |
-| `SunExp_sunexp_enemycard_mirror_calibration` | 对所有敌人施加 `buff_burn` ×5 | `Enemy/All/enemy.all` | 0 | 1 |
-| `SunExp_sunexp_enemycard_mirror_calibration` | 给拥有者增加 10 防御 | `Friendly/Single/friendly.owner_or_self_defense` | 0 | 1 |
-| `SunExp_sunexp_enemycard_orbit_refraction` | 单体伤害：8 + 攻击×0.9 | `Enemy/Single/enemy.lowest_hp` | 0 | 1 |
-| `SunExp_sunexp_enemycard_orbit_refraction` | 施加 `buff_burn` ×10 | `Enemy/Single/enemy.lowest_hp` | 0 | 1 |
-| `SunExp_sunexp_enemycard_last_day_morning_prayer` | 对所有敌人施加 `buff_burn` ×5 | `Enemy/All/enemy.all` | 0 | 1 |
-| `SunExp_sunexp_enemycard_last_day_morning_prayer` | 给拥有者施加 `SunExp_sunexp_gathered_flame` ×10 | `Friendly/Single/friendly.owner_or_self_defense` | 0 | 1 |
-| `SunExp_sunexp_enemycard_last_day_noon_burn` | 单体伤害：12 + 攻击×1.0 | `Enemy/Single/enemy.lowest_hp` | 0 | 1 |
-| `SunExp_sunexp_enemycard_saint_purification` | 单体伤害：10 + 攻击×0.9 | `Enemy/Single/enemy.lowest_hp` | 0 | 1 |
-| `SunExp_sunexp_enemycard_saint_purification` | 施加 `SunExp_sunexp_body_burn` ×2 | `Enemy/Single/enemy.lowest_hp` | 0 | 1 |
-| `SunExp_sunexp_enemycard_saint_return_to_court` | 单体伤害：9 + 攻击×0.85 | `Enemy/Single/enemy.lowest_hp` | 0 | 1 |
+| `Terrias_terrias_enemycard_mirror_calibration` | 对所有敌人施加 `buff_burn` ×5 | `Enemy/All/enemy.all` | 0 | 1 |
+| `Terrias_terrias_enemycard_mirror_calibration` | 给拥有者增加 10 防御 | `Friendly/Single/friendly.owner_or_self_defense` | 0 | 1 |
+| `Terrias_terrias_enemycard_orbit_refraction` | 单体伤害：8 + 攻击×0.9 | `Enemy/Single/enemy.lowest_hp` | 0 | 1 |
+| `Terrias_terrias_enemycard_orbit_refraction` | 施加 `buff_burn` ×10 | `Enemy/Single/enemy.lowest_hp` | 0 | 1 |
+| `Terrias_terrias_enemycard_last_day_morning_prayer` | 对所有敌人施加 `buff_burn` ×5 | `Enemy/All/enemy.all` | 0 | 1 |
+| `Terrias_terrias_enemycard_last_day_morning_prayer` | 给拥有者施加 `Terrias_terrias_gathered_flame` ×10 | `Friendly/Single/friendly.owner_or_self_defense` | 0 | 1 |
+| `Terrias_terrias_enemycard_last_day_noon_burn` | 单体伤害：12 + 攻击×1.0 | `Enemy/Single/enemy.lowest_hp` | 0 | 1 |
+| `Terrias_terrias_enemycard_saint_purification` | 单体伤害：10 + 攻击×0.9 | `Enemy/Single/enemy.lowest_hp` | 0 | 1 |
+| `Terrias_terrias_enemycard_saint_purification` | 施加 `Terrias_terrias_body_burn` ×2 | `Enemy/Single/enemy.lowest_hp` | 0 | 1 |
+| `Terrias_terrias_enemycard_saint_return_to_court` | 单体伤害：9 + 攻击×0.85 | `Enemy/Single/enemy.lowest_hp` | 0 | 1 |
 
 ## 8. 日耀 BOSS 意图适配
 
@@ -415,7 +415,7 @@ PvP 池未来启用前至少需要补充：敌对玩家权威识别、对手手�
 
 ## 11. 生成与维护规则
 
-`tools/Generate-SpiritRegistries.ps1` 从本体参考敌人 CSV、SunExp 敌人 CSV和对应 EnemyCard CSV 重新生成注册表。
+`tools/Generate-SpiritRegistries.ps1` 从本体参考敌人 CSV、Terrias 敌人 CSV和对应 EnemyCard CSV 重新生成注册表。
 
 生成器会：
 
@@ -446,14 +446,14 @@ PvP 池未来启用前至少需要补充：敌对玩家权威识别、对手手�
 | 主机伤害事件规范化 | `AuraToolsExp-Dev/Features/DamageMeter/Network/DamageMeterNetworkRuntime.cs` |
 | 真实玩家结算 | `AuraToolsExp-Dev/Features/DamageMeter/Model/OutOfRunDamageHistoryBuilder.cs` |
 | 结算 CG 过滤 | `AuraToolsExp-Dev/Features/DamageMeter/SettlementCg/DamageSettlementCgPayload.cs` |
-| 精灵卡 Vars 与 RawData | `SunExp-Dev/Mechanics/SpiritCardFactory.cs` |
-| 精灵轮换与网络状态 | `SunExp-Dev/Mechanics/SpiritSummonService.cs` |
-| 精灵展示脚本隔离 | `SunExp-Dev/Mechanics/SpiritOtherObj.cs` |
-| 精灵原卡展示与适配器身份合成 | `SunExp-Dev/Mechanics/SpiritIntentPresentationDataComposer.cs` |
-| 意图注册表加载 | `SunExp-Dev/Mechanics/SpiritIntentRegistry.cs` |
-| 意图白名单处理器 | `SunExp-Dev/Mechanics/CompanionIntentHandlers.cs` |
-| 精灵 RPC | `SunExp-Dev/Network/RpcSpiritCompanion.cs` |
-| 发布注册表 | `SunExp/spirit.intent.registry.json` |
+| 精灵卡 Vars 与 RawData | `Terrias-Dev/Mechanics/SpiritCardFactory.cs` |
+| 精灵轮换与网络状态 | `Terrias-Dev/Mechanics/SpiritSummonService.cs` |
+| 精灵展示脚本隔离 | `Terrias-Dev/Mechanics/SpiritOtherObj.cs` |
+| 精灵原卡展示与适配器身份合成 | `Terrias-Dev/Mechanics/SpiritIntentPresentationDataComposer.cs` |
+| 意图注册表加载 | `Terrias-Dev/Mechanics/SpiritIntentRegistry.cs` |
+| 意图白名单处理器 | `Terrias-Dev/Mechanics/CompanionIntentHandlers.cs` |
+| 精灵 RPC | `Terrias-Dev/Network/RpcSpiritCompanion.cs` |
+| 发布注册表 | `Terrias/spirit.intent.registry.json` |
 | 注册表生成器 | `tools/Generate-SpiritRegistries.ps1` |
 
 ## 13. 验收清单
@@ -480,7 +480,7 @@ PvP 池未来启用前至少需要补充：敌对玩家权威识别、对手手�
 ### 13.3 意图
 
 - 原卡图标和动作表现可见，但不会调用原 `UseScript`。
-- 精灵展示卡保留原意图的名称、描述、图标和动作字段，但运行时 `Id` 固定切换为 `SunExp_sunexp_enemycard_spirit_intent_adapter`；原卡 Id 只记录在 `Vars["SunExpSpiritIntentSourceCardId"]`，避免游戏按原 Id 复用原生预编译脚本。
+- 精灵展示卡保留原意图的名称、描述、图标和动作字段，但运行时 `Id` 固定切换为 `Terrias_terrias_enemycard_spirit_intent_adapter`；原卡 Id 只记录在 `Vars["TerriasSpiritIntentSourceCardId"]`，避免游戏按原 Id 复用原生预编译脚本。
 - 五连击、四连击等段数与注册表一致。
 - 正向 Self Buff 施加给精灵拥有者。
 - 敌方减益只能命中存活、未受控的敌人。
@@ -494,12 +494,12 @@ PvP 池未来启用前至少需要补充：敌对玩家权威识别、对手手�
 当前开发完成时的自动化结果：
 
 - AuraTools DPS 测试：594 项断言通过；
-- SunExp C# 测试：245 项断言通过；
-- SunExp 架构检查通过；
+- Terrias C# 测试：245 项断言通过；
+- Terrias 架构检查通过；
 - 精灵专项检查通过，59 个显式 profile 全部有效；
 - Network RPC authority 检查通过；
 - Content/tool/shared boundary 检查通过；
-- `AuraToolsExp/Scripts/Entry.dll` 与 `SunExp/Scripts/Entry.dll` 已重新生成；
+- `AuraToolsExp/Scripts/Entry.dll` 与 `Terrias/Scripts/Entry.dll` 已重新生成；
 - 两个 C# 发布项目均为 0 警告、0 错误。
 
 建议实机日志至少确认以下记录：
@@ -512,4 +512,4 @@ PvP 池未来启用前至少需要补充：敌对玩家权威识别、对手手�
 [DamageMeter] ... SourceInstanceId=<owner status>
 ```
 
-若实机仍显示旧的七项投影通用意图，应优先检查 `SunExp/spirit.intent.registry.json` 是否为 schema 3、注册表 hash 是否一致。若实际效果有值但描述仍出现 0，应检查日志是否出现 `CompanionIntentPresentation` 的权威 `DesVal`；若同时出现 `[SpiritIntentPresentationAdapter] binding failed`，说明精灵展示卡没有成功绑定独立适配器身份。最后核对游戏目录内 `SunExp/Scripts/Entry.dll` 及 `Data/EnemyCard/sunexp.csv` 是否已经同步为本轮构建产物。
+若实机仍显示旧的七项投影通用意图，应优先检查 `Terrias/spirit.intent.registry.json` 是否为 schema 3、注册表 hash 是否一致。若实际效果有值但描述仍出现 0，应检查日志是否出现 `CompanionIntentPresentation` 的权威 `DesVal`；若同时出现 `[SpiritIntentPresentationAdapter] binding failed`，说明精灵展示卡没有成功绑定独立适配器身份。最后核对游戏目录内 `Terrias/Scripts/Entry.dll` 及 `Data/EnemyCard/terrias.csv` 是否已经同步为本轮构建产物。

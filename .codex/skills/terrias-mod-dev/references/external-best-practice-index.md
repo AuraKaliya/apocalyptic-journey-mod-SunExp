@@ -2,7 +2,7 @@
 
 Use this reference when a task benefits from Unity documentation or mature
 project patterns. External sources are thinking aids only. Final design must
-fit the current SunExp/AuraToolsExp architecture: shared/core foundation,
+fit the current Terrias/AuraToolsExp architecture: shared/core foundation,
 content mod registration, tool mod configuration, and no content/tool
 cross-dependency.
 
@@ -32,7 +32,7 @@ cross-dependency.
   behavior.
 - Do not import an external architecture wholesale. Translate the idea into the
   repository's existing surfaces: `AuraSharedCore`, domain shared components,
-  `SunExp-Dev`, and `AuraToolsExp-Dev`.
+  `Terrias-Dev`, and `AuraToolsExp-Dev`.
 - If an external source reveals a durable rule for this project, add a short
   entry here with the source URL and the local project interpretation.
 - If a source is only useful for one debugging session, keep it in the task

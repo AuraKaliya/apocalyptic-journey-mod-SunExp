@@ -1,7 +1,7 @@
 using System;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public readonly struct BurnTriggerSnapshot
 {
@@ -61,11 +61,11 @@ public static class BurnTriggerApi
         try
         {
             Triggered?.Invoke(new BurnTriggerSnapshot(target, stacksAtTrigger, source));
-            SunExpPerformanceCounters.Record("BurnTrigger.Actual");
+            TerriasPerformanceCounters.Record("BurnTrigger.Actual");
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Burn actual-trigger subscriber failed from " + source, ex);
+            TerriasLog.Error("Burn actual-trigger subscriber failed from " + source, ex);
         }
     }
 }

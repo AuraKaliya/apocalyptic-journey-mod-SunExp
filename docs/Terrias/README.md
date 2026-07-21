@@ -1,31 +1,31 @@
-# SunExp 技术文档
+# Terrias 技术文档
 
-> 文档基线：2026-07-13  
-> SunExp 版本：`0.4.2`  
-> 反编译参考：`开发参考资料/反编译文件夹v1.0.23816797`  
+> 文档基线：2026-07-21
+> Terrias 版本：`0.5.0`
+> 反编译参考：`开发参考资料/反编译文件夹v1.0.23816797`
 > 当前阶段：批次 C，大型模式与地图奖励
 
 ## 文档目标
 
 这套文档从当前仓库实现重新建立，不继承已删除旧文档的结论。它同时描述：
 
-- `SunExp/` 中游戏实际加载的内容、文本、资源、清单和 DLL；
-- `SunExp-Dev/` 中内容脚本、机制服务、宿主适配、Hook、UI、视觉和网络实现；
+- `Terrias/` 中游戏实际加载的内容、文本、资源、清单和 DLL；
+- `Terrias-Dev/` 中内容脚本、机制服务、宿主适配、Hook、UI、视觉和网络实现；
 - `Aura.Shared.dll` 中 Aura 核心与共享领域组件；
-- SunExp 对 `Witch`、`Witch.Core`、`Mirror` 和 Unity 运行时的接入方式；
+- Terrias 对 `Witch`、`Witch.Core`、`Mirror` 和 Unity 运行时的接入方式；
 - 当前源码与反编译参考之间可以验证的调用链。
 
 ## 分层术语
 
 | 术语 | 含义 |
 | --- | --- |
-| 内容交付层 | `SunExp/`，游戏直接读取的 MOD 目录 |
-| SunExp 实现层 | `SunExp-Dev/`，编译为 `SunExp/Scripts/Entry.dll` |
+| 内容交付层 | `Terrias/`，游戏直接读取的 MOD 目录 |
+| Terrias 实现层 | `Terrias-Dev/`，编译为 `Terrias/Scripts/Entry.dll` |
 | Aura 共享领域层 | Journey、Audio、CG、Skin、Online、UI、Arbiter 等跨 MOD 领域协议 |
-| Aura 核心层 | `AuraSharedCore/` 中不理解 SunExp 业务语义的注册、包、存储、Hook、调度等基础设施 |
+| Aura 核心层 | `AuraSharedCore/` 中不理解 Terrias 业务语义的注册、包、存储、Hook、调度等基础设施 |
 | 游戏主体或宿主层 | `Witch`、`Witch.Core`、`Mirror` 与 Unity 运行时 |
 
-游戏的 `ModConfig.ModId` 与 Aura 注册所有者不是同一标识域。当前游戏 MOD id 由 `ModName + "." + ModAuthor` 形成，即 `SunExp.Aura`；Aura 共享注册通常使用稳定 owner id `SunExp`。文档在涉及所有权时会明确标注所属标识域。
+游戏的 `ModConfig.ModId` 与 Aura 注册所有者不是同一标识域。当前游戏 MOD id 由 `ModName + "." + ModAuthor` 形成，即 `Terrias.Aura`；Aura 共享注册通常使用稳定 owner id `Terrias`。文档在涉及所有权时会明确标注所属标识域。
 
 ## 基础架构文档
 
@@ -39,7 +39,7 @@
 
 - [技术文档蓝图](00-documentation-blueprint.md)
 - [模块覆盖矩阵](00-module-coverage-matrix.md)
-- [Aura/SunExp 复杂模块拆分评审](../architecture-complex-module-review-2026-07-16.md)
+- [Aura/Terrias 复杂模块拆分评审](../architecture-complex-module-review-2026-07-16.md)
 - [复杂模块治理首轮开发记录](../architecture-complex-module-development-round-1-2026-07-17.md)
 - [AuraCg 模块治理第二轮开发记录](../architecture-complex-module-development-round-2-2026-07-17.md)
 - [AuraCg Preload 与媒体缓存第三轮开发记录](../architecture-complex-module-development-round-3-2026-07-17.md)
@@ -69,7 +69,7 @@
 
 ## 推荐阅读路线
 
-- 第一次维护 SunExp：`01 -> 02 -> 03 -> 对应功能模块`。
+- 第一次维护 Terrias：`01 -> 02 -> 03 -> 对应功能模块`。
 - 修改共享能力：`01 -> 04 -> 03 -> 构建发布模块`。
 - 追踪游戏调用：`05 -> 对应功能模块 -> 宿主映射表`。
 - 排查 CSV 脚本：`02 -> 03 的 Scripting/GameApi -> 对应内容模块`。

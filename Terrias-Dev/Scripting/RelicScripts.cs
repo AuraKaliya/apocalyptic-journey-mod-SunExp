@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Scripting;
+namespace Terrias.Dll.Scripting;
 
 public static class RelicScripts
 {
@@ -36,7 +36,7 @@ public static class RelicScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Relic Fight failed: " + id, ex);
+            TerriasLog.Error("Relic Fight failed: " + id, ex);
         }
     }
 
@@ -45,7 +45,7 @@ public static class RelicScripts
         ExecutorApi.TryAddEvent(self, "FightStart", new Action(() =>
         {
             self.SetStatus("Self");
-            self.AddBuff(SunExpIds.SolarRadiance, "2");
+            self.AddBuff(TerriasIds.SolarRadiance, "2");
             UpdateRelicShow(self);
         }), "morning_shard");
     }
@@ -54,15 +54,15 @@ public static class RelicScripts
     {
         ExecutorApi.TryAddEvent(self, "StartRound", new Action(() =>
         {
-            var burn = ExecutorApi.SelfBuffLevel(self, SunExpIds.Burn);
+            var burn = ExecutorApi.SelfBuffLevel(self, TerriasIds.Burn);
             if (burn <= 0)
             {
                 return;
             }
 
-            ExecutorApi.RemoveBuffStacks(self, self.Self, SunExpIds.Burn, 1);
+            ExecutorApi.RemoveBuffStacks(self, self.Self, TerriasIds.Burn, 1);
             self.SetStatus("Self");
-            self.AddBuff(SunExpIds.GatheredFlame, "2");
+            self.AddBuff(TerriasIds.GatheredFlame, "2");
         }), "ember_cloak_lining");
     }
 
@@ -87,16 +87,16 @@ public static class RelicScripts
             if (total > 0)
             {
                 self.SetStatus("Self");
-                self.AddBuff(SunExpIds.GatheredFlame, total.ToString());
+                self.AddBuff(TerriasIds.GatheredFlame, total.ToString());
                 changed = true;
             }
 
-            var burn = ExecutorApi.SelfBuffLevel(self, SunExpIds.SolarRadiance);
+            var burn = ExecutorApi.SelfBuffLevel(self, TerriasIds.SolarRadiance);
             if (burn > 0)
             {
                 foreach (var target in ExecutorApi.EnemyTargets(self))
                 {
-                    ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, burn);
+                    ExecutorApi.AddStatusBuff(self, target, TerriasIds.Burn, burn);
                     changed = true;
                 }
             }
@@ -126,7 +126,7 @@ public static class RelicScripts
             }
 
             self.SetStatus("Self");
-            self.AddBuff(SunExpIds.GatheredFlame, "1");
+            self.AddBuff(TerriasIds.GatheredFlame, "1");
             ExecutorApi.AddBurnToRandomEnemy(self, 3);
             UpdateRelicShow(self);
         }), "sun_orbit_mirror");
@@ -136,7 +136,7 @@ public static class RelicScripts
     {
         ExecutorApi.TryAddEvent(self, "StartRound", new Action(() =>
         {
-            var level = ExecutorApi.SelfBuffLevel(self, SunExpIds.SolarRadiance);
+            var level = ExecutorApi.SelfBuffLevel(self, TerriasIds.SolarRadiance);
             if (level >= 4)
             {
                 self.SetStatus("Self");
@@ -168,31 +168,31 @@ public static class RelicScripts
     {
         void Reset()
         {
-            ExecutorApi.SetVar(self, "SunExpPrismDone", "0");
-            ExecutorApi.SetVar(self, "SunExpPrismLastRadiance", ExecutorApi.SelfBuffLevel(self, SunExpIds.SolarRadiance));
+            ExecutorApi.SetVar(self, "TerriasPrismDone", "0");
+            ExecutorApi.SetVar(self, "TerriasPrismLastRadiance", ExecutorApi.SelfBuffLevel(self, TerriasIds.SolarRadiance));
             UpdateRelicShow(self);
         }
 
         void Check()
         {
-            var current = ExecutorApi.SelfBuffLevel(self, SunExpIds.SolarRadiance);
-            var last = DictionaryUtil.ParseInt(ExecutorApi.GetVar(self, "SunExpPrismLastRadiance", current.ToString()));
-            if (ExecutorApi.GetVar(self, "SunExpPrismDone", "0") == "0" && current > last)
+            var current = ExecutorApi.SelfBuffLevel(self, TerriasIds.SolarRadiance);
+            var last = DictionaryUtil.ParseInt(ExecutorApi.GetVar(self, "TerriasPrismLastRadiance", current.ToString()));
+            if (ExecutorApi.GetVar(self, "TerriasPrismDone", "0") == "0" && current > last)
             {
                 self.SetStatus("Self");
                 self.AddBuff("buff_elements", "1");
-                ExecutorApi.SetVar(self, "SunExpPrismDone", "1");
+                ExecutorApi.SetVar(self, "TerriasPrismDone", "1");
                 UpdateRelicShow(self);
-                current = ExecutorApi.SelfBuffLevel(self, SunExpIds.SolarRadiance);
+                current = ExecutorApi.SelfBuffLevel(self, TerriasIds.SolarRadiance);
             }
 
-            ExecutorApi.SetVar(self, "SunExpPrismLastRadiance", current);
+            ExecutorApi.SetVar(self, "TerriasPrismLastRadiance", current);
         }
 
         ExecutorApi.TryAddEvent(self, "FightStart", new Action(() =>
         {
             self.SetStatus("Self");
-            self.AddBuff(SunExpIds.SolarRadiance, "1");
+            self.AddBuff(TerriasIds.SolarRadiance, "1");
             Reset();
         }), "solar_prism");
         ExecutorApi.TryAddEvent(self, "StartRound", new Action(Reset), "solar_prism");
@@ -203,29 +203,29 @@ public static class RelicScripts
     {
         void Reset()
         {
-            ExecutorApi.SetVar(self, "SunExpCradleDone", "0");
-            ExecutorApi.SetVar(self, "SunExpCradleLastCrown", "0");
+            ExecutorApi.SetVar(self, "TerriasCradleDone", "0");
+            ExecutorApi.SetVar(self, "TerriasCradleLastCrown", "0");
             UpdateRelicShow(self);
         }
 
         void Check()
         {
-            var current = ExecutorApi.SelfBuffLevel(self, SunExpIds.SolarCrown);
-            var last = DictionaryUtil.ParseInt(ExecutorApi.GetVar(self, "SunExpCradleLastCrown", "0"));
-            if (ExecutorApi.GetVar(self, "SunExpCradleDone", "0") == "0" && current > last)
+            var current = ExecutorApi.SelfBuffLevel(self, TerriasIds.SolarCrown);
+            var last = DictionaryUtil.ParseInt(ExecutorApi.GetVar(self, "TerriasCradleLastCrown", "0"));
+            if (ExecutorApi.GetVar(self, "TerriasCradleDone", "0") == "0" && current > last)
             {
                 self.SetStatus("Self");
                 self.DrawCount("2");
                 self.ChangePower("2");
-                ExecutorApi.SetVar(self, "SunExpCradleDone", "1");
+                ExecutorApi.SetVar(self, "TerriasCradleDone", "1");
                 UpdateRelicShow(self);
             }
 
-            ExecutorApi.SetVar(self, "SunExpCradleLastCrown", current);
+            ExecutorApi.SetVar(self, "TerriasCradleLastCrown", current);
         }
 
         ExecutorApi.TryAddEvent(self, "FightStart", new Action(Reset), "coronation_throne");
-        ExecutorApi.TryAddEvent(self, "SunExp_sunexp_solar_crownOnLevelChange", new Action(Check), "coronation_throne");
+        ExecutorApi.TryAddEvent(self, "Terrias_terrias_solar_crownOnLevelChange", new Action(Check), "coronation_throne");
         ExecutorApi.TryAddEvent(self, "solar_crownOnLevelChange", new Action(Check), "coronation_throne");
         ExecutorApi.TryAddEvent(self, "Action", new Action(Check), "coronation_throne");
         ExecutorApi.TryAddEvent(self, "StartRound", new Action(Check), "coronation_throne");
@@ -235,23 +235,23 @@ public static class RelicScripts
     {
         void Reset()
         {
-            ExecutorApi.SetVar(self, "SunExpMoltenCharmLastBurn", ExecutorApi.SelfBuffLevel(self, SunExpIds.Burn));
+            ExecutorApi.SetVar(self, "TerriasMoltenCharmLastBurn", ExecutorApi.SelfBuffLevel(self, TerriasIds.Burn));
             UpdateRelicShow(self);
         }
 
         void Check()
         {
-            var current = ExecutorApi.SelfBuffLevel(self, SunExpIds.Burn);
-            var last = DictionaryUtil.ParseInt(ExecutorApi.GetVar(self, "SunExpMoltenCharmLastBurn", current.ToString()));
+            var current = ExecutorApi.SelfBuffLevel(self, TerriasIds.Burn);
+            var last = DictionaryUtil.ParseInt(ExecutorApi.GetVar(self, "TerriasMoltenCharmLastBurn", current.ToString()));
             if (current > last)
             {
                 self.SetStatus("Self");
-                self.AddBuff(SunExpIds.GatheredFlame, (current - last).ToString());
+                self.AddBuff(TerriasIds.GatheredFlame, (current - last).ToString());
                 UpdateRelicShow(self);
-                current = ExecutorApi.SelfBuffLevel(self, SunExpIds.Burn);
+                current = ExecutorApi.SelfBuffLevel(self, TerriasIds.Burn);
             }
 
-            ExecutorApi.SetVar(self, "SunExpMoltenCharmLastBurn", current);
+            ExecutorApi.SetVar(self, "TerriasMoltenCharmLastBurn", current);
         }
 
         ExecutorApi.TryAddEvent(self, "FightStart", new Action(Reset), "gathered_flame_charm");
@@ -264,14 +264,14 @@ public static class RelicScripts
     {
         ExecutorApi.TryAddEvent(self, "EndRound", new Action(() =>
         {
-            var burn = ExecutorApi.SelfBuffLevel(self, SunExpIds.Burn);
+            var burn = ExecutorApi.SelfBuffLevel(self, TerriasIds.Burn);
             if (burn <= 0)
             {
                 return;
             }
 
             self.SetStatus("Self");
-            self.AddBuff(SunExpIds.Ember, burn.ToString());
+            self.AddBuff(TerriasIds.Ember, burn.ToString());
             self.ChangeDefence(burn.ToString());
             UpdateRelicShow(self);
         }), "ash_charm");
@@ -284,7 +284,7 @@ public static class RelicScripts
             var applied = 0;
             foreach (var target in ExecutorApi.EnemyTargets(self))
             {
-                if (ExecutorApi.StatusBuffLevel(target, SunExpIds.Burn) <= 0)
+                if (ExecutorApi.StatusBuffLevel(target, TerriasIds.Burn) <= 0)
                 {
                     continue;
                 }
@@ -315,7 +315,7 @@ public static class RelicScripts
                 return;
             }
 
-            var burning = targets.Where(target => ExecutorApi.StatusBuffLevel(target, SunExpIds.Burn) > 0).Take(4).ToList();
+            var burning = targets.Where(target => ExecutorApi.StatusBuffLevel(target, TerriasIds.Burn) > 0).Take(4).ToList();
             if (burning.Count == 0)
             {
                 return;
@@ -330,7 +330,7 @@ public static class RelicScripts
                 }
 
                 var target = choices[UnityEngine.Random.Range(0, choices.Count)];
-                ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, 3);
+                ExecutorApi.AddStatusBuff(self, target, TerriasIds.Burn, 3);
             }
 
             UpdateRelicShow(self);

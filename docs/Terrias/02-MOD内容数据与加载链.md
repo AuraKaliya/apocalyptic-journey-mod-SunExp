@@ -1,41 +1,41 @@
-# SunExp MOD 内容数据与加载链
+# Terrias MOD 内容数据与加载链
 
-> 证据范围：当前 `SunExp/`、`SunExp-Dev/Entry.cs`、反编译 `Witch.GameConfigManager`、`Witch.Mod.ModConfig`、`ExcelTableReader`、`GameConfigData`
+> 证据范围：当前 `Terrias/`、`Terrias-Dev/Entry.cs`、反编译 `Witch.GameConfigManager`、`Witch.Mod.ModConfig`、`ExcelTableReader`、`GameConfigData`
 
 ## 1. 交付目录
 
-游戏直接消费的是 `SunExp/`，不是 `SunExp-Dev/`：
+游戏直接消费的是 `Terrias/`，不是 `Terrias-Dev/`：
 
 ```text
-SunExp/
+Terrias/
   ModConfig.json
   Data/                 结构化配置与脚本列
   Text/                 本地化文本表
   ModResource/          图片、动画、音频、VisualBundle 等 MOD 私有资源
   SharedResources/      通过 Aura 共享包安装和注册的资源
   Scripts/
-    Entry.dll           SunExp.Aura
+    Entry.dll           Terrias.Aura
     Aura.Shared.dll     Aura 统一共享运行时
   *.registry.json       音频、视觉、卡组、使魔、伙伴意图等声明
   *.config.json         模式或机制配置
 ```
 
-`SunExp-Dev/` 是默认实现面；修改 C# 源码后，只有重新构建并刷新 `SunExp/Scripts/Entry.dll` 才会改变游戏行为。
+`Terrias-Dev/` 是默认实现面；修改 C# 源码后，只有重新构建并刷新 `Terrias/Scripts/Entry.dll` 才会改变游戏行为。
 
 ## 2. MOD 身份与加载条件
 
 当前 `ModConfig.json` 声明：
 
-- `ModName = SunExp`；
+- `ModName = Terrias`；
 - `ModAuthor = Aura`；
-- `ModVersion = 0.4.2`；
+- `ModVersion = 0.5.0`；
 - `Enabled = true`；
 - `Dependencies = []`；
 - `MustSame = true`。
 
-**反编译确认**，游戏侧 `ModConfig.ModId` 返回 `ModName + "." + ModAuthor`，所以游戏依赖图和联机 MOD 清单中的身份是 `SunExp.Aura`。
+**反编译确认**，游戏侧 `ModConfig.ModId` 返回 `ModName + "." + ModAuthor`，所以游戏依赖图和联机 MOD 清单中的身份是 `Terrias.Aura`。
 
-`MustSame` 还会在 MOD 加载器发现 Data 表，或 MOD 修改带 `Script` 后缀的字段时被置为 true。这表达“数据/脚本会影响一致性”，不是 Aura 共享注册 owner id。Aura 共享层当前以 `SunExp` 作为内容所有者标识。
+`MustSame` 还会在 MOD 加载器发现 Data 表，或 MOD 修改带 `Script` 后缀的字段时被置为 true。这表达“数据/脚本会影响一致性”，不是 Aura 共享注册 owner id。Aura 共享层当前以 `Terrias` 作为内容所有者标识。
 
 ## 3. 游戏加载顺序
 
@@ -57,13 +57,13 @@ flowchart TD
     N --> O["DialogueManager.Init"]
 ```
 
-**反编译确认**，依赖不存在、依赖未启用或依赖图不可解析时，相关 MOD 不进入正常加载队列。SunExp 当前没有游戏侧 Dependencies，但运行时仍需要随包交付 `Aura.Shared.dll`，这是程序集依赖，不等同于 `ModConfig.Dependencies` 中的另一个 MOD。
+**反编译确认**，依赖不存在、依赖未启用或依赖图不可解析时，相关 MOD 不进入正常加载队列。Terrias 当前没有游戏侧 Dependencies，但运行时仍需要随包交付 `Aura.Shared.dll`，这是程序集依赖，不等同于 `ModConfig.Dependencies` 中的另一个 MOD。
 
 ## 4. Data/Text 表的发现与合并
 
 ### 4.1 支持的表目录
 
-`GameConfigManager.LoadResource` 按固定目录名查找各 DataType。SunExp 当前提供：
+`GameConfigManager.LoadResource` 按固定目录名查找各 DataType。Terrias 当前提供：
 
 | Data 目录 | 内容职责 | 常见脚本列 |
 | --- | --- | --- |
@@ -89,11 +89,11 @@ flowchart TD
 **反编译确认**，`ExcelTableReader.ReadByFolder` 对 Mods 路径使用 `BuildPrefix(folderPath, filePath)`：
 
 - 如果表目录的父目录是 `Data` 或 `Text`，前缀取 MOD 根目录名加文件名；
-- `SunExp/Data/Card/sunexp.csv` 因而得到前缀 `SunExp_sunexp`；
-- 原始行 id `solar_ignition` 最终成为 `SunExp_sunexp_solar_ignition`；
-- `SunExp/Data/Card/wuna.csv` 的前缀为 `SunExp_wuna`。
+- `Terrias/Data/Card/terrias.csv` 因而得到前缀 `Terrias_terrias`；
+- 原始行 id `solar_ignition` 最终成为 `Terrias_terrias_solar_ignition`；
+- `Terrias/Data/Card/wuna.csv` 的前缀为 `Terrias_wuna`。
 
-`GameConfigData` 把前缀写入字典 key，也写回行的 `Id` 字段。代码中跨表引用 SunExp 内容时应使用完整 id，不能假设运行时仍保留 CSV 中的短 id。
+`GameConfigData` 把前缀写入字典 key，也写回行的 `Id` 字段。代码中跨表引用 Terrias 内容时应使用完整 id，不能假设运行时仍保留 CSV 中的短 id。
 
 原始 id 含 `*` 时，`GameConfigData` 会移除星号并把完整 id 加入 `LockedIds`。因此 `*` 是加载期锁定标记，不是最终运行时 id 的字符组成。
 
@@ -105,11 +105,11 @@ flowchart TD
 
 ## 5. CSV 到 C# 的脚本桥
 
-SunExp 的脚本列保持为短调用，例如：
+Terrias 的脚本列保持为短调用，例如：
 
 ```text
-CS.SunExp.Dll.Scripting.CardScripts.Init(self, "solar_ignition");
-CS.SunExp.Dll.Scripting.CardScripts.Use(self, "solar_ignition");
+CS.Terrias.Dll.Scripting.CardScripts.Init(self, "solar_ignition");
+CS.Terrias.Dll.Scripting.CardScripts.Use(self, "solar_ignition");
 ```
 
 调用链为：
@@ -120,27 +120,27 @@ sequenceDiagram
     participant DC as DataConfig
     participant SE as ScriptExecutor
     participant XL as XLua
-    participant S as SunExp Scripting
+    participant S as Terrias Scripting
     participant Impl as GameApi / Mechanics
 
     Host->>DC: obtain dataConfig
     Host->>SE: RunScript("UseScript")
     SE->>XL: execute precompiled script delegate
-    XL->>S: CS.SunExp.Dll.Scripting.*
+    XL->>S: CS.Terrias.Dll.Scripting.*
     S->>Impl: dispatch by stable short id
     Impl-->>Host: mutate game state / register events
 ```
 
 ### 5.1 程序集可见性
 
-`ModConfig.Setup` 加载 `Entry.dll` 后调用 `[ModInitialize]`。SunExp 的 `RegisterLuaVisibleAssembly`：
+`ModConfig.Setup` 加载 `Entry.dll` 后调用 `[ModInitialize]`。Terrias 的 `RegisterLuaVisibleAssembly`：
 
 1. 获取 `ScriptExecutor.luaEnv`；
 2. 反射访问 XLua translator 的程序集列表；
-3. 确保 `SunExp.Aura` 已加入列表；
+3. 确保 `Terrias.Aura` 已加入列表；
 4. 用 `xlua.import_type` 验证主要 `Scripting` 类型可见。
 
-LuaEnv 缺失或 translator 结构变化时，该步骤只记录错误。此时依赖 `CS.SunExp...` 的内容脚本将不可用，因此这属于关键降级，而非“仍然完整工作”。
+LuaEnv 缺失或 translator 结构变化时，该步骤只记录错误。此时依赖 `CS.Terrias...` 的内容脚本将不可用，因此这属于关键降级，而非“仍然完整工作”。
 
 ### 5.2 宿主脚本时机
 
@@ -157,16 +157,16 @@ LuaEnv 缺失或 translator 结构变化时，该步骤只记录错误。此时�
 
 ### 5.3 Dialogue 例外
 
-当前架构门禁明确要求 `SunExp/Data/Dialogue/sunexp.csv` 不直接包含 `CS.SunExp.Dll.Scripting`。SunExp 的受管对话扩展由 `DialogueFlowRuntime` 和相关机制服务接入 `DialogueUI.ChooseOption` 等宿主流程，避免把 C# 调用塞入原生 Dialogue 脚本列。
+当前架构门禁明确要求 `Terrias/Data/Dialogue/terrias.csv` 不直接包含 `CS.Terrias.Dll.Scripting`。Terrias 的受管对话扩展由 `DialogueFlowRuntime` 和相关机制服务接入 `DialogueUI.ChooseOption` 等宿主流程，避免把 C# 调用塞入原生 Dialogue 脚本列。
 
 ## 6. Entry.dll 加载与初始化
 
-SunExp 当前 `Scripts/` 只交付两个 DLL，不存在 `Entry.lua`。**反编译确认**，`ModConfig.Setup` 使用 `Assembly.LoadFrom(Scripts/Entry.dll)`，枚举其中所有类型的方法，并：
+Terrias 当前 `Scripts/` 只交付两个 DLL，不存在 `Entry.lua`。**反编译确认**，`ModConfig.Setup` 使用 `Assembly.LoadFrom(Scripts/Entry.dll)`，枚举其中所有类型的方法，并：
 
 - 调用带 `ModInitializeAttribute` 的静态方法；
 - 将带 `ModHookAttribute` 的静态方法转为 `Action<ModHookContext>` 并注册。
 
-SunExp 同时使用两种 Hook 注册方式：
+Terrias 同时使用两种 Hook 注册方式：
 
 - `SpecialTagRuntime` 等少量入口使用 `[HookBefore]/[HookAfter]` 属性；
 - 大多数运行时在 `Entry.Initialize -> RuntimeHooks.Initialize` 中通过 `AuraSharedHooks` 动态注册字符串目标。
@@ -175,7 +175,7 @@ SunExp 同时使用两种 Hook 注册方式：
 
 ## 7. JSON 注册表与资源
 
-JSON 文件不是由 `GameConfigManager.LoadResource` 的 DataType 表机制自动处理，而是由 SunExp/Aura 运行时主动加载：
+JSON 文件不是由 `GameConfigManager.LoadResource` 的 DataType 表机制自动处理，而是由 Terrias/Aura 运行时主动加载：
 
 | 文件/目录 | 当前消费者 |
 | --- | --- |
@@ -190,28 +190,28 @@ JSON 文件不是由 `GameConfigManager.LoadResource` 的 DataType 表机制自�
 | `endless_abyss.evolution_traits.registry.json` | 深渊进化特征注册表 |
 | `polymorph.role-crops.json` | 百变角色裁切注册表 |
 
-资源路径分为 MOD 私有路径和共享资源路径。需要被其他 Aura 消费者按协议发现的内容应通过 SharedResources 包和注册表声明，不能要求工具 MOD 扫描 SunExp 私有目录。
+资源路径分为 MOD 私有路径和共享资源路径。需要被其他 Aura 消费者按协议发现的内容应通过 SharedResources 包和注册表声明，不能要求工具 MOD 扫描 Terrias 私有目录。
 
 ## 8. 构建与交付链
 
 ```text
-SunExp-Dev/**/*.cs
+Terrias-Dev/**/*.cs
   + AuraSharedRuntime-Dev/Aura.Shared.csproj
   + Managed/*.dll compile contract
 -> dotnet build -c Release
--> SunExp-Dev/bin/Release/net472/SunExp.Aura.dll
--> copy to SunExp/Scripts/Entry.dll
--> copy Aura.Shared.dll to SunExp/Scripts/Aura.Shared.dll
+-> Terrias-Dev/bin/Release/net472/Terrias.Aura.dll
+-> copy to Terrias/Scripts/Entry.dll
+-> copy Aura.Shared.dll to Terrias/Scripts/Aura.Shared.dll
 ```
 
-`tools/Build-SunExpDll.ps1` 默认使用仓库 `Managed/`，也可通过 `ManagedPath` 或游戏目录选择编译契约。项目目标框架为 `net472`，直接引用 Witch、Witch.Core、Mirror、Unity、DOTween、ZLinq、MemoryPack 等宿主程序集。
+`tools/Build-TerriasDll.ps1` 默认使用仓库 `Managed/`，也可通过 `ManagedPath` 或游戏目录选择编译契约。项目目标框架为 `net472`，直接引用 Witch、Witch.Core、Mirror、Unity、DOTween、ZLinq、MemoryPack 等宿主程序集。
 
-共享源码变化后，仅运行 SunExp 构建不足以证明发布正确；还需要重新构建共享消费者并验证所有打包的 `Aura.Shared.dll` 哈希一致。
+共享源码变化后，仅运行 Terrias 构建不足以证明发布正确；还需要重新构建共享消费者并验证所有打包的 `Aura.Shared.dll` 哈希一致。
 
 ## 9. 内容修改检查
 
 - Data 与 Text 是否同时存在并保持相同完整 id。
-- CSV 脚本是否只调用 `CS.SunExp.Dll.Scripting.*`。
+- CSV 脚本是否只调用 `CS.Terrias.Dll.Scripting.*`。
 - 新公共脚本方法是否已被 XLua 稳定导入，参数是否足够小且稳定。
 - 引用是否使用运行时完整 id，而不是 CSV 短 id。
 - `*` 锁定标记是否只用于需要锁定的内容。

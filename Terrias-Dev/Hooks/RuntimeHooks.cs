@@ -1,39 +1,39 @@
 using System;
 using AuraShared.Core;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Hooks.Visual;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Hooks.Visual;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class RuntimeHooks
 {
     public static void Initialize(ModConfig modConfig)
     {
-        RunHookStep("battle lifecycle router", () => SunExpBattleLifecycleRouter.Initialize(modConfig));
+        RunHookStep("battle lifecycle router", () => TerriasBattleLifecycleRouter.Initialize(modConfig));
         RunHookStep("companion scene lifecycle", () => CompanionSceneLifecycleRuntime.Initialize(modConfig));
-        RunHookStep("card lifecycle router", () => SunExpCardLifecycleRouter.Initialize(modConfig));
-        RunHookStep("combat action router", () => SunExpCombatActionRouter.Initialize(modConfig));
-        RunHookStep("status lifecycle router", () => SunExpStatusLifecycleRouter.Initialize(modConfig));
+        RunHookStep("card lifecycle router", () => TerriasCardLifecycleRouter.Initialize(modConfig));
+        RunHookStep("combat action router", () => TerriasCombatActionRouter.Initialize(modConfig));
+        RunHookStep("status lifecycle router", () => TerriasStatusLifecycleRouter.Initialize(modConfig));
         RunHookStep("elemental mechanics", () => ElementalMechanicsRuntime.Initialize(modConfig));
         RunHookStep("columbina and constellation", () => ColumbinaRuntime.Initialize(modConfig));
         RunHookStep("field effect registry", () => FieldEffectRegistry.WarmupConfigCache("RuntimeHooks.Initialize"));
         RunHookStep("field runtime", () => FieldRuntime.Initialize(modConfig));
         RunHookStep("card visual skin", () => CardVisualSkinRuntime.Initialize(modConfig));
-        RunHookStep("card presentation bridge", SunExpCardPresentationLifecycleBridge.Initialize);
-        RunHookStep("card presentation invalidation", () => SunExpCardPresentationInvalidationRuntime.Initialize(modConfig));
+        RunHookStep("card presentation bridge", TerriasCardPresentationLifecycleBridge.Initialize);
+        RunHookStep("card presentation invalidation", () => TerriasCardPresentationInvalidationRuntime.Initialize(modConfig));
         RunHookStep("battle reward card presentation", () => BattleRewardCardPresentationRuntime.Initialize(modConfig));
-        if (SunExpPerformanceSettings.CountersEnabled)
+        if (TerriasPerformanceSettings.CountersEnabled)
         {
-            RunHookStep("combat card UI workload", () => SunExpCombatCardUiWorkloadRuntime.Initialize(modConfig));
+            RunHookStep("combat card UI workload", () => TerriasCombatCardUiWorkloadRuntime.Initialize(modConfig));
         }
-        RunHookStep("combat card view pool", () => Ui.SunExpCombatCardViewPool.Initialize(modConfig));
+        RunHookStep("combat card view pool", () => Ui.TerriasCombatCardViewPool.Initialize(modConfig));
         RunHookStep("status buff handlers", () =>
         {
-            SunExpStatusLifecycleRouter.Register("RuntimeStatusBuff", new SunExpStatusLifecycleSubscription
+            TerriasStatusLifecycleRouter.Register("RuntimeStatusBuff", new TerriasStatusLifecycleSubscription
             {
                 BeforeAddBuff = OnStatusManagerAddBuffBefore,
                 AfterAddBuff = OnStatusManagerAddBuffAfter
@@ -43,12 +43,12 @@ public static class RuntimeHooks
         RunHookStep("familiar growth", () => FamiliarGrowthRuntime.Initialize(modConfig));
         RunHookStep("dusk partner", () => DuskPartnerRuntime.Initialize(modConfig));
         RunHookStep("star clay doll", () => StarClayDollRuntime.Initialize(modConfig));
-        RunHookStep("mode context", () => SunExpModeContextRuntime.Initialize(modConfig));
+        RunHookStep("mode context", () => TerriasModeContextRuntime.Initialize(modConfig));
         RunHookStep("solar memory mode", () => SolarMemoryModeRuntime.Initialize(modConfig));
         RunHookStep("solar memory combat", () => SolarMemoryCombatRuntime.Initialize(modConfig));
         RunHookStep("solar memory reward", () => SolarMemoryRewardRuntime.Initialize());
         RunHookStep("ember adventure state", () => EmberAdventureStateRuntime.Initialize(modConfig));
-        RunHookStep("sunexp UI lifecycle", () => SunExpUiLifecycleRuntime.Initialize(modConfig));
+        RunHookStep("terrias UI lifecycle", () => TerriasUiLifecycleRuntime.Initialize(modConfig));
         RunHookStep("endless sea mode", () => EndlessSeaModeRuntime.Initialize(modConfig));
         RunHookStep("endless sea combat", () => EndlessSeaCombatRuntime.Initialize(modConfig));
         RunHookStep("endless sea reward", () => EndlessSeaRewardRuntime.Initialize(modConfig));
@@ -60,9 +60,9 @@ public static class RuntimeHooks
         RunHookStep("battle reward adjustment", () => BattleRewardAdjustmentRuntime.Initialize(modConfig));
         RunHookStep("solar memory content isolation", () => SolarMemoryContentIsolationRuntime.Initialize(modConfig));
         RunHookStep("solar memory starter deck", () => SolarMemoryStarterDeckRuntime.Initialize(modConfig));
-        RunHookStep("hard tags", () => SunExpHardTagRuntime.Initialize(modConfig));
+        RunHookStep("hard tags", () => TerriasHardTagRuntime.Initialize(modConfig));
         RunHookStep("visual bundle validation", VisualBundleRuntimeValidator.ValidateDeclaredBundles);
-        RunHookStep("resource preloader", () => SunExpResourcePreloader.Initialize(modConfig));
+        RunHookStep("resource preloader", () => TerriasResourcePreloader.Initialize(modConfig));
         RunHookStep("animated blessing icons", () => AnimatedBlessingIconRuntime.Initialize(modConfig));
         RunHookStep("animated buff icons", () => AnimatedBuffIconRuntime.Initialize(modConfig));
         RunHookStep("animated enemy dictionary icons", () => AnimatedEnemyDictIconRuntime.Initialize(modConfig));
@@ -81,14 +81,14 @@ public static class RuntimeHooks
         RunHookStep("star score runtime", () => StarScoreRuntime.Initialize(modConfig));
         RunHookStep("star score HUD", () => StarScoreHudRuntime.Initialize(modConfig));
         RunHookStep("loneer runtime", () => LoneerRuntime.Initialize(modConfig));
-        SunExpLog.InfoAlways("Runtime hooks registered");
+        TerriasLog.InfoAlways("Runtime hooks registered");
     }
 
     private static void RunHookStep(string name, Action action)
     {
-        SunExpLog.InfoAlways("Runtime hook step start: " + name);
-        var ok = AuraSharedHooks.RunStep(name, action, (step, ex) => SunExpLog.Error("Runtime hook step failed: " + step, ex));
-        SunExpLog.InfoAlways("Runtime hook step " + (ok ? "ok: " : "failed: ") + name);
+        TerriasLog.InfoAlways("Runtime hook step start: " + name);
+        var ok = AuraSharedHooks.RunStep(name, action, (step, ex) => TerriasLog.Error("Runtime hook step failed: " + step, ex));
+        TerriasLog.InfoAlways("Runtime hook step " + (ok ? "ok: " : "failed: ") + name);
     }
 
     private static void OnStatusManagerAddBuffBefore(ModHookContext context)
@@ -105,7 +105,7 @@ public static class RuntimeHooks
 
             var amount = BuffAmountFromArgs(args);
             ExecutorApi.PrepareSolarRadianceUpperBound(target, buffId);
-            if (buffId != SunExpIds.Burn || amount <= 0)
+            if (buffId != TerriasIds.Burn || amount <= 0)
             {
                 return;
             }
@@ -114,7 +114,7 @@ public static class RuntimeHooks
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Status AddBuff before hook failed", ex);
+            TerriasLog.Error("Status AddBuff before hook failed", ex);
         }
     }
 
@@ -130,7 +130,7 @@ public static class RuntimeHooks
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Status AddBuff after hook failed", ex);
+            TerriasLog.Error("Status AddBuff after hook failed", ex);
         }
     }
 

@@ -1,11 +1,11 @@
 using System;
 using System.Linq;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using UnityEngine.EventSystems;
 
-namespace SunExp.Dll.Hooks.Visual;
+namespace Terrias.Dll.Hooks.Visual;
 
 public static class ProjectionIntentPresenter
 {
@@ -75,11 +75,11 @@ public static class ProjectionIntentPresenter
             var hoverLine = status.actionObj[0].GetComponent<ProjectionIntentHoverLine>()
                 ?? status.actionObj[0].AddComponent<ProjectionIntentHoverLine>();
             hoverLine.Configure(line, targetUi.transform);
-            SunExpPerformanceCounters.Record("CompanionIntent.PresentationBound");
+            TerriasPerformanceCounters.Record("CompanionIntent.PresentationBound");
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[CompanionIntent] presentation bind failed: " + ex.Message);
+            TerriasLog.Warn("[CompanionIntent] presentation bind failed: " + ex.Message);
         }
     }
 

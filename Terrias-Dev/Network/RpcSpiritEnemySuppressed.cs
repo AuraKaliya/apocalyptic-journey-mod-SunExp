@@ -1,8 +1,8 @@
 using System;
 using Network.Command;
-using SunExp.Dll.GameApi;
+using Terrias.Dll.GameApi;
 
-namespace SunExp.Dll.Network;
+namespace Terrias.Dll.Network;
 
 [Serializable]
 public sealed class RpcSpiritEnemySuppressed : RpcCommandBase

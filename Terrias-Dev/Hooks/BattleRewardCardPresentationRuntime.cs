@@ -1,13 +1,13 @@
 using System;
 using System.Reflection;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 using UnityEngine;
 using Witch.Core;
 using Witch.Mod;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class BattleRewardCardPresentationRuntime
 {
@@ -20,17 +20,17 @@ public static class BattleRewardCardPresentationRuntime
         RegisterAfter(modConfig, "BattleRewardsUI.Entry", context => QueueRewardScan(context.Target as BattleRewardsUI, "BattleRewardsUI.Entry"));
         RegisterAfter(modConfig, "BattleRewardsUI.ModeSetReward", context => QueueRewardScan(context.Target as BattleRewardsUI, "BattleRewardsUI.ModeSetReward"));
         RegisterAfter(modConfig, "CardChoiceItem.Initialize", ApplyChoiceItemInitialize);
-        SunExpLog.InfoAlways("Battle reward card presentation diagnostics initialized");
+        TerriasLog.InfoAlways("Battle reward card presentation diagnostics initialized");
     }
 
     private static void ApplyChoiceItemInitialize(ModHookContext context)
     {
-        SunExpPerformanceCounters.Record("RewardCardPresentation.CardChoiceItem.Initialize.Observed");
+        TerriasPerformanceCounters.Record("RewardCardPresentation.CardChoiceItem.Initialize.Observed");
         var item = context.Target as CardChoiceItem;
         if (!ApplyChoiceItem(item, "CardChoiceItem.Initialize:direct"))
         {
-            SunExpPerformanceCounters.Record("RewardCardPresentation.CardChoiceItem.Initialize.Miss");
-            SunExpLog.InfoOnceAlways(
+            TerriasPerformanceCounters.Record("RewardCardPresentation.CardChoiceItem.Initialize.Miss");
+            TerriasLog.InfoOnceAlways(
                 "RewardCardPresentation.CardChoiceItem.Initialize.Miss",
                 "CardChoiceItem.Initialize hook observed but no reward card config was extracted: target="
                 + TargetName(context.Target)
@@ -41,10 +41,10 @@ public static class BattleRewardCardPresentationRuntime
 
     private static void QueueRewardScan(BattleRewardsUI? rewardUi, string source)
     {
-        SunExpPerformanceCounters.Record("RewardCardPresentation." + CounterKey(source) + ".Observed");
+        TerriasPerformanceCounters.Record("RewardCardPresentation." + CounterKey(source) + ".Observed");
         if (rewardUi == null)
         {
-            SunExpPerformanceCounters.Record("RewardCardPresentation.RewardUiMiss");
+            TerriasPerformanceCounters.Record("RewardCardPresentation.RewardUiMiss");
             return;
         }
 
@@ -55,7 +55,7 @@ public static class BattleRewardCardPresentationRuntime
 
     private static void ScheduleRewardScan(BattleRewardsUI rewardUi, string source, int delayFrames)
     {
-        SunExpFrameDispatcher.RunOnceAfterFrames(
+        TerriasFrameDispatcher.RunOnceAfterFrames(
             "RewardCardPresentation.Scan." + rewardUi.GetHashCode() + "." + delayFrames,
             Math.Max(1, delayFrames),
             () => ApplyRewardChoices(rewardUi, source));
@@ -71,11 +71,11 @@ public static class BattleRewardCardPresentationRuntime
         try
         {
             var choices = rewardUi.GetComponentsInChildren<CardChoiceItem>(includeInactive: true);
-            SunExpPerformanceCounters.Record("RewardCardPresentation.Scan");
+            TerriasPerformanceCounters.Record("RewardCardPresentation.Scan");
             if (choices == null || choices.Length == 0)
             {
-                SunExpPerformanceCounters.Record("RewardCardPresentation.Scan.Empty");
-                SunExpLog.InfoOnceAlways(
+                TerriasPerformanceCounters.Record("RewardCardPresentation.Scan.Empty");
+                TerriasLog.InfoOnceAlways(
                     "RewardCardPresentation.Scan.Empty." + source,
                     "Battle reward card scan found no CardChoiceItem children: source=" + source);
                 return;
@@ -90,7 +90,7 @@ public static class BattleRewardCardPresentationRuntime
                 }
             }
 
-            SunExpLog.Debug("Battle reward card scan applied: source="
+            TerriasLog.Debug("Battle reward card scan applied: source="
                 + source
                 + ", choices="
                 + choices.Length
@@ -99,7 +99,7 @@ public static class BattleRewardCardPresentationRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("Battle reward card presentation scan failed: source=" + source + ", error=" + ex.Message);
+            TerriasLog.Warn("Battle reward card presentation scan failed: source=" + source + ", error=" + ex.Message);
         }
     }
 
@@ -116,13 +116,13 @@ public static class BattleRewardCardPresentationRuntime
             return false;
         }
 
-        SunExpPerformanceCounters.Record("RewardCardPresentation.ChoiceConfigHit");
-        SunExpCardPresentationRouter.RequestApply(
+        TerriasPerformanceCounters.Record("RewardCardPresentation.ChoiceConfigHit");
+        TerriasCardPresentationRouter.RequestApply(
             item.transform,
             config,
             source,
-            SunExpCardPresentationSurface.RewardChoice);
-        SunExpLog.InfoOnceAlways(
+            TerriasCardPresentationSurface.RewardChoice);
+        TerriasLog.InfoOnceAlways(
             "RewardCardPresentation.ChoiceConfigHit." + CardConfigApi.Id(config),
             "Battle reward card presentation route hit: source="
             + source
@@ -135,7 +135,7 @@ public static class BattleRewardCardPresentationRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.After(config, target, action, "BattleRewardCardPresentation");
+        TerriasHookRegistry.After(config, target, action, "BattleRewardCardPresentation");
     }
 
     private static string CounterKey(string value)

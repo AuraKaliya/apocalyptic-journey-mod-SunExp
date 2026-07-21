@@ -1,15 +1,15 @@
 # Card Row Template
 
-- Data file: `SunExp/Data/Card/sunexp.csv`
-- Text file: `SunExp/Text/Card/sunexp.csv`
-- Runtime full id: `SunExp_sunexp_<Id>`
-- Pack: one of the full `SunExp_sunexp_cardpack_*` ids.
+- Data file: `Terrias/Data/Card/terrias.csv`
+- Text file: `Terrias/Text/Card/terrias.csv`
+- Runtime full id: `Terrias_terrias_<Id>`
+- Pack: one of the full `Terrias_terrias_cardpack_*` ids.
 
 Checklist:
 
-- `InitScript` / `UseScript` call `CS.SunExp.Dll.Scripting.CardScripts.*`.
+- `InitScript` / `UseScript` call `CS.Terrias.Dll.Scripting.CardScripts.*`.
 - `InitScript` sets `BaseScript`.
 - Target cards use `AttackCardItem` and `Action=Attack`.
 - Description placeholders match `AddDescription`.
 - Display setup and runtime behavior are kept in sync through C#.
-- Image path exists under `SunExp/ModResource`.
+- Image path exists under `Terrias/ModResource`.

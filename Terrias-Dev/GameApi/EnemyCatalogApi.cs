@@ -1,19 +1,19 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class EnemyCatalogApi
 {
     public static SpiritEligibilityResult Inspect(IStatusManager? target, string captureOrigin, bool requireDictionaryVisible = true)
     {
-        var started = SunExpPerformanceCounters.Timestamp();
+        var started = TerriasPerformanceCounters.Timestamp();
         var result = InspectCore(target, captureOrigin, requireDictionaryVisible);
-        SunExpPerformanceCounters.RecordHotspot(
+        TerriasPerformanceCounters.RecordHotspot(
             "Spirit.Catalog.Inspect",
             started,
             "target=" + (target?.InstanceId ?? "<none>")
@@ -51,7 +51,7 @@ public static class EnemyCatalogApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("[SpiritCatalog] dictionary lock fallback used: " + ex.Message);
+            TerriasLog.Debug("[SpiritCatalog] dictionary lock fallback used: " + ex.Message);
             return SpiritEligibilityResult.Reject("暂时无法确认目标的图鉴状态。");
         }
 
@@ -104,21 +104,21 @@ public static class EnemyCatalogApi
 
     private static bool HasSprite(string path, string hotspotName)
     {
-        var started = SunExpPerformanceCounters.Timestamp();
+        var started = TerriasPerformanceCounters.Timestamp();
         var found = false;
         try
         {
-            found = SunExpResourceCache.LoadAll<Sprite>(path, "spirit-catalog")?.Length > 0;
+            found = TerriasResourceCache.LoadAll<Sprite>(path, "spirit-catalog")?.Length > 0;
             return found;
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("[SpiritCatalog] sprite inspection failed for " + path + ": " + ex.Message);
+            TerriasLog.Debug("[SpiritCatalog] sprite inspection failed for " + path + ": " + ex.Message);
             return false;
         }
         finally
         {
-            SunExpPerformanceCounters.RecordHotspot(
+            TerriasPerformanceCounters.RecordHotspot(
                 hotspotName,
                 started,
                 "found=" + found + ", path=" + path,
@@ -145,9 +145,9 @@ public static class EnemyCatalogApi
         {
             return "BaseGame";
         }
-        if (normalized.StartsWith("SunExp_sunexp_", StringComparison.Ordinal))
+        if (normalized.StartsWith("Terrias_terrias_", StringComparison.Ordinal))
         {
-            return "SunExp";
+            return "Terrias";
         }
 
         var separator = normalized.IndexOf('_');

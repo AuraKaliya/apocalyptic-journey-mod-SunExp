@@ -1,34 +1,34 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class EndlessSeaCombatRuntime
 {
-    private const string AppliedFloorKey = "SunExpEndlessSeaHpScaledFloor";
+    private const string AppliedFloorKey = "TerriasEndlessSeaHpScaledFloor";
 
     public static void Initialize(ModConfig modConfig)
     {
-        SunExpBattleLifecycleRouter.Register("EndlessSeaCombat", new SunExpBattleLifecycleSubscription
+        TerriasBattleLifecycleRouter.Register("EndlessSeaCombat", new TerriasBattleLifecycleSubscription
         {
             FightInitialized = ApplyOriginBattleStartEffects
         });
-        SunExpStatusLifecycleRouter.Register("EndlessSeaCombat", new SunExpStatusLifecycleSubscription
+        TerriasStatusLifecycleRouter.Register("EndlessSeaCombat", new TerriasStatusLifecycleSubscription
         {
             AfterEnemyInit = ScaleEnemyAfterInit
         });
         RegisterAfter(modConfig, "FightManager.Init", AddEndlessExtraEnemiesAfterFightInit);
-        RegisterAfter(modConfig, SunExpHookTargets.FightWinInit, ApplyOriginBattleEndEffects);
+        RegisterAfter(modConfig, TerriasHookTargets.FightWinInit, ApplyOriginBattleEndEffects);
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.After(config, target, action, "EndlessSeaCombat");
+        TerriasHookRegistry.After(config, target, action, "EndlessSeaCombat");
     }
 
     private static void ScaleEnemyAfterInit(ModHookContext context)
@@ -66,7 +66,7 @@ public static class EndlessSeaCombatRuntime
             RefreshStatusTransfer(enemy, status);
             ApplyEndlessAbyssEnemyModifiers(enemy, floor, "Enemy.Init");
 
-            SunExpLog.Info("[EndlessSeaCombat] scaled enemy HP x"
+            TerriasLog.Info("[EndlessSeaCombat] scaled enemy HP x"
                 + scaling.HpMultiplier.ToString("0.###")
                 + ", ATK x"
                 + scaling.AttackMultiplier.ToString("0.###")
@@ -90,7 +90,7 @@ public static class EndlessSeaCombatRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Endless Sea enemy scaling failed", ex);
+            TerriasLog.Error("Endless Sea enemy scaling failed", ex);
         }
     }
 
@@ -120,7 +120,7 @@ public static class EndlessSeaCombatRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Endless Sea endless extra enemy injection failed", ex);
+            TerriasLog.Error("Endless Sea endless extra enemy injection failed", ex);
         }
     }
 
@@ -136,7 +136,7 @@ public static class EndlessSeaCombatRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Endless Sea origin battle start failed", ex);
+            TerriasLog.Error("Endless Sea origin battle start failed", ex);
         }
     }
 
@@ -152,7 +152,7 @@ public static class EndlessSeaCombatRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Endless Sea origin battle end failed", ex);
+            TerriasLog.Error("Endless Sea origin battle end failed", ex);
         }
     }
 
@@ -192,7 +192,7 @@ public static class EndlessSeaCombatRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("Endless Sea enemy status transfer refresh failed: " + ex.Message);
+            TerriasLog.Warn("Endless Sea enemy status transfer refresh failed: " + ex.Message);
         }
     }
 }

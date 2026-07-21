@@ -2,13 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AuraShared.Core;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class SolarMemoryContentIsolationRuntime
 {
@@ -33,12 +33,12 @@ public static class SolarMemoryContentIsolationRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.After(config, target, action, "SolarMemoryContentIsolation");
+        TerriasHookRegistry.After(config, target, action, "SolarMemoryContentIsolation");
     }
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.Before(config, target, action, "SolarMemoryContentIsolation");
+        TerriasHookRegistry.Before(config, target, action, "SolarMemoryContentIsolation");
     }
 
     private static void SanitizeGeneratedMap(ModHookContext context)
@@ -56,7 +56,7 @@ public static class SolarMemoryContentIsolationRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory generated-map isolation failed", ex);
+            TerriasLog.Error("Solar memory generated-map isolation failed", ex);
         }
     }
 
@@ -76,7 +76,7 @@ public static class SolarMemoryContentIsolationRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory pre-select isolation failed", ex);
+            TerriasLog.Error("Solar memory pre-select isolation failed", ex);
         }
     }
 
@@ -97,7 +97,7 @@ public static class SolarMemoryContentIsolationRuntime
                     && args[i + 1] is string[] mapData
                     && SanitizeSelectionArrays(maps, mapData, level))
                 {
-                    SunExpLog.Warn("[SolarMemoryIsolation] removed exclusive content from synchronized map choices.");
+                    TerriasLog.Warn("[SolarMemoryIsolation] removed exclusive content from synchronized map choices.");
                 }
             }
 
@@ -105,7 +105,7 @@ public static class SolarMemoryContentIsolationRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory map-sync isolation failed", ex);
+            TerriasLog.Error("Solar memory map-sync isolation failed", ex);
         }
     }
 
@@ -123,7 +123,7 @@ public static class SolarMemoryContentIsolationRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[MapNodeSafety] pre-next-map repair failed: " + ex.Message);
+            TerriasLog.Warn("[MapNodeSafety] pre-next-map repair failed: " + ex.Message);
         }
     }
 
@@ -139,7 +139,7 @@ public static class SolarMemoryContentIsolationRuntime
         changed = SanitizeCurrentNode(tree, level) || changed;
         if (changed)
         {
-            SunExpLog.Warn("[SolarMemoryIsolation] removed exclusive nodes from " + source + ".");
+            TerriasLog.Warn("[SolarMemoryIsolation] removed exclusive nodes from " + source + ".");
         }
 
         return changed;
@@ -165,7 +165,7 @@ public static class SolarMemoryContentIsolationRuntime
             var fallback = FindFallbackMap(node.data, level);
             if (fallback == null)
             {
-                SunExpLog.Warn("[SolarMemoryIsolation] no base-map fallback found for " + DictionaryUtil.Get(node.data, "Id") + ".");
+                TerriasLog.Warn("[SolarMemoryIsolation] no base-map fallback found for " + DictionaryUtil.Get(node.data, "Id") + ".");
                 continue;
             }
 
@@ -191,7 +191,7 @@ public static class SolarMemoryContentIsolationRuntime
         var fallback = FindFallbackMap(node.data, level);
         if (fallback == null)
         {
-            SunExpLog.Warn("[SolarMemoryIsolation] no current-node fallback found for "
+            TerriasLog.Warn("[SolarMemoryIsolation] no current-node fallback found for "
                 + DictionaryUtil.Get(node.data, "Id")
                 + ".");
             return false;
@@ -223,7 +223,7 @@ public static class SolarMemoryContentIsolationRuntime
             var fallback = FindFallbackMap(exclusiveRow, level, mapId);
             if (fallback == null)
             {
-                SunExpLog.Warn("[SolarMemoryIsolation] no synchronized fallback found for " + mapId + ".");
+                TerriasLog.Warn("[SolarMemoryIsolation] no synchronized fallback found for " + mapId + ".");
                 return null;
             }
 
@@ -256,8 +256,8 @@ public static class SolarMemoryContentIsolationRuntime
         }
 
         var layer = Math.Max(0, level / 12);
-        return SunExpConfigIndex.Rows(DataType.Map)
-            .Where(row => !SunExpIds.IsSolarMemoryExclusiveMapId(DictionaryUtil.Get(row, "Id")))
+        return TerriasConfigIndex.Rows(DataType.Map)
+            .Where(row => !TerriasIds.IsSolarMemoryExclusiveMapId(DictionaryUtil.Get(row, "Id")))
             .Where(row => !string.Equals(DictionaryUtil.Get(row, "Rarity", "0"), "7", StringComparison.Ordinal))
             .Where(row => string.Equals(DictionaryUtil.Get(row, "Type"), type, StringComparison.Ordinal))
             .Where(row => string.Equals(DictionaryUtil.Get(row, "Note"), note, StringComparison.Ordinal))
@@ -278,12 +278,12 @@ public static class SolarMemoryContentIsolationRuntime
             return null;
         }
 
-        return SunExpConfigIndex.Row(DataType.Map, id);
+        return TerriasConfigIndex.Row(DataType.Map, id);
     }
 
     private static string ResolveEventId(string oldNodeId, IDictionary<string, string> fallback)
     {
-        if (!string.IsNullOrWhiteSpace(oldNodeId) && !SunExpIds.IsSolarMemoryExclusiveEventId(oldNodeId))
+        if (!string.IsNullOrWhiteSpace(oldNodeId) && !TerriasIds.IsSolarMemoryExclusiveEventId(oldNodeId))
         {
             return oldNodeId;
         }
@@ -291,12 +291,12 @@ public static class SolarMemoryContentIsolationRuntime
         var fallbackNodeId = DictionaryUtil.Get(fallback, "NodeId");
         if (!string.IsNullOrWhiteSpace(fallbackNodeId)
             && !fallbackNodeId.Contains("Breaks")
-            && !SunExpIds.IsSolarMemoryExclusiveEventId(fallbackNodeId))
+            && !TerriasIds.IsSolarMemoryExclusiveEventId(fallbackNodeId))
         {
             return fallbackNodeId;
         }
 
-        return SunExpConfigIndex.Rows(DataType.Event)
+        return TerriasConfigIndex.Rows(DataType.Event)
             .Where(row => !DictionaryUtil.Get(row, "Id").Contains("Sub"))
             .Where(row => !Singleton<GameRuntimeData>.Instance.IsLocked(DictionaryUtil.Get(row, "Id")))
             .OrderBy(row => DictionaryUtil.Get(row, "Id"), StringComparer.Ordinal)

@@ -1,39 +1,39 @@
 # 卡牌、Buff、遗物与卡包
 
-> 模块范围：SunExp 基础内容实体、CSV 脚本分派和日耀战斗机制。晨星、乌娜、洛奈尔、百变、投影、心变和无尽深渊的专有规则在各自模块继续展开。
+> 模块范围：Terrias 基础内容实体、CSV 脚本分派和日耀战斗机制。晨星、乌娜、洛奈尔、百变、投影、心变和无尽深渊的专有规则在各自模块继续展开。
 
 ## 1. 模块定位
 
-这一模块是 SunExp 的内容骨架：卡包决定内容归属，卡牌发起一次性动作，Buff 保存持续状态或注册事件，遗物在战斗入口挂接长期监听。它们首先是游戏标准 DataConfig，不是 SunExp 自建的一套平行卡牌系统。
+这一模块是 Terrias 的内容骨架：卡包决定内容归属，卡牌发起一次性动作，Buff 保存持续状态或注册事件，遗物在战斗入口挂接长期监听。它们首先是游戏标准 DataConfig，不是 Terrias 自建的一套平行卡牌系统。
 
 当前内容基线：
 
 | 内容 | 数量 | 数据入口 |
 | --- | ---: | --- |
-| 卡牌 | 56 | `SunExp/Data/Card/*.csv` |
-| Buff | 32 | `SunExp/Data/Buff/*.csv` |
-| 遗物 | 13 | `SunExp/Data/Relic/sunexp.csv` |
-| 卡包 | 5 | `SunExp/Data/CardPack/sunexp.csv` |
+| 卡牌 | 56 | `Terrias/Data/Card/*.csv` |
+| Buff | 32 | `Terrias/Data/Buff/*.csv` |
+| 遗物 | 13 | `Terrias/Data/Relic/terrias.csv` |
+| 卡包 | 5 | `Terrias/Data/CardPack/terrias.csv` |
 
-卡牌总数由 `Card/sunexp.csv` 的 50 张、乌娜 3 张、洛奈尔 1 张和深渊诅咒 2 张组成。数量按当前仓库验证脚本统计，不包含各 CSV 的说明行。
+卡牌总数由 `Card/terrias.csv` 的 50 张、乌娜 3 张、洛奈尔 1 张和深渊诅咒 2 张组成。数量按当前仓库验证脚本统计，不包含各 CSV 的说明行。
 
 ## 2. 五个卡包
 
 | 运行时完整 id | 显示名 | 机制定位 |
 | --- | --- | --- |
-| `SunExp_sunexp_cardpack_radiant_spark` | 日耀：星火 | 日耀、聚炎、烬衣、圣冕的低复杂度入口 |
-| `SunExp_sunexp_cardpack_ember_crown` | 日耀：烬冠 | 自身灼烧、聚炎转化、圣冕爆发和自燃压力 |
-| `SunExp_sunexp_cardpack_solar_canopy` | 日耀：天幕 | 场地、敌方灼烧、负面状态和持续扩散 |
-| `SunExp_sunexp_cardpack_morning_star_overture` | 晨星：序曲 | 星谱、伏谱、谱句、复奏和启明星 |
-| `SunExp_sunexp_cardpack_more_dimensions` | 更多的次元 | 百变、投影、心变与精灵球入口 |
+| `Terrias_terrias_cardpack_radiant_spark` | 日耀：星火 | 日耀、聚炎、烬衣、圣冕的低复杂度入口 |
+| `Terrias_terrias_cardpack_ember_crown` | 日耀：烬冠 | 自身灼烧、聚炎转化、圣冕爆发和自燃压力 |
+| `Terrias_terrias_cardpack_solar_canopy` | 日耀：天幕 | 场地、敌方灼烧、负面状态和持续扩散 |
+| `Terrias_terrias_cardpack_morning_star_overture` | 晨星：序曲 | 星谱、伏谱、谱句、复奏和启明星 |
+| `Terrias_terrias_cardpack_more_dimensions` | 更多的次元 | 百变、投影、心变与精灵球入口 |
 
-卡包表本身只声明 id、Type 和 Icon。卡牌/遗物通过 `PackBelong` 使用完整卡包 id 归属。游戏 `GameConfigManager.GetItemsByPack` 和 SunExp 的 `GameCompatibilityApi` 负责按包查询。
+卡包表本身只声明 id、Type 和 Icon。卡牌/遗物通过 `PackBelong` 使用完整卡包 id 归属。游戏 `GameConfigManager.GetItemsByPack` 和 Terrias 的 `GameCompatibilityApi` 负责按包查询。
 
 ## 3. 卡牌分类
 
 ### 3.1 日耀主卡
 
-`Card/sunexp.csv` 中前 30 张为日耀与基础扩展卡，围绕以下状态形成闭环：
+`Card/terrias.csv` 中前 30 张为日耀与基础扩展卡，围绕以下状态形成闭环：
 
 ```mermaid
 flowchart LR
@@ -81,7 +81,7 @@ flowchart LR
 卡牌行统一调用：
 
 ```text
-InitScript -> CS.SunExp.Dll.Scripting.CardScripts.Init(self, shortId)
+InitScript -> CS.Terrias.Dll.Scripting.CardScripts.Init(self, shortId)
 DrawScript -> CardScripts.Draw(self, shortId)
 UseScript -> CardScripts.Use(self, shortId)
 DropScript -> CardScripts.Drop(self, shortId)
@@ -166,7 +166,7 @@ Clear 时清除 hook、token 和本地 Vars。这样 Buff 被移除后，旧回�
 
 ## 7. 卡牌修改与临时附着
 
-SunExp 会在战斗中创建或修改卡牌副本，例如：
+Terrias 会在战斗中创建或修改卡牌副本，例如：
 
 - 乌娜技能生成 0 费授冕牌并附着 Burnout/Froze；
 - 白曜圣祷给友方手牌临时附着 Burnout 和白曜；
@@ -178,13 +178,13 @@ SunExp 会在战斗中创建或修改卡牌副本，例如：
 - `CardGrantRequest` 和 `CardApi.GrantCardToHand` 的事务式授予；
 - `CardMutationService` 修改 runtime tags/special tags；
 - `RuntimeCardAttachmentService` 保存附着声明、请求联机同步和清理；
-- `CardPresentationImpactRegistry`、`SunExpCardRefreshQueue` 刷新受影响显示。
+- `CardPresentationImpactRegistry`、`TerriasCardRefreshQueue` 刷新受影响显示。
 
-不能把战斗临时标签写回 `SunExp/Data/Card/*.csv` 的共享行，也不能只改 DataConfig Vars 而忘记 FightCardManager 的 tag cache 和 UI 表现。
+不能把战斗临时标签写回 `Terrias/Data/Card/*.csv` 的共享行，也不能只改 DataConfig Vars 而忘记 FightCardManager 的 tag cache 和 UI 表现。
 
 ## 8. 游戏主体接入
 
-| SunExp 环节 | 反编译宿主模块 | 接入点 | 证据 |
+| Terrias 环节 | 反编译宿主模块 | 接入点 | 证据 |
 | --- | --- | --- | --- |
 | 卡牌实例 | `Witch.DataConfig`、`CardItem` | 创建 ScriptExecutor、InitScript | 反编译确认 |
 | 普通卡使用 | `CommonCardItem.TrueUse` | PreUseScript、UseScript、动作表现 | 反编译确认 |
@@ -206,21 +206,21 @@ SunExp 会在战斗中创建或修改卡牌副本，例如：
 
 ## 10. 联机边界
 
-普通卡牌和 Buff 依赖游戏自身的战斗同步，但 SunExp 自建的共享场地、运行时附着、角色状态和模式进度需要额外协议：
+普通卡牌和 Buff 依赖游戏自身的战斗同步，但 Terrias 自建的共享场地、运行时附着、角色状态和模式进度需要额外协议：
 
 - 场地由主机权威，客户端请求并接收 snapshot；
-- runtime hand attachment 使用 SunExp RPC 同步声明而不是传输 Unity 对象；
+- runtime hand attachment 使用 Terrias RPC 同步声明而不是传输 Unity 对象；
 - 玩家私有角色状态按 owner status/player id 隔离；
 - 纯视觉刷新不反向写权威进度。
 
-“本地卡牌脚本成功执行”不自动证明其他客户端拥有相同 SunExp 扩展状态。
+“本地卡牌脚本成功执行”不自动证明其他客户端拥有相同 Terrias 扩展状态。
 
 ## 11. 性能与诊断
 
 - `CardScripts.Init` 记录 `Manual.CardScripts.Init` 片段耗时并缓存 direct delegate。
 - 卡区重复扫描使用 `AuraCombatCardZoneSnapshot` 或集中 API，而不是每个机制遍历所有列表。
 - 费用和表现更新通过 dirty state/refresh queue 合并。
-- 资源读取集中到 `SunExpResourceCache`。
+- 资源读取集中到 `TerriasResourceCache`。
 - Event 注册使用 token 和 handler registry，避免每次行动重复挂监听。
 
 ## 12. 验证
@@ -228,10 +228,10 @@ SunExp 会在战斗中创建或修改卡牌副本，例如：
 相关修改至少运行：
 
 ```powershell
-tools\Build-SunExpDll.ps1
-tools\Test-SunExpArchitecture.ps1
-tools\Test-SunExpCSharp.ps1
-.codex\skills\sunexp-mod-dev\scripts\validate-sunexp.ps1
+tools\Build-TerriasDll.ps1
+tools\Test-TerriasArchitecture.ps1
+tools\Test-TerriasCSharp.ps1
+.codex\skills\terrias-mod-dev\scripts\validate-terrias.ps1
 ```
 
 检查 Data/Text 对齐、完整 id、handler 覆盖、动态描述、临时标签清理和联机状态同步。视觉 registry 或 bundle 同时变化时再运行视觉构建与验证。

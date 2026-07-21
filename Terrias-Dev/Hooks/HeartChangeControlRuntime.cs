@@ -1,47 +1,47 @@
 using System;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class HeartChangeControlRuntime
 {
     public static void Initialize(ModConfig modConfig)
     {
-        SunExpBattleLifecycleRouter.Register("HeartChange", new SunExpBattleLifecycleSubscription
+        TerriasBattleLifecycleRouter.Register("HeartChange", new TerriasBattleLifecycleSubscription
         {
             FightStarted = context => ClearBattle("Fight_Start.Init"),
             FightEnding = context => ClearBattle("FightEnding")
         });
-        RegisterBefore(modConfig, SunExpHookTargets.FightWinInit, context => ClearBattle("Fight_Win.Init:before"));
-        RegisterBefore(modConfig, SunExpHookTargets.FightLossInit, context => ClearBattle("Fight_Loss.Init:before"));
-        RegisterBefore(modConfig, SunExpHookTargets.FightEscapeInit, context => ClearBattle("Fight_Escape.Init:before"));
+        RegisterBefore(modConfig, TerriasHookTargets.FightWinInit, context => ClearBattle("Fight_Win.Init:before"));
+        RegisterBefore(modConfig, TerriasHookTargets.FightLossInit, context => ClearBattle("Fight_Loss.Init:before"));
+        RegisterBefore(modConfig, TerriasHookTargets.FightEscapeInit, context => ClearBattle("Fight_Escape.Init:before"));
         RegisterAfter(modConfig, "ScriptExecutor.SetStatus", RetargetAfterSetStatus);
         RegisterBefore(modConfig, "ScriptExecutor.RunScript", RetargetBeforeRunScript);
-        SunExpCombatActionRouter.Register("HeartChange", new SunExpCombatActionSubscription
+        TerriasCombatActionRouter.Register("HeartChange", new TerriasCombatActionSubscription
         {
             BeforeOtherObjAction = BeginEnemyAction,
             AfterOtherObjAction = EndEnemyAction
         });
-        SunExpStatusLifecycleRouter.Register("HeartChange", new SunExpStatusLifecycleSubscription
+        TerriasStatusLifecycleRouter.Register("HeartChange", new TerriasStatusLifecycleSubscription
         {
             AfterHit = CleanupAfterStatusChanged,
             AfterCurHpChanged = CleanupAfterStatusChanged,
             AfterMaxHpChanged = CleanupAfterStatusChanged
         });
-        SunExpLog.Info("Heart change control runtime initialized");
+        TerriasLog.Info("Heart change control runtime initialized");
     }
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.Before(config, target, action, "HeartChange");
+        TerriasHookRegistry.Before(config, target, action, "HeartChange");
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.After(config, target, action, "HeartChange");
+        TerriasHookRegistry.After(config, target, action, "HeartChange");
     }
 
     private static void ClearBattle(string source)
@@ -52,7 +52,7 @@ public static class HeartChangeControlRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Heart change cleanup failed from " + source, ex);
+            TerriasLog.Error("Heart change cleanup failed from " + source, ex);
         }
     }
 
@@ -72,7 +72,7 @@ public static class HeartChangeControlRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[HeartChange] retarget failed: " + ex.Message);
+            TerriasLog.Warn("[HeartChange] retarget failed: " + ex.Message);
         }
     }
 
@@ -92,7 +92,7 @@ public static class HeartChangeControlRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[HeartChange] use-script retarget failed: " + ex.Message);
+            TerriasLog.Warn("[HeartChange] use-script retarget failed: " + ex.Message);
         }
     }
 
@@ -107,7 +107,7 @@ public static class HeartChangeControlRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[HeartChange] action begin failed: " + ex.Message);
+            TerriasLog.Warn("[HeartChange] action begin failed: " + ex.Message);
         }
     }
 
@@ -122,7 +122,7 @@ public static class HeartChangeControlRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[HeartChange] action end failed: " + ex.Message);
+            TerriasLog.Warn("[HeartChange] action end failed: " + ex.Message);
         }
     }
 
@@ -137,7 +137,7 @@ public static class HeartChangeControlRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[HeartChange] status cleanup failed: " + ex.Message);
+            TerriasLog.Warn("[HeartChange] status cleanup failed: " + ex.Message);
         }
     }
 

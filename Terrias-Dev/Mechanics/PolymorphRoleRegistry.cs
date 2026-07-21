@@ -1,20 +1,20 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 using Witch.Core;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class PolymorphRoleRegistry
 {
     public static IReadOnlyList<PolymorphRoleSpec> AllRoles()
     {
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         try
         {
-            return SunExpConfigIndex.Rows(DataType.Career)
+            return TerriasConfigIndex.Rows(DataType.Career)
                 .Select(ToSpec)
                 .Where(spec => !string.IsNullOrWhiteSpace(spec.Id))
                 .OrderBy(spec => spec.DisplayName, StringComparer.Ordinal)
@@ -23,7 +23,7 @@ public static class PolymorphRoleRegistry
         }
         finally
         {
-            SunExpPerformanceCounters.RecordDuration("PolymorphRoleRegistry.AllRoles", start);
+            TerriasPerformanceCounters.RecordDuration("PolymorphRoleRegistry.AllRoles", start);
         }
     }
 
@@ -80,7 +80,7 @@ public static class PolymorphRoleRegistry
         }
 
         var data = MergedCareerData(id, row);
-        var roleData = SunExpConfigIndex.Row(DataType.RoleData, id);
+        var roleData = TerriasConfigIndex.Row(DataType.RoleData, id);
         var crop = PolymorphRoleCropRegistry.CropFor(id);
         return new PolymorphRoleSpec(
             id,
@@ -91,12 +91,12 @@ public static class PolymorphRoleRegistry
                 DictionaryUtil.Get(roleData, "CharacterImage"),
                 DictionaryUtil.Get(data, "Avatar"),
                 DictionaryUtil.Get(data, "ChoiceIcon"),
-                SunExpIds.PolymorphPlaceholderCardIconPath),
+                TerriasIds.PolymorphPlaceholderCardIconPath),
             FirstNonEmpty(
                 DictionaryUtil.Get(data, "Avatar"),
                 DictionaryUtil.Get(roleData, "Avatar"),
                 DictionaryUtil.Get(data, "ChoiceIcon"),
-                SunExpIds.PolymorphPlaceholderCardIconPath),
+                TerriasIds.PolymorphPlaceholderCardIconPath),
             DictionaryUtil.Get(data, "Skill1"),
             DictionaryUtil.Get(data, "Skill2"),
             IsLocked(id),
@@ -109,7 +109,7 @@ public static class PolymorphRoleRegistry
     {
         try
         {
-            return SunExpConfigIndex.Row(DataType.Career, id) ?? fallback;
+            return TerriasConfigIndex.Row(DataType.Career, id) ?? fallback;
         }
         catch
         {
@@ -168,8 +168,8 @@ public static class PolymorphRoleRegistry
     private static string NormalizeRoleId(string roleId)
     {
         var value = (roleId ?? "").Trim().TrimStart('*');
-        const string sunExpPrefix = "SunExp_";
-        if (value.StartsWith(sunExpPrefix, StringComparison.Ordinal))
+        const string terriasPrefix = "Terrias_";
+        if (value.StartsWith(terriasPrefix, StringComparison.Ordinal))
         {
             var parts = value.Split('_');
             return parts.Length > 0 ? parts[parts.Length - 1] : value;

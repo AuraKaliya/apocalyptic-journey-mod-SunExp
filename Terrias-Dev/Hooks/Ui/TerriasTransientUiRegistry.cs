@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Hooks.Ui;
+namespace Terrias.Dll.Hooks.Ui;
 
-public static class SunExpTransientUiRegistry
+public static class TerriasTransientUiRegistry
 {
     private static readonly Dictionary<string, Action<string>> Closers = new(StringComparer.Ordinal);
 
@@ -35,7 +35,7 @@ public static class SunExpTransientUiRegistry
             return;
         }
 
-        SunExpLog.Debug("[SunExpUiLifecycle] closing transient UI count=" + entries.Count + " from " + source + ".");
+        TerriasLog.Debug("[TerriasUiLifecycle] closing transient UI count=" + entries.Count + " from " + source + ".");
         foreach (var entry in entries)
         {
             try
@@ -44,7 +44,7 @@ public static class SunExpTransientUiRegistry
             }
             catch (Exception ex)
             {
-                SunExpLog.Warn("[SunExpUiLifecycle] close failed: key=" + entry.Key + ", error=" + ex.Message);
+                TerriasLog.Warn("[TerriasUiLifecycle] close failed: key=" + entry.Key + ", error=" + ex.Message);
             }
         }
     }

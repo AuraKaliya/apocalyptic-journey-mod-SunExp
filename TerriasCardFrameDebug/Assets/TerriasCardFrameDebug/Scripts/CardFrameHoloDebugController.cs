@@ -4,30 +4,30 @@ using System.Text;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace SunExp.CardFrameDebug
+namespace Terrias.CardFrameDebug
 {
     [ExecuteAlways]
     public sealed class CardFrameHoloDebugController : MonoBehaviour
     {
         private static readonly int MainTex = Shader.PropertyToID("_MainTex");
         private static readonly int NoiseTex = Shader.PropertyToID("_NoiseTex");
-        private static readonly int HoloColorA = Shader.PropertyToID("_SunExpHoloColorA");
-        private static readonly int HoloColorB = Shader.PropertyToID("_SunExpHoloColorB");
-        private static readonly int HoloColorC = Shader.PropertyToID("_SunExpHoloColorC");
-        private static readonly int FlowSpeedId = Shader.PropertyToID("_SunExpFlowSpeed");
-        private static readonly int FlowScaleId = Shader.PropertyToID("_SunExpFlowScale");
-        private static readonly int NoiseScaleId = Shader.PropertyToID("_SunExpNoiseScale");
-        private static readonly int DistortionId = Shader.PropertyToID("_SunExpDistortion");
-        private static readonly int EffectIntensityId = Shader.PropertyToID("_SunExpEffectIntensity");
-        private static readonly int QualityScaleId = Shader.PropertyToID("_SunExpQualityScale");
-        private static readonly int EdgeGlowId = Shader.PropertyToID("_SunExpEdgeGlow");
-        private static readonly int SweepFrequencyId = Shader.PropertyToID("_SunExpSweepFrequency");
-        private static readonly int SweepWidthId = Shader.PropertyToID("_SunExpSweepWidth");
-        private static readonly int SweepIntensityId = Shader.PropertyToID("_SunExpSweepIntensity");
-        private static readonly int PrismScaleId = Shader.PropertyToID("_SunExpPrismScale");
-        private static readonly int PrismStrengthId = Shader.PropertyToID("_SunExpPrismStrength");
-        private static readonly int FoilGrainId = Shader.PropertyToID("_SunExpFoilGrain");
-        private static readonly int EdgeSampleId = Shader.PropertyToID("_SunExpEdgeSample");
+        private static readonly int HoloColorA = Shader.PropertyToID("_TerriasHoloColorA");
+        private static readonly int HoloColorB = Shader.PropertyToID("_TerriasHoloColorB");
+        private static readonly int HoloColorC = Shader.PropertyToID("_TerriasHoloColorC");
+        private static readonly int FlowSpeedId = Shader.PropertyToID("_TerriasFlowSpeed");
+        private static readonly int FlowScaleId = Shader.PropertyToID("_TerriasFlowScale");
+        private static readonly int NoiseScaleId = Shader.PropertyToID("_TerriasNoiseScale");
+        private static readonly int DistortionId = Shader.PropertyToID("_TerriasDistortion");
+        private static readonly int EffectIntensityId = Shader.PropertyToID("_TerriasEffectIntensity");
+        private static readonly int QualityScaleId = Shader.PropertyToID("_TerriasQualityScale");
+        private static readonly int EdgeGlowId = Shader.PropertyToID("_TerriasEdgeGlow");
+        private static readonly int SweepFrequencyId = Shader.PropertyToID("_TerriasSweepFrequency");
+        private static readonly int SweepWidthId = Shader.PropertyToID("_TerriasSweepWidth");
+        private static readonly int SweepIntensityId = Shader.PropertyToID("_TerriasSweepIntensity");
+        private static readonly int PrismScaleId = Shader.PropertyToID("_TerriasPrismScale");
+        private static readonly int PrismStrengthId = Shader.PropertyToID("_TerriasPrismStrength");
+        private static readonly int FoilGrainId = Shader.PropertyToID("_TerriasFoilGrain");
+        private static readonly int EdgeSampleId = Shader.PropertyToID("_TerriasEdgeSample");
 
         [Header("Scene References")]
         public Image cardBackground;
@@ -41,7 +41,7 @@ namespace SunExp.CardFrameDebug
         public bool animate = true;
         [Range(0.5f, 2.0f)] public float previewScale = 1.0f;
 
-        [Header("SunExp/CardFrameHoloFlow")]
+        [Header("Terrias/CardFrameHoloFlow")]
         public Color holoColorA = new Color(1.0f, 0.78f, 0.32f, 1.0f);
         public Color holoColorB = new Color(0.42f, 0.92f, 1.0f, 1.0f);
         public Color holoColorC = new Color(1.0f, 0.42f, 0.86f, 1.0f);
@@ -62,7 +62,7 @@ namespace SunExp.CardFrameDebug
 
         private Vector2 controlScroll;
 
-        public void ResetToSunExpDefaults()
+        public void ResetToTerriasDefaults()
         {
             holoColorA = new Color(1.0f, 0.78f, 0.32f, 1.0f);
             holoColorB = new Color(0.42f, 0.92f, 1.0f, 1.0f);
@@ -131,16 +131,16 @@ namespace SunExp.CardFrameDebug
             frameMaterial.SetFloat(EdgeSampleId, edgeSample);
         }
 
-        [ContextMenu("Export SunExp Frame Effect Profile")]
+        [ContextMenu("Export Terrias Frame Effect Profile")]
         public void ExportCurrentProfile()
         {
-            var exportDirectory = Path.Combine(Application.dataPath, "SunExpCardFrameDebug", "Export");
+            var exportDirectory = Path.Combine(Application.dataPath, "TerriasCardFrameDebug", "Export");
             Directory.CreateDirectory(exportDirectory);
             var outputPath = Path.Combine(exportDirectory, "card_frame_foil_profile.json");
             File.WriteAllText(outputPath, BuildProfileJson(), Encoding.UTF8);
 #if UNITY_EDITOR
             UnityEditor.AssetDatabase.Refresh();
-            Debug.Log("Exported SunExp card frame effect profile: " + outputPath);
+            Debug.Log("Exported Terrias card frame effect profile: " + outputPath);
 #endif
         }
 
@@ -168,7 +168,7 @@ namespace SunExp.CardFrameDebug
 
             GUILayout.BeginArea(new Rect(16, 16, 330, Screen.height - 32), GUI.skin.window);
             controlScroll = GUILayout.BeginScrollView(controlScroll);
-            GUILayout.Label("SunExp Card Frame Foil");
+            GUILayout.Label("Terrias Card Frame Foil");
             animate = GUILayout.Toggle(animate, "Animate");
             previewScale = Slider("Preview Scale", previewScale, 0.5f, 2.0f);
             flowSpeed = Slider("Flow Speed", flowSpeed, 0.0f, 2.0f);
@@ -189,7 +189,7 @@ namespace SunExp.CardFrameDebug
             GUILayout.Space(8);
             if (GUILayout.Button("Reset Defaults"))
             {
-                ResetToSunExpDefaults();
+                ResetToTerriasDefaults();
             }
 
             if (GUILayout.Button("Export Profile"))
@@ -216,30 +216,30 @@ namespace SunExp.CardFrameDebug
         {
             var builder = new StringBuilder();
             builder.AppendLine("{");
-            builder.AppendLine("  \"profileId\": \"sunexp.card_frame_effect.foil_holo.debug\",");
-            builder.AppendLine("  \"shaderName\": \"SunExp/CardFrameHoloFlow\",");
+            builder.AppendLine("  \"profileId\": \"terrias.card_frame_effect.foil_holo.debug\",");
+            builder.AppendLine("  \"shaderName\": \"Terrias/CardFrameHoloFlow\",");
             builder.AppendLine("  \"intendedTarget\": \"card-frame\",");
-            builder.AppendLine("  \"notes\": \"Effect parameters are tuned on the card frame alpha mask only. Move these values into SunExp visual registry/material defaults when integrating.\",");
+            builder.AppendLine("  \"notes\": \"Effect parameters are tuned on the card frame alpha mask only. Move these values into Terrias visual registry/material defaults when integrating.\",");
             builder.AppendLine("  \"floats\": {");
-            AppendFloat(builder, "_SunExpFlowSpeed", flowSpeed, true);
-            AppendFloat(builder, "_SunExpFlowScale", flowScale, true);
-            AppendFloat(builder, "_SunExpNoiseScale", noiseScale, true);
-            AppendFloat(builder, "_SunExpDistortion", distortion, true);
-            AppendFloat(builder, "_SunExpEffectIntensity", effectIntensity, true);
-            AppendFloat(builder, "_SunExpQualityScale", qualityScale, true);
-            AppendFloat(builder, "_SunExpEdgeGlow", edgeGlow, true);
-            AppendFloat(builder, "_SunExpSweepFrequency", sweepFrequency, true);
-            AppendFloat(builder, "_SunExpSweepWidth", sweepWidth, true);
-            AppendFloat(builder, "_SunExpSweepIntensity", sweepIntensity, true);
-            AppendFloat(builder, "_SunExpPrismScale", prismScale, true);
-            AppendFloat(builder, "_SunExpPrismStrength", prismStrength, true);
-            AppendFloat(builder, "_SunExpFoilGrain", foilGrain, true);
-            AppendFloat(builder, "_SunExpEdgeSample", edgeSample, false);
+            AppendFloat(builder, "_TerriasFlowSpeed", flowSpeed, true);
+            AppendFloat(builder, "_TerriasFlowScale", flowScale, true);
+            AppendFloat(builder, "_TerriasNoiseScale", noiseScale, true);
+            AppendFloat(builder, "_TerriasDistortion", distortion, true);
+            AppendFloat(builder, "_TerriasEffectIntensity", effectIntensity, true);
+            AppendFloat(builder, "_TerriasQualityScale", qualityScale, true);
+            AppendFloat(builder, "_TerriasEdgeGlow", edgeGlow, true);
+            AppendFloat(builder, "_TerriasSweepFrequency", sweepFrequency, true);
+            AppendFloat(builder, "_TerriasSweepWidth", sweepWidth, true);
+            AppendFloat(builder, "_TerriasSweepIntensity", sweepIntensity, true);
+            AppendFloat(builder, "_TerriasPrismScale", prismScale, true);
+            AppendFloat(builder, "_TerriasPrismStrength", prismStrength, true);
+            AppendFloat(builder, "_TerriasFoilGrain", foilGrain, true);
+            AppendFloat(builder, "_TerriasEdgeSample", edgeSample, false);
             builder.AppendLine("  },");
             builder.AppendLine("  \"colors\": {");
-            AppendColor(builder, "_SunExpHoloColorA", holoColorA, true);
-            AppendColor(builder, "_SunExpHoloColorB", holoColorB, true);
-            AppendColor(builder, "_SunExpHoloColorC", holoColorC, false);
+            AppendColor(builder, "_TerriasHoloColorA", holoColorA, true);
+            AppendColor(builder, "_TerriasHoloColorB", holoColorB, true);
+            AppendColor(builder, "_TerriasHoloColorC", holoColorC, false);
             builder.AppendLine("  }");
             builder.AppendLine("}");
             return builder.ToString();

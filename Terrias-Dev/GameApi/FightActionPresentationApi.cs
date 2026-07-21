@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.UI;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 /// <summary>
 /// Presents an already resolved action through the game's native combat animation
@@ -27,7 +27,7 @@ public static class FightActionPresentationApi
         var previousSelf = executor.Self;
         var previousTarget = executor.Target;
         var previousObjects = executor.Object?.ToArray() ?? Array.Empty<IStatusManager>();
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         try
         {
             executor.Self = actor;
@@ -55,16 +55,16 @@ public static class FightActionPresentationApi
             var fightUi = UIManager.Instance?.GetUI<FightUI>("FightUI");
             if (fightUi == null)
             {
-                SunExpPerformanceCounters.Record("ProjectionAction.NativeAnimationUnavailable");
+                TerriasPerformanceCounters.Record("ProjectionAction.NativeAnimationUnavailable");
                 return;
             }
 
             fightUi.CallActionAnimation(executor);
-            SunExpPerformanceCounters.Record("ProjectionAction.NativeAnimationPresented");
+            TerriasPerformanceCounters.Record("ProjectionAction.NativeAnimationPresented");
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("[FightActionPresentation] native animation skipped from "
+            TerriasLog.Debug("[FightActionPresentation] native animation skipped from "
                 + source
                 + ": "
                 + ex.Message);
@@ -76,7 +76,7 @@ public static class FightActionPresentationApi
             executor.Object ??= new List<IStatusManager>();
             executor.Object.Clear();
             executor.Object.AddRange(previousObjects);
-            SunExpPerformanceCounters.RecordDuration("ProjectionAction.NativeAnimation", start);
+            TerriasPerformanceCounters.RecordDuration("ProjectionAction.NativeAnimation", start);
         }
     }
 }

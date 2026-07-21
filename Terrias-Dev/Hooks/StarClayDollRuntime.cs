@@ -1,26 +1,26 @@
 using System;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class StarClayDollRuntime
 {
     private const string PartnerLocalId = "star_clay_doll";
-    private const string PartnerFullId = "SunExp_sunexp_star_clay_doll";
+    private const string PartnerFullId = "Terrias_terrias_star_clay_doll";
     private const string BlessingLocalId = "star_clay_doll_placeholder";
-    private const string BlessingFullId = "SunExp_sunexp_star_clay_doll_placeholder";
+    private const string BlessingFullId = "Terrias_terrias_star_clay_doll_placeholder";
 
     public static void Initialize(ModConfig modConfig)
     {
         RegisterAfter(modConfig, "GameEntryUI.CheckCareer", CleanupPlaceholderBlessing);
-        SunExpBattleLifecycleRouter.Register("StarClayDoll", new SunExpBattleLifecycleSubscription
+        TerriasBattleLifecycleRouter.Register("StarClayDoll", new TerriasBattleLifecycleSubscription
         {
             FightStarted = GrantTraitOnFightStart
         });
-        SunExpStatusLifecycleRouter.Register("StarClayDoll", new SunExpStatusLifecycleSubscription
+        TerriasStatusLifecycleRouter.Register("StarClayDoll", new TerriasStatusLifecycleSubscription
         {
             AfterHit = ProtectAfterHit
         });
@@ -28,7 +28,7 @@ public static class StarClayDollRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.After(config, target, action, "StarClayDoll");
+        TerriasHookRegistry.After(config, target, action, "StarClayDoll");
     }
 
     private static void CleanupPlaceholderBlessing(ModHookContext context)
@@ -39,7 +39,7 @@ public static class StarClayDollRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Star Clay Doll placeholder blessing cleanup failed", ex);
+            TerriasLog.Error("Star Clay Doll placeholder blessing cleanup failed", ex);
         }
     }
 
@@ -54,15 +54,15 @@ public static class StarClayDollRuntime
                 return;
             }
 
-            if (status.GetBuff(SunExpIds.StarClayDollTrait) == null)
+            if (status.GetBuff(TerriasIds.StarClayDollTrait) == null)
             {
-                status.AddBuff(SunExpIds.StarClayDollTrait, 1);
-                SunExpLog.Info("Granted Star Clay Doll trait: owner=" + status.InstanceId);
+                status.AddBuff(TerriasIds.StarClayDollTrait, 1);
+                TerriasLog.Info("Granted Star Clay Doll trait: owner=" + status.InstanceId);
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Star Clay Doll fight start trait grant failed", ex);
+            TerriasLog.Error("Star Clay Doll fight start trait grant failed", ex);
         }
     }
 
@@ -77,14 +77,14 @@ public static class StarClayDollRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Star Clay Doll body protection failed", ex);
+            TerriasLog.Error("Star Clay Doll body protection failed", ex);
         }
     }
 
     private static void TryProtect(IStatusManager status)
     {
         if (status.CurHp > 0
-            || BuffApi.Level(status, SunExpIds.StarClayBody) <= 0
+            || BuffApi.Level(status, TerriasIds.StarClayBody) <= 0
             || !string.Equals(status.fatherObject?.GetType().Name, "FightPlayer", StringComparison.Ordinal))
         {
             return;
@@ -92,11 +92,11 @@ public static class StarClayDollRuntime
 
         if (StatusApi.HasNativeResurrectionAvailable(status))
         {
-            SunExpLog.Info("Star Clay Doll protection yielded to native resurrection: owner=" + status.InstanceId);
+            TerriasLog.Info("Star Clay Doll protection yielded to native resurrection: owner=" + status.InstanceId);
             return;
         }
 
-        BuffApi.SetExactLevel(status, SunExpIds.StarClayBody, BuffApi.Level(status, SunExpIds.StarClayBody) - 1);
+        BuffApi.SetExactLevel(status, TerriasIds.StarClayBody, BuffApi.Level(status, TerriasIds.StarClayBody) - 1);
         var nextMax = Math.Max(1, status.MaxHp / 2);
         if (StatusApi.TryStarClayResurrection(status, nextMax))
         {

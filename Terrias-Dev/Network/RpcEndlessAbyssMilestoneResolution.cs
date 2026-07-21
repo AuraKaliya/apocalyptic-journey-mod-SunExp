@@ -1,8 +1,8 @@
 using System;
 using Network.Command;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Mechanics;
 
-namespace SunExp.Dll.Network;
+namespace Terrias.Dll.Network;
 
 public static class EndlessAbyssMilestoneRewardKind
 {

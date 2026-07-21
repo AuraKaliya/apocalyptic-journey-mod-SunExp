@@ -1,14 +1,14 @@
 using System;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class LunarReactionService
 {
     public static bool IsLunarReaction(ElementalReactionType reaction)
     {
-        return FieldApi.IsSharedFieldActive(SunExpFieldId.MoonDomain)
+        return FieldApi.IsSharedFieldActive(TerriasFieldId.MoonDomain)
             && reaction is ElementalReactionType.ElectroCharged or ElementalReactionType.Bloom or ElementalReactionType.Crystallize;
     }
 
@@ -46,7 +46,7 @@ public static class LunarReactionService
         }
 
         ConstellationService.ResolveColumbinaLunarReaction(source);
-        SunExpLog.Debug("[LunarReaction] resolved " + reaction + " from " + origin + "; source=" + (source.InstanceId ?? "") + ".");
+        TerriasLog.Debug("[LunarReaction] resolved " + reaction + " from " + origin + "; source=" + (source.InstanceId ?? "") + ".");
     }
 
     private static void ResolveElectroCharged(ScriptExecutor executor, IStatusManager source)
@@ -65,7 +65,7 @@ public static class LunarReactionService
     {
         if (StatusApi.IsAlive(target))
         {
-            target.AddBuff(SunExpIds.DendroCore, 1);
+            target.AddBuff(TerriasIds.DendroCore, 1);
         }
 
         if (ColumbinaPassiveService.IsActive(source))
@@ -102,6 +102,6 @@ public static class LunarReactionService
 
     private static string Key(string kind, IStatusManager source)
     {
-        return "SunExp.Lunar." + kind + "." + (source.InstanceId ?? source.GetHashCode().ToString());
+        return "Terrias.Lunar." + kind + "." + (source.InstanceId ?? source.GetHashCode().ToString());
     }
 }

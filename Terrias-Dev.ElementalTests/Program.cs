@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
-using SunExp.Dll.Network;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
+using Terrias.Dll.Network;
 
 var priorities = ElementalAttachmentRegistry.PriorityOrder.Select(definition => definition.Priority).ToArray();
 Assert(priorities.SequenceEqual(new[] { 700, 600, 500, 400, 300, 200, 100 }), "attachment priority order changed");
@@ -62,21 +62,21 @@ Assert(!ElementalReactionService.ShouldAttachIncomingElement(hasReaction: true),
 Assert(ConstellationIdentityRules.ResolveAdventureRole(
         "career_1",
         "career_1",
-        "SunExp_columbina_columbina") == "career_1",
+        "Terrias_columbina_columbina") == "career_1",
     "a bound adventure role must win over the active polymorph form");
 Assert(ConstellationIdentityRules.ResolveAdventureRole(
         "",
         "career_1",
-        "SunExp_columbina_columbina") == "career_1",
+        "Terrias_columbina_columbina") == "career_1",
     "the polymorph original role must recover an unbound adventure identity");
 Assert(ConstellationIdentityRules.ResolveAdventureRole(
         "",
         "",
-        "SunExp_columbina_columbina") == "SunExp_columbina_columbina",
+        "Terrias_columbina_columbina") == "Terrias_columbina_columbina",
     "the current role must remain the fallback outside polymorph");
 
-var columbinaPool = ConstellationPoolCatalog.PoolForRole("SunExp_columbina_columbina");
-var travelerPool = ConstellationPoolCatalog.PoolForRole("SunExp_wuna_wuna");
+var columbinaPool = ConstellationPoolCatalog.PoolForRole("Terrias_columbina_columbina");
+var travelerPool = ConstellationPoolCatalog.PoolForRole("Terrias_wuna_wuna");
 Assert(columbinaPool.Id == ConstellationPoolCatalog.ColumbinaPoolId, "Columbina must use the exclusive constellation pool");
 Assert(travelerPool.Id == ConstellationPoolCatalog.TravelerPoolId, "roles without an exclusive pool must use the Traveler pool");
 Assert(columbinaPool.Name.ZhHans == "御月鸽座" && travelerPool.Name.ZhHans == "旅人座", "constellation pools must expose their localized names");
@@ -94,7 +94,7 @@ Assert(LunarReactionRules.Crossed(49, 55, 50), "gravity threshold crossing faile
 Assert(!LunarReactionRules.Crossed(50, 55, 50), "gravity threshold must not trigger twice");
 
 Assert(FieldActivationIntentCatalog.TryResolve(
-        SunExpFieldId.MoonDomain,
+        TerriasFieldId.MoonDomain,
         FieldActivationIntentCatalog.ColumbinaHomesicknessIntent,
         out var homesicknessFieldIntent),
     "Columbina Homesickness must be authorized to request Moon Domain");
@@ -102,30 +102,30 @@ Assert(homesicknessFieldIntent.AmountPolicy == FieldActivationAmountPolicy.Fixed
        && homesicknessFieldIntent.FixedAmount == 1,
     "Moon Domain activation must resolve to one host-authored stack");
 Assert(!FieldActivationIntentCatalog.TryResolve(
-        SunExpFieldId.ScorchingCanopy,
+        TerriasFieldId.ScorchingCanopy,
         FieldActivationIntentCatalog.ColumbinaHomesicknessIntent,
         out _),
     "a field intent must not authorize a different field");
 Assert(FieldActivationIntentCatalog.TryResolve(
-        SunExpFieldId.ScorchingCanopy,
+        TerriasFieldId.ScorchingCanopy,
         FieldActivationIntentCatalog.CanopyReturnCardIntent,
         out var canopyReturnIntent)
        && canopyReturnIntent.FixedAmount == 2,
     "Canopy Return must preserve its two-stack authoritative resolution");
 Assert(FieldActivationIntentCatalog.TryResolve(
-        SunExpFieldId.ScorchingCanopy,
+        TerriasFieldId.ScorchingCanopy,
         FieldActivationIntentCatalog.ScorchingCanopyCarrierIntent,
         out var carrierIntent)
        && carrierIntent.AmountPolicy == FieldActivationAmountPolicy.AuthoritativeScorchingCanopyCarrierStacks,
     "legacy Scorching Canopy carriers must keep server-resolved stack counts");
 Assert(!FieldActivationIntentCatalog.TryResolve(
-        SunExpFieldId.MoonDomain,
+        TerriasFieldId.MoonDomain,
         "Columbina.InvalidSkill",
         out _),
     "an undeclared Moon Domain intent must be rejected");
-Assert(SunExpStatusOwnershipPolicy.SenderOwnsStatus("player-1", "player-1", out _),
+Assert(TerriasStatusOwnershipPolicy.SenderOwnsStatus("player-1", "player-1", out _),
     "the bound sender must own its native player status");
-Assert(!SunExpStatusOwnershipPolicy.SenderOwnsStatus("player-1", "spoofed-status", out _),
+Assert(!TerriasStatusOwnershipPolicy.SenderOwnsStatus("player-1", "spoofed-status", out _),
     "a sender must not authorize an unrelated status id");
 
 Console.WriteLine("Elemental mechanics catalog tests passed.");

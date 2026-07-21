@@ -2,11 +2,11 @@ using UnityEngine;
 using UnityEngine.UI;
 using Object = UnityEngine.Object;
 
-namespace SunExp.Dll.Hooks.Visual;
+namespace Terrias.Dll.Hooks.Visual;
 
 internal sealed class CardFrameOverlay : MonoBehaviour
 {
-    public const string OverlayName = "SunExp_CardFrameEffectOverlay";
+    public const string OverlayName = "Terrias_CardFrameEffectOverlay";
 
     private Image? overlayImage;
     private RectTransform? overlayRect;
@@ -249,7 +249,7 @@ internal sealed class CardFrameOverlay : MonoBehaviour
 
         var mesh = new Mesh
         {
-            name = source.name + "_SunExpFrameOverlayFullUv",
+            name = source.name + "_TerriasFrameOverlayFullUv",
             vertices = vertices,
             triangles = source.triangles,
             uv = uv,

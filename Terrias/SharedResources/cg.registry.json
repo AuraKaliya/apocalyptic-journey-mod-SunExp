@@ -1,6 +1,6 @@
 {
   "schemaVersion": 1,
-  "ownerModId": "SunExp",
+  "ownerModId": "Terrias",
   "protocol": {
     "minVersion": 1,
     "preferredVersion": 1
@@ -11,17 +11,17 @@
       "displayName": "Loneer - 晨星祈愿",
       "kind": "skill",
       "targetRoleIds": [
-        "SunExp_loneer_loneer",
+        "Terrias_loneer_loneer",
         "loneer"
       ],
       "cardIds": [
-        "SunExp_loneer_loneer_morning_star_prayer",
+        "Terrias_loneer_loneer_morning_star_prayer",
         "*loneer_morning_star_prayer"
       ],
       "media": {
         "type": "image",
-        "resource": "CG/Role/SunExp_loneer_loneer/SkillCg/SunExp/loneer.morning-star-prayer/content.png",
-        "fallbackImage": "CG/Role/SunExp_loneer_loneer/SkillCg/SunExp/loneer.morning-star-prayer/content.png"
+        "resource": "CG/Role/Terrias_loneer_loneer/SkillCg/Terrias/loneer.morning-star-prayer/content.png",
+        "fallbackImage": "CG/Role/Terrias_loneer_loneer/SkillCg/Terrias/loneer.morning-star-prayer/content.png"
       },
       "defaultPresentation": {
         "mode": "slide",
@@ -49,17 +49,17 @@
       "displayName": "WuNa - 白曜圣祷",
       "kind": "skill",
       "targetRoleIds": [
-        "SunExp_wuna_wuna",
+        "Terrias_wuna_wuna",
         "wuna"
       ],
       "cardIds": [
-        "SunExp_wuna_wuna_white_sun_prayer",
+        "Terrias_wuna_wuna_white_sun_prayer",
         "*wuna_white_sun_prayer"
       ],
       "media": {
         "type": "image",
-        "resource": "CG/Role/SunExp_wuna_wuna/SkillCg/SunExp/wuna.white-sun-prayer/content.png",
-        "fallbackImage": "CG/Role/SunExp_wuna_wuna/SkillCg/SunExp/wuna.white-sun-prayer/content.png"
+        "resource": "CG/Role/Terrias_wuna_wuna/SkillCg/Terrias/wuna.white-sun-prayer/content.png",
+        "fallbackImage": "CG/Role/Terrias_wuna_wuna/SkillCg/Terrias/wuna.white-sun-prayer/content.png"
       },
       "defaultPresentation": {
         "mode": "fullscreenFade",
@@ -87,17 +87,17 @@
       "displayName": "Columbina - 她的乡愁",
       "kind": "skill",
       "targetRoleIds": [
-        "SunExp_columbina_columbina",
+        "Terrias_columbina_columbina",
         "columbina"
       ],
       "cardIds": [
-        "SunExp_columbina_columbina_homesickness",
+        "Terrias_columbina_columbina_homesickness",
         "*columbina_homesickness"
       ],
       "media": {
         "type": "image",
-        "resource": "CG/Role/SunExp_columbina_columbina/SkillCg/SunExp/columbina.homesickness/content.png",
-        "fallbackImage": "CG/Role/SunExp_columbina_columbina/SkillCg/SunExp/columbina.homesickness/content.png"
+        "resource": "CG/Role/Terrias_columbina_columbina/SkillCg/Terrias/columbina.homesickness/content.png",
+        "fallbackImage": "CG/Role/Terrias_columbina_columbina/SkillCg/Terrias/columbina.homesickness/content.png"
       },
       "defaultPresentation": {
         "mode": "fullscreenFade",
@@ -121,22 +121,22 @@
       "enabled": true
     },
     {
-      "cgId": "sunexp.blazing-crown-collapse",
-      "displayName": "SunExp - 炽冕崩落",
+      "cgId": "terrias.blazing-crown-collapse",
+      "displayName": "Terrias - 炽冕崩落",
       "kind": "cardUse",
       "targetRoleIds": [
         "*"
       ],
       "cardIds": [
-        "SunExp_sunexp_blazing_crown_collapse",
+        "Terrias_terrias_blazing_crown_collapse",
         "*blazing_crown_collapse"
       ],
       "media": {
         "type": "sequence",
-        "resource": "CG/Card/SunExp_sunexp_blazing_crown_collapse/CardUse/SunExp/sunexp.blazing-crown-collapse/content",
-        "fallbackImage": "CG/Card/SunExp_sunexp_blazing_crown_collapse/CardUse/SunExp/sunexp.blazing-crown-collapse/content",
-        "bundlePath": "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
-        "bundleAssetPrefix": "Assets/SunExp/Visuals/CG/WuNa/BlazingCrownCollapse",
+        "resource": "CG/Card/Terrias_terrias_blazing_crown_collapse/CardUse/Terrias/terrias.blazing-crown-collapse/content",
+        "fallbackImage": "CG/Card/Terrias_terrias_blazing_crown_collapse/CardUse/Terrias/terrias.blazing-crown-collapse/content",
+        "bundlePath": "Mods/Terrias/ModResource/VisualBundles/terrias_visuals",
+        "bundleAssetPrefix": "Assets/Terrias/Visuals/CG/WuNa/BlazingCrownCollapse",
         "frameSeconds": 0.054054,
         "alphaMode": "blackKey",
         "keyThreshold": 0.02,
@@ -175,7 +175,7 @@
       "displayName": "Loneer - 美餐",
       "kind": "feast",
       "targetRoleIds": [
-        "SunExp_loneer_loneer",
+        "Terrias_loneer_loneer",
         "loneer"
       ],
       "cardIds": [
@@ -183,8 +183,8 @@
       ],
       "media": {
         "type": "image",
-        "resource": "CG/Role/SunExp_loneer_loneer/Feast/SunExp/loneer.feast/content.png",
-        "fallbackImage": "CG/Role/SunExp_loneer_loneer/Feast/SunExp/loneer.feast/content.png"
+        "resource": "CG/Role/Terrias_loneer_loneer/Feast/Terrias/loneer.feast/content.png",
+        "fallbackImage": "CG/Role/Terrias_loneer_loneer/Feast/Terrias/loneer.feast/content.png"
       },
       "defaultPresentation": {
         "mode": "fullscreenFade",
@@ -212,7 +212,7 @@
       "displayName": "WuNa - 美餐",
       "kind": "feast",
       "targetRoleIds": [
-        "SunExp_wuna_wuna",
+        "Terrias_wuna_wuna",
         "wuna"
       ],
       "cardIds": [
@@ -220,8 +220,8 @@
       ],
       "media": {
         "type": "image",
-        "resource": "CG/Role/SunExp_wuna_wuna/Feast/SunExp/wuna.feast/content.png",
-        "fallbackImage": "CG/Role/SunExp_wuna_wuna/Feast/SunExp/wuna.feast/content.png"
+        "resource": "CG/Role/Terrias_wuna_wuna/Feast/Terrias/wuna.feast/content.png",
+        "fallbackImage": "CG/Role/Terrias_wuna_wuna/Feast/Terrias/wuna.feast/content.png"
       },
       "defaultPresentation": {
         "mode": "fullscreenFade",
@@ -249,7 +249,7 @@
       "displayName": "Columbina - 美餐",
       "kind": "feast",
       "targetRoleIds": [
-        "SunExp_columbina_columbina",
+        "Terrias_columbina_columbina",
         "columbina"
       ],
       "cardIds": [
@@ -257,8 +257,8 @@
       ],
       "media": {
         "type": "image",
-        "resource": "CG/Role/SunExp_columbina_columbina/Feast/SunExp/columbina.feast/content.png",
-        "fallbackImage": "CG/Role/SunExp_columbina_columbina/Feast/SunExp/columbina.feast/content.png"
+        "resource": "CG/Role/Terrias_columbina_columbina/Feast/Terrias/columbina.feast/content.png",
+        "fallbackImage": "CG/Role/Terrias_columbina_columbina/Feast/Terrias/columbina.feast/content.png"
       },
       "defaultPresentation": {
         "mode": "fullscreenFade",

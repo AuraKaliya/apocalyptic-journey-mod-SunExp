@@ -2,18 +2,18 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AuraUi.Shared;
-using SunExp.Dll.Hooks;
-using SunExp.Dll.Hooks.Visual;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Hooks;
+using Terrias.Dll.Hooks.Visual;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace SunExp.Dll.Hooks.Ui;
+namespace Terrias.Dll.Hooks.Ui;
 
 public static class PolymorphRoleSelectionWindow
 {
-    private const string WindowName = "SunExp_PolymorphRoleSelection";
+    private const string WindowName = "Terrias_PolymorphRoleSelection";
     private const float RoleCardWidth = 142f;
     private const float RoleCardHeight = 188f;
     private const float RoleImageSize = 118f;
@@ -37,25 +37,25 @@ public static class PolymorphRoleSelectionWindow
         {
             Close("PolymorphRoleSelection.Open");
             request ??= PolymorphRoleSelectionRequest.Polymorph(self);
-            var parent = SunExpModalHost.ModalParent();
+            var parent = TerriasModalHost.ModalParent();
             if (parent == null)
             {
-                SunExpLog.Warn("[PolymorphRoleSelection] skipped: UI canvas unavailable.");
+                TerriasLog.Warn("[PolymorphRoleSelection] skipped: UI canvas unavailable.");
                 return false;
             }
 
             var roles = PolymorphRoleRegistry.AllRoles();
             if (roles.Count == 0)
             {
-                SunExpLog.Warn("[PolymorphRoleSelection] no registered roles.");
+                TerriasLog.Warn("[PolymorphRoleSelection] no registered roles.");
                 return false;
             }
 
-            activeRoot = SunExpModalHost.CreateFullscreenRoot(
+            activeRoot = TerriasModalHost.CreateFullscreenRoot(
                 WindowName,
                 parent,
                 new Color(0f, 0f, 0f, 0.72f));
-            SunExpTransientUiRegistry.Register("PolymorphRoleSelection", Close);
+            TerriasTransientUiRegistry.Register("PolymorphRoleSelection", Close);
 
             var window = CreateRect("Window", activeRoot.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f), ResolveWindowSize(parent));
             ApplyPanelImage(window.gameObject, WindowTint);
@@ -75,12 +75,12 @@ public static class PolymorphRoleSelectionWindow
             }
 
             CreateFooter(window.transform, request);
-            SunExpLog.Info("[" + request.LogPrefix + "] opened; roles=" + roles.Count);
+            TerriasLog.Info("[" + request.LogPrefix + "] opened; roles=" + roles.Count);
             return true;
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Failed to open role selection", ex);
+            TerriasLog.Error("Failed to open role selection", ex);
             Close("PolymorphRoleSelection.OpenFailed");
             return false;
         }
@@ -88,11 +88,11 @@ public static class PolymorphRoleSelectionWindow
 
     public static void Close(string source)
     {
-        SunExpUiPool.ReleaseOrDestroyChildren(roleListContent, "PolymorphRoleSelection.Close.RoleList", "[PolymorphRoleSelection]");
-        SunExpModalHost.Close(ref activeRoot, source, "[PolymorphRoleSelection]");
+        TerriasUiPool.ReleaseOrDestroyChildren(roleListContent, "PolymorphRoleSelection.Close.RoleList", "[PolymorphRoleSelection]");
+        TerriasModalHost.Close(ref activeRoot, source, "[PolymorphRoleSelection]");
         roleListContent = null;
         hintText = null;
-        SunExpTransientUiRegistry.Unregister("PolymorphRoleSelection");
+        TerriasTransientUiRegistry.Unregister("PolymorphRoleSelection");
     }
 
     private static void CreateHeader(Transform parent, int roleCount, PolymorphRoleSelectionRequest request)
@@ -164,7 +164,7 @@ public static class PolymorphRoleSelectionWindow
 
     private static void CreateRoleCard(Transform parent, ScriptExecutor executor, PolymorphRoleSpec role, int index, PolymorphRoleSelectionRequest request)
     {
-        var view = SunExpUiPool.AcquireComponent(
+        var view = TerriasUiPool.AcquireComponent(
             "PolymorphRoleSelection.RoleCard",
             parent,
             "Role-" + role.Id,
@@ -189,7 +189,7 @@ public static class PolymorphRoleSelectionWindow
 
     private static void ScheduleDeferredRoleImage(RoleCardView view, PolymorphRoleSpec role, int index)
     {
-        SunExpFrameScheduler.RunOnceNextFrame("PolymorphRoleSelection.RoleImage." + index, () =>
+        TerriasFrameScheduler.RunOnceNextFrame("PolymorphRoleSelection.RoleImage." + index, () =>
         {
             view.EnsureImage(role);
         });
@@ -219,7 +219,7 @@ public static class PolymorphRoleSelectionWindow
         imageElement.preferredHeight = RoleImageSize;
         imageElement.minWidth = RoleImageSize;
         imageElement.preferredWidth = RoleImageSize;
-        SunExpUiBuilder.ApplyPanelImage(imageHost, SunExpUiSprites.Panel("[PolymorphRoleSelection]"), new Color(0.02f, 0.02f, 0.035f, 0.92f));
+        TerriasUiBuilder.ApplyPanelImage(imageHost, TerriasUiSprites.Panel("[PolymorphRoleSelection]"), new Color(0.02f, 0.02f, 0.035f, 0.92f));
         var imageRect = CreateRect("RoleImage", imageHost.transform, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
         imageRect.offsetMin = new Vector2(4f, 4f);
         imageRect.offsetMax = new Vector2(-4f, -4f);
@@ -247,7 +247,7 @@ public static class PolymorphRoleSelectionWindow
         element.minHeight = size.y;
         element.preferredHeight = size.y;
         var image = go.AddComponent<Image>();
-        image.sprite = SunExpUiSprites.Button("[PolymorphRoleSelection]");
+        image.sprite = TerriasUiSprites.Button("[PolymorphRoleSelection]");
         image.type = image.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
         image.color = image.sprite != null ? Color.white : new Color(0.08f, 0.075f, 0.12f, 0.98f);
         var button = go.AddComponent<Button>();
@@ -259,7 +259,7 @@ public static class PolymorphRoleSelectionWindow
 
     private static Image ApplyPanelImage(GameObject go, Color fallbackOrTint)
     {
-        return SunExpUiBuilder.ApplyPanelImage(go, SunExpUiSprites.Panel("[PolymorphRoleSelection]"), fallbackOrTint);
+        return TerriasUiBuilder.ApplyPanelImage(go, TerriasUiSprites.Panel("[PolymorphRoleSelection]"), fallbackOrTint);
     }
 
     private static Text AddTextBlock(Transform parent, string value, int fontSize, TextAnchor anchor, Color color, float preferredHeight, float flexibleWidth = 0f)
@@ -284,17 +284,17 @@ public static class PolymorphRoleSelectionWindow
 
     private static Text ConfigureText(GameObject go, string value, int fontSize, TextAnchor anchor, Color color)
     {
-        return SunExpUiComponents.ConfigureText(go, value, fontSize, anchor, color);
+        return TerriasUiComponents.ConfigureText(go, value, fontSize, anchor, color);
     }
 
     private static GameObject CreateLayoutObject(string name, Transform parent)
     {
-        return SunExpUiComponents.CreateLayoutObject(name, parent);
+        return TerriasUiComponents.CreateLayoutObject(name, parent);
     }
 
     private static RectTransform CreateRect(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 sizeDelta)
     {
-        return SunExpUiComponents.CreateRectTransform(name, parent, anchorMin, anchorMax, pivot, sizeDelta);
+        return TerriasUiComponents.CreateRectTransform(name, parent, anchorMin, anchorMax, pivot, sizeDelta);
     }
 
     private static Vector2 ResolveWindowSize(Transform parent)
@@ -320,9 +320,9 @@ public static class PolymorphRoleSelectionWindow
         return 6;
     }
 
-    private sealed class RoleCardView : SunExpPooledUiBehaviour
+    private sealed class RoleCardView : TerriasPooledUiBehaviour
     {
-        private readonly SunExpUiLifetimeScope lifetime = new();
+        private readonly TerriasUiLifetimeScope lifetime = new();
         private Image? image;
         private Text? nameText;
         private Text? lockText;

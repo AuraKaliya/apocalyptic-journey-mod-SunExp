@@ -1,23 +1,23 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class EndlessSeaFloorPlanner
 {
     public static EndlessSeaFloorPlan Create(MapTree tree, int floor)
     {
         var normalizedFloor = Math.Max(1, floor);
-        var slots = new List<EndlessSeaSlotPlan>(SunExpIds.EndlessSeaNativeDefaultNodeCount);
+        var slots = new List<EndlessSeaSlotPlan>(TerriasIds.EndlessSeaNativeDefaultNodeCount);
         var startNode = EndlessSeaNodePoolService.CreateNode(
             tree,
             normalizedFloor,
-            SunExpIds.EndlessSeaStartSlotIndex,
+            TerriasIds.EndlessSeaStartSlotIndex,
             EndlessSeaNodeKind.Monster);
         var startSlot = EndlessSeaSlotPlan.FromNode(
-            SunExpIds.EndlessSeaStartSlotIndex,
+            TerriasIds.EndlessSeaStartSlotIndex,
             EndlessSeaNodeKind.Monster,
             startNode);
         startSlot.Locked = true;
@@ -29,10 +29,10 @@ public static class EndlessSeaFloorPlanner
         var bossNode = EndlessSeaNodePoolService.CreateNode(
             tree,
             normalizedFloor,
-            SunExpIds.EndlessSeaBossSlotIndex,
+            TerriasIds.EndlessSeaBossSlotIndex,
             bossKind);
         slots.Add(EndlessSeaSlotPlan.FromNode(
-            SunExpIds.EndlessSeaBossSlotIndex,
+            TerriasIds.EndlessSeaBossSlotIndex,
             bossKind,
             bossNode));
 

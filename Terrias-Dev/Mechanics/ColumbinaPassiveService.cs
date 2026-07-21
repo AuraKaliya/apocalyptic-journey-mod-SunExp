@@ -1,6 +1,6 @@
-using SunExp.Dll.GameApi;
+using Terrias.Dll.GameApi;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class ColumbinaPassiveService
 {

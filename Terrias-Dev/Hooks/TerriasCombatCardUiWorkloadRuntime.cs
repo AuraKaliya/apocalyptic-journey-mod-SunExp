@@ -1,66 +1,66 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
-public static class SunExpCombatCardUiWorkloadRuntime
+public static class TerriasCombatCardUiWorkloadRuntime
 {
     private const double SlowMethodWarningMilliseconds = 16.0;
     [ThreadStatic] private static Stack<StartEntry>? starts;
 
     public static void Initialize(ModConfig modConfig)
     {
-        if (!SunExpPerformanceSettings.CountersEnabled)
+        if (!TerriasPerformanceSettings.CountersEnabled)
         {
-            SunExpLog.Info("Combat card UI workload diagnostics disabled");
+            TerriasLog.Info("Combat card UI workload diagnostics disabled");
             return;
         }
 
-        RegisterMeasured(modConfig, SunExpHookTargets.FightUiCreateCardItem);
-        RegisterMeasured(modConfig, SunExpHookTargets.FightUiCreateCardItemInternal);
-        RegisterMeasured(modConfig, SunExpHookTargets.FightUiUpdateCardMsg);
+        RegisterMeasured(modConfig, TerriasHookTargets.FightUiCreateCardItem);
+        RegisterMeasured(modConfig, TerriasHookTargets.FightUiCreateCardItemInternal);
+        RegisterMeasured(modConfig, TerriasHookTargets.FightUiUpdateCardMsg);
         RegisterMeasured(modConfig, "FightUI.UpdateCardItemPos");
-        RegisterMeasured(modConfig, SunExpHookTargets.ICardSetCardStyle);
-        RegisterMeasured(modConfig, SunExpHookTargets.ICardSetCardMsg);
-        RegisterMeasured(modConfig, SunExpHookTargets.ScriptExecutorRunScript);
-        RegisterMeasured(modConfig, SunExpHookTargets.LocalizeExDescription);
-        RegisterMeasured(modConfig, SunExpHookTargets.TextTranslatorTranslate);
-        RegisterMeasured(modConfig, SunExpHookTargets.CardItemInit);
-        RegisterMeasured(modConfig, SunExpHookTargets.AttackCardItemInit);
-        RegisterMeasured(modConfig, SunExpHookTargets.CardItemDataUpdate);
-        RegisterMeasured(modConfig, SunExpHookTargets.AttackCardItemDataUpdate);
-        RegisterMeasured(modConfig, SunExpHookTargets.CardItemDrawEffect);
-        RegisterMeasured(modConfig, SunExpHookTargets.CommonCardItemDrawEffect);
-        RegisterMeasured(modConfig, SunExpHookTargets.AttackCardItemDrawEffect);
-        RegisterMeasured(modConfig, SunExpHookTargets.FightCardManagerCardTagCheck);
+        RegisterMeasured(modConfig, TerriasHookTargets.ICardSetCardStyle);
+        RegisterMeasured(modConfig, TerriasHookTargets.ICardSetCardMsg);
+        RegisterMeasured(modConfig, TerriasHookTargets.ScriptExecutorRunScript);
+        RegisterMeasured(modConfig, TerriasHookTargets.LocalizeExDescription);
+        RegisterMeasured(modConfig, TerriasHookTargets.TextTranslatorTranslate);
+        RegisterMeasured(modConfig, TerriasHookTargets.CardItemInit);
+        RegisterMeasured(modConfig, TerriasHookTargets.AttackCardItemInit);
+        RegisterMeasured(modConfig, TerriasHookTargets.CardItemDataUpdate);
+        RegisterMeasured(modConfig, TerriasHookTargets.AttackCardItemDataUpdate);
+        RegisterMeasured(modConfig, TerriasHookTargets.CardItemDrawEffect);
+        RegisterMeasured(modConfig, TerriasHookTargets.CommonCardItemDrawEffect);
+        RegisterMeasured(modConfig, TerriasHookTargets.AttackCardItemDrawEffect);
+        RegisterMeasured(modConfig, TerriasHookTargets.FightCardManagerCardTagCheck);
         RegisterRefreshCauses(modConfig);
-        SunExpLog.InfoAlways("Combat card UI workload diagnostics initialized");
+        TerriasLog.InfoAlways("Combat card UI workload diagnostics initialized");
     }
 
     private static void RegisterMeasured(ModConfig config, string target)
     {
-        SunExpHookRegistry.Before(config, target, context => Begin(target, context), "CombatCardUiWorkload");
-        SunExpHookRegistry.After(config, target, context => End(target, context), "CombatCardUiWorkload");
+        TerriasHookRegistry.Before(config, target, context => Begin(target, context), "CombatCardUiWorkload");
+        TerriasHookRegistry.After(config, target, context => End(target, context), "CombatCardUiWorkload");
     }
 
     private static void Begin(string target, ModHookContext context)
     {
         var key = CounterKey(target);
-        if (string.Equals(target, SunExpHookTargets.FightUiUpdateCardMsg, StringComparison.Ordinal))
+        if (string.Equals(target, TerriasHookTargets.FightUiUpdateCardMsg, StringComparison.Ordinal))
         {
-            SunExpCombatCardUiDiagnostics.BeginRefreshBatch(context);
+            TerriasCombatCardUiDiagnostics.BeginRefreshBatch(context);
         }
 
-        SunExpPerformanceCounters.Record("CombatCardUi." + key + ".Before");
-        SunExpCombatUiWorkload.Begin(target);
-        SunExpCombatCardUiDiagnostics.Begin(key, context);
-        PushStart(key, SunExpPerformanceCounters.Timestamp());
-        SunExpLog.InfoOnceAlways(
+        TerriasPerformanceCounters.Record("CombatCardUi." + key + ".Before");
+        TerriasCombatUiWorkload.Begin(target);
+        TerriasCombatCardUiDiagnostics.Begin(key, context);
+        PushStart(key, TerriasPerformanceCounters.Timestamp());
+        TerriasLog.InfoOnceAlways(
             "CombatCardUiWorkload." + key,
             "Combat card UI hook observed: target="
             + target
@@ -74,31 +74,31 @@ public static class SunExpCombatCardUiWorkloadRuntime
     {
         var key = CounterKey(target);
         var start = PopStart(key);
-        SunExpCombatUiWorkload.End(target);
-        SunExpPerformanceCounters.RecordDuration("CombatCardUi." + key, start);
-        var elapsed = start <= 0L ? 0d : SunExpPerformanceCounters.ElapsedMilliseconds(start);
-        var segmentSummary = SunExpCombatCardUiDiagnostics.End(key, elapsed);
-        if (string.Equals(target, SunExpHookTargets.FightUiCreateCardItemInternal, StringComparison.Ordinal))
+        TerriasCombatUiWorkload.End(target);
+        TerriasPerformanceCounters.RecordDuration("CombatCardUi." + key, start);
+        var elapsed = start <= 0L ? 0d : TerriasPerformanceCounters.ElapsedMilliseconds(start);
+        var segmentSummary = TerriasCombatCardUiDiagnostics.End(key, elapsed);
+        if (string.Equals(target, TerriasHookTargets.FightUiCreateCardItemInternal, StringComparison.Ordinal))
         {
             segmentSummary += CombatCardViewConstructionDiagnostics.FormatRecent();
         }
-        if (string.Equals(target, SunExpHookTargets.CardItemDataUpdate, StringComparison.Ordinal)
-            || string.Equals(target, SunExpHookTargets.AttackCardItemDataUpdate, StringComparison.Ordinal))
+        if (string.Equals(target, TerriasHookTargets.CardItemDataUpdate, StringComparison.Ordinal)
+            || string.Equals(target, TerriasHookTargets.AttackCardItemDataUpdate, StringComparison.Ordinal))
         {
-            SunExpCombatCardUiDiagnostics.RecordRefreshCard(context, elapsed);
+            TerriasCombatCardUiDiagnostics.RecordRefreshCard(context, elapsed);
         }
-        else if (string.Equals(target, SunExpHookTargets.FightUiUpdateCardMsg, StringComparison.Ordinal))
+        else if (string.Equals(target, TerriasHookTargets.FightUiUpdateCardMsg, StringComparison.Ordinal))
         {
-            segmentSummary += SunExpCombatCardUiDiagnostics.EndRefreshBatch(elapsed);
+            segmentSummary += TerriasCombatCardUiDiagnostics.EndRefreshBatch(elapsed);
         }
-        if (start <= 0L || !SunExpPerformanceSettings.CountersEnabled)
+        if (start <= 0L || !TerriasPerformanceSettings.CountersEnabled)
         {
             return;
         }
 
         if (elapsed >= SlowMethodWarningMilliseconds)
         {
-            SunExpLog.Warn("Slow combat card UI method: target="
+            TerriasLog.Warn("Slow combat card UI method: target="
                 + target
                 + ", elapsedMs="
                 + elapsed.ToString("0.###")
@@ -112,35 +112,35 @@ public static class SunExpCombatCardUiWorkloadRuntime
 
     private static void RegisterRefreshCauses(ModConfig config)
     {
-        SunExpHookRegistry.Before(
+        TerriasHookRegistry.Before(
             config,
-            SunExpHookTargets.BuffItemConfigSetLevel,
-            SunExpCombatCardUiDiagnostics.BeginBuffLevelChange,
+            TerriasHookTargets.BuffItemConfigSetLevel,
+            TerriasCombatCardUiDiagnostics.BeginBuffLevelChange,
             "CombatCardUiRefreshCause");
-        SunExpHookRegistry.After(
+        TerriasHookRegistry.After(
             config,
-            SunExpHookTargets.BuffItemConfigSetLevel,
-            SunExpCombatCardUiDiagnostics.EndBuffLevelChange,
+            TerriasHookTargets.BuffItemConfigSetLevel,
+            TerriasCombatCardUiDiagnostics.EndBuffLevelChange,
             "CombatCardUiRefreshCause");
-        SunExpHookRegistry.After(
+        TerriasHookRegistry.After(
             config,
-            SunExpHookTargets.StatusManagerAddBuff,
-            context => SunExpCombatCardUiDiagnostics.RecordBuffMutation("add", context),
+            TerriasHookTargets.StatusManagerAddBuff,
+            context => TerriasCombatCardUiDiagnostics.RecordBuffMutation("add", context),
             "CombatCardUiRefreshCause");
-        SunExpHookRegistry.After(
+        TerriasHookRegistry.After(
             config,
-            SunExpHookTargets.StatusManagerRemoveBuff,
-            context => SunExpCombatCardUiDiagnostics.RecordBuffMutation("remove", context),
+            TerriasHookTargets.StatusManagerRemoveBuff,
+            context => TerriasCombatCardUiDiagnostics.RecordBuffMutation("remove", context),
             "CombatCardUiRefreshCause");
-        SunExpHookRegistry.After(
+        TerriasHookRegistry.After(
             config,
-            SunExpHookTargets.FightPlayerTurnInit,
-            context => SunExpCombatCardUiDiagnostics.RecordRefreshCause("player-turn"),
+            TerriasHookTargets.FightPlayerTurnInit,
+            context => TerriasCombatCardUiDiagnostics.RecordRefreshCause("player-turn"),
             "CombatCardUiRefreshCause");
-        SunExpHookRegistry.After(
+        TerriasHookRegistry.After(
             config,
-            SunExpHookTargets.BuffBarUiCheckAllBuff,
-            context => SunExpCombatCardUiDiagnostics.RecordRefreshCause("buff-bar-check"),
+            TerriasHookTargets.BuffBarUiCheckAllBuff,
+            context => TerriasCombatCardUiDiagnostics.RecordRefreshCause("buff-bar-check"),
             "CombatCardUiRefreshCause");
     }
 
@@ -165,7 +165,7 @@ public static class SunExpCombatCardUiWorkloadRuntime
         var entry = starts.Pop();
         if (!string.Equals(entry.Key, key, StringComparison.Ordinal))
         {
-            SunExpPerformanceCounters.Record("CombatCardUi.Workload.StackMismatch");
+            TerriasPerformanceCounters.Record("CombatCardUi.Workload.StackMismatch");
         }
 
         return entry.Start;

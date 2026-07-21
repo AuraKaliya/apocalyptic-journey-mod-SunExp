@@ -1,6 +1,6 @@
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class ProjectionStrategyService
 {
@@ -32,7 +32,7 @@ public static class ProjectionStrategyService
     private static string NormalizeActionId(string actionId)
     {
         return string.IsNullOrWhiteSpace(actionId)
-            ? SunExpIds.ProjectionActionStaffTap
+            ? TerriasIds.ProjectionActionStaffTap
             : actionId.Trim();
     }
 }

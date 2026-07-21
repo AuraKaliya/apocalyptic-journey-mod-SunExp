@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch;
 using Witch.Core;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public sealed class EndlessSeaFloorPlan
 {
@@ -18,12 +18,12 @@ public sealed class EndlessSeaFloorPlan
     public bool IsValid =>
         Floor > 0
         && Slots.Count == 2
-        && TryGetSlot(SunExpIds.EndlessSeaStartSlotIndex, out var start)
+        && TryGetSlot(TerriasIds.EndlessSeaStartSlotIndex, out var start)
         && start.Kind == EndlessSeaNodeKind.Monster
-        && TryGetSlot(SunExpIds.EndlessSeaBossSlotIndex, out var boss)
+        && TryGetSlot(TerriasIds.EndlessSeaBossSlotIndex, out var boss)
         && IsBossKind(boss.Kind)
-        && Slots.All(slot => slot.VisualSlot == SunExpIds.EndlessSeaStartSlotIndex
-            || slot.VisualSlot == SunExpIds.EndlessSeaBossSlotIndex);
+        && Slots.All(slot => slot.VisualSlot == TerriasIds.EndlessSeaStartSlotIndex
+            || slot.VisualSlot == TerriasIds.EndlessSeaBossSlotIndex);
 
     private static bool IsBossKind(EndlessSeaNodeKind kind)
     {
@@ -38,8 +38,8 @@ public sealed class EndlessSeaFloorPlan
 
     public IEnumerable<int> FixedSlots()
     {
-        yield return SunExpIds.EndlessSeaStartSlotIndex;
-        yield return SunExpIds.EndlessSeaBossSlotIndex;
+        yield return TerriasIds.EndlessSeaStartSlotIndex;
+        yield return TerriasIds.EndlessSeaBossSlotIndex;
     }
 
     public IEnumerable<string> Summaries()
@@ -89,16 +89,16 @@ public sealed class EndlessSeaSlotPlan
         var data = node.data == null
             ? new Dictionary<string, string>(StringComparer.Ordinal)
             : new Dictionary<string, string>(node.data, StringComparer.Ordinal);
-        data[SunExpIds.EndlessSeaNodeSlotKey] = Math.Max(0, visualSlot).ToString();
-        data[SunExpIds.EndlessSeaNodeKindKey] = kind.ToString();
-        data[SunExpIds.EndlessSeaNodeLockedKey] = IsBossKind(kind) ? "1" : "0";
+        data[TerriasIds.EndlessSeaNodeSlotKey] = Math.Max(0, visualSlot).ToString();
+        data[TerriasIds.EndlessSeaNodeKindKey] = kind.ToString();
+        data[TerriasIds.EndlessSeaNodeLockedKey] = IsBossKind(kind) ? "1" : "0";
 
         return new EndlessSeaSlotPlan
         {
             VisualSlot = visualSlot,
             Kind = kind,
             Locked = IsBossKind(kind),
-            Source = DictionaryUtil.Get(data, SunExpIds.EndlessSeaNodePoolSourceKey),
+            Source = DictionaryUtil.Get(data, TerriasIds.EndlessSeaNodePoolSourceKey),
             Data = data
         };
     }
@@ -136,9 +136,9 @@ public sealed class EndlessSeaSlotPlan
         }
 
         Data["Type"] = IsSafeNodeKind(Kind) ? "Build" : "Fight";
-        Data[SunExpIds.EndlessSeaNodeSlotKey] = Math.Max(0, VisualSlot).ToString();
-        Data[SunExpIds.EndlessSeaNodeKindKey] = Kind.ToString();
-        Data[SunExpIds.EndlessSeaNodeLockedKey] = Locked ? "1" : "0";
+        Data[TerriasIds.EndlessSeaNodeSlotKey] = Math.Max(0, VisualSlot).ToString();
+        Data[TerriasIds.EndlessSeaNodeKindKey] = Kind.ToString();
+        Data[TerriasIds.EndlessSeaNodeLockedKey] = Locked ? "1" : "0";
     }
 
     private static bool IsSafeNodeKind(EndlessSeaNodeKind kind)

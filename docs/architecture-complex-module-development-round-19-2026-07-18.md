@@ -144,9 +144,9 @@ Runtime 从第十八轮的 1074 行降至 1037 行。`AudioHookAdapter` 为 192 
 - Aura.Shared：1228 项公共 API 兼容基线通过；
 - AuraDirector：20 项断言通过；
 - AuraToolsExp：635 项断言通过；
-- SunExp：架构检查、282 项 C# 断言与内容验证通过；
+- Terrias：架构检查、282 项 C# 断言与内容验证通过；
 - shared write、content/tool/shared、RPC authority 与架构门禁通过；
-- SunExp、SanGuoShaExp、AuraToolsExp 三个消费者均以 0 警告、0 错误构建；
+- Terrias、SanGuoShaExp、AuraToolsExp 三个消费者均以 0 警告、0 错误构建；
 - 完整共享发布矩阵与 DLL 打包检查通过；
 - 构建产物与三个打包副本 SHA-256 一致：`B0227893B87C2037C922F90A8EA056C31A1BA61B0E2DC6DF294D323B6E788990`。
 

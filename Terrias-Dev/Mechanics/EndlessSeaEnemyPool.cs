@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch;
 using Witch.Core;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class EndlessSeaEnemyPool
 {
@@ -56,7 +56,7 @@ public static class EndlessSeaEnemyPool
     private static bool LevelContainsAny(Dictionary<string, string> mapRow, IReadOnlyList<string> enemyIds)
     {
         var levelId = DictionaryUtil.Get(mapRow, "NodeId");
-        var level = SunExpConfigIndex.Row(DataType.Level, levelId);
+        var level = TerriasConfigIndex.Row(DataType.Level, levelId);
         if (level == null)
         {
             return false;
@@ -69,7 +69,7 @@ public static class EndlessSeaEnemyPool
     private static string? PickExistingEnemy(IReadOnlyList<string> ids)
     {
         var existing = ids
-            .Where(id => SunExpConfigIndex.Row(DataType.Enemy, id) != null)
+            .Where(id => TerriasConfigIndex.Row(DataType.Enemy, id) != null)
             .ToList();
         if (existing.Count == 0)
         {

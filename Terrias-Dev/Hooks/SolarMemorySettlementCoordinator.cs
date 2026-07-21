@@ -1,11 +1,11 @@
 using System;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch;
 using Witch.Core;
 using Witch.Mod;
 using Witch.UI;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class SolarMemorySettlementCoordinator
 {
@@ -14,12 +14,12 @@ public static class SolarMemorySettlementCoordinator
 
     public static void Initialize(ModConfig modConfig)
     {
-        SunExpHookRegistry.Before(
+        TerriasHookRegistry.Before(
             modConfig,
             "NormalMapManager.MapItemInit",
             SettleLegacyTerminalLevelBeforeMapItems,
             HookOwner);
-        SunExpHookRegistry.Before(
+        TerriasHookRegistry.Before(
             modConfig,
             "NormalMapManager.ReadyToChangeMap",
             FinishSolarMemoryAfterFinalLayer,
@@ -54,11 +54,11 @@ public static class SolarMemorySettlementCoordinator
 
             if (SolarMemoryBossTransitionCoordinator.IsSettlementPending)
             {
-                SunExpLog.Info("[SolarMemoryStory] deferred final-layer settlement while story dialogue is pending.");
+                TerriasLog.Info("[SolarMemoryStory] deferred final-layer settlement while story dialogue is pending.");
                 return;
             }
 
-            if (manager.Level < SunExpIds.SolarMemoryMaxLayer * 6)
+            if (manager.Level < TerriasIds.SolarMemoryMaxLayer * 6)
             {
                 return;
             }
@@ -67,7 +67,7 @@ public static class SolarMemorySettlementCoordinator
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory settlement failed", ex);
+            TerriasLog.Error("Solar memory settlement failed", ex);
         }
     }
 
@@ -84,26 +84,26 @@ public static class SolarMemorySettlementCoordinator
 
             if (SolarMemoryBossTransitionCoordinator.IsSettlementPending)
             {
-                SunExpLog.Info("[SolarMemoryStory] deferred legacy terminal settlement while story dialogue is pending.");
+                TerriasLog.Info("[SolarMemoryStory] deferred legacy terminal settlement while story dialogue is pending.");
                 return;
             }
 
             RouteToNativeSettlement(
                 manager,
                 "NormalMapManager.MapItemInit",
-                SunExpIds.SolarMemoryMaxLayer * 6);
+                TerriasIds.SolarMemoryMaxLayer * 6);
             ShowSolarMemorySettlement();
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory legacy terminal-level settlement failed", ex);
+            TerriasLog.Error("Solar memory legacy terminal-level settlement failed", ex);
         }
     }
 
     private static void RouteToNativeSettlement(NormalMapManager manager, string source, int levelForNativeFlow)
     {
         manager.Level = levelForNativeFlow;
-        SunExpLog.Info("[SolarMemory] third layer complete from "
+        TerriasLog.Info("[SolarMemory] third layer complete from "
             + source
             + "; routing directly to settlement at native level "
             + levelForNativeFlow

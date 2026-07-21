@@ -7,7 +7,7 @@ using AuraShared.Core;
 using AuraUi.Shared;
 using Data.Save;
 using Mirror;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using UnityEngine;
 using UnityEngine.Events;
 using Witch;
@@ -15,7 +15,7 @@ using Witch.Core;
 using Witch.UI;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class DimensionShopGameApi
 {
@@ -65,7 +65,7 @@ public static class DimensionShopGameApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[DimensionShopGameApi] truth spend failed: " + ex.Message);
+            TerriasLog.Warn("[DimensionShopGameApi] truth spend failed: " + ex.Message);
             return false;
         }
     }
@@ -87,7 +87,7 @@ public static class DimensionShopGameApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[DimensionShopGameApi] truth refund failed", ex);
+            TerriasLog.Error("[DimensionShopGameApi] truth refund failed", ex);
         }
     }
 
@@ -123,7 +123,7 @@ public static class DimensionShopGameApi
                     Definition = handle,
                     Context = new AuraGameMutationContext
                     {
-                        RequesterModId = SunExpIds.ModId,
+                        RequesterModId = TerriasIds.ModId,
                         Source = "DimensionShop.Card",
                         Authoritative = true
                     }
@@ -134,7 +134,7 @@ public static class DimensionShopGameApi
         catch (Exception ex)
         {
             error = ex.Message;
-            SunExpLog.Warn("[DimensionShopGameApi] card grant failed: " + ex.Message);
+            TerriasLog.Warn("[DimensionShopGameApi] card grant failed: " + ex.Message);
             return false;
         }
     }
@@ -165,7 +165,7 @@ public static class DimensionShopGameApi
                     PreferEquippedSlot = false,
                     Context = new AuraGameMutationContext
                     {
-                        RequesterModId = SunExpIds.ModId,
+                        RequesterModId = TerriasIds.ModId,
                         Source = "DimensionShop.Relic",
                         Authoritative = true
                     }
@@ -176,7 +176,7 @@ public static class DimensionShopGameApi
         catch (Exception ex)
         {
             error = ex.Message;
-            SunExpLog.Warn("[DimensionShopGameApi] relic grant failed: " + ex.Message);
+            TerriasLog.Warn("[DimensionShopGameApi] relic grant failed: " + ex.Message);
             return false;
         }
     }
@@ -226,7 +226,7 @@ public static class DimensionShopGameApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[DimensionShopGameApi] map UI close failed: " + ex.Message);
+            TerriasLog.Warn("[DimensionShopGameApi] map UI close failed: " + ex.Message);
         }
     }
 
@@ -246,18 +246,18 @@ public static class DimensionShopGameApi
     {
         try
         {
-            return SunExpResourceCache.Load<Sprite>(
+            return TerriasResourceCache.Load<Sprite>(
                 TruthCurrencyResourcePath,
                 loadFromMod: false,
                 category: "dimension.shop.truth.currency")
-                   ?? SunExpResourceCache.Load<Sprite>(
+                   ?? TerriasResourceCache.Load<Sprite>(
                        TruthCurrencyFallbackResourcePath,
                        loadFromMod: false,
                        category: "dimension.shop.truth.currency.fallback");
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[DimensionShopGameApi] truth currency icon lookup failed: " + ex.Message);
+            TerriasLog.Warn("[DimensionShopGameApi] truth currency icon lookup failed: " + ex.Message);
             return null;
         }
     }
@@ -278,7 +278,7 @@ public static class DimensionShopGameApi
                     window.transform,
                     out var canvasDiagnostic))
             {
-                SunExpLog.Warn("[DimensionShopGameApi] card sell menu rejected because its native Floating Window is on a different Canvas: "
+                TerriasLog.Warn("[DimensionShopGameApi] card sell menu rejected because its native Floating Window is on a different Canvas: "
                                + canvasDiagnostic
                                + ".");
                 return false;
@@ -297,7 +297,7 @@ public static class DimensionShopGameApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[DimensionShopGameApi] card sell menu failed: " + ex.Message);
+            TerriasLog.Warn("[DimensionShopGameApi] card sell menu failed: " + ex.Message);
             return false;
         }
     }
@@ -324,7 +324,7 @@ public static class DimensionShopGameApi
                     window.transform,
                     out var canvasDiagnostic))
             {
-                SunExpLog.Warn("[DimensionShopGameApi] relic action menu rejected because its native Floating Window is on a different Canvas: "
+                TerriasLog.Warn("[DimensionShopGameApi] relic action menu rejected because its native Floating Window is on a different Canvas: "
                                + canvasDiagnostic
                                + ".");
                 return false;
@@ -348,7 +348,7 @@ public static class DimensionShopGameApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[DimensionShopGameApi] relic action menu failed: " + ex.Message);
+            TerriasLog.Warn("[DimensionShopGameApi] relic action menu failed: " + ex.Message);
             return false;
         }
     }
@@ -361,7 +361,7 @@ public static class DimensionShopGameApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[DimensionShopGameApi] floating window hide failed: " + ex.Message);
+            TerriasLog.Warn("[DimensionShopGameApi] floating window hide failed: " + ex.Message);
         }
     }
 
@@ -373,7 +373,7 @@ public static class DimensionShopGameApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[DimensionShopGameApi] tooltip hide failed: " + ex.Message);
+            TerriasLog.Warn("[DimensionShopGameApi] tooltip hide failed: " + ex.Message);
         }
     }
 
@@ -392,7 +392,7 @@ public static class DimensionShopGameApi
     {
         AuraSharedFrameScheduler.RunOnceAfterFrames(new AuraSharedFrameActionRequest
         {
-            OwnerId = "SunExp.DimensionShop",
+            OwnerId = "Terrias.DimensionShop",
             Key = "native-overlay-visibility-" + kind,
             Source = "DimensionShop.NativeOverlay." + kind,
             DelayFrames = 6,
@@ -402,7 +402,7 @@ public static class DimensionShopGameApi
                 var overlay = resolveOverlay();
                 if (AuraUiNativeOverlayVisibility.IsVisibleAbove(anchor, overlay, out var diagnostic))
                 {
-                    SunExpLog.InfoOnceAlways(
+                    TerriasLog.InfoOnceAlways(
                         "dimension-shop-native-overlay-visible-" + kind,
                         "[DimensionShop] native overlay verified visible: kind="
                         + kind
@@ -412,7 +412,7 @@ public static class DimensionShopGameApi
                     return;
                 }
 
-                SunExpLog.WarnOnce(
+                TerriasLog.WarnOnce(
                     "dimension-shop-native-overlay-not-visible-" + kind,
                     "[DimensionShop] native overlay was invoked but not verified visible: kind="
                     + kind
@@ -441,7 +441,7 @@ public static class DimensionShopGameApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[DimensionShopGameApi] native break fallback cleanup failed: " + ex.Message);
+            TerriasLog.Warn("[DimensionShopGameApi] native break fallback cleanup failed: " + ex.Message);
         }
     }
 
@@ -453,7 +453,7 @@ public static class DimensionShopGameApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[DimensionShopGameApi] map advance failed", ex);
+            TerriasLog.Error("[DimensionShopGameApi] map advance failed", ex);
         }
     }
 
@@ -533,7 +533,7 @@ public static class DimensionShopGameApi
 
         if (shouldLog)
         {
-            SunExpLog.Warn("[DimensionShopGameApi] role persist deferred from "
+            TerriasLog.Warn("[DimensionShopGameApi] role persist deferred from "
                            + source
                            + ": "
                            + reason

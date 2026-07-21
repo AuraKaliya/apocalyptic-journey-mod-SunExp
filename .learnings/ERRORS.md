@@ -1,5 +1,33 @@
 # Errors
 
+## [ERR-20260721-002] workspace-root-rename-lock
+
+**Logged**: 2026-07-21T16:05:00+08:00
+**Priority**: low
+**Status**: blocked
+**Area**: tooling
+
+### Summary
+The local repository root could not be renamed while the Codex desktop task held an open workspace handle.
+
+### Error
+```text
+The process cannot access the file because it is being used by another process.
+```
+
+### Context
+- The source and destination were resolved and the destination did not exist.
+- Repository content, tracked paths, and shipped artifacts were already renamed; only the outer workspace folder remains locked.
+
+### Suggested Fix
+Close or reopen the Codex workspace, then rename the repository root from its parent directory before the next development session.
+
+### Metadata
+- Reproducible: yes
+- Related Files: repository root
+
+---
+
 ## [ERR-20260706-001] skill-creator-init-interface-length
 
 **Logged**: 2026-07-06T11:20:00+08:00
@@ -17,7 +45,7 @@
 ```
 
 ### Context
-- Command attempted: `skill-creator/scripts/init_skill.py sunexp-poster-design`
+- Command attempted: `skill-creator/scripts/init_skill.py terrias-poster-design`
   with `--interface short_description=...`.
 - The skill folder and `SKILL.md` were created before the metadata step failed.
 
@@ -27,7 +55,39 @@ Use a 25-64 character `short_description`, then run
 
 ### Metadata
 - Reproducible: yes
-- Related Files: .codex/skills/sunexp-poster-design/agents/openai.yaml
+- Related Files: .codex/skills/terrias-poster-design/agents/openai.yaml
+
+---
+
+## [ERR-20260721-001] renamed-test-binary-invocation
+
+**Logged**: 2026-07-21T15:38:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+An assumed renamed test executable was invoked directly before the renamed test project had been built.
+
+### Error
+```text
+The module 'Terrias-Dev.ElementalTests' could not be loaded.
+```
+
+### Context
+- Attempted to run `Terrias-Dev.ElementalTests\bin\Release\net8.0\Terrias-Dev.ElementalTests.exe` in parallel with the architecture gate.
+- The repository already provides build-aware PowerShell test entry points, so the direct binary path was unnecessary.
+
+### Suggested Fix
+Use the renamed repository test scripts or `dotnet run --project` after confirming the project target framework instead of assuming an existing binary path.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Test-TerriasElemental.ps1
+
+### Resolution
+- **Resolved**: 2026-07-21T15:39:00+08:00
+- **Notes**: Continued with the repository-owned Terrias test scripts and serial DLL-writing gates.
 
 ---
 
@@ -60,7 +120,7 @@ Validate pure shared sources against the real Aura.Shared target immediately aft
 
 ---
 
-## [ERR-20260716-006] sunexp-toolbar-button-namespace
+## [ERR-20260716-006] terrias-toolbar-button-namespace
 
 **Logged**: 2026-07-16T18:30:00+08:00
 **Priority**: low
@@ -68,7 +128,7 @@ Validate pure shared sources against the real Aura.Shared target immediately aft
 **Area**: frontend
 
 ### Summary
-The first Endless Abyss evacuation build could not resolve `ButtonManager` because the cloned AuraTools implementation relied on a namespace not imported in the new SunExp UI runtime.
+The first Endless Abyss evacuation build could not resolve `ButtonManager` because the cloned AuraTools implementation relied on a namespace not imported in the new Terrias UI runtime.
 
 ### Error
 ```text
@@ -76,7 +136,7 @@ CS0246: The type or namespace name 'ButtonManager' could not be found.
 ```
 
 ### Context
-- Attempted `dotnet build SunExp-Dev/SunExp.Dll.csproj -c Release --no-restore`.
+- Attempted `dotnet build Terrias-Dev/Terrias.Dll.csproj -c Release --no-restore`.
 - The TopBar clone pattern was adapted from `AuraToolsSafeBoxRuntime.cs`.
 
 ### Suggested Fix
@@ -84,7 +144,7 @@ Resolve `ButtonManager` from the current Managed contract and import its declari
 
 ### Metadata
 - Reproducible: yes
-- Related Files: SunExp-Dev/Hooks/Ui/EndlessAbyssEvacuationButtonRuntime.cs
+- Related Files: Terrias-Dev/Hooks/Ui/EndlessAbyssEvacuationButtonRuntime.cs
 
 ### Resolution
 - **Resolved**: 2026-07-16T18:34:00+08:00
@@ -100,19 +160,19 @@ Resolve `ButtonManager` from the current Managed contract and import its declari
 **Area**: build
 
 ### Summary
-The first Star Score flight-glyph build omitted the `SunExp.Dll.GameApi` import for `SunExpResourceCache`.
+The first Star Score flight-glyph build omitted the `Terrias.Dll.GameApi` import for `TerriasResourceCache`.
 
 ### Error
 ```text
-CS0103: The name 'SunExpResourceCache' does not exist in the current context.
+CS0103: The name 'TerriasResourceCache' does not exist in the current context.
 ```
 
 ### Suggested Fix
-Check the existing resource loader namespace before adding a new visual asset catalog; `SunExpResourceCache` lives in `SunExp.Dll.GameApi`, not Infrastructure.
+Check the existing resource loader namespace before adding a new visual asset catalog; `TerriasResourceCache` lives in `Terrias.Dll.GameApi`, not Infrastructure.
 
 ### Metadata
 - Reproducible: yes
-- Related Files: SunExp-Dev/Hooks/Visual/StarScoreFlightGlyphAssets.cs
+- Related Files: Terrias-Dev/Hooks/Visual/StarScoreFlightGlyphAssets.cs
 
 ### Resolution
 - **Resolved**: 2026-07-16T16:08:00+08:00
@@ -132,8 +192,8 @@ The PowerShell visual-bundle wrapper returned exit code 1 with no console output
 
 ### Error
 ```text
-Build-SunExpVisualBundle.ps1: process exit code 1
-Unity log: Built SunExp visual bundle ... return code 0
+Build-TerriasVisualBundle.ps1: process exit code 1
+Unity log: Built Terrias visual bundle ... return code 0
 ```
 
 ### Suggested Fix
@@ -141,7 +201,7 @@ Make the wrapper launch Unity through a process API that reliably captures the r
 
 ### Metadata
 - Reproducible: yes
-- Related Files: tools/Build-SunExpVisualBundle.ps1, SunExp-Dev/VisualAssets/sunexp_visuals.unity-build.log
+- Related Files: tools/Build-TerriasVisualBundle.ps1, Terrias-Dev/VisualAssets/terrias_visuals.unity-build.log
 
 ### Resolution
 - **Resolved**: 2026-07-16T16:21:59+08:00
@@ -173,7 +233,7 @@ When a new GameApi facade crosses into another managed assembly, inspect the typ
 
 ### Metadata
 - Reproducible: yes
-- Related Files: SunExp-Dev/SunExp.Dll.csproj, SunExp-Dev/Mechanics/DimensionShopService.cs
+- Related Files: Terrias-Dev/Terrias.Dll.csproj, Terrias-Dev/Mechanics/DimensionShopService.cs
 
 ### Resolution
 - **Resolved**: 2026-07-15T15:13:00+08:00
@@ -206,7 +266,7 @@ Use a single-quoted PowerShell literal when asserting C# text that contains doub
 
 ### Metadata
 - Reproducible: yes
-- Related Files: tools/Test-SunExpArchitecture.ps1
+- Related Files: tools/Test-TerriasArchitecture.ps1
 
 ### Resolution
 - **Resolved**: 2026-07-15T15:29:00+08:00
@@ -222,17 +282,17 @@ Use a single-quoted PowerShell literal when asserting C# text that contains doub
 **Area**: docs
 
 ### Summary
-An inspection command assumed shipped mod resource paths were rooted directly at `SunExp/ModResource` and `GoldExp/ModResource`.
+An inspection command assumed shipped mod resource paths were rooted directly at `Terrias/ModResource` and `GoldExp/ModResource`.
 
 ### Error
 ```text
 rg: GoldExp: system cannot find the file specified
-rg: SunExp/ModResource/Data/Card: system cannot find the path specified
+rg: Terrias/ModResource/Data/Card: system cannot find the path specified
 ```
 
 ### Context
-- Command attempted while reviewing `.codex/skills/sunexp-card-art-style`.
-- This workspace contains `SunExp`, `SunExp-Dev`, and `GoldExp-Dev`; resource ownership must be discovered before querying fixed paths.
+- Command attempted while reviewing `.codex/skills/terrias-card-art-style`.
+- This workspace contains `Terrias`, `Terrias-Dev`, and `GoldExp-Dev`; resource ownership must be discovered before querying fixed paths.
 - `rg --files` on Windows emits backslash-separated paths, so slash-only filters can also miss results.
 
 ### Suggested Fix
@@ -240,7 +300,7 @@ Discover resource roots with `rg --files` or `Get-ChildItem` first, then use sep
 
 ### Metadata
 - Reproducible: yes
-- Related Files: .codex/skills/sunexp-card-art-style/SKILL.md
+- Related Files: .codex/skills/terrias-card-art-style/SKILL.md
 
 ### Resolution
 - **Resolved**: 2026-07-14T00:00:00+08:00
@@ -265,7 +325,7 @@ AuraUiShared\AuraUiModalHost.cs: error CS0104: Object is ambiguous between Unity
 ```
 
 ### Context
-- Command attempted: `tools\Build-SunExpDll.ps1`.
+- Command attempted: `tools\Build-TerriasDll.ps1`.
 - New file: `AuraUiShared\AuraUiModalHost.cs`.
 
 ### Suggested Fix
@@ -293,11 +353,11 @@ When delegating a local cache facade to a shared cache, old catch blocks can ret
 
 ### Error
 ```text
-SunExpResourceCache.cs: error CS0103: current context does not contain ObjectArrayCache/key/AddCategoryKey
+TerriasResourceCache.cs: error CS0103: current context does not contain ObjectArrayCache/key/AddCategoryKey
 ```
 
 ### Context
-- Command attempted: `tools\Build-SunExpDll.ps1`.
+- Command attempted: `tools\Build-TerriasDll.ps1`.
 - File migrated from local dictionaries to `AuraSharedResourceCache`.
 
 ### Suggested Fix
@@ -305,7 +365,7 @@ After removing local cache fields, scan the whole file for deleted helper names 
 
 ### Metadata
 - Reproducible: yes
-- Related Files: SunExp-Dev/GameApi/SunExpResourceCache.cs
+- Related Files: Terrias-Dev/GameApi/TerriasResourceCache.cs
 
 ### Resolution
 - **Resolved**: 2026-07-08T20:26:00+08:00
@@ -448,11 +508,11 @@ Normalize expected `rg` no-match results with `if ($LASTEXITCODE -eq 1) { exit 0
 **Area**: infra
 
 ### Summary
-Passing `.codex\skills\sunexp-*` as an rg path is invalid on Windows because rg does not expand that directory wildcard.
+Passing `.codex\skills\terrias-*` as an rg path is invalid on Windows because rg does not expand that directory wildcard.
 
 ### Error
 ```text
-rg: .codex\skills\sunexp-*: The filename, directory name, or volume label syntax is incorrect. (os error 123)
+rg: .codex\skills\terrias-*: The filename, directory name, or volume label syntax is incorrect. (os error 123)
 ```
 
 ### Context
@@ -622,7 +682,7 @@ Inspect the installed package API rather than relying on examples from older Har
 **Area**: code
 
 ### Summary
-The first SunExp integration build omitted the owner MOD argument required by `AuraDirectorRuntime.RegisterStartGateProvider`.
+The first Terrias integration build omitted the owner MOD argument required by `AuraDirectorRuntime.RegisterStartGateProvider`.
 
 ### Error
 ```text
@@ -634,11 +694,11 @@ Read the new public signature at the call site before compiling integrations, an
 
 ### Metadata
 - Reproducible: yes
-- Related Files: SunExp-Dev/Features/Director/SunExpDirectorRuntime.cs
+- Related Files: Terrias-Dev/Features/Director/TerriasDirectorRuntime.cs
 
 ### Resolution
 - **Resolved**: 2026-07-16T17:21:00+08:00
-- **Notes**: Passed `SunExpIds.ModId` as the owner and rebuilt successfully.
+- **Notes**: Passed `TerriasIds.ModId` as the owner and rebuilt successfully.
 
 ---
 
@@ -673,7 +733,7 @@ After changing shared runtime sources, rebuild every consumer listed by `Test-Sh
 - **Observed**: 2026-07-16T14:26:00+08:00
 - **Notes**: A clean-source release-gate run rebuilt `Aura.Shared.dll` to 902144 bytes while all five prototype packages remained at 901120 bytes; the packaging hash gate failed again.
 - **Observed**: 2026-07-16T18:45:00+08:00
-- **Notes**: Building the SunExp evacuation feature refreshed the shared project output and SunExp package while the SanGuoShaExp and AuraToolsExp packages retained the earlier hash; resolved through the main-consumer build before final validation.
+- **Notes**: Building the Terrias evacuation feature refreshed the shared project output and Terrias package while the SanGuoShaExp and AuraToolsExp packages retained the earlier hash; resolved through the main-consumer build before final validation.
 
 ---
 

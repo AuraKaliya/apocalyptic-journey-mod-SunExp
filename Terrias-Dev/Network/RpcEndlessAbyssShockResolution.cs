@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using Network.Command;
-using SunExp.Dll.Hooks;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Hooks;
+using Terrias.Dll.Mechanics;
 
-namespace SunExp.Dll.Network;
+namespace Terrias.Dll.Network;
 
 [Serializable]
 public sealed class EndlessAbyssShockResolution

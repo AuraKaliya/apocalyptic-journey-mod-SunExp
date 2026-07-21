@@ -9,11 +9,11 @@
 
   <ItemGroup>
     <Reference Include="Aura.Shared">
-      <HintPath>..\SunExp\Scripts\Aura.Shared.dll</HintPath>
+      <HintPath>..\Terrias\Scripts\Aura.Shared.dll</HintPath>
       <Private>true</Private>
     </Reference>
-    <Reference Include="SunExp.Aura">
-      <HintPath>..\SunExp-Dev\bin\Release\net472\SunExp.Aura.dll</HintPath>
+    <Reference Include="Terrias.Aura">
+      <HintPath>..\Terrias-Dev\bin\Release\net472\Terrias.Aura.dll</HintPath>
       <Private>true</Private>
     </Reference>
     <Reference Include="UnityEngine.CoreModule">

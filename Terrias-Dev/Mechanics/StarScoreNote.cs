@@ -1,7 +1,7 @@
 using System;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public enum StarScoreNote
 {
@@ -23,19 +23,19 @@ public static class StarScoreNoteCodes
         switch (NormalizeId(id))
         {
             case "stellar_overture_start":
-            case SunExpIds.StellarOvertureStartCardId:
+            case TerriasIds.StellarOvertureStartCardId:
                 note = StarScoreNote.Opening;
                 return true;
             case "stellar_overture_sustain":
-            case SunExpIds.StellarOvertureSustainCardId:
+            case TerriasIds.StellarOvertureSustainCardId:
                 note = StarScoreNote.Sustain;
                 return true;
             case "stellar_overture_turn":
-            case SunExpIds.StellarOvertureTurnCardId:
+            case TerriasIds.StellarOvertureTurnCardId:
                 note = StarScoreNote.Turn;
                 return true;
             case "stellar_overture_close":
-            case SunExpIds.StellarOvertureCloseCardId:
+            case TerriasIds.StellarOvertureCloseCardId:
                 note = StarScoreNote.Close;
                 return true;
             default:

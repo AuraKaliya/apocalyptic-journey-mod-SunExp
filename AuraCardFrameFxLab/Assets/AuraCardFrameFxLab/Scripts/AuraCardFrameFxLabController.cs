@@ -11,41 +11,41 @@ namespace AuraCardFrameFxLab
         private static readonly int MainTexId = Shader.PropertyToID("_MainTex");
         private static readonly int NoiseTexId = Shader.PropertyToID("_NoiseTex");
         private static readonly int FoilTexId = Shader.PropertyToID("_FoilTex");
-        private static readonly int EffectModeId = Shader.PropertyToID("_SunExpEffectMode");
-        private static readonly int OverlayModeId = Shader.PropertyToID("_SunExpOverlayMode");
-        private static readonly int FrameOnlyOverlayId = Shader.PropertyToID("_SunExpFrameOnlyOverlay");
-        private static readonly int FoilModeId = Shader.PropertyToID("_SunExpFoilMode");
-        private static readonly int HoloColorAId = Shader.PropertyToID("_SunExpHoloColorA");
-        private static readonly int HoloColorBId = Shader.PropertyToID("_SunExpHoloColorB");
-        private static readonly int HoloColorCId = Shader.PropertyToID("_SunExpHoloColorC");
-        private static readonly int FlowSpeedId = Shader.PropertyToID("_SunExpFlowSpeed");
-        private static readonly int FlowScaleId = Shader.PropertyToID("_SunExpFlowScale");
-        private static readonly int NoiseScaleId = Shader.PropertyToID("_SunExpNoiseScale");
-        private static readonly int DistortionId = Shader.PropertyToID("_SunExpDistortion");
-        private static readonly int EffectIntensityId = Shader.PropertyToID("_SunExpEffectIntensity");
-        private static readonly int QualityScaleId = Shader.PropertyToID("_SunExpQualityScale");
-        private static readonly int EdgeGlowId = Shader.PropertyToID("_SunExpEdgeGlow");
-        private static readonly int SweepFrequencyId = Shader.PropertyToID("_SunExpSweepFrequency");
-        private static readonly int SweepWidthId = Shader.PropertyToID("_SunExpSweepWidth");
-        private static readonly int SweepIntensityId = Shader.PropertyToID("_SunExpSweepIntensity");
-        private static readonly int PrismScaleId = Shader.PropertyToID("_SunExpPrismScale");
-        private static readonly int PrismStrengthId = Shader.PropertyToID("_SunExpPrismStrength");
-        private static readonly int FoilGrainId = Shader.PropertyToID("_SunExpFoilGrain");
-        private static readonly int MirrorSweepId = Shader.PropertyToID("_SunExpMirrorSweep");
-        private static readonly int SwirlStrengthId = Shader.PropertyToID("_SunExpSwirlStrength");
-        private static readonly int FoilShardScaleId = Shader.PropertyToID("_SunExpFoilShardScale");
-        private static readonly int FoilShardWarpId = Shader.PropertyToID("_SunExpFoilShardWarp");
-        private static readonly int FoilGalaxyDensityId = Shader.PropertyToID("_SunExpFoilGalaxyDensity");
-        private static readonly int FoilGlintSpeedId = Shader.PropertyToID("_SunExpFoilGlintSpeed");
-        private static readonly int FoilTextureStrengthId = Shader.PropertyToID("_SunExpFoilTextureStrength");
-        private static readonly int RainbowStrengthId = Shader.PropertyToID("_SunExpRainbowStrength");
-        private static readonly int RidgeStrengthId = Shader.PropertyToID("_SunExpRidgeStrength");
-        private static readonly int GlareStrengthId = Shader.PropertyToID("_SunExpGlareStrength");
-        private static readonly int PointerAutoSpeedId = Shader.PropertyToID("_SunExpPointerAutoSpeed");
-        private static readonly int FoilOverlayAlphaId = Shader.PropertyToID("_SunExpFoilOverlayAlpha");
-        private static readonly int PointerXId = Shader.PropertyToID("_SunExpPointerX");
-        private static readonly int PointerYId = Shader.PropertyToID("_SunExpPointerY");
-        private static readonly int EdgeSampleId = Shader.PropertyToID("_SunExpEdgeSample");
+        private static readonly int EffectModeId = Shader.PropertyToID("_TerriasEffectMode");
+        private static readonly int OverlayModeId = Shader.PropertyToID("_TerriasOverlayMode");
+        private static readonly int FrameOnlyOverlayId = Shader.PropertyToID("_TerriasFrameOnlyOverlay");
+        private static readonly int FoilModeId = Shader.PropertyToID("_TerriasFoilMode");
+        private static readonly int HoloColorAId = Shader.PropertyToID("_TerriasHoloColorA");
+        private static readonly int HoloColorBId = Shader.PropertyToID("_TerriasHoloColorB");
+        private static readonly int HoloColorCId = Shader.PropertyToID("_TerriasHoloColorC");
+        private static readonly int FlowSpeedId = Shader.PropertyToID("_TerriasFlowSpeed");
+        private static readonly int FlowScaleId = Shader.PropertyToID("_TerriasFlowScale");
+        private static readonly int NoiseScaleId = Shader.PropertyToID("_TerriasNoiseScale");
+        private static readonly int DistortionId = Shader.PropertyToID("_TerriasDistortion");
+        private static readonly int EffectIntensityId = Shader.PropertyToID("_TerriasEffectIntensity");
+        private static readonly int QualityScaleId = Shader.PropertyToID("_TerriasQualityScale");
+        private static readonly int EdgeGlowId = Shader.PropertyToID("_TerriasEdgeGlow");
+        private static readonly int SweepFrequencyId = Shader.PropertyToID("_TerriasSweepFrequency");
+        private static readonly int SweepWidthId = Shader.PropertyToID("_TerriasSweepWidth");
+        private static readonly int SweepIntensityId = Shader.PropertyToID("_TerriasSweepIntensity");
+        private static readonly int PrismScaleId = Shader.PropertyToID("_TerriasPrismScale");
+        private static readonly int PrismStrengthId = Shader.PropertyToID("_TerriasPrismStrength");
+        private static readonly int FoilGrainId = Shader.PropertyToID("_TerriasFoilGrain");
+        private static readonly int MirrorSweepId = Shader.PropertyToID("_TerriasMirrorSweep");
+        private static readonly int SwirlStrengthId = Shader.PropertyToID("_TerriasSwirlStrength");
+        private static readonly int FoilShardScaleId = Shader.PropertyToID("_TerriasFoilShardScale");
+        private static readonly int FoilShardWarpId = Shader.PropertyToID("_TerriasFoilShardWarp");
+        private static readonly int FoilGalaxyDensityId = Shader.PropertyToID("_TerriasFoilGalaxyDensity");
+        private static readonly int FoilGlintSpeedId = Shader.PropertyToID("_TerriasFoilGlintSpeed");
+        private static readonly int FoilTextureStrengthId = Shader.PropertyToID("_TerriasFoilTextureStrength");
+        private static readonly int RainbowStrengthId = Shader.PropertyToID("_TerriasRainbowStrength");
+        private static readonly int RidgeStrengthId = Shader.PropertyToID("_TerriasRidgeStrength");
+        private static readonly int GlareStrengthId = Shader.PropertyToID("_TerriasGlareStrength");
+        private static readonly int PointerAutoSpeedId = Shader.PropertyToID("_TerriasPointerAutoSpeed");
+        private static readonly int FoilOverlayAlphaId = Shader.PropertyToID("_TerriasFoilOverlayAlpha");
+        private static readonly int PointerXId = Shader.PropertyToID("_TerriasPointerX");
+        private static readonly int PointerYId = Shader.PropertyToID("_TerriasPointerY");
+        private static readonly int EdgeSampleId = Shader.PropertyToID("_TerriasEdgeSample");
 
         [Header("Scene References")]
         [SerializeField] private Image backgroundImage;
@@ -134,8 +134,8 @@ namespace AuraCardFrameFxLab
             runtimePanelRect = GUILayout.Window(GetInstanceID(), runtimePanelRect, DrawRuntimePanel, "Aura Card Frame FX Lab");
         }
 
-        [ContextMenu("Reset SunExp Defaults")]
-        public void ResetSunExpDefaults()
+        [ContextMenu("Reset Terrias Defaults")]
+        public void ResetTerriasDefaults()
         {
             overlayMode = true;
             frameOnlyOverlay = false;
@@ -173,46 +173,46 @@ namespace AuraCardFrameFxLab
             ApplySettings();
         }
 
-        [ContextMenu("Log SunExp Registry Values")]
-        public void LogSunExpRegistryValues()
+        [ContextMenu("Log Terrias Registry Values")]
+        public void LogTerriasRegistryValues()
         {
             var builder = new StringBuilder();
-            builder.AppendLine("SunExp foil_holo frame effect values:");
+            builder.AppendLine("Terrias foil_holo frame effect values:");
             builder.AppendLine("\"floats\": {");
-            AppendFloat(builder, "_SunExpOverlayMode", overlayMode ? 1f : 0f, true);
-            AppendFloat(builder, "_SunExpFrameOnlyOverlay", frameOnlyOverlay ? 1f : 0f, true);
-            AppendFloat(builder, "_SunExpEffectMode", effectMode, true);
-            AppendFloat(builder, "_SunExpFoilMode", foilMode, true);
-            AppendFloat(builder, "_SunExpFlowSpeed", flowSpeed, true);
-            AppendFloat(builder, "_SunExpFlowScale", flowScale, true);
-            AppendFloat(builder, "_SunExpNoiseScale", noiseScale, true);
-            AppendFloat(builder, "_SunExpDistortion", distortion, true);
-            AppendFloat(builder, "_SunExpEffectIntensity", effectIntensity, true);
-            AppendFloat(builder, "_SunExpEdgeGlow", edgeGlow, true);
-            AppendFloat(builder, "_SunExpSweepFrequency", sweepFrequency, true);
-            AppendFloat(builder, "_SunExpSweepWidth", sweepWidth, true);
-            AppendFloat(builder, "_SunExpSweepIntensity", sweepIntensity, true);
-            AppendFloat(builder, "_SunExpPrismScale", prismScale, true);
-            AppendFloat(builder, "_SunExpPrismStrength", prismStrength, true);
-            AppendFloat(builder, "_SunExpFoilGrain", foilGrain, true);
-            AppendFloat(builder, "_SunExpMirrorSweep", mirrorSweep, true);
-            AppendFloat(builder, "_SunExpSwirlStrength", swirlStrength, true);
-            AppendFloat(builder, "_SunExpFoilShardScale", foilShardScale, true);
-            AppendFloat(builder, "_SunExpFoilShardWarp", foilShardWarp, true);
-            AppendFloat(builder, "_SunExpFoilGalaxyDensity", foilGalaxyDensity, true);
-            AppendFloat(builder, "_SunExpFoilGlintSpeed", foilGlintSpeed, true);
-            AppendFloat(builder, "_SunExpFoilTextureStrength", foilTextureStrength, true);
-            AppendFloat(builder, "_SunExpRainbowStrength", rainbowStrength, true);
-            AppendFloat(builder, "_SunExpRidgeStrength", ridgeStrength, true);
-            AppendFloat(builder, "_SunExpGlareStrength", glareStrength, true);
-            AppendFloat(builder, "_SunExpPointerAutoSpeed", pointerAutoSpeed, true);
-            AppendFloat(builder, "_SunExpFoilOverlayAlpha", foilOverlayAlpha, true);
-            AppendFloat(builder, "_SunExpEdgeSample", edgeSample, false);
+            AppendFloat(builder, "_TerriasOverlayMode", overlayMode ? 1f : 0f, true);
+            AppendFloat(builder, "_TerriasFrameOnlyOverlay", frameOnlyOverlay ? 1f : 0f, true);
+            AppendFloat(builder, "_TerriasEffectMode", effectMode, true);
+            AppendFloat(builder, "_TerriasFoilMode", foilMode, true);
+            AppendFloat(builder, "_TerriasFlowSpeed", flowSpeed, true);
+            AppendFloat(builder, "_TerriasFlowScale", flowScale, true);
+            AppendFloat(builder, "_TerriasNoiseScale", noiseScale, true);
+            AppendFloat(builder, "_TerriasDistortion", distortion, true);
+            AppendFloat(builder, "_TerriasEffectIntensity", effectIntensity, true);
+            AppendFloat(builder, "_TerriasEdgeGlow", edgeGlow, true);
+            AppendFloat(builder, "_TerriasSweepFrequency", sweepFrequency, true);
+            AppendFloat(builder, "_TerriasSweepWidth", sweepWidth, true);
+            AppendFloat(builder, "_TerriasSweepIntensity", sweepIntensity, true);
+            AppendFloat(builder, "_TerriasPrismScale", prismScale, true);
+            AppendFloat(builder, "_TerriasPrismStrength", prismStrength, true);
+            AppendFloat(builder, "_TerriasFoilGrain", foilGrain, true);
+            AppendFloat(builder, "_TerriasMirrorSweep", mirrorSweep, true);
+            AppendFloat(builder, "_TerriasSwirlStrength", swirlStrength, true);
+            AppendFloat(builder, "_TerriasFoilShardScale", foilShardScale, true);
+            AppendFloat(builder, "_TerriasFoilShardWarp", foilShardWarp, true);
+            AppendFloat(builder, "_TerriasFoilGalaxyDensity", foilGalaxyDensity, true);
+            AppendFloat(builder, "_TerriasFoilGlintSpeed", foilGlintSpeed, true);
+            AppendFloat(builder, "_TerriasFoilTextureStrength", foilTextureStrength, true);
+            AppendFloat(builder, "_TerriasRainbowStrength", rainbowStrength, true);
+            AppendFloat(builder, "_TerriasRidgeStrength", ridgeStrength, true);
+            AppendFloat(builder, "_TerriasGlareStrength", glareStrength, true);
+            AppendFloat(builder, "_TerriasPointerAutoSpeed", pointerAutoSpeed, true);
+            AppendFloat(builder, "_TerriasFoilOverlayAlpha", foilOverlayAlpha, true);
+            AppendFloat(builder, "_TerriasEdgeSample", edgeSample, false);
             builder.AppendLine("},");
             builder.AppendLine("\"colors\": {");
-            builder.AppendLine("  \"_SunExpHoloColorA\": \"" + ColorToRegistryHex(holoColorA) + "\",");
-            builder.AppendLine("  \"_SunExpHoloColorB\": \"" + ColorToRegistryHex(holoColorB) + "\",");
-            builder.AppendLine("  \"_SunExpHoloColorC\": \"" + ColorToRegistryHex(holoColorC) + "\"");
+            builder.AppendLine("  \"_TerriasHoloColorA\": \"" + ColorToRegistryHex(holoColorA) + "\",");
+            builder.AppendLine("  \"_TerriasHoloColorB\": \"" + ColorToRegistryHex(holoColorB) + "\",");
+            builder.AppendLine("  \"_TerriasHoloColorC\": \"" + ColorToRegistryHex(holoColorC) + "\"");
             builder.AppendLine("}");
             Debug.Log(builder.ToString());
         }
@@ -322,15 +322,15 @@ namespace AuraCardFrameFxLab
             GUILayout.EndScrollView();
 
             GUILayout.BeginHorizontal();
-            if (GUILayout.Button("Reset SunExp"))
+            if (GUILayout.Button("Reset Terrias"))
             {
-                ResetSunExpDefaults();
+                ResetTerriasDefaults();
                 changed = false;
             }
 
             if (GUILayout.Button("Log Registry"))
             {
-                LogSunExpRegistryValues();
+                LogTerriasRegistryValues();
             }
 
             GUILayout.EndHorizontal();

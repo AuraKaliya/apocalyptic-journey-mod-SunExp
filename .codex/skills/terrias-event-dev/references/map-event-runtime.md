@@ -1,23 +1,23 @@
 # Map Event Authoring
 
-Use this reference when a SunExp event needs a visible map node or map-selection
+Use this reference when a Terrias event needs a visible map node or map-selection
 hook.
 
 ## Files To Edit
 
-- `SunExp/Data/Map/sunexp.csv`
-- `SunExp/Text/Map/sunexp.csv`
-- `SunExp/Data/EventList/sunexp.csv`
-- `SunExp/Text/EventList/sunexp.csv`
-- `SunExp-Dev/Scripting/EventScripts.cs`
-- `SunExp-Dev/Hooks/*` when map generation or selection code is needed.
+- `Terrias/Data/Map/terrias.csv`
+- `Terrias/Text/Map/terrias.csv`
+- `Terrias/Data/EventList/terrias.csv`
+- `Terrias/Text/EventList/terrias.csv`
+- `Terrias-Dev/Scripting/EventScripts.cs`
+- `Terrias-Dev/Hooks/*` when map generation or selection code is needed.
 
 ## Authoring Rules
 
 - Keep map rows and map text rows paired by id.
 - Keep event rows and event text rows paired by id.
-- Put event option behavior behind `CS.SunExp.Dll.Scripting.EventScripts.*`.
-- Put map-generation or map-selection hook code under `SunExp-Dev/Hooks/`.
+- Put event option behavior behind `CS.Terrias.Dll.Scripting.EventScripts.*`.
+- Put map-generation or map-selection hook code under `Terrias-Dev/Hooks/`.
 - Verify hook target names and argument shapes in the decompiled reference before editing hook code.
 - Avoid broad map rewrites; target only the custom map id or row being authored.
 
@@ -54,13 +54,13 @@ state on each client.
 
 ## Game Reference Searches
 
-Load `sunexp-mod-dev/references/game-reference-index.md` before searching the
+Load `terrias-mod-dev/references/game-reference-index.md` before searching the
 decompiled game reference. Use the map selection and event script search routes
 from that index instead of hard-coding a decompile folder version here.
 
 ## Validation
 
 ```powershell
-.codex\skills\sunexp-event-dev\scripts\validate-sunexp-events.ps1
-.codex\skills\sunexp-mod-dev\scripts\validate-sunexp.ps1
+.codex\skills\terrias-event-dev\scripts\validate-terrias-events.ps1
+.codex\skills\terrias-mod-dev\scripts\validate-terrias.ps1
 ```

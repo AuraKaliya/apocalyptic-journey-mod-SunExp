@@ -17,7 +17,7 @@ changes.
 
 If a future decompile folder appears, prefer the newest folder whose version
 matches the game build being investigated. Move old folder notes to
-`sunexp-skill-evolution/references/stale-anchor-registry.md`.
+`terrias-skill-evolution/references/stale-anchor-registry.md`.
 
 ## High-Frequency Search Routes
 

@@ -5,10 +5,10 @@ using System.Linq;
 using AuraShared.Core;
 using Newtonsoft.Json;
 using Newtonsoft.Json.Linq;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.Mod;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class SpiritIntentRegistry
 {
@@ -49,11 +49,11 @@ public static class SpiritIntentRegistry
     {
         lock (SyncRoot)
         {
-            var path = Path.Combine(modConfig.DirectoryName, SunExpIds.SpiritIntentRegistryFile);
+            var path = Path.Combine(modConfig.DirectoryName, TerriasIds.SpiritIntentRegistryFile);
             if (!File.Exists(path))
             {
                 SetDocument(BuiltInDocument());
-                SunExpLog.Warn("[SpiritIntentRegistry] missing registry; using projection common pool.");
+                TerriasLog.Warn("[SpiritIntentRegistry] missing registry; using projection common pool.");
                 return;
             }
 
@@ -63,7 +63,7 @@ public static class SpiritIntentRegistry
                 var loaded = readResult.Document;
                 foreach (var diagnostic in readResult.Diagnostics)
                 {
-                    SunExpLog.Warn(diagnostic);
+                    TerriasLog.Warn(diagnostic);
                 }
 
                 if (loaded.SchemaVersion != 3)
@@ -72,7 +72,7 @@ public static class SpiritIntentRegistry
                 }
 
                 SetDocument(Normalize(loaded));
-                SunExpLog.Info(
+                TerriasLog.Info(
                     "[SpiritIntentRegistry] registryState=ready profiles=" + document.Profiles.Count
                     + ", intents=" + document.Intents.Count
                     + ", normalizedListFields=" + readResult.NormalizedListFields
@@ -83,7 +83,7 @@ public static class SpiritIntentRegistry
             catch (Exception ex)
             {
                 SetDocument(BuiltInDocument());
-                SunExpLog.Warn(
+                TerriasLog.Warn(
                     "[SpiritIntentRegistry] registryState=fallback-only; failed to load registry; "
                     + "using projection common pool: " + ex.Message);
             }
@@ -125,7 +125,7 @@ public static class SpiritIntentRegistry
             var profile = resolution.Profile;
             if (resolution.UsedGlobalFallback)
             {
-                SunExpLog.WarnOnce(
+                TerriasLog.WarnOnce(
                     "spirit-intent-global:" + resolution.RawEnemyId + "#" + resolution.RawVariantId,
                     "[SpiritProfile] intent registry used global fallback: raw="
                     + SpiritProfileIdentityResolver.CreateProfileKey(resolution.RawEnemyId, resolution.RawVariantId)
@@ -335,7 +335,7 @@ public static class SpiritIntentRegistry
             }
 
             intent.Id = id;
-            intent.EnemyCardId = (intent.EnemyCardId ?? SunExpIds.ProjectionActionWaitCardId).Trim();
+            intent.EnemyCardId = (intent.EnemyCardId ?? TerriasIds.ProjectionActionWaitCardId).Trim();
             intent.Pool = string.IsNullOrWhiteSpace(intent.Pool) ? "Pve" : intent.Pool.Trim();
             intent.AdaptationNote = (intent.AdaptationNote ?? "").Trim();
             intent.Type = (intent.Type ?? "Attack").Trim();
@@ -363,7 +363,7 @@ public static class SpiritIntentRegistry
             }
             else
             {
-                SunExpLog.Warn("[SpiritIntentRegistry] rejected invalid intent " + id + ": " + reason);
+                TerriasLog.Warn("[SpiritIntentRegistry] rejected invalid intent " + id + ": " + reason);
             }
         }
 

@@ -1,14 +1,14 @@
 using System;
 using System.Reflection;
 
-namespace SunExp.Dll.Infrastructure;
+namespace Terrias.Dll.Infrastructure;
 
-public static class SunExpPerformanceSettings
+public static class TerriasPerformanceSettings
 {
-    private const string CountersKey = "SunExpPerfCounters";
-    private const string WunaOrbitFireEnabledKey = "SunExpWunaOrbitFireEnabled";
-    private const string WunaOrbitFireDisabledKey = "SunExpWunaOrbitFireDisabled";
-    private const string UiPoolKey = "SunExpUiPool";
+    private const string CountersKey = "TerriasPerfCounters";
+    private const string WunaOrbitFireEnabledKey = "TerriasWunaOrbitFireEnabled";
+    private const string WunaOrbitFireDisabledKey = "TerriasWunaOrbitFireDisabled";
+    private const string UiPoolKey = "TerriasUiPool";
     private const int RefreshMilliseconds = 1000;
 
     private static MethodInfo? getGameVarMethod;
@@ -83,16 +83,16 @@ public static class SunExpPerformanceSettings
     public static string DiagnosticsSummary()
     {
         RefreshIfNeeded();
-        return "SunExp diagnostics: "
+        return "Terrias diagnostics: "
             + CountersKey
             + " raw="
             + FormatRawValue(ReadGameVarSafe(CountersKey))
             + " effective="
             + cachedCountersEnabled
-            + "; SunExpDebug raw="
-            + FormatRawValue(ReadGameVarSafe("SunExpDebug"))
+            + "; TerriasDebug raw="
+            + FormatRawValue(ReadGameVarSafe("TerriasDebug"))
             + " effective="
-            + ReadFlagSafe("SunExpDebug", false)
+            + ReadFlagSafe("TerriasDebug", false)
             + "; "
             + UiPoolKey
             + " raw="

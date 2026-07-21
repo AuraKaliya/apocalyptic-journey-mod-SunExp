@@ -1,12 +1,12 @@
 using System;
 using Data.Save;
-using SunExp.Dll.Hooks.Ui;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Hooks.Ui;
+using Terrias.Dll.Infrastructure;
 using Witch;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class SolarMemoryBattleExitCoordinator
 {
@@ -16,19 +16,19 @@ public static class SolarMemoryBattleExitCoordinator
 
     public static void Initialize(ModConfig modConfig)
     {
-        SunExpHookRegistry.Before(
+        TerriasHookRegistry.Before(
             modConfig,
-            SunExpHookTargets.FightEscapeResetStates,
+            TerriasHookTargets.FightEscapeResetStates,
             PrepareSolarMemoryFightAbort,
             HookOwner);
-        SunExpHookRegistry.After(
+        TerriasHookRegistry.After(
             modConfig,
-            SunExpHookTargets.FightEscapeResetStates,
+            TerriasHookTargets.FightEscapeResetStates,
             SettleSolarMemoryFightAbort,
             HookOwner);
-        SunExpHookRegistry.After(
+        TerriasHookRegistry.After(
             modConfig,
-            SunExpHookTargets.FightLossInit,
+            TerriasHookTargets.FightLossInit,
             SettleSolarMemoryFightLoss,
             HookOwner);
     }
@@ -39,15 +39,15 @@ public static class SolarMemoryBattleExitCoordinator
         {
             SolarMemorySetupFlowRuntime.ClosePreparationWindows();
             SolarMemoryBlessingPickerRuntime.Close();
-            SunExpUiSafety.DisableRaycastsAndDestroyByName("SunExp_SolarMemoryPackWindow", source, LogPrefix);
-            SunExpUiSafety.DisableRaycastsAndDestroyByName("SunExpSolarMemoryStarterDeck", source, LogPrefix);
-            SunExpUiSafety.DisableRaycastsAndDestroyByName("SunExp_SolarMemoryOriginSetup", source, LogPrefix);
-            SunExpUiSafety.DisableRaycastsAndDestroyByName("SunExp_SolarMemoryBlessingSetup", source, LogPrefix);
-            SunExpUiSafety.DisableRaycastsAndDestroyByName("SunExp_SolarMemoryBlessingPicker", source, LogPrefix);
+            TerriasUiSafety.DisableRaycastsAndDestroyByName("Terrias_SolarMemoryPackWindow", source, LogPrefix);
+            TerriasUiSafety.DisableRaycastsAndDestroyByName("TerriasSolarMemoryStarterDeck", source, LogPrefix);
+            TerriasUiSafety.DisableRaycastsAndDestroyByName("Terrias_SolarMemoryOriginSetup", source, LogPrefix);
+            TerriasUiSafety.DisableRaycastsAndDestroyByName("Terrias_SolarMemoryBlessingSetup", source, LogPrefix);
+            TerriasUiSafety.DisableRaycastsAndDestroyByName("Terrias_SolarMemoryBlessingPicker", source, LogPrefix);
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn(LogPrefix + " transient UI cleanup failed from "
+            TerriasLog.Warn(LogPrefix + " transient UI cleanup failed from "
                 + source
                 + ": "
                 + ex.Message);
@@ -70,7 +70,7 @@ public static class SolarMemoryBattleExitCoordinator
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn(LogPrefix + " prepare failed: " + ex.Message);
+            TerriasLog.Warn(LogPrefix + " prepare failed: " + ex.Message);
         }
     }
 
@@ -86,11 +86,11 @@ public static class SolarMemoryBattleExitCoordinator
 
             EnsureCurrentNodeForTransition("Fight_Escape.ResetStates:after");
             CloseTransientUi("Fight_Escape.ResetStates:after");
-            SunExpLog.Info(LogPrefix + " escape/loss branch settled.");
+            TerriasLog.Info(LogPrefix + " escape/loss branch settled.");
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn(LogPrefix + " settle failed: " + ex.Message);
+            TerriasLog.Warn(LogPrefix + " settle failed: " + ex.Message);
         }
         finally
         {
@@ -116,7 +116,7 @@ public static class SolarMemoryBattleExitCoordinator
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn(LogPrefix + " loss settle failed: " + ex.Message);
+            TerriasLog.Warn(LogPrefix + " loss settle failed: " + ex.Message);
         }
     }
 
@@ -144,7 +144,7 @@ public static class SolarMemoryBattleExitCoordinator
                 SolarMemoryMapLifecycleCoordinator.EnsureSolarMemoryNodeDice(saveNode, tree, source);
                 tree.currentNode = saveNode;
                 GameSaveManager.UpdateNode(saveNode);
-                SunExpLog.Info("[SolarMemoryMapSync] restored current node from save before transition; source=" + source + ".");
+                TerriasLog.Info("[SolarMemoryMapSync] restored current node from save before transition; source=" + source + ".");
                 return;
             }
 
@@ -163,7 +163,7 @@ public static class SolarMemoryBattleExitCoordinator
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[SolarMemoryMapSync] transition current node repair failed from "
+            TerriasLog.Warn("[SolarMemoryMapSync] transition current node repair failed from "
                 + source
                 + ": "
                 + ex.Message);

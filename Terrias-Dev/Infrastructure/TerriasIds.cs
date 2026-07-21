@@ -1,44 +1,44 @@
-namespace SunExp.Dll.Infrastructure;
+namespace Terrias.Dll.Infrastructure;
 
-public static class SunExpIds
+public static class TerriasIds
 {
-    public const string ColumbinaCareerId = "SunExp_columbina_columbina";
-    public const string ColumbinaEternalTideCardId = "SunExp_columbina_columbina_eternal_tide";
-    public const string ColumbinaHomesicknessCardId = "SunExp_columbina_columbina_homesickness";
+    public const string ColumbinaCareerId = "Terrias_columbina_columbina";
+    public const string ColumbinaEternalTideCardId = "Terrias_columbina_columbina_eternal_tide";
+    public const string ColumbinaHomesicknessCardId = "Terrias_columbina_columbina_homesickness";
     public const string FateStarCardShortId = "fate_star";
-    public const string FateStarCardId = "SunExp_sunexp_fate_star";
-    public const string GravityRipple = "SunExp_sunexp_gravity_ripple";
-    public const string GravityValue = "SunExp_sunexp_gravity_value";
-    public const string MoonDomain = "SunExp_sunexp_moon_domain";
-    public const string Constellation = "SunExp_sunexp_constellation";
-    public const string ConstellationStorage = "SunExpConstellation";
-    public const string ModId = "SunExp";
+    public const string FateStarCardId = "Terrias_terrias_fate_star";
+    public const string GravityRipple = "Terrias_terrias_gravity_ripple";
+    public const string GravityValue = "Terrias_terrias_gravity_value";
+    public const string MoonDomain = "Terrias_terrias_moon_domain";
+    public const string Constellation = "Terrias_terrias_constellation";
+    public const string ConstellationStorage = "TerriasConstellation";
+    public const string ModId = "Terrias";
 
-    public const string ModLogTag = "SunExp.DLL";
+    public const string ModLogTag = "Terrias.DLL";
     public const string FamiliarBlessingRegistryFile = "familiar.blessing.registry.json";
     public const string FamiliarProfileDirectory = "FamiliarGrowthProfiles";
-    public const string FamiliarRunActivePartnerKey = "SunExp_FamiliarRunActivePartner";
+    public const string FamiliarRunActivePartnerKey = "Terrias_FamiliarRunActivePartner";
 
-    public const string SunCardVisualSkinId = "sunexp.card_visual.sun";
-    public const string MorningStarCardVisualSkinId = "sunexp.card_visual.morning_star";
-    public const string CardFaceEffectShaderId = "sunexp.card_visual_effect.card_face.shader";
-    public const string CardFaceFoilHoloVisualEffectId = "sunexp.card_visual_effect.foil_holo";
-    public const string CardFaceStardustVisualEffectId = "sunexp.card_visual_effect.stardust_overture";
+    public const string SunCardVisualSkinId = "terrias.card_visual.sun";
+    public const string MorningStarCardVisualSkinId = "terrias.card_visual.morning_star";
+    public const string CardFaceEffectShaderId = "terrias.card_visual_effect.card_face.shader";
+    public const string CardFaceFoilHoloVisualEffectId = "terrias.card_visual_effect.foil_holo";
+    public const string CardFaceStardustVisualEffectId = "terrias.card_visual_effect.stardust_overture";
     public const string CardFrameHoloFlowShaderId = CardFaceEffectShaderId;
     public const string CardFrameHoloFlowVisualEffectId = CardFaceFoilHoloVisualEffectId;
-    public const string BlazingCrownCollapseHoloEffectBindingId = "sunexp.card_visual_effect.blazing_crown_collapse.holo_flow";
-    public const string StellarOvertureStardustEffectBindingId = "sunexp.card_visual_effect.stellar_overture.stardust";
+    public const string BlazingCrownCollapseHoloEffectBindingId = "terrias.card_visual_effect.blazing_crown_collapse.holo_flow";
+    public const string StellarOvertureStardustEffectBindingId = "terrias.card_visual_effect.stellar_overture.stardust";
     public const string StellarOvertureCardUseFxId = "stellar-overture-star-trail";
     public const string StellarOvertureCardUseVisualEffectId = CardFaceStardustVisualEffectId;
-    public const string SunCardFramePath = "Mods/SunExp/ModResource/Images/UI/\u65e5\u8000-\u5361\u68461.png";
-    public const string SunCardBackgroundPath = "Mods/SunExp/ModResource/Images/UI/\u5361\u9762\u80cc\u666f.png";
-    public const string MorningStarCardFramePath = "Mods/SunExp/ModResource/Images/UI/\u6668\u661f-\u5361\u68461.png";
-    public const string SunCardIconPathPrefix = "Mods/SunExp/ModResource/Images/Card/SunExp/";
-    public const string StellarOvertureCardIconPathPrefix = "Mods/SunExp/ModResource/Images/Card/Loneer/stellar_overture_";
-    public const string RadiantSparkCardPackId = "SunExp_sunexp_cardpack_radiant_spark";
-    public const string EmberCrownCardPackId = "SunExp_sunexp_cardpack_ember_crown";
-    public const string SolarCanopyCardPackId = "SunExp_sunexp_cardpack_solar_canopy";
-    public const string MorningStarOvertureCardPackId = "SunExp_sunexp_cardpack_morning_star_overture";
+    public const string SunCardFramePath = "Mods/Terrias/ModResource/Images/UI/\u65e5\u8000-\u5361\u68461.png";
+    public const string SunCardBackgroundPath = "Mods/Terrias/ModResource/Images/UI/\u5361\u9762\u80cc\u666f.png";
+    public const string MorningStarCardFramePath = "Mods/Terrias/ModResource/Images/UI/\u6668\u661f-\u5361\u68461.png";
+    public const string SunCardIconPathPrefix = "Mods/Terrias/ModResource/Images/Card/Terrias/";
+    public const string StellarOvertureCardIconPathPrefix = "Mods/Terrias/ModResource/Images/Card/Loneer/stellar_overture_";
+    public const string RadiantSparkCardPackId = "Terrias_terrias_cardpack_radiant_spark";
+    public const string EmberCrownCardPackId = "Terrias_terrias_cardpack_ember_crown";
+    public const string SolarCanopyCardPackId = "Terrias_terrias_cardpack_solar_canopy";
+    public const string MorningStarOvertureCardPackId = "Terrias_terrias_cardpack_morning_star_overture";
     public const string EmberCloakLiningRelicId = "*ember_cloak_lining";
     public const string LegacyEmberCloakLiningRelicId = "ember_cloak_lining";
 
@@ -61,8 +61,8 @@ public static class SunExpIds
             return false;
         }
 
-        var localId = id.StartsWith("SunExp_sunexp_", System.StringComparison.Ordinal)
-            ? id.Substring("SunExp_sunexp_".Length)
+        var localId = id.StartsWith("Terrias_terrias_", System.StringComparison.Ordinal)
+            ? id.Substring("Terrias_terrias_".Length)
             : id;
         return localId.StartsWith("*", System.StringComparison.Ordinal)
             || string.Equals(localId, LegacyEmberCloakLiningRelicId, System.StringComparison.Ordinal);
@@ -71,165 +71,165 @@ public static class SunExpIds
     public const string WhiteRadianceTag = "白曜";
     public const string MorningStarSealTag = "启明星";
 
-    public const string SolarRadiance = "SunExp_sunexp_solar_radiance";
-    public const string SolarCrown = "SunExp_sunexp_solar_crown";
-    public const string SolarCrownTier = "SunExp_sunexp_solar_crown_tier";
-    public const string GatheredFlame = "SunExp_sunexp_gathered_flame";
+    public const string SolarRadiance = "Terrias_terrias_solar_radiance";
+    public const string SolarCrown = "Terrias_terrias_solar_crown";
+    public const string SolarCrownTier = "Terrias_terrias_solar_crown_tier";
+    public const string GatheredFlame = "Terrias_terrias_gathered_flame";
     public const string Burn = "buff_burn";
     public const string Vulnerability = "buff_vulnerability";
-    public const string PyroAttachment = "SunExp_sunexp_element_pyro";
-    public const string ElectroAttachment = "SunExp_sunexp_element_electro";
-    public const string CryoAttachment = "SunExp_sunexp_element_cryo";
-    public const string HydroAttachment = "SunExp_sunexp_element_hydro";
-    public const string DendroAttachment = "SunExp_sunexp_element_dendro";
-    public const string DendroCore = "SunExp_sunexp_dendro_core";
-    public const string Frozen = "SunExp_sunexp_frozen";
-    public const string ElementalEnemyMagicKey = "SunExpElementalMagic";
-    public const string ElementalEnemyMagicRarityKey = "SunExpElementalMagicRarity";
-    public const string ElementalCrystalUiRoot = "SunExp_ElementalCrystalOverlay";
-    public const string Ember = "SunExp_sunexp_ember";
-    public const string EmberCloak = "SunExp_sunexp_ember_cloak";
-    public const string ScorchingCanopy = "SunExp_sunexp_scorching_canopy";
-    public const string SamsaraGarden = "SunExp_sunexp_samsara_garden";
-    public const string BodyBurn = "SunExp_sunexp_body_burn";
-    public const string OriginCoreRadiance = "SunExp_sunexp_origin_core_radiance";
-    public const string CycleGatheredFlame = "SunExp_sunexp_cycle_gathered_flame";
-    public const string AfterglowOmen = "SunExp_sunexp_afterglow_omen";
+    public const string PyroAttachment = "Terrias_terrias_element_pyro";
+    public const string ElectroAttachment = "Terrias_terrias_element_electro";
+    public const string CryoAttachment = "Terrias_terrias_element_cryo";
+    public const string HydroAttachment = "Terrias_terrias_element_hydro";
+    public const string DendroAttachment = "Terrias_terrias_element_dendro";
+    public const string DendroCore = "Terrias_terrias_dendro_core";
+    public const string Frozen = "Terrias_terrias_frozen";
+    public const string ElementalEnemyMagicKey = "TerriasElementalMagic";
+    public const string ElementalEnemyMagicRarityKey = "TerriasElementalMagicRarity";
+    public const string ElementalCrystalUiRoot = "Terrias_ElementalCrystalOverlay";
+    public const string Ember = "Terrias_terrias_ember";
+    public const string EmberCloak = "Terrias_terrias_ember_cloak";
+    public const string ScorchingCanopy = "Terrias_terrias_scorching_canopy";
+    public const string SamsaraGarden = "Terrias_terrias_samsara_garden";
+    public const string BodyBurn = "Terrias_terrias_body_burn";
+    public const string OriginCoreRadiance = "Terrias_terrias_origin_core_radiance";
+    public const string CycleGatheredFlame = "Terrias_terrias_cycle_gathered_flame";
+    public const string AfterglowOmen = "Terrias_terrias_afterglow_omen";
     public const string Rebirth = "buff_rebirth";
-    public const string DuskAfterheatRecoveryTrait = "SunExp_sunexp_dusk_afterheat_recovery_trait";
-    public const string BossTraitMirrorArray = "SunExp_sunexp_boss_trait_mirror_array";
-    public const string BossTraitMercilessDaylight = "SunExp_sunexp_boss_trait_merciless_daylight";
-    public const string BossTraitWhiteRadianceSaint = "SunExp_sunexp_boss_trait_white_radiance_saint";
-    public const string BossWhiteRadianceCrown = "SunExp_sunexp_boss_white_radiance_crown";
-    public const string StarStonePouch = "SunExp_sunexp_star_stone_pouch";
-    public const string MiracleClock = "SunExp_sunexp_miracle_clock";
-    public const string Starlight = "SunExp_sunexp_starlight";
-    public const string Moonlight = "SunExp_sunexp_moonlight";
-    public const string StarBlessing = "SunExp_sunexp_star_blessing";
-    public const string StarScore = "SunExp_sunexp_star_score";
-    public const string Resonance = "SunExp_sunexp_resonance";
-    public const string StarStage = "SunExp_sunexp_star_stage";
-    public const string StarClayBody = "SunExp_sunexp_star_clay_body";
-    public const string StarClayDollTrait = "SunExp_sunexp_star_clay_doll_trait";
+    public const string DuskAfterheatRecoveryTrait = "Terrias_terrias_dusk_afterheat_recovery_trait";
+    public const string BossTraitMirrorArray = "Terrias_terrias_boss_trait_mirror_array";
+    public const string BossTraitMercilessDaylight = "Terrias_terrias_boss_trait_merciless_daylight";
+    public const string BossTraitWhiteRadianceSaint = "Terrias_terrias_boss_trait_white_radiance_saint";
+    public const string BossWhiteRadianceCrown = "Terrias_terrias_boss_white_radiance_crown";
+    public const string StarStonePouch = "Terrias_terrias_star_stone_pouch";
+    public const string MiracleClock = "Terrias_terrias_miracle_clock";
+    public const string Starlight = "Terrias_terrias_starlight";
+    public const string Moonlight = "Terrias_terrias_moonlight";
+    public const string StarBlessing = "Terrias_terrias_star_blessing";
+    public const string StarScore = "Terrias_terrias_star_score";
+    public const string Resonance = "Terrias_terrias_resonance";
+    public const string StarStage = "Terrias_terrias_star_stage";
+    public const string StarClayBody = "Terrias_terrias_star_clay_body";
+    public const string StarClayDollTrait = "Terrias_terrias_star_clay_doll_trait";
     public const string Cripple = "buff_cripple";
     public const string Extraordinary = "buff_extraordinary";
-    public const string EnemyCardSaintWhiteEdict = "SunExp_sunexp_enemycard_saint_white_edict";
-    public const string AbyssLifeTheftCardId = "SunExp_cursecard_abyss_life_theft";
-    public const string AbyssDeficitCardId = "SunExp_cursecard_abyss_deficit";
-    public const string AbyssGazeBuffI = "SunExp_sunexp_abyss_gaze_i";
-    public const string AbyssGazeBuffII = "SunExp_sunexp_abyss_gaze_ii";
-    public const string AbyssGazeBuffIII = "SunExp_sunexp_abyss_gaze_iii";
-    public const string AbyssBlessingBuff = "SunExp_sunexp_abyss_blessing";
-    public const string AbyssLifeTheftEnemyCardId = "SunExp_sunexp_enemycard_abyss_life_theft";
-    public const string AbyssDeficitEnemyCardId = "SunExp_sunexp_enemycard_abyss_deficit";
-    public const string EndlessAbyssEvolutionLevelKey = "SunExp_EndlessAbyssEvolutionLevel";
+    public const string EnemyCardSaintWhiteEdict = "Terrias_terrias_enemycard_saint_white_edict";
+    public const string AbyssLifeTheftCardId = "Terrias_cursecard_abyss_life_theft";
+    public const string AbyssDeficitCardId = "Terrias_cursecard_abyss_deficit";
+    public const string AbyssGazeBuffI = "Terrias_terrias_abyss_gaze_i";
+    public const string AbyssGazeBuffII = "Terrias_terrias_abyss_gaze_ii";
+    public const string AbyssGazeBuffIII = "Terrias_terrias_abyss_gaze_iii";
+    public const string AbyssBlessingBuff = "Terrias_terrias_abyss_blessing";
+    public const string AbyssLifeTheftEnemyCardId = "Terrias_terrias_enemycard_abyss_life_theft";
+    public const string AbyssDeficitEnemyCardId = "Terrias_terrias_enemycard_abyss_deficit";
+    public const string EndlessAbyssEvolutionLevelKey = "Terrias_EndlessAbyssEvolutionLevel";
     public const string EndlessAbyssEvolutionTraitRegistryFile = "endless_abyss.evolution_traits.registry.json";
     public const string EndlessAbyssEvolutionTraitPoolId = "endless_abyss.evolution.advanced_traits";
 
-    public const string TempWhiteRadiance = "SunExpTempWhiteRadiance";
-    public const string TempWhiteRadianceLockId = "SunExpTempWhiteRadianceLockId";
-    public const string TempWhiteRadianceResolved = "SunExpTempWhiteRadianceResolved";
+    public const string TempWhiteRadiance = "TerriasTempWhiteRadiance";
+    public const string TempWhiteRadianceLockId = "TerriasTempWhiteRadianceLockId";
+    public const string TempWhiteRadianceResolved = "TerriasTempWhiteRadianceResolved";
 
-    public const string SolarTriggerCost = "SunExpSolarTriggerCost";
+    public const string SolarTriggerCost = "TerriasSolarTriggerCost";
 
-    public const string WunaActive = "SunExpWunaActive";
-    public const string PersistentEmber = "SunExpPersistentEmber";
-    public const string WunaPersistentEmber = "SunExpWunaPersistentEmber";
-    public const string WunaWhiteSunPrayerCardId = "SunExp_wuna_wuna_white_sun_prayer";
-    public const string WunaCoronationTokenCardId = "SunExp_wuna_wuna_coronation_token";
+    public const string WunaActive = "TerriasWunaActive";
+    public const string PersistentEmber = "TerriasPersistentEmber";
+    public const string WunaPersistentEmber = "TerriasWunaPersistentEmber";
+    public const string WunaWhiteSunPrayerCardId = "Terrias_wuna_wuna_white_sun_prayer";
+    public const string WunaCoronationTokenCardId = "Terrias_wuna_wuna_coronation_token";
     public const string LoneerCareerId = "loneer";
-    public const string LoneerActive = "SunExpLoneerActive";
-    public const string LoneerMorningPrayerSkillCardId = "SunExp_loneer_loneer_morning_star_prayer";
+    public const string LoneerActive = "TerriasLoneerActive";
+    public const string LoneerMorningPrayerSkillCardId = "Terrias_loneer_loneer_morning_star_prayer";
     public const string StellarOvertureStartShortCardId = "stellar_overture_start";
     public const string StellarOvertureSustainShortCardId = "stellar_overture_sustain";
     public const string StellarOvertureTurnShortCardId = "stellar_overture_turn";
     public const string StellarOvertureCloseShortCardId = "stellar_overture_close";
-    public const string StellarOvertureStartCardId = "SunExp_sunexp_stellar_overture_start";
-    public const string StellarOvertureSustainCardId = "SunExp_sunexp_stellar_overture_sustain";
-    public const string StellarOvertureTurnCardId = "SunExp_sunexp_stellar_overture_turn";
-    public const string StellarOvertureCloseCardId = "SunExp_sunexp_stellar_overture_close";
-    public const string WitchStarScoreCardId = "SunExp_sunexp_witch_star_score";
-    public const string StarMapCardId = "SunExp_sunexp_star_map";
-    public const string BlankStarScoreCardId = "SunExp_sunexp_blank_star_score";
-    public const string MeterRewriteCardId = "SunExp_sunexp_meter_rewrite";
-    public const string PrewrittenMeasureCardId = "SunExp_sunexp_prewritten_measure";
-    public const string StarOrbitTransposeCardId = "SunExp_sunexp_star_orbit_transpose";
-    public const string RestMarkCardId = "SunExp_sunexp_rest_mark";
-    public const string MorningStarStageCardId = "SunExp_sunexp_morning_star_stage";
-    public const string StarScoreEchoCardId = "SunExp_sunexp_star_score_echo";
+    public const string StellarOvertureStartCardId = "Terrias_terrias_stellar_overture_start";
+    public const string StellarOvertureSustainCardId = "Terrias_terrias_stellar_overture_sustain";
+    public const string StellarOvertureTurnCardId = "Terrias_terrias_stellar_overture_turn";
+    public const string StellarOvertureCloseCardId = "Terrias_terrias_stellar_overture_close";
+    public const string WitchStarScoreCardId = "Terrias_terrias_witch_star_score";
+    public const string StarMapCardId = "Terrias_terrias_star_map";
+    public const string BlankStarScoreCardId = "Terrias_terrias_blank_star_score";
+    public const string MeterRewriteCardId = "Terrias_terrias_meter_rewrite";
+    public const string PrewrittenMeasureCardId = "Terrias_terrias_prewritten_measure";
+    public const string StarOrbitTransposeCardId = "Terrias_terrias_star_orbit_transpose";
+    public const string RestMarkCardId = "Terrias_terrias_rest_mark";
+    public const string MorningStarStageCardId = "Terrias_terrias_morning_star_stage";
+    public const string StarScoreEchoCardId = "Terrias_terrias_star_score_echo";
     public const string PolymorphCardShortId = "polymorph";
     public const string PolymorphRoleTemplateShortId = "polymorph_role_template";
-    public const string PolymorphRoleTemplateCardId = "SunExp_sunexp_polymorph_role_template";
+    public const string PolymorphRoleTemplateCardId = "Terrias_terrias_polymorph_role_template";
     public const string PolymorphTraitBuffShortId = "polymorph_trait";
-    public const string PolymorphTraitBuffId = "SunExp_sunexp_polymorph_trait";
-    public const string PolymorphRoleCardMarker = "SunExpPolymorphRoleCard";
-    public const string PolymorphRoleIdKey = "SunExpPolymorphRoleId";
-    public const string PolymorphRoleNameKey = "SunExpPolymorphRoleName";
-    public const string PolymorphRoleCardFacePathKey = "SunExpPolymorphRoleCardFacePath";
-    public const string PolymorphRoleCropXKey = "SunExpPolymorphRoleCropX";
-    public const string PolymorphRoleCropYKey = "SunExpPolymorphRoleCropY";
+    public const string PolymorphTraitBuffId = "Terrias_terrias_polymorph_trait";
+    public const string PolymorphRoleCardMarker = "TerriasPolymorphRoleCard";
+    public const string PolymorphRoleIdKey = "TerriasPolymorphRoleId";
+    public const string PolymorphRoleNameKey = "TerriasPolymorphRoleName";
+    public const string PolymorphRoleCardFacePathKey = "TerriasPolymorphRoleCardFacePath";
+    public const string PolymorphRoleCropXKey = "TerriasPolymorphRoleCropX";
+    public const string PolymorphRoleCropYKey = "TerriasPolymorphRoleCropY";
     public const string PolymorphCropConfigFile = "polymorph.role-crops.json";
     public const string PolymorphSourceResourceCategory = "polymorph.role-source";
     public const string PolymorphGeneratedFaceCategory = "polymorph.generated-card-face";
-    public const string PolymorphBaseCardIconPath = "Mods/SunExp/ModResource/Images/Card/MoreDimension/bai_bian";
+    public const string PolymorphBaseCardIconPath = "Mods/Terrias/ModResource/Images/Card/MoreDimension/bai_bian";
     public const string PolymorphPlaceholderCardIconPath = PolymorphBaseCardIconPath;
     public const string ProjectionCardShortId = "witch_projection";
     public const string ProjectionRoleTemplateShortId = "projection_role_template";
-    public const string ProjectionRoleTemplateCardId = "SunExp_sunexp_projection_role_template";
-    public const string ProjectionRoleCardMarker = "SunExpProjectionRoleCard";
-    public const string ProjectionRoleIdKey = "SunExpProjectionRoleId";
-    public const string ProjectionRoleNameKey = "SunExpProjectionRoleName";
-    public const string ProjectionRoleCardFacePathKey = "SunExpProjectionRoleCardFacePath";
-    public const string ProjectionOwnerStatusIdKey = "SunExpProjectionOwnerStatusId";
+    public const string ProjectionRoleTemplateCardId = "Terrias_terrias_projection_role_template";
+    public const string ProjectionRoleCardMarker = "TerriasProjectionRoleCard";
+    public const string ProjectionRoleIdKey = "TerriasProjectionRoleId";
+    public const string ProjectionRoleNameKey = "TerriasProjectionRoleName";
+    public const string ProjectionRoleCardFacePathKey = "TerriasProjectionRoleCardFacePath";
+    public const string ProjectionOwnerStatusIdKey = "TerriasProjectionOwnerStatusId";
     public const string ProjectionStatusIdPrefix = "sp";
-    public const string ProjectionBaseCardIconPath = "Mods/SunExp/ModResource/Images/Card/MoreDimension/help_me";
+    public const string ProjectionBaseCardIconPath = "Mods/Terrias/ModResource/Images/Card/MoreDimension/help_me";
     public const string SpiritBallCardShortId = "spirit_ball";
-    public const string SpiritBallCardId = "SunExp_sunexp_spirit_ball";
+    public const string SpiritBallCardId = "Terrias_terrias_spirit_ball";
     public const string SpiritCardTemplateShortId = "spirit_card_template";
-    public const string SpiritCardTemplateId = "SunExp_sunexp_spirit_card_template";
-    public const string SpiritCardMarker = "SunExpSpiritCard";
-    public const string SpiritUidKey = "SunExpSpiritUid";
-    public const string SpiritEnemyIdKey = "SunExpSpiritEnemyId";
-    public const string SpiritVariantIdKey = "SunExpSpiritVariantId";
-    public const string SpiritSourceModIdKey = "SunExpSpiritSourceModId";
-    public const string SpiritDisplayNameKey = "SunExpSpiritDisplayName";
-    public const string SpiritDescriptionKey = "SunExpSpiritDescription";
-    public const string SpiritAnimationPathKey = "SunExpSpiritAnimationPath";
-    public const string SpiritDictPathKey = "SunExpSpiritDictPath";
-    public const string SpiritIdlePathKey = "SunExpSpiritIdlePath";
-    public const string SpiritProfileVersionKey = "SunExpSpiritProfileVersion";
-    public const string SpiritCaptureOriginKey = "SunExpSpiritCaptureOrigin";
-    public const string SpiritCapturedAtKey = "SunExpSpiritCapturedAt";
-    public const string SpiritExchangeCountKey = "SunExpSpiritExchangeCount";
-    public const string SpiritIntentTurnIndexKey = "SunExpSpiritIntentTurnIndex";
-    public const string SpiritIntentReadyOnTurnKey = "SunExpSpiritIntentReadyOnTurn";
+    public const string SpiritCardTemplateId = "Terrias_terrias_spirit_card_template";
+    public const string SpiritCardMarker = "TerriasSpiritCard";
+    public const string SpiritUidKey = "TerriasSpiritUid";
+    public const string SpiritEnemyIdKey = "TerriasSpiritEnemyId";
+    public const string SpiritVariantIdKey = "TerriasSpiritVariantId";
+    public const string SpiritSourceModIdKey = "TerriasSpiritSourceModId";
+    public const string SpiritDisplayNameKey = "TerriasSpiritDisplayName";
+    public const string SpiritDescriptionKey = "TerriasSpiritDescription";
+    public const string SpiritAnimationPathKey = "TerriasSpiritAnimationPath";
+    public const string SpiritDictPathKey = "TerriasSpiritDictPath";
+    public const string SpiritIdlePathKey = "TerriasSpiritIdlePath";
+    public const string SpiritProfileVersionKey = "TerriasSpiritProfileVersion";
+    public const string SpiritCaptureOriginKey = "TerriasSpiritCaptureOrigin";
+    public const string SpiritCapturedAtKey = "TerriasSpiritCapturedAt";
+    public const string SpiritExchangeCountKey = "TerriasSpiritExchangeCount";
+    public const string SpiritIntentTurnIndexKey = "TerriasSpiritIntentTurnIndex";
+    public const string SpiritIntentReadyOnTurnKey = "TerriasSpiritIntentReadyOnTurn";
     public const string SpiritStatusIdPrefix = "ss";
-    public const string SpiritBallIconPath = "Mods/SunExp/ModResource/Images/Card/MoreDimension/spirit_ball";
+    public const string SpiritBallIconPath = "Mods/Terrias/ModResource/Images/Card/MoreDimension/spirit_ball";
     public const string SpiritIntentRegistryFile = "spirit.intent.registry.json";
     public const string SpiritCaptureRegistryFile = "spirit.capture.registry.json";
-    public const string MoreDimensionsCardPackId = "SunExp_sunexp_cardpack_more_dimensions";
+    public const string MoreDimensionsCardPackId = "Terrias_terrias_cardpack_more_dimensions";
     public const string DimensionShopConfigFile = "dimension_shop.config.json";
     public const string DimensionShopMapShortId = "dimension_shop";
-    public const string DimensionShopMapId = "SunExp_sunexp_dimension_shop";
+    public const string DimensionShopMapId = "Terrias_terrias_dimension_shop";
     public const string DimensionShopTemplateNodeId = "Breaks_dimension_shop";
-    public const string DimensionShopNodeId = "SunExpDimensionShop";
-    public const string DimensionShopRunInitializedKey = "SunExp_DimensionShop_RunInitialized";
-    public const string DimensionShopRunSeedKey = "SunExp_DimensionShop_RunSeed";
-    public const string DimensionShopCardPoolKey = "SunExp_DimensionShop_CardPool";
-    public const string DimensionShopRelicPoolKey = "SunExp_DimensionShop_RelicPool";
-    public const string DimensionShopPlayerInitializedKey = "SunExp_DimensionShop_PlayerInitialized";
-    public const string DimensionShopCurrentCardKey = "SunExp_DimensionShop_CurrentCard";
-    public const string DimensionShopCurrentRelicKey = "SunExp_DimensionShop_CurrentRelic";
-    public const string DimensionShopCardBoughtKey = "SunExp_DimensionShop_CardBought";
-    public const string DimensionShopRefreshCountKey = "SunExp_DimensionShop_RefreshCount";
-    public const string DimensionShopBoughtRelicsKey = "SunExp_DimensionShop_BoughtRelics";
+    public const string DimensionShopNodeId = "TerriasDimensionShop";
+    public const string DimensionShopRunInitializedKey = "Terrias_DimensionShop_RunInitialized";
+    public const string DimensionShopRunSeedKey = "Terrias_DimensionShop_RunSeed";
+    public const string DimensionShopCardPoolKey = "Terrias_DimensionShop_CardPool";
+    public const string DimensionShopRelicPoolKey = "Terrias_DimensionShop_RelicPool";
+    public const string DimensionShopPlayerInitializedKey = "Terrias_DimensionShop_PlayerInitialized";
+    public const string DimensionShopCurrentCardKey = "Terrias_DimensionShop_CurrentCard";
+    public const string DimensionShopCurrentRelicKey = "Terrias_DimensionShop_CurrentRelic";
+    public const string DimensionShopCardBoughtKey = "Terrias_DimensionShop_CardBought";
+    public const string DimensionShopRefreshCountKey = "Terrias_DimensionShop_RefreshCount";
+    public const string DimensionShopBoughtRelicsKey = "Terrias_DimensionShop_BoughtRelics";
     public const string BrokenDialRelicId = "relic_24";
     public const string HeartChangeCardShortId = "heart_change";
     public const string HeartChangeBuffShortId = "heart_change_control";
-    public const string HeartChangeBuffId = "SunExp_sunexp_heart_change_control";
-    public const string HeartChangeCardIconPath = "Mods/SunExp/ModResource/Images/Card/MoreDimension/xin_bian";
+    public const string HeartChangeBuffId = "Terrias_terrias_heart_change_control";
+    public const string HeartChangeCardIconPath = "Mods/Terrias/ModResource/Images/Card/MoreDimension/xin_bian";
     public const string HeartChangeActionStrike = "heart_change_strike";
-    public const string HeartChangeActionStrikeCardId = "SunExp_sunexp_enemycard_heart_change_strike";
+    public const string HeartChangeActionStrikeCardId = "Terrias_terrias_enemycard_heart_change_strike";
     public const string ProjectionActionStaffTap = "staff_tap";
     public const string ProjectionActionShieldBlessing = "shield_blessing";
     public const string ProjectionActionStaffCombo = "staff_combo";
@@ -238,16 +238,16 @@ public static class SunExpIds
     public const string ProjectionActionCharge = "charge";
     public const string ProjectionActionHolyHeal = "holy_heal";
     public const string ProjectionActionWait = "system.wait";
-    public const string ProjectionActionStaffTapCardId = "SunExp_sunexp_enemycard_projection_staff_tap";
-    public const string ProjectionActionShieldBlessingCardId = "SunExp_sunexp_enemycard_projection_shield_blessing";
-    public const string ProjectionActionStaffComboCardId = "SunExp_sunexp_enemycard_projection_staff_combo";
-    public const string ProjectionActionMagicInterferenceCardId = "SunExp_sunexp_enemycard_projection_magic_interference";
-    public const string ProjectionActionYouAreEnhancedCardId = "SunExp_sunexp_enemycard_projection_you_are_enhanced";
-    public const string ProjectionActionChargeCardId = "SunExp_sunexp_enemycard_projection_charge";
-    public const string ProjectionActionHolyHealCardId = "SunExp_sunexp_enemycard_projection_holy_heal";
-    public const string ProjectionActionWaitCardId = "SunExp_sunexp_enemycard_projection_wait";
-    public const string SpiritIntentAdapterCardId = "SunExp_sunexp_enemycard_spirit_intent_adapter";
-    public const string SpiritIntentSourceCardVar = "SunExpSpiritIntentSourceCardId";
+    public const string ProjectionActionStaffTapCardId = "Terrias_terrias_enemycard_projection_staff_tap";
+    public const string ProjectionActionShieldBlessingCardId = "Terrias_terrias_enemycard_projection_shield_blessing";
+    public const string ProjectionActionStaffComboCardId = "Terrias_terrias_enemycard_projection_staff_combo";
+    public const string ProjectionActionMagicInterferenceCardId = "Terrias_terrias_enemycard_projection_magic_interference";
+    public const string ProjectionActionYouAreEnhancedCardId = "Terrias_terrias_enemycard_projection_you_are_enhanced";
+    public const string ProjectionActionChargeCardId = "Terrias_terrias_enemycard_projection_charge";
+    public const string ProjectionActionHolyHealCardId = "Terrias_terrias_enemycard_projection_holy_heal";
+    public const string ProjectionActionWaitCardId = "Terrias_terrias_enemycard_projection_wait";
+    public const string SpiritIntentAdapterCardId = "Terrias_terrias_enemycard_spirit_intent_adapter";
+    public const string SpiritIntentSourceCardVar = "TerriasSpiritIntentSourceCardId";
 
     public static readonly string[] StellarOvertureCardIds =
     {
@@ -276,7 +276,7 @@ public static class SunExpIds
     public static readonly string[] SunThemeExplicitCardIds =
     {
         WunaCoronationTokenCardId,
-        "SunExp_wuna_card_*wuna_coronation_token",
+        "Terrias_wuna_card_*wuna_coronation_token",
         "*wuna_coronation_token",
         "wuna_coronation_token"
     };
@@ -286,56 +286,56 @@ public static class SunExpIds
         SunCardIconPathPrefix
     };
 
-    public const string StarClayDollPartnerId = "SunExp_sunexp_star_clay_doll";
-    public const string StarClayDollBlessingId = "SunExp_sunexp_star_clay_doll_placeholder";
-    public const string RuntimeMarkersKey = "SunExpRuntimeMarkers";
-    public const string LoneerDerivedMarker = "SunExpLoneerDerived";
-    public const string LoneerGuidanceMarker = "SunExpLoneerGuidance";
+    public const string StarClayDollPartnerId = "Terrias_terrias_star_clay_doll";
+    public const string StarClayDollBlessingId = "Terrias_terrias_star_clay_doll_placeholder";
+    public const string RuntimeMarkersKey = "TerriasRuntimeMarkers";
+    public const string LoneerDerivedMarker = "TerriasLoneerDerived";
+    public const string LoneerGuidanceMarker = "TerriasLoneerGuidance";
     public const string LoneerDerivedTag = "衍生牌";
     public const string LoneerGuidanceTag = "指引牌";
 
-    public const string SolarMemoryModeKey = "SunExp_SolarMemoryMode";
-    public const string SolarMemorySemanticModeId = "SunExp:solar-memory";
-    public const string SolarMemorySelectedPacksKey = "SunExp_SolarMemorySelectedPacks";
-    public const string SolarMemoryOriginPointsKey = "SunExp_SolarMemoryOriginPoints";
-    public const string SolarMemoryBlessPickCountKey = "SunExp_SolarMemoryBlessPickCount";
-    public const string SolarMemoryBlessSelectedIdsKey = "SunExp_SolarMemoryBlessSelectedIds";
-    public const string SolarMemoryDeckConfiguredKey = "SunExp_SolarMemoryDeckConfigured";
-    public const string SolarMemoryStarterDeckAppliedKey = "SunExp_SolarMemoryStarterDeckApplied";
-    public const string SolarMemoryStarterDeckModeKey = "SunExp_SolarMemoryStarterDeckMode";
+    public const string SolarMemoryModeKey = "Terrias_SolarMemoryMode";
+    public const string SolarMemorySemanticModeId = "Terrias:solar-memory";
+    public const string SolarMemorySelectedPacksKey = "Terrias_SolarMemorySelectedPacks";
+    public const string SolarMemoryOriginPointsKey = "Terrias_SolarMemoryOriginPoints";
+    public const string SolarMemoryBlessPickCountKey = "Terrias_SolarMemoryBlessPickCount";
+    public const string SolarMemoryBlessSelectedIdsKey = "Terrias_SolarMemoryBlessSelectedIds";
+    public const string SolarMemoryDeckConfiguredKey = "Terrias_SolarMemoryDeckConfigured";
+    public const string SolarMemoryStarterDeckAppliedKey = "Terrias_SolarMemoryStarterDeckApplied";
+    public const string SolarMemoryStarterDeckModeKey = "Terrias_SolarMemoryStarterDeckMode";
     public const string StarterDeckOwnerKey = "StarterDeck.Owner";
     public const string StarterDeckScopeKey = "StarterDeck.Scope";
     public const string StarterDeckStateKey = "StarterDeck.State";
-    public const string StarterDeckOwnerSolarMemory = "SunExp.SolarMemory";
-    public const string StarterDeckOwnerEndlessSea = "SunExp.EndlessSea";
+    public const string StarterDeckOwnerSolarMemory = "Terrias.SolarMemory";
+    public const string StarterDeckOwnerEndlessSea = "Terrias.EndlessSea";
     public const string StarterDeckStatePending = "pending";
     public const string StarterDeckStateApplied = "applied";
     public const string StarterDeckStateOfficial = "official";
-    public const string SolarMemoryOriginConfiguredKey = "SunExp_SolarMemoryOriginConfigured";
-    public const string SolarMemoryBlessConfiguredKey = "SunExp_SolarMemoryBlessConfigured";
-    public const string SolarMemorySetupFinishedKey = "SunExp_SolarMemorySetupFinished";
-    public const string SolarMemorySetupCommitTokenKey = "SunExp_SolarMemorySetupCommitToken";
-    public const string SolarMemoryPrepStepKey = "SunExp_SolarMemoryPrepStep";
-    public const string SolarMemoryPreparedKey = "SunExp_SolarMemoryPrepared";
-    public const string SolarMemoryPostPreparationDialogueSeenKey = "SunExp_SolarMemoryPostPreparationDialogueSeen";
-    public const string SolarMemoryPostPreparationDialoguePendingKey = "SunExp_SolarMemoryPostPreparationDialoguePending";
-    public const string SolarMemorySaintWunaBossPendingKey = "SunExp_SolarMemorySaintWunaBossPending";
-    public const string HardSunsetFightCountKey = "SunExp_Hard_SunsetFightCount";
-    public const string SolarMemoryPostPreparationDialogueFlowId = "SunExp.SolarMemory.PostPreparationDialogue";
-    public const string SolarMemorySecondSunEndingDialogueFlowId = "SunExp.SolarMemory.SecondSunEndingDialogue";
-    public const string SolarMemorySaintWunaPreludeDialogueFlowId = "SunExp.SolarMemory.SaintWunaPreludeDialogue";
-    public const string SolarMemorySaintWunaEndingDialogueFlowId = "SunExp.SolarMemory.SaintWunaEndingDialogue";
-    public const string SolarMemoryPostPreparationDialogueId = "SunExp_sunexp_solar_memory_opening_1";
-    public const string SolarMemoryPostPreparationCompleteDialogueId = "SunExp_sunexp_solar_memory_opening_4";
-    public const string SolarMemorySecondSunEndingDialogueId = "SunExp_sunexp_solar_memory_second_sun_end_1";
-    public const string SolarMemorySecondSunEndingCompleteDialogueId = "SunExp_sunexp_solar_memory_second_sun_end_2";
-    public const string SolarMemorySaintWunaPreludeDialogueId = "SunExp_sunexp_solar_memory_saint_wuna_prelude_1";
-    public const string SolarMemorySaintWunaPreludeCompleteDialogueId = "SunExp_sunexp_solar_memory_saint_wuna_prelude_6";
-    public const string SolarMemorySaintWunaEndingDialogueId = "SunExp_sunexp_solar_memory_saint_wuna_end_1";
-    public const string SolarMemorySaintWunaEndingCompleteDialogueId = "SunExp_sunexp_solar_memory_saint_wuna_end_3";
+    public const string SolarMemoryOriginConfiguredKey = "Terrias_SolarMemoryOriginConfigured";
+    public const string SolarMemoryBlessConfiguredKey = "Terrias_SolarMemoryBlessConfigured";
+    public const string SolarMemorySetupFinishedKey = "Terrias_SolarMemorySetupFinished";
+    public const string SolarMemorySetupCommitTokenKey = "Terrias_SolarMemorySetupCommitToken";
+    public const string SolarMemoryPrepStepKey = "Terrias_SolarMemoryPrepStep";
+    public const string SolarMemoryPreparedKey = "Terrias_SolarMemoryPrepared";
+    public const string SolarMemoryPostPreparationDialogueSeenKey = "Terrias_SolarMemoryPostPreparationDialogueSeen";
+    public const string SolarMemoryPostPreparationDialoguePendingKey = "Terrias_SolarMemoryPostPreparationDialoguePending";
+    public const string SolarMemorySaintWunaBossPendingKey = "Terrias_SolarMemorySaintWunaBossPending";
+    public const string HardSunsetFightCountKey = "Terrias_Hard_SunsetFightCount";
+    public const string SolarMemoryPostPreparationDialogueFlowId = "Terrias.SolarMemory.PostPreparationDialogue";
+    public const string SolarMemorySecondSunEndingDialogueFlowId = "Terrias.SolarMemory.SecondSunEndingDialogue";
+    public const string SolarMemorySaintWunaPreludeDialogueFlowId = "Terrias.SolarMemory.SaintWunaPreludeDialogue";
+    public const string SolarMemorySaintWunaEndingDialogueFlowId = "Terrias.SolarMemory.SaintWunaEndingDialogue";
+    public const string SolarMemoryPostPreparationDialogueId = "Terrias_terrias_solar_memory_opening_1";
+    public const string SolarMemoryPostPreparationCompleteDialogueId = "Terrias_terrias_solar_memory_opening_4";
+    public const string SolarMemorySecondSunEndingDialogueId = "Terrias_terrias_solar_memory_second_sun_end_1";
+    public const string SolarMemorySecondSunEndingCompleteDialogueId = "Terrias_terrias_solar_memory_second_sun_end_2";
+    public const string SolarMemorySaintWunaPreludeDialogueId = "Terrias_terrias_solar_memory_saint_wuna_prelude_1";
+    public const string SolarMemorySaintWunaPreludeCompleteDialogueId = "Terrias_terrias_solar_memory_saint_wuna_prelude_6";
+    public const string SolarMemorySaintWunaEndingDialogueId = "Terrias_terrias_solar_memory_saint_wuna_end_1";
+    public const string SolarMemorySaintWunaEndingCompleteDialogueId = "Terrias_terrias_solar_memory_saint_wuna_end_3";
     public const string SolarMemoryEventId = "Sub_solar_memory_black_sun_after";
-    public const string SolarMemoryFullEventId = "SunExp_sunexp_Sub_solar_memory_black_sun_after";
-    public const string SolarMemoryMapId = "SunExp_sunexp_solar_memory_black_sun_after";
+    public const string SolarMemoryFullEventId = "Terrias_terrias_Sub_solar_memory_black_sun_after";
+    public const string SolarMemoryMapId = "Terrias_terrias_solar_memory_black_sun_after";
     public const string SolarMemoryShortMapId = "solar_memory_black_sun_after";
     public static readonly string[] SolarMemoryEventIds =
     {
@@ -349,22 +349,22 @@ public static class SunExpIds
 
     public static readonly string[] SolarMemoryFullEventIds =
     {
-        "SunExp_sunexp_Sub_solar_memory_black_sun_after",
-        "SunExp_sunexp_Sub_solar_memory_second_sun",
-        "SunExp_sunexp_Sub_solar_memory_saint_daily",
-        "SunExp_sunexp_Sub_solar_memory_polluted_light",
-        "SunExp_sunexp_Sub_solar_memory_grief_struggle",
-        "SunExp_sunexp_Sub_solar_memory_above_sacred_wheel"
+        "Terrias_terrias_Sub_solar_memory_black_sun_after",
+        "Terrias_terrias_Sub_solar_memory_second_sun",
+        "Terrias_terrias_Sub_solar_memory_saint_daily",
+        "Terrias_terrias_Sub_solar_memory_polluted_light",
+        "Terrias_terrias_Sub_solar_memory_grief_struggle",
+        "Terrias_terrias_Sub_solar_memory_above_sacred_wheel"
     };
 
     public static readonly string[] SolarMemoryMapIds =
     {
-        "SunExp_sunexp_solar_memory_black_sun_after",
-        "SunExp_sunexp_solar_memory_second_sun",
-        "SunExp_sunexp_solar_memory_saint_daily",
-        "SunExp_sunexp_solar_memory_polluted_light",
-        "SunExp_sunexp_solar_memory_grief_struggle",
-        "SunExp_sunexp_solar_memory_above_sacred_wheel"
+        "Terrias_terrias_solar_memory_black_sun_after",
+        "Terrias_terrias_solar_memory_second_sun",
+        "Terrias_terrias_solar_memory_saint_daily",
+        "Terrias_terrias_solar_memory_polluted_light",
+        "Terrias_terrias_solar_memory_grief_struggle",
+        "Terrias_terrias_solar_memory_above_sacred_wheel"
     };
 
     public static readonly string[] SolarMemoryShortMapIds =
@@ -388,33 +388,33 @@ public static class SunExpIds
     public const string SolarMemorySubtitle = "Boss连战";
     public const int SolarMemoryMaxLayer = 3;
 
-    public const string EndlessSeaModeKey = "SunExp_EndlessSeaMode";
-    public const string EndlessAbyssSemanticModeId = "SunExp:endless-abyss";
+    public const string EndlessSeaModeKey = "Terrias_EndlessSeaMode";
+    public const string EndlessAbyssSemanticModeId = "Terrias:endless-abyss";
     public const string NativeNormalModeType = "Normal";
-    public const string EndlessSeaFloorKey = "SunExp_EndlessSeaFloor";
-    public const string EndlessSeaGeneratedFloorKey = "SunExp_EndlessSeaGeneratedFloor";
-    public const string EndlessSeaSeedKey = "SunExp_EndlessSeaSeed";
-    public const string EndlessSeaFloorPlanKey = "SunExp_EndlessSeaFloorPlan";
-    public const string EndlessSeaIntroSeenKey = "SunExp_EndlessSeaIntroSeen";
-    public const string EndlessSeaStarterDeckAppliedKey = "SunExp_EndlessSeaStarterDeckApplied";
-    public const string EndlessSeaStarterDeckModeKey = "SunExp_EndlessSeaStarterDeckMode";
-    public const string EndlessSeaModeType = "SunExpEndlessSea";
-    public const string EndlessSeaRunIdKey = "SunExp_EndlessSeaRunId";
-    public const string EndlessSeaRunVersionKey = "SunExp_EndlessSeaRunVersion";
-    public const string EndlessSeaRunPhaseKey = "SunExp_EndlessSeaRunPhase";
-    public const string EndlessSeaRunEndedKey = "SunExp_EndlessSeaRunEnded";
-    public const string EndlessSeaRunUpdatedAtKey = "SunExp_EndlessSeaRunUpdatedAt";
-    public const string EndlessAbyssEvacuationTokenKey = "SunExp_EndlessAbyssEvacuationToken";
-    public const string EndlessAbyssEvacuationReasonKey = "SunExp_EndlessAbyssEvacuationReason";
-    public const string EndlessAbyssEvacuationFloorKey = "SunExp_EndlessAbyssEvacuationFloor";
-    public const string EndlessAbyssEvacuationDepthKey = "SunExp_EndlessAbyssEvacuationDepth";
-    public const string EndlessAbyssEvacuationAtKey = "SunExp_EndlessAbyssEvacuationAt";
-    public const string EndlessSeaStarterDeckBaselineMarker = "SunExpEndlessSeaStarterDeckBaseline";
-    public const string EndlessSeaAutoBurnoutMarker = "SunExpEndlessSeaAutoBurnout";
+    public const string EndlessSeaFloorKey = "Terrias_EndlessSeaFloor";
+    public const string EndlessSeaGeneratedFloorKey = "Terrias_EndlessSeaGeneratedFloor";
+    public const string EndlessSeaSeedKey = "Terrias_EndlessSeaSeed";
+    public const string EndlessSeaFloorPlanKey = "Terrias_EndlessSeaFloorPlan";
+    public const string EndlessSeaIntroSeenKey = "Terrias_EndlessSeaIntroSeen";
+    public const string EndlessSeaStarterDeckAppliedKey = "Terrias_EndlessSeaStarterDeckApplied";
+    public const string EndlessSeaStarterDeckModeKey = "Terrias_EndlessSeaStarterDeckMode";
+    public const string EndlessSeaModeType = "TerriasEndlessSea";
+    public const string EndlessSeaRunIdKey = "Terrias_EndlessSeaRunId";
+    public const string EndlessSeaRunVersionKey = "Terrias_EndlessSeaRunVersion";
+    public const string EndlessSeaRunPhaseKey = "Terrias_EndlessSeaRunPhase";
+    public const string EndlessSeaRunEndedKey = "Terrias_EndlessSeaRunEnded";
+    public const string EndlessSeaRunUpdatedAtKey = "Terrias_EndlessSeaRunUpdatedAt";
+    public const string EndlessAbyssEvacuationTokenKey = "Terrias_EndlessAbyssEvacuationToken";
+    public const string EndlessAbyssEvacuationReasonKey = "Terrias_EndlessAbyssEvacuationReason";
+    public const string EndlessAbyssEvacuationFloorKey = "Terrias_EndlessAbyssEvacuationFloor";
+    public const string EndlessAbyssEvacuationDepthKey = "Terrias_EndlessAbyssEvacuationDepth";
+    public const string EndlessAbyssEvacuationAtKey = "Terrias_EndlessAbyssEvacuationAt";
+    public const string EndlessSeaStarterDeckBaselineMarker = "TerriasEndlessSeaStarterDeckBaseline";
+    public const string EndlessSeaAutoBurnoutMarker = "TerriasEndlessSeaAutoBurnout";
     public const string EndlessAbyssConfigFile = "endless_abyss.config.json";
-    public const string EndlessAbyssGazeLevelKey = "SunExp_EndlessAbyssGazeLevel";
-    public const string EndlessAbyssLedgerKey = "SunExp_EndlessAbyssLedger";
-    public const string EndlessAbyssPendingShockKey = "SunExp_EndlessAbyssPendingShock";
+    public const string EndlessAbyssGazeLevelKey = "Terrias_EndlessAbyssGazeLevel";
+    public const string EndlessAbyssLedgerKey = "Terrias_EndlessAbyssLedger";
+    public const string EndlessAbyssPendingShockKey = "Terrias_EndlessAbyssPendingShock";
     public const string EndlessAbyssTitle = "\u65e0\u5c3d\u4e4b\u6e0a";
     public const string EndlessAbyssStealthModeName = "\u6f5c\u884c\u6a21\u5f0f";
     public const string EndlessAbyssEndlessModeName = "\u65e0\u5c3d\u6a21\u5f0f";
@@ -435,25 +435,25 @@ public static class SunExpIds
     public const string EndlessSeaNodeLockedKey = "EndlessSeaLocked";
     public const string EndlessSeaNodePoolSourceKey = "EndlessSeaPoolSource";
 
-    public const string SolarFinaleSavedNamesKey = "SunExp_SolarFinaleSavedNames";
-    public const string SolarFinaleBurnedNamesKey = "SunExp_SolarFinaleBurnedNames";
-    public const string SolarFinaleNamelessNamesKey = "SunExp_SolarFinaleNamelessNames";
-    public const string SolarBossOrbitMirrorMapId = "SunExp_sunexp_solar_memory_boss_orbit_mirror_array";
-    public const string SolarBossSecondSunMapId = "SunExp_sunexp_solar_memory_boss_second_sun_last_day";
-    public const string SolarBossSaintWunaMapId = "SunExp_sunexp_solar_memory_boss_saint_wuna";
+    public const string SolarFinaleSavedNamesKey = "Terrias_SolarFinaleSavedNames";
+    public const string SolarFinaleBurnedNamesKey = "Terrias_SolarFinaleBurnedNames";
+    public const string SolarFinaleNamelessNamesKey = "Terrias_SolarFinaleNamelessNames";
+    public const string SolarBossOrbitMirrorMapId = "Terrias_terrias_solar_memory_boss_orbit_mirror_array";
+    public const string SolarBossSecondSunMapId = "Terrias_terrias_solar_memory_boss_second_sun_last_day";
+    public const string SolarBossSaintWunaMapId = "Terrias_terrias_solar_memory_boss_saint_wuna";
     public const string SolarBossOrbitMirrorShortMapId = "solar_memory_boss_orbit_mirror_array";
     public const string SolarBossSecondSunShortMapId = "solar_memory_boss_second_sun_last_day";
     public const string SolarBossSaintWunaShortMapId = "solar_memory_boss_saint_wuna";
-    public const string SolarBossOrbitMirrorLevelId = "SunExp_sunexp_level_orbit_mirror_array";
-    public const string SolarBossSecondSunLevelId = "SunExp_sunexp_level_second_sun_last_day";
-    public const string SolarBossSaintWunaLevelId = "SunExp_sunexp_level_saint_wuna";
-    public const string SolarBossOrbitMirrorEnemyId = "SunExp_sunexp_boss_orbit_mirror_array";
-    public const string SolarBossSecondSunEnemyId = "SunExp_sunexp_boss_second_sun_last_day";
-    public const string SolarBossSaintWunaEnemyId = "SunExp_sunexp_boss_saint_wuna";
-    public const string SolarBossSecondSunMapTexturePath = "Mods/SunExp/ModResource/AnimationLib/SecondSunWeel_e/Map/Map_00.png";
-    public const string SolarBossSaintWunaMapTexturePath = "Mods/SunExp/ModResource/AnimationLib/WuNa_e/Map/Map_00.png";
+    public const string SolarBossOrbitMirrorLevelId = "Terrias_terrias_level_orbit_mirror_array";
+    public const string SolarBossSecondSunLevelId = "Terrias_terrias_level_second_sun_last_day";
+    public const string SolarBossSaintWunaLevelId = "Terrias_terrias_level_saint_wuna";
+    public const string SolarBossOrbitMirrorEnemyId = "Terrias_terrias_boss_orbit_mirror_array";
+    public const string SolarBossSecondSunEnemyId = "Terrias_terrias_boss_second_sun_last_day";
+    public const string SolarBossSaintWunaEnemyId = "Terrias_terrias_boss_saint_wuna";
+    public const string SolarBossSecondSunMapTexturePath = "Mods/Terrias/ModResource/AnimationLib/SecondSunWeel_e/Map/Map_00.png";
+    public const string SolarBossSaintWunaMapTexturePath = "Mods/Terrias/ModResource/AnimationLib/WuNa_e/Map/Map_00.png";
     public const string BlazingCrownCollapseShortCardId = "blazing_crown_collapse";
-    public const string BlazingCrownCollapseCardId = "SunExp_sunexp_blazing_crown_collapse";
+    public const string BlazingCrownCollapseCardId = "Terrias_terrias_blazing_crown_collapse";
     public static readonly string[] BlazingCrownCollapseCardEffectIds =
     {
         BlazingCrownCollapseCardId,
@@ -507,6 +507,6 @@ public static class SunExpIds
         var value = id ?? "";
         return value.StartsWith("Breaks_solar_memory_", System.StringComparison.Ordinal)
             || value.StartsWith("Sub_solar_memory_", System.StringComparison.Ordinal)
-            || value.StartsWith("SunExp_sunexp_Sub_solar_memory_", System.StringComparison.Ordinal);
+            || value.StartsWith("Terrias_terrias_Sub_solar_memory_", System.StringComparison.Ordinal);
     }
 }

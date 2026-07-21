@@ -1,9 +1,9 @@
 using System;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 
-namespace SunExp.Dll.Scripting;
+namespace Terrias.Dll.Scripting;
 
 public static class LoneerScripts
 {
@@ -15,7 +15,7 @@ public static class LoneerScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Loneer InitCareer failed", ex);
+            TerriasLog.Error("Loneer InitCareer failed", ex);
         }
     }
 
@@ -28,7 +28,7 @@ public static class LoneerScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Loneer Init failed: " + id, ex);
+            TerriasLog.Error("Loneer Init failed: " + id, ex);
         }
     }
 
@@ -43,7 +43,7 @@ public static class LoneerScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Loneer Use failed: " + id, ex);
+            TerriasLog.Error("Loneer Use failed: " + id, ex);
         }
     }
 }

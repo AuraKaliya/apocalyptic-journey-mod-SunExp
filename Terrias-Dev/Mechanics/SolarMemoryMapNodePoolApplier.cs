@@ -1,9 +1,9 @@
 using System;
 using Data.Save;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class SolarMemoryMapNodePoolApplier
 {
@@ -14,7 +14,7 @@ public static class SolarMemoryMapNodePoolApplier
     {
         eventRecordCountBeforeMapGeneration = GameSaveManager.GetEventRecord()?.Count ?? 0;
         eventRecordLayerBeforeMapGeneration = SolarMemoryMapNodePoolFactory.LayerFor(manager);
-        SunExpLog.Info("[SolarMemoryMapNodePool] captured event record before RandomGenerate: layer="
+        TerriasLog.Info("[SolarMemoryMapNodePool] captured event record before RandomGenerate: layer="
             + eventRecordLayerBeforeMapGeneration
             + "; count="
             + eventRecordCountBeforeMapGeneration
@@ -33,7 +33,7 @@ public static class SolarMemoryMapNodePoolApplier
         var tree = manager.MapTree;
         if (tree == null)
         {
-            SunExpLog.Warn("[SolarMemoryMapNodePool] skipped apply from " + source + ": MapTree is null.");
+            TerriasLog.Warn("[SolarMemoryMapNodePool] skipped apply from " + source + ": MapTree is null.");
             return false;
         }
 
@@ -45,7 +45,7 @@ public static class SolarMemoryMapNodePoolApplier
             TrimSolarMemoryEventRecord(pool.Layer);
         }
 
-        SunExpLog.Info("[SolarMemoryMapNodePool] apply finished from "
+        TerriasLog.Info("[SolarMemoryMapNodePool] apply finished from "
             + source
             + "; changed="
             + changed
@@ -65,7 +65,7 @@ public static class SolarMemoryMapNodePoolApplier
         var defaultStart = pool.Layer * pool.DefaultSegmentSize;
         if (defaultStart < 0 || defaultStart >= tree.DefaultNode.Count)
         {
-            SunExpLog.Warn("[SolarMemoryMapNodePool] default segment out of range from "
+            TerriasLog.Warn("[SolarMemoryMapNodePool] default segment out of range from "
                 + source
                 + "; start="
                 + defaultStart
@@ -96,7 +96,7 @@ public static class SolarMemoryMapNodePoolApplier
         var selectStart = pool.Layer * pool.SelectSegmentSize;
         if (selectStart < 0 || selectStart >= tree.SelectNode.Count)
         {
-            SunExpLog.Warn("[SolarMemoryMapNodePool] select segment out of range from "
+            TerriasLog.Warn("[SolarMemoryMapNodePool] select segment out of range from "
                 + source
                 + "; start="
                 + selectStart
@@ -113,7 +113,7 @@ public static class SolarMemoryMapNodePoolApplier
             if (i != SolarMemoryMapNodePoolFactory.MidLayerSlotIndex && IsBreakNode(tree.SelectNode[targetIndex]))
             {
                 MapNodeSafetyService.EnsureNodeDice(tree, tree.SelectNode[targetIndex], "SolarMemoryMapNodePoolApplier.PreservedBreak");
-                SunExpLog.Debug("[SolarMemoryMapNodePool] preserved Break node at select slot " + i + ".");
+                TerriasLog.Debug("[SolarMemoryMapNodePool] preserved Break node at select slot " + i + ".");
                 continue;
             }
 
@@ -136,7 +136,7 @@ public static class SolarMemoryMapNodePoolApplier
             || eventRecordCountBeforeMapGeneration < 0
             || eventRecordLayerBeforeMapGeneration != layer)
         {
-            SunExpLog.Debug("[SolarMemoryMapNodePool] event record trim skipped; captureCount="
+            TerriasLog.Debug("[SolarMemoryMapNodePool] event record trim skipped; captureCount="
                 + eventRecordCountBeforeMapGeneration
                 + "; captureLayer="
                 + eventRecordLayerBeforeMapGeneration
@@ -154,7 +154,7 @@ public static class SolarMemoryMapNodePoolApplier
 
         if (beforeTrim != records.Count)
         {
-            SunExpLog.Info("[SolarMemoryMapNodePool] trimmed event record after RandomGenerate: before="
+            TerriasLog.Info("[SolarMemoryMapNodePool] trimmed event record after RandomGenerate: before="
                 + beforeTrim
                 + "; after="
                 + records.Count

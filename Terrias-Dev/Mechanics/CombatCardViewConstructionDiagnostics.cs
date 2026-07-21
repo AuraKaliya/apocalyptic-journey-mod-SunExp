@@ -1,8 +1,8 @@
 using System;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using UnityEngine;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class CombatCardViewConstructionDiagnostics
 {
@@ -27,7 +27,7 @@ public static class CombatCardViewConstructionDiagnostics
             addComponentMilliseconds,
             markerMilliseconds,
             totalMilliseconds);
-        SunExpPerformanceCounters.Record("CombatCardViewConstruction.Sampled");
+        TerriasPerformanceCounters.Record("CombatCardViewConstruction.Sampled");
     }
 
     public static string FormatRecent()

@@ -1,7 +1,7 @@
 using System;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Mechanics;
 
-namespace SunExp.Dll.Hooks.Ui;
+namespace Terrias.Dll.Hooks.Ui;
 
 public sealed class PolymorphRoleSelectionRequest
 {

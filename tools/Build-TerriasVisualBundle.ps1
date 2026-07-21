@@ -7,12 +7,12 @@ param(
 $ErrorActionPreference = "Stop"
 
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
-$bundlePath = Join-Path $repoRoot "SunExp\ModResource\VisualBundles\sunexp_visuals"
-$builderSource = Join-Path $repoRoot "SunExp-Dev\VisualAssets\Editor\SunExpVisualBundleBuilder.cs.txt"
-$defaultUnityProjectPath = Join-Path $repoRoot "SunExp-Dev\VisualAssets\UnityProject"
-$shaderSourceDir = Join-Path $repoRoot "SunExp-Dev\VisualAssets\Shaders"
+$bundlePath = Join-Path $repoRoot "Terrias\ModResource\VisualBundles\terrias_visuals"
+$builderSource = Join-Path $repoRoot "Terrias-Dev\VisualAssets\Editor\TerriasVisualBundleBuilder.cs.txt"
+$defaultUnityProjectPath = Join-Path $repoRoot "Terrias-Dev\VisualAssets\UnityProject"
+$shaderSourceDir = Join-Path $repoRoot "Terrias-Dev\VisualAssets\Shaders"
 $auraCgShaderSourceDir = Join-Path $repoRoot "AuraCgShared\VisualAssets\Shaders"
-$cgFrameSourceDir = Join-Path $repoRoot "SunExp\SharedResources\CG\WuNa\BlazingCrownCollapse"
+$cgFrameSourceDir = Join-Path $repoRoot "Terrias\SharedResources\CG\WuNa\BlazingCrownCollapse"
 
 function Find-UnityEditor {
     if (-not [string]::IsNullOrWhiteSpace($UnityPath)) {
@@ -173,7 +173,7 @@ function Test-UnityLogBuiltBundle {
 
     try {
         $tail = Get-Content -LiteralPath $Path -Tail 80 -ErrorAction Stop
-        return ($tail -join "`n").Contains("Built SunExp visual bundle:")
+        return ($tail -join "`n").Contains("Built Terrias visual bundle:")
     }
     catch {
         return $false
@@ -187,8 +187,8 @@ function Prepare-UnityProject {
 
     $assetsDir = Join-Path $ProjectPath "Assets"
     $editorDir = Join-Path $assetsDir "Editor"
-    $shaderDestDir = Join-Path $assetsDir "SunExp\Visuals\Shaders"
-    $cgFrameDestDir = Join-Path $assetsDir "SunExp\Visuals\CG\WuNa\BlazingCrownCollapse"
+    $shaderDestDir = Join-Path $assetsDir "Terrias\Visuals\Shaders"
+    $cgFrameDestDir = Join-Path $assetsDir "Terrias\Visuals\CG\WuNa\BlazingCrownCollapse"
     $packagesDir = Join-Path $ProjectPath "Packages"
     $projectSettingsDir = Join-Path $ProjectPath "ProjectSettings"
 
@@ -208,7 +208,7 @@ function Prepare-UnityProject {
         Copy-Item -Path (Join-Path $cgFrameSourceDir "*.png") -Destination $cgFrameDestDir -Force
     }
 
-    Copy-Item -LiteralPath $builderSource -Destination (Join-Path $editorDir "SunExpVisualBundleBuilder.cs") -Force
+    Copy-Item -LiteralPath $builderSource -Destination (Join-Path $editorDir "TerriasVisualBundleBuilder.cs") -Force
 
     $manifestPath = Join-Path $packagesDir "manifest.json"
     if (-not (Test-Path -LiteralPath $manifestPath)) {
@@ -237,11 +237,11 @@ m_EditorVersionWithRevision: 2022.3.62f3c1 (1623fc0bbb97)
 
 function Assert-Bundle {
     if (Test-Path -LiteralPath $bundlePath) {
-        Write-Host "SunExp visual bundle exists: $bundlePath"
+        Write-Host "Terrias visual bundle exists: $bundlePath"
         return
     }
 
-    $message = "SunExp visual bundle is missing: $bundlePath"
+    $message = "Terrias visual bundle is missing: $bundlePath"
     if ($RequireBundle) {
         throw $message
     }
@@ -252,7 +252,7 @@ function Assert-Bundle {
 $unity = Find-UnityEditor
 if ([string]::IsNullOrWhiteSpace($unity) -or -not (Test-Path -LiteralPath $unity)) {
     Assert-Bundle
-    throw "Unity Editor was not found. Pass -UnityPath or build SunExp/ModResource/VisualBundles/sunexp_visuals in a Unity project."
+    throw "Unity Editor was not found. Pass -UnityPath or build Terrias/ModResource/VisualBundles/terrias_visuals in a Unity project."
 }
 
 if ([string]::IsNullOrWhiteSpace($UnityProjectPath)) {
@@ -266,20 +266,20 @@ $project = (Resolve-Path -LiteralPath $UnityProjectPath).Path
 Stop-StaleUnityProjectProcesses $project
 Prepare-UnityProject $project
 
-$logPath = Join-Path $repoRoot "SunExp-Dev\VisualAssets\sunexp_visuals.unity-build.log"
+$logPath = Join-Path $repoRoot "Terrias-Dev\VisualAssets\terrias_visuals.unity-build.log"
 $arguments = @(
     "-batchmode",
     "-nographics",
     "-quit",
     "-projectPath", $project,
-    "-executeMethod", "SunExpVisualBundleBuilder.BuildVisualBundle",
+    "-executeMethod", "TerriasVisualBundleBuilder.BuildVisualBundle",
     "-logFile", $logPath
 )
 
-$previousBundleOutput = $env:SUNEXP_VISUAL_BUNDLE_OUTPUT
+$previousBundleOutput = $env:TERRIAS_VISUAL_BUNDLE_OUTPUT
 $bundleWriteTimeBefore = if (Test-Path -LiteralPath $bundlePath) { (Get-Item -LiteralPath $bundlePath).LastWriteTimeUtc } else { [DateTime]::MinValue }
 try {
-    $env:SUNEXP_VISUAL_BUNDLE_OUTPUT = $bundlePath
+    $env:TERRIAS_VISUAL_BUNDLE_OUTPUT = $bundlePath
     $argumentLine = ($arguments | ForEach-Object {
         if ($_ -match '[\s"]') { '"' + $_.Replace('"', '\"') + '"' } else { $_ }
     }) -join ' '
@@ -287,7 +287,7 @@ try {
     $unityExitCode = $unityProcess.ExitCode
 }
 finally {
-    $env:SUNEXP_VISUAL_BUNDLE_OUTPUT = $previousBundleOutput
+    $env:TERRIAS_VISUAL_BUNDLE_OUTPUT = $previousBundleOutput
 }
 
 if ([string]::IsNullOrWhiteSpace([string]$unityExitCode) -and

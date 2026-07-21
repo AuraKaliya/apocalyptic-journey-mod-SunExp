@@ -11,7 +11,7 @@ if ([string]::IsNullOrWhiteSpace($ManagedPath)) {
 }
 
 $projects = @(
-    "SunExp-Dev\SunExp.Dll.csproj",
+    "Terrias-Dev\Terrias.Dll.csproj",
     "SanGuoShaExp-Dev\SanGuoShaExp.Dll.csproj",
     "AuraToolsExp-Dev\AuraToolsExp.Dll.csproj"
 )

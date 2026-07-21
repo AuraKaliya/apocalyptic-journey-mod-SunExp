@@ -10,7 +10,7 @@ if ([string]::IsNullOrWhiteSpace($RepoRoot)) {
 
 $skinModRoot = Join-Path $RepoRoot "TestMods\SkinExp"
 $auraToolsModRoot = Join-Path $RepoRoot "AuraToolsExp"
-$sunModRoot = Join-Path $RepoRoot "SunExp"
+$sunModRoot = Join-Path $RepoRoot "Terrias"
 $sharedRoot = Join-Path $RepoRoot "AuraSkinShared"
 $required = @(
     (Join-Path $auraToolsModRoot "ModConfig.json"),
@@ -67,7 +67,7 @@ foreach ($relative in $requiredShared) {
 $consumers = @(
     @{ Entry = "TestMods\SkinExp-Dev\Entry.cs"; Project = "TestMods\SkinExp-Dev\SkinExp.Dll.csproj" },
     @{ Entry = "AuraToolsExp-Dev\Entry.cs"; Project = "AuraToolsExp-Dev\AuraToolsExp.Dll.csproj" },
-    @{ Entry = "SunExp-Dev\Entry.cs"; Project = "SunExp-Dev\SunExp.Dll.csproj" }
+    @{ Entry = "Terrias-Dev\Entry.cs"; Project = "Terrias-Dev\Terrias.Dll.csproj" }
 )
 foreach ($consumer in $consumers) {
     $entryText = Get-Content -Raw -LiteralPath (Join-Path $RepoRoot $consumer.Entry)
@@ -83,7 +83,7 @@ foreach ($consumer in $consumers) {
     }
 }
 
-foreach ($providerEntry in @("TestMods\SkinExp-Dev\Entry.cs", "SunExp-Dev\Entry.cs")) {
+foreach ($providerEntry in @("TestMods\SkinExp-Dev\Entry.cs", "Terrias-Dev\Entry.cs")) {
     $entryText = Get-Content -Raw -LiteralPath (Join-Path $RepoRoot $providerEntry)
     if (-not $entryText.Contains("AuraSkinRuntime.RegisterPackage")) {
         throw "Bundled skin package registration is missing from $providerEntry"
@@ -355,22 +355,22 @@ foreach ($packagePath in $packagePaths) {
     }
 }
 
-$wuna = @($installedSources | Where-Object { $_.TargetCareerId -eq "SunExp_wuna_wuna" })
-if ($wuna.Count -ne 1 -or $wuna[0].SkinId -ne "SunExp.SunExp_wuna_wuna.summer_cool" -or
+$wuna = @($installedSources | Where-Object { $_.TargetCareerId -eq "Terrias_wuna_wuna" })
+if ($wuna.Count -ne 1 -or $wuna[0].SkinId -ne "Terrias.Terrias_wuna_wuna.summer_cool" -or
     $wuna[0].Path -notlike "$(Join-Path $sunModRoot '*')") {
-    throw "WuNa summer skin must be published exactly once by SunExp."
+    throw "WuNa summer skin must be published exactly once by Terrias."
 }
 
-$columbina = @($installedSources | Where-Object { $_.TargetCareerId -eq "SunExp_columbina_columbina" })
-if ($columbina.Count -ne 1 -or $columbina[0].SkinId -ne "SunExp.SunExp_columbina_columbina.restore_colors" -or
+$columbina = @($installedSources | Where-Object { $_.TargetCareerId -eq "Terrias_columbina_columbina" })
+if ($columbina.Count -ne 1 -or $columbina[0].SkinId -ne "Terrias.Terrias_columbina_columbina.restore_colors" -or
     $columbina[0].Path -notlike "$(Join-Path $sunModRoot '*')") {
-    throw "Columbina Restore Colors skin must be published exactly once by SunExp."
+    throw "Columbina Restore Colors skin must be published exactly once by Terrias."
 }
 
 $sunSkinPackage = Read-JsonFile (Join-Path $sunModRoot "SharedResources\Skins\package.json")
 if ([int]$sunSkinPackage.packageVersion -lt 3 -or
-    @($sunSkinPackage.resources | Where-Object { $_.source -eq "SunExp_columbina_columbina/DoByHand" }).Count -ne 1) {
-    throw "SunExp skin package must publish Columbina Restore Colors at package version 3 or newer."
+    @($sunSkinPackage.resources | Where-Object { $_.source -eq "Terrias_columbina_columbina/DoByHand" }).Count -ne 1) {
+    throw "Terrias skin package must publish Columbina Restore Colors at package version 3 or newer."
 }
 
 $columbinaSkinDirectory = Split-Path -Parent $columbina[0].Path

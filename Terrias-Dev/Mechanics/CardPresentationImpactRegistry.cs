@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public sealed class CardPresentationImpactSpec
 {
@@ -22,20 +22,20 @@ public static class CardPresentationImpactRegistry
 {
     private static readonly HashSet<string> ManagedBuffIds = new(StringComparer.Ordinal)
     {
-        SunExpIds.AbyssGazeBuffI,
-        SunExpIds.AbyssGazeBuffII,
-        SunExpIds.AbyssGazeBuffIII,
-        SunExpIds.Starlight,
-        SunExpIds.StarStonePouch,
-        SunExpIds.MiracleClock,
-        SunExpIds.StarBlessing
+        TerriasIds.AbyssGazeBuffI,
+        TerriasIds.AbyssGazeBuffII,
+        TerriasIds.AbyssGazeBuffIII,
+        TerriasIds.Starlight,
+        TerriasIds.StarStonePouch,
+        TerriasIds.MiracleClock,
+        TerriasIds.StarBlessing
     };
     private static readonly CardPresentationImpactSpec None = new(CardPresentationImpact.None);
     private static readonly CardPresentationImpactSpec BuffKindChanged = new(
         CardPresentationImpact.DescriptionSubset,
-        SunExpIds.StellarOvertureCloseCardId,
-        SunExpIds.StellarOvertureCloseShortCardId,
-        "*" + SunExpIds.StellarOvertureCloseShortCardId);
+        TerriasIds.StellarOvertureCloseCardId,
+        TerriasIds.StellarOvertureCloseShortCardId,
+        "*" + TerriasIds.StellarOvertureCloseShortCardId);
 
     public static CardPresentationImpactSpec ForBuffMutation(string buffId, bool buffKindChanged)
     {

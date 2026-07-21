@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class LoneerRuntime
 {
@@ -14,12 +14,12 @@ public static class LoneerRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
-        SunExpBattleLifecycleRouter.Register("Loneer", new SunExpBattleLifecycleSubscription
+        TerriasBattleLifecycleRouter.Register("Loneer", new TerriasBattleLifecycleSubscription
         {
             FightStarted = OnFightStart
         });
-        SunExpHookRegistry.Before(modConfig, SunExpHookTargets.SkillItemTrueUse, BeginMorningPrayerAttempt, "Loneer.MorningPrayerAttempt");
-        SunExpHookRegistry.After(modConfig, SunExpHookTargets.SkillItemTrueUse, EndMorningPrayerAttempt, "Loneer.MorningPrayerAttempt");
+        TerriasHookRegistry.Before(modConfig, TerriasHookTargets.SkillItemTrueUse, BeginMorningPrayerAttempt, "Loneer.MorningPrayerAttempt");
+        TerriasHookRegistry.After(modConfig, TerriasHookTargets.SkillItemTrueUse, EndMorningPrayerAttempt, "Loneer.MorningPrayerAttempt");
     }
 
     private static void OnFightStart(ModHookContext context)
@@ -82,7 +82,7 @@ public static class LoneerRuntime
             }
         }
 
-        SunExpLog.InfoAlways("[MorningPrayerAttempt] outcome="
+        TerriasLog.InfoAlways("[MorningPrayerAttempt] outcome="
             + reason
             + ", nativeAllowed="
             + attempt.Gate.NativeAllowed
@@ -110,7 +110,7 @@ public static class LoneerRuntime
     private static bool IsMorningPrayer(IDataConfig? config)
     {
         var id = RoleSkillApi.NormalizeSkillId(CardConfigApi.Id(config));
-        return string.Equals(id, RoleSkillApi.NormalizeSkillId(SunExpIds.LoneerMorningPrayerSkillCardId), StringComparison.Ordinal)
+        return string.Equals(id, RoleSkillApi.NormalizeSkillId(TerriasIds.LoneerMorningPrayerSkillCardId), StringComparison.Ordinal)
             || string.Equals(id, "loneer_morning_star_prayer", StringComparison.Ordinal);
     }
 

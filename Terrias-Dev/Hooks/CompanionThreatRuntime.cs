@@ -1,23 +1,23 @@
 using System;
 using AuraShared.Core;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class CompanionThreatRuntime
 {
     public static void Initialize(ModConfig modConfig)
     {
         RegisterAfter(modConfig, "ScriptExecutor.SetStatus", ExtendEnemyTargetsAfterSetStatus);
-        SunExpLog.Info("Companion threat runtime initialized");
+        TerriasLog.Info("Companion threat runtime initialized");
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.After(config, target, action, "CompanionThreat");
+        TerriasHookRegistry.After(config, target, action, "CompanionThreat");
     }
 
     private static void ExtendEnemyTargetsAfterSetStatus(ModHookContext context)
@@ -46,7 +46,7 @@ public static class CompanionThreatRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[CompanionThreat] target extension failed: " + ex.Message);
+            TerriasLog.Warn("[CompanionThreat] target extension failed: " + ex.Message);
         }
     }
 

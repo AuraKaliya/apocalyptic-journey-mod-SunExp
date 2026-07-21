@@ -1,13 +1,13 @@
 using System;
-using SunExp.Dll.Hooks.Ui;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Hooks.Ui;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using Witch.Core;
 using Witch.Mod;
 using Witch.UI;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class StarScoreHudRuntime
 {
@@ -18,22 +18,22 @@ public static class StarScoreHudRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
-        SunExpBattleLifecycleRouter.Register("StarScoreHud", new SunExpBattleLifecycleSubscription
+        TerriasBattleLifecycleRouter.Register("StarScoreHud", new TerriasBattleLifecycleSubscription
         {
             FightStarted = OnFightBoundary,
             FightEnding = OnFightBoundary
         });
-        RegisterAfter(modConfig, SunExpHookTargets.FightWinInit, OnFightBoundary);
-        RegisterAfter(modConfig, SunExpHookTargets.FightEscapeInit, OnFightBoundary);
+        RegisterAfter(modConfig, TerriasHookTargets.FightWinInit, OnFightBoundary);
+        RegisterAfter(modConfig, TerriasHookTargets.FightEscapeInit, OnFightBoundary);
 
         StarScoreService.Changed -= OnStarScoreChanged;
         StarScoreService.Changed += OnStarScoreChanged;
-        SunExpLog.Info("Star score HUD runtime initialized");
+        TerriasLog.Info("Star score HUD runtime initialized");
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.After(config, target, action, "StarScoreHud");
+        TerriasHookRegistry.After(config, target, action, "StarScoreHud");
     }
 
     private static void OnFightBoundary(ModHookContext context)
@@ -70,7 +70,7 @@ public static class StarScoreHudRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Star score HUD refresh failed", ex);
+            TerriasLog.Error("Star score HUD refresh failed", ex);
         }
     }
 
@@ -99,7 +99,7 @@ public static class StarScoreHudRuntime
         }
 
         activeView = StarScoreHudView.Create(parent);
-        SunExpTransientUiRegistry.Register("StarScoreHud", Close);
+        TerriasTransientUiRegistry.Register("StarScoreHud", Close);
         return activeView;
     }
 
@@ -109,7 +109,7 @@ public static class StarScoreHudRuntime
         hostRetryCount = 0;
         if (activeView == null)
         {
-            SunExpTransientUiRegistry.Unregister("StarScoreHud");
+            TerriasTransientUiRegistry.Unregister("StarScoreHud");
             return;
         }
 
@@ -123,7 +123,7 @@ public static class StarScoreHudRuntime
         }
 
         activeView = null;
-        SunExpTransientUiRegistry.Unregister("StarScoreHud");
+        TerriasTransientUiRegistry.Unregister("StarScoreHud");
     }
 
     public static bool TryGetSlotScreenPoint(int slotIndex, out Vector2 screenPoint)
@@ -146,13 +146,13 @@ public static class StarScoreHudRuntime
     {
         if (hostRetryCount >= MaxHostRetryCount)
         {
-            SunExpLog.WarnOnce("StarScoreHud.FightUiUnavailable",
+            TerriasLog.WarnOnce("StarScoreHud.FightUiUnavailable",
                 "Star score HUD skipped after waiting for FightUI; a later score update can retry.");
             return;
         }
 
         hostRetryCount++;
-        SunExpFrameScheduler.RunOnceAfterFrames("StarScoreHud.WaitForFightUI", 2, RetryPendingSnapshot);
+        TerriasFrameScheduler.RunOnceAfterFrames("StarScoreHud.WaitForFightUI", 2, RetryPendingSnapshot);
     }
 
     private static void RetryPendingSnapshot()

@@ -1,10 +1,10 @@
 using System;
 using System.Globalization;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 
-namespace SunExp.Dll.Hooks.Visual;
+namespace Terrias.Dll.Hooks.Visual;
 
 public static class EffectMaterialFactory
 {
@@ -74,7 +74,7 @@ public static class EffectMaterialFactory
             }
             else
             {
-                SunExpLog.Warn(logPrefix + " effect color parse failed: " + pair.Key + "=" + pair.Value);
+                TerriasLog.Warn(logPrefix + " effect color parse failed: " + pair.Key + "=" + pair.Value);
             }
         }
 

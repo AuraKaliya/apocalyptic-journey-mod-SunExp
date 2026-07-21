@@ -1,12 +1,12 @@
 using System.Collections.Generic;
-using SunExp.Dll.Hooks;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Hooks;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using UnityEngine.UI;
 using Witch.Core;
 
-namespace SunExp.Dll.Hooks.Visual;
+namespace Terrias.Dll.Hooks.Visual;
 
 public static class CardVisualSkinApplier
 {
@@ -22,7 +22,7 @@ public static class CardVisualSkinApplier
 
     public static bool Apply(Transform? cardRoot, IDataConfig? config, string source)
     {
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         try
         {
         if (cardRoot == null)
@@ -32,7 +32,7 @@ public static class CardVisualSkinApplier
 
         if (!CardVisualInterestIndex.MayAffect(config))
         {
-            SunExpPerformanceCounters.Record("CardVisualSkin.InterestMiss.Applier");
+            TerriasPerformanceCounters.Record("CardVisualSkin.InterestMiss.Applier");
             return false;
         }
 
@@ -40,14 +40,14 @@ public static class CardVisualSkinApplier
         var resumedFrameEffect = marker.ResumeFrameEffectOverlayFor(config);
         var visualSignature = VisualSignature(config);
         var rootInstanceId = cardRoot.GetInstanceID();
-        var forceRefresh = string.Equals(source, SunExpHookTargets.ICardSetCardStyle, System.StringComparison.Ordinal);
+        var forceRefresh = string.Equals(source, TerriasHookTargets.ICardSetCardStyle, System.StringComparison.Ordinal);
         if (!forceRefresh
             && !resumedFrameEffect
             && visualSignature.Length > 0
             && marker.LastAppliedRootInstanceId == rootInstanceId
             && marker.LastVisualSignature == visualSignature)
         {
-            SunExpPerformanceCounters.Record("CardVisualSkin.SignatureSkip");
+            TerriasPerformanceCounters.Record("CardVisualSkin.SignatureSkip");
             return false;
         }
 
@@ -58,13 +58,13 @@ public static class CardVisualSkinApplier
         if (skin == null)
         {
             clearedSkin = marker.ClearSkinVisuals();
-            SunExpPerformanceCounters.Record("CardVisualSkin.SkinMiss");
-            LogUnresolvedSunExpCard(config);
+            TerriasPerformanceCounters.Record("CardVisualSkin.SkinMiss");
+            LogUnresolvedTerriasCard(config);
         }
         else
         {
             marker.CaptureSkinBaseline();
-            SunExpPerformanceCounters.Record("CardVisualSkin.SkinResolved");
+            TerriasPerformanceCounters.Record("CardVisualSkin.SkinResolved");
             appliedFrame = ApplySprite(marker, background: false, skin.FramePath, skin.Id, "frame", required: true);
             appliedBackground = ApplySprite(marker, background: true, skin.BackgroundPath, skin.Id, "background", required: false);
             if (appliedFrame || appliedBackground)
@@ -74,13 +74,13 @@ public static class CardVisualSkinApplier
 
             if ((appliedFrame || appliedBackground) && LoggedSkins.Add(skin.Id))
             {
-                SunExpLog.Info(LogPrefix + " applied " + skin.DisplayName + " skin to card: " + DictionaryUtil.Get(config?.data, "Id", "unknown"));
+                TerriasLog.Info(LogPrefix + " applied " + skin.DisplayName + " skin to card: " + DictionaryUtil.Get(config?.data, "Id", "unknown"));
             }
         }
 
-        var effectStart = SunExpPerformanceCounters.Timestamp();
+        var effectStart = TerriasPerformanceCounters.Timestamp();
         var appliedEffect = CardVisualEffectApplier.Apply(marker, config);
-        SunExpPerformanceCounters.RecordDuration("CardVisualSkin.ApplyEffect", effectStart);
+        TerriasPerformanceCounters.RecordDuration("CardVisualSkin.ApplyEffect", effectStart);
         if (skin != null)
         {
             LogResolvedSkin(marker, config, skin.Id, source, appliedFrame, appliedBackground, appliedEffect);
@@ -88,22 +88,22 @@ public static class CardVisualSkinApplier
 
         if (appliedFrame)
         {
-            SunExpPerformanceCounters.Record("CardVisualSkin.FrameApplied");
+            TerriasPerformanceCounters.Record("CardVisualSkin.FrameApplied");
         }
 
         if (appliedBackground)
         {
-            SunExpPerformanceCounters.Record("CardVisualSkin.BackgroundApplied");
+            TerriasPerformanceCounters.Record("CardVisualSkin.BackgroundApplied");
         }
 
         if (appliedEffect)
         {
-            SunExpPerformanceCounters.Record("CardVisualSkin.EffectApplied");
+            TerriasPerformanceCounters.Record("CardVisualSkin.EffectApplied");
         }
 
         if (!appliedFrame && !appliedBackground && !appliedEffect && !clearedSkin)
         {
-            SunExpPerformanceCounters.Record("CardVisualSkin.ApplyNoChange");
+            TerriasPerformanceCounters.Record("CardVisualSkin.ApplyNoChange");
         }
 
         marker.LastVisualSignature = visualSignature;
@@ -113,14 +113,14 @@ public static class CardVisualSkinApplier
         }
         finally
         {
-            SunExpPerformanceCounters.RecordDuration("CardVisualSkin.Apply", start);
-            SunExpCombatCardUiDiagnostics.RecordCurrentSegment("CardVisualSkin.Apply", start);
+            TerriasPerformanceCounters.RecordDuration("CardVisualSkin.Apply", start);
+            TerriasCombatCardUiDiagnostics.RecordCurrentSegment("CardVisualSkin.Apply", start);
         }
     }
 
-    private static void LogUnresolvedSunExpCard(IDataConfig? config)
+    private static void LogUnresolvedTerriasCard(IDataConfig? config)
     {
-        if (!CardVisualThemeCatalog.IsSunExpCard(config) || LoggedUnresolvedCards.Count >= 24)
+        if (!CardVisualThemeCatalog.IsTerriasCard(config) || LoggedUnresolvedCards.Count >= 24)
         {
             return;
         }
@@ -130,7 +130,7 @@ public static class CardVisualSkinApplier
         var key = id + "|" + icon;
         if (LoggedUnresolvedCards.Add(key))
         {
-            SunExpLog.Debug(LogPrefix + " no themed skin resolved for SunExp card: id="
+            TerriasLog.Debug(LogPrefix + " no themed skin resolved for Terrias card: id="
                 + id
                 + ", pack="
                 + DictionaryUtil.Get(config?.data, "PackBelong")
@@ -170,7 +170,7 @@ public static class CardVisualSkinApplier
             return;
         }
 
-        SunExpLog.Info(LogPrefix
+        TerriasLog.Info(LogPrefix
             + " resolved skin: card="
             + cardId
             + ", skin="
@@ -212,7 +212,7 @@ public static class CardVisualSkinApplier
         {
             if (required)
             {
-                SunExpLog.Warn(LogPrefix + " " + skinId + " " + layerName + " node missing: " + path);
+                TerriasLog.Warn(LogPrefix + " " + skinId + " " + layerName + " node missing: " + path);
             }
 
             return false;
@@ -250,7 +250,7 @@ public static class CardVisualSkinApplier
             {
                 if (required)
                 {
-                    SunExpLog.Warn(LogPrefix + " " + skinId + " " + layerName + " material missing: " + node.name);
+                    TerriasLog.Warn(LogPrefix + " " + skinId + " " + layerName + " material missing: " + node.name);
                 }
 
                 return false;
@@ -275,7 +275,7 @@ public static class CardVisualSkinApplier
 
         if (required)
         {
-            SunExpLog.Warn(LogPrefix + " " + skinId + " " + layerName + " component missing: " + node.name);
+            TerriasLog.Warn(LogPrefix + " " + skinId + " " + layerName + " component missing: " + node.name);
         }
 
         return false;
@@ -300,7 +300,7 @@ public static class CardVisualSkinApplier
             + "\u001f"
             + DictionaryUtil.Get(config.Vars, "SpecialTag")
             + "\u001f"
-            + DictionaryUtil.Get(config.Vars, SunExpIds.RuntimeMarkersKey)
+            + DictionaryUtil.Get(config.Vars, TerriasIds.RuntimeMarkersKey)
             + "\u001f"
             + (CardVisualThemeCatalog.Resolve(config)?.Id ?? "")
             + "\u001f"

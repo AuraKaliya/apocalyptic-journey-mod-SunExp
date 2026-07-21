@@ -1,12 +1,12 @@
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace SunExp.Dll.Hooks.Ui;
+namespace Terrias.Dll.Hooks.Ui;
 
 public sealed class StarScoreHudView : MonoBehaviour
 {
-    public const string RootName = "SunExp_StarScoreHud";
+    public const string RootName = "Terrias_StarScoreHud";
 
     private const float RootWidth = 148f;
     private const float RootHeight = 326f;
@@ -72,7 +72,7 @@ public sealed class StarScoreHudView : MonoBehaviour
         holdUntil = 0f;
         pointerInside = false;
         CloseTooltip(source + ":tooltip");
-        SunExpUiSafety.CloseTransient(gameObject, source, "[StarScoreHud]");
+        TerriasUiSafety.CloseTransient(gameObject, source, "[StarScoreHud]");
     }
 
     public bool TryGetSlotScreenPoint(int slotIndex, out Vector2 screenPoint)
@@ -313,6 +313,6 @@ public sealed class StarScoreHudView : MonoBehaviour
 
         var root = tooltip.gameObject;
         tooltip = null;
-        SunExpUiSafety.CloseTransient(root, source, "[StarScoreHud]");
+        TerriasUiSafety.CloseTransient(root, source, "[StarScoreHud]");
     }
 }

@@ -1,8 +1,8 @@
 using System;
 
-namespace SunExp.Dll.Infrastructure;
+namespace Terrias.Dll.Infrastructure;
 
-public static class SunExpFrameDispatcher
+public static class TerriasFrameDispatcher
 {
     private static readonly object SyncRoot = new();
     private static Func<string, Action, bool>? runOnceNextFrame;
@@ -58,7 +58,7 @@ public static class SunExpFrameDispatcher
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Immediate SunExp frame action failed: " + key, ex);
+            TerriasLog.Error("Immediate Terrias frame action failed: " + key, ex);
         }
 
         return true;

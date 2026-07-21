@@ -47,51 +47,51 @@ function New-ProjectXml {
         [string]$SourceDir
     )
 
-    $dictionaryUtil = Join-Path $RepoRoot "SunExp-Dev\Infrastructure\DictionaryUtil.cs"
+    $dictionaryUtil = Join-Path $RepoRoot "Terrias-Dev\Infrastructure\DictionaryUtil.cs"
     $auraSharedDictionary = Join-Path $RepoRoot "AuraSharedCore\AuraSharedDictionary.cs"
     $auraCombatCardZoneSnapshot = Join-Path $RepoRoot "AuraSharedCore\AuraCombatCardZoneSnapshot.cs"
-    $sunExpIds = Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpIds.cs"
-    $sunExpFrameDispatcher = Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpFrameDispatcher.cs"
-    $sunExpPerformanceSettings = Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpPerformanceSettings.cs"
-    $cardApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CardApi.cs"
-    $combatCardViewPoolApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CombatCardViewPoolApi.cs"
-    $combatCardViewPoolCatalog = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CombatCardViewPoolCatalog.cs"
-    $pooledCardViewExit = Join-Path $RepoRoot "SunExp-Dev\Mechanics\PooledCardViewExit.cs"
-    $cardConfigApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CardConfigApi.cs"
-    $cardVisualSkinApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CardVisualSkinApi.cs"
-    $cardVisualEffectApi = Join-Path $RepoRoot "SunExp-Dev\GameApi\CardVisualEffectApi.cs"
-    $cardVisualEffectTarget = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardVisualEffectTarget.cs"
-    $cardVisualEffectSpec = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardVisualEffectSpec.cs"
-    $cardVisualEffectRegistry = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardVisualEffectRegistry.cs"
-    $cardVisualInterestIndex = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardVisualInterestIndex.cs"
-    $cardVisualSkinSpec = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardVisualSkinSpec.cs"
-    $cardVisualSkinRule = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardVisualSkinRule.cs"
-    $cardVisualSkinRegistry = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardVisualSkinRegistry.cs"
-    $cardMutationService = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardMutationService.cs"
-    $runtimeCardAttachmentService = Join-Path $RepoRoot "SunExp-Dev\Mechanics\RuntimeCardAttachmentService.cs"
-    $sunExpCardRefreshQueue = Join-Path $RepoRoot "SunExp-Dev\Mechanics\SunExpCardRefreshQueue.cs"
-    $cardGrantPostCommitQueue = Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardGrantPostCommitQueue.cs"
-    $starBlessingCostOverrideStore = Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarBlessingCostOverrideStore.cs"
-    $resonanceCostTransactionStore = Join-Path $RepoRoot "SunExp-Dev\Mechanics\ResonanceCostTransactionStore.cs"
-    $loneerCombatState = Join-Path $RepoRoot "SunExp-Dev\Mechanics\LoneerCombatState.cs"
-    $starScoreNote = Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreNote.cs"
-    $starScoreDisplaySnapshot = Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreDisplaySnapshot.cs"
-    $starScoreCadenceCatalog = Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreCadenceCatalog.cs"
-    $starScoreCombatState = Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreCombatState.cs"
-    $starScoreArrivalCueService = Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreArrivalCueService.cs"
-    $mapNodeCardArtFitMode = Join-Path $RepoRoot "SunExp-Dev\Mechanics\MapNodeCardArtFitMode.cs"
-    $mapNodeCardArtFitResult = Join-Path $RepoRoot "SunExp-Dev\Mechanics\MapNodeCardArtFitResult.cs"
-    $mapNodeTextureBounds = Join-Path $RepoRoot "SunExp-Dev\Mechanics\MapNodeTextureBounds.cs"
-    $mapNodeTextureFitService = Join-Path $RepoRoot "SunExp-Dev\Mechanics\MapNodeTextureFitService.cs"
-    $modeChoiceDragRange = Join-Path $RepoRoot "SunExp-Dev\Mechanics\ModeChoiceDragRange.cs"
-    $spiritProfileIdentityResolver = Join-Path $RepoRoot "SunExp-Dev\Mechanics\SpiritProfileIdentityResolver.cs"
-    $dimensionShopRandom = Join-Path $RepoRoot "SunExp-Dev\Mechanics\DimensionShopRandom.cs"
-    $endlessSeaNodeKind = Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessSeaNodeKind.cs"
-    $endlessAbyssEnemyScaling = Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssEnemyScalingService.cs"
-    $endlessAbyssEvacuationDepth = Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssEvacuationDepth.cs"
-    $solarMemoryFixedNodeSpec = Join-Path $RepoRoot "SunExp-Dev\Mechanics\SolarMemoryFixedNodeSpec.cs"
-    $solarMemoryMapSyncRepairService = Join-Path $RepoRoot "SunExp-Dev\Mechanics\SolarMemoryMapSyncRepairService.cs"
-    $solarMemoryContentIsolationService = Join-Path $RepoRoot "SunExp-Dev\Mechanics\SolarMemoryContentIsolationService.cs"
+    $terriasIds = Join-Path $RepoRoot "Terrias-Dev\Infrastructure\TerriasIds.cs"
+    $terriasFrameDispatcher = Join-Path $RepoRoot "Terrias-Dev\Infrastructure\TerriasFrameDispatcher.cs"
+    $terriasPerformanceSettings = Join-Path $RepoRoot "Terrias-Dev\Infrastructure\TerriasPerformanceSettings.cs"
+    $cardApi = Join-Path $RepoRoot "Terrias-Dev\GameApi\CardApi.cs"
+    $combatCardViewPoolApi = Join-Path $RepoRoot "Terrias-Dev\GameApi\CombatCardViewPoolApi.cs"
+    $combatCardViewPoolCatalog = Join-Path $RepoRoot "Terrias-Dev\Mechanics\CombatCardViewPoolCatalog.cs"
+    $pooledCardViewExit = Join-Path $RepoRoot "Terrias-Dev\Mechanics\PooledCardViewExit.cs"
+    $cardConfigApi = Join-Path $RepoRoot "Terrias-Dev\GameApi\CardConfigApi.cs"
+    $cardVisualSkinApi = Join-Path $RepoRoot "Terrias-Dev\GameApi\CardVisualSkinApi.cs"
+    $cardVisualEffectApi = Join-Path $RepoRoot "Terrias-Dev\GameApi\CardVisualEffectApi.cs"
+    $cardVisualEffectTarget = Join-Path $RepoRoot "Terrias-Dev\Mechanics\CardVisualEffectTarget.cs"
+    $cardVisualEffectSpec = Join-Path $RepoRoot "Terrias-Dev\Mechanics\CardVisualEffectSpec.cs"
+    $cardVisualEffectRegistry = Join-Path $RepoRoot "Terrias-Dev\Mechanics\CardVisualEffectRegistry.cs"
+    $cardVisualInterestIndex = Join-Path $RepoRoot "Terrias-Dev\Mechanics\CardVisualInterestIndex.cs"
+    $cardVisualSkinSpec = Join-Path $RepoRoot "Terrias-Dev\Mechanics\CardVisualSkinSpec.cs"
+    $cardVisualSkinRule = Join-Path $RepoRoot "Terrias-Dev\Mechanics\CardVisualSkinRule.cs"
+    $cardVisualSkinRegistry = Join-Path $RepoRoot "Terrias-Dev\Mechanics\CardVisualSkinRegistry.cs"
+    $cardMutationService = Join-Path $RepoRoot "Terrias-Dev\Mechanics\CardMutationService.cs"
+    $runtimeCardAttachmentService = Join-Path $RepoRoot "Terrias-Dev\Mechanics\RuntimeCardAttachmentService.cs"
+    $terriasCardRefreshQueue = Join-Path $RepoRoot "Terrias-Dev\Mechanics\TerriasCardRefreshQueue.cs"
+    $cardGrantPostCommitQueue = Join-Path $RepoRoot "Terrias-Dev\Mechanics\CardGrantPostCommitQueue.cs"
+    $starBlessingCostOverrideStore = Join-Path $RepoRoot "Terrias-Dev\Mechanics\StarBlessingCostOverrideStore.cs"
+    $resonanceCostTransactionStore = Join-Path $RepoRoot "Terrias-Dev\Mechanics\ResonanceCostTransactionStore.cs"
+    $loneerCombatState = Join-Path $RepoRoot "Terrias-Dev\Mechanics\LoneerCombatState.cs"
+    $starScoreNote = Join-Path $RepoRoot "Terrias-Dev\Mechanics\StarScoreNote.cs"
+    $starScoreDisplaySnapshot = Join-Path $RepoRoot "Terrias-Dev\Mechanics\StarScoreDisplaySnapshot.cs"
+    $starScoreCadenceCatalog = Join-Path $RepoRoot "Terrias-Dev\Mechanics\StarScoreCadenceCatalog.cs"
+    $starScoreCombatState = Join-Path $RepoRoot "Terrias-Dev\Mechanics\StarScoreCombatState.cs"
+    $starScoreArrivalCueService = Join-Path $RepoRoot "Terrias-Dev\Mechanics\StarScoreArrivalCueService.cs"
+    $mapNodeCardArtFitMode = Join-Path $RepoRoot "Terrias-Dev\Mechanics\MapNodeCardArtFitMode.cs"
+    $mapNodeCardArtFitResult = Join-Path $RepoRoot "Terrias-Dev\Mechanics\MapNodeCardArtFitResult.cs"
+    $mapNodeTextureBounds = Join-Path $RepoRoot "Terrias-Dev\Mechanics\MapNodeTextureBounds.cs"
+    $mapNodeTextureFitService = Join-Path $RepoRoot "Terrias-Dev\Mechanics\MapNodeTextureFitService.cs"
+    $modeChoiceDragRange = Join-Path $RepoRoot "Terrias-Dev\Mechanics\ModeChoiceDragRange.cs"
+    $spiritProfileIdentityResolver = Join-Path $RepoRoot "Terrias-Dev\Mechanics\SpiritProfileIdentityResolver.cs"
+    $dimensionShopRandom = Join-Path $RepoRoot "Terrias-Dev\Mechanics\DimensionShopRandom.cs"
+    $endlessSeaNodeKind = Join-Path $RepoRoot "Terrias-Dev\Mechanics\EndlessSeaNodeKind.cs"
+    $endlessAbyssEnemyScaling = Join-Path $RepoRoot "Terrias-Dev\Mechanics\EndlessAbyssEnemyScalingService.cs"
+    $endlessAbyssEvacuationDepth = Join-Path $RepoRoot "Terrias-Dev\Mechanics\EndlessAbyssEvacuationDepth.cs"
+    $solarMemoryFixedNodeSpec = Join-Path $RepoRoot "Terrias-Dev\Mechanics\SolarMemoryFixedNodeSpec.cs"
+    $solarMemoryMapSyncRepairService = Join-Path $RepoRoot "Terrias-Dev\Mechanics\SolarMemoryMapSyncRepairService.cs"
+    $solarMemoryContentIsolationService = Join-Path $RepoRoot "Terrias-Dev\Mechanics\SolarMemoryContentIsolationService.cs"
 
 @"
 <Project Sdk="Microsoft.NET.Sdk">
@@ -108,9 +108,9 @@ function New-ProjectXml {
     <Compile Include="$auraSharedDictionary" />
     <Compile Include="$auraCombatCardZoneSnapshot" />
     <Compile Include="$dictionaryUtil" />
-    <Compile Include="$sunExpIds" />
-    <Compile Include="$sunExpFrameDispatcher" />
-    <Compile Include="$sunExpPerformanceSettings" />
+    <Compile Include="$terriasIds" />
+    <Compile Include="$terriasFrameDispatcher" />
+    <Compile Include="$terriasPerformanceSettings" />
     <Compile Include="$cardApi" />
     <Compile Include="$combatCardViewPoolApi" />
     <Compile Include="$combatCardViewPoolCatalog" />
@@ -125,7 +125,7 @@ function New-ProjectXml {
     <Compile Include="$cardVisualSkinSpec" />
     <Compile Include="$cardVisualSkinRule" />
     <Compile Include="$cardVisualSkinRegistry" />
-    <Compile Include="$sunExpCardRefreshQueue" />
+    <Compile Include="$terriasCardRefreshQueue" />
     <Compile Include="$cardGrantPostCommitQueue" />
     <Compile Include="$cardMutationService" />
     <Compile Include="$runtimeCardAttachmentService" />
@@ -484,9 +484,9 @@ public interface IDataConfig
     bool isCompiling { get; }
 }
 
-namespace SunExp.Dll.Hooks
+namespace Terrias.Dll.Hooks
 {
-    public enum SunExpCardPresentationSurface
+    public enum TerriasCardPresentationSurface
     {
         PostCommit
     }
@@ -507,7 +507,7 @@ namespace SunExp.Dll.Hooks
         }
     }
 
-    public static class SunExpCardPresentationRouter
+    public static class TerriasCardPresentationRouter
     {
         public static TestCardRoot? FindCombatCardRoot(IDataConfig config)
         {
@@ -522,7 +522,7 @@ namespace SunExp.Dll.Hooks
             return null;
         }
 
-        public static void RequestApply(TestCardRoot root, IDataConfig config, string source, SunExpCardPresentationSurface surface)
+        public static void RequestApply(TestCardRoot root, IDataConfig config, string source, TerriasCardPresentationSurface surface)
         {
         }
 
@@ -532,7 +532,7 @@ namespace SunExp.Dll.Hooks
     }
 }
 
-namespace SunExp.Dll.GameApi
+namespace Terrias.Dll.GameApi
 {
     public static class ExecutorApi
     {
@@ -590,9 +590,9 @@ namespace SunExp.Dll.GameApi
     }
 }
 
-namespace SunExp.Dll.Infrastructure
+namespace Terrias.Dll.Infrastructure
 {
-    public static class SunExpLog
+    public static class TerriasLog
     {
         public static void Warn(string message)
         {
@@ -611,7 +611,7 @@ namespace SunExp.Dll.Infrastructure
         }
     }
 
-    public static class SunExpPerformanceCounters
+    public static class TerriasPerformanceCounters
     {
         public static long Timestamp()
         {
@@ -645,9 +645,9 @@ function New-TestsSource {
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 
 internal static class Program
 {
@@ -684,7 +684,7 @@ internal static class Program
         TestEndlessAbyssEnemyScaling();
         TestEndlessAbyssEvacuationDepth();
 
-        Console.WriteLine("SunExp C# tests passed: " + assertions + " assertions.");
+        Console.WriteLine("Terrias C# tests passed: " + assertions + " assertions.");
     }
 
     private static void TestDictionaryUtil()
@@ -699,8 +699,8 @@ internal static class Program
         DictionaryUtil.Set(values, "B", "2");
         Equal("2", values["B"], "DictionaryUtil.Set writes values");
 
-        True(DictionaryUtil.ContainsToken("Burnout, " + WhiteRadiance + " ,Froze", SunExpIds.WhiteRadianceTag), "ContainsToken trims comma-separated tokens");
-        False(DictionaryUtil.ContainsToken(WhiteRadiance + "\u5316", SunExpIds.WhiteRadianceTag), "ContainsToken requires exact token matches");
+        True(DictionaryUtil.ContainsToken("Burnout, " + WhiteRadiance + " ,Froze", TerriasIds.WhiteRadianceTag), "ContainsToken trims comma-separated tokens");
+        False(DictionaryUtil.ContainsToken(WhiteRadiance + "\u5316", TerriasIds.WhiteRadianceTag), "ContainsToken requires exact token matches");
     }
 
     private static void TestEndlessAbyssEnemyScaling()
@@ -751,13 +751,13 @@ internal static class Program
 
     private static void TestSolarMemoryIsolationIds()
     {
-        True(SunExpIds.IsSolarMemoryExclusiveMapId("solar_memory_black_sun_after"), "Short Solar Memory story map ids are exclusive");
-        True(SunExpIds.IsSolarMemoryExclusiveMapId("SunExp_sunexp_solar_memory_boss_saint_wuna"), "Full Solar Memory boss map ids are exclusive");
-        False(SunExpIds.IsSolarMemoryExclusiveMapId("solar_event"), "Retired solar event map ids are no longer shipped exclusive maps");
-        False(SunExpIds.IsSolarMemoryExclusiveMapId("map_0"), "Base game map ids are not Solar Memory exclusive");
-        True(SunExpIds.IsSolarMemoryExclusiveEventId("SunExp_sunexp_Sub_solar_memory_second_sun"), "Full Solar Memory story event ids are exclusive");
-        False(SunExpIds.IsSolarMemoryExclusiveEventId("Sub_wuna_event_1"), "Retired Wuna story event ids are no longer shipped exclusive events");
-        False(SunExpIds.IsSolarMemoryExclusiveEventId("event_2001"), "Base game event ids are not Solar Memory exclusive");
+        True(TerriasIds.IsSolarMemoryExclusiveMapId("solar_memory_black_sun_after"), "Short Solar Memory story map ids are exclusive");
+        True(TerriasIds.IsSolarMemoryExclusiveMapId("Terrias_terrias_solar_memory_boss_saint_wuna"), "Full Solar Memory boss map ids are exclusive");
+        False(TerriasIds.IsSolarMemoryExclusiveMapId("solar_event"), "Retired solar event map ids are no longer shipped exclusive maps");
+        False(TerriasIds.IsSolarMemoryExclusiveMapId("map_0"), "Base game map ids are not Solar Memory exclusive");
+        True(TerriasIds.IsSolarMemoryExclusiveEventId("Terrias_terrias_Sub_solar_memory_second_sun"), "Full Solar Memory story event ids are exclusive");
+        False(TerriasIds.IsSolarMemoryExclusiveEventId("Sub_wuna_event_1"), "Retired Wuna story event ids are no longer shipped exclusive events");
+        False(TerriasIds.IsSolarMemoryExclusiveEventId("event_2001"), "Base game event ids are not Solar Memory exclusive");
     }
 
     private static void TestSolarMemoryFixedNodeCatalog()
@@ -765,20 +765,20 @@ internal static class Program
         var firstLayer = SolarMemoryFixedNodeCatalog.ForLayer(-1);
         Equal(2, firstLayer.Count, "Solar Memory first layer keeps opening and ending story locks");
         Equal(SolarMemoryFixedNodeCatalog.OpeningSlotIndex, firstLayer[0].SlotIndex, "Solar Memory opening story stays in slot zero");
-        Equal(SunExpIds.SolarMemoryMapIds[0], firstLayer[0].MapId, "Solar Memory first opening story resolves from the fixed id catalog");
-        Equal(SunExpIds.SolarMemoryFullEventIds[1], firstLayer[1].NodeId, "Solar Memory first ending story resolves the second layer event id");
+        Equal(TerriasIds.SolarMemoryMapIds[0], firstLayer[0].MapId, "Solar Memory first opening story resolves from the fixed id catalog");
+        Equal(TerriasIds.SolarMemoryFullEventIds[1], firstLayer[1].NodeId, "Solar Memory first ending story resolves the second layer event id");
 
         var secondLayer = SolarMemoryFixedNodeCatalog.ForLayer(1);
         Equal(3, secondLayer.Count, "Solar Memory second layer keeps two stories and the mirror boss");
         Equal(SolarMemoryFixedNodeCatalog.MidLayerSlotIndex, secondLayer[1].SlotIndex, "Solar Memory second story stays in the fourth slot");
-        Equal(SunExpIds.SolarBossOrbitMirrorMapId, secondLayer[2].MapId, "Solar Memory second layer ends at the mirror boss");
+        Equal(TerriasIds.SolarBossOrbitMirrorMapId, secondLayer[2].MapId, "Solar Memory second layer ends at the mirror boss");
 
         var finalLayer = SolarMemoryFixedNodeCatalog.ForLayer(99);
         Equal(4, finalLayer.Count, "Solar Memory final layer keeps two stories and two fixed bosses");
-        Equal(SunExpIds.SolarMemoryMapIds[4], finalLayer[0].MapId, "Solar Memory final layer opening resolves the fifth story map");
-        Equal(SunExpIds.SolarMemoryFullEventIds[5], finalLayer[1].NodeId, "Solar Memory final mid slot resolves the sixth story event");
-        Equal(SunExpIds.SolarBossSecondSunMapId, finalLayer[2].MapId, "Solar Memory final penultimate slot is the second-sun boss");
-        Equal(SunExpIds.SolarBossSaintWunaMapId, finalLayer[3].MapId, "Solar Memory final ending slot is Saint Wuna");
+        Equal(TerriasIds.SolarMemoryMapIds[4], finalLayer[0].MapId, "Solar Memory final layer opening resolves the fifth story map");
+        Equal(TerriasIds.SolarMemoryFullEventIds[5], finalLayer[1].NodeId, "Solar Memory final mid slot resolves the sixth story event");
+        Equal(TerriasIds.SolarBossSecondSunMapId, finalLayer[2].MapId, "Solar Memory final penultimate slot is the second-sun boss");
+        Equal(TerriasIds.SolarBossSaintWunaMapId, finalLayer[3].MapId, "Solar Memory final ending slot is Saint Wuna");
     }
 
     private static void TestSolarMemoryMapSyncRepair()
@@ -786,7 +786,7 @@ internal static class Program
         var maps = new[]
         {
             "map_0",
-            SunExpIds.SolarBossOrbitMirrorMapId,
+            TerriasIds.SolarBossOrbitMirrorMapId,
             "map_2",
             "map_3",
             "map_4",
@@ -799,12 +799,12 @@ internal static class Program
             SolarMemoryMapSyncRepairService.Repair(maps, mapData, 2, repairs.Add),
             "Solar Memory sync repair fixes every final-layer lock and misplaced exclusive node");
         Equal(5, repairs.Count, "Solar Memory sync repair reports each changed index once");
-        Equal(SunExpIds.SolarMemoryMapIds[4], maps[0], "Solar Memory sync repair restores the final-layer opening story");
-        Equal(SunExpIds.SolarMemoryMapIds[4], maps[1], "Solar Memory sync repair replaces misplaced exclusive nodes deterministically");
+        Equal(TerriasIds.SolarMemoryMapIds[4], maps[0], "Solar Memory sync repair restores the final-layer opening story");
+        Equal(TerriasIds.SolarMemoryMapIds[4], maps[1], "Solar Memory sync repair replaces misplaced exclusive nodes deterministically");
         Equal("map_2", maps[2], "Solar Memory sync repair preserves ordinary unlocked slots");
-        Equal(SunExpIds.SolarMemoryFullEventIds[5], mapData[3], "Solar Memory sync repair restores the final-layer mid story");
-        Equal(SunExpIds.SolarBossSecondSunLevelId, mapData[4], "Solar Memory sync repair restores the second-sun level id");
-        Equal(SunExpIds.SolarBossSaintWunaLevelId, mapData[5], "Solar Memory sync repair restores the Saint Wuna level id");
+        Equal(TerriasIds.SolarMemoryFullEventIds[5], mapData[3], "Solar Memory sync repair restores the final-layer mid story");
+        Equal(TerriasIds.SolarBossSecondSunLevelId, mapData[4], "Solar Memory sync repair restores the second-sun level id");
+        Equal(TerriasIds.SolarBossSaintWunaLevelId, mapData[5], "Solar Memory sync repair restores the Saint Wuna level id");
         Equal(0,
             SolarMemoryMapSyncRepairService.Repair(maps, mapData, 2),
             "Solar Memory sync repair is idempotent after arrays are normalized");
@@ -821,16 +821,16 @@ internal static class Program
         var maps = new[]
         {
             "map_0",
-            SunExpIds.SolarMemoryMapIds[0],
+            TerriasIds.SolarMemoryMapIds[0],
             "map_2",
-            SunExpIds.SolarBossSaintWunaMapId
+            TerriasIds.SolarBossSaintWunaMapId
         };
         var mapData = new[]
         {
             "node_0",
-            SunExpIds.SolarMemoryFullEventIds[0],
-            SunExpIds.SolarMemoryFullEventIds[1],
-            SunExpIds.SolarBossSaintWunaLevelId
+            TerriasIds.SolarMemoryFullEventIds[0],
+            TerriasIds.SolarMemoryFullEventIds[1],
+            TerriasIds.SolarBossSaintWunaLevelId
         };
         var resolverCalls = 0;
         var replaced = SolarMemoryContentIsolationService.SanitizeSelectionArrays(
@@ -844,8 +844,8 @@ internal static class Program
                     1 => new SolarMemoryMapSelectionReplacement("safe_event_map", "event_2001"),
                     2 => new SolarMemoryMapSelectionReplacement("safe_fight_map", "level_2001"),
                     _ => new SolarMemoryMapSelectionReplacement(
-                        SunExpIds.SolarBossSaintWunaMapId,
-                        SunExpIds.SolarBossSaintWunaLevelId)
+                        TerriasIds.SolarBossSaintWunaMapId,
+                        TerriasIds.SolarBossSaintWunaLevelId)
                 };
             });
 
@@ -854,9 +854,9 @@ internal static class Program
         Equal("map_0", maps[0], "Solar Memory isolation preserves ordinary synchronized choices");
         Equal("safe_event_map", maps[1], "Solar Memory isolation replaces an exclusive map and event pair");
         Equal("safe_fight_map", maps[2], "Solar Memory isolation replaces a normal map carrying an exclusive event id");
-        Equal(SunExpIds.SolarBossSaintWunaMapId, maps[3], "Solar Memory isolation rejects an exclusive replacement result");
+        Equal(TerriasIds.SolarBossSaintWunaMapId, maps[3], "Solar Memory isolation rejects an exclusive replacement result");
         False(SolarMemoryContentIsolationService.RequiresReplacement("map_0", "event_2001"), "Solar Memory isolation accepts ordinary map selections");
-        True(SolarMemoryContentIsolationService.RequiresReplacement("map_0", SunExpIds.SolarMemoryFullEventIds[0]), "Solar Memory isolation detects exclusive event ids independently");
+        True(SolarMemoryContentIsolationService.RequiresReplacement("map_0", TerriasIds.SolarMemoryFullEventIds[0]), "Solar Memory isolation detects exclusive event ids independently");
     }
 
     private static void TestCombatCardViewPoolCatalog()
@@ -873,28 +873,28 @@ internal static class Program
 
         var close = new DataConfig(new Dictionary<string, string>
         {
-            ["Id"] = SunExpIds.StellarOvertureCloseCardId
+            ["Id"] = TerriasIds.StellarOvertureCloseCardId
         });
         True(CombatCardViewPoolCatalog.TryResolveBucket(close, out var closeBucket), "Stellar Overture Close is eligible for combat card pooling");
         Equal(CombatCardViewPoolCatalog.AttackBucket, closeBucket, "Stellar Overture Close always uses an attack-card view");
 
         var turn = new DataConfig(new Dictionary<string, string>
         {
-            ["Id"] = SunExpIds.StellarOvertureTurnCardId
+            ["Id"] = TerriasIds.StellarOvertureTurnCardId
         });
         True(CombatCardViewPoolCatalog.TryResolveBucket(turn, out var turnBucket), "Stellar Overture Turn is eligible for combat card pooling");
         Equal(CombatCardViewPoolCatalog.AttackBucket, turnBucket, "Stellar Overture Turn always uses an attack-card view");
 
         var heartChange = new DataConfig(new Dictionary<string, string>
         {
-            ["Id"] = "SunExp_sunexp_heart_change"
+            ["Id"] = "Terrias_terrias_heart_change"
         });
         True(CombatCardViewPoolCatalog.TryResolveBucket(heartChange, out var heartChangeBucket), "Heart Change is eligible for combat card pooling");
         Equal(CombatCardViewPoolCatalog.AttackBucket, heartChangeBucket, "Heart Change always uses an attack-card view");
 
         var projectionRole = new DataConfig(new Dictionary<string, string>
         {
-            ["Id"] = SunExpIds.ProjectionRoleTemplateCardId
+            ["Id"] = TerriasIds.ProjectionRoleTemplateCardId
         });
         True(CombatCardViewPoolCatalog.TryResolveBucket(projectionRole, out var projectionBucket), "Projection role cards are eligible for combat card pooling");
         Equal(CombatCardViewPoolCatalog.CommonBucket, projectionBucket, "Projection role cards use common-card views");
@@ -948,31 +948,31 @@ internal static class Program
         CardVisualSkinRegistry.ClearOwner("TestMod");
         Equal(null, CardVisualSkinRegistry.Resolve(packCard)?.Id, "Clearing owner removes registered card visual skin rules");
 
-        CardVisualSkinApi.RegisterSunExpDefaults();
+        CardVisualSkinApi.RegisterTerriasDefaults();
         var radiantSparkCard = new DataConfig(new Dictionary<string, string>
         {
-            ["Id"] = "SunExp_sunexp_morning_light_bulwark",
-            ["PackBelong"] = SunExpIds.RadiantSparkCardPackId,
-            ["Icon"] = "Mods/SunExp/ModResource/Images/Card/SunExp/morning_light_bulwark"
+            ["Id"] = "Terrias_terrias_morning_light_bulwark",
+            ["PackBelong"] = TerriasIds.RadiantSparkCardPackId,
+            ["Icon"] = "Mods/Terrias/ModResource/Images/Card/Terrias/morning_light_bulwark"
         });
-        Equal(SunExpIds.SunCardVisualSkinId, CardVisualSkinRegistry.Resolve(radiantSparkCard)?.Id, "SunExp defaults keep Sun packs on the Sun card visual skin");
+        Equal(TerriasIds.SunCardVisualSkinId, CardVisualSkinRegistry.Resolve(radiantSparkCard)?.Id, "Terrias defaults keep Sun packs on the Sun card visual skin");
 
         var morningStarPackCard = new DataConfig(new Dictionary<string, string>
         {
-            ["Id"] = SunExpIds.PrewrittenMeasureCardId,
-            ["PackBelong"] = SunExpIds.MorningStarOvertureCardPackId,
-            ["Icon"] = "Mods/SunExp/ModResource/Images/Card/MorningStar/prewritten_measure"
+            ["Id"] = TerriasIds.PrewrittenMeasureCardId,
+            ["PackBelong"] = TerriasIds.MorningStarOvertureCardPackId,
+            ["Icon"] = "Mods/Terrias/ModResource/Images/Card/MorningStar/prewritten_measure"
         });
-        Equal(SunExpIds.MorningStarCardVisualSkinId, CardVisualSkinRegistry.Resolve(morningStarPackCard)?.Id, "Morning Star Overture pack cards use the Morning Star card visual skin");
+        Equal(TerriasIds.MorningStarCardVisualSkinId, CardVisualSkinRegistry.Resolve(morningStarPackCard)?.Id, "Morning Star Overture pack cards use the Morning Star card visual skin");
 
         var generatedOvertureCard = new DataConfig(new Dictionary<string, string>
         {
-            ["Id"] = "*" + SunExpIds.StellarOvertureStartShortCardId,
+            ["Id"] = "*" + TerriasIds.StellarOvertureStartShortCardId,
             ["PackBelong"] = "",
             ["Icon"] = ""
         });
-        Equal(SunExpIds.MorningStarCardVisualSkinId, CardVisualSkinRegistry.Resolve(generatedOvertureCard)?.Id, "Generated Stellar Overture cards use the Morning Star card visual skin by runtime id");
-        CardVisualSkinRegistry.ClearOwner(SunExpIds.ModId);
+        Equal(TerriasIds.MorningStarCardVisualSkinId, CardVisualSkinRegistry.Resolve(generatedOvertureCard)?.Id, "Generated Stellar Overture cards use the Morning Star card visual skin by runtime id");
+        CardVisualSkinRegistry.ClearOwner(TerriasIds.ModId);
     }
 
     private static void TestCardVisualEffectRegistry()
@@ -990,7 +990,7 @@ internal static class Program
             "TestMod",
             "test.effect.high",
             CardVisualEffectTarget.Face,
-            SunExpIds.CardFaceFoilHoloVisualEffectId,
+            TerriasIds.CardFaceFoilHoloVisualEffectId,
             "High",
             20,
             new[] { "target_card" }));
@@ -1010,13 +1010,13 @@ internal static class Program
             "TestMod",
             "test.effect.full",
             CardVisualEffectTarget.Frame,
-            SunExpIds.CardFaceFoilHoloVisualEffectId,
+            TerriasIds.CardFaceFoilHoloVisualEffectId,
             "Full",
             30,
-            new[] { SunExpIds.BlazingCrownCollapseCardId }));
+            new[] { TerriasIds.BlazingCrownCollapseCardId }));
         var blazingCrownCollapse = new DataConfig(new Dictionary<string, string>
         {
-            ["Id"] = SunExpIds.BlazingCrownCollapseCardId
+            ["Id"] = TerriasIds.BlazingCrownCollapseCardId
         });
         Equal("test.effect.full", CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Frame, blazingCrownCollapse)?.Id, "Card visual effect supports full mod-qualified card ids on the frame target");
         Equal(null, CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Face, blazingCrownCollapse)?.Id, "Frame card visual effects do not bleed into the face target");
@@ -1025,8 +1025,8 @@ internal static class Program
         Equal(null, CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Face, target)?.Id, "Clearing owner removes registered card visual effects");
         Equal(null, CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Frame, blazingCrownCollapse)?.Id, "Clearing owner removes registered frame visual effects");
 
-        CardVisualEffectApi.RegisterSunExpDefaults();
-        Equal(SunExpIds.BlazingCrownCollapseHoloEffectBindingId, CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Frame, blazingCrownCollapse)?.Id, "Blazing Crown Collapse foil applies to the card frame");
+        CardVisualEffectApi.RegisterTerriasDefaults();
+        Equal(TerriasIds.BlazingCrownCollapseHoloEffectBindingId, CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Frame, blazingCrownCollapse)?.Id, "Blazing Crown Collapse foil applies to the card frame");
         Equal(null, CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Face, blazingCrownCollapse)?.Id, "Blazing Crown Collapse foil does not apply to the card face");
         foreach (var cardId in new[]
         {
@@ -1040,39 +1040,39 @@ internal static class Program
             {
                 ["Id"] = cardId
             });
-            Equal(SunExpIds.StellarOvertureStardustEffectBindingId, CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Frame, generatedOverture)?.Id, "Stardust applies to generated Stellar Overture frame id " + cardId);
+            Equal(TerriasIds.StellarOvertureStardustEffectBindingId, CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Frame, generatedOverture)?.Id, "Stardust applies to generated Stellar Overture frame id " + cardId);
             Equal(null, CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Face, generatedOverture)?.Id, "Stardust does not apply to generated Stellar Overture face id " + cardId);
         }
 
         foreach (var cardId in new[]
         {
-            SunExpIds.StellarOvertureStartShortCardId,
-            SunExpIds.StellarOvertureSustainShortCardId,
-            SunExpIds.StellarOvertureTurnShortCardId,
-            SunExpIds.StellarOvertureCloseShortCardId,
-            SunExpIds.StellarOvertureStartCardId,
-            SunExpIds.StellarOvertureSustainCardId,
-            SunExpIds.StellarOvertureTurnCardId,
-            SunExpIds.StellarOvertureCloseCardId
+            TerriasIds.StellarOvertureStartShortCardId,
+            TerriasIds.StellarOvertureSustainShortCardId,
+            TerriasIds.StellarOvertureTurnShortCardId,
+            TerriasIds.StellarOvertureCloseShortCardId,
+            TerriasIds.StellarOvertureStartCardId,
+            TerriasIds.StellarOvertureSustainCardId,
+            TerriasIds.StellarOvertureTurnCardId,
+            TerriasIds.StellarOvertureCloseCardId
         })
         {
             var overture = new DataConfig(new Dictionary<string, string>
             {
                 ["Id"] = cardId
             });
-            Equal(SunExpIds.StellarOvertureStardustEffectBindingId, CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Frame, overture)?.Id, "Stardust applies to Stellar Overture frame id " + cardId);
+            Equal(TerriasIds.StellarOvertureStardustEffectBindingId, CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Frame, overture)?.Id, "Stardust applies to Stellar Overture frame id " + cardId);
             Equal(null, CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Face, overture)?.Id, "Stardust does not apply to Stellar Overture face id " + cardId);
         }
 
         var unrelatedGeneratedSuffix = new DataConfig(new Dictionary<string, string>
         {
-            ["Id"] = "OtherMod_sunexp_stellar_overture_start"
+            ["Id"] = "OtherMod_terrias_stellar_overture_start"
         });
         Equal(null, CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Frame, unrelatedGeneratedSuffix)?.Id, "Leading star generated-card ids are matched literally, not as broad wildcards");
 
         var ordinaryMorningStarCard = new DataConfig(new Dictionary<string, string>
         {
-            ["Id"] = SunExpIds.PrewrittenMeasureCardId
+            ["Id"] = TerriasIds.PrewrittenMeasureCardId
         });
         Equal(null, CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Frame, ordinaryMorningStarCard)?.Id, "Stardust does not apply to ordinary Morning Star cards");
     }
@@ -1115,7 +1115,7 @@ internal static class Program
             "InterestTest",
             "interest.effect",
             CardVisualEffectTarget.Frame,
-            SunExpIds.CardFaceFoilHoloVisualEffectId,
+            TerriasIds.CardFaceFoilHoloVisualEffectId,
             "Interest Effect",
             10,
             new[] { "effect_card" }));
@@ -1246,9 +1246,9 @@ internal static class Program
         Equal("10026", canonical.MatchedEnemyId, "Canonical registry ids continue to resolve directly");
         Equal("enemy-wildcard", canonical.MatchKind, "Canonical ids use the explicit enemy wildcard profile");
 
-        var sunExpRuntime = Resolve("SunExp_sunexp_boss_orbit_mirror_array", "SunExp_sunexp_boss_orbit_mirror_array");
-        Equal("boss_orbit_mirror_array", sunExpRuntime.MatchedEnemyId, "SunExp runtime ids resolve to short stable profile ids");
-        Equal("alias-enemy-wildcard", sunExpRuntime.MatchKind, "SunExp prefix normalization is visible in diagnostics");
+        var terriasRuntime = Resolve("Terrias_terrias_boss_orbit_mirror_array", "Terrias_terrias_boss_orbit_mirror_array");
+        Equal("boss_orbit_mirror_array", terriasRuntime.MatchedEnemyId, "Terrias runtime ids resolve to short stable profile ids");
+        Equal("alias-enemy-wildcard", terriasRuntime.MatchKind, "Terrias prefix normalization is visible in diagnostics");
 
         var exactVariant = Resolve("enemy_exact", "v1");
         Equal("exact", exactVariant.MatchKind, "Explicit variant profiles resolve before enemy wildcards");
@@ -1465,9 +1465,9 @@ internal static class Program
         False(CardMutationService.AddNativeTags(config, "Burnout"), "Existing native tags are not rewritten");
 
         CardMutationService.MarkTemporaryWhiteRadiance(config);
-        Equal("1", config.Vars[SunExpIds.TempWhiteRadiance], "Temporary white radiance marker is set");
-        Equal("0", config.Vars[SunExpIds.TempWhiteRadianceResolved], "Temporary white radiance starts unresolved");
-        True(CardMutationService.HasSpecialTag(config, SunExpIds.WhiteRadianceTag), "Temporary white radiance adds the white-radiance SpecialTag");
+        Equal("1", config.Vars[TerriasIds.TempWhiteRadiance], "Temporary white radiance marker is set");
+        Equal("0", config.Vars[TerriasIds.TempWhiteRadianceResolved], "Temporary white radiance starts unresolved");
+        True(CardMutationService.HasSpecialTag(config, TerriasIds.WhiteRadianceTag), "Temporary white radiance adds the white-radiance SpecialTag");
     }
 
     private static void TestRuntimeCardAttachmentService()
@@ -1510,8 +1510,8 @@ internal static class Program
         False(DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.data, "Tag"), "Burnout"), "Runtime attachment does not write base config data.Tag");
         True(DictionaryUtil.ContainsToken(DictionaryUtil.Get(card.Vars, "SpecialTag"), WhiteRadiance), "Runtime attachment writes SpecialTag to card item Vars");
         True(DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, "SpecialTag"), WhiteRadiance), "Runtime attachment writes SpecialTag to config Vars");
-        Equal("1", config.Vars[SunExpIds.TempWhiteRadiance], "Runtime attachment marks temporary white radiance on config");
-        Equal(card.Vars[SunExpIds.TempWhiteRadianceLockId], config.Vars[SunExpIds.TempWhiteRadianceLockId], "Card item and config share the temporary white radiance lock");
+        Equal("1", config.Vars[TerriasIds.TempWhiteRadiance], "Runtime attachment marks temporary white radiance on config");
+        Equal(card.Vars[TerriasIds.TempWhiteRadianceLockId], config.Vars[TerriasIds.TempWhiteRadianceLockId], "Card item and config share the temporary white radiance lock");
         True(CardConfigApi.HasTemporaryWhiteRadiance(config), "Runtime attachment is visible to the white-radiance trigger runtime");
         False(CardConfigApi.HasNativeWhiteRadiance(config), "Runtime hand attachment does not turn white radiance into a native run tag");
 
@@ -1519,9 +1519,9 @@ internal static class Program
         True(cleared > 0, "Runtime attachment cleanup removes temporary card vars at the next fight boundary");
         False(DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, "Tag"), "Burnout"), "Runtime attachment cleanup removes temporary Burnout from config Vars.Tag");
         False(DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, "SpecialTag"), WhiteRadiance), "Runtime attachment cleanup removes temporary white radiance from config Vars.SpecialTag");
-        False(DictionaryUtil.ContainsToken(DictionaryUtil.Get(card.Vars, SunExpIds.RuntimeMarkersKey), SunExpIds.TempWhiteRadiance), "Runtime attachment cleanup removes the temporary marker from card Vars");
-        False(config.Vars.ContainsKey(SunExpIds.TempWhiteRadiance), "Runtime attachment cleanup removes temporary white radiance state");
-        False(config.Vars.ContainsKey(SunExpIds.TempWhiteRadianceLockId), "Runtime attachment cleanup removes the temporary white radiance lock");
+        False(DictionaryUtil.ContainsToken(DictionaryUtil.Get(card.Vars, TerriasIds.RuntimeMarkersKey), TerriasIds.TempWhiteRadiance), "Runtime attachment cleanup removes the temporary marker from card Vars");
+        False(config.Vars.ContainsKey(TerriasIds.TempWhiteRadiance), "Runtime attachment cleanup removes temporary white radiance state");
+        False(config.Vars.ContainsKey(TerriasIds.TempWhiteRadianceLockId), "Runtime attachment cleanup removes the temporary white radiance lock");
         False(card.Tags.Contains("Burnout"), "Runtime attachment cleanup removes temporary Burnout from visible card tags");
         False(card.Tags.Contains(WhiteRadiance), "Runtime attachment cleanup removes temporary white radiance from visible card tags");
 
@@ -1580,27 +1580,27 @@ internal static class Program
             {
                 ["Tag"] = "Burnout",
                 ["SpecialTag"] = WhiteRadiance,
-                [SunExpIds.RuntimeMarkersKey] = SunExpIds.TempWhiteRadiance,
-                [SunExpIds.TempWhiteRadiance] = "1"
+                [TerriasIds.RuntimeMarkersKey] = TerriasIds.TempWhiteRadiance,
+                [TerriasIds.TempWhiteRadiance] = "1"
             });
         FightCardManager.Instance.cardList.Add(nativeBurnoutConfig);
 
         RuntimeCardAttachmentService.ClearTemporaryAttachments("test.legacy");
         True(DictionaryUtil.ContainsToken(DictionaryUtil.Get(nativeBurnoutConfig.Vars, "Tag"), "Burnout"), "Runtime attachment cleanup preserves native Burnout when base data owns it");
         False(DictionaryUtil.ContainsToken(DictionaryUtil.Get(nativeBurnoutConfig.Vars, "SpecialTag"), WhiteRadiance), "Runtime attachment cleanup removes legacy temporary white radiance without a snapshot");
-        False(DictionaryUtil.ContainsToken(DictionaryUtil.Get(nativeBurnoutConfig.Vars, SunExpIds.RuntimeMarkersKey), SunExpIds.TempWhiteRadiance), "Runtime attachment cleanup removes legacy temporary markers without a snapshot");
-        False(nativeBurnoutConfig.Vars.ContainsKey(SunExpIds.TempWhiteRadiance), "Runtime attachment cleanup removes legacy temporary state without a snapshot");
+        False(DictionaryUtil.ContainsToken(DictionaryUtil.Get(nativeBurnoutConfig.Vars, TerriasIds.RuntimeMarkersKey), TerriasIds.TempWhiteRadiance), "Runtime attachment cleanup removes legacy temporary markers without a snapshot");
+        False(nativeBurnoutConfig.Vars.ContainsKey(TerriasIds.TempWhiteRadiance), "Runtime attachment cleanup removes legacy temporary state without a snapshot");
     }
 
     private static void TestSolarTriggerCostOverride()
     {
         var config = NewConfig(
             new Dictionary<string, string> { ["Id"] = "flamewheel_recurrence" },
-            new Dictionary<string, string> { [SunExpIds.SolarTriggerCost] = "5" });
+            new Dictionary<string, string> { [TerriasIds.SolarTriggerCost] = "5" });
 
         Equal(5, CardConfigApi.ResolveSolarTriggerCost(config, 1), "Solar trigger override wins over fallback");
         CardConfigApi.ClearSolarTriggerCost(config);
-        Equal("", config.Vars[SunExpIds.SolarTriggerCost], "ClearSolarTriggerCost blanks the override var");
+        Equal("", config.Vars[TerriasIds.SolarTriggerCost], "ClearSolarTriggerCost blanks the override var");
         Equal(1, CardConfigApi.ResolveSolarTriggerCost(config, 1), "ResolveSolarTriggerCost falls back after clear");
     }
 
@@ -1616,7 +1616,7 @@ internal static class Program
             new Dictionary<string, string>
             {
                 ["SpecialTag"] = WhiteRadiance,
-                [SunExpIds.TempWhiteRadiance] = "1"
+                [TerriasIds.TempWhiteRadiance] = "1"
             });
         True(CardConfigApi.HasTemporaryWhiteRadiance(temporary), "Temporary white radiance requires marker and SpecialTag");
         True(CardConfigApi.HasSpecialWhiteRadiance(temporary), "Special white radiance is read from Vars.SpecialTag");
@@ -1629,16 +1629,16 @@ internal static class Program
         var config = NewConfig();
 
         True(CardConfigApi.TryClaimTemporaryWhiteRadiance(config), "First temporary white radiance claim succeeds");
-        Equal("1", config.Vars[SunExpIds.TempWhiteRadianceResolved], "Successful claim marks card resolved");
+        Equal("1", config.Vars[TerriasIds.TempWhiteRadianceResolved], "Successful claim marks card resolved");
         False(CardConfigApi.TryClaimTemporaryWhiteRadiance(config), "Second claim on the same card is blocked");
 
         var stale = NewConfig(vars: new Dictionary<string, string>
         {
-            [SunExpIds.TempWhiteRadianceLockId] = config.Vars[SunExpIds.TempWhiteRadianceLockId],
-            [SunExpIds.TempWhiteRadianceResolved] = "0"
+            [TerriasIds.TempWhiteRadianceLockId] = config.Vars[TerriasIds.TempWhiteRadianceLockId],
+            [TerriasIds.TempWhiteRadianceResolved] = "0"
         });
         True(CardConfigApi.TryClaimTemporaryWhiteRadiance(stale), "A stale unresolved card lock is renewed");
-        NotEqual(config.Vars[SunExpIds.TempWhiteRadianceLockId], stale.Vars[SunExpIds.TempWhiteRadianceLockId], "Renewed stale lock receives a new id");
+        NotEqual(config.Vars[TerriasIds.TempWhiteRadianceLockId], stale.Vars[TerriasIds.TempWhiteRadianceLockId], "Renewed stale lock receives a new id");
     }
 
     private static void TestLoneerStateOwnership()
@@ -1704,7 +1704,7 @@ internal static class Program
         StarScoreArrivalCueService.Clear();
         var card = new DataConfig(new Dictionary<string, string>
         {
-            ["Id"] = SunExpIds.StellarOvertureStartCardId
+            ["Id"] = TerriasIds.StellarOvertureStartCardId
         });
         StarScoreArrivalCueService.Record(card, StarScoreNote.Opening, 0, false, "score-owner");
         StarScoreArrivalCueService.Record(card, StarScoreNote.Sustain, 1, false, "score-owner");
@@ -1829,283 +1829,283 @@ function Invoke-SourceAssertions {
     $solarMemoryPrefix = [regex]::Unescape('\u65e5\u8000\u56de\u5fc6\u00b7')
     $solarMemoryTraditionalPrefix = [regex]::Unescape('\u65e5\u8000\u56de\u61b6\u00b7')
 
-    $executorApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\ExecutorApi.cs"))
-    $sunExpIds = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpIds.cs"))
-    $sunExpFieldId = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpFieldId.cs"))
-    $playerApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\PlayerApi.cs"))
-    $cardApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\CardApi.cs"))
-    $combatCardApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\CombatCardApi.cs"))
-    $fightUiCardLayoutApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\FightUiCardLayoutApi.cs"))
-    $fightActionPresentationApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\FightActionPresentationApi.cs"))
-    $combatCardViewPoolCatalogText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CombatCardViewPoolCatalog.cs"))
-    $combatCardViewPoolText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\SunExpCombatCardViewPool.cs"))
-    $pooledCombatCardViewMarkerText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\PooledCombatCardViewMarker.cs"))
-    $combatCardUiDiagnostics = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpCombatCardUiDiagnostics.cs"))
-    $cardGrantPostCommitQueue = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardGrantPostCommitQueue.cs"))
-    $roleSkillApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\RoleSkillApi.cs"))
-    $cardMutationService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardMutationService.cs"))
-    $polymorphActivationService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\PolymorphActivationService.cs"))
-    $polymorphBuffService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\PolymorphBuffService.cs"))
-    $polymorphCooldownService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\PolymorphCooldownService.cs"))
-    $polymorphRuntimeService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\PolymorphRuntimeService.cs"))
-    $polymorphStateStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\PolymorphStateStore.cs"))
-    $projectionActivationService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionActivationService.cs"))
-    $projectionOtherObj = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionOtherObj.cs"))
-    $companionIntentPlanner = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionIntentPlanner.cs"))
-    $heartChangeControlService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\HeartChangeControlService.cs"))
-    $heartChangeActionProxyObj = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\HeartChangeActionProxyObj.cs"))
-    $heartChangeIntentService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\HeartChangeIntentService.cs"))
-    $projectionStateStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionStateStore.cs"))
-    $projectionStrategyService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionStrategyService.cs"))
-    $projectionSummonService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionSummonService.cs"))
-    $spiritSummonService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\SpiritSummonService.cs"))
-    $projectionActionExecutor = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionActionExecutor.cs"))
-    $projectionEffectContext = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionEffectContext.cs"))
-    $projectionAttachmentPresenter = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Visual\ProjectionAttachmentPresenter.cs"))
-    $spiritAttachmentPresenter = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Visual\SpiritAttachmentPresenter.cs"))
-    $companionSceneApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\CompanionSceneApi.cs"))
-    $companionSceneLifecycleRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\CompanionSceneLifecycleRuntime.cs"))
-    $companionPresentationCleanup = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Visual\CompanionPresentationCleanup.cs"))
-    $projectionIntentPresenter = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Visual\ProjectionIntentPresenter.cs"))
-    $pooledCardExitAnimator = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Visual\PooledCardExitAnimator.cs"))
-    $projectionTurnCoordinator = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionTurnCoordinator.cs"))
-    $projectionTurnAnchorObj = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ProjectionTurnAnchorObj.cs"))
-    $companionBattleModels = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionBattleModels.cs"))
-    $companionBattleStateStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionBattleStateStore.cs"))
-    $companionIntentRegistry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionIntentRegistry.cs"))
-    $companionIntentHandlers = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionIntentHandlers.cs"))
-    $companionFriendlyRosterService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionFriendlyRosterService.cs"))
-    $companionIntentSelector = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionIntentSelector.cs"))
-    $companionSlotService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionSlotService.cs"))
-    $companionStatsService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionStatsService.cs"))
-    $companionThreatService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CompanionThreatService.cs"))
-    $companionIntentRegistryJson = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\companion.intent.registry.json"))
-    $runtimeCardAttachmentService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\RuntimeCardAttachmentService.cs"))
-    $starBlessingCostOverrideStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarBlessingCostOverrideStore.cs"))
-    $resonanceCostTransactionStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\ResonanceCostTransactionStore.cs"))
-    $cardGrantRecipes = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\CardGrantRecipes.cs"))
-    $specialTagRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SpecialTagRuntime.cs"))
-    $companionThreatRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\CompanionThreatRuntime.cs"))
-    $cardConfigApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\CardConfigApi.cs"))
-    $gameCompatibilityApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\GameCompatibilityApi.cs"))
-    $cardScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\CardScripts.cs"))
-    $familiarBlessingEffectRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\FamiliarBlessingEffectRuntime.cs"))
-    $relicScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\RelicScripts.cs"))
-    $morningStarCardScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\MorningStarCardScripts.cs"))
-    $buffScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\BuffScripts.cs"))
-    $buffApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\BuffApi.cs"))
-    $statusApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\StatusApi.cs"))
-    $solarRadianceService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\SolarRadianceService.cs"))
-    $burnTriggerApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\BurnTriggerApi.cs"))
-    $scriptEventApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\ScriptEventApi.cs"))
-    $fieldApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\FieldApi.cs"))
-    $fieldRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\FieldRuntime.cs"))
-    $fieldBuffHudRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\FieldBuffHudRuntime.cs"))
-    $fieldBuffHudView = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\FieldBuffHudView.cs"))
-    $fieldBuffHudHoverProbe = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\FieldBuffHudHoverProbe.cs"))
-    $fieldBuffHudTooltipView = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\FieldBuffHudTooltipView.cs"))
-    $fieldEffectHandlers = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\FieldEffectHandlers.cs"))
-    $fieldEffectRegistry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\FieldEffectRegistry.cs"))
-    $morningStarOvertureService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\MorningStarOvertureService.cs"))
-    $fieldStartCoordinator = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\FieldStartCoordinator.cs"))
-    $difficultyFieldPoolService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\DifficultyFieldPoolService.cs"))
-    $relicFieldStartSourceService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\RelicFieldStartSourceService.cs"))
-    $relicOpeningEffectService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\RelicOpeningEffectService.cs"))
-    $relicApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\RelicApi.cs"))
-    $fieldNetworkSync = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Network\FieldNetworkSync.cs"))
+    $executorApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\GameApi\ExecutorApi.cs"))
+    $terriasIds = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Infrastructure\TerriasIds.cs"))
+    $terriasFieldId = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Infrastructure\TerriasFieldId.cs"))
+    $playerApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\GameApi\PlayerApi.cs"))
+    $cardApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\GameApi\CardApi.cs"))
+    $combatCardApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\GameApi\CombatCardApi.cs"))
+    $fightUiCardLayoutApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\GameApi\FightUiCardLayoutApi.cs"))
+    $fightActionPresentationApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\GameApi\FightActionPresentationApi.cs"))
+    $combatCardViewPoolCatalogText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\CombatCardViewPoolCatalog.cs"))
+    $combatCardViewPoolText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\Ui\TerriasCombatCardViewPool.cs"))
+    $pooledCombatCardViewMarkerText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\Ui\PooledCombatCardViewMarker.cs"))
+    $combatCardUiDiagnostics = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Infrastructure\TerriasCombatCardUiDiagnostics.cs"))
+    $cardGrantPostCommitQueue = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\CardGrantPostCommitQueue.cs"))
+    $roleSkillApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\GameApi\RoleSkillApi.cs"))
+    $cardMutationService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\CardMutationService.cs"))
+    $polymorphActivationService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\PolymorphActivationService.cs"))
+    $polymorphBuffService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\PolymorphBuffService.cs"))
+    $polymorphCooldownService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\PolymorphCooldownService.cs"))
+    $polymorphRuntimeService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\PolymorphRuntimeService.cs"))
+    $polymorphStateStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\PolymorphStateStore.cs"))
+    $projectionActivationService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\ProjectionActivationService.cs"))
+    $projectionOtherObj = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\ProjectionOtherObj.cs"))
+    $companionIntentPlanner = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\CompanionIntentPlanner.cs"))
+    $heartChangeControlService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\HeartChangeControlService.cs"))
+    $heartChangeActionProxyObj = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\HeartChangeActionProxyObj.cs"))
+    $heartChangeIntentService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\HeartChangeIntentService.cs"))
+    $projectionStateStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\ProjectionStateStore.cs"))
+    $projectionStrategyService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\ProjectionStrategyService.cs"))
+    $projectionSummonService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\ProjectionSummonService.cs"))
+    $spiritSummonService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\SpiritSummonService.cs"))
+    $projectionActionExecutor = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\ProjectionActionExecutor.cs"))
+    $projectionEffectContext = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\ProjectionEffectContext.cs"))
+    $projectionAttachmentPresenter = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\Visual\ProjectionAttachmentPresenter.cs"))
+    $spiritAttachmentPresenter = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\Visual\SpiritAttachmentPresenter.cs"))
+    $companionSceneApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\GameApi\CompanionSceneApi.cs"))
+    $companionSceneLifecycleRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\CompanionSceneLifecycleRuntime.cs"))
+    $companionPresentationCleanup = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\Visual\CompanionPresentationCleanup.cs"))
+    $projectionIntentPresenter = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\Visual\ProjectionIntentPresenter.cs"))
+    $pooledCardExitAnimator = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\Visual\PooledCardExitAnimator.cs"))
+    $projectionTurnCoordinator = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\ProjectionTurnCoordinator.cs"))
+    $projectionTurnAnchorObj = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\ProjectionTurnAnchorObj.cs"))
+    $companionBattleModels = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\CompanionBattleModels.cs"))
+    $companionBattleStateStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\CompanionBattleStateStore.cs"))
+    $companionIntentRegistry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\CompanionIntentRegistry.cs"))
+    $companionIntentHandlers = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\CompanionIntentHandlers.cs"))
+    $companionFriendlyRosterService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\CompanionFriendlyRosterService.cs"))
+    $companionIntentSelector = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\CompanionIntentSelector.cs"))
+    $companionSlotService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\CompanionSlotService.cs"))
+    $companionStatsService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\CompanionStatsService.cs"))
+    $companionThreatService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\CompanionThreatService.cs"))
+    $companionIntentRegistryJson = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias\companion.intent.registry.json"))
+    $runtimeCardAttachmentService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\RuntimeCardAttachmentService.cs"))
+    $starBlessingCostOverrideStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\StarBlessingCostOverrideStore.cs"))
+    $resonanceCostTransactionStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\ResonanceCostTransactionStore.cs"))
+    $cardGrantRecipes = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\CardGrantRecipes.cs"))
+    $specialTagRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\SpecialTagRuntime.cs"))
+    $companionThreatRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\CompanionThreatRuntime.cs"))
+    $cardConfigApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\GameApi\CardConfigApi.cs"))
+    $gameCompatibilityApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\GameApi\GameCompatibilityApi.cs"))
+    $cardScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Scripting\CardScripts.cs"))
+    $familiarBlessingEffectRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\FamiliarBlessingEffectRuntime.cs"))
+    $relicScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Scripting\RelicScripts.cs"))
+    $morningStarCardScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Scripting\MorningStarCardScripts.cs"))
+    $buffScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Scripting\BuffScripts.cs"))
+    $buffApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\GameApi\BuffApi.cs"))
+    $statusApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\GameApi\StatusApi.cs"))
+    $solarRadianceService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\SolarRadianceService.cs"))
+    $burnTriggerApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\GameApi\BurnTriggerApi.cs"))
+    $scriptEventApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\GameApi\ScriptEventApi.cs"))
+    $fieldApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\GameApi\FieldApi.cs"))
+    $fieldRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\FieldRuntime.cs"))
+    $fieldBuffHudRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\FieldBuffHudRuntime.cs"))
+    $fieldBuffHudView = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\Ui\FieldBuffHudView.cs"))
+    $fieldBuffHudHoverProbe = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\Ui\FieldBuffHudHoverProbe.cs"))
+    $fieldBuffHudTooltipView = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\Ui\FieldBuffHudTooltipView.cs"))
+    $fieldEffectHandlers = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\FieldEffectHandlers.cs"))
+    $fieldEffectRegistry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\FieldEffectRegistry.cs"))
+    $morningStarOvertureService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\MorningStarOvertureService.cs"))
+    $fieldStartCoordinator = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\FieldStartCoordinator.cs"))
+    $difficultyFieldPoolService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\DifficultyFieldPoolService.cs"))
+    $relicFieldStartSourceService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\RelicFieldStartSourceService.cs"))
+    $relicOpeningEffectService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\RelicOpeningEffectService.cs"))
+    $relicApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\GameApi\RelicApi.cs"))
+    $fieldNetworkSync = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Network\FieldNetworkSync.cs"))
     $auraAuthoritativeSyncRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "AuraSharedCore\AuraAuthoritativeSyncRuntime.cs"))
-    $endlessAbyssEvolutionTraitRegistry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssEvolutionTraitRegistry.cs"))
-    $endlessAbyssEvolutionTraitRegistryJson = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\endless_abyss.evolution_traits.registry.json"))
-    $buffOverflowApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\BuffOverflowApi.cs"))
-    $eventScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\EventScripts.cs"))
-    $bossScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\BossScripts.cs"))
-    $entry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Entry.cs"))
-    $wunaScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\WunaScripts.cs"))
-    $emberAdventureStateService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EmberAdventureStateService.cs"))
-    $emberAdventureStateRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\EmberAdventureStateRuntime.cs"))
-    $rpcEmberAdventureStateCommit = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Network\RpcEmberAdventureStateCommit.cs"))
-    $enemyApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\EnemyApi.cs"))
-    $endlessAbyssEnemyInjectionService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssEnemyInjectionService.cs"))
-    $runtimeHooks = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\RuntimeHooks.cs"))
-    $sunExpPerformanceSettingsSource = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpPerformanceSettings.cs"))
-    $sunExpCombatActionRouter = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SunExpCombatActionRouter.cs"))
-    $sunExpStatusLifecycleRouter = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SunExpStatusLifecycleRouter.cs"))
-    $sunExpCardPresentationRouter = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SunExpCardPresentationRouter.cs"))
-    $sunExpCardPresentationLifecycleBridge = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SunExpCardPresentationLifecycleBridge.cs"))
-    $cardPresentationRootResolver = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Visual\CardPresentationRootResolver.cs"))
-    $sunExpResourcePreloader = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SunExpResourcePreloader.cs"))
-    $sunExpCombatCardUiWorkloadRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SunExpCombatCardUiWorkloadRuntime.cs"))
-    $solarMemoryJourneyApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\SolarMemoryJourneyApi.cs"))
-    $polymorphRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\PolymorphRuntime.cs"))
-    $projectionRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\ProjectionRuntime.cs"))
-    $spiritRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SpiritRuntime.cs"))
-    $heartChangeControlRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\HeartChangeControlRuntime.cs"))
-    $duskPartnerRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\DuskPartnerRuntime.cs"))
-    $duskAfterheatRecoveryService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\DuskAfterheatRecoveryService.cs"))
-    $starClayDollRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\StarClayDollRuntime.cs"))
-    $loneerRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\LoneerRuntime.cs"))
-    $starScoreRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\StarScoreRuntime.cs"))
-    $starScoreHudRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\StarScoreHudRuntime.cs"))
-    $loneerService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\LoneerMiracleService.cs"))
-    $starStonePouchService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarStonePouchService.cs"))
-    $loneerState = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\LoneerCombatState.cs"))
-    $cardSelectionApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\CardSelectionApi.cs"))
-    $starScoreService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreService.cs"))
-    $starScoreState = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreCombatState.cs"))
-    $starScoreNote = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreNote.cs"))
-    $starScoreSnapshot = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreDisplaySnapshot.cs"))
-    $starScoreCadenceCatalog = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\StarScoreCadenceCatalog.cs"))
-    $duskPartnerScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\DuskPartnerScripts.cs"))
-    $starClayDollScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\StarClayDollScripts.cs"))
-    $projectionScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\ProjectionScripts.cs"))
-    $heartChangeScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Scripting\HeartChangeScripts.cs"))
-    $scriptingSource = [string]::Join("`n", (Get-ChildItem -LiteralPath (Join-Path $RepoRoot "SunExp-Dev\Scripting") -File -Filter "*.cs" | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }))
-    $solarEventRuntimePath = Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarEventRuntime.cs"
-    $battleRewardApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\BattleRewardApi.cs"))
-    $battleRewardAdjustmentService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\BattleRewardAdjustmentService.cs"))
-    $battleRewardAdjustmentRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\BattleRewardAdjustmentRuntime.cs"))
-    $solarMemoryRewardRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryRewardRuntime.cs"))
-    $solarMemoryModeRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryModeRuntime.cs"))
-    $solarMemoryMapLifecycleCoordinator = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryMapLifecycleCoordinator.cs"))
-    $solarMemoryModeEntryRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryModeEntryRuntime.cs"))
-    $solarMemoryMapVisualRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryMapVisualRuntime.cs"))
-    $solarMemoryMapProjectionRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryMapProjectionRuntime.cs"))
-    $solarMemoryBattleExitCoordinator = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryBattleExitCoordinator.cs"))
-    $solarMemoryBossTransitionCoordinator = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryBossTransitionCoordinator.cs"))
-    $solarMemorySettlementCoordinator = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemorySettlementCoordinator.cs"))
-    $solarMemoryDeckIsolationRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryDeckIsolationRuntime.cs"))
-    $solarMemoryCombatRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryCombatRuntime.cs"))
-    $cardVisualSkinRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\CardVisualSkinRuntime.cs"))
-    $polymorphCardFaceRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Visual\PolymorphCardFaceRuntime.cs"))
-    $modeChoiceEntryDefinition = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\ModeChoiceEntryDefinition.cs"))
-    $modeChoiceEntryRegistry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\ModeChoiceEntryRegistry.cs"))
-    $modeChoiceLayoutRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\ModeChoiceLayoutRuntime.cs"))
-    $solarMemoryRunLauncher = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryRunLauncher.cs"))
-    $solarMemoryContentIsolationRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryContentIsolationRuntime.cs"))
-    $solarMemoryMapItemAnimationRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryMapItemAnimationRuntime.cs"))
-    $mapNodeCardArtRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\MapNodeCardArtRuntime.cs"))
-    $dimensionShopRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\DimensionShopRuntime.cs"))
-    $dimensionShopGameApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\DimensionShopGameApi.cs"))
-    $dimensionShopPanel = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\DimensionShopPanel.cs"))
-    $dimensionShopNativeSkin = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\DimensionShopNativeSkin.cs"))
+    $endlessAbyssEvolutionTraitRegistry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\EndlessAbyssEvolutionTraitRegistry.cs"))
+    $endlessAbyssEvolutionTraitRegistryJson = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias\endless_abyss.evolution_traits.registry.json"))
+    $buffOverflowApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\GameApi\BuffOverflowApi.cs"))
+    $eventScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Scripting\EventScripts.cs"))
+    $bossScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Scripting\BossScripts.cs"))
+    $entry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Entry.cs"))
+    $wunaScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Scripting\WunaScripts.cs"))
+    $emberAdventureStateService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\EmberAdventureStateService.cs"))
+    $emberAdventureStateRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\EmberAdventureStateRuntime.cs"))
+    $rpcEmberAdventureStateCommit = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Network\RpcEmberAdventureStateCommit.cs"))
+    $enemyApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\GameApi\EnemyApi.cs"))
+    $endlessAbyssEnemyInjectionService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\EndlessAbyssEnemyInjectionService.cs"))
+    $runtimeHooks = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\RuntimeHooks.cs"))
+    $terriasPerformanceSettingsSource = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Infrastructure\TerriasPerformanceSettings.cs"))
+    $terriasCombatActionRouter = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\TerriasCombatActionRouter.cs"))
+    $terriasStatusLifecycleRouter = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\TerriasStatusLifecycleRouter.cs"))
+    $terriasCardPresentationRouter = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\TerriasCardPresentationRouter.cs"))
+    $terriasCardPresentationLifecycleBridge = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\TerriasCardPresentationLifecycleBridge.cs"))
+    $cardPresentationRootResolver = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\Visual\CardPresentationRootResolver.cs"))
+    $terriasResourcePreloader = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\TerriasResourcePreloader.cs"))
+    $terriasCombatCardUiWorkloadRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\TerriasCombatCardUiWorkloadRuntime.cs"))
+    $solarMemoryJourneyApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\GameApi\SolarMemoryJourneyApi.cs"))
+    $polymorphRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\PolymorphRuntime.cs"))
+    $projectionRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\ProjectionRuntime.cs"))
+    $spiritRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\SpiritRuntime.cs"))
+    $heartChangeControlRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\HeartChangeControlRuntime.cs"))
+    $duskPartnerRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\DuskPartnerRuntime.cs"))
+    $duskAfterheatRecoveryService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\DuskAfterheatRecoveryService.cs"))
+    $starClayDollRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\StarClayDollRuntime.cs"))
+    $loneerRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\LoneerRuntime.cs"))
+    $starScoreRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\StarScoreRuntime.cs"))
+    $starScoreHudRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\StarScoreHudRuntime.cs"))
+    $loneerService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\LoneerMiracleService.cs"))
+    $starStonePouchService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\StarStonePouchService.cs"))
+    $loneerState = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\LoneerCombatState.cs"))
+    $cardSelectionApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\GameApi\CardSelectionApi.cs"))
+    $starScoreService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\StarScoreService.cs"))
+    $starScoreState = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\StarScoreCombatState.cs"))
+    $starScoreNote = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\StarScoreNote.cs"))
+    $starScoreSnapshot = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\StarScoreDisplaySnapshot.cs"))
+    $starScoreCadenceCatalog = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\StarScoreCadenceCatalog.cs"))
+    $duskPartnerScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Scripting\DuskPartnerScripts.cs"))
+    $starClayDollScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Scripting\StarClayDollScripts.cs"))
+    $projectionScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Scripting\ProjectionScripts.cs"))
+    $heartChangeScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Scripting\HeartChangeScripts.cs"))
+    $scriptingSource = [string]::Join("`n", (Get-ChildItem -LiteralPath (Join-Path $RepoRoot "Terrias-Dev\Scripting") -File -Filter "*.cs" | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }))
+    $solarEventRuntimePath = Join-Path $RepoRoot "Terrias-Dev\Hooks\SolarEventRuntime.cs"
+    $battleRewardApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\GameApi\BattleRewardApi.cs"))
+    $battleRewardAdjustmentService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\BattleRewardAdjustmentService.cs"))
+    $battleRewardAdjustmentRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\BattleRewardAdjustmentRuntime.cs"))
+    $solarMemoryRewardRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\SolarMemoryRewardRuntime.cs"))
+    $solarMemoryModeRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\SolarMemoryModeRuntime.cs"))
+    $solarMemoryMapLifecycleCoordinator = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\SolarMemoryMapLifecycleCoordinator.cs"))
+    $solarMemoryModeEntryRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\SolarMemoryModeEntryRuntime.cs"))
+    $solarMemoryMapVisualRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\SolarMemoryMapVisualRuntime.cs"))
+    $solarMemoryMapProjectionRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\SolarMemoryMapProjectionRuntime.cs"))
+    $solarMemoryBattleExitCoordinator = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\SolarMemoryBattleExitCoordinator.cs"))
+    $solarMemoryBossTransitionCoordinator = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\SolarMemoryBossTransitionCoordinator.cs"))
+    $solarMemorySettlementCoordinator = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\SolarMemorySettlementCoordinator.cs"))
+    $solarMemoryDeckIsolationRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\SolarMemoryDeckIsolationRuntime.cs"))
+    $solarMemoryCombatRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\SolarMemoryCombatRuntime.cs"))
+    $cardVisualSkinRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\CardVisualSkinRuntime.cs"))
+    $polymorphCardFaceRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\Visual\PolymorphCardFaceRuntime.cs"))
+    $modeChoiceEntryDefinition = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\ModeChoiceEntryDefinition.cs"))
+    $modeChoiceEntryRegistry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\ModeChoiceEntryRegistry.cs"))
+    $modeChoiceLayoutRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\ModeChoiceLayoutRuntime.cs"))
+    $solarMemoryRunLauncher = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\SolarMemoryRunLauncher.cs"))
+    $solarMemoryContentIsolationRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\SolarMemoryContentIsolationRuntime.cs"))
+    $solarMemoryMapItemAnimationRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\SolarMemoryMapItemAnimationRuntime.cs"))
+    $mapNodeCardArtRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\MapNodeCardArtRuntime.cs"))
+    $dimensionShopRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\DimensionShopRuntime.cs"))
+    $dimensionShopGameApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\GameApi\DimensionShopGameApi.cs"))
+    $dimensionShopPanel = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\Ui\DimensionShopPanel.cs"))
+    $dimensionShopNativeSkin = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\Ui\DimensionShopNativeSkin.cs"))
     $sharedUiNativeInteraction = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "AuraUiShared\AuraUiNativeInteraction.cs"))
     $sharedUiNativeGameItems = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "AuraUiShared\AuraUiNativeGameItemAdapter.cs"))
     $sharedUiNativeOverlayVisibility = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "AuraUiShared\AuraUiNativeOverlayVisibility.cs"))
     $sharedUiModalHost = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "AuraUiShared\AuraUiModalHost.cs"))
-    $dimensionShopService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\DimensionShopService.cs"))
-    $dimensionShopConfigSource = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\DimensionShopConfig.cs"))
-    $mapNodeCardArtRegistry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\MapNodeCardArtRegistry.cs"))
-    $visualRegistry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\VisualRegistry.cs"))
-    $visualRegistryJson = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\visual.registry.json"))
-    $mapItemApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\MapItemApi.cs"))
-    $mapNodeTextureFitService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\MapNodeTextureFitService.cs"))
-    $sunExpHardTagRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SunExpHardTagRuntime.cs"))
-    $solarMemoryStarterDeckRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryStarterDeckRuntime.cs"))
-    $endlessSeaIntroBoardRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\EndlessSeaIntroBoardRuntime.cs"))
-    $endlessSeaRunLauncher = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\EndlessSeaRunLauncher.cs"))
-    $endlessSeaSaveCacheRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\EndlessSeaSaveCacheRuntime.cs"))
-    $endlessSeaModeRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\EndlessSeaModeRuntime.cs"))
-    $endlessSeaMapViewPresenter = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\EndlessSeaMapViewPresenter.cs"))
-    $endlessSeaNetworkSync = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Network\EndlessSeaNetworkSync.cs"))
-    $endlessAbyssEvacuationRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\EndlessAbyssEvacuationRuntime.cs"))
-    $endlessAbyssEvacuationButtonRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\EndlessAbyssEvacuationButtonRuntime.cs"))
-    $endlessAbyssEvacuationService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssEvacuationService.cs"))
-    $endlessAbyssEvacuationRpc = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Network\RpcEndlessAbyssEvacuation.cs"))
-    $sunExpNetworkRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Network\SunExpNetworkRuntime.cs"))
-    $endlessSeaFloorPlanner = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessSeaFloorPlanner.cs"))
-    $endlessSeaMapBuilder = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessSeaMapBuilder.cs"))
-    $endlessSeaMapProjectionService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessSeaMapProjectionService.cs"))
-    $endlessSeaSelectableNodeDeckPlanner = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessSeaSelectableNodeDeckPlanner.cs"))
-    $sunExpSkillCgRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Features\SkillCg\SunExpSkillCgRuntime.cs"))
+    $dimensionShopService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\DimensionShopService.cs"))
+    $dimensionShopConfigSource = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\DimensionShopConfig.cs"))
+    $mapNodeCardArtRegistry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\MapNodeCardArtRegistry.cs"))
+    $visualRegistry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\VisualRegistry.cs"))
+    $visualRegistryJson = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias\visual.registry.json"))
+    $mapItemApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\GameApi\MapItemApi.cs"))
+    $mapNodeTextureFitService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\MapNodeTextureFitService.cs"))
+    $terriasHardTagRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\TerriasHardTagRuntime.cs"))
+    $solarMemoryStarterDeckRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\SolarMemoryStarterDeckRuntime.cs"))
+    $endlessSeaIntroBoardRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\EndlessSeaIntroBoardRuntime.cs"))
+    $endlessSeaRunLauncher = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\EndlessSeaRunLauncher.cs"))
+    $endlessSeaSaveCacheRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\EndlessSeaSaveCacheRuntime.cs"))
+    $endlessSeaModeRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\EndlessSeaModeRuntime.cs"))
+    $endlessSeaMapViewPresenter = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\Ui\EndlessSeaMapViewPresenter.cs"))
+    $endlessSeaNetworkSync = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Network\EndlessSeaNetworkSync.cs"))
+    $endlessAbyssEvacuationRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\EndlessAbyssEvacuationRuntime.cs"))
+    $endlessAbyssEvacuationButtonRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\Ui\EndlessAbyssEvacuationButtonRuntime.cs"))
+    $endlessAbyssEvacuationService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\EndlessAbyssEvacuationService.cs"))
+    $endlessAbyssEvacuationRpc = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Network\RpcEndlessAbyssEvacuation.cs"))
+    $terriasNetworkRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Network\TerriasNetworkRuntime.cs"))
+    $endlessSeaFloorPlanner = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\EndlessSeaFloorPlanner.cs"))
+    $endlessSeaMapBuilder = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\EndlessSeaMapBuilder.cs"))
+    $endlessSeaMapProjectionService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\EndlessSeaMapProjectionService.cs"))
+    $endlessSeaSelectableNodeDeckPlanner = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\EndlessSeaSelectableNodeDeckPlanner.cs"))
+    $terriasSkillCgRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Features\SkillCg\TerriasSkillCgRuntime.cs"))
     $auraCgRuntime = Read-SourceTreeText $RepoRoot "AuraCgShared"
-    $endlessSeaStarterDeckCatalog = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessSeaStarterDeckCatalog.cs"))
-    $endlessSeaRichTextSanitizer = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessSeaRichTextSanitizer.cs"))
-    $endlessSeaOriginService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessSeaOriginService.cs"))
-    $endlessSeaCardAffixRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\EndlessSeaCardAffixRuntime.cs"))
-    $endlessSeaCardAffixService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessSeaCardAffixService.cs"))
-    $endlessSeaCombatRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\EndlessSeaCombatRuntime.cs"))
-    $endlessAbyssConfig = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssConfig.cs"))
-    $endlessAbyssEnemyScaling = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssEnemyScalingService.cs"))
-    $endlessAbyssConfigJson = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\endless_abyss.config.json"))
-    $endlessAbyssCurseService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssCurseService.cs"))
-    $endlessAbyssGazePressureService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssGazePressureService.cs"))
-    $endlessAbyssRewardService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssRewardService.cs"))
-    $endlessAbyssRewardPoolService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssRewardPoolService.cs"))
-    $endlessAbyssMilestoneRewardService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssMilestoneRewardService.cs"))
-    $endlessAbyssRunLedger = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessAbyssRunLedger.cs"))
-    $morningStarDimmedService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\MorningStarDimmedService.cs"))
-    $playerPowerApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\PlayerPowerApi.cs"))
-    $endlessAbyssMilestoneRewardPanel = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\EndlessAbyssMilestoneRewardPanel.cs"))
-    $endlessAbyssShockPanel = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\EndlessAbyssShockPanel.cs"))
-    $endlessSeaRunStateStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\EndlessSeaRunStateStore.cs"))
-    $modeChoiceSaveCacheApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\ModeChoiceSaveCacheApi.cs"))
-    $solarMemorySetupFlowRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemorySetupFlowRuntime.cs"))
-    $solarMemoryBlessingPickerRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryBlessingPickerRuntime.cs"))
-    $solarMemoryPreparationRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryPreparationRuntime.cs"))
-    $solarMemoryPlayerSetupState = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\SolarMemoryPlayerSetupState.cs"))
-    $dialogueFlowRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\DialogueFlowRuntime.cs"))
-    $dialogueFlowService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\DialogueFlowService.cs"))
-    $solarMemoryStoryGateService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\SolarMemoryStoryGateService.cs"))
-    $solarMemoryFlowApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\SolarMemoryFlowApi.cs"))
-    $solarMemoryRoleCommitApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\GameApi\SolarMemoryRoleCommitApi.cs"))
-    $solarMemoryRoleCommit = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Network\RpcSolarMemoryRoleCommit.cs"))
-    $dirtyState = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Infrastructure\SunExpDirtyState.cs"))
-    $sunExpUiSafety = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\SunExpUiSafety.cs"))
-    $sunExpUiBuilder = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\SunExpUiBuilder.cs"))
-    $sunExpModalHost = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\SunExpModalHost.cs"))
-    $sunExpUiLifetimeScope = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\SunExpUiLifetimeScope.cs"))
-    $sunExpUiPool = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\SunExpUiPool.cs"))
-    $sunExpUiSprites = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\SunExpUiSprites.cs"))
-    $starScoreHudAssets = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\StarScoreHudAssets.cs"))
-    $starScoreHudView = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\StarScoreHudView.cs"))
-    $starScoreHudHoverProbe = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\StarScoreHudHoverProbe.cs"))
-    $starScoreHudTooltipView = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\StarScoreHudTooltipView.cs"))
-    $sunExpProject = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\SunExp.Dll.csproj"))
+    $endlessSeaStarterDeckCatalog = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\EndlessSeaStarterDeckCatalog.cs"))
+    $endlessSeaRichTextSanitizer = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\EndlessSeaRichTextSanitizer.cs"))
+    $endlessSeaOriginService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\EndlessSeaOriginService.cs"))
+    $endlessSeaCardAffixRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\EndlessSeaCardAffixRuntime.cs"))
+    $endlessSeaCardAffixService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\EndlessSeaCardAffixService.cs"))
+    $endlessSeaCombatRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\EndlessSeaCombatRuntime.cs"))
+    $endlessAbyssConfig = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\EndlessAbyssConfig.cs"))
+    $endlessAbyssEnemyScaling = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\EndlessAbyssEnemyScalingService.cs"))
+    $endlessAbyssConfigJson = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias\endless_abyss.config.json"))
+    $endlessAbyssCurseService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\EndlessAbyssCurseService.cs"))
+    $endlessAbyssGazePressureService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\EndlessAbyssGazePressureService.cs"))
+    $endlessAbyssRewardService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\EndlessAbyssRewardService.cs"))
+    $endlessAbyssRewardPoolService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\EndlessAbyssRewardPoolService.cs"))
+    $endlessAbyssMilestoneRewardService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\EndlessAbyssMilestoneRewardService.cs"))
+    $endlessAbyssRunLedger = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\EndlessAbyssRunLedger.cs"))
+    $morningStarDimmedService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\MorningStarDimmedService.cs"))
+    $playerPowerApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\GameApi\PlayerPowerApi.cs"))
+    $endlessAbyssMilestoneRewardPanel = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\Ui\EndlessAbyssMilestoneRewardPanel.cs"))
+    $endlessAbyssShockPanel = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\Ui\EndlessAbyssShockPanel.cs"))
+    $endlessSeaRunStateStore = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\EndlessSeaRunStateStore.cs"))
+    $modeChoiceSaveCacheApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\GameApi\ModeChoiceSaveCacheApi.cs"))
+    $solarMemorySetupFlowRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\SolarMemorySetupFlowRuntime.cs"))
+    $solarMemoryBlessingPickerRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\SolarMemoryBlessingPickerRuntime.cs"))
+    $solarMemoryPreparationRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\SolarMemoryPreparationRuntime.cs"))
+    $solarMemoryPlayerSetupState = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\SolarMemoryPlayerSetupState.cs"))
+    $dialogueFlowRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\DialogueFlowRuntime.cs"))
+    $dialogueFlowService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\DialogueFlowService.cs"))
+    $solarMemoryStoryGateService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\SolarMemoryStoryGateService.cs"))
+    $solarMemoryFlowApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\GameApi\SolarMemoryFlowApi.cs"))
+    $solarMemoryRoleCommitApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\GameApi\SolarMemoryRoleCommitApi.cs"))
+    $solarMemoryRoleCommit = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Network\RpcSolarMemoryRoleCommit.cs"))
+    $dirtyState = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Infrastructure\TerriasDirtyState.cs"))
+    $terriasUiSafety = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\Ui\TerriasUiSafety.cs"))
+    $terriasUiBuilder = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\Ui\TerriasUiBuilder.cs"))
+    $terriasModalHost = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\Ui\TerriasModalHost.cs"))
+    $terriasUiLifetimeScope = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\Ui\TerriasUiLifetimeScope.cs"))
+    $terriasUiPool = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\Ui\TerriasUiPool.cs"))
+    $terriasUiSprites = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\Ui\TerriasUiSprites.cs"))
+    $starScoreHudAssets = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\Ui\StarScoreHudAssets.cs"))
+    $starScoreHudView = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\Ui\StarScoreHudView.cs"))
+    $starScoreHudHoverProbe = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\Ui\StarScoreHudHoverProbe.cs"))
+    $starScoreHudTooltipView = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\Ui\StarScoreHudTooltipView.cs"))
+    $terriasProject = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Terrias.Dll.csproj"))
     $audioArbiterRuntime = Read-SourceTreeText $RepoRoot "AudioArbiterShared"
     $audioProviderResolver = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "AudioArbiterShared\AudioProviderResolver.cs"))
     $audioNetworkRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "AudioArbiterShared\AudioNetworkRuntime.cs"))
     $battleBgmArbiterRuntime = Read-SourceTreeText $RepoRoot "BattleBgmArbiterShared"
-    $modConfig = Get-Content -LiteralPath (Join-Path $RepoRoot "SunExp\ModConfig.json") -Raw | ConvertFrom-Json
-    $solarMemoryMapNodePoolFactory = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\SolarMemoryMapNodePoolFactory.cs"))
-    $solarMemoryMapNodePoolApplier = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\SolarMemoryMapNodePoolApplier.cs"))
-    $solarMemoryFixedNodeSpec = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\SolarMemoryFixedNodeSpec.cs"))
-    $solarMemoryMapSyncRepairService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\SolarMemoryMapSyncRepairService.cs"))
-    $solarMemoryContentIsolationService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\SolarMemoryContentIsolationService.cs"))
-    $mapNodeSafetyService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\MapNodeSafetyService.cs"))
-    $mapData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Map\sunexp.csv"))
-    $mapText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\Map\sunexp.csv"))
-    $levelData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Level\sunexp.csv"))
-    $enemyData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Enemy\sunexp.csv"))
-    $enemyText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\Enemy\sunexp.csv"))
-    $enemyCardData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\EnemyCard\sunexp.csv"))
-    $enemyCardText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\EnemyCard\sunexp.csv"))
-    $buffDataPath = Join-Path $RepoRoot "SunExp\Data\Buff\sunexp.csv"
+    $modConfig = Get-Content -LiteralPath (Join-Path $RepoRoot "Terrias\ModConfig.json") -Raw | ConvertFrom-Json
+    $solarMemoryMapNodePoolFactory = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\SolarMemoryMapNodePoolFactory.cs"))
+    $solarMemoryMapNodePoolApplier = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\SolarMemoryMapNodePoolApplier.cs"))
+    $solarMemoryFixedNodeSpec = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\SolarMemoryFixedNodeSpec.cs"))
+    $solarMemoryMapSyncRepairService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\SolarMemoryMapSyncRepairService.cs"))
+    $solarMemoryContentIsolationService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\SolarMemoryContentIsolationService.cs"))
+    $mapNodeSafetyService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\MapNodeSafetyService.cs"))
+    $mapData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias\Data\Map\terrias.csv"))
+    $mapText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias\Text\Map\terrias.csv"))
+    $levelData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias\Data\Level\terrias.csv"))
+    $enemyData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias\Data\Enemy\terrias.csv"))
+    $enemyText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias\Text\Enemy\terrias.csv"))
+    $enemyCardData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias\Data\EnemyCard\terrias.csv"))
+    $enemyCardText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias\Text\EnemyCard\terrias.csv"))
+    $buffDataPath = Join-Path $RepoRoot "Terrias\Data\Buff\terrias.csv"
     $buffData = [System.IO.File]::ReadAllText($buffDataPath)
     $buffRows = Import-Csv -LiteralPath $buffDataPath
     $scorchingCanopyBuffRow = $buffRows | Where-Object { $_.Id -eq "scorching_canopy" } | Select-Object -First 1
     $samsaraGardenBuffRow = $buffRows | Where-Object { $_.Id -eq "samsara_garden" } | Select-Object -First 1
-    $buffText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\Buff\sunexp.csv"))
-    $enchTagData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\EnchTag\sunexp.csv"))
-    $keywordText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\KeyWordsDic\sunexp.csv"))
-    $eventData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\EventList\sunexp.csv"))
-    $eventText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\EventList\sunexp.csv"))
-    $dialogueData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Dialogue\sunexp.csv"))
-    $solarMemoryRoleData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\RoleData\solar_memory.csv"))
-    $loneerRoleData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\RoleData\loneer.csv"))
-    $blessingData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Blessing\sunexp.csv"))
-    $partnerData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Data\Partner\sunexp.csv"))
-    $cardDataPath = Join-Path $RepoRoot "SunExp\Data\Card\sunexp.csv"
+    $buffText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias\Text\Buff\terrias.csv"))
+    $enchTagData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias\Data\EnchTag\terrias.csv"))
+    $keywordText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias\Text\KeyWordsDic\terrias.csv"))
+    $eventData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias\Data\EventList\terrias.csv"))
+    $eventText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias\Text\EventList\terrias.csv"))
+    $dialogueData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias\Data\Dialogue\terrias.csv"))
+    $solarMemoryRoleData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias\Data\RoleData\solar_memory.csv"))
+    $loneerRoleData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias\Data\RoleData\loneer.csv"))
+    $blessingData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias\Data\Blessing\terrias.csv"))
+    $partnerData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias\Data\Partner\terrias.csv"))
+    $cardDataPath = Join-Path $RepoRoot "Terrias\Data\Card\terrias.csv"
     $cardData = [System.IO.File]::ReadAllText($cardDataPath)
-    $cardTextPath = Join-Path $RepoRoot "SunExp\Text\Card\sunexp.csv"
+    $cardTextPath = Join-Path $RepoRoot "Terrias\Text\Card\terrias.csv"
     $cardText = [System.IO.File]::ReadAllText($cardTextPath)
-    $loneerCareerText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp\Text\Career\loneer.csv"))
-    $duskTraitTextRow = Import-Csv -LiteralPath (Join-Path $RepoRoot "SunExp\Text\Buff\sunexp.csv") |
+    $loneerCareerText = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias\Text\Career\loneer.csv"))
+    $duskTraitTextRow = Import-Csv -LiteralPath (Join-Path $RepoRoot "Terrias\Text\Buff\terrias.csv") |
         Where-Object { $_.Id -eq "dusk_afterheat_recovery_trait" } |
         Select-Object -First 1
-    $duskPartnerTextRow = Import-Csv -LiteralPath (Join-Path $RepoRoot "SunExp\Text\Partner\sunexp.csv") |
+    $duskPartnerTextRow = Import-Csv -LiteralPath (Join-Path $RepoRoot "Terrias\Text\Partner\terrias.csv") |
         Where-Object { $_.Id -eq "dusk" } |
         Select-Object -First 1
-    $duskBlessingTextRow = Import-Csv -LiteralPath (Join-Path $RepoRoot "SunExp\Text\Blessing\sunexp.csv") |
+    $duskBlessingTextRow = Import-Csv -LiteralPath (Join-Path $RepoRoot "Terrias\Text\Blessing\terrias.csv") |
         Where-Object { $_.Id -eq "dusk_afterheat_recovery" } |
         Select-Object -First 1
     $cardRows = Import-Csv -LiteralPath $cardDataPath
@@ -2114,18 +2114,18 @@ function Invoke-SourceAssertions {
     $courtPurificationRow = $cardRows | Where-Object { $_.Id -eq "afterglow_omen_card" } | Select-Object -First 1
     $scorchingCanopyTextRow = $cardTextRows | Where-Object { $_.Id -eq "scorching_canopy_card" } | Select-Object -First 1
     $drawFlameTextRow = $cardTextRows | Where-Object { $_.Id -eq "draw_flame" } | Select-Object -First 1
-    $hardTextRows = Import-Csv -LiteralPath (Join-Path $RepoRoot "SunExp\Text\Hard\sunexp.csv")
-    $scorchedWorldTextRow = $hardTextRows | Where-Object { $_.Id -eq "sunexp_scorched_world" } | Select-Object -First 1
-    $samsaraGardenTextRow = $hardTextRows | Where-Object { $_.Id -eq "sunexp_samsara_garden" } | Select-Object -First 1
-    $hardRows = Import-Csv -LiteralPath (Join-Path $RepoRoot "SunExp\Data\Hard\sunexp.csv")
-    $samsaraGardenHardRow = $hardRows | Where-Object { $_.Id -eq "sunexp_samsara_garden" } | Select-Object -First 1
+    $hardTextRows = Import-Csv -LiteralPath (Join-Path $RepoRoot "Terrias\Text\Hard\terrias.csv")
+    $scorchedWorldTextRow = $hardTextRows | Where-Object { $_.Id -eq "terrias_scorched_world" } | Select-Object -First 1
+    $samsaraGardenTextRow = $hardTextRows | Where-Object { $_.Id -eq "terrias_samsara_garden" } | Select-Object -First 1
+    $hardRows = Import-Csv -LiteralPath (Join-Path $RepoRoot "Terrias\Data\Hard\terrias.csv")
+    $samsaraGardenHardRow = $hardRows | Where-Object { $_.Id -eq "terrias_samsara_garden" } | Select-Object -First 1
     $utf8 = [System.Text.Encoding]::UTF8
     Assert-True ($sparkRow.Tag -eq $utf8.GetString([Convert]::FromBase64String("55m95puc"))) "Spark must carry the White Radiance tag."
     Assert-True ($courtPurificationRow.Tag -eq $utf8.GetString([Convert]::FromBase64String("UmV0YWluLOeZveabnCxBbm5paGlsYXRpb24="))) "Court Purification must use Retain, White Radiance, and Annihilation without Burnout."
-    Assert-True ($scorchingCanopyTextRow.Description -eq $utf8.GetString([Convert]::FromBase64String("6ZO65LiKMeWxgntTdW5FeHBfc3VuZXhwX3Njb3JjaGluZ19jYW5vcHl95Zy65Zyw77yM5YWo5L2T6I635b6XMuWxgntidWZmX2J1cm5944CC"))) "Scorching Canopy must use the field-placement description."
-    Assert-True ($drawFlameTextRow.Description -eq $utf8.GetString([Convert]::FromBase64String("5ZC45pS25Lu75oSP55uu5qCH55qE5omA5pyJe2J1ZmZfYnVybn3vvIzovazljJbkuLrnrYnph4/nmoR7U3VuRXhwX3N1bmV4cF9nYXRoZXJlZF9mbGFtZX3jgII="))) "Draw Flame must use the conversion description."
-    $scorchedWorldDescription = $utf8.GetString([Convert]::FromBase64String("5oiY5paX5byA5aeL5pe277yM5Li65Zy65LiK6ZO65LiK6YCJ5oup5bGC5pWw55qEe1N1bkV4cF9zdW5leHBfc2NvcmNoaW5nX2Nhbm9weX3jgII="))
-    $samsaraGardenDescription = $utf8.GetString([Convert]::FromBase64String("5oiY5paX5byA5aeL5pe277yM5Li65Zy65LiK6ZO65LiK6YCJ5oup5bGC5pWw55qEe1N1bkV4cF9zdW5leHBfc2Ftc2FyYV9nYXJkZW5944CC"))
+    Assert-True ($scorchingCanopyTextRow.Description -eq $utf8.GetString([Convert]::FromBase64String("6ZO65LiKMeWxgntUZXJyaWFzX3RlcnJpYXNfc2NvcmNoaW5nX2Nhbm9weX3lnLrlnLDvvIzlhajkvZPojrflvpcy5bGCe2J1ZmZfYnVybn3jgII="))) "Scorching Canopy must use the field-placement description."
+    Assert-True ($drawFlameTextRow.Description -eq $utf8.GetString([Convert]::FromBase64String("5ZC45pS25Lu75oSP55uu5qCH55qE5omA5pyJe2J1ZmZfYnVybn3vvIzovazljJbkuLrnrYnph4/nmoR7VGVycmlhc190ZXJyaWFzX2dhdGhlcmVkX2ZsYW1lfeOAgg=="))) "Draw Flame must use the conversion description."
+    $scorchedWorldDescription = $utf8.GetString([Convert]::FromBase64String("5oiY5paX5byA5aeL5pe277yM5Li65Zy65LiK6ZO65LiK6YCJ5oup5bGC5pWw55qEe1RlcnJpYXNfdGVycmlhc19zY29yY2hpbmdfY2Fub3B5feOAgg=="))
+    $samsaraGardenDescription = $utf8.GetString([Convert]::FromBase64String("5oiY5paX5byA5aeL5pe277yM5Li65Zy65LiK6ZO65LiK6YCJ5oup5bGC5pWw55qEe1RlcnJpYXNfdGVycmlhc19zYW1zYXJhX2dhcmRlbn3jgII="))
     $eternalGardenName = $utf8.GetString([Convert]::FromBase64String("5rC45oGS6Iqx5Zut"))
     Assert-True ($scorchedWorldTextRow.Description -eq $scorchedWorldDescription) "Scorched World must use the concise combat-start field description."
     Assert-True ($samsaraGardenTextRow.Name -eq $eternalGardenName) "The Samsara Garden difficulty tag must be displayed as Eternal Garden."
@@ -2135,7 +2135,7 @@ function Invoke-SourceAssertions {
         Assert-True ($null -ne $duskTextRow) "Every Dusk passive text surface must keep its localized row."
         $duskDescriptions = @($duskTextRow.Description, $duskTextRow.Passive1)
         Assert-True (($duskDescriptions -join " ").Contains("1/3")) "Every Dusk passive text surface must describe the one-third conversion."
-        Assert-True (($duskDescriptions -join " ").Contains("{SunExp_sunexp_gathered_flame}")) "Every Dusk passive text surface must mention Gathered Flame."
+        Assert-True (($duskDescriptions -join " ").Contains("{Terrias_terrias_gathered_flame}")) "Every Dusk passive text surface must mention Gathered Flame."
     }
 
     $addStatusBuff = [regex]::Match($executorApi, "public\s+static\s+bool\s+AddStatusBuff[\s\S]*?public\s+static\s+bool\s+RemoveStatusBuff")
@@ -2151,9 +2151,9 @@ function Invoke-SourceAssertions {
     Assert-True $executorApi.Contains("public static bool ClearFieldBuff") "ExecutorApi.ClearFieldBuff is missing."
     Assert-True $executorApi.Contains("public static void ActivateField") "ExecutorApi must expose field activation without a player-carrier buff."
     Assert-True $executorApi.Contains("public static bool TryClearActiveField") "ExecutorApi must expose an explicit field clear interface."
-    Assert-True $sunExpFieldId.Contains("public enum SunExpFieldId") "SunExpFieldId must define enum-like field ids."
-    Assert-True $sunExpFieldId.Contains("ScorchingCanopy") "SunExpFieldId must include ScorchingCanopy."
-    Assert-True $sunExpFieldId.Contains("SamsaraGarden") "SunExpFieldId must include SamsaraGarden."
+    Assert-True $terriasFieldId.Contains("public enum TerriasFieldId") "TerriasFieldId must define enum-like field ids."
+    Assert-True $terriasFieldId.Contains("ScorchingCanopy") "TerriasFieldId must include ScorchingCanopy."
+    Assert-True $terriasFieldId.Contains("SamsaraGarden") "TerriasFieldId must include SamsaraGarden."
     Assert-True $fieldApi.Contains("ActiveFieldIdKey") "FieldApi must keep one battle-wide active field id."
     Assert-True $fieldApi.Contains("ActiveFieldStacksKey") "FieldApi must keep battle-wide field stacks outside player status buffs."
     Assert-True $fieldApi.Contains("MaxStacksFor") "FieldApi must clamp field stacks through the configured buff upper bound."
@@ -2162,12 +2162,12 @@ function Invoke-SourceAssertions {
     Assert-True $fieldEffectRegistry.Contains("FieldEffectRuntimeSpec") "Field effect registry must expose precomputed runtime specs for field hot paths and HUD."
     Assert-True $fieldEffectRegistry.Contains("description = description.Description();") "Field descriptions must resolve localized Buff placeholders during registry warmup."
     Assert-True $fieldEffectRegistry.Contains("public string HudIconPath") "Field effect definitions must own dedicated HUD icon paths."
-    Assert-True $fieldEffectRegistry.Contains('hudIconPath: "Mods/SunExp/ModResource/Images/Buff/Area/\u707c\u70ed\u5929\u5e55"') "Scorching Canopy must register the renamed 64x64 field HUD icon."
-    Assert-True $fieldEffectRegistry.Contains('hudIconPath: "Mods/SunExp/ModResource/Images/Buff/Area/\u8f6e\u56de\u82b1\u5ead"') "Garden of Samsara must register its 64x64 field HUD icon."
+    Assert-True $fieldEffectRegistry.Contains('hudIconPath: "Mods/Terrias/ModResource/Images/Buff/Area/\u707c\u70ed\u5929\u5e55"') "Scorching Canopy must register the renamed 64x64 field HUD icon."
+    Assert-True $fieldEffectRegistry.Contains('hudIconPath: "Mods/Terrias/ModResource/Images/Buff/Area/\u8f6e\u56de\u82b1\u5ead"') "Garden of Samsara must register its 64x64 field HUD icon."
     Assert-True $fieldEffectRegistry.Contains("maxVisualTier: 4") "Garden of Samsara stack 5 must reuse visual tier 4."
     Assert-True (-not $fieldEffectRegistry.Contains('DictionaryUtil.Get(data, "Icon")')) "Field HUD icons must not depend on generic Buff.Icon data."
     Assert-True $fieldApi.Contains("CombatVarApi.AddInt(ActiveFieldEpochKey, 1);") "Field state changes must advance a shared epoch."
-    Assert-True $fieldApi.Contains("SyncFieldStacks(ScriptExecutor? executor, SunExpFieldId field)") "Field sync must expose the enum-based overload."
+    Assert-True $fieldApi.Contains("SyncFieldStacks(ScriptExecutor? executor, TerriasFieldId field)") "Field sync must expose the enum-based overload."
     Assert-True $fieldApi.Contains("TryClearActiveField") "FieldApi must clear fields only through an explicit interface."
     Assert-True $fieldApi.Contains("IsFieldBuffId") "FieldApi must classify buff rows that are actually field buffs."
     Assert-True $fieldApi.Contains("RemoveFieldBuffCarrier") "FieldApi must remove field buff carriers from player/enemy status lists."
@@ -2181,7 +2181,7 @@ function Invoke-SourceAssertions {
     Assert-True $fieldEffectRegistry.Contains("HasBuffAddedPolicy") "Field definitions must declare whether AddBuff lifecycle policy is implemented."
     Assert-True $fieldNetworkSync.Contains("FieldStateSnapshot") "Field multiplayer sync must use a lightweight indexed snapshot."
     Assert-True $fieldNetworkSync.Contains("RpcFieldStateRequest") "Field multiplayer sync must support non-host request messages."
-    Assert-True $fieldNetworkSync.Contains("ISunExpServerBoundRpcCommand") "Field request RPC must bind sender through authority runtime."
+    Assert-True $fieldNetworkSync.Contains("ITerriasServerBoundRpcCommand") "Field request RPC must bind sender through authority runtime."
     Assert-True $fieldNetworkSync.Contains("AuraAuthoritativeSyncRuntime.RegisterDomain") "Field sync must use the shared authoritative sync domain service."
     Assert-True $fieldNetworkSync.Contains("SyncDomain.TryBeginSnapshotRequest") "Field snapshot requests must be coalesced through the shared sync domain."
     Assert-True $fieldNetworkSync.Contains("SyncDomain.TryClaimToken") "Field request idempotency must be owned by the shared sync domain."
@@ -2190,7 +2190,7 @@ function Invoke-SourceAssertions {
     Assert-True $auraAuthoritativeSyncRuntime.Contains("public static class AuraAuthoritativeSyncRuntime") "Shared core must provide semantic-free authoritative sync foundations."
     Assert-True $auraAuthoritativeSyncRuntime.Contains("TryBeginSnapshotRequest") "Shared authoritative sync must coalesce snapshot requests."
     Assert-True $auraAuthoritativeSyncRuntime.Contains("TryClaimToken") "Shared authoritative sync must own bounded command token de-duplication."
-    Assert-True $fieldRuntime.Contains("SunExpHookTargets.FightPlayerTurnInit") "Field runtime must resolve field effects from the round-start hook."
+    Assert-True $fieldRuntime.Contains("TerriasHookTargets.FightPlayerTurnInit") "Field runtime must resolve field effects from the round-start hook."
     Assert-True $fieldRuntime.Contains("FieldApi.ResolveRoundStart") "Field runtime must delegate round-start field settlement to FieldApi."
     Assert-True $fieldRuntime.Contains("FightOpening = OnFightOpening") "Field runtime must resolve all opening sources after native FightStart initialization."
     Assert-True $fieldRuntime.Contains("FieldStartCoordinator.ResolveAndCommit") "Field runtime must delegate opening field resolution to the coordinator."
@@ -2199,7 +2199,7 @@ function Invoke-SourceAssertions {
     Assert-True $runtimeHooks.Contains("FieldEffectRegistry.WarmupConfigCache") "RuntimeHooks must preload field Buff config before field runtime and HUD use."
     Assert-True ($fieldEffectRegistry.Contains("AuraGameDataCatalogRuntime.SnapshotChanged += OnCatalogSnapshotChanged") -and $fieldEffectRegistry.Contains("snapshot.Version.NativeReady") -and $fieldEffectRegistry.Contains("runtimeSpecsEpoch")) "Field config cache must wait for a native-ready catalog and rebuild by catalog epoch."
     Assert-True ($fieldEffectRegistry.Contains("public static event Action? Changed") -and $fieldRuntime.Contains("FieldEffectRegistry.Changed += OnFieldEffectConfigChanged") -and $fieldRuntime.Contains('FieldBuffHudRuntime.RequestRefresh("FieldEffectRegistry.Changed")')) "A published field config epoch must refresh an already active field HUD."
-    Assert-True $fieldBuffHudRuntime.Contains('SunExpFrameScheduler.RunOnceNextFrame("FieldBuffHud.Refresh"') "Field HUD refresh must be deferred through the frame scheduler."
+    Assert-True $fieldBuffHudRuntime.Contains('TerriasFrameScheduler.RunOnceNextFrame("FieldBuffHud.Refresh"') "Field HUD refresh must be deferred through the frame scheduler."
     Assert-True $fieldBuffHudRuntime.Contains("FieldNetworkSync.RequestSnapshot") "Field HUD must request a repair snapshot when a non-host client has no local field state."
     Assert-True $fieldBuffHudView.Contains("FieldBuffHudTooltipView.Create") "Field HUD must create a hover tooltip."
     Assert-True $fieldBuffHudView.Contains("FieldBuffHudHoverProbe") "Field HUD must use pointer events for hover."
@@ -2210,7 +2210,7 @@ function Invoke-SourceAssertions {
     Assert-True $fieldBuffHudView.Contains("ConfigureTmpText") "Field HUD labels must use the shared game-font TMP component."
     Assert-True $fieldBuffHudView.Contains('stackText.text = currentSnapshot.Stacks + "/" + currentSnapshot.MaxStacks;') "Field HUD must show current and maximum stacks below the icon."
     Assert-True $fieldBuffHudView.Contains("stackText.outlineWidth") "Field HUD stack text must remain legible against the panel."
-    Assert-True $fieldBuffHudView.Contains('ApplyPanelImage(gameObject, SunExpUiSprites.Panel("[FieldBuffHud]")') "Field HUD must restore its outer status-panel background."
+    Assert-True $fieldBuffHudView.Contains('ApplyPanelImage(gameObject, TerriasUiSprites.Panel("[FieldBuffHud]")') "Field HUD must restore its outer status-panel background."
     Assert-True (-not $fieldBuffHudView.Contains("ApplyLabelImage")) "Field HUD must not draw stack or name label backgrounds."
     Assert-True $fieldBuffHudView.Contains('"NameSection"') "Field HUD must use a darker integrated name region."
     Assert-True $fieldBuffHudView.Contains("private const float DividerInset = 12f") "Field HUD name divider must remain inset from the outer border."
@@ -2243,8 +2243,8 @@ function Invoke-SourceAssertions {
     Assert-True $fieldStartCoordinator.Contains("field == grant.Field ? stacks + grant.Stacks : grant.Stacks") "Field coordinator must add same-type grants and replace different fields."
     Assert-True $fieldStartCoordinator.Contains("FieldApi.CommitOpeningField") "Field coordinator must commit only the final opening field."
     Assert-True $fieldStartCoordinator.Contains("TryClaimBattleOperation") "Field coordination must be idempotent within a battle session."
-    Assert-True $difficultyFieldPoolService.Contains("SunExpHardTagIds.ScorchedWorld") "Difficulty field pool must include Scorched World."
-    Assert-True $difficultyFieldPoolService.Contains("SunExpHardTagIds.SamsaraGarden") "Difficulty field pool must include Garden of Samsara."
+    Assert-True $difficultyFieldPoolService.Contains("TerriasHardTagIds.ScorchedWorld") "Difficulty field pool must include Scorched World."
+    Assert-True $difficultyFieldPoolService.Contains("TerriasHardTagIds.SamsaraGarden") "Difficulty field pool must include Garden of Samsara."
     Assert-True $difficultyFieldPoolService.Contains("UnityEngine.Random.Range(0, candidates.Count)") "Difficulty field pool must draw each distinct field type with equal probability."
     Assert-True $relicFieldStartSourceService.Contains('"blazing_crown_heart"') "Blazing Crown Heart must register its field grant through the relic provider."
     Assert-True $relicApi.Contains("public static bool HasRelic") "Relic ownership lookup must be isolated in GameApi."
@@ -2256,7 +2256,7 @@ function Invoke-SourceAssertions {
     Assert-True $fieldEffectHandlers.Contains("FieldRoundStartContext") "All round-start fields must share one field processing context."
     Assert-True $fieldEffectHandlers.Contains("ApplyToAllCombatants") "All round-start fields must use the shared all-combatant processor."
     Assert-True $fieldEffectHandlers.Contains("ExecutorApi.AllCombatTargets(executor, includeSelf: true)") "Field settlement must collect all combatants in one target pass."
-    Assert-True $fieldEffectHandlers.Contains("target.AddBuff(SunExpIds.Burn, count);") "Scorching Canopy field effect must apply burn directly to combat statuses."
+    Assert-True $fieldEffectHandlers.Contains("target.AddBuff(TerriasIds.Burn, count);") "Scorching Canopy field effect must apply burn directly to combat statuses."
     Assert-True $fieldEffectHandlers.Contains("HandleBuffAdded") "Active field definitions must own StatusManager.AddBuff lifecycle policies."
     Assert-True $fieldEffectHandlers.Contains("BuffOverflowApi.HandleBurnOverflow") "Scorching Canopy must provide Burn overflow conversion as a field-owned policy."
     Assert-True $fieldEffectHandlers.Contains("TriggerSamsaraGardenRoundStart") "Garden of Samsara must have a registered round-start handler."
@@ -2265,14 +2265,14 @@ function Invoke-SourceAssertions {
     Assert-True $statusApi.Contains("target!.Heal(amount, NativeHealDamageType);") "StatusApi.TryHeal must call the native status Heal API."
     Assert-True (-not $statusApi.Contains("TargetApi.SetStatusForTarget")) "StatusApi.TryHeal must not mutate ScriptExecutor.Object target state."
     Assert-True (-not $statusApi.Contains("executor.ChangeHp(amount.ToString())")) "StatusApi.TryHeal must not use the ForEachObject ChangeHp path."
-    Assert-True $fieldEffectHandlers.Contains("target.AddBuff(SunExpIds.Rebirth, 30)") "Garden of Samsara must grant 30 Rebirth every round while capped."
+    Assert-True $fieldEffectHandlers.Contains("target.AddBuff(TerriasIds.Rebirth, 30)") "Garden of Samsara must grant 30 Rebirth every round while capped."
     Assert-True $fieldEffectHandlers.Contains("StatusApi.IsAlive(target)") "Garden of Samsara must skip dead combatants."
-    Assert-True (-not $fieldEffectHandlers.Contains("executor.AddBuff(SunExpIds.Burn")) "Scorching Canopy field effect must not use ScriptExecutor.AddBuff because round-start hook executors may lack dataConfig Id."
+    Assert-True (-not $fieldEffectHandlers.Contains("executor.AddBuff(TerriasIds.Burn")) "Scorching Canopy field effect must not use ScriptExecutor.AddBuff because round-start hook executors may lack dataConfig Id."
     Assert-True (-not $buffScripts.Contains('TryAddEvent(self, "StartRound"')) "Scorching Canopy carrier buff must not own round-start settlement."
-    Assert-True $buffScripts.Contains("ExecutorApi.ActivateField(self, SunExpFieldId.ScorchingCanopy") "Scorching Canopy carrier apply must convert legacy carrier adds into field state."
+    Assert-True $buffScripts.Contains("ExecutorApi.ActivateField(self, TerriasFieldId.ScorchingCanopy") "Scorching Canopy carrier apply must convert legacy carrier adds into field state."
     Assert-True (-not $buffScripts.Contains("TryConsumePendingFieldBuffCarrier")) "Scorching Canopy carrier apply must not depend on global AddBuff redirection state."
-    Assert-True $buffScripts.Contains("self.RemoveBuff(SunExpIds.ScorchingCanopy);") "Scorching Canopy legacy carrier apply must immediately remove the player-mounted carrier buff."
-    Assert-True $buffData.Contains('"scorching_canopy","","CS.SunExp.Dll.Scripting.BuffScripts.Apply(self, ""scorching_canopy"");') "Scorching Canopy buff data row is missing."
+    Assert-True $buffScripts.Contains("self.RemoveBuff(TerriasIds.ScorchingCanopy);") "Scorching Canopy legacy carrier apply must immediately remove the player-mounted carrier buff."
+    Assert-True $buffData.Contains('"scorching_canopy","","CS.Terrias.Dll.Scripting.BuffScripts.Apply(self, ""scorching_canopy"");') "Scorching Canopy buff data row is missing."
     $fieldBuffTypeText = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("5Zy65Zyw"))
     Assert-True ($null -ne $scorchingCanopyBuffRow) "Scorching Canopy buff data row must remain importable."
     Assert-True ([string]::IsNullOrWhiteSpace($scorchingCanopyBuffRow.Icon)) "Scorching Canopy must not expose its field-only icon through generic Buff.Icon."
@@ -2284,7 +2284,7 @@ function Invoke-SourceAssertions {
     Assert-True ($null -ne $samsaraGardenHardRow -and $samsaraGardenHardRow.MaxCount -eq "4") "Garden of Samsara difficulty selection must remain capped at 4 stacks."
     $fieldHudIconName = $utf8.GetString([Convert]::FromBase64String("54G854Ot5aSp5bmVLnBuZw=="))
     $oldFieldHudIconName = $utf8.GetString([Convert]::FromBase64String("54K954G85aSp5bmVLnBuZw=="))
-    $fieldHudIconDirectory = Join-Path $RepoRoot "SunExp\ModResource\Images\Buff\Area"
+    $fieldHudIconDirectory = Join-Path $RepoRoot "Terrias\ModResource\Images\Buff\Area"
     $fieldHudIconPath = Join-Path $fieldHudIconDirectory $fieldHudIconName
     Assert-True (Test-Path -LiteralPath $fieldHudIconPath -PathType Leaf) "Scorching Canopy's renamed field HUD icon asset is missing."
     Assert-True (-not (Test-Path -LiteralPath (Join-Path $fieldHudIconDirectory $oldFieldHudIconName) -PathType Leaf)) "The old Scorching Canopy field HUD icon filename must not remain."
@@ -2301,20 +2301,20 @@ function Invoke-SourceAssertions {
     Assert-True ($samsaraGardenIconWidth -eq 64 -and $samsaraGardenIconHeight -eq 64) "Garden of Samsara's dedicated field HUD icon must remain 64x64."
     Assert-True $endlessAbyssRewardService.Contains("EndlessAbyssEvolutionTraitRegistry.EvolutionTraitBuffIds()") "Endless Abyss evolution rewards must read the advanced trait pool from the registry."
     Assert-True (-not $endlessAbyssRewardService.Contains("EvolutionTraitPool")) "Endless Abyss evolution traits must not use the old hardcoded pool."
-    Assert-True $entry.Contains("EndlessAbyssEvolutionTraitRegistry.Load(modConfig)") "SunExp entry must load the evolution trait registry during initialization."
-    Assert-True $endlessAbyssEvolutionTraitRegistry.Contains("SunExpIds.EndlessAbyssEvolutionTraitPoolId") "Evolution trait registry must resolve the named advanced trait pool."
+    Assert-True $entry.Contains("EndlessAbyssEvolutionTraitRegistry.Load(modConfig)") "Terrias entry must load the evolution trait registry during initialization."
+    Assert-True $endlessAbyssEvolutionTraitRegistry.Contains("TerriasIds.EndlessAbyssEvolutionTraitPoolId") "Evolution trait registry must resolve the named advanced trait pool."
     Assert-True $endlessAbyssEvolutionTraitRegistryJson.Contains('"SpecialBuff_Law:Supreme"') "Evolution trait registry must include Liquid Body."
     Assert-True $endlessAbyssEvolutionTraitRegistryJson.Contains('"SpecialBuff_Transcendent"') "Evolution trait registry must include Colossus."
-    Assert-True $endlessAbyssEvolutionTraitRegistryJson.Contains('"SunExp_sunexp_boss_trait_mirror_array"') "Evolution trait registry must include Three-Thousand Ring Sun Mirror."
-    Assert-True (-not $endlessAbyssEvolutionTraitRegistryJson.Contains("SunExp_sunexp_boss_trait_merciless_daylight")) "Evolution trait registry must exclude the removed Merciless Daylight boss trait."
-    Assert-True (-not $endlessAbyssEvolutionTraitRegistryJson.Contains("SunExp_sunexp_boss_trait_white_radiance_saint")) "Evolution trait registry must exclude the removed White Radiance Saint boss trait."
+    Assert-True $endlessAbyssEvolutionTraitRegistryJson.Contains('"Terrias_terrias_boss_trait_mirror_array"') "Evolution trait registry must include Three-Thousand Ring Sun Mirror."
+    Assert-True (-not $endlessAbyssEvolutionTraitRegistryJson.Contains("Terrias_terrias_boss_trait_merciless_daylight")) "Evolution trait registry must exclude the removed Merciless Daylight boss trait."
+    Assert-True (-not $endlessAbyssEvolutionTraitRegistryJson.Contains("Terrias_terrias_boss_trait_white_radiance_saint")) "Evolution trait registry must exclude the removed White Radiance Saint boss trait."
     Assert-True $executorApi.Contains("public static int BurnUpperBound(IStatusManager? target)") "ExecutorApi must expose a dynamic burn upper bound helper."
     Assert-True $buffOverflowApi.Contains("private const int BurnUpperBoundFallback = 1;") "Invalid burn upper bounds must fall back to the minimum valid stack count."
     Assert-True $buffOverflowApi.Contains("target.GetBuff(buffId)?.buffConfig?.UpperBound") "Burn upper bound must prefer the live BuffItemConfig.UpperBound."
     Assert-True $buffOverflowApi.Contains('AuraGameDataHostApi.CopyRow(DataType.Buff, buffId)') "Burn upper bound must fall back to the current Buff data row through the explicit shared copy API."
     Assert-True $buffOverflowApi.Contains("var upperBound = BurnUpperBound(target);") "Burn overflow must use the dynamic burn upper bound."
-    Assert-True $sunExpStatusLifecycleRouter.Contains("SunExpHookTargets.StatusManagerAddBuff") "Burn overflow must route StatusManager.AddBuff through the shared status lifecycle router."
-    Assert-True $runtimeHooks.Contains('SunExpStatusLifecycleRouter.Register("RuntimeStatusBuff"') "RuntimeHooks must subscribe burn overflow to the shared StatusManager.AddBuff lifecycle."
+    Assert-True $terriasStatusLifecycleRouter.Contains("TerriasHookTargets.StatusManagerAddBuff") "Burn overflow must route StatusManager.AddBuff through the shared status lifecycle router."
+    Assert-True $runtimeHooks.Contains('TerriasStatusLifecycleRouter.Register("RuntimeStatusBuff"') "RuntimeHooks must subscribe burn overflow to the shared StatusManager.AddBuff lifecycle."
     Assert-True $runtimeHooks.Contains("BeforeAddBuff = OnStatusManagerAddBuffBefore") "Burn overflow must prepare before real StatusManager.AddBuff execution."
     Assert-True $runtimeHooks.Contains("AfterAddBuff = OnStatusManagerAddBuffAfter") "Solar Radiance cap repair must run after StatusManager.AddBuff creation."
     Assert-True (-not $runtimeHooks.Contains("FieldApi.TryRedirectStatusFieldBuffAdd")) "Status AddBuff hooks must not redirect every field-buff add through the global hot path."
@@ -2322,14 +2322,14 @@ function Invoke-SourceAssertions {
     Assert-True $runtimeHooks.Contains("FieldEffectHandlers.HandleBuffAdded") "Status AddBuff hooks must delegate active field policies to FieldEffectHandlers."
     Assert-True $buffApi.Contains("FieldApi.IsFieldBuffId") "BuffApi positive/negative buff scans must exclude all field buffs through FieldApi."
     Assert-True (-not $runtimeHooks.Contains('RegisterBefore(modConfig, "ScriptExecutor.AddBuff", OnScriptExecutorAddBuffBefore);')) "Burn overflow must not hook ScriptExecutor.AddBuff because it can mutate the active target list."
-    Assert-True $buffOverflowApi.Contains("target.AddBuff(SunExpIds.BodyBurn, overflow);") "Burn overflow must add body burn directly to the resolved status target."
+    Assert-True $buffOverflowApi.Contains("target.AddBuff(TerriasIds.BodyBurn, overflow);") "Burn overflow must add body burn directly to the resolved status target."
     Assert-True $buffOverflowApi.Contains("private const int SolarRadianceDefaultUpperBound = 12;") "Solar Radiance default upper bound must be 12."
     Assert-True $buffOverflowApi.Contains("private const int WunaSolarRadianceUpperBound = 15;") "Wuna Solar Radiance upper bound must be 15."
     Assert-True $executorApi.Contains("public static void PrepareSolarRadianceUpperBound") "ExecutorApi must prepare live Solar Radiance caps before AddBuff."
     Assert-True $executorApi.Contains("public static void FinalizeSolarRadianceUpperBound") "ExecutorApi must repair Wuna Solar Radiance caps after AddBuff."
     Assert-True $buffApi.Contains("public static bool IsWunaPlayerStatus") "BuffApi must expose a target-specific Wuna player status check."
     Assert-True $buffApi.Contains("PlayerApi.LocalPlayerStatusId()") "Wuna-only Solar Radiance expansion must be limited to the local player status, not enemies."
-    Assert-True $buffData.Contains('","0","0","0","12","Mods/SunExp/ModResource/Images/Buff/SunExp/solar_radiance"') "Solar Radiance data default upper bound must be 12."
+    Assert-True $buffData.Contains('","0","0","0","12","Mods/Terrias/ModResource/Images/Buff/Terrias/solar_radiance"') "Solar Radiance data default upper bound must be 12."
     Assert-True $executorApi.Contains('DictionaryUtil.Set(executor?.Vars, "CanSelf", canSelf ? "True" : "False");') "SetBaseScript must explicitly write CanSelf for self-targetable attack cards."
     Assert-True $executorApi.Contains("public static IStatusManager? PrimaryTargetIncludingSelf") "ExecutorApi.PrimaryTargetIncludingSelf is missing."
     Assert-True $playerApi.Contains("public static string ScopedGameVarKey") "PlayerApi.ScopedGameVarKey is missing."
@@ -2340,11 +2340,11 @@ function Invoke-SourceAssertions {
     Assert-True $auraCgRuntime.Contains("RpcSkillCgPlaybackRequest") "Shared Skill CG clients must submit playback requests to the host instead of broadcasting directly."
     Assert-True $auraCgRuntime.Contains("RpcSkillCgPlayback") "Shared Skill CG host must relay authorized playback to all clients."
     Assert-True $auraCgRuntime.Contains("TryClaimPlayback") "Shared Skill CG must keep a global playback pool for duplicate suppression."
-    Assert-True $sunExpSkillCgRuntime.Contains("owner instance id is empty in multiplayer") "SunExp Skill CG must diagnose and skip empty owner ids in multiplayer."
-    Assert-True $sunExpSkillCgRuntime.Contains("BuildRegisteredCardUseRequests(") "SunExp Skill CG must still include registered card-use CG requests."
-    Assert-True $sunExpSkillCgRuntime.Contains("syncRemote: true") "SunExp Skill CG must request synchronized playback through the shared Skill CG runtime."
-    Assert-True (-not $sunExpSkillCgRuntime.Contains("RpcSkillCgPlaybackRequest")) "SunExp Skill CG must not own private playback RPCs."
-    Assert-True $wunaScripts.Contains("SunExpCardTagService.RequestBurnoutAndWhiteRadianceForFriendlyHands(self") "White Sun Prayer must schedule friendly hand Burnout and White Radiance tagging."
+    Assert-True $terriasSkillCgRuntime.Contains("owner instance id is empty in multiplayer") "Terrias Skill CG must diagnose and skip empty owner ids in multiplayer."
+    Assert-True $terriasSkillCgRuntime.Contains("BuildRegisteredCardUseRequests(") "Terrias Skill CG must still include registered card-use CG requests."
+    Assert-True $terriasSkillCgRuntime.Contains("syncRemote: true") "Terrias Skill CG must request synchronized playback through the shared Skill CG runtime."
+    Assert-True (-not $terriasSkillCgRuntime.Contains("RpcSkillCgPlaybackRequest")) "Terrias Skill CG must not own private playback RPCs."
+    Assert-True $wunaScripts.Contains("TerriasCardTagService.RequestBurnoutAndWhiteRadianceForFriendlyHands(self") "White Sun Prayer must schedule friendly hand Burnout and White Radiance tagging."
     Assert-True $runtimeCardAttachmentService.Contains("WunaWhiteSunPrayerHandAttachment") "Runtime card attachment service must expose Wuna hand attachment recipe."
     Assert-True $runtimeCardAttachmentService.Contains("WunaCoronationTokenAttachment") "Runtime card attachment service must expose Wuna coronation token attachment recipe."
     Assert-True $runtimeCardAttachmentService.Contains("MarkTemporaryWhiteRadiance") "Runtime card attachment service must mark temporary white radiance with a combat lock."
@@ -2356,25 +2356,25 @@ function Invoke-SourceAssertions {
     Assert-True $wunaScripts.Contains("EmberAdventureStateService.CommitLocal(self?.Self") "Wuna scripts must write Persistent Ember through the generic adventure-state service."
     Assert-True $buffApi.Contains("EmberAdventureStateService.CommitLocal(status") "BuffApi.SavePersistentEmber must submit through the generic adventure-state service."
     Assert-True $emberAdventureStateService.Contains("PlayerApi.GetScopedGameVar(") "Persistent Ember sync must keep scoped GameVar compatibility fallback."
-    Assert-True $emberAdventureStateService.Contains("SunExpIds.WunaPersistentEmber") "Persistent Ember sync must read the old Wuna key as a legacy fallback."
+    Assert-True $emberAdventureStateService.Contains("TerriasIds.WunaPersistentEmber") "Persistent Ember sync must read the old Wuna key as a legacy fallback."
     Assert-True $emberAdventureStateService.Contains("OwnerGameVarKey") "Persistent Ember sync must persist by stable player/status owner key."
-    Assert-True $rpcEmberAdventureStateCommit.Contains("ISunExpServerBoundRpcCommand") "Persistent Ember RPC must bind server sender authority."
+    Assert-True $rpcEmberAdventureStateCommit.Contains("ITerriasServerBoundRpcCommand") "Persistent Ember RPC must bind server sender authority."
     Assert-True $rpcEmberAdventureStateCommit.Contains("owner mismatch") "Persistent Ember RPC must reject payload owner ids that do not match the bound sender."
     $savePersistentEmberBlock = [regex]::Match($buffApi, "public\s+static\s+int\s+SavePersistentEmber[\s\S]*?private\s+static\s+IEnumerable")
     Assert-True ($savePersistentEmberBlock.Success -and -not $savePersistentEmberBlock.Value.Contains("IsWunaActive()")) "BuffApi.SavePersistentEmber must not be gated by Wuna activation."
     Assert-True ([regex]::IsMatch($buffApi, "SavePersistentEmber\(executor,\s*status\);\s*if\s*\(!IsWunaActive\(\)\)")) "Ember consumption must persist generic state before applying Wuna-only passive rewards."
     Assert-True $buffApi.Contains("return string.IsNullOrWhiteSpace(careerId)") "Wuna active fallback must not override an explicit non-Wuna career."
-    Assert-True (-not [regex]::IsMatch($buffApi + $wunaScripts, "SetGameVar\s*\(\s*SunExpIds\.WunaPersistentEmber")) "Persistent Ember must not write to the legacy unscoped GameVar."
+    Assert-True (-not [regex]::IsMatch($buffApi + $wunaScripts, "SetGameVar\s*\(\s*TerriasIds\.WunaPersistentEmber")) "Persistent Ember must not write to the legacy unscoped GameVar."
     Assert-True $cardScripts.Contains('["draw_flame"] = InitDrawFlame') "draw_flame must be registered for initialization."
     Assert-True ([regex]::IsMatch($cardScripts, 'private\s+static\s+void\s+InitDrawFlame[\s\S]*?ExecutorApi\.SetBaseScript\(self,\s+"AttackCardItem"\);')) "draw_flame must allow self-targeting during initialization."
     Assert-True $cardScripts.Contains("var target = ExecutorApi.PrimaryTargetIncludingSelf(self);") "draw_flame must resolve targets without excluding self."
     Assert-True $cardScripts.Contains("ExecutorApi.TriggerBurnAllEnemies(self, times * 2);") "flamewheel_recurrence must trigger enemy burn 2*N times while keeping N as the cost."
-    Assert-True $cardScripts.Contains("ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, Math.Max(8, level), ""Target"");") "eclipse_hex must add current Burn stacks with an 8-stack minimum."
+    Assert-True $cardScripts.Contains("ExecutorApi.AddStatusBuff(self, target, TerriasIds.Burn, Math.Max(8, level), ""Target"");") "eclipse_hex must add current Burn stacks with an 8-stack minimum."
     Assert-True $buffScripts.Contains("return StatusApi.MaxHp(target) / 100 + 1;") "body_burn must deal 1% max HP + 1 true damage per stack."
     Assert-True (-not $specialTagRuntime.Contains("CardConfigApi.BaseCost")) "White radiance should use current actual play cost, not BaseCost."
     Assert-True $cardConfigApi.Contains("ReadPlayerCardCostMultiplier") "CardConfigApi must read the player CardCost multiplier."
-    Assert-True (-not $runtimeHooks.Contains("SolarEventRuntime.EnsureInCurrentLayer")) "RuntimeHooks must not inject SunExp events into normal adventure maps."
-    Assert-True (-not $runtimeHooks.Contains("SolarEventRuntime.RepairMapSelection")) "RuntimeHooks must not repair normal adventure map selections for SunExp events."
+    Assert-True (-not $runtimeHooks.Contains("SolarEventRuntime.EnsureInCurrentLayer")) "RuntimeHooks must not inject Terrias events into normal adventure maps."
+    Assert-True (-not $runtimeHooks.Contains("SolarEventRuntime.RepairMapSelection")) "RuntimeHooks must not repair normal adventure map selections for Terrias events."
     Assert-True (-not [System.IO.File]::Exists($solarEventRuntimePath)) "The retired normal-mode solar event injector file must be removed."
     Assert-True $runtimeHooks.Contains("SolarMemoryContentIsolationRuntime.Initialize(modConfig)") "RuntimeHooks must initialize the Solar Memory content isolation guard."
     Assert-True $runtimeHooks.Contains("SolarMemoryCombatRuntime.Initialize(modConfig)") "RuntimeHooks must initialize Solar Memory combat tuning."
@@ -2390,22 +2390,22 @@ function Invoke-SourceAssertions {
     Assert-True $battleRewardApi.Contains("rewardUi.RandomSetRelic(candidates)") "Random relic rewards must reuse the native BattleRewardsUI relic flow."
     Assert-True $battleRewardApi.Contains('DictionaryUtil.Get(row, "Rarity") != "4"') "Solar Memory extra random relics must not draw special rarity-4 relics by default."
     Assert-True $battleRewardApi.Contains("manager.CardPackCheck(candidates)") "Extra random relic candidates must respect active card-pack filtering."
-    Assert-True $sunExpIds.Contains('public const string EmberCloakLiningRelicId = "*ember_cloak_lining";') "Retired Ember Cloak Lining relic id must use the pool-hidden star prefix."
-    Assert-True $sunExpIds.Contains('public const string LegacyEmberCloakLiningRelicId = "ember_cloak_lining";') "Retired Ember Cloak Lining legacy id must remain recognized."
-    Assert-True $sunExpIds.Contains("public static bool IsHiddenRelicId") "SunExpIds must expose hidden relic filtering."
-    Assert-True $battleRewardApi.Contains('!SunExpIds.IsHiddenRelicId(DictionaryUtil.Get(row, "Id"))') "Random relic reward candidates must exclude hidden relics."
-    Assert-True $endlessAbyssMilestoneRewardService.Contains("!SunExpIds.IsHiddenRelicId(id)") "Endless Abyss relic options must exclude hidden relics."
-    $relicRows = Import-Csv -LiteralPath (Join-Path $RepoRoot "SunExp\Data\Relic\sunexp.csv")
+    Assert-True $terriasIds.Contains('public const string EmberCloakLiningRelicId = "*ember_cloak_lining";') "Retired Ember Cloak Lining relic id must use the pool-hidden star prefix."
+    Assert-True $terriasIds.Contains('public const string LegacyEmberCloakLiningRelicId = "ember_cloak_lining";') "Retired Ember Cloak Lining legacy id must remain recognized."
+    Assert-True $terriasIds.Contains("public static bool IsHiddenRelicId") "TerriasIds must expose hidden relic filtering."
+    Assert-True $battleRewardApi.Contains('!TerriasIds.IsHiddenRelicId(DictionaryUtil.Get(row, "Id"))') "Random relic reward candidates must exclude hidden relics."
+    Assert-True $endlessAbyssMilestoneRewardService.Contains("!TerriasIds.IsHiddenRelicId(id)") "Endless Abyss relic options must exclude hidden relics."
+    $relicRows = Import-Csv -LiteralPath (Join-Path $RepoRoot "Terrias\Data\Relic\terrias.csv")
     $emberCloakLiningRelicRow = $relicRows | Where-Object { $_.Id -eq "*ember_cloak_lining" } | Select-Object -First 1
     $ashCharmRelicRow = $relicRows | Where-Object { $_.Id -eq "ash_charm" } | Select-Object -First 1
     $sunOrbitMirrorRelicRow = $relicRows | Where-Object { $_.Id -eq "sun_orbit_mirror" } | Select-Object -First 1
     Assert-True ($null -ne $emberCloakLiningRelicRow) "Ember Cloak Lining must remain as a hidden star-prefixed relic row."
     Assert-True ($emberCloakLiningRelicRow.Rarity -eq "1") "Hidden relic rows must keep a UI-valid rarity instead of using Rarity 7."
     Assert-True ($ashCharmRelicRow.Rarity -eq "3") "Ash Charm must be promoted to rarity tier 3."
-    Assert-True ($sunOrbitMirrorRelicRow.PackBelong -eq "SunExp_sunexp_cardpack_ember_crown") "Sun-Orbit Mirror must belong to the Ember Crown card pack."
+    Assert-True ($sunOrbitMirrorRelicRow.PackBelong -eq "Terrias_terrias_cardpack_ember_crown") "Sun-Orbit Mirror must belong to the Ember Crown card pack."
     $displayRarityKinds = @("Card", "Relic", "Buff", "Blessing", "EnchTag")
     foreach ($kind in $displayRarityKinds) {
-        $kindRoot = Join-Path $RepoRoot "SunExp\Data\$kind"
+        $kindRoot = Join-Path $RepoRoot "Terrias\Data\$kind"
         if (-not (Test-Path -LiteralPath $kindRoot)) {
             continue
         }
@@ -2418,7 +2418,7 @@ function Invoke-SourceAssertions {
             }
         }
     }
-    $relicTextRows = Import-Csv -LiteralPath (Join-Path $RepoRoot "SunExp\Text\Relic\sunexp.csv")
+    $relicTextRows = Import-Csv -LiteralPath (Join-Path $RepoRoot "Terrias\Text\Relic\terrias.csv")
     $emberCloakLiningTextRow = $relicTextRows | Where-Object { $_.Id -eq "*ember_cloak_lining" } | Select-Object -First 1
     $sunOrbitMirrorTextRow = $relicTextRows | Where-Object { $_.Id -eq "sun_orbit_mirror" } | Select-Object -First 1
     $miniatureSunwheelTextRow = $relicTextRows | Where-Object { $_.Id -eq "miniature_sunwheel" } | Select-Object -First 1
@@ -2426,24 +2426,24 @@ function Invoke-SourceAssertions {
     $ashCharmTextRow = $relicTextRows | Where-Object { $_.Id -eq "ash_charm" } | Select-Object -First 1
     Assert-True ($null -ne $emberCloakLiningTextRow) "Hidden Ember Cloak Lining relic text row must keep the same star-prefixed id."
     Assert-True $sunOrbitMirrorTextRow.Description_en.Contains("Every 3 actions, gain 1 stack") "Sun-Orbit Mirror text must describe Gathered Flame gain."
-    Assert-True $miniatureSunwheelTextRow.Description_en.Contains("All enemies gain {buff_burn} equal to your {SunExp_sunexp_solar_radiance} stacks.") "Miniature Sunwheel text must describe party-wide Burn."
-    Assert-True $blazingCrownHeartTextRow.Description_en.Contains("gain 8 stacks of {SunExp_sunexp_solar_radiance}") "Blazing Crown Heart text must describe 8 Solar Radiance at combat start."
-    $blazingCrownHeartChineseDescription = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("5Li65Zy65Zyw6ZO65LiKMuWxgntTdW5FeHBfc3VuZXhwX3Njb3JjaGluZ19jYW5vcHl9"))
+    Assert-True $miniatureSunwheelTextRow.Description_en.Contains("All enemies gain {buff_burn} equal to your {Terrias_terrias_solar_radiance} stacks.") "Miniature Sunwheel text must describe party-wide Burn."
+    Assert-True $blazingCrownHeartTextRow.Description_en.Contains("gain 8 stacks of {Terrias_terrias_solar_radiance}") "Blazing Crown Heart text must describe 8 Solar Radiance at combat start."
+    $blazingCrownHeartChineseDescription = [System.Text.Encoding]::UTF8.GetString([Convert]::FromBase64String("5Li65Zy65Zyw6ZO65LiKMuWxgntUZXJyaWFzX3RlcnJpYXNfc2NvcmNoaW5nX2Nhbm9weX0="))
     Assert-True $blazingCrownHeartTextRow.Description.Contains($blazingCrownHeartChineseDescription) "Blazing Crown Heart Chinese text must describe laying 2 Scorching Canopy stacks over the battlefield."
     Assert-True $ashCharmTextRow.Description_en.Contains("At round end") "Ash Charm text must trigger at round end."
     $sunOrbitMirrorBlock = [regex]::Match($relicScripts, "private\s+static\s+void\s+RegisterSunOrbitMirror[\s\S]*?private\s+static\s+void\s+RegisterSolarPhaseDial")
     $miniatureSunwheelBlock = [regex]::Match($relicScripts, "private\s+static\s+void\s+RegisterMiniatureSunwheel[\s\S]*?private\s+static\s+void\s+RegisterSunOrbitMirror")
     $blazingCrownHeartBlock = [regex]::Match($relicScripts, "private\s+static\s+void\s+RegisterBlazingCrownHeart[\s\S]*?private\s+static\s+void\s+RegisterSolarPrism")
     $ashCharmBlock = [regex]::Match($relicScripts, "private\s+static\s+void\s+RegisterAshCharm[\s\S]*?private\s+static\s+void\s+RegisterBlazingSundial")
-    Assert-True ($sunOrbitMirrorBlock.Success -and $sunOrbitMirrorBlock.Value.Contains('self.AddBuff(SunExpIds.GatheredFlame, "1");') -and $sunOrbitMirrorBlock.Value.Contains("ExecutorApi.AddBurnToRandomEnemy(self, 3);")) "Sun-Orbit Mirror must gain Gathered Flame and apply 3 Burn every third action."
-    Assert-True ($miniatureSunwheelBlock.Success -and $miniatureSunwheelBlock.Value.Contains("BuffApi.NegativeTotal(self.Self)") -and $miniatureSunwheelBlock.Value.Contains("ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, burn);")) "Miniature Sunwheel must convert negative stacks into Gathered Flame and add Solar Radiance as Burn to all enemies."
+    Assert-True ($sunOrbitMirrorBlock.Success -and $sunOrbitMirrorBlock.Value.Contains('self.AddBuff(TerriasIds.GatheredFlame, "1");') -and $sunOrbitMirrorBlock.Value.Contains("ExecutorApi.AddBurnToRandomEnemy(self, 3);")) "Sun-Orbit Mirror must gain Gathered Flame and apply 3 Burn every third action."
+    Assert-True ($miniatureSunwheelBlock.Success -and $miniatureSunwheelBlock.Value.Contains("BuffApi.NegativeTotal(self.Self)") -and $miniatureSunwheelBlock.Value.Contains("ExecutorApi.AddStatusBuff(self, target, TerriasIds.Burn, burn);")) "Miniature Sunwheel must convert negative stacks into Gathered Flame and add Solar Radiance as Burn to all enemies."
     Assert-True ($miniatureSunwheelBlock.Success -and -not $miniatureSunwheelBlock.Value.Contains("ScorchingCanopy")) "Miniature Sunwheel must not require Scorching Canopy."
     Assert-True (-not $blazingCrownHeartBlock.Value.Contains('TryAddEvent(self, "FightStart"')) "Blazing Crown Heart must not restore the legacy FightStart listener that can be lost during combat-status rebuild."
-    Assert-True ($relicOpeningEffectService.Contains("executor.Self.AddBuff(SunExpIds.SolarRadiance, 8);") -and $relicOpeningEffectService.Contains("executor.Self.AddBuff(SunExpIds.SolarCrown, 1);")) "Blazing Crown Heart must replay Radiance and Crown through the focused opening-effect service."
-    Assert-True ($relicFieldStartSourceService.Contains('SunExpFieldId.ScorchingCanopy') -and $relicFieldStartSourceService.Contains('"blazing_crown_heart"')) "Blazing Crown Heart's field grant must be registered separately with the opening coordinator."
+    Assert-True ($relicOpeningEffectService.Contains("executor.Self.AddBuff(TerriasIds.SolarRadiance, 8);") -and $relicOpeningEffectService.Contains("executor.Self.AddBuff(TerriasIds.SolarCrown, 1);")) "Blazing Crown Heart must replay Radiance and Crown through the focused opening-effect service."
+    Assert-True ($relicFieldStartSourceService.Contains('TerriasFieldId.ScorchingCanopy') -and $relicFieldStartSourceService.Contains('"blazing_crown_heart"')) "Blazing Crown Heart's field grant must be registered separately with the opening coordinator."
     Assert-True (-not $blazingCrownHeartBlock.Value.Contains('TryAddEvent(self, "StartRound"')) "Blazing Crown Heart must not keep the old round-start Burn aura."
-    Assert-True ($ashCharmBlock.Success -and $ashCharmBlock.Value.Contains('TryAddEvent(self, "EndRound"') -and $ashCharmBlock.Value.Contains("self.AddBuff(SunExpIds.Ember, burn.ToString());") -and $ashCharmBlock.Value.Contains("self.ChangeDefence(burn.ToString());")) "Ash Charm must grant Ember and Block equal to self Burn at round end."
-    Assert-True $solarMemoryCombatRuntime.Contains('SunExpStatusLifecycleRouter.Register("SolarMemoryCombat"') "Solar Memory combat tuning must subscribe through the shared status lifecycle router."
+    Assert-True ($ashCharmBlock.Success -and $ashCharmBlock.Value.Contains('TryAddEvent(self, "EndRound"') -and $ashCharmBlock.Value.Contains("self.AddBuff(TerriasIds.Ember, burn.ToString());") -and $ashCharmBlock.Value.Contains("self.ChangeDefence(burn.ToString());")) "Ash Charm must grant Ember and Block equal to self Burn at round end."
+    Assert-True $solarMemoryCombatRuntime.Contains('TerriasStatusLifecycleRouter.Register("SolarMemoryCombat"') "Solar Memory combat tuning must subscribe through the shared status lifecycle router."
     Assert-True $solarMemoryCombatRuntime.Contains("AfterEnemyInit = ScaleEnemyHpAfterInit") "Solar Memory combat tuning must scale enemies after native Enemy.Init."
     Assert-True $solarMemoryCombatRuntime.Contains("EnemyHpMultiplier = 3") "Solar Memory enemies must use the configured 3x HP multiplier."
     Assert-True $solarMemoryCombatRuntime.Contains("SolarMemoryModeRuntime.IsSolarMemoryRun()") "Solar Memory enemy HP scaling must be gated to Solar Memory runs."
@@ -2455,7 +2455,7 @@ function Invoke-SourceAssertions {
     Assert-True $solarMemoryContentIsolationRuntime.Contains('RegisterBefore(modConfig, "MapManager.RpcNextMap", RepairCurrentNodeBeforeNextMap)') "Normal-mode isolation must repair missing client current nodes before RpcNextMap consumes them."
     Assert-True $solarMemoryContentIsolationRuntime.Contains("SanitizeSelectionArrays(maps, mapData, level)") "Solar Memory isolation must repair multiplayer map selection arrays."
     Assert-True $solarMemoryContentIsolationRuntime.Contains("SolarMemoryContentIsolationService.SanitizeSelectionArrays") "Solar Memory isolation runtime must delegate synchronized array mutation to the pure Mechanics service."
-    Assert-True $solarMemoryContentIsolationService.Contains("SunExpIds.IsSolarMemoryExclusiveMapId") "Solar Memory isolation policy must use centralized exclusive map ids."
+    Assert-True $solarMemoryContentIsolationService.Contains("TerriasIds.IsSolarMemoryExclusiveMapId") "Solar Memory isolation policy must use centralized exclusive map ids."
     Assert-True $solarMemoryContentIsolationService.Contains("!RequiresReplacement(replacement.MapId, replacement.NodeId)") "Solar Memory isolation policy must reject exclusive fallback results."
     Assert-True $solarMemoryContentIsolationRuntime.Contains('RestoreCurrentNodeIfMissingOrExclusive(level, "MapSelectUI.ReadyToSelect", clientOnly: true)') "Normal-mode isolation must restore a missing client current node before map selection UI is consumed."
     Assert-True $solarMemoryContentIsolationRuntime.Contains('RestoreCurrentNodeIfMissingOrExclusive(level, "MapManager.MapSelectionSync", clientOnly: true)') "Normal-mode map sync isolation must repair client currentNode from synchronized arrays."
@@ -2466,8 +2466,8 @@ function Invoke-SourceAssertions {
     Assert-True $mapNodeSafetyService.Contains("TryBuildCurrentNodeFromSyncArrays") "Client current-node restoration must prefer synchronized map arrays."
     Assert-True $mapNodeSafetyService.Contains("GameSaveManager.UpdateNode(node)") "Current-node restoration must update the saved node after assigning MapTree.currentNode."
     Assert-True $mapNodeSafetyService.Contains("NodeDice = tree.treedice ?? Dice.Default") "Restored synchronized nodes must have deterministic NodeDice."
-    Assert-True $sunExpIds.Contains("public static bool IsSolarMemoryExclusiveMapId") "SunExpIds must centralize exclusive Solar Memory map identification."
-    Assert-True $sunExpIds.Contains("public static bool IsSolarMemoryExclusiveEventId") "SunExpIds must centralize exclusive Solar Memory event identification."
+    Assert-True $terriasIds.Contains("public static bool IsSolarMemoryExclusiveMapId") "TerriasIds must centralize exclusive Solar Memory map identification."
+    Assert-True $terriasIds.Contains("public static bool IsSolarMemoryExclusiveEventId") "TerriasIds must centralize exclusive Solar Memory event identification."
     Assert-True $runtimeHooks.Contains("DuskPartnerRuntime.Initialize(modConfig)") "RuntimeHooks must initialize Dusk partner runtime."
     Assert-True $runtimeHooks.Contains("StarClayDollRuntime.Initialize(modConfig)") "RuntimeHooks must initialize Star Clay Doll independently from Dusk."
     Assert-True $runtimeHooks.Contains("StarScoreHudRuntime.Initialize(modConfig)") "RuntimeHooks must initialize the star score HUD independently from card logic."
@@ -2485,7 +2485,7 @@ function Invoke-SourceAssertions {
     Assert-True ($dimensionShopGameApi.Contains("HasPendingRolePersist") -and $dimensionShopPanel.Contains("FlushPendingRolePersist") -and $dimensionShopPanel.Contains("RolePersistRetryLimit")) "Dimension shop must retain and boundedly retry a role snapshot when native submission is temporarily unavailable."
     Assert-True (-not $dimensionShopGameApi.Contains('PersistRole("DimensionShop.Card")') -and -not $dimensionShopGameApi.Contains('PersistRole("DimensionShop.Relic")') -and -not $dimensionShopService.Contains("DimensionShop.BuyCard.Rollback") -and -not $dimensionShopService.Contains("DimensionShop.BuyRelic.Rollback")) "Dimension shop purchases must submit exactly at their transaction boundary instead of from grant or rollback intermediates."
     Assert-True $dimensionShopPanel.Contains("DimensionShopNativeSkin.TryCreate") "Dimension shop must prefer the official ShopUI visual shell while retaining fallback orchestration."
-    Assert-True ($dimensionShopPanel.Contains("SunExpModalHost.NativeUiParent()") -and $dimensionShopPanel.Contains("SunExpModalHost.CreateNativeFullscreenRoot") -and -not $dimensionShopPanel.Contains("SunExpModalHost.ModalParent()") -and $sharedUiModalHost.Contains("return UIManager.Instance?.canvasTf;")) "Dimension shop must share the official main Canvas with Tooltip and Floating Window instead of rendering above them."
+    Assert-True ($dimensionShopPanel.Contains("TerriasModalHost.NativeUiParent()") -and $dimensionShopPanel.Contains("TerriasModalHost.CreateNativeFullscreenRoot") -and -not $dimensionShopPanel.Contains("TerriasModalHost.ModalParent()") -and $sharedUiModalHost.Contains("return UIManager.Instance?.canvasTf;")) "Dimension shop must share the official main Canvas with Tooltip and Floating Window instead of rendering above them."
     Assert-True ($dimensionShopNativeSkin.Contains('NativeShopResourcePath = "UI/ShopUI"') -and $dimensionShopNativeSkin.Contains("source.ItemPrefab") -and $dimensionShopNativeSkin.Contains("source.SellCardPrefab") -and $dimensionShopNativeSkin.Contains("source.TopRelicPrefab")) "Dimension shop native skin must source official ShopUI visual templates."
     Assert-True ($dimensionShopNativeSkin.Contains("AuraUiNativeGameItemAdapter.AdoptShopItem(holder)") -and $dimensionShopNativeSkin.Contains("AuraGameDataHostApi.Materialize(type, item.Id)") -and $dimensionShopNativeSkin.Contains("nativeItem.Init(nativeConfig)") -and -not $dimensionShopNativeSkin.Contains("ShowUI<ShopUI>")) "Dimension shop offers must initialize through a real ShopItem and the shared definition materializer without activating the ShopUI controller."
     Assert-True ($dimensionShopNativeSkin.Contains("AuraUiNativeButtonBinding.NeutralizeTree") -and $sharedUiNativeInteraction.Contains("target.onClick = new UnityEvent()") -and $sharedUiNativeInteraction.Contains("unityButton.onClick = new Button.ButtonClickedEvent()")) "Dimension shop native visual clones must sever persistent native button listeners through AuraUiShared."
@@ -2516,7 +2516,7 @@ function Invoke-SourceAssertions {
     Assert-True ($dimensionShopService.Contains("public enum DimensionShopItemState") -and $dimensionShopService.Contains("HeldCards = BuildHeldCards()") -and $dimensionShopService.Contains("HeldRelics = BuildHeldRelics()")) "Dimension shop view state must expose typed offer states and held-item snapshots."
     Assert-True ($dimensionShopService.Contains("Description = SafeItemDescription(config)") -and $dimensionShopService.Contains('Tips = SafeLocalizedField(config, "Tips")')) "Dimension shop held cards and relics must expose localized hover-tooltip content."
     Assert-True ($dimensionShopConfigSource.Contains("ShopkeeperPortraitResourcePath") -and $dimensionShopConfigSource.Contains("ShopkeeperPortraitNodePath")) "Dimension shop config must expose replaceable native shopkeeper portrait settings."
-    Assert-True $sunExpProject.Contains('<Reference Include="Plugins">') "SunExp must reference the host UI plugin assembly used by native ShopUI controls."
+    Assert-True $terriasProject.Contains('<Reference Include="Plugins">') "Terrias must reference the host UI plugin assembly used by native ShopUI controls."
     Assert-True $starScoreService.Contains("public static event Action<StarScoreDisplaySnapshot>? Changed") "Star score mechanics must publish typed display snapshots for UI runtimes."
     Assert-True $starScoreService.Contains("PublishChanged(self.Self, state, isCadencePreview: true") "Star score HUD must receive a full three-note cadence preview before state collapse."
     Assert-True $starScoreState.Contains("public StarScoreDisplaySnapshot Snapshot") "Star score combat state must expose a display snapshot instead of leaking mutable note lists."
@@ -2525,17 +2525,17 @@ function Invoke-SourceAssertions {
     Assert-True $starScoreCadenceCatalog.Contains("public static class StarScoreCadenceCatalog") "Star score tooltip cadence copy must live in Mechanics."
     Assert-True $starScoreCadenceCatalog.Contains("CandidatesForPrefix") "Star score tooltip cadence candidates must be calculated from the current prefix."
     Assert-True $starScoreHudRuntime.Contains("StarScoreService.Changed += OnStarScoreChanged") "Star score HUD runtime must subscribe to mechanics snapshots."
-    Assert-True $starScoreHudRuntime.Contains('SunExpBattleLifecycleRouter.Register("StarScoreHud"') "Star score HUD runtime must clear its UI through the shared battle lifecycle router."
+    Assert-True $starScoreHudRuntime.Contains('TerriasBattleLifecycleRouter.Register("StarScoreHud"') "Star score HUD runtime must clear its UI through the shared battle lifecycle router."
     Assert-True $starScoreHudRuntime.Contains('FightStarted = OnFightBoundary') "Star score HUD runtime must clear its UI on fight start."
     Assert-True $starScoreHudRuntime.Contains('FightEnding = OnFightBoundary') "Star score HUD runtime must clear its UI on fight end."
-    Assert-True $starScoreHudRuntime.Contains('RegisterAfter(modConfig, SunExpHookTargets.FightWinInit, OnFightBoundary);') "Star score HUD runtime must still cover fight-win init boundaries."
-    Assert-True $starScoreHudRuntime.Contains('RegisterAfter(modConfig, SunExpHookTargets.FightEscapeInit, OnFightBoundary);') "Star score HUD runtime must still cover fight-escape init boundaries."
+    Assert-True $starScoreHudRuntime.Contains('RegisterAfter(modConfig, TerriasHookTargets.FightWinInit, OnFightBoundary);') "Star score HUD runtime must still cover fight-win init boundaries."
+    Assert-True $starScoreHudRuntime.Contains('RegisterAfter(modConfig, TerriasHookTargets.FightEscapeInit, OnFightBoundary);') "Star score HUD runtime must still cover fight-escape init boundaries."
     Assert-True $starScoreHudRuntime.Contains("BattleHudHost.TryGet") "Star score HUD must attach beneath FightUI and avoid modal selection layers."
     Assert-True $starScoreHudRuntime.Contains("FightPlayer.Instance?.Status?.InstanceId") "Star score HUD must filter snapshots to the local player owner."
     Assert-True $starScoreHudRuntime.Contains('activeView.Close("StarScoreHudRuntime.Close")') "Star score HUD runtime must close roots through the view safety path."
     Assert-True (-not $starScoreHudRuntime.Contains("Object.Destroy(activeView.gameObject)")) "Star score HUD runtime must not directly destroy HUD roots."
     Assert-True (-not $starScoreHudView.Contains("ProgressPartThresholds")) "Star score HUD must keep the full frame visible instead of lighting progress parts."
-    Assert-True $starScoreHudView.Contains("SunExpUiSafety.CloseTransient(gameObject") "Star score HUD view must close through shared UI safety."
+    Assert-True $starScoreHudView.Contains("TerriasUiSafety.CloseTransient(gameObject") "Star score HUD view must close through shared UI safety."
     Assert-True $starScoreHudView.Contains("SlotTops = { 0f, 146f, 226f }") "Star score HUD lighting masks must merge head and space art into the three overture stages."
     Assert-True $starScoreHudView.Contains("SlotHeights = { 146f, 80f, 100f }") "Star score HUD lighting masks must cover head+slot1, space+slot2, and space+slot3."
     Assert-True $starScoreHudView.Contains("StarScoreHudTooltipView.Create") "Star score HUD must create a hover tooltip view."
@@ -2547,41 +2547,41 @@ function Invoke-SourceAssertions {
     Assert-True $starScoreHudView.Contains("image.raycastTarget = false") "Star score HUD images must not intercept pointer input."
     Assert-True $starScoreHudTooltipView.Contains("group.blocksRaycasts = false") "Star score tooltip must not block native battle controls."
     Assert-True $starScoreHudTooltipView.Contains("image.raycastTarget = false") "Star score tooltip rows must not intercept pointer input."
-    Assert-True $starScoreHudTooltipView.Contains("SunExpUiPool.AcquireComponent") "Star score tooltip row rebuilds must reuse pooled rows."
-    Assert-True $starScoreHudTooltipView.Contains("SunExpUiPool.ReleaseOrDestroyChildren") "Star score tooltip row rebuilds must use pooled teardown."
+    Assert-True $starScoreHudTooltipView.Contains("TerriasUiPool.AcquireComponent") "Star score tooltip row rebuilds must reuse pooled rows."
+    Assert-True $starScoreHudTooltipView.Contains("TerriasUiPool.ReleaseOrDestroyChildren") "Star score tooltip row rebuilds must use pooled teardown."
     Assert-True (-not $starScoreHudTooltipView.Contains("Destroy(child.gameObject)")) "Star score tooltip must not directly destroy rows."
     Assert-True $starScoreHudView.Contains("LayoutScale = 0.61f") "Star score HUD must use a single root scale for fixed placement."
     Assert-True $starScoreHudAssets.Contains('OpeningIconPath = Root + "\u542f.png"') "Star score HUD assets must map the Opening icon resource."
     Assert-True $starScoreHudAssets.Contains("StructuralPaths()") "Star score HUD assets must separate structural warmup resources."
     Assert-True $starScoreHudAssets.Contains("NoteIconPaths()") "Star score HUD assets must expose heavy note icons separately."
     Assert-True $starScoreHudAssets.Contains("StarScoreNote.Opening => Load(OpeningIconPath)") "Star score HUD assets must map typed notes to icon sprites."
-    Assert-True (-not $sunExpProject.Contains("UnityEngine.InputLegacyModule")) "Star score HUD hover detection must not depend on the Unity input legacy module."
+    Assert-True (-not $terriasProject.Contains("UnityEngine.InputLegacyModule")) "Star score HUD hover detection must not depend on the Unity input legacy module."
     Assert-True $solarMemoryMapItemAnimationRuntime.Contains('RegisterBefore(modConfig, "MapItem.Init", PrepareMapItemAnimation);') "Solar memory map items must patch fixed boss animation paths before native MapItem.Init loads Texture2D frames."
     Assert-True $solarMemoryMapItemAnimationRuntime.Contains('RegisterAfter(modConfig, "MapItem.Init", RestoreMapItemAnimation);') "Solar memory map item animation fallback must restore enemy animation paths after native MapItem.Init."
-    Assert-True $solarMemoryMapItemAnimationRuntime.Contains("SunExpIds.SolarBossSecondSunLevelId") "Solar memory map item fallback must cover the second-sun boss map node."
-    Assert-True $solarMemoryMapItemAnimationRuntime.Contains("SunExpIds.SolarBossSaintWunaLevelId") "Solar memory map item fallback must cover the saint Wuna boss map node."
+    Assert-True $solarMemoryMapItemAnimationRuntime.Contains("TerriasIds.SolarBossSecondSunLevelId") "Solar memory map item fallback must cover the second-sun boss map node."
+    Assert-True $solarMemoryMapItemAnimationRuntime.Contains("TerriasIds.SolarBossSaintWunaLevelId") "Solar memory map item fallback must cover the saint Wuna boss map node."
     Assert-True $solarMemoryMapItemAnimationRuntime.Contains('row["Animation"] = fallbackAnimation') "Solar memory map item fallback must temporarily replace the enemy Animation row."
     Assert-True $solarMemoryMapItemAnimationRuntime.Contains('restore.Row["Animation"] = restore.Animation') "Solar memory map item fallback must restore the original enemy Animation row."
     Assert-True (-not $solarMemoryMapItemAnimationRuntime.Contains("ApplyFixedBossMapTexture")) "Solar memory animation fallback must not own map-node texture replacement."
     Assert-True $mapNodeCardArtRuntime.Contains('RegisterBefore(modConfig, "MapItem.Init", CaptureMapItemBaseline);') "Map-node art runtime must capture icon baseline before native MapItem.Init mutates transform."
     Assert-True $mapNodeCardArtRuntime.Contains('RegisterAfter(modConfig, "MapItem.Init", ApplyMapNodeCardArt);') "Map-node art runtime must apply configured art after native MapItem.Init."
-    Assert-True $mapNodeCardArtRuntime.Contains("SunExpResourceCache.Load<Texture>(spec.TexturePath, true)") "Map-node art runtime must load textures through the shared mod-aware resource cache."
+    Assert-True $mapNodeCardArtRuntime.Contains("TerriasResourceCache.Load<Texture>(spec.TexturePath, true)") "Map-node art runtime must load textures through the shared mod-aware resource cache."
     Assert-True $mapNodeCardArtRegistry.Contains("VisualRegistry.MapNodeArtSpecs()") "Map-node art registry must be driven by the visual registry."
-    Assert-True ($visualRegistry.Contains("SunExpIds.SolarBossSecondSunMapTexturePath") -and $visualRegistryJson.Contains("solar_memory.second_sun.map_card")) "Visual registry must cover the second-sun boss map texture."
-    Assert-True ($visualRegistry.Contains("SunExpIds.SolarBossSaintWunaMapTexturePath") -and $visualRegistryJson.Contains("solar_memory.saint_wuna.map_card")) "Visual registry must cover the saint Wuna boss map texture."
+    Assert-True ($visualRegistry.Contains("TerriasIds.SolarBossSecondSunMapTexturePath") -and $visualRegistryJson.Contains("solar_memory.second_sun.map_card")) "Visual registry must cover the second-sun boss map texture."
+    Assert-True ($visualRegistry.Contains("TerriasIds.SolarBossSaintWunaMapTexturePath") -and $visualRegistryJson.Contains("solar_memory.saint_wuna.map_card")) "Visual registry must cover the saint Wuna boss map texture."
     Assert-True ($visualRegistry.Contains("MapNodeCardArtFitMode.ContainTrimmed") -and $visualRegistryJson.Contains('"fitMode": "ContainTrimmed"')) "Fixed boss map-node art must use transparent-edge contain fitting."
     Assert-True $mapItemApi.Contains("TextureTransparencyAnalyzer.AnalyzeAllEdges") "MapItemApi must analyze transparent edges before applying fitted map-node textures."
     Assert-True $mapItemApi.Contains("MapNodeTextureFitService.Fit") "MapItemApi must delegate map-node texture geometry to the fit service."
     Assert-True $mapNodeTextureFitService.Contains("DefaultFightBoundsWidth = 160f") "Map-node texture fit service must preserve native fight-node width."
     Assert-True $mapNodeTextureFitService.Contains("DefaultFightBoundsHeight = 238f") "Map-node texture fit service must preserve native fight-node height."
     Assert-True $duskPartnerRuntime.Contains('"GameEntryUI.CheckCareer"') "Dusk runtime must clean its placeholder blessing after career checks."
-    Assert-True $duskPartnerRuntime.Contains('SunExpBattleLifecycleRouter.Register("DuskPartner"') "Dusk runtime must grant its trait at fight start through the shared lifecycle router."
-    Assert-True ($duskPartnerRuntime.Contains("status.GetBuff(SunExpIds.DuskAfterheatRecoveryTrait) == null") -and $duskPartnerRuntime.Contains("status.AddBuff(SunExpIds.DuskAfterheatRecoveryTrait")) "Dusk runtime must restore the trait from actual rebuilt status state."
-    Assert-True ($duskPartnerRuntime.Contains('SunExpStatusLifecycleRouter.Register("DuskPartner"') -and $duskPartnerRuntime.Contains("AfterAddBuff = ObserveBurnAfterAdd") -and $duskPartnerRuntime.Contains("AfterEnemyInit = ObserveEnemyAfterInit")) "Dusk runtime must attach burn observers through existing status lifecycle hooks."
+    Assert-True $duskPartnerRuntime.Contains('TerriasBattleLifecycleRouter.Register("DuskPartner"') "Dusk runtime must grant its trait at fight start through the shared lifecycle router."
+    Assert-True ($duskPartnerRuntime.Contains("status.GetBuff(TerriasIds.DuskAfterheatRecoveryTrait) == null") -and $duskPartnerRuntime.Contains("status.AddBuff(TerriasIds.DuskAfterheatRecoveryTrait")) "Dusk runtime must restore the trait from actual rebuilt status state."
+    Assert-True ($duskPartnerRuntime.Contains('TerriasStatusLifecycleRouter.Register("DuskPartner"') -and $duskPartnerRuntime.Contains("AfterAddBuff = ObserveBurnAfterAdd") -and $duskPartnerRuntime.Contains("AfterEnemyInit = ObserveEnemyAfterInit")) "Dusk runtime must attach burn observers through existing status lifecycle hooks."
     Assert-True ($duskAfterheatRecoveryService.Contains("burn?.scriptExecutor") -and $duskAfterheatRecoveryService.Contains("ScriptEventApi.TryAddOwnedEventListener")) "Dusk afterheat recovery must register on the native burn executor owner used by RunImmediately."
     Assert-True $duskAfterheatRecoveryService.Contains("HashSet<IBuffItem>") "Dusk afterheat recovery must deduplicate listeners by burn buff instance."
     Assert-True $duskAfterheatRecoveryService.Contains("snapshot.StacksAtTrigger / 3") "Dusk's native passive must convert one third of triggered Burn stacks."
-    Assert-True $duskAfterheatRecoveryService.Contains("owner.AddBuff(SunExpIds.GatheredFlame, traitGain.ToString())") "Dusk's native passive must grant Gathered Flame alongside Embers."
+    Assert-True $duskAfterheatRecoveryService.Contains("owner.AddBuff(TerriasIds.GatheredFlame, traitGain.ToString())") "Dusk's native passive must grant Gathered Flame alongside Embers."
     Assert-True (-not $duskAfterheatRecoveryService.Contains("activeTraitBuff == null ? 0 : snapshot.StacksAtTrigger / 2")) "Dusk's native passive must not retain the old one-half Ember-only formula."
     Assert-True $burnTriggerApi.Contains("NotifyActual") "Burn execution must publish one unified actual-trigger semantic event."
     Assert-True $duskAfterheatRecoveryService.Contains("BurnTriggerApi.Triggered") "Dusk must observe immediate and native Burn through the unified trigger entry."
@@ -2591,9 +2591,9 @@ function Invoke-SourceAssertions {
     Assert-True (-not $duskPartnerScripts.Contains("EventCenter")) "Dusk CSV entry points must not register raw native events."
     Assert-True (-not $duskPartnerScripts.Contains('TryAddTokenedEvent(self, "Action"')) "Dusk must not scan every enemy after each player action."
     Assert-True (-not $duskPartnerRuntime.Contains("StarClay")) "Dusk runtime must not own Star Clay Doll behavior."
-    Assert-True $starClayDollRuntime.Contains('SunExpBattleLifecycleRouter.Register("StarClayDoll"') "Star Clay Doll runtime must grant its own trait at fight start through the shared lifecycle router."
-    Assert-True ($starClayDollRuntime.Contains("status.GetBuff(SunExpIds.StarClayDollTrait) == null") -and $starClayDollRuntime.Contains("status.AddBuff(SunExpIds.StarClayDollTrait")) "Star Clay Doll runtime must restore its trait from actual rebuilt status state."
-    Assert-True $starClayDollRuntime.Contains('SunExpStatusLifecycleRouter.Register("StarClayDoll"') "Star Clay Doll runtime must route lethal-hit protection through the status lifecycle router."
+    Assert-True $starClayDollRuntime.Contains('TerriasBattleLifecycleRouter.Register("StarClayDoll"') "Star Clay Doll runtime must grant its own trait at fight start through the shared lifecycle router."
+    Assert-True ($starClayDollRuntime.Contains("status.GetBuff(TerriasIds.StarClayDollTrait) == null") -and $starClayDollRuntime.Contains("status.AddBuff(TerriasIds.StarClayDollTrait")) "Star Clay Doll runtime must restore its trait from actual rebuilt status state."
+    Assert-True $starClayDollRuntime.Contains('TerriasStatusLifecycleRouter.Register("StarClayDoll"') "Star Clay Doll runtime must route lethal-hit protection through the status lifecycle router."
     Assert-True $starClayDollRuntime.Contains("AfterHit = ProtectAfterHit") "Star Clay Doll runtime must own lethal-hit protection."
     Assert-True (-not $starScoreRuntime.Contains("LoneerMiracleService")) "Generic star score runtime must not dispatch Loneer role behavior."
     Assert-True (-not $starScoreRuntime.Contains("StarClay")) "Generic star score runtime must not own partner behavior."
@@ -2634,15 +2634,15 @@ function Invoke-SourceAssertions {
     Assert-True $loneerService.Contains("RandomGuidanceCard") "Loneer random fallback must choose from the current selectable Guidance pool."
     Assert-True ([regex]::IsMatch($loneerService, "RandomGuidanceCard[\s\S]*UnityEngine\.Random\.Range\(0,\s*pool\.Count\)")) "Cancelled Guidance selection must randomize within the current candidate pool."
     Assert-True (-not $loneerService.Contains("FirstGuidanceCardId")) "Cancelled Guidance selection must not use the old deterministic first-card fallback."
-    Assert-True $cardGrantRecipes.Contains("SunExpIds.LoneerDerivedMarker") "Copied guidance cards must receive a hidden derived marker."
-    Assert-True $cardGrantRecipes.Contains("SunExpIds.LoneerDerivedTag") "Copied guidance cards must receive a localized visible derived tag."
+    Assert-True $cardGrantRecipes.Contains("TerriasIds.LoneerDerivedMarker") "Copied guidance cards must receive a hidden derived marker."
+    Assert-True $cardGrantRecipes.Contains("TerriasIds.LoneerDerivedTag") "Copied guidance cards must receive a localized visible derived tag."
     Assert-True $cardMutationService.Contains("public static bool SetRuntimeMarkers") "CardMutationService must separate hidden runtime markers from visible SpecialTags."
     Assert-True $loneerService.Contains("CardMutationService.HasRuntimeMarker") "Loneer filtering must read hidden runtime markers."
-    Assert-True (-not $cardGrantRecipes.Contains('AddSpecialTagsMutation(SunExpIds.LoneerDerivedMarker')) "Internal Loneer marker ids must never be written to SpecialTag."
+    Assert-True (-not $cardGrantRecipes.Contains('AddSpecialTagsMutation(TerriasIds.LoneerDerivedMarker')) "Internal Loneer marker ids must never be written to SpecialTag."
     Assert-True $loneerService.Contains("LoneerCardGrantService.GrantGuidanceCopyToHand") "Loneer must use the shared card-grant recipe for guidance copies."
     Assert-True $wunaScripts.Contains("WunaCardGrantService.GrantCoronationTokenToHand") "Wuna must use the shared card-grant recipe for coronation tokens."
     Assert-True $wunaScripts.Contains('"WunaRadiance.BurnChanged."') "Wuna enemy burn OnLevelChange work must be merged by owner and hook token."
-    Assert-True $wunaScripts.Contains("SunExpFrameDispatcher.RunOnceNextFrame") "Wuna enemy burn OnLevelChange work must defer aggregate burn scans through the shared frame dispatcher."
+    Assert-True $wunaScripts.Contains("TerriasFrameDispatcher.RunOnceNextFrame") "Wuna enemy burn OnLevelChange work must defer aggregate burn scans through the shared frame dispatcher."
     Assert-True $wunaScripts.Contains("WunaRadiance.BurnChanged.Deduped") "Wuna burn-change batching must expose duplicate suppression counters."
     Assert-True $cardApi.Contains("public static CardGrantResult GrantCardToHand") "Generated cards must go through the structured CardApi grant pipeline."
     Assert-True $combatCardApi.Contains("public static bool TryDrawPlayerCards") "Non-script combat draws must use a focused GameApi facade."
@@ -2657,8 +2657,8 @@ function Invoke-SourceAssertions {
     Assert-True $cardApi.Contains("public CardGrantRequest WithRuntimePresentation") "Dynamic cards must compose native-readable presentation before materialization."
     Assert-True $cardApi.Contains("public static bool MarkForAdventureRemoval") "Permanent-use cards must use the centralized host lifecycle facade."
     Assert-True $cardApi.Contains("self.GetCardFromDeck(added);") "Generated cards must deliver the exact tagged DataConfig to the hand queue."
-    Assert-True $cardApi.Contains("CardGrantPostCommitQueue.Request") "Generated cards must submit SunExp post-commit refresh work after native delivery succeeds."
-    Assert-True $cardGrantPostCommitQueue.Contains("SunExpCardRefreshQueue.RequestConfigTagRefresh") "Post-commit card grant refreshes must reuse the card refresh queue."
+    Assert-True $cardApi.Contains("CardGrantPostCommitQueue.Request") "Generated cards must submit Terrias post-commit refresh work after native delivery succeeds."
+    Assert-True $cardGrantPostCommitQueue.Contains("TerriasCardRefreshQueue.RequestConfigTagRefresh") "Post-commit card grant refreshes must reuse the card refresh queue."
     Assert-True $cardGrantPostCommitQueue.Contains("VisualRefreshSuppressed") "Post-commit card grant visuals must be explicitly suppressed in stable lifecycle mode."
     Assert-True (-not $cardGrantPostCommitQueue.Contains("CombatVisualReapplyPasses")) "Stable lifecycle mode must not run combat visual reapply passes."
     Assert-True (-not $cardGrantPostCommitQueue.Contains("RequestActiveCombatCardsReapply")) "Stable lifecycle mode must not coalesce post-commit visual misses into active combat-card reapply work."
@@ -2667,7 +2667,7 @@ function Invoke-SourceAssertions {
     Assert-True (-not $cardGrantPostCommitQueue.Contains("AddCardByData")) "Post-commit card grant refreshes must not own native card creation."
     Assert-True (-not $cardGrantPostCommitQueue.Contains("GetCardFromDeck")) "Post-commit card grant refreshes must not move cards through the native battle flow."
     Assert-True (-not $cardApi.Contains("LoneerDerivedTag")) "CardApi must not contain Loneer-specific business tags."
-    Assert-True (-not $cardApi.Contains("WhiteRadianceTag")) "CardApi must not contain Wuna/SunExp-specific business tags."
+    Assert-True (-not $cardApi.Contains("WhiteRadianceTag")) "CardApi must not contain Wuna/Terrias-specific business tags."
     Assert-True (-not $wunaScripts.Contains("AddCardByData")) "Wuna must not hand-roll combat card creation."
     Assert-True (-not $wunaScripts.Contains("EnsureHandTags")) "Wuna must not hand-roll temporary tag propagation."
     Assert-True $cardMutationService.Contains("public static void SetTemporaryCost") "CardMutationService must own temporary card-cost mutation."
@@ -2688,11 +2688,11 @@ function Invoke-SourceAssertions {
     Assert-True $wunaScripts.Contains("PolymorphCooldownService.MarkSkillUsed(self, ""Wuna.WhiteSunPrayer"")") "Wuna polymorph skill use must commit the shared cooldown."
     Assert-True $wunaScripts.Contains("PolymorphCooldownService.MarkSkillUsed(self, ""Wuna.GraveSong"")") "Wuna second polymorph skill must share the same cooldown record."
     Assert-True $loneerService.Contains("PolymorphCooldownService.MarkSkillUsed(self, ""Loneer.MorningStarPrayer"")") "Loneer polymorph skill use must commit the shared cooldown."
-    Assert-True $buffScripts.Contains("[SunExpIds.PolymorphTraitBuffShortId] = ApplyPolymorphTrait") "BuffScripts must route polymorph trait apply behavior."
-    Assert-True $buffScripts.Contains("[SunExpIds.PolymorphTraitBuffShortId] = ClearPolymorphTrait") "BuffScripts must route polymorph trait clear behavior."
+    Assert-True $buffScripts.Contains("[TerriasIds.PolymorphTraitBuffShortId] = ApplyPolymorphTrait") "BuffScripts must route polymorph trait apply behavior."
+    Assert-True $buffScripts.Contains("[TerriasIds.PolymorphTraitBuffShortId] = ClearPolymorphTrait") "BuffScripts must route polymorph trait clear behavior."
     Assert-True (-not $polymorphRuntime.Contains('HideTraitBuffFromContext')) "Polymorph trait buff must remain visible in battle."
-    Assert-True $polymorphRuntime.Contains('RegisterBefore(modConfig, SunExpHookTargets.SkillItemTrueUse, CaptureSkillUseBefore);') "Polymorph runtime must capture official skill use before TrueUse."
-    Assert-True $polymorphRuntime.Contains('RegisterAfter(modConfig, SunExpHookTargets.SkillItemTrueUse, MarkSkillUseAfter);') "Polymorph runtime must commit shared cooldown after official skill use."
+    Assert-True $polymorphRuntime.Contains('RegisterBefore(modConfig, TerriasHookTargets.SkillItemTrueUse, CaptureSkillUseBefore);') "Polymorph runtime must capture official skill use before TrueUse."
+    Assert-True $polymorphRuntime.Contains('RegisterAfter(modConfig, TerriasHookTargets.SkillItemTrueUse, MarkSkillUseAfter);') "Polymorph runtime must commit shared cooldown after official skill use."
     Assert-True $buffData.Contains('"polymorph_trait"') "Polymorph trait buff data row is missing."
     Assert-True ([regex]::IsMatch($buffData, '"polymorph_trait"[\s\S]*?"Icon/Buff/')) "Polymorph trait buff must reuse the Heroic Blessing icon path family."
     Assert-True $polymorphActivationService.Contains("PolymorphRuntimeService.ClearAll(source);") "Polymorph cleanup must clear runtime overlays before restoring career state."
@@ -2706,8 +2706,8 @@ function Invoke-SourceAssertions {
     Assert-True $polymorphStateStore.Contains("public static bool IsLocalRoleSuppressed") "Polymorph state must expose role suppression for old passive guards."
     Assert-True $loneerService.Contains("PolymorphStateStore.IsLocalRoleSuppressed") "Loneer passive and skill entries must respect active polymorph suppression."
     Assert-True $wunaScripts.Contains("IsWunaRuntimeActive") "Wuna passive and skill entries must respect active polymorph suppression."
-    Assert-True $cardScripts.Contains("[SunExpIds.ProjectionCardShortId] = UseProjection") "CardScripts must route the projection selection card."
-    Assert-True $cardScripts.Contains("[SunExpIds.ProjectionRoleTemplateShortId] = UseProjectionRoleCard") "CardScripts must route generated projection role cards."
+    Assert-True $cardScripts.Contains("[TerriasIds.ProjectionCardShortId] = UseProjection") "CardScripts must route the projection selection card."
+    Assert-True $cardScripts.Contains("[TerriasIds.ProjectionRoleTemplateShortId] = UseProjectionRoleCard") "CardScripts must route generated projection role cards."
     Assert-True $runtimeHooks.Contains("ProjectionRuntime.Initialize(modConfig)") "RuntimeHooks must initialize projection combat hooks."
     Assert-True $runtimeHooks.Contains("CompanionSceneLifecycleRuntime.Initialize(modConfig)") "RuntimeHooks must initialize direct scene-replacement cleanup."
     Assert-True ($companionSceneLifecycleRuntime.Contains("SceneManager.sceneUnloaded += OnSceneUnloaded") -and $companionSceneLifecycleRuntime.Contains("SceneManager.activeSceneChanged += OnActiveSceneChanged")) "Companion lifecycle cleanup must observe both scene unload and the guarded active-scene fallback."
@@ -2718,25 +2718,25 @@ function Invoke-SourceAssertions {
     Assert-True ($projectionSummonService.Contains("CompanionSceneApi.MoveToOwnerScene") -and $spiritSummonService.Contains("CompanionSceneApi.MoveToOwnerScene") -and $projectionTurnCoordinator.Contains("CompanionSceneApi.MoveToOwnerScene")) "Companion actors and their turn anchor must inherit the owner's scene lifetime."
     Assert-True ($projectionAttachmentPresenter.Contains("public static void ClearAll") -and $spiritAttachmentPresenter.Contains("public static void ClearAll")) "Both companion presenters must expose an orphan-safe proxy sweep."
     Assert-True ($projectionRuntime.Contains('RunCleanupStep("NetworkDedupe"') -and $spiritRuntime.Contains('RunCleanupStep("CaptureDedupe"')) "Companion cleanup must reset all battle-scoped duplicate sets."
-    Assert-True ($companionSceneLifecycleRuntime.Contains('SunExpHookRegistry.Before(') -and $companionSceneLifecycleRuntime.Contains('"GameEntryUI.Init"')) "Returning directly to the main menu must run companion cleanup through the safe hook registry."
+    Assert-True ($companionSceneLifecycleRuntime.Contains('TerriasHookRegistry.Before(') -and $companionSceneLifecycleRuntime.Contains('"GameEntryUI.Init"')) "Returning directly to the main menu must run companion cleanup through the safe hook registry."
     Assert-True ($companionSceneLifecycleRuntime.Contains('"TopBarUI.ReturnToMenu"') -and $companionSceneLifecycleRuntime.Contains('"GameApp.ReturnToMenu"')) "Companion cleanup must run before confirmed end-of-frame return and retain a direct-return fallback."
     Assert-True ($companionSceneLifecycleRuntime.Contains('"SuppressPresentation"') -and $companionSceneLifecycleRuntime.Contains("SchedulePostCleanupAudit(source,")) "Menu-exit cleanup must suppress the last rendered frame and conditionally audit residual objects on the next frame."
     Assert-True ($companionPresentationCleanup.Contains("GetComponentsInChildren<Renderer>(true)") -and $companionPresentationCleanup.Contains("status.actionContent") -and $companionPresentationCleanup.Contains("status.statusBarObj")) "Companion presentation suppression must immediately hide renderers and separately parented fight UI."
     Assert-True ($companionSceneLifecycleRuntime.Contains("!cleanupPending && !hasTrackedScenes") -and $companionSceneLifecycleRuntime.Contains("needsOrphanSweep")) "Scene-transition cleanup must deduplicate repeated boundaries and keep orphan scans on a conditional slow path."
-    Assert-True ($companionSceneLifecycleRuntime.Contains("suppression.Total > 0 || !cleanupSucceeded") -and $companionSceneLifecycleRuntime.Contains("SunExpLog.InfoAlways(message)")) "Main-menu residual auditing must remain observable but run only after artifacts or failures."
+    Assert-True ($companionSceneLifecycleRuntime.Contains("suppression.Total > 0 || !cleanupSucceeded") -and $companionSceneLifecycleRuntime.Contains("TerriasLog.InfoAlways(message)")) "Main-menu residual auditing must remain observable but run only after artifacts or failures."
     Assert-True ($companionSceneApi.Contains("HasTrackedScenes()") -and $companionPresentationCleanup.Contains("ProjectionRoots")) "Companion cleanup must reuse its synchronous suppression pass as the pre-destroy artifact inventory."
     Assert-True $companionSceneLifecycleRuntime.Contains('FightInitializing = _ => CleanupAfterSceneBoundary("FightInitializing")') "Fight initialization must sweep stale companion state from abnormal scene replacement."
     Assert-True $companionSceneLifecycleRuntime.Contains('FightEnded = _ => CleanupAfterSceneBoundary("FightEnded")') "Normal fight settlement must run the complete companion cleanup pipeline."
     Assert-True (-not $companionSceneLifecycleRuntime.Contains('FightEnding = _ => CompanionSceneApi.ClearTrackedScenes')) "Fight ending must not erase scene tracking before cleanup runs."
-    Assert-True $sunExpPerformanceSettingsSource.Contains("ReadFlag(CountersKey, false)") "SunExp performance counters must be opt-in."
-    Assert-True ($runtimeHooks.Contains("if (SunExpPerformanceSettings.CountersEnabled)") -and $sunExpCombatCardUiWorkloadRuntime.Contains("if (!SunExpPerformanceSettings.CountersEnabled)")) "Pure card-UI measurement hooks must not register outside performance diagnostics mode."
+    Assert-True $terriasPerformanceSettingsSource.Contains("ReadFlag(CountersKey, false)") "Terrias performance counters must be opt-in."
+    Assert-True ($runtimeHooks.Contains("if (TerriasPerformanceSettings.CountersEnabled)") -and $terriasCombatCardUiWorkloadRuntime.Contains("if (!TerriasPerformanceSettings.CountersEnabled)")) "Pure card-UI measurement hooks must not register outside performance diagnostics mode."
     Assert-True $spiritRuntime.Contains("CommonCardItem.UseChecker.Contains(SpiritCardUseChecker)") "Spirit-card use gating must register idempotently in the native pre-consumption checker."
     Assert-True $spiritRuntime.Contains('ProjectionStateStore.HasForOwner("", owner.InstanceId)') "Spirit cards must reject projection occupancy before native card consumption."
     Assert-True (-not $spiritRuntime.Contains("CardItem.canUse = false")) "Spirit-card eligibility must not toggle the global card-use state."
     Assert-True $runtimeHooks.Contains("CompanionIntentRegistry.Load(modConfig)") "RuntimeHooks must load companion intent registry before projection combat hooks."
     Assert-True $runtimeHooks.Contains("CompanionThreatRuntime.Initialize(modConfig)") "RuntimeHooks must initialize companion threat targeting."
-    Assert-True $entry.Contains("SunExp.Dll.Scripting.ProjectionScripts") "Entry must register ProjectionScripts for CSV action calls."
-    Assert-True $entry.Contains("SunExp.Dll.Scripting.HeartChangeScripts") "Entry must register HeartChangeScripts for temporary controlled intent action calls."
+    Assert-True $entry.Contains("Terrias.Dll.Scripting.ProjectionScripts") "Entry must register ProjectionScripts for CSV action calls."
+    Assert-True $entry.Contains("Terrias.Dll.Scripting.HeartChangeScripts") "Entry must register HeartChangeScripts for temporary controlled intent action calls."
     Assert-True $projectionActivationService.Contains("CardGrantRequest") "Projection generated cards must use the shared card grant API."
     Assert-True $projectionActivationService.Contains("DictionaryUtil.Set(config.Vars") "Projection generated cards must write runtime overrides to Vars."
     Assert-True (-not $projectionActivationService.Contains("DictionaryUtil.Set(config.data")) "Projection generated cards must not mutate base config data."
@@ -2745,9 +2745,9 @@ function Invoke-SourceAssertions {
     Assert-True $projectionSummonService.Contains($utf8.GetString([Convert]::FromBase64String("UmVqZWN0T3duZXJBbHJlYWR5SGFzUHJvamVjdGlvbiA9PiAi5oqV5b2x5L2N572u5bey6KKr5Y2g55So44CCIg=="))) "Projection rejection reasons must map stable protocol codes to Chinese player text."
     Assert-True (-not $projectionSummonService.Contains("+ snapshot.RejectionReason")) "Projection rejection protocol text must never be appended directly to player captions."
     Assert-True $projectionSummonService.Contains("ShowLocalRejectionIfNeeded") "Projection rejection fallback must avoid duplicate local and network captions."
-    Assert-True $projectionSummonService.Contains('SunExpResourceCache.Load<GameObject>("Model/player", true, "projection")') "Projection summon must load the player model through the shared resource cache."
-    Assert-True $projectionSummonService.Contains("SunExpIds.ProjectionActionStaffTapCardId") "Projection summon must attach the shared staff-tap action."
-    Assert-True $projectionSummonService.Contains("SunExpIds.ProjectionActionShieldBlessingCardId") "Projection summon must attach the shared shield action."
+    Assert-True $projectionSummonService.Contains('TerriasResourceCache.Load<GameObject>("Model/player", true, "projection")') "Projection summon must load the player model through the shared resource cache."
+    Assert-True $projectionSummonService.Contains("TerriasIds.ProjectionActionStaffTapCardId") "Projection summon must attach the shared staff-tap action."
+    Assert-True $projectionSummonService.Contains("TerriasIds.ProjectionActionShieldBlessingCardId") "Projection summon must attach the shared shield action."
     Assert-True $projectionSummonService.Contains("SpawnProjection(role, ownerStatusId, -1") "Projection summon must stay outside formal friendly slots."
     Assert-True $projectionSummonService.Contains("ProjectionTurnCoordinator.RegisterProjection") "Projection summon must register through the stable projection-turn coordinator."
     Assert-True (-not $projectionSummonService.Contains("manager.ActionQueue.Add(projection)")) "Projection summon must not depend on late insertion into the native immutable action snapshot."
@@ -2786,23 +2786,23 @@ function Invoke-SourceAssertions {
     Assert-True $companionIntentPlanner.Contains("CompanionAuthorityService.IsAuthoritative()") "Projection plan diagnostics must be authority-gated."
     Assert-True $starScoreRuntime.Contains("StarScore.RefreshSignatureSkip") "Star score preview refreshes must skip unchanged signatures."
     Assert-True $starScoreRuntime.Contains("LastRefreshSignatures.Clear") "Star score preview signatures must reset per fight."
-    Assert-True $morningStarDimmedService.Contains("SunExpCardRefreshQueue.RequestCostUpdate") "Morning Star Dimmed cost-only changes must use incremental refreshes."
+    Assert-True $morningStarDimmedService.Contains("TerriasCardRefreshQueue.RequestCostUpdate") "Morning Star Dimmed cost-only changes must use incremental refreshes."
     Assert-True $cardScripts.Contains('RequestCostUpdate(card, "FlamewheelHand")') "Flamewheel recurrence cost-only changes must use incremental refreshes."
-    Assert-True $sunExpResourcePreloader.Contains("WarmupTier.Essential") "Adventure preload must separate essential and opportunity work."
-    Assert-True $sunExpResourcePreloader.Contains("ResourcePreloader.EssentialCompleted") "Adventure preload must report essential completion."
-    Assert-True $sunExpResourcePreloader.Contains("StarScoreHudAssets.StructuralPaths()") "Adventure preload must keep oversized note icons out of structural warmup."
-    Assert-True (-not $sunExpResourcePreloader.Contains("PolymorphRoleRegistry.CardFacePaths(12)")) "Adventure preload must defer optional polymorph card-face sources."
-    Assert-True $sunExpResourcePreloader.Contains("ResourcePreloader.HeavyOptionalDeferred") "Deferred heavy preload work must remain observable."
-    Assert-True $sunExpCombatCardUiWorkloadRuntime.Contains("SunExpHookTargets.ICardSetCardStyle") "Card UI diagnostics must measure card-style application separately."
-    Assert-True $sunExpCombatCardUiWorkloadRuntime.Contains("SunExpHookTargets.CardItemDataUpdate") "Card UI diagnostics must measure data updates separately."
-    Assert-True $sunExpCombatCardUiWorkloadRuntime.Contains("SunExpHookTargets.FightCardManagerCardTagCheck") "Card UI diagnostics must measure tag checks separately."
-    Assert-True $sunExpCombatCardUiWorkloadRuntime.Contains("SunExpHookTargets.FightUiUpdateCardMsg") "Card UI diagnostics must measure whole-hand refresh batches."
-    Assert-True $sunExpCombatCardUiWorkloadRuntime.Contains("SunExpHookTargets.ICardSetCardMsg") "Card UI diagnostics must measure native card-message binding."
-    Assert-True $sunExpCombatCardUiWorkloadRuntime.Contains("SunExpHookTargets.ScriptExecutorRunScript") "Card UI diagnostics must measure InitScript bridge work."
-    Assert-True $sunExpCombatCardUiWorkloadRuntime.Contains("SunExpHookTargets.LocalizeExDescription") "Card UI diagnostics must measure description expansion."
-    Assert-True $sunExpCombatCardUiWorkloadRuntime.Contains("SunExpHookTargets.TextTranslatorTranslate") "Card UI diagnostics must measure keyword translation."
-    Assert-True $sunExpCombatCardUiWorkloadRuntime.Contains("RegisterRefreshCauses") "Card UI diagnostics must associate native refresh causes with each batch."
-    Assert-True $sunExpCombatCardUiWorkloadRuntime.Contains("[ThreadStatic] private static Stack<StartEntry>") "Card UI diagnostics must avoid global hot-path locking."
+    Assert-True $terriasResourcePreloader.Contains("WarmupTier.Essential") "Adventure preload must separate essential and opportunity work."
+    Assert-True $terriasResourcePreloader.Contains("ResourcePreloader.EssentialCompleted") "Adventure preload must report essential completion."
+    Assert-True $terriasResourcePreloader.Contains("StarScoreHudAssets.StructuralPaths()") "Adventure preload must keep oversized note icons out of structural warmup."
+    Assert-True (-not $terriasResourcePreloader.Contains("PolymorphRoleRegistry.CardFacePaths(12)")) "Adventure preload must defer optional polymorph card-face sources."
+    Assert-True $terriasResourcePreloader.Contains("ResourcePreloader.HeavyOptionalDeferred") "Deferred heavy preload work must remain observable."
+    Assert-True $terriasCombatCardUiWorkloadRuntime.Contains("TerriasHookTargets.ICardSetCardStyle") "Card UI diagnostics must measure card-style application separately."
+    Assert-True $terriasCombatCardUiWorkloadRuntime.Contains("TerriasHookTargets.CardItemDataUpdate") "Card UI diagnostics must measure data updates separately."
+    Assert-True $terriasCombatCardUiWorkloadRuntime.Contains("TerriasHookTargets.FightCardManagerCardTagCheck") "Card UI diagnostics must measure tag checks separately."
+    Assert-True $terriasCombatCardUiWorkloadRuntime.Contains("TerriasHookTargets.FightUiUpdateCardMsg") "Card UI diagnostics must measure whole-hand refresh batches."
+    Assert-True $terriasCombatCardUiWorkloadRuntime.Contains("TerriasHookTargets.ICardSetCardMsg") "Card UI diagnostics must measure native card-message binding."
+    Assert-True $terriasCombatCardUiWorkloadRuntime.Contains("TerriasHookTargets.ScriptExecutorRunScript") "Card UI diagnostics must measure InitScript bridge work."
+    Assert-True $terriasCombatCardUiWorkloadRuntime.Contains("TerriasHookTargets.LocalizeExDescription") "Card UI diagnostics must measure description expansion."
+    Assert-True $terriasCombatCardUiWorkloadRuntime.Contains("TerriasHookTargets.TextTranslatorTranslate") "Card UI diagnostics must measure keyword translation."
+    Assert-True $terriasCombatCardUiWorkloadRuntime.Contains("RegisterRefreshCauses") "Card UI diagnostics must associate native refresh causes with each batch."
+    Assert-True $terriasCombatCardUiWorkloadRuntime.Contains("[ThreadStatic] private static Stack<StartEntry>") "Card UI diagnostics must avoid global hot-path locking."
     Assert-True $combatCardUiDiagnostics.Contains('var prefix = "Nested." + target') "Card UI diagnostics must attribute nested work to its parent stage."
     Assert-True $combatCardUiDiagnostics.Contains('RecordSegment(prefix + "/" + pair.Key') "Card UI diagnostics must retain hierarchical child timings."
     Assert-True $combatCardUiDiagnostics.Contains("private struct Scope") "Card UI diagnostics must avoid per-call scope object allocation."
@@ -2819,8 +2819,8 @@ function Invoke-SourceAssertions {
     Assert-True $projectionTurnAnchorObj.Contains("AuraGameDataHostApi.ResolveHandle(DataType.Career, templateId)") "Projection turn anchors must derive from a registered career definition."
     Assert-True ($projectionTurnAnchorObj.Contains("DataOverrides = new Dictionary<string, string>(StringComparer.Ordinal)") -and $projectionTurnAnchorObj.Contains("PreCompile = false")) "Projection turn anchors must use minimal overrides and disable script precompilation through the shared materializer."
     Assert-True (-not $projectionTurnAnchorObj.Contains("new Dictionary<string, string>(templateData)")) "Projection turn anchors must not inherit role script fields."
-    Assert-True $solarMemoryJourneyApi.Contains('JourneyId = "SunExp:SunExp.SolarMemory"') "Solar Memory journey identity must be owner-qualified without changing its stable id."
-    Assert-True $sunExpCardPresentationLifecycleBridge.Contains("Card = card") "Card presentation lifecycle must retain the exact initialized CardItem."
+    Assert-True $solarMemoryJourneyApi.Contains('JourneyId = "Terrias:Terrias.SolarMemory"') "Solar Memory journey identity must be owner-qualified without changing its stable id."
+    Assert-True $terriasCardPresentationLifecycleBridge.Contains("Card = card") "Card presentation lifecycle must retain the exact initialized CardItem."
     Assert-True $cardPresentationRootResolver.Contains('root.Find("Mask/CardIcon")') "Compact ShowCard surfaces must have an explicit structural adapter."
     Assert-True $cardVisualSkinRuntime.Contains("CardVisualSkin.CompactDisplayHandled") "Compact display fallback must be measurable instead of warning as a root miss."
     Assert-True $projectionOtherObj.Contains("ActivateAfterHydration") "Projection actors must reveal intent after authoritative buff hydration."
@@ -2860,7 +2860,7 @@ function Invoke-SourceAssertions {
     Assert-True $projectionAttachmentPresenter.Contains("if (!layoutChanged)") "Projection proxy must skip full screen/world conversion when layout inputs are unchanged."
     Assert-True $projectionAttachmentPresenter.Contains("lastWorldToCameraMatrix") "Projection layout invalidation must observe camera movement."
     Assert-True $projectionAttachmentPresenter.Contains("ProjectionAttachment.ProxyLayoutApplied") "Projection dirty-layout applications must remain measurable."
-    Assert-True $projectionAttachmentPresenter.Contains('new GameObject("SunExp_ProjectionVisualProxy:') "Projection presentation must use a standalone visual proxy."
+    Assert-True $projectionAttachmentPresenter.Contains('new GameObject("Terrias_ProjectionVisualProxy:') "Projection presentation must use a standalone visual proxy."
     Assert-True (-not $projectionAttachmentPresenter.Contains("projection.transform.SetParent")) "Projection gameplay roots must remain under native hierarchy ownership."
     Assert-True (-not $projectionAttachmentPresenter.Contains("projection.transform.localScale")) "Projection layout must not scale gameplay roots."
     Assert-True (-not $projectionAttachmentPresenter.Contains("projection.transform.position")) "Projection layout must not move gameplay roots."
@@ -2904,7 +2904,7 @@ function Invoke-SourceAssertions {
     Assert-True (-not $projectionOtherObj.Contains("return base.DoAction();")) "Projection turns must not use native OtherObj.DoAction because the player model lacks head/Msg."
     Assert-True $projectionStateStore.Contains("ProjectionStatusIdPrefix") "Projection status ids must use the centralized friendly projection prefix."
     Assert-True $projectionStateStore.Contains("removeStatusRecords: false") "Projection retirement must leave status records long enough for native hit queues to settle."
-    Assert-True $projectionRuntime.Contains('SunExpStatusLifecycleRouter.Register("Projection"') "Projection runtime must retire dead projections through the shared status lifecycle router."
+    Assert-True $projectionRuntime.Contains('TerriasStatusLifecycleRouter.Register("Projection"') "Projection runtime must retire dead projections through the shared status lifecycle router."
     Assert-True $projectionRuntime.Contains("CardItem.canUse = false") "A duplicate projection summon card must be gated before use."
     Assert-True $projectionRuntime.Contains("RestoreProjectionUseGate") "Projection use gating must restore the native global card state."
     Assert-True $projectionRuntime.Contains("AfterHit = RetireProjectionAfterDamage") "Projection runtime must retire dead projections after full damage resolves."
@@ -2914,7 +2914,7 @@ function Invoke-SourceAssertions {
     Assert-True (-not $projectionRuntime.Contains("RedirectThreatBeforeHit")) "Projection runtime must not redirect enemy attacks away from players."
     Assert-True (-not $projectionRuntime.Contains("ProjectionThreatService")) "Projection runtime must not depend on retired threat redirection."
     Assert-True $projectionStateStore.Contains("RetireIfDead") "Projection state store must expose a shared death retirement guard."
-    Assert-True $projectionStateStore.Contains("SunExpFrameDispatcher.RunOnceNextFrame") "Projection retirement must delay status-record removal until native queues settle."
+    Assert-True $projectionStateStore.Contains("TerriasFrameDispatcher.RunOnceNextFrame") "Projection retirement must delay status-record removal until native queues settle."
     Assert-True $projectionStateStore.Contains("CompanionBattleStateStore.Remove") "Projection retirement must clear companion runtime state."
     Assert-True (-not $projectionStateStore.Contains("ThreatBoost")) "Projection state must not keep retired threat-weight state."
     Assert-True (-not $projectionStrategyService.Contains("MarkShielded")) "Projection shield behavior must not modify retired threat weights."
@@ -2952,7 +2952,7 @@ function Invoke-SourceAssertions {
     Assert-True $companionStatsService.Contains('"Lucky"') "Companion stats must derive spirit from the Lucky origin key."
     Assert-True $companionStatsService.Contains('"Wisdom"') "Companion stats must derive luck from the Wisdom origin key."
     Assert-True $companionStatsService.Contains('"Perceive"') "Companion stats must derive perception from the Perceive origin key."
-    Assert-True $sunExpIds.Contains("HeartChangeActionStrikeCardId") "Heart Change must centralize its temporary EnemyCard id."
+    Assert-True $terriasIds.Contains("HeartChangeActionStrikeCardId") "Heart Change must centralize its temporary EnemyCard id."
     Assert-True $heartChangeControlService.Contains('QueueProxyAction(state, "Apply")') "Heart Change must queue a proxy action as soon as control is applied."
     Assert-True $heartChangeControlService.Contains("manager.ActionQueue.Add(proxy)") "Heart Change must place the proxy actor in the action queue."
     Assert-True $heartChangeControlService.Contains("CompleteProxyAction") "Heart Change must expose a proxy completion path that ends control immediately after the proxy action."
@@ -2983,7 +2983,7 @@ function Invoke-SourceAssertions {
     Assert-True $heartChangeActionProxyObj.Contains("MaxActionCount = proxyIntentCount") "Heart Change proxy must advertise the preserved temporary intent count."
     Assert-True $heartChangeActionProxyObj.Contains("ActionCount = proxyIntentCount") "Heart Change proxy must execute the preserved temporary intent count."
     Assert-True $heartChangeActionProxyObj.Contains("FightAction.AddCard(CreateProxyActionCard") "Heart Change proxy must build one temporary EnemyCard per preserved intent."
-    Assert-True $heartChangeActionProxyObj.Contains("SunExpIds.HeartChangeActionStrikeCardId") "Heart Change proxy must build its preview from the dedicated temporary EnemyCard."
+    Assert-True $heartChangeActionProxyObj.Contains("TerriasIds.HeartChangeActionStrikeCardId") "Heart Change proxy must build its preview from the dedicated temporary EnemyCard."
     Assert-True $heartChangeActionProxyObj.Contains("RefreshIntent(""Configure"")") "Heart Change proxy must reveal its temporary intent immediately when queued."
     Assert-True $heartChangeActionProxyObj.Contains("card.UseCard(targetStatus)") "Heart Change proxy must execute each temporary intent against a selected enemy target."
     Assert-True $heartChangeActionProxyObj.Contains("CallActionAnimation(card)") "Heart Change proxy must explicitly play action animation after direct ObjectCard execution."
@@ -3023,15 +3023,15 @@ function Invoke-SourceAssertions {
     Assert-True $borrowedMiracle.Value.Contains("RequestGuidanceSelection") "Borrowed Miracle must reselect Guidance after copying it."
     Assert-True (-not $loneerService.Contains("ResetPouchAndClock")) "Loneer must not keep a combined pouch-and-clock reset helper."
     Assert-True $loneerCareerText.Contains("When the Star Stone Pouch draws a white stone") "Loneer career text must describe only Loneer's reaction to Star Stone Pouch draws."
-    Assert-True $buffText.Contains("When the Miracle Clock is restored to its cap, gain {SunExp_sunexp_starlight} equal to that cap.") "Miracle Clock text must describe its Starlight restoration reward."
+    Assert-True $buffText.Contains("When the Miracle Clock is restored to its cap, gain {Terrias_terrias_starlight} equal to that cap.") "Miracle Clock text must describe its Starlight restoration reward."
     Assert-True $buffText.Contains("After each action, draw one Star Stone.") "Star Stone Pouch text must own the every-action draw rule."
-    Assert-True $buffText.Contains("If it is black, gain 1 {SunExp_sunexp_starlight}") "Star Stone Pouch text must describe black-stone Starlight gain."
+    Assert-True $buffText.Contains("If it is black, gain 1 {Terrias_terrias_starlight}") "Star Stone Pouch text must describe black-stone Starlight gain."
     Assert-True $buffText.Contains("equal to the current number of black stones.") "Star Stone Pouch text must describe white-stone Starlight gain."
     Assert-True ([regex]::IsMatch($buffData, '(?m)^"star_stone_pouch".*"TRUE"\r?$')) "Star Stone Pouch buff data must allow a zero-layer pouch while the white stone remains."
     Assert-True ([regex]::IsMatch($buffData, '(?m)^"miracle_clock".*"TRUE"\r?$')) "Miracle Clock buff data must allow a zero-layer clock so depletion can be observed before reset."
     Assert-True $buffData.Contains('BuffScripts.Apply(self, ""star_stone_pouch"")') "Star Stone Pouch buff data must call its apply script."
     Assert-True $buffData.Contains('BuffScripts.Clear(self, ""star_stone_pouch"")') "Star Stone Pouch buff data must call its clear script."
-    $buffRows = Import-Csv -LiteralPath (Join-Path $RepoRoot "SunExp\Data\Buff\sunexp.csv")
+    $buffRows = Import-Csv -LiteralPath (Join-Path $RepoRoot "Terrias\Data\Buff\terrias.csv")
     $starStonePouchRow = $buffRows | Where-Object { $_.Id -eq "star_stone_pouch" } | Select-Object -First 1
     $miracleClockRow = $buffRows | Where-Object { $_.Id -eq "miracle_clock" } | Select-Object -First 1
     $solarRadianceRow = $buffRows | Where-Object { $_.Id -eq "solar_radiance" } | Select-Object -First 1
@@ -3042,13 +3042,13 @@ function Invoke-SourceAssertions {
     Assert-True ($miracleClockRow.Type -eq $traitType) "Miracle Clock must be a trait buff, not a positive ability buff."
     Assert-True ($solarRadianceRow.Type -eq $positiveType) "Solar Radiance must be a positive buff."
     Assert-True ($gatheredFlameRow.Type -eq $positiveType) "Gathered Flame must be a positive buff."
-    Assert-True $buffText.Contains("gain 1/1/1 stacks of {SunExp_sunexp_star_blessing}") "Starlight text must grant one Star Blessing at each threshold."
+    Assert-True $buffText.Contains("gain 1/1/1 stacks of {Terrias_terrias_star_blessing}") "Starlight text must grant one Star Blessing at each threshold."
     $positiveExcludeIdsBlock = [regex]::Match($buffApi, "PositiveExcludeIds[\s\S]*?\};")
     Assert-True $positiveExcludeIdsBlock.Success "Could not locate BuffApi.PositiveExcludeIds for source assertion."
-    Assert-True (-not $positiveExcludeIdsBlock.Value.Contains("SunExpIds.SolarRadiance")) "Solar Radiance must enter global positive buff logic."
-    Assert-True (-not $positiveExcludeIdsBlock.Value.Contains("SunExpIds.GatheredFlame")) "Gathered Flame must enter global positive buff logic."
+    Assert-True (-not $positiveExcludeIdsBlock.Value.Contains("TerriasIds.SolarRadiance")) "Solar Radiance must enter global positive buff logic."
+    Assert-True (-not $positiveExcludeIdsBlock.Value.Contains("TerriasIds.GatheredFlame")) "Gathered Flame must enter global positive buff logic."
     $solarCrownTriggerBlock = [regex]::Match($solarRadianceService, "private\s+static\s+bool\s+TriggerSolarCrown[\s\S]*?private\s+static\s+string\s+SolarCrownEffectSummary")
-    Assert-True ($solarCrownTriggerBlock.Success -and $solarCrownTriggerBlock.Value.Contains("BuffApi.RemoveNegativeBuffsAndTotalExcept") -and $solarCrownTriggerBlock.Value.Contains("SunExpIds.GatheredFlame") -and $solarCrownTriggerBlock.Value.Contains("SunExpIds.Burn") -and $solarCrownTriggerBlock.Value.Contains("SunExpIds.BodyBurn")) "Solar Crown tier 1 must exclude Gathered Flame, Burn, and Body Burn before converting negative buffs to Burn."
+    Assert-True ($solarCrownTriggerBlock.Success -and $solarCrownTriggerBlock.Value.Contains("BuffApi.RemoveNegativeBuffsAndTotalExcept") -and $solarCrownTriggerBlock.Value.Contains("TerriasIds.GatheredFlame") -and $solarCrownTriggerBlock.Value.Contains("TerriasIds.Burn") -and $solarCrownTriggerBlock.Value.Contains("TerriasIds.BodyBurn")) "Solar Crown tier 1 must exclude Gathered Flame, Burn, and Body Burn before converting negative buffs to Burn."
     Assert-True $starScoreService.Contains("gain += 1;") "Starlight threshold rewards must grant one Star Blessing per threshold."
     Assert-True (-not $starScoreService.Contains("gain += 2;")) "Starlight reaching 30 must no longer grant two Star Blessing stacks."
     $positiveBuffsBlock = [regex]::Match($buffApi, "private\s+static\s+IEnumerable<IBuffItem>\s+PositiveBuffs[\s\S]*?private\s+static\s+bool\s+IsNegativeType")
@@ -3066,7 +3066,7 @@ function Invoke-SourceAssertions {
         Assert-True $starScoreNote.Contains('case "' + $stellarId + '":') ("StarScoreNoteCodes must dispatch " + $stellarId + ".")
     }
     $stellarRows = Import-Csv -LiteralPath $cardDataPath | Where-Object { $_.Id -like "*stellar_overture_*" }
-    Assert-True ($stellarRows.Count -eq 4) "SunExp must define all four Stellar Overture cards."
+    Assert-True ($stellarRows.Count -eq 4) "Terrias must define all four Stellar Overture cards."
     foreach ($row in $stellarRows) {
         Assert-True ($row.InitScript -match 'CardScripts\.Init\(self, "([^"]+)"\)') ("Missing CardScripts.Init dispatch for " + $row.Id)
         $initId = $Matches[1].Replace("*", "").Trim()
@@ -3091,24 +3091,24 @@ function Invoke-SourceAssertions {
     Assert-True $starMapTextRow.Description_en.Contains("choose 3 cards to burn") "Star Map text must describe selected burning."
     Assert-True $stellarCloseTextRow.Description_en.Contains("Deal {0} damage") "Stellar Overture: Close must use the first dynamic damage placeholder."
     Assert-True $stellarSustainTextRow.Description_en.Contains("Gain {0} Block") "Stellar Overture: Sustain must use the first dynamic block placeholder."
-    Assert-True (-not $loneerService.Contains("SunExpIds.LoneerGuidanceCardId")) "Loneer guidance must not be stored in per-executor Vars."
+    Assert-True (-not $loneerService.Contains("TerriasIds.LoneerGuidanceCardId")) "Loneer guidance must not be stored in per-executor Vars."
     Assert-True $starScoreService.Contains("StarScoreCombatStateStore.GetOrCreate(self.Self)") "Star score notes must be owner-scoped across card executors."
     Assert-True $starScoreState.Contains("while (notes.Count > Math.Max(1, windowSize))") "Star score must maintain a bounded sliding window."
     Assert-True $starScoreState.Contains("RetainLastNoteAsCadenceStart") "Star score must retain the last overture after a completed cadence."
     Assert-True $starScoreService.Contains("state.RetainLastNoteAsCadenceStart();") "Star score cadence resolution must seed the next cadence with the final overture."
     Assert-True $starScoreService.Contains("DrawCardsForFriendlyParty(self, 2);") "Start-Start-Start cadence must make the friendly party draw two cards."
-    Assert-True ([regex]::IsMatch($starScoreService, 'case NoteStart \+ NoteSustain \+ NoteTurn:[\s\S]*self\.AddBuff\(SunExpIds\.Resonance, "1"\);[\s\S]*AddBuffToFriendlyParty\(self, SunExpIds\.Resonance, 1\);')) "Start-Sustain-Turn cadence must grant self resonance and friendly-party resonance."
-    Assert-True $duskPartnerScripts.Contains("SunExpDuskAfterheatHook") "Dusk trait scripts must remain in the Dusk module."
+    Assert-True ([regex]::IsMatch($starScoreService, 'case NoteStart \+ NoteSustain \+ NoteTurn:[\s\S]*self\.AddBuff\(TerriasIds\.Resonance, "1"\);[\s\S]*AddBuffToFriendlyParty\(self, TerriasIds\.Resonance, 1\);')) "Start-Sustain-Turn cadence must grant self resonance and friendly-party resonance."
+    Assert-True $duskPartnerScripts.Contains("TerriasDuskAfterheatHook") "Dusk trait scripts must remain in the Dusk module."
     Assert-True $scriptEventApi.Contains("TryAddOwnedEventListener") "ScriptEventApi must contain native-owner listener registration behind the GameApi boundary."
-    Assert-True $starClayDollScripts.Contains("SunExpStarClayDollHook") "Star Clay Doll trait scripts must remain in the Star Clay module."
+    Assert-True $starClayDollScripts.Contains("TerriasStarClayDollHook") "Star Clay Doll trait scripts must remain in the Star Clay module."
     Assert-True $starClayDollScripts.Contains('ExecutorApi.TryAddTokenedEvent(self, "ActionAfter"') "Star Clay Doll must grant starlight after an action resolves through the shared tokened event wrapper."
-    Assert-True $entry.Contains("SunExp.Dll.Scripting.DuskPartnerScripts") "XLua registration must expose the Dusk script entry point."
-    Assert-True $entry.Contains("SunExp.Dll.Scripting.StarClayDollScripts") "XLua registration must expose the Star Clay Doll script entry point."
-    Assert-True ([regex]::IsMatch($blessingData, "(?m)^dusk_afterheat_recovery,0,,,Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_1,[^,]*,,5\r?$")) "Dusk afterheat recovery must remain a legal zero-weight technical Blessing for GameEntryUI.CheckCareer."
-    Assert-True ([regex]::IsMatch($partnerData, "(?m)^dusk,10,0,0,0,2,,,Mods/SunExp/ModResource/Images/Partner/SunExp/dusk_choice,Mods/SunExp/ModResource/Images/Partner/SunExp/dusk,Mods/SunExp/ModResource/AnimationLib/Dusk,SunExp_sunexp_dusk_afterheat_recovery,Mods/SunExp/ModResource/Images/Partner/SunExp/dusk\r?$")) "Dusk partner must keep a non-empty Bless column because GameEntryUI.CheckCareer creates a DataConfig from it."
+    Assert-True $entry.Contains("Terrias.Dll.Scripting.DuskPartnerScripts") "XLua registration must expose the Dusk script entry point."
+    Assert-True $entry.Contains("Terrias.Dll.Scripting.StarClayDollScripts") "XLua registration must expose the Star Clay Doll script entry point."
+    Assert-True ([regex]::IsMatch($blessingData, "(?m)^dusk_afterheat_recovery,0,,,Mods/Terrias/ModResource/Images/Buff/Terrias/huanghun_1,[^,]*,,5\r?$")) "Dusk afterheat recovery must remain a legal zero-weight technical Blessing for GameEntryUI.CheckCareer."
+    Assert-True ([regex]::IsMatch($partnerData, "(?m)^dusk,10,0,0,0,2,,,Mods/Terrias/ModResource/Images/Partner/Terrias/dusk_choice,Mods/Terrias/ModResource/Images/Partner/Terrias/dusk,Mods/Terrias/ModResource/AnimationLib/Dusk,Terrias_terrias_dusk_afterheat_recovery,Mods/Terrias/ModResource/Images/Partner/Terrias/dusk\r?$")) "Dusk partner must keep a non-empty Bless column because GameEntryUI.CheckCareer creates a DataConfig from it."
     Assert-True ([regex]::IsMatch($blessingData, "(?m)^star_clay_doll_placeholder,0,,,[^,]+,[^,]*,,5\r?$")) "Star Clay Doll must use a non-conflicting technical Blessing id."
     Assert-True (-not [regex]::IsMatch($blessingData, "(?m)^star_clay_doll_trait,")) "Star Clay Doll Blessing id must not collide with its Buff id."
-    Assert-True ([regex]::IsMatch($partnerData, "(?m)^star_clay_doll,10,0,0,0,2,,,Mods/SunExp/ModResource/Images/Partner/SunExp/RenKui_choice,Mods/SunExp/ModResource/Images/Partner/SunExp/RenKui,Mods/SunExp/ModResource/AnimationLib/Dusk,SunExp_sunexp_star_clay_doll_placeholder,Mods/SunExp/ModResource/Images/Partner/SunExp/RenKui\r?$")) "Star Clay Doll partner must reference its own images and non-conflicting placeholder Blessing."
+    Assert-True ([regex]::IsMatch($partnerData, "(?m)^star_clay_doll,10,0,0,0,2,,,Mods/Terrias/ModResource/Images/Partner/Terrias/RenKui_choice,Mods/Terrias/ModResource/Images/Partner/Terrias/RenKui,Mods/Terrias/ModResource/AnimationLib/Dusk,Terrias_terrias_star_clay_doll_placeholder,Mods/Terrias/ModResource/Images/Partner/Terrias/RenKui\r?$")) "Star Clay Doll partner must reference its own images and non-conflicting placeholder Blessing."
     Assert-True $solarMemoryBlessingPickerRuntime.Contains("IsTechnicalBlessing(id)") "Solar memory blessing picker must skip technical partner blessings."
     Assert-True ($solarMemoryBlessingPickerRuntime.Contains("AuraGameDataCatalogRuntime.SnapshotChanged += OnCatalogSnapshotChanged") -and $solarMemoryBlessingPickerRuntime.Contains("BuildBlessingPools();") -and $solarMemoryBlessingPickerRuntime.Contains("RefreshAll();")) "An open Solar Memory blessing picker must rebuild when the native game-data catalog becomes ready."
     Assert-True $solarMemoryModeRuntime.Contains("SolarMemoryDeckIsolationRuntime.Initialize(modConfig)") "Solar memory mode runtime must delegate deck isolation hook registration."
@@ -3117,22 +3117,22 @@ function Invoke-SourceAssertions {
     Assert-True $solarMemoryMapLifecycleCoordinator.Contains('RegisterBefore(modConfig, "NormalMapManager.RandomGenerate", CaptureSolarMemoryGenerationState)') "Solar memory must capture event records before base map generation can draw ordinary events."
     Assert-True $solarMemoryMapLifecycleCoordinator.Contains('RegisterBefore(modConfig, "MapSelectUI.ReadyToSelect", EnsureSolarMemoryMapBeforeSelect)') "Solar memory must normalize SelectNode immediately before map candidate cards are created."
     Assert-True (-not $solarMemoryModeRuntime.Contains('RegisterBefore(modConfig, "MapManager.TryChange", RouteSolarFinaleBeforeMapChange)')) "Solar finale must not open EventUI from the generic TryChange hook; that can recurse through event init failure."
-    Assert-True (-not $solarMemoryModeRuntime.Contains('ShowEventUIWithTurn<MapSelectUI>("MapSelectUI", SunExpIds.SolarFinaleFullSaintGateEventId)')) "Solar finale must not open the saint gate event from map transition hooks."
+    Assert-True (-not $solarMemoryModeRuntime.Contains('ShowEventUIWithTurn<MapSelectUI>("MapSelectUI", TerriasIds.SolarFinaleFullSaintGateEventId)')) "Solar finale must not open the saint gate event from map transition hooks."
     Assert-True (-not $solarMemoryModeRuntime.Contains("EnterSolarFinaleLayer")) "Solar memory must not route into a dedicated finale map layer."
     Assert-True (-not $solarMemoryModeRuntime.Contains("RepairSolarFinaleMapArrays")) "Solar memory must not force finale map candidates into a pre-boss dialogue or saint boss."
     Assert-True $solarMemoryModeRuntime.Contains("SolarMemorySettlementCoordinator.Initialize(modConfig)") "Solar memory mode runtime must delegate final-layer and legacy-save settlement."
     Assert-True $solarMemorySettlementCoordinator.Contains('"NormalMapManager.MapItemInit"') "Solar memory must settle legacy level-30 saves before native MapItemInit indexes map lists."
     Assert-True $solarMemoryModeRuntime.Contains("SolarMemoryBossTransitionCoordinator.Initialize(modConfig)") "Solar memory mode runtime must delegate boss-win routing to the boss transition coordinator."
     Assert-True $solarMemoryModeRuntime.Contains("SolarMemoryBattleExitCoordinator.Initialize(modConfig)") "Solar memory mode runtime must delegate fight-abort hook registration to the exit coordinator."
-    Assert-True $solarMemoryBattleExitCoordinator.Contains("SunExpHookTargets.FightEscapeResetStates") "Solar memory fight escape coordinator must own the native reset boundary."
-    Assert-True $solarMemoryBattleExitCoordinator.Contains("SunExpHookTargets.FightLossInit") "Solar memory fight loss coordinator must own the native loss boundary."
+    Assert-True $solarMemoryBattleExitCoordinator.Contains("TerriasHookTargets.FightEscapeResetStates") "Solar memory fight escape coordinator must own the native reset boundary."
+    Assert-True $solarMemoryBattleExitCoordinator.Contains("TerriasHookTargets.FightLossInit") "Solar memory fight loss coordinator must own the native loss boundary."
     Assert-True $solarMemoryBattleExitCoordinator.Contains('EnsureCurrentNodeForTransition("Fight_Escape.ResetStates:before")') "Solar memory escape must repair current node before MapManager.TryChange can consume it."
     Assert-True $solarMemoryBattleExitCoordinator.Contains('CloseTransientUi("Fight_Escape.ResetStates:after")') "Solar memory escape must close transient setup UI after native fight reset."
     Assert-True (-not $solarMemoryModeRuntime.Contains("ClearSolarFinalePendingBattle")) "Solar memory must not retain pending finale-battle cleanup after retiring finale events."
-    Assert-True $solarMemoryBattleExitCoordinator.Contains('SunExpUiSafety.DisableRaycastsAndDestroyByName("SunExpSolarMemoryStarterDeck", source, LogPrefix)') "Solar memory UI cleanup must route starter-deck teardown through SunExpUiSafety."
+    Assert-True $solarMemoryBattleExitCoordinator.Contains('TerriasUiSafety.DisableRaycastsAndDestroyByName("TerriasSolarMemoryStarterDeck", source, LogPrefix)') "Solar memory UI cleanup must route starter-deck teardown through TerriasUiSafety."
     Assert-True (-not $solarMemoryModeRuntime.Contains("handlingSolarMemoryFightAbort")) "Solar memory mode runtime must not retain fight-abort coordination state."
     Assert-True (-not $solarMemoryModeRuntime.Contains("PrepareSolarMemoryFightAbort")) "Solar memory mode runtime must not retain fight-abort hook handlers."
-    Assert-True (-not $solarMemoryModeRuntime.Contains("SunExpUiSafety.DisableRaycastsAndDestroyByName")) "Solar memory mode runtime must not retain fight-abort UI teardown."
+    Assert-True (-not $solarMemoryModeRuntime.Contains("TerriasUiSafety.DisableRaycastsAndDestroyByName")) "Solar memory mode runtime must not retain fight-abort UI teardown."
     Assert-True (-not $solarMemoryModeRuntime.Contains("SettleSolarMemoryBossAfterWin")) "Solar memory mode runtime must not retain boss-win hook handlers."
     Assert-True (-not $solarMemoryModeRuntime.Contains("solarMemoryStorySettlementPending")) "Solar memory mode runtime must not retain boss-dialogue pending state."
     Assert-True (-not $solarMemoryModeRuntime.Contains("FinishSolarMemoryAfterFinalLayer")) "Solar memory mode runtime must not retain final-layer settlement handlers."
@@ -3140,40 +3140,40 @@ function Invoke-SourceAssertions {
     Assert-True $solarMemorySettlementCoordinator.Contains("SolarMemoryBossTransitionCoordinator.IsSettlementPending") "Solar memory settlement gates must observe coordinator-owned dialogue state."
     Assert-True $solarMemorySettlementCoordinator.Contains("SolarMemorySettlementPresenter.Show()") "Solar memory settlement coordinator must delegate native GameExitUI presentation."
     Assert-True $solarMemoryBossTransitionCoordinator.Contains("SolarMemorySettlementCoordinator.CompleteSolarMemoryRunForSettlement") "Solar memory boss completion must delegate to the settlement coordinator."
-    Assert-True $solarMemoryBossTransitionCoordinator.Contains("SunExpHookTargets.FightWinResetStates") "Solar memory boss transition coordinator must own the native victory boundary."
-    Assert-True $sunExpUiSafety.Contains("UiRaycastSafeDestroyRuntime.DisableAndHide") "Solar memory UI cleanup must disable and hide UI before destroying it."
-    Assert-True $sunExpUiSafety.Contains("ScrubGraphicRegistryForFrames") "Solar memory UI cleanup must scrub stale graphics after transient UI teardown."
-    Assert-True $sunExpUiSafety.Contains("Object.Destroy(root)") "Solar memory UI cleanup must destroy only after disabling raycasts."
-    Assert-True $sunExpModalHost.Contains("SunExpUiSafety.CloseTransient") "SunExp modal host must centralize transient UI teardown."
-    Assert-True $dirtyState.Contains("public sealed class SunExpDirtyState") "Repeated UI rebuild guards must use a shared dirty-state helper."
-    Assert-True $dirtyState.Contains('SunExpPerformanceCounters.Record("DirtyState.Skipped")') "Dirty-state skips must be visible to performance counters."
-    Assert-True $sunExpUiLifetimeScope.Contains("button.onClick.RemoveListener(action)") "Pooled UI button listeners must be detachable."
-    Assert-True $sunExpUiPool.Contains("public static class SunExpUiPool") "SunExp local UI pooling must be centralized."
-    Assert-True $sunExpUiPool.Contains("SunExpPerformanceSettings.UiPoolCapacityPerKey") "SunExp UI pooling must obey performance-tier capacity caps."
-    Assert-True $sunExpUiPool.Contains("button.onClick.RemoveAllListeners()") "SunExp UI pooling must scrub stale button listeners before reuse."
-    Assert-True $sunExpUiSprites.Contains("private static readonly Dictionary<string, Sprite?> Cache") "SunExp UI sprites must share a cache across modal windows."
-    Assert-True $sunExpUiBuilder.Contains("public static Image ApplyPanelImage") "SunExp local UI builder must expose reusable panel image creation."
-    Assert-True $solarMemoryStarterDeckRuntime.Contains("SunExpUiBuilder.ApplyPanelImage") "Solar memory starter deck UI must reuse SunExpUiBuilder panel creation."
-    Assert-True $solarMemoryBlessingPickerRuntime.Contains("SunExpUiBuilder.ApplyPanelImage") "Solar memory blessing picker UI must reuse SunExpUiBuilder panel creation."
-    Assert-True $solarMemorySetupFlowRuntime.Contains("SunExpUiBuilder.ApplyPanelImage") "Solar memory setup flow UI must reuse SunExpUiBuilder panel creation."
-    Assert-True $solarMemoryStarterDeckRuntime.Contains("SunExpModalHost.Close(ref activePanel") "Solar memory starter deck close must route through SunExpModalHost."
-    Assert-True $solarMemorySetupFlowRuntime.Contains("SunExpModalHost.Close(ref activeOriginRoot") "Solar memory origin setup close must route through SunExpModalHost."
-    Assert-True $solarMemorySetupFlowRuntime.Contains("SunExpModalHost.Close(ref activeBlessingChrome") "Solar memory blessing setup chrome close must route through SunExpModalHost."
-    Assert-True $solarMemoryBlessingPickerRuntime.Contains("SunExpModalHost.Close(ref activePanel") "Solar memory blessing picker close must route through SunExpModalHost."
-    Assert-True $endlessSeaIntroBoardRuntime.Contains("SunExpUiBuilder.ApplyPanelImage") "Endless Sea intro board must reuse shared panel creation."
-    Assert-True $endlessSeaIntroBoardRuntime.Contains("SunExpModalHost.Close(ref activePanel") "Endless Sea intro board close must route through SunExpModalHost."
+    Assert-True $solarMemoryBossTransitionCoordinator.Contains("TerriasHookTargets.FightWinResetStates") "Solar memory boss transition coordinator must own the native victory boundary."
+    Assert-True $terriasUiSafety.Contains("UiRaycastSafeDestroyRuntime.DisableAndHide") "Solar memory UI cleanup must disable and hide UI before destroying it."
+    Assert-True $terriasUiSafety.Contains("ScrubGraphicRegistryForFrames") "Solar memory UI cleanup must scrub stale graphics after transient UI teardown."
+    Assert-True $terriasUiSafety.Contains("Object.Destroy(root)") "Solar memory UI cleanup must destroy only after disabling raycasts."
+    Assert-True $terriasModalHost.Contains("TerriasUiSafety.CloseTransient") "Terrias modal host must centralize transient UI teardown."
+    Assert-True $dirtyState.Contains("public sealed class TerriasDirtyState") "Repeated UI rebuild guards must use a shared dirty-state helper."
+    Assert-True $dirtyState.Contains('TerriasPerformanceCounters.Record("DirtyState.Skipped")') "Dirty-state skips must be visible to performance counters."
+    Assert-True $terriasUiLifetimeScope.Contains("button.onClick.RemoveListener(action)") "Pooled UI button listeners must be detachable."
+    Assert-True $terriasUiPool.Contains("public static class TerriasUiPool") "Terrias local UI pooling must be centralized."
+    Assert-True $terriasUiPool.Contains("TerriasPerformanceSettings.UiPoolCapacityPerKey") "Terrias UI pooling must obey performance-tier capacity caps."
+    Assert-True $terriasUiPool.Contains("button.onClick.RemoveAllListeners()") "Terrias UI pooling must scrub stale button listeners before reuse."
+    Assert-True $terriasUiSprites.Contains("private static readonly Dictionary<string, Sprite?> Cache") "Terrias UI sprites must share a cache across modal windows."
+    Assert-True $terriasUiBuilder.Contains("public static Image ApplyPanelImage") "Terrias local UI builder must expose reusable panel image creation."
+    Assert-True $solarMemoryStarterDeckRuntime.Contains("TerriasUiBuilder.ApplyPanelImage") "Solar memory starter deck UI must reuse TerriasUiBuilder panel creation."
+    Assert-True $solarMemoryBlessingPickerRuntime.Contains("TerriasUiBuilder.ApplyPanelImage") "Solar memory blessing picker UI must reuse TerriasUiBuilder panel creation."
+    Assert-True $solarMemorySetupFlowRuntime.Contains("TerriasUiBuilder.ApplyPanelImage") "Solar memory setup flow UI must reuse TerriasUiBuilder panel creation."
+    Assert-True $solarMemoryStarterDeckRuntime.Contains("TerriasModalHost.Close(ref activePanel") "Solar memory starter deck close must route through TerriasModalHost."
+    Assert-True $solarMemorySetupFlowRuntime.Contains("TerriasModalHost.Close(ref activeOriginRoot") "Solar memory origin setup close must route through TerriasModalHost."
+    Assert-True $solarMemorySetupFlowRuntime.Contains("TerriasModalHost.Close(ref activeBlessingChrome") "Solar memory blessing setup chrome close must route through TerriasModalHost."
+    Assert-True $solarMemoryBlessingPickerRuntime.Contains("TerriasModalHost.Close(ref activePanel") "Solar memory blessing picker close must route through TerriasModalHost."
+    Assert-True $endlessSeaIntroBoardRuntime.Contains("TerriasUiBuilder.ApplyPanelImage") "Endless Sea intro board must reuse shared panel creation."
+    Assert-True $endlessSeaIntroBoardRuntime.Contains("TerriasModalHost.Close(ref activePanel") "Endless Sea intro board close must route through TerriasModalHost."
     Assert-True $endlessSeaIntroBoardRuntime.Contains("ScrollRect") "Endless Sea intro board body must be scrollable."
     Assert-True $endlessSeaIntroBoardRuntime.Contains("supportRichText = true") "Endless Sea intro board must enable controlled rich text."
     Assert-True $endlessSeaIntroBoardRuntime.Contains("EndlessSeaRichTextSanitizer.Sanitize") "Endless Sea intro board must sanitize rich text before display."
     Assert-True (-not $endlessSeaIntroBoardRuntime.Contains("WebView")) "Endless Sea intro board must not embed web content."
-    Assert-True $solarMemoryStarterDeckRuntime.Contains("SunExpUiPool.AcquireComponent") "Solar memory starter deck list rows must reuse pooled UI."
+    Assert-True $solarMemoryStarterDeckRuntime.Contains("TerriasUiPool.AcquireComponent") "Solar memory starter deck list rows must reuse pooled UI."
     Assert-True $solarMemoryStarterDeckRuntime.Contains("deckListDirty.ShouldRefresh") "Solar memory starter deck selected list must skip unchanged rebuilds."
-    Assert-True $solarMemoryBlessingPickerRuntime.Contains("SunExpUiPool.AcquireConfiguredComponent") "Solar memory blessing picker list rows must bind pooled UI before activation."
+    Assert-True $solarMemoryBlessingPickerRuntime.Contains("TerriasUiPool.AcquireConfiguredComponent") "Solar memory blessing picker list rows must bind pooled UI before activation."
     Assert-True $solarMemoryBlessingPickerRuntime.Contains("selectedRows") "Solar memory blessing picker selected rows must reconcile incrementally."
     Assert-True $solarMemoryBlessingPickerRuntime.Contains("candidateListDirty.ShouldRefresh") "Solar memory blessing candidates must skip unchanged rebuilds."
-    Assert-True $solarMemoryStarterDeckRuntime.Contains("SunExpUiSprites.Button") "Solar memory starter deck must use cached shared button sprites."
-    Assert-True $solarMemorySetupFlowRuntime.Contains("SunExpUiSprites.Button") "Solar memory setup flow must use cached shared button sprites."
-    Assert-True $solarMemoryBlessingPickerRuntime.Contains("SunExpUiSprites.Button") "Solar memory blessing picker must use cached shared button sprites."
+    Assert-True $solarMemoryStarterDeckRuntime.Contains("TerriasUiSprites.Button") "Solar memory starter deck must use cached shared button sprites."
+    Assert-True $solarMemorySetupFlowRuntime.Contains("TerriasUiSprites.Button") "Solar memory setup flow must use cached shared button sprites."
+    Assert-True $solarMemoryBlessingPickerRuntime.Contains("TerriasUiSprites.Button") "Solar memory blessing picker must use cached shared button sprites."
     $solarMemorySetupUiSources = $solarMemoryStarterDeckRuntime + $solarMemorySetupFlowRuntime + $solarMemoryBlessingPickerRuntime
     Assert-True (-not $solarMemorySetupUiSources.Contains("CreateNineSliceSprite")) "Solar memory setup windows must not duplicate nine-slice sprite construction."
     Assert-True (-not $solarMemorySetupUiSources.Contains("GetButtonSprite")) "Solar memory setup windows must not keep per-window button sprite caches."
@@ -3183,10 +3183,10 @@ function Invoke-SourceAssertions {
     Assert-True $solarMemoryFlowApi.Contains("SolarMemorySettlementCoordinator.ShowSolarMemorySettlement()") "SolarMemoryFlowApi must delegate explicit settlement display to the settlement coordinator."
     Assert-True (-not $eventScripts.Contains("InitSolarFinale")) "Retired solar finale EventList entries must not leave script entry points behind."
     Assert-True (-not $eventScripts.Contains("FinishSolarFinaleEnding")) "Retired solar finale ending must not be opened through EventScripts."
-    Assert-True (-not $sunExpIds.Contains("SolarFinaleFullEndingEventId")) "Retired solar finale ending event id must not remain in SunExpIds."
+    Assert-True (-not $terriasIds.Contains("SolarFinaleFullEndingEventId")) "Retired solar finale ending event id must not remain in TerriasIds."
     Assert-True $solarMemoryMapLifecycleCoordinator.Contains("RepairSolarMemoryMapSelection") "Solar memory map lifecycle must repair synchronized arrays for fixed nodes."
-    Assert-True $solarMemoryModeEntryRuntime.Contains("Mods/SunExp/ModResource/Images/UI/solar_memory_title_c.png") "Solar memory mode entry must load its cropped normal title sprite."
-    Assert-True $solarMemoryModeEntryRuntime.Contains("Mods/SunExp/ModResource/Images/UI/solar_memory_title_c_h.png") "Solar memory mode entry must load its cropped highlighted title sprite."
+    Assert-True $solarMemoryModeEntryRuntime.Contains("Mods/Terrias/ModResource/Images/UI/solar_memory_title_c.png") "Solar memory mode entry must load its cropped normal title sprite."
+    Assert-True $solarMemoryModeEntryRuntime.Contains("Mods/Terrias/ModResource/Images/UI/solar_memory_title_c_h.png") "Solar memory mode entry must load its cropped highlighted title sprite."
     Assert-True $solarMemoryModeEntryRuntime.Contains('VisualRegistry.ModeEntry("solar_memory")') "Solar memory mode entry title art must resolve from the visual registry."
     Assert-True $solarMemoryModeEntryRuntime.Contains('var normalTitle = entry.Find("Normal/Title")') "Solar memory mode entry must locate the native normal title image."
     Assert-True $solarMemoryModeEntryRuntime.Contains('var highlightedTitle = entry.Find("HighLighted/Title")') "Solar memory mode entry must locate the native highlighted title image."
@@ -3250,7 +3250,7 @@ function Invoke-SourceAssertions {
     Assert-True $modeChoiceLayoutRuntime.Contains("CopyRectShape(rightmostNative.Rect, target)") "Mode choice custom entries must copy native RectTransform shape instead of inventing anchors."
     Assert-True $modeChoiceLayoutRuntime.Contains("SetCenterInReference") "Mode choice custom entries must be appended in ModeList local coordinates."
     Assert-True $modeChoiceEntryDefinition.Contains("Action<ModeChoiceUI>? Activate") "Mode choice entries must carry a launch callback for fallback UI."
-    Assert-True $solarMemoryModeEntryRuntime.Contains("SunExpIds.SolarMemoryTitle") "Solar memory mode entry must provide its display name to fallback UI."
+    Assert-True $solarMemoryModeEntryRuntime.Contains("TerriasIds.SolarMemoryTitle") "Solar memory mode entry must provide its display name to fallback UI."
     Assert-True (-not $modeChoiceLayoutRuntime.Contains("Screen.width")) "Mode choice layout runtime must not mix screen pixels with RectTransform local coordinates."
     Assert-True (-not $modeChoiceLayoutRuntime.Contains("rect.anchorMin = new Vector2(0.5f, 0.5f)")) "Mode choice layout runtime must not recenter every native entry."
     Assert-True (-not $modeChoiceLayoutRuntime.Contains("LayoutScale")) "Mode choice layout runtime must not globally scale mode entries."
@@ -3258,15 +3258,15 @@ function Invoke-SourceAssertions {
     Assert-True ([regex]::IsMatch($solarMemoryMapNodePoolApplier, 'selectStart\s*=\s*pool\.Layer\s*\*\s*pool\.SelectSegmentSize')) "Solar memory candidate SelectNode entries must be rewritten for the current layer."
     Assert-True $solarMemoryMapNodePoolApplier.Contains("MapNodeSafetyService.EnsureNodeDice(tree, replacement") "Solar memory node pool application must validate replacement NodeDice before inserting nodes."
     Assert-True $solarMemoryMapNodePoolApplier.Contains("TrimSolarMemoryEventRecord") "Solar memory must roll back ordinary event records consumed during base map generation."
-    Assert-True $sunExpIds.Contains("SolarMemoryEventIds") "Solar memory must define all fixed story event ids."
-    Assert-True $sunExpIds.Contains("Sub_solar_memory_above_sacred_wheel") "Solar memory id list must include the sixth fixed event."
-    Assert-True $sunExpIds.Contains("SolarMemoryLayerNames") "Solar memory must define custom layer names."
+    Assert-True $terriasIds.Contains("SolarMemoryEventIds") "Solar memory must define all fixed story event ids."
+    Assert-True $terriasIds.Contains("Sub_solar_memory_above_sacred_wheel") "Solar memory id list must include the sixth fixed event."
+    Assert-True $terriasIds.Contains("SolarMemoryLayerNames") "Solar memory must define custom layer names."
     Assert-True $solarMemoryMapVisualRuntime.Contains('"MapSelectUI.DataUpdate", SolarMemoryMapProjectionRuntime.ApplySolarMemoryLayerTitle') "Solar memory must override map layer titles through the projection runtime."
     Assert-True $solarMemoryMapVisualRuntime.Contains('"NormalMapManager.MapItemInit", SolarMemoryMapProjectionRuntime.ApplySolarMemoryFixedSlotsAfterMapItems') "Solar memory map visuals must project fixed slots after native map item creation."
     Assert-True $solarMemoryMapVisualRuntime.Contains('"MapSelectUI.ShowMap", SolarMemoryMapLifecycleCoordinator.ReapplySolarMemoryFixedSlotLocks') "Solar memory map visuals must reapply fixed-slot locks through the map lifecycle coordinator."
     Assert-True $solarMemoryMapLifecycleCoordinator.Contains("SolarMemoryMapProjectionRuntime.ApplySolarMemoryFixedSlots") "Solar memory map lifecycle must delegate fixed-slot Unity mutation to the projection runtime."
     Assert-True $solarMemoryMapProjectionRuntime.Contains('VisualRegistry.TexturePath("solar_memory.event_map_card")') "Solar memory projection must resolve event map-card art through the visual registry."
-    Assert-True $solarMemoryMapProjectionRuntime.Contains("SunExpResourceCache.Load<Texture>") "Solar memory projection must load map-card textures through the shared resource cache."
+    Assert-True $solarMemoryMapProjectionRuntime.Contains("TerriasResourceCache.Load<Texture>") "Solar memory projection must load map-card textures through the shared resource cache."
     Assert-True $solarMemoryMapProjectionRuntime.Contains("MapItemApi.ApplyCardBackgroundTexture") "Solar memory projection must route MapItem texture compatibility through MapItemApi."
     Assert-True $solarMemoryMapProjectionRuntime.Contains("objectGroup.blocksRaycasts = false") "Solar memory fixed-slot visuals must remain non-blocking for raycasts."
     Assert-True (-not $solarMemoryModeRuntime.Contains("using UnityEngine")) "SolarMemoryModeRuntime must not retain direct Unity visual dependencies."
@@ -3293,34 +3293,34 @@ function Invoke-SourceAssertions {
     Assert-True $solarMemoryMapNodePoolFactory.Contains("dice.Roll().Value") "Solar memory boss nodes must consume a unique tree-dice cursor per node."
     Assert-True (-not $solarMemoryMapNodePoolFactory.Contains("node.NodeDice = tree.treedice ?? Dice.Default")) "Solar memory boss nodes must not reuse the shared tree dice directly."
     Assert-True $solarMemoryMapNodePoolFactory.Contains("IsSolarMemoryFixedStoryBoss") "Solar memory expanded boss pool must exclude fixed Wuna story bosses."
-    Assert-True $sunExpIds.Contains("SolarBossOrbitMirrorMapId") "Solar memory must define the fixed mirror-array boss map id."
-    Assert-True $sunExpIds.Contains("SolarBossSecondSunMapId") "Solar memory must define the fixed second-sun boss map id."
-    Assert-True $sunExpIds.Contains("SolarBossSaintWunaMapId") "Solar memory must define the hidden saint boss map id."
+    Assert-True $terriasIds.Contains("SolarBossOrbitMirrorMapId") "Solar memory must define the fixed mirror-array boss map id."
+    Assert-True $terriasIds.Contains("SolarBossSecondSunMapId") "Solar memory must define the fixed second-sun boss map id."
+    Assert-True $terriasIds.Contains("SolarBossSaintWunaMapId") "Solar memory must define the hidden saint boss map id."
     Assert-True $solarMemorySettlementCoordinator.Contains('"NormalMapManager.ReadyToChangeMap"') "Solar finale routing must hook ReadyToChangeMap through the settlement coordinator."
     Assert-True (-not $solarMemoryModeRuntime.Contains("SolarFinalePhysicalStartLevel")) "Solar memory immediate settlement must not keep a separate finale physical level."
     Assert-True (-not $solarMemoryMapNodePoolApplier.Contains("IsFinaleLayer() ? 0")) "Solar memory node application must not carry finale segment remapping when completion settles immediately."
-    Assert-True $entry.Contains("SunExp.Dll.Scripting.BossScripts") "Entry must register BossScripts for CSV script calls."
+    Assert-True $entry.Contains("Terrias.Dll.Scripting.BossScripts") "Entry must register BossScripts for CSV script calls."
     Assert-True $bossScripts.Contains("public static void InitCard") "BossScripts must expose enemy-card init for CSV rows."
     Assert-True $bossScripts.Contains("public static void UseCard") "BossScripts must expose enemy-card use behavior for CSV rows."
-    Assert-True $sunExpIds.Contains("BossTraitMirrorArray") "SunExpIds must define the mirror-array boss trait buff id."
-    Assert-True $sunExpIds.Contains("BossTraitMercilessDaylight") "SunExpIds must define the merciless-daylight boss trait buff id."
-    Assert-True $sunExpIds.Contains("BossTraitWhiteRadianceSaint") "SunExpIds must define the white-radiance-saint boss trait buff id."
+    Assert-True $terriasIds.Contains("BossTraitMirrorArray") "TerriasIds must define the mirror-array boss trait buff id."
+    Assert-True $terriasIds.Contains("BossTraitMercilessDaylight") "TerriasIds must define the merciless-daylight boss trait buff id."
+    Assert-True $terriasIds.Contains("BossTraitWhiteRadianceSaint") "TerriasIds must define the white-radiance-saint boss trait buff id."
     Assert-True $buffScripts.Contains('"boss_trait_mirror_array"') "BuffScripts must route mirror-array boss trait apply/clear."
     Assert-True $buffScripts.Contains('"boss_trait_merciless_daylight"') "BuffScripts must route merciless-daylight boss trait apply/clear."
     Assert-True $buffScripts.Contains('"boss_trait_white_radiance_saint"') "BuffScripts must route white-radiance-saint boss trait apply/clear."
     Assert-True $buffScripts.Contains("BossScripts.ApplyTrait(self, id)") "BuffScripts must delegate boss trait apply to BossScripts."
     Assert-True $buffScripts.Contains("BossScripts.ClearTrait(self, id)") "BuffScripts must delegate boss trait clear to BossScripts."
-    Assert-True $bossScripts.Contains("ApplyBossTraitBuff(self, SunExpIds.BossTraitMirrorArray)") "Mirror-array boss init must grant its trait buff."
-    Assert-True $bossScripts.Contains("ApplyBossTraitBuff(self, SunExpIds.BossTraitMercilessDaylight)") "Second-sun boss init must grant its trait buff."
-    Assert-True $bossScripts.Contains("ApplyBossTraitBuff(self, SunExpIds.BossTraitWhiteRadianceSaint)") "Saint Wuna boss init must grant its trait buff."
+    Assert-True $bossScripts.Contains("ApplyBossTraitBuff(self, TerriasIds.BossTraitMirrorArray)") "Mirror-array boss init must grant its trait buff."
+    Assert-True $bossScripts.Contains("ApplyBossTraitBuff(self, TerriasIds.BossTraitMercilessDaylight)") "Second-sun boss init must grant its trait buff."
+    Assert-True $bossScripts.Contains("ApplyBossTraitBuff(self, TerriasIds.BossTraitWhiteRadianceSaint)") "Saint Wuna boss init must grant its trait buff."
     Assert-True $bossScripts.Contains("TriggerMirrorArray") "BossScripts must implement the mirror-array trait trigger."
     Assert-True $bossScripts.Contains("TriggerMercilessDaylight") "BossScripts must implement the merciless-daylight trait trigger."
     Assert-True $bossScripts.Contains("TriggerWhiteRadianceSaint") "BossScripts must implement the white-radiance-saint trait trigger."
     Assert-True $bossScripts.Contains("MoveSavedNameToBurned") "Merciless daylight must be able to convert preserved names into burned names."
     Assert-True $bossScripts.Contains("MoveSavedNameToNameless") "White Radiance Saint must be able to convert preserved names into nameless people."
-    Assert-True $sunExpIds.Contains('public const string Cripple = "buff_cripple";') "SunExpIds must expose the official Cripple buff id."
-    Assert-True $sunExpIds.Contains("BossWhiteRadianceCrown") "SunExpIds must define the White Radiance Crown boss buff id."
-    Assert-True $sunExpIds.Contains("EnemyCardSaintWhiteEdict") "SunExpIds must define the White Radiance extra-action card id."
+    Assert-True $terriasIds.Contains('public const string Cripple = "buff_cripple";') "TerriasIds must expose the official Cripple buff id."
+    Assert-True $terriasIds.Contains("BossWhiteRadianceCrown") "TerriasIds must define the White Radiance Crown boss buff id."
+    Assert-True $terriasIds.Contains("EnemyCardSaintWhiteEdict") "TerriasIds must define the White Radiance extra-action card id."
     Assert-True $buffApi.Contains("public static bool RemovePositiveBuffs") "BuffApi must support clearing all positive statuses from a target."
     Assert-True $executorApi.Contains("public static bool DealDamageToTarget") "ExecutorApi must expose explicit target damage for multiplayer boss actions."
     Assert-True $executorApi.Contains("public static bool AddEnemyAction") "ExecutorApi must expose a safe enemy-action append wrapper."
@@ -3328,9 +3328,9 @@ function Invoke-SourceAssertions {
     Assert-True $playerApi.Contains("public static string LocalPlayerStatusId") "PlayerApi must expose a local player status id for per-player local effects."
     Assert-True $bossScripts.Contains("LastDayNoonDamage = 28") "Second Sun noon action must deal 28 damage."
     Assert-True $bossScripts.Contains("ExecutorApi.DealDamageToTarget(self, noonTarget, LastDayNoonDamage)") "Second Sun noon action must deal damage to its explicit target."
-    Assert-True $bossScripts.Contains("SunExpIds.Cripple") "Second Sun noon action must apply the official Cripple buff."
-    Assert-True $bossScripts.Contains("ExecutorApi.AddStatusBuff(self, target, SunExpIds.Burn, MirrorArrayBurn);") "Mirror Array must apply Burn before counting total Burn stacks."
-    Assert-True $bossScripts.Contains("burnTotal += ExecutorApi.StatusBuffLevel(target, SunExpIds.Burn);") "Mirror Array shield must count post-application Burn stacks across all targets."
+    Assert-True $bossScripts.Contains("TerriasIds.Cripple") "Second Sun noon action must apply the official Cripple buff."
+    Assert-True $bossScripts.Contains("ExecutorApi.AddStatusBuff(self, target, TerriasIds.Burn, MirrorArrayBurn);") "Mirror Array must apply Burn before counting total Burn stacks."
+    Assert-True $bossScripts.Contains("burnTotal += ExecutorApi.StatusBuffLevel(target, TerriasIds.Burn);") "Mirror Array shield must count post-application Burn stacks across all targets."
     Assert-True $bossScripts.Contains("maxHp * burnTotal / 100") "Mirror Array shield must scale by 1 percent max HP per Burn stack."
     Assert-True $bossScripts.Contains("MercilessDaylightBodyBurn = 10") "Second Sun failed name burn must apply 10 Body Burn."
     Assert-True (-not $bossScripts.Contains("MercilessDaylightFlame")) "Second Sun trait must no longer grant gathered flame after burning names."
@@ -3374,9 +3374,9 @@ function Invoke-SourceAssertions {
     Assert-True $buffText.Contains("Crown Manifestation: White Radiance") "Buff text must localize White Radiance Crown."
     Assert-True $enemyCardText.Contains("Noonday Spinebreaker") "EnemyCard text must describe the strengthened Second Sun noon action."
     Assert-True $enemyCardText.Contains("White Radiance Edict") "EnemyCard text must localize Wuna's extra action."
-    Assert-True $enemyData.Contains("SunExp_sunexp_boss_trait_mirror_array") "Mirror-array enemy data must expose its trait in AttributeText."
-    Assert-True $enemyData.Contains("SunExp_sunexp_boss_trait_merciless_daylight") "Second-sun enemy data must expose its trait in AttributeText."
-    Assert-True $enemyData.Contains("SunExp_sunexp_boss_trait_white_radiance_saint") "Saint Wuna enemy data must expose its trait in AttributeText."
+    Assert-True $enemyData.Contains("Terrias_terrias_boss_trait_mirror_array") "Mirror-array enemy data must expose its trait in AttributeText."
+    Assert-True $enemyData.Contains("Terrias_terrias_boss_trait_merciless_daylight") "Second-sun enemy data must expose its trait in AttributeText."
+    Assert-True $enemyData.Contains("Terrias_terrias_boss_trait_white_radiance_saint") "Saint Wuna enemy data must expose its trait in AttributeText."
     Assert-True ([regex]::IsMatch($enemyData, "(?m)^boss_orbit_mirror_array,[^,]*,180,12,8,2,3,")) "Mirror-array boss must use enemy rarity 3 so it appears under the official Boss dictionary filter."
     Assert-True ([regex]::IsMatch($enemyData, "(?m)^boss_second_sun_last_day,[^,]*,360,16,12,2,3,")) "Second-sun boss must use enemy rarity 3 so it appears under the official Boss dictionary filter."
     Assert-True ([regex]::IsMatch($enemyData, "(?m)^boss_saint_wuna,[^,]*,320,14,14,2,3,")) "Saint Wuna boss must use enemy rarity 3 so it appears under the official Boss dictionary filter."
@@ -3409,23 +3409,23 @@ function Invoke-SourceAssertions {
     Assert-True $gameCompatibilityApi.Contains("GetItemsByPackFallback") "Card-pack compatibility lookup must retain a table-scan fallback."
     Assert-True (-not $solarMemoryStarterDeckRuntime.Contains(".GetPackItems(")) "Solar memory starter deck must not bind directly to the unstable GetPackItems signature."
     Assert-True (-not $solarMemoryModeRuntime.Contains(".GetPackItems(")) "Solar memory setup UI must not bind directly to the unstable GetPackItems signature."
-    $sunsetExpedition = [regex]::Match($sunExpHardTagRuntime, "private\s+static\s+void\s+ApplySunsetExpedition\(\)[\s\S]*?(?=private\s+static\s+)")
+    $sunsetExpedition = [regex]::Match($terriasHardTagRuntime, "private\s+static\s+void\s+ApplySunsetExpedition\(\)[\s\S]*?(?=private\s+static\s+)")
     Assert-True $sunsetExpedition.Success "Could not locate ApplySunsetExpedition for source assertion."
     Assert-True (-not $sunsetExpedition.Value.Contains("MirrorSc")) "Sunset Expedition must not borrow the player's generic MirrorSc executor."
     Assert-True (-not $sunsetExpedition.Value.Contains("ChangeHp")) "Sunset Expedition must not call ChangeHp without a dataConfig Id."
     Assert-True $sunsetExpedition.Value.Contains("status.CurHp = nextHp") "Sunset Expedition must apply HP loss through the synchronized status property."
     Assert-True $sunsetExpedition.Value.Contains("if (IsServerAuthority())") "Only the host may advance the shared Sunset Expedition fight count."
-    Assert-True (-not $sunExpHardTagRuntime.Contains("ApplyWhiteRadianceCourtCards")) "White Radiance Court must not attach White Radiance to player cards."
-    Assert-True (-not $sunExpHardTagRuntime.Contains("ApplyWhiteRadianceToRunDeck")) "White Radiance Court must not mutate the run deck."
-    Assert-True (-not $sunExpHardTagRuntime.Contains("ApplyWhiteRadianceToFightZones")) "White Radiance Court must not mutate combat card zones."
-    Assert-True $sunExpHardTagRuntime.Contains("CombatVarApi.AddInt(AbyssalShockHpStacksKey, 1)") "Abyssal Shock HP option must add one stack every time it triggers."
-    Assert-True $sunExpHardTagRuntime.Contains("while (applied < stacks)") "Abyssal Shock enemy HP scaling must catch enemies up to every triggered HP stack."
-    Assert-True $sunExpHardTagRuntime.Contains("Math.Ceiling(Math.Max(1, value) * 1.3)") "Abyssal Shock HP scaling must multiply MaxHp/CurHp by 1.3 each stack."
-    Assert-True $sunExpHardTagRuntime.Contains("SunExpLifecycleStepRunner.RunBattleOnce") "Hard-tag fight-start work must route through the lifecycle frame-step service."
-    Assert-True $sunExpHardTagRuntime.Contains('"FightInitialized"') "Hard-tag fight-start work must target the FightInitialized lifecycle."
-    Assert-True $sunExpHardTagRuntime.Contains('new SunExpFrameStep("MorningStarDimmed", () => MorningStarDimmedService.OnFightStarted') "Morning Star Dimmed fight-start work must be split as a lifecycle step."
+    Assert-True (-not $terriasHardTagRuntime.Contains("ApplyWhiteRadianceCourtCards")) "White Radiance Court must not attach White Radiance to player cards."
+    Assert-True (-not $terriasHardTagRuntime.Contains("ApplyWhiteRadianceToRunDeck")) "White Radiance Court must not mutate the run deck."
+    Assert-True (-not $terriasHardTagRuntime.Contains("ApplyWhiteRadianceToFightZones")) "White Radiance Court must not mutate combat card zones."
+    Assert-True $terriasHardTagRuntime.Contains("CombatVarApi.AddInt(AbyssalShockHpStacksKey, 1)") "Abyssal Shock HP option must add one stack every time it triggers."
+    Assert-True $terriasHardTagRuntime.Contains("while (applied < stacks)") "Abyssal Shock enemy HP scaling must catch enemies up to every triggered HP stack."
+    Assert-True $terriasHardTagRuntime.Contains("Math.Ceiling(Math.Max(1, value) * 1.3)") "Abyssal Shock HP scaling must multiply MaxHp/CurHp by 1.3 each stack."
+    Assert-True $terriasHardTagRuntime.Contains("TerriasLifecycleStepRunner.RunBattleOnce") "Hard-tag fight-start work must route through the lifecycle frame-step service."
+    Assert-True $terriasHardTagRuntime.Contains('"FightInitialized"') "Hard-tag fight-start work must target the FightInitialized lifecycle."
+    Assert-True $terriasHardTagRuntime.Contains('new TerriasFrameStep("MorningStarDimmed", () => MorningStarDimmedService.OnFightStarted') "Morning Star Dimmed fight-start work must be split as a lifecycle step."
     Assert-True $morningStarDimmedService.Contains("public const string CostMarker") "Morning Star Dimmed service must mark cards after applying the combat cost increase."
-    Assert-True $morningStarDimmedService.Contains("SunExpLifecycleStepRunner.RunBattleOnce") "Morning Star Dimmed must split fight-start work through the SunExp lifecycle runner."
+    Assert-True $morningStarDimmedService.Contains("TerriasLifecycleStepRunner.RunBattleOnce") "Morning Star Dimmed must split fight-start work through the Terrias lifecycle runner."
     Assert-True $morningStarDimmedService.Contains("TryClaimBattleOperation") "Morning Star Dimmed max power must be idempotent per battle."
     Assert-True $morningStarDimmedService.Contains("PlayerPowerApi.TryChangeMaxPower(1)") "Morning Star Dimmed must add only one max power through the player power API."
     Assert-True (-not $morningStarDimmedService.Contains("executor.ChangeMaxPower(")) "Morning Star Dimmed must not call the ForEachObject ScriptExecutor max-power method from a mirror executor."
@@ -3434,27 +3434,27 @@ function Invoke-SourceAssertions {
     Assert-True (-not $endlessAbyssGazePressureService.Contains("AddRandomCurseToLocalDeck(executor")) "Abyssal Gaze pressure must not add curses to the adventure deck."
     Assert-True $endlessAbyssCurseService.Contains("TemporaryCombatCurseMarker") "Abyssal Gaze temporary curses must carry a cleanup marker."
     Assert-True $endlessAbyssCurseService.Contains("FightCardManager.Instance?.cardList") "Abyssal Gaze temporary curses must enter the combat card list."
-    Assert-True $sunExpHardTagRuntime.Contains('CleanupTemporaryCombatCurses("FightEnding")') "Abyssal Gaze temporary curses must be cleaned at fight ending."
-    Assert-True $sunExpHardTagRuntime.Contains('RegisterBefore(modConfig, SunExpHookTargets.SkillItemTrueUse, OnSkillUseBefore)') "Stagnant Water must hook skill use before native cooldown is set."
-    Assert-True $sunExpHardTagRuntime.Contains('RegisterAfter(modConfig, SunExpHookTargets.SkillItemTrueUse, OnSkillUseAfter)') "Stagnant Water must hook skill use after native cooldown is set."
-    Assert-True $sunExpHardTagRuntime.Contains('new SunExpFrameStep("BlackSunListener"') "A Sunset Expedition failure must not prevent Black Sun listener registration."
-    Assert-True $solarMemoryFixedNodeSpec.Contains("SunExpIds.SolarMemoryMapIds[eventIndex]") "Solar memory fixed-node catalog must use the fixed story map id array."
-    Assert-True $solarMemoryFixedNodeSpec.Contains("SunExpIds.SolarMemoryFullEventIds[eventIndex]") "Solar memory fixed-node catalog must use the fixed story event id array."
+    Assert-True $terriasHardTagRuntime.Contains('CleanupTemporaryCombatCurses("FightEnding")') "Abyssal Gaze temporary curses must be cleaned at fight ending."
+    Assert-True $terriasHardTagRuntime.Contains('RegisterBefore(modConfig, TerriasHookTargets.SkillItemTrueUse, OnSkillUseBefore)') "Stagnant Water must hook skill use before native cooldown is set."
+    Assert-True $terriasHardTagRuntime.Contains('RegisterAfter(modConfig, TerriasHookTargets.SkillItemTrueUse, OnSkillUseAfter)') "Stagnant Water must hook skill use after native cooldown is set."
+    Assert-True $terriasHardTagRuntime.Contains('new TerriasFrameStep("BlackSunListener"') "A Sunset Expedition failure must not prevent Black Sun listener registration."
+    Assert-True $solarMemoryFixedNodeSpec.Contains("TerriasIds.SolarMemoryMapIds[eventIndex]") "Solar memory fixed-node catalog must use the fixed story map id array."
+    Assert-True $solarMemoryFixedNodeSpec.Contains("TerriasIds.SolarMemoryFullEventIds[eventIndex]") "Solar memory fixed-node catalog must use the fixed story event id array."
     Assert-True $eventScripts.Contains("public static void InitSolarMemoryNode") "Solar memory fixed story events must expose an init method."
     Assert-True $eventScripts.Contains("public static void ContinueSolarMemory") "Solar memory fixed story events must expose a continue method."
-    Assert-True (-not $eventScripts.Contains("SunExp.Dll.Hooks")) "Solar memory event scripts must not import Hooks directly."
+    Assert-True (-not $eventScripts.Contains("Terrias.Dll.Hooks")) "Solar memory event scripts must not import Hooks directly."
     Assert-True (-not [regex]::IsMatch($eventScripts, "SolarMemory(?:ModeRuntime|PreparationRuntime|PlayerSetupState)")) "Solar memory event scripts must call the GameApi flow facade instead of Hook runtimes."
     Assert-True $eventScripts.Contains("SolarMemoryFlowApi.ContinueAfterPreparation()") "Solar memory event scripts must delegate preparation and story gating through SolarMemoryFlowApi."
     Assert-True $solarMemoryFlowApi.Contains("if (!IsPreparationComplete())") "SolarMemoryFlowApi must gate continuation on preparation completion."
     Assert-True $solarMemoryFlowApi.Contains("StartOrResumePreparation();") "SolarMemoryFlowApi must start preparation when continuation is requested early."
     Assert-True $solarMemoryFlowApi.Contains("SolarMemoryPostPreparationDialoguePendingKey") "SolarMemoryFlowApi must distinguish dialogue confirmation from first-time dialogue opening."
     Assert-True $solarMemoryFlowApi.Contains("SolarMemoryStoryGateService.TryStartPostPreparationDialogue") "SolarMemoryFlowApi must route completed preparation through the managed story dialogue flow."
-    Assert-True $sunExpIds.Contains("SolarMemorySaintWunaBossPendingKey") "Solar memory must persist a pending hidden-saint boss transition across UI timing gaps."
+    Assert-True $terriasIds.Contains("SolarMemorySaintWunaBossPendingKey") "Solar memory must persist a pending hidden-saint boss transition across UI timing gaps."
     Assert-True $solarMemoryFlowApi.Contains('SolarMemoryBossTransitionCoordinator.ContinueSaintWunaBossFromPreludeDialogue("SolarMemoryDialogue:saint_wuna_prelude")') "Saint Wuna prelude completion must bridge back into the boss transition coordinator."
     Assert-True $solarMemoryBossTransitionCoordinator.Contains("public static void ContinueSaintWunaBossFromPreludeDialogue") "Solar memory boss coordinator must expose a managed continuation for the Saint Wuna prelude."
-    Assert-True $solarMemoryBossTransitionCoordinator.Contains("SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemorySaintWunaBossPendingKey, true)") "Saint Wuna continuation must mark a retryable pending transition before advancing."
+    Assert-True $solarMemoryBossTransitionCoordinator.Contains("SolarMemoryPlayerSetupState.SetFlag(TerriasIds.SolarMemorySaintWunaBossPendingKey, true)") "Saint Wuna continuation must mark a retryable pending transition before advancing."
     Assert-True $solarMemoryMapLifecycleCoordinator.Contains("SolarMemoryBossTransitionCoordinator.TryContinuePendingSaintWunaBoss(""MapSelectUI.ReadyToSelect"")") "Saint Wuna pending transition must retry when map selection is rebuilt."
-    Assert-True $solarMemoryBossTransitionCoordinator.Contains("SolarMemoryMapNodePoolFactory.CreateFixedBossNode(tree, SunExpIds.SolarBossSaintWunaMapId)") "Saint Wuna continuation must create the fixed boss node through the Solar Memory node factory."
+    Assert-True $solarMemoryBossTransitionCoordinator.Contains("SolarMemoryMapNodePoolFactory.CreateFixedBossNode(tree, TerriasIds.SolarBossSaintWunaMapId)") "Saint Wuna continuation must create the fixed boss node through the Solar Memory node factory."
     Assert-True $solarMemoryBossTransitionCoordinator.Contains("node.SetChild(0, CreateSolarMemoryTerminalNode") "Saint Wuna boss node must include a deterministic child for native RpcNextMap."
     Assert-True $solarMemoryBossTransitionCoordinator.Contains("GameSaveManager.UpdateNode(bossNode)") "Saint Wuna continuation must persist the restored current node before native map transition."
     Assert-True $solarMemoryBossTransitionCoordinator.Contains("UIManager.Instance?.CloseUI(""BattleRewardsUI"")") "Saint Wuna continuation must clear stale reward UI before starting the hidden boss."
@@ -3462,39 +3462,39 @@ function Invoke-SourceAssertions {
     Assert-True $solarMemoryStoryGateService.Contains("DialogueFlowService.Start") "Solar Memory story gates must start reusable managed dialogue flows."
     Assert-True $dialogueFlowRuntime.Contains("DialogueUI.ChooseOption") "DialogueFlowRuntime must hook native dialogue choice completion."
     Assert-True $dialogueFlowService.Contains("DialogueApi.EndDialogue") "DialogueFlowService must close native dialogue UI from C# after managed choice handling."
-    Assert-True (-not $dialogueData.Contains("CS.SunExp.Dll.Scripting")) "Solar Memory Dialogue rows must not call C# from native Dialogue script columns."
+    Assert-True (-not $dialogueData.Contains("CS.Terrias.Dll.Scripting")) "Solar Memory Dialogue rows must not call C# from native Dialogue script columns."
     Assert-True $dialogueData.Contains("RoleImage1") "Solar Memory Dialogue rows must expose RoleImage1 overrides for dialogue art."
-    Assert-True $dialogueData.Contains("solar_memory_opening_4,,,SunExp_solar_memory_solar_memory_wuna_dialogue,,1,,,Mods/SunExp/ModResource/Images/Dialogue/WuNa") "Solar Memory opening dialogue must complete through a managed final choice with a positioned dialogue role id."
-    Assert-True $dialogueData.Contains("solar_memory_second_sun_end_2,,,SunExp_solar_memory_solar_memory_wuna_dialogue,,1,,,Mods/SunExp/ModResource/Images/Dialogue/WuNa") "Solar Memory second-sun ending dialogue must settle only after a managed final choice with a positioned dialogue role id."
-    Assert-True $dialogueData.Contains("solar_memory_saint_wuna_prelude_6,,,SunExp_solar_memory_solar_memory_saint_wuna,,1,,,Mods/SunExp/ModResource/Images/Dialogue/WuNa_e") "Solar Memory saint-wuna prelude dialogue must resume map flow only after a managed final choice with a resolvable role id."
-    Assert-True $dialogueData.Contains("solar_memory_saint_wuna_end_3,,,SunExp_loneer_loneer,,1,,,Mods/SunExp/ModResource/Images/Dialogue/Loneer") "Solar Memory saint-wuna ending dialogue must settle only after a managed final choice with a resolvable role id."
+    Assert-True $dialogueData.Contains("solar_memory_opening_4,,,Terrias_solar_memory_solar_memory_wuna_dialogue,,1,,,Mods/Terrias/ModResource/Images/Dialogue/WuNa") "Solar Memory opening dialogue must complete through a managed final choice with a positioned dialogue role id."
+    Assert-True $dialogueData.Contains("solar_memory_second_sun_end_2,,,Terrias_solar_memory_solar_memory_wuna_dialogue,,1,,,Mods/Terrias/ModResource/Images/Dialogue/WuNa") "Solar Memory second-sun ending dialogue must settle only after a managed final choice with a positioned dialogue role id."
+    Assert-True $dialogueData.Contains("solar_memory_saint_wuna_prelude_6,,,Terrias_solar_memory_solar_memory_saint_wuna,,1,,,Mods/Terrias/ModResource/Images/Dialogue/WuNa_e") "Solar Memory saint-wuna prelude dialogue must resume map flow only after a managed final choice with a resolvable role id."
+    Assert-True $dialogueData.Contains("solar_memory_saint_wuna_end_3,,,Terrias_loneer_loneer,,1,,,Mods/Terrias/ModResource/Images/Dialogue/Loneer") "Solar Memory saint-wuna ending dialogue must settle only after a managed final choice with a resolvable role id."
     Assert-True (-not $dialogueData.Contains(",,,wuna,,")) "Solar Memory Dialogue rows must use full runtime RoleData ids, not short role ids."
     Assert-True (-not $dialogueData.Contains(",,,loneer,,")) "Solar Memory Dialogue rows must use full runtime RoleData ids, not short role ids."
     Assert-True (-not $dialogueData.Contains(",,,solar_memory_saint_wuna,,")) "Solar Memory Dialogue rows must use full runtime RoleData ids, not short role ids."
     Assert-True $solarMemoryRoleData.Contains("DefaultY,DefaultScale") "Solar Memory dialogue roles must expose native dialogue positioning fields."
-    Assert-True $solarMemoryRoleData.Contains("solar_memory_wuna_dialogue,Mods/SunExp/ModResource/Images/Avatar/WuNa,Mods/SunExp/ModResource/Images/Dialogue/WuNa,Mods/SunExp/ModResource/Images/Icon/WuNa3,300,1") "Solar Memory Wuna dialogue role must lift the dialogue image above the text box."
-    Assert-True $solarMemoryRoleData.Contains("solar_memory_saint_wuna,Mods/SunExp/ModResource/Images/Avatar/WuNa,Mods/SunExp/ModResource/Images/Dialogue/WuNa_e,Mods/SunExp/ModResource/Images/Icon/WuNa3,300,1") "Solar Memory saint Wuna dialogue role must lift the dialogue image above the text box."
+    Assert-True $solarMemoryRoleData.Contains("solar_memory_wuna_dialogue,Mods/Terrias/ModResource/Images/Avatar/WuNa,Mods/Terrias/ModResource/Images/Dialogue/WuNa,Mods/Terrias/ModResource/Images/Icon/WuNa3,300,1") "Solar Memory Wuna dialogue role must lift the dialogue image above the text box."
+    Assert-True $solarMemoryRoleData.Contains("solar_memory_saint_wuna,Mods/Terrias/ModResource/Images/Avatar/WuNa,Mods/Terrias/ModResource/Images/Dialogue/WuNa_e,Mods/Terrias/ModResource/Images/Icon/WuNa3,300,1") "Solar Memory saint Wuna dialogue role must lift the dialogue image above the text box."
     Assert-True $loneerRoleData.Contains("DefaultY,DefaultScale") "Loneer dialogue role must expose native dialogue positioning fields."
-    Assert-True $loneerRoleData.Contains("loneer,Mods/SunExp/ModResource/Images/Icon/Loneer2,Mods/SunExp/ModResource/Images/Character/Loneer,Mods/SunExp/ModResource/Images/Dialogue/Loneer,300,1") "Loneer dialogue role must lift the dialogue image above the text box."
+    Assert-True $loneerRoleData.Contains("loneer,Mods/Terrias/ModResource/Images/Icon/Loneer2,Mods/Terrias/ModResource/Images/Character/Loneer,Mods/Terrias/ModResource/Images/Dialogue/Loneer,300,1") "Loneer dialogue role must lift the dialogue image above the text box."
     Assert-True $solarMemoryStoryGateService.Contains("CompleteDialogueId") "Solar Memory managed dialogue gates must register the final dialogue id for native option completion."
     Assert-True $solarMemoryFlowApi.Contains("SolarMemoryPreparationRuntime.IsComplete()") "SolarMemoryFlowApi must bridge preparation completion to the Hook runtime."
     Assert-True $solarMemoryFlowApi.Contains("SolarMemoryModeRuntime.OpenOriginWindow()") "SolarMemoryFlowApi must bridge origin setup UI to the Hook runtime."
-    Assert-True (-not $eventScripts.Contains('PlayerApi.SetGameVar(SunExpIds.SolarMemoryOriginPointsKey, "50")')) "Solar memory event initialization must not reset origin points to the old value."
+    Assert-True (-not $eventScripts.Contains('PlayerApi.SetGameVar(TerriasIds.SolarMemoryOriginPointsKey, "50")')) "Solar memory event initialization must not reset origin points to the old value."
     Assert-True $mapData.Contains("Id,Type,NodeId,Level,Rarity") "Solar memory map data must expose the RandomPool rarity marker."
     Assert-True $mapData.Contains("solar_memory_black_sun_after,Event,Breaks_solar_memory_black_sun_after,-1,7") "Solar memory story maps must be hidden from every RandomPool draw."
     Assert-True $mapData.Contains("solar_memory_above_sacred_wheel,Event,Breaks_solar_memory_above_sacred_wheel,-1,7") "All fixed Solar Memory story maps must be hidden from every RandomPool draw."
-    Assert-True $mapData.Contains("solar_memory_boss_orbit_mirror_array,Fight,SunExp_sunexp_level_orbit_mirror_array,99,7") "Solar memory mirror-array boss must be hidden and use an unreachable normal-adventure layer."
-    Assert-True $mapData.Contains("solar_memory_boss_second_sun_last_day,Fight,SunExp_sunexp_level_second_sun_last_day,99,7") "Solar memory second-sun boss must be hidden and use an unreachable normal-adventure layer."
-    Assert-True $mapData.Contains("solar_memory_boss_saint_wuna,Fight,SunExp_sunexp_level_saint_wuna,99,7") "Solar memory saint boss must be hidden and use an unreachable normal-adventure layer."
-    Assert-True (-not $mapData.Contains("solar_memory_boss_orbit_mirror_array,Fight,SunExp_sunexp_level_orbit_mirror_array,-1")) "Solar memory bosses must not be wildcard candidates in normal adventure."
-    Assert-True $levelData.Contains("level_saint_wuna,SunExp_sunexp_boss_saint_wuna,boss,-1") "Solar memory level data must define the hidden saint fight as a boss level."
+    Assert-True $mapData.Contains("solar_memory_boss_orbit_mirror_array,Fight,Terrias_terrias_level_orbit_mirror_array,99,7") "Solar memory mirror-array boss must be hidden and use an unreachable normal-adventure layer."
+    Assert-True $mapData.Contains("solar_memory_boss_second_sun_last_day,Fight,Terrias_terrias_level_second_sun_last_day,99,7") "Solar memory second-sun boss must be hidden and use an unreachable normal-adventure layer."
+    Assert-True $mapData.Contains("solar_memory_boss_saint_wuna,Fight,Terrias_terrias_level_saint_wuna,99,7") "Solar memory saint boss must be hidden and use an unreachable normal-adventure layer."
+    Assert-True (-not $mapData.Contains("solar_memory_boss_orbit_mirror_array,Fight,Terrias_terrias_level_orbit_mirror_array,-1")) "Solar memory bosses must not be wildcard candidates in normal adventure."
+    Assert-True $levelData.Contains("level_saint_wuna,Terrias_terrias_boss_saint_wuna,boss,-1") "Solar memory level data must define the hidden saint fight as a boss level."
     Assert-True $mapText.Contains("solar_memory_polluted_light") "Solar memory map text must include the polluted light node."
     Assert-True ($mapText.Contains("solar_memory_boss_saint_wuna") -and $mapText.Contains("Hidden Boss")) "Solar memory map text must mark the hidden saint fight as a boss node."
     Assert-True (-not $mapText.Contains($solarMemoryPrefix)) "Solar memory map event names must not repeat the mode prefix."
     Assert-True (-not $mapText.Contains("Solar Memory - ")) "Localized Solar Memory map event names must stay compact."
     Assert-True ($mapText.Contains("solar_memory_boss_orbit_mirror_array,") -and $mapText.Contains(",$bossMirrorName,")) "Solar memory map text must use the compact mirror-array boss name."
     Assert-True ($mapText.Contains("solar_memory_boss_second_sun_last_day,") -and $mapText.Contains(",$bossSecondSunName,")) "Solar memory map text must use the compact second-sun boss name."
-    Assert-True $eventData.Contains("Sub_solar_memory_grief_struggle,CS.SunExp.Dll.Scripting.EventScripts.ContinueSolarMemory();") "Solar memory event data must route story choices through C# continue."
+    Assert-True $eventData.Contains("Sub_solar_memory_grief_struggle,CS.Terrias.Dll.Scripting.EventScripts.ContinueSolarMemory();") "Solar memory event data must route story choices through C# continue."
     Assert-True $eventText.Contains("Sub_solar_memory_above_sacred_wheel") "Solar memory event text must include the sixth fixed story row."
     Assert-True (-not $eventText.Contains($solarMemoryPrefix)) "Solar Memory event titles must not repeat the mode prefix."
     Assert-True (-not $eventText.Contains($solarMemoryTraditionalPrefix)) "Traditional Solar Memory event titles must not repeat the mode prefix."
@@ -3513,8 +3513,8 @@ function Invoke-SourceAssertions {
     Assert-True $solarMemoryDeckIsolationRuntime.Contains("SolarMemoryPlayerSetupState.SelectedPacks()") "Solar memory pack selection must prefer player-scoped preparation state."
     Assert-True $solarMemoryDeckIsolationRuntime.Contains("if (!PlayerApi.IsMultiplayerSession())") "Solar memory must not migrate saved global pack selection during multiplayer."
     Assert-True (-not $solarMemoryModeRuntime.Contains("SanitizeSolarMemoryRoleCards")) "Solar memory mode runtime must not retain role deck isolation."
-    Assert-True $solarMemoryRunLauncher.Contains('saveInfo.GameVars[SunExpIds.SolarMemoryOriginPointsKey] = "50"') "Solar memory must initialize origin setup with 50 points."
-    Assert-True $sunExpIds.Contains("SolarMemoryPrepStepKey") "Solar memory preparation must persist an explicit preparation step."
+    Assert-True $solarMemoryRunLauncher.Contains('saveInfo.GameVars[TerriasIds.SolarMemoryOriginPointsKey] = "50"') "Solar memory must initialize origin setup with 50 points."
+    Assert-True $terriasIds.Contains("SolarMemoryPrepStepKey") "Solar memory preparation must persist an explicit preparation step."
     Assert-True $solarMemoryRunLauncher.Contains("SolarMemoryPrepStep.DeckSelection") "Solar memory saves must initialize the preparation state machine."
     Assert-True $solarMemoryPreparationRuntime.Contains("public static void StartOrResume") "Solar memory preparation runtime must expose a stable start/resume entry point."
     Assert-True $solarMemoryPreparationRuntime.Contains("InferStepFromLegacyState") "Solar memory preparation runtime must infer state from old boolean keys."
@@ -3530,12 +3530,12 @@ function Invoke-SourceAssertions {
     Assert-True $endlessSeaRunLauncher.Contains("element.minHeight = 50f") "Endless Sea continue prompt buttons must keep a readable minimum height."
     Assert-True $endlessSeaRunLauncher.Contains("EndlessSeaRunStateStore.DeleteUnfinishedRuns") "Endless Sea launcher must delete unfinished Endless Sea saves only after the player chooses a new run."
     Assert-True $endlessSeaRunLauncher.Contains("modeType = NativeMapModeType") "Endless Sea saves must use native Normal mode so the official map manager can start."
-    Assert-True $endlessSeaRunLauncher.Contains("private const string NativeMapModeType = SunExpIds.NativeNormalModeType") "Endless Sea must keep native map startup on the official Normal mode manager."
+    Assert-True $endlessSeaRunLauncher.Contains("private const string NativeMapModeType = TerriasIds.NativeNormalModeType") "Endless Sea must keep native map startup on the official Normal mode manager."
     Assert-True $endlessSeaRunLauncher.Contains("SetLobbyModeType(NativeMapModeType)") "Endless Sea lobby launch must reuse the native Normal mode manager."
-    Assert-True (-not $endlessSeaRunLauncher.Contains("SetLobbyModeType(SunExpIds.EndlessSeaModeType)")) "Endless Sea must not pass its custom save mode type into the native lobby map startup."
-    Assert-True (-not $endlessSeaRunLauncher.Contains("modeType = SunExpIds.EndlessSeaModeType")) "Endless Sea saves must not store custom modeType values that break native map startup."
+    Assert-True (-not $endlessSeaRunLauncher.Contains("SetLobbyModeType(TerriasIds.EndlessSeaModeType)")) "Endless Sea must not pass its custom save mode type into the native lobby map startup."
+    Assert-True (-not $endlessSeaRunLauncher.Contains("modeType = TerriasIds.EndlessSeaModeType")) "Endless Sea saves must not store custom modeType values that break native map startup."
     Assert-True $endlessSeaRunLauncher.Contains("EndlessSeaRunStateStore.InitializeNewRun") "Endless Sea launcher must delegate save initialization to the run-state store."
-    Assert-True $endlessSeaRunStateStore.Contains("saveInfo.modeType = SunExpIds.NativeNormalModeType") "Endless Sea run-state repair must migrate Endless Sea saves back to native Normal mode."
+    Assert-True $endlessSeaRunStateStore.Contains("saveInfo.modeType = TerriasIds.NativeNormalModeType") "Endless Sea run-state repair must migrate Endless Sea saves back to native Normal mode."
     Assert-True $endlessSeaModeRuntime.Contains("EndlessSeaSaveCacheRuntime.Initialize(modConfig)") "Endless Sea runtime must isolate Endless Sea saves from the official Normal continue cache."
     Assert-True $endlessSeaSaveCacheRuntime.Contains('"ModeChoiceUI.NormalMode"') "Endless Sea save cache isolation must run before native Normal mode uses its cached save."
     Assert-True $endlessSeaSaveCacheRuntime.Contains('"ModeChoiceUI.DeleteExistingSavesForMode"') "Endless Sea save cache isolation must protect Endless Sea saves from native Normal cleanup."
@@ -3543,16 +3543,16 @@ function Invoke-SourceAssertions {
     Assert-True $endlessSeaSaveCacheRuntime.Contains("ModeChoiceSaveCacheApi.ClearCachedSaveIf") "Endless Sea save cache isolation must route official cache mutation through GameApi."
     Assert-True $modeChoiceSaveCacheApi.Contains("ModeChoiceUI.beforeSave") "Mode choice save cache GameApi must own official beforeSave access."
     Assert-True $endlessSeaRunStateStore.Contains("DeleteUnfinishedRuns") "Endless Sea run-state store must own unfinished-run deletion."
-    Assert-True $endlessSeaRunStateStore.Contains('Set(saveInfo, SunExpIds.EndlessSeaIntroSeenKey, "0")') "Endless Sea saves must initialize the intro board as unseen."
-    Assert-True $endlessSeaRunStateStore.Contains('Set(saveInfo, SunExpIds.EndlessSeaStarterDeckAppliedKey, "0")') "Endless Sea saves must initialize starter-deck selection as unapplied."
-    Assert-True $endlessSeaRunStateStore.Contains('Set(saveInfo, SunExpIds.EndlessSeaFloorPlanKey, "")') "Endless Sea saves must initialize the persisted floor plan slot."
+    Assert-True $endlessSeaRunStateStore.Contains('Set(saveInfo, TerriasIds.EndlessSeaIntroSeenKey, "0")') "Endless Sea saves must initialize the intro board as unseen."
+    Assert-True $endlessSeaRunStateStore.Contains('Set(saveInfo, TerriasIds.EndlessSeaStarterDeckAppliedKey, "0")') "Endless Sea saves must initialize starter-deck selection as unapplied."
+    Assert-True $endlessSeaRunStateStore.Contains('Set(saveInfo, TerriasIds.EndlessSeaFloorPlanKey, "")') "Endless Sea saves must initialize the persisted floor plan slot."
     Assert-True $endlessSeaRunStateStore.Contains("EndlessSeaRunIdKey") "Endless Sea saves must persist a run id."
     Assert-True $endlessSeaRunStateStore.Contains("EndlessSeaRunPhaseKey") "Endless Sea saves must persist a phase."
     Assert-True $endlessSeaRunStateStore.Contains("EndlessSeaRunPhase.Evacuating") "Endless Sea saves must preserve the pending evacuation settlement phase."
     Assert-True $runtimeHooks.Contains("EndlessAbyssEvacuationRuntime.Initialize(modConfig)") "RuntimeHooks must initialize Endless Abyss evacuation."
     Assert-True $endlessAbyssEvacuationButtonRuntime.Contains('buttons?.Find("CardBack")') "Endless Abyss evacuation must clone the native TopBar card button template."
     Assert-True $endlessAbyssEvacuationButtonRuntime.Contains("EndlessAbyssEvacuationButtonRelay") "Endless Abyss evacuation must replace cloned native button listeners with a dedicated relay."
-    Assert-True $endlessAbyssEvacuationButtonRuntime.Contains('Mods/SunExp/ModResource/Images/UI/\u65e0\u5c3d\u4e4b\u6e0a-\u9000\u51fa.png') "Endless Abyss evacuation must use the shipped evacuation icon."
+    Assert-True $endlessAbyssEvacuationButtonRuntime.Contains('Mods/Terrias/ModResource/Images/UI/\u65e0\u5c3d\u4e4b\u6e0a-\u9000\u51fa.png') "Endless Abyss evacuation must use the shipped evacuation icon."
     Assert-True $endlessAbyssEvacuationButtonRuntime.Contains('AuraUiNativeButtonIconOwner.Apply(manager, icon)') "Endless Abyss evacuation must own all three native button-state images."
     Assert-True $endlessAbyssEvacuationButtonRuntime.Contains('AuraUiNativeHoverHint.Attach(buttonObject, HoverHint)') "Endless Abyss evacuation must register a native-style settlement hover hint."
     Assert-True $endlessAbyssEvacuationRuntime.Contains("EndlessSeaRunPhase.MapPlanning") "Endless Abyss evacuation must only start from stable map planning."
@@ -3572,7 +3572,7 @@ function Invoke-SourceAssertions {
     Assert-True $endlessSeaRunLauncher.Contains('saveInfo.GameVars[GameVar.ExLockDes.ToString()] = "0"') "Endless Sea saves must not pre-lock editable map slots."
     Assert-True $endlessSeaFloorPlanner.Contains("EndlessSeaNodeKind.Monster") "Endless Sea floor planner must fix the native start slot as a monster."
     Assert-True $endlessSeaFloorPlanner.Contains("EndlessSeaNodeKind.Boss") "Endless Sea floor planner must fix the final boss slot."
-    Assert-True $endlessSeaFloorPlanner.Contains("new List<EndlessSeaSlotPlan>(SunExpIds.EndlessSeaNativeDefaultNodeCount)") "Endless Sea floor planner must prefill only native fixed slots."
+    Assert-True $endlessSeaFloorPlanner.Contains("new List<EndlessSeaSlotPlan>(TerriasIds.EndlessSeaNativeDefaultNodeCount)") "Endless Sea floor planner must prefill only native fixed slots."
     Assert-True $endlessSeaMapBuilder.Contains("EndlessSeaFloorPlanStore.Save(plan)") "Endless Sea map builder must persist the visual floor plan."
     Assert-True $endlessSeaMapBuilder.Contains("EndlessSeaMapProjectionService.NativeDefaultOrder") "Endless Sea map builder must route native bootstrap ordering through projection."
     Assert-True $endlessSeaMapBuilder.Contains('SetSaveValue(GameVar.ExLockDes.ToString(), "0")') "Endless Sea map builder must leave editable native map slots unlocked."
@@ -3593,8 +3593,8 @@ function Invoke-SourceAssertions {
     Assert-True $endlessSeaNetworkSync.Contains("applyAllSlots: false") "Endless Sea snapshot UI refresh must be fixed-slot only."
     Assert-True (-not $endlessSeaNetworkSync.Contains("applyAllSlots: true")) "Endless Sea snapshots must not clear editable map slots during interaction."
     Assert-True $endlessSeaNetworkSync.Contains("SnapshotRequestThrottleSeconds") "Endless Sea client snapshot requests must be throttled."
-    Assert-True $endlessSeaNetworkSync.Contains("SunExpNetworkRuntime.HasRemotePlayers()") "Endless Sea snapshots must only run for real multiplayer sessions."
-    Assert-True $sunExpNetworkRuntime.Contains("public static bool HasRemotePlayers()") "SunExp network runtime must expose an actual remote-player guard."
+    Assert-True $endlessSeaNetworkSync.Contains("TerriasNetworkRuntime.HasRemotePlayers()") "Endless Sea snapshots must only run for real multiplayer sessions."
+    Assert-True $terriasNetworkRuntime.Contains("public static bool HasRemotePlayers()") "Terrias network runtime must expose an actual remote-player guard."
     Assert-True $endlessSeaIntroBoardRuntime.Contains("AddTextFill(header.transform") "Endless Sea intro board must render a header subtitle."
     Assert-True $endlessSeaIntroBoardRuntime.Contains("SetDeckButtonsInteractable(false)") "Endless Sea deck application must disable buttons while applying."
     Assert-True $endlessSeaIntroBoardRuntime.Contains("SetDeckButtonsInteractable(true)") "Endless Sea deck application must restore buttons on retryable failure."
@@ -3609,9 +3609,9 @@ function Invoke-SourceAssertions {
     Assert-True $endlessSeaStarterDeckCatalog.Contains('"origin_of_elements"') "Endless Sea must expose the Origin of Elements theme deck id."
     Assert-True $endlessSeaStarterDeckCatalog.Contains('"card_3"') "Endless Sea starter decks must use official default cards."
     Assert-True $endlessSeaStarterDeckCatalog.Contains('"burningcard_1"') "Endless Sea starter decks must use official default cards."
-    Assert-True (-not $endlessSeaStarterDeckCatalog.Contains('"spark"')) "Endless Sea starter decks must not use unresolved SunExp short card ids."
-    Assert-True (-not $endlessSeaStarterDeckCatalog.Contains('"solar_prayer"')) "Endless Sea starter decks must not use unresolved SunExp short card ids."
-    Assert-True $endlessSeaStarterDeckCatalog.Contains("SunExpConfigIndex.Row(DataType.Card, cardId)") "Endless Sea starter deck catalog must validate card ids through the shared query index."
+    Assert-True (-not $endlessSeaStarterDeckCatalog.Contains('"spark"')) "Endless Sea starter decks must not use unresolved Terrias short card ids."
+    Assert-True (-not $endlessSeaStarterDeckCatalog.Contains('"solar_prayer"')) "Endless Sea starter decks must not use unresolved Terrias short card ids."
+    Assert-True $endlessSeaStarterDeckCatalog.Contains("TerriasConfigIndex.Row(DataType.Card, cardId)") "Endless Sea starter deck catalog must validate card ids through the shared query index."
     Assert-True $endlessSeaRichTextSanitizer.Contains("AllowedSimpleTags") "Endless Sea rich text sanitizer must use an explicit simple-tag allowlist."
     Assert-True $endlessSeaRichTextSanitizer.Contains("AllowedScopedTags") "Endless Sea rich text sanitizer must use an explicit scoped-tag allowlist."
     Assert-True (-not $endlessSeaRichTextSanitizer.Contains("link")) "Endless Sea rich text sanitizer must not allow link tags."
@@ -3625,14 +3625,14 @@ function Invoke-SourceAssertions {
     Assert-True $endlessSeaCardAffixService.Contains("RunWithStarterDeckSuppressed") "Endless Sea starter deck writes must suppress automatic Burnout attachment."
     Assert-True $endlessSeaCardAffixService.Contains("role.cardList") "Endless Sea card affix service must normalize equipped deck cards."
     Assert-True $endlessSeaCardAffixService.Contains("role.UnCardList") "Endless Sea card affix service must normalize reserve cards."
-    Assert-True $endlessSeaCombatRuntime.Contains("EndlessAbyssEnemyInjectionService.TryInjectAfterFightInit") "Endless Sea combat runtime must delegate extra enemy injection to a SunExp-owned service."
+    Assert-True $endlessSeaCombatRuntime.Contains("EndlessAbyssEnemyInjectionService.TryInjectAfterFightInit") "Endless Sea combat runtime must delegate extra enemy injection to a Terrias-owned service."
     Assert-True (-not $endlessSeaCombatRuntime.Contains("CmdAddEnemy")) "Endless Sea combat runtime must not directly issue native enemy-add commands."
     Assert-True $endlessSeaCombatRuntime.Contains("EndlessAbyssEnemyScalingService.Calculate") "Endless Sea combat runtime must delegate enemy growth to the configured scaling service."
     Assert-True $endlessSeaCombatRuntime.Contains("enemy.Attack = nextAttack") "Endless Sea enemy growth must scale attack together with HP."
     Assert-True $endlessAbyssEnemyScaling.Contains("normalizedFloor >= endlessStartFloor") "Endless Abyss enemy scaling must apply a distinct endless-phase jump."
     Assert-True $endlessAbyssEnemyScaling.Contains("CycleFloorCount") "Endless Abyss enemy scaling must continue growing in configured floor cycles."
     Assert-True $endlessAbyssEnemyInjectionService.Contains("EnemyApi.IsClientOnlyDynamicEnemyObserver()") "Endless Abyss extra enemy planning must be skipped on client-only observers."
-    Assert-True $endlessAbyssEnemyInjectionService.Contains("EnemyApi.AddDynamicEnemyAuthoritative") "Endless Abyss extra enemies must use the SunExp-owned EnemyApi wrapper."
+    Assert-True $endlessAbyssEnemyInjectionService.Contains("EnemyApi.AddDynamicEnemyAuthoritative") "Endless Abyss extra enemies must use the Terrias-owned EnemyApi wrapper."
     Assert-True $enemyApi.Contains("PlayerManager.Instance") "EnemyApi must own the multiplayer authority check for dynamic enemy adds."
     Assert-True $enemyApi.Contains("EnemyManager.Instance") "EnemyApi must resolve the native enemy manager before adding a dynamic enemy."
     Assert-True $enemyApi.Contains("manager.AddEnemy(enemyId)") "EnemyApi must follow the game's native dynamic enemy-add entry point."
@@ -3644,7 +3644,7 @@ function Invoke-SourceAssertions {
     Assert-True $endlessAbyssConfigJson.Contains('"enemyScaling"') "Endless Abyss shipped config must define enemy growth settings."
     Assert-True $endlessAbyssConfigJson.Contains('"endlessStartFloor": 7') "Endless Abyss shipped config must begin its phase jump at floor seven."
     Assert-True $endlessAbyssConfigJson.Contains('"milestone.other_dimension.cards"') "Endless Abyss shipped config must bind the other-dimension milestone reward to its independent pool."
-    Assert-True $endlessAbyssConfigJson.Contains('"SunExp_sunexp_cardpack_more_dimensions"') "Endless Abyss default other-dimension pool must be initialized from the More Dimensions card pack."
+    Assert-True $endlessAbyssConfigJson.Contains('"Terrias_terrias_cardpack_more_dimensions"') "Endless Abyss default other-dimension pool must be initialized from the More Dimensions card pack."
     Assert-True $endlessAbyssConfigJson.Contains('"heart_change"') "Endless Abyss legacy other-dimension fallback must include Heart Change."
     Assert-True $endlessAbyssRewardPoolService.Contains("CardPackMatches") "Endless Abyss reward pools must expand card pack sources generically."
     Assert-True $endlessAbyssRewardPoolService.Contains("IncludeCardIds") "Endless Abyss reward pools must support explicit card inclusions."
@@ -3659,9 +3659,9 @@ function Invoke-SourceAssertions {
     Assert-True $playerApi.Contains("OwnedCardSnapshot") "Verified deck grants must compare owned card snapshots."
     Assert-True $endlessAbyssMilestoneRewardPanel.Contains("EndlessAbyssFramedTextCard.Create") "Endless Abyss milestone options must render title/body inside a framed content inset."
     Assert-True $endlessAbyssShockPanel.Contains("EndlessAbyssFramedTextCard.Create") "Endless Abyss shock options must share the framed content inset layout."
-    Assert-True $solarMemoryPreparationRuntime.Contains('if (!SolarMemoryRoleCommitApi.CommitFinal(RoleTable.Instance, "SunExp.SolarMemory.SetupFinished"))') "Solar memory preparation completion must require a successful final role commit."
-    Assert-True ([regex]::IsMatch($solarMemoryPreparationRuntime, 'CommitFinal\(RoleTable\.Instance,\s*"SunExp\.SolarMemory\.SetupFinished"\)[\s\S]*SolarMemoryPlayerSetupState\.SetFlag\(SunExpIds\.SolarMemorySetupFinishedKey,\s*false\)')) "Solar memory preparation must withdraw setup completion when final role commit fails."
-    Assert-True $solarMemoryPreparationRuntime.Contains('SolarMemoryPlayerSetupState.SetValue(SunExpIds.SolarMemorySetupCommitTokenKey, "")') "Solar memory preparation must clear failed local commit tokens for retry."
+    Assert-True $solarMemoryPreparationRuntime.Contains('if (!SolarMemoryRoleCommitApi.CommitFinal(RoleTable.Instance, "Terrias.SolarMemory.SetupFinished"))') "Solar memory preparation completion must require a successful final role commit."
+    Assert-True ([regex]::IsMatch($solarMemoryPreparationRuntime, 'CommitFinal\(RoleTable\.Instance,\s*"Terrias\.SolarMemory\.SetupFinished"\)[\s\S]*SolarMemoryPlayerSetupState\.SetFlag\(TerriasIds\.SolarMemorySetupFinishedKey,\s*false\)')) "Solar memory preparation must withdraw setup completion when final role commit fails."
+    Assert-True $solarMemoryPreparationRuntime.Contains('SolarMemoryPlayerSetupState.SetValue(TerriasIds.SolarMemorySetupCommitTokenKey, "")') "Solar memory preparation must clear failed local commit tokens for retry."
     Assert-True $solarMemoryPreparationRuntime.Contains("setup completion is pending retry") "Solar memory preparation must log failed final role commits as retryable."
     Assert-True (-not $solarMemorySetupFlowRuntime.Contains("FinishSetup()")) "Solar memory setup flow must not retain an unreachable competing completion path."
     Assert-True $solarMemoryRoleCommitApi.Contains("SendRpcCommand(new RpcSolarMemoryRoleCommit") "Solar memory clients must submit the final role through a dedicated RPC command."
@@ -3672,8 +3672,8 @@ function Invoke-SourceAssertions {
     Assert-True $solarMemoryRoleCommit.Contains("SolarMemorySetupFinishedKey") "Solar memory final role commit must reject unfinished preparation state."
     Assert-True $solarMemoryRoleCommitApi.Contains("SolarMemorySetupCommitTokenKey") "Solar memory final role submission must suppress local re-entry with a per-run token."
     Assert-True $solarMemoryRoleCommit.Contains("CommittedTokens.Add(commitToken)") "Solar memory final role command must suppress duplicate network delivery."
-    Assert-True ($modConfig.ModVersion -eq "0.4.2") "SunExp network protocol change must ship as version 0.4.2."
-    Assert-True ($modConfig.MustSame -eq $true) "SunExp must require an identical multiplayer mod version."
+    Assert-True ($modConfig.ModVersion -eq "0.5.0") "Terrias pre-release identity and network contract must ship as version 0.5.0."
+    Assert-True ($modConfig.MustSame -eq $true) "Terrias must require an identical multiplayer mod version."
     Assert-True $audioArbiterRuntime.Contains('CurrentBuildId = "audio-arbiter-2026-07-20-v10"') "Audio arbiter must expose the content-probed presentation runtime build id."
     Assert-True $audioArbiterRuntime.Contains('const string sharedPrefix = "Shared:"') "Audio arbiter must resolve AuraShared resource paths."
     Assert-True $audioProviderResolver.Contains("MatchesProviderRequest") "Audio provider resolver must own owner-aware provider matching."
@@ -3741,26 +3741,26 @@ if ([string]::IsNullOrWhiteSpace($ManagedPath)) {
 }
 
 if (-not $SkipBuild) {
-    & (Join-Path $repoRoot "tools\Build-SunExpDll.ps1") -Configuration $Configuration -ManagedPath $ManagedPath | Out-Host
+    & (Join-Path $repoRoot "tools\Build-TerriasDll.ps1") -Configuration $Configuration -ManagedPath $ManagedPath | Out-Host
 }
 
-$tmpRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("sunexp-csharp-test-" + [System.Guid]::NewGuid().ToString("N"))
+$tmpRoot = Join-Path ([System.IO.Path]::GetTempPath()) ("terrias-csharp-test-" + [System.Guid]::NewGuid().ToString("N"))
 $sourceDir = Join-Path $tmpRoot "src"
 New-Item -ItemType Directory -Path $sourceDir | Out-Null
 
 try {
-    Write-Utf8NoBom -Path (Join-Path $tmpRoot "SunExp.CSharpTests.csproj") -Text (New-ProjectXml -RepoRoot $repoRoot -SourceDir $sourceDir)
+    Write-Utf8NoBom -Path (Join-Path $tmpRoot "Terrias.CSharpTests.csproj") -Text (New-ProjectXml -RepoRoot $repoRoot -SourceDir $sourceDir)
     Write-Utf8NoBom -Path (Join-Path $sourceDir "Stubs.cs") -Text (New-StubsSource)
     Write-Utf8NoBom -Path (Join-Path $sourceDir "Tests.cs") -Text (New-TestsSource)
 
-    dotnet run --project (Join-Path $tmpRoot "SunExp.CSharpTests.csproj") -c Release
+    dotnet run --project (Join-Path $tmpRoot "Terrias.CSharpTests.csproj") -c Release
     if ($LASTEXITCODE -ne 0) {
-        throw "SunExp C# tests failed."
+        throw "Terrias C# tests failed."
     }
 
     Invoke-SourceAssertions -RepoRoot $repoRoot
-    & (Join-Path $repoRoot "tools\Test-SunExpElemental.ps1") -Configuration $Configuration
-    & (Join-Path $repoRoot "tools\Test-SunExpColumbina.ps1")
+    & (Join-Path $repoRoot "tools\Test-TerriasElemental.ps1") -Configuration $Configuration
+    & (Join-Path $repoRoot "tools\Test-TerriasColumbina.ps1")
 }
 finally {
     if ($KeepTemp) {

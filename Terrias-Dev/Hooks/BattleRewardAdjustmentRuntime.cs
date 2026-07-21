@@ -1,12 +1,12 @@
 using System;
 using AuraShared.Core;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch.Core;
 using Witch.Mod;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class BattleRewardAdjustmentRuntime
 {
@@ -23,12 +23,12 @@ public static class BattleRewardAdjustmentRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[BattleRewardAdjustmentRuntime] apply failed: " + ex.Message);
+            TerriasLog.Warn("[BattleRewardAdjustmentRuntime] apply failed: " + ex.Message);
         }
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.After(config, target, action, "BattleRewardAdjustment");
+        TerriasHookRegistry.After(config, target, action, "BattleRewardAdjustment");
     }
 }

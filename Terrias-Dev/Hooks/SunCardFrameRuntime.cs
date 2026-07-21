@@ -1,6 +1,6 @@
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class SunCardFrameRuntime
 {

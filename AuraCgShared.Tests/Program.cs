@@ -4,7 +4,7 @@ var assertions = 0;
 
 var entry = new AuraCgRegistryEntry
 {
-    OwnerModId = "SunExp",
+    OwnerModId = "Terrias",
     CgId = "solar-prayer",
     Kind = "skill",
     TargetRoleIds = new List<string> { "wuna" },
@@ -53,9 +53,9 @@ entry.Media.Type = SkillCgMediaTypes.Sequence;
 
 Assert(AuraCgRegistryQueryService.MatchesRole(entry, ""), "empty role keeps existing wildcard behavior");
 Assert(AuraCgTargetMatcher.MatchesRole(entry, "WUNA"), "role match ignores case");
-Assert(AuraCgTargetMatcher.MatchesRole(entry, "SunExp_wuna_wuna"), "owner-scoped short role id matches full runtime role id");
-entry.TargetRoleIds = new List<string> { "SunExp_wuna_wuna", "wuna" };
-Assert(AuraCgTargetMatcher.MatchesRole(entry, "SunExp_wuna_wuna"),
+Assert(AuraCgTargetMatcher.MatchesRole(entry, "Terrias_wuna_wuna"), "owner-scoped short role id matches full runtime role id");
+entry.TargetRoleIds = new List<string> { "Terrias_wuna_wuna", "wuna" };
+Assert(AuraCgTargetMatcher.MatchesRole(entry, "Terrias_wuna_wuna"),
     "canonical and short aliases may both resolve to one runtime role");
 entry.TargetRoleIds = new List<string> { "wuna" };
 Assert(!AuraCgTargetMatcher.MatchesRole(entry, "loneer"), "other role rejected");
@@ -68,7 +68,7 @@ Assert(AuraCgRegistryQueryService.MatchesCard(entry, "*sun_card"), "exact decora
 entry.CardIds = new List<string> { "careercard_*8" };
 Assert(AuraCgRegistryQueryService.MatchesCard(entry, "careercard_8"), "internal table marker card identity matches");
 entry.CardIds = new List<string> { "solar_prayer" };
-Assert(AuraCgRegistryQueryService.MatchesCard(entry, "SunExp_solar_prayer"), "owner-scoped short card identity matches");
+Assert(AuraCgRegistryQueryService.MatchesCard(entry, "Terrias_solar_prayer"), "owner-scoped short card identity matches");
 entry.CardIds = new List<string> { "*sun_card" };
 
 var selectionCandidates = new[] { "first", "second", "third" };
@@ -105,7 +105,7 @@ Assert(AuraCgRegistryQueryService.ResolveImageResource(entry) == "cg/fallback.pn
 entry.Media.Resource = "cg/sequence";
 
 var request = AuraCgRegistryQueryService.CreateRequest(entry, "cg/sequence", "D:/cg/sequence", context, disableSync: true, createdAt: 12.5f);
-Assert(request.ProviderId == "SunExp.SkillCG.solar-prayer" && request.OwnerModId == "SunExp", "request provider identity");
+Assert(request.ProviderId == "Terrias.SkillCG.solar-prayer" && request.OwnerModId == "Terrias", "request provider identity");
 Assert(request.CardId == "sun_card" && request.OwnerInstanceId == "status-1", "request trigger identity");
 Assert(request.MediaType == SkillCgMediaTypes.Sequence && request.BundlePath == "visual.bundle", "request media contract");
 Assert(request.Priority == 42 && request.FitMode == "cover", "request priority and presentation");
@@ -245,7 +245,7 @@ Assert(!staleCoordinator.IsCurrent(staleGeneration)
 const int maxIdentifier = 16;
 var networkEvent = new SkillCgNetworkEvent
 {
-    OwnerModId = "SunExp",
+    OwnerModId = "Terrias",
     CgId = "solar",
     ProviderId = "provider",
     CardId = "card",

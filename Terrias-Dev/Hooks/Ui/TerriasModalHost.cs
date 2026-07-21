@@ -1,10 +1,10 @@
 using AuraUi.Shared;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using UnityEngine;
 
-namespace SunExp.Dll.Hooks.Ui;
+namespace Terrias.Dll.Hooks.Ui;
 
-public static class SunExpModalHost
+public static class TerriasModalHost
 {
     public static Transform? ModalParent()
     {
@@ -18,12 +18,12 @@ public static class SunExpModalHost
 
     public static GameObject? CreateFullscreenRoot(string name, Color blockerColor)
     {
-        return AuraUiModalHost.CreateFullscreenRoot(name, blockerColor, SunExpLog.Warn);
+        return AuraUiModalHost.CreateFullscreenRoot(name, blockerColor, TerriasLog.Warn);
     }
 
     public static GameObject? CreateNativeFullscreenRoot(string name, Color blockerColor)
     {
-        return AuraUiModalHost.CreateNativeFullscreenRoot(name, blockerColor, SunExpLog.Warn);
+        return AuraUiModalHost.CreateNativeFullscreenRoot(name, blockerColor, TerriasLog.Warn);
     }
 
     public static GameObject CreateFullscreenRoot(string name, Transform parent, Color blockerColor)
@@ -33,7 +33,7 @@ public static class SunExpModalHost
 
     public static bool Close(ref GameObject? root, string source, string logPrefix)
     {
-        var closed = SunExpUiSafety.CloseTransient(root, source, logPrefix);
+        var closed = TerriasUiSafety.CloseTransient(root, source, logPrefix);
         root = null;
         return closed;
     }

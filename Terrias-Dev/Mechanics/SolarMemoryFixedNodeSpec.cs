@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 internal sealed class SolarMemoryFixedNodeSpec
 {
@@ -43,8 +43,8 @@ internal sealed class SolarMemoryFixedNodeSpec
             normalizedLayer,
             mapSlotIndex,
             true,
-            SunExpIds.SolarMemoryMapIds[eventIndex],
-            SunExpIds.SolarMemoryFullEventIds[eventIndex]);
+            TerriasIds.SolarMemoryMapIds[eventIndex],
+            TerriasIds.SolarMemoryFullEventIds[eventIndex]);
     }
 
     public static SolarMemoryFixedNodeSpec Boss(int slotIndex, int layer, string mapId, string levelId)
@@ -80,8 +80,8 @@ internal static class SolarMemoryFixedNodeCatalog
             SolarMemoryFixedNodeSpec.Boss(
                 EndingSlotIndex,
                 1,
-                SunExpIds.SolarBossOrbitMirrorMapId,
-                SunExpIds.SolarBossOrbitMirrorLevelId)
+                TerriasIds.SolarBossOrbitMirrorMapId,
+                TerriasIds.SolarBossOrbitMirrorLevelId)
         }),
         Array.AsReadOnly(new[]
         {
@@ -90,13 +90,13 @@ internal static class SolarMemoryFixedNodeCatalog
             SolarMemoryFixedNodeSpec.Boss(
                 PenultimateSlotIndex,
                 2,
-                SunExpIds.SolarBossSecondSunMapId,
-                SunExpIds.SolarBossSecondSunLevelId),
+                TerriasIds.SolarBossSecondSunMapId,
+                TerriasIds.SolarBossSecondSunLevelId),
             SolarMemoryFixedNodeSpec.Boss(
                 EndingSlotIndex,
                 2,
-                SunExpIds.SolarBossSaintWunaMapId,
-                SunExpIds.SolarBossSaintWunaLevelId)
+                TerriasIds.SolarBossSaintWunaMapId,
+                TerriasIds.SolarBossSaintWunaLevelId)
         })
     };
 
@@ -107,7 +107,7 @@ internal static class SolarMemoryFixedNodeCatalog
 
     public static int ClampLayer(int layer)
     {
-        return Math.Max(0, Math.Min(SunExpIds.SolarMemoryMaxLayer - 1, layer));
+        return Math.Max(0, Math.Min(TerriasIds.SolarMemoryMaxLayer - 1, layer));
     }
 
     public static int EventIndex(int layer, int mapSlotIndex)
@@ -115,6 +115,6 @@ internal static class SolarMemoryFixedNodeCatalog
         var normalizedLayer = ClampLayer(layer);
         var slot = mapSlotIndex >= MidLayerSlotIndex ? 1 : 0;
         var index = normalizedLayer * 2 + slot;
-        return Math.Max(0, Math.Min(SunExpIds.SolarMemoryFullEventIds.Length - 1, index));
+        return Math.Max(0, Math.Min(TerriasIds.SolarMemoryFullEventIds.Length - 1, index));
     }
 }

@@ -2,11 +2,11 @@ using System;
 using System.Collections.Generic;
 using AuraShared.Core;
 
-namespace SunExp.Dll.Infrastructure;
+namespace Terrias.Dll.Infrastructure;
 
-public sealed class SunExpFrameStep
+public sealed class TerriasFrameStep
 {
-    public SunExpFrameStep(string name, Action action, int delayFrames = 1)
+    public TerriasFrameStep(string name, Action action, int delayFrames = 1)
     {
         Name = name ?? "";
         Action = action;
@@ -20,11 +20,11 @@ public sealed class SunExpFrameStep
     public int DelayFrames { get; }
 }
 
-public static class SunExpFrameStepRunner
+public static class TerriasFrameStepRunner
 {
     public static bool RunOnce(
         string key,
-        IEnumerable<SunExpFrameStep> steps,
+        IEnumerable<TerriasFrameStep> steps,
         Func<bool>? isCancelled = null,
         Action? onCompleted = null)
     {
@@ -62,26 +62,26 @@ public static class SunExpFrameStepRunner
             DefaultStepDelayFrames = 1,
             Steps = sharedSteps,
             IsCancelled = isCancelled,
-            OnStepFailed = (stepName, ex) => SunExpLog.Error("Frame step failed: " + key + "." + stepName, ex),
-            OnFailed = ex => SunExpPerformanceCounters.Record("FrameStep.Failed"),
+            OnStepFailed = (stepName, ex) => TerriasLog.Error("Frame step failed: " + key + "." + stepName, ex),
+            OnFailed = ex => TerriasPerformanceCounters.Record("FrameStep.Failed"),
             OnCompleted = onCompleted
         });
 
-        SunExpPerformanceCounters.Record(enqueued ? "FrameStep.Enqueued" : "FrameStep.Deduped");
+        TerriasPerformanceCounters.Record(enqueued ? "FrameStep.Enqueued" : "FrameStep.Deduped");
         return enqueued;
     }
 
-    private static void RunMeasuredStep(string key, SunExpFrameStep step)
+    private static void RunMeasuredStep(string key, TerriasFrameStep step)
     {
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         try
         {
             step.Action();
         }
         finally
         {
-            SunExpPerformanceCounters.RecordDuration("FrameStep.Action", start);
-            SunExpPerformanceCounters.RecordDuration("FrameStep.Action." + CounterKeyFor(key, step.Name), start);
+            TerriasPerformanceCounters.RecordDuration("FrameStep.Action", start);
+            TerriasPerformanceCounters.RecordDuration("FrameStep.Action." + CounterKeyFor(key, step.Name), start);
         }
     }
 

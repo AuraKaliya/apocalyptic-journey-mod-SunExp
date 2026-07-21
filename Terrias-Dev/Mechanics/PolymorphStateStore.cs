@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public sealed class PolymorphState
 {
@@ -126,7 +126,7 @@ public static class PolymorphStateStore
 
             var state = new PolymorphState(owner, role.Id, role.DisplayName, originalCareerId, originalCareer, ++version);
             ActiveStates[owner] = state;
-            SunExpPerformanceCounters.Record("Polymorph.StateSet");
+            TerriasPerformanceCounters.Record("Polymorph.StateSet");
             return state;
         }
     }
@@ -150,8 +150,8 @@ public static class PolymorphStateStore
         }
 
         RestoreOriginalCareer(state, source);
-        SunExpLog.Debug("[Polymorph] cleared owner state from " + source + ": " + owner + ".");
-        SunExpPerformanceCounters.Record("Polymorph.StateCleared");
+        TerriasLog.Debug("[Polymorph] cleared owner state from " + source + ": " + owner + ".");
+        TerriasPerformanceCounters.Record("Polymorph.StateCleared");
     }
 
     public static void ClearAll(string source)
@@ -175,8 +175,8 @@ public static class PolymorphStateStore
             RestoreOriginalCareer(state, source);
         }
 
-        SunExpLog.Debug("[Polymorph] cleared battle states from " + source + ".");
-        SunExpPerformanceCounters.Record("Polymorph.StateCleared");
+        TerriasLog.Debug("[Polymorph] cleared battle states from " + source + ".");
+        TerriasPerformanceCounters.Record("Polymorph.StateCleared");
     }
 
     private static string OwnerKey(IStatusManager? ownerStatus = null)
@@ -221,12 +221,12 @@ public static class PolymorphStateStore
                 "PolymorphStateStore.RestoreOriginalCareer:" + source);
             PolymorphNetworkSync.BroadcastRestore(state, "PolymorphStateStore.RestoreOriginalCareer:" + source);
             RoleSkillApi.RefreshFightSkills("PolymorphStateStore.RestoreOriginalCareer:" + source);
-            SunExpLog.Info("[Polymorph] restored career from " + source + ": "
+            TerriasLog.Info("[Polymorph] restored career from " + source + ": "
                 + state.RoleId + " -> " + state.OriginalCareerId);
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[Polymorph] failed to restore career from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[Polymorph] failed to restore career from " + source + ": " + ex.Message);
         }
     }
 
@@ -247,8 +247,8 @@ public static class PolymorphStateStore
     private static string NormalizeRoleId(string roleId)
     {
         var value = (roleId ?? "").Trim().TrimStart('*');
-        const string sunExpPrefix = "SunExp_";
-        if (value.StartsWith(sunExpPrefix, StringComparison.Ordinal))
+        const string terriasPrefix = "Terrias_";
+        if (value.StartsWith(terriasPrefix, StringComparison.Ordinal))
         {
             var parts = value.Split('_');
             return parts.Length > 0 ? parts[parts.Length - 1] : value;

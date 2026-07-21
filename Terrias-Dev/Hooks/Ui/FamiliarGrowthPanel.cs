@@ -3,19 +3,19 @@ using System.Collections.Generic;
 using System.Linq;
 using AuraGameData.Shared.GameApi;
 using AuraUi.Shared;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using UnityEngine.UI;
 using Witch.Core;
 
-namespace SunExp.Dll.Hooks.Ui;
+namespace Terrias.Dll.Hooks.Ui;
 
 public static class FamiliarGrowthPanel
 {
-    private const string PanelName = "SunExp_FamiliarGrowthPanel";
-    private const string RenameIconPath = "Mods/SunExp/ModResource/Images/UI/\u66f4\u540d.png";
+    private const string PanelName = "Terrias_FamiliarGrowthPanel";
+    private const string RenameIconPath = "Mods/Terrias/ModResource/Images/UI/\u66f4\u540d.png";
     private const float RowHeight = 58f;
     private const float ButtonHeight = 34f;
     private const float CompactBarHeight = 42f;
@@ -62,7 +62,7 @@ public static class FamiliarGrowthPanel
         catch (Exception ex)
         {
             Close();
-            SunExpLog.Error("Familiar growth panel failed", ex);
+            TerriasLog.Error("Familiar growth panel failed", ex);
         }
     }
 
@@ -72,7 +72,7 @@ public static class FamiliarGrowthPanel
         ClearChildren(listContent);
         ClearChildren(detailContent);
         ClearChildren(actionContent);
-        SunExpModalHost.Close(ref activePanel, "FamiliarGrowthPanel.Close", "[FamiliarGrowth]");
+        TerriasModalHost.Close(ref activePanel, "FamiliarGrowthPanel.Close", "[FamiliarGrowth]");
         listContent = null;
         detailContent = null;
         actionContent = null;
@@ -84,13 +84,13 @@ public static class FamiliarGrowthPanel
 
     private static void ShowPanel()
     {
-        var parent = SunExpModalHost.ModalParent();
+        var parent = TerriasModalHost.ModalParent();
         if (parent == null)
         {
             return;
         }
 
-        activePanel = SunExpModalHost.CreateFullscreenRoot(PanelName, parent, Backdrop);
+        activePanel = TerriasModalHost.CreateFullscreenRoot(PanelName, parent, Backdrop);
         var window = CreateRect("Window", activePanel.transform, new Vector2(0.5f, 0.5f), new Vector2(0.5f, 0.5f),
             new Vector2(0.5f, 0.5f), ResolveWindowSize(parent));
         ApplyPanelImage(window, PanelTint);
@@ -143,20 +143,20 @@ public static class FamiliarGrowthPanel
         footerLayout.childForceExpandHeight = false;
         footerLayout.childForceExpandWidth = false;
         hintText = AddTextBlock(footer.transform, "", 13, TextAnchor.MiddleLeft, Pale, ButtonHeight, 1f);
-        SunExpUiComponents.CreateTextButton(
+        TerriasUiComponents.CreateTextButton(
             footer.transform,
             "使魔祝福图鉴",
             new Vector2(150f, ButtonHeight),
-            SunExpUiSprites.Button("[FamiliarGrowth]"),
+            TerriasUiSprites.Button("[FamiliarGrowth]"),
             HeaderTint,
             Pale,
             14,
             FamiliarBlessingCodexPanel.Open);
-        SunExpUiComponents.CreateTextButton(
+        TerriasUiComponents.CreateTextButton(
             footer.transform,
             "\u5173\u95ed",
             new Vector2(InlineButtonWidth, ButtonHeight),
-            SunExpUiSprites.Button("[FamiliarGrowth]"),
+            TerriasUiSprites.Button("[FamiliarGrowth]"),
             HeaderTint,
             Pale,
             14,
@@ -505,7 +505,7 @@ public static class FamiliarGrowthPanel
 
         try
         {
-            renameIcon = SunExpResourceCache.Load<Sprite>(RenameIconPath, true, "familiar.growth.rename");
+            renameIcon = TerriasResourceCache.Load<Sprite>(RenameIconPath, true, "familiar.growth.rename");
         }
         catch
         {
@@ -584,7 +584,7 @@ public static class FamiliarGrowthPanel
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[FamiliarGrowth] failed to parse blessing description for " + blessing.Id + ": " + ex.Message);
+            TerriasLog.Warn("[FamiliarGrowth] failed to parse blessing description for " + blessing.Id + ": " + ex.Message);
             return raw;
         }
     }
@@ -737,7 +737,7 @@ public static class FamiliarGrowthPanel
 
         try
         {
-            return SunExpResourceCache.Load<Sprite>(species.IconPath, true, "familiar.growth.icon");
+            return TerriasResourceCache.Load<Sprite>(species.IconPath, true, "familiar.growth.icon");
         }
         catch
         {
@@ -755,7 +755,7 @@ public static class FamiliarGrowthPanel
         element.minHeight = size.y;
         element.preferredHeight = size.y;
         var image = go.AddComponent<Image>();
-        image.sprite = SunExpUiSprites.Button("[FamiliarGrowth]");
+        image.sprite = TerriasUiSprites.Button("[FamiliarGrowth]");
         image.type = image.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
         image.fillCenter = true;
         image.color = interactable ? Color.white : new Color(0.55f, 0.55f, 0.55f, 0.85f);
@@ -774,7 +774,7 @@ public static class FamiliarGrowthPanel
 
     private static void ApplyPanelImage(GameObject go, Color fallbackOrTint, bool raycastTarget = false)
     {
-        SunExpUiBuilder.ApplyPanelImage(go, SunExpUiSprites.Panel("[FamiliarGrowth]"), fallbackOrTint, raycastTarget);
+        TerriasUiBuilder.ApplyPanelImage(go, TerriasUiSprites.Panel("[FamiliarGrowth]"), fallbackOrTint, raycastTarget);
     }
 
     private static Text AddTextBlock(Transform parent, string value, int fontSize, TextAnchor anchor, Color color,
@@ -806,17 +806,17 @@ public static class FamiliarGrowthPanel
 
     private static Text ConfigureText(GameObject go, string value, int fontSize, TextAnchor anchor, Color color)
     {
-        return SunExpUiComponents.ConfigureText(go, value, fontSize, anchor, color, Math.Max(9, fontSize - 5));
+        return TerriasUiComponents.ConfigureText(go, value, fontSize, anchor, color, Math.Max(9, fontSize - 5));
     }
 
     private static GameObject CreateLayoutObject(string name, Transform parent)
     {
-        return SunExpUiComponents.CreateLayoutObject(name, parent);
+        return TerriasUiComponents.CreateLayoutObject(name, parent);
     }
 
     private static GameObject CreateRect(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 sizeDelta)
     {
-        return SunExpUiComponents.CreateRect(name, parent, anchorMin, anchorMax, pivot, sizeDelta);
+        return TerriasUiComponents.CreateRect(name, parent, anchorMin, anchorMax, pivot, sizeDelta);
     }
 
     private static Vector2 ResolveWindowSize(Transform parent)
@@ -848,6 +848,6 @@ public static class FamiliarGrowthPanel
 
     private static void ClearChildren(Transform? parent)
     {
-        SunExpUiPool.ReleaseOrDestroyChildren(parent, "FamiliarGrowthPanel.ClearChildren", "[FamiliarGrowth]");
+        TerriasUiPool.ReleaseOrDestroyChildren(parent, "FamiliarGrowthPanel.ClearChildren", "[FamiliarGrowth]");
     }
 }

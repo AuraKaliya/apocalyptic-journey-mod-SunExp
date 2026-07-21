@@ -1,23 +1,23 @@
 using System;
 using System.Collections.Generic;
 using AuraUi.Shared;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Hooks.Ui;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Hooks.Ui;
+using Terrias.Dll.Infrastructure;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
 using Witch;
 using Witch.Core;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class SolarMemorySetupFlowRuntime
 {
     private const int OriginSetupPointTotal = 50;
     private const int OriginLargeStep = 10;
-    private const string OriginWindowName = "SunExp_SolarMemoryOriginSetup";
-    private const string BlessingChromeName = "SunExp_SolarMemoryBlessingSetup";
+    private const string OriginWindowName = "Terrias_SolarMemoryOriginSetup";
+    private const string BlessingChromeName = "Terrias_SolarMemoryBlessingSetup";
     private static readonly Color Gold = new(0.82f, 0.72f, 0.42f);
     private static readonly Color PaleGold = new(0.93f, 0.86f, 0.58f);
     private static readonly Color DeepBlue = new(0.02f, 0.02f, 0.16f, 0.98f);
@@ -47,7 +47,7 @@ public static class SolarMemorySetupFlowRuntime
             CloseOriginWindow();
             EnsureSetupVars();
 
-            var parent = SunExpModalHost.ModalParent();
+            var parent = TerriasModalHost.ModalParent();
             if (parent == null || RoleTable.Instance == null)
             {
                 return;
@@ -60,7 +60,7 @@ public static class SolarMemorySetupFlowRuntime
                 pendingOriginAdds[spec.Key] = 0;
             }
 
-            activeOriginRoot = SunExpModalHost.CreateFullscreenRoot(
+            activeOriginRoot = TerriasModalHost.CreateFullscreenRoot(
                 OriginWindowName,
                 parent,
                 new Color(0f, 0f, 0f, 0.74f));
@@ -93,7 +93,7 @@ public static class SolarMemorySetupFlowRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory origin setup window failed", ex);
+            TerriasLog.Error("Solar memory origin setup window failed", ex);
         }
     }
 
@@ -192,10 +192,10 @@ public static class SolarMemorySetupFlowRuntime
             }
         }
 
-        SolarMemoryPlayerSetupState.SetInt(SunExpIds.SolarMemoryOriginPointsKey, 0);
-        SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryOriginConfiguredKey, true);
+        SolarMemoryPlayerSetupState.SetInt(TerriasIds.SolarMemoryOriginPointsKey, 0);
+        SolarMemoryPlayerSetupState.SetFlag(TerriasIds.SolarMemoryOriginConfiguredKey, true);
         CloseOriginWindow();
-        SunExpLog.Info("[SolarMemorySetup] origin allocation confirmed.");
+        TerriasLog.Info("[SolarMemorySetup] origin allocation confirmed.");
         SolarMemoryPreparationRuntime.CompleteOriginAllocation();
     }
 
@@ -209,21 +209,21 @@ public static class SolarMemorySetupFlowRuntime
             }
 
             EnsureSetupVars();
-            if (SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryBlessConfiguredKey))
+            if (SolarMemoryPlayerSetupState.IsSet(TerriasIds.SolarMemoryBlessConfiguredKey))
             {
                 SolarMemoryPreparationRuntime.CompleteBlessingSelection();
                 return;
             }
 
             blessingStepActive = true;
-            SunExpLog.Info("[SolarMemorySetup] opening blessing picker.");
+            TerriasLog.Info("[SolarMemorySetup] opening blessing picker.");
             SolarMemoryBlessingPickerRuntime.Open(() =>
             {
                 blessingStepActive = false;
                 SolarMemoryPreparationRuntime.CompleteBlessingSelection();
             });
             if (!SolarMemoryBlessingPickerRuntime.IsOpen
-                && !SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryBlessConfiguredKey))
+                && !SolarMemoryPlayerSetupState.IsSet(TerriasIds.SolarMemoryBlessConfiguredKey))
             {
                 blessingStepActive = false;
             }
@@ -233,7 +233,7 @@ public static class SolarMemorySetupFlowRuntime
             blessingStepActive = false;
             CloseBlessingChrome();
             SolarMemoryBlessingPickerRuntime.Close();
-            SunExpLog.Error("Solar memory blessing setup failed", ex);
+            TerriasLog.Error("Solar memory blessing setup failed", ex);
         }
     }
 
@@ -263,34 +263,34 @@ public static class SolarMemorySetupFlowRuntime
 
     private static void EnsureSetupVars()
     {
-        if (SolarMemoryPlayerSetupState.GetValue(SunExpIds.SolarMemoryOriginPointsKey, "") == "")
+        if (SolarMemoryPlayerSetupState.GetValue(TerriasIds.SolarMemoryOriginPointsKey, "") == "")
         {
-            SolarMemoryPlayerSetupState.SetInt(SunExpIds.SolarMemoryOriginPointsKey, OriginAssignablePointTotal());
+            SolarMemoryPlayerSetupState.SetInt(TerriasIds.SolarMemoryOriginPointsKey, OriginAssignablePointTotal());
         }
 
-        if (!SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryOriginConfiguredKey))
+        if (!SolarMemoryPlayerSetupState.IsSet(TerriasIds.SolarMemoryOriginConfiguredKey))
         {
             var assignable = OriginAssignablePointTotal();
-            if (SolarMemoryPlayerSetupState.GetInt(SunExpIds.SolarMemoryOriginPointsKey, 0) != assignable)
+            if (SolarMemoryPlayerSetupState.GetInt(TerriasIds.SolarMemoryOriginPointsKey, 0) != assignable)
             {
-                SolarMemoryPlayerSetupState.SetInt(SunExpIds.SolarMemoryOriginPointsKey, assignable);
+                SolarMemoryPlayerSetupState.SetInt(TerriasIds.SolarMemoryOriginPointsKey, assignable);
             }
         }
     }
 
     private static bool IsSetupFinished()
     {
-        return SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemorySetupFinishedKey);
+        return SolarMemoryPlayerSetupState.IsSet(TerriasIds.SolarMemorySetupFinishedKey);
     }
 
     private static int BlessingPickCount()
     {
-        return SolarMemoryPlayerSetupState.GetInt(SunExpIds.SolarMemoryBlessPickCountKey, 0);
+        return SolarMemoryPlayerSetupState.GetInt(TerriasIds.SolarMemoryBlessPickCountKey, 0);
     }
 
     private static int OriginRemaining()
     {
-        var total = Math.Max(0, SolarMemoryPlayerSetupState.GetInt(SunExpIds.SolarMemoryOriginPointsKey, OriginSetupPointTotal));
+        var total = Math.Max(0, SolarMemoryPlayerSetupState.GetInt(TerriasIds.SolarMemoryOriginPointsKey, OriginSetupPointTotal));
         var used = 0;
         foreach (var value in pendingOriginAdds.Values)
         {
@@ -469,7 +469,7 @@ public static class SolarMemorySetupFlowRuntime
         var rect = CreateRect(name, parent, new Vector2(0f, 1f), new Vector2(0f, 1f), new Vector2(0f, 1f), size);
         rect.anchoredPosition = anchoredPosition;
         var image = rect.gameObject.AddComponent<Image>();
-        image.sprite = SunExpUiSprites.Button("[SolarMemorySetup]");
+        image.sprite = TerriasUiSprites.Button("[SolarMemorySetup]");
         image.type = image.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
         image.color = image.sprite != null ? Color.white : new Color(0.05f, 0.05f, 0.22f, 0.96f);
         var button = rect.gameObject.AddComponent<Button>();
@@ -503,7 +503,7 @@ public static class SolarMemorySetupFlowRuntime
     {
         var rect = CreateLayoutBox(parent, "Button-" + label, size);
         var image = rect.gameObject.AddComponent<Image>();
-        image.sprite = SunExpUiSprites.Button("[SolarMemorySetup]");
+        image.sprite = TerriasUiSprites.Button("[SolarMemorySetup]");
         image.type = image.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
         image.color = image.sprite != null ? Color.white : new Color(0.05f, 0.05f, 0.22f, 0.96f);
         var button = rect.gameObject.AddComponent<Button>();
@@ -516,22 +516,22 @@ public static class SolarMemorySetupFlowRuntime
     private static Text AddText(RectTransform parent, string name, string value, int fontSize, FontStyle style, TextAnchor alignment,
         Color color, Vector2 anchoredPosition, Vector2 size)
     {
-        return SunExpUiBuilder.AddText(parent, name, value, fontSize, style, alignment, color, anchoredPosition, size);
+        return TerriasUiBuilder.AddText(parent, name, value, fontSize, style, alignment, color, anchoredPosition, size);
     }
 
     private static RectTransform CreateRect(string name, Transform parent, Vector2 anchorMin, Vector2 anchorMax, Vector2 pivot, Vector2 sizeDelta)
     {
-        return SunExpUiBuilder.CreateRect(name, parent, anchorMin, anchorMax, pivot, sizeDelta);
+        return TerriasUiBuilder.CreateRect(name, parent, anchorMin, anchorMax, pivot, sizeDelta);
     }
 
     private static void ApplyPanelImage(GameObject go, Color fallbackOrTint, bool raycastTarget)
     {
-        SunExpUiBuilder.ApplyPanelImage(go, SunExpUiSprites.Panel("[SolarMemorySetup]"), fallbackOrTint, raycastTarget);
+        TerriasUiBuilder.ApplyPanelImage(go, TerriasUiSprites.Panel("[SolarMemorySetup]"), fallbackOrTint, raycastTarget);
     }
 
     private static void CloseOriginWindow()
     {
-        SunExpModalHost.Close(ref activeOriginRoot, "SolarMemorySetup.CloseOriginWindow", "[SolarMemorySetup]");
+        TerriasModalHost.Close(ref activeOriginRoot, "SolarMemorySetup.CloseOriginWindow", "[SolarMemorySetup]");
 
         originValueTexts.Clear();
         originSummaryText = null;
@@ -541,6 +541,6 @@ public static class SolarMemorySetupFlowRuntime
 
     private static void CloseBlessingChrome()
     {
-        SunExpModalHost.Close(ref activeBlessingChrome, "SolarMemorySetup.CloseBlessingChrome", "[SolarMemorySetup]");
+        TerriasModalHost.Close(ref activeBlessingChrome, "SolarMemorySetup.CloseBlessingChrome", "[SolarMemorySetup]");
     }
 }

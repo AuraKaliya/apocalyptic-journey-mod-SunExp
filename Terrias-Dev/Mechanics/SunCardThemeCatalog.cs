@@ -1,12 +1,12 @@
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.Core;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class SunCardThemeCatalog
 {
     public static bool IsSunThemeCard(IDataConfig? config)
     {
-        return CardVisualThemeCatalog.Resolve(config)?.Id == SunExpIds.SunCardVisualSkinId;
+        return CardVisualThemeCatalog.Resolve(config)?.Id == TerriasIds.SunCardVisualSkinId;
     }
 }

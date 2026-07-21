@@ -1,15 +1,15 @@
 using System;
 using Network.Command;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch.Core;
 
-namespace SunExp.Dll.Network;
+namespace Terrias.Dll.Network;
 
 [Serializable]
-public sealed class RpcPolymorphVisualState : RpcCommandBase, ISunExpServerBoundRpcCommand
+public sealed class RpcPolymorphVisualState : RpcCommandBase, ITerriasServerBoundRpcCommand
 {
-    private SunExpRpcSender serverSender = SunExpRpcSender.Unbound;
+    private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 
     public PolymorphVisualSnapshot Snapshot { get; set; } = new();
 
@@ -27,9 +27,9 @@ public sealed class RpcPolymorphVisualState : RpcCommandBase, ISunExpServerBound
         Accepted = true;
     }
 
-    public void BindServerSender(SunExpRpcSender sender)
+    public void BindServerSender(TerriasRpcSender sender)
     {
-        serverSender = sender ?? SunExpRpcSender.Unbound;
+        serverSender = sender ?? TerriasRpcSender.Unbound;
     }
 
     public override void CmdExecute()
@@ -44,7 +44,7 @@ public sealed class RpcPolymorphVisualState : RpcCommandBase, ISunExpServerBound
         {
             if (!string.IsNullOrWhiteSpace(RejectionReason))
             {
-                SunExpLog.Warn("[PolymorphSync] visual state rejected: " + RejectionReason);
+                TerriasLog.Warn("[PolymorphSync] visual state rejected: " + RejectionReason);
             }
 
             return;
@@ -59,7 +59,7 @@ public sealed class RpcPolymorphVisualState : RpcCommandBase, ISunExpServerBound
         if (!serverSender.IsAvailable)
         {
             rejection = "missing sender";
-            return !SunExpNetworkRuntime.IsMultiplayerSession();
+            return !TerriasNetworkRuntime.IsMultiplayerSession();
         }
 
         if (!serverSender.IsLobbyMember)
@@ -72,7 +72,7 @@ public sealed class RpcPolymorphVisualState : RpcCommandBase, ISunExpServerBound
         if (!string.IsNullOrWhiteSpace(ownerStatusId)
             && !string.Equals(ownerStatusId, serverSender.PlayerId, StringComparison.Ordinal))
         {
-            if (!SunExpStatusOwnershipPolicy.SenderOwnsStatus(
+            if (!TerriasStatusOwnershipPolicy.SenderOwnsStatus(
                     serverSender.PlayerId,
                     ownerStatusId,
                     out var ownershipDetail))

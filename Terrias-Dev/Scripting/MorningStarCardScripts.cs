@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 
-namespace SunExp.Dll.Scripting;
+namespace Terrias.Dll.Scripting;
 
 public static class MorningStarCardScripts
 {
@@ -34,7 +34,7 @@ public static class MorningStarCardScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("MorningStar Init failed: " + id, ex);
+            TerriasLog.Error("MorningStar Init failed: " + id, ex);
         }
     }
 
@@ -50,7 +50,7 @@ public static class MorningStarCardScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("MorningStar Use failed: " + id, ex);
+            TerriasLog.Error("MorningStar Use failed: " + id, ex);
         }
     }
 
@@ -67,7 +67,7 @@ public static class MorningStarCardScripts
     {
         StarScoreService.ClearCurrentNotes(self);
         self.SetStatus("Self");
-        self.AddBuff(SunExpIds.StarBlessing, "1");
+        self.AddBuff(TerriasIds.StarBlessing, "1");
         self.DrawCount("1");
     }
 
@@ -102,23 +102,23 @@ public static class MorningStarCardScripts
         }
 
         self.SetStatus("Self");
-        self.AddBuff(SunExpIds.Resonance, cleared.ToString());
+        self.AddBuff(TerriasIds.Resonance, cleared.ToString());
         self.DrawCount(cleared.ToString());
     }
 
     private static void UseMorningStarStage(ScriptExecutor self)
     {
         self.SetStatus("Self");
-        self.AddBuff(SunExpIds.StarStage, "1");
+        self.AddBuff(TerriasIds.StarStage, "1");
     }
 
     private static void UseStarScoreEcho(ScriptExecutor self)
     {
         if (!StarScoreService.ReplayMostRecentCadence(self))
         {
-            CardApi.AddCardToHand(self, SunExpIds.StellarOvertureStartCardId);
-            CardApi.AddCardToHand(self, SunExpIds.StellarOvertureSustainCardId);
-            CardApi.AddCardToHand(self, SunExpIds.StellarOvertureTurnCardId);
+            CardApi.AddCardToHand(self, TerriasIds.StellarOvertureStartCardId);
+            CardApi.AddCardToHand(self, TerriasIds.StellarOvertureSustainCardId);
+            CardApi.AddCardToHand(self, TerriasIds.StellarOvertureTurnCardId);
             return;
         }
 
@@ -140,7 +140,7 @@ public static class MorningStarCardScripts
         {
             if (card?.dataConfig != null && !existing.Contains(card.dataConfig))
             {
-                CardMutationService.AddSpecialTags(card, SunExpIds.MorningStarSealTag);
+                CardMutationService.AddSpecialTags(card, TerriasIds.MorningStarSealTag);
             }
         }
     }

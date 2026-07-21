@@ -1,15 +1,15 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Hooks.Ui;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Hooks.Ui;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using TMPro;
 using UnityEngine;
 using UnityEngine.Rendering;
 
-namespace SunExp.Dll.Hooks.Visual;
+namespace Terrias.Dll.Hooks.Visual;
 
 public sealed class PooledCardExitAnimator : MonoBehaviour
 {
@@ -52,7 +52,7 @@ public sealed class PooledCardExitAnimator : MonoBehaviour
                 var target = GameObject.Find(targetPath)?.transform;
                 if (target == null)
                 {
-                    SunExpLog.Warn("[CombatCardViewPool] pooled exit target unavailable: " + targetPath);
+                    TerriasLog.Warn("[CombatCardViewPool] pooled exit target unavailable: " + targetPath);
                     return false;
                 }
 
@@ -71,7 +71,7 @@ public sealed class PooledCardExitAnimator : MonoBehaviour
             running = null;
             if (burnAnimationStarted > 0L)
             {
-                SunExpPerformanceCounters.RecordDuration("PooledCardExit.BurnWallDurationCancelled", burnAnimationStarted);
+                TerriasPerformanceCounters.RecordDuration("PooledCardExit.BurnWallDurationCancelled", burnAnimationStarted);
                 burnAnimationStarted = 0L;
             }
         }
@@ -99,7 +99,7 @@ public sealed class PooledCardExitAnimator : MonoBehaviour
 
     public void RefreshTextBindings(Transform root)
     {
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         foreach (var binding in burnTextBindings)
         {
             binding.Restore();
@@ -111,13 +111,13 @@ public sealed class PooledCardExitAnimator : MonoBehaviour
             burnTextBindings.Add(new TextBinding(text));
         }
 
-        SunExpPerformanceCounters.Record("PooledCardExit.BurnTextBindingsRefreshed");
-        SunExpPerformanceCounters.RecordDuration("PooledCardExit.BurnTextBindingRefresh", start);
+        TerriasPerformanceCounters.Record("PooledCardExit.BurnTextBindingsRefreshed");
+        TerriasPerformanceCounters.RecordDuration("PooledCardExit.BurnTextBindingRefresh", start);
     }
 
     private IEnumerator PlayBurn(CardItem card, Action onComplete)
     {
-        burnAnimationStarted = SunExpPerformanceCounters.Timestamp();
+        burnAnimationStarted = TerriasPerformanceCounters.Timestamp();
         TryPlayAudio("Effect/burn");
         PrepareBurnMaterials(card.transform);
         PrepareBurnTexts(card.transform);
@@ -127,7 +127,7 @@ public sealed class PooledCardExitAnimator : MonoBehaviour
         var elapsed = 0f;
         while (elapsed < duration && card != null)
         {
-            var frameCpuStarted = SunExpPerformanceCounters.Timestamp();
+            var frameCpuStarted = TerriasPerformanceCounters.Timestamp();
             elapsed += Math.Max(0f, Time.deltaTime);
             var progress = Mathf.Clamp01(elapsed / duration);
             var fade = Mathf.Lerp(50f, -90f, Mathf.Clamp01((progress - 0.18f) / 0.82f));
@@ -147,12 +147,12 @@ public sealed class PooledCardExitAnimator : MonoBehaviour
                 canvasGroup.alpha = 1f - Mathf.Clamp01((progress - 0.55f) / 0.45f);
             }
 
-            SunExpPerformanceCounters.RecordDuration("PooledCardExit.BurnFrameCpu", frameCpuStarted);
+            TerriasPerformanceCounters.RecordDuration("PooledCardExit.BurnFrameCpu", frameCpuStarted);
             yield return null;
         }
 
         running = null;
-        SunExpPerformanceCounters.RecordDuration("PooledCardExit.BurnWallDuration", burnAnimationStarted);
+        TerriasPerformanceCounters.RecordDuration("PooledCardExit.BurnWallDuration", burnAnimationStarted);
         burnAnimationStarted = 0L;
         onComplete();
     }
@@ -192,7 +192,7 @@ public sealed class PooledCardExitAnimator : MonoBehaviour
     {
         if (burnBindings.Count < BurnRendererPaths.Length)
         {
-            var template = SunExpResourceCache.Load<Material>("Material/CardBurn", false, "combat-card-exit");
+            var template = TerriasResourceCache.Load<Material>("Material/CardBurn", false, "combat-card-exit");
             if (template == null)
             {
                 return;
@@ -214,11 +214,11 @@ public sealed class PooledCardExitAnimator : MonoBehaviour
 
     private void PrepareBurnTexts(Transform root)
     {
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         if (burnTextBindings.Count == 0)
         {
             RefreshTextBindings(root);
-            SunExpPerformanceCounters.Record("PooledCardExit.BurnTextEmergencyRefresh");
+            TerriasPerformanceCounters.Record("PooledCardExit.BurnTextEmergencyRefresh");
         }
 
         foreach (var binding in burnTextBindings)
@@ -227,8 +227,8 @@ public sealed class PooledCardExitAnimator : MonoBehaviour
             binding.Hide();
         }
 
-        SunExpPerformanceCounters.Record("PooledCardExit.BurnTextHidden");
-        SunExpPerformanceCounters.RecordDuration("PooledCardExit.BurnTextPrepare", start);
+        TerriasPerformanceCounters.Record("PooledCardExit.BurnTextHidden");
+        TerriasPerformanceCounters.RecordDuration("PooledCardExit.BurnTextPrepare", start);
     }
 
     private static float CanvasScale()
@@ -244,7 +244,7 @@ public sealed class PooledCardExitAnimator : MonoBehaviour
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("[CombatCardViewPool] exit audio failed: " + ex.Message);
+            TerriasLog.Debug("[CombatCardViewPool] exit audio failed: " + ex.Message);
         }
     }
 

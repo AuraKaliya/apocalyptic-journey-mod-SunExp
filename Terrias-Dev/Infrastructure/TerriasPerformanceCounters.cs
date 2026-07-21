@@ -3,9 +3,9 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 
-namespace SunExp.Dll.Infrastructure;
+namespace Terrias.Dll.Infrastructure;
 
-public static class SunExpPerformanceCounters
+public static class TerriasPerformanceCounters
 {
     private const int SummaryIntervalMilliseconds = 10000;
     private static readonly object Sync = new();
@@ -14,12 +14,12 @@ public static class SunExpPerformanceCounters
 
     public static long Timestamp()
     {
-        return SunExpPerformanceSettings.CountersEnabled ? Stopwatch.GetTimestamp() : 0L;
+        return TerriasPerformanceSettings.CountersEnabled ? Stopwatch.GetTimestamp() : 0L;
     }
 
     public static void Record(string name)
     {
-        if (!SunExpPerformanceSettings.CountersEnabled)
+        if (!TerriasPerformanceSettings.CountersEnabled)
         {
             return;
         }
@@ -29,7 +29,7 @@ public static class SunExpPerformanceCounters
 
     public static void RecordDuration(string name, long startTimestamp)
     {
-        if (startTimestamp <= 0L || !SunExpPerformanceSettings.CountersEnabled)
+        if (startTimestamp <= 0L || !TerriasPerformanceSettings.CountersEnabled)
         {
             return;
         }
@@ -49,7 +49,7 @@ public static class SunExpPerformanceCounters
         bool logFirstSample = false,
         double slowWarningMilliseconds = 8.0)
     {
-        if (startTimestamp <= 0L || !SunExpPerformanceSettings.CountersEnabled)
+        if (startTimestamp <= 0L || !TerriasPerformanceSettings.CountersEnabled)
         {
             return 0.0;
         }
@@ -64,11 +64,11 @@ public static class SunExpPerformanceCounters
             + (string.IsNullOrWhiteSpace(details) ? "" : ", " + details);
         if (elapsedMilliseconds >= Math.Max(0.0, slowWarningMilliseconds))
         {
-            SunExpLog.Warn(message);
+            TerriasLog.Warn(message);
         }
         else if (logFirstSample)
         {
-            SunExpLog.InfoOnceAlways("perf-hotspot:" + name, message);
+            TerriasLog.InfoOnceAlways("perf-hotspot:" + name, message);
         }
 
         return elapsedMilliseconds;
@@ -76,7 +76,7 @@ public static class SunExpPerformanceCounters
 
     public static void MaybeLogSummary()
     {
-        if (!SunExpPerformanceSettings.CountersEnabled)
+        if (!TerriasPerformanceSettings.CountersEnabled)
         {
             return;
         }
@@ -112,7 +112,7 @@ public static class SunExpPerformanceCounters
             lastSummaryTimestamp = now;
         }
 
-        SunExpLog.InfoAlways("[Perf] " + string.Join("; ", lines));
+        TerriasLog.InfoAlways("[Perf] " + string.Join("; ", lines));
     }
 
     private static void Add(string name, long elapsedTicks)

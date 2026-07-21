@@ -1,6 +1,6 @@
 # AuraSkinShared
 
-`AuraSkinShared` is the shared character-skin installer and runtime used by SkinExp, AuraToolsExp, and SunExp.
+`AuraSkinShared` is the shared character-skin installer and runtime used by SkinExp, AuraToolsExp, and Terrias.
 
 ## Runtime model
 

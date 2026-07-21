@@ -1,4 +1,4 @@
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class ConstellationIdentityRules
 {

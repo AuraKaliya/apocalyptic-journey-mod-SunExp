@@ -323,15 +323,15 @@ void TestConfigModelSerializationCompatibility()
         "match-experience config keeps legacy schema migration and nested defaults after the file split");
 
     var legacyFeast = JsonConvert.DeserializeObject<FeastSettings>(
-        "{\"roles\":{\"role-a\":{\"selectedCgId\":\"SunExp:feast-a\"}}}")!;
+        "{\"roles\":{\"role-a\":{\"selectedCgId\":\"Terrias:feast-a\"}}}")!;
     legacyFeast.Normalize();
     var migratedRole = legacyFeast.Roles["role-a"];
     Assert(migratedRole.CandidateSelectionConfigured
-           && migratedRole.EnabledCgIds.SequenceEqual(new[] { "SunExp:feast-a" })
+           && migratedRole.EnabledCgIds.SequenceEqual(new[] { "Terrias:feast-a" })
            && migratedRole.SelectionMode == "priority",
         "legacy single Feast selection migrates to the enabled candidate list");
-    Assert(migratedRole.MigrateLegacyCandidateSelection(new[] { "SunExp:feast-a", "ContentB:feast-b" })
-           && migratedRole.ResourceOverrides["SunExp:feast-a"]
+    Assert(migratedRole.MigrateLegacyCandidateSelection(new[] { "Terrias:feast-a", "ContentB:feast-b" })
+           && migratedRole.ResourceOverrides["Terrias:feast-a"]
            && !migratedRole.ResourceOverrides["ContentB:feast-b"],
         "legacy Feast whitelist migrates once into sparse overrides for the candidates seen during migration");
     var unconfiguredRole = new FeastRoleSettings();
@@ -950,7 +950,7 @@ void TestRuntimeArchitectureGuards()
         "team avatar capture is explicitly configurable");
     Assert(damageMeterSettlement.Contains("AuraModeOutcomeRuntime.TryReadRecent", StringComparison.Ordinal)
            && damageMeterSettlement.Contains("sharedOutcome.IsCompleted", StringComparison.Ordinal)
-           && !damageMeterSettlement.Contains("SunExp", StringComparison.Ordinal),
+           && !damageMeterSettlement.Contains("Terrias", StringComparison.Ordinal),
         "damage settlement consumes the generic run-scoped mode outcome without depending on a content mod");
     Assert(damageMeterSettlement.Contains("MaxAvatarEncodePixels", StringComparison.Ordinal)
            && damageMeterSettlement.Contains("MaxAvatarPngBytes", StringComparison.Ordinal),
@@ -1277,9 +1277,9 @@ void TestRuntimeArchitectureGuards()
            && !starterDeckModule.Contains("IsSkillLikeCard", StringComparison.Ordinal),
         "starter deck classification must not infer career skills from Action or icon presentation fields");
     Assert(starterDeckClassification.Contains("\"衍生牌\"", StringComparison.Ordinal)
-           && !starterDeckClassification.Contains("SunExp_wuna_wuna_coronation_token", StringComparison.Ordinal),
-        "derived-card filtering is semantic and does not make AuraTools depend on a SunExp content id");
-    var wunaCardText = ReadRepoText("SunExp/Text/Card/wuna.csv");
+           && !starterDeckClassification.Contains("Terrias_wuna_wuna_coronation_token", StringComparison.Ordinal),
+        "derived-card filtering is semantic and does not make AuraTools depend on a Terrias content id");
+    var wunaCardText = ReadRepoText("Terrias/Text/Card/wuna.csv");
     Assert(wunaCardText.Contains("*wuna_coronation_token,TRUE,衍生牌", StringComparison.Ordinal),
         "Radiance Coronation keeps the content-owned derived-card marker consumed by the generic filter");
 
@@ -1678,7 +1678,7 @@ void TestStarterDeckCardClassification()
 
     var coronationToken = new Dictionary<string, string>
     {
-        ["Id"] = "SunExp_wuna_wuna_coronation_token",
+        ["Id"] = "Terrias_wuna_wuna_coronation_token",
         ["Action"] = "Skill",
         ["Type"] = "衍生牌"
     };

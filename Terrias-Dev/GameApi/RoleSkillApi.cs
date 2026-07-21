@@ -2,13 +2,13 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.Core;
 using UnityEngine;
 using Witch.UI;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class RoleSkillApi
 {
@@ -30,12 +30,12 @@ public static class RoleSkillApi
             ResetSkillBranches(fightUi);
             fightUi.InitSkill();
             fightUi.UpdateSkill();
-            SunExpLog.Info("[Polymorph] refreshed fight skills from " + source + ".");
+            TerriasLog.Info("[Polymorph] refreshed fight skills from " + source + ".");
             return true;
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[Polymorph] failed to refresh fight skills from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[Polymorph] failed to refresh fight skills from " + source + ": " + ex.Message);
             return false;
         }
     }
@@ -51,7 +51,7 @@ public static class RoleSkillApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("[Polymorph] skill time sync skipped: " + ex.Message);
+            TerriasLog.Debug("[Polymorph] skill time sync skipped: " + ex.Message);
         }
     }
 
@@ -130,7 +130,7 @@ public static class RoleSkillApi
                 times.Add(id + "=" + PlayerApi.GetSkillTime(id));
             }
 
-            SunExpLog.Info("[Polymorph] skill diagnostics from " + source
+            TerriasLog.Info("[Polymorph] skill diagnostics from " + source
                 + ": career=" + PlayerApi.GetCurrentCareerId()
                 + ", raw=" + raw
                 + ", normalized=" + normalized
@@ -138,7 +138,7 @@ public static class RoleSkillApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("[Polymorph] skill diagnostics skipped from " + source + ": " + ex.Message);
+            TerriasLog.Debug("[Polymorph] skill diagnostics skipped from " + source + ": " + ex.Message);
         }
     }
 

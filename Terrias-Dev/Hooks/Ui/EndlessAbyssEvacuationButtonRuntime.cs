@@ -3,9 +3,9 @@ using System.Collections;
 using AuraUi.Shared;
 using Data.Save;
 using Michsky.MUIP;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using UnityEngine.EventSystems;
 using UnityEngine.UI;
@@ -17,12 +17,12 @@ using Witch.UI.Window;
 using Object = UnityEngine.Object;
 using GameUIManager = Witch.UI.UIManager;
 
-namespace SunExp.Dll.Hooks.Ui;
+namespace Terrias.Dll.Hooks.Ui;
 
 public static class EndlessAbyssEvacuationButtonRuntime
 {
-    private const string ButtonName = "SunExp_EndlessAbyssEvacuationButton";
-    private const string IconPath = "Mods/SunExp/ModResource/Images/UI/\u65e0\u5c3d\u4e4b\u6e0a-\u9000\u51fa.png";
+    private const string ButtonName = "Terrias_EndlessAbyssEvacuationButton";
+    private const string IconPath = "Mods/Terrias/ModResource/Images/UI/\u65e0\u5c3d\u4e4b\u6e0a-\u9000\u51fa.png";
     private const string HoverHint = "\u7ed3\u7b97\u9000\u51fa";
 
     public static void Initialize(ModConfig modConfig)
@@ -39,7 +39,7 @@ public static class EndlessAbyssEvacuationButtonRuntime
 
     internal static void HandleButtonClicked()
     {
-        SunExpLog.Info("[EndlessAbyssEvacuation] toolbar click received.");
+        TerriasLog.Info("[EndlessAbyssEvacuation] toolbar click received.");
         EndlessAbyssEvacuationRuntime.RequestFromToolbar();
     }
 
@@ -55,13 +55,13 @@ public static class EndlessAbyssEvacuationButtonRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessAbyssEvacuationButton] refresh failed: " + ex.Message);
+            TerriasLog.Warn("[EndlessAbyssEvacuationButton] refresh failed: " + ex.Message);
         }
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.After(config, target, action, "EndlessAbyssEvacuationButton");
+        TerriasHookRegistry.After(config, target, action, "EndlessAbyssEvacuationButton");
     }
 
     private static void RefreshFromHook(ModHookContext context)
@@ -160,7 +160,7 @@ public static class EndlessAbyssEvacuationButtonRuntime
         var manager = buttonObject.GetComponent<ButtonManager>();
         if (manager != null)
         {
-            var icon = SunExpResourceCache.Load<Sprite>(IconPath, true, "ui.endless-abyss-evacuation");
+            var icon = TerriasResourceCache.Load<Sprite>(IconPath, true, "ui.endless-abyss-evacuation");
             manager.enableIcon = icon != null;
             manager.enableText = icon == null;
             manager.buttonText = label;
@@ -180,11 +180,11 @@ public static class EndlessAbyssEvacuationButtonRuntime
                                   + (result.Success ? "." : ", reason=" + result.FailureReason + ".");
                     if (result.Success)
                     {
-                        SunExpLog.Info(message);
+                        TerriasLog.Info(message);
                     }
                     else
                     {
-                        SunExpLog.Warn(message);
+                        TerriasLog.Warn(message);
                     }
                 }
             }
@@ -193,7 +193,7 @@ public static class EndlessAbyssEvacuationButtonRuntime
                 manager.SetText(label);
                 if (logDiagnostics)
                 {
-                    SunExpLog.Warn("[EndlessAbyssEvacuationButton] icon resource missing: " + IconPath + ".");
+                    TerriasLog.Warn("[EndlessAbyssEvacuationButton] icon resource missing: " + IconPath + ".");
                 }
             }
 

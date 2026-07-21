@@ -1,5 +1,5 @@
 ﻿param(
-    [string]$OutputPath = (Join-Path $PSScriptRoot '..\docs\SunExp\modules\10-游戏主体敌人与精灵专属意图总表.md')
+    [string]$OutputPath = (Join-Path $PSScriptRoot '..\docs\Terrias\modules\10-游戏主体敌人与精灵专属意图总表.md')
 )
 
 $ErrorActionPreference = 'Stop'
@@ -14,14 +14,14 @@ function Get-Rows([string]$Path) {
 
 function Get-CardKey([string]$Id) {
     $value = ([string]$Id).Trim().TrimStart('*')
-    $value = $value -replace '(?i)^SunExp_sunexp_enemycard_', ''
+    $value = $value -replace '(?i)^Terrias_terrias_enemycard_', ''
     $value = $value -replace '(?i)^enemycard_', ''
     $value.ToLowerInvariant()
 }
 
 function Get-BuffKey([string]$Id) {
     $value = ([string]$Id).Trim()
-    $value = $value -replace '(?i)^SunExp_sunexp_', ''
+    $value = $value -replace '(?i)^Terrias_terrias_', ''
     $value = $value -replace '(?i)^buff_', ''
     $value.ToLowerInvariant()
 }
@@ -50,12 +50,12 @@ $baseEnemyTextPath = Join-Path $repoRoot 'apocalyptic-journey-mod-tutorial\ModTe
 $baseCardDataPath = Join-Path $repoRoot 'apocalyptic-journey-mod-tutorial\ModTemplate\Scripts\Lib\DataConfigs\Data\EnemyCard\enemycard.csv'
 $baseCardTextPath = Join-Path $repoRoot 'apocalyptic-journey-mod-tutorial\ModTemplate\Scripts\Lib\DataConfigs\Text\EnemyCard\enemycard.csv'
 $baseBuffTextPath = Join-Path $repoRoot 'apocalyptic-journey-mod-tutorial\ModTemplate\Scripts\Lib\DataConfigs\Text\Buff\buff.csv'
-$sunEnemyDataPath = Join-Path $repoRoot 'SunExp\Data\Enemy\sunexp.csv'
-$sunEnemyTextPath = Join-Path $repoRoot 'SunExp\Text\Enemy\sunexp.csv'
-$sunCardDataPath = Join-Path $repoRoot 'SunExp\Data\EnemyCard\sunexp.csv'
-$sunCardTextPath = Join-Path $repoRoot 'SunExp\Text\EnemyCard\sunexp.csv'
-$sunBuffTextPath = Join-Path $repoRoot 'SunExp\Text\Buff\sunexp.csv'
-$registryPath = Join-Path $repoRoot 'SunExp\spirit.intent.registry.json'
+$sunEnemyDataPath = Join-Path $repoRoot 'Terrias\Data\Enemy\terrias.csv'
+$sunEnemyTextPath = Join-Path $repoRoot 'Terrias\Text\Enemy\terrias.csv'
+$sunCardDataPath = Join-Path $repoRoot 'Terrias\Data\EnemyCard\terrias.csv'
+$sunCardTextPath = Join-Path $repoRoot 'Terrias\Text\EnemyCard\terrias.csv'
+$sunBuffTextPath = Join-Path $repoRoot 'Terrias\Text\Buff\terrias.csv'
+$registryPath = Join-Path $repoRoot 'Terrias\spirit.intent.registry.json'
 
 $baseEnemies = Get-Rows $baseEnemyDataPath
 $sunEnemies = Get-Rows $sunEnemyDataPath
@@ -78,7 +78,7 @@ foreach ($row in $buffTextRows) {
     }
 }
 
-# SunExp 文本表中的命名空间 Buff 在注册表中使用完整 DataId；这些名称也用于文档展示。
+# Terrias 文本表中的命名空间 Buff 在注册表中使用完整 DataId；这些名称也用于文档展示。
 $buffNameByKey['gathered_flame'] = '聚焰'
 $buffNameByKey['body_burn'] = '躯体燃烧'
 
@@ -337,12 +337,12 @@ $lines.Add('# 游戏主体敌人与精灵专属意图总表')
 $lines.Add('')
 $lines.Add('> 数据基线：2026-07-13  ')
 $lines.Add('> 游戏主体参考：`apocalyptic-journey-mod-tutorial/ModTemplate/Scripts/Lib/DataConfigs`  ')
-$lines.Add('> 精灵运行配置：`SunExp/spirit.intent.registry.json`（schema 3）  ')
+$lines.Add('> 精灵运行配置：`Terrias/spirit.intent.registry.json`（schema 3）  ')
 $lines.Add('> 生成工具：`tools/Export-SpiritIntentCatalog.ps1`')
 $lines.Add('')
 $lines.Add('## 1. 文档范围与读法')
 $lines.Add('')
-$lines.Add('本文以当前仓库内的游戏主体 Enemy/EnemyCard 数据和 SunExp 已发布精灵注册表为唯一事实来源，逐个列出游戏主体全部敌人的原始意图，并给出捕获后实际进入该精灵 profile 的专属意图。SunExp 自有的三个日耀 BOSS 单列于附录，不混入游戏主体数量。')
+$lines.Add('本文以当前仓库内的游戏主体 Enemy/EnemyCard 数据和 Terrias 已发布精灵注册表为唯一事实来源，逐个列出游戏主体全部敌人的原始意图，并给出捕获后实际进入该精灵 profile 的专属意图。Terrias 自有的三个日耀 BOSS 单列于附录，不混入游戏主体数量。')
 $lines.Add('')
 $lines.Add('需要特别区分三种“名称”：')
 $lines.Add('')
@@ -359,9 +359,9 @@ $lines.Add('| --- | ---: |')
 $lines.Add("| 游戏主体敌人 | $($baseEnemies.Count) |")
 $lines.Add("| 游戏主体敌人—意图卡归属关系（同卡被多个敌人持有时重复计数） | $(@($baseEnemies | ForEach-Object { @(([string]$_.CardList).Split(',') | Where-Object { $_.Trim() }) }).Count) |")
 $lines.Add("| 游戏主体被引用的不同原始意图卡 | $($baseSourceIds.Count) |")
-$lines.Add("| SunExp 自有可捕获敌人 / BOSS | $($sunEnemies.Count) |")
-$lines.Add("| SunExp 自有不同原始意图卡 | $($sunSourceIds.Count) |")
-$lines.Add("| 显式精灵 profile（主体 + SunExp） | $($allSpecificProfiles.Count) |")
+$lines.Add("| Terrias 自有可捕获敌人 / BOSS | $($sunEnemies.Count) |")
+$lines.Add("| Terrias 自有不同原始意图卡 | $($sunSourceIds.Count) |")
+$lines.Add("| 显式精灵 profile（主体 + Terrias） | $($allSpecificProfiles.Count) |")
 $lines.Add("| 已发布 PvE 专属意图定义 | $($pveIntents.Count) |")
 $lines.Add("| 已发布 PvP 预留意图定义 | $($pvpIntents.Count) |")
 $lines.Add('')
@@ -393,11 +393,11 @@ $lines.Add('')
 
 foreach ($enemy in $baseEnemies) { Add-EnemySection $lines $enemy '游戏主体' }
 
-$lines.Add('## 6. 附录：SunExp 自有可捕获敌人 / BOSS')
+$lines.Add('## 6. 附录：Terrias 自有可捕获敌人 / BOSS')
 $lines.Add('')
 $lines.Add('以下对象不是游戏主体 56 个敌人的一部分，但已经进入同一精灵捕获与专属意图注册表，因此一并列出以保证发布配置可完整审计。')
 $lines.Add('')
-foreach ($enemy in $sunEnemies) { Add-EnemySection $lines $enemy 'SunExp 自有内容' }
+foreach ($enemy in $sunEnemies) { Add-EnemySection $lines $enemy 'Terrias 自有内容' }
 
 $lines.Add('## 7. 后备与 PvP 语义说明')
 $lines.Add('')
@@ -414,7 +414,7 @@ $lines.Add('powershell -ExecutionPolicy Bypass -File tools/Export-SpiritIntentCa
 $lines.Add('powershell -ExecutionPolicy Bypass -File tools/Test-SpiritCapture.ps1')
 $lines.Add('```')
 $lines.Add('')
-$lines.Add('本文是生成型目录，不应手工维护逐敌人表格。原敌人 CSV、中文文本、SunExp BOSS 数据或 `spirit.intent.registry.json` 变化后，应运行生成工具整体刷新。')
+$lines.Add('本文是生成型目录，不应手工维护逐敌人表格。原敌人 CSV、中文文本、Terrias BOSS 数据或 `spirit.intent.registry.json` 变化后，应运行生成工具整体刷新。')
 
 $outputFullPath = if ([IO.Path]::IsPathRooted($OutputPath)) {
     [IO.Path]::GetFullPath($OutputPath)

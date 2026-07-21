@@ -1,7 +1,7 @@
 using UnityEngine;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Hooks.Visual;
+namespace Terrias.Dll.Hooks.Visual;
 
 internal static class CardUseFxMaterials
 {
@@ -9,7 +9,7 @@ internal static class CardUseFxMaterials
     {
         var material = EffectMaterialFactory.CreateMaterial(
             visualEffectId,
-            SunExpIds.CardFaceEffectShaderId,
+            TerriasIds.CardFaceEffectShaderId,
             CardFaceEffectShaderIds.ShaderName,
             "[CardUseFx]");
         if (material == null)
@@ -17,7 +17,7 @@ internal static class CardUseFxMaterials
             return null;
         }
 
-        material.name = "SunExp_CardUseFx_FaceSweep";
+        material.name = "Terrias_CardUseFx_FaceSweep";
         if (material.HasProperty(CardFaceEffectShaderIds.OverlayMode))
         {
             material.SetFloat(CardFaceEffectShaderIds.OverlayMode, 1f);

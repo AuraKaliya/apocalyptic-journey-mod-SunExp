@@ -1,8 +1,8 @@
 using System;
 using AuraGameData.Shared.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class BuffOverflowApi
 {
@@ -12,7 +12,7 @@ public static class BuffOverflowApi
 
     public static int BurnUpperBound(IStatusManager? target)
     {
-        return BuffUpperBound(target, SunExpIds.Burn, BurnUpperBoundFallback);
+        return BuffUpperBound(target, TerriasIds.Burn, BurnUpperBoundFallback);
     }
 
     public static int SolarRadianceUpperBound(IStatusManager? target)
@@ -38,7 +38,7 @@ public static class BuffOverflowApi
 
     public static void PrepareSolarRadianceUpperBound(IStatusManager? target, string buffId)
     {
-        if (target == null || buffId != SunExpIds.SolarRadiance)
+        if (target == null || buffId != TerriasIds.SolarRadiance)
         {
             return;
         }
@@ -48,13 +48,13 @@ public static class BuffOverflowApi
 
     public static void FinalizeSolarRadianceUpperBound(IStatusManager? target, string buffId, int amount)
     {
-        if (target == null || buffId != SunExpIds.SolarRadiance)
+        if (target == null || buffId != TerriasIds.SolarRadiance)
         {
             return;
         }
 
         var upperBound = SolarRadianceUpperBound(target);
-        var buff = target.GetBuff(SunExpIds.SolarRadiance);
+        var buff = target.GetBuff(TerriasIds.SolarRadiance);
         var current = buff?.buffConfig?.Level ?? 0;
         ApplySolarRadianceUpperBound(target, upperBound);
 
@@ -73,27 +73,27 @@ public static class BuffOverflowApi
 
     public static bool HandleBurnOverflow(IStatusManager? target, string buffId, int amount)
     {
-        if (target == null || buffId != SunExpIds.Burn || amount <= 0 || !FieldApi.IsSharedFieldActive(SunExpFieldId.ScorchingCanopy))
+        if (target == null || buffId != TerriasIds.Burn || amount <= 0 || !FieldApi.IsSharedFieldActive(TerriasFieldId.ScorchingCanopy))
         {
             return false;
         }
 
-        var ward = target.GetBuff(SunExpIds.EmberCloak);
+        var ward = target.GetBuff(TerriasIds.EmberCloak);
         if (ward?.buffConfig != null && ward.buffConfig.Level > 0)
         {
             return false;
         }
 
         var upperBound = BurnUpperBound(target);
-        var overflow = BuffApi.Level(target, SunExpIds.Burn) + amount - upperBound;
+        var overflow = BuffApi.Level(target, TerriasIds.Burn) + amount - upperBound;
         if (overflow > 0)
         {
-            SunExpLog.Debug("Burn overflow converted: target=" + target.InstanceId
-                + ", burnBefore=" + BuffApi.Level(target, SunExpIds.Burn)
+            TerriasLog.Debug("Burn overflow converted: target=" + target.InstanceId
+                + ", burnBefore=" + BuffApi.Level(target, TerriasIds.Burn)
                 + ", add=" + amount
                 + ", upperBound=" + upperBound
                 + ", overflow=" + overflow);
-            target.AddBuff(SunExpIds.BodyBurn, overflow);
+            target.AddBuff(TerriasIds.BodyBurn, overflow);
             return true;
         }
 
@@ -115,14 +115,14 @@ public static class BuffOverflowApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("Buff upper bound fallback used: id=" + buffId + ", fallback=" + fallback + ", error=" + ex.Message);
+            TerriasLog.Debug("Buff upper bound fallback used: id=" + buffId + ", fallback=" + fallback + ", error=" + ex.Message);
             return fallback;
         }
     }
 
     private static void ApplySolarRadianceUpperBound(IStatusManager target, int upperBound)
     {
-        var buff = target.GetBuff(SunExpIds.SolarRadiance);
+        var buff = target.GetBuff(TerriasIds.SolarRadiance);
         if (buff?.buffConfig == null)
         {
             return;

@@ -1,14 +1,14 @@
 using System;
 using Network.Command;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 
-namespace SunExp.Dll.Network;
+namespace Terrias.Dll.Network;
 
 [Serializable]
-public sealed class RpcEmberAdventureStateCommit : RpcCommandBase, ISunExpServerBoundRpcCommand
+public sealed class RpcEmberAdventureStateCommit : RpcCommandBase, ITerriasServerBoundRpcCommand
 {
-    private SunExpRpcSender serverSender = SunExpRpcSender.Unbound;
+    private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 
     public EmberAdventureStateSnapshot Snapshot { get; set; } = new();
 
@@ -25,9 +25,9 @@ public sealed class RpcEmberAdventureStateCommit : RpcCommandBase, ISunExpServer
         Snapshot = snapshot ?? new EmberAdventureStateSnapshot();
     }
 
-    public void BindServerSender(SunExpRpcSender sender)
+    public void BindServerSender(TerriasRpcSender sender)
     {
-        serverSender = sender ?? SunExpRpcSender.Unbound;
+        serverSender = sender ?? TerriasRpcSender.Unbound;
     }
 
     public override void CmdExecute()
@@ -42,7 +42,7 @@ public sealed class RpcEmberAdventureStateCommit : RpcCommandBase, ISunExpServer
         {
             if (!string.IsNullOrWhiteSpace(RejectionReason))
             {
-                SunExpLog.Warn("[EmberAdventureState] commit rejected: " + RejectionReason);
+                TerriasLog.Warn("[EmberAdventureState] commit rejected: " + RejectionReason);
             }
 
             return;
@@ -51,14 +51,14 @@ public sealed class RpcEmberAdventureStateCommit : RpcCommandBase, ISunExpServer
         EmberAdventureStateService.ApplySnapshot(Snapshot, "RpcEmberAdventureStateCommit");
     }
 
-    internal static bool ApplyOnServer(EmberAdventureStateSnapshot? snapshot, SunExpRpcSender sender, bool remoteRpc)
+    internal static bool ApplyOnServer(EmberAdventureStateSnapshot? snapshot, TerriasRpcSender sender, bool remoteRpc)
     {
         return ApplyOnServer(snapshot, sender, remoteRpc, out _);
     }
 
     private static bool ApplyOnServer(
         EmberAdventureStateSnapshot? snapshot,
-        SunExpRpcSender sender,
+        TerriasRpcSender sender,
         bool remoteRpc,
         out string rejection)
     {
@@ -69,7 +69,7 @@ public sealed class RpcEmberAdventureStateCommit : RpcCommandBase, ISunExpServer
             return false;
         }
 
-        if ((remoteRpc || SunExpNetworkRuntime.IsMultiplayerSession()) && !sender.IsAvailable)
+        if ((remoteRpc || TerriasNetworkRuntime.IsMultiplayerSession()) && !sender.IsAvailable)
         {
             rejection = "missing sender";
             return false;

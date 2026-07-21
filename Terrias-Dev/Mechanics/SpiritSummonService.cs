@@ -2,13 +2,13 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AuraGameData.Shared.GameApi;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Network;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Network;
 using UnityEngine;
 using Witch.Core;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class SpiritSummonService
 {
@@ -58,9 +58,9 @@ public static class SpiritSummonService
         var exchangeCount = SpiritCardFactory.ReadExchangeCount(self.dataConfig);
         var battleState = SpiritCardFactory.ReadBattleState(self.dataConfig);
         var token = Guid.NewGuid().ToString("N");
-        if (SunExpNetworkRuntime.IsMultiplayerSession() && SunExpNetworkRuntime.IsClientOnly())
+        if (TerriasNetworkRuntime.IsMultiplayerSession() && TerriasNetworkRuntime.IsClientOnly())
         {
-            SunExpNetworkRuntime.Send(
+            TerriasNetworkRuntime.Send(
                 new RpcSpiritSummonRequest(snapshot!, ownerStatusId, token, exchangeCount, battleState),
                 "SpiritSummonService.TrySummon");
             PlayerApi.ShowCaption("精灵：正在同步召唤。");
@@ -71,7 +71,7 @@ public static class SpiritSummonService
             snapshot!,
             ownerStatusId,
             "SpiritSummonService.TrySummon",
-            SunExpNetworkRuntime.IsMultiplayerSession(),
+            TerriasNetworkRuntime.IsMultiplayerSession(),
             token,
             "",
             exchangeCount,
@@ -85,7 +85,7 @@ public static class SpiritSummonService
         string token,
         int exchangeCount,
         SpiritCardBattleState battleState,
-        SunExpRpcSender sender,
+        TerriasRpcSender sender,
         int protocolVersion,
         int battleEpoch,
         string registryHash)
@@ -124,14 +124,14 @@ public static class SpiritSummonService
         if (snapshot.ProtocolVersion != CompanionAuthorityService.ProjectionProtocolVersion
             || snapshot.BattleEpoch != CompanionAuthorityService.BattleEpoch)
         {
-            SunExpLog.Warn("[Spirit] ignored incompatible companion snapshot from " + source + ".");
+            TerriasLog.Warn("[Spirit] ignored incompatible companion snapshot from " + source + ".");
             return;
         }
 
         if (!snapshot.Accepted)
         {
             QueueReturnedCard(snapshot, null, source);
-            if (SenderOwnsStatus(SunExpNetworkRuntime.LocalPlayerId(), snapshot.OwnerStatusId))
+            if (SenderOwnsStatus(TerriasNetworkRuntime.LocalPlayerId(), snapshot.OwnerStatusId))
             {
                 PlayerApi.ShowCaption("精灵：" + RejectionMessage(snapshot.RejectionReason));
             }
@@ -142,7 +142,7 @@ public static class SpiritSummonService
             || snapshot.BattleEpoch != CompanionAuthorityService.BattleEpoch
             || !string.Equals(snapshot.RegistryHash, SpiritIntentRegistry.RegistryHash, StringComparison.Ordinal))
         {
-            SunExpLog.Warn("[Spirit] ignored incompatible companion snapshot from " + source + ".");
+            TerriasLog.Warn("[Spirit] ignored incompatible companion snapshot from " + source + ".");
             return;
         }
 
@@ -164,7 +164,7 @@ public static class SpiritSummonService
         var ownerExisting = SpiritStateStore.FindByOwner(snapshot.OwnerPlayerId, snapshot.OwnerStatusId);
         if (ownerExisting != null && snapshot.Generation < ownerExisting.Generation)
         {
-            SunExpLog.Debug("[Spirit] ignored stale owner generation from " + source + ": incoming="
+            TerriasLog.Debug("[Spirit] ignored stale owner generation from " + source + ": incoming="
                 + snapshot.Generation + ", active=" + ownerExisting.Generation + ".");
             return;
         }
@@ -193,9 +193,9 @@ public static class SpiritSummonService
 
     private static bool CanSummon(IDataConfig? card, IStatusManager? owner, out string reason, out CapturedEnemySnapshot? snapshot)
     {
-        var started = SunExpPerformanceCounters.Timestamp();
+        var started = TerriasPerformanceCounters.Timestamp();
         var result = CanSummonCore(card, owner, out reason, out snapshot);
-        SunExpPerformanceCounters.RecordHotspot(
+        TerriasPerformanceCounters.RecordHotspot(
             "Spirit.Summon.CanSummon",
             started,
             "owner=" + (owner?.InstanceId ?? "<none>")
@@ -307,12 +307,12 @@ public static class SpiritSummonService
         SpiritCompanionSnapshot? networkState,
         SpiritCardBattleState? initialBattleState = null)
     {
-        var started = SunExpPerformanceCounters.Timestamp();
+        var started = TerriasPerformanceCounters.Timestamp();
         var succeeded = false;
         GameObject? root = null;
         try
         {
-            var prefab = SunExpResourceCache.Load<GameObject>("Model/player", true, "spirit");
+            var prefab = TerriasResourceCache.Load<GameObject>("Model/player", true, "spirit");
             if (prefab == null)
             {
                 PlayerApi.ShowCaption("精灵：战斗模型加载失败。");
@@ -341,13 +341,13 @@ public static class SpiritSummonService
                 + ", source=" + source;
             if (profileResolution.UsedGlobalFallback)
             {
-                SunExpLog.WarnOnce(
+                TerriasLog.WarnOnce(
                     "spirit-summon-global:" + profileResolution.RawEnemyId + "#" + profileResolution.RawVariantId,
                     profileMessage);
             }
             else
             {
-                SunExpLog.InfoAlways(profileMessage);
+                TerriasLog.InfoAlways(profileMessage);
             }
             var stats = networkState == null
                 ? CompanionStatsService.SpiritStats(profile)
@@ -391,7 +391,7 @@ public static class SpiritSummonService
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[Spirit] summon failed from " + source, ex);
+            TerriasLog.Error("[Spirit] summon failed from " + source, ex);
             PlayerApi.ShowCaption("精灵：召唤失败。");
             return false;
         }
@@ -408,7 +408,7 @@ public static class SpiritSummonService
                     UnityEngine.Object.Destroy(root);
                 }
             }
-            SunExpPerformanceCounters.RecordHotspot(
+            TerriasPerformanceCounters.RecordHotspot(
                 "Spirit.Summon.Spawn",
                 started,
                 "enemy=" + (snapshot?.EnemyId ?? "<none>")
@@ -436,13 +436,13 @@ public static class SpiritSummonService
                 ["ActionCount"] = "1",
                 ["CardList"] = string.Join(",", new[]
                 {
-                    SunExpIds.ProjectionActionStaffTapCardId,
-                    SunExpIds.ProjectionActionShieldBlessingCardId,
-                    SunExpIds.ProjectionActionStaffComboCardId,
-                    SunExpIds.ProjectionActionMagicInterferenceCardId,
-                    SunExpIds.ProjectionActionYouAreEnhancedCardId,
-                    SunExpIds.ProjectionActionChargeCardId,
-                    SunExpIds.ProjectionActionHolyHealCardId
+                    TerriasIds.ProjectionActionStaffTapCardId,
+                    TerriasIds.ProjectionActionShieldBlessingCardId,
+                    TerriasIds.ProjectionActionStaffComboCardId,
+                    TerriasIds.ProjectionActionMagicInterferenceCardId,
+                    TerriasIds.ProjectionActionYouAreEnhancedCardId,
+                    TerriasIds.ProjectionActionChargeCardId,
+                    TerriasIds.ProjectionActionHolyHealCardId
                 })
             }
         });
@@ -470,7 +470,7 @@ public static class SpiritSummonService
 
     public static void BroadcastRuntimeState(SpiritOtherObj spirit, string source)
     {
-        if (spirit == null || !SunExpNetworkRuntime.IsMultiplayerSession() || !CompanionAuthorityService.IsAuthoritative())
+        if (spirit == null || !TerriasNetworkRuntime.IsMultiplayerSession() || !CompanionAuthorityService.IsAuthoritative())
         {
             return;
         }
@@ -528,7 +528,7 @@ public static class SpiritSummonService
         string ownerStatusId,
         int exchangeCount,
         SpiritCardBattleState battleState,
-        SunExpRpcSender sender,
+        TerriasRpcSender sender,
         int protocolVersion,
         int battleEpoch,
         string registryHash)
@@ -718,7 +718,7 @@ public static class SpiritSummonService
         }
         if (executor == null)
         {
-            SunExpLog.Debug("[Spirit] returned-card delivery deferred from " + source + ": executor unavailable.");
+            TerriasLog.Debug("[Spirit] returned-card delivery deferred from " + source + ": executor unavailable.");
             return false;
         }
 
@@ -731,7 +731,7 @@ public static class SpiritSummonService
             "spirit-exchange:" + source);
         if (!result.Success)
         {
-            SunExpLog.Warn("[Spirit] returned-card delivery deferred from " + source
+            TerriasLog.Warn("[Spirit] returned-card delivery deferred from " + source
                 + ": step=" + result.FailureStep + ", reason=" + result.FailureReason + ".");
             return false;
         }
@@ -744,14 +744,14 @@ public static class SpiritSummonService
         PlayerApi.ShowCaption("\u7cbe\u7075\uff1a\u3010" + pending.Card.DisplayName
             + "\u3011\u5df2\u8fd4\u56de\u624b\u724c\uff0c\u8017\u8d39\u63d0\u5347\u81f3"
             + pending.ExchangeCount + "\u3002");
-        SunExpPerformanceCounters.Record("Spirit.Card.ReturnedToHand");
+        TerriasPerformanceCounters.Record("Spirit.Card.ReturnedToHand");
         return true;
     }
 
     private static bool IsLocalOwner(string ownerStatusId)
     {
         return string.Equals(FightPlayer.Instance?.Status?.InstanceId, ownerStatusId, StringComparison.Ordinal)
-            || SenderOwnsStatus(SunExpNetworkRuntime.LocalPlayerId(), ownerStatusId);
+            || SenderOwnsStatus(TerriasNetworkRuntime.LocalPlayerId(), ownerStatusId);
     }
 
     private static bool ValidBattleState(SpiritCardBattleState? battleState)
@@ -805,7 +805,7 @@ public static class SpiritSummonService
 
     private static bool Broadcast(SpiritCompanionSnapshot snapshot, string source)
     {
-        return SunExpNetworkRuntime.Send(new RpcSpiritCompanionState(snapshot), source);
+        return TerriasNetworkRuntime.Send(new RpcSpiritCompanionState(snapshot), source);
     }
 
     private static string RejectionMessage(string reason)
@@ -826,12 +826,12 @@ public static class SpiritSummonService
 
     private static bool HasIdle(string idlePath)
     {
-        var started = SunExpPerformanceCounters.Timestamp();
+        var started = TerriasPerformanceCounters.Timestamp();
         var found = false;
         try
         {
             found = !string.IsNullOrWhiteSpace(idlePath)
-                && SunExpResourceCache.LoadAll<Sprite>(idlePath, "spirit-idle")?.Length > 0;
+                && TerriasResourceCache.LoadAll<Sprite>(idlePath, "spirit-idle")?.Length > 0;
             return found;
         }
         catch
@@ -840,7 +840,7 @@ public static class SpiritSummonService
         }
         finally
         {
-            SunExpPerformanceCounters.RecordHotspot(
+            TerriasPerformanceCounters.RecordHotspot(
                 "Spirit.Summon.IdleProbe",
                 started,
                 "found=" + found + ", path=" + (idlePath ?? ""),

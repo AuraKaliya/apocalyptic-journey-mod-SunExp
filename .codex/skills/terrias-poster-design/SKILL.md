@@ -1,12 +1,12 @@
 ---
-name: sunexp-poster-design
-description: Project-local skill for designing, generating, reviewing, archiving, or updating SunExp MOD topic posters such as character archive, card-pack, gameplay-mode, and core-mechanic posters. Use when the user asks to make posters from docs/Terrias content, write GPT-IMAGE2 poster prompts, use role/card images as references, generate through ChatGPT or the image CLI, or iterate poster themes and text.
+name: terrias-poster-design
+description: Project-local skill for designing, generating, reviewing, archiving, or updating Terrias MOD topic posters such as character archive, card-pack, gameplay-mode, and core-mechanic posters. Use when the user asks to make posters from docs/Terrias content, write GPT-IMAGE2 poster prompts, use role/card images as references, generate through ChatGPT or the image CLI, or iterate poster themes and text.
 ---
 
-# SunExp Poster Design
+# Terrias Poster Design
 
-Use this skill for SunExp MOD introduction posters. Keep it separate from
-`sunexp-card-art-style`: that skill covers small card/relic icons, while this
+Use this skill for Terrias MOD introduction posters. Keep it separate from
+`terrias-card-art-style`: that skill covers small card/relic icons, while this
 skill covers full topic posters with text, references, and presentation copy.
 
 ## Workflow
@@ -46,12 +46,12 @@ skill covers full topic posters with text, references, and presentation copy.
 - `references/topic-poster-workflow.md`: detailed analysis, generation, saving,
   and review procedure.
 - `references/gpt-image2-prompt-template.md`: reusable prompt template for new
-  SunExp poster topics.
+  Terrias poster topics.
 
 ## Validation
 
 Run after editing this skill:
 
 ```powershell
-python C:\Users\75601\.codex\skills\.system\skill-creator\scripts\quick_validate.py .codex\skills\sunexp-poster-design
+python C:\Users\75601\.codex\skills\.system\skill-creator\scripts\quick_validate.py .codex\skills\terrias-poster-design
 ```

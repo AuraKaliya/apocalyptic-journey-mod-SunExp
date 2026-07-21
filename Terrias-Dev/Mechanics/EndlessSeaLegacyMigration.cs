@@ -1,32 +1,32 @@
 using System;
 using System.Collections.Generic;
 using Data.Save;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch;
 using Witch.Core;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class EndlessSeaLegacyMigration
 {
-    private const string LegacyNamePrefix = "SunExpTongtianTower";
-    private const string LegacyModeType = "SunExpTongtianTower";
+    private const string LegacyNamePrefix = "TerriasTongtianTower";
+    private const string LegacyModeType = "TerriasTongtianTower";
 
     private static readonly IReadOnlyList<KeyPair> SaveKeyPairs = new[]
     {
-        Pair("SunExp_TongtianTowerMode", SunExpIds.EndlessSeaModeKey),
-        Pair("SunExp_TongtianTowerFloor", SunExpIds.EndlessSeaFloorKey),
-        Pair("SunExp_TongtianTowerGeneratedFloor", SunExpIds.EndlessSeaGeneratedFloorKey),
-        Pair("SunExp_TongtianTowerSeed", SunExpIds.EndlessSeaSeedKey),
-        Pair("SunExp_TongtianTowerFloorPlan", SunExpIds.EndlessSeaFloorPlanKey),
-        Pair("SunExp_TongtianTowerIntroSeen", SunExpIds.EndlessSeaIntroSeenKey),
-        Pair("SunExp_TongtianTowerStarterDeckApplied", SunExpIds.EndlessSeaStarterDeckAppliedKey),
-        Pair("SunExp_TongtianTowerStarterDeckMode", SunExpIds.EndlessSeaStarterDeckModeKey),
-        Pair("SunExp_TongtianTowerRunId", SunExpIds.EndlessSeaRunIdKey),
-        Pair("SunExp_TongtianTowerRunVersion", SunExpIds.EndlessSeaRunVersionKey),
-        Pair("SunExp_TongtianTowerRunPhase", SunExpIds.EndlessSeaRunPhaseKey),
-        Pair("SunExp_TongtianTowerRunEnded", SunExpIds.EndlessSeaRunEndedKey),
-        Pair("SunExp_TongtianTowerRunUpdatedAt", SunExpIds.EndlessSeaRunUpdatedAtKey)
+        Pair("Terrias_TongtianTowerMode", TerriasIds.EndlessSeaModeKey),
+        Pair("Terrias_TongtianTowerFloor", TerriasIds.EndlessSeaFloorKey),
+        Pair("Terrias_TongtianTowerGeneratedFloor", TerriasIds.EndlessSeaGeneratedFloorKey),
+        Pair("Terrias_TongtianTowerSeed", TerriasIds.EndlessSeaSeedKey),
+        Pair("Terrias_TongtianTowerFloorPlan", TerriasIds.EndlessSeaFloorPlanKey),
+        Pair("Terrias_TongtianTowerIntroSeen", TerriasIds.EndlessSeaIntroSeenKey),
+        Pair("Terrias_TongtianTowerStarterDeckApplied", TerriasIds.EndlessSeaStarterDeckAppliedKey),
+        Pair("Terrias_TongtianTowerStarterDeckMode", TerriasIds.EndlessSeaStarterDeckModeKey),
+        Pair("Terrias_TongtianTowerRunId", TerriasIds.EndlessSeaRunIdKey),
+        Pair("Terrias_TongtianTowerRunVersion", TerriasIds.EndlessSeaRunVersionKey),
+        Pair("Terrias_TongtianTowerRunPhase", TerriasIds.EndlessSeaRunPhaseKey),
+        Pair("Terrias_TongtianTowerRunEnded", TerriasIds.EndlessSeaRunEndedKey),
+        Pair("Terrias_TongtianTowerRunUpdatedAt", TerriasIds.EndlessSeaRunUpdatedAtKey)
     };
 
     public static bool MigrateCurrentSave(string source)
@@ -61,7 +61,7 @@ public static class EndlessSeaLegacyMigration
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("[EndlessSeaLegacy] current save migration skipped from " + source + ": " + ex.Message);
+            TerriasLog.Debug("[EndlessSeaLegacy] current save migration skipped from " + source + ": " + ex.Message);
             return false;
         }
     }
@@ -89,13 +89,13 @@ public static class EndlessSeaLegacyMigration
 
         if (string.Equals(saveInfo.modeType, LegacyModeType, StringComparison.Ordinal))
         {
-            saveInfo.modeType = SunExpIds.NativeNormalModeType;
+            saveInfo.modeType = TerriasIds.NativeNormalModeType;
             changed = true;
         }
 
         if (changed)
         {
-            SunExpLog.Info("[EndlessSeaLegacy] migrated legacy save keys from " + source + "; save=" + saveInfo.Name + ".");
+            TerriasLog.Info("[EndlessSeaLegacy] migrated legacy save keys from " + source + "; save=" + saveInfo.Name + ".");
         }
 
         return changed;
@@ -109,7 +109,7 @@ public static class EndlessSeaLegacyMigration
         }
 
         if (saveInfo.GameVars != null
-            && saveInfo.GameVars.TryGetValue("SunExp_TongtianTowerMode", out var mode)
+            && saveInfo.GameVars.TryGetValue("Terrias_TongtianTowerMode", out var mode)
             && mode == "1")
         {
             return true;

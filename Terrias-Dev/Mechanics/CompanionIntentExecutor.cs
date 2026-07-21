@@ -1,15 +1,15 @@
 using System;
 using System.Linq;
 using System.Text;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class CompanionIntentExecutor
 {
-    internal const string PresentedPlanVar = "SunExpCompanionPresentedPlan";
-    private const string PresentedFingerprintVar = "SunExpCompanionPresentedFingerprint";
+    internal const string PresentedPlanVar = "TerriasCompanionPresentedPlan";
+    private const string PresentedFingerprintVar = "TerriasCompanionPresentedFingerprint";
 
     public static void InitAction(ScriptExecutor self, string actionId)
     {
@@ -78,7 +78,7 @@ public static class CompanionIntentExecutor
 
             DictionaryUtil.Set(executor.Vars, PresentedPlanVar, plan.PlanId);
             DictionaryUtil.Set(executor.Vars, PresentedFingerprintVar, fingerprint.ToString());
-            SunExpLog.InfoAlways("[CompanionIntentPresentation] status=" + state.StatusId
+            TerriasLog.InfoAlways("[CompanionIntentPresentation] status=" + state.StatusId
                 + ", plan=" + plan.PlanId
                 + ", intent=" + plan.IntentId
                 + ", fingerprint=" + fingerprint
@@ -135,7 +135,7 @@ public static class CompanionIntentExecutor
         {
             if (!CompanionIntentHandlerRegistry.TryGet(effect.HandlerId, out var handler))
             {
-                SunExpLog.Warn("[CompanionIntent] rejected unknown execution handler: " + effect.HandlerId);
+                TerriasLog.Warn("[CompanionIntent] rejected unknown execution handler: " + effect.HandlerId);
                 continue;
             }
 

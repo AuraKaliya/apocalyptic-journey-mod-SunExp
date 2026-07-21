@@ -3,7 +3,7 @@
   "intents": [
     {
       "id": "staff_tap",
-      "enemyCardId": "SunExp_sunexp_enemycard_projection_staff_tap",
+      "enemyCardId": "Terrias_terrias_enemycard_projection_staff_tap",
       "type": "Attack",
       "handlerId": "damage.single",
       "target": { "scope": "Enemy", "mode": "Single", "policy": "enemy.lowest_hp" },
@@ -19,7 +19,7 @@
     },
     {
       "id": "shield_blessing",
-      "enemyCardId": "SunExp_sunexp_enemycard_projection_shield_blessing",
+      "enemyCardId": "Terrias_terrias_enemycard_projection_shield_blessing",
       "type": "Defense",
       "handlerId": "block.single",
       "target": { "scope": "Friendly", "mode": "Single", "policy": "friendly.owner_or_self_defense" },
@@ -34,7 +34,7 @@
     },
     {
       "id": "staff_combo",
-      "enemyCardId": "SunExp_sunexp_enemycard_projection_staff_combo",
+      "enemyCardId": "Terrias_terrias_enemycard_projection_staff_combo",
       "type": "Attack",
       "handlerId": "damage.multi",
       "target": { "scope": "Enemy", "mode": "Single", "policy": "enemy.lowest_hp" },
@@ -50,7 +50,7 @@
     },
     {
       "id": "magic_interference",
-      "enemyCardId": "SunExp_sunexp_enemycard_projection_magic_interference",
+      "enemyCardId": "Terrias_terrias_enemycard_projection_magic_interference",
       "type": "Interference",
       "handlerId": "buff.apply",
       "target": { "scope": "Enemy", "mode": "Single", "policy": "enemy.lowest_buff_then_lowest_hp" },
@@ -63,7 +63,7 @@
     },
     {
       "id": "you_are_enhanced",
-      "enemyCardId": "SunExp_sunexp_enemycard_projection_you_are_enhanced",
+      "enemyCardId": "Terrias_terrias_enemycard_projection_you_are_enhanced",
       "type": "Support",
       "handlerId": "buff.apply",
       "target": { "scope": "Friendly", "mode": "All", "policy": "friendly.all" },
@@ -76,7 +76,7 @@
     },
     {
       "id": "charge",
-      "enemyCardId": "SunExp_sunexp_enemycard_projection_charge",
+      "enemyCardId": "Terrias_terrias_enemycard_projection_charge",
       "type": "Support",
       "handlerId": "buff.apply",
       "target": { "scope": "Self", "mode": "Single", "policy": "self" },
@@ -89,7 +89,7 @@
     },
     {
       "id": "holy_heal",
-      "enemyCardId": "SunExp_sunexp_enemycard_projection_holy_heal",
+      "enemyCardId": "Terrias_terrias_enemycard_projection_holy_heal",
       "type": "Recovery",
       "handlerId": "heal.single",
       "target": { "scope": "Friendly", "mode": "Single", "policy": "friendly.most_wounded" },

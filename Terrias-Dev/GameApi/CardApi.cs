@@ -4,10 +4,10 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using AuraGameData.Shared.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public sealed class CardGrantRequest
 {
@@ -198,7 +198,7 @@ public static class CardApi
             var method = self.GetType().GetMethod("ThrowCard", new[] { typeof(string), typeof(string) });
             if (method == null)
             {
-                SunExpLog.Warn("ThrowAllHandCards failed: ScriptExecutor.ThrowCard unavailable");
+                TerriasLog.Warn("ThrowAllHandCards failed: ScriptExecutor.ThrowCard unavailable");
                 return 0;
             }
 
@@ -207,7 +207,7 @@ public static class CardApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("ThrowAllHandCards failed: " + ex.Message);
+            TerriasLog.Warn("ThrowAllHandCards failed: " + ex.Message);
             return 0;
         }
     }
@@ -276,7 +276,7 @@ public static class CardApi
         var method = self.GetType().GetMethod("BurnCardByData", new[] { typeof(IDataConfig) });
         if (method == null)
         {
-            SunExpLog.Warn("BurnHandCards failed: ScriptExecutor.BurnCardByData unavailable");
+            TerriasLog.Warn("BurnHandCards failed: ScriptExecutor.BurnCardByData unavailable");
             return 0;
         }
 
@@ -290,7 +290,7 @@ public static class CardApi
             }
             catch (Exception ex)
             {
-                SunExpLog.Warn("BurnHandCards item failed: " + ex.Message);
+                TerriasLog.Warn("BurnHandCards item failed: " + ex.Message);
             }
         }
 
@@ -376,7 +376,7 @@ public static class CardApi
             {
                 var warning = "mutation " + mutation.Name + " failed: " + ex.Message;
                 warnings.Add(warning);
-                SunExpLog.Warn("AddCardToHand " + warning + ", cardId=" + resolved + SourceSuffix(request));
+                TerriasLog.Warn("AddCardToHand " + warning + ", cardId=" + resolved + SourceSuffix(request));
                 if (request?.AbortOnMutationFailure == true)
                 {
                     CleanupCreatedCard(cards, added);
@@ -392,7 +392,7 @@ public static class CardApi
                 self.GetCardFromDeck(added);
                 if (CombatCardViewPoolCatalog.IsEligible(added))
                 {
-                    SunExpPerformanceCounters.Record("CombatCardViewPool.NativeFallback");
+                    TerriasPerformanceCounters.Record("CombatCardViewPool.NativeFallback");
                 }
             }
             CardGrantPostCommitQueue.Request(new CardGrantPostCommitRequest
@@ -425,7 +425,7 @@ public static class CardApi
 
     private static string[] Candidates(string id)
     {
-        if (id.StartsWith("SunExp_", StringComparison.Ordinal))
+        if (id.StartsWith("Terrias_", StringComparison.Ordinal))
         {
             return new[] { id };
         }
@@ -433,10 +433,10 @@ public static class CardApi
         return new[]
         {
             id,
-            "SunExp_cursecard_" + id,
-            "SunExp_sunexp_" + id,
-            "SunExp_loneer_" + id,
-            "SunExp_wuna_" + id
+            "Terrias_cursecard_" + id,
+            "Terrias_terrias_" + id,
+            "Terrias_loneer_" + id,
+            "Terrias_wuna_" + id
         };
     }
 
@@ -513,7 +513,7 @@ public static class CardApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("AddCardToHand card tag replacement skipped: " + ex.Message);
+            TerriasLog.Debug("AddCardToHand card tag replacement skipped: " + ex.Message);
         }
     }
 
@@ -539,7 +539,7 @@ public static class CardApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("AddCardToHand cleanup skipped: " + ex.Message);
+            TerriasLog.Debug("AddCardToHand cleanup skipped: " + ex.Message);
         }
     }
 
@@ -566,14 +566,14 @@ public static class CardApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("AddCardToHand CardTags lookup skipped: " + ex.Message);
+            TerriasLog.Debug("AddCardToHand CardTags lookup skipped: " + ex.Message);
             return null;
         }
     }
 
     private static CardGrantResult Fail(string cardId, DataConfig? config, string step, string reason, IReadOnlyList<string> warnings)
     {
-        SunExpLog.Warn("AddCardToHand failed: step=" + step + ", cardId=" + cardId + ", error=" + reason);
+        TerriasLog.Warn("AddCardToHand failed: step=" + step + ", cardId=" + cardId + ", error=" + reason);
         return CardGrantResult.Fail(cardId, config, step, reason, warnings);
     }
 

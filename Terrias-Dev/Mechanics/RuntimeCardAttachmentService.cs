@@ -3,11 +3,11 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using AuraShared.Core;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public sealed class RuntimeCardAttachment
 {
@@ -90,11 +90,11 @@ public static class RuntimeCardAttachmentService
 {
     private const string BurnoutTag = "Burnout";
     private const string FrozeTag = "Froze";
-    private const string SnapshotPresentKey = "SunExpRuntimeAttachmentSnapshot";
-    private const string SnapshotTagKey = "SunExpRuntimeAttachmentOriginalTag";
-    private const string SnapshotSpecialTagKey = "SunExpRuntimeAttachmentOriginalSpecialTag";
-    private const string SnapshotMarkersKey = "SunExpRuntimeAttachmentOriginalMarkers";
-    private const string AddedVisibleTagsKey = "SunExpRuntimeAttachmentAddedVisibleTags";
+    private const string SnapshotPresentKey = "TerriasRuntimeAttachmentSnapshot";
+    private const string SnapshotTagKey = "TerriasRuntimeAttachmentOriginalTag";
+    private const string SnapshotSpecialTagKey = "TerriasRuntimeAttachmentOriginalSpecialTag";
+    private const string SnapshotMarkersKey = "TerriasRuntimeAttachmentOriginalMarkers";
+    private const string AddedVisibleTagsKey = "TerriasRuntimeAttachmentAddedVisibleTags";
     private static readonly object PendingAttachmentSync = new();
     private static readonly Dictionary<string, PendingHandAttachment> PendingHandAttachments = new(StringComparer.Ordinal);
     private static readonly HashSet<string> AppliedNetworkTokens = new(StringComparer.Ordinal);
@@ -103,8 +103,8 @@ public static class RuntimeCardAttachmentService
     {
         return new RuntimeCardAttachment(
             nativeTags: new[] { BurnoutTag },
-            specialTags: new[] { SunExpIds.WhiteRadianceTag },
-            markers: new[] { SunExpIds.TempWhiteRadiance },
+            specialTags: new[] { TerriasIds.WhiteRadianceTag },
+            markers: new[] { TerriasIds.TempWhiteRadiance },
             temporaryWhiteRadiance: true);
     }
 
@@ -112,8 +112,8 @@ public static class RuntimeCardAttachmentService
     {
         return new RuntimeCardAttachment(
             nativeTags: new[] { BurnoutTag, FrozeTag },
-            specialTags: new[] { SunExpIds.WhiteRadianceTag },
-            markers: new[] { SunExpIds.TempWhiteRadiance },
+            specialTags: new[] { TerriasIds.WhiteRadianceTag },
+            markers: new[] { TerriasIds.TempWhiteRadiance },
             temporaryWhiteRadiance: true);
     }
 
@@ -159,7 +159,7 @@ public static class RuntimeCardAttachmentService
 
     public static RuntimeCardAttachmentResult AttachToCurrentHand(ScriptExecutor? executor, RuntimeCardAttachment attachment)
     {
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         var result = new RuntimeCardAttachmentResult();
         var seenCards = new HashSet<CardItem>();
         var seenConfigs = new HashSet<IDataConfig>();
@@ -205,7 +205,7 @@ public static class RuntimeCardAttachmentService
             }
         }
 
-        SunExpPerformanceCounters.RecordDuration("RuntimeCardAttachment.AttachToCurrentHand", start);
+        TerriasPerformanceCounters.RecordDuration("RuntimeCardAttachment.AttachToCurrentHand", start);
         return result;
     }
 
@@ -251,7 +251,7 @@ public static class RuntimeCardAttachmentService
         changed += ClearRoleTableCards(seenConfigs, seenVars);
         if (changed > 0)
         {
-            SunExpLog.Debug("Runtime card temporary attachments cleared from " + source + ": changed=" + changed);
+            TerriasLog.Debug("Runtime card temporary attachments cleared from " + source + ": changed=" + changed);
         }
 
         return changed;
@@ -276,7 +276,7 @@ public static class RuntimeCardAttachmentService
             changed++;
         }
 
-        if (AppendTokens(config.Vars, SunExpIds.RuntimeMarkersKey, attachment.Markers))
+        if (AppendTokens(config.Vars, TerriasIds.RuntimeMarkersKey, attachment.Markers))
         {
             changed++;
         }
@@ -330,12 +330,12 @@ public static class RuntimeCardAttachmentService
             result.Changed++;
         }
 
-        if (AppendTokens(card.Vars, SunExpIds.RuntimeMarkersKey, attachment.Markers))
+        if (AppendTokens(card.Vars, TerriasIds.RuntimeMarkersKey, attachment.Markers))
         {
             result.Changed++;
         }
 
-        if (AppendTokens(card.dataConfig?.Vars, SunExpIds.RuntimeMarkersKey, attachment.Markers))
+        if (AppendTokens(card.dataConfig?.Vars, TerriasIds.RuntimeMarkersKey, attachment.Markers))
         {
             result.Changed++;
         }
@@ -415,7 +415,7 @@ public static class RuntimeCardAttachmentService
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("Runtime card attachment role-table cleanup skipped: " + ex.Message);
+            TerriasLog.Debug("Runtime card attachment role-table cleanup skipped: " + ex.Message);
         }
 
         return changed;
@@ -475,7 +475,7 @@ public static class RuntimeCardAttachmentService
         DictionaryUtil.Set(vars, SnapshotPresentKey, "1");
         DictionaryUtil.Set(vars, SnapshotTagKey, DictionaryUtil.Get(vars, "Tag"));
         DictionaryUtil.Set(vars, SnapshotSpecialTagKey, DictionaryUtil.Get(vars, "SpecialTag"));
-        DictionaryUtil.Set(vars, SnapshotMarkersKey, DictionaryUtil.Get(vars, SunExpIds.RuntimeMarkersKey));
+        DictionaryUtil.Set(vars, SnapshotMarkersKey, DictionaryUtil.Get(vars, TerriasIds.RuntimeMarkersKey));
     }
 
     private static int ClearVars(
@@ -493,7 +493,7 @@ public static class RuntimeCardAttachmentService
         {
             changed += RestoreValue(vars, "Tag", SnapshotTagKey);
             changed += RestoreValue(vars, "SpecialTag", SnapshotSpecialTagKey);
-            changed += RestoreValue(vars, SunExpIds.RuntimeMarkersKey, SnapshotMarkersKey);
+            changed += RestoreValue(vars, TerriasIds.RuntimeMarkersKey, SnapshotMarkersKey);
         }
         else
         {
@@ -501,13 +501,13 @@ public static class RuntimeCardAttachmentService
                 ? Array.Empty<string>()
                 : new[] { BurnoutTag };
             changed += SetTokensRemoved(vars, "Tag", nativeTagsToRemove);
-            changed += SetTokensRemoved(vars, "SpecialTag", new[] { SunExpIds.WhiteRadianceTag });
-            changed += SetTokensRemoved(vars, SunExpIds.RuntimeMarkersKey, new[] { SunExpIds.TempWhiteRadiance });
+            changed += SetTokensRemoved(vars, "SpecialTag", new[] { TerriasIds.WhiteRadianceTag });
+            changed += SetTokensRemoved(vars, TerriasIds.RuntimeMarkersKey, new[] { TerriasIds.TempWhiteRadiance });
         }
 
-        changed += RemoveKey(vars, SunExpIds.TempWhiteRadiance);
-        changed += RemoveKey(vars, SunExpIds.TempWhiteRadianceResolved);
-        changed += RemoveKey(vars, SunExpIds.TempWhiteRadianceLockId);
+        changed += RemoveKey(vars, TerriasIds.TempWhiteRadiance);
+        changed += RemoveKey(vars, TerriasIds.TempWhiteRadianceResolved);
+        changed += RemoveKey(vars, TerriasIds.TempWhiteRadianceLockId);
         changed += RemoveKey(vars, SnapshotPresentKey);
         changed += RemoveKey(vars, SnapshotTagKey);
         changed += RemoveKey(vars, SnapshotSpecialTagKey);
@@ -520,8 +520,8 @@ public static class RuntimeCardAttachmentService
     {
         return vars != null
             && (DictionaryUtil.Get(vars, SnapshotPresentKey) == "1"
-                || DictionaryUtil.Get(vars, SunExpIds.TempWhiteRadiance, "0") == "1"
-                || DictionaryUtil.ContainsToken(DictionaryUtil.Get(vars, SunExpIds.RuntimeMarkersKey), SunExpIds.TempWhiteRadiance));
+                || DictionaryUtil.Get(vars, TerriasIds.TempWhiteRadiance, "0") == "1"
+                || DictionaryUtil.ContainsToken(DictionaryUtil.Get(vars, TerriasIds.RuntimeMarkersKey), TerriasIds.TempWhiteRadiance));
     }
 
     private static int RestoreValue(IDictionary<string, string> vars, string key, string snapshotKey)
@@ -577,7 +577,7 @@ public static class RuntimeCardAttachmentService
             changed++;
         }
 
-        if (DictionaryUtil.ContainsToken(addedVisibleTags, SunExpIds.WhiteRadianceTag) && card.Tags.Remove(SunExpIds.WhiteRadianceTag))
+        if (DictionaryUtil.ContainsToken(addedVisibleTags, TerriasIds.WhiteRadianceTag) && card.Tags.Remove(TerriasIds.WhiteRadianceTag))
         {
             changed++;
         }
@@ -598,32 +598,32 @@ public static class RuntimeCardAttachmentService
         }
 
         var changed = false;
-        if (SetIfDifferent(vars, SunExpIds.TempWhiteRadiance, "1"))
+        if (SetIfDifferent(vars, TerriasIds.TempWhiteRadiance, "1"))
         {
             changed = true;
         }
 
-        var resolved = DictionaryUtil.Get(vars, SunExpIds.TempWhiteRadianceResolved);
+        var resolved = DictionaryUtil.Get(vars, TerriasIds.TempWhiteRadianceResolved);
         if (string.IsNullOrWhiteSpace(resolved) || resolved != "0")
         {
-            DictionaryUtil.Set(vars, SunExpIds.TempWhiteRadianceResolved, "0");
+            DictionaryUtil.Set(vars, TerriasIds.TempWhiteRadianceResolved, "0");
             changed = true;
         }
 
         var assignedLock = string.IsNullOrWhiteSpace(lockId)
             ? EnsureTemporaryWhiteRadianceLock(vars)
             : lockId ?? "";
-        if (SetIfDifferent(vars, SunExpIds.TempWhiteRadianceLockId, assignedLock))
+        if (SetIfDifferent(vars, TerriasIds.TempWhiteRadianceLockId, assignedLock))
         {
             changed = true;
         }
 
-        if (AppendTokens(vars, "SpecialTag", new[] { SunExpIds.WhiteRadianceTag }))
+        if (AppendTokens(vars, "SpecialTag", new[] { TerriasIds.WhiteRadianceTag }))
         {
             changed = true;
         }
 
-        if (AppendTokens(vars, SunExpIds.RuntimeMarkersKey, new[] { SunExpIds.TempWhiteRadiance }))
+        if (AppendTokens(vars, TerriasIds.RuntimeMarkersKey, new[] { TerriasIds.TempWhiteRadiance }))
         {
             changed = true;
         }
@@ -633,13 +633,13 @@ public static class RuntimeCardAttachmentService
 
     private static string EnsureTemporaryWhiteRadianceLock(IDictionary<string, string>? vars)
     {
-        var lockId = DictionaryUtil.Get(vars, SunExpIds.TempWhiteRadianceLockId);
+        var lockId = DictionaryUtil.Get(vars, TerriasIds.TempWhiteRadianceLockId);
         if (!string.IsNullOrWhiteSpace(lockId) && lockId != "0")
         {
             return lockId;
         }
 
-        return ExecutorApi.CombatIntAdd("SunExpTempWhiteRadianceLockSeq", 1).ToString();
+        return ExecutorApi.CombatIntAdd("TerriasTempWhiteRadianceLockSeq", 1).ToString();
     }
 
     private static Type? FindType(string name)
@@ -805,22 +805,22 @@ public static class RuntimeCardAttachmentService
 
     private static void RefreshDataConfigTags(IDataConfig config)
     {
-        SunExpCardRefreshQueue.RequestConfigTagRefresh(config, "RuntimeCardAttachment");
+        TerriasCardRefreshQueue.RequestConfigTagRefresh(config, "RuntimeCardAttachment");
     }
 
     private static void RefreshCardItem(CardItem card)
     {
         try
         {
-            SunExpCardRefreshQueue.RequestFullRefresh(card, "RuntimeCardAttachment");
+            TerriasCardRefreshQueue.RequestFullRefresh(card, "RuntimeCardAttachment");
             if (card.dataConfig != null)
             {
-                SunExpCardRefreshQueue.RequestConfigTagRefresh(card.dataConfig, "RuntimeCardAttachment.CardItem");
+                TerriasCardRefreshQueue.RequestConfigTagRefresh(card.dataConfig, "RuntimeCardAttachment.CardItem");
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("Runtime card attachment refresh skipped: " + ex.Message);
+            TerriasLog.Debug("Runtime card attachment refresh skipped: " + ex.Message);
         }
     }
 
@@ -842,7 +842,7 @@ public static class RuntimeCardAttachmentService
         foreach (var item in pending)
         {
             var result = AttachToCurrentHand(item.Executor, item.Attachment);
-            SunExpLog.Info("Runtime hand attachment applied from "
+            TerriasLog.Info("Runtime hand attachment applied from "
                 + item.Source
                 + ": "
                 + result.ToLogString());
@@ -857,22 +857,22 @@ public static class RuntimeCardAttachmentService
             PendingHandAttachments[PendingHandAttachmentKey(attachment, source, token)] = new PendingHandAttachment(executor, attachment, source);
         }
 
-        var enqueued = SunExpFrameDispatcher.RunOnceNextFrame("RuntimeCardAttachment.AttachToCurrentHand", FlushPendingHandAttachment);
+        var enqueued = TerriasFrameDispatcher.RunOnceNextFrame("RuntimeCardAttachment.AttachToCurrentHand", FlushPendingHandAttachment);
         if (!enqueued)
         {
-            SunExpPerformanceCounters.Record("RuntimeCardAttachment.HandAttachDeduped");
+            TerriasPerformanceCounters.Record("RuntimeCardAttachment.HandAttachDeduped");
         }
     }
 
     private static void BroadcastHandAttachment(RuntimeCardAttachment attachment, string source, string token)
     {
-        var runtimeType = FindRuntimeType("SunExp.Dll.Network.SunExpNetworkRuntime");
+        var runtimeType = FindRuntimeType("Terrias.Dll.Network.TerriasNetworkRuntime");
         if (runtimeType == null || InvokeBool(runtimeType, "IsMultiplayerSession") != true)
         {
             return;
         }
 
-        var commandType = FindRuntimeType("SunExp.Dll.Network.RpcRuntimeHandAttachment");
+        var commandType = FindRuntimeType("Terrias.Dll.Network.RpcRuntimeHandAttachment");
         if (commandType == null)
         {
             return;
@@ -896,7 +896,7 @@ public static class RuntimeCardAttachmentService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("Runtime hand attachment network broadcast failed: " + ex.Message);
+            TerriasLog.Warn("Runtime hand attachment network broadcast failed: " + ex.Message);
         }
     }
 

@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: SunExpFoilHoloFrameOverlay
+  m_Name: TerriasFoilHoloFrameOverlay
   m_Shader: {fileID: 4800000, guid: df46ea624ef24374f8487b7c447fb0d9, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
@@ -43,53 +43,53 @@ Material:
     - _StencilOp: 0
     - _StencilReadMask: 255
     - _StencilWriteMask: 255
-    - _SunExpDistortion: 0.021
-    - _SunExpEdgeGlow: 0.12
-    - _SunExpEdgeSample: 3.218
-    - _SunExpEffectIntensity: 1.093
-    - _SunExpEffectMode: 0.23
-    - _SunExpFlowScale: 1.603
-    - _SunExpFlowSpeed: -2
-    - _SunExpFoilGalaxyDensity: 0.148
-    - _SunExpFoilGlintSpeed: 1.1
-    - _SunExpFoilGrain: 0.453
-    - _SunExpFoilMode: 1.603
-    - _SunExpFoilOverlayAlpha: 1.557
-    - _SunExpFoilShardScale: 15.367
-    - _SunExpFoilShardWarp: 0.162
-    - _SunExpFoilTextureStrength: 0.967
-    - _SunExpFrameOnlyOverlay: 1
-    - _SunExpGlareStrength: 1.008
-    - _SunExpMirrorSweep: 0.846
-    - _SunExpNoiseScale: 7.722
-    - _SunExpOverlayMode: 0
-    - _SunExpPointerAutoSpeed: 0.646
-    - _SunExpPointerX: -1
-    - _SunExpPointerY: -1
-    - _SunExpPrismScale: 18.19
-    - _SunExpPrismStrength: 0.759
-    - _SunExpQualityScale: 1
-    - _SunExpRainbowStrength: 1.25
-    - _SunExpRidgeStrength: 0.523
-    - _SunExpStardustDensity: 0.38
-    - _SunExpStardustGlowPower: 4
-    - _SunExpStardustGlowRadius: 0.22
-    - _SunExpStardustOrbit: 0.32
-    - _SunExpStardustSweepIntensity: 0.72
-    - _SunExpStardustSweepSpeed: 1
-    - _SunExpStardustSweepWidth: 0.085
-    - _SunExpStardustTwinkle: 1
-    - _SunExpStardustTwinkleSpeed: 1
-    - _SunExpSweepFrequency: 3.716
-    - _SunExpSweepIntensity: 0.892
-    - _SunExpSweepWidth: 0.18
-    - _SunExpSwirlStrength: 0.206
+    - _TerriasDistortion: 0.021
+    - _TerriasEdgeGlow: 0.12
+    - _TerriasEdgeSample: 3.218
+    - _TerriasEffectIntensity: 1.093
+    - _TerriasEffectMode: 0.23
+    - _TerriasFlowScale: 1.603
+    - _TerriasFlowSpeed: -2
+    - _TerriasFoilGalaxyDensity: 0.148
+    - _TerriasFoilGlintSpeed: 1.1
+    - _TerriasFoilGrain: 0.453
+    - _TerriasFoilMode: 1.603
+    - _TerriasFoilOverlayAlpha: 1.557
+    - _TerriasFoilShardScale: 15.367
+    - _TerriasFoilShardWarp: 0.162
+    - _TerriasFoilTextureStrength: 0.967
+    - _TerriasFrameOnlyOverlay: 1
+    - _TerriasGlareStrength: 1.008
+    - _TerriasMirrorSweep: 0.846
+    - _TerriasNoiseScale: 7.722
+    - _TerriasOverlayMode: 0
+    - _TerriasPointerAutoSpeed: 0.646
+    - _TerriasPointerX: -1
+    - _TerriasPointerY: -1
+    - _TerriasPrismScale: 18.19
+    - _TerriasPrismStrength: 0.759
+    - _TerriasQualityScale: 1
+    - _TerriasRainbowStrength: 1.25
+    - _TerriasRidgeStrength: 0.523
+    - _TerriasStardustDensity: 0.38
+    - _TerriasStardustGlowPower: 4
+    - _TerriasStardustGlowRadius: 0.22
+    - _TerriasStardustOrbit: 0.32
+    - _TerriasStardustSweepIntensity: 0.72
+    - _TerriasStardustSweepSpeed: 1
+    - _TerriasStardustSweepWidth: 0.085
+    - _TerriasStardustTwinkle: 1
+    - _TerriasStardustTwinkleSpeed: 1
+    - _TerriasSweepFrequency: 3.716
+    - _TerriasSweepIntensity: 0.892
+    - _TerriasSweepWidth: 0.18
+    - _TerriasSwirlStrength: 0.206
     - _UseUIAlphaClip: 0
     m_Colors:
-    - _SunExpHoloColorA: {r: 1, g: 0.9411765, b: 0.6509804, a: 1}
-    - _SunExpHoloColorB: {r: 0.6509804, g: 0.9490196, b: 1, a: 1}
-    - _SunExpHoloColorC: {r: 0.8235294, g: 0.72156864, b: 1, a: 1}
-    - _SunExpStardustColorA: {r: 0.86, g: 0.94, b: 1, a: 1}
-    - _SunExpStardustColorB: {r: 1, g: 0.85, b: 0.44, a: 1}
+    - _TerriasHoloColorA: {r: 1, g: 0.9411765, b: 0.6509804, a: 1}
+    - _TerriasHoloColorB: {r: 0.6509804, g: 0.9490196, b: 1, a: 1}
+    - _TerriasHoloColorC: {r: 0.8235294, g: 0.72156864, b: 1, a: 1}
+    - _TerriasStardustColorA: {r: 0.86, g: 0.94, b: 1, a: 1}
+    - _TerriasStardustColorB: {r: 1, g: 0.85, b: 0.44, a: 1}
     - _TextureSampleAdd: {r: 0, g: 0, b: 0, a: 0}
   m_BuildTextureStacks: []

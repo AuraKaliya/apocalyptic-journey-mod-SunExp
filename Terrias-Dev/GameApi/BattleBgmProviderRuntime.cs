@@ -6,14 +6,14 @@ using System.Linq;
 using System.Reflection;
 using BattleBgmArbiter.Shared;
 using AuraShared.Core;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.Mod;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class BattleBgmProviderRuntime
 {
-    private const string ModId = "SunExp";
+    private const string ModId = "Terrias";
     private const string ManifestPath = "audio.registry.json";
     private static ModConfig? currentModConfig;
     private static string primaryProviderId = "";
@@ -22,7 +22,7 @@ public static class BattleBgmProviderRuntime
     {
         if (modConfig == null)
         {
-            SunExpLog.Warn("Battle BGM provider initialization skipped: mod config is null");
+            TerriasLog.Warn("Battle BGM provider initialization skipped: mod config is null");
             return;
         }
 
@@ -30,7 +30,7 @@ public static class BattleBgmProviderRuntime
         BattleBgmArbiterRuntime.Initialize(modConfig, ModId);
         if (!RegisterManifest(modConfig, ModId, ManifestPath))
         {
-            SunExpLog.Warn("Battle BGM manifest registration skipped or empty: " + ManifestPath);
+            TerriasLog.Warn("Battle BGM manifest registration skipped or empty: " + ManifestPath);
         }
     }
 
@@ -38,13 +38,13 @@ public static class BattleBgmProviderRuntime
     {
         if (currentModConfig == null)
         {
-            SunExpLog.Warn("Battle BGM switch skipped: provider runtime is not initialized");
+            TerriasLog.Warn("Battle BGM switch skipped: provider runtime is not initialized");
             return;
         }
 
         if (string.IsNullOrWhiteSpace(primaryProviderId))
         {
-            SunExpLog.Warn("Battle BGM switch skipped: no provider registered from manifest");
+            TerriasLog.Warn("Battle BGM switch skipped: no provider registered from manifest");
             return;
         }
 
@@ -55,7 +55,7 @@ public static class BattleBgmProviderRuntime
             new BattleBgmSwitchRequest
             {
                 ProviderId = primaryProviderId,
-                Reason = string.IsNullOrWhiteSpace(reason) ? "SunExp.RequestBattleSwitch" : reason,
+                Reason = string.IsNullOrWhiteSpace(reason) ? "Terrias.RequestBattleSwitch" : reason,
                 Force = force,
                 AllowSilenceWhenLoading = allowSilenceWhenLoading,
                 RestartIfSameClip = restartIfSameClip
@@ -70,14 +70,14 @@ public static class BattleBgmProviderRuntime
             var manifestPath = Path.Combine(modConfig.DirectoryName, manifestRelativePath);
             if (!File.Exists(manifestPath))
             {
-                SunExpLog.Warn("Battle BGM manifest missing: " + manifestPath);
+                TerriasLog.Warn("Battle BGM manifest missing: " + manifestPath);
                 return false;
             }
 
             var manifest = DeserializeManifest(File.ReadAllText(manifestPath));
             if (manifest == null)
             {
-                SunExpLog.Warn("Battle BGM manifest invalid: " + manifestPath);
+                TerriasLog.Warn("Battle BGM manifest invalid: " + manifestPath);
                 return false;
             }
 
@@ -96,7 +96,7 @@ public static class BattleBgmProviderRuntime
                 var providerId = provider.providerId?.Trim() ?? "";
                 if (string.IsNullOrWhiteSpace(providerId))
                 {
-                    SunExpLog.Warn("Battle BGM provider skipped: providerId is empty");
+                    TerriasLog.Warn("Battle BGM provider skipped: providerId is empty");
                     continue;
                 }
 
@@ -122,15 +122,15 @@ public static class BattleBgmProviderRuntime
                 }
 
                 registered++;
-                SunExpLog.Info("Battle BGM provider registered from manifest: " + providerId + ", path=" + audioPath);
+                TerriasLog.Info("Battle BGM provider registered from manifest: " + providerId + ", path=" + audioPath);
             }
 
-            SunExpLog.Info("Battle BGM manifest registered: providers=" + registered + ", path=" + manifestPath);
+            TerriasLog.Info("Battle BGM manifest registered: providers=" + registered + ", path=" + manifestPath);
             return true;
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("Battle BGM manifest registration failed: " + ex);
+            TerriasLog.Warn("Battle BGM manifest registration failed: " + ex);
             return false;
         }
     }
@@ -223,7 +223,7 @@ public static class BattleBgmProviderRuntime
             }
             catch (Exception ex)
             {
-                SunExpLog.Warn("Battle BGM adventure condition failed: " + ex.Message);
+                TerriasLog.Warn("Battle BGM adventure condition failed: " + ex.Message);
                 return false;
             }
         };
@@ -277,7 +277,7 @@ public static class BattleBgmProviderRuntime
             }
             catch (Exception ex)
             {
-                SunExpLog.Warn("Battle BGM battle condition failed: " + ex.Message);
+                TerriasLog.Warn("Battle BGM battle condition failed: " + ex.Message);
                 return false;
             }
         };

@@ -4,10 +4,10 @@ using System.IO;
 using System.Linq;
 using AuraShared.Core;
 using Newtonsoft.Json;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.Mod;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class FamiliarBlessingRegistry
 {
@@ -62,16 +62,16 @@ public static class FamiliarBlessingRegistry
     {
         lock (SyncRoot)
         {
-            var merged = new FamiliarBlessingRegistryDocument { SchemaVersion = 3, OwnerModId = SunExpIds.ModId };
+            var merged = new FamiliarBlessingRegistryDocument { SchemaVersion = 3, OwnerModId = TerriasIds.ModId };
             MergeInto(merged, BuiltInDocument(), "built-in");
-            var mainPath = Path.Combine(modConfig.DirectoryName, SunExpIds.FamiliarBlessingRegistryFile);
-            if (TryRead(mainPath, SunExpIds.ModId, out var main))
+            var mainPath = Path.Combine(modConfig.DirectoryName, TerriasIds.FamiliarBlessingRegistryFile);
+            if (TryRead(mainPath, TerriasIds.ModId, out var main))
             {
                 MergeInto(merged, main, mainPath);
             }
             else
             {
-                SunExpLog.Warn("[FamiliarGrowth] missing or invalid main blessing registry; using built-in fallback.");
+                TerriasLog.Warn("[FamiliarGrowth] missing or invalid main blessing registry; using built-in fallback.");
             }
 
             foreach (var path in ExtensionRegistryPaths(modConfig.DirectoryName))
@@ -83,7 +83,7 @@ public static class FamiliarBlessingRegistry
             }
 
             document = Normalize(merged);
-            SunExpLog.Info("[FamiliarGrowth] loaded blessing registry: blessings=" + document.Blessings.Count
+            TerriasLog.Info("[FamiliarGrowth] loaded blessing registry: blessings=" + document.Blessings.Count
                            + ", speciesProfiles=" + document.SpeciesProfiles.Count + ".");
         }
     }
@@ -285,7 +285,7 @@ public static class FamiliarBlessingRegistry
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[FamiliarGrowth] ignored invalid registry " + path + ": " + ex.Message);
+            TerriasLog.Warn("[FamiliarGrowth] ignored invalid registry " + path + ": " + ex.Message);
             return false;
         }
     }
@@ -325,7 +325,7 @@ public static class FamiliarBlessingRegistry
                 continue;
             }
 
-            var path = Path.Combine(full, SunExpIds.FamiliarBlessingRegistryFile);
+            var path = Path.Combine(full, TerriasIds.FamiliarBlessingRegistryFile);
             if (File.Exists(path))
             {
                 yield return path;
@@ -336,14 +336,14 @@ public static class FamiliarBlessingRegistry
     private static void MergeInto(FamiliarBlessingRegistryDocument target, FamiliarBlessingRegistryDocument source, string sourceName)
     {
         target.SchemaVersion = Math.Max(target.SchemaVersion, source.SchemaVersion);
-        var owner = string.IsNullOrWhiteSpace(source.OwnerModId) ? SunExpIds.ModId : source.OwnerModId.Trim();
+        var owner = string.IsNullOrWhiteSpace(source.OwnerModId) ? TerriasIds.ModId : source.OwnerModId.Trim();
         foreach (var blessing in source.Blessings ?? new List<FamiliarBlessingDefinition>())
         {
             blessing.OwnerModId = string.IsNullOrWhiteSpace(blessing.OwnerModId) ? owner : blessing.OwnerModId.Trim();
             var unsupported = blessing.Effects?.FirstOrDefault(effect => !SupportedEffectKinds.Contains(effect.Kind ?? ""));
             if (unsupported != null)
             {
-                SunExpLog.Warn("[FamiliarGrowth] rejected blessing " + blessing.Id + " from " + sourceName
+                TerriasLog.Warn("[FamiliarGrowth] rejected blessing " + blessing.Id + " from " + sourceName
                                + ": unsupported effect " + unsupported.Kind + ".");
                 continue;
             }
@@ -365,7 +365,7 @@ public static class FamiliarBlessingRegistry
         var result = new FamiliarBlessingRegistryDocument
         {
             SchemaVersion = Math.Max(3, source.SchemaVersion),
-            OwnerModId = string.IsNullOrWhiteSpace(source.OwnerModId) ? SunExpIds.ModId : source.OwnerModId.Trim()
+            OwnerModId = string.IsNullOrWhiteSpace(source.OwnerModId) ? TerriasIds.ModId : source.OwnerModId.Trim()
         };
         foreach (var blessing in source.Blessings ?? new List<FamiliarBlessingDefinition>())
         {
@@ -480,7 +480,7 @@ public static class FamiliarBlessingRegistry
         return new FamiliarBlessingRegistryDocument
         {
             SchemaVersion = 3,
-            OwnerModId = SunExpIds.ModId,
+            OwnerModId = TerriasIds.ModId,
             Blessings = new List<FamiliarBlessingDefinition>
             {
                 new() { Id = "*familiar_guard_paw", Name = "防护", Description = "战斗开始时，获得10点护盾。", Category = FamiliarBlessingCategory.Growth, Tier = 1, RequiredLevel = 2, Effects = new List<FamiliarBlessingEffect> { new() { Kind = "CombatStartShield", Amount = 10 } } },

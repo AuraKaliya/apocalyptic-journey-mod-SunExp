@@ -1,20 +1,20 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 using Witch;
 using Witch.Core;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class EndlessAbyssEnemyIntentPoolService
 {
-    private const string IntentAppliedKey = "SunExpEndlessAbyssIntentApplied";
+    private const string IntentAppliedKey = "TerriasEndlessAbyssIntentApplied";
 
     private static readonly string[] IntentPool =
     {
-        SunExpIds.AbyssLifeTheftEnemyCardId,
-        SunExpIds.AbyssDeficitEnemyCardId
+        TerriasIds.AbyssLifeTheftEnemyCardId,
+        TerriasIds.AbyssDeficitEnemyCardId
     };
 
     public static bool TryAddIntent(Enemy enemy, int floor, EndlessSeaNodeKind nodeKind, string source)
@@ -41,12 +41,12 @@ public static class EndlessAbyssEnemyIntentPoolService
             }
 
             MarkApplied(enemy.Status);
-            SunExpLog.Info("[EndlessAbyssIntent] added " + cardId + " to enemy " + enemy.InstanceId + " from " + source + ".");
+            TerriasLog.Info("[EndlessAbyssIntent] added " + cardId + " to enemy " + enemy.InstanceId + " from " + source + ".");
             return true;
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessAbyssIntent] failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[EndlessAbyssIntent] failed from " + source + ": " + ex.Message);
             return false;
         }
     }

@@ -1,20 +1,20 @@
 using System;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class SolarCombatApi
 {
     public static int SolarMultiplier(ScriptExecutor? executor)
     {
-        return BuffApi.Has(executor?.Self, SunExpIds.SolarCrown) ? 2 : 1;
+        return BuffApi.Has(executor?.Self, TerriasIds.SolarCrown) ? 2 : 1;
     }
 
     public static int SolarCoefficient(ScriptExecutor? executor, IStatusManager? target)
     {
-        var radiance = BuffApi.Level(executor?.Self, SunExpIds.SolarRadiance);
-        var flame = BuffApi.Level(executor?.Self, SunExpIds.GatheredFlame);
-        var burn = BuffApi.Level(target, SunExpIds.Burn);
+        var radiance = BuffApi.Level(executor?.Self, TerriasIds.SolarRadiance);
+        var flame = BuffApi.Level(executor?.Self, TerriasIds.GatheredFlame);
+        var burn = BuffApi.Level(target, TerriasIds.Burn);
         return SolarMultiplier(executor) * (radiance * 2 + flame / 3 + burn / 2);
     }
 

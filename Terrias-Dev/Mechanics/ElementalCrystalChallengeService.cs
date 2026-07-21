@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Network;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Network;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 [Serializable]
 public sealed class ElementalCrystalEventSnapshot
@@ -82,12 +82,12 @@ public static class ElementalCrystalChallengeService
             BattleEpoch = battleEpoch,
             EventId = "*"
         });
-        SunExpLog.Debug("[ElementalCrystal] cleared battle state from " + source + ".");
+        TerriasLog.Debug("[ElementalCrystal] cleared battle state from " + source + ".");
     }
 
     public static bool Create(IStatusManager? source, IStatusManager? triggerTarget, string origin)
     {
-        if (source == null || triggerTarget == null || SunExpNetworkRuntime.IsClientOnly())
+        if (source == null || triggerTarget == null || TerriasNetworkRuntime.IsClientOnly())
         {
             return false;
         }
@@ -131,7 +131,7 @@ public static class ElementalCrystalChallengeService
             return false;
         }
 
-        if (!SunExpNetworkRuntime.IsClientOnly())
+        if (!TerriasNetworkRuntime.IsClientOnly())
         {
             return Create(source, triggerTarget, origin);
         }
@@ -144,7 +144,7 @@ public static class ElementalCrystalChallengeService
             + (triggerTarget.InstanceId ?? "")
             + ":"
             + Guid.NewGuid().ToString("N");
-        return SunExpNetworkRuntime.Send(
+        return TerriasNetworkRuntime.Send(
             new RpcElementalCrystalCreateRequest(
                 source.InstanceId ?? "",
                 triggerTarget.InstanceId ?? "",
@@ -157,10 +157,10 @@ public static class ElementalCrystalChallengeService
         string sourceStatusId,
         string triggerTargetStatusId,
         string token,
-        SunExpRpcSender sender,
+        TerriasRpcSender sender,
         int requestBattleEpoch)
     {
-        if (SunExpNetworkRuntime.IsClientOnly()
+        if (TerriasNetworkRuntime.IsClientOnly()
             || requestBattleEpoch != battleEpoch
             || string.IsNullOrWhiteSpace(token))
         {
@@ -176,7 +176,7 @@ public static class ElementalCrystalChallengeService
 
         if (!CreateRequestOwnerIsValid(sender, sourceStatusId))
         {
-            SunExpLog.Warn("[ElementalCrystal] rejected create request; sender="
+            TerriasLog.Warn("[ElementalCrystal] rejected create request; sender="
                 + (sender?.PlayerId ?? "")
                 + ", sourceStatus="
                 + sourceStatusId
@@ -199,7 +199,7 @@ public static class ElementalCrystalChallengeService
 
     public static void Tick()
     {
-        if (SunExpNetworkRuntime.IsClientOnly() || Pending.Count == 0)
+        if (TerriasNetworkRuntime.IsClientOnly() || Pending.Count == 0)
         {
             return;
         }
@@ -222,9 +222,9 @@ public static class ElementalCrystalChallengeService
             return;
         }
 
-        if (SunExpNetworkRuntime.IsClientOnly())
+        if (TerriasNetworkRuntime.IsClientOnly())
         {
-            SunExpNetworkRuntime.Send(
+            TerriasNetworkRuntime.Send(
                 new RpcElementalCrystalClaim(eventId, ownerStatusId, battleEpoch),
                 "ElementalCrystalChallengeService.RequestLocalClaim");
             return;
@@ -233,17 +233,17 @@ public static class ElementalCrystalChallengeService
         ResolveClaim(
             eventId,
             ownerStatusId,
-            SunExpRpcAuthorityRuntime.CreateLocalServerSender("ElementalCrystalChallengeService.RequestLocalClaim"),
+            TerriasRpcAuthorityRuntime.CreateLocalServerSender("ElementalCrystalChallengeService.RequestLocalClaim"),
             battleEpoch);
     }
 
     public static void ResolveClaim(
         string eventId,
         string requestedOwnerStatusId,
-        SunExpRpcSender sender,
+        TerriasRpcSender sender,
         int requestBattleEpoch)
     {
-        if (SunExpNetworkRuntime.IsClientOnly()
+        if (TerriasNetworkRuntime.IsClientOnly()
             || requestBattleEpoch != battleEpoch
             || !Pending.TryGetValue(eventId ?? "", out var snapshot))
         {
@@ -258,7 +258,7 @@ public static class ElementalCrystalChallengeService
 
         if (!ClaimOwnerIsValid(sender, requestedOwnerStatusId))
         {
-            SunExpLog.Warn("[ElementalCrystal] rejected claim; event="
+            TerriasLog.Warn("[ElementalCrystal] rejected claim; event="
                 + eventId
                 + ", sender="
                 + (sender?.PlayerId ?? "")
@@ -284,7 +284,7 @@ public static class ElementalCrystalChallengeService
         }
 
         Spawned?.Invoke(snapshot);
-        SunExpLog.Debug("[ElementalCrystal] observed spawn; event=" + snapshot.EventId + ", source=" + source + ".");
+        TerriasLog.Debug("[ElementalCrystal] observed spawn; event=" + snapshot.EventId + ", source=" + source + ".");
     }
 
     public static void ApplyNetworkResolution(ElementalCrystalResolutionSnapshot? resolution, string source)
@@ -306,7 +306,7 @@ public static class ElementalCrystalChallengeService
         }
 
         Resolved?.Invoke(resolution);
-        SunExpLog.Debug("[ElementalCrystal] observed resolution; event="
+        TerriasLog.Debug("[ElementalCrystal] observed resolution; event="
             + resolution.EventId
             + ", source="
             + source
@@ -317,9 +317,9 @@ public static class ElementalCrystalChallengeService
     {
         Observed.Add(snapshot.EventId);
         Spawned?.Invoke(snapshot);
-        if (SunExpNetworkRuntime.IsServer() && SunExpNetworkRuntime.HasRemotePlayers())
+        if (TerriasNetworkRuntime.IsServer() && TerriasNetworkRuntime.HasRemotePlayers())
         {
-            SunExpNetworkRuntime.Send(new RpcElementalCrystalSpawn(snapshot), source + ":spawn");
+            TerriasNetworkRuntime.Send(new RpcElementalCrystalSpawn(snapshot), source + ":spawn");
         }
     }
 
@@ -357,9 +357,9 @@ public static class ElementalCrystalChallengeService
             Claimed = claimed
         };
         ApplyNetworkResolution(resolution, "local:" + source);
-        if (SunExpNetworkRuntime.IsServer() && SunExpNetworkRuntime.HasRemotePlayers())
+        if (TerriasNetworkRuntime.IsServer() && TerriasNetworkRuntime.HasRemotePlayers())
         {
-            SunExpNetworkRuntime.Send(new RpcElementalCrystalResolution(resolution), source + ":resolution");
+            TerriasNetworkRuntime.Send(new RpcElementalCrystalResolution(resolution), source + ":resolution");
         }
 
         PlayerApi.ShowCaption(claimed
@@ -367,7 +367,7 @@ public static class ElementalCrystalChallengeService
             : "结晶消散：敌人获得 " + shield + " 点护盾");
     }
 
-    private static bool ClaimOwnerIsValid(SunExpRpcSender sender, string requestedOwnerStatusId)
+    private static bool ClaimOwnerIsValid(TerriasRpcSender sender, string requestedOwnerStatusId)
     {
         var status = StatusApi.FindById(requestedOwnerStatusId);
         if (!StatusApi.IsAlive(status))
@@ -375,7 +375,7 @@ public static class ElementalCrystalChallengeService
             return false;
         }
 
-        if (!SunExpNetworkRuntime.IsMultiplayerSession())
+        if (!TerriasNetworkRuntime.IsMultiplayerSession())
         {
             return string.Equals(FightPlayer.Instance?.Status?.InstanceId, requestedOwnerStatusId, StringComparison.Ordinal);
         }
@@ -392,7 +392,7 @@ public static class ElementalCrystalChallengeService
             && statuses.Contains(requestedOwnerStatusId);
     }
 
-    private static bool CreateRequestOwnerIsValid(SunExpRpcSender sender, string sourceStatusId)
+    private static bool CreateRequestOwnerIsValid(TerriasRpcSender sender, string sourceStatusId)
     {
         if (sender == null || !sender.IsAvailable || !sender.IsLobbyMember || string.IsNullOrWhiteSpace(sourceStatusId))
         {

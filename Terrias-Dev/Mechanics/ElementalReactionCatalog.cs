@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public enum ElementalType
 {
@@ -100,13 +100,13 @@ public static class ElementalAttachmentRegistry
 {
     private static readonly IReadOnlyList<ElementalAttachmentDefinition> Definitions = new[]
     {
-        new ElementalAttachmentDefinition(ElementalAttachmentType.Pyro, SunExpIds.PyroAttachment, 700, 1, ElementalType.Pyro),
-        new ElementalAttachmentDefinition(ElementalAttachmentType.Electro, SunExpIds.ElectroAttachment, 600, 1, ElementalType.Electro),
-        new ElementalAttachmentDefinition(ElementalAttachmentType.Cryo, SunExpIds.CryoAttachment, 500, 1, ElementalType.Cryo),
-        new ElementalAttachmentDefinition(ElementalAttachmentType.Hydro, SunExpIds.HydroAttachment, 400, 1, ElementalType.Hydro),
-        new ElementalAttachmentDefinition(ElementalAttachmentType.Dendro, SunExpIds.DendroAttachment, 300, 1, ElementalType.Dendro),
-        new ElementalAttachmentDefinition(ElementalAttachmentType.DendroCore, SunExpIds.DendroCore, 200, 5),
-        new ElementalAttachmentDefinition(ElementalAttachmentType.Frozen, SunExpIds.Frozen, 100, 1)
+        new ElementalAttachmentDefinition(ElementalAttachmentType.Pyro, TerriasIds.PyroAttachment, 700, 1, ElementalType.Pyro),
+        new ElementalAttachmentDefinition(ElementalAttachmentType.Electro, TerriasIds.ElectroAttachment, 600, 1, ElementalType.Electro),
+        new ElementalAttachmentDefinition(ElementalAttachmentType.Cryo, TerriasIds.CryoAttachment, 500, 1, ElementalType.Cryo),
+        new ElementalAttachmentDefinition(ElementalAttachmentType.Hydro, TerriasIds.HydroAttachment, 400, 1, ElementalType.Hydro),
+        new ElementalAttachmentDefinition(ElementalAttachmentType.Dendro, TerriasIds.DendroAttachment, 300, 1, ElementalType.Dendro),
+        new ElementalAttachmentDefinition(ElementalAttachmentType.DendroCore, TerriasIds.DendroCore, 200, 5),
+        new ElementalAttachmentDefinition(ElementalAttachmentType.Frozen, TerriasIds.Frozen, 100, 1)
     };
 
     private static readonly Dictionary<ElementalAttachmentType, ElementalAttachmentDefinition> ByAttachment =

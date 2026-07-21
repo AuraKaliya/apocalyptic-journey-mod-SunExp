@@ -5,7 +5,7 @@ Add or update tests for these risks when the touched event surface requires them
 ## Event Chain
 
 - New C# event entry points are defined.
-- CSV calls target existing `CS.SunExp.Dll.Scripting.EventScripts.*` methods.
+- CSV calls target existing `CS.Terrias.Dll.Scripting.EventScripts.*` methods.
 - `Entry.dll` is rebuilt after C# changes.
 - Story-chain ids use `Sub_`.
 - Repeat events appear only after the required progress.

@@ -1,9 +1,9 @@
 using System;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 using UnityEngine;
 
-namespace SunExp.Dll.Hooks.Visual;
+namespace Terrias.Dll.Hooks.Visual;
 
 public static class EffectTextureCache
 {
@@ -17,17 +17,17 @@ public static class EffectTextureCache
         var key = path.Trim();
         try
         {
-            var texture = SunExpResourceCache.Load<Texture>(key, true, "visual.effect-texture");
+            var texture = TerriasResourceCache.Load<Texture>(key, true, "visual.effect-texture");
             if (texture == null)
             {
-                SunExpLog.Warn(logPrefix + " effect texture missing: " + key);
+                TerriasLog.Warn(logPrefix + " effect texture missing: " + key);
             }
 
             return texture;
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn(logPrefix + " effect texture load failed: " + key + " (" + ex.Message + ")");
+            TerriasLog.Warn(logPrefix + " effect texture load failed: " + key + " (" + ex.Message + ")");
             return null;
         }
     }

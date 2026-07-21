@@ -1,12 +1,12 @@
 using System;
 using System.Linq;
 using AuraGameData.Shared.GameApi;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Network;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Network;
 using Witch.Core;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public sealed class PolymorphVisualSnapshot
 {
@@ -84,7 +84,7 @@ public static class PolymorphNetworkSync
         try
         {
             ApplyCareerToFightState(snapshot.OwnerStatusId, careerId);
-            SunExpLog.Info("[PolymorphSync] visual snapshot applied from "
+            TerriasLog.Info("[PolymorphSync] visual snapshot applied from "
                 + source
                 + "; owner="
                 + snapshot.OwnerStatusId
@@ -96,7 +96,7 @@ public static class PolymorphNetworkSync
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[PolymorphSync] visual snapshot failed from "
+            TerriasLog.Warn("[PolymorphSync] visual snapshot failed from "
                 + source
                 + ": "
                 + ex.Message);
@@ -116,7 +116,7 @@ public static class PolymorphNetworkSync
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("[PolymorphSync] native career change skipped from "
+            TerriasLog.Debug("[PolymorphSync] native career change skipped from "
                 + source
                 + ": "
                 + ex.Message);
@@ -126,12 +126,12 @@ public static class PolymorphNetworkSync
     private static void Broadcast(PolymorphVisualSnapshot snapshot, string source)
     {
         ApplyVisualSnapshot(snapshot, "local:" + source);
-        if (!SunExpNetworkRuntime.IsMultiplayerSession())
+        if (!TerriasNetworkRuntime.IsMultiplayerSession())
         {
             return;
         }
 
-        SunExpNetworkRuntime.Send(new RpcPolymorphVisualState(snapshot), source);
+        TerriasNetworkRuntime.Send(new RpcPolymorphVisualState(snapshot), source);
     }
 
     private static void ApplyCareerToFightState(string ownerStatusId, string careerId)
@@ -178,7 +178,7 @@ public static class PolymorphNetworkSync
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[PolymorphSync] career config unavailable: " + careerId + "; " + ex.Message);
+            TerriasLog.Warn("[PolymorphSync] career config unavailable: " + careerId + "; " + ex.Message);
             return null;
         }
     }

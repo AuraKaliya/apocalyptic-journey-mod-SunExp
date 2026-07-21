@@ -2,17 +2,17 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AuraShared.Core;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
-using SunExp.Dll.Hooks.Ui;
-using SunExp.Dll.Hooks.Visual;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
+using Terrias.Dll.Hooks.Ui;
+using Terrias.Dll.Hooks.Visual;
 using UnityEngine;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
-public static class SunExpResourcePreloader
+public static class TerriasResourcePreloader
 {
     private const int OpportunityDelayFrames = 45;
     private static readonly object SyncRoot = new();
@@ -34,7 +34,7 @@ public static class SunExpResourcePreloader
         }
 
         initialized = true;
-        SunExpBattleLifecycleRouter.Register("ResourcePreloader", new SunExpBattleLifecycleSubscription
+        TerriasBattleLifecycleRouter.Register("ResourcePreloader", new TerriasBattleLifecycleSubscription
         {
             AdventureStarting = _ => BeginAdventureWarmup(),
             FightInitializing = _ => OnFightInitializing(),
@@ -55,17 +55,17 @@ public static class SunExpResourcePreloader
             battleActive = false;
             essentialTotal = 0;
             essentialRemaining = 0;
-            adventureWarmupStarted = SunExpPerformanceCounters.Timestamp();
+            adventureWarmupStarted = TerriasPerformanceCounters.Timestamp();
             essentialCompletionLogged = false;
             Pending.Clear();
-            AddItems(CoreTexturePaths(), "visual", 300, WarmupTier.Essential, path => SunExpResourceCache.Load<Texture2D>(path, true, "visual"));
+            AddItems(CoreTexturePaths(), "visual", 300, WarmupTier.Essential, path => TerriasResourceCache.Load<Texture2D>(path, true, "visual"));
             AddPolymorphCardFaceItems();
-            AddItems(CoreSpritePaths(), "ui", 250, WarmupTier.Essential, path => SunExpResourceCache.Load<Sprite>(path, true, "ui"));
+            AddItems(CoreSpritePaths(), "ui", 250, WarmupTier.Essential, path => TerriasResourceCache.Load<Sprite>(path, true, "ui"));
         }
 
-        SunExpPerformanceCounters.Record("ResourcePreloader.AdventureQueueCreated");
-        SunExpPerformanceCounters.Record("ResourcePreloader.HeavyOptionalDeferred");
-        SunExpLog.Info("[ResourcePreloader] adventure warmup queued: essential="
+        TerriasPerformanceCounters.Record("ResourcePreloader.AdventureQueueCreated");
+        TerriasPerformanceCounters.Record("ResourcePreloader.HeavyOptionalDeferred");
+        TerriasLog.Info("[ResourcePreloader] adventure warmup queued: essential="
             + essentialTotal
             + ", opportunity="
             + Math.Max(0, Pending.Count - essentialTotal)
@@ -117,12 +117,12 @@ public static class SunExpResourcePreloader
 
     private static void PreloadPolymorphSource(PolymorphRoleSpec role, string tier)
     {
-        if (SunExpResourceCache.Load<Sprite>(role.CardFacePath, true, SunExpIds.PolymorphSourceResourceCategory) == null)
+        if (TerriasResourceCache.Load<Sprite>(role.CardFacePath, true, TerriasIds.PolymorphSourceResourceCategory) == null)
         {
             throw new InvalidOperationException("polymorph role card source unavailable: " + role.Id);
         }
 
-        SunExpPerformanceCounters.Record("ResourcePreloader.PolymorphCardSource." + tier);
+        TerriasPerformanceCounters.Record("ResourcePreloader.PolymorphCardSource." + tier);
     }
 
     private static void AddItems(
@@ -161,8 +161,8 @@ public static class SunExpResourcePreloader
 
         if (remaining > 0)
         {
-            SunExpPerformanceCounters.Record("ResourcePreloader.EssentialIncompleteAtFight");
-            SunExpLog.Warn("[ResourcePreloader] battle initialization paused warmup with "
+            TerriasPerformanceCounters.Record("ResourcePreloader.EssentialIncompleteAtFight");
+            TerriasLog.Warn("[ResourcePreloader] battle initialization paused warmup with "
                 + remaining
                 + " essential item(s) still pending; first-show cache fallbacks remain enabled.");
         }
@@ -190,7 +190,7 @@ public static class SunExpResourcePreloader
             next.Tier == WarmupTier.Opportunity ? OpportunityDelayFrames : 1,
             nextDelayFrames);
         nextDelayFrames = 1;
-        SunExpFrameScheduler.RunOnceAfterFrames(
+        TerriasFrameScheduler.RunOnceAfterFrames(
             key,
             delayFrames,
             () => ExecuteItem(currentGeneration, next),
@@ -214,7 +214,7 @@ public static class SunExpResourcePreloader
                 return;
             }
 
-            if (item.Tier == WarmupTier.Opportunity && SunExpCombatUiWorkload.IsBusy)
+            if (item.Tier == WarmupTier.Opportunity && TerriasCombatUiWorkload.IsBusy)
             {
                 Pending.Add(item);
                 deferredForUi = true;
@@ -224,26 +224,26 @@ public static class SunExpResourcePreloader
         if (deferredForUi)
         {
             nextDelayFrames = OpportunityDelayFrames;
-            SunExpPerformanceCounters.Record("ResourcePreloader.OpportunityDeferredForUi");
+            TerriasPerformanceCounters.Record("ResourcePreloader.OpportunityDeferredForUi");
             ScheduleNext();
             return;
         }
 
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         try
         {
             item.Load(item.Path);
-            SunExpPerformanceCounters.Record("ResourcePreloader.ItemLoaded");
+            TerriasPerformanceCounters.Record("ResourcePreloader.ItemLoaded");
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[ResourcePreloader] item skipped: " + item.Path + " (" + ex.Message + ")");
-            SunExpPerformanceCounters.Record("ResourcePreloader.ItemFailed");
+            TerriasLog.Warn("[ResourcePreloader] item skipped: " + item.Path + " (" + ex.Message + ")");
+            TerriasPerformanceCounters.Record("ResourcePreloader.ItemFailed");
         }
         finally
         {
-            var elapsed = SunExpPerformanceCounters.ElapsedMilliseconds(start);
-            SunExpPerformanceCounters.RecordDuration("ResourcePreloader.Item", start);
+            var elapsed = TerriasPerformanceCounters.ElapsedMilliseconds(start);
+            TerriasPerformanceCounters.RecordDuration("ResourcePreloader.Item", start);
             if (item.Tier == WarmupTier.Essential)
             {
                 lock (SyncRoot)
@@ -260,7 +260,7 @@ public static class SunExpResourcePreloader
             if (item.Tier == WarmupTier.Opportunity)
             {
                 nextDelayFrames = Math.Max(nextDelayFrames, OpportunityDelayFrames);
-                SunExpPerformanceCounters.Record("ResourcePreloader.OpportunityPaced");
+                TerriasPerformanceCounters.Record("ResourcePreloader.OpportunityPaced");
             }
             ScheduleNext();
         }
@@ -280,11 +280,11 @@ public static class SunExpResourcePreloader
             total = essentialTotal;
         }
 
-        SunExpPerformanceCounters.Record("ResourcePreloader.EssentialCompleted");
-        SunExpLog.Info("[ResourcePreloader] essential adventure warmup completed: items="
+        TerriasPerformanceCounters.Record("ResourcePreloader.EssentialCompleted");
+        TerriasLog.Info("[ResourcePreloader] essential adventure warmup completed: items="
             + total
             + ", elapsedMs="
-            + SunExpPerformanceCounters.ElapsedMilliseconds(adventureWarmupStarted).ToString("0.###")
+            + TerriasPerformanceCounters.ElapsedMilliseconds(adventureWarmupStarted).ToString("0.###")
             + ".");
     }
 
@@ -331,12 +331,12 @@ public static class SunExpResourcePreloader
 
         foreach (var effectId in new[]
                  {
-                     SunExpIds.CardFaceFoilHoloVisualEffectId,
-                     SunExpIds.CardFaceStardustVisualEffectId,
-                     "sunexp.wuna.orbit_fire.core.back",
-                     "sunexp.wuna.orbit_fire.core.front",
-                     "sunexp.wuna.orbit_fire.back",
-                     "sunexp.wuna.orbit_fire.front"
+                     TerriasIds.CardFaceFoilHoloVisualEffectId,
+                     TerriasIds.CardFaceStardustVisualEffectId,
+                     "terrias.wuna.orbit_fire.core.back",
+                     "terrias.wuna.orbit_fire.core.front",
+                     "terrias.wuna.orbit_fire.back",
+                     "terrias.wuna.orbit_fire.front"
                  })
         {
             var effect = VisualRegistry.Effect(effectId);

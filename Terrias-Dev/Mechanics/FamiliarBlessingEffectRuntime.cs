@@ -3,15 +3,15 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using AuraShared.Core;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class FamiliarBlessingEffectRuntime
 {
     private const string FeatureId = "FamiliarGrowth";
-    private const string RunStarScoreClaimKey = "SunExpFamiliarFirstStarScoreExtraBlessing";
+    private const string RunStarScoreClaimKey = "TerriasFamiliarFirstStarScoreExtraBlessing";
     private static readonly Dictionary<string, Func<IStatusManager, FamiliarBlessingEffect, bool>> CombatStartHandlers =
         new(StringComparer.OrdinalIgnoreCase)
         {
@@ -136,13 +136,13 @@ public static class FamiliarBlessingEffectRuntime
 
         foreach (var entry in SelectedEffects("BeforeLethalStarClayBody"))
         {
-            if (BuffApi.Has(owner, SunExpIds.StarClayBody)
+            if (BuffApi.Has(owner, TerriasIds.StarClayBody)
                 || !TryClaim(owner, entry, "BeforeLethalStarClayBody", "battle"))
             {
                 continue;
             }
 
-            owner.AddBuff(SunExpIds.StarClayBody, Math.Max(1, entry.Effect.Amount));
+            owner.AddBuff(TerriasIds.StarClayBody, Math.Max(1, entry.Effect.Amount));
         }
     }
 
@@ -160,7 +160,7 @@ public static class FamiliarBlessingEffectRuntime
             return;
         }
 
-        owner.AddBuff(SunExpIds.StarBlessing, amount);
+        owner.AddBuff(TerriasIds.StarBlessing, amount);
         PlayerApi.SetGameVar(RunStarScoreClaimKey, "1");
     }
 
@@ -229,7 +229,7 @@ public static class FamiliarBlessingEffectRuntime
         {
             var field = FieldEffectRegistry.FieldIdFromBuffId(entry.Effect.Value);
             var amount = Math.Max(0, entry.Effect.Amount);
-            if (field == SunExpFieldId.None || amount <= 0)
+            if (field == TerriasFieldId.None || amount <= 0)
             {
                 continue;
             }
@@ -361,11 +361,11 @@ public static class FamiliarBlessingEffectRuntime
 
         if (string.Equals(result, "failed", StringComparison.Ordinal))
         {
-            SunExpLog.Warn(message);
+            TerriasLog.Warn(message);
         }
         else
         {
-            SunExpLog.Debug(message);
+            TerriasLog.Debug(message);
         }
     }
 
@@ -396,7 +396,7 @@ public static class FamiliarBlessingEffectRuntime
         var familiarId = string.IsNullOrWhiteSpace(entry.Familiar.InstanceId) ? entry.Familiar.SpeciesId : entry.Familiar.InstanceId;
         var effectId = entry.Blessing.Id + ":" + entry.Index + ":" + (entry.Effect.Kind ?? "") + ":" + phase;
         return AuraLifecycleOperationLedger.TryClaimBattleOperation(
-            SunExpIds.ModId,
+            TerriasIds.ModId,
             FeatureId,
             operation,
             statusId + ":" + familiarId,
@@ -413,7 +413,7 @@ public static class FamiliarBlessingEffectRuntime
             return false;
         }
 
-        if (string.Equals(buffId, SunExpIds.Starlight, StringComparison.Ordinal)
+        if (string.Equals(buffId, TerriasIds.Starlight, StringComparison.Ordinal)
             && status.MirrorSc is ScriptExecutor executor)
         {
             StarScoreService.AddStarlight(executor, amount);
@@ -490,7 +490,7 @@ public static class FamiliarBlessingEffectRuntime
     private static string NormalizeRuntimeBuffId(string value)
     {
         var id = (value ?? "").Trim();
-        return id.Equals("starlight", StringComparison.OrdinalIgnoreCase) ? SunExpIds.Starlight : id;
+        return id.Equals("starlight", StringComparison.OrdinalIgnoreCase) ? TerriasIds.Starlight : id;
     }
 
     private readonly struct SelectedEffect

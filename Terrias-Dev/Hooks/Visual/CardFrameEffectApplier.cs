@@ -1,10 +1,10 @@
 using System.Collections.Generic;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using Witch.Core;
 
-namespace SunExp.Dll.Hooks.Visual;
+namespace Terrias.Dll.Hooks.Visual;
 
 internal static class CardFrameEffectApplier
 {
@@ -14,7 +14,7 @@ internal static class CardFrameEffectApplier
 
     public static bool Apply(CardVisualSkinMarker marker, CardVisualEffectSpec effect, IDataConfig? config)
     {
-        if (!SunExpPerformanceSettings.CardFrameEffectsEnabled)
+        if (!TerriasPerformanceSettings.CardFrameEffectsEnabled)
         {
             LogDiagnostic(marker, effect, config, "disabled-by-performance");
             return Clear(marker);
@@ -156,7 +156,7 @@ internal static class CardFrameEffectApplier
     {
         if (LoggedEffects.Add(effect.Id))
         {
-            SunExpLog.Info(LogPrefix + " applied " + effect.DisplayName + ": " + effect.VisualEffectId);
+            TerriasLog.Info(LogPrefix + " applied " + effect.DisplayName + ": " + effect.VisualEffectId);
         }
     }
 
@@ -171,7 +171,7 @@ internal static class CardFrameEffectApplier
             return;
         }
 
-        SunExpLog.Info(LogPrefix
+        TerriasLog.Info(LogPrefix
             + " diag route=" + route
             + ", card=" + cardId
             + ", icon=" + icon

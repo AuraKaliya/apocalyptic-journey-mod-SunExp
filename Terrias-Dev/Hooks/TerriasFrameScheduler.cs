@@ -1,11 +1,11 @@
 using System;
 using AuraShared.Core;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
-public static class SunExpFrameScheduler
+public static class TerriasFrameScheduler
 {
     private const double SlowActionWarningMilliseconds = 16.0;
 
@@ -13,11 +13,11 @@ public static class SunExpFrameScheduler
     {
         AuraSharedFrameScheduler.MaxActionsPerFrame = Math.Max(
             AuraSharedFrameScheduler.MaxActionsPerFrame,
-            SunExpPerformanceSettings.FrameSchedulerBudget);
-        SunExpFrameDispatcher.Register(RunOnceNextFrame);
-        SunExpFrameDispatcher.RegisterDelayed(RunOnceAfterFrames);
-        SunExpLog.InfoAlways("SunExp performance frame scheduler initialized through AuraSharedFrameScheduler");
-        SunExpLog.InfoAlways(SunExpPerformanceSettings.DiagnosticsSummary());
+            TerriasPerformanceSettings.FrameSchedulerBudget);
+        TerriasFrameDispatcher.Register(RunOnceNextFrame);
+        TerriasFrameDispatcher.RegisterDelayed(RunOnceAfterFrames);
+        TerriasLog.InfoAlways("Terrias performance frame scheduler initialized through AuraSharedFrameScheduler");
+        TerriasLog.InfoAlways(TerriasPerformanceSettings.DiagnosticsSummary());
     }
 
     public static bool RunOnceNextFrame(string key, Action action)
@@ -57,9 +57,9 @@ public static class SunExpFrameScheduler
         var normalizedKey = (key ?? "").Trim();
         var request = new AuraSharedFrameActionRequest
         {
-            OwnerId = SunExpIds.ModId,
+            OwnerId = TerriasIds.ModId,
             Key = normalizedKey,
-            Source = "SunExp." + normalizedKey,
+            Source = "Terrias." + normalizedKey,
             DelayFrames = Math.Max(1, delayFrames),
             Phase = phase,
             Priority = priority,
@@ -68,7 +68,7 @@ public static class SunExpFrameScheduler
             OnScheduled = RecordScheduled,
             OnDeduplicated = RecordDeduplicated,
             OnExecuting = RecordFrameDiagnostics,
-            OnExecuted = _ => SunExpPerformanceCounters.MaybeLogSummary()
+            OnExecuted = _ => TerriasPerformanceCounters.MaybeLogSummary()
         };
 
         return AuraSharedFrameScheduler.RunOnceAfterFrames(request);
@@ -76,30 +76,30 @@ public static class SunExpFrameScheduler
 
     private static void RecordScheduled(AuraSharedFrameActionReport report)
     {
-        SunExpPerformanceCounters.Record("FrameScheduler.Enqueued");
+        TerriasPerformanceCounters.Record("FrameScheduler.Enqueued");
         if (report.TargetFrame >= 0 && report.EnqueuedFrame >= 0 && report.TargetFrame - report.EnqueuedFrame > 1)
         {
-            SunExpPerformanceCounters.Record("FrameScheduler.EnqueuedDelayed");
+            TerriasPerformanceCounters.Record("FrameScheduler.EnqueuedDelayed");
         }
 
         if (report.EnqueuedDuringDrain)
         {
-            SunExpPerformanceCounters.Record("FrameScheduler.EnqueuedDuringDrain");
+            TerriasPerformanceCounters.Record("FrameScheduler.EnqueuedDuringDrain");
         }
     }
 
     private static void RecordDeduplicated(AuraSharedFrameActionReport report)
     {
-        SunExpPerformanceCounters.Record("FrameScheduler.Deduped");
+        TerriasPerformanceCounters.Record("FrameScheduler.Deduped");
         if (report.EnqueuedDuringDrain)
         {
-            SunExpPerformanceCounters.Record("FrameScheduler.DedupedDuringDrain");
+            TerriasPerformanceCounters.Record("FrameScheduler.DedupedDuringDrain");
         }
     }
 
     private static void ExecuteScheduledAction(string key, Action action)
     {
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         double actionElapsed;
         try
         {
@@ -107,16 +107,16 @@ public static class SunExpFrameScheduler
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Scheduled SunExp frame action failed: " + key, ex);
+            TerriasLog.Error("Scheduled Terrias frame action failed: " + key, ex);
         }
         finally
         {
-            actionElapsed = SunExpPerformanceCounters.ElapsedMilliseconds(start);
-            var instrumentationStart = SunExpPerformanceCounters.Timestamp();
-            SunExpPerformanceCounters.RecordDuration("FrameScheduler.Action", start);
-            SunExpPerformanceCounters.RecordDuration("FrameScheduler.Action." + CounterKeyFor(key), start);
+            actionElapsed = TerriasPerformanceCounters.ElapsedMilliseconds(start);
+            var instrumentationStart = TerriasPerformanceCounters.Timestamp();
+            TerriasPerformanceCounters.RecordDuration("FrameScheduler.Action", start);
+            TerriasPerformanceCounters.RecordDuration("FrameScheduler.Action." + CounterKeyFor(key), start);
             LogSlowAction(key, actionElapsed);
-            SunExpPerformanceCounters.RecordDuration("FrameScheduler.Instrumentation", instrumentationStart);
+            TerriasPerformanceCounters.RecordDuration("FrameScheduler.Instrumentation", instrumentationStart);
         }
     }
 
@@ -163,7 +163,7 @@ public static class SunExpFrameScheduler
 
     private static void LogSlowAction(string key, double elapsed)
     {
-        if (!SunExpPerformanceSettings.CountersEnabled)
+        if (!TerriasPerformanceSettings.CountersEnabled)
         {
             return;
         }
@@ -173,7 +173,7 @@ public static class SunExpFrameScheduler
             return;
         }
 
-        SunExpLog.Warn("Slow SunExp frame action: key="
+        TerriasLog.Warn("Slow Terrias frame action: key="
             + key
             + ", elapsedMs="
             + elapsed.ToString("0.###")
@@ -191,9 +191,9 @@ public static class SunExpFrameScheduler
         var delayFrames = report.ExecuteFrame - report.EnqueuedFrame;
         if (delayFrames <= 0)
         {
-            SunExpPerformanceCounters.Record("FrameScheduler.DelayFrames0");
-            SunExpLog.WarnOnce("FrameScheduler.SameFrameExecution",
-                "SunExp frame scheduler executed work in the same Unity frame it was queued: key="
+            TerriasPerformanceCounters.Record("FrameScheduler.DelayFrames0");
+            TerriasLog.WarnOnce("FrameScheduler.SameFrameExecution",
+                "Terrias frame scheduler executed work in the same Unity frame it was queued: key="
                 + report.Key
                 + ", frame="
                 + report.ExecuteFrame
@@ -202,18 +202,18 @@ public static class SunExpFrameScheduler
         }
         else if (delayFrames == 1)
         {
-            SunExpPerformanceCounters.Record("FrameScheduler.DelayFrames1");
+            TerriasPerformanceCounters.Record("FrameScheduler.DelayFrames1");
         }
         else
         {
-            SunExpPerformanceCounters.Record("FrameScheduler.DelayFrames2Plus");
+            TerriasPerformanceCounters.Record("FrameScheduler.DelayFrames2Plus");
         }
 
         if (report.TargetFrame >= 0 && report.ExecuteFrame < report.TargetFrame)
         {
-            SunExpPerformanceCounters.Record("FrameScheduler.ExecutedBeforeTargetFrame");
-            SunExpLog.WarnOnce("FrameScheduler.ExecutedBeforeTargetFrame",
-                "SunExp frame scheduler executed work before its target Unity frame: key="
+            TerriasPerformanceCounters.Record("FrameScheduler.ExecutedBeforeTargetFrame");
+            TerriasLog.WarnOnce("FrameScheduler.ExecutedBeforeTargetFrame",
+                "Terrias frame scheduler executed work before its target Unity frame: key="
                 + report.Key
                 + ", frame="
                 + report.ExecuteFrame
@@ -223,12 +223,12 @@ public static class SunExpFrameScheduler
 
         if (report.EnqueuedDuringDrain)
         {
-            SunExpPerformanceCounters.Record("FrameScheduler.ExecutedDrainQueued");
+            TerriasPerformanceCounters.Record("FrameScheduler.ExecutedDrainQueued");
             if (delayFrames <= 0)
             {
-                SunExpPerformanceCounters.Record("FrameScheduler.ReentrantSameFrameExecution");
-                SunExpLog.WarnOnce("FrameScheduler.ReentrantSameFrameExecution",
-                    "SunExp frame scheduler executed work that was queued during the same scheduler drain: key="
+                TerriasPerformanceCounters.Record("FrameScheduler.ReentrantSameFrameExecution");
+                TerriasLog.WarnOnce("FrameScheduler.ReentrantSameFrameExecution",
+                    "Terrias frame scheduler executed work that was queued during the same scheduler drain: key="
                     + report.Key
                     + ", frame="
                     + report.ExecuteFrame);

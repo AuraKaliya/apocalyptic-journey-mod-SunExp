@@ -2,31 +2,31 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AuraGameData.Shared.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.Core;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
-public static class SunExpConfigIndex
+public static class TerriasConfigIndex
 {
-    private const string SunExpPrefix = "SunExp_sunexp_";
+    private const string TerriasPrefix = "Terrias_terrias_";
     private static readonly Dictionary<string, FilterCache> FilterCaches = new(StringComparer.Ordinal);
 
     public static List<Dictionary<string, string>> Rows(DataType type)
     {
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         try
         {
             return AuraGameDataHostApi.CopyTableForHostInterop(type);
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[ConfigIndex] shared catalog failed to read " + type + " rows: " + ex.Message);
+            TerriasLog.Warn("[ConfigIndex] shared catalog failed to read " + type + " rows: " + ex.Message);
             return new List<Dictionary<string, string>>();
         }
         finally
         {
-            SunExpPerformanceCounters.RecordDuration("ConfigIndex.Rows." + type, start);
+            TerriasPerformanceCounters.RecordDuration("ConfigIndex.Rows." + type, start);
         }
     }
 
@@ -37,16 +37,16 @@ public static class SunExpConfigIndex
             return null;
         }
 
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         try
         {
             var normalized = id.Trim();
-            var resolved = AuraGameDataHostApi.Resolve(type, normalized, AlternateSunExpId(normalized));
+            var resolved = AuraGameDataHostApi.Resolve(type, normalized, AlternateTerriasId(normalized));
             return resolved?.Fields.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
         }
         finally
         {
-            SunExpPerformanceCounters.RecordDuration("ConfigIndex.Row." + type, start);
+            TerriasPerformanceCounters.RecordDuration("ConfigIndex.Row." + type, start);
         }
     }
 
@@ -67,7 +67,7 @@ public static class SunExpConfigIndex
             return cached.Rows.Select(Clone).ToList();
         }
 
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         try
         {
             var filtered = snapshot.GetTable(type.ToString())
@@ -79,7 +79,7 @@ public static class SunExpConfigIndex
         }
         finally
         {
-            SunExpPerformanceCounters.RecordDuration("ConfigIndex.FilteredRows." + type + "." + key, start);
+            TerriasPerformanceCounters.RecordDuration("ConfigIndex.FilteredRows." + type + "." + key, start);
         }
     }
 
@@ -89,11 +89,11 @@ public static class SunExpConfigIndex
         AuraGameDataHostApi.InvalidateNativeCatalog();
     }
 
-    private static string AlternateSunExpId(string id)
+    private static string AlternateTerriasId(string id)
     {
-        return id.StartsWith(SunExpPrefix, StringComparison.Ordinal)
-            ? id.Substring(SunExpPrefix.Length)
-            : SunExpPrefix + id;
+        return id.StartsWith(TerriasPrefix, StringComparison.Ordinal)
+            ? id.Substring(TerriasPrefix.Length)
+            : TerriasPrefix + id;
     }
 
     private static Dictionary<string, string> Clone(Dictionary<string, string> row)

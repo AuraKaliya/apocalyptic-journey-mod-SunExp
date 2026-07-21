@@ -15,7 +15,7 @@ $roots = @(
     "AuraSkinShared",
     "AuraToolsExp-Dev",
     "SanGuoShaExp-Dev",
-    "SunExp-Dev"
+    "Terrias-Dev"
 )
 
 $allowed = @(
@@ -24,10 +24,10 @@ $allowed = @(
     "AuraSharedCore\AuraSharedLogStore.cs",
     "AuraLogShared\AuraLogRuntime.cs",
     "AuraToolsExp-Dev\Features\Logging\AuraToolsLogFileWriter.cs",
-    "SunExp-Dev\GameApi\FamiliarGrowthApi.cs",
-    "SunExp-Dev\Mechanics\EndlessAbyssRunLedger.cs",
-    "SunExp-Dev\Mechanics\EndlessAbyssShockService.cs",
-    "SunExp-Dev\Mechanics\EndlessSeaFloorPlanStore.cs"
+    "Terrias-Dev\GameApi\FamiliarGrowthApi.cs",
+    "Terrias-Dev\Mechanics\EndlessAbyssRunLedger.cs",
+    "Terrias-Dev\Mechanics\EndlessAbyssShockService.cs",
+    "Terrias-Dev\Mechanics\EndlessSeaFloorPlanStore.cs"
 )
 
 $patterns = @(

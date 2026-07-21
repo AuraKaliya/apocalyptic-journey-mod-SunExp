@@ -3,7 +3,7 @@ using System.Collections.Generic;
 using System.Linq;
 using Newtonsoft.Json;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class FamiliarBlessingCategory
 {
@@ -295,14 +295,14 @@ public interface IFamiliarProfileStore
 
 public static class FamiliarId
 {
-    private const string SunExpPartnerPrefix = "SunExp_sunexp_";
+    private const string TerriasPartnerPrefix = "Terrias_terrias_";
 
     public static string NormalizeSpeciesId(string? speciesId)
     {
         var value = (speciesId ?? "").Trim();
-        if (value.StartsWith(SunExpPartnerPrefix, StringComparison.OrdinalIgnoreCase))
+        if (value.StartsWith(TerriasPartnerPrefix, StringComparison.OrdinalIgnoreCase))
         {
-            value = value.Substring(SunExpPartnerPrefix.Length);
+            value = value.Substring(TerriasPartnerPrefix.Length);
         }
 
         return Sanitize(value).ToLowerInvariant();

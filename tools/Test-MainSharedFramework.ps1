@@ -9,7 +9,7 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 & (Join-Path $repoRoot "tools\Build-MainSharedConsumers.ps1") -Configuration $Configuration
 
 $mainProjects = @(
-    "SunExp-Dev\SunExp.Dll.csproj",
+    "Terrias-Dev\Terrias.Dll.csproj",
     "SanGuoShaExp-Dev\SanGuoShaExp.Dll.csproj",
     "AuraToolsExp-Dev\AuraToolsExp.Dll.csproj"
 )
@@ -103,10 +103,10 @@ foreach ($entry in $auraToolsConfigDomainFiles.GetEnumerator()) {
 }
 $auraToolsConfigSources = $auraToolsConfigRoot + "`n" + (($auraToolsConfigDomains.Values) -join "`n")
 $auraToolsSkinRuntime = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "AuraToolsExp-Dev\Features\Skin\AuraToolsSkinRuntime.cs")
-$familiarGrowthRuntime = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "SunExp-Dev\Hooks\FamiliarGrowthRuntime.cs")
-$solarMemoryStarterDeckRuntime = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "SunExp-Dev\Hooks\SolarMemoryStarterDeckRuntime.cs")
-$solarMemoryBlessingPickerRuntime = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "SunExp-Dev\Hooks\SolarMemoryBlessingPickerRuntime.cs")
-$solarMemorySetupFlowRuntime = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "SunExp-Dev\Hooks\SolarMemorySetupFlowRuntime.cs")
+$familiarGrowthRuntime = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "Terrias-Dev\Hooks\FamiliarGrowthRuntime.cs")
+$solarMemoryStarterDeckRuntime = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "Terrias-Dev\Hooks\SolarMemoryStarterDeckRuntime.cs")
+$solarMemoryBlessingPickerRuntime = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "Terrias-Dev\Hooks\SolarMemoryBlessingPickerRuntime.cs")
+$solarMemorySetupFlowRuntime = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot "Terrias-Dev\Hooks\SolarMemorySetupFlowRuntime.cs")
 
 if (-not ($auraToolsStarterDeckRuntime.Contains("IsWorldSimulationRun"))) {
     throw "AuraTools starter deck must guard application to confirmed World Simulation runs."
@@ -238,10 +238,10 @@ if (-not ($auraToolsDamageMeterUi.Contains('CreateLayout("HeaderActions"')) -or 
     throw "AuraTools damage meter header actions must use the shared small gap and reserve enough width for both buttons."
 }
 if (-not ($familiarGrowthRuntime.Contains("var template = rollButton ?? cardButton")) -or -not ($familiarGrowthRuntime.Contains("StripOwnerBehaviours = StripNativeHouseItems"))) {
-    throw "SunExp familiar archive must clone the exact roll-shop button and strip its native owner behaviour."
+    throw "Terrias familiar archive must clone the exact roll-shop button and strip its native owner behaviour."
 }
 if (-not ($familiarGrowthRuntime.Contains("RemoveEventListener")) -or -not ($familiarGrowthRuntime.Contains("AuraUiNativeButtonCloneAdapter.TryConfigureClone"))) {
-    throw "SunExp familiar archive must detach HouseItem language ownership before configuring its audited clone."
+    throw "Terrias familiar archive must detach HouseItem language ownership before configuring its audited clone."
 }
 foreach ($solarFooter in @($solarMemoryStarterDeckRuntime, $solarMemoryBlessingPickerRuntime)) {
     if (-not ($solarFooter.Contains("private const float FooterHeight = 64f;")) -or -not ($solarFooter.Contains("private const float ButtonHeight = 40f;")) -or -not ($solarFooter.Contains("new RectOffset(14, 14, 12, 12)"))) {
@@ -275,7 +275,7 @@ if ($auraToolsSkinRuntime -like "*|| !AuraToolsConfigService.Skin.AutoInstallBun
     throw "AuraTools skin runtime must not skip bundled package registration because of the removed auto-install checkbox."
 }
 
-foreach ($registry in @("SunExp\audio.registry.json", "SanGuoShaExp\audio.registry.json")) {
+foreach ($registry in @("Terrias\audio.registry.json", "SanGuoShaExp\audio.registry.json")) {
     $registryText = Get-Content -Raw -Encoding UTF8 -LiteralPath (Join-Path $repoRoot $registry)
     if ($registryText.Contains("ModResource/audio")) {
         throw "Main audio registry still points at direct ModResource audio: $registry"

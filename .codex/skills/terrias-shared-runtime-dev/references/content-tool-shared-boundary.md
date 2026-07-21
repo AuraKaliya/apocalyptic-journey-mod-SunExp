@@ -1,13 +1,13 @@
 # Content, Tool, And Shared Boundary
 
-Use this reference when deciding where reusable SunExp/AuraToolsExp runtime
+Use this reference when deciding where reusable Terrias/AuraToolsExp runtime
 behavior belongs.
 
 ## Design Intent
 
 The durable project model is:
 
-- `SunExp`: content mod. It owns content resources, gameplay rules, story,
+- `Terrias`: content mod. It owns content resources, gameplay rules, story,
   cards, buffs, relics, modes, rewards, and content-specific trigger semantics.
 - `AuraToolsExp`: tool mod. It owns configuration, inspection, preview,
   override, debugging, import/export, and player-facing tooling over shared
@@ -16,8 +16,8 @@ The durable project model is:
   own semantic-free infrastructure and domain protocols that multiple mods
   consume.
 
-This split is compatible with internal SunExp architecture work, but only when
-SunExp routers, UI factories, object pools, and preloaders remain SunExp-local
+This split is compatible with internal Terrias architecture work, but only when
+Terrias routers, UI factories, object pools, and preloaders remain Terrias-local
 implementation details. If AuraToolsExp also needs the capability, extract the
 semantic-free part to shared infrastructure.
 
@@ -31,8 +31,8 @@ Treat this as the highest-priority boundary rule:
 - AuraToolsExp is a tool mod. It depends on the core/shared layers and uses
   them to enable, disable, configure, inspect, import, preview, or override
   shared feature modules.
-- SunExp is a content mod. It depends on the core/shared layers and registers
-  SunExp-owned content, resources, manifests, providers, and declarations into
+- Terrias is a content mod. It depends on the core/shared layers and registers
+  Terrias-owned content, resources, manifests, providers, and declarations into
   shared data.
 - Tool mods and content mods do not depend on each other. They are sibling
   consumers of the shared foundation.
@@ -57,22 +57,22 @@ Default configuration policy:
   idempotent and revisioned; consumers refresh derived effective state when the
   shared registry snapshot changes, including after late loading.
 
-## Keep In SunExp
+## Keep In Terrias
 
-Keep behavior in SunExp when it depends on SunExp-owned content semantics:
+Keep behavior in Terrias when it depends on Terrias-owned content semantics:
 
-- Solar Memory, EndlessSea/EndlessAbyss, SunExp cards, buffs, relics, enemies,
+- Solar Memory, EndlessSea/EndlessAbyss, Terrias cards, buffs, relics, enemies,
   rewards, story, and run-state rules.
-- SunExp-owned resource installation, registry entries, default declarations,
+- Terrias-owned resource installation, registry entries, default declarations,
   and content-specific manifest semantics.
-- Content trigger matching for SunExp cards, roles, Skill CG, BGM, skins, or
+- Content trigger matching for Terrias cards, roles, Skill CG, BGM, skins, or
   visual effects.
-- SunExp-only lifecycle routers when their subscribers are SunExp features and
+- Terrias-only lifecycle routers when their subscribers are Terrias features and
   the target lifecycle is not needed by other mods.
-- Content-owned use of shared feature declarations, keeping SunExp-specific
+- Content-owned use of shared feature declarations, keeping Terrias-specific
   rules separate from semantic-free shared machinery.
 
-SunExp may wrap shared services with SunExp-specific facades, but the wrapper
+Terrias may wrap shared services with Terrias-specific facades, but the wrapper
 must not become a dependency for AuraToolsExp.
 
 ## Keep In AuraToolsExp
@@ -89,14 +89,14 @@ Keep behavior in AuraToolsExp when it is tool-local:
   without editing the declaration owner.
 
 AuraToolsExp may reference foreign registered resources by shared protocol. It
-must not scan SunExp private folders as a substitute for registration, mutate a
+must not scan Terrias private folders as a substitute for registration, mutate a
 foreign registry source, or copy foreign resources under tool ownership unless
 the user explicitly creates a local override.
 
 ## Promote To Shared
 
 Promote a capability to shared infrastructure when both content and tool mods
-need it and the core can be expressed without SunExp content meaning:
+need it and the core can be expressed without Terrias content meaning:
 
 - Hook registration safety, idempotency, owner diagnostics, lifecycle handles,
   and routed dispatch foundations.
@@ -111,16 +111,16 @@ need it and the core can be expressed without SunExp content meaning:
   and chunked/bounded payload transfer.
 
 Shared Core must remain semantic-free. Domain shared components may understand
-their domain schema, but not SunExp content rules.
+their domain schema, but not Terrias content rules.
 
 ## Architecture Smells
 
 Treat these as drift:
 
-- AuraToolsExp imports `SunExp-Dev` internals or assumes SunExp private folder
+- AuraToolsExp imports `Terrias-Dev` internals or assumes Terrias private folder
   layout.
-- SunExp owns a generic runtime that AuraToolsExp must call to function.
-- Shared components mention SunExp card ids, mode names, story state, or
+- Terrias owns a generic runtime that AuraToolsExp must call to function.
+- Shared components mention Terrias card ids, mode names, story state, or
   content-specific rewards.
 - A tool override rewrites a foreign registered declaration instead of layering
   an effective local setting.
@@ -133,8 +133,8 @@ Treat these as drift:
 
 Before changing a reusable runtime, ask:
 
-- Does this behavior require SunExp content semantics? If yes, keep it in
-  SunExp.
+- Does this behavior require Terrias content semantics? If yes, keep it in
+  Terrias.
 - Is this only a local editor/tool concern? If yes, keep it in AuraToolsExp.
 - Would another content/tool mod need the same semantic-free lifecycle,
   presentation, pooling, logging, or registry behavior? If yes, promote it to

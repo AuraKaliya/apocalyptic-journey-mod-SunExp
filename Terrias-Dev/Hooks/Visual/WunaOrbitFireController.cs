@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using UnityEngine;
 
-namespace SunExp.Dll.Hooks.Visual;
+namespace Terrias.Dll.Hooks.Visual;
 
 public sealed class WunaOrbitFireController : MonoBehaviour
 {
@@ -99,7 +99,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
         if (!lateUpdateDiagnosticLogged)
         {
             lateUpdateDiagnosticLogged = true;
-            SunExpLog.Info("[WunaOrbitFire] LateUpdate ticked.");
+            TerriasLog.Info("[WunaOrbitFire] LateUpdate ticked.");
         }
 
         TryBuildGeometryFromTarget("late-update", force: false);
@@ -113,7 +113,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
             return;
         }
 
-        if (!SunExpPerformanceSettings.WunaOrbitFireEnabled)
+        if (!TerriasPerformanceSettings.WunaOrbitFireEnabled)
         {
             if (!meshesClearedForPerformance)
             {
@@ -154,11 +154,11 @@ public sealed class WunaOrbitFireController : MonoBehaviour
 
         lastGeometrySprite = sprite;
         lastGeometryBounds = bounds;
-        nextGeometryUpdate = now + SunExpPerformanceSettings.WunaGeometryInterval(actionPulse > 0.03f);
-        var start = SunExpPerformanceCounters.Timestamp();
+        nextGeometryUpdate = now + TerriasPerformanceSettings.WunaGeometryInterval(actionPulse > 0.03f);
+        var start = TerriasPerformanceCounters.Timestamp();
         BuildGeometry(bounds, intensity);
         LogGeometryDiagnostic(bounds, source);
-        SunExpPerformanceCounters.RecordDuration("WunaOrbitFire.BuildGeometry", start);
+        TerriasPerformanceCounters.RecordDuration("WunaOrbitFire.BuildGeometry", start);
     }
 
     private void BuildGeometry(Bounds bounds, float intensity)
@@ -224,7 +224,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
         ref MeshRenderer? meshRenderer,
         ref Material? material)
     {
-        var childName = "SunExp_WunaOrbitFire_" + name;
+        var childName = "Terrias_WunaOrbitFire_" + name;
         var child = transform.Find(childName);
         if (child == null)
         {
@@ -289,7 +289,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
         }
 
         configureDiagnosticLogged = true;
-        SunExpLog.Info("[WunaOrbitFire] configured: targetEnabled="
+        TerriasLog.Info("[WunaOrbitFire] configured: targetEnabled="
             + renderer.enabled
             + ", targetActive="
             + renderer.gameObject.activeInHierarchy
@@ -300,7 +300,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
             + ", sortingOrder="
             + renderer.sortingOrder
             + ", visible="
-            + SunExpPerformanceSettings.WunaOrbitFireEnabled
+            + TerriasPerformanceSettings.WunaOrbitFireEnabled
             + ", performance=Unified"
             + ", frontShader="
             + (frontDetailMaterial?.shader?.name ?? "<none>")
@@ -316,7 +316,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
         }
 
         geometryDiagnosticLogged = true;
-        SunExpLog.Info("[WunaOrbitFire] geometry built from "
+        TerriasLog.Info("[WunaOrbitFire] geometry built from "
             + source
             + ": bounds="
             + bounds.size.x.ToString("0.###")
@@ -344,7 +344,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
     {
         if (runtimeDiagnostics.Add(key))
         {
-            SunExpLog.Info("[WunaOrbitFire] " + message);
+            TerriasLog.Info("[WunaOrbitFire] " + message);
         }
     }
 
@@ -495,7 +495,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
             var maxX = 0f;
             var maxY = 0f;
             var found = false;
-            var sampleGrid = Mathf.Max(16, SunExpPerformanceSettings.WunaAlphaSampleGrid);
+            var sampleGrid = Mathf.Max(16, TerriasPerformanceSettings.WunaAlphaSampleGrid);
             var stepX = Mathf.Max(1, Mathf.RoundToInt(rect.width / sampleGrid));
             var stepY = Mathf.Max(1, Mathf.RoundToInt(rect.height / sampleGrid));
 
@@ -556,7 +556,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
     {
         BeginMesh();
         var time = Time.unscaledTime;
-        var flamesPerRail = SunExpPerformanceSettings.WunaOrbitFlamesPerRail;
+        var flamesPerRail = TerriasPerformanceSettings.WunaOrbitFlamesPerRail;
         if (flamesPerRail <= 0)
         {
             EndMesh(mesh);
@@ -627,7 +627,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
 
     private void AddCoreRibbon(WunaOrbitFireOrbitModel.OrbitRail rail, Bounds bounds, float time, bool frontLayer, float intensity)
     {
-        var coreSections = SunExpPerformanceSettings.WunaCoreSections;
+        var coreSections = TerriasPerformanceSettings.WunaCoreSections;
         if (coreSections < 2)
         {
             return;
@@ -661,7 +661,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
 
     private void AddStreamRibbon(WunaOrbitFireOrbitModel.OrbitRail rail, Bounds bounds, float time, bool frontLayer, float intensity, bool outerVeil)
     {
-        var coreSections = SunExpPerformanceSettings.WunaCoreSections;
+        var coreSections = TerriasPerformanceSettings.WunaCoreSections;
         if (coreSections < 2)
         {
             return;
@@ -727,7 +727,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
 
     private void AddFlameTongues(WunaOrbitFireOrbitModel.OrbitRail rail, int railIndex, Bounds bounds, float time, bool frontLayer, float intensity)
     {
-        var detailTongues = SunExpPerformanceSettings.WunaDetailTongues;
+        var detailTongues = TerriasPerformanceSettings.WunaDetailTongues;
         for (var i = 0; i < detailTongues; i++)
         {
             var raw = (i + 0.35f) / (detailTongues + 0.85f);
@@ -768,7 +768,7 @@ public sealed class WunaOrbitFireController : MonoBehaviour
 
     private void AddSparks(WunaOrbitFireOrbitModel.OrbitRail rail, int railIndex, Bounds bounds, float time, bool frontLayer, float intensity)
     {
-        var detailSparks = SunExpPerformanceSettings.WunaDetailSparks;
+        var detailSparks = TerriasPerformanceSettings.WunaDetailSparks;
         for (var i = 0; i < detailSparks; i++)
         {
             var t = Mathf.Pow((i + 0.7f) / (detailSparks + 1.15f), 1.12f);

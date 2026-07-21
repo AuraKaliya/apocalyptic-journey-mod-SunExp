@@ -1,8 +1,8 @@
 using System;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class LoneerCardGrantService
 {
@@ -37,22 +37,22 @@ public static class LoneerCardGrantService
     private static PreparedGuidanceCard CreatePreparedGuidance(string cardId)
     {
         var resolved = CardApi.ResolveCardId(cardId);
-        var isWitchStarScore = string.Equals(resolved, SunExpIds.WitchStarScoreCardId, StringComparison.Ordinal)
+        var isWitchStarScore = string.Equals(resolved, TerriasIds.WitchStarScoreCardId, StringComparison.Ordinal)
             || string.Equals(NormalizeLocalId(resolved), "witch_star_score", StringComparison.Ordinal);
         return new PreparedGuidanceCard(
             resolved,
             "",
             isWitchStarScore,
             isWitchStarScore ? Array.Empty<string>() : new[] { "Burnout", "Nihility" },
-            new[] { SunExpIds.LoneerDerivedMarker, SunExpIds.LoneerGuidanceMarker },
-            new[] { SunExpIds.LoneerDerivedTag, SunExpIds.LoneerGuidanceTag });
+            new[] { TerriasIds.LoneerDerivedMarker, TerriasIds.LoneerGuidanceMarker },
+            new[] { TerriasIds.LoneerDerivedTag, TerriasIds.LoneerGuidanceTag });
     }
 
     private static string NormalizeLocalId(string id)
     {
         var value = (id ?? "").Replace("*", "").Trim();
         var last = value.LastIndexOf("_", StringComparison.Ordinal);
-        return value.StartsWith("SunExp_", StringComparison.Ordinal) && last >= 0
+        return value.StartsWith("Terrias_", StringComparison.Ordinal) && last >= 0
             ? value.Substring(last + 1)
             : value;
     }

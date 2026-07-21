@@ -2,12 +2,12 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using AuraGameData.Shared.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using UnityEngine;
 using Witch.UI;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public sealed class HeartChangeActionProxyObj : OtherObj
 {
@@ -46,7 +46,7 @@ public sealed class HeartChangeActionProxyObj : OtherObj
             FightAction.AddCard(CreateProxyActionCard(source.Status as StatusManager));
         }
 
-        SunExpLog.Info("[HeartChange] configured proxy action: status="
+        TerriasLog.Info("[HeartChange] configured proxy action: status="
             + InstanceId
             + ", intentCount="
             + proxyIntentCount);
@@ -65,11 +65,11 @@ public sealed class HeartChangeActionProxyObj : OtherObj
             ActionCount = Math.Max(1, proxyIntentCount);
             SetAction();
             ShowAction();
-            SunExpPerformanceCounters.Record("HeartChange.ProxyIntentRefreshed");
+            TerriasPerformanceCounters.Record("HeartChange.ProxyIntentRefreshed");
         }
         catch (System.Exception ex)
         {
-            SunExpLog.Warn("[HeartChange] proxy intent refresh failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[HeartChange] proxy intent refresh failed from " + source + ": " + ex.Message);
         }
     }
 
@@ -102,7 +102,7 @@ public sealed class HeartChangeActionProxyObj : OtherObj
             RefreshIntent("DoAction.MissingIntent");
         }
 
-        SunExpLog.Info("[HeartChange] proxy action begin: status="
+        TerriasLog.Info("[HeartChange] proxy action begin: status="
             + Status.InstanceId
             + ", intentCount="
             + proxyIntentCount
@@ -122,7 +122,7 @@ public sealed class HeartChangeActionProxyObj : OtherObj
     {
         if (proxyActionsResolved)
         {
-            SunExpLog.Info("[HeartChange] proxy action already resolved: status="
+            TerriasLog.Info("[HeartChange] proxy action already resolved: status="
                 + InstanceId
                 + ", source="
                 + source);
@@ -136,7 +136,7 @@ public sealed class HeartChangeActionProxyObj : OtherObj
             EnsureIntentForExecution(source);
             HideAction();
             var cards = SnapshotActionCards();
-            SunExpLog.Info("[HeartChange] resolving proxy action: status="
+            TerriasLog.Info("[HeartChange] resolving proxy action: status="
                 + InstanceId
                 + ", count="
                 + cards.Count
@@ -156,18 +156,18 @@ public sealed class HeartChangeActionProxyObj : OtherObj
                 }
             }
 
-            SunExpLog.Info("[HeartChange] proxy action complete: status="
+            TerriasLog.Info("[HeartChange] proxy action complete: status="
                 + InstanceId
                 + ", executed="
                 + executed
                 + ", source="
                 + source);
-            SunExpPerformanceCounters.Record("HeartChange.ProxyActionExecuted");
+            TerriasPerformanceCounters.Record("HeartChange.ProxyActionExecuted");
             return executed > 0;
         }
         catch (System.Exception ex)
         {
-            SunExpLog.Warn("[HeartChange] proxy action failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[HeartChange] proxy action failed from " + source + ": " + ex.Message);
             return executed > 0;
         }
     }
@@ -178,14 +178,14 @@ public sealed class HeartChangeActionProxyObj : OtherObj
         var target = HeartChangeIntentService.SelectStrikeTarget(Status);
         if (actor == null || target is not StatusManager targetStatus)
         {
-            SunExpLog.Info("[HeartChange] proxy card skipped: status="
+            TerriasLog.Info("[HeartChange] proxy card skipped: status="
                 + InstanceId
                 + ", index="
                 + index
                 + ", reason=NoTarget"
                 + ", source="
                 + source);
-            SunExpPerformanceCounters.Record("HeartChange.ProxyActionNoTarget");
+            TerriasPerformanceCounters.Record("HeartChange.ProxyActionNoTarget");
             return false;
         }
 
@@ -193,7 +193,7 @@ public sealed class HeartChangeActionProxyObj : OtherObj
         card.nowCD = 0;
         card.UseCard(targetStatus);
         CallActionAnimation(card);
-        SunExpLog.Info("[HeartChange] proxy card executed: status="
+        TerriasLog.Info("[HeartChange] proxy card executed: status="
             + InstanceId
             + ", index="
             + index
@@ -247,7 +247,7 @@ public sealed class HeartChangeActionProxyObj : OtherObj
             isIgnored = false,
             nowCD = 0
         };
-        var actionConfig = AuraGameDataHostApi.Materialize(DataType.EnemyCard, SunExpIds.HeartChangeActionStrikeCardId).Instance as DataConfig;
+        var actionConfig = AuraGameDataHostApi.Materialize(DataType.EnemyCard, TerriasIds.HeartChangeActionStrikeCardId).Instance as DataConfig;
         if (actionConfig == null)
         {
             throw new InvalidOperationException("Heart-change action definition is not registered.");
@@ -286,7 +286,7 @@ public sealed class HeartChangeActionProxyObj : OtherObj
         }
         catch (System.Exception ex)
         {
-            SunExpLog.Debug("[HeartChange] proxy action animation skipped: " + ex.Message);
+            TerriasLog.Debug("[HeartChange] proxy action animation skipped: " + ex.Message);
         }
     }
 

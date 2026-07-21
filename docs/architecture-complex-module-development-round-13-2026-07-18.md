@@ -130,9 +130,9 @@ AuraTools 与 Network authority 护栏中原来扫描 `IsReplacementPolicy`、`p
 - Aura.Shared：1228 项公共 API 兼容基线通过；
 - AuraDirector：20 项断言通过；
 - AuraToolsExp：632 项断言通过；
-- SunExp：架构检查与 282 项 C# 断言通过；
+- Terrias：架构检查与 282 项 C# 断言通过；
 - shared write、content/tool/shared、RPC authority 与架构边界门禁通过；
-- SunExp、SanGuoShaExp、AuraToolsExp 三个消费者均以 0 警告、0 错误构建；
+- Terrias、SanGuoShaExp、AuraToolsExp 三个消费者均以 0 警告、0 错误构建；
 - 完整共享发布矩阵和 DLL 打包检查通过；
 - 构建产物和三个打包副本 SHA-256 一致：`587EB66783DBD9BA9A17064A9DD85898A4DFBAD41181923F5923E1125B2F1DB8`。
 

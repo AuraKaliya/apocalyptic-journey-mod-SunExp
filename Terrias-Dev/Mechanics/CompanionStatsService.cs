@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Data.Save;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class CompanionStatsService
 {
@@ -65,7 +65,7 @@ public static class CompanionStatsService
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("[CompanionStats] abyss multiplier fallback used: " + ex.Message);
+            TerriasLog.Debug("[CompanionStats] abyss multiplier fallback used: " + ex.Message);
             return 1f;
         }
     }

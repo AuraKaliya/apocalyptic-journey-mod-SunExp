@@ -1,7 +1,7 @@
 using System.Collections.Generic;
 using Newtonsoft.Json;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public sealed class VisualRegistryDocument
 {
@@ -9,7 +9,7 @@ public sealed class VisualRegistryDocument
     public int SchemaVersion { get; set; } = 1;
 
     [JsonProperty("ownerModId")]
-    public string OwnerModId { get; set; } = "SunExp";
+    public string OwnerModId { get; set; } = "Terrias";
 
     [JsonProperty("textures")]
     public List<TextureVisualSpec> Textures { get; set; } = new();

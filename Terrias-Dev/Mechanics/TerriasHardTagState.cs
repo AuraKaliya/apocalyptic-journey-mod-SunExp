@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Data.Save;
 using Witch.Core;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
-public static class SunExpHardTagState
+public static class TerriasHardTagState
 {
     public static bool Active(string id)
     {
@@ -25,7 +25,7 @@ public static class SunExpHardTagState
         foreach (var tag in CurrentHardTags())
         {
             var tagId = DictionaryUtil.Get(tag?.data, "Id");
-            if (SunExpHardTagIds.Same(tagId, id))
+            if (TerriasHardTagIds.Same(tagId, id))
             {
                 level++;
             }
@@ -48,7 +48,7 @@ public static class SunExpHardTagState
             foreach (var entry in entries)
             {
                 var tagId = DictionaryUtil.Get(entry?.Data, "Id");
-                if (SunExpHardTagIds.Same(tagId, id))
+                if (TerriasHardTagIds.Same(tagId, id))
                 {
                     level += Math.Max(0, entry?.DynamicValue ?? 0);
                 }
@@ -58,7 +58,7 @@ public static class SunExpHardTagState
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("Runtime hard tag read skipped: " + ex.Message);
+            TerriasLog.Debug("Runtime hard tag read skipped: " + ex.Message);
             return 0;
         }
     }
@@ -72,7 +72,7 @@ public static class SunExpHardTagState
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("Hard tag read skipped: " + ex.Message);
+            TerriasLog.Debug("Hard tag read skipped: " + ex.Message);
         }
 
         if (tags == null)

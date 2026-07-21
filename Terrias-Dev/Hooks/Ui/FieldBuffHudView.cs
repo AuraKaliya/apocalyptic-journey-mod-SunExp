@@ -1,17 +1,17 @@
 using System;
 using AuraUi.Shared;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace SunExp.Dll.Hooks.Ui;
+namespace Terrias.Dll.Hooks.Ui;
 
 public sealed class FieldBuffHudView : MonoBehaviour
 {
-    public const string RootName = "SunExp_FieldBuffHud";
+    public const string RootName = "Terrias_FieldBuffHud";
 
     private const float RootWidth = 164f;
     private const float RootHeight = 128f;
@@ -81,7 +81,7 @@ public sealed class FieldBuffHudView : MonoBehaviour
     public void Close(string source)
     {
         CloseTooltip(source + ":tooltip");
-        SunExpUiSafety.CloseTransient(gameObject, source, "[FieldBuffHud]");
+        TerriasUiSafety.CloseTransient(gameObject, source, "[FieldBuffHud]");
     }
 
     internal void HandlePointerEntered()
@@ -110,7 +110,7 @@ public sealed class FieldBuffHudView : MonoBehaviour
         group.interactable = true;
         group.blocksRaycasts = true;
 
-        var panel = SunExpUiBuilder.ApplyPanelImage(gameObject, SunExpUiSprites.Panel("[FieldBuffHud]"), PanelTint);
+        var panel = TerriasUiBuilder.ApplyPanelImage(gameObject, TerriasUiSprites.Panel("[FieldBuffHud]"), PanelTint);
         panel.raycastTarget = false;
         CreateIcon();
         CreateStackText();
@@ -121,7 +121,7 @@ public sealed class FieldBuffHudView : MonoBehaviour
 
     private void CreateHitArea()
     {
-        var hitRect = SunExpUiBuilder.CreateRect(
+        var hitRect = TerriasUiBuilder.CreateRect(
             "HitArea",
             transform,
             Vector2.zero,
@@ -142,7 +142,7 @@ public sealed class FieldBuffHudView : MonoBehaviour
 
     private void CreateIcon()
     {
-        var iconRect = SunExpUiBuilder.CreateRect(
+        var iconRect = TerriasUiBuilder.CreateRect(
             "Icon",
             transform,
             new Vector2(0.5f, 1f),
@@ -157,7 +157,7 @@ public sealed class FieldBuffHudView : MonoBehaviour
 
     private void CreateStackText()
     {
-        var stackRect = SunExpUiBuilder.CreateRect(
+        var stackRect = TerriasUiBuilder.CreateRect(
             "Stacks",
             transform,
             new Vector2(0.5f, 1f),
@@ -173,7 +173,7 @@ public sealed class FieldBuffHudView : MonoBehaviour
             TextAnchor.MiddleCenter,
             StackTextColor,
             true,
-            SunExpUiTheme.Current);
+            TerriasUiTheme.Current);
         stackText.fontStyle = FontStyles.Bold;
         stackText.outlineColor = StackOutlineColor;
         stackText.outlineWidth = 0.24f;
@@ -182,7 +182,7 @@ public sealed class FieldBuffHudView : MonoBehaviour
 
     private void CreateNameSection()
     {
-        var sectionRect = SunExpUiBuilder.CreateRect(
+        var sectionRect = TerriasUiBuilder.CreateRect(
             "NameSection",
             transform,
             Vector2.zero,
@@ -195,7 +195,7 @@ public sealed class FieldBuffHudView : MonoBehaviour
         sectionImage.color = NameSectionTint;
         sectionImage.raycastTarget = false;
 
-        var dividerRect = SunExpUiBuilder.CreateRect(
+        var dividerRect = TerriasUiBuilder.CreateRect(
             "Divider",
             sectionRect,
             new Vector2(0.5f, 1f),
@@ -206,7 +206,7 @@ public sealed class FieldBuffHudView : MonoBehaviour
         dividerImage.color = DividerTint;
         dividerImage.raycastTarget = false;
 
-        var nameRect = SunExpUiBuilder.CreateRect(
+        var nameRect = TerriasUiBuilder.CreateRect(
             "Name",
             sectionRect,
             Vector2.zero,
@@ -223,7 +223,7 @@ public sealed class FieldBuffHudView : MonoBehaviour
             TextAnchor.MiddleCenter,
             NameTextColor,
             true,
-            SunExpUiTheme.Current);
+            TerriasUiTheme.Current);
         nameText.fontStyle = FontStyles.Bold;
         nameText.outlineColor = StackOutlineColor;
         nameText.outlineWidth = 0.12f;
@@ -293,7 +293,7 @@ public sealed class FieldBuffHudView : MonoBehaviour
 
         var root = tooltip.gameObject;
         tooltip = null;
-        SunExpUiSafety.CloseTransient(root, source, "[FieldBuffHud]");
+        TerriasUiSafety.CloseTransient(root, source, "[FieldBuffHud]");
     }
 
     private static string DisplayName(FieldBuffSnapshot snapshot)
@@ -308,11 +308,11 @@ public sealed class FieldBuffHudView : MonoBehaviour
             var iconPath = FieldEffectRegistry.RuntimeSpecFor(snapshot.Field).HudIconPathForStacks(snapshot.Stacks);
             return string.IsNullOrWhiteSpace(iconPath)
                 ? null
-                : SunExpResourceCache.Load<Sprite>(iconPath, true, "field.buff.hud");
+                : TerriasResourceCache.Load<Sprite>(iconPath, true, "field.buff.hud");
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("[FieldBuffHud] icon fallback: " + snapshot.BuffId + ", error=" + ex.Message);
+            TerriasLog.Debug("[FieldBuffHud] icon fallback: " + snapshot.BuffId + ", error=" + ex.Message);
             return null;
         }
     }

@@ -3,14 +3,14 @@ using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
 using AuraShared.Core;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 using Witch.Core;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
-public static class SunExpCardRefreshQueue
+public static class TerriasCardRefreshQueue
 {
     private const double SlowRefreshWarningMilliseconds = 8.0;
     private static readonly object SyncRoot = new();
@@ -88,9 +88,9 @@ public static class SunExpCardRefreshQueue
     {
         if (!AuraSharedFrameScheduler.RunCooperative(new AuraSharedFrameWorkRequest
             {
-                OwnerId = SunExpIds.ModId,
-                Key = "SunExpCardRefreshQueue.Flush",
-                Source = "SunExp.CardRefreshQueue",
+                OwnerId = TerriasIds.ModId,
+                Key = "TerriasCardRefreshQueue.Flush",
+                Source = "Terrias.CardRefreshQueue",
                 DelayFrames = 1,
                 Phase = AuraSharedFramePhase.Presentation,
                 Priority = 100,
@@ -99,15 +99,15 @@ public static class SunExpCardRefreshQueue
                 ExecuteSlice = FlushSlice,
                 OnSliceExecuted = report =>
                 {
-                    SunExpPerformanceCounters.Record("CardRefreshQueue.CooperativeSlice");
+                    TerriasPerformanceCounters.Record("CardRefreshQueue.CooperativeSlice");
                     if (report.ElapsedMilliseconds >= 8d)
                     {
-                        SunExpPerformanceCounters.Record("CardRefreshQueue.CooperativeSliceOverBudget");
+                        TerriasPerformanceCounters.Record("CardRefreshQueue.CooperativeSliceOverBudget");
                     }
                 }
             }))
         {
-            SunExpPerformanceCounters.Record("CardRefreshQueue.Deduped");
+            TerriasPerformanceCounters.Record("CardRefreshQueue.Deduped");
         }
     }
 
@@ -144,7 +144,7 @@ public static class SunExpCardRefreshQueue
         {
             for (var i = 0; i < requested; i++)
             {
-                SunExpPerformanceCounters.Record("CardRefreshQueue.DescriptionSubsetRequested");
+                TerriasPerformanceCounters.Record("CardRefreshQueue.DescriptionSubsetRequested");
             }
         }
 
@@ -176,7 +176,7 @@ public static class SunExpCardRefreshQueue
             }
         }
 
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         if (config.HasValue)
         {
             RefreshConfigNow(config.Value.Config, config.Value.Source);
@@ -186,13 +186,13 @@ public static class SunExpCardRefreshQueue
             RefreshNow(card.Value.Card, card.Value.Source, card.Value.RefreshTags, card.Value.DataUpdate, card.Value.CostUpdate);
         }
 
-        SunExpPerformanceCounters.RecordDuration("CardRefreshQueue.Flush", start);
+        TerriasPerformanceCounters.RecordDuration("CardRefreshQueue.Flush", start);
         lock (SyncRoot)
         {
             var completed = PendingCards.Count == 0 && PendingConfigs.Count == 0;
             if (!completed)
             {
-                SunExpPerformanceCounters.Record("CardRefreshQueue.FlushContinued");
+                TerriasPerformanceCounters.Record("CardRefreshQueue.FlushContinued");
             }
 
             return completed;
@@ -263,68 +263,68 @@ public static class SunExpCardRefreshQueue
 
     private static void RefreshNow(CardItem card, string source, bool refreshTags, bool dataUpdate, bool costUpdate)
     {
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         try
         {
             if (refreshTags)
             {
-                var tagStart = SunExpPerformanceCounters.Timestamp();
+                var tagStart = TerriasPerformanceCounters.Timestamp();
                 card.RefreshTag();
-                SunExpPerformanceCounters.RecordDuration("CardRefreshQueue.Card.RefreshTag", tagStart);
+                TerriasPerformanceCounters.RecordDuration("CardRefreshQueue.Card.RefreshTag", tagStart);
             }
 
             if (dataUpdate)
             {
-                var dataStart = SunExpPerformanceCounters.Timestamp();
+                var dataStart = TerriasPerformanceCounters.Timestamp();
                 card.DataUpdate();
-                SunExpPerformanceCounters.RecordDuration("CardRefreshQueue.Card.DataUpdate", dataStart);
+                TerriasPerformanceCounters.RecordDuration("CardRefreshQueue.Card.DataUpdate", dataStart);
             }
             else if (costUpdate)
             {
-                var costStart = SunExpPerformanceCounters.Timestamp();
+                var costStart = TerriasPerformanceCounters.Timestamp();
                 if (!AuraCardPresentationDelta.TrySetCost(
                         card.transform,
                         CardConfigApi.NativeDisplayCost(card.dataConfig, FightPlayer.Instance?.Status).ToString()))
                 {
                     card.DataUpdate();
-                    SunExpPerformanceCounters.Record("CardRefreshQueue.Card.CostFallback");
+                    TerriasPerformanceCounters.Record("CardRefreshQueue.Card.CostFallback");
                 }
 
-                SunExpPerformanceCounters.RecordDuration("CardRefreshQueue.Card.CostUpdate", costStart);
+                TerriasPerformanceCounters.RecordDuration("CardRefreshQueue.Card.CostUpdate", costStart);
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("Queued card refresh skipped from " + source + ": " + ex.Message);
+            TerriasLog.Debug("Queued card refresh skipped from " + source + ": " + ex.Message);
         }
         finally
         {
-            SunExpPerformanceCounters.RecordDuration("CardRefreshQueue.Card.Refresh", start);
+            TerriasPerformanceCounters.RecordDuration("CardRefreshQueue.Card.Refresh", start);
             LogSlowRefresh("card", source, start);
         }
     }
 
     private static void RefreshConfigNow(IDataConfig config, string source)
     {
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         try
         {
             FightCardManager.Instance?.RefreshTag(config);
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("Queued config tag refresh skipped from " + source + ": " + ex.Message);
+            TerriasLog.Debug("Queued config tag refresh skipped from " + source + ": " + ex.Message);
         }
         finally
         {
-            SunExpPerformanceCounters.RecordDuration("FightCardManager.RefreshTag", start);
+            TerriasPerformanceCounters.RecordDuration("FightCardManager.RefreshTag", start);
             LogSlowRefresh("config", source, start);
         }
     }
 
     private static void LogSlowRefresh(string kind, string source, long startTimestamp)
     {
-        if (!SunExpPerformanceSettings.CountersEnabled)
+        if (!TerriasPerformanceSettings.CountersEnabled)
         {
             return;
         }
@@ -340,7 +340,7 @@ public static class SunExpCardRefreshQueue
             return;
         }
 
-        SunExpLog.Warn("Slow SunExp card refresh: kind="
+        TerriasLog.Warn("Slow Terrias card refresh: kind="
             + kind
             + ", elapsedMs="
             + elapsed.ToString("0.###")

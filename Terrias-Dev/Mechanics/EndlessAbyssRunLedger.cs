@@ -4,10 +4,10 @@ using System.Globalization;
 using System.Linq;
 using Data.Save;
 using Newtonsoft.Json;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.Core;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public sealed class EndlessAbyssLedgerDocument
 {
@@ -25,8 +25,8 @@ public static class EndlessAbyssRunLedger
             return;
         }
 
-        saveInfo.GameVars[SunExpIds.EndlessAbyssLedgerKey] = JsonConvert.SerializeObject(new EndlessAbyssLedgerDocument());
-        saveInfo.GameVars[SunExpIds.EndlessAbyssPendingShockKey] = "";
+        saveInfo.GameVars[TerriasIds.EndlessAbyssLedgerKey] = JsonConvert.SerializeObject(new EndlessAbyssLedgerDocument());
+        saveInfo.GameVars[TerriasIds.EndlessAbyssPendingShockKey] = "";
     }
 
     public static bool Contains(string key)
@@ -66,7 +66,7 @@ public static class EndlessAbyssRunLedger
         }
 
         Save(document);
-        SunExpLog.Debug("[EndlessAbyssLedger] claimed " + key + " from " + source + ".");
+        TerriasLog.Debug("[EndlessAbyssLedger] claimed " + key + " from " + source + ".");
         return true;
     }
 
@@ -105,7 +105,7 @@ public static class EndlessAbyssRunLedger
     {
         try
         {
-            var json = CurrentValue(SunExpIds.EndlessAbyssLedgerKey);
+            var json = CurrentValue(TerriasIds.EndlessAbyssLedgerKey);
             if (string.IsNullOrWhiteSpace(json))
             {
                 return new EndlessAbyssLedgerDocument();
@@ -116,7 +116,7 @@ public static class EndlessAbyssRunLedger
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessAbyssLedger] load failed: " + ex.Message);
+            TerriasLog.Warn("[EndlessAbyssLedger] load failed: " + ex.Message);
             return new EndlessAbyssLedgerDocument();
         }
     }
@@ -138,7 +138,7 @@ public static class EndlessAbyssRunLedger
 
     private static void Save(EndlessAbyssLedgerDocument document)
     {
-        SetValue(SunExpIds.EndlessAbyssLedgerKey, JsonConvert.SerializeObject(document ?? new EndlessAbyssLedgerDocument()));
+        SetValue(TerriasIds.EndlessAbyssLedgerKey, JsonConvert.SerializeObject(document ?? new EndlessAbyssLedgerDocument()));
     }
 
     private static string NormalizeKey(string key)
@@ -199,12 +199,12 @@ public static class EndlessAbyssGazeService
             return;
         }
 
-        saveInfo.GameVars[SunExpIds.EndlessAbyssGazeLevelKey] = InitialLevel.ToString(CultureInfo.InvariantCulture);
+        saveInfo.GameVars[TerriasIds.EndlessAbyssGazeLevelKey] = InitialLevel.ToString(CultureInfo.InvariantCulture);
     }
 
     public static int CurrentLevel()
     {
-        return Math.Max(InitialLevel, GameSaveManager.GetValue<int>(SunExpIds.EndlessAbyssGazeLevelKey));
+        return Math.Max(InitialLevel, GameSaveManager.GetValue<int>(TerriasIds.EndlessAbyssGazeLevelKey));
     }
 
     public static int RequiredShockChoices()
@@ -222,7 +222,7 @@ public static class EndlessAbyssGazeService
 
     public static bool EnsureInitialized(string source)
     {
-        var current = GameSaveManager.GetValue<string>(SunExpIds.EndlessAbyssGazeLevelKey);
+        var current = GameSaveManager.GetValue<string>(TerriasIds.EndlessAbyssGazeLevelKey);
         if (!string.IsNullOrWhiteSpace(current))
         {
             return false;
@@ -255,8 +255,8 @@ public static class EndlessAbyssGazeService
     public static void SetLevel(int level, string source)
     {
         var next = Math.Max(InitialLevel, level);
-        SetValue(SunExpIds.EndlessAbyssGazeLevelKey, next.ToString(CultureInfo.InvariantCulture));
-        SunExpLog.Info("[EndlessAbyssGaze] level=" + next + " from " + source + ".");
+        SetValue(TerriasIds.EndlessAbyssGazeLevelKey, next.ToString(CultureInfo.InvariantCulture));
+        TerriasLog.Info("[EndlessAbyssGaze] level=" + next + " from " + source + ".");
     }
 
     private static void SetValue(string key, string value)

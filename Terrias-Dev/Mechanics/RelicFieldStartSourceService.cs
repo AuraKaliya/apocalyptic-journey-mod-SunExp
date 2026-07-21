@@ -1,8 +1,8 @@
 using System.Collections.Generic;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class RelicFieldStartSourceService
 {
@@ -11,7 +11,7 @@ public static class RelicFieldStartSourceService
         {
             new RelicFieldDefinition(
                 "blazing_crown_heart",
-                SunExpFieldId.ScorchingCanopy,
+                TerriasFieldId.ScorchingCanopy,
                 2,
                 0)
         };
@@ -38,7 +38,7 @@ public static class RelicFieldStartSourceService
 
     private sealed class RelicFieldDefinition
     {
-        public RelicFieldDefinition(string relicId, SunExpFieldId field, int stacks, int order)
+        public RelicFieldDefinition(string relicId, TerriasFieldId field, int stacks, int order)
         {
             RelicId = relicId;
             Field = field;
@@ -48,7 +48,7 @@ public static class RelicFieldStartSourceService
 
         public string RelicId { get; }
 
-        public SunExpFieldId Field { get; }
+        public TerriasFieldId Field { get; }
 
         public int Stacks { get; }
 

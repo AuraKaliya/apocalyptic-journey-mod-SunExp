@@ -1086,7 +1086,7 @@ Refreshing native plugins compatible for Editor in 0.00 ms, found 0 plugins.
 Preloading 0 native plugins for Editor in 0.00 ms.
 Asset Pipeline Refresh (id=727b218e2144aee4cb0c549bd18565e4): Total: 0.015 seconds - Initiated by StopAssetImportingV2(NoUpdateAssetOptions)
 Asset Pipeline Refresh (id=1565d8be688285e42829e2352ac5e63b): Total: 0.009 seconds - Initiated by RefreshV2(NoUpdateAssetOptions)
-Start importing Assets/AuraCardFrameFxLab/Materials/SunExpFoilHoloFrameOverlay.mat using Guid(87eade045673983429a7ddee13050606) Importer(-1,00000000000000000000000000000000) [PhysX] Initialized MultithreadedTaskDispatcher with 32 workers.
+Start importing Assets/AuraCardFrameFxLab/Materials/TerriasFoilHoloFrameOverlay.mat using Guid(87eade045673983429a7ddee13050606) Importer(-1,00000000000000000000000000000000) [PhysX] Initialized MultithreadedTaskDispatcher with 32 workers.
  -> (artifact id: 'acbcd016faee0d7e0bcb847ff85f4182') in 0.001179 seconds
 Refreshing native plugins compatible for Editor in 0.00 ms, found 0 plugins.
 Preloading 0 native plugins for Editor in 0.00 ms.
@@ -1097,7 +1097,7 @@ Unloading 10 unused Assets / (6.6 KB). Loaded Objects now: 738.
 Memory consumption went from 88.2 MB to 88.2 MB.
 Total: 1.949300 ms (FindLiveObjects: 0.030400 ms CreateObjectMapping: 0.005000 ms MarkObjects: 1.881100 ms  DeleteObjects: 0.032200 ms)
 
-Start importing Assets/AuraCardFrameFxLab/Materials/SunExpFoilHoloFrameOverlay.mat using Guid(87eade045673983429a7ddee13050606) Importer(-1,00000000000000000000000000000000) [PhysX] Initialized MultithreadedTaskDispatcher with 32 workers.
+Start importing Assets/AuraCardFrameFxLab/Materials/TerriasFoilHoloFrameOverlay.mat using Guid(87eade045673983429a7ddee13050606) Importer(-1,00000000000000000000000000000000) [PhysX] Initialized MultithreadedTaskDispatcher with 32 workers.
  -> (artifact id: 'bae060ca7e2ffd1648c60ccac590ad4c') in 0.001570 seconds
 Refreshing native plugins compatible for Editor in 0.00 ms, found 0 plugins.
 Preloading 0 native plugins for Editor in 0.00 ms.

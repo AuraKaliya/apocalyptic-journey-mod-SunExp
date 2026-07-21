@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using AuraShared.Core;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.Mod;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class SpiritCaptureRegistry
 {
@@ -17,11 +17,11 @@ public static class SpiritCaptureRegistry
     {
         lock (SyncRoot)
         {
-            var path = Path.Combine(modConfig.DirectoryName, SunExpIds.SpiritCaptureRegistryFile);
+            var path = Path.Combine(modConfig.DirectoryName, TerriasIds.SpiritCaptureRegistryFile);
             if (!File.Exists(path))
             {
                 document = BuiltInDocument();
-                SunExpLog.Warn("[SpiritCaptureRegistry] missing registry; using guarded terminal settlement.");
+                TerriasLog.Warn("[SpiritCaptureRegistry] missing registry; using guarded terminal settlement.");
                 return;
             }
 
@@ -35,12 +35,12 @@ public static class SpiritCaptureRegistry
                 }
 
                 document = Normalize(loaded);
-                SunExpLog.Info("[SpiritCaptureRegistry] loaded profiles=" + document.Profiles.Count + " from " + path);
+                TerriasLog.Info("[SpiritCaptureRegistry] loaded profiles=" + document.Profiles.Count + " from " + path);
             }
             catch (Exception ex)
             {
                 document = BuiltInDocument();
-                SunExpLog.Warn("[SpiritCaptureRegistry] failed to load registry; using guarded terminal settlement: " + ex.Message);
+                TerriasLog.Warn("[SpiritCaptureRegistry] failed to load registry; using guarded terminal settlement: " + ex.Message);
             }
         }
     }

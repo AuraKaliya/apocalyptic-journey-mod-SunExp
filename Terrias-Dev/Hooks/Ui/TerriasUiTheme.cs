@@ -1,11 +1,11 @@
 using AuraUi.Shared;
 using UnityEngine;
 
-namespace SunExp.Dll.Hooks.Ui;
+namespace Terrias.Dll.Hooks.Ui;
 
-public static class SunExpUiTheme
+public static class TerriasUiTheme
 {
-    private const string StyleId = "SunExp:solar";
+    private const string StyleId = "Terrias:solar";
 
     public static AuraUiTheme Current { get; } = AuraUiStyleRegistry.RegisterDerived(
         StyleId,

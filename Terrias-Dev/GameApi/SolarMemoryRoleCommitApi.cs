@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Network;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Network;
 using Witch;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class SolarMemoryRoleCommitApi
 {
@@ -12,34 +12,34 @@ public static class SolarMemoryRoleCommitApi
     {
         if (role == null)
         {
-            SunExpLog.Warn("[SolarMemoryRoleCommit] submission skipped because RoleTable.Instance is null. source=" + source);
+            TerriasLog.Warn("[SolarMemoryRoleCommit] submission skipped because RoleTable.Instance is null. source=" + source);
             return false;
         }
 
         role.SpecialVarMap ??= new Dictionary<string, string>();
-        if (role.SpecialVarMap.TryGetValue(SunExpIds.SolarMemorySetupCommitTokenKey, out var existingToken)
+        if (role.SpecialVarMap.TryGetValue(TerriasIds.SolarMemorySetupCommitTokenKey, out var existingToken)
             && !string.IsNullOrWhiteSpace(existingToken))
         {
-            SunExpLog.Info("[SolarMemoryRoleCommit] duplicate local submission ignored. role=" + role.Id + ", token=" + existingToken);
+            TerriasLog.Info("[SolarMemoryRoleCommit] duplicate local submission ignored. role=" + role.Id + ", token=" + existingToken);
             return true;
         }
 
         var token = Guid.NewGuid().ToString("N");
-        role.SpecialVarMap[SunExpIds.SolarMemorySetupCommitTokenKey] = token;
+        role.SpecialVarMap[TerriasIds.SolarMemorySetupCommitTokenKey] = token;
         try
         {
             var playerManager = PlayerManager.Instance;
             if (playerManager != null && playerManager.isClient && !playerManager.isServer)
             {
                 playerManager.SendRpcCommand(new RpcSolarMemoryRoleCommit(role, source));
-                SunExpLog.Info("[SolarMemoryRoleCommit] submitted final role to host. role=" + role.Id + ", token=" + token + ", source=" + source);
+                TerriasLog.Info("[SolarMemoryRoleCommit] submitted final role to host. role=" + role.Id + ", token=" + token + ", source=" + source);
                 return true;
             }
 
             if (RpcSolarMemoryRoleCommit.ApplyOnServer(
                     role,
                     source,
-                    SunExpRpcAuthorityRuntime.CreateLocalServerSender(source),
+                    TerriasRpcAuthorityRuntime.CreateLocalServerSender(source),
                     remoteRpc: false))
             {
                 return true;
@@ -47,10 +47,10 @@ public static class SolarMemoryRoleCommitApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar Memory final role submission failed. source=" + source, ex);
+            TerriasLog.Error("Solar Memory final role submission failed. source=" + source, ex);
         }
 
-        role.SpecialVarMap.Remove(SunExpIds.SolarMemorySetupCommitTokenKey);
+        role.SpecialVarMap.Remove(TerriasIds.SolarMemorySetupCommitTokenKey);
         return false;
     }
 }

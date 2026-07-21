@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class CardMutationService
 {
@@ -245,7 +245,7 @@ public static class CardMutationService
         }
 
         var changed = false;
-        var existing = DictionaryUtil.Get(config.Vars, SunExpIds.RuntimeMarkersKey);
+        var existing = DictionaryUtil.Get(config.Vars, TerriasIds.RuntimeMarkersKey);
         foreach (var marker in NormalizeTags(markers))
         {
             if (DictionaryUtil.ContainsToken(existing, marker))
@@ -259,7 +259,7 @@ public static class CardMutationService
 
         if (changed)
         {
-            DictionaryUtil.Set(config.Vars, SunExpIds.RuntimeMarkersKey, existing);
+            DictionaryUtil.Set(config.Vars, TerriasIds.RuntimeMarkersKey, existing);
         }
 
         return changed;
@@ -268,7 +268,7 @@ public static class CardMutationService
     public static bool HasRuntimeMarker(IDataConfig? config, string marker)
     {
         return DictionaryUtil.ContainsToken(
-            DictionaryUtil.Get(config?.Vars, SunExpIds.RuntimeMarkersKey),
+            DictionaryUtil.Get(config?.Vars, TerriasIds.RuntimeMarkersKey),
             marker);
     }
 
@@ -309,8 +309,8 @@ public static class CardMutationService
         RuntimeCardAttachmentService.AttachToConfig(
             config,
             new RuntimeCardAttachment(
-                specialTags: new[] { SunExpIds.WhiteRadianceTag },
-                markers: new[] { SunExpIds.TempWhiteRadiance },
+                specialTags: new[] { TerriasIds.WhiteRadianceTag },
+                markers: new[] { TerriasIds.TempWhiteRadiance },
                 temporaryWhiteRadiance: true));
     }
 
@@ -340,18 +340,18 @@ public static class CardMutationService
 
     private static void RefreshDataConfigTags(IDataConfig config)
     {
-        SunExpCardRefreshQueue.RequestConfigTagRefresh(config, "CardMutation");
+        TerriasCardRefreshQueue.RequestConfigTagRefresh(config, "CardMutation");
     }
 
     private static void RefreshCardItem(CardItem card)
     {
         try
         {
-            SunExpCardRefreshQueue.RequestTagRefresh(card, "CardMutation");
+            TerriasCardRefreshQueue.RequestTagRefresh(card, "CardMutation");
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("Card item refresh skipped: " + ex.Message);
+            TerriasLog.Debug("Card item refresh skipped: " + ex.Message);
         }
     }
 }

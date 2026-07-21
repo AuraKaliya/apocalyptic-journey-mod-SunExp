@@ -4,15 +4,15 @@ param(
 
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
-$project = Join-Path $repoRoot "SunExp-Dev.ElementalTests\SunExp-Dev.ElementalTests.csproj"
-$dataPath = Join-Path $repoRoot "SunExp\Data\Buff\sunexp.csv"
-$textPath = Join-Path $repoRoot "SunExp\Text\Buff\sunexp.csv"
-$runtimePath = Join-Path $repoRoot "SunExp-Dev\Hooks\RuntimeHooks.cs"
-$rpcPath = Join-Path $repoRoot "SunExp-Dev\Network\RpcElementalMechanics.cs"
+$project = Join-Path $repoRoot "Terrias-Dev.ElementalTests\Terrias-Dev.ElementalTests.csproj"
+$dataPath = Join-Path $repoRoot "Terrias\Data\Buff\terrias.csv"
+$textPath = Join-Path $repoRoot "Terrias\Text\Buff\terrias.csv"
+$runtimePath = Join-Path $repoRoot "Terrias-Dev\Hooks\RuntimeHooks.cs"
+$rpcPath = Join-Path $repoRoot "Terrias-Dev\Network\RpcElementalMechanics.cs"
 
 dotnet run --project $project -c $Configuration
 if ($LASTEXITCODE -ne 0) {
-    throw "SunExp elemental catalog tests failed."
+    throw "Terrias elemental catalog tests failed."
 }
 
 $requiredIds = @(
@@ -61,14 +61,14 @@ if (-not $runtime.Contains('ElementalMechanicsRuntime.Initialize(modConfig)')) {
 }
 
 $rpc = [System.IO.File]::ReadAllText($rpcPath)
-if (-not $rpc.Contains('RpcElementalCrystalCreateRequest : RpcCommandBase, ISunExpServerBoundRpcCommand')) {
+if (-not $rpc.Contains('RpcElementalCrystalCreateRequest : RpcCommandBase, ITerriasServerBoundRpcCommand')) {
     throw "Elemental crystal creation must remain sender-bound."
 }
-if (-not $rpc.Contains('RpcElementalCrystalClaim : RpcCommandBase, ISunExpServerBoundRpcCommand')) {
+if (-not $rpc.Contains('RpcElementalCrystalClaim : RpcCommandBase, ITerriasServerBoundRpcCommand')) {
     throw "Elemental crystal claim must remain sender-bound."
 }
 
-$damageApi = [System.IO.File]::ReadAllText((Join-Path $repoRoot "SunExp-Dev\GameApi\DamageApi.cs"))
+$damageApi = [System.IO.File]::ReadAllText((Join-Path $repoRoot "Terrias-Dev\GameApi\DamageApi.cs"))
 if (-not $damageApi.Contains('CreateCardSourceExecutor')) {
     throw "Status-triggered elemental damage must have a configured native source executor path."
 }
@@ -76,11 +76,11 @@ if (-not $damageApi.Contains('HasNativeDamageIdentity')) {
     throw "Native damage must validate its source data Id."
 }
 
-$reactionService = [System.IO.File]::ReadAllText((Join-Path $repoRoot "SunExp-Dev\Mechanics\ElementalReactionService.cs"))
+$reactionService = [System.IO.File]::ReadAllText((Join-Path $repoRoot "Terrias-Dev\Mechanics\ElementalReactionService.cs"))
 $validateIndex = $reactionService.IndexOf('if (!CanCommit(plan))')
 $consumeIndex = $reactionService.IndexOf('CommitConsumedAttachment(plan);')
 if ($validateIndex -lt 0 -or $consumeIndex -lt 0 -or $validateIndex -gt $consumeIndex) {
     throw "Elemental resolution must validate its damage source before consuming an attachment."
 }
 
-Write-Host "SunExp elemental mechanics assertions passed."
+Write-Host "Terrias elemental mechanics assertions passed."

@@ -4,16 +4,16 @@ using System.Linq;
 using AuraGameData.Shared;
 using AuraGameData.Shared.GameApi;
 using AuraUi.Shared;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Hooks.Ui;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Hooks.Ui;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using UnityEngine.UI;
 using Witch;
 using Witch.Core;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class SolarMemoryBlessingPickerRuntime
 {
@@ -23,7 +23,7 @@ public static class SolarMemoryBlessingPickerRuntime
     public const int Tier1Quota = 5;
     public const int TotalBlessingQuota = Tier4Quota + Tier3Quota + Tier2Quota + Tier1Quota;
 
-    private const string PanelName = "SunExp_SolarMemoryBlessingPicker";
+    private const string PanelName = "Terrias_SolarMemoryBlessingPicker";
     private const float HeaderHeight = 42f;
     private const float BlessRowHeight = 54f;
     private const float IconColumnWidth = 44f;
@@ -48,8 +48,8 @@ public static class SolarMemoryBlessingPickerRuntime
     private static readonly Dictionary<string, Sprite?> blessIconCache = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<int, Text> tierCounterTexts = new();
     private static readonly List<BlessingRowView> selectedRows = new();
-    private static readonly SunExpDirtyState candidateListDirty = new();
-    private static readonly SunExpDirtyState selectedListDirty = new();
+    private static readonly TerriasDirtyState candidateListDirty = new();
+    private static readonly TerriasDirtyState selectedListDirty = new();
     private static GameObject? activePanel;
     private static Transform? candidateListContent;
     private static Transform? selectedListContent;
@@ -71,7 +71,7 @@ public static class SolarMemoryBlessingPickerRuntime
                 return;
             }
 
-            if (SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryBlessConfiguredKey))
+            if (SolarMemoryPlayerSetupState.IsSet(TerriasIds.SolarMemoryBlessConfiguredKey))
             {
                 onCompleted();
                 return;
@@ -87,7 +87,7 @@ public static class SolarMemoryBlessingPickerRuntime
         catch (Exception ex)
         {
             Close();
-            SunExpLog.Error("Solar memory custom blessing picker failed", ex);
+            TerriasLog.Error("Solar memory custom blessing picker failed", ex);
         }
     }
 
@@ -111,13 +111,13 @@ public static class SolarMemoryBlessingPickerRuntime
 
         BuildBlessingPools();
         RefreshAll();
-        SunExpLog.Debug("[SolarMemoryBlessingPicker] refreshed for game-data epoch " + version.Epoch + ".");
+        TerriasLog.Debug("[SolarMemoryBlessingPicker] refreshed for game-data epoch " + version.Epoch + ".");
     }
 
     public static void Close()
     {
         ReleaseTransientRows();
-        SunExpModalHost.Close(ref activePanel, "SolarMemoryBlessingPicker.Close", "[SolarMemoryBlessingPicker]");
+        TerriasModalHost.Close(ref activePanel, "SolarMemoryBlessingPicker.Close", "[SolarMemoryBlessingPicker]");
 
         candidateListContent = null;
         selectedListContent = null;
@@ -130,13 +130,13 @@ public static class SolarMemoryBlessingPickerRuntime
 
     private static void ShowPanel(Action onCompleted)
     {
-        var parent = SunExpModalHost.ModalParent();
+        var parent = TerriasModalHost.ModalParent();
         if (parent == null)
         {
             return;
         }
 
-        activePanel = SunExpModalHost.CreateFullscreenRoot(
+        activePanel = TerriasModalHost.CreateFullscreenRoot(
             PanelName,
             parent,
             new Color(0f, 0f, 0f, 0.74f));
@@ -248,7 +248,7 @@ public static class SolarMemoryBlessingPickerRuntime
 
         try
         {
-            var rows = SunExpConfigIndex.Rows(DataType.Bless);
+            var rows = TerriasConfigIndex.Rows(DataType.Bless);
             var checkedRows = Singleton<GameConfigManager>.Instance.CardPackCheck(rows);
             var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             foreach (var row in checkedRows)
@@ -279,7 +279,7 @@ public static class SolarMemoryBlessingPickerRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Failed to build solar memory blessing pools", ex);
+            TerriasLog.Error("Failed to build solar memory blessing pools", ex);
         }
 
         foreach (var tier in OrderedTiers())
@@ -422,7 +422,7 @@ public static class SolarMemoryBlessingPickerRuntime
             selectedRows.RemoveAt(i);
             if (row != null)
             {
-                SunExpUiPool.Release(
+                TerriasUiPool.Release(
                     row.gameObject,
                     "SolarMemoryBlessingPicker.RefreshSelectedList",
                     "[SolarMemoryBlessingPicker]");
@@ -561,7 +561,7 @@ public static class SolarMemoryBlessingPickerRuntime
             isConfirming = true;
             var ids = SelectedIds().ToList();
             SolarMemoryPlayerSetupState.SetSelectedBlessings(ids);
-            SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryBlessConfiguredKey, true);
+            SolarMemoryPlayerSetupState.SetFlag(TerriasIds.SolarMemoryBlessConfiguredKey, true);
             foreach (var id in ids)
             {
                 PlayerApi.AddBless(id);
@@ -573,7 +573,7 @@ public static class SolarMemoryBlessingPickerRuntime
         catch (Exception ex)
         {
             isConfirming = false;
-            SunExpLog.Error("Failed to confirm solar memory blessings", ex);
+            TerriasLog.Error("Failed to confirm solar memory blessings", ex);
             UpdateHint("\u795d\u798f\u53d1\u653e\u5931\u8d25\uff0c\u8bf7\u91cd\u8bd5\u3002");
         }
     }
@@ -646,10 +646,10 @@ public static class SolarMemoryBlessingPickerRuntime
     private static bool IsTechnicalBlessing(string id)
     {
         return id.Equals("dusk_afterheat_recovery", StringComparison.OrdinalIgnoreCase)
-            || id.Equals("SunExp_sunexp_dusk_afterheat_recovery", StringComparison.OrdinalIgnoreCase)
+            || id.Equals("Terrias_terrias_dusk_afterheat_recovery", StringComparison.OrdinalIgnoreCase)
             || id.EndsWith("_dusk_afterheat_recovery", StringComparison.OrdinalIgnoreCase)
             || id.Equals("star_clay_doll_placeholder", StringComparison.OrdinalIgnoreCase)
-            || id.Equals(SunExpIds.StarClayDollBlessingId, StringComparison.OrdinalIgnoreCase)
+            || id.Equals(TerriasIds.StarClayDollBlessingId, StringComparison.OrdinalIgnoreCase)
             || id.EndsWith("_star_clay_doll_placeholder", StringComparison.OrdinalIgnoreCase);
     }
 
@@ -808,7 +808,7 @@ public static class SolarMemoryBlessingPickerRuntime
     {
         var image = go.AddComponent<Image>();
         image.color = Color.white;
-        image.sprite = SunExpUiSprites.Button("[SolarMemoryBlessingPicker]");
+        image.sprite = TerriasUiSprites.Button("[SolarMemoryBlessingPicker]");
         image.type = image.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
         image.fillCenter = true;
         if (image.sprite == null)
@@ -822,13 +822,13 @@ public static class SolarMemoryBlessingPickerRuntime
     private static Image ApplyInlineButtonImage(GameObject go)
     {
         var image = go.AddComponent<Image>();
-        image.sprite = SunExpUiSprites.Panel("[SolarMemoryBlessingPicker]");
+        image.sprite = TerriasUiSprites.Panel("[SolarMemoryBlessingPicker]");
         image.type = image.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
         image.fillCenter = true;
         image.color = image.sprite != null ? new Color(1f, 1f, 1f, 0.96f) : new Color(0.04f, 0.04f, 0.18f, 0.96f);
         if (image.sprite != null)
         {
-            SunExpUiBuilder.AddPanelTint(go, new Color(0.035f, 0.035f, 0.15f, 0.96f));
+            TerriasUiBuilder.AddPanelTint(go, new Color(0.035f, 0.035f, 0.15f, 0.96f));
         }
 
         return image;
@@ -836,7 +836,7 @@ public static class SolarMemoryBlessingPickerRuntime
 
     private static void ApplyPanelImage(GameObject go, Color fallbackOrTint)
     {
-        SunExpUiBuilder.ApplyPanelImage(go, SunExpUiSprites.Panel("[SolarMemoryBlessingPicker]"), fallbackOrTint);
+        TerriasUiBuilder.ApplyPanelImage(go, TerriasUiSprites.Panel("[SolarMemoryBlessingPicker]"), fallbackOrTint);
     }
 
     private static GameObject CreateColumnHeader(Transform parent, string title, out Text? counter)
@@ -988,12 +988,12 @@ public static class SolarMemoryBlessingPickerRuntime
         {
             if (!string.IsNullOrWhiteSpace(entry.IconPath))
             {
-                sprite = SunExpResourceCache.Load<Sprite>(entry.IconPath, true);
+                sprite = TerriasResourceCache.Load<Sprite>(entry.IconPath, true);
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[SolarMemoryBlessingPicker] failed to load bless icon for " + entry.Id + ": " + ex.Message);
+            TerriasLog.Warn("[SolarMemoryBlessingPicker] failed to load bless icon for " + entry.Id + ": " + ex.Message);
         }
 
         blessIconCache[entry.Id] = sprite;
@@ -1061,7 +1061,7 @@ public static class SolarMemoryBlessingPickerRuntime
 
     private static void ClearChildren(Transform? parent)
     {
-        SunExpUiPool.ReleaseOrDestroyChildren(parent, "SolarMemoryBlessingPicker.ClearChildren", "[SolarMemoryBlessingPicker]");
+        TerriasUiPool.ReleaseOrDestroyChildren(parent, "SolarMemoryBlessingPicker.ClearChildren", "[SolarMemoryBlessingPicker]");
     }
 
     private static void ReleaseTransientRows()
@@ -1084,7 +1084,7 @@ public static class SolarMemoryBlessingPickerRuntime
         string name,
         Action<BlessingRowView> configureBeforeActivation)
     {
-        return SunExpUiPool.AcquireConfiguredComponent(
+        return TerriasUiPool.AcquireConfiguredComponent(
             "SolarMemoryBlessingPicker.Row",
             parent,
             name,
@@ -1122,9 +1122,9 @@ public static class SolarMemoryBlessingPickerRuntime
         return view;
     }
 
-    private sealed class BlessingRowView : SunExpPooledUiBehaviour
+    private sealed class BlessingRowView : TerriasPooledUiBehaviour
     {
-        private readonly SunExpUiLifetimeScope lifetime = new();
+        private readonly TerriasUiLifetimeScope lifetime = new();
         private Image? iconImage;
         private Text? badgeText;
         private Text? nameText;

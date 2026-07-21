@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Hooks.Visual;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Hooks.Visual;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class SpiritRuntime
 {
@@ -20,25 +20,25 @@ public static class SpiritRuntime
         SpiritAttachmentPresenter.Initialize();
         SpiritCardFaceRuntime.Initialize();
         RegisterSpiritCardUseChecker();
-        RegisterBefore(modConfig, SunExpHookTargets.AttackCardItemTrueUse, GateCaptureUse);
-        RegisterAfter(modConfig, SunExpHookTargets.AttackCardItemTrueUse, RestoreCaptureUse);
-        RegisterAfter(modConfig, SunExpHookTargets.EnemyManagerAddEnemy, ObserveEnemyAdded);
-        SunExpBattleLifecycleRouter.Register("Spirit", new SunExpBattleLifecycleSubscription
+        RegisterBefore(modConfig, TerriasHookTargets.AttackCardItemTrueUse, GateCaptureUse);
+        RegisterAfter(modConfig, TerriasHookTargets.AttackCardItemTrueUse, RestoreCaptureUse);
+        RegisterAfter(modConfig, TerriasHookTargets.EnemyManagerAddEnemy, ObserveEnemyAdded);
+        TerriasBattleLifecycleRouter.Register("Spirit", new TerriasBattleLifecycleSubscription
         {
             FightStarted = _ => ClearBattle("FightStarted"),
             PlayerRoundStarted = _ => SpiritSummonService.FlushPendingCardReturns("PlayerRoundStarted"),
             FightEnding = _ => ClearBattle("FightEnding")
         });
-        RegisterBefore(modConfig, SunExpHookTargets.FightWinInit, _ => ClearBattle("Fight_Win.Init:before"));
-        RegisterBefore(modConfig, SunExpHookTargets.FightLossInit, _ => ClearBattle("Fight_Loss.Init:before"));
-        RegisterBefore(modConfig, SunExpHookTargets.FightEscapeInit, _ => ClearBattle("Fight_Escape.Init:before"));
-        SunExpStatusLifecycleRouter.Register("Spirit", new SunExpStatusLifecycleSubscription
+        RegisterBefore(modConfig, TerriasHookTargets.FightWinInit, _ => ClearBattle("Fight_Win.Init:before"));
+        RegisterBefore(modConfig, TerriasHookTargets.FightLossInit, _ => ClearBattle("Fight_Loss.Init:before"));
+        RegisterBefore(modConfig, TerriasHookTargets.FightEscapeInit, _ => ClearBattle("Fight_Escape.Init:before"));
+        TerriasStatusLifecycleRouter.Register("Spirit", new TerriasStatusLifecycleSubscription
         {
             AfterHit = context => RetireIfDead(context, "StatusManager.Hit"),
             AfterCurHpChanged = context => RetireIfDead(context, "StatusManager.CurHp"),
             AfterMaxHpChanged = context => RetireIfDead(context, "StatusManager.MaxHp")
         });
-        SunExpLog.Info("Spirit runtime initialized");
+        TerriasLog.Info("Spirit runtime initialized");
     }
 
     internal static void ClearBattle(string source, bool sweepVisualOrphans = true)
@@ -58,7 +58,7 @@ public static class SpiritRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Spirit cleanup step failed: " + step + " @ " + source, ex);
+            TerriasLog.Error("Spirit cleanup step failed: " + step + " @ " + source, ex);
         }
     }
 
@@ -91,12 +91,12 @@ public static class SpiritRuntime
             }
 
             PlayerApi.ShowCaption("精灵：投影位置已被占用。");
-            SunExpPerformanceCounters.Record("Spirit.CardUseRejected.ProjectionOccupied");
+            TerriasPerformanceCounters.Record("Spirit.CardUseRejected.ProjectionOccupied");
             return false;
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("Spirit card use preflight failed: " + ex.Message);
+            TerriasLog.Warn("Spirit card use preflight failed: " + ex.Message);
             return true;
         }
     }
@@ -151,11 +151,11 @@ public static class SpiritRuntime
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.Before(config, target, action, "Spirit");
+        TerriasHookRegistry.Before(config, target, action, "Spirit");
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.After(config, target, action, "Spirit");
+        TerriasHookRegistry.After(config, target, action, "Spirit");
     }
 }

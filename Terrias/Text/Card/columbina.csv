@@ -1,4 +1,4 @@
 Id,是否完成,Type,Note,Name,Name_en,Name_zh-Hant,Name_ja,Description,Description_zh-Hant,Description_en,Description_ja
 唯一标识,FALSE,类型,备注,名称,Name,名稱,名称,描述,描述,Description,説明
-*columbina_eternal_tide,TRUE,职业技能,万古潮汐,万古潮汐,Eternal Tide,萬古潮汐,悠久の潮汐,获得20层{SunExp_sunexp_gravity_ripple}。,獲得20層{SunExp_sunexp_gravity_ripple}。,Gain 20 {SunExp_sunexp_gravity_ripple}.,{SunExp_sunexp_gravity_ripple}を20得る。
-*columbina_homesickness,TRUE,职业技能,她的乡愁,她的乡愁,Homesickness,她的鄉愁,彼女の郷愁,对敌方全体造成自身最大生命值30%的水元素伤害，然后铺设1层{SunExp_sunexp_moon_domain}。,對敵方全體造成自身最大生命值30%的水元素傷害，然後鋪設1層{SunExp_sunexp_moon_domain}。,"Deal Hydro damage equal to 30% Max HP to all enemies, then create 1 {SunExp_sunexp_moon_domain}.",敵全体に最大HP30%の水元素ダメージを与え、{SunExp_sunexp_moon_domain}を1層展開する。
+*columbina_eternal_tide,TRUE,职业技能,万古潮汐,万古潮汐,Eternal Tide,萬古潮汐,悠久の潮汐,获得20层{Terrias_terrias_gravity_ripple}。,獲得20層{Terrias_terrias_gravity_ripple}。,Gain 20 {Terrias_terrias_gravity_ripple}.,{Terrias_terrias_gravity_ripple}を20得る。
+*columbina_homesickness,TRUE,职业技能,她的乡愁,她的乡愁,Homesickness,她的鄉愁,彼女の郷愁,对敌方全体造成自身最大生命值30%的水元素伤害，然后铺设1层{Terrias_terrias_moon_domain}。,對敵方全體造成自身最大生命值30%的水元素傷害，然後鋪設1層{Terrias_terrias_moon_domain}。,"Deal Hydro damage equal to 30% Max HP to all enemies, then create 1 {Terrias_terrias_moon_domain}.",敵全体に最大HP30%の水元素ダメージを与え、{Terrias_terrias_moon_domain}を1層展開する。

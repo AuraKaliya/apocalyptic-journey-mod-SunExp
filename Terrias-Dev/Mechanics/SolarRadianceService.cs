@@ -1,62 +1,62 @@
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class SolarRadianceService
 {
     public static bool HandleSolarCardUsed(ScriptExecutor? executor, int cost, string source)
     {
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         try
         {
         if (executor?.Self == null)
         {
-            SunExpLog.Debug("HandleSolarCardUsed skipped: executor/self missing, source=" + source);
+            TerriasLog.Debug("HandleSolarCardUsed skipped: executor/self missing, source=" + source);
             return false;
         }
 
         var gain = cost < 0 ? 0 : cost;
-        var before = BuffApi.Level(executor.Self, SunExpIds.SolarRadiance);
-        var hasCrown = BuffApi.Has(executor.Self, SunExpIds.SolarCrown);
-        SunExpLog.Debug("HandleSolarCardUsed enter source=" + source + ", cost=" + cost + ", hasCrown=" + hasCrown + ", radianceBefore=" + before);
+        var before = BuffApi.Level(executor.Self, TerriasIds.SolarRadiance);
+        var hasCrown = BuffApi.Has(executor.Self, TerriasIds.SolarCrown);
+        TerriasLog.Debug("HandleSolarCardUsed enter source=" + source + ", cost=" + cost + ", hasCrown=" + hasCrown + ", radianceBefore=" + before);
 
         if (hasCrown)
         {
             var triggered = TriggerSolarCrown(executor, source);
-            SunExpLog.Debug("HandleSolarCardUsed crown result=" + triggered + ", radianceAfter=" + BuffApi.Level(executor.Self, SunExpIds.SolarRadiance));
+            TerriasLog.Debug("HandleSolarCardUsed crown result=" + triggered + ", radianceAfter=" + BuffApi.Level(executor.Self, TerriasIds.SolarRadiance));
             return triggered;
         }
 
         if (gain <= 0)
         {
-            SunExpLog.Debug("HandleSolarCardUsed skipped: gain<=0");
+            TerriasLog.Debug("HandleSolarCardUsed skipped: gain<=0");
             return false;
         }
 
         executor.SetStatus("Self");
-        executor.AddBuff(SunExpIds.SolarRadiance, gain.ToString());
-        SunExpLog.Debug("HandleSolarCardUsed radiance added=" + gain + ", radianceAfter=" + BuffApi.Level(executor.Self, SunExpIds.SolarRadiance));
+        executor.AddBuff(TerriasIds.SolarRadiance, gain.ToString());
+        TerriasLog.Debug("HandleSolarCardUsed radiance added=" + gain + ", radianceAfter=" + BuffApi.Level(executor.Self, TerriasIds.SolarRadiance));
         return true;
         }
         finally
         {
-            SunExpPerformanceCounters.RecordDuration("SolarRadiance.HandleSolarCardUsed", start);
+            TerriasPerformanceCounters.RecordDuration("SolarRadiance.HandleSolarCardUsed", start);
         }
     }
 
     private static bool TriggerSolarCrown(ScriptExecutor executor, string source)
     {
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         try
         {
-        if (executor.Self == null || !BuffApi.Has(executor.Self, SunExpIds.SolarCrown))
+        if (executor.Self == null || !BuffApi.Has(executor.Self, TerriasIds.SolarCrown))
         {
             return false;
         }
 
-        var tier = BuffApi.Level(executor.Self, SunExpIds.SolarCrownTier);
-        SunExpLog.Debug("SolarCrown trigger source=" + source + ", tier=" + tier + ", effects=" + SolarCrownEffectSummary(tier));
+        var tier = BuffApi.Level(executor.Self, TerriasIds.SolarCrownTier);
+        TerriasLog.Debug("SolarCrown trigger source=" + source + ", tier=" + tier + ", effects=" + SolarCrownEffectSummary(tier));
         var effectCount = 0;
 
         if (tier >= 1)
@@ -65,13 +65,13 @@ public static class SolarRadianceService
             var total = BuffApi.RemoveNegativeBuffsAndTotalExcept(
                 executor,
                 executor.Self,
-                SunExpIds.GatheredFlame,
-                SunExpIds.Burn,
-                SunExpIds.BodyBurn);
+                TerriasIds.GatheredFlame,
+                TerriasIds.Burn,
+                TerriasIds.BodyBurn);
             if (total > 0)
             {
                 executor.SetStatus("Self");
-                executor.AddBuff(SunExpIds.Burn, total.ToString());
+                executor.AddBuff(TerriasIds.Burn, total.ToString());
             }
         }
 
@@ -92,12 +92,12 @@ public static class SolarRadianceService
         if (tier >= 4)
         {
             effectCount++;
-            var burn = BuffApi.Level(executor.Self, SunExpIds.Burn);
+            var burn = BuffApi.Level(executor.Self, TerriasIds.Burn);
             if (burn > 0)
             {
                 executor.SetStatus("Self");
-                executor.RemoveBuff(SunExpIds.Burn);
-                executor.AddBuff(SunExpIds.GatheredFlame, burn.ToString());
+                executor.RemoveBuff(TerriasIds.Burn);
+                executor.AddBuff(TerriasIds.GatheredFlame, burn.ToString());
             }
         }
 
@@ -105,16 +105,16 @@ public static class SolarRadianceService
         {
             effectCount++;
             executor.SetStatus("AllTarget");
-            executor.AddBuff(SunExpIds.Burn, "5");
+            executor.AddBuff(TerriasIds.Burn, "5");
             TriggerBurnAllEnemies(executor);
         }
 
-        SunExpLog.Debug("SolarCrown triggered effectCount=" + effectCount + ", tier=" + tier + ", radiance=" + BuffApi.Level(executor.Self, SunExpIds.SolarRadiance));
+        TerriasLog.Debug("SolarCrown triggered effectCount=" + effectCount + ", tier=" + tier + ", radiance=" + BuffApi.Level(executor.Self, TerriasIds.SolarRadiance));
         return true;
         }
         finally
         {
-            SunExpPerformanceCounters.RecordDuration("SolarRadiance.TriggerSolarCrown", start);
+            TerriasPerformanceCounters.RecordDuration("SolarRadiance.TriggerSolarCrown", start);
         }
     }
 
@@ -146,14 +146,14 @@ public static class SolarRadianceService
 
     private static void TriggerBurnAllEnemies(ScriptExecutor executor)
     {
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         try
         {
         ExecutorApi.TriggerBurnAllEnemies(executor);
         }
         finally
         {
-            SunExpPerformanceCounters.RecordDuration("SolarRadiance.TriggerBurnAllEnemies", start);
+            TerriasPerformanceCounters.RecordDuration("SolarRadiance.TriggerBurnAllEnemies", start);
         }
     }
 }

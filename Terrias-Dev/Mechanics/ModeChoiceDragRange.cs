@@ -1,6 +1,6 @@
 using System;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public readonly struct ModeChoiceDragRange
 {

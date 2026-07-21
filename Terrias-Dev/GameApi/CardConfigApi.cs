@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using AuraGameData.Shared.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.Core;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class CardConfigApi
 {
@@ -133,7 +133,7 @@ public static class CardConfigApi
             return Math.Max(0, fallback);
         }
 
-        var overrideText = DictionaryUtil.Get(config.Vars, SunExpIds.SolarTriggerCost);
+        var overrideText = DictionaryUtil.Get(config.Vars, TerriasIds.SolarTriggerCost);
         if (!string.IsNullOrWhiteSpace(overrideText))
         {
             return Math.Max(0, DictionaryUtil.ParseInt(overrideText));
@@ -144,13 +144,13 @@ public static class CardConfigApi
 
     public static void ClearSolarTriggerCost(IDataConfig? config)
     {
-        DictionaryUtil.Set(config?.Vars, SunExpIds.SolarTriggerCost, "");
+        DictionaryUtil.Set(config?.Vars, TerriasIds.SolarTriggerCost, "");
     }
 
     public static bool HasNativeWhiteRadiance(IDataConfig? config)
     {
-        return DictionaryUtil.ContainsToken(DictionaryUtil.Get(config?.Vars, "Tag"), SunExpIds.WhiteRadianceTag)
-            || DictionaryUtil.ContainsToken(DictionaryUtil.Get(config?.data, "Tag"), SunExpIds.WhiteRadianceTag);
+        return DictionaryUtil.ContainsToken(DictionaryUtil.Get(config?.Vars, "Tag"), TerriasIds.WhiteRadianceTag)
+            || DictionaryUtil.ContainsToken(DictionaryUtil.Get(config?.data, "Tag"), TerriasIds.WhiteRadianceTag);
     }
 
     public static bool HasTemporaryWhiteRadiance(IDataConfig? config)
@@ -160,15 +160,15 @@ public static class CardConfigApi
             return false;
         }
 
-        var hasMarker = DictionaryUtil.Get(config.Vars, SunExpIds.TempWhiteRadiance, "0") == "1"
-            || DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, SunExpIds.RuntimeMarkersKey), SunExpIds.TempWhiteRadiance);
+        var hasMarker = DictionaryUtil.Get(config.Vars, TerriasIds.TempWhiteRadiance, "0") == "1"
+            || DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, TerriasIds.RuntimeMarkersKey), TerriasIds.TempWhiteRadiance);
         if (!hasMarker)
         {
             return false;
         }
 
-        return DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, "SpecialTag"), SunExpIds.WhiteRadianceTag)
-            || DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, SunExpIds.RuntimeMarkersKey), SunExpIds.TempWhiteRadiance);
+        return DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, "SpecialTag"), TerriasIds.WhiteRadianceTag)
+            || DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, TerriasIds.RuntimeMarkersKey), TerriasIds.TempWhiteRadiance);
     }
 
     public static bool HasSpecialWhiteRadiance(IDataConfig? config)
@@ -178,14 +178,14 @@ public static class CardConfigApi
             return false;
         }
 
-        return DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, "SpecialTag"), SunExpIds.WhiteRadianceTag);
+        return DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, "SpecialTag"), TerriasIds.WhiteRadianceTag);
     }
 
     public static bool TryClaimTemporaryWhiteRadiance(IDataConfig config)
     {
         var lockId = EnsureTemporaryWhiteRadianceLockId(config);
         var sharedKey = TemporaryWhiteRadianceResolvedKey(lockId);
-        var cardResolved = DictionaryUtil.Get(config.Vars, SunExpIds.TempWhiteRadianceResolved, "0") == "1";
+        var cardResolved = DictionaryUtil.Get(config.Vars, TerriasIds.TempWhiteRadianceResolved, "0") == "1";
         if (ExecutorApi.CombatIntGet(sharedKey) == 1)
         {
             if (cardResolved)
@@ -203,13 +203,13 @@ public static class CardConfigApi
         }
 
         ExecutorApi.CombatIntSet(sharedKey, 1);
-        DictionaryUtil.Set(config.Vars, SunExpIds.TempWhiteRadianceResolved, "1");
+        DictionaryUtil.Set(config.Vars, TerriasIds.TempWhiteRadianceResolved, "1");
         return true;
     }
 
     private static string EnsureTemporaryWhiteRadianceLockId(IDataConfig config)
     {
-        var lockId = DictionaryUtil.Get(config.Vars, SunExpIds.TempWhiteRadianceLockId);
+        var lockId = DictionaryUtil.Get(config.Vars, TerriasIds.TempWhiteRadianceLockId);
         return string.IsNullOrWhiteSpace(lockId) || lockId == "0"
             ? AssignTemporaryWhiteRadianceLockId(config)
             : lockId;
@@ -217,15 +217,15 @@ public static class CardConfigApi
 
     private static string AssignTemporaryWhiteRadianceLockId(IDataConfig config)
     {
-        var lockId = ExecutorApi.CombatIntAdd("SunExpTempWhiteRadianceLockSeq", 1).ToString();
-        DictionaryUtil.Set(config.Vars, SunExpIds.TempWhiteRadianceLockId, lockId);
-        DictionaryUtil.Set(config.Vars, SunExpIds.TempWhiteRadianceResolved, "0");
+        var lockId = ExecutorApi.CombatIntAdd("TerriasTempWhiteRadianceLockSeq", 1).ToString();
+        DictionaryUtil.Set(config.Vars, TerriasIds.TempWhiteRadianceLockId, lockId);
+        DictionaryUtil.Set(config.Vars, TerriasIds.TempWhiteRadianceResolved, "0");
         return lockId;
     }
 
     private static string TemporaryWhiteRadianceResolvedKey(string lockId)
     {
-        return "SunExpTempWhiteRadianceResolved_" + lockId;
+        return "TerriasTempWhiteRadianceResolved_" + lockId;
     }
 
     private static object? ReadMember(object source, string name)

@@ -2,15 +2,15 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using AuraShared.Core;
-using SunExp.Dll.Hooks.Visual;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Hooks.Visual;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using UnityEngine.UI;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class AnimatedEnemyDictIconRuntime
 {
@@ -24,7 +24,7 @@ public static class AnimatedEnemyDictIconRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.After(config, target, action, "AnimatedEnemyDictIcon");
+        TerriasHookRegistry.After(config, target, action, "AnimatedEnemyDictIcon");
     }
 
     private static void AttachFromContext(ModHookContext context)
@@ -42,7 +42,7 @@ public static class AnimatedEnemyDictIconRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Animated enemy dictionary icon attach failed", ex);
+            TerriasLog.Error("Animated enemy dictionary icon attach failed", ex);
         }
     }
 

@@ -1,7 +1,7 @@
 using System;
 using UnityEngine;
 
-namespace SunExp.Dll.Hooks.Visual;
+namespace Terrias.Dll.Hooks.Visual;
 
 internal static class WunaOrbitFireOrbitModel
 {

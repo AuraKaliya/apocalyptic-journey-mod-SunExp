@@ -1,12 +1,12 @@
 using System;
 using AuraShared.Core;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
-public static class SunExpHookRegistry
+public static class TerriasHookRegistry
 {
     public static bool Before(ModConfig config, string target, Action<ModHookContext> action, string owner)
     {
@@ -14,8 +14,8 @@ public static class SunExpHookRegistry
             config,
             target,
             action,
-            SunExpLog.Debug,
-            message => SunExpLog.Warn(OwnerPrefix(owner) + message),
+            TerriasLog.Debug,
+            message => TerriasLog.Warn(OwnerPrefix(owner) + message),
             safeInvoke: true);
     }
 
@@ -25,8 +25,8 @@ public static class SunExpHookRegistry
             config,
             target,
             action,
-            SunExpLog.Debug,
-            message => SunExpLog.Warn(OwnerPrefix(owner) + message),
+            TerriasLog.Debug,
+            message => TerriasLog.Warn(OwnerPrefix(owner) + message),
             safeInvoke: true);
     }
 
@@ -36,8 +36,8 @@ public static class SunExpHookRegistry
             config,
             target,
             action,
-            SunExpLog.Debug,
-            message => SunExpLog.Warn(OwnerPrefix(owner) + message),
+            TerriasLog.Debug,
+            message => TerriasLog.Warn(OwnerPrefix(owner) + message),
             safeInvoke: true);
     }
 
@@ -47,8 +47,8 @@ public static class SunExpHookRegistry
             config,
             target,
             action,
-            SunExpLog.Debug,
-            message => SunExpLog.Warn(OwnerPrefix(owner) + message),
+            TerriasLog.Debug,
+            message => TerriasLog.Warn(OwnerPrefix(owner) + message),
             safeInvoke: true);
     }
 

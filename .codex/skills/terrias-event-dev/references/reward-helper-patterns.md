@@ -49,12 +49,12 @@ the same shape.
 Every helper called by CSV should be exposed as a stable public static C# entry point:
 
 ```text
-CS.SunExp.Dll.Scripting.EventScripts.RewardRelic(1, "SunExp_sunexp_morning_shard");
+CS.Terrias.Dll.Scripting.EventScripts.RewardRelic(1, "Terrias_terrias_morning_shard");
 ```
 
 Then rebuild and test:
 
 ```powershell
-tools\Build-SunExpDll.ps1
-tools\Test-SunExpCSharp.ps1
+tools\Build-TerriasDll.ps1
+tools\Test-TerriasCSharp.ps1
 ```

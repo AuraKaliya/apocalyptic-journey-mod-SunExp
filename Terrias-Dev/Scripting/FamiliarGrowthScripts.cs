@@ -1,8 +1,8 @@
 using System;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Scripting;
+namespace Terrias.Dll.Scripting;
 
 public static class FamiliarGrowthScripts
 {
@@ -14,7 +14,7 @@ public static class FamiliarGrowthScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Familiar growth panel failed to open", ex);
+            TerriasLog.Error("Familiar growth panel failed to open", ex);
         }
     }
 
@@ -35,7 +35,7 @@ public static class FamiliarGrowthScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Familiar active experience grant failed", ex);
+            TerriasLog.Error("Familiar active experience grant failed", ex);
         }
     }
 
@@ -47,7 +47,7 @@ public static class FamiliarGrowthScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Familiar experience grant failed: " + partnerId, ex);
+            TerriasLog.Error("Familiar experience grant failed: " + partnerId, ex);
         }
     }
 
@@ -59,7 +59,7 @@ public static class FamiliarGrowthScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Familiar rebirth failed: " + partnerId, ex);
+            TerriasLog.Error("Familiar rebirth failed: " + partnerId, ex);
             return false;
         }
     }

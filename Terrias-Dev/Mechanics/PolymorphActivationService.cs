@@ -1,7 +1,7 @@
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class PolymorphActivationService
 {
@@ -23,7 +23,7 @@ public static class PolymorphActivationService
         }
 
         var request = CardGrantRequest
-            .ToHand(SunExpIds.PolymorphRoleTemplateShortId)
+            .ToHand(TerriasIds.PolymorphRoleTemplateShortId)
             .WithSource("polymorph:" + role.Id)
             .WithRuntimeTags("Burnout", "Nihility")
             .RequireMutations()
@@ -47,7 +47,7 @@ public static class PolymorphActivationService
             return false;
         }
 
-        var roleId = DictionaryUtil.Get(self.Vars, SunExpIds.PolymorphRoleIdKey);
+        var roleId = DictionaryUtil.Get(self.Vars, TerriasIds.PolymorphRoleIdKey);
         var role = PolymorphRoleRegistry.Find(roleId);
         if (role == null)
         {
@@ -77,13 +77,13 @@ public static class PolymorphActivationService
         DictionaryUtil.Set(config.Vars, "Description_zh-Hant", "\u767e\u8b8a\uff1a" + role.DisplayName);
         DictionaryUtil.Set(config.Vars, "Description_en", "Polymorph: " + role.DisplayName);
         DictionaryUtil.Set(config.Vars, "Description_ja", "\u767e\u5909\uff1a" + role.DisplayName);
-        DictionaryUtil.Set(config.Vars, SunExpIds.RuntimeMarkersKey,
-            AppendToken(DictionaryUtil.Get(config.Vars, SunExpIds.RuntimeMarkersKey), SunExpIds.PolymorphRoleCardMarker));
-        DictionaryUtil.Set(config.Vars, SunExpIds.PolymorphRoleIdKey, role.Id);
-        DictionaryUtil.Set(config.Vars, SunExpIds.PolymorphRoleNameKey, role.DisplayName);
-        DictionaryUtil.Set(config.Vars, SunExpIds.PolymorphRoleCardFacePathKey, role.CardFacePath);
-        DictionaryUtil.Set(config.Vars, SunExpIds.PolymorphRoleCropXKey, role.CropOffsetX.ToString());
-        DictionaryUtil.Set(config.Vars, SunExpIds.PolymorphRoleCropYKey, role.CropOffsetY.ToString());
+        DictionaryUtil.Set(config.Vars, TerriasIds.RuntimeMarkersKey,
+            AppendToken(DictionaryUtil.Get(config.Vars, TerriasIds.RuntimeMarkersKey), TerriasIds.PolymorphRoleCardMarker));
+        DictionaryUtil.Set(config.Vars, TerriasIds.PolymorphRoleIdKey, role.Id);
+        DictionaryUtil.Set(config.Vars, TerriasIds.PolymorphRoleNameKey, role.DisplayName);
+        DictionaryUtil.Set(config.Vars, TerriasIds.PolymorphRoleCardFacePathKey, role.CardFacePath);
+        DictionaryUtil.Set(config.Vars, TerriasIds.PolymorphRoleCropXKey, role.CropOffsetX.ToString());
+        DictionaryUtil.Set(config.Vars, TerriasIds.PolymorphRoleCropYKey, role.CropOffsetY.ToString());
     }
 
     private static string AppendToken(string existing, params string[] tokens)

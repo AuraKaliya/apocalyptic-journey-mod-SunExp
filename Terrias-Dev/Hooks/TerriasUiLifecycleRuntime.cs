@@ -1,19 +1,19 @@
 using System;
-using SunExp.Dll.Hooks.Ui;
-using SunExp.Dll.Hooks.Visual;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Hooks.Ui;
+using Terrias.Dll.Hooks.Visual;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 using UnityEngine;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
-public static class SunExpUiLifecycleRuntime
+public static class TerriasUiLifecycleRuntime
 {
     public static void Initialize(ModConfig modConfig)
     {
-        SunExpBattleLifecycleRouter.Register("SunExpUiLifecycle", new SunExpBattleLifecycleSubscription
+        TerriasBattleLifecycleRouter.Register("TerriasUiLifecycle", new TerriasBattleLifecycleSubscription
         {
             FightEnding = context => CloseAll("FightEnding")
         });
@@ -28,7 +28,7 @@ public static class SunExpUiLifecycleRuntime
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.Before(config, target, action, "SunExpUiLifecycle");
+        TerriasHookRegistry.Before(config, target, action, "TerriasUiLifecycle");
     }
 
     private static void CloseForUiManager(ModHookContext context)
@@ -53,18 +53,18 @@ public static class SunExpUiLifecycleRuntime
 
     private static void CloseAll(string source)
     {
-        SunExpTransientUiRegistry.CloseAll(source);
+        TerriasTransientUiRegistry.CloseAll(source);
     }
 
     private static void ResetForGameEntry(string source)
     {
         CloseAll(source);
         FrameSpriteCache.Clear();
-        SunExpUiSprites.Clear();
-        SunExpResourceCache.ClearCategory("visual.effect-texture");
-        SunExpResourceCache.ClearCategory("visual.card-skin");
-        SunExpResourceCache.ClearCategory("visual.frame-animation");
-        SunExpResourceCache.ClearCategory("ui.sprite-source");
+        TerriasUiSprites.Clear();
+        TerriasResourceCache.ClearCategory("visual.effect-texture");
+        TerriasResourceCache.ClearCategory("visual.card-skin");
+        TerriasResourceCache.ClearCategory("visual.frame-animation");
+        TerriasResourceCache.ClearCategory("ui.sprite-source");
     }
 
     private static bool ShouldCloseForUi(string name)

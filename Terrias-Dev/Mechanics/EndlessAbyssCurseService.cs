@@ -4,20 +4,20 @@ using System.Linq;
 using AuraGameData.Shared.Application;
 using AuraGameData.Shared.GameApi;
 using Fight.ActionCommand;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 using Witch;
 using Witch.Core;
 using Witch.UI;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class EndlessAbyssCurseService
 {
-    public const string TemporaryCombatCurseMarker = "SunExpTemporaryAbyssCurse";
-    private const string TemporaryCombatCardMarker = "SunExpTemporaryCombatCard";
-    private const string TemporaryCombatSourceKey = "SunExpTemporarySource";
+    public const string TemporaryCombatCurseMarker = "TerriasTemporaryAbyssCurse";
+    private const string TemporaryCombatCardMarker = "TerriasTemporaryCombatCard";
+    private const string TemporaryCombatSourceKey = "TerriasTemporarySource";
     private static int suppressGazeCardGain;
     private static IReadOnlyList<string>? randomCursePoolCache;
     private static long randomCursePoolEpoch = -1;
@@ -167,12 +167,12 @@ public static class EndlessAbyssCurseService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessAbyssCurse] temporary curse cleanup failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[EndlessAbyssCurse] temporary curse cleanup failed from " + source + ": " + ex.Message);
         }
 
         if (removed > 0)
         {
-            SunExpLog.Info("[EndlessAbyssCurse] cleaned temporary combat curses: " + removed + " from " + source + ".");
+            TerriasLog.Info("[EndlessAbyssCurse] cleaned temporary combat curses: " + removed + " from " + source + ".");
         }
 
         return removed;
@@ -185,7 +185,7 @@ public static class EndlessAbyssCurseService
             suppressGazeCardGain++;
             if (PlayerApi.TryAddCardToDeck(cardId, out var granted, out var message))
             {
-                SunExpLog.Info("[EndlessAbyssCurse] added curse to local deck: "
+                TerriasLog.Info("[EndlessAbyssCurse] added curse to local deck: "
                     + granted
                     + " from "
                     + source
@@ -193,7 +193,7 @@ public static class EndlessAbyssCurseService
                 return true;
             }
 
-            SunExpLog.Warn("[EndlessAbyssCurse] add curse to local deck failed from "
+            TerriasLog.Warn("[EndlessAbyssCurse] add curse to local deck failed from "
                 + source
                 + ": "
                 + message);
@@ -201,7 +201,7 @@ public static class EndlessAbyssCurseService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessAbyssCurse] add curse to local deck failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[EndlessAbyssCurse] add curse to local deck failed from " + source + ": " + ex.Message);
             return false;
         }
         finally
@@ -224,14 +224,14 @@ public static class EndlessAbyssCurseService
             var drawPile = FightCardManager.Instance?.cardList;
             if (drawPile == null)
             {
-                SunExpLog.Warn("[EndlessAbyssCurse] combat draw pile missing from " + source + ".");
+                TerriasLog.Warn("[EndlessAbyssCurse] combat draw pile missing from " + source + ".");
                 return false;
             }
 
             var handle = AuraGameDataHostApi.ResolveHandle(DataType.Card, resolved);
             if (handle == null)
             {
-                SunExpLog.Warn("[EndlessAbyssCurse] registered card definition missing from " + source + ".");
+                TerriasLog.Warn("[EndlessAbyssCurse] registered card definition missing from " + source + ".");
                 return false;
             }
 
@@ -241,33 +241,33 @@ public static class EndlessAbyssCurseService
                     Definition = handle,
                     Vars = new Dictionary<string, string>(StringComparer.Ordinal)
                     {
-                        [SunExpIds.RuntimeMarkersKey] = TemporaryCombatCardMarker + "," + TemporaryCombatCurseMarker,
+                        [TerriasIds.RuntimeMarkersKey] = TemporaryCombatCardMarker + "," + TemporaryCombatCurseMarker,
                         [TemporaryCombatSourceKey] = "AbyssGaze",
-                        ["SunExpRuntimeCreatedAt"] = source ?? ""
+                        ["TerriasRuntimeCreatedAt"] = source ?? ""
                     },
                     Context = new AuraGameMutationContext
                     {
-                        RequesterModId = SunExpIds.ModId,
+                        RequesterModId = TerriasIds.ModId,
                         Source = source ?? "",
                         Authoritative = true
                     }
                 });
             if (!result.Success || result.Instance == null)
             {
-                SunExpLog.Warn("[EndlessAbyssCurse] shared card grant failed from " + source + ": " + result.FailureStep + ": " + result.Message);
+                TerriasLog.Warn("[EndlessAbyssCurse] shared card grant failed from " + source + ": " + result.FailureStep + ": " + result.Message);
                 return false;
             }
 
             var config = drawPile.FirstOrDefault(card => string.Equals(card.InstanceID, result.Instance.InstanceId, StringComparison.Ordinal));
             if (config == null)
             {
-                SunExpLog.Warn("[EndlessAbyssCurse] granted card could not be located from " + source + ".");
+                TerriasLog.Warn("[EndlessAbyssCurse] granted card could not be located from " + source + ".");
                 return false;
             }
 
             RandomizeLastCardIntoDrawPile(drawPile, source ?? "");
             TryPlayCombatDeckAddAnimation(config);
-            SunExpLog.Info("[EndlessAbyssCurse] added temporary curse to combat deck: "
+            TerriasLog.Info("[EndlessAbyssCurse] added temporary curse to combat deck: "
                 + resolved
                 + " from "
                 + source
@@ -276,7 +276,7 @@ public static class EndlessAbyssCurseService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessAbyssCurse] add temporary curse to combat deck failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[EndlessAbyssCurse] add temporary curse to combat deck failed from " + source + ": " + ex.Message);
             return false;
         }
         finally
@@ -320,7 +320,7 @@ public static class EndlessAbyssCurseService
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("[EndlessAbyssCurse] temporary curse animation skipped: " + ex.Message);
+            TerriasLog.Debug("[EndlessAbyssCurse] temporary curse animation skipped: " + ex.Message);
         }
     }
 
@@ -352,7 +352,7 @@ public static class EndlessAbyssCurseService
         var snapshot = AuraGameDataHostApi.AcquireSnapshot();
         if (!snapshot.Version.NativeReady)
         {
-            return new[] { SunExpIds.AbyssLifeTheftCardId, SunExpIds.AbyssDeficitCardId };
+            return new[] { TerriasIds.AbyssLifeTheftCardId, TerriasIds.AbyssDeficitCardId };
         }
 
         if (randomCursePoolCache != null && randomCursePoolEpoch == snapshot.Version.Epoch)
@@ -363,7 +363,7 @@ public static class EndlessAbyssCurseService
         var seen = new HashSet<string>(StringComparer.Ordinal);
         try
         {
-            randomCursePoolCache = SunExpConfigIndex.Rows(DataType.Card)
+            randomCursePoolCache = TerriasConfigIndex.Rows(DataType.Card)
                 .Select(row => new
                 {
                     Id = DictionaryUtil.Get(row, "Id"),
@@ -384,11 +384,11 @@ public static class EndlessAbyssCurseService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessAbyssCurse] curse pool failed: " + ex.Message);
+            TerriasLog.Warn("[EndlessAbyssCurse] curse pool failed: " + ex.Message);
             randomCursePoolCache = new List<string>
             {
-                SunExpIds.AbyssLifeTheftCardId,
-                SunExpIds.AbyssDeficitCardId
+                TerriasIds.AbyssLifeTheftCardId,
+                TerriasIds.AbyssDeficitCardId
             };
             randomCursePoolEpoch = snapshot.Version.Epoch;
             return randomCursePoolCache;
@@ -413,7 +413,7 @@ public static class EndlessAbyssCurseService
 
         self.SetStatus("Self");
         self.ChangeHp((-loss).ToString());
-        SunExpLog.Debug("[EndlessAbyssCurse] life theft " + source + " hp -" + loss + ".");
+        TerriasLog.Debug("[EndlessAbyssCurse] life theft " + source + " hp -" + loss + ".");
     }
 
     private static void IncreaseAllEnemyMaxHpPercent(ScriptExecutor self, int percent)
@@ -460,7 +460,7 @@ public static class EndlessAbyssCurseService
     private static string Normalize(string id)
     {
         var value = (id ?? "").Replace("*", "").Trim();
-        foreach (var prefix in new[] { "SunExp_sunexp_", "SunExp_cursecard_" })
+        foreach (var prefix in new[] { "Terrias_terrias_", "Terrias_cursecard_" })
         {
             if (value.StartsWith(prefix, StringComparison.Ordinal))
             {

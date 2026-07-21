@@ -1,8 +1,8 @@
 using AuraShared.Core;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class RelicOpeningEffectService
 {
@@ -21,7 +21,7 @@ public static class RelicOpeningEffectService
             ? "local"
             : executor.Self.InstanceId;
         if (!AuraLifecycleOperationLedger.TryClaimBattleOperation(
-                SunExpIds.ModId,
+                TerriasIds.ModId,
                 "RelicOpeningEffect",
                 "BlazingCrownHeart",
                 statusId,
@@ -31,9 +31,9 @@ public static class RelicOpeningEffectService
             return false;
         }
 
-        executor.Self.AddBuff(SunExpIds.SolarRadiance, 8);
-        executor.Self.AddBuff(SunExpIds.SolarCrown, 1);
-        SunExpLog.Debug("[RelicOpeningEffect] applied Blazing Crown Heart; source=" + (source ?? ""));
+        executor.Self.AddBuff(TerriasIds.SolarRadiance, 8);
+        executor.Self.AddBuff(TerriasIds.SolarCrown, 1);
+        TerriasLog.Debug("[RelicOpeningEffect] applied Blazing Crown Heart; source=" + (source ?? ""));
         return true;
     }
 }

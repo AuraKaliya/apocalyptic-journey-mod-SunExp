@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 using Witch.Core;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class CardVisualInterestIndex
 {
@@ -57,20 +57,20 @@ public static class CardVisualInterestIndex
             + "\u001f"
             + DictionaryUtil.Get(config.data, "Icon")
             + "\u001f"
-            + DictionaryUtil.Get(config.Vars, SunExpIds.RuntimeMarkersKey);
+            + DictionaryUtil.Get(config.Vars, TerriasIds.RuntimeMarkersKey);
     }
 
     private static bool IsPolymorphRoleCard(IDataConfig config)
     {
         return DictionaryUtil.ContainsToken(
-            DictionaryUtil.Get(config.Vars, SunExpIds.RuntimeMarkersKey),
-            SunExpIds.PolymorphRoleCardMarker);
+            DictionaryUtil.Get(config.Vars, TerriasIds.RuntimeMarkersKey),
+            TerriasIds.PolymorphRoleCardMarker);
     }
 
     private static bool IsSpiritCard(IDataConfig config)
     {
         return DictionaryUtil.ContainsToken(
-            DictionaryUtil.Get(config.Vars, SunExpIds.RuntimeMarkersKey),
-            SunExpIds.SpiritCardMarker);
+            DictionaryUtil.Get(config.Vars, TerriasIds.RuntimeMarkersKey),
+            TerriasIds.SpiritCardMarker);
     }
 }

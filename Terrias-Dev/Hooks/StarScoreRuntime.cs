@@ -1,19 +1,19 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch.Core;
 using Witch.Mod;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class StarScoreRuntime
 {
-    private const string PendingBlessingOvertureVar = "SunExpStarBlessingOverturePending";
-    private const string PendingBlessingCostVar = "SunExpStarBlessingHalfCostPending";
-    private const string PendingSealBlessingVar = "SunExpMorningStarSealBlessingGain";
+    private const string PendingBlessingOvertureVar = "TerriasStarBlessingOverturePending";
+    private const string PendingBlessingCostVar = "TerriasStarBlessingHalfCostPending";
+    private const string PendingSealBlessingVar = "TerriasMorningStarSealBlessingGain";
     private static readonly Stack<PendingCard> Pending = new();
     private static readonly StarBlessingCostOverrideStore CostOverrides = new();
     private static readonly ResonanceCostTransactionStore ResonanceCostTransactions = new();
@@ -23,11 +23,11 @@ public static class StarScoreRuntime
     public static void Initialize(ModConfig modConfig)
     {
         EnsureHandlerRegistered();
-        SunExpBattleLifecycleRouter.Register("StarScore", new SunExpBattleLifecycleSubscription
+        TerriasBattleLifecycleRouter.Register("StarScore", new TerriasBattleLifecycleSubscription
         {
             FightStarted = OnFightStart
         });
-        SunExpCardLifecycleRouter.Register("StarScore", new SunExpCardLifecycleSubscription
+        TerriasCardLifecycleRouter.Register("StarScore", new TerriasCardLifecycleSubscription
         {
             BeforeCommonCardUse = OnCardUseBefore,
             BeforeAttackCardUse = OnCardUseBefore,
@@ -41,17 +41,17 @@ public static class StarScoreRuntime
         RegisterAfter(modConfig, "AttackCardItem.CommitOrCancelFromKeyboard", OnCardSelectionEndedAfter);
         RegisterAfter(modConfig, "CardItem.CancelUseDrag", OnCardSelectionEndedAfter);
         RegisterBefore(modConfig, "CardItem.OnDestroy", OnCardDestroyedBefore);
-        SunExpLog.Info("Star score runtime initialized");
+        TerriasLog.Info("Star score runtime initialized");
     }
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.Before(config, target, action, "StarScore");
+        TerriasHookRegistry.Before(config, target, action, "StarScore");
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.After(config, target, action, "StarScore");
+        TerriasHookRegistry.After(config, target, action, "StarScore");
     }
 
     private static void OnFightStart(ModHookContext context)
@@ -62,8 +62,8 @@ public static class StarScoreRuntime
         Pending.Clear();
         MorningStarOvertureService.ResetForFight();
         StarScoreCombatStateStore.ClearAll();
-        ExecutorApi.CombatIntSet("SunExpStarScorePlayerActionPending", 0);
-        SunExpActionEventRouter.ResetForFight("StarScore.Fight_Start.Init");
+        ExecutorApi.CombatIntSet("TerriasStarScorePlayerActionPending", 0);
+        TerriasActionEventRouter.ResetForFight("StarScore.Fight_Start.Init");
     }
 
     private static void OnCommonCardBeginDragAfter(ModHookContext context)
@@ -123,7 +123,7 @@ public static class StarScoreRuntime
             DictionaryUtil.Set(config.Vars, PendingBlessingOvertureVar, "");
             DictionaryUtil.Set(config.Vars, PendingSealBlessingVar, "");
             var player = FightPlayer.Instance?.Status;
-            var hasBlessing = player != null && BuffApi.Level(player, SunExpIds.StarBlessing) > 0;
+            var hasBlessing = player != null && BuffApi.Level(player, TerriasIds.StarBlessing) > 0;
             if (!hasBlessing)
             {
                 CancelBlessingPreview(card);
@@ -144,7 +144,7 @@ public static class StarScoreRuntime
                 RefreshCard(card, "BeforeUse");
                 DictionaryUtil.Set(config.Vars, PendingBlessingOvertureVar, "1");
                 DictionaryUtil.Set(config.Vars, PendingBlessingCostVar, "1");
-                ConsumeBuff(player, SunExpIds.StarBlessing, 1);
+                ConsumeBuff(player, TerriasIds.StarBlessing, 1);
                 CostOverrides.MarkBlessingConsumed(config);
                 sealBlessingGain = HasMorningStarSeal(config) ? actualPaidCost : 0;
                 PlayerApi.ShowCaption("\u661f\u8fb0\u795d\u798f\uff1a\u672c\u6b21\u51fa\u724c\u8017\u8d39\u51cf\u534a\u3002");
@@ -165,7 +165,7 @@ public static class StarScoreRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Star blessing before-use hook failed", ex);
+            TerriasLog.Error("Star blessing before-use hook failed", ex);
         }
     }
 
@@ -215,7 +215,7 @@ public static class StarScoreRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Star blessing after-use hook failed", ex);
+            TerriasLog.Error("Star blessing after-use hook failed", ex);
         }
     }
 
@@ -227,14 +227,14 @@ public static class StarScoreRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Resonance add-buff hook failed", ex);
+            TerriasLog.Error("Resonance add-buff hook failed", ex);
         }
     }
 
     private static void TryRegisterForPlayer(string source)
     {
         EnsureHandlerRegistered();
-        SunExpActionEventRouter.EnsureRegistered("StarScore." + source);
+        TerriasActionEventRouter.EnsureRegistered("StarScore." + source);
     }
 
     private static void EnsureHandlerRegistered()
@@ -244,11 +244,11 @@ public static class StarScoreRuntime
             return;
         }
 
-        SunExpActionEventRouter.RegisterHandler("StarScore", OnAction, OnActionAfter);
+        TerriasActionEventRouter.RegisterHandler("StarScore", OnAction, OnActionAfter);
         handlerRegistered = true;
     }
 
-    private static void OnAction(SunExpActionEventContext context)
+    private static void OnAction(TerriasActionEventContext context)
     {
         try
         {
@@ -268,11 +268,11 @@ public static class StarScoreRuntime
                 ? 0
                 : Math.Max(0, DictionaryUtil.ParseInt(pendingSealBlessing));
             Pending.Push(new PendingCard(config, executor, pendingBlessingOverture, sealBlessingGain));
-            ExecutorApi.CombatIntAdd("SunExpStarScorePlayerActionPending", 1);
+            ExecutorApi.CombatIntAdd("TerriasStarScorePlayerActionPending", 1);
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Star score Action listener failed", ex);
+            TerriasLog.Error("Star score Action listener failed", ex);
         }
     }
 
@@ -295,7 +295,7 @@ public static class StarScoreRuntime
             if (pending.Executor != null && pending.SealBlessingGain > 0)
             {
                 pending.Executor.SetStatus("Self");
-                pending.Executor.AddBuff(SunExpIds.StarBlessing, pending.SealBlessingGain.ToString());
+                pending.Executor.AddBuff(TerriasIds.StarBlessing, pending.SealBlessingGain.ToString());
                 PlayerApi.ShowCaption("\u542f\u660e\u661f\uff1a\u661f\u8fb0\u795d\u798f+" + pending.SealBlessingGain);
             }
 
@@ -307,11 +307,11 @@ public static class StarScoreRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Star score ActionAfter listener failed", ex);
+            TerriasLog.Error("Star score ActionAfter listener failed", ex);
         }
         finally
         {
-            ExecutorApi.CombatIntSet("SunExpStarScorePlayerActionPending", Math.Max(0, ExecutorApi.CombatIntGet("SunExpStarScorePlayerActionPending") - 1));
+            ExecutorApi.CombatIntSet("TerriasStarScorePlayerActionPending", Math.Max(0, ExecutorApi.CombatIntGet("TerriasStarScorePlayerActionPending") - 1));
         }
     }
 
@@ -336,8 +336,8 @@ public static class StarScoreRuntime
             }
 
             var player = FightPlayer.Instance?.Status;
-            var hasBlessing = player != null && BuffApi.Level(player, SunExpIds.StarBlessing) > 0;
-            if (!hasBlessing && !SunExpHardTagState.Active(SunExpHardTagIds.AbyssGaze))
+            var hasBlessing = player != null && BuffApi.Level(player, TerriasIds.StarBlessing) > 0;
+            if (!hasBlessing && !TerriasHardTagState.Active(TerriasHardTagIds.AbyssGaze))
             {
                 return;
             }
@@ -359,7 +359,7 @@ public static class StarScoreRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Card cost preview failed", ex);
+            TerriasLog.Error("Card cost preview failed", ex);
         }
     }
 
@@ -400,7 +400,7 @@ public static class StarScoreRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Star blessing preview rollback failed", ex);
+            TerriasLog.Error("Star blessing preview rollback failed", ex);
         }
     }
 
@@ -418,8 +418,8 @@ public static class StarScoreRuntime
         {
             BuffApi.SetExactLevel(
                 player,
-                SunExpIds.StarBlessing,
-                BuffApi.Level(player, SunExpIds.StarBlessing) + 1);
+                TerriasIds.StarBlessing,
+                BuffApi.Level(player, TerriasIds.StarBlessing) + 1);
         }
     }
 
@@ -437,7 +437,7 @@ public static class StarScoreRuntime
             && LastRefreshSignatures.TryGetValue(key, out var previous)
             && string.Equals(previous, signature, StringComparison.Ordinal))
         {
-            SunExpPerformanceCounters.Record("StarScore.RefreshSignatureSkip");
+            TerriasPerformanceCounters.Record("StarScore.RefreshSignatureSkip");
             return;
         }
 
@@ -446,8 +446,8 @@ public static class StarScoreRuntime
             LastRefreshSignatures[key] = signature;
         }
 
-        SunExpPerformanceCounters.Record("StarScore.RefreshRequested");
-        SunExpCardRefreshQueue.RequestCostUpdate(
+        TerriasPerformanceCounters.Record("StarScore.RefreshRequested");
+        TerriasCardRefreshQueue.RequestCostUpdate(
             card,
             "StarScore:" + reason + ":" + CardConfigApi.Id(config));
     }
@@ -501,8 +501,8 @@ public static class StarScoreRuntime
             + "\u001f" + DictionaryUtil.Get(config.Vars, PendingBlessingCostVar, "0")
             + "\u001f" + DictionaryUtil.Get(config.Vars, "OnceExCost")
             + "\u001f" + DictionaryUtil.Get(config.Vars, "TotalExCost")
-            + "\u001f" + (player == null ? 0 : BuffApi.Level(player, SunExpIds.StarBlessing))
-            + "\u001f" + (SunExpHardTagState.Active(SunExpHardTagIds.AbyssGaze) ? "gaze" : "normal");
+            + "\u001f" + (player == null ? 0 : BuffApi.Level(player, TerriasIds.StarBlessing))
+            + "\u001f" + (TerriasHardTagState.Active(TerriasHardTagIds.AbyssGaze) ? "gaze" : "normal");
     }
 
     private static int StarBlessingHalfCost(int currentCost)
@@ -513,7 +513,7 @@ public static class StarScoreRuntime
 
     private static int BeginResonancePayment(IStatusManager status, IDataConfig config, int currentCost)
     {
-        var resonance = Math.Max(0, BuffApi.Level(status, SunExpIds.Resonance));
+        var resonance = Math.Max(0, BuffApi.Level(status, TerriasIds.Resonance));
         var consumed = Math.Min(Math.Max(0, currentCost), resonance);
         if (consumed <= 0)
         {
@@ -528,7 +528,7 @@ public static class StarScoreRuntime
 
         try
         {
-            BuffApi.SetExactLevel(status, SunExpIds.Resonance, resonance - transaction.ResonancePaid);
+            BuffApi.SetExactLevel(status, TerriasIds.Resonance, resonance - transaction.ResonancePaid);
             ResonanceCostTransactions.MarkPaymentApplied(config);
             return transaction.ResonancePaid;
         }
@@ -537,11 +537,11 @@ public static class StarScoreRuntime
             ResonanceCostTransactions.Cancel(config);
             try
             {
-                BuffApi.SetExactLevel(status, SunExpIds.Resonance, resonance);
+                BuffApi.SetExactLevel(status, TerriasIds.Resonance, resonance);
             }
             catch (Exception rollbackEx)
             {
-                SunExpLog.Error("Resonance payment rollback failed", rollbackEx);
+                TerriasLog.Error("Resonance payment rollback failed", rollbackEx);
             }
 
             throw;
@@ -572,22 +572,22 @@ public static class StarScoreRuntime
 
         BuffApi.SetExactLevel(
             transaction.Owner,
-            SunExpIds.Resonance,
-            BuffApi.Level(transaction.Owner, SunExpIds.Resonance) + transaction.ResonancePaid);
-        SunExpLog.Debug("[StarScore] refunded " + transaction.ResonancePaid + " Resonance from " + reason + ".");
+            TerriasIds.Resonance,
+            BuffApi.Level(transaction.Owner, TerriasIds.Resonance) + transaction.ResonancePaid);
+        TerriasLog.Debug("[StarScore] refunded " + transaction.ResonancePaid + " Resonance from " + reason + ".");
     }
 
     private static bool HasMorningStarSeal(IDataConfig config)
     {
-        return DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.data, "Tag"), SunExpIds.MorningStarSealTag)
-            || DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, "SpecialTag"), SunExpIds.MorningStarSealTag);
+        return DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.data, "Tag"), TerriasIds.MorningStarSealTag)
+            || DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, "SpecialTag"), TerriasIds.MorningStarSealTag);
     }
 
     private static bool HasSelectionPreviewInterest()
     {
         var player = FightPlayer.Instance?.Status;
-        return (player != null && BuffApi.Level(player, SunExpIds.StarBlessing) > 0)
-            || SunExpHardTagState.Active(SunExpHardTagIds.AbyssGaze);
+        return (player != null && BuffApi.Level(player, TerriasIds.StarBlessing) > 0)
+            || TerriasHardTagState.Active(TerriasHardTagIds.AbyssGaze);
     }
 
     private static bool HasCardUseInterest(IDataConfig config)
@@ -595,10 +595,10 @@ public static class StarScoreRuntime
         var player = FightPlayer.Instance?.Status;
         return StarScoreService.IsStellarOvertureCard(CardConfigApi.Id(config))
             || HasMorningStarSeal(config)
-            || SunExpHardTagState.Active(SunExpHardTagIds.AbyssGaze)
+            || TerriasHardTagState.Active(TerriasHardTagIds.AbyssGaze)
             || (player != null
-                && (BuffApi.Level(player, SunExpIds.StarBlessing) > 0
-                    || BuffApi.Level(player, SunExpIds.Resonance) > 0));
+                && (BuffApi.Level(player, TerriasIds.StarBlessing) > 0
+                    || BuffApi.Level(player, TerriasIds.Resonance) > 0));
     }
 
     private static void ConsumeBuff(IStatusManager status, string buffId, int amount)

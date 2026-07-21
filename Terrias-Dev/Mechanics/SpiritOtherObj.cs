@@ -3,13 +3,13 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using AuraGameData.Shared.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 using Witch.UI;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public sealed class SpiritOtherObj : OtherObj
 {
@@ -53,7 +53,7 @@ public sealed class SpiritOtherObj : OtherObj
         MaxActionCount = 1;
         ActionCount = 1;
         InstanceId = string.IsNullOrWhiteSpace(statusId) ? SpiritStateStore.NextStatusId() : statusId.Trim();
-        gameObject.name = "SunExpSpirit:" + snapshot.DisplayName + ":" + InstanceId;
+        gameObject.name = "TerriasSpirit:" + snapshot.DisplayName + ":" + InstanceId;
         var status = transform.gameObject.AddComponent<StatusManager>().Init(this) as StatusManager;
         if (status == null)
         {
@@ -148,7 +148,7 @@ public sealed class SpiritOtherObj : OtherObj
 
     public override void AddCardList()
     {
-        RebuildAction(SunExpIds.ProjectionActionStaffTapCardId, 1);
+        RebuildAction(TerriasIds.ProjectionActionStaffTapCardId, 1);
     }
 
     private void RefreshIntent(string source)
@@ -168,25 +168,25 @@ public sealed class SpiritOtherObj : OtherObj
             SetAction();
             SpiritStateStore.NotifyIntentPresented(InstanceId, plan);
             ShowAction();
-            SunExpLog.Debug("[Spirit] intent refreshed from " + source + ": " + plan.IntentId);
+            TerriasLog.Debug("[Spirit] intent refreshed from " + source + ": " + plan.IntentId);
             SpiritSummonService.BroadcastRuntimeState(this, source);
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[Spirit] intent refresh failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[Spirit] intent refresh failed from " + source + ": " + ex.Message);
         }
     }
 
     private void RebuildAction(string cardId, int priority)
     {
-        var started = SunExpPerformanceCounters.Timestamp();
+        var started = TerriasPerformanceCounters.Timestamp();
         FightAction = new ObjectAction(this);
         var card = new ObjectCard { status = Status as StatusManager };
         var sourceCardId = string.IsNullOrWhiteSpace(cardId)
-            ? SunExpIds.ProjectionActionWaitCardId
+            ? TerriasIds.ProjectionActionWaitCardId
             : cardId.Trim();
         var presentationData = PresentationDataFor(sourceCardId);
-        var adapterHandle = AuraGameDataHostApi.ResolveHandle(DataType.EnemyCard, SunExpIds.SpiritIntentAdapterCardId)
+        var adapterHandle = AuraGameDataHostApi.ResolveHandle(DataType.EnemyCard, TerriasIds.SpiritIntentAdapterCardId)
             ?? throw new InvalidOperationException("Spirit intent adapter definition is not registered.");
         var materialized = AuraGameDataHostApi.Materialize(new AuraGameDataMaterializeRequest
         {
@@ -197,7 +197,7 @@ public sealed class SpiritOtherObj : OtherObj
                 .ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal),
             Vars = new Dictionary<string, string>(StringComparer.Ordinal)
             {
-                [SunExpIds.SpiritIntentSourceCardVar] = sourceCardId,
+                [TerriasIds.SpiritIntentSourceCardVar] = sourceCardId,
                 ["CD"] = "0",
                 ["priority"] = Math.Max(1, priority).ToString()
             }
@@ -207,7 +207,7 @@ public sealed class SpiritOtherObj : OtherObj
         card.Init(config);
         VerifyPresentationBinding(config, sourceCardId);
         FightAction.AddCard(card);
-        SunExpPerformanceCounters.RecordHotspot(
+        TerriasPerformanceCounters.RecordHotspot(
             "Spirit.Intent.PresentationBuild",
             started,
             "card=" + cardId + ", intent=" + (battleState?.CurrentPlan?.IntentId ?? "<none>"),
@@ -216,7 +216,7 @@ public sealed class SpiritOtherObj : OtherObj
 
     private static Dictionary<string, string> PresentationDataFor(string cardId)
     {
-        var key = string.IsNullOrWhiteSpace(cardId) ? SunExpIds.ProjectionActionWaitCardId : cardId.Trim();
+        var key = string.IsNullOrWhiteSpace(cardId) ? TerriasIds.ProjectionActionWaitCardId : cardId.Trim();
         lock (PresentationCacheLock)
         {
             if (!PresentationTemplates.TryGetValue(key, out var template))
@@ -225,7 +225,7 @@ public sealed class SpiritOtherObj : OtherObj
                     ?? throw new InvalidOperationException("Spirit source intent definition is not registered: " + key);
                 presentationAdapterData ??= AuraGameDataHostApi.CopyRow(
                     DataType.EnemyCard,
-                    SunExpIds.SpiritIntentAdapterCardId)
+                    TerriasIds.SpiritIntentAdapterCardId)
                     ?? throw new InvalidOperationException("Spirit intent adapter definition is not registered.");
                 template = SpiritIntentPresentationDataComposer.Compose(source, presentationAdapterData);
                 PresentationTemplates[key] = template;
@@ -249,7 +249,7 @@ public sealed class SpiritOtherObj : OtherObj
             return;
         }
 
-        SunExpLog.Warn("[SpiritIntentPresentationAdapter] binding failed: status=" + InstanceId
+        TerriasLog.Warn("[SpiritIntentPresentationAdapter] binding failed: status=" + InstanceId
             + ", sourceCard=" + sourceCardId
             + ", runtimeCard=" + DictionaryUtil.Get(config.Vars, "Id")
             + ", expectedPlan=" + expectedPlanId

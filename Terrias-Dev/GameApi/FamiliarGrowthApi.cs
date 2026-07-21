@@ -4,13 +4,13 @@ using System.Reflection;
 using System.Text.RegularExpressions;
 using AuraShared.Core;
 using Newtonsoft.Json;
-using SunExp.Dll.Hooks;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Hooks;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class FamiliarGrowthApi
 {
@@ -96,11 +96,11 @@ public static class FamiliarGrowthApi
                 var recovered = TryRecoverLegacyProfile(path);
                 if (recovered != null)
                 {
-                    SunExpLog.Warn("[FamiliarGrowth] repaired legacy profile " + path + ": " + ex.Message);
+                    TerriasLog.Warn("[FamiliarGrowth] repaired legacy profile " + path + ": " + ex.Message);
                     return recovered;
                 }
 
-                SunExpLog.Warn("[FamiliarGrowth] ignored invalid profile " + path + ": " + ex.Message);
+                TerriasLog.Warn("[FamiliarGrowth] ignored invalid profile " + path + ": " + ex.Message);
                 return new FamiliarRosterDocument();
             }
         }
@@ -114,7 +114,7 @@ public static class FamiliarGrowthApi
             }
             catch (Exception ex)
             {
-                SunExpLog.Warn("[FamiliarGrowth] failed to save profile " + path + ": " + ex.Message);
+                TerriasLog.Warn("[FamiliarGrowth] failed to save profile " + path + ": " + ex.Message);
             }
         }
 
@@ -148,7 +148,7 @@ public static class FamiliarGrowthApi
             }
             catch (Exception recoveryError)
             {
-                SunExpLog.Warn("[FamiliarGrowth] legacy profile recovery failed " + path + ": " + recoveryError.Message);
+                TerriasLog.Warn("[FamiliarGrowth] legacy profile recovery failed " + path + ": " + recoveryError.Message);
                 return null;
             }
         }
@@ -160,12 +160,12 @@ public static class FamiliarGrowthApi
             var dataRoot = string.IsNullOrWhiteSpace(AuraSharedPaths.ModsDataDirectory)
                 ? Path.Combine(gameDirectory, AuraSharedPaths.DefaultDataRootDirectoryName)
                 : AuraSharedPaths.ModsDataDirectory;
-            return Path.Combine(dataRoot, SunExpIds.ModId, SunExpIds.FamiliarProfileDirectory, ProfileKey() + ".json");
+            return Path.Combine(dataRoot, TerriasIds.ModId, TerriasIds.FamiliarProfileDirectory, ProfileKey() + ".json");
         }
 
         private string LegacyProfilePath()
         {
-            return Path.Combine(legacyModDirectory, SunExpIds.FamiliarProfileDirectory, ProfileKey() + ".json");
+            return Path.Combine(legacyModDirectory, TerriasIds.FamiliarProfileDirectory, ProfileKey() + ".json");
         }
 
         private static void WriteAtomic(string path, string contents)

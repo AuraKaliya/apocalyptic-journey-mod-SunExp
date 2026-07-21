@@ -43,7 +43,7 @@ Hook Runtime 继续负责宿主对象读取、Hook 时序、配置表回退解�
 
 ## 4. 非日耀内容隔离
 
-`SolarMemoryContentIsolationService` 集中执行同步选择数组的专属内容识别与安全替换。它依赖 `SunExpIds.IsSolarMemoryExclusiveMapId` 和 `IsSolarMemoryExclusiveEventId`，不会复制专属 id 规则。
+`SolarMemoryContentIsolationService` 集中执行同步选择数组的专属内容识别与安全替换。它依赖 `TerriasIds.IsSolarMemoryExclusiveMapId` 和 `IsSolarMemoryExclusiveEventId`，不会复制专属 id 规则。
 
 Runtime 提供配置表相关回退解析；纯服务会拒绝：
 
@@ -69,7 +69,7 @@ Runtime 提供配置表相关回退解析；纯服务会拒绝：
 
 ## 6. 测试和架构护栏
 
-SunExp net8 纯测试新增覆盖：
+Terrias net8 纯测试新增覆盖：
 
 - 三层固定节点目录及越界层归一化；
 - 最终层四个固定槽和错位专属节点修复；
@@ -87,7 +87,7 @@ SunExp net8 纯测试新增覆盖：
 - Runtime 禁止重新拥有嵌套固定节点规格、逐槽修复方法或旧地图生成路径；
 - ContentIsolation Runtime 必须委派同步数组变更。
 
-SunExp C# 行为断言由 282 项增加到 312 项。
+Terrias C# 行为断言由 282 项增加到 312 项。
 
 ## 7. 兼容性
 
@@ -104,11 +104,11 @@ SunExp C# 行为断言由 282 项增加到 312 项。
 
 本轮已通过：
 
-- SunExp Release 构建：0 警告、0 错误；
-- SunExp 架构断言；
-- SunExp C#：312 项行为断言及源码护栏；
+- Terrias Release 构建：0 警告、0 错误；
+- Terrias 架构断言；
+- Terrias C#：312 项行为断言及源码护栏；
 - SolarMemory/Event 校验：6 个事件、10 个地图行、0 警告；
-- SunExp 全量内容校验：56 张卡牌、13 个遗物、33 个 Buff、5 个卡包、3 个敌人、0 警告；
+- Terrias 全量内容校验：56 张卡牌、13 个遗物、33 个 Buff、5 个卡包、3 个敌人、0 警告；
 - 三个主消费者 Release 构建：均为 0 警告、0 错误；
 - Aura.Shared：1228 项公共 API 兼容基线；
 - Aura.Shared DLL 打包一致性检查。

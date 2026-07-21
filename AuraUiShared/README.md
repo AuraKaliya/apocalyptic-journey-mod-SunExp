@@ -1,13 +1,13 @@
 # AuraUiShared
 
 `AuraUiShared` is the shared, semantic-free UI foundation shipped inside `Aura.Shared.dll`.
-SunExp and AuraToolsExp consume it as sibling mods; neither mod owns the shared runtime.
+Terrias and AuraToolsExp consume it as sibling mods; neither mod owns the shared runtime.
 
 ## Style model
 
 - `Aura.Shared:default`: stable Aura fallback visuals.
 - `Aura.Shared:witch.native`: game-font and native-host capabilities.
-- `SunExp:solar`: SunExp-owned derived theme.
+- `Terrias:solar`: Terrias-owned derived theme.
 - `AuraToolsExp:arcane`: AuraToolsExp-owned derived theme.
 
 Styles are resolved by `AuraUiContext`. Do not mutate a process-wide current theme. A window chooses

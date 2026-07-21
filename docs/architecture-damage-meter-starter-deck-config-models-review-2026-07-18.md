@@ -173,7 +173,7 @@
 | `AuraToolsStarterDeckEditor` | 单个全局或角色本地 Profile 编辑窗口 |
 | `AuraToolsStarterDeckRoleManager` | 角色列表、有效 Profile 展示和 Profile picker |
 
-`StarterDeckCardClassification` 继续保持纯策略，不应重新吸收宿主表扫描或 SunExp 卡牌 ID。
+`StarterDeckCardClassification` 继续保持纯策略，不应重新吸收宿主表扫描或 Terrias 卡牌 ID。
 
 ### 4.2 共享边界
 
@@ -189,8 +189,8 @@ AuraTools UI / local config / host adapter
 
 - Shared 负责 owner-qualified Profile、合法性、排序、冲突和应用协议；
 - AuraTools 负责本地编辑、覆盖选择、宿主目录扫描和工具界面；
-- SunExp 等内容 MOD 只注册自己拥有的 Profile；
-- AuraTools 不读取 SunExp 私有目录，也不硬编码 SolarMemory 或具体内容卡牌 ID。
+- Terrias 等内容 MOD 只注册自己拥有的 Profile；
+- AuraTools 不读取 Terrias 私有目录，也不硬编码 SolarMemory 或具体内容卡牌 ID。
 
 ### 4.3 测试耦合
 
@@ -202,7 +202,7 @@ AuraTools UI / local config / host adapter
 2. AuraTools 纯行为测试：本地配置迁移、Profile 选择持久化、Deck 构建、Catalog 分组和失效；
 3. Adapter 源码护栏：`GameEntryUI.StartGame` 和 `PlayerManager.CmdSyncRoleTable` 仍为 Before，禁止 `NormalMapManager.InitRoleTable`，RoleTable 必须属于本地玩家；
 4. UI 源码护栏：检查 Editor/RoleManager 各自的新文件，而不是要求所有类型位于 Runtime；
-5. content/tool/shared 护栏：禁止 `SolarMemory`、SunExp 私有 ID 和直接修改外国注册 Profile。
+5. content/tool/shared 护栏：禁止 `SolarMemory`、Terrias 私有 ID 和直接修改外国注册 Profile。
 
 ### 4.4 不建议的做法
 

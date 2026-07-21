@@ -1,9 +1,9 @@
 using System;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.UI;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class CombatCardApi
 {
@@ -45,7 +45,7 @@ public static class CombatCardApi
             }
 
             fightUi.CreateCardItem(requested);
-            SunExpLog.Debug("[CombatCardApi] player draw applied: count="
+            TerriasLog.Debug("[CombatCardApi] player draw applied: count="
                 + requested
                 + ", source="
                 + NormalizeSource(source)
@@ -60,7 +60,7 @@ public static class CombatCardApi
 
     private static bool Fail(int count, string source, string reason)
     {
-        SunExpLog.Warn("[CombatCardApi] player draw failed: count="
+        TerriasLog.Warn("[CombatCardApi] player draw failed: count="
             + count
             + ", source="
             + NormalizeSource(source)

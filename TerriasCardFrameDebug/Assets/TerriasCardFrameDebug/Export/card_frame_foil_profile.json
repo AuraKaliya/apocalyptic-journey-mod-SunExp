@@ -1,27 +1,27 @@
 ﻿{
-  "profileId": "sunexp.card_frame_effect.foil_holo.debug",
-  "shaderName": "SunExp/CardFrameHoloFlow",
+  "profileId": "terrias.card_frame_effect.foil_holo.debug",
+  "shaderName": "Terrias/CardFrameHoloFlow",
   "intendedTarget": "card-frame",
-  "notes": "Effect parameters are tuned on the card frame alpha mask only. Move these values into SunExp visual registry/material defaults when integrating.",
+  "notes": "Effect parameters are tuned on the card frame alpha mask only. Move these values into Terrias visual registry/material defaults when integrating.",
   "floats": {
-    "_SunExpFlowSpeed": 0.36,
-    "_SunExpFlowScale": 1.65,
-    "_SunExpNoiseScale": 4.8,
-    "_SunExpDistortion": 0.018,
-    "_SunExpEffectIntensity": 0.72,
-    "_SunExpQualityScale": 1,
-    "_SunExpEdgeGlow": 0.22,
-    "_SunExpSweepFrequency": 5.6,
-    "_SunExpSweepWidth": 0.16,
-    "_SunExpSweepIntensity": 0.9,
-    "_SunExpPrismScale": 14,
-    "_SunExpPrismStrength": 0.68,
-    "_SunExpFoilGrain": 0.26,
-    "_SunExpEdgeSample": 2
+    "_TerriasFlowSpeed": 0.36,
+    "_TerriasFlowScale": 1.65,
+    "_TerriasNoiseScale": 4.8,
+    "_TerriasDistortion": 0.018,
+    "_TerriasEffectIntensity": 0.72,
+    "_TerriasQualityScale": 1,
+    "_TerriasEdgeGlow": 0.22,
+    "_TerriasSweepFrequency": 5.6,
+    "_TerriasSweepWidth": 0.16,
+    "_TerriasSweepIntensity": 0.9,
+    "_TerriasPrismScale": 14,
+    "_TerriasPrismStrength": 0.68,
+    "_TerriasFoilGrain": 0.26,
+    "_TerriasEdgeSample": 2
   },
   "colors": {
-    "_SunExpHoloColorA": "#FFC752FF",
-    "_SunExpHoloColorB": "#6BEBFFFF",
-    "_SunExpHoloColorC": "#FF6BDBFF"
+    "_TerriasHoloColorA": "#FFC752FF",
+    "_TerriasHoloColorB": "#6BEBFFFF",
+    "_TerriasHoloColorC": "#FF6BDBFF"
   }
 }

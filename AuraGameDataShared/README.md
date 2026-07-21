@@ -13,7 +13,7 @@ controlled instance materialization, and aggregate-specific instance services.
 - `AuraGameDataShared/Application` owns card-zone and relic-inventory use cases.
 - `AuraGameDataShared/GameApi` is the Witch adapter. Only this adapter reads
   `GameConfigManager`, constructs `DataConfig`, or mutates native collections.
-- SunExp and AuraToolsExp are sibling consumers. Neither is a framework for the
+- Terrias and AuraToolsExp are sibling consumers. Neither is a framework for the
   other.
 
 ## Data Planes

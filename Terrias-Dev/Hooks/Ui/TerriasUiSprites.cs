@@ -1,19 +1,19 @@
 using System;
 using System.Collections.Generic;
 using System.Globalization;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 using UnityEngine;
 
-namespace SunExp.Dll.Hooks.Ui;
+namespace Terrias.Dll.Hooks.Ui;
 
-public static class SunExpUiSprites
+public static class TerriasUiSprites
 {
-    public const string ButtonSpritePath = "Mods/SunExp/ModResource/Images/UI/button-\u4e5d\u5bab\u683c.png";
-    public const string PanelSpritePath = "Mods/SunExp/ModResource/Images/UI/background-\u4e5d\u5bab\u683c.png";
-    public const string LabelSpritePath = "Mods/SunExp/ModResource/Images/UI/Label-\u5c0f-\u4e5d\u5bab\u683c.png";
-    public const string SubMenuSpritePath = "Mods/SunExp/ModResource/Images/UI/\u5b50\u83dc\u5355/\u5b50\u83dc\u5355\u6563\u4ef6.png";
-    public const string SubMenuNormalButtonPath = "Mods/SunExp/ModResource/Images/UI/\u5b50\u83dc\u5355/button-normal.png";
+    public const string ButtonSpritePath = "Mods/Terrias/ModResource/Images/UI/button-\u4e5d\u5bab\u683c.png";
+    public const string PanelSpritePath = "Mods/Terrias/ModResource/Images/UI/background-\u4e5d\u5bab\u683c.png";
+    public const string LabelSpritePath = "Mods/Terrias/ModResource/Images/UI/Label-\u5c0f-\u4e5d\u5bab\u683c.png";
+    public const string SubMenuSpritePath = "Mods/Terrias/ModResource/Images/UI/\u5b50\u83dc\u5355/\u5b50\u83dc\u5355\u6563\u4ef6.png";
+    public const string SubMenuNormalButtonPath = "Mods/Terrias/ModResource/Images/UI/\u5b50\u83dc\u5355/button-normal.png";
 
     private static readonly Dictionary<string, Sprite?> Cache = new(StringComparer.OrdinalIgnoreCase);
 
@@ -77,10 +77,10 @@ public static class SunExpUiSprites
         Sprite? sprite = null;
         try
         {
-            var source = SunExpResourceCache.Load<Sprite>(path, true, "ui.sprite-source");
+            var source = TerriasResourceCache.Load<Sprite>(path, true, "ui.sprite-source");
             if (source == null || source.texture == null)
             {
-                SunExpLog.Warn(logPrefix + " UI sprite missing: " + path);
+                TerriasLog.Warn(logPrefix + " UI sprite missing: " + path);
             }
             else
             {
@@ -100,7 +100,7 @@ public static class SunExpUiSprites
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn(logPrefix + " failed to load UI sprite " + path + ": " + ex.Message);
+            TerriasLog.Warn(logPrefix + " failed to load UI sprite " + path + ": " + ex.Message);
         }
 
         Cache[key] = sprite;

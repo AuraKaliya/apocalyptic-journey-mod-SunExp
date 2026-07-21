@@ -1,10 +1,10 @@
 using System;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 
-namespace SunExp.Dll.Hooks.Visual;
+namespace Terrias.Dll.Hooks.Visual;
 
 public static class ShaderAssetLoader
 {
@@ -20,7 +20,7 @@ public static class ShaderAssetLoader
         var bundlePath = spec?.BundlePath;
         if (shader == null && !string.IsNullOrWhiteSpace(bundlePath))
         {
-            SunExpLog.Warn(logPrefix + " shader bundle declared but no loaded shader was found: " + bundlePath);
+            TerriasLog.Warn(logPrefix + " shader bundle declared but no loaded shader was found: " + bundlePath);
         }
 
         return shader;
@@ -60,7 +60,7 @@ public static class ShaderAssetLoader
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn(logPrefix + " shader lookup failed: " + resolvedName + " (" + ex.Message + ")");
+            TerriasLog.Warn(logPrefix + " shader lookup failed: " + resolvedName + " (" + ex.Message + ")");
             return null;
         }
     }
@@ -75,11 +75,11 @@ public static class ShaderAssetLoader
 
         try
         {
-            return SunExpResourceCache.Load<Shader>(resolvedPath, true);
+            return TerriasResourceCache.Load<Shader>(resolvedPath, true);
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn(logPrefix + " shader asset load failed: " + resolvedPath + " (" + ex.Message + ")");
+            TerriasLog.Warn(logPrefix + " shader asset load failed: " + resolvedPath + " (" + ex.Message + ")");
             return null;
         }
     }
@@ -94,11 +94,11 @@ public static class ShaderAssetLoader
 
         try
         {
-            return SunExpResourceCache.Load<Material>(resolvedPath, true)?.shader;
+            return TerriasResourceCache.Load<Material>(resolvedPath, true)?.shader;
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn(logPrefix + " shader material load failed: " + resolvedPath + " (" + ex.Message + ")");
+            TerriasLog.Warn(logPrefix + " shader material load failed: " + resolvedPath + " (" + ex.Message + ")");
             return null;
         }
     }

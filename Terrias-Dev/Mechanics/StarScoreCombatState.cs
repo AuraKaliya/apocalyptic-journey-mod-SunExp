@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public sealed class StarScoreCombatState
 {

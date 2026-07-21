@@ -1,11 +1,11 @@
 using System;
 using System.Globalization;
 using Data.Save;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch;
 using Witch.Core;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 [Serializable]
 public sealed class EndlessAbyssEvacuationResolution
@@ -52,14 +52,14 @@ public static class EndlessAbyssEvacuationService
             return false;
         }
 
-        var runId = ReadString(SunExpIds.EndlessSeaRunIdKey);
+        var runId = ReadString(TerriasIds.EndlessSeaRunIdKey);
         if (string.IsNullOrWhiteSpace(runId))
         {
             rejection = "run-id-missing";
             return false;
         }
 
-        var floor = Math.Max(1, ReadInt(SunExpIds.EndlessSeaFloorKey));
+        var floor = Math.Max(1, ReadInt(TerriasIds.EndlessSeaFloorKey));
         var level = Math.Max(0, MapManager.Instance?.Level ?? 0);
         var depth = CalculateSettlementDepth(floor, level);
         var token = runId + ":evacuation:" + Guid.NewGuid().ToString("N");
@@ -85,12 +85,12 @@ public static class EndlessAbyssEvacuationService
     {
         return new EndlessAbyssEvacuationResolution
         {
-            RunId = ReadString(SunExpIds.EndlessSeaRunIdKey),
-            Token = ReadString(SunExpIds.EndlessAbyssEvacuationTokenKey),
-            Reason = ReadString(SunExpIds.EndlessAbyssEvacuationReasonKey),
-            Floor = Math.Max(1, ReadInt(SunExpIds.EndlessAbyssEvacuationFloorKey)),
-            SettlementDepth = Math.Max(0, ReadInt(SunExpIds.EndlessAbyssEvacuationDepthKey)),
-            EvacuatedAt = ReadString(SunExpIds.EndlessAbyssEvacuationAtKey)
+            RunId = ReadString(TerriasIds.EndlessSeaRunIdKey),
+            Token = ReadString(TerriasIds.EndlessAbyssEvacuationTokenKey),
+            Reason = ReadString(TerriasIds.EndlessAbyssEvacuationReasonKey),
+            Floor = Math.Max(1, ReadInt(TerriasIds.EndlessAbyssEvacuationFloorKey)),
+            SettlementDepth = Math.Max(0, ReadInt(TerriasIds.EndlessAbyssEvacuationDepthKey)),
+            EvacuatedAt = ReadString(TerriasIds.EndlessAbyssEvacuationAtKey)
         };
     }
 
@@ -107,7 +107,7 @@ public static class EndlessAbyssEvacuationService
         return resolution?.IsValid == true
                && string.Equals(
                    resolution.RunId,
-                   ReadString(SunExpIds.EndlessSeaRunIdKey),
+                   ReadString(TerriasIds.EndlessSeaRunIdKey),
                    StringComparison.Ordinal);
     }
 
@@ -122,7 +122,7 @@ public static class EndlessAbyssEvacuationService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessAbyssEvacuation] save failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[EndlessAbyssEvacuation] save failed from " + source + ": " + ex.Message);
         }
     }
 

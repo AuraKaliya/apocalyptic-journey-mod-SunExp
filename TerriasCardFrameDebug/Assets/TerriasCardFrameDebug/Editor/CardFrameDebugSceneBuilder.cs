@@ -1,6 +1,6 @@
 using System;
 using System.IO;
-using SunExp.CardFrameDebug;
+using Terrias.CardFrameDebug;
 using UnityEditor;
 using UnityEditor.SceneManagement;
 using UnityEngine;
@@ -8,20 +8,20 @@ using UnityEngine.EventSystems;
 using UnityEngine.SceneManagement;
 using UnityEngine.UI;
 
-namespace SunExp.CardFrameDebug.Editor
+namespace Terrias.CardFrameDebug.Editor
 {
     public static class CardFrameDebugSceneBuilder
     {
-        private const string AssetRoot = "Assets/SunExpCardFrameDebug";
+        private const string AssetRoot = "Assets/TerriasCardFrameDebug";
         private const string BackgroundPath = AssetRoot + "/Art/卡面背景.png";
         private const string FramePath = AssetRoot + "/Art/日耀-卡框1.png";
         private const string ShaderPath = AssetRoot + "/Shaders/CardFrameHoloFlow.shader";
         private const string NoisePath = AssetRoot + "/Textures/DebugFlowNoise.png";
-        private const string MaterialPath = AssetRoot + "/Materials/SunExpCardFrameHoloDebug.mat";
+        private const string MaterialPath = AssetRoot + "/Materials/TerriasCardFrameHoloDebug.mat";
         private const string ScenePath = AssetRoot + "/Scenes/CardFrameHoloDebug.unity";
         private const string PreviewPath = AssetRoot + "/Export/card_frame_preview.png";
 
-        [MenuItem("SunExp/Card Frame Debug/Rebuild Preview Scene")]
+        [MenuItem("Terrias/Card Frame Debug/Rebuild Preview Scene")]
         public static void Build()
         {
             EnsureFolders();
@@ -53,24 +53,24 @@ namespace SunExp.CardFrameDebug.Editor
             controller.cardFrame = frame;
             controller.frameMaterial = material;
             controller.flowNoise = noise;
-            controller.ResetToSunExpDefaults();
+            controller.ResetToTerriasDefaults();
             controller.ExportCurrentProfile();
 
             EditorSceneManager.SaveScene(scene, ScenePath);
             EditorBuildSettings.scenes = new[] { new EditorBuildSettingsScene(ScenePath, true) };
             AssetDatabase.SaveAssets();
             AssetDatabase.Refresh();
-            Debug.Log("SunExp card frame debug scene ready: " + ScenePath);
+            Debug.Log("Terrias card frame debug scene ready: " + ScenePath);
         }
 
-        [MenuItem("SunExp/Card Frame Debug/Build And Capture Preview")]
+        [MenuItem("Terrias/Card Frame Debug/Build And Capture Preview")]
         public static void BuildAndCapture()
         {
             Build();
             CapturePreview();
         }
 
-        [MenuItem("SunExp/Card Frame Debug/Capture Preview")]
+        [MenuItem("Terrias/Card Frame Debug/Capture Preview")]
         public static void CapturePreview()
         {
             if (!File.Exists(ScenePath))
@@ -99,7 +99,7 @@ namespace SunExp.CardFrameDebug.Editor
                 screenshot.Apply();
                 File.WriteAllBytes(PreviewPath, screenshot.EncodeToPNG());
                 AssetDatabase.ImportAsset(PreviewPath, ImportAssetOptions.ForceSynchronousImport);
-                Debug.Log("Captured SunExp card frame preview: " + PreviewPath);
+                Debug.Log("Captured Terrias card frame preview: " + PreviewPath);
             }
             finally
             {
@@ -209,7 +209,7 @@ namespace SunExp.CardFrameDebug.Editor
             {
                 material = new Material(shader)
                 {
-                    name = "SunExpCardFrameHoloDebug"
+                    name = "TerriasCardFrameHoloDebug"
                 };
                 AssetDatabase.CreateAsset(material, MaterialPath);
             }
@@ -219,23 +219,23 @@ namespace SunExp.CardFrameDebug.Editor
             }
 
             material.SetTexture("_NoiseTex", noise);
-            material.SetFloat("_SunExpFlowSpeed", 0.36f);
-            material.SetFloat("_SunExpFlowScale", 1.65f);
-            material.SetFloat("_SunExpNoiseScale", 4.8f);
-            material.SetFloat("_SunExpDistortion", 0.018f);
-            material.SetFloat("_SunExpEffectIntensity", 0.72f);
-            material.SetFloat("_SunExpQualityScale", 1.0f);
-            material.SetFloat("_SunExpEdgeGlow", 0.22f);
-            material.SetFloat("_SunExpSweepFrequency", 5.6f);
-            material.SetFloat("_SunExpSweepWidth", 0.16f);
-            material.SetFloat("_SunExpSweepIntensity", 0.9f);
-            material.SetFloat("_SunExpPrismScale", 14.0f);
-            material.SetFloat("_SunExpPrismStrength", 0.68f);
-            material.SetFloat("_SunExpFoilGrain", 0.26f);
-            material.SetFloat("_SunExpEdgeSample", 2.0f);
-            material.SetColor("_SunExpHoloColorA", new Color(1.0f, 0.78f, 0.32f, 1.0f));
-            material.SetColor("_SunExpHoloColorB", new Color(0.42f, 0.92f, 1.0f, 1.0f));
-            material.SetColor("_SunExpHoloColorC", new Color(1.0f, 0.42f, 0.86f, 1.0f));
+            material.SetFloat("_TerriasFlowSpeed", 0.36f);
+            material.SetFloat("_TerriasFlowScale", 1.65f);
+            material.SetFloat("_TerriasNoiseScale", 4.8f);
+            material.SetFloat("_TerriasDistortion", 0.018f);
+            material.SetFloat("_TerriasEffectIntensity", 0.72f);
+            material.SetFloat("_TerriasQualityScale", 1.0f);
+            material.SetFloat("_TerriasEdgeGlow", 0.22f);
+            material.SetFloat("_TerriasSweepFrequency", 5.6f);
+            material.SetFloat("_TerriasSweepWidth", 0.16f);
+            material.SetFloat("_TerriasSweepIntensity", 0.9f);
+            material.SetFloat("_TerriasPrismScale", 14.0f);
+            material.SetFloat("_TerriasPrismStrength", 0.68f);
+            material.SetFloat("_TerriasFoilGrain", 0.26f);
+            material.SetFloat("_TerriasEdgeSample", 2.0f);
+            material.SetColor("_TerriasHoloColorA", new Color(1.0f, 0.78f, 0.32f, 1.0f));
+            material.SetColor("_TerriasHoloColorB", new Color(0.42f, 0.92f, 1.0f, 1.0f));
+            material.SetColor("_TerriasHoloColorC", new Color(1.0f, 0.42f, 0.86f, 1.0f));
             EditorUtility.SetDirty(material);
             AssetDatabase.SaveAssets();
             return material;

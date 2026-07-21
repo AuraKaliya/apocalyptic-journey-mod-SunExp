@@ -1,14 +1,14 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
-public sealed class SunExpActionEventContext
+public sealed class TerriasActionEventContext
 {
-    public SunExpActionEventContext(object payload, IDataConfig? config)
+    public TerriasActionEventContext(object payload, IDataConfig? config)
     {
         Payload = payload;
         Config = config;
@@ -19,7 +19,7 @@ public sealed class SunExpActionEventContext
     public IDataConfig? Config { get; }
 }
 
-public static class SunExpActionEventRouter
+public static class TerriasActionEventRouter
 {
     private static readonly object EventOwner = new();
     private static readonly object SyncRoot = new();
@@ -29,7 +29,7 @@ public static class SunExpActionEventRouter
 
     public static void RegisterHandler(
         string id,
-        Action<SunExpActionEventContext>? onAction,
+        Action<TerriasActionEventContext>? onAction,
         Action? onActionAfter)
     {
         if (string.IsNullOrWhiteSpace(id))
@@ -43,7 +43,7 @@ public static class SunExpActionEventRouter
             cachedHandlers = null;
         }
 
-        SunExpPerformanceCounters.Record("ActionEventRouter.HandlerRegistered");
+        TerriasPerformanceCounters.Record("ActionEventRouter.HandlerRegistered");
     }
 
     public static void ResetForFight(string source)
@@ -66,11 +66,11 @@ public static class SunExpActionEventRouter
             EventCenter.Instance.AddEventListener("Action" + statusId, new Action<object>(OnAction), EventOwner, EventDispose.OnFightEnd);
             EventCenter.Instance.AddEventListener("ActionAfter" + statusId, new Action(OnActionAfter), EventOwner, EventDispose.OnFightEnd);
             registeredStatusId = statusId;
-            SunExpLog.Info("Registered shared SunExp Action router from " + source + ": statusId=" + statusId);
+            TerriasLog.Info("Registered shared Terrias Action router from " + source + ": statusId=" + statusId);
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Failed to register shared SunExp Action router from " + source, ex);
+            TerriasLog.Error("Failed to register shared Terrias Action router from " + source, ex);
         }
     }
 
@@ -82,7 +82,7 @@ public static class SunExpActionEventRouter
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("Action router clear skipped from " + source + ": " + ex.Message);
+            TerriasLog.Debug("Action router clear skipped from " + source + ": " + ex.Message);
         }
 
         registeredStatusId = null;
@@ -90,9 +90,9 @@ public static class SunExpActionEventRouter
 
     private static void OnAction(object payload)
     {
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         var config = CardConfigApi.FromActionPayload(payload);
-        var context = new SunExpActionEventContext(payload, config);
+        var context = new TerriasActionEventContext(payload, config);
         foreach (var handler in SnapshotHandlers())
         {
             if (handler.OnAction == null)
@@ -106,16 +106,16 @@ public static class SunExpActionEventRouter
             }
             catch (Exception ex)
             {
-                SunExpLog.Error("Action router handler failed: " + handler.Id, ex);
+                TerriasLog.Error("Action router handler failed: " + handler.Id, ex);
             }
         }
 
-        SunExpPerformanceCounters.RecordDuration("ActionEventRouter.Action", start);
+        TerriasPerformanceCounters.RecordDuration("ActionEventRouter.Action", start);
     }
 
     private static void OnActionAfter()
     {
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         foreach (var handler in SnapshotHandlers())
         {
             if (handler.OnActionAfter == null)
@@ -129,11 +129,11 @@ public static class SunExpActionEventRouter
             }
             catch (Exception ex)
             {
-                SunExpLog.Error("ActionAfter router handler failed: " + handler.Id, ex);
+                TerriasLog.Error("ActionAfter router handler failed: " + handler.Id, ex);
             }
         }
 
-        SunExpPerformanceCounters.RecordDuration("ActionEventRouter.ActionAfter", start);
+        TerriasPerformanceCounters.RecordDuration("ActionEventRouter.ActionAfter", start);
     }
 
     private static Handler[] SnapshotHandlers()
@@ -154,7 +154,7 @@ public static class SunExpActionEventRouter
 
     private readonly struct Handler
     {
-        public Handler(string id, Action<SunExpActionEventContext>? onAction, Action? onActionAfter)
+        public Handler(string id, Action<TerriasActionEventContext>? onAction, Action? onActionAfter)
         {
             Id = id;
             OnAction = onAction;
@@ -163,7 +163,7 @@ public static class SunExpActionEventRouter
 
         public string Id { get; }
 
-        public Action<SunExpActionEventContext>? OnAction { get; }
+        public Action<TerriasActionEventContext>? OnAction { get; }
 
         public Action? OnActionAfter { get; }
     }

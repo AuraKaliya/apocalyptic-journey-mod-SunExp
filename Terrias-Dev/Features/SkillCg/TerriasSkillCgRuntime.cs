@@ -4,34 +4,34 @@ using System.IO;
 using System.Linq;
 using AuraCg.Shared;
 using AuraShared.Core;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Hooks;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Hooks;
+using Terrias.Dll.Infrastructure;
 using UnityEngine;
 using Witch;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Features.SkillCg;
+namespace Terrias.Dll.Features.SkillCg;
 
-public static class SunExpSkillCgRuntime
+public static class TerriasSkillCgRuntime
 {
     private static readonly HashSet<string> DiagnosticKeys = new(StringComparer.OrdinalIgnoreCase);
-    private const string AdventurePreloadContentKey = "SunExp.Adventure.SkillCg.content";
+    private const string AdventurePreloadContentKey = "Terrias.Adventure.SkillCg.content";
 
     public static void Initialize(ModConfig modConfig)
     {
-        SkillCgArbiterRuntime.Initialize(modConfig, SunExpIds.ModId, new SkillCgArbiterOptions
+        SkillCgArbiterRuntime.Initialize(modConfig, TerriasIds.ModId, new SkillCgArbiterOptions
         {
             DuplicateWindowSeconds = 1.25f
         });
         AuraCombatActionRouter.RegisterBefore(
             modConfig,
-            SunExpIds.ModId + ".SkillCG",
+            TerriasIds.ModId + ".SkillCG",
             BeforeCombatAction,
-            SunExpLog.Debug,
-            SunExpLog.Warn);
-        SunExpBattleLifecycleRouter.Register("SkillCG", new SunExpBattleLifecycleSubscription
+            TerriasLog.Debug,
+            TerriasLog.Warn);
+        TerriasBattleLifecycleRouter.Register("SkillCG", new TerriasBattleLifecycleSubscription
         {
             AdventureStarting = OnAdventureStart,
             FightStarted = OnFightStart,
@@ -52,22 +52,22 @@ public static class SunExpSkillCgRuntime
 
             foreach (var request in BuildRequests(trigger))
             {
-                SkillCgArbiterRuntime.RequestCg(SunExpIds.ModId, request, syncRemote: true);
+                SkillCgArbiterRuntime.RequestCg(TerriasIds.ModId, request, syncRemote: true);
             }
 
             foreach (var request in SkillCgArbiterRuntime.BuildRegisteredCardUseRequests(
-                         SunExpIds.ModId,
+                         TerriasIds.ModId,
                          trigger,
-                         SunExpIds.ModId,
+                         TerriasIds.ModId,
                          disableSync: false))
             {
                 PrepareRequestForPlayback(request, trigger);
-                SkillCgArbiterRuntime.RequestCg(SunExpIds.ModId, request, syncRemote: true);
+                SkillCgArbiterRuntime.RequestCg(TerriasIds.ModId, request, syncRemote: true);
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[SkillCG] trigger failed: " + ex.Message);
+            TerriasLog.Warn("[SkillCG] trigger failed: " + ex.Message);
         }
     }
 
@@ -93,7 +93,7 @@ public static class SunExpSkillCgRuntime
     private static IEnumerable<SkillCgRequest> BuildRequests(SkillCgTriggerContext trigger)
     {
         var matched = false;
-        foreach (var entry in AuraCgRegistryRuntime.GetRegisteredEntries(SunExpIds.ModId))
+        foreach (var entry in AuraCgRegistryRuntime.GetRegisteredEntries(TerriasIds.ModId))
         {
             var skipReason = EntrySkipReason(entry, trigger);
             if (!string.IsNullOrWhiteSpace(skipReason))
@@ -107,10 +107,10 @@ public static class SunExpSkillCgRuntime
             }
 
             var imageResource = ResolveImageResource(entry);
-            var imagePath = SkillCgArbiterRuntime.ResolveImagePath(SunExpIds.ModId, imageResource);
+            var imagePath = SkillCgArbiterRuntime.ResolveImagePath(TerriasIds.ModId, imageResource);
             if (!MediaExists(entry.Media.Type, imagePath))
             {
-                SunExpLog.Warn("[SkillCG] media missing: " + imageResource);
+                TerriasLog.Warn("[SkillCG] media missing: " + imageResource);
                 continue;
             }
 
@@ -187,8 +187,8 @@ public static class SunExpSkillCgRuntime
     {
         return PrepareRequestForPlayback(new SkillCgRequest
         {
-            ProviderId = SunExpIds.ModId + ".SkillCG." + entry.CgId,
-            OwnerModId = SunExpIds.ModId,
+            ProviderId = TerriasIds.ModId + ".SkillCG." + entry.CgId,
+            OwnerModId = TerriasIds.ModId,
             CardId = trigger.CardId,
             OwnerInstanceId = trigger.OwnerInstanceId,
             ImagePath = imagePath,
@@ -242,7 +242,7 @@ public static class SunExpSkillCgRuntime
             return "media";
         }
 
-        if (!AuraCgActivationRuntime.CanConsumerPlay(entry, SunExpIds.ModId))
+        if (!AuraCgActivationRuntime.CanConsumerPlay(entry, TerriasIds.ModId))
         {
             return "activation";
         }
@@ -335,13 +335,13 @@ public static class SunExpSkillCgRuntime
     {
         if (DiagnosticKeys.Add(key))
         {
-            SunExpLog.Debug(message);
+            TerriasLog.Debug(message);
         }
     }
 
     private static void OnFightStart(ModHookContext context)
     {
-        SkillCgArbiterRuntime.BeginFightSession(SunExpIds.ModId, "fight start");
+        SkillCgArbiterRuntime.BeginFightSession(TerriasIds.ModId, "fight start");
     }
 
     private static void OnAdventureStart(ModHookContext context)
@@ -349,25 +349,25 @@ public static class SunExpSkillCgRuntime
         try
         {
             SkillCgArbiterRuntime.EnsureAdventurePreloaded(
-                SunExpIds.ModId,
-                SunExpIds.ModId,
+                TerriasIds.ModId,
+                TerriasIds.ModId,
                 AdventurePreloadContentKey,
                 new[] { SkillCgArbiterRuntime.SkillCgKind, SkillCgArbiterRuntime.CardUseCgKind });
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[SkillCG] adventure preload failed: " + ex.Message);
+            TerriasLog.Warn("[SkillCG] adventure preload failed: " + ex.Message);
         }
     }
 
     private static void OnFightEnded(ModHookContext context)
     {
-        SkillCgArbiterRuntime.Clear(SunExpIds.ModId, "fight ended");
+        SkillCgArbiterRuntime.Clear(TerriasIds.ModId, "fight ended");
     }
 
     private static void OnFightEnding(ModHookContext context)
     {
-        SkillCgArbiterRuntime.Clear(SunExpIds.ModId, "fight ending");
+        SkillCgArbiterRuntime.Clear(TerriasIds.ModId, "fight ending");
     }
 
 }

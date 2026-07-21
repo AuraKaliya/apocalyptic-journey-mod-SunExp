@@ -11,7 +11,7 @@ namespace AuraCardFrameFxLabEditor
     {
         private const string RootPath = "Assets/AuraCardFrameFxLab";
         private const string ScenePath = RootPath + "/Scenes/CardFrameFxLab.unity";
-        private const string MaterialPath = RootPath + "/Materials/SunExpFoilHoloFrameOverlay.mat";
+        private const string MaterialPath = RootPath + "/Materials/TerriasFoilHoloFrameOverlay.mat";
         private const string ShaderPath = RootPath + "/Shaders/CardFaceEffect.shader";
         private const string BackgroundPath = RootPath + "/Art/CardBackground.png";
         private const string FramePath = RootPath + "/Art/SunCardFrame.png";
@@ -77,7 +77,7 @@ namespace AuraCardFrameFxLabEditor
             RequireObject("CardDescription");
 
             var shader = AssetDatabase.LoadAssetAtPath<Shader>(ShaderPath);
-            if (shader == null || shader.name != "SunExp/CardFaceEffect")
+            if (shader == null || shader.name != "Terrias/CardFaceEffect")
             {
                 throw new System.InvalidOperationException("CardFaceEffect shader is not available.");
             }
@@ -88,7 +88,7 @@ namespace AuraCardFrameFxLabEditor
                 throw new System.InvalidOperationException("Frame overlay material is missing or uses the wrong shader.");
             }
 
-            if (!Mathf.Approximately(material.GetFloat("_SunExpOverlayMode"), 1f))
+            if (!Mathf.Approximately(material.GetFloat("_TerriasOverlayMode"), 1f))
             {
                 throw new System.InvalidOperationException("Frame overlay material is not in overlay mode.");
             }
@@ -253,7 +253,7 @@ namespace AuraCardFrameFxLabEditor
             serialized.FindProperty("noiseTexture").objectReferenceValue = noiseTexture;
             serialized.FindProperty("foilTexture").objectReferenceValue = foilTexture;
             serialized.ApplyModifiedPropertiesWithoutUndo();
-            controller.ResetSunExpDefaults();
+            controller.ResetTerriasDefaults();
             EditorUtility.SetDirty(controller);
         }
 
@@ -268,7 +268,7 @@ namespace AuraCardFrameFxLabEditor
             var material = AssetDatabase.LoadAssetAtPath<Material>(MaterialPath);
             if (material == null)
             {
-                material = new Material(shader) { name = "SunExpFoilHoloFrameOverlay" };
+                material = new Material(shader) { name = "TerriasFoilHoloFrameOverlay" };
                 AssetDatabase.CreateAsset(material, MaterialPath);
             }
             else
@@ -285,41 +285,41 @@ namespace AuraCardFrameFxLabEditor
         {
             SetTexture(material, "_NoiseTex", noiseTexture);
             SetTexture(material, "_FoilTex", foilTexture);
-            SetFloat(material, "_SunExpEffectMode", 0f);
-            SetFloat(material, "_SunExpOverlayMode", 1f);
-            SetFloat(material, "_SunExpFrameOnlyOverlay", 0f);
-            SetFloat(material, "_SunExpFoilMode", 1.603f);
-            SetFloat(material, "_SunExpFlowSpeed", -2f);
-            SetFloat(material, "_SunExpFlowScale", 1.603f);
-            SetFloat(material, "_SunExpNoiseScale", 7.722f);
-            SetFloat(material, "_SunExpDistortion", 0.021f);
-            SetFloat(material, "_SunExpEffectIntensity", 1.093f);
-            SetFloat(material, "_SunExpQualityScale", 1f);
-            SetFloat(material, "_SunExpEdgeGlow", 0.12f);
-            SetFloat(material, "_SunExpSweepFrequency", 3.716f);
-            SetFloat(material, "_SunExpSweepWidth", 0.18f);
-            SetFloat(material, "_SunExpSweepIntensity", 0.892f);
-            SetFloat(material, "_SunExpPrismScale", 18.19f);
-            SetFloat(material, "_SunExpPrismStrength", 0.759f);
-            SetFloat(material, "_SunExpFoilGrain", 0.453f);
-            SetFloat(material, "_SunExpMirrorSweep", 0.846f);
-            SetFloat(material, "_SunExpSwirlStrength", 0.206f);
-            SetFloat(material, "_SunExpFoilShardScale", 15.367f);
-            SetFloat(material, "_SunExpFoilShardWarp", 0.162f);
-            SetFloat(material, "_SunExpFoilGalaxyDensity", 0.148f);
-            SetFloat(material, "_SunExpFoilGlintSpeed", 1.1f);
-            SetFloat(material, "_SunExpFoilTextureStrength", 0.967f);
-            SetFloat(material, "_SunExpRainbowStrength", 1.25f);
-            SetFloat(material, "_SunExpRidgeStrength", 0.523f);
-            SetFloat(material, "_SunExpGlareStrength", 1.008f);
-            SetFloat(material, "_SunExpPointerAutoSpeed", 0.646f);
-            SetFloat(material, "_SunExpFoilOverlayAlpha", 1.557f);
-            SetFloat(material, "_SunExpPointerX", -1f);
-            SetFloat(material, "_SunExpPointerY", -1f);
-            SetFloat(material, "_SunExpEdgeSample", 3.218f);
-            SetColor(material, "_SunExpHoloColorA", new Color32(255, 240, 166, 255));
-            SetColor(material, "_SunExpHoloColorB", new Color32(166, 242, 255, 255));
-            SetColor(material, "_SunExpHoloColorC", new Color32(210, 184, 255, 255));
+            SetFloat(material, "_TerriasEffectMode", 0f);
+            SetFloat(material, "_TerriasOverlayMode", 1f);
+            SetFloat(material, "_TerriasFrameOnlyOverlay", 0f);
+            SetFloat(material, "_TerriasFoilMode", 1.603f);
+            SetFloat(material, "_TerriasFlowSpeed", -2f);
+            SetFloat(material, "_TerriasFlowScale", 1.603f);
+            SetFloat(material, "_TerriasNoiseScale", 7.722f);
+            SetFloat(material, "_TerriasDistortion", 0.021f);
+            SetFloat(material, "_TerriasEffectIntensity", 1.093f);
+            SetFloat(material, "_TerriasQualityScale", 1f);
+            SetFloat(material, "_TerriasEdgeGlow", 0.12f);
+            SetFloat(material, "_TerriasSweepFrequency", 3.716f);
+            SetFloat(material, "_TerriasSweepWidth", 0.18f);
+            SetFloat(material, "_TerriasSweepIntensity", 0.892f);
+            SetFloat(material, "_TerriasPrismScale", 18.19f);
+            SetFloat(material, "_TerriasPrismStrength", 0.759f);
+            SetFloat(material, "_TerriasFoilGrain", 0.453f);
+            SetFloat(material, "_TerriasMirrorSweep", 0.846f);
+            SetFloat(material, "_TerriasSwirlStrength", 0.206f);
+            SetFloat(material, "_TerriasFoilShardScale", 15.367f);
+            SetFloat(material, "_TerriasFoilShardWarp", 0.162f);
+            SetFloat(material, "_TerriasFoilGalaxyDensity", 0.148f);
+            SetFloat(material, "_TerriasFoilGlintSpeed", 1.1f);
+            SetFloat(material, "_TerriasFoilTextureStrength", 0.967f);
+            SetFloat(material, "_TerriasRainbowStrength", 1.25f);
+            SetFloat(material, "_TerriasRidgeStrength", 0.523f);
+            SetFloat(material, "_TerriasGlareStrength", 1.008f);
+            SetFloat(material, "_TerriasPointerAutoSpeed", 0.646f);
+            SetFloat(material, "_TerriasFoilOverlayAlpha", 1.557f);
+            SetFloat(material, "_TerriasPointerX", -1f);
+            SetFloat(material, "_TerriasPointerY", -1f);
+            SetFloat(material, "_TerriasEdgeSample", 3.218f);
+            SetColor(material, "_TerriasHoloColorA", new Color32(255, 240, 166, 255));
+            SetColor(material, "_TerriasHoloColorB", new Color32(166, 242, 255, 255));
+            SetColor(material, "_TerriasHoloColorC", new Color32(210, 184, 255, 255));
         }
 
         private static void ConfigureSpriteTexture(string path)

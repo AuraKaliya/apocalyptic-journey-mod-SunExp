@@ -108,8 +108,8 @@ fight 清理会清空 token、复用表和 claim 池，但不重置单调计数�
 - AuraDirector 20 项断言通过；
 - AuraToolsExp 632 项断言通过；
 - 网络 RPC authority、共享架构和内容/工具/共享边界门禁通过；
-- SunExp、SanGuoShaExp、AuraToolsExp 三个主消费者 0 警告、0 错误构建；
-- SunExp 架构检查和 282 项 C# 断言通过；
+- Terrias、SanGuoShaExp、AuraToolsExp 三个主消费者 0 警告、0 错误构建；
+- Terrias 架构检查和 282 项 C# 断言通过；
 - 共享发布矩阵、消费者打包与三个 `Aura.Shared.dll` 哈希一致性检查通过。
 
 ## 8. 下一轮建议

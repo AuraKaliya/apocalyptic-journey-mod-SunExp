@@ -2,11 +2,11 @@ using System;
 using System.Reflection;
 using Data.Save;
 using AuraGameData.Shared.GameApi;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 using Witch.Core;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class EndlessSeaOriginService
 {
@@ -20,7 +20,7 @@ public static class EndlessSeaOriginService
     private const int FortuneDiceBonus = 50;
     private const int FortuneExtraTriggerThreshold = 150;
     private const int FortuneExtraTriggers = 2;
-    private const string OriginAppliedKey = "SunExpEndlessSeaOriginStartApplied";
+    private const string OriginAppliedKey = "TerriasEndlessSeaOriginStartApplied";
     private static readonly Action<Dice.State> FortuneDiceBonusHandler = ApplyFortuneDiceBonus;
 
     public static void EnsureOriginCaps(string source)
@@ -58,11 +58,11 @@ public static class EndlessSeaOriginService
             }
 
             GameSaveManager.UpdateRoles(role);
-            SunExpLog.Info("[EndlessSeaOrigin] raised origin caps to 50 from " + source + ".");
+            TerriasLog.Info("[EndlessSeaOrigin] raised origin caps to 50 from " + source + ".");
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessSeaOrigin] origin cap update failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[EndlessSeaOrigin] origin cap update failed from " + source + ": " + ex.Message);
         }
     }
 
@@ -103,7 +103,7 @@ public static class EndlessSeaOriginService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessSeaOrigin] battle start effects failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[EndlessSeaOrigin] battle start effects failed from " + source + ": " + ex.Message);
         }
     }
 
@@ -131,11 +131,11 @@ public static class EndlessSeaOriginService
                 GameSaveManager.UpdateRoles(role);
             }
 
-            SunExpLog.Info("[EndlessSeaOrigin] restored player HP to max from " + source + ".");
+            TerriasLog.Info("[EndlessSeaOrigin] restored player HP to max from " + source + ".");
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessSeaOrigin] battle end heal failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[EndlessSeaOrigin] battle end heal failed from " + source + ": " + ex.Message);
         }
     }
 
@@ -148,7 +148,7 @@ public static class EndlessSeaOriginService
     {
         AttachDiceWrapper(ReadMember(executor, "ValueDice"));
         AttachDiceWrapper(executor.CheckDice);
-        SunExpLog.Info("[EndlessSeaOrigin] attached fortune dice +50.");
+        TerriasLog.Info("[EndlessSeaOrigin] attached fortune dice +50.");
     }
 
     private static void AttachDiceWrapper(object? wrapper)
@@ -231,7 +231,7 @@ public static class EndlessSeaOriginService
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("[EndlessSeaOrigin] attach extinction enchant skipped: " + ex.Message);
+            TerriasLog.Debug("[EndlessSeaOrigin] attach extinction enchant skipped: " + ex.Message);
         }
     }
 
@@ -252,7 +252,7 @@ public static class EndlessSeaOriginService
 
     private static int CurrentFloor()
     {
-        return Math.Max(1, GameSaveManager.GetValue<int>(SunExpIds.EndlessSeaFloorKey));
+        return Math.Max(1, GameSaveManager.GetValue<int>(TerriasIds.EndlessSeaFloorKey));
     }
 
     private static int OriginValue(string key)

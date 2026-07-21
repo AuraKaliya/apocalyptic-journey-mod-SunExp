@@ -2,7 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public sealed class ConstellationLocalizedText
 {
@@ -181,7 +181,7 @@ public static class ConstellationPoolCatalog
         new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
         {
             ["columbina"] = ColumbinaPoolId,
-            ["SunExp_columbina_columbina"] = ColumbinaPoolId
+            ["Terrias_columbina_columbina"] = ColumbinaPoolId
         };
 
     public static ConstellationPoolDefinition PoolForRole(string? roleId)

@@ -1,8 +1,8 @@
 using System;
 using AuraGameData.Shared.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class DamageApi
 {
@@ -30,13 +30,13 @@ public static class DamageApi
                 : AuraGameDataHostApi.Materialize(new AuraGameDataMaterializeRequest { Definition = handle }).Instance as DataConfig;
             if (config == null)
             {
-                SunExpLog.Warn("[DamageSource] registered card definition unavailable; origin=" + origin + ", card=" + resolvedCardId + ".");
+                TerriasLog.Warn("[DamageSource] registered card definition unavailable; origin=" + origin + ", card=" + resolvedCardId + ".");
                 return null;
             }
             var executor = config.scriptExecutor as ScriptExecutor;
             if (executor == null)
             {
-                SunExpLog.Warn("[DamageSource] card executor unavailable; origin=" + origin + ", card=" + resolvedCardId + ".");
+                TerriasLog.Warn("[DamageSource] card executor unavailable; origin=" + origin + ", card=" + resolvedCardId + ".");
                 return null;
             }
 
@@ -44,7 +44,7 @@ public static class DamageApi
             executor.SetStatus("Self");
             if (!HasNativeDamageIdentity(executor))
             {
-                SunExpLog.Warn("[DamageSource] card executor has no native Id; origin=" + origin + ", card=" + resolvedCardId + ".");
+                TerriasLog.Warn("[DamageSource] card executor has no native Id; origin=" + origin + ", card=" + resolvedCardId + ".");
                 return null;
             }
 
@@ -52,7 +52,7 @@ public static class DamageApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[DamageSource] failed to create card executor; origin=" + origin + ", card=" + sourceCardId + ".", ex);
+            TerriasLog.Error("[DamageSource] failed to create card executor; origin=" + origin + ", card=" + sourceCardId + ".", ex);
             return null;
         }
     }
@@ -125,7 +125,7 @@ public static class DamageApi
 
         if (!HasNativeDamageIdentity(executor))
         {
-            SunExpLog.WarnOnce(
+            TerriasLog.WarnOnce(
                 "damage-source-missing-id",
                 "[DamageSource] rejected native damage because the executor has no data Id. Use CreateCardSourceExecutor for status-triggered damage.");
             return false;
@@ -146,7 +146,7 @@ public static class DamageApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[DamageSource] native damage failed; id="
+            TerriasLog.Error("[DamageSource] native damage failed; id="
                 + DictionaryUtil.Get(executor.dataConfig?.data, "Id")
                 + ", amount="
                 + amount
@@ -218,7 +218,7 @@ public static class DamageApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("AddDescription fallback used: index=" + index + ", type=" + type + ", value=" + value + ", error=" + ex.Message);
+            TerriasLog.Warn("AddDescription fallback used: index=" + index + ", type=" + type + ", value=" + value + ", error=" + ex.Message);
             ScriptVarApi.SetVar(executor, "DesVal" + index, value);
         }
     }

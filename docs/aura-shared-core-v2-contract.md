@@ -11,7 +11,7 @@ DLL；不得各自编译私有共享源码。首个兼容消费者创建持久�
 
 Core 负责共享路径、存储、资源注册、包事务、变更序列、诊断、通用 Hook、
 生命周期、调度和网络安全基础；Audio、CG、Skin、Journey、Mode、StarterDeck 等领域
-组件负责各自业务协议与仲裁；SunExp、AuraToolsExp 等消费者负责内容和工具语义。
+组件负责各自业务协议与仲裁；Terrias、AuraToolsExp 等消费者负责内容和工具语义。
 
 ## Compatibility（兼容性）
 
@@ -94,14 +94,14 @@ Core 负责共享路径、存储、资源注册、包事务、变更序列、诊
 
 ```json
 {
-  "ownerModId": "SunExp",
+  "ownerModId": "Terrias",
   "system": "Audio",
-  "logicalId": "SunExp.WuNa.VoicePack",
-  "packageId": "SunExp.SharedResources",
+  "logicalId": "Terrias.WuNa.VoicePack",
+  "packageId": "Terrias.SharedResources",
   "packageVersion": 1,
   "kind": "Directory",
-  "sourcePath": "D:/.../SunExp/SharedResources/Audio/WuNa",
-  "destinationRelativePath": "Audio/SunExp/WuNa"
+  "sourcePath": "D:/.../Terrias/SharedResources/Audio/WuNa",
+  "destinationRelativePath": "Audio/Terrias/WuNa"
 }
 ```
 
@@ -127,14 +127,14 @@ Core 负责共享路径、存储、资源注册、包事务、变更序列、诊
 {
   "system": "Audio",
   "adapterVersion": 1,
-  "ownerModId": "SunExp",
+  "ownerModId": "Terrias",
   "capabilities": ["PackageInstall", "RuntimeResolve"],
   "resources": [
     {
-      "logicalId": "SunExp.WuNa.VoicePack",
+      "logicalId": "Terrias.WuNa.VoicePack",
       "kind": "Directory",
       "source": "Audio/WuNa",
-      "destination": "Audio/SunExp/WuNa"
+      "destination": "Audio/Terrias/WuNa"
     }
   ]
 }
@@ -153,7 +153,7 @@ Core 负责共享路径、存储、资源注册、包事务、变更序列、诊
 | Hook/生命周期 | routed hook、Battle/Card/Combat router、session、step runner、operation ledger | 订阅必须可释放；单步失败不得中断无关步骤 |
 | 主线程调度 | `AuraSharedFrameScheduler`、`AuraSharedFrameStepRunner` | Unity/Witch/Mirror/UI 工作只在主线程执行；遵守 phase、预算和分片 |
 | 后台工作 | `AuraSharedBackgroundWorkScheduler` | 仅纯 CPU、文件 I/O 和不可变快照；按 owner 限流，完成回主线程 |
-| 网络基础 | RPC sender/authority、authoritative sync、payload budget、secure envelope | 不携带 SunExp 内容语义；状态变化仍由领域权威验证 |
+| 网络基础 | RPC sender/authority、authoritative sync、payload budget、secure envelope | 不携带 Terrias 内容语义；状态变化仍由领域权威验证 |
 | 性能基础 | resource cache、object pool、combat card-zone snapshot | 容量有界；不得缓存业务所有权策略 |
 | 通用工具 | identity、JSON、diagnostics、log store、feature switch | owner/domain identity 必须稳定且可诊断 |
 
@@ -248,9 +248,9 @@ Logs/Operations/yyyyMMdd.jsonl
   "timestampUtc": "2026-07-13T10:00:00Z",
   "operationId": "op",
   "transactionId": "tx",
-  "ownerModId": "SunExp",
+  "ownerModId": "Terrias",
   "system": "Audio",
-  "logicalId": "SunExp.WuNa.VoicePack",
+  "logicalId": "Terrias.WuNa.VoicePack",
   "kind": "InstallResource",
   "phase": "RegistryCommitted",
   "result": "Success",
@@ -287,15 +287,15 @@ Resource -> Registry -> cross-process write mutex
 
 `tools/Test-SharedDllPackaging.ps1` 校验：
 
-- `SunExp`、`SanGuoShaExp`、`AuraToolsExp` 以及仍参与组合测试的共享运行时原型所打包的
+- `Terrias`、`SanGuoShaExp`、`AuraToolsExp` 以及仍参与组合测试的共享运行时原型所打包的
   `Aura.Shared.dll`，都与共享构建产物 SHA-256 一致；
 - 产品和测试消费者引用 `AuraSharedRuntime-Dev/Aura.Shared.csproj`；
 - 消费者项目不私自链接共享源码。
 
 共享源码变更后的发布顺序为：构建共享运行时与受影响消费者、刷新所有打包 DLL、运行
 领域测试、运行 `Test-SharedDllPackaging.ps1`，最后关闭
-`Test-SharedReleaseGate.ps1`。仅编译 SunExp 不能证明共享发布完成。
+`Test-SharedReleaseGate.ps1`。仅编译 Terrias 不能证明共享发布完成。
 
-SunExp 当前接入全景见 `docs/SunExp/04-Aura共享层与核心层接入.md`；同步、authority、
+Terrias 当前接入全景见 `docs/Terrias/04-Aura共享层与核心层接入.md`；同步、authority、
 payload 和去重的细化规则见
-`.codex/skills/sunexp-shared-runtime-dev/references/sync-scenario-model.md`。
+`.codex/skills/terrias-shared-runtime-dev/references/sync-scenario-model.md`。

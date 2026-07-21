@@ -1,10 +1,10 @@
 using System;
 using AuraShared.Core;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class SolarMemoryMapVisualRuntime
 {
@@ -17,6 +17,6 @@ public static class SolarMemoryMapVisualRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.After(config, target, action, "SolarMemoryMapVisual");
+        TerriasHookRegistry.After(config, target, action, "SolarMemoryMapVisual");
     }
 }

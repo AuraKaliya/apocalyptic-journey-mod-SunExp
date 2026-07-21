@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: SunExpCardFrameHoloDebug
+  m_Name: TerriasCardFrameHoloDebug
   m_Shader: {fileID: 4800000, guid: 3ca8b9fe3071dcf45b63201441b694c1, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
@@ -39,24 +39,24 @@ Material:
     - _StencilOp: 0
     - _StencilReadMask: 255
     - _StencilWriteMask: 255
-    - _SunExpDistortion: 0.018
-    - _SunExpEdgeGlow: 0.22
-    - _SunExpEdgeSample: 2
-    - _SunExpEffectIntensity: 0.72
-    - _SunExpFlowScale: 1.65
-    - _SunExpFlowSpeed: 0.36
-    - _SunExpFoilGrain: 0.26
-    - _SunExpNoiseScale: 4.8
-    - _SunExpPrismScale: 14
-    - _SunExpPrismStrength: 0.68
-    - _SunExpQualityScale: 1
-    - _SunExpSweepFrequency: 5.6
-    - _SunExpSweepIntensity: 0.9
-    - _SunExpSweepWidth: 0.16
+    - _TerriasDistortion: 0.018
+    - _TerriasEdgeGlow: 0.22
+    - _TerriasEdgeSample: 2
+    - _TerriasEffectIntensity: 0.72
+    - _TerriasFlowScale: 1.65
+    - _TerriasFlowSpeed: 0.36
+    - _TerriasFoilGrain: 0.26
+    - _TerriasNoiseScale: 4.8
+    - _TerriasPrismScale: 14
+    - _TerriasPrismStrength: 0.68
+    - _TerriasQualityScale: 1
+    - _TerriasSweepFrequency: 5.6
+    - _TerriasSweepIntensity: 0.9
+    - _TerriasSweepWidth: 0.16
     - _UseUIAlphaClip: 0
     m_Colors:
-    - _SunExpHoloColorA: {r: 1, g: 0.78, b: 0.32, a: 1}
-    - _SunExpHoloColorB: {r: 0.42, g: 0.92, b: 1, a: 1}
-    - _SunExpHoloColorC: {r: 1, g: 0.42, b: 0.86, a: 1}
+    - _TerriasHoloColorA: {r: 1, g: 0.78, b: 0.32, a: 1}
+    - _TerriasHoloColorB: {r: 0.42, g: 0.92, b: 1, a: 1}
+    - _TerriasHoloColorC: {r: 1, g: 0.42, b: 0.86, a: 1}
     - _TextureSampleAdd: {r: 0, g: 0, b: 0, a: 0}
   m_BuildTextureStacks: []

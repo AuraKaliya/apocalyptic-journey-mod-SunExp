@@ -1,36 +1,36 @@
 {
   "schemaVersion": 1,
-  "ownerModId": "SunExp",
+  "ownerModId": "Terrias",
   "contributionId": "manifest",
   "entries": [
     {
-      "roleId": "SunExp_loneer_loneer",
+      "roleId": "Terrias_loneer_loneer",
       "displayName": "洛奈尔",
       "aliases": ["loneer"],
-      "packBelong": "SunExp",
-      "icon": "Mods/SunExp/ModResource/Images/Icon/Loneer",
+      "packBelong": "Terrias",
+      "icon": "Mods/Terrias/ModResource/Images/Icon/Loneer",
       "priority": 100,
-      "tags": ["playable-role", "sunexp"],
+      "tags": ["playable-role", "terrias"],
       "enabled": true
     },
     {
-      "roleId": "SunExp_wuna_wuna",
+      "roleId": "Terrias_wuna_wuna",
       "displayName": "乌娜",
       "aliases": ["wuna"],
-      "packBelong": "SunExp",
-      "icon": "Mods/SunExp/ModResource/Images/Icon/WuNa",
+      "packBelong": "Terrias",
+      "icon": "Mods/Terrias/ModResource/Images/Icon/WuNa",
       "priority": 100,
-      "tags": ["playable-role", "sunexp"],
+      "tags": ["playable-role", "terrias"],
       "enabled": true
     },
     {
-      "roleId": "SunExp_columbina_columbina",
+      "roleId": "Terrias_columbina_columbina",
       "displayName": "哥伦比娅",
       "aliases": ["columbina"],
-      "packBelong": "SunExp",
-      "icon": "Mods/SunExp/ModResource/Images/Icon/Columbina",
+      "packBelong": "Terrias",
+      "icon": "Mods/Terrias/ModResource/Images/Icon/Columbina",
       "priority": 100,
-      "tags": ["playable-role", "sunexp"],
+      "tags": ["playable-role", "terrias"],
       "enabled": true
     }
   ]

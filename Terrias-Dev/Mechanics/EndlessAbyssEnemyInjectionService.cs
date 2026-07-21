@@ -1,14 +1,14 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 using Witch;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class EndlessAbyssEnemyInjectionService
 {
-    private const string ExtraEnemyAppliedKey = "SunExpEndlessAbyssExtraEnemiesApplied";
+    private const string ExtraEnemyAppliedKey = "TerriasEndlessAbyssExtraEnemiesApplied";
 
     public static int TryInjectAfterFightInit(int floor, EndlessSeaNodeKind nodeKind, string source)
     {
@@ -20,7 +20,7 @@ public static class EndlessAbyssEnemyInjectionService
 
         if (EnemyApi.IsClientOnlyDynamicEnemyObserver())
         {
-            SunExpLog.Debug("[EndlessAbyssEnemyInjection] client observer skipped injection; floor="
+            TerriasLog.Debug("[EndlessAbyssEnemyInjection] client observer skipped injection; floor="
                 + floor
                 + "; kind="
                 + nodeKind
@@ -52,7 +52,7 @@ public static class EndlessAbyssEnemyInjectionService
         if (injected > 0)
         {
             MarkInjected(manager, floor);
-            SunExpLog.Info("[EndlessAbyssEnemyInjection] injected "
+            TerriasLog.Info("[EndlessAbyssEnemyInjection] injected "
                 + injected
                 + " extra enemies; floor="
                 + floor

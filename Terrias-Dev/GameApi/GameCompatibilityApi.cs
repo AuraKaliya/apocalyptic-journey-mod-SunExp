@@ -2,11 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Reflection;
 using AuraGameData.Shared.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch;
 using Witch.Core;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class GameCompatibilityApi
 {
@@ -41,7 +41,7 @@ public static class GameCompatibilityApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("ShouldEnableOnlineCardPack reflection fallback used: " + ex.Message);
+            TerriasLog.Debug("ShouldEnableOnlineCardPack reflection fallback used: " + ex.Message);
         }
 
         return true;
@@ -121,7 +121,7 @@ public static class GameCompatibilityApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("ShouldUseSteamLobby reflection fallback used: " + ex.Message);
+            TerriasLog.Debug("ShouldUseSteamLobby reflection fallback used: " + ex.Message);
             return false;
         }
     }
@@ -145,7 +145,7 @@ public static class GameCompatibilityApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("GetItemsByPack compatibility call failed: " + ex.GetBaseException().Message);
+            TerriasLog.Warn("GetItemsByPack compatibility call failed: " + ex.GetBaseException().Message);
         }
 
         return null;
@@ -213,7 +213,7 @@ public static class GameCompatibilityApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("Lobby method failed: " + methodName + " -> " + ex.Message);
+            TerriasLog.Warn("Lobby method failed: " + methodName + " -> " + ex.Message);
             return false;
         }
     }

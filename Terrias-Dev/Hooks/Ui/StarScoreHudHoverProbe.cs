@@ -1,7 +1,7 @@
 using UnityEngine;
 using UnityEngine.EventSystems;
 
-namespace SunExp.Dll.Hooks.Ui;
+namespace Terrias.Dll.Hooks.Ui;
 
 public sealed class StarScoreHudHoverProbe : MonoBehaviour, IPointerEnterHandler, IPointerExitHandler
 {

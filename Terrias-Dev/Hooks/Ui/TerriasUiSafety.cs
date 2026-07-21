@@ -1,11 +1,11 @@
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using UiRaycastSafetyShared;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
-namespace SunExp.Dll.Hooks.Ui;
+namespace Terrias.Dll.Hooks.Ui;
 
-public static class SunExpUiSafety
+public static class TerriasUiSafety
 {
     public static bool CloseTransient(GameObject? root, string source, string logPrefix)
     {
@@ -15,11 +15,11 @@ public static class SunExpUiSafety
         }
 
         var rootName = root.name;
-        UiRaycastSafeDestroyRuntime.DisableAndHide(root, source, SunExpLog.Debug);
+        UiRaycastSafeDestroyRuntime.DisableAndHide(root, source, TerriasLog.Debug);
         DestroyChildren(root.transform, source + ":children", logPrefix);
-        UiRaycastSafeDestroyRuntime.ScrubGraphicRegistryForFrames(4, source + ":close", SunExpLog.Debug);
+        UiRaycastSafeDestroyRuntime.ScrubGraphicRegistryForFrames(4, source + ":close", TerriasLog.Debug);
         Object.Destroy(root);
-        SunExpLog.Debug(logPrefix + " closed transient UI " + rootName + " from " + source + ".");
+        TerriasLog.Debug(logPrefix + " closed transient UI " + rootName + " from " + source + ".");
         return true;
     }
 
@@ -45,11 +45,11 @@ public static class SunExpUiSafety
             }
 
             var go = child.gameObject;
-            UiRaycastSafeDestroyRuntime.DisableAndHide(go, source, SunExpLog.Debug);
+            UiRaycastSafeDestroyRuntime.DisableAndHide(go, source, TerriasLog.Debug);
             Object.Destroy(go);
         }
 
-        UiRaycastSafeDestroyRuntime.ScrubGraphicRegistryForFrames(2, source + ":children", SunExpLog.Debug);
-        SunExpLog.Debug(logPrefix + " cleared transient UI children from " + source + ".");
+        UiRaycastSafeDestroyRuntime.ScrubGraphicRegistryForFrames(2, source + ":children", TerriasLog.Debug);
+        TerriasLog.Debug(logPrefix + " cleared transient UI children from " + source + ".");
     }
 }

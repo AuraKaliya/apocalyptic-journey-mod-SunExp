@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using UnityEngine;
 using UnityEngine.SceneManagement;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class CompanionSceneApi
 {
@@ -33,17 +33,17 @@ public static class CompanionSceneApi
 
             if (instance.transform.parent != null)
             {
-                SunExpLog.Warn("[CompanionScene] cannot move non-root object from " + source + ": " + instance.name);
+                TerriasLog.Warn("[CompanionScene] cannot move non-root object from " + source + ": " + instance.name);
                 return false;
             }
 
             SceneManager.MoveGameObjectToScene(instance, ownerScene);
-            SunExpPerformanceCounters.Record("CompanionScene.ObjectMoved");
+            TerriasPerformanceCounters.Record("CompanionScene.ObjectMoved");
             return true;
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[CompanionScene] object move failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[CompanionScene] object move failed from " + source + ": " + ex.Message);
             return false;
         }
     }
@@ -60,7 +60,7 @@ public static class CompanionSceneApi
             BattleSceneHandles.Add(scene.handle);
         }
 
-        SunExpLog.Debug("[CompanionScene] tracked scene=" + scene.name + ", handle=" + scene.handle + ", source=" + source);
+        TerriasLog.Debug("[CompanionScene] tracked scene=" + scene.name + ", handle=" + scene.handle + ", source=" + source);
         return true;
     }
 
@@ -115,6 +115,6 @@ public static class CompanionSceneApi
             BattleSceneHandles.Clear();
         }
 
-        SunExpLog.Debug("[CompanionScene] cleared tracked scenes from " + source + ": count=" + count);
+        TerriasLog.Debug("[CompanionScene] cleared tracked scenes from " + source + ": count=" + count);
     }
 }

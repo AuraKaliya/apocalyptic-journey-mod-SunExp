@@ -1,13 +1,13 @@
 {
   "schemaVersion": 1,
-  "packageId": "SunExp.BundledSkins",
+  "packageId": "Terrias.BundledSkins",
   "packageVersion": 3,
   "resources": [
     {
-      "source": "SunExp_wuna_wuna/summer_cool"
+      "source": "Terrias_wuna_wuna/summer_cool"
     },
     {
-      "source": "SunExp_columbina_columbina/DoByHand"
+      "source": "Terrias_columbina_columbina/DoByHand"
     }
   ]
 }

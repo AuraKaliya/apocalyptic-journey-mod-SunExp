@@ -1,8 +1,8 @@
 using System;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 
-namespace SunExp.Dll.Scripting;
+namespace Terrias.Dll.Scripting;
 
 public static class ProjectionScripts
 {
@@ -14,7 +14,7 @@ public static class ProjectionScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Projection action init failed: " + actionId, ex);
+            TerriasLog.Error("Projection action init failed: " + actionId, ex);
         }
     }
 
@@ -26,7 +26,7 @@ public static class ProjectionScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Projection action target failed: " + actionId, ex);
+            TerriasLog.Error("Projection action target failed: " + actionId, ex);
         }
     }
 
@@ -38,7 +38,7 @@ public static class ProjectionScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Projection action use failed: " + actionId, ex);
+            TerriasLog.Error("Projection action use failed: " + actionId, ex);
         }
     }
 

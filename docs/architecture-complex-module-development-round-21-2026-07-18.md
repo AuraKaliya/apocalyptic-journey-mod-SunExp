@@ -69,8 +69,8 @@
 - AuraToolsExp：640 项断言；
 - Aura.Shared：1228 项公共 API 兼容基线；
 - shared write、共享架构、content/tool/shared 和 Network RPC authority 护栏；
-- SunExp 架构检查、282 项 C# 断言和源码检查；
-- SunExp、SanGuoShaExp、AuraToolsExp 三个消费者 Release 构建：0 警告、0 错误；
+- Terrias 架构检查、282 项 C# 断言和源码检查；
+- Terrias、SanGuoShaExp、AuraToolsExp 三个消费者 Release 构建：0 警告、0 错误；
 - Aura.Shared DLL 打包与三个副本哈希一致性检查；
 - 完整 AuraShared release gate。
 

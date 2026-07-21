@@ -2,11 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AuraGameData.Shared.GameApi;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 using Witch.Core;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class EndlessAbyssRewardPoolService
 {
@@ -37,7 +37,7 @@ public static class EndlessAbyssRewardPoolService
             }
         }
 
-        SunExpLog.Info("[EndlessAbyssRewardPool] initialized pools=" + PoolCount());
+        TerriasLog.Info("[EndlessAbyssRewardPool] initialized pools=" + PoolCount());
     }
 
     public static IReadOnlyList<string> CardIds(string poolId)
@@ -74,7 +74,7 @@ public static class EndlessAbyssRewardPoolService
             CardPoolCache[poolId] = built;
         }
 
-        SunExpLog.Info("[EndlessAbyssRewardPool] card pool " + poolId + " size=" + built.Count);
+        TerriasLog.Info("[EndlessAbyssRewardPool] card pool " + poolId + " size=" + built.Count);
         return built;
     }
 
@@ -86,7 +86,7 @@ public static class EndlessAbyssRewardPoolService
             cardPoolCacheEpoch = -1;
         }
 
-        SunExpLog.Debug("[EndlessAbyssRewardPool] cache cleared from " + source + ".");
+        TerriasLog.Debug("[EndlessAbyssRewardPool] cache cleared from " + source + ".");
     }
 
     private static IReadOnlyList<string> BuildCardPool(string poolId)
@@ -149,11 +149,11 @@ public static class EndlessAbyssRewardPoolService
 
         if (!string.Equals(source.Type, CardPackSource, StringComparison.OrdinalIgnoreCase))
         {
-            SunExpLog.Warn("[EndlessAbyssRewardPool] unsupported source type=" + source.Type + ", id=" + source.Id);
+            TerriasLog.Warn("[EndlessAbyssRewardPool] unsupported source type=" + source.Type + ", id=" + source.Id);
             return;
         }
 
-        foreach (var row in SunExpConfigIndex.Rows(DataType.Card))
+        foreach (var row in TerriasConfigIndex.Rows(DataType.Card))
         {
             var pack = DictionaryUtil.Get(row, "PackBelong");
             if (!CardPackMatches(pack, source.Id))
@@ -195,7 +195,7 @@ public static class EndlessAbyssRewardPoolService
         if (string.IsNullOrWhiteSpace(resolved)
             || excluded.Contains(resolved)
             || !seen.Add(resolved)
-            || SunExpConfigIndex.Row(DataType.Card, resolved) == null)
+            || TerriasConfigIndex.Row(DataType.Card, resolved) == null)
         {
             return;
         }
@@ -212,7 +212,7 @@ public static class EndlessAbyssRewardPoolService
 
         var source = sourcePackId.Trim();
         return string.Equals(rowPackId, source, StringComparison.OrdinalIgnoreCase)
-            || string.Equals(rowPackId, "SunExp_sunexp_" + source, StringComparison.OrdinalIgnoreCase);
+            || string.Equals(rowPackId, "Terrias_terrias_" + source, StringComparison.OrdinalIgnoreCase);
     }
 
     private static bool CardPackEnabled(string rowPackId, HashSet<string> enabledPacks)
@@ -222,7 +222,7 @@ public static class EndlessAbyssRewardPoolService
             return true;
         }
 
-        const string prefix = "SunExp_sunexp_";
+        const string prefix = "Terrias_terrias_";
         return rowPackId.StartsWith(prefix, StringComparison.Ordinal)
             ? enabledPacks.Contains(rowPackId.Substring(prefix.Length))
             : enabledPacks.Contains(prefix + rowPackId);
@@ -239,7 +239,7 @@ public static class EndlessAbyssRewardPoolService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessAbyssRewardPool] failed to read enabled card packs: " + ex.Message);
+            TerriasLog.Warn("[EndlessAbyssRewardPool] failed to read enabled card packs: " + ex.Message);
             return new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         }
     }

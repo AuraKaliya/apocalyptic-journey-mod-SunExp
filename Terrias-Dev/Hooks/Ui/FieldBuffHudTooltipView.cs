@@ -1,12 +1,12 @@
 using System;
 using AuraUi.Shared;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Mechanics;
 using TMPro;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace SunExp.Dll.Hooks.Ui;
+namespace Terrias.Dll.Hooks.Ui;
 
 public sealed class FieldBuffHudTooltipView : MonoBehaviour
 {
@@ -28,7 +28,7 @@ public sealed class FieldBuffHudTooltipView : MonoBehaviour
 
     public static FieldBuffHudTooltipView Create(Transform parent, RectTransform hudRect)
     {
-        var go = new GameObject("SunExp_FieldBuffHudTooltip", typeof(RectTransform), typeof(CanvasGroup));
+        var go = new GameObject("Terrias_FieldBuffHudTooltip", typeof(RectTransform), typeof(CanvasGroup));
         go.transform.SetParent(parent, false);
 
         var view = go.AddComponent<FieldBuffHudTooltipView>();
@@ -88,7 +88,7 @@ public sealed class FieldBuffHudTooltipView : MonoBehaviour
         group.interactable = false;
         group.blocksRaycasts = false;
 
-        SunExpUiBuilder.ApplyPanelImage(gameObject, SunExpUiSprites.Panel("[FieldBuffHud.Tooltip]"), PanelTint);
+        TerriasUiBuilder.ApplyPanelImage(gameObject, TerriasUiSprites.Panel("[FieldBuffHud.Tooltip]"), PanelTint);
 
         var layout = gameObject.AddComponent<VerticalLayoutGroup>();
         layout.padding = new RectOffset(12, 12, 12, 12);
@@ -142,7 +142,7 @@ public sealed class FieldBuffHudTooltipView : MonoBehaviour
             anchor,
             textColor,
             autoSize,
-            SunExpUiTheme.Current);
+            TerriasUiTheme.Current);
         text.fontStyle = style;
         text.overflowMode = TextOverflowModes.Overflow;
         return text;

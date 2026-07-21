@@ -3,13 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using Data.Save;
 using Newtonsoft.Json;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Network;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Network;
 using Witch;
 using Witch.Core;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class EndlessAbyssShockOptionIds
 {
@@ -74,7 +74,7 @@ public static class EndlessAbyssShockService
             Trigger = StealthTrigger,
             Floor = floor,
             NativeLevel = MapManager.Instance?.Level ?? 0,
-            NodeKind = SunExpIds.EndlessAbyssStealthModeName,
+            NodeKind = TerriasIds.EndlessAbyssStealthModeName,
             GazeLevelAtEnqueue = EndlessAbyssGazeService.CurrentLevel(),
             Source = source
         }, source);
@@ -91,7 +91,7 @@ public static class EndlessAbyssShockService
         EndlessAbyssGazeService.EnsureAtLeast(EndlessAbyssConfigStore.Current.Gaze.EndlessMinLevel, source + ":endless-entry");
 
         var data = MapManager.Instance?.MapTree?.currentNode?.data;
-        var slot = DictionaryUtil.Get(data, SunExpIds.EndlessSeaNodeSlotKey, (MapManager.Instance?.Level ?? 0).ToString());
+        var slot = DictionaryUtil.Get(data, TerriasIds.EndlessSeaNodeSlotKey, (MapManager.Instance?.Level ?? 0).ToString());
         var nodeId = DictionaryUtil.Get(data, "NodeId", DictionaryUtil.Get(data, "Id", "unknown"));
         return TryEnqueue(new EndlessAbyssShockRequest
         {
@@ -110,7 +110,7 @@ public static class EndlessAbyssShockService
     {
         try
         {
-            var json = GameSaveManager.GetValue<string>(SunExpIds.EndlessAbyssPendingShockKey);
+            var json = GameSaveManager.GetValue<string>(TerriasIds.EndlessAbyssPendingShockKey);
             if (string.IsNullOrWhiteSpace(json))
             {
                 return null;
@@ -133,7 +133,7 @@ public static class EndlessAbyssShockService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessAbyssShock] pending load failed: " + ex.Message);
+            TerriasLog.Warn("[EndlessAbyssShock] pending load failed: " + ex.Message);
             ClearPending("load-failed");
             return null;
         }
@@ -196,7 +196,7 @@ public static class EndlessAbyssShockService
         }
 
         SetPending(request);
-        SunExpLog.Info("[EndlessAbyssShock] enqueued "
+        TerriasLog.Info("[EndlessAbyssShock] enqueued "
             + request.Trigger
             + "; floor="
             + request.Floor
@@ -240,7 +240,7 @@ public static class EndlessAbyssShockService
         }
 
         var result = new EndlessAbyssShockResult { Success = true };
-        var seedBase = request.Key + ":" + source + ":" + SunExpNetworkRuntime.LocalPlayerId();
+        var seedBase = request.Key + ":" + source + ":" + TerriasNetworkRuntime.LocalPlayerId();
         foreach (var option in selected)
         {
             ApplyOption(option, result, source, seedBase);
@@ -255,7 +255,7 @@ public static class EndlessAbyssShockService
         EndlessAbyssRunLedger.TryClaim(request.Key, source);
         ClearPending("applied");
         result.Message = "\u6df1\u6e0a\u9707\u8361\u5df2\u7ed3\u7b97\uff0c\u5f53\u524d"
-            + SunExpIds.EndlessAbyssGazeName
+            + TerriasIds.EndlessAbyssGazeName
             + "\uff1a"
             + EndlessAbyssGazeService.CurrentLevel();
         PlayerApi.ShowCaption(result.Message);
@@ -317,7 +317,7 @@ public static class EndlessAbyssShockService
 
     private static void BroadcastResolution(EndlessAbyssShockRequest request, IReadOnlyList<string> selected, string source)
     {
-        if (!SunExpNetworkRuntime.IsMultiplayerSession() || SunExpNetworkRuntime.IsClientOnly())
+        if (!TerriasNetworkRuntime.IsMultiplayerSession() || TerriasNetworkRuntime.IsClientOnly())
         {
             return;
         }
@@ -331,7 +331,7 @@ public static class EndlessAbyssShockService
             Token = Guid.NewGuid().ToString("N")
         };
         var snapshot = EndlessSeaStateSnapshot.Capture(safeSource + ":shock-resolution");
-        SunExpNetworkRuntime.Send(
+        TerriasNetworkRuntime.Send(
             new RpcEndlessAbyssShockResolution(resolution, snapshot, safeSource),
             safeSource);
     }
@@ -356,7 +356,7 @@ public static class EndlessAbyssShockService
         {
             if (!ProcessedResolutionTokens.Add(safeToken))
             {
-                SunExpLog.Debug("[EndlessAbyssShock] duplicate resolution ignored from "
+                TerriasLog.Debug("[EndlessAbyssShock] duplicate resolution ignored from "
                     + source
                     + "; token="
                     + safeToken);
@@ -375,13 +375,13 @@ public static class EndlessAbyssShockService
 
     private static void SetPending(EndlessAbyssShockRequest request)
     {
-        SetValue(SunExpIds.EndlessAbyssPendingShockKey, JsonConvert.SerializeObject(request));
+        SetValue(TerriasIds.EndlessAbyssPendingShockKey, JsonConvert.SerializeObject(request));
     }
 
     private static void ClearPending(string source)
     {
-        SetValue(SunExpIds.EndlessAbyssPendingShockKey, "");
-        SunExpLog.Debug("[EndlessAbyssShock] cleared pending from " + source + ".");
+        SetValue(TerriasIds.EndlessAbyssPendingShockKey, "");
+        TerriasLog.Debug("[EndlessAbyssShock] cleared pending from " + source + ".");
     }
 
     private static void SetValue(string key, string value)

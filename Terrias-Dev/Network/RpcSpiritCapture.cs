@@ -1,8 +1,8 @@
 using System;
 using Network.Command;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Mechanics;
 
-namespace SunExp.Dll.Network;
+namespace Terrias.Dll.Network;
 
 [Serializable]
 public sealed class SpiritCaptureNetworkState
@@ -21,9 +21,9 @@ public sealed class SpiritCaptureNetworkState
 }
 
 [Serializable]
-public sealed class RpcSpiritCaptureRequest : RpcCommandBase, ISunExpServerBoundRpcCommand
+public sealed class RpcSpiritCaptureRequest : RpcCommandBase, ITerriasServerBoundRpcCommand
 {
-    private SunExpRpcSender serverSender = SunExpRpcSender.Unbound;
+    private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 
     public string OwnerStatusId { get; set; } = "";
     public string TargetStatusId { get; set; } = "";
@@ -43,9 +43,9 @@ public sealed class RpcSpiritCaptureRequest : RpcCommandBase, ISunExpServerBound
         BattleEpoch = CompanionAuthorityService.BattleEpoch;
     }
 
-    public void BindServerSender(SunExpRpcSender sender)
+    public void BindServerSender(TerriasRpcSender sender)
     {
-        serverSender = sender ?? SunExpRpcSender.Unbound;
+        serverSender = sender ?? TerriasRpcSender.Unbound;
     }
 
     public override void CmdExecute()

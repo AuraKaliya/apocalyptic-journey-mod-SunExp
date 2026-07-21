@@ -1,14 +1,14 @@
 using System;
 using System.Collections.Generic;
 using AuraShared.Core;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class SolarMemoryMapItemAnimationRuntime
 {
@@ -27,12 +27,12 @@ public static class SolarMemoryMapItemAnimationRuntime
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.Before(config, target, action, "SolarMemoryMapItemAnimation");
+        TerriasHookRegistry.Before(config, target, action, "SolarMemoryMapItemAnimation");
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.After(config, target, action, "SolarMemoryMapItemAnimation");
+        TerriasHookRegistry.After(config, target, action, "SolarMemoryMapItemAnimation");
     }
 
     private static void PrepareMapItemAnimation(ModHookContext context)
@@ -62,7 +62,7 @@ public static class SolarMemoryMapItemAnimationRuntime
 
             PendingRestores[node] = new AnimationRestore(row, original);
             row["Animation"] = fallbackAnimation;
-            SunExpLog.Info("[SolarMemoryMapItem] applied safe map animation fallback for "
+            TerriasLog.Info("[SolarMemoryMapItem] applied safe map animation fallback for "
                 + enemyId
                 + "; original="
                 + original
@@ -72,7 +72,7 @@ public static class SolarMemoryMapItemAnimationRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory map item animation prepare failed", ex);
+            TerriasLog.Error("Solar memory map item animation prepare failed", ex);
         }
     }
 
@@ -90,11 +90,11 @@ public static class SolarMemoryMapItemAnimationRuntime
 
             restore.Row["Animation"] = restore.Animation;
             PendingRestores.Remove(node);
-            SunExpLog.Debug("[SolarMemoryMapItem] restored map animation fallback.");
+            TerriasLog.Debug("[SolarMemoryMapItem] restored map animation fallback.");
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Solar memory map item animation restore failed", ex);
+            TerriasLog.Error("Solar memory map item animation restore failed", ex);
         }
     }
 
@@ -143,12 +143,12 @@ public static class SolarMemoryMapItemAnimationRuntime
     private static string ResolveFallbackAnimation(MapTree.Node node, string originalAnimation)
     {
         var levelId = DictionaryUtil.Get(node.data, "NodeId");
-        if (IsLevel(levelId, SunExpIds.SolarBossSecondSunLevelId, "level_second_sun_last_day"))
+        if (IsLevel(levelId, TerriasIds.SolarBossSecondSunLevelId, "level_second_sun_last_day"))
         {
             return SecondSunMapFallbackAnimation;
         }
 
-        if (IsLevel(levelId, SunExpIds.SolarBossSaintWunaLevelId, "level_saint_wuna"))
+        if (IsLevel(levelId, TerriasIds.SolarBossSaintWunaLevelId, "level_saint_wuna"))
         {
             return SaintWunaMapFallbackAnimation;
         }
@@ -176,18 +176,18 @@ public static class SolarMemoryMapItemAnimationRuntime
         var result = false;
         try
         {
-            if ((SunExpResourceCache.LoadAll<Texture2D>(animationPath + "/Map")?.Length ?? 0) > 0)
+            if ((TerriasResourceCache.LoadAll<Texture2D>(animationPath + "/Map")?.Length ?? 0) > 0)
             {
                 result = true;
             }
             else
             {
-                result = (SunExpResourceCache.LoadAll<Texture2D>(animationPath + "/Idle")?.Length ?? 0) > 0;
+                result = (TerriasResourceCache.LoadAll<Texture2D>(animationPath + "/Idle")?.Length ?? 0) > 0;
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[SolarMemoryMapItem] map animation probe failed: "
+            TerriasLog.Warn("[SolarMemoryMapItem] map animation probe failed: "
                 + animationPath
                 + " -> "
                 + ex.Message);
@@ -212,7 +212,7 @@ public static class SolarMemoryMapItemAnimationRuntime
             return row;
         }
 
-        const string prefix = "SunExp_sunexp_";
+        const string prefix = "Terrias_terrias_";
         var shortId = fullEnemyId.StartsWith(prefix, StringComparison.Ordinal)
             ? fullEnemyId.Substring(prefix.Length)
             : fullEnemyId;
@@ -226,7 +226,7 @@ public static class SolarMemoryMapItemAnimationRuntime
             return null;
         }
 
-        return SunExpConfigIndex.Row(type, id);
+        return TerriasConfigIndex.Row(type, id);
     }
 
     private readonly struct AnimationRestore

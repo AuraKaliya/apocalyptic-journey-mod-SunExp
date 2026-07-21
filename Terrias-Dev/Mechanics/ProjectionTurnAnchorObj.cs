@@ -7,7 +7,7 @@ using UnityEngine;
 using UnityEngine.UI;
 using Witch.UI;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public sealed class ProjectionTurnAnchorObj : OtherObj
 {
@@ -60,7 +60,7 @@ public sealed class ProjectionTurnAnchorObj : OtherObj
         CurHp = 1;
         MaxActionCount = 0;
         ActionCount = 0;
-        InstanceId = "SunExpProjectionTurnAnchor:" + battleEpoch;
+        InstanceId = "TerriasProjectionTurnAnchor:" + battleEpoch;
         gameObject.name = InstanceId;
 
         var status = gameObject.AddComponent<StatusManager>().Init(this) as StatusManager;

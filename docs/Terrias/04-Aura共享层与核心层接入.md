@@ -1,12 +1,12 @@
-# SunExp 对 Aura 共享层与核心层的接入
+# Terrias 对 Aura 共享层与核心层的接入
 
 > 本文中的“核心层”专指 AuraSharedCore；游戏自身的 `Witch.Core` 称为游戏主体核心 API。
 
 ## 1. 为什么存在 Aura.Shared
 
-SunExp 需要 Journey、音频、CG、皮肤、在线同步、UI 安全、包安装、Hook 路由和帧调度等能力。AuraToolsExp 和其他 Aura MOD 也可能需要同类能力。
+Terrias 需要 Journey、音频、CG、皮肤、在线同步、UI 安全、包安装、Hook 路由和帧调度等能力。AuraToolsExp 和其他 Aura MOD 也可能需要同类能力。
 
-如果这些能力留在 SunExp 内部，会产生两个问题：
+如果这些能力留在 Terrias 内部，会产生两个问题：
 
 1. 工具 MOD 必须依赖内容 MOD，形成错误的所有权方向；
 2. 每个 MOD 各自实现 Hook、资源、网络和 UI 协议，出现重复注册、冲突和版本漂移。
@@ -17,7 +17,7 @@ SunExp 需要 Journey、音频、CG、皮肤、在线同步、UI 安全、包安
 flowchart TB
     Core["Aura 核心层\n注册 / 包 / 存储 / Hook / 调度"]
     Domain["Aura 共享领域层\nJourney / Audio / CG / Skin / Online / UI"]
-    Sun["SunExp\n内容 MOD"]
+    Sun["Terrias\n内容 MOD"]
     Tools["AuraToolsExp\n工具 MOD"]
     Other["其他 Aura 消费者"]
 
@@ -30,7 +30,7 @@ flowchart TB
     Sun -. "不依赖" .- Tools
 ```
 
-SunExp 注册自己拥有的内容和资源；AuraToolsExp 读取共享声明、管理工具侧有效配置或注册工具自有扩展。二者不互相依赖内部实现。
+Terrias 注册自己拥有的内容和资源；AuraToolsExp 读取共享声明、管理工具侧有效配置或注册工具自有扩展。二者不互相依赖内部实现。
 
 ## 2. 物理程序集与逻辑组件
 
@@ -82,24 +82,24 @@ SunExp 注册自己拥有的内容和资源；AuraToolsExp 读取共享声明、
 | 主线程调度 | `AuraSharedFrameScheduler` | Unity/Witch 可触碰工作的分帧执行 |
 | 后台工作 | `AuraSharedBackgroundWorkScheduler` | 仅纯 CPU、不可变快照和文件工作 |
 | 生命周期 | Battle/Card/Combat routers、step runner、ledger | 订阅、去重、session 和清理 |
-| 网络基础 | authority、sender、payload budget、secure envelope | 不携带 SunExp 业务策略 |
+| 网络基础 | authority、sender、payload budget、secure envelope | 不携带 Terrias 业务策略 |
 | 资源缓存/池 | resource cache、object pool、zone snapshot | 无业务语义的性能基础 |
 
 Aura 核心层只理解稳定 identity、协议、资源、事务和生命周期，不理解“日耀回忆”“白曜”“无尽深渊奖励”等业务含义。
 
-## 4. SunExp 启动时的共享接入
+## 4. Terrias 启动时的共享接入
 
 `Entry.Initialize` 当前共享相关步骤为：
 
 ```mermaid
 sequenceDiagram
-    participant E as SunExp Entry
+    participant E as Terrias Entry
     participant C as AuraSharedCore
     participant P as Shared Package/Registry
     participant D as Domain Shared Components
     participant H as Runtime Hooks
 
-    E->>C: AuraSharedRuntime.Initialize(owner=SunExp)
+    E->>C: AuraSharedRuntime.Initialize(owner=Terrias)
     E->>C: RegisterFeature defaults
     E->>C: initialize RPC authority
     E->>P: Install SharedResources/aura.registration.json
@@ -110,11 +110,11 @@ sequenceDiagram
     E->>D: Initialize Journey
     E->>D: Initialize audio
     E->>D: Initialize UI transition guard
-    E->>C: Initialize SunExp frame scheduler
+    E->>C: Initialize Terrias frame scheduler
     E->>H: Initialize gameplay runtimes
 ```
 
-共享核心先于资源和领域组件初始化，RPC authority 先于 SunExp server-bound 命令应用。每个步骤通过 `RunStep` 独立记录。
+共享核心先于资源和领域组件初始化，RPC authority 先于 Terrias server-bound 命令应用。每个步骤通过 `RunStep` 独立记录。
 
 ## 5. 共享资源和注册表
 
@@ -130,40 +130,40 @@ sequenceDiagram
 
 Aura 核心使用资源的 owner-qualified unique key。相同 key 的来源可以合并，但不同 owner 提交不一致资源时会拒绝冲突注册。核心只判断 identity 和资源一致性；具体“哪个 CG/音频/卡组胜出”由领域组件处理。
 
-### 5.3 SunExp 所有权
+### 5.3 Terrias 所有权
 
-SunExp 负责：
+Terrias 负责：
 
-- 安装 `SunExp/SharedResources/aura.registration.json`；
-- 注册 SunExp 的 CG、皮肤、音频、Journey、starter deck 等声明；
-- 提交 SunExp 内容触发产生的共享表现请求；
+- 安装 `Terrias/SharedResources/aura.registration.json`；
+- 注册 Terrias 的 CG、皮肤、音频、Journey、starter deck 等声明；
+- 提交 Terrias 内容触发产生的共享表现请求；
 - 为注册项提供稳定的 `ownerModId` 和 domain id。
 
-工具 MOD 可以读取和覆盖自己的有效配置，但不能修改 SunExp 的注册源或把复制后的资源重新声明为自己所有。
+工具 MOD 可以读取和覆盖自己的有效配置，但不能修改 Terrias 的注册源或把复制后的资源重新声明为自己所有。
 
 ## 6. 共享领域组件
 
 ### 6.1 Journey
 
-`AuraJourneyShared` 提供通用 route graph、node definition、condition、state event、reducer、commit result、地图投影和同步投影。SunExp 的日耀回忆负责具体路线、故事节点、Boss 和奖励语义。
+`AuraJourneyShared` 提供通用 route graph、node definition、condition、state event、reducer、commit result、地图投影和同步投影。Terrias 的日耀回忆负责具体路线、故事节点、Boss 和奖励语义。
 
 Journey 共享层不应知道 `SolarMemory` 的专有剧情判断；它只执行 owner-qualified 定义和状态转换。
 
 ### 6.2 Starter Deck
 
-`StarterDeckArbiterRuntime` 接受多个 profile，执行校验和 resolution policy。SunExp 注册日耀回忆的 profile，模式准备流程消费最终解析结果。仲裁器负责冲突规则，不负责构造 SunExp 的准备 UI。
+`StarterDeckArbiterRuntime` 接受多个 profile，执行校验和 resolution policy。Terrias 注册日耀回忆的 profile，模式准备流程消费最终解析结果。仲裁器负责冲突规则，不负责构造 Terrias 的准备 UI。
 
 ### 6.3 Audio 与 BGM
 
-`AuraAudioRuntime` 负责共享初始化；`AudioArbiterRuntime` 和 `BattleBgmArbiterRuntime` 负责 provider、上下文匹配、优先级、fallback 和必要的表现同步。SunExp 的 `AudioApi` 提供内容侧初始化和上下文。
+`AuraAudioRuntime` 负责共享初始化；`AudioArbiterRuntime` 和 `BattleBgmArbiterRuntime` 负责 provider、上下文匹配、优先级、fallback 和必要的表现同步。Terrias 的 `AudioApi` 提供内容侧初始化和上下文。
 
 ### 6.4 CG
 
-`AuraCgRegistryRuntime` 注册 manifest，`SkillCgArbiterRuntime` 负责触发请求、播放、session、网络事件和去重。SunExp 的 Skill CG Feature 只做内容匹配和请求提交，不建立第二套私有 RPC relay。
+`AuraCgRegistryRuntime` 注册 manifest，`SkillCgArbiterRuntime` 负责触发请求、播放、session、网络事件和去重。Terrias 的 Skill CG Feature 只做内容匹配和请求提交，不建立第二套私有 RPC relay。
 
 ### 6.5 Skin
 
-`AuraSkinRuntime` 负责包注册、skin registry、选择存储、资源重定向和 UI Hook。SunExp 提供乌娜等角色的共享皮肤包和 manifest，不让工具 MOD扫描私有路径猜测皮肤。
+`AuraSkinRuntime` 负责包注册、skin registry、选择存储、资源重定向和 UI Hook。Terrias 提供乌娜等角色的共享皮肤包和 manifest，不让工具 MOD扫描私有路径猜测皮肤。
 
 ### 6.6 卡牌使用特效
 
@@ -171,15 +171,15 @@ Journey 共享层不应知道 `SolarMemory` 的专有剧情判断；它只执行
 
 ### 6.7 UI 安全
 
-`AuraUiShared` 提供无业务语义的 UI 构造能力；SunExp 的 `SunExpUiComponents` 在此之上提供本 MOD 风格。`UiRaycastSafetyShared` 与 `UiTransitionGuardShared` 解决临时 Overlay 关闭后原生 UI 仍被射线或 GraphicRegistry 阻塞的问题。
+`AuraUiShared` 提供无业务语义的 UI 构造能力；Terrias 的 `TerriasUiComponents` 在此之上提供本 MOD 风格。`UiRaycastSafetyShared` 与 `UiTransitionGuardShared` 解决临时 Overlay 关闭后原生 UI 仍被射线或 GraphicRegistry 阻塞的问题。
 
 ## 7. Hook 与性能共享
 
 ### 7.1 Routed Hook
 
-`AuraSharedHooks.RegisterBeforeRouted/RegisterAfterRouted` 为同一 `Type.Method` 保留一个宿主回调，并维护订阅快照。SunExp 的 battle/card/action/status router 使用这种方式把高频宿主事件分发给多个功能。
+`AuraSharedHooks.RegisterBeforeRouted/RegisterAfterRouted` 为同一 `Type.Method` 保留一个宿主回调，并维护订阅快照。Terrias 的 battle/card/action/status router 使用这种方式把高频宿主事件分发给多个功能。
 
-好处是减少重复宿主注册、统一异常边界并允许订阅释放。业务过滤仍属于 SunExp 订阅者，不能塞进通用 dispatcher。
+好处是减少重复宿主注册、统一异常边界并允许订阅释放。业务过滤仍属于 Terrias 订阅者，不能塞进通用 dispatcher。
 
 ### 7.2 帧调度
 
@@ -189,11 +189,11 @@ Journey 共享层不应知道 `SolarMemory` 的专有剧情判断；它只执行
 
 `AuraSharedBackgroundWorkScheduler` 只接受纯 CPU/文件工作和不可变快照。结果回主线程前必须检查 generation，不能把 Unity 对象操作移到 worker 线程。
 
-SunExp 的 `SunExpFrameScheduler` 是内容侧适配和配置入口，不应重新实现一套通用调度器。
+Terrias 的 `TerriasFrameScheduler` 是内容侧适配和配置入口，不应重新实现一套通用调度器。
 
 ### 7.3 资源缓存生命周期
 
-`SunExpResourceCache` 负责给共享 LRU 加上 SunExp owner 和 category。效果纹理与卡面 Sprite 不再维护第二份强引用字典；帧数组、运行时创建的九宫格 Sprite、私有 AssetBundle 等确有派生状态的本地缓存必须提供 `Clear()`。进入 `GameEntryUI.Init` 时，先关闭瞬态 UI，再销毁派生 Sprite、释放 bundle handle，并按 `visual.*` / `ui.sprite-source` 类别清除共享引用。
+`TerriasResourceCache` 负责给共享 LRU 加上 Terrias owner 和 category。效果纹理与卡面 Sprite 不再维护第二份强引用字典；帧数组、运行时创建的九宫格 Sprite、私有 AssetBundle 等确有派生状态的本地缓存必须提供 `Clear()`。进入 `GameEntryUI.Init` 时，先关闭瞬态 UI，再销毁派生 Sprite、释放 bundle handle，并按 `visual.*` / `ui.sprite-source` 类别清除共享引用。
 
 共享统计中的 `EstimatedBytes` 只用于发现异常增长，可能因 Sprite 共享纹理而重复估算，不能当作精确显存值。实际保留行为仍由 entry/reference LRU 与上述内容侧生命周期共同约束。
 
@@ -207,12 +207,12 @@ SunExp 的 `SunExpFrameScheduler` 是内容侧适配和配置入口，不应重�
 -> 工具本地持久化覆盖
 ```
 
-SunExp 单独使用时，其内容声明默认应可用。AuraToolsExp 存在时，可以根据工具本地设置决定工具侧有效行为，但不得回写或夺取 SunExp 的 owner-qualified 注册项。
+Terrias 单独使用时，其内容声明默认应可用。AuraToolsExp 存在时，可以根据工具本地设置决定工具侧有效行为，但不得回写或夺取 Terrias 的 owner-qualified 注册项。
 
 当前 Entry 注册的共享功能默认值包括：
 
-- `SunExp / Battle.StartTraitBuffs = true`；
-- `SunExp / SolarMemory = true`。
+- `Terrias / Battle.StartTraitBuffs = true`；
+- `Terrias / SolarMemory = true`。
 
 这些是注册默认值，不等于所有玩家机器上的最终工具覆盖值。
 
@@ -234,7 +234,7 @@ server-bound RPC 必须从服务器接收上下文绑定 sender。payload budget
 
 - 全局核心校验 protocol/min protocol/必要方法。
 - domain provider identity 或网络协议变化时需要 build/protocol 版本处理。
-- 不兼容的共享组件应禁用对应服务并记录原因，不应中止无关 SunExp 初始化。
+- 不兼容的共享组件应禁用对应服务并记录原因，不应中止无关 Terrias 初始化。
 
 ### 10.2 DLL 一致性
 
@@ -245,18 +245,18 @@ server-bound RPC 必须从服务器接收上下文绑定 sender。payload budget
 3. 运行共享架构、核心、RPC authority 和发布门禁；
 4. 运行 `Test-SharedDllPackaging.ps1` 检查哈希。
 
-顶层验证入口是 `tools/Test-SharedReleaseGate.ps1`。只验证 `SunExp.Aura.dll` 能编译，不能证明共享发布完成。
+顶层验证入口是 `tools/Test-SharedReleaseGate.ps1`。只验证 `Terrias.Aura.dll` 能编译，不能证明共享发布完成。
 
 ## 11. 判断能力应放在哪里
 
 | 问题 | 归属 |
 | --- | --- |
-| 只有 SunExp 内容知道的规则？ | SunExp Mechanics/Runtime |
-| 对 Witch API 的兼容包装？ | SunExp GameApi 或共享组件自己的 adapter |
+| 只有 Terrias 内容知道的规则？ | Terrias Mechanics/Runtime |
+| 对 Witch API 的兼容包装？ | Terrias GameApi 或共享组件自己的 adapter |
 | 多个 MOD 都需要且可移除业务语义？ | Aura 核心或共享领域候选 |
 | 注册、存储、包、通用 Hook/调度？ | Aura 核心层 |
 | Journey/Audio/CG/Skin 的冲突策略？ | 对应 Aura 共享领域层 |
 | 工具 UI、预览、导入导出、本地覆盖？ | AuraToolsExp |
-| SunExp 资源、剧情、卡牌、角色、奖励？ | SunExp |
+| Terrias 资源、剧情、卡牌、角色、奖励？ | Terrias |
 
 共享不是“把代码挪到公共目录”。只有 identity、ownership、protocol、兼容和多消费者发布链都成立时，才算形成共享组件。

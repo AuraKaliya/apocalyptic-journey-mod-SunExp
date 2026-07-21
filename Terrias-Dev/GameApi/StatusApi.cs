@@ -2,9 +2,9 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class StatusApi
 {
@@ -54,7 +54,7 @@ public static class StatusApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("[StatusApi] status role id fallback used: " + ex.Message);
+            TerriasLog.Debug("[StatusApi] status role id fallback used: " + ex.Message);
         }
 
         var local = FightPlayer.Instance?.Status;
@@ -79,7 +79,7 @@ public static class StatusApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[StatusApi] native heal failed: target="
+            TerriasLog.Warn("[StatusApi] native heal failed: target="
                 + (target!.InstanceId ?? "")
                 + ", amount="
                 + amount
@@ -104,7 +104,7 @@ public static class StatusApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[StatusApi] max hp increase failed: " + ex.Message);
+            TerriasLog.Warn("[StatusApi] max hp increase failed: " + ex.Message);
             return false;
         }
     }
@@ -160,7 +160,7 @@ public static class StatusApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[StatusApi] shield grant failed: target="
+            TerriasLog.Warn("[StatusApi] shield grant failed: target="
                 + (target!.InstanceId ?? "")
                 + ", amount="
                 + amount
@@ -194,7 +194,7 @@ public static class StatusApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("Status AddDynamicVariable fallback used: " + ex.Message);
+            TerriasLog.Debug("Status AddDynamicVariable fallback used: " + ex.Message);
         }
 
         status.dynamicVariables ??= new Dictionary<string, float>();
@@ -223,7 +223,7 @@ public static class StatusApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("Native resurrection fallback used by Star Clay Doll: " + ex.Message);
+            TerriasLog.Debug("Native resurrection fallback used by Star Clay Doll: " + ex.Message);
         }
 
         return ManualRestore(status, nextMax);
@@ -245,7 +245,7 @@ public static class StatusApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("Native status.Resurrection unavailable: " + ex.Message);
+            TerriasLog.Debug("Native status.Resurrection unavailable: " + ex.Message);
             return false;
         }
     }
@@ -263,7 +263,7 @@ public static class StatusApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Star Clay Doll manual resurrection failed", ex);
+            TerriasLog.Error("Star Clay Doll manual resurrection failed", ex);
             return false;
         }
     }

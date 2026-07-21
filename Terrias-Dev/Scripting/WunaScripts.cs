@@ -1,27 +1,27 @@
 using System;
 using System.Linq;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 
-namespace SunExp.Dll.Scripting;
+namespace Terrias.Dll.Scripting;
 
 public static class WunaScripts
 {
-    private const string GraveSongCardId = "SunExp_wuna_wuna_grave_song";
+    private const string GraveSongCardId = "Terrias_wuna_wuna_grave_song";
 
     public static void InitCareer(ScriptExecutor self)
     {
         try
         {
-            PlayerApi.SetGameVar(SunExpIds.WunaActive, "1");
-            PlayerApi.SetSkillTime(SunExpIds.WunaWhiteSunPrayerCardId, 0);
+            PlayerApi.SetGameVar(TerriasIds.WunaActive, "1");
+            PlayerApi.SetSkillTime(TerriasIds.WunaWhiteSunPrayerCardId, 0);
             PlayerApi.SetSkillTime(GraveSongCardId, 0);
-            ExecutorApi.SetVar(self, "SunExpWunaRadianceDone", "0");
-            ExecutorApi.SetVar(self, "SunExpWunaPrevEnemyBurn", "0");
+            ExecutorApi.SetVar(self, "TerriasWunaRadianceDone", "0");
+            ExecutorApi.SetVar(self, "TerriasWunaPrevEnemyBurn", "0");
             AttachOrbitFire(self, "InitCareer");
 
-            var token = ExecutorApi.RegisterHook(self, "SunExpWunaCareerHook", "SunExpWunaCareerToken");
+            var token = ExecutorApi.RegisterHook(self, "TerriasWunaCareerHook", "TerriasWunaCareerToken");
             if (token == null)
             {
                 return;
@@ -30,20 +30,20 @@ public static class WunaScripts
             self.SetStatus("Self");
             var fightStartRegistered = ExecutorApi.TryAddEvent(self, "FightStart", new Action(() =>
             {
-                if (!ExecutorApi.IsHookTokenActive(self, "SunExpWunaCareerToken", token))
+                if (!ExecutorApi.IsHookTokenActive(self, "TerriasWunaCareerToken", token))
                 {
                     return;
                 }
 
-                ExecutorApi.SetVar(self, "SunExpWunaRadianceDone", "0");
-                ExecutorApi.SetVar(self, "SunExpWunaPrevEnemyBurn", EnemyBurnTotal(self));
+                ExecutorApi.SetVar(self, "TerriasWunaRadianceDone", "0");
+                ExecutorApi.SetVar(self, "TerriasWunaPrevEnemyBurn", EnemyBurnTotal(self));
                 WunaRoundRadianceState.ResetFight(self.Self);
                 AttachOrbitFire(self, "FightStart");
                 RegisterEnemyBurnListeners(self, token);
             }), "wuna_career");
             var startRoundRegistered = ExecutorApi.TryAddEvent(self, "StartRound", new Action(() =>
             {
-                if (ExecutorApi.IsHookTokenActive(self, "SunExpWunaCareerToken", token))
+                if (ExecutorApi.IsHookTokenActive(self, "TerriasWunaCareerToken", token))
                 {
                     StartRound(self);
                     RegisterEnemyBurnListeners(self, token);
@@ -51,7 +51,7 @@ public static class WunaScripts
             }), "wuna_career");
             var actionRegistered = ExecutorApi.TryAddEvent(self, "Action", new Action(() =>
             {
-                if (ExecutorApi.IsHookTokenActive(self, "SunExpWunaCareerToken", token))
+                if (ExecutorApi.IsHookTokenActive(self, "TerriasWunaCareerToken", token))
                 {
                     RegisterEnemyBurnListeners(self, token);
                 }
@@ -59,14 +59,14 @@ public static class WunaScripts
 
             ExecutorApi.TryAddEvent(self, "Win", new Action(() =>
             {
-                if (ExecutorApi.IsHookTokenActive(self, "SunExpWunaCareerToken", token))
+                if (ExecutorApi.IsHookTokenActive(self, "TerriasWunaCareerToken", token))
                 {
                     SaveAndClearCareerHook(self);
                 }
             }), "wuna_career");
             ExecutorApi.TryAddEvent(self, "Escape", new Action(() =>
             {
-                if (ExecutorApi.IsHookTokenActive(self, "SunExpWunaCareerToken", token))
+                if (ExecutorApi.IsHookTokenActive(self, "TerriasWunaCareerToken", token))
                 {
                     SaveAndClearCareerHook(self);
                 }
@@ -78,11 +78,11 @@ public static class WunaScripts
                 return;
             }
 
-            ExecutorApi.ClearHook(self, "SunExpWunaCareerHook", "SunExpWunaCareerToken");
+            ExecutorApi.ClearHook(self, "TerriasWunaCareerHook", "TerriasWunaCareerToken");
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Wuna InitCareer failed", ex);
+            TerriasLog.Error("Wuna InitCareer failed", ex);
         }
     }
 
@@ -102,7 +102,7 @@ public static class WunaScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Wuna Init failed: " + id, ex);
+            TerriasLog.Error("Wuna Init failed: " + id, ex);
         }
     }
 
@@ -120,14 +120,14 @@ public static class WunaScripts
                     break;
                 case "*wuna_coronation_token":
                     self.SetStatus("Self");
-                    self.AddBuff(SunExpIds.SolarRadiance, "2");
-                    self.AddBuff(SunExpIds.SolarCrown, "2");
+                    self.AddBuff(TerriasIds.SolarRadiance, "2");
+                    self.AddBuff(TerriasIds.SolarCrown, "2");
                     break;
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Wuna Use failed: " + id, ex);
+            TerriasLog.Error("Wuna Use failed: " + id, ex);
         }
     }
 
@@ -144,7 +144,7 @@ public static class WunaScripts
             return;
         }
 
-        var cooldown = PlayerApi.GetSkillTime(SunExpIds.WunaWhiteSunPrayerCardId);
+        var cooldown = PlayerApi.GetSkillTime(TerriasIds.WunaWhiteSunPrayerCardId);
         if (cooldown > 0)
         {
             PlayerApi.ShowCaption("白曜圣祷尚未冷却。");
@@ -154,17 +154,17 @@ public static class WunaScripts
         self.SetStatus("Self");
         AttachOrbitFire(self, "WhiteSunPrayer", "Skill");
         AudioApi.PlayWhiteSunPrayer();
-        var grant = WunaCardGrantService.GrantCoronationTokenToHand(self, SunExpIds.WunaCoronationTokenCardId);
+        var grant = WunaCardGrantService.GrantCoronationTokenToHand(self, TerriasIds.WunaCoronationTokenCardId);
         if (!grant.Success)
         {
-            SunExpLog.Warn("Wuna coronation token grant failed: step=" + grant.FailureStep + ", error=" + grant.FailureReason);
+            TerriasLog.Warn("Wuna coronation token grant failed: step=" + grant.FailureStep + ", error=" + grant.FailureReason);
         }
 
-        var handTagRequested = SunExpCardTagService.RequestBurnoutAndWhiteRadianceForFriendlyHands(self, "Wuna.WhiteSunPrayer");
-        SunExpLog.Info("Wuna white sun prayer hand tag requested=" + handTagRequested);
+        var handTagRequested = TerriasCardTagService.RequestBurnoutAndWhiteRadianceForFriendlyHands(self, "Wuna.WhiteSunPrayer");
+        TerriasLog.Info("Wuna white sun prayer hand tag requested=" + handTagRequested);
         if (!PolymorphCooldownService.MarkSkillUsed(self, "Wuna.WhiteSunPrayer"))
         {
-            PlayerApi.SetSkillTime(SunExpIds.WunaWhiteSunPrayerCardId, 5);
+            PlayerApi.SetSkillTime(TerriasIds.WunaWhiteSunPrayerCardId, 5);
         }
     }
 
@@ -188,7 +188,7 @@ public static class WunaScripts
             return;
         }
 
-        var ember = ExecutorApi.SelfBuffLevel(self, SunExpIds.Ember);
+        var ember = ExecutorApi.SelfBuffLevel(self, TerriasIds.Ember);
         if (ember <= 30)
         {
             PlayerApi.ShowCaption("余烬不足。");
@@ -200,7 +200,7 @@ public static class WunaScripts
         self.SetStatus("Self");
         AttachOrbitFire(self, "GraveSong", "Skill");
         BuffApi.ClearEmberDamageBonus(self, self.Self);
-        self.RemoveBuff(SunExpIds.Ember);
+        self.RemoveBuff(TerriasIds.Ember);
         BuffApi.OnEmberConsumed(self, self.Self, ember);
         if (!PolymorphCooldownService.MarkSkillUsed(self, "Wuna.GraveSong"))
         {
@@ -209,10 +209,10 @@ public static class WunaScripts
         if (burn > 0)
         {
             self.SetStatus("All");
-            self.AddBuff(SunExpIds.Burn, burn.ToString());
+            self.AddBuff(TerriasIds.Burn, burn.ToString());
         }
         self.SetStatus("Self");
-        self.AddBuff(SunExpIds.EmberCloak, "1");
+        self.AddBuff(TerriasIds.EmberCloak, "1");
         ExecutorApi.TriggerBurnAll(self);
     }
 
@@ -229,7 +229,7 @@ public static class WunaScripts
         {
             TickSkillTimes();
         }
-        ExecutorApi.SetVar(self, "SunExpWunaRadianceDone", "0");
+        ExecutorApi.SetVar(self, "TerriasWunaRadianceDone", "0");
 
         var emberGain = AllBurnTotal(self) / 2;
         if (emberGain > 0)
@@ -237,7 +237,7 @@ public static class WunaScripts
             AddEmber(self, emberGain);
         }
 
-        ExecutorApi.SetVar(self, "SunExpWunaPrevEnemyBurn", EnemyBurnTotal(self));
+        ExecutorApi.SetVar(self, "TerriasWunaPrevEnemyBurn", EnemyBurnTotal(self));
     }
 
     private static int SavePersistentEmber(ScriptExecutor self)
@@ -248,12 +248,12 @@ public static class WunaScripts
     private static void SaveAndClearCareerHook(ScriptExecutor self)
     {
         SavePersistentEmber(self);
-        ExecutorApi.ClearHook(self, "SunExpWunaCareerHook", "SunExpWunaCareerToken");
+        ExecutorApi.ClearHook(self, "TerriasWunaCareerHook", "TerriasWunaCareerToken");
     }
 
     private static void TickSkillTimes()
     {
-        TickSkillTime(SunExpIds.WunaWhiteSunPrayerCardId);
+        TickSkillTime(TerriasIds.WunaWhiteSunPrayerCardId);
         TickSkillTime(GraveSongCardId);
     }
 
@@ -268,25 +268,25 @@ public static class WunaScripts
 
     private static int EnemyBurnTotal(ScriptExecutor self)
     {
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         try
         {
-            return ExecutorApi.EnemyTargets(self).Sum(target => ExecutorApi.StatusBuffLevel(target, SunExpIds.Burn));
+            return ExecutorApi.EnemyTargets(self).Sum(target => ExecutorApi.StatusBuffLevel(target, TerriasIds.Burn));
         }
         finally
         {
-            SunExpPerformanceCounters.RecordDuration("WunaRadiance.EnemyBurnTotal", start);
+            TerriasPerformanceCounters.RecordDuration("WunaRadiance.EnemyBurnTotal", start);
         }
     }
 
     private static int AllBurnTotal(ScriptExecutor self)
     {
-        return EnemyBurnTotal(self) + ExecutorApi.SelfBuffLevel(self, SunExpIds.Burn);
+        return EnemyBurnTotal(self) + ExecutorApi.SelfBuffLevel(self, TerriasIds.Burn);
     }
 
     private static int RegisterEnemyBurnListeners(ScriptExecutor self, string token)
     {
-        if (self == null || !ExecutorApi.IsHookTokenActive(self, "SunExpWunaCareerToken", token))
+        if (self == null || !ExecutorApi.IsHookTokenActive(self, "TerriasWunaCareerToken", token))
         {
             return 0;
         }
@@ -302,7 +302,7 @@ public static class WunaScripts
                     continue;
                 }
 
-                var listenerKey = "SunExpWunaBurnListener_" + targetId + "_" + token;
+                var listenerKey = "TerriasWunaBurnListener_" + targetId + "_" + token;
                 if (ExecutorApi.GetVar(self, listenerKey, "0") == "1")
                 {
                     continue;
@@ -310,7 +310,7 @@ public static class WunaScripts
 
                 ExecutorApi.SetVar(self, listenerKey, "1");
                 EventCenter.Instance.AddEventListener(
-                    SunExpIds.Burn + "OnLevelChange" + targetId,
+                    TerriasIds.Burn + "OnLevelChange" + targetId,
                     new Action(() => OnEnemyBurnChanged(self, token)),
                     self,
                     EventDispose.OnFightEnd);
@@ -319,44 +319,44 @@ public static class WunaScripts
 
             if (registered > 0)
             {
-                SunExpLog.Debug("[WunaRadiance] registered enemy burn listeners: count=" + registered + ".");
+                TerriasLog.Debug("[WunaRadiance] registered enemy burn listeners: count=" + registered + ".");
             }
 
             return registered;
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("[WunaRadiance] enemy burn listener registration skipped: " + ex.Message);
+            TerriasLog.Debug("[WunaRadiance] enemy burn listener registration skipped: " + ex.Message);
             return 0;
         }
     }
 
     private static void OnEnemyBurnChanged(ScriptExecutor self, string token)
     {
-        if (self?.Self == null || !ExecutorApi.IsHookTokenActive(self, "SunExpWunaCareerToken", token))
+        if (self?.Self == null || !ExecutorApi.IsHookTokenActive(self, "TerriasWunaCareerToken", token))
         {
             return;
         }
 
         var ownerId = self.Self.InstanceId;
-        var enqueued = SunExpFrameDispatcher.RunOnceNextFrame(
+        var enqueued = TerriasFrameDispatcher.RunOnceNextFrame(
             "WunaRadiance.BurnChanged." + ownerId + "." + token,
             () =>
             {
-                var start = SunExpPerformanceCounters.Timestamp();
+                var start = TerriasPerformanceCounters.Timestamp();
                 try
                 {
-                    if (ExecutorApi.IsHookTokenActive(self, "SunExpWunaCareerToken", token))
+                    if (ExecutorApi.IsHookTokenActive(self, "TerriasWunaCareerToken", token))
                     {
                         TryGainRadianceFromEnemyBurn(self);
                     }
                 }
                 finally
                 {
-                    SunExpPerformanceCounters.RecordDuration("WunaRadiance.BurnChanged.Action", start);
+                    TerriasPerformanceCounters.RecordDuration("WunaRadiance.BurnChanged.Action", start);
                 }
             });
-        SunExpPerformanceCounters.Record(enqueued
+        TerriasPerformanceCounters.Record(enqueued
             ? "WunaRadiance.BurnChanged.Enqueued"
             : "WunaRadiance.BurnChanged.Deduped");
     }
@@ -369,7 +369,7 @@ public static class WunaScripts
         }
 
         self.SetStatus("Self");
-        self.AddBuff(SunExpIds.Ember, amount.ToString());
+        self.AddBuff(TerriasIds.Ember, amount.ToString());
         var level = ClampEmber(self);
         BuffApi.SyncEmberDamageBonus(self, self.Self);
         return level;
@@ -382,7 +382,7 @@ public static class WunaScripts
             return 0;
         }
 
-        var ember = self.Self.GetBuff(SunExpIds.Ember);
+        var ember = self.Self.GetBuff(TerriasIds.Ember);
         if (ember?.buffConfig == null)
         {
             return 0;
@@ -401,7 +401,7 @@ public static class WunaScripts
         {
             BuffApi.ClearEmberDamageBonus(self, self.Self);
             self.SetStatus("Self");
-            self.RemoveBuff(SunExpIds.Ember);
+            self.RemoveBuff(TerriasIds.Ember);
             SetPersistentEmber(self, 0);
             return 0;
         }
@@ -412,7 +412,7 @@ public static class WunaScripts
 
     private static bool TryGainRadianceFromEnemyBurn(ScriptExecutor self)
     {
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         try
         {
             if (!IsWunaRuntimeActive())
@@ -426,8 +426,8 @@ public static class WunaScripts
             }
 
             var current = EnemyBurnTotal(self);
-            var previous = DictionaryUtil.ParseInt(ExecutorApi.GetVar(self, "SunExpWunaPrevEnemyBurn", current.ToString()));
-            ExecutorApi.SetVar(self, "SunExpWunaPrevEnemyBurn", current);
+            var previous = DictionaryUtil.ParseInt(ExecutorApi.GetVar(self, "TerriasWunaPrevEnemyBurn", current.ToString()));
+            ExecutorApi.SetVar(self, "TerriasWunaPrevEnemyBurn", current);
             if (current <= previous
                 || !WunaRoundRadianceState.TryMarkTriggered(self.Self, "WunaScripts.TryGainRadianceFromEnemyBurn"))
             {
@@ -435,22 +435,22 @@ public static class WunaScripts
             }
 
             self.SetStatus("Self");
-            var addBuffStart = SunExpPerformanceCounters.Timestamp();
+            var addBuffStart = TerriasPerformanceCounters.Timestamp();
             try
             {
-                self.AddBuff(SunExpIds.SolarRadiance, "1");
+                self.AddBuff(TerriasIds.SolarRadiance, "1");
             }
             finally
             {
-                SunExpPerformanceCounters.RecordDuration("WunaRadiance.AddSolarRadiance", addBuffStart);
+                TerriasPerformanceCounters.RecordDuration("WunaRadiance.AddSolarRadiance", addBuffStart);
             }
 
-            ExecutorApi.SetVar(self, "SunExpWunaRadianceDone", "1");
+            ExecutorApi.SetVar(self, "TerriasWunaRadianceDone", "1");
             return true;
         }
         finally
         {
-            SunExpPerformanceCounters.RecordDuration("WunaRadiance.TryGainRadianceFromEnemyBurn", start);
+            TerriasPerformanceCounters.RecordDuration("WunaRadiance.TryGainRadianceFromEnemyBurn", start);
         }
     }
 

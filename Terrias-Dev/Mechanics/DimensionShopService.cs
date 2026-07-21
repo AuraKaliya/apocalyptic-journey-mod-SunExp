@@ -3,13 +3,13 @@ using System.Collections.Generic;
 using System.Linq;
 using AuraGameData.Shared.GameApi;
 using Data.Save;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 using Witch;
 using Witch.Core;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public enum DimensionShopItemState
 {
@@ -103,14 +103,14 @@ public static class DimensionShopService
             var save = GameSaveManager.GetNowSave() ?? GameEntryUI.selectedSave;
             if (save != null)
             {
-                return string.Equals(save.modeType, SunExpIds.NativeNormalModeType, StringComparison.OrdinalIgnoreCase)
-                       && !IsFlagSet(save.GameVars, SunExpIds.SolarMemoryModeKey)
-                       && !IsFlagSet(save.GameVars, SunExpIds.EndlessSeaModeKey);
+                return string.Equals(save.modeType, TerriasIds.NativeNormalModeType, StringComparison.OrdinalIgnoreCase)
+                       && !IsFlagSet(save.GameVars, TerriasIds.SolarMemoryModeKey)
+                       && !IsFlagSet(save.GameVars, TerriasIds.EndlessSeaModeKey);
             }
 
             return MapManager.Instance?.ModeMapManager is NormalMapManager
-                   && GameSaveManager.GetValue<string>(SunExpIds.SolarMemoryModeKey) != "1"
-                   && GameSaveManager.GetValue<string>(SunExpIds.EndlessSeaModeKey) != "1";
+                   && GameSaveManager.GetValue<string>(TerriasIds.SolarMemoryModeKey) != "1"
+                   && GameSaveManager.GetValue<string>(TerriasIds.EndlessSeaModeKey) != "1";
         }
         catch
         {
@@ -133,25 +133,25 @@ public static class DimensionShopService
 
         if (!AuraGameDataHostApi.IsNativeCatalogReady)
         {
-            SunExpLog.Debug("[DimensionShop] deferred run snapshot until game-data catalog is ready: " + source);
+            TerriasLog.Debug("[DimensionShop] deferred run snapshot until game-data catalog is ready: " + source);
             return false;
         }
 
         save.GameVars ??= new Dictionary<string, string>();
-        if (IsFlagSet(save.GameVars, SunExpIds.DimensionShopRunInitializedKey))
+        if (IsFlagSet(save.GameVars, TerriasIds.DimensionShopRunInitializedKey))
         {
             return true;
         }
 
         var cards = BuildCardPool();
         var relics = BuildRelicPool();
-        save.GameVars[SunExpIds.DimensionShopRunSeedKey] = string.IsNullOrWhiteSpace(save.Seed)
+        save.GameVars[TerriasIds.DimensionShopRunSeedKey] = string.IsNullOrWhiteSpace(save.Seed)
             ? GameSaveManager.GetSeed().ToString()
             : save.Seed;
-        save.GameVars[SunExpIds.DimensionShopCardPoolKey] = JoinIds(cards);
-        save.GameVars[SunExpIds.DimensionShopRelicPoolKey] = JoinIds(relics);
-        save.GameVars[SunExpIds.DimensionShopRunInitializedKey] = "1";
-        SunExpLog.Info("[DimensionShop] run snapshot initialized from "
+        save.GameVars[TerriasIds.DimensionShopCardPoolKey] = JoinIds(cards);
+        save.GameVars[TerriasIds.DimensionShopRelicPoolKey] = JoinIds(relics);
+        save.GameVars[TerriasIds.DimensionShopRunInitializedKey] = "1";
+        TerriasLog.Info("[DimensionShop] run snapshot initialized from "
                        + source
                        + "; cards="
                        + cards.Count
@@ -165,9 +165,9 @@ public static class DimensionShopService
     {
         EnsurePlayerState("View");
         var config = DimensionShopConfigStore.Current;
-        var cardId = PlayerValue(SunExpIds.DimensionShopCurrentCardKey);
-        var relicId = PlayerValue(SunExpIds.DimensionShopCurrentRelicKey);
-        var cardBought = PlayerValue(SunExpIds.DimensionShopCardBoughtKey) == "1";
+        var cardId = PlayerValue(TerriasIds.DimensionShopCurrentCardKey);
+        var relicId = PlayerValue(TerriasIds.DimensionShopCurrentRelicKey);
+        var cardBought = PlayerValue(TerriasIds.DimensionShopCardBoughtKey) == "1";
         var boughtRelics = BoughtRelics();
         var truth = DimensionShopGameApi.TruthBalance();
 
@@ -176,7 +176,7 @@ public static class DimensionShopService
             Gold = DimensionShopGameApi.GoldBalance(),
             Truth = truth,
             RefreshPrice = config.RefreshPrice,
-            RefreshCount = PlayerInt(SunExpIds.DimensionShopRefreshCountKey),
+            RefreshCount = PlayerInt(TerriasIds.DimensionShopRefreshCountKey),
             CanRefresh = truth >= config.RefreshPrice && (CardPool().Count > 0 || EligibleRelics(boughtRelics).Count > 0),
             Card = BuildItem(
                 DataType.Card,
@@ -206,8 +206,8 @@ public static class DimensionShopService
         try
         {
             EnsurePlayerState("BuyCard");
-            var cardId = PlayerValue(SunExpIds.DimensionShopCurrentCardKey);
-            if (string.IsNullOrWhiteSpace(cardId) || PlayerValue(SunExpIds.DimensionShopCardBoughtKey) == "1")
+            var cardId = PlayerValue(TerriasIds.DimensionShopCurrentCardKey);
+            if (string.IsNullOrWhiteSpace(cardId) || PlayerValue(TerriasIds.DimensionShopCardBoughtKey) == "1")
             {
                 message = "\u5f53\u524d\u5361\u724c\u5df2\u65e0\u6cd5\u8d2d\u4e70\u3002";
                 return false;
@@ -220,10 +220,10 @@ public static class DimensionShopService
                 return false;
             }
 
-            SetPlayerValue(SunExpIds.DimensionShopCardBoughtKey, "1");
+            SetPlayerValue(TerriasIds.DimensionShopCardBoughtKey, "1");
             if (!DimensionShopGameApi.TryGrantCardToReserve(cardId, out var error))
             {
-                SetPlayerValue(SunExpIds.DimensionShopCardBoughtKey, "0");
+                SetPlayerValue(TerriasIds.DimensionShopCardBoughtKey, "0");
                 DimensionShopGameApi.RefundTruth(price);
                 message = error == "reserve is full"
                     ? "\u5361\u724c\u4ed3\u5e93\u5df2\u6ee1\uff0c\u65e0\u6cd5\u8d2d\u4e70\u3002"
@@ -260,7 +260,7 @@ public static class DimensionShopService
         try
         {
             EnsurePlayerState("BuyRelic");
-            var relicId = PlayerValue(SunExpIds.DimensionShopCurrentRelicKey);
+            var relicId = PlayerValue(TerriasIds.DimensionShopCurrentRelicKey);
             var bought = BoughtRelics();
             if (string.IsNullOrWhiteSpace(relicId))
             {
@@ -288,11 +288,11 @@ public static class DimensionShopService
             }
 
             bought.Add(Canonical(relicId));
-            SetPlayerValue(SunExpIds.DimensionShopBoughtRelicsKey, JoinIds(bought));
+            SetPlayerValue(TerriasIds.DimensionShopBoughtRelicsKey, JoinIds(bought));
             if (!DimensionShopGameApi.TryGrantRelicToWarehouse(relicId, out _))
             {
                 bought.Remove(Canonical(relicId));
-                SetPlayerValue(SunExpIds.DimensionShopBoughtRelicsKey, JoinIds(bought));
+                SetPlayerValue(TerriasIds.DimensionShopBoughtRelicsKey, JoinIds(bought));
                 DimensionShopGameApi.RefundTruth(price);
                 message = "\u9057\u7269\u53d1\u653e\u5931\u8d25\uff0c\u672a\u6263\u9664\u771f\u7406\u4e4b\u6676\u3002";
                 return false;
@@ -343,12 +343,12 @@ public static class DimensionShopService
                 return false;
             }
 
-            var next = PlayerInt(SunExpIds.DimensionShopRefreshCountKey) + 1;
+            var next = PlayerInt(TerriasIds.DimensionShopRefreshCountKey) + 1;
             var seed = RunSeed() + "|" + DimensionShopGameApi.LocalPlayerScope();
-            SetPlayerValue(SunExpIds.DimensionShopRefreshCountKey, next.ToString());
-            SetPlayerValue(SunExpIds.DimensionShopCurrentCardKey, Pick(cards, seed, "refresh.card", next));
-            SetPlayerValue(SunExpIds.DimensionShopCurrentRelicKey, Pick(relics, seed, "refresh.relic", next));
-            SetPlayerValue(SunExpIds.DimensionShopCardBoughtKey, "0");
+            SetPlayerValue(TerriasIds.DimensionShopRefreshCountKey, next.ToString());
+            SetPlayerValue(TerriasIds.DimensionShopCurrentCardKey, Pick(cards, seed, "refresh.card", next));
+            SetPlayerValue(TerriasIds.DimensionShopCurrentRelicKey, Pick(relics, seed, "refresh.relic", next));
+            SetPlayerValue(TerriasIds.DimensionShopCardBoughtKey, "0");
             DimensionShopGameApi.PersistRole("DimensionShop.Refresh");
             message = "\u8d27\u67b6\u5df2\u5237\u65b0\u3002";
             return true;
@@ -372,19 +372,19 @@ public static class DimensionShopService
         }
 
         role.SpecialVarMap ??= new Dictionary<string, string>();
-        if (role.SpecialVarMap.TryGetValue(SunExpIds.DimensionShopPlayerInitializedKey, out var initialized)
+        if (role.SpecialVarMap.TryGetValue(TerriasIds.DimensionShopPlayerInitializedKey, out var initialized)
             && initialized == "1")
         {
             return;
         }
 
         var seed = RunSeed();
-        SetPlayerValue(SunExpIds.DimensionShopCurrentCardKey, Pick(CardPool(), seed, "initial.card", 0));
-        SetPlayerValue(SunExpIds.DimensionShopCurrentRelicKey, Pick(RelicPool(), seed, "initial.relic", 0));
-        SetPlayerValue(SunExpIds.DimensionShopCardBoughtKey, "0");
-        SetPlayerValue(SunExpIds.DimensionShopRefreshCountKey, "0");
-        SetPlayerValue(SunExpIds.DimensionShopBoughtRelicsKey, "");
-        SetPlayerValue(SunExpIds.DimensionShopPlayerInitializedKey, "1");
+        SetPlayerValue(TerriasIds.DimensionShopCurrentCardKey, Pick(CardPool(), seed, "initial.card", 0));
+        SetPlayerValue(TerriasIds.DimensionShopCurrentRelicKey, Pick(RelicPool(), seed, "initial.relic", 0));
+        SetPlayerValue(TerriasIds.DimensionShopCardBoughtKey, "0");
+        SetPlayerValue(TerriasIds.DimensionShopRefreshCountKey, "0");
+        SetPlayerValue(TerriasIds.DimensionShopBoughtRelicsKey, "");
+        SetPlayerValue(TerriasIds.DimensionShopPlayerInitializedKey, "1");
         DimensionShopGameApi.PersistRole("DimensionShop.PlayerInitialize");
     }
 
@@ -449,7 +449,7 @@ public static class DimensionShopService
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[DimensionShop] card sale failed", ex);
+            TerriasLog.Error("[DimensionShop] card sale failed", ex);
             message = "\u5361\u724c\u51fa\u552e\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002";
             return false;
         }
@@ -505,7 +505,7 @@ public static class DimensionShopService
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[DimensionShop] relic sale failed", ex);
+            TerriasLog.Error("[DimensionShop] relic sale failed", ex);
             message = "\u9057\u7269\u51fa\u552e\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002";
             return false;
         }
@@ -550,7 +550,7 @@ public static class DimensionShopService
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[DimensionShop] relic unequip failed", ex);
+            TerriasLog.Error("[DimensionShop] relic unequip failed", ex);
             message = "\u9057\u7269\u8131\u4e0b\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002";
             return false;
         }
@@ -578,7 +578,7 @@ public static class DimensionShopService
                 DimensionShopItemState.Empty);
         }
 
-        var row = SunExpConfigIndex.Row(type, id);
+        var row = TerriasConfigIndex.Row(type, id);
         if (row == null)
         {
             return EmptyItem(price, "\u5546\u54c1\u6570\u636e\u4e0d\u53ef\u7528", DimensionShopItemState.Unavailable);
@@ -815,7 +815,7 @@ public static class DimensionShopService
         var packs = new HashSet<string>(config.CardPackIds, StringComparer.OrdinalIgnoreCase);
         var excluded = new HashSet<string>(config.ExcludeCardIds.Select(CardApi.ResolveCardId), StringComparer.Ordinal);
         var result = new HashSet<string>(StringComparer.Ordinal);
-        foreach (var row in SunExpConfigIndex.Rows(DataType.Card))
+        foreach (var row in TerriasConfigIndex.Rows(DataType.Card))
         {
             var id = DictionaryUtil.Get(row, "Id");
             var pack = DictionaryUtil.Get(row, "PackBelong");
@@ -837,7 +837,7 @@ public static class DimensionShopService
         {
             if (!string.IsNullOrWhiteSpace(id)
                 && !excluded.Contains(id)
-                && SunExpConfigIndex.Row(DataType.Card, id) != null)
+                && TerriasConfigIndex.Row(DataType.Card, id) != null)
             {
                 result.Add(id);
             }
@@ -849,7 +849,7 @@ public static class DimensionShopService
     private static List<string> BuildRelicPool()
     {
         return DimensionShopConfigStore.Current.RelicIds
-            .Where(id => !string.IsNullOrWhiteSpace(id) && SunExpConfigIndex.Row(DataType.Relic, id) != null)
+            .Where(id => !string.IsNullOrWhiteSpace(id) && TerriasConfigIndex.Row(DataType.Relic, id) != null)
             .Select(Canonical)
             .Distinct(StringComparer.Ordinal)
             .OrderBy(id => id, StringComparer.Ordinal)
@@ -858,12 +858,12 @@ public static class DimensionShopService
 
     private static List<string> CardPool()
     {
-        return RunIds(SunExpIds.DimensionShopCardPoolKey, DataType.Card);
+        return RunIds(TerriasIds.DimensionShopCardPoolKey, DataType.Card);
     }
 
     private static List<string> RelicPool()
     {
-        return RunIds(SunExpIds.DimensionShopRelicPoolKey, DataType.Relic);
+        return RunIds(TerriasIds.DimensionShopRelicPoolKey, DataType.Relic);
     }
 
     private static List<string> EligibleRelics(HashSet<string> bought)
@@ -883,7 +883,7 @@ public static class DimensionShopService
         }
 
         return SplitIds(value)
-            .Where(id => SunExpConfigIndex.Row(type, id) != null)
+            .Where(id => TerriasConfigIndex.Row(type, id) != null)
             .ToList();
     }
 
@@ -891,7 +891,7 @@ public static class DimensionShopService
     {
         var save = GameSaveManager.GetNowSave() ?? GameEntryUI.selectedSave;
         if (save?.GameVars != null
-            && save.GameVars.TryGetValue(SunExpIds.DimensionShopRunSeedKey, out var seed)
+            && save.GameVars.TryGetValue(TerriasIds.DimensionShopRunSeedKey, out var seed)
             && !string.IsNullOrWhiteSpace(seed))
         {
             return seed;
@@ -909,7 +909,7 @@ public static class DimensionShopService
     private static HashSet<string> BoughtRelics()
     {
         return new HashSet<string>(
-            SplitIds(PlayerValue(SunExpIds.DimensionShopBoughtRelicsKey)).Select(Canonical),
+            SplitIds(PlayerValue(TerriasIds.DimensionShopBoughtRelicsKey)).Select(Canonical),
             StringComparer.Ordinal);
     }
 
@@ -938,7 +938,7 @@ public static class DimensionShopService
 
     private static string DisplayName(DataType type, string id)
     {
-        var row = SunExpConfigIndex.Row(type, id);
+        var row = TerriasConfigIndex.Row(type, id);
         return row == null ? id : Localized(row, "Name", id);
     }
 
@@ -963,7 +963,7 @@ public static class DimensionShopService
             return false;
         }
 
-        const string prefix = "SunExp_sunexp_";
+        const string prefix = "Terrias_terrias_";
         return string.Equals(rowPack, sourcePack, StringComparison.OrdinalIgnoreCase)
                || string.Equals(rowPack, prefix + sourcePack, StringComparison.OrdinalIgnoreCase)
                || sourcePack.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)

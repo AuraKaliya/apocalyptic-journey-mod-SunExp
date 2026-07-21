@@ -1,12 +1,12 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 
-namespace SunExp.Dll.Hooks.Visual;
+namespace Terrias.Dll.Hooks.Visual;
 
 public static class ProjectionAttachmentPresenter
 {
@@ -52,7 +52,7 @@ public static class ProjectionAttachmentPresenter
                 proxy.SetActive(active);
             }
 
-            SunExpLog.Debug("[ProjectionAttachment] owner visibility=" + active
+            TerriasLog.Debug("[ProjectionAttachment] owner visibility=" + active
                 + ", owner=" + owner.InstanceId + ", source=" + source);
         }
     }
@@ -76,7 +76,7 @@ public static class ProjectionAttachmentPresenter
             var projectionCollider = projection.transform.GetComponent<BoxCollider>();
             if (ownerRenderer == null || sourceRenderer == null || projectionCollider == null)
             {
-                SunExpLog.Warn("[ProjectionAttachment] visual proxy prerequisites unavailable: status="
+                TerriasLog.Warn("[ProjectionAttachment] visual proxy prerequisites unavailable: status="
                     + state.StatusId);
                 return;
             }
@@ -84,7 +84,7 @@ public static class ProjectionAttachmentPresenter
             var status = projection.Status as StatusManager;
             status?.statusBarObj?.SetActive(false);
 
-            proxy = new GameObject("SunExp_ProjectionVisualProxy:" + state.StatusId);
+            proxy = new GameObject("Terrias_ProjectionVisualProxy:" + state.StatusId);
             CompanionSceneApi.MoveToOwnerScene(proxy, owner.transform.gameObject, "ProjectionAttachment.Attach");
             proxy.transform.position = Vector3.zero;
             proxy.transform.rotation = Quaternion.identity;
@@ -111,7 +111,7 @@ public static class ProjectionAttachmentPresenter
 
             Proxies[state.StatusId] = proxy;
             RefreshByOwner(owner, "Attach");
-            SunExpPerformanceCounters.Record("ProjectionAttachment.ProxyAttached");
+            TerriasPerformanceCounters.Record("ProjectionAttachment.ProxyAttached");
         }
         catch (Exception ex)
         {
@@ -122,7 +122,7 @@ public static class ProjectionAttachmentPresenter
                 UnityEngine.Object.Destroy(proxy);
             }
 
-            SunExpLog.Warn("[ProjectionAttachment] proxy attach failed: " + ex.Message);
+            TerriasLog.Warn("[ProjectionAttachment] proxy attach failed: " + ex.Message);
         }
     }
 
@@ -179,7 +179,7 @@ public static class ProjectionAttachmentPresenter
                 var proxy = visual?.gameObject;
                 if (proxy == null
                     || !proxy.scene.IsValid()
-                    || !proxy.name.StartsWith("SunExp_ProjectionVisualProxy:", StringComparison.Ordinal))
+                    || !proxy.name.StartsWith("Terrias_ProjectionVisualProxy:", StringComparison.Ordinal))
                 {
                     continue;
                 }
@@ -189,7 +189,7 @@ public static class ProjectionAttachmentPresenter
             }
         }
 
-        SunExpLog.Debug("[ProjectionAttachment] cleared from " + source + ": count=" + proxies.Count);
+        TerriasLog.Debug("[ProjectionAttachment] cleared from " + source + ": count=" + proxies.Count);
     }
 
     private static void PlayActionFocus(ProjectionState state)
@@ -309,7 +309,7 @@ internal sealed class ProjectionVisualProxy : MonoBehaviour
         RefreshLocalAabb();
         if (!hasLocalAabb)
         {
-            SunExpLog.Warn("[ProjectionAttachment] projection local AABB unavailable for visual proxy");
+            TerriasLog.Warn("[ProjectionAttachment] projection local AABB unavailable for visual proxy");
             return false;
         }
 
@@ -578,7 +578,7 @@ internal sealed class ProjectionVisualProxy : MonoBehaviour
         {
             synchronizedSprite = sourceRenderer.sprite;
             proxyRenderer.sprite = synchronizedSprite;
-            SunExpPerformanceCounters.Record("ProjectionAttachment.ProxySpriteChanged");
+            TerriasPerformanceCounters.Record("ProjectionAttachment.ProxySpriteChanged");
         }
 
         if (synchronizedMaterial != sourceRenderer.sharedMaterial)
@@ -642,7 +642,7 @@ internal sealed class ProjectionVisualProxy : MonoBehaviour
         lastSortingLayerId = ownerRenderer?.sortingLayerID ?? 0;
         lastSortingOrder = ownerRenderer?.sortingOrder ?? 0;
         hasLayoutSnapshot = true;
-        SunExpPerformanceCounters.Record("ProjectionAttachment.ProxyLayoutApplied");
+        TerriasPerformanceCounters.Record("ProjectionAttachment.ProxyLayoutApplied");
     }
 
     private bool TryOwnerBounds(out Bounds bounds)
@@ -825,8 +825,8 @@ internal sealed class ProjectionVisualProxy : MonoBehaviour
         if (!warnedInvalidLayout)
         {
             warnedInvalidLayout = true;
-            SunExpLog.Warn("[ProjectionAttachment] visual proxy layout skipped: " + reason);
-            SunExpPerformanceCounters.Record("ProjectionAttachment.ProxyLayoutSkipped");
+            TerriasLog.Warn("[ProjectionAttachment] visual proxy layout skipped: " + reason);
+            TerriasPerformanceCounters.Record("ProjectionAttachment.ProxyLayoutSkipped");
         }
     }
 

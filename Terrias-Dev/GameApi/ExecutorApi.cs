@@ -2,9 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AuraGameData.Shared.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class ExecutorApi
 {
@@ -226,15 +226,15 @@ public static class ExecutorApi
 
     public static bool TriggerBurn(ScriptExecutor? executor, IStatusManager? target, string fallbackStatus = "Target")
     {
-        if (executor == null || target == null || StatusBuffLevel(target, SunExpIds.Burn) <= 0)
+        if (executor == null || target == null || StatusBuffLevel(target, TerriasIds.Burn) <= 0)
         {
             return false;
         }
 
         BuffApi.ConsumeEmberBeforeBurn(executor, target);
-        var stacksAtTrigger = StatusBuffLevel(target, SunExpIds.Burn);
+        var stacksAtTrigger = StatusBuffLevel(target, TerriasIds.Burn);
         SetStatusForTarget(executor, target, fallbackStatus);
-        BurnTriggerApi.ExecuteImmediate(() => executor.RunImmediately(SunExpIds.Burn, "StartRound"));
+        BurnTriggerApi.ExecuteImmediate(() => executor.RunImmediately(TerriasIds.Burn, "StartRound"));
         BurnTriggerApi.NotifyActual(target, stacksAtTrigger, "ExecutorApi.TriggerBurn");
         return true;
     }
@@ -253,16 +253,16 @@ public static class ExecutorApi
             var targets = EnemyTargets(executor).ToArray();
             var stacks = targets.ToDictionary(
                 target => target.InstanceId,
-                target => StatusBuffLevel(target, SunExpIds.Burn),
+                target => StatusBuffLevel(target, TerriasIds.Burn),
                 StringComparer.Ordinal);
             foreach (var target in targets)
             {
                 BuffApi.ConsumeEmberBeforeBurn(executor, target);
-                stacks[target.InstanceId] = StatusBuffLevel(target, SunExpIds.Burn);
+                stacks[target.InstanceId] = StatusBuffLevel(target, TerriasIds.Burn);
             }
 
             executor.SetStatus("AllTarget");
-            BurnTriggerApi.ExecuteImmediate(() => executor.RunImmediately(SunExpIds.Burn, "StartRound"));
+            BurnTriggerApi.ExecuteImmediate(() => executor.RunImmediately(TerriasIds.Burn, "StartRound"));
             foreach (var target in targets)
             {
                 BurnTriggerApi.NotifyActual(target, stacks[target.InstanceId], "ExecutorApi.TriggerBurnAllEnemies");
@@ -288,16 +288,16 @@ public static class ExecutorApi
             var targets = (executor.Object ?? new List<IStatusManager>()).ToArray();
             var stacks = targets.ToDictionary(
                 target => target.InstanceId,
-                target => StatusBuffLevel(target, SunExpIds.Burn),
+                target => StatusBuffLevel(target, TerriasIds.Burn),
                 StringComparer.Ordinal);
             foreach (var target in targets)
             {
                 BuffApi.ConsumeEmberBeforeBurn(executor, target);
-                stacks[target.InstanceId] = StatusBuffLevel(target, SunExpIds.Burn);
+                stacks[target.InstanceId] = StatusBuffLevel(target, TerriasIds.Burn);
             }
 
             executor.SetStatus("All");
-            BurnTriggerApi.ExecuteImmediate(() => executor.RunImmediately(SunExpIds.Burn, "StartRound"));
+            BurnTriggerApi.ExecuteImmediate(() => executor.RunImmediately(TerriasIds.Burn, "StartRound"));
             foreach (var target in targets)
             {
                 BurnTriggerApi.NotifyActual(target, stacks[target.InstanceId], "ExecutorApi.TriggerBurnAll");
@@ -317,12 +317,12 @@ public static class ExecutorApi
 
         if (IsSelfBurnProtected(executor, includePending))
         {
-            RemoveStatusBuff(executor, executor.Self, SunExpIds.Burn);
+            RemoveStatusBuff(executor, executor.Self, TerriasIds.Burn);
             return false;
         }
 
         executor.SetStatus("Self");
-        executor.AddBuff(SunExpIds.Burn, amount.ToString());
+        executor.AddBuff(TerriasIds.Burn, amount.ToString());
         return true;
     }
 
@@ -333,7 +333,7 @@ public static class ExecutorApi
             return false;
         }
 
-        RemoveStatusBuff(executor, executor.Self, SunExpIds.Burn);
+        RemoveStatusBuff(executor, executor.Self, TerriasIds.Burn);
         return true;
     }
 
@@ -344,13 +344,13 @@ public static class ExecutorApi
             return false;
         }
 
-        var ward = executor.Self.GetBuff(SunExpIds.EmberCloak);
+        var ward = executor.Self.GetBuff(TerriasIds.EmberCloak);
         if (ward?.buffConfig != null && ward.buffConfig.Level > 0)
         {
             return true;
         }
 
-        return includePending && GetVar(executor, "SunExpBurnWardPending", "0") == "1";
+        return includePending && GetVar(executor, "TerriasBurnWardPending", "0") == "1";
     }
 
     public static void ApplyFieldBuff(ScriptExecutor? executor, string fieldId, int amount, string intentId = "")
@@ -363,7 +363,7 @@ public static class ExecutorApi
         FieldApi.ActivateField(executor, fieldId, amount, source);
     }
 
-    public static void ActivateField(ScriptExecutor? executor, SunExpFieldId field, int amount, string source = "")
+    public static void ActivateField(ScriptExecutor? executor, TerriasFieldId field, int amount, string source = "")
     {
         FieldApi.ActivateField(executor, field, amount, source);
     }
@@ -378,7 +378,7 @@ public static class ExecutorApi
         return FieldApi.TryClearActiveField(source, fieldId);
     }
 
-    public static bool TryClearActiveField(ScriptExecutor? executor, SunExpFieldId field, string source = "")
+    public static bool TryClearActiveField(ScriptExecutor? executor, TerriasFieldId field, string source = "")
     {
         return FieldApi.TryClearActiveField(source, field);
     }
@@ -393,7 +393,7 @@ public static class ExecutorApi
         return FieldApi.FieldBuffId(fieldId);
     }
 
-    public static string FieldBuffId(SunExpFieldId field)
+    public static string FieldBuffId(TerriasFieldId field)
     {
         return FieldApi.FieldBuffId(field);
     }
@@ -403,17 +403,17 @@ public static class ExecutorApi
         return FieldApi.FieldCombatKey(fieldId, name);
     }
 
-    public static string FieldCombatKey(SunExpFieldId field, string name)
+    public static string FieldCombatKey(TerriasFieldId field, string name)
     {
         return FieldApi.FieldCombatKey(field, name);
     }
 
-    public static string FieldSlug(SunExpFieldId field)
+    public static string FieldSlug(TerriasFieldId field)
     {
         return FieldApi.FieldSlug(field);
     }
 
-    public static SunExpFieldId ParseFieldId(string fieldId)
+    public static TerriasFieldId ParseFieldId(string fieldId)
     {
         return FieldApi.ParseFieldId(fieldId);
     }
@@ -423,7 +423,7 @@ public static class ExecutorApi
         FieldApi.SetSharedFieldState(fieldId, stacks);
     }
 
-    public static void SetSharedFieldState(SunExpFieldId field, int stacks)
+    public static void SetSharedFieldState(TerriasFieldId field, int stacks)
     {
         FieldApi.SetSharedFieldState(field, stacks);
     }
@@ -433,7 +433,7 @@ public static class ExecutorApi
         return FieldApi.IsSharedFieldActive(fieldId);
     }
 
-    public static bool IsSharedFieldActive(SunExpFieldId field)
+    public static bool IsSharedFieldActive(TerriasFieldId field)
     {
         return FieldApi.IsSharedFieldActive(field);
     }
@@ -443,7 +443,7 @@ public static class ExecutorApi
         return FieldApi.FieldStacks(fieldId);
     }
 
-    public static int FieldStacks(SunExpFieldId field)
+    public static int FieldStacks(TerriasFieldId field)
     {
         return FieldApi.FieldStacks(field);
     }
@@ -453,7 +453,7 @@ public static class ExecutorApi
         return FieldApi.SyncFieldStacks(executor, fieldId);
     }
 
-    public static int SyncFieldStacks(ScriptExecutor? executor, SunExpFieldId field)
+    public static int SyncFieldStacks(ScriptExecutor? executor, TerriasFieldId field)
     {
         return FieldApi.SyncFieldStacks(executor, field);
     }
@@ -463,7 +463,7 @@ public static class ExecutorApi
         return FieldApi.SetActiveField(executor, fieldId);
     }
 
-    public static int SetActiveField(ScriptExecutor? executor, SunExpFieldId field)
+    public static int SetActiveField(ScriptExecutor? executor, TerriasFieldId field)
     {
         return FieldApi.SetActiveField(executor, field);
     }
@@ -473,7 +473,7 @@ public static class ExecutorApi
         return FieldApi.BeginSharedFieldStartRound(executor, fieldId);
     }
 
-    public static bool BeginSharedFieldStartRound(ScriptExecutor? executor, SunExpFieldId field)
+    public static bool BeginSharedFieldStartRound(ScriptExecutor? executor, TerriasFieldId field)
     {
         return FieldApi.BeginSharedFieldStartRound(executor, field);
     }
@@ -483,7 +483,7 @@ public static class ExecutorApi
         return FieldApi.IsActiveField(executor, fieldId, epoch, token);
     }
 
-    public static bool IsActiveField(ScriptExecutor? executor, SunExpFieldId field, int? epoch = null, string? token = null)
+    public static bool IsActiveField(ScriptExecutor? executor, TerriasFieldId field, int? epoch = null, string? token = null)
     {
         return FieldApi.IsActiveField(executor, field, epoch, token);
     }
@@ -500,15 +500,15 @@ public static class ExecutorApi
             return 0;
         }
 
-        var burn = SelfBuffLevel(executor, SunExpIds.Burn);
+        var burn = SelfBuffLevel(executor, TerriasIds.Burn);
         if (burn <= 0)
         {
             return 0;
         }
 
         var target = RandomFriendlyTarget(executor, true) ?? executor.Self;
-        RemoveStatusBuff(executor, executor.Self, SunExpIds.Burn, "Self");
-        AddStatusBuff(executor, target, SunExpIds.Burn, burn, "Self");
+        RemoveStatusBuff(executor, executor.Self, TerriasIds.Burn, "Self");
+        AddStatusBuff(executor, target, TerriasIds.Burn, burn, "Self");
         return burn;
     }
 
@@ -517,7 +517,7 @@ public static class ExecutorApi
         var target = RandomEnemyTarget(executor, false);
         if (target != null)
         {
-            AddStatusBuff(executor, target, SunExpIds.Burn, amount);
+            AddStatusBuff(executor, target, TerriasIds.Burn, amount);
         }
     }
 
@@ -566,7 +566,7 @@ public static class ExecutorApi
 
     public static int SolarCrownTier(ScriptExecutor? executor)
     {
-        return SelfBuffLevel(executor, SunExpIds.SolarCrownTier);
+        return SelfBuffLevel(executor, TerriasIds.SolarCrownTier);
     }
 
     public static void PrepareSolarRadianceUpperBound(IStatusManager? target, string buffId)

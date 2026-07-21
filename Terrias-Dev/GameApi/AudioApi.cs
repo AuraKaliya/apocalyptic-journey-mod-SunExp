@@ -1,21 +1,21 @@
 using System;
 using AuraAudio.Shared;
 using AudioArbiter.Shared;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.Mod;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class AudioApi
 {
-    private const string ModId = "SunExp";
+    private const string ModId = "Terrias";
     private const string ManifestPath = "audio.registry.json";
     private const string WunaCareerId = "wuna";
     private const string ColumbinaCareerId = "columbina";
-    private const string WhiteSunPrayerKind = "SunExp.Wuna.WhiteSunPrayer";
-    private const string GraveSongKind = "SunExp.Wuna.GraveSong";
-    private const string EternalTideKind = "SunExp.Columbina.EternalTide";
-    private const string HomesicknessKind = "SunExp.Columbina.Homesickness";
+    private const string WhiteSunPrayerKind = "Terrias.Wuna.WhiteSunPrayer";
+    private const string GraveSongKind = "Terrias.Wuna.GraveSong";
+    private const string EternalTideKind = "Terrias.Columbina.EternalTide";
+    private const string HomesicknessKind = "Terrias.Columbina.Homesickness";
 
     private static ModConfig? currentModConfig;
     private static bool initialized;
@@ -24,7 +24,7 @@ public static class AudioApi
     {
         if (modConfig == null)
         {
-            SunExpLog.Warn("Audio initialization skipped: mod config is null");
+            TerriasLog.Warn("Audio initialization skipped: mod config is null");
             return;
         }
 
@@ -39,7 +39,7 @@ public static class AudioApi
         var audio = AuraAudioRuntime.Initialize(modConfig, ModId, ManifestPath);
         if (!audio.Success)
         {
-            SunExpLog.Warn("Audio shared runtime initialization reported issues: " + audio.ErrorMessage);
+            TerriasLog.Warn("Audio shared runtime initialization reported issues: " + audio.ErrorMessage);
         }
 
         BattleBgmProviderRuntime.Initialize(modConfig);
@@ -69,7 +69,7 @@ public static class AudioApi
     {
         if (currentModConfig == null)
         {
-            SunExpLog.Warn("Audio request skipped before initialization: " + label);
+            TerriasLog.Warn("Audio request skipped before initialization: " + label);
             return;
         }
 
@@ -80,7 +80,7 @@ public static class AudioApi
             Kind = kind,
             CareerId = careerId,
             RoleId = careerId,
-            SourceName = "SunExp.AudioApi." + label
+            SourceName = "Terrias.AudioApi." + label
         });
     }
 }

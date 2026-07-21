@@ -90,8 +90,8 @@ RPC authority 专项门禁同步验证迁移后的正向委派和 Component 负�
 - AuraToolsExp：635 项断言通过；
 - Aura.Shared：1228 项公共 API 兼容基线通过；
 - shared write、content/tool/shared、RPC authority 与架构门禁通过；
-- SunExp：架构检查、282 项 C# 断言与内容验证通过；
-- SunExp、SanGuoShaExp、AuraToolsExp 三个消费者均以 0 警告、0 错误构建；
+- Terrias：架构检查、282 项 C# 断言与内容验证通过；
+- Terrias、SanGuoShaExp、AuraToolsExp 三个消费者均以 0 警告、0 错误构建；
 - 完整共享发布矩阵与 DLL 打包检查通过；
 - 构建产物及三个打包副本 SHA-256 一致：`9613BD499416481D98BF5724D4C4E6BA576B8B4C3ABED799D9BA91264B2007B9`。
 

@@ -1,7 +1,7 @@
 # Compatibility And Hook Boundaries
 
 Use this reference when a change touches Managed APIs, game-reference findings,
-hook registration, SunExp-local RPC sender binding, or runtime lifecycle
+hook registration, Terrias-local RPC sender binding, or runtime lifecycle
 actions.
 
 ## Managed Compatibility
@@ -49,8 +49,8 @@ global or cross-status effect.
 ## RPC Sender Binding
 
 Remote RPC authority must come from the server receive context, not from fields
-inside the RPC payload. SunExp server-bound commands should bind a
-`SunExpRpcSender` through `SunExpRpcAuthorityRuntime` and pass that sender into
+inside the RPC payload. Terrias server-bound commands should bind a
+`TerriasRpcSender` through `TerriasRpcAuthorityRuntime` and pass that sender into
 server-side validation.
 
 Host-local direct paths should create a local server sender and use the same
@@ -58,11 +58,11 @@ validation flow as remote RPC paths.
 
 For event-shape classification, payload fields, timing, duplicate suppression,
 and bulk-transfer requirements, load the shared sync scenario model through
-`sunexp-shared-runtime-dev`.
+`terrias-shared-runtime-dev`.
 
 ## Build Output
 
-The project builds as internal assembly `SunExp.Aura` and copies the result to
-`SunExp/Scripts/Entry.dll`. Source edits alone do not change shipped behavior.
+The project builds as internal assembly `Terrias.Aura` and copies the result to
+`Terrias/Scripts/Entry.dll`. Source edits alone do not change shipped behavior.
 Build and C# regression tests must run serially because both can write the same
 DLL output.

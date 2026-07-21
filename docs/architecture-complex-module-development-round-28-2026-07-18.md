@@ -70,7 +70,7 @@ Hook 日志所有者由笼统的 `SolarMemoryMode` 改为 `SolarMemoryMapLifecyc
 - 新文件必须存在且由主 Runtime 初始化；
 - 地图生成和 `ReadyToSelect` Hook 必须位于新协调器；
 - 同步数组修复必须继续委派给 Mechanics；
-- 地图行必须通过 `SunExpConfigIndex` 读取；
+- 地图行必须通过 `TerriasConfigIndex` 读取；
 - 战斗退出和 Boss 转场必须直接复用新协调器；
 - `ShowMap` 表现 Hook 必须调用新协调器；
 - 主 Runtime 禁止重新出现 `RegisterBefore` 或 `MapManager`；
@@ -84,12 +84,12 @@ Hook 日志所有者由笼统的 `SolarMemoryMode` 改为 `SolarMemoryMapLifecyc
 
 本轮已通过：
 
-- SunExp Release 构建：0 警告、0 错误；
-- SunExp 架构断言；
-- SunExp C#：312 项行为断言与源码护栏；
+- Terrias Release 构建：0 警告、0 错误；
+- Terrias 架构断言；
+- Terrias C#：312 项行为断言与源码护栏；
 - SolarMemory/Event 校验：6 个事件、10 个地图行、0 警告；
-- SunExp 全量内容校验：56 张卡牌、13 个遗物、33 个 Buff、5 个卡包、3 个敌人、0 警告；
-- SunExp、SanGuoShaExp、AuraToolsExp 三个共享消费者 Release 构建：均为 0 警告、0 错误；
+- Terrias 全量内容校验：56 张卡牌、13 个遗物、33 个 Buff、5 个卡包、3 个敌人、0 警告；
+- Terrias、SanGuoShaExp、AuraToolsExp 三个共享消费者 Release 构建：均为 0 警告、0 错误；
 - Aura.Shared：1228 项公共 API 兼容基线；
 - Aura.Shared DLL 打包一致性检查；
 - `git diff --check`（仅报告仓库既有 CRLF 转换提示，无空白错误）。

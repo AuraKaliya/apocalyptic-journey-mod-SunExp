@@ -1,6 +1,6 @@
 # Event Authoring Model
 
-Use this reference when adding or reviewing SunExp event chains.
+Use this reference when adding or reviewing Terrias event chains.
 
 ## Event Types
 
@@ -24,16 +24,16 @@ Sub_pack_event_repeat
 
 Do not restore removed historical ids unless the design is deliberately
 reopened and tests are updated first. Keep concrete old-id lists in
-`sunexp-skill-evolution` notes or deterministic validation scripts, not in this
+`terrias-skill-evolution` notes or deterministic validation scripts, not in this
 authoring reference.
 
 Recommended CSV script calls:
 
 ```text
-CS.SunExp.Dll.Scripting.EventScripts.Init(self, "Sub_pack_event_01");
-CS.SunExp.Dll.Scripting.EventScripts.RewardCard(1, "SunExp_sunexp_card_id");
-CS.SunExp.Dll.Scripting.EventScripts.RewardRelic(1, "SunExp_sunexp_relic_id");
-CS.SunExp.Dll.Scripting.EventScripts.RewardBless(1, "blessing_id");
+CS.Terrias.Dll.Scripting.EventScripts.Init(self, "Sub_pack_event_01");
+CS.Terrias.Dll.Scripting.EventScripts.RewardCard(1, "Terrias_terrias_card_id");
+CS.Terrias.Dll.Scripting.EventScripts.RewardRelic(1, "Terrias_terrias_relic_id");
+CS.Terrias.Dll.Scripting.EventScripts.RewardBless(1, "blessing_id");
 ```
 
 ## Data/EventList
@@ -51,7 +51,7 @@ Rules:
 - Put option rewards in `1Script` through `4Script`.
 - Put choice visibility and entry gating in `InitScript`.
 - Prefer compact C# entry-point calls in CSV, not long inline logic.
-- If multiple event rows share behavior, implement or reuse a helper in `SunExp-Dev/Scripting/EventScripts.cs` or the relevant C# support layer.
+- If multiple event rows share behavior, implement or reuse a helper in `Terrias-Dev/Scripting/EventScripts.cs` or the relevant C# support layer.
 
 ## Text/EventList
 
@@ -69,11 +69,11 @@ Style:
 
 ## C# Placement
 
-- Put shared event option behavior in `SunExp-Dev/Scripting/EventScripts.cs`.
-- Put repeated player/game-var access behind `SunExp-Dev/GameApi/PlayerApi.cs`.
+- Put shared event option behavior in `Terrias-Dev/Scripting/EventScripts.cs`.
+- Put repeated player/game-var access behind `Terrias-Dev/GameApi/PlayerApi.cs`.
 - Put dialogue flow in `DialogueFlowRuntime` / `DialogueFlowService`, battle
   reward adjustment in `BattleRewardAdjustmentRuntime` /
   `BattleRewardAdjustmentService`, and runtime visual behavior in
-  `sunexp-visual-runtime-dev` surfaces.
-- Load `sunexp-mod-dev/references/game-reference-index.md` and use its event
+  `terrias-visual-runtime-dev` surfaces.
+- Load `terrias-mod-dev/references/game-reference-index.md` and use its event
   script routes when the CSV field or API shape is unclear.

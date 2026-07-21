@@ -1,9 +1,9 @@
 param(
     [string]$BaseEnemyCsv = (Join-Path $PSScriptRoot "..\apocalyptic-journey-mod-tutorial\ModTemplate\Scripts\Lib\DataConfigs\Data\Enemy\enemy.csv"),
-    [string]$SunExpEnemyCsv = (Join-Path $PSScriptRoot "..\SunExp\Data\Enemy\sunexp.csv"),
+    [string]$TerriasEnemyCsv = (Join-Path $PSScriptRoot "..\Terrias\Data\Enemy\terrias.csv"),
     [string]$BaseEnemyCardCsv = (Join-Path $PSScriptRoot "..\apocalyptic-journey-mod-tutorial\ModTemplate\Scripts\Lib\DataConfigs\Data\EnemyCard\enemycard.csv"),
-    [string]$SunExpEnemyCardCsv = (Join-Path $PSScriptRoot "..\SunExp\Data\EnemyCard\sunexp.csv"),
-    [string]$OutputDirectory = (Join-Path $PSScriptRoot "..\SunExp")
+    [string]$TerriasEnemyCardCsv = (Join-Path $PSScriptRoot "..\Terrias\Data\EnemyCard\terrias.csv"),
+    [string]$OutputDirectory = (Join-Path $PSScriptRoot "..\Terrias")
 )
 
 $ErrorActionPreference = "Stop"
@@ -82,8 +82,8 @@ with path.open("w", encoding="utf-8", newline="") as stream:
     if ($LASTEXITCODE -ne 0) { throw "Failed to format generated JSON: $Path" }
 }
 
-$enemyRows = @((Get-Rows $BaseEnemyCsv) + (Get-Rows $SunExpEnemyCsv))
-$cardRows = @((Get-Rows $BaseEnemyCardCsv) + (Get-Rows $SunExpEnemyCardCsv))
+$enemyRows = @((Get-Rows $BaseEnemyCsv) + (Get-Rows $TerriasEnemyCsv))
+$cardRows = @((Get-Rows $BaseEnemyCardCsv) + (Get-Rows $TerriasEnemyCardCsv))
 $cardByKey = @{}
 foreach ($row in $cardRows) { $cardByKey[(Get-CardKey ([string]$row.Id))] = $row }
 
@@ -112,14 +112,14 @@ function Add-SpecialBossIntents([string]$Key, [string]$Source, [int]$Cooldown, [
         }
         'last_day_morning_prayer' {
             $id = "$prefix.burn_all"; Add-Intent (New-Intent $id $Source 'Pve' 'all-enemy burn adapted from morning prayer' 'Interference' 'buff.apply' (New-Target 'Enemy' 'All' 'enemy.all') $Cooldown $Priority 1 'buff_burn' 5); $Attack.Add($id)
-            $id = "$prefix.gathered_flame"; Add-Intent (New-Intent $id $Source 'Pve' 'self gathered flame redirected to the owner' 'Support' 'buff.apply' (New-Target 'Friendly' 'Single' 'friendly.owner_or_self_defense') $Cooldown $Priority 1 'SunExp_sunexp_gathered_flame' 10); $Defense.Add($id)
+            $id = "$prefix.gathered_flame"; Add-Intent (New-Intent $id $Source 'Pve' 'self gathered flame redirected to the owner' 'Support' 'buff.apply' (New-Target 'Friendly' 'Single' 'friendly.owner_or_self_defense') $Cooldown $Priority 1 'Terrias_terrias_gathered_flame' 10); $Defense.Add($id)
         }
         'last_day_noon_burn' {
             $id = "$prefix.damage"; Add-Intent (New-Intent $id $Source 'Pve' 'primary damage preserved; boss phase trigger omitted' 'Attack' 'damage.single' (New-Target 'Enemy' 'Single' 'enemy.lowest_hp') $Cooldown $Priority 1 '' 0 12 1.0); $Attack.Add($id)
         }
         'saint_purification' {
             $id = "$prefix.damage"; Add-Intent (New-Intent $id $Source 'Pve' 'primary damage preserved; global coronation logic omitted' 'Attack' 'damage.single' (New-Target 'Enemy' 'Single' 'enemy.lowest_hp') $Cooldown $Priority 1 '' 0 10 0.9); $Attack.Add($id)
-            $id = "$prefix.body_burn"; Add-Intent (New-Intent $id $Source 'Pve' 'body burn component adapted safely' 'Interference' 'buff.apply' (New-Target 'Enemy' 'Single' 'enemy.lowest_hp') $Cooldown $Priority 1 'SunExp_sunexp_body_burn' 2); $Attack.Add($id)
+            $id = "$prefix.body_burn"; Add-Intent (New-Intent $id $Source 'Pve' 'body burn component adapted safely' 'Interference' 'buff.apply' (New-Target 'Enemy' 'Single' 'enemy.lowest_hp') $Cooldown $Priority 1 'Terrias_terrias_body_burn' 2); $Attack.Add($id)
         }
         'saint_return_to_court' {
             $id = "$prefix.damage"; Add-Intent (New-Intent $id $Source 'Pve' 'primary damage preserved; saved-name global mechanic omitted' 'Attack' 'damage.single' (New-Target 'Enemy' 'Single' 'enemy.lowest_hp') $Cooldown $Priority 1 '' 0 9 0.85); $Attack.Add($id)

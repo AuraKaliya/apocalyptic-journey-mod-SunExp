@@ -1,6 +1,6 @@
 # Role, Dialogue, and Event Expansion
 
-Use this reference when SunExp grows beyond pure card packs.
+Use this reference when Terrias grows beyond pure card packs.
 
 ## RoleData
 
@@ -25,8 +25,8 @@ Official and Defect sample fields include:
 - `ActionImage1`, `ActionImage2`
 - `Dialogue`, `EmojiPath`, `FightWidget`
 
-Keep `SkillScript` as a short `CS.SunExp.Dll.Scripting.*` call. Put career and
-role skill behavior in `SunExp-Dev/Scripting/WunaScripts.cs` or a supporting C#
+Keep `SkillScript` as a short `CS.Terrias.Dll.Scripting.*` call. Put career and
+role skill behavior in `Terrias-Dev/Scripting/WunaScripts.cs` or a supporting C#
 helper.
 
 ## Dialogue
@@ -45,7 +45,7 @@ Official template fields:
 - `Data/EventList`: `Id`, `1Script`, `2Script`, `3Script`, `4Script`, `InitScript`, `IsHighRisk`, `EntryScript`
 - `Text/EventList`: localized event title, total description, option descriptions, and compare text.
 
-Keep event scripts as short calls into `SunExp-Dev/Scripting/EventScripts.cs`.
+Keep event scripts as short calls into `Terrias-Dev/Scripting/EventScripts.cs`.
 Use the decompiled reference only to verify official event API names and argument
 shape.
 

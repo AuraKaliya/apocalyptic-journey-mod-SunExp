@@ -123,9 +123,9 @@ AuraTools 架构测试也改为验证这些专用文件，而不是依赖 Provid
 - Aura.Shared：1228 项公共 API 兼容基线通过；
 - AuraDirector：20 项断言通过；
 - AuraToolsExp：634 项断言通过；
-- SunExp：架构检查与 282 项 C# 断言通过；
+- Terrias：架构检查与 282 项 C# 断言通过；
 - shared write、content/tool/shared、RPC authority 与架构边界门禁通过；
-- SunExp、SanGuoShaExp、AuraToolsExp 三个消费者均以 0 警告、0 错误构建；
+- Terrias、SanGuoShaExp、AuraToolsExp 三个消费者均以 0 警告、0 错误构建；
 - 完整共享发布矩阵与 DLL 打包检查通过；
 - 构建产物与三个打包副本 SHA-256 一致：`3BB43F7B1C22966B0BB0036B7DADEF43438B4E54EE0AD4BFD994DE597E39FAA1`。
 

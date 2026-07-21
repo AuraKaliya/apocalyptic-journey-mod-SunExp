@@ -3,14 +3,14 @@ using UnityEngine;
 using Witch.UI;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Hooks.Ui;
+namespace Terrias.Dll.Hooks.Ui;
 
 /// <summary>
-/// Owns persistent SunExp battle HUDs inside FightUI, below its transient overlays.
+/// Owns persistent Terrias battle HUDs inside FightUI, below its transient overlays.
 /// </summary>
 public static class BattleHudHost
 {
-    public const string RootName = "SunExp_BattleHudHost";
+    public const string RootName = "Terrias_BattleHudHost";
 
     private static RectTransform? activeHost;
 

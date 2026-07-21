@@ -1,7 +1,7 @@
 # Stale Anchor Registry
 
 Use this reference only while evolving project-local skills. Do not route normal
-SunExp, AuraToolsExp, shared-runtime, event, or visual work from this file.
+Terrias, AuraToolsExp, shared-runtime, event, or visual work from this file.
 
 ## Purpose
 
@@ -17,7 +17,7 @@ Keep historical anchors here so operational skills stay clean:
 
 ## Current Stale Anchors
 
-- Retired standalone data-only SunExp root: `D:\workfile\project\Mod_1\SunExp`.
+- Retired standalone data-only Terrias root: `D:\workfile\project\Mod_1\Terrias`.
 - Retired pure data workflow anchors: `pure-data`, `cardpack burst`,
   `burst-balance`.
 - Retired balance-session names: `Solar Radiance`, `Gathered Flame`,
@@ -31,7 +31,7 @@ Keep historical anchors here so operational skills stay clean:
 ## Correction Packet
 
 When a decompiled reference is wrong or outdated, record the correction here or
-in `sunexp-mod-dev/references/game-reference-index.md` with:
+in `terrias-mod-dev/references/game-reference-index.md` with:
 
 - decompile folder version;
 - game or `Managed/` version checked;

@@ -1,18 +1,18 @@
 using System;
 using System.Runtime.CompilerServices;
 using AuraShared.Core;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch.Core;
 using Witch.Mod;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class EndlessSeaRewardRuntime
 {
-    private const string RewardRuleId = "SunExp.EndlessSea.RewardPlan";
+    private const string RewardRuleId = "Terrias.EndlessSea.RewardPlan";
     private static readonly ConditionalWeakTable<BattleRewardsUI, RewardReplacementState> ReplacementStates = new();
 
     public static void Initialize(ModConfig modConfig)
@@ -47,14 +47,14 @@ public static class EndlessSeaRewardRuntime
 
             if (ReplaceRewardPlan(rewardUi, "BattleRewardsUI.ModeSetReward"))
             {
-                SunExpFrameDispatcher.RunOnceNextFrame(
+                TerriasFrameDispatcher.RunOnceNextFrame(
                     "EndlessSeaReward.VerifyExclusive",
                     () => ReplaceRewardPlan(rewardUi, "BattleRewardsUI.ModeSetReward:verify"));
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Endless Sea reward plan failed", ex);
+            TerriasLog.Error("Endless Sea reward plan failed", ex);
         }
     }
 
@@ -81,7 +81,7 @@ public static class EndlessSeaRewardRuntime
         state.LastGeneration = floor + ":" + boss + ":" + after;
         state.Verified = source.EndsWith(":verify", StringComparison.Ordinal);
         EndlessSeaRunStateStore.MarkPhase(EndlessSeaRunPhase.Reward, source);
-        SunExpLog.Info("[EndlessSeaReward] replaced native battle rewards from "
+        TerriasLog.Info("[EndlessSeaReward] replaced native battle rewards from "
             + source
             + "; floor="
             + floor
@@ -112,13 +112,13 @@ public static class EndlessSeaRewardRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Endless Sea post battle pressure failed", ex);
+            TerriasLog.Error("Endless Sea post battle pressure failed", ex);
         }
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.After(config, target, action, "EndlessSeaReward");
+        TerriasHookRegistry.After(config, target, action, "EndlessSeaReward");
     }
 
     private sealed class RewardReplacementState

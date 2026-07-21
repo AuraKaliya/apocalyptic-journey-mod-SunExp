@@ -1,12 +1,12 @@
 # Visual Registry And Bundle
 
-Use this reference when editing `SunExp/visual.registry.json`,
-`SunExp-Dev/VisualAssets/*`, VisualBundle shaders/materials, or bundle-loading
+Use this reference when editing `Terrias/visual.registry.json`,
+`Terrias-Dev/VisualAssets/*`, VisualBundle shaders/materials, or bundle-loading
 runtime code.
 
 ## Registry Ownership
 
-`SunExp/visual.registry.json` is the declaration surface for runtime visuals.
+`Terrias/visual.registry.json` is the declaration surface for runtime visuals.
 Prefer adding a registry entry over embedding resource paths in hook code. Keep
 stable ids, resource paths, shader ids, material ids, and enabled flags
 machine-readable.
@@ -22,10 +22,10 @@ Common registry domains include:
 
 ## Bundle Pipeline
 
-VisualBundle sources live under `SunExp-Dev/VisualAssets`. The shipped bundle is
-`SunExp/ModResource/VisualBundles/sunexp_visuals`.
+VisualBundle sources live under `Terrias-Dev/VisualAssets`. The shipped bundle is
+`Terrias/ModResource/VisualBundles/terrias_visuals`.
 
-Use `tools/Build-SunExpVisualBundle.ps1` after changing:
+Use `tools/Build-TerriasVisualBundle.ps1` after changing:
 
 - Unity-side bundle builder templates;
 - shader source files;
@@ -44,7 +44,7 @@ Use the existing cache and loader boundaries:
 - `ShaderAssetLoader` resolves bundled shaders.
 - `EffectMaterialFactory`, `EffectTextureCache`, and material-specific helpers
   own repeated material/texture creation.
-- `SunExpResourceCache` owns game resource loads and `ResourceLoader.LoadAll`
+- `TerriasResourceCache` owns game resource loads and `ResourceLoader.LoadAll`
   calls.
 
 Avoid direct repeated `AssetBundle.LoadFromFile`, `Resources.Load`, or
@@ -56,7 +56,7 @@ Check that architecture tests still require registry files, bundle builders,
 shaders, and visual runtime helpers. For bundle changes, run:
 
 ```powershell
-tools\Build-SunExpVisualBundle.ps1
-tools\Test-SunExpArchitecture.ps1
-.codex\skills\sunexp-mod-dev\scripts\validate-sunexp.ps1
+tools\Build-TerriasVisualBundle.ps1
+tools\Test-TerriasArchitecture.ps1
+.codex\skills\terrias-mod-dev\scripts\validate-terrias.ps1
 ```

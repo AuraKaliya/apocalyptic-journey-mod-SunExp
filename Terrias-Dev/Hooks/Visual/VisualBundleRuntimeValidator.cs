@@ -1,11 +1,11 @@
 using System.Collections.Generic;
 using System.IO;
 using AuraCg.Shared;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 
-namespace SunExp.Dll.Hooks.Visual;
+namespace Terrias.Dll.Hooks.Visual;
 
 public static class VisualBundleRuntimeValidator
 {
@@ -19,13 +19,13 @@ public static class VisualBundleRuntimeValidator
             var resolved = VisualRegistry.ResolveContentPath(bundlePath);
             if (File.Exists(resolved))
             {
-                SunExpLog.Info(LogPrefix + " found visual bundle: " + bundlePath);
+                TerriasLog.Info(LogPrefix + " found visual bundle: " + bundlePath);
                 continue;
             }
 
             if (LoggedMissingBundles.Add(resolved))
             {
-                SunExpLog.Warn(LogPrefix + " missing declared visual bundle: " + bundlePath + " -> " + resolved);
+                TerriasLog.Warn(LogPrefix + " missing declared visual bundle: " + bundlePath + " -> " + resolved);
             }
         }
 
@@ -37,34 +37,34 @@ public static class VisualBundleRuntimeValidator
     private static void ValidateWunaMaterials()
     {
         var back = AssetBundleCache.LoadAsset<Material>(
-            "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
-            "SunExp/Materials/WunaOrbitFireBack",
+            "Mods/Terrias/ModResource/VisualBundles/terrias_visuals",
+            "Terrias/Materials/WunaOrbitFireBack",
             LogPrefix);
         var front = AssetBundleCache.LoadAsset<Material>(
-            "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
-            "SunExp/Materials/WunaOrbitFireFront",
+            "Mods/Terrias/ModResource/VisualBundles/terrias_visuals",
+            "Terrias/Materials/WunaOrbitFireFront",
             LogPrefix);
         if (back != null && front != null)
         {
-            SunExpLog.Info(LogPrefix + " Wuna orbit fire materials loaded from bundle.");
+            TerriasLog.Info(LogPrefix + " Wuna orbit fire materials loaded from bundle.");
         }
     }
 
     private static void ValidateCardFaceMaterials()
     {
         var material = AssetBundleCache.LoadAsset<Material>(
-            "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
-            "SunExp/Materials/CardFaceEffect",
+            "Mods/Terrias/ModResource/VisualBundles/terrias_visuals",
+            "Terrias/Materials/CardFaceEffect",
             LogPrefix);
         if (material != null)
         {
-            SunExpLog.Info(LogPrefix + " card face effect material loaded from bundle.");
+            TerriasLog.Info(LogPrefix + " card face effect material loaded from bundle.");
         }
     }
 
     private static void RegisterAuraCgMaterials()
     {
-        const string bundlePath = "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals";
+        const string bundlePath = "Mods/Terrias/ModResource/VisualBundles/terrias_visuals";
         var bundle = AssetBundleCache.LoadBundle(bundlePath, LogPrefix);
         if (bundle != null)
         {
@@ -101,7 +101,7 @@ public static class VisualBundleRuntimeValidator
 
         if (lumaKey != null && maskedInvert != null && screenBwFlash != null && bundle != null)
         {
-            SunExpLog.Info(LogPrefix + " Aura CG shader materials and bundle registered.");
+            TerriasLog.Info(LogPrefix + " Aura CG shader materials and bundle registered.");
         }
     }
 }

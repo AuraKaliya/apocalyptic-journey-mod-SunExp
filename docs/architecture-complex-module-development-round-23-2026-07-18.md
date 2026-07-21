@@ -31,14 +31,14 @@
 `SolarMemoryMapProjectionRuntime` 负责：
 
 - 从 `SolarMemoryFixedNodeCatalog` 取得当前层固定槽；
-- 从 `SunExpConfigIndex` 读取并复制 Map 行；
+- 从 `TerriasConfigIndex` 读取并复制 Map 行；
 - 保证投影节点具有 `NodeDice`；
 - 创建或复用对应的 MapItem；
 - 通过 `FixedSlotVisualState` 避免相同 Map/Node 重复初始化；
 - 补齐固定槽 Chain；
 - 关闭 `ObjectGroup.blocksRaycasts`；
 - 从 `VisualRegistry` 解析日耀事件地图卡；
-- 通过 `SunExpResourceCache` 加载自定义纹理和宿主回退模板；
+- 通过 `TerriasResourceCache` 加载自定义纹理和宿主回退模板；
 - 通过 `MapItemApi.ApplyCardBackgroundTexture` 处理地图卡渲染器兼容。
 
 没有新增资源路径、视觉注册项、VisualBundle 内容或同步加载缓存。
@@ -82,11 +82,11 @@
 
 本轮已通过：
 
-- SunExp Release 构建：0 警告、0 错误；
-- SunExp 架构断言；
-- SunExp C#：312 项行为断言和源码护栏；
+- Terrias Release 构建：0 警告、0 错误；
+- Terrias 架构断言；
+- Terrias C#：312 项行为断言和源码护栏；
 - SolarMemory/Event 校验：6 个事件、10 个地图行、0 警告；
-- SunExp 全量内容校验：56 张卡牌、13 个遗物、33 个 Buff、5 个卡包、3 个敌人、0 警告；
+- Terrias 全量内容校验：56 张卡牌、13 个遗物、33 个 Buff、5 个卡包、3 个敌人、0 警告；
 - 三个主消费者 Release 构建：均为 0 警告、0 错误；
 - Aura.Shared：1228 项公共 API 兼容基线；
 - Aura.Shared DLL 打包一致性检查。

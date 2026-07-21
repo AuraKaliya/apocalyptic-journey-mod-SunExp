@@ -1,4 +1,4 @@
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class CombatVarApi
 {

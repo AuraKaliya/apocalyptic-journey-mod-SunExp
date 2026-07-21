@@ -1,10 +1,10 @@
 using System;
 using System.Collections;
 using System.Reflection;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class FightUiDiagnosticsApi
 {
@@ -22,7 +22,7 @@ public static class FightUiDiagnosticsApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("FightUI diagnostics skill count unavailable: " + ex.Message);
+            TerriasLog.Debug("FightUI diagnostics skill count unavailable: " + ex.Message);
             return -1;
         }
     }

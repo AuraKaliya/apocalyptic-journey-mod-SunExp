@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
-public sealed class SunExpCombatActionSubscription
+public sealed class TerriasCombatActionSubscription
 {
     public Action<ModHookContext>? BeforeOtherObjAction { get; set; }
     public Action<ModHookContext>? AfterOtherObjAction { get; set; }
@@ -14,11 +14,11 @@ public sealed class SunExpCombatActionSubscription
     public Action<ModHookContext>? AfterFightUiActionAnimation { get; set; }
 }
 
-public static class SunExpCombatActionRouter
+public static class TerriasCombatActionRouter
 {
     private static readonly object SyncRoot = new();
-    private static readonly Dictionary<string, SunExpCombatActionSubscription> Subscriptions = new(StringComparer.Ordinal);
-    private static KeyValuePair<string, SunExpCombatActionSubscription>[]? cachedSubscriptions;
+    private static readonly Dictionary<string, TerriasCombatActionSubscription> Subscriptions = new(StringComparer.Ordinal);
+    private static KeyValuePair<string, TerriasCombatActionSubscription>[]? cachedSubscriptions;
     private static bool initialized;
 
     public static void Initialize(ModConfig modConfig)
@@ -29,13 +29,13 @@ public static class SunExpCombatActionRouter
         }
 
         initialized = true;
-        Before(modConfig, SunExpHookTargets.OtherObjDoOneAction, subscription => subscription.BeforeOtherObjAction);
-        After(modConfig, SunExpHookTargets.OtherObjDoOneAction, subscription => subscription.AfterOtherObjAction);
-        Before(modConfig, SunExpHookTargets.FightUiCallActionAnimation, subscription => subscription.BeforeFightUiActionAnimation);
-        After(modConfig, SunExpHookTargets.FightUiCallActionAnimation, subscription => subscription.AfterFightUiActionAnimation);
+        Before(modConfig, TerriasHookTargets.OtherObjDoOneAction, subscription => subscription.BeforeOtherObjAction);
+        After(modConfig, TerriasHookTargets.OtherObjDoOneAction, subscription => subscription.AfterOtherObjAction);
+        Before(modConfig, TerriasHookTargets.FightUiCallActionAnimation, subscription => subscription.BeforeFightUiActionAnimation);
+        After(modConfig, TerriasHookTargets.FightUiCallActionAnimation, subscription => subscription.AfterFightUiActionAnimation);
     }
 
-    public static void Register(string id, SunExpCombatActionSubscription subscription)
+    public static void Register(string id, TerriasCombatActionSubscription subscription)
     {
         if (string.IsNullOrWhiteSpace(id) || subscription == null)
         {
@@ -48,37 +48,37 @@ public static class SunExpCombatActionRouter
             cachedSubscriptions = null;
         }
 
-        SunExpPerformanceCounters.Record("CombatAction.HandlerRegistered");
+        TerriasPerformanceCounters.Record("CombatAction.HandlerRegistered");
     }
 
     public static void RegisterActionEventHandler(
         string id,
-        Action<SunExpActionEventContext>? onAction,
+        Action<TerriasActionEventContext>? onAction,
         Action? onActionAfter)
     {
-        SunExpActionEventRouter.RegisterHandler(id, onAction, onActionAfter);
+        TerriasActionEventRouter.RegisterHandler(id, onAction, onActionAfter);
     }
 
     private static void Before(
         ModConfig config,
         string target,
-        Func<SunExpCombatActionSubscription, Action<ModHookContext>?> selector)
+        Func<TerriasCombatActionSubscription, Action<ModHookContext>?> selector)
     {
-        SunExpHookRegistry.BeforeRouted(config, target, context => Dispatch(target, context, selector), "CombatAction");
+        TerriasHookRegistry.BeforeRouted(config, target, context => Dispatch(target, context, selector), "CombatAction");
     }
 
     private static void After(
         ModConfig config,
         string target,
-        Func<SunExpCombatActionSubscription, Action<ModHookContext>?> selector)
+        Func<TerriasCombatActionSubscription, Action<ModHookContext>?> selector)
     {
-        SunExpHookRegistry.AfterRouted(config, target, context => Dispatch(target, context, selector), "CombatAction");
+        TerriasHookRegistry.AfterRouted(config, target, context => Dispatch(target, context, selector), "CombatAction");
     }
 
     private static void Dispatch(
         string target,
         ModHookContext context,
-        Func<SunExpCombatActionSubscription, Action<ModHookContext>?> selector)
+        Func<TerriasCombatActionSubscription, Action<ModHookContext>?> selector)
     {
         foreach (var pair in SnapshotSubscriptions())
         {
@@ -94,12 +94,12 @@ public static class SunExpCombatActionRouter
             }
             catch (Exception ex)
             {
-                SunExpLog.Error("Combat action handler failed: " + pair.Key + " @ " + target, ex);
+                TerriasLog.Error("Combat action handler failed: " + pair.Key + " @ " + target, ex);
             }
         }
     }
 
-    private static KeyValuePair<string, SunExpCombatActionSubscription>[] SnapshotSubscriptions()
+    private static KeyValuePair<string, TerriasCombatActionSubscription>[] SnapshotSubscriptions()
     {
         lock (SyncRoot)
         {
@@ -108,7 +108,7 @@ public static class SunExpCombatActionRouter
                 return cachedSubscriptions;
             }
 
-            cachedSubscriptions = new KeyValuePair<string, SunExpCombatActionSubscription>[Subscriptions.Count];
+            cachedSubscriptions = new KeyValuePair<string, TerriasCombatActionSubscription>[Subscriptions.Count];
             var index = 0;
             foreach (var pair in Subscriptions)
             {

@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using AuraUi.Shared;
 using Data.Save;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Hooks.Ui;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Hooks.Ui;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using UnityEngine.Events;
 using UnityEngine.UI;
@@ -15,12 +15,12 @@ using Witch.Mod;
 using Witch.UI;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class EndlessSeaRunLauncher
 {
-    private const string NativeMapModeType = SunExpIds.NativeNormalModeType;
-    private const string PromptName = "SunExp_EndlessSeaContinuePrompt";
+    private const string NativeMapModeType = TerriasIds.NativeNormalModeType;
+    private const string PromptName = "Terrias_EndlessSeaContinuePrompt";
     private static readonly Color PromptBackdrop = new(0f, 0f, 0f, 0.62f);
     private static readonly Color PromptTint = new(0.02f, 0.018f, 0.08f, 0.98f);
     private static readonly Color PromptTitle = new(1f, 0.84f, 0.42f, 1f);
@@ -42,31 +42,31 @@ public static class EndlessSeaRunLauncher
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Endless Sea run start failed", ex);
+            TerriasLog.Error("Endless Sea run start failed", ex);
         }
     }
 
     private static void ShowContinuePrompt(ModeChoiceUI modeChoice, SaveInfo saveInfo)
     {
         CloseContinuePrompt();
-        var parent = SunExpModalHost.ModalParent();
+        var parent = TerriasModalHost.ModalParent();
         if (parent == null)
         {
             ContinueRun(modeChoice, saveInfo);
             return;
         }
 
-        activePrompt = SunExpModalHost.CreateFullscreenRoot(PromptName, parent, PromptBackdrop);
-        var window = SunExpUiBuilder.CreateRect(
+        activePrompt = TerriasModalHost.CreateFullscreenRoot(PromptName, parent, PromptBackdrop);
+        var window = TerriasUiBuilder.CreateRect(
             "Window",
             activePrompt.transform,
             new Vector2(0.5f, 0.5f),
             new Vector2(0.5f, 0.5f),
             new Vector2(0.5f, 0.5f),
             new Vector2(540f, 238f));
-        SunExpUiBuilder.ApplyPanelImage(
+        TerriasUiBuilder.ApplyPanelImage(
             window.gameObject,
-            SunExpUiSprites.Panel("[EndlessSeaRunLauncher]"),
+            TerriasUiSprites.Panel("[EndlessSeaRunLauncher]"),
             PromptTint,
             false);
 
@@ -79,10 +79,10 @@ public static class EndlessSeaRunLauncher
         layout.childForceExpandHeight = false;
 
         var resumingEvacuation = string.Equals(
-            saveInfo.GetValue<string>(SunExpIds.EndlessSeaRunPhaseKey),
+            saveInfo.GetValue<string>(TerriasIds.EndlessSeaRunPhaseKey),
             EndlessSeaRunPhase.Evacuating,
             StringComparison.Ordinal);
-        AddTextBlock(window.transform, SunExpIds.EndlessAbyssTitle, 28, FontStyle.Bold, TextAnchor.MiddleCenter, PromptTitle, 42f);
+        AddTextBlock(window.transform, TerriasIds.EndlessAbyssTitle, 28, FontStyle.Bold, TextAnchor.MiddleCenter, PromptTitle, 42f);
         AddTextBlock(
             window.transform,
             resumingEvacuation
@@ -123,15 +123,15 @@ public static class EndlessSeaRunLauncher
         try
         {
             EndlessSeaRunStateStore.RepairSave(saveInfo, "EndlessSeaRunLauncher.Continue");
-            SunExpLog.Info("[EndlessSeaRunLauncher] continuing run; save="
+            TerriasLog.Info("[EndlessSeaRunLauncher] continuing run; save="
                 + saveInfo.Name
                 + "; floor="
-                + saveInfo.GetValue<int>(SunExpIds.EndlessSeaFloorKey));
+                + saveInfo.GetValue<int>(TerriasIds.EndlessSeaFloorKey));
             LaunchSelectedSave(modeChoice, saveInfo);
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Endless Sea continue failed", ex);
+            TerriasLog.Error("Endless Sea continue failed", ex);
         }
     }
 
@@ -149,12 +149,12 @@ public static class EndlessSeaRunLauncher
             }
 
             var saveInfo = CreateSave();
-            SunExpLog.Info("[EndlessSeaRunLauncher] created new run; save=" + saveInfo.Name + ".");
+            TerriasLog.Info("[EndlessSeaRunLauncher] created new run; save=" + saveInfo.Name + ".");
             LaunchSelectedSave(modeChoice, saveInfo);
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Endless Sea new run failed", ex);
+            TerriasLog.Error("Endless Sea new run failed", ex);
         }
     }
 
@@ -162,21 +162,21 @@ public static class EndlessSeaRunLauncher
     {
         CloseContinuePrompt();
         EndlessSeaRunStateStore.RepairSave(saveInfo, "EndlessSeaRunLauncher.Launch");
-        SunExpModeApi.ActivateEndlessAbyss(saveInfo, "EndlessSeaRunLauncher.Launch");
+        TerriasModeApi.ActivateEndlessAbyss(saveInfo, "EndlessSeaRunLauncher.Launch");
         GameSaveManager.Select(saveInfo);
         GameEntryUI.selectedSave = saveInfo;
         LobbyManager.Instance?.SetLobbyModeType(NativeMapModeType);
         EndlessSeaSaveCacheRuntime.ClearNativeNormalCache("EndlessSeaRunLauncher.Launch");
-        SunExpLog.Info("[EndlessSeaRunLauncher] launching save="
+        TerriasLog.Info("[EndlessSeaRunLauncher] launching save="
             + saveInfo.Name
             + "; saveMode="
             + saveInfo.modeType
             + "; nativeMode="
             + NativeMapModeType
             + "; floor="
-            + saveInfo.GetValue<int>(SunExpIds.EndlessSeaFloorKey)
+            + saveInfo.GetValue<int>(TerriasIds.EndlessSeaFloorKey)
             + "; runId="
-            + saveInfo.GetValue<string>(SunExpIds.EndlessSeaRunIdKey)
+            + saveInfo.GetValue<string>(TerriasIds.EndlessSeaRunIdKey)
             + ".");
 
         if (PlayerManager.Instance == null)
@@ -198,12 +198,12 @@ public static class EndlessSeaRunLauncher
 
     private static void CloseContinuePrompt()
     {
-        SunExpModalHost.Close(ref activePrompt, "EndlessSeaRunLauncher.ClosePrompt", "[EndlessSeaRunLauncher]");
+        TerriasModalHost.Close(ref activePrompt, "EndlessSeaRunLauncher.ClosePrompt", "[EndlessSeaRunLauncher]");
     }
 
     private static RectTransform CreateLayoutObject(string name, Transform parent)
     {
-        return SunExpUiBuilder.CreateRect(name, parent, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero);
+        return TerriasUiBuilder.CreateRect(name, parent, Vector2.zero, Vector2.one, new Vector2(0.5f, 0.5f), Vector2.zero);
     }
 
     private static Text AddTextBlock(
@@ -246,7 +246,7 @@ public static class EndlessSeaRunLauncher
         element.minHeight = 50f;
 
         var image = rect.gameObject.AddComponent<Image>();
-        image.sprite = SunExpUiSprites.Button("[EndlessSeaRunLauncher]");
+        image.sprite = TerriasUiSprites.Button("[EndlessSeaRunLauncher]");
         image.type = image.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
         image.color = image.sprite != null ? Color.white : new Color(0.08f, 0.065f, 0.16f, 0.98f);
 
@@ -266,10 +266,10 @@ public static class EndlessSeaRunLauncher
             CreatedTime = DateTime.Now.ToString("yyyy-MM-dd,HH:mm"),
             Version = GameConfigManager.Version,
             isCheat = false,
-            Name = "SunExpEndlessSea" + UnityEngine.Random.Range(0, 100000),
+            Name = "TerriasEndlessSea" + UnityEngine.Random.Range(0, 100000),
             roleTable = new Dictionary<string, RoleTable>(),
             mapTree = new MapTree(),
-            HardTags = SunExpHardTagRuntime.SelectedRuntimeHardTags(),
+            HardTags = TerriasHardTagRuntime.SelectedRuntimeHardTags(),
             startTime = DateTime.Now,
             modeType = NativeMapModeType,
             Seed = seed

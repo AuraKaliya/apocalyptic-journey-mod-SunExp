@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch.Core;
 using Witch.Mod;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class EndlessSeaCardAffixRuntime
 {
@@ -20,12 +20,12 @@ public static class EndlessSeaCardAffixRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
-        SunExpBattleLifecycleRouter.Register("EndlessSeaCardAffix.Activator", new SunExpBattleLifecycleSubscription
+        TerriasBattleLifecycleRouter.Register("EndlessSeaCardAffix.Activator", new TerriasBattleLifecycleSubscription
         {
             FightStarted = _ => EnsureCardLifecycleRegisteredForEndlessSea()
         });
         EnsureCardLifecycleRegisteredForEndlessSea();
-        SunExpLog.Info("Endless Sea card affix runtime initialized");
+        TerriasLog.Info("Endless Sea card affix runtime initialized");
     }
 
     private static void EnsureCardLifecycleRegisteredForEndlessSea()
@@ -44,7 +44,7 @@ public static class EndlessSeaCardAffixRuntime
         }
 
         cardLifecycleRegistered = true;
-        SunExpCardLifecycleRouter.Register("EndlessSeaCardAffix", new SunExpCardLifecycleSubscription
+        TerriasCardLifecycleRouter.Register("EndlessSeaCardAffix", new TerriasCardLifecycleSubscription
         {
             AfterCardChoiceItemInitialize = ApplyToChoiceItem,
             BeforeCardChoiceUiSelect = ApplyToSelectedCard,
@@ -85,7 +85,7 @@ public static class EndlessSeaCardAffixRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[EndlessSeaCardAffix] choice item hook failed", ex);
+            TerriasLog.Error("[EndlessSeaCardAffix] choice item hook failed", ex);
         }
     }
 
@@ -109,7 +109,7 @@ public static class EndlessSeaCardAffixRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[EndlessSeaCardAffix] selected card hook failed", ex);
+            TerriasLog.Error("[EndlessSeaCardAffix] selected card hook failed", ex);
         }
     }
 
@@ -124,7 +124,7 @@ public static class EndlessSeaCardAffixRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[EndlessSeaCardAffix] card item hook failed", ex);
+            TerriasLog.Error("[EndlessSeaCardAffix] card item hook failed", ex);
         }
     }
 
@@ -162,7 +162,7 @@ public static class EndlessSeaCardAffixRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[EndlessSeaCardAffix] combat card normalization failed", ex);
+            TerriasLog.Error("[EndlessSeaCardAffix] combat card normalization failed", ex);
         }
     }
 
@@ -185,7 +185,7 @@ public static class EndlessSeaCardAffixRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[EndlessSeaCardAffix] script executor card normalization failed", ex);
+            TerriasLog.Error("[EndlessSeaCardAffix] script executor card normalization failed", ex);
         }
     }
 
@@ -215,7 +215,7 @@ public static class EndlessSeaCardAffixRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[EndlessSeaCardAffix] owned card normalization failed", ex);
+            TerriasLog.Error("[EndlessSeaCardAffix] owned card normalization failed", ex);
         }
     }
 
@@ -245,7 +245,7 @@ public static class EndlessSeaCardAffixRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[EndlessSeaCardAffix] display card hook failed", ex);
+            TerriasLog.Error("[EndlessSeaCardAffix] display card hook failed", ex);
         }
     }
 
@@ -257,11 +257,11 @@ public static class EndlessSeaCardAffixRuntime
 
     private static void QueueCombatNormalize(ScriptExecutor? executor, string source)
     {
-        if (!SunExpFrameDispatcher.RunOnceNextFrame(
+        if (!TerriasFrameDispatcher.RunOnceNextFrame(
                 CombatNormalizeFrameKey + ":" + source,
                 () => EndlessSeaCardAffixService.NormalizeCombatCards(executor, source + ":deferred")))
         {
-            SunExpPerformanceCounters.Record("EndlessSeaCardAffix.NormalizeCombatCards.Deduped");
+            TerriasPerformanceCounters.Record("EndlessSeaCardAffix.NormalizeCombatCards.Deduped");
         }
     }
 

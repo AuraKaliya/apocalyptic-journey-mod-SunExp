@@ -10,8 +10,8 @@ rely on `Rarity=7`, `Breaks_`, or unreachable `Level` values as the isolation
 contract. Retain mode guards, build fixed nodes through the owning mode's
 factory, and sanitize generated nodes in non-Solar-Memory modes.
 
-Centralize exclusive checks in `SunExpIds.IsSolarMemoryExclusiveMapId` and
-`SunExpIds.IsSolarMemoryExclusiveEventId`.
+Centralize exclusive checks in `TerriasIds.IsSolarMemoryExclusiveMapId` and
+`TerriasIds.IsSolarMemoryExclusiveEventId`.
 
 ## Node Generation
 

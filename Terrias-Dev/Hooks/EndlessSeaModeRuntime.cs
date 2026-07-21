@@ -1,15 +1,15 @@
 using System;
 using Data.Save;
-using SunExp.Dll.Hooks.Ui;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
-using SunExp.Dll.Network;
+using Terrias.Dll.Hooks.Ui;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
+using Terrias.Dll.Network;
 using Witch;
 using Witch.Core;
 using Witch.Mod;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class EndlessSeaModeRuntime
 {
@@ -33,7 +33,7 @@ public static class EndlessSeaModeRuntime
         RegisterBefore(modConfig, "MapManager.RpcUpdateMap", RepairSeaMapSelection);
         RegisterBefore(modConfig, "MapManager.RpcNextMap", EnsureSeaCurrentNodeBeforeNextMap);
         RegisterAfter(modConfig, "MapManager.RpcNextMap", SyncSeaClientLastNodeAfterNextMap);
-        SunExpBattleLifecycleRouter.Register("EndlessSeaMode", new SunExpBattleLifecycleSubscription
+        TerriasBattleLifecycleRouter.Register("EndlessSeaMode", new TerriasBattleLifecycleSubscription
         {
             FightStarted = context => EndlessAbyssMilestonePromptService.Reset("Fight_Start.Init")
         });
@@ -42,22 +42,22 @@ public static class EndlessSeaModeRuntime
     public static bool IsEndlessSeaRun()
     {
         EndlessSeaLegacyMigration.MigrateCurrentSave("EndlessSeaModeRuntime.IsEndlessSeaRun");
-        return GameSaveManager.GetValue<string>(SunExpIds.EndlessSeaModeKey) == "1";
+        return GameSaveManager.GetValue<string>(TerriasIds.EndlessSeaModeKey) == "1";
     }
 
     public static int CurrentFloor()
     {
-        return Math.Max(1, GameSaveManager.GetValue<int>(SunExpIds.EndlessSeaFloorKey));
+        return Math.Max(1, GameSaveManager.GetValue<int>(TerriasIds.EndlessSeaFloorKey));
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.After(config, target, action, "EndlessSeaMode");
+        TerriasHookRegistry.After(config, target, action, "EndlessSeaMode");
     }
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.Before(config, target, action, "EndlessSeaMode");
+        TerriasHookRegistry.Before(config, target, action, "EndlessSeaMode");
     }
 
     private static void EnsureSeaMapBeforeMapItems(ModHookContext context)
@@ -79,7 +79,7 @@ public static class EndlessSeaModeRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Endless Sea pre-map-item build failed", ex);
+            TerriasLog.Error("Endless Sea pre-map-item build failed", ex);
         }
     }
 
@@ -103,7 +103,7 @@ public static class EndlessSeaModeRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Endless Sea fixed slot apply failed", ex);
+            TerriasLog.Error("Endless Sea fixed slot apply failed", ex);
         }
     }
 
@@ -124,7 +124,7 @@ public static class EndlessSeaModeRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Endless Sea pre-select map repair failed", ex);
+            TerriasLog.Error("Endless Sea pre-select map repair failed", ex);
         }
     }
 
@@ -144,7 +144,7 @@ public static class EndlessSeaModeRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Endless Sea fixed slot lock repair failed", ex);
+            TerriasLog.Error("Endless Sea fixed slot lock repair failed", ex);
         }
     }
 
@@ -159,7 +159,7 @@ public static class EndlessSeaModeRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Endless Sea layer title failed", ex);
+            TerriasLog.Error("Endless Sea layer title failed", ex);
         }
     }
 
@@ -169,7 +169,7 @@ public static class EndlessSeaModeRuntime
         {
             if (!IsEndlessSeaRun()
                 || context.Target is not NormalMapManager manager
-                || manager.Level < SunExpIds.EndlessSeaLayerNodeCount)
+                || manager.Level < TerriasIds.EndlessSeaLayerNodeCount)
             {
                 return;
             }
@@ -181,8 +181,8 @@ public static class EndlessSeaModeRuntime
 
             var nextFloor = CurrentFloor() + 1;
             EndlessSeaRunStateStore.MarkPhase(EndlessSeaRunPhase.BetweenFloors, "NormalMapManager.ReadyToChangeMap");
-            SetSaveValue(SunExpIds.EndlessSeaFloorKey, nextFloor.ToString());
-            SetSaveValue(SunExpIds.EndlessSeaGeneratedFloorKey, "0");
+            SetSaveValue(TerriasIds.EndlessSeaFloorKey, nextFloor.ToString());
+            SetSaveValue(TerriasIds.EndlessSeaGeneratedFloorKey, "0");
             if (EndlessSeaRewardPlan.IsEndless(nextFloor))
             {
                 EndlessAbyssGazeService.EnsureAtLeast(
@@ -201,12 +201,12 @@ public static class EndlessSeaModeRuntime
 
             EndlessSeaMapBuilder.EnsureFloorMapState(manager, nextFloor, "NormalMapManager.ReadyToChangeMap", forceRebuild: true);
             EndlessSeaRunStateStore.MarkPhase(EndlessSeaRunPhase.MapPlanning, "NormalMapManager.ReadyToChangeMap");
-            SunExpLog.Info("[EndlessSeaMode] advanced to floor " + nextFloor + ".");
+            TerriasLog.Info("[EndlessSeaMode] advanced to floor " + nextFloor + ".");
             EndlessSeaNetworkSync.BroadcastSnapshot("NormalMapManager.ReadyToChangeMap");
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Endless Sea floor advance failed", ex);
+            TerriasLog.Error("Endless Sea floor advance failed", ex);
         }
     }
 
@@ -215,7 +215,7 @@ public static class EndlessSeaModeRuntime
         try
         {
             if (!IsEndlessSeaRun()
-                || GameSaveManager.GetValue<string>(SunExpIds.EndlessSeaStarterDeckAppliedKey) != "1")
+                || GameSaveManager.GetValue<string>(TerriasIds.EndlessSeaStarterDeckAppliedKey) != "1")
             {
                 return;
             }
@@ -253,7 +253,7 @@ public static class EndlessSeaModeRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Endless abyss map panels failed", ex);
+            TerriasLog.Error("Endless abyss map panels failed", ex);
         }
     }
 
@@ -269,7 +269,7 @@ public static class EndlessSeaModeRuntime
             return;
         }
 
-        SunExpFrameDispatcher.RunOnceNextFrame(
+        TerriasFrameDispatcher.RunOnceNextFrame(
             "EndlessAbyss.MapPanels",
             () => TryOpenAbyssMapPanels(source));
     }
@@ -285,7 +285,7 @@ public static class EndlessSeaModeRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Endless Sea native generation repair failed", ex);
+            TerriasLog.Error("Endless Sea native generation repair failed", ex);
         }
     }
 
@@ -311,14 +311,14 @@ public static class EndlessSeaModeRuntime
                 {
                     if (EndlessSeaMapBuilder.RepairFixedMapArrays(MapManager.Instance?.MapTree, CurrentFloor(), maps, mapData))
                     {
-                        SunExpLog.Info("[EndlessSeaMapSync] fixed slot arrays repaired.");
+                        TerriasLog.Info("[EndlessSeaMapSync] fixed slot arrays repaired.");
                     }
                 }
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Endless Sea map selection repair failed", ex);
+            TerriasLog.Error("Endless Sea map selection repair failed", ex);
         }
     }
 
@@ -336,7 +336,7 @@ public static class EndlessSeaModeRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessSeaMapSync] pre-next-map current node repair failed: " + ex.Message);
+            TerriasLog.Warn("[EndlessSeaMapSync] pre-next-map current node repair failed: " + ex.Message);
         }
     }
 
@@ -353,14 +353,14 @@ public static class EndlessSeaModeRuntime
             if (node != null)
             {
                 GameSaveManager.UpdateNode(node);
-                SunExpLog.Debug("[EndlessSeaMapSync] synced client save node after RpcNextMap.");
+                TerriasLog.Debug("[EndlessSeaMapSync] synced client save node after RpcNextMap.");
             }
 
             EndlessSeaNetworkSync.RequestSnapshot("EndlessSea.MapManager.RpcNextMap:after");
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessSeaMapSync] post-next-map save node sync failed: " + ex.Message);
+            TerriasLog.Warn("[EndlessSeaMapSync] post-next-map save node sync failed: " + ex.Message);
         }
     }
 

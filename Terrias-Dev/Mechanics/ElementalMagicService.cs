@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 using Data.Save;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Network;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Network;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public readonly struct ElementalMagicRange
 {
@@ -104,9 +104,9 @@ public static class ElementalMagicService
             return;
         }
 
-        StatusApi.SetDynamicFloat(status, SunExpIds.ElementalEnemyMagicKey, snapshot.Magic);
-        StatusApi.SetDynamicFloat(status, SunExpIds.ElementalEnemyMagicRarityKey, snapshot.Rarity);
-        SunExpLog.Debug("[ElementalMagic] applied snapshot; status="
+        StatusApi.SetDynamicFloat(status, TerriasIds.ElementalEnemyMagicKey, snapshot.Magic);
+        StatusApi.SetDynamicFloat(status, TerriasIds.ElementalEnemyMagicRarityKey, snapshot.Rarity);
+        TerriasLog.Debug("[ElementalMagic] applied snapshot; status="
             + snapshot.StatusId
             + ", rarity="
             + snapshot.Rarity
@@ -120,7 +120,7 @@ public static class ElementalMagicService
     private static int EnsureEnemyMagic(Enemy enemy, string source)
     {
         var status = enemy.Status;
-        var existing = (int)StatusApi.DynamicFloat(status, SunExpIds.ElementalEnemyMagicKey);
+        var existing = (int)StatusApi.DynamicFloat(status, TerriasIds.ElementalEnemyMagicKey);
         if (existing > 0)
         {
             return existing;
@@ -128,9 +128,9 @@ public static class ElementalMagicService
 
         var rarity = NormalizeRarity(DictionaryUtil.GetInt(enemy.data, "Rarity", 1));
         var range = RangeForRarity(rarity);
-        if (SunExpNetworkRuntime.IsClientOnly())
+        if (TerriasNetworkRuntime.IsClientOnly())
         {
-            SunExpLog.Debug("[ElementalMagic] client awaited authoritative roll; status="
+            TerriasLog.Debug("[ElementalMagic] client awaited authoritative roll; status="
                 + (status?.InstanceId ?? "")
                 + ", rarity="
                 + rarity
@@ -139,9 +139,9 @@ public static class ElementalMagicService
         }
 
         var rolled = UnityEngine.Random.Range(range.Minimum, range.Maximum + 1);
-        StatusApi.SetDynamicFloat(status, SunExpIds.ElementalEnemyMagicKey, rolled);
-        StatusApi.SetDynamicFloat(status, SunExpIds.ElementalEnemyMagicRarityKey, rarity);
-        SunExpLog.Info("[ElementalMagic] rolled enemy magic; status="
+        StatusApi.SetDynamicFloat(status, TerriasIds.ElementalEnemyMagicKey, rolled);
+        StatusApi.SetDynamicFloat(status, TerriasIds.ElementalEnemyMagicRarityKey, rarity);
+        TerriasLog.Info("[ElementalMagic] rolled enemy magic; status="
             + (status?.InstanceId ?? "")
             + ", rarity="
             + rarity
@@ -155,9 +155,9 @@ public static class ElementalMagicService
             + source
             + ".");
 
-        if (SunExpNetworkRuntime.IsServer() && SunExpNetworkRuntime.HasRemotePlayers())
+        if (TerriasNetworkRuntime.IsServer() && TerriasNetworkRuntime.HasRemotePlayers())
         {
-            SunExpNetworkRuntime.Send(
+            TerriasNetworkRuntime.Send(
                 new RpcElementalEnemyMagicSnapshot(new ElementalEnemyMagicSnapshot
                 {
                     ProtocolVersion = ProtocolVersion,

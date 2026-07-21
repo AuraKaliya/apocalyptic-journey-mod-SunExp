@@ -1,34 +1,34 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using UnityEngine;
 using Object = UnityEngine.Object;
 
-namespace SunExp.Dll.Hooks.Visual;
+namespace Terrias.Dll.Hooks.Visual;
 
 public static class WunaOrbitFireShaderIds
 {
-    public const string ShaderName = "SunExp/WunaOrbitFire";
-    public const string ShaderId = "sunexp.wuna_orbit_fire";
-    public const string BackCoreEffectId = "sunexp.wuna.orbit_fire.core.back";
-    public const string FrontCoreEffectId = "sunexp.wuna.orbit_fire.core.front";
-    public const string BackEffectId = "sunexp.wuna.orbit_fire.back";
-    public const string FrontEffectId = "sunexp.wuna.orbit_fire.front";
-    public const string TrailMaskTexturePath = "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png";
-    public const string TrailNoiseTexturePath = "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png";
-    public const string FlameAtlasTexturePath = "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/Flame02_16x4.png";
+    public const string ShaderName = "Terrias/WunaOrbitFire";
+    public const string ShaderId = "terrias.wuna_orbit_fire";
+    public const string BackCoreEffectId = "terrias.wuna.orbit_fire.core.back";
+    public const string FrontCoreEffectId = "terrias.wuna.orbit_fire.core.front";
+    public const string BackEffectId = "terrias.wuna.orbit_fire.back";
+    public const string FrontEffectId = "terrias.wuna.orbit_fire.front";
+    public const string TrailMaskTexturePath = "Mods/Terrias/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png";
+    public const string TrailNoiseTexturePath = "Mods/Terrias/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png";
+    public const string FlameAtlasTexturePath = "Mods/Terrias/ModResource/Images/Effects/WunaOrbitFire/Flame02_16x4.png";
 
     public static readonly int MainTex = Shader.PropertyToID("_MainTex");
     public static readonly int NoiseTex = Shader.PropertyToID("_NoiseTex");
-    public static readonly int FlowTime = Shader.PropertyToID("_SunExpFlowTime");
-    public static readonly int Intensity = Shader.PropertyToID("_SunExpIntensity");
-    public static readonly int Layer = Shader.PropertyToID("_SunExpLayer");
-    public static readonly int CoreMode = Shader.PropertyToID("_SunExpCoreMode");
-    public static readonly int CoreColor = Shader.PropertyToID("_SunExpCoreColor");
-    public static readonly int EdgeColor = Shader.PropertyToID("_SunExpEdgeColor");
-    public static readonly int SmokeColor = Shader.PropertyToID("_SunExpSmokeColor");
-    public static readonly int NoiseScale = Shader.PropertyToID("_SunExpNoiseScale");
-    public static readonly int Distortion = Shader.PropertyToID("_SunExpDistortion");
+    public static readonly int FlowTime = Shader.PropertyToID("_TerriasFlowTime");
+    public static readonly int Intensity = Shader.PropertyToID("_TerriasIntensity");
+    public static readonly int Layer = Shader.PropertyToID("_TerriasLayer");
+    public static readonly int CoreMode = Shader.PropertyToID("_TerriasCoreMode");
+    public static readonly int CoreColor = Shader.PropertyToID("_TerriasCoreColor");
+    public static readonly int EdgeColor = Shader.PropertyToID("_TerriasEdgeColor");
+    public static readonly int SmokeColor = Shader.PropertyToID("_TerriasSmokeColor");
+    public static readonly int NoiseScale = Shader.PropertyToID("_TerriasNoiseScale");
+    public static readonly int Distortion = Shader.PropertyToID("_TerriasDistortion");
 }
 
 public static class WunaOrbitFireMaterials
@@ -52,7 +52,7 @@ public static class WunaOrbitFireMaterials
             material = CreateFallbackMaterial(frontLayer, coreLayer, flameAtlasLayer);
         }
 
-        material.name = "SunExp_WunaOrbitFire_"
+        material.name = "Terrias_WunaOrbitFire_"
                         + (frontLayer ? "Front" : "Back")
                         + (coreLayer ? "_Core" : flameAtlasLayer ? "_Flames" : "_Detail");
         SetFloatIfPresent(material, WunaOrbitFireShaderIds.Layer, frontLayer ? 1f : -1f);
@@ -80,7 +80,7 @@ public static class WunaOrbitFireMaterials
                      ?? Shader.Find("Unlit/Transparent");
         if (shader == null)
         {
-            SunExpLog.Warn(LogPrefix + " fallback shader missing; orbit fire layer will use Unity's default material.");
+            TerriasLog.Warn(LogPrefix + " fallback shader missing; orbit fire layer will use Unity's default material.");
             return new Material(Shader.Find("Diffuse"));
         }
 
@@ -102,7 +102,7 @@ public static class WunaOrbitFireMaterials
         if (!fallbackLogged)
         {
             fallbackLogged = true;
-            SunExpLog.Warn(LogPrefix + " shader/material unavailable; using visible fallback orbit material.");
+            TerriasLog.Warn(LogPrefix + " shader/material unavailable; using visible fallback orbit material.");
         }
 
         return material;
@@ -192,7 +192,7 @@ public static class WunaOrbitFireMaterials
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug(LogPrefix + " texture read skipped for unsupported material property: " + material.name + " (" + ex.Message + ")");
+            TerriasLog.Debug(LogPrefix + " texture read skipped for unsupported material property: " + material.name + " (" + ex.Message + ")");
             return false;
         }
     }
@@ -205,7 +205,7 @@ public static class WunaOrbitFireMaterials
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug(LogPrefix + " texture assignment skipped for unsupported material property: " + material.name + " (" + ex.Message + ")");
+            TerriasLog.Debug(LogPrefix + " texture assignment skipped for unsupported material property: " + material.name + " (" + ex.Message + ")");
         }
     }
 

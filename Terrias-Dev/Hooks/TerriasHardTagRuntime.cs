@@ -4,21 +4,21 @@ using System.Linq;
 using AuraShared.Core;
 using AuraGameData.Shared.GameApi;
 using Data.Save;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch;
 using Witch.Core;
 using Witch.Mod;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
-public static class SunExpHardTagRuntime
+public static class TerriasHardTagRuntime
 {
-    private const string AbyssalShockAppliedBoundariesKey = "SunExp_Hard_AbyssalShock_AppliedBoundaries";
-    private const string AbyssalShockHpStacksKey = "SunExpHard_AbyssalShockHpStacks";
-    private const string AbyssalShockHpStacksAppliedKey = "SunExpHardAbyssalShockHpStacksApplied";
+    private const string AbyssalShockAppliedBoundariesKey = "Terrias_Hard_AbyssalShock_AppliedBoundaries";
+    private const string AbyssalShockHpStacksKey = "TerriasHard_AbyssalShockHpStacks";
+    private const string AbyssalShockHpStacksAppliedKey = "TerriasHardAbyssalShockHpStacksApplied";
     private const string FragmentedTag = "Fragmented";
     private static readonly object EventOwner = new();
     private static readonly Dictionary<string, int> SkillCooldownBeforeUse = new(StringComparer.Ordinal);
@@ -29,28 +29,28 @@ public static class SunExpHardTagRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
-        SunExpCombatActionRouter.RegisterActionEventHandler(
+        TerriasCombatActionRouter.RegisterActionEventHandler(
             "EndlessAbyssGaze",
             context => EndlessAbyssGazePressureService.OnCardAction(context.Config, "Action"),
             () => EndlessAbyssGazePressureService.OnCardActionAfter("ActionAfter"));
-        SunExpBattleLifecycleRouter.Register("HardTag", new SunExpBattleLifecycleSubscription
+        TerriasBattleLifecycleRouter.Register("HardTag", new TerriasBattleLifecycleSubscription
         {
             FightInitializing = OnFightInitializing,
             FightInitialized = OnFightInitialized,
             FightEnding = OnFightEnding
         });
-        SunExpStatusLifecycleRouter.Register("HardTag", new SunExpStatusLifecycleSubscription
+        TerriasStatusLifecycleRouter.Register("HardTag", new TerriasStatusLifecycleSubscription
         {
             AfterEnemyInit = OnEnemyInit
         });
-        SunExpCombatActionRouter.Register("HardTag", new SunExpCombatActionSubscription
+        TerriasCombatActionRouter.Register("HardTag", new TerriasCombatActionSubscription
         {
             BeforeOtherObjAction = OnEnemyDoOneAction
         });
-        RegisterAfter(modConfig, SunExpHookTargets.FightPlayerTurnInit, OnPlayerTurn);
-        RegisterBefore(modConfig, SunExpHookTargets.SkillItemTrueUse, OnSkillUseBefore);
-        RegisterAfter(modConfig, SunExpHookTargets.SkillItemTrueUse, OnSkillUseAfter);
-        SunExpLog.Info("SunExp hard tag runtime initialized");
+        RegisterAfter(modConfig, TerriasHookTargets.FightPlayerTurnInit, OnPlayerTurn);
+        RegisterBefore(modConfig, TerriasHookTargets.SkillItemTrueUse, OnSkillUseBefore);
+        RegisterAfter(modConfig, TerriasHookTargets.SkillItemTrueUse, OnSkillUseAfter);
+        TerriasLog.Info("Terrias hard tag runtime initialized");
     }
 
     private static void EnsureCardLifecycleRegistered()
@@ -61,7 +61,7 @@ public static class SunExpHardTagRuntime
         }
 
         cardLifecycleRegistered = true;
-        SunExpCardLifecycleRouter.Register("HardTag", new SunExpCardLifecycleSubscription
+        TerriasCardLifecycleRouter.Register("HardTag", new TerriasCardLifecycleSubscription
         {
             AfterCardItemInit = OnCardItemChanged,
             AfterAttackCardItemInit = OnCardItemChanged,
@@ -113,7 +113,7 @@ public static class SunExpHardTagRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("Failed to capture selected hard tags: " + ex.Message);
+            TerriasLog.Warn("Failed to capture selected hard tags: " + ex.Message);
         }
 
         return result;
@@ -121,12 +121,12 @@ public static class SunExpHardTagRuntime
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.Before(config, target, action, "HardTag");
+        TerriasHookRegistry.Before(config, target, action, "HardTag");
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.After(config, target, action, "HardTag");
+        TerriasHookRegistry.After(config, target, action, "HardTag");
     }
 
     private static void OnFightInitializing(ModHookContext context)
@@ -141,23 +141,23 @@ public static class SunExpHardTagRuntime
     {
         try
         {
-            if (!HasAnySunExpHardTag())
+            if (!HasAnyTerriasHardTag())
             {
                 return;
             }
 
             EnsureCardLifecycleRegistered();
-            SunExpLifecycleStepRunner.RunBattleOnce(
+            TerriasLifecycleStepRunner.RunBattleOnce(
                 "HardTag",
                 "FightInitialized",
                 new[]
                 {
-                    new SunExpFrameStep("SunsetExpedition", ApplySunsetExpedition),
-                    new SunExpFrameStep("MorningStarDimmed", () => MorningStarDimmedService.OnFightStarted(CurrentPlayerExecutor(), "FightInit.Init")),
-                    new SunExpFrameStep("AbyssGazeReset", () => EndlessAbyssGazePressureService.ResetPlayerTurn(CurrentPlayerExecutor(), "FightInit.Init")),
-                    new SunExpFrameStep("AbyssGazeActionRouter", () => SunExpActionEventRouter.ResetForFight("AbyssGaze.FightInit.Init")),
-                    new SunExpFrameStep("AbyssGazeEndRoundListener", () => RegisterAbyssGazeEndRoundListener("FightInit.Init")),
-                    new SunExpFrameStep("BlackSunListener", () => RegisterPlayerRoundListener("FightInit.Init"))
+                    new TerriasFrameStep("SunsetExpedition", ApplySunsetExpedition),
+                    new TerriasFrameStep("MorningStarDimmed", () => MorningStarDimmedService.OnFightStarted(CurrentPlayerExecutor(), "FightInit.Init")),
+                    new TerriasFrameStep("AbyssGazeReset", () => EndlessAbyssGazePressureService.ResetPlayerTurn(CurrentPlayerExecutor(), "FightInit.Init")),
+                    new TerriasFrameStep("AbyssGazeActionRouter", () => TerriasActionEventRouter.ResetForFight("AbyssGaze.FightInit.Init")),
+                    new TerriasFrameStep("AbyssGazeEndRoundListener", () => RegisterAbyssGazeEndRoundListener("FightInit.Init")),
+                    new TerriasFrameStep("BlackSunListener", () => RegisterPlayerRoundListener("FightInit.Init"))
                 },
                 AuraSharedFramePhase.GameplayMutation,
                 priority: 10,
@@ -165,7 +165,7 @@ public static class SunExpHardTagRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("SunExp hard tag fight initialized failed", ex);
+            TerriasLog.Error("Terrias hard tag fight initialized failed", ex);
         }
     }
 
@@ -173,20 +173,20 @@ public static class SunExpHardTagRuntime
     {
         try
         {
-            if (!HasAnySunExpHardTag())
+            if (!HasAnyTerriasHardTag())
             {
                 return;
             }
 
             MorningStarDimmedService.ApplyToCombatCards(CurrentPlayerExecutor(), "Fight_PlayerTurn.Init");
             EndlessAbyssGazePressureService.ResetPlayerTurn(CurrentPlayerExecutor(), "Fight_PlayerTurn.Init");
-            SunExpActionEventRouter.EnsureRegistered("AbyssGaze.Fight_PlayerTurn.Init");
+            TerriasActionEventRouter.EnsureRegistered("AbyssGaze.Fight_PlayerTurn.Init");
             RegisterAbyssGazeEndRoundListener("Fight_PlayerTurn.Init");
             RegisterPlayerRoundListener("Fight_PlayerTurn.Init");
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("SunExp hard tag player turn failed", ex);
+            TerriasLog.Error("Terrias hard tag player turn failed", ex);
         }
     }
 
@@ -199,7 +199,7 @@ public static class SunExpHardTagRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("SunExp crack restore failed", ex);
+            TerriasLog.Error("Terrias crack restore failed", ex);
         }
     }
 
@@ -207,7 +207,7 @@ public static class SunExpHardTagRuntime
     {
         try
         {
-            if (!HasAnySunExpHardTag() || !IsServerAuthority() || context.Target is not Enemy enemy)
+            if (!HasAnyTerriasHardTag() || !IsServerAuthority() || context.Target is not Enemy enemy)
             {
                 return;
             }
@@ -221,14 +221,14 @@ public static class SunExpHardTagRuntime
                 return;
             }
 
-            if (SunExpHardTagState.Active(SunExpHardTagIds.Rebirth))
+            if (TerriasHardTagState.Active(TerriasHardTagIds.Rebirth))
             {
-                status.AddBuff(SunExpHardTagIds.RebirthBuff, 50);
+                status.AddBuff(TerriasHardTagIds.RebirthBuff, 50);
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("SunExp hard tag enemy init failed", ex);
+            TerriasLog.Error("Terrias hard tag enemy init failed", ex);
         }
     }
 
@@ -236,7 +236,7 @@ public static class SunExpHardTagRuntime
     {
         try
         {
-            if (!SunExpHardTagState.Active(SunExpHardTagIds.WhiteRadianceCourt)
+            if (!TerriasHardTagState.Active(TerriasHardTagIds.WhiteRadianceCourt)
                 || !IsServerAuthority()
                 || context.Target is not Enemy enemy
                 || enemy.Status == null
@@ -246,11 +246,11 @@ public static class SunExpHardTagRuntime
                 return;
             }
 
-            enemy.Status.AddBuff(SunExpIds.SolarRadiance, 1);
+            enemy.Status.AddBuff(TerriasIds.SolarRadiance, 1);
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("SunExp white court enemy action failed", ex);
+            TerriasLog.Error("Terrias white court enemy action failed", ex);
         }
     }
 
@@ -258,19 +258,19 @@ public static class SunExpHardTagRuntime
     {
         try
         {
-            if (SunExpHardTagState.Active(SunExpHardTagIds.MorningStarDimmed))
+            if (TerriasHardTagState.Active(TerriasHardTagIds.MorningStarDimmed))
             {
                 MorningStarDimmedService.ApplyToCard(context.Target as CardItem, "CardUseBefore");
             }
 
-            if (SunExpHardTagState.Active(SunExpHardTagIds.AbyssGaze))
+            if (TerriasHardTagState.Active(TerriasHardTagIds.AbyssGaze))
             {
-                SunExpActionEventRouter.EnsureRegistered("AbyssGaze.CardUseBefore");
+                TerriasActionEventRouter.EnsureRegistered("AbyssGaze.CardUseBefore");
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("SunExp hard tag card-use before failed", ex);
+            TerriasLog.Error("Terrias hard tag card-use before failed", ex);
         }
     }
 
@@ -278,7 +278,7 @@ public static class SunExpHardTagRuntime
     {
         try
         {
-            if (SunExpHardTagState.Active(SunExpHardTagIds.MorningStarDimmed))
+            if (TerriasHardTagState.Active(TerriasHardTagIds.MorningStarDimmed))
             {
                 MorningStarDimmedService.ApplyToCombatCards(CurrentPlayerExecutor(), "CardUseAfter");
             }
@@ -288,7 +288,7 @@ public static class SunExpHardTagRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("SunExp hard tag card-use after failed", ex);
+            TerriasLog.Error("Terrias hard tag card-use after failed", ex);
         }
     }
 
@@ -296,14 +296,14 @@ public static class SunExpHardTagRuntime
     {
         try
         {
-            if (SunExpHardTagState.Active(SunExpHardTagIds.MorningStarDimmed))
+            if (TerriasHardTagState.Active(TerriasHardTagIds.MorningStarDimmed))
             {
                 MorningStarDimmedService.ApplyToCard(context.Target as CardItem, "CardItem");
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("SunExp hard tag card item hook failed", ex);
+            TerriasLog.Error("Terrias hard tag card item hook failed", ex);
         }
     }
 
@@ -311,14 +311,14 @@ public static class SunExpHardTagRuntime
     {
         try
         {
-            if (SunExpHardTagState.Active(SunExpHardTagIds.MorningStarDimmed))
+            if (TerriasHardTagState.Active(TerriasHardTagIds.MorningStarDimmed))
             {
                 MorningStarDimmedService.ApplyToCombatCards(CurrentPlayerExecutor(), "FightUI.CreateCardItem");
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("SunExp hard tag combat card scan failed", ex);
+            TerriasLog.Error("Terrias hard tag combat card scan failed", ex);
         }
     }
 
@@ -326,7 +326,7 @@ public static class SunExpHardTagRuntime
     {
         try
         {
-            if (SunExpHardTagState.Active(SunExpHardTagIds.MorningStarDimmed))
+            if (TerriasHardTagState.Active(TerriasHardTagIds.MorningStarDimmed))
             {
                 MorningStarDimmedService.ApplyToCombatCards(CurrentPlayerExecutor(), "FightUI.CreateCardItemInternal");
             }
@@ -339,7 +339,7 @@ public static class SunExpHardTagRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("SunExp hard tag combat card materialize hook failed", ex);
+            TerriasLog.Error("Terrias hard tag combat card materialize hook failed", ex);
         }
     }
 
@@ -350,7 +350,7 @@ public static class SunExpHardTagRuntime
             var args = context.Arguments;
             if (args != null && args.Length > 0 && args[0] is IDataConfig config)
             {
-                if (SunExpHardTagState.Active(SunExpHardTagIds.MorningStarDimmed))
+                if (TerriasHardTagState.Active(TerriasHardTagIds.MorningStarDimmed))
                 {
                     MorningStarDimmedService.ApplyToConfig(config, "ScriptExecutor.GetCardFromDeck:arg");
                 }
@@ -358,14 +358,14 @@ public static class SunExpHardTagRuntime
                 EndlessAbyssGazePressureService.OnCardGained(context.Target as ScriptExecutor, config, "ScriptExecutor.GetCardFromDeck");
             }
 
-            if (SunExpHardTagState.Active(SunExpHardTagIds.MorningStarDimmed))
+            if (TerriasHardTagState.Active(TerriasHardTagIds.MorningStarDimmed))
             {
                 MorningStarDimmedService.ApplyToCombatCards(context.Target as ScriptExecutor, "ScriptExecutor.GetCardFromDeck");
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("SunExp hard tag deck draw hook failed", ex);
+            TerriasLog.Error("Terrias hard tag deck draw hook failed", ex);
         }
     }
 
@@ -379,7 +379,7 @@ public static class SunExpHardTagRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("SunExp hard tag random add card hook failed", ex);
+            TerriasLog.Error("Terrias hard tag random add card hook failed", ex);
         }
     }
 
@@ -387,7 +387,7 @@ public static class SunExpHardTagRuntime
     {
         try
         {
-            if (!SunExpHardTagState.Active(SunExpHardTagIds.OtherDimensionStagnantWater)
+            if (!TerriasHardTagState.Active(TerriasHardTagIds.OtherDimensionStagnantWater)
                 || context.Target is not SkillItem skillItem)
             {
                 return;
@@ -397,7 +397,7 @@ public static class SunExpHardTagRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("SunExp hard tag skill-use before failed", ex);
+            TerriasLog.Error("Terrias hard tag skill-use before failed", ex);
         }
     }
 
@@ -405,7 +405,7 @@ public static class SunExpHardTagRuntime
     {
         try
         {
-            if (!SunExpHardTagState.Active(SunExpHardTagIds.OtherDimensionStagnantWater)
+            if (!TerriasHardTagState.Active(TerriasHardTagIds.OtherDimensionStagnantWater)
                 || context.Target is not SkillItem skillItem)
             {
                 return;
@@ -415,13 +415,13 @@ public static class SunExpHardTagRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("SunExp hard tag skill-use after failed", ex);
+            TerriasLog.Error("Terrias hard tag skill-use after failed", ex);
         }
     }
 
     private static void RegisterPlayerRoundListener(string source)
     {
-        if (!SunExpHardTagState.Active(SunExpHardTagIds.BlackSunCalamity))
+        if (!TerriasHardTagState.Active(TerriasHardTagIds.BlackSunCalamity))
         {
             return;
         }
@@ -437,12 +437,12 @@ public static class SunExpHardTagRuntime
 
         EventCenter.Instance.AddEventListener("StartRound" + statusId, new Action(() => OnLocalPlayerStartRound(executor)), EventOwner, EventDispose.OnFightEnd);
         registeredPlayerStatusId = statusId;
-        SunExpLog.Info("Registered black sun player StartRound listener from " + source + ": statusId=" + statusId);
+        TerriasLog.Info("Registered black sun player StartRound listener from " + source + ": statusId=" + statusId);
     }
 
     private static void RegisterAbyssGazeEndRoundListener(string source)
     {
-        if (!SunExpHardTagState.Active(SunExpHardTagIds.AbyssGaze))
+        if (!TerriasHardTagState.Active(TerriasHardTagIds.AbyssGaze))
         {
             return;
         }
@@ -462,25 +462,25 @@ public static class SunExpHardTagRuntime
             EventOwner,
             EventDispose.OnFightEnd);
         registeredAbyssGazeEndRoundStatusId = statusId;
-        SunExpLog.Info("Registered abyss gaze EndRound listener from " + source + ": statusId=" + statusId);
+        TerriasLog.Info("Registered abyss gaze EndRound listener from " + source + ": statusId=" + statusId);
     }
 
     private static void OnLocalPlayerStartRound(ScriptExecutor executor)
     {
-        if (SunExpHardTagState.Active(SunExpHardTagIds.MorningStarDimmed))
+        if (TerriasHardTagState.Active(TerriasHardTagIds.MorningStarDimmed))
         {
             MorningStarDimmedService.ApplyToCombatCards(executor, "StartRound");
         }
 
-        if (!SunExpHardTagState.Active(SunExpHardTagIds.BlackSunCalamity))
+        if (!TerriasHardTagState.Active(TerriasHardTagIds.BlackSunCalamity))
         {
             return;
         }
 
         var statusId = PlayerApi.LocalPlayerStatusId();
         var key = string.IsNullOrWhiteSpace(statusId)
-            ? "SunExpHard_BlackSun_LocalTurnCount"
-            : "SunExpHard_BlackSun_TurnCount_" + statusId;
+            ? "TerriasHard_BlackSun_LocalTurnCount"
+            : "TerriasHard_BlackSun_TurnCount_" + statusId;
         var count = ExecutorApi.CombatIntAdd(key, 1);
         if (count % 5 == 0)
         {
@@ -490,16 +490,16 @@ public static class SunExpHardTagRuntime
 
     private static void ApplySunsetExpedition()
     {
-        if (!SunExpHardTagState.Active(SunExpHardTagIds.SunsetExpedition))
+        if (!TerriasHardTagState.Active(TerriasHardTagIds.SunsetExpedition))
         {
             return;
         }
 
-        var count = Math.Max(0, DictionaryUtil.ParseInt(PlayerApi.GetGameVar(SunExpIds.HardSunsetFightCountKey, "0")));
+        var count = Math.Max(0, DictionaryUtil.ParseInt(PlayerApi.GetGameVar(TerriasIds.HardSunsetFightCountKey, "0")));
         var status = FightPlayer.Instance?.Status;
         var statusId = string.IsNullOrWhiteSpace(status?.InstanceId) ? "local" : status?.InstanceId ?? "local";
         if (!AuraLifecycleOperationLedger.TryClaimBattleOperation(
-                SunExpIds.ModId,
+                TerriasIds.ModId,
                 "HardTag",
                 "SunsetExpedition",
                 statusId,
@@ -518,7 +518,7 @@ public static class SunExpHardTagRuntime
             if (nextHp < oldHp)
             {
                 status.CurHp = nextHp;
-                SunExpLog.Info("[SunsetExpedition] count="
+                TerriasLog.Info("[SunsetExpedition] count="
                     + count
                     + "; percent="
                     + percent
@@ -533,7 +533,7 @@ public static class SunExpHardTagRuntime
 
         if (IsServerAuthority())
         {
-            PlayerApi.SetGameVar(SunExpIds.HardSunsetFightCountKey, (count + 1).ToString());
+            PlayerApi.SetGameVar(TerriasIds.HardSunsetFightCountKey, (count + 1).ToString());
         }
     }
 
@@ -571,8 +571,8 @@ public static class SunExpHardTagRuntime
         SkillCooldownBeforeUse.Remove(skillId);
         var executor = skillItem.scriptExecutor as ScriptExecutor;
         var token = ++stagnantWaterRefreshSequence;
-        SunExpFrameDispatcher.RunOnceNextFrame(
-            "SunExpHard.StagnantWaterCooldown." + token,
+        TerriasFrameDispatcher.RunOnceNextFrame(
+            "TerriasHard.StagnantWaterCooldown." + token,
             () => DoubleStagnantWaterCooldown(skillId, before, executor, "SkillItem.TrueUse"));
     }
 
@@ -594,11 +594,11 @@ public static class SunExpHardTagRuntime
             }
             catch (Exception ex)
             {
-                SunExpLog.Debug("[StagnantWater] skill UI refresh skipped: " + ex.Message);
+                TerriasLog.Debug("[StagnantWater] skill UI refresh skipped: " + ex.Message);
             }
 
             PlayerApi.ShowCaption("迟滞之水：技能冷却翻倍。");
-            SunExpLog.Info("[StagnantWater] doubled skill cooldown from "
+            TerriasLog.Info("[StagnantWater] doubled skill cooldown from "
                 + source
                 + ": "
                 + skillId
@@ -610,13 +610,13 @@ public static class SunExpHardTagRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[StagnantWater] cooldown double failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[StagnantWater] cooldown double failed from " + source + ": " + ex.Message);
         }
     }
 
     private static void TryTriggerAbyssalShock(string source)
     {
-        if (!SunExpHardTagState.Active(SunExpHardTagIds.AbyssalShock))
+        if (!TerriasHardTagState.Active(TerriasHardTagIds.AbyssalShock))
         {
             return;
         }
@@ -640,7 +640,7 @@ public static class SunExpHardTagRuntime
             case 1:
                 var stacks = CombatVarApi.AddInt(AbyssalShockHpStacksKey, 1);
                 PlayerApi.ShowCaption("深渊震荡：敌方全体生命值提高30%。");
-                SunExpLog.Info("[AbyssalShock] HP stack increased to "
+                TerriasLog.Info("[AbyssalShock] HP stack increased to "
                     + stacks
                     + " at boundary "
                     + boundary
@@ -710,7 +710,7 @@ public static class SunExpHardTagRuntime
             if (changed > 0)
             {
                 GameSaveManager.UpdateRoles(role);
-                SunExpLog.Info("[AbyssalShock] added Fragmented to "
+                TerriasLog.Info("[AbyssalShock] added Fragmented to "
                     + changed
                     + " deck cards from "
                     + source
@@ -721,7 +721,7 @@ public static class SunExpHardTagRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[AbyssalShock] add Fragmented failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[AbyssalShock] add Fragmented failed from " + source + ": " + ex.Message);
             return 0;
         }
     }
@@ -740,7 +740,7 @@ public static class SunExpHardTagRuntime
             var relic = role.relicList[index];
             role.relicList.RemoveAt(index);
             GameSaveManager.UpdateRoles(role);
-            SunExpLog.Info("[AbyssalShock] destroyed equipped relic from "
+            TerriasLog.Info("[AbyssalShock] destroyed equipped relic from "
                 + source
                 + ": "
                 + DictionaryUtil.Get(relic?.data, "Id"));
@@ -748,7 +748,7 @@ public static class SunExpHardTagRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[AbyssalShock] destroy relic failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[AbyssalShock] destroy relic failed from " + source + ": " + ex.Message);
             return false;
         }
     }
@@ -788,7 +788,7 @@ public static class SunExpHardTagRuntime
         MarkAbyssalShockHpStacks(status, applied);
         RefreshStatusTransfer(enemy, status);
 
-        SunExpLog.Info("[AbyssalShock] scaled enemy HP from "
+        TerriasLog.Info("[AbyssalShock] scaled enemy HP from "
             + source
             + ": stacks="
             + stacks
@@ -867,7 +867,7 @@ public static class SunExpHardTagRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[AbyssalShock] enemy HP status transfer refresh failed: " + ex.Message);
+            TerriasLog.Warn("[AbyssalShock] enemy HP status transfer refresh failed: " + ex.Message);
         }
     }
 
@@ -909,17 +909,17 @@ public static class SunExpHardTagRuntime
         return PlayerManager.Instance == null || PlayerManager.Instance.isServer;
     }
 
-    private static bool HasAnySunExpHardTag()
+    private static bool HasAnyTerriasHardTag()
     {
-        return SunExpHardTagState.Active(SunExpHardTagIds.ScorchedWorld)
-            || SunExpHardTagState.Active(SunExpHardTagIds.SamsaraGarden)
-            || SunExpHardTagState.Active(SunExpHardTagIds.BlackSunCalamity)
-            || SunExpHardTagState.Active(SunExpHardTagIds.WhiteRadianceCourt)
-            || SunExpHardTagState.Active(SunExpHardTagIds.SunsetExpedition)
-            || SunExpHardTagState.Active(SunExpHardTagIds.Rebirth)
-            || SunExpHardTagState.Active(SunExpHardTagIds.AbyssalShock)
-            || SunExpHardTagState.Active(SunExpHardTagIds.AbyssGaze)
-            || SunExpHardTagState.Active(SunExpHardTagIds.MorningStarDimmed)
-            || SunExpHardTagState.Active(SunExpHardTagIds.OtherDimensionStagnantWater);
+        return TerriasHardTagState.Active(TerriasHardTagIds.ScorchedWorld)
+            || TerriasHardTagState.Active(TerriasHardTagIds.SamsaraGarden)
+            || TerriasHardTagState.Active(TerriasHardTagIds.BlackSunCalamity)
+            || TerriasHardTagState.Active(TerriasHardTagIds.WhiteRadianceCourt)
+            || TerriasHardTagState.Active(TerriasHardTagIds.SunsetExpedition)
+            || TerriasHardTagState.Active(TerriasHardTagIds.Rebirth)
+            || TerriasHardTagState.Active(TerriasHardTagIds.AbyssalShock)
+            || TerriasHardTagState.Active(TerriasHardTagIds.AbyssGaze)
+            || TerriasHardTagState.Active(TerriasHardTagIds.MorningStarDimmed)
+            || TerriasHardTagState.Active(TerriasHardTagIds.OtherDimensionStagnantWater);
     }
 }

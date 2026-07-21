@@ -1,8 +1,8 @@
 {
   "schemaVersion": 2,
   "enabled": true,
-  "skinId": "SunExp.SunExp_columbina_columbina.restore_colors",
-  "targetCareerId": "SunExp_columbina_columbina",
+  "skinId": "Terrias.Terrias_columbina_columbina.restore_colors",
+  "targetCareerId": "Terrias_columbina_columbina",
   "name": "复原色彩",
   "author": "Aura",
   "preview": "Columbina.png",

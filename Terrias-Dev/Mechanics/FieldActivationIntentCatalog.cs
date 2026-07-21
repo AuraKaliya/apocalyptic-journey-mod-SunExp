@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public enum FieldActivationAmountPolicy
 {
@@ -13,7 +13,7 @@ public enum FieldActivationAmountPolicy
 public sealed class FieldActivationIntentDefinition
 {
     public FieldActivationIntentDefinition(
-        SunExpFieldId field,
+        TerriasFieldId field,
         string intentId,
         FieldActivationAmountPolicy amountPolicy,
         int fixedAmount)
@@ -24,7 +24,7 @@ public sealed class FieldActivationIntentDefinition
         FixedAmount = Math.Max(0, fixedAmount);
     }
 
-    public SunExpFieldId Field { get; }
+    public TerriasFieldId Field { get; }
 
     public string IntentId { get; }
 
@@ -46,39 +46,39 @@ public static class FieldActivationIntentCatalog
     public const string ScorchingCanopyCarrierIntent = "carrier.scorching_canopy";
     public const string ColumbinaHomesicknessIntent = "Columbina.Homesickness";
 
-    private static readonly Dictionary<SunExpFieldId, Dictionary<string, FieldActivationIntentDefinition>> Definitions =
+    private static readonly Dictionary<TerriasFieldId, Dictionary<string, FieldActivationIntentDefinition>> Definitions =
         BuildDefinitions();
 
     public static bool TryResolve(
-        SunExpFieldId field,
+        TerriasFieldId field,
         string intentId,
         out FieldActivationIntentDefinition definition)
     {
         definition = null!;
-        return field != SunExpFieldId.None
+        return field != TerriasFieldId.None
                && !string.IsNullOrWhiteSpace(intentId)
                && Definitions.TryGetValue(field, out var byIntent)
                && byIntent.TryGetValue(intentId, out definition);
     }
 
-    private static Dictionary<SunExpFieldId, Dictionary<string, FieldActivationIntentDefinition>> BuildDefinitions()
+    private static Dictionary<TerriasFieldId, Dictionary<string, FieldActivationIntentDefinition>> BuildDefinitions()
     {
-        var definitions = new Dictionary<SunExpFieldId, Dictionary<string, FieldActivationIntentDefinition>>();
-        AddFixed(definitions, SunExpFieldId.ScorchingCanopy, ScorchingCanopyCardIntent, 1);
-        AddFixed(definitions, SunExpFieldId.ScorchingCanopy, CanopyReturnCardIntent, 2);
-        AddFixed(definitions, SunExpFieldId.ScorchingCanopy, RadiantOathCardIntent, 1);
+        var definitions = new Dictionary<TerriasFieldId, Dictionary<string, FieldActivationIntentDefinition>>();
+        AddFixed(definitions, TerriasFieldId.ScorchingCanopy, ScorchingCanopyCardIntent, 1);
+        AddFixed(definitions, TerriasFieldId.ScorchingCanopy, CanopyReturnCardIntent, 2);
+        AddFixed(definitions, TerriasFieldId.ScorchingCanopy, RadiantOathCardIntent, 1);
         Add(definitions, new FieldActivationIntentDefinition(
-            SunExpFieldId.ScorchingCanopy,
+            TerriasFieldId.ScorchingCanopy,
             ScorchingCanopyCarrierIntent,
             FieldActivationAmountPolicy.AuthoritativeScorchingCanopyCarrierStacks,
             0));
-        AddFixed(definitions, SunExpFieldId.MoonDomain, ColumbinaHomesicknessIntent, 1);
+        AddFixed(definitions, TerriasFieldId.MoonDomain, ColumbinaHomesicknessIntent, 1);
         return definitions;
     }
 
     private static void AddFixed(
-        Dictionary<SunExpFieldId, Dictionary<string, FieldActivationIntentDefinition>> definitions,
-        SunExpFieldId field,
+        Dictionary<TerriasFieldId, Dictionary<string, FieldActivationIntentDefinition>> definitions,
+        TerriasFieldId field,
         string intentId,
         int amount)
     {
@@ -90,7 +90,7 @@ public static class FieldActivationIntentCatalog
     }
 
     private static void Add(
-        Dictionary<SunExpFieldId, Dictionary<string, FieldActivationIntentDefinition>> definitions,
+        Dictionary<TerriasFieldId, Dictionary<string, FieldActivationIntentDefinition>> definitions,
         FieldActivationIntentDefinition definition)
     {
         if (!definitions.TryGetValue(definition.Field, out var byIntent))

@@ -1,12 +1,12 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using UnityEngine;
 using Witch.UI;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class CompanionSlotService
 {
@@ -72,14 +72,14 @@ public static class CompanionSlotService
                 PositionAt(lineup[i].Status, i, count);
             }
 
-            SunExpPerformanceCounters.Record("CompanionSlot.Reflow");
-            SunExpLog.Debug("[CompanionSlot] reflowed from " + source
+            TerriasPerformanceCounters.Record("CompanionSlot.Reflow");
+            TerriasLog.Debug("[CompanionSlot] reflowed from " + source
                 + ": count=" + count
                 + ", lineup=" + string.Join(",", lineup.Take(count).Select(entry => entry.StatusId + "@" + entry.LogicalSlot)));
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[CompanionSlot] reflow failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[CompanionSlot] reflow failed from " + source + ": " + ex.Message);
         }
     }
 

@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
-using SunExp.Dll.Hooks.Visual;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
+using Terrias.Dll.Hooks.Visual;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class ProjectionRuntime
 {
@@ -17,25 +17,25 @@ public static class ProjectionRuntime
     {
         ProjectionAttachmentPresenter.Initialize();
         ProjectionIntentPresenter.Initialize();
-        RegisterBefore(modConfig, SunExpHookTargets.CommonCardItemOnBeginDrag,
+        RegisterBefore(modConfig, TerriasHookTargets.CommonCardItemOnBeginDrag,
             context => GateDuplicateProjectionUseBefore(context, "OnBeginDrag"));
-        RegisterAfter(modConfig, SunExpHookTargets.CommonCardItemOnBeginDrag,
+        RegisterAfter(modConfig, TerriasHookTargets.CommonCardItemOnBeginDrag,
             context => RestoreProjectionUseGate(context, "OnBeginDrag"));
-        RegisterBefore(modConfig, SunExpHookTargets.CommonCardItemUseCardDirectly,
+        RegisterBefore(modConfig, TerriasHookTargets.CommonCardItemUseCardDirectly,
             context => GateDuplicateProjectionUseBefore(context, "UseCardDirectly"));
-        RegisterAfter(modConfig, SunExpHookTargets.CommonCardItemUseCardDirectly,
+        RegisterAfter(modConfig, TerriasHookTargets.CommonCardItemUseCardDirectly,
             context => RestoreProjectionUseGate(context, "UseCardDirectly"));
-        SunExpBattleLifecycleRouter.Register("Projection", new SunExpBattleLifecycleSubscription
+        TerriasBattleLifecycleRouter.Register("Projection", new TerriasBattleLifecycleSubscription
         {
             FightStarted = context => BeginBattle("Fight_Start.Init"),
             FightEnding = context => ClearBattle("FightEnding")
         });
-        RegisterBefore(modConfig, SunExpHookTargets.FightWinInit, context => ClearBattle("Fight_Win.Init:before"));
-        RegisterBefore(modConfig, SunExpHookTargets.FightLossInit, context => ClearBattle("Fight_Loss.Init:before"));
-        RegisterBefore(modConfig, SunExpHookTargets.FightEscapeInit, context => ClearBattle("Fight_Escape.Init:before"));
-        RegisterAfter(modConfig, SunExpHookTargets.FightPlayerTurnInit,
+        RegisterBefore(modConfig, TerriasHookTargets.FightWinInit, context => ClearBattle("Fight_Win.Init:before"));
+        RegisterBefore(modConfig, TerriasHookTargets.FightLossInit, context => ClearBattle("Fight_Loss.Init:before"));
+        RegisterBefore(modConfig, TerriasHookTargets.FightEscapeInit, context => ClearBattle("Fight_Escape.Init:before"));
+        RegisterAfter(modConfig, TerriasHookTargets.FightPlayerTurnInit,
             context => ProjectionTurnCoordinator.BeginPlayerRound("Fight_PlayerTurn.Init"));
-        SunExpStatusLifecycleRouter.Register("Projection", new SunExpStatusLifecycleSubscription
+        TerriasStatusLifecycleRouter.Register("Projection", new TerriasStatusLifecycleSubscription
         {
             AfterAddBuff = RefreshOwnerProjectionAfterBuffChange,
             AfterRemoveBuff = RefreshOwnerProjectionAfterBuffChange,
@@ -44,17 +44,17 @@ public static class ProjectionRuntime
             AfterCurHpChanged = RetireProjectionAfterHpChange,
             AfterMaxHpChanged = RetireProjectionAfterHpChange
         });
-        SunExpLog.Info("Projection runtime initialized");
+        TerriasLog.Info("Projection runtime initialized");
     }
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.Before(config, target, action, "Projection");
+        TerriasHookRegistry.Before(config, target, action, "Projection");
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.After(config, target, action, "Projection");
+        TerriasHookRegistry.After(config, target, action, "Projection");
     }
 
     internal static void ClearBattle(string source, bool sweepVisualOrphans = true)
@@ -75,7 +75,7 @@ public static class ProjectionRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Projection cleanup step failed: " + step + " @ " + source, ex);
+            TerriasLog.Error("Projection cleanup step failed: " + step + " @ " + source, ex);
         }
     }
 
@@ -130,8 +130,8 @@ public static class ProjectionRuntime
     private static bool IsProjectionRoleCard(IDataConfig? config)
     {
         return config != null && DictionaryUtil.ContainsToken(
-            DictionaryUtil.Get(config.Vars, SunExpIds.RuntimeMarkersKey),
-            SunExpIds.ProjectionRoleCardMarker);
+            DictionaryUtil.Get(config.Vars, TerriasIds.RuntimeMarkersKey),
+            TerriasIds.ProjectionRoleCardMarker);
     }
 
     private static void BeginBattle(string source)
@@ -163,7 +163,7 @@ public static class ProjectionRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Projection death cleanup failed from " + source, ex);
+            TerriasLog.Error("Projection death cleanup failed from " + source, ex);
         }
     }
 
@@ -200,7 +200,7 @@ public static class ProjectionRuntime
             return;
         }
 
-        SunExpFrameScheduler.RunOnceNextFrame(
+        TerriasFrameScheduler.RunOnceNextFrame(
             "ProjectionIntent.OwnerBuff." + owner.InstanceId,
             () => state.Projection.RefreshCommittedIntentValues("OwnerBuffChanged"));
     }

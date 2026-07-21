@@ -2,10 +2,10 @@ using System;
 using System.Collections.Generic;
 using AuraShared.Core;
 using DG.Tweening;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Hooks.Visual;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Hooks.Visual;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using UnityEngine.Rendering;
 using Witch.Core;
@@ -13,13 +13,13 @@ using Witch.Mod;
 using Witch.UI;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Hooks.Ui;
+namespace Terrias.Dll.Hooks.Ui;
 
-public static class SunExpCombatCardViewPool
+public static class TerriasCombatCardViewPool
 {
-    private const string PoolRootName = "SunExp.CombatCardViewPool";
+    private const string PoolRootName = "Terrias.CombatCardViewPool";
     private static readonly AuraSharedObjectPool<string, CardItem> Pool =
-        new(SunExpPerformanceSettings.CombatCardViewPoolCommonCapacity, IsAlive);
+        new(TerriasPerformanceSettings.CombatCardViewPoolCommonCapacity, IsAlive);
     private static readonly HashSet<CardItem> ActiveViews = new();
     private static int generation;
     private static Transform? poolRoot;
@@ -34,21 +34,21 @@ public static class SunExpCombatCardViewPool
 
         initialized = true;
         CombatCardViewPoolApi.Register(TryMaterialize);
-        SunExpHookRegistry.Before(modConfig, SunExpHookTargets.CardItemEffectOfBurnCard,
+        TerriasHookRegistry.Before(modConfig, TerriasHookTargets.CardItemEffectOfBurnCard,
             context => SuppressNativeExitVisual(context, PooledCardExitKind.Burn), "CombatCardViewPool");
-        SunExpHookRegistry.After(modConfig, SunExpHookTargets.CardItemEffectOfBurnCard,
+        TerriasHookRegistry.After(modConfig, TerriasHookTargets.CardItemEffectOfBurnCard,
             CompleteNativeExitVisual, "CombatCardViewPool");
-        SunExpHookRegistry.Before(modConfig, SunExpHookTargets.CardItemEffectOfThrowCard,
+        TerriasHookRegistry.Before(modConfig, TerriasHookTargets.CardItemEffectOfThrowCard,
             context => SuppressNativeExitVisual(context, ThrowExitKind(context)), "CombatCardViewPool");
-        SunExpHookRegistry.After(modConfig, SunExpHookTargets.CardItemEffectOfThrowCard,
+        TerriasHookRegistry.After(modConfig, TerriasHookTargets.CardItemEffectOfThrowCard,
             CompleteNativeExitVisual, "CombatCardViewPool");
 
-        SunExpBattleLifecycleRouter.Register("CombatCardViewPool", new SunExpBattleLifecycleSubscription
+        TerriasBattleLifecycleRouter.Register("CombatCardViewPool", new TerriasBattleLifecycleSubscription
         {
             FightStarted = _ => BeginFight(),
             FightEnded = _ => EndFight("FightEnded")
         });
-        SunExpLog.InfoAlways("Combat card view pool initialized");
+        TerriasLog.InfoAlways("Combat card view pool initialized");
     }
 
     private static void BeginFight()
@@ -56,9 +56,9 @@ public static class SunExpCombatCardViewPool
         EndFight("BeginFight.Reset");
         generation++;
         EnsurePoolRoot();
-        ScheduleWarmup(CombatCardViewPoolCatalog.CommonBucket, SunExpPerformanceSettings.CombatCardViewPoolCommonCapacity);
-        ScheduleWarmup(CombatCardViewPoolCatalog.AttackBucket, SunExpPerformanceSettings.CombatCardViewPoolAttackCapacity);
-        SunExpPerformanceCounters.Record("CombatCardViewPool.FightStarted");
+        ScheduleWarmup(CombatCardViewPoolCatalog.CommonBucket, TerriasPerformanceSettings.CombatCardViewPoolCommonCapacity);
+        ScheduleWarmup(CombatCardViewPoolCatalog.AttackBucket, TerriasPerformanceSettings.CombatCardViewPoolAttackCapacity);
+        TerriasPerformanceCounters.Record("CombatCardViewPool.FightStarted");
     }
 
     private static void EndFight(string source)
@@ -77,8 +77,8 @@ public static class SunExpCombatCardViewPool
             poolRoot = null;
         }
 
-        SunExpPerformanceCounters.Record("CombatCardViewPool.Cleared");
-        SunExpLog.Debug("[CombatCardViewPool] cleared from " + source + ".");
+        TerriasPerformanceCounters.Record("CombatCardViewPool.Cleared");
+        TerriasLog.Debug("[CombatCardViewPool] cleared from " + source + ".");
     }
 
     private static void ScheduleWarmup(string bucket, int capacity)
@@ -87,7 +87,7 @@ public static class SunExpCombatCardViewPool
         for (var index = 0; index < Math.Max(0, capacity); index++)
         {
             var capturedIndex = index;
-            SunExpFrameScheduler.RunOnceAfterFrames(
+            TerriasFrameScheduler.RunOnceAfterFrames(
                 "CombatCardViewPool.Warm." + expectedGeneration + "." + bucket + "." + capturedIndex,
                 1 + capturedIndex,
                 () => WarmOne(expectedGeneration, bucket),
@@ -100,17 +100,17 @@ public static class SunExpCombatCardViewPool
     private static void WarmOne(int expectedGeneration, string bucket)
     {
         if (expectedGeneration != generation
-            || !SunExpPerformanceSettings.CombatCardViewPoolEnabled
+            || !TerriasPerformanceSettings.CombatCardViewPoolEnabled
             || Pool.Count(bucket) >= Capacity(bucket))
         {
             return;
         }
 
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         var card = CreateCardView(bucket);
         if (card == null)
         {
-            SunExpPerformanceCounters.Record("CombatCardViewPool.WarmFailed");
+            TerriasPerformanceCounters.Record("CombatCardViewPool.WarmFailed");
             return;
         }
 
@@ -118,12 +118,12 @@ public static class SunExpCombatCardViewPool
         if (!Pool.Release(bucket, card))
         {
             DestroyCardView(card);
-            SunExpPerformanceCounters.Record("CombatCardViewPool.WarmRejected");
+            TerriasPerformanceCounters.Record("CombatCardViewPool.WarmRejected");
             return;
         }
 
-        SunExpPerformanceCounters.Record("CombatCardViewPool.WarmCreated");
-        SunExpPerformanceCounters.RecordDuration("CombatCardViewPool.Warm", start);
+        TerriasPerformanceCounters.Record("CombatCardViewPool.WarmCreated");
+        TerriasPerformanceCounters.RecordDuration("CombatCardViewPool.Warm", start);
     }
 
     private static bool TryMaterialize(ScriptExecutor self, DataConfig config, string source)
@@ -137,17 +137,17 @@ public static class SunExpCombatCardViewPool
         if (fightUi?.cardContainer == null
             || FightUI.cardItemList.Count + fightUi.createCardQueue.Count >= fightUi.CardTopCount)
         {
-            SunExpPerformanceCounters.Record("CombatCardViewPool.NativeFallback.Precondition");
+            TerriasPerformanceCounters.Record("CombatCardViewPool.NativeFallback.Precondition");
             return false;
         }
 
         if (!Pool.TryAcquire(bucket, out var pooled) || pooled == null)
         {
-            SunExpPerformanceCounters.Record("CombatCardViewPool.AcquireMiss");
+            TerriasPerformanceCounters.Record("CombatCardViewPool.AcquireMiss");
             return false;
         }
 
-        SunExpPerformanceCounters.Record("CombatCardViewPool.AcquireHit");
+        TerriasPerformanceCounters.Record("CombatCardViewPool.AcquireHit");
         var sideEffectsStarted = false;
         try
         {
@@ -155,7 +155,7 @@ public static class SunExpCombatCardViewPool
             if (marker == null || marker.Generation != generation)
             {
                 DestroyCardView(pooled);
-                SunExpPerformanceCounters.Record("CombatCardViewPool.RejectStale");
+                TerriasPerformanceCounters.Record("CombatCardViewPool.RejectStale");
                 return false;
             }
 
@@ -164,8 +164,8 @@ public static class SunExpCombatCardViewPool
             if (!CombatCardViewPoolCatalog.MatchesInitializedBucket(config, bucket, out var actualBaseScript))
             {
                 ReturnUnused(pooled, bucket);
-                SunExpPerformanceCounters.Record("CombatCardViewPool.TypeMismatch");
-                SunExpLog.Warn("[CombatCardViewPool] native fallback for component mismatch: card="
+                TerriasPerformanceCounters.Record("CombatCardViewPool.TypeMismatch");
+                TerriasLog.Warn("[CombatCardViewPool] native fallback for component mismatch: card="
                     + CardConfigApi.Id(config)
                     + ", expected="
                     + bucket
@@ -186,9 +186,9 @@ public static class SunExpCombatCardViewPool
             var presentationSignature = CombatCardViewPoolCatalog.PresentationSignature(config, bucket);
             if (!TryLightweightRebind(pooled, marker, config, presentationSignature))
             {
-                var initStart = SunExpPerformanceCounters.Timestamp();
+                var initStart = TerriasPerformanceCounters.Timestamp();
                 pooled.Init(config);
-                SunExpPerformanceCounters.RecordDuration("CombatCardViewPool.FullInit", initStart);
+                TerriasPerformanceCounters.RecordDuration("CombatCardViewPool.FullInit", initStart);
                 marker.HasInitializedPresentation = true;
                 marker.PresentationSignature = presentationSignature;
             }
@@ -200,16 +200,16 @@ public static class SunExpCombatCardViewPool
             fightUi.transform.SetAsFirstSibling();
             FightUiCardLayoutApi.RequestHandLayout(fightUi, "CombatCardViewPool.Materialize");
             Singleton<EventCenter>.Instance.EventTrigger("EndCreateCardItem" + FightPlayer.Instance.Status.InstanceId);
-            SunExpPerformanceCounters.Record("CombatCardViewPool.Materialized");
+            TerriasPerformanceCounters.Record("CombatCardViewPool.Materialized");
             return true;
         }
         catch (Exception ex)
         {
             DestroyCardView(pooled);
-            SunExpPerformanceCounters.Record(sideEffectsStarted
+            TerriasPerformanceCounters.Record(sideEffectsStarted
                 ? "CombatCardViewPool.MaterializeFailedAfterStart"
                 : "CombatCardViewPool.MaterializeFailedSafe");
-            SunExpLog.Warn("[CombatCardViewPool] materialize fallback for "
+            TerriasLog.Warn("[CombatCardViewPool] materialize fallback for "
                 + CardConfigApi.Id(config)
                 + " from "
                 + source
@@ -236,7 +236,7 @@ public static class SunExpCombatCardViewPool
         {
             // Re-entrant native visual calls must never regain ownership of a pooled root.
             card.cardcontainer = null;
-            SunExpPerformanceCounters.Record("CombatCardViewPool.InvalidExitTransition");
+            TerriasPerformanceCounters.Record("CombatCardViewPool.InvalidExitTransition");
             return;
         }
 
@@ -244,7 +244,7 @@ public static class SunExpCombatCardViewPool
         marker.PendingExitKind = kind;
         marker.PendingExitTargetPath = ExitTargetPath(context);
         card.cardcontainer = null;
-        SunExpPerformanceCounters.Record("CombatCardViewPool.NativeVisualSuppressed");
+        TerriasPerformanceCounters.Record("CombatCardViewPool.NativeVisualSuppressed");
     }
 
     private static void CompleteNativeExitVisual(ModHookContext context)
@@ -266,14 +266,14 @@ public static class SunExpCombatCardViewPool
             || !marker.TryTransition(PooledCardViewState.NativeVisualSuppressed, PooledCardViewState.Exiting))
         {
             DestroyCardView(card);
-            SunExpPerformanceCounters.Record("CombatCardViewPool.ExitRejectedStale");
+            TerriasPerformanceCounters.Record("CombatCardViewPool.ExitRejectedStale");
             return;
         }
 
         if (marker.PendingExitKind == PooledCardExitKind.Unsupported)
         {
             DestroyCardView(card);
-            SunExpPerformanceCounters.Record("CombatCardViewPool.UnsupportedExitDestroyed");
+            TerriasPerformanceCounters.Record("CombatCardViewPool.UnsupportedExitDestroyed");
             return;
         }
 
@@ -301,18 +301,18 @@ public static class SunExpCombatCardViewPool
                 () => ScheduleRelease(card, marker, 1)))
         {
             DestroyCardView(card);
-            SunExpPerformanceCounters.Record("CombatCardViewPool.ExitAnimationUnavailable");
+            TerriasPerformanceCounters.Record("CombatCardViewPool.ExitAnimationUnavailable");
             return;
         }
 
-        SunExpPerformanceCounters.Record("CombatCardViewPool.ExitAnimationStarted." + marker.PendingExitKind);
+        TerriasPerformanceCounters.Record("CombatCardViewPool.ExitAnimationStarted." + marker.PendingExitKind);
     }
 
     private static void ScheduleRelease(CardItem card, PooledCombatCardViewMarker marker, int delayFrames)
     {
         var expectedGeneration = marker.Generation;
         var instanceId = card.GetInstanceID();
-        SunExpFrameScheduler.RunOnceAfterFrames(
+        TerriasFrameScheduler.RunOnceAfterFrames(
             "CombatCardViewPool.Release." + expectedGeneration + "." + instanceId + "." + marker.ReleaseAttempts,
             Math.Max(1, delayFrames),
             () => ReleaseNow(card, marker, expectedGeneration),
@@ -338,7 +338,7 @@ public static class SunExpCombatCardViewPool
                 DestroyCardView(card);
             }
 
-            SunExpPerformanceCounters.Record("CombatCardViewPool.ReleaseRejectedStale");
+            TerriasPerformanceCounters.Record("CombatCardViewPool.ReleaseRejectedStale");
             return;
         }
 
@@ -347,7 +347,7 @@ public static class SunExpCombatCardViewPool
         {
             marker.ReleaseAttempts++;
             ScheduleRelease(card, marker, 1);
-            SunExpPerformanceCounters.Record("CombatCardViewPool.ReleaseDeferredComponentSwap");
+            TerriasPerformanceCounters.Record("CombatCardViewPool.ReleaseDeferredComponentSwap");
             return;
         }
 
@@ -356,7 +356,7 @@ public static class SunExpCombatCardViewPool
             || marker.State != PooledCardViewState.Exiting)
         {
             DestroyCardView(card);
-            SunExpPerformanceCounters.Record("CombatCardViewPool.ReleaseRejectedDirty");
+            TerriasPerformanceCounters.Record("CombatCardViewPool.ReleaseRejectedDirty");
             return;
         }
 
@@ -366,59 +366,59 @@ public static class SunExpCombatCardViewPool
         if (Pool.Count(bucket) >= Capacity(bucket))
         {
             DestroyCardView(card);
-            SunExpPerformanceCounters.Record("CombatCardViewPool.ReleaseRejectedCapacity");
+            TerriasPerformanceCounters.Record("CombatCardViewPool.ReleaseRejectedCapacity");
             return;
         }
 
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         PrepareIdle(card, bucket, expectedGeneration);
         if (!Pool.Release(bucket, card))
         {
             DestroyCardView(card);
-            SunExpPerformanceCounters.Record("CombatCardViewPool.ReleaseRejectedPool");
+            TerriasPerformanceCounters.Record("CombatCardViewPool.ReleaseRejectedPool");
             return;
         }
 
-        SunExpPerformanceCounters.Record("CombatCardViewPool.ReleaseAccepted");
-        SunExpPerformanceCounters.RecordDuration("CombatCardViewPool.Reset", start);
+        TerriasPerformanceCounters.Record("CombatCardViewPool.ReleaseAccepted");
+        TerriasPerformanceCounters.RecordDuration("CombatCardViewPool.Reset", start);
     }
 
     private static CardItem? CreateCardView(string bucket)
     {
-        var totalStart = SunExpPerformanceCounters.Timestamp();
+        var totalStart = TerriasPerformanceCounters.Timestamp();
         var segment = totalStart;
         var parent = EnsurePoolRoot();
-        var rootMilliseconds = SunExpPerformanceCounters.ElapsedMilliseconds(segment);
-        segment = SunExpPerformanceCounters.Timestamp();
-        var prefab = SunExpResourceCache.Load<GameObject>("UI/CardItem", false, "combat-card-view-pool");
-        var prefabLoadMilliseconds = SunExpPerformanceCounters.ElapsedMilliseconds(segment);
+        var rootMilliseconds = TerriasPerformanceCounters.ElapsedMilliseconds(segment);
+        segment = TerriasPerformanceCounters.Timestamp();
+        var prefab = TerriasResourceCache.Load<GameObject>("UI/CardItem", false, "combat-card-view-pool");
+        var prefabLoadMilliseconds = TerriasPerformanceCounters.ElapsedMilliseconds(segment);
         if (parent == null || prefab == null)
         {
             return null;
         }
 
-        segment = SunExpPerformanceCounters.Timestamp();
+        segment = TerriasPerformanceCounters.Timestamp();
         var root = UnityEngine.Object.Instantiate(prefab, parent);
-        var instantiateMilliseconds = SunExpPerformanceCounters.ElapsedMilliseconds(segment);
-        root.name = "SunExp.PooledCardItem." + bucket;
+        var instantiateMilliseconds = TerriasPerformanceCounters.ElapsedMilliseconds(segment);
+        root.name = "Terrias.PooledCardItem." + bucket;
         var type = bucket == CombatCardViewPoolCatalog.AttackBucket
             ? typeof(AttackCardItem)
             : typeof(CommonCardItem);
-        segment = SunExpPerformanceCounters.Timestamp();
+        segment = TerriasPerformanceCounters.Timestamp();
         var card = root.AddComponent(type) as CardItem;
-        var addComponentMilliseconds = SunExpPerformanceCounters.ElapsedMilliseconds(segment);
+        var addComponentMilliseconds = TerriasPerformanceCounters.ElapsedMilliseconds(segment);
         if (card == null)
         {
             UnityEngine.Object.Destroy(root);
             return null;
         }
 
-        segment = SunExpPerformanceCounters.Timestamp();
+        segment = TerriasPerformanceCounters.Timestamp();
         var marker = root.AddComponent<PooledCombatCardViewMarker>();
         marker.Bucket = bucket;
         marker.Generation = generation;
-        var markerMilliseconds = SunExpPerformanceCounters.ElapsedMilliseconds(segment);
-        var totalMilliseconds = SunExpPerformanceCounters.ElapsedMilliseconds(totalStart);
+        var markerMilliseconds = TerriasPerformanceCounters.ElapsedMilliseconds(segment);
+        var totalMilliseconds = TerriasPerformanceCounters.ElapsedMilliseconds(totalStart);
         CombatCardViewConstructionDiagnostics.Record(
             bucket,
             rootMilliseconds,
@@ -427,7 +427,7 @@ public static class SunExpCombatCardViewPool
             addComponentMilliseconds,
             markerMilliseconds,
             totalMilliseconds);
-        SunExpPerformanceCounters.RecordDuration("CombatCardViewConstruction.Total", totalStart);
+        TerriasPerformanceCounters.RecordDuration("CombatCardViewConstruction.Total", totalStart);
         return card;
     }
 
@@ -547,29 +547,29 @@ public static class SunExpCombatCardViewPool
             || presentationSignature.Length == 0
             || !string.Equals(marker.PresentationSignature, presentationSignature, StringComparison.Ordinal))
         {
-            SunExpPerformanceCounters.Record("CombatCardViewPool.LightRebind.SignatureMiss");
+            TerriasPerformanceCounters.Record("CombatCardViewPool.LightRebind.SignatureMiss");
             return false;
         }
 
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         try
         {
             card.dataConfig = config;
             ICard.SetCardMsg(card.transform, config, null);
             card.DataUpdate();
             marker.PresentationSignature = presentationSignature;
-            SunExpPerformanceCounters.Record("CombatCardViewPool.LightRebind.Applied");
+            TerriasPerformanceCounters.Record("CombatCardViewPool.LightRebind.Applied");
             return true;
         }
         catch (Exception ex)
         {
-            SunExpPerformanceCounters.Record("CombatCardViewPool.LightRebind.Fallback");
-            SunExpLog.Debug("[CombatCardViewPool] lightweight rebind fell back to full Init: " + ex.Message);
+            TerriasPerformanceCounters.Record("CombatCardViewPool.LightRebind.Fallback");
+            TerriasLog.Debug("[CombatCardViewPool] lightweight rebind fell back to full Init: " + ex.Message);
             return false;
         }
         finally
         {
-            SunExpPerformanceCounters.RecordDuration("CombatCardViewPool.LightRebind", start);
+            TerriasPerformanceCounters.RecordDuration("CombatCardViewPool.LightRebind", start);
         }
     }
 
@@ -593,7 +593,7 @@ public static class SunExpCombatCardViewPool
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("[CombatCardViewPool] StopMove failed: " + ex.Message);
+            TerriasLog.Debug("[CombatCardViewPool] StopMove failed: " + ex.Message);
         }
     }
 
@@ -610,7 +610,7 @@ public static class SunExpCombatCardViewPool
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("[CombatCardViewPool] container tween cleanup failed: " + ex.Message);
+            TerriasLog.Debug("[CombatCardViewPool] container tween cleanup failed: " + ex.Message);
         }
     }
 
@@ -640,8 +640,8 @@ public static class SunExpCombatCardViewPool
     private static int Capacity(string bucket)
     {
         return bucket == CombatCardViewPoolCatalog.AttackBucket
-            ? SunExpPerformanceSettings.CombatCardViewPoolAttackCapacity
-            : SunExpPerformanceSettings.CombatCardViewPoolCommonCapacity;
+            ? TerriasPerformanceSettings.CombatCardViewPoolAttackCapacity
+            : TerriasPerformanceSettings.CombatCardViewPoolCommonCapacity;
     }
 
     private static bool IsAlive(CardItem card)

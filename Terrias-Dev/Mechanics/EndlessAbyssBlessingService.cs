@@ -1,13 +1,13 @@
 using System;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 using Witch;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class EndlessAbyssBlessingService
 {
-    private const string OpeningStacksAppliedKey = "SunExpEndlessAbyssBlessingOpeningStacksApplied";
+    private const string OpeningStacksAppliedKey = "TerriasEndlessAbyssBlessingOpeningStacksApplied";
 
     private static readonly (string BuffId, int Amount)[] BlessingPool =
     {
@@ -20,13 +20,13 @@ public static class EndlessAbyssBlessingService
 
     public static void Apply(ScriptExecutor self)
     {
-        var token = ExecutorApi.RegisterHook(self, "SunExpAbyssBlessingHook", "SunExpAbyssBlessingToken");
+        var token = ExecutorApi.RegisterHook(self, "TerriasAbyssBlessingHook", "TerriasAbyssBlessingToken");
         if (token == null)
         {
             return;
         }
 
-        ExecutorApi.TryAddTokenedEvent(self, "StartRound", "SunExpAbyssBlessingToken", token, new Action(() =>
+        ExecutorApi.TryAddTokenedEvent(self, "StartRound", "TerriasAbyssBlessingToken", token, new Action(() =>
         {
             ResolveStartRound(self);
         }), "abyss_blessing");
@@ -34,7 +34,7 @@ public static class EndlessAbyssBlessingService
 
     public static void Clear(ScriptExecutor self)
     {
-        ExecutorApi.ClearHook(self, "SunExpAbyssBlessingHook", "SunExpAbyssBlessingToken");
+        ExecutorApi.ClearHook(self, "TerriasAbyssBlessingHook", "TerriasAbyssBlessingToken");
     }
 
     public static void ApplyOpeningStacks(Enemy enemy, string source)
@@ -45,9 +45,9 @@ public static class EndlessAbyssBlessingService
             return;
         }
 
-        enemy.Status.AddBuff(SunExpIds.AbyssBlessingBuff, stacks);
+        enemy.Status.AddBuff(TerriasIds.AbyssBlessingBuff, stacks);
         MarkApplied(enemy.Status, stacks);
-        SunExpLog.Debug("[EndlessAbyssBlessing] applied "
+        TerriasLog.Debug("[EndlessAbyssBlessing] applied "
             + stacks
             + " to enemy "
             + enemy.InstanceId
@@ -77,7 +77,7 @@ public static class EndlessAbyssBlessingService
 
     private static void ResolveStartRound(ScriptExecutor self)
     {
-        var stacks = ExecutorApi.SelfBuffLevel(self, SunExpIds.AbyssBlessingBuff);
+        var stacks = ExecutorApi.SelfBuffLevel(self, TerriasIds.AbyssBlessingBuff);
         if (stacks <= 0)
         {
             return;

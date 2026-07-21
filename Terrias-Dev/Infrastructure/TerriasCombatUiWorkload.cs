@@ -1,9 +1,9 @@
 using System;
 using UnityEngine;
 
-namespace SunExp.Dll.Infrastructure;
+namespace Terrias.Dll.Infrastructure;
 
-public static class SunExpCombatUiWorkload
+public static class TerriasCombatUiWorkload
 {
     private const int DefaultSettleFrames = 2;
     private static readonly object SyncRoot = new();

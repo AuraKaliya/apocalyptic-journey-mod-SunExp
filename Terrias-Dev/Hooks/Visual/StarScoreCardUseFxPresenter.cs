@@ -2,12 +2,12 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using AuraCardUseFx.Shared;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace SunExp.Dll.Hooks.Visual;
+namespace Terrias.Dll.Hooks.Visual;
 
 public static class StarScoreCardUseFxPresenter
 {
@@ -35,7 +35,7 @@ public static class StarScoreCardUseFxPresenter
             return runner;
         }
 
-        var root = new GameObject("SunExp_CardUseFxRunner");
+        var root = new GameObject("Terrias_CardUseFxRunner");
         UnityEngine.Object.DontDestroyOnLoad(root);
         runner = root.AddComponent<StarScoreCardUseFxRunner>();
         return runner;
@@ -108,7 +108,7 @@ internal sealed class StarScoreCardUseFxRunner : MonoBehaviour
         overlayRect = null;
         ribbonLayerRect = null;
         glyphLayerRect = null;
-        SunExpLog.Debug("[CardUseFx] presentation cleared: " + source);
+        TerriasLog.Debug("[CardUseFx] presentation cleared: " + source);
     }
 
     private IEnumerator PlayFaceSweep(AuraCardUseFxSourceSnapshot sourceSnapshot, string visualEffectId)
@@ -124,7 +124,7 @@ internal sealed class StarScoreCardUseFxRunner : MonoBehaviour
         }
 
         var material = CardUseFxMaterials.CreateFaceSweepMaterial(visualEffectId);
-        var container = new GameObject("SunExp_CardUseFx_FaceSweepClip", typeof(RectTransform), typeof(RectMask2D));
+        var container = new GameObject("Terrias_CardUseFx_FaceSweepClip", typeof(RectTransform), typeof(RectMask2D));
         container.transform.SetParent(overlayRect, false);
         var containerRect = container.GetComponent<RectTransform>();
         containerRect.anchorMin = new Vector2(0.5f, 0.5f);
@@ -136,7 +136,7 @@ internal sealed class StarScoreCardUseFxRunner : MonoBehaviour
             Mathf.Max(16f, sourceSnapshot.ScreenSize.y));
         containerRect.localRotation = Quaternion.Euler(0f, 0f, sourceSnapshot.RotationZ);
 
-        var go = new GameObject("SunExp_CardUseFx_FaceSweep", typeof(RectTransform), typeof(RawImage));
+        var go = new GameObject("Terrias_CardUseFx_FaceSweep", typeof(RectTransform), typeof(RawImage));
         go.transform.SetParent(containerRect, false);
         go.transform.SetAsLastSibling();
         var rect = go.GetComponent<RectTransform>();
@@ -212,7 +212,7 @@ internal sealed class StarScoreCardUseFxRunner : MonoBehaviour
         var controls = Controls(localStart, localEnd, cue.SlotIndex, cue.Sequence);
         var scale = Mathf.Clamp(Screen.height / 1080f, 0.75f, 1.5f);
         ribbon.Configure(localStart, controls.First, controls.Second, localEnd, 34f * scale, 18f * scale,
-            SunExpPerformanceSettings.CardUseFxRibbonSamples, 0.42f, NoteOuterColor(cue.Note), NoteCoreColor(cue.Note));
+            TerriasPerformanceSettings.CardUseFxRibbonSamples, 0.42f, NoteOuterColor(cue.Note), NoteCoreColor(cue.Note));
         ribbon.ConfigureStrands(
             StaffLineCount,
             4.1f * scale,
@@ -242,7 +242,7 @@ internal sealed class StarScoreCardUseFxRunner : MonoBehaviour
     private IEnumerator PlayArrivalFlash(Vector2 center, float strength)
     {
         if (glyphLayerRect == null) yield break;
-        var go = new GameObject("SunExp_CardUseFx_Arrival", typeof(RectTransform), typeof(StarScoreArrivalFlashGraphic));
+        var go = new GameObject("Terrias_CardUseFx_Arrival", typeof(RectTransform), typeof(StarScoreArrivalFlashGraphic));
         go.transform.SetParent(glyphLayerRect, false);
         Stretch(go.GetComponent<RectTransform>());
         var graphic = go.GetComponent<StarScoreArrivalFlashGraphic>();
@@ -260,7 +260,7 @@ internal sealed class StarScoreCardUseFxRunner : MonoBehaviour
     private void EnsureOverlay()
     {
         if (overlayRoot != null && overlayRect != null) return;
-        overlayRoot = new GameObject("SunExp_CardUseFxOverlay", typeof(RectTransform), typeof(Canvas), typeof(CanvasGroup));
+        overlayRoot = new GameObject("Terrias_CardUseFxOverlay", typeof(RectTransform), typeof(Canvas), typeof(CanvasGroup));
         DontDestroyOnLoad(overlayRoot);
         overlayRect = overlayRoot.GetComponent<RectTransform>();
         Stretch(overlayRect);
@@ -272,8 +272,8 @@ internal sealed class StarScoreCardUseFxRunner : MonoBehaviour
         group.alpha = 1f;
         group.interactable = false;
         group.blocksRaycasts = false;
-        ribbonLayerRect = CreateLayer("SunExp_CardUseFx_RibbonLayer", overlayRect);
-        glyphLayerRect = CreateLayer("SunExp_CardUseFx_GlyphLayer", overlayRect);
+        ribbonLayerRect = CreateLayer("Terrias_CardUseFx_RibbonLayer", overlayRect);
+        glyphLayerRect = CreateLayer("Terrias_CardUseFx_GlyphLayer", overlayRect);
     }
 
     private AuraBezierRibbonGraphic AcquireRibbon()
@@ -287,7 +287,7 @@ internal sealed class StarScoreCardUseFxRunner : MonoBehaviour
         }
         else
         {
-            var go = new GameObject("SunExp_CardUseFx_Ribbon", typeof(RectTransform), typeof(AuraBezierRibbonGraphic));
+            var go = new GameObject("Terrias_CardUseFx_Ribbon", typeof(RectTransform), typeof(AuraBezierRibbonGraphic));
             go.transform.SetParent(ribbonLayerRect, false);
             Stretch(go.GetComponent<RectTransform>());
             ribbon = go.GetComponent<AuraBezierRibbonGraphic>();
@@ -314,7 +314,7 @@ internal sealed class StarScoreCardUseFxRunner : MonoBehaviour
         }
         else
         {
-            var go = new GameObject("SunExp_CardUseFx_FlightGlyph", typeof(RectTransform), typeof(Image));
+            var go = new GameObject("Terrias_CardUseFx_FlightGlyph", typeof(RectTransform), typeof(Image));
             go.transform.SetParent(glyphLayerRect, false);
             glyph = go.GetComponent<Image>();
             glyph.raycastTarget = false;

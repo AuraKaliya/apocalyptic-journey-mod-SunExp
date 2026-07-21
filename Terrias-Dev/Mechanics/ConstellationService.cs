@@ -2,11 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AuraShared.Core;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Network;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Network;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 [Serializable]
 public sealed class ConstellationStateSnapshot
@@ -46,7 +46,7 @@ public static class ConstellationService
     private static readonly AuraAuthoritativeSyncDomain SyncDomain =
         AuraAuthoritativeSyncRuntime.RegisterDomain(new AuraAuthoritativeSyncDomainOptions
         {
-            OwnerModId = SunExpIds.ModId,
+            OwnerModId = TerriasIds.ModId,
             DomainId = SyncDomainId,
             SnapshotRequestThrottleSeconds = 0.5d,
             MaxResolvedTokens = 256
@@ -73,7 +73,7 @@ public static class ConstellationService
 
     public static int Level(IStatusManager? status)
     {
-        return ConstellationPoolCatalog.Clamp(BuffApi.Level(status, SunExpIds.Constellation));
+        return ConstellationPoolCatalog.Clamp(BuffApi.Level(status, TerriasIds.Constellation));
     }
 
     public static bool MatchesAdventureRole(IStatusManager? status, string? roleId)
@@ -96,7 +96,7 @@ public static class ConstellationService
         {
             if (battleActive && ReferenceEquals(activeBattleIdentity, battleIdentity))
             {
-                SunExpLog.Debug("[ConstellationSync] duplicate battle start ignored.");
+                TerriasLog.Debug("[ConstellationSync] duplicate battle start ignored.");
                 return false;
             }
 
@@ -108,7 +108,7 @@ public static class ConstellationService
             AppliedRoundRewardIds.Clear();
             AppliedRoundRewardOrder.Clear();
             hostRoundSequence = 0;
-            hostBattleSessionId = SunExpNetworkRuntime.IsClientOnly() ? "" : Guid.NewGuid().ToString("N");
+            hostBattleSessionId = TerriasNetworkRuntime.IsClientOnly() ? "" : Guid.NewGuid().ToString("N");
             acceptedBattleSessionId = hostBattleSessionId;
         }
 
@@ -117,7 +117,7 @@ public static class ConstellationService
         {
             var statusId = status.InstanceId ?? "";
             var roleId = "";
-            if (SunExpStatusOwnershipPolicy.TryResolveOwningPlayerId(statusId, out var ownerPlayerId))
+            if (TerriasStatusOwnershipPolicy.TryResolveOwningPlayerId(statusId, out var ownerPlayerId))
             {
                 roleId = NormalizeRole(PlayerApi.GetCareerIdForPlayer(ownerPlayerId));
             }
@@ -130,15 +130,15 @@ public static class ConstellationService
             BindAdventureRole(status, roleId, overwrite: false);
         }
 
-        if (!SunExpNetworkRuntime.IsClientOnly())
+        if (!TerriasNetworkRuntime.IsClientOnly())
         {
             SeedAuthoritativeParty("BeginBattle");
         }
 
-        SunExpLog.InfoAlways("[ConstellationSync] battle state initialized; session="
+        TerriasLog.InfoAlways("[ConstellationSync] battle state initialized; session="
             + CurrentBattleSessionId
             + "; authority="
-            + !SunExpNetworkRuntime.IsClientOnly()
+            + !TerriasNetworkRuntime.IsClientOnly()
             + ".");
         return true;
     }
@@ -167,12 +167,12 @@ public static class ConstellationService
 
     public static void SynchronizeBattleState(string source)
     {
-        if (!SunExpNetworkRuntime.HasRemotePlayers())
+        if (!TerriasNetworkRuntime.HasRemotePlayers())
         {
             return;
         }
 
-        if (SunExpNetworkRuntime.IsClientOnly())
+        if (TerriasNetworkRuntime.IsClientOnly())
         {
             RpcConstellationRosterSnapshot.Request(
                 FightPlayer.Instance?.Status,
@@ -193,7 +193,7 @@ public static class ConstellationService
         }
 
         var roleId = ResolveAdventureRole(status);
-        if (!SunExpNetworkRuntime.IsMultiplayerSession())
+        if (!TerriasNetworkRuntime.IsMultiplayerSession())
         {
             var before = GetStored(status, roleId);
             var next = ConstellationPoolCatalog.Clamp(before + 1);
@@ -211,9 +211,9 @@ public static class ConstellationService
             return next;
         }
 
-        if (SunExpNetworkRuntime.IsClientOnly())
+        if (TerriasNetworkRuntime.IsClientOnly())
         {
-            var sent = SunExpNetworkRuntime.Send(new RpcConstellationStateCommit
+            var sent = TerriasNetworkRuntime.Send(new RpcConstellationStateCommit
             {
                 ProtocolVersion = ConstellationStateSnapshot.CurrentProtocolVersion,
                 Token = SyncDomain.NextToken(),
@@ -223,13 +223,13 @@ public static class ConstellationService
             }, "FateStar.LightUpRequest");
             if (!sent)
             {
-                SunExpLog.Warn("[ConstellationSync] failed to submit light-up request for owner=" + (status.InstanceId ?? "") + ".");
+                TerriasLog.Warn("[ConstellationSync] failed to submit light-up request for owner=" + (status.InstanceId ?? "") + ".");
             }
 
             return Level(status);
         }
 
-        var sender = SunExpRpcAuthorityRuntime.CreateLocalServerSender("FateStar.Host");
+        var sender = TerriasRpcAuthorityRuntime.CreateLocalServerSender("FateStar.Host");
         if (!TryResolveLightUpRequest(
                 ConstellationStateSnapshot.CurrentProtocolVersion,
                 SyncDomain.NextToken(),
@@ -246,7 +246,7 @@ public static class ConstellationService
             }
             else
             {
-                SunExpLog.Warn("[ConstellationSync] host light-up rejected: " + rejection);
+                TerriasLog.Warn("[ConstellationSync] host light-up rejected: " + rejection);
             }
 
             return Level(status);
@@ -266,11 +266,11 @@ public static class ConstellationService
         }
 
         var roleId = ResolveAdventureRole(status);
-        if (SunExpNetworkRuntime.IsClientOnly())
+        if (TerriasNetworkRuntime.IsClientOnly())
         {
             BindAdventureRole(status, roleId, overwrite: false);
             RegisterProvisionalState(status, roleId, 0, source + ".AwaitingAuthority");
-            SunExpLog.InfoAlways("[ConstellationSync] client battle restore is awaiting the host roster; role="
+            TerriasLog.InfoAlways("[ConstellationSync] client battle restore is awaiting the host roster; role="
                 + roleId
                 + "; status="
                 + (status.InstanceId ?? "")
@@ -283,7 +283,7 @@ public static class ConstellationService
         var level = GetStored(status, roleId);
         var applied = ApplyToStatus(status, roleId, level, 0, source);
         RegisterProvisionalState(status, roleId, level, source);
-        SunExpLog.InfoAlways("[Constellation] restored for battle; role="
+        TerriasLog.InfoAlways("[Constellation] restored for battle; role="
             + roleId
             + ", pool="
             + ConstellationPoolCatalog.PoolForRole(roleId).Id
@@ -321,20 +321,20 @@ public static class ConstellationService
             PlayerPartyApi.TryGainPower(status, 1);
         }
 
-        if (!SunExpNetworkRuntime.IsMultiplayerSession())
+        if (!TerriasNetworkRuntime.IsMultiplayerSession())
         {
             if (isTraveler && level >= 6)
             {
                 var round = NextHostRoundSequence();
                 ApplyRoundReward(CreateRoundReward(
-                    SunExpNetworkRuntime.LocalPlayerId(),
+                    TerriasNetworkRuntime.LocalPlayerId(),
                     round), "RoundStart.SinglePlayer");
             }
 
             return;
         }
 
-        if (SunExpNetworkRuntime.IsClientOnly())
+        if (TerriasNetworkRuntime.IsClientOnly())
         {
             return;
         }
@@ -404,7 +404,7 @@ public static class ConstellationService
         string battleSessionId,
         string ownerStatusId,
         string roleId,
-        SunExpRpcSender sender,
+        TerriasRpcSender sender,
         out ConstellationStateSnapshot snapshot,
         out string rejection)
     {
@@ -436,7 +436,7 @@ public static class ConstellationService
             return false;
         }
 
-        if (!SunExpStatusOwnershipPolicy.SenderOwnsStatus(sender.PlayerId, ownerStatusId, out var ownershipDetail))
+        if (!TerriasStatusOwnershipPolicy.SenderOwnsStatus(sender.PlayerId, ownerStatusId, out var ownershipDetail))
         {
             rejection = "sender does not own status; sender="
                 + sender.PlayerId
@@ -492,7 +492,7 @@ public static class ConstellationService
         };
         PersistLevel(ownerStatusId, snapshot.RoleId, snapshot.Level);
         ApplySnapshot(snapshot, "server:FateStar");
-        SunExpLog.InfoAlways("[ConstellationSync] light-up accepted; owner="
+        TerriasLog.InfoAlways("[ConstellationSync] light-up accepted; owner="
             + sender.PlayerId
             + "; status="
             + ownerStatusId
@@ -511,7 +511,7 @@ public static class ConstellationService
     public static bool TryCaptureAuthoritativeRoster(
         string requestOwnerStatusId,
         string requestRoleId,
-        SunExpRpcSender sender,
+        TerriasRpcSender sender,
         out List<ConstellationStateSnapshot> snapshots,
         out string battleSessionId,
         out string rejection)
@@ -527,7 +527,7 @@ public static class ConstellationService
 
         if (!string.IsNullOrWhiteSpace(requestOwnerStatusId))
         {
-            if (!SunExpStatusOwnershipPolicy.SenderOwnsStatus(sender.PlayerId, requestOwnerStatusId, out var detail))
+            if (!TerriasStatusOwnershipPolicy.SenderOwnsStatus(sender.PlayerId, requestOwnerStatusId, out var detail))
             {
                 rejection = "sender does not own requested status: " + detail;
                 return false;
@@ -563,7 +563,7 @@ public static class ConstellationService
                 .ToList();
         }
 
-        SunExpLog.InfoAlways("[ConstellationSync] authoritative roster captured; requester="
+        TerriasLog.InfoAlways("[ConstellationSync] authoritative roster captured; requester="
             + sender.PlayerId
             + "; entries="
             + snapshots.Count
@@ -592,7 +592,7 @@ public static class ConstellationService
             }
         }
 
-        SunExpLog.InfoAlways("[ConstellationSync] roster applied; source="
+        TerriasLog.InfoAlways("[ConstellationSync] roster applied; source="
             + source
             + "; session="
             + battleSessionId
@@ -660,12 +660,12 @@ public static class ConstellationService
             }
             else
             {
-                appliedLevel = BuffApi.SetExactLevelWithNativeRefresh(status, SunExpIds.Constellation, snapshot.Level);
+                appliedLevel = BuffApi.SetExactLevelWithNativeRefresh(status, TerriasIds.Constellation, snapshot.Level);
                 ApplyPresentation(status, ownerRoleId, source);
             }
         }
 
-        SunExpLog.InfoAlways("[ConstellationSync] snapshot applied; source="
+        TerriasLog.InfoAlways("[ConstellationSync] snapshot applied; source="
             + source
             + "; owner="
             + snapshot.OwnerPlayerId
@@ -700,7 +700,7 @@ public static class ConstellationService
 
     public static bool ValidateRoundRewardOnServer(
         ConstellationRoundRewardEvent? reward,
-        SunExpRpcSender sender,
+        TerriasRpcSender sender,
         out string rejection)
     {
         rejection = "";
@@ -767,7 +767,7 @@ public static class ConstellationService
         {
             if (!AppliedRoundRewardIds.Add(reward.EventId))
             {
-                SunExpLog.Debug("[ConstellationSync] duplicate round reward ignored; event=" + reward.EventId + ".");
+                TerriasLog.Debug("[ConstellationSync] duplicate round reward ignored; event=" + reward.EventId + ".");
                 return false;
             }
 
@@ -784,11 +784,11 @@ public static class ConstellationService
             return false;
         }
 
-        local!.AddBuff(SunExpIds.Extraordinary, 300);
+        local!.AddBuff(TerriasIds.Extraordinary, 300);
         var shield = Math.Max(1, StatusApi.MaxHp(local) / 5);
         StatusApi.TryAddShield(local, shield);
         PlayerPartyApi.TryGainPower(local, 2);
-        SunExpLog.InfoAlways("[ConstellationSync] traveler C6 reward applied locally; event="
+        TerriasLog.InfoAlways("[ConstellationSync] traveler C6 reward applied locally; event="
             + reward.EventId
             + "; sourceOwner="
             + reward.SourceOwnerPlayerId
@@ -823,14 +823,14 @@ public static class ConstellationService
         {
             var reward = CreateRoundReward(source.OwnerPlayerId, roundSequence);
             var command = new RpcConstellationRoundReward(reward);
-            command.BindServerSender(SunExpRpcAuthorityRuntime.CreateLocalServerSender("Constellation.RoundStart"));
-            if (!SunExpNetworkRuntime.Send(command, "Constellation.RoundStart:" + source.OwnerPlayerId))
+            command.BindServerSender(TerriasRpcAuthorityRuntime.CreateLocalServerSender("Constellation.RoundStart"));
+            if (!TerriasNetworkRuntime.Send(command, "Constellation.RoundStart:" + source.OwnerPlayerId))
             {
-                SunExpLog.Warn("[ConstellationSync] failed to publish traveler C6 reward; event=" + reward.EventId + ".");
+                TerriasLog.Warn("[ConstellationSync] failed to publish traveler C6 reward; event=" + reward.EventId + ".");
             }
         }
 
-        SunExpLog.InfoAlways("[ConstellationSync] round rewards published; round="
+        TerriasLog.InfoAlways("[ConstellationSync] round rewards published; round="
             + roundSequence
             + "; eligibleSources="
             + sources.Count
@@ -874,11 +874,11 @@ public static class ConstellationService
         foreach (var status in PlayerPartyApi.Snapshot(aliveOnly: false))
         {
             var statusId = status.InstanceId ?? "";
-            if (!SunExpStatusOwnershipPolicy.TryResolveOwningPlayerId(statusId, out var ownerPlayerId))
+            if (!TerriasStatusOwnershipPolicy.TryResolveOwningPlayerId(statusId, out var ownerPlayerId))
             {
                 if (string.Equals(statusId, PlayerApi.LocalPlayerStatusId(), StringComparison.Ordinal))
                 {
-                    ownerPlayerId = SunExpNetworkRuntime.LocalPlayerId();
+                    ownerPlayerId = TerriasNetworkRuntime.LocalPlayerId();
                 }
                 else
                 {
@@ -932,7 +932,7 @@ public static class ConstellationService
             BindAdventureRole(status, roleId, overwrite: true);
         }
 
-        SunExpLog.InfoAlways("[ConstellationSync] authoritative owner registered; owner="
+        TerriasLog.InfoAlways("[ConstellationSync] authoritative owner registered; owner="
             + ownerPlayerId
             + "; status="
             + ownerStatusId
@@ -948,7 +948,7 @@ public static class ConstellationService
 
     private static void RegisterProvisionalState(IStatusManager status, string roleId, int level, string source)
     {
-        var ownerPlayerId = SunExpNetworkRuntime.LocalPlayerId();
+        var ownerPlayerId = TerriasNetworkRuntime.LocalPlayerId();
         if (string.IsNullOrWhiteSpace(ownerPlayerId))
         {
             ownerPlayerId = status.InstanceId ?? "local";
@@ -978,7 +978,7 @@ public static class ConstellationService
     {
         if (string.IsNullOrWhiteSpace(battleSessionId))
         {
-            return !SunExpNetworkRuntime.IsMultiplayerSession();
+            return !TerriasNetworkRuntime.IsMultiplayerSession();
         }
 
         var incomingSessionId = battleSessionId!;
@@ -998,7 +998,7 @@ public static class ConstellationService
 
             if (!allowReplace)
             {
-                SunExpLog.Warn("[ConstellationSync] stale session rejected; source="
+                TerriasLog.Warn("[ConstellationSync] stale session rejected; source="
                     + source
                     + "; expected="
                     + acceptedBattleSessionId
@@ -1019,18 +1019,18 @@ public static class ConstellationService
 
     private static bool IsLocalOwner(ConstellationStateSnapshot snapshot)
     {
-        return SunExpNetworkRuntime.IsLocalPlayer(snapshot.OwnerPlayerId)
+        return TerriasNetworkRuntime.IsLocalPlayer(snapshot.OwnerPlayerId)
             || string.Equals(snapshot.OwnerStatusId, PlayerApi.LocalPlayerStatusId(), StringComparison.Ordinal);
     }
 
     private static bool IsCurrentPartyOwner(string ownerPlayerId)
     {
-        if (!SunExpNetworkRuntime.IsMultiplayerSession())
+        if (!TerriasNetworkRuntime.IsMultiplayerSession())
         {
             return true;
         }
 
-        var lobbyPlayerIds = SunExpNetworkRuntime.LobbyPlayerIds();
+        var lobbyPlayerIds = TerriasNetworkRuntime.LobbyPlayerIds();
         return lobbyPlayerIds.Count == 0
             || lobbyPlayerIds.Any(playerId => string.Equals(playerId, ownerPlayerId, StringComparison.Ordinal));
     }
@@ -1061,7 +1061,7 @@ public static class ConstellationService
     {
         var safeLevel = ConstellationPoolCatalog.Clamp(level);
         BindAdventureRole(status, roleId, overwrite: false);
-        var appliedLevel = BuffApi.SetExactLevelWithNativeRefresh(status, SunExpIds.Constellation, safeLevel);
+        var appliedLevel = BuffApi.SetExactLevelWithNativeRefresh(status, TerriasIds.Constellation, safeLevel);
         ApplyPresentation(status, roleId, source);
         for (var tier = Math.Max(1, previousLevel + 1); tier <= safeLevel; tier++)
         {
@@ -1074,7 +1074,7 @@ public static class ConstellationService
     private static void ApplyOneTimeTier(IStatusManager status, string roleId, int tier, string source)
     {
         var pool = ConstellationPoolCatalog.PoolForRole(roleId);
-        var key = "SunExp.Constellation.Once."
+        var key = "Terrias.Constellation.Once."
             + (status.InstanceId ?? "local")
             + "."
             + Sanitize(pool.Id)
@@ -1088,11 +1088,11 @@ public static class ConstellationService
         var extraordinary = pool.Tier(tier)?.OneTimeExtraordinary ?? 0;
         if (extraordinary > 0)
         {
-            status.AddBuff(SunExpIds.Extraordinary, extraordinary);
+            status.AddBuff(TerriasIds.Extraordinary, extraordinary);
         }
 
         CombatVarApi.SetInt(key, 1);
-        SunExpLog.Debug("[Constellation] one-time tier applied; role=" + roleId + "; tier=" + tier + "; source=" + source + ".");
+        TerriasLog.Debug("[Constellation] one-time tier applied; role=" + roleId + "; tier=" + tier + "; source=" + source + ".");
     }
 
     private static int GetStored(IStatusManager status, string roleId)
@@ -1111,10 +1111,10 @@ public static class ConstellationService
 
         var legacy = ConstellationPoolCatalog.Clamp(DictionaryUtil.ParseInt(
             PlayerApi.GetScopedGameVarForScope(LegacyStorageKeyForRole(roleId), ownerStatusId, "0")));
-        if (legacy > 0 && !SunExpNetworkRuntime.IsClientOnly())
+        if (legacy > 0 && !TerriasNetworkRuntime.IsClientOnly())
         {
             PlayerApi.SetScopedGameVarForScope(StorageKeyForPool(poolId), ownerStatusId, legacy.ToString());
-            SunExpLog.Info("[Constellation] migrated legacy role progress; role="
+            TerriasLog.Info("[Constellation] migrated legacy role progress; role="
                 + roleId
                 + ", pool="
                 + poolId
@@ -1137,12 +1137,12 @@ public static class ConstellationService
 
     private static string StorageKeyForPool(string poolId)
     {
-        return SunExpIds.ConstellationStorage + "_Pool_" + Sanitize(poolId);
+        return TerriasIds.ConstellationStorage + "_Pool_" + Sanitize(poolId);
     }
 
     private static string LegacyStorageKeyForRole(string roleId)
     {
-        return SunExpIds.ConstellationStorage + "_Role_" + Sanitize(roleId);
+        return TerriasIds.ConstellationStorage + "_Role_" + Sanitize(roleId);
     }
 
     private static string StateKey(string ownerPlayerId, string poolId)
@@ -1167,7 +1167,7 @@ public static class ConstellationService
 
     private static void LogLightUp(string roleId, int level, int applied, string source)
     {
-        SunExpLog.InfoAlways("[Constellation] light up; role="
+        TerriasLog.InfoAlways("[Constellation] light up; role="
             + roleId
             + ", pool="
             + ConstellationPoolCatalog.PoolForRole(roleId).Id
@@ -1192,7 +1192,7 @@ public static class ConstellationService
         string source)
     {
         if (buffConfig == null
-            || !string.Equals(buffConfig.BuffId, SunExpIds.Constellation, StringComparison.Ordinal))
+            || !string.Equals(buffConfig.BuffId, TerriasIds.Constellation, StringComparison.Ordinal))
         {
             return false;
         }
@@ -1202,7 +1202,7 @@ public static class ConstellationService
         var prepared = BuffApi.PrepareRuntimePresentation(buffConfig, pool.PresentationFields);
         if (prepared)
         {
-            SunExpLog.Debug("[Constellation] presentation prepared; role="
+            TerriasLog.Debug("[Constellation] presentation prepared; role="
                 + roleId
                 + "; pool="
                 + pool.Id
@@ -1217,7 +1217,7 @@ public static class ConstellationService
     public static bool RefreshPresentation(IBuffItem? buff, string source)
     {
         if (buff?.buffConfig == null
-            || !string.Equals(buff.buffConfig.BuffId, SunExpIds.Constellation, StringComparison.Ordinal))
+            || !string.Equals(buff.buffConfig.BuffId, TerriasIds.Constellation, StringComparison.Ordinal))
         {
             return false;
         }
@@ -1229,7 +1229,7 @@ public static class ConstellationService
             ConstellationPoolCatalog.PoolForRole(roleId).PresentationFields);
         if (changed)
         {
-            SunExpLog.Debug("[Constellation] presentation refreshed; role="
+            TerriasLog.Debug("[Constellation] presentation refreshed; role="
                 + roleId
                 + "; pool="
                 + ConstellationPoolCatalog.PoolForRole(roleId).Id
@@ -1244,9 +1244,9 @@ public static class ConstellationService
     private static void ApplyPresentation(IStatusManager status, string roleId, string source)
     {
         var pool = ConstellationPoolCatalog.PoolForRole(roleId);
-        if (BuffApi.ApplyRuntimePresentation(status, SunExpIds.Constellation, pool.PresentationFields))
+        if (BuffApi.ApplyRuntimePresentation(status, TerriasIds.Constellation, pool.PresentationFields))
         {
-            SunExpLog.Debug("[Constellation] presentation applied; role="
+            TerriasLog.Debug("[Constellation] presentation applied; role="
                 + roleId
                 + "; pool="
                 + pool.Id

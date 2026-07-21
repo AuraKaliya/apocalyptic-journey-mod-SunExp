@@ -5,14 +5,14 @@ using AuraShared.Core;
 using Data.Save;
 using Network.Command;
 using Newtonsoft.Json;
-using SunExp.Dll.Hooks;
-using SunExp.Dll.Hooks.Ui;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Hooks;
+using Terrias.Dll.Hooks.Ui;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Network;
+namespace Terrias.Dll.Network;
 
 [Serializable]
 public sealed class EndlessSeaStateSnapshot
@@ -46,28 +46,28 @@ public sealed class EndlessSeaStateSnapshot
 
     public static EndlessSeaStateSnapshot Capture(string hostSession, int generation, bool includePlan)
     {
-        var floorPlan = includePlan ? ReadString(SunExpIds.EndlessSeaFloorPlanKey) : "";
+        var floorPlan = includePlan ? ReadString(TerriasIds.EndlessSeaFloorPlanKey) : "";
         var canonicalPlan = string.IsNullOrWhiteSpace(floorPlan)
-            ? ReadString(SunExpIds.EndlessSeaFloorPlanKey)
+            ? ReadString(TerriasIds.EndlessSeaFloorPlanKey)
             : floorPlan;
         return new EndlessSeaStateSnapshot
         {
             HostSession = hostSession ?? "",
             Generation = Math.Max(0, generation),
-            Mode = ReadString(SunExpIds.EndlessSeaModeKey),
-            Floor = Math.Max(1, ReadInt(SunExpIds.EndlessSeaFloorKey)),
-            GeneratedFloor = Math.Max(0, ReadInt(SunExpIds.EndlessSeaGeneratedFloorKey)),
-            RunId = ReadString(SunExpIds.EndlessSeaRunIdKey),
-            RunPhase = ReadString(SunExpIds.EndlessSeaRunPhaseKey),
-            RunEnded = ReadString(SunExpIds.EndlessSeaRunEndedKey),
-            StarterDeckApplied = ReadString(SunExpIds.EndlessSeaStarterDeckAppliedKey),
-            GazeLevel = Math.Max(0, ReadInt(SunExpIds.EndlessAbyssGazeLevelKey)),
-            PendingShockJson = ReadString(SunExpIds.EndlessAbyssPendingShockKey),
-            EvacuationToken = ReadString(SunExpIds.EndlessAbyssEvacuationTokenKey),
-            EvacuationReason = ReadString(SunExpIds.EndlessAbyssEvacuationReasonKey),
-            EvacuationFloor = Math.Max(0, ReadInt(SunExpIds.EndlessAbyssEvacuationFloorKey)),
-            EvacuationDepth = Math.Max(0, ReadInt(SunExpIds.EndlessAbyssEvacuationDepthKey)),
-            EvacuationAt = ReadString(SunExpIds.EndlessAbyssEvacuationAtKey),
+            Mode = ReadString(TerriasIds.EndlessSeaModeKey),
+            Floor = Math.Max(1, ReadInt(TerriasIds.EndlessSeaFloorKey)),
+            GeneratedFloor = Math.Max(0, ReadInt(TerriasIds.EndlessSeaGeneratedFloorKey)),
+            RunId = ReadString(TerriasIds.EndlessSeaRunIdKey),
+            RunPhase = ReadString(TerriasIds.EndlessSeaRunPhaseKey),
+            RunEnded = ReadString(TerriasIds.EndlessSeaRunEndedKey),
+            StarterDeckApplied = ReadString(TerriasIds.EndlessSeaStarterDeckAppliedKey),
+            GazeLevel = Math.Max(0, ReadInt(TerriasIds.EndlessAbyssGazeLevelKey)),
+            PendingShockJson = ReadString(TerriasIds.EndlessAbyssPendingShockKey),
+            EvacuationToken = ReadString(TerriasIds.EndlessAbyssEvacuationTokenKey),
+            EvacuationReason = ReadString(TerriasIds.EndlessAbyssEvacuationReasonKey),
+            EvacuationFloor = Math.Max(0, ReadInt(TerriasIds.EndlessAbyssEvacuationFloorKey)),
+            EvacuationDepth = Math.Max(0, ReadInt(TerriasIds.EndlessAbyssEvacuationDepthKey)),
+            EvacuationAt = ReadString(TerriasIds.EndlessAbyssEvacuationAtKey),
             FloorPlanHash = Hash(canonicalPlan),
             FloorPlanJson = floorPlan
         };
@@ -129,17 +129,17 @@ public sealed class EndlessSeaStateSnapshot
 }
 
 [Serializable]
-public sealed class RpcEndlessSeaStateSnapshot : RpcCommandBase, ISunExpServerBoundRpcCommand
+public sealed class RpcEndlessSeaStateSnapshot : RpcCommandBase, ITerriasServerBoundRpcCommand
 {
-    private SunExpRpcSender serverSender = SunExpRpcSender.Unbound;
+    private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 
     public EndlessSeaStateSnapshot Snapshot { get; set; } = new();
     public bool Accepted { get; set; }
     public string RejectionReason { get; set; } = "";
 
-    public void BindServerSender(SunExpRpcSender sender)
+    public void BindServerSender(TerriasRpcSender sender)
     {
-        serverSender = sender ?? SunExpRpcSender.Unbound;
+        serverSender = sender ?? TerriasRpcSender.Unbound;
     }
 
     public override void CmdExecute()
@@ -172,9 +172,9 @@ public sealed class RpcEndlessSeaStateSnapshot : RpcCommandBase, ISunExpServerBo
 }
 
 [Serializable]
-public sealed class RpcEndlessSeaStateSnapshotRequest : RpcCommandBase, ISunExpServerBoundRpcCommand
+public sealed class RpcEndlessSeaStateSnapshotRequest : RpcCommandBase, ITerriasServerBoundRpcCommand
 {
-    private SunExpRpcSender serverSender = SunExpRpcSender.Unbound;
+    private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 
     public int ProtocolVersion { get; set; } = EndlessSeaStateSnapshot.CurrentProtocolVersion;
     public int Token { get; set; }
@@ -185,9 +185,9 @@ public sealed class RpcEndlessSeaStateSnapshotRequest : RpcCommandBase, ISunExpS
     public bool Accepted { get; set; }
     public string RejectionReason { get; set; } = "";
 
-    public void BindServerSender(SunExpRpcSender sender)
+    public void BindServerSender(TerriasRpcSender sender)
     {
-        serverSender = sender ?? SunExpRpcSender.Unbound;
+        serverSender = sender ?? TerriasRpcSender.Unbound;
     }
 
     public override void CmdExecute()
@@ -243,7 +243,7 @@ public static class EndlessSeaNetworkSync
     private static readonly AuraAuthoritativeSyncDomain SyncDomain =
         AuraAuthoritativeSyncRuntime.RegisterDomain(new AuraAuthoritativeSyncDomainOptions
         {
-            OwnerModId = SunExpIds.ModId,
+            OwnerModId = TerriasIds.ModId,
             DomainId = DomainId,
             SnapshotRequestThrottleSeconds = SnapshotRequestThrottleSeconds,
             MaxResolvedTokens = 512
@@ -258,30 +258,30 @@ public static class EndlessSeaNetworkSync
 
     public static void BroadcastSnapshot(string source)
     {
-        if (!SunExpNetworkRuntime.HasRemotePlayers()
-            || !SunExpNetworkRuntime.IsMultiplayerSession()
-            || SunExpNetworkRuntime.IsClientOnly())
+        if (!TerriasNetworkRuntime.HasRemotePlayers()
+            || !TerriasNetworkRuntime.IsMultiplayerSession()
+            || TerriasNetworkRuntime.IsClientOnly())
         {
             return;
         }
 
         hostGeneration++;
         var command = new RpcEndlessSeaStateSnapshot();
-        command.BindServerSender(SunExpRpcAuthorityRuntime.CreateLocalServerSender(source));
-        SunExpNetworkRuntime.Send(command, source ?? "EndlessSeaNetworkSync.BroadcastSnapshot");
+        command.BindServerSender(TerriasRpcAuthorityRuntime.CreateLocalServerSender(source));
+        TerriasNetworkRuntime.Send(command, source ?? "EndlessSeaNetworkSync.BroadcastSnapshot");
     }
 
     public static void RequestSnapshot(string source)
     {
-        if (!SunExpNetworkRuntime.HasRemotePlayers()
-            || !SunExpNetworkRuntime.IsClientOnly()
+        if (!TerriasNetworkRuntime.HasRemotePlayers()
+            || !TerriasNetworkRuntime.IsClientOnly()
             || !SyncDomain.TryBeginSnapshotRequest())
         {
             return;
         }
 
         var snapshot = pendingProjection;
-        SunExpNetworkRuntime.Send(new RpcEndlessSeaStateSnapshotRequest
+        TerriasNetworkRuntime.Send(new RpcEndlessSeaStateSnapshotRequest
         {
             Token = SyncDomain.NextToken(),
             KnownRunId = snapshot?.RunId ?? "",
@@ -331,20 +331,20 @@ public static class EndlessSeaNetworkSync
         }
 
         remoteGeneration = Math.Max(remoteGeneration, snapshot.Generation);
-        Set(SunExpIds.EndlessSeaModeKey, "1");
-        Set(SunExpIds.EndlessSeaFloorKey, Math.Max(1, snapshot.Floor).ToString());
-        Set(SunExpIds.EndlessSeaGeneratedFloorKey, Math.Max(0, snapshot.GeneratedFloor).ToString());
-        Set(SunExpIds.EndlessSeaRunIdKey, snapshot.RunId ?? "");
-        Set(SunExpIds.EndlessSeaRunPhaseKey, snapshot.RunPhase ?? "");
-        Set(SunExpIds.EndlessSeaRunEndedKey, snapshot.RunEnded ?? "0");
-        Set(SunExpIds.EndlessSeaStarterDeckAppliedKey, snapshot.StarterDeckApplied ?? "");
-        Set(SunExpIds.EndlessAbyssGazeLevelKey, Math.Max(0, snapshot.GazeLevel).ToString());
-        Set(SunExpIds.EndlessAbyssPendingShockKey, snapshot.PendingShockJson ?? "");
-        Set(SunExpIds.EndlessAbyssEvacuationTokenKey, snapshot.EvacuationToken ?? "");
-        Set(SunExpIds.EndlessAbyssEvacuationReasonKey, snapshot.EvacuationReason ?? "");
-        Set(SunExpIds.EndlessAbyssEvacuationFloorKey, Math.Max(0, snapshot.EvacuationFloor).ToString());
-        Set(SunExpIds.EndlessAbyssEvacuationDepthKey, Math.Max(0, snapshot.EvacuationDepth).ToString());
-        Set(SunExpIds.EndlessAbyssEvacuationAtKey, snapshot.EvacuationAt ?? "");
+        Set(TerriasIds.EndlessSeaModeKey, "1");
+        Set(TerriasIds.EndlessSeaFloorKey, Math.Max(1, snapshot.Floor).ToString());
+        Set(TerriasIds.EndlessSeaGeneratedFloorKey, Math.Max(0, snapshot.GeneratedFloor).ToString());
+        Set(TerriasIds.EndlessSeaRunIdKey, snapshot.RunId ?? "");
+        Set(TerriasIds.EndlessSeaRunPhaseKey, snapshot.RunPhase ?? "");
+        Set(TerriasIds.EndlessSeaRunEndedKey, snapshot.RunEnded ?? "0");
+        Set(TerriasIds.EndlessSeaStarterDeckAppliedKey, snapshot.StarterDeckApplied ?? "");
+        Set(TerriasIds.EndlessAbyssGazeLevelKey, Math.Max(0, snapshot.GazeLevel).ToString());
+        Set(TerriasIds.EndlessAbyssPendingShockKey, snapshot.PendingShockJson ?? "");
+        Set(TerriasIds.EndlessAbyssEvacuationTokenKey, snapshot.EvacuationToken ?? "");
+        Set(TerriasIds.EndlessAbyssEvacuationReasonKey, snapshot.EvacuationReason ?? "");
+        Set(TerriasIds.EndlessAbyssEvacuationFloorKey, Math.Max(0, snapshot.EvacuationFloor).ToString());
+        Set(TerriasIds.EndlessAbyssEvacuationDepthKey, Math.Max(0, snapshot.EvacuationDepth).ToString());
+        Set(TerriasIds.EndlessAbyssEvacuationAtKey, snapshot.EvacuationAt ?? "");
 
         if (!string.IsNullOrWhiteSpace(snapshot.FloorPlanJson)
             && string.Equals(EndlessSeaStateSnapshot.Hash(snapshot.FloorPlanJson), snapshot.FloorPlanHash, StringComparison.Ordinal)
@@ -370,7 +370,7 @@ public static class EndlessSeaNetworkSync
                 },
                 source + ":snapshot");
         }
-        SunExpLog.Debug("[EndlessSeaSync] accepted host snapshot; floor=" + snapshot.Floor
+        TerriasLog.Debug("[EndlessSeaSync] accepted host snapshot; floor=" + snapshot.Floor
             + "; generation=" + snapshot.Generation
             + "; source=" + source + ".");
     }
@@ -398,7 +398,7 @@ public static class EndlessSeaNetworkSync
     {
         try
         {
-            return Math.Max(1, GameSaveManager.GetValue<int>(SunExpIds.EndlessSeaFloorKey));
+            return Math.Max(1, GameSaveManager.GetValue<int>(TerriasIds.EndlessSeaFloorKey));
         }
         catch
         {

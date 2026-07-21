@@ -1,9 +1,9 @@
 using System;
-using SunExp.Dll.Hooks.Ui;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Hooks.Ui;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class EndlessAbyssMilestonePromptService
 {
@@ -16,7 +16,7 @@ public static class EndlessAbyssMilestonePromptService
             return;
         }
 
-        SunExpFrameDispatcher.RunOnceNextFrame(
+        TerriasFrameDispatcher.RunOnceNextFrame(
             "EndlessAbyssMilestonePrompt." + (source ?? "unknown"),
             () => TryOpen(source + ":next-frame"));
     }
@@ -59,7 +59,7 @@ public static class EndlessAbyssMilestonePromptService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessAbyssMilestone] prompt failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[EndlessAbyssMilestone] prompt failed from " + source + ": " + ex.Message);
             return false;
         }
     }
@@ -67,6 +67,6 @@ public static class EndlessAbyssMilestonePromptService
     public static void Reset(string source)
     {
         lastPromptedFloor = 0;
-        SunExpLog.Debug("[EndlessAbyssMilestone] prompt state reset from " + source + ".");
+        TerriasLog.Debug("[EndlessAbyssMilestone] prompt state reset from " + source + ".");
     }
 }

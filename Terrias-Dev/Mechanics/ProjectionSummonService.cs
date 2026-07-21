@@ -2,14 +2,14 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AuraGameData.Shared.GameApi;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Network;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Network;
 using UnityEngine;
 using Witch.UI;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class ProjectionSummonService
 {
@@ -48,10 +48,10 @@ public static class ProjectionSummonService
             return false;
         }
 
-        if (SunExpNetworkRuntime.IsMultiplayerSession() && !SunExpNetworkRuntime.IsServer())
+        if (TerriasNetworkRuntime.IsMultiplayerSession() && !TerriasNetworkRuntime.IsServer())
         {
             var token = Guid.NewGuid().ToString("N");
-            SunExpNetworkRuntime.Send(
+            TerriasNetworkRuntime.Send(
                 new RpcProjectionSummonRequest(role.Id, self.Self.InstanceId, token),
                 "ProjectionSummonService.TrySummon");
             PlayerApi.ShowCaption("拜托了：正在同步投影。");
@@ -62,14 +62,14 @@ public static class ProjectionSummonService
             self.Self.InstanceId,
             role,
             "ProjectionSummonService.TrySummon",
-            broadcast: SunExpNetworkRuntime.IsMultiplayerSession());
+            broadcast: TerriasNetworkRuntime.IsMultiplayerSession());
     }
 
     public static void ResolveNetworkSummon(
         string roleId,
         string ownerStatusId,
         string token,
-        SunExpRpcSender sender,
+        TerriasRpcSender sender,
         int protocolVersion,
         int battleEpoch,
         string registryHash)
@@ -129,7 +129,7 @@ public static class ProjectionSummonService
 
         if (!snapshot.Accepted)
         {
-            if (SenderOwnsStatus(SunExpNetworkRuntime.LocalPlayerId(), snapshot.OwnerStatusId))
+            if (SenderOwnsStatus(TerriasNetworkRuntime.LocalPlayerId(), snapshot.OwnerStatusId))
             {
                 ShowRejectionCaption(snapshot.RejectionReason);
             }
@@ -147,7 +147,7 @@ public static class ProjectionSummonService
             || snapshot.BattleEpoch != CompanionAuthorityService.BattleEpoch
             || !string.Equals(snapshot.RegistryHash, CompanionIntentRegistry.RegistryHash, StringComparison.Ordinal))
         {
-            SunExpLog.Warn("[Projection] ignored incompatible snapshot: protocol=" + snapshot.ProtocolVersion
+            TerriasLog.Warn("[Projection] ignored incompatible snapshot: protocol=" + snapshot.ProtocolVersion
                 + ", epoch=" + snapshot.BattleEpoch + ", localEpoch=" + CompanionAuthorityService.BattleEpoch);
             return;
         }
@@ -190,13 +190,13 @@ public static class ProjectionSummonService
                 ["ActionCount"] = "1",
                 ["CardList"] = string.Join(",", new[]
                 {
-                    SunExpIds.ProjectionActionStaffTapCardId,
-                    SunExpIds.ProjectionActionShieldBlessingCardId,
-                    SunExpIds.ProjectionActionStaffComboCardId,
-                    SunExpIds.ProjectionActionMagicInterferenceCardId,
-                    SunExpIds.ProjectionActionYouAreEnhancedCardId,
-                    SunExpIds.ProjectionActionChargeCardId,
-                    SunExpIds.ProjectionActionHolyHealCardId
+                    TerriasIds.ProjectionActionStaffTapCardId,
+                    TerriasIds.ProjectionActionShieldBlessingCardId,
+                    TerriasIds.ProjectionActionStaffComboCardId,
+                    TerriasIds.ProjectionActionMagicInterferenceCardId,
+                    TerriasIds.ProjectionActionYouAreEnhancedCardId,
+                    TerriasIds.ProjectionActionChargeCardId,
+                    TerriasIds.ProjectionActionHolyHealCardId
                 })
             }
         });
@@ -287,7 +287,7 @@ public static class ProjectionSummonService
     {
         try
         {
-            var prefab = SunExpResourceCache.Load<GameObject>("Model/player", true, "projection");
+            var prefab = TerriasResourceCache.Load<GameObject>("Model/player", true, "projection");
             if (prefab == null)
             {
                 PlayerApi.ShowCaption("拜托了：投影模型加载失败。");
@@ -348,7 +348,7 @@ public static class ProjectionSummonService
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[Projection] summon failed from " + source, ex);
+            TerriasLog.Error("[Projection] summon failed from " + source, ex);
             PlayerApi.ShowCaption("拜托了：召唤失败。");
             return false;
         }
@@ -373,12 +373,12 @@ public static class ProjectionSummonService
 
     private static bool BroadcastNetworkState(ProjectionCompanionSnapshot snapshot, string source)
     {
-        return SunExpNetworkRuntime.Send(new RpcProjectionCompanionState(snapshot), source);
+        return TerriasNetworkRuntime.Send(new RpcProjectionCompanionState(snapshot), source);
     }
 
     private static void ShowLocalRejectionIfNeeded(string ownerStatusId, string reason, bool broadcast, bool sent)
     {
-        if (!broadcast || !sent && SenderOwnsStatus(SunExpNetworkRuntime.LocalPlayerId(), ownerStatusId))
+        if (!broadcast || !sent && SenderOwnsStatus(TerriasNetworkRuntime.LocalPlayerId(), ownerStatusId))
         {
             ShowRejectionCaption(reason);
         }
@@ -413,7 +413,7 @@ public static class ProjectionSummonService
 
     public static void BroadcastRuntimeState(ProjectionOtherObj projection, string source)
     {
-        if (projection == null || !SunExpNetworkRuntime.IsMultiplayerSession() || !CompanionAuthorityService.IsAuthoritative())
+        if (projection == null || !TerriasNetworkRuntime.IsMultiplayerSession() || !CompanionAuthorityService.IsAuthoritative())
         {
             return;
         }
@@ -492,9 +492,9 @@ public static class ProjectionSummonService
         }
     }
 
-    private static string ValidateNetworkSender(SunExpRpcSender sender, string ownerStatusId)
+    private static string ValidateNetworkSender(TerriasRpcSender sender, string ownerStatusId)
     {
-        if (!SunExpNetworkRuntime.IsMultiplayerSession())
+        if (!TerriasNetworkRuntime.IsMultiplayerSession())
         {
             return "";
         }

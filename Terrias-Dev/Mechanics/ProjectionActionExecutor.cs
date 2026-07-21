@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 /// <summary>
 /// Executes an already committed friendly-AI plan without routing through
@@ -14,14 +14,14 @@ public static class ProjectionActionExecutor
 {
     public static bool Execute(OtherObj actor, CompanionBattleState state, ObjectCard? action)
     {
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         try
         {
             return ExecuteCore(actor, state, action);
         }
         finally
         {
-            SunExpPerformanceCounters.RecordDuration("ProjectionAction.Execute", start);
+            TerriasPerformanceCounters.RecordDuration("ProjectionAction.Execute", start);
         }
     }
 
@@ -49,7 +49,7 @@ public static class ProjectionActionExecutor
         var intent = CompanionIntentResolver.Find(state, plan.IntentId);
         if (intent == null || !CommittedTargetsAreValid(state, intent, plan.ResolvedEffects))
         {
-            SunExpLog.Warn("[ProjectionAction] rejected committed target outside intent scope: " + plan.IntentId);
+            TerriasLog.Warn("[ProjectionAction] rejected committed target outside intent scope: " + plan.IntentId);
             return false;
         }
 
@@ -57,7 +57,7 @@ public static class ProjectionActionExecutor
         {
             if (!CompanionIntentHandlerRegistry.TryGet(effect.HandlerId, out var handler))
             {
-                SunExpLog.Warn("[ProjectionAction] rejected unknown handler: " + effect.HandlerId);
+                TerriasLog.Warn("[ProjectionAction] rejected unknown handler: " + effect.HandlerId);
                 continue;
             }
 
@@ -75,7 +75,7 @@ public static class ProjectionActionExecutor
             CompanionIntentSelector.CommitResolvedPlan(state, plan);
         }
 
-        SunExpPerformanceCounters.Record("ProjectionAction.DedicatedExecuted");
+        TerriasPerformanceCounters.Record("ProjectionAction.DedicatedExecuted");
         return true;
     }
 

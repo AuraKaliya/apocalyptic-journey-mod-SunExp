@@ -1,11 +1,11 @@
 using System;
 using System.Collections.Generic;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 /// <summary>
 /// Preserves the captured enemy-card presentation while forcing the runtime
-/// identity and executable scripts through a SunExp-owned adapter row.
+/// identity and executable scripts through a Terrias-owned adapter row.
 /// Native ScriptExecutor precompilation resolves delegates by data Id before
 /// considering replaced script text, so retaining the source Id is unsafe.
 /// </summary>

@@ -1,8 +1,8 @@
 using System.Collections.Generic;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 
-namespace SunExp.Dll.Hooks.Visual;
+namespace Terrias.Dll.Hooks.Visual;
 
 internal static class CardFaceEffectApplier
 {
@@ -11,7 +11,7 @@ internal static class CardFaceEffectApplier
 
     public static bool Apply(CardVisualSkinMarker marker, CardVisualEffectSpec effect)
     {
-        if (!SunExpPerformanceSettings.CardFaceEffectsEnabled)
+        if (!TerriasPerformanceSettings.CardFaceEffectsEnabled)
         {
             return Clear(marker);
         }
@@ -77,7 +77,7 @@ internal static class CardFaceEffectApplier
         if (LoggedEffects.Add(effect.Id))
         {
             var targetSuffix = string.IsNullOrWhiteSpace(target) ? "" : " (" + target + ")";
-            SunExpLog.Info(LogPrefix + " applied " + effect.DisplayName + ": " + effect.VisualEffectId + targetSuffix);
+            TerriasLog.Info(LogPrefix + " applied " + effect.DisplayName + ": " + effect.VisualEffectId + targetSuffix);
         }
     }
 }

@@ -1,13 +1,13 @@
 using System;
 
-namespace SunExp.Dll.Network;
+namespace Terrias.Dll.Network;
 
 /// <summary>
 /// Validates a status owner against the sender identity bound by the server
 /// receive context. Native player statuses commonly use the player id as
 /// their status id; RoleStatusMap remains the fallback for mapped statuses.
 /// </summary>
-public static class SunExpStatusOwnershipPolicy
+public static class TerriasStatusOwnershipPolicy
 {
     public static bool SenderOwnsStatus(
         string playerId,
@@ -65,7 +65,7 @@ public static class SunExpStatusOwnershipPolicy
             return false;
         }
 
-        foreach (var lobbyPlayerId in SunExpNetworkRuntime.LobbyPlayerIds())
+        foreach (var lobbyPlayerId in TerriasNetworkRuntime.LobbyPlayerIds())
         {
             if (string.Equals(lobbyPlayerId, ownerStatusId, StringComparison.Ordinal))
             {

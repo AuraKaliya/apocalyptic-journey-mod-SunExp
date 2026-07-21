@@ -119,9 +119,9 @@ Runtime 仍然较大，但剩余主体已经主要是 Hook 接入、请求编排
 - Aura.Shared：1228 项公共 API 兼容基线通过；
 - AuraDirector：20 项断言通过；
 - AuraToolsExp：633 项断言通过；
-- SunExp：架构检查与 282 项 C# 断言通过；
+- Terrias：架构检查与 282 项 C# 断言通过；
 - shared write、content/tool/shared、RPC authority 与架构边界门禁通过；
-- SunExp、SanGuoShaExp、AuraToolsExp 三个消费者均以 0 警告、0 错误构建；
+- Terrias、SanGuoShaExp、AuraToolsExp 三个消费者均以 0 警告、0 错误构建；
 - 完整共享发布矩阵与 DLL 打包检查通过；
 - 构建产物与三个打包副本 SHA-256 一致：`1036EC3EC2BE12605CFFA1ACA832E929CC16503535BE3854700B07BA39B32E4E`。
 

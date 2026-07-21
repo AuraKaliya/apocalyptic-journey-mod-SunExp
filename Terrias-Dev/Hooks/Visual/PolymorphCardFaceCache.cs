@@ -1,14 +1,14 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using Witch.Core;
 using Object = UnityEngine.Object;
 
-namespace SunExp.Dll.Hooks.Visual;
+namespace Terrias.Dll.Hooks.Visual;
 
 public sealed class PolymorphCardFaceAsset
 {
@@ -42,18 +42,18 @@ public static class PolymorphCardFaceCache
         }
 
         var roleId = FirstNonEmpty(
-            DictionaryUtil.Get(config?.Vars, SunExpIds.PolymorphRoleIdKey),
-            DictionaryUtil.Get(config?.Vars, SunExpIds.ProjectionRoleIdKey));
+            DictionaryUtil.Get(config?.Vars, TerriasIds.PolymorphRoleIdKey),
+            DictionaryUtil.Get(config?.Vars, TerriasIds.ProjectionRoleIdKey));
         var role = PolymorphRoleRegistry.Find(roleId);
         var path = FirstNonEmpty(
-            DictionaryUtil.Get(config?.Vars, SunExpIds.PolymorphRoleCardFacePathKey),
-            DictionaryUtil.Get(config?.Vars, SunExpIds.ProjectionRoleCardFacePathKey),
+            DictionaryUtil.Get(config?.Vars, TerriasIds.PolymorphRoleCardFacePathKey),
+            DictionaryUtil.Get(config?.Vars, TerriasIds.ProjectionRoleCardFacePathKey),
             role?.CardFacePath ?? "",
             DictionaryUtil.Get(config?.data, "Icon"),
-            SunExpIds.PolymorphPlaceholderCardIconPath);
+            TerriasIds.PolymorphPlaceholderCardIconPath);
         var crop = PolymorphRoleCropRegistry.CropFor(roleId);
-        var offsetX = DictionaryUtil.GetInt(config?.Vars, SunExpIds.PolymorphRoleCropXKey, crop.OffsetX);
-        var offsetY = DictionaryUtil.GetInt(config?.Vars, SunExpIds.PolymorphRoleCropYKey, crop.OffsetY);
+        var offsetX = DictionaryUtil.GetInt(config?.Vars, TerriasIds.PolymorphRoleCropXKey, crop.OffsetX);
+        var offsetY = DictionaryUtil.GetInt(config?.Vars, TerriasIds.PolymorphRoleCropYKey, crop.OffsetY);
         var cropSize = role?.CropSize ?? crop.Size;
         return GetOrCreate(roleId, path, offsetX, offsetY, cropSize);
     }
@@ -65,12 +65,12 @@ public static class PolymorphCardFaceCache
             return false;
         }
 
-        return string.Equals(DictionaryUtil.Get(config.data, "Id"), SunExpIds.PolymorphRoleTemplateCardId, StringComparison.Ordinal)
-            || string.Equals(DictionaryUtil.Get(config.data, "Id"), SunExpIds.PolymorphRoleTemplateShortId, StringComparison.Ordinal)
-            || string.Equals(DictionaryUtil.Get(config.data, "Id"), SunExpIds.ProjectionRoleTemplateCardId, StringComparison.Ordinal)
-            || string.Equals(DictionaryUtil.Get(config.data, "Id"), SunExpIds.ProjectionRoleTemplateShortId, StringComparison.Ordinal)
-            || DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, SunExpIds.RuntimeMarkersKey), SunExpIds.PolymorphRoleCardMarker)
-            || DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, SunExpIds.RuntimeMarkersKey), SunExpIds.ProjectionRoleCardMarker);
+        return string.Equals(DictionaryUtil.Get(config.data, "Id"), TerriasIds.PolymorphRoleTemplateCardId, StringComparison.Ordinal)
+            || string.Equals(DictionaryUtil.Get(config.data, "Id"), TerriasIds.PolymorphRoleTemplateShortId, StringComparison.Ordinal)
+            || string.Equals(DictionaryUtil.Get(config.data, "Id"), TerriasIds.ProjectionRoleTemplateCardId, StringComparison.Ordinal)
+            || string.Equals(DictionaryUtil.Get(config.data, "Id"), TerriasIds.ProjectionRoleTemplateShortId, StringComparison.Ordinal)
+            || DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, TerriasIds.RuntimeMarkersKey), TerriasIds.PolymorphRoleCardMarker)
+            || DictionaryUtil.ContainsToken(DictionaryUtil.Get(config.Vars, TerriasIds.RuntimeMarkersKey), TerriasIds.ProjectionRoleCardMarker);
     }
 
     public static void Warmup(IEnumerable<PolymorphRoleSpec> roles, int immediateCount, int batchSize)
@@ -114,30 +114,30 @@ public static class PolymorphCardFaceCache
             SafeDestroy(asset.Texture);
         }
 
-        SunExpPerformanceCounters.Record("Polymorph.CardFacesCleared");
-        SunExpLog.Debug("[PolymorphCardFace] cleared generated faces from " + source + ": " + assets.Length);
+        TerriasPerformanceCounters.Record("Polymorph.CardFacesCleared");
+        TerriasLog.Debug("[PolymorphCardFace] cleared generated faces from " + source + ": " + assets.Length);
     }
 
     private static PolymorphCardFaceAsset? GetOrCreate(string roleId, string path, int offsetX, int offsetY, int cropSize)
     {
-        var normalizedPath = FirstNonEmpty(path, SunExpIds.PolymorphPlaceholderCardIconPath);
+        var normalizedPath = FirstNonEmpty(path, TerriasIds.PolymorphPlaceholderCardIconPath);
         var key = roleId + "\u001f" + normalizedPath + "\u001f" + offsetX + "\u001f" + offsetY + "\u001f" + cropSize + "\u001f" + OutputSize;
         lock (SyncRoot)
         {
             if (Generated.TryGetValue(key, out var cached))
             {
-                SunExpPerformanceCounters.Record("Polymorph.CardFaceCacheHit");
+                TerriasPerformanceCounters.Record("Polymorph.CardFaceCacheHit");
                 return cached;
             }
         }
 
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         try
         {
-            var source = SunExpResourceCache.Load<Sprite>(
+            var source = TerriasResourceCache.Load<Sprite>(
                 normalizedPath,
                 true,
-                SunExpIds.PolymorphSourceResourceCategory);
+                TerriasIds.PolymorphSourceResourceCategory);
             if (source == null || source.texture == null)
             {
                 return null;
@@ -149,7 +149,7 @@ public static class PolymorphCardFaceCache
                 return null;
             }
 
-            texture.name = "SunExp_PolymorphCardFace_" + Sanitize(roleId);
+            texture.name = "Terrias_PolymorphCardFace_" + Sanitize(roleId);
             texture.wrapMode = TextureWrapMode.Clamp;
             texture.filterMode = FilterMode.Bilinear;
             var sprite = Sprite.Create(
@@ -166,19 +166,19 @@ public static class PolymorphCardFaceCache
                 Generated[key] = asset;
             }
 
-            SunExpPerformanceCounters.Record("Polymorph.CardFaceGenerated");
-            SunExpPerformanceCounters.Record("Polymorph.CardFaceGenerated.256");
+            TerriasPerformanceCounters.Record("Polymorph.CardFaceGenerated");
+            TerriasPerformanceCounters.Record("Polymorph.CardFaceGenerated.256");
             return asset;
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[PolymorphCardFace] failed to create face for " + roleId + ": " + ex.Message);
+            TerriasLog.Warn("[PolymorphCardFace] failed to create face for " + roleId + ": " + ex.Message);
             return null;
         }
         finally
         {
-            SunExpPerformanceCounters.RecordDuration("Polymorph.CardFaceGenerate", start);
-            SunExpCombatCardUiDiagnostics.RecordCurrentSegment("Polymorph.CardFaceGenerate", start);
+            TerriasPerformanceCounters.RecordDuration("Polymorph.CardFaceGenerate", start);
+            TerriasCombatCardUiDiagnostics.RecordCurrentSegment("Polymorph.CardFaceGenerate", start);
         }
     }
 
@@ -232,7 +232,7 @@ public static class PolymorphCardFaceCache
 
     private static void ScheduleWarmupBatch(IReadOnlyList<PolymorphRoleSpec> roles, int start, int batchSize)
     {
-        SunExpFrameScheduler.RunOnceNextFrame("PolymorphCardFace.Warmup." + start, () =>
+        TerriasFrameScheduler.RunOnceNextFrame("PolymorphCardFace.Warmup." + start, () =>
         {
             var end = Math.Min(roles.Count, start + batchSize);
             for (var i = start; i < end; i++)

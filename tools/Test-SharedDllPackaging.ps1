@@ -17,7 +17,7 @@ if ($assemblyName.Name -ne "Aura.Shared") {
 
 $expectedHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $sharedDll).Hash
 $packagedDlls = @(
-    "SunExp\Scripts\Aura.Shared.dll",
+    "Terrias\Scripts\Aura.Shared.dll",
     "SanGuoShaExp\Scripts\Aura.Shared.dll",
     "AuraToolsExp\Scripts\Aura.Shared.dll"
 )
@@ -36,7 +36,7 @@ foreach ($relative in $packagedDlls) {
 
 $sharedSourcePattern = 'Compile Include="[^"]*(AuraSharedCore|AuraAudioShared|AuraCardUseFxShared|AuraLogShared|AuraJourneyShared|AuraModeShared|AuraSkinShared|AudioArbiterShared|BattleBgmArbiterShared|StarterDeckArbiterShared|UiRaycastSafetyShared|UiTransitionGuardShared|AuraCgShared|AuraDirectorShared|AuraDirectorDetour-Dev|AuraOnlineShared|AuraRoleShared)'
 $consumerProjects = @(
-    "SunExp-Dev\SunExp.Dll.csproj",
+    "Terrias-Dev\Terrias.Dll.csproj",
     "SanGuoShaExp-Dev\SanGuoShaExp.Dll.csproj",
     "AuraToolsExp-Dev\AuraToolsExp.Dll.csproj"
 )

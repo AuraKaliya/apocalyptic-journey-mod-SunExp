@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class LoneerMiracleService
 {
@@ -17,29 +17,29 @@ public static class LoneerMiracleService
     private static readonly Dictionary<string, ScriptExecutor> PendingNaturalMorningStars = new(StringComparer.Ordinal);
     private static readonly string[] MorningPrayerCooldownKeys =
     {
-        SunExpIds.LoneerMorningPrayerSkillCardId,
+        TerriasIds.LoneerMorningPrayerSkillCardId,
         "loneer_morning_star_prayer",
         "*loneer_morning_star_prayer"
     };
 
     public static void RegisterCareer(ScriptExecutor self)
     {
-        PlayerApi.SetGameVar(SunExpIds.LoneerActive, "1");
+        PlayerApi.SetGameVar(TerriasIds.LoneerActive, "1");
         SetMorningPrayerCooldown(self, null, 0);
         StarStonePouchService.Drawn -= OnStarStonePouchDrawn;
         StarStonePouchService.Drawn += OnStarStonePouchDrawn;
 
-        var token = (DictionaryUtil.ParseInt(ExecutorApi.GetVar(self, "SunExpLoneerCareerToken", "0")) + 1).ToString();
+        var token = (DictionaryUtil.ParseInt(ExecutorApi.GetVar(self, "TerriasLoneerCareerToken", "0")) + 1).ToString();
         var fightStartRegistered = ExecutorApi.TryAddEvent(self, "FightStart", new Action(() =>
         {
-            if (ExecutorApi.IsHookTokenActive(self, "SunExpLoneerCareerToken", token))
+            if (ExecutorApi.IsHookTokenActive(self, "TerriasLoneerCareerToken", token))
             {
                 OnFightStart(self);
             }
         }), "loneer_career");
         var startRoundRegistered = ExecutorApi.TryAddEvent(self, "StartRound", new Action(() =>
         {
-            if (ExecutorApi.IsHookTokenActive(self, "SunExpLoneerCareerToken", token))
+            if (ExecutorApi.IsHookTokenActive(self, "TerriasLoneerCareerToken", token))
             {
                 TickMorningPrayerCooldown(self);
             }
@@ -50,27 +50,27 @@ public static class LoneerMiracleService
 
         if (fightStartRegistered && startRoundRegistered)
         {
-            ExecutorApi.SetVar(self, "SunExpLoneerCareerHook", "1");
-            ExecutorApi.SetVar(self, "SunExpLoneerCareerToken", token);
+            ExecutorApi.SetVar(self, "TerriasLoneerCareerHook", "1");
+            ExecutorApi.SetVar(self, "TerriasLoneerCareerToken", token);
         }
     }
 
     public static bool IsActive()
     {
-        if (PolymorphStateStore.IsLocalRoleSuppressed(SunExpIds.LoneerCareerId))
+        if (PolymorphStateStore.IsLocalRoleSuppressed(TerriasIds.LoneerCareerId))
         {
             return false;
         }
 
         var careerId = PlayerApi.GetCurrentCareerId();
         if (!string.IsNullOrWhiteSpace(careerId)
-            && careerId.IndexOf(SunExpIds.LoneerCareerId, StringComparison.OrdinalIgnoreCase) >= 0)
+            && careerId.IndexOf(TerriasIds.LoneerCareerId, StringComparison.OrdinalIgnoreCase) >= 0)
         {
             return true;
         }
 
         return string.IsNullOrWhiteSpace(careerId)
-            && PlayerApi.GetGameVar(SunExpIds.LoneerActive, "0") == "1";
+            && PlayerApi.GetGameVar(TerriasIds.LoneerActive, "0") == "1";
     }
 
     public static void OnFightStart(ScriptExecutor self)
@@ -82,14 +82,14 @@ public static class LoneerMiracleService
 
         if (self?.Self == null)
         {
-            SunExpLog.Warn("Loneer fight state initialization skipped: owner status unavailable.");
+            TerriasLog.Warn("Loneer fight state initialization skipped: owner status unavailable.");
             return;
         }
 
         var state = LoneerCombatStateStore.ResetForFight(self.Self);
         if (state == null)
         {
-            SunExpLog.Warn("Loneer fight state initialization skipped: owner status unavailable.");
+            TerriasLog.Warn("Loneer fight state initialization skipped: owner status unavailable.");
             return;
         }
 
@@ -99,7 +99,7 @@ public static class LoneerMiracleService
         ClearCombatBuffs(self);
         StarStonePouchService.GrantInitial(self);
         MiracleClockService.Initialize(self, state, InitialClockMax);
-        SunExpLog.Info("Loneer fight state initialized: owner=" + self.Self.InstanceId
+        TerriasLog.Info("Loneer fight state initialized: owner=" + self.Self.InstanceId
             + ", starStoneBlack=" + StarStonePouchService.CurrentBlackStones(self)
             + ", clock=" + state.ClockValue);
         RequestGuidanceSelection(self, state, "\u9009\u62e9\u3010\u6307\u5f15\u724c\u3011");
@@ -142,14 +142,14 @@ public static class LoneerMiracleService
         }
 
         var enqueued = ScheduleStarStonePouchDrawFlush(ownerId, 1);
-        SunExpPerformanceCounters.Record(enqueued
+        TerriasPerformanceCounters.Record(enqueued
             ? "Loneer.StarStonePouchDraw.Enqueued"
             : "Loneer.StarStonePouchDraw.Deduped");
     }
 
     private static bool ScheduleStarStonePouchDrawFlush(string ownerId, int delayFrames)
     {
-        return SunExpFrameDispatcher.RunOnceAfterFrames(
+        return TerriasFrameDispatcher.RunOnceAfterFrames(
             "Loneer.StarStonePouchDraw." + ownerId,
             Math.Max(1, delayFrames),
             () => FlushStarStonePouchDraws(ownerId));
@@ -157,24 +157,24 @@ public static class LoneerMiracleService
 
     private static void FlushStarStonePouchDraws(string ownerId)
     {
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         var segment = start;
         var scheduleNextDelay = 1;
         var hasMore = false;
         try
         {
-            var combatUiBusy = SunExpCombatUiWorkload.IsBusy;
+            var combatUiBusy = TerriasCombatUiWorkload.IsBusy;
             segment = RecordLoneerSegment("Loneer.FlushStarStonePouchDraws.UiBusyCheck", segment);
             if (combatUiBusy)
             {
-                var delay = Math.Max(1, SunExpCombatUiWorkload.BusyFramesRemaining + 1);
-                SunExpPerformanceCounters.Record("Loneer.StarStonePouchDraw.DeferredForCardUi");
-                SunExpLog.Debug("Loneer star stone draw deferred while combat card UI is busy: owner="
+                var delay = Math.Max(1, TerriasCombatUiWorkload.BusyFramesRemaining + 1);
+                TerriasPerformanceCounters.Record("Loneer.StarStonePouchDraw.DeferredForCardUi");
+                TerriasLog.Debug("Loneer star stone draw deferred while combat card UI is busy: owner="
                     + ownerId
                     + ", delayFrames="
                     + delay
                     + ", uiSource="
-                    + SunExpCombatUiWorkload.LastSource);
+                    + TerriasCombatUiWorkload.LastSource);
                 ScheduleStarStonePouchDrawFlush(ownerId, delay);
                 RecordLoneerSegment("Loneer.FlushStarStonePouchDraws.CardUiDeferral", segment);
                 return;
@@ -239,7 +239,7 @@ public static class LoneerMiracleService
         }
         finally
         {
-            SunExpPerformanceCounters.RecordDuration("Loneer.FlushStarStonePouchDraws", start);
+            TerriasPerformanceCounters.RecordDuration("Loneer.FlushStarStonePouchDraws", start);
             if (hasMore)
             {
                 ScheduleStarStonePouchDrawFlush(ownerId, scheduleNextDelay);
@@ -249,7 +249,7 @@ public static class LoneerMiracleService
 
     private static bool ResolveStarStoneDrawStep(ScriptExecutor self, LoneerCombatState state, StarStonePouchDrawResult result)
     {
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         var segment = start;
         try
         {
@@ -288,7 +288,7 @@ public static class LoneerMiracleService
         }
         finally
         {
-            SunExpPerformanceCounters.RecordDuration("Loneer.ResolveStarStoneDrawStep", start);
+            TerriasPerformanceCounters.RecordDuration("Loneer.ResolveStarStoneDrawStep", start);
         }
     }
 
@@ -305,21 +305,21 @@ public static class LoneerMiracleService
             PendingNaturalMorningStars[ownerId] = self;
         }
 
-        SunExpFrameDispatcher.RunOnceNextFrame(
+        TerriasFrameDispatcher.RunOnceNextFrame(
             "Loneer.NaturalMorningStar." + ownerId,
             () => FlushNaturalMorningStar(ownerId, source));
     }
 
     private static void FlushNaturalMorningStar(string ownerId, string source)
     {
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         var segment = start;
         ScriptExecutor self;
         lock (PendingStarStoneDrawSync)
         {
             if (!PendingNaturalMorningStars.TryGetValue(ownerId, out self))
             {
-                SunExpPerformanceCounters.RecordDuration("Loneer.FlushNaturalMorningStar", start);
+                TerriasPerformanceCounters.RecordDuration("Loneer.FlushNaturalMorningStar", start);
                 return;
             }
 
@@ -330,7 +330,7 @@ public static class LoneerMiracleService
         if (self?.Self == null || self.Self.InstanceId != ownerId)
         {
             RecordLoneerSegment("Loneer.FlushNaturalMorningStar.ValidateOwner", segment);
-            SunExpPerformanceCounters.RecordDuration("Loneer.FlushNaturalMorningStar", start);
+            TerriasPerformanceCounters.RecordDuration("Loneer.FlushNaturalMorningStar", start);
             return;
         }
         segment = RecordLoneerSegment("Loneer.FlushNaturalMorningStar.ValidateOwner", segment);
@@ -339,7 +339,7 @@ public static class LoneerMiracleService
         if (state == null)
         {
             RecordLoneerSegment("Loneer.FlushNaturalMorningStar.StateLookup", segment);
-            SunExpPerformanceCounters.RecordDuration("Loneer.FlushNaturalMorningStar", start);
+            TerriasPerformanceCounters.RecordDuration("Loneer.FlushNaturalMorningStar", start);
             return;
         }
         segment = RecordLoneerSegment("Loneer.FlushNaturalMorningStar.StateLookup", segment);
@@ -347,14 +347,14 @@ public static class LoneerMiracleService
         if (!IsActiveOwner(self.Self, state))
         {
             RecordLoneerSegment("Loneer.FlushNaturalMorningStar.ValidateActiveOwner", segment);
-            SunExpPerformanceCounters.RecordDuration("Loneer.FlushNaturalMorningStar", start);
+            TerriasPerformanceCounters.RecordDuration("Loneer.FlushNaturalMorningStar", start);
             return;
         }
         segment = RecordLoneerSegment("Loneer.FlushNaturalMorningStar.ValidateActiveOwner", segment);
 
         TriggerNaturalMorningStar(self, state, source);
         RecordLoneerSegment("Loneer.FlushNaturalMorningStar.Trigger", segment);
-        SunExpPerformanceCounters.RecordDuration("Loneer.FlushNaturalMorningStar", start);
+        TerriasPerformanceCounters.RecordDuration("Loneer.FlushNaturalMorningStar", start);
     }
 
     private static void ScheduleBorrowedMiracle(ScriptExecutor self)
@@ -370,21 +370,21 @@ public static class LoneerMiracleService
             PendingBorrowedMiracles[ownerId] = self;
         }
 
-        SunExpFrameDispatcher.RunOnceNextFrame(
+        TerriasFrameDispatcher.RunOnceNextFrame(
             "Loneer.BorrowedMiracle." + ownerId,
             () => FlushBorrowedMiracle(ownerId));
     }
 
     private static void FlushBorrowedMiracle(string ownerId)
     {
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         var segment = start;
         ScriptExecutor self;
         lock (PendingStarStoneDrawSync)
         {
             if (!PendingBorrowedMiracles.TryGetValue(ownerId, out self))
             {
-                SunExpPerformanceCounters.RecordDuration("Loneer.FlushBorrowedMiracle", start);
+                TerriasPerformanceCounters.RecordDuration("Loneer.FlushBorrowedMiracle", start);
                 return;
             }
 
@@ -395,7 +395,7 @@ public static class LoneerMiracleService
         if (self?.Self == null || self.Self.InstanceId != ownerId)
         {
             RecordLoneerSegment("Loneer.FlushBorrowedMiracle.ValidateOwner", segment);
-            SunExpPerformanceCounters.RecordDuration("Loneer.FlushBorrowedMiracle", start);
+            TerriasPerformanceCounters.RecordDuration("Loneer.FlushBorrowedMiracle", start);
             return;
         }
         segment = RecordLoneerSegment("Loneer.FlushBorrowedMiracle.ValidateOwner", segment);
@@ -404,7 +404,7 @@ public static class LoneerMiracleService
         if (state == null)
         {
             RecordLoneerSegment("Loneer.FlushBorrowedMiracle.StateLookup", segment);
-            SunExpPerformanceCounters.RecordDuration("Loneer.FlushBorrowedMiracle", start);
+            TerriasPerformanceCounters.RecordDuration("Loneer.FlushBorrowedMiracle", start);
             return;
         }
         segment = RecordLoneerSegment("Loneer.FlushBorrowedMiracle.StateLookup", segment);
@@ -412,14 +412,14 @@ public static class LoneerMiracleService
         if (!IsActiveOwner(self.Self, state))
         {
             RecordLoneerSegment("Loneer.FlushBorrowedMiracle.ValidateActiveOwner", segment);
-            SunExpPerformanceCounters.RecordDuration("Loneer.FlushBorrowedMiracle", start);
+            TerriasPerformanceCounters.RecordDuration("Loneer.FlushBorrowedMiracle", start);
             return;
         }
         segment = RecordLoneerSegment("Loneer.FlushBorrowedMiracle.ValidateActiveOwner", segment);
 
         TriggerBorrowedMiracle(self, state);
         RecordLoneerSegment("Loneer.FlushBorrowedMiracle.Trigger", segment);
-        SunExpPerformanceCounters.RecordDuration("Loneer.FlushBorrowedMiracle", start);
+        TerriasPerformanceCounters.RecordDuration("Loneer.FlushBorrowedMiracle", start);
     }
 
     public static void UseMorningStarPrayer(ScriptExecutor self)
@@ -432,14 +432,14 @@ public static class LoneerMiracleService
 
         if (self?.Self == null)
         {
-            SunExpLog.Warn("Morning Star Prayer skipped: Loneer owner status unavailable.");
+            TerriasLog.Warn("Morning Star Prayer skipped: Loneer owner status unavailable.");
             return;
         }
 
         var state = LoneerCombatStateStore.GetOrCreate(self.Self);
         if (state == null)
         {
-            SunExpLog.Warn("Morning Star Prayer skipped: Loneer owner status unavailable.");
+            TerriasLog.Warn("Morning Star Prayer skipped: Loneer owner status unavailable.");
             return;
         }
 
@@ -460,7 +460,7 @@ public static class LoneerMiracleService
         if (state.SelectionPending || state.SelectionScheduled)
         {
             PlayerApi.ShowCaption("【指引牌】选择尚未提交，晨星祈愿未释放。");
-            SunExpLog.InfoAlways("[MorningPrayerAttempt] guidance selection still pending before use: owner="
+            TerriasLog.InfoAlways("[MorningPrayerAttempt] guidance selection still pending before use: owner="
                 + self.Self.InstanceId
                 + ", pending="
                 + state.SelectionPending
@@ -484,7 +484,7 @@ public static class LoneerMiracleService
         {
             SetMorningPrayerCooldown(self, state, PrayerCooldownRounds);
         }
-        SunExpLog.Info("Morning Star Prayer resolved: owner=" + self.Self.InstanceId
+        TerriasLog.Info("Morning Star Prayer resolved: owner=" + self.Self.InstanceId
             + ", cooldown=" + state.PrayerCooldown
             + ", blackStoneMax=" + StarStonePouchService.BlackStoneMax(self)
             + ", useCount=" + state.PrayerUseCount);
@@ -494,7 +494,7 @@ public static class LoneerMiracleService
     {
         var cooldown = MorningPrayerCooldown(state);
         SetMorningPrayerCooldown(self, state, cooldown);
-        SunExpLog.Debug("Morning Star Prayer skill state synchronized from " + source
+        TerriasLog.Debug("Morning Star Prayer skill state synchronized from " + source
             + ": cooldown=" + cooldown + ".");
     }
 
@@ -511,7 +511,7 @@ public static class LoneerMiracleService
     {
         var beforeMax = StarStonePouchService.BlackStoneMax(self);
         var afterMax = StarStonePouchService.ReduceBlackStoneMax(self, amount);
-        SunExpLog.Info("Loneer black stone cap reduced: owner=" + self.Self.InstanceId
+        TerriasLog.Info("Loneer black stone cap reduced: owner=" + self.Self.InstanceId
             + ", beforeMax=" + beforeMax
             + ", afterMax=" + afterMax
             + ", currentBlack=" + StarStonePouchService.CurrentBlackStones(self)
@@ -520,7 +520,7 @@ public static class LoneerMiracleService
 
     private static void TriggerNaturalMorningStar(ScriptExecutor self, LoneerCombatState state, string source)
     {
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         try
         {
             if (self?.Self == null || state == null)
@@ -533,18 +533,18 @@ public static class LoneerMiracleService
             var copiedGuide = state.GuidanceCardId;
             var copied = false;
             var key = "Loneer.NaturalMorningStar.Sequence." + ownerId;
-            SunExpFrameStepRunner.RunOnce(
+            TerriasFrameStepRunner.RunOnce(
                 key,
                 new[]
                 {
-                    new SunExpFrameStep("GrantGuidanceCopy", () =>
+                    new TerriasFrameStep("GrantGuidanceCopy", () =>
                     {
                         if (IsActiveOwner(owner, state))
                         {
                             copied = TryAddGuidedCard(self, state, "natural");
                         }
                     }),
-                    new SunExpFrameStep("ResetClock", () =>
+                    new TerriasFrameStep("ResetClock", () =>
                     {
                         if (!IsActiveOwner(owner, state))
                         {
@@ -553,9 +553,9 @@ public static class LoneerMiracleService
 
                         MiracleClockService.ResetToMaxAndGrantStarlight(self, state, "NaturalMorningStar:" + source);
                         PlayerApi.ShowCaption("\u81ea\u7136\u6668\u661f\uff1a\u83b7\u5f97\u6307\u5f15\u724c\u590d\u5236\u3002");
-                        SunExpLog.Info("Natural Morning Star resolved: owner=" + ownerId + ", copied=" + copiedGuide + ", success=" + copied);
+                        TerriasLog.Info("Natural Morning Star resolved: owner=" + ownerId + ", copied=" + copiedGuide + ", success=" + copied);
                     }),
-                    new SunExpFrameStep("RequestGuidanceSelection", () =>
+                    new TerriasFrameStep("RequestGuidanceSelection", () =>
                     {
                         if (IsActiveOwner(owner, state))
                         {
@@ -567,13 +567,13 @@ public static class LoneerMiracleService
         }
         finally
         {
-            SunExpPerformanceCounters.RecordDuration("Loneer.TriggerNaturalMorningStar", start);
+            TerriasPerformanceCounters.RecordDuration("Loneer.TriggerNaturalMorningStar", start);
         }
     }
 
     private static void TriggerBorrowedMiracle(ScriptExecutor self, LoneerCombatState state)
     {
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         try
         {
             if (self?.Self == null || state == null)
@@ -586,18 +586,18 @@ public static class LoneerMiracleService
             var copiedGuide = state.GuidanceCardId;
             var copied = false;
             var key = "Loneer.BorrowedMiracle.Sequence." + ownerId;
-            SunExpFrameStepRunner.RunOnce(
+            TerriasFrameStepRunner.RunOnce(
                 key,
                 new[]
                 {
-                    new SunExpFrameStep("GrantGuidanceCopy", () =>
+                    new TerriasFrameStep("GrantGuidanceCopy", () =>
                     {
                         if (IsActiveOwner(owner, state))
                         {
                             copied = TryAddGuidedCard(self, state, "borrowed");
                         }
                     }),
-                    new SunExpFrameStep("ResetClock", () =>
+                    new TerriasFrameStep("ResetClock", () =>
                     {
                         if (!IsActiveOwner(owner, state))
                         {
@@ -607,9 +607,9 @@ public static class LoneerMiracleService
                         MiracleClockService.ReduceMax(self, state, 1, MinClockMax, "BorrowedMiracle");
                         MiracleClockService.ResetToMaxAndGrantStarlight(self, state, "BorrowedMiracle");
                         PlayerApi.ShowCaption("\u501f\u6765\u7684\u5947\u8ff9\uff1a\u65f6\u949f\u4e0a\u9650\u4e0b\u964d\u3002");
-                        SunExpLog.Info("Borrowed Miracle resolved: owner=" + ownerId + ", copied=" + copiedGuide + ", success=" + copied + ", clockMax=" + state.ClockMax);
+                        TerriasLog.Info("Borrowed Miracle resolved: owner=" + ownerId + ", copied=" + copiedGuide + ", success=" + copied + ", clockMax=" + state.ClockMax);
                     }),
-                    new SunExpFrameStep("RequestGuidanceSelection", () =>
+                    new TerriasFrameStep("RequestGuidanceSelection", () =>
                     {
                         if (IsActiveOwner(owner, state))
                         {
@@ -621,7 +621,7 @@ public static class LoneerMiracleService
         }
         finally
         {
-            SunExpPerformanceCounters.RecordDuration("Loneer.TriggerBorrowedMiracle", start);
+            TerriasPerformanceCounters.RecordDuration("Loneer.TriggerBorrowedMiracle", start);
         }
     }
 
@@ -649,7 +649,7 @@ public static class LoneerMiracleService
 
     private static void RequestGuidanceSelection(ScriptExecutor self, LoneerCombatState state, string caption)
     {
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         var segment = start;
         try
         {
@@ -669,9 +669,9 @@ public static class LoneerMiracleService
             if (source.Count == 0)
             {
                 state.SelectionPending = false;
-                SetGuidance(state, SunExpIds.WitchStarScoreCardId, "\u9b54\u5973\u7684\u661f\u8c31");
+                SetGuidance(state, TerriasIds.WitchStarScoreCardId, "\u9b54\u5973\u7684\u661f\u8c31");
                 PlayerApi.ShowCaption("\u6307\u5f15\u724c\uff1a\u9b54\u5973\u7684\u661f\u8c31");
-                SunExpLog.Info("Loneer guidance fallback to Witch Star Score: owner=" + owner.InstanceId + ", version=" + selectionVersion);
+                TerriasLog.Info("Loneer guidance fallback to Witch Star Score: owner=" + owner.InstanceId + ", version=" + selectionVersion);
                 RecordLoneerSegment("Loneer.RequestGuidanceSelection.EmptyFallback", segment);
                 return;
             }
@@ -695,7 +695,7 @@ public static class LoneerMiracleService
         }
         finally
         {
-            SunExpPerformanceCounters.RecordDuration("Loneer.RequestGuidanceSelection", start);
+            TerriasPerformanceCounters.RecordDuration("Loneer.RequestGuidanceSelection", start);
         }
     }
 
@@ -712,11 +712,11 @@ public static class LoneerMiracleService
 
         var owner = self.Self;
         state.SelectionScheduled = true;
-        var enqueued = SunExpFrameDispatcher.RunOnceNextFrame(
+        var enqueued = TerriasFrameDispatcher.RunOnceNextFrame(
             "Loneer.GuidanceSelection." + owner.InstanceId,
             () =>
             {
-                var start = SunExpPerformanceCounters.Timestamp();
+                var start = TerriasPerformanceCounters.Timestamp();
                 try
                 {
                     var current = LoneerCombatStateStore.Get(owner);
@@ -725,10 +725,10 @@ public static class LoneerMiracleService
                         return;
                     }
 
-                    if (SunExpCombatUiWorkload.IsBusy)
+                    if (TerriasCombatUiWorkload.IsBusy)
                     {
                         state.SelectionScheduled = false;
-                        SunExpPerformanceCounters.Record("Loneer.GuidanceSelection.DeferredForCardUi");
+                        TerriasPerformanceCounters.Record("Loneer.GuidanceSelection.DeferredForCardUi");
                         RequestGuidanceSelectionDeferred(self, state, caption, source + ":card-ui-busy");
                         return;
                     }
@@ -737,16 +737,16 @@ public static class LoneerMiracleService
                 }
                 finally
                 {
-                    SunExpPerformanceCounters.RecordDuration("Loneer.GuidanceSelection.Action", start);
+                    TerriasPerformanceCounters.RecordDuration("Loneer.GuidanceSelection.Action", start);
                 }
             });
-        SunExpPerformanceCounters.Record(enqueued
+        TerriasPerformanceCounters.Record(enqueued
             ? "Loneer.GuidanceSelection.Enqueued"
             : "Loneer.GuidanceSelection.Deduped");
 
         if (!enqueued)
         {
-            SunExpLog.Debug("Loneer guidance selection already scheduled: owner=" + owner.InstanceId + ", source=" + source);
+            TerriasLog.Debug("Loneer guidance selection already scheduled: owner=" + owner.InstanceId + ", source=" + source);
         }
     }
 
@@ -766,7 +766,7 @@ public static class LoneerMiracleService
         var displayName = CardDisplayName(card);
         SetGuidance(state, CardConfigApi.Id(card), displayName);
         PlayerApi.ShowCaption("\u6307\u5f15\u724c\uff1a" + displayName);
-        SunExpLog.Info("Loneer guidance " + source + ": owner=" + owner.InstanceId + ", card=" + state.GuidanceCardId + ", version=" + selectionVersion);
+        TerriasLog.Info("Loneer guidance " + source + ": owner=" + owner.InstanceId + ", card=" + state.GuidanceCardId + ", version=" + selectionVersion);
     }
 
     private static void ResolveRandomGuidanceFallback(
@@ -789,9 +789,9 @@ public static class LoneerMiracleService
         }
 
         state.SelectionPending = false;
-        SetGuidance(state, SunExpIds.WitchStarScoreCardId, "\u9b54\u5973\u7684\u661f\u8c31");
+        SetGuidance(state, TerriasIds.WitchStarScoreCardId, "\u9b54\u5973\u7684\u661f\u8c31");
         PlayerApi.ShowCaption("\u6307\u5f15\u724c\uff1a\u9b54\u5973\u7684\u661f\u8c31");
-        SunExpLog.Warn("Loneer guidance random fallback exhausted candidates; owner=" + owner.InstanceId + ", reason=" + reason + ", version=" + selectionVersion);
+        TerriasLog.Warn("Loneer guidance random fallback exhausted candidates; owner=" + owner.InstanceId + ", reason=" + reason + ", version=" + selectionVersion);
     }
 
     private static bool IsCurrentGuidanceSelection(IStatusManager owner, LoneerCombatState state, int selectionVersion)
@@ -813,7 +813,7 @@ public static class LoneerMiracleService
             return false;
         }
 
-        if (PolymorphStateStore.IsRoleSuppressedFor(owner, SunExpIds.LoneerCareerId))
+        if (PolymorphStateStore.IsRoleSuppressedFor(owner, TerriasIds.LoneerCareerId))
         {
             return false;
         }
@@ -831,23 +831,23 @@ public static class LoneerMiracleService
 
     private static bool TryAddGuidedCard(ScriptExecutor self, LoneerCombatState state, string source)
     {
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         try
         {
             var guidance = state.PreparedGuidance;
             var id = CardApi.ResolveCardId(guidance?.CardId ?? state.GuidanceCardId);
             if (string.IsNullOrWhiteSpace(id))
             {
-                SunExpLog.Warn("Loneer guided card copy skipped: source=" + source + ", guidance=" + state.GuidanceCardId);
+                TerriasLog.Warn("Loneer guided card copy skipped: source=" + source + ", guidance=" + state.GuidanceCardId);
                 return false;
             }
 
-            var grantStart = SunExpPerformanceCounters.Timestamp();
+            var grantStart = TerriasPerformanceCounters.Timestamp();
             var result = guidance == null
                 ? LoneerCardGrantService.GrantGuidanceCopyToHand(self, id, source)
                 : LoneerCardGrantService.GrantGuidanceCopyToHand(self, guidance, source);
-            SunExpPerformanceCounters.RecordDuration("Loneer.GrantGuidanceCopyToHand", grantStart);
-            SunExpLog.Info("Loneer guided card copy: owner=" + self.Self.InstanceId
+            TerriasPerformanceCounters.RecordDuration("Loneer.GrantGuidanceCopyToHand", grantStart);
+            TerriasLog.Info("Loneer guided card copy: owner=" + self.Self.InstanceId
                 + ", source=" + source
                 + ", card=" + id
                 + ", success=" + result.Success
@@ -856,14 +856,14 @@ public static class LoneerMiracleService
         }
         finally
         {
-            SunExpPerformanceCounters.RecordDuration("Loneer.TryAddGuidedCard", start);
+            TerriasPerformanceCounters.RecordDuration("Loneer.TryAddGuidedCard", start);
         }
     }
 
     private static void SetGuidance(LoneerCombatState state, string cardId, string displayName)
     {
         var resolved = CardApi.ResolveCardId(cardId);
-        if (string.Equals(resolved, SunExpIds.WitchStarScoreCardId, StringComparison.Ordinal)
+        if (string.Equals(resolved, TerriasIds.WitchStarScoreCardId, StringComparison.Ordinal)
             || (!string.IsNullOrWhiteSpace(resolved) && !IsExcludedActionCard(resolved)))
         {
             state.GuidanceCardId = resolved;
@@ -877,7 +877,7 @@ public static class LoneerMiracleService
     private static bool IsWitchStarScoreGuidance(string id)
     {
         var value = (id ?? "").Replace("*", "").Trim();
-        return string.Equals(value, SunExpIds.WitchStarScoreCardId, StringComparison.Ordinal)
+        return string.Equals(value, TerriasIds.WitchStarScoreCardId, StringComparison.Ordinal)
             || string.Equals(value, "witch_star_score", StringComparison.Ordinal);
     }
 
@@ -902,8 +902,8 @@ public static class LoneerMiracleService
     private static bool IsExcludedActionCard(IDataConfig config)
     {
         return IsExcludedActionCard(CardConfigApi.Id(config))
-            || CardMutationService.HasRuntimeMarker(config, SunExpIds.LoneerDerivedMarker)
-            || CardMutationService.HasRuntimeMarker(config, SunExpIds.LoneerGuidanceMarker);
+            || CardMutationService.HasRuntimeMarker(config, TerriasIds.LoneerDerivedMarker)
+            || CardMutationService.HasRuntimeMarker(config, TerriasIds.LoneerGuidanceMarker);
     }
 
     private static bool IsExcludedActionCard(string id)
@@ -912,15 +912,15 @@ public static class LoneerMiracleService
         return string.IsNullOrWhiteSpace(value)
             || StarScoreService.IsStellarOvertureCard(value)
             || value == "witch_star_score"
-            || value == SunExpIds.WitchStarScoreCardId
+            || value == TerriasIds.WitchStarScoreCardId
             || value == "loneer_morning_star_prayer"
-            || value == SunExpIds.LoneerMorningPrayerSkillCardId;
+            || value == TerriasIds.LoneerMorningPrayerSkillCardId;
     }
 
     private static long RecordLoneerSegment(string name, long segmentStart)
     {
-        SunExpPerformanceCounters.RecordDuration(name, segmentStart);
-        return SunExpPerformanceCounters.Timestamp();
+        TerriasPerformanceCounters.RecordDuration(name, segmentStart);
+        return TerriasPerformanceCounters.Timestamp();
     }
 
     private static void SyncBuffs(ScriptExecutor self, LoneerCombatState state)
@@ -939,12 +939,12 @@ public static class LoneerMiracleService
         StarStonePouchService.RemoveState(status);
         foreach (var buffId in new[]
                  {
-                     SunExpIds.StarStonePouch,
-                     SunExpIds.MiracleClock,
-                     SunExpIds.Starlight,
-                     SunExpIds.StarBlessing,
-                     SunExpIds.StarScore,
-                     SunExpIds.Resonance
+                     TerriasIds.StarStonePouch,
+                     TerriasIds.MiracleClock,
+                     TerriasIds.Starlight,
+                     TerriasIds.StarBlessing,
+                     TerriasIds.StarScore,
+                     TerriasIds.Resonance
                  })
         {
             BuffApi.SetExactLevel(status, buffId, 0);
@@ -1002,7 +1002,7 @@ public static class LoneerMiracleService
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("Morning Star Prayer cooldown UI refresh skipped: " + ex.Message);
+            TerriasLog.Debug("Morning Star Prayer cooldown UI refresh skipped: " + ex.Message);
         }
     }
 

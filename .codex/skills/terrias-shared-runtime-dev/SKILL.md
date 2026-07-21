@@ -1,18 +1,18 @@
 ---
-name: sunexp-shared-runtime-dev
-description: Project-local skill for editing or reviewing SunExp and AuraToolsExp integration with Aura shared runtimes and cross-mod components, including the content-mod/tool-mod/shared-foundation boundary, AuraSharedCore, shared resources, AuraJourneyShared, AuraSkinShared, AuraAudioShared, BattleBgmArbiterShared, StarterDeckArbiterShared, AuraCgShared, AuraOnlineShared, AuraLogShared, UI safety runtimes, shared DLL packaging, shared release gates, owner ids, initialization registration, tool-local persistent overrides, sync scenario modeling, timing and duplicate suppression, compatibility protocols, RPC sender authority, and multiplayer authority.
+name: terrias-shared-runtime-dev
+description: Project-local skill for editing or reviewing Terrias and AuraToolsExp integration with Aura shared runtimes and cross-mod components, including the content-mod/tool-mod/shared-foundation boundary, AuraSharedCore, shared resources, AuraJourneyShared, AuraSkinShared, AuraAudioShared, BattleBgmArbiterShared, StarterDeckArbiterShared, AuraCgShared, AuraOnlineShared, AuraLogShared, UI safety runtimes, shared DLL packaging, shared release gates, owner ids, initialization registration, tool-local persistent overrides, sync scenario modeling, timing and duplicate suppression, compatibility protocols, RPC sender authority, and multiplayer authority.
 ---
 
-# SunExp Shared Runtime Dev
+# Terrias Shared Runtime Dev
 
-Use this skill when SunExp touches Aura.Shared components, shared resource
+Use this skill when Terrias touches Aura.Shared components, shared resource
 manifests, packaged `Aura.Shared.dll`, or cross-mod runtime contracts.
 Use it when aligning initialization registration, tool-local configuration
 overrides, multi-mod sync, network timing, duplicate suppression, payload
 guards, or chunked transfers.
-Pair it with `sunexp-mod-dev`; pair it with `sunexp-solar-memory-dev` for
+Pair it with `terrias-mod-dev`; pair it with `terrias-solar-memory-dev` for
 Journey, starter deck, or Solar Memory role setup work.
-Pair it with `sunexp-visual-runtime-dev` for Skill CG, CG overlays, or shared
+Pair it with `terrias-visual-runtime-dev` for Skill CG, CG overlays, or shared
 visual resources.
 
 ## Workflow
@@ -34,11 +34,11 @@ visual resources.
    - Multiplayer timing, replay/idempotency, sequence/version/hash semantics,
      duplicate suppression, or lifecycle cleanup.
 2. Inspect the current integration:
-   - `SunExp-Dev/SunExp.Dll.csproj`
-   - `SunExp-Dev/Entry.cs`
-   - affected `SunExp-Dev/GameApi/*` or `SunExp-Dev/Hooks/*`
+   - `Terrias-Dev/Terrias.Dll.csproj`
+   - `Terrias-Dev/Entry.cs`
+   - affected `Terrias-Dev/GameApi/*` or `Terrias-Dev/Hooks/*`
    - `docs/aura-shared-core-v2-contract.md`
-   - `docs/SunExp/04-Aura共享层与核心层接入.md`
+   - `docs/Terrias/04-Aura共享层与核心层接入.md`
    - `tools/shared-release-matrix.json`
    - `tools/Test-SharedDllPackaging.ps1`
    - `tools/Test-NetworkRpcAuthority.ps1`
@@ -46,10 +46,10 @@ visual resources.
    content/tool ownership, shared presentation protocols, and multiplayer
    authority classification. Load
    `references/content-tool-shared-boundary.md` when deciding whether a
-   reusable runtime belongs in SunExp, AuraToolsExp, or shared infrastructure,
+   reusable runtime belongs in Terrias, AuraToolsExp, or shared infrastructure,
    or when applying the content/tool configuration precedence model.
    Load
-   `references/sunexp-shared-integration.md` for SunExp-specific integration
+   `references/terrias-shared-integration.md` for Terrias-specific integration
    points. Load `references/sync-scenario-model.md` when the task involves
    initialization registration, tool-local overrides, multi-mod sync, RPC
    authority, timing, duplicate suppression, or payload/chunk transfer
@@ -71,11 +71,11 @@ visual resources.
 - Do not move domain resolution policy into adapters. Adapters install, bridge,
   and delegate; domain arbiters validate and resolve.
 - Keep the shared runtime DLL compatible with all consumers listed in shared
-  release checks, not only SunExp.
-- Keep SunExp and AuraToolsExp as sibling consumers of shared foundations.
-  Shared code must not depend on SunExp content semantics, and AuraToolsExp
-  must not depend on SunExp internal runtime helpers.
-- Initialization registration is not content-mod-exclusive. SunExp and
+  release checks, not only Terrias.
+- Keep Terrias and AuraToolsExp as sibling consumers of shared foundations.
+  Shared code must not depend on Terrias content semantics, and AuraToolsExp
+  must not depend on Terrias internal runtime helpers.
+- Initialization registration is not content-mod-exclusive. Terrias and
   AuraToolsExp may both register extension declarations they own; identity must
   still be `ownerModId` plus stable domain id.
 - Preserve the content/tool split: content mods own, install, and register
@@ -87,10 +87,10 @@ visual resources.
   AuraToolsExp local persistence wins for tool-managed effective behavior when
   a tool and content mod both configure the same shared feature, but must not
   rewrite or re-own a foreign mod's registration source.
-- When both SunExp and AuraToolsExp need the same hook lifecycle, UI primitive,
+- When both Terrias and AuraToolsExp need the same hook lifecycle, UI primitive,
   resource preload, logging, pooling, or multiplayer presentation behavior,
   promote the semantic-free part to a shared component instead of making
-  SunExp the implicit base framework.
+  Terrias the implicit base framework.
 - Put cross-mod presentation protocols, such as Skill CG playback, in the
   shared domain component. Content mods declare resources and trigger requests;
   tool mods configure or override; neither owns private multiplayer relay or
@@ -106,8 +106,8 @@ visual resources.
 Run affected consumer builds and shared gates serially:
 
 ```powershell
-tools\Build-SunExpDll.ps1
-tools\Test-SunExpCSharp.ps1
+tools\Build-TerriasDll.ps1
+tools\Test-TerriasCSharp.ps1
 tools\Test-NetworkRpcAuthority.ps1
 tools\Test-SharedArchitectureGuidelines.ps1
 tools\Test-AuraSharedCore.ps1

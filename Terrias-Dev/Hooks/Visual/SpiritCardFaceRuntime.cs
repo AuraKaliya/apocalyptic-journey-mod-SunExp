@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Hooks;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Hooks;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace SunExp.Dll.Hooks.Visual;
+namespace Terrias.Dll.Hooks.Visual;
 
 public static class SpiritCardFaceRuntime
 {
@@ -15,10 +15,10 @@ public static class SpiritCardFaceRuntime
 
     public static void Initialize()
     {
-        SunExpCardPresentationRouter.Register("SpiritCardFace", new SunExpCardPresentationSubscription { Apply = Apply });
+        TerriasCardPresentationRouter.Register("SpiritCardFace", new TerriasCardPresentationSubscription { Apply = Apply });
     }
 
-    private static void Apply(SunExpCardPresentationContext context)
+    private static void Apply(TerriasCardPresentationContext context)
     {
         if (!SpiritCardFactory.IsSpiritCard(context.Config))
         {
@@ -63,15 +63,15 @@ public static class SpiritCardFaceRuntime
 
         if (Cache.TryGetValue(path, out var cached) && cached != null)
         {
-            SunExpPerformanceCounters.Record("Spirit.CardFace.CacheHit");
+            TerriasPerformanceCounters.Record("Spirit.CardFace.CacheHit");
             return cached;
         }
 
-        var started = SunExpPerformanceCounters.Timestamp();
+        var started = TerriasPerformanceCounters.Timestamp();
         var found = false;
         try
         {
-            var sprites = SunExpResourceCache.LoadAll<Sprite>(path, "spirit-card-face");
+            var sprites = TerriasResourceCache.LoadAll<Sprite>(path, "spirit-card-face");
             var sprite = sprites != null && sprites.Length > 0 ? sprites[0] : null;
             if (sprite != null)
             {
@@ -83,12 +83,12 @@ public static class SpiritCardFaceRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("[SpiritCardFace] load failed for " + path + ": " + ex.Message);
+            TerriasLog.Debug("[SpiritCardFace] load failed for " + path + ": " + ex.Message);
             return null;
         }
         finally
         {
-            SunExpPerformanceCounters.RecordHotspot(
+            TerriasPerformanceCounters.RecordHotspot(
                 "Spirit.CardFace.Load",
                 started,
                 "found=" + found + ", path=" + path,

@@ -1,12 +1,12 @@
 ---
-name: sunexp-architecture-dev
-description: Project-local skill for refactoring or reviewing SunExp C# architecture boundaries, including Scripting entry points, GameApi facades and wrappers, Mechanics services, Features runtimes, Hooks and UI/Visual runtimes, Infrastructure ids and performance surfaces, handler registries, Managed compatibility, event registration wrappers, SunExp Network/RPC placement and local sender binding, architecture tests, DLL validation, and checks that SunExp internals do not become AuraToolsExp's implicit shared framework for Witch's Apocalyptic Journey.
+name: terrias-architecture-dev
+description: Project-local skill for refactoring or reviewing Terrias C# architecture boundaries, including Scripting entry points, GameApi facades and wrappers, Mechanics services, Features runtimes, Hooks and UI/Visual runtimes, Infrastructure ids and performance surfaces, handler registries, Managed compatibility, event registration wrappers, Terrias Network/RPC placement and local sender binding, architecture tests, DLL validation, and checks that Terrias internals do not become AuraToolsExp's implicit shared framework for Witch's Apocalyptic Journey.
 ---
 
-# SunExp Architecture Dev
+# Terrias Architecture Dev
 
-Use this skill inside this repository when changing the shape of SunExp C# code,
-not just adding one content row. Pair it with `sunexp-mod-dev` for normal
+Use this skill inside this repository when changing the shape of Terrias C# code,
+not just adding one content row. Pair it with `terrias-mod-dev` for normal
 content workflow and validation.
 
 ## Workflow
@@ -20,14 +20,14 @@ content workflow and validation.
    - IDs, logging, field ids, or parsing under `Infrastructure`.
    - Network/RPC code under `Network`.
 2. Inspect the local architecture gate before editing:
-   - `tools/Test-SunExpArchitecture.ps1`
-   - `tools/Test-SunExpCSharp.ps1`
-   - affected files under `SunExp-Dev/`
+   - `tools/Test-TerriasArchitecture.ps1`
+   - `tools/Test-TerriasCSharp.ps1`
+   - affected files under `Terrias-Dev/`
 3. Load `references/architecture-boundaries.md` for placement and dependency
    rules. Load `references/compatibility-and-hooks.md` when Managed signatures,
-   event registration, lifecycle hooks, or SunExp-local RPC sender binding are
-   involved. Load `sunexp-shared-runtime-dev/references/sync-scenario-model.md`
-   through `sunexp-shared-runtime-dev` when event shape, RPC authority fields,
+   event registration, lifecycle hooks, or Terrias-local RPC sender binding are
+   involved. Load `terrias-shared-runtime-dev/references/sync-scenario-model.md`
+   through `terrias-shared-runtime-dev` when event shape, RPC authority fields,
    timing, or duplicate suppression are involved.
    Load `references/performance-runtime.md` when touching frame scheduling,
    resource/config caches, repeated listeners, UI pools, or hot-path visuals.
@@ -36,8 +36,8 @@ content workflow and validation.
 
 ## Hard Rules
 
-- CSV scripts may call only `CS.SunExp.Dll.Scripting.*`.
-- `Scripting` must not import `SunExp.Dll.Hooks`.
+- CSV scripts may call only `CS.Terrias.Dll.Scripting.*`.
+- `Scripting` must not import `Terrias.Dll.Hooks`.
 - `Scripting` must register events through `ScriptEventApi` or `ExecutorApi`
   wrappers, not raw `AddEvent` or `AddTempEvent`.
 - Keep `ExecutorApi` as a compatibility facade. Put implementation in focused
@@ -49,30 +49,30 @@ content workflow and validation.
   deterministic fallback.
 - Use named/logged lifecycle steps so one failed setup action does not abort
   unrelated initialization.
-- Use `SunExpRpcAuthorityRuntime` for server-bound SunExp RPC sender binding.
+- Use `TerriasRpcAuthorityRuntime` for server-bound Terrias RPC sender binding.
   Remote commands must not authorize from payload-provided identity.
 - For Network event shape, authority fields, ordering, payload limits, and
   duplicate suppression, use the shared sync scenario reference instead of
   duplicating those rules here.
 - Use the established performance surfaces before adding new knobs, frame
   loops, resource caches, or repeated listener registrations.
-- Do not let SunExp internal architecture become the implicit shared framework
+- Do not let Terrias internal architecture become the implicit shared framework
   for AuraToolsExp. If a hook lifecycle, UI primitive, resource preload,
   logging, object pool, or multiplayer presentation behavior is needed by both
   content and tool mods, mark the semantic-free part as a shared-runtime
-  candidate and use `sunexp-shared-runtime-dev`.
-- Rebuild `SunExp/Scripts/Entry.dll` after C# changes.
+  candidate and use `terrias-shared-runtime-dev`.
+- Rebuild `Terrias/Scripts/Entry.dll` after C# changes.
 
 ## Validation
 
 Run these serially:
 
 ```powershell
-tools\Build-SunExpDll.ps1
-tools\Test-SunExpArchitecture.ps1
-tools\Test-SunExpCSharp.ps1
-.codex\skills\sunexp-mod-dev\scripts\validate-sunexp.ps1
+tools\Build-TerriasDll.ps1
+tools\Test-TerriasArchitecture.ps1
+tools\Test-TerriasCSharp.ps1
+.codex\skills\terrias-mod-dev\scripts\validate-terrias.ps1
 ```
 
-Do not run `Build-SunExpDll.ps1` and `Test-SunExpCSharp.ps1` in parallel; they
-can contend for the same `SunExp.Aura.dll` output.
+Do not run `Build-TerriasDll.ps1` and `Test-TerriasCSharp.ps1` in parallel; they
+can contend for the same `Terrias.Aura.dll` output.

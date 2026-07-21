@@ -1,9 +1,9 @@
 using System;
 using System.Linq;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class HeartChangeIntentService
 {
@@ -44,8 +44,8 @@ public static class HeartChangeIntentService
         var target = SelectStrikeTarget(executor);
         if (target == null)
         {
-            SunExpPerformanceCounters.Record("HeartChange.IntentNoTarget");
-            SunExpLog.Info("[HeartChange] proxy strike skipped: status="
+            TerriasPerformanceCounters.Record("HeartChange.IntentNoTarget");
+            TerriasLog.Info("[HeartChange] proxy strike skipped: status="
                 + StatusId(executor.Self)
                 + ", reason=NoTarget");
             return;
@@ -54,13 +54,13 @@ public static class HeartChangeIntentService
         var damage = StrikeDamage(executor);
         if (ExecutorApi.DealDamageToTarget(executor, target, damage))
         {
-            SunExpLog.Info("[HeartChange] proxy strike: status="
+            TerriasLog.Info("[HeartChange] proxy strike: status="
                 + StatusId(executor.Self)
                 + ", target="
                 + StatusId(target)
                 + ", damage="
                 + damage);
-            SunExpPerformanceCounters.Record("HeartChange.IntentStrike");
+            TerriasPerformanceCounters.Record("HeartChange.IntentStrike");
         }
     }
 

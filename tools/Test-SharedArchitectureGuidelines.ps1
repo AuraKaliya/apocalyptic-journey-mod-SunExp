@@ -579,16 +579,16 @@ if ($journeyProjection -match "CmdSelectMap|tree\.SelectNode|tree\.DefaultNode")
     throw "Journey current-node projection guard must not choose or rewrite map routes."
 }
 
-$sunExpPreloader = Read-RepoText "SunExp-Dev\Hooks\SunExpResourcePreloader.cs"
-Require-Text $sunExpPreloader "AdventureStarting" "SunExp resource warmup must start from the adventure lifecycle."
-Require-Text $sunExpPreloader "AuraSharedFramePhase\.Background" "SunExp resource warmup must use the shared background frame phase."
-Require-Text $sunExpPreloader "battleActive" "SunExp resource warmup must pause during combat."
-Require-Text $sunExpPreloader "StarScoreHudAssets\.StructuralPaths" "SunExp warmup must cover first-use structural Star Score HUD sprites."
-if ($sunExpPreloader -match "PolymorphCardFaceCache\.GetOrCreate") {
-    throw "SunExp warmup must not generate polymorph card faces on the preload path."
+$terriasPreloader = Read-RepoText "Terrias-Dev\Hooks\TerriasResourcePreloader.cs"
+Require-Text $terriasPreloader "AdventureStarting" "Terrias resource warmup must start from the adventure lifecycle."
+Require-Text $terriasPreloader "AuraSharedFramePhase\.Background" "Terrias resource warmup must use the shared background frame phase."
+Require-Text $terriasPreloader "battleActive" "Terrias resource warmup must pause during combat."
+Require-Text $terriasPreloader "StarScoreHudAssets\.StructuralPaths" "Terrias warmup must cover first-use structural Star Score HUD sprites."
+if ($terriasPreloader -match "PolymorphCardFaceCache\.GetOrCreate") {
+    throw "Terrias warmup must not generate polymorph card faces on the preload path."
 }
-if ($sunExpPreloader -match "SunExpResourceCache\.Preload<") {
-    throw "SunExp resource warmup must not synchronously preload the whole visual catalog in one frame action."
+if ($terriasPreloader -match "TerriasResourceCache\.Preload<") {
+    throw "Terrias resource warmup must not synchronously preload the whole visual catalog in one frame action."
 }
 
 $battleLifecycleRouter = Read-RepoText "AuraSharedCore\AuraBattleLifecycleRouter.cs"
@@ -634,8 +634,8 @@ Require-Text $cardUseFxRuntime "AuraCardUseFxSourceSnapshot" "Card-use FX must s
 Require-Text $cardUseFxRibbon "raycastTarget = false" "Shared Bezier ribbons must never intercept UI input."
 Require-Text $cardUseFxRibbon "ConfigureStrands" "Shared Bezier ribbons must expose semantic-free parallel strand geometry."
 Require-Text $cardUseFxRibbon "EvaluateTangent" "Shared Bezier ribbons must expose path sampling for consumer-owned moving glyphs."
-if ($cardUseFxRuntime.Contains("SunExp")) {
-    throw "Shared card-use FX runtime must not contain SunExp content semantics."
+if ($cardUseFxRuntime.Contains("Terrias")) {
+    throw "Shared card-use FX runtime must not contain Terrias content semantics."
 }
 
 $lifecycleSession = Read-RepoText "AuraSharedCore\AuraLifecycleSessionRuntime.cs"
@@ -645,7 +645,7 @@ Require-Text $lifecycleSession "EndBattleSession" "Shared lifecycle session runt
 
 $cardPresentationDelta = Read-RepoText "AuraSharedCore\AuraCardPresentationDelta.cs"
 Require-Text $cardPresentationDelta "TrySetCost" "Shared card presentation deltas must expose a cost-only refresh path."
-if ($cardPresentationDelta -match "SunExp|AuraTools") {
+if ($cardPresentationDelta -match "Terrias|AuraTools") {
     throw "Shared card presentation deltas must remain consumer-semantic-free."
 }
 
@@ -705,7 +705,7 @@ $sharedUiComponents = Read-RepoText "AuraUiShared\AuraUiComponents.cs"
 $sharedUiRenderer = Read-RepoText "AuraUiShared\AuraUiStandardRenderer.cs"
 Require-Text $sharedUiTheme "AuraUiStyleIds" "AuraUiShared must expose owner-qualified stable style ids."
 Require-Text $sharedUiTheme "WitchNative" "AuraUiShared must keep the game-native style separate from Aura default styling."
-if ($sharedUiTheme -match "SunExp|AuraToolsExp") {
+if ($sharedUiTheme -match "Terrias|AuraToolsExp") {
     throw "AuraUiShared must not own consumer-specific style ids."
 }
 Require-Text $sharedUiRegistry "RegisterDerived" "AuraUiShared must support consumer-owned derived styles."
@@ -818,7 +818,7 @@ if ($gameDataApplication -match "GameConfigManager|DataConfig|ScriptExecutor|Fig
     throw "AuraGameDataShared Application must depend on ports and snapshots, not Witch runtime types."
 }
 
-$sunConfigIndex = Read-RepoText "SunExp-Dev\Mechanics\SunExpConfigIndex.cs"
+$sunConfigIndex = Read-RepoText "Terrias-Dev\Mechanics\TerriasConfigIndex.cs"
 $toolsRoleCatalog = Read-RepoText "AuraToolsExp-Dev\Infrastructure\RoleCatalog.cs"
 $toolsStarterDeckCatalog = Read-RepoText "AuraToolsExp-Dev\Features\StarterDeck\StarterDeckCardCatalog.cs"
 foreach ($consumer in @($sunConfigIndex, $toolsRoleCatalog, $toolsStarterDeckCatalog)) {
@@ -828,7 +828,7 @@ if ($sunConfigIndex -match "GameConfigManager" -or $toolsRoleCatalog -match "Gam
     throw "Shared game-data consumers must not restore private table scans."
 }
 
-foreach ($consumerRoot in @("SunExp-Dev", "AuraToolsExp-Dev", "SanGuoShaExp-Dev", "AuraJourneyShared", "AuraSkinShared")) {
+foreach ($consumerRoot in @("Terrias-Dev", "AuraToolsExp-Dev", "SanGuoShaExp-Dev", "AuraJourneyShared", "AuraSkinShared")) {
     $consumerPath = Join-Path $repoRoot $consumerRoot
     foreach ($file in Get-ChildItem -LiteralPath $consumerPath -Recurse -Filter "*.cs" -File) {
         $text = Get-Content -Raw -LiteralPath $file.FullName
@@ -920,9 +920,9 @@ Require-Text $resourceV4 "moduleId/scopeType/canonicalScopeId/featureId/ownerMod
 Require-Text $resourceV4 "History view" "Shared v4 guidelines must define independent history visibility."
 Require-Text $resourceV4 "UserManual" "Shared v4 guidelines must define manual resource provenance."
 
-$auditFile = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot "docs\SunExp") -File -Filter "04-Aura*.md")
+$auditFile = @(Get-ChildItem -LiteralPath (Join-Path $repoRoot "docs\Terrias") -File -Filter "04-Aura*.md")
 if ($auditFile.Count -ne 1) {
-    throw "Expected exactly one SunExp Aura shared-layer audit document."
+    throw "Expected exactly one Terrias Aura shared-layer audit document."
 }
 $audit = [System.IO.File]::ReadAllText($auditFile[0].FullName)
 Require-Text $audit "AuraCgShared" "Shared architecture audit must include AuraCgShared."

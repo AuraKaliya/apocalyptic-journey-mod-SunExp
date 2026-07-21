@@ -328,7 +328,7 @@ Unloading 8 unused Assets / (14.3 KB). Loaded Objects now: 739.
 Memory consumption went from 88.1 MB to 88.1 MB.
 Total: 1.853300 ms (FindLiveObjects: 0.026700 ms CreateObjectMapping: 0.005400 ms MarkObjects: 1.791700 ms  DeleteObjects: 0.028900 ms)
 
-Start importing Assets/AuraCardFrameFxLab/Materials/SunExpFoilHoloFrameOverlay.mat using Guid(87eade045673983429a7ddee13050606) Importer(-1,00000000000000000000000000000000) [PhysX] Initialized MultithreadedTaskDispatcher with 32 workers.
+Start importing Assets/AuraCardFrameFxLab/Materials/TerriasFoilHoloFrameOverlay.mat using Guid(87eade045673983429a7ddee13050606) Importer(-1,00000000000000000000000000000000) [PhysX] Initialized MultithreadedTaskDispatcher with 32 workers.
  -> (artifact id: 'bae060ca7e2ffd1648c60ccac590ad4c') in 0.001292 seconds
 Refreshing native plugins compatible for Editor in 0.00 ms, found 0 plugins.
 Preloading 0 native plugins for Editor in 0.00 ms.

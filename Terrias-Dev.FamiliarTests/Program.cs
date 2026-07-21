@@ -4,7 +4,7 @@ using System.IO;
 using System.Linq;
 using System.Reflection;
 using Newtonsoft.Json;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Mechanics;
 
 if (args.Length != 1 || !File.Exists(args[0]))
 {
@@ -49,7 +49,7 @@ Assert(codexPools.Skip(3).Select(pool => pool.Name).SequenceEqual(new[]
 Assert(codexPools.SelectMany(pool => pool.Blessings).Any(item => item.Tier == 1 && item.TierLabel == "Ⅰ阶")
        && codexPools.SelectMany(pool => pool.Blessings).Any(item => item.Tier == 5 && item.TierLabel == "Ⅴ阶"),
     "the familiar codex must render first through fifth tier labels");
-foreach (var species in new[] { "10001", "*10002", "10003", "*10004", "*10005", "SunExp_sunexp_dusk", "SunExp_sunexp_star_clay_doll" })
+foreach (var species in new[] { "10001", "*10002", "10003", "*10004", "*10005", "Terrias_terrias_dusk", "Terrias_terrias_star_clay_doll" })
 {
     var instance = new FamiliarInstance { FullSpeciesId = species, SpeciesId = species, Aptitude = 70, Level = 8 };
     Assert(FamiliarBlessingRegistry.SpecificFinals(instance).Count == 3,
@@ -59,18 +59,18 @@ Assert(FamiliarBlessingRoller.ChoiceSize(69) == 2, "aptitude below 70 must produ
 Assert(FamiliarBlessingRoller.ChoiceSize(70) == 3, "aptitude 70 or above must produce three candidates");
 Assert(FamiliarBlessingRoller.AptitudeFloor(0) == 30, "initial aptitude floor must be 30");
 Assert(FamiliarBlessingRoller.AptitudeFloor(8) == 70, "rebirth aptitude floor must cap at 70");
-Assert(FamiliarBlessingRoller.RollAptitude("SunExp_sunexp_dusk", 3) == FamiliarBlessingRoller.RollAptitude("SunExp_sunexp_dusk", 3),
+Assert(FamiliarBlessingRoller.RollAptitude("Terrias_terrias_dusk", 3) == FamiliarBlessingRoller.RollAptitude("Terrias_terrias_dusk", 3),
     "aptitude rolls must be stable for the same profile and rebirth count");
 
 var dusk = new FamiliarSpeciesSpec(
     "dusk",
-    "SunExp_sunexp_dusk",
+    "Terrias_terrias_dusk",
     "黄昏",
     "",
     "",
     "",
     "",
-    "SunExp_sunexp_dusk_afterheat_recovery");
+    "Terrias_terrias_dusk_afterheat_recovery");
 var legacy = new FamiliarRosterDocument
 {
     Version = 2,

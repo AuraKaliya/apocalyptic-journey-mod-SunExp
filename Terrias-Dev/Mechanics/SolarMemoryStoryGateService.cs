@@ -1,7 +1,7 @@
 using System;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class SolarMemoryStoryGateService
 {
@@ -13,9 +13,9 @@ public static class SolarMemoryStoryGateService
         }
 
         return TryStartDialogue(
-            SunExpIds.SolarMemoryPostPreparationDialogueFlowId,
-            SunExpIds.SolarMemoryPostPreparationDialogueId,
-            SunExpIds.SolarMemoryPostPreparationCompleteDialogueId,
+            TerriasIds.SolarMemoryPostPreparationDialogueFlowId,
+            TerriasIds.SolarMemoryPostPreparationDialogueId,
+            TerriasIds.SolarMemoryPostPreparationCompleteDialogueId,
             "post-preparation",
             complete);
     }
@@ -25,11 +25,11 @@ public static class SolarMemoryStoryGateService
         var definition = new DialogueFlowDefinition(flowId, dialogueId, completeDialogueId, complete);
         if (!DialogueFlowService.Start(definition))
         {
-            SunExpLog.Warn("[SolarMemoryStory] " + label + " dialogue could not be shown; continuing memory flow.");
+            TerriasLog.Warn("[SolarMemoryStory] " + label + " dialogue could not be shown; continuing memory flow.");
             return false;
         }
 
-        SunExpLog.Info("[SolarMemoryStory] opened " + label + " dialogue.");
+        TerriasLog.Info("[SolarMemoryStory] opened " + label + " dialogue.");
         return true;
     }
 

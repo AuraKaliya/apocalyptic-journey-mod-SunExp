@@ -1,8 +1,8 @@
-using SunExp.Dll.Hooks;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Hooks;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class SolarMemoryFlowApi
 {
@@ -10,23 +10,23 @@ public static class SolarMemoryFlowApi
     {
         if (!IsPreparationComplete())
         {
-            SunExpLog.Info("[SolarMemoryEvent] continue requested before preparation complete; resuming preparation.");
+            TerriasLog.Info("[SolarMemoryEvent] continue requested before preparation complete; resuming preparation.");
             StartOrResumePreparation();
             return;
         }
 
-        if (SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryPostPreparationDialoguePendingKey))
+        if (SolarMemoryPlayerSetupState.IsSet(TerriasIds.SolarMemoryPostPreparationDialoguePendingKey))
         {
-            SunExpLog.Info("[SolarMemoryEvent] clearing stale post-preparation dialogue state before opening C# flow.");
-            SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryPostPreparationDialoguePendingKey, false);
+            TerriasLog.Info("[SolarMemoryEvent] clearing stale post-preparation dialogue state before opening C# flow.");
+            SolarMemoryPlayerSetupState.SetFlag(TerriasIds.SolarMemoryPostPreparationDialoguePendingKey, false);
         }
 
         if (SolarMemoryStoryGateService.TryStartPostPreparationDialogue(
             SolarMemoryModeRuntime.IsSolarMemoryRun(),
-            SolarMemoryPlayerSetupState.IsSet(SunExpIds.SolarMemoryPostPreparationDialogueSeenKey),
+            SolarMemoryPlayerSetupState.IsSet(TerriasIds.SolarMemoryPostPreparationDialogueSeenKey),
             _ => CompletePostPreparationDialogue()))
         {
-            SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryPostPreparationDialoguePendingKey, true);
+            SolarMemoryPlayerSetupState.SetFlag(TerriasIds.SolarMemoryPostPreparationDialoguePendingKey, true);
             return;
         }
 
@@ -35,17 +35,17 @@ public static class SolarMemoryFlowApi
 
     public static void CompletePostPreparationDialogue()
     {
-        SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryPostPreparationDialoguePendingKey, false);
-        SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryPostPreparationDialogueSeenKey, true);
+        SolarMemoryPlayerSetupState.SetFlag(TerriasIds.SolarMemoryPostPreparationDialoguePendingKey, false);
+        SolarMemoryPlayerSetupState.SetFlag(TerriasIds.SolarMemoryPostPreparationDialogueSeenKey, true);
         CompletePreparedEvent();
     }
 
     public static bool StartSecondSunEndingDialogue()
     {
         return SolarMemoryStoryGateService.TryStartDialogue(
-            SunExpIds.SolarMemorySecondSunEndingDialogueFlowId,
-            SunExpIds.SolarMemorySecondSunEndingDialogueId,
-            SunExpIds.SolarMemorySecondSunEndingCompleteDialogueId,
+            TerriasIds.SolarMemorySecondSunEndingDialogueFlowId,
+            TerriasIds.SolarMemorySecondSunEndingDialogueId,
+            TerriasIds.SolarMemorySecondSunEndingCompleteDialogueId,
             "second-sun ending",
             _ => CompleteSecondSunEndingDialogue());
     }
@@ -53,9 +53,9 @@ public static class SolarMemoryFlowApi
     public static bool StartSaintWunaPreludeDialogue()
     {
         return SolarMemoryStoryGateService.TryStartDialogue(
-            SunExpIds.SolarMemorySaintWunaPreludeDialogueFlowId,
-            SunExpIds.SolarMemorySaintWunaPreludeDialogueId,
-            SunExpIds.SolarMemorySaintWunaPreludeCompleteDialogueId,
+            TerriasIds.SolarMemorySaintWunaPreludeDialogueFlowId,
+            TerriasIds.SolarMemorySaintWunaPreludeDialogueId,
+            TerriasIds.SolarMemorySaintWunaPreludeCompleteDialogueId,
             "saint-wuna prelude",
             _ => CompleteSaintWunaPreludeDialogue());
     }
@@ -63,9 +63,9 @@ public static class SolarMemoryFlowApi
     public static bool StartSaintWunaEndingDialogue()
     {
         return SolarMemoryStoryGateService.TryStartDialogue(
-            SunExpIds.SolarMemorySaintWunaEndingDialogueFlowId,
-            SunExpIds.SolarMemorySaintWunaEndingDialogueId,
-            SunExpIds.SolarMemorySaintWunaEndingCompleteDialogueId,
+            TerriasIds.SolarMemorySaintWunaEndingDialogueFlowId,
+            TerriasIds.SolarMemorySaintWunaEndingDialogueId,
+            TerriasIds.SolarMemorySaintWunaEndingCompleteDialogueId,
             "saint-wuna ending",
             _ => CompleteSaintWunaEndingDialogue());
     }
@@ -97,20 +97,20 @@ public static class SolarMemoryFlowApi
 
     public static void EnsureOriginPoints(int defaultValue)
     {
-        if (SolarMemoryPlayerSetupState.GetValue(SunExpIds.SolarMemoryOriginPointsKey, "") == "")
+        if (SolarMemoryPlayerSetupState.GetValue(TerriasIds.SolarMemoryOriginPointsKey, "") == "")
         {
-            SolarMemoryPlayerSetupState.SetInt(SunExpIds.SolarMemoryOriginPointsKey, defaultValue);
+            SolarMemoryPlayerSetupState.SetInt(TerriasIds.SolarMemoryOriginPointsKey, defaultValue);
         }
     }
 
     public static void MarkPrepared()
     {
-        SolarMemoryPlayerSetupState.SetFlag(SunExpIds.SolarMemoryPreparedKey, true);
+        SolarMemoryPlayerSetupState.SetFlag(TerriasIds.SolarMemoryPreparedKey, true);
     }
 
     private static void CompletePreparedEvent()
     {
-        SunExpLog.Info("[SolarMemoryEvent] continue accepted; prepared=1.");
+        TerriasLog.Info("[SolarMemoryEvent] continue accepted; prepared=1.");
         MarkPrepared();
         PlayerApi.EndEvent();
     }

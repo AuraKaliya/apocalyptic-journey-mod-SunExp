@@ -1,26 +1,26 @@
 # C# Authoring Boundaries
 
-Use this reference when deciding where new SunExp production code belongs or
+Use this reference when deciding where new Terrias production code belongs or
 when checking game API shape through the indexed game reference project.
 
-## SunExp Code Boundaries
+## Terrias Code Boundaries
 
-- `SunExp-Dev/Scripting/*Scripts.cs`: public static methods called directly by CSV script columns.
-- `SunExp-Dev/GameApi/*`: wrappers around game objects, `ScriptExecutor`, player APIs, buffs, cards, vars, audio, and safe runtime access.
-- `SunExp-Dev/Infrastructure/*`: constants, logging, dictionary helpers, parsing helpers, field IDs, and other low-level support.
-- `SunExp-Dev/Mechanics/*`: reusable implementation code shared by multiple scripting entry points. This directory is currently mostly flat; prefer a focused service/model file name over a new subdirectory unless the current repo already has a stable grouped area.
-- `SunExp-Dev/Hooks/*`: code that attaches to game methods, event listeners, UI points, map behavior, or lifecycle points.
-- `SunExp/Data/**/*.csv`: configuration rows and short `CS.SunExp.Dll.Scripting.*` calls.
-- `SunExp/Text/**/*.csv`: localized player-facing text that must match the Data rows when the table has a Text side.
-- `SunExp/audio.registry.json`: declarative audio and BGM provider registration used by the audio runtimes.
+- `Terrias-Dev/Scripting/*Scripts.cs`: public static methods called directly by CSV script columns.
+- `Terrias-Dev/GameApi/*`: wrappers around game objects, `ScriptExecutor`, player APIs, buffs, cards, vars, audio, and safe runtime access.
+- `Terrias-Dev/Infrastructure/*`: constants, logging, dictionary helpers, parsing helpers, field IDs, and other low-level support.
+- `Terrias-Dev/Mechanics/*`: reusable implementation code shared by multiple scripting entry points. This directory is currently mostly flat; prefer a focused service/model file name over a new subdirectory unless the current repo already has a stable grouped area.
+- `Terrias-Dev/Hooks/*`: code that attaches to game methods, event listeners, UI points, map behavior, or lifecycle points.
+- `Terrias/Data/**/*.csv`: configuration rows and short `CS.Terrias.Dll.Scripting.*` calls.
+- `Terrias/Text/**/*.csv`: localized player-facing text that must match the Data rows when the table has a Text side.
+- `Terrias/audio.registry.json`: declarative audio and BGM provider registration used by the audio runtimes.
 
 Do not put long implementation logic in CSV script columns. Add or reuse a C#
 entry point, then call that entry point from CSV.
 
 ## Host Bridge
 
-`SunExp-Dev/Entry.cs` may use the game's XLua host objects, such as
-`ScriptExecutor.luaEnv`, to expose the SunExp C# assembly to CSV script calls.
+`Terrias-Dev/Entry.cs` may use the game's XLua host objects, such as
+`ScriptExecutor.luaEnv`, to expose the Terrias C# assembly to CSV script calls.
 This bridge is necessary interop. It must not grow into production `.lua` files
 or old dynamic helper registration.
 
@@ -83,7 +83,7 @@ snapshot disagrees with the current game or `Managed/` assemblies.
 
 ## Multiplayer And Runtime Objects
 
-- Load `sunexp-shared-runtime-dev/references/sync-scenario-model.md` before
+- Load `terrias-shared-runtime-dev/references/sync-scenario-model.md` before
   choosing network event shape, RPC authority fields, duplicate suppression, or
   payload limits.
 - Keep player preparation and deck choices player-scoped in multiplayer.
@@ -113,7 +113,7 @@ snapshot disagrees with the current game or `Managed/` assemblies.
 After C# changes, run:
 
 ```powershell
-tools\Build-SunExpDll.ps1
-tools\Test-SunExpCSharp.ps1
-.codex\skills\sunexp-mod-dev\scripts\validate-sunexp.ps1
+tools\Build-TerriasDll.ps1
+tools\Test-TerriasCSharp.ps1
+.codex\skills\terrias-mod-dev\scripts\validate-terrias.ps1
 ```

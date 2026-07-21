@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public sealed class LoneerCombatState
 {
@@ -80,8 +80,8 @@ public sealed class PreparedGuidanceCard
             displayName,
             isWitchStarScore,
             isWitchStarScore ? Array.Empty<string>() : new[] { "Burnout", "Nihility" },
-            new[] { SunExp.Dll.Infrastructure.SunExpIds.LoneerDerivedMarker, SunExp.Dll.Infrastructure.SunExpIds.LoneerGuidanceMarker },
-            new[] { SunExp.Dll.Infrastructure.SunExpIds.LoneerDerivedTag, SunExp.Dll.Infrastructure.SunExpIds.LoneerGuidanceTag });
+            new[] { Terrias.Dll.Infrastructure.TerriasIds.LoneerDerivedMarker, Terrias.Dll.Infrastructure.TerriasIds.LoneerGuidanceMarker },
+            new[] { Terrias.Dll.Infrastructure.TerriasIds.LoneerDerivedTag, Terrias.Dll.Infrastructure.TerriasIds.LoneerGuidanceTag });
     }
 }
 

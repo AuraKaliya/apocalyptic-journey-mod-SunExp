@@ -1,12 +1,12 @@
 using System;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Hooks.Ui;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Network;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Hooks.Ui;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Network;
 using Witch.Core;
 using Witch.UI;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class FieldBuffHudRuntime
 {
@@ -16,7 +16,7 @@ public static class FieldBuffHudRuntime
 
     public static void RequestRefresh(string source)
     {
-        SunExpFrameScheduler.RunOnceNextFrame("FieldBuffHud.Refresh", Refresh);
+        TerriasFrameScheduler.RunOnceNextFrame("FieldBuffHud.Refresh", Refresh);
     }
 
     public static void Refresh()
@@ -26,7 +26,7 @@ public static class FieldBuffHudRuntime
             var snapshot = FieldApi.ActiveFieldSnapshot();
             if (!snapshot.IsActive)
             {
-                if (SunExpNetworkRuntime.IsClientOnly())
+                if (TerriasNetworkRuntime.IsClientOnly())
                 {
                     FieldNetworkSync.RequestSnapshot("FieldBuffHud.Empty");
                 }
@@ -47,7 +47,7 @@ public static class FieldBuffHudRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Field buff HUD refresh failed", ex);
+            TerriasLog.Error("Field buff HUD refresh failed", ex);
         }
     }
 
@@ -56,13 +56,13 @@ public static class FieldBuffHudRuntime
         hostRetryCount = 0;
         if (activeView == null)
         {
-            SunExpTransientUiRegistry.Unregister("FieldBuffHud");
+            TerriasTransientUiRegistry.Unregister("FieldBuffHud");
             return;
         }
 
         activeView.Close(source);
         activeView = null;
-        SunExpTransientUiRegistry.Unregister("FieldBuffHud");
+        TerriasTransientUiRegistry.Unregister("FieldBuffHud");
     }
 
     private static FieldBuffHudView? EnsureView()
@@ -78,7 +78,7 @@ public static class FieldBuffHudRuntime
         }
 
         activeView = FieldBuffHudView.Create(parent);
-        SunExpTransientUiRegistry.Register("FieldBuffHud", Close);
+        TerriasTransientUiRegistry.Register("FieldBuffHud", Close);
         return activeView;
     }
 
@@ -86,12 +86,12 @@ public static class FieldBuffHudRuntime
     {
         if (hostRetryCount >= MaxHostRetryCount)
         {
-            SunExpLog.WarnOnce("FieldBuffHud.FightUiUnavailable",
+            TerriasLog.WarnOnce("FieldBuffHud.FightUiUnavailable",
                 "Field buff HUD skipped after waiting for FightUI; a later field refresh can retry.");
             return;
         }
 
         hostRetryCount++;
-        SunExpFrameScheduler.RunOnceAfterFrames("FieldBuffHud.WaitForFightUI", 2, Refresh);
+        TerriasFrameScheduler.RunOnceAfterFrames("FieldBuffHud.WaitForFightUI", 2, Refresh);
     }
 }

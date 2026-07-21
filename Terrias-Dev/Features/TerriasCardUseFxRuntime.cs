@@ -1,16 +1,16 @@
 using System;
 using System.Linq;
 using AuraCardUseFx.Shared;
-using SunExp.Dll.Hooks;
-using SunExp.Dll.Hooks.Visual;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Hooks;
+using Terrias.Dll.Hooks.Visual;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Features;
+namespace Terrias.Dll.Features;
 
-public static class SunExpCardUseFxRuntime
+public static class TerriasCardUseFxRuntime
 {
     private static bool initialized;
 
@@ -22,20 +22,20 @@ public static class SunExpCardUseFxRuntime
         }
 
         initialized = true;
-        if (!AuraCardUseFxRegistryRuntime.RegisterManifest(modConfig, SunExpIds.ModId))
+        if (!AuraCardUseFxRegistryRuntime.RegisterManifest(modConfig, TerriasIds.ModId))
         {
-            SunExpLog.Warn("[CardUseFx] SunExp manifest registration was rejected; runtime will stay inactive.");
+            TerriasLog.Warn("[CardUseFx] Terrias manifest registration was rejected; runtime will stay inactive.");
         }
 
         AuraCardUseFxRuntime.Initialize(modConfig);
         AuraCardUseFxRuntime.Triggered -= OnTriggered;
         AuraCardUseFxRuntime.Triggered += OnTriggered;
-        SunExpBattleLifecycleRouter.Register("CardUseFx", new SunExpBattleLifecycleSubscription
+        TerriasBattleLifecycleRouter.Register("CardUseFx", new TerriasBattleLifecycleSubscription
         {
             FightStarted = _ => Clear("fight-start"),
             FightEnding = _ => Clear("fight-end")
         });
-        SunExpLog.Info("[CardUseFx] Stellar Overture card-use FX runtime initialized.");
+        TerriasLog.Info("[CardUseFx] Stellar Overture card-use FX runtime initialized.");
     }
 
     public static void Clear(string source)
@@ -48,8 +48,8 @@ public static class SunExpCardUseFxRuntime
     {
         try
         {
-            if (!string.Equals(trigger.Entry.OwnerModId, SunExpIds.ModId, StringComparison.OrdinalIgnoreCase)
-                || !string.Equals(trigger.Entry.EffectId, SunExpIds.StellarOvertureCardUseFxId, StringComparison.OrdinalIgnoreCase)
+            if (!string.Equals(trigger.Entry.OwnerModId, TerriasIds.ModId, StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(trigger.Entry.EffectId, TerriasIds.StellarOvertureCardUseFxId, StringComparison.OrdinalIgnoreCase)
                 || trigger.Channel != AuraCardUseFxTriggerChannel.LocalCommitted)
             {
                 return;
@@ -58,7 +58,7 @@ public static class SunExpCardUseFxRuntime
             var cues = StarScoreArrivalCueService.Consume(trigger.CardConfig);
             if (cues.Count == 0 || !IsLocalOwner(cues[0].OwnerStatusId))
             {
-                SunExpLog.Debug("[CardUseFx] no local note cues matched useSequence=" + trigger.UseSequence + "; presentation skipped.");
+                TerriasLog.Debug("[CardUseFx] no local note cues matched useSequence=" + trigger.UseSequence + "; presentation skipped.");
                 return;
             }
 
@@ -68,7 +68,7 @@ public static class SunExpCardUseFxRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[CardUseFx] trigger handling failed", ex);
+            TerriasLog.Error("[CardUseFx] trigger handling failed", ex);
         }
     }
 

@@ -3,14 +3,14 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Reflection;
 using AuraShared.Core;
-using SunExp.Dll.Hooks.Visual;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Hooks.Visual;
+using Terrias.Dll.Infrastructure;
 using UnityEngine;
 using Witch.Core;
 using Witch.Mod;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class WunaOrbitFireRuntime
 {
@@ -20,17 +20,17 @@ public static class WunaOrbitFireRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
-        SunExpStatusLifecycleRouter.Register("WunaOrbitFire", new SunExpStatusLifecycleSubscription
+        TerriasStatusLifecycleRouter.Register("WunaOrbitFire", new TerriasStatusLifecycleSubscription
         {
             AfterInitAnimator = AttachFromStatusContext,
             AfterSetSprite = AttachFromStatusContext,
             AfterFightUiFadeIn = AttachFromFightUiContext
         });
-        SunExpCombatActionRouter.Register("WunaOrbitFire", new SunExpCombatActionSubscription
+        TerriasCombatActionRouter.Register("WunaOrbitFire", new TerriasCombatActionSubscription
         {
             AfterFightUiActionAnimation = AttachFromActionContext
         });
-        SunExpLog.Info(LogPrefix + " runtime initialized");
+        TerriasLog.Info(LogPrefix + " runtime initialized");
     }
 
     public static void AttachFromExecutor(IScriptExecutor? executor, string action = "", string source = "executor")
@@ -44,10 +44,10 @@ public static class WunaOrbitFireRuntime
                 return;
             }
 
-            SunExpFrameDispatcher.RunOnceNextFrame(LogPrefix + ".attach." + source + ".next", () =>
+            TerriasFrameDispatcher.RunOnceNextFrame(LogPrefix + ".attach." + source + ".next", () =>
             {
                 AttachToStatus(status, action, source + ":next");
-                SunExpFrameDispatcher.RunOnceNextFrame(LogPrefix + ".attach." + source + ".second", () =>
+                TerriasFrameDispatcher.RunOnceNextFrame(LogPrefix + ".attach." + source + ".second", () =>
                 {
                     AttachToStatus(status, action, source + ":second");
                 });
@@ -55,7 +55,7 @@ public static class WunaOrbitFireRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn(LogPrefix + " executor attach failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn(LogPrefix + " executor attach failed from " + source + ": " + ex.Message);
         }
     }
 
@@ -67,7 +67,7 @@ public static class WunaOrbitFireRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn(LogPrefix + " status attach failed: " + ex.Message);
+            TerriasLog.Warn(LogPrefix + " status attach failed: " + ex.Message);
         }
     }
 
@@ -87,7 +87,7 @@ public static class WunaOrbitFireRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn(LogPrefix + " FightUI attach failed: " + ex.Message);
+            TerriasLog.Warn(LogPrefix + " FightUI attach failed: " + ex.Message);
         }
     }
 
@@ -103,13 +103,13 @@ public static class WunaOrbitFireRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn(LogPrefix + " action attach failed: " + ex.Message);
+            TerriasLog.Warn(LogPrefix + " action attach failed: " + ex.Message);
         }
     }
 
     private static void AttachToStatus(StatusManager? status, string action, string source)
     {
-        if (!SunExpPerformanceSettings.WunaOrbitFireEnabled)
+        if (!TerriasPerformanceSettings.WunaOrbitFireEnabled)
         {
             LogSkipOnce("disabled", "skipped from " + source + ": orbit fire is disabled by default.");
             return;
@@ -138,18 +138,18 @@ public static class WunaOrbitFireRuntime
         var controller = renderer.GetComponentInChildren<WunaOrbitFireController>(true);
         if (controller == null)
         {
-            var root = new GameObject("SunExp_WunaOrbitFire");
+            var root = new GameObject("Terrias_WunaOrbitFire");
             root.transform.SetParent(renderer.transform, false);
             controller = root.AddComponent<WunaOrbitFireController>();
             controller.Configure(renderer);
             AttachedRendererIds.Add(rendererId);
-            SunExpLog.Info(LogPrefix + " attached to renderer from " + source + ": " + RendererPath(renderer.transform));
+            TerriasLog.Info(LogPrefix + " attached to renderer from " + source + ": " + RendererPath(renderer.transform));
         }
         else if (!AttachedRendererIds.Contains(rendererId))
         {
             controller.Configure(renderer);
             AttachedRendererIds.Add(rendererId);
-            SunExpLog.Info(LogPrefix + " reconfigured existing controller from " + source + ": " + RendererPath(renderer.transform));
+            TerriasLog.Info(LogPrefix + " reconfigured existing controller from " + source + ": " + RendererPath(renderer.transform));
         }
 
         if (!string.IsNullOrWhiteSpace(action))
@@ -320,7 +320,7 @@ public static class WunaOrbitFireRuntime
     {
         var normalized = AuraSharedIdentity.NormalizeRoleId(value).TrimStart('*').Trim();
         return string.Equals(normalized, "wuna", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(normalized, "SunExp_wuna_wuna", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(normalized, "Terrias_wuna_wuna", StringComparison.OrdinalIgnoreCase)
             || normalized.EndsWith("_wuna", StringComparison.OrdinalIgnoreCase)
             || normalized.EndsWith(":wuna", StringComparison.OrdinalIgnoreCase)
             || normalized.EndsWith(".wuna", StringComparison.OrdinalIgnoreCase);
@@ -343,7 +343,7 @@ public static class WunaOrbitFireRuntime
     {
         if (LoggedSkips.Add(key))
         {
-            SunExpLog.Info(LogPrefix + " " + message);
+            TerriasLog.Info(LogPrefix + " " + message);
         }
     }
 

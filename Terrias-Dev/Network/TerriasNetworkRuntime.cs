@@ -3,12 +3,12 @@ using System.Collections.Generic;
 using AuraShared.Core;
 using System.Linq;
 using Network.Command;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Network;
+namespace Terrias.Dll.Network;
 
-public static class SunExpNetworkRuntime
+public static class TerriasNetworkRuntime
 {
     public static bool IsClientOnly()
     {
@@ -112,7 +112,7 @@ public static class SunExpNetworkRuntime
         var manager = PlayerManager.Instance;
         if (manager == null)
         {
-            SunExpLog.Debug("[SunExpRpc] send skipped from " + source + ": PlayerManager unavailable.");
+            TerriasLog.Debug("[TerriasRpc] send skipped from " + source + ": PlayerManager unavailable.");
             return false;
         }
 
@@ -122,7 +122,7 @@ public static class SunExpNetworkRuntime
                 out var payloadBytes,
                 out var payloadError))
         {
-            SunExpLog.Warn("[SunExpRpc] send blocked from " + source
+            TerriasLog.Warn("[TerriasRpc] send blocked from " + source
                 + "; command=" + command.GetType().Name
                 + "; bytes=" + payloadBytes
                 + "; error=" + payloadError + ".");
@@ -140,7 +140,7 @@ public static class SunExpNetworkRuntime
                 manager.SendRpcCommand(command);
             }
 
-            SunExpLog.Debug("[SunExpRpc] sent "
+            TerriasLog.Debug("[TerriasRpc] sent "
                 + command.GetType().Name
                 + " from "
                 + source
@@ -151,7 +151,7 @@ public static class SunExpNetworkRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[SunExpRpc] send failed from "
+            TerriasLog.Warn("[TerriasRpc] send failed from "
                 + source
                 + "; command="
                 + command.GetType().Name

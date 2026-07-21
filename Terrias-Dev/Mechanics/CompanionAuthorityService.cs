@@ -1,9 +1,9 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Network;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Network;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class CompanionAuthorityService
 {
@@ -13,7 +13,7 @@ public static class CompanionAuthorityService
 
     public static bool IsAuthoritative()
     {
-        return !SunExpNetworkRuntime.IsMultiplayerSession() || SunExpNetworkRuntime.IsServer();
+        return !TerriasNetworkRuntime.IsMultiplayerSession() || TerriasNetworkRuntime.IsServer();
     }
 
     public static int BattleEpoch => battleEpoch;
@@ -62,7 +62,7 @@ public static class CompanionOwnershipService
             }
         }
 
-        var local = SunExpNetworkRuntime.LocalPlayerId();
+        var local = TerriasNetworkRuntime.LocalPlayerId();
         return string.IsNullOrWhiteSpace(local) ? ownerStatusId ?? "" : local;
     }
 

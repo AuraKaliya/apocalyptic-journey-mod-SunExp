@@ -1,15 +1,15 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 
-namespace SunExp.Dll.Hooks.Visual;
+namespace Terrias.Dll.Hooks.Visual;
 
 internal static class StarScoreFlightGlyphAssets
 {
-    private const string Root = "Mods/SunExp/ModResource/Images/Effects/StarScore/";
+    private const string Root = "Mods/Terrias/ModResource/Images/Effects/StarScore/";
 
     public const string OpeningPath = Root + "flight_opening.png";
     public const string SustainPath = Root + "flight_sustain.png";
@@ -53,7 +53,7 @@ internal static class StarScoreFlightGlyphAssets
         Sprite? sprite = null;
         try
         {
-            sprite = SunExpResourceCache.Load<Sprite>(path, true);
+            sprite = TerriasResourceCache.Load<Sprite>(path, true);
             if (sprite?.texture != null)
             {
                 sprite.texture.filterMode = FilterMode.Bilinear;
@@ -62,12 +62,12 @@ internal static class StarScoreFlightGlyphAssets
 
             if (sprite == null)
             {
-                SunExpLog.Warn("[CardUseFx] flight glyph missing: " + path);
+                TerriasLog.Warn("[CardUseFx] flight glyph missing: " + path);
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[CardUseFx] flight glyph load failed " + path + ": " + ex.Message);
+            TerriasLog.Warn("[CardUseFx] flight glyph load failed " + path + ": " + ex.Message);
         }
 
         Cache[path] = sprite;

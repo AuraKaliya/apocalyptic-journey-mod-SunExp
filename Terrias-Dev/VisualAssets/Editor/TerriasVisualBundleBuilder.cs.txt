@@ -1,6 +1,6 @@
-// Copy this file into a Unity Editor project as Assets/Editor/SunExpVisualBundleBuilder.cs.
-// Keep the asset paths aligned with SunExp-Dev/VisualAssets/sunexp_visuals.pipeline.json
-// and SunExp/visual.registry.json.
+// Copy this file into a Unity Editor project as Assets/Editor/TerriasVisualBundleBuilder.cs.
+// Keep the asset paths aligned with Terrias-Dev/VisualAssets/terrias_visuals.pipeline.json
+// and Terrias/visual.registry.json.
 
 using System;
 using System.IO;
@@ -8,28 +8,28 @@ using System.Linq;
 using UnityEditor;
 using UnityEngine;
 
-public static class SunExpVisualBundleBuilder
+public static class TerriasVisualBundleBuilder
 {
-    private const string BundleName = "sunexp_visuals";
-    private const string StarScoreShaderAssetPath = "Assets/SunExp/Visuals/Shaders/StarScoreHud.shader";
-    private const string MaterialAssetPath = "Assets/SunExp/Visuals/Materials/StarScoreHudLit.mat";
+    private const string BundleName = "terrias_visuals";
+    private const string StarScoreShaderAssetPath = "Assets/Terrias/Visuals/Shaders/StarScoreHud.shader";
+    private const string MaterialAssetPath = "Assets/Terrias/Visuals/Materials/StarScoreHudLit.mat";
     private const string StarScoreMaterialAssetPath = MaterialAssetPath;
-    private const string WunaOrbitFireShaderAssetPath = "Assets/SunExp/Visuals/Shaders/WunaOrbitFire.shader";
-    private const string WunaOrbitFireBackMaterialAssetPath = "Assets/SunExp/Visuals/Materials/WunaOrbitFireBack.mat";
-    private const string WunaOrbitFireFrontMaterialAssetPath = "Assets/SunExp/Visuals/Materials/WunaOrbitFireFront.mat";
-    private const string CardFaceEffectShaderAssetPath = "Assets/SunExp/Visuals/Shaders/CardFaceEffect.shader";
-    private const string CardFaceEffectMaterialAssetPath = "Assets/SunExp/Visuals/Materials/CardFaceEffect.mat";
-    private const string AuraCgLumaKeyShaderAssetPath = "Assets/SunExp/Visuals/Shaders/AuraCgLumaKeyUI.shader";
-    private const string AuraCgLumaKeyMaterialAssetPath = "Assets/SunExp/Visuals/Materials/AuraCgLumaKeyUI.mat";
-    private const string AuraCgMaskedInvertShaderAssetPath = "Assets/SunExp/Visuals/Shaders/AuraCgMaskedInvertFlash.shader";
-    private const string AuraCgMaskedInvertMaterialAssetPath = "Assets/SunExp/Visuals/Materials/AuraCgMaskedInvertFlash.mat";
-    private const string AuraCgScreenBwFlashShaderAssetPath = "Assets/SunExp/Visuals/Shaders/AuraCgScreenBwFlash.shader";
-    private const string AuraCgScreenBwFlashMaterialAssetPath = "Assets/SunExp/Visuals/Materials/AuraCgScreenBwFlash.mat";
-    private const string BlazingCrownCollapseFrameDirectory = "Assets/SunExp/Visuals/CG/WuNa/BlazingCrownCollapse";
-    private const string BuildOutputDirectory = "Build/SunExpVisualBundles";
-    private const string ModOutputPath = "../SunExp/ModResource/VisualBundles/sunexp_visuals";
+    private const string WunaOrbitFireShaderAssetPath = "Assets/Terrias/Visuals/Shaders/WunaOrbitFire.shader";
+    private const string WunaOrbitFireBackMaterialAssetPath = "Assets/Terrias/Visuals/Materials/WunaOrbitFireBack.mat";
+    private const string WunaOrbitFireFrontMaterialAssetPath = "Assets/Terrias/Visuals/Materials/WunaOrbitFireFront.mat";
+    private const string CardFaceEffectShaderAssetPath = "Assets/Terrias/Visuals/Shaders/CardFaceEffect.shader";
+    private const string CardFaceEffectMaterialAssetPath = "Assets/Terrias/Visuals/Materials/CardFaceEffect.mat";
+    private const string AuraCgLumaKeyShaderAssetPath = "Assets/Terrias/Visuals/Shaders/AuraCgLumaKeyUI.shader";
+    private const string AuraCgLumaKeyMaterialAssetPath = "Assets/Terrias/Visuals/Materials/AuraCgLumaKeyUI.mat";
+    private const string AuraCgMaskedInvertShaderAssetPath = "Assets/Terrias/Visuals/Shaders/AuraCgMaskedInvertFlash.shader";
+    private const string AuraCgMaskedInvertMaterialAssetPath = "Assets/Terrias/Visuals/Materials/AuraCgMaskedInvertFlash.mat";
+    private const string AuraCgScreenBwFlashShaderAssetPath = "Assets/Terrias/Visuals/Shaders/AuraCgScreenBwFlash.shader";
+    private const string AuraCgScreenBwFlashMaterialAssetPath = "Assets/Terrias/Visuals/Materials/AuraCgScreenBwFlash.mat";
+    private const string BlazingCrownCollapseFrameDirectory = "Assets/Terrias/Visuals/CG/WuNa/BlazingCrownCollapse";
+    private const string BuildOutputDirectory = "Build/TerriasVisualBundles";
+    private const string ModOutputPath = "../Terrias/ModResource/VisualBundles/terrias_visuals";
 
-    [MenuItem("SunExp/Visuals/Build Visual Bundle")]
+    [MenuItem("Terrias/Visuals/Build Visual Bundle")]
     public static void BuildVisualBundle()
     {
         EnsureStarScoreMaterial();
@@ -49,7 +49,7 @@ public static class SunExpVisualBundleBuilder
         var auraCgScreenBwFlashMaterial = AssetImporter.GetAtPath(AuraCgScreenBwFlashMaterialAssetPath);
         if (starScoreMaterial == null || wunaBackMaterial == null || wunaFrontMaterial == null || cardFaceEffectMaterial == null || auraCgLumaKeyMaterial == null || auraCgMaskedInvertMaterial == null || auraCgScreenBwFlashMaterial == null)
         {
-            throw new FileNotFoundException("One or more SunExp material assets are missing.");
+            throw new FileNotFoundException("One or more Terrias material assets are missing.");
         }
 
         AssignBundleName(starScoreMaterial);
@@ -98,19 +98,19 @@ public static class SunExpVisualBundleBuilder
         var builtBundle = Path.Combine(BuildOutputDirectory, BundleName);
         if (!File.Exists(builtBundle))
         {
-            throw new FileNotFoundException("SunExp visual bundle was not produced.", builtBundle);
+            throw new FileNotFoundException("Terrias visual bundle was not produced.", builtBundle);
         }
 
         var outputPath = ResolveModOutputPath();
         Directory.CreateDirectory(Path.GetDirectoryName(outputPath));
         File.Copy(builtBundle, outputPath, true);
         AssetDatabase.Refresh();
-        Debug.Log("Built SunExp visual bundle: " + outputPath);
+        Debug.Log("Built Terrias visual bundle: " + outputPath);
     }
 
     private static string ResolveModOutputPath()
     {
-        var explicitPath = Environment.GetEnvironmentVariable("SUNEXP_VISUAL_BUNDLE_OUTPUT");
+        var explicitPath = Environment.GetEnvironmentVariable("TERRIAS_VISUAL_BUNDLE_OUTPUT");
         return string.IsNullOrWhiteSpace(explicitPath) ? ModOutputPath : explicitPath;
     }
 
@@ -130,7 +130,7 @@ public static class SunExpVisualBundleBuilder
         var shader = AssetDatabase.LoadAssetAtPath<Shader>(StarScoreShaderAssetPath);
         if (shader == null)
         {
-            throw new FileNotFoundException("SunExp shader asset is missing.", StarScoreShaderAssetPath);
+            throw new FileNotFoundException("Terrias shader asset is missing.", StarScoreShaderAssetPath);
         }
 
         var material = AssetDatabase.LoadAssetAtPath<Material>(StarScoreMaterialAssetPath);
@@ -148,11 +148,11 @@ public static class SunExpVisualBundleBuilder
             material.shader = shader;
         }
 
-        material.SetFloat("_SunExpFlowSpeed", 0.55f);
-        material.SetFloat("_SunExpFlowScale", 1.2f);
-        material.SetFloat("_SunExpEdgeGlow", 0.35f);
-        material.SetColor("_SunExpGlowColor", new Color(1f, 0.878f, 0.541f, 1f));
-        material.SetColor("_SunExpFlowColor", new Color(0.616f, 0.863f, 1f, 1f));
+        material.SetFloat("_TerriasFlowSpeed", 0.55f);
+        material.SetFloat("_TerriasFlowScale", 1.2f);
+        material.SetFloat("_TerriasEdgeGlow", 0.35f);
+        material.SetColor("_TerriasGlowColor", new Color(1f, 0.878f, 0.541f, 1f));
+        material.SetColor("_TerriasFlowColor", new Color(0.616f, 0.863f, 1f, 1f));
         EditorUtility.SetDirty(material);
         AssetDatabase.SaveAssets();
     }
@@ -162,30 +162,30 @@ public static class SunExpVisualBundleBuilder
         var shader = AssetDatabase.LoadAssetAtPath<Shader>(WunaOrbitFireShaderAssetPath);
         if (shader == null)
         {
-            throw new FileNotFoundException("SunExp WuNa orbit fire shader asset is missing.", WunaOrbitFireShaderAssetPath);
+            throw new FileNotFoundException("Terrias WuNa orbit fire shader asset is missing.", WunaOrbitFireShaderAssetPath);
         }
 
         var back = EnsureMaterial(WunaOrbitFireBackMaterialAssetPath, shader, "WunaOrbitFireBack");
-        back.SetFloat("_SunExpLayer", -1f);
-        back.SetFloat("_SunExpNoiseScale", 3.15f);
-        back.SetFloat("_SunExpDistortion", 0.11f);
-        back.SetFloat("_SunExpAlphaCutoff", 0.16f);
-        back.SetFloat("_SunExpAlphaSoftness", 0.11f);
-        back.SetFloat("_SunExpFlowSpeed", 0.28f);
-        back.SetColor("_SunExpCoreColor", new Color(1f, 0.82f, 0.34f, 0.72f));
-        back.SetColor("_SunExpEdgeColor", new Color(0.96f, 0.18f, 0.045f, 0.62f));
-        back.SetColor("_SunExpSmokeColor", new Color(0.2f, 0.02f, 0.012f, 0.18f));
+        back.SetFloat("_TerriasLayer", -1f);
+        back.SetFloat("_TerriasNoiseScale", 3.15f);
+        back.SetFloat("_TerriasDistortion", 0.11f);
+        back.SetFloat("_TerriasAlphaCutoff", 0.16f);
+        back.SetFloat("_TerriasAlphaSoftness", 0.11f);
+        back.SetFloat("_TerriasFlowSpeed", 0.28f);
+        back.SetColor("_TerriasCoreColor", new Color(1f, 0.82f, 0.34f, 0.72f));
+        back.SetColor("_TerriasEdgeColor", new Color(0.96f, 0.18f, 0.045f, 0.62f));
+        back.SetColor("_TerriasSmokeColor", new Color(0.2f, 0.02f, 0.012f, 0.18f));
 
         var front = EnsureMaterial(WunaOrbitFireFrontMaterialAssetPath, shader, "WunaOrbitFireFront");
-        front.SetFloat("_SunExpLayer", 1f);
-        front.SetFloat("_SunExpNoiseScale", 3.8f);
-        front.SetFloat("_SunExpDistortion", 0.16f);
-        front.SetFloat("_SunExpAlphaCutoff", 0.15f);
-        front.SetFloat("_SunExpAlphaSoftness", 0.095f);
-        front.SetFloat("_SunExpFlowSpeed", 0.38f);
-        front.SetColor("_SunExpCoreColor", new Color(1f, 0.96f, 0.58f, 0.96f));
-        front.SetColor("_SunExpEdgeColor", new Color(1f, 0.22f, 0.035f, 0.84f));
-        front.SetColor("_SunExpSmokeColor", new Color(0.24f, 0.026f, 0.014f, 0.2f));
+        front.SetFloat("_TerriasLayer", 1f);
+        front.SetFloat("_TerriasNoiseScale", 3.8f);
+        front.SetFloat("_TerriasDistortion", 0.16f);
+        front.SetFloat("_TerriasAlphaCutoff", 0.15f);
+        front.SetFloat("_TerriasAlphaSoftness", 0.095f);
+        front.SetFloat("_TerriasFlowSpeed", 0.38f);
+        front.SetColor("_TerriasCoreColor", new Color(1f, 0.96f, 0.58f, 0.96f));
+        front.SetColor("_TerriasEdgeColor", new Color(1f, 0.22f, 0.035f, 0.84f));
+        front.SetColor("_TerriasSmokeColor", new Color(0.24f, 0.026f, 0.014f, 0.2f));
 
         EditorUtility.SetDirty(back);
         EditorUtility.SetDirty(front);
@@ -197,54 +197,54 @@ public static class SunExpVisualBundleBuilder
         var shader = AssetDatabase.LoadAssetAtPath<Shader>(CardFaceEffectShaderAssetPath);
         if (shader == null)
         {
-            throw new FileNotFoundException("SunExp card face effect shader asset is missing.", CardFaceEffectShaderAssetPath);
+            throw new FileNotFoundException("Terrias card face effect shader asset is missing.", CardFaceEffectShaderAssetPath);
         }
 
         var material = EnsureMaterial(CardFaceEffectMaterialAssetPath, shader, "CardFaceEffect");
-        material.SetFloat("_SunExpEffectMode", 0f);
-        material.SetFloat("_SunExpOverlayMode", 0f);
-        material.SetFloat("_SunExpFrameOnlyOverlay", 0f);
-        material.SetFloat("_SunExpFoilMode", 1f);
-        material.SetFloat("_SunExpFlowSpeed", 0.55f);
-        material.SetFloat("_SunExpFlowScale", 1.22f);
-        material.SetFloat("_SunExpNoiseScale", 4f);
-        material.SetFloat("_SunExpDistortion", 0.009f);
-        material.SetFloat("_SunExpEffectIntensity", 1.04f);
-        material.SetFloat("_SunExpQualityScale", 1f);
-        material.SetFloat("_SunExpEdgeGlow", 0.28f);
-        material.SetFloat("_SunExpSweepFrequency", 4.4f);
-        material.SetFloat("_SunExpSweepWidth", 0.13f);
-        material.SetFloat("_SunExpSweepIntensity", 1.12f);
-        material.SetFloat("_SunExpPrismScale", 13.5f);
-        material.SetFloat("_SunExpPrismStrength", 1f);
-        material.SetFloat("_SunExpFoilGrain", 0.08f);
-        material.SetFloat("_SunExpMirrorSweep", 0.58f);
-        material.SetFloat("_SunExpSwirlStrength", 0.06f);
-        material.SetFloat("_SunExpFoilShardScale", 18f);
-        material.SetFloat("_SunExpFoilShardWarp", 0.08f);
-        material.SetFloat("_SunExpFoilGalaxyDensity", 0.015f);
-        material.SetFloat("_SunExpFoilGlintSpeed", 1.1f);
-        material.SetFloat("_SunExpFoilTextureStrength", 0.6f);
-        material.SetFloat("_SunExpRainbowStrength", 1.25f);
-        material.SetFloat("_SunExpRidgeStrength", 0.7f);
-        material.SetFloat("_SunExpGlareStrength", 0.35f);
-        material.SetFloat("_SunExpPointerAutoSpeed", 0.78f);
-        material.SetFloat("_SunExpFoilOverlayAlpha", 1f);
-        material.SetFloat("_SunExpStardustDensity", 0.46f);
-        material.SetFloat("_SunExpStardustTwinkle", 1.25f);
-        material.SetFloat("_SunExpStardustTwinkleSpeed", 2.15f);
-        material.SetFloat("_SunExpStardustOrbit", 0.18f);
-        material.SetFloat("_SunExpStardustGlowRadius", 0.18f);
-        material.SetFloat("_SunExpStardustGlowPower", 5.4f);
-        material.SetFloat("_SunExpStardustSweepSpeed", 1.85f);
-        material.SetFloat("_SunExpStardustSweepIntensity", 0.62f);
-        material.SetFloat("_SunExpStardustSweepWidth", 0.045f);
-        material.SetFloat("_SunExpEdgeSample", 2f);
-        material.SetColor("_SunExpHoloColorA", new Color(1f, 0.94f, 0.65f, 1f));
-        material.SetColor("_SunExpHoloColorB", new Color(0.65f, 0.95f, 1f, 1f));
-        material.SetColor("_SunExpHoloColorC", new Color(0.82f, 0.72f, 1f, 1f));
-        material.SetColor("_SunExpStardustColorA", new Color(0.953f, 0.984f, 1f, 1f));
-        material.SetColor("_SunExpStardustColorB", new Color(1f, 0.902f, 0.659f, 1f));
+        material.SetFloat("_TerriasEffectMode", 0f);
+        material.SetFloat("_TerriasOverlayMode", 0f);
+        material.SetFloat("_TerriasFrameOnlyOverlay", 0f);
+        material.SetFloat("_TerriasFoilMode", 1f);
+        material.SetFloat("_TerriasFlowSpeed", 0.55f);
+        material.SetFloat("_TerriasFlowScale", 1.22f);
+        material.SetFloat("_TerriasNoiseScale", 4f);
+        material.SetFloat("_TerriasDistortion", 0.009f);
+        material.SetFloat("_TerriasEffectIntensity", 1.04f);
+        material.SetFloat("_TerriasQualityScale", 1f);
+        material.SetFloat("_TerriasEdgeGlow", 0.28f);
+        material.SetFloat("_TerriasSweepFrequency", 4.4f);
+        material.SetFloat("_TerriasSweepWidth", 0.13f);
+        material.SetFloat("_TerriasSweepIntensity", 1.12f);
+        material.SetFloat("_TerriasPrismScale", 13.5f);
+        material.SetFloat("_TerriasPrismStrength", 1f);
+        material.SetFloat("_TerriasFoilGrain", 0.08f);
+        material.SetFloat("_TerriasMirrorSweep", 0.58f);
+        material.SetFloat("_TerriasSwirlStrength", 0.06f);
+        material.SetFloat("_TerriasFoilShardScale", 18f);
+        material.SetFloat("_TerriasFoilShardWarp", 0.08f);
+        material.SetFloat("_TerriasFoilGalaxyDensity", 0.015f);
+        material.SetFloat("_TerriasFoilGlintSpeed", 1.1f);
+        material.SetFloat("_TerriasFoilTextureStrength", 0.6f);
+        material.SetFloat("_TerriasRainbowStrength", 1.25f);
+        material.SetFloat("_TerriasRidgeStrength", 0.7f);
+        material.SetFloat("_TerriasGlareStrength", 0.35f);
+        material.SetFloat("_TerriasPointerAutoSpeed", 0.78f);
+        material.SetFloat("_TerriasFoilOverlayAlpha", 1f);
+        material.SetFloat("_TerriasStardustDensity", 0.46f);
+        material.SetFloat("_TerriasStardustTwinkle", 1.25f);
+        material.SetFloat("_TerriasStardustTwinkleSpeed", 2.15f);
+        material.SetFloat("_TerriasStardustOrbit", 0.18f);
+        material.SetFloat("_TerriasStardustGlowRadius", 0.18f);
+        material.SetFloat("_TerriasStardustGlowPower", 5.4f);
+        material.SetFloat("_TerriasStardustSweepSpeed", 1.85f);
+        material.SetFloat("_TerriasStardustSweepIntensity", 0.62f);
+        material.SetFloat("_TerriasStardustSweepWidth", 0.045f);
+        material.SetFloat("_TerriasEdgeSample", 2f);
+        material.SetColor("_TerriasHoloColorA", new Color(1f, 0.94f, 0.65f, 1f));
+        material.SetColor("_TerriasHoloColorB", new Color(0.65f, 0.95f, 1f, 1f));
+        material.SetColor("_TerriasHoloColorC", new Color(0.82f, 0.72f, 1f, 1f));
+        material.SetColor("_TerriasStardustColorA", new Color(0.953f, 0.984f, 1f, 1f));
+        material.SetColor("_TerriasStardustColorB", new Color(1f, 0.902f, 0.659f, 1f));
         EditorUtility.SetDirty(material);
         AssetDatabase.SaveAssets();
     }

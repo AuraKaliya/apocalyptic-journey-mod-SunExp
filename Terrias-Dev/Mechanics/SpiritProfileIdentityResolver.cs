@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public sealed class SpiritProfileResolution<TProfile> where TProfile : class
 {
@@ -55,7 +55,7 @@ public sealed class SpiritProfileResolution<TProfile> where TProfile : class
 public static class SpiritProfileIdentityResolver
 {
     private const string BaseGameRuntimePrefix = "enemy_";
-    private const string SunExpRuntimePrefix = "SunExp_sunexp_";
+    private const string TerriasRuntimePrefix = "Terrias_terrias_";
 
     public static SpiritProfileResolution<TProfile> Resolve<TProfile>(
         IReadOnlyList<TProfile> profiles,
@@ -201,7 +201,7 @@ public static class SpiritProfileIdentityResolver
     {
         var candidates = new List<string> { Normalize(rawId) };
         AddKnownAlias(candidates, rawId, BaseGameRuntimePrefix);
-        AddKnownAlias(candidates, rawId, SunExpRuntimePrefix);
+        AddKnownAlias(candidates, rawId, TerriasRuntimePrefix);
         return candidates;
     }
 

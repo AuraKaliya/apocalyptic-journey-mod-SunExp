@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class CompanionSystemPlans
 {
@@ -18,7 +18,7 @@ public static class CompanionSystemPlans
             StatusId = state.StatusId,
             TurnIndex = state.TurnIndex,
             IntentId = WaitIntentId,
-            EnemyCardId = SunExpIds.ProjectionActionWaitCardId,
+            EnemyCardId = TerriasIds.ProjectionActionWaitCardId,
             ResolvedValue = 0,
             Cost = 0,
             ReadyOnTurn = state.TurnIndex,
@@ -43,11 +43,11 @@ public static class CompanionIntentPlanner
     public static CompanionIntentPlan Create(OtherObj? projection, CompanionBattleState? state)
     {
         var isSpirit = string.Equals(state?.EntityKind, "SpiritAttachment", StringComparison.Ordinal);
-        var started = isSpirit ? SunExpPerformanceCounters.Timestamp() : 0L;
+        var started = isSpirit ? TerriasPerformanceCounters.Timestamp() : 0L;
         CompanionIntentPlan plan = CreateCore(projection, state)!;
         if (isSpirit)
         {
-            SunExpPerformanceCounters.RecordHotspot(
+            TerriasPerformanceCounters.RecordHotspot(
                 "Spirit.Intent.Plan",
                 started,
                 "status=" + (state?.StatusId ?? "<none>")
@@ -86,7 +86,7 @@ public static class CompanionIntentPlanner
             var effectIntent = CompanionIntentEffects.AsDefinition(intent, effectSpec);
             if (!CompanionIntentHandlerRegistry.TryGet(effectIntent.HandlerId, out var handler))
             {
-                SunExpLog.Warn("[CompanionIntent] missing handler while planning: " + effectIntent.HandlerId);
+                TerriasLog.Warn("[CompanionIntent] missing handler while planning: " + effectIntent.HandlerId);
                 return CompanionSystemPlans.Wait(state);
             }
 
@@ -172,7 +172,7 @@ public static class CompanionIntentPlanner
         var friendlyRoster = string.Join(",", CompanionFriendlyRosterService.Snapshot(includeControlled: true)
             .Where(CompanionTargetPolicyRegistry.IsAlive)
             .Select(status => status.InstanceId));
-        SunExpLog.Info("[ProjectionPlan] committed"
+        TerriasLog.Info("[ProjectionPlan] committed"
             + " battleEpoch=" + CompanionAuthorityService.BattleEpoch
             + " projection=" + state.StatusId
             + " owner=" + state.OwnerStatusId

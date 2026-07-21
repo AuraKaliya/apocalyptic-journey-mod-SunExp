@@ -1,17 +1,17 @@
 using System;
 using System.Collections.Generic;
 using AuraShared.Core;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 using Witch;
 using Witch.Core;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class MorningStarDimmedService
 {
-    public const string CostMarker = "SunExpHard_MorningStarDimmedCostApplied";
+    public const string CostMarker = "TerriasHard_MorningStarDimmedCostApplied";
     private const string FeatureId = "MorningStarDimmed";
 
     public static void OnFightStarted(ScriptExecutor? executor, string source)
@@ -21,7 +21,7 @@ public static class MorningStarDimmedService
             return;
         }
 
-        SunExpLifecycleStepRunner.RunBattleOnce(
+        TerriasLifecycleStepRunner.RunBattleOnce(
             FeatureId,
             "FightInitialized",
             new[]
@@ -94,7 +94,7 @@ public static class MorningStarDimmedService
 
         if (changed > 0)
         {
-            SunExpLog.Debug("[MorningStarDimmed] applied cost +1 to " + changed + " cards from " + source + ".");
+            TerriasLog.Debug("[MorningStarDimmed] applied cost +1 to " + changed + " cards from " + source + ".");
         }
 
         return changed;
@@ -107,7 +107,7 @@ public static class MorningStarDimmedService
             return false;
         }
 
-        SunExpCardRefreshQueue.RequestCostUpdate(card, "MorningStarDimmed:" + source);
+        TerriasCardRefreshQueue.RequestCostUpdate(card, "MorningStarDimmed:" + source);
         return true;
     }
 
@@ -121,7 +121,7 @@ public static class MorningStarDimmedService
         var current = DictionaryUtil.GetInt(config.Vars, "TotalExCost");
         DictionaryUtil.Set(config.Vars, "TotalExCost", (current + 1).ToString());
         DictionaryUtil.Set(config.Vars, CostMarker, "1");
-        SunExpLog.Debug("[MorningStarDimmed] cost +1 card="
+        TerriasLog.Debug("[MorningStarDimmed] cost +1 card="
             + CardConfigApi.Id(config)
             + " from "
             + source
@@ -138,24 +138,24 @@ public static class MorningStarDimmedService
 
         var statusId = executor.Self?.InstanceId ?? FightPlayer.Instance?.Status?.InstanceId ?? "local";
         if (!AuraLifecycleOperationLedger.TryClaimBattleOperation(
-                SunExpIds.ModId,
+                TerriasIds.ModId,
                 FeatureId,
                 "MaxPower",
                 statusId,
                 "Power",
                 "MaxPower+1"))
         {
-            SunExpLog.Debug("[MorningStarDimmed] max power already applied for " + statusId + " from " + source + ".");
+            TerriasLog.Debug("[MorningStarDimmed] max power already applied for " + statusId + " from " + source + ".");
             return;
         }
 
         if (PlayerPowerApi.TryChangeMaxPower(1))
         {
-            SunExpLog.Info("[MorningStarDimmed] max power +1 applied for " + statusId + " from " + source + ".");
+            TerriasLog.Info("[MorningStarDimmed] max power +1 applied for " + statusId + " from " + source + ".");
             return;
         }
 
-        SunExpLog.Warn("[MorningStarDimmed] max power +1 could not be applied for "
+        TerriasLog.Warn("[MorningStarDimmed] max power +1 could not be applied for "
             + statusId
             + " from "
             + source
@@ -164,7 +164,7 @@ public static class MorningStarDimmedService
 
     private static bool Active()
     {
-        return SunExpHardTagState.Active(SunExpHardTagIds.MorningStarDimmed);
+        return TerriasHardTagState.Active(TerriasHardTagIds.MorningStarDimmed);
     }
 
     private static ScriptExecutor? CurrentPlayerExecutor()

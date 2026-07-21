@@ -29,7 +29,7 @@ effects, and card-use visual effects.
   initialization.
 - Keep visual mutation in hook/visual appliers. Do not add Unity object mutation
   to CSV-callable `Scripting`.
-- Keep card art generation in `sunexp-card-art-style`; keep runtime skin/effect
+- Keep card art generation in `terrias-card-art-style`; keep runtime skin/effect
   application here.
 - For dynamic card-frame effects that must survive native card UI lifecycle
   events, especially card-use or Burnout destruction animations, prefer an
@@ -51,10 +51,10 @@ effects, and card-use visual effects.
 
 ## Validation
 
-`tools\Test-SunExpCSharp.ps1` contains focused registry behavior tests for card
+`tools\Test-TerriasCSharp.ps1` contains focused registry behavior tests for card
 visual skin and effect resolution. Update those tests when changing matching,
 priority, or owner-clear semantics.
 
-`tools\Test-SunExpArchitecture.ps1` should guard fragile visual lifecycle
+`tools\Test-TerriasArchitecture.ps1` should guard fragile visual lifecycle
 decisions, including whether card-frame effects use integrated frame materials
 or fallback overlays.

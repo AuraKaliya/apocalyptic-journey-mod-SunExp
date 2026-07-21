@@ -19,8 +19,8 @@ $self = [System.IO.Path]::GetFullPath($MyInvocation.MyCommand.Path)
 $patterns = @(
     [pscustomobject]@{
         Key = "legacy-project-root"
-        Regex = "D:\\\\workfile\\\\project\\\\Mod_1\\\\SunExp(?!\\\\apocalyptic-journey-mod-SunExp)|Mod_1\\\\SunExp(?!\\\\apocalyptic-journey-mod-SunExp)"
-        Note = "retired SunExp repository root"
+        Regex = "D:\\\\workfile\\\\project\\\\Mod_1\\\\Terrias(?!\\\\apocalyptic-journey-mod-Terrias)|Mod_1\\\\Terrias(?!\\\\apocalyptic-journey-mod-Terrias)"
+        Note = "retired Terrias repository root"
     },
     [pscustomobject]@{
         Key = "retired-mode-name"
@@ -45,9 +45,9 @@ $patterns = @(
 )
 
 $allowedRelative = @(
-    "sunexp-skill-evolution\SKILL.md",
-    "sunexp-skill-evolution\references\stale-anchor-registry.md",
-    "sunexp-skill-evolution\scripts\audit-sunexp-skill-staleness.ps1"
+    "terrias-skill-evolution\SKILL.md",
+    "terrias-skill-evolution\references\stale-anchor-registry.md",
+    "terrias-skill-evolution\scripts\audit-terrias-skill-staleness.ps1"
 )
 
 $files = Get-ChildItem -LiteralPath $root -Recurse -File |
@@ -77,7 +77,7 @@ foreach ($file in $files) {
 
 $unexpected = @($hits | Where-Object { -not $_.Allowed })
 if ($hits.Count -eq 0) {
-    Write-Host "SunExp skill staleness audit passed: no stale anchors found."
+    Write-Host "Terrias skill staleness audit passed: no stale anchors found."
     exit 0
 }
 
@@ -87,11 +87,11 @@ foreach ($hit in $hits) {
 }
 
 if ($Strict -and $unexpected.Count -gt 0) {
-    throw "Unexpected stale SunExp skill anchors found: $($unexpected.Count)"
+    throw "Unexpected stale Terrias skill anchors found: $($unexpected.Count)"
 }
 
 if ($unexpected.Count -eq 0) {
-    Write-Host "SunExp skill staleness audit passed: only intentional audit anchors found."
+    Write-Host "Terrias skill staleness audit passed: only intentional audit anchors found."
 } else {
-    Write-Warning "SunExp skill staleness audit found unexpected anchors: $($unexpected.Count)"
+    Write-Warning "Terrias skill staleness audit found unexpected anchors: $($unexpected.Count)"
 }

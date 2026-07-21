@@ -1,12 +1,12 @@
 using System;
 using AuraShared.Core;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class DialogueFlowRuntime
 {
@@ -17,7 +17,7 @@ public static class DialogueFlowRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.After(config, target, action, "DialogueFlow");
+        TerriasHookRegistry.After(config, target, action, "DialogueFlow");
     }
 
     private static void OnChooseOptionAfter(ModHookContext context)
@@ -35,7 +35,7 @@ public static class DialogueFlowRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Dialogue flow choice hook failed", ex);
+            TerriasLog.Error("Dialogue flow choice hook failed", ex);
         }
     }
 

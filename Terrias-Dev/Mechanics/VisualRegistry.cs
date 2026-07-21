@@ -3,16 +3,16 @@ using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using Newtonsoft.Json;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.Mod;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class VisualRegistry
 {
     private const string RegistryFileName = "visual.registry.json";
-    private const string OwnerModId = "SunExp";
-    private const string ModPathPrefix = "Mods/SunExp/";
+    private const string OwnerModId = "Terrias";
+    private const string ModPathPrefix = "Mods/Terrias/";
 
     private static readonly object SyncRoot = new();
     private static VisualRegistryDocument document = VisualRegistryDefaults.Create();
@@ -28,7 +28,7 @@ public static class VisualRegistry
             if (!File.Exists(path))
             {
                 document = Normalize(fallback, fallback);
-                SunExpLog.Warn("[VisualRegistry] missing visual.registry.json; using built-in defaults.");
+                TerriasLog.Warn("[VisualRegistry] missing visual.registry.json; using built-in defaults.");
                 return;
             }
 
@@ -36,12 +36,12 @@ public static class VisualRegistry
             {
                 var loaded = JsonConvert.DeserializeObject<VisualRegistryDocument>(File.ReadAllText(path)) ?? new VisualRegistryDocument();
                 document = Normalize(loaded, fallback);
-                SunExpLog.Info("[VisualRegistry] loaded visual declarations from " + path);
+                TerriasLog.Info("[VisualRegistry] loaded visual declarations from " + path);
             }
             catch (Exception ex)
             {
                 document = Normalize(fallback, fallback);
-                SunExpLog.Warn("[VisualRegistry] failed to load visual.registry.json; using built-in defaults: " + ex.Message);
+                TerriasLog.Warn("[VisualRegistry] failed to load visual.registry.json; using built-in defaults: " + ex.Message);
             }
         }
     }
@@ -354,13 +354,13 @@ internal static class VisualRegistryDefaults
         return new VisualRegistryDocument
         {
             SchemaVersion = 1,
-            OwnerModId = "SunExp",
+            OwnerModId = "Terrias",
             Textures = new List<TextureVisualSpec>
             {
                 new()
                 {
                     Id = "solar_memory.event_map_card",
-                    Path = "Mods/SunExp/ModResource/Images/MapNode/\u65e5\u8000\u56de\u5fc6-\u4e8b\u4ef6.png"
+                    Path = "Mods/Terrias/ModResource/Images/MapNode/\u65e5\u8000\u56de\u5fc6-\u4e8b\u4ef6.png"
                 }
             },
             ModeEntries = new List<ModeEntryVisualSpec>
@@ -368,15 +368,15 @@ internal static class VisualRegistryDefaults
                 new()
                 {
                     Id = "solar_memory",
-                    NormalTitleSprite = "Mods/SunExp/ModResource/Images/UI/solar_memory_title_c.png",
-                    HighlightedTitleSprite = "Mods/SunExp/ModResource/Images/UI/solar_memory_title_c_h.png",
+                    NormalTitleSprite = "Mods/Terrias/ModResource/Images/UI/solar_memory_title_c.png",
+                    HighlightedTitleSprite = "Mods/Terrias/ModResource/Images/UI/solar_memory_title_c_h.png",
                     TitleArtHeightRatio = 0.735f
                 },
                 new()
                 {
                     Id = "endless_abyss",
-                    NormalTitleSprite = "Mods/SunExp/ModResource/Images/UI/endless_sea_title_c.png",
-                    HighlightedTitleSprite = "Mods/SunExp/ModResource/Images/UI/endless_sea_title_h.png",
+                    NormalTitleSprite = "Mods/Terrias/ModResource/Images/UI/endless_sea_title_c.png",
+                    HighlightedTitleSprite = "Mods/Terrias/ModResource/Images/UI/endless_sea_title_h.png",
                     TitleArtHeightRatio = 0.735f
                 }
             },
@@ -403,7 +403,7 @@ internal static class VisualRegistryDefaults
                     Id = "dusk.afterheat.buff",
                     TargetKind = "buff-icon",
                     FrameSeconds = 0.2f,
-                    MatchIds = new List<string> { SunExpIds.DuskAfterheatRecoveryTrait },
+                    MatchIds = new List<string> { TerriasIds.DuskAfterheatRecoveryTrait },
                     FramePaths = DuskFrames()
                 },
                 new()
@@ -411,7 +411,7 @@ internal static class VisualRegistryDefaults
                     Id = "star_clay_doll.buff",
                     TargetKind = "buff-icon",
                     FrameSeconds = 0.2f,
-                    MatchIds = new List<string> { SunExpIds.StarClayBody, SunExpIds.StarClayDollTrait },
+                    MatchIds = new List<string> { TerriasIds.StarClayBody, TerriasIds.StarClayDollTrait },
                     FramePaths = StarClayFrames()
                 },
                 new()
@@ -419,7 +419,7 @@ internal static class VisualRegistryDefaults
                     Id = "enemy.saint_wuna.dictionary",
                     TargetKind = "enemy-dictionary-icon",
                     FrameSeconds = 0.2f,
-                    MatchIds = new List<string> { SunExpIds.SolarBossSaintWunaEnemyId },
+                    MatchIds = new List<string> { TerriasIds.SolarBossSaintWunaEnemyId },
                     FramePaths = EnemyDictFrames("WuNa_e")
                 },
                 new()
@@ -427,7 +427,7 @@ internal static class VisualRegistryDefaults
                     Id = "enemy.second_sun.dictionary",
                     TargetKind = "enemy-dictionary-icon",
                     FrameSeconds = 0.2f,
-                    MatchIds = new List<string> { SunExpIds.SolarBossSecondSunEnemyId },
+                    MatchIds = new List<string> { TerriasIds.SolarBossSecondSunEnemyId },
                     FramePaths = EnemyDictFrames("SecondSunWeel_e")
                 }
             },
@@ -436,21 +436,21 @@ internal static class VisualRegistryDefaults
                 new()
                 {
                     Id = "solar_memory.second_sun.map_card",
-                    TexturePath = SunExpIds.SolarBossSecondSunMapTexturePath,
+                    TexturePath = TerriasIds.SolarBossSecondSunMapTexturePath,
                     FitMode = nameof(MapNodeCardArtFitMode.ContainTrimmed),
-                    MapIds = new List<string> { SunExpIds.SolarBossSecondSunMapId, SunExpIds.SolarBossSecondSunShortMapId },
-                    LevelIds = new List<string> { SunExpIds.SolarBossSecondSunLevelId, "level_second_sun_last_day" },
-                    EnemyIds = new List<string> { SunExpIds.SolarBossSecondSunEnemyId, "boss_second_sun_last_day" },
+                    MapIds = new List<string> { TerriasIds.SolarBossSecondSunMapId, TerriasIds.SolarBossSecondSunShortMapId },
+                    LevelIds = new List<string> { TerriasIds.SolarBossSecondSunLevelId, "level_second_sun_last_day" },
+                    EnemyIds = new List<string> { TerriasIds.SolarBossSecondSunEnemyId, "boss_second_sun_last_day" },
                     Priority = 100
                 },
                 new()
                 {
                     Id = "solar_memory.saint_wuna.map_card",
-                    TexturePath = SunExpIds.SolarBossSaintWunaMapTexturePath,
+                    TexturePath = TerriasIds.SolarBossSaintWunaMapTexturePath,
                     FitMode = nameof(MapNodeCardArtFitMode.ContainTrimmed),
-                    MapIds = new List<string> { SunExpIds.SolarBossSaintWunaMapId, SunExpIds.SolarBossSaintWunaShortMapId },
-                    LevelIds = new List<string> { SunExpIds.SolarBossSaintWunaLevelId, "level_saint_wuna" },
-                    EnemyIds = new List<string> { SunExpIds.SolarBossSaintWunaEnemyId, "boss_saint_wuna" },
+                    MapIds = new List<string> { TerriasIds.SolarBossSaintWunaMapId, TerriasIds.SolarBossSaintWunaShortMapId },
+                    LevelIds = new List<string> { TerriasIds.SolarBossSaintWunaLevelId, "level_saint_wuna" },
+                    EnemyIds = new List<string> { TerriasIds.SolarBossSaintWunaEnemyId, "boss_saint_wuna" },
                     Priority = 100
                 }
             },
@@ -458,243 +458,243 @@ internal static class VisualRegistryDefaults
             {
                 new()
                 {
-                    Id = "sunexp.star_score_hud",
-                    ShaderName = "SunExp/StarScoreHud",
-                    BundlePath = "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
-                    MaterialPath = "SunExp/Materials/StarScoreHudLit",
-                    ShaderPath = "SunExp/StarScoreHud"
+                    Id = "terrias.star_score_hud",
+                    ShaderName = "Terrias/StarScoreHud",
+                    BundlePath = "Mods/Terrias/ModResource/VisualBundles/terrias_visuals",
+                    MaterialPath = "Terrias/Materials/StarScoreHudLit",
+                    ShaderPath = "Terrias/StarScoreHud"
                 },
                 new()
                 {
-                    Id = "sunexp.wuna_orbit_fire",
-                    ShaderName = "SunExp/WunaOrbitFire",
-                    BundlePath = "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
-                    MaterialPath = "SunExp/Materials/WunaOrbitFireFront",
-                    ShaderPath = "SunExp/WunaOrbitFire"
+                    Id = "terrias.wuna_orbit_fire",
+                    ShaderName = "Terrias/WunaOrbitFire",
+                    BundlePath = "Mods/Terrias/ModResource/VisualBundles/terrias_visuals",
+                    MaterialPath = "Terrias/Materials/WunaOrbitFireFront",
+                    ShaderPath = "Terrias/WunaOrbitFire"
                 },
                 new()
                 {
-                    Id = SunExpIds.CardFaceEffectShaderId,
-                    ShaderName = "SunExp/CardFaceEffect",
-                    BundlePath = "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
-                    MaterialPath = "SunExp/Materials/CardFaceEffect",
-                    ShaderPath = "SunExp/CardFaceEffect"
+                    Id = TerriasIds.CardFaceEffectShaderId,
+                    ShaderName = "Terrias/CardFaceEffect",
+                    BundlePath = "Mods/Terrias/ModResource/VisualBundles/terrias_visuals",
+                    MaterialPath = "Terrias/Materials/CardFaceEffect",
+                    ShaderPath = "Terrias/CardFaceEffect"
                 }
             },
             Effects = new List<VisualEffectVisualSpec>
             {
                 new()
                 {
-                    Id = "sunexp.star_score_hud.lit_slot",
+                    Id = "terrias.star_score_hud.lit_slot",
                     Kind = "ui-material",
-                    ShaderId = "sunexp.star_score_hud",
-                    BundlePath = "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
-                    MaterialPath = "SunExp/Materials/StarScoreHudLit",
+                    ShaderId = "terrias.star_score_hud",
+                    BundlePath = "Mods/Terrias/ModResource/VisualBundles/terrias_visuals",
+                    MaterialPath = "Terrias/Materials/StarScoreHudLit",
                     Floats = new Dictionary<string, float>
                     {
-                        ["_SunExpFlowSpeed"] = 0.55f,
-                        ["_SunExpFlowScale"] = 1.2f,
-                        ["_SunExpEdgeGlow"] = 0.35f
+                        ["_TerriasFlowSpeed"] = 0.55f,
+                        ["_TerriasFlowScale"] = 1.2f,
+                        ["_TerriasEdgeGlow"] = 0.35f
                     },
                     Colors = new Dictionary<string, string>
                     {
-                        ["_SunExpGlowColor"] = "#FFE08AFF",
-                        ["_SunExpFlowColor"] = "#9DDCFFFF"
+                        ["_TerriasGlowColor"] = "#FFE08AFF",
+                        ["_TerriasFlowColor"] = "#9DDCFFFF"
                     }
                 },
                 new()
                 {
-                    Id = SunExpIds.CardFaceFoilHoloVisualEffectId,
+                    Id = TerriasIds.CardFaceFoilHoloVisualEffectId,
                     Kind = "card-visual-face-material",
-                    ShaderId = SunExpIds.CardFaceEffectShaderId,
-                    BundlePath = "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
-                    MaterialPath = "SunExp/Materials/CardFaceEffect",
+                    ShaderId = TerriasIds.CardFaceEffectShaderId,
+                    BundlePath = "Mods/Terrias/ModResource/VisualBundles/terrias_visuals",
+                    MaterialPath = "Terrias/Materials/CardFaceEffect",
                     Textures = new Dictionary<string, string>
                     {
-                        ["_NoiseTex"] = "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png",
-                        ["_FoilTex"] = "Mods/SunExp/ModResource/Images/Effects/CardFoil/pokemon_holo_foil.png"
+                        ["_NoiseTex"] = "Mods/Terrias/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png",
+                        ["_FoilTex"] = "Mods/Terrias/ModResource/Images/Effects/CardFoil/pokemon_holo_foil.png"
                     },
                     Floats = new Dictionary<string, float>
                     {
-                        ["_SunExpEffectMode"] = 0f,
-                        ["_SunExpFoilMode"] = 1f,
-                        ["_SunExpFlowSpeed"] = 0.55f,
-                        ["_SunExpFlowScale"] = 1.22f,
-                        ["_SunExpNoiseScale"] = 4f,
-                        ["_SunExpDistortion"] = 0.009f,
-                        ["_SunExpEffectIntensity"] = 1.04f,
-                        ["_SunExpEdgeGlow"] = 0.28f,
-                        ["_SunExpSweepFrequency"] = 4.4f,
-                        ["_SunExpSweepWidth"] = 0.13f,
-                        ["_SunExpSweepIntensity"] = 1.12f,
-                        ["_SunExpPrismScale"] = 13.5f,
-                        ["_SunExpPrismStrength"] = 1f,
-                        ["_SunExpFoilGrain"] = 0.08f,
-                        ["_SunExpMirrorSweep"] = 0.58f,
-                        ["_SunExpSwirlStrength"] = 0.06f,
-                        ["_SunExpFoilShardScale"] = 18f,
-                        ["_SunExpFoilShardWarp"] = 0.08f,
-                        ["_SunExpFoilGalaxyDensity"] = 0.015f,
-                        ["_SunExpFoilGlintSpeed"] = 1.1f,
-                        ["_SunExpFoilTextureStrength"] = 0.6f,
-                        ["_SunExpRainbowStrength"] = 1.25f,
-                        ["_SunExpRidgeStrength"] = 0.7f,
-                        ["_SunExpGlareStrength"] = 0.35f,
-                        ["_SunExpPointerAutoSpeed"] = 0.78f,
-                        ["_SunExpFoilOverlayAlpha"] = 1f,
-                        ["_SunExpEdgeSample"] = 2f
+                        ["_TerriasEffectMode"] = 0f,
+                        ["_TerriasFoilMode"] = 1f,
+                        ["_TerriasFlowSpeed"] = 0.55f,
+                        ["_TerriasFlowScale"] = 1.22f,
+                        ["_TerriasNoiseScale"] = 4f,
+                        ["_TerriasDistortion"] = 0.009f,
+                        ["_TerriasEffectIntensity"] = 1.04f,
+                        ["_TerriasEdgeGlow"] = 0.28f,
+                        ["_TerriasSweepFrequency"] = 4.4f,
+                        ["_TerriasSweepWidth"] = 0.13f,
+                        ["_TerriasSweepIntensity"] = 1.12f,
+                        ["_TerriasPrismScale"] = 13.5f,
+                        ["_TerriasPrismStrength"] = 1f,
+                        ["_TerriasFoilGrain"] = 0.08f,
+                        ["_TerriasMirrorSweep"] = 0.58f,
+                        ["_TerriasSwirlStrength"] = 0.06f,
+                        ["_TerriasFoilShardScale"] = 18f,
+                        ["_TerriasFoilShardWarp"] = 0.08f,
+                        ["_TerriasFoilGalaxyDensity"] = 0.015f,
+                        ["_TerriasFoilGlintSpeed"] = 1.1f,
+                        ["_TerriasFoilTextureStrength"] = 0.6f,
+                        ["_TerriasRainbowStrength"] = 1.25f,
+                        ["_TerriasRidgeStrength"] = 0.7f,
+                        ["_TerriasGlareStrength"] = 0.35f,
+                        ["_TerriasPointerAutoSpeed"] = 0.78f,
+                        ["_TerriasFoilOverlayAlpha"] = 1f,
+                        ["_TerriasEdgeSample"] = 2f
                     },
                     Colors = new Dictionary<string, string>
                     {
-                        ["_SunExpHoloColorA"] = "#FFF0A6FF",
-                        ["_SunExpHoloColorB"] = "#A6F2FFFF",
-                        ["_SunExpHoloColorC"] = "#D2B8FFFF"
+                        ["_TerriasHoloColorA"] = "#FFF0A6FF",
+                        ["_TerriasHoloColorB"] = "#A6F2FFFF",
+                        ["_TerriasHoloColorC"] = "#D2B8FFFF"
                     }
                 },
                 new()
                 {
-                    Id = SunExpIds.CardFaceStardustVisualEffectId,
+                    Id = TerriasIds.CardFaceStardustVisualEffectId,
                     Kind = "card-visual-face-material",
-                    ShaderId = SunExpIds.CardFaceEffectShaderId,
-                    BundlePath = "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
-                    MaterialPath = "SunExp/Materials/CardFaceEffect",
+                    ShaderId = TerriasIds.CardFaceEffectShaderId,
+                    BundlePath = "Mods/Terrias/ModResource/VisualBundles/terrias_visuals",
+                    MaterialPath = "Terrias/Materials/CardFaceEffect",
                     Textures = new Dictionary<string, string>
                     {
-                        ["_NoiseTex"] = "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
+                        ["_NoiseTex"] = "Mods/Terrias/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
                     },
                     Floats = new Dictionary<string, float>
                     {
-                        ["_SunExpEffectMode"] = 1f,
-                        ["_SunExpFlowSpeed"] = 0.72f,
-                        ["_SunExpFlowScale"] = 1.5f,
-                        ["_SunExpNoiseScale"] = 6.2f,
-                        ["_SunExpDistortion"] = 0.004f,
-                        ["_SunExpEffectIntensity"] = 0.95f,
-                        ["_SunExpEdgeGlow"] = 0.12f,
-                        ["_SunExpFoilGrain"] = 0.28f,
-                        ["_SunExpStardustDensity"] = 0.46f,
-                        ["_SunExpStardustTwinkle"] = 1.25f,
-                        ["_SunExpStardustTwinkleSpeed"] = 2.15f,
-                        ["_SunExpStardustOrbit"] = 0.18f,
-                        ["_SunExpStardustGlowRadius"] = 0.18f,
-                        ["_SunExpStardustGlowPower"] = 5.4f,
-                        ["_SunExpStardustSweepSpeed"] = 1.85f,
-                        ["_SunExpStardustSweepIntensity"] = 0.62f,
-                        ["_SunExpStardustSweepWidth"] = 0.045f,
-                        ["_SunExpEdgeSample"] = 2f
+                        ["_TerriasEffectMode"] = 1f,
+                        ["_TerriasFlowSpeed"] = 0.72f,
+                        ["_TerriasFlowScale"] = 1.5f,
+                        ["_TerriasNoiseScale"] = 6.2f,
+                        ["_TerriasDistortion"] = 0.004f,
+                        ["_TerriasEffectIntensity"] = 0.95f,
+                        ["_TerriasEdgeGlow"] = 0.12f,
+                        ["_TerriasFoilGrain"] = 0.28f,
+                        ["_TerriasStardustDensity"] = 0.46f,
+                        ["_TerriasStardustTwinkle"] = 1.25f,
+                        ["_TerriasStardustTwinkleSpeed"] = 2.15f,
+                        ["_TerriasStardustOrbit"] = 0.18f,
+                        ["_TerriasStardustGlowRadius"] = 0.18f,
+                        ["_TerriasStardustGlowPower"] = 5.4f,
+                        ["_TerriasStardustSweepSpeed"] = 1.85f,
+                        ["_TerriasStardustSweepIntensity"] = 0.62f,
+                        ["_TerriasStardustSweepWidth"] = 0.045f,
+                        ["_TerriasEdgeSample"] = 2f
                     },
                     Colors = new Dictionary<string, string>
                     {
-                        ["_SunExpStardustColorA"] = "#F3FBFFFF",
-                        ["_SunExpStardustColorB"] = "#FFE6A8FF"
+                        ["_TerriasStardustColorA"] = "#F3FBFFFF",
+                        ["_TerriasStardustColorB"] = "#FFE6A8FF"
                     }
                 },
                 new()
                 {
-                    Id = "sunexp.wuna.orbit_fire.core.back",
+                    Id = "terrias.wuna.orbit_fire.core.back",
                     Kind = "character-orbit-core-material",
-                    ShaderId = "sunexp.wuna_orbit_fire",
-                    BundlePath = "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
-                    MaterialPath = "SunExp/Materials/WunaOrbitFireBack",
+                    ShaderId = "terrias.wuna_orbit_fire",
+                    BundlePath = "Mods/Terrias/ModResource/VisualBundles/terrias_visuals",
+                    MaterialPath = "Terrias/Materials/WunaOrbitFireBack",
                     Textures = new Dictionary<string, string>
                     {
-                        ["_MainTex"] = "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
-                        ["_NoiseTex"] = "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
+                        ["_MainTex"] = "Mods/Terrias/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
+                        ["_NoiseTex"] = "Mods/Terrias/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
                     },
                     Floats = new Dictionary<string, float>
                     {
-                        ["_SunExpNoiseScale"] = 2.0f,
-                        ["_SunExpDistortion"] = 0.08f,
-                        ["_SunExpAlphaCutoff"] = 0.01f,
-                        ["_SunExpAlphaSoftness"] = 0.12f,
-                        ["_SunExpFlowSpeed"] = 0.34f
+                        ["_TerriasNoiseScale"] = 2.0f,
+                        ["_TerriasDistortion"] = 0.08f,
+                        ["_TerriasAlphaCutoff"] = 0.01f,
+                        ["_TerriasAlphaSoftness"] = 0.12f,
+                        ["_TerriasFlowSpeed"] = 0.34f
                     },
                     Colors = new Dictionary<string, string>
                     {
-                        ["_SunExpCoreColor"] = "#FFF5B8D8",
-                        ["_SunExpEdgeColor"] = "#FF7A26A8",
-                        ["_SunExpSmokeColor"] = "#35100822"
+                        ["_TerriasCoreColor"] = "#FFF5B8D8",
+                        ["_TerriasEdgeColor"] = "#FF7A26A8",
+                        ["_TerriasSmokeColor"] = "#35100822"
                     }
                 },
                 new()
                 {
-                    Id = "sunexp.wuna.orbit_fire.core.front",
+                    Id = "terrias.wuna.orbit_fire.core.front",
                     Kind = "character-orbit-core-material",
-                    ShaderId = "sunexp.wuna_orbit_fire",
-                    BundlePath = "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
-                    MaterialPath = "SunExp/Materials/WunaOrbitFireFront",
+                    ShaderId = "terrias.wuna_orbit_fire",
+                    BundlePath = "Mods/Terrias/ModResource/VisualBundles/terrias_visuals",
+                    MaterialPath = "Terrias/Materials/WunaOrbitFireFront",
                     Textures = new Dictionary<string, string>
                     {
-                        ["_MainTex"] = "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
-                        ["_NoiseTex"] = "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
+                        ["_MainTex"] = "Mods/Terrias/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
+                        ["_NoiseTex"] = "Mods/Terrias/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
                     },
                     Floats = new Dictionary<string, float>
                     {
-                        ["_SunExpNoiseScale"] = 2.35f,
-                        ["_SunExpDistortion"] = 0.11f,
-                        ["_SunExpAlphaCutoff"] = 0.01f,
-                        ["_SunExpAlphaSoftness"] = 0.1f,
-                        ["_SunExpFlowSpeed"] = 0.48f
+                        ["_TerriasNoiseScale"] = 2.35f,
+                        ["_TerriasDistortion"] = 0.11f,
+                        ["_TerriasAlphaCutoff"] = 0.01f,
+                        ["_TerriasAlphaSoftness"] = 0.1f,
+                        ["_TerriasFlowSpeed"] = 0.48f
                     },
                     Colors = new Dictionary<string, string>
                     {
-                        ["_SunExpCoreColor"] = "#FFFFC8F0",
-                        ["_SunExpEdgeColor"] = "#FF9C36D8",
-                        ["_SunExpSmokeColor"] = "#42100828"
+                        ["_TerriasCoreColor"] = "#FFFFC8F0",
+                        ["_TerriasEdgeColor"] = "#FF9C36D8",
+                        ["_TerriasSmokeColor"] = "#42100828"
                     }
                 },
                 new()
                 {
-                    Id = "sunexp.wuna.orbit_fire.back",
+                    Id = "terrias.wuna.orbit_fire.back",
                     Kind = "character-orbit-material",
-                    ShaderId = "sunexp.wuna_orbit_fire",
-                    BundlePath = "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
-                    MaterialPath = "SunExp/Materials/WunaOrbitFireBack",
+                    ShaderId = "terrias.wuna_orbit_fire",
+                    BundlePath = "Mods/Terrias/ModResource/VisualBundles/terrias_visuals",
+                    MaterialPath = "Terrias/Materials/WunaOrbitFireBack",
                     Textures = new Dictionary<string, string>
                     {
-                        ["_MainTex"] = "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
-                        ["_NoiseTex"] = "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
+                        ["_MainTex"] = "Mods/Terrias/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
+                        ["_NoiseTex"] = "Mods/Terrias/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
                     },
                     Floats = new Dictionary<string, float>
                     {
-                        ["_SunExpNoiseScale"] = 2.45f,
-                        ["_SunExpDistortion"] = 0.18f,
-                        ["_SunExpAlphaCutoff"] = 0.03f,
-                        ["_SunExpAlphaSoftness"] = 0.08f,
-                        ["_SunExpFlowSpeed"] = 0.48f
+                        ["_TerriasNoiseScale"] = 2.45f,
+                        ["_TerriasDistortion"] = 0.18f,
+                        ["_TerriasAlphaCutoff"] = 0.03f,
+                        ["_TerriasAlphaSoftness"] = 0.08f,
+                        ["_TerriasFlowSpeed"] = 0.48f
                     },
                     Colors = new Dictionary<string, string>
                     {
-                        ["_SunExpCoreColor"] = "#FFE9A0C0",
-                        ["_SunExpEdgeColor"] = "#E85A1A94",
-                        ["_SunExpSmokeColor"] = "#38140C30"
+                        ["_TerriasCoreColor"] = "#FFE9A0C0",
+                        ["_TerriasEdgeColor"] = "#E85A1A94",
+                        ["_TerriasSmokeColor"] = "#38140C30"
                     }
                 },
                 new()
                 {
-                    Id = "sunexp.wuna.orbit_fire.front",
+                    Id = "terrias.wuna.orbit_fire.front",
                     Kind = "character-orbit-material",
-                    ShaderId = "sunexp.wuna_orbit_fire",
-                    BundlePath = "Mods/SunExp/ModResource/VisualBundles/sunexp_visuals",
-                    MaterialPath = "SunExp/Materials/WunaOrbitFireFront",
+                    ShaderId = "terrias.wuna_orbit_fire",
+                    BundlePath = "Mods/Terrias/ModResource/VisualBundles/terrias_visuals",
+                    MaterialPath = "Terrias/Materials/WunaOrbitFireFront",
                     Textures = new Dictionary<string, string>
                     {
-                        ["_MainTex"] = "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
-                        ["_NoiseTex"] = "Mods/SunExp/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
+                        ["_MainTex"] = "Mods/Terrias/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailMask.png",
+                        ["_NoiseTex"] = "Mods/Terrias/ModResource/Images/Effects/WunaOrbitFire/WunaOrbitTrailNoise.png"
                     },
                     Floats = new Dictionary<string, float>
                     {
-                        ["_SunExpNoiseScale"] = 3.1f,
-                        ["_SunExpDistortion"] = 0.24f,
-                        ["_SunExpAlphaCutoff"] = 0.035f,
-                        ["_SunExpAlphaSoftness"] = 0.07f,
-                        ["_SunExpFlowSpeed"] = 0.68f
+                        ["_TerriasNoiseScale"] = 3.1f,
+                        ["_TerriasDistortion"] = 0.24f,
+                        ["_TerriasAlphaCutoff"] = 0.035f,
+                        ["_TerriasAlphaSoftness"] = 0.07f,
+                        ["_TerriasFlowSpeed"] = 0.68f
                     },
                     Colors = new Dictionary<string, string>
                     {
-                        ["_SunExpCoreColor"] = "#FFF8B8E8",
-                        ["_SunExpEdgeColor"] = "#FF6C20C8",
-                        ["_SunExpSmokeColor"] = "#45140C34"
+                        ["_TerriasCoreColor"] = "#FFF8B8E8",
+                        ["_TerriasEdgeColor"] = "#FF6C20C8",
+                        ["_TerriasSmokeColor"] = "#45140C34"
                     }
                 }
             }
@@ -705,12 +705,12 @@ internal static class VisualRegistryDefaults
     {
         return new List<string>
         {
-            "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_1",
-            "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_2",
-            "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_3",
-            "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_4",
-            "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_3",
-            "Mods/SunExp/ModResource/Images/Buff/SunExp/huanghun_2"
+            "Mods/Terrias/ModResource/Images/Buff/Terrias/huanghun_1",
+            "Mods/Terrias/ModResource/Images/Buff/Terrias/huanghun_2",
+            "Mods/Terrias/ModResource/Images/Buff/Terrias/huanghun_3",
+            "Mods/Terrias/ModResource/Images/Buff/Terrias/huanghun_4",
+            "Mods/Terrias/ModResource/Images/Buff/Terrias/huanghun_3",
+            "Mods/Terrias/ModResource/Images/Buff/Terrias/huanghun_2"
         };
     }
 
@@ -718,12 +718,12 @@ internal static class VisualRegistryDefaults
     {
         return new List<string>
         {
-            "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_1",
-            "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_2",
-            "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_3",
-            "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_4",
-            "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_3",
-            "Mods/SunExp/ModResource/Images/Buff/Loneer/renkui_2"
+            "Mods/Terrias/ModResource/Images/Buff/Loneer/renkui_1",
+            "Mods/Terrias/ModResource/Images/Buff/Loneer/renkui_2",
+            "Mods/Terrias/ModResource/Images/Buff/Loneer/renkui_3",
+            "Mods/Terrias/ModResource/Images/Buff/Loneer/renkui_4",
+            "Mods/Terrias/ModResource/Images/Buff/Loneer/renkui_3",
+            "Mods/Terrias/ModResource/Images/Buff/Loneer/renkui_2"
         };
     }
 
@@ -732,7 +732,7 @@ internal static class VisualRegistryDefaults
         var frames = new List<string>();
         for (var i = 0; i < 8; i++)
         {
-            frames.Add("Mods/SunExp/ModResource/AnimationLib/" + folder + "/Dict/Dict_" + i.ToString("00"));
+            frames.Add("Mods/Terrias/ModResource/AnimationLib/" + folder + "/Dict/Dict_" + i.ToString("00"));
         }
 
         return frames;

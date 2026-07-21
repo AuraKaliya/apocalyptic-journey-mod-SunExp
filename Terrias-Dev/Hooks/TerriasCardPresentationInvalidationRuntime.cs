@@ -1,15 +1,15 @@
 using System;
 using System.Collections.Generic;
 using AuraShared.Core;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
-public static class SunExpCardPresentationInvalidationRuntime
+public static class TerriasCardPresentationInvalidationRuntime
 {
     [ThreadStatic] private static Stack<BuffMutation>? mutations;
     private static bool initialized;
@@ -22,16 +22,16 @@ public static class SunExpCardPresentationInvalidationRuntime
         }
 
         initialized = true;
-        Register(modConfig, SunExpHookTargets.StatusManagerAddBuff, MutationKind.Add);
-        Register(modConfig, SunExpHookTargets.StatusManagerRemoveBuff, MutationKind.Remove);
-        Register(modConfig, SunExpHookTargets.BuffItemConfigSetLevel, MutationKind.SetLevel);
-        SunExpLog.InfoAlways("Card presentation invalidation runtime initialized");
+        Register(modConfig, TerriasHookTargets.StatusManagerAddBuff, MutationKind.Add);
+        Register(modConfig, TerriasHookTargets.StatusManagerRemoveBuff, MutationKind.Remove);
+        Register(modConfig, TerriasHookTargets.BuffItemConfigSetLevel, MutationKind.SetLevel);
+        TerriasLog.InfoAlways("Card presentation invalidation runtime initialized");
     }
 
     private static void Register(ModConfig modConfig, string target, MutationKind kind)
     {
-        SunExpHookRegistry.Before(modConfig, target, context => Begin(context, kind), "CardPresentationInvalidation");
-        SunExpHookRegistry.After(modConfig, target, context => End(context, kind), "CardPresentationInvalidation");
+        TerriasHookRegistry.Before(modConfig, target, context => Begin(context, kind), "CardPresentationInvalidation");
+        TerriasHookRegistry.After(modConfig, target, context => End(context, kind), "CardPresentationInvalidation");
     }
 
     private static void Begin(ModHookContext context, MutationKind kind)
@@ -83,13 +83,13 @@ public static class SunExpCardPresentationInvalidationRuntime
         var suppressed = CardPresentationInvalidationApi.SuppressNewFullRefresh(current.Snapshot, spec.Impact, source);
         if (suppressed && spec.Impact == CardPresentationImpact.DescriptionSubset)
         {
-            SunExpCardRefreshQueue.RequestDataUpdateForHandCards(
+            TerriasCardRefreshQueue.RequestDataUpdateForHandCards(
                 CardPresentationInvalidationApi.CurrentHandCards(),
                 spec.CardIds,
                 "BuffDescriptionSubset:" + source);
         }
 
-        SunExpPerformanceCounters.Record("CardPresentation.BuffMutation." + spec.Impact);
+        TerriasPerformanceCounters.Record("CardPresentation.BuffMutation." + spec.Impact);
     }
 
     private static bool TryResolve(

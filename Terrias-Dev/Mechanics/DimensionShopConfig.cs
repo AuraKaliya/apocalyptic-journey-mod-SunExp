@@ -2,10 +2,10 @@ using System;
 using System.IO;
 using System.Linq;
 using Newtonsoft.Json;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.Mod;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public sealed class DimensionShopConfigDocument
 {
@@ -17,13 +17,13 @@ public sealed class DimensionShopConfigDocument
 
     public int RefreshPrice { get; set; } = 1;
 
-    public string[] CardPackIds { get; set; } = { SunExpIds.MoreDimensionsCardPackId };
+    public string[] CardPackIds { get; set; } = { TerriasIds.MoreDimensionsCardPackId };
 
     public string[] IncludeCardIds { get; set; } = Array.Empty<string>();
 
     public string[] ExcludeCardIds { get; set; } = Array.Empty<string>();
 
-    public string[] RelicIds { get; set; } = { SunExpIds.BrokenDialRelicId };
+    public string[] RelicIds { get; set; } = { TerriasIds.BrokenDialRelicId };
 
     public string ShopkeeperPortraitResourcePath { get; set; } = "";
 
@@ -51,11 +51,11 @@ public static class DimensionShopConfigStore
         lock (SyncRoot)
         {
             var fallback = Normalize(new DimensionShopConfigDocument());
-            var path = Path.Combine(modConfig.DirectoryName, SunExpIds.DimensionShopConfigFile);
+            var path = Path.Combine(modConfig.DirectoryName, TerriasIds.DimensionShopConfigFile);
             if (!File.Exists(path))
             {
                 current = fallback;
-                SunExpLog.Warn("[DimensionShop] missing config; using built-in defaults.");
+                TerriasLog.Warn("[DimensionShop] missing config; using built-in defaults.");
                 return;
             }
 
@@ -64,12 +64,12 @@ public static class DimensionShopConfigStore
                 current = Normalize(
                     JsonConvert.DeserializeObject<DimensionShopConfigDocument>(File.ReadAllText(path))
                     ?? new DimensionShopConfigDocument());
-                SunExpLog.Info("[DimensionShop] loaded config from " + path);
+                TerriasLog.Info("[DimensionShop] loaded config from " + path);
             }
             catch (Exception ex)
             {
                 current = fallback;
-                SunExpLog.Warn("[DimensionShop] failed to load config; using built-in defaults: " + ex.Message);
+                TerriasLog.Warn("[DimensionShop] failed to load config; using built-in defaults: " + ex.Message);
             }
         }
     }
@@ -81,10 +81,10 @@ public static class DimensionShopConfigStore
         document.CardPrice = Math.Max(0, document.CardPrice);
         document.RelicPrice = Math.Max(0, document.RelicPrice);
         document.RefreshPrice = Math.Max(0, document.RefreshPrice);
-        document.CardPackIds = NormalizeIds(document.CardPackIds, SunExpIds.MoreDimensionsCardPackId);
+        document.CardPackIds = NormalizeIds(document.CardPackIds, TerriasIds.MoreDimensionsCardPackId);
         document.IncludeCardIds = NormalizeIds(document.IncludeCardIds);
         document.ExcludeCardIds = NormalizeIds(document.ExcludeCardIds);
-        document.RelicIds = NormalizeIds(document.RelicIds, SunExpIds.BrokenDialRelicId);
+        document.RelicIds = NormalizeIds(document.RelicIds, TerriasIds.BrokenDialRelicId);
         document.ShopkeeperPortraitResourcePath = (document.ShopkeeperPortraitResourcePath ?? "").Trim();
         document.ShopkeeperPortraitNodePath = (document.ShopkeeperPortraitNodePath ?? "").Trim();
         return document;

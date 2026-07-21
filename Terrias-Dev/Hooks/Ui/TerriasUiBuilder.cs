@@ -3,9 +3,9 @@ using AuraUi.Shared;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace SunExp.Dll.Hooks.Ui;
+namespace Terrias.Dll.Hooks.Ui;
 
-public static class SunExpUiBuilder
+public static class TerriasUiBuilder
 {
     public static Image ApplyPanelImage(GameObject go, Sprite? sprite, Color fallbackOrTint, bool raycastTarget = false)
     {

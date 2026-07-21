@@ -1,8 +1,8 @@
-using SunExp.Dll.Mechanics;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
 using Witch.Core;
 
-namespace SunExp.Dll.Hooks.Visual;
+namespace Terrias.Dll.Hooks.Visual;
 
 internal static class CardVisualEffectApplier
 {
@@ -10,10 +10,10 @@ internal static class CardVisualEffectApplier
     {
         var faceEffect = CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Face, config);
         var frameEffect = CardVisualEffectRegistry.Resolve(CardVisualEffectTarget.Frame, config);
-        SunExpPerformanceCounters.Record(faceEffect == null
+        TerriasPerformanceCounters.Record(faceEffect == null
             ? "CardVisualEffect.FaceMiss"
             : "CardVisualEffect.FaceResolved");
-        SunExpPerformanceCounters.Record(frameEffect == null
+        TerriasPerformanceCounters.Record(frameEffect == null
             ? "CardVisualEffect.FrameMiss"
             : "CardVisualEffect.FrameResolved");
 

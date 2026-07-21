@@ -1,9 +1,9 @@
 using System;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using Witch.Core;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public readonly struct MapItemIconBaseline
 {

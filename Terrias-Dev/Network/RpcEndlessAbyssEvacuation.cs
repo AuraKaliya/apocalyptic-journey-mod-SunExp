@@ -1,16 +1,16 @@
 using System;
 using AuraShared.Core;
 using Network.Command;
-using SunExp.Dll.Hooks;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Hooks;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 
-namespace SunExp.Dll.Network;
+namespace Terrias.Dll.Network;
 
 [Serializable]
-public sealed class RpcEndlessAbyssEvacuation : RpcCommandBase, ISunExpServerBoundRpcCommand
+public sealed class RpcEndlessAbyssEvacuation : RpcCommandBase, ITerriasServerBoundRpcCommand
 {
-    private SunExpRpcSender serverSender = SunExpRpcSender.Unbound;
+    private TerriasRpcSender serverSender = TerriasRpcSender.Unbound;
 
     public string RequestedToken { get; set; } = "";
     public int CommandToken { get; set; }
@@ -19,9 +19,9 @@ public sealed class RpcEndlessAbyssEvacuation : RpcCommandBase, ISunExpServerBou
     public bool Accepted { get; set; }
     public string RejectionReason { get; set; } = "";
 
-    public void BindServerSender(SunExpRpcSender sender)
+    public void BindServerSender(TerriasRpcSender sender)
     {
-        serverSender = sender ?? SunExpRpcSender.Unbound;
+        serverSender = sender ?? TerriasRpcSender.Unbound;
     }
 
     public override void CmdExecute()
@@ -78,7 +78,7 @@ public static class EndlessAbyssEvacuationNetworkSync
     private static readonly AuraAuthoritativeSyncDomain SyncDomain =
         AuraAuthoritativeSyncRuntime.RegisterDomain(new AuraAuthoritativeSyncDomainOptions
         {
-            OwnerModId = SunExpIds.ModId,
+            OwnerModId = TerriasIds.ModId,
             DomainId = "EndlessAbyssEvacuation",
             MaxResolvedTokens = 128
         });
@@ -91,9 +91,9 @@ public static class EndlessAbyssEvacuationNetworkSync
     public static void Broadcast(EndlessAbyssEvacuationResolution resolution, string source)
     {
         if (resolution?.IsValid != true
-            || !SunExpNetworkRuntime.HasRemotePlayers()
-            || !SunExpNetworkRuntime.IsMultiplayerSession()
-            || SunExpNetworkRuntime.IsClientOnly())
+            || !TerriasNetworkRuntime.HasRemotePlayers()
+            || !TerriasNetworkRuntime.IsMultiplayerSession()
+            || TerriasNetworkRuntime.IsClientOnly())
         {
             return;
         }
@@ -103,7 +103,7 @@ public static class EndlessAbyssEvacuationNetworkSync
             RequestedToken = resolution.Token,
             CommandToken = SyncDomain.NextToken()
         };
-        command.BindServerSender(SunExpRpcAuthorityRuntime.CreateLocalServerSender(source));
-        SunExpNetworkRuntime.Send(command, source ?? "EndlessAbyssEvacuationNetworkSync.Broadcast");
+        command.BindServerSender(TerriasRpcAuthorityRuntime.CreateLocalServerSender(source));
+        TerriasNetworkRuntime.Send(command, source ?? "EndlessAbyssEvacuationNetworkSync.Broadcast");
     }
 }

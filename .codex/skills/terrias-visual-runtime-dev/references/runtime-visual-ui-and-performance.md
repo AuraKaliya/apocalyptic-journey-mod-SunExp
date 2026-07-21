@@ -7,10 +7,10 @@ map-node visual replacement, and visual UI helpers.
 
 - `Hooks/Ui/StarScoreHud*` owns Star Score HUD assets, shader materials,
   tooltip, hover probe, and view composition.
-- `Hooks/Ui/SunExpModalHost.cs` owns modal parent resolution and close routing.
-- `Hooks/Ui/SunExpUiSafety.cs` owns safe transient UI teardown.
-- `Hooks/Ui/SunExpUiPool.cs` owns pooled repeated rows and listener scrubbing.
-- `Hooks/Ui/SunExpUiSprites.cs` owns cached sprite and nine-slice creation.
+- `Hooks/Ui/TerriasModalHost.cs` owns modal parent resolution and close routing.
+- `Hooks/Ui/TerriasUiSafety.cs` owns safe transient UI teardown.
+- `Hooks/Ui/TerriasUiPool.cs` owns pooled repeated rows and listener scrubbing.
+- `Hooks/Ui/TerriasUiSprites.cs` owns cached sprite and nine-slice creation.
 
 Do not duplicate button sprite caches, nine-slice creation, modal close logic,
 or pooled-list teardown in feature runtimes.
@@ -18,7 +18,7 @@ or pooled-list teardown in feature runtimes.
 ## Animated And Map Visuals
 
 - Animated buff, blessing, and enemy dictionary icons should resolve frames
-  through `VisualRegistry` and load through `SunExpResourceCache`.
+  through `VisualRegistry` and load through `TerriasResourceCache`.
 - Map-node card art should keep fit logic in `MapNodeTextureFitService` and
   declarations in `MapNodeCardArtRegistry`.
 - Solar Memory fixed map visuals belong in `SolarMemoryMapVisualRuntime` and
@@ -28,11 +28,11 @@ or pooled-list teardown in feature runtimes.
 
 Use existing performance surfaces:
 
-- `SunExpPerformanceSettings` for quality and enable/disable knobs.
-- `SunExpPerformanceCounters` for expensive visual operations.
-- `SunExpFrameScheduler` and `SunExpFrameDispatcher` for deferred or throttled
+- `TerriasPerformanceSettings` for quality and enable/disable knobs.
+- `TerriasPerformanceCounters` for expensive visual operations.
+- `TerriasFrameScheduler` and `TerriasFrameDispatcher` for deferred or throttled
   work.
-- `SunExpResourceCache` and `SunExpConfigIndex` for repeated resource/table
+- `TerriasResourceCache` and `TerriasConfigIndex` for repeated resource/table
   access.
 
 Resource prewarming must follow lifecycle: build manifests at initialization,

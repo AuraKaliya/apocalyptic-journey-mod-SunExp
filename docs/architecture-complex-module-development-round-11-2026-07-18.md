@@ -95,9 +95,9 @@ Runtime 本轮仍保留 Provider 列表/解析、播放、原生替换、Hook、
 - Aura.Shared：1228 项公共 API 兼容基线通过；
 - AuraDirector：20 项断言通过；
 - AuraToolsExp：632 项断言通过；
-- SunExp：架构检查与 282 项 C# 断言通过；
+- Terrias：架构检查与 282 项 C# 断言通过；
 - shared write、content/tool/shared、RPC authority 与架构边界门禁通过；
-- SunExp、SanGuoShaExp、AuraToolsExp 三个消费者均以 0 警告、0 错误构建；
+- Terrias、SanGuoShaExp、AuraToolsExp 三个消费者均以 0 警告、0 错误构建；
 - 完整共享发布矩阵与 DLL 打包检查通过；
 - 构建产物和三个打包副本 SHA-256 一致：`70CE7029F890581AC908801C09834D6686CF95495EEDF39F50A9416A1461E810`。
 

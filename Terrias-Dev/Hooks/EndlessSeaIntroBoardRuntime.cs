@@ -5,10 +5,10 @@ using AuraShared.Core;
 using AuraUi.Shared;
 using Data.Save;
 using StarterDeckArbiter.Shared;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Hooks.Ui;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Hooks.Ui;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using UnityEngine.UI;
 using Witch;
@@ -16,7 +16,7 @@ using Witch.Core;
 using Witch.Mod;
 using Witch.UI;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class EndlessSeaIntroBoardRuntime
 {
@@ -59,7 +59,7 @@ public static class EndlessSeaIntroBoardRuntime
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.After(config, target, action, "EndlessSeaIntro");
+        TerriasHookRegistry.After(config, target, action, "EndlessSeaIntro");
     }
 
     private static void TryShowIntroBoard(ModHookContext context)
@@ -87,20 +87,20 @@ public static class EndlessSeaIntroBoardRuntime
                 return true;
             }
 
-            var parent = SunExpModalHost.ModalParent();
+            var parent = TerriasModalHost.ModalParent();
             if (parent == null)
             {
-                SunExpLog.Warn("[EndlessSeaIntro] skipped: UI canvas unavailable from " + source + ".");
+                TerriasLog.Warn("[EndlessSeaIntro] skipped: UI canvas unavailable from " + source + ".");
                 return false;
             }
 
-            SunExpLog.Info("[EndlessSeaIntro] opening intro board from " + source + ".");
+            TerriasLog.Info("[EndlessSeaIntro] opening intro board from " + source + ".");
             ShowIntroBoard(roleTable, parent);
             return true;
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Endless Sea intro board failed", ex);
+            TerriasLog.Error("Endless Sea intro board failed", ex);
             return false;
         }
     }
@@ -109,23 +109,23 @@ public static class EndlessSeaIntroBoardRuntime
     {
         return EndlessSeaModeRuntime.IsEndlessSeaRun()
             && EndlessSeaModeRuntime.CurrentFloor() == 1
-            && GameSaveManager.GetValue<string>(SunExpIds.EndlessSeaIntroSeenKey) != "1"
-            && GameSaveManager.GetValue<string>(SunExpIds.EndlessSeaStarterDeckAppliedKey) != "1";
+            && GameSaveManager.GetValue<string>(TerriasIds.EndlessSeaIntroSeenKey) != "1"
+            && GameSaveManager.GetValue<string>(TerriasIds.EndlessSeaStarterDeckAppliedKey) != "1";
     }
 
     private static void ShowIntroBoard(RoleTable roleTable, Transform parent)
     {
-        activePanel = SunExpModalHost.CreateFullscreenRoot(
-            "SunExpEndlessSeaIntroBoard",
+        activePanel = TerriasModalHost.CreateFullscreenRoot(
+            "TerriasEndlessSeaIntroBoard",
             parent,
             new Color(0f, 0f, 0f, 0.68f));
-        SunExpTransientUiRegistry.Register("EndlessSeaIntro", ClosePanel);
+        TerriasTransientUiRegistry.Register("EndlessSeaIntro", ClosePanel);
         deckButtons.Clear();
         deckSelectedFrames.Clear();
         HideTooltip();
 
         var windowSize = ResolveWindowSize(parent);
-        var windowRect = SunExpUiBuilder.CreateRect(
+        var windowRect = TerriasUiBuilder.CreateRect(
             "Board",
             activePanel.transform,
             new Vector2(0.5f, 0.5f),
@@ -133,7 +133,7 @@ public static class EndlessSeaIntroBoardRuntime
             new Vector2(0.5f, 0.5f),
             windowSize);
         var window = windowRect.gameObject;
-        SunExpUiBuilder.ApplyPanelImage(window, SunExpUiSprites.Panel("[EndlessSeaIntro]"), PanelTint, true);
+        TerriasUiBuilder.ApplyPanelImage(window, TerriasUiSprites.Panel("[EndlessSeaIntro]"), PanelTint, true);
         starterDeckHint = DefaultStarterDeckHint;
 
         var layout = window.AddComponent<VerticalLayoutGroup>();
@@ -159,7 +159,7 @@ public static class EndlessSeaIntroBoardRuntime
         element.preferredHeight = 68f;
         element.minHeight = 68f;
 
-        var title = AddTextFill(header.transform, SunExpIds.EndlessSeaTitle, 32, TextAnchor.UpperCenter, Gold);
+        var title = AddTextFill(header.transform, TerriasIds.EndlessSeaTitle, 32, TextAnchor.UpperCenter, Gold);
         title.fontStyle = FontStyle.Bold;
         AddTextShadow(title, new Color(0f, 0f, 0f, 0.72f), new Vector2(1.5f, -1.5f));
 
@@ -176,7 +176,7 @@ public static class EndlessSeaIntroBoardRuntime
         var element = divider.AddComponent<LayoutElement>();
         element.preferredHeight = 2f;
         element.minHeight = 2f;
-        SunExpUiBuilder.ApplyPanelImage(divider, null, new Color(Gold.r, Gold.g, Gold.b, 0.85f));
+        TerriasUiBuilder.ApplyPanelImage(divider, null, new Color(Gold.r, Gold.g, Gold.b, 0.85f));
     }
 
     private static void CreateMainContent(Transform parent, RoleTable roleTable)
@@ -222,7 +222,7 @@ public static class EndlessSeaIntroBoardRuntime
         scrollElement.flexibleHeight = 1f;
         scrollElement.minHeight = 380f;
 
-        var viewport = SunExpUiBuilder.CreateRect(
+        var viewport = TerriasUiBuilder.CreateRect(
             "Viewport",
             scrollRoot.transform,
             Vector2.zero,
@@ -236,7 +236,7 @@ public static class EndlessSeaIntroBoardRuntime
         viewportImage.raycastTarget = true;
         viewport.gameObject.AddComponent<Mask>().showMaskGraphic = false;
 
-        var content = SunExpUiBuilder.CreateRect(
+        var content = TerriasUiBuilder.CreateRect(
             "Content",
             viewport,
             new Vector2(0f, 1f),
@@ -299,7 +299,7 @@ public static class EndlessSeaIntroBoardRuntime
         element.minWidth = 380f;
         element.preferredWidth = 560f;
         element.flexibleWidth = 1.2f;
-        SunExpUiBuilder.ApplyPanelImage(pane, SunExpUiSprites.Panel("[EndlessSeaIntro]"), SectionTint, true);
+        TerriasUiBuilder.ApplyPanelImage(pane, TerriasUiSprites.Panel("[EndlessSeaIntro]"), SectionTint, true);
 
         var layout = pane.AddComponent<VerticalLayoutGroup>();
         layout.padding = new RectOffset(16, 16, 12, 14);
@@ -330,9 +330,9 @@ public static class EndlessSeaIntroBoardRuntime
         var scrollElement = scrollRoot.AddComponent<LayoutElement>();
         scrollElement.minHeight = 410f;
         scrollElement.flexibleHeight = 1f;
-        SunExpUiBuilder.ApplyLabelImage(scrollRoot, SunExpUiSprites.Label("[EndlessSeaIntro]"), new Color(0.01f, 0.014f, 0.045f, 0.56f), true);
+        TerriasUiBuilder.ApplyLabelImage(scrollRoot, TerriasUiSprites.Label("[EndlessSeaIntro]"), new Color(0.01f, 0.014f, 0.045f, 0.56f), true);
 
-        var viewport = SunExpUiBuilder.CreateRect(
+        var viewport = TerriasUiBuilder.CreateRect(
             "Viewport",
             scrollRoot.transform,
             Vector2.zero,
@@ -346,7 +346,7 @@ public static class EndlessSeaIntroBoardRuntime
         viewportImage.raycastTarget = true;
         viewport.gameObject.AddComponent<Mask>().showMaskGraphic = false;
 
-        var gridContent = SunExpUiBuilder.CreateRect(
+        var gridContent = TerriasUiBuilder.CreateRect(
             "ThemeGrid",
             viewport,
             new Vector2(0f, 1f),
@@ -383,7 +383,7 @@ public static class EndlessSeaIntroBoardRuntime
     private static void CreateThemePackButton(Transform parent, RoleTable roleTable, EndlessSeaStarterDeckProfile profile)
     {
         var panel = CreateLayoutObject("Theme_" + profile.Id, parent);
-        var image = SunExpUiBuilder.ApplyLabelImage(panel, SunExpUiSprites.Label("[EndlessSeaIntro]"), DeckTint, true);
+        var image = TerriasUiBuilder.ApplyLabelImage(panel, TerriasUiSprites.Label("[EndlessSeaIntro]"), DeckTint, true);
         var button = panel.AddComponent<Button>();
         AuraUiButtonFeedback.Apply(
             button,
@@ -431,7 +431,7 @@ public static class EndlessSeaIntroBoardRuntime
 
     private static GameObject CreateSelectedFrame(Transform parent)
     {
-        var frameRect = SunExpUiBuilder.CreateRect(
+        var frameRect = TerriasUiBuilder.CreateRect(
             "SelectedFrame",
             parent,
             Vector2.zero,
@@ -445,7 +445,7 @@ public static class EndlessSeaIntroBoardRuntime
         layout.ignoreLayout = true;
 
         var frame = frameRect.gameObject.AddComponent<Image>();
-        frame.sprite = SunExpUiSprites.Button("[EndlessSeaIntro]");
+        frame.sprite = TerriasUiSprites.Button("[EndlessSeaIntro]");
         frame.type = frame.sprite != null ? Image.Type.Sliced : Image.Type.Simple;
         frame.fillCenter = false;
         frame.color = new Color(Gold.r, Gold.g, Gold.b, 0.95f);
@@ -462,7 +462,7 @@ public static class EndlessSeaIntroBoardRuntime
         element.preferredWidth = CoverMaxWidth;
         element.minHeight = CoverMaxHeight;
         element.preferredHeight = CoverMaxHeight;
-        SunExpUiBuilder.ApplyPanelImage(host, SunExpUiSprites.Panel("[EndlessSeaIntro]"), new Color(0.012f, 0.016f, 0.052f, 0.92f));
+        TerriasUiBuilder.ApplyPanelImage(host, TerriasUiSprites.Panel("[EndlessSeaIntro]"), new Color(0.012f, 0.016f, 0.052f, 0.92f));
 
         var sprite = TryLoadPackCover(profile);
         if (sprite == null)
@@ -475,7 +475,7 @@ public static class EndlessSeaIntroBoardRuntime
             return;
         }
 
-        var coverRect = SunExpUiBuilder.CreateRect(
+        var coverRect = TerriasUiBuilder.CreateRect(
             "Image",
             host.transform,
             new Vector2(0.5f, 0.5f),
@@ -521,7 +521,7 @@ public static class EndlessSeaIntroBoardRuntime
         }
 
         HideTooltip();
-        var tooltipRect = SunExpUiBuilder.CreateRect(
+        var tooltipRect = TerriasUiBuilder.CreateRect(
             "ThemeCardsTooltip",
             activeTooltipLayer,
             new Vector2(0.5f, 0.5f),
@@ -530,7 +530,7 @@ public static class EndlessSeaIntroBoardRuntime
             new Vector2(TooltipWidth, TooltipHeight));
         activeTooltip = tooltipRect.gameObject;
         activeTooltip.transform.SetAsLastSibling();
-        var background = SunExpUiBuilder.ApplyLabelImage(activeTooltip, SunExpUiSprites.Label("[EndlessSeaIntro]"), new Color(0.015f, 0.018f, 0.055f, 0.88f));
+        var background = TerriasUiBuilder.ApplyLabelImage(activeTooltip, TerriasUiSprites.Label("[EndlessSeaIntro]"), new Color(0.015f, 0.018f, 0.055f, 0.88f));
         if (background != null)
         {
             background.raycastTarget = false;
@@ -565,7 +565,7 @@ public static class EndlessSeaIntroBoardRuntime
 
     private static RectTransform CreateTooltipLayer(Transform parent)
     {
-        var layer = SunExpUiBuilder.CreateRect(
+        var layer = TerriasUiBuilder.CreateRect(
             "TooltipLayer",
             parent,
             Vector2.zero,
@@ -597,12 +597,12 @@ public static class EndlessSeaIntroBoardRuntime
         iconElement.preferredWidth = 64f;
         iconElement.minHeight = 64f;
         iconElement.preferredHeight = 64f;
-        SunExpUiBuilder.ApplyPanelImage(iconHost, SunExpUiSprites.Panel("[EndlessSeaIntro]"), new Color(0.02f, 0.025f, 0.08f, 0.82f));
+        TerriasUiBuilder.ApplyPanelImage(iconHost, TerriasUiSprites.Panel("[EndlessSeaIntro]"), new Color(0.02f, 0.025f, 0.08f, 0.82f));
 
         var sprite = TryLoadCardIcon(cardId);
         if (sprite != null)
         {
-            var iconRect = SunExpUiBuilder.CreateRect(
+            var iconRect = TerriasUiBuilder.CreateRect(
                 "Image",
                 iconHost.transform,
                 new Vector2(0.5f, 0.5f),
@@ -685,7 +685,7 @@ public static class EndlessSeaIntroBoardRuntime
             if (invalidCards.Count > 0)
             {
                 UpdateHint("开局卡组存在无效卡牌：" + string.Join(" / ", invalidCards));
-                SunExpLog.Warn("[EndlessSeaIntro] rejected invalid starter deck "
+                TerriasLog.Warn("[EndlessSeaIntro] rejected invalid starter deck "
                     + profile.Id
                     + ": "
                     + string.Join("|", invalidCards));
@@ -708,24 +708,24 @@ public static class EndlessSeaIntroBoardRuntime
 
             MarkApplied(roleTable, profile.Id);
             EndlessSeaCardAffixService.MarkStarterDeckBaseline(roleTable, "EndlessSeaIntroBoard.ApplyStarterDeck");
-            SetSaveValue(SunExpIds.EndlessSeaIntroSeenKey, "1");
-            SetSaveValue(SunExpIds.EndlessSeaStarterDeckAppliedKey, "1");
-            SetSaveValue(SunExpIds.EndlessSeaStarterDeckModeKey, profile.Id);
+            SetSaveValue(TerriasIds.EndlessSeaIntroSeenKey, "1");
+            SetSaveValue(TerriasIds.EndlessSeaStarterDeckAppliedKey, "1");
+            SetSaveValue(TerriasIds.EndlessSeaStarterDeckModeKey, profile.Id);
             EndlessSeaRunStateStore.MarkPhase(EndlessSeaRunPhase.MapPlanning, "EndlessSeaIntroBoard.ApplyStarterDeck");
             ClosePanel();
             EndlessAbyssEvacuationButtonRuntime.Refresh();
-            SunExpFrameDispatcher.RunOnceNextFrame(
+            TerriasFrameDispatcher.RunOnceNextFrame(
                 "EndlessAbyss.MapPanels.AfterStarterDeck",
                 () => EndlessSeaModeRuntime.TryOpenAbyssMapPanels("EndlessSeaIntroBoard.ApplyStarterDeck"));
-            UIManager.Instance?.ShowTip(SunExpIds.EndlessAbyssTitle + "\u5f00\u5c40\u5361\u7ec4\uff1a" + profile.Title);
-            SunExpLog.Info("[EndlessSeaIntro] applied starter deck "
+            UIManager.Instance?.ShowTip(TerriasIds.EndlessAbyssTitle + "\u5f00\u5c40\u5361\u7ec4\uff1a" + profile.Title);
+            TerriasLog.Info("[EndlessSeaIntro] applied starter deck "
                 + profile.Id
                 + "; cards="
                 + string.Join("|", profile.CardIds));
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Endless Sea starter deck apply failed", ex);
+            TerriasLog.Error("Endless Sea starter deck apply failed", ex);
             UpdateHint("卡组写入异常，请查看日志。");
             SetDeckButtonsInteractable(true);
         }
@@ -735,17 +735,17 @@ public static class EndlessSeaIntroBoardRuntime
     {
         return new StarterDeckClaim
         {
-            Owner = SunExpIds.StarterDeckOwnerEndlessSea,
-            Scope = SunExpIds.EndlessSeaModeKey,
-            ModeId = "SunExp.EndlessSea",
+            Owner = TerriasIds.StarterDeckOwnerEndlessSea,
+            Scope = TerriasIds.EndlessSeaModeKey,
+            ModeId = "Terrias.EndlessSea",
             Source = "intro-board",
             State = StarterDeckArbiterRuntime.StateApplied,
-            AppliedKey = SunExpIds.EndlessSeaStarterDeckAppliedKey,
-            AppliedModeKey = SunExpIds.EndlessSeaStarterDeckModeKey,
+            AppliedKey = TerriasIds.EndlessSeaStarterDeckAppliedKey,
+            AppliedModeKey = TerriasIds.EndlessSeaStarterDeckModeKey,
             AppliedMode = profile.Id,
-            LegacyMode = "sunexp-endless-sea",
+            LegacyMode = "terrias-endless-sea",
             DeckSize = EndlessSeaStarterDeckCatalog.DeckSize,
-            SourceName = "SunExp.EndlessSea.IntroBoard"
+            SourceName = "Terrias.EndlessSea.IntroBoard"
         };
     }
 
@@ -753,22 +753,22 @@ public static class EndlessSeaIntroBoardRuntime
     {
         return StarterDeckArbiterRuntime.HasApplied(
                 roleTable,
-                SunExpIds.EndlessSeaStarterDeckAppliedKey,
-                SunExpIds.StarterDeckOwnerEndlessSea)
+                TerriasIds.EndlessSeaStarterDeckAppliedKey,
+                TerriasIds.StarterDeckOwnerEndlessSea)
             || roleTable.SpecialVarMap != null
-            && roleTable.SpecialVarMap.TryGetValue(SunExpIds.EndlessSeaStarterDeckAppliedKey, out var value)
+            && roleTable.SpecialVarMap.TryGetValue(TerriasIds.EndlessSeaStarterDeckAppliedKey, out var value)
             && value == "1";
     }
 
     private static void MarkApplied(RoleTable roleTable, string mode)
     {
         roleTable.SpecialVarMap ??= new Dictionary<string, string>();
-        roleTable.SpecialVarMap[SunExpIds.EndlessSeaIntroSeenKey] = "1";
-        roleTable.SpecialVarMap[SunExpIds.EndlessSeaStarterDeckAppliedKey] = "1";
-        roleTable.SpecialVarMap[SunExpIds.EndlessSeaStarterDeckModeKey] = mode;
-        roleTable.SpecialVarMap[SunExpIds.StarterDeckOwnerKey] = SunExpIds.StarterDeckOwnerEndlessSea;
-        roleTable.SpecialVarMap[SunExpIds.StarterDeckScopeKey] = SunExpIds.EndlessSeaModeKey;
-        roleTable.SpecialVarMap[SunExpIds.StarterDeckStateKey] = SunExpIds.StarterDeckStateApplied;
+        roleTable.SpecialVarMap[TerriasIds.EndlessSeaIntroSeenKey] = "1";
+        roleTable.SpecialVarMap[TerriasIds.EndlessSeaStarterDeckAppliedKey] = "1";
+        roleTable.SpecialVarMap[TerriasIds.EndlessSeaStarterDeckModeKey] = mode;
+        roleTable.SpecialVarMap[TerriasIds.StarterDeckOwnerKey] = TerriasIds.StarterDeckOwnerEndlessSea;
+        roleTable.SpecialVarMap[TerriasIds.StarterDeckScopeKey] = TerriasIds.EndlessSeaModeKey;
+        roleTable.SpecialVarMap[TerriasIds.StarterDeckStateKey] = TerriasIds.StarterDeckStateApplied;
     }
 
     private static Sprite? TryLoadPackCover(EndlessSeaStarterDeckProfile profile)
@@ -813,13 +813,13 @@ public static class EndlessSeaIntroBoardRuntime
     {
         try
         {
-            var data = SunExpConfigIndex.Row(DataType.CardPack, packId);
+            var data = TerriasConfigIndex.Row(DataType.CardPack, packId);
             var iconPath = DictionaryUtil.Get(data, "Icon");
-            return string.IsNullOrWhiteSpace(iconPath) ? null : SunExpResourceCache.Load<Sprite>(iconPath, true);
+            return string.IsNullOrWhiteSpace(iconPath) ? null : TerriasResourceCache.Load<Sprite>(iconPath, true);
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("[EndlessSeaIntro] failed to load pack cover for " + packId + ": " + ex.Message);
+            TerriasLog.Debug("[EndlessSeaIntro] failed to load pack cover for " + packId + ": " + ex.Message);
             return null;
         }
     }
@@ -834,16 +834,16 @@ public static class EndlessSeaIntroBoardRuntime
         Sprite? sprite = null;
         try
         {
-            var data = SunExpConfigIndex.Row(DataType.Card, cardId);
+            var data = TerriasConfigIndex.Row(DataType.Card, cardId);
             var iconPath = DictionaryUtil.Get(data, "Icon");
             if (!string.IsNullOrWhiteSpace(iconPath))
             {
-                sprite = SunExpResourceCache.Load<Sprite>(iconPath, true);
+                sprite = TerriasResourceCache.Load<Sprite>(iconPath, true);
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[EndlessSeaIntro] failed to load card icon for " + cardId + ": " + ex.Message);
+            TerriasLog.Warn("[EndlessSeaIntro] failed to load card icon for " + cardId + ": " + ex.Message);
         }
 
         cardIconCache[cardId] = sprite;
@@ -877,17 +877,17 @@ public static class EndlessSeaIntroBoardRuntime
     public static void ClosePanel(string source)
     {
         HideTooltip();
-        SunExpModalHost.Close(ref activePanel, source, "[EndlessSeaIntro]");
+        TerriasModalHost.Close(ref activePanel, source, "[EndlessSeaIntro]");
         activeTooltipLayer = null;
         hintText = null;
         deckButtons.Clear();
         deckSelectedFrames.Clear();
-        SunExpTransientUiRegistry.Unregister("EndlessSeaIntro");
+        TerriasTransientUiRegistry.Unregister("EndlessSeaIntro");
     }
 
     private static Text AddTextFill(Transform parent, string value, int fontSize, TextAnchor anchor, Color color)
     {
-        var rect = SunExpUiBuilder.CreateRect("Text", parent, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
+        var rect = TerriasUiBuilder.CreateRect("Text", parent, Vector2.zero, Vector2.one, Vector2.zero, Vector2.zero);
         var text = ConfigureText(rect.gameObject, value, fontSize, anchor, color);
         text.raycastTarget = false;
         return text;

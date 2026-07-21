@@ -2,17 +2,17 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using AuraUi.Shared;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using UnityEngine.UI;
 using Witch.Core;
 
-namespace SunExp.Dll.Hooks.Ui;
+namespace Terrias.Dll.Hooks.Ui;
 
 public static class FamiliarBlessingCodexPanel
 {
-    private const string PanelName = "SunExp_FamiliarBlessingCodexPanel";
+    private const string PanelName = "Terrias_FamiliarBlessingCodexPanel";
     private const string RegistryKey = "FamiliarBlessingCodex";
     private const string LogPrefix = "[FamiliarBlessingCodex]";
     private const float PoolPanelWidth = 224f;
@@ -54,24 +54,24 @@ public static class FamiliarBlessingCodexPanel
 
         try
         {
-            var parent = SunExpModalHost.ModalParent();
+            var parent = TerriasModalHost.ModalParent();
             if (parent == null)
             {
-                SunExpLog.Warn(LogPrefix + " modal parent is unavailable.");
+                TerriasLog.Warn(LogPrefix + " modal parent is unavailable.");
                 return;
             }
 
             pools = FamiliarBlessingCodexService.Pools();
             SelectInitialPool();
-            activePanel = SunExpModalHost.CreateFullscreenRoot(PanelName, parent, Backdrop);
-            SunExpTransientUiRegistry.Register(RegistryKey, Close);
+            activePanel = TerriasModalHost.CreateFullscreenRoot(PanelName, parent, Backdrop);
+            TerriasTransientUiRegistry.Register(RegistryKey, Close);
 
             var windowSize = ResolveWindowSize(parent);
-            var window = SunExpUiComponents.CreateVerticalWindow(
+            var window = TerriasUiComponents.CreateVerticalWindow(
                 "Window",
                 activePanel.transform,
                 windowSize,
-                SunExpUiSprites.Panel(LogPrefix),
+                TerriasUiSprites.Panel(LogPrefix),
                 WindowTint,
                 new RectOffset(22, 22, 16, 14),
                 8f);
@@ -83,7 +83,7 @@ public static class FamiliarBlessingCodexPanel
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Familiar blessing codex failed", ex);
+            TerriasLog.Error("Familiar blessing codex failed", ex);
             Close("FamiliarBlessingCodex.OpenFailed");
         }
     }
@@ -97,30 +97,30 @@ public static class FamiliarBlessingCodexPanel
         poolTitleText = null;
         pools = Array.Empty<FamiliarBlessingCodexPool>();
         selectedPoolId = "";
-        SunExpModalHost.Close(ref activePanel, source, LogPrefix);
-        SunExpTransientUiRegistry.Unregister(RegistryKey);
+        TerriasModalHost.Close(ref activePanel, source, LogPrefix);
+        TerriasTransientUiRegistry.Unregister(RegistryKey);
     }
 
     private static void CreateHeader(Transform parent)
     {
-        var header = SunExpUiComponents.CreatePanelSection(
+        var header = TerriasUiComponents.CreatePanelSection(
             "Header",
             parent,
-            SunExpUiSprites.Panel(LogPrefix),
+            TerriasUiSprites.Panel(LogPrefix),
             HeaderTint,
             50f,
             50f);
-        SunExpUiComponents.ConfigureVerticalLayout(header, new RectOffset(12, 12, 6, 6), 0f);
-        SunExpUiComponents.AddTextBlock(header.transform, "使魔祝福图鉴", 27, TextAnchor.MiddleCenter, Gold, 38f);
+        TerriasUiComponents.ConfigureVerticalLayout(header, new RectOffset(12, 12, 6, 6), 0f);
+        TerriasUiComponents.AddTextBlock(header.transform, "使魔祝福图鉴", 27, TextAnchor.MiddleCenter, Gold, 38f);
     }
 
     private static void CreateBody(Transform parent, Vector2 windowSize)
     {
-        var body = SunExpUiComponents.CreateLayoutObject("Body", parent);
+        var body = TerriasUiComponents.CreateLayoutObject("Body", parent);
         var bodyElement = AuraUiComponents.EnsureLayoutElement(body);
         bodyElement.minHeight = 360f;
         bodyElement.flexibleHeight = 1f;
-        SunExpUiComponents.ConfigureHorizontalLayout(
+        TerriasUiComponents.ConfigureHorizontalLayout(
             body,
             new RectOffset(0, 0, 0, 0),
             14f,
@@ -134,10 +134,10 @@ public static class FamiliarBlessingCodexPanel
 
     private static void CreatePoolSection(Transform parent)
     {
-        var section = SunExpUiComponents.CreatePanelSection(
+        var section = TerriasUiComponents.CreatePanelSection(
             "PoolSection",
             parent,
-            SunExpUiSprites.Panel(LogPrefix),
+            TerriasUiSprites.Panel(LogPrefix),
             SectionTint,
             360f,
             360f,
@@ -146,9 +146,9 @@ public static class FamiliarBlessingCodexPanel
         element.minWidth = PoolPanelWidth;
         element.preferredWidth = PoolPanelWidth;
         element.flexibleWidth = 0f;
-        SunExpUiComponents.ConfigureVerticalLayout(section, new RectOffset(10, 10, 10, 10), 8f);
-        SunExpUiComponents.AddTextBlock(section.transform, "祝福池", 19, TextAnchor.MiddleLeft, Gold, 30f);
-        poolContent = SunExpUiComponents.CreateVerticalScrollArea(
+        TerriasUiComponents.ConfigureVerticalLayout(section, new RectOffset(10, 10, 10, 10), 8f);
+        TerriasUiComponents.AddTextBlock(section.transform, "祝福池", 19, TextAnchor.MiddleLeft, Gold, 30f);
+        poolContent = TerriasUiComponents.CreateVerticalScrollArea(
             section.transform,
             "BlessingPools",
             280f,
@@ -160,10 +160,10 @@ public static class FamiliarBlessingCodexPanel
 
     private static void CreateCardSection(Transform parent, Vector2 windowSize)
     {
-        var section = SunExpUiComponents.CreatePanelSection(
+        var section = TerriasUiComponents.CreatePanelSection(
             "CardSection",
             parent,
-            SunExpUiSprites.Panel(LogPrefix),
+            TerriasUiSprites.Panel(LogPrefix),
             SectionTint,
             360f,
             360f,
@@ -171,12 +171,12 @@ public static class FamiliarBlessingCodexPanel
         var element = AuraUiComponents.EnsureLayoutElement(section);
         element.minWidth = 520f;
         element.flexibleWidth = 1f;
-        SunExpUiComponents.ConfigureVerticalLayout(section, new RectOffset(12, 12, 10, 10), 8f);
-        poolTitleText = SunExpUiComponents.AddTextBlock(section.transform, "", 20, TextAnchor.MiddleLeft, Gold, 30f);
+        TerriasUiComponents.ConfigureVerticalLayout(section, new RectOffset(12, 12, 10, 10), 8f);
+        poolTitleText = TerriasUiComponents.AddTextBlock(section.transform, "", 20, TextAnchor.MiddleLeft, Gold, 30f);
 
         var rightWidth = windowSize.x - 44f - 14f - PoolPanelWidth - 24f;
         var cardWidth = Mathf.Max(250f, (rightWidth - CardSpacing) * 0.5f);
-        cardContent = SunExpUiComponents.CreateUniformGridScrollArea(
+        cardContent = TerriasUiComponents.CreateUniformGridScrollArea(
             section.transform,
             "BlessingCards",
             280f,
@@ -191,14 +191,14 @@ public static class FamiliarBlessingCodexPanel
 
     private static void CreateFooter(Transform parent)
     {
-        var footer = SunExpUiComponents.CreateFooterRow(parent, 42f, new RectOffset(10, 10, 4, 4), 10f);
-        SunExpUiBuilder.ApplyPanelImage(footer, SunExpUiSprites.Panel(LogPrefix), HeaderTint, true);
-        SunExpUiComponents.AddTextBlock(footer.transform, "", 13, TextAnchor.MiddleLeft, Pale, 34f, 1f);
-        SunExpUiComponents.CreateTextButton(
+        var footer = TerriasUiComponents.CreateFooterRow(parent, 42f, new RectOffset(10, 10, 4, 4), 10f);
+        TerriasUiBuilder.ApplyPanelImage(footer, TerriasUiSprites.Panel(LogPrefix), HeaderTint, true);
+        TerriasUiComponents.AddTextBlock(footer.transform, "", 13, TextAnchor.MiddleLeft, Pale, 34f, 1f);
+        TerriasUiComponents.CreateTextButton(
             footer.transform,
             "关闭",
             new Vector2(112f, 34f),
-            SunExpUiSprites.Button(LogPrefix),
+            TerriasUiSprites.Button(LogPrefix),
             HeaderTint,
             Pale,
             15,
@@ -235,7 +235,7 @@ public static class FamiliarBlessingCodexPanel
         {
             var poolId = pool.Id;
             var selected = string.Equals(poolId, selectedPoolId, StringComparison.OrdinalIgnoreCase);
-            SunExpUiComponents.CreateTextButton(
+            TerriasUiComponents.CreateTextButton(
                 poolContent,
                 pool.Name + "  " + pool.Blessings.Count,
                 new Vector2(PoolPanelWidth - 20f, 40f),
@@ -280,7 +280,7 @@ public static class FamiliarBlessingCodexPanel
 
         foreach (var blessing in selected.Blessings)
         {
-            SunExpUiComponents.CreateBadgeContentCard(
+            TerriasUiComponents.CreateBadgeContentCard(
                 cardContent,
                 "Blessing-" + blessing.Id,
                 blessing.TierLabel,
@@ -289,7 +289,7 @@ public static class FamiliarBlessingCodexPanel
                 66f,
                 22f,
                 40f,
-                SunExpUiSprites.Label(LogPrefix),
+                TerriasUiSprites.Label(LogPrefix),
                 CardTint,
                 TierColor(blessing.Tier),
                 Pale,
@@ -311,7 +311,7 @@ public static class FamiliarBlessingCodexPanel
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn(LogPrefix + " failed to parse blessing description for " + blessing.Id + ": " + ex.Message);
+            TerriasLog.Warn(LogPrefix + " failed to parse blessing description for " + blessing.Id + ": " + ex.Message);
             return blessing.Description;
         }
     }
@@ -344,7 +344,7 @@ public static class FamiliarBlessingCodexPanel
     {
         if (content != null)
         {
-            SunExpUiPool.ReleaseOrDestroyChildren(content, "FamiliarBlessingCodex." + area, LogPrefix);
+            TerriasUiPool.ReleaseOrDestroyChildren(content, "FamiliarBlessingCodex." + area, LogPrefix);
         }
     }
 }

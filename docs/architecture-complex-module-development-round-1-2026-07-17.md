@@ -59,7 +59,7 @@
 - `Test-AuraSharedCore.ps1`；
 - `Test-SharedArchitectureGuidelines.ps1`；
 - `Test-NetworkRpcAuthority.ps1`；
-- `Test-SunExpCSharp.ps1`；
+- `Test-TerriasCSharp.ps1`；
 - `AuraToolsExp-Dev.Tests` 的 Audio 与 Aura CG 架构断言。
 
 因此，把 RPC、resolver 或 component 的实现移动到同目录其他文件，不会因为旧文件名假设产生伪回归。

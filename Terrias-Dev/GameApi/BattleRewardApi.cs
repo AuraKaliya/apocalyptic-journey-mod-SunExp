@@ -4,14 +4,14 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using AuraGameData.Shared.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using Witch;
 using Witch.Core;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class BattleRewardApi
 {
@@ -89,14 +89,14 @@ public static class BattleRewardApi
                 relicRewards.Clear();
             }
 
-            SunExpLog.Debug("[BattleRewardApi] cleared generated rewards from "
+            TerriasLog.Debug("[BattleRewardApi] cleared generated rewards from "
                 + source
                 + "; snapshot="
                 + GeneratedRewardSnapshot(rewardUi));
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[BattleRewardApi] clear generated rewards failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[BattleRewardApi] clear generated rewards failed from " + source + ": " + ex.Message);
         }
     }
 
@@ -171,7 +171,7 @@ public static class BattleRewardApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[BattleRewardApi] random card reward failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[BattleRewardApi] random card reward failed from " + source + ": " + ex.Message);
             return false;
         }
     }
@@ -193,7 +193,7 @@ public static class BattleRewardApi
             var candidates = BuildRandomRelicRewardRows(rarities);
             if (candidates.Count == 0)
             {
-                SunExpLog.Warn("[BattleRewardApi] random relic reward skipped; no candidates from " + source);
+                TerriasLog.Warn("[BattleRewardApi] random relic reward skipped; no candidates from " + source);
                 return false;
             }
 
@@ -202,7 +202,7 @@ public static class BattleRewardApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[BattleRewardApi] random relic reward failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[BattleRewardApi] random relic reward failed from " + source + ": " + ex.Message);
             return false;
         }
     }
@@ -221,7 +221,7 @@ public static class BattleRewardApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[BattleRewardApi] random blessing reward failed from " + source + ": " + ex.Message);
+            TerriasLog.Warn("[BattleRewardApi] random blessing reward failed from " + source + ": " + ex.Message);
             return false;
         }
     }
@@ -277,7 +277,7 @@ public static class BattleRewardApi
         var candidates = all
             .Where(row => row != null
                 && RarityAllowed(row)
-                && !SunExpIds.IsHiddenRelicId(DictionaryUtil.Get(row, "Id"))
+                && !TerriasIds.IsHiddenRelicId(DictionaryUtil.Get(row, "Id"))
                 && !role.relicGets.ContainsKey(DictionaryUtil.Get(row, "Id"))
                 && !Singleton<GameRuntimeData>.Instance.IsLocked(DictionaryUtil.Get(row, "Id")))
             .ToList();
@@ -296,7 +296,7 @@ public static class BattleRewardApi
         return all
             .Where(row => row != null
                 && RarityAllowed(row)
-                && !SunExpIds.IsHiddenRelicId(DictionaryUtil.Get(row, "Id")))
+                && !TerriasIds.IsHiddenRelicId(DictionaryUtil.Get(row, "Id")))
             .ToList();
     }
 

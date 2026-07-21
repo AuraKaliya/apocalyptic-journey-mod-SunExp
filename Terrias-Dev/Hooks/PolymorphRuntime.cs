@@ -1,13 +1,13 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Hooks.Visual;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Hooks.Visual;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class PolymorphRuntime
 {
@@ -18,28 +18,28 @@ public static class PolymorphRuntime
     {
         PolymorphRoleCropRegistry.Load(modConfig);
         PolymorphCardFaceRuntime.Initialize(modConfig);
-        SunExpBattleLifecycleRouter.Register("Polymorph", new SunExpBattleLifecycleSubscription
+        TerriasBattleLifecycleRouter.Register("Polymorph", new TerriasBattleLifecycleSubscription
         {
             AdventureStarting = context => ClearAdventure("AdventureStarting"),
             FightStarted = context => ClearBattle("Fight_Start.Init"),
             FightEnding = context => ClearBattle("FightEnding")
         });
-        RegisterBefore(modConfig, SunExpHookTargets.FightWinInit, context => ClearBattle("Fight_Win.Init:before"));
-        RegisterBefore(modConfig, SunExpHookTargets.FightLossInit, context => ClearBattle("Fight_Loss.Init:before"));
-        RegisterBefore(modConfig, SunExpHookTargets.FightEscapeInit, context => ClearBattle("Fight_Escape.Init:before"));
-        RegisterBefore(modConfig, SunExpHookTargets.SkillItemTrueUse, CaptureSkillUseBefore);
-        RegisterAfter(modConfig, SunExpHookTargets.SkillItemTrueUse, MarkSkillUseAfter);
-        SunExpLog.Info("Polymorph runtime initialized");
+        RegisterBefore(modConfig, TerriasHookTargets.FightWinInit, context => ClearBattle("Fight_Win.Init:before"));
+        RegisterBefore(modConfig, TerriasHookTargets.FightLossInit, context => ClearBattle("Fight_Loss.Init:before"));
+        RegisterBefore(modConfig, TerriasHookTargets.FightEscapeInit, context => ClearBattle("Fight_Escape.Init:before"));
+        RegisterBefore(modConfig, TerriasHookTargets.SkillItemTrueUse, CaptureSkillUseBefore);
+        RegisterAfter(modConfig, TerriasHookTargets.SkillItemTrueUse, MarkSkillUseAfter);
+        TerriasLog.Info("Polymorph runtime initialized");
     }
 
     private static void RegisterBefore(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.Before(config, target, action, "Polymorph");
+        TerriasHookRegistry.Before(config, target, action, "Polymorph");
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
-        SunExpHookRegistry.After(config, target, action, "Polymorph");
+        TerriasHookRegistry.After(config, target, action, "Polymorph");
     }
 
     private static void ClearBattle(string source)
@@ -52,7 +52,7 @@ public static class PolymorphRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Polymorph battle cleanup failed from " + source, ex);
+            TerriasLog.Error("Polymorph battle cleanup failed from " + source, ex);
         }
     }
 
@@ -79,7 +79,7 @@ public static class PolymorphRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[Polymorph] failed to capture skill use: " + ex.Message);
+            TerriasLog.Warn("[Polymorph] failed to capture skill use: " + ex.Message);
         }
     }
 
@@ -96,7 +96,7 @@ public static class PolymorphRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[Polymorph] failed to mark skill use: " + ex.Message);
+            TerriasLog.Warn("[Polymorph] failed to mark skill use: " + ex.Message);
         }
     }
 

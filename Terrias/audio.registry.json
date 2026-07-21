@@ -1,6 +1,6 @@
 {
   "schemaVersion": 2,
-  "ownerModId": "SunExp",
+  "ownerModId": "Terrias",
   "audioProtocol": {
     "minVersion": 2,
     "preferredVersion": 2
@@ -14,41 +14,41 @@
   },
   "providers": [
     {
-      "providerId": "SunExp.Wuna.CareerSelected",
+      "providerId": "Terrias.Wuna.CareerSelected",
       "kind": "CareerSelected",
       "bus": "Vocal",
       "policy": "ReplaceOriginal",
       "priority": 100,
-      "path": "Shared:Audio/Role/SunExp_wuna_wuna/Voice/SunExp/wuna.voice-pack/content/wuna_career_selected.wav",
+      "path": "Shared:Audio/Role/Terrias_wuna_wuna/Voice/Terrias/wuna.voice-pack/content/wuna_career_selected.wav",
       "gainDb": 20,
       "match": {
         "careerIds": [
           "wuna",
-          "SunExp_wuna_wuna"
+          "Terrias_wuna_wuna"
         ],
         "roleIds": [
           "wuna",
-          "SunExp_wuna_wuna"
+          "Terrias_wuna_wuna"
         ]
       }
     },
     {
-      "providerId": "SunExp.Wuna.LowHealth",
+      "providerId": "Terrias.Wuna.LowHealth",
       "kind": "LowHealth",
       "bus": "Vocal",
       "policy": "ReplaceOriginal",
       "priority": 200,
-      "path": "Shared:Audio/Role/SunExp_wuna_wuna/Voice/SunExp/wuna.voice-pack/content/wuna_low_health.wav",
+      "path": "Shared:Audio/Role/Terrias_wuna_wuna/Voice/Terrias/wuna.voice-pack/content/wuna_low_health.wav",
       "gainDb": 22,
       "cooldownSeconds": 1.0,
       "match": {
         "careerIds": [
           "wuna",
-          "SunExp_wuna_wuna"
+          "Terrias_wuna_wuna"
         ],
         "roleIds": [
           "wuna",
-          "SunExp_wuna_wuna"
+          "Terrias_wuna_wuna"
         ],
         "hpRatioCrossDown": 0.2,
         "localOwnerOnly": true
@@ -64,62 +64,62 @@
       }
     },
     {
-      "providerId": "SunExp.Wuna.WhiteSunPrayer",
-      "kind": "SunExp.Wuna.WhiteSunPrayer",
+      "providerId": "Terrias.Wuna.WhiteSunPrayer",
+      "kind": "Terrias.Wuna.WhiteSunPrayer",
       "bus": "Vocal",
       "policy": "Additive",
       "priority": 120,
-      "path": "Shared:Audio/Role/SunExp_wuna_wuna/Voice/SunExp/wuna.voice-pack/content/wuna_white_sun_prayer.wav",
+      "path": "Shared:Audio/Role/Terrias_wuna_wuna/Voice/Terrias/wuna.voice-pack/content/wuna_white_sun_prayer.wav",
       "gainDb": 20,
       "cooldownSeconds": 0.2,
       "match": {
         "careerIds": [
           "wuna",
-          "SunExp_wuna_wuna"
+          "Terrias_wuna_wuna"
         ],
         "roleIds": [
           "wuna",
-          "SunExp_wuna_wuna"
+          "Terrias_wuna_wuna"
         ]
       }
     },
     {
-      "providerId": "SunExp.Wuna.GraveSong",
-      "kind": "SunExp.Wuna.GraveSong",
+      "providerId": "Terrias.Wuna.GraveSong",
+      "kind": "Terrias.Wuna.GraveSong",
       "bus": "Vocal",
       "policy": "Additive",
       "priority": 120,
-      "path": "Shared:Audio/Role/SunExp_wuna_wuna/Voice/SunExp/wuna.voice-pack/content/wuna_grave_song.wav",
+      "path": "Shared:Audio/Role/Terrias_wuna_wuna/Voice/Terrias/wuna.voice-pack/content/wuna_grave_song.wav",
       "gainDb": 20,
       "cooldownSeconds": 0.2,
       "match": {
         "careerIds": [
           "wuna",
-          "SunExp_wuna_wuna"
+          "Terrias_wuna_wuna"
         ],
         "roleIds": [
           "wuna",
-          "SunExp_wuna_wuna"
+          "Terrias_wuna_wuna"
         ]
       }
     },
     {
-      "providerId": "SunExp.Wuna.BattleWin",
+      "providerId": "Terrias.Wuna.BattleWin",
       "kind": "BattleCompleted",
       "bus": "Vocal",
       "policy": "Additive",
       "priority": 100,
-      "path": "Shared:Audio/Role/SunExp_wuna_wuna/Voice/SunExp/wuna.voice-pack/content/wuna_battle_win.wav",
+      "path": "Shared:Audio/Role/Terrias_wuna_wuna/Voice/Terrias/wuna.voice-pack/content/wuna_battle_win.wav",
       "gainDb": 20,
       "cooldownSeconds": 0.5,
       "match": {
         "careerIds": [
           "wuna",
-          "SunExp_wuna_wuna"
+          "Terrias_wuna_wuna"
         ],
         "roleIds": [
           "wuna",
-          "SunExp_wuna_wuna"
+          "Terrias_wuna_wuna"
         ],
         "battleResults": [
           "Win"
@@ -127,49 +127,49 @@
       }
     },
     {
-      "providerId": "SunExp.Columbina.CareerSelected",
+      "providerId": "Terrias.Columbina.CareerSelected",
       "kind": "CareerSelected",
       "bus": "Vocal",
       "policy": "ReplaceOriginal",
       "priority": 100,
-      "path": "Shared:Audio/Role/SunExp_columbina_columbina/Voice/SunExp/columbina.voice-pack/content/columbina_career_selected_01.ogg",
+      "path": "Shared:Audio/Role/Terrias_columbina_columbina/Voice/Terrias/columbina.voice-pack/content/columbina_career_selected_01.ogg",
       "variantPaths": [
-        "Shared:Audio/Role/SunExp_columbina_columbina/Voice/SunExp/columbina.voice-pack/content/columbina_career_selected_02.ogg",
-        "Shared:Audio/Role/SunExp_columbina_columbina/Voice/SunExp/columbina.voice-pack/content/columbina_career_selected_03.ogg",
-        "Shared:Audio/Role/SunExp_columbina_columbina/Voice/SunExp/columbina.voice-pack/content/columbina_career_selected_04.ogg"
+        "Shared:Audio/Role/Terrias_columbina_columbina/Voice/Terrias/columbina.voice-pack/content/columbina_career_selected_02.ogg",
+        "Shared:Audio/Role/Terrias_columbina_columbina/Voice/Terrias/columbina.voice-pack/content/columbina_career_selected_03.ogg",
+        "Shared:Audio/Role/Terrias_columbina_columbina/Voice/Terrias/columbina.voice-pack/content/columbina_career_selected_04.ogg"
       ],
       "gainDb": 8,
       "match": {
         "careerIds": [
           "columbina",
-          "SunExp_columbina_columbina"
+          "Terrias_columbina_columbina"
         ],
         "roleIds": [
           "columbina",
-          "SunExp_columbina_columbina"
+          "Terrias_columbina_columbina"
         ]
       }
     },
     {
-      "providerId": "SunExp.Columbina.LowHealth",
+      "providerId": "Terrias.Columbina.LowHealth",
       "kind": "LowHealth",
       "bus": "Vocal",
       "policy": "ReplaceOriginal",
       "priority": 200,
-      "path": "Shared:Audio/Role/SunExp_columbina_columbina/Voice/SunExp/columbina.voice-pack/content/columbina_low_health_01.ogg",
+      "path": "Shared:Audio/Role/Terrias_columbina_columbina/Voice/Terrias/columbina.voice-pack/content/columbina_low_health_01.ogg",
       "variantPaths": [
-        "Shared:Audio/Role/SunExp_columbina_columbina/Voice/SunExp/columbina.voice-pack/content/columbina_low_health_02.ogg"
+        "Shared:Audio/Role/Terrias_columbina_columbina/Voice/Terrias/columbina.voice-pack/content/columbina_low_health_02.ogg"
       ],
       "gainDb": 8,
       "cooldownSeconds": 1.0,
       "match": {
         "careerIds": [
           "columbina",
-          "SunExp_columbina_columbina"
+          "Terrias_columbina_columbina"
         ],
         "roleIds": [
           "columbina",
-          "SunExp_columbina_columbina"
+          "Terrias_columbina_columbina"
         ],
         "hpRatioCrossDown": 0.2,
         "localOwnerOnly": true
@@ -185,50 +185,50 @@
       }
     },
     {
-      "providerId": "SunExp.Columbina.EternalTide",
-      "kind": "SunExp.Columbina.EternalTide",
+      "providerId": "Terrias.Columbina.EternalTide",
+      "kind": "Terrias.Columbina.EternalTide",
       "bus": "Vocal",
       "policy": "Additive",
       "priority": 120,
-      "path": "Shared:Audio/Role/SunExp_columbina_columbina/Voice/SunExp/columbina.voice-pack/content/columbina_eternal_tide_01.ogg",
+      "path": "Shared:Audio/Role/Terrias_columbina_columbina/Voice/Terrias/columbina.voice-pack/content/columbina_eternal_tide_01.ogg",
       "variantPaths": [
-        "Shared:Audio/Role/SunExp_columbina_columbina/Voice/SunExp/columbina.voice-pack/content/columbina_eternal_tide_02.ogg",
-        "Shared:Audio/Role/SunExp_columbina_columbina/Voice/SunExp/columbina.voice-pack/content/columbina_eternal_tide_03.ogg"
+        "Shared:Audio/Role/Terrias_columbina_columbina/Voice/Terrias/columbina.voice-pack/content/columbina_eternal_tide_02.ogg",
+        "Shared:Audio/Role/Terrias_columbina_columbina/Voice/Terrias/columbina.voice-pack/content/columbina_eternal_tide_03.ogg"
       ],
       "gainDb": 8,
       "cooldownSeconds": 0.2,
       "match": {
         "careerIds": [
           "columbina",
-          "SunExp_columbina_columbina"
+          "Terrias_columbina_columbina"
         ],
         "roleIds": [
           "columbina",
-          "SunExp_columbina_columbina"
+          "Terrias_columbina_columbina"
         ]
       }
     },
     {
-      "providerId": "SunExp.Columbina.Homesickness",
-      "kind": "SunExp.Columbina.Homesickness",
+      "providerId": "Terrias.Columbina.Homesickness",
+      "kind": "Terrias.Columbina.Homesickness",
       "bus": "Vocal",
       "policy": "Additive",
       "priority": 120,
-      "path": "Shared:Audio/Role/SunExp_columbina_columbina/Voice/SunExp/columbina.voice-pack/content/columbina_homesickness_01.ogg",
+      "path": "Shared:Audio/Role/Terrias_columbina_columbina/Voice/Terrias/columbina.voice-pack/content/columbina_homesickness_01.ogg",
       "variantPaths": [
-        "Shared:Audio/Role/SunExp_columbina_columbina/Voice/SunExp/columbina.voice-pack/content/columbina_homesickness_02.ogg",
-        "Shared:Audio/Role/SunExp_columbina_columbina/Voice/SunExp/columbina.voice-pack/content/columbina_homesickness_03.ogg"
+        "Shared:Audio/Role/Terrias_columbina_columbina/Voice/Terrias/columbina.voice-pack/content/columbina_homesickness_02.ogg",
+        "Shared:Audio/Role/Terrias_columbina_columbina/Voice/Terrias/columbina.voice-pack/content/columbina_homesickness_03.ogg"
       ],
       "gainDb": 8,
       "cooldownSeconds": 0.2,
       "match": {
         "careerIds": [
           "columbina",
-          "SunExp_columbina_columbina"
+          "Terrias_columbina_columbina"
         ],
         "roleIds": [
           "columbina",
-          "SunExp_columbina_columbina"
+          "Terrias_columbina_columbina"
         ]
       }
     }

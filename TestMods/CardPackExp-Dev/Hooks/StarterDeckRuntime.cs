@@ -20,7 +20,7 @@ public static class StarterDeckRuntime
     private const string SharedOwnerKey = "StarterDeck.Owner";
     private const string SharedScopeKey = "StarterDeck.Scope";
     private const string SharedStateKey = "StarterDeck.State";
-    private const string SunExpSolarMemoryModeKey = "SunExp_SolarMemoryMode";
+    private const string TerriasSolarMemoryModeKey = "Terrias_SolarMemoryMode";
     private const int StarterDeckSize = 11;
     private const string ButtonSpritePath = "Mods/CardPackExp/ui-img/button-\u4e5d\u5bab\u683c.png";
     private const string PanelSpritePath = "Mods/CardPackExp/ui-img/background-\u4e5d\u5bab\u683c.png";
@@ -165,9 +165,9 @@ public static class StarterDeckRuntime
 
     private static bool ShouldSkipForExternalOwner(RoleTable roleTable)
     {
-        if (IsSunExpSolarMemoryRun())
+        if (IsTerriasSolarMemoryRun())
         {
-            CardPackExpLog.Info("[StarterDeck] skipped: SunExp Solar Memory owns this run.");
+            CardPackExpLog.Info("[StarterDeck] skipped: Terrias Solar Memory owns this run.");
             return true;
         }
 
@@ -185,20 +185,20 @@ public static class StarterDeckRuntime
         }
 
         if (roleTable.SpecialVarMap.TryGetValue(AppliedKey + ".Mode", out var legacyMode)
-            && string.Equals(legacyMode, "sunexp-solar-memory", StringComparison.OrdinalIgnoreCase))
+            && string.Equals(legacyMode, "terrias-solar-memory", StringComparison.OrdinalIgnoreCase))
         {
-            CardPackExpLog.Info("[StarterDeck] skipped: compatibility owner is SunExp Solar Memory.");
+            CardPackExpLog.Info("[StarterDeck] skipped: compatibility owner is Terrias Solar Memory.");
             return true;
         }
 
         return false;
     }
 
-    private static bool IsSunExpSolarMemoryRun()
+    private static bool IsTerriasSolarMemoryRun()
     {
         try
         {
-            return GameSaveManager.GetValue<string>(SunExpSolarMemoryModeKey) == "1";
+            return GameSaveManager.GetValue<string>(TerriasSolarMemoryModeKey) == "1";
         }
         catch
         {

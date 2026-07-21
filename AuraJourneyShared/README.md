@@ -51,7 +51,7 @@ ownerModId:localJourneyId
 Examples:
 
 ```text
-SunExp:solar-memory
+Terrias:solar-memory
 SanGuoShaExp:lord-trial
 ```
 

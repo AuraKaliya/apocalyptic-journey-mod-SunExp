@@ -1,7 +1,7 @@
 using System;
 using System.Collections.Generic;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public enum RoleActionTargetMode
 {
@@ -56,7 +56,7 @@ public static class RoleActionPresentationCatalog
     {
         var normalized = NormalizeRoleId(roleId);
         return string.Equals(normalized, "wuna", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(normalized, "SunExp_wuna_wuna", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(normalized, "Terrias_wuna_wuna", StringComparison.OrdinalIgnoreCase)
             || normalized.EndsWith("_wuna", StringComparison.OrdinalIgnoreCase)
             || normalized.EndsWith(":wuna", StringComparison.OrdinalIgnoreCase)
             || normalized.EndsWith(".wuna", StringComparison.OrdinalIgnoreCase);
@@ -66,7 +66,7 @@ public static class RoleActionPresentationCatalog
     {
         var normalized = NormalizeRoleId(roleId);
         return string.Equals(normalized, "columbina", StringComparison.OrdinalIgnoreCase)
-            || string.Equals(normalized, "SunExp_columbina_columbina", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(normalized, "Terrias_columbina_columbina", StringComparison.OrdinalIgnoreCase)
             || normalized.EndsWith("_columbina", StringComparison.OrdinalIgnoreCase)
             || normalized.EndsWith(":columbina", StringComparison.OrdinalIgnoreCase)
             || normalized.EndsWith(".columbina", StringComparison.OrdinalIgnoreCase);
@@ -80,7 +80,7 @@ public static class RoleActionPresentationCatalog
     private static string NormalizeContentId(string value)
     {
         var normalized = (value ?? "").Trim().TrimStart('*');
-        const string fullPrefix = "SunExp_sunexp_";
+        const string fullPrefix = "Terrias_terrias_";
         if (normalized.StartsWith(fullPrefix, StringComparison.OrdinalIgnoreCase))
         {
             normalized = normalized.Substring(fullPrefix.Length);

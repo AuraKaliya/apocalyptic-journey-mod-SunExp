@@ -14,7 +14,7 @@ function Resolve-ModRoot {
     param([string]$Requested)
     $repoRoot = Get-RepoRoot
     if ([string]::IsNullOrWhiteSpace($Requested)) {
-        return (Resolve-Path -LiteralPath (Join-Path $repoRoot "SunExp")).Path
+        return (Resolve-Path -LiteralPath (Join-Path $repoRoot "Terrias")).Path
     }
     if (-not [System.IO.Path]::IsPathRooted($Requested)) {
         $Requested = Join-Path $repoRoot $Requested
@@ -45,8 +45,8 @@ function Normalize-Id {
 }
 
 $modRootPath = Resolve-ModRoot $ModRoot
-$dataRows = Read-Rows (Join-Path $modRootPath "Data\EventList\sunexp.csv")
-$textRows = Read-Rows (Join-Path $modRootPath "Text\EventList\sunexp.csv")
+$dataRows = Read-Rows (Join-Path $modRootPath "Data\EventList\terrias.csv")
+$textRows = Read-Rows (Join-Path $modRootPath "Text\EventList\terrias.csv")
 
 $textById = @{}
 foreach ($row in $textRows) {

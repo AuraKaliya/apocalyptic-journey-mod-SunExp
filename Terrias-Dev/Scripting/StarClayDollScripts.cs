@@ -1,9 +1,9 @@
 using System;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 
-namespace SunExp.Dll.Scripting;
+namespace Terrias.Dll.Scripting;
 
 public static class StarClayDollScripts
 {
@@ -16,19 +16,19 @@ public static class StarClayDollScripts
                 return;
             }
 
-            BuffApi.SetExactLevel(self.Self, SunExpIds.StarClayBody, 1);
-            var token = ExecutorApi.RegisterHook(self, "SunExpStarClayDollHook", "SunExpStarClayDollToken");
+            BuffApi.SetExactLevel(self.Self, TerriasIds.StarClayBody, 1);
+            var token = ExecutorApi.RegisterHook(self, "TerriasStarClayDollHook", "TerriasStarClayDollToken");
             if (token == null)
             {
                 return;
             }
 
-            ExecutorApi.TryAddTokenedEvent(self, "ActionAfter", "SunExpStarClayDollToken", token,
+            ExecutorApi.TryAddTokenedEvent(self, "ActionAfter", "TerriasStarClayDollToken", token,
                 new Action(() => StarScoreService.AddStarlight(self, 1)), "star_clay_doll");
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Star Clay Doll trait apply failed", ex);
+            TerriasLog.Error("Star Clay Doll trait apply failed", ex);
         }
     }
 
@@ -36,11 +36,11 @@ public static class StarClayDollScripts
     {
         try
         {
-            ExecutorApi.ClearHook(self, "SunExpStarClayDollHook", "SunExpStarClayDollToken");
+            ExecutorApi.ClearHook(self, "TerriasStarClayDollHook", "TerriasStarClayDollToken");
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Star Clay Doll trait clear failed", ex);
+            TerriasLog.Error("Star Clay Doll trait clear failed", ex);
         }
     }
 }

@@ -4,9 +4,9 @@ using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
 using Data.Save;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class PlayerApi
 {
@@ -229,7 +229,7 @@ public static class PlayerApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("[PlayerApi] player career lookup failed: player=" + playerId + "; error=" + ex.Message);
+            TerriasLog.Debug("[PlayerApi] player career lookup failed: player=" + playerId + "; error=" + ex.Message);
         }
 
         return "";
@@ -298,7 +298,7 @@ public static class PlayerApi
                 message = "";
                 if (!invoked)
                 {
-                    SunExpLog.Warn("PlayerInfo.AddCard changed deck but returned failure: " + error);
+                    TerriasLog.Warn("PlayerInfo.AddCard changed deck but returned failure: " + error);
                 }
 
                 return true;
@@ -309,7 +309,7 @@ public static class PlayerApi
                 : error;
         }
 
-        SunExpLog.Warn("PlayerInfo.AddCard verification failed: " + message);
+        TerriasLog.Warn("PlayerInfo.AddCard verification failed: " + message);
         return false;
     }
 
@@ -347,7 +347,7 @@ public static class PlayerApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("PlayerInfo." + methodName + " failed: " + ex.Message);
+            TerriasLog.Warn("PlayerInfo." + methodName + " failed: " + ex.Message);
             return null;
         }
     }
@@ -423,7 +423,7 @@ public static class PlayerApi
         catch (Exception ex)
         {
             error = "PlayerInfo." + methodName + " failed: " + ex.Message;
-            SunExpLog.Warn(error);
+            TerriasLog.Warn(error);
             return false;
         }
     }
@@ -438,7 +438,7 @@ public static class PlayerApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("Owned card snapshot failed: " + ex.Message);
+            TerriasLog.Debug("Owned card snapshot failed: " + ex.Message);
         }
 
         return snapshot;
@@ -572,7 +572,7 @@ public static class PlayerApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("PlayerInfo." + name + " set failed: " + ex.Message);
+            TerriasLog.Warn("PlayerInfo." + name + " set failed: " + ex.Message);
         }
 
         return false;

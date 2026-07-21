@@ -1,6 +1,6 @@
-namespace SunExp.Dll.Infrastructure;
+namespace Terrias.Dll.Infrastructure;
 
-public enum SunExpFieldId
+public enum TerriasFieldId
 {
     None = 0,
     ScorchingCanopy = 1,

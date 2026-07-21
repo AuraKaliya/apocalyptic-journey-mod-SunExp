@@ -1,9 +1,9 @@
 using System;
 using System.Reflection;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class FightUiCardLayoutApi
 {
@@ -18,22 +18,22 @@ public static class FightUiCardLayoutApi
 
         if (UpdateCardItemPosMethod == null)
         {
-            SunExpLog.WarnOnce(
+            TerriasLog.WarnOnce(
                 "FightUiCardLayoutApi.UpdateCardItemPosUnavailable",
                 "[FightUiCardLayout] no compatible FightUI.UpdateCardItemPos signature was found.");
-            SunExpPerformanceCounters.Record("FightUiCardLayout.SignatureUnavailable");
+            TerriasPerformanceCounters.Record("FightUiCardLayout.SignatureUnavailable");
             return false;
         }
 
-        var start = SunExpPerformanceCounters.Timestamp();
+        var start = TerriasPerformanceCounters.Timestamp();
         try
         {
             var parameterCount = UpdateCardItemPosMethod.GetParameters().Length;
             UpdateCardItemPosMethod.Invoke(
                 fightUi,
                 parameterCount == 0 ? null : new object?[parameterCount]);
-            SunExpPerformanceCounters.Record("FightUiCardLayout.Applied");
-            SunExpPerformanceCounters.RecordDuration("FightUiCardLayout.Apply", start);
+            TerriasPerformanceCounters.Record("FightUiCardLayout.Applied");
+            TerriasPerformanceCounters.RecordDuration("FightUiCardLayout.Apply", start);
             return true;
         }
         catch (Exception ex)
@@ -41,8 +41,8 @@ public static class FightUiCardLayoutApi
             var reason = ex is TargetInvocationException { InnerException: not null }
                 ? ex.InnerException!.Message
                 : ex.Message;
-            SunExpLog.Warn("[FightUiCardLayout] layout failed from " + (source ?? "") + ": " + reason);
-            SunExpPerformanceCounters.Record("FightUiCardLayout.Failed");
+            TerriasLog.Warn("[FightUiCardLayout] layout failed from " + (source ?? "") + ": " + reason);
+            TerriasPerformanceCounters.Record("FightUiCardLayout.Failed");
             return false;
         }
     }

@@ -1,17 +1,17 @@
 using System;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Hooks.Ui;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
-using SunExp.Dll.Network;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Hooks.Ui;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
+using Terrias.Dll.Network;
 using Witch.Core;
 using Witch.Mod;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class FieldRuntime
 {
-    private const string RoundSequenceKey = "SunExpField_RoundSequence";
+    private const string RoundSequenceKey = "TerriasField_RoundSequence";
     private static bool initialized;
 
     public static void Initialize(ModConfig modConfig)
@@ -26,15 +26,15 @@ public static class FieldRuntime
         FieldEffectRegistry.Changed += OnFieldEffectConfigChanged;
         FieldApi.Changed -= OnFieldChanged;
         FieldApi.Changed += OnFieldChanged;
-        SunExpBattleLifecycleRouter.Register("FieldRuntime", new SunExpBattleLifecycleSubscription
+        TerriasBattleLifecycleRouter.Register("FieldRuntime", new TerriasBattleLifecycleSubscription
         {
             FightInitializing = context => ResetFightState("FightInitializing"),
             FightOpening = OnFightOpening,
             FightEnding = context => ResetFightState("FightEnding"),
             FightEnded = context => ResetFightState("FightEnded")
         });
-        SunExpHookRegistry.Before(modConfig, SunExpHookTargets.FightPlayerTurnInit, OnPlayerTurnStart, "FieldRuntime");
-        SunExpLog.Info("Field runtime initialized");
+        TerriasHookRegistry.Before(modConfig, TerriasHookTargets.FightPlayerTurnInit, OnPlayerTurnStart, "FieldRuntime");
+        TerriasLog.Info("Field runtime initialized");
     }
 
     private static void OnFightOpening(ModHookContext context)
@@ -63,7 +63,7 @@ public static class FieldRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Field runtime opening-field coordination failed", ex);
+            TerriasLog.Error("Field runtime opening-field coordination failed", ex);
         }
     }
 
@@ -75,7 +75,7 @@ public static class FieldRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Field opening step failed: " + step, ex);
+            TerriasLog.Error("Field opening step failed: " + step, ex);
         }
     }
 
@@ -97,7 +97,7 @@ public static class FieldRuntime
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Field runtime round-start failed", ex);
+            TerriasLog.Error("Field runtime round-start failed", ex);
         }
     }
 

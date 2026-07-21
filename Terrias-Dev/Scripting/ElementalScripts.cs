@@ -1,9 +1,9 @@
 using System;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 
-namespace SunExp.Dll.Scripting;
+namespace Terrias.Dll.Scripting;
 
 public static class ElementalScripts
 {
@@ -26,7 +26,7 @@ public static class ElementalScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Elemental hit failed: element=" + element + ", damage=" + damage, ex);
+            TerriasLog.Error("Elemental hit failed: element=" + element + ", damage=" + damage, ex);
         }
     }
 
@@ -47,7 +47,7 @@ public static class ElementalScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Elemental application failed: element=" + element, ex);
+            TerriasLog.Error("Elemental application failed: element=" + element, ex);
         }
     }
 
@@ -64,7 +64,7 @@ public static class ElementalScripts
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Self elemental application failed: element=" + element, ex);
+            TerriasLog.Error("Self elemental application failed: element=" + element, ex);
         }
     }
 
@@ -80,7 +80,7 @@ public static class ElementalScripts
             return true;
         }
 
-        SunExpLog.Warn("Unknown elemental type: " + (value ?? "<null>"));
+        TerriasLog.Warn("Unknown elemental type: " + (value ?? "<null>"));
         return false;
     }
 }

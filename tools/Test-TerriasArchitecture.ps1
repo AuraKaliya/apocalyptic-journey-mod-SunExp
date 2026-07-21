@@ -66,567 +66,567 @@ function Assert-NotMatches {
 $script:RepoRoot = Get-RepoRoot
 
 $requiredFiles = @(
-    "SunExp-Dev\GameApi\ScriptVarApi.cs",
-    "SunExp-Dev\GameApi\CombatVarApi.cs",
-    "SunExp-Dev\GameApi\ScriptEventApi.cs",
-    "SunExp-Dev\GameApi\TargetApi.cs",
-    "SunExp-Dev\GameApi\DamageApi.cs",
-    "SunExp-Dev\GameApi\SolarCombatApi.cs",
-    "SunExp-Dev\GameApi\FieldApi.cs",
-    "SunExp-Dev\GameApi\BuffOverflowApi.cs",
-    "SunExp-Dev\GameApi\DialogueApi.cs",
-    "SunExp-Dev\GameApi\DialogueUiApi.cs",
-    "SunExp-Dev\GameApi\MapItemApi.cs",
-    "SunExp-Dev\GameApi\CardVisualSkinApi.cs",
-    "SunExp-Dev\GameApi\CardVisualEffectApi.cs",
-    "SunExp-Dev\GameApi\BattleRewardApi.cs",
-    "SunExp-Dev\GameApi\CardApi.cs",
-    "SunExp-Dev\GameApi\CardPresentationInvalidationApi.cs",
-    "SunExp-Dev\GameApi\SkillUseGateApi.cs",
-    "SunExp-Dev\GameApi\CombatCardViewPoolApi.cs",
-    "SunExp-Dev\GameApi\FightUiCardLayoutApi.cs",
-    "SunExp-Dev\GameApi\FightActionPresentationApi.cs",
-    "SunExp-Dev\GameApi\CardConfigApi.cs",
-    "SunExp-Dev\GameApi\EnemyApi.cs",
-    "SunExp-Dev\GameApi\ModeChoiceSaveCacheApi.cs",
-    "SunExp-Dev\GameApi\ProjectionUiApi.cs",
-    "SunExp-Dev\GameApi\FamiliarGrowthApi.cs",
-    "SunExp-Dev\GameApi\SunExpResourceCache.cs",
-    "SunExp-Dev\GameApi\DimensionShopGameApi.cs",
-    "SunExp-Dev\Infrastructure\SunExpDirtyState.cs",
-    "SunExp-Dev\Infrastructure\SunExpPerformanceSettings.cs",
-    "SunExp-Dev\Infrastructure\SunExpPerformanceCounters.cs",
-    "SunExp-Dev\Infrastructure\SunExpCombatCardUiDiagnostics.cs",
-    "SunExp-Dev\Infrastructure\SunExpFrameDispatcher.cs",
-    "SunExp-Dev\Infrastructure\SunExpLifecycleStepRunner.cs",
+    "Terrias-Dev\GameApi\ScriptVarApi.cs",
+    "Terrias-Dev\GameApi\CombatVarApi.cs",
+    "Terrias-Dev\GameApi\ScriptEventApi.cs",
+    "Terrias-Dev\GameApi\TargetApi.cs",
+    "Terrias-Dev\GameApi\DamageApi.cs",
+    "Terrias-Dev\GameApi\SolarCombatApi.cs",
+    "Terrias-Dev\GameApi\FieldApi.cs",
+    "Terrias-Dev\GameApi\BuffOverflowApi.cs",
+    "Terrias-Dev\GameApi\DialogueApi.cs",
+    "Terrias-Dev\GameApi\DialogueUiApi.cs",
+    "Terrias-Dev\GameApi\MapItemApi.cs",
+    "Terrias-Dev\GameApi\CardVisualSkinApi.cs",
+    "Terrias-Dev\GameApi\CardVisualEffectApi.cs",
+    "Terrias-Dev\GameApi\BattleRewardApi.cs",
+    "Terrias-Dev\GameApi\CardApi.cs",
+    "Terrias-Dev\GameApi\CardPresentationInvalidationApi.cs",
+    "Terrias-Dev\GameApi\SkillUseGateApi.cs",
+    "Terrias-Dev\GameApi\CombatCardViewPoolApi.cs",
+    "Terrias-Dev\GameApi\FightUiCardLayoutApi.cs",
+    "Terrias-Dev\GameApi\FightActionPresentationApi.cs",
+    "Terrias-Dev\GameApi\CardConfigApi.cs",
+    "Terrias-Dev\GameApi\EnemyApi.cs",
+    "Terrias-Dev\GameApi\ModeChoiceSaveCacheApi.cs",
+    "Terrias-Dev\GameApi\ProjectionUiApi.cs",
+    "Terrias-Dev\GameApi\FamiliarGrowthApi.cs",
+    "Terrias-Dev\GameApi\TerriasResourceCache.cs",
+    "Terrias-Dev\GameApi\DimensionShopGameApi.cs",
+    "Terrias-Dev\Infrastructure\TerriasDirtyState.cs",
+    "Terrias-Dev\Infrastructure\TerriasPerformanceSettings.cs",
+    "Terrias-Dev\Infrastructure\TerriasPerformanceCounters.cs",
+    "Terrias-Dev\Infrastructure\TerriasCombatCardUiDiagnostics.cs",
+    "Terrias-Dev\Infrastructure\TerriasFrameDispatcher.cs",
+    "Terrias-Dev\Infrastructure\TerriasLifecycleStepRunner.cs",
     "AuraSharedCore\AuraSharedLifecycleStepRunner.cs",
     "AuraSharedCore\AuraAuthoritativeSyncRuntime.cs",
     "AuraSharedCore\AuraSharedObjectPool.cs",
-    "SunExp-Dev\Mechanics\CombatCardViewPoolCatalog.cs",
-    "SunExp-Dev\Mechanics\PooledCardViewExit.cs",
-    "SunExp-Dev\Mechanics\DuskAfterheatRecoveryService.cs",
-    "SunExp-Dev\Mechanics\ProjectionTurnCoordinator.cs",
-    "SunExp-Dev\Mechanics\ProjectionTurnAnchorObj.cs",
-    "SunExp-Dev\Mechanics\DimensionShopConfig.cs",
-    "SunExp-Dev\Mechanics\DimensionShopRandom.cs",
-    "SunExp-Dev\Mechanics\DimensionShopService.cs",
-    "SunExp-Dev\Hooks\DimensionShopRuntime.cs",
-    "SunExp-Dev\Hooks\Ui\DimensionShopPanel.cs",
-    "SunExp-Dev\Hooks\Ui\DimensionShopNativeSkin.cs",
-    "SunExp-Dev\Hooks\Ui\PooledCombatCardViewMarker.cs",
-    "SunExp-Dev\Hooks\Ui\SunExpCombatCardViewPool.cs",
-    "SunExp-Dev\Hooks\Visual\PooledCardExitAnimator.cs",
-    "SunExp-Dev\Mechanics\BattleRewardAdjustmentService.cs",
-    "SunExp-Dev\Mechanics\DialogueFlowDefinition.cs",
-    "SunExp-Dev\Mechanics\DialogueFlowRegistry.cs",
-    "SunExp-Dev\Mechanics\DialogueFlowService.cs",
-    "SunExp-Dev\Mechanics\SunExpConfigIndex.cs",
-    "SunExp-Dev\Mechanics\MapNodeCardArtRegistry.cs",
-    "SunExp-Dev\Mechanics\MapNodeTextureFitService.cs",
-    "SunExp-Dev\Mechanics\MapNodeSafetyService.cs",
-    "SunExp-Dev\Mechanics\SolarMemoryFixedNodeSpec.cs",
-    "SunExp-Dev\Mechanics\SolarMemoryMapSyncRepairService.cs",
-    "SunExp-Dev\Mechanics\SolarMemoryContentIsolationService.cs",
-    "SunExp-Dev\Mechanics\SolarMemoryMapNodePoolFactory.cs",
-    "SunExp-Dev\Mechanics\EndlessSeaNodeKind.cs",
-    "SunExp-Dev\Mechanics\EndlessSeaNodePoolService.cs",
-    "SunExp-Dev\Mechanics\EndlessSeaEnemyPool.cs",
-    "SunExp-Dev\Mechanics\EndlessSeaRewardPlan.cs",
-    "SunExp-Dev\Mechanics\EndlessAbyssEnemyInjectionService.cs",
-    "SunExp-Dev\Mechanics\EmberAdventureStateService.cs",
-    "SunExp-Dev\Mechanics\EndlessSeaPressureService.cs",
-    "SunExp-Dev\Mechanics\EndlessSeaOriginService.cs",
-    "SunExp-Dev\Mechanics\CardAttachmentSpec.cs",
-    "SunExp-Dev\Mechanics\EndlessSeaCardAffixService.cs",
-    "SunExp-Dev\Mechanics\EndlessSeaRunStateStore.cs",
-    "SunExp-Dev\Mechanics\EndlessSeaFloorPlan.cs",
-    "SunExp-Dev\Mechanics\EndlessSeaFloorPlanner.cs",
-    "SunExp-Dev\Mechanics\EndlessSeaFloorPlanStore.cs",
-    "SunExp-Dev\Mechanics\EndlessSeaMapProjectionService.cs",
-    "SunExp-Dev\Mechanics\EndlessSeaSelectableNodeDeckPlanner.cs",
-    "SunExp-Dev\Mechanics\EndlessSeaMapBuilder.cs",
-    "SunExp-Dev\Mechanics\EndlessSeaStarterDeckCatalog.cs",
-    "SunExp-Dev\Mechanics\EndlessSeaRichTextSanitizer.cs",
-    "SunExp-Dev\Mechanics\ModeChoiceDragRange.cs",
-    "SunExp-Dev\Mechanics\ResonanceCostTransactionStore.cs",
-    "SunExp-Dev\Mechanics\SolarFinaleStateService.cs",
-    "SunExp-Dev\Mechanics\SolarMemoryStoryGateService.cs",
-    "SunExp-Dev\Mechanics\VisualRegistry.cs",
-    "SunExp-Dev\Mechanics\VisualRegistryModels.cs",
-    "SunExp-Dev\Mechanics\CardVisualSkinSpec.cs",
-    "SunExp-Dev\Mechanics\CardVisualSkinRule.cs",
-    "SunExp-Dev\Mechanics\CardVisualSkinRegistry.cs",
-    "SunExp-Dev\Mechanics\CardVisualEffectTarget.cs",
-    "SunExp-Dev\Mechanics\CardVisualEffectSpec.cs",
-    "SunExp-Dev\Mechanics\CardVisualEffectRegistry.cs",
-    "SunExp-Dev\Mechanics\CardVisualInterestIndex.cs",
-    "SunExp-Dev\Mechanics\CardVisualThemeCatalog.cs",
-    "SunExp-Dev\Mechanics\SunCardThemeCatalog.cs",
-    "SunExp-Dev\Mechanics\SunExpCardRefreshQueue.cs",
-    "SunExp-Dev\Mechanics\CardPresentationImpactRegistry.cs",
-    "SunExp-Dev\Mechanics\CombatCardViewConstructionDiagnostics.cs",
-    "SunExp-Dev\Mechanics\CardGrantPostCommitQueue.cs",
-    "SunExp-Dev\Mechanics\CompanionBattleModels.cs",
-    "SunExp-Dev\Mechanics\CompanionIntentPresentationSnapshot.cs",
-    "SunExp-Dev\Mechanics\SpiritIntentPresentationDataComposer.cs",
-    "SunExp-Dev\Mechanics\SpiritProfileIdentityResolver.cs",
-    "SunExp-Dev\Mechanics\CompanionBattleStateStore.cs",
-    "SunExp-Dev\Mechanics\CompanionAuthorityService.cs",
-    "SunExp-Dev\Mechanics\CompanionIntentExecutor.cs",
-    "SunExp-Dev\Mechanics\CompanionIntentHandlers.cs",
-    "SunExp-Dev\Mechanics\CompanionIntentPlanner.cs",
-    "SunExp-Dev\Mechanics\CompanionIntentRegistry.cs",
-    "SunExp-Dev\Mechanics\CompanionIntentSelector.cs",
-    "SunExp-Dev\Mechanics\CompanionFriendlyRosterService.cs",
-    "SunExp-Dev\Mechanics\CompanionSlotService.cs",
-    "SunExp-Dev\Mechanics\CompanionStatsService.cs",
-    "SunExp-Dev\Mechanics\CompanionThreatService.cs",
-    "SunExp-Dev\Mechanics\ProjectionActionExecutor.cs",
-    "SunExp-Dev\Mechanics\ProjectionEffectContext.cs",
-    "SunExp-Dev\Mechanics\FamiliarGrowthModels.cs",
-    "SunExp-Dev\Mechanics\FamiliarSpeciesCatalog.cs",
-    "SunExp-Dev\Mechanics\FamiliarBlessingRegistry.cs",
-    "SunExp-Dev\Mechanics\FamiliarBlessingRoller.cs",
-    "SunExp-Dev\Mechanics\FamiliarRosterService.cs",
-    "SunExp-Dev\Mechanics\FamiliarGrowthService.cs",
-    "SunExp-Dev\Mechanics\ProjectionActivationService.cs",
-    "SunExp-Dev\Mechanics\ProjectionOtherObj.cs",
-    "SunExp-Dev\Mechanics\ProjectionState.cs",
-    "SunExp-Dev\Mechanics\ProjectionStateStore.cs",
-    "SunExp-Dev\Mechanics\ProjectionStrategyService.cs",
-    "SunExp-Dev\Mechanics\ProjectionSummonService.cs",
-    "SunExp-Dev\GameApi\CombatCardApi.cs",
-    "SunExp-Dev\GameApi\BurnTriggerApi.cs",
-    "SunExp-Dev\Hooks\Visual\ProjectionAttachmentPresenter.cs",
-    "SunExp-Dev\Hooks\Visual\ProjectionIntentPresenter.cs",
-    "SunExp-Dev\Mechanics\StarStonePouchService.cs",
-    "SunExp-Dev\Hooks\DialogueFlowRuntime.cs",
-    "SunExp-Dev\Hooks\SunExpHookTargets.cs",
-    "SunExp-Dev\Hooks\SunExpHookRegistry.cs",
-    "SunExp-Dev\Hooks\SunExpUiLifecycleRuntime.cs",
+    "Terrias-Dev\Mechanics\CombatCardViewPoolCatalog.cs",
+    "Terrias-Dev\Mechanics\PooledCardViewExit.cs",
+    "Terrias-Dev\Mechanics\DuskAfterheatRecoveryService.cs",
+    "Terrias-Dev\Mechanics\ProjectionTurnCoordinator.cs",
+    "Terrias-Dev\Mechanics\ProjectionTurnAnchorObj.cs",
+    "Terrias-Dev\Mechanics\DimensionShopConfig.cs",
+    "Terrias-Dev\Mechanics\DimensionShopRandom.cs",
+    "Terrias-Dev\Mechanics\DimensionShopService.cs",
+    "Terrias-Dev\Hooks\DimensionShopRuntime.cs",
+    "Terrias-Dev\Hooks\Ui\DimensionShopPanel.cs",
+    "Terrias-Dev\Hooks\Ui\DimensionShopNativeSkin.cs",
+    "Terrias-Dev\Hooks\Ui\PooledCombatCardViewMarker.cs",
+    "Terrias-Dev\Hooks\Ui\TerriasCombatCardViewPool.cs",
+    "Terrias-Dev\Hooks\Visual\PooledCardExitAnimator.cs",
+    "Terrias-Dev\Mechanics\BattleRewardAdjustmentService.cs",
+    "Terrias-Dev\Mechanics\DialogueFlowDefinition.cs",
+    "Terrias-Dev\Mechanics\DialogueFlowRegistry.cs",
+    "Terrias-Dev\Mechanics\DialogueFlowService.cs",
+    "Terrias-Dev\Mechanics\TerriasConfigIndex.cs",
+    "Terrias-Dev\Mechanics\MapNodeCardArtRegistry.cs",
+    "Terrias-Dev\Mechanics\MapNodeTextureFitService.cs",
+    "Terrias-Dev\Mechanics\MapNodeSafetyService.cs",
+    "Terrias-Dev\Mechanics\SolarMemoryFixedNodeSpec.cs",
+    "Terrias-Dev\Mechanics\SolarMemoryMapSyncRepairService.cs",
+    "Terrias-Dev\Mechanics\SolarMemoryContentIsolationService.cs",
+    "Terrias-Dev\Mechanics\SolarMemoryMapNodePoolFactory.cs",
+    "Terrias-Dev\Mechanics\EndlessSeaNodeKind.cs",
+    "Terrias-Dev\Mechanics\EndlessSeaNodePoolService.cs",
+    "Terrias-Dev\Mechanics\EndlessSeaEnemyPool.cs",
+    "Terrias-Dev\Mechanics\EndlessSeaRewardPlan.cs",
+    "Terrias-Dev\Mechanics\EndlessAbyssEnemyInjectionService.cs",
+    "Terrias-Dev\Mechanics\EmberAdventureStateService.cs",
+    "Terrias-Dev\Mechanics\EndlessSeaPressureService.cs",
+    "Terrias-Dev\Mechanics\EndlessSeaOriginService.cs",
+    "Terrias-Dev\Mechanics\CardAttachmentSpec.cs",
+    "Terrias-Dev\Mechanics\EndlessSeaCardAffixService.cs",
+    "Terrias-Dev\Mechanics\EndlessSeaRunStateStore.cs",
+    "Terrias-Dev\Mechanics\EndlessSeaFloorPlan.cs",
+    "Terrias-Dev\Mechanics\EndlessSeaFloorPlanner.cs",
+    "Terrias-Dev\Mechanics\EndlessSeaFloorPlanStore.cs",
+    "Terrias-Dev\Mechanics\EndlessSeaMapProjectionService.cs",
+    "Terrias-Dev\Mechanics\EndlessSeaSelectableNodeDeckPlanner.cs",
+    "Terrias-Dev\Mechanics\EndlessSeaMapBuilder.cs",
+    "Terrias-Dev\Mechanics\EndlessSeaStarterDeckCatalog.cs",
+    "Terrias-Dev\Mechanics\EndlessSeaRichTextSanitizer.cs",
+    "Terrias-Dev\Mechanics\ModeChoiceDragRange.cs",
+    "Terrias-Dev\Mechanics\ResonanceCostTransactionStore.cs",
+    "Terrias-Dev\Mechanics\SolarFinaleStateService.cs",
+    "Terrias-Dev\Mechanics\SolarMemoryStoryGateService.cs",
+    "Terrias-Dev\Mechanics\VisualRegistry.cs",
+    "Terrias-Dev\Mechanics\VisualRegistryModels.cs",
+    "Terrias-Dev\Mechanics\CardVisualSkinSpec.cs",
+    "Terrias-Dev\Mechanics\CardVisualSkinRule.cs",
+    "Terrias-Dev\Mechanics\CardVisualSkinRegistry.cs",
+    "Terrias-Dev\Mechanics\CardVisualEffectTarget.cs",
+    "Terrias-Dev\Mechanics\CardVisualEffectSpec.cs",
+    "Terrias-Dev\Mechanics\CardVisualEffectRegistry.cs",
+    "Terrias-Dev\Mechanics\CardVisualInterestIndex.cs",
+    "Terrias-Dev\Mechanics\CardVisualThemeCatalog.cs",
+    "Terrias-Dev\Mechanics\SunCardThemeCatalog.cs",
+    "Terrias-Dev\Mechanics\TerriasCardRefreshQueue.cs",
+    "Terrias-Dev\Mechanics\CardPresentationImpactRegistry.cs",
+    "Terrias-Dev\Mechanics\CombatCardViewConstructionDiagnostics.cs",
+    "Terrias-Dev\Mechanics\CardGrantPostCommitQueue.cs",
+    "Terrias-Dev\Mechanics\CompanionBattleModels.cs",
+    "Terrias-Dev\Mechanics\CompanionIntentPresentationSnapshot.cs",
+    "Terrias-Dev\Mechanics\SpiritIntentPresentationDataComposer.cs",
+    "Terrias-Dev\Mechanics\SpiritProfileIdentityResolver.cs",
+    "Terrias-Dev\Mechanics\CompanionBattleStateStore.cs",
+    "Terrias-Dev\Mechanics\CompanionAuthorityService.cs",
+    "Terrias-Dev\Mechanics\CompanionIntentExecutor.cs",
+    "Terrias-Dev\Mechanics\CompanionIntentHandlers.cs",
+    "Terrias-Dev\Mechanics\CompanionIntentPlanner.cs",
+    "Terrias-Dev\Mechanics\CompanionIntentRegistry.cs",
+    "Terrias-Dev\Mechanics\CompanionIntentSelector.cs",
+    "Terrias-Dev\Mechanics\CompanionFriendlyRosterService.cs",
+    "Terrias-Dev\Mechanics\CompanionSlotService.cs",
+    "Terrias-Dev\Mechanics\CompanionStatsService.cs",
+    "Terrias-Dev\Mechanics\CompanionThreatService.cs",
+    "Terrias-Dev\Mechanics\ProjectionActionExecutor.cs",
+    "Terrias-Dev\Mechanics\ProjectionEffectContext.cs",
+    "Terrias-Dev\Mechanics\FamiliarGrowthModels.cs",
+    "Terrias-Dev\Mechanics\FamiliarSpeciesCatalog.cs",
+    "Terrias-Dev\Mechanics\FamiliarBlessingRegistry.cs",
+    "Terrias-Dev\Mechanics\FamiliarBlessingRoller.cs",
+    "Terrias-Dev\Mechanics\FamiliarRosterService.cs",
+    "Terrias-Dev\Mechanics\FamiliarGrowthService.cs",
+    "Terrias-Dev\Mechanics\ProjectionActivationService.cs",
+    "Terrias-Dev\Mechanics\ProjectionOtherObj.cs",
+    "Terrias-Dev\Mechanics\ProjectionState.cs",
+    "Terrias-Dev\Mechanics\ProjectionStateStore.cs",
+    "Terrias-Dev\Mechanics\ProjectionStrategyService.cs",
+    "Terrias-Dev\Mechanics\ProjectionSummonService.cs",
+    "Terrias-Dev\GameApi\CombatCardApi.cs",
+    "Terrias-Dev\GameApi\BurnTriggerApi.cs",
+    "Terrias-Dev\Hooks\Visual\ProjectionAttachmentPresenter.cs",
+    "Terrias-Dev\Hooks\Visual\ProjectionIntentPresenter.cs",
+    "Terrias-Dev\Mechanics\StarStonePouchService.cs",
+    "Terrias-Dev\Hooks\DialogueFlowRuntime.cs",
+    "Terrias-Dev\Hooks\TerriasHookTargets.cs",
+    "Terrias-Dev\Hooks\TerriasHookRegistry.cs",
+    "Terrias-Dev\Hooks\TerriasUiLifecycleRuntime.cs",
     "AuraSharedCore\AuraCombatCardZoneSnapshot.cs",
     "AuraSharedCore\AuraCardLifecycleRouter.cs",
     "AuraSharedCore\AuraSharedFrameScheduler.cs",
-    "SunExp-Dev\Hooks\SunExpBattleLifecycleRouter.cs",
-    "SunExp-Dev\Hooks\SunExpCardLifecycleRouter.cs",
-    "SunExp-Dev\Hooks\SunExpCombatActionRouter.cs",
-    "SunExp-Dev\Hooks\SunExpStatusLifecycleRouter.cs",
-    "SunExp-Dev\Hooks\Ui\BattleHudHost.cs",
-    "SunExp-Dev\Hooks\SunExpCardPresentationRouter.cs",
-    "SunExp-Dev\Hooks\SunExpCardPresentationLifecycleBridge.cs",
-    "SunExp-Dev\Hooks\SunExpFrameScheduler.cs",
-    "SunExp-Dev\Hooks\SunExpActionEventRouter.cs",
-    "SunExp-Dev\Hooks\SunExpResourcePreloader.cs",
-    "SunExp-Dev\Hooks\SunExpCardPresentationInvalidationRuntime.cs",
-    "SunExp-Dev\Hooks\BattleRewardAdjustmentRuntime.cs",
-    "SunExp-Dev\Hooks\FamiliarGrowthRuntime.cs",
-    "SunExp-Dev\Hooks\CompanionThreatRuntime.cs",
-    "SunExp-Dev\Hooks\ProjectionRuntime.cs",
-    "SunExp-Dev\Hooks\SolarMemoryRewardRuntime.cs",
-    "SunExp-Dev\Hooks\EmberAdventureStateRuntime.cs",
-    "SunExp-Dev\Hooks\EndlessSeaRewardRuntime.cs",
-    "SunExp-Dev\Hooks\EndlessSeaCardAffixRuntime.cs",
-    "SunExp-Dev\Hooks\EndlessSeaCombatRuntime.cs",
-    "SunExp-Dev\Hooks\EndlessSeaModeRuntime.cs",
-    "SunExp-Dev\Hooks\EndlessSeaModeEntryRuntime.cs",
-    "SunExp-Dev\Hooks\EndlessSeaRunLauncher.cs",
-    "SunExp-Dev\Hooks\EndlessSeaSaveCacheRuntime.cs",
-    "SunExp-Dev\Hooks\EndlessSeaIntroBoardRuntime.cs",
-    "SunExp-Dev\Hooks\Ui\EndlessSeaMapViewPresenter.cs",
-    "SunExp-Dev\Hooks\MapNodeCardArtRuntime.cs",
-    "SunExp-Dev\Hooks\CardVisualSkinRuntime.cs",
-    "SunExp-Dev\Hooks\SunCardFrameRuntime.cs",
-    "SunExp-Dev\Hooks\SolarMemoryMapVisualRuntime.cs",
-    "SunExp-Dev\Hooks\SolarMemoryMapProjectionRuntime.cs",
-    "SunExp-Dev\Hooks\SolarMemoryMapLifecycleCoordinator.cs",
-    "SunExp-Dev\Hooks\SolarMemoryMapItemAnimationRuntime.cs",
-    "SunExp-Dev\Hooks\SolarMemoryBattleExitCoordinator.cs",
-    "SunExp-Dev\Hooks\SolarMemoryBossTransitionCoordinator.cs",
-    "SunExp-Dev\Hooks\SolarMemorySettlementCoordinator.cs",
-    "SunExp-Dev\Hooks\SolarMemoryDeckIsolationRuntime.cs",
-    "SunExp-Dev\Hooks\SolarMemoryModeEntryRuntime.cs",
-    "SunExp-Dev\Hooks\SolarMemoryContentIsolationRuntime.cs",
-    "SunExp-Dev\Hooks\SolarMemoryPreparationRuntime.cs",
-    "SunExp-Dev\Hooks\SolarMemoryRunLauncher.cs",
-    "SunExp-Dev\Hooks\SolarMemorySettlementPresenter.cs",
-    "SunExp-Dev\Hooks\StarScoreHudRuntime.cs",
-    "SunExp-Dev\Features\SunExpCardUseFxRuntime.cs",
-    "SunExp-Dev\Mechanics\StarScoreArrivalCueService.cs",
-    "SunExp-Dev\Hooks\Ui\StarScoreHudAssets.cs",
-    "SunExp-Dev\Hooks\Ui\StarScoreHudHoverProbe.cs",
-    "SunExp-Dev\Hooks\Ui\StarScoreHudShaderController.cs",
-    "SunExp-Dev\Hooks\Ui\StarScoreHudShaderMaterials.cs",
-    "SunExp-Dev\Hooks\Ui\StarScoreHudView.cs",
-    "SunExp-Dev\Hooks\Ui\StarScoreHudTooltipView.cs",
-    "SunExp-Dev\Hooks\Ui\FieldBuffHudView.cs",
-    "SunExp-Dev\Hooks\Ui\FieldBuffHudHoverProbe.cs",
-    "SunExp-Dev\Hooks\Ui\FieldBuffHudTooltipView.cs",
-    "SunExp-Dev\Hooks\Ui\SunExpModalHost.cs",
-    "SunExp-Dev\Hooks\Ui\SunExpUiSafety.cs",
-    "SunExp-Dev\Hooks\Ui\SunExpUiLifetimeScope.cs",
-    "SunExp-Dev\Hooks\Ui\SunExpUiPool.cs",
-    "SunExp-Dev\Hooks\Ui\SunExpUiComponents.cs",
-    "SunExp-Dev\Hooks\Ui\SunExpUiSprites.cs",
-    "SunExp-Dev\Hooks\Ui\EndlessAbyssFramedTextCard.cs",
-    "SunExp-Dev\Hooks\Ui\EndlessAbyssShockPanel.cs",
-    "SunExp-Dev\Hooks\Ui\EndlessAbyssMilestoneRewardPanel.cs",
-    "SunExp-Dev\Hooks\Ui\PolymorphRoleSelectionRequest.cs",
-    "SunExp-Dev\Hooks\Ui\PolymorphRoleSelectionWindow.cs",
-    "SunExp-Dev\Hooks\Ui\FamiliarGrowthPanel.cs",
-    "SunExp-Dev\Scripting\FamiliarGrowthScripts.cs",
-    "SunExp-Dev\Scripting\ProjectionScripts.cs",
-    "SunExp-Dev\Hooks\Visual\FrameAnimationAttacher.cs",
-    "SunExp-Dev\Hooks\Visual\AssetBundleCache.cs",
-    "SunExp-Dev\Hooks\Visual\EffectMaterialFactory.cs",
-    "SunExp-Dev\Hooks\Visual\EffectTextureCache.cs",
-    "SunExp-Dev\Hooks\Visual\FrameImageAnimator.cs",
-    "SunExp-Dev\Hooks\Visual\CardVisualSkinApplier.cs",
-    "SunExp-Dev\Hooks\Visual\CardPresentationRootResolver.cs",
-    "SunExp-Dev\Hooks\Visual\CardVisualEffectApplier.cs",
-    "SunExp-Dev\Hooks\Visual\CardFaceEffectApplier.cs",
-    "SunExp-Dev\Hooks\Visual\CardFaceEffectMaterials.cs",
-    "SunExp-Dev\Hooks\Visual\CardUseFxMaterials.cs",
-    "SunExp-Dev\Hooks\Visual\StarScoreArrivalFlashGraphic.cs",
-    "SunExp-Dev\Hooks\Visual\StarScoreFlightGlyphAssets.cs",
-    "SunExp-Dev\Hooks\Visual\StarScoreCardUseFxPresenter.cs",
-    "SunExp-Dev\Hooks\Visual\CardFrameEffectApplier.cs",
-    "SunExp-Dev\Hooks\Visual\CardFrameEffectMaterials.cs",
-    "SunExp-Dev\Hooks\Visual\CardFrameOverlay.cs",
-    "SunExp-Dev\Hooks\Visual\CardVisualSkinSpriteCache.cs",
-    "SunExp-Dev\Hooks\Visual\SunCardFrameApplier.cs",
-    "SunExp-Dev\Hooks\Visual\SunCardFrameSpriteCache.cs",
-    "SunExp-Dev\Hooks\Visual\FrameSpriteAnimationSpec.cs",
-    "SunExp-Dev\Hooks\Visual\FrameSpriteCache.cs",
-    "SunExp-Dev\Hooks\Visual\FrameSpriteRendererAnimator.cs",
-    "SunExp-Dev\Hooks\Visual\ShaderAssetLoader.cs",
-    "SunExp-Dev\Hooks\Visual\VisualBundleRuntimeValidator.cs",
-    "SunExp-Dev\Hooks\Visual\WunaOrbitFireController.cs",
-    "SunExp-Dev\VisualAssets\sunexp_visuals.pipeline.json",
-    "SunExp-Dev\VisualAssets\Editor\SunExpVisualBundleBuilder.cs.txt",
-    "SunExp-Dev\VisualAssets\Shaders\StarScoreHud.shader",
-    "SunExp-Dev\VisualAssets\Shaders\CardFaceEffect.shader",
-    "SunExp-Dev\VisualAssets\Shaders\CardFrameHoloFlow.shader",
-    "tools\Build-SunExpVisualBundle.ps1",
-    "SunExp-Dev\Mechanics\StarScoreCadenceCatalog.cs",
-    "SunExp-Dev\Mechanics\StarScoreDisplaySnapshot.cs",
-    "SunExp-Dev\Mechanics\StarScoreNote.cs",
-    "SunExp-Dev\Mechanics\FieldStartCoordinator.cs",
-    "SunExp-Dev\Mechanics\DifficultyFieldPoolService.cs",
-    "SunExp-Dev\Mechanics\RelicFieldStartSourceService.cs",
-    "SunExp-Dev\Mechanics\RelicOpeningEffectService.cs",
-    "SunExp-Dev\GameApi\RelicApi.cs",
-    "SunExp-Dev\Mechanics\FieldEffectRegistry.cs",
-    "SunExp-Dev\Network\FieldNetworkSync.cs",
-    "SunExp-Dev\Network\RpcEmberAdventureStateCommit.cs",
-    "SunExp\visual.registry.json",
-    "SunExp\card-use-effect.registry.json",
-    "SunExp\familiar.blessing.registry.json"
+    "Terrias-Dev\Hooks\TerriasBattleLifecycleRouter.cs",
+    "Terrias-Dev\Hooks\TerriasCardLifecycleRouter.cs",
+    "Terrias-Dev\Hooks\TerriasCombatActionRouter.cs",
+    "Terrias-Dev\Hooks\TerriasStatusLifecycleRouter.cs",
+    "Terrias-Dev\Hooks\Ui\BattleHudHost.cs",
+    "Terrias-Dev\Hooks\TerriasCardPresentationRouter.cs",
+    "Terrias-Dev\Hooks\TerriasCardPresentationLifecycleBridge.cs",
+    "Terrias-Dev\Hooks\TerriasFrameScheduler.cs",
+    "Terrias-Dev\Hooks\TerriasActionEventRouter.cs",
+    "Terrias-Dev\Hooks\TerriasResourcePreloader.cs",
+    "Terrias-Dev\Hooks\TerriasCardPresentationInvalidationRuntime.cs",
+    "Terrias-Dev\Hooks\BattleRewardAdjustmentRuntime.cs",
+    "Terrias-Dev\Hooks\FamiliarGrowthRuntime.cs",
+    "Terrias-Dev\Hooks\CompanionThreatRuntime.cs",
+    "Terrias-Dev\Hooks\ProjectionRuntime.cs",
+    "Terrias-Dev\Hooks\SolarMemoryRewardRuntime.cs",
+    "Terrias-Dev\Hooks\EmberAdventureStateRuntime.cs",
+    "Terrias-Dev\Hooks\EndlessSeaRewardRuntime.cs",
+    "Terrias-Dev\Hooks\EndlessSeaCardAffixRuntime.cs",
+    "Terrias-Dev\Hooks\EndlessSeaCombatRuntime.cs",
+    "Terrias-Dev\Hooks\EndlessSeaModeRuntime.cs",
+    "Terrias-Dev\Hooks\EndlessSeaModeEntryRuntime.cs",
+    "Terrias-Dev\Hooks\EndlessSeaRunLauncher.cs",
+    "Terrias-Dev\Hooks\EndlessSeaSaveCacheRuntime.cs",
+    "Terrias-Dev\Hooks\EndlessSeaIntroBoardRuntime.cs",
+    "Terrias-Dev\Hooks\Ui\EndlessSeaMapViewPresenter.cs",
+    "Terrias-Dev\Hooks\MapNodeCardArtRuntime.cs",
+    "Terrias-Dev\Hooks\CardVisualSkinRuntime.cs",
+    "Terrias-Dev\Hooks\SunCardFrameRuntime.cs",
+    "Terrias-Dev\Hooks\SolarMemoryMapVisualRuntime.cs",
+    "Terrias-Dev\Hooks\SolarMemoryMapProjectionRuntime.cs",
+    "Terrias-Dev\Hooks\SolarMemoryMapLifecycleCoordinator.cs",
+    "Terrias-Dev\Hooks\SolarMemoryMapItemAnimationRuntime.cs",
+    "Terrias-Dev\Hooks\SolarMemoryBattleExitCoordinator.cs",
+    "Terrias-Dev\Hooks\SolarMemoryBossTransitionCoordinator.cs",
+    "Terrias-Dev\Hooks\SolarMemorySettlementCoordinator.cs",
+    "Terrias-Dev\Hooks\SolarMemoryDeckIsolationRuntime.cs",
+    "Terrias-Dev\Hooks\SolarMemoryModeEntryRuntime.cs",
+    "Terrias-Dev\Hooks\SolarMemoryContentIsolationRuntime.cs",
+    "Terrias-Dev\Hooks\SolarMemoryPreparationRuntime.cs",
+    "Terrias-Dev\Hooks\SolarMemoryRunLauncher.cs",
+    "Terrias-Dev\Hooks\SolarMemorySettlementPresenter.cs",
+    "Terrias-Dev\Hooks\StarScoreHudRuntime.cs",
+    "Terrias-Dev\Features\TerriasCardUseFxRuntime.cs",
+    "Terrias-Dev\Mechanics\StarScoreArrivalCueService.cs",
+    "Terrias-Dev\Hooks\Ui\StarScoreHudAssets.cs",
+    "Terrias-Dev\Hooks\Ui\StarScoreHudHoverProbe.cs",
+    "Terrias-Dev\Hooks\Ui\StarScoreHudShaderController.cs",
+    "Terrias-Dev\Hooks\Ui\StarScoreHudShaderMaterials.cs",
+    "Terrias-Dev\Hooks\Ui\StarScoreHudView.cs",
+    "Terrias-Dev\Hooks\Ui\StarScoreHudTooltipView.cs",
+    "Terrias-Dev\Hooks\Ui\FieldBuffHudView.cs",
+    "Terrias-Dev\Hooks\Ui\FieldBuffHudHoverProbe.cs",
+    "Terrias-Dev\Hooks\Ui\FieldBuffHudTooltipView.cs",
+    "Terrias-Dev\Hooks\Ui\TerriasModalHost.cs",
+    "Terrias-Dev\Hooks\Ui\TerriasUiSafety.cs",
+    "Terrias-Dev\Hooks\Ui\TerriasUiLifetimeScope.cs",
+    "Terrias-Dev\Hooks\Ui\TerriasUiPool.cs",
+    "Terrias-Dev\Hooks\Ui\TerriasUiComponents.cs",
+    "Terrias-Dev\Hooks\Ui\TerriasUiSprites.cs",
+    "Terrias-Dev\Hooks\Ui\EndlessAbyssFramedTextCard.cs",
+    "Terrias-Dev\Hooks\Ui\EndlessAbyssShockPanel.cs",
+    "Terrias-Dev\Hooks\Ui\EndlessAbyssMilestoneRewardPanel.cs",
+    "Terrias-Dev\Hooks\Ui\PolymorphRoleSelectionRequest.cs",
+    "Terrias-Dev\Hooks\Ui\PolymorphRoleSelectionWindow.cs",
+    "Terrias-Dev\Hooks\Ui\FamiliarGrowthPanel.cs",
+    "Terrias-Dev\Scripting\FamiliarGrowthScripts.cs",
+    "Terrias-Dev\Scripting\ProjectionScripts.cs",
+    "Terrias-Dev\Hooks\Visual\FrameAnimationAttacher.cs",
+    "Terrias-Dev\Hooks\Visual\AssetBundleCache.cs",
+    "Terrias-Dev\Hooks\Visual\EffectMaterialFactory.cs",
+    "Terrias-Dev\Hooks\Visual\EffectTextureCache.cs",
+    "Terrias-Dev\Hooks\Visual\FrameImageAnimator.cs",
+    "Terrias-Dev\Hooks\Visual\CardVisualSkinApplier.cs",
+    "Terrias-Dev\Hooks\Visual\CardPresentationRootResolver.cs",
+    "Terrias-Dev\Hooks\Visual\CardVisualEffectApplier.cs",
+    "Terrias-Dev\Hooks\Visual\CardFaceEffectApplier.cs",
+    "Terrias-Dev\Hooks\Visual\CardFaceEffectMaterials.cs",
+    "Terrias-Dev\Hooks\Visual\CardUseFxMaterials.cs",
+    "Terrias-Dev\Hooks\Visual\StarScoreArrivalFlashGraphic.cs",
+    "Terrias-Dev\Hooks\Visual\StarScoreFlightGlyphAssets.cs",
+    "Terrias-Dev\Hooks\Visual\StarScoreCardUseFxPresenter.cs",
+    "Terrias-Dev\Hooks\Visual\CardFrameEffectApplier.cs",
+    "Terrias-Dev\Hooks\Visual\CardFrameEffectMaterials.cs",
+    "Terrias-Dev\Hooks\Visual\CardFrameOverlay.cs",
+    "Terrias-Dev\Hooks\Visual\CardVisualSkinSpriteCache.cs",
+    "Terrias-Dev\Hooks\Visual\SunCardFrameApplier.cs",
+    "Terrias-Dev\Hooks\Visual\SunCardFrameSpriteCache.cs",
+    "Terrias-Dev\Hooks\Visual\FrameSpriteAnimationSpec.cs",
+    "Terrias-Dev\Hooks\Visual\FrameSpriteCache.cs",
+    "Terrias-Dev\Hooks\Visual\FrameSpriteRendererAnimator.cs",
+    "Terrias-Dev\Hooks\Visual\ShaderAssetLoader.cs",
+    "Terrias-Dev\Hooks\Visual\VisualBundleRuntimeValidator.cs",
+    "Terrias-Dev\Hooks\Visual\WunaOrbitFireController.cs",
+    "Terrias-Dev\VisualAssets\terrias_visuals.pipeline.json",
+    "Terrias-Dev\VisualAssets\Editor\TerriasVisualBundleBuilder.cs.txt",
+    "Terrias-Dev\VisualAssets\Shaders\StarScoreHud.shader",
+    "Terrias-Dev\VisualAssets\Shaders\CardFaceEffect.shader",
+    "Terrias-Dev\VisualAssets\Shaders\CardFrameHoloFlow.shader",
+    "tools\Build-TerriasVisualBundle.ps1",
+    "Terrias-Dev\Mechanics\StarScoreCadenceCatalog.cs",
+    "Terrias-Dev\Mechanics\StarScoreDisplaySnapshot.cs",
+    "Terrias-Dev\Mechanics\StarScoreNote.cs",
+    "Terrias-Dev\Mechanics\FieldStartCoordinator.cs",
+    "Terrias-Dev\Mechanics\DifficultyFieldPoolService.cs",
+    "Terrias-Dev\Mechanics\RelicFieldStartSourceService.cs",
+    "Terrias-Dev\Mechanics\RelicOpeningEffectService.cs",
+    "Terrias-Dev\GameApi\RelicApi.cs",
+    "Terrias-Dev\Mechanics\FieldEffectRegistry.cs",
+    "Terrias-Dev\Network\FieldNetworkSync.cs",
+    "Terrias-Dev\Network\RpcEmberAdventureStateCommit.cs",
+    "Terrias\visual.registry.json",
+    "Terrias\card-use-effect.registry.json",
+    "Terrias\familiar.blessing.registry.json"
 )
 
 foreach ($file in $requiredFiles) {
     Assert-True (Test-Path -LiteralPath (Join-Path $RepoRoot $file)) "Architecture file is missing: $file"
 }
 
-$executorApi = Read-RepoText "SunExp-Dev\GameApi\ExecutorApi.cs"
-$fieldApi = Read-RepoText "SunExp-Dev\GameApi\FieldApi.cs"
-$fieldStartCoordinator = Read-RepoText "SunExp-Dev\Mechanics\FieldStartCoordinator.cs"
-$difficultyFieldPoolService = Read-RepoText "SunExp-Dev\Mechanics\DifficultyFieldPoolService.cs"
-$relicFieldStartSourceService = Read-RepoText "SunExp-Dev\Mechanics\RelicFieldStartSourceService.cs"
-$relicOpeningEffectService = Read-RepoText "SunExp-Dev\Mechanics\RelicOpeningEffectService.cs"
-$relicApi = Read-RepoText "SunExp-Dev\GameApi\RelicApi.cs"
-$fieldEffectRegistry = Read-RepoText "SunExp-Dev\Mechanics\FieldEffectRegistry.cs"
-$fieldNetworkSync = Read-RepoText "SunExp-Dev\Network\FieldNetworkSync.cs"
-$buffApi = Read-RepoText "SunExp-Dev\GameApi\BuffApi.cs"
-$buffOverflowApi = Read-RepoText "SunExp-Dev\GameApi\BuffOverflowApi.cs"
-$mapItemApi = Read-RepoText "SunExp-Dev\GameApi\MapItemApi.cs"
-$cardVisualSkinApi = Read-RepoText "SunExp-Dev\GameApi\CardVisualSkinApi.cs"
-$cardVisualEffectApi = Read-RepoText "SunExp-Dev\GameApi\CardVisualEffectApi.cs"
-$dialogueApi = Read-RepoText "SunExp-Dev\GameApi\DialogueApi.cs"
-$dialogueUiApi = Read-RepoText "SunExp-Dev\GameApi\DialogueUiApi.cs"
-$battleRewardApi = Read-RepoText "SunExp-Dev\GameApi\BattleRewardApi.cs"
-$cardApi = Read-RepoText "SunExp-Dev\GameApi\CardApi.cs"
-$combatCardViewPoolApi = Read-RepoText "SunExp-Dev\GameApi\CombatCardViewPoolApi.cs"
-$fightUiCardLayoutApi = Read-RepoText "SunExp-Dev\GameApi\FightUiCardLayoutApi.cs"
-$fightActionPresentationApi = Read-RepoText "SunExp-Dev\GameApi\FightActionPresentationApi.cs"
-$combatCardViewPoolCatalog = Read-RepoText "SunExp-Dev\Mechanics\CombatCardViewPoolCatalog.cs"
-$pooledCardViewExit = Read-RepoText "SunExp-Dev\Mechanics\PooledCardViewExit.cs"
-$combatCardViewPool = Read-RepoText "SunExp-Dev\Hooks\Ui\SunExpCombatCardViewPool.cs"
-$pooledCardExitAnimator = Read-RepoText "SunExp-Dev\Hooks\Visual\PooledCardExitAnimator.cs"
-$duskAfterheatRecoveryService = Read-RepoText "SunExp-Dev\Mechanics\DuskAfterheatRecoveryService.cs"
-$duskPartnerRuntime = Read-RepoText "SunExp-Dev\Hooks\DuskPartnerRuntime.cs"
-$duskPartnerScripts = Read-RepoText "SunExp-Dev\Scripting\DuskPartnerScripts.cs"
-$scriptEventApi = Read-RepoText "SunExp-Dev\GameApi\ScriptEventApi.cs"
-$projectionTurnCoordinator = Read-RepoText "SunExp-Dev\Mechanics\ProjectionTurnCoordinator.cs"
-$projectionTurnAnchorObj = Read-RepoText "SunExp-Dev\Mechanics\ProjectionTurnAnchorObj.cs"
-$companionSceneApi = Read-RepoText "SunExp-Dev\GameApi\CompanionSceneApi.cs"
-$companionSceneLifecycleRuntime = Read-RepoText "SunExp-Dev\Hooks\CompanionSceneLifecycleRuntime.cs"
-$companionPresentationCleanup = Read-RepoText "SunExp-Dev\Hooks\Visual\CompanionPresentationCleanup.cs"
-$spiritSummonService = Read-RepoText "SunExp-Dev\Mechanics\SpiritSummonService.cs"
-$spiritStateStore = Read-RepoText "SunExp-Dev\Mechanics\SpiritStateStore.cs"
-$spiritRuntime = Read-RepoText "SunExp-Dev\Hooks\SpiritRuntime.cs"
-$spiritAttachmentPresenter = Read-RepoText "SunExp-Dev\Hooks\Visual\SpiritAttachmentPresenter.cs"
-$spiritCardFactory = Read-RepoText "SunExp-Dev\Mechanics\SpiritCardFactory.cs"
-$rpcSpiritCompanion = Read-RepoText "SunExp-Dev\Network\RpcSpiritCompanion.cs"
-$heartChangeControlService = Read-RepoText "SunExp-Dev\Mechanics\HeartChangeControlService.cs"
-$pooledCombatCardViewMarker = Read-RepoText "SunExp-Dev\Hooks\Ui\PooledCombatCardViewMarker.cs"
+$executorApi = Read-RepoText "Terrias-Dev\GameApi\ExecutorApi.cs"
+$fieldApi = Read-RepoText "Terrias-Dev\GameApi\FieldApi.cs"
+$fieldStartCoordinator = Read-RepoText "Terrias-Dev\Mechanics\FieldStartCoordinator.cs"
+$difficultyFieldPoolService = Read-RepoText "Terrias-Dev\Mechanics\DifficultyFieldPoolService.cs"
+$relicFieldStartSourceService = Read-RepoText "Terrias-Dev\Mechanics\RelicFieldStartSourceService.cs"
+$relicOpeningEffectService = Read-RepoText "Terrias-Dev\Mechanics\RelicOpeningEffectService.cs"
+$relicApi = Read-RepoText "Terrias-Dev\GameApi\RelicApi.cs"
+$fieldEffectRegistry = Read-RepoText "Terrias-Dev\Mechanics\FieldEffectRegistry.cs"
+$fieldNetworkSync = Read-RepoText "Terrias-Dev\Network\FieldNetworkSync.cs"
+$buffApi = Read-RepoText "Terrias-Dev\GameApi\BuffApi.cs"
+$buffOverflowApi = Read-RepoText "Terrias-Dev\GameApi\BuffOverflowApi.cs"
+$mapItemApi = Read-RepoText "Terrias-Dev\GameApi\MapItemApi.cs"
+$cardVisualSkinApi = Read-RepoText "Terrias-Dev\GameApi\CardVisualSkinApi.cs"
+$cardVisualEffectApi = Read-RepoText "Terrias-Dev\GameApi\CardVisualEffectApi.cs"
+$dialogueApi = Read-RepoText "Terrias-Dev\GameApi\DialogueApi.cs"
+$dialogueUiApi = Read-RepoText "Terrias-Dev\GameApi\DialogueUiApi.cs"
+$battleRewardApi = Read-RepoText "Terrias-Dev\GameApi\BattleRewardApi.cs"
+$cardApi = Read-RepoText "Terrias-Dev\GameApi\CardApi.cs"
+$combatCardViewPoolApi = Read-RepoText "Terrias-Dev\GameApi\CombatCardViewPoolApi.cs"
+$fightUiCardLayoutApi = Read-RepoText "Terrias-Dev\GameApi\FightUiCardLayoutApi.cs"
+$fightActionPresentationApi = Read-RepoText "Terrias-Dev\GameApi\FightActionPresentationApi.cs"
+$combatCardViewPoolCatalog = Read-RepoText "Terrias-Dev\Mechanics\CombatCardViewPoolCatalog.cs"
+$pooledCardViewExit = Read-RepoText "Terrias-Dev\Mechanics\PooledCardViewExit.cs"
+$combatCardViewPool = Read-RepoText "Terrias-Dev\Hooks\Ui\TerriasCombatCardViewPool.cs"
+$pooledCardExitAnimator = Read-RepoText "Terrias-Dev\Hooks\Visual\PooledCardExitAnimator.cs"
+$duskAfterheatRecoveryService = Read-RepoText "Terrias-Dev\Mechanics\DuskAfterheatRecoveryService.cs"
+$duskPartnerRuntime = Read-RepoText "Terrias-Dev\Hooks\DuskPartnerRuntime.cs"
+$duskPartnerScripts = Read-RepoText "Terrias-Dev\Scripting\DuskPartnerScripts.cs"
+$scriptEventApi = Read-RepoText "Terrias-Dev\GameApi\ScriptEventApi.cs"
+$projectionTurnCoordinator = Read-RepoText "Terrias-Dev\Mechanics\ProjectionTurnCoordinator.cs"
+$projectionTurnAnchorObj = Read-RepoText "Terrias-Dev\Mechanics\ProjectionTurnAnchorObj.cs"
+$companionSceneApi = Read-RepoText "Terrias-Dev\GameApi\CompanionSceneApi.cs"
+$companionSceneLifecycleRuntime = Read-RepoText "Terrias-Dev\Hooks\CompanionSceneLifecycleRuntime.cs"
+$companionPresentationCleanup = Read-RepoText "Terrias-Dev\Hooks\Visual\CompanionPresentationCleanup.cs"
+$spiritSummonService = Read-RepoText "Terrias-Dev\Mechanics\SpiritSummonService.cs"
+$spiritStateStore = Read-RepoText "Terrias-Dev\Mechanics\SpiritStateStore.cs"
+$spiritRuntime = Read-RepoText "Terrias-Dev\Hooks\SpiritRuntime.cs"
+$spiritAttachmentPresenter = Read-RepoText "Terrias-Dev\Hooks\Visual\SpiritAttachmentPresenter.cs"
+$spiritCardFactory = Read-RepoText "Terrias-Dev\Mechanics\SpiritCardFactory.cs"
+$rpcSpiritCompanion = Read-RepoText "Terrias-Dev\Network\RpcSpiritCompanion.cs"
+$heartChangeControlService = Read-RepoText "Terrias-Dev\Mechanics\HeartChangeControlService.cs"
+$pooledCombatCardViewMarker = Read-RepoText "Terrias-Dev\Hooks\Ui\PooledCombatCardViewMarker.cs"
 $auraSharedObjectPool = Read-RepoText "AuraSharedCore\AuraSharedObjectPool.cs"
-$enemyApi = Read-RepoText "SunExp-Dev\GameApi\EnemyApi.cs"
-$cardConfigApi = Read-RepoText "SunExp-Dev\GameApi\CardConfigApi.cs"
-$familiarGrowthApi = Read-RepoText "SunExp-Dev\GameApi\FamiliarGrowthApi.cs"
-$sunExpResourceCache = Read-RepoText "SunExp-Dev\GameApi\SunExpResourceCache.cs"
-$dirtyState = Read-RepoText "SunExp-Dev\Infrastructure\SunExpDirtyState.cs"
-$statusApi = Read-RepoText "SunExp-Dev\GameApi\StatusApi.cs"
-$performanceSettings = Read-RepoText "SunExp-Dev\Infrastructure\SunExpPerformanceSettings.cs"
-$performanceCounters = Read-RepoText "SunExp-Dev\Infrastructure\SunExpPerformanceCounters.cs"
-$combatCardUiDiagnostics = Read-RepoText "SunExp-Dev\Infrastructure\SunExpCombatCardUiDiagnostics.cs"
-$sunExpFrameDispatcher = Read-RepoText "SunExp-Dev\Infrastructure\SunExpFrameDispatcher.cs"
-$sunExpLifecycleStepRunner = Read-RepoText "SunExp-Dev\Infrastructure\SunExpLifecycleStepRunner.cs"
+$enemyApi = Read-RepoText "Terrias-Dev\GameApi\EnemyApi.cs"
+$cardConfigApi = Read-RepoText "Terrias-Dev\GameApi\CardConfigApi.cs"
+$familiarGrowthApi = Read-RepoText "Terrias-Dev\GameApi\FamiliarGrowthApi.cs"
+$terriasResourceCache = Read-RepoText "Terrias-Dev\GameApi\TerriasResourceCache.cs"
+$dirtyState = Read-RepoText "Terrias-Dev\Infrastructure\TerriasDirtyState.cs"
+$statusApi = Read-RepoText "Terrias-Dev\GameApi\StatusApi.cs"
+$performanceSettings = Read-RepoText "Terrias-Dev\Infrastructure\TerriasPerformanceSettings.cs"
+$performanceCounters = Read-RepoText "Terrias-Dev\Infrastructure\TerriasPerformanceCounters.cs"
+$combatCardUiDiagnostics = Read-RepoText "Terrias-Dev\Infrastructure\TerriasCombatCardUiDiagnostics.cs"
+$terriasFrameDispatcher = Read-RepoText "Terrias-Dev\Infrastructure\TerriasFrameDispatcher.cs"
+$terriasLifecycleStepRunner = Read-RepoText "Terrias-Dev\Infrastructure\TerriasLifecycleStepRunner.cs"
 $auraSharedLifecycleStepRunner = Read-RepoText "AuraSharedCore\AuraSharedLifecycleStepRunner.cs"
 $auraAuthoritativeSyncRuntime = Read-RepoText "AuraSharedCore\AuraAuthoritativeSyncRuntime.cs"
-$cardScripts = Read-RepoText "SunExp-Dev\Scripting\CardScripts.cs"
-$buffScripts = Read-RepoText "SunExp-Dev\Scripting\BuffScripts.cs"
-$relicScripts = Read-RepoText "SunExp-Dev\Scripting\RelicScripts.cs"
-$eventScripts = Read-RepoText "SunExp-Dev\Scripting\EventScripts.cs"
-$bossScripts = Read-RepoText "SunExp-Dev\Scripting\BossScripts.cs"
-$projectionScripts = Read-RepoText "SunExp-Dev\Scripting\ProjectionScripts.cs"
-$mapNodeCardArtRegistry = Read-RepoText "SunExp-Dev\Mechanics\MapNodeCardArtRegistry.cs"
-$mapNodeTextureFitService = Read-RepoText "SunExp-Dev\Mechanics\MapNodeTextureFitService.cs"
-$mapNodeSafetyService = Read-RepoText "SunExp-Dev\Mechanics\MapNodeSafetyService.cs"
-$solarMemoryFixedNodeSpec = Read-RepoText "SunExp-Dev\Mechanics\SolarMemoryFixedNodeSpec.cs"
-$solarMemoryMapSyncRepairService = Read-RepoText "SunExp-Dev\Mechanics\SolarMemoryMapSyncRepairService.cs"
-$solarMemoryContentIsolationService = Read-RepoText "SunExp-Dev\Mechanics\SolarMemoryContentIsolationService.cs"
-$solarMemoryMapNodePoolFactory = Read-RepoText "SunExp-Dev\Mechanics\SolarMemoryMapNodePoolFactory.cs"
-$endlessSeaNodePoolService = Read-RepoText "SunExp-Dev\Mechanics\EndlessSeaNodePoolService.cs"
-$endlessSeaEnemyPool = Read-RepoText "SunExp-Dev\Mechanics\EndlessSeaEnemyPool.cs"
-$endlessSeaRewardPlan = Read-RepoText "SunExp-Dev\Mechanics\EndlessSeaRewardPlan.cs"
-$endlessAbyssEnemyInjectionService = Read-RepoText "SunExp-Dev\Mechanics\EndlessAbyssEnemyInjectionService.cs"
-$emberAdventureStateService = Read-RepoText "SunExp-Dev\Mechanics\EmberAdventureStateService.cs"
-$endlessSeaPressureService = Read-RepoText "SunExp-Dev\Mechanics\EndlessSeaPressureService.cs"
-$endlessSeaOriginService = Read-RepoText "SunExp-Dev\Mechanics\EndlessSeaOriginService.cs"
-$endlessSeaCardAffixService = Read-RepoText "SunExp-Dev\Mechanics\EndlessSeaCardAffixService.cs"
-$endlessSeaRunStateStore = Read-RepoText "SunExp-Dev\Mechanics\EndlessSeaRunStateStore.cs"
-$endlessAbyssEvacuationRuntime = Read-RepoText "SunExp-Dev\Hooks\EndlessAbyssEvacuationRuntime.cs"
-$endlessAbyssEvacuationButtonRuntime = Read-RepoText "SunExp-Dev\Hooks\Ui\EndlessAbyssEvacuationButtonRuntime.cs"
-$endlessAbyssEvacuationService = Read-RepoText "SunExp-Dev\Mechanics\EndlessAbyssEvacuationService.cs"
-$endlessAbyssEvacuationRpc = Read-RepoText "SunExp-Dev\Network\RpcEndlessAbyssEvacuation.cs"
-$endlessSeaFloorPlan = Read-RepoText "SunExp-Dev\Mechanics\EndlessSeaFloorPlan.cs"
-$endlessSeaFloorPlanner = Read-RepoText "SunExp-Dev\Mechanics\EndlessSeaFloorPlanner.cs"
-$endlessSeaFloorPlanStore = Read-RepoText "SunExp-Dev\Mechanics\EndlessSeaFloorPlanStore.cs"
-$endlessSeaMapProjectionService = Read-RepoText "SunExp-Dev\Mechanics\EndlessSeaMapProjectionService.cs"
-$endlessSeaSelectableNodeDeckPlanner = Read-RepoText "SunExp-Dev\Mechanics\EndlessSeaSelectableNodeDeckPlanner.cs"
-$endlessSeaMapBuilder = Read-RepoText "SunExp-Dev\Mechanics\EndlessSeaMapBuilder.cs"
-$endlessSeaStarterDeckCatalog = Read-RepoText "SunExp-Dev\Mechanics\EndlessSeaStarterDeckCatalog.cs"
-$endlessSeaRichTextSanitizer = Read-RepoText "SunExp-Dev\Mechanics\EndlessSeaRichTextSanitizer.cs"
-$sunExpConfigIndex = Read-RepoText "SunExp-Dev\Mechanics\SunExpConfigIndex.cs"
-$modeChoiceDragRange = Read-RepoText "SunExp-Dev\Mechanics\ModeChoiceDragRange.cs"
-$solarFinaleService = Read-RepoText "SunExp-Dev\Mechanics\SolarFinaleStateService.cs"
-$visualRegistry = Read-RepoText "SunExp-Dev\Mechanics\VisualRegistry.cs"
-$visualRegistryModels = Read-RepoText "SunExp-Dev\Mechanics\VisualRegistryModels.cs"
-$visualRegistryJson = Read-RepoText "SunExp\visual.registry.json"
-$dialogueFlowService = Read-RepoText "SunExp-Dev\Mechanics\DialogueFlowService.cs"
-$battleRewardAdjustmentService = Read-RepoText "SunExp-Dev\Mechanics\BattleRewardAdjustmentService.cs"
-$solarMemoryStoryGateService = Read-RepoText "SunExp-Dev\Mechanics\SolarMemoryStoryGateService.cs"
-$dialogueFlowRuntime = Read-RepoText "SunExp-Dev\Hooks\DialogueFlowRuntime.cs"
-$sunExpUiLifecycleRuntime = Read-RepoText "SunExp-Dev\Hooks\SunExpUiLifecycleRuntime.cs"
-$sunExpFrameScheduler = Read-RepoText "SunExp-Dev\Hooks\SunExpFrameScheduler.cs"
+$cardScripts = Read-RepoText "Terrias-Dev\Scripting\CardScripts.cs"
+$buffScripts = Read-RepoText "Terrias-Dev\Scripting\BuffScripts.cs"
+$relicScripts = Read-RepoText "Terrias-Dev\Scripting\RelicScripts.cs"
+$eventScripts = Read-RepoText "Terrias-Dev\Scripting\EventScripts.cs"
+$bossScripts = Read-RepoText "Terrias-Dev\Scripting\BossScripts.cs"
+$projectionScripts = Read-RepoText "Terrias-Dev\Scripting\ProjectionScripts.cs"
+$mapNodeCardArtRegistry = Read-RepoText "Terrias-Dev\Mechanics\MapNodeCardArtRegistry.cs"
+$mapNodeTextureFitService = Read-RepoText "Terrias-Dev\Mechanics\MapNodeTextureFitService.cs"
+$mapNodeSafetyService = Read-RepoText "Terrias-Dev\Mechanics\MapNodeSafetyService.cs"
+$solarMemoryFixedNodeSpec = Read-RepoText "Terrias-Dev\Mechanics\SolarMemoryFixedNodeSpec.cs"
+$solarMemoryMapSyncRepairService = Read-RepoText "Terrias-Dev\Mechanics\SolarMemoryMapSyncRepairService.cs"
+$solarMemoryContentIsolationService = Read-RepoText "Terrias-Dev\Mechanics\SolarMemoryContentIsolationService.cs"
+$solarMemoryMapNodePoolFactory = Read-RepoText "Terrias-Dev\Mechanics\SolarMemoryMapNodePoolFactory.cs"
+$endlessSeaNodePoolService = Read-RepoText "Terrias-Dev\Mechanics\EndlessSeaNodePoolService.cs"
+$endlessSeaEnemyPool = Read-RepoText "Terrias-Dev\Mechanics\EndlessSeaEnemyPool.cs"
+$endlessSeaRewardPlan = Read-RepoText "Terrias-Dev\Mechanics\EndlessSeaRewardPlan.cs"
+$endlessAbyssEnemyInjectionService = Read-RepoText "Terrias-Dev\Mechanics\EndlessAbyssEnemyInjectionService.cs"
+$emberAdventureStateService = Read-RepoText "Terrias-Dev\Mechanics\EmberAdventureStateService.cs"
+$endlessSeaPressureService = Read-RepoText "Terrias-Dev\Mechanics\EndlessSeaPressureService.cs"
+$endlessSeaOriginService = Read-RepoText "Terrias-Dev\Mechanics\EndlessSeaOriginService.cs"
+$endlessSeaCardAffixService = Read-RepoText "Terrias-Dev\Mechanics\EndlessSeaCardAffixService.cs"
+$endlessSeaRunStateStore = Read-RepoText "Terrias-Dev\Mechanics\EndlessSeaRunStateStore.cs"
+$endlessAbyssEvacuationRuntime = Read-RepoText "Terrias-Dev\Hooks\EndlessAbyssEvacuationRuntime.cs"
+$endlessAbyssEvacuationButtonRuntime = Read-RepoText "Terrias-Dev\Hooks\Ui\EndlessAbyssEvacuationButtonRuntime.cs"
+$endlessAbyssEvacuationService = Read-RepoText "Terrias-Dev\Mechanics\EndlessAbyssEvacuationService.cs"
+$endlessAbyssEvacuationRpc = Read-RepoText "Terrias-Dev\Network\RpcEndlessAbyssEvacuation.cs"
+$endlessSeaFloorPlan = Read-RepoText "Terrias-Dev\Mechanics\EndlessSeaFloorPlan.cs"
+$endlessSeaFloorPlanner = Read-RepoText "Terrias-Dev\Mechanics\EndlessSeaFloorPlanner.cs"
+$endlessSeaFloorPlanStore = Read-RepoText "Terrias-Dev\Mechanics\EndlessSeaFloorPlanStore.cs"
+$endlessSeaMapProjectionService = Read-RepoText "Terrias-Dev\Mechanics\EndlessSeaMapProjectionService.cs"
+$endlessSeaSelectableNodeDeckPlanner = Read-RepoText "Terrias-Dev\Mechanics\EndlessSeaSelectableNodeDeckPlanner.cs"
+$endlessSeaMapBuilder = Read-RepoText "Terrias-Dev\Mechanics\EndlessSeaMapBuilder.cs"
+$endlessSeaStarterDeckCatalog = Read-RepoText "Terrias-Dev\Mechanics\EndlessSeaStarterDeckCatalog.cs"
+$endlessSeaRichTextSanitizer = Read-RepoText "Terrias-Dev\Mechanics\EndlessSeaRichTextSanitizer.cs"
+$terriasConfigIndex = Read-RepoText "Terrias-Dev\Mechanics\TerriasConfigIndex.cs"
+$modeChoiceDragRange = Read-RepoText "Terrias-Dev\Mechanics\ModeChoiceDragRange.cs"
+$solarFinaleService = Read-RepoText "Terrias-Dev\Mechanics\SolarFinaleStateService.cs"
+$visualRegistry = Read-RepoText "Terrias-Dev\Mechanics\VisualRegistry.cs"
+$visualRegistryModels = Read-RepoText "Terrias-Dev\Mechanics\VisualRegistryModels.cs"
+$visualRegistryJson = Read-RepoText "Terrias\visual.registry.json"
+$dialogueFlowService = Read-RepoText "Terrias-Dev\Mechanics\DialogueFlowService.cs"
+$battleRewardAdjustmentService = Read-RepoText "Terrias-Dev\Mechanics\BattleRewardAdjustmentService.cs"
+$solarMemoryStoryGateService = Read-RepoText "Terrias-Dev\Mechanics\SolarMemoryStoryGateService.cs"
+$dialogueFlowRuntime = Read-RepoText "Terrias-Dev\Hooks\DialogueFlowRuntime.cs"
+$terriasUiLifecycleRuntime = Read-RepoText "Terrias-Dev\Hooks\TerriasUiLifecycleRuntime.cs"
+$terriasFrameScheduler = Read-RepoText "Terrias-Dev\Hooks\TerriasFrameScheduler.cs"
 $auraSharedFrameScheduler = Read-RepoText "AuraSharedCore\AuraSharedFrameScheduler.cs"
 $auraCombatCardZoneSnapshot = Read-RepoText "AuraSharedCore\AuraCombatCardZoneSnapshot.cs"
-$sunExpActionEventRouter = Read-RepoText "SunExp-Dev\Hooks\SunExpActionEventRouter.cs"
-$sunExpCardRefreshQueue = Read-RepoText "SunExp-Dev\Mechanics\SunExpCardRefreshQueue.cs"
-$cardPresentationImpactRegistry = Read-RepoText "SunExp-Dev\Mechanics\CardPresentationImpactRegistry.cs"
-$cardPresentationInvalidationRuntime = Read-RepoText "SunExp-Dev\Hooks\SunExpCardPresentationInvalidationRuntime.cs"
-$combatCardViewConstructionDiagnostics = Read-RepoText "SunExp-Dev\Mechanics\CombatCardViewConstructionDiagnostics.cs"
-$cardGrantPostCommitQueue = Read-RepoText "SunExp-Dev\Mechanics\CardGrantPostCommitQueue.cs"
-$companionBattleModels = Read-RepoText "SunExp-Dev\Mechanics\CompanionBattleModels.cs"
-$companionIntentPresentationSnapshot = Read-RepoText "SunExp-Dev\Mechanics\CompanionIntentPresentationSnapshot.cs"
-$spiritIntentPresentationDataComposer = Read-RepoText "SunExp-Dev\Mechanics\SpiritIntentPresentationDataComposer.cs"
-$spiritProfileIdentityResolver = Read-RepoText "SunExp-Dev\Mechanics\SpiritProfileIdentityResolver.cs"
-$companionBattleStateStore = Read-RepoText "SunExp-Dev\Mechanics\CompanionBattleStateStore.cs"
-$companionIntentExecutor = Read-RepoText "SunExp-Dev\Mechanics\CompanionIntentExecutor.cs"
-$companionIntentRegistry = Read-RepoText "SunExp-Dev\Mechanics\CompanionIntentRegistry.cs"
-$companionIntentSelector = Read-RepoText "SunExp-Dev\Mechanics\CompanionIntentSelector.cs"
-$companionSlotService = Read-RepoText "SunExp-Dev\Mechanics\CompanionSlotService.cs"
-$companionStatsService = Read-RepoText "SunExp-Dev\Mechanics\CompanionStatsService.cs"
-$companionThreatService = Read-RepoText "SunExp-Dev\Mechanics\CompanionThreatService.cs"
-$projectionActionExecutor = Read-RepoText "SunExp-Dev\Mechanics\ProjectionActionExecutor.cs"
-$projectionEffectContext = Read-RepoText "SunExp-Dev\Mechanics\ProjectionEffectContext.cs"
-$familiarGrowthModels = Read-RepoText "SunExp-Dev\Mechanics\FamiliarGrowthModels.cs"
-$familiarSpeciesCatalog = Read-RepoText "SunExp-Dev\Mechanics\FamiliarSpeciesCatalog.cs"
-$familiarBlessingRegistry = Read-RepoText "SunExp-Dev\Mechanics\FamiliarBlessingRegistry.cs"
-$familiarBlessingRoller = Read-RepoText "SunExp-Dev\Mechanics\FamiliarBlessingRoller.cs"
-$familiarRosterService = Read-RepoText "SunExp-Dev\Mechanics\FamiliarRosterService.cs"
-$familiarGrowthService = Read-RepoText "SunExp-Dev\Mechanics\FamiliarGrowthService.cs"
-$familiarGrowthScripts = Read-RepoText "SunExp-Dev\Scripting\FamiliarGrowthScripts.cs"
-$familiarGrowthRuntime = Read-RepoText "SunExp-Dev\Hooks\FamiliarGrowthRuntime.cs"
-$familiarBlessingEffectRuntime = Read-RepoText "SunExp-Dev\Mechanics\FamiliarBlessingEffectRuntime.cs"
-$combatCardApi = Read-RepoText "SunExp-Dev\GameApi\CombatCardApi.cs"
-$familiarGrowthPanel = Read-RepoText "SunExp-Dev\Hooks\Ui\FamiliarGrowthPanel.cs"
-$familiarBlessingRegistryJson = Read-RepoText "SunExp\familiar.blessing.registry.json"
-$companionIntentRegistryJson = Read-RepoText "SunExp\companion.intent.registry.json"
-$companionAuthorityService = Read-RepoText "SunExp-Dev\Mechanics\CompanionAuthorityService.cs"
-$companionIntentPlanner = Read-RepoText "SunExp-Dev\Mechanics\CompanionIntentPlanner.cs"
-$companionIntentHandlers = Read-RepoText "SunExp-Dev\Mechanics\CompanionIntentHandlers.cs"
-$companionFriendlyRosterService = Read-RepoText "SunExp-Dev\Mechanics\CompanionFriendlyRosterService.cs"
-$projectionActivationService = Read-RepoText "SunExp-Dev\Mechanics\ProjectionActivationService.cs"
-$projectionOtherObj = Read-RepoText "SunExp-Dev\Mechanics\ProjectionOtherObj.cs"
-$spiritOtherObj = Read-RepoText "SunExp-Dev\Mechanics\SpiritOtherObj.cs"
-$projectionStateStore = Read-RepoText "SunExp-Dev\Mechanics\ProjectionStateStore.cs"
-$projectionStrategyService = Read-RepoText "SunExp-Dev\Mechanics\ProjectionStrategyService.cs"
-$projectionSummonService = Read-RepoText "SunExp-Dev\Mechanics\ProjectionSummonService.cs"
-$projectionAttachmentPresenter = Read-RepoText "SunExp-Dev\Hooks\Visual\ProjectionAttachmentPresenter.cs"
-$projectionIntentPresenter = Read-RepoText "SunExp-Dev\Hooks\Visual\ProjectionIntentPresenter.cs"
-$burnTriggerApi = Read-RepoText "SunExp-Dev\GameApi\BurnTriggerApi.cs"
-$sunExpResourcePreloader = Read-RepoText "SunExp-Dev\Hooks\SunExpResourcePreloader.cs"
-$sunExpCombatCardUiWorkloadRuntime = Read-RepoText "SunExp-Dev\Hooks\SunExpCombatCardUiWorkloadRuntime.cs"
-$loneerRuntime = Read-RepoText "SunExp-Dev\Hooks\LoneerRuntime.cs"
-$solarMemoryJourneyApi = Read-RepoText "SunExp-Dev\GameApi\SolarMemoryJourneyApi.cs"
-$battleRewardAdjustmentRuntime = Read-RepoText "SunExp-Dev\Hooks\BattleRewardAdjustmentRuntime.cs"
-$companionThreatRuntime = Read-RepoText "SunExp-Dev\Hooks\CompanionThreatRuntime.cs"
-$solarMemoryRewardRuntime = Read-RepoText "SunExp-Dev\Hooks\SolarMemoryRewardRuntime.cs"
-$endlessSeaRewardRuntime = Read-RepoText "SunExp-Dev\Hooks\EndlessSeaRewardRuntime.cs"
-$endlessSeaCardAffixRuntime = Read-RepoText "SunExp-Dev\Hooks\EndlessSeaCardAffixRuntime.cs"
-$endlessSeaCombatRuntime = Read-RepoText "SunExp-Dev\Hooks\EndlessSeaCombatRuntime.cs"
-$endlessSeaModeRuntime = Read-RepoText "SunExp-Dev\Hooks\EndlessSeaModeRuntime.cs"
-$endlessSeaModeEntryRuntime = Read-RepoText "SunExp-Dev\Hooks\EndlessSeaModeEntryRuntime.cs"
-$endlessSeaRunLauncher = Read-RepoText "SunExp-Dev\Hooks\EndlessSeaRunLauncher.cs"
-$endlessSeaIntroBoardRuntime = Read-RepoText "SunExp-Dev\Hooks\EndlessSeaIntroBoardRuntime.cs"
-$endlessSeaMapViewPresenter = Read-RepoText "SunExp-Dev\Hooks\Ui\EndlessSeaMapViewPresenter.cs"
-$endlessSeaNetworkSync = Read-RepoText "SunExp-Dev\Network\EndlessSeaNetworkSync.cs"
-$sunExpNetworkRuntime = Read-RepoText "SunExp-Dev\Network\SunExpNetworkRuntime.cs"
-$mapNodeCardArtRuntime = Read-RepoText "SunExp-Dev\Hooks\MapNodeCardArtRuntime.cs"
-$dimensionShopRuntime = Read-RepoText "SunExp-Dev\Hooks\DimensionShopRuntime.cs"
-$dimensionShopPanel = Read-RepoText "SunExp-Dev\Hooks\Ui\DimensionShopPanel.cs"
-$dimensionShopNativeSkin = Read-RepoText "SunExp-Dev\Hooks\Ui\DimensionShopNativeSkin.cs"
+$terriasActionEventRouter = Read-RepoText "Terrias-Dev\Hooks\TerriasActionEventRouter.cs"
+$terriasCardRefreshQueue = Read-RepoText "Terrias-Dev\Mechanics\TerriasCardRefreshQueue.cs"
+$cardPresentationImpactRegistry = Read-RepoText "Terrias-Dev\Mechanics\CardPresentationImpactRegistry.cs"
+$cardPresentationInvalidationRuntime = Read-RepoText "Terrias-Dev\Hooks\TerriasCardPresentationInvalidationRuntime.cs"
+$combatCardViewConstructionDiagnostics = Read-RepoText "Terrias-Dev\Mechanics\CombatCardViewConstructionDiagnostics.cs"
+$cardGrantPostCommitQueue = Read-RepoText "Terrias-Dev\Mechanics\CardGrantPostCommitQueue.cs"
+$companionBattleModels = Read-RepoText "Terrias-Dev\Mechanics\CompanionBattleModels.cs"
+$companionIntentPresentationSnapshot = Read-RepoText "Terrias-Dev\Mechanics\CompanionIntentPresentationSnapshot.cs"
+$spiritIntentPresentationDataComposer = Read-RepoText "Terrias-Dev\Mechanics\SpiritIntentPresentationDataComposer.cs"
+$spiritProfileIdentityResolver = Read-RepoText "Terrias-Dev\Mechanics\SpiritProfileIdentityResolver.cs"
+$companionBattleStateStore = Read-RepoText "Terrias-Dev\Mechanics\CompanionBattleStateStore.cs"
+$companionIntentExecutor = Read-RepoText "Terrias-Dev\Mechanics\CompanionIntentExecutor.cs"
+$companionIntentRegistry = Read-RepoText "Terrias-Dev\Mechanics\CompanionIntentRegistry.cs"
+$companionIntentSelector = Read-RepoText "Terrias-Dev\Mechanics\CompanionIntentSelector.cs"
+$companionSlotService = Read-RepoText "Terrias-Dev\Mechanics\CompanionSlotService.cs"
+$companionStatsService = Read-RepoText "Terrias-Dev\Mechanics\CompanionStatsService.cs"
+$companionThreatService = Read-RepoText "Terrias-Dev\Mechanics\CompanionThreatService.cs"
+$projectionActionExecutor = Read-RepoText "Terrias-Dev\Mechanics\ProjectionActionExecutor.cs"
+$projectionEffectContext = Read-RepoText "Terrias-Dev\Mechanics\ProjectionEffectContext.cs"
+$familiarGrowthModels = Read-RepoText "Terrias-Dev\Mechanics\FamiliarGrowthModels.cs"
+$familiarSpeciesCatalog = Read-RepoText "Terrias-Dev\Mechanics\FamiliarSpeciesCatalog.cs"
+$familiarBlessingRegistry = Read-RepoText "Terrias-Dev\Mechanics\FamiliarBlessingRegistry.cs"
+$familiarBlessingRoller = Read-RepoText "Terrias-Dev\Mechanics\FamiliarBlessingRoller.cs"
+$familiarRosterService = Read-RepoText "Terrias-Dev\Mechanics\FamiliarRosterService.cs"
+$familiarGrowthService = Read-RepoText "Terrias-Dev\Mechanics\FamiliarGrowthService.cs"
+$familiarGrowthScripts = Read-RepoText "Terrias-Dev\Scripting\FamiliarGrowthScripts.cs"
+$familiarGrowthRuntime = Read-RepoText "Terrias-Dev\Hooks\FamiliarGrowthRuntime.cs"
+$familiarBlessingEffectRuntime = Read-RepoText "Terrias-Dev\Mechanics\FamiliarBlessingEffectRuntime.cs"
+$combatCardApi = Read-RepoText "Terrias-Dev\GameApi\CombatCardApi.cs"
+$familiarGrowthPanel = Read-RepoText "Terrias-Dev\Hooks\Ui\FamiliarGrowthPanel.cs"
+$familiarBlessingRegistryJson = Read-RepoText "Terrias\familiar.blessing.registry.json"
+$companionIntentRegistryJson = Read-RepoText "Terrias\companion.intent.registry.json"
+$companionAuthorityService = Read-RepoText "Terrias-Dev\Mechanics\CompanionAuthorityService.cs"
+$companionIntentPlanner = Read-RepoText "Terrias-Dev\Mechanics\CompanionIntentPlanner.cs"
+$companionIntentHandlers = Read-RepoText "Terrias-Dev\Mechanics\CompanionIntentHandlers.cs"
+$companionFriendlyRosterService = Read-RepoText "Terrias-Dev\Mechanics\CompanionFriendlyRosterService.cs"
+$projectionActivationService = Read-RepoText "Terrias-Dev\Mechanics\ProjectionActivationService.cs"
+$projectionOtherObj = Read-RepoText "Terrias-Dev\Mechanics\ProjectionOtherObj.cs"
+$spiritOtherObj = Read-RepoText "Terrias-Dev\Mechanics\SpiritOtherObj.cs"
+$projectionStateStore = Read-RepoText "Terrias-Dev\Mechanics\ProjectionStateStore.cs"
+$projectionStrategyService = Read-RepoText "Terrias-Dev\Mechanics\ProjectionStrategyService.cs"
+$projectionSummonService = Read-RepoText "Terrias-Dev\Mechanics\ProjectionSummonService.cs"
+$projectionAttachmentPresenter = Read-RepoText "Terrias-Dev\Hooks\Visual\ProjectionAttachmentPresenter.cs"
+$projectionIntentPresenter = Read-RepoText "Terrias-Dev\Hooks\Visual\ProjectionIntentPresenter.cs"
+$burnTriggerApi = Read-RepoText "Terrias-Dev\GameApi\BurnTriggerApi.cs"
+$terriasResourcePreloader = Read-RepoText "Terrias-Dev\Hooks\TerriasResourcePreloader.cs"
+$terriasCombatCardUiWorkloadRuntime = Read-RepoText "Terrias-Dev\Hooks\TerriasCombatCardUiWorkloadRuntime.cs"
+$loneerRuntime = Read-RepoText "Terrias-Dev\Hooks\LoneerRuntime.cs"
+$solarMemoryJourneyApi = Read-RepoText "Terrias-Dev\GameApi\SolarMemoryJourneyApi.cs"
+$battleRewardAdjustmentRuntime = Read-RepoText "Terrias-Dev\Hooks\BattleRewardAdjustmentRuntime.cs"
+$companionThreatRuntime = Read-RepoText "Terrias-Dev\Hooks\CompanionThreatRuntime.cs"
+$solarMemoryRewardRuntime = Read-RepoText "Terrias-Dev\Hooks\SolarMemoryRewardRuntime.cs"
+$endlessSeaRewardRuntime = Read-RepoText "Terrias-Dev\Hooks\EndlessSeaRewardRuntime.cs"
+$endlessSeaCardAffixRuntime = Read-RepoText "Terrias-Dev\Hooks\EndlessSeaCardAffixRuntime.cs"
+$endlessSeaCombatRuntime = Read-RepoText "Terrias-Dev\Hooks\EndlessSeaCombatRuntime.cs"
+$endlessSeaModeRuntime = Read-RepoText "Terrias-Dev\Hooks\EndlessSeaModeRuntime.cs"
+$endlessSeaModeEntryRuntime = Read-RepoText "Terrias-Dev\Hooks\EndlessSeaModeEntryRuntime.cs"
+$endlessSeaRunLauncher = Read-RepoText "Terrias-Dev\Hooks\EndlessSeaRunLauncher.cs"
+$endlessSeaIntroBoardRuntime = Read-RepoText "Terrias-Dev\Hooks\EndlessSeaIntroBoardRuntime.cs"
+$endlessSeaMapViewPresenter = Read-RepoText "Terrias-Dev\Hooks\Ui\EndlessSeaMapViewPresenter.cs"
+$endlessSeaNetworkSync = Read-RepoText "Terrias-Dev\Network\EndlessSeaNetworkSync.cs"
+$terriasNetworkRuntime = Read-RepoText "Terrias-Dev\Network\TerriasNetworkRuntime.cs"
+$mapNodeCardArtRuntime = Read-RepoText "Terrias-Dev\Hooks\MapNodeCardArtRuntime.cs"
+$dimensionShopRuntime = Read-RepoText "Terrias-Dev\Hooks\DimensionShopRuntime.cs"
+$dimensionShopPanel = Read-RepoText "Terrias-Dev\Hooks\Ui\DimensionShopPanel.cs"
+$dimensionShopNativeSkin = Read-RepoText "Terrias-Dev\Hooks\Ui\DimensionShopNativeSkin.cs"
 $sharedUiNativeInteraction = Read-RepoText "AuraUiShared\AuraUiNativeInteraction.cs"
 $sharedUiNativeGameItems = Read-RepoText "AuraUiShared\AuraUiNativeGameItemAdapter.cs"
 $sharedUiNativeOverlayVisibility = Read-RepoText "AuraUiShared\AuraUiNativeOverlayVisibility.cs"
 $sharedUiModalHost = Read-RepoText "AuraUiShared\AuraUiModalHost.cs"
-$dimensionShopService = Read-RepoText "SunExp-Dev\Mechanics\DimensionShopService.cs"
-$dimensionShopGameApi = Read-RepoText "SunExp-Dev\GameApi\DimensionShopGameApi.cs"
-$dimensionShopConfigSource = Read-RepoText "SunExp-Dev\Mechanics\DimensionShopConfig.cs"
-$dimensionShopMapData = Read-RepoText "SunExp\Data\Map\sunexp.csv"
-$dimensionShopConfig = (Read-RepoText "SunExp\dimension_shop.config.json") | ConvertFrom-Json
-$projectionRuntime = Read-RepoText "SunExp-Dev\Hooks\ProjectionRuntime.cs"
-$runtimeHooks = Read-RepoText "SunExp-Dev\Hooks\RuntimeHooks.cs"
-$sunExpHookTargets = Read-RepoText "SunExp-Dev\Hooks\SunExpHookTargets.cs"
-$sunExpHookRegistry = Read-RepoText "SunExp-Dev\Hooks\SunExpHookRegistry.cs"
-$sunExpBattleLifecycleRouter = Read-RepoText "SunExp-Dev\Hooks\SunExpBattleLifecycleRouter.cs"
+$dimensionShopService = Read-RepoText "Terrias-Dev\Mechanics\DimensionShopService.cs"
+$dimensionShopGameApi = Read-RepoText "Terrias-Dev\GameApi\DimensionShopGameApi.cs"
+$dimensionShopConfigSource = Read-RepoText "Terrias-Dev\Mechanics\DimensionShopConfig.cs"
+$dimensionShopMapData = Read-RepoText "Terrias\Data\Map\terrias.csv"
+$dimensionShopConfig = (Read-RepoText "Terrias\dimension_shop.config.json") | ConvertFrom-Json
+$projectionRuntime = Read-RepoText "Terrias-Dev\Hooks\ProjectionRuntime.cs"
+$runtimeHooks = Read-RepoText "Terrias-Dev\Hooks\RuntimeHooks.cs"
+$terriasHookTargets = Read-RepoText "Terrias-Dev\Hooks\TerriasHookTargets.cs"
+$terriasHookRegistry = Read-RepoText "Terrias-Dev\Hooks\TerriasHookRegistry.cs"
+$terriasBattleLifecycleRouter = Read-RepoText "Terrias-Dev\Hooks\TerriasBattleLifecycleRouter.cs"
 $auraBattleLifecycleRouter = Read-RepoText "AuraSharedCore\AuraBattleLifecycleRouter.cs"
 $auraCardLifecycleRouter = Read-RepoText "AuraSharedCore\AuraCardLifecycleRouter.cs"
-$sunExpCardLifecycleRouter = Read-RepoText "SunExp-Dev\Hooks\SunExpCardLifecycleRouter.cs"
-$sunExpCombatActionRouter = Read-RepoText "SunExp-Dev\Hooks\SunExpCombatActionRouter.cs"
-$sunExpStatusLifecycleRouter = Read-RepoText "SunExp-Dev\Hooks\SunExpStatusLifecycleRouter.cs"
-$sunExpCardPresentationRouter = Read-RepoText "SunExp-Dev\Hooks\SunExpCardPresentationRouter.cs"
-$sunExpCardPresentationLifecycleBridge = Read-RepoText "SunExp-Dev\Hooks\SunExpCardPresentationLifecycleBridge.cs"
-$cardPresentationRootResolver = Read-RepoText "SunExp-Dev\Hooks\Visual\CardPresentationRootResolver.cs"
-$emberAdventureStateRuntime = Read-RepoText "SunExp-Dev\Hooks\EmberAdventureStateRuntime.cs"
-$cardVisualSkinSpec = Read-RepoText "SunExp-Dev\Mechanics\CardVisualSkinSpec.cs"
-$cardVisualSkinRule = Read-RepoText "SunExp-Dev\Mechanics\CardVisualSkinRule.cs"
-$cardVisualSkinRegistry = Read-RepoText "SunExp-Dev\Mechanics\CardVisualSkinRegistry.cs"
-$cardVisualEffectTarget = Read-RepoText "SunExp-Dev\Mechanics\CardVisualEffectTarget.cs"
-$cardVisualEffectSpec = Read-RepoText "SunExp-Dev\Mechanics\CardVisualEffectSpec.cs"
-$cardVisualEffectRegistry = Read-RepoText "SunExp-Dev\Mechanics\CardVisualEffectRegistry.cs"
-$cardVisualInterestIndex = Read-RepoText "SunExp-Dev\Mechanics\CardVisualInterestIndex.cs"
-$cardVisualThemeCatalog = Read-RepoText "SunExp-Dev\Mechanics\CardVisualThemeCatalog.cs"
-$cardMutationService = Read-RepoText "SunExp-Dev\Mechanics\CardMutationService.cs"
-$runtimeCardAttachmentService = Read-RepoText "SunExp-Dev\Mechanics\RuntimeCardAttachmentService.cs"
-$cardVisualSkinRuntime = Read-RepoText "SunExp-Dev\Hooks\CardVisualSkinRuntime.cs"
-$polymorphCardFaceRuntime = Read-RepoText "SunExp-Dev\Hooks\Visual\PolymorphCardFaceRuntime.cs"
-$sunExpUiComponents = Read-RepoText "SunExp-Dev\Hooks\Ui\SunExpUiComponents.cs"
-$endlessAbyssFramedTextCard = Read-RepoText "SunExp-Dev\Hooks\Ui\EndlessAbyssFramedTextCard.cs"
-$endlessAbyssShockPanel = Read-RepoText "SunExp-Dev\Hooks\Ui\EndlessAbyssShockPanel.cs"
-$endlessAbyssMilestoneRewardPanel = Read-RepoText "SunExp-Dev\Hooks\Ui\EndlessAbyssMilestoneRewardPanel.cs"
-$cardVisualSkinMarker = Read-RepoText "SunExp-Dev\Hooks\Visual\CardVisualSkinMarker.cs"
-$cardVisualSkinApplier = Read-RepoText "SunExp-Dev\Hooks\Visual\CardVisualSkinApplier.cs"
-$cardVisualEffectApplier = Read-RepoText "SunExp-Dev\Hooks\Visual\CardVisualEffectApplier.cs"
-$cardFaceEffectApplier = Read-RepoText "SunExp-Dev\Hooks\Visual\CardFaceEffectApplier.cs"
-$cardFaceEffectMaterials = Read-RepoText "SunExp-Dev\Hooks\Visual\CardFaceEffectMaterials.cs"
-$cardUseFxMaterials = Read-RepoText "SunExp-Dev\Hooks\Visual\CardUseFxMaterials.cs"
-$starScoreCardUseFxPresenter = Read-RepoText "SunExp-Dev\Hooks\Visual\StarScoreCardUseFxPresenter.cs"
-$starScoreFlightGlyphAssets = Read-RepoText "SunExp-Dev\Hooks\Visual\StarScoreFlightGlyphAssets.cs"
-$starScoreArrivalCueService = Read-RepoText "SunExp-Dev\Mechanics\StarScoreArrivalCueService.cs"
-$sunExpCardUseFxRuntime = Read-RepoText "SunExp-Dev\Features\SunExpCardUseFxRuntime.cs"
-$cardUseFxManifest = Get-Content -Raw -LiteralPath (Join-Path $RepoRoot "SunExp\card-use-effect.registry.json") | ConvertFrom-Json
-$cardFrameEffectApplier = Read-RepoText "SunExp-Dev\Hooks\Visual\CardFrameEffectApplier.cs"
-$cardFrameEffectMaterials = Read-RepoText "SunExp-Dev\Hooks\Visual\CardFrameEffectMaterials.cs"
-$cardFrameOverlay = Read-RepoText "SunExp-Dev\Hooks\Visual\CardFrameOverlay.cs"
-$cardVisualSkinSpriteCache = Read-RepoText "SunExp-Dev\Hooks\Visual\CardVisualSkinSpriteCache.cs"
-$sunCardFrameRuntime = Read-RepoText "SunExp-Dev\Hooks\SunCardFrameRuntime.cs"
-$sunCardFrameApplier = Read-RepoText "SunExp-Dev\Hooks\Visual\SunCardFrameApplier.cs"
-$sunCardFrameSpriteCache = Read-RepoText "SunExp-Dev\Hooks\Visual\SunCardFrameSpriteCache.cs"
-$sunCardThemeCatalog = Read-RepoText "SunExp-Dev\Mechanics\SunCardThemeCatalog.cs"
-$solarMemoryModeRuntime = Read-RepoText "SunExp-Dev\Hooks\SolarMemoryModeRuntime.cs"
-$solarMemoryMapVisualRuntime = Read-RepoText "SunExp-Dev\Hooks\SolarMemoryMapVisualRuntime.cs"
-$solarMemoryMapProjectionRuntime = Read-RepoText "SunExp-Dev\Hooks\SolarMemoryMapProjectionRuntime.cs"
-$solarMemoryMapLifecycleCoordinator = Read-RepoText "SunExp-Dev\Hooks\SolarMemoryMapLifecycleCoordinator.cs"
-$solarMemoryMapItemAnimationRuntime = Read-RepoText "SunExp-Dev\Hooks\SolarMemoryMapItemAnimationRuntime.cs"
-$solarMemoryBattleExitCoordinator = Read-RepoText "SunExp-Dev\Hooks\SolarMemoryBattleExitCoordinator.cs"
-$solarMemoryBossTransitionCoordinator = Read-RepoText "SunExp-Dev\Hooks\SolarMemoryBossTransitionCoordinator.cs"
-$solarMemorySettlementCoordinator = Read-RepoText "SunExp-Dev\Hooks\SolarMemorySettlementCoordinator.cs"
-$solarMemoryDeckIsolationRuntime = Read-RepoText "SunExp-Dev\Hooks\SolarMemoryDeckIsolationRuntime.cs"
-$solarMemoryModeEntryRuntime = Read-RepoText "SunExp-Dev\Hooks\SolarMemoryModeEntryRuntime.cs"
-$solarMemoryContentIsolationRuntime = Read-RepoText "SunExp-Dev\Hooks\SolarMemoryContentIsolationRuntime.cs"
-$solarMemorySettlementPresenter = Read-RepoText "SunExp-Dev\Hooks\SolarMemorySettlementPresenter.cs"
-$animatedBlessingIconRuntime = Read-RepoText "SunExp-Dev\Hooks\AnimatedBlessingIconRuntime.cs"
-$animatedBuffIconRuntime = Read-RepoText "SunExp-Dev\Hooks\AnimatedBuffIconRuntime.cs"
-$animatedEnemyDictIconRuntime = Read-RepoText "SunExp-Dev\Hooks\AnimatedEnemyDictIconRuntime.cs"
-$assetBundleCache = Read-RepoText "SunExp-Dev\Hooks\Visual\AssetBundleCache.cs"
-$effectMaterialFactory = Read-RepoText "SunExp-Dev\Hooks\Visual\EffectMaterialFactory.cs"
-$effectTextureCache = Read-RepoText "SunExp-Dev\Hooks\Visual\EffectTextureCache.cs"
-$frameAnimationAttacher = Read-RepoText "SunExp-Dev\Hooks\Visual\FrameAnimationAttacher.cs"
-$frameSpriteCache = Read-RepoText "SunExp-Dev\Hooks\Visual\FrameSpriteCache.cs"
-$frameImageAnimator = Read-RepoText "SunExp-Dev\Hooks\Visual\FrameImageAnimator.cs"
-$frameSpriteRendererAnimator = Read-RepoText "SunExp-Dev\Hooks\Visual\FrameSpriteRendererAnimator.cs"
-$shaderAssetLoader = Read-RepoText "SunExp-Dev\Hooks\Visual\ShaderAssetLoader.cs"
-$visualBundleRuntimeValidator = Read-RepoText "SunExp-Dev\Hooks\Visual\VisualBundleRuntimeValidator.cs"
-$wunaOrbitFireController = Read-RepoText "SunExp-Dev\Hooks\Visual\WunaOrbitFireController.cs"
-$visualPipeline = Read-RepoText "SunExp-Dev\VisualAssets\sunexp_visuals.pipeline.json"
-$visualBundleBuilder = Read-RepoText "SunExp-Dev\VisualAssets\Editor\SunExpVisualBundleBuilder.cs.txt"
-$starScoreHudShaderSource = Read-RepoText "SunExp-Dev\VisualAssets\Shaders\StarScoreHud.shader"
-$cardFaceEffectShaderSource = Read-RepoText "SunExp-Dev\VisualAssets\Shaders\CardFaceEffect.shader"
-$cardFrameHoloShaderSource = Read-RepoText "SunExp-Dev\VisualAssets\Shaders\CardFrameHoloFlow.shader"
-$visualBundleBuildScript = Read-RepoText "tools\Build-SunExpVisualBundle.ps1"
-$starScoreService = Read-RepoText "SunExp-Dev\Mechanics\StarScoreService.cs"
-$starStonePouchService = Read-RepoText "SunExp-Dev\Mechanics\StarStonePouchService.cs"
-$loneerMiracleService = Read-RepoText "SunExp-Dev\Mechanics\LoneerMiracleService.cs"
-$loneerCombatState = Read-RepoText "SunExp-Dev\Mechanics\LoneerCombatState.cs"
-$wunaScripts = Read-RepoText "SunExp-Dev\Scripting\WunaScripts.cs"
-$starScoreRuntime = Read-RepoText "SunExp-Dev\Hooks\StarScoreRuntime.cs"
-$specialTagRuntime = Read-RepoText "SunExp-Dev\Hooks\SpecialTagRuntime.cs"
-$loneerRuntime = Read-RepoText "SunExp-Dev\Hooks\LoneerRuntime.cs"
-$starScoreHudRuntime = Read-RepoText "SunExp-Dev\Hooks\StarScoreHudRuntime.cs"
-$starScoreHudView = Read-RepoText "SunExp-Dev\Hooks\Ui\StarScoreHudView.cs"
-$starScoreHudHoverProbe = Read-RepoText "SunExp-Dev\Hooks\Ui\StarScoreHudHoverProbe.cs"
-$starScoreHudAssets = Read-RepoText "SunExp-Dev\Hooks\Ui\StarScoreHudAssets.cs"
-$starScoreHudShaderController = Read-RepoText "SunExp-Dev\Hooks\Ui\StarScoreHudShaderController.cs"
-$starScoreHudShaderMaterials = Read-RepoText "SunExp-Dev\Hooks\Ui\StarScoreHudShaderMaterials.cs"
-$starScoreHudTooltipView = Read-RepoText "SunExp-Dev\Hooks\Ui\StarScoreHudTooltipView.cs"
-$fieldBuffHudView = Read-RepoText "SunExp-Dev\Hooks\Ui\FieldBuffHudView.cs"
-$fieldBuffHudHoverProbe = Read-RepoText "SunExp-Dev\Hooks\Ui\FieldBuffHudHoverProbe.cs"
-$fieldBuffHudTooltipView = Read-RepoText "SunExp-Dev\Hooks\Ui\FieldBuffHudTooltipView.cs"
-$starScoreCadenceCatalog = Read-RepoText "SunExp-Dev\Mechanics\StarScoreCadenceCatalog.cs"
-$sunExpIds = Read-RepoText "SunExp-Dev\Infrastructure\SunExpIds.cs"
-$entrySource = Read-RepoText "SunExp-Dev\Entry.cs"
-$sunExpProject = Read-RepoText "SunExp-Dev\SunExp.Dll.csproj"
-$modeChoiceEntryDefinition = Read-RepoText "SunExp-Dev\Hooks\ModeChoiceEntryDefinition.cs"
-$modeChoiceEntryRegistry = Read-RepoText "SunExp-Dev\Hooks\ModeChoiceEntryRegistry.cs"
-$modeChoiceLayoutRuntime = Read-RepoText "SunExp-Dev\Hooks\ModeChoiceLayoutRuntime.cs"
-$solarMemoryPreparationRuntime = Read-RepoText "SunExp-Dev\Hooks\SolarMemoryPreparationRuntime.cs"
-$solarMemoryRunLauncher = Read-RepoText "SunExp-Dev\Hooks\SolarMemoryRunLauncher.cs"
-$solarMemoryStarterDeckRuntime = Read-RepoText "SunExp-Dev\Hooks\SolarMemoryStarterDeckRuntime.cs"
-$solarMemorySetupFlowRuntime = Read-RepoText "SunExp-Dev\Hooks\SolarMemorySetupFlowRuntime.cs"
-$solarMemoryBlessingPickerRuntime = Read-RepoText "SunExp-Dev\Hooks\SolarMemoryBlessingPickerRuntime.cs"
-$sunExpModalHost = Read-RepoText "SunExp-Dev\Hooks\Ui\SunExpModalHost.cs"
-$sunExpUiSafety = Read-RepoText "SunExp-Dev\Hooks\Ui\SunExpUiSafety.cs"
-$sunExpUiLifetimeScope = Read-RepoText "SunExp-Dev\Hooks\Ui\SunExpUiLifetimeScope.cs"
-$sunExpUiPool = Read-RepoText "SunExp-Dev\Hooks\Ui\SunExpUiPool.cs"
-$sunExpUiSprites = Read-RepoText "SunExp-Dev\Hooks\Ui\SunExpUiSprites.cs"
-$polymorphRoleSelectionWindow = Read-RepoText "SunExp-Dev\Hooks\Ui\PolymorphRoleSelectionWindow.cs"
-$sunExpHardTagRuntime = Read-RepoText "SunExp-Dev\Hooks\SunExpHardTagRuntime.cs"
-$morningStarDimmedService = Read-RepoText "SunExp-Dev\Mechanics\MorningStarDimmedService.cs"
-$playerPowerApi = Read-RepoText "SunExp-Dev\GameApi\PlayerPowerApi.cs"
-$sourceFiles = Get-ChildItem -LiteralPath (Join-Path $RepoRoot "SunExp-Dev") -Recurse -File -Filter "*.cs"
-$scriptingSource = [string]::Join("`n", (Get-ChildItem -LiteralPath (Join-Path $RepoRoot "SunExp-Dev\Scripting") -File -Filter "*.cs" | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }))
+$terriasCardLifecycleRouter = Read-RepoText "Terrias-Dev\Hooks\TerriasCardLifecycleRouter.cs"
+$terriasCombatActionRouter = Read-RepoText "Terrias-Dev\Hooks\TerriasCombatActionRouter.cs"
+$terriasStatusLifecycleRouter = Read-RepoText "Terrias-Dev\Hooks\TerriasStatusLifecycleRouter.cs"
+$terriasCardPresentationRouter = Read-RepoText "Terrias-Dev\Hooks\TerriasCardPresentationRouter.cs"
+$terriasCardPresentationLifecycleBridge = Read-RepoText "Terrias-Dev\Hooks\TerriasCardPresentationLifecycleBridge.cs"
+$cardPresentationRootResolver = Read-RepoText "Terrias-Dev\Hooks\Visual\CardPresentationRootResolver.cs"
+$emberAdventureStateRuntime = Read-RepoText "Terrias-Dev\Hooks\EmberAdventureStateRuntime.cs"
+$cardVisualSkinSpec = Read-RepoText "Terrias-Dev\Mechanics\CardVisualSkinSpec.cs"
+$cardVisualSkinRule = Read-RepoText "Terrias-Dev\Mechanics\CardVisualSkinRule.cs"
+$cardVisualSkinRegistry = Read-RepoText "Terrias-Dev\Mechanics\CardVisualSkinRegistry.cs"
+$cardVisualEffectTarget = Read-RepoText "Terrias-Dev\Mechanics\CardVisualEffectTarget.cs"
+$cardVisualEffectSpec = Read-RepoText "Terrias-Dev\Mechanics\CardVisualEffectSpec.cs"
+$cardVisualEffectRegistry = Read-RepoText "Terrias-Dev\Mechanics\CardVisualEffectRegistry.cs"
+$cardVisualInterestIndex = Read-RepoText "Terrias-Dev\Mechanics\CardVisualInterestIndex.cs"
+$cardVisualThemeCatalog = Read-RepoText "Terrias-Dev\Mechanics\CardVisualThemeCatalog.cs"
+$cardMutationService = Read-RepoText "Terrias-Dev\Mechanics\CardMutationService.cs"
+$runtimeCardAttachmentService = Read-RepoText "Terrias-Dev\Mechanics\RuntimeCardAttachmentService.cs"
+$cardVisualSkinRuntime = Read-RepoText "Terrias-Dev\Hooks\CardVisualSkinRuntime.cs"
+$polymorphCardFaceRuntime = Read-RepoText "Terrias-Dev\Hooks\Visual\PolymorphCardFaceRuntime.cs"
+$terriasUiComponents = Read-RepoText "Terrias-Dev\Hooks\Ui\TerriasUiComponents.cs"
+$endlessAbyssFramedTextCard = Read-RepoText "Terrias-Dev\Hooks\Ui\EndlessAbyssFramedTextCard.cs"
+$endlessAbyssShockPanel = Read-RepoText "Terrias-Dev\Hooks\Ui\EndlessAbyssShockPanel.cs"
+$endlessAbyssMilestoneRewardPanel = Read-RepoText "Terrias-Dev\Hooks\Ui\EndlessAbyssMilestoneRewardPanel.cs"
+$cardVisualSkinMarker = Read-RepoText "Terrias-Dev\Hooks\Visual\CardVisualSkinMarker.cs"
+$cardVisualSkinApplier = Read-RepoText "Terrias-Dev\Hooks\Visual\CardVisualSkinApplier.cs"
+$cardVisualEffectApplier = Read-RepoText "Terrias-Dev\Hooks\Visual\CardVisualEffectApplier.cs"
+$cardFaceEffectApplier = Read-RepoText "Terrias-Dev\Hooks\Visual\CardFaceEffectApplier.cs"
+$cardFaceEffectMaterials = Read-RepoText "Terrias-Dev\Hooks\Visual\CardFaceEffectMaterials.cs"
+$cardUseFxMaterials = Read-RepoText "Terrias-Dev\Hooks\Visual\CardUseFxMaterials.cs"
+$starScoreCardUseFxPresenter = Read-RepoText "Terrias-Dev\Hooks\Visual\StarScoreCardUseFxPresenter.cs"
+$starScoreFlightGlyphAssets = Read-RepoText "Terrias-Dev\Hooks\Visual\StarScoreFlightGlyphAssets.cs"
+$starScoreArrivalCueService = Read-RepoText "Terrias-Dev\Mechanics\StarScoreArrivalCueService.cs"
+$terriasCardUseFxRuntime = Read-RepoText "Terrias-Dev\Features\TerriasCardUseFxRuntime.cs"
+$cardUseFxManifest = Get-Content -Raw -LiteralPath (Join-Path $RepoRoot "Terrias\card-use-effect.registry.json") | ConvertFrom-Json
+$cardFrameEffectApplier = Read-RepoText "Terrias-Dev\Hooks\Visual\CardFrameEffectApplier.cs"
+$cardFrameEffectMaterials = Read-RepoText "Terrias-Dev\Hooks\Visual\CardFrameEffectMaterials.cs"
+$cardFrameOverlay = Read-RepoText "Terrias-Dev\Hooks\Visual\CardFrameOverlay.cs"
+$cardVisualSkinSpriteCache = Read-RepoText "Terrias-Dev\Hooks\Visual\CardVisualSkinSpriteCache.cs"
+$sunCardFrameRuntime = Read-RepoText "Terrias-Dev\Hooks\SunCardFrameRuntime.cs"
+$sunCardFrameApplier = Read-RepoText "Terrias-Dev\Hooks\Visual\SunCardFrameApplier.cs"
+$sunCardFrameSpriteCache = Read-RepoText "Terrias-Dev\Hooks\Visual\SunCardFrameSpriteCache.cs"
+$sunCardThemeCatalog = Read-RepoText "Terrias-Dev\Mechanics\SunCardThemeCatalog.cs"
+$solarMemoryModeRuntime = Read-RepoText "Terrias-Dev\Hooks\SolarMemoryModeRuntime.cs"
+$solarMemoryMapVisualRuntime = Read-RepoText "Terrias-Dev\Hooks\SolarMemoryMapVisualRuntime.cs"
+$solarMemoryMapProjectionRuntime = Read-RepoText "Terrias-Dev\Hooks\SolarMemoryMapProjectionRuntime.cs"
+$solarMemoryMapLifecycleCoordinator = Read-RepoText "Terrias-Dev\Hooks\SolarMemoryMapLifecycleCoordinator.cs"
+$solarMemoryMapItemAnimationRuntime = Read-RepoText "Terrias-Dev\Hooks\SolarMemoryMapItemAnimationRuntime.cs"
+$solarMemoryBattleExitCoordinator = Read-RepoText "Terrias-Dev\Hooks\SolarMemoryBattleExitCoordinator.cs"
+$solarMemoryBossTransitionCoordinator = Read-RepoText "Terrias-Dev\Hooks\SolarMemoryBossTransitionCoordinator.cs"
+$solarMemorySettlementCoordinator = Read-RepoText "Terrias-Dev\Hooks\SolarMemorySettlementCoordinator.cs"
+$solarMemoryDeckIsolationRuntime = Read-RepoText "Terrias-Dev\Hooks\SolarMemoryDeckIsolationRuntime.cs"
+$solarMemoryModeEntryRuntime = Read-RepoText "Terrias-Dev\Hooks\SolarMemoryModeEntryRuntime.cs"
+$solarMemoryContentIsolationRuntime = Read-RepoText "Terrias-Dev\Hooks\SolarMemoryContentIsolationRuntime.cs"
+$solarMemorySettlementPresenter = Read-RepoText "Terrias-Dev\Hooks\SolarMemorySettlementPresenter.cs"
+$animatedBlessingIconRuntime = Read-RepoText "Terrias-Dev\Hooks\AnimatedBlessingIconRuntime.cs"
+$animatedBuffIconRuntime = Read-RepoText "Terrias-Dev\Hooks\AnimatedBuffIconRuntime.cs"
+$animatedEnemyDictIconRuntime = Read-RepoText "Terrias-Dev\Hooks\AnimatedEnemyDictIconRuntime.cs"
+$assetBundleCache = Read-RepoText "Terrias-Dev\Hooks\Visual\AssetBundleCache.cs"
+$effectMaterialFactory = Read-RepoText "Terrias-Dev\Hooks\Visual\EffectMaterialFactory.cs"
+$effectTextureCache = Read-RepoText "Terrias-Dev\Hooks\Visual\EffectTextureCache.cs"
+$frameAnimationAttacher = Read-RepoText "Terrias-Dev\Hooks\Visual\FrameAnimationAttacher.cs"
+$frameSpriteCache = Read-RepoText "Terrias-Dev\Hooks\Visual\FrameSpriteCache.cs"
+$frameImageAnimator = Read-RepoText "Terrias-Dev\Hooks\Visual\FrameImageAnimator.cs"
+$frameSpriteRendererAnimator = Read-RepoText "Terrias-Dev\Hooks\Visual\FrameSpriteRendererAnimator.cs"
+$shaderAssetLoader = Read-RepoText "Terrias-Dev\Hooks\Visual\ShaderAssetLoader.cs"
+$visualBundleRuntimeValidator = Read-RepoText "Terrias-Dev\Hooks\Visual\VisualBundleRuntimeValidator.cs"
+$wunaOrbitFireController = Read-RepoText "Terrias-Dev\Hooks\Visual\WunaOrbitFireController.cs"
+$visualPipeline = Read-RepoText "Terrias-Dev\VisualAssets\terrias_visuals.pipeline.json"
+$visualBundleBuilder = Read-RepoText "Terrias-Dev\VisualAssets\Editor\TerriasVisualBundleBuilder.cs.txt"
+$starScoreHudShaderSource = Read-RepoText "Terrias-Dev\VisualAssets\Shaders\StarScoreHud.shader"
+$cardFaceEffectShaderSource = Read-RepoText "Terrias-Dev\VisualAssets\Shaders\CardFaceEffect.shader"
+$cardFrameHoloShaderSource = Read-RepoText "Terrias-Dev\VisualAssets\Shaders\CardFrameHoloFlow.shader"
+$visualBundleBuildScript = Read-RepoText "tools\Build-TerriasVisualBundle.ps1"
+$starScoreService = Read-RepoText "Terrias-Dev\Mechanics\StarScoreService.cs"
+$starStonePouchService = Read-RepoText "Terrias-Dev\Mechanics\StarStonePouchService.cs"
+$loneerMiracleService = Read-RepoText "Terrias-Dev\Mechanics\LoneerMiracleService.cs"
+$loneerCombatState = Read-RepoText "Terrias-Dev\Mechanics\LoneerCombatState.cs"
+$wunaScripts = Read-RepoText "Terrias-Dev\Scripting\WunaScripts.cs"
+$starScoreRuntime = Read-RepoText "Terrias-Dev\Hooks\StarScoreRuntime.cs"
+$specialTagRuntime = Read-RepoText "Terrias-Dev\Hooks\SpecialTagRuntime.cs"
+$loneerRuntime = Read-RepoText "Terrias-Dev\Hooks\LoneerRuntime.cs"
+$starScoreHudRuntime = Read-RepoText "Terrias-Dev\Hooks\StarScoreHudRuntime.cs"
+$starScoreHudView = Read-RepoText "Terrias-Dev\Hooks\Ui\StarScoreHudView.cs"
+$starScoreHudHoverProbe = Read-RepoText "Terrias-Dev\Hooks\Ui\StarScoreHudHoverProbe.cs"
+$starScoreHudAssets = Read-RepoText "Terrias-Dev\Hooks\Ui\StarScoreHudAssets.cs"
+$starScoreHudShaderController = Read-RepoText "Terrias-Dev\Hooks\Ui\StarScoreHudShaderController.cs"
+$starScoreHudShaderMaterials = Read-RepoText "Terrias-Dev\Hooks\Ui\StarScoreHudShaderMaterials.cs"
+$starScoreHudTooltipView = Read-RepoText "Terrias-Dev\Hooks\Ui\StarScoreHudTooltipView.cs"
+$fieldBuffHudView = Read-RepoText "Terrias-Dev\Hooks\Ui\FieldBuffHudView.cs"
+$fieldBuffHudHoverProbe = Read-RepoText "Terrias-Dev\Hooks\Ui\FieldBuffHudHoverProbe.cs"
+$fieldBuffHudTooltipView = Read-RepoText "Terrias-Dev\Hooks\Ui\FieldBuffHudTooltipView.cs"
+$starScoreCadenceCatalog = Read-RepoText "Terrias-Dev\Mechanics\StarScoreCadenceCatalog.cs"
+$terriasIds = Read-RepoText "Terrias-Dev\Infrastructure\TerriasIds.cs"
+$entrySource = Read-RepoText "Terrias-Dev\Entry.cs"
+$terriasProject = Read-RepoText "Terrias-Dev\Terrias.Dll.csproj"
+$modeChoiceEntryDefinition = Read-RepoText "Terrias-Dev\Hooks\ModeChoiceEntryDefinition.cs"
+$modeChoiceEntryRegistry = Read-RepoText "Terrias-Dev\Hooks\ModeChoiceEntryRegistry.cs"
+$modeChoiceLayoutRuntime = Read-RepoText "Terrias-Dev\Hooks\ModeChoiceLayoutRuntime.cs"
+$solarMemoryPreparationRuntime = Read-RepoText "Terrias-Dev\Hooks\SolarMemoryPreparationRuntime.cs"
+$solarMemoryRunLauncher = Read-RepoText "Terrias-Dev\Hooks\SolarMemoryRunLauncher.cs"
+$solarMemoryStarterDeckRuntime = Read-RepoText "Terrias-Dev\Hooks\SolarMemoryStarterDeckRuntime.cs"
+$solarMemorySetupFlowRuntime = Read-RepoText "Terrias-Dev\Hooks\SolarMemorySetupFlowRuntime.cs"
+$solarMemoryBlessingPickerRuntime = Read-RepoText "Terrias-Dev\Hooks\SolarMemoryBlessingPickerRuntime.cs"
+$terriasModalHost = Read-RepoText "Terrias-Dev\Hooks\Ui\TerriasModalHost.cs"
+$terriasUiSafety = Read-RepoText "Terrias-Dev\Hooks\Ui\TerriasUiSafety.cs"
+$terriasUiLifetimeScope = Read-RepoText "Terrias-Dev\Hooks\Ui\TerriasUiLifetimeScope.cs"
+$terriasUiPool = Read-RepoText "Terrias-Dev\Hooks\Ui\TerriasUiPool.cs"
+$terriasUiSprites = Read-RepoText "Terrias-Dev\Hooks\Ui\TerriasUiSprites.cs"
+$polymorphRoleSelectionWindow = Read-RepoText "Terrias-Dev\Hooks\Ui\PolymorphRoleSelectionWindow.cs"
+$terriasHardTagRuntime = Read-RepoText "Terrias-Dev\Hooks\TerriasHardTagRuntime.cs"
+$morningStarDimmedService = Read-RepoText "Terrias-Dev\Mechanics\MorningStarDimmedService.cs"
+$playerPowerApi = Read-RepoText "Terrias-Dev\GameApi\PlayerPowerApi.cs"
+$sourceFiles = Get-ChildItem -LiteralPath (Join-Path $RepoRoot "Terrias-Dev") -Recurse -File -Filter "*.cs"
+$scriptingSource = [string]::Join("`n", (Get-ChildItem -LiteralPath (Join-Path $RepoRoot "Terrias-Dev\Scripting") -File -Filter "*.cs" | ForEach-Object { [System.IO.File]::ReadAllText($_.FullName) }))
 
 Assert-Contains $executorApi "return ScriptVarApi.GetVar(executor, key, fallback);" "ExecutorApi must delegate script variables to ScriptVarApi."
 Assert-Contains $executorApi "return ScriptEventApi.TryAddEvent(executor, eventName, script, context);" "ExecutorApi must delegate event registration to ScriptEventApi."
@@ -650,13 +650,13 @@ Assert-Contains $fieldEffectRegistry "WarmupConfigCache" "Field effect registry 
 Assert-Contains $fieldEffectRegistry "FieldEffectRuntimeSpec" "Field effect registry must expose precomputed runtime specs for hot-path and HUD use."
 Assert-Contains $fieldEffectRegistry "description = description.Description();" "Field descriptions must resolve localized Buff placeholders during registry warmup."
 Assert-Contains $fieldEffectRegistry "public string HudIconPath" "Field definitions must own their dedicated HUD icon paths outside Buff.Icon."
-Assert-Contains $fieldEffectRegistry 'hudIconPath: "Mods/SunExp/ModResource/Images/Buff/Area/\u707c\u70ed\u5929\u5e55"' "Scorching Canopy must register its 64x64 field HUD icon."
-Assert-Contains $fieldEffectRegistry 'hudIconPath: "Mods/SunExp/ModResource/Images/Buff/Area/\u8f6e\u56de\u82b1\u5ead"' "Garden of Samsara must register its 64x64 field HUD icon."
+Assert-Contains $fieldEffectRegistry 'hudIconPath: "Mods/Terrias/ModResource/Images/Buff/Area/\u707c\u70ed\u5929\u5e55"' "Scorching Canopy must register its 64x64 field HUD icon."
+Assert-Contains $fieldEffectRegistry 'hudIconPath: "Mods/Terrias/ModResource/Images/Buff/Area/\u8f6e\u56de\u82b1\u5ead"' "Garden of Samsara must register its 64x64 field HUD icon."
 Assert-Contains $fieldEffectRegistry "maxVisualTier: 4" "Garden of Samsara's fifth gameplay stack must reuse the fourth visual tier."
 Assert-NotContains $fieldEffectRegistry 'DictionaryUtil.Get(data, "Icon")' "Field HUD icons must not be sourced from the generic Buff.Icon column."
 Assert-Contains $fieldNetworkSync "public sealed class FieldStateSnapshot" "Field multiplayer sync must use an indexed snapshot payload."
 Assert-Contains $fieldNetworkSync "public sealed class RpcFieldStateRequest" "Field multiplayer sync must support client request to host."
-Assert-Contains $fieldNetworkSync "ISunExpServerBoundRpcCommand" "Field state requests must bind sender authority from the server receive context."
+Assert-Contains $fieldNetworkSync "ITerriasServerBoundRpcCommand" "Field state requests must bind sender authority from the server receive context."
 Assert-Contains $fieldNetworkSync "AuraAuthoritativeSyncRuntime.RegisterDomain" "Field sync must use the shared authoritative sync domain service."
 Assert-Contains $fieldNetworkSync "AcceptRemoteSnapshotSession" "Field snapshots must use shared host-session freshness checks."
 Assert-Contains $auraAuthoritativeSyncRuntime "public static class AuraAuthoritativeSyncRuntime" "Shared core must provide semantic-free authoritative sync foundations."
@@ -669,9 +669,9 @@ Assert-Contains $fieldStartCoordinator "Relic = 300" "Relic fields must resolve 
 Assert-Contains $fieldStartCoordinator "Other = 400" "Other opening fields must resolve last."
 Assert-Contains $fieldStartCoordinator "field == grant.Field ? stacks + grant.Stacks : grant.Stacks" "Opening field folding must add matching fields and replace different fields."
 Assert-Contains $fieldStartCoordinator "FieldApi.CommitOpeningField" "The coordinator must submit the final field exactly once through FieldApi."
-Assert-NotContains $fieldStartCoordinator "SunExp.Dll.Hooks" "The field coordinator must not depend on Hooks."
+Assert-NotContains $fieldStartCoordinator "Terrias.Dll.Hooks" "The field coordinator must not depend on Hooks."
 Assert-Contains $difficultyFieldPoolService "UnityEngine.Random.Range(0, candidates.Count)" "Difficulty fields must be selected with equal per-type probability on the authority."
-Assert-Contains $difficultyFieldPoolService "SunExpHardTagIds.SamsaraGarden" "The difficulty field pool must include Garden of Samsara."
+Assert-Contains $difficultyFieldPoolService "TerriasHardTagIds.SamsaraGarden" "The difficulty field pool must include Garden of Samsara."
 Assert-Contains $relicFieldStartSourceService '"blazing_crown_heart"' "Blazing Crown Heart must register its field grant with the coordinator."
 Assert-Contains $relicOpeningEffectService "RelicApi.HasRelic" "Rebuilt statuses must replay Blazing Crown Heart's non-field effect through a focused service."
 Assert-Contains $relicOpeningEffectService "TryClaimBattleOperation" "Relic opening effects must be idempotent within a battle session."
@@ -734,7 +734,7 @@ Assert-Contains $dimensionShopGameApi 'GameObject.Find("Breaks")' "Dimension sho
 Assert-Contains $dimensionShopGameApi "background.SetActive(true)" "Dimension shop fallback cleanup must restore the adventure background."
 Assert-Contains $dimensionShopRuntime 'DimensionShopService.EnsureRunSnapshot("AdventureStarting")' "Dimension shop pools must be snapshotted when an Adventure starts."
 Assert-Contains $dimensionShopRuntime "NodeDice = previous.NodeDice" "Dimension shop injection must preserve the replaced candidate's map RNG value."
-Assert-Contains $dimensionShopRuntime "SunExpIds.DimensionShopNodeId" "Dimension shop must use an isolated custom node id instead of the native shop route."
+Assert-Contains $dimensionShopRuntime "TerriasIds.DimensionShopNodeId" "Dimension shop must use an isolated custom node id instead of the native shop route."
 Assert-Contains $dimensionShopService "CardPackMatches(pack, source)" "Dimension shop card pools must be built directly from configured card-pack membership."
 Assert-NotContains $dimensionShopService "UseCardPack" "Dimension shop card pools must not depend on the player's enabled or unlocked packs."
 Assert-Contains $dimensionShopService 'RunSeed() + "|" + DimensionShopGameApi.LocalPlayerScope()' "Dimension shop refresh streams must be player-local in multiplayer."
@@ -753,9 +753,9 @@ Assert-NotContains $dimensionShopService "DimensionShop.BuyCard.Rollback" "Dimen
 Assert-NotContains $dimensionShopService "DimensionShop.BuyRelic.Rollback" "Dimension shop relic rollback must stay local because no intermediate role snapshot is submitted."
 Assert-Contains $dimensionShopPanel "DimensionShopService.Refresh" "Dimension shop UI must expose the crystal-priced refresh action."
 Assert-Contains $dimensionShopPanel "DimensionShopNativeSkin.TryCreate" "Dimension shop must prefer the native ShopUI visual shell."
-Assert-Contains $dimensionShopPanel "SunExpModalHost.NativeUiParent()" "Dimension shop must resolve the same main Canvas used by native Tooltip and Floating Window overlays."
-Assert-Contains $dimensionShopPanel "SunExpModalHost.CreateNativeFullscreenRoot" "Dimension shop must render on the native UI plane instead of the upper modal Canvas."
-Assert-NotContains $dimensionShopPanel "SunExpModalHost.ModalParent()" "Dimension shop must not render above the game's main-Canvas Tooltip and Floating Window."
+Assert-Contains $dimensionShopPanel "TerriasModalHost.NativeUiParent()" "Dimension shop must resolve the same main Canvas used by native Tooltip and Floating Window overlays."
+Assert-Contains $dimensionShopPanel "TerriasModalHost.CreateNativeFullscreenRoot" "Dimension shop must render on the native UI plane instead of the upper modal Canvas."
+Assert-NotContains $dimensionShopPanel "TerriasModalHost.ModalParent()" "Dimension shop must not render above the game's main-Canvas Tooltip and Floating Window."
 Assert-Contains $sharedUiModalHost "return UIManager.Instance?.canvasTf;" "AuraUiShared native UI host must resolve the game's ordinary UI Canvas."
 Assert-Contains $sharedUiModalHost "CreateNativeFullscreenRoot" "AuraUiShared must expose native-plane fullscreen roots without changing ordinary modal behavior."
 Assert-Contains $dimensionShopPanel "CreateVerticalWindow" "Dimension shop must retain its deterministic fallback panel."
@@ -842,7 +842,7 @@ Assert-Contains $dimensionShopService 'Tips = SafeLocalizedField(config, "Tips")
 Assert-Contains $dimensionShopService "HeldRelics = BuildHeldRelics()" "Dimension shop view state must expose a read-only held-relic snapshot."
 Assert-Contains $dimensionShopConfigSource "ShopkeeperPortraitResourcePath" "Dimension shop config must expose a future shopkeeper portrait replacement path."
 Assert-Contains $dimensionShopConfigSource "ShopkeeperPortraitNodePath" "Dimension shop config must expose an optional native portrait node path."
-Assert-Contains $sunExpProject '<Reference Include="Plugins">' "SunExp must reference the host UI plugin assembly used by native ShopUI controls."
+Assert-Contains $terriasProject '<Reference Include="Plugins">' "Terrias must reference the host UI plugin assembly used by native ShopUI controls."
 Assert-Contains $dimensionShopMapData "dimension_shop,Build,Breaks_dimension_shop,-1,7" "Dimension shop map data must remain isolated from native random generation."
 Assert-True ($dimensionShopConfig.cardPrice -eq 8) "Dimension shop cards must cost 8 Truth crystals."
 Assert-True ($dimensionShopConfig.relicPrice -eq 8) "Dimension shop relics must cost 8 Truth crystals."
@@ -852,55 +852,55 @@ Assert-True (@($dimensionShopConfig.relicIds).Count -eq 1 -and $dimensionShopCon
 Assert-Contains $dimensionShopConfigSource "Math.Max(0, document.RefreshPrice)" "Dimension shop config must reject negative refresh prices."
 Assert-Contains $runtimeHooks "RunHookStep(" "RuntimeHooks must isolate runtime initialization into logged hook steps."
 Assert-Contains $runtimeHooks "AuraSharedHooks.RunStep" "RuntimeHooks must use the shared step guard for hook initialization."
-Assert-Contains $runtimeHooks "SunExpBattleLifecycleRouter.Initialize(modConfig)" "RuntimeHooks must initialize the shared battle lifecycle router before feature handlers register."
-Assert-Contains $runtimeHooks "SunExpCardLifecycleRouter.Initialize(modConfig)" "RuntimeHooks must initialize the shared card lifecycle router before feature handlers register."
-Assert-Contains $sunExpHookRegistry "RegisterBeforeRouted" "SunExp hook registry must expose routed before-hook registration."
-Assert-Contains $sunExpHookRegistry "RegisterAfterRouted" "SunExp hook registry must expose routed after-hook registration."
-Assert-Contains $sunExpBattleLifecycleRouter "AuraBattleLifecycleRouter.Register" "SunExp battle lifecycle router must delegate native hook ownership to Aura shared lifecycle."
-Assert-Contains $sunExpBattleLifecycleRouter "FightInitializing" "SunExp battle lifecycle router must expose the FightInit.Init before phase."
-Assert-Contains $sunExpBattleLifecycleRouter "FightInitialized" "SunExp battle lifecycle router must expose the FightInit.Init after phase."
-Assert-Contains $sunExpBattleLifecycleRouter "FightOpening" "SunExp battle lifecycle router must expose the Fight_Start.Init opening phase."
+Assert-Contains $runtimeHooks "TerriasBattleLifecycleRouter.Initialize(modConfig)" "RuntimeHooks must initialize the shared battle lifecycle router before feature handlers register."
+Assert-Contains $runtimeHooks "TerriasCardLifecycleRouter.Initialize(modConfig)" "RuntimeHooks must initialize the shared card lifecycle router before feature handlers register."
+Assert-Contains $terriasHookRegistry "RegisterBeforeRouted" "Terrias hook registry must expose routed before-hook registration."
+Assert-Contains $terriasHookRegistry "RegisterAfterRouted" "Terrias hook registry must expose routed after-hook registration."
+Assert-Contains $terriasBattleLifecycleRouter "AuraBattleLifecycleRouter.Register" "Terrias battle lifecycle router must delegate native hook ownership to Aura shared lifecycle."
+Assert-Contains $terriasBattleLifecycleRouter "FightInitializing" "Terrias battle lifecycle router must expose the FightInit.Init before phase."
+Assert-Contains $terriasBattleLifecycleRouter "FightInitialized" "Terrias battle lifecycle router must expose the FightInit.Init after phase."
+Assert-Contains $terriasBattleLifecycleRouter "FightOpening" "Terrias battle lifecycle router must expose the Fight_Start.Init opening phase."
 Assert-Contains $auraBattleLifecycleRouter "FightStartInit" "Aura battle lifecycle router must own fight-start native hooks."
 Assert-Contains $auraBattleLifecycleRouter "FightInitializing" "Aura battle lifecycle router must dispatch the FightInit.Init before phase."
 Assert-Contains $auraBattleLifecycleRouter "FightInitialized" "Aura battle lifecycle router must dispatch the FightInit.Init after phase."
 Assert-Contains $auraBattleLifecycleRouter "FightOpening" "Aura battle lifecycle router must dispatch the Fight_Start.Init opening phase."
 Assert-Contains $auraBattleLifecycleRouter "FightWinResetStates" "Aura battle lifecycle router must own fight-ending native hooks."
-Assert-Contains $sunExpCardLifecycleRouter "AuraCardLifecycleRouter.Register" "SunExp card lifecycle router must delegate native hook ownership to Aura shared lifecycle."
-Assert-NotContains $sunExpCardLifecycleRouter "SunExpHookTargets.CardItemInit" "SunExp card lifecycle router must not own native card-item init hooks."
-Assert-NotContains $sunExpCardLifecycleRouter "SunExpHookTargets.CommonCardItemTrueUse" "SunExp card lifecycle router must not own native common-card use hooks."
+Assert-Contains $terriasCardLifecycleRouter "AuraCardLifecycleRouter.Register" "Terrias card lifecycle router must delegate native hook ownership to Aura shared lifecycle."
+Assert-NotContains $terriasCardLifecycleRouter "TerriasHookTargets.CardItemInit" "Terrias card lifecycle router must not own native card-item init hooks."
+Assert-NotContains $terriasCardLifecycleRouter "TerriasHookTargets.CommonCardItemTrueUse" "Terrias card lifecycle router must not own native common-card use hooks."
 Assert-Contains $auraCardLifecycleRouter "CardItemInit" "Aura card lifecycle router must own shared card-item init hooks."
 Assert-Contains $auraCardLifecycleRouter "CommonCardItemTrueUse" "Aura card lifecycle router must own shared common-card use hooks."
 Assert-Contains $auraCardLifecycleRouter "AuraCardLifecyclePhase" "Aura card lifecycle router must expose stable phase identifiers for shared dispatch."
 Assert-Contains $auraCardLifecycleRouter "RegisteredPhases" "Aura card lifecycle router must install native card hooks lazily per subscribed phase."
 Assert-Contains $auraCardLifecycleRouter "EnsurePhaseRegistrationsNoLock" "Aura card lifecycle router must avoid full-stage native hook registration for unrelated subscribers."
-Assert-Contains $sunExpHookTargets "public const string FightStartInit" "Hook target names must be centralized in SunExpHookTargets."
-Assert-Contains $endlessSeaCardAffixRuntime "SunExpCardLifecycleRouter.Register(`"EndlessSeaCardAffix`"" "Endless Sea card affix runtime must register through the shared card lifecycle router."
+Assert-Contains $terriasHookTargets "public const string FightStartInit" "Hook target names must be centralized in TerriasHookTargets."
+Assert-Contains $endlessSeaCardAffixRuntime "TerriasCardLifecycleRouter.Register(`"EndlessSeaCardAffix`"" "Endless Sea card affix runtime must register through the shared card lifecycle router."
 Assert-Contains $endlessSeaCardAffixRuntime "EnsureCardLifecycleRegisteredForEndlessSea" "Endless Sea card affix runtime must delay card hot-path hook registration until Endless Sea is active."
-Assert-Contains $starScoreRuntime "SunExpCardLifecycleRouter.Register(`"StarScore`"" "Star score runtime must register card-use hooks through the shared card lifecycle router."
+Assert-Contains $starScoreRuntime "TerriasCardLifecycleRouter.Register(`"StarScore`"" "Star score runtime must register card-use hooks through the shared card lifecycle router."
 Assert-Contains $starScoreRuntime "HasSelectionPreviewInterest" "Star score drag hooks must return before preview work when no StarScore/AbyssGaze state is active."
 Assert-Contains $starScoreRuntime "HasCardUseInterest" "Star score card-use hooks must return before action-router work when no StarScore/AbyssGaze state is active."
-Assert-Contains $sunExpHardTagRuntime "SunExpCardLifecycleRouter.Register(`"HardTag`"" "Hard-tag runtime must register card hot-path hooks through the shared card lifecycle router."
-Assert-Contains $sunExpHardTagRuntime "EnsureCardLifecycleRegistered()" "Hard-tag runtime must delay card hot-path hook registration until a SunExp hard tag is active."
-Assert-Contains $sunExpHardTagRuntime "FightInitializing = OnFightInitializing" "Hard-tag runtime must reset battle-local state at FightInit.Init before native initialization."
-Assert-Contains $sunExpHardTagRuntime "FightInitialized = OnFightInitialized" "Hard-tag runtime must apply battle-start effects after FightInit.Init."
-Assert-Contains $sunExpHardTagRuntime "SunExpLifecycleStepRunner.RunBattleOnce" "Hard-tag runtime must split battle-start effects through the lifecycle step runner."
-Assert-Contains $sunExpHardTagRuntime '"FightInitialized"' "Hard-tag runtime must target the FightInitialized lifecycle for battle-start effects."
-Assert-Contains $sunExpHardTagRuntime "TryClaimBattleOperation" "Hard-tag battle-start effects must guard against duplicate application within one battle."
-Assert-Contains $entrySource 'RunStep("performance runtime", () => SunExpFrameScheduler.Initialize(modConfig))' "Entry must initialize the performance scheduler before gameplay hooks."
-Assert-NotContains $performanceSettings "SunExpPerformanceQuality" "Visual effect quality tiers must not re-enter unified runtime settings."
-Assert-NotContains $performanceSettings "SunExpLowSpec" "Performance settings must not keep legacy high/low config keys."
+Assert-Contains $terriasHardTagRuntime "TerriasCardLifecycleRouter.Register(`"HardTag`"" "Hard-tag runtime must register card hot-path hooks through the shared card lifecycle router."
+Assert-Contains $terriasHardTagRuntime "EnsureCardLifecycleRegistered()" "Hard-tag runtime must delay card hot-path hook registration until a Terrias hard tag is active."
+Assert-Contains $terriasHardTagRuntime "FightInitializing = OnFightInitializing" "Hard-tag runtime must reset battle-local state at FightInit.Init before native initialization."
+Assert-Contains $terriasHardTagRuntime "FightInitialized = OnFightInitialized" "Hard-tag runtime must apply battle-start effects after FightInit.Init."
+Assert-Contains $terriasHardTagRuntime "TerriasLifecycleStepRunner.RunBattleOnce" "Hard-tag runtime must split battle-start effects through the lifecycle step runner."
+Assert-Contains $terriasHardTagRuntime '"FightInitialized"' "Hard-tag runtime must target the FightInitialized lifecycle for battle-start effects."
+Assert-Contains $terriasHardTagRuntime "TryClaimBattleOperation" "Hard-tag battle-start effects must guard against duplicate application within one battle."
+Assert-Contains $entrySource 'RunStep("performance runtime", () => TerriasFrameScheduler.Initialize(modConfig))' "Entry must initialize the performance scheduler before gameplay hooks."
+Assert-NotContains $performanceSettings "TerriasPerformanceQuality" "Visual effect quality tiers must not re-enter unified runtime settings."
+Assert-NotContains $performanceSettings "TerriasLowSpec" "Performance settings must not keep legacy high/low config keys."
 Assert-Contains $performanceSettings 'typeof(ScriptExecutor).GetNestedType("PlayerInfo"' "Performance settings must read game variables without depending on GameApi."
 Assert-NotContains $performanceSettings "using UnityEngine" "Performance settings must stay out of Unity lifecycle concerns."
 Assert-Contains $performanceSettings "public static bool UiPoolEnabled" "Performance settings must expose a runtime UI pool feature gate."
 Assert-Contains $performanceSettings "public static int UiPoolCapacityPerKey => 64;" "Performance settings must expose the unified pooled UI cap."
 Assert-Contains $performanceCounters "Stopwatch.GetTimestamp()" "Performance counters must use low-allocation timestamp accounting."
-Assert-Contains $sunExpHookTargets "public const string FightUiUpdateCardMsg" "Whole-hand refresh diagnostics must centralize the native UpdateCardMsg hook target."
-Assert-Contains $sunExpCombatCardUiWorkloadRuntime "SunExpHookTargets.FightUiUpdateCardMsg" "Card UI diagnostics must measure whole-hand refresh batches."
-Assert-Contains $sunExpCombatCardUiWorkloadRuntime "SunExpHookTargets.ICardSetCardMsg" "Card UI diagnostics must measure the native card-message boundary."
-Assert-Contains $sunExpCombatCardUiWorkloadRuntime "SunExpHookTargets.ScriptExecutorRunScript" "Card UI diagnostics must measure InitScript bridge work."
-Assert-Contains $sunExpCombatCardUiWorkloadRuntime "SunExpHookTargets.LocalizeExDescription" "Card UI diagnostics must measure description expansion."
-Assert-Contains $sunExpCombatCardUiWorkloadRuntime "SunExpHookTargets.TextTranslatorTranslate" "Card UI diagnostics must measure keyword translation."
-Assert-Contains $sunExpCombatCardUiWorkloadRuntime "RegisterRefreshCauses" "Whole-hand refresh diagnostics must capture bounded native refresh causes."
+Assert-Contains $terriasHookTargets "public const string FightUiUpdateCardMsg" "Whole-hand refresh diagnostics must centralize the native UpdateCardMsg hook target."
+Assert-Contains $terriasCombatCardUiWorkloadRuntime "TerriasHookTargets.FightUiUpdateCardMsg" "Card UI diagnostics must measure whole-hand refresh batches."
+Assert-Contains $terriasCombatCardUiWorkloadRuntime "TerriasHookTargets.ICardSetCardMsg" "Card UI diagnostics must measure the native card-message boundary."
+Assert-Contains $terriasCombatCardUiWorkloadRuntime "TerriasHookTargets.ScriptExecutorRunScript" "Card UI diagnostics must measure InitScript bridge work."
+Assert-Contains $terriasCombatCardUiWorkloadRuntime "TerriasHookTargets.LocalizeExDescription" "Card UI diagnostics must measure description expansion."
+Assert-Contains $terriasCombatCardUiWorkloadRuntime "TerriasHookTargets.TextTranslatorTranslate" "Card UI diagnostics must measure keyword translation."
+Assert-Contains $terriasCombatCardUiWorkloadRuntime "RegisterRefreshCauses" "Whole-hand refresh diagnostics must capture bounded native refresh causes."
 Assert-Contains $combatCardUiDiagnostics "BeginRefreshBatch" "Whole-hand refresh diagnostics must open an explicit batch scope."
 Assert-Contains $combatCardUiDiagnostics "topCards=" "Whole-hand refresh diagnostics must report the slowest cards in a batch."
 Assert-Contains $combatCardUiDiagnostics "FightUiDiagnosticsApi.SkillCount" "Whole-hand refresh diagnostics must include the current skill count through GameApi."
@@ -914,20 +914,20 @@ Assert-Contains $projectionTurnAnchorObj "new Dictionary<string, string>(StringC
 Assert-Contains $projectionTurnAnchorObj "PreCompile = false" "Projection turn anchors must disable script precompilation."
 Assert-Contains $projectionTurnAnchorObj "DataOverrides = new Dictionary<string, string>(StringComparer.Ordinal)" "Projection turn anchors must pass minimal synthetic data through the shared materializer."
 Assert-NotContains $projectionTurnAnchorObj "new Dictionary<string, string>(templateData)" "Projection turn anchors must not inherit role script fields."
-Assert-Contains $dirtyState "public sealed class SunExpDirtyState" "Dirty-state gating must be centralized for repeated UI rebuilds."
-Assert-Contains $dirtyState 'SunExpPerformanceCounters.Record("DirtyState.Skipped")' "Dirty-state skips must be measurable when counters are enabled."
-Assert-Contains $sunExpFrameScheduler "public static bool RunOnceNextFrame" "Frame scheduler must expose a keyed next-frame merge API."
-Assert-Contains $sunExpFrameScheduler "public static bool RunOnceAfterFrames" "Frame scheduler must expose a keyed delayed-frame merge API."
-Assert-Contains $sunExpFrameScheduler "AuraSharedFrameScheduler.RunOnceAfterFrames" "SunExp frame scheduler facade must delegate keyed scheduling to AuraShared."
-Assert-Contains $sunExpFrameScheduler "OwnerId = SunExpIds.ModId" "SunExp frame scheduler keys must be owner-qualified before entering shared runtime."
+Assert-Contains $dirtyState "public sealed class TerriasDirtyState" "Dirty-state gating must be centralized for repeated UI rebuilds."
+Assert-Contains $dirtyState 'TerriasPerformanceCounters.Record("DirtyState.Skipped")' "Dirty-state skips must be measurable when counters are enabled."
+Assert-Contains $terriasFrameScheduler "public static bool RunOnceNextFrame" "Frame scheduler must expose a keyed next-frame merge API."
+Assert-Contains $terriasFrameScheduler "public static bool RunOnceAfterFrames" "Frame scheduler must expose a keyed delayed-frame merge API."
+Assert-Contains $terriasFrameScheduler "AuraSharedFrameScheduler.RunOnceAfterFrames" "Terrias frame scheduler facade must delegate keyed scheduling to AuraShared."
+Assert-Contains $terriasFrameScheduler "OwnerId = TerriasIds.ModId" "Terrias frame scheduler keys must be owner-qualified before entering shared runtime."
 Assert-Contains $auraSharedLifecycleStepRunner "public sealed class AuraSharedLifecycleStepRequest" "Shared lifecycle step runner must expose a reusable request model."
 Assert-Contains $auraSharedLifecycleStepRunner "AuraSharedLifecycleDeduplicateScope" "Shared lifecycle step runner must expose lifecycle dedupe scopes."
 Assert-Contains $auraSharedLifecycleStepRunner "AuraSharedFrameStepRunner.Run" "Shared lifecycle step runner must delegate actual frame splitting to the shared frame step runner."
-Assert-Contains $sunExpLifecycleStepRunner "AuraSharedLifecycleStepRunner.Run" "SunExp lifecycle step runner must stay a thin wrapper over the shared lifecycle runner."
-Assert-Contains $sunExpLifecycleStepRunner "OwnerId = SunExpIds.ModId" "SunExp lifecycle step runner must owner-qualify lifecycle work."
-Assert-Contains $sunExpLifecycleStepRunner "LifecycleStep.Enqueued" "SunExp lifecycle step runner must preserve lifecycle-step enqueue diagnostics."
-Assert-Contains $sunExpLifecycleStepRunner "LifecycleStep.Deduped" "SunExp lifecycle step runner must preserve lifecycle-step dedupe diagnostics."
-Assert-Contains $sunExpLifecycleStepRunner "LifecycleStep.Action" "SunExp lifecycle step runner must preserve lifecycle-step action diagnostics."
+Assert-Contains $terriasLifecycleStepRunner "AuraSharedLifecycleStepRunner.Run" "Terrias lifecycle step runner must stay a thin wrapper over the shared lifecycle runner."
+Assert-Contains $terriasLifecycleStepRunner "OwnerId = TerriasIds.ModId" "Terrias lifecycle step runner must owner-qualify lifecycle work."
+Assert-Contains $terriasLifecycleStepRunner "LifecycleStep.Enqueued" "Terrias lifecycle step runner must preserve lifecycle-step enqueue diagnostics."
+Assert-Contains $terriasLifecycleStepRunner "LifecycleStep.Deduped" "Terrias lifecycle step runner must preserve lifecycle-step dedupe diagnostics."
+Assert-Contains $terriasLifecycleStepRunner "LifecycleStep.Action" "Terrias lifecycle step runner must preserve lifecycle-step action diagnostics."
 Assert-Contains $auraSharedFrameScheduler "ReadyKeyedActions" "Shared frame scheduler must isolate ready keyed work from newly scheduled work."
 Assert-Contains $auraSharedFrameScheduler "ReadyKeyedBucket" "Shared frame scheduler must group ready keyed work by phase, priority, and owner."
 Assert-Contains $auraSharedFrameScheduler "OwnerQuantum" "Shared frame scheduler must use owner-fair deficit scheduling for keyed work."
@@ -944,20 +944,20 @@ Assert-Contains $auraCombatCardZoneSnapshot "public sealed class AuraCombatCardZ
 Assert-Contains $runtimeCardAttachmentService "AuraCombatCardZoneSnapshot.Capture" "Runtime hand attachment must use the shared combat card-zone snapshot."
 Assert-Contains $endlessSeaCardAffixService "AuraCombatCardZoneSnapshot.Capture" "Endless Sea combat-card normalization must use the shared combat card-zone snapshot."
 Assert-Contains $morningStarDimmedService "AuraCombatCardZoneSnapshot.Capture" "Hard-tag combat-card normalization must use the shared combat card-zone snapshot."
-Assert-Contains $sunExpHardTagRuntime "MorningStarDimmedService.ApplyToCombatCards" "Hard-tag runtime must delegate combat-card normalization to the Morning Star service."
+Assert-Contains $terriasHardTagRuntime "MorningStarDimmedService.ApplyToCombatCards" "Hard-tag runtime must delegate combat-card normalization to the Morning Star service."
 Assert-Contains $morningStarDimmedService "PlayerPowerApi.TryChangeMaxPower(1)" "Morning Star service must route max-power mutation through GameApi."
 Assert-NotContains $morningStarDimmedService "executor.ChangeMaxPower(" "Morning Star service must not invoke a ForEachObject ScriptExecutor method from a mirror executor."
 Assert-Contains $playerPowerApi "player.MaxPowerCount = expected" "Player power API must preserve the native max-power setter and UI refresh behavior."
-Assert-Contains $sunExpCardPresentationRouter "AuraCombatCardZoneSnapshot.Capture" "Card presentation combat-card reapply must use the shared combat card-zone snapshot."
-Assert-Contains $sunExpActionEventRouter 'AddEventListener("Action" + statusId' "SunExp Action listeners must be centralized in SunExpActionEventRouter."
-Assert-Contains $sunExpActionEventRouter 'AddEventListener("ActionAfter" + statusId' "SunExp ActionAfter listeners must be centralized in SunExpActionEventRouter."
-Assert-Contains $sunExpActionEventRouter "CardConfigApi.FromActionPayload(payload)" "The Action router must parse card payloads once before handler fanout."
-Assert-Contains $cardScripts "[SunExpIds.ProjectionCardShortId] = UseProjection" "CardScripts must route the projection selection card."
-Assert-Contains $cardScripts "[SunExpIds.ProjectionRoleTemplateShortId] = UseProjectionRoleCard" "CardScripts must route generated projection role cards."
+Assert-Contains $terriasCardPresentationRouter "AuraCombatCardZoneSnapshot.Capture" "Card presentation combat-card reapply must use the shared combat card-zone snapshot."
+Assert-Contains $terriasActionEventRouter 'AddEventListener("Action" + statusId' "Terrias Action listeners must be centralized in TerriasActionEventRouter."
+Assert-Contains $terriasActionEventRouter 'AddEventListener("ActionAfter" + statusId' "Terrias ActionAfter listeners must be centralized in TerriasActionEventRouter."
+Assert-Contains $terriasActionEventRouter "CardConfigApi.FromActionPayload(payload)" "The Action router must parse card payloads once before handler fanout."
+Assert-Contains $cardScripts "[TerriasIds.ProjectionCardShortId] = UseProjection" "CardScripts must route the projection selection card."
+Assert-Contains $cardScripts "[TerriasIds.ProjectionRoleTemplateShortId] = UseProjectionRoleCard" "CardScripts must route generated projection role cards."
 Assert-Contains $runtimeHooks "CompanionIntentRegistry.Load(modConfig)" "RuntimeHooks must load companion intent registry before projection combat hooks."
 Assert-Contains $runtimeHooks "CompanionThreatRuntime.Initialize(modConfig)" "RuntimeHooks must initialize companion threat targeting."
 Assert-Contains $runtimeHooks "FamiliarGrowthRuntime.Initialize(modConfig)" "RuntimeHooks must initialize familiar growth through an isolated hook step."
-Assert-Contains $entrySource "SunExp.Dll.Scripting.FamiliarGrowthScripts" "Entry must register FamiliarGrowthScripts for CSV-callable familiar operations."
+Assert-Contains $entrySource "Terrias.Dll.Scripting.FamiliarGrowthScripts" "Entry must register FamiliarGrowthScripts for CSV-callable familiar operations."
 Assert-Contains $familiarGrowthApi "FamiliarSidecarProfileStore" "Familiar growth persistent roster storage must stay behind the GameApi facade."
 Assert-Contains $familiarGrowthApi "AuraSharedPaths.ModsDataDirectory" "Familiar profiles must use the stable ModsData path instead of the replaceable mod package."
 Assert-Contains $familiarGrowthApi "WriteAtomic" "Familiar profile writes must use an atomic replacement path."
@@ -969,7 +969,7 @@ Assert-Contains $familiarGrowthModels "RebirthCount" "Familiar profiles must per
 Assert-Contains $familiarGrowthModels "GrowthBlessingIds" "Familiar profiles must separate growth blessings from the final blessing slot."
 Assert-Contains $familiarGrowthModels "FinalBlessingId" "Familiar profiles must persist exactly one final blessing slot."
 Assert-Contains $familiarGrowthModels "PendingBlessingChoices" "Familiar instances must persist pending blessing choices until the player selects one."
-Assert-Contains $familiarSpeciesCatalog "SunExpConfigIndex.Rows(DataType.Partner)" "Familiar species must be sourced from the registered Partner table."
+Assert-Contains $familiarSpeciesCatalog "TerriasConfigIndex.Rows(DataType.Partner)" "Familiar species must be sourced from the registered Partner table."
 Assert-Contains $familiarBlessingRegistry "FamiliarBlessingRegistryDocument" "Familiar blessing definitions must be data-driven through a registry document."
 Assert-Contains $familiarBlessingRegistry "AuraSharedPaths.ModsDirectory" "Familiar final blessing compatibility must discover external mod registries."
 Assert-NotContains $familiarBlessingRegistry "ManifestEnable" "Familiar blessings must not create combat manifestations."
@@ -988,7 +988,7 @@ Assert-Contains $familiarGrowthService "FamiliarRosterService.Normalize" "Famili
 Assert-Contains $familiarGrowthService "runSnapshot" "Familiar combat effects must use a run-start profile snapshot."
 Assert-Contains $familiarGrowthApi "ChooseBlessing" "Familiar growth API must expose pending blessing selection through the GameApi facade."
 Assert-Contains $familiarGrowthRuntime '"GameEntryUI.NormalGame"' "Familiar growth runtime must record the native Partner at run start."
-Assert-Contains $familiarGrowthRuntime "SunExpHookTargets.FightWinResetStates" "Familiar experience must be granted only from the true victory path."
+Assert-Contains $familiarGrowthRuntime "TerriasHookTargets.FightWinResetStates" "Familiar experience must be granted only from the true victory path."
 Assert-Contains $familiarGrowthRuntime "TryClaimBattleOperation" "Familiar victory progression must be idempotent within a battle session."
 Assert-NotContains $familiarGrowthRuntime "FightEnded = GrantBattleWinExperience" "Generic fight-end events must not grant familiar experience on loss or escape."
 Assert-Contains $familiarGrowthRuntime "FightInitialized = ApplySelectedCombatStartEffects" "Familiar combat-start effects must run after FightInit.Init."
@@ -1005,8 +1005,8 @@ Assert-NotContains $combatCardApi ".DrawCount(" "CombatCardApi must bypass Scrip
 Assert-Contains $familiarBlessingEffectRuntime '"CombatStartEnemyBuffRandom"' "Familiar random-enemy combat-start effects must have a runtime handler."
 Assert-Contains $familiarBlessingEffectRuntime '"FirstDamageTargetBuff"' "Familiar first-damage effects must be wired to the combat epoch."
 Assert-Contains $familiarGrowthRuntime "HouseManager.Awake" "Familiar growth runtime must inject a house entry point without CSV glue."
-Assert-Contains $familiarGrowthPanel "SunExpModalHost.Close" "Familiar growth UI must use the shared modal close path."
-Assert-Contains $familiarGrowthPanel "SunExpUiPool.ReleaseOrDestroyChildren" "Familiar growth UI must use shared transient UI cleanup."
+Assert-Contains $familiarGrowthPanel "TerriasModalHost.Close" "Familiar growth UI must use the shared modal close path."
+Assert-Contains $familiarGrowthPanel "TerriasUiPool.ReleaseOrDestroyChildren" "Familiar growth UI must use shared transient UI cleanup."
 $rebirthConfirmationGuard = $familiarGrowthPanel.IndexOf("if (!string.Equals(confirmingRebirthId, instance.InstanceId, StringComparison.Ordinal))", [System.StringComparison]::Ordinal)
 $rebirthConfirmationArm = $familiarGrowthPanel.IndexOf("confirmingRebirthId = instance.InstanceId;", [System.StringComparison]::Ordinal)
 $rebirthMutation = $familiarGrowthPanel.IndexOf("var result = FamiliarGrowthApi.Rebirth(instance.InstanceId);", [System.StringComparison]::Ordinal)
@@ -1022,14 +1022,14 @@ Assert-Contains $familiarBlessingRegistryJson '"category": "final-generic"' "Fin
 Assert-Contains $familiarBlessingRegistryJson '"category": "final-tag"' "External Partner compatibility must support tag-profile final pools."
 Assert-Contains $familiarBlessingRegistryJson '"id": "*familiar_guard_paw"' "Familiar blessing registry JSON must keep familiar blessings isolated from native random blessing ids."
 Assert-Contains $familiarBlessingRegistryJson '"tier": 5' "Familiar blessing registry JSON must include high-tier blessings for perfect aptitude rolls."
-Assert-Contains $entrySource "SunExp.Dll.Scripting.ProjectionScripts" "Entry must register ProjectionScripts for generated enemy-card actions."
+Assert-Contains $entrySource "Terrias.Dll.Scripting.ProjectionScripts" "Entry must register ProjectionScripts for generated enemy-card actions."
 Assert-Contains $projectionActivationService "CardGrantRequest" "Projection generated cards must use the shared card grant API."
 Assert-Contains $projectionActivationService "DictionaryUtil.Set(config.Vars" "Projection generated cards must write runtime overrides to Vars."
 Assert-NotContains $projectionActivationService "DictionaryUtil.Set(config.data" "Projection generated cards must not mutate base config data."
 Assert-Contains $projectionSummonService "CompanionPositionOwnershipService.HasForOwner" "Projection summon must enforce the shared projection/spirit position per player."
-Assert-Contains $projectionSummonService 'SunExpResourceCache.Load<GameObject>("Model/player", true, "projection")' "Projection summon must load the player model through the shared resource cache."
-Assert-Contains $projectionSummonService "SunExpIds.ProjectionActionStaffTapCardId" "Projection summon must attach the shared staff-tap action."
-Assert-Contains $projectionSummonService "SunExpIds.ProjectionActionShieldBlessingCardId" "Projection summon must attach the shared shield action."
+Assert-Contains $projectionSummonService 'TerriasResourceCache.Load<GameObject>("Model/player", true, "projection")' "Projection summon must load the player model through the shared resource cache."
+Assert-Contains $projectionSummonService "TerriasIds.ProjectionActionStaffTapCardId" "Projection summon must attach the shared staff-tap action."
+Assert-Contains $projectionSummonService "TerriasIds.ProjectionActionShieldBlessingCardId" "Projection summon must attach the shared shield action."
 Assert-Contains $projectionSummonService "SpawnProjection(role, ownerStatusId, -1" "Projection summon must stay outside formal friendly slots."
 Assert-Contains $projectionSummonService "CompanionStatsService.ProjectionStats" "Projection summon must derive independent companion stats at creation."
 Assert-Contains $projectionOtherObj "public sealed class ProjectionOtherObj : OtherObj" "Projection actors must stay friendly OtherObj objects, not real partners."
@@ -1075,7 +1075,7 @@ Assert-Contains $projectionAttachmentPresenter "targetWorldHeight / localAabbSiz
 Assert-Contains $projectionAttachmentPresenter "var depth = bounds.center.z" "Projection screen AABB corners must share one stable camera depth."
 Assert-Contains $projectionAttachmentPresenter "ProjectionAttachment.ProxyLayoutSkipped" "Projection proxy must reject and measure non-finite layouts."
 Assert-Contains $projectionAttachmentPresenter "lastOwnerBounds" "Projection proxy must retain the last valid owner AABB during transient native animation changes."
-Assert-Contains $projectionAttachmentPresenter 'new GameObject("SunExp_ProjectionVisualProxy:' "Projection presentation must use a neutral standalone proxy object."
+Assert-Contains $projectionAttachmentPresenter 'new GameObject("Terrias_ProjectionVisualProxy:' "Projection presentation must use a neutral standalone proxy object."
 Assert-NotContains $projectionAttachmentPresenter "projection.transform.SetParent" "Projection gameplay roots must remain under native lifecycle ownership."
 Assert-NotContains $projectionAttachmentPresenter "projection.transform.localScale" "Projection visual layout must not scale gameplay roots."
 Assert-NotContains $projectionAttachmentPresenter "projection.transform.position" "Projection visual layout must not move gameplay roots."
@@ -1114,7 +1114,7 @@ Assert-Contains $companionIntentExecutor "rejected unknown execution handler" "C
 Assert-Contains $companionIntentRegistryJson '"attackWeight": 60' "Companion profiles must declare an explicit attack tendency weight."
 Assert-Contains $companionIntentRegistryJson '"buffStacks": 50' "Companion support intents must keep the approved 50-stack Extraordinary value."
 Assert-NotContains $projectionOtherObj "return base.DoAction();" "Projection turns must not use native OtherObj.DoAction because the player model lacks head/Msg."
-Assert-Contains $projectionRuntime 'SunExpStatusLifecycleRouter.Register("Projection"' "Projection runtime must retire dead projections through the shared status lifecycle router."
+Assert-Contains $projectionRuntime 'TerriasStatusLifecycleRouter.Register("Projection"' "Projection runtime must retire dead projections through the shared status lifecycle router."
 Assert-Contains $projectionRuntime "CardItem.canUse = false" "A second owner-bound projection card must be gated before it enters the use pipeline."
 Assert-Contains $projectionRuntime "RestoreProjectionUseGate" "Projection card gating must restore the native global use state after the attempted interaction."
 Assert-Contains $projectionRuntime "AfterHit = RetireProjectionAfterDamage" "Projection runtime must retire dead projections after full damage resolves."
@@ -1124,7 +1124,7 @@ Assert-NotContains $projectionRuntime "SetDamageFilter" "Projection runtime must
 Assert-NotContains $projectionRuntime "RedirectThreatBeforeHit" "Projection runtime must not redirect enemy attacks away from players."
 Assert-NotContains $projectionRuntime "ProjectionThreatService" "Projection runtime must not depend on retired threat redirection."
 Assert-Contains $projectionStateStore "RetireIfDead" "Projection state store must expose a shared death retirement guard."
-Assert-Contains $projectionStateStore "SunExpFrameDispatcher.RunOnceNextFrame" "Projection retirement must delay status-record removal until native queues settle."
+Assert-Contains $projectionStateStore "TerriasFrameDispatcher.RunOnceNextFrame" "Projection retirement must delay status-record removal until native queues settle."
 Assert-Contains $projectionStateStore "removeStatusRecords: false" "Projection retirement must leave status records long enough for native hit queues to settle."
 Assert-Contains $projectionStateStore "CompanionBattleStateStore.Remove" "Projection retirement must clear companion runtime state."
 Assert-NotContains $projectionStateStore "ThreatBoost" "Projection state must not keep retired threat-weight state."
@@ -1142,16 +1142,16 @@ Assert-Contains $spiritIntentPresentationDataComposer '"InitScript"' "Spirit int
 Assert-Contains $spiritIntentPresentationDataComposer '"TargetScript"' "Spirit intent presentation composition must replace the native target script."
 Assert-Contains $spiritIntentPresentationDataComposer '"UseScript"' "Spirit intent presentation composition must replace the native execution script."
 Assert-Contains $spiritOtherObj "SpiritIntentPresentationDataComposer.Compose(source, presentationAdapterData)" "Spirit runtime action cards must compose source visuals with the registered adapter identity."
-Assert-Contains $spiritOtherObj "SunExpIds.SpiritIntentAdapterCardId" "Spirit runtime action cards must resolve scripts through a SunExp-owned adapter row."
-Assert-Contains $spiritOtherObj "SunExpIds.SpiritIntentSourceCardVar" "Spirit runtime action cards must retain the original source card id in Vars for diagnostics."
+Assert-Contains $spiritOtherObj "TerriasIds.SpiritIntentAdapterCardId" "Spirit runtime action cards must resolve scripts through a Terrias-owned adapter row."
+Assert-Contains $spiritOtherObj "TerriasIds.SpiritIntentSourceCardVar" "Spirit runtime action cards must retain the original source card id in Vars for diagnostics."
 Assert-Contains $spiritOtherObj "VerifyPresentationBinding(config, sourceCardId)" "Spirit runtime action cards must verify that the committed plan reached the adapter init entry."
 Assert-NotContains $spiritOtherObj 'template["InitScript"]' "Spirit runtime must not rely on replacing script text while retaining a native enemy-card id."
 Assert-Contains $companionIntentExecutor "if (isCurrentSnapshot)" "Repeated companion InitScript calls must reuse an unchanged presentation snapshot."
 Assert-NotContains $companionIntentExecutor "AddDescription" "Committed companion display values must not be recalculated through native card preview APIs."
 Assert-Contains $spiritProfileIdentityResolver "public static class SpiritProfileIdentityResolver" "Spirit registry identity normalization must be centralized in Mechanics."
 Assert-Contains $spiritProfileIdentityResolver 'BaseGameRuntimePrefix = "enemy_"' "The shared spirit identity resolver must recognize native base-game runtime ids."
-Assert-Contains $spiritProfileIdentityResolver 'SunExpRuntimePrefix = "SunExp_sunexp_"' "The shared spirit identity resolver must recognize full SunExp runtime ids."
-Assert-NotContains $spiritProfileIdentityResolver "SunExp.Dll.GameApi" "The shared spirit identity resolver must remain independent from GameApi."
+Assert-Contains $spiritProfileIdentityResolver 'TerriasRuntimePrefix = "Terrias_terrias_"' "The shared spirit identity resolver must recognize full Terrias runtime ids."
+Assert-NotContains $spiritProfileIdentityResolver "Terrias.Dll.GameApi" "The shared spirit identity resolver must remain independent from GameApi."
 Assert-NotContains $companionIntentSelector "PickType" "Companion intent selection must not apply priority through a second type lottery."
 Assert-Contains $companionIntentSelector "CompanionIntentResolver.TendencyWeightsFor" "Companion tendency must resolve explicit projection or spirit profile weights independent of pool size."
 Assert-Contains $companionIntentSelector "PickWeighted" "Companion intent selection must use normalized weighted random selection."
@@ -1176,9 +1176,9 @@ Assert-Contains $companionStatsService '"Strength"' "Companion stats must derive
 Assert-Contains $companionStatsService '"Lucky"' "Companion stats must derive spirit from the Lucky origin key."
 Assert-Contains $companionStatsService '"Wisdom"' "Companion stats must derive luck from the Wisdom origin key."
 Assert-Contains $companionStatsService '"Perceive"' "Companion stats must derive perception from the Perceive origin key."
-Assert-Contains $specialTagRuntime 'SunExpActionEventRouter.RegisterHandler("SpecialTag.WhiteRadiance"' "SpecialTagRuntime must register through the shared Action router."
-Assert-Contains $starScoreRuntime 'SunExpActionEventRouter.RegisterHandler("StarScore"' "StarScoreRuntime must register through the shared Action router."
-Assert-NotContains $loneerRuntime 'SunExpActionEventRouter.RegisterHandler("Loneer"' "LoneerRuntime must not own Star Stone Pouch action dispatch."
+Assert-Contains $specialTagRuntime 'TerriasActionEventRouter.RegisterHandler("SpecialTag.WhiteRadiance"' "SpecialTagRuntime must register through the shared Action router."
+Assert-Contains $starScoreRuntime 'TerriasActionEventRouter.RegisterHandler("StarScore"' "StarScoreRuntime must register through the shared Action router."
+Assert-NotContains $loneerRuntime 'TerriasActionEventRouter.RegisterHandler("Loneer"' "LoneerRuntime must not own Star Stone Pouch action dispatch."
 Assert-Contains $starStonePouchService 'ExecutorApi.TryAddTokenedEvent(self, "ActionAfter"' "Star Stone Pouch buff service must own its after-action draw hook."
 Assert-Contains $buffScripts "StarStonePouchService.Apply(self)" "BuffScripts must attach Star Stone Pouch behavior through the buff lifecycle."
 Assert-Contains $loneerMiracleService "QueueStarStonePouchDraw" "Loneer miracle work must enqueue Star Stone draw responses instead of resolving them inside ActionAfter."
@@ -1186,48 +1186,48 @@ Assert-Contains $loneerMiracleService '"Loneer.StarStonePouchDraw."' "Loneer Sta
 Assert-Contains $loneerMiracleService "RequestGuidanceSelectionDeferred" "Loneer guidance selection UI must be deferred from action hot paths."
 Assert-Contains $loneerCombatState "SelectionScheduled" "Loneer combat state must track deferred guidance selection dedupe."
 Assert-Contains $wunaScripts '"WunaRadiance.BurnChanged."' "Wuna burn-level changes must be merged by owner/token before aggregate scans."
-Assert-Contains $wunaScripts "SunExpFrameDispatcher.RunOnceNextFrame" "Wuna scripting must defer merged burn scans through the shared frame dispatcher."
+Assert-Contains $wunaScripts "TerriasFrameDispatcher.RunOnceNextFrame" "Wuna scripting must defer merged burn scans through the shared frame dispatcher."
 Assert-Contains $buffScripts "StarScoreService.ApplyScoreBuff(self)" "BuffScripts must attach Star Score HUD state through the buff lifecycle."
 Assert-NotContains ($specialTagRuntime + "`n" + $starScoreRuntime + "`n" + $loneerRuntime + "`n" + $starStonePouchService) "AddEventListener(" "Card-use feature runtimes must not register duplicate direct Action listeners."
-Assert-Contains $sunExpCardRefreshQueue "RunCooperative" "Card refresh queue must debounce repeated card presentation refreshes through one keyed cooperative job."
-Assert-Contains $sunExpCardRefreshQueue "RequestConfigTagRefresh" "Config tag refreshes must be queued with card presentation refreshes."
-Assert-Contains $sunExpCardRefreshQueue "AuraSharedFrameScheduler.RunCooperative" "Card refresh queue flushes must use cooperative shared-frame slices."
-Assert-Contains $sunExpCardRefreshQueue "FlushSlice" "Card refresh queue must process one explicit refresh slice at a time."
-Assert-Contains $sunExpCardRefreshQueue "CardRefreshQueue.FlushContinued" "Card refresh queue must reschedule overflow work instead of draining all items in one frame."
-Assert-Contains $runtimeHooks "SunExpCardPresentationInvalidationRuntime.Initialize(modConfig)" "RuntimeHooks must initialize targeted card invalidation through an isolated hook step."
+Assert-Contains $terriasCardRefreshQueue "RunCooperative" "Card refresh queue must debounce repeated card presentation refreshes through one keyed cooperative job."
+Assert-Contains $terriasCardRefreshQueue "RequestConfigTagRefresh" "Config tag refreshes must be queued with card presentation refreshes."
+Assert-Contains $terriasCardRefreshQueue "AuraSharedFrameScheduler.RunCooperative" "Card refresh queue flushes must use cooperative shared-frame slices."
+Assert-Contains $terriasCardRefreshQueue "FlushSlice" "Card refresh queue must process one explicit refresh slice at a time."
+Assert-Contains $terriasCardRefreshQueue "CardRefreshQueue.FlushContinued" "Card refresh queue must reschedule overflow work instead of draining all items in one frame."
+Assert-Contains $runtimeHooks "TerriasCardPresentationInvalidationRuntime.Initialize(modConfig)" "RuntimeHooks must initialize targeted card invalidation through an isolated hook step."
 Assert-Contains $cardPresentationInvalidationRuntime "StatusManagerAddBuff" "Targeted card invalidation must observe managed buff additions."
 Assert-Contains $cardPresentationInvalidationRuntime "StatusManagerRemoveBuff" "Targeted card invalidation must observe managed buff removals."
 Assert-Contains $cardPresentationInvalidationRuntime "BuffItemConfigSetLevel" "Targeted card invalidation must observe managed buff level changes."
-Assert-Contains $cardPresentationInvalidationRuntime "SunExpCardRefreshQueue.RequestDataUpdateForHandCards" "Description-impact buffs must use queued subset refreshes."
-Assert-Contains $cardPresentationImpactRegistry "SunExpIds.MiracleClock" "Loneer clock mutations must have an explicit card-presentation impact policy."
-Assert-Contains $cardPresentationImpactRegistry "SunExpIds.StarStonePouch" "Loneer pouch mutations must have an explicit card-presentation impact policy."
-Assert-Contains $cardPresentationImpactRegistry "SunExpIds.Starlight" "Loneer starlight mutations must have an explicit card-presentation impact policy."
-Assert-Contains $cardPresentationImpactRegistry "SunExpIds.StarBlessing" "Loneer blessing mutations must have an explicit card-presentation impact policy."
+Assert-Contains $cardPresentationInvalidationRuntime "TerriasCardRefreshQueue.RequestDataUpdateForHandCards" "Description-impact buffs must use queued subset refreshes."
+Assert-Contains $cardPresentationImpactRegistry "TerriasIds.MiracleClock" "Loneer clock mutations must have an explicit card-presentation impact policy."
+Assert-Contains $cardPresentationImpactRegistry "TerriasIds.StarStonePouch" "Loneer pouch mutations must have an explicit card-presentation impact policy."
+Assert-Contains $cardPresentationImpactRegistry "TerriasIds.Starlight" "Loneer starlight mutations must have an explicit card-presentation impact policy."
+Assert-Contains $cardPresentationImpactRegistry "TerriasIds.StarBlessing" "Loneer blessing mutations must have an explicit card-presentation impact policy."
 Assert-Contains $loneerRuntime "[MorningPrayerAttempt]" "Morning Star Prayer attempts must emit outcome-aware diagnostics."
 Assert-Contains $loneerRuntime "SkillUseGateApi.Capture" "Morning Star Prayer diagnostics must capture the native skill-use gate."
-Assert-Contains $cardApi "CardGrantPostCommitQueue.Request" "CardApi must submit SunExp post-commit refresh work after successful native hand grants."
+Assert-Contains $cardApi "CardGrantPostCommitQueue.Request" "CardApi must submit Terrias post-commit refresh work after successful native hand grants."
 Assert-Contains $cardApi "CombatCardViewPoolApi.TryMaterialize" "Generated-card grants must offer eligible hand views to the combat card view pool."
 Assert-Contains $cardApi "self.GetCardFromDeck(added)" "Combat card view pooling must preserve the native grant fallback."
 Assert-Contains $combatCardViewPoolApi "Func<ScriptExecutor, DataConfig, string, bool>" "GameApi must depend on a provider facade instead of the UI hook implementation."
-Assert-NotContains $combatCardViewPoolApi "SunExp.Dll.Hooks" "The combat card view pool facade must not reverse the GameApi-to-Hooks dependency."
+Assert-NotContains $combatCardViewPoolApi "Terrias.Dll.Hooks" "The combat card view pool facade must not reverse the GameApi-to-Hooks dependency."
 Assert-Contains $combatCardViewPoolCatalog "ExplicitBuckets" "Combat card pooling must use an explicit generated-card component catalog."
-Assert-Contains $combatCardViewPoolCatalog '[SunExpIds.StellarOvertureCloseCardId] = AttackBucket' "Stellar Overture Close must retain attack targeting when its view is pooled."
-Assert-Contains $combatCardViewPoolCatalog '[SunExpIds.StellarOvertureTurnCardId] = AttackBucket' "Stellar Overture Turn must retain attack targeting when its view is pooled."
-Assert-Contains $combatCardViewPoolCatalog '["SunExp_sunexp_heart_change"] = AttackBucket' "Heart Change must retain attack targeting when its view is pooled."
+Assert-Contains $combatCardViewPoolCatalog '[TerriasIds.StellarOvertureCloseCardId] = AttackBucket' "Stellar Overture Close must retain attack targeting when its view is pooled."
+Assert-Contains $combatCardViewPoolCatalog '[TerriasIds.StellarOvertureTurnCardId] = AttackBucket' "Stellar Overture Turn must retain attack targeting when its view is pooled."
+Assert-Contains $combatCardViewPoolCatalog '["Terrias_terrias_heart_change"] = AttackBucket' "Heart Change must retain attack targeting when its view is pooled."
 Assert-NotContains $combatCardViewPoolCatalog "baseScript.Length == 0" "An uninitialized BaseScript must not silently select a common-card component."
 Assert-Contains $combatCardViewPoolCatalog "RuntimeMarkersKey" "Runtime polymorph/projection cards must remain eligible after role-card materialization."
 Assert-Contains $combatCardViewPoolCatalog "PresentationSignature" "Pooled dynamic cards must use a deterministic presentation signature before lightweight rebinding."
 Assert-Contains $combatCardViewPoolCatalog 'string.Equals(key, "InstanceID"' "Pooled presentation signatures must ignore only per-instance identity."
 Assert-Contains $combatCardViewPool "AuraSharedObjectPool<string, CardItem>" "Combat card views must use the semantic-free shared pool core."
-Assert-Contains $combatCardViewPool "SunExpHookTargets.CardItemEffectOfBurnCard" "Pooled views must replace only the native burn presentation boundary."
-Assert-Contains $combatCardViewPool "SunExpHookTargets.CardItemEffectOfThrowCard" "Pooled views must replace only the native card-move presentation boundary."
+Assert-Contains $combatCardViewPool "TerriasHookTargets.CardItemEffectOfBurnCard" "Pooled views must replace only the native burn presentation boundary."
+Assert-Contains $combatCardViewPool "TerriasHookTargets.CardItemEffectOfThrowCard" "Pooled views must replace only the native card-move presentation boundary."
 Assert-NotContains $combatCardViewPool "CommonCardItem.UseCallback" "Pooled views must not reinterpret native card-use rules."
 Assert-NotContains $combatCardViewPool "usedCardList.Add" "Pooled views must not write native discard-zone semantics."
 Assert-NotContains $combatCardViewPool 'RunScript("DropScript")' "Pooled views must not execute native discard scripts."
 Assert-Contains $combatCardViewPool "card.cardcontainer = null" "Pooled views must suppress native root destruction without cancelling semantic resolution."
 Assert-Contains $pooledCardViewExit "PooledCardViewState" "Pooled view exits must use an explicit lifecycle state machine."
 Assert-Contains $pooledCardViewExit "Unsupported" "Unknown future exit targets must fail closed instead of becoming discards."
-Assert-Contains $pooledCardExitAnimator "SunExpResourceCache.Load<Material>" "Pooled burn exits must reuse the shared resource cache."
+Assert-Contains $pooledCardExitAnimator "TerriasResourceCache.Load<Material>" "Pooled burn exits must reuse the shared resource cache."
 Assert-Contains $pooledCardExitAnimator "burnBindings" "Pooled burn exits must retain reusable per-view material bindings."
 Assert-Contains $pooledCardExitAnimator "List<TextBinding> burnTextBindings" "Pooled burn exits must retain reusable text lifecycle bindings."
 Assert-Contains $pooledCardExitAnimator "GetComponentsInChildren<TMP_Text>(true)" "Pooled burn exits must cover dynamic and native card text nodes."
@@ -1239,15 +1239,15 @@ Assert-Contains $pooledCardExitAnimator "binding.Restore()" "Pooled card reuse m
 Assert-NotContains $pooledCardExitAnimator "DOTween" "Pooled exits must avoid per-use tween/sequence allocations."
 Assert-Contains $combatCardViewPool "ReleaseRejectedDirty" "Combat card pooling must destroy dirty views instead of reusing them."
 Assert-Contains $combatCardViewPool "marker.Generation != generation" "Combat card pooling must reject cross-battle generations."
-Assert-Contains $combatCardViewPool "SunExpFrameScheduler.RunOnceAfterFrames" "Combat card warmup and release work must be distributed by the shared frame scheduler."
-Assert-Contains $combatCardViewPool "SunExpResourceCache.Load<GameObject>" "Combat card pool warmup must reuse the shared resource cache."
+Assert-Contains $combatCardViewPool "TerriasFrameScheduler.RunOnceAfterFrames" "Combat card warmup and release work must be distributed by the shared frame scheduler."
+Assert-Contains $combatCardViewPool "TerriasResourceCache.Load<GameObject>" "Combat card pool warmup must reuse the shared resource cache."
 Assert-Contains $combatCardViewPool "FightUiCardLayoutApi.RequestHandLayout" "Pooled card materialization and release must use the managed-signature compatibility facade for hand layout."
 Assert-Contains $combatCardViewPool "TryLightweightRebind" "Pooled dynamic cards must offer a guarded lightweight rebind path."
 Assert-Contains $combatCardViewPool "ICard.SetCardMsg(card.transform, config, null)" "Lightweight rebinding must use the native card-message presentation boundary."
 Assert-Contains $combatCardViewPool "marker.PresentationSignature" "Lightweight rebinding must require an exact retained presentation signature."
 Assert-Contains $combatCardViewPool 'RecordDuration("CombatCardViewPool.FullInit"' "Pooled full initialization must remain measurable as a fallback."
 Assert-Contains $combatCardViewPool "CombatCardViewConstructionDiagnostics.Record" "Combat card pool warmup must sample prefab construction substeps."
-Assert-Contains $sunExpCombatCardUiWorkloadRuntime "CombatCardViewConstructionDiagnostics.FormatRecent" "Slow native card creation diagnostics must include a recent construction probe."
+Assert-Contains $terriasCombatCardUiWorkloadRuntime "CombatCardViewConstructionDiagnostics.FormatRecent" "Slow native card creation diagnostics must include a recent construction probe."
 Assert-Contains $combatCardViewConstructionDiagnostics "prefabLoad" "Card construction diagnostics must distinguish prefab loading from instantiation."
 Assert-NotContains $combatCardViewPool "Type.EmptyTypes" "UI hook code must not assume UpdateCardItemPos has a zero-parameter reflection signature."
 Assert-Contains $fightUiCardLayoutApi "BindingFlags.Instance | BindingFlags.Public" "FightUI card layout reflection must be contained in its focused GameApi facade."
@@ -1257,9 +1257,9 @@ Assert-Contains $pooledCombatCardViewMarker "ConfigInstanceId" "Pooled views mus
 Assert-Contains $pooledCombatCardViewMarker "HasInitializedPresentation" "Pooled views must never lightweight-rebind before one complete native initialization."
 Assert-Contains $pooledCardExitAnimator 'RecordDuration("PooledCardExit.BurnTextPrepare"' "Pooled burn text hiding must expose measurable duration."
 Assert-Contains $auraSharedObjectPool "capacityPerKey" "The shared object pool must enforce bounded per-key capacity."
-Assert-NotContains $auraSharedObjectPool "SunExp" "AuraShared object pooling must remain product-semantic-free."
-Assert-Contains $runtimeHooks "SunExpCombatCardViewPool.Initialize(modConfig)" "RuntimeHooks must initialize combat card view pooling through an isolated hook step."
-Assert-Contains $duskPartnerRuntime 'SunExpStatusLifecycleRouter.Register("DuskPartner"' "Dusk afterheat observer attachment must reuse the shared status lifecycle router."
+Assert-NotContains $auraSharedObjectPool "Terrias" "AuraShared object pooling must remain product-semantic-free."
+Assert-Contains $runtimeHooks "TerriasCombatCardViewPool.Initialize(modConfig)" "RuntimeHooks must initialize combat card view pooling through an isolated hook step."
+Assert-Contains $duskPartnerRuntime 'TerriasStatusLifecycleRouter.Register("DuskPartner"' "Dusk afterheat observer attachment must reuse the shared status lifecycle router."
 Assert-Contains $duskPartnerRuntime "AfterAddBuff = ObserveBurnAfterAdd" "Dusk must attach to burn buffs added after the trait becomes active."
 Assert-Contains $duskPartnerRuntime "AfterEnemyInit = ObserveEnemyAfterInit" "Dusk must inspect newly initialized enemies for existing burn buffs."
 Assert-Contains $duskAfterheatRecoveryService "burn?.scriptExecutor" "Dusk afterheat callbacks must share the native burn buff event owner so targeted immediate triggers can reach them."
@@ -1281,7 +1281,7 @@ Assert-Contains $companionSceneLifecycleRuntime "ProjectionRuntime.ClearBattle(s
 Assert-Contains $companionSceneLifecycleRuntime "SpiritRuntime.ClearBattle(source, sweepVisualOrphans: false)" "Direct scene replacement must clear tracked spirit state without repeating the orphan scan."
 Assert-Contains $companionSceneLifecycleRuntime "CompanionAuthorityService.InvalidateBattleEpoch" "Direct scene replacement must invalidate late companion snapshots."
 Assert-Contains $companionSceneLifecycleRuntime 'RunCleanupStep("OrphanedObjects"' "Scene-boundary cleanup must sweep orphaned companion Unity objects."
-Assert-Contains $companionSceneLifecycleRuntime 'SunExpHookRegistry.Before(' "Companion cleanup must register host-boundary hooks through the shared-safe SunExp registry."
+Assert-Contains $companionSceneLifecycleRuntime 'TerriasHookRegistry.Before(' "Companion cleanup must register host-boundary hooks through the shared-safe Terrias registry."
 Assert-Contains $companionSceneLifecycleRuntime '"TopBarUI.ReturnToMenu"' "Confirmed return-to-menu flow must suppress companion presentation before the end-of-frame native teardown."
 Assert-Contains $companionSceneLifecycleRuntime '"GameApp.ReturnToMenu"' "Direct or disconnect-driven return-to-menu flow must retain a companion cleanup fallback."
 Assert-Contains $companionSceneLifecycleRuntime '"GameEntryUI.Init"' "Returning directly to the main menu must trigger companion cleanup before menu presentation."
@@ -1296,13 +1296,13 @@ Assert-Contains $companionSceneLifecycleRuntime "needsOrphanSweep" "Companion cl
 Assert-Contains $companionSceneLifecycleRuntime "suppression.Total > 0 || !cleanupSucceeded" "Residual audits must run only when cleanup discovered artifacts or failed."
 Assert-Contains $companionSceneApi "HasTrackedScenes()" "Companion scene tracking must expose a cheap transition-deduplication signal."
 Assert-Contains $companionPresentationCleanup "ProjectionRoots" "The synchronous suppression pass must also provide artifact counts without a duplicate pre-cleanup scan."
-Assert-Contains $companionSceneLifecycleRuntime "SunExpLog.InfoAlways(message)" "Main-menu companion cleanup must remain observable when SunExp debug logging is disabled."
+Assert-Contains $companionSceneLifecycleRuntime "TerriasLog.InfoAlways(message)" "Main-menu companion cleanup must remain observable when Terrias debug logging is disabled."
 Assert-Contains $companionSceneLifecycleRuntime 'FightInitializing = _ => CleanupAfterSceneBoundary("FightInitializing")' "A new fight must sweep stale companion state left by abnormal scene replacement."
 Assert-Contains $companionSceneLifecycleRuntime 'FightEnded = _ => CleanupAfterSceneBoundary("FightEnded")' "Normal fight settlement must run the complete companion cleanup pipeline."
 Assert-NotContains $companionSceneLifecycleRuntime 'FightEnding = _ => CompanionSceneApi.ClearTrackedScenes' "Fight ending must not erase scene tracking before cleanup callbacks can run."
-Assert-Contains $performanceSettings "ReadFlag(CountersKey, false)" "SunExp performance diagnostics must be opt-in by default."
-Assert-Contains $runtimeHooks "if (SunExpPerformanceSettings.CountersEnabled)" "Pure card-UI workload hooks must only register while performance diagnostics are enabled."
-Assert-Contains $sunExpCombatCardUiWorkloadRuntime "if (!SunExpPerformanceSettings.CountersEnabled)" "The card-UI workload runtime must independently reject accidental initialization outside diagnostics mode."
+Assert-Contains $performanceSettings "ReadFlag(CountersKey, false)" "Terrias performance diagnostics must be opt-in by default."
+Assert-Contains $runtimeHooks "if (TerriasPerformanceSettings.CountersEnabled)" "Pure card-UI workload hooks must only register while performance diagnostics are enabled."
+Assert-Contains $terriasCombatCardUiWorkloadRuntime "if (!TerriasPerformanceSettings.CountersEnabled)" "The card-UI workload runtime must independently reject accidental initialization outside diagnostics mode."
 Assert-Contains $spiritRuntime "CommonCardItem.UseChecker.Contains(SpiritCardUseChecker)" "Spirit-card use gating must register idempotently in the native pre-consumption checker."
 Assert-Contains $spiritRuntime 'ProjectionStateStore.HasForOwner("", owner.InstanceId)' "Spirit cards must reject only projection occupancy at play time."
 Assert-NotContains $spiritRuntime "CardItem.canUse = false" "Spirit-card eligibility must not toggle the global card-use state."
@@ -1346,7 +1346,7 @@ Assert-Contains $heartChangeControlService "HeartChange.NetworkDuplicateAccepted
 Assert-Contains $heartChangeControlService "BodyRenderer.flipX" "Heart Change must mirror only the visual body instead of the collider-owning root."
 Assert-Contains $heartChangeControlService "Math.Abs(restoredScale.x)" "Heart Change restore must keep collider-owning root scale positive."
 Assert-NotContains $heartChangeControlService "scale.x = -originalX" "Heart Change must not apply negative X scale to the collider-owning root."
-Assert-Contains $cardGrantPostCommitQueue "SunExpCardRefreshQueue.RequestConfigTagRefresh" "Card grant post-commit work must route tag updates through the card refresh queue."
+Assert-Contains $cardGrantPostCommitQueue "TerriasCardRefreshQueue.RequestConfigTagRefresh" "Card grant post-commit work must route tag updates through the card refresh queue."
 Assert-Contains $cardGrantPostCommitQueue "VisualRefreshSuppressed" "Card grant post-commit visual refresh must be explicitly suppressed in stable lifecycle mode."
 Assert-NotContains $cardGrantPostCommitQueue "CombatVisualReapplyPasses" "Stable lifecycle mode must not run combat visual reapply passes."
 Assert-NotContains $cardGrantPostCommitQueue "RequestActiveCombatCardsReapply" "Stable lifecycle mode must not merge post-commit misses into active-combat-card reapply work."
@@ -1354,135 +1354,135 @@ Assert-NotContains $cardGrantPostCommitQueue "MaterializeRetryBudget" "Card gran
 Assert-NotContains $cardGrantPostCommitQueue "SameFrameRetry" "Card grant post-commit visual work must not retry within the same scheduler frame."
 Assert-NotContains $cardGrantPostCommitQueue "AddCardByData" "Card grant post-commit work must not own native card grants."
 Assert-NotContains $cardGrantPostCommitQueue "GetCardFromDeck" "Card grant post-commit work must not move cards through the native battle flow."
-Assert-Contains $starScoreRuntime "SunExpCardRefreshQueue.RequestCostUpdate" "Star score cost previews must use queued incremental cost refreshes."
-Assert-Contains $morningStarDimmedService "SunExpCardRefreshQueue.RequestCostUpdate" "Morning Star Dimmed must refresh its cost-only mutation incrementally."
+Assert-Contains $starScoreRuntime "TerriasCardRefreshQueue.RequestCostUpdate" "Star score cost previews must use queued incremental cost refreshes."
+Assert-Contains $morningStarDimmedService "TerriasCardRefreshQueue.RequestCostUpdate" "Morning Star Dimmed must refresh its cost-only mutation incrementally."
 Assert-Contains $cardScripts 'RequestCostUpdate(card, "FlamewheelHand")' "Flamewheel recurrence cost changes must use incremental cost refreshes."
-Assert-Contains $cardScripts 'self.ScriptDict["InitScript"] = direct' "SunExp card InitScript must bind a direct C# delegate after the first bridge call."
-Assert-Contains $combatCardUiDiagnostics 'Manual.CardScripts.Init' "Card UI diagnostics must attribute controllable SunExp InitScript work without relying on static hooks."
+Assert-Contains $cardScripts 'self.ScriptDict["InitScript"] = direct' "Terrias card InitScript must bind a direct C# delegate after the first bridge call."
+Assert-Contains $combatCardUiDiagnostics 'Manual.CardScripts.Init' "Card UI diagnostics must attribute controllable Terrias InitScript work without relying on static hooks."
 Assert-Contains $starScoreRuntime "StarScore.RefreshSignatureSkip" "Star score preview refreshes must skip unchanged presentation signatures."
 Assert-Contains $starScoreRuntime "LastRefreshSignatures.Clear" "Star score preview refresh signatures must reset at battle start."
-Assert-Contains $cardMutationService "SunExpCardRefreshQueue.RequestConfigTagRefresh" "CardMutationService config tag refreshes must use the shared refresh queue."
-Assert-Contains $runtimeCardAttachmentService "SunExpCardRefreshQueue.RequestConfigTagRefresh" "Runtime card attachment config tag refreshes must use the shared refresh queue."
+Assert-Contains $cardMutationService "TerriasCardRefreshQueue.RequestConfigTagRefresh" "CardMutationService config tag refreshes must use the shared refresh queue."
+Assert-Contains $runtimeCardAttachmentService "TerriasCardRefreshQueue.RequestConfigTagRefresh" "Runtime card attachment config tag refreshes must use the shared refresh queue."
 Assert-NotContains $cardMutationService "FightCardManager.Instance?.RefreshTag" "CardMutationService must not synchronously refresh config tags."
 Assert-NotContains $runtimeCardAttachmentService "FightCardManager.Instance?.RefreshTag" "RuntimeCardAttachmentService must not synchronously refresh config tags."
-Assert-True ($sunExpResourcePreloader.Contains("SunExpResourceCache.Preload") -or $sunExpResourcePreloader.Contains("SunExpResourceCache.Load")) "Resource preloader must warm core visual resources through the shared cache."
-Assert-Contains $runtimeHooks "SunExpResourcePreloader.Initialize(modConfig)" "RuntimeHooks must initialize the resource preloader as an isolated hook step."
-Assert-Contains $sunExpResourcePreloader "WarmupTier.Essential" "Adventure preload must separate essential resources from opportunity warmup."
-Assert-Contains $sunExpResourcePreloader "ResourcePreloader.EssentialCompleted" "Adventure preload must report completion of its essential resource phase."
-Assert-Contains $sunExpResourcePreloader "StarScoreHudAssets.StructuralPaths()" "Adventure preload must keep oversized note icons out of structural warmup."
-Assert-Contains $sunExpResourcePreloader "StarScoreFlightGlyphAssets.AllPaths()" "Small flight glyphs must be prewarmed before the first Stellar Overture use."
-Assert-NotContains $sunExpResourcePreloader "PolymorphRoleRegistry.CardFacePaths(12)" "Adventure preload must defer optional polymorph card-face sources until feature demand."
-Assert-Contains $sunExpResourcePreloader "ResourcePreloader.HeavyOptionalDeferred" "Deferred heavy preload work must remain observable."
-Assert-Contains $sunExpResourcePreloader "OpportunityDelayFrames" "Optional role-card warmup must be paced across idle adventure frames."
-Assert-Contains $sunExpCombatCardUiWorkloadRuntime "SunExpHookTargets.ICardSetCardStyle" "Card UI diagnostics must measure card-style application separately."
-Assert-Contains $sunExpCombatCardUiWorkloadRuntime "SunExpHookTargets.CardItemDataUpdate" "Card UI diagnostics must measure card data updates separately."
-Assert-Contains $sunExpCombatCardUiWorkloadRuntime "SunExpHookTargets.FightCardManagerCardTagCheck" "Card UI diagnostics must measure tag checks separately."
-Assert-Contains $sunExpCombatCardUiWorkloadRuntime "[ThreadStatic] private static Stack<StartEntry>" "Card UI diagnostics must avoid global lock contention on the main-thread hot path."
+Assert-True ($terriasResourcePreloader.Contains("TerriasResourceCache.Preload") -or $terriasResourcePreloader.Contains("TerriasResourceCache.Load")) "Resource preloader must warm core visual resources through the shared cache."
+Assert-Contains $runtimeHooks "TerriasResourcePreloader.Initialize(modConfig)" "RuntimeHooks must initialize the resource preloader as an isolated hook step."
+Assert-Contains $terriasResourcePreloader "WarmupTier.Essential" "Adventure preload must separate essential resources from opportunity warmup."
+Assert-Contains $terriasResourcePreloader "ResourcePreloader.EssentialCompleted" "Adventure preload must report completion of its essential resource phase."
+Assert-Contains $terriasResourcePreloader "StarScoreHudAssets.StructuralPaths()" "Adventure preload must keep oversized note icons out of structural warmup."
+Assert-Contains $terriasResourcePreloader "StarScoreFlightGlyphAssets.AllPaths()" "Small flight glyphs must be prewarmed before the first Stellar Overture use."
+Assert-NotContains $terriasResourcePreloader "PolymorphRoleRegistry.CardFacePaths(12)" "Adventure preload must defer optional polymorph card-face sources until feature demand."
+Assert-Contains $terriasResourcePreloader "ResourcePreloader.HeavyOptionalDeferred" "Deferred heavy preload work must remain observable."
+Assert-Contains $terriasResourcePreloader "OpportunityDelayFrames" "Optional role-card warmup must be paced across idle adventure frames."
+Assert-Contains $terriasCombatCardUiWorkloadRuntime "TerriasHookTargets.ICardSetCardStyle" "Card UI diagnostics must measure card-style application separately."
+Assert-Contains $terriasCombatCardUiWorkloadRuntime "TerriasHookTargets.CardItemDataUpdate" "Card UI diagnostics must measure card data updates separately."
+Assert-Contains $terriasCombatCardUiWorkloadRuntime "TerriasHookTargets.FightCardManagerCardTagCheck" "Card UI diagnostics must measure tag checks separately."
+Assert-Contains $terriasCombatCardUiWorkloadRuntime "[ThreadStatic] private static Stack<StartEntry>" "Card UI diagnostics must avoid global lock contention on the main-thread hot path."
 Assert-Contains $combatCardUiDiagnostics 'var prefix = "Nested." + target' "Card UI diagnostics must attribute nested measured methods to their parent stage."
 Assert-Contains $combatCardUiDiagnostics 'RecordSegment(prefix + "/" + pair.Key' "Card UI diagnostics must retain hierarchical child timings for slow-card attribution."
 Assert-Contains $combatCardUiDiagnostics "private struct Scope" "Card UI diagnostics must avoid per-call scope object allocation."
-Assert-Contains $solarMemoryJourneyApi 'JourneyId = "SunExp:SunExp.SolarMemory"' "Solar Memory must register its existing stable journey identity in owner-qualified form."
-Assert-Contains $runtimeHooks "SunExpCombatActionRouter.Initialize(modConfig)" "RuntimeHooks must initialize the shared combat action router before feature runtimes."
-Assert-Contains $runtimeHooks "SunExpStatusLifecycleRouter.Initialize(modConfig)" "RuntimeHooks must initialize the shared status lifecycle router before feature runtimes."
-Assert-Contains $sunExpStatusLifecycleRouter "SunExpHookTargets.StatusManagerAddBuff" "Status lifecycle router must own the StatusManager.AddBuff hook target."
-Assert-Contains $sunExpStatusLifecycleRouter "SunExpHookTargets.StatusManagerHit" "Status lifecycle router must own the StatusManager.Hit hook target."
-Assert-Contains $sunExpStatusLifecycleRouter "SunExpHookTargets.EnemyInit" "Status lifecycle router must own enemy initialization status hot-path hooks."
-Assert-Contains $sunExpCombatActionRouter "SunExpHookTargets.OtherObjDoOneAction" "Combat action router must own OtherObj action hooks."
-Assert-Contains $sunExpCombatActionRouter "SunExpHookTargets.FightUiCallActionAnimation" "Combat action router must own FightUI action animation hooks."
+Assert-Contains $solarMemoryJourneyApi 'JourneyId = "Terrias:Terrias.SolarMemory"' "Solar Memory must register its existing stable journey identity in owner-qualified form."
+Assert-Contains $runtimeHooks "TerriasCombatActionRouter.Initialize(modConfig)" "RuntimeHooks must initialize the shared combat action router before feature runtimes."
+Assert-Contains $runtimeHooks "TerriasStatusLifecycleRouter.Initialize(modConfig)" "RuntimeHooks must initialize the shared status lifecycle router before feature runtimes."
+Assert-Contains $terriasStatusLifecycleRouter "TerriasHookTargets.StatusManagerAddBuff" "Status lifecycle router must own the StatusManager.AddBuff hook target."
+Assert-Contains $terriasStatusLifecycleRouter "TerriasHookTargets.StatusManagerHit" "Status lifecycle router must own the StatusManager.Hit hook target."
+Assert-Contains $terriasStatusLifecycleRouter "TerriasHookTargets.EnemyInit" "Status lifecycle router must own enemy initialization status hot-path hooks."
+Assert-Contains $terriasCombatActionRouter "TerriasHookTargets.OtherObjDoOneAction" "Combat action router must own OtherObj action hooks."
+Assert-Contains $terriasCombatActionRouter "TerriasHookTargets.FightUiCallActionAnimation" "Combat action router must own FightUI action animation hooks."
 Assert-NotContains $runtimeHooks "FieldApi.TryRedirectStatusFieldBuffAdd" "RuntimeHooks must not route all StatusManager.AddBuff calls through field-buff redirection."
 Assert-Contains $runtimeHooks "FieldEffectHandlers.HandleBuffAdded" "RuntimeHooks must let active field definitions own AddBuff lifecycle policies."
-Assert-NotContains $runtimeHooks 'SunExpHookRegistry.Before(modConfig, "StatusManager.AddBuff"' "RuntimeHooks must not directly register StatusManager.AddBuff."
+Assert-NotContains $runtimeHooks 'TerriasHookRegistry.Before(modConfig, "StatusManager.AddBuff"' "RuntimeHooks must not directly register StatusManager.AddBuff."
 Assert-NotContains $projectionRuntime 'RegisterAfter(modConfig, "StatusManager.Hit"' "Projection runtime must not directly register status hot-path hooks."
-Assert-NotContains $cardVisualSkinRuntime "SunExpCardLifecycleRouter.Register(`"CardVisualSkin`"" "Card visual skin runtime must not own card lifecycle hook mapping."
-Assert-Contains $sunExpUiComponents "CreateTextButton" "Repeated text-button construction must live in the shared UI component factory."
-Assert-Contains $sunExpUiComponents "AddTextBlock" "Repeated text block construction must live in the shared UI component factory."
-Assert-Contains $sunExpUiComponents "CreateVerticalWindow" "Modal window shell construction must live in the shared UI component factory."
-Assert-Contains $sunExpUiComponents "CreatePanelSection" "Header/content panel section construction must live in the shared UI component factory."
-Assert-Contains $sunExpUiComponents "CreateFooterRow" "Footer row construction must live in the shared UI component factory."
-Assert-Contains $sunExpUiComponents "CreateVerticalScrollArea" "Repeated ScrollRect construction must live in the shared UI component factory."
-Assert-Contains $endlessAbyssShockPanel "SunExpUiComponents.CreateVerticalWindow" "Endless Abyss shock panel must use the shared modal window component."
-Assert-Contains $endlessAbyssShockPanel "SunExpUiComponents.CreateVerticalScrollArea" "Endless Abyss shock panel must use the shared scroll component."
-Assert-Contains $endlessAbyssMilestoneRewardPanel "SunExpUiComponents.CreateVerticalWindow" "Endless Abyss milestone panel must use the shared modal window component."
-Assert-Contains $endlessAbyssMilestoneRewardPanel "SunExpUiComponents.CreateVerticalScrollArea" "Endless Abyss milestone panel must use the shared scroll component."
-Assert-Contains $endlessAbyssFramedTextCard "SunExpUiComponents.AddTextBlock" "Framed option cards must use shared text block construction."
+Assert-NotContains $cardVisualSkinRuntime "TerriasCardLifecycleRouter.Register(`"CardVisualSkin`"" "Card visual skin runtime must not own card lifecycle hook mapping."
+Assert-Contains $terriasUiComponents "CreateTextButton" "Repeated text-button construction must live in the shared UI component factory."
+Assert-Contains $terriasUiComponents "AddTextBlock" "Repeated text block construction must live in the shared UI component factory."
+Assert-Contains $terriasUiComponents "CreateVerticalWindow" "Modal window shell construction must live in the shared UI component factory."
+Assert-Contains $terriasUiComponents "CreatePanelSection" "Header/content panel section construction must live in the shared UI component factory."
+Assert-Contains $terriasUiComponents "CreateFooterRow" "Footer row construction must live in the shared UI component factory."
+Assert-Contains $terriasUiComponents "CreateVerticalScrollArea" "Repeated ScrollRect construction must live in the shared UI component factory."
+Assert-Contains $endlessAbyssShockPanel "TerriasUiComponents.CreateVerticalWindow" "Endless Abyss shock panel must use the shared modal window component."
+Assert-Contains $endlessAbyssShockPanel "TerriasUiComponents.CreateVerticalScrollArea" "Endless Abyss shock panel must use the shared scroll component."
+Assert-Contains $endlessAbyssMilestoneRewardPanel "TerriasUiComponents.CreateVerticalWindow" "Endless Abyss milestone panel must use the shared modal window component."
+Assert-Contains $endlessAbyssMilestoneRewardPanel "TerriasUiComponents.CreateVerticalScrollArea" "Endless Abyss milestone panel must use the shared scroll component."
+Assert-Contains $endlessAbyssFramedTextCard "TerriasUiComponents.AddTextBlock" "Framed option cards must use shared text block construction."
 Assert-NotContains $endlessAbyssShockPanel "private static Text AddTextBlock" "Endless Abyss shock panel must not keep local text construction wrappers."
 Assert-NotContains $endlessAbyssMilestoneRewardPanel "private static Text AddTextBlock" "Endless Abyss milestone panel must not keep local text construction wrappers."
 Assert-NotContains $endlessAbyssFramedTextCard "private static Text AddTextBlock" "Framed option cards must not keep local text construction wrappers."
 Assert-NotContains $endlessAbyssMilestoneRewardPanel "private static Transform CreateScroll" "Endless Abyss milestone panel must not keep local ScrollRect construction."
-Assert-Contains $sunExpResourceCache "AuraSharedResourceCache.Load<T>" "SunExp resource cache must delegate native single-asset resource loading to shared cache."
-Assert-Contains $sunExpResourceCache "AuraSharedResourceCache.LoadAll<T>" "SunExp resource cache must delegate native multi-asset resource loading to shared cache."
-Assert-Contains $sunExpConfigIndex "public static List<Dictionary<string, string>> Rows" "Config index must own cached table row access."
-Assert-Contains $sunExpConfigIndex "public static Dictionary<string, string>? Row" "Config index must own id-normalized row lookup."
-Assert-Contains $sunExpConfigIndex "public static List<Dictionary<string, string>> FilteredRows" "Config index must own reusable filtered-row caches."
-Assert-NotContains $sunExpConfigIndex "SunExp.Dll.Hooks" "Config index in Mechanics must not depend on Hook runtimes."
-Assert-Contains $sunExpIds "SunCardVisualSkinId" "SunExpIds must centralize the Sun card visual skin id."
-Assert-Contains $sunExpIds "MorningStarCardVisualSkinId" "SunExpIds must centralize the Morning Star card visual skin id."
-Assert-Contains $sunExpIds "CardFaceEffectShaderId" "SunExpIds must centralize the reusable card-face effect shader id."
-Assert-Contains $sunExpIds "CardFaceFoilHoloVisualEffectId" "SunExpIds must centralize the reusable card-face foil visual effect id."
-Assert-Contains $sunExpIds "CardFaceStardustVisualEffectId" "SunExpIds must centralize the reusable card-face stardust visual effect id."
-Assert-Contains $sunExpIds "BlazingCrownCollapseHoloEffectBindingId" "SunExpIds must centralize the Blazing Crown Collapse visual effect binding id."
-Assert-Contains $sunExpIds "StellarOvertureStardustEffectBindingId" "SunExpIds must centralize the Stellar Overture stardust visual effect binding id."
-Assert-Contains $sunExpIds "BlazingCrownCollapseCardEffectIds" "SunExpIds must centralize the card ids that receive the foil card-face effect."
-Assert-Contains $sunExpIds "SunThemeCardPackIds" "SunExpIds must centralize Sun theme card-pack ids."
-Assert-Contains $sunExpIds "MorningStarThemeCardPackIds" "SunExpIds must centralize Morning Star theme card-pack ids."
-Assert-Contains $sunExpIds "StellarOvertureCardIds" "SunExpIds must centralize Stellar Overture card ids."
-Assert-Contains $sunExpIds "StellarOvertureCardEffectIds" "SunExpIds must centralize the card ids that receive the Stellar Overture stardust effect."
-Assert-Contains $sunExpIds "SunThemeExplicitCardIds" "SunExpIds must centralize explicit Sun theme card ids."
-Assert-Contains $sunExpIds "StellarOvertureCardIconPathPrefix" "SunExpIds must centralize Stellar Overture icon-path fallback rules."
-Assert-Contains $sunExpIds "WunaCoronationTokenCardId" "SunExpIds must centralize Wuna's generated Coronation token id."
-Assert-Contains $sunExpIds "SunCardFramePath" "SunExpIds must centralize the Sun card frame resource path."
-Assert-Contains $sunExpIds "SunCardBackgroundPath" "SunExpIds must centralize the optional Sun card background resource path."
-Assert-Contains $sunExpIds "MorningStarCardFramePath" "SunExpIds must centralize the Morning Star card frame resource path."
+Assert-Contains $terriasResourceCache "AuraSharedResourceCache.Load<T>" "Terrias resource cache must delegate native single-asset resource loading to shared cache."
+Assert-Contains $terriasResourceCache "AuraSharedResourceCache.LoadAll<T>" "Terrias resource cache must delegate native multi-asset resource loading to shared cache."
+Assert-Contains $terriasConfigIndex "public static List<Dictionary<string, string>> Rows" "Config index must own cached table row access."
+Assert-Contains $terriasConfigIndex "public static Dictionary<string, string>? Row" "Config index must own id-normalized row lookup."
+Assert-Contains $terriasConfigIndex "public static List<Dictionary<string, string>> FilteredRows" "Config index must own reusable filtered-row caches."
+Assert-NotContains $terriasConfigIndex "Terrias.Dll.Hooks" "Config index in Mechanics must not depend on Hook runtimes."
+Assert-Contains $terriasIds "SunCardVisualSkinId" "TerriasIds must centralize the Sun card visual skin id."
+Assert-Contains $terriasIds "MorningStarCardVisualSkinId" "TerriasIds must centralize the Morning Star card visual skin id."
+Assert-Contains $terriasIds "CardFaceEffectShaderId" "TerriasIds must centralize the reusable card-face effect shader id."
+Assert-Contains $terriasIds "CardFaceFoilHoloVisualEffectId" "TerriasIds must centralize the reusable card-face foil visual effect id."
+Assert-Contains $terriasIds "CardFaceStardustVisualEffectId" "TerriasIds must centralize the reusable card-face stardust visual effect id."
+Assert-Contains $terriasIds "BlazingCrownCollapseHoloEffectBindingId" "TerriasIds must centralize the Blazing Crown Collapse visual effect binding id."
+Assert-Contains $terriasIds "StellarOvertureStardustEffectBindingId" "TerriasIds must centralize the Stellar Overture stardust visual effect binding id."
+Assert-Contains $terriasIds "BlazingCrownCollapseCardEffectIds" "TerriasIds must centralize the card ids that receive the foil card-face effect."
+Assert-Contains $terriasIds "SunThemeCardPackIds" "TerriasIds must centralize Sun theme card-pack ids."
+Assert-Contains $terriasIds "MorningStarThemeCardPackIds" "TerriasIds must centralize Morning Star theme card-pack ids."
+Assert-Contains $terriasIds "StellarOvertureCardIds" "TerriasIds must centralize Stellar Overture card ids."
+Assert-Contains $terriasIds "StellarOvertureCardEffectIds" "TerriasIds must centralize the card ids that receive the Stellar Overture stardust effect."
+Assert-Contains $terriasIds "SunThemeExplicitCardIds" "TerriasIds must centralize explicit Sun theme card ids."
+Assert-Contains $terriasIds "StellarOvertureCardIconPathPrefix" "TerriasIds must centralize Stellar Overture icon-path fallback rules."
+Assert-Contains $terriasIds "WunaCoronationTokenCardId" "TerriasIds must centralize Wuna's generated Coronation token id."
+Assert-Contains $terriasIds "SunCardFramePath" "TerriasIds must centralize the Sun card frame resource path."
+Assert-Contains $terriasIds "SunCardBackgroundPath" "TerriasIds must centralize the optional Sun card background resource path."
+Assert-Contains $terriasIds "MorningStarCardFramePath" "TerriasIds must centralize the Morning Star card frame resource path."
 Assert-Contains $cardVisualSkinSpec "public sealed class CardVisualSkinSpec" "Card visual skins must use a typed skin specification."
 Assert-Contains $cardVisualThemeCatalog 'DictionaryUtil.Get(config.data, "PackBelong")' "Card visual themes must primarily resolve Sun cards by PackBelong."
-Assert-Contains $cardVisualThemeCatalog "SunExpIds.SunThemeCardPackIds" "Card visual themes must use centralized Sun card-pack ids."
-Assert-Contains $cardVisualSkinApi "SunExpIds.SunCardFramePath" "Card visual skin defaults must attach the Sun frame path through the registration API."
-Assert-Contains $cardVisualSkinApi "SunExpIds.SunCardBackgroundPath" "Card visual skin defaults must attach the optional Sun background path through the registration API."
-Assert-Contains $cardVisualSkinApi "SunExpIds.MorningStarThemeCardPackIds" "Morning Star card visual skin defaults must include Morning Star card packs."
-Assert-Contains $cardVisualSkinApi "SunExpIds.StellarOvertureCardEffectIds" "Morning Star card visual skin defaults must include generated Stellar Overture runtime ids."
-Assert-Contains $cardVisualThemeCatalog "SunExpIds.StellarOvertureCardIds" "Card visual themes must resolve Stellar Overture cards from centralized ids."
+Assert-Contains $cardVisualThemeCatalog "TerriasIds.SunThemeCardPackIds" "Card visual themes must use centralized Sun card-pack ids."
+Assert-Contains $cardVisualSkinApi "TerriasIds.SunCardFramePath" "Card visual skin defaults must attach the Sun frame path through the registration API."
+Assert-Contains $cardVisualSkinApi "TerriasIds.SunCardBackgroundPath" "Card visual skin defaults must attach the optional Sun background path through the registration API."
+Assert-Contains $cardVisualSkinApi "TerriasIds.MorningStarThemeCardPackIds" "Morning Star card visual skin defaults must include Morning Star card packs."
+Assert-Contains $cardVisualSkinApi "TerriasIds.StellarOvertureCardEffectIds" "Morning Star card visual skin defaults must include generated Stellar Overture runtime ids."
+Assert-Contains $cardVisualThemeCatalog "TerriasIds.StellarOvertureCardIds" "Card visual themes must resolve Stellar Overture cards from centralized ids."
 Assert-Contains $cardVisualThemeCatalog "StarScoreService.IsStellarOvertureCard" "Card visual themes must reuse the Star Score card-id classifier."
-Assert-Contains $cardVisualThemeCatalog "SunExpIds.StellarOvertureCardIconPathPrefix" "Card visual themes must fall back to Stellar Overture icon paths."
-Assert-Contains $cardVisualThemeCatalog "SunExpIds.SunThemeExplicitCardIds" "Card visual themes must support explicit generated Sun-theme cards."
-Assert-Contains $cardVisualSkinApi "SunExpIds.MorningStarCardFramePath" "Card visual skin defaults must attach the Morning Star frame path through the registration API."
+Assert-Contains $cardVisualThemeCatalog "TerriasIds.StellarOvertureCardIconPathPrefix" "Card visual themes must fall back to Stellar Overture icon paths."
+Assert-Contains $cardVisualThemeCatalog "TerriasIds.SunThemeExplicitCardIds" "Card visual themes must support explicit generated Sun-theme cards."
+Assert-Contains $cardVisualSkinApi "TerriasIds.MorningStarCardFramePath" "Card visual skin defaults must attach the Morning Star frame path through the registration API."
 Assert-Contains $cardVisualThemeCatalog "IsStellarOvertureCard" "Card visual themes must expose a Stellar Overture theme predicate."
 Assert-Contains $sunCardThemeCatalog "CardVisualThemeCatalog.Resolve" "Legacy Sun card theme checks must delegate to the generic card visual theme catalog."
-Assert-Contains $runtimeHooks "SunExpCardPresentationLifecycleBridge.Initialize" "RuntimeHooks must initialize the card lifecycle to presentation bridge."
-Assert-Contains $cardVisualSkinRuntime 'SunExpCardPresentationRouter.Register("CardVisualSkin"' "Card visual skin runtime must subscribe to the shared card presentation router."
-Assert-Contains $polymorphCardFaceRuntime 'SunExpCardPresentationRouter.Register("PolymorphCardFace"' "Polymorph card face runtime must subscribe to the shared card presentation router."
-Assert-Contains $sunExpCardPresentationLifecycleBridge 'AfterSetCardStyle = ApplyFromSetCardStyle' "Card presentation bridge must use native card-style initialization as its primary visual apply entry."
-Assert-Contains $sunExpCardPresentationLifecycleBridge "stable card UI lifecycle hooks" "Card presentation bridge must document stable lifecycle-hook mode."
-Assert-Contains $sunExpCardPresentationLifecycleBridge "AfterCardItemInit =" "Card presentation bridge must observe card init for generated combat card visuals."
-Assert-Contains $sunExpCardPresentationLifecycleBridge "AfterAttackCardItemInit =" "Card presentation bridge must observe attack-card init for generated combat card visuals."
-Assert-Contains $sunExpCardPresentationLifecycleBridge "Card = card" "Card presentation lifecycle must pass the exact initialized CardItem through transform transitions."
+Assert-Contains $runtimeHooks "TerriasCardPresentationLifecycleBridge.Initialize" "RuntimeHooks must initialize the card lifecycle to presentation bridge."
+Assert-Contains $cardVisualSkinRuntime 'TerriasCardPresentationRouter.Register("CardVisualSkin"' "Card visual skin runtime must subscribe to the shared card presentation router."
+Assert-Contains $polymorphCardFaceRuntime 'TerriasCardPresentationRouter.Register("PolymorphCardFace"' "Polymorph card face runtime must subscribe to the shared card presentation router."
+Assert-Contains $terriasCardPresentationLifecycleBridge 'AfterSetCardStyle = ApplyFromSetCardStyle' "Card presentation bridge must use native card-style initialization as its primary visual apply entry."
+Assert-Contains $terriasCardPresentationLifecycleBridge "stable card UI lifecycle hooks" "Card presentation bridge must document stable lifecycle-hook mode."
+Assert-Contains $terriasCardPresentationLifecycleBridge "AfterCardItemInit =" "Card presentation bridge must observe card init for generated combat card visuals."
+Assert-Contains $terriasCardPresentationLifecycleBridge "AfterAttackCardItemInit =" "Card presentation bridge must observe attack-card init for generated combat card visuals."
+Assert-Contains $terriasCardPresentationLifecycleBridge "Card = card" "Card presentation lifecycle must pass the exact initialized CardItem through transform transitions."
 Assert-Contains $cardPresentationRootResolver 'root.Find("Mask/CardIcon")' "Compact ShowCard surfaces must be recognized without requiring battle-card frame nodes."
 Assert-Contains $cardVisualSkinRuntime "CardVisualSkin.CompactDisplayHandled" "Compact display card surfaces must use an explicit supported fallback instead of root-missing warnings."
-Assert-NotContains $sunExpCardPresentationLifecycleBridge "AfterCardItemDataUpdate" "Card presentation bridge must not repaint card visuals from DataUpdate."
-Assert-NotContains $sunExpCardPresentationLifecycleBridge "AfterAttackCardItemDataUpdate" "Card presentation bridge must not repaint attack-card visuals from DataUpdate."
-Assert-NotContains $sunExpCardPresentationLifecycleBridge "AfterCardItemDrawEffect" "Card presentation bridge must not repaint card visuals from DrawEffect."
-Assert-NotContains $sunExpCardPresentationLifecycleBridge "AfterCommonCardItemDrawEffect" "Card presentation bridge must not repaint common-card visuals from DrawEffect."
-Assert-NotContains $sunExpCardPresentationLifecycleBridge "AfterAttackCardItemDrawEffect" "Card presentation bridge must not repaint attack-card visuals from DrawEffect."
+Assert-NotContains $terriasCardPresentationLifecycleBridge "AfterCardItemDataUpdate" "Card presentation bridge must not repaint card visuals from DataUpdate."
+Assert-NotContains $terriasCardPresentationLifecycleBridge "AfterAttackCardItemDataUpdate" "Card presentation bridge must not repaint attack-card visuals from DataUpdate."
+Assert-NotContains $terriasCardPresentationLifecycleBridge "AfterCardItemDrawEffect" "Card presentation bridge must not repaint card visuals from DrawEffect."
+Assert-NotContains $terriasCardPresentationLifecycleBridge "AfterCommonCardItemDrawEffect" "Card presentation bridge must not repaint common-card visuals from DrawEffect."
+Assert-NotContains $terriasCardPresentationLifecycleBridge "AfterAttackCardItemDrawEffect" "Card presentation bridge must not repaint attack-card visuals from DrawEffect."
 Assert-Contains $cardVisualSkinRuntime "BeforeCommonCardUse" "Card visual skin runtime must suppress frame-effect overlays before burnout common-card use animations."
 Assert-Contains $cardVisualSkinRuntime "BeforeAttackCardUse" "Card visual skin runtime must suppress frame-effect overlays before burnout attack-card use animations."
 Assert-Contains $cardVisualSkinRuntime "SuppressBurnoutFrameEffect" "Card visual skin runtime must keep burnout animation suppression isolated from normal card skin application."
 Assert-Contains $cardVisualSkinRuntime "HasBurnoutTag" "Card visual skin runtime must only suppress frame-effect overlays for burnout cards."
-Assert-NotContains $sunExpCardPresentationLifecycleBridge "AfterFightUiCreateCardItem =" "Card presentation bridge must not apply visuals from mismatched native combat-card creation hooks."
-Assert-NotContains $sunExpCardPresentationLifecycleBridge "AfterFightUiCreateCardItemInternal =" "Card presentation bridge must not apply visuals from mismatched internal combat-card creation hooks."
-Assert-NotContains $sunExpCardPresentationLifecycleBridge "AfterScriptExecutorGetCardFromDeck" "Card presentation bridge must not reapply card visuals from deck movement."
-Assert-Contains $sunExpCardPresentationRouter "ReapplyActiveCombatCards" "Card presentation router must centralize active combat-card reapplication."
-Assert-Contains $sunExpCardPresentationRouter "RequestActiveCombatCardsReapply" "Card presentation full-hand reapply requests must be merged before scanning the active hand."
-Assert-Contains $sunExpCardPresentationRouter "CardPresentation.ReapplyDeduped" "Card presentation merged reapply requests must be measurable."
+Assert-NotContains $terriasCardPresentationLifecycleBridge "AfterFightUiCreateCardItem =" "Card presentation bridge must not apply visuals from mismatched native combat-card creation hooks."
+Assert-NotContains $terriasCardPresentationLifecycleBridge "AfterFightUiCreateCardItemInternal =" "Card presentation bridge must not apply visuals from mismatched internal combat-card creation hooks."
+Assert-NotContains $terriasCardPresentationLifecycleBridge "AfterScriptExecutorGetCardFromDeck" "Card presentation bridge must not reapply card visuals from deck movement."
+Assert-Contains $terriasCardPresentationRouter "ReapplyActiveCombatCards" "Card presentation router must centralize active combat-card reapplication."
+Assert-Contains $terriasCardPresentationRouter "RequestActiveCombatCardsReapply" "Card presentation full-hand reapply requests must be merged before scanning the active hand."
+Assert-Contains $terriasCardPresentationRouter "CardPresentation.ReapplyDeduped" "Card presentation merged reapply requests must be measurable."
 Assert-NotContains $cardVisualSkinRuntime "ReapplyActiveCombatCardsNowAndLater" "Card visual skin runtime must not immediately scan the whole hand before the merged scheduled reapply."
-Assert-Contains $sunExpCardPresentationLifecycleBridge "AfterDictItemInit =" "Card presentation bridge must observe dictionary item init for non-combat card visuals."
-Assert-Contains $sunExpCardPresentationLifecycleBridge "AfterDictionaryShowItemInit =" "Card presentation bridge must observe dictionary detail init for non-combat card visuals."
-Assert-Contains $sunExpCardPresentationLifecycleBridge "AfterDisplayCardInit =" "Card presentation bridge must observe display-card init for non-combat card visuals."
-Assert-Contains $sunExpCardPresentationLifecycleBridge "AfterShowCardInit =" "Card presentation bridge must observe show-card init for non-combat card visuals."
-Assert-Contains $sunExpCardPresentationLifecycleBridge "AfterSafeBoxItemInit =" "Card presentation bridge must observe safe-box init for adventure-deck card visuals."
-Assert-Contains $sunExpCardPresentationLifecycleBridge "AfterEnchCardItemInit =" "Card presentation bridge must observe enchantment-card init for non-combat card visuals."
-Assert-Contains $sunExpCardPresentationLifecycleBridge "AfterCardChoiceItemInitialize =" "Card presentation bridge must observe reward-choice init for reward card visuals."
-Assert-Contains $sunExpCardPresentationLifecycleBridge "AfterPackShowItemInit =" "Card presentation bridge must observe card-pack init for non-combat card visuals."
-Assert-Contains $sunExpCardPresentationLifecycleBridge "AfterShopItemInit =" "Card presentation bridge must observe shop init for shop card visuals."
-Assert-Contains $sunExpCardPresentationLifecycleBridge "AfterWarehouseItemInit =" "Card presentation bridge must observe warehouse init for adventure-deck card visuals."
+Assert-Contains $terriasCardPresentationLifecycleBridge "AfterDictItemInit =" "Card presentation bridge must observe dictionary item init for non-combat card visuals."
+Assert-Contains $terriasCardPresentationLifecycleBridge "AfterDictionaryShowItemInit =" "Card presentation bridge must observe dictionary detail init for non-combat card visuals."
+Assert-Contains $terriasCardPresentationLifecycleBridge "AfterDisplayCardInit =" "Card presentation bridge must observe display-card init for non-combat card visuals."
+Assert-Contains $terriasCardPresentationLifecycleBridge "AfterShowCardInit =" "Card presentation bridge must observe show-card init for non-combat card visuals."
+Assert-Contains $terriasCardPresentationLifecycleBridge "AfterSafeBoxItemInit =" "Card presentation bridge must observe safe-box init for adventure-deck card visuals."
+Assert-Contains $terriasCardPresentationLifecycleBridge "AfterEnchCardItemInit =" "Card presentation bridge must observe enchantment-card init for non-combat card visuals."
+Assert-Contains $terriasCardPresentationLifecycleBridge "AfterCardChoiceItemInitialize =" "Card presentation bridge must observe reward-choice init for reward card visuals."
+Assert-Contains $terriasCardPresentationLifecycleBridge "AfterPackShowItemInit =" "Card presentation bridge must observe card-pack init for non-combat card visuals."
+Assert-Contains $terriasCardPresentationLifecycleBridge "AfterShopItemInit =" "Card presentation bridge must observe shop init for shop card visuals."
+Assert-Contains $terriasCardPresentationLifecycleBridge "AfterWarehouseItemInit =" "Card presentation bridge must observe warehouse init for adventure-deck card visuals."
 Assert-Contains $cardVisualSkinRuntime "RootConfigMismatch" "Card visual skin runtime must guard combat roots against mismatched lifecycle config."
 Assert-Contains $cardVisualSkinRuntime "CardVisualSkinApplier.Apply" "Card visual hooks must delegate Unity mutation to the generic visual applier."
 Assert-Contains $cardVisualInterestIndex "public static bool MayAffect" "Card visual interest index must expose a lightweight visual-interest gate."
@@ -1498,9 +1498,9 @@ Assert-Contains $cardVisualSkinMarker "LastAppliedStage" "Card visual marker mus
 Assert-Contains $cardConfigApi "payload is IDictionary<string, string> row" "Card config payload parsing must support dictionary table rows used by card dictionaries."
 Assert-Contains $cardConfigApi "payload is string cardId" "Card config payload parsing must support card-id strings used by lightweight UI cards."
 Assert-Contains $cardVisualSkinApplier "CardVisualThemeCatalog.Resolve" "Card visual skin applier must gate visuals through the theme catalog."
-Assert-Contains $entrySource 'RunStep("card visual skin registry", CardVisualSkinApi.RegisterSunExpDefaults)' "Entry must register card visual skins before gameplay hooks."
+Assert-Contains $entrySource 'RunStep("card visual skin registry", CardVisualSkinApi.RegisterTerriasDefaults)' "Entry must register card visual skins before gameplay hooks."
 Assert-Contains $cardVisualSkinApi "RegisterTheme" "Card visual skins must expose a modular registration API."
-Assert-Contains $cardVisualSkinApi "RegisterSunExpDefaults" "SunExp default card skins must be registered through the card visual skin API."
+Assert-Contains $cardVisualSkinApi "RegisterTerriasDefaults" "Terrias default card skins must be registered through the card visual skin API."
 Assert-Contains $cardVisualSkinRegistry "HitCache" "Card visual skin registry must cache positive rule matches."
 Assert-Contains $cardVisualSkinRegistry "MissCache" "Card visual skin registry must cache missed rule matches."
 Assert-Contains $cardVisualSkinRegistry "CardVisualInterestIndex.Invalidate()" "Card visual skin registry changes must invalidate the lightweight interest index."
@@ -1508,15 +1508,15 @@ Assert-Contains $cardVisualSkinRule "PackBelong" "Card visual skin rules must su
 Assert-Contains $cardVisualSkinRule "iconPrefixes" "Card visual skin rules must support theme icon-prefix matching."
 Assert-NotContains $cardVisualThemeCatalog "private static readonly CardVisualSkinSpec SunSkin" "Card visual theme catalog must not hard-code Sun skin specs outside the registry."
 Assert-Contains $cardVisualSkinApplier "CardVisualSkinMarker" "Card visual skin applier must cache per-card UI lookup state."
-Assert-Contains $entrySource 'RunStep("card visual effect registry", CardVisualEffectApi.RegisterSunExpDefaults)' "Entry must register card visual effects independently from card visual skins."
+Assert-Contains $entrySource 'RunStep("card visual effect registry", CardVisualEffectApi.RegisterTerriasDefaults)' "Entry must register card visual effects independently from card visual skins."
 Assert-Contains $cardVisualEffectApi "CardVisualEffectRegistry.Register" "Card visual effects must expose a modular registration API."
 Assert-Contains $cardVisualEffectApi "RegisterFaceEffect" "Card visual effects must expose a face-target convenience registration API."
 Assert-Contains $cardVisualEffectApi "RegisterFrameEffect" "Card visual effects must expose a frame-target convenience registration API."
 Assert-Contains $cardVisualEffectApi "CardVisualEffectTarget.Frame" "Frame visual effect registration must target the card frame, not the card face."
-Assert-Contains $cardVisualEffectApi "SunExpIds.CardFaceFoilHoloVisualEffectId" "SunExp default card visual effect must reference the reusable foil card-face visual effect id."
-Assert-Contains $cardVisualEffectApi "SunExpIds.CardFaceStardustVisualEffectId" "SunExp default card visual effect must register the reusable stardust card-face visual effect id."
-Assert-Contains $cardVisualEffectApi "SunExpIds.BlazingCrownCollapseCardEffectIds" "SunExp default card visual effect must be registered to explicit card ids."
-Assert-Contains $cardVisualEffectApi "SunExpIds.StellarOvertureCardEffectIds" "SunExp default card visual effect must bind Stellar Overture stardust to explicit generated-card ids."
+Assert-Contains $cardVisualEffectApi "TerriasIds.CardFaceFoilHoloVisualEffectId" "Terrias default card visual effect must reference the reusable foil card-face visual effect id."
+Assert-Contains $cardVisualEffectApi "TerriasIds.CardFaceStardustVisualEffectId" "Terrias default card visual effect must register the reusable stardust card-face visual effect id."
+Assert-Contains $cardVisualEffectApi "TerriasIds.BlazingCrownCollapseCardEffectIds" "Terrias default card visual effect must be registered to explicit card ids."
+Assert-Contains $cardVisualEffectApi "TerriasIds.StellarOvertureCardEffectIds" "Terrias default card visual effect must bind Stellar Overture stardust to explicit generated-card ids."
 Assert-Contains $cardVisualEffectTarget "Face" "Card visual effects must carry an explicit card-face render target."
 Assert-Contains $cardVisualEffectTarget "Frame = 1" "Card visual effects must keep frame and face targets distinct."
 Assert-NotContains $cardVisualEffectTarget "Frame = Face" "Card visual frame effects must not alias the card-face target."
@@ -1555,7 +1555,7 @@ Assert-Contains $cardVisualSkinMarker "originalFrameMeshMaterial" "Card-frame ef
 Assert-Contains $cardVisualSkinMarker "CardFrameOverlay" "Card visual skin marker must delegate card-frame overlays to the unified overlay component."
 Assert-Contains $cardVisualSkinMarker "SuppressFrameEffectOverlay" "Card visual skin marker must hide only the frame-effect overlay during burnout animations."
 Assert-Contains $cardVisualSkinMarker "ResumeFrameEffectOverlayFor" "Card visual skin marker must restore frame-effect overlays when pooled UI is reused for a different card."
-Assert-Contains $cardFrameOverlay 'OverlayName = "SunExp_CardFrameEffectOverlay"' "Card-frame overlays must use a stable named runtime object."
+Assert-Contains $cardFrameOverlay 'OverlayName = "Terrias_CardFrameEffectOverlay"' "Card-frame overlays must use a stable named runtime object."
 Assert-Contains $cardFrameOverlay "SetVisible" "Card-frame overlays must support temporary animation-time visibility suppression."
 Assert-Contains $cardFrameOverlay "ApplyImage" "Card-frame overlay must support UI Image-backed dictionary cards."
 Assert-Contains $cardFrameOverlay "ApplyMesh" "Card-frame overlay must support MeshRenderer-backed battle cards."
@@ -1571,7 +1571,7 @@ Assert-Contains $cardFrameEffectMaterials "material.SetFloat(CardFrameEffectShad
 Assert-Contains $cardFrameEffectMaterials "material.SetFloat(CardFrameEffectShaderIds.FrameOnlyOverlay, 0f)" "Integrated card-frame materials must not use overlay-only frame masking."
 Assert-Contains $cardFrameEffectMaterials "material.SetFloat(CardFrameEffectShaderIds.QualityScale, 1f)" "Card-frame effect materials must stay visually consistent under unified performance settings."
 Assert-NotContains $cardFrameEffectApplier "frameOnlyOverlay" "Card-frame effects must not use dictionary background frame-masking fallbacks."
-Assert-Contains $cardFrameEffectMaterials 'ShaderName = "SunExp/CardFaceEffect"' "Card-frame effects must use the shared card-effect shader declared by the visual registry."
+Assert-Contains $cardFrameEffectMaterials 'ShaderName = "Terrias/CardFaceEffect"' "Card-frame effects must use the shared card-effect shader declared by the visual registry."
 Assert-Contains $cardFaceEffectApplier "marker.FaceImage" "Card-face effects must target the card-face UI image when available."
 Assert-Contains $cardFaceEffectApplier "SharedUiOverlayMaterial" "Card-face UI effects must use transparent overlay materials instead of replacing the background material."
 Assert-Contains $cardFaceEffectApplier "ApplyFaceImageEffectOverlay" "Card-face UI effects must apply through an overlay layer."
@@ -1581,13 +1581,13 @@ Assert-Contains $cardFaceEffectMaterials "OverlayMode" "Card-face effect materia
 Assert-Contains $performanceSettings "CardFaceEffectsEnabled" "Card-face effects must obey unified performance settings."
 Assert-Contains $cardVisualSkinMarker 'Front/FrontBack' "Card visual skin marker must replace the card-frame layer."
 Assert-Contains $cardVisualSkinMarker 'Front/background' "Card visual skin marker must support the optional card-background layer."
-Assert-Contains $cardVisualSkinMarker 'SunExp_CardFaceEffectOverlay' "Card visual skin marker must create a named card-face effect overlay."
-Assert-Contains $cardFrameOverlay 'SunExp_CardFrameEffectOverlay' "Card frame overlay must create a named card-frame effect overlay."
+Assert-Contains $cardVisualSkinMarker 'Terrias_CardFaceEffectOverlay' "Card visual skin marker must create a named card-face effect overlay."
+Assert-Contains $cardFrameOverlay 'Terrias_CardFrameEffectOverlay' "Card frame overlay must create a named card-frame effect overlay."
 Assert-Contains $cardVisualSkinMarker 'raycastTarget = false' "Card-face effect overlays must not intercept card UI input."
 Assert-Contains $cardVisualSkinMarker 'frameOverlay.Clear()' "Card visual skin marker must clean up delegated card-frame effect overlays."
-Assert-Contains $sunExpCardPresentationRouter "SunExpFrameScheduler.RunOnceAfterFrames" "Card presentation full reapply must be merged through the performance scheduler."
-Assert-Contains $sunExpCardPresentationRouter "CardPresentation.ReapplyActiveCombatCards" "Card presentation reapply must be measured by performance counters."
-Assert-Contains $cardVisualSkinSpriteCache "SunExpResourceCache.Load<Sprite>" "Card visual skin sprites must load through the shared resource cache."
+Assert-Contains $terriasCardPresentationRouter "TerriasFrameScheduler.RunOnceAfterFrames" "Card presentation full reapply must be merged through the performance scheduler."
+Assert-Contains $terriasCardPresentationRouter "CardPresentation.ReapplyActiveCombatCards" "Card presentation reapply must be measured by performance counters."
+Assert-Contains $cardVisualSkinSpriteCache "TerriasResourceCache.Load<Sprite>" "Card visual skin sprites must load through the shared resource cache."
 Assert-Contains $cardVisualSkinSpriteCache '"visual.card-skin"' "Card visual skin sprites must use an invalidatable shared-cache category."
 Assert-NotContains $cardVisualSkinSpriteCache "private static readonly Dictionary<string, Sprite?> Cache" "Card visual skin sprites must not retain a second strong-reference cache outside shared LRU governance."
 Assert-Contains $sunCardFrameRuntime "CardVisualSkinRuntime.Initialize(modConfig)" "Legacy Sun card frame runtime must delegate to the generic visual skin runtime."
@@ -1603,65 +1603,65 @@ Assert-Contains $visualRegistryModels "public sealed class MapNodeArtVisualSpec"
 Assert-Contains $visualRegistryModels "public sealed class ShaderVisualSpec" "Visual registry models must declare shader entries."
 Assert-Contains $visualRegistryModels "public sealed class VisualEffectVisualSpec" "Visual registry models must declare visual effect entries."
 Assert-Contains $visualRegistry "public static VisualEffectVisualSpec? Effect" "VisualRegistry must expose private visual effect declarations."
-Assert-Contains $visualRegistry "ResolveContentPath" "VisualRegistry must resolve private visual bundle paths under the SunExp mod directory."
+Assert-Contains $visualRegistry "ResolveContentPath" "VisualRegistry must resolve private visual bundle paths under the Terrias mod directory."
 Assert-Contains $visualRegistryJson '"frameAnimations"' "Shipped visual registry must declare frame animation assets."
 Assert-Contains $visualRegistryJson '"mapNodeArt"' "Shipped visual registry must declare map-node art assets."
 Assert-Contains $visualRegistryJson '"modeEntries"' "Shipped visual registry must declare mode-entry visuals."
 Assert-Contains $visualRegistryJson '"shaders"' "Shipped visual registry must declare shader lookup entries."
 Assert-Contains $visualRegistryJson '"effects"' "Shipped visual registry must declare private visual effect entries."
-Assert-Contains $visualRegistryJson '"sunexp.star_score_hud.lit_slot"' "Shipped visual registry must declare the star-score lit-slot effect."
-Assert-Contains $visualRegistryJson '"sunexp.card_visual_effect.card_face.shader"' "Shipped visual registry must declare the reusable card-face effect shader."
-Assert-Contains $visualRegistryJson '"sunexp.card_visual_effect.foil_holo"' "Shipped visual registry must declare the reusable foil card-face effect."
-Assert-Contains $visualRegistryJson '"sunexp.card_visual_effect.stardust_overture"' "Shipped visual registry must declare the reusable stardust card-face effect."
+Assert-Contains $visualRegistryJson '"terrias.star_score_hud.lit_slot"' "Shipped visual registry must declare the star-score lit-slot effect."
+Assert-Contains $visualRegistryJson '"terrias.card_visual_effect.card_face.shader"' "Shipped visual registry must declare the reusable card-face effect shader."
+Assert-Contains $visualRegistryJson '"terrias.card_visual_effect.foil_holo"' "Shipped visual registry must declare the reusable foil card-face effect."
+Assert-Contains $visualRegistryJson '"terrias.card_visual_effect.stardust_overture"' "Shipped visual registry must declare the reusable stardust card-face effect."
 Assert-Contains $visualRegistryJson '"_FoilTex"' "Shipped visual registry must keep the optional foil texture binding for compatibility."
-Assert-Contains $visualRegistryJson '"_SunExpOverlayMode":' "Shipped visual registry must carry the Lab-exported overlay-mode shader flag."
-Assert-Contains $visualRegistryJson '"_SunExpFrameOnlyOverlay":' "Shipped visual registry must carry the Lab-exported frame-only shader flag."
-Assert-Contains $visualRegistryJson '"_SunExpFoilMode":' "Shipped visual registry must carry the Lab-exported foil shader mode."
-Assert-Contains $visualRegistry "SunExpIds.CardFaceFoilHoloVisualEffectId" "Built-in visual defaults must include the reusable foil card-face effect."
-Assert-Contains $visualRegistry "SunExpIds.CardFaceStardustVisualEffectId" "Built-in visual defaults must include the reusable stardust card-face effect."
-Assert-Contains $visualPipeline '"bundleName": "sunexp_visuals"' "Visual pipeline must declare the private SunExp bundle name."
-Assert-Contains $visualPipeline '"materialPath": "SunExp/Materials/StarScoreHudLit"' "Visual pipeline must match the runtime star-score material asset path."
-Assert-Contains $visualPipeline '"cardFaceEffectMaterialPath": "SunExp/Materials/CardFaceEffect"' "Visual pipeline must match the runtime card-face effect material asset path."
+Assert-Contains $visualRegistryJson '"_TerriasOverlayMode":' "Shipped visual registry must carry the Lab-exported overlay-mode shader flag."
+Assert-Contains $visualRegistryJson '"_TerriasFrameOnlyOverlay":' "Shipped visual registry must carry the Lab-exported frame-only shader flag."
+Assert-Contains $visualRegistryJson '"_TerriasFoilMode":' "Shipped visual registry must carry the Lab-exported foil shader mode."
+Assert-Contains $visualRegistry "TerriasIds.CardFaceFoilHoloVisualEffectId" "Built-in visual defaults must include the reusable foil card-face effect."
+Assert-Contains $visualRegistry "TerriasIds.CardFaceStardustVisualEffectId" "Built-in visual defaults must include the reusable stardust card-face effect."
+Assert-Contains $visualPipeline '"bundleName": "terrias_visuals"' "Visual pipeline must declare the private Terrias bundle name."
+Assert-Contains $visualPipeline '"materialPath": "Terrias/Materials/StarScoreHudLit"' "Visual pipeline must match the runtime star-score material asset path."
+Assert-Contains $visualPipeline '"cardFaceEffectMaterialPath": "Terrias/Materials/CardFaceEffect"' "Visual pipeline must match the runtime card-face effect material asset path."
 Assert-Contains $visualRegistry "public static IReadOnlyList<string> BundlePaths()" "VisualRegistry must expose declared visual bundle paths for release checks."
 Assert-Contains $runtimeHooks "VisualBundleRuntimeValidator.ValidateDeclaredBundles" "Runtime hooks must validate declared visual bundles during startup."
 Assert-Contains $visualBundleRuntimeValidator "VisualRegistry.BundlePaths()" "Visual bundle validator must scan registry-declared bundle paths."
 Assert-Contains $visualBundleRuntimeValidator "WunaOrbitFireBack" "Visual bundle validator must probe Wuna back orbit material."
 Assert-Contains $visualBundleRuntimeValidator "WunaOrbitFireFront" "Visual bundle validator must probe Wuna front orbit material."
 Assert-Contains $visualBundleRuntimeValidator "CardFaceEffect" "Visual bundle validator must probe the card-face effect material."
-Assert-Contains $visualBundleBuildScript "SunExpVisualBundleBuilder.BuildVisualBundle" "Visual bundle build script must call the Unity Editor builder entrypoint."
+Assert-Contains $visualBundleBuildScript "TerriasVisualBundleBuilder.BuildVisualBundle" "Visual bundle build script must call the Unity Editor builder entrypoint."
 Assert-Contains $visualBundleBuildScript "CardFaceEffect.shader" "Visual bundle build script must copy the card-face effect shader into the Unity project."
 Assert-Contains $visualBundleBuildScript "Stop-StaleUnityProjectProcesses" "Visual bundle build script must stop stale batchmode Unity processes before opening the project."
 Assert-Contains $visualBundleBuildScript "UnityLockfile" "Visual bundle build script must remove an orphaned Unity project lock after stale batchmode cleanup."
 Assert-Contains $visualBundleBuilder "BuildPipeline.BuildAssetBundles" "Visual pipeline must provide a Unity Editor bundle build entrypoint."
-Assert-Contains $visualBundleBuilder "new AssetBundleBuild" "Visual pipeline must explicitly build the sunexp_visuals bundle asset list."
+Assert-Contains $visualBundleBuilder "new AssetBundleBuild" "Visual pipeline must explicitly build the terrias_visuals bundle asset list."
 Assert-Contains $visualBundleBuilder "EnsureCardFaceEffectMaterial" "Visual pipeline must build the card-face effect material."
-Assert-Contains $visualBundleBuilder 'material.SetFloat("_SunExpFoilMode", 1f)' "Visual bundle builder must default foil materials to laser mode."
-Assert-Contains $visualBundleBuilder 'private const string BundleName = "sunexp_visuals"' "Visual bundle builder must match the runtime bundle name."
-Assert-Contains $visualBundleBuilder 'private const string MaterialAssetPath = "Assets/SunExp/Visuals/Materials/StarScoreHudLit.mat"' "Visual bundle builder must create the declared star-score material asset."
-Assert-Contains $sunExpProject "UnityEngine.AssetBundleModule" "SunExp must reference UnityEngine.AssetBundleModule for private shader bundles."
+Assert-Contains $visualBundleBuilder 'material.SetFloat("_TerriasFoilMode", 1f)' "Visual bundle builder must default foil materials to laser mode."
+Assert-Contains $visualBundleBuilder 'private const string BundleName = "terrias_visuals"' "Visual bundle builder must match the runtime bundle name."
+Assert-Contains $visualBundleBuilder 'private const string MaterialAssetPath = "Assets/Terrias/Visuals/Materials/StarScoreHudLit.mat"' "Visual bundle builder must create the declared star-score material asset."
+Assert-Contains $terriasProject "UnityEngine.AssetBundleModule" "Terrias must reference UnityEngine.AssetBundleModule for private shader bundles."
 Assert-Contains $assetBundleCache "AssetBundle.LoadFromFile" "AssetBundleCache must load private visual bundles from files."
-Assert-Contains $assetBundleCache "VisualRegistry.ResolveContentPath" "AssetBundleCache must resolve SunExp-private bundle paths through the visual registry."
+Assert-Contains $assetBundleCache "VisualRegistry.ResolveContentPath" "AssetBundleCache must resolve Terrias-private bundle paths through the visual registry."
 Assert-Contains $effectMaterialFactory "AssetBundleCache.LoadAsset<Material>" "EffectMaterialFactory must prefer declared material assets from private bundles."
 Assert-Contains $effectMaterialFactory "ShaderAssetLoader.ResolveShader" "EffectMaterialFactory must fall back to declared shaders when no material asset is bundled."
 Assert-Contains $effectMaterialFactory "EffectTextureCache.Load" "EffectMaterialFactory must apply declared effect textures."
-Assert-Contains $effectTextureCache "SunExpResourceCache.Load<Texture>" "EffectTextureCache must load declared effect textures through the shared resource cache."
+Assert-Contains $effectTextureCache "TerriasResourceCache.Load<Texture>" "EffectTextureCache must load declared effect textures through the shared resource cache."
 Assert-Contains $effectTextureCache '"visual.effect-texture"' "Effect textures must use an invalidatable shared-cache category."
 Assert-NotContains $effectTextureCache "private static readonly Dictionary<string, Texture?> Cache" "Effect textures must not retain a second strong-reference cache outside shared LRU governance."
 Assert-Contains $frameSpriteCache "private static readonly Dictionary<string, Sprite[]> Cache" "FrameSpriteCache must centralize loaded sprite-frame caching."
-Assert-Contains $frameSpriteCache "SunExpResourceCache.Load<Sprite>" "FrameSpriteCache must own sprite-frame resource loading through the shared resource cache."
+Assert-Contains $frameSpriteCache "TerriasResourceCache.Load<Sprite>" "FrameSpriteCache must own sprite-frame resource loading through the shared resource cache."
 Assert-Contains $frameSpriteCache "public static void Clear()" "FrameSpriteCache must expose an explicit lifecycle cleanup point."
 Assert-Contains $frameSpriteCache '"visual.frame-animation"' "Frame sprite loads must use an invalidatable shared-cache category."
 Assert-Contains $assetBundleCache "public static void Clear(bool unloadAllLoadedObjects = false)" "Private visual bundle handles must expose explicit lifecycle cleanup."
 Assert-Contains $assetBundleCache "bundle!.Unload(unloadAllLoadedObjects)" "Private visual bundle cleanup must release bundle handles without destroying live assets by default."
-Assert-Contains $sunExpUiSprites "public static void Clear()" "Runtime-created UI sprites must expose explicit destruction and cache cleanup."
-Assert-Contains $sunExpUiSprites "UnityEngine.Object.Destroy(sprite)" "Runtime-created UI sprites must be destroyed when their lifecycle ends."
-Assert-Contains $sunExpUiSprites '"ui.sprite-source"' "UI sprite sources must use an invalidatable shared-cache category."
-Assert-Contains $sunExpUiLifecycleRuntime "ResetForGameEntry" "Returning to game entry must define one visual-resource cleanup boundary."
-Assert-Contains $sunExpUiLifecycleRuntime "FrameSpriteCache.Clear()" "Game-entry cleanup must release derived frame arrays."
-Assert-Contains $sunExpUiLifecycleRuntime "SunExpUiSprites.Clear()" "Game-entry cleanup must destroy runtime-created UI sprites."
-Assert-NotContains $sunExpUiLifecycleRuntime "AssetBundleCache.Clear()" "Game-entry cleanup must preserve bundle handles registered with shared visual runtimes."
-Assert-Contains $visualBundleRuntimeValidator "RegisterAssetBundle(bundlePath, bundle)" "SunExp must register its stable owner-qualified visual bundle path."
-Assert-Contains $sunExpUiLifecycleRuntime 'SunExpResourceCache.ClearCategory("visual.effect-texture")' "Game-entry cleanup must invalidate categorized shared visual resources."
+Assert-Contains $terriasUiSprites "public static void Clear()" "Runtime-created UI sprites must expose explicit destruction and cache cleanup."
+Assert-Contains $terriasUiSprites "UnityEngine.Object.Destroy(sprite)" "Runtime-created UI sprites must be destroyed when their lifecycle ends."
+Assert-Contains $terriasUiSprites '"ui.sprite-source"' "UI sprite sources must use an invalidatable shared-cache category."
+Assert-Contains $terriasUiLifecycleRuntime "ResetForGameEntry" "Returning to game entry must define one visual-resource cleanup boundary."
+Assert-Contains $terriasUiLifecycleRuntime "FrameSpriteCache.Clear()" "Game-entry cleanup must release derived frame arrays."
+Assert-Contains $terriasUiLifecycleRuntime "TerriasUiSprites.Clear()" "Game-entry cleanup must destroy runtime-created UI sprites."
+Assert-NotContains $terriasUiLifecycleRuntime "AssetBundleCache.Clear()" "Game-entry cleanup must preserve bundle handles registered with shared visual runtimes."
+Assert-Contains $visualBundleRuntimeValidator "RegisterAssetBundle(bundlePath, bundle)" "Terrias must register its stable owner-qualified visual bundle path."
+Assert-Contains $terriasUiLifecycleRuntime 'TerriasResourceCache.ClearCategory("visual.effect-texture")' "Game-entry cleanup must invalidate categorized shared visual resources."
 Assert-Contains $frameAnimationAttacher "FrameImageAnimator" "FrameAnimationAttacher must attach UI Image animations through the shared component."
 Assert-Contains $frameAnimationAttacher "FrameSpriteRendererAnimator" "FrameAnimationAttacher must attach SpriteRenderer animations through the shared component."
 Assert-Contains $animatedBlessingIconRuntime "VisualRegistry.FrameAnimationBySpriteName" "Animated blessing icons must resolve frame specs from the visual registry."
@@ -1674,11 +1674,11 @@ Assert-NotContains ($animatedBlessingIconRuntime + $animatedBuffIconRuntime + $a
 Assert-NotContains ($animatedBlessingIconRuntime + $animatedBuffIconRuntime + $animatedEnemyDictIconRuntime) "public sealed class AnimatedBuffSpriteIcon" "Animated buff icons must not own a duplicate frame animator component."
 Assert-NotContains ($animatedBlessingIconRuntime + $animatedBuffIconRuntime + $animatedEnemyDictIconRuntime) "public sealed class AnimatedEnemyDictIcon" "Animated enemy dictionary icons must not own a duplicate frame animator component."
 Assert-Contains $starScoreService "public static event Action<StarScoreDisplaySnapshot>? Changed" "StarScoreService must publish typed display snapshots for UI hooks."
-Assert-Contains $entrySource "SunExpCardUseFxRuntime.Initialize(modConfig)" "Entry must initialize the card-use FX registry and shared trigger bridge in an isolated step."
-Assert-Contains $sunExpCardUseFxRuntime "StarScoreArrivalCueService.Consume" "SunExp card-use FX runtime must consume actual star-score note cues."
-Assert-Contains $sunExpCardUseFxRuntime "MaxVisibleRibbonCount" "SunExp card-use FX runtime must cap visible ribbons per use."
-Assert-Contains $sunExpCardUseFxRuntime "AuraCardUseFxTriggerChannel.LocalCommitted" "SunExp card-use FX must consume only successful local card uses."
-Assert-Contains $sunExpCardUseFxRuntime "trigger.SourceSnapshot" "SunExp card-use FX must present from the pre-burn source snapshot."
+Assert-Contains $entrySource "TerriasCardUseFxRuntime.Initialize(modConfig)" "Entry must initialize the card-use FX registry and shared trigger bridge in an isolated step."
+Assert-Contains $terriasCardUseFxRuntime "StarScoreArrivalCueService.Consume" "Terrias card-use FX runtime must consume actual star-score note cues."
+Assert-Contains $terriasCardUseFxRuntime "MaxVisibleRibbonCount" "Terrias card-use FX runtime must cap visible ribbons per use."
+Assert-Contains $terriasCardUseFxRuntime "AuraCardUseFxTriggerChannel.LocalCommitted" "Terrias card-use FX must consume only successful local card uses."
+Assert-Contains $terriasCardUseFxRuntime "trigger.SourceSnapshot" "Terrias card-use FX must present from the pre-burn source snapshot."
 Assert-True ($cardUseFxManifest.schemaVersion -eq 2) "Card-use FX manifest must use the local/observer presentation-scope schema."
 Assert-True ($cardUseFxManifest.protocol.preferredVersion -eq 2) "Card-use FX manifest must prefer presentation-scope protocol v2."
 Assert-True ($cardUseFxManifest.entries[0].presentationScope -eq "ownerLocal") "Stellar Overture card-use FX must be local-owner scoped."
@@ -1699,8 +1699,8 @@ Assert-Contains $starScoreCardUseFxPresenter "StarScoreFlightGlyphAssets.IconFor
 Assert-Contains $starScoreCardUseFxPresenter "UpdateGlyph" "Flight glyphs must follow the same Bezier path as their staff."
 Assert-Contains $starScoreFlightGlyphAssets "FilterMode.Bilinear" "Flight glyphs must use smooth downsampling independently from point-filtered HUD badges."
 foreach ($glyph in @("opening", "sustain", "turn", "close")) {
-    Assert-True (Test-Path -LiteralPath (Join-Path $RepoRoot ("SunExp\ModResource\Images\Effects\StarScore\flight_" + $glyph + ".png"))) ("Missing shipped Star Score flight glyph: " + $glyph)
-    Assert-True (Test-Path -LiteralPath (Join-Path $RepoRoot ("SunExp-Dev\VisualAssets\StarScoreFlightGlyphSource256\flight_" + $glyph + ".png"))) ("Missing preserved 256px Star Score flight-glyph source: " + $glyph)
+    Assert-True (Test-Path -LiteralPath (Join-Path $RepoRoot ("Terrias\ModResource\Images\Effects\StarScore\flight_" + $glyph + ".png"))) ("Missing shipped Star Score flight glyph: " + $glyph)
+    Assert-True (Test-Path -LiteralPath (Join-Path $RepoRoot ("Terrias-Dev\VisualAssets\StarScoreFlightGlyphSource256\flight_" + $glyph + ".png"))) ("Missing preserved 256px Star Score flight-glyph source: " + $glyph)
 }
 Assert-Contains $starScoreCardUseFxPresenter "FirstEmitDelaySeconds = 0.10f" "Card-use FX must preserve the approved first emit timing."
 Assert-Contains $starScoreCardUseFxPresenter "FlightSeconds = 0.52f" "Card-use FX must preserve the approved ribbon flight timing."
@@ -1718,7 +1718,7 @@ Assert-NotContains $starScoreHudRuntime "Object.Destroy(activeView.gameObject)" 
 Assert-Contains $starScoreCadenceCatalog "public static class StarScoreCadenceCatalog" "StarScoreCadenceCatalog must own tooltip cadence copy in Mechanics."
 Assert-Contains $starScoreCadenceCatalog "CandidatesForPrefix" "StarScoreCadenceCatalog must calculate available cadence candidates from current notes."
 Assert-NotContains $starScoreHudView "ProgressPartThresholds" "StarScoreHudView must keep the full star-score frame visible once shown."
-Assert-Contains $starScoreHudView "SunExpUiSafety.CloseTransient(gameObject" "StarScoreHudView must close through shared UI safety."
+Assert-Contains $starScoreHudView "TerriasUiSafety.CloseTransient(gameObject" "StarScoreHudView must close through shared UI safety."
 Assert-Contains $starScoreHudView "StarScoreHudTooltipView.Create" "StarScoreHudView must own the hover tooltip view."
 Assert-Contains $starScoreHudView "StarScoreHudShaderController" "StarScoreHudView must delegate star-score lighting effects to the shader controller."
 Assert-Contains $starScoreHudView "RectMask2D" "StarScoreHudView must use masked full-frame lighting slots instead of mismatched sliced art."
@@ -1731,19 +1731,19 @@ Assert-Contains $starScoreHudShaderMaterials "EffectMaterialFactory.CreateMateri
 Assert-Contains $starScoreHudShaderMaterials "StarScoreHudShaderIds.LitSlotEffectId" "Star score HUD materials must use the declared lit-slot effect id."
 Assert-Contains $shaderAssetLoader "AssetBundleCache.LoadAsset<Material>" "ShaderAssetLoader must support material assets from private bundles."
 Assert-Contains $shaderAssetLoader "AssetBundleCache.LoadAsset<Shader>" "ShaderAssetLoader must support shader assets from private bundles."
-Assert-Contains $shaderAssetLoader "SunExpResourceCache.Load<Shader>" "ShaderAssetLoader must support declared shader resource paths through the shared resource cache."
-Assert-Contains $shaderAssetLoader "SunExpResourceCache.Load<Material>" "ShaderAssetLoader must support declared material resource paths through the shared resource cache."
-Assert-Contains $starScoreHudShaderSource 'Shader "SunExp/StarScoreHud"' "Star score HUD shader source must match the runtime shader id."
-Assert-Contains $starScoreHudShaderSource "_SunExpFlowStrength" "Star score HUD shader source must expose the runtime flow property."
-Assert-Contains $starScoreHudShaderSource "_SunExpPulse" "Star score HUD shader source must expose the runtime pulse property."
+Assert-Contains $shaderAssetLoader "TerriasResourceCache.Load<Shader>" "ShaderAssetLoader must support declared shader resource paths through the shared resource cache."
+Assert-Contains $shaderAssetLoader "TerriasResourceCache.Load<Material>" "ShaderAssetLoader must support declared material resource paths through the shared resource cache."
+Assert-Contains $starScoreHudShaderSource 'Shader "Terrias/StarScoreHud"' "Star score HUD shader source must match the runtime shader id."
+Assert-Contains $starScoreHudShaderSource "_TerriasFlowStrength" "Star score HUD shader source must expose the runtime flow property."
+Assert-Contains $starScoreHudShaderSource "_TerriasPulse" "Star score HUD shader source must expose the runtime pulse property."
 Assert-Contains $starScoreHudShaderSource "UnityGet2DClipping" "Star score HUD shader source must remain UI clipping compatible."
-Assert-Contains $cardFaceEffectShaderSource 'Shader "SunExp/CardFaceEffect"' "Card-face effect shader source must match the runtime shader id."
-Assert-Contains $cardFaceEffectShaderSource "_SunExpEffectMode" "Card-face effect shader must switch between foil and stardust presets by material parameters."
-Assert-Contains $cardFaceEffectShaderSource "_SunExpOverlayMode" "Card-face effect shader must support transparent overlay rendering."
-Assert-Contains $cardFaceEffectShaderSource "_SunExpFrameOnlyOverlay" "Card-face effect shader may expose registry-controlled frame-only overlay masking."
+Assert-Contains $cardFaceEffectShaderSource 'Shader "Terrias/CardFaceEffect"' "Card-face effect shader source must match the runtime shader id."
+Assert-Contains $cardFaceEffectShaderSource "_TerriasEffectMode" "Card-face effect shader must switch between foil and stardust presets by material parameters."
+Assert-Contains $cardFaceEffectShaderSource "_TerriasOverlayMode" "Card-face effect shader must support transparent overlay rendering."
+Assert-Contains $cardFaceEffectShaderSource "_TerriasFrameOnlyOverlay" "Card-face effect shader may expose registry-controlled frame-only overlay masking."
 Assert-Contains $cardFaceEffectShaderSource "frameOnlyOverlayMask" "Card-face effect shader must keep shader-side frame masking isolated behind its explicit material flag."
 Assert-Contains $cardFaceEffectShaderSource "_FoilTex" "Card-face effect shader must support a local holofoil texture layer."
-Assert-Contains $cardFaceEffectShaderSource "_SunExpFoilMode" "Card-face effect shader must expose selectable foil modes."
+Assert-Contains $cardFaceEffectShaderSource "_TerriasFoilMode" "Card-face effect shader must expose selectable foil modes."
 Assert-Contains $cardFaceEffectShaderSource "buildFoilOverlay(float2 uv" "Foil card-face overlay must derive visible shimmer from effect coordinates instead of only color delta."
 Assert-Contains $cardFaceEffectShaderSource "holoRamp" "Foil shader must keep a saturated rainbow ramp for laser shimmer."
 Assert-Contains $cardFaceEffectShaderSource "sweep * 0.9" "Foil overlay must emphasize moving laser sweep bands."
@@ -1757,8 +1757,8 @@ Assert-Contains $cardFaceEffectShaderSource "UnityGet2DClipping" "Card-face effe
 Assert-Contains $cardFaceEffectShaderSource "mask = saturate(face.a)" "Card-face effect shader must mask effects to the card-face sprite alpha."
 Assert-Contains $cardFaceEffectShaderSource "stardustField" "Card-face effect shader must contain the Stellar Overture stardust pass."
 Assert-Contains $cardFaceEffectShaderSource "stardustSweep" "Card-face effect shader must contain a visible Stellar Overture sweep pass."
-Assert-Contains $cardFaceEffectShaderSource "_SunExpStardustTwinkleSpeed" "Stellar Overture stardust must expose independent twinkle speed control."
-Assert-Contains $cardFaceEffectShaderSource "_SunExpStardustGlowRadius" "Stellar Overture stardust must expose compact glow radius control."
+Assert-Contains $cardFaceEffectShaderSource "_TerriasStardustTwinkleSpeed" "Stellar Overture stardust must expose independent twinkle speed control."
+Assert-Contains $cardFaceEffectShaderSource "_TerriasStardustGlowRadius" "Stellar Overture stardust must expose compact glow radius control."
 Assert-Contains $starScoreHudShaderMaterials "using UI layered fallback" "Star score shader material factory must log the fallback path when no shader is bundled."
 Assert-Contains $starScoreHudAssets "FullPath" "StarScoreHudAssets must expose the full star-score frame for shader and fallback rendering."
 Assert-Contains $starScoreHudAssets "StructuralPaths()" "Star score HUD assets must separate structural warmup from heavy note icons."
@@ -1771,8 +1771,8 @@ Assert-Contains $starScoreHudView "image.raycastTarget = true" "StarScoreHudView
 Assert-Contains $starScoreHudView "image.raycastTarget = false" "StarScoreHudView images must not intercept pointer input."
 Assert-Contains $starScoreHudTooltipView "group.blocksRaycasts = false" "StarScoreHudTooltipView must not block native battle controls."
 Assert-Contains $starScoreHudTooltipView "image.raycastTarget = false" "StarScoreHudTooltipView images must not intercept pointer input."
-Assert-Contains $starScoreHudTooltipView "SunExpUiPool.AcquireComponent" "StarScoreHudTooltipView must reuse tooltip rows through the shared UI pool."
-Assert-Contains $starScoreHudTooltipView "SunExpUiPool.ReleaseOrDestroyChildren" "StarScoreHudTooltipView must clear row rebuilds through pooled UI teardown."
+Assert-Contains $starScoreHudTooltipView "TerriasUiPool.AcquireComponent" "StarScoreHudTooltipView must reuse tooltip rows through the shared UI pool."
+Assert-Contains $starScoreHudTooltipView "TerriasUiPool.ReleaseOrDestroyChildren" "StarScoreHudTooltipView must clear row rebuilds through pooled UI teardown."
 Assert-Contains $fieldBuffHudView "FieldBuffHudTooltipView.Create" "FieldBuffHudView must own the field buff hover tooltip."
 Assert-Contains $fieldBuffHudView "FieldBuffHudHoverProbe" "FieldBuffHudView must expose a focused hover hotspot."
 Assert-Contains $fieldBuffHudView "private const float RootWidth = 164f" "FieldBuffHudView must restore the approved field status panel width."
@@ -1782,7 +1782,7 @@ Assert-Contains $fieldBuffHudView "new Vector2(RootWidth, RootHeight)" "FieldBuf
 Assert-Contains $fieldBuffHudView "ConfigureTmpText" "FieldBuffHudView labels must use the shared game-font TMP component."
 Assert-Contains $fieldBuffHudView 'stackText.text = currentSnapshot.Stacks + "/" + currentSnapshot.MaxStacks;' "FieldBuffHudView must show current and maximum stacks below the icon."
 Assert-Contains $fieldBuffHudView "stackText.outlineWidth" "FieldBuffHudView stack text must remain legible against the panel."
-Assert-Contains $fieldBuffHudView 'ApplyPanelImage(gameObject, SunExpUiSprites.Panel("[FieldBuffHud]")' "FieldBuffHudView must restore its outer status-panel background."
+Assert-Contains $fieldBuffHudView 'ApplyPanelImage(gameObject, TerriasUiSprites.Panel("[FieldBuffHud]")' "FieldBuffHudView must restore its outer status-panel background."
 Assert-NotContains $fieldBuffHudView "ApplyLabelImage" "FieldBuffHudView must not draw stack or name label backgrounds."
 Assert-Contains $fieldBuffHudView '"NameSection"' "FieldBuffHudView must reserve a darker lower background region for the field name."
 Assert-Contains $fieldBuffHudView "private const float DividerInset = 12f" "FieldBuffHudView name divider must remain inset from the outer border."
@@ -1811,7 +1811,7 @@ Assert-Contains $fieldBuffHudTooltipView "group.blocksRaycasts = false" "FieldBu
 Assert-Contains $fieldBuffHudTooltipView "image.raycastTarget = false" "FieldBuffHudTooltipView images must not intercept pointer input."
 Assert-NotContains $starScoreHudTooltipView "Destroy(child.gameObject)" "StarScoreHudTooltipView must not directly destroy tooltip rows."
 Assert-Contains $starScoreHudAssets "StarScoreNote.Opening => Load(OpeningIconPath)" "StarScoreHudAssets must map typed notes to icon sprites."
-Assert-NotContains $sunExpProject "UnityEngine.InputLegacyModule" "Star score hover detection must not depend on the legacy input module."
+Assert-NotContains $terriasProject "UnityEngine.InputLegacyModule" "Star score hover detection must not depend on the legacy input module."
 Assert-Contains $dialogueFlowService "public static class DialogueFlowService" "DialogueFlowService must own reusable managed dialogue session behavior."
 Assert-Contains $dialogueFlowService "DialogueApi.ShowDialogue" "DialogueFlowService must open managed dialogues through DialogueApi."
 Assert-Contains $dialogueFlowService "DialogueApi.EndDialogue" "DialogueFlowService must close managed dialogues through DialogueApi after C# choice handling."
@@ -1843,7 +1843,7 @@ Assert-NotMatches $relicScripts "switch\s*\(\s*id\s*\)" "RelicScripts must not r
 Assert-Contains $solarFinaleService "public static class SolarFinaleStateService" "Solar finale state must be centralized in SolarFinaleStateService."
 Assert-Contains $solarMemoryStoryGateService "public static class SolarMemoryStoryGateService" "Solar Memory story gates must be centralized in Mechanics."
 Assert-Contains $solarMemoryStoryGateService "DialogueFlowService.Start" "Solar Memory story gates must start managed dialogue flows instead of owning native choice scripts."
-Assert-NotContains $solarMemoryStoryGateService "SunExp.Dll.Hooks" "Mechanics story gates must not depend on Hook runtime classes."
+Assert-NotContains $solarMemoryStoryGateService "Terrias.Dll.Hooks" "Mechanics story gates must not depend on Hook runtime classes."
 Assert-Contains $solarMemoryFixedNodeSpec "internal static class SolarMemoryFixedNodeCatalog" "Solar Memory fixed-node ownership must live in a focused Mechanics catalog."
 Assert-Contains $solarMemoryMapSyncRepairService "SolarMemoryFixedNodeCatalog.ForLayer" "Solar Memory map sync repair must consume the fixed-node catalog."
 Assert-Contains $solarMemoryContentIsolationService "public static int SanitizeSelectionArrays" "Solar Memory content isolation must expose a pure synchronized-array boundary."
@@ -1854,7 +1854,7 @@ Assert-NotContains $solarMemoryMapLifecycleCoordinator "RepairSolarMemorySyncInd
 Assert-NotContains $solarMemoryMapLifecycleCoordinator "RewriteSolarMemoryDefaultLayer" "SolarMemoryMapLifecycleCoordinator must not retain the retired duplicate map rewrite path."
 Assert-NotContains $solarMemoryMapLifecycleCoordinator "CreateBossChainNode" "SolarMemoryMapLifecycleCoordinator must not generate map pools outside the node-pool factory."
 Assert-Contains $solarMemoryContentIsolationRuntime "SolarMemoryContentIsolationService.SanitizeSelectionArrays" "SolarMemoryContentIsolationRuntime must delegate synchronized array mutation to Mechanics."
-Assert-NotMatches ($eventScripts + "`n" + $bossScripts) "PlayerApi\.SetGameVar\(SunExpIds\.SolarFinale" "Solar finale GameVar writes must stay inside SolarFinaleStateService."
+Assert-NotMatches ($eventScripts + "`n" + $bossScripts) "PlayerApi\.SetGameVar\(TerriasIds\.SolarFinale" "Solar finale GameVar writes must stay inside SolarFinaleStateService."
 Assert-NotContains $eventScripts "SolarFinaleStateService" "Retired solar finale events must not leave EventScripts coupled to finale state."
 Assert-Contains $bossScripts "SolarFinaleStateService.MakeNameless(1)" "BossScripts must keep name-ledger changes centralized in SolarFinaleStateService."
 
@@ -1867,9 +1867,9 @@ Assert-Contains $solarMemoryModeRuntime "SolarMemorySettlementCoordinator.Initia
 Assert-Contains $solarMemoryModeRuntime "SolarMemoryBossTransitionCoordinator.Initialize(modConfig)" "SolarMemoryModeRuntime must delegate boss-win and hidden-boss routing to SolarMemoryBossTransitionCoordinator."
 Assert-Contains $solarMemoryModeRuntime "SolarMemoryBattleExitCoordinator.Initialize(modConfig)" "SolarMemoryModeRuntime must delegate fight-abort hooks to SolarMemoryBattleExitCoordinator."
 Assert-Contains $solarMemorySettlementCoordinator "SolarMemorySettlementPresenter.Show()" "SolarMemorySettlementCoordinator must delegate settlement UI presentation."
-Assert-Contains $solarMemoryMapLifecycleCoordinator "SunExpConfigIndex.Row(DataType.Map" "SolarMemoryMapLifecycleCoordinator must resolve map rows through the shared config index."
-Assert-Contains $solarMemoryDeckIsolationRuntime "SunExpConfigIndex.Rows(DataType.CardPack)" "SolarMemoryDeckIsolationRuntime must resolve visible card packs through the shared config index."
-Assert-Contains $solarMemoryMapProjectionRuntime "SunExpResourceCache.Load<Texture>" "SolarMemoryMapProjectionRuntime must resolve map-card textures through the shared resource cache."
+Assert-Contains $solarMemoryMapLifecycleCoordinator "TerriasConfigIndex.Row(DataType.Map" "SolarMemoryMapLifecycleCoordinator must resolve map rows through the shared config index."
+Assert-Contains $solarMemoryDeckIsolationRuntime "TerriasConfigIndex.Rows(DataType.CardPack)" "SolarMemoryDeckIsolationRuntime must resolve visible card packs through the shared config index."
+Assert-Contains $solarMemoryMapProjectionRuntime "TerriasResourceCache.Load<Texture>" "SolarMemoryMapProjectionRuntime must resolve map-card textures through the shared resource cache."
 Assert-NotContains $solarMemoryModeRuntime "ModeChoiceEntryRegistry.Register" "SolarMemoryModeRuntime must not own mode-choice entry registration."
 Assert-NotContains $solarMemoryModeRuntime "ConfigureEntryTitleSprites" "SolarMemoryModeRuntime must not own mode-entry title sprite composition."
 Assert-NotContains $solarMemoryModeRuntime "private static void OpenPackWindow" "SolarMemoryModeRuntime must not retain the retired pack-selection UI."
@@ -1886,7 +1886,7 @@ Assert-NotContains $solarMemoryModeRuntime "MapManager" "SolarMemoryModeRuntime 
 Assert-NotContains $solarMemoryModeRuntime "FixedSlotVisualState" "SolarMemoryModeRuntime must not retain fixed-slot Unity state components."
 Assert-NotContains $solarMemoryModeRuntime "PrepareSolarMemoryFightAbort" "SolarMemoryModeRuntime must not retain fight-abort hook handlers."
 Assert-NotContains $solarMemoryModeRuntime "handlingSolarMemoryFightAbort" "SolarMemoryModeRuntime must not retain fight-abort coordination state."
-Assert-NotContains $solarMemoryModeRuntime "SunExpUiSafety.DisableRaycastsAndDestroyByName" "SolarMemoryModeRuntime must not own transient fight-abort UI teardown."
+Assert-NotContains $solarMemoryModeRuntime "TerriasUiSafety.DisableRaycastsAndDestroyByName" "SolarMemoryModeRuntime must not own transient fight-abort UI teardown."
 Assert-NotContains $solarMemoryModeRuntime "SettleSolarMemoryBossAfterWin" "SolarMemoryModeRuntime must not retain boss-win hook handlers."
 Assert-NotContains $solarMemoryModeRuntime "solarMemoryStorySettlementPending" "SolarMemoryModeRuntime must not retain boss-dialogue settlement state."
 Assert-NotContains $solarMemoryModeRuntime "CreateSaintWunaBossTransitionNode" "SolarMemoryModeRuntime must not own hidden-boss transition node construction."
@@ -1896,14 +1896,14 @@ Assert-NotContains $solarMemoryModeRuntime "SolarMemorySettlementPresenter.Show"
 Assert-NotContains $solarMemoryModeRuntime "FilterSolarMemoryCardPackCheck" "SolarMemoryModeRuntime must not retain CardPackCheck filtering."
 Assert-NotContains $solarMemoryModeRuntime "SanitizeSolarMemoryRoleCards" "SolarMemoryModeRuntime must not retain role deck isolation."
 Assert-NotContains $solarMemoryModeRuntime "OpenDeckWindow" "SolarMemoryModeRuntime must not own native deck-window coordination."
-Assert-Contains $solarMemoryBattleExitCoordinator "SunExpHookTargets.FightEscapeResetStates" "SolarMemoryBattleExitCoordinator must own both sides of the native escape reset boundary."
-Assert-Contains $solarMemoryBattleExitCoordinator "SunExpHookTargets.FightLossInit" "SolarMemoryBattleExitCoordinator must own the native loss cleanup boundary."
+Assert-Contains $solarMemoryBattleExitCoordinator "TerriasHookTargets.FightEscapeResetStates" "SolarMemoryBattleExitCoordinator must own both sides of the native escape reset boundary."
+Assert-Contains $solarMemoryBattleExitCoordinator "TerriasHookTargets.FightLossInit" "SolarMemoryBattleExitCoordinator must own the native loss cleanup boundary."
 Assert-Contains $solarMemoryBattleExitCoordinator 'EnsureCurrentNodeForTransition("Fight_Escape.ResetStates:before")' "SolarMemoryBattleExitCoordinator must repair currentNode before native escape reset."
 Assert-Contains $solarMemoryBattleExitCoordinator 'EnsureCurrentNodeForTransition("Fight_Escape.ResetStates:after")' "SolarMemoryBattleExitCoordinator must repair currentNode after native escape reset."
 Assert-Contains $solarMemoryBattleExitCoordinator "SolarMemoryMapLifecycleCoordinator.TryRestoreSolarMemoryCurrentNodeFromMapManager(source, false)" "SolarMemoryBattleExitCoordinator must reuse the established synchronized-array recovery path."
-Assert-Contains $solarMemoryBattleExitCoordinator 'SunExpUiSafety.DisableRaycastsAndDestroyByName("SunExpSolarMemoryStarterDeck"' "SolarMemoryBattleExitCoordinator must route starter-deck teardown through SunExpUiSafety."
+Assert-Contains $solarMemoryBattleExitCoordinator 'TerriasUiSafety.DisableRaycastsAndDestroyByName("TerriasSolarMemoryStarterDeck"' "SolarMemoryBattleExitCoordinator must route starter-deck teardown through TerriasUiSafety."
 Assert-Contains $solarMemoryBattleExitCoordinator "SolarMemoryBossTransitionCoordinator.ClearPendingSaintWunaBossFlow" "SolarMemoryBattleExitCoordinator must clear coordinator-owned hidden-boss pending state on abort and loss."
-Assert-Contains $solarMemoryBossTransitionCoordinator "SunExpHookTargets.FightWinResetStates" "SolarMemoryBossTransitionCoordinator must own the native victory boundary."
+Assert-Contains $solarMemoryBossTransitionCoordinator "TerriasHookTargets.FightWinResetStates" "SolarMemoryBossTransitionCoordinator must own the native victory boundary."
 Assert-Contains $solarMemoryBossTransitionCoordinator "SolarMemoryFlowApi.StartSaintWunaPreludeDialogue" "SolarMemoryBossTransitionCoordinator must route the key-card victory branch through the prelude dialogue."
 Assert-Contains $solarMemoryBossTransitionCoordinator "SolarMemoryMapNodePoolFactory.CreateFixedBossNode" "SolarMemoryBossTransitionCoordinator must create the hidden boss through the Solar Memory node factory."
 Assert-Contains $solarMemoryBossTransitionCoordinator "MapNodeSafetyService.EnsureNodeDice" "SolarMemoryBossTransitionCoordinator must ensure deterministic dice for transition nodes."
@@ -1917,7 +1917,7 @@ Assert-Contains $solarMemorySettlementCoordinator '"NormalMapManager.ReadyToChan
 Assert-Contains $solarMemorySettlementCoordinator "LegacySolarFinaleMapLevel = 30" "SolarMemorySettlementCoordinator must retain the legacy terminal-level recovery threshold."
 Assert-Contains $solarMemorySettlementCoordinator "SolarMemoryBossTransitionCoordinator.IsSettlementPending" "SolarMemorySettlementCoordinator must defer both settlement paths while boss dialogue is pending."
 Assert-Contains $solarMemorySettlementCoordinator 'RouteToNativeSettlement(manager, "NormalMapManager.ReadyToChangeMap", 32)' "SolarMemorySettlementCoordinator must route completed third layers to native level 32."
-Assert-Contains $solarMemorySettlementCoordinator "SunExpIds.SolarMemoryMaxLayer * 6" "SolarMemorySettlementCoordinator must normalize legacy saves to the current terminal layer."
+Assert-Contains $solarMemorySettlementCoordinator "TerriasIds.SolarMemoryMaxLayer * 6" "SolarMemorySettlementCoordinator must normalize legacy saves to the current terminal layer."
 Assert-Contains $solarMemoryDeckIsolationRuntime '"GameConfigManager.CardPackCheck"' "SolarMemoryDeckIsolationRuntime must filter event cards before native CardPackCheck consumes candidates."
 Assert-Contains $solarMemoryDeckIsolationRuntime "SolarMemoryPlayerSetupState.SelectedPacks()" "SolarMemoryDeckIsolationRuntime must prefer player-scoped pack selection."
 Assert-Contains $solarMemoryDeckIsolationRuntime "if (!PlayerApi.IsMultiplayerSession())" "SolarMemoryDeckIsolationRuntime must read legacy saved pack selection only outside multiplayer."
@@ -1941,20 +1941,20 @@ Assert-Contains $endlessSeaRunLauncher "buttonLayout.childControlWidth = true" "
 Assert-Contains $endlessSeaRunLauncher "element.minHeight = 50f" "Endless Sea continue prompt buttons must keep a readable minimum height."
 Assert-Contains $endlessSeaRunLauncher "EndlessSeaRunStateStore.DeleteUnfinishedRuns" "Endless Sea launcher must delete unfinished Endless Sea saves only after the player chooses a new run."
 Assert-Contains $endlessSeaRunLauncher "modeType = NativeMapModeType" "Endless Sea saves must use native Normal mode so the official map manager can start."
-Assert-Contains $endlessSeaRunLauncher "private const string NativeMapModeType = SunExpIds.NativeNormalModeType" "Endless Sea must keep native map startup on the official Normal mode manager."
+Assert-Contains $endlessSeaRunLauncher "private const string NativeMapModeType = TerriasIds.NativeNormalModeType" "Endless Sea must keep native map startup on the official Normal mode manager."
 Assert-Contains $endlessSeaRunLauncher "SetLobbyModeType(NativeMapModeType)" "Endless Sea lobby launch must reuse the native Normal mode manager."
-Assert-NotContains $endlessSeaRunLauncher "SetLobbyModeType(SunExpIds.EndlessSeaModeType)" "Endless Sea must not pass its custom save mode type into the native lobby map startup."
-Assert-NotContains $endlessSeaRunLauncher "modeType = SunExpIds.EndlessSeaModeType" "Endless Sea saves must not store custom modeType values that break native map startup."
+Assert-NotContains $endlessSeaRunLauncher "SetLobbyModeType(TerriasIds.EndlessSeaModeType)" "Endless Sea must not pass its custom save mode type into the native lobby map startup."
+Assert-NotContains $endlessSeaRunLauncher "modeType = TerriasIds.EndlessSeaModeType" "Endless Sea saves must not store custom modeType values that break native map startup."
 Assert-Contains $endlessSeaRunLauncher "EndlessSeaRunStateStore.InitializeNewRun" "Endless Sea launcher must delegate save initialization to the run-state store."
-Assert-Contains $endlessSeaRunStateStore "SunExpIds.EndlessSeaModeKey" "Endless Sea saves must persist a mode flag."
-Assert-Contains $endlessSeaRunStateStore "saveInfo.modeType = SunExpIds.NativeNormalModeType" "Endless Sea run-state repair must migrate Endless Sea saves back to native Normal mode."
+Assert-Contains $endlessSeaRunStateStore "TerriasIds.EndlessSeaModeKey" "Endless Sea saves must persist a mode flag."
+Assert-Contains $endlessSeaRunStateStore "saveInfo.modeType = TerriasIds.NativeNormalModeType" "Endless Sea run-state repair must migrate Endless Sea saves back to native Normal mode."
 Assert-Contains $endlessSeaModeRuntime "EndlessSeaSaveCacheRuntime.Initialize(modConfig)" "Endless Sea runtime must isolate Endless Sea saves from the official Normal continue cache."
-Assert-Contains (Read-RepoText "SunExp-Dev\Hooks\EndlessSeaSaveCacheRuntime.cs") '"ModeChoiceUI.DeleteExistingSavesForMode"' "Endless Sea runtime must protect Endless Sea saves from native Normal cleanup."
+Assert-Contains (Read-RepoText "Terrias-Dev\Hooks\EndlessSeaSaveCacheRuntime.cs") '"ModeChoiceUI.DeleteExistingSavesForMode"' "Endless Sea runtime must protect Endless Sea saves from native Normal cleanup."
 Assert-Contains $endlessSeaRunStateStore "DeleteUnfinishedRuns" "Endless Sea run-state store must own unfinished-run deletion."
-Assert-Contains $endlessSeaRunStateStore "SunExpIds.EndlessSeaIntroSeenKey" "Endless Sea saves must initialize the intro-board flag."
-Assert-Contains $endlessSeaRunStateStore "SunExpIds.EndlessSeaStarterDeckAppliedKey" "Endless Sea saves must initialize starter-deck state."
-Assert-Contains $endlessSeaRunStateStore "SunExpIds.EndlessSeaRunIdKey" "Endless Sea saves must persist a run id."
-Assert-Contains $endlessSeaRunStateStore "SunExpIds.EndlessSeaRunPhaseKey" "Endless Sea saves must persist the current run phase."
+Assert-Contains $endlessSeaRunStateStore "TerriasIds.EndlessSeaIntroSeenKey" "Endless Sea saves must initialize the intro-board flag."
+Assert-Contains $endlessSeaRunStateStore "TerriasIds.EndlessSeaStarterDeckAppliedKey" "Endless Sea saves must initialize starter-deck state."
+Assert-Contains $endlessSeaRunStateStore "TerriasIds.EndlessSeaRunIdKey" "Endless Sea saves must persist a run id."
+Assert-Contains $endlessSeaRunStateStore "TerriasIds.EndlessSeaRunPhaseKey" "Endless Sea saves must persist the current run phase."
 Assert-Contains $endlessSeaRunStateStore "EndlessSeaRunPhase.Evacuating" "Endless Sea run state must preserve evacuation settlement recovery."
 Assert-Contains $runtimeHooks "EndlessAbyssEvacuationRuntime.Initialize(modConfig)" "Endless Abyss evacuation must be registered as a focused runtime."
 Assert-Contains $endlessAbyssEvacuationRuntime "EndlessAbyssEvacuationService.TryBegin" "Endless Abyss evacuation hooks must delegate state commits to Mechanics."
@@ -1964,14 +1964,14 @@ Assert-Contains $endlessAbyssEvacuationRuntime "AuraModeOutcomeRuntime.Publish" 
 Assert-Contains $endlessAbyssEvacuationButtonRuntime 'buttons?.Find("CardBack")' "Endless Abyss evacuation TopBar integration must use the known native template."
 Assert-Contains $endlessAbyssEvacuationButtonRuntime "AuraUiNativeButtonIconOwner.Apply" "Endless Abyss evacuation TopBar integration must own native state icons independently of custom content."
 Assert-Contains $endlessAbyssEvacuationService "BeginEvacuation" "Endless Abyss evacuation Mechanics must own the persisted state transition."
-Assert-Matches $endlessAbyssEvacuationRpc "RpcEndlessAbyssEvacuation\s*:\s*RpcCommandBase,\s*ISunExpServerBoundRpcCommand" "Endless Abyss evacuation RPC must receive bound server sender authority."
+Assert-Matches $endlessAbyssEvacuationRpc "RpcEndlessAbyssEvacuation\s*:\s*RpcCommandBase,\s*ITerriasServerBoundRpcCommand" "Endless Abyss evacuation RPC must receive bound server sender authority."
 Assert-Contains $endlessSeaRunLauncher 'GameVar.ExLockDes.ToString()] = "0"' "Endless Sea saves must not pre-lock editable map slots."
-Assert-Contains $endlessSeaIntroBoardRuntime "SunExpModalHost.CreateFullscreenRoot" "Endless Sea intro board must render through the shared modal host."
+Assert-Contains $endlessSeaIntroBoardRuntime "TerriasModalHost.CreateFullscreenRoot" "Endless Sea intro board must render through the shared modal host."
 Assert-Contains $endlessSeaIntroBoardRuntime "ScrollRect" "Endless Sea intro body must support vertical scrolling."
 Assert-Contains $endlessSeaIntroBoardRuntime "EndlessSeaRichTextSanitizer.Sanitize" "Endless Sea intro board must sanitize rich text before rendering."
 Assert-Contains $endlessSeaIntroBoardRuntime "StarterDeckArbiterRuntime.ApplyDeck" "Endless Sea starter deck choices must use the shared starter-deck arbiter."
 Assert-Contains $endlessSeaIntroBoardRuntime "sync: true" "Endless Sea starter deck choices must persist through the shared role sync path."
-Assert-Contains $endlessSeaIntroBoardRuntime "SunExpIds.StarterDeckOwnerEndlessSea" "Endless Sea starter deck ownership must be mode-specific."
+Assert-Contains $endlessSeaIntroBoardRuntime "TerriasIds.StarterDeckOwnerEndlessSea" "Endless Sea starter deck ownership must be mode-specific."
 Assert-Contains $endlessSeaIntroBoardRuntime "AddTextFill(header.transform" "Endless Sea intro board subtitle must be rendered through the header."
 Assert-Contains $endlessSeaIntroBoardRuntime "SetDeckButtonsInteractable" "Endless Sea starter deck buttons must expose visible application feedback and prevent repeat clicks."
 Assert-Contains $endlessSeaIntroBoardRuntime '"MapManager.MapUIStart"' "Endless Sea intro board must open from map UI startup."
@@ -1989,9 +1989,9 @@ Assert-Contains $endlessSeaStarterDeckCatalog '"chrono_journey"' "Endless Sea st
 Assert-Contains $endlessSeaStarterDeckCatalog '"origin_of_elements"' "Endless Sea starter deck catalog must provide the Origin of Elements theme deck."
 Assert-Contains $endlessSeaStarterDeckCatalog '"card_3"' "Endless Sea starter decks must use official base cards."
 Assert-Contains $endlessSeaStarterDeckCatalog '"burningcard_1"' "Endless Sea starter decks must use official base cards."
-Assert-NotContains $endlessSeaStarterDeckCatalog '"spark"' "Endless Sea starter decks must not use unresolved SunExp short card ids."
-Assert-NotContains $endlessSeaStarterDeckCatalog '"solar_prayer"' "Endless Sea starter decks must not use unresolved SunExp short card ids."
-Assert-Contains $endlessSeaStarterDeckCatalog "SunExpConfigIndex.Row(DataType.Card, cardId)" "Endless Sea starter deck validation must resolve card ids through the shared catalog facade."
+Assert-NotContains $endlessSeaStarterDeckCatalog '"spark"' "Endless Sea starter decks must not use unresolved Terrias short card ids."
+Assert-NotContains $endlessSeaStarterDeckCatalog '"solar_prayer"' "Endless Sea starter decks must not use unresolved Terrias short card ids."
+Assert-Contains $endlessSeaStarterDeckCatalog "TerriasConfigIndex.Row(DataType.Card, cardId)" "Endless Sea starter deck validation must resolve card ids through the shared catalog facade."
 Assert-NotMatches $endlessSeaStarterDeckCatalog "\r?\n\s+`"\*" "Endless Sea hardcoded starter decks must not include hidden/generated cards."
 Assert-Contains $endlessSeaRichTextSanitizer "AllowedSimpleTags" "Endless Sea rich text sanitizer must use an explicit simple-tag allowlist."
 Assert-Contains $endlessSeaRichTextSanitizer "AllowedScopedTags" "Endless Sea rich text sanitizer must use an explicit scoped-tag allowlist."
@@ -2004,10 +2004,10 @@ Assert-Contains $solarMemoryMapVisualRuntime '"NormalMapManager.MapItemInit"' "S
 Assert-Contains $solarMemoryMapVisualRuntime '"MapSelectUI.ShowMap"' "SolarMemoryMapVisualRuntime must own map visual reapply hook registration."
 Assert-Contains $solarMemoryMapVisualRuntime "SolarMemoryMapProjectionRuntime.ApplySolarMemoryLayerTitle" "SolarMemoryMapVisualRuntime must delegate layer-title mutation to the projection runtime."
 Assert-Contains $solarMemoryMapVisualRuntime "SolarMemoryMapProjectionRuntime.ApplySolarMemoryFixedSlotsAfterMapItems" "SolarMemoryMapVisualRuntime must delegate post-MapItem projection to the projection runtime."
-Assert-Contains $solarMemoryMapItemAnimationRuntime "SunExpResourceCache.LoadAll<Texture2D>" "Solar memory map animation preview probes must use the shared LoadAll cache."
-Assert-Contains $solarMemoryMapItemAnimationRuntime "SunExpConfigIndex.Row(type, id)" "Solar memory map animation row lookup must use the shared config index."
-Assert-Contains $solarMemoryMapNodePoolFactory "SunExpConfigIndex.FilteredRows" "Solar memory boss candidate expansion must use a cached filtered config index."
-Assert-Contains $endlessSeaNodePoolService "SunExpConfigIndex.FilteredRows(DataType.Map" "Endless Sea map nodes must draw from cached game map rows."
+Assert-Contains $solarMemoryMapItemAnimationRuntime "TerriasResourceCache.LoadAll<Texture2D>" "Solar memory map animation preview probes must use the shared LoadAll cache."
+Assert-Contains $solarMemoryMapItemAnimationRuntime "TerriasConfigIndex.Row(type, id)" "Solar memory map animation row lookup must use the shared config index."
+Assert-Contains $solarMemoryMapNodePoolFactory "TerriasConfigIndex.FilteredRows" "Solar memory boss candidate expansion must use a cached filtered config index."
+Assert-Contains $endlessSeaNodePoolService "TerriasConfigIndex.FilteredRows(DataType.Map" "Endless Sea map nodes must draw from cached game map rows."
 Assert-Contains $endlessSeaNodePoolService "IsEndlessSeaBossCandidate(row, floor)" "Endless Sea boss pool must be resolved separately from monster nodes."
 Assert-Contains $endlessSeaEnemyPool "NormalBossEnemyIds" "Endless Sea must own an explicit normal boss enemy pool."
 Assert-Contains $endlessSeaEnemyPool "SpecialBossEnemyIds" "Endless Sea must own an explicit special boss enemy pool."
@@ -2018,8 +2018,8 @@ Assert-Contains $endlessSeaFloorPlan "public sealed class EndlessSeaFloorPlan" "
 Assert-Contains $endlessSeaFloorPlanner "EndlessSeaNodeKind.Monster" "Endless Sea floor planning must fix the native start slot as a monster."
 Assert-Contains $endlessSeaFloorPlanner "EndlessSeaNodeKind.Boss" "Endless Sea floor planning must fix the final boss slot."
 Assert-Contains $endlessSeaFloorPlanner "EndlessSeaNodePoolService.CreateNode" "Endless Sea floor planning must consume the dedicated Endless Sea node pool."
-Assert-Contains $endlessSeaFloorPlanner "new List<EndlessSeaSlotPlan>(SunExpIds.EndlessSeaNativeDefaultNodeCount)" "Endless Sea floor planning must prefill only native fixed slots."
-Assert-Contains $endlessSeaFloorPlanStore "SunExpIds.EndlessSeaFloorPlanKey" "Endless Sea floor plans must persist through a centralized save key."
+Assert-Contains $endlessSeaFloorPlanner "new List<EndlessSeaSlotPlan>(TerriasIds.EndlessSeaNativeDefaultNodeCount)" "Endless Sea floor planning must prefill only native fixed slots."
+Assert-Contains $endlessSeaFloorPlanStore "TerriasIds.EndlessSeaFloorPlanKey" "Endless Sea floor plans must persist through a centralized save key."
 Assert-Contains $endlessSeaMapProjectionService "EndlessSeaNativeDefaultNodeCount" "Endless Sea native bootstrap must keep only the native start placeholder and boss defaults."
 Assert-Contains $endlessSeaMapProjectionService "EndlessSeaNodeKind.Rest" "Endless Sea native bootstrap must feed the native Start slot a safe non-fight placeholder."
 Assert-Contains $endlessSeaMapProjectionService 'NodeType(tree.DefaultNode[0]) != "Fight"' "Endless Sea native bootstrap projection must keep DefaultNode[0] safe for native Start initialization."
@@ -2053,22 +2053,22 @@ Assert-NotContains $endlessSeaModeRuntime '"MapSelectUI.DataUpdate", ScheduleAby
 Assert-Contains $endlessSeaNetworkSync "applyAllSlots: false" "Endless Sea snapshot UI refresh must be fixed-slot only."
 Assert-NotContains $endlessSeaNetworkSync "applyAllSlots: true" "Endless Sea snapshots must not clear editable map slots during interaction."
 Assert-Contains $endlessSeaNetworkSync "SnapshotRequestThrottleSeconds" "Endless Sea client snapshot requests must be throttled."
-Assert-Contains $endlessSeaNetworkSync "SunExpNetworkRuntime.HasRemotePlayers()" "Endless Sea snapshots must only run for real multiplayer sessions."
-Assert-Contains $sunExpNetworkRuntime "public static bool HasRemotePlayers()" "SunExp network runtime must expose an actual remote-player guard."
+Assert-Contains $endlessSeaNetworkSync "TerriasNetworkRuntime.HasRemotePlayers()" "Endless Sea snapshots must only run for real multiplayer sessions."
+Assert-Contains $terriasNetworkRuntime "public static bool HasRemotePlayers()" "Terrias network runtime must expose an actual remote-player guard."
 Assert-Contains $endlessSeaCombatRuntime "EndlessSeaModeRuntime.IsEndlessSeaRun()" "Endless Sea combat tuning must be gated to Endless Sea runs."
 Assert-Contains $endlessSeaCombatRuntime "EndlessAbyssEnemyInjectionService.TryInjectAfterFightInit" "Endless Abyss extra enemy injection must delegate to the dedicated service."
 Assert-NotContains $endlessSeaCombatRuntime "CmdAddEnemy" "Endless Sea combat hooks must not directly issue native enemy-add commands."
 Assert-Contains $endlessAbyssEnemyInjectionService "EnemyApi.IsClientOnlyDynamicEnemyObserver()" "Endless Abyss enemy injection must skip client-only observers before planning enemies."
-Assert-Contains $endlessAbyssEnemyInjectionService "EnemyApi.AddDynamicEnemyAuthoritative" "Endless Abyss enemy injection must enter the native add path through SunExp's EnemyApi wrapper."
+Assert-Contains $endlessAbyssEnemyInjectionService "EnemyApi.AddDynamicEnemyAuthoritative" "Endless Abyss enemy injection must enter the native add path through Terrias's EnemyApi wrapper."
 Assert-Contains $enemyApi "EnemyManager.Instance" "EnemyApi must resolve the native enemy manager from an authoritative path."
 Assert-Contains $enemyApi "manager.AddEnemy(enemyId)" "EnemyApi must use the native dynamic enemy-add entrypoint from an authoritative path."
 Assert-NotContains $enemyApi "CmdAddEnemy" "EnemyApi must not bypass native dynamic-add flow by issuing CmdAddEnemy directly."
 Assert-Contains $runtimeHooks "EmberAdventureStateRuntime.Initialize(modConfig)" "Generic Ember adventure state restore must be registered outside Wuna career scripts."
 Assert-Contains $emberAdventureStateRuntime "Fight_Start.Init" "Generic Ember adventure state restore must run at battle start."
 Assert-Contains $emberAdventureStateService "RpcEmberAdventureStateCommit" "Ember adventure state commits must use the renamed generic RPC."
-Assert-Contains $emberAdventureStateService "SunExpIds.WunaPersistentEmber" "Ember adventure state must keep the old Wuna persistent key as a compatibility fallback."
-Assert-Contains $solarMemoryContentIsolationRuntime "SunExpConfigIndex.Rows(DataType.Map)" "Solar memory isolation replacement candidates must use cached map rows."
-Assert-Contains $mapNodeSafetyService "SunExpConfigIndex.Row(DataType.Map, id)" "Map node safety fallback map lookup must use the shared config index."
+Assert-Contains $emberAdventureStateService "TerriasIds.WunaPersistentEmber" "Ember adventure state must keep the old Wuna persistent key as a compatibility fallback."
+Assert-Contains $solarMemoryContentIsolationRuntime "TerriasConfigIndex.Rows(DataType.Map)" "Solar memory isolation replacement candidates must use cached map rows."
+Assert-Contains $mapNodeSafetyService "TerriasConfigIndex.Row(DataType.Map, id)" "Map node safety fallback map lookup must use the shared config index."
 Assert-Contains $solarMemorySettlementPresenter 'ShowUI<GameExitUI>("GameExitUI", true)' "SolarMemorySettlementPresenter must own settlement UI display."
 Assert-Contains $modeChoiceEntryRegistry "public static class ModeChoiceEntryRegistry" "Mode-choice custom entry registration must stay centralized."
 Assert-Contains $modeChoiceLayoutRuntime "public static class ModeChoiceLayoutRuntime" "Mode-choice custom entry layout must stay centralized."
@@ -2104,79 +2104,79 @@ Assert-Contains $solarMemoryRunLauncher "public static SaveInfo CreateSave" "Sol
 Assert-Contains $solarMemoryRunLauncher "SolarMemoryPrepStep.DeckSelection" "SolarMemoryRunLauncher must initialize preparation state."
 Assert-Contains $solarMemoryPreparationRuntime "SolarMemorySetupFinishedKey" "SolarMemoryPreparationRuntime must gate completion on the final setup-finished flag."
 Assert-Contains $solarMemoryPreparationRuntime "setup completion is pending retry" "SolarMemoryPreparationRuntime must keep failed final role commits retryable."
-Assert-Contains $solarMemoryPreparationRuntime 'SolarMemoryPlayerSetupState.SetValue(SunExpIds.SolarMemorySetupCommitTokenKey, "")' "SolarMemoryPreparationRuntime must clear failed local commit tokens."
-Assert-Contains $sunExpModalHost "public static Transform? ModalParent()" "SunExp modal windows must share a single modal parent resolver."
-Assert-Contains $sunExpModalHost "SunExpUiSafety.CloseTransient" "SunExp modal close paths must route through the transient UI safety helper."
-Assert-Contains $sunExpUiSafety "UiRaycastSafeDestroyRuntime.DisableAndHide" "SunExp transient UI teardown must disable and hide raycast surfaces before destroying."
-Assert-Contains $sunExpUiSafety "ScrubGraphicRegistryForFrames" "SunExp transient UI teardown must scrub Unity's Graphic registry after destroying modal UI."
-Assert-Contains $sunExpUiLifetimeScope "button.onClick.RemoveListener(action)" "Pooled UI event listeners must be removable through a scope."
-Assert-Contains $sunExpUiPool "public static class SunExpUiPool" "Reusable SunExp UI pooling must stay in the Hooks UI boundary."
-Assert-Contains $sunExpUiPool "ReleaseOrDestroyChildren" "SunExp UI pool must provide pooled child teardown for repeated list rebuilds."
-Assert-Contains $sunExpUiPool "AcquireConfiguredComponent" "SunExp UI pool must support binding reusable rows before activation."
-Assert-Contains $sunExpUiPool "SunExpPerformanceSettings.UiPoolCapacityPerKey" "SunExp UI pool must obey performance-tier pool caps."
-Assert-Contains $sunExpUiPool "button.onClick.RemoveAllListeners()" "SunExp UI pool must scrub button listeners before reuse."
-Assert-Contains $sunExpUiSprites "private static readonly Dictionary<string, Sprite?> Cache" "SunExp UI sprites must be cached instead of loaded per window."
-Assert-Contains $sunExpUiSprites "Sprite.Create(" "SunExp UI sprite helper must own nine-slice sprite creation."
-Assert-Contains $sunExpUiComponents "CreateRectTransform" "SunExp UI components must expose RectTransform creation for reusable windows."
-Assert-Contains $sunExpUiComponents "AuraUiComponents.ConfigureText" "SunExp UI components must delegate shared text setup to AuraUiShared."
-Assert-Contains $familiarGrowthPanel "SunExpUiComponents.ConfigureText" "Familiar growth panel text setup must delegate to shared SunExp UI components."
-Assert-Contains $familiarGrowthPanel "SunExpUiComponents.CreateLayoutObject" "Familiar growth panel layout creation must delegate to shared SunExp UI components."
-Assert-Contains $familiarGrowthPanel "SunExpUiComponents.CreateRect" "Familiar growth panel rect creation must delegate to shared SunExp UI components."
+Assert-Contains $solarMemoryPreparationRuntime 'SolarMemoryPlayerSetupState.SetValue(TerriasIds.SolarMemorySetupCommitTokenKey, "")' "SolarMemoryPreparationRuntime must clear failed local commit tokens."
+Assert-Contains $terriasModalHost "public static Transform? ModalParent()" "Terrias modal windows must share a single modal parent resolver."
+Assert-Contains $terriasModalHost "TerriasUiSafety.CloseTransient" "Terrias modal close paths must route through the transient UI safety helper."
+Assert-Contains $terriasUiSafety "UiRaycastSafeDestroyRuntime.DisableAndHide" "Terrias transient UI teardown must disable and hide raycast surfaces before destroying."
+Assert-Contains $terriasUiSafety "ScrubGraphicRegistryForFrames" "Terrias transient UI teardown must scrub Unity's Graphic registry after destroying modal UI."
+Assert-Contains $terriasUiLifetimeScope "button.onClick.RemoveListener(action)" "Pooled UI event listeners must be removable through a scope."
+Assert-Contains $terriasUiPool "public static class TerriasUiPool" "Reusable Terrias UI pooling must stay in the Hooks UI boundary."
+Assert-Contains $terriasUiPool "ReleaseOrDestroyChildren" "Terrias UI pool must provide pooled child teardown for repeated list rebuilds."
+Assert-Contains $terriasUiPool "AcquireConfiguredComponent" "Terrias UI pool must support binding reusable rows before activation."
+Assert-Contains $terriasUiPool "TerriasPerformanceSettings.UiPoolCapacityPerKey" "Terrias UI pool must obey performance-tier pool caps."
+Assert-Contains $terriasUiPool "button.onClick.RemoveAllListeners()" "Terrias UI pool must scrub button listeners before reuse."
+Assert-Contains $terriasUiSprites "private static readonly Dictionary<string, Sprite?> Cache" "Terrias UI sprites must be cached instead of loaded per window."
+Assert-Contains $terriasUiSprites "Sprite.Create(" "Terrias UI sprite helper must own nine-slice sprite creation."
+Assert-Contains $terriasUiComponents "CreateRectTransform" "Terrias UI components must expose RectTransform creation for reusable windows."
+Assert-Contains $terriasUiComponents "AuraUiComponents.ConfigureText" "Terrias UI components must delegate shared text setup to AuraUiShared."
+Assert-Contains $familiarGrowthPanel "TerriasUiComponents.ConfigureText" "Familiar growth panel text setup must delegate to shared Terrias UI components."
+Assert-Contains $familiarGrowthPanel "TerriasUiComponents.CreateLayoutObject" "Familiar growth panel layout creation must delegate to shared Terrias UI components."
+Assert-Contains $familiarGrowthPanel "TerriasUiComponents.CreateRect" "Familiar growth panel rect creation must delegate to shared Terrias UI components."
 Assert-NotContains $familiarGrowthPanel "Resources.GetBuiltinResource<Font>" "Familiar growth panel must not duplicate text font setup."
 Assert-NotContains $familiarGrowthPanel "new GameObject(name, typeof(RectTransform))" "Familiar growth panel must not duplicate rect object creation."
-Assert-Contains $polymorphRoleSelectionWindow "SunExpUiComponents.ConfigureText" "Polymorph role selection text setup must delegate to shared SunExp UI components."
-Assert-Contains $polymorphRoleSelectionWindow "SunExpUiComponents.CreateLayoutObject" "Polymorph role selection layout creation must delegate to shared SunExp UI components."
-Assert-Contains $polymorphRoleSelectionWindow "SunExpUiComponents.CreateRectTransform" "Polymorph role selection rect creation must delegate to shared SunExp UI components."
+Assert-Contains $polymorphRoleSelectionWindow "TerriasUiComponents.ConfigureText" "Polymorph role selection text setup must delegate to shared Terrias UI components."
+Assert-Contains $polymorphRoleSelectionWindow "TerriasUiComponents.CreateLayoutObject" "Polymorph role selection layout creation must delegate to shared Terrias UI components."
+Assert-Contains $polymorphRoleSelectionWindow "TerriasUiComponents.CreateRectTransform" "Polymorph role selection rect creation must delegate to shared Terrias UI components."
 Assert-NotContains $polymorphRoleSelectionWindow "Resources.GetBuiltinResource<Font>" "Polymorph role selection must not duplicate text font setup."
 Assert-NotContains $polymorphRoleSelectionWindow "new GameObject(name, typeof(RectTransform))" "Polymorph role selection must not duplicate rect object creation."
-Assert-Contains $solarMemoryStarterDeckRuntime "SunExpModalHost.Close(ref activePanel" "Starter deck modal close must use SunExpModalHost."
-Assert-Contains $solarMemorySetupFlowRuntime "SunExpModalHost.Close(ref activeOriginRoot" "Origin setup modal close must use SunExpModalHost."
-Assert-Contains $solarMemorySetupFlowRuntime "SunExpModalHost.Close(ref activeBlessingChrome" "Blessing setup chrome close must use SunExpModalHost."
-Assert-Contains $solarMemoryBlessingPickerRuntime "SunExpModalHost.Close(ref activePanel" "Blessing picker modal close must use SunExpModalHost."
-Assert-Contains $solarMemoryStarterDeckRuntime "SunExpUiPool.AcquireComponent" "Starter deck rows must use the shared local UI pool."
+Assert-Contains $solarMemoryStarterDeckRuntime "TerriasModalHost.Close(ref activePanel" "Starter deck modal close must use TerriasModalHost."
+Assert-Contains $solarMemorySetupFlowRuntime "TerriasModalHost.Close(ref activeOriginRoot" "Origin setup modal close must use TerriasModalHost."
+Assert-Contains $solarMemorySetupFlowRuntime "TerriasModalHost.Close(ref activeBlessingChrome" "Blessing setup chrome close must use TerriasModalHost."
+Assert-Contains $solarMemoryBlessingPickerRuntime "TerriasModalHost.Close(ref activePanel" "Blessing picker modal close must use TerriasModalHost."
+Assert-Contains $solarMemoryStarterDeckRuntime "TerriasUiPool.AcquireComponent" "Starter deck rows must use the shared local UI pool."
 Assert-Contains $solarMemoryStarterDeckRuntime "deckListDirty.ShouldRefresh" "Starter deck selected-card list must skip unchanged rebuilds."
-Assert-Contains $solarMemoryBlessingPickerRuntime "SunExpUiPool.AcquireConfiguredComponent" "Blessing picker rows must bind through the shared local UI pool before activation."
+Assert-Contains $solarMemoryBlessingPickerRuntime "TerriasUiPool.AcquireConfiguredComponent" "Blessing picker rows must bind through the shared local UI pool before activation."
 Assert-Contains $solarMemoryBlessingPickerRuntime "selectedRows" "Blessing picker selected rows must reconcile incrementally instead of rebuilding the whole list."
 Assert-Contains $solarMemoryBlessingPickerRuntime "candidateListDirty.ShouldRefresh" "Blessing picker candidates must skip unchanged rebuilds."
-Assert-Contains $solarMemoryStarterDeckRuntime "SunExpUiSprites.Button" "Starter deck modal must use shared cached button sprites."
-Assert-Contains $solarMemorySetupFlowRuntime "SunExpUiSprites.Button" "Setup modal must use shared cached button sprites."
-Assert-Contains $solarMemoryBlessingPickerRuntime "SunExpUiSprites.Button" "Blessing picker modal must use shared cached button sprites."
+Assert-Contains $solarMemoryStarterDeckRuntime "TerriasUiSprites.Button" "Starter deck modal must use shared cached button sprites."
+Assert-Contains $solarMemorySetupFlowRuntime "TerriasUiSprites.Button" "Setup modal must use shared cached button sprites."
+Assert-Contains $solarMemoryBlessingPickerRuntime "TerriasUiSprites.Button" "Blessing picker modal must use shared cached button sprites."
 Assert-NotContains ($solarMemoryStarterDeckRuntime + $solarMemorySetupFlowRuntime + $solarMemoryBlessingPickerRuntime) "CreateNineSliceSprite" "Solar Memory setup windows must not duplicate nine-slice sprite creation."
 Assert-NotContains ($solarMemoryStarterDeckRuntime + $solarMemorySetupFlowRuntime + $solarMemoryBlessingPickerRuntime) "GetButtonSprite" "Solar Memory setup windows must not own duplicate button sprite caches."
 Assert-NotContains ($solarMemoryStarterDeckRuntime + $solarMemorySetupFlowRuntime + $solarMemoryBlessingPickerRuntime) "Object.Destroy(active" "Solar Memory setup windows must not directly destroy active modal roots."
-Assert-Contains $solarMemoryStarterDeckRuntime "SunExpResourceCache.Load<Sprite>" "Starter deck icons must use the shared resource cache."
-Assert-Contains $solarMemoryBlessingPickerRuntime "SunExpConfigIndex.Rows(DataType.Bless)" "Blessing picker pools must use cached blessing rows before native CardPackCheck."
-Assert-Contains $solarMemoryBlessingPickerRuntime "SunExpResourceCache.Load<Sprite>" "Blessing picker icons must use the shared resource cache."
-Assert-Contains $wunaOrbitFireController "SunExpPerformanceSettings.WunaOrbitFireEnabled" "Wuna orbit fire visuals must support performance-tier disabling."
-Assert-Contains $wunaOrbitFireController "SunExpPerformanceSettings.WunaGeometryInterval" "Wuna orbit fire geometry rebuilds must be throttled by unified performance settings."
-Assert-Contains $wunaOrbitFireController "SunExpPerformanceSettings.WunaCoreSections" "Wuna orbit fire geometry density must be quality-controlled."
+Assert-Contains $solarMemoryStarterDeckRuntime "TerriasResourceCache.Load<Sprite>" "Starter deck icons must use the shared resource cache."
+Assert-Contains $solarMemoryBlessingPickerRuntime "TerriasConfigIndex.Rows(DataType.Bless)" "Blessing picker pools must use cached blessing rows before native CardPackCheck."
+Assert-Contains $solarMemoryBlessingPickerRuntime "TerriasResourceCache.Load<Sprite>" "Blessing picker icons must use the shared resource cache."
+Assert-Contains $wunaOrbitFireController "TerriasPerformanceSettings.WunaOrbitFireEnabled" "Wuna orbit fire visuals must support performance-tier disabling."
+Assert-Contains $wunaOrbitFireController "TerriasPerformanceSettings.WunaGeometryInterval" "Wuna orbit fire geometry rebuilds must be throttled by unified performance settings."
+Assert-Contains $wunaOrbitFireController "TerriasPerformanceSettings.WunaCoreSections" "Wuna orbit fire geometry density must be quality-controlled."
 Assert-Contains $wunaOrbitFireController "WunaOrbitFire.BuildGeometry" "Wuna orbit fire geometry rebuilds must be measured by performance counters."
-Assert-NotContains $sunExpHardTagRuntime "WhiteRadiance.ScanFightZones" "White Radiance Court must not retain the retired fight-zone scan performance counter."
-Assert-NotContains $sunExpHardTagRuntime "ApplyWhiteRadianceToFightZones" "White Radiance Court must not mutate combat card zones."
+Assert-NotContains $terriasHardTagRuntime "WhiteRadiance.ScanFightZones" "White Radiance Court must not retain the retired fight-zone scan performance counter."
+Assert-NotContains $terriasHardTagRuntime "ApplyWhiteRadianceToFightZones" "White Radiance Court must not mutate combat card zones."
 
-Assert-NotContains $scriptingSource "using SunExp.Dll.Hooks" "Scripting layer must not import Hooks."
-Assert-NotContains $scriptingSource "SunExpFrameScheduler" "Scripting layer must not use the hook-owned frame scheduler directly."
+Assert-NotContains $scriptingSource "using Terrias.Dll.Hooks" "Scripting layer must not import Hooks."
+Assert-NotContains $scriptingSource "TerriasFrameScheduler" "Scripting layer must not use the hook-owned frame scheduler directly."
 Assert-NotMatches $scriptingSource "\.\s*Add(?:Temp)?Event\s*\(" "Scripting layer must register events through ScriptEventApi or ExecutorApi wrappers."
 
-$resourceLoaderBypass = @($sourceFiles | Where-Object { $_.Name -ne "SunExpResourceCache.cs" } | Select-String -Pattern "ResourceLoader\.Load(?:All)?(?:<|\s*\()")
-Assert-True ($resourceLoaderBypass.Count -eq 0) "ResourceLoader.Load/LoadAll calls must be centralized in SunExpResourceCache."
+$resourceLoaderBypass = @($sourceFiles | Where-Object { $_.Name -ne "TerriasResourceCache.cs" } | Select-String -Pattern "ResourceLoader\.Load(?:All)?(?:<|\s*\()")
+Assert-True ($resourceLoaderBypass.Count -eq 0) "ResourceLoader.Load/LoadAll calls must be centralized in TerriasResourceCache."
 
 $configTableBypass = @($sourceFiles | Where-Object {
-        $_.Name -ne "SunExpConfigIndex.cs" -and $_.FullName -notmatch "\\GameApi\\"
+        $_.Name -ne "TerriasConfigIndex.cs" -and $_.FullName -notmatch "\\GameApi\\"
     } | Select-String -Pattern "GetTable\(")
-Assert-True ($configTableBypass.Count -eq 0) "Hook and Mechanics table scans must be centralized in SunExpConfigIndex."
+Assert-True ($configTableBypass.Count -eq 0) "Hook and Mechanics table scans must be centralized in TerriasConfigIndex."
 
-$dataFiles = Get-ChildItem -LiteralPath (Join-Path $RepoRoot "SunExp\Data") -Recurse -File -Filter "*.csv"
+$dataFiles = Get-ChildItem -LiteralPath (Join-Path $RepoRoot "Terrias\Data") -Recurse -File -Filter "*.csv"
 foreach ($file in $dataFiles) {
     $text = [System.IO.File]::ReadAllText($file.FullName)
-    foreach ($match in [regex]::Matches($text, "CS\.SunExp\.Dll\.([A-Za-z0-9_\.]+)")) {
+    foreach ($match in [regex]::Matches($text, "CS\.Terrias\.Dll\.([A-Za-z0-9_\.]+)")) {
         $target = $match.Groups[1].Value
         Assert-True ($target.StartsWith("Scripting.", [System.StringComparison]::Ordinal)) "Data script target must route through Scripting: $($file.FullName) -> $($match.Value)"
     }
 }
 
-$dialogueData = Read-RepoText "SunExp\Data\Dialogue\sunexp.csv"
-Assert-NotContains $dialogueData "CS.SunExp.Dll.Scripting" "Managed dialogue rows must not call C# through native Dialogue script columns."
+$dialogueData = Read-RepoText "Terrias\Data\Dialogue\terrias.csv"
+Assert-NotContains $dialogueData "CS.Terrias.Dll.Scripting" "Managed dialogue rows must not call C# through native Dialogue script columns."
 
 & (Join-Path $PSScriptRoot "Test-SpiritCapture.ps1")
-Write-Host "SunExp architecture assertions passed."
+Write-Host "Terrias architecture assertions passed."

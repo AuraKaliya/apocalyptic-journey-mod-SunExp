@@ -2,13 +2,13 @@
 
   <PropertyGroup>
     <TargetFramework>net472</TargetFramework>
-    <RootNamespace>SunExp.Dll</RootNamespace>
-    <AssemblyName>SunExp.Aura</AssemblyName>
+    <RootNamespace>Terrias.Dll</RootNamespace>
+    <AssemblyName>Terrias.Aura</AssemblyName>
     <LangVersion>latest</LangVersion>
     <Nullable>enable</Nullable>
     <ManagedPath Condition="'$(ManagedPath)' == ''">$(MSBuildProjectDirectory)\..\Managed</ManagedPath>
     <DllPath>$(ManagedPath)</DllPath>
-    <ModScriptsPath>..\SunExp\Scripts</ModScriptsPath>
+    <ModScriptsPath>..\Terrias\Scripts</ModScriptsPath>
     <ProduceReferenceAssembly>false</ProduceReferenceAssembly>
     <GenerateDocumentationFile>false</GenerateDocumentationFile>
   </PropertyGroup>

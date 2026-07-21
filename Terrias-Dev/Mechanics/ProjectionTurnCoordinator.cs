@@ -2,11 +2,11 @@ using System;
 using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 using UnityEngine;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public static class ProjectionTurnCoordinator
 {
@@ -35,8 +35,8 @@ public static class ProjectionTurnCoordinator
         }
 
         EnsureAnchor(source);
-        SunExpPerformanceCounters.Record("ProjectionTurnCoordinator.RoundStarted");
-        SunExpLog.Info("[ProjectionTurn] player round started: round=" + roundSequence + ", source=" + source);
+        TerriasPerformanceCounters.Record("ProjectionTurnCoordinator.RoundStarted");
+        TerriasLog.Info("[ProjectionTurn] player round started: round=" + roundSequence + ", source=" + source);
     }
 
     public static void RegisterProjection(ProjectionOtherObj projection, string source)
@@ -62,8 +62,8 @@ public static class ProjectionTurnCoordinator
         if (anchor == null && !manager.ActionQueue.Contains(projection))
         {
             manager.ActionQueue.Add(projection);
-            SunExpPerformanceCounters.Record("ProjectionTurnCoordinator.NativeFallbackQueued");
-            SunExpLog.Warn("[ProjectionTurn] anchor unavailable; projection queued for native next-round fallback: "
+            TerriasPerformanceCounters.Record("ProjectionTurnCoordinator.NativeFallbackQueued");
+            TerriasLog.Warn("[ProjectionTurn] anchor unavailable; projection queued for native next-round fallback: "
                 + projection.InstanceId);
         }
     }
@@ -82,8 +82,8 @@ public static class ProjectionTurnCoordinator
             .OrderBy(state => state.OwnerPlayerId, StringComparer.Ordinal)
             .ThenBy(state => state.StatusId, StringComparer.Ordinal)
             .ToArray();
-        SunExpLog.Info("[ProjectionTurn] anchor executing: round=" + activeRound + ", projections=" + projections.Length);
-        SunExpPerformanceCounters.Record("ProjectionTurnCoordinator.AnchorExecuted");
+        TerriasLog.Info("[ProjectionTurn] anchor executing: round=" + activeRound + ", projections=" + projections.Length);
+        TerriasPerformanceCounters.Record("ProjectionTurnCoordinator.AnchorExecuted");
 
         foreach (var state in projections)
         {
@@ -92,13 +92,13 @@ public static class ProjectionTurnCoordinator
                 continue;
             }
 
-            SunExpLog.Info("[ProjectionTurn] executing projection: round="
+            TerriasLog.Info("[ProjectionTurn] executing projection: round="
                 + activeRound
                 + ", status="
                 + state.StatusId
                 + ", slot="
                 + state.SlotIndex);
-            SunExpPerformanceCounters.Record("ProjectionTurnCoordinator.ProjectionExecuted");
+            TerriasPerformanceCounters.Record("ProjectionTurnCoordinator.ProjectionExecuted");
             var routine = state.Actor.DoAction();
             while (routine.MoveNext())
             {
@@ -132,8 +132,8 @@ public static class ProjectionTurnCoordinator
             CleanupStaleAnchors();
         }
 
-        SunExpPerformanceCounters.Record("ProjectionTurnCoordinator.Cleared");
-        SunExpLog.Debug("[ProjectionTurn] coordinator cleared from " + source + ".");
+        TerriasPerformanceCounters.Record("ProjectionTurnCoordinator.Cleared");
+        TerriasLog.Debug("[ProjectionTurn] coordinator cleared from " + source + ".");
     }
 
     private static bool TryClaim(int round, string ownerPlayerId, int slotIndex, string statusId)
@@ -173,8 +173,8 @@ public static class ProjectionTurnCoordinator
 
                 anchor.ActionCount = anchor.MaxActionCount;
                 manager.ActionQueue.Add(anchor);
-                SunExpPerformanceCounters.Record("ProjectionTurnCoordinator.AnchorRequeued");
-                SunExpLog.Debug("[ProjectionTurn] anchor requeued from " + source + ".");
+                TerriasPerformanceCounters.Record("ProjectionTurnCoordinator.AnchorRequeued");
+                TerriasLog.Debug("[ProjectionTurn] anchor requeued from " + source + ".");
             }
 
             return;
@@ -183,10 +183,10 @@ public static class ProjectionTurnCoordinator
         GameObject? pendingRoot = null;
         try
         {
-            var prefab = SunExpResourceCache.Load<GameObject>("Model/player", true, "projection-turn-anchor");
+            var prefab = TerriasResourceCache.Load<GameObject>("Model/player", true, "projection-turn-anchor");
             if (prefab == null)
             {
-                SunExpPerformanceCounters.Record("ProjectionTurnCoordinator.AnchorPrefabMissing");
+                TerriasPerformanceCounters.Record("ProjectionTurnCoordinator.AnchorPrefabMissing");
                 return;
             }
 
@@ -195,15 +195,15 @@ public static class ProjectionTurnCoordinator
                 pendingRoot,
                 FightPlayer.Instance?.Status?.transform?.gameObject,
                 source + ".TurnAnchor");
-            pendingRoot.name = "SunExpProjectionTurnAnchor:pending";
+            pendingRoot.name = "TerriasProjectionTurnAnchor:pending";
             pendingRoot.SetActive(false);
             var created = pendingRoot.AddComponent<ProjectionTurnAnchorObj>();
             var templateData = ResolveAnchorTemplateData();
             if (templateData == null
                 || !created.InitializeAnchor(CompanionAuthorityService.BattleEpoch, templateData))
             {
-                SunExpPerformanceCounters.Record("ProjectionTurnCoordinator.AnchorInitFailed");
-                SunExpLog.Warn("[ProjectionTurn] anchor template is incomplete from " + source + ".");
+                TerriasPerformanceCounters.Record("ProjectionTurnCoordinator.AnchorInitFailed");
+                TerriasLog.Warn("[ProjectionTurn] anchor template is incomplete from " + source + ".");
                 return;
             }
 
@@ -211,16 +211,16 @@ public static class ProjectionTurnCoordinator
             manager.ActionQueue.Add(created);
             anchor = created;
             pendingRoot = null;
-            SunExpPerformanceCounters.Record("ProjectionTurnCoordinator.AnchorRegistered");
-            SunExpLog.Info("[ProjectionTurn] anchor registered: epoch="
+            TerriasPerformanceCounters.Record("ProjectionTurnCoordinator.AnchorRegistered");
+            TerriasLog.Info("[ProjectionTurn] anchor registered: epoch="
                 + CompanionAuthorityService.BattleEpoch
                 + ", source="
                 + source);
         }
         catch (Exception ex)
         {
-            SunExpPerformanceCounters.Record("ProjectionTurnCoordinator.AnchorInitFailed");
-            SunExpLog.Warn("[ProjectionTurn] anchor registration failed from " + source + ": " + ex.Message);
+            TerriasPerformanceCounters.Record("ProjectionTurnCoordinator.AnchorInitFailed");
+            TerriasLog.Warn("[ProjectionTurn] anchor registration failed from " + source + ": " + ex.Message);
         }
         finally
         {
@@ -280,7 +280,7 @@ public static class ProjectionTurnCoordinator
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("[ProjectionTurn] stale anchor cleanup skipped: " + ex.Message);
+            TerriasLog.Debug("[ProjectionTurn] stale anchor cleanup skipped: " + ex.Message);
         }
     }
 

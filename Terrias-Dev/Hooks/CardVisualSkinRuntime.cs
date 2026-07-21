@@ -1,15 +1,15 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Hooks.Visual;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Hooks.Visual;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using Witch.Core;
 using Witch.Mod;
 using Witch.UI.Window;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class CardVisualSkinRuntime
 {
@@ -18,20 +18,20 @@ public static class CardVisualSkinRuntime
 
     public static void Initialize(ModConfig modConfig)
     {
-        SunExpCardPresentationRouter.Register("CardVisualSkin", new SunExpCardPresentationSubscription
+        TerriasCardPresentationRouter.Register("CardVisualSkin", new TerriasCardPresentationSubscription
         {
             Apply = ApplyPresentation
         });
-        SunExpCardLifecycleRouter.Register("CardVisualSkin.UseGuards", new SunExpCardLifecycleSubscription
+        TerriasCardLifecycleRouter.Register("CardVisualSkin.UseGuards", new TerriasCardLifecycleSubscription
         {
-            BeforeCommonCardUse = context => SuppressBurnoutFrameEffect(context, SunExpHookTargets.CommonCardItemTrueUse),
-            BeforeAttackCardUse = context => SuppressBurnoutFrameEffect(context, SunExpHookTargets.AttackCardItemTrueUse)
+            BeforeCommonCardUse = context => SuppressBurnoutFrameEffect(context, TerriasHookTargets.CommonCardItemTrueUse),
+            BeforeAttackCardUse = context => SuppressBurnoutFrameEffect(context, TerriasHookTargets.AttackCardItemTrueUse)
         });
 
-        SunExpLog.InfoAlways("Card visual skin runtime initialized");
+        TerriasLog.InfoAlways("Card visual skin runtime initialized");
     }
 
-    private static void ApplyPresentation(SunExpCardPresentationContext context)
+    private static void ApplyPresentation(TerriasCardPresentationContext context)
     {
         ApplySafely(context);
     }
@@ -60,12 +60,12 @@ public static class CardVisualSkinRuntime
             var marker = visualRoot == null ? null : visualRoot.GetComponent<CardVisualSkinMarker>();
             if (marker != null && marker.SuppressFrameEffectOverlay(config, source))
             {
-                SunExpLog.Debug("Card visual skin suppressed burnout frame effect from " + source + ": " + CardConfigApi.Id(config));
+                TerriasLog.Debug("Card visual skin suppressed burnout frame effect from " + source + ": " + CardConfigApi.Id(config));
             }
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("Card visual skin burnout frame-effect suppression failed from " + source, ex);
+            TerriasLog.Error("Card visual skin burnout frame-effect suppression failed from " + source, ex);
         }
     }
 
@@ -78,7 +78,7 @@ public static class CardVisualSkinRuntime
             || card?.Tags.Contains("Burnout") == true;
     }
 
-    private static void ApplySafely(SunExpCardPresentationContext context)
+    private static void ApplySafely(TerriasCardPresentationContext context)
     {
         var root = context.Root;
         var config = context.Config;
@@ -96,12 +96,12 @@ public static class CardVisualSkinRuntime
         var visualRoot = CardPresentationRootResolver.FindCardVisualRoot(root);
         if (visualRoot == null)
         {
-            if (context.Surface == SunExpCardPresentationSurface.Display
+            if (context.Surface == TerriasCardPresentationSurface.Display
                 && CardPresentationRootResolver.IsCompactDisplayRoot(root))
             {
-                SunExpPerformanceCounters.Record("CardVisualSkin.CompactDisplayHandled");
+                TerriasPerformanceCounters.Record("CardVisualSkin.CompactDisplayHandled");
                 var compactCardId = CardConfigApi.Id(config);
-                SunExpLog.DebugOnce("CardVisualSkin.CompactDisplay." + compactCardId + "." + source,
+                TerriasLog.DebugOnce("CardVisualSkin.CompactDisplay." + compactCardId + "." + source,
                     "Card visual skin compact display uses native card art: cardId="
                     + compactCardId
                     + ", source="
@@ -119,7 +119,7 @@ public static class CardVisualSkinRuntime
 
         if (!CardVisualInterestIndex.MayAffect(config))
         {
-            SunExpPerformanceCounters.Record("CardVisualSkin.InterestMiss");
+            TerriasPerformanceCounters.Record("CardVisualSkin.InterestMiss");
             CardVisualSkinApplier.ClearForUnmatchedCard(visualRoot);
             return;
         }
@@ -127,8 +127,8 @@ public static class CardVisualSkinRuntime
         var applied = CardVisualSkinApplier.Apply(visualRoot, config, source);
         if (applied)
         {
-            SunExpPerformanceCounters.Record("CardVisualSkin.Apply");
-            SunExpLog.Debug("Card visual skin applied from " + source + ": " + DictionaryUtil.Get(config.data, "Id", "unknown"));
+            TerriasPerformanceCounters.Record("CardVisualSkin.Apply");
+            TerriasLog.Debug("Card visual skin applied from " + source + ": " + DictionaryUtil.Get(config.data, "Id", "unknown"));
         }
     }
 
@@ -144,8 +144,8 @@ public static class CardVisualSkinRuntime
             return;
         }
 
-        SunExpPerformanceCounters.Record("CardVisualSkin.RootMiss");
-        SunExpLog.Warn("Card visual skin root missing: cardId="
+        TerriasPerformanceCounters.Record("CardVisualSkin.RootMiss");
+        TerriasLog.Warn("Card visual skin root missing: cardId="
             + CardConfigApi.Id(config)
             + ", source="
             + source
@@ -153,11 +153,11 @@ public static class CardVisualSkinRuntime
             + (root == null ? "<null>" : root.name));
     }
 
-    private static bool IsCombatSurface(SunExpCardPresentationSurface surface)
+    private static bool IsCombatSurface(TerriasCardPresentationSurface surface)
     {
-        return surface == SunExpCardPresentationSurface.CombatCard
-            || surface == SunExpCardPresentationSurface.CombatCardInternal
-            || surface == SunExpCardPresentationSurface.PostCommit;
+        return surface == TerriasCardPresentationSurface.CombatCard
+            || surface == TerriasCardPresentationSurface.CombatCardInternal
+            || surface == TerriasCardPresentationSurface.PostCommit;
     }
 
     private static bool RootMatchesCombatConfig(
@@ -221,8 +221,8 @@ public static class CardVisualSkinRuntime
             return;
         }
 
-        SunExpPerformanceCounters.Record("CardVisualSkin.RootConfigMismatch");
-        SunExpLog.Warn("Card visual skin skipped mismatched combat root: rootCardId="
+        TerriasPerformanceCounters.Record("CardVisualSkin.RootConfigMismatch");
+        TerriasLog.Warn("Card visual skin skipped mismatched combat root: rootCardId="
             + rootId
             + ", configCardId="
             + configId

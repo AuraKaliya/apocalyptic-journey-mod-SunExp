@@ -108,7 +108,7 @@ Runtime 目前仍保留：
 - 三个模块不得依赖 Unity 对象、游戏 Manager、Hook 或具体 `FileSoundProvider`；
 - Runtime 不得恢复旧反序列化、条件构建、内联 resolver 或私有 identity 实现。
 
-`Test-SunExpCSharp.ps1` 原先固定扫描 Runtime 内旧 matcher 调用，现已改为验证 Resolver 的 owner-strict/legacy/fail-closed 契约及 Runtime 的诊断委派，文件拆分不再被旧路径绑定。
+`Test-TerriasCSharp.ps1` 原先固定扫描 Runtime 内旧 matcher 调用，现已改为验证 Resolver 的 owner-strict/legacy/fail-closed 契约及 Runtime 的诊断委派，文件拆分不再被旧路径绑定。
 
 ## 7. 兼容性
 
@@ -132,9 +132,9 @@ Runtime 目前仍保留：
 - Aura.Shared：1228 项公共 API 兼容基线通过；
 - AuraDirector：20 项断言通过；
 - AuraToolsExp：632 项断言通过；
-- SunExp：架构检查与 282 项 C# 断言通过；
+- Terrias：架构检查与 282 项 C# 断言通过；
 - shared write、content/tool/shared、RPC authority 与架构边界门禁通过；
-- SunExp、SanGuoShaExp、AuraToolsExp 三个消费者均以 0 警告、0 错误构建；
+- Terrias、SanGuoShaExp、AuraToolsExp 三个消费者均以 0 警告、0 错误构建；
 - 完整共享发布矩阵和 DLL 打包检查通过；
 - 构建产物和三个打包副本 SHA-256 一致：`CE8C5666869D56D509FDF537BAA649AFD423E855D8AC4EE5B532A5E4F2B4B614`。
 

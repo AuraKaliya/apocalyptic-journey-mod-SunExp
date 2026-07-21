@@ -11,7 +11,7 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 
 # Edit this list to add, remove, replace, or reorder mod build steps.
 $buildScripts = @(
-    "Build-SunExpDll.ps1",
+    "Build-TerriasDll.ps1",
     "Build-AuraToolsExpDll.ps1",
     "Build-SanGuoShaExpDll.ps1"
 )

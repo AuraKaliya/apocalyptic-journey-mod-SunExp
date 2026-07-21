@@ -1,8 +1,8 @@
 using System;
 using System.Collections.Generic;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 internal sealed class SolarMemoryMapSyncRepair
 {
@@ -54,8 +54,8 @@ internal static class SolarMemoryMapSyncRepairService
         for (var i = 0; i < count; i++)
         {
             if (IsFixedSlot(fixedSpecs, i)
-                || !SunExpIds.IsSolarMemoryExclusiveMapId(maps[i])
-                    && !SunExpIds.IsSolarMemoryExclusiveEventId(mapData[i]))
+                || !TerriasIds.IsSolarMemoryExclusiveMapId(maps[i])
+                    && !TerriasIds.IsSolarMemoryExclusiveEventId(mapData[i]))
             {
                 continue;
             }

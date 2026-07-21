@@ -1,11 +1,11 @@
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Mechanics;
 
-namespace SunExp.Dll.Hooks;
+namespace Terrias.Dll.Hooks;
 
 public static class SolarMemoryRewardRuntime
 {
-    private const string ExtraRandomRelicRuleId = "SunExp.SolarMemory.ExtraRandomRelic";
+    private const string ExtraRandomRelicRuleId = "Terrias.SolarMemory.ExtraRandomRelic";
 
     public static void Initialize()
     {

@@ -2,8 +2,8 @@ param()
 
 $ErrorActionPreference = "Stop"
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
-$registryPath = Join-Path $repoRoot "SunExp\familiar.blessing.registry.json"
-$projectPath = Join-Path $repoRoot "SunExp-Dev.FamiliarTests\SunExp-Dev.FamiliarTests.csproj"
+$registryPath = Join-Path $repoRoot "Terrias\familiar.blessing.registry.json"
+$projectPath = Join-Path $repoRoot "Terrias-Dev.FamiliarTests\Terrias-Dev.FamiliarTests.csproj"
 
 if (-not (Test-Path -LiteralPath $registryPath)) {
     throw "Familiar blessing registry is missing."

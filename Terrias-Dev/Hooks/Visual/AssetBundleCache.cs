@@ -2,11 +2,11 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 
-namespace SunExp.Dll.Hooks.Visual;
+namespace Terrias.Dll.Hooks.Visual;
 
 public static class AssetBundleCache
 {
@@ -24,7 +24,7 @@ public static class AssetBundleCache
             }
             catch (Exception ex)
             {
-                SunExpLog.Warn("[VisualBundle] unload failed: " + ex.Message);
+                TerriasLog.Warn("[VisualBundle] unload failed: " + ex.Message);
             }
         }
 
@@ -70,7 +70,7 @@ public static class AssetBundleCache
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn(logPrefix + " bundle asset load failed: " + requested + " (" + ex.Message + ")");
+            TerriasLog.Warn(logPrefix + " bundle asset load failed: " + requested + " (" + ex.Message + ")");
             return null;
         }
     }
@@ -91,7 +91,7 @@ public static class AssetBundleCache
         if (!File.Exists(resolvedPath))
         {
             Cache[resolvedPath] = null;
-            SunExpLog.Warn(logPrefix + " visual bundle missing: " + resolvedPath);
+            TerriasLog.Warn(logPrefix + " visual bundle missing: " + resolvedPath);
             return null;
         }
 
@@ -101,7 +101,7 @@ public static class AssetBundleCache
             Cache[resolvedPath] = bundle;
             if (bundle == null)
             {
-                SunExpLog.Warn(logPrefix + " visual bundle could not be loaded: " + resolvedPath);
+                TerriasLog.Warn(logPrefix + " visual bundle could not be loaded: " + resolvedPath);
             }
 
             return bundle;
@@ -109,7 +109,7 @@ public static class AssetBundleCache
         catch (Exception ex)
         {
             Cache[resolvedPath] = null;
-            SunExpLog.Warn(logPrefix + " visual bundle load failed: " + resolvedPath + " (" + ex.Message + ")");
+            TerriasLog.Warn(logPrefix + " visual bundle load failed: " + resolvedPath + " (" + ex.Message + ")");
             return null;
         }
     }
@@ -141,8 +141,8 @@ public static class AssetBundleCache
             if (extension.Length > 0)
             {
                 candidates.Add(leaf + extension);
-                candidates.Add("Assets/SunExp/Visuals/Materials/" + leaf + extension);
-                candidates.Add("Assets/SunExp/Visuals/Shaders/" + leaf + extension);
+                candidates.Add("Assets/Terrias/Visuals/Materials/" + leaf + extension);
+                candidates.Add("Assets/Terrias/Visuals/Shaders/" + leaf + extension);
             }
         }
 
@@ -209,6 +209,6 @@ public static class AssetBundleCache
         var preview = names.Length == 0
             ? "<empty>"
             : string.Join("|", names.Take(8));
-        SunExpLog.Warn(logPrefix + " bundle asset missing: " + requested + "; available=" + preview);
+        TerriasLog.Warn(logPrefix + " bundle asset missing: " + requested + "; available=" + preview);
     }
 }

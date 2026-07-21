@@ -1,15 +1,15 @@
 using System;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace SunExp.Dll.Hooks.Ui;
+namespace Terrias.Dll.Hooks.Ui;
 
 public static class DimensionShopPanel
 {
-    private const string PanelName = "SunExp_DimensionShopPanel";
+    private const string PanelName = "Terrias_DimensionShopPanel";
     private const int RolePersistRetryLimit = 12;
     private const int RolePersistRetryDelayFrames = 2;
     private static readonly Color WindowTint = new(0.035f, 0.035f, 0.055f, 0.985f);
@@ -41,24 +41,24 @@ public static class DimensionShopPanel
 
         try
         {
-            var parent = SunExpModalHost.NativeUiParent();
+            var parent = TerriasModalHost.NativeUiParent();
             if (parent == null)
             {
-                SunExpLog.Warn("[DimensionShop] native UI parent is unavailable from " + source + ".");
+                TerriasLog.Warn("[DimensionShop] native UI parent is unavailable from " + source + ".");
                 DimensionShopGameApi.AdvanceMap();
                 return;
             }
 
-            activePanel = SunExpModalHost.CreateNativeFullscreenRoot(
+            activePanel = TerriasModalHost.CreateNativeFullscreenRoot(
                 PanelName,
                 new Color(0f, 0f, 0f, 0.72f));
             if (activePanel == null)
             {
-                SunExpLog.Warn("[DimensionShop] native UI root could not be created from " + source + ".");
+                TerriasLog.Warn("[DimensionShop] native UI root could not be created from " + source + ".");
                 DimensionShopGameApi.AdvanceMap();
                 return;
             }
-            SunExpTransientUiRegistry.Register("DimensionShop", Close);
+            TerriasTransientUiRegistry.Register("DimensionShop", Close);
             if (DimensionShopNativeSkin.TryCreate(
                     activePanel.transform,
                     () => Purchase(DimensionShopService.BuyCard),
@@ -71,7 +71,7 @@ public static class DimensionShopPanel
                     out nativeSkin))
             {
                 Render();
-                SunExpLog.Info(nativeSkin != null
+                TerriasLog.Info(nativeSkin != null
                     ? "[DimensionShop] opened with native ShopUI skin from " + source + "."
                     : "[DimensionShop] native ShopUI render was incompatible; opened fallback panel from " + source + ".");
                 return;
@@ -79,11 +79,11 @@ public static class DimensionShopPanel
 
             CreateFallbackPanel();
             Render();
-            SunExpLog.Info("[DimensionShop] opened from " + source + ".");
+            TerriasLog.Info("[DimensionShop] opened from " + source + ".");
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[DimensionShop] panel open failed", ex);
+            TerriasLog.Error("[DimensionShop] panel open failed", ex);
             Close("DimensionShop.OpenFailed");
             DimensionShopGameApi.AdvanceMap();
         }
@@ -97,7 +97,7 @@ public static class DimensionShopPanel
         nativeSkin = null;
         if (productRoot != null)
         {
-            SunExpUiPool.ReleaseOrDestroyChildren(productRoot, "DimensionShop.Close", "[DimensionShop]");
+            TerriasUiPool.ReleaseOrDestroyChildren(productRoot, "DimensionShop.Close", "[DimensionShop]");
         }
 
         productRoot = null;
@@ -105,25 +105,25 @@ public static class DimensionShopPanel
         hintText = null;
         refreshButton = null;
         busy = false;
-        SunExpModalHost.Close(ref activePanel, source, "[DimensionShop]");
-        SunExpTransientUiRegistry.Unregister("DimensionShop");
+        TerriasModalHost.Close(ref activePanel, source, "[DimensionShop]");
+        TerriasTransientUiRegistry.Unregister("DimensionShop");
     }
 
     private static void CreateHeader(Transform parent)
     {
-        var header = SunExpUiComponents.CreatePanelSection(
+        var header = TerriasUiComponents.CreatePanelSection(
             "Header",
             parent,
-            SunExpUiSprites.Panel("[DimensionShop]"),
+            TerriasUiSprites.Panel("[DimensionShop]"),
             HeaderTint,
             88f,
             88f);
-        SunExpUiComponents.ConfigureHorizontalLayout(
+        TerriasUiComponents.ConfigureHorizontalLayout(
             header,
             new RectOffset(18, 18, 10, 10),
             16f,
             childForceExpandHeight: true);
-        SunExpUiComponents.AddTextBlock(
+        TerriasUiComponents.AddTextBlock(
             header.transform,
             "\u6b21\u5143\u5546\u5e97",
             30,
@@ -131,7 +131,7 @@ public static class DimensionShopPanel
             Accent,
             58f,
             1f);
-        balanceText = SunExpUiComponents.AddTextBlock(
+        balanceText = TerriasUiComponents.AddTextBlock(
             header.transform,
             "",
             19,
@@ -144,15 +144,15 @@ public static class DimensionShopPanel
 
     private static Transform CreateProductRoot(Transform parent)
     {
-        var root = SunExpUiComponents.CreatePanelSection(
+        var root = TerriasUiComponents.CreatePanelSection(
             "Products",
             parent,
-            SunExpUiSprites.Panel("[DimensionShop]"),
+            TerriasUiSprites.Panel("[DimensionShop]"),
             new Color(0.018f, 0.02f, 0.032f, 0.94f),
             390f,
             390f,
             1f);
-        SunExpUiComponents.ConfigureHorizontalLayout(
+        TerriasUiComponents.ConfigureHorizontalLayout(
             root,
             new RectOffset(18, 18, 18, 18),
             18f,
@@ -165,8 +165,8 @@ public static class DimensionShopPanel
 
     private static void CreateFooter(Transform parent)
     {
-        var footer = SunExpUiComponents.CreateFooterRow(parent, 64f, new RectOffset(6, 6, 6, 6), 12f);
-        hintText = SunExpUiComponents.AddTextBlock(
+        var footer = TerriasUiComponents.CreateFooterRow(parent, 64f, new RectOffset(6, 6, 6, 6), 12f);
+        hintText = TerriasUiComponents.AddTextBlock(
             footer.transform,
             "",
             14,
@@ -174,20 +174,20 @@ public static class DimensionShopPanel
             SoftText,
             46f,
             1f);
-        refreshButton = SunExpUiComponents.CreateTextButton(
+        refreshButton = TerriasUiComponents.CreateTextButton(
             footer.transform,
             "\u5237\u65b0",
             new Vector2(128f, 48f),
-            SunExpUiSprites.Button("[DimensionShop]"),
+            TerriasUiSprites.Button("[DimensionShop]"),
             new Color(0.055f, 0.09f, 0.1f, 1f),
             SoftText,
             17,
             Refresh);
-        SunExpUiComponents.CreateTextButton(
+        TerriasUiComponents.CreateTextButton(
             footer.transform,
             "\u79bb\u5f00",
             new Vector2(112f, 48f),
-            SunExpUiSprites.Button("[DimensionShop]"),
+            TerriasUiSprites.Button("[DimensionShop]"),
             new Color(0.1f, 0.06f, 0.075f, 1f),
             SoftText,
             17,
@@ -207,7 +207,7 @@ public static class DimensionShopPanel
             }
             catch (Exception ex)
             {
-                SunExpLog.Warn("[DimensionShop] native ShopUI render failed; switching to fallback panel: " + ex.Message);
+                TerriasLog.Warn("[DimensionShop] native ShopUI render failed; switching to fallback panel: " + ex.Message);
                 nativeSkin.Dispose();
                 nativeSkin = null;
                 CreateFallbackPanel();
@@ -219,7 +219,7 @@ public static class DimensionShopPanel
             return;
         }
 
-        SunExpUiPool.ReleaseOrDestroyChildren(productRoot, "DimensionShop.Render", "[DimensionShop]");
+        TerriasUiPool.ReleaseOrDestroyChildren(productRoot, "DimensionShop.Render", "[DimensionShop]");
         balanceText!.text = "\u771f\u7406\u4e4b\u6676  " + view.Truth;
         CreateProductCard(productRoot, "\u5361\u724c", view.Card, DimensionShopService.BuyCard);
         CreateProductCard(productRoot, "\u9057\u7269", view.Relic, DimensionShopService.BuyRelic);
@@ -243,11 +243,11 @@ public static class DimensionShopPanel
         }
 
         var parent = activePanel.transform.parent ?? activePanel.transform;
-        var window = SunExpUiComponents.CreateVerticalWindow(
+        var window = TerriasUiComponents.CreateVerticalWindow(
             "Window",
             activePanel.transform,
             ResolveWindowSize(parent),
-            SunExpUiSprites.Panel("[DimensionShop]"),
+            TerriasUiSprites.Panel("[DimensionShop]"),
             WindowTint,
             new RectOffset(24, 24, 20, 18),
             14f);
@@ -263,30 +263,30 @@ public static class DimensionShopPanel
         DimensionShopItemView item,
         BuyAction purchase)
     {
-        var card = SunExpUiComponents.CreateLayoutObject("Product-" + kind, parent);
+        var card = TerriasUiComponents.CreateLayoutObject("Product-" + kind, parent);
         var element = card.AddComponent<LayoutElement>();
         element.minWidth = 280f;
         element.flexibleWidth = 1f;
         element.minHeight = 350f;
         element.flexibleHeight = 1f;
-        SunExpUiBuilder.ApplyPanelImage(card, SunExpUiSprites.Panel("[DimensionShop]"), ItemTint, true);
-        SunExpUiComponents.ConfigureVerticalLayout(
+        TerriasUiBuilder.ApplyPanelImage(card, TerriasUiSprites.Panel("[DimensionShop]"), ItemTint, true);
+        TerriasUiComponents.ConfigureVerticalLayout(
             card,
             new RectOffset(16, 16, 12, 14),
             8f,
             childForceExpandHeight: false,
             alignment: TextAnchor.UpperCenter);
 
-        SunExpUiComponents.AddTextBlock(card.transform, kind, 16, TextAnchor.MiddleCenter, Accent, 28f);
+        TerriasUiComponents.AddTextBlock(card.transform, kind, 16, TextAnchor.MiddleCenter, Accent, 28f);
         CreateIcon(card.transform, item.IconPath);
-        SunExpUiComponents.AddTextBlock(
+        TerriasUiComponents.AddTextBlock(
             card.transform,
             string.IsNullOrWhiteSpace(item.Name) ? "\u6682\u65e0\u5546\u54c1" : item.Name,
             22,
             TextAnchor.MiddleCenter,
             SoftText,
             38f);
-        SunExpUiComponents.AddTextBlock(
+        TerriasUiComponents.AddTextBlock(
             card.transform,
             item.Description,
             14,
@@ -294,7 +294,7 @@ public static class DimensionShopPanel
             string.IsNullOrWhiteSpace(item.Description) ? MutedText : SoftText,
             96f,
             1f);
-        SunExpUiComponents.AddTextBlock(
+        TerriasUiComponents.AddTextBlock(
             card.transform,
             string.IsNullOrWhiteSpace(item.Status) ? "\u53ef\u8d2d\u4e70" : item.Status,
             15,
@@ -302,11 +302,11 @@ public static class DimensionShopPanel
             item.CanBuy ? Accent : MutedText,
             30f);
 
-        var button = SunExpUiComponents.CreateTextButton(
+        var button = TerriasUiComponents.CreateTextButton(
             card.transform,
             "\u8d2d\u4e70  " + item.Price,
             new Vector2(156f, 46f),
-            SunExpUiSprites.Button("[DimensionShop]"),
+            TerriasUiSprites.Button("[DimensionShop]"),
             new Color(0.055f, 0.09f, 0.1f, 1f),
             SoftText,
             17,
@@ -316,7 +316,7 @@ public static class DimensionShopPanel
 
     private static void CreateIcon(Transform parent, string path)
     {
-        var root = SunExpUiComponents.CreateLayoutObject("Icon", parent);
+        var root = TerriasUiComponents.CreateLayoutObject("Icon", parent);
         var element = root.AddComponent<LayoutElement>();
         element.minHeight = 126f;
         element.preferredHeight = 126f;
@@ -327,7 +327,7 @@ public static class DimensionShopPanel
         image.raycastTarget = false;
         if (!string.IsNullOrWhiteSpace(path))
         {
-            image.sprite = SunExpResourceCache.Load<Sprite>(path, true, "dimension.shop.item");
+            image.sprite = TerriasResourceCache.Load<Sprite>(path, true, "dimension.shop.item");
         }
     }
 
@@ -348,7 +348,7 @@ public static class DimensionShopPanel
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[DimensionShop] purchase action failed", ex);
+            TerriasLog.Error("[DimensionShop] purchase action failed", ex);
             SetHint("\u7ed3\u7b97\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002");
         }
         finally
@@ -374,7 +374,7 @@ public static class DimensionShopPanel
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[DimensionShop] refresh failed", ex);
+            TerriasLog.Error("[DimensionShop] refresh failed", ex);
             SetHint("\u5237\u65b0\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002");
         }
         finally
@@ -401,7 +401,7 @@ public static class DimensionShopPanel
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[DimensionShop] card sale failed", ex);
+            TerriasLog.Error("[DimensionShop] card sale failed", ex);
             SetHint("\u5361\u724c\u51fa\u552e\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002");
         }
         finally
@@ -428,7 +428,7 @@ public static class DimensionShopPanel
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[DimensionShop] relic sale failed", ex);
+            TerriasLog.Error("[DimensionShop] relic sale failed", ex);
             SetHint("\u9057\u7269\u51fa\u552e\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002");
         }
         finally
@@ -455,7 +455,7 @@ public static class DimensionShopPanel
         }
         catch (Exception ex)
         {
-            SunExpLog.Error("[DimensionShop] relic unequip failed", ex);
+            TerriasLog.Error("[DimensionShop] relic unequip failed", ex);
             SetHint("\u9057\u7269\u8131\u4e0b\u5931\u8d25\uff0c\u8bf7\u7a0d\u540e\u91cd\u8bd5\u3002");
         }
         finally
@@ -491,7 +491,7 @@ public static class DimensionShopPanel
 
         if (rolePersistRetryAttempts >= RolePersistRetryLimit)
         {
-            SunExpLog.WarnOnce(
+            TerriasLog.WarnOnce(
                 "DimensionShop.RolePersistRetryExhausted",
                 "[DimensionShop] role persist remained pending after bounded retries; native role collection may still commit the latest local role at the next save boundary.");
             return;
@@ -499,7 +499,7 @@ public static class DimensionShopPanel
 
         var attempt = ++rolePersistRetryAttempts;
         rolePersistRetryScheduled = true;
-        if (SunExpFrameScheduler.RunOnceAfterFrames(
+        if (TerriasFrameScheduler.RunOnceAfterFrames(
                 "DimensionShop.RolePersistRetry." + attempt,
                 RolePersistRetryDelayFrames,
                 () =>
@@ -518,7 +518,7 @@ public static class DimensionShopPanel
         }
 
         rolePersistRetryScheduled = false;
-        SunExpLog.WarnOnce(
+        TerriasLog.WarnOnce(
             "DimensionShop.RolePersistRetryScheduleFailed",
             "[DimensionShop] pending role persist retry could not be scheduled.");
     }

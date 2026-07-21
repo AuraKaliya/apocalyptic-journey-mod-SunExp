@@ -1,9 +1,9 @@
 using System;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using UnityEngine;
 using UnityEngine.UI;
 
-namespace SunExp.Dll.Hooks.Ui;
+namespace Terrias.Dll.Hooks.Ui;
 
 internal readonly struct EndlessAbyssFramedTextCardImages
 {
@@ -29,10 +29,10 @@ internal static class EndlessAbyssFramedTextCard
         Color titleColor,
         Color bodyColor)
     {
-        var image = SunExpUiBuilder.ApplyLabelImage(frame, SunExpUiSprites.Label(logScope), frameTint, true);
+        var image = TerriasUiBuilder.ApplyLabelImage(frame, TerriasUiSprites.Label(logScope), frameTint, true);
         var tint = image;
 
-        var content = SunExpUiBuilder.CreateRect(
+        var content = TerriasUiBuilder.CreateRect(
             "Content",
             frame.transform,
             Vector2.zero,
@@ -50,8 +50,8 @@ internal static class EndlessAbyssFramedTextCard
         layout.childForceExpandWidth = true;
         layout.childForceExpandHeight = false;
 
-        SunExpUiComponents.AddTextBlock(content.transform, title, 18, TextAnchor.MiddleLeft, titleColor, 30f);
-        SunExpUiComponents.AddTextBlock(content.transform, body, 14, TextAnchor.MiddleLeft, bodyColor, 34f);
+        TerriasUiComponents.AddTextBlock(content.transform, title, 18, TextAnchor.MiddleLeft, titleColor, 30f);
+        TerriasUiComponents.AddTextBlock(content.transform, body, 14, TextAnchor.MiddleLeft, bodyColor, 34f);
 
         return new EndlessAbyssFramedTextCardImages(image, tint);
     }

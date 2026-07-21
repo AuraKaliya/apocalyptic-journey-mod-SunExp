@@ -1,10 +1,10 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
-using SunExp.Dll.GameApi;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.GameApi;
+using Terrias.Dll.Infrastructure;
 
-namespace SunExp.Dll.Mechanics;
+namespace Terrias.Dll.Mechanics;
 
 public sealed class ElementalResolutionResult
 {
@@ -115,7 +115,7 @@ public static class ElementalReactionService
                 : plan.Reaction!.DisplayName);
         }
 
-        SunExpLog.Debug("[ElementalReaction] resolved; origin="
+        TerriasLog.Debug("[ElementalReaction] resolved; origin="
             + origin
             + ", source="
             + (executor.Self.InstanceId ?? "")
@@ -149,7 +149,7 @@ public static class ElementalReactionService
             return true;
         }
 
-        SunExpLog.Warn("[ElementalReaction] resolution rejected before consuming attachment because its damage source has no native Id; origin="
+        TerriasLog.Warn("[ElementalReaction] resolution rejected before consuming attachment because its damage source has no native Id; origin="
             + plan.Origin
             + ", source="
             + (plan.Source.InstanceId ?? "")
@@ -283,21 +283,21 @@ public static class ElementalReactionService
             case ElementalReactionType.ElectroCharged:
                 foreach (var target in plan.SideTargets.Where(StatusApi.IsAlive))
                 {
-                    target.AddBuff(SunExpIds.Vulnerability, 1);
+                    target.AddBuff(TerriasIds.Vulnerability, 1);
                 }
 
                 break;
             case ElementalReactionType.Freeze:
-                AddBuffIfAlive(plan.Target, SunExpIds.Frozen, 1);
+                AddBuffIfAlive(plan.Target, TerriasIds.Frozen, 1);
                 break;
             case ElementalReactionType.Burning:
-                AddBuffIfAlive(plan.Target, SunExpIds.Burn, 4);
+                AddBuffIfAlive(plan.Target, TerriasIds.Burn, 4);
                 break;
             case ElementalReactionType.Bloom:
-                AddBuffIfAlive(plan.Target, SunExpIds.DendroCore, 1);
+                AddBuffIfAlive(plan.Target, TerriasIds.DendroCore, 1);
                 break;
             case ElementalReactionType.Quicken:
-                AddBuffIfAlive(plan.Target, SunExpIds.Vulnerability, 1);
+                AddBuffIfAlive(plan.Target, TerriasIds.Vulnerability, 1);
                 break;
             case ElementalReactionType.Swirl:
                 ExecuteSwirl(plan);
@@ -374,7 +374,7 @@ public static class ElementalReactionService
             ExecutePostReaction(plan);
             if (plan.HasReaction)
             {
-                SunExpLog.Debug("[ElementalReaction] swirl secondary; target="
+                TerriasLog.Debug("[ElementalReaction] swirl secondary; target="
                     + (plan.Target.InstanceId ?? "")
                     + ", element="
                     + propagatedElement
@@ -404,7 +404,7 @@ public static class ElementalReactionService
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[ElementalReaction] post-hit attachment failed; target="
+            TerriasLog.Warn("[ElementalReaction] post-hit attachment failed; target="
                 + (target.InstanceId ?? "")
                 + ", element="
                 + element

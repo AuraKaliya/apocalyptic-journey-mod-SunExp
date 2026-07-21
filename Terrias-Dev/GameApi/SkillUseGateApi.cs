@@ -1,6 +1,6 @@
 using System;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public readonly struct SkillUseGateSnapshot
 {

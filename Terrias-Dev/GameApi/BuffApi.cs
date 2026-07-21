@@ -3,10 +3,10 @@ using System.Collections.Generic;
 using System.Linq;
 using AuraShared.Core;
 using AuraGameData.Shared.GameApi;
-using SunExp.Dll.Infrastructure;
-using SunExp.Dll.Mechanics;
+using Terrias.Dll.Infrastructure;
+using Terrias.Dll.Mechanics;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class BuffApi
 {
@@ -20,17 +20,17 @@ public static class BuffApi
         "origin_core_radiance",
         "cycle_gathered_flame",
         "afterglow_omen",
-        SunExpIds.SolarCrown,
-        SunExpIds.SolarCrownTier,
-        SunExpIds.StarStonePouch,
-        SunExpIds.MiracleClock,
-        SunExpIds.Starlight,
-        SunExpIds.StarBlessing,
-        SunExpIds.StarScore,
-        SunExpIds.Resonance,
-        SunExpIds.StarClayBody,
-        SunExpIds.StarClayDollTrait,
-        SunExpIds.PolymorphTraitBuffId
+        TerriasIds.SolarCrown,
+        TerriasIds.SolarCrownTier,
+        TerriasIds.StarStonePouch,
+        TerriasIds.MiracleClock,
+        TerriasIds.Starlight,
+        TerriasIds.StarBlessing,
+        TerriasIds.StarScore,
+        TerriasIds.Resonance,
+        TerriasIds.StarClayBody,
+        TerriasIds.StarClayDollTrait,
+        TerriasIds.PolymorphTraitBuffId
     };
 
     public static int Level(IStatusManager? status, string buffId)
@@ -130,7 +130,7 @@ public static class BuffApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Debug("[BuffApi] runtime presentation refresh skipped: " + ex.Message);
+            TerriasLog.Debug("[BuffApi] runtime presentation refresh skipped: " + ex.Message);
         }
 
         return true;
@@ -149,7 +149,7 @@ public static class BuffApi
             return false;
         }
 
-        if (!AuraFeatureSwitchRuntime.IsEnabled(SunExpIds.ModId, "Battle.StartTraitBuffs"))
+        if (!AuraFeatureSwitchRuntime.IsEnabled(TerriasIds.ModId, "Battle.StartTraitBuffs"))
         {
             return false;
         }
@@ -158,14 +158,14 @@ public static class BuffApi
             ? status.GetHashCode().ToString()
             : status.InstanceId;
         if (!AuraLifecycleOperationLedger.TryClaimBattleOperation(
-                SunExpIds.ModId,
+                TerriasIds.ModId,
                 featureId,
                 operationId,
                 targetId,
                 effectCategory,
                 buffId))
         {
-            SunExpLog.Debug("Skipped duplicate battle-scoped buff: feature="
+            TerriasLog.Debug("Skipped duplicate battle-scoped buff: feature="
                             + featureId
                             + ", operation="
                             + operationId
@@ -482,7 +482,7 @@ public static class BuffApi
 
         var level = Math.Max(0, nextLevel);
         var field = FieldApi.FieldIdFromBuffId(buffId);
-        if (field != SunExpFieldId.None)
+        if (field != TerriasFieldId.None)
         {
             FieldApi.SetSharedFieldState(field, level);
             RemoveFieldCarrierIfPresent(status, buffId, "BuffApi.SetExactLevel");
@@ -532,7 +532,7 @@ public static class BuffApi
                 return refreshed;
             }
 
-            SunExpLog.Warn("[BuffApi] native level refresh did not reach the requested level; buff="
+            TerriasLog.Warn("[BuffApi] native level refresh did not reach the requested level; buff="
                 + buffId
                 + ", requested="
                 + requested
@@ -560,7 +560,7 @@ public static class BuffApi
 
         var level = Math.Max(0, nextLevel);
         var field = FieldApi.FieldIdFromBuffId(buffId);
-        if (field != SunExpFieldId.None)
+        if (field != TerriasFieldId.None)
         {
             FieldApi.SetSharedFieldState(field, level);
             RemoveFieldCarrierIfPresent(status, buffId, "BuffApi.SetExactLevelKeepZero");
@@ -588,8 +588,8 @@ public static class BuffApi
             return 0;
         }
 
-        var ember = status.GetBuff(SunExpIds.Ember);
-        var burn = status.GetBuff(SunExpIds.Burn);
+        var ember = status.GetBuff(TerriasIds.Ember);
+        var burn = status.GetBuff(TerriasIds.Burn);
         var emberLevel = ember?.buffConfig?.Level ?? 0;
         var burnLevel = burn?.buffConfig?.Level ?? 0;
         var consumed = Math.Min(emberLevel, burnLevel);
@@ -599,8 +599,8 @@ public static class BuffApi
         }
 
         ExecutorApi.SetStatusForTarget(executor, status, "Self");
-        SetLevelOrRemove(executor, status, SunExpIds.Burn, burnLevel - consumed);
-        SetLevelOrRemove(executor, status, SunExpIds.Ember, emberLevel - consumed);
+        SetLevelOrRemove(executor, status, TerriasIds.Burn, burnLevel - consumed);
+        SetLevelOrRemove(executor, status, TerriasIds.Ember, emberLevel - consumed);
         if (emberLevel - consumed <= 0)
         {
             ClearEmberDamageBonus(executor, status);
@@ -611,7 +611,7 @@ public static class BuffApi
         }
 
         OnEmberConsumed(executor, status, consumed);
-        SunExpLog.Debug("Ember consumed before burn: target=" + status.InstanceId + ", count=" + consumed);
+        TerriasLog.Debug("Ember consumed before burn: target=" + status.InstanceId + ", count=" + consumed);
         return consumed;
     }
 
@@ -635,7 +635,7 @@ public static class BuffApi
     public static string EmberDamageBonusKey(IStatusManager? status)
     {
         var id = status?.InstanceId ?? "unknown";
-        return "SunExpEmberDamageBonus_" + id;
+        return "TerriasEmberDamageBonus_" + id;
     }
 
     public static int SyncEmberDamageBonus(ScriptExecutor? executor, IStatusManager? status)
@@ -646,7 +646,7 @@ public static class BuffApi
             return 0;
         }
 
-        var level = Math.Max(0, Level(status, SunExpIds.Ember));
+        var level = Math.Max(0, Level(status, TerriasIds.Ember));
         var key = EmberDamageBonusKey(status);
         var applied = ExecutorApi.CombatIntGet(key);
         var delta = level - applied;
@@ -737,7 +737,7 @@ public static class BuffApi
             return 0;
         }
 
-        var level = Math.Max(0, Math.Min(99, Level(status, SunExpIds.Ember)));
+        var level = Math.Max(0, Math.Min(99, Level(status, TerriasIds.Ember)));
         EmberAdventureStateService.CommitLocal(status, level, "BuffApi.SavePersistentEmber");
         return level;
     }
@@ -852,7 +852,7 @@ public static class BuffApi
             return true;
         }
 
-        const string prefix = "SunExp_sunexp_";
+        const string prefix = "Terrias_terrias_";
         var id = buffId ?? "";
         var normalized = id.StartsWith(prefix, StringComparison.Ordinal)
             ? id.Substring(prefix.Length)
@@ -891,7 +891,7 @@ public static class BuffApi
         }
 
         return string.IsNullOrWhiteSpace(careerId)
-            && PlayerApi.GetGameVar(SunExpIds.WunaActive, "0") == "1";
+            && PlayerApi.GetGameVar(TerriasIds.WunaActive, "0") == "1";
     }
 
     private static int ReadIntProperty(object target, string name)

@@ -1,9 +1,9 @@
 using System;
-using SunExp.Dll.Infrastructure;
+using Terrias.Dll.Infrastructure;
 using Witch;
 using Witch.Core;
 
-namespace SunExp.Dll.GameApi;
+namespace Terrias.Dll.GameApi;
 
 public static class DialogueApi
 {
@@ -21,7 +21,7 @@ public static class DialogueApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[DialogueApi] ShowDialogue failed for " + dialogueId + ": " + ex.Message);
+            TerriasLog.Warn("[DialogueApi] ShowDialogue failed for " + dialogueId + ": " + ex.Message);
             return false;
         }
     }
@@ -34,7 +34,7 @@ public static class DialogueApi
         }
         catch (Exception ex)
         {
-            SunExpLog.Warn("[DialogueApi] EndDialogue failed: " + ex.Message);
+            TerriasLog.Warn("[DialogueApi] EndDialogue failed: " + ex.Message);
         }
     }
 }
