@@ -93,6 +93,7 @@ tools\Build-TerriasDll.ps1
 tools\Test-TerriasArchitecture.ps1
 tools\Test-TerriasCSharp.ps1
 .\tools\Test-TerriasBranding.ps1
+.\tools\Test-TerriasResources.ps1
 .codex\skills\terrias-event-dev\scripts\validate-terrias-events.ps1 # when events or maps change
 tools\Build-TerriasVisualBundle.ps1 # when VisualAssets or VisualBundles change
 .codex\skills\terrias-mod-dev\scripts\validate-terrias.ps1
