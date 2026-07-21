@@ -795,6 +795,7 @@ $sharedRoots = @(
 
 $gameDataModels = Read-RepoText "AuraGameDataShared\AuraGameDataModels.cs"
 $gameDataCatalog = Read-RepoText "AuraGameDataShared\AuraGameDataCatalog.cs"
+$gameDataFieldPolicy = Read-RepoText "AuraGameDataShared\AuraGameDataFieldPolicy.cs"
 $gameDataApplication = Read-RepoText "AuraGameDataShared\Application\AuraGameInstanceServices.cs"
 $gameDataHost = Read-RepoText "AuraGameDataShared\GameApi\AuraGameDataHostApi.cs"
 foreach ($required in @("SchemaVersion = 5", "OwnerModId", "WriterId", "UserManual", "Registered", "Default", "Native", "StorageKind", "OwnerRules", "CatalogEpoch", "NativeReady", "IsComplete", "AwaitingNativeCapture")) {
@@ -810,6 +811,14 @@ foreach ($required in @("Capture", "PatchVars", "Materialize", "CloneWritable", 
     Require-Text $gameDataHost ([regex]::Escape($required)) "AuraGameDataShared Witch adapter is missing: $required"
 }
 Require-Text $gameDataCatalog "!snapshot\.Version\.NativeReady" "AuraGameDataShared must reject incomplete native generations at the atomic publish boundary."
+Require-Text $gameDataCatalog "AuraGameDataFieldPolicy\.IsScriptField" "AuraGameDataShared catalog must use the shared script-field policy."
+Require-Text $gameDataHost "AuraGameDataFieldPolicy\.IsIdentityOrScriptField" "AuraGameDataShared Witch adapter must use the shared identity/script-field policy."
+foreach ($required in @('LastIndexOf\("Script"', 'suffixStart', "fieldName\[index\] < '0'")) {
+    Require-Text $gameDataFieldPolicy $required "AuraGameDataShared field policy must recognize Script columns and numbered Script suffixes without matching Description."
+}
+if ($gameDataCatalog -match 'IndexOf\("Script"' -or $gameDataHost -match 'IndexOf\("Script"') {
+    throw "AuraGameDataShared must not classify fields by any Script substring because that blocks Description fields."
+}
 Require-Text $gameDataHost "if \(!request\.Source\.IsComplete" "AuraGameDataShared Witch adapter must not compile an unfinished cooperative capture."
 if ($gameDataHost -match "public void Invalidate\(\)[\s\S]{0,500}cached\s*=\s*null") {
     throw "AuraGameDataShared native invalidation must preserve the last-good capture while a replacement is built."

@@ -1136,9 +1136,7 @@ public static class AuraGameDataCatalogRuntime
 
     private static bool ContainsScriptField(IEnumerable<string> fields)
     {
-        return (fields ?? Array.Empty<string>()).Any(field =>
-            !string.IsNullOrWhiteSpace(field)
-            && field.IndexOf("Script", StringComparison.OrdinalIgnoreCase) >= 0);
+        return (fields ?? Array.Empty<string>()).Any(AuraGameDataFieldPolicy.IsScriptField);
     }
 
     private static AuraGameDataDefinition? Find(

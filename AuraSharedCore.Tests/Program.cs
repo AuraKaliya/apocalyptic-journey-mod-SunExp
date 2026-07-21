@@ -408,19 +408,43 @@ void TestGameDataCatalog()
         registered.Handle!.Revision);
     Assert(!foreignPatch.Success && foreignPatch.Conflict, "game data rejects foreign definition patch");
 
+    Assert(!AuraGameDataFieldPolicy.IsScriptField("Description")
+           && !AuraGameDataFieldPolicy.IsScriptField("Description_zh-Hant")
+           && !AuraGameDataFieldPolicy.IsScriptField("Description1")
+           && AuraGameDataFieldPolicy.IsScriptField("UseScript")
+           && AuraGameDataFieldPolicy.IsScriptField("ChoiceScript1"),
+        "game data distinguishes description fields from executable script columns");
+
+    var descriptionPatch = AuraGameDataCatalogRuntime.Patch(
+        "ModA",
+        new AuraGameDataKey("Card", "card_a"),
+        "ModA",
+        new AuraGameDataPatch { SetFields = new Dictionary<string, string> { ["Description"] = "Localized effect" } },
+        registered.Handle.Revision);
+    Assert(descriptionPatch.Success, "game data permits runtime description patch");
+
     var scriptPatch = AuraGameDataCatalogRuntime.Patch(
         "ModA",
         new AuraGameDataKey("Card", "card_a"),
         "ModA",
         new AuraGameDataPatch { SetFields = new Dictionary<string, string> { ["UseScript"] = "unsafe" } },
-        registered.Handle.Revision);
+        descriptionPatch.Handle!.Revision);
     Assert(!scriptPatch.Success && scriptPatch.Message.Contains("registration-time"), "game data blocks runtime script patch");
+
+    var numberedScriptPatch = AuraGameDataCatalogRuntime.Patch(
+        "ModA",
+        new AuraGameDataKey("Card", "card_a"),
+        "ModA",
+        new AuraGameDataPatch { SetFields = new Dictionary<string, string> { ["ChoiceScript1"] = "unsafe" } },
+        descriptionPatch.Handle.Revision);
+    Assert(!numberedScriptPatch.Success && numberedScriptPatch.Message.Contains("registration-time"),
+        "game data blocks numbered runtime script patch");
 
     var retired = AuraGameDataCatalogRuntime.Retire(
         "ModA",
         new AuraGameDataKey("Card", "card_a"),
         "ModA",
-        registered.Handle.Revision);
+        descriptionPatch.Handle.Revision);
     var history = AuraGameDataCatalogRuntime.QueryHistory(new AuraGameDataQuery { DataType = "Card" });
     Assert(retired.Success && history.Items.Count == 1 && history.Items[0].Retired,
         "game data keeps retired definitions in independent history view");

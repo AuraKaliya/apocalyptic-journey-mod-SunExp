@@ -208,7 +208,7 @@ public static class AuraGameDataHostApi
             .Select(value => value.Trim())
             .Distinct(StringComparer.Ordinal)
             .ToList();
-        var forbidden = fields.FirstOrDefault(IsIdentityOrScriptField);
+        var forbidden = fields.FirstOrDefault(AuraGameDataFieldPolicy.IsIdentityOrScriptField);
         if (!string.IsNullOrWhiteSpace(forbidden))
         {
             return AuraGameDataHostMutationResult.Fail("validate", "Runtime patch may not change field: " + forbidden);
@@ -266,7 +266,7 @@ public static class AuraGameDataHostApi
             return AuraGameDataHostMutationResult.Fail("type", "Unsupported DataType: " + snapshot.DataType);
         }
 
-        if ((request.DataOverrides?.Keys ?? Enumerable.Empty<string>()).Any(IsIdentityOrScriptField))
+        if ((request.DataOverrides?.Keys ?? Enumerable.Empty<string>()).Any(AuraGameDataFieldPolicy.IsIdentityOrScriptField))
         {
             return AuraGameDataHostMutationResult.Fail("validate", "Data overrides may not change identity or script fields.");
         }
@@ -320,7 +320,7 @@ public static class AuraGameDataHostApi
             : new Dictionary<string, string>(source.Vars, StringComparer.Ordinal);
         foreach (var pair in dataOverrides ?? new Dictionary<string, string>())
         {
-            if (!IsIdentityOrScriptField(pair.Key))
+            if (!AuraGameDataFieldPolicy.IsIdentityOrScriptField(pair.Key))
             {
                 data[pair.Key] = pair.Value ?? "";
             }
@@ -328,7 +328,7 @@ public static class AuraGameDataHostApi
 
         foreach (var pair in varsOverrides ?? new Dictionary<string, string>())
         {
-            if (!IsIdentityOrScriptField(pair.Key))
+            if (!AuraGameDataFieldPolicy.IsIdentityOrScriptField(pair.Key))
             {
                 vars[pair.Key] = pair.Value ?? "";
             }
@@ -472,15 +472,6 @@ public static class AuraGameDataHostApi
             OnCompleted = _ => CompileCapturedNativeCatalog(),
             OnCancelled = _ => CompileCapturedNativeCatalog()
         });
-    }
-
-    private static bool IsIdentityOrScriptField(string? field)
-    {
-        return string.IsNullOrWhiteSpace(field)
-            || string.Equals(field, "Id", StringComparison.Ordinal)
-            || string.Equals(field, "InstanceID", StringComparison.Ordinal)
-            || string.Equals(field, "RawData", StringComparison.Ordinal)
-            || (field ?? "").IndexOf("Script", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     internal static string TypeName(DataType dataType)
