@@ -57,20 +57,7 @@ public static class LoneerMiracleService
 
     public static bool IsActive()
     {
-        if (PolymorphStateStore.IsLocalRoleSuppressed(TerriasIds.LoneerCareerId))
-        {
-            return false;
-        }
-
-        var careerId = PlayerApi.GetCurrentCareerId();
-        if (!string.IsNullOrWhiteSpace(careerId)
-            && careerId.IndexOf(TerriasIds.LoneerCareerId, StringComparison.OrdinalIgnoreCase) >= 0)
-        {
-            return true;
-        }
-
-        return string.IsNullOrWhiteSpace(careerId)
-            && PlayerApi.GetGameVar(TerriasIds.LoneerActive, "0") == "1";
+        return PolymorphStateStore.IsLocalEffectiveCombatRole(TerriasIds.LoneerCareerId);
     }
 
     public static void OnFightStart(ScriptExecutor self)
@@ -876,7 +863,7 @@ public static class LoneerMiracleService
             return false;
         }
 
-        if (PolymorphStateStore.IsRoleSuppressedFor(owner, TerriasIds.LoneerCareerId))
+        if (!PolymorphStateStore.IsEffectiveCombatRoleFor(owner, TerriasIds.LoneerCareerId))
         {
             return false;
         }

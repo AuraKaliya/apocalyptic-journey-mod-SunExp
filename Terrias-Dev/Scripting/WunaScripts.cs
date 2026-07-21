@@ -15,8 +15,11 @@ public static class WunaScripts
         try
         {
             PlayerApi.SetGameVar(TerriasIds.WunaActive, "1");
-            PlayerApi.SetSkillTime(TerriasIds.WunaWhiteSunPrayerCardId, 0);
-            PlayerApi.SetSkillTime(GraveSongCardId, 0);
+            if (!PolymorphRuntimeService.IsRestoringOriginalCareerRuntime)
+            {
+                PlayerApi.SetSkillTime(TerriasIds.WunaWhiteSunPrayerCardId, 0);
+                PlayerApi.SetSkillTime(GraveSongCardId, 0);
+            }
             ExecutorApi.SetVar(self, "TerriasWunaRadianceDone", "0");
             ExecutorApi.SetVar(self, "TerriasWunaPrevEnemyBurn", "0");
             AttachOrbitFire(self, "InitCareer");
@@ -133,7 +136,7 @@ public static class WunaScripts
 
     private static void UseWhiteSunPrayer(ScriptExecutor self)
     {
-        if (!IsWunaRuntimeActive())
+        if (!IsWunaRuntimeActive(self))
         {
             PlayerApi.ShowCaption("\u767e\u53d8\uff1a\u4e4c\u5a1c\u6280\u80fd\u5df2\u88ab\u5f53\u524d\u5316\u8eab\u8986\u76d6\u3002");
             return;
@@ -166,7 +169,7 @@ public static class WunaScripts
 
     private static void UseGraveSong(ScriptExecutor self)
     {
-        if (!IsWunaRuntimeActive())
+        if (!IsWunaRuntimeActive(self))
         {
             PlayerApi.ShowCaption("\u767e\u53d8\uff1a\u4e4c\u5a1c\u6280\u80fd\u5df2\u88ab\u5f53\u524d\u5316\u8eab\u8986\u76d6\u3002");
             return;
@@ -193,6 +196,11 @@ public static class WunaScripts
         BuffApi.ClearEmberDamageBonus(self, self.Self);
         self.RemoveBuff(TerriasIds.Ember);
         BuffApi.OnEmberConsumed(self, self.Self, ember);
+        WunaPassiveService.ResolveEmberConsumed(
+            self,
+            self.Self,
+            ember,
+            "WunaScripts.GraveSong");
         PlayerApi.SetSkillTime(GraveSongCardId, 4);
         PolymorphCooldownService.MarkSkillUsed(self, "Wuna.GraveSong", GraveSongCardId);
         if (burn > 0)
@@ -207,7 +215,7 @@ public static class WunaScripts
 
     private static void StartRound(ScriptExecutor self)
     {
-        if (!IsWunaRuntimeActive())
+        if (!IsWunaRuntimeActive(self))
         {
             return;
         }
@@ -404,7 +412,7 @@ public static class WunaScripts
         var start = TerriasPerformanceCounters.Timestamp();
         try
         {
-            if (!IsWunaRuntimeActive())
+            if (!IsWunaRuntimeActive(self))
             {
                 return false;
             }
@@ -450,9 +458,9 @@ public static class WunaScripts
         return level;
     }
 
-    private static bool IsWunaRuntimeActive()
+    private static bool IsWunaRuntimeActive(ScriptExecutor self)
     {
-        return !PolymorphStateStore.IsLocalRoleSuppressed("wuna") && BuffApi.IsWunaActive();
+        return PolymorphStateStore.IsEffectiveCombatRoleFor(self?.Self, "wuna");
     }
 
     private static void AttachOrbitFire(ScriptExecutor self, string source, string action = "")

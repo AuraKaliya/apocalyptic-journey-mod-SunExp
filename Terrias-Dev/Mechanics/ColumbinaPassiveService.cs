@@ -7,7 +7,7 @@ public static class ColumbinaPassiveService
     public static bool IsActive(IStatusManager? status)
     {
         return status != null
-            && !PolymorphStateStore.IsRoleSuppressedFor(status, "columbina")
-            && ConstellationPoolCatalog.IsColumbina(StatusApi.RoleId(status));
+            && ConstellationPoolCatalog.IsColumbina(
+                PolymorphStateStore.EffectiveCombatRoleIdFor(status));
     }
 }

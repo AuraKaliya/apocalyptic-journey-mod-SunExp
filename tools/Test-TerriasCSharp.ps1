@@ -1926,6 +1926,7 @@ function Invoke-SourceAssertions {
     $bossScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Scripting\BossScripts.cs"))
     $entry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Entry.cs"))
     $wunaScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Scripting\WunaScripts.cs"))
+    $wunaPassiveService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\WunaPassiveService.cs"))
     $emberAdventureStateService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\EmberAdventureStateService.cs"))
     $emberAdventureStateRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\EmberAdventureStateRuntime.cs"))
     $rpcEmberAdventureStateCommit = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Network\RpcEmberAdventureStateCommit.cs"))
@@ -2370,7 +2371,10 @@ function Invoke-SourceAssertions {
     Assert-True $rpcEmberAdventureStateCommit.Contains("owner mismatch") "Persistent Ember RPC must reject payload owner ids that do not match the bound sender."
     $savePersistentEmberBlock = [regex]::Match($buffApi, "public\s+static\s+int\s+SavePersistentEmber[\s\S]*?private\s+static\s+IEnumerable")
     Assert-True ($savePersistentEmberBlock.Success -and -not $savePersistentEmberBlock.Value.Contains("IsWunaActive()")) "BuffApi.SavePersistentEmber must not be gated by Wuna activation."
-    Assert-True ([regex]::IsMatch($buffApi, "SavePersistentEmber\(executor,\s*status\);\s*if\s*\(!IsWunaActive\(\)\)")) "Ember consumption must persist generic state before applying Wuna-only passive rewards."
+    $emberConsumedBlock = [regex]::Match($buffApi, "public\s+static\s+int\s+OnEmberConsumed[\s\S]*?public\s+static\s+int\s+SavePersistentEmber")
+    Assert-True ($emberConsumedBlock.Success -and $emberConsumedBlock.Value.Contains("SavePersistentEmber(executor, status);") -and -not $emberConsumedBlock.Value.Contains("ChangeMaxHp")) "BuffApi Ember consumption must persist and publish the generic Buff event without applying Wuna career rewards."
+    Assert-True ($wunaPassiveService.Contains('PolymorphStateStore.IsEffectiveCombatRoleFor(status, "wuna")') -and $wunaPassiveService.Contains("executor.ChangeMaxHp(consumed.ToString());")) "Wuna-only Ember rewards must live in Mechanics and follow the effective combat form."
+    Assert-True ($buffScripts.Contains("WunaPassiveService.ResolveEmberConsumed") -and $wunaScripts.Contains("WunaPassiveService.ResolveEmberConsumed")) "Both Buff-driven and skill-driven Ember consumption must route Wuna career rewards through the separated passive service."
     Assert-True $buffApi.Contains("return string.IsNullOrWhiteSpace(careerId)") "Wuna active fallback must not override an explicit non-Wuna career."
     Assert-True (-not [regex]::IsMatch($buffApi + $wunaScripts, "SetGameVar\s*\(\s*TerriasIds\.WunaPersistentEmber")) "Persistent Ember must not write to the legacy unscoped GameVar."
     Assert-True $cardScripts.Contains('["draw_flame"] = InitDrawFlame') "draw_flame must be registered for initialization."
@@ -2732,8 +2736,10 @@ function Invoke-SourceAssertions {
     Assert-True $roleSkillApi.Contains('value.Replace("*", "")') "RoleSkillApi must normalize starred official skill ids before cooldown sync."
     Assert-True $roleSkillApi.Contains("SetCurrentCareerSkillTimes") "RoleSkillApi must expose unified current-role skill cooldown writes for polymorph."
     Assert-True $polymorphStateStore.Contains("public static bool IsLocalRoleSuppressed") "Polymorph state must expose role suppression for old passive guards."
-    Assert-True $loneerService.Contains("PolymorphStateStore.IsLocalRoleSuppressed") "Loneer passive and skill entries must respect active polymorph suppression."
-    Assert-True $wunaScripts.Contains("IsWunaRuntimeActive") "Wuna passive and skill entries must respect active polymorph suppression."
+    Assert-True ($polymorphStateStore.Contains("public static string EffectiveCombatRoleIdFor") -and $polymorphStateStore.Contains("active.RoleId") -and $polymorphStateStore.Contains("PlayerApi.GetCurrentCareerId()")) "Polymorph state must expose one effective combat-role identity that prefers the temporary form over the immutable adventure role."
+    Assert-True ($polymorphRuntimeService.Contains("public static bool IsRestoringOriginalCareerRuntime") -and $polymorphRuntimeService.Contains("restoreRuntimeOnly: true") -and $wunaScripts.Contains("if (!PolymorphRuntimeService.IsRestoringOriginalCareerRuntime)")) "Restoring original Wuna runtime must reattach hooks without rerunning first-entry skill cooldown initialization."
+    Assert-True ($loneerService.Contains("PolymorphStateStore.IsLocalEffectiveCombatRole") -and $loneerService.Contains("PolymorphStateStore.IsEffectiveCombatRoleFor")) "Loneer passive and skill entries must follow the unified effective combat-role identity."
+    Assert-True ($wunaScripts.Contains("IsWunaRuntimeActive") -and $wunaScripts.Contains('PolymorphStateStore.IsEffectiveCombatRoleFor(self?.Self, "wuna")')) "Wuna passive and skill entries must follow the same effective combat-role identity."
     Assert-True $cardScripts.Contains("[TerriasIds.ProjectionCardShortId] = UseProjection") "CardScripts must route the projection selection card."
     Assert-True $cardScripts.Contains("[TerriasIds.ProjectionRoleTemplateShortId] = UseProjectionRoleCard") "CardScripts must route generated projection role cards."
     Assert-True $runtimeHooks.Contains("ProjectionRuntime.Initialize(modConfig)") "RuntimeHooks must initialize projection combat hooks."

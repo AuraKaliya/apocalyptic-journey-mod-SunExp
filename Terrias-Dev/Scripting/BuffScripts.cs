@@ -404,7 +404,12 @@ public static class BuffScripts
         ExecutorApi.TryAddTokenedEvent(executor, "emberOnLevelChange", "TerriasEmberToken", token, new Action(Sync), "ember");
         ExecutorApi.TryAddTokenedEvent(executor, "StartRound", "TerriasEmberToken", token, new Action(() =>
         {
-            BuffApi.ConsumeEmberBeforeBurn(executor, executor.Self);
+            var consumed = BuffApi.ConsumeEmberBeforeBurn(executor, executor.Self);
+            WunaPassiveService.ResolveEmberConsumed(
+                executor,
+                executor.Self,
+                consumed,
+                "BuffScripts.Ember.StartRound");
         }), "ember");
     }
 

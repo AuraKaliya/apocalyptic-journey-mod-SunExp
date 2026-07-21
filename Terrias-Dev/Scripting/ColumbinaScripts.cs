@@ -29,7 +29,8 @@ public static class ColumbinaScripts
     {
         try
         {
-            if (!ConstellationPoolCatalog.IsColumbina(PlayerApi.GetCurrentCareerId()))
+            if (self == null
+                || !PolymorphStateStore.IsEffectiveCombatRoleFor(self.Self, "columbina"))
             {
                 PlayerApi.ShowCaption("当前化身无法使用哥伦比娅的技能。");
                 return;

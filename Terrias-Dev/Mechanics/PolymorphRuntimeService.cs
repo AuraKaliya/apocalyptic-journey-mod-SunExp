@@ -26,6 +26,11 @@ public static class PolymorphRuntimeService
     private static readonly object SyncRoot = new();
     private static readonly Dictionary<string, PolymorphRuntimeAttachment> Attachments = new(StringComparer.Ordinal);
 
+    [ThreadStatic]
+    private static bool restoringOriginalCareerRuntime;
+
+    public static bool IsRestoringOriginalCareerRuntime => restoringOriginalCareerRuntime;
+
     public static bool Enter(ScriptExecutor self, PolymorphRoleSpec role, PolymorphState state)
     {
         if (self?.Self == null || role == null || state == null)
@@ -118,7 +123,11 @@ public static class PolymorphRuntimeService
             return false;
         }
 
-        var executor = TryRunCareerScript(owner, state.OriginalCareer, state.OriginalCareerId);
+        var executor = TryRunCareerScript(
+            owner,
+            state.OriginalCareer,
+            state.OriginalCareerId,
+            restoreRuntimeOnly: true);
         if (executor == null)
         {
             return false;
@@ -168,8 +177,13 @@ public static class PolymorphRuntimeService
         return TryRunCareerScript(self.Self, RoleTable.Instance?.Career, role.Id);
     }
 
-    private static ScriptExecutor? TryRunCareerScript(IStatusManager? owner, DataConfig? career, string roleId)
+    private static ScriptExecutor? TryRunCareerScript(
+        IStatusManager? owner,
+        DataConfig? career,
+        string roleId,
+        bool restoreRuntimeOnly = false)
     {
+        var previousRestoreState = restoringOriginalCareerRuntime;
         try
         {
             var executor = career?.scriptExecutor;
@@ -182,6 +196,7 @@ public static class PolymorphRuntimeService
             executor.Self = owner;
             executor.Object.Clear();
             executor.Object.Add(owner);
+            restoringOriginalCareerRuntime = restoreRuntimeOnly;
             executor.RunScript("SkillScript");
             TerriasLog.Info("[Polymorph] career script ran for role: " + roleId);
             return executor as ScriptExecutor;
@@ -190,6 +205,10 @@ public static class PolymorphRuntimeService
         {
             TerriasLog.Warn("[Polymorph] career script failed for " + roleId + ": " + ex.Message);
             return null;
+        }
+        finally
+        {
+            restoringOriginalCareerRuntime = previousRestoreState;
         }
     }
 

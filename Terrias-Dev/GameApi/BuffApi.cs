@@ -757,18 +757,7 @@ public static class BuffApi
         }
 
         SavePersistentEmber(executor, status);
-        if (!IsWunaActive())
-        {
-            EmberConsumed?.Invoke(executor, status, consumed);
-            return consumed;
-        }
-
         EmberConsumed?.Invoke(executor, status, consumed);
-        var maxHp = ReadIntProperty(status, "MaxHp");
-        var heal = Math.Max(1, maxHp * consumed / 100);
-        executor.SetStatus("Self");
-        executor.ChangeHp(heal.ToString());
-        executor.ChangeMaxHp(consumed.ToString());
         return consumed;
     }
 

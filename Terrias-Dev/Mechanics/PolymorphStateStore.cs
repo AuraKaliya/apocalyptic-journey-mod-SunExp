@@ -69,6 +69,44 @@ public static class PolymorphStateStore
         return active != null && !RoleMatches(active.RoleId, roleId);
     }
 
+    public static string EffectiveCombatRoleIdFor(IStatusManager? ownerStatus)
+    {
+        if (ownerStatus == null)
+        {
+            return "";
+        }
+
+        var active = ActiveFor(ownerStatus);
+        if (active != null && !string.IsNullOrWhiteSpace(active.RoleId))
+        {
+            return active.RoleId;
+        }
+
+        var local = FightPlayer.Instance?.Status;
+        if (local != null
+            && (ReferenceEquals(ownerStatus, local)
+                || string.Equals(ownerStatus.InstanceId, local.InstanceId, StringComparison.Ordinal)))
+        {
+            var currentCareerId = PlayerApi.GetCurrentCareerId();
+            if (!string.IsNullOrWhiteSpace(currentCareerId))
+            {
+                return currentCareerId;
+            }
+        }
+
+        return StatusApi.RoleId(ownerStatus);
+    }
+
+    public static bool IsEffectiveCombatRoleFor(IStatusManager? ownerStatus, string roleId)
+    {
+        return ownerStatus != null && RoleMatches(EffectiveCombatRoleIdFor(ownerStatus), roleId);
+    }
+
+    public static bool IsLocalEffectiveCombatRole(string roleId)
+    {
+        return IsEffectiveCombatRoleFor(FightPlayer.Instance?.Status, roleId);
+    }
+
     public static PolymorphState? ActiveFor(IStatusManager? ownerStatus)
     {
         var owner = OwnerKey(ownerStatus);

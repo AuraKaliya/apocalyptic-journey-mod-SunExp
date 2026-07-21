@@ -147,11 +147,12 @@ Assert-True ($columbinaMechanics.Contains('BuffApi.Level(actor, TerriasIds.Gravi
 Assert-True (-not $columbinaMechanics.Contains('ColumbinaPassiveService.IsActive(actor)')) "Gravity Ripple must remain active while its owner is Polymorphed away from Columbina."
 
 $passiveService = [System.IO.File]::ReadAllText((Join-Path $repoRoot "Terrias-Dev\Mechanics\ColumbinaPassiveService.cs"))
-Assert-True ($passiveService.Contains('StatusApi.RoleId(status)')) "Columbina passive identity must resolve from the triggering status."
-Assert-True ($passiveService.Contains('PolymorphStateStore.IsRoleSuppressedFor')) "Columbina passive identity must respect Polymorph suppression."
+Assert-True ($passiveService.Contains('PolymorphStateStore.EffectiveCombatRoleIdFor(status)')) "Columbina passive identity must resolve from the effective Polymorph combat form."
+Assert-True (-not $passiveService.Contains('StatusApi.RoleId(status)')) "Columbina passive identity must not remain bound to the immutable adventure-role father object during Polymorph."
 
 $columbinaScripts = [System.IO.File]::ReadAllText((Join-Path $repoRoot "Terrias-Dev\Scripting\ColumbinaScripts.cs"))
 Assert-True (-not $columbinaScripts.Contains('NewMoonLaw')) "Columbina career initialization must not add a New Moon Law Buff."
+Assert-True ($columbinaScripts.Contains('PolymorphStateStore.IsEffectiveCombatRoleFor(self.Self, "columbina")')) "Columbina active skills must use the same effective combat-form identity as her passive."
 Assert-True ($columbinaScripts.Contains('AudioApi.PlayColumbinaEternalTide();')) "Eternal Tide must play its voice after a successful cooldown check."
 Assert-True ($columbinaScripts.Contains('AudioApi.PlayColumbinaHomesickness();')) "Homesickness must play its voice after a successful cooldown check."
 
