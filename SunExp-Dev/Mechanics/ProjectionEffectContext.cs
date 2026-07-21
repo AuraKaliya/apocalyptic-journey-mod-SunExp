@@ -59,6 +59,7 @@ public static class ProjectionModifierPolicyRegistry
 {
     private static readonly HashSet<string> ExplicitConsumableBuffs = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, bool> AutoConsumableCache = new(StringComparer.Ordinal);
+    private static long autoConsumableCacheEpoch = -1;
 
     public static void RegisterConsumable(string buffId)
     {
@@ -100,13 +101,23 @@ public static class ProjectionModifierPolicyRegistry
             return false;
         }
 
-        if (AutoConsumableCache.TryGetValue(buffId, out var cached))
+        var snapshot = AuraGameDataHostApi.AcquireSnapshot();
+        if (snapshot.Version.NativeReady && autoConsumableCacheEpoch != snapshot.Version.Epoch)
+        {
+            AutoConsumableCache.Clear();
+            autoConsumableCacheEpoch = snapshot.Version.Epoch;
+        }
+
+        if (snapshot.Version.NativeReady && AutoConsumableCache.TryGetValue(buffId, out var cached))
         {
             return cached;
         }
 
         var resolved = LooksConsumable(ConfigData(buffId));
-        AutoConsumableCache[buffId] = resolved;
+        if (snapshot.Version.NativeReady)
+        {
+            AutoConsumableCache[buffId] = resolved;
+        }
         return resolved;
     }
 
@@ -132,7 +143,7 @@ public static class ProjectionModifierPolicyRegistry
     {
         try
         {
-            return string.IsNullOrWhiteSpace(buffId) ? null : AuraGameDataHostApi.Row(DataType.Buff, buffId);
+            return string.IsNullOrWhiteSpace(buffId) ? null : AuraGameDataHostApi.CopyRow(DataType.Buff, buffId);
         }
         catch
         {

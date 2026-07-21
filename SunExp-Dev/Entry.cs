@@ -77,10 +77,10 @@ public static class Entry
 
     private static void RegisterSharedGameData()
     {
-        var result = AuraGameDataHostApi.RegisterLoadedDefinitionsV4("SunExp", "SunExp_");
+        var result = AuraGameDataHostApi.RegisterNativeOwnershipV5("SunExp", "SunExp_");
         if (!result.Success)
         {
-            throw new InvalidOperationException("SunExp v4 game-data registration failed: " + result.Message);
+            throw new InvalidOperationException("SunExp v5 game-data ownership registration failed: " + result.Message);
         }
     }
 

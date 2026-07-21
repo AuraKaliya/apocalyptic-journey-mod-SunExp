@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
+using AuraGameData.Shared;
 using AuraGameData.Shared.GameApi;
 using SunExp.Dll.Infrastructure;
 using Witch.Core;
@@ -155,23 +157,31 @@ public static class FieldEffectRegistry
     };
     private static readonly object Sync = new();
     private static volatile Dictionary<SunExpFieldId, FieldEffectRuntimeSpec> RuntimeSpecs = BuildFallbackSpecs();
+    private static bool catalogListenerRegistered;
+    private static long runtimeSpecsEpoch = -1;
 
     public static IReadOnlyCollection<FieldEffectDefinition> Definitions => ByField.Values;
 
+    public static event Action? Changed;
+
     public static void WarmupConfigCache(string source)
+    {
+        EnsureCatalogListener();
+        RefreshConfigCache(AuraGameDataHostApi.AcquireSnapshot(), source);
+    }
+
+    private static void EnsureCatalogListener()
     {
         lock (Sync)
         {
-            var specs = new Dictionary<SunExpFieldId, FieldEffectRuntimeSpec>();
-            foreach (var definition in ByField.Values)
+            if (catalogListenerRegistered)
             {
-                specs[definition.Field] = BuildRuntimeSpec(definition, source);
+                return;
             }
 
-            RuntimeSpecs = specs;
+            AuraGameDataCatalogRuntime.SnapshotChanged += OnCatalogSnapshotChanged;
+            catalogListenerRegistered = true;
         }
-
-        SunExpLog.Debug("[FieldEffectRegistry] warmed field config cache from " + (source ?? ""));
     }
 
     public static bool TryGet(SunExpFieldId field, out FieldEffectDefinition definition)
@@ -286,18 +296,90 @@ public static class FieldEffectRegistry
         return specs;
     }
 
-    private static FieldEffectRuntimeSpec BuildRuntimeSpec(FieldEffectDefinition definition, string source)
+    private static void OnCatalogSnapshotChanged(AuraGameDataCatalogVersion version)
+    {
+        RefreshConfigCache(AuraGameDataHostApi.AcquireSnapshot(), "AuraGameData.SnapshotChanged:" + version.Epoch);
+    }
+
+    private static void RefreshConfigCache(AuraGameDataCatalogSnapshot snapshot, string source)
+    {
+        if (snapshot == null || !snapshot.Version.NativeReady)
+        {
+            SunExpLog.Debug("[FieldEffectRegistry] deferred field config cache until native catalog is ready: "
+                + (source ?? ""));
+            return;
+        }
+
+        Dictionary<SunExpFieldId, FieldEffectRuntimeSpec> next;
+        var resolvedCount = 0;
+        lock (Sync)
+        {
+            if (runtimeSpecsEpoch == snapshot.Version.Epoch)
+            {
+                return;
+            }
+
+            var previous = RuntimeSpecs;
+            next = new Dictionary<SunExpFieldId, FieldEffectRuntimeSpec>();
+            foreach (var definition in ByField.Values)
+            {
+                if (TryBuildRuntimeSpec(snapshot, definition, source, out var resolved))
+                {
+                    next[definition.Field] = resolved;
+                    resolvedCount++;
+                }
+                else if (runtimeSpecsEpoch >= 0 && previous.TryGetValue(definition.Field, out var lastGood))
+                {
+                    next[definition.Field] = lastGood;
+                }
+                else
+                {
+                    next[definition.Field] = new FieldEffectRuntimeSpec(
+                        definition,
+                        definition.FallbackMaxStacks,
+                        definition.BuffId,
+                        "");
+                }
+            }
+
+            if (resolvedCount == 0)
+            {
+                SunExpLog.WarnOnce("FieldEffectRegistry.ReadySnapshotMissingBuffs",
+                    "[FieldEffectRegistry] ready game-data snapshot contained none of the registered field Buff rows; keeping the last-good cache.");
+                return;
+            }
+
+            RuntimeSpecs = next;
+            runtimeSpecsEpoch = snapshot.Version.Epoch;
+        }
+
+        SunExpLog.Debug("[FieldEffectRegistry] warmed field config cache from "
+            + (source ?? "")
+            + "; epoch="
+            + snapshot.Version.Epoch
+            + "; resolved="
+            + resolvedCount);
+        Changed?.Invoke();
+    }
+
+    private static bool TryBuildRuntimeSpec(
+        AuraGameDataCatalogSnapshot snapshot,
+        FieldEffectDefinition definition,
+        string source,
+        out FieldEffectRuntimeSpec spec)
     {
         var maxStacks = definition.FallbackMaxStacks;
         var displayName = definition.BuffId;
         var description = "";
         try
         {
-            var data = AuraGameDataHostApi.Row(DataType.Buff, definition.BuffId);
-            if (data == null)
+            if (!snapshot.TryGet(DataType.Buff.ToString(), definition.BuffId, out var resolved)
+                || resolved == null)
             {
                 throw new InvalidOperationException("Buff definition is unavailable: " + definition.BuffId);
             }
+
+            var data = resolved.Fields.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
             maxStacks = Math.Max(1, DictionaryUtil.ParseInt(DictionaryUtil.Get(data, "UpperBound"), definition.FallbackMaxStacks));
             displayName = data.Localize("Name");
             description = data.Localize("Description");
@@ -307,6 +389,8 @@ public static class FieldEffectRegistry
             }
 
             description = description.Description();
+            spec = new FieldEffectRuntimeSpec(definition, maxStacks, displayName, description);
+            return true;
         }
         catch (Exception ex)
         {
@@ -316,8 +400,8 @@ public static class FieldEffectRegistry
                 + (source ?? "")
                 + ", error="
                 + ex.Message);
+            spec = new FieldEffectRuntimeSpec(definition, maxStacks, displayName, description);
+            return false;
         }
-
-        return new FieldEffectRuntimeSpec(definition, maxStacks, displayName, description);
     }
 }

@@ -721,7 +721,7 @@ public static class SanGuoShaCardScripts
         try
         {
             var manager = Singleton<GameConfigManager>.Instance;
-            var rows = AuraGameDataHostApi.Rows(DataType.Card);
+            var rows = AuraGameDataHostApi.CopyTableForHostInterop(DataType.Card);
             if (rows == null || rows.Count == 0)
             {
                 return new List<DataConfig>();

@@ -17,7 +17,7 @@ public static class SunExpConfigIndex
         var start = SunExpPerformanceCounters.Timestamp();
         try
         {
-            return AuraGameDataHostApi.Rows(type);
+            return AuraGameDataHostApi.CopyTableForHostInterop(type);
         }
         catch (Exception ex)
         {
@@ -41,7 +41,8 @@ public static class SunExpConfigIndex
         try
         {
             var normalized = id.Trim();
-            return AuraGameDataHostApi.Row(type, normalized, AlternateSunExpId(normalized));
+            var resolved = AuraGameDataHostApi.Resolve(type, normalized, AlternateSunExpId(normalized));
+            return resolved?.Fields.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
         }
         finally
         {
@@ -59,9 +60,9 @@ public static class SunExpConfigIndex
             return new List<Dictionary<string, string>>();
         }
 
-        var snapshot = AuraGameDataHostApi.Query(type);
+        var snapshot = AuraGameDataHostApi.AcquireSnapshot();
         var cacheKey = type + "\u001f" + key;
-        if (FilterCaches.TryGetValue(cacheKey, out var cached) && cached.Revision == snapshot.Revision)
+        if (FilterCaches.TryGetValue(cacheKey, out var cached) && cached.Revision == snapshot.Version.Epoch)
         {
             return cached.Rows.Select(Clone).ToList();
         }
@@ -69,11 +70,11 @@ public static class SunExpConfigIndex
         var start = SunExpPerformanceCounters.Timestamp();
         try
         {
-            var filtered = snapshot.Items
+            var filtered = snapshot.GetTable(type.ToString())
                 .Select(item => item.Fields.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal))
                 .Where(predicate)
                 .ToList();
-            FilterCaches[cacheKey] = new FilterCache(snapshot.Revision, filtered);
+            FilterCaches[cacheKey] = new FilterCache(snapshot.Version.Epoch, filtered);
             return filtered.Select(Clone).ToList();
         }
         finally

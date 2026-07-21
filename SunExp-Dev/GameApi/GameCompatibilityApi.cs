@@ -158,7 +158,7 @@ public static class GameCompatibilityApi
     {
         var result = new List<Dictionary<string, string>>();
         var targetPackId = string.IsNullOrWhiteSpace(packId) ? "cardpack_1" : packId.Trim();
-        foreach (var item in AuraGameDataHostApi.Rows(type))
+        foreach (var item in AuraGameDataHostApi.CopyTableForHostInterop(type))
         {
             if (item == null)
             {

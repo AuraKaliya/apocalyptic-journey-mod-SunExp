@@ -99,8 +99,20 @@ public static class SkinPackageInstaller
             result.Success = registered.Success && registered.Items.All(item => item.Success);
             result.Changed = registered.Items.Any(item => item.Changed)
                              || registered.ChangedScopeKeys.Count > 0;
+            result.Activated = registered.Activated;
+            result.CatalogChanged = registered.CatalogChanged;
+            result.Message = registered.Message;
+            result.ExpectedResources = preparedResources.Count;
+            result.ProcessedResources = registered.Items.Count;
             foreach (var item in registered.Items)
             {
+                if (!item.Success)
+                {
+                    result.Conflicts++;
+                    SkinLog.Error("Shared skin registration rejected for " + item.ResourceId + ": " + item.Message);
+                    continue;
+                }
+
                 switch (item.Status)
                 {
                     case AuraSharedRegistrationStatuses.Installed:
@@ -110,6 +122,7 @@ public static class SkinPackageInstaller
                         result.Updated++;
                         break;
                     case "Repaired":
+                    case "Relocated":
                         result.Repaired++;
                         break;
                     case AuraSharedRegistrationStatuses.Invalid:
@@ -118,10 +131,19 @@ public static class SkinPackageInstaller
                         result.Conflicts++;
                         SkinLog.Error("Shared skin registration rejected for " + item.ResourceId + ": " + item.Message);
                         break;
-                    default:
+                    case AuraSharedRegistrationStatuses.Deduplicated:
                         result.Deduplicated++;
                         break;
+                    default:
+                        result.Conflicts++;
+                        SkinLog.Error("Shared skin registration returned an unknown status for "
+                                      + item.ResourceId + ": " + item.Status + " " + item.Message);
+                        break;
                 }
+            }
+            if (result.Conflicts > 0)
+            {
+                result.Success = false;
             }
 
             SkinLog.Info("Skin package " + package.PackageId
@@ -131,7 +153,20 @@ public static class SkinPackageInstaller
                          + " updated=" + result.Updated
                          + " repaired=" + result.Repaired
                          + " deduplicated=" + result.Deduplicated
-                         + " conflicts=" + result.Conflicts);
+                         + " conflicts=" + result.Conflicts
+                         + " expected=" + result.ExpectedResources
+                         + " processed=" + result.ProcessedResources
+                         + " activated=" + result.Activated
+                         + " catalogChanged=" + result.CatalogChanged);
+            if (!result.Success)
+            {
+                SkinLog.Error("Skin package registration failed: package=" + package.PackageId
+                              + ", owner=" + owner
+                              + ", failureCode=" + registered.FailureCode
+                              + ", failedPathLength=" + registered.FailedPathLength
+                              + ", failedPath=" + registered.FailedPath
+                              + ", message=" + registered.Message);
+            }
         }
         catch (Exception ex)
         {

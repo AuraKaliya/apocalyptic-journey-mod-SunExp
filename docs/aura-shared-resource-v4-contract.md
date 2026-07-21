@@ -1,20 +1,32 @@
 # AuraShared resource protocol v4
 
-AuraShared v4 is a breaking, registration-only protocol. Runtime protocol 5 is
+AuraShared v4 is a breaking, registration-only protocol. Runtime protocol 6 is
 required; v3 manifests, legacy paths, unregistered files, and earlier user
 configuration are not imported or resolved.
 
-## Canonical hierarchy
+## Logical and physical hierarchy
 
-Every resource, including a user-created resource, uses this hierarchy from the
-`AuraShared` root:
+Every resource, including a user-created resource, has this stable logical
+identity and public request path:
 
 `moduleId/scopeType/canonicalScopeId/featureId/ownerModId/resourceId/content`
 
-Each level owns a JSON document (`aura.shared.json`, `aura.module.json`,
+When that readable resource directory is too long for the portable Windows path
+budget, Core stores the payload and resource-local metadata under the
+deterministic physical path `moduleId/_Store/<hash-prefix>/<identity-hash>`.
+Catalog entries expose the resolved physical path, while `Resolve` continues to
+accept the full logical path. Logical identity, ownership, selection, and
+network contracts never use the hash.
+
+Each logical level owns a JSON document (`aura.shared.json`, `aura.module.json`,
 `aura.scope-type.json`, `aura.scope.json`, `aura.feature.json`,
 `aura.provider.json`, `aura.resource.json`). Configuration is read on demand.
 Redundant documents and payloads may remain when a MOD is inactive.
+
+Core validates final payload, metadata, staging, backup, journal, and atomic
+temporary paths against a 259-character portable budget before activation.
+Atomic temporary and rollback files use short sibling names; backups use a
+bounded hashed archive key rather than repeating the complete logical path.
 
 ## Required registration
 
@@ -22,6 +34,10 @@ Package manifests use `schemaVersion: 4`. Each declaration explicitly provides
 the canonical scope, `scopeOwnerModId`, optional `scopeAliases`, `originKind`,
 `writerId`, and `defaultEnabled`. Package registration is atomic: an invalid,
 conflicting, or unavailable declaration prevents activation of the package.
+Registration results separately report activation, content changes, catalog
+changes, expected/processed item counts, and structured path failures. A failed
+registration restores the previous in-memory active catalog and never creates a
+current-session lease.
 
 Valid origins are `ContentRegistered`, `ToolRegistered`, `ToolDefault`,
 `FoundationDefault`, and `UserManual`. Package resources are read-only seeds.

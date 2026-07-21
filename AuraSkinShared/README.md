@@ -8,12 +8,16 @@
 - The first consumer creates the persistent `AuraSkin.Global` component; later consumers use its reflected protocol.
 - Mod resources under `SharedResources/Skins` are installation sources only.
 - The runtime enumerates only skin packages registered in the current session.
-- Canonical payloads use `Skin/Role/<careerId>/Skin/<owner>/<skinId>/content`;
+- Logical skin paths use `Skin/Role/<careerId>/Skin/<owner>/<skinId>/content`.
+  Long identities are stored physically under `Skin/_Store/<prefix>/<hash>/content`
+  and remain resolvable through the logical path;
   registered v2 `Skins/<careerId>/<skinId>` paths remain readable as aliases.
 
 ## Persistent data
 
-- Installed skins: `ModsData/AuraShared/Skin/Role/<careerId>/Skin/<owner>/<skinId>/content`
+- Installed skins: the readable logical hierarchy above, or the compact
+  `ModsData/AuraShared/Skin/_Store/<prefix>/<hash>/content` hierarchy when the
+  logical resource directory exceeds the portable path budget
 - Owner package registry: `ModsData/AuraShared/_Registry/V4/Owners/<owner>/<packageId>.json`
 - Active leases: `ModsData/AuraShared/_Runtime/Leases/<session>/<owner>/<packageId>.json`
 - Selections: `ModsData/AuraShared/Config/Shared/Skin/selections.json`
@@ -40,3 +44,8 @@ or temporarily missing MOD ids in JSON. With no tool override, all content-owned
 Repeated registration of one package is idempotent. A second active package from the same owner cannot claim an existing
 qualified resource identity. Equal content hashes may share physical package storage, but their owner registrations remain
 independent.
+
+Registration always refreshes the skin catalog after a package is successfully
+activated, including a deduplicated package on a new process session. Failures
+log expected and processed resource counts plus the structured Core failure,
+path, and path length instead of reporting an unexplained rejection.

@@ -15,7 +15,8 @@ public static class AuraToolsFeastManualResourceStore
     public static string RoleDirectory(string roleId)
     {
         var normalized = RoleCatalog.NormalizeRoleId(roleId);
-        var resourcePath = AuraSharedResourcePathPolicy.ResourcePath(
+        var resourcePath = AuraSharedResourcePathPolicy.StorageResourcePath(
+            AuraToolsConfigService.DataRootDirectory,
             ManualScope(normalized),
             AuraToolsIds.ModId,
             ManualDeclaration(normalized, LocalManualId));
@@ -112,7 +113,8 @@ public static class AuraToolsFeastManualResourceStore
 
     private static string ManualResourcePath(string roleId, string manualId)
     {
-        return AuraSharedResourcePathPolicy.ResourcePath(
+        return AuraSharedResourcePathPolicy.StorageResourcePath(
+            AuraToolsConfigService.DataRootDirectory,
             ManualScope(roleId),
             AuraToolsIds.ModId,
             ManualDeclaration(roleId, manualId));

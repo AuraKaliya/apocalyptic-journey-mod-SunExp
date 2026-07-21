@@ -35,13 +35,18 @@ public static class AuraSharedResourceBootstrapper
             InstalledPath = item.CanonicalPath,
             Message = item.Message
         }).ToList();
-        if (responses.Count == 0 && !registration.Success)
+        if (!registration.Success)
         {
             responses.Add(new AuraSharedInstallResponse
             {
                 Success = false,
                 Status = registration.Status,
-                Message = registration.Message
+                Message = "Shared registration failed: failureCode=" + registration.FailureCode
+                          + ", expected=" + registration.ExpectedItemCount
+                          + ", processed=" + registration.ProcessedItemCount
+                          + ", failedPathLength=" + registration.FailedPathLength
+                          + ", failedPath=" + registration.FailedPath
+                          + ", message=" + registration.Message
             });
         }
         return AuraSharedBootstrapResult.FromResponses(responses);

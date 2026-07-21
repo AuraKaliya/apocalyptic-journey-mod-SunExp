@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraGameData.Shared;
 using AuraMode.Shared;
 using AuraGameData.Shared.GameApi;
 using AuraShared.Core;
@@ -23,6 +24,22 @@ internal static class StarterDeckCardCatalog
 {
     private static readonly object cardCatalogSync = new();
     private static StarterDeckCardCatalogSnapshot? cardCatalogSnapshot;
+    private static long cardCatalogEpoch = -1;
+    private static bool catalogListenerRegistered;
+
+    internal static void Initialize()
+    {
+        lock (cardCatalogSync)
+        {
+            if (catalogListenerRegistered)
+            {
+                return;
+            }
+
+            AuraGameDataCatalogRuntime.SnapshotChanged += OnCatalogSnapshotChanged;
+            catalogListenerRegistered = true;
+        }
+    }
 
     public static List<string> BuildAllCandidateCardIds()
     {
@@ -137,6 +154,7 @@ internal static class StarterDeckCardCatalog
         lock (cardCatalogSync)
         {
             cardCatalogSnapshot = null;
+            cardCatalogEpoch = -1;
             StarterDeckCardPresentation.ClearCache();
         }
 
@@ -144,16 +162,40 @@ internal static class StarterDeckCardCatalog
     }
     private static StarterDeckCardCatalogSnapshot GetCardCatalogSnapshot(string source)
     {
+        var gameDataSnapshot = AuraGameDataHostApi.AcquireSnapshot();
         lock (cardCatalogSync)
         {
-            if (cardCatalogSnapshot != null)
+            if (cardCatalogSnapshot != null && cardCatalogEpoch == gameDataSnapshot.Version.Epoch)
             {
                 return cardCatalogSnapshot;
             }
 
+            if (!gameDataSnapshot.Version.NativeReady)
+            {
+                return cardCatalogSnapshot ?? StarterDeckCardCatalogSnapshot.Empty;
+            }
+
             cardCatalogSnapshot = BuildCardCatalogSnapshot(source);
+            cardCatalogEpoch = gameDataSnapshot.Version.Epoch;
             return cardCatalogSnapshot;
         }
+    }
+
+    private static void OnCatalogSnapshotChanged(AuraGameDataCatalogVersion version)
+    {
+        lock (cardCatalogSync)
+        {
+            if (cardCatalogEpoch == version.Epoch)
+            {
+                return;
+            }
+
+            cardCatalogSnapshot = null;
+            cardCatalogEpoch = -1;
+            StarterDeckCardPresentation.ClearCache();
+        }
+
+        AuraToolsLog.Debug("[StarterDeck] invalidated card catalog for game-data epoch " + version.Epoch + ".");
     }
 
     private static StarterDeckCardCatalogSnapshot BuildCardCatalogSnapshot(string source)
@@ -165,7 +207,7 @@ internal static class StarterDeckCardCatalog
             var existingPacks = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
             var selectablePacks = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
 
-            foreach (var row in AuraGameDataHostApi.Rows(DataType.CardPack))
+            foreach (var row in AuraGameDataHostApi.CopyTableForHostInterop(DataType.CardPack))
             {
                 if (!row.TryGetValue("Id", out var packId) || string.IsNullOrWhiteSpace(packId) || !IsValidPackForCurrentLobby(packId))
                 {
@@ -190,9 +232,9 @@ internal static class StarterDeckCardCatalog
             var excludedDerivedCards = new List<string>();
             var otherCards = new List<string>();
             var careerSkillCardIds = StarterDeckCardClassification.BuildCareerSkillCardIds(
-                AuraGameDataHostApi.Rows(DataType.Career));
+                AuraGameDataHostApi.CopyTableForHostInterop(DataType.Career));
 
-            foreach (var row in AuraGameDataHostApi.Rows(DataType.Card))
+            foreach (var row in AuraGameDataHostApi.CopyTableForHostInterop(DataType.Card))
             {
                 if (!row.TryGetValue("Id", out var id) || string.IsNullOrWhiteSpace(id))
                 {
@@ -357,7 +399,7 @@ internal static class StarterDeckCardCatalog
     {
         try
         {
-            return AuraGameDataHostApi.Rows(DataType.CardPack)
+            return AuraGameDataHostApi.CopyTableForHostInterop(DataType.CardPack)
                 .Where(row => row.TryGetValue("Id", out var id)
                               && IsValidPackForCurrentLobby(id)
                               && !Singleton<GameRuntimeData>.Instance.IsLocked(id))
@@ -377,7 +419,7 @@ internal static class StarterDeckCardCatalog
     {
         try
         {
-            var data = AuraGameDataHostApi.Row(DataType.CardPack, packId);
+            var data = AuraGameDataHostApi.CopyRow(DataType.CardPack, packId);
             if (data == null)
             {
                 return packId;

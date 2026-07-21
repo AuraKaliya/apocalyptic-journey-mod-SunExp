@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using AuraShared.Core;
 using AuraGameData.Shared.GameApi;
 using AuraSkin.Shared.Infrastructure;
@@ -16,29 +17,26 @@ public static class CareerConfigApi
     public static bool TryCreate(string? careerId, out DataConfig? career)
     {
         career = null;
-        foreach (var candidate in CandidateIds(careerId))
+        var candidates = CandidateIds(careerId).ToArray();
+        if (candidates.Length == 0)
         {
-            if (!Exists(candidate))
-            {
-                continue;
-            }
-
-            var handle = AuraGameDataHostApi.ResolveHandle(DataType.Career, candidate);
-            var materialized = handle == null
-                ? AuraGameDataHostMutationResult.Fail("resolve", "Career definition was not found.")
-                : AuraGameDataHostApi.Materialize(new AuraGameDataMaterializeRequest { Definition = handle });
-            if (materialized.Success && materialized.Instance is DataConfig resolved)
-            {
-                career = resolved;
-                return true;
-            }
-
-            if (!string.IsNullOrWhiteSpace(materialized.Message))
-            {
-                SkinLog.Warn("Career config exists but could not be created: " + candidate + ": " + materialized.Message);
-            }
+            return false;
         }
 
+        var materialized = AuraGameDataHostApi.Materialize(DataType.Career, candidates);
+        if (materialized.Success && materialized.Instance is DataConfig resolved)
+        {
+            career = resolved;
+            return true;
+        }
+
+        if (!string.IsNullOrWhiteSpace(materialized.Message))
+        {
+            SkinLog.Warn("Career config could not be created: "
+                         + string.Join(", ", candidates)
+                         + ": "
+                         + materialized.Message);
+        }
         return false;
     }
 
@@ -56,16 +54,6 @@ public static class CareerConfigApi
         {
             yield return raw;
         }
-    }
-
-    private static bool Exists(string careerId)
-    {
-        if (string.IsNullOrWhiteSpace(careerId))
-        {
-            return false;
-        }
-
-        return AuraGameDataHostApi.Resolve(DataType.Career, careerId) != null;
     }
 
 }

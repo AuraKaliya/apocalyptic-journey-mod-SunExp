@@ -585,7 +585,7 @@ public static class AuraToolsSafeBoxRuntime
             return false;
         }
 
-        var resolvedType = ResolveConfigType(id);
+        var resolvedType = ResolveConfigType(config, id);
         if (resolvedType == null || resolvedType == DataType.Card || resolvedType == DataType.DesList)
         {
             return false;
@@ -633,8 +633,13 @@ public static class AuraToolsSafeBoxRuntime
                && !string.IsNullOrWhiteSpace(rawData);
     }
 
-    private static DataType? ResolveConfigType(string id)
+    private static DataType? ResolveConfigType(IDataConfig config, string id)
     {
+        if (config != null)
+        {
+            return config.Type;
+        }
+
         try
         {
             return AuraGameDataHostApi.ResolveDataType(id);

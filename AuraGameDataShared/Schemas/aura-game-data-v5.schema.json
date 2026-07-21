@@ -1,15 +1,23 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
-  "$id": "https://aura.local/schemas/aura-game-data-v4.schema.json",
-  "title": "Aura Game Data Registration v4",
+  "$id": "https://aura.local/schemas/aura-game-data-v5.schema.json",
+  "title": "Aura Game Data Registration v5",
   "type": "object",
   "additionalProperties": false,
-  "required": ["schemaVersion", "definitions"],
+  "required": ["schemaVersion", "definitions", "history", "ownerRules"],
   "properties": {
-    "schemaVersion": { "const": 4 },
+    "schemaVersion": { "const": 5 },
     "definitions": {
       "type": "array",
       "items": { "$ref": "#/$defs/definition" }
+    },
+    "history": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/definition" }
+    },
+    "ownerRules": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/ownerRule" }
     }
   },
   "$defs": {
@@ -22,6 +30,17 @@
         "id": { "type": "string", "minLength": 1 }
       }
     },
+    "ownerRule": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["ownerModId", "writerId", "idPrefix"],
+      "properties": {
+        "ownerModId": { "type": "string", "minLength": 1 },
+        "writerId": { "type": "string", "minLength": 1 },
+        "idPrefix": { "type": "string", "minLength": 1 },
+        "priority": { "type": "integer" }
+      }
+    },
     "definition": {
       "type": "object",
       "additionalProperties": false,
@@ -31,19 +50,24 @@
         "ownerModId",
         "writerId",
         "sourceKind",
+        "storageKind",
         "enabled",
         "retired",
         "revision",
         "aliases",
-        "fields"
+        "fields",
+        "removeFields"
       ],
       "properties": {
-        "schemaVersion": { "const": 4 },
+        "schemaVersion": { "const": 5 },
         "key": { "$ref": "#/$defs/key" },
         "ownerModId": { "type": "string", "minLength": 1 },
         "writerId": { "type": "string", "minLength": 1 },
         "sourceKind": {
           "enum": ["UserManual", "Registered", "Default", "Native"]
+        },
+        "storageKind": {
+          "enum": ["Inline", "Overlay"]
         },
         "priority": { "type": "integer" },
         "enabled": { "type": "boolean" },
@@ -57,6 +81,11 @@
         "fields": {
           "type": "object",
           "additionalProperties": { "type": "string" }
+        },
+        "removeFields": {
+          "type": "array",
+          "items": { "type": "string", "minLength": 1 },
+          "uniqueItems": true
         },
         "updatedUtc": { "type": "string" }
       }

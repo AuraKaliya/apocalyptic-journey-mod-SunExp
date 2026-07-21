@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.Linq;
 using Newtonsoft.Json;
 
@@ -7,10 +8,30 @@ namespace AuraGameData.Shared;
 
 public static class AuraGameDataConstants
 {
-    public const int SchemaVersion = 4;
+    public const int SchemaVersion = 5;
+    public const int PolicyVersion = 1;
     public const string RegistryAuthorityId = "AuraGameDataShared";
     public const string RegistryFileName = "game-data.registry.json";
     public const string SystemName = "GameData";
+}
+
+public static class AuraGameDataStorageKinds
+{
+    public const string Inline = "Inline";
+    public const string Overlay = "Overlay";
+
+    public static bool IsKnown(string? value)
+    {
+        var normalized = (value ?? "").Trim();
+        return string.Equals(normalized, Inline, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(normalized, Overlay, StringComparison.OrdinalIgnoreCase);
+    }
+
+    public static string Normalize(string? value)
+    {
+        var normalized = (value ?? "").Trim();
+        return string.Equals(normalized, Overlay, StringComparison.OrdinalIgnoreCase) ? Overlay : Inline;
+    }
 }
 
 public static class AuraGameDataSourceKinds
@@ -120,6 +141,9 @@ public sealed class AuraGameDataDefinition
     [JsonProperty("sourceKind")]
     public string SourceKind { get; set; } = AuraGameDataSourceKinds.Registered;
 
+    [JsonProperty("storageKind")]
+    public string StorageKind { get; set; } = AuraGameDataStorageKinds.Inline;
+
     [JsonProperty("priority")]
     public int Priority { get; set; }
 
@@ -138,6 +162,9 @@ public sealed class AuraGameDataDefinition
     [JsonProperty("fields")]
     public Dictionary<string, string> Fields { get; set; } = new(StringComparer.Ordinal);
 
+    [JsonProperty("removeFields")]
+    public List<string> RemoveFields { get; set; } = new();
+
     [JsonProperty("updatedUtc")]
     public string UpdatedUtc { get; set; } = "";
 
@@ -151,6 +178,7 @@ public sealed class AuraGameDataDefinition
         OwnerModId = (OwnerModId ?? "").Trim();
         WriterId = (WriterId ?? "").Trim();
         SourceKind = NormalizeSourceKind(SourceKind);
+        StorageKind = AuraGameDataStorageKinds.Normalize(StorageKind);
         Revision = Math.Max(0, Revision);
         Aliases = (Aliases ?? new List<string>())
             .Select(AuraGameDataKey.NormalizeId)
@@ -159,6 +187,13 @@ public sealed class AuraGameDataDefinition
             .OrderBy(value => value, StringComparer.Ordinal)
             .ToList();
         Fields = new Dictionary<string, string>(Fields ?? new Dictionary<string, string>(), StringComparer.Ordinal);
+        RemoveFields = (RemoveFields ?? new List<string>())
+            .Where(value => !string.IsNullOrWhiteSpace(value))
+            .Select(value => value.Trim())
+            .Where(value => !string.Equals(value, "Id", StringComparison.Ordinal))
+            .Distinct(StringComparer.Ordinal)
+            .OrderBy(value => value, StringComparer.Ordinal)
+            .ToList();
         if (!string.IsNullOrWhiteSpace(Key.Id))
         {
             Fields["Id"] = Key.Id;
@@ -174,12 +209,14 @@ public sealed class AuraGameDataDefinition
             OwnerModId = OwnerModId,
             WriterId = WriterId,
             SourceKind = SourceKind,
+            StorageKind = StorageKind,
             Priority = Priority,
             Enabled = Enabled,
             Retired = Retired,
             Revision = Revision,
             Aliases = Aliases.ToList(),
             Fields = new Dictionary<string, string>(Fields, StringComparer.Ordinal),
+            RemoveFields = RemoveFields.ToList(),
             UpdatedUtc = UpdatedUtc
         };
     }
@@ -191,6 +228,39 @@ public sealed class AuraGameDataDefinition
             ? AuraGameDataSourceKinds.DefaultSearchOrder.First(candidate =>
                 string.Equals(candidate, normalized, StringComparison.OrdinalIgnoreCase))
             : AuraGameDataSourceKinds.Registered;
+    }
+}
+
+public sealed class AuraGameDataOwnerRule
+{
+    [JsonProperty("ownerModId")]
+    public string OwnerModId { get; set; } = "";
+
+    [JsonProperty("writerId")]
+    public string WriterId { get; set; } = "";
+
+    [JsonProperty("idPrefix")]
+    public string IdPrefix { get; set; } = "";
+
+    [JsonProperty("priority")]
+    public int Priority { get; set; }
+
+    public void Normalize()
+    {
+        OwnerModId = (OwnerModId ?? "").Trim();
+        WriterId = (WriterId ?? "").Trim();
+        IdPrefix = AuraGameDataKey.NormalizeId(IdPrefix);
+    }
+
+    public AuraGameDataOwnerRule Clone()
+    {
+        return new AuraGameDataOwnerRule
+        {
+            OwnerModId = OwnerModId,
+            WriterId = WriterId,
+            IdPrefix = IdPrefix,
+            Priority = Priority
+        };
     }
 }
 
@@ -239,12 +309,41 @@ public sealed class AuraGameDataRegistryDocument
     [JsonProperty("definitions")]
     public List<AuraGameDataDefinition> Definitions { get; set; } = new();
 
+    [JsonProperty("history")]
+    public List<AuraGameDataDefinition> History { get; set; } = new();
+
+    [JsonProperty("ownerRules")]
+    public List<AuraGameDataOwnerRule> OwnerRules { get; set; } = new();
+
     public void Normalize()
     {
         SchemaVersion = AuraGameDataConstants.SchemaVersion;
-        Definitions ??= new List<AuraGameDataDefinition>();
+        Definitions = NormalizeDefinitions(Definitions, includeRetired: false);
+        History = NormalizeDefinitions(History, includeRetired: true);
+        OwnerRules = (OwnerRules ?? new List<AuraGameDataOwnerRule>())
+            .Where(value => value != null)
+            .Select(value =>
+            {
+                value.Normalize();
+                return value;
+            })
+            .Where(value => value.OwnerModId.Length > 0
+                && value.WriterId.Length > 0
+                && value.IdPrefix.Length > 0)
+            .GroupBy(value => value.OwnerModId + "\u001f" + value.IdPrefix, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.OrderByDescending(value => value.Priority).First())
+            .OrderByDescending(value => value.IdPrefix.Length)
+            .ThenByDescending(value => value.Priority)
+            .ThenBy(value => value.OwnerModId, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static List<AuraGameDataDefinition> NormalizeDefinitions(
+        List<AuraGameDataDefinition>? definitions,
+        bool includeRetired)
+    {
         var normalized = new Dictionary<string, AuraGameDataDefinition>(StringComparer.OrdinalIgnoreCase);
-        foreach (var definition in Definitions.Where(value => value != null))
+        foreach (var definition in (definitions ?? new List<AuraGameDataDefinition>()).Where(value => value != null))
         {
             definition.Normalize();
             if (definition.SchemaVersion != AuraGameDataConstants.SchemaVersion
@@ -256,10 +355,15 @@ public sealed class AuraGameDataRegistryDocument
                 continue;
             }
 
+            if (!includeRetired)
+            {
+                definition.Retired = false;
+            }
+
             normalized[definition.QualifiedId] = definition;
         }
 
-        Definitions = normalized.Values
+        return normalized.Values
             .OrderBy(value => value.Key.DataType, StringComparer.OrdinalIgnoreCase)
             .ThenBy(value => value.Key.Id, StringComparer.Ordinal)
             .ThenBy(value => value.OwnerModId, StringComparer.OrdinalIgnoreCase)
@@ -271,35 +375,68 @@ public sealed class AuraGameDataRegistryDocument
         return new AuraGameDataRegistryDocument
         {
             SchemaVersion = SchemaVersion,
-            Definitions = Definitions.Select(value => value.Clone()).ToList()
+            Definitions = Definitions.Select(value => value.Clone()).ToList(),
+            History = History.Select(value => value.Clone()).ToList(),
+            OwnerRules = OwnerRules.Select(value => value.Clone()).ToList()
         };
     }
 }
 
 public sealed class AuraGameDataSnapshot
 {
-    public AuraGameDataSnapshot(AuraGameDataDefinition definition)
+    private readonly AuraGameDataDefinition definition;
+    private readonly IReadOnlyList<string> aliases;
+    private readonly IReadOnlyDictionary<string, string> fields;
+
+    public AuraGameDataSnapshot(AuraGameDataDefinition definition, long catalogEpoch = 0)
     {
-        Definition = definition.Clone();
+        this.definition = definition?.Clone() ?? new AuraGameDataDefinition();
+        this.definition.Normalize();
+        aliases = new ReadOnlyCollection<string>(this.definition.Aliases.ToArray());
+        fields = new ReadOnlyDictionary<string, string>(this.definition.Fields);
+        CatalogEpoch = Math.Max(0, catalogEpoch);
+        SelectionIdentity = BuildSelectionIdentity(this.definition);
     }
 
-    public AuraGameDataDefinition Definition { get; }
+    public AuraGameDataDefinition Definition => definition.Clone();
 
-    public AuraGameDataKey Key => Definition.Key.Clone();
+    public AuraGameDataKey Key => definition.Key.Clone();
 
-    public string OwnerModId => Definition.OwnerModId;
+    public string DataType => definition.Key.DataType;
 
-    public string WriterId => Definition.WriterId;
+    public string Id => definition.Key.Id;
 
-    public string SourceKind => Definition.SourceKind;
+    public string OwnerModId => definition.OwnerModId;
 
-    public bool Enabled => Definition.Enabled;
+    public string WriterId => definition.WriterId;
 
-    public bool Retired => Definition.Retired;
+    public string SourceKind => definition.SourceKind;
 
-    public long Revision => Definition.Revision;
+    public string StorageKind => definition.StorageKind;
 
-    public IReadOnlyDictionary<string, string> Fields => Definition.Fields;
+    public bool Enabled => definition.Enabled;
+
+    public bool Retired => definition.Retired;
+
+    public long Revision => definition.Revision;
+
+    public int Priority => definition.Priority;
+
+    public IReadOnlyList<string> Aliases => aliases;
+
+    public IReadOnlyDictionary<string, string> Fields => fields;
+
+    public long CatalogEpoch { get; }
+
+    public string SelectionIdentity { get; }
+
+    private static string BuildSelectionIdentity(AuraGameDataDefinition value)
+    {
+        return value.Key.Canonical
+            + "|" + value.OwnerModId
+            + "|" + value.SourceKind
+            + "|" + value.Revision;
+    }
 }
 
 public sealed class AuraGameDataDefinitionHandle
@@ -312,7 +449,84 @@ public sealed class AuraGameDataDefinitionHandle
 
     public long Revision { get; set; }
 
+    public long CatalogEpoch { get; set; }
+
+    public string SelectionIdentity { get; set; } = "";
+
     public string Token { get; set; } = "";
+}
+
+public sealed class AuraGameDataCatalogVersion
+{
+    public AuraGameDataCatalogVersion(
+        long epoch,
+        long nativeGeneration,
+        long registryRevision,
+        int policyVersion = AuraGameDataConstants.PolicyVersion)
+        : this(epoch, nativeGeneration, registryRevision, policyVersion, nativeReady: true)
+    {
+    }
+
+    public AuraGameDataCatalogVersion(
+        long epoch,
+        long nativeGeneration,
+        long registryRevision,
+        int policyVersion,
+        bool nativeReady)
+    {
+        Epoch = Math.Max(0, epoch);
+        NativeGeneration = Math.Max(0, nativeGeneration);
+        RegistryRevision = Math.Max(0, registryRevision);
+        PolicyVersion = Math.Max(1, policyVersion);
+        NativeReady = nativeReady;
+    }
+
+    public long Epoch { get; }
+
+    public long NativeGeneration { get; }
+
+    public long RegistryRevision { get; }
+
+    public int PolicyVersion { get; }
+
+    public bool NativeReady { get; }
+}
+
+public enum AuraGameDataCatalogState
+{
+    Uninitialized = 0,
+    Capturing = 1,
+    Compiling = 2,
+    Ready = 3,
+    Invalidated = 4,
+    Failed = 5,
+    AwaitingNativeCapture = 6
+}
+
+public sealed class AuraGameDataSourceSnapshot
+{
+    public AuraGameDataSourceSnapshot(
+        long generation,
+        IReadOnlyList<AuraGameDataDefinition>? definitions)
+        : this(generation, definitions, isComplete: true)
+    {
+    }
+
+    public AuraGameDataSourceSnapshot(
+        long generation,
+        IReadOnlyList<AuraGameDataDefinition>? definitions,
+        bool isComplete)
+    {
+        Generation = Math.Max(0, generation);
+        Definitions = definitions ?? Array.Empty<AuraGameDataDefinition>();
+        IsComplete = isComplete;
+    }
+
+    public long Generation { get; }
+
+    public IReadOnlyList<AuraGameDataDefinition> Definitions { get; }
+
+    public bool IsComplete { get; }
 }
 
 public sealed class AuraGameDataQuery

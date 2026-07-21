@@ -72,6 +72,7 @@ public sealed class AuraSharedPackageCoordinator
             ValidateRequest(request);
             var sourcePath = Path.GetFullPath(request.SourcePath);
             var destinationPath = ResolveDestination(request.DestinationRelativePath);
+            ValidatePayloadPathBudget(sourcePath, destinationPath, request.Kind);
             var sourceFingerprint = Inspect(sourcePath, request.Kind);
             var index = LoadIndex(request.System);
             var key = ResourceKey(request.System, request.LogicalId);
@@ -117,11 +118,14 @@ public sealed class AuraSharedPackageCoordinator
             }
 
             var incomingRelativePath = request.DestinationRelativePath.Replace('\\', '/').TrimStart('/');
+            var relocating = !string.Equals(existing.Path, incomingRelativePath, StringComparison.OrdinalIgnoreCase);
             if (!string.Equals(existing.Kind, request.Kind, StringComparison.OrdinalIgnoreCase)
-                || !string.Equals(existing.Path, incomingRelativePath, StringComparison.OrdinalIgnoreCase))
+                || (relocating && !request.AllowCanonicalRelocation))
             {
                 return Conflict("Resource identity is already bound to a different kind or canonical destination.");
             }
+
+            var previousDestinationPath = relocating ? ResolveDestination(existing.Path) : "";
 
             existing.Sources ??= new List<AuraSharedInstalledSource>();
             if (HashEquals(existing.ContentHash, sourceFingerprint.Hash))
@@ -129,6 +133,15 @@ public sealed class AuraSharedPackageCoordinator
                 var sourceChanged = AddOrUpdateSource(existing, request);
                 if (destinationFingerprint != null && HashEquals(destinationFingerprint.Hash, sourceFingerprint.Hash))
                 {
+                    if (relocating)
+                    {
+                        var relocated = CreateRecord(request, sourceFingerprint, destinationPath, existing.Sources);
+                        AddOrUpdateSource(relocated, request);
+                        ReplaceRecord(index, existing, relocated);
+                        SaveIndex(index, request.System);
+                        TryDeletePath(previousDestinationPath, request.Kind);
+                        return Success("Relocated", true, sourceFingerprint.Hash, destinationPath);
+                    }
                     if (sourceChanged)
                     {
                         SaveIndex(index, request.System);
@@ -155,7 +168,13 @@ public sealed class AuraSharedPackageCoordinator
                 }
 
                 var repaired = CreateRecord(request, sourceFingerprint, destinationPath, existing.Sources);
-                return Commit(index, existing, repaired, request, sourceFingerprint, destinationPath, "Repaired");
+                var repairedResult = Commit(index, existing, repaired, request, sourceFingerprint, destinationPath,
+                    relocating ? "Relocated" : "Repaired");
+                if (repairedResult.Success && relocating)
+                {
+                    TryDeletePath(previousDestinationPath, request.Kind);
+                }
+                return repairedResult;
             }
 
             var ownerSources = existing.Sources
@@ -198,15 +217,17 @@ public sealed class AuraSharedPackageCoordinator
 
             var updated = CreateRecord(request, sourceFingerprint, destinationPath, existing.Sources);
             AddOrUpdateSource(updated, request);
-            return Commit(index, existing, updated, request, sourceFingerprint, destinationPath, "Updated");
+            var updatedResult = Commit(index, existing, updated, request, sourceFingerprint, destinationPath,
+                relocating ? "Relocated" : "Updated");
+            if (updatedResult.Success && relocating)
+            {
+                TryDeletePath(previousDestinationPath, request.Kind);
+            }
+            return updatedResult;
         }
         catch (Exception ex)
         {
-            return new AuraSharedInstallResponse
-            {
-                Success = false,
-                Message = ex.Message
-            };
+            return Failure(ex, "");
         }
     }
 
@@ -230,7 +251,7 @@ public sealed class AuraSharedPackageCoordinator
             storage.RootDirectory,
             "Backups",
             SafeSegment(request.System, "General"),
-            SafeSegment(request.LogicalId, "resource"),
+            CompactLogicalId(request.LogicalId),
             DateTime.UtcNow.ToString("yyyyMMdd-HHmmssfff") + "-" + transactionId);
         var journalPath = Path.Combine(storage.RootDirectory, "Transactions", transactionId + ".json");
         var journal = new AuraSharedTransactionJournal
@@ -246,6 +267,10 @@ public sealed class AuraSharedPackageCoordinator
             RegistryExisted = File.Exists(registryPath),
             Kind = request.Kind
         };
+        storage.EnsurePortablePath(stagingPayload, "resource-staging");
+        storage.EnsurePortablePath(registryBackup, "resource-registry-backup");
+        storage.EnsurePortablePath(backupPath, "resource-backup");
+        storage.EnsurePortablePath(journalPath, "resource-journal");
 
         try
         {
@@ -296,11 +321,7 @@ public sealed class AuraSharedPackageCoordinator
         {
             Rollback(journal);
             LogOperation(operationId, transactionId, request, "RolledBack", "Failure", ex.Message, started);
-            return new AuraSharedInstallResponse
-            {
-                Success = false,
-                Message = "Resource transaction failed: " + ex.Message
-            };
+            return Failure(ex, "Resource transaction failed: ");
         }
     }
 
@@ -746,6 +767,30 @@ public sealed class AuraSharedPackageCoordinator
         };
     }
 
+    private static string CompactLogicalId(string logicalId)
+    {
+        var normalized = (logicalId ?? "").Trim().ToLowerInvariant();
+        return HashBytes(Encoding.UTF8.GetBytes(normalized)).Substring(0, 32);
+    }
+
+    private void ValidatePayloadPathBudget(string sourcePath, string destinationPath, string kind)
+    {
+        storage.EnsurePortablePath(destinationPath, "resource-destination");
+        if (!string.Equals(kind, AuraSharedResourceKinds.Directory, StringComparison.OrdinalIgnoreCase)
+            || !Directory.Exists(sourcePath))
+        {
+            return;
+        }
+
+        var sourceRoot = sourcePath.TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+        foreach (var sourceFile in Directory.EnumerateFiles(sourceRoot, "*", SearchOption.AllDirectories))
+        {
+            var relative = sourceFile.Substring(sourceRoot.Length)
+                .TrimStart(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
+            storage.EnsurePortablePath(Path.Combine(destinationPath, relative), "resource-payload");
+        }
+    }
+
     private static AuraSharedInstallResponse Conflict(string message)
     {
         return new AuraSharedInstallResponse
@@ -755,6 +800,23 @@ public sealed class AuraSharedPackageCoordinator
             Status = "Conflict",
             Message = message
         };
+    }
+
+    private static AuraSharedInstallResponse Failure(Exception exception, string prefix)
+    {
+        var response = new AuraSharedInstallResponse
+        {
+            Success = false,
+            Status = "Failed",
+            FailureCode = exception is AuraSharedPathBudgetException ? "PathBudgetExceeded" : exception.GetType().Name,
+            Message = (prefix ?? "") + exception.Message
+        };
+        if (exception is AuraSharedPathBudgetException pathError)
+        {
+            response.FailedPath = pathError.Path;
+            response.FailedPathLength = pathError.PathLength;
+        }
+        return response;
     }
 
     private sealed class ResourceFingerprint

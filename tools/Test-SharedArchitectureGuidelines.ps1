@@ -797,17 +797,22 @@ $gameDataModels = Read-RepoText "AuraGameDataShared\AuraGameDataModels.cs"
 $gameDataCatalog = Read-RepoText "AuraGameDataShared\AuraGameDataCatalog.cs"
 $gameDataApplication = Read-RepoText "AuraGameDataShared\Application\AuraGameInstanceServices.cs"
 $gameDataHost = Read-RepoText "AuraGameDataShared\GameApi\AuraGameDataHostApi.cs"
-foreach ($required in @("SchemaVersion = 4", "OwnerModId", "WriterId", "UserManual", "Registered", "Default", "Native")) {
-    Require-Text $gameDataModels ([regex]::Escape($required)) "AuraGameDataShared must expose v4 identity and provenance: $required"
+foreach ($required in @("SchemaVersion = 5", "OwnerModId", "WriterId", "UserManual", "Registered", "Default", "Native", "StorageKind", "OwnerRules", "CatalogEpoch", "NativeReady", "IsComplete", "AwaitingNativeCapture")) {
+    Require-Text $gameDataModels ([regex]::Escape($required)) "AuraGameDataShared must expose v5 identity, provenance, and generation state: $required"
 }
-foreach ($required in @("Register", "Patch", "Retire", "QueryHistory", "ValidateHandle", "SourceOrder")) {
-    Require-Text $gameDataCatalog ([regex]::Escape($required)) "AuraGameDataShared catalog is missing its controlled CRUD/search contract: $required"
+foreach ($required in @("Register", "RegisterOwnerRules", "Patch", "Retire", "QueryHistory", "ValidateHandle", "AcquireSnapshot", "TryGet", "GetTable", "TryResolveUniqueType", "AuraGameDataCatalogCompiler")) {
+    Require-Text $gameDataCatalog ([regex]::Escape($required)) "AuraGameDataShared v5 catalog is missing its compiled CRUD/search contract: $required"
 }
 foreach ($required in @("IAuraCardInstancePort", "IAuraRelicInstancePort", "AuraCardInstanceService", "AuraRelicInstanceService", "Authoritative")) {
     Require-Text $gameDataApplication ([regex]::Escape($required)) "AuraGameDataShared application layer is missing an aggregate boundary: $required"
 }
-foreach ($required in @("Capture", "PatchVars", "Materialize", "CloneWritable", "IDataConfig", "GameConfigManager")) {
+foreach ($required in @("Capture", "PatchVars", "Materialize", "CloneWritable", "RegisterNativeOwnershipV5", "CopyTableForHostInterop", "IDataConfig", "GameConfigManager")) {
     Require-Text $gameDataHost ([regex]::Escape($required)) "AuraGameDataShared Witch adapter is missing: $required"
+}
+Require-Text $gameDataCatalog "!snapshot\.Version\.NativeReady" "AuraGameDataShared must reject incomplete native generations at the atomic publish boundary."
+Require-Text $gameDataHost "if \(!request\.Source\.IsComplete" "AuraGameDataShared Witch adapter must not compile an unfinished cooperative capture."
+if ($gameDataHost -match "public void Invalidate\(\)[\s\S]{0,500}cached\s*=\s*null") {
+    throw "AuraGameDataShared native invalidation must preserve the last-good capture while a replacement is built."
 }
 if ($gameDataApplication -match "GameConfigManager|DataConfig|ScriptExecutor|FightCardManager|RoleTable") {
     throw "AuraGameDataShared Application must depend on ports and snapshots, not Witch runtime types."
@@ -819,7 +824,7 @@ $toolsStarterDeckCatalog = Read-RepoText "AuraToolsExp-Dev\Features\StarterDeck\
 foreach ($consumer in @($sunConfigIndex, $toolsRoleCatalog, $toolsStarterDeckCatalog)) {
     Require-Text $consumer "AuraGameDataHostApi" "Shared game-data catalog consumers must delegate to AuraGameDataHostApi."
 }
-if ($sunConfigIndex -match "GameConfigManager|GetTable\(" -or $toolsRoleCatalog -match "GetTable\(") {
+if ($sunConfigIndex -match "GameConfigManager" -or $toolsRoleCatalog -match "GameConfigManager") {
     throw "Shared game-data consumers must not restore private table scans."
 }
 
@@ -827,7 +832,11 @@ foreach ($consumerRoot in @("SunExp-Dev", "AuraToolsExp-Dev", "SanGuoShaExp-Dev"
     $consumerPath = Join-Path $repoRoot $consumerRoot
     foreach ($file in Get-ChildItem -LiteralPath $consumerPath -Recurse -Filter "*.cs" -File) {
         $text = Get-Content -Raw -LiteralPath $file.FullName
-        if ($text -match "\bGetTable\s*\(|\bGetOne\s*\(|GetOneById\s*\(|GetTypeById\s*\(") {
+        $usesPrivateGameDataLookup =
+            ($text -match "\bGetOne\s*\(|GetOneById\s*\(|GetTypeById\s*\(") -or
+            ($text -match "GameConfigManager[^\r\n]{0,120}GetTable\s*\(") -or
+            ($text -match "\.Instance\.GetTable\s*\(")
+        if ($usesPrivateGameDataLookup) {
             throw "Main consumers must query game definitions through AuraGameDataShared: $($file.FullName)"
         }
 

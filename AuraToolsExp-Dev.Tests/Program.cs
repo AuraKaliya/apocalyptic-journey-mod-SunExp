@@ -852,9 +852,19 @@ void TestRuntimeArchitectureGuards()
         roleCatalog.IndexOf("private static string ResolveDisplayName", StringComparison.Ordinal),
         roleCatalog.IndexOf("private static List<RoleSkillInfo> ResolveSkills", StringComparison.Ordinal)
         - roleCatalog.IndexOf("private static string ResolveDisplayName", StringComparison.Ordinal));
-    Assert(roleDisplayResolver.Contains("row.Localize(\"Name\")", StringComparison.Ordinal)
+    Assert(roleDisplayResolver.Contains(".Localize(\"Name\")", StringComparison.Ordinal)
            && !roleDisplayResolver.Contains("new DataConfig", StringComparison.Ordinal),
         "role catalog resolves startup display names from loaded rows without forcing the unfinished DataConfig id cache");
+    Assert(roleCatalog.Contains("cachedCatalogEpoch", StringComparison.Ordinal)
+           && roleCatalog.Contains("snapshot.Version.NativeReady", StringComparison.Ordinal),
+        "role catalog does not retain a partial pre-ready scan and follows game-data catalog epochs");
+
+    var epochAwareStarterDeckCatalog = ReadRepoText("AuraToolsExp-Dev/Features/StarterDeck/StarterDeckCardCatalog.cs");
+    var epochAwareStarterDeckRuntime = ReadRepoText("AuraToolsExp-Dev/Features/StarterDeck/AuraToolsStarterDeckRuntime.cs");
+    Assert(epochAwareStarterDeckCatalog.Contains("AuraGameDataCatalogRuntime.SnapshotChanged += OnCatalogSnapshotChanged", StringComparison.Ordinal)
+           && epochAwareStarterDeckCatalog.Contains("cardCatalogEpoch", StringComparison.Ordinal)
+           && epochAwareStarterDeckRuntime.Contains("StarterDeckCardCatalog.Initialize()", StringComparison.Ordinal),
+        "starter-deck catalogs invalidate presentation and card snapshots when game-data epochs change");
 
     var cardRefreshRuntime = ReadRepoText("AuraToolsExp-Dev/Features/CardRefresh/AuraToolsCardRefreshRuntime.cs");
     var cardRefreshNativeApi = ReadRepoText("AuraToolsExp-Dev/Features/CardRefresh/CardChoiceRefreshNativeApi.cs");
@@ -998,6 +1008,9 @@ void TestRuntimeArchitectureGuards()
            && damageMeterFightIndex.Contains("BuffFlags", StringComparison.Ordinal)
            && damageMeterResolvers.Contains("DamageMeterFightIndex.ResolveTeam", StringComparison.Ordinal),
         "damage meter resolver hot paths must route through the fight index cache");
+    Assert(damageMeterFightIndex.Contains("EnsureGameDataCacheEpoch", StringComparison.Ordinal)
+           && damageMeterFightIndex.Contains("snapshot.Version.NativeReady", StringComparison.Ordinal),
+        "damage meter labels and Buff classification do not retain pre-ready negative lookups");
 
     Assert(damageMeterFightIndex.Contains("FriendlyIdentityIds", StringComparison.Ordinal)
            && damageMeterFightIndex.Contains("RegisterFriendlyIdentity", StringComparison.Ordinal)
@@ -1174,8 +1187,8 @@ void TestRuntimeArchitectureGuards()
            && !feastRoleEditor.Contains("MatchExperience.Feast.Roles", StringComparison.Ordinal),
         "Feast only displays active role identities and uses aliases for resource applicability");
     Assert(!feastManual.Contains("\"Overrides\"", StringComparison.Ordinal)
-           && feastManual.Contains("AuraSharedResourcePathPolicy.ResourcePath", StringComparison.Ordinal),
-        "manual Feast resources use the same canonical hierarchy as registered resources");
+           && feastManual.Contains("AuraSharedResourcePathPolicy.StorageResourcePath", StringComparison.Ordinal),
+        "manual Feast resources use the same bounded physical hierarchy as registered resources");
     Assert(feastRuntime.Contains("AuraCgCatalogQueryService.QueryRegisteredResources", StringComparison.Ordinal)
            && !feastRuntime.Contains("AuraCgRegistryRuntime", StringComparison.Ordinal)
            && cgCatalogQuery.Contains("QueryCatalog", StringComparison.Ordinal)

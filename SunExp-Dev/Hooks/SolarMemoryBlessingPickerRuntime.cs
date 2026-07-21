@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraGameData.Shared;
 using AuraGameData.Shared.GameApi;
 using AuraUi.Shared;
 using SunExp.Dll.GameApi;
@@ -56,6 +57,7 @@ public static class SolarMemoryBlessingPickerRuntime
     private static Text? hintText;
     private static bool isConfirming;
     private static int activeTier = 4;
+    private static bool catalogListenerRegistered;
 
     public static bool IsOpen => activePanel != null;
 
@@ -63,6 +65,7 @@ public static class SolarMemoryBlessingPickerRuntime
     {
         try
         {
+            EnsureCatalogListener();
             if (!SolarMemoryModeRuntime.IsSolarMemoryRun() || RoleTable.Instance == null)
             {
                 return;
@@ -86,6 +89,29 @@ public static class SolarMemoryBlessingPickerRuntime
             Close();
             SunExpLog.Error("Solar memory custom blessing picker failed", ex);
         }
+    }
+
+    private static void EnsureCatalogListener()
+    {
+        if (catalogListenerRegistered)
+        {
+            return;
+        }
+
+        AuraGameDataCatalogRuntime.SnapshotChanged += OnCatalogSnapshotChanged;
+        catalogListenerRegistered = true;
+    }
+
+    private static void OnCatalogSnapshotChanged(AuraGameDataCatalogVersion version)
+    {
+        if (activePanel == null || !version.NativeReady)
+        {
+            return;
+        }
+
+        BuildBlessingPools();
+        RefreshAll();
+        SunExpLog.Debug("[SolarMemoryBlessingPicker] refreshed for game-data epoch " + version.Epoch + ".");
     }
 
     public static void Close()
@@ -978,7 +1004,7 @@ public static class SolarMemoryBlessingPickerRuntime
     {
         try
         {
-            var data = AuraGameDataHostApi.Row(DataType.Bless, blessId);
+            var data = AuraGameDataHostApi.CopyRow(DataType.Bless, blessId);
             if (data == null)
             {
                 return blessId;
@@ -1020,7 +1046,7 @@ public static class SolarMemoryBlessingPickerRuntime
     {
         try
         {
-            var data = AuraGameDataHostApi.Row(DataType.Bless, blessId);
+            var data = AuraGameDataHostApi.CopyRow(DataType.Bless, blessId);
             if (data == null)
             {
                 return "";

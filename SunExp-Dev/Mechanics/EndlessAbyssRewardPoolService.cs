@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraGameData.Shared.GameApi;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using Witch.Core;
@@ -16,6 +17,7 @@ public static class EndlessAbyssRewardPoolService
     private static readonly object SyncRoot = new();
     private static readonly Dictionary<string, EndlessAbyssRewardPoolConfig> Pools = new(StringComparer.Ordinal);
     private static readonly Dictionary<string, IReadOnlyList<string>> CardPoolCache = new(StringComparer.Ordinal);
+    private static long cardPoolCacheEpoch = -1;
 
     public static void Initialize(IEnumerable<EndlessAbyssRewardPoolConfig>? configs)
     {
@@ -23,6 +25,7 @@ public static class EndlessAbyssRewardPoolService
         {
             Pools.Clear();
             CardPoolCache.Clear();
+            cardPoolCacheEpoch = -1;
             foreach (var config in configs ?? Array.Empty<EndlessAbyssRewardPoolConfig>())
             {
                 if (config == null || string.IsNullOrWhiteSpace(config.Id))
@@ -45,8 +48,20 @@ public static class EndlessAbyssRewardPoolService
         }
 
         poolId = poolId.Trim();
+        var snapshot = AuraGameDataHostApi.AcquireSnapshot();
+        if (!snapshot.Version.NativeReady)
+        {
+            return Array.Empty<string>();
+        }
+
         lock (SyncRoot)
         {
+            if (cardPoolCacheEpoch != snapshot.Version.Epoch)
+            {
+                CardPoolCache.Clear();
+                cardPoolCacheEpoch = snapshot.Version.Epoch;
+            }
+
             if (CardPoolCache.TryGetValue(poolId, out var cached))
             {
                 return cached;
@@ -68,6 +83,7 @@ public static class EndlessAbyssRewardPoolService
         lock (SyncRoot)
         {
             CardPoolCache.Clear();
+            cardPoolCacheEpoch = -1;
         }
 
         SunExpLog.Debug("[EndlessAbyssRewardPool] cache cleared from " + source + ".");

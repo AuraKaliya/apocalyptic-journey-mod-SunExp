@@ -109,7 +109,7 @@ public static class BuffOverflowApi
 
         try
         {
-            var data = AuraGameDataHostApi.Row(DataType.Buff, buffId);
+            var data = AuraGameDataHostApi.CopyRow(DataType.Buff, buffId);
             var configured = DictionaryUtil.ParseInt(DictionaryUtil.Get(data, "UpperBound"));
             return configured > 0 ? configured : fallback;
         }

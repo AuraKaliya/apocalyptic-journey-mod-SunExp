@@ -7,10 +7,11 @@ namespace AuraShared.Core;
 
 public static class AuraSharedResourceProtocolVersions
 {
-    // Resource schema v4 is intentionally a hard boundary. Runtime protocol 5
-    // prevents an older global AuraShared component from accepting v4 calls.
-    public const int Current = 5;
-    public const int MinimumSupported = 5;
+    // Resource schema v4 remains the manifest boundary. Runtime protocol 6
+    // adds bounded physical paths, canonical relocation, and structured
+    // activation results; older global components must not accept these calls.
+    public const int Current = 6;
+    public const int MinimumSupported = 6;
 }
 
 public static class AuraSharedResourceSchemaVersions
@@ -550,6 +551,15 @@ public sealed class AuraSharedRegistrationItemResultV4
 
     [JsonProperty("message")]
     public string Message { get; set; } = "";
+
+    [JsonProperty("failureCode")]
+    public string FailureCode { get; set; } = "";
+
+    [JsonProperty("failedPath")]
+    public string FailedPath { get; set; } = "";
+
+    [JsonProperty("failedPathLength")]
+    public int FailedPathLength { get; set; }
 }
 
 public sealed class AuraSharedRegistrationResultV4
@@ -577,6 +587,30 @@ public sealed class AuraSharedRegistrationResultV4
 
     [JsonProperty("message")]
     public string Message { get; set; } = "";
+
+    [JsonProperty("activated")]
+    public bool Activated { get; set; }
+
+    [JsonProperty("contentChanged")]
+    public bool ContentChanged { get; set; }
+
+    [JsonProperty("catalogChanged")]
+    public bool CatalogChanged { get; set; }
+
+    [JsonProperty("expectedItemCount")]
+    public int ExpectedItemCount { get; set; }
+
+    [JsonProperty("processedItemCount")]
+    public int ProcessedItemCount { get; set; }
+
+    [JsonProperty("failureCode")]
+    public string FailureCode { get; set; } = "";
+
+    [JsonProperty("failedPath")]
+    public string FailedPath { get; set; } = "";
+
+    [JsonProperty("failedPathLength")]
+    public int FailedPathLength { get; set; }
 }
 
 public sealed class AuraSharedManualResourceRequestV4

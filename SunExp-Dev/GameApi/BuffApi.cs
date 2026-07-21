@@ -831,7 +831,7 @@ public static class BuffApi
 
         try
         {
-            var config = AuraGameDataHostApi.Row(DataType.Buff, buffId);
+            var config = AuraGameDataHostApi.CopyRow(DataType.Buff, buffId);
             return predicate(DictionaryUtil.Get(config, "Type"));
         }
         catch

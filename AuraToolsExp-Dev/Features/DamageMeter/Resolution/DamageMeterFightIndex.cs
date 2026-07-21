@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Reflection;
+using AuraGameData.Shared;
 using AuraGameData.Shared.GameApi;
 using AuraToolsExp.Dll.Features.DamageMeter.Model;
 using Witch;
@@ -29,6 +30,7 @@ internal static class DamageMeterFightIndex
         new(StringComparer.OrdinalIgnoreCase);
 
     private static bool combatantsBuilt;
+    private static long gameDataCacheEpoch = -1;
 
     public static void BeginFight()
     {
@@ -67,6 +69,7 @@ internal static class DamageMeterFightIndex
         ClearCombatants();
         Labels.Clear();
         BuffFlags.Clear();
+        gameDataCacheEpoch = -1;
     }
 
     public static IStatusManager? ResolveStatus(string instanceId)
@@ -215,7 +218,8 @@ internal static class DamageMeterFightIndex
             return false;
         }
 
-        if (BuffFlags.TryGetValue(dataId, out var cached))
+        var catalogReady = EnsureGameDataCacheEpoch();
+        if (catalogReady && BuffFlags.TryGetValue(dataId, out var cached))
         {
             return cached;
         }
@@ -223,14 +227,17 @@ internal static class DamageMeterFightIndex
         var result = false;
         try
         {
-            result = AuraGameDataHostApi.Resolve(DataType.Buff, dataId) != null;
+            result = AuraGameDataHostApi.ResolveDataType(dataId) == DataType.Buff;
         }
         catch
         {
             result = dataId.StartsWith("buff_", StringComparison.OrdinalIgnoreCase);
         }
 
-        BuffFlags[dataId] = result;
+        if (catalogReady)
+        {
+            BuffFlags[dataId] = result;
+        }
         return result;
     }
 
@@ -239,35 +246,57 @@ internal static class DamageMeterFightIndex
         dataId = dataId?.Trim() ?? "";
         if (string.IsNullOrWhiteSpace(dataId))
         {
-            return string.IsNullOrWhiteSpace(damageType) ? "未知来源" : damageType.Trim();
+                return string.IsNullOrWhiteSpace(damageType) ? "未知来源" : damageType.Trim();
         }
 
-        if (Labels.TryGetValue(dataId, out var cached))
+        var catalogReady = EnsureGameDataCacheEpoch();
+        if (catalogReady && Labels.TryGetValue(dataId, out var cached))
         {
             return cached;
         }
 
+        var started = AuraGameDataDiagnostics.Timestamp();
         var label = dataId;
-        for (var i = 0; i < DataTypes.Length; i++)
+        try
         {
-            try
+            var type = AuraGameDataHostApi.ResolveDataType(dataId);
+            if (type.HasValue
+                && AuraGameDataHostApi.TryGet(type.Value, dataId, out var definition)
+                && definition != null
+                && definition.Fields.TryGetValue("Name", out var name)
+                && !string.IsNullOrWhiteSpace(name))
             {
-                var row = AuraGameDataHostApi.Row(DataTypes[i], dataId);
-                if (row != null
-                    && row.TryGetValue("Name", out var name)
-                    && !string.IsNullOrWhiteSpace(name))
-                {
-                    label = name.Trim();
-                    break;
-                }
-            }
-            catch
-            {
+                label = name.Trim();
             }
         }
+        catch
+        {
+        }
 
-        Labels[dataId] = label;
+        AuraGameDataDiagnostics.RecordOperation("BattleEntry.ResolveDamageLabels", started);
+        if (catalogReady)
+        {
+            Labels[dataId] = label;
+        }
         return label;
+    }
+
+    private static bool EnsureGameDataCacheEpoch()
+    {
+        var snapshot = AuraGameDataHostApi.AcquireSnapshot();
+        if (!snapshot.Version.NativeReady)
+        {
+            return false;
+        }
+
+        if (gameDataCacheEpoch != snapshot.Version.Epoch)
+        {
+            Labels.Clear();
+            BuffFlags.Clear();
+            gameDataCacheEpoch = snapshot.Version.Epoch;
+        }
+
+        return true;
     }
 
     private static void EnsureCombatants()
@@ -551,19 +580,6 @@ internal static class DamageMeterFightIndex
             return "";
         }
     }
-
-    private static readonly DataType[] DataTypes =
-    {
-        DataType.Card,
-        DataType.EnemyCard,
-        DataType.PartnerCard,
-        DataType.Buff,
-        DataType.Relic,
-        DataType.Bless,
-        DataType.EnchTag,
-        DataType.Career,
-        DataType.Enemy
-    };
 
     private sealed class IndexedCombatant
     {

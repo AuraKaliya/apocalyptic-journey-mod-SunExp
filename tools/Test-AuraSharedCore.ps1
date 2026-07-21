@@ -12,10 +12,10 @@ $gameDataReadme = Join-Path $repoRoot "AuraGameDataShared\README.md"
 if (-not (Test-Path -LiteralPath $gameDataReadme -PathType Leaf)) {
     throw "AuraGameDataShared bounded-context documentation is missing."
 }
-$gameDataSchema = Join-Path $repoRoot "AuraGameDataShared\Schemas\aura-game-data-v4.schema.json"
+$gameDataSchema = Join-Path $repoRoot "AuraGameDataShared\Schemas\aura-game-data-v5.schema.json"
 if (-not (Test-Path -LiteralPath $gameDataSchema -PathType Leaf) -or
-    (Get-Content -Raw -LiteralPath $gameDataSchema) -notmatch '"schemaVersion"\s*:\s*\{\s*"const"\s*:\s*4') {
-    throw "AuraGameDataShared v4 JSON schema is missing or invalid."
+    (Get-Content -Raw -LiteralPath $gameDataSchema) -notmatch '"schemaVersion"\s*:\s*\{\s*"const"\s*:\s*5') {
+    throw "AuraGameDataShared v5 JSON schema is missing or invalid."
 }
 
 function Read-RepoSourceTree {
@@ -77,7 +77,7 @@ foreach ($required in @(
     }
 }
 $resourceProtocolModelsText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraSharedResourceProtocolModels.cs")
-foreach ($required in @("public const int Current = 5", "public const int MinimumSupported = 5", "AuraSharedCatalogSnapshotV4", "AuraSharedOriginKinds", "AuraSharedCatalogVisibilities")) {
+foreach ($required in @("public const int Current = 6", "public const int MinimumSupported = 6", "AuraSharedCatalogSnapshotV4", "AuraSharedOriginKinds", "AuraSharedCatalogVisibilities")) {
     if (-not $resourceProtocolModelsText.Contains($required)) {
         throw "AuraShared Core v4 resource protocol contract is missing: $required"
     }

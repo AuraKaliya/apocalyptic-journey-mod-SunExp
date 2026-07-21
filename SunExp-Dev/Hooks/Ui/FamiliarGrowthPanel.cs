@@ -537,7 +537,7 @@ public static class FamiliarGrowthPanel
 
         try
         {
-            var data = AuraGameDataHostApi.Row(DataType.Bless, id);
+            var data = AuraGameDataHostApi.CopyRow(DataType.Bless, id);
             if (data == null)
             {
                 return id;

@@ -46,33 +46,41 @@ public sealed class AuraGameDataHostMutationResult
 
 public static class AuraGameDataHostApi
 {
+    private static readonly Dictionary<DataType, string> DataTypeNames = Enum
+        .GetValues(typeof(DataType))
+        .Cast<DataType>()
+        .Distinct()
+        .ToDictionary(value => value, value => value.ToString());
     private static readonly AuraGameDataNativeSource NativeSource = new();
-    private static readonly object RegistrationGate = new();
-    private static readonly Dictionary<string, string[]> OwnerRegistrationPrefixes = new(StringComparer.OrdinalIgnoreCase);
-    private static readonly HashSet<string> PendingOwnerRegistrations = new(StringComparer.OrdinalIgnoreCase);
-    private static bool registrationFlushActive;
 
     static AuraGameDataHostApi()
     {
-        AuraGameDataCatalogRuntime.ConfigureSource(NativeSource);
+        AuraGameDataCatalogRuntime.ConfigureSource(NativeSource, rebuildImmediately: false);
+        AuraGameDataCatalogRuntime.ConfigureRebuildScheduler(CompileCapturedNativeCatalog);
+        ScheduleNativeRefresh(AuraGameDataConstants.RegistryAuthorityId, 1);
     }
+
+    public static AuraGameDataCatalogSnapshot AcquireSnapshot()
+    {
+        return AuraGameDataCatalogRuntime.AcquireSnapshot();
+    }
+
+    public static bool IsNativeCatalogReady => AcquireSnapshot().Version.NativeReady;
 
     public static AuraGameDataQueryResult Query(DataType dataType, bool includeAllCandidates = false)
     {
-        EnsureConfigured();
         return AuraGameDataCatalogRuntime.Query(new AuraGameDataQuery
         {
-            DataType = dataType.ToString(),
+            DataType = TypeName(dataType),
             IncludeAllCandidates = includeAllCandidates
         });
     }
 
     public static AuraGameDataQueryResult QueryHistory(DataType dataType)
     {
-        EnsureConfigured();
         return AuraGameDataCatalogRuntime.QueryHistory(new AuraGameDataQuery
         {
-            DataType = dataType.ToString(),
+            DataType = TypeName(dataType),
             IncludeAllCandidates = true,
             IncludeDisabled = true,
             IncludeHistory = true
@@ -81,30 +89,39 @@ public static class AuraGameDataHostApi
 
     public static AuraGameDataSnapshot? Resolve(DataType dataType, params string[] candidateIds)
     {
-        EnsureConfigured();
-        return AuraGameDataCatalogRuntime.Resolve(dataType.ToString(), candidateIds ?? Array.Empty<string>());
+        return AcquireSnapshot().Resolve(TypeName(dataType), candidateIds ?? Array.Empty<string>());
+    }
+
+    public static bool TryGet(DataType dataType, string id, out AuraGameDataSnapshot? snapshot)
+    {
+        return AcquireSnapshot().TryGet(TypeName(dataType), id, out snapshot);
+    }
+
+    public static IReadOnlyList<AuraGameDataSnapshot> Table(DataType dataType)
+    {
+        return AcquireSnapshot().GetTable(TypeName(dataType));
     }
 
     public static string ResolveId(DataType dataType, IEnumerable<string> candidateIds, string fallback = "")
     {
-        EnsureConfigured();
-        var candidates = (candidateIds ?? Array.Empty<string>()).ToList();
-        return AuraGameDataCatalogRuntime.Resolve(dataType.ToString(), candidates)?.Key.Id
+        return AcquireSnapshot().Resolve(TypeName(dataType), candidateIds ?? Array.Empty<string>())?.Id
             ?? AuraGameDataKey.NormalizeId(fallback)
             ?? "";
     }
 
-    public static List<Dictionary<string, string>> Rows(DataType dataType)
+    public static List<Dictionary<string, string>> CopyTableForHostInterop(DataType dataType)
     {
-        return Query(dataType)
-            .Items
+        var rows = Table(dataType)
             .Select(item => item.Fields.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal))
             .ToList();
+        AuraGameDataDiagnostics.RecordCopiedRows(rows.Count);
+        return rows;
     }
 
-    public static Dictionary<string, string>? Row(DataType dataType, params string[] candidateIds)
+    public static Dictionary<string, string>? CopyRow(DataType dataType, params string[] candidateIds)
     {
         var resolved = Resolve(dataType, candidateIds);
+        AuraGameDataDiagnostics.RecordCopiedRows(resolved == null ? 0 : 1);
         return resolved == null
             ? null
             : resolved.Fields.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
@@ -118,7 +135,11 @@ public static class AuraGameDataHostApi
 
     public static DataType? ResolveDataType(string id)
     {
-        return ResolveDataType(id, Enum.GetValues(typeof(DataType)).Cast<DataType>());
+        id = AuraGameDataKey.NormalizeId(id);
+        return AcquireSnapshot().TryResolveUniqueType(id, out var value)
+               && Enum.TryParse(value, true, out DataType dataType)
+            ? dataType
+            : null;
     }
 
     public static DataType? ResolveDataType(string id, IEnumerable<DataType> searchOrder)
@@ -129,12 +150,25 @@ public static class AuraGameDataHostApi
             return null;
         }
 
-        var matches = (searchOrder ?? Array.Empty<DataType>())
-            .Distinct()
-            .Where(dataType => Resolve(dataType, id) != null)
-            .Take(2)
-            .ToList();
-        return matches.Count == 1 ? matches[0] : null;
+        var snapshot = AcquireSnapshot();
+        var visited = new HashSet<DataType>();
+        DataType? match = null;
+        foreach (var dataType in searchOrder ?? Array.Empty<DataType>())
+        {
+            if (!visited.Add(dataType) || !snapshot.TryGet(TypeName(dataType), id, out _))
+            {
+                continue;
+            }
+
+            if (match.HasValue)
+            {
+                return null;
+            }
+
+            match = dataType;
+        }
+
+        return match;
     }
 
     public static AuraGameDataInstanceSnapshot Capture(IDataConfig? instance)
@@ -153,7 +187,7 @@ public static class AuraGameDataHostApi
         var id = AuraSharedDictionary.Get(data, "Id", AuraSharedDictionary.Get(vars, "Id"));
         return new AuraGameDataInstanceSnapshot
         {
-            Key = new AuraGameDataKey(instance.Type.ToString(), id),
+            Key = new AuraGameDataKey(TypeName(instance.Type), id),
             InstanceId = instance.InstanceID ?? AuraSharedDictionary.Get(vars, "InstanceID"),
             Data = data,
             Vars = vars
@@ -200,20 +234,36 @@ public static class AuraGameDataHostApi
 
     public static AuraGameDataHostMutationResult Materialize(AuraGameDataMaterializeRequest request)
     {
+        AuraGameDataDiagnostics.RecordMaterialization();
         if (request?.Definition == null)
         {
             return AuraGameDataHostMutationResult.Fail("handle", "A registered definition handle is required.");
         }
 
-        EnsureConfigured();
         if (!AuraGameDataCatalogRuntime.ValidateHandle(request.Definition, out var snapshot) || snapshot == null)
         {
             return AuraGameDataHostMutationResult.Fail("handle", "Definition handle is stale or invalid.");
         }
 
-        if (!Enum.TryParse(snapshot.Key.DataType, true, out DataType dataType))
+        return MaterializeSnapshot(snapshot, request);
+    }
+
+    public static AuraGameDataHostMutationResult Materialize(DataType dataType, params string[] candidateIds)
+    {
+        AuraGameDataDiagnostics.RecordMaterialization();
+        var snapshot = AcquireSnapshot().Resolve(TypeName(dataType), candidateIds ?? Array.Empty<string>());
+        return snapshot == null
+            ? AuraGameDataHostMutationResult.Fail("resolve", "Registered definition was not found.")
+            : MaterializeSnapshot(snapshot, new AuraGameDataMaterializeRequest());
+    }
+
+    private static AuraGameDataHostMutationResult MaterializeSnapshot(
+        AuraGameDataSnapshot snapshot,
+        AuraGameDataMaterializeRequest request)
+    {
+        if (!Enum.TryParse(snapshot.DataType, true, out DataType dataType))
         {
-            return AuraGameDataHostMutationResult.Fail("type", "Unsupported DataType: " + snapshot.Key.DataType);
+            return AuraGameDataHostMutationResult.Fail("type", "Unsupported DataType: " + snapshot.DataType);
         }
 
         if ((request.DataOverrides?.Keys ?? Enumerable.Empty<string>()).Any(IsIdentityOrScriptField))
@@ -223,29 +273,19 @@ public static class AuraGameDataHostApi
 
         try
         {
-            DataConfig instance;
             var overrides = request.DataOverrides ?? new Dictionary<string, string>();
-            if (string.Equals(snapshot.SourceKind, AuraGameDataSourceKinds.Native, StringComparison.OrdinalIgnoreCase)
-                && overrides.Count == 0
-                && request.PreCompile)
+            var data = snapshot.Fields.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
+            foreach (var pair in overrides)
             {
-                instance = new DataConfig(snapshot.Key.Id, dataType);
+                data[pair.Key] = pair.Value ?? "";
             }
-            else
-            {
-                var data = snapshot.Fields.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal);
-                foreach (var pair in overrides)
-                {
-                    data[pair.Key] = pair.Value ?? "";
-                }
 
-                data["Id"] = snapshot.Key.Id;
-                instance = new DataConfig(
-                    data,
-                    new Dictionary<string, string>(StringComparer.Ordinal),
-                    request.PreCompile,
-                    dataType);
-            }
+            data["Id"] = snapshot.Id;
+            var instance = new DataConfig(
+                data,
+                new Dictionary<string, string>(StringComparer.Ordinal),
+                request.PreCompile,
+                dataType);
 
             var patch = PatchVars(instance, new AuraGameDataInstancePatch
             {
@@ -259,14 +299,6 @@ public static class AuraGameDataHostApi
         {
             return AuraGameDataHostMutationResult.Fail("materialize", ex.Message);
         }
-    }
-
-    public static AuraGameDataHostMutationResult Materialize(DataType dataType, params string[] candidateIds)
-    {
-        var handle = ResolveHandle(dataType, candidateIds);
-        return handle == null
-            ? AuraGameDataHostMutationResult.Fail("resolve", "Registered definition was not found.")
-            : Materialize(new AuraGameDataMaterializeRequest { Definition = handle });
     }
 
     public static DataConfig CloneWritable(
@@ -328,83 +360,118 @@ public static class AuraGameDataHostApi
         return AuraSharedDictionary.Get(instance.data, field, fallback);
     }
 
-    public static void RegisterOwnerPrefix(string ownerModId, params string[] prefixes)
-    {
-        NativeSource.RegisterOwnerPrefix(ownerModId, prefixes);
-    }
-
-    public static AuraGameDataMutationResult RegisterLoadedDefinitionsV4(string ownerModId, params string[] idPrefixes)
+    public static AuraGameDataMutationResult RegisterNativeOwnershipV5(
+        string ownerModId,
+        params string[] prefixes)
     {
         ownerModId = (ownerModId ?? "").Trim();
-        var prefixes = (idPrefixes ?? Array.Empty<string>())
+        var normalizedPrefixes = (prefixes ?? Array.Empty<string>())
             .Select(AuraGameDataKey.NormalizeId)
             .Where(value => value.Length > 0)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray();
-        if (ownerModId.Length == 0 || prefixes.Length == 0)
+        if (ownerModId.Length == 0 || normalizedPrefixes.Length == 0)
         {
             return AuraGameDataMutationResult.Failed("Owner and at least one full-id prefix are required.");
         }
 
-        RegisterOwnerPrefix(ownerModId, prefixes);
-        lock (RegistrationGate)
-        {
-            OwnerRegistrationPrefixes[ownerModId] = prefixes;
-            PendingOwnerRegistrations.Add(ownerModId);
-        }
-
-        return TryRegisterLoadedDefinitions(ownerModId, prefixes);
-    }
-
-    private static AuraGameDataMutationResult TryRegisterLoadedDefinitions(string ownerModId, string[] prefixes)
-    {
-        var definitions = new List<AuraGameDataDefinition>();
-        foreach (DataType dataType in Enum.GetValues(typeof(DataType)))
-        {
-            definitions.AddRange(NativeSource.Read(dataType.ToString())
-                .Where(value => prefixes.Any(prefix => value.Key.Id.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)))
-                .Select(value => new AuraGameDataDefinition
-                {
-                    SchemaVersion = AuraGameDataConstants.SchemaVersion,
-                    Key = value.Key.Clone(),
-                    OwnerModId = ownerModId,
-                    WriterId = ownerModId,
-                    SourceKind = AuraGameDataSourceKinds.Registered,
-                    Priority = value.Priority,
-                    Enabled = value.Enabled,
-                    Aliases = value.Aliases.ToList(),
-                    Fields = value.Fields.ToDictionary(pair => pair.Key, pair => pair.Value, StringComparer.Ordinal)
-                }));
-        }
-
-        if (definitions.Count == 0)
-        {
-            return new AuraGameDataMutationResult { Success = true, Message = "Deferred until game tables are available." };
-        }
-
-        var result = AuraGameDataCatalogRuntime.RegisterBatch(ownerModId, definitions);
-        if (result.Success)
-        {
-            lock (RegistrationGate)
+        var result = AuraGameDataCatalogRuntime.RegisterOwnerRules(
+            ownerModId,
+            normalizedPrefixes.Select(prefix => new AuraGameDataOwnerRule
             {
-                PendingOwnerRegistrations.Remove(ownerModId);
-            }
-        }
-
+                OwnerModId = ownerModId,
+                WriterId = ownerModId,
+                IdPrefix = prefix
+            }));
+        ScheduleNativeRefresh(ownerModId, 2);
+        ScheduleNativeRefresh(ownerModId, 20);
+        ScheduleNativeRefresh(ownerModId, 120);
         return result;
     }
 
     public static void InvalidateNativeCatalog()
     {
         NativeSource.Invalidate();
-        lock (RegistrationGate)
+        StartCooperativeNativeRefresh(AuraGameDataConstants.RegistryAuthorityId);
+    }
+
+    private static void CompileCapturedNativeCatalog()
+    {
+        AuraGameDataCatalogBuildRequest request;
+        try
         {
-            foreach (var owner in OwnerRegistrationPrefixes.Keys)
-            {
-                PendingOwnerRegistrations.Add(owner);
-            }
+            request = AuraGameDataCatalogRuntime.CaptureBuildRequest();
         }
-        AuraGameDataCatalogRuntime.Invalidate();
+        catch
+        {
+            AuraGameDataCatalogRuntime.Rebuild();
+            return;
+        }
+
+        if (!request.Source.IsComplete || !AuraGameDataCatalogRuntime.IsBuildCurrent(request))
+        {
+            return;
+        }
+
+        var queued = AuraSharedBackgroundWorkScheduler.Queue(
+            new AuraSharedBackgroundWorkRequest<AuraGameDataCatalogSnapshot>
+            {
+                OwnerId = AuraGameDataConstants.RegistryAuthorityId,
+                Key = "catalog-compile",
+                Source = "AuraGameData.CatalogCompile",
+                Kind = AuraSharedBackgroundWorkKind.Cpu,
+                CompletionPriority = 100,
+                Work = cancellation =>
+                {
+                    cancellation.ThrowIfCancellationRequested();
+                    return AuraGameDataCatalogRuntime.Compile(request);
+                },
+                IsStillCurrent = () => AuraGameDataCatalogRuntime.IsBuildCurrent(request),
+                ApplyOnMainThread = snapshot => AuraGameDataCatalogRuntime.Publish(snapshot),
+                OnFailedOnMainThread = _ => AuraGameDataCatalogRuntime.Rebuild()
+            });
+        if (!queued)
+        {
+            AuraGameDataCatalogRuntime.Publish(AuraGameDataCatalogRuntime.Compile(request));
+        }
+    }
+
+    private static void ScheduleNativeRefresh(string ownerModId, int delayFrames)
+    {
+        AuraSharedFrameScheduler.RunOnceAfterFrames(new AuraSharedFrameActionRequest
+        {
+            OwnerId = AuraGameDataConstants.RegistryAuthorityId,
+            Key = "game-data-native-refresh-" + delayFrames,
+            Source = ownerModId + ".GameData.NativeRefresh",
+            DelayFrames = delayFrames,
+            Phase = AuraSharedFramePhase.Reconcile,
+            EstimatedCost = 2,
+            Action = () =>
+            {
+                NativeSource.Invalidate();
+                StartCooperativeNativeRefresh(ownerModId);
+            }
+        });
+    }
+
+    private static void StartCooperativeNativeRefresh(string ownerModId)
+    {
+        NativeSource.BeginCooperativeCapture();
+        AuraSharedFrameScheduler.RunCooperative(new AuraSharedFrameWorkRequest
+        {
+            OwnerId = AuraGameDataConstants.RegistryAuthorityId,
+            Key = "game-data-native-capture",
+            Source = ownerModId + ".GameData.NativeCapture",
+            DelayFrames = 1,
+            Phase = AuraSharedFramePhase.Reconcile,
+            Priority = 100,
+            EstimatedCost = 2,
+            MaximumSlices = 64,
+            SliceBudgetMilliseconds = 4d,
+            ExecuteSlice = NativeSource.CaptureSlice,
+            OnCompleted = _ => CompileCapturedNativeCatalog(),
+            OnCancelled = _ => CompileCapturedNativeCatalog()
+        });
     }
 
     private static bool IsIdentityOrScriptField(string? field)
@@ -416,46 +483,26 @@ public static class AuraGameDataHostApi
             || (field ?? "").IndexOf("Script", StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
-    private static void EnsureConfigured()
+    internal static string TypeName(DataType dataType)
     {
-        KeyValuePair<string, string[]>[] pending;
-        lock (RegistrationGate)
-        {
-            if (registrationFlushActive || PendingOwnerRegistrations.Count == 0)
-            {
-                return;
-            }
-
-            registrationFlushActive = true;
-            pending = OwnerRegistrationPrefixes
-                .Where(pair => PendingOwnerRegistrations.Contains(pair.Key))
-                .Select(pair => new KeyValuePair<string, string[]>(pair.Key, pair.Value.ToArray()))
-                .ToArray();
-        }
-
-        try
-        {
-            foreach (var pair in pending)
-            {
-                TryRegisterLoadedDefinitions(pair.Key, pair.Value);
-            }
-        }
-        finally
-        {
-            lock (RegistrationGate)
-            {
-                registrationFlushActive = false;
-            }
-        }
+        return DataTypeNames.TryGetValue(dataType, out var name)
+            ? name
+            : dataType.ToString();
     }
+
 }
 
 internal sealed class AuraGameDataNativeSource : IAuraGameDataSource
 {
     private readonly object gate = new();
-    private readonly Dictionary<string, CacheEntry> cache = new(StringComparer.OrdinalIgnoreCase);
-    private readonly Dictionary<string, string> ownerPrefixes = new(StringComparer.OrdinalIgnoreCase);
-    private long revision;
+    private AuraGameDataSourceSnapshot? cached;
+    private List<AuraGameDataDefinition>? captureDefinitions;
+    private DataType[] captureTypes = Array.Empty<DataType>();
+    private IReadOnlyList<Dictionary<string, string>>? captureRows;
+    private int captureIndex;
+    private int captureRowIndex;
+    private long captureGeneration;
+    private long revision = 1;
 
     public long Revision
     {
@@ -468,80 +515,140 @@ internal sealed class AuraGameDataNativeSource : IAuraGameDataSource
         }
     }
 
-    public IReadOnlyList<AuraGameDataDefinition> Read(string dataType)
+    public AuraGameDataSourceSnapshot Capture()
     {
-        if (!Enum.TryParse(dataType, true, out DataType parsed))
+        AuraGameDataDiagnostics.RecordNativeCapture();
+        lock (gate)
         {
-            return Array.Empty<AuraGameDataDefinition>();
-        }
-
-        try
-        {
-            var rows = Singleton<GameConfigManager>.Instance?.GetTable(parsed)?.Getlines();
-            if (rows == null)
-            {
-                return Array.Empty<AuraGameDataDefinition>();
-            }
-
-            var signature = Signature(rows);
-            lock (gate)
-            {
-                if (cache.TryGetValue(dataType, out var existing) && existing.Signature == signature)
-                {
-                    return existing.Definitions.Select(value => value.Clone()).ToList();
-                }
-
-                var definitions = rows
-                    .Where(row => row != null)
-                    .Select(row => BuildDefinition(parsed, row))
-                    .Where(value => value != null)
-                    .Cast<AuraGameDataDefinition>()
-                    .ToList();
-                revision++;
-                cache[dataType] = new CacheEntry(signature, definitions);
-                return definitions.Select(value => value.Clone()).ToList();
-            }
-        }
-        catch
-        {
-            return Array.Empty<AuraGameDataDefinition>();
+            return cached ?? new AuraGameDataSourceSnapshot(
+                revision,
+                Array.Empty<AuraGameDataDefinition>(),
+                isComplete: false);
         }
     }
 
-    public void RegisterOwnerPrefix(string ownerModId, IEnumerable<string> prefixes)
+    public void BeginCooperativeCapture()
     {
-        ownerModId = (ownerModId ?? "").Trim();
-        if (ownerModId.Length == 0)
-        {
-            return;
-        }
-
         lock (gate)
         {
-            foreach (var prefix in prefixes ?? Array.Empty<string>())
+            captureDefinitions = new List<AuraGameDataDefinition>();
+            captureTypes = Enum.GetValues(typeof(DataType)).Cast<DataType>().ToArray();
+            captureRows = null;
+            captureIndex = 0;
+            captureRowIndex = 0;
+            captureGeneration = revision;
+        }
+    }
+
+    public bool CaptureSlice(AuraSharedFrameSliceContext context)
+    {
+        while (!context.IsBudgetExhausted)
+        {
+            DataType dataType;
+            Dictionary<string, string>? row = null;
+            var loadRows = false;
+            lock (gate)
             {
-                var normalized = AuraGameDataKey.NormalizeId(prefix);
-                if (normalized.Length > 0)
+                if (captureDefinitions == null || captureIndex >= captureTypes.Length)
                 {
-                    ownerPrefixes[normalized] = ownerModId;
+                    CompleteCooperativeCaptureNoLock();
+                    return true;
+                }
+
+                dataType = captureTypes[captureIndex];
+                if (captureRows == null)
+                {
+                    loadRows = true;
+                }
+                else if (captureRowIndex < captureRows.Count)
+                {
+                    row = captureRows[captureRowIndex++];
+                }
+                else
+                {
+                    captureRows = null;
+                    captureRowIndex = 0;
+                    captureIndex++;
+                    continue;
                 }
             }
 
-            cache.Clear();
-            revision++;
+            if (loadRows)
+            {
+                var rows = LoadRows(dataType);
+                lock (gate)
+                {
+                    if (captureDefinitions == null || captureGeneration != revision)
+                    {
+                        return true;
+                    }
+
+                    captureRows = rows;
+                    captureRowIndex = 0;
+                }
+
+                continue;
+            }
+
+            var definition = row == null ? null : BuildDefinition(dataType, row);
+            if (definition != null)
+            {
+                lock (gate)
+                {
+                    if (captureDefinitions != null && captureGeneration == revision)
+                    {
+                        captureDefinitions.Add(definition);
+                    }
+                }
+            }
         }
+
+        return false;
     }
 
     public void Invalidate()
     {
         lock (gate)
         {
-            cache.Clear();
+            captureDefinitions = null;
+            captureTypes = Array.Empty<DataType>();
+            captureRows = null;
+            captureIndex = 0;
+            captureRowIndex = 0;
             revision++;
         }
     }
 
-    private AuraGameDataDefinition? BuildDefinition(DataType dataType, IDictionary<string, string> row)
+    private static IReadOnlyList<Dictionary<string, string>> LoadRows(DataType dataType)
+    {
+        try
+        {
+            var rows = Singleton<GameConfigManager>.Instance?.GetTable(dataType)?.Getlines();
+            return rows == null
+                ? Array.Empty<Dictionary<string, string>>()
+                : rows;
+        }
+        catch
+        {
+            return Array.Empty<Dictionary<string, string>>();
+        }
+    }
+
+    private void CompleteCooperativeCaptureNoLock()
+    {
+        if (captureDefinitions != null && captureGeneration == revision)
+        {
+            cached = new AuraGameDataSourceSnapshot(revision, captureDefinitions.ToArray());
+        }
+
+        captureDefinitions = null;
+        captureTypes = Array.Empty<DataType>();
+        captureRows = null;
+        captureIndex = 0;
+        captureRowIndex = 0;
+    }
+
+    private static AuraGameDataDefinition? BuildDefinition(DataType dataType, IDictionary<string, string> row)
     {
         var id = AuraGameDataKey.NormalizeId(AuraSharedDictionary.Get(row, "Id"));
         if (id.Length == 0)
@@ -552,26 +659,19 @@ internal sealed class AuraGameDataNativeSource : IAuraGameDataSource
         return new AuraGameDataDefinition
         {
             SchemaVersion = AuraGameDataConstants.SchemaVersion,
-            Key = new AuraGameDataKey(dataType.ToString(), id),
+            Key = new AuraGameDataKey(AuraGameDataHostApi.TypeName(dataType), id),
             OwnerModId = ResolveOwner(id),
             WriterId = AuraGameDataConstants.RegistryAuthorityId,
             SourceKind = AuraGameDataSourceKinds.Native,
+            StorageKind = AuraGameDataStorageKinds.Inline,
             Enabled = true,
-            Revision = Revision,
+            Revision = 0,
             Fields = new Dictionary<string, string>(row, StringComparer.Ordinal)
         };
     }
 
-    private string ResolveOwner(string id)
+    private static string ResolveOwner(string id)
     {
-        foreach (var pair in ownerPrefixes.OrderByDescending(value => value.Key.Length))
-        {
-            if (id.StartsWith(pair.Key, StringComparison.OrdinalIgnoreCase))
-            {
-                return pair.Value;
-            }
-        }
-
         var separator = id.IndexOf('_');
         if (separator > 0)
         {
@@ -583,38 +683,5 @@ internal sealed class AuraGameDataNativeSource : IAuraGameDataSource
         }
 
         return "BaseGame";
-    }
-
-    private static ulong Signature(IEnumerable<Dictionary<string, string>> rows)
-    {
-        const ulong offset = 1469598103934665603UL;
-        const ulong prime = 1099511628211UL;
-        var hash = offset;
-        foreach (var row in rows.OrderBy(value => AuraSharedDictionary.Get(value, "Id"), StringComparer.Ordinal))
-        {
-            foreach (var pair in row.OrderBy(value => value.Key, StringComparer.Ordinal))
-            {
-                foreach (var character in pair.Key + "\u001f" + (pair.Value ?? "") + "\u001e")
-                {
-                    hash ^= character;
-                    hash *= prime;
-                }
-            }
-        }
-
-        return hash;
-    }
-
-    private sealed class CacheEntry
-    {
-        public CacheEntry(ulong signature, IReadOnlyList<AuraGameDataDefinition> definitions)
-        {
-            Signature = signature;
-            Definitions = definitions;
-        }
-
-        public ulong Signature { get; }
-
-        public IReadOnlyList<AuraGameDataDefinition> Definitions { get; }
     }
 }

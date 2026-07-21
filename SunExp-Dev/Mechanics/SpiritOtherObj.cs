@@ -221,9 +221,9 @@ public sealed class SpiritOtherObj : OtherObj
         {
             if (!PresentationTemplates.TryGetValue(key, out var template))
             {
-                var source = AuraGameDataHostApi.Row(DataType.EnemyCard, key)
+                var source = AuraGameDataHostApi.CopyRow(DataType.EnemyCard, key)
                     ?? throw new InvalidOperationException("Spirit source intent definition is not registered: " + key);
-                presentationAdapterData ??= AuraGameDataHostApi.Row(
+                presentationAdapterData ??= AuraGameDataHostApi.CopyRow(
                     DataType.EnemyCard,
                     SunExpIds.SpiritIntentAdapterCardId)
                     ?? throw new InvalidOperationException("Spirit intent adapter definition is not registered.");

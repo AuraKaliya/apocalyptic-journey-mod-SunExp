@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraGameData.Shared.GameApi;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
 using Witch.Core;
@@ -13,12 +14,14 @@ public static class MorningStarOvertureService
     private static readonly Dictionary<int, int> PlayedCostCounts = new();
     private static readonly Stack<PendingCard> PendingActions = new();
     private static List<string>? compositionPool;
+    private static long compositionPoolEpoch = -1;
 
     public static void ResetForFight()
     {
         PlayedCostCounts.Clear();
         PendingActions.Clear();
         compositionPool = null;
+        compositionPoolEpoch = -1;
     }
 
     public static void ResetForTurn()
@@ -190,7 +193,13 @@ public static class MorningStarOvertureService
 
     private static IReadOnlyList<string> CompositionPool()
     {
-        if (compositionPool != null)
+        var snapshot = AuraGameDataHostApi.AcquireSnapshot();
+        if (!snapshot.Version.NativeReady)
+        {
+            return Array.Empty<string>();
+        }
+
+        if (compositionPool != null && compositionPoolEpoch == snapshot.Version.Epoch)
         {
             return compositionPool;
         }
@@ -202,6 +211,7 @@ public static class MorningStarOvertureService
             .Where(id => !string.IsNullOrWhiteSpace(id))
             .Distinct(StringComparer.Ordinal)
             .ToList();
+        compositionPoolEpoch = snapshot.Version.Epoch;
         SunExpLog.Info("[MorningStar] composition pool size=" + compositionPool.Count);
         return compositionPool;
     }

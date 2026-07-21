@@ -66,7 +66,7 @@ foreach ($resource in @(
 }
 
 $baseAnimationRoot = Join-Path $repoRoot "SunExp\ModResource\AnimationLib\columbina"
-$idleFrame = Join-Path $baseAnimationRoot "Idle\matte_00001.png"
+$idleFrame = Join-Path $baseAnimationRoot "Idle\frame_01.png"
 $idleHash = (Get-FileHash -Algorithm SHA256 -LiteralPath $idleFrame).Hash
 foreach ($state in @("Attack", "Buff", "Debuff", "Defend", "Hit", "Skill", "Special", "Special1", "Special2")) {
     $stateRoot = Join-Path $baseAnimationRoot $state

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraGameData.Shared.GameApi;
 using Data.Save;
 using SunExp.Dll.GameApi;
 using SunExp.Dll.Infrastructure;
@@ -127,6 +128,12 @@ public static class DimensionShopService
         var save = GameSaveManager.GetNowSave() ?? GameEntryUI.selectedSave;
         if (save == null)
         {
+            return false;
+        }
+
+        if (!AuraGameDataHostApi.IsNativeCatalogReady)
+        {
+            SunExpLog.Debug("[DimensionShop] deferred run snapshot until game-data catalog is ready: " + source);
             return false;
         }
 

@@ -20,6 +20,7 @@ public static class EndlessAbyssCurseService
     private const string TemporaryCombatSourceKey = "SunExpTemporarySource";
     private static int suppressGazeCardGain;
     private static IReadOnlyList<string>? randomCursePoolCache;
+    private static long randomCursePoolEpoch = -1;
 
     private static readonly HashSet<string> CurseCardIds = new(StringComparer.Ordinal)
     {
@@ -348,7 +349,13 @@ public static class EndlessAbyssCurseService
 
     private static IReadOnlyList<string> RandomCursePool()
     {
-        if (randomCursePoolCache != null)
+        var snapshot = AuraGameDataHostApi.AcquireSnapshot();
+        if (!snapshot.Version.NativeReady)
+        {
+            return new[] { SunExpIds.AbyssLifeTheftCardId, SunExpIds.AbyssDeficitCardId };
+        }
+
+        if (randomCursePoolCache != null && randomCursePoolEpoch == snapshot.Version.Epoch)
         {
             return randomCursePoolCache;
         }
@@ -372,6 +379,7 @@ public static class EndlessAbyssCurseService
                 .Select(row => CardApi.ResolveCardId(row.Id))
                 .Where(id => !string.IsNullOrWhiteSpace(id) && seen.Add(id))
                 .ToList();
+            randomCursePoolEpoch = snapshot.Version.Epoch;
             return randomCursePoolCache;
         }
         catch (Exception ex)
@@ -382,6 +390,7 @@ public static class EndlessAbyssCurseService
                 SunExpIds.AbyssLifeTheftCardId,
                 SunExpIds.AbyssDeficitCardId
             };
+            randomCursePoolEpoch = snapshot.Version.Epoch;
             return randomCursePoolCache;
         }
     }

@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text.RegularExpressions;
+using AuraGameData.Shared;
 using AuraShared.Core;
 using AuraGameData.Shared.GameApi;
 using AuraRole.Shared;
@@ -40,17 +41,28 @@ public static class RoleCatalog
     private static readonly object Gate = new();
     private static List<RoleInfo> cached = new();
     private static float lastScanRealtime;
+    private static long cachedCatalogEpoch = -1;
 
     public static IReadOnlyList<RoleInfo> GetRoles(bool forceRefresh = false)
     {
+        var snapshot = AuraGameDataHostApi.AcquireSnapshot();
         lock (Gate)
         {
-            if (!forceRefresh && cached.Count > 0 && UnityEngine.Time.realtimeSinceStartup - lastScanRealtime < 10f)
+            if (!snapshot.Version.NativeReady)
+            {
+                return cached.Count > 0 ? cached.ToList() : ScanRoles();
+            }
+
+            if (!forceRefresh
+                && cached.Count > 0
+                && cachedCatalogEpoch == snapshot.Version.Epoch
+                && UnityEngine.Time.realtimeSinceStartup - lastScanRealtime < 10f)
             {
                 return cached.ToList();
             }
 
             cached = ScanRoles();
+            cachedCatalogEpoch = snapshot.Version.Epoch;
             lastScanRealtime = UnityEngine.Time.realtimeSinceStartup;
             return cached.ToList();
         }
@@ -98,10 +110,11 @@ public static class RoleCatalog
 
         try
         {
-            var lines = AuraGameDataHostApi.Rows(DataType.Career);
+            var lines = AuraGameDataHostApi.Table(DataType.Career);
 
-            foreach (var row in lines)
+            foreach (var definition in lines)
             {
+                var row = definition.Fields;
                 if (!row.TryGetValue("Id", out var id))
                 {
                     continue;
@@ -181,7 +194,7 @@ public static class RoleCatalog
         return roles;
     }
 
-    private static string ResolveDisplayName(string id, Dictionary<string, string> row)
+    private static string ResolveDisplayName(string id, IReadOnlyDictionary<string, string> row)
     {
         try
         {
@@ -189,7 +202,7 @@ public static class RoleCatalog
             // before DataConfig's id cache is ready. The table row is already the
             // authoritative source here, so localize it directly without forcing
             // an early DataConfig lookup that logs a false missing-key error.
-            var localized = row.Localize("Name");
+            var localized = (row as IDictionary<string, string>)?.Localize("Name") ?? "";
             if (!string.IsNullOrWhiteSpace(localized) && !string.Equals(localized, "Name", StringComparison.OrdinalIgnoreCase))
             {
                 return localized;
@@ -203,7 +216,7 @@ public static class RoleCatalog
         return row.TryGetValue("Name", out var name) && !string.IsNullOrWhiteSpace(name) ? name : id;
     }
 
-    private static List<RoleSkillInfo> ResolveSkills(Dictionary<string, string> row)
+    private static List<RoleSkillInfo> ResolveSkills(IReadOnlyDictionary<string, string> row)
     {
         var skills = new List<RoleSkillInfo>();
         var seen = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -260,7 +273,7 @@ public static class RoleCatalog
     {
         try
         {
-            var data = AuraGameDataHostApi.Row(DataType.Card, cardId);
+            var data = AuraGameDataHostApi.CopyRow(DataType.Card, cardId);
             if (data == null)
             {
                 return cardId;
@@ -284,17 +297,17 @@ public static class RoleCatalog
         return cardId;
     }
 
-    private static string ResolveActiveSkillDisplayName(IDictionary<string, string> row, int slot, string cardId)
+    private static string ResolveActiveSkillDisplayName(IReadOnlyDictionary<string, string> row, int slot, string cardId)
     {
         var actionName = ExtractTaggedName(ResolveLocalizedCareerField(row, "Action" + slot));
         return string.IsNullOrWhiteSpace(actionName) ? ResolveCardDisplayName(cardId) : actionName;
     }
 
-    private static string ResolveLocalizedCareerField(IDictionary<string, string> data, string key)
+    private static string ResolveLocalizedCareerField(IReadOnlyDictionary<string, string> data, string key)
     {
         try
         {
-            var localized = data.Localize(key);
+            var localized = (data as IDictionary<string, string>)?.Localize(key) ?? "";
             if (!string.IsNullOrWhiteSpace(localized) && !string.Equals(localized, key, StringComparison.OrdinalIgnoreCase))
             {
                 return localized;

@@ -2,6 +2,9 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using AuraGameData.Shared;
+using AuraGameData.Shared.GameApi;
+using AuraShared.Core;
 using AuraSkin.Shared.GameApi;
 using AuraSkin.Shared.Infrastructure;
 using AuraSkin.Shared.Models;
@@ -20,6 +23,10 @@ public static class SkinRuntime
     private static readonly Dictionary<string, string> AppliedAnimationSkin = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, SkinSelectionSnapshot> RemoteSelections = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, SkinSelectionResolveResult> RemoteStatuses = new(StringComparer.OrdinalIgnoreCase);
+    private static bool catalogListenerRegistered;
+    private static long selectionRevision;
+    private static long lastAppliedSelectionRevision = -1;
+    private static long lastAppliedCatalogEpoch = -1;
 
     public static bool FeatureEnabled { get; private set; } = true;
 
@@ -29,6 +36,12 @@ public static class SkinRuntime
 
     public static void Initialize()
     {
+        if (!catalogListenerRegistered)
+        {
+            AuraGameDataCatalogRuntime.SnapshotChanged += OnGameDataSnapshotChanged;
+            catalogListenerRegistered = true;
+        }
+
         Reload();
     }
 
@@ -40,6 +53,9 @@ public static class SkinRuntime
         RemoteStatuses.Clear();
         SkinRegistry.Reload();
         SkinSelectionStore.Load();
+        selectionRevision++;
+        lastAppliedSelectionRevision = -1;
+        lastAppliedCatalogEpoch = -1;
     }
 
     public static IReadOnlyList<SkinDefinition> GetSkins(string careerId) => SkinRegistry.GetForCareer(careerId);
@@ -51,13 +67,15 @@ public static class SkinRuntime
     public static void ConfigureCandidates(bool configured, IEnumerable<string>? enabledQualifiedSkinIds)
     {
         SkinRegistry.ConfigureCandidateEnablement(configured, enabledQualifiedSkinIds);
-        ApplyAllKnownSelections();
+        selectionRevision++;
+        ScheduleApplyAllKnownSelections();
     }
 
     public static void ConfigureCandidateOverrides(IEnumerable<KeyValuePair<string, bool>>? overrides)
     {
         SkinRegistry.ConfigureCandidateOverrides(overrides);
-        ApplyAllKnownSelections();
+        selectionRevision++;
+        ScheduleApplyAllKnownSelections();
     }
 
     public static void ConfigurePresentation(bool featureEnabled, bool entryPanelEnabled)
@@ -120,6 +138,7 @@ public static class SkinRuntime
 
         var skin = SkinRegistry.ResolveReference(careerId, skinId);
         SkinSelectionStore.Set(careerId, skin?.QualifiedSkinId ?? "");
+        selectionRevision++;
         ApplyAnimation(career, true);
         LocalSelectionChanged?.Invoke(CreateLocalSelectionSnapshot(career, "", ""));
     }
@@ -133,7 +152,8 @@ public static class SkinRuntime
             replacement?.QualifiedSkinId ?? newSkinId);
         if (changed)
         {
-            ApplyAllKnownSelections();
+            selectionRevision++;
+            ScheduleApplyAllKnownSelections();
         }
 
         return changed;
@@ -157,31 +177,62 @@ public static class SkinRuntime
 
     public static void ApplyAllKnownSelections()
     {
-        var careerIds = SkinRegistry.CareerIds.Concat(SkinSelectionStore.CareerIds)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .ToArray();
-        foreach (var careerId in careerIds)
+        var started = AuraGameDataDiagnostics.Timestamp();
+        try
         {
-            var normalizedCareerId = CareerConfigApi.NormalizeId(careerId);
-            if (!CareerConfigApi.TryCreate(careerId, out var career) || career == null)
+            var catalogEpoch = AuraGameDataHostApi.AcquireSnapshot().Version.Epoch;
+            if (lastAppliedCatalogEpoch == catalogEpoch
+                && lastAppliedSelectionRevision == selectionRevision)
             {
-                if (!string.IsNullOrWhiteSpace(normalizedCareerId))
+                return;
+            }
+
+            var careerIds = SkinRegistry.CareerIds.Concat(SkinSelectionStore.CareerIds)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToArray();
+            foreach (var careerId in careerIds)
+            {
+                var normalizedCareerId = CareerConfigApi.NormalizeId(careerId);
+                if (!CareerConfigApi.TryCreate(careerId, out var career) || career == null)
                 {
-                    SkinLog.Warn("Could not apply saved skin for missing career " + normalizedCareerId);
+                    if (!string.IsNullOrWhiteSpace(normalizedCareerId))
+                    {
+                        SkinLog.Warn("Could not apply saved skin for missing career " + normalizedCareerId);
+                    }
+
+                    continue;
                 }
 
-                continue;
+                try
+                {
+                    ApplyAnimation(career, false);
+                }
+                catch (Exception ex)
+                {
+                    SkinLog.Warn("Could not apply saved skin for career " + normalizedCareerId + ": " + ex.Message);
+                }
             }
 
-            try
-            {
-                ApplyAnimation(career, false);
-            }
-            catch (Exception ex)
-            {
-                SkinLog.Warn("Could not apply saved skin for career " + normalizedCareerId + ": " + ex.Message);
-            }
+            lastAppliedCatalogEpoch = catalogEpoch;
+            lastAppliedSelectionRevision = selectionRevision;
         }
+        finally
+        {
+            AuraGameDataDiagnostics.RecordOperation("ModeSelection.ApplySkins", started);
+        }
+    }
+
+    public static void ScheduleApplyAllKnownSelections()
+    {
+        AuraSharedFrameScheduler.RunOnceNextFrame(new AuraSharedFrameActionRequest
+        {
+            OwnerId = "AuraSkinShared",
+            Key = "apply-known-selections",
+            Source = "AuraSkin.GameData.Refresh",
+            Phase = AuraSharedFramePhase.Reconcile,
+            EstimatedCost = 2,
+            Action = ApplyAllKnownSelections
+        });
     }
 
     public static Sprite? LoadSprite(DataConfig? career, string field, string instanceId = "")
@@ -362,6 +413,12 @@ public static class SkinRuntime
         }
 
         return RemoteSelections.TryGetValue(instanceId.Trim(), out var remote) ? remote : null;
+    }
+
+    private static void OnGameDataSnapshotChanged(AuraGameDataCatalogVersion version)
+    {
+        lastAppliedCatalogEpoch = -1;
+        ScheduleApplyAllKnownSelections();
     }
 
     private static SkinSelectionResolveResult ResolveRemoteSelection(SkinSelectionSnapshot? snapshot)

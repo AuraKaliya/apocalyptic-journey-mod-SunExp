@@ -11,6 +11,7 @@ namespace AuraShared.Core;
 
 public sealed class AuraSharedStorageCoordinator : IDisposable
 {
+    public const int MaxPortablePathLength = 259;
     private readonly object lifecycleGate = new();
     private readonly AuraSharedResourceLockTable locks = new();
     private string rootDirectory;
@@ -23,6 +24,15 @@ public sealed class AuraSharedStorageCoordinator : IDisposable
     }
 
     public string RootDirectory => rootDirectory;
+
+    public void EnsurePortablePath(string path, string operation)
+    {
+        var fullPath = Path.GetFullPath(path ?? "");
+        if (fullPath.Length > MaxPortablePathLength)
+        {
+            throw new AuraSharedPathBudgetException(operation, fullPath, MaxPortablePathLength);
+        }
+    }
 
     public void InitializeRoot(string root)
     {
@@ -241,13 +251,15 @@ public sealed class AuraSharedStorageCoordinator : IDisposable
         }
 
         var directory = Path.GetDirectoryName(fullPath) ?? rootDirectory;
+        EnsurePortablePath(fullPath, "atomic-target");
+        var tempPath = Path.Combine(directory, ".aura-" + Guid.NewGuid().ToString("N").Substring(0, 12) + ".tmp");
+        EnsurePortablePath(tempPath, "atomic-temporary");
         Directory.CreateDirectory(directory);
         if (createBackup && File.Exists(fullPath))
         {
             CreateBackup(fullPath);
         }
 
-        var tempPath = fullPath + ".tmp." + Guid.NewGuid().ToString("N");
         try
         {
             var bytes = new UTF8Encoding(false).GetBytes(text ?? "");
@@ -412,13 +424,9 @@ public sealed class AuraSharedStorageCoordinator : IDisposable
         }
         catch
         {
-            var quarantinePath = Path.Combine(
-                rootDirectory,
-                "Backups",
-                "Storage",
-                "Invalid",
-                MakeRelative(rootDirectory, path) + "." + DateTime.UtcNow.ToString("yyyyMMdd-HHmmssfff") + ".invalid");
+            var quarantinePath = CompactArchivePath("Invalid", path, ".invalid");
             Directory.CreateDirectory(Path.GetDirectoryName(quarantinePath) ?? Path.Combine(rootDirectory, "Backups", "Storage", "Invalid"));
+            EnsurePortablePath(quarantinePath, "invalid-storage-quarantine");
             File.Move(path, quarantinePath);
             return null;
         }
@@ -426,19 +434,17 @@ public sealed class AuraSharedStorageCoordinator : IDisposable
 
     private void CreateBackup(string sourcePath)
     {
-        var relative = MakeRelative(rootDirectory, sourcePath);
-        var backupPath = Path.Combine(
-            rootDirectory,
-            "Backups",
-            "Storage",
-            relative + "." + DateTime.UtcNow.ToString("yyyyMMdd-HHmmssfff") + ".bak");
+        var backupPath = CompactArchivePath("Versions", sourcePath, ".bak");
         Directory.CreateDirectory(Path.GetDirectoryName(backupPath) ?? Path.Combine(rootDirectory, "Backups"));
+        EnsurePortablePath(backupPath, "storage-backup");
         File.Copy(sourcePath, backupPath, false);
     }
 
-    private static void ReplaceWithRollback(string tempPath, string destinationPath)
+    private void ReplaceWithRollback(string tempPath, string destinationPath)
     {
-        var rollbackPath = destinationPath + ".rollback." + Guid.NewGuid().ToString("N");
+        var directory = Path.GetDirectoryName(destinationPath) ?? rootDirectory;
+        var rollbackPath = Path.Combine(directory, ".aura-" + Guid.NewGuid().ToString("N").Substring(0, 12) + ".rollback");
+        EnsurePortablePath(rollbackPath, "atomic-rollback");
         File.Move(destinationPath, rollbackPath);
         try
         {
@@ -454,6 +460,26 @@ public sealed class AuraSharedStorageCoordinator : IDisposable
 
             throw;
         }
+    }
+
+    private string CompactArchivePath(string category, string sourcePath, string extension)
+    {
+        var relative = MakeRelative(rootDirectory, sourcePath);
+        string hash;
+        using (var sha = SHA256.Create())
+        {
+            hash = BitConverter.ToString(sha.ComputeHash(Encoding.UTF8.GetBytes(relative.ToLowerInvariant())))
+                .Replace("-", "")
+                .ToLowerInvariant();
+        }
+
+        return Path.Combine(
+            rootDirectory,
+            "Backups",
+            "Storage",
+            category,
+            hash.Substring(0, 2),
+            hash.Substring(2, 30) + "." + DateTime.UtcNow.ToString("yyyyMMdd-HHmmssfff") + extension);
     }
 
     private Mutex CreateWriteMutex()

@@ -37,10 +37,10 @@ public static class Entry
 
     private static void RegisterSharedGameData()
     {
-        var result = AuraGameDataHostApi.RegisterLoadedDefinitionsV4(SanGuoShaExpIds.ModId, "SanGuoShaExp_");
+        var result = AuraGameDataHostApi.RegisterNativeOwnershipV5(SanGuoShaExpIds.ModId, "SanGuoShaExp_");
         if (!result.Success)
         {
-            throw new InvalidOperationException("SanGuoShaExp v4 game-data registration failed: " + result.Message);
+            throw new InvalidOperationException("SanGuoShaExp v5 game-data ownership registration failed: " + result.Message);
         }
     }
 

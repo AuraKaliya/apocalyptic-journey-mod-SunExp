@@ -23,7 +23,7 @@ public static class SkinUiRuntime
                 return;
             }
 
-            SkinRuntime.ApplyAllKnownSelections();
+            SkinRuntime.ScheduleApplyAllKnownSelections();
             var controller = EnsureController(entry);
             controller?.RefreshState();
             ApplyCareerChoiceIcons(entry);
@@ -52,7 +52,7 @@ public static class SkinUiRuntime
                 return;
             }
 
-            SkinRuntime.ApplyAllKnownSelections();
+            SkinRuntime.ScheduleApplyAllKnownSelections();
             var controller = EnsureController(entry);
             controller?.RefreshState();
             controller?.QueueRefresh();

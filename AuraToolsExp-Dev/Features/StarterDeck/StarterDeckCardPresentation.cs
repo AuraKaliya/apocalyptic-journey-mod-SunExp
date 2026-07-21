@@ -175,7 +175,7 @@ internal static class StarterDeckCardPresentation
 
     private static Dictionary<string, string> CardData(string cardId)
     {
-        return AuraGameDataHostApi.Row(DataType.Card, cardId)
+        return AuraGameDataHostApi.CopyRow(DataType.Card, cardId)
             ?? new Dictionary<string, string>(StringComparer.Ordinal);
     }
 }

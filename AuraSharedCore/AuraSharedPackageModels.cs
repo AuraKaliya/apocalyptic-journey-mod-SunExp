@@ -110,6 +110,9 @@ public sealed class AuraSharedInstallRequest
 
     [JsonProperty("preserveLocalChanges")]
     public bool PreserveLocalChanges { get; set; }
+
+    [JsonProperty("allowCanonicalRelocation")]
+    public bool AllowCanonicalRelocation { get; set; }
 }
 
 public sealed class AuraSharedInstallResponse
@@ -140,6 +143,15 @@ public sealed class AuraSharedInstallResponse
 
     [JsonProperty("message")]
     public string Message { get; set; } = "";
+
+    [JsonProperty("failureCode")]
+    public string FailureCode { get; set; } = "";
+
+    [JsonProperty("failedPath")]
+    public string FailedPath { get; set; } = "";
+
+    [JsonProperty("failedPathLength")]
+    public int FailedPathLength { get; set; }
 }
 
 public sealed class AuraSharedResourceIndex

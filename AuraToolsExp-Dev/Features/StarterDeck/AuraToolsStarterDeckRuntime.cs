@@ -15,7 +15,11 @@ public static class AuraToolsStarterDeckRuntime
     public const float CardCostColumnWidth = 56f;
     public const float CardActionColumnWidth = 84f;
 
-    public static void Initialize(ModConfig modConfig) => StarterDeckHookAdapter.Initialize(modConfig);
+    public static void Initialize(ModConfig modConfig)
+    {
+        StarterDeckCardCatalog.Initialize();
+        StarterDeckHookAdapter.Initialize(modConfig);
+    }
 
     public static List<string> BuildAllCandidateCardIds() => StarterDeckCardCatalog.BuildAllCandidateCardIds();
 

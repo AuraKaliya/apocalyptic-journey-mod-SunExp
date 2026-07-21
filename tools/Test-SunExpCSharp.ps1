@@ -1906,6 +1906,7 @@ function Invoke-SourceAssertions {
     $fieldBuffHudTooltipView = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Hooks\Ui\FieldBuffHudTooltipView.cs"))
     $fieldEffectHandlers = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\FieldEffectHandlers.cs"))
     $fieldEffectRegistry = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\FieldEffectRegistry.cs"))
+    $morningStarOvertureService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\MorningStarOvertureService.cs"))
     $fieldStartCoordinator = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\FieldStartCoordinator.cs"))
     $difficultyFieldPoolService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\DifficultyFieldPoolService.cs"))
     $relicFieldStartSourceService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "SunExp-Dev\Mechanics\RelicFieldStartSourceService.cs"))
@@ -2157,7 +2158,7 @@ function Invoke-SourceAssertions {
     Assert-True $fieldApi.Contains("ActiveFieldStacksKey") "FieldApi must keep battle-wide field stacks outside player status buffs."
     Assert-True $fieldApi.Contains("MaxStacksFor") "FieldApi must clamp field stacks through the configured buff upper bound."
     Assert-True $fieldEffectRegistry.Contains("WarmupConfigCache") "Field effect registry must preload Buff runtime data once during initialization."
-    Assert-True $fieldEffectRegistry.Contains("AuraGameDataHostApi.Row(DataType.Buff, definition.BuffId)") "Field stack caps must read the current Buff data row through the shared query API during registry warmup."
+    Assert-True $fieldEffectRegistry.Contains("snapshot.TryGet(DataType.Buff.ToString(), definition.BuffId") "Field stack caps must resolve from one immutable shared snapshot during epoch-aware registry warmup."
     Assert-True $fieldEffectRegistry.Contains("FieldEffectRuntimeSpec") "Field effect registry must expose precomputed runtime specs for field hot paths and HUD."
     Assert-True $fieldEffectRegistry.Contains("description = description.Description();") "Field descriptions must resolve localized Buff placeholders during registry warmup."
     Assert-True $fieldEffectRegistry.Contains("public string HudIconPath") "Field effect definitions must own dedicated HUD icon paths."
@@ -2196,6 +2197,8 @@ function Invoke-SourceAssertions {
     Assert-True $fieldRuntime.Contains("FieldNetworkSync.RequestSnapshot") "Non-host field runtime must request host-authored field snapshots."
     Assert-True $fieldRuntime.Contains("FieldApi.CanResolveFieldEffects") "Non-host field runtime must skip local field settlement."
     Assert-True $runtimeHooks.Contains("FieldEffectRegistry.WarmupConfigCache") "RuntimeHooks must preload field Buff config before field runtime and HUD use."
+    Assert-True ($fieldEffectRegistry.Contains("AuraGameDataCatalogRuntime.SnapshotChanged += OnCatalogSnapshotChanged") -and $fieldEffectRegistry.Contains("snapshot.Version.NativeReady") -and $fieldEffectRegistry.Contains("runtimeSpecsEpoch")) "Field config cache must wait for a native-ready catalog and rebuild by catalog epoch."
+    Assert-True ($fieldEffectRegistry.Contains("public static event Action? Changed") -and $fieldRuntime.Contains("FieldEffectRegistry.Changed += OnFieldEffectConfigChanged") -and $fieldRuntime.Contains('FieldBuffHudRuntime.RequestRefresh("FieldEffectRegistry.Changed")')) "A published field config epoch must refresh an already active field HUD."
     Assert-True $fieldBuffHudRuntime.Contains('SunExpFrameScheduler.RunOnceNextFrame("FieldBuffHud.Refresh"') "Field HUD refresh must be deferred through the frame scheduler."
     Assert-True $fieldBuffHudRuntime.Contains("FieldNetworkSync.RequestSnapshot") "Field HUD must request a repair snapshot when a non-host client has no local field state."
     Assert-True $fieldBuffHudView.Contains("FieldBuffHudTooltipView.Create") "Field HUD must create a hover tooltip."
@@ -2228,6 +2231,10 @@ function Invoke-SourceAssertions {
     Assert-True $fieldBuffHudTooltipView.Contains("FieldEffectRegistry.RuntimeSpecFor(snapshot.Field).Description") "Field HUD tooltip must use the prewarmed Buff description cache."
     Assert-True (-not $fieldBuffHudTooltipView.Contains('Localize("Description")')) "Field HUD tooltip must not query Buff CSV on hover."
     Assert-True (-not $fieldBuffHudTooltipView.Contains("DataType.Buff")) "Field HUD tooltip must not read field display data directly from the Buff row."
+    Assert-True ($projectionEffectContext.Contains("autoConsumableCacheEpoch") -and $projectionEffectContext.Contains("snapshot.Version.NativeReady")) "Projection auto-consumable classification must not cache pre-ready misses and must follow catalog epochs."
+    Assert-True ($morningStarOvertureService.Contains("compositionPoolEpoch") -and $morningStarOvertureService.Contains("snapshot.Version.NativeReady")) "Morning Star composition pools must rebuild after game-data catalog publication."
+    Assert-True ($endlessAbyssCurseService.Contains("randomCursePoolEpoch") -and $endlessAbyssRewardPoolService.Contains("cardPoolCacheEpoch")) "Endless Abyss derived card pools must follow game-data catalog epochs."
+    Assert-True $dimensionShopService.Contains("AuraGameDataHostApi.IsNativeCatalogReady") "Dimension shop must not persist a run-wide empty product pool before the native catalog is ready."
     Assert-True $fieldBuffHudTooltipView.Contains("group.blocksRaycasts = false") "Field HUD tooltip must not block battle controls."
     Assert-True $fieldStartCoordinator.Contains("DifficultyPool = 100") "Field coordinator must resolve the difficulty pool first."
     Assert-True $fieldStartCoordinator.Contains("Blessing = 200") "Field coordinator must resolve blessings second."
@@ -2304,7 +2311,7 @@ function Invoke-SourceAssertions {
     Assert-True $executorApi.Contains("public static int BurnUpperBound(IStatusManager? target)") "ExecutorApi must expose a dynamic burn upper bound helper."
     Assert-True $buffOverflowApi.Contains("private const int BurnUpperBoundFallback = 1;") "Invalid burn upper bounds must fall back to the minimum valid stack count."
     Assert-True $buffOverflowApi.Contains("target.GetBuff(buffId)?.buffConfig?.UpperBound") "Burn upper bound must prefer the live BuffItemConfig.UpperBound."
-    Assert-True $buffOverflowApi.Contains('AuraGameDataHostApi.Row(DataType.Buff, buffId)') "Burn upper bound must fall back to the current Buff data row through the shared query API."
+    Assert-True $buffOverflowApi.Contains('AuraGameDataHostApi.CopyRow(DataType.Buff, buffId)') "Burn upper bound must fall back to the current Buff data row through the explicit shared copy API."
     Assert-True $buffOverflowApi.Contains("var upperBound = BurnUpperBound(target);") "Burn overflow must use the dynamic burn upper bound."
     Assert-True $sunExpStatusLifecycleRouter.Contains("SunExpHookTargets.StatusManagerAddBuff") "Burn overflow must route StatusManager.AddBuff through the shared status lifecycle router."
     Assert-True $runtimeHooks.Contains('SunExpStatusLifecycleRouter.Register("RuntimeStatusBuff"') "RuntimeHooks must subscribe burn overflow to the shared StatusManager.AddBuff lifecycle."
@@ -3103,6 +3110,7 @@ function Invoke-SourceAssertions {
     Assert-True (-not [regex]::IsMatch($blessingData, "(?m)^star_clay_doll_trait,")) "Star Clay Doll Blessing id must not collide with its Buff id."
     Assert-True ([regex]::IsMatch($partnerData, "(?m)^star_clay_doll,10,0,0,0,2,,,Mods/SunExp/ModResource/Images/Partner/SunExp/RenKui_choice,Mods/SunExp/ModResource/Images/Partner/SunExp/RenKui,Mods/SunExp/ModResource/AnimationLib/Dusk,SunExp_sunexp_star_clay_doll_placeholder,Mods/SunExp/ModResource/Images/Partner/SunExp/RenKui\r?$")) "Star Clay Doll partner must reference its own images and non-conflicting placeholder Blessing."
     Assert-True $solarMemoryBlessingPickerRuntime.Contains("IsTechnicalBlessing(id)") "Solar memory blessing picker must skip technical partner blessings."
+    Assert-True ($solarMemoryBlessingPickerRuntime.Contains("AuraGameDataCatalogRuntime.SnapshotChanged += OnCatalogSnapshotChanged") -and $solarMemoryBlessingPickerRuntime.Contains("BuildBlessingPools();") -and $solarMemoryBlessingPickerRuntime.Contains("RefreshAll();")) "An open Solar Memory blessing picker must rebuild when the native game-data catalog becomes ready."
     Assert-True $solarMemoryModeRuntime.Contains("SolarMemoryDeckIsolationRuntime.Initialize(modConfig)") "Solar memory mode runtime must delegate deck isolation hook registration."
     Assert-True $solarMemoryDeckIsolationRuntime.Contains('"GameConfigManager.CardPackCheck"') "Solar memory must filter event cards before CardPackCheck builds reward candidates."
     Assert-True $solarMemoryModeRuntime.Contains("SolarMemoryMapLifecycleCoordinator.Initialize(modConfig)") "Solar memory mode runtime must delegate map generation and synchronization hook registration."

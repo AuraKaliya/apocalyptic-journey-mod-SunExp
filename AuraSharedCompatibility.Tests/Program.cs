@@ -61,7 +61,9 @@ foreach (var module in baseline.Modules)
 
 if (capture)
 {
-    File.WriteAllText(baselinePath, JsonSerializer.Serialize(baseline, jsonOptions) + Environment.NewLine);
+    var baselineJson = JsonSerializer.Serialize(baseline, jsonOptions)
+        .Replace("\r\n", "\n");
+    File.WriteAllText(baselinePath, baselineJson + "\n");
     Console.WriteLine($"Captured Aura.Shared compatibility baseline: {baseline.Modules.Sum(module => module.PublicSurface.Count)} entries");
     return;
 }

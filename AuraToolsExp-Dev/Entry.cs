@@ -29,7 +29,14 @@ public static class Entry
     public static void Initialize(ModConfig modConfig)
     {
         RunStep("shared core", () => AuraSharedRuntime.Initialize(modConfig, AuraToolsIds.ModId));
-        RunStep("shared game data", () => AuraGameDataHostApi.RegisterOwnerPrefix(AuraToolsIds.ModId, "AuraToolsExp_"));
+        RunStep("shared game data", () =>
+        {
+            var result = AuraGameDataHostApi.RegisterNativeOwnershipV5(AuraToolsIds.ModId, "AuraToolsExp_");
+            if (!result.Success)
+            {
+                throw new InvalidOperationException("AuraToolsExp v5 game-data ownership registration failed: " + result.Message);
+            }
+        });
         RunStep("journey runtime", () => AuraJourneyRuntime.Initialize(modConfig, AuraToolsIds.ModId));
         RunStep("mode runtime", () => AuraModeRuntime.Initialize(modConfig, AuraToolsIds.ModId));
         RunStep("rpc authority", () => AuraToolsRpcAuthorityRuntime.Initialize(modConfig));

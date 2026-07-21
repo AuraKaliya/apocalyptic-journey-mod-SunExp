@@ -34,6 +34,12 @@ public sealed class SkinPackageInstallResult
 
     public bool Changed { get; set; }
 
+    public bool Activated { get; set; }
+
+    public bool CatalogChanged { get; set; }
+
+    public string Message { get; set; } = "";
+
     public int Installed { get; set; }
 
     public int Updated { get; set; }
@@ -43,4 +49,8 @@ public sealed class SkinPackageInstallResult
     public int Deduplicated { get; set; }
 
     public int Conflicts { get; set; }
+
+    public int ExpectedResources { get; set; }
+
+    public int ProcessedResources { get; set; }
 }

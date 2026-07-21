@@ -254,7 +254,7 @@ public static class BattleRewardApi
             return new List<Dictionary<string, string>>();
         }
 
-        var all = AuraGameDataHostApi.Rows(DataType.Relic);
+        var all = AuraGameDataHostApi.CopyTableForHostInterop(DataType.Relic);
         if (all.Count == 0)
         {
             return new List<Dictionary<string, string>>();

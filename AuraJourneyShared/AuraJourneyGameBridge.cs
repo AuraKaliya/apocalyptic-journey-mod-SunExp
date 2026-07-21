@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraGameData.Shared;
 using AuraGameData.Shared.GameApi;
 using Data.Save;
 using Witch;
@@ -12,7 +13,15 @@ public static class AuraJourneyGameBridge
 {
     public static MapTree.Node CreateMapNode(MapTree tree, AuraJourneyMapNodeSpec spec)
     {
-        var projection = AuraJourneyMapNodeDataBuilder.Build(spec, ResolveMapRow);
+        return CreateMapNode(tree, spec, CreateMapResolver());
+    }
+
+    private static MapTree.Node CreateMapNode(
+        MapTree tree,
+        AuraJourneyMapNodeSpec spec,
+        Func<string, Dictionary<string, string>?> resolveMapRow)
+    {
+        var projection = AuraJourneyMapNodeDataBuilder.Build(spec, resolveMapRow);
         if (!projection.Valid)
         {
             return new MapTree.Node("null")
@@ -48,46 +57,63 @@ public static class AuraJourneyGameBridge
         string[]? mapData,
         IEnumerable<AuraJourneySlotRule>? rules)
     {
-        return AuraJourneySyncProjection.Repair(maps, mapData, rules, ResolveMapRow);
+        var started = AuraGameDataDiagnostics.Timestamp();
+        try
+        {
+            return AuraJourneySyncProjection.Repair(maps, mapData, rules, CreateMapResolver());
+        }
+        finally
+        {
+            AuraGameDataDiagnostics.RecordOperation("MapSwitch.RepairSyncArrays", started);
+        }
     }
 
     public static MapTree.Node? BuildSyncedNodeChain(MapTree tree, string[]? maps, string[]? mapData)
     {
-        if (tree == null || maps == null || mapData == null)
+        var started = AuraGameDataDiagnostics.Timestamp();
+        try
         {
-            return null;
-        }
+            if (tree == null || maps == null || mapData == null)
+            {
+                return null;
+            }
 
-        var count = Math.Min(maps.Length, mapData.Length);
-        MapTree.Node? first = null;
-        MapTree.Node? previous = null;
-        for (var i = 0; i < count; i++)
+            var count = Math.Min(maps.Length, mapData.Length);
+            var resolveMapRow = CreateMapResolver();
+            MapTree.Node? first = null;
+            MapTree.Node? previous = null;
+            for (var i = 0; i < count; i++)
+            {
+                if (string.IsNullOrWhiteSpace(maps[i]))
+                {
+                    continue;
+                }
+
+                var node = CreateMapNode(tree, new AuraJourneyMapNodeSpec
+                {
+                    MapId = maps[i],
+                    NodeId = mapData[i],
+                    DicePolicy = AuraJourneyDicePolicies.TreeDice
+                }, resolveMapRow);
+
+                if (first == null)
+                {
+                    first = node;
+                }
+                else
+                {
+                    previous?.SetChild(0, node);
+                }
+
+                previous = node;
+            }
+
+            return first;
+        }
+        finally
         {
-            if (string.IsNullOrWhiteSpace(maps[i]))
-            {
-                continue;
-            }
-
-            var node = CreateMapNode(tree, new AuraJourneyMapNodeSpec
-            {
-                MapId = maps[i],
-                NodeId = mapData[i],
-                DicePolicy = AuraJourneyDicePolicies.TreeDice
-            });
-
-            if (first == null)
-            {
-                first = node;
-            }
-            else
-            {
-                previous?.SetChild(0, node);
-            }
-
-            previous = node;
+            AuraGameDataDiagnostics.RecordOperation("MapSwitch.BuildNodeChain", started);
         }
-
-        return first;
     }
 
     public static bool RestoreCurrentNodeFromSyncArrays(MapTree tree, string[]? maps, string[]? mapData, bool updateSaveNode)
@@ -114,7 +140,27 @@ public static class AuraJourneyGameBridge
             return null;
         }
 
-        return AuraGameDataHostApi.Row(DataType.Map, AuraJourneyMapIdAliasRegistry.Expand(mapId).ToArray());
+        return CreateMapResolver()(mapId);
+    }
+
+    private static Func<string, Dictionary<string, string>?> CreateMapResolver()
+    {
+        var snapshot = AuraGameDataHostApi.AcquireSnapshot();
+        return mapId =>
+        {
+            if (string.IsNullOrWhiteSpace(mapId))
+            {
+                return null;
+            }
+
+            var resolved = snapshot.Resolve(
+                DataType.Map.ToString(),
+                AuraJourneyMapIdAliasRegistry.Expand(mapId));
+            return resolved?.Fields.ToDictionary(
+                pair => pair.Key,
+                pair => pair.Value,
+                StringComparer.Ordinal);
+        };
     }
 
     private static Dice? ResolveDice(MapTree tree, string dicePolicy)
@@ -130,10 +176,5 @@ public static class AuraJourneyGameBridge
         }
 
         return tree?.treedice ?? Dice.Default;
-    }
-
-    private static string Field(IDictionary<string, string> data, string key)
-    {
-        return data.TryGetValue(key, out var value) ? value ?? "" : "";
     }
 }

@@ -67,7 +67,7 @@ public sealed class AuraSharedRegistrationCoordinator
             resource.Archived = request.Archive;
             item.ScopeKey = resource.Scope.Key;
             item.ResourceId = resource.ResourceId;
-            item.CanonicalPath = AuraSharedResourcePathPolicy.ResourcePath(resource.Scope, owner, resource);
+            item.CanonicalPath = AuraSharedResourcePathPolicy.StorageResourcePath(storage.RootDirectory, resource.Scope, owner, resource);
             if (!HasCanonicalIdentitySegments(owner, resource)
                 || string.IsNullOrWhiteSpace(resource.ScopeOwnerModId)
                 || !string.Equals(request.WriterId, "LocalUser", StringComparison.Ordinal))
@@ -163,7 +163,7 @@ public sealed class AuraSharedRegistrationCoordinator
                 foreach (var resource in manifest.Resources)
                 {
                     activeAvailability[AvailabilityKey(key, resource)] = !resource.Archived
-                        && Exists(Absolute(AuraSharedResourcePathPolicy.ResourcePath(resource.Scope, owner, resource)));
+                        && Exists(Absolute(AuraSharedResourcePathPolicy.StorageResourcePath(storage.RootDirectory, resource.Scope, owner, resource)));
                     revisions[resource.Scope.Key] = ++revision;
                 }
                 activated++;
@@ -372,6 +372,10 @@ public sealed class AuraSharedRegistrationCoordinator
             OwnerModId = (callerOwnerModId ?? "").Trim(),
             SessionId = SessionId
         };
+        var activeSnapshot = new Dictionary<string, AuraSharedRegistrationManifestV4>(active, StringComparer.OrdinalIgnoreCase);
+        var availabilitySnapshot = new Dictionary<string, bool>(activeAvailability, StringComparer.OrdinalIgnoreCase);
+        var revisionSnapshot = new Dictionary<string, long>(revisions, StringComparer.OrdinalIgnoreCase);
+        var globalRevisionSnapshot = revision;
         try
         {
             if (manifest == null)
@@ -381,6 +385,7 @@ public sealed class AuraSharedRegistrationCoordinator
             }
 
             manifest.Normalize(callerOwnerModId ?? "");
+            result.ExpectedItemCount = manifest.Resources.Count;
             result.OwnerModId = manifest.OwnerModId;
             if (manifest.SchemaVersion != AuraSharedResourceSchemaVersions.Current)
             {
@@ -448,11 +453,16 @@ public sealed class AuraSharedRegistrationCoordinator
             {
                 var item = RegisterResource(manifest, resource, sourceRoot);
                 result.Items.Add(item);
+                result.ProcessedItemCount = result.Items.Count;
                 activeAvailability[AvailabilityKey(registrationKey, resource)] = item.Success;
             }
             if (result.Items.Any(item => !item.Success))
             {
                 result.Status = AuraSharedRegistrationStatuses.Invalid;
+                var failed = result.Items.First(item => !item.Success);
+                result.FailureCode = failed.FailureCode;
+                result.FailedPath = failed.FailedPath;
+                result.FailedPathLength = failed.FailedPathLength;
                 result.Message = "v4 package installation failed; package was not activated.";
                 return result;
             }
@@ -494,6 +504,9 @@ public sealed class AuraSharedRegistrationCoordinator
 
             result.Revision = revision;
             result.Success = true;
+            result.Activated = true;
+            result.ContentChanged = result.Items.Any(item => item.Changed);
+            result.CatalogChanged = registrationChanged;
             result.Status = AuraSharedRegistrationStatuses.Installed;
             result.Message = "registered=" + result.Items.Count
                              + ", unavailable=" + result.Items.Count(item => !item.Success)
@@ -513,6 +526,26 @@ public sealed class AuraSharedRegistrationCoordinator
         }
         catch (Exception ex)
         {
+            active.Clear();
+            foreach (var pair in activeSnapshot) active[pair.Key] = pair.Value;
+            activeAvailability.Clear();
+            foreach (var pair in availabilitySnapshot) activeAvailability[pair.Key] = pair.Value;
+            revisions.Clear();
+            foreach (var pair in revisionSnapshot) revisions[pair.Key] = pair.Value;
+            revision = globalRevisionSnapshot;
+            result.Success = false;
+            result.Activated = false;
+            result.ProcessedItemCount = result.Items.Count;
+            if (ex is AuraSharedPathBudgetException pathError)
+            {
+                result.FailureCode = "PathBudgetExceeded";
+                result.FailedPath = pathError.Path;
+                result.FailedPathLength = pathError.PathLength;
+            }
+            else
+            {
+                result.FailureCode = ex.GetType().Name;
+            }
             result.Message = ex.Message;
             return result;
         }
@@ -596,7 +629,7 @@ public sealed class AuraSharedRegistrationCoordinator
         bool isActive,
         bool activeResourceAvailable)
     {
-        var canonical = AuraSharedResourcePathPolicy.ResourcePath(resource.Scope, manifest.OwnerModId, resource);
+        var canonical = AuraSharedResourcePathPolicy.StorageResourcePath(storage.RootDirectory, resource.Scope, manifest.OwnerModId, resource);
         var available = isActive ? activeResourceAvailable : Exists(Absolute(canonical));
         var historyReasons = new List<string>();
         if (!isActive) historyReasons.Add(AuraSharedHistoryReasons.InactiveOwner);
@@ -749,7 +782,7 @@ public sealed class AuraSharedRegistrationCoordinator
         {
             ScopeKey = resource.Scope.Key,
             ResourceId = resource.ResourceId,
-            CanonicalPath = AuraSharedResourcePathPolicy.ResourcePath(resource.Scope, manifest.OwnerModId, resource),
+            CanonicalPath = AuraSharedResourcePathPolicy.StorageResourcePath(storage.RootDirectory, resource.Scope, manifest.OwnerModId, resource),
             Success = true,
             Status = "Validated"
         };
@@ -832,7 +865,7 @@ public sealed class AuraSharedRegistrationCoordinator
             return item;
         }
 
-        var canonical = AuraSharedResourcePathPolicy.ResourcePath(resource.Scope, manifest.OwnerModId, resource);
+        var canonical = AuraSharedResourcePathPolicy.StorageResourcePath(storage.RootDirectory, resource.Scope, manifest.OwnerModId, resource);
         item.CanonicalPath = canonical;
         if (!Exists(source))
         {
@@ -851,12 +884,16 @@ public sealed class AuraSharedRegistrationCoordinator
             Kind = resource.Kind,
             SourcePath = source,
             DestinationRelativePath = canonical,
-            PreserveLocalChanges = false
+            PreserveLocalChanges = false,
+            AllowCanonicalRelocation = true
         });
         item.Success = installed.Success;
         item.Changed = installed.Changed;
         item.Status = installed.Status;
         item.Message = installed.Message;
+        item.FailureCode = installed.FailureCode;
+        item.FailedPath = installed.FailedPath;
+        item.FailedPathLength = installed.FailedPathLength;
         var state = new AuraSharedResourceStateV4
         {
             SeedHash = installed.SeedHash,
@@ -867,6 +904,7 @@ public sealed class AuraSharedRegistrationCoordinator
         };
         storage.WriteRawJsonAtomic(
             Absolute(AuraSharedResourcePathPolicy.ResourceStatePath(
+                storage.RootDirectory,
                 resource.Scope,
                 manifest.OwnerModId,
                 resource.ResourceId)),
@@ -997,6 +1035,7 @@ public sealed class AuraSharedRegistrationCoordinator
                 && string.Equals(value.ResourceId, resource.ResourceId, StringComparison.OrdinalIgnoreCase));
             storage.WriteRawJsonAtomic(
                 Absolute(AuraSharedResourcePathPolicy.ResourceManifestPath(
+                    storage.RootDirectory,
                     resource.Scope,
                     manifest.OwnerModId,
                     resource.ResourceId)),
@@ -1046,25 +1085,31 @@ public sealed class AuraSharedRegistrationCoordinator
         };
     }
 
-    private static ResourcePathMatch? MatchResource(
+    private ResourcePathMatch? MatchResource(
         AuraSharedRegistrationManifestV4 manifest,
         AuraSharedResourceDeclarationV4 resource,
         string requested)
     {
-        var canonical = AuraSharedResourcePathPolicy.ResourcePath(resource.Scope, manifest.OwnerModId, resource);
-        if (string.Equals(requested, canonical, StringComparison.OrdinalIgnoreCase))
+        var logical = AuraSharedResourcePathPolicy.ResourcePath(resource.Scope, manifest.OwnerModId, resource);
+        var physical = AuraSharedResourcePathPolicy.StorageResourcePath(storage.RootDirectory, resource.Scope, manifest.OwnerModId, resource);
+        if (string.Equals(requested, logical, StringComparison.OrdinalIgnoreCase)
+            || string.Equals(requested, physical, StringComparison.OrdinalIgnoreCase))
         {
-            return new ResourcePathMatch(manifest, resource, canonical);
+            return new ResourcePathMatch(manifest, resource, physical);
         }
 
         var directory = string.Equals(resource.Kind, AuraSharedResourceKinds.Directory, StringComparison.OrdinalIgnoreCase);
-        if (directory && requested.StartsWith(canonical.TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase))
+        if (directory && requested.StartsWith(logical.TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase))
         {
-            var suffix = requested.Substring(canonical.TrimEnd('/').Length);
+            var suffix = requested.Substring(logical.TrimEnd('/').Length);
             return new ResourcePathMatch(
                 manifest,
                 resource,
-                canonical.TrimEnd('/') + suffix);
+                physical.TrimEnd('/') + suffix);
+        }
+        if (directory && requested.StartsWith(physical.TrimEnd('/') + "/", StringComparison.OrdinalIgnoreCase))
+        {
+            return new ResourcePathMatch(manifest, resource, requested);
         }
 
         return null;

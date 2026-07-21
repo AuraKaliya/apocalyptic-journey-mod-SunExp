@@ -167,7 +167,7 @@ internal static class CardChoiceRefreshNativeApi
         {
             var manager = Singleton<GameConfigManager>.Instance;
             var runtime = Singleton<GameRuntimeData>.Instance;
-            var rows = AuraGameDataHostApi.Rows(DataType.Card);
+            var rows = AuraGameDataHostApi.CopyTableForHostInterop(DataType.Card);
             if (manager == null || runtime == null || rows == null)
             {
                 return false;

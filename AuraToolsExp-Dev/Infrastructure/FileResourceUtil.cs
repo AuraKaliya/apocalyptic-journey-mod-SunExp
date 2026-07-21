@@ -23,7 +23,8 @@ public static class FileResourceUtil
     public static string RoleAudioDirectory(string roleId)
     {
         return EnsureDirectory(AuraToolsConfigService.DataRootDirectory,
-            AuraSharedResourcePathPolicy.ResourcePath(
+            AuraSharedResourcePathPolicy.StorageResourcePath(
+                AuraToolsConfigService.DataRootDirectory,
                 Scope(AuraSharedSystems.Audio, "LocalAudio", "Role", roleId),
                 AuraToolsIds.ModId,
                 DirectoryResource("user-imports")));
@@ -32,7 +33,8 @@ public static class FileResourceUtil
     public static string RoleSkillCgDirectory(string roleId)
     {
         return EnsureDirectory(AuraToolsConfigService.DataRootDirectory,
-            AuraSharedResourcePathPolicy.ResourcePath(
+            AuraSharedResourcePathPolicy.StorageResourcePath(
+                AuraToolsConfigService.DataRootDirectory,
                 Scope(AuraSharedSystems.Cg, "SkillCg", "Role", roleId),
                 AuraToolsIds.ModId,
                 DirectoryResource("user-imports")));
@@ -41,7 +43,8 @@ public static class FileResourceUtil
     public static string CommonAudioDirectory()
     {
         return EnsureDirectory(AuraToolsConfigService.DataRootDirectory,
-            AuraSharedResourcePathPolicy.ResourcePath(
+            AuraSharedResourcePathPolicy.StorageResourcePath(
+                AuraToolsConfigService.DataRootDirectory,
                 Scope(AuraSharedSystems.Audio, "LocalAudio", "Global", "all"),
                 AuraToolsIds.ModId,
                 DirectoryResource("user-imports")));

@@ -95,6 +95,25 @@ try
            && Directory.EnumerateFiles(Path.Combine(tempRoot, "Backups", "Storage", "Invalid"), "*.invalid", SearchOption.AllDirectories).Any(),
         "invalid document quarantine");
 
+    var overBudgetPath = tempRoot;
+    while (Path.Combine(overBudgetPath, "value.json").Length <= AuraSharedStorageCoordinator.MaxPortablePathLength)
+    {
+        overBudgetPath = Path.Combine(overBudgetPath, "segment-xxxxxxxxxxxxxxxxxxxxxxxx");
+    }
+    AuraSharedPathBudgetException? pathBudgetFailure = null;
+    try
+    {
+        storage.WriteTextAtomic(Path.Combine(overBudgetPath, "value.json"), "{}", false);
+    }
+    catch (AuraSharedPathBudgetException ex)
+    {
+        pathBudgetFailure = ex;
+    }
+    Assert(pathBudgetFailure != null
+           && pathBudgetFailure.PathLength > AuraSharedStorageCoordinator.MaxPortablePathLength
+           && pathBudgetFailure.Operation == "atomic-target",
+        "atomic storage rejects over-budget paths before creating partial directories");
+
     var sourceFile = Path.Combine(sourceRoot, "audio.wav");
     File.WriteAllText(sourceFile, "v1");
     var install = packages.Install(Request("OwnerA", "Audio", "voice", "PackA", 1, sourceFile, "Audio/Test/voice.wav"));
@@ -257,24 +276,78 @@ return;
 void TestGameDataCatalog()
 {
     AuraSharedConfigStore.ResetGameDataTestStore();
-    var source = new FakeGameDataSource(new AuraGameDataDefinition
-    {
-        Key = new AuraGameDataKey("Card", "card_a"),
-        OwnerModId = "BaseGame",
-        WriterId = AuraGameDataConstants.RegistryAuthorityId,
-        SourceKind = AuraGameDataSourceKinds.Native,
-        Fields = new Dictionary<string, string> { ["Id"] = "card_a", ["Name"] = "Native" }
-    });
+    var source = new FakeGameDataSource(
+        new AuraGameDataDefinition
+        {
+            Key = new AuraGameDataKey("Card", "card_a"),
+            OwnerModId = "BaseGame",
+            WriterId = AuraGameDataConstants.RegistryAuthorityId,
+            SourceKind = AuraGameDataSourceKinds.Native,
+            Fields = new Dictionary<string, string> { ["Id"] = "card_a", ["Name"] = "Native" }
+        },
+        new AuraGameDataDefinition
+        {
+            Key = new AuraGameDataKey("Card", "card_overlay"),
+            OwnerModId = "BaseGame",
+            WriterId = AuraGameDataConstants.RegistryAuthorityId,
+            SourceKind = AuraGameDataSourceKinds.Native,
+            Fields = new Dictionary<string, string>
+            {
+                ["Id"] = "card_overlay",
+                ["Name"] = "Native Overlay Base",
+                ["Cost"] = "2"
+            }
+        });
     AuraGameDataCatalogRuntime.ConfigureSource(source);
 
-    var rejectedV3 = AuraGameDataCatalogRuntime.Register("ModA", new AuraGameDataDefinition
+    var ownerRule = AuraGameDataCatalogRuntime.RegisterOwnerRules("ModOwner", new[]
     {
-        SchemaVersion = 3,
+        new AuraGameDataOwnerRule
+        {
+            OwnerModId = "ModOwner",
+            WriterId = "ModOwner",
+            IdPrefix = "card_"
+        }
+    });
+    var nativeOwned = AuraGameDataCatalogRuntime.Query(new AuraGameDataQuery
+    {
+        DataType = "Card",
+        CandidateIds = new List<string> { "card_a" },
+        IncludeAllCandidates = true
+    }).Items.FirstOrDefault(value => value.SourceKind == AuraGameDataSourceKinds.Native);
+    Assert(ownerRule.Success && nativeOwned?.OwnerModId == "ModOwner",
+        "game data v5 owner rules assign provenance without copying native rows");
+
+    var overlay = AuraGameDataCatalogRuntime.Register("OverlayMod", new AuraGameDataDefinition
+    {
+        Key = new AuraGameDataKey("Card", "card_overlay"),
+        OwnerModId = "OverlayMod",
+        WriterId = "OverlayMod",
+        SourceKind = AuraGameDataSourceKinds.Registered,
+        StorageKind = AuraGameDataStorageKinds.Overlay,
+        Fields = new Dictionary<string, string> { ["Name"] = "Overlay" },
+        RemoveFields = new List<string> { "Cost" }
+    });
+    var overlaid = AuraGameDataCatalogRuntime.Resolve("Card", new[] { "card_overlay" });
+    Assert(overlay.Success
+           && overlaid?.Fields["Name"] == "Overlay"
+           && !overlaid.Fields.ContainsKey("Cost"),
+        "game data v5 overlays merge once during compilation");
+    var overlayHandle = overlay.Handle;
+    source.Invalidate();
+    AuraGameDataCatalogRuntime.Rebuild();
+    Assert(overlayHandle != null
+           && !AuraGameDataCatalogRuntime.ValidateHandle(overlayHandle, out _),
+        "game data handles become stale after a catalog generation change");
+
+    var rejectedV4 = AuraGameDataCatalogRuntime.Register("ModA", new AuraGameDataDefinition
+    {
+        SchemaVersion = 4,
         Key = new AuraGameDataKey("Card", "card_a"),
         OwnerModId = "ModA",
         WriterId = "ModA"
     });
-    Assert(!rejectedV3.Success && rejectedV3.Message.Contains("schemaVersion 4"), "game data rejects non-v4 registration");
+    Assert(!rejectedV4.Success && rejectedV4.Message.Contains("schemaVersion 5"), "game data rejects non-v5 registration");
 
     var registered = AuraGameDataCatalogRuntime.Register("ModA", new AuraGameDataDefinition
     {
@@ -284,13 +357,48 @@ void TestGameDataCatalog()
         SourceKind = AuraGameDataSourceKinds.Registered,
         Fields = new Dictionary<string, string> { ["Id"] = "card_a", ["Name"] = "Registered" }
     });
-    Assert(registered.Success && registered.Handle != null, "game data registers owner-qualified v4 definition");
+    Assert(registered.Success && registered.Handle != null, "game data registers owner-qualified v5 definition");
 
     var effective = AuraGameDataCatalogRuntime.Resolve("Card", new[] { "card_a" });
     Assert(effective != null
            && effective.SourceKind == AuraGameDataSourceKinds.Registered
            && effective.Fields["Name"] == "Registered",
         "game data uses centralized source search order");
+    var captureCount = source.CaptureCount;
+    AuraGameDataDiagnostics.Reset();
+    for (var index = 0; index < 1000; index++)
+    {
+        Assert(AuraGameDataCatalogRuntime.TryGet("Card", "card_a", out _), "game data indexed point lookup resolves");
+    }
+    Assert(source.CaptureCount == captureCount, "game data hot point lookups never recapture native tables");
+    var diagnostics = AuraGameDataDiagnostics.Snapshot();
+    Assert(diagnostics.PointLookups == 1000
+           && diagnostics.PointHits == 1000
+           && diagnostics.NativeCaptures == 0
+           && diagnostics.CatalogBuilds == 0,
+        "game data diagnostics prove hot point lookups are pure snapshot reads");
+    AuraGameDataCatalogRuntime.TryGet("Card", "card_a", out _);
+    GC.Collect();
+    GC.WaitForPendingFinalizers();
+    GC.Collect();
+    var allocatedBefore = GC.GetAllocatedBytesForCurrentThread();
+    var lookupBenchmark = System.Diagnostics.Stopwatch.StartNew();
+    for (var index = 0; index < 10_000; index++)
+    {
+        AuraGameDataCatalogRuntime.TryGet("Card", "card_a", out _);
+    }
+    lookupBenchmark.Stop();
+    var allocatedBytes = GC.GetAllocatedBytesForCurrentThread() - allocatedBefore;
+    Assert(allocatedBytes <= 1024,
+        "game data performs ten thousand hot point lookups without meaningful allocation");
+    Assert(lookupBenchmark.ElapsedMilliseconds < 250,
+        "game data performs ten thousand hot point lookups within the regression budget");
+    Assert(AuraGameDataCatalogRuntime.TryResolveUniqueType("card_a", out var resolvedType)
+           && resolvedType == "Card",
+        "game data unique-type index resolves without table probes");
+    var tableA = AuraGameDataCatalogRuntime.GetTable("Card");
+    var tableB = AuraGameDataCatalogRuntime.GetTable("Card");
+    Assert(ReferenceEquals(tableA, tableB), "game data table view is stable within one catalog epoch");
 
     var foreignPatch = AuraGameDataCatalogRuntime.Patch(
         "OtherMod",
@@ -316,6 +424,30 @@ void TestGameDataCatalog()
     var history = AuraGameDataCatalogRuntime.QueryHistory(new AuraGameDataQuery { DataType = "Card" });
     Assert(retired.Success && history.Items.Count == 1 && history.Items[0].Retired,
         "game data keeps retired definitions in independent history view");
+
+    var lastGood = AuraGameDataCatalogRuntime.AcquireSnapshot();
+    var delayed = new DelayedGameDataSource(new AuraGameDataDefinition
+    {
+        Key = new AuraGameDataKey("Buff", "field_buff"),
+        OwnerModId = "DelayedMod",
+        WriterId = AuraGameDataConstants.RegistryAuthorityId,
+        SourceKind = AuraGameDataSourceKinds.Native,
+        Fields = new Dictionary<string, string> { ["Id"] = "field_buff", ["Name"] = "Field" }
+    });
+    AuraGameDataCatalogRuntime.ConfigureSource(delayed, rebuildImmediately: false);
+    AuraGameDataCatalogRuntime.Rebuild();
+    Assert(AuraGameDataCatalogRuntime.State == AuraGameDataCatalogState.AwaitingNativeCapture
+           && ReferenceEquals(AuraGameDataCatalogRuntime.AcquireSnapshot(), lastGood)
+           && AuraGameDataCatalogRuntime.AcquireSnapshot().Version.NativeReady,
+        "game data rejects incomplete native generations and preserves the last-good snapshot");
+
+    delayed.CompleteCapture();
+    AuraGameDataCatalogRuntime.Rebuild();
+    var completed = AuraGameDataCatalogRuntime.AcquireSnapshot();
+    Assert(AuraGameDataCatalogRuntime.State == AuraGameDataCatalogState.Ready
+           && completed.Version.NativeReady
+           && completed.TryGet("Buff", "field_buff", out _),
+        "game data publishes a completed native generation after deferred capture");
 }
 
 void TestResourceProtocolV4()
@@ -368,6 +500,137 @@ void TestResourceProtocolV4()
            && File.Exists(Path.Combine(root, "CG", "Role", "Content_role_a", "Feast", "aura.feature.json"))
            && File.Exists(Path.Combine(root, "_Registry", "V4", "Owners", "Content", "Content.Resources.V4.json")),
         "v4 writes layered metadata and a persistent registration");
+
+    var longScope = new AuraSharedScopeKey
+    {
+        ModuleId = "Skin",
+        FeatureId = "Skin",
+        ScopeType = "Role",
+        ScopeId = "SunExp_columbina_columbina"
+    };
+    var longSkin = new AuraSharedResourceDeclarationV4
+    {
+        ModuleId = longScope.ModuleId,
+        FeatureId = longScope.FeatureId,
+        ScopeType = longScope.ScopeType,
+        ScopeId = longScope.ScopeId,
+        ScopeOwnerModId = "SunExp",
+        ResourceId = "SunExp.SunExp_columbina_columbina.restore_colors",
+        Source = "first.png",
+        FileName = "content.png",
+        OriginKind = AuraSharedOriginKinds.ContentRegistered,
+        WriterId = "SunExp"
+    };
+    var logicalSkinPath = AuraSharedResourcePathPolicy.ResourcePath(longScope, "SunExp", longSkin);
+    var physicalSkinPath = AuraSharedResourcePathPolicy.StorageResourcePath(longScope, "SunExp", longSkin);
+    Assert(logicalSkinPath.Contains("SunExp_columbina_columbina", StringComparison.Ordinal)
+           && physicalSkinPath.StartsWith("Skin/_Store/", StringComparison.Ordinal)
+           && physicalSkinPath.Length < logicalSkinPath.Length,
+        "v4 keeps logical resource identity while compacting long physical paths");
+    var deepRoot = Path.Combine(root, new string('d', 100));
+    var shortResource = Resource("short", "first.png", 1);
+    Assert(AuraSharedResourcePathPolicy.StorageResourcePath(
+               deepRoot, shortResource.Scope, "Content", shortResource)
+           .StartsWith("CG/_Store/", StringComparison.Ordinal),
+        "v4 includes the client root length when selecting bounded physical storage");
+    var longSkinManifest = new AuraSharedRegistrationManifestV4
+    {
+        OwnerModId = "SunExp",
+        ParticipantKind = AuraSharedParticipantKinds.Content,
+        PackageSourceKind = AuraSharedPackageSourceKinds.ModPackage,
+        PackageId = "SunExp.LongSkin.V4",
+        PackageVersion = 1,
+        Resources = new List<AuraSharedResourceDeclarationV4> { longSkin }
+    };
+    var longSkinRegistered = v4.Register("SunExp", longSkinManifest, sources);
+    var logicalSkinResolved = v4.Resolve(logicalSkinPath);
+    Assert(longSkinRegistered.Success
+           && longSkinRegistered.Activated
+           && longSkinRegistered.ExpectedItemCount == 1
+           && longSkinRegistered.ProcessedItemCount == 1
+           && logicalSkinResolved.Success
+           && logicalSkinResolved.ResolvedPath.EndsWith(
+               physicalSkinPath.Replace('/', Path.DirectorySeparatorChar),
+               StringComparison.OrdinalIgnoreCase),
+        "v4 resolves stable logical paths to compact physical storage");
+
+    using (var restartedStorage = new AuraSharedStorageCoordinator(root))
+    {
+        var restartedPackages = new AuraSharedPackageCoordinator(restartedStorage);
+        var restarted = new AuraSharedRegistrationCoordinator(restartedStorage, restartedPackages, "session-v4-restart");
+        var restartedRegistration = restarted.Register("SunExp", longSkinManifest, sources);
+        Assert(restartedRegistration.Success
+               && restartedRegistration.Activated
+               && restarted.QueryCatalog(new AuraSharedCatalogQueryV4 { OwnerModId = "SunExp" }).Entries.Count == 1,
+            "v4 reactivates a deduplicated compact resource after restart without a stale lease");
+    }
+
+    var legacySkin = new AuraSharedResourceDeclarationV4
+    {
+        ModuleId = "Skin",
+        FeatureId = "Skin",
+        ScopeType = "Role",
+        ScopeId = "Legacy_columbina_columbina",
+        ScopeOwnerModId = "LegacySkin",
+        ResourceId = "LegacySkin.Legacy_columbina_columbina.restore_colors",
+        Source = "second.png",
+        FileName = "content.png",
+        OriginKind = AuraSharedOriginKinds.ContentRegistered,
+        WriterId = "LegacySkin"
+    };
+    legacySkin.Normalize();
+    var legacyLogicalPath = AuraSharedResourcePathPolicy.ResourcePath(legacySkin.Scope, "LegacySkin", legacySkin);
+    var legacySeed = v4Packages.Install(new AuraSharedInstallRequest
+    {
+        OwnerModId = "LegacySkin",
+        System = "Skin",
+        LogicalId = legacySkin.Scope.Key + ":LegacySkin:" + legacySkin.ResourceId,
+        PackageId = "LegacySkin.Package",
+        PackageVersion = 1,
+        Kind = AuraSharedResourceKinds.File,
+        SourcePath = Path.Combine(sources, "second.png"),
+        DestinationRelativePath = legacyLogicalPath
+    });
+    var migrated = v4.Register("LegacySkin", new AuraSharedRegistrationManifestV4
+    {
+        OwnerModId = "LegacySkin",
+        ParticipantKind = AuraSharedParticipantKinds.Content,
+        PackageSourceKind = AuraSharedPackageSourceKinds.ModPackage,
+        PackageId = "LegacySkin.Package",
+        PackageVersion = 1,
+        Resources = new List<AuraSharedResourceDeclarationV4> { legacySkin }
+    }, sources);
+    Assert(legacySeed.Success
+           && migrated.Success
+           && migrated.Items.Single().Status == "Relocated"
+           && migrated.Items.Single().CanonicalPath.StartsWith("Skin/_Store/", StringComparison.Ordinal),
+        "v4 transactionally relocates a legacy readable resource into compact physical storage");
+
+    var overBudgetScopeId = new string('r', 180);
+    var overBudgetRegistration = v4.Register("PathBudget", new AuraSharedRegistrationManifestV4
+    {
+        OwnerModId = "PathBudget",
+        ParticipantKind = AuraSharedParticipantKinds.Content,
+        PackageSourceKind = AuraSharedPackageSourceKinds.ModPackage,
+        PackageId = "PathBudget.Package",
+        PackageVersion = 1,
+        Resources = new List<AuraSharedResourceDeclarationV4>
+        {
+            new()
+            {
+                ModuleId = "Skin", FeatureId = "Skin", ScopeType = "Role", ScopeId = overBudgetScopeId,
+                ScopeOwnerModId = "PathBudget", ResourceId = "skin", Source = "first.png", FileName = "content.png",
+                OriginKind = AuraSharedOriginKinds.ContentRegistered, WriterId = "PathBudget"
+            }
+        }
+    }, sources);
+    Assert(!overBudgetRegistration.Success
+           && !overBudgetRegistration.Activated
+           && overBudgetRegistration.FailureCode == "PathBudgetExceeded"
+           && overBudgetRegistration.FailedPathLength > AuraSharedStorageCoordinator.MaxPortablePathLength
+           && v4.QueryCatalog(new AuraSharedCatalogQueryV4 { OwnerModId = "PathBudget" }).Entries.Count == 0,
+        "v4 reports an exact path-budget failure and restores the active catalog atomically");
+
     var unregistered = v4.Resolve("CG/legacy.png");
     Assert(!unregistered.Success && unregistered.Outcome == "Unregistered",
         "v4 never resolves an unregistered raw file");
@@ -1412,16 +1675,48 @@ sealed class FakeGameDataSource : IAuraGameDataSource
 
     public long Revision { get; private set; } = 1;
 
-    public IReadOnlyList<AuraGameDataDefinition> Read(string dataType)
+    public int CaptureCount { get; private set; }
+
+    public AuraGameDataSourceSnapshot Capture()
     {
-        return definitions
-            .Where(value => string.Equals(value.Key.DataType, dataType, StringComparison.OrdinalIgnoreCase))
-            .Select(value => value.Clone())
-            .ToList();
+        CaptureCount++;
+        return new AuraGameDataSourceSnapshot(Revision, definitions);
     }
 
     public void Invalidate()
     {
         Revision++;
+    }
+}
+
+sealed class DelayedGameDataSource : IAuraGameDataSource
+{
+    private readonly IReadOnlyList<AuraGameDataDefinition> definitions;
+    private bool complete;
+
+    public DelayedGameDataSource(params AuraGameDataDefinition[] definitions)
+    {
+        this.definitions = definitions.Select(value => value.Clone()).ToList();
+    }
+
+    public long Revision { get; private set; } = 1;
+
+    public AuraGameDataSourceSnapshot Capture()
+    {
+        return new AuraGameDataSourceSnapshot(
+            Revision,
+            complete ? definitions : Array.Empty<AuraGameDataDefinition>(),
+            complete);
+    }
+
+    public void CompleteCapture()
+    {
+        complete = true;
+    }
+
+    public void Invalidate()
+    {
+        Revision++;
+        complete = false;
     }
 }

@@ -21,12 +21,14 @@
     <Compile Include="..\AuraSharedCore\AuraSharedResourceLockTable.cs" Link="Core\AuraSharedResourceLockTable.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedStorageModels.cs" Link="Core\AuraSharedStorageModels.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedStorageCoordinator.cs" Link="Core\AuraSharedStorageCoordinator.cs" />
+    <Compile Include="..\AuraSharedCore\AuraSharedPathBudgetException.cs" Link="Core\AuraSharedPathBudgetException.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedPackageModels.cs" Link="Core\AuraSharedPackageModels.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedPackageCoordinator.cs" Link="Core\AuraSharedPackageCoordinator.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedEditableResourceModels.cs" Link="Core\AuraSharedEditableResourceModels.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedEditableResourceCoordinator.cs" Link="Core\AuraSharedEditableResourceCoordinator.cs" />
     <Compile Include="..\AuraRoleShared\AuraRoleRegistryModels.cs" Link="Role\AuraRoleRegistryModels.cs" />
     <Compile Include="..\AuraGameDataShared\AuraGameDataModels.cs" Link="GameData\AuraGameDataModels.cs" />
+    <Compile Include="..\AuraGameDataShared\AuraGameDataDiagnostics.cs" Link="GameData\AuraGameDataDiagnostics.cs" />
     <Compile Include="..\AuraGameDataShared\AuraGameDataCatalog.cs" Link="GameData\AuraGameDataCatalog.cs" />
     <Compile Include="..\AuraSharedCore\AuraSharedBootstrapResult.cs" Link="Core\AuraSharedBootstrapResult.cs" />
     <Compile Include="..\AuraSharedCore\AuraFeatureSwitchRuntime.cs" Link="Core\AuraFeatureSwitchRuntime.cs" />

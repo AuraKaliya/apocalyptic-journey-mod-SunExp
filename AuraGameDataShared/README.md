@@ -1,7 +1,7 @@
 # AuraGameDataShared
 
 `AuraGameDataShared` is the shared game-data bounded context for Aura consumers.
-It provides detached queries, owner-qualified v4 definition registration,
+It provides a revisioned immutable v5 catalog, owner-qualified registration,
 controlled instance materialization, and aggregate-specific instance services.
 
 ## Boundaries
@@ -20,8 +20,8 @@ controlled instance materialization, and aggregate-specific instance services.
 
 | Plane | Create | Read | Update | Delete |
 | --- | --- | --- | --- | --- |
-| Native game table | No direct write | Detached snapshot | No direct write | No |
-| Registered definition | v4 registration | Catalog query | Owner/writer patch | Retire to history |
+| Native game table | No direct write | Captured once per native generation | No direct write | No |
+| Registered definition | v5 registration | Compiled immutable catalog | Owner/writer patch | Retire to history |
 | Runtime instance | Aggregate use case | Instance snapshot | Controlled `Vars` patch | Aggregate use case |
 
 `IDataConfig.data` is always treated as read-only. Runtime changes are written
@@ -43,13 +43,41 @@ The default search path is the ordered list above. Callers may provide a
 different ordered source list through `AuraGameDataQuery`; search logic must not
 be reimplemented in consumers.
 
-Only schema version 4 registrations are accepted. Manual definitions cannot
+Only schema version 5 registrations are accepted. Manual definitions cannot
 register script fields. Script and identity fields cannot be changed by Patch
 or runtime `Vars` mutation.
 
 The persisted JSON contract is defined by
-`Schemas/aura-game-data-v4.schema.json` and is read on demand through
-`AuraSharedConfigStore`.
+`Schemas/aura-game-data-v5.schema.json`. It is normalized when loaded or
+mutated through `AuraSharedConfigStore`, never from a gameplay read.
+
+## Runtime Catalog
+
+Native rows are captured on the main thread once per explicit native
+generation through cooperative slices with a 4 ms frame budget. Registry
+definitions and captured native DTOs are compiled by the bounded background
+work scheduler, generation-checked, and atomically published as a complete
+immutable catalog. Point lookup, alias lookup, unique type resolution, table
+views, and handle validation use prebuilt indexes and never read storage,
+enumerate native tables, normalize documents, or clone the whole catalog.
+
+An unfinished cooperative capture is represented by
+`AuraGameDataSourceSnapshot.IsComplete == false` and is never published as a
+ready catalog. `AuraGameDataCatalogVersion.NativeReady` is therefore the
+consumer readiness contract. During a later invalidation/capture cycle the
+runtime continues serving the last-good immutable snapshot; consumers key
+derived caches by `Version.Epoch` and must not retain negative lookups observed
+before the first native-ready publication.
+
+Owner registrations persist prefix rules instead of copies of every native
+row. Inline definitions carry complete fields; Overlay definitions carry only
+field changes. The default effective-source order remains
+`UserManual -> Registered -> Default -> Native`.
+
+`AuraGameDataDiagnostics` exposes allocation-free hot-path counters plus named
+operation spans for mode-selection skin application, map projection, battle
+label resolution, native capture, catalog compilation, copied host-interop
+rows, and materialization.
 
 ## History
 

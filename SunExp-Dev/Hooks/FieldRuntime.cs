@@ -22,6 +22,8 @@ public static class FieldRuntime
         }
 
         initialized = true;
+        FieldEffectRegistry.Changed -= OnFieldEffectConfigChanged;
+        FieldEffectRegistry.Changed += OnFieldEffectConfigChanged;
         FieldApi.Changed -= OnFieldChanged;
         FieldApi.Changed += OnFieldChanged;
         SunExpBattleLifecycleRouter.Register("FieldRuntime", new SunExpBattleLifecycleSubscription
@@ -114,5 +116,10 @@ public static class FieldRuntime
     private static void OnFieldChanged(FieldBuffSnapshot snapshot)
     {
         FieldBuffHudRuntime.RequestRefresh("FieldApi.Changed");
+    }
+
+    private static void OnFieldEffectConfigChanged()
+    {
+        FieldBuffHudRuntime.RequestRefresh("FieldEffectRegistry.Changed");
     }
 }
