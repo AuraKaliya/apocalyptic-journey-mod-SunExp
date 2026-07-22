@@ -82,9 +82,11 @@ public sealed class DimensionShopViewState
 
     public bool CanRefresh { get; set; }
 
-    public DimensionShopItemView Card { get; set; } = new();
+    public IReadOnlyList<DimensionShopItemView> Cards { get; set; } = Array.Empty<DimensionShopItemView>();
 
-    public DimensionShopItemView Relic { get; set; } = new();
+    public IReadOnlyList<DimensionShopItemView> Relics { get; set; } = Array.Empty<DimensionShopItemView>();
+
+    public bool RelicPurchaseUsed { get; set; }
 
     public IReadOnlyList<DimensionShopHeldItemView> HeldCards { get; set; } = Array.Empty<DimensionShopHeldItemView>();
 
@@ -93,6 +95,9 @@ public sealed class DimensionShopViewState
 
 public static class DimensionShopService
 {
+    private const int OfferCount = 3;
+    private const string RunStateVersion = "2";
+    private const string PlayerStateVersion = "2";
     private static readonly object Gate = new();
     private static bool transactionRunning;
 
@@ -138,7 +143,9 @@ public static class DimensionShopService
         }
 
         save.GameVars ??= new Dictionary<string, string>();
-        if (IsFlagSet(save.GameVars, TerriasIds.DimensionShopRunInitializedKey))
+        if (IsFlagSet(save.GameVars, TerriasIds.DimensionShopRunInitializedKey)
+            && save.GameVars.TryGetValue(TerriasIds.DimensionShopRunVersionKey, out var version)
+            && string.Equals(version, RunStateVersion, StringComparison.Ordinal))
         {
             return true;
         }
@@ -150,6 +157,7 @@ public static class DimensionShopService
             : save.Seed;
         save.GameVars[TerriasIds.DimensionShopCardPoolKey] = JoinIds(cards);
         save.GameVars[TerriasIds.DimensionShopRelicPoolKey] = JoinIds(relics);
+        save.GameVars[TerriasIds.DimensionShopRunVersionKey] = RunStateVersion;
         save.GameVars[TerriasIds.DimensionShopRunInitializedKey] = "1";
         TerriasLog.Info("[DimensionShop] run snapshot initialized from "
                        + source
@@ -165,10 +173,10 @@ public static class DimensionShopService
     {
         EnsurePlayerState("View");
         var config = DimensionShopConfigStore.Current;
-        var cardId = PlayerValue(TerriasIds.DimensionShopCurrentCardKey);
-        var relicId = PlayerValue(TerriasIds.DimensionShopCurrentRelicKey);
-        var cardBought = PlayerValue(TerriasIds.DimensionShopCardBoughtKey) == "1";
-        var boughtRelics = BoughtRelics();
+        var cardIds = CurrentOffers(TerriasIds.DimensionShopCurrentCardsKey);
+        var relicIds = CurrentOffers(TerriasIds.DimensionShopCurrentRelicsKey);
+        var cardBought = CardBoughtSlots();
+        var relicPurchaseUsed = IsPlayerFlagSet(TerriasIds.DimensionShopRelicPurchaseUsedKey);
         var truth = DimensionShopGameApi.TruthBalance();
 
         return new DimensionShopViewState
@@ -177,20 +185,25 @@ public static class DimensionShopService
             Truth = truth,
             RefreshPrice = config.RefreshPrice,
             RefreshCount = PlayerInt(TerriasIds.DimensionShopRefreshCountKey),
-            CanRefresh = truth >= config.RefreshPrice && (CardPool().Count > 0 || EligibleRelics(boughtRelics).Count > 0),
-            Card = BuildItem(
-                DataType.Card,
-                cardId,
-                config.CardPrice,
-                truth,
-                cardBought ? DimensionShopItemState.Purchased : DimensionShopItemState.Available),
-            Relic = BuildRelicItem(relicId, config.RelicPrice, truth, boughtRelics),
+            CanRefresh = truth >= config.RefreshPrice && (CardPool().Count > 0 || EligibleRelics().Count > 0),
+            Cards = Enumerable.Range(0, OfferCount)
+                .Select(slot => BuildItem(
+                    DataType.Card,
+                    cardIds[slot],
+                    config.CardPrice,
+                    truth,
+                    cardBought[slot] ? DimensionShopItemState.Purchased : DimensionShopItemState.Available))
+                .ToArray(),
+            Relics = Enumerable.Range(0, OfferCount)
+                .Select(slot => BuildRelicItem(relicIds[slot], config.RelicPrice, truth, relicPurchaseUsed))
+                .ToArray(),
+            RelicPurchaseUsed = relicPurchaseUsed,
             HeldCards = BuildHeldCards(),
             HeldRelics = BuildHeldRelics()
         };
     }
 
-    public static bool BuyCard(out string message)
+    public static bool BuyCard(int slot, out string message)
     {
         lock (Gate)
         {
@@ -206,8 +219,16 @@ public static class DimensionShopService
         try
         {
             EnsurePlayerState("BuyCard");
-            var cardId = PlayerValue(TerriasIds.DimensionShopCurrentCardKey);
-            if (string.IsNullOrWhiteSpace(cardId) || PlayerValue(TerriasIds.DimensionShopCardBoughtKey) == "1")
+            if (!IsOfferSlot(slot))
+            {
+                message = "\u5361\u724c\u8d27\u67b6\u4f4d\u7f6e\u65e0\u6548\u3002";
+                return false;
+            }
+
+            var cardIds = CurrentOffers(TerriasIds.DimensionShopCurrentCardsKey);
+            var boughtSlots = CardBoughtSlots();
+            var cardId = cardIds[slot];
+            if (string.IsNullOrWhiteSpace(cardId) || boughtSlots[slot])
             {
                 message = "\u5f53\u524d\u5361\u724c\u5df2\u65e0\u6cd5\u8d2d\u4e70\u3002";
                 return false;
@@ -220,10 +241,12 @@ public static class DimensionShopService
                 return false;
             }
 
-            SetPlayerValue(TerriasIds.DimensionShopCardBoughtKey, "1");
+            boughtSlots[slot] = true;
+            SetCardBoughtSlots(boughtSlots);
             if (!DimensionShopGameApi.TryGrantCardToReserve(cardId, out var error))
             {
-                SetPlayerValue(TerriasIds.DimensionShopCardBoughtKey, "0");
+                boughtSlots[slot] = false;
+                SetCardBoughtSlots(boughtSlots);
                 DimensionShopGameApi.RefundTruth(price);
                 message = error == "reserve is full"
                     ? "\u5361\u724c\u4ed3\u5e93\u5df2\u6ee1\uff0c\u65e0\u6cd5\u8d2d\u4e70\u3002"
@@ -244,7 +267,7 @@ public static class DimensionShopService
         }
     }
 
-    public static bool BuyRelic(out string message)
+    public static bool BuyRelic(int slot, out string message)
     {
         lock (Gate)
         {
@@ -260,17 +283,22 @@ public static class DimensionShopService
         try
         {
             EnsurePlayerState("BuyRelic");
-            var relicId = PlayerValue(TerriasIds.DimensionShopCurrentRelicKey);
-            var bought = BoughtRelics();
-            if (string.IsNullOrWhiteSpace(relicId))
+            if (!IsOfferSlot(slot))
             {
-                message = "\u5f53\u524d\u6ca1\u6709\u53ef\u8d2d\u4e70\u7684\u9057\u7269\u3002";
+                message = "\u9057\u7269\u8d27\u67b6\u4f4d\u7f6e\u65e0\u6548\u3002";
                 return false;
             }
 
-            if (bought.Contains(Canonical(relicId)))
+            if (IsPlayerFlagSet(TerriasIds.DimensionShopRelicPurchaseUsedKey))
             {
-                message = "\u8be5\u9057\u7269\u672c\u5c40\u5df2\u552e\u7f44\u3002";
+                message = "\u672c\u5c40\u7684\u9057\u7269\u8d2d\u4e70\u673a\u4f1a\u5df2\u4f7f\u7528\u3002";
+                return false;
+            }
+
+            var relicId = CurrentOffers(TerriasIds.DimensionShopCurrentRelicsKey)[slot];
+            if (string.IsNullOrWhiteSpace(relicId))
+            {
+                message = "\u5f53\u524d\u6ca1\u6709\u53ef\u8d2d\u4e70\u7684\u9057\u7269\u3002";
                 return false;
             }
 
@@ -287,17 +315,16 @@ public static class DimensionShopService
                 return false;
             }
 
-            bought.Add(Canonical(relicId));
-            SetPlayerValue(TerriasIds.DimensionShopBoughtRelicsKey, JoinIds(bought));
             if (!DimensionShopGameApi.TryGrantRelicToWarehouse(relicId, out _))
             {
-                bought.Remove(Canonical(relicId));
-                SetPlayerValue(TerriasIds.DimensionShopBoughtRelicsKey, JoinIds(bought));
                 DimensionShopGameApi.RefundTruth(price);
                 message = "\u9057\u7269\u53d1\u653e\u5931\u8d25\uff0c\u672a\u6263\u9664\u771f\u7406\u4e4b\u6676\u3002";
                 return false;
             }
 
+            SetPlayerValue(TerriasIds.DimensionShopRelicPurchaseUsedKey, "1");
+            SetPlayerValue(TerriasIds.DimensionShopPurchasedRelicIdKey, Canonical(relicId));
+            SetPlayerValue(TerriasIds.DimensionShopBoughtRelicsKey, Canonical(relicId));
             DimensionShopGameApi.PersistRole("DimensionShop.BuyRelic.State");
             message = "\u8d2d\u4e70\u6210\u529f\uff1a" + DisplayName(DataType.Relic, relicId);
             return true;
@@ -328,8 +355,7 @@ public static class DimensionShopService
         {
             EnsurePlayerState("Refresh");
             var cards = CardPool();
-            var boughtRelics = BoughtRelics();
-            var relics = EligibleRelics(boughtRelics);
+            var relics = EligibleRelics();
             if (cards.Count == 0 && relics.Count == 0)
             {
                 message = "\u5f53\u524d\u6ca1\u6709\u53ef\u5237\u65b0\u7684\u5546\u54c1\u3002";
@@ -346,9 +372,13 @@ public static class DimensionShopService
             var next = PlayerInt(TerriasIds.DimensionShopRefreshCountKey) + 1;
             var seed = RunSeed() + "|" + DimensionShopGameApi.LocalPlayerScope();
             SetPlayerValue(TerriasIds.DimensionShopRefreshCountKey, next.ToString());
-            SetPlayerValue(TerriasIds.DimensionShopCurrentCardKey, Pick(cards, seed, "refresh.card", next));
-            SetPlayerValue(TerriasIds.DimensionShopCurrentRelicKey, Pick(relics, seed, "refresh.relic", next));
-            SetPlayerValue(TerriasIds.DimensionShopCardBoughtKey, "0");
+            SetCurrentOffers(
+                TerriasIds.DimensionShopCurrentCardsKey,
+                DimensionShopRandom.Sample(cards, seed, "refresh.cards", next, OfferCount));
+            SetCurrentOffers(
+                TerriasIds.DimensionShopCurrentRelicsKey,
+                DimensionShopRandom.Sample(relics, seed, "refresh.relics", next, OfferCount));
+            SetCardBoughtSlots(new bool[OfferCount]);
             DimensionShopGameApi.PersistRole("DimensionShop.Refresh");
             message = "\u8d27\u67b6\u5df2\u5237\u65b0\u3002";
             return true;
@@ -373,30 +403,64 @@ public static class DimensionShopService
 
         role.SpecialVarMap ??= new Dictionary<string, string>();
         if (role.SpecialVarMap.TryGetValue(TerriasIds.DimensionShopPlayerInitializedKey, out var initialized)
-            && initialized == "1")
+            && initialized == "1"
+            && role.SpecialVarMap.TryGetValue(TerriasIds.DimensionShopPlayerVersionKey, out var version)
+            && string.Equals(version, PlayerStateVersion, StringComparison.Ordinal))
         {
             return;
         }
 
-        var seed = RunSeed();
-        SetPlayerValue(TerriasIds.DimensionShopCurrentCardKey, Pick(CardPool(), seed, "initial.card", 0));
-        SetPlayerValue(TerriasIds.DimensionShopCurrentRelicKey, Pick(RelicPool(), seed, "initial.relic", 0));
-        SetPlayerValue(TerriasIds.DimensionShopCardBoughtKey, "0");
-        SetPlayerValue(TerriasIds.DimensionShopRefreshCountKey, "0");
-        SetPlayerValue(TerriasIds.DimensionShopBoughtRelicsKey, "");
+        var seed = RunSeed() + "|" + DimensionShopGameApi.LocalPlayerScope();
+        var oldCard = PlayerValue(TerriasIds.DimensionShopCurrentCardKey);
+        var oldRelic = PlayerValue(TerriasIds.DimensionShopCurrentRelicKey);
+        var cards = WithPreferred(
+            DimensionShopRandom.Sample(CardPool(), seed, "initial.cards", 0, OfferCount),
+            oldCard,
+            CardPool());
+        var eligibleRelics = EligibleRelics();
+        var relics = WithPreferred(
+            DimensionShopRandom.Sample(eligibleRelics, seed, "initial.relics", 0, OfferCount),
+            oldRelic,
+            eligibleRelics);
+        SetCurrentOffers(TerriasIds.DimensionShopCurrentCardsKey, cards);
+        SetCurrentOffers(TerriasIds.DimensionShopCurrentRelicsKey, relics);
+
+        var migratedCardBought = new bool[OfferCount];
+        migratedCardBought[0] = PlayerValue(TerriasIds.DimensionShopCardBoughtKey) == "1"
+                                && !string.IsNullOrWhiteSpace(oldCard)
+                                && string.Equals(cards[0], oldCard, StringComparison.Ordinal);
+        SetCardBoughtSlots(migratedCardBought);
+        if (BoughtRelics().Count > 0)
+        {
+            SetPlayerValue(TerriasIds.DimensionShopRelicPurchaseUsedKey, "1");
+            SetPlayerValue(
+                TerriasIds.DimensionShopPurchasedRelicIdKey,
+                BoughtRelics().OrderBy(id => id, StringComparer.Ordinal).First());
+        }
+        else
+        {
+            SetPlayerValue(TerriasIds.DimensionShopRelicPurchaseUsedKey, "0");
+            SetPlayerValue(TerriasIds.DimensionShopPurchasedRelicIdKey, "");
+        }
+
+        if (!role.SpecialVarMap.ContainsKey(TerriasIds.DimensionShopRefreshCountKey))
+        {
+            SetPlayerValue(TerriasIds.DimensionShopRefreshCountKey, "0");
+        }
+
+        SetPlayerValue(TerriasIds.DimensionShopPlayerVersionKey, PlayerStateVersion);
         SetPlayerValue(TerriasIds.DimensionShopPlayerInitializedKey, "1");
         DimensionShopGameApi.PersistRole("DimensionShop.PlayerInitialize");
     }
 
-    private static DimensionShopItemView BuildRelicItem(string id, int price, int truth, HashSet<string> bought)
+    private static DimensionShopItemView BuildRelicItem(string id, int price, int truth, bool purchaseUsed)
     {
         if (string.IsNullOrWhiteSpace(id))
         {
             return EmptyItem(price, "\u6682\u65e0\u53ef\u8d2d\u4e70\u9057\u7269", DimensionShopItemState.Empty);
         }
 
-        var canonical = Canonical(id);
-        if (bought.Contains(canonical))
+        if (purchaseUsed)
         {
             return BuildItem(DataType.Relic, id, price, truth, DimensionShopItemState.SoldOut);
         }
@@ -848,9 +912,14 @@ public static class DimensionShopService
 
     private static List<string> BuildRelicPool()
     {
-        return DimensionShopConfigStore.Current.RelicIds
-            .Where(id => !string.IsNullOrWhiteSpace(id) && TerriasConfigIndex.Row(DataType.Relic, id) != null)
-            .Select(Canonical)
+        return TerriasConfigIndex.Rows(DataType.Relic)
+            .Where(row =>
+            {
+                var rarity = DictionaryUtil.GetInt(row, "Rarity", 0);
+                return rarity == 3 || rarity == 4;
+            })
+            .Select(row => Canonical(DictionaryUtil.Get(row, "Id")))
+            .Where(id => !string.IsNullOrWhiteSpace(id))
             .Distinct(StringComparer.Ordinal)
             .OrderBy(id => id, StringComparer.Ordinal)
             .ToList();
@@ -866,10 +935,10 @@ public static class DimensionShopService
         return RunIds(TerriasIds.DimensionShopRelicPoolKey, DataType.Relic);
     }
 
-    private static List<string> EligibleRelics(HashSet<string> bought)
+    private static List<string> EligibleRelics()
     {
         return RelicPool()
-            .Where(id => !bought.Contains(Canonical(id)) && !DimensionShopGameApi.HasRelic(id))
+            .Where(id => !DimensionShopGameApi.HasRelic(id))
             .ToList();
     }
 
@@ -900,10 +969,31 @@ public static class DimensionShopService
         return save?.Seed ?? GameSaveManager.GetSeed().ToString();
     }
 
-    private static string Pick(IReadOnlyList<string> values, string seed, string stream, int counter)
+    private static List<string> WithPreferred(
+        IReadOnlyList<string> sampled,
+        string preferred,
+        IReadOnlyCollection<string> eligible)
     {
-        var index = DimensionShopRandom.Index(seed, stream, counter, values.Count);
-        return index >= 0 ? values[index] : "";
+        var result = sampled
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .Distinct(StringComparer.Ordinal)
+            .Take(OfferCount)
+            .ToList();
+        preferred = Canonical(preferred);
+        if (string.IsNullOrWhiteSpace(preferred)
+            || !eligible.Contains(preferred))
+        {
+            return result;
+        }
+
+        result.RemoveAll(id => string.Equals(id, preferred, StringComparison.Ordinal));
+        result.Insert(0, preferred);
+        if (result.Count > OfferCount)
+        {
+            result.RemoveAt(result.Count - 1);
+        }
+
+        return result;
     }
 
     private static HashSet<string> BoughtRelics()
@@ -934,6 +1024,58 @@ public static class DimensionShopService
 
         role.SpecialVarMap ??= new Dictionary<string, string>();
         role.SpecialVarMap[key] = value ?? "";
+    }
+
+    private static bool IsPlayerFlagSet(string key)
+    {
+        return string.Equals(PlayerValue(key), "1", StringComparison.Ordinal);
+    }
+
+    private static bool IsOfferSlot(int slot)
+    {
+        return slot >= 0 && slot < OfferCount;
+    }
+
+    private static List<string> CurrentOffers(string key)
+    {
+        var offers = SplitSlots(PlayerValue(key));
+        while (offers.Count < OfferCount)
+        {
+            offers.Add("");
+        }
+
+        return offers.Take(OfferCount).ToList();
+    }
+
+    private static void SetCurrentOffers(string key, IEnumerable<string> offers)
+    {
+        var slots = (offers ?? Array.Empty<string>()).Take(OfferCount).ToList();
+        while (slots.Count < OfferCount)
+        {
+            slots.Add("");
+        }
+
+        SetPlayerValue(key, string.Join("|", slots));
+    }
+
+    private static bool[] CardBoughtSlots()
+    {
+        var values = SplitSlots(PlayerValue(TerriasIds.DimensionShopCardBoughtSlotsKey));
+        var result = new bool[OfferCount];
+        for (var i = 0; i < result.Length && i < values.Count; i++)
+        {
+            result[i] = string.Equals(values[i], "1", StringComparison.Ordinal);
+        }
+
+        return result;
+    }
+
+    private static void SetCardBoughtSlots(IReadOnlyList<bool> values)
+    {
+        SetPlayerValue(
+            TerriasIds.DimensionShopCardBoughtSlotsKey,
+            string.Join("|", Enumerable.Range(0, OfferCount).Select(index =>
+                index < values.Count && values[index] ? "1" : "0")));
     }
 
     private static string DisplayName(DataType type, string id)
@@ -989,6 +1131,15 @@ public static class DimensionShopService
                 .Where(id => !string.IsNullOrWhiteSpace(id))
                 .Select(id => id.Trim())
                 .Distinct(StringComparer.Ordinal)
+                .ToList();
+    }
+
+    private static List<string> SplitSlots(string value)
+    {
+        return string.IsNullOrEmpty(value)
+            ? new List<string>()
+            : value.Split(new[] { '|' }, StringSplitOptions.None)
+                .Select(id => id.Trim())
                 .ToList();
     }
 }

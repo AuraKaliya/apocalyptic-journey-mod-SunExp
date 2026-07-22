@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Security.Cryptography;
 using System.Text;
 
@@ -6,6 +7,25 @@ namespace Terrias.Dll.Mechanics;
 
 public static class DimensionShopRandom
 {
+    public static List<T> Sample<T>(
+        IReadOnlyList<T> values,
+        string seed,
+        string stream,
+        int counter,
+        int count)
+    {
+        var remaining = values == null ? new List<T>() : new List<T>(values);
+        var result = new List<T>(Math.Min(Math.Max(0, count), remaining.Count));
+        while (result.Count < count && remaining.Count > 0)
+        {
+            var index = Index(seed, stream + "." + result.Count, counter, remaining.Count);
+            result.Add(remaining[index]);
+            remaining.RemoveAt(index);
+        }
+
+        return result;
+    }
+
     public static int Index(string seed, string stream, int counter, int count)
     {
         if (count <= 0)

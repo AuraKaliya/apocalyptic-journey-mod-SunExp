@@ -61,8 +61,8 @@ public static class DimensionShopPanel
             TerriasTransientUiRegistry.Register("DimensionShop", Close);
             if (DimensionShopNativeSkin.TryCreate(
                     activePanel.transform,
-                    () => Purchase(DimensionShopService.BuyCard),
-                    () => Purchase(DimensionShopService.BuyRelic),
+                    slot => Purchase(slot, DimensionShopService.BuyCard),
+                    slot => Purchase(slot, DimensionShopService.BuyRelic),
                     SellCard,
                     SellRelic,
                     UnequipRelic,
@@ -152,14 +152,15 @@ public static class DimensionShopPanel
             390f,
             390f,
             1f);
-        TerriasUiComponents.ConfigureHorizontalLayout(
-            root,
-            new RectOffset(18, 18, 18, 18),
-            18f,
-            childControlWidth: true,
-            childControlHeight: true,
-            childForceExpandWidth: true,
-            childForceExpandHeight: true);
+        var grid = root.AddComponent<GridLayoutGroup>();
+        grid.padding = new RectOffset(12, 12, 12, 12);
+        grid.spacing = new Vector2(10f, 10f);
+        grid.cellSize = new Vector2(220f, 178f);
+        grid.constraint = GridLayoutGroup.Constraint.FixedColumnCount;
+        grid.constraintCount = 3;
+        grid.startAxis = GridLayoutGroup.Axis.Horizontal;
+        grid.startCorner = GridLayoutGroup.Corner.UpperLeft;
+        grid.childAlignment = TextAnchor.UpperCenter;
         return root.transform;
     }
 
@@ -221,8 +222,25 @@ public static class DimensionShopPanel
 
         TerriasUiPool.ReleaseOrDestroyChildren(productRoot, "DimensionShop.Render", "[DimensionShop]");
         balanceText!.text = "\u771f\u7406\u4e4b\u6676  " + view.Truth;
-        CreateProductCard(productRoot, "\u5361\u724c", view.Card, DimensionShopService.BuyCard);
-        CreateProductCard(productRoot, "\u9057\u7269", view.Relic, DimensionShopService.BuyRelic);
+        for (var slot = 0; slot < view.Cards.Count; slot++)
+        {
+            var capturedSlot = slot;
+            CreateProductCard(
+                productRoot,
+                "\u5361\u724c",
+                view.Cards[slot],
+                () => Purchase(capturedSlot, DimensionShopService.BuyCard));
+        }
+
+        for (var slot = 0; slot < view.Relics.Count; slot++)
+        {
+            var capturedSlot = slot;
+            CreateProductCard(
+                productRoot,
+                "\u9057\u7269",
+                view.Relics[slot],
+                () => Purchase(capturedSlot, DimensionShopService.BuyRelic));
+        }
         SetHint("\u5237\u65b0\u6d88\u8017 "
                 + view.RefreshPrice
                 + " \u679a\u771f\u7406\u4e4b\u6676\uff0c\u5df2\u5237\u65b0 "
@@ -261,56 +279,56 @@ public static class DimensionShopPanel
         Transform parent,
         string kind,
         DimensionShopItemView item,
-        BuyAction purchase)
+        Action purchase)
     {
         var card = TerriasUiComponents.CreateLayoutObject("Product-" + kind, parent);
         var element = card.AddComponent<LayoutElement>();
-        element.minWidth = 280f;
+        element.minWidth = 200f;
         element.flexibleWidth = 1f;
-        element.minHeight = 350f;
+        element.minHeight = 168f;
         element.flexibleHeight = 1f;
         TerriasUiBuilder.ApplyPanelImage(card, TerriasUiSprites.Panel("[DimensionShop]"), ItemTint, true);
         TerriasUiComponents.ConfigureVerticalLayout(
             card,
-            new RectOffset(16, 16, 12, 14),
-            8f,
+            new RectOffset(8, 8, 6, 6),
+            2f,
             childForceExpandHeight: false,
             alignment: TextAnchor.UpperCenter);
 
-        TerriasUiComponents.AddTextBlock(card.transform, kind, 16, TextAnchor.MiddleCenter, Accent, 28f);
+        TerriasUiComponents.AddTextBlock(card.transform, kind, 12, TextAnchor.MiddleCenter, Accent, 16f);
         CreateIcon(card.transform, item.IconPath);
         TerriasUiComponents.AddTextBlock(
             card.transform,
             string.IsNullOrWhiteSpace(item.Name) ? "\u6682\u65e0\u5546\u54c1" : item.Name,
-            22,
+            15,
             TextAnchor.MiddleCenter,
             SoftText,
-            38f);
+            22f);
         TerriasUiComponents.AddTextBlock(
             card.transform,
             item.Description,
-            14,
+            11,
             TextAnchor.UpperLeft,
             string.IsNullOrWhiteSpace(item.Description) ? MutedText : SoftText,
-            96f,
+            34f,
             1f);
         TerriasUiComponents.AddTextBlock(
             card.transform,
             string.IsNullOrWhiteSpace(item.Status) ? "\u53ef\u8d2d\u4e70" : item.Status,
-            15,
+            11,
             TextAnchor.MiddleCenter,
             item.CanBuy ? Accent : MutedText,
-            30f);
+            18f);
 
         var button = TerriasUiComponents.CreateTextButton(
             card.transform,
             "\u8d2d\u4e70  " + item.Price,
-            new Vector2(156f, 46f),
+            new Vector2(124f, 30f),
             TerriasUiSprites.Button("[DimensionShop]"),
             new Color(0.055f, 0.09f, 0.1f, 1f),
             SoftText,
-            17,
-            () => Purchase(purchase));
+            12,
+            purchase);
         button.interactable = item.CanBuy && !busy;
     }
 
@@ -318,8 +336,8 @@ public static class DimensionShopPanel
     {
         var root = TerriasUiComponents.CreateLayoutObject("Icon", parent);
         var element = root.AddComponent<LayoutElement>();
-        element.minHeight = 126f;
-        element.preferredHeight = 126f;
+        element.minHeight = 42f;
+        element.preferredHeight = 42f;
         element.flexibleWidth = 1f;
         var image = root.AddComponent<Image>();
         image.color = new Color(1f, 1f, 1f, 0.96f);
@@ -331,7 +349,7 @@ public static class DimensionShopPanel
         }
     }
 
-    private static void Purchase(BuyAction action)
+    private static void Purchase(int slot, BuySlotAction action)
     {
         if (busy)
         {
@@ -341,7 +359,7 @@ public static class DimensionShopPanel
         busy = true;
         try
         {
-            action(out var message);
+            action(slot, out var message);
             busy = false;
             Render();
             SetHint(message);
@@ -540,5 +558,5 @@ public static class DimensionShopPanel
         return new Vector2(Mathf.Clamp(width * 0.76f, 760f, 980f), Mathf.Clamp(height * 0.82f, 570f, 700f));
     }
 
-    private delegate bool BuyAction(out string message);
+    private delegate bool BuySlotAction(int slot, out string message);
 }

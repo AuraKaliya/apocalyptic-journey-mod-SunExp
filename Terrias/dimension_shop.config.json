@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 2,
+  "schemaVersion": 3,
   "cardPrice": 8,
   "relicPrice": 8,
   "refreshPrice": 1,
@@ -8,9 +8,6 @@
   ],
   "includeCardIds": [],
   "excludeCardIds": [],
-  "relicIds": [
-    "relic_24"
-  ],
   "shopkeeperPortraitResourcePath": "",
   "shopkeeperPortraitNodePath": ""
 }

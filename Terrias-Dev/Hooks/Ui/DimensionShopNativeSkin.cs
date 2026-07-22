@@ -40,8 +40,8 @@ internal sealed class DimensionShopNativeSkin : IDisposable
     private readonly DimensionShopNativeHintPresenter hintPresenter;
     private readonly AuraUiNativeButtonBinding refreshButton;
     private readonly AuraUiNativeButtonBinding exitButton;
-    private readonly Action buyCard;
-    private readonly Action buyRelic;
+    private readonly Action<int> buyCard;
+    private readonly Action<int> buyRelic;
     private readonly Action<string> sellCard;
     private readonly Action<string> sellRelic;
     private readonly Action<string> unequipRelic;
@@ -66,8 +66,8 @@ internal sealed class DimensionShopNativeSkin : IDisposable
         DimensionShopNativeHintPresenter hintPresenter,
         AuraUiNativeButtonBinding refreshButton,
         AuraUiNativeButtonBinding exitButton,
-        Action buyCard,
-        Action buyRelic,
+        Action<int> buyCard,
+        Action<int> buyRelic,
         Action<string> sellCard,
         Action<string> sellRelic,
         Action<string> unequipRelic)
@@ -95,8 +95,8 @@ internal sealed class DimensionShopNativeSkin : IDisposable
 
     public static bool TryCreate(
         Transform parent,
-        Action buyCard,
-        Action buyRelic,
+        Action<int> buyCard,
+        Action<int> buyRelic,
         Action<string> sellCard,
         Action<string> sellRelic,
         Action<string> unequipRelic,
@@ -250,8 +250,17 @@ internal sealed class DimensionShopNativeSkin : IDisposable
         goldBalanceText.text = state.Gold.ToString();
         truthBalanceText.text = state.Truth.ToString();
         truthBalanceText.color = TruthColor;
-        CreateOffer(state.Card, DataType.Card, buyCard, busy);
-        CreateOffer(state.Relic, DataType.Relic, buyRelic, busy);
+        for (var slot = 0; slot < state.Cards.Count; slot++)
+        {
+            var capturedSlot = slot;
+            CreateOffer(state.Cards[slot], DataType.Card, () => buyCard(capturedSlot), busy);
+        }
+
+        for (var slot = 0; slot < state.Relics.Count; slot++)
+        {
+            var capturedSlot = slot;
+            CreateOffer(state.Relics[slot], DataType.Relic, () => buyRelic(capturedSlot), busy);
+        }
         RenderHeldCards(state.HeldCards);
         RenderHeldRelics(state.HeldRelics);
         RebuildInteractiveLayout();

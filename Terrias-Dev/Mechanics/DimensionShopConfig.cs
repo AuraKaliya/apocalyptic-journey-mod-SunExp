@@ -9,7 +9,7 @@ namespace Terrias.Dll.Mechanics;
 
 public sealed class DimensionShopConfigDocument
 {
-    public int SchemaVersion { get; set; } = 2;
+    public int SchemaVersion { get; set; } = 3;
 
     public int CardPrice { get; set; } = 8;
 
@@ -22,8 +22,6 @@ public sealed class DimensionShopConfigDocument
     public string[] IncludeCardIds { get; set; } = Array.Empty<string>();
 
     public string[] ExcludeCardIds { get; set; } = Array.Empty<string>();
-
-    public string[] RelicIds { get; set; } = { TerriasIds.BrokenDialRelicId };
 
     public string ShopkeeperPortraitResourcePath { get; set; } = "";
 
@@ -84,7 +82,6 @@ public static class DimensionShopConfigStore
         document.CardPackIds = NormalizeIds(document.CardPackIds, TerriasIds.MoreDimensionsCardPackId);
         document.IncludeCardIds = NormalizeIds(document.IncludeCardIds);
         document.ExcludeCardIds = NormalizeIds(document.ExcludeCardIds);
-        document.RelicIds = NormalizeIds(document.RelicIds, TerriasIds.BrokenDialRelicId);
         document.ShopkeeperPortraitResourcePath = (document.ShopkeeperPortraitResourcePath ?? "").Trim();
         document.ShopkeeperPortraitNodePath = (document.ShopkeeperPortraitNodePath ?? "").Trim();
         return document;

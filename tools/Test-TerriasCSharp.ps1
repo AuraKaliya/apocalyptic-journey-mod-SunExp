@@ -1184,6 +1184,17 @@ internal static class Program
         True(cardSequence.All(index => index >= 0 && index < 4), "Dimension shop random indices stay inside the configured pool");
         False(cardSequence.SequenceEqual(relicSequence), "Dimension shop card and relic refreshes use independent deterministic streams");
         True(cardSequence.Distinct().Count() < cardSequence.Length, "Dimension shop draws permit repeated products instead of tracking a no-repeat bag");
+
+        var shelf = DimensionShopRandom.Sample(new[] { "a", "b", "c", "d" }, "run|player", "cards", 2, 3);
+        Equal(3, shelf.Count, "Dimension shop fills three offer slots when the pool is large enough");
+        Equal(3, shelf.Distinct().Count(), "Dimension shop samples one shelf without duplicate products");
+        True(
+            shelf.SequenceEqual(DimensionShopRandom.Sample(new[] { "a", "b", "c", "d" }, "run|player", "cards", 2, 3)),
+            "Dimension shop multi-offer shelves are deterministic");
+        Equal(
+            2,
+            DimensionShopRandom.Sample(new[] { "a", "b" }, "run|player", "cards", 2, 3).Count,
+            "Dimension shop does not duplicate products to fill a short pool");
     }
 
     private static void TestModeChoiceDragRange()
@@ -2535,6 +2546,12 @@ function Invoke-SourceAssertions {
     Assert-True ($dimensionShopGameApi.Contains("TruthCurrencySprite") -and $dimensionShopGameApi.Contains('TruthCurrencyResourcePath = "Icon/UI_Icons/Native/Icon/\u771f\u7406\u4e4b\u6676"') -and -not $dimensionShopGameApi.Contains("CurrencySpriteNear") -and $dimensionShopGameApi.Contains("GetFloatingWindow")) "Dimension shop currency and context-menu integrations must use explicit host APIs and stay behind the GameApi facade."
     Assert-True ($terriasContentIdCompatibility.Contains("LegacyMainTableId") -and $terriasContentIdCompatibility.Contains('LegacyPrefix("wuna")') -and $terriasContentIdCompatibility.Contains('LegacyPrefix("loneer")') -and $terriasContentIdCompatibility.Contains('LegacyPrefix("columbina")') -and $terriasContentIdCompatibility.Contains('LegacyPrefix("cursecard")') -and $terriasContentIdCompatibility.Contains('LegacyPrefix("solar_memory")') -and $terriasContentIdCompatibility.Contains("Canonicalize") -and $terriasContentIdCompatibility.Contains("LookupCandidates") -and $terriasConfigIndex.Contains("TerriasContentIdCompatibility.LookupCandidates")) "Terrias content lookup must centralize all supported legacy-to-current prefix aliases."
     Assert-True ($dimensionShopService.Contains("public enum DimensionShopItemState") -and $dimensionShopService.Contains("HeldCards = BuildHeldCards()") -and $dimensionShopService.Contains("HeldRelics = BuildHeldRelics()")) "Dimension shop view state must expose typed offer states and held-item snapshots."
+    Assert-True ($dimensionShopService.Contains('rarity == 3 || rarity == 4') -and $dimensionShopService.Contains('.Where(id => !DimensionShopGameApi.HasRelic(id))') -and -not $dimensionShopService.Contains("DimensionShopConfigStore.Current.RelicIds")) "Dimension shop relic shelves must discover all runtime tier-three/four relics while excluding carried relics and ignoring pack allowlists."
+    Assert-True ($dimensionShopService.Contains("private const int OfferCount = 3") -and $dimensionShopService.Contains("Cards = Enumerable.Range(0, OfferCount)") -and $dimensionShopService.Contains("Relics = Enumerable.Range(0, OfferCount)") -and $dimensionShopNativeSkin.Contains("state.Cards.Count") -and $dimensionShopNativeSkin.Contains("state.Relics.Count")) "Dimension shop must render three card offers and three relic offers."
+    Assert-True ($dimensionShopService.Contains("DimensionShopRelicPurchaseUsedKey") -and $dimensionShopService.Contains("if (purchaseUsed)") -and $dimensionShopService.Contains("DimensionShopItemState.SoldOut")) "Dimension shop must sell at most one relic per player per run and mark every later relic offer sold out."
+    Assert-True ($dimensionShopService.IndexOf("TryGrantRelicToWarehouse", [System.StringComparison]::Ordinal) -lt $dimensionShopService.IndexOf('SetPlayerValue(TerriasIds.DimensionShopRelicPurchaseUsedKey, "1")', [System.StringComparison]::Ordinal)) "Dimension shop must not consume a player's relic allowance before the grant succeeds."
+    Assert-True ($dimensionShopService.Contains("BoughtRelics().Count > 0") -and $dimensionShopService.Contains("DimensionShopRunVersionKey") -and $dimensionShopService.Contains("DimensionShopPlayerVersionKey")) "Dimension shop must migrate old one-item shelves and purchased-relic history."
+    Assert-True ($dimensionShopService.Contains("SetCardBoughtSlots") -and $dimensionShopService.Contains("boughtSlots[slot]") -and $dimensionShopService.Contains("BuyCard(int slot")) "Dimension shop card purchases must be tracked independently by shelf slot."
     Assert-True ($dimensionShopService.Contains("Description = SafeItemDescription(config)") -and $dimensionShopService.Contains('Tips = SafeLocalizedField(config, "Tips")')) "Dimension shop held cards and relics must expose localized hover-tooltip content."
     Assert-True ($dimensionShopConfigSource.Contains("ShopkeeperPortraitResourcePath") -and $dimensionShopConfigSource.Contains("ShopkeeperPortraitNodePath")) "Dimension shop config must expose replaceable native shopkeeper portrait settings."
     Assert-True $terriasProject.Contains('<Reference Include="Plugins">') "Terrias must reference the host UI plugin assembly used by native ShopUI controls."
