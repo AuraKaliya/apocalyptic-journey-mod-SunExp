@@ -862,6 +862,7 @@ public static class SkillCgArbiterRuntime
 
         private void Update()
         {
+            networkRuntime.RetryPendingPlaybacks(EnqueueNetworkPlayback);
             if (playbackCoordinator.IsPlaying)
             {
                 return;

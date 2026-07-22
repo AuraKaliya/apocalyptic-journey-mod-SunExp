@@ -91,6 +91,10 @@ public static class DamageSettlementCgRuntime
             return;
         }
 
+        // The synchronized ranking payload is the authoritative resource identity list.
+        // Adventure-start preloading remains a warm-cache optimization only.
+        DamageSettlementCgAssetCache.PrepareForEntries(payload.Entries);
+
         if (broadcast && settings.SyncRemote)
         {
             Broadcast(payload);
@@ -134,6 +138,20 @@ public static class DamageSettlementCgRuntime
             yield break;
         }
 
+        var waitStartedAt = Time.unscaledTime;
+        while (DamageSettlementCgPreparationPolicy.ShouldWait(
+                   Time.unscaledTime - waitStartedAt,
+                   DamageSettlementCgAssetCache.HasPendingPreparation(payload.Entries),
+                   routineGeneration == generation))
+        {
+            yield return null;
+        }
+
+        if (routineGeneration != generation)
+        {
+            yield break;
+        }
+
         var background = LoadBackground(payload.BackgroundResource);
         if (background == null)
         {
@@ -147,7 +165,7 @@ public static class DamageSettlementCgRuntime
             yield break;
         }
 
-        var clips = ResolveClips(payload);
+        var clips = ResolveClips(payload, Time.unscaledTime - waitStartedAt);
         if (clips.Count == 0)
         {
             AuraToolsLog.Info("[SettlementCG] skipped: no role idle frames resolved.");
@@ -183,7 +201,9 @@ public static class DamageSettlementCgRuntime
         }
     }
 
-    private static List<DamageSettlementCgCharacterView> ResolveClips(DamageSettlementCgPayload payload)
+    private static List<DamageSettlementCgCharacterView> ResolveClips(
+        DamageSettlementCgPayload payload,
+        float preparationElapsedSeconds)
     {
         var views = new List<DamageSettlementCgCharacterView>();
         foreach (var entry in (payload.Entries ?? new List<DamageSettlementCgEntry>())
@@ -194,8 +214,12 @@ public static class DamageSettlementCgRuntime
             var clip = DamageSettlementCgAssetCache.ResolvePreparedClip(entry);
             if (clip == null || clip.Frames.Count == 0)
             {
+                var reason = DamageSettlementCgAssetCache.HasPendingPreparation(new[] { entry })
+                    ? "prepare-timeout"
+                    : "resource-unavailable";
                 AuraToolsLog.Warn("[SettlementCG] idle skipped: rank="
-                                  + entry.Rank + ", role=" + entry.RoleId + ", reason=not preloaded.");
+                                  + entry.Rank + ", role=" + entry.RoleId + ", reason=" + reason
+                                  + ", waited=" + preparationElapsedSeconds.ToString("0.000") + "s.");
                 continue;
             }
 

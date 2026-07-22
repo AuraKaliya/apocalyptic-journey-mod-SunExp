@@ -49,13 +49,14 @@ public static class SkinRuntime
     {
         ResourceRedirectApi.RestoreAll();
         AppliedAnimationSkin.Clear();
-        RemoteSelections.Clear();
-        RemoteStatuses.Clear();
+        // Remote selections are synchronized state. Preserve the latest snapshots
+        // while the local registry is rebuilt so they can be reconciled afterwards.
         SkinRegistry.Reload();
         SkinSelectionStore.Load();
         selectionRevision++;
         lastAppliedSelectionRevision = -1;
         lastAppliedCatalogEpoch = -1;
+        ScheduleApplyAllKnownSelections();
     }
 
     public static IReadOnlyList<SkinDefinition> GetSkins(string careerId) => SkinRegistry.GetForCareer(careerId);
@@ -225,6 +226,8 @@ public static class SkinRuntime
                 }
             }
 
+            ReconcileRemoteSelections();
+
             lastAppliedCatalogEpoch = catalogEpoch;
             lastAppliedSelectionRevision = selectionRevision;
         }
@@ -330,9 +333,13 @@ public static class SkinRuntime
         }
 
         RemoteStatuses[playerId] = result;
-        if (!result.Success || result.DefaultSkin)
+        if (result.DefaultSkin || !SkinRemoteSelectionPolicy.ShouldRetain(snapshot, result))
         {
-            RemoteSelections.Remove(playerId);
+            if (RemoteSelections.Remove(playerId))
+            {
+                selectionRevision++;
+            }
+
             if (!string.IsNullOrWhiteSpace(result.Warning))
             {
                 SkinLog.Warn(result.Warning);
@@ -346,12 +353,58 @@ public static class SkinRuntime
         normalized.SkinId = normalized.SkinId.Trim();
         normalized.QualifiedSkinId = normalized.QualifiedSkinId.Trim();
         RemoteSelections[playerId] = normalized;
+        selectionRevision++;
+        if (!result.Success)
+        {
+            if (!string.IsNullOrWhiteSpace(result.Warning))
+            {
+                SkinLog.Warn(result.Warning);
+            }
+
+            ScheduleApplyAllKnownSelections();
+            return result;
+        }
+
         if (CareerConfigApi.TryCreate(normalized.CareerId, out var career) && career != null)
         {
             ApplyAnimation(career, true, playerId);
         }
 
         return result;
+    }
+
+    private static void ReconcileRemoteSelections()
+    {
+        foreach (var snapshot in RemoteSelections.Values.ToArray())
+        {
+            var playerId = snapshot.PlayerId?.Trim() ?? "";
+            if (string.IsNullOrWhiteSpace(playerId))
+            {
+                continue;
+            }
+
+            var previousWarning = RemoteStatuses.TryGetValue(playerId, out var previous)
+                ? previous.Warning
+                : "";
+            var result = ResolveRemoteSelection(snapshot);
+            RemoteStatuses[playerId] = result;
+            if (!result.Success)
+            {
+                if (!string.IsNullOrWhiteSpace(result.Warning)
+                    && !string.Equals(previousWarning, result.Warning, StringComparison.Ordinal))
+                {
+                    SkinLog.Warn(result.Warning);
+                }
+
+                continue;
+            }
+
+            if (CareerConfigApi.TryCreate(result.CareerId, out var career, warnOnFailure: false)
+                && career != null)
+            {
+                ApplyAnimation(career, true, playerId);
+            }
+        }
     }
 
     public static string[] RemoteStatusLines()

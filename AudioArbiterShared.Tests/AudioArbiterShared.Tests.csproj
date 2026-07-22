@@ -19,6 +19,7 @@
     <Compile Include="..\AudioArbiterShared\AudioNetworkEventMapper.cs" Link="Shared\AudioNetworkEventMapper.cs" />
     <Compile Include="..\AudioArbiterShared\AudioNetworkPolicy.cs" Link="Shared\AudioNetworkPolicy.cs" />
     <Compile Include="..\AudioArbiterShared\AudioNetworkSessionState.cs" Link="Shared\AudioNetworkSessionState.cs" />
+    <Compile Include="..\AudioArbiterShared\AudioPendingPresentationQueue.cs" Link="Shared\AudioPendingPresentationQueue.cs" />
     <Compile Include="..\AudioArbiterShared\AudioPresentationPolicy.cs" Link="Shared\AudioPresentationPolicy.cs" />
     <Compile Include="..\AudioArbiterShared\AudioPropertyReader.cs" Link="Shared\AudioPropertyReader.cs" />
     <Compile Include="..\AudioArbiterShared\AudioProviderResolver.cs" Link="Shared\AudioProviderResolver.cs" />

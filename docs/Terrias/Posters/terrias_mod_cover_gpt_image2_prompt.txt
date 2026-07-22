@@ -1,0 +1,38 @@
+Use case: ads-marketing
+Asset type: square 1:1 game MOD cover key visual
+
+Primary request:
+Create a premium square anime-fantasy ensemble cover for the game MOD “特瑞厄斯”. Use the four attached character images only as visual identity references. Preserve each character's recognizable face, hair color, costume language, silhouette, and signature magical objects, but redraw all four together as one coherent cinematic key visual rather than a collage.
+
+Input images:
+Image 1 — 乌娜 / WuNa: warm blonde hair, amber eyes, black-and-white saintly dress with gold solar tracery, thorn-like halo, pale solar flame. Her motif is ruined white radiance, ash, and a blazing sun.
+Image 2 — 洛奈尔 / Loneer: very long pale periwinkle-blue hair, blue-violet layered starry gown, gentle expression, small miracle clock. Her motif is the morning star, constellations, and time.
+Image 3 — 哥伦比娅 / Columbina: very long dark violet-to-magenta hair, pale lavender eyes, white feather ornaments behind the head, white-and-blue moonlit ceremonial dress. Her motif is the moon, quiet tides, and silver-blue feathers.
+Image 4 — 奥莉米娅 / Olimya: long pale lavender hair, large elegant black witch hat with gold flower ornament, black-and-white dress with gold chains, contract book, balance scale, purple crystals. Her motif is the false golden dream, valuation, contracts, and fractured gold.
+
+Cover concept:
+Four heroines stand together at the boundary of a destroyed world, united by one immense celestial astrolabe. Their four powers form one circular emblem: white-gold solar fire, blue-violet constellations, silver lunar tide, and black-gold contract geometry. The image should feel like the definitive main cover of an ambitious fantasy expansion.
+
+Scene/backdrop:
+A dark cosmic ruin over a faint broken cathedral-city, framed by an immense circular astrolabe and a subtle eclipse. Fine ash, stars, moonlit mist, and golden contract fragments spiral inward toward the group. Keep the backdrop elegant and subdued so the faces remain readable at icon size.
+
+Subject and composition:
+Exactly four female characters, all clearly visible from roughly waist or chest up. Balanced diamond-shaped group composition for a square cover. WuNa slightly upper-right with warm solar rim light; Loneer upper-left with cool star light; Columbina lower-left with moonlit feather and tide motifs; Olimya lower-right with gold contract geometry. Equal narrative importance, with faces large enough to survive reduction to 400×400. The four figures overlap naturally as one painted scene; no hard image borders. Reserve the bottom 22% as a dark, low-detail, gently glowing title plate integrated into the environment. Do not place any character face or hand in that title area.
+
+Style/medium:
+High-end anime game promotional illustration, painterly fantasy key art, refined facial rendering and textile details, dramatic but tasteful magical effects, premium MOD cover design, coherent lighting and perspective, not a collage and not a UI screenshot.
+
+Lighting/mood:
+Dual warm-and-cool rim lighting around a black cosmic center; solemn, mythic, apocalyptic, yet hopeful. Strong readable silhouettes and controlled contrast.
+
+Color palette:
+Near-black and midnight blue background, luminous white-gold, periwinkle blue, moon-silver, restrained violet, and small ember-orange accents. Avoid muddy browns and oversaturated rainbow colors.
+
+Text:
+Do not render any letters, words, symbols pretending to be language, logos, or typography. Leave the bottom title plate empty for deterministic local typesetting of “特瑞厄斯”.
+
+Constraints:
+Square 1:1 composition. Exactly four female characters and no others. Preserve the defining traits from each reference. No duplicate characters, extra faces, cropped heads, merged bodies, malformed hands, or obscured eyes. No card frames, UI panels, screenshots, watermarks, QR codes, platform badges, fake logos, decorative captions, random English, or illegible glyphs. Do not copy the old cover composition.
+
+Output goal:
+A polished 1024×1024 no-text master key visual suitable for a game MOD icon, with a clean dark title zone across the lower portion for adding the exact Chinese title later.

@@ -327,19 +327,27 @@ internal sealed class DimensionShopNativeSkin : IDisposable
         holder.name = GeneratedPrefix + "Offer_" + type;
         LogNativeComponentTopology("offer-" + type, holder, nativeItem, overlayGeneration);
 
+        var hasTerminalOverlay = HasTerminalOverlay(item.State);
         var priceButton = BindNativeButton(
             Require(holder.transform, "val"),
             item.Price.ToString(),
-            purchase,
-            item.CanBuy && !busy);
+            () =>
+            {
+                if (item.CanBuy && !busy)
+                {
+                    purchase();
+                }
+            },
+            !busy && !hasTerminalOverlay);
         SetPrice(holder.transform, item, truthCurrencySprite);
         priceButton.SetTextColor(
             item.State == DimensionShopItemState.InsufficientTruth
                 ? InsufficientColor
                 : TruthColor);
-        if (HasTerminalOverlay(item.State))
+        if (hasTerminalOverlay)
         {
-            CreateStatusOverlay(holder.transform, item.Status);
+            ClearPrice(holder.transform);
+            CreateStatusOverlay(OfferVisual(holder.transform, type), item.Status);
             priceButton.SetInteractable(false);
         }
 
@@ -372,6 +380,12 @@ internal sealed class DimensionShopNativeSkin : IDisposable
 
     private static void SetPrice(Transform holder, DimensionShopItemView item, Sprite? currencySprite)
     {
+        var priceRoot = holder.Find("val");
+        if (priceRoot != null)
+        {
+            priceRoot.gameObject.SetActive(true);
+        }
+
         var value = item.Price.ToString();
         var color = item.State == DimensionShopItemState.InsufficientTruth ? InsufficientColor : TruthColor;
         foreach (var path in new[] { "val/Normal/Title", "val/Hlight/Title", "val/Disabled/Title" })
@@ -396,6 +410,36 @@ internal sealed class DimensionShopNativeSkin : IDisposable
                 currencyIcon.preserveAspect = true;
             }
         }
+    }
+
+    private static void ClearPrice(Transform holder)
+    {
+        foreach (var path in new[] { "val/Normal/Title", "val/Hlight/Title", "val/Disabled/Title" })
+        {
+            var text = holder.Find(path)?.GetComponent<TMP_Text>();
+            if (text != null)
+            {
+                text.text = "";
+            }
+        }
+
+        var currencyIcon = holder.Find(OfferCurrencyIconPath)?.GetComponent<Image>();
+        if (currencyIcon != null)
+        {
+            currencyIcon.sprite = null;
+            currencyIcon.gameObject.SetActive(false);
+        }
+
+        var priceRoot = holder.Find("val");
+        if (priceRoot != null)
+        {
+            priceRoot.gameObject.SetActive(false);
+        }
+    }
+
+    private static Transform OfferVisual(Transform holder, DataType type)
+    {
+        return Require(holder, type == DataType.Card ? "CardItem" : "Item");
     }
 
     private void RenderHeldCards(IReadOnlyList<DimensionShopHeldItemView> cards)

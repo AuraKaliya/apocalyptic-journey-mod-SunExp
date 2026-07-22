@@ -27,6 +27,7 @@ internal sealed class AudioArbiterContractTests
         VerifyVariantSelectionPolicy();
         VerifyProviderIdentityAndOrdering();
         VerifyProviderResolution();
+        VerifyPendingPresentationQueue();
         VerifyCooldownPolicy();
         VerifyPresentationPolicy();
         VerifySuppressionPolicy();
@@ -942,6 +943,46 @@ internal sealed class AudioArbiterContractTests
         var filteredResult = AudioProviderResolver.Resolve<FakeProvider, FakeResource>(new[] { filtered, lower }, request, "voice", "OwnerA", false);
         Equal(AudioProviderResolutionStatus.None, filteredResult.Status, "strict matched provider condition can reject");
         Equal(false, filteredResult.UsedLegacyFallback, "condition rejection does not escape strict identity");
+    }
+
+    private void VerifyPendingPresentationQueue()
+    {
+        True(AudioProviderLoadStatePolicy.IsTransient("Loading"), "loading provider state is transient");
+        True(AudioProviderLoadStatePolicy.IsTransient("Initializing"), "initializing provider state is transient");
+        Equal(false, AudioProviderLoadStatePolicy.IsTransient("Failed"), "failed provider state is permanent");
+        Equal(false, AudioProviderLoadStatePolicy.IsTransient("Missing"), "missing provider state is permanent");
+        Equal(false, AudioProviderLoadStatePolicy.IsTransient("Disposed"), "disposed provider state is permanent");
+
+        var now = new DateTime(2026, 7, 22, 0, 0, 0, DateTimeKind.Utc).Ticks;
+        var queue = new AudioPendingPresentationQueue(maximumCount: 2);
+        var first = CreateRequest();
+        first.EventId = "pending-1";
+        first.CreatedAtUtcTicks = now;
+        first.MaxAgeMilliseconds = 5000;
+        True(queue.Enqueue(first, now), "first unresolved remote presentation is queued");
+        Equal(false, queue.Enqueue(first, now), "pending presentation identity is deduplicated");
+        Equal(now + TimeSpan.TicksPerMillisecond * AudioPendingPresentationQueue.DefaultWaitMilliseconds,
+            queue.Snapshot().Single().ExpiresAtUtcTicks,
+            "pending audio uses its shorter local readiness deadline");
+
+        var shortLived = CreateRequest();
+        shortLived.EventId = "pending-2";
+        shortLived.CreatedAtUtcTicks = now;
+        shortLived.MaxAgeMilliseconds = 500;
+        True(queue.Enqueue(shortLived, now), "second pending presentation is queued");
+        Equal(now + TimeSpan.TicksPerMillisecond * 500,
+            queue.Snapshot().Single(item => item.Request.EventId == "pending-2").ExpiresAtUtcTicks,
+            "transport TTL bounds the pending audio deadline");
+
+        var third = CreateRequest();
+        third.EventId = "pending-3";
+        True(queue.Enqueue(third, now), "bounded pending queue accepts newest event");
+        Equal(2, queue.Count, "pending audio queue enforces its capacity");
+        Equal(false, queue.Snapshot().Any(item => item.Request.EventId == "pending-1"),
+            "pending audio queue evicts the oldest event at capacity");
+
+        queue.Clear();
+        Equal(0, queue.Count, "fight lifecycle cleanup clears pending audio");
     }
 
     private void VerifyCooldownPolicy()

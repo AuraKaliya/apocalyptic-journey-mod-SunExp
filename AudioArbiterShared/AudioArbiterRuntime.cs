@@ -285,6 +285,7 @@ public static class AudioArbiterRuntime
         private readonly AudioLowHealthCoordinator lowHealthCoordinator = new();
         private readonly AudioNetworkRuntime networkRuntime = new();
         private readonly AudioReplacementCoordinator<AudioClip> replacementCoordinator = new();
+        private readonly AudioPendingPresentationQueue pendingRemotePresentations = new();
         private readonly HashSet<string> providerMismatchWarnings = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, float> cooldownUntil = new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<int, float> suppressNarrationUntil = new();
@@ -339,8 +340,14 @@ public static class AudioArbiterRuntime
 
         private void OnDestroy()
         {
+            pendingRemotePresentations.Clear();
             hookAdapter?.Dispose();
             hookAdapter = null;
+        }
+
+        private void Update()
+        {
+            RetryPendingRemotePresentations();
         }
 
         private void OnInitializationStepFailed(string step, Exception exception)
@@ -495,72 +502,27 @@ public static class AudioArbiterRuntime
                     }
                 }
 
-                var resolvedMaybe = Resolve(request);
+                var resolvedMaybe = Resolve(request, out var transientUnavailable);
                 if (!resolvedMaybe.HasValue)
                 {
+                    if (request.IsRemote && transientUnavailable)
+                    {
+                        if (pendingRemotePresentations.Enqueue(request, DateTime.UtcNow.Ticks))
+                        {
+                            TraceRequest(request, "Remote presentation queued until provider is ready");
+                            LogCardUseOutcome(request, null, "provider-loading-pending");
+                        }
+
+                        return true;
+                    }
+
                     lowHealthCoordinator.RememberNoProvider(request, Time.unscaledTime);
                     TraceRequest(request, "No provider resolved");
                     LogCardUseOutcome(request, null, "no-provider");
                     return false;
                 }
 
-                var resolved = resolvedMaybe.Value;
-                if (!CanPassCooldown(resolved.Provider, request))
-                {
-                    TraceRequest(request, "Suppressed by cooldown: provider=" + resolved.Provider.ProviderId);
-                    LogCardUseOutcome(request, resolved, "provider-cooldown");
-                    return false;
-                }
-
-                var presentationPlan = AudioPresentationPolicy.CreatePlan(
-                    resolved.Provider.Bus,
-                    resolved.Provider.Policy,
-                    request.Kind,
-                    request.IsRemote,
-                    RemoteReplacementPairingSeconds,
-                    1.0f);
-                if (presentationPlan.QueueNativeEffectReplacement)
-                {
-                    ArmOriginalSuppressions(resolved.Provider);
-                    replacementCoordinator.Arm(
-                        resolved.Clip,
-                        resolved.Provider.Policy,
-                        resolved.Provider.VolumeMultiplier,
-                        Time.unscaledTime + presentationPlan.PairingSeconds,
-                        request.EventId,
-                        request.CardId,
-                        request.RoleId,
-                        resolved.Provider.QualifiedProviderId,
-                        request.IsRemote,
-                        fallbackAlreadyPlayed: false);
-                    if (presentationPlan.StartRemoteFallback)
-                    {
-                        StartCoroutine(PlayRemoteReplacementFallback(request, resolved));
-                    }
-                    TraceRequest(request, "Pending effect replacement: provider=" + resolved.Provider.ProviderId);
-                    LogCardUseOutcome(request, resolved, presentationPlan.PendingOutcome);
-                    networkRuntime.SyncRemote(
-                        request,
-                        resolved.Provider.ProviderId,
-                        resolved.Provider.OwnerModId,
-                        resolved.Provider.Sync,
-                        syncRemote);
-                    return true;
-                }
-
-                TraceRequest(request, "Provider resolved: provider=" + resolved.Provider.ProviderId
-                    + ", bus=" + resolved.Provider.Bus
-                    + ", clip=" + resolved.Clip.name);
-                ArmOriginalSuppressions(resolved.Provider);
-                PlayResolved(request, resolved);
-                LogCardUseOutcome(request, resolved, "played-direct");
-                networkRuntime.SyncRemote(
-                    request,
-                    resolved.Provider.ProviderId,
-                    resolved.Provider.OwnerModId,
-                    resolved.Provider.Sync,
-                    syncRemote);
-                return true;
+                return PresentResolvedRequest(request, resolvedMaybe.Value, syncRemote);
             }
             catch (Exception ex)
             {
@@ -569,7 +531,7 @@ public static class AudioArbiterRuntime
             }
         }
 
-        private ResolvedSound? Resolve(SoundPlaybackRequest request)
+        private ResolvedSound? Resolve(SoundPlaybackRequest request, out bool transientUnavailable)
         {
             var resolution = AudioProviderResolver.Resolve<SoundProviderHandle, AudioClip>(
                 soundProviders,
@@ -582,7 +544,13 @@ public static class AudioArbiterRuntime
                 (provider, clip) => TraceRequest(request, "Provider clip selected: provider="
                     + provider.ProviderId + ", clip=" + clip.name));
 
-            if (resolution.ShouldWarnRemoteMismatch)
+            transientUnavailable = resolution.HasTransientCandidate
+                                   || (request.IsRemote
+                                       && soundProviders.Count == 0)
+                                   || (request.IsRemote
+                                       && resolution.Status == AudioProviderResolutionStatus.IdentityMismatch);
+
+            if (resolution.ShouldWarnRemoteMismatch && !transientUnavailable)
             {
                 WarnProviderMismatchOnce(request, "Remote sound provider mismatch");
             }
@@ -602,6 +570,110 @@ public static class AudioArbiterRuntime
             request.ProviderId = resolution.Provider.QualifiedProviderId;
             request.OwnerModId = resolution.Provider.OwnerModId;
             return new ResolvedSound(resolution.Provider, resolution.Resource);
+        }
+
+        private bool PresentResolvedRequest(SoundPlaybackRequest request, ResolvedSound resolved, bool syncRemote)
+        {
+            if (!CanPassCooldown(resolved.Provider, request))
+            {
+                TraceRequest(request, "Suppressed by cooldown: provider=" + resolved.Provider.ProviderId);
+                LogCardUseOutcome(request, resolved, "provider-cooldown");
+                return false;
+            }
+
+            var presentationPlan = AudioPresentationPolicy.CreatePlan(
+                resolved.Provider.Bus,
+                resolved.Provider.Policy,
+                request.Kind,
+                request.IsRemote,
+                RemoteReplacementPairingSeconds,
+                1.0f);
+            if (presentationPlan.QueueNativeEffectReplacement)
+            {
+                ArmOriginalSuppressions(resolved.Provider);
+                replacementCoordinator.Arm(
+                    resolved.Clip,
+                    resolved.Provider.Policy,
+                    resolved.Provider.VolumeMultiplier,
+                    Time.unscaledTime + presentationPlan.PairingSeconds,
+                    request.EventId,
+                    request.CardId,
+                    request.RoleId,
+                    resolved.Provider.QualifiedProviderId,
+                    request.IsRemote,
+                    fallbackAlreadyPlayed: false);
+                if (presentationPlan.StartRemoteFallback)
+                {
+                    StartCoroutine(PlayRemoteReplacementFallback(request, resolved));
+                }
+
+                TraceRequest(request, "Pending effect replacement: provider=" + resolved.Provider.ProviderId);
+                LogCardUseOutcome(request, resolved, presentationPlan.PendingOutcome);
+                networkRuntime.SyncRemote(
+                    request,
+                    resolved.Provider.ProviderId,
+                    resolved.Provider.OwnerModId,
+                    resolved.Provider.Sync,
+                    syncRemote);
+                return true;
+            }
+
+            TraceRequest(request, "Provider resolved: provider=" + resolved.Provider.ProviderId
+                + ", bus=" + resolved.Provider.Bus
+                + ", clip=" + resolved.Clip.name);
+            ArmOriginalSuppressions(resolved.Provider);
+            PlayResolved(request, resolved);
+            LogCardUseOutcome(request, resolved, "played-direct");
+            networkRuntime.SyncRemote(
+                request,
+                resolved.Provider.ProviderId,
+                resolved.Provider.OwnerModId,
+                resolved.Provider.Sync,
+                syncRemote);
+            return true;
+        }
+
+        private void RetryPendingRemotePresentations()
+        {
+            if (pendingRemotePresentations.Count == 0)
+            {
+                return;
+            }
+
+            var nowUtcTicks = DateTime.UtcNow.Ticks;
+            foreach (var pending in pendingRemotePresentations.Snapshot())
+            {
+                if (nowUtcTicks >= pending.ExpiresAtUtcTicks)
+                {
+                    pendingRemotePresentations.Remove(pending.Key);
+                    LogCardUseOutcome(pending.Request, null, "provider-loading-timeout");
+                    continue;
+                }
+
+                try
+                {
+                    var resolved = Resolve(pending.Request, out var transientUnavailable);
+                    if (!resolved.HasValue)
+                    {
+                        if (transientUnavailable)
+                        {
+                            continue;
+                        }
+
+                        pendingRemotePresentations.Remove(pending.Key);
+                        LogCardUseOutcome(pending.Request, null, "provider-unavailable");
+                        continue;
+                    }
+
+                    pendingRemotePresentations.Remove(pending.Key);
+                    PresentResolvedRequest(pending.Request, resolved.Value, syncRemote: false);
+                }
+                catch (Exception ex)
+                {
+                    pendingRemotePresentations.Remove(pending.Key);
+                    Warn("Pending remote presentation failed: " + ex.Message);
+                }
+            }
         }
 
         private void WarnProviderMismatchOnce(SoundPlaybackRequest request, string message)
@@ -682,6 +754,7 @@ public static class AudioArbiterRuntime
 
         private void OnFightStartBefore(ModHookContext context)
         {
+            pendingRemotePresentations.Clear();
             replacementCoordinator.Clear();
             cooldownUntil.Clear();
             lowHealthCoordinator.ResetFight();
@@ -697,6 +770,7 @@ public static class AudioArbiterRuntime
             }
 
             replacementCoordinator.ClearPairingClaims();
+            pendingRemotePresentations.Clear();
         }
 
         public void ApplyServerCardUsePresentation(SoundPlaybackRequest request, AuraRpcSender sender)

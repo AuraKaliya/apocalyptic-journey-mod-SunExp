@@ -47,6 +47,7 @@ public static class PolymorphRuntime
         try
         {
             PolymorphActivationService.ClearBattle(source);
+            PolymorphNetworkSync.ClearPending(source);
             PolymorphUiApi.CloseRoleSelection(source);
             ClearPendingSkillUses();
         }
@@ -58,6 +59,7 @@ public static class PolymorphRuntime
 
     private static void ClearAdventure(string source)
     {
+        PolymorphNetworkSync.ClearPending(source);
         PolymorphCardFaceCache.ClearGenerated(source);
         ClearPendingSkillUses();
     }

@@ -15,6 +15,7 @@ internal sealed class AuraCgNetworkRuntime
     private const int MaximumPlaybackClaims = 512;
     private readonly Func<SkillCgNetworkEvent, bool, SkillCgRequest?> registeredRequestResolver;
     private readonly AuraCgNetworkSessionState session = new(MaximumPlaybackClaims);
+    private readonly AuraCgPendingPlaybackStore pendingPlaybacks = new();
 
     public AuraCgNetworkRuntime(Func<SkillCgNetworkEvent, bool, SkillCgRequest?> registeredRequestResolver)
     {
@@ -64,6 +65,7 @@ internal sealed class AuraCgNetworkRuntime
 
     public void ResetTransient()
     {
+        pendingPlaybacks.Clear();
         session.ResetTransient();
     }
 
@@ -171,34 +173,65 @@ internal sealed class AuraCgNetworkRuntime
 
         playback.IssuerPlayerId = sender.PlayerId;
         AuraCgNetworkPolicy.NormalizePlaybackSnapshot(playback);
-        if (!ApplyPlaybackSnapshot(playback, "server", enqueuePlayback))
-        {
-            return;
-        }
-
-        try
-        {
-            PlayerManager.Instance?.SendRpcCommand(new RpcSkillCgPlayback(playback));
-        }
-        catch (Exception ex)
-        {
-            AuraCgLog.WarnOnce("server-playback-broadcast-failed", "Skill CG server broadcast failed once; later errors are suppressed. error=" + ex.Message);
-            AuraCgLog.DebugLog("Skill CG server broadcast exception: " + ex);
-        }
+        ApplyPlaybackSnapshot(
+            playback,
+            "server",
+            enqueuePlayback,
+            relayAfterApply: true,
+            queueIfUnavailable: true);
     }
 
     public void ApplyNetworkPlayback(object? value, Action<IReadOnlyList<SkillCgRequest>> enqueuePlayback)
     {
         if (value is SkillCgNetworkPlaybackEnvelope envelope)
         {
-            ApplyPlaybackSnapshot(envelope.Playback, envelope.Source, enqueuePlayback);
+            ApplyPlaybackSnapshot(
+                envelope.Playback,
+                envelope.Source,
+                enqueuePlayback,
+                relayAfterApply: false,
+                queueIfUnavailable: true);
+        }
+    }
+
+    public void RetryPendingPlaybacks(Action<IReadOnlyList<SkillCgRequest>> enqueuePlayback)
+    {
+        if (pendingPlaybacks.Count == 0)
+        {
+            return;
+        }
+
+        var nowUtcTicks = DateTime.UtcNow.Ticks;
+        foreach (var pending in pendingPlaybacks.Snapshot())
+        {
+            if (nowUtcTicks >= pending.ExpiresAtUtcTicks)
+            {
+                pendingPlaybacks.Remove(pending.Key);
+                AuraCgLog.WarnOnce(
+                    "network-playback-resolution-timeout:" + pending.Key,
+                    "Skill CG network playback skipped after waiting for local registration. source="
+                    + pending.Source + ", playId=" + pending.Playback.SkillCgPlayId + ".");
+                continue;
+            }
+
+            if (ApplyPlaybackSnapshot(
+                    pending.Playback,
+                    pending.Source + ":retry",
+                    enqueuePlayback,
+                    pending.RelayAfterApply,
+                    queueIfUnavailable: false))
+            {
+                pendingPlaybacks.Remove(pending.Key);
+            }
         }
     }
 
     private bool ApplyPlaybackSnapshot(
         SkillCgPlaybackSnapshot? playback,
         string source,
-        Action<IReadOnlyList<SkillCgRequest>> enqueuePlayback)
+        Action<IReadOnlyList<SkillCgRequest>> enqueuePlayback,
+        bool relayAfterApply,
+        bool queueIfUnavailable)
     {
         if (playback == null
             || string.IsNullOrWhiteSpace(playback.IssuerPlayerId)
@@ -224,26 +257,50 @@ internal sealed class AuraCgNetworkRuntime
         }
 
         AuraCgNetworkPolicy.NormalizePlaybackSnapshot(playback);
-        if (!TryClaimPlayback(playback.IssuerPlayerId, playback.SkillCgPlayId, source))
-        {
-            return false;
-        }
-
         var requests = new List<SkillCgRequest>();
         foreach (var item in playback.Events)
         {
             var request = registeredRequestResolver(item, true);
             if (request == null)
             {
-                AuraCgLog.WarnOnce("network-playback-unregistered:" + playback.SkillCgPlayId, "Skill CG network playback skipped: unregistered event identity.");
+                if (queueIfUnavailable
+                    && pendingPlaybacks.Enqueue(playback, source, relayAfterApply, DateTime.UtcNow.Ticks))
+                {
+                    AuraCgLog.DebugLog("Skill CG network playback pending local registration: source="
+                                       + source + ", playId=" + playback.SkillCgPlayId + ".");
+                }
+
                 return false;
             }
 
             requests.Add(request);
         }
 
+        if (!TryClaimPlayback(playback.IssuerPlayerId, playback.SkillCgPlayId, source))
+        {
+            return false;
+        }
+
         enqueuePlayback(requests);
+        if (relayAfterApply)
+        {
+            BroadcastAuthorizedPlayback(playback);
+        }
+
         return true;
+    }
+
+    private static void BroadcastAuthorizedPlayback(SkillCgPlaybackSnapshot playback)
+    {
+        try
+        {
+            PlayerManager.Instance?.SendRpcCommand(new RpcSkillCgPlayback(playback));
+        }
+        catch (Exception ex)
+        {
+            AuraCgLog.WarnOnce("server-playback-broadcast-failed", "Skill CG server broadcast failed once; later errors are suppressed. error=" + ex.Message);
+            AuraCgLog.DebugLog("Skill CG server broadcast exception: " + ex);
+        }
     }
 
     private string ValidateServerPlaybackRequest(SkillCgPlaybackSnapshot? playback, AuraCgRpcSender sender)

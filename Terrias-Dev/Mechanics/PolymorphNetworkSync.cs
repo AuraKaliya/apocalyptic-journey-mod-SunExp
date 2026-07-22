@@ -1,6 +1,8 @@
 using System;
 using System.Linq;
+using System.Collections.Generic;
 using AuraGameData.Shared.GameApi;
+using AuraShared.Core;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Infrastructure;
 using Terrias.Dll.Network;
@@ -25,6 +27,14 @@ public sealed class PolymorphVisualSnapshot
 
 public static class PolymorphNetworkSync
 {
+    private const int MaximumRetryAttempts = 90;
+    private static readonly Dictionary<string, PolymorphVisualSnapshot> PendingSnapshots =
+        new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, int> RetryAttempts = new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, int> LatestVersions = new(StringComparer.Ordinal);
+    private static readonly HashSet<string> ScheduledOwners = new(StringComparer.Ordinal);
+    private static int lifecycleGeneration;
+
     public static void BroadcastEnter(PolymorphState state, string source)
     {
         var safeSource = source ?? "";
@@ -81,26 +91,81 @@ public static class PolymorphNetworkSync
             return;
         }
 
+        var normalized = Clone(snapshot);
+        var hasLatestVersion = LatestVersions.TryGetValue(normalized.OwnerStatusId, out var currentVersion);
+        if (hasLatestVersion && currentVersion > normalized.Version)
+        {
+            TerriasLog.Debug("[PolymorphSync] stale visual snapshot ignored; owner="
+                             + normalized.OwnerStatusId + "; incoming=" + normalized.Version
+                             + "; current=" + currentVersion + ".");
+            return;
+        }
+
+        if (hasLatestVersion && currentVersion == normalized.Version)
+        {
+            if (PendingSnapshots.ContainsKey(normalized.OwnerStatusId))
+            {
+                TryApplyPending(normalized.OwnerStatusId, source ?? "");
+            }
+
+            return;
+        }
+
+        LatestVersions[normalized.OwnerStatusId] = normalized.Version;
+        PendingSnapshots[normalized.OwnerStatusId] = normalized;
+        RetryAttempts[normalized.OwnerStatusId] = 0;
+        TryApplyPending(normalized.OwnerStatusId, source ?? "");
+    }
+
+    public static void ClearPending(string source)
+    {
+        lifecycleGeneration++;
+        PendingSnapshots.Clear();
+        RetryAttempts.Clear();
+        LatestVersions.Clear();
+        ScheduledOwners.Clear();
+        TerriasLog.Debug("[PolymorphSync] pending visual snapshots cleared from " + source + ".");
+    }
+
+    private static void TryApplyPending(string ownerStatusId, string source)
+    {
+        if (!PendingSnapshots.TryGetValue(ownerStatusId, out var snapshot))
+        {
+            return;
+        }
+
+        var careerId = snapshot.Active ? snapshot.CareerId : snapshot.OriginalCareerId;
+        if (string.IsNullOrWhiteSpace(careerId))
+        {
+            careerId = snapshot.CareerId;
+        }
+
         try
         {
-            ApplyCareerToFightState(snapshot.OwnerStatusId, careerId);
-            TerriasLog.Info("[PolymorphSync] visual snapshot applied from "
-                + source
-                + "; owner="
-                + snapshot.OwnerStatusId
-                + "; career="
-                + careerId
-                + "; active="
-                + snapshot.Active
-                + ".");
+            if (ApplyCareerToFightState(snapshot.OwnerStatusId, careerId))
+            {
+                PendingSnapshots.Remove(ownerStatusId);
+                RetryAttempts.Remove(ownerStatusId);
+                ScheduledOwners.Remove(ownerStatusId);
+                TerriasLog.Info("[PolymorphSync] visual snapshot applied from "
+                    + source
+                    + "; owner="
+                    + snapshot.OwnerStatusId
+                    + "; career="
+                    + careerId
+                    + "; active="
+                    + snapshot.Active
+                    + ".");
+                return;
+            }
         }
         catch (Exception ex)
         {
-            TerriasLog.Warn("[PolymorphSync] visual snapshot failed from "
-                + source
-                + ": "
-                + ex.Message);
+            TerriasLog.Warn("[PolymorphSync] visual snapshot apply deferred from "
+                            + source + ": " + ex.Message);
         }
+
+        ScheduleRetry(snapshot, source);
     }
 
     public static void BroadcastNativeCareerChange(string ownerStatusId, string careerId, string source)
@@ -134,26 +199,80 @@ public static class PolymorphNetworkSync
         TerriasNetworkRuntime.Send(new RpcPolymorphVisualState(snapshot), source);
     }
 
-    private static void ApplyCareerToFightState(string ownerStatusId, string careerId)
+    private static void ScheduleRetry(PolymorphVisualSnapshot snapshot, string source)
     {
-        var career = CreateCareerConfig(careerId);
-        if (career == null)
+        var ownerStatusId = snapshot.OwnerStatusId;
+        if (ScheduledOwners.Contains(ownerStatusId))
         {
             return;
         }
 
+        var attempt = RetryAttempts.TryGetValue(ownerStatusId, out var currentAttempt)
+            ? currentAttempt + 1
+            : 1;
+        RetryAttempts[ownerStatusId] = attempt;
+        if (attempt > MaximumRetryAttempts)
+        {
+            TerriasLog.Warn("[PolymorphSync] visual snapshot remains pending after bounded retries; owner="
+                            + ownerStatusId + ", version=" + snapshot.Version + ".");
+            return;
+        }
+
+        ScheduledOwners.Add(ownerStatusId);
+        var expectedVersion = snapshot.Version;
+        var expectedGeneration = lifecycleGeneration;
+        AuraSharedFrameScheduler.RunAfterFramesBudgeted(new AuraSharedFrameEnqueueRequest
+        {
+            OwnerId = TerriasIds.ModId,
+            Source = "PolymorphSync.Reconcile:" + ownerStatusId,
+            Action = () =>
+            {
+                ScheduledOwners.Remove(ownerStatusId);
+                if (expectedGeneration != lifecycleGeneration
+                    || !PendingSnapshots.TryGetValue(ownerStatusId, out var latest))
+                {
+                    return;
+                }
+
+                if (latest.Version != expectedVersion)
+                {
+                    TryApplyPending(ownerStatusId, source + ":superseded-retry");
+                    return;
+                }
+
+                TryApplyPending(ownerStatusId, source + ":retry-" + attempt);
+            }
+        }, Math.Min(12, 1 + attempt / 8));
+    }
+
+    private static bool ApplyCareerToFightState(string ownerStatusId, string careerId)
+    {
+        var career = CreateCareerConfig(careerId);
+        if (career == null)
+        {
+            return false;
+        }
+
         var fightManager = FightManager.Instance;
+        if (fightManager == null)
+        {
+            return false;
+        }
+
+        var applied = false;
         var roleData = fightManager?.roleQueue?.FirstOrDefault(role =>
             string.Equals(role?.InstanceId, ownerStatusId, StringComparison.Ordinal));
         if (roleData != null)
         {
             roleData.career = career;
+            applied = true;
         }
 
         if (string.Equals(ownerStatusId, PlayerApi.LocalPlayerStatusId(), StringComparison.Ordinal)
             && RoleTable.Instance != null)
         {
             RoleTable.Instance.Career = career;
+            applied = true;
         }
 
         if (fightManager?.statuses != null
@@ -161,7 +280,23 @@ public static class PolymorphNetworkSync
             && status != null)
         {
             status.ResetAnimator(false);
+            applied = true;
         }
+
+        return applied;
+    }
+
+    private static PolymorphVisualSnapshot Clone(PolymorphVisualSnapshot snapshot)
+    {
+        return new PolymorphVisualSnapshot
+        {
+            OwnerStatusId = snapshot.OwnerStatusId?.Trim() ?? "",
+            CareerId = snapshot.CareerId?.Trim() ?? "",
+            OriginalCareerId = snapshot.OriginalCareerId?.Trim() ?? "",
+            Active = snapshot.Active,
+            Version = snapshot.Version,
+            Source = snapshot.Source ?? ""
+        };
     }
 
     private static DataConfig? CreateCareerConfig(string careerId)

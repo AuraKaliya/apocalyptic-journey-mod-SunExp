@@ -47,6 +47,8 @@ internal sealed class AudioProviderResolution<TProvider, TResource>
 
     public bool ShouldWarnRemoteMismatch { get; set; }
 
+    public bool HasTransientCandidate { get; set; }
+
     public bool HasSelection => Status == AudioProviderResolutionStatus.Selected
         && Provider != null
         && Resource != null;
@@ -226,6 +228,7 @@ internal static class AudioProviderResolver
             if (!string.Equals(loadState, "Ready", StringComparison.OrdinalIgnoreCase))
             {
                 providerNotReady?.Invoke(provider, loadState);
+                result.HasTransientCandidate |= AudioProviderLoadStatePolicy.IsTransient(loadState);
                 if (provider.HardClaim)
                 {
                     result.Status = AudioProviderResolutionStatus.HardClaimBlocked;
@@ -255,6 +258,18 @@ internal static class AudioProviderResolver
         return result;
     }
 
+}
+
+internal static class AudioProviderLoadStatePolicy
+{
+    public static bool IsTransient(string loadState)
+    {
+        var state = (loadState ?? "").Trim();
+        return !string.Equals(state, "Ready", StringComparison.OrdinalIgnoreCase)
+               && !string.Equals(state, "Failed", StringComparison.OrdinalIgnoreCase)
+               && !string.Equals(state, "Missing", StringComparison.OrdinalIgnoreCase)
+               && !string.Equals(state, "Disposed", StringComparison.OrdinalIgnoreCase);
+    }
 }
 
 internal static class AudioProviderCooldownPolicy

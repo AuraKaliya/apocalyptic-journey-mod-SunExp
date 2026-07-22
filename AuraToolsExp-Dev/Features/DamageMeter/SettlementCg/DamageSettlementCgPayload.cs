@@ -190,3 +190,15 @@ public readonly struct DamageSettlementCgRect
 
     public float Height { get; }
 }
+
+public static class DamageSettlementCgPreparationPolicy
+{
+    public const float MaximumWaitSeconds = 2.5f;
+
+    public static bool ShouldWait(float elapsedSeconds, bool hasPendingPreparation, bool isCurrentGeneration)
+    {
+        return isCurrentGeneration
+               && hasPendingPreparation
+               && Math.Max(0f, elapsedSeconds) < MaximumWaitSeconds;
+    }
+}

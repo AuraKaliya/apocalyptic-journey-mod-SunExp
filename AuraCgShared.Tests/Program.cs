@@ -509,6 +509,38 @@ finally
     Directory.Delete(frameDirectory, recursive: true);
 }
 
+var pendingNow = new DateTime(2026, 7, 22, 0, 0, 0, DateTimeKind.Utc).Ticks;
+var pendingStore = new AuraCgPendingPlaybackStore(maximumCount: 2);
+var pendingPlayback = new SkillCgPlaybackSnapshot
+{
+    IssuerPlayerId = "player-1",
+    SkillCgPlayId = "play-pending-1",
+    Events = new List<SkillCgNetworkEvent> { registeredEvent }
+};
+Assert(pendingStore.Enqueue(pendingPlayback, "rpc", relayAfterApply: false, pendingNow),
+    "unresolved network playback enters the registration wait store");
+Assert(!pendingStore.Enqueue(pendingPlayback, "duplicate", relayAfterApply: false, pendingNow),
+    "pending network playback identity is deduplicated before claim");
+var pendingItem = pendingStore.Snapshot().Single();
+Assert(pendingItem.ExpiresAtUtcTicks
+       == pendingNow + TimeSpan.TicksPerMillisecond * AuraCgPendingPlaybackStore.DefaultWaitMilliseconds,
+    "pending network playback has a bounded registration deadline");
+Assert(pendingItem.Source == "rpc" && !pendingItem.RelayAfterApply,
+    "pending client playback preserves its completion mode");
+
+var serverPending = new SkillCgPlaybackSnapshot
+{
+    IssuerPlayerId = "player-2",
+    SkillCgPlayId = "play-pending-2",
+    Events = new List<SkillCgNetworkEvent> { registeredEvent }
+};
+Assert(pendingStore.Enqueue(serverPending, "server", relayAfterApply: true, pendingNow),
+    "server-bound playback retains authorized relay intent while pending");
+Assert(pendingStore.Snapshot().Single(item => item.Playback.SkillCgPlayId == "play-pending-2").RelayAfterApply,
+    "recovered server playback will broadcast after local resolution");
+pendingStore.Clear();
+Assert(pendingStore.Count == 0, "fight lifecycle cleanup clears pending CG playback");
+
 Console.WriteLine($"AuraCgShared tests passed: {assertions} assertions.");
 
 void Assert(bool condition, string name)

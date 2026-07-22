@@ -36,8 +36,10 @@ TestLoggingSettingsNormalization();
 TestDamageSettlementCgSettingsAndLayout();
 TestDamageSettlementCgPayloadOrdering();
 TestDamageSettlementCgAnimationSpec();
+TestDamageSettlementCgPreparationPolicy();
 TestSkillCgPresentationNormalization();
 TestFeastRoleResourceIdentity();
+TestSkinRemoteSelectionPolicy();
 TestSafeBoxDataCompatibility();
 TestRpcPayloadBudgetUsesUtf8Bytes();
 TestModSyncRequestTracker();
@@ -619,6 +621,46 @@ void TestDamageSettlementCgAnimationSpec()
            && !shared.Loop
            && shared.Direction == "Left",
         "shared skin idle animation config uses AnimationPerFrame and natural frame order");
+}
+
+void TestDamageSettlementCgPreparationPolicy()
+{
+    Assert(DamageSettlementCgPreparationPolicy.ShouldWait(0f, hasPendingPreparation: true, isCurrentGeneration: true),
+        "settlement CG waits while synchronized role resources are preparing");
+    Assert(!DamageSettlementCgPreparationPolicy.ShouldWait(
+            DamageSettlementCgPreparationPolicy.MaximumWaitSeconds,
+            hasPendingPreparation: true,
+            isCurrentGeneration: true),
+        "settlement CG preparation wait has a bounded deadline");
+    Assert(!DamageSettlementCgPreparationPolicy.ShouldWait(0.1f, hasPendingPreparation: false, isCurrentGeneration: true),
+        "settlement CG starts immediately when all role resources are ready");
+    Assert(!DamageSettlementCgPreparationPolicy.ShouldWait(0.1f, hasPendingPreparation: true, isCurrentGeneration: false),
+        "superseded settlement CG routines stop waiting");
+}
+
+void TestSkinRemoteSelectionPolicy()
+{
+    var snapshot = new SkinSelectionSnapshot
+    {
+        PlayerId = "remote-player",
+        CareerId = "Terrias_loneer_loneer",
+        SkinId = "night"
+    };
+    Assert(SkinRemoteSelectionPolicy.ShouldRetain(snapshot, new SkinSelectionResolveResult
+        {
+            Success = false,
+            DefaultSkin = false
+        }),
+        "missing remote skin resources retain the latest state for reconciliation");
+    Assert(!SkinRemoteSelectionPolicy.ShouldRetain(snapshot, new SkinSelectionResolveResult
+        {
+            Success = true,
+            DefaultSkin = true
+        }),
+        "explicit default skin clears a previous remote override");
+    snapshot.SkinId = "";
+    Assert(!SkinRemoteSelectionPolicy.ShouldRetain(snapshot, new SkinSelectionResolveResult()),
+        "invalid remote skin identity is not retained");
 }
 
 void TestSkillCgPresentationNormalization()

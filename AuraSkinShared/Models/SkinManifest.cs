@@ -126,3 +126,16 @@ public sealed class SkinSelectionResolveResult
     public string Status { get; set; } = "";
     public string Warning { get; set; } = "";
 }
+
+internal static class SkinRemoteSelectionPolicy
+{
+    public static bool ShouldRetain(SkinSelectionSnapshot? snapshot, SkinSelectionResolveResult? result)
+    {
+        return snapshot != null
+               && result != null
+               && !result.DefaultSkin
+               && !string.IsNullOrWhiteSpace(snapshot.PlayerId)
+               && !string.IsNullOrWhiteSpace(snapshot.CareerId)
+               && !string.IsNullOrWhiteSpace(snapshot.SkinId);
+    }
+}

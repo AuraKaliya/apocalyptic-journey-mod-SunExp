@@ -17,6 +17,7 @@
     <Compile Include="..\AuraCgShared\AuraCgProviderCoordinator.cs" Link="Shared\AuraCgProviderCoordinator.cs" />
     <Compile Include="..\AuraCgShared\AuraCgNetworkPolicy.cs" Link="Shared\AuraCgNetworkPolicy.cs" />
     <Compile Include="..\AuraCgShared\AuraCgNetworkSessionState.cs" Link="Shared\AuraCgNetworkSessionState.cs" />
+    <Compile Include="..\AuraCgShared\AuraCgPendingPlaybackStore.cs" Link="Shared\AuraCgPendingPlaybackStore.cs" />
     <Compile Include="..\AuraCgShared\AuraCgPlaybackClaimStore.cs" Link="Shared\AuraCgPlaybackClaimStore.cs" />
     <Compile Include="..\AuraCgShared\AuraCgPlaybackCoordinator.cs" Link="Shared\AuraCgPlaybackCoordinator.cs" />
     <Compile Include="..\AuraCgShared\AuraCgPresentationMath.cs" Link="Shared\AuraCgPresentationMath.cs" />

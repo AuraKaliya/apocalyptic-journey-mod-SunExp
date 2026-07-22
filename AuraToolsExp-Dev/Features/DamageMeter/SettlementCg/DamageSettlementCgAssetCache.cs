@@ -65,6 +65,36 @@ internal static class DamageSettlementCgAssetCache
         }
     }
 
+    public static void PrepareForEntries(IEnumerable<DamageSettlementCgEntry> entries)
+    {
+        foreach (var entry in (entries ?? Array.Empty<DamageSettlementCgEntry>())
+                 .Where(entry => entry != null))
+        {
+            QueuePrepare(entry.RoleId, entry.PlayerId, entry.InstanceId, retryFailedPreload: true);
+        }
+    }
+
+    public static bool HasPendingPreparation(IEnumerable<DamageSettlementCgEntry> entries)
+    {
+        foreach (var entry in (entries ?? Array.Empty<DamageSettlementCgEntry>())
+                 .Where(entry => entry != null))
+        {
+            if (TryFindPrepared(entry, out _))
+            {
+                continue;
+            }
+
+            var roleId = RoleCatalog.NormalizeRoleId(entry.RoleId);
+            if (!string.IsNullOrWhiteSpace(roleId)
+                && PendingKeys.Contains(ExactKey(roleId, entry.PlayerId, entry.InstanceId)))
+            {
+                return true;
+            }
+        }
+
+        return false;
+    }
+
     public static void AttachPreparedClipKeys(IEnumerable<DamageSettlementCgEntry> entries)
     {
         foreach (var entry in (entries ?? Array.Empty<DamageSettlementCgEntry>())
@@ -101,7 +131,11 @@ internal static class DamageSettlementCgAssetCache
             };
     }
 
-    private static void QueuePrepare(string roleId, string playerId, string instanceId)
+    private static void QueuePrepare(
+        string roleId,
+        string playerId,
+        string instanceId,
+        bool retryFailedPreload = false)
     {
         var normalizedRoleId = RoleCatalog.NormalizeRoleId(roleId);
         if (string.IsNullOrWhiteSpace(normalizedRoleId))
@@ -110,6 +144,11 @@ internal static class DamageSettlementCgAssetCache
         }
 
         var key = ExactKey(normalizedRoleId, playerId, instanceId);
+        if (retryFailedPreload && !PreparedByKey.ContainsKey(key) && !PendingKeys.Contains(key))
+        {
+            AttemptedKeys.Remove(key);
+        }
+
         if (PreparedByKey.ContainsKey(key) || AttemptedKeys.Contains(key) || PendingKeys.Contains(key))
         {
             return;
