@@ -219,6 +219,8 @@ Assert-Contains $sunAuthority "CreateLocalServerSender" "Terrias RPC authority m
 Assert-Contains $sunAuthority "public interface ITerriasServerBoundRpcCommand" "Terrias server-bound command interface must be public for serializable public commands."
 Assert-Contains $constellationService "TerriasStatusOwnershipPolicy.SenderOwnsStatus" "Constellation light-up requests must use centralized sender-bound status ownership validation."
 Assert-Contains $constellationService "SyncDomain.TryClaimToken(sender.PlayerId, token)" "Constellation light-up requests must suppress duplicate sender commands."
+Assert-Contains $constellationService "OriginCapService.ResolveAuthoritativeRole(sender.PlayerId)" "Fate Star overflow must resolve the sender-bound authoritative role."
+Assert-Contains $constellationService "OriginCapService.ApplyAuthoritativeCurrent" "Fate Star cap snapshots must repair only the local owner's role state."
 Assert-Contains $constellationRpc "ConstellationService.TryResolveLightUpRequest" "Constellation clients must submit an increment request instead of an absolute level snapshot."
 Assert-NotContains $constellationRpc "snapshot.Level > ConstellationService.Level" "Constellation authority must not validate a client-provided absolute level."
 Assert-Matches $constellationRpc "RpcConstellationRosterSnapshot\s*:\s*RpcCommandBase,\s*ITerriasServerBoundRpcCommand" "Constellation roster snapshots must be server-bound."

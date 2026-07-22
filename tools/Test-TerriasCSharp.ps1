@@ -2030,6 +2030,10 @@ function Invoke-SourceAssertions {
     $endlessSeaStarterDeckCatalog = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\EndlessSeaStarterDeckCatalog.cs"))
     $endlessSeaRichTextSanitizer = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\EndlessSeaRichTextSanitizer.cs"))
     $endlessSeaOriginService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\EndlessSeaOriginService.cs"))
+    $originCapService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\OriginCapService.cs"))
+    $originMilestoneService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\OriginMilestoneService.cs"))
+    $originMilestoneRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\OriginMilestoneRuntime.cs"))
+    $blessingScripts = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Scripting\BlessingScripts.cs"))
     $endlessSeaCardAffixRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\EndlessSeaCardAffixRuntime.cs"))
     $endlessSeaCardAffixService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\EndlessSeaCardAffixService.cs"))
     $endlessSeaCombatRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\EndlessSeaCombatRuntime.cs"))
@@ -2102,6 +2106,8 @@ function Invoke-SourceAssertions {
     $solarMemoryRoleData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias\Data\RoleData\solar_memory.csv"))
     $loneerRoleData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias\Data\RoleData\loneer.csv"))
     $blessingData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias\Data\Blessing\terrias.csv"))
+    $originMilestoneBlessingRows = Import-Csv -LiteralPath (Join-Path $RepoRoot "Terrias\Data\Blessing\terrias.csv") |
+        Where-Object { $_.Id -like "origin_*_50" }
     $partnerData = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias\Data\Partner\terrias.csv"))
     $cardDataPath = Join-Path $RepoRoot "Terrias\Data\Card\terrias.csv"
     $cardData = [System.IO.File]::ReadAllText($cardDataPath)
@@ -3140,6 +3146,8 @@ function Invoke-SourceAssertions {
     Assert-True $entry.Contains("Terrias.Dll.Scripting.DuskPartnerScripts") "XLua registration must expose the Dusk script entry point."
     Assert-True $entry.Contains("Terrias.Dll.Scripting.StarClayDollScripts") "XLua registration must expose the Star Clay Doll script entry point."
     Assert-True ([regex]::IsMatch($blessingData, "(?m)^dusk_afterheat_recovery,0,,,Mods/Terrias/ModResource/Images/Buff/Terrias/huanghun_1,[^,]*,,5\r?$")) "Dusk afterheat recovery must remain a legal zero-weight technical Blessing for GameEntryUI.CheckCareer."
+    Assert-True ($originMilestoneBlessingRows.Count -eq 4) "The universal 50-point origin milestone must provide one Blessing for each origin."
+    Assert-True (($originMilestoneBlessingRows | Where-Object { $_.FightScript -notlike 'CS.Terrias.Dll.Scripting.BlessingScripts.Fight*' }).Count -eq 0) "Origin milestone Blessings must delegate through the stable C# Blessing entry point."
     Assert-True ([regex]::IsMatch($partnerData, "(?m)^dusk,10,0,0,0,2,,,Mods/Terrias/ModResource/Images/Partner/Terrias/dusk_choice,Mods/Terrias/ModResource/Images/Partner/Terrias/dusk,Mods/Terrias/ModResource/AnimationLib/Dusk,Terrias_terrias_dusk_afterheat_recovery,Mods/Terrias/ModResource/Images/Partner/Terrias/dusk\r?$")) "Dusk partner must keep a non-empty Bless column because GameEntryUI.CheckCareer creates a DataConfig from it."
     Assert-True ([regex]::IsMatch($blessingData, "(?m)^star_clay_doll_placeholder,0,,,[^,]+,[^,]*,,5\r?$")) "Star Clay Doll must use a non-conflicting technical Blessing id."
     Assert-True (-not [regex]::IsMatch($blessingData, "(?m)^star_clay_doll_trait,")) "Star Clay Doll Blessing id must not collide with its Buff id."
@@ -3656,9 +3664,14 @@ function Invoke-SourceAssertions {
     Assert-True $endlessSeaRichTextSanitizer.Contains("AllowedSimpleTags") "Endless Sea rich text sanitizer must use an explicit simple-tag allowlist."
     Assert-True $endlessSeaRichTextSanitizer.Contains("AllowedScopedTags") "Endless Sea rich text sanitizer must use an explicit scoped-tag allowlist."
     Assert-True (-not $endlessSeaRichTextSanitizer.Contains("link")) "Endless Sea rich text sanitizer must not allow link tags."
-    Assert-True ($endlessSeaOriginService.Contains('AuraGameDataHostApi.Materialize(DataType.EnchTag, "enchtag_2")') -and $endlessSeaOriginService.Contains('role.enchasedDict[card.InstanceID] = enchant;')) "Endless Sea Magic 50 unstable thoughts must attach the registered Extinction enchant tag through the shared materializer."
-    Assert-True $endlessSeaOriginService.Contains("FortuneExtraTriggerThreshold = 150") "Endless Sea Fortune 50 must define the 150-point extra trigger threshold."
-    Assert-True $endlessSeaOriginService.Contains("bonus += FortuneExtraTriggers") "Endless Sea Fortune 50 must add two extra triggers after reaching 150."
+    Assert-True ($originMilestoneService.Contains('AuraGameDataHostApi.Materialize(DataType.EnchTag, "enchtag_2")') -and $originMilestoneService.Contains('role.enchasedDict[card.InstanceID] = enchant;')) "Magic 50 must attach the registered Extinction enchant tag through the shared materializer."
+    Assert-True $originMilestoneService.Contains("FortuneExtraTriggerThreshold = 150") "Fortune 50 must define the 150-point extra trigger threshold."
+    Assert-True $originMilestoneService.Contains("bonus += FortuneExtraTriggers") "Fortune 50 must add two extra triggers after reaching 150."
+    Assert-True ($originMilestoneService.Contains("IReadOnlyList<OriginMilestoneDefinition>") -and $originMilestoneService.Contains("OriginStrength50Blessing")) "Origin milestones must be catalog-driven rather than Endless Sea-only threshold branches."
+    Assert-True ($originMilestoneRuntime.Contains('"RoleTable.VarsCheck"') -and $originMilestoneRuntime.Contains("OriginMilestoneService.Reconcile")) "Origin milestone reconciliation must extend the native origin change path in every mode."
+    Assert-True $blessingScripts.Contains("OriginMilestoneService.ApplyFightScript") "Origin milestone blessing rows must delegate combat behavior to the C# service."
+    Assert-True ($originCapService.Contains("role.MainVarUpperBound") -and $originCapService.Contains("role.SecondaryVarUpperBound") -and $originCapService.Contains("role.OtherVarUpperBound")) "Fate Star overflow must raise all three native cap classes."
+    Assert-True ($endlessSeaOriginService.Contains("EnsureOriginCaps") -and -not $endlessSeaOriginService.Contains("ApplyBattleStartEffects")) "Endless Sea origin service must own only its mode-specific cap floor, not global milestone rewards."
     Assert-True $endlessSeaCardAffixRuntime.Contains("EndlessSeaCardAffixService.ApplyBurnout") "Endless Sea card affix runtime must delegate Burnout application to the service."
     Assert-True $endlessSeaCardAffixRuntime.Contains("EndlessSeaCardAffixService.NormalizeOwnedCards") "Endless Sea card affix runtime must normalize owned cards from non-reward gain paths."
     Assert-True $endlessSeaCardAffixService.Contains("CardAttachmentService.AttachToConfig") "Endless Sea card affix service must use the shared card attachment service."

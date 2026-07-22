@@ -11,7 +11,7 @@ namespace Terrias.Dll.Mechanics;
 [Serializable]
 public sealed class ConstellationStateSnapshot
 {
-    public const int CurrentProtocolVersion = 2;
+    public const int CurrentProtocolVersion = 3;
 
     public int ProtocolVersion { get; set; } = CurrentProtocolVersion;
     public string BattleSessionId { get; set; } = "";
@@ -20,6 +20,8 @@ public sealed class ConstellationStateSnapshot
     public string RoleId { get; set; } = "";
     public int Level { get; set; }
     public int Sequence { get; set; }
+    public string FateStarResolution { get; set; } = "";
+    public OriginCapState OriginCaps { get; set; } = new();
     public string Source { get; set; } = "";
 }
 
@@ -36,6 +38,8 @@ public sealed class ConstellationRoundRewardEvent
 public static class ConstellationService
 {
     private const string SyncDomainId = "ConstellationState";
+    private const string ConstellationResolution = "Constellation";
+    private const string OriginCapsResolution = "OriginCaps";
     private const int MaximumRoundRewardClaims = 256;
     private static readonly object SyncRoot = new();
     private static readonly Dictionary<string, int> LastSequences = new(StringComparer.Ordinal);
@@ -199,7 +203,13 @@ public static class ConstellationService
             var next = ConstellationPoolCatalog.Clamp(before + 1);
             if (next == before)
             {
-                PlayerApi.ShowCaption("命之座已全部点亮。");
+                if (OriginCapService.TryIncreaseCurrent(
+                        OriginCapService.FateStarIncrease,
+                        "FateStar.SinglePlayer",
+                        out var originCaps))
+                {
+                    OriginCapService.ShowIncreaseCaption(originCaps);
+                }
                 return before;
             }
 
@@ -476,8 +486,46 @@ public static class ConstellationService
         var next = ConstellationPoolCatalog.Clamp(current.Level + 1);
         if (next == current.Level)
         {
-            rejection = "constellation already complete";
-            return false;
+            var authoritativeRole = OriginCapService.ResolveAuthoritativeRole(sender.PlayerId);
+            if (!OriginCapService.TryIncrease(
+                    authoritativeRole,
+                    OriginCapService.FateStarIncrease,
+                    "FateStar.Server:" + sender.PlayerId,
+                    out var increasedCaps))
+            {
+                rejection = "authoritative origin caps unavailable";
+                return false;
+            }
+
+            snapshot = new ConstellationStateSnapshot
+            {
+                BattleSessionId = hostBattleSessionId,
+                OwnerPlayerId = sender.PlayerId,
+                OwnerStatusId = ownerStatusId,
+                RoleId = current.RoleId,
+                Level = current.Level,
+                Sequence = Math.Max(1, current.Sequence + 1),
+                FateStarResolution = OriginCapsResolution,
+                OriginCaps = increasedCaps,
+                Source = "FateStar"
+            };
+            ApplySnapshot(snapshot, "server:FateStarOriginCaps");
+            TerriasLog.InfoAlways("[ConstellationSync] Fate Star origin cap increase accepted; owner="
+                + sender.PlayerId
+                + "; status="
+                + ownerStatusId
+                + "; main="
+                + increasedCaps.Main
+                + "; secondary="
+                + increasedCaps.Secondary
+                + "; other="
+                + increasedCaps.Other
+                + "; sequence="
+                + snapshot.Sequence
+                + "; token="
+                + token
+                + ".");
+            return true;
         }
 
         snapshot = new ConstellationStateSnapshot
@@ -488,6 +536,8 @@ public static class ConstellationService
             RoleId = current.RoleId,
             Level = next,
             Sequence = Math.Max(1, current.Sequence + 1),
+            FateStarResolution = ConstellationResolution,
+            OriginCaps = CaptureOriginCaps(sender.PlayerId),
             Source = "FateStar"
         };
         PersistLevel(ownerStatusId, snapshot.RoleId, snapshot.Level);
@@ -651,6 +701,10 @@ public static class ConstellationService
 
         var appliedLevel = 0;
         var localOwner = IsLocalOwner(snapshot);
+        if (localOwner)
+        {
+            OriginCapService.ApplyAuthoritativeCurrent(snapshot.OriginCaps, source);
+        }
         if (status != null)
         {
             BindAdventureRole(status, ownerRoleId, overwrite: true);
@@ -691,6 +745,13 @@ public static class ConstellationService
     {
         if (snapshot == null || !IsLocalOwner(snapshot))
         {
+            return;
+        }
+
+        if (string.Equals(snapshot.FateStarResolution, OriginCapsResolution, StringComparison.Ordinal))
+        {
+            OriginCapService.ShowIncreaseCaption(snapshot.OriginCaps);
+            TerriasLog.InfoAlways("[Constellation] Fate Star increased origin caps; source=" + source + ".");
             return;
         }
 
@@ -919,6 +980,8 @@ public static class ConstellationService
             RoleId = roleId,
             Level = Math.Max(persisted, liveLevel),
             Sequence = 1,
+            FateStarResolution = ConstellationResolution,
+            OriginCaps = CaptureOriginCaps(ownerPlayerId ?? ""),
             Source = source ?? ""
         };
         lock (SyncRoot)
@@ -962,6 +1025,8 @@ public static class ConstellationService
             RoleId = roleId,
             Level = ConstellationPoolCatalog.Clamp(level),
             Sequence = 0,
+            FateStarResolution = ConstellationResolution,
+            OriginCaps = OriginCapService.Capture(RoleTable.Instance),
             Source = source ?? ""
         };
         lock (SyncRoot)
@@ -1161,8 +1226,20 @@ public static class ConstellationService
             RoleId = snapshot.RoleId ?? "",
             Level = snapshot.Level,
             Sequence = snapshot.Sequence,
+            FateStarResolution = snapshot.FateStarResolution ?? "",
+            OriginCaps = new OriginCapState
+            {
+                Main = snapshot.OriginCaps?.Main ?? 0,
+                Secondary = snapshot.OriginCaps?.Secondary ?? 0,
+                Other = snapshot.OriginCaps?.Other ?? 0
+            },
             Source = snapshot.Source ?? ""
         };
+    }
+
+    private static OriginCapState CaptureOriginCaps(string ownerPlayerId)
+    {
+        return OriginCapService.Capture(OriginCapService.ResolveAuthoritativeRole(ownerPlayerId));
     }
 
     private static void LogLightUp(string roleId, int level, int applied, string source)

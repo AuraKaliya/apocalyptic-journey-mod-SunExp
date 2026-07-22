@@ -108,7 +108,6 @@ public static class EndlessSeaRewardRuntime
                 EndlessSeaModeRuntime.CurrentFloor(),
                 EndlessSeaRewardPlan.CurrentNodeKind(),
                 "BattleRewardsUI.Entry");
-            EndlessSeaOriginService.ApplyBattleEndEffects("BattleRewardsUI.Entry");
         }
         catch (Exception ex)
         {

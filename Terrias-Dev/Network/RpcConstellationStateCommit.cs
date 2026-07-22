@@ -7,9 +7,9 @@ using Terrias.Dll.Mechanics;
 namespace Terrias.Dll.Network;
 
 /// <summary>
-/// A sender-bound request to advance one constellation tier. The client never
-/// submits an absolute level; the server reads and increments its authoritative
-/// per-owner state, then broadcasts the accepted snapshot in this command.
+/// A sender-bound Fate Star request. The client never submits an absolute
+/// constellation level or origin cap; the server resolves the light-up or
+/// max-constellation cap-increase branch and broadcasts its snapshot.
 /// </summary>
 [Serializable]
 public sealed class RpcConstellationStateCommit : RpcCommandBase, ITerriasServerBoundRpcCommand

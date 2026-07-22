@@ -316,7 +316,7 @@ public static class EndlessAbyssMilestoneRewardService
             return false;
         }
 
-        EndlessSeaOriginService.AttachExtinctionEnchTag(dataConfig);
+        OriginMilestoneService.AttachExtinctionEnchTag(dataConfig);
         EndlessSeaCardAffixService.TryPersistCurrentRole("EndlessAbyssMilestone.AddExtinction");
         Claim(floor, "add-extinction:" + card.InstanceID);
         message = "\u5df2\u6dfb\u52a0\u7edd\u706d\uff1a" + CardDisplayName(card);

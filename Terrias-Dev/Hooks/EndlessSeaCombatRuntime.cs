@@ -16,14 +16,14 @@ public static class EndlessSeaCombatRuntime
     {
         TerriasBattleLifecycleRouter.Register("EndlessSeaCombat", new TerriasBattleLifecycleSubscription
         {
-            FightInitialized = ApplyOriginBattleStartEffects
+            FightInitialized = MarkEndlessBattleStarted
         });
         TerriasStatusLifecycleRouter.Register("EndlessSeaCombat", new TerriasStatusLifecycleSubscription
         {
             AfterEnemyInit = ScaleEnemyAfterInit
         });
         RegisterAfter(modConfig, "FightManager.Init", AddEndlessExtraEnemiesAfterFightInit);
-        RegisterAfter(modConfig, TerriasHookTargets.FightWinInit, ApplyOriginBattleEndEffects);
+        RegisterAfter(modConfig, TerriasHookTargets.FightWinInit, MarkEndlessBattleWon);
     }
 
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
@@ -124,35 +124,33 @@ public static class EndlessSeaCombatRuntime
         }
     }
 
-    private static void ApplyOriginBattleStartEffects(ModHookContext context)
+    private static void MarkEndlessBattleStarted(ModHookContext context)
     {
         try
         {
             if (EndlessSeaModeRuntime.IsEndlessSeaRun())
             {
                 EndlessSeaRunStateStore.MarkPhase(EndlessSeaRunPhase.InBattle, "FightInit.Init");
-                EndlessSeaOriginService.ApplyBattleStartEffects("FightInit.Init");
             }
         }
         catch (Exception ex)
         {
-            TerriasLog.Error("Endless Sea origin battle start failed", ex);
+            TerriasLog.Error("Endless Sea battle start phase failed", ex);
         }
     }
 
-    private static void ApplyOriginBattleEndEffects(ModHookContext context)
+    private static void MarkEndlessBattleWon(ModHookContext context)
     {
         try
         {
             if (EndlessSeaModeRuntime.IsEndlessSeaRun())
             {
                 EndlessSeaRunStateStore.MarkPhase(EndlessSeaRunPhase.Reward, "Fight_Win.Init");
-                EndlessSeaOriginService.ApplyBattleEndEffects("Fight_Win.Init");
             }
         }
         catch (Exception ex)
         {
-            TerriasLog.Error("Endless Sea origin battle end failed", ex);
+            TerriasLog.Error("Endless Sea battle win phase failed", ex);
         }
     }
 

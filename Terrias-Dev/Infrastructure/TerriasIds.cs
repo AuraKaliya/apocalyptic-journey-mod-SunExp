@@ -12,6 +12,10 @@ public static class TerriasIds
     public const string MoonDomain = "Terrias_terrias_moon_domain";
     public const string Constellation = "Terrias_terrias_constellation";
     public const string ConstellationStorage = "TerriasConstellation";
+    public const string OriginStrength50Blessing = "Terrias_terrias_origin_strength_50";
+    public const string OriginSpirit50Blessing = "Terrias_terrias_origin_spirit_50";
+    public const string OriginFortune50Blessing = "Terrias_terrias_origin_fortune_50";
+    public const string OriginPerceive50Blessing = "Terrias_terrias_origin_perceive_50";
     public const string ModId = "Terrias";
 
     public const string ModLogTag = "Terrias.DLL";

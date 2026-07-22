@@ -14,10 +14,10 @@ public static class EndlessAbyssRewardService
 
     private static readonly string[] OriginKeys =
     {
-        EndlessSeaOriginService.Strength,
-        EndlessSeaOriginService.Spirit,
-        EndlessSeaOriginService.Fortune,
-        EndlessSeaOriginService.Perceive
+        OriginMilestoneService.Strength,
+        OriginMilestoneService.Spirit,
+        OriginMilestoneService.Fortune,
+        OriginMilestoneService.Perceive
     };
 
     public static int GrantRandomCards(int count, string source)

@@ -47,8 +47,8 @@ Assert-True ([int]$fateStar.Expend -eq 1 -and [int]$fateStar.Rarity -eq 3) "Fate
 Assert-True ($fateStar.Tag -eq "Retain,Annihilation") "Fate Star must have Retain and Annihilation."
 Assert-True ($fateStar.PackBelong -eq "Terrias_terrias_cardpack_more_dimensions") "Fate Star must belong to More Dimensions."
 $fateStarText = $cardText | Where-Object Id -eq "fate_star" | Select-Object -First 1
-Assert-True ($fateStarText.Description -eq (Decode-Text "54K55LquMeWxgntUZXJyaWFzX3RlcnJpYXNfY29uc3RlbGxhdGlvbn3jgII=")) "Fate Star description must only describe lighting Constellation."
-Assert-True ($fateStarText.Description_en -eq 'Light up 1 level of {Terrias_terrias_constellation}.') "Fate Star English description must not repeat Retain or Annihilation."
+Assert-True ($fateStarText.Description -eq '若{Terrias_terrias_constellation}未达上限，点亮1层；否则四大本源上限增加10点。') "Fate Star description must explain its Constellation and origin-cap branches."
+Assert-True ($fateStarText.Description_en -eq 'If {Terrias_terrias_constellation} is not complete, light up 1 level; otherwise increase all four Origin caps by 10.') "Fate Star English description must explain its Constellation and origin-cap branches."
 
 $constellationText = $buffText | Where-Object Id -eq "constellation" | Select-Object -First 1
 Assert-True ($constellationText.Description -eq (Decode-Text "5q+P54K55Lqu5LiA6aKX5ZG95pif77yM6YO95Lya6I635b6X5LiA5bGC5LiT5bGe5aKe55uK44CC")) "Constellation description mismatch."
@@ -191,6 +191,8 @@ Assert-True ($constellation.Contains('MatchesAdventureRole')) "Constellation ide
 Assert-True ($constellation.Contains('TerriasStatusOwnershipPolicy.SenderOwnsStatus')) "Constellation requests must validate the bound sender against the submitted status."
 Assert-True ($constellation.Contains('SyncDomain.TryClaimToken(sender.PlayerId, token)')) "Constellation requests must suppress duplicate command tokens per sender."
 Assert-True ($constellation.Contains('PlayerApi.SetScopedGameVarForScope')) "The host must persist remote constellation progress in the owning status scope."
+Assert-True ($constellation.Contains('OriginCapService.TryIncrease') -and $constellation.Contains('OriginCapsResolution')) "A maxed Fate Star must resolve into an authoritative origin-cap increase."
+Assert-True ($constellation.Contains('OriginCapService.ApplyAuthoritativeCurrent') -and $constellation.Contains('IsLocalOwner(snapshot)')) "Only the owning player may apply synchronized Fate Star origin caps locally."
 Assert-True ($constellation.Contains('ApplyRoundReward')) "Traveler constellation six must be applied by each player's local owner."
 Assert-True ($constellation.Contains('local!.AddBuff(TerriasIds.Extraordinary, 300)')) "Traveler constellation six must grant 300 Extraordinary to the local player."
 Assert-True ($constellation.Contains('BuffApi.ApplyRuntimePresentation')) "Constellation application must update its live Buff instance presentation."
