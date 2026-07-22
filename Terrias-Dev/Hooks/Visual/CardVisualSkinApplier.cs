@@ -219,6 +219,12 @@ public static class CardVisualSkinApplier
         }
 
         var image = background ? marker.BackgroundImage : marker.FrameImage;
+        var mesh = background ? marker.BackgroundMesh : marker.FrameMesh;
+        if (marker.UsesMeshCardStyle && mesh != null)
+        {
+            return ApplyMeshTexture(marker, background, sprite, node, required, skinId, layerName);
+        }
+
         if (image != null)
         {
             if (!background)
@@ -236,41 +242,9 @@ public static class CardVisualSkinApplier
             return true;
         }
 
-        var mesh = background ? marker.BackgroundMesh : marker.FrameMesh;
         if (mesh != null)
         {
-            var textureId = sprite.texture.GetInstanceID();
-            if (!background)
-            {
-                marker.LastFrameTexture = sprite.texture;
-            }
-
-            var material = background ? marker.BackgroundMaterial : marker.FrameMaterial;
-            if (material == null)
-            {
-                if (required)
-                {
-                    TerriasLog.Warn(LogPrefix + " " + skinId + " " + layerName + " material missing: " + node.name);
-                }
-
-                return false;
-            }
-
-            var currentTexture = material.mainTexture;
-            var cachedTextureId = background ? marker.LastBackgroundTextureId : marker.LastFrameTextureId;
-            var changed = !ReferenceEquals(currentTexture, sprite.texture) || cachedTextureId != textureId;
-            material.mainTexture = sprite.texture;
-            if (background)
-            {
-                marker.LastBackgroundTextureId = textureId;
-                marker.LastFaceTexture = sprite.texture;
-            }
-            else
-            {
-                marker.LastFrameTextureId = textureId;
-            }
-
-            return changed;
+            return ApplyMeshTexture(marker, background, sprite, node, required, skinId, layerName);
         }
 
         if (required)
@@ -279,6 +253,49 @@ public static class CardVisualSkinApplier
         }
 
         return false;
+    }
+
+    private static bool ApplyMeshTexture(
+        CardVisualSkinMarker marker,
+        bool background,
+        Sprite sprite,
+        Transform node,
+        bool required,
+        string skinId,
+        string layerName)
+    {
+        var textureId = sprite.texture.GetInstanceID();
+        if (!background)
+        {
+            marker.LastFrameTexture = sprite.texture;
+        }
+
+        var material = background ? marker.BackgroundMaterial : marker.FrameMaterial;
+        if (material == null)
+        {
+            if (required)
+            {
+                TerriasLog.Warn(LogPrefix + " " + skinId + " " + layerName + " material missing: " + node.name);
+            }
+
+            return false;
+        }
+
+        var currentTexture = material.mainTexture;
+        var cachedTextureId = background ? marker.LastBackgroundTextureId : marker.LastFrameTextureId;
+        var changed = !ReferenceEquals(currentTexture, sprite.texture) || cachedTextureId != textureId;
+        material.mainTexture = sprite.texture;
+        if (background)
+        {
+            marker.LastBackgroundTextureId = textureId;
+            marker.LastFaceTexture = sprite.texture;
+        }
+        else
+        {
+            marker.LastFrameTextureId = textureId;
+        }
+
+        return changed;
     }
 
     private static string VisualSignature(IDataConfig? config)

@@ -16,6 +16,11 @@ internal static class CardFaceEffectApplier
             return Clear(marker);
         }
 
+        if (marker.UsesMeshCardStyle && marker.FaceMesh != null)
+        {
+            return ApplyMeshMaterial(marker, effect);
+        }
+
         if (marker.FaceImage != null)
         {
             return ApplyImageMaterial(marker, effect);

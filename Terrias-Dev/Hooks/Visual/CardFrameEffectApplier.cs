@@ -20,6 +20,11 @@ internal static class CardFrameEffectApplier
             return Clear(marker);
         }
 
+        if (marker.UsesMeshCardStyle && marker.FrameMesh != null)
+        {
+            return ApplyMeshMaterial(marker, effect, config);
+        }
+
         if (marker.FrameImage != null)
         {
             return ApplyImageMaterial(marker, effect, config);

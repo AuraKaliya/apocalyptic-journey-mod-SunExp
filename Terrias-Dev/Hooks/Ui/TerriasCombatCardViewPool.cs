@@ -193,6 +193,8 @@ public static class TerriasCombatCardViewPool
                 marker.PresentationSignature = presentationSignature;
             }
 
+            ReapplyPresentationAfterBind(pooled, config);
+
             var exitAnimator = pooled.GetComponent<PooledCardExitAnimator>()
                 ?? pooled.gameObject.AddComponent<PooledCardExitAnimator>();
             exitAnimator.RefreshTextBindings(pooled.transform);
@@ -571,6 +573,19 @@ public static class TerriasCombatCardViewPool
         {
             TerriasPerformanceCounters.RecordDuration("CombatCardViewPool.LightRebind", start);
         }
+    }
+
+    private static void ReapplyPresentationAfterBind(CardItem card, DataConfig config)
+    {
+        TerriasCardPresentationRouter.RequestApply(new TerriasCardPresentationContext
+        {
+            Root = card.transform,
+            Config = config,
+            Card = card,
+            Source = "CombatCardViewPool.Bind",
+            Surface = TerriasCardPresentationSurface.CombatCardInternal
+        });
+        TerriasPerformanceCounters.Record("CombatCardViewPool.PresentationReapply");
     }
 
     private static PooledCardExitKind ThrowExitKind(ModHookContext context)

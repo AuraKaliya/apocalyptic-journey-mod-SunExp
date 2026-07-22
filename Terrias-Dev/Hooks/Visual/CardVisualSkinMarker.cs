@@ -59,6 +59,8 @@ internal sealed class CardVisualSkinMarker : MonoBehaviour
 
     public Material? FaceMaterial => BackgroundMaterial;
 
+    public bool UsesMeshCardStyle => BackgroundMesh != null;
+
     public string LastSkinId { get; set; } = "";
 
     public string LastVisualSignature { get; set; } = "";
@@ -187,6 +189,13 @@ internal sealed class CardVisualSkinMarker : MonoBehaviour
         LastVisualSignature = "";
         LastAppliedRootInstanceId = 0;
         LastAppliedStage = "";
+        return changed;
+    }
+
+    public bool PrepareForBurnVisualHandoff()
+    {
+        var changed = ClearFaceEffectMaterial();
+        changed = ClearFrameEffectMaterial() || changed;
         return changed;
     }
 

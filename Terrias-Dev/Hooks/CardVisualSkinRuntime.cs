@@ -27,8 +27,40 @@ public static class CardVisualSkinRuntime
             BeforeCommonCardUse = context => SuppressBurnoutFrameEffect(context, TerriasHookTargets.CommonCardItemTrueUse),
             BeforeAttackCardUse = context => SuppressBurnoutFrameEffect(context, TerriasHookTargets.AttackCardItemTrueUse)
         });
+        TerriasHookRegistry.Before(
+            modConfig,
+            TerriasHookTargets.CardItemEffectOfBurnCard,
+            PrepareBurnVisualHandoff,
+            "CardVisualSkin.BurnHandoff");
 
         TerriasLog.InfoAlways("Card visual skin runtime initialized");
+    }
+
+    private static void PrepareBurnVisualHandoff(ModHookContext context)
+    {
+        try
+        {
+            if (context.Target is not CardItem card)
+            {
+                return;
+            }
+
+            var visualRoot = CardPresentationRootResolver.FindCardVisualRoot(card.transform);
+            var marker = visualRoot?.GetComponent<CardVisualSkinMarker>();
+            if (marker == null)
+            {
+                return;
+            }
+
+            var changed = marker.PrepareForBurnVisualHandoff();
+            TerriasPerformanceCounters.Record(changed
+                ? "CardVisualSkin.BurnHandoff.Applied"
+                : "CardVisualSkin.BurnHandoff.NoChange");
+        }
+        catch (Exception ex)
+        {
+            TerriasLog.Error("Card visual skin burn handoff failed", ex);
+        }
     }
 
     private static void ApplyPresentation(TerriasCardPresentationContext context)

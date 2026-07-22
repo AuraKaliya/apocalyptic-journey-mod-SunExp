@@ -45,7 +45,19 @@ public sealed class PooledCardExitAnimator : MonoBehaviour
         switch (kind)
         {
             case PooledCardExitKind.Burn:
-                running = StartCoroutine(PlayBurn(card, onComplete));
+                var burnBindingCount = PrepareBurnMaterials(card.transform);
+                if (burnBindingCount == 0)
+                {
+                    TerriasPerformanceCounters.Record("PooledCardExit.BurnMaterialBindingMiss");
+                    TerriasLog.Warn("[CombatCardViewPool] pooled burn has no compatible mesh renderers: "
+                        + CardConfigApi.Id(card.dataConfig));
+                    running = StartCoroutine(PlayBurn(card, onComplete, useBurnShader: false));
+                    TerriasPerformanceCounters.Record("PooledCardExit.BurnFallbackStarted");
+                    return true;
+                }
+
+                TerriasPerformanceCounters.Record("PooledCardExit.BurnMaterialBindings." + burnBindingCount);
+                running = StartCoroutine(PlayBurn(card, onComplete, useBurnShader: true));
                 return true;
             case PooledCardExitKind.MoveToDiscard:
             case PooledCardExitKind.MoveToDrawPile:
@@ -115,22 +127,27 @@ public sealed class PooledCardExitAnimator : MonoBehaviour
         TerriasPerformanceCounters.RecordDuration("PooledCardExit.BurnTextBindingRefresh", start);
     }
 
-    private IEnumerator PlayBurn(CardItem card, Action onComplete)
+    private IEnumerator PlayBurn(CardItem card, Action onComplete, bool useBurnShader)
     {
         burnAnimationStarted = TerriasPerformanceCounters.Timestamp();
         TryPlayAudio("Effect/burn");
-        PrepareBurnMaterials(card.transform);
         PrepareBurnTexts(card.transform);
         var rect = card.GetComponent<RectTransform>();
         var startPosition = rect.anchoredPosition;
-        var duration = 1.5f;
+        var moveToUsePosition = card.selectContainer != null && card.transform.parent != card.selectContainer.transform;
+        var targetPosition = moveToUsePosition ? new Vector2(0f, 600f) : startPosition;
+        var movementDuration = GameSpeed.Duration(0.3f);
+        var burnDelay = useBurnShader ? GameSpeed.Duration(0.3f) : 0f;
+        var burnDuration = useBurnShader ? GameSpeed.Duration(1.5f) : GameSpeed.Duration(0.45f);
+        var duration = burnDelay + burnDuration;
         var elapsed = 0f;
         while (elapsed < duration && card != null)
         {
             var frameCpuStarted = TerriasPerformanceCounters.Timestamp();
             elapsed += Math.Max(0f, Time.deltaTime);
             var progress = Mathf.Clamp01(elapsed / duration);
-            var fade = Mathf.Lerp(50f, -90f, Mathf.Clamp01((progress - 0.18f) / 0.82f));
+            var burnProgress = Mathf.Clamp01((elapsed - burnDelay) / Math.Max(0.001f, burnDuration));
+            var fade = Mathf.Lerp(50f, -90f, burnProgress);
             foreach (var binding in burnBindings)
             {
                 binding.SetFade(fade);
@@ -141,10 +158,16 @@ public sealed class PooledCardExitAnimator : MonoBehaviour
                 binding.Hide();
             }
 
-            rect.anchoredPosition = startPosition + (Vector2.up * 220f * Mathf.SmoothStep(0f, 1f, progress));
+            var movementProgress = Mathf.Clamp01(elapsed / Math.Max(0.001f, movementDuration));
+            rect.anchoredPosition = Vector2.Lerp(
+                startPosition,
+                targetPosition,
+                Mathf.SmoothStep(0f, 1f, movementProgress));
             if (canvasGroup != null)
             {
-                canvasGroup.alpha = 1f - Mathf.Clamp01((progress - 0.55f) / 0.45f);
+                canvasGroup.alpha = useBurnShader
+                    ? 1f - Mathf.Clamp01((progress - 0.85f) / 0.15f)
+                    : 1f - progress;
             }
 
             TerriasPerformanceCounters.RecordDuration("PooledCardExit.BurnFrameCpu", frameCpuStarted);
@@ -188,14 +211,14 @@ public sealed class PooledCardExitAnimator : MonoBehaviour
         onComplete();
     }
 
-    private void PrepareBurnMaterials(Transform root)
+    private int PrepareBurnMaterials(Transform root)
     {
         if (burnBindings.Count < BurnRendererPaths.Length)
         {
             var template = TerriasResourceCache.Load<Material>("Material/CardBurn", false, "combat-card-exit");
             if (template == null)
             {
-                return;
+                return 0;
             }
 
             while (burnBindings.Count < BurnRendererPaths.Length)
@@ -205,11 +228,17 @@ public sealed class PooledCardExitAnimator : MonoBehaviour
         }
 
         var canvasScale = CanvasScale();
+        var bound = 0;
         for (var index = 0; index < BurnRendererPaths.Length; index++)
         {
             var renderer = root.Find(BurnRendererPaths[index])?.GetComponent<MeshRenderer>();
-            burnBindings[index].Apply(renderer, root.position.y, canvasScale);
+            if (burnBindings[index].Apply(renderer, root.position.y, canvasScale))
+            {
+                bound++;
+            }
         }
+
+        return bound;
     }
 
     private void PrepareBurnTexts(Transform root)
@@ -275,13 +304,13 @@ public sealed class PooledCardExitAnimator : MonoBehaviour
             this.burnMaterial = burnMaterial;
         }
 
-        public void Apply(MeshRenderer? nextRenderer, float startY, float canvasScale)
+        public bool Apply(MeshRenderer? nextRenderer, float startY, float canvasScale)
         {
             Restore();
             renderer = nextRenderer;
             if (renderer == null)
             {
-                return;
+                return false;
             }
 
             originalMaterial = renderer.sharedMaterial;
@@ -290,6 +319,7 @@ public sealed class PooledCardExitAnimator : MonoBehaviour
             SetIfPresent("_canvasScale", canvasScale);
             SetIfPresent("_startY", startY);
             renderer.sharedMaterial = burnMaterial;
+            return true;
         }
 
         public void SetFade(float value)
