@@ -17,6 +17,17 @@ of duplicating them in top-level skills.
 | Presentation event | CG playback, audio, skin visual, temporary overlay, UI cleanup, projection visual. | Local owner may request; host/server may relay in multiplayer. | Transient event with duplicate suppression and lifecycle cleanup. CG relay carries only registered owner/provider/CG ids plus action/session identity; each peer resolves local resources and no resource body crosses the network. It must not advance progression. |
 | Bulk transfer or diagnostic | ModSync host manifest, large snapshots, logs, damage-meter snapshots/history. | Host/server or tool-local producer, depending on feature. | Payload guard, chunking, checksum, expiration, and active-buffer cap. |
 
+For AuraTools ModSync in the lobby, authenticate the requester through the
+server-bound RPC command path, then return an ordinary host manifest through a
+connection-targeted native `RpcQuery` response. Register the client callback
+without sending the game's role-table-gated native query command. If native
+query metadata, the requester connection, or the targeted payload budget is
+unavailable, fall back to the bounded broadcast/chunk transport. A targeted
+timeout may retry broadcast once; a broadcast timeout must fall back to the
+lobby summary and clear all pending callback state. Do not hook
+`PlayerManager.UserCode_CmdQuery__QueryBase__NetworkConnectionToClient`; the
+current Managed method is not Modifiable-wrapped.
+
 ## Current Terrias Consensus
 
 Use this section as the durable routing rule for Terrias/AuraToolsExp sync

@@ -440,7 +440,7 @@ Keep `AuraRpcSender` in a small no-Witch shared file and include that file in co
 ## [ERR-20260708-001] shared-release-gate-parallel-test-contention
 
 **Logged**: 2026-07-08T18:31:33+08:00
-**Priority**: low
+**Priority**: medium
 **Status**: pending
 **Area**: tests
 
@@ -463,6 +463,11 @@ Run shared release gates and shared core test harnesses serially, or give parall
 ### Metadata
 - Reproducible: yes
 - Related Files: tools\Test-SharedReleaseGate.ps1, tools\Test-AuraSharedCore.ps1
+- Recurrence-Count: 2
+
+### Recurrence
+- **Observed**: 2026-07-22T13:00:00+08:00
+- **Notes**: Repeated the same parallel invocation and locked `AuraSharedCore.Tests.AssemblyInfoInputs.cache`; final validation must keep these two gates serial.
 
 ---
 
@@ -602,6 +607,11 @@ Use a small compiled probe harness with explicit dependency references and deter
 ### Metadata
 - Reproducible: yes
 - Related Files: AuraDirectorShared/AuraDirectorNativeStartBarrierProbe.cs
+- Recurrence-Count: 2
+
+### Recurrence
+- **Observed**: 2026-07-22T14:00:00+08:00
+- **Notes**: Repeated the unsafe PowerShell `AssemblyResolve` probe while checking the `PlayerManager` targeted-query contract; retained ILSpy verification and build/source gates instead.
 
 ### Resolution
 - **Resolved**: 2026-07-15T15:12:00+08:00

@@ -37,9 +37,13 @@ public static class AuraToolsModSyncRuntime
     private const int MaxManifestTransferBytes = 512 * 1024;
     private const int MaxManifestChunks = 64;
     private const int MaxManifestActiveTransfers = 8;
+    private const int MaxTargetedManifestBytes = 256 * 1024;
     private static readonly TimeSpan ManifestChunkBufferTtl = TimeSpan.FromSeconds(45);
     private static readonly TimeSpan HostManifestCacheTtl = TimeSpan.FromMinutes(2);
+    private static readonly TimeSpan TargetedManifestRequestTimeout = TimeSpan.FromSeconds(5);
+    private static readonly TimeSpan BroadcastManifestRequestTimeout = TimeSpan.FromSeconds(10);
     private static readonly AuraOnlineHostModSyncSession SyncSession = new(AuraToolsIds.ModId, AuraToolsLog.Info, AuraToolsLog.Warn);
+    private static readonly AuraToolsModSyncRequestTracker ManifestRequest = new();
     private static readonly Dictionary<string, ManifestChunkBuffer> ManifestChunkBuffers = new(StringComparer.Ordinal);
 
     private static bool initialized;
@@ -49,7 +53,7 @@ public static class AuraToolsModSyncRuntime
     private static Transform? activeOverlayContent;
     private static AuraChatModSyncState? currentState;
     private static string lastDiagnosticsKey = "";
-    private static bool manifestRequestPending;
+    private static uint pendingTargetQueryId;
     private static AuraChatModPlayerSnapshot? cachedHostManifest;
     private static string cachedHostPlayerId = "";
     private static DateTime cachedHostManifestAtUtc;
@@ -62,7 +66,6 @@ public static class AuraToolsModSyncRuntime
         }
 
         initialized = true;
-        AuraToolsTargetedQueryTransport.Initialize(modConfig);
         SyncSession.Changed += RefreshOverlay;
         AuraToolsConfigService.Changed += OnConfigChanged;
         RegisterAfter(modConfig, "GameEntryUI.UpdateLobby", UpdateLobby);
@@ -344,7 +347,7 @@ public static class AuraToolsModSyncRuntime
 
         var pending = SyncSession.CountPendingActions(state);
         var isHost = SyncSession.IsLocalHost(state);
-        var text = manifestRequestPending
+        var text = ManifestRequest.IsPending
             ? SyncSession.ActionStatus
             : SyncSession.IsRunning
             ? SyncSession.ActionStatus
@@ -364,7 +367,7 @@ public static class AuraToolsModSyncRuntime
 
         AuraToolsUi.AddText(row.transform, text, AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.MutedText, AuraToolsUi.TextMinHeight, 1f);
         var syncButton = AuraToolsUi.AddButton(row.transform, SyncSession.IsRunning ? "同步中" : "一键同步", StartSyncFromUi, 128f, AuraToolsUi.ButtonHeight);
-        syncButton.interactable = IsKnownLocalPlayer(state) && !isHost && pending > 0 && !SyncSession.IsRunning && !manifestRequestPending;
+        syncButton.interactable = IsKnownLocalPlayer(state) && !isHost && pending > 0 && !SyncSession.IsRunning && !ManifestRequest.IsPending;
     }
 
     private static void AddTableRow(Transform parent, string name, IReadOnlyList<CellSpec> cells, Color color, float height)
@@ -745,7 +748,7 @@ public static class AuraToolsModSyncRuntime
         RefreshOverlay();
     }
 
-    private static bool RequestHostManifest(AuraChatModSyncState state)
+    private static bool RequestHostManifest(AuraChatModSyncState state, bool forceBroadcast = false)
     {
         var manager = PlayerManager.Instance;
         if (manager == null || manager.isServer)
@@ -753,87 +756,177 @@ public static class AuraToolsModSyncRuntime
             return false;
         }
 
-        if (TryUseCachedHostManifest(state))
-        {
-            return true;
-        }
-
         try
         {
-            manifestRequestPending = true;
-            SyncSession.SetActionStatus("正在向房主请求完整MOD配置...");
-            var query = new AuraToolsModSyncManifestQuery
+            var requestId = AuraToolsRpcTransport.NewTransferId("modsync-request");
+            var mode = forceBroadcast
+                ? AuraToolsModSyncRequestMode.BroadcastFallback
+                : AuraToolsModSyncRequestMode.Targeted;
+            var timeout = forceBroadcast
+                ? BroadcastManifestRequestTimeout
+                : TargetedManifestRequestTimeout;
+            ManifestRequest.Begin(requestId, DateTime.UtcNow, timeout, mode);
+            SyncSession.SetActionStatus(forceBroadcast
+                ? "定向响应超时，正在使用兼容传输重试..."
+                : "正在向房主请求完整MOD配置...");
+
+            if (TryUseCachedHostManifest(state, requestId))
             {
+                return true;
+            }
+
+            uint targetQueryId = 0;
+            if (!forceBroadcast)
+            {
+                var query = new AuraToolsModSyncManifestQuery();
+                if (!AuraToolsTargetedQueryTransport.TryRegister(
+                        manager,
+                        query,
+                        ReceiveTargetedHostManifest,
+                        out targetQueryId,
+                        out var targetedRejection))
+                {
+                    AuraToolsLog.Warn("[ModSync] targeted callback registration unavailable; using broadcast transport: "
+                                      + targetedRejection);
+                    mode = AuraToolsModSyncRequestMode.BroadcastFallback;
+                    timeout = BroadcastManifestRequestTimeout;
+                    ManifestRequest.Begin(requestId, DateTime.UtcNow, timeout, mode);
+                    SyncSession.SetActionStatus("定向传输不可用，正在使用兼容传输...");
+                }
+            }
+
+            pendingTargetQueryId = targetQueryId;
+            var command = new AuraToolsModSyncManifestCommand
+            {
+                RequesterPlayerId = state.LocalPlayerId,
+                RequestId = requestId,
+                TargetQueryId = targetQueryId,
+                ForceBroadcastResponse = mode == AuraToolsModSyncRequestMode.BroadcastFallback,
+                RequesterToolVersion = FindToolVersion(
+                    AuraOnlineLocalModManifestBuilder.CreateLocalPlayerSnapshot(
+                        state.LocalPlayerId,
+                        PlayerManager.Instance?.playerInfo?.Name ?? "")),
                 ProtocolVersion = AuraToolsModSyncManifestCommand.CurrentProtocolVersion
             };
-            if (!AuraToolsTargetedQueryTransport.Send(
-                    manager,
-                    query,
-                    ReceiveTargetedHostManifest,
-                    "ModSync.ManifestRequest"))
+            if (!AuraToolsRpcTransport.Send(manager, command, "ModSync.ManifestRequest"))
             {
-                manifestRequestPending = false;
-                SyncSession.SetActionStatus("Host manifest request failed; falling back to lobby state.");
+                ClearPendingManifestRequest();
+                SyncSession.SetActionStatus("请求房主完整配置失败，改用大厅配置尝试同步。");
                 return false;
             }
 
-            AuraToolsLog.Info("[ModSync] host manifest requested: requester=" + state.LocalPlayerId + ", host=" + state.HostPlayerId);
+            ScheduleManifestRequestTimeout(requestId);
+            AuraToolsLog.Info("[ModSync] host manifest requested: requester="
+                              + state.LocalPlayerId
+                              + ", host="
+                              + state.HostPlayerId
+                              + ", mode="
+                              + mode
+                              + ", queryId="
+                              + targetQueryId
+                              + ".");
             return true;
         }
         catch (Exception ex)
         {
-            manifestRequestPending = false;
+            ClearPendingManifestRequest();
             AuraToolsLog.Warn("[ModSync] host manifest request failed, fallback to lobby state: " + ex.Message);
             SyncSession.SetActionStatus("请求房主完整配置失败，改用大厅配置尝试同步。");
             return false;
         }
     }
 
-    internal static string CreateTargetedHostManifestPayload(int protocolVersion, string requesterPlayerId)
+    private static void ScheduleManifestRequestTimeout(string requestId)
     {
-        var result = new AuraToolsModSyncManifestQueryResult();
-        if (protocolVersion != AuraToolsModSyncManifestCommand.CurrentProtocolVersion)
+        var scheduled = AuraSharedFrameStepRunner.Run(new AuraSharedFrameStepSequence
         {
-            result.RejectionReason = "protocol mismatch";
-            return AuraSharedJson.Serialize(result);
+            OwnerId = AuraToolsIds.ModId,
+            Source = "ModSync.ManifestRequestTimeout",
+            DeduplicateKey = "ModSync.ManifestRequestTimeout:" + requestId,
+            Phase = AuraSharedFramePhase.Background,
+            IsCancelled = () => !ManifestRequest.IsPendingRequest(requestId),
+            Steps = new[]
+            {
+                new AuraSharedFrameStep
+                {
+                    Name = "wait",
+                    Work = () => CheckManifestRequestTimeout(requestId)
+                }
+            }
+        });
+        if (!scheduled)
+        {
+            AuraToolsLog.Warn("[ModSync] manifest timeout watcher could not be scheduled: request=" + requestId);
+        }
+    }
+
+    private static AuraSharedFrameStepResult CheckManifestRequestTimeout(string requestId)
+    {
+        if (!ManifestRequest.IsPendingRequest(requestId))
+        {
+            return AuraSharedFrameStepResult.Complete;
         }
 
-        var manager = PlayerManager.Instance;
-        var requesterKnown = !string.IsNullOrWhiteSpace(requesterPlayerId)
-                             && GameServer.Instance?.LobbyInfo?.AddedPlayers?.Any(player =>
-                                 player != null
-                                 && string.Equals(player.Id, requesterPlayerId, StringComparison.Ordinal)) == true;
-        if (manager == null || !manager.isServer || !requesterKnown)
+        if (!ManifestRequest.IsExpired(DateTime.UtcNow))
         {
-            result.RejectionReason = "requester is not an active lobby member";
-            return AuraSharedJson.Serialize(result);
+            return AuraSharedFrameStepResult.Wait(15);
         }
 
-        result.HostManifest = AuraOnlineLocalModManifestBuilder.CreateLocalPlayerSnapshot(
-            manager.PlayerId,
-            manager.playerInfo?.Name ?? "");
-        var payload = AuraSharedJson.Serialize(result);
-        var bytes = Encoding.UTF8.GetByteCount(payload);
-        if (bytes <= MaxManifestTransferBytes)
+        var state = currentState;
+        var mode = ManifestRequest.Mode;
+        ClearPendingManifestRequest();
+        if (mode == AuraToolsModSyncRequestMode.Targeted
+            && state != null
+            && IsKnownLocalPlayer(state)
+            && !SyncSession.IsLocalHost(state))
         {
-            AuraToolsLog.Info("[ModSync] targeted host manifest exported: requester="
-                              + requesterPlayerId
-                              + ", mods="
-                              + result.HostManifest.Mods.Count
-                              + ", bytes="
-                              + bytes
-                              + ".");
-            return payload;
+            AuraToolsLog.Warn("[ModSync] targeted host manifest request timed out; retrying broadcast transport. request="
+                              + requestId);
+            if (RequestHostManifest(state, forceBroadcast: true))
+            {
+                RefreshOverlay();
+                return AuraSharedFrameStepResult.Complete;
+            }
         }
 
-        result.HostManifest = null;
-        result.RejectionReason = "host manifest exceeds targeted query budget";
-        return AuraSharedJson.Serialize(result);
+        FallbackToLobbySummary(
+            "房主响应超时，已改用大厅配置尝试同步。",
+            "host manifest request timed out; request=" + requestId);
+        return AuraSharedFrameStepResult.Complete;
+    }
+
+    private static void FallbackToLobbySummary(string status, string reason)
+    {
+        var state = currentState;
+        ClearPendingManifestRequest();
+        AuraToolsLog.Warn("[ModSync] falling back to lobby mod summary: " + reason);
+        SyncSession.SetActionStatus(status);
+        if (state != null && IsKnownLocalPlayer(state) && !SyncSession.IsLocalHost(state))
+        {
+            SyncSession.StartSync(state);
+        }
+
+        RefreshOverlay();
+    }
+
+    private static void ClearPendingManifestRequest()
+    {
+        RemovePendingTargetQuery();
+        ManifestRequest.Clear();
+    }
+
+    private static void RemovePendingTargetQuery()
+    {
+        if (pendingTargetQueryId != 0)
+        {
+            AuraToolsTargetedQueryTransport.RemovePending(PlayerManager.Instance, pendingTargetQueryId);
+            pendingTargetQueryId = 0;
+        }
     }
 
     private static void ReceiveTargetedHostManifest(string payload)
     {
-        manifestRequestPending = false;
+        pendingTargetQueryId = 0;
         try
         {
             var result = AuraSharedJson.Deserialize<AuraToolsModSyncManifestQueryResult>(payload ?? "");
@@ -844,8 +937,10 @@ public static class AuraToolsModSyncRuntime
 
             ReceiveHostModManifest(new AuraToolsModSyncManifestCommand
             {
-                RequesterPlayerId = currentState?.LocalPlayerId ?? "",
-                ProtocolVersion = AuraToolsModSyncManifestCommand.CurrentProtocolVersion,
+                ProtocolVersion = result.ProtocolVersion,
+                RequesterPlayerId = result.RequesterPlayerId,
+                RequestId = result.RequestId,
+                HostToolVersion = result.HostToolVersion,
                 HostManifest = result.HostManifest,
                 RejectionReason = result.RejectionReason
             });
@@ -853,14 +948,74 @@ public static class AuraToolsModSyncRuntime
         catch (Exception ex)
         {
             AuraToolsLog.Warn("[ModSync] targeted host manifest response failed: " + ex.Message);
-            var state = currentState;
-            if (state != null && IsKnownLocalPlayer(state))
-            {
-                SyncSession.StartSync(state);
-            }
-
-            RefreshOverlay();
         }
+    }
+
+    public static string FindToolVersion(AuraChatModPlayerSnapshot? snapshot)
+    {
+        return snapshot?.Mods.FirstOrDefault(mod =>
+                   string.Equals(mod.ModId, AuraToolsIds.ModId, StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(mod.ModName, AuraToolsIds.ModId, StringComparison.OrdinalIgnoreCase))
+               ?.ModVersion?.Trim() ?? "";
+    }
+
+    public static bool TrySendTargetedHostModManifest(
+        string requesterPlayerId,
+        string requestId,
+        uint targetQueryId,
+        string hostToolVersion,
+        AuraChatModPlayerSnapshot manifest,
+        out string rejection)
+    {
+        rejection = "";
+        if (manifest == null || string.IsNullOrWhiteSpace(requestId) || targetQueryId == 0)
+        {
+            rejection = "targeted manifest response input unavailable";
+            return false;
+        }
+
+        var result = new AuraToolsModSyncManifestQueryResult
+        {
+            ProtocolVersion = AuraToolsModSyncManifestCommand.CurrentProtocolVersion,
+            RequesterPlayerId = requesterPlayerId ?? "",
+            RequestId = requestId.Trim(),
+            HostToolVersion = hostToolVersion ?? "",
+            HostManifest = manifest
+        };
+        var payload = AuraSharedJson.Serialize(result);
+        var payloadBytes = Encoding.UTF8.GetByteCount(payload);
+        if (payloadBytes <= 0 || payloadBytes > MaxTargetedManifestBytes)
+        {
+            rejection = "targeted manifest payload outside transfer budget: bytes=" + payloadBytes;
+            return false;
+        }
+
+        var response = new AuraToolsModSyncManifestQuery
+        {
+            Result = payload
+        };
+        var safeRequesterPlayerId = requesterPlayerId ?? "";
+        if (!AuraToolsTargetedQueryTransport.TrySend(
+                safeRequesterPlayerId,
+                targetQueryId,
+                response,
+                out rejection))
+        {
+            return false;
+        }
+
+        AuraToolsLog.Info("[ModSync] targeted host manifest sent: requester="
+                          + safeRequesterPlayerId
+                          + ", request="
+                          + requestId
+                          + ", queryId="
+                          + targetQueryId
+                          + ", mods="
+                          + manifest.Mods.Count
+                          + ", bytes="
+                          + payloadBytes
+                          + ".");
+        return true;
     }
 
     public static bool TryCreateHostModManifest(AuraToolsRpcSender sender, out AuraChatModPlayerSnapshot? manifest, out string rejection)
@@ -895,6 +1050,7 @@ public static class AuraToolsModSyncRuntime
     public static bool TrySendHostModManifestChunks(
         AuraToolsRpcSender sender,
         string requesterPlayerId,
+        string requestId,
         string transferId,
         string payloadJson,
         out string rejection)
@@ -940,6 +1096,7 @@ public static class AuraToolsModSyncRuntime
         }
 
         var targetRequester = requesterPlayerId;
+        var targetRequestId = requestId ?? "";
         return AuraToolsRpcTransport.SendJsonChunksAsync(
             manager,
             "ModSync.HostManifest",
@@ -948,6 +1105,7 @@ public static class AuraToolsModSyncRuntime
             chunk => new AuraToolsModSyncManifestChunkCommand
             {
                 RequesterPlayerId = targetRequester,
+                RequestId = targetRequestId,
                 TransferId = chunk.TransferId,
                 ChunkIndex = chunk.ChunkIndex,
                 ChunkCount = chunk.ChunkCount,
@@ -965,19 +1123,52 @@ public static class AuraToolsModSyncRuntime
             return;
         }
 
+        var isLocalRequester = IsLocalRequester(command.RequesterPlayerId);
+        var matchesPendingRequest = isLocalRequester && ManifestRequest.Matches(command.RequestId);
+        if (command.ProtocolVersion != AuraToolsModSyncManifestCommand.CurrentProtocolVersion)
+        {
+            if (matchesPendingRequest)
+            {
+                AuraToolsLog.Warn("[ModSync] ignored incompatible host manifest response: received="
+                                  + command.ProtocolVersion
+                                  + ", supported="
+                                  + AuraToolsModSyncManifestCommand.CurrentProtocolVersion
+                                  + ".");
+                FallbackToLobbySummary(
+                    "房主与本机的MOD同步协议不兼容，已改用大厅配置。",
+                    "protocol mismatch");
+            }
+
+            return;
+        }
+
         if (command.HostManifest != null)
         {
             CacheHostManifest(command.HostManifest);
         }
 
-        if (!IsLocalRequester(command.RequesterPlayerId))
+        if (!isLocalRequester)
         {
+            return;
+        }
+
+        if (!matchesPendingRequest)
+        {
+            AuraToolsLog.Warn("[ModSync] ignored stale or unrelated host manifest response: request="
+                              + command.RequestId
+                              + ", active="
+                              + ManifestRequest.RequestId);
             return;
         }
 
         if (command.HostManifestChunked)
         {
-            manifestRequestPending = true;
+            RemovePendingTargetQuery();
+            ManifestRequest.Begin(
+                command.RequestId,
+                DateTime.UtcNow,
+                BroadcastManifestRequestTimeout,
+                AuraToolsModSyncRequestMode.BroadcastFallback);
             SyncSession.SetActionStatus("Receiving host mod manifest chunks...");
             AuraToolsLog.Info("[ModSync] host manifest chunk transfer announced: transfer="
                               + command.TransferId
@@ -987,25 +1178,15 @@ public static class AuraToolsModSyncRuntime
             return;
         }
 
-        manifestRequestPending = false;
         if (!string.IsNullOrWhiteSpace(command.RejectionReason) || command.HostManifest == null)
         {
             var reason = string.IsNullOrWhiteSpace(command.RejectionReason) ? "host manifest unavailable" : command.RejectionReason;
-            /*
-            var reason = string.IsNullOrWhiteSpace(command.RejectionReason) ? "房主未返回完整配置。" : command.RejectionReason;
-            */
             AuraToolsLog.Warn("[ModSync] host manifest unavailable: " + reason);
-            var fallbackState = currentState;
-            if (fallbackState != null && IsKnownLocalPlayer(fallbackState) && !SyncSession.IsLocalHost(fallbackState))
-            {
-                AuraToolsLog.Info("[ModSync] falling back to lobby mod summary.");
-                SyncSession.StartSync(fallbackState);
-            }
-
-            SyncSession.SetActionStatus("房主完整配置不可用：" + reason);
-            RefreshOverlay();
+            FallbackToLobbySummary("房主完整配置不可用：" + reason, reason);
             return;
         }
+
+        ClearPendingManifestRequest();
 
         var state = currentState;
         if (state == null || !IsKnownLocalPlayer(state))
@@ -1031,6 +1212,21 @@ public static class AuraToolsModSyncRuntime
             localManifest.PlayerId);
 
         var pending = SyncSession.CountPendingActions(currentState);
+        var localToolVersion = FindToolVersion(localManifest);
+        var hostToolVersion = string.IsNullOrWhiteSpace(command.HostToolVersion)
+            ? FindToolVersion(hostManifest)
+            : command.HostToolVersion.Trim();
+        if (!string.IsNullOrWhiteSpace(localToolVersion)
+            && !string.IsNullOrWhiteSpace(hostToolVersion)
+            && !string.Equals(localToolVersion, hostToolVersion, StringComparison.OrdinalIgnoreCase))
+        {
+            AuraToolsLog.Warn("[ModSync] AuraTools version differs: host="
+                              + hostToolVersion
+                              + ", local="
+                              + localToolVersion
+                              + ". Protocol compatibility was accepted, but AuraTools itself is not auto-replaced.");
+        }
+
         AuraToolsLog.Info("[ModSync] host manifest received: hostMods="
                           + hostManifest.Mods.Count
                           + ", localMods="
@@ -1047,6 +1243,7 @@ public static class AuraToolsModSyncRuntime
     {
         PruneExpiredManifestChunkBuffers();
         var isLocalRequester = command != null && IsLocalRequester(command.RequesterPlayerId);
+        var isActiveLocalRequester = isLocalRequester && ManifestRequest.Matches(command?.RequestId ?? "");
         if (command == null
             || command.ProtocolVersion != AuraToolsModSyncManifestCommand.CurrentProtocolVersion
             || string.IsNullOrWhiteSpace(command.TransferId))
@@ -1086,6 +1283,7 @@ public static class AuraToolsModSyncRuntime
 
             buffer = new ManifestChunkBuffer(
                 command.RequesterPlayerId,
+                command.RequestId,
                 command.TransferId,
                 command.ChunkCount,
                 command.TotalBytes,
@@ -1101,14 +1299,13 @@ public static class AuraToolsModSyncRuntime
         }
 
         buffer.Set(command.ChunkIndex, chunkBytes);
-        if (isLocalRequester)
+        if (isActiveLocalRequester)
         {
-            manifestRequestPending = true;
             SyncSession.SetActionStatus("Receiving host mod manifest " + buffer.ReceivedCount + "/" + buffer.ChunkCount + "...");
         }
         if (!buffer.IsComplete)
         {
-            if (isLocalRequester)
+            if (isActiveLocalRequester)
             {
                 RefreshOverlay();
             }
@@ -1119,16 +1316,13 @@ public static class AuraToolsModSyncRuntime
         var payload = buffer.Join();
         if (payload.Length != buffer.TotalBytes || !string.Equals(Sha256Hex(payload), buffer.Sha256, StringComparison.OrdinalIgnoreCase))
         {
-            if (isLocalRequester)
+            if (isActiveLocalRequester)
             {
-                manifestRequestPending = false;
-                SyncSession.SetActionStatus("Host manifest transfer failed: checksum mismatch.");
+                FallbackToLobbySummary(
+                    "房主配置传输校验失败，已改用大厅配置。",
+                    "manifest chunk checksum mismatch");
             }
             AuraToolsLog.Warn("[ModSync] manifest chunk checksum mismatch. transfer=" + command.TransferId);
-            if (isLocalRequester)
-            {
-                RefreshOverlay();
-            }
             return;
         }
 
@@ -1148,11 +1342,12 @@ public static class AuraToolsModSyncRuntime
                               + ", chunks="
                               + buffer.ChunkCount);
             CacheHostManifest(manifest);
-            if (isLocalRequester)
+            if (isActiveLocalRequester)
             {
                 ReceiveHostModManifest(new AuraToolsModSyncManifestCommand
                 {
                     RequesterPlayerId = command.RequesterPlayerId,
+                    RequestId = command.RequestId,
                     ProtocolVersion = AuraToolsModSyncManifestCommand.CurrentProtocolVersion,
                     HostManifest = manifest
                 });
@@ -1160,20 +1355,17 @@ public static class AuraToolsModSyncRuntime
         }
         catch (Exception ex)
         {
-            if (isLocalRequester)
+            if (isActiveLocalRequester)
             {
-                manifestRequestPending = false;
-                SyncSession.SetActionStatus("Host manifest transfer failed: " + ex.Message);
+                FallbackToLobbySummary(
+                    "房主配置传输失败，已改用大厅配置。",
+                    "manifest chunk transfer failed: " + ex.Message);
             }
             AuraToolsLog.Warn("[ModSync] manifest chunk transfer failed: " + ex.Message);
-            if (isLocalRequester)
-            {
-                RefreshOverlay();
-            }
         }
     }
 
-    private static bool TryUseCachedHostManifest(AuraChatModSyncState state)
+    private static bool TryUseCachedHostManifest(AuraChatModSyncState state, string requestId)
     {
         if (cachedHostManifest == null
             || DateTime.UtcNow - cachedHostManifestAtUtc > HostManifestCacheTtl
@@ -1190,6 +1382,7 @@ public static class AuraToolsModSyncRuntime
         ReceiveHostModManifest(new AuraToolsModSyncManifestCommand
         {
             RequesterPlayerId = state.LocalPlayerId,
+            RequestId = requestId,
             ProtocolVersion = AuraToolsModSyncManifestCommand.CurrentProtocolVersion,
             HostManifest = cachedHostManifest
         });
@@ -1246,12 +1439,14 @@ public static class AuraToolsModSyncRuntime
 
         public ManifestChunkBuffer(
             string requesterPlayerId,
+            string requestId,
             string transferId,
             int chunkCount,
             int totalBytes,
             string sha256)
         {
             RequesterPlayerId = requesterPlayerId ?? "";
+            RequestId = requestId ?? "";
             TransferId = transferId ?? "";
             ChunkCount = chunkCount;
             TotalBytes = totalBytes;
@@ -1261,6 +1456,8 @@ public static class AuraToolsModSyncRuntime
         }
 
         public string RequesterPlayerId { get; }
+
+        public string RequestId { get; }
 
         public string TransferId { get; }
 
@@ -1280,6 +1477,7 @@ public static class AuraToolsModSyncRuntime
         {
             return command != null
                    && string.Equals(RequesterPlayerId, command.RequesterPlayerId ?? "", StringComparison.Ordinal)
+                   && string.Equals(RequestId, command.RequestId ?? "", StringComparison.Ordinal)
                    && string.Equals(TransferId, command.TransferId ?? "", StringComparison.Ordinal)
                    && ChunkCount == command.ChunkCount
                    && TotalBytes == command.TotalBytes
@@ -1420,6 +1618,11 @@ public static class AuraToolsModSyncRuntime
     {
         currentEntry = null;
         currentState = null;
+        ClearPendingManifestRequest();
+        ManifestChunkBuffers.Clear();
+        cachedHostManifest = null;
+        cachedHostPlayerId = "";
+        cachedHostManifestAtUtc = default;
         DestroyOverlay(source);
         DestroyButton(source);
     }

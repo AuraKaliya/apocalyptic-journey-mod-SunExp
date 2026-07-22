@@ -6,6 +6,7 @@ using AuraToolsExp.Dll.Features.DamageMeter.Input;
 using AuraToolsExp.Dll.Features.DamageMeter.Network;
 using AuraToolsExp.Dll.Features.DamageMeter.SettlementCg;
 using AuraToolsExp.Dll.Features.CardRefresh;
+using AuraToolsExp.Dll.Features.ModSync;
 using AuraToolsExp.Dll.Features.SafeBox;
 using AuraToolsExp.Dll.Features.StarterDeck;
 using AuraToolsExp.Dll.Infrastructure;
@@ -39,6 +40,7 @@ TestSkillCgPresentationNormalization();
 TestFeastRoleResourceIdentity();
 TestSafeBoxDataCompatibility();
 TestRpcPayloadBudgetUsesUtf8Bytes();
+TestModSyncRequestTracker();
 TestDamageMeterAuthorityPolicy();
 TestDamageCaptureFrameWindow();
 TestDamageCaptureMatchingPolicy();
@@ -73,6 +75,34 @@ void TestRoundAndDpt()
     Assert(ledger.CompletedRoundCount == 2, "fight end closes final active round");
     Assert(Math.Abs(p1.AveragePerCompletedRound(true, ledger.CompletedRoundCount) - 75d) < 0.001,
         "final DPT includes final round");
+}
+
+void TestModSyncRequestTracker()
+{
+    var tracker = new AuraToolsModSyncRequestTracker();
+    var now = new DateTime(2026, 7, 22, 0, 0, 0, DateTimeKind.Utc);
+    tracker.Begin("request-a", now, TimeSpan.FromSeconds(5), AuraToolsModSyncRequestMode.Targeted);
+
+    Assert(tracker.IsPending
+           && tracker.IsPendingRequest("request-a")
+           && tracker.Mode == AuraToolsModSyncRequestMode.Targeted,
+        "mod sync request tracker starts a correlated pending request");
+    Assert(tracker.Matches("request-a") && tracker.Matches(""),
+        "mod sync request tracker accepts correlated and legacy responses while pending");
+    Assert(!tracker.Matches("request-b"),
+        "mod sync request tracker rejects unrelated responses");
+    Assert(!tracker.IsExpired(now.AddSeconds(4)) && tracker.IsExpired(now.AddSeconds(5)),
+        "mod sync request tracker expires at its bounded deadline");
+
+    tracker.Begin("request-b", now, TimeSpan.FromSeconds(10), AuraToolsModSyncRequestMode.BroadcastFallback);
+    Assert(tracker.Mode == AuraToolsModSyncRequestMode.BroadcastFallback
+           && tracker.IsPendingRequest("request-b")
+           && !tracker.Matches("request-a"),
+        "mod sync request tracker replaces a timed-out targeted request with one broadcast fallback");
+
+    tracker.Clear();
+    Assert(!tracker.IsPending && !tracker.Matches("request-b"),
+        "mod sync request tracker rejects late responses after completion or fallback");
 }
 
 void TestShieldViewRecalculation()

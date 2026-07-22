@@ -8,30 +8,25 @@ using Network.Query;
 namespace AuraToolsExp.Dll.Features.ModSync;
 
 [Serializable]
-public sealed class AuraToolsModSyncManifestQuery : QueryBase<string>, IAuraToolsImmediateQuery
+public sealed class AuraToolsModSyncManifestQuery : QueryBase<string>
 {
-    public int ProtocolVersion { get; set; } = AuraToolsModSyncManifestCommand.CurrentProtocolVersion;
-
-    public bool ResponseDispatched { get; set; }
-
-    public string RequesterPlayerId { get; set; } = "";
-
-    public void BindServerRequester(string playerId)
-    {
-        RequesterPlayerId = (playerId ?? "").Trim();
-    }
-
     public override void CmdExecute()
     {
-        Result = ResponseDispatched
-            ? ""
-            : AuraToolsModSyncRuntime.CreateTargetedHostManifestPayload(ProtocolVersion, RequesterPlayerId);
+        Result = "";
     }
 }
 
 [Serializable]
 public sealed class AuraToolsModSyncManifestQueryResult
 {
+    public int ProtocolVersion { get; set; } = AuraToolsModSyncManifestCommand.CurrentProtocolVersion;
+
+    public string RequesterPlayerId { get; set; } = "";
+
+    public string RequestId { get; set; } = "";
+
+    public string HostToolVersion { get; set; } = "";
+
     public AuraChatModPlayerSnapshot? HostManifest { get; set; }
 
     public string RejectionReason { get; set; } = "";
@@ -40,13 +35,25 @@ public sealed class AuraToolsModSyncManifestQueryResult
 [Serializable]
 public sealed class AuraToolsModSyncManifestCommand : RpcCommandBase, IAuraToolsServerBoundRpcCommand
 {
-    public const int CurrentProtocolVersion = 1;
+    public const int CurrentProtocolVersion = 2;
 
     private AuraToolsRpcSender serverSender = AuraToolsRpcSender.Unbound;
 
     public int ProtocolVersion { get; set; } = CurrentProtocolVersion;
 
     public string RequesterPlayerId { get; set; } = "";
+
+    public string RequestId { get; set; } = "";
+
+    public string RequesterToolVersion { get; set; } = "";
+
+    public string HostToolVersion { get; set; } = "";
+
+    public uint TargetQueryId { get; set; }
+
+    public bool ForceBroadcastResponse { get; set; }
+
+    public bool TargetedResponseDispatched { get; set; }
 
     public AuraChatModPlayerSnapshot? HostManifest { get; set; }
 
@@ -63,6 +70,7 @@ public sealed class AuraToolsModSyncManifestCommand : RpcCommandBase, IAuraTools
 
     public override void CmdExecute()
     {
+        RequesterPlayerId = serverSender.PlayerId;
         if (ProtocolVersion != CurrentProtocolVersion)
         {
             RejectionReason = "协议版本不匹配。";
@@ -78,10 +86,57 @@ public sealed class AuraToolsModSyncManifestCommand : RpcCommandBase, IAuraTools
             return;
         }
 
+        if (manifest == null)
+        {
+            RejectionReason = "房主MOD配置为空。";
+            HostManifest = null;
+            return;
+        }
+
         HostManifest = manifest;
+        HostToolVersion = AuraToolsModSyncRuntime.FindToolVersion(manifest);
+        if (!string.IsNullOrWhiteSpace(RequesterToolVersion)
+            && !string.IsNullOrWhiteSpace(HostToolVersion)
+            && !string.Equals(RequesterToolVersion, HostToolVersion, StringComparison.OrdinalIgnoreCase))
+        {
+            AuraToolsLog.Warn("[ModSync] requester tool version differs: requester="
+                              + RequesterToolVersion
+                              + ", host="
+                              + HostToolVersion
+                              + ".");
+        }
+
         RejectionReason = "";
         HostManifestChunked = false;
         TransferId = "";
+        var targetedRejection = "targeted response was not requested";
+        if (!ForceBroadcastResponse
+            && TargetQueryId != 0
+            && AuraToolsModSyncRuntime.TrySendTargetedHostModManifest(
+                RequesterPlayerId,
+                RequestId,
+                TargetQueryId,
+                HostToolVersion,
+                manifest,
+                out targetedRejection))
+        {
+            HostManifest = null;
+            TargetedResponseDispatched = true;
+            AuraToolsLog.Info("[ModSync] host manifest dispatched through targeted response: requester="
+                              + RequesterPlayerId
+                              + ", request="
+                              + RequestId
+                              + ".");
+            return;
+        }
+
+        TargetedResponseDispatched = false;
+        if (!ForceBroadcastResponse && TargetQueryId != 0)
+        {
+            AuraToolsLog.Warn("[ModSync] targeted host manifest unavailable; using broadcast fallback: "
+                              + targetedRejection);
+        }
+
         if (!AuraToolsRpcPayloadGuard.FitsSoftLimit(
                 this,
                 AuraToolsRpcPayloadGuard.DefaultSoftLimitBytes,
@@ -93,6 +148,7 @@ public sealed class AuraToolsModSyncManifestCommand : RpcCommandBase, IAuraTools
             if (!AuraToolsModSyncRuntime.TrySendHostModManifestChunks(
                     serverSender,
                     RequesterPlayerId,
+                    RequestId,
                     transferId,
                     payloadJson,
                     out var chunkRejection))
@@ -117,6 +173,11 @@ public sealed class AuraToolsModSyncManifestCommand : RpcCommandBase, IAuraTools
 
     public override void RpcExecute()
     {
+        if (TargetedResponseDispatched)
+        {
+            return;
+        }
+
         AuraToolsModSyncRuntime.ReceiveHostModManifest(this);
     }
 }
@@ -127,6 +188,8 @@ public sealed class AuraToolsModSyncManifestChunkCommand : RpcCommandBase
     public int ProtocolVersion { get; set; } = AuraToolsModSyncManifestCommand.CurrentProtocolVersion;
 
     public string RequesterPlayerId { get; set; } = "";
+
+    public string RequestId { get; set; } = "";
 
     public string TransferId { get; set; } = "";
 
