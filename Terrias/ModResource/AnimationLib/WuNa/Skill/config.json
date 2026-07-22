@@ -1,5 +1,5 @@
 {
-    "AnimationPerFrame" : 0.1,
+    "AnimationPerFrame" : 0.06,
     "isLoop" : true,
     "Direction" : "Right"
 }
