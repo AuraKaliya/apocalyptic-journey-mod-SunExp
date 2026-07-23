@@ -2,3 +2,4 @@ Id,Hp,Attack,Defend,ActionCount,Rarity,InitScript,CardList,ChoiceIcon,Model,Anim
 唯一标识,生命值,攻击,防御,每回合行动数,稀有度,初始脚本,行动列表,玩偶图标,怪物模型路径,动画路径,给予的祝福,选择详情图
 dusk,10,0,0,0,2,,,Mods/Terrias/ModResource/Images/Partner/Terrias/dusk_choice,Mods/Terrias/ModResource/Images/Partner/Terrias/dusk,Mods/Terrias/ModResource/AnimationLib/Dusk,Terrias_terrias_dusk_afterheat_recovery,Mods/Terrias/ModResource/Images/Partner/Terrias/dusk
 star_clay_doll,10,0,0,0,2,,,Mods/Terrias/ModResource/Images/Partner/Terrias/RenKui_choice,Mods/Terrias/ModResource/Images/Partner/Terrias/RenKui,Mods/Terrias/ModResource/AnimationLib/Dusk,Terrias_terrias_star_clay_doll_placeholder,Mods/Terrias/ModResource/Images/Partner/Terrias/RenKui
+sandrone_cat,10,0,0,0,2,,,Mods/Terrias/ModResource/Images/Partner/Terrias/桑多涅喵_choice,Mods/Terrias/ModResource/Images/Partner/Terrias/桑多涅喵,Mods/Terrias/ModResource/AnimationLib/Dusk,Terrias_terrias_sandrone_cat_placeholder,Mods/Terrias/ModResource/Images/Partner/Terrias/桑多涅喵

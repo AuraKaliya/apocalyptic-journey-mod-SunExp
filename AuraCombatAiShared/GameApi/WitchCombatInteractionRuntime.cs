@@ -5,6 +5,7 @@ using System.Linq;
 using System.Reflection;
 using AuraDecision.Shared;
 using Michsky.MUIP;
+using UnityEngine;
 using UnityEngine.EventSystems;
 using Witch.Core;
 using Witch.UI.Window;
@@ -69,6 +70,41 @@ public static class WitchCombatInteractionRuntime
 
     public static void ObserveHandPrompt(ModHookContext context)
     {
+        ObserveHandPrompt(
+            context,
+            CombatPromptKind.ChooseHandCards,
+            "hand-selection",
+            preferLowestValue: true,
+            excludesFrozenCards: false);
+    }
+
+    public static void ObserveDiscardPrompt(ModHookContext context)
+    {
+        ObserveHandPrompt(
+            context,
+            CombatPromptKind.DiscardCards,
+            "forced-discard",
+            preferLowestValue: true,
+            excludesFrozenCards: true);
+    }
+
+    public static void ObserveBurnPrompt(ModHookContext context)
+    {
+        ObserveHandPrompt(
+            context,
+            CombatPromptKind.BurnCards,
+            "forced-burn",
+            preferLowestValue: true,
+            excludesFrozenCards: true);
+    }
+
+    private static void ObserveHandPrompt(
+        ModHookContext context,
+        CombatPromptKind kind,
+        string purpose,
+        bool preferLowestValue,
+        bool excludesFrozenCards)
+    {
         if (context?.Target is not FightUI fightUi
             || context.Arguments == null
             || context.Arguments.Length == 0)
@@ -95,15 +131,20 @@ public static class WitchCombatInteractionRuntime
         var request = CombatInteractionBroker.Begin(
             new CombatInteractionHint
             {
-                Purpose = "hand-selection",
-                Kind = CombatPromptKind.ChooseHandCards,
+                Purpose = purpose,
+                Kind = kind,
                 Zone = CombatPromptZone.Hand,
                 Forced = true,
-                PreferLowestValue = true
+                PreferLowestValue = preferLowestValue
             },
             Math.Max(1, count),
             choices);
-        handPrompt = new HandPrompt(fightUi, request);
+        handPrompt = new HandPrompt(
+            fightUi,
+            request,
+            cards.Count,
+            excludesFrozenCards,
+            Time.unscaledTime);
         deckPrompt = null;
     }
 
@@ -229,64 +270,144 @@ public static class WitchCombatInteractionRuntime
             return WitchInteractionResolveResult.Failed;
         }
 
-        if (!FightUI.InIEn)
+        if (!prompt.UiObserved)
         {
+            if (FightUI.InIEn)
+            {
+                prompt.UiObserved = true;
+                var selectedCount = FightUI.SelectedCard?.Count ?? 0;
+                var nativeRequired = FightUI.SpecialCount + selectedCount;
+                if (nativeRequired > 0)
+                {
+                    prompt.Selection.SetRequiredCount(nativeRequired);
+                }
+                CombatInteractionBroker.Transition(
+                    prompt.Request.RequestId,
+                    CombatInteractionState.AwaitingChoice,
+                    BuildProgressMessage(prompt, selectedCount, EligibleHandCards(prompt).Count));
+            }
+            else if (Time.unscaledTime - prompt.CreatedAt > 0.15f
+                     && CardItem.canUse
+                     && (FightUI.cardItemList?.Count ?? 0) <= prompt.InitialHandCount)
+            {
+                return CompleteHandPrompt(prompt, "native prompt completed without manual selection");
+            }
+
             return WitchInteractionResolveResult.Pending;
         }
 
         try
         {
-            if (!prompt.SelectionIssued)
+            if (!FightUI.InIEn)
             {
-                var cards = FightUI.cardItemList
-                    .Where(card => card != null && card.gameObject.activeInHierarchy)
-                    .ToList();
-                var utilities = cards
-                    .Select(card => ToUtility(WitchCombatValueEstimator.Estimate(
-                        card.dataConfig,
-                        card is AttackCardItem,
-                        CombatTargetKind.None)))
-                    .ToList();
-                var selected = MultiSelectPlanner.ChooseIndices(
-                    utilities,
-                    prompt.Request.RequiredCount,
-                    preferLowest: prompt.Request.Hint.PreferLowestValue);
-                if (selected.Count == 0)
+                return CompleteHandPrompt(prompt, "native prompt closed");
+            }
+
+            var selectedCount = FightUI.SelectedCard?.Count ?? 0;
+            var eligibleCards = EligibleHandCards(prompt);
+            CombatInteractionBroker.Transition(
+                prompt.Request.RequestId,
+                CombatInteractionState.Resolving,
+                BuildProgressMessage(prompt, selectedCount, eligibleCards.Count));
+            var progress = prompt.Selection.Observe(selectedCount, Time.unscaledTime);
+            if (progress == CombatSelectionProgress.TimedOut)
+            {
+                CombatInteractionBroker.Transition(
+                    prompt.Request.RequestId,
+                    CombatInteractionState.Failed,
+                    "card selection produced no progress");
+                handPrompt = null;
+                return WitchInteractionResolveResult.Failed;
+            }
+
+            if (progress == CombatSelectionProgress.Complete)
+            {
+                if (FightUI.SelectedCard.Any(card => card == null || !card.enabled))
                 {
                     return WitchInteractionResolveResult.Pending;
                 }
 
-                CombatInteractionBroker.Transition(prompt.Request.RequestId, CombatInteractionState.Resolving);
-                for (var i = 0; i < selected.Count; i++)
+                var confirm = prompt.FightUi.ConfirmButton?.GetComponent<ButtonManager>();
+                if (confirm == null || !confirm.gameObject.activeInHierarchy)
                 {
-                    var eventData = new PointerEventData(EventSystem.current)
-                    {
-                        button = PointerEventData.InputButton.Left
-                    };
-                    HandleSelectModeClick?.Invoke(cards[selected[i]], new object[] { eventData });
+                    return WitchInteractionResolveResult.Pending;
                 }
 
-                prompt.SelectionIssued = true;
+                if (prompt.Selection.TryIssueConfirm(selectedCount))
+                {
+                    confirm.onClick.Invoke();
+                    CombatInteractionBroker.Transition(
+                        prompt.Request.RequestId,
+                        CombatInteractionState.Resolving,
+                        "confirm issued once; awaiting native close");
+                }
+
                 return WitchInteractionResolveResult.Pending;
             }
 
-            if (FightUI.SelectedCard.Count < prompt.Request.RequiredCount
+            if (progress == CombatSelectionProgress.Pending
                 || FightUI.SelectedCard.Any(card => card == null || !card.enabled))
             {
                 return WitchInteractionResolveResult.Pending;
             }
 
-            var confirm = prompt.FightUi.ConfirmButton?.GetComponent<ButtonManager>();
-            if (confirm == null || !confirm.gameObject.activeInHierarchy)
+            if (eligibleCards.Count == 0)
             {
-                return WitchInteractionResolveResult.Pending;
+                if (prompt.NoEligibleSince < 0f)
+                {
+                    prompt.NoEligibleSince = Time.unscaledTime;
+                    return WitchInteractionResolveResult.Pending;
+                }
+                if (Time.unscaledTime - prompt.NoEligibleSince <= 0.5f)
+                {
+                    return WitchInteractionResolveResult.Pending;
+                }
+
+                CombatInteractionBroker.Transition(
+                    prompt.Request.RequestId,
+                    CombatInteractionState.Failed,
+                    "no eligible hand card can satisfy the prompt");
+                handPrompt = null;
+                return WitchInteractionResolveResult.Failed;
+            }
+            prompt.NoEligibleSince = -1f;
+
+            var utilities = eligibleCards
+                .Select(card => ToUtility(WitchCombatValueEstimator.Estimate(
+                    card.dataConfig,
+                    card is AttackCardItem,
+                    CombatTargetKind.None)))
+                .ToList();
+            var selected = MultiSelectPlanner.ChooseIndices(
+                utilities,
+                1,
+                preferLowest: prompt.Request.Hint.PreferLowestValue);
+            if (selected.Count == 0
+                || HandleSelectModeClick == null
+                || EventSystem.current == null
+                || !prompt.Selection.TryBeginAttempt(selectedCount, Time.unscaledTime))
+            {
+                CombatInteractionBroker.Transition(
+                    prompt.Request.RequestId,
+                    CombatInteractionState.Failed,
+                    "native card selection entry point is unavailable");
+                handPrompt = null;
+                return WitchInteractionResolveResult.Failed;
             }
 
-            confirm.onClick.Invoke();
-            handPrompt = null;
-            CombatInteractionBroker.Transition(prompt.Request.RequestId, CombatInteractionState.Completed);
-            CombatInteractionBroker.Clear(prompt.Request.RequestId);
-            return WitchInteractionResolveResult.Completed;
+            var selectedCard = eligibleCards[selected[0]];
+            var eventData = new PointerEventData(EventSystem.current)
+            {
+                button = PointerEventData.InputButton.Left
+            };
+            HandleSelectModeClick.Invoke(selectedCard, new object[] { eventData });
+            CombatInteractionBroker.Transition(
+                prompt.Request.RequestId,
+                CombatInteractionState.Resolving,
+                "selection attempt source=" + WitchCombatValueEstimator.IdOf(selectedCard.dataConfig)
+                + ", selected=" + selectedCount
+                + "/" + prompt.Selection.RequiredCount);
+            return WitchInteractionResolveResult.Pending;
         }
         catch (Exception ex)
         {
@@ -294,6 +415,41 @@ public static class WitchCombatInteractionRuntime
             handPrompt = null;
             return WitchInteractionResolveResult.Failed;
         }
+    }
+
+    private static List<CardItem> EligibleHandCards(HandPrompt prompt)
+    {
+        var cards = FightUI.cardItemList ?? new List<CardItem>();
+        var selected = FightUI.SelectedCard ?? new List<CardItem>();
+        return cards
+            .Where(card => card != null
+                           && card.gameObject != null
+                           && card.gameObject.activeInHierarchy
+                           && card.enabled
+                           && !card.hasUse
+                           && card.selectContainer != null
+                           && !selected.Contains(card)
+                           && (!prompt.ExcludesFrozenCards || !card.Tags.Contains("Froze")))
+            .ToList();
+    }
+
+    private static string BuildProgressMessage(HandPrompt prompt, int selectedCount, int eligibleCount)
+    {
+        return "prompt=" + prompt.Request.Hint.Kind
+               + ", required=" + prompt.Selection.RequiredCount
+               + ", selected=" + selectedCount
+               + ", eligible=" + eligibleCount;
+    }
+
+    private static WitchInteractionResolveResult CompleteHandPrompt(HandPrompt prompt, string message)
+    {
+        CombatInteractionBroker.Transition(
+            prompt.Request.RequestId,
+            CombatInteractionState.Completed,
+            message);
+        CombatInteractionBroker.Clear(prompt.Request.RequestId);
+        handPrompt = null;
+        return WitchInteractionResolveResult.Completed;
     }
 
     private static CombatActionObservation CreateChoice(
@@ -349,16 +505,36 @@ public static class WitchCombatInteractionRuntime
 
     private sealed class HandPrompt
     {
-        public HandPrompt(FightUI fightUi, CombatInteractionRequest request)
+        public HandPrompt(
+            FightUI fightUi,
+            CombatInteractionRequest request,
+            int initialHandCount,
+            bool excludesFrozenCards,
+            float createdAt)
         {
             FightUi = fightUi;
             Request = request;
+            InitialHandCount = initialHandCount;
+            ExcludesFrozenCards = excludesFrozenCards;
+            CreatedAt = createdAt;
+            Selection = new CombatPromptSelectionTracker(request.RequiredCount);
+            NoEligibleSince = -1f;
         }
 
         public FightUI FightUi { get; }
 
         public CombatInteractionRequest Request { get; }
 
-        public bool SelectionIssued { get; set; }
+        public int InitialHandCount { get; }
+
+        public bool ExcludesFrozenCards { get; }
+
+        public float CreatedAt { get; }
+
+        public bool UiObserved { get; set; }
+
+        public CombatPromptSelectionTracker Selection { get; }
+
+        public float NoEligibleSince { get; set; }
     }
 }

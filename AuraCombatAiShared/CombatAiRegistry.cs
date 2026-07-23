@@ -11,6 +11,8 @@ public static class CombatAiRegistry
         new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, PreflightRegistration> PreflightRules =
         new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, ThreatRegistration> ThreatProviders =
+        new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, ICombatTrainingSampleSink> TrainingSinks =
         new(StringComparer.OrdinalIgnoreCase);
 
@@ -91,6 +93,32 @@ public static class CombatAiRegistry
         });
     }
 
+    public static IDisposable RegisterThreatProvider(
+        string ownerModId,
+        string providerId,
+        ICombatThreatProvider provider,
+        int priority = 0)
+    {
+        if (provider == null)
+        {
+            return EmptyDisposable.Instance;
+        }
+
+        var key = Key(ownerModId, providerId);
+        lock (Gate)
+        {
+            ThreatProviders[key] = new ThreatRegistration(provider, priority);
+        }
+
+        return new Registration(() =>
+        {
+            lock (Gate)
+            {
+                ThreatProviders.Remove(key);
+            }
+        });
+    }
+
     public static bool EvaluatePreflight(
         CombatStateObservation state,
         CombatActionObservation action,
@@ -132,6 +160,28 @@ public static class CombatAiRegistry
                 return;
             }
         }
+    }
+
+    public static bool TryResolveThreat(
+        CombatStateObservation state,
+        out CombatThreatForecast forecast)
+    {
+        ThreatRegistration[] snapshot;
+        lock (Gate)
+        {
+            snapshot = ThreatProviders.Values.OrderByDescending(item => item.Priority).ToArray();
+        }
+
+        for (var i = 0; i < snapshot.Length; i++)
+        {
+            if (snapshot[i].Provider.TryForecast(state, out forecast) && forecast != null)
+            {
+                return true;
+            }
+        }
+
+        forecast = new CombatThreatForecast();
+        return false;
     }
 
     public static void RecordTrainingSample(CombatTrainingSample sample)
@@ -177,6 +227,19 @@ public static class CombatAiRegistry
         }
 
         public ICombatPreflightRule Rule { get; }
+
+        public int Priority { get; }
+    }
+
+    private sealed class ThreatRegistration
+    {
+        public ThreatRegistration(ICombatThreatProvider provider, int priority)
+        {
+            Provider = provider;
+            Priority = priority;
+        }
+
+        public ICombatThreatProvider Provider { get; }
 
         public int Priority { get; }
     }

@@ -15,6 +15,16 @@ Directory.CreateDirectory(sourceRoot);
 
 try
 {
+    var compactJson = AuraSharedJson.SerializeCompact(new
+    {
+        protocol = "jsonl-test",
+        nested = new { value = 1 }
+    });
+    Assert(!compactJson.Contains('\r')
+           && !compactJson.Contains('\n')
+           && JObject.Parse(compactJson)["nested"]!["value"]!.Value<int>() == 1,
+        "compact JSON serialization stays on one line");
+
     using var storage = new AuraSharedStorageCoordinator(tempRoot);
     var packages = new AuraSharedPackageCoordinator(storage);
     var editable = new AuraSharedEditableResourceCoordinator(tempRoot);

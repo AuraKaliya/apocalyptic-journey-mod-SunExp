@@ -148,7 +148,30 @@ var zeroPartner = new FamiliarInstance { FullSpeciesId = "Example_example_zero_p
 Assert(FamiliarBlessingRegistry.SpecificFinals(zeroPartner).Count == 0, "zero-config compatibility must not invent a species final pool");
 Assert(FamiliarBlessingRegistry.GenericFinals(zeroPartner).Count > 0, "zero-config compatibility must retain the generic final pool");
 
-Console.WriteLine("Familiar growth tests passed: migration, milestones, final slot guarantee, compatibility, and rebirth.");
+Assert(SandroneCatMaxHpFormula.CalculateStartLoss(100) == 5,
+    "Sandrone Cat combat start must lose 3 plus 2% of trigger-time Max HP.");
+Assert(SandroneCatMaxHpFormula.CalculateEndGain(95) == 5,
+    "Sandrone Cat combat end must gain 2 plus 3% of trigger-time Max HP.");
+Assert(SandroneCatMaxHpFormula.CalculateStartLoss(200) == 7
+       && SandroneCatMaxHpFormula.CalculateEndGain(193) == 8,
+    "Sandrone Cat percentage components must round up.");
+Assert(SandroneCatMaxHpFormula.MaxHpAfterStart(1) == 1,
+    "Sandrone Cat combat-start loss must never reduce Max HP below one.");
+
+var sandroneState = new SandroneCatBattleState();
+Assert(sandroneState.TryMarkStarted(1, "player"), "Sandrone Cat must apply once at combat start.");
+Assert(!sandroneState.TryMarkStarted(1, "player"), "Sandrone Cat must reject duplicate start callbacks in one combat session.");
+Assert(sandroneState.TryMarkEnded(1, "player"), "Sandrone Cat must apply once at combat end after a start.");
+Assert(!sandroneState.TryMarkEnded(1, "player"), "Sandrone Cat must reject duplicate end callbacks in one combat session.");
+Assert(sandroneState.TryMarkStarted(2, "player"),
+    "Sandrone Cat must reapply combat-start loss after restart creates a new session.");
+Assert(sandroneState.TryMarkEnded(2, "player"),
+    "Sandrone Cat must allow the restarted combat session to settle independently.");
+var unstartedSandroneState = new SandroneCatBattleState();
+Assert(!unstartedSandroneState.TryMarkEnded(1, "player"),
+    "Sandrone Cat must not grant combat-end Max HP without a matching start in that session.");
+
+Console.WriteLine("Familiar growth tests passed: migration, milestones, final slot guarantee, compatibility, rebirth, and Sandrone Cat lifecycle.");
 
 static void ChooseFirst(FamiliarRosterDocument roster, FamiliarInstance profile)
 {

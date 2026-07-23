@@ -794,6 +794,69 @@ public static class AuraToolsSettingsRuntime
                 autoBattle.CaptureTrainingSamples = value;
                 AuraToolsConfigService.SaveMatchExperience();
             });
+            CreateAutoBattleToggleRow(content, "显示 AI 预测标记", autoBattle.ShowPredictionMarkers, value =>
+            {
+                autoBattle.ShowPredictionMarkers = value;
+                AuraToolsConfigService.SaveMatchExperience();
+            });
+            var trainingModeRow = CreateInlineRow(content, "AutoBattleTrainingModeRow");
+            AuraToolsUi.AddText(
+                trainingModeRow.transform,
+                "训练采集：" + AutoBattleTrainingModeLabel(autoBattle.TrainingMode),
+                AuraToolsUi.BodyFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.Text,
+                AuraToolsUi.TextMinHeight,
+                1f);
+            AuraToolsUi.AddButton(trainingModeRow.transform, "切换模式", () =>
+            {
+                autoBattle.TrainingMode = NextAutoBattleTrainingMode(autoBattle.TrainingMode);
+                autoBattle.Normalize();
+                AuraToolsConfigService.SaveMatchExperience();
+                RebuildPanel(activePanel!.transform);
+            }, 96f);
+            var modelModeRow = CreateInlineRow(content, "AutoBattleModelModeRow");
+            AuraToolsUi.AddText(
+                modelModeRow.transform,
+                "学习型评分修正：" + AutoBattleModelModeLabel(autoBattle.TrainedModelMode),
+                AuraToolsUi.BodyFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.Text,
+                AuraToolsUi.TextMinHeight,
+                1f);
+            AuraToolsUi.AddButton(modelModeRow.transform, "切换模式", () =>
+            {
+                autoBattle.TrainedModelMode = NextAutoBattleModelMode(autoBattle.TrainedModelMode);
+                autoBattle.UseTrainedModel = !string.Equals(
+                    autoBattle.TrainedModelMode,
+                    "off",
+                    StringComparison.Ordinal);
+                autoBattle.Normalize();
+                AuraToolsConfigService.SaveMatchExperience();
+                RebuildPanel(activePanel!.transform);
+            }, 96f);
+            var modelRow = CreateInlineRow(content, "AutoBattleModelImportRow");
+            AuraToolsUi.AddText(
+                modelRow.transform,
+                "模型仅保存在本机；按统一战斗语义迁移，不按 MOD 列表隔离。",
+                AuraToolsUi.HintFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.MutedText,
+                AuraToolsUi.TextMinHeight,
+                1f);
+            AuraToolsUi.AddButton(modelRow.transform, "生成候选", () =>
+            {
+                if (!AuraToolsAutoBattleModelRuntime.QueueGenerateCandidate(autoBattle.Profile))
+                {
+                    AuraToolsLog.Warn("[AutoBattle][Training] 本地训练任务未能提交或已有同名任务");
+                }
+            }, 96f);
+            AuraToolsUi.AddButton(modelRow.transform, "导入候选", () =>
+            {
+                AuraToolsAutoBattleModelRuntime.TryImportCandidate(autoBattle.Profile, out var message);
+                AuraToolsLog.Info("[AutoBattle] " + message);
+                AuraToolsConfigService.SaveMatchExperience();
+            }, 96f);
             AuraToolsUi.AddText(
                 content,
                 "开启模块后，战斗界面会临时出现“自动战斗”按钮。额外选牌界面会由同一决策器继续处理；无法识别的复杂交互会按策略交还玩家。",
@@ -1326,6 +1389,46 @@ public static class AuraToolsSettingsRuntime
             "aggressive" => "进攻",
             "defensive" => "稳健",
             _ => "均衡"
+        };
+    }
+
+    private static string NextAutoBattleTrainingMode(string value)
+    {
+        return value switch
+        {
+            "auto" => "shadow",
+            "shadow" => "hybrid",
+            _ => "auto"
+        };
+    }
+
+    private static string AutoBattleTrainingModeLabel(string value)
+    {
+        return value switch
+        {
+            "auto" => "自动轨迹采集",
+            "shadow" => "人工示范采集",
+            _ => "全部轨迹采集"
+        };
+    }
+
+    private static string NextAutoBattleModelMode(string value)
+    {
+        return value switch
+        {
+            "off" => "shadow",
+            "shadow" => "active",
+            _ => "off"
+        };
+    }
+
+    private static string AutoBattleModelModeLabel(string value)
+    {
+        return value switch
+        {
+            "shadow" => "影子评估",
+            "active" => "受限应用",
+            _ => "关闭"
         };
     }
 

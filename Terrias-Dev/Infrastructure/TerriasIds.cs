@@ -113,6 +113,7 @@ public static class TerriasIds
     public const string StarStage = "Terrias_terrias_star_stage";
     public const string StarClayBody = "Terrias_terrias_star_clay_body";
     public const string StarClayDollTrait = "Terrias_terrias_star_clay_doll_trait";
+    public const string SandroneCatTrait = "Terrias_terrias_sandrone_cat_trait";
     public const string Cripple = "buff_cripple";
     public const string Extraordinary = "buff_extraordinary";
     public const string EnemyCardSaintWhiteEdict = "Terrias_terrias_enemycard_saint_white_edict";
@@ -296,6 +297,8 @@ public static class TerriasIds
 
     public const string StarClayDollPartnerId = "Terrias_terrias_star_clay_doll";
     public const string StarClayDollBlessingId = "Terrias_terrias_star_clay_doll_placeholder";
+    public const string SandroneCatPartnerId = "Terrias_terrias_sandrone_cat";
+    public const string SandroneCatBlessingId = "Terrias_terrias_sandrone_cat_placeholder";
     public const string RuntimeMarkersKey = "TerriasRuntimeMarkers";
     public const string LoneerDerivedMarker = "TerriasLoneerDerived";
     public const string LoneerGuidanceMarker = "TerriasLoneerGuidance";

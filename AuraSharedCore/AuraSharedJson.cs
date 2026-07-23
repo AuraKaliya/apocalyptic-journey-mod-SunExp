@@ -10,6 +10,12 @@ public static class AuraSharedJson
         Formatting = Formatting.Indented,
         NullValueHandling = NullValueHandling.Ignore
     };
+    private static readonly JsonSerializerSettings CompactSerializerSettings = new()
+    {
+        Formatting = Formatting.None,
+        NullValueHandling = NullValueHandling.Ignore,
+        FloatFormatHandling = FloatFormatHandling.DefaultValue
+    };
 
     public static T? Deserialize<T>(string json)
     {
@@ -24,5 +30,10 @@ public static class AuraSharedJson
     public static string Serialize(object? value)
     {
         return JsonConvert.SerializeObject(value, SerializerSettings);
+    }
+
+    public static string SerializeCompact(object? value)
+    {
+        return JsonConvert.SerializeObject(value, CompactSerializerSettings);
     }
 }

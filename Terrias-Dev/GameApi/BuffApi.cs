@@ -30,6 +30,7 @@ public static class BuffApi
         TerriasIds.Resonance,
         TerriasIds.StarClayBody,
         TerriasIds.StarClayDollTrait,
+        TerriasIds.SandroneCatTrait,
         TerriasIds.PolymorphTraitBuffId
     };
 

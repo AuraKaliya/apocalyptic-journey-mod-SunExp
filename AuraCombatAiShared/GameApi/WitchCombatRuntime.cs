@@ -21,6 +21,8 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
     private static readonly FieldInfo? AttackHitEnemyField = typeof(AttackCardItem).GetField("hitEnemy", InstanceFlags);
     private static readonly FieldInfo? AttackIsLineField = typeof(AttackCardItem).GetField("<isLine>k__BackingField", InstanceFlags);
     private static readonly FieldInfo? SkillHitEnemyField = typeof(SkillItem).GetField("hitEnemy", InstanceFlags);
+    private static readonly object ReflectionGate = new();
+    private static readonly Dictionary<string, MemberInfo?> MemberCache = new(StringComparer.Ordinal);
     private static long sequence;
 
     public bool TryCapture(out CombatStateObservation observation, out string reason)
@@ -54,9 +56,14 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
         observation.HandCount = FightUI.cardItemList?.Count ?? 0;
         observation.UiBusy = IsUiBusy(fightUi);
         observation.IsPlayerActionWindow = IsPlayerActionWindow(fightUi);
-        AddEnemies(observation);
+        AddEnemiesAndNativeThreat(observation);
         AddCards(observation, fightUi);
         AddSkills(observation, fightUi);
+        if (CombatAiRegistry.TryResolveThreat(observation, out var providedThreat))
+        {
+            observation.Threat = providedThreat;
+        }
+        NormalizeThreat(observation);
         observation.Actions.Add(new CombatActionObservation
         {
             CandidateId = "end-turn",
@@ -155,9 +162,9 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
         var target = action.TargetHandle as StatusManager;
         if (card is AttackCardItem attack)
         {
-            if (target == null || target.CurHp <= 0)
+            if (!IsCurrentTarget(action, target))
             {
-                return CombatExecutionResult.Rejected("targeted card has no living target");
+                return CombatExecutionResult.Rejected("targeted card target is stale or defeated");
             }
 
             attack.scriptExecutor.Target = target;
@@ -198,6 +205,10 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
         if (!IsUntargetedSkill(skill) && target == null)
         {
             return CombatExecutionResult.Rejected("targeted skill has no target");
+        }
+        if (target != null && !IsCurrentTarget(action, target))
+        {
+            return CombatExecutionResult.Rejected("skill target is stale or defeated");
         }
 
         SkillHitEnemyField?.SetValue(skill, target);
@@ -253,6 +264,11 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
     {
         var sourceId = WitchCombatValueEstimator.IdOf(card.dataConfig);
         var targetId = target == null ? 0 : target.GetInstanceID();
+        var semantics = WitchCombatValueEstimator.Estimate(
+            card.dataConfig,
+            card is AttackCardItem,
+            target == null ? CombatTargetKind.None : CombatTargetKind.Enemy);
+        ApplyRuntimeModifiers(state.Player, semantics);
         state.Actions.Add(new CombatActionObservation
         {
             CandidateId = "card:" + card.GetInstanceID() + ":" + targetId,
@@ -265,7 +281,7 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
             Cost = ComputeCardCost(card),
             Legal = legal,
             RejectionReason = reason,
-            Semantics = WitchCombatValueEstimator.Estimate(card.dataConfig, card is AttackCardItem, target == null ? CombatTargetKind.None : CombatTargetKind.Enemy),
+            Semantics = semantics,
             Features = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
             {
                 ["handIndex"] = index,
@@ -322,6 +338,12 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
         string reason)
     {
         var targetId = target == null ? 0 : target.GetInstanceID();
+        var semantics = WitchCombatValueEstimator.Estimate(skill.dataConfig, false, targetKind);
+        ApplyRuntimeModifiers(state.Player, semantics);
+        if (semantics.CooldownTurns <= 0d)
+        {
+            semantics.CooldownTurns = 1d;
+        }
         state.Actions.Add(new CombatActionObservation
         {
             CandidateId = "skill:" + skill.GetInstanceID() + ":" + targetId,
@@ -333,7 +355,7 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
             TargetKind = targetKind,
             Legal = legal,
             RejectionReason = reason,
-            Semantics = WitchCombatValueEstimator.Estimate(skill.dataConfig, false, targetKind),
+            Semantics = semantics,
             Features = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
             {
                 ["isSkill"] = 1d
@@ -454,7 +476,7 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
                && string.Equals(baseScript, "CommonCardItem", StringComparison.Ordinal);
     }
 
-    private static void AddEnemies(CombatStateObservation state)
+    private static void AddEnemiesAndNativeThreat(CombatStateObservation state)
     {
         var enemies = EnemyManager.Instance?.enemyList;
         if (enemies == null)
@@ -464,16 +486,49 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
 
         for (var i = 0; i < enemies.Count; i++)
         {
-            if (enemies[i]?.Status is StatusManager status && status.CurHp > 0)
+            var enemy = enemies[i];
+            if (enemy?.Status is StatusManager status && status.CurHp > 0)
             {
-                state.Enemies.Add(ObserveUnit(status, CombatTargetKind.Enemy));
+                var observed = ObserveUnit(status, CombatTargetKind.Enemy);
+                observed.Attack = ReadNumber(enemy, "Attack");
+                state.Enemies.Add(observed);
+                AddEnemyThreat(state, enemy, observed);
             }
         }
     }
 
+    public CombatActionObservation? FindActionForRuntimeHandle(
+        CombatStateObservation state,
+        object runtimeHandle)
+    {
+        if (state == null || runtimeHandle is not UnityEngine.Object unityObject)
+        {
+            return null;
+        }
+
+        var runtimeId = unityObject.GetInstanceID();
+        var targetId = 0;
+        if (runtimeHandle is CommonCardItem card
+            && card.dataConfig?.scriptExecutor?.Target is StatusManager cardTarget)
+        {
+            targetId = cardTarget.GetInstanceID();
+        }
+        else if (runtimeHandle is SkillItem skill
+                 && SkillHitEnemyField?.GetValue(skill) is StatusManager skillTarget)
+        {
+            targetId = skillTarget.GetInstanceID();
+        }
+
+        var matches = state.Actions
+            .Where(action => action.RuntimeId == runtimeId)
+            .ToList();
+        return matches.FirstOrDefault(action => targetId != 0 && action.TargetRuntimeId == targetId)
+               ?? matches.FirstOrDefault();
+    }
+
     private static CombatUnitObservation ObserveUnit(StatusManager status, CombatTargetKind kind)
     {
-        return new CombatUnitObservation
+        var result = new CombatUnitObservation
         {
             RuntimeId = status.GetInstanceID(),
             Name = status.gameObject == null ? "" : status.gameObject.name,
@@ -482,6 +537,345 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
             MaxHp = status.MaxHp,
             Defend = status.Defend
         };
+        if (status.dynamicVariables != null)
+        {
+            var count = 0;
+            foreach (var pair in status.dynamicVariables)
+            {
+                if (count++ >= 64 || string.IsNullOrWhiteSpace(pair.Key))
+                {
+                    break;
+                }
+
+                result.Features[pair.Key] = Finite(pair.Value);
+            }
+        }
+        ObserveEffects(status, result);
+        return result;
+    }
+
+    private static void AddEnemyThreat(
+        CombatStateObservation state,
+        object enemy,
+        CombatUnitObservation observed)
+    {
+        var actionCards = ReadMember(enemy, "ActionCards") as IEnumerable;
+        var currentCount = 0;
+        if (actionCards != null)
+        {
+            foreach (var rawCard in actionCards)
+            {
+                if (rawCard == null || currentCount++ >= 16)
+                {
+                    continue;
+                }
+
+                var config = ReadMember(rawCard, "dataConfig", "DataConfig") as IDataConfig;
+                var semantics = WitchCombatValueEstimator.Estimate(
+                    config,
+                    forceAttack: false,
+                    CombatTargetKind.Enemy);
+                ApplyRuntimeModifiers(observed, semantics);
+                var keywords = ReadStrings(ReadMember(rawCard, "keyWords", "KeyWords"));
+                if (semantics.Damage <= 0d
+                    && semantics.TrueDamage <= 0d
+                    && semantics.DamageOverTime <= 0d
+                    && keywords.Any(value => ContainsAny(value, "attack", "damage", "攻击")))
+                {
+                    semantics.Damage = Math.Max(1d, observed.Attack);
+                }
+
+                var knownSemantics = HasKnownSemantics(semantics);
+                var fallbackBlockable = !knownSemantics && observed.Attack > 0d
+                    ? observed.Attack * 0.35d
+                    : 0d;
+                var intent = new CombatIntentObservation
+                {
+                    SourceId = WitchCombatValueEstimator.IdOf(config),
+                    DisplayName = WitchCombatValueEstimator.NameOf(config),
+                    Kind = ClassifyIntent(semantics),
+                    SourceRuntimeId = observed.RuntimeId,
+                    Probability = knownSemantics ? 1d : 0.35d,
+                    BlockableDamage = Math.Max(
+                        fallbackBlockable,
+                        semantics.Damage * Math.Max(1d, semantics.HitCount)),
+                    UnblockableDamage = Math.Max(0d, semantics.TrueDamage),
+                    DamageOverTime = Math.Max(0d, semantics.DamageOverTime),
+                    Confidence = knownSemantics ? 0.9d : 0.35d,
+                    Current = true
+                };
+                state.Threat.Intents.Add(intent);
+                state.Threat.CurrentIntentKnown = true;
+                state.Threat.ExpectedBlockableDamage += intent.BlockableDamage;
+                state.Threat.MaximumBlockableDamage += knownSemantics
+                    ? intent.BlockableDamage
+                    : Math.Max(intent.BlockableDamage, observed.Attack);
+                state.Threat.ExpectedUnblockableDamage += intent.UnblockableDamage;
+                state.Threat.ExpectedDamageOverTime += intent.DamageOverTime;
+            }
+        }
+
+        var enemyConfig = ReadMember(enemy, "dataConfig", "DataConfig") as IDataConfig;
+        state.Threat.IntentPoolSize += CountIntentPool(enemyConfig);
+        if (currentCount == 0 && observed.Attack > 0d)
+        {
+            var actionCount = Math.Max(1d, ReadNumber(enemy, "ActionCount", "MaxActionCount"));
+            var maximum = observed.Attack * actionCount;
+            state.Threat.ExpectedBlockableDamage += maximum * 0.35d;
+            state.Threat.MaximumBlockableDamage += maximum;
+            state.Threat.AttackProbability = Math.Max(state.Threat.AttackProbability, 0.35d);
+            state.Threat.Confidence = Math.Max(state.Threat.Confidence, 0.25d);
+        }
+    }
+
+    private static void NormalizeThreat(CombatStateObservation state)
+    {
+        var threat = state.Threat ?? new CombatThreatForecast();
+        state.Threat = threat;
+        if (threat.CurrentIntentKnown)
+        {
+            var knownAttack = threat.Intents.Any(intent =>
+                intent.Kind == CombatIntentKind.Attack
+                || intent.Kind == CombatIntentKind.DamageOverTime);
+            var unknownProbability = threat.Intents
+                .Where(intent => intent.Kind == CombatIntentKind.Unknown)
+                .Select(intent => intent.Probability)
+                .DefaultIfEmpty(0d)
+                .Max();
+            threat.AttackProbability = knownAttack
+                ? 1d
+                : Math.Max(threat.AttackProbability, unknownProbability);
+            threat.Confidence = threat.Intents.Count == 0
+                ? Math.Max(threat.Confidence, 0.5d)
+                : Math.Max(
+                    threat.Confidence,
+                    threat.Intents.Average(intent => Math.Max(0d, Math.Min(1d, intent.Confidence))));
+        }
+        threat.MaximumBlockableDamage = Math.Max(
+            threat.ExpectedBlockableDamage,
+            threat.MaximumBlockableDamage);
+        var total = threat.ExpectedBlockableDamage
+                    + threat.ExpectedUnblockableDamage
+                    + threat.ExpectedDamageOverTime;
+        state.ExpectedIncomingDamage = total;
+        var effectiveHp = Math.Max(1d, state.Player.CurrentHp + state.Player.Defend);
+        threat.LethalProbability = total >= effectiveHp
+            ? Math.Max(threat.AttackProbability, threat.Confidence)
+            : 0d;
+        threat.Summary = "blockable="
+                         + threat.ExpectedBlockableDamage.ToString("0.0")
+                         + ",unblockable="
+                         + threat.ExpectedUnblockableDamage.ToString("0.0")
+                         + ",dot="
+                         + threat.ExpectedDamageOverTime.ToString("0.0")
+                         + ",known="
+                         + threat.CurrentIntentKnown;
+        state.Features["expectedBlockableDamage"] = threat.ExpectedBlockableDamage;
+        state.Features["maximumBlockableDamage"] = threat.MaximumBlockableDamage;
+        state.Features["expectedUnblockableDamage"] = threat.ExpectedUnblockableDamage;
+        state.Features["expectedDamageOverTime"] = threat.ExpectedDamageOverTime;
+        state.Features["attackProbability"] = threat.AttackProbability;
+        state.Features["threatConfidence"] = threat.Confidence;
+        state.Features["currentIntentKnown"] = threat.CurrentIntentKnown ? 1d : 0d;
+        CopyUnitFeatures(state.Player, state.Features, "player.");
+    }
+
+    private static void ApplyRuntimeModifiers(
+        CombatUnitObservation unit,
+        CombatActionSemantics semantics)
+    {
+        semantics.Damage *= RuntimeMultiplier(unit, "PercentDamage");
+        semantics.Defend *= RuntimeMultiplier(unit, "PercentDefence");
+        semantics.Heal *= RuntimeMultiplier(unit, "PercentHeal");
+    }
+
+    private static double RuntimeMultiplier(CombatUnitObservation unit, string key)
+    {
+        return unit.Features.TryGetValue(key, out var value)
+            ? Math.Max(0d, Finite(value))
+            : 1d;
+    }
+
+    private static void CopyUnitFeatures(
+        CombatUnitObservation unit,
+        IDictionary<string, double> target,
+        string prefix)
+    {
+        foreach (var pair in unit.Features)
+        {
+            target[prefix + pair.Key] = Finite(pair.Value);
+        }
+    }
+
+    private static void ObserveEffects(StatusManager status, CombatUnitObservation observed)
+    {
+        if (ReadMember(status, "effectList") is not IEnumerable effects)
+        {
+            return;
+        }
+
+        var count = 0;
+        foreach (var effect in effects)
+        {
+            if (effect == null || count++ >= 64)
+            {
+                continue;
+            }
+
+            var config = ReadMember(effect, "dataConfig", "DataConfig") as IDataConfig;
+            var id = WitchCombatValueEstimator.IdOf(config);
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                id = Convert.ToString(ReadMember(effect, "Id", "BuffId")) ?? "";
+            }
+            if (string.IsNullOrWhiteSpace(id))
+            {
+                continue;
+            }
+
+            var level = ReadNumber(effect, "Level", "level", "Count", "count");
+            observed.Features["status:" + id] = level <= 0d ? 1d : level;
+        }
+    }
+
+    private static CombatIntentKind ClassifyIntent(CombatActionSemantics semantics)
+    {
+        if (semantics.DamageOverTime > 0d)
+        {
+            return CombatIntentKind.DamageOverTime;
+        }
+        if (semantics.Damage > 0d || semantics.TrueDamage > 0d)
+        {
+            return CombatIntentKind.Attack;
+        }
+        if (semantics.Defend > 0d)
+        {
+            return CombatIntentKind.Defend;
+        }
+        if (semantics.Heal > 0d)
+        {
+            return CombatIntentKind.Heal;
+        }
+        if (semantics.Debuff > 0d)
+        {
+            return CombatIntentKind.Debuff;
+        }
+        if (semantics.Buff > 0d || semantics.Scaling > 0d)
+        {
+            return CombatIntentKind.Buff;
+        }
+        return CombatIntentKind.Unknown;
+    }
+
+    private static bool HasKnownSemantics(CombatActionSemantics semantics)
+    {
+        return semantics.Damage > 0d
+               || semantics.TrueDamage > 0d
+               || semantics.DamageOverTime > 0d
+               || semantics.Defend > 0d
+               || semantics.Heal > 0d
+               || semantics.Buff > 0d
+               || semantics.Debuff > 0d;
+    }
+
+    private static int CountIntentPool(IDataConfig? config)
+    {
+        if (config?.data == null
+            || !config.data.TryGetValue("CardList", out var raw)
+            || string.IsNullOrWhiteSpace(raw))
+        {
+            return 0;
+        }
+
+        return raw.Split(new[] { ',', ';', '|', ' ' }, StringSplitOptions.RemoveEmptyEntries).Length;
+    }
+
+    private static IEnumerable<string> ReadStrings(object? value)
+    {
+        if (value is not IEnumerable values || value is string)
+        {
+            return Array.Empty<string>();
+        }
+
+        var result = new List<string>();
+        foreach (var item in values)
+        {
+            if (item != null)
+            {
+                result.Add(Convert.ToString(item) ?? "");
+            }
+        }
+        return result;
+    }
+
+    private static double ReadNumber(object target, params string[] names)
+    {
+        var value = ReadMember(target, names);
+        if (value == null)
+        {
+            return 0d;
+        }
+
+        try
+        {
+            return Finite(Convert.ToDouble(value));
+        }
+        catch
+        {
+            return 0d;
+        }
+    }
+
+    private static object? ReadMember(object target, params string[] names)
+    {
+        if (target == null)
+        {
+            return null;
+        }
+
+        var type = target.GetType();
+        for (var i = 0; i < names.Length; i++)
+        {
+            var cacheKey = type.AssemblyQualifiedName + "|" + names[i];
+            MemberInfo? member;
+            lock (ReflectionGate)
+            {
+                if (!MemberCache.TryGetValue(cacheKey, out member))
+                {
+                    member = (MemberInfo?)type.GetField(names[i], InstanceFlags)
+                             ?? type.GetProperty(names[i], InstanceFlags);
+                    MemberCache[cacheKey] = member;
+                }
+            }
+
+            try
+            {
+                if (member is FieldInfo field)
+                {
+                    return field.GetValue(target);
+                }
+                if (member is PropertyInfo property && property.GetIndexParameters().Length == 0)
+                {
+                    return property.GetValue(target, null);
+                }
+            }
+            catch
+            {
+                // Compatibility probing is best-effort; the stable fallback is zero/empty.
+            }
+        }
+
+        return null;
+    }
+
+    private static bool ContainsAny(string value, params string[] tokens)
+    {
+        return tokens.Any(token => value.IndexOf(token, StringComparison.OrdinalIgnoreCase) >= 0);
+    }
+
+    private static double Finite(double value)
+    {
+        return double.IsNaN(value) || double.IsInfinity(value) ? 0d : value;
     }
 
     private static StatusManager? ResolveStatus(int runtimeId)
@@ -508,6 +902,22 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
         return null;
     }
 
+    private static bool IsCurrentTarget(
+        CombatActionObservation action,
+        StatusManager? target)
+    {
+        if (target == null
+            || target.CurHp <= 0
+            || action.TargetRuntimeId == 0
+            || target.GetInstanceID() != action.TargetRuntimeId)
+        {
+            return false;
+        }
+
+        var current = ResolveStatus(action.TargetRuntimeId);
+        return current != null && current.GetInstanceID() == target.GetInstanceID();
+    }
+
     private static string BuildFingerprint(CombatStateObservation state)
     {
         var enemyState = string.Join(",", state.Enemies.Select(enemy => enemy.RuntimeId + ":" + enemy.CurrentHp + ":" + enemy.Defend));
@@ -521,18 +931,28 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
                + "|" + state.CurrentPower
                + "|" + state.HandCount
                + "|" + enemyState
+               + "|" + (state.Threat?.Summary ?? "")
                + "|" + actionState;
     }
 }
 
 public static class WitchCombatValueEstimator
 {
+    private static readonly string[] TrueDamageTokens = { "truedamage", "piercingdamage", "unblockabledamage" };
+    private static readonly string[] DamageOverTimeTokens = { "damageovertime", "dotdamage", "poison", "toxin", "burn" };
+    private static readonly string[] HitCountTokens = { "hitcount", "attackcount", "times" };
     private static readonly string[] DamageTokens = { "damage", "hurt", "attack" };
     private static readonly string[] DefendTokens = { "defend", "shield", "armor" };
     private static readonly string[] HealTokens = { "heal", "cure", "recoverhp" };
     private static readonly string[] DrawTokens = { "draw", "getcard" };
     private static readonly string[] EnergyTokens = { "power", "energy" };
     private static readonly string[] ScalingTokens = { "strength", "dexterity", "addbuff" };
+    private static readonly string[] BuffTokens = { "buff", "strength", "dexterity", "enhance" };
+    private static readonly string[] DebuffTokens = { "debuff", "vulnerable", "weak", "frail", "poison" };
+    private static readonly string[] CleanseTokens = { "cleanse", "dispel", "removebuff", "clearbuff" };
+    private static readonly string[] CostReductionTokens = { "reducecost", "costreduce", "expendreduce", "excostreduce" };
+    private static readonly string[] CardGenerationTokens = { "createcard", "addcard", "generatecard", "getcard" };
+    private static readonly string[] CooldownTokens = { "cooldown", "skillcd", "cdturn" };
 
     public static CombatActionSemantics Estimate(
         IDataConfig? config,
@@ -554,6 +974,18 @@ public static class WitchCombatValueEstimator
         {
             result.Damage = descriptiveValue;
         }
+        if (result.TrueDamage <= 0d && ContainsAny(script, "TrueDamage", "PiercingDamage", "UnblockableDamage"))
+        {
+            result.TrueDamage = descriptiveValue;
+            if (result.Damage == descriptiveValue)
+            {
+                result.Damage = 0d;
+            }
+        }
+        if (result.DamageOverTime <= 0d && ContainsAny(script, "Poison", "Toxin", "DamageOverTime"))
+        {
+            result.DamageOverTime = descriptiveValue;
+        }
 
         if (result.Defend <= 0d && ContainsAny(script, "Defend", "Shield", "Armor"))
         {
@@ -570,7 +1002,46 @@ public static class WitchCombatValueEstimator
             result.Draw = Math.Max(1d, descriptiveValue);
         }
 
-        result.OpensInteraction = ContainsAny(script, "SelectCard", "PackToDeck", "OutFightSelect", "DeckUI");
+        if (result.Cleanse <= 0d && ContainsAny(script, "RemoveBuff", "ClearBuff", "Cleanse", "Dispel"))
+        {
+            result.Cleanse = Math.Max(1d, descriptiveValue);
+        }
+
+        if (result.CostReduction <= 0d && ContainsAny(script, "ReduceCost", "CostReduce", "ExCost", "OnceExCost"))
+        {
+            result.CostReduction = Math.Max(1d, descriptiveValue);
+        }
+
+        if (result.CardGeneration <= 0d && ContainsAny(script, "CreateCard", "AddCard", "GetCard", "GenerateCard"))
+        {
+            result.CardGeneration = Math.Max(1d, result.Draw > 0d ? result.Draw : descriptiveValue);
+        }
+
+        if (ContainsAny(script, "AddTempEvent", "AddEvent", "AddListener", "RoundStart", "TurnStart"))
+        {
+            result.PersistentValue = Math.Max(1d, descriptiveValue);
+        }
+
+        if (ContainsAny(script, "AddBuff"))
+        {
+            if (targetKind == CombatTargetKind.Enemy)
+            {
+                result.Debuff = Math.Max(1d, result.Debuff == 0d ? descriptiveValue : result.Debuff);
+            }
+            else
+            {
+                result.Buff = Math.Max(1d, result.Buff == 0d ? descriptiveValue : result.Buff);
+            }
+        }
+
+        result.OpensInteraction = ContainsAny(
+            script,
+            "SelectCard",
+            "PackToDeck",
+            "OutFightSelect",
+            "DeckUI",
+            "ThrowCard",
+            "Burning");
         result.RandomOutcome = ContainsAny(script, "Random", "Dice", "RandomRange");
         if (result.RandomOutcome)
         {
@@ -590,12 +1061,20 @@ public static class WitchCombatValueEstimator
         }
 
         if (result.Damage == 0d
+            && result.TrueDamage == 0d
+            && result.DamageOverTime == 0d
             && result.Defend == 0d
             && result.Heal == 0d
             && result.Draw == 0d
             && result.EnergyGain == 0d
             && result.Scaling == 0d
-            && result.DeckValue == 0d)
+            && result.DeckValue == 0d
+            && result.Buff == 0d
+            && result.Debuff == 0d
+            && result.Cleanse == 0d
+            && result.CostReduction == 0d
+            && result.CardGeneration == 0d
+            && result.PersistentValue == 0d)
         {
             result.Uncertainty += 1.5d;
         }
@@ -631,7 +1110,19 @@ public static class WitchCombatValueEstimator
             }
 
             var key = pair.Key ?? "";
-            if (ContainsToken(key, DamageTokens))
+            if (ContainsToken(key, TrueDamageTokens))
+            {
+                result.TrueDamage = Math.Max(result.TrueDamage, number);
+            }
+            else if (ContainsToken(key, DamageOverTimeTokens))
+            {
+                result.DamageOverTime = Math.Max(result.DamageOverTime, number);
+            }
+            else if (ContainsToken(key, HitCountTokens))
+            {
+                result.HitCount = Math.Max(result.HitCount, number);
+            }
+            else if (ContainsToken(key, DamageTokens))
             {
                 result.Damage = Math.Max(result.Damage, number);
             }
@@ -654,6 +1145,30 @@ public static class WitchCombatValueEstimator
             else if (ContainsToken(key, ScalingTokens))
             {
                 result.Scaling = Math.Max(result.Scaling, number);
+            }
+            else if (ContainsToken(key, DebuffTokens))
+            {
+                result.Debuff = Math.Max(result.Debuff, number);
+            }
+            else if (ContainsToken(key, CleanseTokens))
+            {
+                result.Cleanse = Math.Max(result.Cleanse, number);
+            }
+            else if (ContainsToken(key, CostReductionTokens))
+            {
+                result.CostReduction = Math.Max(result.CostReduction, number);
+            }
+            else if (ContainsToken(key, CardGenerationTokens))
+            {
+                result.CardGeneration = Math.Max(result.CardGeneration, number);
+            }
+            else if (ContainsToken(key, CooldownTokens))
+            {
+                result.CooldownTurns = Math.Max(result.CooldownTurns, number);
+            }
+            else if (ContainsToken(key, BuffTokens))
+            {
+                result.Buff = Math.Max(result.Buff, number);
             }
         }
     }

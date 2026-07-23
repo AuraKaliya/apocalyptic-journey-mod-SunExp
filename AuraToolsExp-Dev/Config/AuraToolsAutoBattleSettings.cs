@@ -26,6 +26,18 @@ public sealed class AutoBattleSettings
     [JsonProperty("captureTrainingSamples")]
     public bool CaptureTrainingSamples { get; set; }
 
+    [JsonProperty("trainingMode")]
+    public string TrainingMode { get; set; } = "hybrid";
+
+    [JsonProperty("useTrainedModel")]
+    public bool UseTrainedModel { get; set; }
+
+    [JsonProperty("trainedModelMode")]
+    public string TrainedModelMode { get; set; } = "off";
+
+    [JsonProperty("showPredictionMarkers")]
+    public bool ShowPredictionMarkers { get; set; } = true;
+
     public void Normalize()
     {
         Profile = NormalizeChoice(Profile, "balanced", "aggressive", "defensive");
@@ -34,6 +46,14 @@ public sealed class AutoBattleSettings
             "conservative",
             "allow",
             "handoff");
+        TrainingMode = NormalizeChoice(TrainingMode, "auto", "shadow", "hybrid");
+        if (UseTrainedModel
+            && string.Equals(TrainedModelMode, "off", StringComparison.OrdinalIgnoreCase))
+        {
+            TrainedModelMode = "active";
+        }
+        TrainedModelMode = NormalizeChoice(TrainedModelMode, "off", "shadow", "active");
+        UseTrainedModel = !string.Equals(TrainedModelMode, "off", StringComparison.Ordinal);
         DecisionIntervalMs = Math.Max(150, Math.Min(2000, DecisionIntervalMs));
         ActionTimeoutSeconds = Math.Max(3f, Math.Min(60f, ActionTimeoutSeconds));
     }

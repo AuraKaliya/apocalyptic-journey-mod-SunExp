@@ -35,6 +35,7 @@
 "resonance","","","","0","0","0","9","Mods/Terrias/ModResource/Images/Buff/Loneer/余音","能力","2","","","","FALSE"
 "star_stage","","CS.Terrias.Dll.Scripting.BuffScripts.Apply(self, ""star_stage"");","CS.Terrias.Dll.Scripting.BuffScripts.Clear(self, ""star_stage"");","0","0","0","9","Mods/Terrias/ModResource/Images/Buff/Loneer/星谱","能力","3","","","","FALSE"
 "star_clay_body","","","","0","0","0","9","Mods/Terrias/ModResource/Images/Buff/Loneer/renkui_1","能力","3","","","","FALSE"
+"sandrone_cat_trait","","","","0","0","0","1","Mods/Terrias/ModResource/Images/Buff/GenshinImpact/哥！伦！比！娅！","特性","2","","","","FALSE"
 "star_clay_doll_trait","","CS.Terrias.Dll.Scripting.StarClayDollScripts.ApplyTrait(self);","CS.Terrias.Dll.Scripting.StarClayDollScripts.ClearTrait(self);","0","0","0","1","Mods/Terrias/ModResource/Images/Buff/Loneer/renkui_1","特性","2","","","","FALSE"
 "abyss_gaze_i","","","","20","0","0","20","Icon/Buff/易怒","负面","3","","","","FALSE"
 "abyss_gaze_ii","","","","20","0","0","20","Icon/Buff/易怒","负面","3","","","","FALSE"

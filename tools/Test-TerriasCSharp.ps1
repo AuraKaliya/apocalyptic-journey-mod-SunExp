@@ -1984,6 +1984,10 @@ function Invoke-SourceAssertions {
     $duskPartnerRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\DuskPartnerRuntime.cs"))
     $duskAfterheatRecoveryService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\DuskAfterheatRecoveryService.cs"))
     $starClayDollRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\StarClayDollRuntime.cs"))
+    $sandroneCatRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\SandroneCatRuntime.cs"))
+    $sandroneCatMaxHpService = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\SandroneCatMaxHpService.cs"))
+    $sandroneCatBattleState = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Mechanics\SandroneCatBattleState.cs"))
+    $playerMaxHpApi = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\GameApi\PlayerMaxHpApi.cs"))
     $loneerRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\LoneerRuntime.cs"))
     $starScoreRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\StarScoreRuntime.cs"))
     $starScoreHudRuntime = [System.IO.File]::ReadAllText((Join-Path $RepoRoot "Terrias-Dev\Hooks\StarScoreHudRuntime.cs"))
@@ -2158,6 +2162,24 @@ function Invoke-SourceAssertions {
     $duskBlessingTextRow = Import-Csv -LiteralPath (Join-Path $RepoRoot "Terrias\Text\Blessing\terrias.csv") |
         Where-Object { $_.Id -eq "dusk_afterheat_recovery" } |
         Select-Object -First 1
+    $sandronePartnerRow = Import-Csv -LiteralPath (Join-Path $RepoRoot "Terrias\Data\Partner\terrias.csv") |
+        Where-Object { $_.Id -eq "sandrone_cat" } |
+        Select-Object -First 1
+    $sandroneBlessingRow = Import-Csv -LiteralPath (Join-Path $RepoRoot "Terrias\Data\Blessing\terrias.csv") |
+        Where-Object { $_.Id -eq "sandrone_cat_placeholder" } |
+        Select-Object -First 1
+    $sandroneTraitRow = $buffRows |
+        Where-Object { $_.Id -eq "sandrone_cat_trait" } |
+        Select-Object -First 1
+    $sandronePartnerTextRow = Import-Csv -LiteralPath (Join-Path $RepoRoot "Terrias\Text\Partner\terrias.csv") |
+        Where-Object { $_.Id -eq "sandrone_cat" } |
+        Select-Object -First 1
+    $sandroneBlessingTextRow = Import-Csv -LiteralPath (Join-Path $RepoRoot "Terrias\Text\Blessing\terrias.csv") |
+        Where-Object { $_.Id -eq "sandrone_cat_placeholder" } |
+        Select-Object -First 1
+    $sandroneTraitTextRow = Import-Csv -LiteralPath (Join-Path $RepoRoot "Terrias\Text\Buff\terrias.csv") |
+        Where-Object { $_.Id -eq "sandrone_cat_trait" } |
+        Select-Object -First 1
     $cardRows = Import-Csv -LiteralPath $cardDataPath
     $cardTextRows = Import-Csv -LiteralPath $cardTextPath
     $sparkRow = $cardRows | Where-Object { $_.Id -eq "spark" } | Select-Object -First 1
@@ -2170,6 +2192,13 @@ function Invoke-SourceAssertions {
     $hardRows = Import-Csv -LiteralPath (Join-Path $RepoRoot "Terrias\Data\Hard\terrias.csv")
     $samsaraGardenHardRow = $hardRows | Where-Object { $_.Id -eq "terrias_samsara_garden" } | Select-Object -First 1
     $utf8 = [System.Text.Encoding]::UTF8
+    $sandroneDescription = $utf8.GetString([Convert]::FromBase64String("6L+Z5piv5LiA5Y+q54K45LqG5q+b55qE5qGR5aSa5raF5Za144CC"))
+    $sandronePassiveName = $utf8.GetString([Convert]::FromBase64String("5ZOl77yB5Lym77yB5q+U77yB5aiF77yB"))
+    $sandroneChoiceIcon = $utf8.GetString([Convert]::FromBase64String("TW9kcy9UZXJyaWFzL01vZFJlc291cmNlL0ltYWdlcy9QYXJ0bmVyL1RlcnJpYXMv5qGR5aSa5raF5Za1X2Nob2ljZQ=="))
+    $sandroneModel = $utf8.GetString([Convert]::FromBase64String("TW9kcy9UZXJyaWFzL01vZFJlc291cmNlL0ltYWdlcy9QYXJ0bmVyL1RlcnJpYXMv5qGR5aSa5raF5Za1"))
+    $partnerPlaceholderType = $utf8.GetString([Convert]::FromBase64String("5LyZ5Ly05Y2g5L2N"))
+    $sandroneTraitType = $utf8.GetString([Convert]::FromBase64String("54m55oCn"))
+    $sandroneBuffIcon = $utf8.GetString([Convert]::FromBase64String("TW9kcy9UZXJyaWFzL01vZFJlc291cmNlL0ltYWdlcy9CdWZmL0dlbnNoaW5JbXBhY3Qv5ZOl77yB5Lym77yB5q+U77yB5aiF77yB"))
     Assert-True ($sparkRow.Tag -eq $utf8.GetString([Convert]::FromBase64String("55m95puc"))) "Spark must carry the White Radiance tag."
     Assert-True ($courtPurificationRow.Tag -eq $utf8.GetString([Convert]::FromBase64String("UmV0YWluLOeZveabnCxBbm5paGlsYXRpb24="))) "Court Purification must use Retain, White Radiance, and Annihilation without Burnout."
     Assert-True ($scorchingCanopyTextRow.Description -eq $utf8.GetString([Convert]::FromBase64String("6ZO65LiKMeWxgntUZXJyaWFzX3RlcnJpYXNfc2NvcmNoaW5nX2Nhbm9weX3lnLrlnLDvvIzlhajkvZPojrflvpcy5bGCe2J1ZmZfYnVybn3jgII="))) "Scorching Canopy must use the field-placement description."
@@ -2186,6 +2215,13 @@ function Invoke-SourceAssertions {
         $duskDescriptions = @($duskTextRow.Description, $duskTextRow.Passive1)
         Assert-True (($duskDescriptions -join " ").Contains("1/3")) "Every Dusk passive text surface must describe the one-third conversion."
         Assert-True (($duskDescriptions -join " ").Contains("{Terrias_terrias_gathered_flame}")) "Every Dusk passive text surface must mention Gathered Flame."
+    }
+    Assert-True ($sandronePartnerTextRow.Description -eq $sandroneDescription) "Sandrone Cat must keep the approved familiar description."
+    foreach ($sandroneTextRow in @($sandroneTraitTextRow, $sandronePartnerTextRow, $sandroneBlessingTextRow)) {
+        Assert-True ($null -ne $sandroneTextRow) "Every Sandrone Cat passive text surface must keep its localized row."
+        $sandroneDescriptions = @($sandroneTextRow.Name, $sandroneTextRow.Description, $sandroneTextRow.Passive1) -join " "
+        Assert-True ($sandroneDescriptions.Contains($sandronePassiveName)) "Every Sandrone Cat passive text surface must keep the approved passive name."
+        Assert-True ($sandroneDescriptions.Contains("3+2%") -and $sandroneDescriptions.Contains("2+3%")) "Every Sandrone Cat passive text surface must describe both Max HP formulas."
     }
 
     $addStatusBuff = [regex]::Match($executorApi, "public\s+static\s+bool\s+AddStatusBuff[\s\S]*?public\s+static\s+bool\s+RemoveStatusBuff")
@@ -2523,6 +2559,7 @@ function Invoke-SourceAssertions {
     Assert-True $terriasIds.Contains("public static bool IsSolarMemoryExclusiveEventId") "TerriasIds must centralize exclusive Solar Memory event identification."
     Assert-True $runtimeHooks.Contains("DuskPartnerRuntime.Initialize(modConfig)") "RuntimeHooks must initialize Dusk partner runtime."
     Assert-True $runtimeHooks.Contains("StarClayDollRuntime.Initialize(modConfig)") "RuntimeHooks must initialize Star Clay Doll independently from Dusk."
+    Assert-True $runtimeHooks.Contains("SandroneCatRuntime.Initialize(modConfig)") "RuntimeHooks must initialize Sandrone Cat independently from other familiars."
     Assert-True $runtimeHooks.Contains("StarScoreHudRuntime.Initialize(modConfig)") "RuntimeHooks must initialize the star score HUD independently from card logic."
     Assert-True $runtimeHooks.Contains("LoneerRuntime.Initialize(modConfig)") "RuntimeHooks must initialize Loneer's card-action runtime."
     Assert-True $runtimeHooks.Contains("SolarMemoryMapItemAnimationRuntime.Initialize(modConfig)") "RuntimeHooks must initialize solar memory map-item animation fallback hooks."
@@ -2661,6 +2698,16 @@ function Invoke-SourceAssertions {
     Assert-True ($starClayDollRuntime.Contains("status.GetBuff(TerriasIds.StarClayDollTrait) == null") -and $starClayDollRuntime.Contains("status.AddBuff(TerriasIds.StarClayDollTrait")) "Star Clay Doll runtime must restore its trait from actual rebuilt status state."
     Assert-True $starClayDollRuntime.Contains('TerriasStatusLifecycleRouter.Register("StarClayDoll"') "Star Clay Doll runtime must route lethal-hit protection through the status lifecycle router."
     Assert-True $starClayDollRuntime.Contains("AfterHit = ProtectAfterHit") "Star Clay Doll runtime must own lethal-hit protection."
+    Assert-True $sandroneCatRuntime.Contains('TerriasBattleLifecycleRouter.Register("SandroneCat"') "Sandrone Cat must use the shared battle lifecycle router."
+    Assert-True ($sandroneCatRuntime.Contains("FightStarted = OnFightStarted") -and $sandroneCatRuntime.Contains("FightEnding = OnFightEnding")) "Sandrone Cat must handle both combat-start loss and combat-end growth."
+    Assert-True ($sandroneCatRuntime.Contains("status.GetBuff(TerriasIds.SandroneCatTrait) == null") -and $sandroneCatRuntime.Contains("status.AddBuff(TerriasIds.SandroneCatTrait")) "Sandrone Cat must restore its visible trait after rebuilt combat state."
+    Assert-True $sandroneCatRuntime.Contains('"GameEntryUI.CheckCareer"') "Sandrone Cat must clean its technical partner Blessing after career setup."
+    Assert-True ($sandroneCatMaxHpService.Contains("EnsureBattleSession()") -and $sandroneCatMaxHpService.Contains("CurrentBattleSessionId")) "Sandrone Cat must scope start and end effects to the shared combat session."
+    Assert-True ($sandroneCatMaxHpService.Contains("persistRole: false") -and $sandroneCatMaxHpService.Contains("persistRole: true")) "Sandrone Cat must persist only the combat-end Max HP growth."
+    Assert-True ($sandroneCatBattleState.Contains("startedOwners.Clear()") -and $sandroneCatBattleState.Contains("endedOwners.Clear()")) "Sandrone Cat session bookkeeping must stay bounded across restarts."
+    Assert-True $playerMaxHpApi.Contains("status.MaxHp = next;") "Sandrone Cat Max HP changes must use the native MaxHp setter."
+    Assert-True $playerMaxHpApi.Contains("GameSaveManager.UpdateRoles(RoleTable.Instance)") "Sandrone Cat combat-end growth must persist through the native role save path."
+    Assert-True (-not ($playerMaxHpApi.Contains("TryHeal") -or $playerMaxHpApi.Contains(".CurHp") -or $playerMaxHpApi.Contains("ChangeHp"))) "Sandrone Cat must not double-heal after the native MaxHp setter."
     Assert-True (-not $starScoreRuntime.Contains("LoneerMiracleService")) "Generic star score runtime must not dispatch Loneer role behavior."
     Assert-True (-not $starScoreRuntime.Contains("StarClay")) "Generic star score runtime must not own partner behavior."
     Assert-True $starScoreRuntime.Contains('"CommonCardItem.OnBeginDrag"') "Star Blessing must preview zero cost when a common card begins dragging."
@@ -3201,7 +3248,13 @@ function Invoke-SourceAssertions {
     Assert-True ([regex]::IsMatch($blessingData, "(?m)^star_clay_doll_placeholder,0,,,[^,]+,[^,]*,,5\r?$")) "Star Clay Doll must use a non-conflicting technical Blessing id."
     Assert-True (-not [regex]::IsMatch($blessingData, "(?m)^star_clay_doll_trait,")) "Star Clay Doll Blessing id must not collide with its Buff id."
     Assert-True ([regex]::IsMatch($partnerData, "(?m)^star_clay_doll,10,0,0,0,2,,,Mods/Terrias/ModResource/Images/Partner/Terrias/RenKui_choice,Mods/Terrias/ModResource/Images/Partner/Terrias/RenKui,Mods/Terrias/ModResource/AnimationLib/Dusk,Terrias_terrias_star_clay_doll_placeholder,Mods/Terrias/ModResource/Images/Partner/Terrias/RenKui\r?$")) "Star Clay Doll partner must reference its own images and non-conflicting placeholder Blessing."
+    Assert-True ($null -ne $sandronePartnerRow -and $sandronePartnerRow.Bless -eq "Terrias_terrias_sandrone_cat_placeholder") "Sandrone Cat must reference its own technical Blessing."
+    Assert-True ($sandronePartnerRow.ChoiceIcon -eq $sandroneChoiceIcon -and $sandronePartnerRow.Model -eq $sandroneModel) "Sandrone Cat must reference the approved familiar images."
+    Assert-True ($null -ne $sandroneBlessingRow -and $sandroneBlessingRow.Id -eq "sandrone_cat_placeholder" -and -not $sandroneBlessingRow.Id.StartsWith("*")) "Sandrone Cat technical Blessing id must not carry an asterisk."
+    Assert-True ($sandroneBlessingRow.Weight -eq "0" -and $sandroneBlessingRow.Type -eq $partnerPlaceholderType) "Sandrone Cat technical Blessing must remain outside random pools."
+    Assert-True ($null -ne $sandroneTraitRow -and $sandroneTraitRow.Type -eq $sandroneTraitType -and $sandroneTraitRow.Icon -eq $sandroneBuffIcon) "Sandrone Cat must expose the approved passive as a trait Buff."
     Assert-True $solarMemoryBlessingPickerRuntime.Contains("IsTechnicalBlessing(id)") "Solar memory blessing picker must skip technical partner blessings."
+    Assert-True ($solarMemoryBlessingPickerRuntime.Contains('localId.Equals("sandrone_cat_placeholder"') -and $solarMemoryBlessingPickerRuntime.Contains('id.EndsWith("_sandrone_cat_placeholder"')) "Solar memory blessing picker must filter local and fully-qualified Sandrone Cat technical Blessing ids."
     Assert-True ($solarMemoryBlessingPickerRuntime.Contains("AuraGameDataCatalogRuntime.SnapshotChanged += OnCatalogSnapshotChanged") -and $solarMemoryBlessingPickerRuntime.Contains("BuildBlessingPools();") -and $solarMemoryBlessingPickerRuntime.Contains("RefreshAll();")) "An open Solar Memory blessing picker must rebuild when the native game-data catalog becomes ready."
     Assert-True $solarMemoryModeRuntime.Contains("SolarMemoryDeckIsolationRuntime.Initialize(modConfig)") "Solar memory mode runtime must delegate deck isolation hook registration."
     Assert-True $solarMemoryDeckIsolationRuntime.Contains('"GameConfigManager.CardPackCheck"') "Solar memory must filter event cards before CardPackCheck builds reward candidates."

@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 10,
+  "schemaVersion": 13,
   "starterDeck": {
     "enabled": false,
     "mode": "Global",
@@ -49,7 +49,11 @@
     "decisionIntervalMs": 350,
     "actionTimeoutSeconds": 12.0,
     "unknownActionPolicy": "conservative",
-    "captureTrainingSamples": false
+    "captureTrainingSamples": false,
+    "trainingMode": "hybrid",
+    "useTrainedModel": false,
+    "trainedModelMode": "off",
+    "showPredictionMarkers": true
   },
   "damageMeter": {
     "enabled": false,

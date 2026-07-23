@@ -2,6 +2,7 @@ Id,Weight,OwnScript,FightScript,Icon,Type,Source,Rarity
 唯一标识,权重,获得物品时执行的,战斗脚本,图片名称,类型,选项,稀有度
 dusk_afterheat_recovery,0,,,Mods/Terrias/ModResource/Images/Buff/Terrias/huanghun_1,伙伴占位,,5
 star_clay_doll_placeholder,0,,,Mods/Terrias/ModResource/Images/Buff/Loneer/renkui_1,伙伴占位,,5
+sandrone_cat_placeholder,0,,,Mods/Terrias/ModResource/Images/Buff/GenshinImpact/哥！伦！比！娅！,伙伴占位,,5
 origin_strength_50,0,,"CS.Terrias.Dll.Scripting.BlessingScripts.Fight(self, ""origin_strength_50"");",Mods/Terrias/ModResource/Images/Buff/Terrias/origin_core_radiance,本源超凡,,3
 origin_spirit_50,0,,"CS.Terrias.Dll.Scripting.BlessingScripts.Fight(self, ""origin_spirit_50"");",Mods/Terrias/ModResource/Images/Buff/Terrias/origin_core_radiance,本源超凡,,3
 origin_fortune_50,0,,"CS.Terrias.Dll.Scripting.BlessingScripts.Fight(self, ""origin_fortune_50"");",Mods/Terrias/ModResource/Images/Buff/Terrias/origin_core_radiance,本源超凡,,3
