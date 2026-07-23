@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using AuraCombatAi.Shared;
 using Terrias.Dll.GameApi;
 using Terrias.Dll.Hooks.Visual;
 using Terrias.Dll.Infrastructure;
@@ -13,6 +14,7 @@ public static class SpiritRuntime
 {
     private static readonly Func<CommonCardItem, bool> SpiritCardUseChecker = CanUseSpiritCard;
     private static readonly Dictionary<int, bool> AttackUseGate = new();
+    private static IDisposable? autoBattlePreflightRegistration;
 
     public static void Initialize(ModConfig modConfig)
     {
@@ -20,6 +22,11 @@ public static class SpiritRuntime
         SpiritAttachmentPresenter.Initialize();
         SpiritCardFaceRuntime.Initialize();
         RegisterSpiritCardUseChecker();
+        autoBattlePreflightRegistration ??= CombatAiRegistry.RegisterPreflightRule(
+            TerriasIds.ModId,
+            "SpiritCards",
+            new SpiritAutoBattlePreflightRule(),
+            100);
         RegisterBefore(modConfig, TerriasHookTargets.AttackCardItemTrueUse, GateCaptureUse);
         RegisterAfter(modConfig, TerriasHookTargets.AttackCardItemTrueUse, RestoreCaptureUse);
         RegisterAfter(modConfig, TerriasHookTargets.EnemyManagerAddEnemy, ObserveEnemyAdded);
@@ -157,5 +164,45 @@ public static class SpiritRuntime
     private static void RegisterAfter(ModConfig config, string target, Action<ModHookContext> action)
     {
         TerriasHookRegistry.After(config, target, action, "Spirit");
+    }
+
+    private sealed class SpiritAutoBattlePreflightRule : ICombatPreflightRule
+    {
+        public bool IsLegal(
+            CombatStateObservation state,
+            CombatActionObservation action,
+            out string reason)
+        {
+            if (action.RuntimeHandle is not CommonCardItem card)
+            {
+                reason = "";
+                return true;
+            }
+
+            if (SpiritCardFactory.IsSpiritCard(card.dataConfig))
+            {
+                var owner = card.status ?? FightPlayer.Instance?.Status;
+                if (owner != null && ProjectionStateStore.HasForOwner("", owner.InstanceId))
+                {
+                    reason = "spirit projection position is occupied";
+                    return false;
+                }
+            }
+
+            if (SpiritCardFactory.IsSpiritBall(card.dataConfig))
+            {
+                var inspection = EnemyCatalogApi.Inspect(
+                    action.TargetHandle as IStatusManager,
+                    "auto-battle-preflight");
+                if (!inspection.Eligible)
+                {
+                    reason = inspection.Reason;
+                    return false;
+                }
+            }
+
+            reason = "";
+            return true;
+        }
     }
 }

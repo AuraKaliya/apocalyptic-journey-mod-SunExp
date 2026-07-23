@@ -152,7 +152,16 @@ public static class MorningStarOvertureService
                     PlayerApi.ShowCaption("星轨换位：临时费用变为1。");
                 }
             },
-            "选择一张手牌，使其本回合费用视为1。");
+            "选择一张手牌，使其本回合费用视为1。",
+            interactionHint: new AuraCombatAi.Shared.CombatInteractionHint
+            {
+                OwnerModId = TerriasIds.ModId,
+                Purpose = "morning-star-transpose",
+                Kind = AuraCombatAi.Shared.CombatPromptKind.ChooseCards,
+                Zone = AuraCombatAi.Shared.CombatPromptZone.Hand,
+                Forced = true,
+                PreferLowestValue = false
+            });
         if (!opened)
         {
             PlayerApi.ShowCaption("星轨换位：没有可选择的手牌。");

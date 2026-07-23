@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraCombatAi.Shared;
 using Terrias.Dll.Infrastructure;
 
 namespace Terrias.Dll.GameApi;
@@ -13,7 +14,8 @@ public static class CardSelectionApi
         Func<IDataConfig, bool> predicate,
         Action<IDataConfig> onSelected,
         string caption,
-        Action? onCancelled = null)
+        Action? onCancelled = null,
+        CombatInteractionHint? interactionHint = null)
     {
         var cards = source?
             .Where(card => card != null && (predicate == null || predicate(card)))
@@ -26,6 +28,7 @@ public static class CardSelectionApi
         try
         {
             PlayerApi.ShowCaption(caption);
+            PublishInteractionHint(interactionHint);
             self.OutFightSelectCardToAction("1", cards, selected =>
             {
                 var card = selected?.FirstOrDefault();
@@ -41,6 +44,7 @@ public static class CardSelectionApi
         }
         catch (Exception ex)
         {
+            CombatInteractionBroker.ClearNextHint();
             TerriasLog.Warn("Card selection UI failed: " + ex.Message);
             return false;
         }
@@ -53,7 +57,8 @@ public static class CardSelectionApi
         Func<IDataConfig, bool> predicate,
         Action<IReadOnlyList<IDataConfig>> onSelected,
         string caption,
-        Action? onCancelled = null)
+        Action? onCancelled = null,
+        CombatInteractionHint? interactionHint = null)
     {
         var cards = source?
             .Where(card => card != null && (predicate == null || predicate(card)))
@@ -67,6 +72,7 @@ public static class CardSelectionApi
         try
         {
             PlayerApi.ShowCaption(caption);
+            PublishInteractionHint(interactionHint);
             self.OutFightSelectCardToAction(selectionCount.ToString(), cards, selected =>
             {
                 var picked = (selected ?? new List<IDataConfig>())
@@ -86,6 +92,7 @@ public static class CardSelectionApi
         }
         catch (Exception ex)
         {
+            CombatInteractionBroker.ClearNextHint();
             TerriasLog.Warn("Card multi-selection UI failed: " + ex.Message);
             return false;
         }
@@ -96,7 +103,8 @@ public static class CardSelectionApi
         Func<IDataConfig, bool> predicate,
         Action<IDataConfig> onSelected,
         string caption,
-        Action? onCancelled = null)
+        Action? onCancelled = null,
+        CombatInteractionHint? interactionHint = null)
     {
         var source = RoleDeckCards(predicate);
         if (self == null || source.Count == 0 || onSelected == null)
@@ -107,6 +115,7 @@ public static class CardSelectionApi
         try
         {
             PlayerApi.ShowCaption(caption);
+            PublishInteractionHint(interactionHint);
             self.OutFightSelectCardToAction("1", source, selected =>
             {
                 var card = selected?.FirstOrDefault();
@@ -122,6 +131,7 @@ public static class CardSelectionApi
         }
         catch (Exception ex)
         {
+            CombatInteractionBroker.ClearNextHint();
             TerriasLog.Warn("Card selection UI failed: " + ex.Message);
             return false;
         }
@@ -152,6 +162,14 @@ public static class CardSelectionApi
         }
 
         return result;
+    }
+
+    private static void PublishInteractionHint(CombatInteractionHint? hint)
+    {
+        if (hint != null)
+        {
+            CombatInteractionBroker.SetNextHint(hint);
+        }
     }
 
     public static List<IDataConfig> CombatDrawAndDiscardCards(ScriptExecutor? self, Func<IDataConfig, bool> predicate)

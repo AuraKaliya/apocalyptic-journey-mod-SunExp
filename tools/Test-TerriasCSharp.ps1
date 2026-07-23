@@ -165,6 +165,29 @@ using System.Collections.Generic;
 using System.Collections.ObjectModel;
 using System.Linq;
 
+namespace AuraCombatAi.Shared
+{
+    public enum CombatPromptKind
+    {
+        BurnCards
+    }
+
+    public enum CombatPromptZone
+    {
+        Hand
+    }
+
+    public sealed class CombatInteractionHint
+    {
+        public string OwnerModId { get; set; } = "";
+        public string Purpose { get; set; } = "";
+        public CombatPromptKind Kind { get; set; }
+        public CombatPromptZone Zone { get; set; }
+        public bool Forced { get; set; }
+        public bool PreferLowestValue { get; set; }
+    }
+}
+
 namespace AuraShared.Core
 {
     public enum AuraSharedFramePhase { Presentation }
@@ -575,7 +598,8 @@ namespace Terrias.Dll.GameApi
             Func<IDataConfig, bool> predicate,
             Action<IReadOnlyList<IDataConfig>> onSelected,
             string caption,
-            Action? onCancelled = null)
+            Action? onCancelled = null,
+            AuraCombatAi.Shared.CombatInteractionHint? interactionHint = null)
         {
             var cards = (source ?? Array.Empty<IDataConfig>())
                 .Where(card => card != null && (predicate == null || predicate(card)))

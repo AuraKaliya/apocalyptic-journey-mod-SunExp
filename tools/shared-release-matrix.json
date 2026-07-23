@@ -30,6 +30,12 @@
       "passConfiguration": true
     },
     {
+      "id": "combat-ai-behavior",
+      "kind": "script",
+      "path": "tools/Test-AuraCombatAi.ps1",
+      "enabled": true
+    },
+    {
       "id": "write-entrypoint-scan",
       "kind": "script",
       "path": "tools/Test-SharedWriteEntrypoints.ps1",
@@ -88,7 +94,7 @@
     "operationLog": "Logs/Operations/yyyyMMdd.jsonl",
     "lockOrder": ["Resource", "Registry", "WriteMutex"]
   },
-  "adapterSurfaces": ["Skin", "Audio", "CG", "CardUseFx", "Director", "GameData", "Log", "Journey", "Mode"],
+  "adapterSurfaces": ["Skin", "Audio", "CG", "CardUseFx", "Decision", "CombatAI", "Director", "GameData", "Log", "Journey", "Mode"],
   "releaseScenarios": [
     "Terrias only",
     "Terrias + AuraToolsExp",

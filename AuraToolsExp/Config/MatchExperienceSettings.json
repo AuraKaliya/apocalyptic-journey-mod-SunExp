@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 9,
+  "schemaVersion": 10,
   "starterDeck": {
     "enabled": false,
     "mode": "Global",
@@ -41,6 +41,15 @@
   },
   "cardRefresh": {
     "enabled": false
+  },
+  "autoBattle": {
+    "enabled": false,
+    "startActive": false,
+    "profile": "balanced",
+    "decisionIntervalMs": 350,
+    "actionTimeoutSeconds": 12.0,
+    "unknownActionPolicy": "conservative",
+    "captureTrainingSamples": false
   },
   "damageMeter": {
     "enabled": false,

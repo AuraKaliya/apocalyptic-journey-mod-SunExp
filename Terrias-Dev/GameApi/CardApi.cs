@@ -234,7 +234,16 @@ public static class CardApi
             _ => true,
             selected => BurnSpecificHandCards(self, selected),
             caption,
-            () => BurnHandCards(self, burnCount));
+            () => BurnHandCards(self, burnCount),
+            new AuraCombatAi.Shared.CombatInteractionHint
+            {
+                OwnerModId = TerriasIds.ModId,
+                Purpose = "burn-selected-hand-cards",
+                Kind = AuraCombatAi.Shared.CombatPromptKind.BurnCards,
+                Zone = AuraCombatAi.Shared.CombatPromptZone.Hand,
+                Forced = true,
+                PreferLowestValue = true
+            });
         if (opened)
         {
             return true;

@@ -6,6 +6,7 @@ using AuraMode.Shared;
 using AuraShared.Core;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.Audio;
+using AuraToolsExp.Dll.Features.AutoBattle;
 using AuraToolsExp.Dll.Features.CardRefresh;
 using AuraToolsExp.Dll.Features.DamageMeter;
 using AuraToolsExp.Dll.Features.Diagnostics;
@@ -51,6 +52,7 @@ public static class Entry
         RunStep("feast", () => AuraToolsFeastRuntime.Initialize(modConfig));
         RunStep("safe box", () => AuraToolsSafeBoxRuntime.Initialize(modConfig));
         RunStep("card refresh", () => AuraToolsCardRefreshRuntime.Initialize(modConfig));
+        RunStep("auto battle", () => AuraToolsAutoBattleRuntime.Initialize(modConfig));
         RunStep("mod sync", () => AuraToolsModSyncRuntime.Initialize(modConfig));
         RunStep("DPS meter", () => AuraToolsDamageMeterRuntime.Initialize(modConfig));
         RunStep("card UI benchmark", () => AuraToolsCardUiBenchmarkRuntime.Initialize(modConfig));

@@ -732,7 +732,16 @@ public static class LoneerMiracleService
                 card => !IsExcludedActionCard(card),
                 card => ApplyGuidanceSelection(owner, state, selectionVersion, card, "selected"),
                 caption,
-                () => ResolveRandomGuidanceFallback(owner, state, selectionVersion, source, "cancelled"));
+                () => ResolveRandomGuidanceFallback(owner, state, selectionVersion, source, "cancelled"),
+                new AuraCombatAi.Shared.CombatInteractionHint
+                {
+                    OwnerModId = TerriasIds.ModId,
+                    Purpose = "loneer-guidance",
+                    Kind = AuraCombatAi.Shared.CombatPromptKind.Guidance,
+                    Zone = AuraCombatAi.Shared.CombatPromptZone.Generated,
+                    Forced = true,
+                    PreferLowestValue = false
+                });
             segment = RecordLoneerSegment("Loneer.RequestGuidanceSelection.OpenSelectionUi", segment);
 
             if (opened)

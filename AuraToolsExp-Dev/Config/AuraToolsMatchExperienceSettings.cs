@@ -9,7 +9,7 @@ namespace AuraToolsExp.Dll.Config;
 public sealed class AuraToolsMatchExperienceSettings
 {
     [JsonProperty("schemaVersion")]
-    public int SchemaVersion { get; set; } = 9;
+    public int SchemaVersion { get; set; } = 10;
 
     [JsonProperty("starterDeck")]
     public StarterDeckSettings StarterDeck { get; set; } = new();
@@ -29,10 +29,13 @@ public sealed class AuraToolsMatchExperienceSettings
     [JsonProperty("cardRefresh")]
     public CardRefreshSettings CardRefresh { get; set; } = new();
 
+    [JsonProperty("autoBattle")]
+    public AutoBattleSettings AutoBattle { get; set; } = new();
+
     public void Normalize()
     {
         var loadedSchemaVersion = SchemaVersion;
-        SchemaVersion = Math.Max(9, SchemaVersion);
+        SchemaVersion = Math.Max(10, SchemaVersion);
         StarterDeck ??= new StarterDeckSettings();
         SafeBox ??= new SafeBoxSettings();
         ModSync ??= new ModSyncSettings();
@@ -44,8 +47,10 @@ public sealed class AuraToolsMatchExperienceSettings
 
         DamageMeter ??= new DamageMeterSettings();
         CardRefresh ??= new CardRefreshSettings();
+        AutoBattle ??= new AutoBattleSettings();
         StarterDeck.Normalize();
         Feast.Normalize();
         DamageMeter.Normalize();
+        AutoBattle.Normalize();
     }
 }

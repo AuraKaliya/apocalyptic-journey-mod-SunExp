@@ -343,15 +343,18 @@ void TestConfigModelSerializationCompatibility()
         "audio config preserves user resource paths while recovering missing domains");
 
     var matchExperience = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
-        "{\"schemaVersion\":1,\"starterDeck\":{\"preferRoleModProfile\":false},\"safeBox\":null,\"modSync\":null,\"feast\":null,\"damageMeter\":null,\"cardRefresh\":null}")!;
+        "{\"schemaVersion\":1,\"starterDeck\":{\"preferRoleModProfile\":false},\"safeBox\":null,\"modSync\":null,\"feast\":null,\"damageMeter\":null,\"cardRefresh\":null,\"autoBattle\":null}")!;
     matchExperience.Normalize();
-    Assert(matchExperience.SchemaVersion == 9
+    Assert(matchExperience.SchemaVersion == 10
            && matchExperience.StarterDeck.PreferRoleModProfile
            && matchExperience.SafeBox != null
            && matchExperience.ModSync != null
            && matchExperience.Feast.Enabled
            && matchExperience.DamageMeter != null
-           && matchExperience.CardRefresh != null,
+           && matchExperience.CardRefresh != null
+           && matchExperience.AutoBattle != null
+           && matchExperience.AutoBattle.Profile == "balanced"
+           && matchExperience.AutoBattle.UnknownActionPolicy == "conservative",
         "match-experience config keeps legacy schema migration and nested defaults after the file split");
 
     var legacyFeast = JsonConvert.DeserializeObject<FeastSettings>(
@@ -413,7 +416,7 @@ void TestCardRefreshSettingsAndPoolPolicy()
         CardRefresh = null!
     };
     settings.Normalize();
-    Assert(settings.SchemaVersion == 9, "match-experience settings migrate to multi-candidate Feast selection");
+    Assert(settings.SchemaVersion == 10, "match-experience settings migrate to the auto-battle schema");
     Assert(settings.CardRefresh != null && !settings.CardRefresh.Enabled,
         "card refresh is restored with a disabled default during normalization");
 
@@ -955,10 +958,18 @@ void TestRuntimeArchitectureGuards()
            && cardRefreshNativeApi.Contains("new RandomPool(pool, dice).DrawByRarity", StringComparison.Ordinal)
            && cardRefreshNativeApi.Contains("manager.CardPackCheck", StringComparison.Ordinal),
         "card refresh recreates clean choice items and uses a window-local clone of the native reward draw pipeline");
-    Assert(matchExperienceConfig.Contains("\"schemaVersion\": 9", StringComparison.Ordinal)
+    Assert(matchExperienceConfig.Contains("\"schemaVersion\": 10", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"cardRefresh\"", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"enabled\": false", StringComparison.Ordinal),
         "shipped card refresh configuration is present and disabled by default");
+
+    var autoBattleRuntime = ReadRepoText("AuraToolsExp-Dev/Features/AutoBattle/AuraToolsAutoBattleRuntime.cs");
+    Assert(autoBattleRuntime.Contains("WitchCombatInteractionRuntime.ObserveDeckPrompt", StringComparison.Ordinal)
+           && autoBattleRuntime.Contains("WitchCombatInteractionRuntime.ObserveHandPrompt", StringComparison.Ordinal)
+           && autoBattleRuntime.Contains("AuraUiNativeButtonCloneAdapter.TryClone", StringComparison.Ordinal)
+           && autoBattleRuntime.Contains("CombatDecisionEngine", StringComparison.Ordinal)
+           && matchExperienceConfig.Contains("\"autoBattle\"", StringComparison.Ordinal),
+        "auto battle routes decisions and native prompt handling through shared runtimes");
 
     var safeBoxRuntime = ReadRepoText("AuraToolsExp-Dev/Features/SafeBox/AuraToolsSafeBoxRuntime.cs");
     Assert(safeBoxRuntime.Contains("Mods/AuraToolsExp/ModResource/Images/UI/\\u968f\\u8eab\\u4fdd\\u9669\\u7bb1.png", StringComparison.Ordinal)

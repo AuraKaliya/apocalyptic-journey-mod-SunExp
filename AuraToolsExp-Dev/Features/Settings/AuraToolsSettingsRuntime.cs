@@ -6,6 +6,7 @@ using AuraShared.Core;
 using AuraUi.Shared;
 using AuraToolsExp.Dll.Config;
 using AuraToolsExp.Dll.Features.Audio;
+using AuraToolsExp.Dll.Features.AutoBattle;
 using AuraToolsExp.Dll.Features.DamageMeter;
 using AuraToolsExp.Dll.Features.Feast;
 using AuraToolsExp.Dll.Features.Logging;
@@ -742,6 +743,67 @@ public static class AuraToolsSettingsRuntime
             AuraToolsConfigService.SaveMatchExperience();
         }, AuraToolsConfigService.MatchExperience.CardRefresh.Enabled ? AuraToolsUi.SuccessText : AuraToolsUi.MutedText);
 
+        var autoBattle = AuraToolsConfigService.MatchExperience.AutoBattle;
+        CreateSubmodule(parent, "自动战斗", autoBattle.Enabled, value =>
+        {
+            autoBattle.Enabled = value;
+            AuraToolsConfigService.SaveMatchExperience();
+        }, content =>
+        {
+            var profileRow = CreateInlineRow(content, "AutoBattleProfileRow");
+            AuraToolsUi.AddText(
+                profileRow.transform,
+                "决策风格：" + AutoBattleProfileLabel(autoBattle.Profile),
+                AuraToolsUi.BodyFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.Text,
+                AuraToolsUi.TextMinHeight,
+                1f);
+            AuraToolsUi.AddButton(profileRow.transform, "切换风格", () =>
+            {
+                autoBattle.Profile = NextAutoBattleProfile(autoBattle.Profile);
+                autoBattle.Normalize();
+                AuraToolsConfigService.SaveMatchExperience();
+                RebuildPanel(activePanel!.transform);
+            }, 96f);
+
+            var policyRow = CreateInlineRow(content, "AutoBattleUnknownPolicyRow");
+            AuraToolsUi.AddText(
+                policyRow.transform,
+                "未知动作：" + AutoBattleUnknownPolicyLabel(autoBattle.UnknownActionPolicy),
+                AuraToolsUi.BodyFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.Text,
+                AuraToolsUi.TextMinHeight,
+                1f);
+            AuraToolsUi.AddButton(policyRow.transform, "切换策略", () =>
+            {
+                autoBattle.UnknownActionPolicy = NextAutoBattleUnknownPolicy(autoBattle.UnknownActionPolicy);
+                autoBattle.Normalize();
+                AuraToolsConfigService.SaveMatchExperience();
+                RebuildPanel(activePanel!.transform);
+            }, 96f);
+
+            CreateAutoBattleToggleRow(content, "进入战斗时自动接管", autoBattle.StartActive, value =>
+            {
+                autoBattle.StartActive = value;
+                AuraToolsConfigService.SaveMatchExperience();
+            });
+            CreateAutoBattleToggleRow(content, "记录训练样本", autoBattle.CaptureTrainingSamples, value =>
+            {
+                autoBattle.CaptureTrainingSamples = value;
+                AuraToolsConfigService.SaveMatchExperience();
+            });
+            AuraToolsUi.AddText(
+                content,
+                "开启模块后，战斗界面会临时出现“自动战斗”按钮。额外选牌界面会由同一决策器继续处理；无法识别的复杂交互会按策略交还玩家。",
+                AuraToolsUi.HintFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.MutedText,
+                AuraToolsUi.TextMinHeight,
+                1f);
+        }, autoBattle.Enabled ? AuraToolsUi.SuccessText : AuraToolsUi.MutedText);
+
         var feast = AuraToolsConfigService.MatchExperience.Feast;
         CreateSubmodule(parent, "一键美餐", feast.Enabled, value =>
         {
@@ -1238,6 +1300,53 @@ public static class AuraToolsSettingsRuntime
         var row = CreateInlineRow(parent, "DamageMeterToggle-" + label);
         AuraToolsUi.AddToggle(row.transform, value, changed);
         AuraToolsUi.AddText(row.transform, label, AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
+    }
+
+    private static void CreateAutoBattleToggleRow(Transform parent, string label, bool value, Action<bool> changed)
+    {
+        var row = CreateInlineRow(parent, "AutoBattleToggle-" + label);
+        AuraToolsUi.AddToggle(row.transform, value, changed);
+        AuraToolsUi.AddText(row.transform, label, AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
+    }
+
+    private static string NextAutoBattleProfile(string value)
+    {
+        return value switch
+        {
+            "aggressive" => "defensive",
+            "defensive" => "balanced",
+            _ => "aggressive"
+        };
+    }
+
+    private static string AutoBattleProfileLabel(string value)
+    {
+        return value switch
+        {
+            "aggressive" => "进攻",
+            "defensive" => "稳健",
+            _ => "均衡"
+        };
+    }
+
+    private static string NextAutoBattleUnknownPolicy(string value)
+    {
+        return value switch
+        {
+            "allow" => "handoff",
+            "handoff" => "conservative",
+            _ => "allow"
+        };
+    }
+
+    private static string AutoBattleUnknownPolicyLabel(string value)
+    {
+        return value switch
+        {
+            "allow" => "允许尝试",
+            "handoff" => "交还玩家",
+            _ => "保守降权"
+        };
     }
 }
 

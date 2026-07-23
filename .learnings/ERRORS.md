@@ -28,6 +28,38 @@ Close or reopen the Codex workspace, then rename the repository root from its pa
 
 ---
 
+## [ERR-20260723-001] powershell-package-inspection-policy-block
+
+**Logged**: 2026-07-23T16:30:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+A compound PowerShell command that downloaded, expanded, inspected, and recursively removed a NuGet package was rejected before execution by command policy.
+
+### Error
+```text
+Command rejected: blocked by policy
+```
+
+### Context
+- Attempted to inspect the deployed Windows native size of `Microsoft.ML.OnnxRuntime` in a temporary directory.
+- The command combined network download, archive expansion, and recursive cleanup.
+
+### Suggested Fix
+Use the official NuGet package-size metadata for architectural comparison, or split any necessary inspection into simple non-destructive commands and avoid recursive cleanup in the same invocation.
+
+### Metadata
+- Reproducible: unknown
+- Related Files: .learnings/ERRORS.md
+
+### Resolution
+- **Resolved**: 2026-07-23T16:31:00+08:00
+- **Notes**: Used official NuGet and ONNX Runtime documentation, which already reports the full package and custom-runtime size tradeoffs.
+
+---
+
 ## [ERR-20260706-001] skill-creator-init-interface-length
 
 **Logged**: 2026-07-06T11:20:00+08:00
