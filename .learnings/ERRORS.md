@@ -769,7 +769,7 @@ Use `Get-ChildItem` for optional-file discovery, collect PowerShell rows before 
 ### Metadata
 - Reproducible: yes
 - Related Files: .learnings/ERRORS.md
-- Recurrence-Count: 12
+- Recurrence-Count: 19
 
 ### Resolution
 - **Resolved**: 2026-07-16T14:30:00+08:00
@@ -786,5 +786,17 @@ Use `Get-ChildItem` for optional-file discovery, collect PowerShell rows before 
 - **Notes**: Twice piped a top-level PowerShell `foreach` expression directly into `Format-Table` during architecture inventory; assign the loop output to `$rows` before piping.
 - **Observed**: 2026-07-17T12:40:00+08:00
 - **Notes**: Appended an expected zero-match `rg` probe to otherwise successful diff/status checks, causing the combined inspection command to return exit code 1; keep optional absence assertions failure-isolated.
+- **Observed**: 2026-07-23T15:20:00+08:00
+- **Notes**: Repeated the invalid direct `foreach (...) { ... } | Format-Table` form twice during project analysis, then used `Promise.all` so one failed inventory command hid all sibling results. Accumulate into `$rows` and prefer failure-isolated orchestration for exploratory batches.
+- **Observed**: 2026-07-23T15:31:00+08:00
+- **Notes**: A parallel source-inspection batch failed because one guessed file path did not exist, again discarding otherwise useful sibling outputs. Resolve paths with `rg --files` before reads and isolate optional probes.
+- **Observed**: 2026-07-23T15:37:00+08:00
+- **Notes**: Repeated the same invalid direct `foreach (...) { ... } | ConvertTo-Json` form in a compact content-inventory command. Store the loop output in `$rows` before serialization.
+- **Observed**: 2026-07-23T15:48:00+08:00
+- **Notes**: Guessed a nonexistent card-art skill reference path inside `Promise.all`, so the failed read hid valid sibling outputs. List skill files first and use `Promise.allSettled` for exploratory reads.
+- **Observed**: 2026-07-23T16:02:00+08:00
+- **Notes**: An optional `rg --files GoldExp-Dev GoldExp` inventory returned non-zero because the removed `GoldExp` root was absent. Test optional roots before passing them to `rg`.
+- **Observed**: 2026-07-23T16:09:00+08:00
+- **Notes**: Passed a wildcard path to `rg` on Windows (`Terrias-Dev/Mechanics/StarScore*.cs`), which PowerShell did not expand and `rg` rejected. Use `-g 'StarScore*.cs'` with the directory root instead.
 
 ---
