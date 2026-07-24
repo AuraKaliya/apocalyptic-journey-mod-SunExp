@@ -38,6 +38,15 @@ public sealed class AutoBattleSettings
     [JsonProperty("showPredictionMarkers")]
     public bool ShowPredictionMarkers { get; set; } = true;
 
+    [JsonProperty("searchSimulationBudget")]
+    public int SearchSimulationBudget { get; set; } = 1536;
+
+    [JsonProperty("searchNodeBudget")]
+    public int SearchNodeBudget { get; set; } = 8192;
+
+    [JsonProperty("searchMaxPly")]
+    public int SearchMaxPly { get; set; } = 16;
+
     [JsonProperty("training")]
     public AutoBattleTrainingSettings Training { get; set; } = AutoBattleTrainingSettings.CreateSteady();
 
@@ -67,6 +76,9 @@ public sealed class AutoBattleSettings
         UseTrainedModel = !string.Equals(TrainedModelMode, "off", StringComparison.Ordinal);
         DecisionIntervalMs = Math.Max(150, Math.Min(2000, DecisionIntervalMs));
         ActionTimeoutSeconds = Math.Max(3f, Math.Min(60f, ActionTimeoutSeconds));
+        SearchSimulationBudget = Math.Max(128, Math.Min(20000, SearchSimulationBudget));
+        SearchNodeBudget = Math.Max(512, Math.Min(65536, SearchNodeBudget));
+        SearchMaxPly = Math.Max(4, Math.Min(32, SearchMaxPly));
         Training.Normalize();
     }
 

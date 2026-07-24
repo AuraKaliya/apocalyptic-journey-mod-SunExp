@@ -7,10 +7,14 @@ namespace AuraCombatAi.Shared;
 public sealed class CombatDecisionEngine
 {
     private readonly IDecisionResidualModel residualModel;
+    private readonly ICombatSearchGuidanceModel searchGuidance;
 
-    public CombatDecisionEngine(IDecisionResidualModel? residualModel = null)
+    public CombatDecisionEngine(
+        IDecisionResidualModel? residualModel = null,
+        ICombatSearchGuidanceModel? searchGuidance = null)
     {
         this.residualModel = residualModel ?? NullDecisionResidualModel.Instance;
+        this.searchGuidance = searchGuidance ?? NullCombatSearchGuidanceModel.Instance;
     }
 
     public CombatDecision Choose(
@@ -91,21 +95,36 @@ public sealed class CombatDecisionEngine
             });
         }
 
-        var plan = new CombatTurnPlanner(residualModel).Choose(state, evaluations, selectedProfile);
-        if (plan.HasAction
-            && plan.Action != null
-            && plan.Score >= selectedProfile.MinimumActionScore)
+        var search = selectedProfile.UseChancePuct
+            ? new CombatChancePuctPlanner(residualModel, searchGuidance)
+                .Choose(state, evaluations, selectedProfile)
+            : null;
+        var plan = search == null
+            ? new CombatTurnPlanner(residualModel).Choose(state, evaluations, selectedProfile)
+            : null;
+        var hasPlanAction = search?.HasAction == true || plan?.HasAction == true;
+        var planAction = search?.Action ?? plan?.Action;
+        var planScore = search?.Score ?? plan?.Score ?? 0d;
+        var planSteps = search?.Steps ?? plan?.Steps ?? new List<CombatPlanStep>();
+        var planSummary = search?.Summary ?? plan?.Summary ?? "";
+        if (hasPlanAction
+            && planAction != null
+            && planScore >= selectedProfile.MinimumActionScore)
         {
             return new CombatDecision
             {
                 HasAction = true,
-                Action = plan.Action,
-                Score = plan.Score,
-                Reason = "beam plan",
+                Action = planAction,
+                Score = planScore,
+                Reason = search == null ? "beam plan" : "risk-aware chance-puct",
                 ProfileId = selectedProfile.Id,
                 Candidates = evaluations,
-                Plan = plan.Steps,
-                PlanSummary = plan.Summary
+                Plan = planSteps,
+                PlanSummary = planSummary,
+                SearchAlgorithm = search == null ? "bounded-beam" : "chance-puct",
+                SearchSimulations = search?.Simulations ?? 0,
+                SearchNodes = search?.Nodes ?? 0,
+                SearchTranspositionHits = search?.TranspositionHits ?? 0
             };
         }
 
@@ -116,18 +135,26 @@ public sealed class CombatDecisionEngine
                 HasAction = true,
                 Action = endTurn,
                 Score = 0d,
-                Reason = plan.HasAction ? "best plan below threshold" : "no positive legal action",
+                Reason = hasPlanAction ? "best plan below threshold" : "no positive legal action",
                 ProfileId = selectedProfile.Id,
                 Candidates = evaluations,
-                PlanSummary = plan.Summary
+                PlanSummary = planSummary,
+                SearchAlgorithm = search == null ? "bounded-beam" : "chance-puct",
+                SearchSimulations = search?.Simulations ?? 0,
+                SearchNodes = search?.Nodes ?? 0,
+                SearchTranspositionHits = search?.TranspositionHits ?? 0
             };
         }
 
         return new CombatDecision
         {
-            Reason = plan.Summary,
+            Reason = planSummary,
             ProfileId = selectedProfile.Id,
-            Candidates = evaluations
+            Candidates = evaluations,
+            SearchAlgorithm = search == null ? "bounded-beam" : "chance-puct",
+            SearchSimulations = search?.Simulations ?? 0,
+            SearchNodes = search?.Nodes ?? 0,
+            SearchTranspositionHits = search?.TranspositionHits ?? 0
         };
     }
 

@@ -81,6 +81,10 @@ public static class CombatTrainingSampleBuilder
             },
             PlanSummary = decision.PlanSummary,
             Plan = new List<CombatPlanStep>(decision.Plan),
+            SearchAlgorithm = decision.SearchAlgorithm,
+            SearchSimulations = decision.SearchSimulations,
+            SearchNodes = decision.SearchNodes,
+            SearchTranspositionHits = decision.SearchTranspositionHits,
             StateFeatures = BuildStateFeatures(before),
             Features = SanitizeFeatures(decision.Action.Features),
             PredictedScore = Finite(decision.Score),
@@ -243,7 +247,8 @@ public static class CombatTrainingSampleBuilder
             RawResidualScore = Finite(evaluation.RawResidualScore),
             ResidualApplicability = Finite(evaluation.ResidualApplicability),
             AppliedResidualScore = Finite(evaluation.AppliedResidualScore),
-            RuleScore = Finite(evaluation.RuleScore)
+            RuleScore = Finite(evaluation.RuleScore),
+            PlanScore = Finite(evaluation.PlanScore)
         };
     }
 

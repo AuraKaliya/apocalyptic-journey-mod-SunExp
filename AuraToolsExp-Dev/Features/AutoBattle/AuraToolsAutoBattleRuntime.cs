@@ -434,6 +434,10 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
             + " candidate=" + decision.Action.CandidateId
             + " score=" + decision.Score.ToString("0.00")
             + " reason=" + decision.Reason
+            + " search=" + decision.SearchAlgorithm
+            + " simulations=" + decision.SearchSimulations
+            + " nodes=" + decision.SearchNodes
+            + " transpositions=" + decision.SearchTranspositionHits
             + " " + ScoreBreakdown(decision)
             + " " + decision.PlanSummary);
     }
@@ -622,6 +626,13 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
 
         if (beforeAction != null && pendingDecision?.Action != null)
         {
+            if (string.Equals(
+                    after.Fingerprint,
+                    beforeAction.Fingerprint,
+                    StringComparison.Ordinal))
+            {
+                return;
+            }
             transaction.Complete("action settled");
             RecordPendingTrainingSample(
                 CombatActionTransactionState.Completed.ToString(),
@@ -781,10 +792,17 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
             settings.Profile,
             !string.Equals(trainedModelMode, "off", StringComparison.OrdinalIgnoreCase),
             out var diagnostic);
+        var searchGuidance = AuraToolsAutoBattleModelRuntime.LoadSearchGuidance(
+            settings.Profile,
+            !string.Equals(trainedModelMode, "off", StringComparison.OrdinalIgnoreCase),
+            out var guidanceDiagnostic);
         baselineDecisionEngine = new CombatDecisionEngine();
-        trainedDecisionEngine = new CombatDecisionEngine(model);
-        trainedModelId = model.ModelId;
+        trainedDecisionEngine = new CombatDecisionEngine(model, searchGuidance);
+        trainedModelId = !string.Equals(searchGuidance.ModelId, "none", StringComparison.Ordinal)
+            ? model.ModelId + "+" + searchGuidance.ModelId
+            : model.ModelId;
         lastModelComparisonFingerprint = "";
+        diagnostic += "；" + guidanceDiagnostic;
         if (!string.Equals(lastModelDiagnostic, diagnostic, StringComparison.Ordinal))
         {
             lastModelDiagnostic = diagnostic;
@@ -883,7 +901,13 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
     private CombatDecisionProfile BuildProfile()
     {
         var settings = AuraToolsConfigService.MatchExperience.AutoBattle;
-        var profile = new CombatDecisionProfile();
+        var profile = new CombatDecisionProfile
+        {
+            SearchSimulationBudget = settings.SearchSimulationBudget,
+            SearchNodeBudget = settings.SearchNodeBudget,
+            SearchMaxPly = settings.SearchMaxPly,
+            UseChancePuct = true
+        };
         switch (settings.Profile)
         {
             case "aggressive":
@@ -892,6 +916,8 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
                 profile.Weights.Tempo = 1.25d;
                 profile.Weights.Survival = 0.85d;
                 profile.ThreatRiskTolerance = 0.35d;
+                profile.DeathRiskLimit = 0.12d;
+                profile.TailRiskPenalty = 22d;
                 break;
 
             case "defensive":
@@ -901,6 +927,8 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
                 profile.Weights.Lethal = 1.15d;
                 profile.ThreatRiskTolerance = 0.9d;
                 profile.SurplusDefendRetention = 0.1d;
+                profile.DeathRiskLimit = 0.02d;
+                profile.TailRiskPenalty = 55d;
                 break;
         }
 

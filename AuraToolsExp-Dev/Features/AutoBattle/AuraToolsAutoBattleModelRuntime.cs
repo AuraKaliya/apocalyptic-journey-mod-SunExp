@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using AuraCombatAi.Shared;
 using AuraDecision.Shared;
 using AuraShared.Core;
@@ -97,6 +98,37 @@ internal static class AuraToolsAutoBattleModelRuntime
                      + "，风格=" + profile
                      + "，revision=" + snapshot.Revision;
         return new BoundedLinearDecisionResidualModel(snapshot.Value);
+    }
+
+    public static ICombatSearchGuidanceModel LoadSearchGuidance(
+        string decisionProfile,
+        bool enabled,
+        out string diagnostic)
+    {
+        var profile = NormalizeProfile(decisionProfile);
+        if (!enabled)
+        {
+            diagnostic = "搜索引导模型已关闭";
+            return NullCombatSearchGuidanceModel.Instance;
+        }
+
+        var snapshot = AuraSharedConfigStore.ReadOwner(
+            AuraToolsIds.ModId,
+            SystemId,
+            SearchModelFile(profile),
+            new CombatSearchGuidanceDefinition());
+        if (!snapshot.Found)
+        {
+            diagnostic = "当前决策风格没有已安装的搜索引导模型：" + profile;
+            return NullCombatSearchGuidanceModel.Instance;
+        }
+        if (!TryValidateSearchGuidance(snapshot.Value, profile, out diagnostic))
+        {
+            return NullCombatSearchGuidanceModel.Instance;
+        }
+        diagnostic = "已加载搜索引导模型=" + snapshot.Value.ModelId
+                     + "，revision=" + snapshot.Revision;
+        return new BoundedTreeCombatSearchGuidanceModel(snapshot.Value);
     }
 
     public static bool QueueGenerateCandidate(
@@ -201,10 +233,34 @@ internal static class AuraToolsAutoBattleModelRuntime
                 ModelFile(profile),
                 model,
                 schemaVersion: 2);
+            var searchInfo = "";
+            var searchCandidatePath = SearchCandidatePath(profile);
+            if (result.Success && File.Exists(searchCandidatePath))
+            {
+                var searchModel = AuraSharedJson.Deserialize<CombatSearchGuidanceDefinition>(
+                    File.ReadAllText(searchCandidatePath));
+                if (!TryValidateSearchGuidance(searchModel, profile, out var searchReason))
+                {
+                    searchInfo = "；搜索引导模型无效：" + searchReason;
+                }
+                else
+                {
+                    var searchWrite = AuraSharedConfigStore.WriteOwner(
+                        AuraToolsIds.ModId,
+                        SystemId,
+                        SearchModelFile(profile),
+                        searchModel ?? new CombatSearchGuidanceDefinition(),
+                        schemaVersion: 1);
+                    searchInfo = searchWrite.Success
+                        ? "；搜索引导模型已导入"
+                        : "；搜索引导模型导入失败：" + searchWrite.Message;
+                }
+            }
             message = result.Success
                 ? "模型已导入，风格=" + profile
                   + "，含 " + model.Weights.Count
                   + " 个上下文权重，revision=" + result.Revision
+                  + searchInfo
                 : "模型导入失败：" + result.Message;
             SetStatus(
                 profile,
@@ -347,6 +403,55 @@ internal static class AuraToolsAutoBattleModelRuntime
         return true;
     }
 
+    internal static bool TryValidateSearchGuidance(
+        CombatSearchGuidanceDefinition? model,
+        string decisionProfile,
+        out string reason)
+    {
+        if (model == null
+            || !string.Equals(model.ModelProtocol, "aura.combat-search.gbdt.v1", StringComparison.Ordinal)
+            || model.ProtocolVersion != 1
+            || model.FeatureSchemaVersion != 4
+            || !string.Equals(
+                NormalizeProfile(model.DecisionProfile),
+                NormalizeProfile(decisionProfile),
+                StringComparison.Ordinal)
+            || model.Policy == null
+            || model.Value == null
+            || model.Risk == null
+            || !Finite(model.Policy.Bias)
+            || !Finite(model.Value.Bias)
+            || !Finite(model.Risk.Bias)
+            || !Finite(model.Policy.MaximumMagnitude)
+            || !Finite(model.Value.MaximumMagnitude)
+            || !Finite(model.Risk.MaximumMagnitude)
+            || model.Policy.MaximumMagnitude < 0d
+            || model.Value.MaximumMagnitude < 0d
+            || model.Risk.MaximumMagnitude < 0d
+            || model.Policy.Trees.Count > 256
+            || model.Value.Trees.Count > 256
+            || model.Risk.Trees.Count > 256)
+        {
+            reason = "搜索引导模型协议、风格或树数量无效";
+            return false;
+        }
+        foreach (var tree in model.Policy.Trees
+                     .Concat(model.Value.Trees)
+                     .Concat(model.Risk.Trees))
+        {
+            if (string.IsNullOrWhiteSpace(tree.Feature)
+                || !Finite(tree.Threshold)
+                || !Finite(tree.LeftValue)
+                || !Finite(tree.RightValue))
+            {
+                reason = "搜索引导模型包含无效树节点";
+                return false;
+            }
+        }
+        reason = "";
+        return true;
+    }
+
     private static TrainingWorkResult GenerateCandidate(
         string profile,
         CombatResidualTrainingOptions options)
@@ -416,6 +521,18 @@ internal static class AuraToolsAutoBattleModelRuntime
                 candidatePath,
                 AuraSharedJson.Serialize(result.Model),
                 createBackup: true);
+            var searchGuidance = CombatSearchGuidanceTrainer.Train(
+                samples,
+                profile,
+                rounds: Math.Max(8, Math.Min(128, options.Epochs / 2)),
+                learningRate: options.LearningRate);
+            if (searchGuidance.Success && searchGuidance.Model != null)
+            {
+                storage.WriteTextAtomic(
+                    SearchCandidatePath(profile),
+                    AuraSharedJson.Serialize(searchGuidance.Model),
+                    createBackup: true);
+            }
         }
         return new TrainingWorkResult(
             true,
@@ -495,9 +612,21 @@ internal static class AuraToolsAutoBattleModelRuntime
             "auto-battle-model-candidate-" + profile + ".json");
     }
 
+    private static string SearchCandidatePath(string profile)
+    {
+        return AuraSharedLogStore.OwnerLogPath(
+            AuraToolsIds.ModId,
+            "auto-battle-search-model-candidate-" + profile + ".json");
+    }
+
     private static string ModelFile(string profile)
     {
         return "residual-model-" + profile + ".json";
+    }
+
+    private static string SearchModelFile(string profile)
+    {
+        return "search-guidance-model-" + profile + ".json";
     }
 
     private static string NormalizeProfile(string value)

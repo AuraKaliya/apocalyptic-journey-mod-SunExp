@@ -645,6 +645,21 @@ Assert(configuredTraining.Success
 var wrongProfileTraining = CombatResidualTrainer.Train(new[] { humanSample }, "defensive");
 Assert(!wrongProfileTraining.Success && wrongProfileTraining.PreferencePairCount == 0,
     "training keeps decision profiles separate without gating on MOD identity");
+var guidanceTraining = CombatSearchGuidanceTrainer.Train(
+    new[] { trainingSample, humanSample },
+    "balanced",
+    rounds: 12,
+    learningRate: 0.08d);
+Assert(guidanceTraining.Success
+       && guidanceTraining.Model != null
+       && guidanceTraining.Model.Policy.Trees.Count > 0
+       && !double.IsNaN(guidanceTraining.Model.Value.Bias),
+    "search guidance trainer produces bounded policy and value tree ensembles");
+var guidanceModel = new BoundedTreeCombatSearchGuidanceModel(guidanceTraining.Model!);
+Assert(!double.IsNaN(guidanceModel.PolicyLogit(originalFeatures))
+       && guidanceModel.DeathRisk(humanSample.StateFeatures) >= 0d
+       && guidanceModel.DeathRisk(humanSample.StateFeatures) <= 1d,
+    "tree search guidance inference stays finite and bounds death risk");
 var legacyContext = CombatResidualTrainer.ContextualFeatures(
     new CombatTrainingSample
     {
@@ -670,6 +685,280 @@ Assert(legacyContext["wastedDefend"] == 6d
        && legacyContext["semanticConfidence"] == 1d
        && legacyContext["categoryDefend"] == 1d,
     "v3 samples are reconstructed into v4 contextual features inside the MOD trainer");
+
+var forwardRoot = new CombatStateObservation
+{
+    Player = new CombatUnitObservation
+    {
+        RuntimeId = 70,
+        CurrentHp = 20,
+        MaxHp = 30
+    },
+    CurrentPower = 0,
+    MaxPower = 3,
+    HandCount = 9
+};
+var forwardState = CombatForwardModel.Create(forwardRoot, 4);
+var reductionAction = new CombatActionObservation
+{
+    CandidateId = "reduce-three",
+    Kind = CombatActionKind.PlayCard,
+    Semantics = new CombatActionSemantics { CostReduction = 3d }
+};
+forwardState = CombatForwardModel.Apply(
+    forwardState,
+    reductionAction,
+    0,
+    CombatForwardModel.Resolve(forwardRoot, reductionAction).Outcomes[0],
+    new CombatDecisionProfile());
+var firstDiscounted = new CombatActionObservation
+{
+    CandidateId = "cost-two-a",
+    Kind = CombatActionKind.PlayCard,
+    Cost = 2,
+    Semantics = new CombatActionSemantics { Draw = 3d }
+};
+forwardState = CombatForwardModel.Apply(
+    forwardState,
+    firstDiscounted,
+    1,
+    CombatForwardModel.Resolve(forwardRoot, firstDiscounted).Outcomes[0],
+    new CombatDecisionProfile());
+Assert(forwardState.CostReduction == 1
+       && forwardState.Power == 0
+       && forwardState.HandCount == 10,
+    "forward model consumes cost reduction by base cost and applies the hand limit");
+var secondDiscounted = new CombatActionObservation
+{
+    CandidateId = "cost-two-b",
+    Kind = CombatActionKind.PlayCard,
+    Cost = 2
+};
+Assert(CombatForwardModel.EffectiveCost(forwardState, secondDiscounted) == 1,
+    "surplus cost reduction cannot make every later card free");
+
+var threatRoot = new CombatStateObservation
+{
+    Player = new CombatUnitObservation
+    {
+        RuntimeId = 80,
+        CurrentHp = 5,
+        MaxHp = 20
+    },
+    Enemies =
+    {
+        new CombatUnitObservation
+        {
+            RuntimeId = 81,
+            Kind = CombatTargetKind.Enemy,
+            CurrentHp = 4,
+            MaxHp = 4
+        }
+    },
+    Threat = new CombatThreatForecast
+    {
+        CurrentIntentKnown = true,
+        Intents =
+        {
+            new CombatIntentObservation
+            {
+                SourceRuntimeId = 81,
+                Kind = CombatIntentKind.Attack,
+                Probability = 1d,
+                BlockableDamage = 10d
+            }
+        }
+    }
+};
+var killThreat = new CombatActionObservation
+{
+    CandidateId = "kill-threat",
+    Kind = CombatActionKind.PlayCard,
+    RuntimeId = 801,
+    TargetRuntimeId = 81,
+    TargetKind = CombatTargetKind.Enemy,
+    Semantics = new CombatActionSemantics { Damage = 4d }
+};
+var threatState = CombatForwardModel.Create(threatRoot, 1);
+threatState = CombatForwardModel.Apply(
+    threatState,
+    killThreat,
+    0,
+    CombatForwardModel.Resolve(threatRoot, killThreat).Outcomes[0],
+    new CombatDecisionProfile());
+Assert(threatState.AllEnemiesDefeated
+       && threatState.ActiveBlockableThreat(1d) == 0d
+       && threatState.EvaluateLeaf(new CombatDecisionProfile()).DeathRisk == 0d,
+    "defeated enemies no longer contribute incoming threat");
+
+var coverageProfile = new CombatDecisionProfile
+{
+    SearchSimulationBudget = 1,
+    SearchNodeBudget = 512,
+    SearchMaxPly = 4
+};
+var coverageState = new CombatStateObservation
+{
+    Player = new CombatUnitObservation
+    {
+        RuntimeId = 90,
+        CurrentHp = 20,
+        MaxHp = 20
+    },
+    CurrentPower = 1,
+    MaxPower = 1,
+    Enemies =
+    {
+        new CombatUnitObservation
+        {
+            RuntimeId = 91,
+            Kind = CombatTargetKind.Enemy,
+            CurrentHp = 20,
+            MaxHp = 20
+        }
+    },
+    Actions =
+    {
+        new CombatActionObservation
+        {
+            CandidateId = "coverage-a",
+            Kind = CombatActionKind.PlayCard,
+            RuntimeId = 901,
+            Cost = 1,
+            TargetRuntimeId = 91,
+            TargetKind = CombatTargetKind.Enemy,
+            Semantics = new CombatActionSemantics { Damage = 2d }
+        },
+        new CombatActionObservation
+        {
+            CandidateId = "coverage-b",
+            Kind = CombatActionKind.PlayCard,
+            RuntimeId = 902,
+            Cost = 1,
+            TargetRuntimeId = 91,
+            TargetKind = CombatTargetKind.Enemy,
+            Semantics = new CombatActionSemantics { Damage = 3d }
+        },
+        new CombatActionObservation
+        {
+            CandidateId = "coverage-end",
+            Kind = CombatActionKind.EndTurn
+        }
+    }
+};
+var coverageDecision = new CombatDecisionEngine().Choose(coverageState, coverageProfile);
+Assert(coverageDecision.SearchAlgorithm == "chance-puct"
+       && coverageDecision.SearchSimulations >= 2
+       && coverageDecision.Candidates
+           .Where(candidate => candidate.Action.Kind != CombatActionKind.EndTurn)
+           .All(candidate => candidate.PlanScore != 0d),
+    "chance-puct gives every legal root action search evidence");
+
+var targetVariantState = new CombatStateObservation
+{
+    Player = new CombatUnitObservation
+    {
+        RuntimeId = 95,
+        CurrentHp = 20,
+        MaxHp = 20
+    },
+    Enemies =
+    {
+        new CombatUnitObservation { RuntimeId = 96, Kind = CombatTargetKind.Enemy, CurrentHp = 10, MaxHp = 10 },
+        new CombatUnitObservation { RuntimeId = 97, Kind = CombatTargetKind.Enemy, CurrentHp = 10, MaxHp = 10 }
+    },
+    Actions =
+    {
+        new CombatActionObservation
+        {
+            CandidateId = "same-card:96",
+            RuntimeId = 950,
+            Kind = CombatActionKind.PlayCard,
+            TargetRuntimeId = 96,
+            TargetKind = CombatTargetKind.Enemy,
+            Semantics = new CombatActionSemantics { Damage = 2d }
+        },
+        new CombatActionObservation
+        {
+            CandidateId = "same-card:97",
+            RuntimeId = 950,
+            Kind = CombatActionKind.PlayCard,
+            TargetRuntimeId = 97,
+            TargetKind = CombatTargetKind.Enemy,
+            Semantics = new CombatActionSemantics { Damage = 2d }
+        },
+        new CombatActionObservation { CandidateId = "same-card-end", Kind = CombatActionKind.EndTurn }
+    }
+};
+var targetVariantDecision = new CombatDecisionEngine().Choose(
+    targetVariantState,
+    new CombatDecisionProfile { SearchSimulationBudget = 128, SearchNodeBudget = 512 });
+Assert(targetVariantDecision.Plan.Count(step => step.CandidateId.StartsWith("same-card:", StringComparison.Ordinal)) <= 1,
+    "target variants of one runtime card share a single-use group");
+
+var transpositionState = new CombatStateObservation
+{
+    Player = new CombatUnitObservation { RuntimeId = 98, CurrentHp = 20, MaxHp = 20 },
+    Enemies =
+    {
+        new CombatUnitObservation
+        {
+            RuntimeId = 99,
+            Kind = CombatTargetKind.Enemy,
+            CurrentHp = 20,
+            MaxHp = 20
+        }
+    },
+    Actions =
+    {
+        new CombatActionObservation
+        {
+            CandidateId = "transpose-a",
+            RuntimeId = 980,
+            Kind = CombatActionKind.PlayCard,
+            TargetRuntimeId = 99,
+            TargetKind = CombatTargetKind.Enemy,
+            Semantics = new CombatActionSemantics { Damage = 1d }
+        },
+        new CombatActionObservation
+        {
+            CandidateId = "transpose-b",
+            RuntimeId = 981,
+            Kind = CombatActionKind.PlayCard,
+            TargetRuntimeId = 99,
+            TargetKind = CombatTargetKind.Enemy,
+            Semantics = new CombatActionSemantics { Damage = 1d }
+        },
+        new CombatActionObservation { CandidateId = "transpose-end", Kind = CombatActionKind.EndTurn }
+    }
+};
+var transpositionDecision = new CombatDecisionEngine().Choose(
+    transpositionState,
+    new CombatDecisionProfile
+    {
+        SearchSimulationBudget = 256,
+        SearchNodeBudget = 1024,
+        SearchMaxPly = 4
+    });
+Assert(transpositionDecision.SearchTranspositionHits > 0,
+    "commutative action orders reuse a physical-state transposition node");
+
+using (CombatAiRegistry.RegisterEffectResolver(
+           "Tests",
+           "ChanceDamage",
+           new FixedEffectResolver("chance-action"),
+           100))
+{
+    var chanceAction = new CombatActionObservation
+    {
+        CandidateId = "chance-action",
+        Semantics = new CombatActionSemantics { RandomOutcome = true }
+    };
+    var chanceModel = CombatForwardModel.Resolve(coverageState, chanceAction);
+    Assert(chanceModel.Outcomes.Count == 2
+           && Math.Abs(chanceModel.Outcomes.Sum(outcome => outcome.Probability) - 1d) < 0.000001d,
+        "content effect resolvers provide normalized chance outcomes");
+}
 
 Console.WriteLine($"AuraCombatAiShared.Tests passed: {assertions} assertions.");
 
@@ -717,6 +1006,61 @@ sealed class FixedThreatProvider : ICombatThreatProvider
         out CombatThreatForecast result)
     {
         result = forecast;
+        return true;
+    }
+}
+
+sealed class FixedEffectResolver : ICombatEffectResolver
+{
+    private readonly string candidateId;
+
+    public FixedEffectResolver(string candidateId)
+    {
+        this.candidateId = candidateId;
+    }
+
+    public bool TryResolve(
+        CombatStateObservation state,
+        CombatActionObservation action,
+        out CombatActionModel model)
+    {
+        model = new CombatActionModel();
+        if (action.CandidateId != candidateId)
+        {
+            return false;
+        }
+        model.ModelId = "test-chance";
+        model.Outcomes = new List<CombatActionOutcome>
+        {
+            new CombatActionOutcome
+            {
+                OutcomeId = "low",
+                Probability = 2d,
+                Effects =
+                {
+                    new CombatEffectOperation
+                    {
+                        Kind = CombatEffectKind.Damage,
+                        TargetRuntimeId = action.TargetRuntimeId,
+                        Magnitude = 2d
+                    }
+                }
+            },
+            new CombatActionOutcome
+            {
+                OutcomeId = "high",
+                Probability = 2d,
+                Effects =
+                {
+                    new CombatEffectOperation
+                    {
+                        Kind = CombatEffectKind.Damage,
+                        TargetRuntimeId = action.TargetRuntimeId,
+                        Magnitude = 6d
+                    }
+                }
+            }
+        };
         return true;
     }
 }

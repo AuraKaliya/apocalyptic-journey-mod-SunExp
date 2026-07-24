@@ -54,6 +54,9 @@
     "useTrainedModel": false,
     "trainedModelMode": "off",
     "showPredictionMarkers": true,
+    "searchSimulationBudget": 1536,
+    "searchNodeBudget": 8192,
+    "searchMaxPly": 16,
     "training": {
       "preset": "steady",
       "epochs": 80,

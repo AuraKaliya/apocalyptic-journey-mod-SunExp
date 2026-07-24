@@ -920,7 +920,11 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
 
     private static string BuildFingerprint(CombatStateObservation state)
     {
-        var enemyState = string.Join(",", state.Enemies.Select(enemy => enemy.RuntimeId + ":" + enemy.CurrentHp + ":" + enemy.Defend));
+        var enemyState = string.Join(",", state.Enemies.Select(enemy =>
+            enemy.RuntimeId
+            + ":" + enemy.CurrentHp
+            + ":" + enemy.Defend
+            + ":" + FeatureFingerprint(enemy.Features)));
         var actionState = string.Join(",", state.Actions
             .Where(action => action.Kind != CombatActionKind.EndTurn)
             .Select(action => action.RuntimeId + ":" + action.SourceId)
@@ -928,11 +932,26 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
         return state.BattleSessionId
                + "|" + state.Player.CurrentHp
                + "|" + state.Player.Defend
+               + "|" + FeatureFingerprint(state.Player.Features)
                + "|" + state.CurrentPower
                + "|" + state.HandCount
                + "|" + enemyState
                + "|" + (state.Threat?.Summary ?? "")
                + "|" + actionState;
+    }
+
+    private static string FeatureFingerprint(IReadOnlyDictionary<string, double>? features)
+    {
+        if (features == null || features.Count == 0)
+        {
+            return "";
+        }
+        return string.Join(
+            ",",
+            features
+                .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+                .Take(64)
+                .Select(pair => pair.Key + "=" + Finite(pair.Value).ToString("0.####")));
     }
 }
 

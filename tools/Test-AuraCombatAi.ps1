@@ -25,12 +25,18 @@ $controllerPath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraTool
 $presenterPath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattlePredictionPresenter.cs"
 $interactionPath = Join-Path $root "AuraCombatAiShared\GameApi\WitchCombatInteractionRuntime.cs"
 $runtimePath = Join-Path $root "AuraCombatAiShared\GameApi\WitchCombatRuntime.cs"
-$plannerPath = Join-Path $root "AuraCombatAiShared\CombatTurnPlanner.cs"
+$plannerPath = Join-Path $root "AuraCombatAiShared\CombatChancePuctPlanner.cs"
+$forwardModelPath = Join-Path $root "AuraCombatAiShared\CombatForwardModel.cs"
+$registryPath = Join-Path $root "AuraCombatAiShared\CombatAiRegistry.cs"
+$guidancePath = Join-Path $root "AuraCombatAiShared\CombatSearchGuidance.cs"
 $controller = Get-Content -LiteralPath $controllerPath -Raw
 $presenter = Get-Content -LiteralPath $presenterPath -Raw
 $interaction = Get-Content -LiteralPath $interactionPath -Raw
 $runtime = Get-Content -LiteralPath $runtimePath -Raw
 $planner = Get-Content -LiteralPath $plannerPath -Raw
+$forwardModel = Get-Content -LiteralPath $forwardModelPath -Raw
+$registry = Get-Content -LiteralPath $registryPath -Raw
+$guidance = Get-Content -LiteralPath $guidancePath -Raw
 $trainer = Get-Content -LiteralPath $trainerPath -Raw
 
 $requiredControllerAnchors = @(
@@ -119,13 +125,56 @@ foreach ($anchor in @(
 }
 
 foreach ($anchor in @(
-    "BeamWidth",
-    "MaxPlanDepth",
-    "CostReduction",
-    "ApplyDamage"
+    "CombatChancePuctPlanner",
+    "SearchSimulationBudget",
+    "SearchNodeBudget",
+    "SearchMaxPly",
+    "SnapshotSimulationRules",
+    "TranspositionHits",
+    "DeathRiskLimit",
+    "TailRiskPenalty",
+    "BuildPrincipalVariation"
 )) {
     if (-not $planner.Contains($anchor)) {
-        throw "Aura combat AI turn planner contract is missing: $anchor"
+        throw "Aura combat AI Chance-PUCT planner contract is missing: $anchor"
+    }
+}
+
+foreach ($anchor in @(
+    "CombatSimulationState",
+    "CombatActionModel",
+    "CombatActionOutcome",
+    "reductionSpent",
+    "HandLimit",
+    "public ulong Hash()",
+    "ApplyDamage"
+)) {
+    if (-not $forwardModel.Contains($anchor)) {
+        throw "Aura combat AI forward model contract is missing: $anchor"
+    }
+}
+
+foreach ($anchor in @(
+    "RegisterEffectResolver",
+    "TryResolveEffects",
+    "RegisterSimulationRule",
+    "EvaluateSimulation"
+)) {
+    if (-not $registry.Contains($anchor)) {
+        throw "Aura combat AI extension registry contract is missing: $anchor"
+    }
+}
+
+foreach ($anchor in @(
+    "aura.combat-search.gbdt.v1",
+    "BoundedTreeCombatSearchGuidanceModel",
+    "CombatSearchGuidanceTrainer",
+    "PolicyLogit",
+    "LeafValue",
+    "DeathRisk"
+)) {
+    if (-not $guidance.Contains($anchor)) {
+        throw "Aura combat AI search guidance contract is missing: $anchor"
     }
 }
 

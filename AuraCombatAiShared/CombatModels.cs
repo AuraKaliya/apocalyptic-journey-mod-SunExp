@@ -64,6 +64,55 @@ public enum CombatIntentKind
     Summon
 }
 
+public enum CombatEffectKind
+{
+    Damage,
+    TrueDamage,
+    DamageOverTime,
+    GainDefend,
+    Heal,
+    Draw,
+    GainEnergy,
+    ReduceCost,
+    Buff,
+    Debuff,
+    Cleanse,
+    GenerateCard,
+    PersistentValue,
+    Scaling
+}
+
+public sealed class CombatEffectOperation
+{
+    public CombatEffectKind Kind { get; set; }
+
+    public int TargetRuntimeId { get; set; }
+
+    public double Magnitude { get; set; }
+
+    public double SecondaryMagnitude { get; set; }
+
+    public string SemanticId { get; set; } = "";
+}
+
+public sealed class CombatActionOutcome
+{
+    public string OutcomeId { get; set; } = "";
+
+    public double Probability { get; set; } = 1d;
+
+    public List<CombatEffectOperation> Effects { get; set; } = new();
+}
+
+public sealed class CombatActionModel
+{
+    public string ModelId { get; set; } = "semantic-default";
+
+    public double Confidence { get; set; } = 1d;
+
+    public List<CombatActionOutcome> Outcomes { get; set; } = new();
+}
+
 public sealed class CombatUnitObservation
 {
     public int RuntimeId { get; set; }
@@ -275,6 +324,22 @@ public sealed class CombatDecisionProfile
     public int BeamWidth { get; set; } = 8;
 
     public int MaxPlanDepth { get; set; } = 8;
+
+    public int SearchSimulationBudget { get; set; } = 1536;
+
+    public int SearchNodeBudget { get; set; } = 8192;
+
+    public int SearchMaxPly { get; set; } = 16;
+
+    public double SearchExploration { get; set; } = 1.15d;
+
+    public double DeathRiskLimit { get; set; } = 0.05d;
+
+    public double TailRiskPenalty { get; set; } = 35d;
+
+    public double UncertaintyPenalty { get; set; } = 0.75d;
+
+    public bool UseChancePuct { get; set; } = true;
 }
 
 public sealed class CombatCandidateEvaluation
@@ -313,6 +378,10 @@ public sealed class CombatPlanStep
     public double CumulativeScore { get; set; }
 
     public int RemainingPower { get; set; }
+
+    public double DeathRisk { get; set; }
+
+    public int Visits { get; set; }
 }
 
 public sealed class CombatDecision
@@ -332,6 +401,14 @@ public sealed class CombatDecision
     public List<CombatPlanStep> Plan { get; set; } = new();
 
     public string PlanSummary { get; set; } = "";
+
+    public int SearchSimulations { get; set; }
+
+    public int SearchNodes { get; set; }
+
+    public int SearchTranspositionHits { get; set; }
+
+    public string SearchAlgorithm { get; set; } = "";
 }
 
 public sealed class CombatExecutionResult
@@ -384,6 +461,22 @@ public interface ICombatThreatProvider
         out CombatThreatForecast forecast);
 }
 
+public interface ICombatEffectResolver
+{
+    bool TryResolve(
+        CombatStateObservation state,
+        CombatActionObservation action,
+        out CombatActionModel model);
+}
+
+public interface ICombatSimulationRule
+{
+    bool IsLegal(
+        CombatSimulationState state,
+        CombatActionObservation action,
+        out string reason);
+}
+
 public interface ICombatTrainingSampleSink
 {
     void Record(CombatTrainingSample sample);
@@ -428,6 +521,14 @@ public sealed class CombatTrainingSample
     public string PlanSummary { get; set; } = "";
 
     public List<CombatPlanStep> Plan { get; set; } = new();
+
+    public string SearchAlgorithm { get; set; } = "";
+
+    public int SearchSimulations { get; set; }
+
+    public int SearchNodes { get; set; }
+
+    public int SearchTranspositionHits { get; set; }
 
     public List<CombatTrainingCandidate> Candidates { get; set; } = new();
 
@@ -514,6 +615,8 @@ public sealed class CombatTrainingCandidate
     public double AppliedResidualScore { get; set; }
 
     public double RuleScore { get; set; }
+
+    public double PlanScore { get; set; }
 }
 
 public sealed class CombatTrainingUtility

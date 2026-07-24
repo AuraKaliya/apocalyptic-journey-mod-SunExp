@@ -13,6 +13,10 @@ public static class CombatAiRegistry
         new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, ThreatRegistration> ThreatProviders =
         new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, EffectRegistration> EffectResolvers =
+        new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, SimulationRuleRegistration> SimulationRules =
+        new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, ICombatTrainingSampleSink> TrainingSinks =
         new(StringComparer.OrdinalIgnoreCase);
 
@@ -119,6 +123,58 @@ public static class CombatAiRegistry
         });
     }
 
+    public static IDisposable RegisterEffectResolver(
+        string ownerModId,
+        string resolverId,
+        ICombatEffectResolver resolver,
+        int priority = 0)
+    {
+        if (resolver == null)
+        {
+            return EmptyDisposable.Instance;
+        }
+
+        var key = Key(ownerModId, resolverId);
+        lock (Gate)
+        {
+            EffectResolvers[key] = new EffectRegistration(resolver, priority);
+        }
+
+        return new Registration(() =>
+        {
+            lock (Gate)
+            {
+                EffectResolvers.Remove(key);
+            }
+        });
+    }
+
+    public static IDisposable RegisterSimulationRule(
+        string ownerModId,
+        string ruleId,
+        ICombatSimulationRule rule,
+        int priority = 0)
+    {
+        if (rule == null)
+        {
+            return EmptyDisposable.Instance;
+        }
+
+        var key = Key(ownerModId, ruleId);
+        lock (Gate)
+        {
+            SimulationRules[key] = new SimulationRuleRegistration(rule, priority);
+        }
+
+        return new Registration(() =>
+        {
+            lock (Gate)
+            {
+                SimulationRules.Remove(key);
+            }
+        });
+    }
+
     public static bool EvaluatePreflight(
         CombatStateObservation state,
         CombatActionObservation action,
@@ -184,6 +240,60 @@ public static class CombatAiRegistry
         return false;
     }
 
+    public static bool TryResolveEffects(
+        CombatStateObservation state,
+        CombatActionObservation action,
+        out CombatActionModel model)
+    {
+        EffectRegistration[] snapshot;
+        lock (Gate)
+        {
+            snapshot = EffectResolvers.Values.OrderByDescending(item => item.Priority).ToArray();
+        }
+
+        for (var i = 0; i < snapshot.Length; i++)
+        {
+            if (snapshot[i].Resolver.TryResolve(state, action, out model)
+                && model != null
+                && model.Outcomes.Count > 0)
+            {
+                return true;
+            }
+        }
+
+        model = new CombatActionModel();
+        return false;
+    }
+
+    public static bool EvaluateSimulation(
+        CombatSimulationState state,
+        CombatActionObservation action,
+        out string reason)
+    {
+        var snapshot = SnapshotSimulationRules();
+
+        for (var i = 0; i < snapshot.Length; i++)
+        {
+            if (!snapshot[i].IsLegal(state, action, out reason))
+            {
+                return false;
+            }
+        }
+        reason = "";
+        return true;
+    }
+
+    public static ICombatSimulationRule[] SnapshotSimulationRules()
+    {
+        lock (Gate)
+        {
+            return SimulationRules.Values
+                .OrderByDescending(item => item.Priority)
+                .Select(item => item.Rule)
+                .ToArray();
+        }
+    }
+
     public static void RecordTrainingSample(CombatTrainingSample sample)
     {
         ICombatTrainingSampleSink[] snapshot;
@@ -240,6 +350,32 @@ public static class CombatAiRegistry
         }
 
         public ICombatThreatProvider Provider { get; }
+
+        public int Priority { get; }
+    }
+
+    private sealed class EffectRegistration
+    {
+        public EffectRegistration(ICombatEffectResolver resolver, int priority)
+        {
+            Resolver = resolver;
+            Priority = priority;
+        }
+
+        public ICombatEffectResolver Resolver { get; }
+
+        public int Priority { get; }
+    }
+
+    private sealed class SimulationRuleRegistration
+    {
+        public SimulationRuleRegistration(ICombatSimulationRule rule, int priority)
+        {
+            Rule = rule;
+            Priority = priority;
+        }
+
+        public ICombatSimulationRule Rule { get; }
 
         public int Priority { get; }
     }
