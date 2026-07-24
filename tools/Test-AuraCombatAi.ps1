@@ -21,6 +21,30 @@ if ($LASTEXITCODE -ne 0) {
     throw "Aura combat AI trainer self-test failed with exit code $LASTEXITCODE."
 }
 
+$simulationCliProject = Join-Path $root "AuraCombatSimulation.Cli\AuraCombatSimulation.Cli.csproj"
+$simulationRules = Join-Path $root "docs\AuraCombatAI\examples\simulation-ruleset.example.json"
+$simulationScenario = Join-Path $root "docs\AuraCombatAI\examples\simulation-scenario.example.json"
+$simulationOutput = Join-Path ([IO.Path]::GetTempPath()) "aura-combat-simulation-contract.json"
+& dotnet run --project $simulationCliProject -c Release -- `
+    --ruleset $simulationRules `
+    --scenario $simulationScenario `
+    --output $simulationOutput `
+    --count 4 `
+    --parallel 2 `
+    --policy chance-puct
+if ($LASTEXITCODE -ne 0) {
+    throw "Aura headless combat simulation contract failed with exit code $LASTEXITCODE."
+}
+$simulationResult = Get-Content -LiteralPath $simulationOutput -Raw | ConvertFrom-Json
+Remove-Item -LiteralPath $simulationOutput -Force
+if ($simulationResult.Statistics.CompletedSimulations -ne 4 `
+    -or $simulationResult.Statistics.Invalid -ne 0 `
+    -or $simulationResult.Statistics.AuthoritativeSimulations -ne 4 `
+    -or $simulationResult.Results[0].FinalStateHash -ne "75ce72673254e647" `
+    -or [string]::IsNullOrWhiteSpace($simulationResult.RulesetHash)) {
+    throw "Aura headless combat simulation result contract is invalid."
+}
+
 $controllerPath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleRuntime.cs"
 $presenterPath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattlePredictionPresenter.cs"
 $interactionPath = Join-Path $root "AuraCombatAiShared\GameApi\WitchCombatInteractionRuntime.cs"
@@ -29,6 +53,10 @@ $plannerPath = Join-Path $root "AuraCombatAiShared\CombatChancePuctPlanner.cs"
 $forwardModelPath = Join-Path $root "AuraCombatAiShared\CombatForwardModel.cs"
 $registryPath = Join-Path $root "AuraCombatAiShared\CombatAiRegistry.cs"
 $guidancePath = Join-Path $root "AuraCombatAiShared\CombatSearchGuidance.cs"
+$simulationEnginePath = Join-Path $root "AuraCombatSimulationShared\CombatSimulationEngine.cs"
+$simulationModelsPath = Join-Path $root "AuraCombatSimulationShared\CombatSimulationModels.cs"
+$simulationBatchPath = Join-Path $root "AuraCombatSimulationShared\CombatBatchRunner.cs"
+$simulationRegistryPath = Join-Path $root "AuraCombatSimulationShared\CombatSimulationRegistry.cs"
 $controller = Get-Content -LiteralPath $controllerPath -Raw
 $presenter = Get-Content -LiteralPath $presenterPath -Raw
 $interaction = Get-Content -LiteralPath $interactionPath -Raw
@@ -37,6 +65,10 @@ $planner = Get-Content -LiteralPath $plannerPath -Raw
 $forwardModel = Get-Content -LiteralPath $forwardModelPath -Raw
 $registry = Get-Content -LiteralPath $registryPath -Raw
 $guidance = Get-Content -LiteralPath $guidancePath -Raw
+$simulationEngine = Get-Content -LiteralPath $simulationEnginePath -Raw
+$simulationModels = Get-Content -LiteralPath $simulationModelsPath -Raw
+$simulationBatch = Get-Content -LiteralPath $simulationBatchPath -Raw
+$simulationRegistry = Get-Content -LiteralPath $simulationRegistryPath -Raw
 $trainer = Get-Content -LiteralPath $trainerPath -Raw
 
 $requiredControllerAnchors = @(
@@ -121,6 +153,57 @@ foreach ($anchor in @(
 )) {
     if (-not $runtime.Contains($anchor)) {
         throw "Aura combat AI threat observation contract is missing: $anchor"
+    }
+}
+
+foreach ($anchor in @(
+    "CombatSimulationEngine",
+    "ProcessLifecycleEvent",
+    "BuildLegalActions",
+    "ExecuteEnemyIntent",
+    "MaximumTriggerWavesPerAction",
+    "UnsupportedRule",
+    "CombatBattleStateHasher.Hash"
+)) {
+    if (-not $simulationEngine.Contains($anchor)) {
+        throw "Aura authoritative combat simulation engine contract is missing: $anchor"
+    }
+}
+
+foreach ($anchor in @(
+    "CombatScenarioDefinition",
+    "CombatBattleState",
+    "CombatSimulationEvent",
+    "CombatSimulationResult",
+    "CombatRuleFidelity",
+    "ParentSequence"
+)) {
+    if (-not $simulationModels.Contains($anchor)) {
+        throw "Aura combat simulation model contract is missing: $anchor"
+    }
+}
+
+foreach ($anchor in @(
+    "Parallel.For",
+    "Wilson",
+    "MaximumDegreeOfParallelism",
+    "SemanticCoverage",
+    "SeedStart"
+)) {
+    if (-not $simulationBatch.Contains($anchor)) {
+        throw "Aura combat batch simulation contract is missing: $anchor"
+    }
+}
+
+foreach ($anchor in @(
+    "RegisterProvider",
+    "BuildRuleset",
+    "SnapshotProviderIds",
+    "OwnerModId",
+    "ProviderId"
+)) {
+    if (-not $simulationRegistry.Contains($anchor)) {
+        throw "Aura combat simulation registry contract is missing: $anchor"
     }
 }
 

@@ -10,6 +10,6 @@
   <ItemGroup>
     <Compile Include="..\AuraDecisionShared\*.cs" Link="Decision\%(Filename)%(Extension)" />
     <Compile Include="..\AuraCombatSimulationShared\*.cs" Link="Simulation\%(Filename)%(Extension)" />
-    <Compile Include="..\AuraCombatAiShared\*.cs" Link="Combat\%(Filename)%(Extension)" />
+    <Compile Include="..\AuraCombatAiShared\*.cs" Link="CombatAi\%(Filename)%(Extension)" />
   </ItemGroup>
 </Project>

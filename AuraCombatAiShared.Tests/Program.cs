@@ -1,4 +1,5 @@
 using AuraCombatAi.Shared;
+using AuraCombatSimulation.Shared;
 using AuraDecision.Shared;
 
 var assertions = 0;
@@ -960,6 +961,213 @@ using (CombatAiRegistry.RegisterEffectResolver(
         "content effect resolvers provide normalized chance outcomes");
 }
 
+var simulationRules = BuildSimulationRuleset();
+Assert(simulationRules.Success
+       && simulationRules.Ruleset.CardCount == 4
+       && simulationRules.Ruleset.EnemyCount == 1
+       && simulationRules.Ruleset.StatusCount == 2,
+    "headless combat ruleset freezes authoritative card, enemy and status definitions");
+simulationRules.Ruleset.TryGetCard("strike", out var mutableCardSnapshot);
+mutableCardSnapshot.Cost = 99;
+simulationRules.Ruleset.TryGetCard("strike", out var unchangedCardSnapshot);
+Assert(unchangedCardSnapshot.Cost == 1,
+    "frozen ruleset lookups return defensive definition snapshots");
+var simulationScenario = BuildSimulationScenario(seed: 42UL, CombatSimulationTraceLevel.Full);
+var simulationEngine = new CombatSimulationEngine();
+var firstSimulation = simulationEngine.Run(
+    simulationScenario,
+    simulationRules.Ruleset,
+    new GreedyCombatSimulationPolicy());
+var repeatedSimulation = simulationEngine.Run(
+    BuildSimulationScenario(seed: 42UL, CombatSimulationTraceLevel.Full),
+    simulationRules.Ruleset,
+    new GreedyCombatSimulationPolicy());
+Assert(firstSimulation.Outcome == CombatSimulationOutcome.Victory
+       && firstSimulation.TerminationReason == CombatTerminationReason.Victory
+       && firstSimulation.SemanticCoverage == 1d
+       && firstSimulation.Metrics.CardsPlayed > 0
+       && firstSimulation.Events.Any(item => item.Kind == CombatSimulationEventKind.CardPlayed)
+       && firstSimulation.Events.Any(item => item.Kind == CombatSimulationEventKind.IntentSelected),
+    "headless engine runs the complete player/enemy turn lifecycle and records a causal trace");
+Assert(firstSimulation.FinalStateHash == repeatedSimulation.FinalStateHash
+       && firstSimulation.Events.Select(item => item.Kind)
+           .SequenceEqual(repeatedSimulation.Events.Select(item => item.Kind)),
+    "same ruleset, scenario and seed produce a deterministic combat replay");
+var matchingTrace = CombatTraceComparer.Compare(firstSimulation.Events, repeatedSimulation.Events);
+var changedTraceEvent = repeatedSimulation.Events.First(item =>
+    item.Kind == CombatSimulationEventKind.DamageDealt);
+changedTraceEvent.Amount++;
+var changedTrace = CombatTraceComparer.Compare(firstSimulation.Events, repeatedSimulation.Events);
+Assert(matchingTrace.Equivalent
+       && !changedTrace.Equivalent
+       && changedTrace.FirstDifference?.Field == "Amount",
+    "trace comparison reports the first divergent combat fact");
+Assert(firstSimulation.FinalState.Cards.Count
+       == firstSimulation.FinalState.DrawPile.Count
+          + firstSimulation.FinalState.Hand.Count
+          + firstSimulation.FinalState.DiscardPile.Count
+          + firstSimulation.FinalState.ExhaustPile.Count,
+    "every simulated card instance remains in exactly one authoritative zone");
+Assert(firstSimulation.Metrics.BlockGained >= 2
+       && firstSimulation.Events.Any(item =>
+           item.Kind == CombatSimulationEventKind.BlockGained
+           && item.ParentSequence > 0),
+    "status triggers enqueue deterministic commands instead of mutating state recursively");
+
+var aiSimulation = simulationEngine.Run(
+    BuildSimulationScenario(seed: 43UL, CombatSimulationTraceLevel.Actions),
+    simulationRules.Ruleset,
+    new CombatDecisionSimulationPolicy(
+        new CombatDecisionProfile
+        {
+            SearchSimulationBudget = 128,
+            SearchNodeBudget = 1024,
+            SearchMaxPly = 8
+        }));
+Assert(aiSimulation.Outcome == CombatSimulationOutcome.Victory
+       && aiSimulation.PolicyId.StartsWith("aura-combat-decision:", StringComparison.Ordinal),
+    "existing Chance-PUCT decision AI consumes projected headless observations and completes a battle");
+
+var branchState = new CombatBattleState
+{
+    Turn = 1,
+    Phase = CombatSimulationPhase.PlayerAction,
+    PlayerActorId = 1,
+    NextActorId = 3,
+    NextCardInstanceId = 2,
+    Actors =
+    {
+        new CombatActorState
+        {
+            ActorId = 1,
+            InstanceKey = "player",
+            Kind = CombatSimulationActorKind.Player,
+            DefinitionId = "tester",
+            Hp = 30,
+            MaxHp = 30,
+            Energy = 3,
+            BaseEnergy = 3
+        },
+        new CombatActorState
+        {
+            ActorId = 2,
+            InstanceKey = "dummy:branch",
+            Kind = CombatSimulationActorKind.Enemy,
+            DefinitionId = "dummy",
+            Hp = 18,
+            MaxHp = 18,
+            CurrentIntentId = "hit"
+        }
+    },
+    Cards =
+    {
+        new CombatCardInstanceState { InstanceId = 1, CardId = "strike" }
+    },
+    Hand = { 1 }
+};
+var branchActions = simulationEngine.GetLegalPlayerActions(
+    simulationScenario,
+    simulationRules.Ruleset,
+    branchState);
+var branchResult = simulationEngine.ForkAndApplyPlayerAction(
+    simulationScenario,
+    simulationRules.Ruleset,
+    branchState,
+    branchActions.First(action => action.Kind == CombatSimulationActionKind.PlayCard));
+Assert(branchResult.Success
+       && branchState.FindActor(2)?.Hp == 18
+       && branchResult.State.FindActor(2)?.Hp == 12
+       && branchResult.Events.Any(item => item.Kind == CombatSimulationEventKind.DamageDealt),
+    "authoritative action forks support search without mutating the source battle state");
+
+var unsupportedScenario = BuildSimulationScenario(seed: 1UL, CombatSimulationTraceLevel.Summary);
+unsupportedScenario.Player.Deck.Add("missing-card");
+var unsupportedSimulation = simulationEngine.Run(
+    unsupportedScenario,
+    simulationRules.Ruleset,
+    FirstLegalCombatSimulationPolicy.Instance);
+Assert(unsupportedSimulation.Outcome == CombatSimulationOutcome.Invalid
+       && unsupportedSimulation.TerminationReason == CombatTerminationReason.UnsupportedRule
+       && unsupportedSimulation.UnsupportedDefinitions.Contains("card:missing-card"),
+    "unknown combat rules fail closed instead of silently contributing zero-value effects");
+
+var mismatchedScenario = BuildSimulationScenario(seed: 2UL, CombatSimulationTraceLevel.Summary);
+mismatchedScenario.RulesetVersion = "wrong-version";
+var mismatchedSimulation = simulationEngine.Run(
+    mismatchedScenario,
+    simulationRules.Ruleset,
+    FirstLegalCombatSimulationPolicy.Instance);
+Assert(mismatchedSimulation.Outcome == CombatSimulationOutcome.Invalid
+       && mismatchedSimulation.TerminationReason == CombatTerminationReason.InvalidScenario,
+    "scenario execution rejects a mismatched frozen ruleset version");
+
+var loopScenario = BuildSimulationScenario(seed: 3UL, CombatSimulationTraceLevel.Full);
+loopScenario.Player.Deck.Clear();
+loopScenario.Player.Deck.Add("loop-seed");
+loopScenario.Player.InitialStatuses.Clear();
+loopScenario.InitialDraw = 1;
+loopScenario.DrawPerTurn = 1;
+loopScenario.Limits.MaximumTriggerWavesPerAction = 3;
+var loopSimulation = simulationEngine.Run(
+    loopScenario,
+    simulationRules.Ruleset,
+    FirstLegalCombatSimulationPolicy.Instance);
+Assert(loopSimulation.Outcome == CombatSimulationOutcome.Invalid
+       && loopSimulation.TerminationReason == CombatTerminationReason.TriggerLoop,
+    "trigger wave budgets terminate self-reinforcing status loops deterministically");
+
+var isolatedRandomA = new CombatRandomCounterState();
+var isolatedRandomB = new CombatRandomCounterState();
+var deckA1 = CombatDeterministicRandom.NextUInt64(99UL, isolatedRandomA, "deck.shuffle", out _);
+_ = CombatDeterministicRandom.NextUInt64(99UL, isolatedRandomA, "enemy.intent:x", out _);
+var deckA2 = CombatDeterministicRandom.NextUInt64(99UL, isolatedRandomA, "deck.shuffle", out _);
+var deckB1 = CombatDeterministicRandom.NextUInt64(99UL, isolatedRandomB, "deck.shuffle", out _);
+var deckB2 = CombatDeterministicRandom.NextUInt64(99UL, isolatedRandomB, "deck.shuffle", out _);
+Assert(deckA1 == deckB1 && deckA2 == deckB2,
+    "named deterministic random streams isolate deck order from unrelated enemy random calls");
+
+var serialBatch = new CombatBatchRunner().Run(
+    new CombatBatchRequest
+    {
+        Scenario = BuildSimulationScenario(seed: 1UL, CombatSimulationTraceLevel.Summary),
+        SeedStart = 100UL,
+        SimulationCount = 12,
+        MaximumDegreeOfParallelism = 1
+    },
+    simulationRules.Ruleset,
+    new GreedyCombatSimulationPolicyFactory());
+var parallelBatch = new CombatBatchRunner().Run(
+    new CombatBatchRequest
+    {
+        Scenario = BuildSimulationScenario(seed: 1UL, CombatSimulationTraceLevel.Summary),
+        SeedStart = 100UL,
+        SimulationCount = 12,
+        MaximumDegreeOfParallelism = 4
+    },
+    simulationRules.Ruleset,
+    new GreedyCombatSimulationPolicyFactory());
+Assert(serialBatch.Statistics.CompletedSimulations == 12
+       && serialBatch.Statistics.AuthoritativeSimulations == 12
+       && serialBatch.Statistics.WinRateLower95 >= 0d
+       && serialBatch.Statistics.WinRateUpper95 <= 1d
+       && serialBatch.Results.Select(item => item.FinalStateHash)
+           .SequenceEqual(parallelBatch.Results.Select(item => item.FinalStateHash)),
+    "batch simulation is seed-ordered, parallel-safe and reports bounded Wilson confidence");
+
+using (CombatSimulationRegistry.RegisterProvider(
+           "Tests",
+           "headless",
+           new FixedRulesetProvider(),
+           10))
+{
+    var registryRules = CombatSimulationRegistry.BuildRuleset("registry-v1");
+    var repeatedRegistryRules = CombatSimulationRegistry.BuildRuleset("registry-v1");
+    Assert(registryRules.Success
+           && CombatSimulationRegistry.SnapshotProviderIds().Contains("Tests:headless")
+           && registryRules.Ruleset.RulesetHash == repeatedRegistryRules.Ruleset.RulesetHash,
+        "content-owned ruleset providers build a stable frozen shared ruleset");
+}
+
 Console.WriteLine($"AuraCombatAiShared.Tests passed: {assertions} assertions.");
 
 void Assert(bool condition, string name)
@@ -970,6 +1178,201 @@ void Assert(bool condition, string name)
     }
 
     assertions++;
+}
+
+CombatRulesetBuildResult BuildSimulationRuleset(string version = "test-v1")
+{
+    return new CombatRulesetBuilder(version)
+        .RegisterStatus(new CombatStatusDefinition
+        {
+            OwnerModId = "Tests",
+            StatusId = "looping",
+            DisplayName = "Looping",
+            DecayAtRoundEnd = false,
+            Triggers =
+            {
+                new CombatStatusTriggerDefinition
+                {
+                    TriggerId = "repeat-status",
+                    EventKind = CombatSimulationEventKind.StatusAdded,
+                    Effects =
+                    {
+                        new CombatSimulationEffectDefinition
+                        {
+                            Kind = CombatSimulationEffectKind.AddStatus,
+                            Target = CombatSimulationTarget.Self,
+                            DefinitionId = "looping",
+                            Amount = 1
+                        }
+                    }
+                }
+            }
+        })
+        .RegisterStatus(new CombatStatusDefinition
+        {
+            OwnerModId = "Tests",
+            StatusId = "training",
+            DisplayName = "Training",
+            DecayAtRoundEnd = false,
+            Triggers =
+            {
+                new CombatStatusTriggerDefinition
+                {
+                    TriggerId = "guard-after-card",
+                    EventKind = CombatSimulationEventKind.CardPlayed,
+                    Priority = 10,
+                    Effects =
+                    {
+                        new CombatSimulationEffectDefinition
+                        {
+                            Kind = CombatSimulationEffectKind.GainBlock,
+                            Target = CombatSimulationTarget.Self,
+                            Amount = 2
+                        }
+                    }
+                }
+            }
+        })
+        .RegisterCard(new CombatCardDefinition
+        {
+            OwnerModId = "Tests",
+            CardId = "loop-seed",
+            DisplayName = "Loop Seed",
+            Cost = 0,
+            Exhaust = true,
+            Effects =
+            {
+                new CombatSimulationEffectDefinition
+                {
+                    Kind = CombatSimulationEffectKind.AddStatus,
+                    Target = CombatSimulationTarget.Self,
+                    DefinitionId = "looping",
+                    Amount = 1
+                }
+            }
+        })
+        .RegisterCard(new CombatCardDefinition
+        {
+            OwnerModId = "Tests",
+            CardId = "strike",
+            DisplayName = "Strike",
+            Cost = 1,
+            RequiresEnemyTarget = true,
+            Effects =
+            {
+                new CombatSimulationEffectDefinition
+                {
+                    Kind = CombatSimulationEffectKind.Damage,
+                    Target = CombatSimulationTarget.SelectedEnemy,
+                    Amount = 6
+                }
+            }
+        })
+        .RegisterCard(new CombatCardDefinition
+        {
+            OwnerModId = "Tests",
+            CardId = "guard",
+            DisplayName = "Guard",
+            Cost = 1,
+            Effects =
+            {
+                new CombatSimulationEffectDefinition
+                {
+                    Kind = CombatSimulationEffectKind.GainBlock,
+                    Target = CombatSimulationTarget.Self,
+                    Amount = 5
+                }
+            }
+        })
+        .RegisterCard(new CombatCardDefinition
+        {
+            OwnerModId = "Tests",
+            CardId = "insight",
+            DisplayName = "Insight",
+            Cost = 0,
+            Exhaust = true,
+            Effects =
+            {
+                new CombatSimulationEffectDefinition
+                {
+                    Kind = CombatSimulationEffectKind.Draw,
+                    Target = CombatSimulationTarget.Self,
+                    Amount = 1
+                }
+            }
+        })
+        .RegisterEnemy(new CombatEnemyDefinition
+        {
+            OwnerModId = "Tests",
+            EnemyId = "dummy",
+            DisplayName = "Training Dummy",
+            MaxHp = 18,
+            Intents =
+            {
+                new CombatEnemyIntentDefinition
+                {
+                    IntentId = "hit",
+                    DisplayName = "Hit",
+                    Weight = 1,
+                    Effects =
+                    {
+                        new CombatSimulationEffectDefinition
+                        {
+                            Kind = CombatSimulationEffectKind.Damage,
+                            Target = CombatSimulationTarget.Player,
+                            Amount = 4
+                        }
+                    }
+                }
+            }
+        })
+        .Freeze();
+}
+
+CombatScenarioDefinition BuildSimulationScenario(
+    ulong seed,
+    CombatSimulationTraceLevel traceLevel)
+{
+    return new CombatScenarioDefinition
+    {
+        ScenarioId = "training-dummy",
+        RulesetVersion = "test-v1",
+        Seed = seed,
+        InitialDraw = 4,
+        DrawPerTurn = 4,
+        HandLimit = 10,
+        TraceLevel = traceLevel,
+        Player = new CombatPlayerSetup
+        {
+            RoleId = "tester",
+            MaxHp = 30,
+            CurrentHp = 30,
+            BaseEnergy = 3,
+            Deck = { "strike", "strike", "guard", "insight" },
+            InitialStatuses =
+            {
+                new CombatInitialStatus
+                {
+                    StatusId = "training",
+                    Stacks = 1
+                }
+            }
+        },
+        Enemies =
+        {
+            new CombatEnemySetup
+            {
+                EnemyId = "dummy",
+                InstanceKey = "dummy:1"
+            }
+        },
+        Limits = new CombatSimulationLimits
+        {
+            MaximumTurns = 20,
+            MaximumActions = 100,
+            MaximumCommands = 1000
+        }
+    };
 }
 
 sealed class RejectCandidateRule : ICombatPreflightRule
@@ -989,6 +1392,96 @@ sealed class RejectCandidateRule : ICombatPreflightRule
         var legal = action.CandidateId != candidateId;
         reason = legal ? "" : "test rejection";
         return legal;
+    }
+}
+
+sealed class FixedRulesetProvider : ICombatRulesetProvider
+{
+    public void RegisterDefinitions(CombatRulesetBuilder builder)
+    {
+        var result = BuildDefinitions(builder);
+        _ = result;
+    }
+
+    private static CombatRulesetBuilder BuildDefinitions(CombatRulesetBuilder builder)
+    {
+        builder.RegisterStatus(new CombatStatusDefinition
+        {
+            OwnerModId = "Tests",
+            StatusId = "training",
+            DecayAtRoundEnd = false
+        });
+        builder.RegisterCard(new CombatCardDefinition
+        {
+            OwnerModId = "Tests",
+            CardId = "strike",
+            Cost = 1,
+            RequiresEnemyTarget = true,
+            Effects =
+            {
+                new CombatSimulationEffectDefinition
+                {
+                    Kind = CombatSimulationEffectKind.Damage,
+                    Target = CombatSimulationTarget.SelectedEnemy,
+                    Amount = 6
+                }
+            }
+        });
+        builder.RegisterCard(new CombatCardDefinition
+        {
+            OwnerModId = "Tests",
+            CardId = "guard",
+            Cost = 1,
+            Effects =
+            {
+                new CombatSimulationEffectDefinition
+                {
+                    Kind = CombatSimulationEffectKind.GainBlock,
+                    Target = CombatSimulationTarget.Self,
+                    Amount = 5
+                }
+            }
+        });
+        builder.RegisterCard(new CombatCardDefinition
+        {
+            OwnerModId = "Tests",
+            CardId = "insight",
+            Cost = 0,
+            Exhaust = true,
+            Effects =
+            {
+                new CombatSimulationEffectDefinition
+                {
+                    Kind = CombatSimulationEffectKind.Draw,
+                    Target = CombatSimulationTarget.Self,
+                    Amount = 1
+                }
+            }
+        });
+        builder.RegisterEnemy(new CombatEnemyDefinition
+        {
+            OwnerModId = "Tests",
+            EnemyId = "dummy",
+            MaxHp = 18,
+            Intents =
+            {
+                new CombatEnemyIntentDefinition
+                {
+                    IntentId = "hit",
+                    Weight = 1,
+                    Effects =
+                    {
+                        new CombatSimulationEffectDefinition
+                        {
+                            Kind = CombatSimulationEffectKind.Damage,
+                            Target = CombatSimulationTarget.Player,
+                            Amount = 4
+                        }
+                    }
+                }
+            }
+        });
+        return builder;
     }
 }
 

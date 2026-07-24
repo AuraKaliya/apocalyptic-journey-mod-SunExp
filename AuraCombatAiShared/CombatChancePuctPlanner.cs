@@ -30,6 +30,7 @@ public sealed class CombatChancePuctPlanner
 {
     private readonly IDecisionResidualModel residualModel;
     private readonly ICombatSearchGuidanceModel guidanceModel;
+    private readonly bool useRuntimeRegistries;
     private readonly Dictionary<ulong, SearchNode> transpositions = new();
     private IReadOnlyList<SearchAction> actions = Array.Empty<SearchAction>();
     private CombatStateObservation rootObservation = new();
@@ -41,10 +42,12 @@ public sealed class CombatChancePuctPlanner
 
     public CombatChancePuctPlanner(
         IDecisionResidualModel? residualModel = null,
-        ICombatSearchGuidanceModel? guidanceModel = null)
+        ICombatSearchGuidanceModel? guidanceModel = null,
+        bool useRuntimeRegistries = true)
     {
         this.residualModel = residualModel ?? NullDecisionResidualModel.Instance;
         this.guidanceModel = guidanceModel ?? NullCombatSearchGuidanceModel.Instance;
+        this.useRuntimeRegistries = useRuntimeRegistries;
     }
 
     public CombatSearchResult Choose(
@@ -57,7 +60,9 @@ public sealed class CombatChancePuctPlanner
         transpositions.Clear();
         nodeCount = 0;
         transpositionHits = 0;
-        simulationRules = CombatAiRegistry.SnapshotSimulationRules();
+        simulationRules = useRuntimeRegistries
+            ? CombatAiRegistry.SnapshotSimulationRules()
+            : Array.Empty<ICombatSimulationRule>();
         nodeBudget = Math.Max(256, Math.Min(65536, profile.SearchNodeBudget));
         actions = BuildActions(state, candidates);
         if (actions.Count == 0)
@@ -447,7 +452,7 @@ public sealed class CombatChancePuctPlanner
             {
                 Action = action,
                 Evaluation = legal[i],
-                Model = CombatForwardModel.Resolve(state, action),
+                Model = CombatForwardModel.Resolve(state, action, useRuntimeRegistries),
                 Prior = unnormalized[i] / total,
                 UseGroupIndex = useGroupIndex
             });

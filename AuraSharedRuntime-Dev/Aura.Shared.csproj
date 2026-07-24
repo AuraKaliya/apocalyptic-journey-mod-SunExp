@@ -28,6 +28,7 @@
     <Compile Include="..\AuraCgShared\*.cs" Link="AuraCgShared\%(Filename)%(Extension)" />
     <Compile Include="..\AuraCardUseFxShared\*.cs" Link="AuraCardUseFxShared\%(Filename)%(Extension)" />
     <Compile Include="..\AuraDecisionShared\**\*.cs" Link="AuraDecisionShared\%(RecursiveDir)%(Filename)%(Extension)" />
+    <Compile Include="..\AuraCombatSimulationShared\**\*.cs" Link="AuraCombatSimulationShared\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\AuraCombatAiShared\**\*.cs" Link="AuraCombatAiShared\%(RecursiveDir)%(Filename)%(Extension)" />
     <Compile Include="..\AuraDirectorShared\*.cs" Link="AuraDirectorShared\%(Filename)%(Extension)" />
     <Compile Include="..\AuraLogShared\*.cs" Link="AuraLogShared\%(Filename)%(Extension)" />

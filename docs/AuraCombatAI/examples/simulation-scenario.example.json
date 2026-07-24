@@ -1,0 +1,45 @@
+{
+  "scenarioId": "example-training-dummy",
+  "rulesetVersion": "example-v1",
+  "seed": 42,
+  "player": {
+    "roleId": "example_tester",
+    "maxHp": 30,
+    "currentHp": 30,
+    "baseEnergy": 3,
+    "deck": [
+      "example_strike",
+      "example_strike",
+      "example_guard",
+      "example_insight"
+    ],
+    "initialStatuses": [
+      {
+        "statusId": "combat_training",
+        "stacks": 1,
+        "duration": 0
+      }
+    ]
+  },
+  "enemies": [
+    {
+      "enemyId": "example_dummy",
+      "instanceKey": "dummy:1",
+      "hpScale": 1.0
+    }
+  ],
+  "initialDraw": 4,
+  "drawPerTurn": 4,
+  "handLimit": 10,
+  "retainBlockBetweenTurns": false,
+  "requireAuthoritativeRules": true,
+  "traceLevel": "Full",
+  "limits": {
+    "maximumTurns": 20,
+    "maximumActions": 100,
+    "maximumCommands": 1000,
+    "maximumCommandsPerAction": 100,
+    "maximumTriggerWavesPerAction": 20,
+    "maximumSummonedActors": 8
+  }
+}

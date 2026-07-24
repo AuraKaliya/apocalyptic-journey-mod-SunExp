@@ -8,13 +8,16 @@ public sealed class CombatDecisionEngine
 {
     private readonly IDecisionResidualModel residualModel;
     private readonly ICombatSearchGuidanceModel searchGuidance;
+    private readonly bool useRuntimeRegistries;
 
     public CombatDecisionEngine(
         IDecisionResidualModel? residualModel = null,
-        ICombatSearchGuidanceModel? searchGuidance = null)
+        ICombatSearchGuidanceModel? searchGuidance = null,
+        bool useRuntimeRegistries = true)
     {
         this.residualModel = residualModel ?? NullDecisionResidualModel.Instance;
         this.searchGuidance = searchGuidance ?? NullCombatSearchGuidanceModel.Instance;
+        this.useRuntimeRegistries = useRuntimeRegistries;
     }
 
     public CombatDecision Choose(
@@ -54,11 +57,11 @@ public sealed class CombatDecisionEngine
 
             var rejectionReason = action.RejectionReason;
             var legal = action.Legal;
-            if (legal)
+            if (legal && useRuntimeRegistries)
             {
                 legal = CombatAiRegistry.EvaluatePreflight(state, action, out rejectionReason);
             }
-            if (legal)
+            if (legal && useRuntimeRegistries)
             {
                 CombatAiRegistry.ApplySemantics(state, action);
             }
@@ -96,7 +99,10 @@ public sealed class CombatDecisionEngine
         }
 
         var search = selectedProfile.UseChancePuct
-            ? new CombatChancePuctPlanner(residualModel, searchGuidance)
+            ? new CombatChancePuctPlanner(
+                    residualModel,
+                    searchGuidance,
+                    useRuntimeRegistries)
                 .Choose(state, evaluations, selectedProfile)
             : null;
         var plan = search == null

@@ -281,9 +281,11 @@ public static class CombatForwardModel
 
     public static CombatActionModel Resolve(
         CombatStateObservation root,
-        CombatActionObservation action)
+        CombatActionObservation action,
+        bool useRegisteredResolvers = true)
     {
-        if (CombatAiRegistry.TryResolveEffects(root, action, out var provided)
+        if (useRegisteredResolvers
+            && CombatAiRegistry.TryResolveEffects(root, action, out var provided)
             && provided != null
             && provided.Outcomes.Count > 0)
         {

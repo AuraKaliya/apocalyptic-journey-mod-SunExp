@@ -1,0 +1,104 @@
+{
+  "version": "example-v1",
+  "statuses": [
+    {
+      "ownerModId": "Aura.Example",
+      "statusId": "combat_training",
+      "displayName": "Combat Training",
+      "fidelity": "Authoritative",
+      "decayAtRoundEnd": false,
+      "triggers": [
+        {
+          "triggerId": "guard_after_card",
+          "eventKind": "CardPlayed",
+          "priority": 10,
+          "effects": [
+            {
+              "kind": "GainBlock",
+              "target": "Self",
+              "amount": 2,
+              "probability": 1.0
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "cards": [
+    {
+      "ownerModId": "Aura.Example",
+      "cardId": "example_strike",
+      "displayName": "Example Strike",
+      "cost": 1,
+      "requiresEnemyTarget": true,
+      "fidelity": "Authoritative",
+      "effects": [
+        {
+          "kind": "Damage",
+          "target": "SelectedEnemy",
+          "amount": 6,
+          "probability": 1.0
+        }
+      ]
+    },
+    {
+      "ownerModId": "Aura.Example",
+      "cardId": "example_guard",
+      "displayName": "Example Guard",
+      "cost": 1,
+      "fidelity": "Authoritative",
+      "effects": [
+        {
+          "kind": "GainBlock",
+          "target": "Self",
+          "amount": 5,
+          "probability": 1.0
+        }
+      ]
+    },
+    {
+      "ownerModId": "Aura.Example",
+      "cardId": "example_insight",
+      "displayName": "Example Insight",
+      "cost": 0,
+      "exhaust": true,
+      "fidelity": "Authoritative",
+      "effects": [
+        {
+          "kind": "Draw",
+          "target": "Self",
+          "amount": 1,
+          "probability": 1.0
+        }
+      ]
+    }
+  ],
+  "enemies": [
+    {
+      "ownerModId": "Aura.Example",
+      "enemyId": "example_dummy",
+      "displayName": "Example Dummy",
+      "maxHp": 18,
+      "fidelity": "Authoritative",
+      "intents": [
+        {
+          "intentId": "hit",
+          "displayName": "Hit",
+          "weight": 1,
+          "minimumTurn": 1,
+          "maximumTurn": 100,
+          "minimumHpRatio": 0.0,
+          "maximumHpRatio": 1.0,
+          "effects": [
+            {
+              "kind": "Damage",
+              "target": "Player",
+              "amount": 4,
+              "probability": 1.0
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}
