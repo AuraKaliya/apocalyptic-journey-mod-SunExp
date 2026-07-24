@@ -359,9 +359,13 @@ void TestConfigModelSerializationCompatibility()
            && matchExperience.AutoBattle.ShowPredictionMarkers
            && !matchExperience.AutoBattle.UseTrainedModel
            && matchExperience.AutoBattle.TrainedModelMode == "off"
+           && matchExperience.AutoBattle.SearchSimulationBudget == 256
+           && matchExperience.AutoBattle.SearchMaxPly == 10
            && matchExperience.AutoBattle.Training.Preset == AutoBattleTrainingSettings.CustomPreset
            && matchExperience.AutoBattle.Training.Epochs == 100
-           && matchExperience.AutoBattle.Training.MaximumCorrection == 2d,
+           && matchExperience.AutoBattle.Training.MaximumCorrection == 2d
+           && matchExperience.AutoBattle.Simulation.SimulationCount == 200
+           && matchExperience.AutoBattle.Simulation.Parallelism == 2,
         "match-experience config keeps legacy schema migration and nested defaults after the file split");
 
     var steadyTraining = AutoBattleTrainingSettings.CreateSteady();
@@ -388,6 +392,14 @@ void TestConfigModelSerializationCompatibility()
     Assert(legacyTrainedModel.TrainedModelMode == "off"
            && !legacyTrainedModel.UseTrainedModel,
         "explicitly disabling the trained model survives normalization");
+    legacyTrainedModel.Simulation.SimulationCount = 500000;
+    legacyTrainedModel.Simulation.Parallelism = 99;
+    legacyTrainedModel.Simulation.MinimumAuthoritativeCoverage = double.NaN;
+    legacyTrainedModel.Normalize();
+    Assert(legacyTrainedModel.Simulation.SimulationCount == 100000
+           && legacyTrainedModel.Simulation.Parallelism == 16
+           && legacyTrainedModel.Simulation.MinimumAuthoritativeCoverage == 1d,
+        "headless simulation settings clamp workload and release-gate thresholds");
 
     var legacyFeast = JsonConvert.DeserializeObject<FeastSettings>(
         "{\"roles\":{\"role-a\":{\"selectedCgId\":\"Terrias:feast-a\"}}}")!;
@@ -998,6 +1010,7 @@ void TestRuntimeArchitectureGuards()
     var autoBattleRuntime = ReadRepoText("AuraToolsExp-Dev/Features/AutoBattle/AuraToolsAutoBattleRuntime.cs");
     var autoBattlePredictionPresenter = ReadRepoText("AuraToolsExp-Dev/Features/AutoBattle/AuraToolsAutoBattlePredictionPresenter.cs");
     var autoBattleModelRuntime = ReadRepoText("AuraToolsExp-Dev/Features/AutoBattle/AuraToolsAutoBattleModelRuntime.cs");
+    var autoBattleSimulationRuntime = ReadRepoText("AuraToolsExp-Dev/Features/AutoBattle/AuraToolsAutoBattleSimulationRuntime.cs");
     var settingsRuntime = ReadRepoText("AuraToolsExp-Dev/Features/Settings/AuraToolsSettingsRuntime.cs");
     Assert(autoBattleRuntime.Contains("WitchCombatInteractionRuntime.ObserveDeckPrompt", StringComparison.Ordinal)
            && autoBattleRuntime.Contains("WitchCombatInteractionRuntime.ObserveHandPrompt", StringComparison.Ordinal)
@@ -1020,6 +1033,20 @@ void TestRuntimeArchitectureGuards()
            && settingsRuntime.Contains("显示高级训练参数", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"preset\": \"steady\"", StringComparison.Ordinal),
         "auto battle exposes bounded training presets and persistent visible task feedback");
+    Assert(autoBattleRuntime.Contains("CombatActionTransactionState.Completed.ToString()", StringComparison.Ordinal)
+           && autoBattleRuntime.Contains("BlockingCollection<CombatTrainingSample>", StringComparison.Ordinal)
+           && autoBattleRuntime.Contains("AutoBattle.LearnedShadow", StringComparison.Ordinal)
+           && autoBattleRuntime.Contains("p95Ms=", StringComparison.Ordinal)
+           && autoBattleRuntime.Contains("AuraToolsAutoBattleSimulationRuntime.CanActivateModel", StringComparison.Ordinal)
+           && autoBattleModelRuntime.Contains("groupedValidationAccuracy", StringComparison.Ordinal)
+           && autoBattleSimulationRuntime.Contains("\"results.jsonl\"", StringComparison.Ordinal)
+           && autoBattleSimulationRuntime.Contains("\"summary.json\"", StringComparison.Ordinal)
+           && autoBattleSimulationRuntime.Contains("Parallel.For", StringComparison.Ordinal)
+           && autoBattleSimulationRuntime.Contains("CombatSimulationRegistry.SnapshotScenarios", StringComparison.Ordinal)
+           && settingsRuntime.Contains("AuraToolsAutoBattleSimulationStatusView", StringComparison.Ordinal)
+           && matchExperienceConfig.Contains("\"searchSimulationBudget\": 256", StringComparison.Ordinal)
+           && matchExperienceConfig.Contains("\"simulation\"", StringComparison.Ordinal),
+        "auto battle ships terminal attribution, bounded search, paired headless evaluation and active-model gates");
     Assert(autoBattlePredictionPresenter.Contains("UI/SelectedIcon", StringComparison.Ordinal)
            && autoBattlePredictionPresenter.Contains("raycastTarget = false", StringComparison.Ordinal)
            && autoBattlePredictionPresenter.Contains("blocksRaycasts = false", StringComparison.Ordinal)

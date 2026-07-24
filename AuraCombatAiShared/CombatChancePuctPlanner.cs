@@ -24,6 +24,8 @@ public sealed class CombatSearchResult
     public int Nodes { get; set; }
 
     public int TranspositionHits { get; set; }
+
+    public bool StoppedEarly { get; set; }
 }
 
 public sealed class CombatChancePuctPlanner
@@ -90,10 +92,43 @@ public sealed class CombatChancePuctPlanner
         var simulationBudget = Math.Max(
             actions.Count,
             Math.Min(20000, profile.SearchSimulationBudget));
+        var minimumSimulations = Math.Min(
+            simulationBudget,
+            Math.Max(actions.Count, Math.Max(1, profile.SearchMinimumSimulations)));
+        var stabilityWindow = Math.Max(16, profile.SearchStabilityWindow);
+        var requiredStableChecks = Math.Max(1, profile.SearchStableChecks);
+        var lastBestAction = -1;
+        var lastNodeCount = -1;
+        var stableChecks = 0;
+        var stoppedEarly = false;
         while (simulations < simulationBudget && nodeCount < nodeBudget)
         {
             Simulate(root, null);
             simulations++;
+            if (simulations < minimumSimulations
+                || simulations % stabilityWindow != 0)
+            {
+                continue;
+            }
+
+            var currentBest = StableBestAction(root);
+            if (currentBest >= 0
+                && currentBest == lastBestAction
+                && nodeCount == lastNodeCount)
+            {
+                stableChecks++;
+                if (stableChecks >= requiredStableChecks)
+                {
+                    stoppedEarly = true;
+                    break;
+                }
+            }
+            else
+            {
+                stableChecks = 0;
+            }
+            lastBestAction = currentBest;
+            lastNodeCount = nodeCount;
         }
 
         var rootEdges = root.Edges.Values
@@ -138,8 +173,29 @@ public sealed class CombatChancePuctPlanner
             Simulations = simulations,
             Nodes = nodeCount,
             TranspositionHits = transpositionHits,
+            StoppedEarly = stoppedEarly,
             Summary = BuildSummary(best, steps, simulations)
+                      + (stoppedEarly ? "; early-stop=stable" : "")
         };
+    }
+
+    private int StableBestAction(SearchNode root)
+    {
+        var rootEdges = root.Edges.Values
+            .Where(edge => edge.ActionIndex >= 0 && edge.Visits > 0)
+            .ToList();
+        if (rootEdges.Count != actions.Count)
+        {
+            return -1;
+        }
+        var safe = rootEdges.Where(edge => edge.MeanRisk <= profile.DeathRiskLimit).ToList();
+        var pool = safe.Count > 0 ? safe : rootEdges;
+        return pool
+            .OrderByDescending(RootSelectionValue)
+            .ThenByDescending(edge => edge.Visits)
+            .ThenByDescending(edge => edge.Prior)
+            .First()
+            .ActionIndex;
     }
 
     private void Simulate(SearchNode root, SearchEdge? forcedRoot)
@@ -403,10 +459,10 @@ public sealed class CombatChancePuctPlanner
                                      + threat.ExpectedUnblockableDamage
                                      + threat.ExpectedDamageOverTime,
             Threat = threat,
-            Features = new Dictionary<string, double>(rootObservation.Features, StringComparer.OrdinalIgnoreCase)
-            {
-                ["handLimit"] = simulation.HandLimit
-            },
+            Features = CombatSearchFeatureProjector.ProjectLeaf(
+                simulation,
+                profile,
+                rootObservation.Features),
             IsPlayerActionWindow = true
         };
     }
@@ -468,24 +524,10 @@ public sealed class CombatChancePuctPlanner
         {
             return baseline;
         }
-        var features = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["playerHp"] = state.PlayerHp,
-            ["playerMaxHp"] = state.PlayerMaxHp,
-            ["playerHpRatio"] = state.PlayerMaxHp <= 0
-                ? 0d
-                : (double)state.PlayerHp / state.PlayerMaxHp,
-            ["playerDefend"] = state.PlayerDefend,
-            ["power"] = state.Power,
-            ["maxPower"] = state.MaxPower,
-            ["handCount"] = state.HandCount,
-            ["handLimit"] = state.HandLimit,
-            ["enemyCount"] = state.Enemies.Count(enemy => enemy.Hp > 0),
-            ["enemyHpTotal"] = state.Enemies.Sum(enemy => Math.Max(0, enemy.Hp)),
-            ["blockableThreat"] = state.ActiveBlockableThreat(profile.ThreatRiskTolerance),
-            ["stepCount"] = state.StepCount,
-            ["uncertainty"] = state.Uncertainty
-        };
+        var features = CombatSearchFeatureProjector.ProjectLeaf(
+            state,
+            profile,
+            rootObservation.Features);
         return new CombatLeafEvaluation
         {
             Value = baseline.Value + guidanceModel.LeafValue(features),

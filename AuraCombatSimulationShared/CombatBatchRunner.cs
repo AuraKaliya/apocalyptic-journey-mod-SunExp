@@ -197,7 +197,7 @@ public sealed class CombatBatchRunner
     }
 }
 
-internal static class CombatScenarioCloner
+public static class CombatScenarioCloner
 {
     public static CombatScenarioDefinition Clone(CombatScenarioDefinition source)
     {

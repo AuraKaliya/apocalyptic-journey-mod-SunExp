@@ -1,0 +1,892 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using System.Threading;
+using System.Threading.Tasks;
+using AuraCombatAi.Shared;
+using AuraCombatSimulation.Shared;
+using AuraShared.Core;
+using AuraToolsExp.Dll.Config;
+using AuraToolsExp.Dll.Infrastructure;
+
+namespace AuraToolsExp.Dll.Features.AutoBattle;
+
+internal enum AutoBattleSimulationStage
+{
+    Idle,
+    Queued,
+    Resolving,
+    Running,
+    Writing,
+    Completed,
+    Cancelled,
+    Failed
+}
+
+internal sealed class AutoBattleSimulationStatus
+{
+    public AutoBattleSimulationStage Stage { get; set; }
+
+    public string Message { get; set; } = "尚未运行模拟评估";
+
+    public int CompletedPairs { get; set; }
+
+    public int RequestedPairs { get; set; }
+
+    public string ScenarioId { get; set; } = "";
+
+    public string ResultDirectory { get; set; } = "";
+
+    public bool GatePassed { get; set; }
+
+    public DateTime UpdatedUtc { get; set; } = DateTime.UtcNow;
+
+    public bool Busy => Stage == AutoBattleSimulationStage.Queued
+                        || Stage == AutoBattleSimulationStage.Resolving
+                        || Stage == AutoBattleSimulationStage.Running
+                        || Stage == AutoBattleSimulationStage.Writing;
+
+    public AutoBattleSimulationStatus Clone()
+    {
+        return (AutoBattleSimulationStatus)MemberwiseClone();
+    }
+}
+
+internal sealed class AutoBattleSimulationSummary
+{
+    public string RunId { get; set; } = "";
+
+    public string ScenarioId { get; set; } = "";
+
+    public string Profile { get; set; } = "";
+
+    public string ModelId { get; set; } = "";
+
+    public string RulesetHash { get; set; } = "";
+
+    public int RequestedPairs { get; set; }
+
+    public int CompletedPairs { get; set; }
+
+    public int AuthoritativePairs { get; set; }
+
+    public int InvalidPairs { get; set; }
+
+    public int DivergentPairs { get; set; }
+
+    public int BaselineVictories { get; set; }
+
+    public int LearnedVictories { get; set; }
+
+    public double AuthoritativeCoverage { get; set; }
+
+    public double BaselineWinRate { get; set; }
+
+    public double LearnedWinRate { get; set; }
+
+    public double BaselineMeanTurns { get; set; }
+
+    public double LearnedMeanTurns { get; set; }
+
+    public double BaselineMeanFinalPlayerHp { get; set; }
+
+    public double LearnedMeanFinalPlayerHp { get; set; }
+
+    public bool GatePassed { get; set; }
+
+    public string GateReason { get; set; } = "";
+
+    public bool Cancelled { get; set; }
+
+    public DateTime CompletedUtc { get; set; }
+}
+
+internal static class AuraToolsAutoBattleSimulationRuntime
+{
+    private const string WorkKey = "AutoBattle.Simulation";
+    private static readonly object Gate = new();
+    private static AutoBattleSimulationStatus status = new();
+    private static CancellationTokenSource? cancellation;
+
+    public static string InputDirectory =>
+        Path.Combine(AuraSharedLogStore.OwnerDirectory(AuraToolsIds.ModId), "combat-simulation-input");
+
+    public static string ResultsRootDirectory =>
+        Path.Combine(AuraSharedLogStore.OwnerDirectory(AuraToolsIds.ModId), "combat-simulation-results");
+
+    public static IReadOnlyList<string> AvailableScenarioIds()
+    {
+        var ids = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        try
+        {
+            foreach (var scenario in CombatSimulationRegistry.SnapshotScenarios())
+            {
+                if (!string.IsNullOrWhiteSpace(scenario.ScenarioId))
+                {
+                    ids.Add(scenario.ScenarioId.Trim());
+                }
+            }
+        }
+        catch (Exception ex)
+        {
+            AuraToolsLog.Warn("[AutoBattle][Simulation] 场景提供者枚举失败：" + ex.Message);
+        }
+
+        Directory.CreateDirectory(InputDirectory);
+        foreach (var path in ScenarioFiles())
+        {
+            try
+            {
+                var scenario = AuraSharedJson.Deserialize<CombatScenarioDefinition>(File.ReadAllText(path));
+                var scenarioId = scenario?.ScenarioId;
+                if (!string.IsNullOrWhiteSpace(scenarioId))
+                {
+                    ids.Add(scenarioId!.Trim());
+                }
+            }
+            catch
+            {
+                // Invalid files are reported when the selected scenario is resolved.
+            }
+        }
+        return ids.OrderBy(id => id, StringComparer.Ordinal).ToArray();
+    }
+
+    public static bool QueueRun(
+        AutoBattleSettings settings,
+        out string message)
+    {
+        if (settings == null)
+        {
+            message = "自动战斗设置为空";
+            return false;
+        }
+        settings.Normalize();
+        var request = Snapshot(settings);
+        lock (Gate)
+        {
+            if (status.Busy)
+            {
+                message = "已有模拟评估正在运行";
+                return false;
+            }
+            cancellation?.Dispose();
+            cancellation = new CancellationTokenSource();
+            status = new AutoBattleSimulationStatus
+            {
+                Stage = AutoBattleSimulationStage.Queued,
+                Message = "模拟评估已排队",
+                RequestedPairs = request.Simulation.SimulationCount,
+                ScenarioId = request.Simulation.ScenarioId
+            };
+        }
+
+        var ownedCancellation = cancellation;
+        var queued = AuraSharedBackgroundWorkScheduler.Queue(
+            new AuraSharedBackgroundWorkRequest<SimulationWorkResult>
+            {
+                OwnerId = AuraToolsIds.ModId,
+                Key = WorkKey,
+                Source = "AutoBattle.PairedSimulation",
+                Kind = AuraSharedBackgroundWorkKind.Cpu,
+                Work = schedulerToken =>
+                {
+                    using var linked = CancellationTokenSource.CreateLinkedTokenSource(
+                        schedulerToken,
+                        ownedCancellation.Token);
+                    return Run(request, linked.Token);
+                },
+                ApplyOnMainThread = result =>
+                {
+                    SetStatus(
+                        result.Cancelled
+                            ? AutoBattleSimulationStage.Cancelled
+                            : result.Success
+                                ? AutoBattleSimulationStage.Completed
+                                : AutoBattleSimulationStage.Failed,
+                        result.Message,
+                        result.CompletedPairs,
+                        result.RequestedPairs,
+                        result.ScenarioId,
+                        result.ResultDirectory,
+                        result.GatePassed);
+                    (result.Success ? (Action<string>)AuraToolsLog.Info : AuraToolsLog.Warn)(
+                        "[AutoBattle][Simulation] " + result.Message);
+                },
+                OnFailedOnMainThread = ex =>
+                {
+                    SetStatus(
+                        AutoBattleSimulationStage.Failed,
+                        "模拟评估失败：" + ex.Message);
+                    AuraToolsLog.Warn("[AutoBattle][Simulation] 模拟评估失败：" + ex);
+                }
+            });
+        if (!queued)
+        {
+            SetStatus(AutoBattleSimulationStage.Failed, "模拟评估任务未能提交");
+            message = "模拟评估任务未能提交";
+            return false;
+        }
+
+        message = "模拟评估已提交";
+        return true;
+    }
+
+    public static void Cancel()
+    {
+        lock (Gate)
+        {
+            cancellation?.Cancel();
+            if (status.Busy)
+            {
+                status.Message = "正在取消模拟评估";
+                status.UpdatedUtc = DateTime.UtcNow;
+            }
+        }
+    }
+
+    public static AutoBattleSimulationStatus GetStatus()
+    {
+        lock (Gate)
+        {
+            return status.Clone();
+        }
+    }
+
+    public static void OpenInputDirectory()
+    {
+        Directory.CreateDirectory(InputDirectory);
+        FileResourceUtil.OpenDirectory(InputDirectory);
+    }
+
+    public static void OpenResultDirectory()
+    {
+        var current = GetStatus();
+        var path = Directory.Exists(current.ResultDirectory)
+            ? current.ResultDirectory
+            : ResultsRootDirectory;
+        Directory.CreateDirectory(path);
+        FileResourceUtil.OpenDirectory(path);
+    }
+
+    public static bool CanActivateModel(
+        string profile,
+        string modelId,
+        out string reason)
+    {
+        if (!AuraToolsAutoBattleModelRuntime.MeetsValidationGate(profile, out reason))
+        {
+            return false;
+        }
+        var path = LatestSummaryPath(profile);
+        if (!File.Exists(path))
+        {
+            reason = "尚未完成同种子底模对照模拟";
+            return false;
+        }
+        try
+        {
+            var summary = AuraSharedJson.Deserialize<AutoBattleSimulationSummary>(
+                File.ReadAllText(path));
+            if (summary == null
+                || !summary.GatePassed
+                || !string.Equals(summary.ModelId, modelId, StringComparison.Ordinal))
+            {
+                reason = summary?.GateReason ?? "模拟评估结果与当前模型不匹配";
+                return false;
+            }
+            reason = "分组验证和配对模拟门禁均已通过";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            reason = "读取模拟门禁失败：" + ex.Message;
+            return false;
+        }
+    }
+
+    internal static CombatDecisionProfile BuildDecisionProfile(AutoBattleSettings settings)
+    {
+        var profile = new CombatDecisionProfile
+        {
+            SearchSimulationBudget = settings.SearchSimulationBudget,
+            SearchNodeBudget = settings.SearchNodeBudget,
+            SearchMaxPly = settings.SearchMaxPly,
+            UseChancePuct = true
+        };
+        switch (settings.Profile)
+        {
+            case "aggressive":
+                profile.Id = "aggressive";
+                profile.Weights.Lethal = 2.1d;
+                profile.Weights.Tempo = 1.25d;
+                profile.Weights.Survival = 0.85d;
+                profile.ThreatRiskTolerance = 0.35d;
+                profile.DeathRiskLimit = 0.12d;
+                profile.TailRiskPenalty = 22d;
+                break;
+            case "defensive":
+                profile.Id = "defensive";
+                profile.Weights.Survival = 1.9d;
+                profile.Weights.Risk = -1.6d;
+                profile.Weights.Lethal = 1.15d;
+                profile.ThreatRiskTolerance = 0.9d;
+                profile.SurplusDefendRetention = 0.1d;
+                profile.DeathRiskLimit = 0.02d;
+                profile.TailRiskPenalty = 55d;
+                break;
+        }
+        if (string.Equals(settings.UnknownActionPolicy, "allow", StringComparison.OrdinalIgnoreCase))
+        {
+            profile.UnknownActionPenalty = 0.35d;
+        }
+        return profile;
+    }
+
+    private static SimulationWorkResult Run(
+        SimulationRequest request,
+        CancellationToken token)
+    {
+        SetStatus(
+            AutoBattleSimulationStage.Resolving,
+            "正在解析权威规则与场景",
+            requested: request.Simulation.SimulationCount,
+            scenarioId: request.Simulation.ScenarioId);
+        var scenario = ResolveScenario(request.Simulation.ScenarioId);
+        if (scenario == null)
+        {
+            return SimulationWorkResult.Failed(
+                "未找到战斗场景。内容 MOD 可注册 ICombatScenarioProvider，或将 *.scenario.json 放入输入目录。",
+                request);
+        }
+        var rulesetResult = ResolveRuleset(scenario.RulesetVersion);
+        if (!rulesetResult.Success)
+        {
+            return SimulationWorkResult.Failed(
+                "权威规则集构建失败：" + string.Join("；", rulesetResult.Errors),
+                request,
+                scenario.ScenarioId);
+        }
+
+        var profile = BuildDecisionProfile(request.Settings);
+        var baselineFactory = new CombatDecisionSimulationPolicyFactory(profile);
+        var residual = AuraToolsAutoBattleModelRuntime.Load(profile.Id, true, out var residualDiagnostic);
+        var guidance = AuraToolsAutoBattleModelRuntime.LoadSearchGuidance(
+            profile.Id,
+            true,
+            out var guidanceDiagnostic);
+        var modelId = !string.Equals(guidance.ModelId, "none", StringComparison.Ordinal)
+            ? residual.ModelId + "+" + guidance.ModelId
+            : residual.ModelId;
+        var learnedFactory = new CombatDecisionSimulationPolicyFactory(profile, residual, guidance);
+
+        var runId = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fff");
+        var resultDirectory = Path.Combine(ResultsRootDirectory, runId);
+        var tracesDirectory = Path.Combine(resultDirectory, "traces");
+        Directory.CreateDirectory(resultDirectory);
+        Directory.CreateDirectory(tracesDirectory);
+        var resultsPath = Path.Combine(resultDirectory, "results.jsonl");
+        var manifest = new
+        {
+            schemaVersion = 1,
+            runId,
+            createdUtc = DateTime.UtcNow,
+            scenarioId = scenario.ScenarioId,
+            rulesetHash = rulesetResult.Ruleset.RulesetHash,
+            profile = profile.Id,
+            modelId,
+            request.Simulation.SimulationCount,
+            request.Simulation.SeedStart,
+            request.Simulation.Parallelism,
+            baselinePolicy = baselineFactory.PolicyId,
+            learnedPolicy = learnedFactory.PolicyId,
+            residualDiagnostic,
+            guidanceDiagnostic
+        };
+        WriteText(
+            Path.Combine(resultDirectory, "manifest.json"),
+            AuraSharedJson.Serialize(manifest));
+
+        SetStatus(
+            AutoBattleSimulationStage.Running,
+            "正在执行同种子底模 / 学习模型对照",
+            requested: request.Simulation.SimulationCount,
+            scenarioId: scenario.ScenarioId,
+            resultDirectory: resultDirectory);
+        var aggregate = new SimulationAggregate();
+        var outputGate = new object();
+        using (var writer = new StreamWriter(resultsPath, append: false))
+        {
+            try
+            {
+                Parallel.For(
+                    0,
+                    request.Simulation.SimulationCount,
+                    new ParallelOptions
+                    {
+                        CancellationToken = token,
+                        MaxDegreeOfParallelism = request.Simulation.Parallelism
+                    },
+                    index =>
+                    {
+                        var current = CombatScenarioCloner.Clone(scenario);
+                        current.Seed = request.Simulation.SeedStart + (ulong)index;
+                        var engine = new CombatSimulationEngine();
+                        var baseline = engine.Run(
+                            current,
+                            rulesetResult.Ruleset,
+                            baselineFactory.Create(),
+                            token);
+                        var learned = engine.Run(
+                            current,
+                            rulesetResult.Ruleset,
+                            learnedFactory.Create(),
+                            token);
+                        var pair = BuildPair(baseline, learned);
+                        var retainTrace = request.Simulation.RetainDivergentTraces
+                                          && (pair.Divergent
+                                              || baseline.Outcome == CombatSimulationOutcome.Invalid
+                                              || learned.Outcome == CombatSimulationOutcome.Invalid
+                                              || learned.Outcome == CombatSimulationOutcome.Defeat);
+                        lock (outputGate)
+                        {
+                            aggregate.Add(
+                                pair,
+                                baseline,
+                                learned,
+                                request.Simulation.MinimumAuthoritativeCoverage);
+                            writer.WriteLine(AuraSharedJson.SerializeCompact(pair));
+                            if ((aggregate.CompletedPairs & 15) == 0)
+                            {
+                                writer.Flush();
+                            }
+                            SetStatus(
+                                AutoBattleSimulationStage.Running,
+                                "正在执行同种子底模 / 学习模型对照",
+                                aggregate.CompletedPairs,
+                                request.Simulation.SimulationCount,
+                                scenario.ScenarioId,
+                                resultDirectory);
+                        }
+                        if (retainTrace)
+                        {
+                            WriteText(
+                                Path.Combine(tracesDirectory, current.Seed + ".json"),
+                                AuraSharedJson.Serialize(new { baseline, learned }));
+                        }
+                    });
+            }
+            catch (OperationCanceledException)
+            {
+                aggregate.Cancelled = true;
+            }
+        }
+
+        SetStatus(
+            AutoBattleSimulationStage.Writing,
+            "正在汇总模拟结果",
+            aggregate.CompletedPairs,
+            request.Simulation.SimulationCount,
+            scenario.ScenarioId,
+            resultDirectory);
+        var summary = aggregate.ToSummary(
+            runId,
+            scenario.ScenarioId,
+            profile.Id,
+            modelId,
+            rulesetResult.Ruleset.RulesetHash,
+            request.Simulation);
+        var summaryPath = Path.Combine(resultDirectory, "summary.json");
+        WriteText(summaryPath, AuraSharedJson.Serialize(summary));
+        WriteText(
+            Path.Combine(resultDirectory, "status.json"),
+            AuraSharedJson.Serialize(new
+            {
+                stage = summary.Cancelled ? "cancelled" : "completed",
+                summary.CompletedPairs,
+                summary.RequestedPairs,
+                summary.GatePassed,
+                summary.GateReason,
+                updatedUtc = DateTime.UtcNow
+            }));
+        if (!summary.Cancelled)
+        {
+            WriteText(LatestSummaryPath(profile.Id), AuraSharedJson.Serialize(summary));
+        }
+
+        var persistedSummary = AuraSharedJson.Deserialize<AutoBattleSimulationSummary>(
+                                   File.ReadAllText(summaryPath))
+                               ?? summary;
+        var message = persistedSummary.Cancelled
+            ? "模拟评估已取消，已完成 " + persistedSummary.CompletedPairs + "/" + persistedSummary.RequestedPairs
+            : "模拟完成：学习模型胜率 "
+              + persistedSummary.LearnedWinRate.ToString("P1")
+              + "，底模胜率 " + persistedSummary.BaselineWinRate.ToString("P1")
+              + "，权威覆盖 " + persistedSummary.AuthoritativeCoverage.ToString("P1")
+              + "，门禁" + (persistedSummary.GatePassed ? "通过" : "未通过");
+        return new SimulationWorkResult
+        {
+            Success = !persistedSummary.Cancelled,
+            Cancelled = persistedSummary.Cancelled,
+            Message = message,
+            CompletedPairs = persistedSummary.CompletedPairs,
+            RequestedPairs = persistedSummary.RequestedPairs,
+            ScenarioId = persistedSummary.ScenarioId,
+            ResultDirectory = resultDirectory,
+            GatePassed = persistedSummary.GatePassed
+        };
+    }
+
+    private static CombatScenarioDefinition? ResolveScenario(string scenarioId)
+    {
+        var registered = CombatSimulationRegistry.SnapshotScenarios();
+        var selected = registered.FirstOrDefault(scenario =>
+            string.Equals(scenario.ScenarioId, scenarioId, StringComparison.OrdinalIgnoreCase));
+        if (selected != null)
+        {
+            return selected;
+        }
+        if (string.IsNullOrWhiteSpace(scenarioId) && registered.Count > 0)
+        {
+            return registered[0];
+        }
+
+        Directory.CreateDirectory(InputDirectory);
+        foreach (var path in ScenarioFiles())
+        {
+            var candidate = AuraSharedJson.Deserialize<CombatScenarioDefinition>(File.ReadAllText(path));
+            if (candidate != null
+                && (string.IsNullOrWhiteSpace(scenarioId)
+                    || string.Equals(
+                        candidate.ScenarioId,
+                        scenarioId,
+                        StringComparison.OrdinalIgnoreCase)))
+            {
+                return candidate;
+            }
+        }
+        return null;
+    }
+
+    private static CombatRulesetBuildResult ResolveRuleset(string version)
+    {
+        var registered = CombatSimulationRegistry.BuildRuleset(version);
+        if (registered.Success
+            && (registered.Ruleset.CardCount > 0
+                || registered.Ruleset.EnemyCount > 0
+                || registered.Ruleset.StatusCount > 0))
+        {
+            return registered;
+        }
+
+        var path = Path.Combine(InputDirectory, "ruleset.json");
+        if (!File.Exists(path))
+        {
+            return registered.Success
+                ? new CombatRulesetBuildResult
+                {
+                    Errors = { "没有已注册规则，且输入目录中不存在 ruleset.json" }
+                }
+                : registered;
+        }
+        var document = AuraSharedJson.Deserialize<CombatRulesetDocument>(File.ReadAllText(path));
+        return CombatSimulationRegistry.BuildRuleset(document);
+    }
+
+    private static AutoBattleSimulationPair BuildPair(
+        CombatSimulationResult baseline,
+        CombatSimulationResult learned)
+    {
+        return new AutoBattleSimulationPair
+        {
+            Seed = baseline.Seed,
+            Divergent = baseline.Outcome != learned.Outcome
+                        || baseline.Turns != learned.Turns
+                        || baseline.FinalPlayerHp != learned.FinalPlayerHp
+                        || !string.Equals(
+                            baseline.FinalStateHash,
+                            learned.FinalStateHash,
+                            StringComparison.Ordinal),
+            Baseline = Compact(baseline),
+            Learned = Compact(learned)
+        };
+    }
+
+    private static AutoBattleSimulationResult Compact(CombatSimulationResult result)
+    {
+        return new AutoBattleSimulationResult
+        {
+            Outcome = result.Outcome.ToString(),
+            TerminationReason = result.TerminationReason.ToString(),
+            Turns = result.Turns,
+            FinalPlayerHp = result.FinalPlayerHp,
+            SemanticCoverage = result.SemanticCoverage,
+            DamageDealt = result.Metrics.DamageDealt,
+            DamageTaken = result.Metrics.DamageTaken,
+            CardsPlayed = result.Metrics.CardsPlayed,
+            FinalStateHash = result.FinalStateHash
+        };
+    }
+
+    private static SimulationRequest Snapshot(AutoBattleSettings source)
+    {
+        return new SimulationRequest
+        {
+            Settings = new AutoBattleSettings
+            {
+                Profile = source.Profile,
+                UnknownActionPolicy = source.UnknownActionPolicy,
+                SearchSimulationBudget = source.SearchSimulationBudget,
+                SearchNodeBudget = source.SearchNodeBudget,
+                SearchMaxPly = source.SearchMaxPly
+            },
+            Simulation = new AutoBattleSimulationSettings
+            {
+                ScenarioId = source.Simulation.ScenarioId,
+                SimulationCount = source.Simulation.SimulationCount,
+                Parallelism = source.Simulation.Parallelism,
+                SeedStart = source.Simulation.SeedStart,
+                RetainDivergentTraces = source.Simulation.RetainDivergentTraces,
+                MinimumAuthoritativeCoverage = source.Simulation.MinimumAuthoritativeCoverage,
+                MaximumWinRateRegression = source.Simulation.MaximumWinRateRegression
+            }
+        };
+    }
+
+    private static string LatestSummaryPath(string profile)
+    {
+        Directory.CreateDirectory(ResultsRootDirectory);
+        return Path.Combine(
+            ResultsRootDirectory,
+            "latest-summary-" + (profile ?? "balanced").Trim().ToLowerInvariant() + ".json");
+    }
+
+    private static void WriteText(string path, string text)
+    {
+        using var storage = new AuraSharedStorageCoordinator(AuraSharedPaths.RootDirectory);
+        storage.WriteTextAtomic(path, text, createBackup: false);
+    }
+
+    private static IEnumerable<string> ScenarioFiles()
+    {
+        Directory.CreateDirectory(InputDirectory);
+        return Directory.EnumerateFiles(InputDirectory, "*.scenario.json")
+            .Concat(new[] { Path.Combine(InputDirectory, "scenario.json") })
+            .Where(File.Exists)
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static void SetStatus(
+        AutoBattleSimulationStage stage,
+        string message,
+        int completed = 0,
+        int requested = 0,
+        string scenarioId = "",
+        string resultDirectory = "",
+        bool gatePassed = false)
+    {
+        lock (Gate)
+        {
+            status = new AutoBattleSimulationStatus
+            {
+                Stage = stage,
+                Message = message ?? "",
+                CompletedPairs = completed,
+                RequestedPairs = requested,
+                ScenarioId = scenarioId ?? "",
+                ResultDirectory = resultDirectory ?? "",
+                GatePassed = gatePassed,
+                UpdatedUtc = DateTime.UtcNow
+            };
+        }
+    }
+
+    private sealed class SimulationRequest
+    {
+        public AutoBattleSettings Settings { get; set; } = new();
+
+        public AutoBattleSimulationSettings Simulation { get; set; } = new();
+    }
+
+    private sealed class SimulationWorkResult
+    {
+        public bool Success { get; set; }
+
+        public bool Cancelled { get; set; }
+
+        public string Message { get; set; } = "";
+
+        public int CompletedPairs { get; set; }
+
+        public int RequestedPairs { get; set; }
+
+        public string ScenarioId { get; set; } = "";
+
+        public string ResultDirectory { get; set; } = "";
+
+        public bool GatePassed { get; set; }
+
+        public static SimulationWorkResult Failed(
+            string message,
+            SimulationRequest request,
+            string scenarioId = "")
+        {
+            return new SimulationWorkResult
+            {
+                Message = message,
+                RequestedPairs = request.Simulation.SimulationCount,
+                ScenarioId = scenarioId
+            };
+        }
+    }
+
+    private sealed class AutoBattleSimulationPair
+    {
+        public ulong Seed { get; set; }
+
+        public bool Divergent { get; set; }
+
+        public AutoBattleSimulationResult Baseline { get; set; } = new();
+
+        public AutoBattleSimulationResult Learned { get; set; } = new();
+    }
+
+    private sealed class AutoBattleSimulationResult
+    {
+        public string Outcome { get; set; } = "";
+
+        public string TerminationReason { get; set; } = "";
+
+        public int Turns { get; set; }
+
+        public int FinalPlayerHp { get; set; }
+
+        public double SemanticCoverage { get; set; }
+
+        public int DamageDealt { get; set; }
+
+        public int DamageTaken { get; set; }
+
+        public int CardsPlayed { get; set; }
+
+        public string FinalStateHash { get; set; } = "";
+    }
+
+    private sealed class SimulationAggregate
+    {
+        private double baselineTurns;
+        private double learnedTurns;
+        private double baselineHp;
+        private double learnedHp;
+
+        public int CompletedPairs { get; private set; }
+
+        public int AuthoritativePairs { get; private set; }
+
+        public int InvalidPairs { get; private set; }
+
+        public int DivergentPairs { get; private set; }
+
+        public int BaselineVictories { get; private set; }
+
+        public int LearnedVictories { get; private set; }
+
+        public bool Cancelled { get; set; }
+
+        public void Add(
+            AutoBattleSimulationPair pair,
+            CombatSimulationResult baseline,
+            CombatSimulationResult learned,
+            double requiredCoverage)
+        {
+            CompletedPairs++;
+            if (pair.Divergent)
+            {
+                DivergentPairs++;
+            }
+            if (baseline.Outcome == CombatSimulationOutcome.Invalid
+                || learned.Outcome == CombatSimulationOutcome.Invalid)
+            {
+                InvalidPairs++;
+            }
+            if (baseline.SemanticCoverage + 1e-9d >= requiredCoverage
+                && learned.SemanticCoverage + 1e-9d >= requiredCoverage
+                && baseline.Outcome != CombatSimulationOutcome.Invalid
+                && learned.Outcome != CombatSimulationOutcome.Invalid)
+            {
+                AuthoritativePairs++;
+                if (baseline.Outcome == CombatSimulationOutcome.Victory)
+                {
+                    BaselineVictories++;
+                }
+                if (learned.Outcome == CombatSimulationOutcome.Victory)
+                {
+                    LearnedVictories++;
+                }
+                baselineTurns += baseline.Turns;
+                learnedTurns += learned.Turns;
+                baselineHp += baseline.FinalPlayerHp;
+                learnedHp += learned.FinalPlayerHp;
+            }
+        }
+
+        public AutoBattleSimulationSummary ToSummary(
+            string runId,
+            string scenarioId,
+            string profile,
+            string modelId,
+            string rulesetHash,
+            AutoBattleSimulationSettings settings)
+        {
+            var coverage = settings.SimulationCount == 0
+                ? 0d
+                : (double)AuthoritativePairs / settings.SimulationCount;
+            var baselineWinRate = AuthoritativePairs == 0
+                ? 0d
+                : (double)BaselineVictories / AuthoritativePairs;
+            var learnedWinRate = AuthoritativePairs == 0
+                ? 0d
+                : (double)LearnedVictories / AuthoritativePairs;
+            var coveragePassed = coverage + 1e-9d >= settings.MinimumAuthoritativeCoverage;
+            var regressionPassed = learnedWinRate + settings.MaximumWinRateRegression + 1e-9d
+                                   >= baselineWinRate;
+            var complete = !Cancelled && CompletedPairs == settings.SimulationCount;
+            var gatePassed = complete && AuthoritativePairs > 0 && coveragePassed && regressionPassed;
+            return new AutoBattleSimulationSummary
+            {
+                RunId = runId,
+                ScenarioId = scenarioId,
+                Profile = profile,
+                ModelId = modelId,
+                RulesetHash = rulesetHash,
+                RequestedPairs = settings.SimulationCount,
+                CompletedPairs = CompletedPairs,
+                AuthoritativePairs = AuthoritativePairs,
+                InvalidPairs = InvalidPairs,
+                DivergentPairs = DivergentPairs,
+                BaselineVictories = BaselineVictories,
+                LearnedVictories = LearnedVictories,
+                AuthoritativeCoverage = coverage,
+                BaselineWinRate = baselineWinRate,
+                LearnedWinRate = learnedWinRate,
+                BaselineMeanTurns = AuthoritativePairs == 0 ? 0d : baselineTurns / AuthoritativePairs,
+                LearnedMeanTurns = AuthoritativePairs == 0 ? 0d : learnedTurns / AuthoritativePairs,
+                BaselineMeanFinalPlayerHp = AuthoritativePairs == 0 ? 0d : baselineHp / AuthoritativePairs,
+                LearnedMeanFinalPlayerHp = AuthoritativePairs == 0 ? 0d : learnedHp / AuthoritativePairs,
+                GatePassed = gatePassed,
+                GateReason = !complete
+                    ? "模拟未完整完成"
+                    : !coveragePassed
+                        ? "权威语义覆盖率不足"
+                        : !regressionPassed
+                            ? "学习模型胜率回退超过阈值"
+                            : AuthoritativePairs == 0
+                                ? "没有权威有效样本"
+                                : "通过",
+                Cancelled = Cancelled,
+                CompletedUtc = DateTime.UtcNow
+            };
+        }
+    }
+}

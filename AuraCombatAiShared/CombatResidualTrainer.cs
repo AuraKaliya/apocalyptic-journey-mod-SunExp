@@ -131,7 +131,8 @@ public static class CombatResidualTrainer
         var vectors = pairs
             .Select(pair => new WeightedVector(
                 Difference(pair.Positive, pair.Negative, statistics.Means, statistics.Scales),
-                pair.Weight))
+                pair.Weight,
+                pair.BattleSessionId))
             .Where(vector => vector.Values.Count > 0)
             .ToList();
         if (vectors.Count == 0)
@@ -140,28 +141,8 @@ public static class CombatResidualTrainer
             return result;
         }
 
-        var weights = statistics.Means.Keys.ToDictionary(
-            key => key,
-            _ => 0d,
-            StringComparer.OrdinalIgnoreCase);
-        var random = new Random(7);
-        for (var epoch = 0; epoch < options.Epochs; epoch++)
-        {
-            Shuffle(vectors, random);
-            var rate = options.LearningRate / Math.Sqrt(1d + epoch * 0.05d);
-            foreach (var vector in vectors)
-            {
-                var score = Math.Max(-30d, Math.Min(30d, Dot(weights, vector.Values)));
-                var gradientFactor = vector.Weight / (1d + Math.Exp(score));
-                foreach (var pair in vector.Values)
-                {
-                    var current = weights.TryGetValue(pair.Key, out var configured) ? configured : 0d;
-                    weights[pair.Key] = Math.Max(
-                        -2d,
-                        Math.Min(2d, current + rate * (gradientFactor * pair.Value - options.L2 * current)));
-                }
-            }
-        }
+        var validationAccuracy = GroupedHoldoutAccuracy(pairs, options);
+        var weights = FitWeights(statistics, vectors, options, 7);
 
         weights = weights
             .Where(pair => Math.Abs(pair.Value) >= 0.000001d)
@@ -203,7 +184,9 @@ public static class CombatResidualTrainer
                 ["pairCount"] = pairs.Count,
                 ["humanSampleCount"] = result.HumanSampleCount,
                 ["completedSampleCount"] = result.CompletedSampleCount,
-                ["trainingAccuracy"] = Accuracy(weights, vectors)
+                ["trainingAccuracy"] = Accuracy(weights, vectors),
+                ["groupedValidationAccuracy"] = validationAccuracy,
+                ["battleSessionCount"] = pairs.Select(pair => pair.BattleSessionId).Distinct().Count()
             }
         };
         result.Success = true;
@@ -262,7 +245,8 @@ public static class CombatResidualTrainer
             result.Add(new PreferencePair(
                 ContextualFeatures(sample, positive),
                 ContextualFeatures(sample, negative),
-                selection.PolicyVisibleToHuman ? 0.5d : 2d));
+                selection.PolicyVisibleToHuman ? 0.5d : 2d,
+                sample.BattleSessionId));
         }
 
         return result;
@@ -472,6 +456,92 @@ public static class CombatResidualTrainer
         return total <= 0d ? 0d : correct / total;
     }
 
+    private static Dictionary<string, double> FitWeights(
+        TrainingStatistics statistics,
+        IReadOnlyList<WeightedVector> source,
+        CombatResidualTrainingOptions options,
+        int seed)
+    {
+        var weights = statistics.Means.Keys.ToDictionary(
+            key => key,
+            _ => 0d,
+            StringComparer.OrdinalIgnoreCase);
+        var vectors = source.ToList();
+        var random = new Random(seed);
+        for (var epoch = 0; epoch < options.Epochs; epoch++)
+        {
+            Shuffle(vectors, random);
+            var rate = options.LearningRate / Math.Sqrt(1d + epoch * 0.05d);
+            foreach (var vector in vectors)
+            {
+                var score = Math.Max(-30d, Math.Min(30d, Dot(weights, vector.Values)));
+                var gradientFactor = vector.Weight / (1d + Math.Exp(score));
+                foreach (var pair in vector.Values)
+                {
+                    var current = weights.TryGetValue(pair.Key, out var configured) ? configured : 0d;
+                    weights[pair.Key] = Math.Max(
+                        -2d,
+                        Math.Min(
+                            2d,
+                            current + rate * (gradientFactor * pair.Value - options.L2 * current)));
+                }
+            }
+        }
+        return weights;
+    }
+
+    private static double GroupedHoldoutAccuracy(
+        IReadOnlyList<PreferencePair> pairs,
+        CombatResidualTrainingOptions options)
+    {
+        var groups = pairs
+            .Select(pair => pair.BattleSessionId)
+            .Distinct()
+            .OrderBy(value => value)
+            .ToArray();
+        if (groups.Length < 2)
+        {
+            return 0d;
+        }
+
+        var correct = 0d;
+        var total = 0d;
+        foreach (var group in groups)
+        {
+            var trainingPairs = pairs.Where(pair => pair.BattleSessionId != group).ToList();
+            var validationPairs = pairs.Where(pair => pair.BattleSessionId == group).ToList();
+            if (trainingPairs.Count == 0 || validationPairs.Count == 0)
+            {
+                continue;
+            }
+            var statistics = BuildStatistics(trainingPairs);
+            var trainingVectors = trainingPairs
+                .Select(pair => new WeightedVector(
+                    Difference(pair.Positive, pair.Negative, statistics.Means, statistics.Scales),
+                    pair.Weight,
+                    pair.BattleSessionId))
+                .Where(vector => vector.Values.Count > 0)
+                .ToList();
+            var validationVectors = validationPairs
+                .Select(pair => new WeightedVector(
+                    Difference(pair.Positive, pair.Negative, statistics.Means, statistics.Scales),
+                    pair.Weight,
+                    pair.BattleSessionId))
+                .Where(vector => vector.Values.Count > 0)
+                .ToList();
+            if (trainingVectors.Count == 0 || validationVectors.Count == 0)
+            {
+                continue;
+            }
+            var weights = FitWeights(statistics, trainingVectors, options, 7 + groups.Length);
+            correct += validationVectors
+                .Where(vector => Dot(weights, vector.Values) > 0d)
+                .Sum(vector => vector.Weight);
+            total += validationVectors.Sum(vector => vector.Weight);
+        }
+        return total <= 0d ? 0d : correct / total;
+    }
+
     private static double Dot(
         IReadOnlyDictionary<string, double> weights,
         IReadOnlyDictionary<string, double> values)
@@ -519,11 +589,13 @@ public static class CombatResidualTrainer
         public PreferencePair(
             Dictionary<string, double> positive,
             Dictionary<string, double> negative,
-            double weight)
+            double weight,
+            long battleSessionId)
         {
             Positive = positive;
             Negative = negative;
             Weight = weight;
+            BattleSessionId = battleSessionId;
         }
 
         public Dictionary<string, double> Positive { get; }
@@ -531,19 +603,27 @@ public static class CombatResidualTrainer
         public Dictionary<string, double> Negative { get; }
 
         public double Weight { get; }
+
+        public long BattleSessionId { get; }
     }
 
     private sealed class WeightedVector
     {
-        public WeightedVector(Dictionary<string, double> values, double weight)
+        public WeightedVector(
+            Dictionary<string, double> values,
+            double weight,
+            long battleSessionId)
         {
             Values = values;
             Weight = weight;
+            BattleSessionId = battleSessionId;
         }
 
         public Dictionary<string, double> Values { get; }
 
         public double Weight { get; }
+
+        public long BattleSessionId { get; }
     }
 
     private sealed class TrainingStatistics

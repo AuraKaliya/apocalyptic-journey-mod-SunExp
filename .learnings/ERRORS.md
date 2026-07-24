@@ -830,5 +830,7 @@ Use `Get-ChildItem` for optional-file discovery, collect PowerShell rows before 
 - **Notes**: An optional `rg --files GoldExp-Dev GoldExp` inventory returned non-zero because the removed `GoldExp` root was absent. Test optional roots before passing them to `rg`.
 - **Observed**: 2026-07-23T16:09:00+08:00
 - **Notes**: Passed a wildcard path to `rg` on Windows (`Terrias-Dev/Mechanics/StarScore*.cs`), which PowerShell did not expand and `rg` rejected. Use `-g 'StarScore*.cs'` with the directory root instead.
+- **Observed**: 2026-07-24T00:00:00+08:00
+- **Notes**: Embedded a double-quoted regex containing escaped quotes in a PowerShell command string; PowerShell terminated the string and treated regex alternatives as commands. Use a single-quoted PowerShell regex or isolate the probe with `Promise.allSettled`.
 
 ---

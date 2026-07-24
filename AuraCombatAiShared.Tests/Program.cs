@@ -272,6 +272,57 @@ var uncertainFreeDecision = new CombatDecisionEngine().Choose(setupState);
 Assert(uncertainFreeDecision.Action?.CandidateId == "small-attack",
     "zero cost alone does not force an uncertain action");
 
+var projectedLeafFeatures = CombatSearchFeatureProjector.ProjectLeaf(
+    new CombatSimulationState
+    {
+        PlayerHp = 18,
+        PlayerMaxHp = 30,
+        PlayerDefend = 3,
+        Power = 2,
+        MaxPower = 3,
+        HandCount = 4,
+        SetupValue = 2.5d,
+        DamageMultiplier = 1.2d,
+        Threats =
+        [
+            new CombatSimulationThreat
+            {
+                BlockableDamage = 10d,
+                UnblockableDamage = 2d,
+                DamageOverTime = 1d,
+                Probability = 0.7d
+            }
+        ]
+    },
+    new CombatDecisionProfile(),
+    new Dictionary<string, double> { ["turn"] = 3d });
+Assert(projectedLeafFeatures["expectedBlockableDamage"] == 7d
+       && projectedLeafFeatures["maximumBlockableDamage"] == 10d
+       && projectedLeafFeatures["expectedUnblockableDamage"] == 1.4d
+       && projectedLeafFeatures["expectedDamageOverTime"] == 0.7d
+       && projectedLeafFeatures["playerHp"] == 18d
+       && projectedLeafFeatures["setupValue"] == 2.5d
+       && projectedLeafFeatures["damageMultiplier"] == 1.2d
+       && projectedLeafFeatures["turn"] == 3d,
+    "search leaf inference uses the same feature names as training");
+var setupLeafState = new CombatSimulationState
+{
+    PlayerHp = 20,
+    PlayerMaxHp = 20,
+    SetupValue = 5d,
+    PersistentValue = 3d,
+    Enemies =
+    [
+        new CombatSimulationUnit { RuntimeId = 9, Hp = 10, MaxHp = 10 }
+    ]
+};
+var emptyLeafState = setupLeafState.Clone();
+emptyLeafState.SetupValue = 0d;
+emptyLeafState.PersistentValue = 0d;
+Assert(setupLeafState.EvaluateLeaf(new CombatDecisionProfile()).Value
+       > emptyLeafState.EvaluateLeaf(new CombatDecisionProfile()).Value,
+    "forward leaf value retains setup and persistent benefits");
+
 var cooldownState = new CombatStateObservation
 {
     Player = setupState.Player,
@@ -545,6 +596,7 @@ var humanSample = CombatTrainingSampleBuilder.Create(
     demonstrator: "human",
     recommendedCandidateId: "guard",
     policyVisibleToHuman: true);
+humanSample.BattleSessionId = 43;
 var humanActionCandidate = humanSample.Candidates.Single(candidate =>
     candidate.CandidateId == "attack");
 var policyCandidate = humanSample.Candidates.Single(candidate =>
@@ -643,6 +695,32 @@ Assert(configuredTraining.Success
        && configuredTraining.Model.TrainingParameters["epochs"] == 80d
        && configuredTraining.Model.TrainingParameters["randomSeed"] == 7d,
     "training options are bounded and persisted in the candidate model metadata");
+Assert(configuredTraining.Model!.Metrics["battleSessionCount"] == 1d
+       && configuredTraining.Model.Metrics["groupedValidationAccuracy"] == 0d,
+    "grouped validation refuses to report in-sample accuracy for one battle");
+var secondBattleHumanSample = CombatTrainingSampleBuilder.Create(
+    state,
+    afterState,
+    combatDecision,
+    3,
+    44,
+    CombatActionTransactionState.Completed.ToString(),
+    "second battle human settled",
+    terminal: false,
+    gameBuild: "test-game",
+    sharedBuild: "test-shared",
+    demonstrator: "human",
+    recommendedCandidateId: "guard",
+    policyVisibleToHuman: false);
+secondBattleHumanSample.BattleSessionId = 44;
+var groupedTraining = CombatResidualTrainer.Train(
+    new[] { humanSample, secondBattleHumanSample },
+    "balanced");
+Assert(groupedTraining.Success
+       && groupedTraining.Model?.Metrics["battleSessionCount"] == 2d
+       && groupedTraining.Model.Metrics["groupedValidationAccuracy"] >= 0d
+       && groupedTraining.Model.Metrics["groupedValidationAccuracy"] <= 1d,
+    "residual validation holds out complete battle sessions");
 var wrongProfileTraining = CombatResidualTrainer.Train(new[] { humanSample }, "defensive");
 Assert(!wrongProfileTraining.Success && wrongProfileTraining.PreferencePairCount == 0,
     "training keeps decision profiles separate without gating on MOD identity");
@@ -654,13 +732,14 @@ var guidanceTraining = CombatSearchGuidanceTrainer.Train(
 Assert(guidanceTraining.Success
        && guidanceTraining.Model != null
        && guidanceTraining.Model.Policy.Trees.Count > 0
-       && !double.IsNaN(guidanceTraining.Model.Value.Bias),
+       && !double.IsNaN(guidanceTraining.Model.Value.Bias)
+       && !guidanceTraining.Model.RiskTrained
+       && guidanceTraining.Model.Risk.Trees.Count == 0,
     "search guidance trainer produces bounded policy and value tree ensembles");
 var guidanceModel = new BoundedTreeCombatSearchGuidanceModel(guidanceTraining.Model!);
 Assert(!double.IsNaN(guidanceModel.PolicyLogit(originalFeatures))
-       && guidanceModel.DeathRisk(humanSample.StateFeatures) >= 0d
-       && guidanceModel.DeathRisk(humanSample.StateFeatures) <= 1d,
-    "tree search guidance inference stays finite and bounds death risk");
+       && guidanceModel.DeathRisk(humanSample.StateFeatures) == 0d,
+    "untrained one-class terminal risk does not manufacture a death predictor");
 var legacyContext = CombatResidualTrainer.ContextualFeatures(
     new CombatTrainingSample
     {
@@ -737,6 +816,49 @@ var secondDiscounted = new CombatActionObservation
 };
 Assert(CombatForwardModel.EffectiveCost(forwardState, secondDiscounted) == 1,
     "surplus cost reduction cannot make every later card free");
+var multiplierRoot = new CombatStateObservation
+{
+    Player = new CombatUnitObservation { RuntimeId = 75, CurrentHp = 20, MaxHp = 20 },
+    Enemies =
+    {
+        new CombatUnitObservation
+        {
+            RuntimeId = 76,
+            Kind = CombatTargetKind.Enemy,
+            CurrentHp = 20,
+            MaxHp = 20
+        }
+    }
+};
+var multiplierState = CombatForwardModel.Create(multiplierRoot, 2);
+var multiplierSetup = new CombatActionObservation
+{
+    CandidateId = "element-setup",
+    Kind = CombatActionKind.PlayCard,
+    Semantics = new CombatActionSemantics { DamageMultiplierGain = 0.5d }
+};
+multiplierState = CombatForwardModel.Apply(
+    multiplierState,
+    multiplierSetup,
+    0,
+    CombatForwardModel.Resolve(multiplierRoot, multiplierSetup).Outcomes[0],
+    new CombatDecisionProfile());
+var multipliedAttack = new CombatActionObservation
+{
+    CandidateId = "multiplied-attack",
+    Kind = CombatActionKind.PlayCard,
+    TargetRuntimeId = 76,
+    TargetKind = CombatTargetKind.Enemy,
+    Semantics = new CombatActionSemantics { Damage = 8d }
+};
+multiplierState = CombatForwardModel.Apply(
+    multiplierState,
+    multipliedAttack,
+    1,
+    CombatForwardModel.Resolve(multiplierRoot, multipliedAttack).Outcomes[0],
+    new CombatDecisionProfile());
+Assert(multiplierState.Enemies[0].Hp == 8,
+    "typed setup state changes the simulated value of later damage");
 
 var threatRoot = new CombatStateObservation
 {
@@ -854,6 +976,19 @@ Assert(coverageDecision.SearchAlgorithm == "chance-puct"
            .Where(candidate => candidate.Action.Kind != CombatActionKind.EndTurn)
            .All(candidate => candidate.PlanScore != 0d),
     "chance-puct gives every legal root action search evidence");
+var earlyStopProfile = new CombatDecisionProfile
+{
+    SearchSimulationBudget = 128,
+    SearchMinimumSimulations = 4,
+    SearchStabilityWindow = 2,
+    SearchStableChecks = 1,
+    SearchNodeBudget = 512,
+    SearchMaxPly = 4
+};
+var earlyStopDecision = new CombatDecisionEngine().Choose(coverageState, earlyStopProfile);
+Assert(earlyStopDecision.SearchStoppedEarly
+       && earlyStopDecision.SearchSimulations < earlyStopProfile.SearchSimulationBudget,
+    "chance-puct stops when the root ranking and graph have stabilized");
 
 var targetVariantState = new CombatStateObservation
 {
@@ -1167,6 +1302,35 @@ using (CombatSimulationRegistry.RegisterProvider(
            && registryRules.Ruleset.RulesetHash == repeatedRegistryRules.Ruleset.RulesetHash,
         "content-owned ruleset providers build a stable frozen shared ruleset");
 }
+using (CombatSimulationRegistry.RegisterScenarioProvider(
+           "Tests",
+           "scenarios-high",
+           new FixedScenarioProvider(77UL),
+           10))
+using (CombatSimulationRegistry.RegisterScenarioProvider(
+           "Tests",
+           "scenarios-low",
+           new FixedScenarioProvider(12UL),
+           0))
+{
+    var registeredScenarios = CombatSimulationRegistry.SnapshotScenarios();
+    Assert(registeredScenarios.Count == 1
+           && registeredScenarios[0].ScenarioId == "registered-headless"
+           && registeredScenarios[0].Seed == 77UL,
+        "content-owned scenario providers publish cloned headless scenarios");
+}
+var sourceDocumentRules = BuildSimulationRuleset().Ruleset;
+var documentRules = CombatSimulationRegistry.BuildRuleset(new CombatRulesetDocument
+{
+    Version = "document-v1",
+    Cards = sourceDocumentRules.SnapshotCards().ToList(),
+    Enemies = sourceDocumentRules.SnapshotEnemies().ToList(),
+    Statuses = sourceDocumentRules.SnapshotStatuses().ToList()
+});
+Assert(documentRules.Success
+       && documentRules.Ruleset.CardCount == sourceDocumentRules.CardCount
+       && documentRules.Ruleset.EnemyCount == sourceDocumentRules.EnemyCount,
+    "file-backed ruleset documents use the same validated builder path");
 
 Console.WriteLine($"AuraCombatAiShared.Tests passed: {assertions} assertions.");
 
@@ -1500,6 +1664,37 @@ sealed class FixedThreatProvider : ICombatThreatProvider
     {
         result = forecast;
         return true;
+    }
+}
+
+sealed class FixedScenarioProvider : ICombatScenarioProvider
+{
+    private readonly ulong seed;
+
+    public FixedScenarioProvider(ulong seed)
+    {
+        this.seed = seed;
+    }
+
+    public IEnumerable<CombatScenarioDefinition> GetScenarios()
+    {
+        yield return new CombatScenarioDefinition
+        {
+            ScenarioId = "registered-headless",
+            RulesetVersion = "registry-v1",
+            Seed = seed,
+            Player = new CombatPlayerSetup
+            {
+                RoleId = "tests",
+                MaxHp = 20,
+                CurrentHp = 20,
+                Deck = new List<string> { "Tests:strike" }
+            },
+            Enemies =
+            {
+                new CombatEnemySetup { EnemyId = "Tests:dummy" }
+            }
+        };
     }
 }
 

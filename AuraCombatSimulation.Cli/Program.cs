@@ -31,11 +31,7 @@ try
                        File.ReadAllText(parsed.ScenarioPath),
                        json)
                    ?? throw new InvalidDataException("Scenario JSON is empty.");
-    var builder = new CombatRulesetBuilder(rulesDocument.Version);
-    foreach (var status in rulesDocument.Statuses) builder.RegisterStatus(status);
-    foreach (var card in rulesDocument.Cards) builder.RegisterCard(card);
-    foreach (var enemy in rulesDocument.Enemies) builder.RegisterEnemy(enemy);
-    var build = builder.Freeze();
+    var build = CombatSimulationRegistry.BuildRuleset(rulesDocument);
     if (!build.Success)
     {
         Console.Error.WriteLine("Ruleset validation failed:");
@@ -129,17 +125,6 @@ static ICombatSimulationPolicyFactory PolicyFactory(string policy)
         default:
             return new GreedyCombatSimulationPolicyFactory();
     }
-}
-
-sealed class CombatRulesetDocument
-{
-    public string Version { get; set; } = "1";
-
-    public List<CombatCardDefinition> Cards { get; set; } = new();
-
-    public List<CombatEnemyDefinition> Enemies { get; set; } = new();
-
-    public List<CombatStatusDefinition> Statuses { get; set; } = new();
 }
 
 sealed class FirstLegalPolicyFactory : ICombatSimulationPolicyFactory

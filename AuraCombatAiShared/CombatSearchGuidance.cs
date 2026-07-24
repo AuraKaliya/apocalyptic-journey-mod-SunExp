@@ -88,6 +88,8 @@ public sealed class CombatSearchGuidanceDefinition
 
     public CombatTreeEnsemble Risk { get; set; } = new();
 
+    public bool RiskTrained { get; set; }
+
     public Dictionary<string, double> Metrics { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
 
@@ -122,6 +124,10 @@ public sealed class BoundedTreeCombatSearchGuidanceModel : ICombatSearchGuidance
 
     public double DeathRisk(IReadOnlyDictionary<string, double> features)
     {
+        if (!definition.RiskTrained)
+        {
+            return 0d;
+        }
         var logit = Math.Max(-20d, Math.Min(20d, definition.Risk.Evaluate(features)));
         return 1d / (1d + Math.Exp(-logit));
     }
@@ -166,7 +172,9 @@ public static class CombatSearchGuidanceTrainer
             foreach (var candidate in sample.Candidates.Where(candidate => candidate.Legal))
             {
                 var label = string.Equals(candidate.CandidateId, selectedId, StringComparison.Ordinal) ? 1d : 0d;
-                var weight = selection.ExecutedBy == "human" ? 2d : 0.35d;
+                var weight = selection.ExecutedBy == "human"
+                    ? (selection.PolicyVisibleToHuman ? 0.5d : 2d)
+                    : 0.35d;
                 policy.Add(new TrainingExample(
                     CombatResidualTrainer.ContextualFeatures(sample, candidate),
                     label,
@@ -179,9 +187,14 @@ public static class CombatSearchGuidanceTrainer
                     sample.StateFeatures,
                     Math.Max(-100d, Math.Min(100d, sample.Reward)),
                     sample.Terminal ? 2d : 1d));
-                var defeated = sample.Terminal
-                               && string.Equals(sample.BattleOutcome, "defeat", StringComparison.OrdinalIgnoreCase);
-                risks.Add(new TrainingExample(sample.StateFeatures, defeated ? 1d : 0d, sample.Terminal ? 2d : 0.5d));
+                if (sample.Terminal)
+                {
+                    var defeated = string.Equals(
+                        sample.BattleOutcome,
+                        "defeat",
+                        StringComparison.OrdinalIgnoreCase);
+                    risks.Add(new TrainingExample(sample.StateFeatures, defeated ? 1d : 0d, 2d));
+                }
             }
         }
 
@@ -200,7 +213,11 @@ public static class CombatSearchGuidanceTrainer
         var normalizedRate = Math.Max(0.01d, Math.Min(0.25d, learningRate));
         var policyModel = Fit(policy, normalizedRounds, normalizedRate, logistic: true, 5d);
         var valueModel = Fit(values, normalizedRounds, normalizedRate, logistic: false, 25d);
-        var riskModel = Fit(risks, Math.Max(8, normalizedRounds / 2), normalizedRate, logistic: true, 10d);
+        var riskTrained = risks.Any(example => example.Label > 0.5d)
+                          && risks.Any(example => example.Label <= 0.5d);
+        var riskModel = riskTrained
+            ? Fit(risks, Math.Max(8, normalizedRounds / 2), normalizedRate, logistic: true, 10d)
+            : new CombatTreeEnsemble { MaximumMagnitude = 10d };
         var model = new CombatSearchGuidanceDefinition
         {
             ModelId = "aura-combat-search-" + DateTime.UtcNow.ToString("yyyyMMddHHmmss"),
@@ -208,6 +225,7 @@ public static class CombatSearchGuidanceTrainer
             Policy = policyModel,
             Value = valueModel,
             Risk = riskModel,
+            RiskTrained = riskTrained,
             Metrics = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
             {
                 ["policyExamples"] = policy.Count,
@@ -284,6 +302,9 @@ public static class CombatSearchGuidanceTrainer
         IReadOnlyList<string> features)
     {
         StumpCandidate? best = null;
+        var parentSum = residuals.Sum();
+        var parentWeight = examples.Sum(example => example.Weight);
+        var parentScore = parentSum * parentSum / Math.Max(0.000001d, parentWeight);
         for (var featureIndex = 0; featureIndex < features.Count; featureIndex++)
         {
             var feature = features[featureIndex];
@@ -323,7 +344,9 @@ public static class CombatSearchGuidanceTrainer
                 }
                 var left = leftSum / leftWeight;
                 var right = rightSum / rightWeight;
-                var gain = left * left * leftWeight + right * right * rightWeight;
+                var gain = left * left * leftWeight
+                           + right * right * rightWeight
+                           - parentScore;
                 if (best == null || gain > best.Gain)
                 {
                     best = new StumpCandidate(feature, threshold, left, right, gain);

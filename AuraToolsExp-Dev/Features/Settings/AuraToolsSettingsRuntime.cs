@@ -937,6 +937,7 @@ public static class AuraToolsSettingsRuntime
                 AuraToolsUi.MutedText,
                 AuraToolsUi.TextMinHeight,
                 1f);
+            CreateAutoBattleSimulationRows(content, autoBattle);
         }, autoBattle.Enabled ? AuraToolsUi.SuccessText : AuraToolsUi.MutedText);
 
         var feast = AuraToolsConfigService.MatchExperience.Feast;
@@ -1491,6 +1492,143 @@ public static class AuraToolsSettingsRuntime
             autoBattle);
     }
 
+    private static void CreateAutoBattleSimulationRows(
+        Transform parent,
+        AutoBattleSettings autoBattle)
+    {
+        AuraToolsUi.AddText(
+            parent,
+            "模拟评估",
+            AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.Text,
+            AuraToolsUi.TextMinHeight,
+            1f);
+
+        var scenarios = AuraToolsAutoBattleSimulationRuntime.AvailableScenarioIds().ToList();
+        var scenarioLabels = scenarios.Count == 0
+            ? new List<string> { "未注册场景" }
+            : scenarios;
+        var selectedScenario = Math.Max(
+            0,
+            scenarios.FindIndex(id => string.Equals(
+                id,
+                autoBattle.Simulation.ScenarioId,
+                StringComparison.OrdinalIgnoreCase)));
+        var scenarioRow = CreateInlineRow(parent, "AutoBattleSimulationScenarioRow");
+        AuraToolsUi.AddText(
+            scenarioRow.transform,
+            "场景",
+            AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.Text,
+            AuraToolsUi.TextMinHeight,
+            0f,
+            106f);
+        var scenarioButton = AuraToolsUi.AddSelectButton(
+            scenarioRow.transform,
+            scenarioLabels,
+            selectedScenario,
+            index =>
+            {
+                if (index >= 0 && index < scenarios.Count)
+                {
+                    autoBattle.Simulation.ScenarioId = scenarios[index];
+                    autoBattle.Normalize();
+                    AuraToolsConfigService.SaveMatchExperience();
+                }
+            },
+            260f);
+        scenarioButton.interactable = scenarios.Count > 0;
+        AuraToolsUi.AddButton(
+            scenarioRow.transform,
+            "输入目录",
+            AuraToolsAutoBattleSimulationRuntime.OpenInputDirectory,
+            88f);
+
+        var parameterRow = CreateInlineRow(parent, "AutoBattleSimulationParameterRow");
+        AddAutoBattleSimulationInt(
+            parameterRow.transform,
+            "对照局数",
+            autoBattle.Simulation.SimulationCount,
+            value => autoBattle.Simulation.SimulationCount = value,
+            autoBattle);
+        AddAutoBattleSimulationInt(
+            parameterRow.transform,
+            "并行度",
+            autoBattle.Simulation.Parallelism,
+            value => autoBattle.Simulation.Parallelism = value,
+            autoBattle);
+        CreateAutoBattleToggleRow(
+            parent,
+            "保留分歧与失败轨迹",
+            autoBattle.Simulation.RetainDivergentTraces,
+            value =>
+            {
+                autoBattle.Simulation.RetainDivergentTraces = value;
+                AuraToolsConfigService.SaveMatchExperience();
+            });
+
+        var actionRow = CreateInlineRow(parent, "AutoBattleSimulationActionRow");
+        var statusText = AuraToolsUi.AddText(
+            actionRow.transform,
+            "",
+            AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.MutedText,
+            AuraToolsUi.TextMinHeight,
+            1f);
+        var runButton = AuraToolsUi.AddButton(actionRow.transform, "开始模拟", () =>
+        {
+            if (!AuraToolsAutoBattleSimulationRuntime.QueueRun(autoBattle, out var message))
+            {
+                AuraToolsLog.Warn("[AutoBattle][Simulation] " + message);
+            }
+        }, 88f);
+        var cancelButton = AuraToolsUi.AddButton(
+            actionRow.transform,
+            "取消",
+            AuraToolsAutoBattleSimulationRuntime.Cancel,
+            66f);
+        AuraToolsUi.AddButton(
+            actionRow.transform,
+            "结果目录",
+            AuraToolsAutoBattleSimulationRuntime.OpenResultDirectory,
+            88f);
+        actionRow.AddComponent<AuraToolsAutoBattleSimulationStatusView>().Configure(
+            statusText,
+            runButton,
+            cancelButton);
+    }
+
+    private static void AddAutoBattleSimulationInt(
+        Transform parent,
+        string label,
+        int value,
+        Action<int> apply,
+        AutoBattleSettings autoBattle)
+    {
+        AuraToolsUi.AddText(
+            parent,
+            label,
+            AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.Text,
+            AuraToolsUi.TextMinHeight,
+            0f,
+            86f);
+        AuraToolsUi.AddInput(parent, value.ToString(CultureInfo.InvariantCulture), raw =>
+        {
+            if (int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
+            {
+                apply(parsed);
+            }
+            autoBattle.Normalize();
+            AuraToolsConfigService.SaveMatchExperience();
+            RebuildPanel(activePanel!.transform);
+        }, 72f);
+    }
+
     private static void AddAutoBattleTrainingInt(
         Transform parent,
         string label,
@@ -1779,6 +1917,71 @@ internal sealed class AuraToolsAutoBattleTrainingStatusView : MonoBehaviour
     {
         var text = string.IsNullOrWhiteSpace(value) ? "操作失败" : value.Trim();
         return text.Length <= 72 ? text : text.Substring(0, 69) + "...";
+    }
+
+    private static void SetButtonLabel(Button button, string value)
+    {
+        var label = button.GetComponentInChildren<Text>(true);
+        if (label != null)
+        {
+            label.text = value;
+        }
+    }
+}
+
+internal sealed class AuraToolsAutoBattleSimulationStatusView : MonoBehaviour
+{
+    private Text? statusText;
+    private Button? runButton;
+    private Button? cancelButton;
+    private float nextRefreshAt;
+
+    public void Configure(Text text, Button run, Button cancel)
+    {
+        statusText = text;
+        runButton = run;
+        cancelButton = cancel;
+        Refresh();
+    }
+
+    private void Update()
+    {
+        if (Time.unscaledTime < nextRefreshAt)
+        {
+            return;
+        }
+        nextRefreshAt = Time.unscaledTime + 0.2f;
+        Refresh();
+    }
+
+    private void Refresh()
+    {
+        var status = AuraToolsAutoBattleSimulationRuntime.GetStatus();
+        if (statusText != null)
+        {
+            var progress = status.RequestedPairs > 0
+                ? " · " + status.CompletedPairs + "/" + status.RequestedPairs
+                : "";
+            var message = string.IsNullOrWhiteSpace(status.Message)
+                ? "尚未运行模拟评估"
+                : status.Message.Trim();
+            statusText.text = (message.Length <= 84 ? message : message.Substring(0, 81) + "...")
+                              + progress;
+            statusText.color = status.Stage == AutoBattleSimulationStage.Failed
+                ? new Color(1f, 0.46f, 0.42f, 1f)
+                : status.Stage == AutoBattleSimulationStage.Completed && status.GatePassed
+                    ? AuraToolsUi.SuccessText
+                    : AuraToolsUi.MutedText;
+        }
+        if (runButton != null)
+        {
+            runButton.interactable = !status.Busy;
+            SetButtonLabel(runButton, status.Busy ? "模拟中..." : "开始模拟");
+        }
+        if (cancelButton != null)
+        {
+            cancelButton.interactable = status.Busy;
+        }
     }
 
     private static void SetButtonLabel(Button button, string value)

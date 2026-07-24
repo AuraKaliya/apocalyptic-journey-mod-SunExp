@@ -396,6 +396,17 @@ public sealed class CombatScenarioDefinition
     public CombatSimulationLimits Limits { get; set; } = new();
 }
 
+public sealed class CombatRulesetDocument
+{
+    public string Version { get; set; } = "1";
+
+    public List<CombatCardDefinition> Cards { get; set; } = new();
+
+    public List<CombatEnemyDefinition> Enemies { get; set; } = new();
+
+    public List<CombatStatusDefinition> Statuses { get; set; } = new();
+}
+
 public sealed class CombatCardInstanceState
 {
     public int InstanceId { get; set; }

@@ -28,6 +28,11 @@ public sealed class CombatSimulationState
 
     public double PersistentValue { get; set; }
 
+    public double DamageMultiplier { get; set; } = 1d;
+
+    public Dictionary<string, double> Features { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public double Uncertainty { get; set; }
 
     public CombatSimulationUnit[] Enemies { get; set; } = Array.Empty<CombatSimulationUnit>();
@@ -67,6 +72,8 @@ public sealed class CombatSimulationState
             CostReduction = CostReduction,
             SetupValue = SetupValue,
             PersistentValue = PersistentValue,
+            DamageMultiplier = DamageMultiplier,
+            Features = new Dictionary<string, double>(Features, StringComparer.OrdinalIgnoreCase),
             Uncertainty = Uncertainty,
             Enemies = enemies,
             Threats = threats,
@@ -156,6 +163,8 @@ public sealed class CombatSimulationState
                     - enemyHp * 0.12d
                     + Power * 0.15d
                     + Math.Min(PlayerDefend, blockable) * 0.2d
+                    + SetupValue * Math.Max(0d, profile.SetupValueWeight)
+                    + PersistentValue * Math.Max(0d, profile.PersistentValueWeight)
                     - Uncertainty * profile.UncertaintyPenalty;
         return new CombatLeafEvaluation
         {
@@ -177,7 +186,16 @@ public sealed class CombatSimulationState
             Mix(ref hash, StepCount);
             Mix(ref hash, Quantize(SetupValue));
             Mix(ref hash, Quantize(PersistentValue));
+            Mix(ref hash, Quantize(DamageMultiplier));
             Mix(ref hash, Quantize(Uncertainty));
+            foreach (var pair in Features.OrderBy(pair => pair.Key, StringComparer.Ordinal))
+            {
+                foreach (var character in pair.Key)
+                {
+                    Mix(ref hash, character);
+                }
+                Mix(ref hash, Quantize(pair.Value));
+            }
             for (var i = 0; i < Enemies.Length; i++)
             {
                 Mix(ref hash, Enemies[i].RuntimeId);
@@ -267,6 +285,7 @@ public static class CombatForwardModel
             MaxPower = state.MaxPower,
             HandCount = state.HandCount,
             HandLimit = ResolveHandLimit(state),
+            Features = BuildStateFeatures(state),
             Enemies = state.Enemies.Select(enemy => new CombatSimulationUnit
             {
                 RuntimeId = enemy.RuntimeId,
@@ -312,6 +331,7 @@ public static class CombatForwardModel
         Add(outcome, CombatEffectKind.GenerateCard, 0, semantics.CardGeneration);
         Add(outcome, CombatEffectKind.PersistentValue, 0, semantics.PersistentValue);
         Add(outcome, CombatEffectKind.Scaling, 0, semantics.Scaling);
+        Add(outcome, CombatEffectKind.DamageMultiplier, 0, semantics.DamageMultiplierGain);
         return new CombatActionModel
         {
             Confidence = Math.Max(0d, Math.Min(1d, 1d - semantics.Uncertainty / 3d)),
@@ -342,6 +362,11 @@ public static class CombatForwardModel
         {
             ApplyEffect(state, outcome.Effects[i], action.TargetRuntimeId);
         }
+        foreach (var pair in action.Semantics?.StateChanges
+                     ?? new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase))
+        {
+            state.Features[pair.Key] = Value(state.Features, pair.Key) + pair.Value;
+        }
         state.Uncertainty += Math.Max(0d, 1d - Math.Min(1d, outcome.Probability))
                              * profile.UncertaintyPenalty;
         return state;
@@ -362,7 +387,11 @@ public static class CombatForwardModel
         switch (effect.Kind)
         {
             case CombatEffectKind.Damage:
-                ApplyDamage(state, targetId, magnitude, bypassDefend: false);
+                ApplyDamage(
+                    state,
+                    targetId,
+                    Math.Max(0, (int)Math.Round(effect.Magnitude * state.DamageMultiplier)),
+                    bypassDefend: false);
                 break;
             case CombatEffectKind.TrueDamage:
             case CombatEffectKind.DamageOverTime:
@@ -408,7 +437,33 @@ public static class CombatForwardModel
             case CombatEffectKind.Cleanse:
                 state.SetupValue += Math.Max(0d, effect.Magnitude);
                 break;
+            case CombatEffectKind.DamageMultiplier:
+                state.DamageMultiplier = Math.Max(
+                    0d,
+                    state.DamageMultiplier + Math.Max(0d, effect.Magnitude));
+                break;
         }
+    }
+
+    private static Dictionary<string, double> BuildStateFeatures(CombatStateObservation state)
+    {
+        var result = new Dictionary<string, double>(
+            state.Features ?? new Dictionary<string, double>(),
+            StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in state.Player?.Features ?? new Dictionary<string, double>())
+        {
+            result["player." + pair.Key] = pair.Value;
+        }
+        return result;
+    }
+
+    private static double Value(IReadOnlyDictionary<string, double> values, string key)
+    {
+        return values.TryGetValue(key, out var value)
+               && !double.IsNaN(value)
+               && !double.IsInfinity(value)
+            ? value
+            : 0d;
     }
 
     private static CombatSimulationUnit? FindTarget(CombatSimulationState state, int targetId)

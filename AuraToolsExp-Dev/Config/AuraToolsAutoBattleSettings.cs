@@ -39,16 +39,19 @@ public sealed class AutoBattleSettings
     public bool ShowPredictionMarkers { get; set; } = true;
 
     [JsonProperty("searchSimulationBudget")]
-    public int SearchSimulationBudget { get; set; } = 1536;
+    public int SearchSimulationBudget { get; set; } = 256;
 
     [JsonProperty("searchNodeBudget")]
     public int SearchNodeBudget { get; set; } = 8192;
 
     [JsonProperty("searchMaxPly")]
-    public int SearchMaxPly { get; set; } = 16;
+    public int SearchMaxPly { get; set; } = 10;
 
     [JsonProperty("training")]
     public AutoBattleTrainingSettings Training { get; set; } = AutoBattleTrainingSettings.CreateSteady();
+
+    [JsonProperty("simulation")]
+    public AutoBattleSimulationSettings Simulation { get; set; } = new();
 
     public void Normalize(int sourceSchemaVersion = 14)
     {
@@ -80,6 +83,8 @@ public sealed class AutoBattleSettings
         SearchNodeBudget = Math.Max(512, Math.Min(65536, SearchNodeBudget));
         SearchMaxPly = Math.Max(4, Math.Min(32, SearchMaxPly));
         Training.Normalize();
+        Simulation ??= new AutoBattleSimulationSettings();
+        Simulation.Normalize();
     }
 
     private static string NormalizeChoice(string value, params string[] choices)
@@ -94,6 +99,53 @@ public sealed class AutoBattleSettings
         }
 
         return choices[0];
+    }
+}
+
+public sealed class AutoBattleSimulationSettings
+{
+    [JsonProperty("scenarioId")]
+    public string ScenarioId { get; set; } = "";
+
+    [JsonProperty("simulationCount")]
+    public int SimulationCount { get; set; } = 200;
+
+    [JsonProperty("parallelism")]
+    public int Parallelism { get; set; } = 2;
+
+    [JsonProperty("seedStart")]
+    public ulong SeedStart { get; set; } = 1UL;
+
+    [JsonProperty("retainDivergentTraces")]
+    public bool RetainDivergentTraces { get; set; } = true;
+
+    [JsonProperty("minimumAuthoritativeCoverage")]
+    public double MinimumAuthoritativeCoverage { get; set; } = 1d;
+
+    [JsonProperty("maximumWinRateRegression")]
+    public double MaximumWinRateRegression { get; set; } = 0.01d;
+
+    public void Normalize()
+    {
+        ScenarioId = ScenarioId?.Trim() ?? "";
+        SimulationCount = Math.Max(1, Math.Min(100000, SimulationCount));
+        Parallelism = Math.Max(1, Math.Min(16, Parallelism));
+        MinimumAuthoritativeCoverage = Clamp(
+            MinimumAuthoritativeCoverage,
+            0d,
+            1d,
+            1d);
+        MaximumWinRateRegression = Clamp(
+            MaximumWinRateRegression,
+            0d,
+            0.25d,
+            0.01d);
+    }
+
+    private static double Clamp(double value, double min, double max, double fallback)
+    {
+        var finite = double.IsNaN(value) || double.IsInfinity(value) ? fallback : value;
+        return Math.Max(min, Math.Min(max, finite));
     }
 }
 

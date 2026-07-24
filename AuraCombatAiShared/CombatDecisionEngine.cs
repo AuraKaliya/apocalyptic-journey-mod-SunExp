@@ -98,6 +98,38 @@ public sealed class CombatDecisionEngine
             });
         }
 
+        var dominantSetup = CombatActionDominance.SelectSafeFreeSetup(
+            state,
+            evaluations,
+            selectedProfile);
+        if (dominantSetup != null)
+        {
+            dominantSetup.PlanScore = dominantSetup.RuleScore;
+            return new CombatDecision
+            {
+                HasAction = true,
+                Action = dominantSetup.Action,
+                Score = dominantSetup.RuleScore,
+                Reason = "safe free setup dominance",
+                ProfileId = selectedProfile.Id,
+                Candidates = evaluations,
+                Plan = new List<CombatPlanStep>
+                {
+                    new()
+                    {
+                        CandidateId = dominantSetup.Action.CandidateId,
+                        SourceId = dominantSetup.Action.SourceId,
+                        DisplayName = dominantSetup.Action.DisplayName,
+                        StepScore = dominantSetup.RuleScore,
+                        CumulativeScore = dominantSetup.RuleScore,
+                        RemainingPower = state.CurrentPower
+                    }
+                },
+                PlanSummary = "dominant-free-setup; plan=" + dominantSetup.Action.DisplayName,
+                SearchAlgorithm = "dominance"
+            };
+        }
+
         var search = selectedProfile.UseChancePuct
             ? new CombatChancePuctPlanner(
                     residualModel,
@@ -130,7 +162,8 @@ public sealed class CombatDecisionEngine
                 SearchAlgorithm = search == null ? "bounded-beam" : "chance-puct",
                 SearchSimulations = search?.Simulations ?? 0,
                 SearchNodes = search?.Nodes ?? 0,
-                SearchTranspositionHits = search?.TranspositionHits ?? 0
+                SearchTranspositionHits = search?.TranspositionHits ?? 0,
+                SearchStoppedEarly = search?.StoppedEarly == true
             };
         }
 
@@ -148,7 +181,8 @@ public sealed class CombatDecisionEngine
                 SearchAlgorithm = search == null ? "bounded-beam" : "chance-puct",
                 SearchSimulations = search?.Simulations ?? 0,
                 SearchNodes = search?.Nodes ?? 0,
-                SearchTranspositionHits = search?.TranspositionHits ?? 0
+                SearchTranspositionHits = search?.TranspositionHits ?? 0,
+                SearchStoppedEarly = search?.StoppedEarly == true
             };
         }
 
@@ -160,7 +194,8 @@ public sealed class CombatDecisionEngine
             SearchAlgorithm = search == null ? "bounded-beam" : "chance-puct",
             SearchSimulations = search?.Simulations ?? 0,
             SearchNodes = search?.Nodes ?? 0,
-            SearchTranspositionHits = search?.TranspositionHits ?? 0
+            SearchTranspositionHits = search?.TranspositionHits ?? 0,
+            SearchStoppedEarly = search?.StoppedEarly == true
         };
     }
 

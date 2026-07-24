@@ -16,7 +16,7 @@ param(
     [ValidateSet("greedy", "first", "chance-puct")]
     [string]$Policy = "greedy",
 
-    [Nullable[UInt64]]$SeedStart
+    [UInt64]$SeedStart = 0
 )
 
 $ErrorActionPreference = "Stop"
@@ -36,8 +36,11 @@ $arguments = @(
 if (-not [string]::IsNullOrWhiteSpace($Output)) {
     $arguments += @("--output", [IO.Path]::GetFullPath($Output))
 }
-if ($null -ne $SeedStart) {
-    $arguments += @("--seed-start", $SeedStart.Value)
+if ($PSBoundParameters.ContainsKey("SeedStart")) {
+    $arguments += @(
+        "--seed-start",
+        $SeedStart.ToString([Globalization.CultureInfo]::InvariantCulture)
+    )
 }
 
 & dotnet @arguments

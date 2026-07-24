@@ -131,6 +131,71 @@ internal static class AuraToolsAutoBattleModelRuntime
         return new BoundedTreeCombatSearchGuidanceModel(snapshot.Value);
     }
 
+    public static bool TryGetInstalledModelInfo(
+        string decisionProfile,
+        out string modelId,
+        out double groupedValidationAccuracy,
+        out int battleSessionCount,
+        out string reason)
+    {
+        var profile = NormalizeProfile(decisionProfile);
+        var snapshot = AuraSharedConfigStore.ReadOwner(
+            AuraToolsIds.ModId,
+            SystemId,
+            ModelFile(profile),
+            new DecisionResidualModelDefinition());
+        if (!snapshot.Found)
+        {
+            modelId = "";
+            groupedValidationAccuracy = 0d;
+            battleSessionCount = 0;
+            reason = "当前决策风格没有已安装的本地模型：" + profile;
+            return false;
+        }
+        if (!TryValidate(snapshot.Value, profile, out reason))
+        {
+            modelId = "";
+            groupedValidationAccuracy = 0d;
+            battleSessionCount = 0;
+            return false;
+        }
+
+        modelId = snapshot.Value.ModelId ?? "";
+        groupedValidationAccuracy = Metric(
+            snapshot.Value.Metrics,
+            "groupedValidationAccuracy");
+        battleSessionCount = MetricCount(snapshot.Value.Metrics, "battleSessionCount");
+        reason = "";
+        return true;
+    }
+
+    public static bool MeetsValidationGate(string decisionProfile, out string reason)
+    {
+        if (!TryGetInstalledModelInfo(
+                decisionProfile,
+                out _,
+                out var groupedAccuracy,
+                out var battleSessions,
+                out reason))
+        {
+            return false;
+        }
+        if (battleSessions < 2)
+        {
+            reason = "至少需要覆盖 2 场独立战斗才能进行分组验证";
+            return false;
+        }
+        if (groupedAccuracy < 0.55d)
+        {
+            reason = "按战斗分组验证准确率低于 55%（当前 "
+                     + groupedAccuracy.ToString("P1")
+                     + "）";
+            return false;
+        }
+        reason = "分组验证通过";
+        return true;
+    }
+
     public static bool QueueGenerateCandidate(
         string decisionProfile,
         Action<string>? completed = null)
@@ -603,6 +668,19 @@ internal static class AuraToolsAutoBattleModelRuntime
             return 0;
         }
         return Math.Max(0, (int)Math.Round(value));
+    }
+
+    private static double Metric(
+        IReadOnlyDictionary<string, double>? metrics,
+        string key)
+    {
+        if (metrics == null
+            || !metrics.TryGetValue(key, out var value)
+            || !Finite(value))
+        {
+            return 0d;
+        }
+        return value;
     }
 
     private static string CandidatePath(string profile)

@@ -79,7 +79,8 @@ public enum CombatEffectKind
     Cleanse,
     GenerateCard,
     PersistentValue,
-    Scaling
+    Scaling,
+    DamageMultiplier
 }
 
 public sealed class CombatEffectOperation
@@ -224,6 +225,11 @@ public sealed class CombatActionSemantics
 
     public double PersistentValue { get; set; }
 
+    public double DamageMultiplierGain { get; set; }
+
+    public Dictionary<string, double> StateChanges { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public double CooldownTurns { get; set; }
 
     public double Risk { get; set; }
@@ -325,11 +331,17 @@ public sealed class CombatDecisionProfile
 
     public int MaxPlanDepth { get; set; } = 8;
 
-    public int SearchSimulationBudget { get; set; } = 1536;
+    public int SearchSimulationBudget { get; set; } = 256;
 
     public int SearchNodeBudget { get; set; } = 8192;
 
-    public int SearchMaxPly { get; set; } = 16;
+    public int SearchMaxPly { get; set; } = 10;
+
+    public int SearchMinimumSimulations { get; set; } = 128;
+
+    public int SearchStabilityWindow { get; set; } = 64;
+
+    public int SearchStableChecks { get; set; } = 2;
 
     public double SearchExploration { get; set; } = 1.15d;
 
@@ -338,6 +350,12 @@ public sealed class CombatDecisionProfile
     public double TailRiskPenalty { get; set; } = 35d;
 
     public double UncertaintyPenalty { get; set; } = 0.75d;
+
+    public double SetupValueWeight { get; set; } = 0.8d;
+
+    public double PersistentValueWeight { get; set; } = 1d;
+
+    public bool PreferDominantFreeSetup { get; set; } = true;
 
     public bool UseChancePuct { get; set; } = true;
 }
@@ -407,6 +425,8 @@ public sealed class CombatDecision
     public int SearchNodes { get; set; }
 
     public int SearchTranspositionHits { get; set; }
+
+    public bool SearchStoppedEarly { get; set; }
 
     public string SearchAlgorithm { get; set; } = "";
 }
