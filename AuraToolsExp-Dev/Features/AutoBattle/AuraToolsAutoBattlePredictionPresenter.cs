@@ -9,8 +9,10 @@ namespace AuraToolsExp.Dll.Features.AutoBattle;
 internal sealed class AuraToolsAutoBattlePredictionPresenter : MonoBehaviour
 {
     private const string UnitMarkerResource = "UI/SelectedIcon";
-    private const float BorderThickness = 5f;
-    private const float BorderPadding = 8f;
+    private const float OverlayBorderThickness = 5f;
+    private const float OverlayBorderPadding = 8f;
+    private const float CardBorderThickness = 1.5f;
+    private const float CardBorderPadding = 1.5f;
     private static readonly Color EnemyColor = new(1f, 0.16f, 0.12f, 0.72f);
     private static readonly Color FriendlyColor = new(0.18f, 1f, 0.32f, 0.72f);
     private static readonly Color ActionColor = new(1f, 0.78f, 0.08f, 0.86f);
@@ -23,6 +25,7 @@ internal sealed class AuraToolsAutoBattlePredictionPresenter : MonoBehaviour
     private RectTransform? actionFrame;
     private RectTransform? actionFrameParent;
     private RectTransform? actionTarget;
+    private bool cardFrameMode;
     private Vector2 actionFallbackSize;
     private string stateFingerprint = "";
     private string candidateId = "";
@@ -60,6 +63,8 @@ internal sealed class AuraToolsAutoBattlePredictionPresenter : MonoBehaviour
         stateFingerprint = fingerprint ?? "";
         candidateId = action.CandidateId ?? "";
         actionTarget = actionRect;
+        cardFrameMode = action.Kind == CombatActionKind.PlayCard
+                        && actionComponent is CardItem;
         actionFallbackSize = FallbackSize(action.Kind);
         holdActionUntil = Time.unscaledTime + Mathf.Max(0f, actionHoldSeconds);
         EnsureActionFrame(fightUi);
@@ -73,6 +78,7 @@ internal sealed class AuraToolsAutoBattlePredictionPresenter : MonoBehaviour
         stateFingerprint = "";
         candidateId = "";
         actionTarget = null;
+        cardFrameMode = false;
         actionFallbackSize = Vector2.zero;
         holdActionUntil = 0f;
         if (actionFrame != null)
@@ -102,7 +108,8 @@ internal sealed class AuraToolsAutoBattlePredictionPresenter : MonoBehaviour
             var root = new GameObject(
                 "AuraToolsAutoBattlePredictionFrame",
                 typeof(RectTransform),
-                typeof(CanvasGroup));
+                typeof(CanvasGroup),
+                typeof(LayoutElement));
             actionFrame = root.GetComponent<RectTransform>();
             actionFrame.anchorMin = new Vector2(0.5f, 0.5f);
             actionFrame.anchorMax = new Vector2(0.5f, 0.5f);
@@ -112,18 +119,30 @@ internal sealed class AuraToolsAutoBattlePredictionPresenter : MonoBehaviour
             var group = root.GetComponent<CanvasGroup>();
             group.interactable = false;
             group.blocksRaycasts = false;
+            root.GetComponent<LayoutElement>().ignoreLayout = true;
             for (var index = 0; index < actionEdges.Length; index++)
             {
                 actionEdges[index] = CreateEdge(actionFrame, "Edge" + index);
             }
         }
 
-        if (actionFrameParent != parent)
+        var requestedParent = cardFrameMode && actionTarget?.parent is RectTransform cardParent
+            ? cardParent
+            : parent;
+        if (actionFrameParent != requestedParent)
         {
-            actionFrame.SetParent(parent, false);
-            actionFrameParent = parent;
+            actionFrame.SetParent(requestedParent, false);
+            actionFrameParent = requestedParent;
         }
-        actionFrame.SetAsLastSibling();
+        if (cardFrameMode && actionTarget != null && actionTarget.parent == actionFrameParent)
+        {
+            PlaceImmediatelyBehind(actionFrame, actionTarget);
+        }
+        else
+        {
+            ResetOverlayTransform(actionFrame);
+            actionFrame.SetAsLastSibling();
+        }
         actionFrame.gameObject.SetActive(true);
     }
 
@@ -157,6 +176,64 @@ internal sealed class AuraToolsAutoBattlePredictionPresenter : MonoBehaviour
             return;
         }
 
+        if (cardFrameMode && SyncCardFrame())
+        {
+            return;
+        }
+
+        SyncOverlayFrame();
+    }
+
+    private bool SyncCardFrame()
+    {
+        if (actionFrame == null
+            || actionTarget == null
+            || actionTarget.parent is not RectTransform targetParent)
+        {
+            return false;
+        }
+
+        if (actionFrameParent != targetParent)
+        {
+            actionFrame.SetParent(targetParent, false);
+            actionFrameParent = targetParent;
+        }
+        PlaceImmediatelyBehind(actionFrame, actionTarget);
+
+        actionFrame.anchorMin = actionTarget.anchorMin;
+        actionFrame.anchorMax = actionTarget.anchorMax;
+        actionFrame.pivot = actionTarget.pivot;
+        actionFrame.anchoredPosition3D = actionTarget.anchoredPosition3D;
+        actionFrame.sizeDelta = actionTarget.sizeDelta;
+        actionFrame.localRotation = actionTarget.localRotation;
+        actionFrame.localScale = actionTarget.localScale;
+
+        var rect = actionTarget.rect;
+        localCorners[0] = new Vector2(
+            rect.xMin - CardBorderPadding,
+            rect.yMin - CardBorderPadding);
+        localCorners[1] = new Vector2(
+            rect.xMin - CardBorderPadding,
+            rect.yMax + CardBorderPadding);
+        localCorners[2] = new Vector2(
+            rect.xMax + CardBorderPadding,
+            rect.yMax + CardBorderPadding);
+        localCorners[3] = new Vector2(
+            rect.xMax + CardBorderPadding,
+            rect.yMin - CardBorderPadding);
+        SyncEdges(CardBorderThickness);
+        return true;
+    }
+
+    private void SyncOverlayFrame()
+    {
+        if (actionFrame == null || actionTarget == null || actionFrameParent == null)
+        {
+            return;
+        }
+
+        ResetOverlayTransform(actionFrame);
+        actionFrame.SetAsLastSibling();
         actionTarget.GetWorldCorners(worldCorners);
         var center = Vector2.zero;
         for (var index = 0; index < worldCorners.Length; index++)
@@ -182,23 +259,30 @@ internal sealed class AuraToolsAutoBattlePredictionPresenter : MonoBehaviour
             var outward = localCorners[index] - center;
             if (outward.sqrMagnitude > 0.001f)
             {
-                localCorners[index] += outward.normalized * BorderPadding * 1.414214f;
+                localCorners[index] += outward.normalized * OverlayBorderPadding * 1.414214f;
             }
         }
 
-        actionFrame.localPosition = Vector3.zero;
-        actionFrame.localRotation = Quaternion.identity;
-        actionFrame.localScale = Vector3.one;
+        SyncEdges(OverlayBorderThickness);
+    }
+
+    private void SyncEdges(float thickness)
+    {
         for (var index = 0; index < actionEdges.Length; index++)
         {
-            SyncEdge(actionEdges[index], localCorners[index], localCorners[(index + 1) % 4]);
+            SyncEdge(
+                actionEdges[index],
+                localCorners[index],
+                localCorners[(index + 1) % 4],
+                thickness);
         }
     }
 
     private static void SyncEdge(
         RectTransform? edge,
         Vector2 start,
-        Vector2 end)
+        Vector2 end,
+        float thickness)
     {
         if (edge == null)
         {
@@ -207,12 +291,43 @@ internal sealed class AuraToolsAutoBattlePredictionPresenter : MonoBehaviour
 
         var delta = end - start;
         edge.anchoredPosition = (start + end) * 0.5f;
-        edge.sizeDelta = new Vector2(delta.magnitude + BorderThickness, BorderThickness);
+        edge.sizeDelta = new Vector2(delta.magnitude + thickness, thickness);
         edge.localRotation = Quaternion.Euler(
             0f,
             0f,
             Mathf.Atan2(delta.y, delta.x) * Mathf.Rad2Deg);
         edge.localScale = Vector3.one;
+    }
+
+    private static void PlaceImmediatelyBehind(
+        RectTransform frame,
+        RectTransform target)
+    {
+        if (frame.parent != target.parent)
+        {
+            return;
+        }
+
+        var frameIndex = frame.GetSiblingIndex();
+        var targetIndex = target.GetSiblingIndex();
+        if (frameIndex + 1 == targetIndex)
+        {
+            return;
+        }
+
+        var desiredIndex = targetIndex - (frameIndex < targetIndex ? 1 : 0);
+        frame.SetSiblingIndex(Mathf.Max(0, desiredIndex));
+    }
+
+    private static void ResetOverlayTransform(RectTransform frame)
+    {
+        frame.anchorMin = new Vector2(0.5f, 0.5f);
+        frame.anchorMax = new Vector2(0.5f, 0.5f);
+        frame.pivot = new Vector2(0.5f, 0.5f);
+        frame.anchoredPosition3D = Vector3.zero;
+        frame.sizeDelta = Vector2.zero;
+        frame.localRotation = Quaternion.identity;
+        frame.localScale = Vector3.one;
     }
 
     private static RectTransform? ResolveActionTarget(

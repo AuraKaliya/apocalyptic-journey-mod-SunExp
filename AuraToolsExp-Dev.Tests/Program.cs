@@ -345,7 +345,7 @@ void TestConfigModelSerializationCompatibility()
     var matchExperience = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
         "{\"schemaVersion\":1,\"starterDeck\":{\"preferRoleModProfile\":false},\"safeBox\":null,\"modSync\":null,\"feast\":null,\"damageMeter\":null,\"cardRefresh\":null,\"autoBattle\":null}")!;
     matchExperience.Normalize();
-    Assert(matchExperience.SchemaVersion == 13
+    Assert(matchExperience.SchemaVersion == 14
            && matchExperience.StarterDeck.PreferRoleModProfile
            && matchExperience.SafeBox != null
            && matchExperience.ModSync != null
@@ -358,8 +358,23 @@ void TestConfigModelSerializationCompatibility()
            && matchExperience.AutoBattle.TrainingMode == "hybrid"
            && matchExperience.AutoBattle.ShowPredictionMarkers
            && !matchExperience.AutoBattle.UseTrainedModel
-           && matchExperience.AutoBattle.TrainedModelMode == "off",
+           && matchExperience.AutoBattle.TrainedModelMode == "off"
+           && matchExperience.AutoBattle.Training.Preset == AutoBattleTrainingSettings.CustomPreset
+           && matchExperience.AutoBattle.Training.Epochs == 100
+           && matchExperience.AutoBattle.Training.MaximumCorrection == 2d,
         "match-experience config keeps legacy schema migration and nested defaults after the file split");
+
+    var steadyTraining = AutoBattleTrainingSettings.CreateSteady();
+    Assert(steadyTraining.Preset == AutoBattleTrainingSettings.SteadyPreset
+           && steadyTraining.Epochs == 80
+           && steadyTraining.MinimumPreferencePairs == 15
+           && steadyTraining.MaximumCorrection == 0.75d,
+        "new auto-battle training settings default to the bounded steady preset");
+    steadyTraining.ApplyPreset(AutoBattleTrainingSettings.AdaptivePreset);
+    Assert(steadyTraining.Epochs == 180
+           && steadyTraining.MinimumPreferencePairs == 30
+           && steadyTraining.MaximumCorrection == 2d,
+        "auto-battle training presets apply a complete reproducible parameter set");
 
     var legacyTrainedModel = JsonConvert.DeserializeObject<AutoBattleSettings>(
         "{\"useTrainedModel\":true}")!;
@@ -433,7 +448,7 @@ void TestCardRefreshSettingsAndPoolPolicy()
         CardRefresh = null!
     };
     settings.Normalize();
-    Assert(settings.SchemaVersion == 13, "match-experience settings migrate to the local-model-mode schema");
+    Assert(settings.SchemaVersion == 14, "match-experience settings migrate to the local-training-options schema");
     Assert(settings.CardRefresh != null && !settings.CardRefresh.Enabled,
         "card refresh is restored with a disabled default during normalization");
 
@@ -975,13 +990,15 @@ void TestRuntimeArchitectureGuards()
            && cardRefreshNativeApi.Contains("new RandomPool(pool, dice).DrawByRarity", StringComparison.Ordinal)
            && cardRefreshNativeApi.Contains("manager.CardPackCheck", StringComparison.Ordinal),
         "card refresh recreates clean choice items and uses a window-local clone of the native reward draw pipeline");
-    Assert(matchExperienceConfig.Contains("\"schemaVersion\": 13", StringComparison.Ordinal)
+    Assert(matchExperienceConfig.Contains("\"schemaVersion\": 14", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"cardRefresh\"", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"enabled\": false", StringComparison.Ordinal),
         "shipped card refresh configuration is present and disabled by default");
 
     var autoBattleRuntime = ReadRepoText("AuraToolsExp-Dev/Features/AutoBattle/AuraToolsAutoBattleRuntime.cs");
     var autoBattlePredictionPresenter = ReadRepoText("AuraToolsExp-Dev/Features/AutoBattle/AuraToolsAutoBattlePredictionPresenter.cs");
+    var autoBattleModelRuntime = ReadRepoText("AuraToolsExp-Dev/Features/AutoBattle/AuraToolsAutoBattleModelRuntime.cs");
+    var settingsRuntime = ReadRepoText("AuraToolsExp-Dev/Features/Settings/AuraToolsSettingsRuntime.cs");
     Assert(autoBattleRuntime.Contains("WitchCombatInteractionRuntime.ObserveDeckPrompt", StringComparison.Ordinal)
            && autoBattleRuntime.Contains("WitchCombatInteractionRuntime.ObserveHandPrompt", StringComparison.Ordinal)
            && autoBattleRuntime.Contains("CaptureTeacherAction", StringComparison.Ordinal)
@@ -996,12 +1013,22 @@ void TestRuntimeArchitectureGuards()
            && autoBattleRuntime.Contains("CombatDecisionEngine", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"autoBattle\"", StringComparison.Ordinal),
         "auto battle routes decisions and native prompt handling through shared runtimes");
+    Assert(autoBattleModelRuntime.Contains("AutoBattleTrainingStage.ReadingSamples", StringComparison.Ordinal)
+           && autoBattleModelRuntime.Contains("AutoBattleTrainingStage.CandidateReady", StringComparison.Ordinal)
+           && autoBattleModelRuntime.Contains("MinimumPreferencePairs", StringComparison.Ordinal)
+           && settingsRuntime.Contains("AuraToolsAutoBattleTrainingStatusView", StringComparison.Ordinal)
+           && settingsRuntime.Contains("显示高级训练参数", StringComparison.Ordinal)
+           && matchExperienceConfig.Contains("\"preset\": \"steady\"", StringComparison.Ordinal),
+        "auto battle exposes bounded training presets and persistent visible task feedback");
     Assert(autoBattlePredictionPresenter.Contains("UI/SelectedIcon", StringComparison.Ordinal)
            && autoBattlePredictionPresenter.Contains("raycastTarget = false", StringComparison.Ordinal)
            && autoBattlePredictionPresenter.Contains("blocksRaycasts = false", StringComparison.Ordinal)
            && autoBattlePredictionPresenter.Contains("CombatTargetKind.Enemy", StringComparison.Ordinal)
            && autoBattlePredictionPresenter.Contains("card.uiElement", StringComparison.Ordinal)
            && autoBattlePredictionPresenter.Contains("SyncEdge", StringComparison.Ordinal)
+           && autoBattlePredictionPresenter.Contains("CardBorderThickness = 1.5f", StringComparison.Ordinal)
+           && autoBattlePredictionPresenter.Contains("PlaceImmediatelyBehind", StringComparison.Ordinal)
+           && autoBattlePredictionPresenter.Contains("ignoreLayout = true", StringComparison.Ordinal)
            && !autoBattlePredictionPresenter.Contains("maximum - minimum", StringComparison.Ordinal)
            && !autoBattlePredictionPresenter.Contains("new Material", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"showPredictionMarkers\": true", StringComparison.Ordinal),

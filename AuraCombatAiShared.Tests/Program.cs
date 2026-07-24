@@ -605,6 +605,43 @@ Assert(trained.Success
        && trained.Model.FeatureMinimums.Count > 0
        && trained.Model.CategoryObservationCounts.Count > 0,
     "in-process trainer produces a contextual candidate with applicability metadata");
+var gatedTraining = CombatResidualTrainer.Train(
+    new[] { humanSample },
+    "balanced",
+    new CombatResidualTrainingOptions
+    {
+        PresetId = "steady",
+        Epochs = 80,
+        LearningRate = 0.03d,
+        L2 = 0.003d,
+        MaximumCorrection = 0.75d,
+        MinimumPreferencePairs = 2,
+        MinimumCategoryObservations = 10
+    });
+Assert(!gatedTraining.Success
+       && gatedTraining.PreferencePairCount == 1
+       && gatedTraining.Message.Contains("最低要求 2", StringComparison.Ordinal),
+    "training options reject undersized preference sets before producing a model");
+var configuredTraining = CombatResidualTrainer.Train(
+    new[] { humanSample },
+    "balanced",
+    new CombatResidualTrainingOptions
+    {
+        PresetId = "steady",
+        Epochs = 80,
+        LearningRate = 0.03d,
+        L2 = 0.003d,
+        MaximumCorrection = 0.75d,
+        MinimumPreferencePairs = 1,
+        MinimumCategoryObservations = 10
+    });
+Assert(configuredTraining.Success
+       && configuredTraining.Model?.MaximumCorrection == 0.75d
+       && configuredTraining.Model.TrainingPreset == "steady"
+       && configuredTraining.Model.MinimumCategoryObservations == 10d
+       && configuredTraining.Model.TrainingParameters["epochs"] == 80d
+       && configuredTraining.Model.TrainingParameters["randomSeed"] == 7d,
+    "training options are bounded and persisted in the candidate model metadata");
 var wrongProfileTraining = CombatResidualTrainer.Train(new[] { humanSample }, "defensive");
 Assert(!wrongProfileTraining.Success && wrongProfileTraining.PreferencePairCount == 0,
     "training keeps decision profiles separate without gating on MOD identity");

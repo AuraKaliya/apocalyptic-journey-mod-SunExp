@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.IO;
 using System.Linq;
 using AuraShared.Core;
@@ -38,6 +39,7 @@ public static class AuraToolsSettingsRuntime
     private static GameObject? activePanel;
     private static Transform? activePanelHost;
     private static Transform? activeTabParent;
+    private static bool AutoBattleAdvancedTrainingExpanded;
     private static readonly Dictionary<string, bool> FoldoutStates = new(StringComparer.Ordinal);
     private static bool loggedHookRegistration;
     private static bool loggedInjectionSuccess;
@@ -815,6 +817,70 @@ public static class AuraToolsSettingsRuntime
                 AuraToolsConfigService.SaveMatchExperience();
                 RebuildPanel(activePanel!.transform);
             }, 96f);
+
+            var trainingPresetRow = CreateInlineRow(content, "AutoBattleTrainingPresetRow");
+            AuraToolsUi.AddText(
+                trainingPresetRow.transform,
+                "训练预设",
+                AuraToolsUi.BodyFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.Text,
+                AuraToolsUi.TextMinHeight,
+                0f,
+                96f);
+            AuraToolsUi.AddSelectButton(
+                trainingPresetRow.transform,
+                new[] { "稳健", "标准", "强适应", "自定义" },
+                AutoBattleTrainingPresetIndex(autoBattle.Training.Preset),
+                index =>
+                {
+                    if (index < 3)
+                    {
+                        autoBattle.Training.ApplyPreset(index switch
+                        {
+                            1 => AutoBattleTrainingSettings.StandardPreset,
+                            2 => AutoBattleTrainingSettings.AdaptivePreset,
+                            _ => AutoBattleTrainingSettings.SteadyPreset
+                        });
+                        AuraToolsConfigService.SaveMatchExperience();
+                        RebuildPanel(activePanel!.transform);
+                    }
+                    else
+                    {
+                        autoBattle.Training.MarkCustom();
+                        AuraToolsConfigService.SaveMatchExperience();
+                        RebuildPanel(activePanel!.transform);
+                    }
+                },
+                160f);
+            AuraToolsUi.AddText(
+                trainingPresetRow.transform,
+                AutoBattleTrainingPresetSummary(autoBattle.Training),
+                AuraToolsUi.HintFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.MutedText,
+                AuraToolsUi.TextMinHeight,
+                1f);
+
+            var advancedToggleRow = CreateInlineRow(content, "AutoBattleAdvancedTrainingToggleRow");
+            AuraToolsUi.AddToggle(advancedToggleRow.transform, AutoBattleAdvancedTrainingExpanded, value =>
+            {
+                AutoBattleAdvancedTrainingExpanded = value;
+                RebuildPanel(activePanel!.transform);
+            });
+            AuraToolsUi.AddText(
+                advancedToggleRow.transform,
+                "显示高级训练参数",
+                AuraToolsUi.BodyFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.Text,
+                AuraToolsUi.TextMinHeight,
+                1f);
+            if (AutoBattleAdvancedTrainingExpanded)
+            {
+                CreateAutoBattleTrainingParameterRows(content, autoBattle);
+            }
+
             var modelModeRow = CreateInlineRow(content, "AutoBattleModelModeRow");
             AuraToolsUi.AddText(
                 modelModeRow.transform,
@@ -835,31 +901,37 @@ public static class AuraToolsSettingsRuntime
                 AuraToolsConfigService.SaveMatchExperience();
                 RebuildPanel(activePanel!.transform);
             }, 96f);
-            var modelRow = CreateInlineRow(content, "AutoBattleModelImportRow");
-            AuraToolsUi.AddText(
+            var modelRow = CreateInlineRow(content, "AutoBattleModelActionRow");
+            var trainingStatusText = AuraToolsUi.AddText(
                 modelRow.transform,
-                "模型仅保存在本机；按统一战斗语义迁移，不按 MOD 列表隔离。",
+                "",
                 AuraToolsUi.HintFontSize,
                 TextAnchor.MiddleLeft,
                 AuraToolsUi.MutedText,
                 AuraToolsUi.TextMinHeight,
                 1f);
-            AuraToolsUi.AddButton(modelRow.transform, "生成候选", () =>
+            var generateButton = AuraToolsUi.AddButton(modelRow.transform, "生成候选", () =>
             {
                 if (!AuraToolsAutoBattleModelRuntime.QueueGenerateCandidate(autoBattle.Profile))
                 {
-                    AuraToolsLog.Warn("[AutoBattle][Training] 本地训练任务未能提交或已有同名任务");
+                    AuraToolsLog.Warn("[AutoBattle][Training] 本地训练任务正在运行或未能提交");
                 }
             }, 96f);
-            AuraToolsUi.AddButton(modelRow.transform, "导入候选", () =>
+            var importButton = AuraToolsUi.AddButton(modelRow.transform, "导入候选", () =>
             {
                 AuraToolsAutoBattleModelRuntime.TryImportCandidate(autoBattle.Profile, out var message);
                 AuraToolsLog.Info("[AutoBattle] " + message);
                 AuraToolsConfigService.SaveMatchExperience();
             }, 96f);
+            modelRow.AddComponent<AuraToolsAutoBattleTrainingStatusView>().Configure(
+                autoBattle.Profile,
+                autoBattle.TrainedModelMode,
+                trainingStatusText,
+                generateButton,
+                importButton);
             AuraToolsUi.AddText(
                 content,
-                "开启模块后，战斗界面会临时出现“自动战斗”按钮。额外选牌界面会由同一决策器继续处理；无法识别的复杂交互会按策略交还玩家。",
+                "模型仅保存在本机。生成任务在后台运行；导入后可选择影子评估或受限应用。",
                 AuraToolsUi.HintFontSize,
                 TextAnchor.MiddleLeft,
                 AuraToolsUi.MutedText,
@@ -1372,6 +1444,144 @@ public static class AuraToolsSettingsRuntime
         AuraToolsUi.AddText(row.transform, label, AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
     }
 
+    private static void CreateAutoBattleTrainingParameterRows(
+        Transform parent,
+        AutoBattleSettings autoBattle)
+    {
+        var first = CreateInlineRow(parent, "AutoBattleTrainingParameters1");
+        AddAutoBattleTrainingInt(
+            first.transform,
+            "训练轮数",
+            autoBattle.Training.Epochs,
+            value => autoBattle.Training.Epochs = Math.Max(20, Math.Min(300, value)),
+            autoBattle);
+        AddAutoBattleTrainingDouble(
+            first.transform,
+            "学习率",
+            autoBattle.Training.LearningRate,
+            value => autoBattle.Training.LearningRate = Math.Max(0.005d, Math.Min(0.1d, value)),
+            autoBattle);
+
+        var second = CreateInlineRow(parent, "AutoBattleTrainingParameters2");
+        AddAutoBattleTrainingDouble(
+            second.transform,
+            "L2 正则",
+            autoBattle.Training.L2,
+            value => autoBattle.Training.L2 = Math.Max(0d, Math.Min(0.02d, value)),
+            autoBattle);
+        AddAutoBattleTrainingDouble(
+            second.transform,
+            "最大修正",
+            autoBattle.Training.MaximumCorrection,
+            value => autoBattle.Training.MaximumCorrection = Math.Max(0.25d, Math.Min(2d, value)),
+            autoBattle);
+
+        var third = CreateInlineRow(parent, "AutoBattleTrainingParameters3");
+        AddAutoBattleTrainingInt(
+            third.transform,
+            "最低偏好对",
+            autoBattle.Training.MinimumPreferencePairs,
+            value => autoBattle.Training.MinimumPreferencePairs = Math.Max(5, Math.Min(200, value)),
+            autoBattle);
+        AddAutoBattleTrainingInt(
+            third.transform,
+            "类别最低样本",
+            autoBattle.Training.MinimumCategoryObservations,
+            value => autoBattle.Training.MinimumCategoryObservations = Math.Max(3, Math.Min(100, value)),
+            autoBattle);
+    }
+
+    private static void AddAutoBattleTrainingInt(
+        Transform parent,
+        string label,
+        int value,
+        Action<int> apply,
+        AutoBattleSettings autoBattle)
+    {
+        AuraToolsUi.AddText(
+            parent,
+            label,
+            AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.Text,
+            AuraToolsUi.TextMinHeight,
+            0f,
+            106f);
+        AuraToolsUi.AddInput(parent, value.ToString(CultureInfo.InvariantCulture), raw =>
+        {
+            if (int.TryParse(raw, NumberStyles.Integer, CultureInfo.InvariantCulture, out var parsed))
+            {
+                apply(parsed);
+            }
+            autoBattle.Training.MarkCustom();
+            autoBattle.Normalize();
+            AuraToolsConfigService.SaveMatchExperience();
+            RebuildPanel(activePanel!.transform);
+        }, 86f);
+    }
+
+    private static void AddAutoBattleTrainingDouble(
+        Transform parent,
+        string label,
+        double value,
+        Action<double> apply,
+        AutoBattleSettings autoBattle)
+    {
+        AuraToolsUi.AddText(
+            parent,
+            label,
+            AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.Text,
+            AuraToolsUi.TextMinHeight,
+            0f,
+            106f);
+        AuraToolsUi.AddInput(parent, value.ToString("0.####", CultureInfo.InvariantCulture), raw =>
+        {
+            if (TryParseTrainingDouble(raw, out var parsed))
+            {
+                apply(parsed);
+            }
+            autoBattle.Training.MarkCustom();
+            autoBattle.Normalize();
+            AuraToolsConfigService.SaveMatchExperience();
+            RebuildPanel(activePanel!.transform);
+        }, 86f);
+    }
+
+    private static bool TryParseTrainingDouble(string value, out double result)
+    {
+        return double.TryParse(
+                   value,
+                   NumberStyles.Float,
+                   CultureInfo.InvariantCulture,
+                   out result)
+               || double.TryParse(
+                   value,
+                   NumberStyles.Float,
+                   CultureInfo.CurrentCulture,
+                   out result);
+    }
+
+    private static int AutoBattleTrainingPresetIndex(string value)
+    {
+        return value switch
+        {
+            AutoBattleTrainingSettings.StandardPreset => 1,
+            AutoBattleTrainingSettings.AdaptivePreset => 2,
+            AutoBattleTrainingSettings.CustomPreset => 3,
+            _ => 0
+        };
+    }
+
+    private static string AutoBattleTrainingPresetSummary(AutoBattleTrainingSettings settings)
+    {
+        return "轮数 " + settings.Epochs
+               + " · 学习率 " + settings.LearningRate.ToString("0.####", CultureInfo.InvariantCulture)
+               + " · 最大修正 " + settings.MaximumCorrection.ToString("0.##", CultureInfo.InvariantCulture)
+               + " · 最低偏好对 " + settings.MinimumPreferencePairs;
+    }
+
     private static string NextAutoBattleProfile(string value)
     {
         return value switch
@@ -1456,6 +1666,129 @@ public static class AuraToolsSettingsRuntime
 internal sealed class AuraToolsFoldoutState : MonoBehaviour
 {
     public bool Expanded = true;
+}
+
+internal sealed class AuraToolsAutoBattleTrainingStatusView : MonoBehaviour
+{
+    private string profile = "balanced";
+    private string modelMode = "off";
+    private Text? statusText;
+    private Button? generateButton;
+    private Button? importButton;
+    private float nextRefreshAt;
+
+    public void Configure(
+        string decisionProfile,
+        string trainedModelMode,
+        Text text,
+        Button generate,
+        Button import)
+    {
+        profile = decisionProfile ?? "balanced";
+        modelMode = trainedModelMode ?? "off";
+        statusText = text;
+        generateButton = generate;
+        importButton = import;
+        Refresh();
+    }
+
+    private void Update()
+    {
+        if (Time.unscaledTime < nextRefreshAt)
+        {
+            return;
+        }
+        nextRefreshAt = Time.unscaledTime + 0.2f;
+        Refresh();
+    }
+
+    private void Refresh()
+    {
+        var status = AuraToolsAutoBattleModelRuntime.GetTrainingStatus(profile);
+        if (statusText != null)
+        {
+            statusText.text = Describe(status);
+            statusText.color = status.Stage == AutoBattleTrainingStage.Failed
+                ? new Color(1f, 0.46f, 0.42f, 1f)
+                : status.Stage == AutoBattleTrainingStage.CandidateReady
+                  || status.Stage == AutoBattleTrainingStage.Imported
+                    ? AuraToolsUi.SuccessText
+                    : AuraToolsUi.MutedText;
+        }
+
+        if (generateButton != null)
+        {
+            var generating = status.Busy
+                             && status.Stage != AutoBattleTrainingStage.Importing;
+            generateButton.interactable = !status.Busy;
+            SetButtonLabel(generateButton, generating ? "训练中..." : "生成候选");
+        }
+        if (importButton != null)
+        {
+            importButton.interactable = !status.Busy
+                                        && AuraToolsAutoBattleModelRuntime.CandidateExists(profile);
+            SetButtonLabel(
+                importButton,
+                status.Stage == AutoBattleTrainingStage.Importing ? "导入中..." : "导入候选");
+        }
+    }
+
+    private string Describe(AutoBattleTrainingStatus status)
+    {
+        var profileLabel = profile switch
+        {
+            "aggressive" => "进攻",
+            "defensive" => "稳健",
+            _ => "均衡"
+        };
+        var counts = status.SampleCount > 0
+            ? " · 样本 " + status.SampleCount
+              + " / 偏好对 " + status.PreferencePairCount
+            : "";
+        return status.Stage switch
+        {
+            AutoBattleTrainingStage.Queued => profileLabel + " · 已排队",
+            AutoBattleTrainingStage.ReadingSamples => profileLabel + " · 正在读取样本",
+            AutoBattleTrainingStage.Training => profileLabel + " · 训练中" + counts,
+            AutoBattleTrainingStage.WritingCandidate => profileLabel + " · 正在写入候选" + counts,
+            AutoBattleTrainingStage.CandidateReady => status.WeightCount > 0
+                ? profileLabel + " · 候选已生成 · 偏好对 "
+                  + status.PreferencePairCount
+                  + " / 权重 " + status.WeightCount
+                : profileLabel + " · 检测到可导入的候选模型",
+            AutoBattleTrainingStage.Importing => profileLabel + " · 正在导入候选",
+            AutoBattleTrainingStage.Imported => profileLabel + " · 已导入"
+                                                + ModelModeSuffix(modelMode)
+                                                + " · 权重 " + status.WeightCount,
+            AutoBattleTrainingStage.Failed => profileLabel + " · " + Compact(status.Message),
+            _ => profileLabel + " · " + status.Message
+        };
+    }
+
+    private static string ModelModeSuffix(string mode)
+    {
+        return mode switch
+        {
+            "shadow" => "，正在影子评估",
+            "active" => "，正在受限应用",
+            _ => "，尚未启用"
+        };
+    }
+
+    private static string Compact(string value)
+    {
+        var text = string.IsNullOrWhiteSpace(value) ? "操作失败" : value.Trim();
+        return text.Length <= 72 ? text : text.Substring(0, 69) + "...";
+    }
+
+    private static void SetButtonLabel(Button button, string value)
+    {
+        var label = button.GetComponentInChildren<Text>(true);
+        if (label != null)
+        {
+            label.text = value;
+        }
+    }
 }
 
 internal sealed class AuraToolsNativeTabRelay : MonoBehaviour, IPointerDownHandler

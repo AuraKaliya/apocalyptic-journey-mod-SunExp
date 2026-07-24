@@ -218,6 +218,8 @@ public sealed class DecisionResidualModelDefinition
 
     public string DecisionProfile { get; set; } = "";
 
+    public string TrainingPreset { get; set; } = "";
+
     public double Bias { get; set; }
 
     public double MaximumCorrection { get; set; } = 2d;
@@ -240,6 +242,8 @@ public sealed class DecisionResidualModelDefinition
 
     public Dictionary<string, double> Metrics { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
+    public Dictionary<string, double> TrainingParameters { get; set; } = new(StringComparer.OrdinalIgnoreCase);
+
     public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
 }
 
@@ -257,6 +261,7 @@ public sealed class BoundedLinearDecisionResidualModel : IContextualDecisionResi
         this.definition.FeatureMaximums ??= new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
         this.definition.FeatureObservationCounts ??= new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
         this.definition.CategoryObservationCounts ??= new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        this.definition.TrainingParameters ??= new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
     }
 
     public string ModelId => string.IsNullOrWhiteSpace(definition.ModelId)

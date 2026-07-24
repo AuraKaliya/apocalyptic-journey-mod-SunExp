@@ -20,11 +20,45 @@ public sealed class CombatResidualTrainingResult
     public DecisionResidualModelDefinition? Model { get; set; }
 }
 
+public sealed class CombatResidualTrainingOptions
+{
+    public string PresetId { get; set; } = "legacy";
+
+    public int Epochs { get; set; } = 100;
+
+    public double LearningRate { get; set; } = 0.05d;
+
+    public double L2 { get; set; } = 0.001d;
+
+    public double MaximumCorrection { get; set; } = 2d;
+
+    public int MinimumPreferencePairs { get; set; } = 1;
+
+    public int MinimumCategoryObservations { get; set; } = 5;
+
+    public CombatResidualTrainingOptions Normalized()
+    {
+        return new CombatResidualTrainingOptions
+        {
+            PresetId = string.IsNullOrWhiteSpace(PresetId) ? "custom" : PresetId.Trim().ToLowerInvariant(),
+            Epochs = Math.Max(20, Math.Min(300, Epochs)),
+            LearningRate = ClampFinite(LearningRate, 0.005d, 0.1d, 0.05d),
+            L2 = ClampFinite(L2, 0d, 0.02d, 0.001d),
+            MaximumCorrection = ClampFinite(MaximumCorrection, 0.25d, 2d, 2d),
+            MinimumPreferencePairs = Math.Max(1, Math.Min(200, MinimumPreferencePairs)),
+            MinimumCategoryObservations = Math.Max(3, Math.Min(100, MinimumCategoryObservations))
+        };
+    }
+
+    private static double ClampFinite(double value, double minimum, double maximum, double fallback)
+    {
+        var finite = double.IsNaN(value) || double.IsInfinity(value) ? fallback : value;
+        return Math.Max(minimum, Math.Min(maximum, finite));
+    }
+}
+
 public static class CombatResidualTrainer
 {
-    private const int Epochs = 100;
-    private const double LearningRate = 0.05d;
-    private const double L2 = 0.001d;
     private static readonly HashSet<string> LearnedFeatures = new(StringComparer.OrdinalIgnoreCase)
     {
         "usefulDefend",
@@ -61,6 +95,15 @@ public static class CombatResidualTrainer
         IEnumerable<CombatTrainingSample> source,
         string decisionProfile)
     {
+        return Train(source, decisionProfile, new CombatResidualTrainingOptions());
+    }
+
+    public static CombatResidualTrainingResult Train(
+        IEnumerable<CombatTrainingSample> source,
+        string decisionProfile,
+        CombatResidualTrainingOptions? trainingOptions)
+    {
+        var options = (trainingOptions ?? new CombatResidualTrainingOptions()).Normalized();
         var profile = NormalizeProfile(decisionProfile);
         var samples = (source ?? Array.Empty<CombatTrainingSample>())
             .Where(sample => sample != null
@@ -75,9 +118,12 @@ public static class CombatResidualTrainer
                 string.Equals(sample.Selection?.ExecutedBy, "human", StringComparison.OrdinalIgnoreCase)),
             PreferencePairCount = pairs.Count
         };
-        if (pairs.Count == 0)
+        if (pairs.Count < options.MinimumPreferencePairs)
         {
-            result.Message = "当前决策风格没有可训练的人工覆盖样本";
+            result.Message = pairs.Count == 0
+                ? "当前决策风格没有可训练的人工覆盖样本"
+                : "有效偏好对不足：当前 " + pairs.Count
+                  + "，最低要求 " + options.MinimumPreferencePairs;
             return result;
         }
 
@@ -99,10 +145,10 @@ public static class CombatResidualTrainer
             _ => 0d,
             StringComparer.OrdinalIgnoreCase);
         var random = new Random(7);
-        for (var epoch = 0; epoch < Epochs; epoch++)
+        for (var epoch = 0; epoch < options.Epochs; epoch++)
         {
             Shuffle(vectors, random);
-            var rate = LearningRate / Math.Sqrt(1d + epoch * 0.05d);
+            var rate = options.LearningRate / Math.Sqrt(1d + epoch * 0.05d);
             foreach (var vector in vectors)
             {
                 var score = Math.Max(-30d, Math.Min(30d, Dot(weights, vector.Values)));
@@ -112,7 +158,7 @@ public static class CombatResidualTrainer
                     var current = weights.TryGetValue(pair.Key, out var configured) ? configured : 0d;
                     weights[pair.Key] = Math.Max(
                         -2d,
-                        Math.Min(2d, current + rate * (gradientFactor * pair.Value - L2 * current)));
+                        Math.Min(2d, current + rate * (gradientFactor * pair.Value - options.L2 * current)));
                 }
             }
         }
@@ -132,7 +178,8 @@ public static class CombatResidualTrainer
             FeatureSchemaVersion = 4,
             ApplicabilityProtocolVersion = 1,
             DecisionProfile = profile,
-            MaximumCorrection = 2d,
+            TrainingPreset = options.PresetId,
+            MaximumCorrection = options.MaximumCorrection,
             Weights = weights,
             Means = KeepUsed(statistics.Means, weights),
             Scales = KeepUsed(statistics.Scales, weights),
@@ -140,7 +187,17 @@ public static class CombatResidualTrainer
             FeatureMaximums = KeepUsed(statistics.Maximums, weights),
             FeatureObservationCounts = KeepUsed(statistics.Counts, weights),
             CategoryObservationCounts = CategoryCounts(pairs),
-            MinimumCategoryObservations = 5d,
+            MinimumCategoryObservations = options.MinimumCategoryObservations,
+            TrainingParameters = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
+            {
+                ["epochs"] = options.Epochs,
+                ["learningRate"] = options.LearningRate,
+                ["l2"] = options.L2,
+                ["maximumCorrection"] = options.MaximumCorrection,
+                ["minimumPreferencePairs"] = options.MinimumPreferencePairs,
+                ["minimumCategoryObservations"] = options.MinimumCategoryObservations,
+                ["randomSeed"] = 7d
+            },
             Metrics = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
             {
                 ["pairCount"] = pairs.Count,

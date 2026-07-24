@@ -69,7 +69,10 @@ foreach ($anchor in @(
     "ActionColor",
     "LateUpdate",
     "card.uiElement",
-    "SyncEdge"
+    "SyncEdge",
+    "CardBorderThickness = 1.5f",
+    "PlaceImmediatelyBehind",
+    "ignoreLayout = true"
 )) {
     if (-not $presenter.Contains($anchor)) {
         throw "Aura combat AI prediction presenter contract is missing: $anchor"
