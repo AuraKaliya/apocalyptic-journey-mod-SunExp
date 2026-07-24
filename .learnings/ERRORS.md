@@ -846,5 +846,9 @@ Use `Get-ChildItem` for optional-file discovery, collect PowerShell rows before 
 - **Notes**: Guessed standalone project files for source-linked shared directories (`AuraCombatAiShared` and `AuraCombatSimulationShared`); these directories are compiled into test/CLI projects instead. Resolve project ownership with `rg --files -g '*.csproj'` before reading build metadata.
 - **Observed**: 2026-07-24T20:35:00+08:00
 - **Notes**: Embedded a double-quoted alternation regex in a PowerShell command string again, causing `status.Busy` to be parsed as a command. Use a single-quoted regex argument or split complex anchor searches into separate `rg` calls.
+- **Observed**: 2026-07-24T21:05:00+08:00
+- **Notes**: A new UI `Configure` parameter named `modelMode` shadowed the existing string field, producing a string-to-Button assignment error. Use role-specific control suffixes such as `modelModeControl` when a state field already owns the base name.
+- **Observed**: 2026-07-24T21:15:00+08:00
+- **Notes**: A context-light patch inserted `operationDetailText` into the adjacent training status component instead of the simulation status component. Inspect the exact class field block after cross-cutting UI patches rather than relying on a repeated `statusText` anchor.
 
 ---

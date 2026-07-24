@@ -64,6 +64,8 @@ $episodeRecorderPath = Join-Path $root "AuraCombatAiShared\CombatEpisodeRecorder
 $policyValuePath = Join-Path $root "AuraCombatAiShared\CombatPolicyValueNetwork.cs"
 $evolutionPath = Join-Path $root "AuraCombatAiShared\CombatPolicyEvolution.cs"
 $simulationUiRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleSimulationRuntime.cs"
+$modelUiRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleModelRuntime.cs"
+$settingsUiRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\Settings\AuraToolsSettingsRuntime.cs"
 $controller = Get-Content -LiteralPath $controllerPath -Raw
 $presenter = Get-Content -LiteralPath $presenterPath -Raw
 $interaction = Get-Content -LiteralPath $interactionPath -Raw
@@ -83,6 +85,8 @@ $episodeRecorder = Get-Content -LiteralPath $episodeRecorderPath -Raw
 $policyValue = Get-Content -LiteralPath $policyValuePath -Raw
 $evolution = Get-Content -LiteralPath $evolutionPath -Raw
 $simulationUiRuntime = Get-Content -LiteralPath $simulationUiRuntimePath -Raw
+$modelUiRuntime = Get-Content -LiteralPath $modelUiRuntimePath -Raw
+$settingsUiRuntime = Get-Content -LiteralPath $settingsUiRuntimePath -Raw
 $trainer = Get-Content -LiteralPath $trainerPath -Raw
 
 $requiredControllerAnchors = @(
@@ -320,7 +324,8 @@ foreach ($anchor in @(
     "LongTermReturn",
     "SearchVisits",
     "validationValueMae",
-    "PolicyTargets"
+    "PolicyTargets",
+    "CancellationToken cancellationToken"
 )) {
     if (-not $episode.Contains($anchor)) {
         throw "Aura combat episode learning contract is missing: $anchor"
@@ -367,10 +372,38 @@ foreach ($anchor in @(
     "episodes-v1.jsonl",
     "evolution-summary.json",
     "WritePolicyValueCandidate",
-    "ResolveEvolutionScenarios"
+    "ResolveEvolutionScenarios",
+    "AutoBattleSimulationOperation",
+    "GetResultPresentation",
+    "LatestEvolutionPath"
 )) {
     if (-not $simulationUiRuntime.Contains($anchor)) {
         throw "AuraTools policy evolution runtime contract is missing: $anchor"
+    }
+}
+
+foreach ($anchor in @(
+    "QueueImportCandidate",
+    "CancelTraining",
+    "AnyTrainingBusy",
+    "CancellationTokenSource.CreateLinkedTokenSource",
+    "AutoBattleTrainingStage.Cancelling"
+)) {
+    if (-not $modelUiRuntime.Contains($anchor)) {
+        throw "AuraTools model task response contract is missing: $anchor"
+    }
+}
+
+foreach ($anchor in @(
+    "AutoBattleEvolutionView",
+    "运行对照",
+    "开始进化",
+    "AuraToolsAutoBattleSimulationResultView",
+    "AuraToolsAutoBattleWorkLockView",
+    "InputField.ContentType.IntegerNumber"
+)) {
+    if (-not $settingsUiRuntime.Contains($anchor)) {
+        throw "AuraTools auto-battle interaction contract is missing: $anchor"
     }
 }
 

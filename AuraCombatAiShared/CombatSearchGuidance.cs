@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 
 namespace AuraCombatAi.Shared;
 
@@ -154,6 +155,22 @@ public static class CombatSearchGuidanceTrainer
         int rounds = 32,
         double learningRate = 0.08d)
     {
+        return Train(
+            source,
+            decisionProfile,
+            rounds,
+            learningRate,
+            CancellationToken.None);
+    }
+
+    public static CombatSearchGuidanceTrainingResult Train(
+        IEnumerable<CombatTrainingSample> source,
+        string decisionProfile,
+        int rounds,
+        double learningRate,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
         var profile = NormalizeProfile(decisionProfile);
         var samples = (source ?? Array.Empty<CombatTrainingSample>())
             .Where(sample => sample != null
@@ -211,12 +228,30 @@ public static class CombatSearchGuidanceTrainer
 
         var normalizedRounds = Math.Max(8, Math.Min(128, rounds));
         var normalizedRate = Math.Max(0.01d, Math.Min(0.25d, learningRate));
-        var policyModel = Fit(policy, normalizedRounds, normalizedRate, logistic: true, 5d);
-        var valueModel = Fit(values, normalizedRounds, normalizedRate, logistic: false, 25d);
+        var policyModel = Fit(
+            policy,
+            normalizedRounds,
+            normalizedRate,
+            logistic: true,
+            5d,
+            cancellationToken);
+        var valueModel = Fit(
+            values,
+            normalizedRounds,
+            normalizedRate,
+            logistic: false,
+            25d,
+            cancellationToken);
         var riskTrained = risks.Any(example => example.Label > 0.5d)
                           && risks.Any(example => example.Label <= 0.5d);
         var riskModel = riskTrained
-            ? Fit(risks, Math.Max(8, normalizedRounds / 2), normalizedRate, logistic: true, 10d)
+            ? Fit(
+                risks,
+                Math.Max(8, normalizedRounds / 2),
+                normalizedRate,
+                logistic: true,
+                10d,
+                cancellationToken)
             : new CombatTreeEnsemble { MaximumMagnitude = 10d };
         var model = new CombatSearchGuidanceDefinition
         {
@@ -246,7 +281,8 @@ public static class CombatSearchGuidanceTrainer
         int rounds,
         double learningRate,
         bool logistic,
-        double maximumMagnitude)
+        double maximumMagnitude,
+        CancellationToken cancellationToken)
     {
         var model = new CombatTreeEnsemble { MaximumMagnitude = maximumMagnitude };
         if (examples.Count == 0)
@@ -266,6 +302,7 @@ public static class CombatSearchGuidanceTrainer
             .ToArray();
         for (var round = 0; round < rounds; round++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var residuals = new double[examples.Count];
             for (var i = 0; i < examples.Count; i++)
             {

@@ -128,7 +128,8 @@ public sealed class CombatPolicyEvolutionRunner
             var trained = CombatPolicyValueTrainer.Train(
                 result.Replay,
                 request.DecisionProfile,
-                request.Training);
+                request.Training,
+                cancellationToken);
             if (!trained.Success || trained.Model == null)
             {
                 result.Message = "第 "

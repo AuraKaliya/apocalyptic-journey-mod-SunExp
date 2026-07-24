@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using AuraDecision.Shared;
 
 namespace AuraCombatAi.Shared;
@@ -103,6 +104,20 @@ public static class CombatResidualTrainer
         string decisionProfile,
         CombatResidualTrainingOptions? trainingOptions)
     {
+        return Train(
+            source,
+            decisionProfile,
+            trainingOptions,
+            CancellationToken.None);
+    }
+
+    public static CombatResidualTrainingResult Train(
+        IEnumerable<CombatTrainingSample> source,
+        string decisionProfile,
+        CombatResidualTrainingOptions? trainingOptions,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
         var options = (trainingOptions ?? new CombatResidualTrainingOptions()).Normalized();
         var profile = NormalizeProfile(decisionProfile);
         var samples = (source ?? Array.Empty<CombatTrainingSample>())
@@ -141,8 +156,16 @@ public static class CombatResidualTrainer
             return result;
         }
 
-        var validationAccuracy = GroupedHoldoutAccuracy(pairs, options);
-        var weights = FitWeights(statistics, vectors, options, 7);
+        var validationAccuracy = GroupedHoldoutAccuracy(
+            pairs,
+            options,
+            cancellationToken);
+        var weights = FitWeights(
+            statistics,
+            vectors,
+            options,
+            7,
+            cancellationToken);
 
         weights = weights
             .Where(pair => Math.Abs(pair.Value) >= 0.000001d)
@@ -460,7 +483,8 @@ public static class CombatResidualTrainer
         TrainingStatistics statistics,
         IReadOnlyList<WeightedVector> source,
         CombatResidualTrainingOptions options,
-        int seed)
+        int seed,
+        CancellationToken cancellationToken)
     {
         var weights = statistics.Means.Keys.ToDictionary(
             key => key,
@@ -470,10 +494,12 @@ public static class CombatResidualTrainer
         var random = new Random(seed);
         for (var epoch = 0; epoch < options.Epochs; epoch++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             Shuffle(vectors, random);
             var rate = options.LearningRate / Math.Sqrt(1d + epoch * 0.05d);
             foreach (var vector in vectors)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 var score = Math.Max(-30d, Math.Min(30d, Dot(weights, vector.Values)));
                 var gradientFactor = vector.Weight / (1d + Math.Exp(score));
                 foreach (var pair in vector.Values)
@@ -492,7 +518,8 @@ public static class CombatResidualTrainer
 
     private static double GroupedHoldoutAccuracy(
         IReadOnlyList<PreferencePair> pairs,
-        CombatResidualTrainingOptions options)
+        CombatResidualTrainingOptions options,
+        CancellationToken cancellationToken)
     {
         var groups = pairs
             .Select(pair => pair.BattleSessionId)
@@ -508,6 +535,7 @@ public static class CombatResidualTrainer
         var total = 0d;
         foreach (var group in groups)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var trainingPairs = pairs.Where(pair => pair.BattleSessionId != group).ToList();
             var validationPairs = pairs.Where(pair => pair.BattleSessionId == group).ToList();
             if (trainingPairs.Count == 0 || validationPairs.Count == 0)
@@ -533,7 +561,12 @@ public static class CombatResidualTrainer
             {
                 continue;
             }
-            var weights = FitWeights(statistics, trainingVectors, options, 7 + groups.Length);
+            var weights = FitWeights(
+                statistics,
+                trainingVectors,
+                options,
+                7 + groups.Length,
+                cancellationToken);
             correct += validationVectors
                 .Where(vector => Dot(weights, vector.Values) > 0d)
                 .Sum(vector => vector.Weight);

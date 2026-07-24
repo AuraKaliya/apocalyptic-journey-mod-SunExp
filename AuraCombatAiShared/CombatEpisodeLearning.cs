@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 
 namespace AuraCombatAi.Shared;
 
@@ -147,6 +148,20 @@ public static class CombatPolicyValueTrainer
         string decisionProfile,
         CombatPolicyValueTrainingOptions? trainingOptions = null)
     {
+        return Train(
+            source,
+            decisionProfile,
+            trainingOptions,
+            CancellationToken.None);
+    }
+
+    public static CombatPolicyValueTrainingResult Train(
+        IEnumerable<CombatEpisode> source,
+        string decisionProfile,
+        CombatPolicyValueTrainingOptions? trainingOptions,
+        CancellationToken cancellationToken)
+    {
+        cancellationToken.ThrowIfCancellationRequested();
         var options = (trainingOptions ?? new CombatPolicyValueTrainingOptions()).Normalized();
         var profile = NormalizeProfile(decisionProfile);
         var episodes = (source ?? Array.Empty<CombatEpisode>())
@@ -184,6 +199,7 @@ public static class CombatPolicyValueTrainer
         var random = new Random(options.RandomSeed);
         for (var epoch = 0; epoch < options.Epochs; epoch++)
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var frames = trainingEpisodes
                 .SelectMany(episode => episode.Frames ?? new List<CombatEpisodeFrame>())
                 .OrderBy(_ => random.Next())
@@ -191,14 +207,15 @@ public static class CombatPolicyValueTrainer
             var rate = options.LearningRate / Math.Sqrt(1d + epoch * 0.05d);
             foreach (var frame in frames)
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 TrainFrame(model, frame, rate, options.L2);
             }
         }
 
-        var trainingMetrics = Evaluate(model, trainingEpisodes);
+        var trainingMetrics = Evaluate(model, trainingEpisodes, cancellationToken);
         var validationMetrics = validationEpisodes.Count == 0
             ? trainingMetrics
-            : Evaluate(model, validationEpisodes);
+            : Evaluate(model, validationEpisodes, cancellationToken);
         model.Metrics = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
         {
             ["episodeCount"] = episodes.Count,
@@ -428,7 +445,8 @@ public static class CombatPolicyValueTrainer
 
     private static Metrics Evaluate(
         CombatPolicyValueNetworkDefinition definition,
-        IReadOnlyList<CombatEpisode> episodes)
+        IReadOnlyList<CombatEpisode> episodes,
+        CancellationToken cancellationToken)
     {
         var model = new ManagedCombatPolicyValueModel(definition);
         var count = 0;
@@ -437,6 +455,7 @@ public static class CombatPolicyValueTrainer
         var brier = 0d;
         foreach (var frame in episodes.SelectMany(episode => episode.Frames))
         {
+            cancellationToken.ThrowIfCancellationRequested();
             var legal = frame.Candidates.Where(candidate => candidate.Legal).ToList();
             if (legal.Count == 0)
             {

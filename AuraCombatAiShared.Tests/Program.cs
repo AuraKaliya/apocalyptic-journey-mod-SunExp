@@ -1,6 +1,7 @@
 using AuraCombatAi.Shared;
 using AuraCombatSimulation.Shared;
 using AuraDecision.Shared;
+using System.Threading;
 
 var assertions = 0;
 
@@ -1675,6 +1676,25 @@ Assert(policyValueTraining.Success
            policyValueTraining.Model,
            out _),
     "complete episodes train a validated managed policy-value network");
+var trainingCancellationObserved = false;
+using (var cancelledTraining = new CancellationTokenSource())
+{
+    cancelledTraining.Cancel();
+    try
+    {
+        CombatPolicyValueTrainer.Train(
+            episodes,
+            "balanced",
+            new CombatPolicyValueTrainingOptions { MinimumEpisodes = 4 },
+            cancelledTraining.Token);
+    }
+    catch (OperationCanceledException)
+    {
+        trainingCancellationObserved = true;
+    }
+}
+Assert(trainingCancellationObserved,
+    "policy-value training observes cancellation before expensive epoch work");
 var policyValueModel = new ManagedCombatPolicyValueModel(policyValueTraining.Model!);
 var firstEpisodeFrame = episodes[0].Frames[0];
 var policyValuePrediction = policyValueModel.Evaluate(new CombatPolicyValueInput

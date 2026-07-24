@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Threading;
 using AuraCombatAi.Shared;
 using AuraDecision.Shared;
 using AuraShared.Core;
@@ -17,6 +18,8 @@ internal enum AutoBattleTrainingStage
     ReadingSamples,
     Training,
     WritingCandidate,
+    Cancelling,
+    Cancelled,
     CandidateReady,
     Importing,
     Imported,
@@ -47,6 +50,7 @@ internal sealed class AutoBattleTrainingStatus
                         || Stage == AutoBattleTrainingStage.ReadingSamples
                         || Stage == AutoBattleTrainingStage.Training
                         || Stage == AutoBattleTrainingStage.WritingCandidate
+                        || Stage == AutoBattleTrainingStage.Cancelling
                         || Stage == AutoBattleTrainingStage.Importing;
 
     public AutoBattleTrainingStatus Clone()
@@ -60,6 +64,8 @@ internal static class AuraToolsAutoBattleModelRuntime
     private const string SystemId = "AuraCombatAI";
     private static readonly object StatusGate = new();
     private static readonly Dictionary<string, AutoBattleTrainingStatus> StatusByProfile =
+        new(StringComparer.Ordinal);
+    private static readonly Dictionary<string, CancellationTokenSource> CancellationByProfile =
         new(StringComparer.Ordinal);
     private static readonly string[] TrainingFiles =
     {
@@ -297,12 +303,27 @@ internal static class AuraToolsAutoBattleModelRuntime
         Action<string>? completed = null)
     {
         var profile = NormalizeProfile(decisionProfile);
+        if (AuraToolsAutoBattleSimulationRuntime.GetStatus().Busy)
+        {
+            return false;
+        }
+        CancellationTokenSource ownedCancellation;
         lock (StatusGate)
         {
             if (StatusByProfile.TryGetValue(profile, out var current) && current.Busy)
             {
                 return false;
             }
+            if (StatusByProfile.Values.Any(item => item.Busy))
+            {
+                return false;
+            }
+            if (CancellationByProfile.TryGetValue(profile, out var previous))
+            {
+                previous.Dispose();
+            }
+            ownedCancellation = new CancellationTokenSource();
+            CancellationByProfile[profile] = ownedCancellation;
         }
 
         var options = ToTrainingOptions(
@@ -317,10 +338,39 @@ internal static class AuraToolsAutoBattleModelRuntime
                 Key = "AutoBattle.Train:" + profile,
                 Source = "AutoBattle.LocalResidualTraining",
                 Kind = AuraSharedBackgroundWorkKind.Cpu,
-                Work = _ => GenerateCandidate(profile, options, policyValueOptions),
+                Work = schedulerToken =>
+                {
+                    using var linked = CancellationTokenSource.CreateLinkedTokenSource(
+                        schedulerToken,
+                        ownedCancellation.Token);
+                    try
+                    {
+                        return GenerateCandidate(
+                            profile,
+                            options,
+                            policyValueOptions,
+                            linked.Token);
+                    }
+                    catch (OperationCanceledException)
+                    {
+                        return TrainingWorkResult.CancelledResult();
+                    }
+                },
                 ApplyOnMainThread = result =>
                 {
-                    if (result.Success)
+                    if (result.Cancelled)
+                    {
+                        var cancelledStatus = GetTrainingStatus(profile);
+                        SetStatus(
+                            profile,
+                            AutoBattleTrainingStage.Cancelled,
+                            "候选训练已取消",
+                            cancelledStatus.SampleCount,
+                            cancelledStatus.InvalidLineCount,
+                            cancelledStatus.PreferencePairCount);
+                        completed?.Invoke("候选训练已取消");
+                    }
+                    else if (result.Success)
                     {
                         SetStatus(
                             profile,
@@ -363,6 +413,79 @@ internal static class AuraToolsAutoBattleModelRuntime
             SetStatus(profile, AutoBattleTrainingStage.Failed, "训练任务未能提交，请稍后重试");
         }
         return queued;
+    }
+
+    public static bool QueueImportCandidate(
+        string decisionProfile,
+        Action<string>? completed = null)
+    {
+        var profile = NormalizeProfile(decisionProfile);
+        if (AnyTrainingBusy()
+            || AuraToolsAutoBattleSimulationRuntime.GetStatus().Busy)
+        {
+            return false;
+        }
+        SetStatus(profile, AutoBattleTrainingStage.Importing, "正在校验并导入候选模型");
+        var queued = AuraSharedBackgroundWorkScheduler.Queue(
+            new AuraSharedBackgroundWorkRequest<ImportWorkResult>
+            {
+                OwnerId = AuraToolsIds.ModId,
+                Key = "AutoBattle.Import:" + profile,
+                Source = "AutoBattle.CandidateImport",
+                Kind = AuraSharedBackgroundWorkKind.Io,
+                Work = _ =>
+                {
+                    var success = TryImportCandidate(profile, out var message);
+                    return new ImportWorkResult(success, message);
+                },
+                ApplyOnMainThread = result =>
+                {
+                    (result.Success ? (Action<string>)AuraToolsLog.Info : AuraToolsLog.Warn)(
+                        "[AutoBattle][Import] " + result.Message);
+                    completed?.Invoke(result.Message);
+                },
+                OnFailedOnMainThread = ex =>
+                {
+                    var message = "候选模型导入失败：" + ex.Message;
+                    SetStatus(profile, AutoBattleTrainingStage.Failed, message);
+                    AuraToolsLog.Warn("[AutoBattle][Import] " + message);
+                    completed?.Invoke(message);
+                }
+            });
+        if (!queued)
+        {
+            SetStatus(profile, AutoBattleTrainingStage.Failed, "候选导入任务未能提交");
+        }
+        return queued;
+    }
+
+    public static void CancelTraining(string decisionProfile)
+    {
+        var profile = NormalizeProfile(decisionProfile);
+        lock (StatusGate)
+        {
+            if (!StatusByProfile.TryGetValue(profile, out var current)
+                || !current.Busy
+                || current.Stage == AutoBattleTrainingStage.Importing)
+            {
+                return;
+            }
+            if (CancellationByProfile.TryGetValue(profile, out var source))
+            {
+                source.Cancel();
+            }
+            current.Stage = AutoBattleTrainingStage.Cancelling;
+            current.Message = "正在取消候选训练";
+            current.UpdatedUtc = DateTime.UtcNow;
+        }
+    }
+
+    public static bool AnyTrainingBusy()
+    {
+        lock (StatusGate)
+        {
+            return StatusByProfile.Values.Any(item => item.Busy);
+        }
     }
 
     public static bool TryImportCandidate(
@@ -678,8 +801,10 @@ internal static class AuraToolsAutoBattleModelRuntime
     private static TrainingWorkResult GenerateCandidate(
         string profile,
         CombatResidualTrainingOptions options,
-        CombatPolicyValueTrainingOptions policyValueOptions)
+        CombatPolicyValueTrainingOptions policyValueOptions,
+        CancellationToken cancellationToken)
     {
+        cancellationToken.ThrowIfCancellationRequested();
         SetStatus(profile, AutoBattleTrainingStage.ReadingSamples, "正在读取训练样本");
         var samples = new List<CombatTrainingSample>();
         var invalidLines = 0;
@@ -693,6 +818,7 @@ internal static class AuraToolsAutoBattleModelRuntime
 
             foreach (var line in File.ReadLines(path))
             {
+                cancellationToken.ThrowIfCancellationRequested();
                 if (string.IsNullOrWhiteSpace(line))
                 {
                     continue;
@@ -715,16 +841,35 @@ internal static class AuraToolsAutoBattleModelRuntime
         SetStatus(
             profile,
             AutoBattleTrainingStage.Training,
-            "正在训练本地候选模型",
+            "正在训练人工残差模型",
             samples.Count,
             invalidLines);
-        var result = CombatResidualTrainer.Train(samples, profile, options);
-        var episodes = ReadEpisodes(out var invalidEpisodeLines);
+        var result = CombatResidualTrainer.Train(
+            samples,
+            profile,
+            options,
+            cancellationToken);
+        SetStatus(
+            profile,
+            AutoBattleTrainingStage.ReadingSamples,
+            "正在读取完整战斗轨迹",
+            samples.Count,
+            invalidLines,
+            result.PreferencePairCount);
+        var episodes = ReadEpisodes(out var invalidEpisodeLines, cancellationToken);
         invalidLines += invalidEpisodeLines;
+        SetStatus(
+            profile,
+            AutoBattleTrainingStage.Training,
+            "正在训练长期策略价值网络",
+            samples.Count + episodes.Sum(episode => episode.Frames.Count),
+            invalidLines,
+            result.PreferencePairCount);
         var policyValue = CombatPolicyValueTrainer.Train(
             episodes,
             profile,
-            policyValueOptions);
+            policyValueOptions,
+            cancellationToken);
         if ((!result.Success || result.Model == null)
             && (!policyValue.Success || policyValue.Model == null))
         {
@@ -747,6 +892,24 @@ internal static class AuraToolsAutoBattleModelRuntime
         var candidatePath = result.Model != null
             ? CandidatePath(profile)
             : PolicyValueCandidatePath(profile);
+        CombatSearchGuidanceTrainingResult? searchGuidance = null;
+        if (result.Model != null)
+        {
+            SetStatus(
+                profile,
+                AutoBattleTrainingStage.Training,
+                "正在训练搜索引导模型",
+                samples.Count + episodes.Sum(episode => episode.Frames.Count),
+                invalidLines,
+                result.PreferencePairCount);
+            searchGuidance = CombatSearchGuidanceTrainer.Train(
+                samples,
+                profile,
+                rounds: Math.Max(8, Math.Min(128, options.Epochs / 2)),
+                learningRate: options.LearningRate,
+                cancellationToken: cancellationToken);
+        }
+        cancellationToken.ThrowIfCancellationRequested();
         SetStatus(
             profile,
             AutoBattleTrainingStage.WritingCandidate,
@@ -765,12 +928,7 @@ internal static class AuraToolsAutoBattleModelRuntime
                     CandidatePath(profile),
                     AuraSharedJson.Serialize(result.Model),
                     createBackup: true);
-                var searchGuidance = CombatSearchGuidanceTrainer.Train(
-                    samples,
-                    profile,
-                    rounds: Math.Max(8, Math.Min(128, options.Epochs / 2)),
-                    learningRate: options.LearningRate);
-                if (searchGuidance.Success && searchGuidance.Model != null)
+                if (searchGuidance?.Success == true && searchGuidance.Model != null)
                 {
                     storage.WriteTextAtomic(
                         SearchCandidatePath(profile),
@@ -833,7 +991,9 @@ internal static class AuraToolsAutoBattleModelRuntime
         }.Normalized();
     }
 
-    private static List<CombatEpisode> ReadEpisodes(out int invalidLines)
+    private static List<CombatEpisode> ReadEpisodes(
+        out int invalidLines,
+        CancellationToken cancellationToken)
     {
         var result = new List<CombatEpisode>();
         invalidLines = 0;
@@ -851,6 +1011,7 @@ internal static class AuraToolsAutoBattleModelRuntime
             {
                 foreach (var line in File.ReadLines(path))
                 {
+                    cancellationToken.ThrowIfCancellationRequested();
                     if (string.IsNullOrWhiteSpace(line))
                     {
                         continue;
@@ -1002,6 +1163,8 @@ internal static class AuraToolsAutoBattleModelRuntime
             CandidatePath = candidatePath;
         }
 
+        public bool Cancelled { get; private set; }
+
         public bool Success { get; }
 
         public string Message { get; }
@@ -1015,5 +1178,26 @@ internal static class AuraToolsAutoBattleModelRuntime
         public int WeightCount { get; }
 
         public string CandidatePath { get; }
+
+        public static TrainingWorkResult CancelledResult()
+        {
+            return new TrainingWorkResult(false, "候选训练已取消", 0, 0, 0)
+            {
+                Cancelled = true
+            };
+        }
+    }
+
+    private sealed class ImportWorkResult
+    {
+        public ImportWorkResult(bool success, string message)
+        {
+            Success = success;
+            Message = message ?? "";
+        }
+
+        public bool Success { get; }
+
+        public string Message { get; }
     }
 }
