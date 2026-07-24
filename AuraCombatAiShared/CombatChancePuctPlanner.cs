@@ -32,8 +32,10 @@ public sealed class CombatChancePuctPlanner
 {
     private readonly IDecisionResidualModel residualModel;
     private readonly ICombatSearchGuidanceModel guidanceModel;
+    private readonly ICombatPolicyValueModel policyValueModel;
     private readonly bool useRuntimeRegistries;
     private readonly Dictionary<ulong, SearchNode> transpositions = new();
+    private readonly Dictionary<ulong, CombatPolicyValuePrediction> policyValueCache = new();
     private IReadOnlyList<SearchAction> actions = Array.Empty<SearchAction>();
     private CombatStateObservation rootObservation = new();
     private CombatDecisionProfile profile = new();
@@ -45,10 +47,12 @@ public sealed class CombatChancePuctPlanner
     public CombatChancePuctPlanner(
         IDecisionResidualModel? residualModel = null,
         ICombatSearchGuidanceModel? guidanceModel = null,
-        bool useRuntimeRegistries = true)
+        bool useRuntimeRegistries = true,
+        ICombatPolicyValueModel? policyValueModel = null)
     {
         this.residualModel = residualModel ?? NullDecisionResidualModel.Instance;
         this.guidanceModel = guidanceModel ?? NullCombatSearchGuidanceModel.Instance;
+        this.policyValueModel = policyValueModel ?? NullCombatPolicyValueModel.Instance;
         this.useRuntimeRegistries = useRuntimeRegistries;
     }
 
@@ -60,6 +64,7 @@ public sealed class CombatChancePuctPlanner
         rootObservation = state;
         profile = selectedProfile;
         transpositions.Clear();
+        policyValueCache.Clear();
         nodeCount = 0;
         transpositionHits = 0;
         simulationRules = useRuntimeRegistries
@@ -160,6 +165,9 @@ public sealed class CombatChancePuctPlanner
                     candidates[i].Action.CandidateId,
                     StringComparison.Ordinal));
             candidates[i].PlanScore = matching == null ? 0d : RootSelectionValue(matching);
+            candidates[i].SearchPrior = matching?.Prior ?? 0d;
+            candidates[i].SearchVisits = matching?.Visits ?? 0;
+            candidates[i].SearchDeathRisk = matching?.MeanRisk ?? 0d;
         }
 
         var steps = BuildPrincipalVariation(root, best);
@@ -481,9 +489,16 @@ public sealed class CombatChancePuctPlanner
             return Array.Empty<SearchAction>();
         }
 
+        var networkPrediction = ReferenceEquals(
+                policyValueModel,
+                NullCombatPolicyValueModel.Instance)
+            ? new CombatPolicyValuePrediction()
+            : policyValueModel.Evaluate(
+                CombatPolicyValueEncoding.BuildInput(state, legal));
         var logits = legal
             .Select(candidate => candidate.RuleScore
-                                 + guidanceModel.PolicyLogit(candidate.Action.Features))
+                                 + guidanceModel.PolicyLogit(candidate.Action.Features)
+                                 + NetworkPolicyLogit(networkPrediction, candidate.Action.CandidateId))
             .Select(value => Math.Max(-30d, Math.Min(30d, value)))
             .ToArray();
         var maximum = logits.Max();
@@ -519,8 +534,7 @@ public sealed class CombatChancePuctPlanner
     private CombatLeafEvaluation EvaluateLeaf(CombatSimulationState state)
     {
         var baseline = state.EvaluateLeaf(profile);
-        if (state.AllEnemiesDefeated
-            || ReferenceEquals(guidanceModel, NullCombatSearchGuidanceModel.Instance))
+        if (state.AllEnemiesDefeated)
         {
             return baseline;
         }
@@ -528,11 +542,41 @@ public sealed class CombatChancePuctPlanner
             state,
             profile,
             rootObservation.Features);
+        var stateHash = state.Hash();
+        if (!policyValueCache.TryGetValue(stateHash, out var network))
+        {
+            network = ReferenceEquals(
+                    policyValueModel,
+                    NullCombatPolicyValueModel.Instance)
+                ? new CombatPolicyValuePrediction()
+                : policyValueModel.Evaluate(new CombatPolicyValueInput
+                {
+                    StateFeatures = features
+                });
+            policyValueCache[stateHash] = network;
+        }
         return new CombatLeafEvaluation
         {
-            Value = baseline.Value + guidanceModel.LeafValue(features),
-            DeathRisk = Math.Max(baseline.DeathRisk, guidanceModel.DeathRisk(features))
+            Value = baseline.Value
+                    + guidanceModel.LeafValue(features)
+                    + network.ExpectedReturn * 25d,
+            DeathRisk = Math.Max(
+                baseline.DeathRisk,
+                Math.Max(
+                    guidanceModel.DeathRisk(features),
+                    network.DeathProbability))
         };
+    }
+
+    private static double NetworkPolicyLogit(
+        CombatPolicyValuePrediction prediction,
+        string candidateId)
+    {
+        return prediction.PolicyLogits.TryGetValue(candidateId ?? "", out var value)
+               && !double.IsNaN(value)
+               && !double.IsInfinity(value)
+            ? value
+            : 0d;
     }
 
     private bool IsUsable(

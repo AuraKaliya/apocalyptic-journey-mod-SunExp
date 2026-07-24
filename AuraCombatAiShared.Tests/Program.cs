@@ -1332,6 +1332,396 @@ Assert(documentRules.Success
        && documentRules.Ruleset.EnemyCount == sourceDocumentRules.EnemyCount,
     "file-backed ruleset documents use the same validated builder path");
 
+var knowledgePackage = new CombatKnowledgePackage
+{
+    OwnerId = "Tests",
+    PackageId = "authoritative-combat",
+    GameBuild = "test-build",
+    SourceHash = "test-source-hash",
+    Actions =
+    {
+        new CombatKnowledgeActionDefinition
+        {
+            SourceId = "elementscard_1",
+            Fidelity = CombatKnowledgeFidelity.Authoritative,
+            Semantics = new CombatActionSemantics
+            {
+                Draw = 1d,
+                Buff = 2d,
+                DamageMultiplierGain = 0.04d,
+                StateChanges = { ["status:buff_elements"] = 2d }
+            }
+        },
+        new CombatKnowledgeActionDefinition
+        {
+            SourceId = "finisher",
+            Fidelity = CombatKnowledgeFidelity.Authoritative,
+            Semantics = new CombatActionSemantics { Damage = 20d }
+        }
+    },
+    Statuses =
+    {
+        new CombatKnowledgeStatusDefinition
+        {
+            StatusId = "buff_elements",
+            Fidelity = CombatKnowledgeFidelity.Authoritative
+        }
+    },
+    Enemies =
+    {
+        new CombatKnowledgeEnemyDefinition
+        {
+            EnemyId = "enemy_test",
+            Fidelity = CombatKnowledgeFidelity.Authoritative
+        }
+    }
+};
+using (CombatKnowledgeRegistry.RegisterPackage(
+           knowledgePackage,
+           out var knowledgeErrors))
+{
+    var knowledgeState = new CombatStateObservation
+    {
+        Player = new CombatUnitObservation
+        {
+            RuntimeId = 1,
+            Statuses =
+            {
+                new CombatStatusObservation { StatusId = "buff_elements", Level = 2 }
+            }
+        },
+        Enemies =
+        {
+            new CombatUnitObservation
+            {
+                RuntimeId = 2,
+                Kind = CombatTargetKind.Enemy,
+                DefinitionId = "enemy_test",
+                CurrentHp = 10,
+                MaxHp = 10
+            }
+        },
+        Actions =
+        {
+            new CombatActionObservation
+            {
+                CandidateId = "ocean",
+                SourceId = "elementscard_1",
+                Kind = CombatActionKind.PlayCard
+            }
+        }
+    };
+    CombatAiRegistry.ApplySemantics(knowledgeState, knowledgeState.Actions[0]);
+    var coverage = CombatKnowledgeRegistry.EvaluateCoverage(knowledgeState);
+    Assert(knowledgeErrors.Count == 0
+           && knowledgeState.Actions[0].Semantics.Draw == 1d
+           && knowledgeState.Actions[0].Semantics.DamageMultiplierGain == 0.04d
+           && knowledgeState.Actions[0].SemanticFidelity
+           == CombatKnowledgeFidelity.Authoritative
+           && coverage.IsAuthoritative
+           && coverage.AuthoritativeCoverage == 1d,
+        "versioned combat knowledge overrides heuristics and gates the full live state");
+
+    knowledgeState.Player.Statuses.Add(
+        new CombatStatusObservation { StatusId = "buff_unknown", Level = 1 });
+    var incompleteCoverage = CombatKnowledgeRegistry.EvaluateCoverage(knowledgeState);
+    Assert(!incompleteCoverage.IsAuthoritative
+           && incompleteCoverage.UnknownDefinitions.Contains("status:buff_unknown"),
+        "knowledge coverage fails closed for an unregistered active buff");
+
+    var drawRoot = new CombatStateObservation
+    {
+        Player = new CombatUnitObservation
+        {
+            RuntimeId = 1,
+            CurrentHp = 20,
+            MaxHp = 20
+        },
+        HandCount = 1,
+        DrawPileCardIds = { "finisher" }
+    };
+    var drawAction = new CombatActionObservation
+    {
+        SourceId = "draw",
+        Kind = CombatActionKind.PlayCard,
+        Semantics = new CombatActionSemantics { Draw = 1d }
+    };
+    var drawSimulation = CombatForwardModel.Create(drawRoot, 1);
+    var drawOutcome = CombatForwardModel.Resolve(
+        drawRoot,
+        drawAction,
+        useRegisteredResolvers: false).Outcomes[0];
+    var afterDraw = CombatForwardModel.Apply(
+        drawSimulation,
+        drawAction,
+        0,
+        drawOutcome,
+        new CombatDecisionProfile());
+    Assert(afterDraw.DrawPileValues.Count == 0
+           && afterDraw.HandCount == 1
+           && afterDraw.DrawnCardPotential > 0d,
+        "forward search values the exact next high-value deck card instead of count-only draw");
+}
+
+var expressionRulesBuilder = new CombatRulesetBuilder("expression-v1");
+expressionRulesBuilder.RegisterStatus(new CombatStatusDefinition
+{
+    OwnerModId = "Tests",
+    StatusId = "scaling",
+    DecayAtRoundEnd = false,
+    DynamicModifiersPerStack = { ["PercentDamage"] = 0.1d }
+});
+var expressionRules = expressionRulesBuilder.Freeze();
+var expressionState = new CombatBattleState
+{
+    Actors =
+    {
+        new CombatActorState
+        {
+            ActorId = 1,
+            Hp = 10,
+            MaxHp = 10,
+            Variables = { ["PercentDamage"] = 1d },
+            Statuses =
+            {
+                new CombatStatusState { StatusId = "scaling", Stacks = 2 }
+            }
+        }
+    }
+};
+var expressionValue = CombatSimulationExpressionEvaluator.Evaluate(
+    new CombatSimulationValueExpression
+    {
+        Operation = CombatSimulationValueOperation.Multiply,
+        Arguments =
+        {
+            new CombatSimulationValueExpression
+            {
+                Operation = CombatSimulationValueOperation.SourceVariable,
+                Key = "PercentDamage"
+            },
+            new CombatSimulationValueExpression
+            {
+                Operation = CombatSimulationValueOperation.Constant,
+                Constant = 10d
+            }
+        }
+    },
+    expressionState,
+    expressionRules.Ruleset,
+    1,
+    1);
+Assert(expressionRules.Success && Math.Abs(expressionValue - 12d) < 1e-9d,
+    "simulation expressions resolve source-owned status modifiers without UI state");
+
+var oceanRulesBuilder = new CombatRulesetBuilder("ocean-v1");
+oceanRulesBuilder.RegisterStatus(new CombatStatusDefinition
+{
+    OwnerModId = "Tests",
+    StatusId = "buff_extraordinary",
+    DecayAtRoundEnd = false,
+    DynamicModifiersPerStack = { ["PercentDamage"] = 0.01d }
+});
+oceanRulesBuilder.RegisterStatus(new CombatStatusDefinition
+{
+    OwnerModId = "Tests",
+    StatusId = "buff_elements",
+    DecayAtRoundEnd = false,
+    Triggers =
+    {
+        new CombatStatusTriggerDefinition
+        {
+            TriggerId = "action-after",
+            EventKind = CombatSimulationEventKind.ActionResolved,
+            Effects =
+            {
+                new CombatSimulationEffectDefinition
+                {
+                    Kind = CombatSimulationEffectKind.AddStatus,
+                    Target = CombatSimulationTarget.Self,
+                    DefinitionId = "buff_extraordinary",
+                    Amount = 2,
+                    ScaleWithStatusStacks = true
+                }
+            }
+        }
+    }
+});
+oceanRulesBuilder.RegisterCard(new CombatCardDefinition
+{
+    OwnerModId = "Tests",
+    CardId = "elementscard_1",
+    Cost = 0,
+    Effects =
+    {
+        new CombatSimulationEffectDefinition
+        {
+            Kind = CombatSimulationEffectKind.Draw,
+            Target = CombatSimulationTarget.Self,
+            Amount = 1
+        },
+        new CombatSimulationEffectDefinition
+        {
+            Kind = CombatSimulationEffectKind.AddStatus,
+            Target = CombatSimulationTarget.Self,
+            DefinitionId = "buff_elements",
+            Amount = 2
+        }
+    }
+});
+var oceanRules = oceanRulesBuilder.Freeze();
+var oceanState = new CombatBattleState
+{
+    PlayerActorId = 1,
+    Actors =
+    {
+        new CombatActorState
+        {
+            ActorId = 1,
+            InstanceKey = "player",
+            Kind = CombatSimulationActorKind.Player,
+            Hp = 20,
+            MaxHp = 20,
+            Energy = 1
+        },
+        new CombatActorState
+        {
+            ActorId = 2,
+            InstanceKey = "enemy",
+            Kind = CombatSimulationActorKind.Enemy,
+            Hp = 20,
+            MaxHp = 20
+        }
+    },
+    Cards =
+    {
+        new CombatCardInstanceState { InstanceId = 1, CardId = "elementscard_1" },
+        new CombatCardInstanceState { InstanceId = 2, CardId = "drawn" }
+    },
+    Hand = { 1 },
+    DrawPile = { 2 }
+};
+var oceanApplication = new CombatSimulationEngine().ForkAndApplyPlayerAction(
+    new CombatScenarioDefinition
+    {
+        ScenarioId = "ocean-contract",
+        RulesetVersion = "ocean-v1",
+        Player = new CombatPlayerSetup
+        {
+            RoleId = "Tests",
+            MaxHp = 20,
+            CurrentHp = 20
+        },
+        Enemies = { new CombatEnemySetup { EnemyId = "unused" } }
+    },
+    oceanRules.Ruleset,
+    oceanState,
+    new CombatSimulationAction
+    {
+        CandidateId = "card:1",
+        Kind = CombatSimulationActionKind.PlayCard,
+        ActorId = 1,
+        CardInstanceId = 1,
+        DefinitionId = "elementscard_1"
+    });
+var oceanPlayer = oceanApplication.State.FindActor(1);
+Assert(oceanApplication.Success
+       && oceanPlayer?.Statuses.First(item => item.StatusId == "buff_elements").Stacks == 2
+       && oceanPlayer.Statuses.First(item => item.StatusId == "buff_extraordinary").Stacks == 4
+       && oceanApplication.Events.Any(item =>
+           item.Kind == CombatSimulationEventKind.ActionResolved),
+    "Ocean Dream resolves draw, elements, and the same-action 4 percent damage setup chain");
+
+var episodeProfile = new CombatDecisionProfile
+{
+    Id = "balanced",
+    SearchSimulationBudget = 128,
+    SearchNodeBudget = 1024,
+    SearchMaxPly = 8
+};
+var episodes = new List<CombatEpisode>();
+for (var episodeIndex = 0; episodeIndex < 8; episodeIndex++)
+{
+    var episodePolicy = new CombatEpisodeRecordingPolicy(
+        new CombatDecisionSimulationPolicy(episodeProfile),
+        episodeProfile.Id);
+    var episodeResult = simulationEngine.Run(
+        BuildSimulationScenario(
+            seed: (ulong)(100 + episodeIndex),
+            CombatSimulationTraceLevel.Summary),
+        simulationRules.Ruleset,
+        episodePolicy);
+    episodes.Add(episodePolicy.Complete(episodeResult));
+}
+Assert(episodes.All(episode => episode.Frames.Count > 0
+                               && episode.Frames.All(frame =>
+                                   frame.Candidates.Count > 0
+                                   && frame.RemainingTurnsTarget >= 0d))
+       && episodes.All(episode => episode.Authoritative),
+    "episode recorder captures search targets and backfills cross-turn terminal returns");
+var policyValueTraining = CombatPolicyValueTrainer.Train(
+    episodes,
+    "balanced",
+    new CombatPolicyValueTrainingOptions
+    {
+        Epochs = 12,
+        LearningRate = 0.01d,
+        MinimumEpisodes = 4,
+        RandomSeed = 17
+    });
+Assert(policyValueTraining.Success
+       && policyValueTraining.Model != null
+       && CombatPolicyValueNetworkValidator.TryValidate(
+           policyValueTraining.Model,
+           out _),
+    "complete episodes train a validated managed policy-value network");
+var policyValueModel = new ManagedCombatPolicyValueModel(policyValueTraining.Model!);
+var firstEpisodeFrame = episodes[0].Frames[0];
+var policyValuePrediction = policyValueModel.Evaluate(new CombatPolicyValueInput
+{
+    StateFeatures = firstEpisodeFrame.StateFeatures,
+    Candidates = firstEpisodeFrame.Candidates
+        .Where(candidate => candidate.Legal)
+        .Select(candidate => new CombatPolicyValueCandidate
+        {
+            CandidateId = candidate.CandidateId,
+            SourceId = candidate.SourceId,
+            Features = candidate.Features
+        })
+        .ToList()
+});
+Assert(policyValuePrediction.PolicyLogits.Count
+       == firstEpisodeFrame.Candidates.Count(candidate => candidate.Legal)
+       && policyValuePrediction.WinProbability is >= 0d and <= 1d
+       && policyValuePrediction.DeathProbability is >= 0d and <= 1d,
+    "managed policy-value inference returns masked action logits and calibrated probability ranges");
+var evolution = new CombatPolicyEvolutionRunner().Run(
+    new CombatPolicyEvolutionRequest
+    {
+        DecisionProfile = "balanced",
+        Iterations = 1,
+        TrainingEpisodesPerIteration = 8,
+        ArenaEpisodesPerIteration = 2,
+        SeedStart = 500,
+        Profile = episodeProfile,
+        Training = new CombatPolicyValueTrainingOptions
+        {
+            Epochs = 5,
+            MinimumEpisodes = 4,
+            HiddenDimensions = 16,
+            RandomSeed = 31
+        },
+        Scenarios =
+        {
+            BuildSimulationScenario(seed: 500, CombatSimulationTraceLevel.Summary)
+        }
+    },
+    simulationRules.Ruleset);
+Assert(evolution.Iterations.Count == 1
+       && evolution.Replay.Count == 8
+       && evolution.Iterations[0].InvalidCandidateBattles == 0,
+    "automatic policy evolution generates episodes, trains a challenger, and runs a paired arena");
+
 Console.WriteLine($"AuraCombatAiShared.Tests passed: {assertions} assertions.");
 
 void Assert(bool condition, string name)

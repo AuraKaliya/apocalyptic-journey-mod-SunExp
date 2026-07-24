@@ -59,6 +59,7 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
         AddEnemiesAndNativeThreat(observation);
         AddCards(observation, fightUi);
         AddSkills(observation, fightUi);
+        ObserveDeck(observation);
         if (CombatAiRegistry.TryResolveThreat(observation, out var providedThreat))
         {
             observation.Threat = providedThreat;
@@ -490,11 +491,64 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
             if (enemy?.Status is StatusManager status && status.CurHp > 0)
             {
                 var observed = ObserveUnit(status, CombatTargetKind.Enemy);
+                observed.DefinitionId = WitchCombatValueEstimator.IdOf(
+                    ReadMember(enemy, "dataConfig", "DataConfig") as IDataConfig);
                 observed.Attack = ReadNumber(enemy, "Attack");
                 state.Enemies.Add(observed);
                 AddEnemyThreat(state, enemy, observed);
             }
         }
+    }
+
+    private static void ObserveDeck(CombatStateObservation state)
+    {
+        var manager = FightCardManager.Instance;
+        if (manager == null)
+        {
+            return;
+        }
+        state.DrawPileCardIds = ReadCardIds(manager.cardList);
+        state.DiscardPileCardIds = ReadCardIds(manager.usedCardList);
+        state.DeckCardIds = ReadCardIds(manager.FightcardList);
+        foreach (var sourceId in state.Actions
+                     .Where(action => action.Kind == CombatActionKind.PlayCard)
+                     .Select(action => action.SourceId)
+                     .Where(id => !string.IsNullOrWhiteSpace(id)))
+        {
+            if (!state.DeckCardIds.Contains(sourceId, StringComparer.OrdinalIgnoreCase))
+            {
+                state.DeckCardIds.Add(sourceId);
+            }
+        }
+        state.Features["deckCount"] = state.DeckCardIds.Count;
+        state.Features["drawPileCount"] = state.DrawPileCardIds.Count;
+        state.Features["discardPileCount"] = state.DiscardPileCardIds.Count;
+        foreach (var group in state.DeckCardIds
+                     .GroupBy(id => id, StringComparer.OrdinalIgnoreCase)
+                     .Take(128))
+        {
+            state.Features["deck:" + group.Key] = group.Count();
+        }
+    }
+
+    private static List<string> ReadCardIds(IEnumerable? values)
+    {
+        var result = new List<string>();
+        if (values == null)
+        {
+            return result;
+        }
+        foreach (var value in values)
+        {
+            var config = value as IDataConfig
+                         ?? ReadMember(value, "dataConfig", "DataConfig") as IDataConfig;
+            var id = WitchCombatValueEstimator.IdOf(config);
+            if (!string.IsNullOrWhiteSpace(id))
+            {
+                result.Add(id);
+            }
+        }
+        return result;
     }
 
     public CombatActionObservation? FindActionForRuntimeHandle(
@@ -604,6 +658,7 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
                     Confidence = knownSemantics ? 0.9d : 0.35d,
                     Current = true
                 };
+                ApplyIncomingModifiers(state.Player, intent);
                 state.Threat.Intents.Add(intent);
                 state.Threat.CurrentIntentKnown = true;
                 state.Threat.ExpectedBlockableDamage += intent.BlockableDamage;
@@ -684,9 +739,25 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
         CombatUnitObservation unit,
         CombatActionSemantics semantics)
     {
-        semantics.Damage *= RuntimeMultiplier(unit, "PercentDamage");
-        semantics.Defend *= RuntimeMultiplier(unit, "PercentDefence");
-        semantics.Heal *= RuntimeMultiplier(unit, "PercentHeal");
+        semantics.Damage = Math.Max(
+            0d,
+            semantics.Damage * RuntimeMultiplier(unit, "PercentDamage")
+            + RuntimeValue(unit, "DefaultDamage"));
+        semantics.Defend *= RuntimeMultiplier(unit, "DefendPercent");
+        semantics.Heal *= RuntimeMultiplier(unit, "HealMultiplier");
+    }
+
+    private static void ApplyIncomingModifiers(
+        CombatUnitObservation target,
+        CombatIntentObservation intent)
+    {
+        intent.BlockableDamage = Math.Max(
+            0d,
+            (intent.BlockableDamage + RuntimeValue(target, "AttackedDefaultDamage"))
+            * RuntimeMultiplier(target, "AttackedPercentDamage"));
+        intent.UnblockableDamage = Math.Max(
+            0d,
+            intent.UnblockableDamage * RuntimeMultiplier(target, "AttackedPercentDamage"));
     }
 
     private static double RuntimeMultiplier(CombatUnitObservation unit, string key)
@@ -694,6 +765,13 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
         return unit.Features.TryGetValue(key, out var value)
             ? Math.Max(0d, Finite(value))
             : 1d;
+    }
+
+    private static double RuntimeValue(CombatUnitObservation unit, string key)
+    {
+        return unit.Features.TryGetValue(key, out var value)
+            ? Finite(value)
+            : 0d;
     }
 
     private static void CopyUnitFeatures(
@@ -709,32 +787,44 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
 
     private static void ObserveEffects(StatusManager status, CombatUnitObservation observed)
     {
-        if (ReadMember(status, "effectList") is not IEnumerable effects)
+        IBuffItem[] buffs;
+        try
         {
-            return;
+            buffs = status.GetBuffs() ?? Array.Empty<IBuffItem>();
+        }
+        catch
+        {
+            buffs = Array.Empty<IBuffItem>();
         }
 
         var count = 0;
-        foreach (var effect in effects)
+        foreach (var buff in buffs)
         {
-            if (effect == null || count++ >= 64)
+            if (buff?.buffConfig == null || count++ >= 64)
             {
                 continue;
             }
 
-            var config = ReadMember(effect, "dataConfig", "DataConfig") as IDataConfig;
-            var id = WitchCombatValueEstimator.IdOf(config);
-            if (string.IsNullOrWhiteSpace(id))
-            {
-                id = Convert.ToString(ReadMember(effect, "Id", "BuffId")) ?? "";
-            }
+            var config = buff.buffConfig;
+            var id = config.BuffId ?? "";
             if (string.IsNullOrWhiteSpace(id))
             {
                 continue;
             }
 
-            var level = ReadNumber(effect, "Level", "level", "Count", "count");
-            observed.Features["status:" + id] = level <= 0d ? 1d : level;
+            var level = Math.Max(0, config.Level);
+            observed.Features["status:" + id] = level;
+            observed.Statuses.Add(new CombatStatusObservation
+            {
+                StatusId = id,
+                DisplayName = config.BuffName ?? "",
+                Level = level,
+                UpperBound = config.UpperBound,
+                ReducePerTurn = config.ReducePerTurn,
+                ReducePerUse = config.ReducePerUse,
+                ReducePerAttacked = config.ReducePerAttacked,
+                Type = config.Type ?? ""
+            });
         }
     }
 

@@ -24,6 +24,12 @@ public sealed class CombatSimulationState
 
     public int CostReduction { get; set; }
 
+    public List<double> DrawPileValues { get; set; } = new();
+
+    public bool DrawPileKnown { get; set; }
+
+    public double DrawnCardPotential { get; set; }
+
     public double SetupValue { get; set; }
 
     public double PersistentValue { get; set; }
@@ -70,6 +76,9 @@ public sealed class CombatSimulationState
             HandCount = HandCount,
             HandLimit = HandLimit,
             CostReduction = CostReduction,
+            DrawPileValues = new List<double>(DrawPileValues),
+            DrawPileKnown = DrawPileKnown,
+            DrawnCardPotential = DrawnCardPotential,
             SetupValue = SetupValue,
             PersistentValue = PersistentValue,
             DamageMultiplier = DamageMultiplier,
@@ -165,6 +174,7 @@ public sealed class CombatSimulationState
                     + Math.Min(PlayerDefend, blockable) * 0.2d
                     + SetupValue * Math.Max(0d, profile.SetupValueWeight)
                     + PersistentValue * Math.Max(0d, profile.PersistentValueWeight)
+                    + DrawnCardPotential * 0.2d
                     - Uncertainty * profile.UncertaintyPenalty;
         return new CombatLeafEvaluation
         {
@@ -187,7 +197,13 @@ public sealed class CombatSimulationState
             Mix(ref hash, Quantize(SetupValue));
             Mix(ref hash, Quantize(PersistentValue));
             Mix(ref hash, Quantize(DamageMultiplier));
+            Mix(ref hash, Quantize(DrawnCardPotential));
+            Mix(ref hash, DrawPileKnown ? 1 : 0);
             Mix(ref hash, Quantize(Uncertainty));
+            for (var i = 0; i < DrawPileValues.Count; i++)
+            {
+                Mix(ref hash, Quantize(DrawPileValues[i]));
+            }
             foreach (var pair in Features.OrderBy(pair => pair.Key, StringComparer.Ordinal))
             {
                 foreach (var character in pair.Key)
@@ -285,6 +301,11 @@ public static class CombatForwardModel
             MaxPower = state.MaxPower,
             HandCount = state.HandCount,
             HandLimit = ResolveHandLimit(state),
+            DrawPileValues = state.DrawPileCardIds
+                .Select(KnowledgeValue)
+                .ToList(),
+            DrawPileKnown = state.Features.ContainsKey("drawPileCount")
+                            || state.DrawPileCardIds.Count > 0,
             Features = BuildStateFeatures(state),
             Enemies = state.Enemies.Select(enemy => new CombatSimulationUnit
             {
@@ -416,6 +437,20 @@ public static class CombatForwardModel
                 state.PlayerHp = Math.Min(state.PlayerMaxHp, state.PlayerHp + magnitude);
                 break;
             case CombatEffectKind.Draw:
+                var availableSlots = Math.Max(0, state.HandLimit - state.HandCount);
+                var drawn = state.DrawPileKnown
+                    ? Math.Min(
+                        Math.Min(magnitude, availableSlots),
+                        state.DrawPileValues.Count)
+                    : Math.Min(magnitude, availableSlots);
+                for (var i = 0; i < drawn && state.DrawPileValues.Count > 0; i++)
+                {
+                    var index = state.DrawPileValues.Count - 1;
+                    state.DrawnCardPotential += Math.Max(0d, state.DrawPileValues[index]);
+                    state.DrawPileValues.RemoveAt(index);
+                }
+                state.HandCount += drawn;
+                break;
             case CombatEffectKind.GenerateCard:
                 state.HandCount = Math.Min(state.HandLimit, state.HandCount + magnitude);
                 break;
@@ -554,6 +589,41 @@ public static class CombatForwardModel
             return Math.Max(1, Math.Min(99, (int)Math.Round(configured)));
         }
         return 10;
+    }
+
+    private static double KnowledgeValue(string sourceId)
+    {
+        var action = new CombatActionObservation
+        {
+            SourceId = sourceId,
+            Kind = CombatActionKind.PlayCard
+        };
+        if (!CombatKnowledgeRegistry.TryDescribeAction(
+                action,
+                out var semantics,
+                out var fidelity,
+                out _)
+            || fidelity == CombatKnowledgeFidelity.Unsupported)
+        {
+            return 0d;
+        }
+        var confidence = fidelity == CombatKnowledgeFidelity.Authoritative
+            ? 1d
+            : fidelity == CombatKnowledgeFidelity.Derived
+                ? 0.7d
+                : 0.4d;
+        var value = semantics.Damage * 0.45d
+                    + semantics.TrueDamage * 0.6d
+                    + semantics.Defend * 0.3d
+                    + semantics.Heal * 0.35d
+                    + semantics.Draw * 0.7d
+                    + semantics.EnergyGain
+                    + semantics.Buff * 0.5d
+                    + semantics.Debuff * 0.45d
+                    + semantics.Scaling
+                    + semantics.PersistentValue
+                    + semantics.DamageMultiplierGain * 100d;
+        return Math.Max(0d, value * confidence);
     }
 
     private static void Add(

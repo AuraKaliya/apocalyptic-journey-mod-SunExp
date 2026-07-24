@@ -832,5 +832,19 @@ Use `Get-ChildItem` for optional-file discovery, collect PowerShell rows before 
 - **Notes**: Passed a wildcard path to `rg` on Windows (`Terrias-Dev/Mechanics/StarScore*.cs`), which PowerShell did not expand and `rg` rejected. Use `-g 'StarScore*.cs'` with the directory root instead.
 - **Observed**: 2026-07-24T00:00:00+08:00
 - **Notes**: Embedded a double-quoted regex containing escaped quotes in a PowerShell command string; PowerShell terminated the string and treated regex alternatives as commands. Use a single-quoted PowerShell regex or isolate the probe with `Promise.allSettled`.
+- **Observed**: 2026-07-24T18:00:00+08:00
+- **Notes**: Guessed `AuraToolsExp-Dev/AuraToolsExp-Dev.csproj` instead of resolving the actual `AuraToolsExp.Dll.csproj`, then let an expected no-match `rg` determine the combined command exit code. Resolve project paths first and isolate optional probes.
+- **Observed**: 2026-07-24T19:00:00+08:00
+- **Notes**: Added a direct `File.WriteAllText` to an AuraTools feature even though the shared write-entrypoint gate requires `AuraSharedStorageCoordinator.WriteTextAtomic`; fixed the exporter to use the coordinated atomic writer.
+- **Observed**: 2026-07-24T19:15:00+08:00
+- **Notes**: A new simulator regression test guessed `ApplyPlayerAction` as the public API; the actual immutable branch API is `ForkAndApplyPlayerAction`. Reused the existing test call pattern and legal candidate ID format.
+- **Observed**: 2026-07-24T19:20:00+08:00
+- **Notes**: Adding the authoritative `ActionResolved` lifecycle event intentionally changed the deterministic simulation state hash. Recomputed the CLI contract hash and updated the pinned expectation after confirming outcome, coverage, and determinism remained correct.
+- **Observed**: 2026-07-24T19:35:00+08:00
+- **Notes**: Exact draw-pile modeling initially treated every legacy/test observation with an empty card-ID list as a known empty pile, breaking backward-compatible count-only draws. Added `DrawPileKnown` so new runtime observations use exact order while older providers retain count-only behavior.
+- **Observed**: 2026-07-24T20:10:00+08:00
+- **Notes**: Guessed standalone project files for source-linked shared directories (`AuraCombatAiShared` and `AuraCombatSimulationShared`); these directories are compiled into test/CLI projects instead. Resolve project ownership with `rg --files -g '*.csproj'` before reading build metadata.
+- **Observed**: 2026-07-24T20:35:00+08:00
+- **Notes**: Embedded a double-quoted alternation regex in a PowerShell command string again, causing `status.Busy` to be parsed as a command. Use a single-quoted regex argument or split complex anchor searches into separate `rg` calls.
 
 ---

@@ -1,0 +1,41 @@
+{
+  "gameBuild": "1.0.23816797",
+  "exportedAtUtc": "2026-07-24T00:00:00Z",
+  "tables": {
+    "Card": [
+      {
+        "Id": "elementscard_1",
+        "Name": "海洋之梦",
+        "Cost": "0",
+        "Tags": "Element Draw"
+      }
+    ],
+    "PartnerCard": [],
+    "Buff": [
+      {
+        "Id": "buff_elements",
+        "Name": "元素",
+        "UpperBound": "999",
+        "ReducePerTurn": "0",
+        "ReducePerUse": "0",
+        "ReducePerAttacked": "0",
+        "CanZero": "False"
+      }
+    ],
+    "Enemy": [
+      {
+        "Id": "enemy_example",
+        "Name": "示例敌人",
+        "Hp": "30",
+        "ActionCount": "1",
+        "CardList": "enemycard_example_attack"
+      }
+    ],
+    "Level": [
+      {
+        "Id": "level_example",
+        "EnemyIds": "enemy_example"
+      }
+    ]
+  }
+}

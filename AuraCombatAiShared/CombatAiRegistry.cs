@@ -213,8 +213,21 @@ public static class CombatAiRegistry
             if (snapshot[i].Provider.TryDescribe(state, action, out var semantics) && semantics != null)
             {
                 action.Semantics = semantics;
+                action.SemanticSource = "provider";
+                action.SemanticFidelity = CombatKnowledgeFidelity.Authoritative;
                 return;
             }
+        }
+
+        if (CombatKnowledgeRegistry.TryDescribeAction(
+                action,
+                out var knowledgeSemantics,
+                out var fidelity,
+                out var source))
+        {
+            action.Semantics = knowledgeSemantics;
+            action.SemanticSource = source;
+            action.SemanticFidelity = fidelity;
         }
     }
 

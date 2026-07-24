@@ -14,21 +14,29 @@ public sealed class CombatDecisionSimulationPolicy : ICombatSimulationPolicy
     public CombatDecisionSimulationPolicy(
         CombatDecisionProfile? profile = null,
         IDecisionResidualModel? residualModel = null,
-        ICombatSearchGuidanceModel? guidanceModel = null)
+        ICombatSearchGuidanceModel? guidanceModel = null,
+        ICombatPolicyValueModel? policyValueModel = null)
     {
         this.profile = profile ?? new CombatDecisionProfile();
         decisionEngine = new CombatDecisionEngine(
             residualModel,
             guidanceModel,
-            useRuntimeRegistries: false);
+            useRuntimeRegistries: false,
+            policyValueModel);
     }
 
     public string PolicyId => "aura-combat-decision:" + profile.Id;
+
+    public CombatDecision? LastDecision { get; private set; }
+
+    public CombatStateObservation? LastObservation { get; private set; }
 
     public CombatSimulationAction? SelectAction(CombatSimulationPolicyContext context)
     {
         var observation = CombatSimulationObservationProjector.Project(context);
         var decision = decisionEngine.Choose(observation, profile);
+        LastObservation = observation;
+        LastDecision = decision;
         if (!decision.HasAction || decision.Action == null)
         {
             return context.LegalActions.FirstOrDefault(action =>
@@ -49,22 +57,29 @@ public sealed class CombatDecisionSimulationPolicyFactory : ICombatSimulationPol
     private readonly CombatDecisionProfile profile;
     private readonly IDecisionResidualModel residualModel;
     private readonly ICombatSearchGuidanceModel guidanceModel;
+    private readonly ICombatPolicyValueModel policyValueModel;
 
     public CombatDecisionSimulationPolicyFactory(
         CombatDecisionProfile? profile = null,
         IDecisionResidualModel? residualModel = null,
-        ICombatSearchGuidanceModel? guidanceModel = null)
+        ICombatSearchGuidanceModel? guidanceModel = null,
+        ICombatPolicyValueModel? policyValueModel = null)
     {
         this.profile = profile ?? new CombatDecisionProfile();
         this.residualModel = residualModel ?? NullDecisionResidualModel.Instance;
         this.guidanceModel = guidanceModel ?? NullCombatSearchGuidanceModel.Instance;
+        this.policyValueModel = policyValueModel ?? NullCombatPolicyValueModel.Instance;
     }
 
     public string PolicyId => "aura-combat-decision:" + profile.Id;
 
     public ICombatSimulationPolicy Create()
     {
-        return new CombatDecisionSimulationPolicy(profile, residualModel, guidanceModel);
+        return new CombatDecisionSimulationPolicy(
+            profile,
+            residualModel,
+            guidanceModel,
+            policyValueModel);
     }
 }
 

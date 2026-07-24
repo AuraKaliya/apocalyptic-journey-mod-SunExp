@@ -293,7 +293,8 @@ public sealed class CombatRulesetBuilder
                 || effect.Probability < 0d
                 || effect.Probability > 1d
                 || (effect.Amount < 0
-                    && effect.Kind != CombatSimulationEffectKind.ChangeCardCost))
+                    && effect.Kind != CombatSimulationEffectKind.ChangeCardCost
+                    && effect.Kind != CombatSimulationEffectKind.ModifyVariable))
             {
                 errors.Add(source + " has an invalid effect");
                 continue;
@@ -366,6 +367,7 @@ internal static class CombatRulesetHasher
             foreach (var intent in enemy.Intents.OrderBy(item => item.IntentId, StringComparer.Ordinal))
             {
                 builder.Append("i|").Append(intent.IntentId).Append('|').Append(intent.Weight)
+                    .Append('|').Append(intent.Priority).Append('|').Append(intent.CooldownTurns)
                     .Append('|').Append(intent.MinimumTurn).Append('|').Append(intent.MaximumTurn)
                     .Append('|').Append(F(intent.MinimumHpRatio)).Append('|').Append(F(intent.MaximumHpRatio))
                     .Append('|').Append(intent.PreventConsecutiveUse).Append('\n');
@@ -375,13 +377,23 @@ internal static class CombatRulesetHasher
         foreach (var status in statuses.Values.OrderBy(item => item.StatusId, StringComparer.Ordinal))
         {
             builder.Append("s|").Append(status.OwnerModId).Append('|').Append(status.StatusId)
-                .Append('|').Append(status.Fidelity).Append('|').Append(status.DecayAtRoundEnd).Append('\n');
+                .Append('|').Append(status.Fidelity).Append('|').Append(status.DecayAtRoundEnd)
+                .Append('|').Append(status.ReducePerTurn).Append('|').Append(status.ReducePerUse)
+                .Append('|').Append(status.ReducePerAttacked).Append('|').Append(status.CanRemainAtZero)
+                .Append('\n');
+            foreach (var modifier in status.DynamicModifiersPerStack
+                         .OrderBy(item => item.Key, StringComparer.Ordinal))
+            {
+                builder.Append("m|").Append(modifier.Key).Append('|').Append(F(modifier.Value))
+                    .Append('\n');
+            }
             foreach (var trigger in status.Triggers
                          .OrderBy(item => item.Priority)
                          .ThenBy(item => item.TriggerId, StringComparer.Ordinal))
             {
                 builder.Append("t|").Append(trigger.TriggerId).Append('|').Append(trigger.EventKind)
-                    .Append('|').Append(trigger.Priority).Append('\n');
+                    .Append('|').Append(trigger.Priority).Append('|').Append(trigger.ConsumeStacks)
+                    .Append('\n');
                 AppendEffects(builder, trigger.Effects);
             }
         }
@@ -405,12 +417,23 @@ internal static class CombatRulesetHasher
             builder.Append("x|").Append(effect.Kind).Append('|').Append(effect.Target)
                 .Append('|').Append(effect.Amount).Append('|').Append(F(effect.Probability))
                 .Append('|').Append(effect.DefinitionId).Append('|').Append(effect.Duration)
-                .Append('|').Append(effect.ScaleWithStatusStacks).Append('\n');
+                .Append('|').Append(effect.ScaleWithStatusStacks)
+                .Append('|').Append(Expression(effect.AmountExpression)).Append('\n');
         }
     }
 
     private static string F(double value)
     {
         return value.ToString("R", CultureInfo.InvariantCulture);
+    }
+
+    private static string Expression(CombatSimulationValueExpression? expression)
+    {
+        if (expression == null)
+        {
+            return "";
+        }
+        return expression.Operation + "(" + expression.Key + "|" + F(expression.Constant)
+               + "|" + string.Join(",", expression.Arguments.Select(Expression)) + ")";
     }
 }

@@ -403,6 +403,16 @@ public sealed class CombatSimulationEngine
             {
                 return false;
             }
+            if (!ProcessLifecycleEvent(
+                    CombatSimulationEventKind.ActionResolved,
+                    player.ActorId,
+                    action.TargetActorId,
+                    definition.CardId,
+                    1))
+            {
+                return false;
+            }
+            ReduceStatuses(player, definition => definition.ReducePerUse);
 
             State.Hand.Remove(instance.InstanceId);
             if (definition.Exhaust)
@@ -600,7 +610,11 @@ public sealed class CombatSimulationEngine
                     .Where(intent => State.Turn >= intent.MinimumTurn
                                      && State.Turn <= intent.MaximumTurn
                                      && ratio >= intent.MinimumHpRatio
-                                     && ratio <= intent.MaximumHpRatio)
+                                     && ratio <= intent.MaximumHpRatio
+                                     && (!enemy.IntentCooldowns.TryGetValue(
+                                             intent.IntentId,
+                                             out var cooldown)
+                                         || cooldown <= 0))
                     .ToList();
                 var withoutRepeat = eligible
                     .Where(intent => !intent.PreventConsecutiveUse
@@ -612,6 +626,15 @@ public sealed class CombatSimulationEngine
                 if (withoutRepeat.Count > 0)
                 {
                     eligible = withoutRepeat;
+                }
+                var maximumPriority = eligible.Count == 0
+                    ? 0
+                    : eligible.Max(intent => intent.Priority);
+                if (maximumPriority != 0)
+                {
+                    eligible = eligible
+                        .Where(intent => intent.Priority == maximumPriority)
+                        .ToList();
                 }
                 var totalWeight = eligible.Sum(intent => Math.Max(0, intent.Weight));
                 if (eligible.Count == 0 || totalWeight <= 0)
@@ -639,6 +662,10 @@ public sealed class CombatSimulationEngine
                 }
                 enemy.PreviousIntentId = enemy.CurrentIntentId;
                 enemy.CurrentIntentId = selected.IntentId;
+                if (selected.CooldownTurns > 0)
+                {
+                    enemy.IntentCooldowns[selected.IntentId] = selected.CooldownTurns + 1;
+                }
                 Emit(
                     CombatSimulationEventKind.IntentSelected,
                     enemy.ActorId,
@@ -733,6 +760,18 @@ public sealed class CombatSimulationEngine
                 }
                 foreach (var targetId in targets)
                 {
+                    var expressionAmount = effect.AmountExpression == null
+                        ? effect.Amount
+                        : (int)Math.Round(CombatSimulationExpressionEvaluator.Evaluate(
+                            effect.AmountExpression,
+                            State,
+                            ruleset,
+                            sourceActorId,
+                            targetId));
+                    var scaledAmount = expressionAmount
+                                       * (effect.ScaleWithStatusStacks
+                                           ? Math.Max(1, statusStacks)
+                                           : 1);
                     queue.Enqueue(new CombatSimulationCommand
                     {
                         Kind = effect.Kind,
@@ -740,12 +779,11 @@ public sealed class CombatSimulationEngine
                         TargetActorId = targetId,
                         CardInstanceId = cardInstanceId,
                         Amount = effect.Kind == CombatSimulationEffectKind.ChangeCardCost
-                            ? effect.Amount
-                              * (effect.ScaleWithStatusStacks ? Math.Max(1, statusStacks) : 1)
+                                 || effect.Kind == CombatSimulationEffectKind.ModifyVariable
+                            ? scaledAmount
                             : Math.Max(
                                 0,
-                                effect.Amount
-                                * (effect.ScaleWithStatusStacks ? Math.Max(1, statusStacks) : 1)),
+                                scaledAmount),
                         DefinitionId = effect.DefinitionId ?? "",
                         Duration = Math.Max(0, effect.Duration),
                         ParentSequence = parent?.Sequence ?? triggerEvent?.Sequence ?? 0,
@@ -859,17 +897,34 @@ public sealed class CombatSimulationEngine
             {
                 case CombatSimulationEffectKind.Damage:
                 case CombatSimulationEffectKind.TrueDamage:
+                case CombatSimulationEffectKind.DirectHpLoss:
                     if (target == null || !target.Alive)
                     {
                         return null;
                     }
-                    var incoming = command.Amount;
+                    var outgoingMultiplier = Variable(source, "PercentDamage", 1d);
+                    var outgoingFlat = Variable(source, "DefaultDamage", 0d);
+                    var incomingMultiplier = Variable(target, "AttackedPercentDamage", 1d);
+                    var incomingFlat = Variable(target, "AttackedDefaultDamage", 0d);
+                    var incoming = command.Kind == CombatSimulationEffectKind.DirectHpLoss
+                        ? command.Amount
+                        : Math.Max(
+                            0,
+                            (int)Math.Round(
+                                (command.Amount * outgoingMultiplier + outgoingFlat
+                                 + incomingFlat)
+                                * incomingMultiplier));
                     var blocked = command.Kind == CombatSimulationEffectKind.TrueDamage
+                                  || command.Kind == CombatSimulationEffectKind.DirectHpLoss
                         ? 0
                         : Math.Min(target.Block, incoming);
                     target.Block -= blocked;
                     var hpDamage = Math.Min(target.Hp, Math.Max(0, incoming - blocked));
                     target.Hp -= hpDamage;
+                    if (hpDamage > 0)
+                    {
+                        ReduceStatuses(target, definition => definition.ReducePerAttacked);
+                    }
                     if (source?.Kind == CombatSimulationActorKind.Player
                         && target.Kind == CombatSimulationActorKind.Enemy)
                     {
@@ -899,20 +954,28 @@ public sealed class CombatSimulationEngine
 
                 case CombatSimulationEffectKind.GainBlock:
                     if (target == null || !target.Alive) return null;
-                    target.Block += command.Amount;
+                    var blockAmount = Math.Max(
+                        0,
+                        (int)Math.Round(command.Amount * Variable(target, "DefendPercent", 1d)));
+                    target.Block += blockAmount;
                     if (target.Kind == CombatSimulationActorKind.Player)
                     {
-                        metrics.BlockGained += command.Amount;
+                        metrics.BlockGained += blockAmount;
                     }
                     return EmitFromCommand(
                         CombatSimulationEventKind.BlockGained,
                         command,
-                        command.Amount,
+                        blockAmount,
                         beforeHash);
 
                 case CombatSimulationEffectKind.Heal:
                     if (target == null || !target.Alive) return null;
-                    var healing = Math.Min(command.Amount, Math.Max(0, target.MaxHp - target.Hp));
+                    var modifiedHealing = Math.Max(
+                        0,
+                        (int)Math.Round(command.Amount * Variable(target, "HealMultiplier", 1d)));
+                    var healing = Math.Min(
+                        modifiedHealing,
+                        Math.Max(0, target.MaxHp - target.Hp));
                     target.Hp += healing;
                     if (target.Kind == CombatSimulationActorKind.Player)
                     {
@@ -1063,6 +1126,21 @@ public sealed class CombatSimulationEngine
                         : null;
                 }
 
+                case CombatSimulationEffectKind.ModifyVariable:
+                    if (target == null || string.IsNullOrWhiteSpace(command.DefinitionId))
+                    {
+                        return null;
+                    }
+                    target.Variables[command.DefinitionId] =
+                        target.Variables.TryGetValue(command.DefinitionId, out var current)
+                            ? current + command.Amount
+                            : command.Amount;
+                    return EmitFromCommand(
+                        CombatSimulationEventKind.VariableChanged,
+                        command,
+                        command.Amount,
+                        beforeHash);
+
                 case CombatSimulationEffectKind.SummonEnemy:
                 {
                     if (!ruleset.TryGetEnemyCore(command.DefinitionId, out var enemyDefinition))
@@ -1171,6 +1249,16 @@ public sealed class CombatSimulationEngine
                     wave,
                     queue,
                     match.Status.Stacks);
+                if (match.Trigger.ConsumeStacks > 0)
+                {
+                    match.Status.Stacks = Math.Max(
+                        0,
+                        match.Status.Stacks - match.Trigger.ConsumeStacks);
+                    if (match.Status.Stacks == 0 && !match.Definition.CanRemainAtZero)
+                    {
+                        match.Actor.Statuses.Remove(match.Status);
+                    }
+                }
             }
         }
 
@@ -1270,16 +1358,30 @@ public sealed class CombatSimulationEngine
         {
             foreach (var actor in State.Actors)
             {
+                foreach (var intentId in actor.IntentCooldowns.Keys.ToList())
+                {
+                    actor.IntentCooldowns[intentId] =
+                        Math.Max(0, actor.IntentCooldowns[intentId] - 1);
+                }
                 foreach (var status in actor.Statuses.ToList())
                 {
                     if (!ruleset.TryGetStatusCore(status.StatusId, out var definition)
-                        || !definition.DecayAtRoundEnd
-                        || status.Duration <= 0)
+                        || !definition.DecayAtRoundEnd)
                     {
                         continue;
                     }
-                    status.Duration--;
-                    if (status.Duration <= 0)
+                    var durationExpired = false;
+                    if (status.Duration > 0)
+                    {
+                        status.Duration--;
+                        durationExpired = status.Duration == 0;
+                    }
+                    if (definition.ReducePerTurn > 0)
+                    {
+                        status.Stacks = Math.Max(0, status.Stacks - definition.ReducePerTurn);
+                    }
+                    var stacksExpired = definition.ReducePerTurn > 0 && status.Stacks <= 0;
+                    if ((durationExpired || stacksExpired) && !definition.CanRemainAtZero)
                     {
                         actor.Statuses.Remove(status);
                         Emit(
@@ -1292,6 +1394,45 @@ public sealed class CombatSimulationEngine
                     }
                 }
             }
+        }
+
+        private void ReduceStatuses(
+            CombatActorState actor,
+            Func<CombatStatusDefinition, int> amountSelector)
+        {
+            foreach (var status in actor.Statuses.ToList())
+            {
+                if (!ruleset.TryGetStatusCore(status.StatusId, out var definition))
+                {
+                    continue;
+                }
+                var amount = Math.Max(0, amountSelector(definition));
+                if (amount <= 0)
+                {
+                    continue;
+                }
+                status.Stacks = Math.Max(0, status.Stacks - amount);
+                if (status.Stacks == 0 && !definition.CanRemainAtZero)
+                {
+                    actor.Statuses.Remove(status);
+                    Emit(
+                        CombatSimulationEventKind.StatusRemoved,
+                        actor.ActorId,
+                        actor.ActorId,
+                        0,
+                        status.StatusId,
+                        amount);
+                }
+            }
+        }
+
+        private double Variable(CombatActorState? actor, string key, double fallback)
+        {
+            return CombatSimulationExpressionEvaluator.ResolveVariable(
+                actor,
+                ruleset,
+                key,
+                fallback);
         }
 
         private void CheckOutcome()

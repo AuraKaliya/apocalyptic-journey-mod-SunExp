@@ -118,6 +118,8 @@ public sealed class CombatUnitObservation
 {
     public int RuntimeId { get; set; }
 
+    public string DefinitionId { get; set; } = "";
+
     public string Name { get; set; } = "";
 
     public CombatTargetKind Kind { get; set; }
@@ -130,9 +132,30 @@ public sealed class CombatUnitObservation
 
     public double Attack { get; set; }
 
+    public List<CombatStatusObservation> Statuses { get; set; } = new();
+
     public Dictionary<string, double> Features { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     public bool Alive => CurrentHp > 0;
+}
+
+public sealed class CombatStatusObservation
+{
+    public string StatusId { get; set; } = "";
+
+    public string DisplayName { get; set; } = "";
+
+    public int Level { get; set; }
+
+    public int UpperBound { get; set; }
+
+    public int ReducePerTurn { get; set; }
+
+    public int ReducePerUse { get; set; }
+
+    public int ReducePerAttacked { get; set; }
+
+    public string Type { get; set; } = "";
 }
 
 public sealed class CombatIntentObservation
@@ -265,6 +288,11 @@ public sealed class CombatActionObservation
 
     public CombatActionSemantics Semantics { get; set; } = new();
 
+    public string SemanticSource { get; set; } = "runtime-heuristic";
+
+    public CombatKnowledgeFidelity SemanticFidelity { get; set; } =
+        CombatKnowledgeFidelity.Approximate;
+
     public Dictionary<string, double> Features { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 
     public object? RuntimeHandle { get; set; }
@@ -291,6 +319,12 @@ public sealed class CombatStateObservation
     public int MaxPower { get; set; }
 
     public int HandCount { get; set; }
+
+    public List<string> DeckCardIds { get; set; } = new();
+
+    public List<string> DrawPileCardIds { get; set; } = new();
+
+    public List<string> DiscardPileCardIds { get; set; } = new();
 
     public double ExpectedIncomingDamage { get; set; }
 
@@ -381,6 +415,12 @@ public sealed class CombatCandidateEvaluation
     public double RuleScore { get; set; }
 
     public double PlanScore { get; set; }
+
+    public double SearchPrior { get; set; }
+
+    public int SearchVisits { get; set; }
+
+    public double SearchDeathRisk { get; set; }
 }
 
 public sealed class CombatPlanStep
@@ -637,6 +677,12 @@ public sealed class CombatTrainingCandidate
     public double RuleScore { get; set; }
 
     public double PlanScore { get; set; }
+
+    public double SearchPrior { get; set; }
+
+    public int SearchVisits { get; set; }
+
+    public double SearchDeathRisk { get; set; }
 }
 
 public sealed class CombatTrainingUtility

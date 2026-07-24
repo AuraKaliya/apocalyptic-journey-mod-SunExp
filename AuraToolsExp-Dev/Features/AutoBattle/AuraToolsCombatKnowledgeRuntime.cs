@@ -1,0 +1,477 @@
+using System;
+using System.Collections.Generic;
+using System.IO;
+using System.Linq;
+using AuraCombatAi.Shared;
+using AuraCombatSimulation.Shared;
+using AuraShared.Core;
+using AuraToolsExp.Dll.Infrastructure;
+using Witch.Core;
+
+namespace AuraToolsExp.Dll.Features.AutoBattle;
+
+internal static class AuraToolsCombatKnowledgeRuntime
+{
+    private static readonly List<IDisposable> Registrations = new();
+    private static bool initialized;
+
+    public static void Initialize()
+    {
+        if (initialized)
+        {
+            return;
+        }
+        initialized = true;
+
+        Register(BuildVerifiedBasePackage(), "verified base-game rules");
+        Registrations.Add(CombatSimulationRegistry.RegisterProvider(
+            "witch.base-game",
+            "verified-core-rules",
+            new VerifiedBaseSimulationProvider(),
+            100));
+        LoadPackage(Path.Combine(
+            AuraToolsPaths.ConfigDirectory,
+            "combat-knowledge",
+            "base-game.json"));
+        LoadPackage(Path.Combine(
+            AuraToolsPaths.BundledConfigDirectory,
+            "combat-knowledge.base-game.json"));
+    }
+
+    public static CombatKnowledgeCoverageReport EvaluateCoverage(CombatStateObservation state)
+    {
+        return CombatKnowledgeRegistry.EvaluateCoverage(state);
+    }
+
+    public static string DescribeLoadedPackages()
+    {
+        var packages = CombatKnowledgeRegistry.SnapshotPackages();
+        var actions = 0;
+        var statuses = 0;
+        var enemies = 0;
+        var authoritative = 0;
+        for (var i = 0; i < packages.Count; i++)
+        {
+            actions += packages[i].Actions.Count;
+            statuses += packages[i].Statuses.Count;
+            enemies += packages[i].Enemies.Count;
+            authoritative += packages[i].Actions.FindAll(item =>
+                item.Fidelity == CombatKnowledgeFidelity.Authoritative).Count;
+            authoritative += packages[i].Statuses.FindAll(item =>
+                item.Fidelity == CombatKnowledgeFidelity.Authoritative).Count;
+            authoritative += packages[i].Enemies.FindAll(item =>
+                item.Fidelity == CombatKnowledgeFidelity.Authoritative).Count;
+        }
+        return "知识包 " + packages.Count
+               + " · 动作 " + actions
+               + " · Buff " + statuses
+               + " · 敌人 " + enemies
+               + " · 权威规则 " + authoritative;
+    }
+
+    public static void ExportBaseGameTables()
+    {
+        try
+        {
+            var manager = GameConfigManager.Instance;
+            if (manager == null)
+            {
+                AuraToolsLog.Warn("[AutoBattle][Knowledge] 游戏数据表尚未初始化");
+                return;
+            }
+
+            var export = new BaseGameTableExport
+            {
+                GameBuild = GameConfigManager.Version,
+                ExportedAtUtc = DateTime.UtcNow
+            };
+            foreach (var type in RelevantTables)
+            {
+                var table = manager.GetTable(type);
+                export.Tables[type.ToString()] = table?.Getlines()
+                    .Select(row => new Dictionary<string, string>(
+                        row,
+                        StringComparer.OrdinalIgnoreCase))
+                    .ToList()
+                    ?? new List<Dictionary<string, string>>();
+            }
+
+            var directory = Path.Combine(
+                AuraToolsPaths.ConfigDirectory,
+                "combat-knowledge",
+                "table-exports");
+            Directory.CreateDirectory(directory);
+            var path = Path.Combine(
+                directory,
+                "witch-tables-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss") + ".json");
+            using (var storage = new AuraSharedStorageCoordinator(AuraSharedPaths.RootDirectory))
+            {
+                storage.WriteTextAtomic(
+                    path,
+                    AuraSharedJson.Serialize(export),
+                    createBackup: false);
+            }
+            AuraToolsLog.Info("[AutoBattle][Knowledge] 游戏数据表已导出：" + path);
+        }
+        catch (Exception ex)
+        {
+            AuraToolsLog.Warn("[AutoBattle][Knowledge] 游戏数据表导出失败：" + ex);
+        }
+    }
+
+    public static bool HasAuthoritativeCoverage(
+        CombatStateObservation state,
+        out string reason)
+    {
+        var report = EvaluateCoverage(state);
+        if (report.IsAuthoritative)
+        {
+            reason = report.Summary;
+            return true;
+        }
+
+        reason = report.Summary;
+        if (report.UnknownDefinitions.Count > 0)
+        {
+            reason += "; unknown=" + string.Join(",", report.UnknownDefinitions);
+        }
+        if (report.NonAuthoritativeDefinitions.Count > 0)
+        {
+            reason += "; non-authoritative="
+                      + string.Join(",", report.NonAuthoritativeDefinitions);
+        }
+        return false;
+    }
+
+    private static void LoadPackage(string path)
+    {
+        try
+        {
+            if (!File.Exists(path))
+            {
+                return;
+            }
+
+            var package = AuraSharedJson.Deserialize<CombatKnowledgePackage>(
+                File.ReadAllText(path));
+            if (package == null)
+            {
+                AuraToolsLog.Warn("[AutoBattle][Knowledge] 知识包为空：" + path);
+                return;
+            }
+            Register(package, path);
+        }
+        catch (Exception ex)
+        {
+            AuraToolsLog.Warn("[AutoBattle][Knowledge] 知识包加载失败：" + path + "；" + ex.Message);
+        }
+    }
+
+    private static void Register(CombatKnowledgePackage package, string source)
+    {
+        var currentBuild = "";
+        try
+        {
+            currentBuild = GameConfigManager.Version ?? "";
+        }
+        catch
+        {
+        }
+        if (!string.IsNullOrWhiteSpace(currentBuild)
+            && !string.Equals(
+                currentBuild.Trim(),
+                package.GameBuild.Trim(),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            AuraToolsLog.Warn(
+                "[AutoBattle][Knowledge] 拒绝版本不匹配的知识包 " + source
+                + "：package=" + package.GameBuild
+                + " runtime=" + currentBuild);
+            return;
+        }
+
+        var registration = CombatKnowledgeRegistry.RegisterPackage(package, out var errors);
+        if (errors.Count > 0)
+        {
+            registration.Dispose();
+            AuraToolsLog.Warn(
+                "[AutoBattle][Knowledge] 拒绝知识包 " + source + "："
+                + string.Join("；", errors));
+            return;
+        }
+        Registrations.Add(registration);
+        AuraToolsLog.Info(
+            "[AutoBattle][Knowledge] 已加载 " + package.PackageId
+            + " build=" + package.GameBuild
+            + " actions=" + package.Actions.Count
+            + " statuses=" + package.Statuses.Count
+            + " enemies=" + package.Enemies.Count);
+    }
+
+    private static CombatKnowledgePackage BuildVerifiedBasePackage()
+    {
+        const string provenance =
+            "Witch 1.0.23816797 decompile: AllScripts.cs + StatusManager.cs";
+        return new CombatKnowledgePackage
+        {
+            OwnerId = "witch.base-game",
+            PackageId = "verified-core-rules",
+            GameBuild = "1.0.23816797",
+            SourceHash = "witch-1.0.23816797-verified-core-v1",
+            GeneratedAtUtc = new DateTime(2026, 7, 24, 0, 0, 0, DateTimeKind.Utc),
+            Inventory = new CombatKnowledgeInventory
+            {
+                DiscoveredActions = 423,
+                DiscoveredStatuses = 80,
+                DiscoveredEnemies = 56,
+                AuthoritativeActions = 1,
+                AuthoritativeStatuses = 9
+            },
+            Actions =
+            {
+                new CombatKnowledgeActionDefinition
+                {
+                    SourceId = "elementscard_1",
+                    DisplayName = "海洋之梦",
+                    Fidelity = CombatKnowledgeFidelity.Authoritative,
+                    Confidence = 1d,
+                    Roles = { "free-setup", "draw", "damage-scaling" },
+                    Semantics = new CombatActionSemantics
+                    {
+                        Draw = 1d,
+                        Buff = 2d,
+                        Scaling = 4d,
+                        PersistentValue = 4d,
+                        DamageMultiplierGain = 0.04d,
+                        StateChanges =
+                        {
+                            ["status:buff_elements"] = 2d,
+                            ["PercentDamage"] = 0.04d
+                        }
+                    },
+                    Provenance = provenance
+                }
+            },
+            Statuses =
+            {
+                Status(
+                    "buff_elements",
+                    "元素",
+                    provenance,
+                    triggers: new[] { "ActionAfter:add buff_extraordinary = level * 2" }),
+                Status(
+                    "buff_extraordinary",
+                    "超凡",
+                    provenance,
+                    modifiers: new Dictionary<string, double>
+                    {
+                        ["PercentDamage"] = 0.01d
+                    }),
+                Status(
+                    "buff_vulnerability",
+                    "易伤",
+                    provenance,
+                    modifiers: new Dictionary<string, double>
+                    {
+                        ["AttackedPercentDamage"] = 0.1d
+                    }),
+                Status(
+                    "buff_impregnable",
+                    "坚不可摧",
+                    provenance,
+                    modifiers: new Dictionary<string, double>
+                    {
+                        ["AttackedPercentDamage"] = -0.1d
+                    }),
+                Status(
+                    "buff_weak",
+                    "虚弱",
+                    provenance,
+                    modifiers: new Dictionary<string, double>
+                    {
+                        ["DefaultDamage"] = -1d
+                    }),
+                Status(
+                    "buff_resilient",
+                    "韧性",
+                    provenance,
+                    modifiers: new Dictionary<string, double>
+                    {
+                        ["AttackedDefaultDamage"] = -1d
+                    }),
+                Status(
+                    "buff_fast",
+                    "迅捷",
+                    provenance,
+                    modifiers: new Dictionary<string, double>
+                    {
+                        ["RoundCard"] = 1d
+                    }),
+                Status(
+                    "buff_burn",
+                    "灼烧",
+                    provenance,
+                    triggers: new[] { "StartRound:direct hp loss from current hp and level" }),
+                Status(
+                    "buff_thorns",
+                    "荆棘",
+                    provenance,
+                    triggers: new[] { "Hurt:normal damage to event source by level" }),
+                Status(
+                    "buff_rebirth",
+                    "重生",
+                    provenance,
+                    triggers: new[] { "Dead:revive when level >= 30, then consume" })
+            }
+        };
+    }
+
+    private static CombatKnowledgeStatusDefinition Status(
+        string id,
+        string name,
+        string provenance,
+        Dictionary<string, double>? modifiers = null,
+        string[]? triggers = null)
+    {
+        return new CombatKnowledgeStatusDefinition
+        {
+            StatusId = id,
+            DisplayName = name,
+            Fidelity = CombatKnowledgeFidelity.Authoritative,
+            DynamicModifiersPerStack = modifiers
+                ?? new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase),
+            Triggers = triggers == null ? new List<string>() : new List<string>(triggers),
+            Provenance = provenance
+        };
+    }
+
+    private static readonly DataType[] RelevantTables =
+    {
+        DataType.Card,
+        DataType.Enemy,
+        DataType.EnemyCard,
+        DataType.Buff,
+        DataType.Level,
+        DataType.Partner,
+        DataType.PartnerCard,
+        DataType.Relic,
+        DataType.Bless,
+        DataType.Hard
+    };
+
+    private sealed class BaseGameTableExport
+    {
+        public string GameBuild { get; set; } = "";
+
+        public DateTime ExportedAtUtc { get; set; }
+
+        public Dictionary<string, List<Dictionary<string, string>>> Tables { get; set; } =
+            new(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private sealed class VerifiedBaseSimulationProvider : ICombatRulesetProvider
+    {
+        public void RegisterDefinitions(CombatRulesetBuilder builder)
+        {
+            builder.RegisterStatus(new CombatStatusDefinition
+            {
+                OwnerModId = "witch.base-game",
+                StatusId = "buff_extraordinary",
+                DisplayName = "超凡",
+                Fidelity = CombatRuleFidelity.Authoritative,
+                DecayAtRoundEnd = false,
+                DynamicModifiersPerStack = { ["PercentDamage"] = 0.01d }
+            });
+            builder.RegisterStatus(new CombatStatusDefinition
+            {
+                OwnerModId = "witch.base-game",
+                StatusId = "buff_elements",
+                DisplayName = "元素",
+                Fidelity = CombatRuleFidelity.Authoritative,
+                DecayAtRoundEnd = false,
+                Triggers =
+                {
+                    new CombatStatusTriggerDefinition
+                    {
+                        TriggerId = "elements-to-extraordinary",
+                        EventKind = CombatSimulationEventKind.ActionResolved,
+                        Effects =
+                        {
+                            new CombatSimulationEffectDefinition
+                            {
+                                Kind = CombatSimulationEffectKind.AddStatus,
+                                Target = CombatSimulationTarget.Self,
+                                DefinitionId = "buff_extraordinary",
+                                Amount = 2,
+                                ScaleWithStatusStacks = true
+                            }
+                        }
+                    }
+                }
+            });
+            RegisterModifierStatus(
+                builder,
+                "buff_vulnerability",
+                "易伤",
+                "AttackedPercentDamage",
+                0.1d);
+            RegisterModifierStatus(
+                builder,
+                "buff_impregnable",
+                "坚不可摧",
+                "AttackedPercentDamage",
+                -0.1d);
+            RegisterModifierStatus(builder, "buff_weak", "虚弱", "DefaultDamage", -1d);
+            RegisterModifierStatus(
+                builder,
+                "buff_resilient",
+                "韧性",
+                "AttackedDefaultDamage",
+                -1d);
+            RegisterModifierStatus(builder, "buff_fast", "迅捷", "RoundCard", 1d);
+            builder.RegisterCard(new CombatCardDefinition
+            {
+                OwnerModId = "witch.base-game",
+                CardId = "elementscard_1",
+                DisplayName = "海洋之梦",
+                Cost = 0,
+                Fidelity = CombatRuleFidelity.Authoritative,
+                Effects =
+                {
+                    new CombatSimulationEffectDefinition
+                    {
+                        Kind = CombatSimulationEffectKind.Draw,
+                        Target = CombatSimulationTarget.Self,
+                        Amount = 1
+                    },
+                    new CombatSimulationEffectDefinition
+                    {
+                        Kind = CombatSimulationEffectKind.AddStatus,
+                        Target = CombatSimulationTarget.Self,
+                        DefinitionId = "buff_elements",
+                        Amount = 2
+                    }
+                }
+            });
+        }
+
+        private static void RegisterModifierStatus(
+            CombatRulesetBuilder builder,
+            string id,
+            string name,
+            string key,
+            double amount)
+        {
+            var definition = new CombatStatusDefinition
+            {
+                OwnerModId = "witch.base-game",
+                StatusId = id,
+                DisplayName = name,
+                Fidelity = CombatRuleFidelity.Authoritative,
+                DecayAtRoundEnd = false
+            };
+            definition.DynamicModifiersPerStack[key] = amount;
+            builder.RegisterStatus(definition);
+        }
+    }
+}

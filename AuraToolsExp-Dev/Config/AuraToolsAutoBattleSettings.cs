@@ -125,6 +125,18 @@ public sealed class AutoBattleSimulationSettings
     [JsonProperty("maximumWinRateRegression")]
     public double MaximumWinRateRegression { get; set; } = 0.01d;
 
+    [JsonProperty("collectPolicyValueEpisodes")]
+    public bool CollectPolicyValueEpisodes { get; set; } = true;
+
+    [JsonProperty("evolutionIterations")]
+    public int EvolutionIterations { get; set; } = 3;
+
+    [JsonProperty("evolutionEpisodesPerIteration")]
+    public int EvolutionEpisodesPerIteration { get; set; } = 32;
+
+    [JsonProperty("evolutionArenaEpisodes")]
+    public int EvolutionArenaEpisodes { get; set; } = 16;
+
     public void Normalize()
     {
         ScenarioId = ScenarioId?.Trim() ?? "";
@@ -140,6 +152,9 @@ public sealed class AutoBattleSimulationSettings
             0d,
             0.25d,
             0.01d);
+        EvolutionIterations = Math.Max(1, Math.Min(20, EvolutionIterations));
+        EvolutionEpisodesPerIteration = Math.Max(8, Math.Min(10000, EvolutionEpisodesPerIteration));
+        EvolutionArenaEpisodes = Math.Max(2, Math.Min(10000, EvolutionArenaEpisodes));
     }
 
     private static double Clamp(double value, double min, double max, double fallback)
@@ -177,6 +192,12 @@ public sealed class AutoBattleTrainingSettings
     [JsonProperty("minimumCategoryObservations")]
     public int MinimumCategoryObservations { get; set; } = 10;
 
+    [JsonProperty("minimumEpisodes")]
+    public int MinimumEpisodes { get; set; } = 8;
+
+    [JsonProperty("policyValueHiddenDimensions")]
+    public int PolicyValueHiddenDimensions { get; set; } = 48;
+
     public static AutoBattleTrainingSettings CreateSteady()
     {
         var settings = new AutoBattleTrainingSettings();
@@ -194,7 +215,9 @@ public sealed class AutoBattleTrainingSettings
             L2 = 0.001d,
             MaximumCorrection = 2d,
             MinimumPreferencePairs = 1,
-            MinimumCategoryObservations = 5
+            MinimumCategoryObservations = 5,
+            MinimumEpisodes = 2,
+            PolicyValueHiddenDimensions = 32
         };
     }
 
@@ -210,6 +233,8 @@ public sealed class AutoBattleTrainingSettings
                 MaximumCorrection = 1.25d;
                 MinimumPreferencePairs = 10;
                 MinimumCategoryObservations = 5;
+                MinimumEpisodes = 12;
+                PolicyValueHiddenDimensions = 64;
                 break;
 
             case AdaptivePreset:
@@ -220,6 +245,8 @@ public sealed class AutoBattleTrainingSettings
                 MaximumCorrection = 2d;
                 MinimumPreferencePairs = 30;
                 MinimumCategoryObservations = 15;
+                MinimumEpisodes = 30;
+                PolicyValueHiddenDimensions = 96;
                 break;
 
             default:
@@ -230,6 +257,8 @@ public sealed class AutoBattleTrainingSettings
                 MaximumCorrection = 0.75d;
                 MinimumPreferencePairs = 15;
                 MinimumCategoryObservations = 10;
+                MinimumEpisodes = 8;
+                PolicyValueHiddenDimensions = 48;
                 break;
         }
         Normalize();
@@ -249,6 +278,8 @@ public sealed class AutoBattleTrainingSettings
         MaximumCorrection = ClampFinite(MaximumCorrection, 0.25d, 2d, 0.75d);
         MinimumPreferencePairs = Math.Max(1, Math.Min(200, MinimumPreferencePairs));
         MinimumCategoryObservations = Math.Max(3, Math.Min(100, MinimumCategoryObservations));
+        MinimumEpisodes = Math.Max(2, Math.Min(10000, MinimumEpisodes));
+        PolicyValueHiddenDimensions = Math.Max(8, Math.Min(256, PolicyValueHiddenDimensions));
     }
 
     private static string NormalizePreset(string value)

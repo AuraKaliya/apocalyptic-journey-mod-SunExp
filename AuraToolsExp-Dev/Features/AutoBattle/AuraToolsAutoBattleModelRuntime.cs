@@ -131,6 +131,76 @@ internal static class AuraToolsAutoBattleModelRuntime
         return new BoundedTreeCombatSearchGuidanceModel(snapshot.Value);
     }
 
+    public static ICombatPolicyValueModel LoadPolicyValue(
+        string decisionProfile,
+        bool enabled,
+        out string diagnostic)
+    {
+        var profile = NormalizeProfile(decisionProfile);
+        if (!enabled)
+        {
+            diagnostic = "长期策略价值网络已关闭";
+            return NullCombatPolicyValueModel.Instance;
+        }
+        var snapshot = AuraSharedConfigStore.ReadOwner(
+            AuraToolsIds.ModId,
+            SystemId,
+            PolicyValueModelFile(profile),
+            new CombatPolicyValueNetworkDefinition());
+        if (!snapshot.Found)
+        {
+            diagnostic = "当前决策风格没有已安装的长期策略价值网络：" + profile;
+            return NullCombatPolicyValueModel.Instance;
+        }
+        if (!CombatPolicyValueNetworkValidator.TryValidate(snapshot.Value, out diagnostic)
+            || !string.Equals(
+                NormalizeProfile(snapshot.Value.DecisionProfile),
+                profile,
+                StringComparison.Ordinal))
+        {
+            return NullCombatPolicyValueModel.Instance;
+        }
+        diagnostic = "已加载长期策略价值网络="
+                     + snapshot.Value.ModelId
+                     + "，revision="
+                     + snapshot.Revision;
+        return new ManagedCombatPolicyValueModel(snapshot.Value);
+    }
+
+    public static CombatPolicyValueNetworkDefinition? LoadPolicyValueDefinition(
+        string decisionProfile)
+    {
+        var profile = NormalizeProfile(decisionProfile);
+        var snapshot = AuraSharedConfigStore.ReadOwner(
+            AuraToolsIds.ModId,
+            SystemId,
+            PolicyValueModelFile(profile),
+            new CombatPolicyValueNetworkDefinition());
+        return snapshot.Found
+               && CombatPolicyValueNetworkValidator.TryValidate(snapshot.Value, out _)
+            ? snapshot.Value
+            : null;
+    }
+
+    public static string WritePolicyValueCandidate(
+        string decisionProfile,
+        CombatPolicyValueNetworkDefinition model)
+    {
+        var profile = NormalizeProfile(decisionProfile);
+        if (!CombatPolicyValueNetworkValidator.TryValidate(model, out var reason)
+            || !string.Equals(
+                NormalizeProfile(model.DecisionProfile),
+                profile,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("策略价值候选无效：" + reason);
+        }
+        var path = PolicyValueCandidatePath(profile);
+        using var storage = new AuraSharedStorageCoordinator(AuraSharedPaths.RootDirectory);
+        storage.WriteTextAtomic(path, AuraSharedJson.Serialize(model), createBackup: true);
+        return path;
+    }
+
     public static bool TryGetInstalledModelInfo(
         string decisionProfile,
         out string modelId,
@@ -171,28 +241,54 @@ internal static class AuraToolsAutoBattleModelRuntime
 
     public static bool MeetsValidationGate(string decisionProfile, out string reason)
     {
-        if (!TryGetInstalledModelInfo(
+        if (TryGetInstalledModelInfo(
                 decisionProfile,
                 out _,
                 out var groupedAccuracy,
                 out var battleSessions,
                 out reason))
         {
-            return false;
+            if (battleSessions < 2)
+            {
+                reason = "至少需要覆盖 2 场独立战斗才能进行分组验证";
+                return false;
+            }
+            if (groupedAccuracy < 0.55d)
+            {
+                reason = "按战斗分组验证准确率低于 55%（当前 "
+                         + groupedAccuracy.ToString("P1")
+                         + "）";
+                return false;
+            }
+            reason = "人工残差分组验证通过";
+            return true;
         }
-        if (battleSessions < 2)
+
+        var profile = NormalizeProfile(decisionProfile);
+        var policyValue = AuraSharedConfigStore.ReadOwner(
+            AuraToolsIds.ModId,
+            SystemId,
+            PolicyValueModelFile(profile),
+            new CombatPolicyValueNetworkDefinition());
+        if (!policyValue.Found
+            || !CombatPolicyValueNetworkValidator.TryValidate(policyValue.Value, out reason))
         {
-            reason = "至少需要覆盖 2 场独立战斗才能进行分组验证";
             return false;
         }
-        if (groupedAccuracy < 0.55d)
+        var episodeCount = MetricCount(policyValue.Value.Metrics, "episodeCount");
+        var validationFrames = MetricCount(policyValue.Value.Metrics, "validationEpisodeCount");
+        var valueMae = Metric(policyValue.Value.Metrics, "validationValueMae");
+        if (episodeCount < 8 || validationFrames < 2)
         {
-            reason = "按战斗分组验证准确率低于 55%（当前 "
-                     + groupedAccuracy.ToString("P1")
-                     + "）";
+            reason = "长期策略价值网络至少需要 8 场训练战斗和 2 场独立验证战斗";
             return false;
         }
-        reason = "分组验证通过";
+        if (valueMae > 0.75d)
+        {
+            reason = "长期价值验证误差过高（当前 " + valueMae.ToString("0.000") + "）";
+            return false;
+        }
+        reason = "长期策略价值网络分组验证通过";
         return true;
     }
 
@@ -211,6 +307,8 @@ internal static class AuraToolsAutoBattleModelRuntime
 
         var options = ToTrainingOptions(
             AuraToolsConfigService.MatchExperience.AutoBattle.Training);
+        var policyValueOptions = ToPolicyValueTrainingOptions(
+            AuraToolsConfigService.MatchExperience.AutoBattle.Training);
         SetStatus(profile, AutoBattleTrainingStage.Queued, "训练任务已排队");
         var queued = AuraSharedBackgroundWorkScheduler.Queue(
             new AuraSharedBackgroundWorkRequest<TrainingWorkResult>
@@ -219,7 +317,7 @@ internal static class AuraToolsAutoBattleModelRuntime
                 Key = "AutoBattle.Train:" + profile,
                 Source = "AutoBattle.LocalResidualTraining",
                 Kind = AuraSharedBackgroundWorkKind.Cpu,
-                Work = _ => GenerateCandidate(profile, options),
+                Work = _ => GenerateCandidate(profile, options, policyValueOptions),
                 ApplyOnMainThread = result =>
                 {
                     if (result.Success)
@@ -272,41 +370,61 @@ internal static class AuraToolsAutoBattleModelRuntime
         out string message)
     {
         var profile = NormalizeProfile(decisionProfile);
-        var path = CandidatePath(profile);
+        var residualPath = CandidatePath(profile);
+        var searchPath = SearchCandidatePath(profile);
+        var policyValuePath = PolicyValueCandidatePath(profile);
         SetStatus(profile, AutoBattleTrainingStage.Importing, "正在校验并导入候选模型");
-        if (!File.Exists(path))
+        if (!File.Exists(residualPath)
+            && !File.Exists(searchPath)
+            && !File.Exists(policyValuePath))
         {
-            message = "未找到训练候选模型：" + path;
+            message = "未找到任何训练候选模型";
             SetStatus(profile, AutoBattleTrainingStage.Failed, message);
             return false;
         }
 
         try
         {
-            var model = AuraSharedJson.Deserialize<DecisionResidualModelDefinition>(
-                File.ReadAllText(path));
-            if (!TryValidate(model, profile, out message))
+            var imported = new List<string>();
+            var failures = new List<string>();
+            var weightCount = 0;
+            var preferencePairs = 0;
+            if (File.Exists(residualPath))
             {
-                SetStatus(profile, AutoBattleTrainingStage.Failed, message);
-                return false;
+                var model = AuraSharedJson.Deserialize<DecisionResidualModelDefinition>(
+                    File.ReadAllText(residualPath));
+                if (!TryValidate(model, profile, out var reason))
+                {
+                    failures.Add("残差模型：" + reason);
+                }
+                else
+                {
+                    model ??= new DecisionResidualModelDefinition();
+                    var write = AuraSharedConfigStore.WriteOwner(
+                        AuraToolsIds.ModId,
+                        SystemId,
+                        ModelFile(profile),
+                        model,
+                        schemaVersion: 2);
+                    if (write.Success)
+                    {
+                        imported.Add("人工残差");
+                        weightCount += model.Weights.Count;
+                        preferencePairs = MetricCount(model.Metrics, "pairCount");
+                    }
+                    else
+                    {
+                        failures.Add("残差模型写入：" + write.Message);
+                    }
+                }
             }
-            model ??= new DecisionResidualModelDefinition();
-
-            var result = AuraSharedConfigStore.WriteOwner(
-                AuraToolsIds.ModId,
-                SystemId,
-                ModelFile(profile),
-                model,
-                schemaVersion: 2);
-            var searchInfo = "";
-            var searchCandidatePath = SearchCandidatePath(profile);
-            if (result.Success && File.Exists(searchCandidatePath))
+            if (File.Exists(searchPath))
             {
                 var searchModel = AuraSharedJson.Deserialize<CombatSearchGuidanceDefinition>(
-                    File.ReadAllText(searchCandidatePath));
+                    File.ReadAllText(searchPath));
                 if (!TryValidateSearchGuidance(searchModel, profile, out var searchReason))
                 {
-                    searchInfo = "；搜索引导模型无效：" + searchReason;
+                    failures.Add("搜索引导：" + searchReason);
                 }
                 else
                 {
@@ -316,25 +434,63 @@ internal static class AuraToolsAutoBattleModelRuntime
                         SearchModelFile(profile),
                         searchModel ?? new CombatSearchGuidanceDefinition(),
                         schemaVersion: 1);
-                    searchInfo = searchWrite.Success
-                        ? "；搜索引导模型已导入"
-                        : "；搜索引导模型导入失败：" + searchWrite.Message;
+                    if (searchWrite.Success)
+                    {
+                        imported.Add("搜索引导");
+                    }
+                    else
+                    {
+                        failures.Add("搜索引导写入：" + searchWrite.Message);
+                    }
                 }
             }
-            message = result.Success
-                ? "模型已导入，风格=" + profile
-                  + "，含 " + model.Weights.Count
-                  + " 个上下文权重，revision=" + result.Revision
-                  + searchInfo
-                : "模型导入失败：" + result.Message;
+            if (File.Exists(policyValuePath))
+            {
+                var policyValue =
+                    AuraSharedJson.Deserialize<CombatPolicyValueNetworkDefinition>(
+                        File.ReadAllText(policyValuePath));
+                if (!CombatPolicyValueNetworkValidator.TryValidate(policyValue, out var reason)
+                    || !string.Equals(
+                        NormalizeProfile(policyValue?.DecisionProfile ?? ""),
+                        profile,
+                        StringComparison.Ordinal))
+                {
+                    failures.Add("长期策略价值网络：" + reason);
+                }
+                else
+                {
+                    var write = AuraSharedConfigStore.WriteOwner(
+                        AuraToolsIds.ModId,
+                        SystemId,
+                        PolicyValueModelFile(profile),
+                        policyValue ?? new CombatPolicyValueNetworkDefinition(),
+                        schemaVersion: 1);
+                    if (write.Success)
+                    {
+                        imported.Add("长期策略价值网络");
+                        weightCount += policyValue?.HiddenDimensions ?? 0;
+                    }
+                    else
+                    {
+                        failures.Add("长期策略价值网络写入：" + write.Message);
+                    }
+                }
+            }
+            var success = imported.Count > 0 && failures.Count == 0;
+            message = success
+                ? "模型已导入，风格=" + profile + "，组件=" + string.Join("、", imported)
+                : "模型导入未完整完成：已导入="
+                  + string.Join("、", imported)
+                  + "；失败="
+                  + string.Join("；", failures);
             SetStatus(
                 profile,
-                result.Success ? AutoBattleTrainingStage.Imported : AutoBattleTrainingStage.Failed,
+                success ? AutoBattleTrainingStage.Imported : AutoBattleTrainingStage.Failed,
                 message,
-                preferencePairCount: MetricCount(model.Metrics, "pairCount"),
-                weightCount: model.Weights.Count,
-                candidatePath: path);
-            return result.Success;
+                preferencePairCount: preferencePairs,
+                weightCount: weightCount,
+                candidatePath: File.Exists(policyValuePath) ? policyValuePath : residualPath);
+            return success;
         }
         catch (Exception ex)
         {
@@ -355,7 +511,9 @@ internal static class AuraToolsAutoBattleModelRuntime
             }
         }
 
-        var path = CandidatePath(profile);
+        var path = File.Exists(PolicyValueCandidatePath(profile))
+            ? PolicyValueCandidatePath(profile)
+            : CandidatePath(profile);
         AutoBattleTrainingStatus initial;
         if (File.Exists(path))
         {
@@ -519,7 +677,8 @@ internal static class AuraToolsAutoBattleModelRuntime
 
     private static TrainingWorkResult GenerateCandidate(
         string profile,
-        CombatResidualTrainingOptions options)
+        CombatResidualTrainingOptions options,
+        CombatPolicyValueTrainingOptions policyValueOptions)
     {
         SetStatus(profile, AutoBattleTrainingStage.ReadingSamples, "正在读取训练样本");
         var samples = new List<CombatTrainingSample>();
@@ -560,17 +719,34 @@ internal static class AuraToolsAutoBattleModelRuntime
             samples.Count,
             invalidLines);
         var result = CombatResidualTrainer.Train(samples, profile, options);
-        if (!result.Success || result.Model == null)
+        var episodes = ReadEpisodes(out var invalidEpisodeLines);
+        invalidLines += invalidEpisodeLines;
+        var policyValue = CombatPolicyValueTrainer.Train(
+            episodes,
+            profile,
+            policyValueOptions);
+        if ((!result.Success || result.Model == null)
+            && (!policyValue.Success || policyValue.Model == null))
         {
             return new TrainingWorkResult(
                 false,
-                result.Message + "；读取样本=" + samples.Count + "，无效行=" + invalidLines,
-                samples.Count,
+                result.Message
+                + "；"
+                + policyValue.Message
+                + "；读取样本="
+                + samples.Count
+                + "，完整战斗="
+                + episodes.Count
+                + "，无效行="
+                + invalidLines,
+                samples.Count + episodes.Sum(episode => episode.Frames.Count),
                 invalidLines,
                 result.PreferencePairCount);
         }
 
-        var candidatePath = CandidatePath(profile);
+        var candidatePath = result.Model != null
+            ? CandidatePath(profile)
+            : PolicyValueCandidatePath(profile);
         SetStatus(
             profile,
             AutoBattleTrainingStage.WritingCandidate,
@@ -578,36 +754,50 @@ internal static class AuraToolsAutoBattleModelRuntime
             samples.Count,
             invalidLines,
             result.PreferencePairCount,
-            result.Model.Weights.Count,
+            (result.Model?.Weights.Count ?? 0)
+            + (policyValue.Model?.HiddenDimensions ?? 0),
             candidatePath);
         using (var storage = new AuraSharedStorageCoordinator(AuraSharedPaths.RootDirectory))
         {
-            storage.WriteTextAtomic(
-                candidatePath,
-                AuraSharedJson.Serialize(result.Model),
-                createBackup: true);
-            var searchGuidance = CombatSearchGuidanceTrainer.Train(
-                samples,
-                profile,
-                rounds: Math.Max(8, Math.Min(128, options.Epochs / 2)),
-                learningRate: options.LearningRate);
-            if (searchGuidance.Success && searchGuidance.Model != null)
+            if (result.Model != null)
             {
                 storage.WriteTextAtomic(
-                    SearchCandidatePath(profile),
-                    AuraSharedJson.Serialize(searchGuidance.Model),
+                    CandidatePath(profile),
+                    AuraSharedJson.Serialize(result.Model),
+                    createBackup: true);
+                var searchGuidance = CombatSearchGuidanceTrainer.Train(
+                    samples,
+                    profile,
+                    rounds: Math.Max(8, Math.Min(128, options.Epochs / 2)),
+                    learningRate: options.LearningRate);
+                if (searchGuidance.Success && searchGuidance.Model != null)
+                {
+                    storage.WriteTextAtomic(
+                        SearchCandidatePath(profile),
+                        AuraSharedJson.Serialize(searchGuidance.Model),
+                        createBackup: true);
+                }
+            }
+            if (policyValue.Model != null)
+            {
+                storage.WriteTextAtomic(
+                    PolicyValueCandidatePath(profile),
+                    AuraSharedJson.Serialize(policyValue.Model),
                     createBackup: true);
             }
         }
         return new TrainingWorkResult(
             true,
-            result.Message
+            (result.Success ? result.Message : "人工残差未更新")
+            + "；"
+            + (policyValue.Success ? policyValue.Message : "长期策略价值网络未更新：" + policyValue.Message)
             + "；候选已写入=" + candidatePath
             + "；无效行=" + invalidLines,
-            samples.Count,
+            samples.Count + episodes.Sum(episode => episode.Frames.Count),
             invalidLines,
             result.PreferencePairCount,
-            result.Model.Weights.Count,
+            (result.Model?.Weights.Count ?? 0)
+            + (policyValue.Model?.HiddenDimensions ?? 0),
             candidatePath);
     }
 
@@ -626,6 +816,64 @@ internal static class AuraToolsAutoBattleModelRuntime
             MinimumPreferencePairs = settings.MinimumPreferencePairs,
             MinimumCategoryObservations = settings.MinimumCategoryObservations
         }.Normalized();
+    }
+
+    private static CombatPolicyValueTrainingOptions ToPolicyValueTrainingOptions(
+        AutoBattleTrainingSettings? settings)
+    {
+        settings ??= AutoBattleTrainingSettings.CreateSteady();
+        settings.Normalize();
+        return new CombatPolicyValueTrainingOptions
+        {
+            Epochs = settings.Epochs,
+            LearningRate = Math.Min(0.02d, settings.LearningRate),
+            L2 = settings.L2,
+            HiddenDimensions = settings.PolicyValueHiddenDimensions,
+            MinimumEpisodes = settings.MinimumEpisodes
+        }.Normalized();
+    }
+
+    private static List<CombatEpisode> ReadEpisodes(out int invalidLines)
+    {
+        var result = new List<CombatEpisode>();
+        invalidLines = 0;
+        var roots = new[]
+        {
+            AuraToolsAutoBattleSimulationRuntime.ResultsRootDirectory,
+            AuraToolsAutoBattleSimulationRuntime.InputDirectory
+        };
+        foreach (var root in roots.Where(Directory.Exists))
+        {
+            foreach (var path in Directory.EnumerateFiles(
+                         root,
+                         "*episodes-v1.jsonl",
+                         SearchOption.AllDirectories))
+            {
+                foreach (var line in File.ReadLines(path))
+                {
+                    if (string.IsNullOrWhiteSpace(line))
+                    {
+                        continue;
+                    }
+                    try
+                    {
+                        var episode = AuraSharedJson.Deserialize<CombatEpisode>(line);
+                        if (episode != null)
+                        {
+                            result.Add(episode);
+                        }
+                    }
+                    catch
+                    {
+                        invalidLines++;
+                    }
+                }
+            }
+        }
+        return result
+            .GroupBy(episode => episode.EpisodeId, StringComparer.Ordinal)
+            .Select(group => group.First())
+            .ToList();
     }
 
     private static void SetStatus(
@@ -697,6 +945,13 @@ internal static class AuraToolsAutoBattleModelRuntime
             "auto-battle-search-model-candidate-" + profile + ".json");
     }
 
+    private static string PolicyValueCandidatePath(string profile)
+    {
+        return AuraSharedLogStore.OwnerLogPath(
+            AuraToolsIds.ModId,
+            "auto-battle-policy-value-candidate-" + profile + ".json");
+    }
+
     private static string ModelFile(string profile)
     {
         return "residual-model-" + profile + ".json";
@@ -705,6 +960,11 @@ internal static class AuraToolsAutoBattleModelRuntime
     private static string SearchModelFile(string profile)
     {
         return "search-guidance-model-" + profile + ".json";
+    }
+
+    private static string PolicyValueModelFile(string profile)
+    {
+        return "policy-value-model-" + profile + ".json";
     }
 
     private static string NormalizeProfile(string value)

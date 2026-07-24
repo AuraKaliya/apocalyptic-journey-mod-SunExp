@@ -248,7 +248,10 @@ public static class CombatTrainingSampleBuilder
             ResidualApplicability = Finite(evaluation.ResidualApplicability),
             AppliedResidualScore = Finite(evaluation.AppliedResidualScore),
             RuleScore = Finite(evaluation.RuleScore),
-            PlanScore = Finite(evaluation.PlanScore)
+            PlanScore = Finite(evaluation.PlanScore),
+            SearchPrior = Finite(evaluation.SearchPrior),
+            SearchVisits = Math.Max(0, evaluation.SearchVisits),
+            SearchDeathRisk = Finite(evaluation.SearchDeathRisk)
         };
     }
 

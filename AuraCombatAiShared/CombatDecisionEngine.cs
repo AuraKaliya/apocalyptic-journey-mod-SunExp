@@ -8,15 +8,18 @@ public sealed class CombatDecisionEngine
 {
     private readonly IDecisionResidualModel residualModel;
     private readonly ICombatSearchGuidanceModel searchGuidance;
+    private readonly ICombatPolicyValueModel policyValueModel;
     private readonly bool useRuntimeRegistries;
 
     public CombatDecisionEngine(
         IDecisionResidualModel? residualModel = null,
         ICombatSearchGuidanceModel? searchGuidance = null,
-        bool useRuntimeRegistries = true)
+        bool useRuntimeRegistries = true,
+        ICombatPolicyValueModel? policyValueModel = null)
     {
         this.residualModel = residualModel ?? NullDecisionResidualModel.Instance;
         this.searchGuidance = searchGuidance ?? NullCombatSearchGuidanceModel.Instance;
+        this.policyValueModel = policyValueModel ?? NullCombatPolicyValueModel.Instance;
         this.useRuntimeRegistries = useRuntimeRegistries;
     }
 
@@ -134,7 +137,8 @@ public sealed class CombatDecisionEngine
             ? new CombatChancePuctPlanner(
                     residualModel,
                     searchGuidance,
-                    useRuntimeRegistries)
+                    useRuntimeRegistries,
+                    policyValueModel)
                 .Choose(state, evaluations, selectedProfile)
             : null;
         var plan = search == null

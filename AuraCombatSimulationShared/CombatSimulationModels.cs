@@ -86,6 +86,7 @@ public enum CombatSimulationEffectKind
 {
     Damage,
     TrueDamage,
+    DirectHpLoss,
     GainBlock,
     Heal,
     Draw,
@@ -96,6 +97,7 @@ public enum CombatSimulationEffectKind
     RemoveStatus,
     CreateCard,
     ChangeCardCost,
+    ModifyVariable,
     SummonEnemy,
     Despawn
 }
@@ -108,6 +110,7 @@ public enum CombatSimulationEventKind
     IntentSelected,
     CardDrawn,
     CardPlayed,
+    ActionResolved,
     CardDiscarded,
     CardExhausted,
     DamageDealt,
@@ -119,6 +122,7 @@ public enum CombatSimulationEventKind
     ActorDefeated,
     ActorSummoned,
     CardCostChanged,
+    VariableChanged,
     RandomResolved,
     BattleEnded,
     RuleRejected
@@ -140,6 +144,8 @@ public sealed class CombatSimulationEffectDefinition
 
     public int Amount { get; set; }
 
+    public CombatSimulationValueExpression? AmountExpression { get; set; }
+
     public double Probability { get; set; } = 1d;
 
     public string DefinitionId { get; set; } = "";
@@ -150,7 +156,50 @@ public sealed class CombatSimulationEffectDefinition
 
     public CombatSimulationEffectDefinition Clone()
     {
-        return (CombatSimulationEffectDefinition)MemberwiseClone();
+        var clone = (CombatSimulationEffectDefinition)MemberwiseClone();
+        clone.AmountExpression = AmountExpression?.Clone();
+        return clone;
+    }
+}
+
+public enum CombatSimulationValueOperation
+{
+    Constant,
+    SourceVariable,
+    TargetVariable,
+    SourceStatusStacks,
+    TargetStatusStacks,
+    SourceHp,
+    TargetHp,
+    SourceMaxHp,
+    TargetMaxHp,
+    Add,
+    Subtract,
+    Multiply,
+    Divide,
+    Minimum,
+    Maximum
+}
+
+public sealed class CombatSimulationValueExpression
+{
+    public CombatSimulationValueOperation Operation { get; set; }
+
+    public double Constant { get; set; }
+
+    public string Key { get; set; } = "";
+
+    public List<CombatSimulationValueExpression> Arguments { get; set; } = new();
+
+    public CombatSimulationValueExpression Clone()
+    {
+        return new CombatSimulationValueExpression
+        {
+            Operation = Operation,
+            Constant = Constant,
+            Key = Key,
+            Arguments = Arguments.Select(item => item.Clone()).ToList()
+        };
     }
 }
 
@@ -196,6 +245,10 @@ public sealed class CombatEnemyIntentDefinition
 
     public int Weight { get; set; } = 1;
 
+    public int Priority { get; set; }
+
+    public int CooldownTurns { get; set; }
+
     public int MinimumTurn { get; set; } = 1;
 
     public int MaximumTurn { get; set; } = int.MaxValue;
@@ -215,6 +268,8 @@ public sealed class CombatEnemyIntentDefinition
             IntentId = IntentId,
             DisplayName = DisplayName,
             Weight = Weight,
+            Priority = Priority,
+            CooldownTurns = CooldownTurns,
             MinimumTurn = MinimumTurn,
             MaximumTurn = MaximumTurn,
             MinimumHpRatio = MinimumHpRatio,
@@ -264,6 +319,8 @@ public sealed class CombatStatusTriggerDefinition
 
     public int Priority { get; set; }
 
+    public int ConsumeStacks { get; set; }
+
     public List<CombatSimulationEffectDefinition> Effects { get; set; } = new();
 
     public CombatStatusTriggerDefinition Clone()
@@ -273,6 +330,7 @@ public sealed class CombatStatusTriggerDefinition
             TriggerId = TriggerId,
             EventKind = EventKind,
             Priority = Priority,
+            ConsumeStacks = ConsumeStacks,
             Effects = Effects.Select(effect => effect.Clone()).ToList()
         };
     }
@@ -290,6 +348,17 @@ public sealed class CombatStatusDefinition
 
     public bool DecayAtRoundEnd { get; set; } = true;
 
+    public int ReducePerTurn { get; set; }
+
+    public int ReducePerUse { get; set; }
+
+    public int ReducePerAttacked { get; set; }
+
+    public bool CanRemainAtZero { get; set; }
+
+    public Dictionary<string, double> DynamicModifiersPerStack { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public List<CombatStatusTriggerDefinition> Triggers { get; set; } = new();
 
     public CombatStatusDefinition Clone()
@@ -301,6 +370,13 @@ public sealed class CombatStatusDefinition
             DisplayName = DisplayName,
             Fidelity = Fidelity,
             DecayAtRoundEnd = DecayAtRoundEnd,
+            ReducePerTurn = ReducePerTurn,
+            ReducePerUse = ReducePerUse,
+            ReducePerAttacked = ReducePerAttacked,
+            CanRemainAtZero = CanRemainAtZero,
+            DynamicModifiersPerStack = new Dictionary<string, double>(
+                DynamicModifiersPerStack,
+                StringComparer.OrdinalIgnoreCase),
             Triggers = Triggers.Select(trigger => trigger.Clone()).ToList()
         };
     }
@@ -463,6 +539,12 @@ public sealed class CombatActorState
 
     public string PreviousIntentId { get; set; } = "";
 
+    public Dictionary<string, double> Variables { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, int> IntentCooldowns { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public List<CombatStatusState> Statuses { get; set; } = new();
 
     public bool Alive => Hp > 0;
@@ -483,6 +565,10 @@ public sealed class CombatActorState
             BaseEnergy = BaseEnergy,
             CurrentIntentId = CurrentIntentId,
             PreviousIntentId = PreviousIntentId,
+            Variables = new Dictionary<string, double>(Variables, StringComparer.OrdinalIgnoreCase),
+            IntentCooldowns = new Dictionary<string, int>(
+                IntentCooldowns,
+                StringComparer.OrdinalIgnoreCase),
             Statuses = Statuses.Select(status => status.Clone()).ToList()
         };
     }

@@ -43,6 +43,7 @@ public static class AuraToolsAutoBattleRuntime
         }
 
         initialized = true;
+        AuraToolsCombatKnowledgeRuntime.Initialize();
         EnsureController();
         AuraToolsHookRegistry.After(
             modConfig,
@@ -804,11 +805,23 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
             settings.Profile,
             !string.Equals(trainedModelMode, "off", StringComparison.OrdinalIgnoreCase),
             out var guidanceDiagnostic);
+        var policyValue = AuraToolsAutoBattleModelRuntime.LoadPolicyValue(
+            settings.Profile,
+            !string.Equals(trainedModelMode, "off", StringComparison.OrdinalIgnoreCase),
+            out var policyValueDiagnostic);
         baselineDecisionEngine = new CombatDecisionEngine();
-        trainedDecisionEngine = new CombatDecisionEngine(model, searchGuidance);
-        trainedModelId = !string.Equals(searchGuidance.ModelId, "none", StringComparison.Ordinal)
-            ? model.ModelId + "+" + searchGuidance.ModelId
-            : model.ModelId;
+        trainedDecisionEngine = new CombatDecisionEngine(
+            model,
+            searchGuidance,
+            policyValueModel: policyValue);
+        trainedModelId = string.Join(
+            "+",
+            new[] { model.ModelId, searchGuidance.ModelId, policyValue.ModelId }
+                .Where(id => !string.Equals(id, "none", StringComparison.Ordinal)));
+        if (string.IsNullOrWhiteSpace(trainedModelId))
+        {
+            trainedModelId = "none";
+        }
         if (string.Equals(trainedModelMode, "active", StringComparison.OrdinalIgnoreCase)
             && !string.Equals(trainedModelId, "none", StringComparison.Ordinal)
             && !AuraToolsAutoBattleSimulationRuntime.CanActivateModel(
@@ -822,7 +835,7 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         lastModelComparisonFingerprint = "";
         pendingShadowFingerprint = "";
         ClearDecisionCache();
-        diagnostic += "；" + guidanceDiagnostic;
+        diagnostic += "；" + guidanceDiagnostic + "；" + policyValueDiagnostic;
         if (!string.Equals(lastModelDiagnostic, diagnostic, StringComparison.Ordinal))
         {
             lastModelDiagnostic = diagnostic;
@@ -839,6 +852,18 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         if (string.Equals(trainedModelMode, "active", StringComparison.OrdinalIgnoreCase)
             && !string.Equals(trainedModelId, "none", StringComparison.Ordinal))
         {
+            if (!AuraToolsCombatKnowledgeRuntime.HasAuthoritativeCoverage(
+                    state,
+                    out var coverageReason))
+            {
+                AuraToolsLog.Debug(
+                    "[AutoBattle][Knowledge] 主动模型已对当前状态降级为底模：" + coverageReason);
+                return RunDecisionEngine(
+                    baselineDecisionEngine,
+                    state,
+                    profile,
+                    "baseline-knowledge-fallback");
+            }
             if (string.Equals(decisionCacheKey, cacheKey, StringComparison.Ordinal)
                 && cachedLearnedDecision != null)
             {

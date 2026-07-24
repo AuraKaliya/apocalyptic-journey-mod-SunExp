@@ -1490,6 +1490,20 @@ public static class AuraToolsSettingsRuntime
             autoBattle.Training.MinimumCategoryObservations,
             value => autoBattle.Training.MinimumCategoryObservations = Math.Max(3, Math.Min(100, value)),
             autoBattle);
+
+        var fourth = CreateInlineRow(parent, "AutoBattleTrainingParameters4");
+        AddAutoBattleTrainingInt(
+            fourth.transform,
+            "完整战斗数",
+            autoBattle.Training.MinimumEpisodes,
+            value => autoBattle.Training.MinimumEpisodes = Math.Max(2, Math.Min(10000, value)),
+            autoBattle);
+        AddAutoBattleTrainingInt(
+            fourth.transform,
+            "网络隐藏维度",
+            autoBattle.Training.PolicyValueHiddenDimensions,
+            value => autoBattle.Training.PolicyValueHiddenDimensions = Math.Max(8, Math.Min(256, value)),
+            autoBattle);
     }
 
     private static void CreateAutoBattleSimulationRows(
@@ -1502,6 +1516,14 @@ public static class AuraToolsSettingsRuntime
             AuraToolsUi.BodyFontSize,
             TextAnchor.MiddleLeft,
             AuraToolsUi.Text,
+            AuraToolsUi.TextMinHeight,
+            1f);
+        AuraToolsUi.AddText(
+            parent,
+            AuraToolsCombatKnowledgeRuntime.DescribeLoadedPackages(),
+            AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.MutedText,
             AuraToolsUi.TextMinHeight,
             1f);
 
@@ -1545,6 +1567,11 @@ public static class AuraToolsSettingsRuntime
             "输入目录",
             AuraToolsAutoBattleSimulationRuntime.OpenInputDirectory,
             88f);
+        AuraToolsUi.AddButton(
+            scenarioRow.transform,
+            "导出规则",
+            AuraToolsCombatKnowledgeRuntime.ExportBaseGameTables,
+            88f);
 
         var parameterRow = CreateInlineRow(parent, "AutoBattleSimulationParameterRow");
         AddAutoBattleSimulationInt(
@@ -1559,6 +1586,25 @@ public static class AuraToolsSettingsRuntime
             autoBattle.Simulation.Parallelism,
             value => autoBattle.Simulation.Parallelism = value,
             autoBattle);
+        var evolutionRow = CreateInlineRow(parent, "AutoBattleEvolutionParameterRow");
+        AddAutoBattleSimulationInt(
+            evolutionRow.transform,
+            "进化轮数",
+            autoBattle.Simulation.EvolutionIterations,
+            value => autoBattle.Simulation.EvolutionIterations = value,
+            autoBattle);
+        AddAutoBattleSimulationInt(
+            evolutionRow.transform,
+            "每轮训练局",
+            autoBattle.Simulation.EvolutionEpisodesPerIteration,
+            value => autoBattle.Simulation.EvolutionEpisodesPerIteration = value,
+            autoBattle);
+        AddAutoBattleSimulationInt(
+            evolutionRow.transform,
+            "竞技场局数",
+            autoBattle.Simulation.EvolutionArenaEpisodes,
+            value => autoBattle.Simulation.EvolutionArenaEpisodes = value,
+            autoBattle);
         CreateAutoBattleToggleRow(
             parent,
             "保留分歧与失败轨迹",
@@ -1566,6 +1612,15 @@ public static class AuraToolsSettingsRuntime
             value =>
             {
                 autoBattle.Simulation.RetainDivergentTraces = value;
+                AuraToolsConfigService.SaveMatchExperience();
+            });
+        CreateAutoBattleToggleRow(
+            parent,
+            "生成长期策略训练轨迹",
+            autoBattle.Simulation.CollectPolicyValueEpisodes,
+            value =>
+            {
+                autoBattle.Simulation.CollectPolicyValueEpisodes = value;
                 AuraToolsConfigService.SaveMatchExperience();
             });
 
@@ -1585,6 +1640,13 @@ public static class AuraToolsSettingsRuntime
                 AuraToolsLog.Warn("[AutoBattle][Simulation] " + message);
             }
         }, 88f);
+        var evolutionButton = AuraToolsUi.AddButton(actionRow.transform, "进化训练", () =>
+        {
+            if (!AuraToolsAutoBattleSimulationRuntime.QueueEvolution(autoBattle, out var message))
+            {
+                AuraToolsLog.Warn("[AutoBattle][Evolution] " + message);
+            }
+        }, 88f);
         var cancelButton = AuraToolsUi.AddButton(
             actionRow.transform,
             "取消",
@@ -1598,6 +1660,7 @@ public static class AuraToolsSettingsRuntime
         actionRow.AddComponent<AuraToolsAutoBattleSimulationStatusView>().Configure(
             statusText,
             runButton,
+            evolutionButton,
             cancelButton);
     }
 
@@ -1933,13 +1996,15 @@ internal sealed class AuraToolsAutoBattleSimulationStatusView : MonoBehaviour
 {
     private Text? statusText;
     private Button? runButton;
+    private Button? evolutionButton;
     private Button? cancelButton;
     private float nextRefreshAt;
 
-    public void Configure(Text text, Button run, Button cancel)
+    public void Configure(Text text, Button run, Button evolution, Button cancel)
     {
         statusText = text;
         runButton = run;
+        evolutionButton = evolution;
         cancelButton = cancel;
         Refresh();
     }
@@ -1977,6 +2042,13 @@ internal sealed class AuraToolsAutoBattleSimulationStatusView : MonoBehaviour
         {
             runButton.interactable = !status.Busy;
             SetButtonLabel(runButton, status.Busy ? "模拟中..." : "开始模拟");
+        }
+        if (evolutionButton != null)
+        {
+            evolutionButton.interactable = !status.Busy;
+            SetButtonLabel(
+                evolutionButton,
+                status.Busy ? "运行中..." : "进化训练");
         }
         if (cancelButton != null)
         {

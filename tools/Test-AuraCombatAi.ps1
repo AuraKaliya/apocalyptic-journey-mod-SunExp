@@ -40,7 +40,7 @@ Remove-Item -LiteralPath $simulationOutput -Force
 if ($simulationResult.Statistics.CompletedSimulations -ne 4 `
     -or $simulationResult.Statistics.Invalid -ne 0 `
     -or $simulationResult.Statistics.AuthoritativeSimulations -ne 4 `
-    -or $simulationResult.Results[0].FinalStateHash -ne "603c7db586fb6417" `
+    -or $simulationResult.Results[0].FinalStateHash -ne "fb7dfe1b108a5ed2" `
     -or [string]::IsNullOrWhiteSpace($simulationResult.RulesetHash)) {
     throw "Aura headless combat simulation result contract is invalid."
 }
@@ -57,6 +57,13 @@ $simulationEnginePath = Join-Path $root "AuraCombatSimulationShared\CombatSimula
 $simulationModelsPath = Join-Path $root "AuraCombatSimulationShared\CombatSimulationModels.cs"
 $simulationBatchPath = Join-Path $root "AuraCombatSimulationShared\CombatBatchRunner.cs"
 $simulationRegistryPath = Join-Path $root "AuraCombatSimulationShared\CombatSimulationRegistry.cs"
+$knowledgePath = Join-Path $root "AuraCombatAiShared\CombatKnowledge.cs"
+$knowledgeRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsCombatKnowledgeRuntime.cs"
+$episodePath = Join-Path $root "AuraCombatAiShared\CombatEpisodeLearning.cs"
+$episodeRecorderPath = Join-Path $root "AuraCombatAiShared\CombatEpisodeRecorder.cs"
+$policyValuePath = Join-Path $root "AuraCombatAiShared\CombatPolicyValueNetwork.cs"
+$evolutionPath = Join-Path $root "AuraCombatAiShared\CombatPolicyEvolution.cs"
+$simulationUiRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleSimulationRuntime.cs"
 $controller = Get-Content -LiteralPath $controllerPath -Raw
 $presenter = Get-Content -LiteralPath $presenterPath -Raw
 $interaction = Get-Content -LiteralPath $interactionPath -Raw
@@ -69,6 +76,13 @@ $simulationEngine = Get-Content -LiteralPath $simulationEnginePath -Raw
 $simulationModels = Get-Content -LiteralPath $simulationModelsPath -Raw
 $simulationBatch = Get-Content -LiteralPath $simulationBatchPath -Raw
 $simulationRegistry = Get-Content -LiteralPath $simulationRegistryPath -Raw
+$knowledge = Get-Content -LiteralPath $knowledgePath -Raw
+$knowledgeRuntime = Get-Content -LiteralPath $knowledgeRuntimePath -Raw
+$episode = Get-Content -LiteralPath $episodePath -Raw
+$episodeRecorder = Get-Content -LiteralPath $episodeRecorderPath -Raw
+$policyValue = Get-Content -LiteralPath $policyValuePath -Raw
+$evolution = Get-Content -LiteralPath $evolutionPath -Raw
+$simulationUiRuntime = Get-Content -LiteralPath $simulationUiRuntimePath -Raw
 $trainer = Get-Content -LiteralPath $trainerPath -Raw
 
 $requiredControllerAnchors = @(
@@ -114,6 +128,46 @@ foreach ($anchor in @(
 )) {
     if (-not $presenter.Contains($anchor)) {
         throw "Aura combat AI prediction presenter contract is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
+    "status.GetBuffs()",
+    '"DefendPercent"',
+    '"HealMultiplier"',
+    '"AttackedPercentDamage"',
+    "CombatStatusObservation",
+    "ObserveDeck",
+    "DrawPileCardIds",
+    "FightcardList"
+)) {
+    if (-not $runtime.Contains($anchor)) {
+        throw "Aura combat AI authoritative observation contract is missing: $anchor"
+    }
+}
+if ($runtime.Contains('"PercentDefence"') -or $runtime.Contains('"PercentHeal"')) {
+    throw "Aura combat AI still references obsolete runtime multiplier keys."
+}
+
+foreach ($anchor in @(
+    "CombatKnowledgePackage",
+    "CombatKnowledgeCoverageReport",
+    "TryDescribeAction",
+    "EvaluateCoverage",
+    "UnknownDefinitions"
+)) {
+    if (-not $knowledge.Contains($anchor)) {
+        throw "Aura combat knowledge contract is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
+    "BuildVerifiedBasePackage",
+    '"elementscard_1"',
+    '"buff_elements"',
+    "HasAuthoritativeCoverage",
+    "combat-knowledge.base-game.json"
+)) {
+    if (-not $knowledgeRuntime.Contains($anchor)) {
+        throw "AuraTools combat knowledge runtime contract is missing: $anchor"
     }
 }
 if ($presenter.Contains("Shader.") -or $presenter.Contains("new Material")) {
@@ -262,6 +316,65 @@ foreach ($anchor in @(
 }
 
 foreach ($anchor in @(
+    "aura.combat-ai.episode.v1",
+    "LongTermReturn",
+    "SearchVisits",
+    "validationValueMae",
+    "PolicyTargets"
+)) {
+    if (-not $episode.Contains($anchor)) {
+        throw "Aura combat episode learning contract is missing: $anchor"
+    }
+}
+
+foreach ($anchor in @(
+    "SemanticCoverage >= 1d",
+    "Math.Pow(0.99d",
+    "CombatEpisodeFrame",
+    "SearchDeathRisk"
+)) {
+    if (-not $episodeRecorder.Contains($anchor)) {
+        throw "Aura combat episode recorder contract is missing: $anchor"
+    }
+}
+
+foreach ($anchor in @(
+    "aura.combat-policy-value.mlp.v1",
+    "ICombatPolicyValueModel",
+    "EvaluateBatch",
+    "ExpectedReturn",
+    "DeathProbability"
+)) {
+    if (-not $policyValue.Contains($anchor)) {
+        throw "Aura combat policy-value network contract is missing: $anchor"
+    }
+}
+
+foreach ($anchor in @(
+    "CombatPolicyEvolutionRunner",
+    "TrainingEpisodesPerIteration",
+    "ArenaEpisodesPerIteration",
+    "MaximumWinRateRegression",
+    "Promoted"
+)) {
+    if (-not $evolution.Contains($anchor)) {
+        throw "Aura combat policy evolution contract is missing: $anchor"
+    }
+}
+
+foreach ($anchor in @(
+    "QueueEvolution",
+    "episodes-v1.jsonl",
+    "evolution-summary.json",
+    "WritePolicyValueCandidate",
+    "ResolveEvolutionScenarios"
+)) {
+    if (-not $simulationUiRuntime.Contains($anchor)) {
+        throw "AuraTools policy evolution runtime contract is missing: $anchor"
+    }
+}
+
+foreach ($anchor in @(
     "aura.combat-ai.sample.v3",
     "aura.combat-ai.sample.v4",
     "aura.combat-ai.selection.v1",
@@ -285,3 +398,4 @@ if ($trainer.Contains("positive, negative = other, chosen")) {
 }
 
 Write-Host "Aura combat AI source contracts passed."
+& (Join-Path $root "tools\Test-AuraCombatKnowledge.ps1")
