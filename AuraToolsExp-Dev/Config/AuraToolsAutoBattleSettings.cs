@@ -35,6 +35,9 @@ public sealed class AutoBattleSettings
     [JsonProperty("trainedModelMode")]
     public string TrainedModelMode { get; set; } = "off";
 
+    [JsonProperty("selectedModelId")]
+    public string SelectedModelId { get; set; } = "";
+
     [JsonProperty("showPredictionMarkers")]
     public bool ShowPredictionMarkers { get; set; } = true;
 
@@ -53,7 +56,7 @@ public sealed class AutoBattleSettings
     [JsonProperty("simulation")]
     public AutoBattleSimulationSettings Simulation { get; set; } = new();
 
-    public void Normalize(int sourceSchemaVersion = 14)
+    public void Normalize(int sourceSchemaVersion = 15)
     {
         Training ??= sourceSchemaVersion < 14
             ? AutoBattleTrainingSettings.CreateLegacy()
@@ -77,6 +80,7 @@ public sealed class AutoBattleSettings
         }
         TrainedModelMode = NormalizeChoice(TrainedModelMode, "off", "shadow", "active");
         UseTrainedModel = !string.Equals(TrainedModelMode, "off", StringComparison.Ordinal);
+        SelectedModelId = SelectedModelId?.Trim() ?? "";
         DecisionIntervalMs = Math.Max(150, Math.Min(2000, DecisionIntervalMs));
         ActionTimeoutSeconds = Math.Max(3f, Math.Min(60f, ActionTimeoutSeconds));
         SearchSimulationBudget = Math.Max(128, Math.Min(20000, SearchSimulationBudget));
@@ -84,7 +88,7 @@ public sealed class AutoBattleSettings
         SearchMaxPly = Math.Max(4, Math.Min(32, SearchMaxPly));
         Training.Normalize();
         Simulation ??= new AutoBattleSimulationSettings();
-        Simulation.Normalize();
+        Simulation.Normalize(sourceSchemaVersion);
     }
 
     private static string NormalizeChoice(string value, params string[] choices)
@@ -107,8 +111,11 @@ public sealed class AutoBattleSimulationSettings
     [JsonProperty("scenarioId")]
     public string ScenarioId { get; set; } = "";
 
+    [JsonProperty("difficultyId")]
+    public string DifficultyId { get; set; } = "normal";
+
     [JsonProperty("simulationCount")]
-    public int SimulationCount { get; set; } = 200;
+    public int SimulationCount { get; set; } = 8;
 
     [JsonProperty("parallelism")]
     public int Parallelism { get; set; } = 2;
@@ -137,9 +144,27 @@ public sealed class AutoBattleSimulationSettings
     [JsonProperty("evolutionArenaEpisodes")]
     public int EvolutionArenaEpisodes { get; set; } = 16;
 
-    public void Normalize()
+    public void Normalize(int sourceSchemaVersion = 15)
     {
         ScenarioId = ScenarioId?.Trim() ?? "";
+        if (string.IsNullOrWhiteSpace(ScenarioId)
+            || string.Equals(
+                ScenarioId,
+                "witch.world-simulation.standard-v1",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            ScenarioId = "witch.world-simulation.standard-v2";
+        }
+        DifficultyId = string.Equals(
+            DifficultyId?.Trim(),
+            "advanced",
+            StringComparison.OrdinalIgnoreCase)
+            ? "advanced"
+            : "normal";
+        if (sourceSchemaVersion < 15 && SimulationCount == 200)
+        {
+            SimulationCount = 8;
+        }
         SimulationCount = Math.Max(1, Math.Min(100000, SimulationCount));
         Parallelism = Math.Max(1, Math.Min(16, Parallelism));
         MinimumAuthoritativeCoverage = Clamp(

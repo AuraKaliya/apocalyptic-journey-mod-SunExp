@@ -100,6 +100,8 @@ public sealed class CombatSimulationEngine
         private readonly HashSet<string> referencedDefinitions = new(StringComparer.OrdinalIgnoreCase);
         private readonly HashSet<string> authoritativeDefinitions = new(StringComparer.OrdinalIgnoreCase);
         private readonly CombatSimulationMetrics metrics = new();
+        private readonly Dictionary<string, int> persistentVariableDeltas =
+            new(StringComparer.OrdinalIgnoreCase);
         private readonly List<CombatTurnSummary> turnSummaries = new();
         private int currentActionCommandCount;
         private CombatSimulationEvent? secondaryCommandEvent;
@@ -151,7 +153,10 @@ public sealed class CombatSimulationEngine
                 Kind = CombatSimulationActorKind.Player,
                 Hp = Math.Min(scenario.Player.MaxHp, scenario.Player.CurrentHp),
                 MaxHp = scenario.Player.MaxHp,
-                BaseEnergy = Math.Max(0, scenario.Player.BaseEnergy)
+                BaseEnergy = Math.Max(0, scenario.Player.BaseEnergy),
+                Variables = new Dictionary<string, double>(
+                    scenario.Player.Variables ?? new Dictionary<string, double>(),
+                    StringComparer.OrdinalIgnoreCase)
             };
             State.PlayerActorId = player.ActorId;
             State.Actors.Add(player);
@@ -180,8 +185,13 @@ public sealed class CombatSimulationEngine
                     Kind = CombatSimulationActorKind.Enemy,
                     Hp = maximumHp,
                     MaxHp = maximumHp,
-                    Block = Math.Max(0, definition.InitialBlock)
+                    Block = Math.Max(0, definition.InitialBlock + setup.InitialBlockBonus),
+                    Variables = new Dictionary<string, double>(
+                        setup.Variables ?? new Dictionary<string, double>(),
+                        StringComparer.OrdinalIgnoreCase)
                 };
+                actor.Variables["PercentDamage"] =
+                    Variable(actor, "PercentDamage", 1d) * Math.Max(0d, setup.AttackScale);
                 State.Actors.Add(actor);
                 AddInitialStatuses(actor, setup.InitialStatuses);
             }
@@ -461,6 +471,9 @@ public sealed class CombatSimulationEngine
                     : (double)authoritativeDefinitions.Count / referencedDefinitions.Count,
                 UnsupportedDefinitions = unsupported.OrderBy(value => value, StringComparer.Ordinal).ToList(),
                 Metrics = metrics,
+                PersistentVariableDeltas = new Dictionary<string, int>(
+                    persistentVariableDeltas,
+                    StringComparer.OrdinalIgnoreCase),
                 TurnsSummary = turnSummaries,
                 Events = Events,
                 FinalState = State.Clone()
@@ -786,6 +799,7 @@ public sealed class CombatSimulationEngine
                                 scaledAmount),
                         DefinitionId = effect.DefinitionId ?? "",
                         Duration = Math.Max(0, effect.Duration),
+                        PersistAcrossBattles = effect.PersistAcrossBattles,
                         ParentSequence = parent?.Sequence ?? triggerEvent?.Sequence ?? 0,
                         TriggerWave = triggerWave,
                         RandomStreamId = chanceDraw?.StreamId ?? targetDraw?.StreamId ?? "",
@@ -906,14 +920,18 @@ public sealed class CombatSimulationEngine
                     var outgoingFlat = Variable(source, "DefaultDamage", 0d);
                     var incomingMultiplier = Variable(target, "AttackedPercentDamage", 1d);
                     var incomingFlat = Variable(target, "AttackedDefaultDamage", 0d);
+                    var attributeMultiplier = source?.Kind == CombatSimulationActorKind.Player
+                                              && command.Kind == CombatSimulationEffectKind.Damage
+                        ? 1d + Math.Max(0d, Variable(source, "Strength", 0d)) * 0.03d
+                        : 1d;
+                    var outgoingAmount = WitchRounded(
+                        (command.Amount * outgoingMultiplier + outgoingFlat)
+                        * attributeMultiplier);
                     var incoming = command.Kind == CombatSimulationEffectKind.DirectHpLoss
                         ? command.Amount
                         : Math.Max(
                             0,
-                            (int)Math.Round(
-                                (command.Amount * outgoingMultiplier + outgoingFlat
-                                 + incomingFlat)
-                                * incomingMultiplier));
+                            (int)((outgoingAmount + incomingFlat) * incomingMultiplier));
                     var blocked = command.Kind == CombatSimulationEffectKind.TrueDamage
                                   || command.Kind == CombatSimulationEffectKind.DirectHpLoss
                         ? 0
@@ -956,7 +974,12 @@ public sealed class CombatSimulationEngine
                     if (target == null || !target.Alive) return null;
                     var blockAmount = Math.Max(
                         0,
-                        (int)Math.Round(command.Amount * Variable(target, "DefendPercent", 1d)));
+                        WitchRounded(
+                            command.Amount
+                            * Variable(target, "DefendPercent", 1d)
+                            * (target.Kind == CombatSimulationActorKind.Player
+                                ? 1d + Math.Max(0d, Variable(target, "Perceive", 0d)) * 0.04d
+                                : 1d)));
                     target.Block += blockAmount;
                     if (target.Kind == CombatSimulationActorKind.Player)
                     {
@@ -1135,6 +1158,16 @@ public sealed class CombatSimulationEngine
                         target.Variables.TryGetValue(command.DefinitionId, out var current)
                             ? current + command.Amount
                             : command.Amount;
+                    if (command.PersistAcrossBattles
+                        && target.Kind == CombatSimulationActorKind.Player)
+                    {
+                        persistentVariableDeltas[command.DefinitionId] =
+                            persistentVariableDeltas.TryGetValue(
+                                command.DefinitionId,
+                                out var persistentCurrent)
+                                ? persistentCurrent + command.Amount
+                                : command.Amount;
+                    }
                     return EmitFromCommand(
                         CombatSimulationEventKind.VariableChanged,
                         command,
@@ -1433,6 +1466,17 @@ public sealed class CombatSimulationEngine
                 ruleset,
                 key,
                 fallback);
+        }
+
+        private static int WitchRounded(double value)
+        {
+            if (double.IsNaN(value)) return 0;
+            if (value >= int.MaxValue) return int.MaxValue;
+            if (value <= int.MinValue) return int.MinValue;
+            var ceiling = Math.Ceiling(value);
+            return (int)(ceiling - value <= 0.01d
+                ? ceiling
+                : Math.Floor(value));
         }
 
         private void CheckOutcome()

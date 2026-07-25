@@ -152,6 +152,8 @@ public sealed class CombatSimulationEffectDefinition
 
     public int Duration { get; set; }
 
+    public bool PersistAcrossBattles { get; set; }
+
     public bool ScaleWithStatusStacks { get; set; }
 
     public CombatSimulationEffectDefinition Clone()
@@ -395,6 +397,9 @@ public sealed class CombatPlayerSetup
     public List<string> Deck { get; set; } = new();
 
     public List<CombatInitialStatus> InitialStatuses { get; set; } = new();
+
+    public Dictionary<string, double> Variables { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
 }
 
 public sealed class CombatEnemySetup
@@ -405,7 +410,14 @@ public sealed class CombatEnemySetup
 
     public double HpScale { get; set; } = 1d;
 
+    public double AttackScale { get; set; } = 1d;
+
+    public int InitialBlockBonus { get; set; }
+
     public List<CombatInitialStatus> InitialStatuses { get; set; } = new();
+
+    public Dictionary<string, double> Variables { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
 }
 
 public sealed class CombatInitialStatus
@@ -801,6 +813,9 @@ public sealed class CombatSimulationResult
 
     public CombatSimulationMetrics Metrics { get; set; } = new();
 
+    public Dictionary<string, int> PersistentVariableDeltas { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public List<CombatTurnSummary> TurnsSummary { get; set; } = new();
 
     public List<CombatSimulationEvent> Events { get; set; } = new();
@@ -834,6 +849,8 @@ internal sealed class CombatSimulationCommand
     public string DefinitionId { get; set; } = "";
 
     public int Duration { get; set; }
+
+    public bool PersistAcrossBattles { get; set; }
 
     public long ParentSequence { get; set; }
 

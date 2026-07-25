@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 14,
+  "schemaVersion": 15,
   "starterDeck": {
     "enabled": false,
     "mode": "Global",
@@ -53,6 +53,7 @@
     "trainingMode": "hybrid",
     "useTrainedModel": false,
     "trainedModelMode": "off",
+    "selectedModelId": "",
     "showPredictionMarkers": true,
     "searchSimulationBudget": 256,
     "searchNodeBudget": 8192,
@@ -67,8 +68,9 @@
       "minimumCategoryObservations": 10
     },
     "simulation": {
-      "scenarioId": "",
-      "simulationCount": 200,
+      "scenarioId": "witch.world-simulation.standard-v2",
+      "difficultyId": "normal",
+      "simulationCount": 8,
       "parallelism": 2,
       "seedStart": 1,
       "retainDivergentTraces": true,

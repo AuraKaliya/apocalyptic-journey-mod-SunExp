@@ -1,0 +1,156 @@
+{
+  "journeyId": "witch.world-simulation.standard-v1",
+  "rulesetVersion": "witch-base-evaluation-v1",
+  "player": {
+    "roleId": "career_1",
+    "maxHp": 60,
+    "currentHp": 60,
+    "baseEnergy": 3,
+    "deck": [
+      "card_1",
+      "card_1",
+      "card_1",
+      "card_1",
+      "card_2",
+      "card_2",
+      "card_2",
+      "card_2",
+      "card_4",
+      "card_6",
+      "card_14"
+    ]
+  },
+  "stages": [
+    {
+      "stageId": "opening-encounter",
+      "encounterPool": ["enemy_10001", "enemy_10025"],
+      "isBoss": false,
+      "offerRewardAfterVictory": true
+    },
+    {
+      "stageId": "mid-journey-encounter",
+      "encounterPool": ["enemy_10025", "enemy_10023"],
+      "isBoss": false,
+      "offerRewardAfterVictory": true
+    },
+    {
+      "stageId": "pre-boss-encounter",
+      "encounterPool": ["enemy_10023", "enemy_10015"],
+      "isBoss": false,
+      "offerRewardAfterVictory": true
+    },
+    {
+      "stageId": "final-boss",
+      "encounterPool": ["enemy_10022"],
+      "isBoss": true,
+      "offerRewardAfterVictory": false
+    }
+  ],
+  "rewardPool": [
+    {
+      "cardId": "card_15",
+      "baseValue": 1.15,
+      "features": {
+        "burst": 1.0,
+        "sustained": 0.5,
+        "defense": 0.0,
+        "heal": 0.0,
+        "aoe": 0.0,
+        "reliability": 0.8,
+        "risk": 0.0
+      }
+    },
+    {
+      "cardId": "healcard_1",
+      "baseValue": 1.05,
+      "features": {
+        "burst": 0.0,
+        "sustained": 0.0,
+        "defense": 0.2,
+        "heal": 1.0,
+        "cycling": 0.3,
+        "reliability": 1.0,
+        "risk": 0.0
+      }
+    },
+    {
+      "cardId": "healcard_6",
+      "baseValue": 1.2,
+      "features": {
+        "burst": 0.5,
+        "sustained": 0.0,
+        "defense": 0.0,
+        "heal": 0.9,
+        "reliability": 0.9,
+        "risk": 0.0
+      }
+    },
+    {
+      "cardId": "universalcard_16",
+      "baseValue": 1.25,
+      "features": {
+        "burst": 0.7,
+        "sustained": 0.5,
+        "defense": 0.75,
+        "heal": 0.0,
+        "reliability": 1.0,
+        "risk": 0.0
+      }
+    },
+    {
+      "cardId": "universalcard_17",
+      "baseValue": 1.35,
+      "features": {
+        "burst": 1.0,
+        "sustained": 0.75,
+        "defense": 1.0,
+        "heal": 0.0,
+        "reliability": 0.95,
+        "risk": 0.0
+      }
+    }
+  ],
+  "rewardChoices": 3,
+  "rolePrior": {
+    "burst": 0.55,
+    "sustained": 0.45,
+    "defense": 0.6,
+    "heal": 0.45,
+    "aoe": 0.2,
+    "reliability": 0.8,
+    "risk": -0.7
+  },
+  "buildTendency": {
+    "burst": 0.45,
+    "sustained": 0.55,
+    "defense": 0.55,
+    "heal": 0.5,
+    "aoe": 0.15,
+    "reliability": 0.75,
+    "risk": -0.8
+  },
+  "bossPreference": {
+    "burst": 0.5,
+    "sustained": 0.8,
+    "defense": 0.75,
+    "heal": 0.6,
+    "aoe": 0.0,
+    "reliability": 0.85,
+    "risk": -0.9
+  },
+  "allowSkipReward": true,
+  "initialDraw": 5,
+  "drawPerTurn": 5,
+  "handLimit": 10,
+  "retainBlockBetweenTurns": false,
+  "requireAuthoritativeRules": true,
+  "traceLevel": "Summary",
+  "limits": {
+    "maximumTurns": 100,
+    "maximumActions": 5000,
+    "maximumCommands": 50000,
+    "maximumCommandsPerAction": 1000,
+    "maximumTriggerWavesPerAction": 100,
+    "maximumSummonedActors": 16
+  }
+}

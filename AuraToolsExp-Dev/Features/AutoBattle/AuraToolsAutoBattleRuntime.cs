@@ -44,6 +44,7 @@ public static class AuraToolsAutoBattleRuntime
 
         initialized = true;
         AuraToolsCombatKnowledgeRuntime.Initialize();
+        AuraToolsAutoBattleJourneyRuntime.Initialize(modConfig);
         EnsureController();
         AuraToolsHookRegistry.After(
             modConfig,
@@ -113,6 +114,11 @@ public static class AuraToolsAutoBattleRuntime
     private static void OnConfigurationChanged()
     {
         EnsureController().ApplyConfiguration();
+    }
+
+    public static void ReloadModels()
+    {
+        controller?.ApplyConfiguration();
     }
 
     private static void ResetForBattle()
@@ -800,15 +806,18 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         var model = AuraToolsAutoBattleModelRuntime.Load(
             settings.Profile,
             !string.Equals(trainedModelMode, "off", StringComparison.OrdinalIgnoreCase),
-            out var diagnostic);
+            out var diagnostic,
+            settings.SelectedModelId);
         var searchGuidance = AuraToolsAutoBattleModelRuntime.LoadSearchGuidance(
             settings.Profile,
             !string.Equals(trainedModelMode, "off", StringComparison.OrdinalIgnoreCase),
-            out var guidanceDiagnostic);
+            out var guidanceDiagnostic,
+            settings.SelectedModelId);
         var policyValue = AuraToolsAutoBattleModelRuntime.LoadPolicyValue(
             settings.Profile,
             !string.Equals(trainedModelMode, "off", StringComparison.OrdinalIgnoreCase),
-            out var policyValueDiagnostic);
+            out var policyValueDiagnostic,
+            settings.SelectedModelId);
         baselineDecisionEngine = new CombatDecisionEngine();
         trainedDecisionEngine = new CombatDecisionEngine(
             model,
@@ -1220,8 +1229,11 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
 
     private void DeactivateWithReason(string reason)
     {
+        var resolvedReason = string.IsNullOrWhiteSpace(reason)
+            ? "自动战斗已停止（未提供原因）"
+            : reason.Trim();
         AuraToolsLog.Warn(
-            "[AutoBattle] stopped: " + reason
+            "[AutoBattle] stopped: " + resolvedReason
             + ", tx=" + transaction.TransactionId
             + ", state=" + transaction.State);
         Active = false;
@@ -1299,25 +1311,87 @@ internal sealed class AuraToolsAutoBattleTrainingSink : ICombatTrainingSampleSin
             var path = AuraSharedLogStore.OwnerLogPath(
                 AuraToolsIds.ModId,
                 "auto-battle-training-v4.jsonl");
+            var episodesPath = AuraSharedLogStore.OwnerLogPath(
+                AuraToolsIds.ModId,
+                "live-combat-episodes-v1.jsonl");
             using var writer = new StreamWriter(path, append: true);
+            using var episodeWriter = new StreamWriter(episodesPath, append: true);
+            var sessions = new Dictionary<long, List<CombatTrainingSample>>();
             var pending = 0;
             foreach (var sample in queue.GetConsumingEnumerable())
             {
                 writer.WriteLine(AuraSharedJson.SerializeCompact(sample));
+                RecordLiveEpisode(sample, sessions, episodeWriter);
                 pending++;
                 if (pending < 16 && queue.Count > 0)
                 {
                     continue;
                 }
                 writer.Flush();
+                episodeWriter.Flush();
                 pending = 0;
             }
             writer.Flush();
+            episodeWriter.Flush();
         }
         catch (Exception ex)
         {
             AuraToolsLog.Warn("[AutoBattle] training sample writer stopped: " + ex.Message);
         }
+    }
+
+    private static void RecordLiveEpisode(
+        CombatTrainingSample sample,
+        IDictionary<long, List<CombatTrainingSample>> sessions,
+        TextWriter episodeWriter)
+    {
+        if (sample == null || sample.BattleSessionId <= 0)
+        {
+            return;
+        }
+        if (!sessions.TryGetValue(sample.BattleSessionId, out var samples))
+        {
+            samples = new List<CombatTrainingSample>();
+            sessions[sample.BattleSessionId] = samples;
+        }
+        samples.Add(sample);
+        if (!sample.Terminal
+            || (!string.Equals(sample.BattleOutcome, "victory", StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(sample.BattleOutcome, "defeat", StringComparison.OrdinalIgnoreCase))
+            || !CombatLiveEpisodeAssembler.TryAssemble(
+                sample.BattleSessionId,
+                samples,
+                out var episode))
+        {
+            PruneSessions(sessions);
+            return;
+        }
+
+        episodeWriter.WriteLine(AuraSharedJson.SerializeCompact(episode));
+        sessions.Remove(sample.BattleSessionId);
+        AuraToolsLog.Info(
+            "[AutoBattle][Training] 已聚合完整实战轨迹：battleSession="
+            + sample.BattleSessionId
+            + "，outcome="
+            + episode.Outcome
+            + "，frames="
+            + episode.Frames.Count);
+    }
+
+    private static void PruneSessions(
+        IDictionary<long, List<CombatTrainingSample>> sessions)
+    {
+        const int maximumBufferedSessions = 64;
+        if (sessions.Count <= maximumBufferedSessions)
+        {
+            return;
+        }
+        var oldest = sessions
+            .OrderBy(pair => pair.Value.Count == 0
+                ? DateTime.MinValue
+                : pair.Value.Min(sample => sample.CreatedUtc))
+            .First();
+        sessions.Remove(oldest.Key);
     }
 
     private void Shutdown()

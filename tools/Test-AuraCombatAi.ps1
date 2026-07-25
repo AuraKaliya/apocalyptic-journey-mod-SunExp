@@ -56,16 +56,23 @@ $guidancePath = Join-Path $root "AuraCombatAiShared\CombatSearchGuidance.cs"
 $simulationEnginePath = Join-Path $root "AuraCombatSimulationShared\CombatSimulationEngine.cs"
 $simulationModelsPath = Join-Path $root "AuraCombatSimulationShared\CombatSimulationModels.cs"
 $simulationBatchPath = Join-Path $root "AuraCombatSimulationShared\CombatBatchRunner.cs"
+$journeySimulationPath = Join-Path $root "AuraCombatSimulationShared\CombatJourneySimulation.cs"
+$journeyTrainingPath = Join-Path $root "AuraCombatSimulationShared\CombatJourneyTraining.cs"
 $simulationRegistryPath = Join-Path $root "AuraCombatSimulationShared\CombatSimulationRegistry.cs"
 $knowledgePath = Join-Path $root "AuraCombatAiShared\CombatKnowledge.cs"
 $knowledgeRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsCombatKnowledgeRuntime.cs"
 $episodePath = Join-Path $root "AuraCombatAiShared\CombatEpisodeLearning.cs"
 $episodeRecorderPath = Join-Path $root "AuraCombatAiShared\CombatEpisodeRecorder.cs"
+$liveEpisodeAssemblerPath = Join-Path $root "AuraCombatAiShared\CombatLiveEpisodeAssembler.cs"
+$journeyProjectionPath = Join-Path $root "AuraCombatAiShared\CombatJourneyTrainingProjection.cs"
 $policyValuePath = Join-Path $root "AuraCombatAiShared\CombatPolicyValueNetwork.cs"
 $evolutionPath = Join-Path $root "AuraCombatAiShared\CombatPolicyEvolution.cs"
 $simulationUiRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleSimulationRuntime.cs"
 $modelUiRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleModelRuntime.cs"
+$journeyUiRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleJourneyRuntime.cs"
 $settingsUiRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\Settings\AuraToolsSettingsRuntime.cs"
+$bundledRulesPath = Join-Path $root "AuraToolsExp\Config\combat-simulation\witch-base-evaluation-v1.ruleset.json"
+$bundledJourneyPath = Join-Path $root "AuraToolsExp\Config\combat-simulation\witch-world-simulation-v1.journey.json"
 $controller = Get-Content -LiteralPath $controllerPath -Raw
 $presenter = Get-Content -LiteralPath $presenterPath -Raw
 $interaction = Get-Content -LiteralPath $interactionPath -Raw
@@ -77,15 +84,20 @@ $guidance = Get-Content -LiteralPath $guidancePath -Raw
 $simulationEngine = Get-Content -LiteralPath $simulationEnginePath -Raw
 $simulationModels = Get-Content -LiteralPath $simulationModelsPath -Raw
 $simulationBatch = Get-Content -LiteralPath $simulationBatchPath -Raw
+$journeySimulation = Get-Content -LiteralPath $journeySimulationPath -Raw
+$journeyTraining = Get-Content -LiteralPath $journeyTrainingPath -Raw
 $simulationRegistry = Get-Content -LiteralPath $simulationRegistryPath -Raw
 $knowledge = Get-Content -LiteralPath $knowledgePath -Raw
 $knowledgeRuntime = Get-Content -LiteralPath $knowledgeRuntimePath -Raw
 $episode = Get-Content -LiteralPath $episodePath -Raw
 $episodeRecorder = Get-Content -LiteralPath $episodeRecorderPath -Raw
+$liveEpisodeAssembler = Get-Content -LiteralPath $liveEpisodeAssemblerPath -Raw
+$journeyProjection = Get-Content -LiteralPath $journeyProjectionPath -Raw
 $policyValue = Get-Content -LiteralPath $policyValuePath -Raw
 $evolution = Get-Content -LiteralPath $evolutionPath -Raw
 $simulationUiRuntime = Get-Content -LiteralPath $simulationUiRuntimePath -Raw
 $modelUiRuntime = Get-Content -LiteralPath $modelUiRuntimePath -Raw
+$journeyUiRuntime = Get-Content -LiteralPath $journeyUiRuntimePath -Raw
 $settingsUiRuntime = Get-Content -LiteralPath $settingsUiRuntimePath -Raw
 $trainer = Get-Content -LiteralPath $trainerPath -Raw
 
@@ -254,6 +266,66 @@ foreach ($anchor in @(
 }
 
 foreach ($anchor in @(
+    "CombatJourneyTrainingEpisode",
+    "CombatJourneyBattleTrainingRecord",
+    "CombatJourneyRewardTrainingRecord",
+    "reward-value/system-fit/build-tendency"
+)) {
+    if (-not $journeyTraining.Contains($anchor)) {
+        throw "Aura journey training protocol is missing: $anchor"
+    }
+}
+
+foreach ($anchor in @(
+    "CombatLiveEpisodeAssembler",
+    "BattleSessionId",
+    "live-world-simulation",
+    "ApplyTerminalTargets"
+)) {
+    if (-not $liveEpisodeAssembler.Contains($anchor)) {
+        throw "Aura live episode assembler contract is missing: $anchor"
+    }
+}
+
+foreach ($anchor in @(
+    "CombatJourneyTrainingProjection",
+    "JourneyRunId",
+    "journeyRemainingBattles",
+    "battleDiscount"
+)) {
+    if (-not $journeyProjection.Contains($anchor)) {
+        throw "Aura journey return projection contract is missing: $anchor"
+    }
+}
+
+foreach ($anchor in @(
+    "CombatJourneyWorldPlanner",
+    "CombatJourneyRewardSelector",
+    "CombatJourneyCheckpoint",
+    "RunPaired",
+    "PlanHash",
+    "AllowSkipReward",
+    "BossPreference"
+)) {
+    if (-not $journeySimulation.Contains($anchor)) {
+        throw "Aura journey simulation contract is missing: $anchor"
+    }
+}
+
+foreach ($anchor in @(
+    "journey-episodes-v1.jsonl",
+    "CardChoiceUI.Select",
+    "GameApp.GameOver",
+    "GameExitUI.Start",
+    "CaptureTrainingSamples",
+    "final-boss-victory"
+)) {
+    if (-not $journeyUiRuntime.Contains($anchor)) {
+        throw "AuraTools live journey capture contract is missing: $anchor"
+    }
+}
+
+foreach ($anchor in @(
     "RegisterProvider",
     "BuildRuleset",
     "SnapshotProviderIds",
@@ -263,6 +335,20 @@ foreach ($anchor in @(
     if (-not $simulationRegistry.Contains($anchor)) {
         throw "Aura combat simulation registry contract is missing: $anchor"
     }
+}
+
+if (-not (Test-Path -LiteralPath $bundledRulesPath -PathType Leaf) `
+    -or -not (Test-Path -LiteralPath $bundledJourneyPath -PathType Leaf)) {
+    throw "Bundled standard evaluation package is incomplete."
+}
+$bundledRules = Get-Content -LiteralPath $bundledRulesPath -Raw -Encoding UTF8 | ConvertFrom-Json
+$bundledJourney = Get-Content -LiteralPath $bundledJourneyPath -Raw -Encoding UTF8 | ConvertFrom-Json
+if ($bundledRules.version -ne "witch-base-evaluation-v1" `
+    -or $bundledJourney.rulesetVersion -ne $bundledRules.version `
+    -or $bundledJourney.player.roleId -ne "career_1" `
+    -or $bundledJourney.stages[-1].encounterPool[0] -ne "enemy_10022" `
+    -or (Get-Content -LiteralPath $bundledRulesPath -Raw -Encoding UTF8).Contains("Terrias")) {
+    throw "Bundled standard evaluation package does not satisfy the base-game-only contract."
 }
 
 foreach ($anchor in @(
@@ -369,6 +455,9 @@ foreach ($anchor in @(
 
 foreach ($anchor in @(
     "QueueEvolution",
+    "RunJourneyEvaluation",
+    "*.journey.json",
+    "checkpoints",
     "episodes-v1.jsonl",
     "evolution-summary.json",
     "WritePolicyValueCandidate",
@@ -384,6 +473,10 @@ foreach ($anchor in @(
 
 foreach ($anchor in @(
     "QueueImportCandidate",
+    "AutoBattleCandidateBundle",
+    "CaptureTrainingSnapshot",
+    "CandidateMeetsValidationGate",
+    "QueueRollbackChampion",
     "CancelTraining",
     "AnyTrainingBusy",
     "CancellationTokenSource.CreateLinkedTokenSource",
@@ -396,8 +489,8 @@ foreach ($anchor in @(
 
 foreach ($anchor in @(
     "AutoBattleEvolutionView",
-    "运行对照",
-    "开始进化",
+    "QueueRun",
+    "QueueEvolution",
     "AuraToolsAutoBattleSimulationResultView",
     "AuraToolsAutoBattleWorkLockView",
     "InputField.ContentType.IntegerNumber"

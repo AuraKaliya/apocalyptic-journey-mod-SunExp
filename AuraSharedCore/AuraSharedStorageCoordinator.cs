@@ -462,6 +462,79 @@ public sealed class AuraSharedStorageCoordinator : IDisposable
         }
     }
 
+    public byte[] ReadCompleteFileSnapshot(
+        string path,
+        byte recordTerminator = (byte)'\n',
+        int maximumBytes = int.MaxValue)
+    {
+        var fullPath = Path.GetFullPath(path);
+        if (!IsInside(fullPath, rootDirectory))
+        {
+            throw new InvalidDataException("Snapshot source escapes shared storage: " + path);
+        }
+        EnsurePortablePath(fullPath, "snapshot-source");
+        if (!File.Exists(fullPath))
+        {
+            return Array.Empty<byte>();
+        }
+        using var stream = new FileStream(
+            fullPath,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete);
+        if (stream.Length > Math.Max(0, maximumBytes) || stream.Length > int.MaxValue)
+        {
+            throw new InvalidDataException("Snapshot source exceeds the configured limit: " + path);
+        }
+        var bytes = new byte[(int)stream.Length];
+        var offset = 0;
+        while (offset < bytes.Length)
+        {
+            var read = stream.Read(bytes, offset, bytes.Length - offset);
+            if (read <= 0)
+            {
+                break;
+            }
+            offset += read;
+        }
+        if (offset != bytes.Length)
+        {
+            Array.Resize(ref bytes, offset);
+        }
+        var completeLength = bytes.Length;
+        while (completeLength > 0 && bytes[completeLength - 1] != recordTerminator)
+        {
+            completeLength--;
+        }
+        if (completeLength != bytes.Length)
+        {
+            Array.Resize(ref bytes, completeLength);
+        }
+        return bytes;
+    }
+
+    public void MoveFileInsideRoot(string sourcePath, string destinationPath)
+    {
+        var source = Path.GetFullPath(sourcePath);
+        var destination = Path.GetFullPath(destinationPath);
+        if (!IsInside(source, rootDirectory) || !IsInside(destination, rootDirectory))
+        {
+            throw new InvalidDataException("Move target escapes shared storage.");
+        }
+        EnsurePortablePath(source, "move-source");
+        EnsurePortablePath(destination, "move-destination");
+        if (!File.Exists(source))
+        {
+            throw new FileNotFoundException("Shared move source does not exist.", source);
+        }
+        if (File.Exists(destination))
+        {
+            throw new IOException("Shared move destination already exists: " + destination);
+        }
+        Directory.CreateDirectory(Path.GetDirectoryName(destination) ?? rootDirectory);
+        File.Move(source, destination);
+    }
+
     private string CompactArchivePath(string category, string sourcePath, string extension)
     {
         var relative = MakeRelative(rootDirectory, sourcePath);

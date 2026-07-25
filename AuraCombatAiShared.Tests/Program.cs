@@ -1,6 +1,8 @@
 using AuraCombatAi.Shared;
 using AuraCombatSimulation.Shared;
 using AuraDecision.Shared;
+using System.Text.Json;
+using System.Text.Json.Serialization;
 using System.Threading;
 
 var assertions = 0;
@@ -1333,6 +1335,403 @@ Assert(documentRules.Success
        && documentRules.Ruleset.EnemyCount == sourceDocumentRules.EnemyCount,
     "file-backed ruleset documents use the same validated builder path");
 
+var journeyDefinition = new CombatJourneyDefinition
+{
+    JourneyId = "base-game-shaped-journey",
+    RulesetVersion = "test-v1",
+    Player = new CombatPlayerSetup
+    {
+        RoleId = "tester",
+        MaxHp = 30,
+        CurrentHp = 30,
+        BaseEnergy = 3,
+        Deck = { "strike", "strike", "guard", "insight" }
+    },
+    Stages =
+    {
+        new CombatJourneyStageDefinition
+        {
+            StageId = "ordinary-1",
+            EncounterPool = { "dummy" }
+        },
+        new CombatJourneyStageDefinition
+        {
+            StageId = "ordinary-2",
+            EncounterPool = { "dummy" }
+        },
+        new CombatJourneyStageDefinition
+        {
+            StageId = "final-boss",
+            EncounterPool = { "dummy" },
+            IsBoss = true,
+            OfferRewardAfterVictory = false
+        }
+    },
+    RewardPool =
+    {
+        new CombatRewardCardDefinition
+        {
+            CardId = "strike",
+            BaseValue = 0.5d,
+            Features = { ["burst"] = 1d, ["reliability"] = 0.5d }
+        },
+        new CombatRewardCardDefinition
+        {
+            CardId = "guard",
+            BaseValue = 0.5d,
+            Features = { ["defense"] = 1d, ["reliability"] = 1d }
+        },
+        new CombatRewardCardDefinition
+        {
+            CardId = "insight",
+            BaseValue = 0.25d,
+            Features = { ["draw"] = 1d, ["cycling"] = 1d }
+        }
+    },
+    RolePrior = { ["burst"] = 0.2d },
+    BuildTendency = { ["defense"] = 0.2d },
+    BossPreference = { ["reliability"] = 0.5d },
+    RewardChoices = 3,
+    TraceLevel = CombatSimulationTraceLevel.Summary,
+    Limits = new CombatSimulationLimits
+    {
+        MaximumTurns = 20,
+        MaximumActions = 100,
+        MaximumCommands = 1000
+    }
+};
+var firstWorldPlan = CombatJourneyWorldPlanner.Build(journeyDefinition, 90210UL);
+var repeatedWorldPlan = CombatJourneyWorldPlanner.Build(journeyDefinition, 90210UL);
+Assert(firstWorldPlan.PlanHash == repeatedWorldPlan.PlanHash
+       && firstWorldPlan.Encounters.Select(item => item.EnemyId)
+           .SequenceEqual(repeatedWorldPlan.Encounters.Select(item => item.EnemyId))
+       && firstWorldPlan.Encounters.SelectMany(item => item.RewardOffer)
+           .SequenceEqual(repeatedWorldPlan.Encounters.SelectMany(item => item.RewardOffer)),
+    "journey world planning isolates deterministic encounter and reward streams");
+
+var journeyRunner = new CombatJourneyRunner();
+var pairedJourney = journeyRunner.RunPaired(
+    journeyDefinition,
+    90210UL,
+    sourceDocumentRules,
+    new GreedyCombatSimulationPolicyFactory(),
+    new GreedyCombatSimulationPolicyFactory());
+Assert(pairedJourney.Baseline.JourneyVictory
+       && pairedJourney.Learned.JourneyVictory
+       && pairedJourney.Baseline.ReachedBoss
+       && pairedJourney.Baseline.CompletedBattles == 3
+       && pairedJourney.Baseline.FinalDeck.Count == journeyDefinition.Player.Deck.Count + 2
+       && pairedJourney.Baseline.Rewards.All(item => item.Scores.Count == 3)
+       && pairedJourney.Baseline.Rewards.Select(item => item.SelectedCardId)
+           .SequenceEqual(pairedJourney.Learned.Rewards.Select(item => item.SelectedCardId)),
+    "paired journeys share a world plan, carry hp and deck growth, and explain reward choices");
+
+CombatJourneyCheckpoint? interruptedCheckpoint = null;
+using (var stopAfterFirstBattle = new CancellationTokenSource())
+{
+    try
+    {
+        journeyRunner.Run(
+            journeyDefinition,
+            firstWorldPlan,
+            sourceDocumentRules,
+            new GreedyCombatSimulationPolicyFactory(),
+            checkpointSink: checkpoint =>
+            {
+                interruptedCheckpoint = checkpoint;
+                stopAfterFirstBattle.Cancel();
+            },
+            cancellationToken: stopAfterFirstBattle.Token);
+    }
+    catch (OperationCanceledException)
+    {
+    }
+}
+Assert(interruptedCheckpoint?.NextEncounterIndex == 1
+       && interruptedCheckpoint.Deck.Count == journeyDefinition.Player.Deck.Count + 1,
+    "journey checkpoints persist inherited hp, deck and the next encounter boundary");
+var resumedJourney = journeyRunner.Run(
+    journeyDefinition,
+    firstWorldPlan,
+    sourceDocumentRules,
+    new GreedyCombatSimulationPolicyFactory(),
+    interruptedCheckpoint);
+Assert(resumedJourney.JourneyVictory
+       && resumedJourney.CompletedBattles == pairedJourney.Baseline.CompletedBattles
+       && resumedJourney.FinalDeck.SequenceEqual(pairedJourney.Baseline.FinalDeck),
+    "journey resume continues from the checkpoint without replaying completed battles");
+
+var liveBattleSamples = new List<CombatTrainingSample>
+{
+    new()
+    {
+        GameBuild = "test",
+        BattleSessionId = 7001,
+        DecisionIndex = 0,
+        Sequence = 1,
+        StateFingerprint = "live-state-1",
+        DecisionProfile = "balanced",
+        CandidateId = "card_1:enemy",
+        Demonstrator = "human",
+        Selection = new CombatTrainingSelectionTrace
+        {
+            ExecutedBy = "human",
+            ExecutedCandidateId = "card_1:enemy"
+        },
+        StateFeatures =
+        {
+            ["playerHp"] = 30d,
+            ["playerMaxHp"] = 30d,
+            ["turn"] = 1d
+        },
+        Candidates =
+        {
+            new CombatTrainingCandidate
+            {
+                CandidateId = "card_1:enemy",
+                SourceId = "card_1",
+                Legal = true,
+                IsExecutedAction = true,
+                Cost = 1,
+                Semantics = new CombatActionSemantics { Damage = 5d }
+            }
+        },
+        CompletionState = "Completed",
+        CreatedUtc = DateTime.UtcNow.AddSeconds(-1)
+    },
+    new()
+    {
+        GameBuild = "test",
+        BattleSessionId = 7001,
+        DecisionIndex = 1,
+        Sequence = 2,
+        StateFingerprint = "live-state-2",
+        DecisionProfile = "balanced",
+        CandidateId = "card_14:enemy",
+        Demonstrator = "human",
+        Selection = new CombatTrainingSelectionTrace
+        {
+            ExecutedBy = "human",
+            ExecutedCandidateId = "card_14:enemy"
+        },
+        StateFeatures =
+        {
+            ["playerHp"] = 25d,
+            ["playerMaxHp"] = 30d,
+            ["turn"] = 2d
+        },
+        Candidates =
+        {
+            new CombatTrainingCandidate
+            {
+                CandidateId = "card_14:enemy",
+                SourceId = "card_14",
+                Legal = true,
+                IsExecutedAction = true,
+                Cost = 1,
+                Semantics = new CombatActionSemantics { Damage = 12d, HitCount = 2d }
+            }
+        },
+        RewardComponents = new CombatTrainingReward { PlayerHpChange = 0d },
+        Terminal = true,
+        BattleOutcome = "victory",
+        TerminalReason = "victory",
+        CompletionState = "Completed",
+        CreatedUtc = DateTime.UtcNow
+    }
+};
+var assembledLiveEpisodes = CombatLiveEpisodeAssembler.Assemble(liveBattleSamples);
+Assert(assembledLiveEpisodes.Count == 1
+       && assembledLiveEpisodes[0].Frames.Count == 2
+       && assembledLiveEpisodes[0].BattleSessionId == 7001
+       && assembledLiveEpisodes[0].Outcome == "victory"
+       && assembledLiveEpisodes[0].Provenance == "live-world-simulation",
+    "completed live battle samples assemble into an authoritative policy-value episode");
+CombatJourneyTrainingProjection.ApplyJourneyReturns(
+    assembledLiveEpisodes,
+    new[]
+    {
+        new CombatJourneyTrainingEpisode
+        {
+            JourneyRunId = "live-journey-1",
+            Complete = true,
+            Outcome = "defeat",
+            Battles =
+            {
+                new CombatJourneyBattleTrainingRecord
+                {
+                    BattleIndex = 0,
+                    BattleSessionId = 7001,
+                    Outcome = "victory"
+                },
+                new CombatJourneyBattleTrainingRecord
+                {
+                    BattleIndex = 1,
+                    BattleSessionId = 7002,
+                    Outcome = "defeat"
+                }
+            }
+        }
+    });
+Assert(assembledLiveEpisodes[0].JourneyRunId == "live-journey-1"
+       && assembledLiveEpisodes[0].JourneyBattleIndex == 0
+       && assembledLiveEpisodes[0].Frames.All(frame =>
+           frame.LongTermReturn < 0d
+           && frame.DeathTarget == 1d
+           && frame.StateFeatures["journeyRemainingBattles"] == 1d),
+    "complete journey outcome replaces local battle return with discounted adventure return");
+
+var repositoryRoot = Directory.GetCurrentDirectory();
+var bundledRulesPath = Path.Combine(
+    repositoryRoot,
+    "AuraToolsExp",
+    "Config",
+    "combat-simulation",
+    "witch-base-evaluation-v1.ruleset.json");
+if (!File.Exists(bundledRulesPath))
+{
+    repositoryRoot = Path.GetFullPath(
+        Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+    bundledRulesPath = Path.Combine(
+        repositoryRoot,
+        "AuraToolsExp",
+        "Config",
+        "combat-simulation",
+        "witch-base-evaluation-v1.ruleset.json");
+}
+var bundledJourneyPath = Path.Combine(
+    repositoryRoot,
+    "AuraToolsExp",
+    "Config",
+    "combat-simulation",
+    "witch-world-simulation-v1.journey.json");
+var bundledJsonOptions = new JsonSerializerOptions
+{
+    PropertyNameCaseInsensitive = true
+};
+bundledJsonOptions.Converters.Add(new JsonStringEnumConverter());
+var bundledRulesDocument = JsonSerializer.Deserialize<CombatRulesetDocument>(
+    File.ReadAllText(bundledRulesPath),
+    bundledJsonOptions);
+var bundledJourney = JsonSerializer.Deserialize<CombatJourneyDefinition>(
+    File.ReadAllText(bundledJourneyPath),
+    bundledJsonOptions);
+var loadedBundledJourney = bundledJourney
+                           ?? throw new InvalidOperationException(
+                               "Bundled journey JSON could not be deserialized.");
+var bundledRules = CombatSimulationRegistry.BuildRuleset(bundledRulesDocument);
+CombatJourneyWorldPlanner.Validate(loadedBundledJourney);
+Assert(bundledRules.Success
+       && bundledRules.Ruleset.CardCount == 10
+       && bundledRules.Ruleset.EnemyCount == 5
+       && loadedBundledJourney.Player.RoleId == "career_1"
+       && loadedBundledJourney.Stages.Last().EncounterPool.SequenceEqual(
+           new[] { "enemy_10022" })
+       && loadedBundledJourney.Player.Deck.All(cardId =>
+           bundledRules.Ruleset.TryGetCard(cardId, out _))
+       && loadedBundledJourney.Stages.SelectMany(stage => stage.EncounterPool)
+           .All(enemyId => bundledRules.Ruleset.TryGetEnemy(enemyId, out _))
+       && !File.ReadAllText(bundledRulesPath)
+           .Contains("Terrias", StringComparison.OrdinalIgnoreCase),
+    "bundled standard evaluation package uses only resolvable base-game content");
+
+var bundledCampaignPath = Path.Combine(
+    repositoryRoot,
+    "AuraToolsExp",
+    "Config",
+    "combat-simulation",
+    "witch-world-simulation-v2.campaign.json");
+var bundledRulesV2Path = Path.Combine(
+    repositoryRoot,
+    "AuraToolsExp",
+    "Config",
+    "combat-simulation",
+    "witch-base-evaluation-v2.ruleset.json");
+var bundledCampaign = JsonSerializer.Deserialize<CombatCampaignDefinition>(
+    File.ReadAllText(bundledCampaignPath),
+    bundledJsonOptions)
+    ?? throw new InvalidOperationException(
+        "Bundled campaign v2 JSON could not be deserialized.");
+var bundledRulesV2Document = JsonSerializer.Deserialize<CombatRulesetDocument>(
+    File.ReadAllText(bundledRulesV2Path),
+    bundledJsonOptions);
+var bundledRulesV2 = CombatSimulationRegistry.BuildRuleset(bundledRulesV2Document);
+CombatCampaignWorldPlanner.Validate(bundledCampaign);
+var bundledCampaignNormal = CombatCampaignWorldPlanner.Build(
+    bundledCampaign,
+    "normal",
+    23816797UL);
+var bundledCampaignAdvanced = CombatCampaignWorldPlanner.Build(
+    bundledCampaign,
+    "advanced",
+    23816797UL);
+var firstBand = bundledCampaign.Encounters.Where(item =>
+    item.NativeBand is 0 or -1).ToList();
+Assert(bundledRulesV2.Success
+       && bundledRulesV2.Ruleset.CardCount == 290
+       && bundledRulesV2.Ruleset.EnemyCount == 55
+       && bundledCampaign.Encounters.Count == 48
+       && bundledCampaign.Rewards.Count == 514
+       && bundledCampaign.Rewards.Single(item => item.RewardId == "blessing_1")
+           .PermanentAttributeBonuses["Strength"] == 2
+       && bundledCampaign.Rewards.Single(item => item.RewardId == "blessing_7")
+           .MaxHpBonus == 5
+       && firstBand.Count(item => item.Kind == CombatCampaignEncounterKind.Normal) == 12
+       && firstBand.Count(item => item.Kind == CombatCampaignEncounterKind.Elite) == 8
+       && firstBand.Count(item => item.Kind == CombatCampaignEncounterKind.Boss) == 3
+       && bundledCampaignNormal.Encounters.Count == 37
+       && bundledCampaignNormal.Encounters[36].Kind
+       == CombatCampaignEncounterKind.FinalBoss
+       && bundledCampaignNormal.Encounters[36].EncounterId is
+           "final-caroline-perfect-angel"
+           or "final-evernight-incarnation"
+           or "final-demon-king"
+           or "final-holy-judgment-engine"
+       && bundledCampaignNormal.Encounters.Select(item => item.EncounterId)
+           .SequenceEqual(
+               bundledCampaignAdvanced.Encounters.Select(item => item.EncounterId))
+       && bundledCampaignNormal.PlanHash != bundledCampaignAdvanced.PlanHash
+       && bundledCampaign.Rewards
+           .Where(item => item.Kind == CombatCampaignRewardKind.Blessing
+                          && item.Negative)
+           .All(item => bundledCampaignNormal.Encounters
+               .All(encounter => !string.Equals(
+                   encounter.RewardOffer.BlessingId,
+                   item.RewardId,
+                   StringComparison.OrdinalIgnoreCase)))
+       && !File.ReadAllText(bundledCampaignPath)
+           .Contains("Terrias", StringComparison.OrdinalIgnoreCase)
+       && !File.ReadAllText(bundledCampaignPath)
+           .Contains("Saya_", StringComparison.OrdinalIgnoreCase)
+       && !File.ReadAllText(bundledRulesV2Path)
+           .Contains("Terrias", StringComparison.OrdinalIgnoreCase)
+       && !File.ReadAllText(bundledRulesV2Path)
+           .Contains("Saya_", StringComparison.OrdinalIgnoreCase),
+    "bundled campaign v2 fixes seven layers, base-game pools, positive rewards, final bosses, and paired difficulty worlds");
+var bundledCampaignSmoke = new CombatCampaignRunner().Run(
+    bundledCampaign,
+    bundledCampaignNormal,
+    bundledRulesV2.Ruleset,
+    new GreedyCombatSimulationPolicyFactory());
+Assert(bundledCampaignSmoke.CompletedBattles >= 1
+       && !bundledCampaignSmoke.Invalid
+       && bundledCampaignSmoke.BattleSemanticCoverage < 1d,
+    "bundled campaign v2 executes as an honest exploratory projection while approximate semantics block formal validation");
+var bundledRuns = Enumerable.Range(0, 8)
+    .Select(index => new CombatJourneyRunner().Run(
+        loadedBundledJourney,
+        CombatJourneyWorldPlanner.Build(
+            loadedBundledJourney,
+            (ulong)(1000 + index)),
+        bundledRules.Ruleset,
+        new GreedyCombatSimulationPolicyFactory()))
+    .ToList();
+Assert(bundledRuns.All(run => !run.Invalid && run.Battles.Count > 0)
+       && bundledRuns.Any(run => run.ReachedBoss)
+       && bundledRuns.Any(run => run.JourneyVictory)
+       && bundledRuns.Select(run => run.PlanHash).Distinct().Count() > 1,
+    "bundled world simulation is valid, seed-varied, and can defeat its base-game final boss");
+
 var knowledgePackage = new CombatKnowledgePackage
 {
     OwnerId = "Tests",
@@ -1742,6 +2141,185 @@ Assert(evolution.Iterations.Count == 1
        && evolution.Iterations[0].InvalidCandidateBattles == 0,
     "automatic policy evolution generates episodes, trains a challenger, and runs a paired arena");
 
+var campaign = BuildStandardCampaign();
+CombatCampaignWorldPlanner.Validate(campaign);
+var normalPlan = CombatCampaignWorldPlanner.Build(campaign, "normal", 700UL);
+var advancedPlan = CombatCampaignWorldPlanner.Build(campaign, "advanced", 700UL);
+Assert(normalPlan.Encounters.Count == 37
+       && normalPlan.Encounters.Take(12).All(item =>
+           item.LayerNumber is 1 or 2 && item.GameLevel is >= 0 and <= 11)
+       && normalPlan.Encounters.Skip(12).Take(12).All(item =>
+           item.LayerNumber is 3 or 4 && item.GameLevel is >= 12 and <= 23)
+       && normalPlan.Encounters.Skip(24).Take(12).All(item =>
+           item.LayerNumber is 5 or 6 && item.GameLevel is >= 24 and <= 35)
+       && normalPlan.Encounters[36].Kind == CombatCampaignEncounterKind.FinalBoss,
+    "campaign v2 maps six fixed layers to the native 0/1/2 encounter bands");
+Assert(normalPlan.Encounters.Take(36).All(item =>
+           item.RewardOffer.CardRounds.Count == 2
+           && item.RewardOffer.CardRounds.All(round => round.Count == 3)
+           && !string.IsNullOrWhiteSpace(item.RewardOffer.RelicId)
+           && !string.IsNullOrWhiteSpace(item.RewardOffer.BlessingId))
+       && normalPlan.Encounters[36].RewardOffer.CardRounds.Count == 0,
+    "campaign v2 plans two card choices, one relic, and one positive blessing per pre-final victory");
+Assert(normalPlan.PlanHash != advancedPlan.PlanHash
+       && normalPlan.Encounters.Select(item => item.EncounterId)
+           .SequenceEqual(advancedPlan.Encounters.Select(item => item.EncounterId)),
+    "difficulty is part of evaluation identity without changing the paired encounter stream");
+
+var campaignRulesBuilder = new CombatRulesetBuilder(campaign.RulesetVersion);
+foreach (var cardId in new[] { "strike", "guard", "skip-me" })
+{
+    campaignRulesBuilder.RegisterCard(new CombatCardDefinition
+    {
+        OwnerModId = "Tests",
+        CardId = cardId,
+        Cost = 0,
+        RequiresEnemyTarget = true,
+        Fidelity = CombatRuleFidelity.Authoritative,
+        Effects =
+        {
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.Damage,
+                Target = CombatSimulationTarget.SelectedEnemy,
+                Amount = 99999
+            }
+        }
+    });
+}
+foreach (var enemyId in campaign.Encounters
+             .SelectMany(item => item.EnemyIds)
+             .Distinct(StringComparer.OrdinalIgnoreCase))
+{
+    campaignRulesBuilder.RegisterEnemy(new CombatEnemyDefinition
+    {
+        OwnerModId = "Tests",
+        EnemyId = enemyId,
+        MaxHp = 1,
+        Fidelity = CombatRuleFidelity.Authoritative,
+        Intents =
+        {
+            new CombatEnemyIntentDefinition
+            {
+                IntentId = "wait",
+                Weight = 1,
+                Effects = new List<CombatSimulationEffectDefinition>()
+            }
+        }
+    });
+}
+campaignRulesBuilder.RegisterCard(new CombatCardDefinition
+{
+    OwnerModId = "Tests",
+    CardId = "attribute-card",
+    Cost = 0,
+    Exhaust = true,
+    RequiresEnemyTarget = true,
+    Fidelity = CombatRuleFidelity.Authoritative,
+    Effects =
+    {
+        new CombatSimulationEffectDefinition
+        {
+            Kind = CombatSimulationEffectKind.GainBlock,
+            Target = CombatSimulationTarget.Self,
+            Amount = 5
+        },
+        new CombatSimulationEffectDefinition
+        {
+            Kind = CombatSimulationEffectKind.ModifyVariable,
+            Target = CombatSimulationTarget.Self,
+            DefinitionId = "StrengthUpperBound",
+            Amount = 5,
+            PersistAcrossBattles = true
+        },
+        new CombatSimulationEffectDefinition
+        {
+            Kind = CombatSimulationEffectKind.Damage,
+            Target = CombatSimulationTarget.SelectedEnemy,
+            Amount = 5
+        }
+    }
+});
+campaignRulesBuilder.RegisterEnemy(new CombatEnemyDefinition
+{
+    OwnerModId = "Tests",
+    EnemyId = "attribute-dummy",
+    MaxHp = 6,
+    Fidelity = CombatRuleFidelity.Authoritative,
+    Intents =
+    {
+        new CombatEnemyIntentDefinition
+        {
+            IntentId = "wait",
+            Weight = 1
+        }
+    }
+});
+var campaignRules = campaignRulesBuilder.Freeze();
+var attributeResult = new CombatSimulationEngine().Run(
+    new CombatScenarioDefinition
+    {
+        ScenarioId = "attribute-scaling",
+        RulesetVersion = campaign.RulesetVersion,
+        Seed = 1,
+        Player = new CombatPlayerSetup
+        {
+            MaxHp = 20,
+            CurrentHp = 20,
+            Deck = { "attribute-card" },
+            Variables =
+            {
+                ["Strength"] = 10,
+                ["Perceive"] = 5
+            }
+        },
+        Enemies =
+        {
+            new CombatEnemySetup { EnemyId = "attribute-dummy" }
+        },
+        InitialDraw = 1,
+        DrawPerTurn = 0,
+        RequireAuthoritativeRules = true
+    },
+    campaignRules.Ruleset,
+    new GreedyCombatSimulationPolicy());
+Assert(attributeResult.Outcome == CombatSimulationOutcome.Victory
+       && attributeResult.Metrics.DamageDealt == 6
+       && attributeResult.Metrics.BlockGained == 6
+       && attributeResult.PersistentVariableDeltas["StrengthUpperBound"] == 5,
+    "campaign attributes use Witch scaling and explicitly project persistent cap effects");
+var overflowState = new CombatCampaignState
+{
+    Attributes = { ["Strength"] = 40 },
+    LayerBaseAttributes = { ["Strength"] = 40 },
+    PermanentAttributeBonuses = { ["Strength"] = 5 },
+    AttributeUpperBounds = { ["Strength"] = 40 }
+};
+CombatCampaignRewardSelector.ClampAttributes(overflowState);
+overflowState.AttributeUpperBounds["Strength"] = 45;
+CombatCampaignRewardSelector.ClampAttributes(overflowState);
+Assert(overflowState.Attributes["Strength"] == 40
+       && overflowState.PermanentAttributeBonuses["Strength"] == 0,
+    "attribute overflow is discarded and does not return after a later cap increase");
+var campaignPair = new CombatCampaignRunner().RunPaired(
+    campaign,
+    "normal",
+    700UL,
+    campaignRules.Ruleset,
+    new GreedyCombatSimulationPolicyFactory(),
+    new GreedyCombatSimulationPolicyFactory());
+Assert(campaignPair.Baseline.CampaignVictory
+       && campaignPair.Learned.CampaignVictory
+       && campaignPair.Baseline.CompletedBattles == 37
+       && campaignPair.Baseline.Rewards.Count == 36
+       && campaignPair.Baseline.FinalState.MaxHp == 260
+       && campaignPair.Baseline.FinalState.CurrentHp == 260
+       && campaignPair.Baseline.FinalState.Attributes["Strength"] == 40
+       && campaignPair.Baseline.FinalState.Attributes["Wisdom"] == 39
+       && campaignPair.Baseline.FinalState.Attributes["Lucky"] == 20
+       && campaignPair.Baseline.FinalState.Relics.Count == 6,
+    "campaign runner carries full state, applies +40 hp per cleared layer, caps attributes, and enforces six relics");
+
 Console.WriteLine($"AuraCombatAiShared.Tests passed: {assertions} assertions.");
 
 void Assert(bool condition, string name)
@@ -1752,6 +2330,193 @@ void Assert(bool condition, string name)
     }
 
     assertions++;
+}
+
+CombatCampaignDefinition BuildStandardCampaign()
+{
+    var result = new CombatCampaignDefinition
+    {
+        CampaignId = "tests.standard-campaign",
+        CampaignVersion = "2.0.0",
+        RulesetVersion = "campaign-test-rules",
+        MainAttributeId = "Strength",
+        SecondaryAttributeId = "Wisdom",
+        Player = new CombatPlayerSetup
+        {
+            RoleId = "Tests",
+            MaxHp = 20,
+            CurrentHp = 20,
+            BaseEnergy = 3,
+            Deck = new List<string> { "strike" }
+        },
+        RolePrior = { ["burst"] = 0.5d },
+        BuildTendency = { ["burst"] = 0.5d },
+        BossPreference = { ["burst"] = 0.5d }
+    };
+    var presets = new[]
+    {
+        (10, 7, 5), (20, 10, 7), (25, 15, 10), (30, 20, 15),
+        (35, 30, 17), (35, 35, 20), (40, 39, 20)
+    };
+    var route = new List<CombatCampaignEncounterKind>
+    {
+        CombatCampaignEncounterKind.Normal,
+        CombatCampaignEncounterKind.Normal,
+        CombatCampaignEncounterKind.Elite,
+        CombatCampaignEncounterKind.Normal,
+        CombatCampaignEncounterKind.Normal,
+        CombatCampaignEncounterKind.Boss
+    };
+    for (var layer = 1; layer <= 7; layer++)
+    {
+        var preset = presets[layer - 1];
+        result.Layers.Add(new CombatCampaignLayerDefinition
+        {
+            LayerNumber = layer,
+            NativeBand = layer == 7 ? 3 : (layer - 1) / 2,
+            Attributes = new CombatCampaignAttributePreset
+            {
+                Main = preset.Item1,
+                Secondary = preset.Item2,
+                Unselected = preset.Item3
+            },
+            Route = layer == 7
+                ? new List<CombatCampaignEncounterKind>
+                {
+                    CombatCampaignEncounterKind.FinalBoss
+                }
+                : new List<CombatCampaignEncounterKind>(route)
+        });
+    }
+    for (var band = 0; band <= 2; band++)
+    {
+        foreach (var kind in new[]
+                 {
+                     CombatCampaignEncounterKind.Normal,
+                     CombatCampaignEncounterKind.Elite,
+                     CombatCampaignEncounterKind.Boss
+                 })
+        {
+            result.Encounters.Add(new CombatCampaignEncounterDefinition
+            {
+                EncounterId = "band-" + band + "-" + kind,
+                NativeBand = band,
+                Kind = kind,
+                EnemyIds = new List<string> { "enemy_" + band + "_" + kind }
+            });
+            result.Enemies.Add(new CombatCampaignEnemyCatalogEntry
+            {
+                EnemyId = "enemy_" + band + "_" + kind,
+                NativeLevel = band + 1
+            });
+        }
+    }
+    result.Encounters.Add(new CombatCampaignEncounterDefinition
+    {
+        EncounterId = "universal-normal",
+        NativeBand = -1,
+        Kind = CombatCampaignEncounterKind.Normal,
+        EnemyIds = new List<string> { "enemy_universal" }
+    });
+    result.Enemies.Add(new CombatCampaignEnemyCatalogEntry
+    {
+        EnemyId = "enemy_universal",
+        NativeLevel = 1
+    });
+    foreach (var finalId in new[]
+             {
+                 "caroline-final", "evernight-final", "demon-king-final", "judgment-final"
+             })
+    {
+        result.Encounters.Add(new CombatCampaignEncounterDefinition
+        {
+            EncounterId = finalId,
+            NativeBand = 3,
+            Kind = CombatCampaignEncounterKind.FinalBoss,
+            EnemyIds = new List<string> { "enemy_" + finalId }
+        });
+        result.Enemies.Add(new CombatCampaignEnemyCatalogEntry
+        {
+            EnemyId = "enemy_" + finalId,
+            NativeLevel = 4
+        });
+    }
+    result.Rewards.Add(new CombatCampaignRewardDefinition
+    {
+        RewardId = "strike",
+        Kind = CombatCampaignRewardKind.Card,
+        Tier = 1,
+        BaseValue = 1d,
+        Fidelity = CombatRuleFidelity.Authoritative,
+        Features = { ["burst"] = 1d }
+    });
+    result.Rewards.Add(new CombatCampaignRewardDefinition
+    {
+        RewardId = "guard",
+        Kind = CombatCampaignRewardKind.Card,
+        Tier = 1,
+        BaseValue = 0.2d,
+        Fidelity = CombatRuleFidelity.Authoritative
+    });
+    result.Rewards.Add(new CombatCampaignRewardDefinition
+    {
+        RewardId = "skip-me",
+        Kind = CombatCampaignRewardKind.Card,
+        Tier = 1,
+        BaseValue = -2d,
+        Fidelity = CombatRuleFidelity.Authoritative
+    });
+    for (var index = 1; index <= 40; index++)
+    {
+        result.Rewards.Add(new CombatCampaignRewardDefinition
+        {
+            RewardId = "relic_" + index,
+            Kind = CombatCampaignRewardKind.Relic,
+            Tier = (index - 1) % 4 + 1,
+            BaseValue = index / 100d,
+            Fidelity = CombatRuleFidelity.Authoritative
+        });
+        result.Rewards.Add(new CombatCampaignRewardDefinition
+        {
+            RewardId = "blessing_" + index,
+            Kind = CombatCampaignRewardKind.Blessing,
+            Tier = (index - 1) % 4 + 1,
+            BaseValue = index / 100d,
+            Fidelity = CombatRuleFidelity.Authoritative
+        });
+    }
+    result.Rewards.Add(new CombatCampaignRewardDefinition
+    {
+        RewardId = "negative-blessing",
+        Kind = CombatCampaignRewardKind.Blessing,
+        Tier = 3,
+        Negative = true,
+        Fidelity = CombatRuleFidelity.Authoritative
+    });
+    result.Difficulties.Add(new CombatCampaignDifficultyDefinition
+    {
+        DifficultyId = "normal",
+        DisplayName = "普通难度"
+    });
+    result.Difficulties.Add(new CombatCampaignDifficultyDefinition
+    {
+        DifficultyId = "advanced",
+        DisplayName = "高级难度",
+        EnemyHpMultiplier = 1.4d,
+        EnemyAttackMultiplier = 1.4d,
+        ApplyGameLevelShield = true,
+        HardAffixes =
+        {
+            new CombatCampaignHardAffixDefinition
+            {
+                AffixId = "Hard_3",
+                Stacks = 4,
+                CombatRelevant = true,
+                Implemented = true
+            }
+        }
+    });
+    return result;
 }
 
 CombatRulesetBuildResult BuildSimulationRuleset(string version = "test-v1")

@@ -7,6 +7,22 @@ $tables = Join-Path $root "docs\AuraCombatAI\examples\knowledge-table-export.exa
 $output = Join-Path ([System.IO.Path]::GetTempPath()) "aura-combat-knowledge-contract.json"
 $report = Join-Path ([System.IO.Path]::GetTempPath()) "aura-combat-knowledge-contract.report.json"
 
+if (-not (Test-Path -LiteralPath $scripts -PathType Leaf)) {
+    $bundled = Join-Path $root "AuraToolsExp\Config\combat-knowledge.base-game.json"
+    if (-not (Test-Path -LiteralPath $bundled -PathType Leaf)) {
+        throw "Neither the decompiled source fixture nor the bundled combat knowledge package exists."
+    }
+    $package = Get-Content -LiteralPath $bundled -Raw | ConvertFrom-Json
+    if ($package.gameBuild -ne "1.0.23816797" `
+        -or $package.actions.Count -lt 870 `
+        -or $package.statuses.Count -lt 80 `
+        -or $package.enemies.Count -lt 56) {
+        throw "Bundled combat knowledge package contract is invalid."
+    }
+    Write-Host "Aura combat knowledge bundled-package contract passed (source fixture unavailable)."
+    return
+}
+
 dotnet run `
     --project (Join-Path $root "tools\AuraCombatKnowledgeCompiler\AuraCombatKnowledgeCompiler.csproj") `
     -c Release `

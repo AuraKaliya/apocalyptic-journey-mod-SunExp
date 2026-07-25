@@ -1,0 +1,320 @@
+{
+  "version": "witch-base-evaluation-v1",
+  "cards": [
+    {
+      "ownerModId": "Witch",
+      "cardId": "card_1",
+      "displayName": "法杖敲头",
+      "cost": 1,
+      "requiresEnemyTarget": true,
+      "fidelity": "Authoritative",
+      "effects": [
+        { "kind": "Damage", "target": "SelectedEnemy", "amount": 5 }
+      ]
+    },
+    {
+      "ownerModId": "Witch",
+      "cardId": "card_2",
+      "displayName": "魔能屏障",
+      "cost": 1,
+      "fidelity": "Authoritative",
+      "effects": [
+        { "kind": "GainBlock", "target": "Self", "amount": 5 }
+      ]
+    },
+    {
+      "ownerModId": "Witch",
+      "cardId": "card_4",
+      "displayName": "无锋重刃",
+      "cost": 1,
+      "requiresEnemyTarget": true,
+      "fidelity": "Authoritative",
+      "effects": [
+        { "kind": "Damage", "target": "AllEnemies", "amount": 6 }
+      ]
+    },
+    {
+      "ownerModId": "Witch",
+      "cardId": "card_6",
+      "displayName": "装甲结晶",
+      "cost": 1,
+      "exhaust": true,
+      "fidelity": "Authoritative",
+      "effects": [
+        { "kind": "GainBlock", "target": "Self", "amount": 10 }
+      ]
+    },
+    {
+      "ownerModId": "Witch",
+      "cardId": "card_14",
+      "displayName": "回旋斩",
+      "cost": 1,
+      "requiresEnemyTarget": true,
+      "fidelity": "Authoritative",
+      "effects": [
+        { "kind": "Damage", "target": "SelectedEnemy", "amount": 6 },
+        { "kind": "Damage", "target": "SelectedEnemy", "amount": 6 }
+      ]
+    },
+    {
+      "ownerModId": "Witch",
+      "cardId": "card_15",
+      "displayName": "魔导飞弹",
+      "cost": 2,
+      "requiresEnemyTarget": true,
+      "fidelity": "Authoritative",
+      "effects": [
+        { "kind": "Damage", "target": "SelectedEnemy", "amount": 3 },
+        { "kind": "Damage", "target": "SelectedEnemy", "amount": 3 },
+        { "kind": "Damage", "target": "SelectedEnemy", "amount": 3 },
+        { "kind": "Damage", "target": "SelectedEnemy", "amount": 3 },
+        { "kind": "Damage", "target": "SelectedEnemy", "amount": 3 },
+        { "kind": "Damage", "target": "SelectedEnemy", "amount": 3 }
+      ]
+    },
+    {
+      "ownerModId": "Witch",
+      "cardId": "healcard_1",
+      "displayName": "圣疗术",
+      "cost": 0,
+      "fidelity": "Authoritative",
+      "effects": [
+        { "kind": "Heal", "target": "Self", "amount": 6 }
+      ]
+    },
+    {
+      "ownerModId": "Witch",
+      "cardId": "healcard_6",
+      "displayName": "饮血刺剑",
+      "cost": 2,
+      "exhaust": true,
+      "requiresEnemyTarget": true,
+      "fidelity": "Authoritative",
+      "effects": [
+        { "kind": "Heal", "target": "Self", "amount": 10 },
+        { "kind": "Damage", "target": "SelectedEnemy", "amount": 10 }
+      ]
+    },
+    {
+      "ownerModId": "Witch",
+      "cardId": "universalcard_16",
+      "displayName": "双刃剑盾",
+      "cost": 2,
+      "requiresEnemyTarget": true,
+      "fidelity": "Authoritative",
+      "effects": [
+        { "kind": "GainBlock", "target": "Self", "amount": 8 },
+        { "kind": "Damage", "target": "SelectedEnemy", "amount": 6 },
+        { "kind": "Damage", "target": "SelectedEnemy", "amount": 6 }
+      ]
+    },
+    {
+      "ownerModId": "Witch",
+      "cardId": "universalcard_17",
+      "displayName": "星芒",
+      "cost": 3,
+      "requiresEnemyTarget": true,
+      "fidelity": "Authoritative",
+      "effects": [
+        { "kind": "GainBlock", "target": "Self", "amount": 14 },
+        { "kind": "Damage", "target": "SelectedEnemy", "amount": 8 },
+        { "kind": "Damage", "target": "SelectedEnemy", "amount": 8 },
+        { "kind": "Damage", "target": "SelectedEnemy", "amount": 8 },
+        { "kind": "Damage", "target": "SelectedEnemy", "amount": 8 }
+      ]
+    }
+  ],
+  "enemies": [
+    {
+      "ownerModId": "Witch",
+      "enemyId": "enemy_10001",
+      "displayName": "史莱姆",
+      "maxHp": 40,
+      "fidelity": "Authoritative",
+      "intents": [
+        {
+          "intentId": "ordinaryhit",
+          "displayName": "撞击",
+          "weight": 3,
+          "preventConsecutiveUse": true,
+          "effects": [
+            { "kind": "Damage", "target": "Player", "amount": 7 }
+          ]
+        },
+        {
+          "intentId": "defence",
+          "displayName": "防御",
+          "weight": 1,
+          "effects": [
+            { "kind": "GainBlock", "target": "Self", "amount": 3 }
+          ]
+        }
+      ]
+    },
+    {
+      "ownerModId": "Witch",
+      "enemyId": "enemy_10025",
+      "displayName": "腐化蜘蛛",
+      "maxHp": 60,
+      "fidelity": "Authoritative",
+      "intents": [
+        {
+          "intentId": "ordinaryhit",
+          "displayName": "撕咬",
+          "weight": 3,
+          "preventConsecutiveUse": true,
+          "effects": [
+            { "kind": "Damage", "target": "Player", "amount": 7 }
+          ]
+        },
+        {
+          "intentId": "defence",
+          "displayName": "结网",
+          "weight": 1,
+          "effects": [
+            { "kind": "GainBlock", "target": "Self", "amount": 4 }
+          ]
+        },
+        {
+          "intentId": "quad_hits",
+          "displayName": "连击",
+          "weight": 1,
+          "cooldownTurns": 2,
+          "effects": [
+            { "kind": "Damage", "target": "Player", "amount": 2 },
+            { "kind": "Damage", "target": "Player", "amount": 2 },
+            { "kind": "Damage", "target": "Player", "amount": 2 },
+            { "kind": "Damage", "target": "Player", "amount": 2 }
+          ]
+        }
+      ]
+    },
+    {
+      "ownerModId": "Witch",
+      "enemyId": "enemy_10023",
+      "displayName": "板甲壮汉",
+      "maxHp": 95,
+      "fidelity": "Authoritative",
+      "intents": [
+        {
+          "intentId": "ordinaryhit",
+          "displayName": "重击",
+          "weight": 3,
+          "preventConsecutiveUse": true,
+          "effects": [
+            { "kind": "Damage", "target": "Player", "amount": 6 }
+          ]
+        },
+        {
+          "intentId": "defence",
+          "displayName": "架盾",
+          "weight": 1,
+          "effects": [
+            { "kind": "GainBlock", "target": "Self", "amount": 7 }
+          ]
+        },
+        {
+          "intentId": "fivehit",
+          "displayName": "五连击",
+          "weight": 1,
+          "cooldownTurns": 2,
+          "effects": [
+            { "kind": "Damage", "target": "Player", "amount": 1 },
+            { "kind": "Damage", "target": "Player", "amount": 1 },
+            { "kind": "Damage", "target": "Player", "amount": 1 },
+            { "kind": "Damage", "target": "Player", "amount": 1 },
+            { "kind": "Damage", "target": "Player", "amount": 1 }
+          ]
+        }
+      ]
+    },
+    {
+      "ownerModId": "Witch",
+      "enemyId": "enemy_10015",
+      "displayName": "腐化蜥蜴",
+      "maxHp": 110,
+      "fidelity": "Authoritative",
+      "intents": [
+        {
+          "intentId": "ordinaryhit",
+          "displayName": "扑击",
+          "weight": 3,
+          "preventConsecutiveUse": true,
+          "effects": [
+            { "kind": "Damage", "target": "Player", "amount": 10 }
+          ]
+        },
+        {
+          "intentId": "defence",
+          "displayName": "鳞甲",
+          "weight": 1,
+          "effects": [
+            { "kind": "GainBlock", "target": "Self", "amount": 7 }
+          ]
+        },
+        {
+          "intentId": "quad_hits",
+          "displayName": "四连击",
+          "weight": 1,
+          "cooldownTurns": 2,
+          "effects": [
+            { "kind": "Damage", "target": "Player", "amount": 3 },
+            { "kind": "Damage", "target": "Player", "amount": 3 },
+            { "kind": "Damage", "target": "Player", "amount": 3 },
+            { "kind": "Damage", "target": "Player", "amount": 3 }
+          ]
+        }
+      ]
+    },
+    {
+      "ownerModId": "Witch",
+      "enemyId": "enemy_10022",
+      "displayName": "普拉缇之王",
+      "maxHp": 240,
+      "fidelity": "Authoritative",
+      "intents": [
+        {
+          "intentId": "ordinaryhit",
+          "displayName": "王之打击",
+          "weight": 3,
+          "preventConsecutiveUse": true,
+          "effects": [
+            { "kind": "Damage", "target": "Player", "amount": 5 }
+          ]
+        },
+        {
+          "intentId": "defence",
+          "displayName": "王之守势",
+          "weight": 1,
+          "effects": [
+            { "kind": "GainBlock", "target": "Self", "amount": 5 }
+          ]
+        },
+        {
+          "intentId": "fivehit",
+          "displayName": "王之连击",
+          "weight": 2,
+          "cooldownTurns": 2,
+          "effects": [
+            { "kind": "Damage", "target": "Player", "amount": 1 },
+            { "kind": "Damage", "target": "Player", "amount": 1 },
+            { "kind": "Damage", "target": "Player", "amount": 1 },
+            { "kind": "Damage", "target": "Player", "amount": 1 },
+            { "kind": "Damage", "target": "Player", "amount": 1 }
+          ]
+        },
+        {
+          "intentId": "royal_crush",
+          "displayName": "王冠碾压",
+          "weight": 1,
+          "cooldownTurns": 3,
+          "minimumTurn": 3,
+          "effects": [
+            { "kind": "Damage", "target": "Player", "amount": 12 }
+          ]
+        }
+      ]
+    }
+  ],
+  "statuses": []
+}

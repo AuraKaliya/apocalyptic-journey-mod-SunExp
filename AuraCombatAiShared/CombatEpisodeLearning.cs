@@ -15,6 +15,12 @@ public sealed class CombatEpisode
 
     public string ScenarioId { get; set; } = "";
 
+    public string JourneyRunId { get; set; } = "";
+
+    public long BattleSessionId { get; set; }
+
+    public int JourneyBattleIndex { get; set; } = -1;
+
     public ulong Seed { get; set; }
 
     public string RulesetHash { get; set; } = "";
@@ -38,6 +44,8 @@ public sealed class CombatEpisode
     public double SemanticCoverage { get; set; }
 
     public bool Authoritative { get; set; }
+
+    public string Provenance { get; set; } = "offline-simulation";
 
     public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
 }

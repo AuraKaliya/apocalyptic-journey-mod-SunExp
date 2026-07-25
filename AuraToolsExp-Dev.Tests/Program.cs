@@ -345,7 +345,7 @@ void TestConfigModelSerializationCompatibility()
     var matchExperience = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
         "{\"schemaVersion\":1,\"starterDeck\":{\"preferRoleModProfile\":false},\"safeBox\":null,\"modSync\":null,\"feast\":null,\"damageMeter\":null,\"cardRefresh\":null,\"autoBattle\":null}")!;
     matchExperience.Normalize();
-    Assert(matchExperience.SchemaVersion == 14
+    Assert(matchExperience.SchemaVersion == 15
            && matchExperience.StarterDeck.PreferRoleModProfile
            && matchExperience.SafeBox != null
            && matchExperience.ModSync != null
@@ -364,7 +364,11 @@ void TestConfigModelSerializationCompatibility()
            && matchExperience.AutoBattle.Training.Preset == AutoBattleTrainingSettings.CustomPreset
            && matchExperience.AutoBattle.Training.Epochs == 100
            && matchExperience.AutoBattle.Training.MaximumCorrection == 2d
-           && matchExperience.AutoBattle.Simulation.SimulationCount == 200
+           && matchExperience.AutoBattle.SelectedModelId == ""
+           && matchExperience.AutoBattle.Simulation.ScenarioId
+           == "witch.world-simulation.standard-v2"
+           && matchExperience.AutoBattle.Simulation.DifficultyId == "normal"
+           && matchExperience.AutoBattle.Simulation.SimulationCount == 8
            && matchExperience.AutoBattle.Simulation.Parallelism == 2,
         "match-experience config keeps legacy schema migration and nested defaults after the file split");
 
@@ -460,7 +464,7 @@ void TestCardRefreshSettingsAndPoolPolicy()
         CardRefresh = null!
     };
     settings.Normalize();
-    Assert(settings.SchemaVersion == 14, "match-experience settings migrate to the local-training-options schema");
+    Assert(settings.SchemaVersion == 15, "match-experience settings migrate to the campaign-v2 and model-library schema");
     Assert(settings.CardRefresh != null && !settings.CardRefresh.Enabled,
         "card refresh is restored with a disabled default during normalization");
 
@@ -1002,7 +1006,7 @@ void TestRuntimeArchitectureGuards()
            && cardRefreshNativeApi.Contains("new RandomPool(pool, dice).DrawByRarity", StringComparison.Ordinal)
            && cardRefreshNativeApi.Contains("manager.CardPackCheck", StringComparison.Ordinal),
         "card refresh recreates clean choice items and uses a window-local clone of the native reward draw pipeline");
-    Assert(matchExperienceConfig.Contains("\"schemaVersion\": 14", StringComparison.Ordinal)
+    Assert(matchExperienceConfig.Contains("\"schemaVersion\": 15", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"cardRefresh\"", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"enabled\": false", StringComparison.Ordinal),
         "shipped card refresh configuration is present and disabled by default");
@@ -1030,7 +1034,7 @@ void TestRuntimeArchitectureGuards()
            && autoBattleModelRuntime.Contains("AutoBattleTrainingStage.CandidateReady", StringComparison.Ordinal)
            && autoBattleModelRuntime.Contains("MinimumPreferencePairs", StringComparison.Ordinal)
            && settingsRuntime.Contains("AuraToolsAutoBattleTrainingStatusView", StringComparison.Ordinal)
-           && settingsRuntime.Contains("显示高级训练参数", StringComparison.Ordinal)
+           && settingsRuntime.Contains("显示高级参数与自定义场景工具", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"preset\": \"steady\"", StringComparison.Ordinal),
         "auto battle exposes bounded training presets and persistent visible task feedback");
     Assert(autoBattleRuntime.Contains("CombatActionTransactionState.Completed.ToString()", StringComparison.Ordinal)
@@ -1047,6 +1051,20 @@ void TestRuntimeArchitectureGuards()
            && matchExperienceConfig.Contains("\"searchSimulationBudget\": 256", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"simulation\"", StringComparison.Ordinal),
         "auto battle ships terminal attribution, bounded search, paired headless evaluation and active-model gates");
+    Assert(autoBattleSimulationRuntime.Contains("CombatCampaignRunner", StringComparison.Ordinal)
+           && autoBattleSimulationRuntime.Contains("*.campaign.json", StringComparison.Ordinal)
+           && autoBattleSimulationRuntime.Contains("LatestSummaryPath(profileId, summary.DifficultyId)", StringComparison.Ordinal)
+           && autoBattleModelRuntime.Contains("AutoBattleModelLibraryDocument", StringComparison.Ordinal)
+           && autoBattleModelRuntime.Contains("TryRenameLibraryModel", StringComparison.Ordinal)
+           && autoBattleRuntime.Contains("settings.SelectedModelId", StringComparison.Ordinal)
+           && settingsRuntime.Contains("战斗策略实验室（工具）", StringComparison.Ordinal)
+           && settingsRuntime.Contains("高级难度（本体满词条）", StringComparison.Ordinal)
+           && matchExperienceConfig.Contains("\"selectedModelId\": \"\"", StringComparison.Ordinal)
+           && matchExperienceConfig.Contains("\"difficultyId\": \"normal\"", StringComparison.Ordinal)
+           && matchExperienceConfig.Contains(
+               "\"scenarioId\": \"witch.world-simulation.standard-v2\"",
+               StringComparison.Ordinal),
+        "strategy laboratory ships campaign-v2 difficulty badges and a renameable selectable model library");
     Assert(autoBattlePredictionPresenter.Contains("UI/SelectedIcon", StringComparison.Ordinal)
            && autoBattlePredictionPresenter.Contains("raycastTarget = false", StringComparison.Ordinal)
            && autoBattlePredictionPresenter.Contains("blocksRaycasts = false", StringComparison.Ordinal)

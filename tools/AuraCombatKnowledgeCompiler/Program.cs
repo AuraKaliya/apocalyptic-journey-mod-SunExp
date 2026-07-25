@@ -42,7 +42,7 @@ var jsonOptions = new JsonSerializerOptions
 };
 await File.WriteAllTextAsync(
     options.OutputPath,
-    JsonSerializer.Serialize(result.Package, jsonOptions),
+    NormalizeNewlines(JsonSerializer.Serialize(result.Package, jsonOptions)),
     new UTF8Encoding(false));
 
 var reportPath = string.IsNullOrWhiteSpace(options.ReportPath)
@@ -50,7 +50,7 @@ var reportPath = string.IsNullOrWhiteSpace(options.ReportPath)
     : options.ReportPath;
 await File.WriteAllTextAsync(
     reportPath,
-    JsonSerializer.Serialize(result.Report, jsonOptions),
+    NormalizeNewlines(JsonSerializer.Serialize(result.Report, jsonOptions)),
     new UTF8Encoding(false));
 
 Console.WriteLine(
@@ -62,6 +62,11 @@ Console.WriteLine(
 Console.WriteLine("Package: " + Path.GetFullPath(options.OutputPath));
 Console.WriteLine("Report: " + Path.GetFullPath(reportPath));
 return 0;
+
+static string NormalizeNewlines(string value)
+{
+    return (value ?? "").Replace("\r\n", "\n");
+}
 
 internal sealed class KnowledgeCompiler
 {
@@ -555,7 +560,7 @@ internal static class BaseGameTableEnricher
         foreach (var row in rows)
         {
             var id = Value(row, "Id");
-            if (id.Length == 0)
+            if (!IsBaseGameId(id))
             {
                 continue;
             }
@@ -587,7 +592,7 @@ internal static class BaseGameTableEnricher
         foreach (var row in rows)
         {
             var id = Value(row, "Id");
-            if (id.Length == 0)
+            if (!IsBaseGameId(id))
             {
                 continue;
             }
@@ -623,7 +628,7 @@ internal static class BaseGameTableEnricher
         foreach (var row in rows)
         {
             var id = Value(row, "Id");
-            if (id.Length == 0)
+            if (!IsBaseGameId(id))
             {
                 continue;
             }
@@ -675,8 +680,10 @@ internal static class BaseGameTableEnricher
             var enemies = Split(Value(
                 row,
                 "EnemyIds",
-                Value(row, "EnemyId", Value(row, "Enemies"))));
-            if (id.Length == 0 || enemies.Count == 0)
+                Value(row, "EnemyId", Value(row, "Enemies"))))
+                .Where(IsBaseGameId)
+                .ToList();
+            if (!IsBaseGameId(id) || enemies.Count == 0)
             {
                 continue;
             }
@@ -720,6 +727,17 @@ internal static class BaseGameTableEnricher
         string fallback = "")
     {
         return row.TryGetValue(key, out var value) ? value ?? "" : fallback;
+    }
+
+    private static bool IsBaseGameId(string value)
+    {
+        var id = (value ?? "").Trim();
+        return id.Length > 0
+               && id.IndexOf("Terrias", StringComparison.OrdinalIgnoreCase) < 0
+               && !id.StartsWith("Saya_", StringComparison.OrdinalIgnoreCase)
+               && id.IndexOf("test", StringComparison.OrdinalIgnoreCase) < 0
+               && id.IndexOf("99999", StringComparison.OrdinalIgnoreCase) < 0
+               && !id.Contains("*");
     }
 
     private static int Int(

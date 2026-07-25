@@ -49,24 +49,36 @@ internal static class AuraToolsCombatKnowledgeRuntime
         var actions = 0;
         var statuses = 0;
         var enemies = 0;
+        var encounters = 0;
         var authoritative = 0;
+        var nonAuthoritative = 0;
         for (var i = 0; i < packages.Count; i++)
         {
             actions += packages[i].Actions.Count;
             statuses += packages[i].Statuses.Count;
             enemies += packages[i].Enemies.Count;
+            encounters += packages[i].Encounters.Count;
             authoritative += packages[i].Actions.FindAll(item =>
                 item.Fidelity == CombatKnowledgeFidelity.Authoritative).Count;
             authoritative += packages[i].Statuses.FindAll(item =>
                 item.Fidelity == CombatKnowledgeFidelity.Authoritative).Count;
             authoritative += packages[i].Enemies.FindAll(item =>
                 item.Fidelity == CombatKnowledgeFidelity.Authoritative).Count;
+            nonAuthoritative += packages[i].Actions.FindAll(item =>
+                item.Fidelity != CombatKnowledgeFidelity.Authoritative).Count;
+            nonAuthoritative += packages[i].Statuses.FindAll(item =>
+                item.Fidelity != CombatKnowledgeFidelity.Authoritative).Count;
+            nonAuthoritative += packages[i].Enemies.FindAll(item =>
+                item.Fidelity != CombatKnowledgeFidelity.Authoritative).Count;
         }
         return "知识包 " + packages.Count
                + " · 动作 " + actions
                + " · Buff " + statuses
                + " · 敌人 " + enemies
-               + " · 权威规则 " + authoritative;
+               + " · 遭遇 " + encounters
+               + " · 权威 " + authoritative
+               + " · 待验证 " + nonAuthoritative
+               + "（待验证内容可用于探索模拟，不会获得正式验证标记）";
     }
 
     public static void ExportBaseGameTables()
@@ -179,8 +191,8 @@ internal static class AuraToolsCombatKnowledgeRuntime
         }
         if (!string.IsNullOrWhiteSpace(currentBuild)
             && !string.Equals(
-                currentBuild.Trim(),
-                package.GameBuild.Trim(),
+                NormalizeGameBuild(currentBuild),
+                NormalizeGameBuild(package.GameBuild),
                 StringComparison.OrdinalIgnoreCase))
         {
             AuraToolsLog.Warn(
@@ -206,6 +218,18 @@ internal static class AuraToolsCombatKnowledgeRuntime
             + " actions=" + package.Actions.Count
             + " statuses=" + package.Statuses.Count
             + " enemies=" + package.Enemies.Count);
+    }
+
+    internal static string NormalizeGameBuild(string value)
+    {
+        var normalized = (value ?? "").Trim();
+        if (normalized.Length > 1
+            && (normalized[0] == 'v' || normalized[0] == 'V')
+            && char.IsDigit(normalized[1]))
+        {
+            normalized = normalized.Substring(1);
+        }
+        return normalized;
     }
 
     private static CombatKnowledgePackage BuildVerifiedBasePackage()
