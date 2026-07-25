@@ -24,7 +24,15 @@ public sealed class CombatSimulationState
 
     public int CostReduction { get; set; }
 
+    public List<double> HandCardValues { get; set; } = new();
+
+    public List<double> RetainedHandCardValues { get; set; } = new();
+
     public List<double> DrawPileValues { get; set; } = new();
+
+    public List<double> DiscardPileValues { get; set; } = new();
+
+    public List<double> ExhaustPileValues { get; set; } = new();
 
     public bool DrawPileKnown { get; set; }
 
@@ -48,6 +56,8 @@ public sealed class CombatSimulationState
     public ulong[] UsedActionWords { get; set; } = Array.Empty<ulong>();
 
     public int StepCount { get; set; }
+
+    public int Turn { get; set; }
 
     public bool AllEnemiesDefeated => Enemies.All(enemy => enemy.Hp <= 0);
 
@@ -76,7 +86,11 @@ public sealed class CombatSimulationState
             HandCount = HandCount,
             HandLimit = HandLimit,
             CostReduction = CostReduction,
+            HandCardValues = new List<double>(HandCardValues),
+            RetainedHandCardValues = new List<double>(RetainedHandCardValues),
             DrawPileValues = new List<double>(DrawPileValues),
+            DiscardPileValues = new List<double>(DiscardPileValues),
+            ExhaustPileValues = new List<double>(ExhaustPileValues),
             DrawPileKnown = DrawPileKnown,
             DrawnCardPotential = DrawnCardPotential,
             SetupValue = SetupValue,
@@ -87,7 +101,8 @@ public sealed class CombatSimulationState
             Enemies = enemies,
             Threats = threats,
             UsedActionWords = (ulong[])UsedActionWords.Clone(),
-            StepCount = StepCount
+            StepCount = StepCount,
+            Turn = Turn
         };
     }
 
@@ -138,7 +153,10 @@ public sealed class CombatSimulationState
         {
             return new CombatLeafEvaluation
             {
-                Value = 100d + PlayerHp * 0.1d + Power * 0.15d,
+                Value = 100d
+                        + 20d * Ratio(PlayerHp, PlayerMaxHp)
+                        + Math.Min(20d, PlayerDefend * 0.15d)
+                        + Power * 0.15d,
                 DeathRisk = 0d
             };
         }
@@ -166,12 +184,24 @@ public sealed class CombatSimulationState
         var deathRisk = hpAfter <= 0d
             ? Math.Max(0.5d, attackProbability)
             : Math.Max(0d, Math.Min(1d, hpLoss / Math.Max(1d, PlayerHp) - 0.65d));
-        var enemyHp = Enemies.Sum(enemy => Math.Max(0, enemy.Hp));
-        var value = PlayerHp * 0.22d
+        var livingMaxHp = Enemies.Sum(enemy => Math.Max(1, enemy.MaxHp));
+        var livingHp = Enemies.Sum(enemy => Math.Max(0, enemy.Hp));
+        var enemyProgress = livingMaxHp <= 0
+            ? 1d
+            : 1d - Math.Min(1d, (double)livingHp / livingMaxHp);
+        var immediateShield = Math.Min(PlayerDefend, blockable);
+        var carriedShield = Math.Max(0d, PlayerDefend - blockable);
+        var cycleSize = DrawPileValues.Count + DiscardPileValues.Count + HandCardValues.Count;
+        var cycleAccess = cycleSize <= 0
+            ? 0d
+            : Math.Min(1d, (double)Math.Max(1, HandLimit) / cycleSize);
+        var value = Ratio(PlayerHp, PlayerMaxHp) * 40d
                     - hpLoss * 1.8d
-                    - enemyHp * 0.12d
+                    + enemyProgress * 35d
                     + Power * 0.15d
-                    + Math.Min(PlayerDefend, blockable) * 0.2d
+                    + immediateShield * 0.2d
+                    + carriedShield * Math.Max(0d, profile.SurplusDefendRetention) * 0.2d
+                    + cycleAccess * 2d
                     + SetupValue * Math.Max(0d, profile.SetupValueWeight)
                     + PersistentValue * Math.Max(0d, profile.PersistentValueWeight)
                     + DrawnCardPotential * 0.2d
@@ -194,15 +224,32 @@ public sealed class CombatSimulationState
             Mix(ref hash, HandCount);
             Mix(ref hash, CostReduction);
             Mix(ref hash, StepCount);
+            Mix(ref hash, Turn);
             Mix(ref hash, Quantize(SetupValue));
             Mix(ref hash, Quantize(PersistentValue));
             Mix(ref hash, Quantize(DamageMultiplier));
             Mix(ref hash, Quantize(DrawnCardPotential));
             Mix(ref hash, DrawPileKnown ? 1 : 0);
             Mix(ref hash, Quantize(Uncertainty));
+            for (var i = 0; i < HandCardValues.Count; i++)
+            {
+                Mix(ref hash, Quantize(HandCardValues[i]));
+            }
+            for (var i = 0; i < RetainedHandCardValues.Count; i++)
+            {
+                Mix(ref hash, Quantize(RetainedHandCardValues[i]));
+            }
             for (var i = 0; i < DrawPileValues.Count; i++)
             {
                 Mix(ref hash, Quantize(DrawPileValues[i]));
+            }
+            for (var i = 0; i < DiscardPileValues.Count; i++)
+            {
+                Mix(ref hash, Quantize(DiscardPileValues[i]));
+            }
+            for (var i = 0; i < ExhaustPileValues.Count; i++)
+            {
+                Mix(ref hash, Quantize(ExhaustPileValues[i]));
             }
             foreach (var pair in Features.OrderBy(pair => pair.Key, StringComparer.Ordinal))
             {
@@ -240,6 +287,13 @@ public sealed class CombatSimulationState
     {
         var finite = double.IsNaN(value) || double.IsInfinity(value) ? 0d : value;
         return (int)Math.Max(int.MinValue, Math.Min(int.MaxValue, Math.Round(finite * 1000d)));
+    }
+
+    private static double Ratio(double value, double maximum)
+    {
+        return maximum <= 0d
+            ? 0d
+            : Math.Max(0d, Math.Min(1d, value / maximum));
     }
 }
 
@@ -301,7 +355,19 @@ public static class CombatForwardModel
             MaxPower = state.MaxPower,
             HandCount = state.HandCount,
             HandLimit = ResolveHandLimit(state),
+            HandCardValues = state.HandCardIds
+                .Select(KnowledgeValue)
+                .ToList(),
+            RetainedHandCardValues = state.RetainedHandCardIds
+                .Select(KnowledgeValue)
+                .ToList(),
             DrawPileValues = state.DrawPileCardIds
+                .Select(KnowledgeValue)
+                .ToList(),
+            DiscardPileValues = state.DiscardPileCardIds
+                .Select(KnowledgeValue)
+                .ToList(),
+            ExhaustPileValues = state.ExhaustPileCardIds
                 .Select(KnowledgeValue)
                 .ToList(),
             DrawPileKnown = state.Features.ContainsKey("drawPileCount")
@@ -315,6 +381,9 @@ public static class CombatForwardModel
                 Defend = enemy.Defend
             }).ToArray(),
             Threats = threats,
+            Turn = state.Features.TryGetValue("turn", out var turn)
+                ? Math.Max(1, (int)Math.Round(turn))
+                : 1,
             UsedActionWords = new ulong[(Math.Max(0, actionCount) + 63) / 64]
         };
     }
@@ -372,11 +441,37 @@ public static class CombatForwardModel
         var reductionSpent = Math.Min(Math.Max(0, action.Cost), state.CostReduction);
         state.CostReduction = Math.Max(0, state.CostReduction - reductionSpent);
         state.Power = Math.Max(0, state.Power - effectiveCost);
-        if (action.Kind == CombatActionKind.PlayCard)
+        var recycle = action.Features.TryGetValue("recycle", out var recycleValue)
+                      && recycleValue > 0d;
+        if (action.Kind == CombatActionKind.PlayCard && !recycle)
         {
             state.HandCount = Math.Max(0, state.HandCount - 1);
+            var cardValue = KnowledgeValue(action.SourceId);
+            RemoveClosest(state.HandCardValues, cardValue);
+            if (action.Features.TryGetValue("retain", out var retained)
+                && retained > 0d)
+            {
+                RemoveClosestIfPresent(state.RetainedHandCardValues, cardValue);
+            }
+            if (action.Features.TryGetValue("exhaustOnUse", out var exhaust)
+                && exhaust > 0d)
+            {
+                state.ExhaustPileValues.Add(cardValue);
+            }
+            else if (action.Features.TryGetValue("ouroboros", out var ouroboros)
+                     && ouroboros > 0d)
+            {
+                state.DrawPileValues.Add(cardValue);
+            }
+            else
+            {
+                state.DiscardPileValues.Add(cardValue);
+            }
         }
-        state.MarkUsed(actionIndex);
+        if (!recycle)
+        {
+            state.MarkUsed(actionIndex);
+        }
         state.StepCount++;
 
         for (var i = 0; i < outcome.Effects.Count; i++)
@@ -390,6 +485,56 @@ public static class CombatForwardModel
         }
         state.Uncertainty += Math.Max(0d, 1d - Math.Min(1d, outcome.Probability))
                              * profile.UncertaintyPenalty;
+        return state;
+    }
+
+    public static CombatSimulationState ApplyEndTurn(
+        CombatSimulationState source,
+        CombatDecisionProfile profile)
+    {
+        var state = source.Clone();
+        var blockable = state.ActiveBlockableThreat(profile.ThreatRiskTolerance);
+        var unavoidable = 0d;
+        for (var i = 0; i < state.Threats.Length; i++)
+        {
+            var threat = state.Threats[i];
+            if (threat.SourceRuntimeId != 0
+                && !state.Enemies.Any(enemy =>
+                    enemy.RuntimeId == threat.SourceRuntimeId && enemy.Hp > 0))
+            {
+                continue;
+            }
+            unavoidable += Math.Max(
+                0d,
+                (threat.UnblockableDamage + threat.DamageOverTime)
+                * threat.Probability);
+        }
+
+        var blocked = Math.Min(state.PlayerDefend, Math.Max(0, (int)Math.Round(blockable)));
+        state.PlayerDefend = Math.Max(0, state.PlayerDefend - blocked);
+        var hpLoss = Math.Max(0d, blockable - blocked) + unavoidable;
+        state.PlayerHp = Math.Max(0, state.PlayerHp - Math.Max(0, (int)Math.Ceiling(hpLoss)));
+
+        var unretained = new List<double>(state.HandCardValues);
+        foreach (var retainedValue in state.RetainedHandCardValues)
+        {
+            RemoveClosestIfPresent(unretained, retainedValue);
+        }
+        state.DiscardPileValues.AddRange(unretained);
+        state.HandCardValues = new List<double>(state.RetainedHandCardValues);
+        state.HandCount = state.HandCardValues.Count;
+        state.Power = state.MaxPower;
+        state.CostReduction = 0;
+        state.UsedActionWords = new ulong[state.UsedActionWords.Length];
+        state.StepCount++;
+        state.Turn++;
+
+        var drawPerTurn = state.Features.TryGetValue("drawPerTurn", out var configuredDraw)
+            ? Math.Max(0, (int)Math.Round(configuredDraw))
+            : 5;
+        DrawCards(state, Math.Min(drawPerTurn, state.HandLimit));
+        state.Threats = Array.Empty<CombatSimulationThreat>();
+        state.Uncertainty += 0.25d;
         return state;
     }
 
@@ -438,18 +583,7 @@ public static class CombatForwardModel
                 break;
             case CombatEffectKind.Draw:
                 var availableSlots = Math.Max(0, state.HandLimit - state.HandCount);
-                var drawn = state.DrawPileKnown
-                    ? Math.Min(
-                        Math.Min(magnitude, availableSlots),
-                        state.DrawPileValues.Count)
-                    : Math.Min(magnitude, availableSlots);
-                for (var i = 0; i < drawn && state.DrawPileValues.Count > 0; i++)
-                {
-                    var index = state.DrawPileValues.Count - 1;
-                    state.DrawnCardPotential += Math.Max(0d, state.DrawPileValues[index]);
-                    state.DrawPileValues.RemoveAt(index);
-                }
-                state.HandCount += drawn;
+                DrawCards(state, Math.Min(magnitude, availableSlots));
                 break;
             case CombatEffectKind.GenerateCard:
                 state.HandCount = Math.Min(state.HandLimit, state.HandCount + magnitude);
@@ -490,6 +624,64 @@ public static class CombatForwardModel
             result["player." + pair.Key] = pair.Value;
         }
         return result;
+    }
+
+    private static void DrawCards(CombatSimulationState state, int amount)
+    {
+        for (var i = 0; i < amount && state.HandCount < state.HandLimit; i++)
+        {
+            if (state.DrawPileValues.Count == 0 && state.DiscardPileValues.Count > 0)
+            {
+                // The authoritative simulator owns seeded shuffle order.  The forward
+                // model preserves the full cycle and uses a stable value ordering.
+                state.DrawPileValues.AddRange(
+                    state.DiscardPileValues.OrderBy(value => value));
+                state.DiscardPileValues.Clear();
+            }
+            if (state.DrawPileValues.Count == 0)
+            {
+                if (!state.DrawPileKnown)
+                {
+                    state.HandCount++;
+                }
+                continue;
+            }
+
+            var index = state.DrawPileValues.Count - 1;
+            var cardValue = state.DrawPileValues[index];
+            state.DrawPileValues.RemoveAt(index);
+            state.HandCardValues.Add(cardValue);
+            state.DrawnCardPotential += Math.Max(0d, cardValue);
+            state.HandCount++;
+        }
+    }
+
+    private static void RemoveClosest(IList<double> values, double expected)
+    {
+        if (values.Count == 0)
+        {
+            return;
+        }
+        var bestIndex = 0;
+        var bestDistance = Math.Abs(values[0] - expected);
+        for (var i = 1; i < values.Count; i++)
+        {
+            var distance = Math.Abs(values[i] - expected);
+            if (distance < bestDistance)
+            {
+                bestIndex = i;
+                bestDistance = distance;
+            }
+        }
+        values.RemoveAt(bestIndex);
+    }
+
+    private static void RemoveClosestIfPresent(IList<double> values, double expected)
+    {
+        if (values.Count > 0)
+        {
+            RemoveClosest(values, expected);
+        }
     }
 
     private static double Value(IReadOnlyDictionary<string, double> values, string key)

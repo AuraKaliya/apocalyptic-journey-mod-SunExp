@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
+using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
 using AuraCombatAi.Shared;
@@ -99,11 +100,35 @@ internal sealed class AutoBattleSimulationSummary
 
     public int LearnedVictories { get; set; }
 
+    public int RawBaselineVictories { get; set; }
+
+    public int RawLearnedVictories { get; set; }
+
+    public double RawBaselineWinRate { get; set; }
+
+    public double RawLearnedWinRate { get; set; }
+
+    public int BaselineReachedFinalBoss { get; set; }
+
+    public int LearnedReachedFinalBoss { get; set; }
+
+    public double BaselineMeanCompletedBattles { get; set; }
+
+    public double LearnedMeanCompletedBattles { get; set; }
+
+    public int BaselineMaximumCompletedBattles { get; set; }
+
+    public int LearnedMaximumCompletedBattles { get; set; }
+
+    public bool FormalRatesAvailable => AuthoritativePairs > 0;
+
     public double AuthoritativeCoverage { get; set; }
 
     public double BaselineWinRate { get; set; }
 
     public double LearnedWinRate { get; set; }
+
+    public double RequiredLearnedWinRate { get; set; }
 
     public double BaselineMeanTurns { get; set; }
 
@@ -479,6 +504,274 @@ internal static class AuraToolsAutoBattleSimulationRuntime
         }
     }
 
+    public static void ResetAfterDataClear()
+    {
+        lock (Gate)
+        {
+            status = new AutoBattleSimulationStatus();
+            cancellation?.Dispose();
+            cancellation = null;
+        }
+        lock (ResultCacheGate)
+        {
+            ResultCache.Clear();
+        }
+    }
+
+    internal static bool TryResolveFoundationPackage(
+        out CombatCampaignDefinition campaign,
+        out CombatRuleset ruleset,
+        out string message)
+    {
+        campaign = ResolveCampaign("witch.world-simulation.standard-v2")
+                   ?? new CombatCampaignDefinition();
+        if (string.IsNullOrWhiteSpace(campaign.CampaignId))
+        {
+            ruleset = CombatRuleset.Empty;
+            message = "未找到随 MOD 发布的固定七层世界推演包";
+            return false;
+        }
+        var build = ResolveRuleset(campaign.RulesetVersion);
+        if (!build.Success)
+        {
+            ruleset = CombatRuleset.Empty;
+            message = "底模规则集构建失败：" + string.Join("；", build.Errors);
+            return false;
+        }
+        ruleset = build.Ruleset;
+        var readinessProblems = FoundationReadinessProblems(campaign, ruleset);
+        if (readinessProblems.Count > 0)
+        {
+            message = "底模训练尚未就绪：" + string.Join("；", readinessProblems);
+            return false;
+        }
+        message = "";
+        return true;
+    }
+
+    private static List<string> FoundationReadinessProblems(
+        CombatCampaignDefinition campaign,
+        CombatRuleset ruleset)
+    {
+        var problems = new List<string>();
+        if (!campaign.RequireAuthoritativeRules)
+        {
+            problems.Add("世界推演包仍允许近似规则");
+        }
+
+        var requiredCardIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var requiredEnemyIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var requiredStatusIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        var cardQueue = new Queue<string>();
+        var enemyQueue = new Queue<string>();
+        var statusQueue = new Queue<string>();
+
+        void RequireCard(string id)
+        {
+            if (!string.IsNullOrWhiteSpace(id) && requiredCardIds.Add(id))
+            {
+                cardQueue.Enqueue(id);
+            }
+        }
+
+        void RequireEnemy(string id)
+        {
+            if (!string.IsNullOrWhiteSpace(id) && requiredEnemyIds.Add(id))
+            {
+                enemyQueue.Enqueue(id);
+            }
+        }
+
+        void RequireStatus(string id)
+        {
+            if (!string.IsNullOrWhiteSpace(id) && requiredStatusIds.Add(id))
+            {
+                statusQueue.Enqueue(id);
+            }
+        }
+
+        void RequireEffectDependencies(CombatSimulationEffectDefinition effect)
+        {
+            switch (effect.Kind)
+            {
+                case CombatSimulationEffectKind.AddStatus:
+                case CombatSimulationEffectKind.RemoveStatus:
+                case CombatSimulationEffectKind.ModifyStatusCounter:
+                    RequireStatus(effect.DefinitionId);
+                    break;
+                case CombatSimulationEffectKind.CreateCard:
+                    RequireCard(effect.DefinitionId);
+                    break;
+                case CombatSimulationEffectKind.SummonEnemy:
+                    RequireEnemy(effect.DefinitionId);
+                    break;
+            }
+        }
+
+        foreach (var cardId in campaign.Player.Deck)
+        {
+            RequireCard(cardId);
+        }
+        foreach (var reward in campaign.Rewards)
+        {
+            if (reward.Kind == CombatCampaignRewardKind.Card)
+            {
+                RequireCard(reward.RewardId);
+            }
+            foreach (var status in reward.InitialStatuses)
+            {
+                RequireStatus(status.StatusId);
+            }
+        }
+        foreach (var difficulty in campaign.Difficulties)
+        {
+            foreach (var cardId in difficulty.InitialDiscardCards)
+            {
+                RequireCard(cardId);
+            }
+            foreach (var status in difficulty.EnemyInitialStatuses)
+            {
+                RequireStatus(status.StatusId);
+            }
+        }
+        foreach (var status in campaign.Player.InitialStatuses)
+        {
+            RequireStatus(status.StatusId);
+        }
+        foreach (var enemyId in campaign.Enemies.Select(enemy => enemy.EnemyId)
+                     .Concat(campaign.Encounters.SelectMany(encounter => encounter.EnemyIds)))
+        {
+            RequireEnemy(enemyId);
+        }
+
+        while (cardQueue.Count > 0 || enemyQueue.Count > 0 || statusQueue.Count > 0)
+        {
+            while (cardQueue.Count > 0)
+            {
+                var cardId = cardQueue.Dequeue();
+                if (ruleset.TryGetCard(cardId, out var card))
+                {
+                    foreach (var effect in card.Effects
+                                 .Concat(card.DrawEffects)
+                                 .Concat(card.DiscardEffects))
+                    {
+                        RequireEffectDependencies(effect);
+                    }
+                }
+            }
+            while (enemyQueue.Count > 0)
+            {
+                var enemyId = enemyQueue.Dequeue();
+                if (ruleset.TryGetEnemy(enemyId, out var enemy))
+                {
+                    foreach (var status in enemy.InitialStatuses)
+                    {
+                        RequireStatus(status.StatusId);
+                    }
+                    foreach (var effect in enemy.Intents.SelectMany(intent => intent.Effects))
+                    {
+                        RequireEffectDependencies(effect);
+                    }
+                }
+            }
+            while (statusQueue.Count > 0)
+            {
+                var statusId = statusQueue.Dequeue();
+                if (ruleset.TryGetStatus(statusId, out var status))
+                {
+                    foreach (var effect in status.Triggers
+                                 .SelectMany(trigger => trigger.Effects))
+                    {
+                        RequireEffectDependencies(effect);
+                    }
+                }
+            }
+        }
+
+        var missingCards = 0;
+        var projectedCards = 0;
+        foreach (var cardId in requiredCardIds)
+        {
+            if (!ruleset.TryGetCard(cardId, out var card))
+            {
+                missingCards++;
+            }
+            else if (card.Fidelity != CombatRuleFidelity.Authoritative)
+            {
+                projectedCards++;
+            }
+        }
+        if (missingCards > 0 || projectedCards > 0)
+        {
+            problems.Add(
+                "全卡包卡牌语义缺失 "
+                + missingCards
+                + "、非权威 "
+                + projectedCards);
+        }
+
+        var missingEnemies = 0;
+        var projectedEnemies = 0;
+        foreach (var enemyId in requiredEnemyIds)
+        {
+            if (!ruleset.TryGetEnemy(enemyId, out var enemy))
+            {
+                missingEnemies++;
+            }
+            else if (enemy.Fidelity != CombatRuleFidelity.Authoritative)
+            {
+                projectedEnemies++;
+            }
+        }
+        if (missingEnemies > 0 || projectedEnemies > 0)
+        {
+            problems.Add(
+                "本体敌人意图缺失 "
+                + missingEnemies
+                + "、非权威 "
+                + projectedEnemies);
+        }
+
+        var missingStatuses = 0;
+        var projectedStatuses = 0;
+        foreach (var statusId in requiredStatusIds)
+        {
+            if (!ruleset.TryGetStatus(statusId, out var status))
+            {
+                missingStatuses++;
+            }
+            else if (status.Fidelity != CombatRuleFidelity.Authoritative)
+            {
+                projectedStatuses++;
+            }
+        }
+        if (missingStatuses > 0 || projectedStatuses > 0)
+        {
+            problems.Add(
+                "战斗状态语义缺失 "
+                + missingStatuses
+                + "、非权威 "
+                + projectedStatuses);
+        }
+
+        var projectedRewards = campaign.Rewards.Count(reward =>
+            reward.Kind != CombatCampaignRewardKind.Card
+            && reward.Fidelity != CombatRuleFidelity.Authoritative);
+        if (projectedRewards > 0)
+        {
+            problems.Add("遗物/祝福效果仍有 " + projectedRewards + " 项非权威");
+        }
+
+        var missingAffixes = campaign.Difficulties
+            .SelectMany(difficulty => difficulty.HardAffixes)
+            .Count(affix => affix.CombatRelevant && !affix.Implemented);
+        if (missingAffixes > 0)
+        {
+            problems.Add("高级难度仍有 " + missingAffixes + " 个战斗词条未实现");
+        }
+        return problems;
+    }
+
     public static void OpenInputDirectory()
     {
         Directory.CreateDirectory(InputDirectory);
@@ -613,6 +906,7 @@ internal static class AuraToolsAutoBattleSimulationRuntime
             });
         }
         paired ??= new AutoBattleSimulationSummary();
+        var formalAvailable = paired.AuthoritativePairs > 0;
         return CachePresentation(
             cacheKey,
             pairedWrite,
@@ -621,26 +915,45 @@ internal static class AuraToolsAutoBattleSimulationRuntime
         {
             Available = true,
             GatePassed = paired.GatePassed,
-            Title = "最近结果 · 对照评估 · "
+            Title = "最近结果 · 世界推演评估 · "
                     + paired.CompletedUtc.ToLocalTime().ToString("MM-dd HH:mm"),
-            Primary = "学习模型胜率 "
-                      + paired.LearnedWinRate.ToString("P1")
-                      + " · 底模 "
-                      + paired.BaselineWinRate.ToString("P1")
-                      + " · 差值 "
-                      + (paired.LearnedWinRate - paired.BaselineWinRate).ToString("+0.0%;-0.0%;0.0%"),
-            Secondary = "平均回合 "
-                        + paired.LearnedMeanTurns.ToString("0.00")
-                        + " · 平均生命 "
-                        + paired.LearnedMeanFinalPlayerHp.ToString("0.0")
-                        + " · 权威覆盖 "
-                        + paired.AuthoritativeCoverage.ToString("P1"),
-            Detail = "门禁"
+            Primary = formalAvailable
+                ? "正式有效样本 "
+                  + paired.AuthoritativePairs
+                  + "/"
+                  + paired.CompletedPairs
+                  + " · 学习模型 "
+                  + paired.LearnedWinRate.ToString("P1")
+                  + " · 底模 "
+                  + paired.BaselineWinRate.ToString("P1")
+                : "正式胜率不可用 · 正式有效样本 0/"
+                  + paired.CompletedPairs
+                  + "（不能显示为 0% 胜率）",
+            Secondary = "探索性原始通关：学习模型 "
+                        + paired.RawLearnedVictories
+                        + "/"
+                        + paired.CompletedPairs
+                        + "（"
+                        + paired.RawLearnedWinRate.ToString("P1")
+                        + "） · 底模 "
+                        + paired.RawBaselineVictories
+                        + "/"
+                        + paired.CompletedPairs
+                        + "（"
+                        + paired.RawBaselineWinRate.ToString("P1")
+                        + "） · 学习模型最远 "
+                        + paired.LearnedMaximumCompletedBattles
+                        + "/37 战",
+            Detail = "验证门槛"
                      + (paired.GatePassed ? "通过" : "未通过")
                      + " · 普通"
                      + ValidationBadge(ReadSummary<AutoBattleSimulationSummary>(normalPath), paired.ModelId)
                      + " · 高级"
                      + ValidationBadge(advanced, paired.ModelId)
+                     + " · 当前难度验证线 "
+                     + paired.RequiredLearnedWinRate.ToString("P0")
+                     + " · 规则覆盖 "
+                     + paired.AuthoritativeCoverage.ToString("P1")
                      + " · 无效 "
                      + paired.InvalidPairs
                      + " · 分歧 "
@@ -1145,6 +1458,7 @@ internal static class AuraToolsAutoBattleSimulationRuntime
             scenarioId: campaign.CampaignId,
             resultDirectory: resultDirectory);
         var aggregate = new SimulationAggregate();
+        var reportPairs = new List<CombatCampaignPairResult>();
         var outputGate = new object();
         using (var writer = new StreamWriter(resultsPath, append: false))
         {
@@ -1172,6 +1486,8 @@ internal static class AuraToolsAutoBattleSimulationRuntime
                         var baselineCombat = CampaignAsCombatResult(pair.Baseline);
                         var learnedCombat = CampaignAsCombatResult(pair.Learned);
                         var compactPair = BuildPair(baselineCombat, learnedCombat);
+                        PruneCampaignTrace(pair.Baseline);
+                        PruneCampaignTrace(pair.Learned);
                         var retainTrace = request.Simulation.RetainDivergentTraces
                                           && (compactPair.Divergent
                                               || pair.Baseline.Invalid
@@ -1179,11 +1495,18 @@ internal static class AuraToolsAutoBattleSimulationRuntime
                                               || !pair.Learned.CampaignVictory);
                         lock (outputGate)
                         {
+                            reportPairs.Add(pair);
                             aggregate.Add(
                                 compactPair,
                                 baselineCombat,
                                 learnedCombat,
-                                request.Simulation.MinimumAuthoritativeCoverage);
+                                request.Simulation.MinimumAuthoritativeCoverage,
+                                pair.Baseline.FinalBossVictory,
+                                pair.Learned.FinalBossVictory,
+                                pair.Baseline.ReachedFinalBoss,
+                                pair.Learned.ReachedFinalBoss,
+                                pair.Baseline.CompletedBattles,
+                                pair.Learned.CompletedBattles);
                             writer.WriteLine(AuraSharedJson.SerializeCompact(pair));
                             if ((aggregate.CompletedPairs & 3) == 0)
                             {
@@ -1231,6 +1554,12 @@ internal static class AuraToolsAutoBattleSimulationRuntime
             request.Simulation);
         summary.DifficultyId = request.Simulation.DifficultyId;
         summary.ResultDirectory = resultDirectory;
+        WriteCampaignTrainingReport(
+            resultDirectory,
+            campaign,
+            ruleset,
+            summary,
+            reportPairs.OrderBy(item => item.WorldPlan.WorldSeed).ToList());
         var summaryPath = Path.Combine(resultDirectory, "summary.json");
         WriteText(summaryPath, AuraSharedJson.Serialize(summary));
         WriteText(
@@ -1264,11 +1593,21 @@ internal static class AuraToolsAutoBattleSimulationRuntime
                 : (string.Equals(summary.DifficultyId, "advanced", StringComparison.Ordinal)
                     ? "高级难度"
                     : "普通难度")
-                  + "完整冒险完成：学习模型通关率 "
-                  + summary.LearnedWinRate.ToString("P1")
-                  + "，底模 "
-                  + summary.BaselineWinRate.ToString("P1")
-                  + "，验证标记"
+                  + "评估任务已完成：正式有效样本 "
+                  + summary.AuthoritativePairs
+                  + "/"
+                  + summary.CompletedPairs
+                  + (summary.FormalRatesAvailable
+                      ? "，正式学习/底模胜率 "
+                        + summary.LearnedWinRate.ToString("P1")
+                        + "/"
+                        + summary.BaselineWinRate.ToString("P1")
+                      : "，正式胜率不可用（不能按 0% 解读）")
+                  + "；探索性原始学习/底模通关 "
+                  + summary.RawLearnedVictories
+                  + "/"
+                  + summary.RawBaselineVictories
+                  + "；验证标记"
                   + (summary.GatePassed ? "已获得" : "未获得"),
             CompletedPairs = summary.CompletedPairs,
             RequestedPairs = summary.RequestedPairs,
@@ -1276,6 +1615,279 @@ internal static class AuraToolsAutoBattleSimulationRuntime
             ResultDirectory = resultDirectory,
             GatePassed = summary.GatePassed
         };
+    }
+
+    internal static void PruneCampaignTrace(CombatCampaignResult result)
+    {
+        if (result.Battles.Count <= 1)
+        {
+            return;
+        }
+        for (var index = 0; index < result.Battles.Count - 1; index++)
+        {
+            result.Battles[index].Events.Clear();
+        }
+    }
+
+    private static void WriteCampaignTrainingReport(
+        string resultDirectory,
+        CombatCampaignDefinition campaign,
+        CombatRuleset ruleset,
+        AutoBattleSimulationSummary summary,
+        IReadOnlyList<CombatCampaignPairResult> pairs)
+    {
+        WriteText(
+            Path.Combine(resultDirectory, "training-report.json"),
+            AuraSharedJson.Serialize(new
+            {
+                schemaVersion = 1,
+                reportKind = "role-specific-world-simulation-training-batch",
+                createdUtc = DateTime.UtcNow,
+                roleId = campaign.Player.RoleId,
+                cardPoolScope = "base-game/offline-card-packs/all-unlocked/no-curse",
+                startingState = campaign.Player,
+                summary,
+                formalStatisticsRule =
+                    "Only authoritative pairs contribute to formal win rates and validation badges.",
+                exploratoryStatisticsRule =
+                    "Raw final-boss victories are retained even when rule coverage is insufficient.",
+                runs = pairs
+            }));
+
+        var markdown = new StringBuilder();
+        markdown.AppendLine("# 世界推演训练 / 评估批次报告");
+        markdown.AppendLine();
+        markdown.AppendLine("- 角色：`" + campaign.Player.RoleId + "`");
+        markdown.AppendLine("- 卡池：本体离线卡包全部解锁；排除联机包、诅咒、衍生/无归属牌和 MOD 牌");
+        markdown.AppendLine("- 难度：`" + summary.DifficultyId + "`");
+        markdown.AppendLine("- 模型：`" + summary.ModelId + "`");
+        markdown.AppendLine("- 正式有效样本："
+                            + summary.AuthoritativePairs
+                            + "/"
+                            + summary.CompletedPairs);
+        markdown.AppendLine(summary.FormalRatesAvailable
+            ? "- 正式胜率：学习模型 "
+              + summary.LearnedWinRate.ToString("P1")
+              + "；底模 "
+              + summary.BaselineWinRate.ToString("P1")
+            : "- 正式胜率：不可用（没有满足规则覆盖门槛的样本，不能按 0% 解读）");
+        markdown.AppendLine("- 探索性原始通关：学习模型 "
+                            + summary.RawLearnedVictories
+                            + "/"
+                            + summary.CompletedPairs
+                            + "；底模 "
+                            + summary.RawBaselineVictories
+                            + "/"
+                            + summary.CompletedPairs);
+        markdown.AppendLine("- 验证标记：" + (summary.GatePassed ? "通过" : "未通过"));
+        markdown.AppendLine();
+
+        foreach (var pair in pairs)
+        {
+            markdown.AppendLine("## 世界种子 " + pair.WorldPlan.WorldSeed);
+            markdown.AppendLine();
+            AppendCampaignSide(markdown, "学习模型", pair.Learned, ruleset);
+            AppendCampaignSide(markdown, "底模", pair.Baseline, ruleset);
+        }
+        WriteText(
+            Path.Combine(resultDirectory, "training-report.md"),
+            markdown.ToString());
+    }
+
+    internal static void AppendCampaignSide(
+        StringBuilder markdown,
+        string label,
+        CombatCampaignResult result,
+        CombatRuleset ruleset)
+    {
+        markdown.AppendLine("### " + label);
+        markdown.AppendLine();
+        markdown.AppendLine("- 结果："
+                            + (result.FinalBossVictory ? "最终首领胜利" : "未通关")
+                            + "；完成 "
+                            + result.CompletedBattles
+                            + "/37 战；到达最终首领："
+                            + (result.ReachedFinalBoss ? "是" : "否"));
+        markdown.AppendLine("- 最终生命："
+                            + result.FinalState.CurrentHp
+                            + "/"
+                            + result.FinalState.MaxHp);
+        markdown.AppendLine("- 最终战斗余额："
+                            + result.FinalState.Money);
+        markdown.AppendLine("- 最终属性："
+                            + string.Join(
+                                "，",
+                                result.FinalState.Attributes
+                                    .OrderBy(item => item.Key, StringComparer.Ordinal)
+                                    .Select(item => item.Key + "=" + item.Value)));
+        markdown.AppendLine("- 最终牌组（"
+                            + result.FinalState.Deck.Count
+                            + "）："
+                            + FormatDeck(result.FinalState.Deck, ruleset));
+        markdown.AppendLine("- 遗物（"
+                            + result.FinalState.Relics.Count
+                            + "/6）："
+                            + FormatIds(result.FinalState.Relics));
+        markdown.AppendLine("- 祝福（"
+                            + result.FinalState.Blessings.Count
+                            + "，无上限）："
+                            + FormatIds(result.FinalState.Blessings));
+        markdown.AppendLine();
+        markdown.AppendLine("#### 构筑过程");
+        markdown.AppendLine();
+        if (result.Rewards.Count == 0)
+        {
+            markdown.AppendLine("- 尚未获得战斗奖励。");
+        }
+        foreach (var reward in result.Rewards.OrderBy(item => item.EncounterIndex))
+        {
+            markdown.Append("- 第 ")
+                .Append(reward.EncounterIndex + 1)
+                .Append(" 战 `")
+                .Append(reward.EncounterId)
+                .Append("`：");
+            foreach (var card in reward.Cards.OrderBy(item => item.Round))
+            {
+                var selectedScore = card.Scores.FirstOrDefault(item =>
+                    string.Equals(
+                        item.RewardId,
+                        card.SelectedId,
+                        StringComparison.OrdinalIgnoreCase));
+                markdown.Append(" 第")
+                    .Append(card.Round)
+                    .Append("轮[")
+                    .Append(string.Join(", ", card.OfferedIds))
+                    .Append("]→")
+                    .Append(card.Skipped ? "跳过" : card.SelectedId);
+                if (selectedScore != null)
+                {
+                    markdown.Append("(")
+                        .Append(selectedScore.Total.ToString("0.00"))
+                        .Append(")");
+                }
+                markdown.Append("；");
+            }
+            markdown.Append(" 遗物 ")
+                .Append(reward.Relic.OfferedId)
+                .Append("→")
+                .Append(reward.Relic.Decision);
+            if (!string.IsNullOrWhiteSpace(reward.Relic.ReplacedId))
+            {
+                markdown.Append("（替换 ")
+                    .Append(reward.Relic.ReplacedId)
+                    .Append("）");
+            }
+            markdown.Append("；祝福 ")
+                .Append(reward.Blessing.OfferedId)
+                .Append(reward.Blessing.Acquired ? "→获取" : "→未获取")
+                .AppendLine();
+        }
+        markdown.AppendLine();
+        markdown.AppendLine("#### "
+                            + (result.ReachedFinalBoss ? "最终首领完整战斗流程" : "失败战斗完整流程"));
+        markdown.AppendLine();
+        var terminal = result.Battles.LastOrDefault();
+        if (terminal == null)
+        {
+            markdown.AppendLine("- 没有战斗记录。");
+            markdown.AppendLine();
+            return;
+        }
+        markdown.AppendLine("- 场景：`"
+                            + terminal.ScenarioId
+                            + "`；结果："
+                            + terminal.Outcome
+                            + "；回合："
+                            + terminal.Turns
+                            + "；最终生命："
+                            + terminal.FinalPlayerHp);
+        foreach (var turn in terminal.TurnsSummary)
+        {
+            markdown.AppendLine("- 回合 "
+                                + turn.Turn
+                                + "：玩家 "
+                                + turn.PlayerHpAtStart
+                                + "→"
+                                + turn.PlayerHpAtEnd
+                                + "；敌方总生命 "
+                                + turn.EnemyHpAtStart
+                                + "→"
+                                + turn.EnemyHpAtEnd
+                                + "；动作 "
+                                + turn.Actions);
+        }
+        markdown.AppendLine();
+        markdown.AppendLine("事件序列：");
+        markdown.AppendLine();
+        foreach (var item in terminal.Events)
+        {
+            markdown.Append("- #")
+                .Append(item.Sequence)
+                .Append(" T")
+                .Append(item.Turn)
+                .Append(" ")
+                .Append(item.Phase)
+                .Append(" ")
+                .Append(item.Kind);
+            if (!string.IsNullOrWhiteSpace(item.DefinitionId))
+            {
+                markdown.Append(" `")
+                    .Append(DisplayDefinition(item.DefinitionId, ruleset))
+                    .Append("`");
+            }
+            if (item.Amount != 0)
+            {
+                markdown.Append(" 数值=").Append(item.Amount);
+            }
+            if (item.SourceActorId != 0 || item.TargetActorId != 0)
+            {
+                markdown.Append(" 来源=")
+                    .Append(item.SourceActorId)
+                    .Append(" 目标=")
+                    .Append(item.TargetActorId);
+            }
+            markdown.AppendLine();
+        }
+        markdown.AppendLine();
+    }
+
+    private static string FormatDeck(
+        IEnumerable<string> deck,
+        CombatRuleset ruleset)
+    {
+        return string.Join(
+            "，",
+            deck.GroupBy(item => item, StringComparer.OrdinalIgnoreCase)
+                .OrderBy(group => group.Key, StringComparer.Ordinal)
+                .Select(group => DisplayDefinition(group.Key, ruleset)
+                                 + "×"
+                                 + group.Count()));
+    }
+
+    private static string FormatIds(IEnumerable<string> ids)
+    {
+        var values = ids.Where(item => !string.IsNullOrWhiteSpace(item)).ToArray();
+        return values.Length == 0 ? "无" : string.Join("，", values);
+    }
+
+    private static string DisplayDefinition(string id, CombatRuleset ruleset)
+    {
+        if (ruleset.TryGetCard(id, out var card)
+            && !string.IsNullOrWhiteSpace(card.DisplayName))
+        {
+            return card.DisplayName + " (" + id + ")";
+        }
+        if (ruleset.TryGetEnemy(id, out var enemy)
+            && !string.IsNullOrWhiteSpace(enemy.DisplayName))
+        {
+            return enemy.DisplayName + " (" + id + ")";
+        }
+        if (ruleset.TryGetStatus(id, out var statusDefinition)
+            && !string.IsNullOrWhiteSpace(statusDefinition.DisplayName))
+        {
+            return statusDefinition.DisplayName + " (" + id + ")";
+        }
+        return id;
     }
 
     private static SimulationWorkResult RunJourneyEvaluation(
@@ -2303,6 +2915,8 @@ internal static class AuraToolsAutoBattleSimulationRuntime
         private double learnedTurns;
         private double baselineHp;
         private double learnedHp;
+        private double baselineCompletedBattles;
+        private double learnedCompletedBattles;
 
         public int CompletedPairs { get; private set; }
 
@@ -2316,15 +2930,57 @@ internal static class AuraToolsAutoBattleSimulationRuntime
 
         public int LearnedVictories { get; private set; }
 
+        public int RawBaselineVictories { get; private set; }
+
+        public int RawLearnedVictories { get; private set; }
+
+        public int BaselineReachedFinalBoss { get; private set; }
+
+        public int LearnedReachedFinalBoss { get; private set; }
+
+        public int BaselineMaximumCompletedBattles { get; private set; }
+
+        public int LearnedMaximumCompletedBattles { get; private set; }
+
         public bool Cancelled { get; set; }
 
         public void Add(
             AutoBattleSimulationPair pair,
             CombatSimulationResult baseline,
             CombatSimulationResult learned,
-            double requiredCoverage)
+            double requiredCoverage,
+            bool? rawBaselineVictory = null,
+            bool? rawLearnedVictory = null,
+            bool baselineReachedFinalBoss = false,
+            bool learnedReachedFinalBoss = false,
+            int baselineProgress = 0,
+            int learnedProgress = 0)
         {
             CompletedPairs++;
+            if (rawBaselineVictory ?? baseline.Outcome == CombatSimulationOutcome.Victory)
+            {
+                RawBaselineVictories++;
+            }
+            if (rawLearnedVictory ?? learned.Outcome == CombatSimulationOutcome.Victory)
+            {
+                RawLearnedVictories++;
+            }
+            if (baselineReachedFinalBoss)
+            {
+                BaselineReachedFinalBoss++;
+            }
+            if (learnedReachedFinalBoss)
+            {
+                LearnedReachedFinalBoss++;
+            }
+            baselineCompletedBattles += baselineProgress;
+            learnedCompletedBattles += learnedProgress;
+            BaselineMaximumCompletedBattles = Math.Max(
+                BaselineMaximumCompletedBattles,
+                baselineProgress);
+            LearnedMaximumCompletedBattles = Math.Max(
+                LearnedMaximumCompletedBattles,
+                learnedProgress);
             if (pair.Divergent)
             {
                 DivergentPairs++;
@@ -2375,8 +3031,19 @@ internal static class AuraToolsAutoBattleSimulationRuntime
             var coveragePassed = coverage + 1e-9d >= settings.MinimumAuthoritativeCoverage;
             var regressionPassed = learnedWinRate + settings.MaximumWinRateRegression + 1e-9d
                                    >= baselineWinRate;
+            var requiredLearnedWinRate = string.Equals(
+                settings.DifficultyId,
+                "advanced",
+                StringComparison.OrdinalIgnoreCase)
+                ? 0.8d
+                : 1d;
+            var targetPassed = learnedWinRate + 1e-9d >= requiredLearnedWinRate;
             var complete = !Cancelled && CompletedPairs == settings.SimulationCount;
-            var gatePassed = complete && AuthoritativePairs > 0 && coveragePassed && regressionPassed;
+            var gatePassed = complete
+                             && AuthoritativePairs > 0
+                             && coveragePassed
+                             && regressionPassed
+                             && targetPassed;
             return new AutoBattleSimulationSummary
             {
                 RunId = runId,
@@ -2391,9 +3058,28 @@ internal static class AuraToolsAutoBattleSimulationRuntime
                 DivergentPairs = DivergentPairs,
                 BaselineVictories = BaselineVictories,
                 LearnedVictories = LearnedVictories,
+                RawBaselineVictories = RawBaselineVictories,
+                RawLearnedVictories = RawLearnedVictories,
+                RawBaselineWinRate = CompletedPairs == 0
+                    ? 0d
+                    : (double)RawBaselineVictories / CompletedPairs,
+                RawLearnedWinRate = CompletedPairs == 0
+                    ? 0d
+                    : (double)RawLearnedVictories / CompletedPairs,
+                BaselineReachedFinalBoss = BaselineReachedFinalBoss,
+                LearnedReachedFinalBoss = LearnedReachedFinalBoss,
+                BaselineMeanCompletedBattles = CompletedPairs == 0
+                    ? 0d
+                    : baselineCompletedBattles / CompletedPairs,
+                LearnedMeanCompletedBattles = CompletedPairs == 0
+                    ? 0d
+                    : learnedCompletedBattles / CompletedPairs,
+                BaselineMaximumCompletedBattles = BaselineMaximumCompletedBattles,
+                LearnedMaximumCompletedBattles = LearnedMaximumCompletedBattles,
                 AuthoritativeCoverage = coverage,
                 BaselineWinRate = baselineWinRate,
                 LearnedWinRate = learnedWinRate,
+                RequiredLearnedWinRate = requiredLearnedWinRate,
                 BaselineMeanTurns = AuthoritativePairs == 0 ? 0d : baselineTurns / AuthoritativePairs,
                 LearnedMeanTurns = AuthoritativePairs == 0 ? 0d : learnedTurns / AuthoritativePairs,
                 BaselineMeanFinalPlayerHp = AuthoritativePairs == 0 ? 0d : baselineHp / AuthoritativePairs,
@@ -2405,6 +3091,10 @@ internal static class AuraToolsAutoBattleSimulationRuntime
                         ? "权威语义覆盖率不足"
                         : !regressionPassed
                             ? "学习模型胜率回退超过阈值"
+                            : !targetPassed
+                                ? "学习模型未达到当前难度验证线（要求 "
+                                  + requiredLearnedWinRate.ToString("P0")
+                                  + "）"
                             : AuthoritativePairs == 0
                                 ? "没有权威有效样本"
                                 : "通过",

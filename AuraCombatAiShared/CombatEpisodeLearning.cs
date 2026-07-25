@@ -114,6 +114,8 @@ public sealed class CombatPolicyValueTrainingOptions
 
     public int MinimumEpisodes { get; set; } = 8;
 
+    public bool RequireAuthoritativeEpisodes { get; set; } = true;
+
     public CombatPolicyValueTrainingOptions Normalized()
     {
         return new CombatPolicyValueTrainingOptions
@@ -125,7 +127,8 @@ public sealed class CombatPolicyValueTrainingOptions
             ActionDimensions = Math.Max(16, Math.Min(512, ActionDimensions)),
             HiddenDimensions = Math.Max(8, Math.Min(256, HiddenDimensions)),
             RandomSeed = RandomSeed,
-            MinimumEpisodes = Math.Max(2, Math.Min(10000, MinimumEpisodes))
+            MinimumEpisodes = Math.Max(2, Math.Min(10000, MinimumEpisodes)),
+            RequireAuthoritativeEpisodes = RequireAuthoritativeEpisodes
         };
     }
 
@@ -176,7 +179,8 @@ public static class CombatPolicyValueTrainer
             .Where(episode => episode != null
                               && episode.ModelProtocol == "aura.combat-ai.episode.v1"
                               && episode.FeatureSchemaVersion == 5
-                              && episode.Authoritative
+                              && (!options.RequireAuthoritativeEpisodes
+                                  || episode.Authoritative)
                               && string.Equals(
                                   NormalizeProfile(episode.DecisionProfile),
                                   profile,
@@ -190,7 +194,9 @@ public static class CombatPolicyValueTrainer
         };
         if (episodes.Count < options.MinimumEpisodes)
         {
-            result.Message = "完整权威战斗轨迹不足：当前 "
+            result.Message = (options.RequireAuthoritativeEpisodes
+                                 ? "完整权威战斗轨迹不足：当前 "
+                                 : "完整投影战斗轨迹不足：当前 ")
                              + episodes.Count
                              + "，最低要求 "
                              + options.MinimumEpisodes;

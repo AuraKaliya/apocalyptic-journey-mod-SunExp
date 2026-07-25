@@ -422,8 +422,13 @@ var poisonThreatState = new CombatStateObservation
     }
 };
 var poisonDecision = new CombatDecisionEngine().Choose(poisonThreatState);
-Assert(poisonDecision.Action?.CandidateId == "poison-attack",
-    "known damage-over-time threat does not make shield a survival action");
+var poisonShieldFeatures = poisonDecision.Candidates
+    .Single(candidate => candidate.Action.CandidateId == "poison-shield")
+    .Action.Features;
+Assert(poisonShieldFeatures["immediateDefend"] == 0d
+       && poisonShieldFeatures["shieldCarryGain"] == 6d
+       && poisonShieldFeatures["wastedDefend"] == 0d,
+    "damage-over-time does not consume shield, while persistent shield keeps future value");
 
 var attackThreatState = new CombatStateObservation
 {
@@ -622,11 +627,13 @@ var noThreatDefendFeatures = CombatDecisionEngine.BuildFeatures(
 var neededDefendFeatures = CombatDecisionEngine.BuildFeatures(
     attackThreatState,
     attackThreatState.Actions.Single(action => action.CandidateId == "needed-shield"));
-Assert(noThreatDefendFeatures["usefulDefend"] == 0d
-       && noThreatDefendFeatures["wastedDefend"] == 5d
+Assert(noThreatDefendFeatures["usefulDefend"] == 5d
+       && noThreatDefendFeatures["immediateDefend"] == 0d
+       && noThreatDefendFeatures["shieldCarryGain"] == 5d
+       && noThreatDefendFeatures["wastedDefend"] == 0d
        && noThreatDefendFeatures["semanticConfidence"] == 1d
-       && neededDefendFeatures["usefulDefend"] > 0d,
-    "context features distinguish useful defense from defense without a threat");
+       && neededDefendFeatures["immediateDefend"] > 0d,
+    "context features distinguish immediate defense from persistent shield value");
 
 var originalSemanticAction = new CombatActionObservation
 {
@@ -1082,6 +1089,59 @@ var transpositionDecision = new CombatDecisionEngine().Choose(
 Assert(transpositionDecision.SearchTranspositionHits > 0,
     "commutative action orders reuse a physical-state transposition node");
 
+var persistentShieldTurn = CombatForwardModel.ApplyEndTurn(
+    new CombatSimulationState
+    {
+        PlayerHp = 30,
+        PlayerMaxHp = 30,
+        PlayerDefend = 12,
+        Power = 0,
+        MaxPower = 3,
+        HandCount = 2,
+        HandLimit = 5,
+        HandCardValues = { 1d, 2d },
+        DiscardPileValues = { 3d },
+        DrawPileKnown = true,
+        Features = { ["drawPerTurn"] = 2d },
+        Threats =
+        [
+            new CombatSimulationThreat
+            {
+                BlockableDamage = 7d,
+                Probability = 1d
+            }
+        ]
+    },
+    new CombatDecisionProfile());
+Assert(persistentShieldTurn.PlayerHp == 30
+       && persistentShieldTurn.PlayerDefend == 5
+       && persistentShieldTurn.Power == 3
+       && persistentShieldTurn.HandCount == 2
+       && persistentShieldTurn.HandCardValues.Count == 2
+       && persistentShieldTurn.DrawPileValues.Count == 1
+       && persistentShieldTurn.DiscardPileValues.Count == 0
+       && persistentShieldTurn.Threats.Length == 0,
+    "end-turn baseline spends only incoming shield and models discard, reshuffle, and next-turn draw");
+var retainedCycleTurn = CombatForwardModel.ApplyEndTurn(
+    new CombatSimulationState
+    {
+        PlayerHp = 20,
+        PlayerMaxHp = 20,
+        HandCount = 2,
+        HandLimit = 5,
+        HandCardValues = { 1d, 2d },
+        RetainedHandCardValues = { 2d },
+        DrawPileValues = { 4d, 5d },
+        DrawPileKnown = true,
+        Features = { ["drawPerTurn"] = 2d }
+    },
+    new CombatDecisionProfile());
+Assert(retainedCycleTurn.HandCount == 3
+       && retainedCycleTurn.HandCardValues.Contains(2d)
+       && retainedCycleTurn.RetainedHandCardValues.Count == 1
+       && retainedCycleTurn.DiscardPileValues.SequenceEqual(new[] { 1d }),
+    "end-turn cycle keeps retained cards while only unretained cards enter the discard pile");
+
 using (CombatAiRegistry.RegisterEffectResolver(
            "Tests",
            "ChanceDamage",
@@ -1127,6 +1187,14 @@ Assert(firstSimulation.Outcome == CombatSimulationOutcome.Victory
        && firstSimulation.Events.Any(item => item.Kind == CombatSimulationEventKind.CardPlayed)
        && firstSimulation.Events.Any(item => item.Kind == CombatSimulationEventKind.IntentSelected),
     "headless engine runs the complete player/enemy turn lifecycle and records a causal trace");
+Assert(firstSimulation.Events
+           .Where(item => item.Kind == CombatSimulationEventKind.IntentSelected)
+           .GroupBy(item => new { item.Turn, item.SourceActorId })
+           .Any(group => group.Count() == 2
+                         && group.Select(item => item.DefinitionId)
+                             .Distinct(StringComparer.OrdinalIgnoreCase)
+                             .Count() == 2),
+    "an enemy turn pops and records every ordered intent slot without replacement");
 Assert(firstSimulation.FinalStateHash == repeatedSimulation.FinalStateHash
        && firstSimulation.Events.Select(item => item.Kind)
            .SequenceEqual(repeatedSimulation.Events.Select(item => item.Kind)),
@@ -1151,6 +1219,767 @@ Assert(firstSimulation.Metrics.BlockGained >= 2
            item.Kind == CombatSimulationEventKind.BlockGained
            && item.ParentSequence > 0),
     "status triggers enqueue deterministic commands instead of mutating state recursively");
+var normalTimingScenario = BuildSimulationScenario(
+    seed: 44UL,
+    CombatSimulationTraceLevel.Full);
+normalTimingScenario.InitialDiscardCards.Add("guard");
+normalTimingScenario.DirectHpLossAfterPlayerCard = 1;
+normalTimingScenario.MovePlayedCardAfterResolution = false;
+var normalTimingResult = simulationEngine.Run(
+    normalTimingScenario,
+    simulationRules.Ruleset,
+    new GreedyCombatSimulationPolicy());
+var normalFirstPlayed = normalTimingResult.Events.First(item =>
+    item.Kind == CombatSimulationEventKind.CardPlayed);
+var normalMoved = normalTimingResult.Events.First(item =>
+    item.CardInstanceId == normalFirstPlayed.CardInstanceId
+    && (item.Kind == CombatSimulationEventKind.CardDiscarded
+        || item.Kind == CombatSimulationEventKind.CardExhausted
+        || item.Kind == CombatSimulationEventKind.CardCreated));
+Assert(normalMoved.Sequence < normalFirstPlayed.Sequence
+       && normalTimingResult.FinalState.Cards.Count
+       == normalTimingScenario.Player.Deck.Count + 1
+       && normalTimingResult.Events.Any(item =>
+           item.Kind == CombatSimulationEventKind.DamageDealt
+           && item.DefinitionId == "difficulty:player-card-hp-loss"),
+    "normal timing moves a played card before resolution, seeds the discard pile, and applies per-card hp loss");
+var lateTimingScenario = BuildSimulationScenario(
+    seed: 44UL,
+    CombatSimulationTraceLevel.Full);
+lateTimingScenario.MovePlayedCardAfterResolution = true;
+var lateTimingResult = simulationEngine.Run(
+    lateTimingScenario,
+    simulationRules.Ruleset,
+    new GreedyCombatSimulationPolicy());
+var lateFirstPlayed = lateTimingResult.Events.First(item =>
+    item.Kind == CombatSimulationEventKind.CardPlayed);
+var lateMoved = lateTimingResult.Events.First(item =>
+    item.CardInstanceId == lateFirstPlayed.CardInstanceId
+    && (item.Kind == CombatSimulationEventKind.CardDiscarded
+        || item.Kind == CombatSimulationEventKind.CardExhausted
+        || item.Kind == CombatSimulationEventKind.CardCreated));
+Assert(lateFirstPlayed.Sequence < lateMoved.Sequence,
+    "late-throw difficulty moves the played card only after its effects resolve");
+
+var lifecycleRules = new CombatRulesetBuilder("card-lifecycle-v1")
+    .RegisterCard(new CombatCardDefinition
+    {
+        OwnerModId = "Tests",
+        CardId = "unusable-curse",
+        Cost = 0,
+        Tags = { "Unusable" },
+        DrawEffects =
+        {
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.ModifyVariable,
+                Target = CombatSimulationTarget.Self,
+                DefinitionId = "DrawMark",
+                Amount = 1
+            }
+        },
+        DiscardEffects =
+        {
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.ModifyVariable,
+                Target = CombatSimulationTarget.Self,
+                DefinitionId = "DropMark",
+                Amount = 1
+            }
+        }
+    })
+    .RegisterCard(new CombatCardDefinition
+    {
+        OwnerModId = "Tests",
+        CardId = "burnout-set-hp",
+        Cost = 0,
+        Exhaust = true,
+        Effects =
+        {
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.SetHp,
+                Target = CombatSimulationTarget.Self,
+                Amount = 10
+            },
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.Damage,
+                Target = CombatSimulationTarget.SelectedEnemy,
+                Amount = 100
+            }
+        },
+        DiscardEffects =
+        {
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.ModifyVariable,
+                Target = CombatSimulationTarget.Self,
+                DefinitionId = "DropMark",
+                Amount = 1
+            }
+        },
+        RequiresEnemyTarget = true
+    })
+    .RegisterEnemy(new CombatEnemyDefinition
+    {
+        OwnerModId = "Tests",
+        EnemyId = "lifecycle-dummy",
+        MaxHp = 10,
+        Intents =
+        {
+            new CombatEnemyIntentDefinition
+            {
+                IntentId = "wait",
+                Weight = 1
+            }
+        }
+    })
+    .Freeze();
+var unusableCurseResult = simulationEngine.Run(
+    new CombatScenarioDefinition
+    {
+        ScenarioId = "unusable-curse-lifecycle",
+        RulesetVersion = "card-lifecycle-v1",
+        Seed = 1,
+        InitialDraw = 1,
+        DrawPerTurn = 0,
+        TraceLevel = CombatSimulationTraceLevel.Full,
+        Player = new CombatPlayerSetup
+        {
+            RoleId = "tester",
+            MaxHp = 30,
+            CurrentHp = 30,
+            Deck = { "unusable-curse" }
+        },
+        Enemies =
+        {
+            new CombatEnemySetup { EnemyId = "lifecycle-dummy" }
+        },
+        Limits = new CombatSimulationLimits
+        {
+            MaximumTurns = 1,
+            MaximumActions = 10,
+            MaximumCommands = 100
+        }
+    },
+    lifecycleRules.Ruleset,
+    new GreedyCombatSimulationPolicy());
+Assert(lifecycleRules.Success
+       && unusableCurseResult.FinalState.Player?.Variables["DrawMark"] == 1d
+       && unusableCurseResult.FinalState.Player?.Variables["DropMark"] == 1d
+       && !unusableCurseResult.Events.Any(item =>
+           item.Kind == CombatSimulationEventKind.CardPlayed)
+       && unusableCurseResult.Events.Any(item =>
+           item.Kind == CombatSimulationEventKind.CardDrawn)
+       && unusableCurseResult.Events.Any(item =>
+           item.Kind == CombatSimulationEventKind.CardDiscarded),
+    "unusable cards execute native draw and discard scripts without becoming legal plays");
+var burnoutSetHpResult = simulationEngine.Run(
+    new CombatScenarioDefinition
+    {
+        ScenarioId = "burnout-set-hp",
+        RulesetVersion = "card-lifecycle-v1",
+        Seed = 2,
+        InitialDraw = 1,
+        DrawPerTurn = 0,
+        TraceLevel = CombatSimulationTraceLevel.Full,
+        Player = new CombatPlayerSetup
+        {
+            RoleId = "tester",
+            MaxHp = 30,
+            CurrentHp = 30,
+            Deck = { "burnout-set-hp" }
+        },
+        Enemies =
+        {
+            new CombatEnemySetup { EnemyId = "lifecycle-dummy" }
+        }
+    },
+    lifecycleRules.Ruleset,
+    new GreedyCombatSimulationPolicy());
+Assert(burnoutSetHpResult.Outcome == CombatSimulationOutcome.Victory
+       && burnoutSetHpResult.FinalState.Player?.Hp == 10
+       && !burnoutSetHpResult.FinalState.Player!.Variables.ContainsKey("DropMark")
+       && burnoutSetHpResult.Events.Any(item =>
+           item.Kind == CombatSimulationEventKind.CardExhausted)
+       && !burnoutSetHpResult.Events.Any(item =>
+           item.Kind == CombatSimulationEventKind.Healed),
+    "SetHp assigns health directly and burnout bypasses native discard scripts");
+
+var triggerRules = new CombatRulesetBuilder("trigger-semantics-v1")
+    .RegisterStatus(new CombatStatusDefinition
+    {
+        OwnerModId = "Tests",
+        StatusId = "pulse",
+        DecayAtRoundEnd = false,
+        Triggers =
+        {
+            new CombatStatusTriggerDefinition
+            {
+                TriggerId = "every-second-action",
+                EventKind = CombatSimulationEventKind.ActionStarted,
+                OwnerRelation = CombatStatusTriggerOwnerRelation.EventSource,
+                EveryNthEvent = 2,
+                Effects =
+                {
+                    new CombatSimulationEffectDefinition
+                    {
+                        Kind = CombatSimulationEffectKind.GainBlock,
+                        Target = CombatSimulationTarget.Self,
+                        Amount = 2
+                    }
+                }
+            }
+        }
+    })
+    .RegisterStatus(new CombatStatusDefinition
+    {
+        OwnerModId = "Tests",
+        StatusId = "bleed",
+        DecayAtRoundEnd = false,
+        Triggers =
+        {
+            new CombatStatusTriggerDefinition
+            {
+                TriggerId = "bleed-action",
+                EventKind = CombatSimulationEventKind.ActionStarted,
+                OwnerRelation = CombatStatusTriggerOwnerRelation.EventSource,
+                Effects =
+                {
+                    new CombatSimulationEffectDefinition
+                    {
+                        Kind = CombatSimulationEffectKind.DirectHpLoss,
+                        Target = CombatSimulationTarget.Self,
+                        DefinitionId = "bleed",
+                        AmountExpression = new CombatSimulationValueExpression
+                        {
+                            Operation = CombatSimulationValueOperation.SourceStatusStacks,
+                            Key = "bleed"
+                        }
+                    },
+                    new CombatSimulationEffectDefinition
+                    {
+                        Kind = CombatSimulationEffectKind.DirectHpLoss,
+                        Target = CombatSimulationTarget.Self,
+                        DefinitionId = "bleed",
+                        AmountExpression = new CombatSimulationValueExpression
+                        {
+                            Operation = CombatSimulationValueOperation.SourceStatusStacks,
+                            Key = "bleed"
+                        },
+                        ConditionExpression = new CombatSimulationValueExpression
+                        {
+                            Operation = CombatSimulationValueOperation.GreaterThan,
+                            Arguments =
+                            {
+                                new CombatSimulationValueExpression
+                                {
+                                    Operation = CombatSimulationValueOperation.SourceStatusStacks,
+                                    Key = "bleed"
+                                },
+                                new CombatSimulationValueExpression
+                                {
+                                    Operation = CombatSimulationValueOperation.Constant,
+                                    Constant = 30
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    })
+    .RegisterStatus(new CombatStatusDefinition
+    {
+        OwnerModId = "Tests",
+        StatusId = "bleed-ward",
+        DecayAtRoundEnd = false,
+        MaximumStacks = 1,
+        DynamicModifiersPerStack =
+        {
+            ["DirectHpLossTaken.bleed"] = -1d
+        }
+    })
+    .RegisterStatus(new CombatStatusDefinition
+    {
+        OwnerModId = "Tests",
+        StatusId = "counter",
+        DecayAtRoundEnd = false,
+        Triggers =
+        {
+            new CombatStatusTriggerDefinition
+            {
+                TriggerId = "counter-attack",
+                EventKind = CombatSimulationEventKind.ActionStarted,
+                OwnerRelation = CombatStatusTriggerOwnerRelation.EventTarget,
+                RequiredActionTag = "Attack",
+                ConsumeStacks = int.MaxValue,
+                Effects =
+                {
+                    new CombatSimulationEffectDefinition
+                    {
+                        Kind = CombatSimulationEffectKind.Damage,
+                        Target = CombatSimulationTarget.EventSource,
+                        DefinitionId = "counter",
+                        AmountExpression = new CombatSimulationValueExpression
+                        {
+                            Operation = CombatSimulationValueOperation.SourceStatusStacks,
+                            Key = "counter"
+                        }
+                    }
+                }
+            }
+        }
+    })
+    .RegisterStatus(new CombatStatusDefinition
+    {
+        OwnerModId = "Tests",
+        StatusId = "armor",
+        DecayAtRoundEnd = false,
+        MaximumStacks = 1,
+        DynamicModifiersPerStack =
+        {
+            ["ConversionRate"] = 1d
+        }
+    })
+    .RegisterStatus(new CombatStatusDefinition
+    {
+        OwnerModId = "Tests",
+        StatusId = "stasis",
+        DecayAtRoundEnd = true,
+        ReducePerTurn = 1,
+        Triggers =
+        {
+            new CombatStatusTriggerDefinition
+            {
+                TriggerId = "skip-round",
+                EventKind = CombatSimulationEventKind.TurnStarted,
+                Effects =
+                {
+                    new CombatSimulationEffectDefinition
+                    {
+                        Kind = CombatSimulationEffectKind.SkipTurn,
+                        Target = CombatSimulationTarget.Self,
+                        Amount = 1
+                    }
+                }
+            }
+        }
+    })
+    .RegisterCard(new CombatCardDefinition
+    {
+        OwnerModId = "Tests",
+        CardId = "wait-a",
+        Cost = 0,
+        Effects =
+        {
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.GainBlock,
+                Target = CombatSimulationTarget.Self,
+                Amount = 0
+            }
+        }
+    })
+    .RegisterCard(new CombatCardDefinition
+    {
+        OwnerModId = "Tests",
+        CardId = "wait-b",
+        Cost = 0,
+        Effects =
+        {
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.GainBlock,
+                Target = CombatSimulationTarget.Self,
+                Amount = 0
+            }
+        }
+    })
+    .RegisterCard(new CombatCardDefinition
+    {
+        OwnerModId = "Tests",
+        CardId = "overheal",
+        Cost = 0,
+        Effects =
+        {
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.Heal,
+                Target = CombatSimulationTarget.Self,
+                Amount = 10
+            }
+        }
+    })
+    .RegisterEnemy(new CombatEnemyDefinition
+    {
+        OwnerModId = "Tests",
+        EnemyId = "attacker",
+        MaxHp = 5,
+        Intents =
+        {
+            new CombatEnemyIntentDefinition
+            {
+                IntentId = "attack",
+                Tags = { "Attack" },
+                Effects =
+                {
+                    new CombatSimulationEffectDefinition
+                    {
+                        Kind = CombatSimulationEffectKind.Damage,
+                        Target = CombatSimulationTarget.Player,
+                        Amount = 3
+                    }
+                }
+            }
+        }
+    })
+    .Freeze();
+var triggerResult = simulationEngine.Run(
+    new CombatScenarioDefinition
+    {
+        ScenarioId = "trigger-semantics",
+        RulesetVersion = "trigger-semantics-v1",
+        Seed = 5,
+        InitialDraw = 2,
+        DrawPerTurn = 0,
+        Player = new CombatPlayerSetup
+        {
+            MaxHp = 20,
+            CurrentHp = 20,
+            Deck = { "wait-a", "wait-b" },
+            InitialStatuses =
+            {
+                new CombatInitialStatus { StatusId = "pulse" },
+                new CombatInitialStatus { StatusId = "bleed", Stacks = 31 },
+                new CombatInitialStatus { StatusId = "bleed-ward" },
+                new CombatInitialStatus { StatusId = "counter", Stacks = 5 }
+            }
+        },
+        Enemies =
+        {
+            new CombatEnemySetup { EnemyId = "attacker" }
+        },
+        TraceLevel = CombatSimulationTraceLevel.Full
+    },
+    triggerRules.Ruleset,
+    FirstLegalCombatSimulationPolicy.Instance);
+var pulseState = triggerResult.FinalState.Player?.Statuses.Single(item =>
+    item.StatusId == "pulse");
+var overhealScenario = new CombatScenarioDefinition
+{
+    ScenarioId = "overheal-conversion",
+    RulesetVersion = "trigger-semantics-v1",
+    Player = new CombatPlayerSetup
+    {
+        MaxHp = 20,
+        CurrentHp = 20,
+        Deck = { "overheal" }
+    },
+    Enemies =
+    {
+        new CombatEnemySetup { EnemyId = "attacker" }
+    }
+};
+var overhealState = new CombatBattleState
+{
+    Turn = 1,
+    Phase = CombatSimulationPhase.PlayerAction,
+    PlayerActorId = 1,
+    NextActorId = 3,
+    NextCardInstanceId = 2,
+    Actors =
+    {
+        new CombatActorState
+        {
+            ActorId = 1,
+            Kind = CombatSimulationActorKind.Player,
+            Hp = 20,
+            MaxHp = 20,
+            Energy = 3,
+            BaseEnergy = 3,
+            Statuses =
+            {
+                new CombatStatusState { StatusId = "armor", Stacks = 1 }
+            }
+        },
+        new CombatActorState
+        {
+            ActorId = 2,
+            Kind = CombatSimulationActorKind.Enemy,
+            DefinitionId = "attacker",
+            Hp = 5,
+            MaxHp = 5
+        }
+    },
+    Cards =
+    {
+        new CombatCardInstanceState { InstanceId = 1, CardId = "overheal" }
+    },
+    Hand = { 1 }
+};
+var overhealAction = simulationEngine.GetLegalPlayerActions(
+        overhealScenario,
+        triggerRules.Ruleset,
+        overhealState)
+    .Single(item => item.Kind == CombatSimulationActionKind.PlayCard);
+var overhealResult = simulationEngine.ForkAndApplyPlayerAction(
+    overhealScenario,
+    triggerRules.Ruleset,
+    overhealState,
+    overhealAction);
+var stasisScenario = new CombatScenarioDefinition
+{
+    ScenarioId = "stasis-skip",
+    RulesetVersion = "trigger-semantics-v1",
+    Seed = 6,
+    InitialDraw = 2,
+    DrawPerTurn = 2,
+    Player = new CombatPlayerSetup
+    {
+        MaxHp = 20,
+        CurrentHp = 20,
+        Deck = { "wait-a", "wait-b" },
+        InitialStatuses =
+        {
+            new CombatInitialStatus { StatusId = "stasis" }
+        }
+    },
+    Enemies =
+    {
+        new CombatEnemySetup { EnemyId = "attacker" }
+    },
+    Limits = new CombatSimulationLimits { MaximumTurns = 3 }
+};
+var stasisResult = simulationEngine.Run(
+    stasisScenario,
+    triggerRules.Ruleset,
+    FirstLegalCombatSimulationPolicy.Instance);
+Assert(triggerRules.Success
+       && triggerResult.Outcome == CombatSimulationOutcome.Victory
+       && triggerResult.FinalPlayerHp == 20
+       && triggerResult.Metrics.BlockGained == 2
+       && pulseState?.TriggerCounts["every-second-action"] == 2
+       && triggerResult.Events.Count(item =>
+           item.Kind == CombatSimulationEventKind.DamageDealt
+           && item.DefinitionId == "bleed"
+           && item.Amount == 0) == 4
+       && triggerResult.Events.Any(item =>
+           item.Kind == CombatSimulationEventKind.DamageDealt
+           && item.DefinitionId == "counter"
+           && item.Amount == 5)
+        && triggerResult.FinalState.Player?.Statuses.All(item =>
+            item.StatusId != "counter") == true
+        && overhealResult.Success
+       && overhealResult.State.Player?.Block == 10
+       && stasisResult.TurnsSummary.First().Actions == 0
+       && stasisResult.Events.First(item =>
+           item.Kind == CombatSimulationEventKind.CardPlayed).Turn == 2,
+    "status triggers preserve owner relation, nth-event counters, conditional effects, damage filters, and enemy pre-action counterattacks");
+
+var ritualRules = new CombatRulesetBuilder("ritual-semantics-v1")
+    .RegisterCard(new CombatCardDefinition
+    {
+        OwnerModId = "Tests",
+        CardId = "ritual",
+        Cost = 0,
+        Tags = { "Ritual" },
+        Effects =
+        {
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.GainBlock,
+                Target = CombatSimulationTarget.Self,
+                Amount = 0
+            }
+        }
+    })
+    .RegisterCard(new CombatCardDefinition
+    {
+        OwnerModId = "Tests",
+        CardId = "roll",
+        Cost = 0,
+        Effects =
+        {
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.EmitEvent,
+                Target = CombatSimulationTarget.Self,
+                Amount = 1,
+                DefinitionId = "roll",
+                EmittedEventKind = CombatSimulationEventKind.DiceChecked
+            },
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.GainBlock,
+                Target = CombatSimulationTarget.Self,
+                Amount = 1,
+                RandomChoiceGroup = "roll-result",
+                RandomChoiceWeight = 1
+            },
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.GainBlock,
+                Target = CombatSimulationTarget.Self,
+                Amount = 2,
+                RandomChoiceGroup = "roll-result",
+                RandomChoiceWeight = 1
+            }
+        }
+    })
+    .RegisterStatus(new CombatStatusDefinition
+    {
+        OwnerModId = "Tests",
+        StatusId = "echo",
+        DecayAtRoundEnd = false
+    })
+    .RegisterStatus(new CombatStatusDefinition
+    {
+        OwnerModId = "Tests",
+        StatusId = "ritual-cycle",
+        DecayAtRoundEnd = false,
+        Tags = { "Ritual" },
+        Triggers =
+        {
+            new CombatStatusTriggerDefinition
+            {
+                TriggerId = "fourth-ritual",
+                EventKind = CombatSimulationEventKind.ActionStarted,
+                OwnerRelation = CombatStatusTriggerOwnerRelation.EventSource,
+                RequiredActionTag = "Ritual",
+                CounterKey = "ThisCount",
+                CounterIncrementMode = CombatStatusCounterIncrementMode.Fixed,
+                MinimumCounterValue = 4,
+                Effects =
+                {
+                    new CombatSimulationEffectDefinition
+                    {
+                        Kind = CombatSimulationEffectKind.GainEnergy,
+                        Target = CombatSimulationTarget.Self,
+                        AmountExpression = new CombatSimulationValueExpression
+                        {
+                            Operation = CombatSimulationValueOperation.Add,
+                            Arguments =
+                            {
+                                new CombatSimulationValueExpression
+                                {
+                                    Operation = CombatSimulationValueOperation.SourceStatusStacks,
+                                    Key = "ritual-cycle"
+                                },
+                                new CombatSimulationValueExpression
+                                {
+                                    Operation = CombatSimulationValueOperation.SourceStatusStacks,
+                                    Key = "echo"
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    })
+    .RegisterStatus(new CombatStatusDefinition
+    {
+        OwnerModId = "Tests",
+        StatusId = "fate",
+        DecayAtRoundEnd = false,
+        Triggers =
+        {
+            new CombatStatusTriggerDefinition
+            {
+                TriggerId = "dice-damage",
+                EventKind = CombatSimulationEventKind.DiceChecked,
+                OwnerRelation = CombatStatusTriggerOwnerRelation.EventSource,
+                Effects =
+                {
+                    new CombatSimulationEffectDefinition
+                    {
+                        Kind = CombatSimulationEffectKind.Damage,
+                        Target = CombatSimulationTarget.AllOpponents,
+                        Amount = 2
+                    }
+                }
+            }
+        }
+    })
+    .RegisterEnemy(new CombatEnemyDefinition
+    {
+        OwnerModId = "Tests",
+        EnemyId = "dummy",
+        MaxHp = 100,
+        Intents =
+        {
+            new CombatEnemyIntentDefinition
+            {
+                IntentId = "wait",
+                Effects =
+                {
+                    new CombatSimulationEffectDefinition
+                    {
+                        Kind = CombatSimulationEffectKind.GainBlock,
+                        Target = CombatSimulationTarget.Self,
+                        Amount = 0
+                    }
+                }
+            }
+        }
+    })
+    .Freeze();
+var ritualResult = simulationEngine.Run(
+    new CombatScenarioDefinition
+    {
+        ScenarioId = "ritual-counter",
+        RulesetVersion = "ritual-semantics-v1",
+        InitialDraw = 4,
+        DrawPerTurn = 0,
+        Player = new CombatPlayerSetup
+        {
+            MaxHp = 20,
+            CurrentHp = 20,
+            Deck = { "ritual", "ritual", "ritual", "ritual" },
+            InitialStatuses =
+            {
+                new CombatInitialStatus { StatusId = "ritual-cycle", Stacks = 2 },
+                new CombatInitialStatus { StatusId = "echo", Stacks = 1 }
+            }
+        },
+        Enemies = { new CombatEnemySetup { EnemyId = "dummy" } },
+        Limits = new CombatSimulationLimits { MaximumTurns = 1 }
+    },
+    ritualRules.Ruleset,
+    FirstLegalCombatSimulationPolicy.Instance);
+var ritualCycleState = ritualResult.FinalState.Player?.Statuses.Single(item =>
+    item.StatusId == "ritual-cycle");
+var rollScenario = new CombatScenarioDefinition
+{
+    ScenarioId = "exclusive-dice-choice",
+    RulesetVersion = "ritual-semantics-v1",
+    Seed = 9,
+    InitialDraw = 1,
+    DrawPerTurn = 0,
+    Player = new CombatPlayerSetup
+    {
+        MaxHp = 20,
+        CurrentHp = 20,
+        Deck = { "roll" },
+        InitialStatuses = { new CombatInitialStatus { StatusId = "fate" } }
+    },
+    Enemies = { new CombatEnemySetup { EnemyId = "dummy", HpScale = 0.02d } }
+};
+var rollResult = simulationEngine.Run(
+    rollScenario,
+    ritualRules.Ruleset,
+    FirstLegalCombatSimulationPolicy.Instance);
+Assert(ritualRules.Success
+       && ritualCycleState?.TriggerCounts["ThisCount"] == 4
+       && ritualResult.FinalState.Player?.Energy == 6
+       && rollResult.Outcome == CombatSimulationOutcome.Victory
+       && rollResult.Metrics.BlockGained is 1 or 2
+       && rollResult.Events.Count(item =>
+           item.Kind == CombatSimulationEventKind.DiceChecked) == 1,
+    "ritual counters, echo scaling, explicit dice checks, and exclusive random branches are deterministic");
 
 var aiSimulation = simulationEngine.Run(
     BuildSimulationScenario(seed: 43UL, CombatSimulationTraceLevel.Actions),
@@ -1656,6 +2485,90 @@ var bundledRulesV2Document = JsonSerializer.Deserialize<CombatRulesetDocument>(
     File.ReadAllText(bundledRulesV2Path),
     bundledJsonOptions);
 var bundledRulesV2 = CombatSimulationRegistry.BuildRuleset(bundledRulesV2Document);
+bundledRulesV2.Ruleset.TryGetStatus(
+    "buff_impregnable",
+    out var bundledImpregnable);
+bundledRulesV2.Ruleset.TryGetStatus(
+    "buff_weak",
+    out var bundledWeak);
+bundledRulesV2.Ruleset.TryGetStatus(
+    "buff_ritualbloodsacrifice",
+    out var bundledBloodSacrifice);
+bundledRulesV2.Ruleset.TryGetStatus(
+    "buff_ritualtimeprison",
+    out var bundledTimePrison);
+bundledRulesV2.Ruleset.TryGetStatus(
+    "buff_barkhide",
+    out var bundledBarkhide);
+bundledRulesV2.Ruleset.TryGetStatus(
+    "buff_bloodwall",
+    out var bundledBloodWall);
+bundledRulesV2.Ruleset.TryGetStatus(
+    "SpecialBuff_BlessedByHeaven",
+    out var bundledBlessedByHeaven);
+bundledRulesV2.Ruleset.TryGetStatus(
+    "SpecialBuff_CAR_Momentum",
+    out var bundledCarMomentum);
+bundledRulesV2.Ruleset.TryGetStatus(
+    "SpecialBuff_Dragon'sBlood",
+    out var bundledDragonBlood);
+bundledRulesV2.Ruleset.TryGetStatus(
+    "SpecialBuff_ThirstForBlood",
+    out var bundledThirstForBlood);
+bundledRulesV2.Ruleset.TryGetStatus(
+    "SpecialBuff_Transcendent",
+    out var bundledTranscendent);
+bundledRulesV2.Ruleset.TryGetStatus(
+    "SpecialBuff_AllogeneicConcentric",
+    out var bundledAllogeneicConcentric);
+bundledRulesV2.Ruleset.TryGetStatus(
+    "SpecialBuff_believer",
+    out var bundledBeliever);
+bundledRulesV2.Ruleset.TryGetStatus(
+    "SpecialBuff_expiation",
+    out var bundledExpiation);
+bundledRulesV2.Ruleset.TryGetStatus(
+    "SpecialBuff_fluster",
+    out var bundledFluster);
+bundledRulesV2.Ruleset.TryGetStatus(
+    "SpecialBuff_hunting",
+    out var bundledHunting);
+bundledRulesV2.Ruleset.TryGetStatus(
+    "SpecialBuff_Twins",
+    out var bundledTwins);
+bundledRulesV2.Ruleset.TryGetStatus(
+    "SpecialBuff_UnparalleledPower",
+    out var bundledUnparalleledPower);
+bundledRulesV2.Ruleset.TryGetCard(
+    "ritualcard_1",
+    out var bundledRitualSearch);
+bundledRulesV2.Ruleset.TryGetCard(
+    "timekeeper_16",
+    out var bundledFrozenSearch);
+bundledRulesV2.Ruleset.TryGetEnemy(
+    "enemy_10005",
+    out var bundledBloodWallEnemy);
+bundledRulesV2.Ruleset.TryGetEnemy(
+    "enemy_10022",
+    out var bundledSummonerEnemy);
+bundledRulesV2.Ruleset.TryGetEnemy(
+    "enemy_10056",
+    out var bundledHammerEnemy);
+bundledRulesV2.Ruleset.TryGetEnemy(
+    "enemy_10003",
+    out var bundledThiefEnemy);
+bundledRulesV2.Ruleset.TryGetCard(
+    "luckycard_3",
+    out var bundledMoneyThrow);
+bundledRulesV2.Ruleset.TryGetCard(
+    "cursecard_1",
+    out var bundledDrawCurse);
+bundledRulesV2.Ruleset.TryGetCard(
+    "cursecard_13",
+    out var bundledRecurringCurse);
+bundledRulesV2.Ruleset.TryGetCard(
+    "universalcard_10",
+    out var bundledBloodPactStrike);
 CombatCampaignWorldPlanner.Validate(bundledCampaign);
 var bundledCampaignNormal = CombatCampaignWorldPlanner.Build(
     bundledCampaign,
@@ -1668,10 +2581,172 @@ var bundledCampaignAdvanced = CombatCampaignWorldPlanner.Build(
 var firstBand = bundledCampaign.Encounters.Where(item =>
     item.NativeBand is 0 or -1).ToList();
 Assert(bundledRulesV2.Success
-       && bundledRulesV2.Ruleset.CardCount == 290
+       && bundledRulesV2.Ruleset.CardCount == 227
        && bundledRulesV2.Ruleset.EnemyCount == 55
-       && bundledCampaign.Encounters.Count == 48
-       && bundledCampaign.Rewards.Count == 514
+        && bundledRulesV2.Ruleset.StatusCount == 129
+        && bundledRulesV2.Ruleset.SnapshotCards().Count(item =>
+            item.Fidelity == CombatRuleFidelity.Authoritative) == 101
+        && bundledRulesV2.Ruleset.SnapshotStatuses().Count(item =>
+            item.Fidelity == CombatRuleFidelity.Authoritative) == 64
+        && bundledRulesV2.Ruleset.SnapshotEnemies().Count(item =>
+            item.Fidelity == CombatRuleFidelity.Authoritative) == 55
+        && bundledImpregnable.Fidelity == CombatRuleFidelity.Authoritative
+       && bundledImpregnable.MaximumStacks == 8
+       && bundledImpregnable.DynamicModifiersPerStack["AttackedPercentDamage"] == -0.1d
+        && bundledWeak.Fidelity == CombatRuleFidelity.Authoritative
+        && bundledWeak.ReducePerTurn == 1
+        && bundledBloodSacrifice.Fidelity == CombatRuleFidelity.Authoritative
+        && bundledBloodSacrifice.Triggers.Any(item =>
+            item.EventKind == CombatSimulationEventKind.CardExhausted
+            && item.CounterKey == "ThisCount"
+            && item.MinimumCounterValue == 10)
+        && bundledTimePrison.Fidelity == CombatRuleFidelity.Authoritative
+        && bundledTimePrison.Triggers.Any(item =>
+            item.EventKind == CombatSimulationEventKind.DeferredEffectTriggered)
+        && bundledBarkhide.Fidelity == CombatRuleFidelity.Authoritative
+        && bundledBarkhide.Triggers.Any(item =>
+            item.EventKind == CombatSimulationEventKind.DamageDealt
+            && item.OwnerRelation == CombatStatusTriggerOwnerRelation.EventTarget
+            && item.CounterIncrementMode == CombatStatusCounterIncrementMode.Fixed)
+        && bundledBloodWall.Fidelity == CombatRuleFidelity.Authoritative
+        && bundledBloodWall.Triggers.Single().Effects.Single().Kind
+        == CombatSimulationEffectKind.GainBlock
+        && bundledBlessedByHeaven.Fidelity == CombatRuleFidelity.Authoritative
+        && bundledBlessedByHeaven.Triggers.Single().MaximumCounterValue == 7
+        && bundledCarMomentum.Fidelity == CombatRuleFidelity.Authoritative
+        && bundledCarMomentum.Triggers.Single().OwnerRelation
+        == CombatStatusTriggerOwnerRelation.Any
+        && bundledDragonBlood.Fidelity == CombatRuleFidelity.Authoritative
+        && bundledDragonBlood.Triggers.Single().Effects.Any(effect =>
+            effect.Kind == CombatSimulationEffectKind.Heal
+            && effect.Rounding == CombatSimulationValueRounding.Floor)
+        && bundledThirstForBlood.Fidelity == CombatRuleFidelity.Authoritative
+        && bundledThirstForBlood.Triggers.Single(item =>
+            item.EventKind == CombatSimulationEventKind.BattleStarted)
+            .Effects.Single(effect =>
+                effect.DefinitionId == "buff_bloodriver").Amount == 3
+        && bundledTranscendent.Fidelity == CombatRuleFidelity.Authoritative
+        && bundledTranscendent.DynamicModifiersPerStack["AttackedDefaultDamage"] == -4d
+        && bundledTranscendent.DynamicModifiersPerStack["AttackedPercentDamage"] == -0.3d
+        && bundledTranscendent.DynamicModifiersPerStack["PercentDamage"] == 0.3d
+        && bundledTranscendent.Triggers.Single().Effects.Single().Kind
+        == CombatSimulationEffectKind.DirectHpLoss
+        && bundledAllogeneicConcentric.Fidelity
+        == CombatRuleFidelity.Authoritative
+        && bundledAllogeneicConcentric.Triggers.Single().OwnerRelation
+        == CombatStatusTriggerOwnerRelation.EventTargetAllyExceptSelf
+        && bundledAllogeneicConcentric.Triggers.Single().Effects.Any(effect =>
+            effect.Kind == CombatSimulationEffectKind.ScaleMaxHpPercent
+            && effect.Amount == 150)
+        && bundledBeliever.Fidelity == CombatRuleFidelity.Authoritative
+        && bundledBeliever.Triggers.Single().Effects.Any(effect =>
+            effect.Kind == CombatSimulationEffectKind.ScaleVariablePercent
+            && effect.DefinitionId == "PercentDamage"
+            && effect.Amount == 130)
+        && bundledExpiation.Fidelity == CombatRuleFidelity.Authoritative
+        && bundledExpiation.Triggers.Single(item =>
+            item.TriggerId == "expiation-fourth-round")
+            .MinimumCounterValue == 4
+        && bundledFluster.Fidelity == CombatRuleFidelity.Authoritative
+        && bundledFluster.Triggers.Single().CounterStepOrigin == 4
+        && bundledFluster.Triggers.Single().CounterStep == 3
+        && bundledHunting.Fidelity == CombatRuleFidelity.Authoritative
+        && bundledHunting.Triggers.Single().Effects.Any(effect =>
+            effect.AmountExpression?.Operation
+            == CombatSimulationValueOperation.SourceVariable
+            && effect.AmountExpression.Key == "BaseAttack")
+        && bundledTwins.Fidelity == CombatRuleFidelity.Authoritative
+        && bundledTwins.Triggers.Single().MaximumCounterValue == 1
+        && bundledUnparalleledPower.Fidelity
+        == CombatRuleFidelity.Authoritative
+        && bundledUnparalleledPower.Triggers.Single().Effects.Any(effect =>
+            effect.Kind == CombatSimulationEffectKind.ScaleVariablePercent
+            && effect.Amount == 200)
+        && bundledRitualSearch.Fidelity == CombatRuleFidelity.Authoritative
+        && bundledRitualSearch.Effects.Single().Kind
+        == CombatSimulationEffectKind.RetrieveCards
+        && bundledFrozenSearch.Effects.Single().SourceZone
+        == CombatCardZone.DiscardPile
+        && bundledBloodWallEnemy.InitialStatuses.Count == 2
+        && bundledBloodWallEnemy.InitialStatuses.All(item =>
+            item.ConditionExpression != null)
+        && bundledSummonerEnemy.Intents.Single(item =>
+            item.IntentId == "enemycard_Come").Effects.Any(effect =>
+                effect.Kind == CombatSimulationEffectKind.SummonEnemy
+                && effect.DefinitionId == "enemy_10023")
+        && bundledHammerEnemy.Intents.Single(item =>
+            item.IntentId == "enemycard_CAR_Hammer").Effects.Any(effect =>
+                effect.Kind == CombatSimulationEffectKind.ModifyVariablePercent
+                && effect.DefinitionId == "HealMultiplier"
+                && effect.Amount == -20)
+        && bundledThiefEnemy.Intents.Single(item =>
+            item.IntentId == "enemycard_obtainMoney").Effects.Any(effect =>
+                effect.Kind == CombatSimulationEffectKind.DeferVariableUntilVictory
+                && effect.DefinitionId == "Money"
+                && effect.Amount == 15
+                && effect.PersistAcrossBattles)
+        && bundledMoneyThrow.Fidelity == CombatRuleFidelity.Authoritative
+        && bundledMoneyThrow.Effects.Count(effect =>
+            effect.Kind == CombatSimulationEffectKind.Damage) == 20
+         && bundledMoneyThrow.Effects.Single(effect =>
+             effect.Kind == CombatSimulationEffectKind.ModifyVariable)
+             .PersistAcrossBattles
+         && bundledDrawCurse.Fidelity == CombatRuleFidelity.Authoritative
+         && bundledDrawCurse.Tags.Contains(
+             "Unusable",
+             StringComparer.OrdinalIgnoreCase)
+         && bundledDrawCurse.DrawEffects.Single().DefinitionId
+         == "buff_vulnerability"
+         && bundledRecurringCurse.DiscardEffects.Single().DefinitionId
+         == "cursecard_13"
+         && bundledBloodPactStrike.Effects.First().Kind
+         == CombatSimulationEffectKind.SetHp
+        && bundledCampaign.Encounters.Count == 48
+       && bundledCampaign.Rewards.Count == 428
+       && bundledCampaign.InitialMoney == 100
+       && bundledCampaign.Player.MaxHp == 100
+       && bundledCampaign.Player.CurrentHp == 100
+       && bundledCampaign.Player.Deck.SequenceEqual(new[]
+       {
+           "card_1", "card_2", "card_1", "card_2", "card_1", "card_2",
+           "card_2", "burningcard_1", "card_4", "card_3", "burningcard_2",
+           "burningcard_2", "elementscard_9", "card_3", "elementscard_1"
+       })
+       && !bundledCampaign.Difficulties.Single(item =>
+           item.DifficultyId == "normal").MovePlayedCardAfterResolution
+       && bundledCampaign.Difficulties.Single(item =>
+           item.DifficultyId == "advanced").MovePlayedCardAfterResolution
+       && bundledCampaign.Difficulties.Single(item =>
+           item.DifficultyId == "advanced").EnemyHpMultiplier == 1.4d
+       && bundledCampaign.Difficulties.Single(item =>
+           item.DifficultyId == "advanced").EnemyAttackMultiplier == 1.4d
+       && bundledCampaign.Difficulties.Single(item =>
+           item.DifficultyId == "advanced").InitialDiscardCards.Count == 2
+       && bundledCampaign.Difficulties.Single(item =>
+           item.DifficultyId == "advanced").DirectHpLossAfterPlayerCard == 1
+       && bundledCampaign.Difficulties.Single(item =>
+           item.DifficultyId == "advanced").AdditionalEnemyHpMultiplier == 3d
+       && bundledCampaign.Rewards
+           .Where(item => item.Kind == CombatCampaignRewardKind.Card)
+           .All(item => item.OfferWeight is 8d or 5d or 2d or 1d)
+       && !bundledCampaign.Rewards.Any(item =>
+           item.Kind == CombatCampaignRewardKind.Card
+           && item.RewardId.StartsWith("curse", StringComparison.OrdinalIgnoreCase))
+       && bundledRulesV2.Ruleset.SnapshotEnemies()
+           .All(item => item.ActionCount is >= 1 and <= 3)
+       && bundledRulesV2.Ruleset.SnapshotEnemies()
+           .SelectMany(item => item.Intents)
+           .Any(item => item.Effects.Any(effect =>
+               effect.Kind == CombatSimulationEffectKind.CreateCard))
+       && bundledRulesV2.Ruleset.SnapshotEnemies()
+           .SelectMany(item => item.Intents)
+           .Any(item => item.Effects.Any(effect =>
+               effect.Kind == CombatSimulationEffectKind.AddStatus))
+       && bundledRulesV2.Ruleset.SnapshotEnemies()
+           .SelectMany(item => item.Intents)
+           .Where(item => item.IntentId == "enemycard_FiveHit")
+           .All(item => item.Effects.Count(effect =>
+               effect.Kind == CombatSimulationEffectKind.Damage) == 5)
        && bundledCampaign.Rewards.Single(item => item.RewardId == "blessing_1")
            .PermanentAttributeBonuses["Strength"] == 2
        && bundledCampaign.Rewards.Single(item => item.RewardId == "blessing_7")
@@ -1707,7 +2782,530 @@ Assert(bundledRulesV2.Success
            .Contains("Terrias", StringComparison.OrdinalIgnoreCase)
        && !File.ReadAllText(bundledRulesV2Path)
            .Contains("Saya_", StringComparison.OrdinalIgnoreCase),
-    "bundled campaign v2 fixes seven layers, base-game pools, positive rewards, final bosses, and paired difficulty worlds");
+     "bundled campaign v2 fixes seven layers, base-game pools, positive rewards, final bosses, and paired difficulty worlds");
+
+CombatSimulationResult RunBundledStatusScenario(
+    string enemyId,
+    string cardId,
+    ulong seed,
+    int cardCopies = 1,
+    int initialDraw = 1,
+    int maximumTurns = 1,
+    IReadOnlyList<string>? additionalEnemyIds = null)
+{
+    var deck = Enumerable.Repeat(cardId, Math.Max(1, cardCopies)).ToList();
+    var enemyIds = new List<string> { enemyId };
+    if (additionalEnemyIds != null)
+    {
+        enemyIds.AddRange(additionalEnemyIds);
+    }
+    return new CombatSimulationEngine().Run(
+        new CombatScenarioDefinition
+        {
+            ScenarioId = "bundled-status-" + enemyId,
+            RulesetVersion = "witch-base-evaluation-v2",
+            Seed = seed,
+            InitialDraw = initialDraw,
+            DrawPerTurn = initialDraw,
+            HandLimit = Math.Max(10, initialDraw),
+            RequireAuthoritativeRules = false,
+            TraceLevel = CombatSimulationTraceLevel.Full,
+            Player = new CombatPlayerSetup
+            {
+                RoleId = "witch",
+                MaxHp = 999,
+                CurrentHp = 999,
+                BaseEnergy = 20,
+                Deck = deck
+            },
+            Enemies = enemyIds.Select(id =>
+                new CombatEnemySetup { EnemyId = id }).ToList(),
+            Limits = new CombatSimulationLimits
+            {
+                MaximumTurns = maximumTurns,
+                MaximumActions = 500,
+                MaximumCommands = 10000,
+                MaximumCommandsPerAction = 1000,
+                MaximumTriggerWavesPerAction = 100
+            }
+        },
+        bundledRulesV2.Ruleset,
+        new GreedyCombatSimulationPolicy());
+}
+
+var barkhideScenario = RunBundledStatusScenario("enemy_10024", "card_1", 2401UL);
+var bloodWallScenario = RunBundledStatusScenario("enemy_10005", "cursecard_1", 2402UL);
+var blessedScenario = RunBundledStatusScenario("enemy_10041", "cursecard_1", 2403UL);
+var momentumScenario = RunBundledStatusScenario("enemy_10056", "cursecard_1", 2404UL);
+var dragonScenario = RunBundledStatusScenario("enemy_10059", "cursecard_1", 2405UL);
+var thirstScenario = RunBundledStatusScenario("enemy_10039", "cursecard_1", 2406UL);
+var transcendentScenario =
+    RunBundledStatusScenario("enemy_10027", "cursecard_1", 2407UL);
+var dragonEnemy = dragonScenario.FinalState.Actors.Single(actor =>
+    actor.Kind == CombatSimulationActorKind.Enemy);
+Assert(
+    barkhideScenario.Events.Any(item =>
+        item.Kind == CombatSimulationEventKind.BlockGained
+        && item.DefinitionId == "buff_barkhide"
+        && item.Amount == 2),
+    "barkhide grants twice the per-turn hit counter as persistent block");
+Assert(
+    bloodWallScenario.Events.Any(item =>
+        item.Kind == CombatSimulationEventKind.BlockGained
+        && item.DefinitionId == "buff_bloodwall"
+        && item.Amount == 3),
+    "blood wall grants its current stacks as block on enemy actions");
+Assert(
+    blessedScenario.Events.Any(item =>
+        item.Kind == CombatSimulationEventKind.StatusAdded
+        && item.DefinitionId == "buff_evergreen"
+        && item.Amount == 2),
+    "blessed by heaven adds floor five percent max hp evergreen on global turn start");
+Assert(
+    momentumScenario.Events.Any(item =>
+        item.Kind == CombatSimulationEventKind.StatusAdded
+        && item.DefinitionId == "buff_extraordinary"
+        && item.Amount == 20),
+    "Caroline momentum triggers on the global turn start");
+Assert(
+    dragonEnemy.Statuses.Any(item =>
+        item.StatusId == "buff_impregnable"
+        && item.Stacks >= 1)
+    && dragonEnemy.Statuses.Any(item =>
+        item.StatusId == "buff_extraordinary"
+        && item.Stacks >= 20),
+    "dragon blood resolves healing support statuses on the global turn end");
+Assert(
+    thirstScenario.Events.Any(item =>
+        item.Kind == CombatSimulationEventKind.StatusAdded
+        && item.DefinitionId == "buff_bloodriver"
+        && item.Amount == 3),
+    "thirst for blood applies the scripted three blood-river stacks at battle start");
+Assert(
+    transcendentScenario.Events.Any(item =>
+        item.Kind == CombatSimulationEventKind.DamageDealt
+        && item.DefinitionId == "SpecialBuff_Transcendent"
+        && item.Amount == 4),
+    "transcendent actions apply four direct hp loss to every opponent");
+
+var allogeneicScenario = RunBundledStatusScenario(
+    "enemy_10005",
+    "universalcard_17",
+    2411UL,
+    additionalEnemyIds: new[] { "enemy_10029" });
+var allogeneicEnemy = allogeneicScenario.FinalState.Actors.Single(actor =>
+    actor.DefinitionId == "enemy_10029");
+Assert(
+    allogeneicEnemy.MaxHp == 195
+    && allogeneicEnemy.Hp == 195
+    && Math.Abs(allogeneicEnemy.Variables["PercentDamage"] - 1.5d) < 0.000001d
+    && Math.Abs(allogeneicEnemy.Variables["DefendPercent"] - 1.5d) < 0.000001d,
+    "allogeneic concentric scales attack, defense, max hp, and fully heals after an ally dies");
+
+var believerScenario = RunBundledStatusScenario(
+    "enemy_10009",
+    "universalcard_17",
+    2412UL,
+    cardCopies: 3,
+    initialDraw: 3);
+var believerEnemy = believerScenario.FinalState.Actors.Single(actor =>
+    actor.Kind == CombatSimulationActorKind.Enemy);
+Assert(
+    believerEnemy.Hp > believerEnemy.MaxHp / 2
+    && Math.Abs(believerEnemy.Variables["PercentDamage"] - 1.3d) < 0.000001d
+    && Math.Abs(believerEnemy.Variables["DefendPercent"] - 1.3d) < 0.000001d
+    && believerEnemy.Statuses.All(status =>
+        status.StatusId != "SpecialBuff_believer"),
+    "believer heals and permanently scales attack and defense only after crossing half hp");
+
+var expiationScenario = RunBundledStatusScenario(
+    "enemy_10018",
+    "cursecard_1",
+    2413UL,
+    cardCopies: 4,
+    maximumTurns: 4);
+Assert(
+    expiationScenario.Outcome == CombatSimulationOutcome.Victory
+    && expiationScenario.Events.Any(item =>
+        item.Kind == CombatSimulationEventKind.DamageDealt
+        && item.DefinitionId == "SpecialBuff_expiation"
+        && item.TargetActorId != expiationScenario.FinalState.PlayerActorId),
+    "expiation naturally ends the battle on its fourth round after healing the opponent");
+
+var flusterScenario = RunBundledStatusScenario(
+    "enemy_10010",
+    "card_1",
+    2414UL,
+    cardCopies: 5,
+    initialDraw: 5);
+Assert(
+    flusterScenario.Metrics.CardsPlayed == 4
+    && flusterScenario.Events.Count(item =>
+        item.Kind == CombatSimulationEventKind.CardDiscarded) == 5,
+    "fluster ignores the first hit and discards on the fourth, seventh, and later third-hit intervals");
+
+var huntingScenario = RunBundledStatusScenario(
+    "enemy_10028",
+    "cursecard_11",
+    2415UL,
+    cardCopies: 2,
+    initialDraw: 2);
+Assert(
+    huntingScenario.Events.Any(item =>
+        item.Kind == CombatSimulationEventKind.DamageDealt
+        && item.DefinitionId == "SpecialBuff_hunting"
+        && item.Amount == 12),
+    "hunting reads the witch hand parity and uses the enemy's native attack value");
+
+var twinsScenario = RunBundledStatusScenario(
+    "enemy_10005",
+    "universalcard_17",
+    2416UL,
+    additionalEnemyIds: new[] { "enemy_10036" });
+var twinsEnemy = twinsScenario.FinalState.Actors.Single(actor =>
+    actor.DefinitionId == "enemy_10036");
+Assert(
+    twinsEnemy.Statuses.Any(status =>
+        status.StatusId == "buff_impregnable" && status.Stacks >= 2)
+    && twinsEnemy.Statuses.Any(status =>
+        status.StatusId == "buff_extraordinary" && status.Stacks >= 30)
+    && twinsEnemy.Statuses.Any(status =>
+        status.StatusId == "buff_thorns" && status.Stacks >= 3),
+    "twins reacts once to an ally death while its owner is still alive");
+
+var unparalleledScenario = RunBundledStatusScenario(
+    "enemy_10022",
+    "cursecard_1",
+    2417UL);
+var unparalleledEnemy = unparalleledScenario.FinalState.Actors.Single(actor =>
+    actor.DefinitionId == "enemy_10022");
+Assert(
+    unparalleledEnemy.Hp == 180
+    && Math.Abs(unparalleledEnemy.Variables["PercentDamage"] - 2d) < 0.000001d,
+    "unparalleled power loses one quarter max hp and doubles current attack at round end");
+
+var moneyObservation = CombatSimulationObservationProjector.Project(
+    new CombatSimulationPolicyContext
+    {
+        Scenario = new CombatScenarioDefinition { HandLimit = 10 },
+        Ruleset = bundledRulesV2.Ruleset,
+        State = new CombatBattleState
+        {
+            Turn = 1,
+            Phase = CombatSimulationPhase.PlayerAction,
+            PlayerActorId = 1,
+            Actors =
+            {
+                new CombatActorState
+                {
+                    ActorId = 1,
+                    Kind = CombatSimulationActorKind.Player,
+                    Hp = 20,
+                    MaxHp = 20,
+                    Variables = { ["Money"] = 40 }
+                },
+                new CombatActorState
+                {
+                    ActorId = 2,
+                    Kind = CombatSimulationActorKind.Enemy,
+                    DefinitionId = "enemy_10003",
+                    Hp = 100,
+                    MaxHp = 100
+                }
+            },
+            Cards =
+            {
+                new CombatCardInstanceState
+                {
+                    InstanceId = 1,
+                    CardId = "luckycard_3"
+                }
+            },
+            Hand = { 1 }
+        },
+        LegalActions = new List<CombatSimulationAction>
+        {
+            new CombatSimulationAction
+            {
+                CandidateId = "money-throw",
+                Kind = CombatSimulationActionKind.PlayCard,
+                CardInstanceId = 1,
+                DefinitionId = "luckycard_3",
+                Cost = 1
+            }
+        }
+    });
+var moneyThrowObservation = moneyObservation.Actions.Single(item =>
+    item.CandidateId == "money-throw");
+Assert(moneyObservation.Features["player.Money"] == 40d
+       && moneyThrowObservation.Semantics.Damage == 12d
+       && moneyThrowObservation.Semantics.StateChanges["player.Money"] == -20d,
+    "simulation observations expose combat money and evaluate money-dependent card semantics at the current balance");
+
+foreach (var lateMove in new[] { false, true })
+{
+    var bloodState = new CombatBattleState
+    {
+        Turn = 1,
+        Phase = CombatSimulationPhase.PlayerAction,
+        PlayerActorId = 1,
+        NextActorId = 3,
+        NextCardInstanceId = 11,
+        Actors =
+        {
+            new CombatActorState
+            {
+                ActorId = 1,
+                InstanceKey = "player",
+                Kind = CombatSimulationActorKind.Player,
+                DefinitionId = "career_1",
+                Hp = 100,
+                MaxHp = 100,
+                Energy = 999,
+                BaseEnergy = 999
+            },
+            new CombatActorState
+            {
+                ActorId = 2,
+                InstanceKey = "dummy:blood",
+                Kind = CombatSimulationActorKind.Enemy,
+                DefinitionId = "enemy_1",
+                Hp = 100000,
+                MaxHp = 100000
+            }
+        }
+    };
+    bloodState.Cards.Add(new CombatCardInstanceState
+    {
+        InstanceId = 1,
+        CardId = "ritualcard_14"
+    });
+    bloodState.Hand.Add(1);
+    for (var instanceId = 2; instanceId <= 10; instanceId++)
+    {
+        bloodState.Cards.Add(new CombatCardInstanceState
+        {
+            InstanceId = instanceId,
+            CardId = "card_1"
+        });
+        bloodState.Hand.Add(instanceId);
+    }
+
+    var bloodScenario = new CombatScenarioDefinition
+    {
+        ScenarioId = "blood-sacrifice-" + lateMove,
+        RulesetVersion = bundledRulesV2.Ruleset.Version,
+        MovePlayedCardAfterResolution = lateMove,
+        RequireAuthoritativeRules = true
+    };
+    for (var instanceId = 1; instanceId <= 10; instanceId++)
+    {
+        var legal = simulationEngine.GetLegalPlayerActions(
+            bloodScenario,
+            bundledRulesV2.Ruleset,
+            bloodState);
+        var selected = legal.First(item =>
+            item.Kind == CombatSimulationActionKind.PlayCard
+            && item.CardInstanceId == instanceId);
+        var applied = simulationEngine.ForkAndApplyPlayerAction(
+            bloodScenario,
+            bundledRulesV2.Ruleset,
+            bloodState,
+            selected);
+        Assert(applied.Success, "blood sacrifice action fork succeeds");
+        bloodState = applied.State;
+        if (instanceId == 1)
+        {
+            Assert(bloodState.Hand.All(cardInstanceId =>
+                    bloodState.FindCard(cardInstanceId)?.Tags.Contains(
+                        "Burnout",
+                        StringComparer.OrdinalIgnoreCase) == true),
+                "blood sacrifice persistently marks every remaining hand instance");
+        }
+    }
+    Assert(bloodState.ExhaustPile.Count == 10
+           && bloodState.Player?.Statuses.All(item =>
+               item.StatusId != "buff_ritualbloodsacrifice") == true
+           && bloodState.Player?.Statuses.Single(item =>
+               item.StatusId == "buff_extraordinary").Stacks == 444,
+        "blood sacrifice counts ten actual burns and resolves identically for both card-move timings");
+}
+
+var retrievalState = new CombatBattleState
+{
+    Turn = 1,
+    Phase = CombatSimulationPhase.PlayerAction,
+    PlayerActorId = 1,
+    NextActorId = 3,
+    NextCardInstanceId = 5,
+    Actors =
+    {
+        new CombatActorState
+        {
+            ActorId = 1,
+            InstanceKey = "player",
+            Kind = CombatSimulationActorKind.Player,
+            DefinitionId = "career_1",
+            Hp = 100,
+            MaxHp = 100,
+            Energy = 99,
+            BaseEnergy = 99
+        },
+        new CombatActorState
+        {
+            ActorId = 2,
+            InstanceKey = "dummy:retrieval",
+            Kind = CombatSimulationActorKind.Enemy,
+            DefinitionId = "enemy_1",
+            Hp = 100000,
+            MaxHp = 100000
+        }
+    },
+    Cards =
+    {
+        new CombatCardInstanceState { InstanceId = 1, CardId = "ritualcard_1" },
+        new CombatCardInstanceState { InstanceId = 2, CardId = "ritualcard_14" },
+        new CombatCardInstanceState { InstanceId = 3, CardId = "card_1" },
+        new CombatCardInstanceState { InstanceId = 4, CardId = "ritualcard_17" }
+    },
+    Hand = { 1 },
+    DrawPile = { 2, 3, 4 }
+};
+var retrievalScenario = new CombatScenarioDefinition
+{
+    ScenarioId = "tagged-retrieval",
+    RulesetVersion = bundledRulesV2.Ruleset.Version,
+    RequireAuthoritativeRules = true
+};
+var retrievalAction = simulationEngine.GetLegalPlayerActions(
+        retrievalScenario,
+        bundledRulesV2.Ruleset,
+        retrievalState)
+    .Single(item => item.Kind == CombatSimulationActionKind.PlayCard);
+var retrievalApplication = simulationEngine.ForkAndApplyPlayerAction(
+    retrievalScenario,
+    bundledRulesV2.Ruleset,
+    retrievalState,
+    retrievalAction);
+Assert(retrievalApplication.Success
+       && retrievalApplication.State.Hand.Select(instanceId =>
+               retrievalApplication.State.FindCard(instanceId)?.CardId)
+           .OrderBy(item => item, StringComparer.Ordinal)
+           .SequenceEqual(new[] { "ritualcard_14", "ritualcard_17" })
+       && retrievalApplication.State.DrawPile.Single() == 3,
+    "tagged retrieval moves only matching card instances out of the requested source zone");
+
+var timePrisonRules = new CombatRulesetBuilder("time-prison-semantics-v1")
+    .RegisterCard(new CombatCardDefinition
+    {
+        OwnerModId = "Tests",
+        CardId = "defer",
+        Cost = 0,
+        Tags = { "Inherent" },
+        Effects =
+        {
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.EmitEvent,
+                Target = CombatSimulationTarget.Self,
+                Amount = 2,
+                DefinitionId = "buff_timelock",
+                EmittedEventKind = CombatSimulationEventKind.DeferredEffectTriggered
+            }
+        }
+    })
+    .RegisterCard(new CombatCardDefinition
+    {
+        OwnerModId = "Tests",
+        CardId = "ritual-a",
+        Cost = 99,
+        Tags = { "Ritual" },
+        Effects = { new CombatSimulationEffectDefinition { Kind = CombatSimulationEffectKind.GainBlock } }
+    })
+    .RegisterCard(new CombatCardDefinition
+    {
+        OwnerModId = "Tests",
+        CardId = "ritual-b",
+        Cost = 99,
+        Tags = { "Ritual" },
+        Effects = { new CombatSimulationEffectDefinition { Kind = CombatSimulationEffectKind.GainBlock } }
+    })
+    .RegisterCard(new CombatCardDefinition
+    {
+        OwnerModId = "Tests",
+        CardId = "ritual-c",
+        Cost = 99,
+        Tags = { "Ritual" },
+        Effects = { new CombatSimulationEffectDefinition { Kind = CombatSimulationEffectKind.GainBlock } }
+    })
+    .RegisterStatus(bundledTimePrison)
+    .RegisterStatus(new CombatStatusDefinition
+    {
+        OwnerModId = "Tests",
+        StatusId = "buff_ritualechostaff"
+    })
+    .RegisterEnemy(new CombatEnemyDefinition
+    {
+        OwnerModId = "Tests",
+        EnemyId = "dummy",
+        MaxHp = 1000,
+        Intents =
+        {
+            new CombatEnemyIntentDefinition
+            {
+                IntentId = "wait",
+                Effects =
+                {
+                    new CombatSimulationEffectDefinition
+                    {
+                        Kind = CombatSimulationEffectKind.GainBlock,
+                        Target = CombatSimulationTarget.Self
+                    }
+                }
+            }
+        }
+    })
+    .Freeze();
+var timePrisonResult = simulationEngine.Run(
+    new CombatScenarioDefinition
+    {
+        ScenarioId = "time-prison-deferred-count",
+        RulesetVersion = "time-prison-semantics-v1",
+        InitialDraw = 1,
+        DrawPerTurn = 0,
+        Player = new CombatPlayerSetup
+        {
+            MaxHp = 30,
+            CurrentHp = 30,
+            Deck = { "ritual-a", "ritual-b", "ritual-c", "defer" },
+            InitialStatuses =
+            {
+                new CombatInitialStatus
+                {
+                    StatusId = "buff_ritualtimeprison",
+                    Stacks = 1
+                },
+                new CombatInitialStatus
+                {
+                    StatusId = "buff_ritualechostaff",
+                    Stacks = 1
+                }
+            }
+        },
+        Enemies = { new CombatEnemySetup { EnemyId = "dummy" } },
+        Limits = new CombatSimulationLimits { MaximumTurns = 2 }
+    },
+    timePrisonRules.Ruleset,
+    FirstLegalCombatSimulationPolicy.Instance);
+Assert(timePrisonRules.Success
+       && timePrisonResult.Events.Count(item =>
+           item.Kind == CombatSimulationEventKind.CardDrawn
+           && item.DefinitionId.StartsWith("ritual-", StringComparison.Ordinal)) == 3
+       && timePrisonResult.FinalState.Player?.Statuses.Single(item =>
+               item.StatusId == "buff_ritualtimeprison")
+           .TriggerCounts["ThisCount"] == 0,
+    "time prison counts actual deferred executions, applies ritual echo repeats, retrieves by tag, and resets its counter");
+
 var bundledCampaignSmoke = new CombatCampaignRunner().Run(
     bundledCampaign,
     bundledCampaignNormal,
@@ -2182,7 +3780,7 @@ foreach (var cardId in new[] { "strike", "guard", "skip-me" })
             {
                 Kind = CombatSimulationEffectKind.Damage,
                 Target = CombatSimulationTarget.SelectedEnemy,
-                Amount = 99999
+                Amount = 1
             }
         }
     });
@@ -2288,6 +3886,89 @@ Assert(attributeResult.Outcome == CombatSimulationOutcome.Victory
        && attributeResult.Metrics.BlockGained == 6
        && attributeResult.PersistentVariableDeltas["StrengthUpperBound"] == 5,
     "campaign attributes use Witch scaling and explicitly project persistent cap effects");
+var moneyRulesBuilder = new CombatRulesetBuilder("money-rules");
+moneyRulesBuilder.RegisterCard(new CombatCardDefinition
+{
+    OwnerModId = "Tests",
+    CardId = "chip",
+    Cost = 0,
+    RequiresEnemyTarget = true,
+    Effects =
+    {
+        new CombatSimulationEffectDefinition
+        {
+            Kind = CombatSimulationEffectKind.Damage,
+            Target = CombatSimulationTarget.SelectedEnemy,
+            Amount = 1
+        }
+    }
+});
+moneyRulesBuilder.RegisterEnemy(new CombatEnemyDefinition
+{
+    OwnerModId = "Tests",
+    EnemyId = "pickpocket",
+    MaxHp = 2,
+    Intents =
+    {
+        new CombatEnemyIntentDefinition
+        {
+            IntentId = "steal-and-refund",
+            Weight = 1,
+            Effects =
+            {
+                new CombatSimulationEffectDefinition
+                {
+                    Kind = CombatSimulationEffectKind.ModifyVariable,
+                    Target = CombatSimulationTarget.Player,
+                    DefinitionId = "Money",
+                    Amount = -15,
+                    PersistAcrossBattles = true,
+                    MinimumVariableValue = 0
+                },
+                new CombatSimulationEffectDefinition
+                {
+                    Kind = CombatSimulationEffectKind.DeferVariableUntilVictory,
+                    Target = CombatSimulationTarget.Player,
+                    DefinitionId = "Money",
+                    Amount = 15,
+                    PersistAcrossBattles = true,
+                    MinimumVariableValue = 0
+                }
+            }
+        }
+    }
+});
+var moneyRules = moneyRulesBuilder.Freeze();
+var moneyResult = new CombatSimulationEngine().Run(
+    new CombatScenarioDefinition
+    {
+        ScenarioId = "money-clamp-and-refund",
+        RulesetVersion = "money-rules",
+        Seed = 7,
+        Player = new CombatPlayerSetup
+        {
+            MaxHp = 20,
+            CurrentHp = 20,
+            Deck = { "chip" },
+            Variables = { ["Money"] = 10 }
+        },
+        Enemies = { new CombatEnemySetup { EnemyId = "pickpocket" } },
+        InitialDraw = 1,
+        DrawPerTurn = 1,
+        RequireAuthoritativeRules = true
+    },
+    moneyRules.Ruleset,
+    new GreedyCombatSimulationPolicy());
+var changedMoneyState = moneyResult.FinalState.Clone();
+changedMoneyState.Player!.Variables["Money"]++;
+Assert(moneyRules.Success
+       && moneyResult.Outcome == CombatSimulationOutcome.Victory
+       && moneyResult.FinalState.Player!.Variables["Money"] == 15d
+       && moneyResult.PersistentVariableDeltas["Money"] == 5
+       && moneyResult.FinalState.DeferredVictoryVariableChanges.Count == 0
+       && CombatBattleStateHasher.Hash(moneyResult.FinalState)
+          != CombatBattleStateHasher.Hash(changedMoneyState),
+    "combat money clamps theft to the available balance, refunds on victory, persists the actual delta, and participates in state identity");
 var overflowState = new CombatCampaignState
 {
     Attributes = { ["Strength"] = 40 },
@@ -2317,8 +3998,235 @@ Assert(campaignPair.Baseline.CampaignVictory
        && campaignPair.Baseline.FinalState.Attributes["Strength"] == 40
        && campaignPair.Baseline.FinalState.Attributes["Wisdom"] == 39
        && campaignPair.Baseline.FinalState.Attributes["Lucky"] == 20
+       && campaignPair.Baseline.FinalState.Money == 100
        && campaignPair.Baseline.FinalState.Relics.Count == 6,
     "campaign runner carries full state, applies +40 hp per cleared layer, caps attributes, and enforces six relics");
+Assert(campaignRules.Ruleset.TryGetCardCore("strike", out var projectedStrike),
+    "foundation fixture resolves the starter attack definition");
+projectedStrike!.Fidelity = CombatRuleFidelity.Authoritative;
+var projectedTrainingCampaign = BuildStandardCampaign();
+projectedTrainingCampaign.RequireAuthoritativeRules = true;
+var projectedValidationCampaign = BuildStandardCampaign();
+projectedValidationCampaign.RequireAuthoritativeRules = true;
+foreach (var difficulty in projectedTrainingCampaign.Difficulties
+             .Concat(projectedValidationCampaign.Difficulties))
+{
+    difficulty.ApplyGameLevelShield = false;
+}
+var foundationTraining = new CombatCampaignFoundationTrainer().Run(
+    new CombatCampaignFoundationTrainingRequest
+    {
+        DecisionProfile = "balanced",
+        Iterations = 1,
+        TrainingCampaignsPerIteration = 2,
+        ArenaCampaignsPerDifficulty = 1,
+        NormalValidationCampaigns = 5,
+        AdvancedValidationCampaigns = 5,
+        TrainingSeedStart = 10_000,
+        ArenaSeedStart = 20_000,
+        ValidationSeedStart = 30_000,
+        TrainingCampaign = projectedTrainingCampaign,
+        ValidationCampaign = projectedValidationCampaign,
+        Profile = new CombatDecisionProfile
+        {
+            SearchSimulationBudget = 128,
+            SearchNodeBudget = 512,
+            SearchMaxPly = 4
+        },
+        Training = new CombatPolicyValueTrainingOptions
+        {
+            Epochs = 2,
+            MinimumEpisodes = 2,
+            HiddenDimensions = 8,
+            RandomSeed = 73
+        }
+    },
+    campaignRules.Ruleset);
+Assert(foundationTraining.Success
+       && foundationTraining.AcceptancePassed
+       && foundationTraining.Champion != null
+       && foundationTraining.Replay.Count == 74
+       && foundationTraining.Replay.All(episode => episode.Authoritative)
+       && foundationTraining.ValidationRuns.Count == 10
+       && foundationTraining.Validation.NormalCampaigns == 5
+       && foundationTraining.Validation.AdvancedCampaigns == 5
+       && foundationTraining.Validation.NormalWinRate == 1d
+       && foundationTraining.Validation.AdvancedWinRate == 1d,
+    "foundation trainer requires authoritative campaigns, isolates seed partitions, and enforces 100/80 holdout acceptance");
+
+var dynamicEnemyRules = new CombatRulesetBuilder("dynamic-enemy-v1")
+    .RegisterCard(new CombatCardDefinition
+    {
+        OwnerModId = "Tests",
+        CardId = "observe",
+        Cost = 0,
+        Fidelity = CombatRuleFidelity.Authoritative
+    })
+    .RegisterStatus(new CombatStatusDefinition
+    {
+        OwnerModId = "Tests",
+        StatusId = "opening-mark",
+        MaximumStacks = 99,
+        Fidelity = CombatRuleFidelity.Authoritative
+    })
+    .RegisterEnemy(new CombatEnemyDefinition
+    {
+        OwnerModId = "Tests",
+        EnemyId = "dynamic-enemy",
+        MaxHp = 20,
+        Fidelity = CombatRuleFidelity.Authoritative,
+        InitialStatuses =
+        {
+            new CombatInitialStatus
+            {
+                StatusId = "opening-mark",
+                Stacks = 2,
+                ConditionExpression = new CombatSimulationValueExpression
+                {
+                    Operation = CombatSimulationValueOperation.GreaterThan,
+                    Arguments =
+                    {
+                        new CombatSimulationValueExpression
+                        {
+                            Operation = CombatSimulationValueOperation.SourceVariable,
+                            Key = "TagDiff"
+                        },
+                        new CombatSimulationValueExpression
+                        {
+                            Operation = CombatSimulationValueOperation.Constant,
+                            Constant = 20
+                        }
+                    }
+                }
+            }
+        },
+        Intents =
+        {
+            new CombatEnemyIntentDefinition
+            {
+                IntentId = "ordinary",
+                Priority = 1,
+                Weight = 1
+            },
+            new CombatEnemyIntentDefinition
+            {
+                IntentId = "advanced",
+                Priority = 0,
+                Effects =
+                {
+                    new CombatSimulationEffectDefinition
+                    {
+                        Kind = CombatSimulationEffectKind.CopyStatuses,
+                        Target = CombatSimulationTarget.Player
+                    },
+                    new CombatSimulationEffectDefinition
+                    {
+                        Kind = CombatSimulationEffectKind.ModifyVariablePercent,
+                        Target = CombatSimulationTarget.Player,
+                        DefinitionId = "HealMultiplier",
+                        Amount = -20
+                    }
+                },
+                PriorityExpression = new CombatSimulationValueExpression
+                {
+                    Operation = CombatSimulationValueOperation.Conditional,
+                    Arguments =
+                    {
+                        new CombatSimulationValueExpression
+                        {
+                            Operation = CombatSimulationValueOperation.GreaterThan,
+                            Arguments =
+                            {
+                                new CombatSimulationValueExpression
+                                {
+                                    Operation = CombatSimulationValueOperation.SourceVariable,
+                                    Key = "TagDiff"
+                                },
+                                new CombatSimulationValueExpression
+                                {
+                                    Operation = CombatSimulationValueOperation.Constant,
+                                    Constant = 20
+                                }
+                            }
+                        },
+                        new CombatSimulationValueExpression
+                        {
+                            Operation = CombatSimulationValueOperation.Constant,
+                            Constant = 5
+                        },
+                        new CombatSimulationValueExpression
+                        {
+                            Operation = CombatSimulationValueOperation.Constant,
+                            Constant = 0
+                        }
+                    }
+                },
+                Weight = 1
+            }
+        }
+    })
+    .Freeze();
+CombatSimulationResult RunDynamicEnemy(double tagDiff)
+{
+    return new CombatSimulationEngine().Run(
+        new CombatScenarioDefinition
+        {
+            ScenarioId = "dynamic-enemy-" + tagDiff,
+            RulesetVersion = "dynamic-enemy-v1",
+            Seed = 9,
+            TraceLevel = CombatSimulationTraceLevel.Full,
+            Player = new CombatPlayerSetup
+            {
+                RoleId = "tests",
+                MaxHp = 20,
+                CurrentHp = 20,
+                Deck = { "observe" },
+                InitialStatuses =
+                {
+                    new CombatInitialStatus
+                    {
+                        StatusId = "opening-mark",
+                        Stacks = 3
+                    }
+                }
+            },
+            Enemies =
+            {
+                new CombatEnemySetup
+                {
+                    EnemyId = "dynamic-enemy",
+                    Variables = { ["TagDiff"] = tagDiff }
+                }
+            },
+            Limits = new CombatSimulationLimits
+            {
+                MaximumTurns = 1,
+                MaximumActions = 20,
+                MaximumCommands = 100
+            }
+        },
+        dynamicEnemyRules.Ruleset,
+        new GreedyCombatSimulationPolicy());
+}
+var normalDynamicEnemy = RunDynamicEnemy(0);
+var advancedDynamicEnemy = RunDynamicEnemy(40);
+Assert(normalDynamicEnemy.Events.Any(item =>
+        item.Kind == CombatSimulationEventKind.IntentSelected
+        && item.DefinitionId == "ordinary"),
+    "normal enemy variables select the ordinary intent");
+Assert(normalDynamicEnemy.FinalState.LivingEnemies.Single().Statuses.All(status =>
+        status.StatusId != "opening-mark"),
+    "normal enemy variables skip the advanced opening status");
+Assert(advancedDynamicEnemy.Events.Any(item =>
+        item.Kind == CombatSimulationEventKind.IntentSelected
+        && item.DefinitionId == "advanced"),
+    "advanced enemy variables select the dynamically prioritized intent");
+Assert(advancedDynamicEnemy.FinalState.LivingEnemies.Single().Statuses.Single(status =>
+        status.StatusId == "opening-mark").Stacks == 5
+       && Math.Abs(
+           advancedDynamicEnemy.FinalState.Player!.Variables["HealMultiplier"] - 0.8d)
+       < 0.000001d,
+    "enemy definitions apply opening statuses, status copying, and percent variables");
 
 Console.WriteLine($"AuraCombatAiShared.Tests passed: {assertions} assertions.");
 
@@ -2646,6 +4554,7 @@ CombatRulesetBuildResult BuildSimulationRuleset(string version = "test-v1")
             EnemyId = "dummy",
             DisplayName = "Training Dummy",
             MaxHp = 18,
+            ActionCount = 2,
             Intents =
             {
                 new CombatEnemyIntentDefinition
@@ -2662,6 +4571,13 @@ CombatRulesetBuildResult BuildSimulationRuleset(string version = "test-v1")
                             Amount = 4
                         }
                     }
+                },
+                new CombatEnemyIntentDefinition
+                {
+                    IntentId = "wait",
+                    DisplayName = "Wait",
+                    Weight = 1,
+                    Effects = new List<CombatSimulationEffectDefinition>()
                 }
             }
         })

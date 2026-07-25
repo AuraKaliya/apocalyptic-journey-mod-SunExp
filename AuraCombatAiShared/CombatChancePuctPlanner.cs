@@ -80,7 +80,7 @@ public sealed class CombatChancePuctPlanner
         var useGroupCount = actions.Count == 0 ? 0 : actions.Max(action => action.UseGroupIndex) + 1;
         var rootState = CombatForwardModel.Create(state, useGroupCount);
         var root = NewNode(rootState);
-        EnsureEdges(root, includeStop: false);
+        EnsureEdges(root);
 
         var simulations = 0;
         // Every legal root action receives evidence before PUCT may concentrate the budget.
@@ -225,19 +225,15 @@ public sealed class CombatChancePuctPlanner
                 break;
             }
 
-            EnsureEdges(node, includeStop: node.State.StepCount > 0);
+            EnsureEdges(node);
             var edge = ply == 0 && forcedRoot != null
                 ? forcedRoot
                 : SelectEdge(node);
-            if (edge == null || edge.ActionIndex < 0)
+            if (edge == null)
             {
                 var leaf = EvaluateLeaf(node.State);
                 value = pathReward + leaf.Value;
                 risk = leaf.DeathRisk;
-                if (edge != null)
-                {
-                    edgePath.Add(edge);
-                }
                 break;
             }
 
@@ -250,6 +246,15 @@ public sealed class CombatChancePuctPlanner
             }
 
             edgePath.Add(edge);
+            if (searchAction.Action.Kind == CombatActionKind.EndTurn)
+            {
+                var endState = CombatForwardModel.ApplyEndTurn(node.State, profile);
+                var endLeaf = EvaluateLeaf(endState);
+                value = pathReward + endLeaf.Value;
+                risk = endLeaf.DeathRisk;
+                break;
+            }
+
             var outcome = SelectOutcome(edge);
             var immediate = Score(node.State, searchAction.Action);
             pathReward += immediate * Math.Pow(0.985d, ply);
@@ -313,7 +318,7 @@ public sealed class CombatChancePuctPlanner
         }
     }
 
-    private void EnsureEdges(SearchNode node, bool includeStop)
+    private void EnsureEdges(SearchNode node)
     {
         var priorTotal = 0d;
         for (var i = 0; i < actions.Count; i++)
@@ -341,15 +346,6 @@ public sealed class CombatChancePuctPlanner
             priorTotal += edge.Prior;
         }
 
-        if (includeStop && !node.Edges.ContainsKey(-1))
-        {
-            node.Edges[-1] = new SearchEdge
-            {
-                ActionIndex = -1,
-                Prior = Math.Max(0.05d, 1d / Math.Max(2, actions.Count))
-            };
-            priorTotal += node.Edges[-1].Prior;
-        }
         if (priorTotal <= 0d)
         {
             return;
@@ -481,8 +477,7 @@ public sealed class CombatChancePuctPlanner
     {
         var legal = candidates
             .Where(candidate => candidate.Legal
-                                && candidate.Action != null
-                                && candidate.Action.Kind != CombatActionKind.EndTurn)
+                                && candidate.Action != null)
             .ToList();
         if (legal.Count == 0)
         {
@@ -583,6 +578,10 @@ public sealed class CombatChancePuctPlanner
         CombatSimulationState state,
         SearchAction searchAction)
     {
+        if (searchAction.Action.Kind == CombatActionKind.EndTurn)
+        {
+            return searchAction.Action.Legal;
+        }
         if (state.WasUsed(searchAction.UseGroupIndex)
             || !state.TargetAlive(searchAction.Action.TargetRuntimeId)
             || CombatForwardModel.EffectiveCost(state, searchAction.Action) > state.Power)
@@ -617,10 +616,6 @@ public sealed class CombatChancePuctPlanner
         var node = root;
         for (var depth = 0; depth < Math.Min(profile.SearchMaxPly, 16); depth++)
         {
-            if (edge.ActionIndex < 0)
-            {
-                break;
-            }
             var action = actions[edge.ActionIndex].Action;
             var outcome = edge.Outcomes
                 .Where(item => item.Child != null)
@@ -638,12 +633,16 @@ public sealed class CombatChancePuctPlanner
                 DeathRisk = edge.MeanRisk,
                 Visits = edge.Visits
             });
+            if (action.Kind == CombatActionKind.EndTurn)
+            {
+                break;
+            }
             if (outcome?.Child == null)
             {
                 break;
             }
             node = outcome.Child;
-            EnsureEdges(node, includeStop: true);
+            EnsureEdges(node);
             edge = node.Edges.Values
                 .Where(candidate => candidate.Visits > 0 && !candidate.Disabled)
                 .OrderByDescending(candidate =>

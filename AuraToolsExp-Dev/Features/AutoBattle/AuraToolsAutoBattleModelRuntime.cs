@@ -64,11 +64,23 @@ internal sealed class AutoBattleTrainingStatus
 
 internal sealed class AutoBattleCandidateBundle
 {
-    public int SchemaVersion { get; set; } = 1;
+    public int SchemaVersion { get; set; } = 2;
 
     public string BundleId { get; set; } = "";
 
     public string Profile { get; set; } = "";
+
+    public string RoleId { get; set; } = "";
+
+    public string CardPoolScope { get; set; } = "";
+
+    public string ModelPurpose { get; set; } = "candidate";
+
+    public double ProjectionNormalWinRate { get; set; }
+
+    public double ProjectionAdvancedWinRate { get; set; }
+
+    public string TrainingReportDirectory { get; set; } = "";
 
     public DateTime GeneratedUtc { get; set; }
 
@@ -91,6 +103,16 @@ internal sealed class AutoBattleModelLibraryEntry
 
     public string Profile { get; set; } = "balanced";
 
+    public string RoleId { get; set; } = "";
+
+    public string CardPoolScope { get; set; } = "";
+
+    public string ModelPurpose { get; set; } = "candidate";
+
+    public double ProjectionNormalWinRate { get; set; }
+
+    public double ProjectionAdvancedWinRate { get; set; }
+
     public string BundleFile { get; set; } = "";
 
     public DateTime CreatedUtc { get; set; }
@@ -98,7 +120,7 @@ internal sealed class AutoBattleModelLibraryEntry
 
 internal sealed class AutoBattleModelLibraryDocument
 {
-    public int SchemaVersion { get; set; } = 1;
+    public int SchemaVersion { get; set; } = 2;
 
     public List<AutoBattleModelLibraryEntry> Models { get; set; } = new();
 }
@@ -110,6 +132,10 @@ internal sealed class AutoBattleTrainingSnapshotManifest
     public string SnapshotId { get; set; } = "";
 
     public string Profile { get; set; } = "";
+
+    public string RoleId { get; set; } = "";
+
+    public string CardPoolScope { get; set; } = "";
 
     public DateTime CapturedUtc { get; set; }
 
@@ -134,6 +160,9 @@ internal sealed class AutoBattleTrainingSnapshotFile
 internal static class AuraToolsAutoBattleModelRuntime
 {
     private const string SystemId = "AuraCombatAI";
+    public const string CurrentRoleId = "career_1";
+    public const string CurrentCardPoolScope =
+        "witch.normal.base-game.offline-packs.all-unlocked.no-curse.v1";
     private static readonly object StatusGate = new();
     private static readonly object LibraryGate = new();
     private static readonly Dictionary<string, AutoBattleTrainingStatus> StatusByProfile =
@@ -382,7 +411,15 @@ internal static class AuraToolsAutoBattleModelRuntime
                 .Where(item => string.Equals(
                     NormalizeProfile(item.Profile),
                     profile,
-                    StringComparison.Ordinal))
+                    StringComparison.Ordinal)
+                               && string.Equals(
+                                   item.RoleId,
+                                   CurrentRoleId,
+                                   StringComparison.OrdinalIgnoreCase)
+                               && string.Equals(
+                                   item.CardPoolScope,
+                                   CurrentCardPoolScope,
+                                   StringComparison.Ordinal))
                 .OrderByDescending(item => item.CreatedUtc)
                 .Select(CloneLibraryEntry)
                 .ToArray();
@@ -512,6 +549,49 @@ internal static class AuraToolsAutoBattleModelRuntime
         using var storage = new AuraSharedStorageCoordinator(AuraSharedPaths.RootDirectory);
         storage.WriteTextAtomic(path, AuraSharedJson.Serialize(bundle), createBackup: true);
         return path;
+    }
+
+    public static string SaveFoundationModel(
+        string decisionProfile,
+        CombatPolicyValueNetworkDefinition model,
+        CombatCampaignFoundationValidation validation,
+        string reportDirectory)
+    {
+        var profile = NormalizeProfile(decisionProfile);
+        if (!CombatPolicyValueNetworkValidator.TryValidate(model, out var reason)
+            || !string.Equals(
+                NormalizeProfile(model.DecisionProfile),
+                profile,
+                StringComparison.Ordinal))
+        {
+            throw new InvalidOperationException("底模策略价值网络无效：" + reason);
+        }
+        if (validation == null || !validation.Passed)
+        {
+            throw new InvalidOperationException(
+                "底模尚未通过正式隔离验收线：普通难度须 200/200，"
+                + "高级难度须至少 400/500，且不得出现无效冒险");
+        }
+        var bundle = NewCandidateBundle(profile, "foundation-self-play", "");
+        bundle.BundleId = NewRunId("foundation");
+        bundle.ModelPurpose = "foundation";
+        bundle.ProjectionNormalWinRate = validation.NormalWinRate;
+        bundle.ProjectionAdvancedWinRate = validation.AdvancedWinRate;
+        bundle.TrainingReportDirectory = reportDirectory ?? "";
+        bundle.PolicyValue = model;
+        var modelId = CandidateModelId(bundle);
+        var path = AuraSharedLogStore.OwnerLogPath(
+            AuraToolsIds.ModId,
+            "foundation-model-bundle-" + profile + ".json");
+        using (var storage = new AuraSharedStorageCoordinator(AuraSharedPaths.RootDirectory))
+        {
+            storage.WriteTextAtomic(
+                path,
+                AuraSharedJson.Serialize(bundle),
+                createBackup: false);
+        }
+        RegisterLibraryBundle(bundle, modelId);
+        return modelId;
     }
 
     public static bool TryGetInstalledModelInfo(
@@ -840,8 +920,121 @@ internal static class AuraToolsAutoBattleModelRuntime
     {
         lock (StatusGate)
         {
-            return StatusByProfile.Values.Any(item => item.Busy);
+            return StatusByProfile.Values.Any(item => item.Busy)
+                   || AuraToolsAutoBattleFoundationRuntime.GetStatus().Busy;
         }
+    }
+
+    public static bool TryClearAllCombatLearningData(out string message)
+    {
+        if (AnyTrainingBusy()
+            || AuraToolsAutoBattleSimulationRuntime.GetStatus().Busy)
+        {
+            message = "训练、模拟或导入任务仍在运行，不能清理";
+            return false;
+        }
+        try
+        {
+            var ownerLogs = Path.GetFullPath(
+                AuraSharedLogStore.OwnerDirectory(AuraToolsIds.ModId));
+            var ownerConfig = Path.GetFullPath(
+                AuraSharedPaths.OwnerSystemConfigDirectory(
+                    AuraToolsIds.ModId,
+                    SystemId));
+            var resultRoot = Path.GetFullPath(
+                AuraToolsAutoBattleSimulationRuntime.ResultsRootDirectory);
+            AuraToolsAutoBattleTrainingSink.ClearPersistedData();
+            var directories = new[]
+            {
+                Path.Combine(ownerLogs, "training-snapshots"),
+                Path.Combine(ownerLogs, "candidate-archive"),
+                Path.Combine(ownerLogs, "champion-history"),
+                Path.Combine(ownerLogs, "model-library"),
+                Path.Combine(ownerLogs, "training-batches"),
+                resultRoot,
+                ownerConfig
+            };
+            foreach (var directory in directories
+                         .Select(Path.GetFullPath)
+                         .Distinct(StringComparer.OrdinalIgnoreCase))
+            {
+                if (!IsInside(directory, ownerLogs)
+                    && !IsInside(
+                        directory,
+                        AuraSharedPaths.OwnerConfigDirectory(AuraToolsIds.ModId)))
+                {
+                    throw new InvalidOperationException("拒绝清理范围外目录：" + directory);
+                }
+                if (Directory.Exists(directory))
+                {
+                    Directory.Delete(directory, recursive: true);
+                }
+            }
+            if (Directory.Exists(ownerLogs))
+            {
+                var filePrefixes = new[]
+                {
+                    "auto-battle-training-",
+                    "auto-battle-candidate-",
+                    "auto-battle-model-candidate-",
+                    "auto-battle-search-model-candidate-",
+                    "auto-battle-policy-value-candidate-",
+                    "foundation-model-bundle-",
+                    "live-combat-episodes-",
+                    "journey-episodes-"
+                };
+                foreach (var path in Directory.EnumerateFiles(
+                             ownerLogs,
+                             "*",
+                             SearchOption.TopDirectoryOnly))
+                {
+                    var name = Path.GetFileName(path);
+                    if (AuraToolsAutoBattleTrainingSink.OwnsPersistedFile(name))
+                    {
+                        continue;
+                    }
+                    if (filePrefixes.Any(prefix =>
+                            name.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)))
+                    {
+                        File.Delete(path);
+                    }
+                }
+            }
+            lock (StatusGate)
+            {
+                StatusByProfile.Clear();
+            }
+            AuraToolsAutoBattleSimulationRuntime.ResetAfterDataClear();
+            AuraToolsAutoBattleFoundationRuntime.ResetAfterDataClear();
+            var settings = AuraToolsConfigService.MatchExperience.AutoBattle;
+            settings.SelectedModelId = "";
+            settings.TrainedModelMode = "off";
+            settings.UseTrainedModel = false;
+            settings.CaptureTrainingSamples = false;
+            settings.Normalize();
+            AuraToolsConfigService.SaveMatchExperience();
+            AuraToolsAutoBattleRuntime.ReloadModels();
+            message = "旧战斗样本、训练快照、候选/冠军/模型库和模拟结果已直接删除；知识包与规则配置已保留";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            message = "清理失败：" + ex.Message;
+            return false;
+        }
+    }
+
+    private static bool IsInside(string candidate, string root)
+    {
+        var normalizedRoot = Path.GetFullPath(root)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            + Path.DirectorySeparatorChar;
+        var normalizedCandidate = Path.GetFullPath(candidate)
+            .TrimEnd(Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar)
+            + Path.DirectorySeparatorChar;
+        return normalizedCandidate.StartsWith(
+            normalizedRoot,
+            StringComparison.OrdinalIgnoreCase);
     }
 
     public static bool TryImportCandidate(
@@ -862,11 +1055,12 @@ internal static class AuraToolsAutoBattleModelRuntime
         {
             var bundle = ReadCandidateBundle(profile);
             if (bundle == null
-                || bundle.SchemaVersion != 1
+                || bundle.SchemaVersion != 2
                 || !string.Equals(
                     NormalizeProfile(bundle.Profile),
                     profile,
                     StringComparison.Ordinal)
+                || !MatchesCurrentRoleScope(bundle)
                 || (bundle.Residual == null
                     && bundle.SearchGuidance == null
                     && bundle.PolicyValue == null))
@@ -1344,6 +1538,15 @@ internal static class AuraToolsAutoBattleModelRuntime
                 AuraSharedJson.Serialize(bundle),
                 createBackup: true);
         }
+        WriteTrainingBatchManifest(
+            bundle,
+            samples.Count,
+            episodes.Count,
+            journeys.Count,
+            invalidLines,
+            result.PreferencePairCount,
+            result.Model?.Metrics,
+            policyValue.Model?.Metrics);
         return new TrainingWorkResult(
             true,
             (result.Success ? result.Message : "人工残差未更新")
@@ -1359,6 +1562,70 @@ internal static class AuraToolsAutoBattleModelRuntime
             (result.Model?.Weights.Count ?? 0)
             + (policyValue.Model?.HiddenDimensions ?? 0),
             candidatePath);
+    }
+
+    private static void WriteTrainingBatchManifest(
+        AutoBattleCandidateBundle bundle,
+        int sampleCount,
+        int episodeCount,
+        int journeyCount,
+        int invalidLineCount,
+        int preferencePairCount,
+        IReadOnlyDictionary<string, double>? residualMetrics,
+        IReadOnlyDictionary<string, double>? policyValueMetrics)
+    {
+        var directory = Path.Combine(
+            AuraSharedLogStore.OwnerDirectory(AuraToolsIds.ModId),
+            "training-batches",
+            bundle.TrainingSnapshotId);
+        Directory.CreateDirectory(directory);
+        var report = new
+        {
+            schemaVersion = 1,
+            reportKind = "role-specific-combat-model-training",
+            bundle.BundleId,
+            bundle.GeneratedUtc,
+            bundle.Profile,
+            bundle.RoleId,
+            bundle.CardPoolScope,
+            bundle.TrainingSnapshotId,
+            bundle.TrainingSnapshotHash,
+            sampleCount,
+            episodeCount,
+            journeyCount,
+            invalidLineCount,
+            preferencePairCount,
+            residualMetrics,
+            policyValueMetrics,
+            campaignEvaluationStatus = "pending",
+            nextStep =
+                "Run normal and advanced fixed seven-layer world simulation; each evaluation writes training-report.json and training-report.md."
+        };
+        var markdown = new StringBuilder()
+            .AppendLine("# 角色战斗 AI 训练批次")
+            .AppendLine()
+            .AppendLine("- 角色：`" + bundle.RoleId + "`")
+            .AppendLine("- 卡池范围：`" + bundle.CardPoolScope + "`")
+            .AppendLine("- 决策风格：`" + bundle.Profile + "`")
+            .AppendLine("- 候选包：`" + bundle.BundleId + "`")
+            .AppendLine("- 训练快照：`" + bundle.TrainingSnapshotId + "`")
+            .AppendLine("- 决策样本：" + sampleCount)
+            .AppendLine("- 完整战斗：" + episodeCount)
+            .AppendLine("- 完整旅程：" + journeyCount)
+            .AppendLine("- 偏好对：" + preferencePairCount)
+            .AppendLine("- 无效行：" + invalidLineCount)
+            .AppendLine()
+            .AppendLine("当前状态：候选训练完成，世界推演评估待运行。普通与高级难度将分别生成构筑、最终牌组、遗物、祝福及最终首领/失败战斗报告。")
+            .ToString();
+        using var storage = new AuraSharedStorageCoordinator(AuraSharedPaths.RootDirectory);
+        storage.WriteTextAtomic(
+            Path.Combine(directory, "training-batch.json"),
+            AuraSharedJson.Serialize(report),
+            createBackup: false);
+        storage.WriteTextAtomic(
+            Path.Combine(directory, "training-batch.md"),
+            markdown,
+            createBackup: false);
     }
 
     private static CombatResidualTrainingOptions ToTrainingOptions(
@@ -1541,6 +1808,8 @@ internal static class AuraToolsAutoBattleModelRuntime
         {
             SnapshotId = snapshotId,
             Profile = profile,
+            RoleId = CurrentRoleId,
+            CardPoolScope = CurrentCardPoolScope,
             CapturedUtc = DateTime.UtcNow
         };
         using var storage = new AuraSharedStorageCoordinator(AuraSharedPaths.RootDirectory);
@@ -1689,10 +1958,24 @@ internal static class AuraToolsAutoBattleModelRuntime
         {
             BundleId = NewRunId("candidate"),
             Profile = profile,
+            RoleId = CurrentRoleId,
+            CardPoolScope = CurrentCardPoolScope,
             GeneratedUtc = DateTime.UtcNow,
             TrainingSnapshotId = snapshotId ?? "",
             TrainingSnapshotHash = snapshotHash ?? ""
         };
+    }
+
+    private static bool MatchesCurrentRoleScope(AutoBattleCandidateBundle bundle)
+    {
+        return string.Equals(
+                   bundle.RoleId,
+                   CurrentRoleId,
+                   StringComparison.OrdinalIgnoreCase)
+               && string.Equals(
+                   bundle.CardPoolScope,
+                   CurrentCardPoolScope,
+                   StringComparison.Ordinal);
     }
 
     private static AutoBattleCandidateBundle? ReadCandidateBundle(string profile)
@@ -1713,12 +1996,13 @@ internal static class AuraToolsAutoBattleModelRuntime
         try
         {
             bundle = ReadCandidateBundle(profile) ?? new AutoBattleCandidateBundle();
-            if (bundle.SchemaVersion != 1
+            if (bundle.SchemaVersion != 2
                 || string.IsNullOrWhiteSpace(bundle.BundleId)
                 || !string.Equals(
                     NormalizeProfile(bundle.Profile),
                     profile,
                     StringComparison.Ordinal)
+                || !MatchesCurrentRoleScope(bundle)
                 || (bundle.Residual == null
                     && bundle.SearchGuidance == null
                     && bundle.PolicyValue == null))
@@ -1800,13 +2084,24 @@ internal static class AuraToolsAutoBattleModelRuntime
                 existing = new AutoBattleModelLibraryEntry
                 {
                     ModelId = modelId,
-                    DisplayName = "策略模型 "
+                    DisplayName = string.Equals(
+                        bundle.ModelPurpose,
+                        "foundation",
+                        StringComparison.Ordinal)
+                        ? "career_1 底模 "
+                          + DateTime.Now.ToString("yyyy-MM-dd HH:mm")
+                        : "career_1 战斗模型 "
                                   + DateTime.Now.ToString("yyyy-MM-dd HH:mm"),
                     CreatedUtc = DateTime.UtcNow
                 };
                 library.Models.Add(existing);
             }
             existing.Profile = NormalizeProfile(bundle.Profile);
+            existing.RoleId = bundle.RoleId;
+            existing.CardPoolScope = bundle.CardPoolScope;
+            existing.ModelPurpose = bundle.ModelPurpose;
+            existing.ProjectionNormalWinRate = bundle.ProjectionNormalWinRate;
+            existing.ProjectionAdvancedWinRate = bundle.ProjectionAdvancedWinRate;
             existing.BundleFile = fileName;
             WriteLibrary(library);
         }
@@ -1835,6 +2130,14 @@ internal static class AuraToolsAutoBattleModelRuntime
                     && string.Equals(
                         NormalizeProfile(item.Profile),
                         profile,
+                        StringComparison.Ordinal)
+                    && string.Equals(
+                        item.RoleId,
+                        CurrentRoleId,
+                        StringComparison.OrdinalIgnoreCase)
+                    && string.Equals(
+                        item.CardPoolScope,
+                        CurrentCardPoolScope,
                         StringComparison.Ordinal));
             }
             if (entry == null)
@@ -1850,7 +2153,8 @@ internal static class AuraToolsAutoBattleModelRuntime
                 || !string.Equals(
                     NormalizeProfile(bundle.Profile),
                     profile,
-                    StringComparison.Ordinal))
+                    StringComparison.Ordinal)
+                || !MatchesCurrentRoleScope(bundle))
             {
                 reason = "模型库索引与模型包不一致";
                 return false;
@@ -1927,6 +2231,11 @@ internal static class AuraToolsAutoBattleModelRuntime
             ModelId = source.ModelId,
             DisplayName = source.DisplayName,
             Profile = source.Profile,
+            RoleId = source.RoleId,
+            CardPoolScope = source.CardPoolScope,
+            ModelPurpose = source.ModelPurpose,
+            ProjectionNormalWinRate = source.ProjectionNormalWinRate,
+            ProjectionAdvancedWinRate = source.ProjectionAdvancedWinRate,
             BundleFile = source.BundleFile,
             CreatedUtc = source.CreatedUtc
         };

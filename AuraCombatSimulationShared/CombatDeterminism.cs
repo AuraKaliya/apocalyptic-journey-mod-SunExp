@@ -137,6 +137,26 @@ public static class CombatBattleStateHasher
             Mix(ref hash, actor.Energy);
             Mix(ref hash, actor.CurrentIntentId);
             Mix(ref hash, actor.PreviousIntentId);
+            foreach (var intentId in actor.CurrentIntentIds)
+            {
+                Mix(ref hash, intentId);
+            }
+            foreach (var intentId in actor.PreviousIntentIds)
+            {
+                Mix(ref hash, intentId);
+            }
+            foreach (var variable in actor.Variables
+                         .OrderBy(item => item.Key, StringComparer.Ordinal))
+            {
+                Mix(ref hash, variable.Key);
+                Mix(ref hash, BitConverter.DoubleToInt64Bits(variable.Value));
+            }
+            foreach (var cooldown in actor.IntentCooldowns
+                         .OrderBy(item => item.Key, StringComparer.Ordinal))
+            {
+                Mix(ref hash, cooldown.Key);
+                Mix(ref hash, cooldown.Value);
+            }
             foreach (var status in actor.Statuses
                          .OrderBy(status => status.StatusId, StringComparer.Ordinal)
                          .ThenBy(status => status.SourceActorId))
@@ -145,6 +165,12 @@ public static class CombatBattleStateHasher
                 Mix(ref hash, status.Stacks);
                 Mix(ref hash, status.Duration);
                 Mix(ref hash, status.SourceActorId);
+                foreach (var counter in status.TriggerCounts
+                             .OrderBy(item => item.Key, StringComparer.Ordinal))
+                {
+                    Mix(ref hash, counter.Key);
+                    Mix(ref hash, counter.Value);
+                }
             }
         }
         foreach (var card in state.Cards.OrderBy(card => card.InstanceId))
@@ -152,6 +178,12 @@ public static class CombatBattleStateHasher
             Mix(ref hash, card.InstanceId);
             Mix(ref hash, card.CardId);
             Mix(ref hash, card.CostModifier);
+            foreach (var tag in card.Tags.OrderBy(
+                         item => item,
+                         StringComparer.OrdinalIgnoreCase))
+            {
+                Mix(ref hash, tag);
+            }
         }
         MixList(ref hash, state.DrawPile);
         MixList(ref hash, state.Hand);
@@ -161,6 +193,17 @@ public static class CombatBattleStateHasher
         {
             Mix(ref hash, pair.Key);
             Mix(ref hash, pair.Value);
+        }
+        foreach (var deferred in state.DeferredVictoryVariableChanges
+                     .OrderBy(item => item.ActorId)
+                     .ThenBy(item => item.DefinitionId, StringComparer.Ordinal))
+        {
+            Mix(ref hash, deferred.ActorId);
+            Mix(ref hash, deferred.DefinitionId);
+            Mix(ref hash, deferred.Amount);
+            Mix(ref hash, deferred.PersistAcrossBattles ? 1 : 0);
+            Mix(ref hash, deferred.MinimumVariableValue);
+            Mix(ref hash, deferred.MaximumVariableValue);
         }
         return hash.ToString("x16", CultureInfo.InvariantCulture);
     }

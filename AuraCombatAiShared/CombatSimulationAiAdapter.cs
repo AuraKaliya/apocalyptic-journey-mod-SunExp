@@ -98,6 +98,20 @@ public static class CombatSimulationObservationProjector
             CurrentPower = player.Energy,
             MaxPower = player.BaseEnergy,
             HandCount = state.Hand.Count,
+            HandCardIds = CardIds(state, state.Hand),
+            RetainedHandCardIds = CardIds(state, state.Hand)
+                .Where(cardId => context.Ruleset.TryGetCard(cardId, out var card)
+                                 && HasTag(card, "Retain"))
+                .ToList(),
+            DeckCardIds = CardIds(
+                state,
+                state.DrawPile
+                    .Concat(state.Hand)
+                    .Concat(state.DiscardPile)
+                    .ToList()),
+            DrawPileCardIds = CardIds(state, state.DrawPile),
+            DiscardPileCardIds = CardIds(state, state.DiscardPile),
+            ExhaustPileCardIds = CardIds(state, state.ExhaustPile),
             IsPlayerActionWindow = state.Phase == CombatSimulationPhase.PlayerAction,
             UiBusy = false,
             Fingerprint = CombatBattleStateHasher.Hash(state),
@@ -106,10 +120,18 @@ public static class CombatSimulationObservationProjector
                 ["turn"] = state.Turn,
                 ["handLimit"] = context.Scenario.HandLimit,
                 ["drawPile"] = state.DrawPile.Count,
+                ["drawPileCount"] = state.DrawPile.Count,
                 ["discardPile"] = state.DiscardPile.Count,
-                ["exhaustPile"] = state.ExhaustPile.Count
+                ["discardPileCount"] = state.DiscardPile.Count,
+                ["exhaustPile"] = state.ExhaustPile.Count,
+                ["exhaustPileCount"] = state.ExhaustPile.Count,
+                ["drawPerTurn"] = context.Scenario.DrawPerTurn
             }
         };
+        foreach (var variable in player.Variables)
+        {
+            observation.Features["player." + variable.Key] = variable.Value;
+        }
 
         foreach (var enemy in state.LivingEnemies.OrderBy(enemy => enemy.ActorId))
         {
@@ -128,6 +150,17 @@ public static class CombatSimulationObservationProjector
             observation.Actions.Add(ProjectAction(context.Ruleset, state, legal));
         }
         return observation;
+    }
+
+    private static List<string> CardIds(
+        CombatBattleState state,
+        IEnumerable<int> instanceIds)
+    {
+        return instanceIds
+            .Select(state.FindCard)
+            .Where(card => card != null)
+            .Select(card => card!.CardId)
+            .ToList();
     }
 
     private static CombatActionObservation ProjectAction(
@@ -151,7 +184,24 @@ public static class CombatSimulationObservationProjector
         ruleset.TryGetCardCore(action.DefinitionId, out var definition);
         var semantics = definition == null
             ? new CombatActionSemantics { Uncertainty = 10d }
-            : ProjectSemantics(definition, action);
+            : ProjectSemantics(ruleset, state, definition, action);
+        var features = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["authoritativeSimulation"] = 1d,
+            ["cardInstanceId"] = action.CardInstanceId,
+            ["turn"] = state.Turn,
+            ["retain"] = definition != null && HasTag(definition, "Retain") ? 1d : 0d,
+            ["inherent"] = definition != null && HasTag(definition, "Inherent") ? 1d : 0d,
+            ["recycle"] = definition != null && HasTag(definition, "Recycle") ? 1d : 0d,
+            ["ouroboros"] = definition != null && HasTag(definition, "Ouroboros") ? 1d : 0d,
+            ["exhaustOnUse"] = definition?.Exhaust == true
+                               || definition != null
+                               && (HasTag(definition, "Burnout")
+                                   || HasTag(definition, "Fragmented")
+                                   || HasTag(definition, "Exhaust"))
+                ? 1d
+                : 0d
+        };
         return new CombatActionObservation
         {
             CandidateId = action.CandidateId,
@@ -166,23 +216,50 @@ public static class CombatSimulationObservationProjector
             Cost = action.Cost,
             Legal = true,
             Semantics = semantics,
-            Features = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["authoritativeSimulation"] = 1d,
-                ["cardInstanceId"] = action.CardInstanceId,
-                ["turn"] = state.Turn
-            }
+            Features = features
         };
     }
 
+    private static bool HasTag(CombatCardDefinition card, string tag)
+    {
+        return card.Tags.Any(value =>
+            string.Equals(value, tag, StringComparison.OrdinalIgnoreCase));
+    }
+
     private static CombatActionSemantics ProjectSemantics(
+        CombatRuleset ruleset,
+        CombatBattleState state,
         CombatCardDefinition card,
         CombatSimulationAction action)
     {
         var semantics = new CombatActionSemantics();
         foreach (var effect in card.Effects)
         {
-            var expected = effect.Amount * Math.Max(0d, Math.Min(1d, effect.Probability));
+            var targetActorId = effect.Target == CombatSimulationTarget.Self
+                || effect.Target == CombatSimulationTarget.Player
+                ? state.PlayerActorId
+                : action.TargetActorId;
+            if (effect.ConditionExpression != null
+                && CombatSimulationExpressionEvaluator.Evaluate(
+                    effect.ConditionExpression,
+                    state,
+                    ruleset,
+                    state.PlayerActorId,
+                    targetActorId) <= 0d)
+            {
+                continue;
+            }
+            var amount = effect.AmountExpression == null
+                ? effect.Amount
+                : RoundEffectValue(
+                    CombatSimulationExpressionEvaluator.Evaluate(
+                        effect.AmountExpression,
+                        state,
+                        ruleset,
+                        state.PlayerActorId,
+                        targetActorId),
+                    effect.Rounding);
+            var expected = amount * Math.Max(0d, Math.Min(1d, effect.Probability));
             switch (effect.Kind)
             {
                 case CombatSimulationEffectKind.Damage:
@@ -191,12 +268,38 @@ public static class CombatSimulationObservationProjector
                 case CombatSimulationEffectKind.TrueDamage:
                     semantics.TrueDamage += expected;
                     break;
+                case CombatSimulationEffectKind.DirectHpLoss:
+                    if (effect.Target == CombatSimulationTarget.Self
+                        || effect.Target == CombatSimulationTarget.Player)
+                    {
+                        semantics.Risk += expected;
+                    }
+                    else
+                    {
+                        semantics.TrueDamage += expected;
+                    }
+                    break;
                 case CombatSimulationEffectKind.GainBlock:
                     semantics.Defend += expected;
                     break;
                 case CombatSimulationEffectKind.Heal:
                     semantics.Heal += expected;
                     break;
+                case CombatSimulationEffectKind.SetHp:
+                {
+                    var currentHp = state.Player?.Hp ?? 0;
+                    var hpDelta = expected - currentHp;
+                    semantics.StateChanges["player.hp"] = hpDelta;
+                    if (hpDelta < 0d)
+                    {
+                        semantics.Risk += -hpDelta;
+                    }
+                    else
+                    {
+                        semantics.Heal += hpDelta;
+                    }
+                    break;
+                }
                 case CombatSimulationEffectKind.Draw:
                     semantics.Draw += expected;
                     break;
@@ -208,6 +311,25 @@ public static class CombatSimulationObservationProjector
                     break;
                 case CombatSimulationEffectKind.ChangeCardCost:
                     semantics.CostReduction += Math.Max(0d, -expected);
+                    break;
+                case CombatSimulationEffectKind.ModifyVariable:
+                    if (effect.Target == CombatSimulationTarget.Self
+                        || effect.Target == CombatSimulationTarget.Player)
+                    {
+                        var key = "player." + effect.DefinitionId;
+                        var current = state.Player?.Variables.TryGetValue(
+                            effect.DefinitionId,
+                            out var value) == true
+                            ? value
+                            : 0d;
+                        var after = Math.Max(
+                            effect.MinimumVariableValue,
+                            Math.Min(effect.MaximumVariableValue, current + amount));
+                        semantics.StateChanges[key] =
+                            semantics.StateChanges.TryGetValue(key, out var delta)
+                                ? delta + after - current
+                                : after - current;
+                    }
                     break;
                 case CombatSimulationEffectKind.SummonEnemy:
                     semantics.Risk += Math.Max(1d, expected);
@@ -244,6 +366,22 @@ public static class CombatSimulationObservationProjector
         return semantics;
     }
 
+    private static int RoundEffectValue(
+        double value,
+        CombatSimulationValueRounding rounding)
+    {
+        if (double.IsNaN(value)) return 0;
+        if (value >= int.MaxValue) return int.MaxValue;
+        if (value <= int.MinValue) return int.MinValue;
+        return rounding switch
+        {
+            CombatSimulationValueRounding.Truncate => (int)value,
+            CombatSimulationValueRounding.Floor => (int)Math.Floor(value),
+            CombatSimulationValueRounding.Ceiling => (int)Math.Ceiling(value),
+            _ => (int)Math.Round(value)
+        };
+    }
+
     private static CombatUnitObservation ProjectActor(
         CombatActorState actor,
         CombatTargetKind targetKind)
@@ -252,6 +390,10 @@ public static class CombatSimulationObservationProjector
         foreach (var status in actor.Statuses)
         {
             features["status:" + status.StatusId] = status.Stacks;
+        }
+        foreach (var variable in actor.Variables)
+        {
+            features[variable.Key] = variable.Value;
         }
         return new CombatUnitObservation
         {
@@ -274,41 +416,49 @@ public static class CombatSimulationObservationProjector
         {
             return;
         }
-        var intent = definition.Intents.FirstOrDefault(candidate =>
-            string.Equals(candidate.IntentId, enemy.CurrentIntentId, StringComparison.OrdinalIgnoreCase));
-        if (intent == null)
+        var intentIds = enemy.CurrentIntentIds.Count > 0
+            ? enemy.CurrentIntentIds
+            : string.IsNullOrWhiteSpace(enemy.CurrentIntentId)
+                ? new List<string>()
+                : new List<string> { enemy.CurrentIntentId };
+        foreach (var intentId in intentIds)
         {
-            return;
-        }
-        var item = new CombatIntentObservation
-        {
-            SourceRuntimeId = enemy.ActorId,
-            SourceId = intent.IntentId,
-            DisplayName = intent.DisplayName,
-            Kind = CombatIntentKind.Unknown,
-            Probability = 1d,
-            Confidence = 1d,
-            Current = true
-        };
-        foreach (var effect in intent.Effects)
-        {
-            var expected = effect.Amount * Math.Max(0d, Math.Min(1d, effect.Probability));
-            if (effect.Kind == CombatSimulationEffectKind.Damage)
+            var intent = definition.Intents.FirstOrDefault(candidate =>
+                string.Equals(candidate.IntentId, intentId, StringComparison.OrdinalIgnoreCase));
+            if (intent == null)
             {
-                item.Kind = CombatIntentKind.Attack;
-                item.BlockableDamage += expected;
+                continue;
             }
-            else if (effect.Kind == CombatSimulationEffectKind.TrueDamage)
+            var item = new CombatIntentObservation
             {
-                item.Kind = CombatIntentKind.Attack;
-                item.UnblockableDamage += expected;
+                SourceRuntimeId = enemy.ActorId,
+                SourceId = intent.IntentId,
+                DisplayName = intent.DisplayName,
+                Kind = CombatIntentKind.Unknown,
+                Probability = 1d,
+                Confidence = 1d,
+                Current = true
+            };
+            foreach (var effect in intent.Effects)
+            {
+                var expected = effect.Amount * Math.Max(0d, Math.Min(1d, effect.Probability));
+                if (effect.Kind == CombatSimulationEffectKind.Damage)
+                {
+                    item.Kind = CombatIntentKind.Attack;
+                    item.BlockableDamage += expected;
+                }
+                else if (effect.Kind == CombatSimulationEffectKind.TrueDamage)
+                {
+                    item.Kind = CombatIntentKind.Attack;
+                    item.UnblockableDamage += expected;
+                }
             }
+            threat.Intents.Add(item);
+            threat.ExpectedBlockableDamage += item.BlockableDamage;
+            threat.MaximumBlockableDamage += item.BlockableDamage;
+            threat.ExpectedUnblockableDamage += item.UnblockableDamage;
+            threat.AttackProbability = Math.Max(threat.AttackProbability, item.Probability);
         }
-        threat.Intents.Add(item);
-        threat.ExpectedBlockableDamage += item.BlockableDamage;
-        threat.MaximumBlockableDamage += item.BlockableDamage;
-        threat.ExpectedUnblockableDamage += item.UnblockableDamage;
-        threat.AttackProbability = Math.Max(threat.AttackProbability, item.Probability);
     }
 
     private static long StableSessionId(string scenarioId, ulong seed)

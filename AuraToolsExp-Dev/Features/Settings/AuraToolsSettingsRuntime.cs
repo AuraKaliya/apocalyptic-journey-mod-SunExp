@@ -917,7 +917,78 @@ public static class AuraToolsSettingsRuntime
 
             AuraToolsUi.AddText(
                 content,
-                "② 训练候选：读取实战样本和已完成旅程，生成新的候选模型。",
+                "② 训练底模：直接用固定七层世界推演生成训练轨迹；训练、竞技场和最终验证种子完全隔离。",
+                AuraToolsUi.BodyFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.Text,
+                AuraToolsUi.TextMinHeight,
+                1f);
+            var foundationRow = CreateInlineRow(content, "AutoBattleFoundationTrainingRow");
+            var foundationStatusText = AuraToolsUi.AddText(
+                foundationRow.transform,
+                "",
+                AuraToolsUi.HintFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.MutedText,
+                AuraToolsUi.TextMinHeight,
+                1f);
+            var foundationButton = AuraToolsUi.AddButton(
+                foundationRow.transform,
+                "训练底模",
+                () =>
+                {
+                    if (!AuraToolsAutoBattleFoundationRuntime.Queue(
+                            autoBattle,
+                            out var foundationMessage))
+                    {
+                        AuraToolsLog.Warn("[AutoBattle][Foundation] " + foundationMessage);
+                    }
+                },
+                104f);
+            var cancelFoundationButton = AuraToolsUi.AddButton(
+                foundationRow.transform,
+                "取消",
+                AuraToolsAutoBattleFoundationRuntime.Cancel,
+                66f);
+            var openFoundationButton = AuraToolsUi.AddButton(
+                foundationRow.transform,
+                "打开报告",
+                AuraToolsAutoBattleFoundationRuntime.OpenResultDirectory,
+                88f);
+            foundationRow.AddComponent<AuraToolsAutoBattleFoundationStatusView>().Configure(
+                foundationStatusText,
+                foundationButton,
+                cancelFoundationButton,
+                openFoundationButton);
+            var foundationSettings = autoBattle.FoundationTraining;
+            AuraToolsUi.AddText(
+                content,
+                "默认训练 "
+                + foundationSettings.Iterations
+                + " 轮 × "
+                + foundationSettings.TrainingCampaignsPerIteration
+                + " 次冒险；最终隔离验证为普通 "
+                + foundationSettings.NormalValidationCampaigns
+                + " 次、高级 "
+                + foundationSettings.AdvancedValidationCampaigns
+                + " 次。必须分别达到 "
+                + foundationSettings.NormalValidationCampaigns
+                + "/"
+                + foundationSettings.NormalValidationCampaigns
+                + " 与至少 "
+                + (int)Math.Ceiling(foundationSettings.AdvancedValidationCampaigns * 0.8d)
+                + "/"
+                + foundationSettings.AdvancedValidationCampaigns
+                + "，才保存为 career_1 正式底模；0% 胜率只记为课程检查点。",
+                AuraToolsUi.HintFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.MutedText,
+                AuraToolsUi.TextMinHeight,
+                1f);
+
+            AuraToolsUi.AddText(
+                content,
+                "③ 训练玩家候选：底模达标后，再读取新的实战样本和完整旅程进行角色策略微调。",
                 AuraToolsUi.BodyFontSize,
                 TextAnchor.MiddleLeft,
                 AuraToolsUi.Text,
@@ -946,17 +1017,39 @@ public static class AuraToolsSettingsRuntime
                 66f);
             AuraToolsUi.AddText(
                 content,
-                "候选只保存在本机；训练不会读取正式模拟评估的结果，避免评估数据回流污染训练。",
+                "候选只保存在本机；正式模拟评估不回流训练集。每批训练会保留快照，世界推演会另存构筑与终局战斗报告。",
                 AuraToolsUi.HintFontSize,
                 TextAnchor.MiddleLeft,
                 AuraToolsUi.MutedText,
                 AuraToolsUi.TextMinHeight,
                 1f);
+            var clearDataRow = CreateInlineRow(content, "AutoBattleClearDataRow");
+            AuraToolsUi.AddText(
+                clearDataRow.transform,
+                "重训前清场（不可恢复）：删除战斗样本、训练快照、候选/冠军/模型库及模拟结果；保留知识包与规则。",
+                AuraToolsUi.HintFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.WarningText,
+                AuraToolsUi.TextMinHeight,
+                1f);
+            AuraToolsUi.AddButton(clearDataRow.transform, "清空旧战斗数据", () =>
+            {
+                if (AuraToolsAutoBattleModelRuntime.TryClearAllCombatLearningData(
+                        out var clearMessage))
+                {
+                    AuraToolsLog.Info("[AutoBattle][Clear] " + clearMessage);
+                }
+                else
+                {
+                    AuraToolsLog.Warn("[AutoBattle][Clear] " + clearMessage);
+                }
+                RebuildPanel(activePanel!.transform);
+            }, 142f);
             CreateAutoBattleSimulationRows(content, autoBattle);
 
             AuraToolsUi.AddText(
                 content,
-                "④ 保存与应用：标准评估门禁通过后，才可把候选保存为新冠军；应用状态可独立切换。",
+                "⑤ 保存与应用：标准评估门禁通过后，才可把玩家候选保存为新冠军；底模训练成功后先保持关闭。",
                 AuraToolsUi.BodyFontSize,
                 TextAnchor.MiddleLeft,
                 AuraToolsUi.Text,
@@ -1638,7 +1731,7 @@ public static class AuraToolsSettingsRuntime
         }
         AuraToolsUi.AddText(
             parent,
-            "③ 情景模拟：从冻结开局出发，自动经历 37 场本体战斗与完整奖励构筑，再对照底模和当前模型的最终通关表现。",
+            "④ 正式世界推演：career_1 从本体 Normal 真实开局出发，在全离线卡包奖励池中完成 37 战与构筑；普通/高级分别生成验证标记。",
             AuraToolsUi.BodyFontSize,
             TextAnchor.MiddleLeft,
             AuraToolsUi.Text,
@@ -1713,10 +1806,10 @@ public static class AuraToolsSettingsRuntime
         AuraToolsUi.AddText(
             parent,
             library.Count == 0
-                ? "训练候选通过评估并导入后，会自动进入模型库；之后可改名并随时切换。"
+                ? "训练候选通过评估并导入后，会进入 career_1 专属模型库；之后可改名并随时切换。"
                 : "模型库共 "
                   + library.Count
-                  + " 个当前风格模型；切换会同时影响实战、情景模拟和后续策略进化。",
+                  + " 个 career_1 / 当前风格模型；切换会同时影响实战、世界推演和后续策略进化。",
             AuraToolsUi.HintFontSize,
             TextAnchor.MiddleLeft,
             AuraToolsUi.MutedText,
@@ -2351,6 +2444,120 @@ internal sealed class AuraToolsAutoBattleJourneyStatusView : MonoBehaviour
     }
 }
 
+internal sealed class AuraToolsAutoBattleFoundationStatusView : MonoBehaviour
+{
+    private Text? statusText;
+    private Button? trainButton;
+    private Button? cancelButton;
+    private Button? openButton;
+    private float nextRefreshAt;
+    private bool foundationReady;
+    private string readinessMessage = "";
+
+    public void Configure(
+        Text text,
+        Button train,
+        Button cancel,
+        Button open)
+    {
+        statusText = text;
+        trainButton = train;
+        cancelButton = cancel;
+        openButton = open;
+        foundationReady = AuraToolsAutoBattleFoundationRuntime.CheckReadiness(
+            out readinessMessage);
+        Refresh();
+    }
+
+    private void Update()
+    {
+        if (Time.unscaledTime < nextRefreshAt)
+        {
+            return;
+        }
+        nextRefreshAt = Time.unscaledTime + 0.2f;
+        Refresh();
+    }
+
+    private void Refresh()
+    {
+        var status = AuraToolsAutoBattleFoundationRuntime.GetStatus();
+        var otherBusy = AuraToolsAutoBattleSimulationRuntime.GetStatus().Busy
+                        || AuraToolsAutoBattleModelRuntime.GetTrainingStatus(
+                            AuraToolsConfigService.MatchExperience.AutoBattle.Profile).Busy;
+        if (statusText != null)
+        {
+            var progress = status.RequestedCampaigns <= 0
+                ? ""
+                : " · 冒险 "
+                  + status.CompletedCampaigns
+                  + "/"
+                  + status.RequestedCampaigns;
+            statusText.text = status.Stage switch
+            {
+                AutoBattleFoundationStage.Idle => readinessMessage,
+                AutoBattleFoundationStage.Queued => "底模训练已排队",
+                AutoBattleFoundationStage.Training => status.Message + progress,
+                AutoBattleFoundationStage.Writing => "正在写入底模与报告",
+                AutoBattleFoundationStage.Completed => status.AcceptancePassed
+                    ? "底模已达标 · 普通 "
+                      + status.NormalWinRate.ToString("P1")
+                      + " · 高级 "
+                      + status.AdvancedWinRate.ToString("P1")
+                    : "底模未达标 · 普通 "
+                      + status.NormalWinRate.ToString("P1")
+                      + " / 高级 "
+                      + status.AdvancedWinRate.ToString("P1"),
+                AutoBattleFoundationStage.Cancelling => "正在取消底模训练",
+                AutoBattleFoundationStage.Cancelled => "底模训练已取消",
+                AutoBattleFoundationStage.Failed => status.Message,
+                _ => status.Message
+            };
+            statusText.color = status.Stage == AutoBattleFoundationStage.Failed
+                               || (status.Stage == AutoBattleFoundationStage.Idle
+                                   && !foundationReady)
+                               || (status.Stage == AutoBattleFoundationStage.Completed
+                                   && !status.AcceptancePassed)
+                ? AuraToolsUi.WarningText
+                : status.AcceptancePassed
+                    ? AuraToolsUi.SuccessText
+                    : AuraToolsUi.MutedText;
+        }
+        if (trainButton != null)
+        {
+            trainButton.interactable = foundationReady && !status.Busy && !otherBusy;
+            SetButtonLabel(
+                trainButton,
+                status.Busy
+                    ? "训练中..."
+                    : foundationReady
+                        ? "训练底模"
+                        : "知识未就绪");
+        }
+        if (cancelButton != null)
+        {
+            cancelButton.interactable = status.Busy
+                                        && status.Stage
+                                        != AutoBattleFoundationStage.Cancelling;
+        }
+        if (openButton != null)
+        {
+            openButton.interactable = !string.IsNullOrWhiteSpace(status.ResultDirectory)
+                                      || Directory.Exists(
+                                          AuraToolsAutoBattleSimulationRuntime.ResultsRootDirectory);
+        }
+    }
+
+    private static void SetButtonLabel(Button button, string value)
+    {
+        var label = button.GetComponentInChildren<Text>(true);
+        if (label != null)
+        {
+            label.text = value;
+        }
+    }
+}
+
 internal sealed class AuraToolsAutoBattleTrainingStatusView : MonoBehaviour
 {
     private string profile = "balanced";
@@ -2397,7 +2604,8 @@ internal sealed class AuraToolsAutoBattleTrainingStatusView : MonoBehaviour
     private void Refresh()
     {
         var status = AuraToolsAutoBattleModelRuntime.GetTrainingStatus(profile);
-        var simulationBusy = AuraToolsAutoBattleSimulationRuntime.GetStatus().Busy;
+        var simulationBusy = AuraToolsAutoBattleSimulationRuntime.GetStatus().Busy
+                             || AuraToolsAutoBattleFoundationRuntime.GetStatus().Busy;
         var candidateExists =
             AuraToolsAutoBattleModelRuntime.CandidateExists(profile);
         var candidateModelId = candidateExists

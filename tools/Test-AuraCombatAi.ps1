@@ -40,7 +40,7 @@ Remove-Item -LiteralPath $simulationOutput -Force
 if ($simulationResult.Statistics.CompletedSimulations -ne 4 `
     -or $simulationResult.Statistics.Invalid -ne 0 `
     -or $simulationResult.Statistics.AuthoritativeSimulations -ne 4 `
-    -or $simulationResult.Results[0].FinalStateHash -ne "fb7dfe1b108a5ed2" `
+    -or $simulationResult.Results[0].FinalStateHash -ne "1deca1bb25d9997c" `
     -or [string]::IsNullOrWhiteSpace($simulationResult.RulesetHash)) {
     throw "Aura headless combat simulation result contract is invalid."
 }

@@ -53,10 +53,13 @@ public sealed class AutoBattleSettings
     [JsonProperty("training")]
     public AutoBattleTrainingSettings Training { get; set; } = AutoBattleTrainingSettings.CreateSteady();
 
+    [JsonProperty("foundationTraining")]
+    public AutoBattleFoundationTrainingSettings FoundationTraining { get; set; } = new();
+
     [JsonProperty("simulation")]
     public AutoBattleSimulationSettings Simulation { get; set; } = new();
 
-    public void Normalize(int sourceSchemaVersion = 15)
+    public void Normalize(int sourceSchemaVersion = 17)
     {
         Training ??= sourceSchemaVersion < 14
             ? AutoBattleTrainingSettings.CreateLegacy()
@@ -87,6 +90,9 @@ public sealed class AutoBattleSettings
         SearchNodeBudget = Math.Max(512, Math.Min(65536, SearchNodeBudget));
         SearchMaxPly = Math.Max(4, Math.Min(32, SearchMaxPly));
         Training.Normalize();
+        FoundationTraining ??= new AutoBattleFoundationTrainingSettings();
+        FoundationTraining.MigrateFrom(sourceSchemaVersion);
+        FoundationTraining.Normalize();
         Simulation ??= new AutoBattleSimulationSettings();
         Simulation.Normalize(sourceSchemaVersion);
     }
@@ -103,6 +109,84 @@ public sealed class AutoBattleSettings
         }
 
         return choices[0];
+    }
+}
+
+public sealed class AutoBattleFoundationTrainingSettings
+{
+    [JsonProperty("iterations")]
+    public int Iterations { get; set; } = 8;
+
+    [JsonProperty("trainingCampaignsPerIteration")]
+    public int TrainingCampaignsPerIteration { get; set; } = 64;
+
+    [JsonProperty("arenaCampaignsPerDifficulty")]
+    public int ArenaCampaignsPerDifficulty { get; set; } = 32;
+
+    [JsonProperty("validationCampaignsPerDifficulty")]
+    public int ValidationCampaignsPerDifficulty { get; set; }
+
+    [JsonProperty("normalValidationCampaigns")]
+    public int NormalValidationCampaigns { get; set; } = 200;
+
+    [JsonProperty("advancedValidationCampaigns")]
+    public int AdvancedValidationCampaigns { get; set; } = 500;
+
+    [JsonProperty("trainingSeedStart")]
+    public ulong TrainingSeedStart { get; set; } = 10_000UL;
+
+    [JsonProperty("arenaSeedStart")]
+    public ulong ArenaSeedStart { get; set; } = 1_000_000UL;
+
+    [JsonProperty("validationSeedStart")]
+    public ulong ValidationSeedStart { get; set; } = 2_000_000UL;
+
+    public void MigrateFrom(int sourceSchemaVersion)
+    {
+        if (sourceSchemaVersion >= 17)
+        {
+            return;
+        }
+        if (Iterations == 3
+            && TrainingCampaignsPerIteration == 6
+            && ArenaCampaignsPerDifficulty == 4)
+        {
+            Iterations = 8;
+            TrainingCampaignsPerIteration = 64;
+            ArenaCampaignsPerDifficulty = 32;
+        }
+    }
+
+    public void Normalize()
+    {
+        Iterations = Math.Max(1, Math.Min(20, Iterations));
+        TrainingCampaignsPerIteration = Math.Max(
+            2,
+            Math.Min(1000, TrainingCampaignsPerIteration));
+        ArenaCampaignsPerDifficulty = Math.Max(
+            1,
+            Math.Min(100, ArenaCampaignsPerDifficulty));
+        if (NormalValidationCampaigns <= 0)
+        {
+            NormalValidationCampaigns = ValidationCampaignsPerDifficulty > 0
+                ? ValidationCampaignsPerDifficulty
+                : 200;
+        }
+        if (AdvancedValidationCampaigns <= 0)
+        {
+            AdvancedValidationCampaigns = ValidationCampaignsPerDifficulty > 0
+                ? ValidationCampaignsPerDifficulty
+                : 500;
+        }
+        NormalValidationCampaigns = Math.Max(
+            10,
+            Math.Min(1000, NormalValidationCampaigns));
+        AdvancedValidationCampaigns = Math.Max(
+            10,
+            Math.Min(1000, AdvancedValidationCampaigns));
+        TrainingSeedStart = TrainingSeedStart == 0UL ? 10_000UL : TrainingSeedStart;
+        ArenaSeedStart = ArenaSeedStart == 0UL ? 1_000_000UL : ArenaSeedStart;
+        ValidationSeedStart = ValidationSeedStart == 0UL ? 2_000_000UL : ValidationSeedStart;
     }
 }
 
@@ -144,7 +228,7 @@ public sealed class AutoBattleSimulationSettings
     [JsonProperty("evolutionArenaEpisodes")]
     public int EvolutionArenaEpisodes { get; set; } = 16;
 
-    public void Normalize(int sourceSchemaVersion = 15)
+    public void Normalize(int sourceSchemaVersion = 17)
     {
         ScenarioId = ScenarioId?.Trim() ?? "";
         if (string.IsNullOrWhiteSpace(ScenarioId)

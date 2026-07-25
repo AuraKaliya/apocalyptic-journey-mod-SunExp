@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 15,
+  "schemaVersion": 17,
   "starterDeck": {
     "enabled": false,
     "mode": "Global",
@@ -65,7 +65,19 @@
       "l2": 0.003,
       "maximumCorrection": 0.75,
       "minimumPreferencePairs": 15,
-      "minimumCategoryObservations": 10
+      "minimumCategoryObservations": 10,
+      "minimumEpisodes": 8,
+      "policyValueHiddenDimensions": 48
+    },
+    "foundationTraining": {
+      "iterations": 8,
+      "trainingCampaignsPerIteration": 64,
+      "arenaCampaignsPerDifficulty": 32,
+      "normalValidationCampaigns": 200,
+      "advancedValidationCampaigns": 500,
+      "trainingSeedStart": 10000,
+      "arenaSeedStart": 1000000,
+      "validationSeedStart": 2000000
     },
     "simulation": {
       "scenarioId": "witch.world-simulation.standard-v2",

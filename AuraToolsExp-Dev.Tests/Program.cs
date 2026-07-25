@@ -345,7 +345,7 @@ void TestConfigModelSerializationCompatibility()
     var matchExperience = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
         "{\"schemaVersion\":1,\"starterDeck\":{\"preferRoleModProfile\":false},\"safeBox\":null,\"modSync\":null,\"feast\":null,\"damageMeter\":null,\"cardRefresh\":null,\"autoBattle\":null}")!;
     matchExperience.Normalize();
-    Assert(matchExperience.SchemaVersion == 15
+    Assert(matchExperience.SchemaVersion == 17
            && matchExperience.StarterDeck.PreferRoleModProfile
            && matchExperience.SafeBox != null
            && matchExperience.ModSync != null
@@ -464,9 +464,25 @@ void TestCardRefreshSettingsAndPoolPolicy()
         CardRefresh = null!
     };
     settings.Normalize();
-    Assert(settings.SchemaVersion == 15, "match-experience settings migrate to the campaign-v2 and model-library schema");
+    Assert(settings.SchemaVersion == 17, "match-experience settings migrate to the full foundation-training schema");
     Assert(settings.CardRefresh != null && !settings.CardRefresh.Enabled,
         "card refresh is restored with a disabled default during normalization");
+    Assert(settings.AutoBattle.FoundationTraining.Iterations == 8
+           && settings.AutoBattle.FoundationTraining.TrainingCampaignsPerIteration == 64
+           && settings.AutoBattle.FoundationTraining.ArenaCampaignsPerDifficulty == 32
+           && settings.AutoBattle.FoundationTraining.NormalValidationCampaigns == 200
+           && settings.AutoBattle.FoundationTraining.AdvancedValidationCampaigns == 500,
+        "foundation defaults use a substantial self-play curriculum and independent 200/500 holdouts");
+    var schema16Foundation = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
+        "{\"schemaVersion\":16,\"autoBattle\":{\"foundationTraining\":{\"iterations\":3,\"trainingCampaignsPerIteration\":6,\"arenaCampaignsPerDifficulty\":4,\"validationCampaignsPerDifficulty\":10}}}")!;
+    schema16Foundation.Normalize();
+    Assert(schema16Foundation.SchemaVersion == 17
+           && schema16Foundation.AutoBattle.FoundationTraining.Iterations == 8
+           && schema16Foundation.AutoBattle.FoundationTraining.TrainingCampaignsPerIteration == 64
+           && schema16Foundation.AutoBattle.FoundationTraining.ArenaCampaignsPerDifficulty == 32
+           && schema16Foundation.AutoBattle.FoundationTraining.NormalValidationCampaigns == 200
+           && schema16Foundation.AutoBattle.FoundationTraining.AdvancedValidationCampaigns == 500,
+        "schema 16 foundation defaults migrate to the full curriculum without reusing the old 10-run gate");
 
     var candidates = new[] { "a", "b", "c", "d", "e", "f" };
     var alternatives = CardRefreshPoolPolicy.PreferDifferentChoices(
@@ -1006,10 +1022,13 @@ void TestRuntimeArchitectureGuards()
            && cardRefreshNativeApi.Contains("new RandomPool(pool, dice).DrawByRarity", StringComparison.Ordinal)
            && cardRefreshNativeApi.Contains("manager.CardPackCheck", StringComparison.Ordinal),
         "card refresh recreates clean choice items and uses a window-local clone of the native reward draw pipeline");
-    Assert(matchExperienceConfig.Contains("\"schemaVersion\": 15", StringComparison.Ordinal)
+    Assert(matchExperienceConfig.Contains("\"schemaVersion\": 17", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"cardRefresh\"", StringComparison.Ordinal)
+           && matchExperienceConfig.Contains("\"foundationTraining\"", StringComparison.Ordinal)
+           && matchExperienceConfig.Contains("\"normalValidationCampaigns\": 200", StringComparison.Ordinal)
+           && matchExperienceConfig.Contains("\"advancedValidationCampaigns\": 500", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"enabled\": false", StringComparison.Ordinal),
-        "shipped card refresh configuration is present and disabled by default");
+        "shipped card refresh and foundation-training configuration are present");
 
     var autoBattleRuntime = ReadRepoText("AuraToolsExp-Dev/Features/AutoBattle/AuraToolsAutoBattleRuntime.cs");
     var autoBattlePredictionPresenter = ReadRepoText("AuraToolsExp-Dev/Features/AutoBattle/AuraToolsAutoBattlePredictionPresenter.cs");
@@ -1038,7 +1057,8 @@ void TestRuntimeArchitectureGuards()
            && matchExperienceConfig.Contains("\"preset\": \"steady\"", StringComparison.Ordinal),
         "auto battle exposes bounded training presets and persistent visible task feedback");
     Assert(autoBattleRuntime.Contains("CombatActionTransactionState.Completed.ToString()", StringComparison.Ordinal)
-           && autoBattleRuntime.Contains("BlockingCollection<CombatTrainingSample>", StringComparison.Ordinal)
+           && autoBattleRuntime.Contains("BlockingCollection<QueuedTrainingSample>", StringComparison.Ordinal)
+           && autoBattleRuntime.Contains("ClearPersistedData", StringComparison.Ordinal)
            && autoBattleRuntime.Contains("AutoBattle.LearnedShadow", StringComparison.Ordinal)
            && autoBattleRuntime.Contains("p95Ms=", StringComparison.Ordinal)
            && autoBattleRuntime.Contains("AuraToolsAutoBattleSimulationRuntime.CanActivateModel", StringComparison.Ordinal)
@@ -1057,6 +1077,8 @@ void TestRuntimeArchitectureGuards()
            && autoBattleModelRuntime.Contains("AutoBattleModelLibraryDocument", StringComparison.Ordinal)
            && autoBattleModelRuntime.Contains("TryRenameLibraryModel", StringComparison.Ordinal)
            && autoBattleRuntime.Contains("settings.SelectedModelId", StringComparison.Ordinal)
+           && autoBattleSimulationRuntime.Contains("RequireEffectDependencies", StringComparison.Ordinal)
+           && autoBattleSimulationRuntime.Contains("战斗状态语义缺失", StringComparison.Ordinal)
            && settingsRuntime.Contains("战斗策略实验室（工具）", StringComparison.Ordinal)
            && settingsRuntime.Contains("高级难度（本体满词条）", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"selectedModelId\": \"\"", StringComparison.Ordinal)

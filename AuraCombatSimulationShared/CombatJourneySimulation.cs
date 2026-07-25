@@ -668,12 +668,7 @@ public sealed class CombatJourneyRunner
 
     private static CombatInitialStatus CloneStatus(CombatInitialStatus source)
     {
-        return new CombatInitialStatus
-        {
-            StatusId = source.StatusId,
-            Stacks = source.Stacks,
-            Duration = source.Duration
-        };
+        return source.Clone();
     }
 
     private static ulong NamedBattleSeed(ulong worldSeed, int index)

@@ -51,6 +51,12 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
         }
 
         observation.Player = ObserveUnit(playerStatus, CombatTargetKind.Self);
+        if (RoleTable.Instance != null)
+        {
+            var money = ReadNumber(RoleTable.Instance, "Money", "money");
+            observation.Player.Features["Money"] = money;
+            observation.Features["player.Money"] = money;
+        }
         observation.CurrentPower = player.CurPowerCount;
         observation.MaxPower = player.MaxPowerCount;
         observation.HandCount = FightUI.cardItemList?.Count ?? 0;
@@ -286,7 +292,19 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
             Features = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
             {
                 ["handIndex"] = index,
-                ["isCard"] = 1d
+                ["isCard"] = 1d,
+                ["retain"] = HasAnyTag(card, "Retain", "RetainCard") ? 1d : 0d,
+                ["inherent"] = HasAnyTag(card, "Inherent") ? 1d : 0d,
+                ["recycle"] = HasAnyTag(card, "Recycle") ? 1d : 0d,
+                ["ouroboros"] = HasAnyTag(card, "Ouroboros") ? 1d : 0d,
+                ["exhaustOnUse"] = HasAnyTag(
+                    card,
+                    "Burnout",
+                    "Fragmented",
+                    "Exhaust",
+                    "Consumption")
+                    ? 1d
+                    : 0d
             },
             RuntimeHandle = card,
             TargetHandle = target
@@ -510,6 +528,21 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
         state.DrawPileCardIds = ReadCardIds(manager.cardList);
         state.DiscardPileCardIds = ReadCardIds(manager.usedCardList);
         state.DeckCardIds = ReadCardIds(manager.FightcardList);
+        state.HandCardIds = state.Actions
+            .Where(action => action.Kind == CombatActionKind.PlayCard)
+            .GroupBy(action => action.RuntimeId)
+            .Select(group => group.First())
+            .Select(action => action.SourceId)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToList();
+        state.RetainedHandCardIds = state.Actions
+            .Where(action => action.Kind == CombatActionKind.PlayCard
+                             && action.Features.TryGetValue("retain", out var retain)
+                             && retain > 0d)
+            .GroupBy(action => action.RuntimeId)
+            .Select(group => group.First().SourceId)
+            .Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToList();
         foreach (var sourceId in state.Actions
                      .Where(action => action.Kind == CombatActionKind.PlayCard)
                      .Select(action => action.SourceId)
@@ -549,6 +582,13 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
             }
         }
         return result;
+    }
+
+    private static bool HasAnyTag(CommonCardItem card, params string[] tags)
+    {
+        return card?.Tags != null
+               && card.Tags.Any(value => tags.Any(tag =>
+                   string.Equals(value, tag, StringComparison.OrdinalIgnoreCase)));
     }
 
     public CombatActionObservation? FindActionForRuntimeHandle(

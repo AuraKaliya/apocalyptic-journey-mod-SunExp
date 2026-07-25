@@ -45,7 +45,29 @@ public static class CombatSearchFeatureProjector
         result["power"] = state.Power;
         result["maxPower"] = state.MaxPower;
         result["handCount"] = state.HandCount;
+        result["retainedHandCount"] = state.RetainedHandCardValues.Count;
         result["handLimit"] = state.HandLimit;
+        if (state.Turn > 0 || !result.ContainsKey("turn"))
+        {
+            result["turn"] = state.Turn;
+        }
+        result["drawPileCount"] = state.DrawPileValues.Count;
+        result["discardPileCount"] = state.DiscardPileValues.Count;
+        result["exhaustPileCount"] = state.ExhaustPileValues.Count;
+        var recyclableCount = state.DrawPileValues.Count
+                              + state.DiscardPileValues.Count
+                              + state.HandCardValues.Count;
+        result["recyclableCardCount"] = recyclableCount;
+        result["turnsToReshuffle"] = state.DrawPileValues.Count <= 0
+            ? 0d
+            : Math.Ceiling(
+                (double)state.DrawPileValues.Count
+                / Math.Max(1d, Value(state.Features, "drawPerTurn", 5d)));
+        result["cycleAccessRate"] = recyclableCount <= 0
+            ? 0d
+            : Math.Min(
+                1d,
+                Value(state.Features, "drawPerTurn", 5d) / recyclableCount);
         result["enemyCount"] = state.Enemies.Count(enemy => enemy.Hp > 0);
         result["enemyHpTotal"] = state.Enemies.Sum(enemy => Math.Max(0, enemy.Hp));
         result["expectedBlockableDamage"] = expectedBlockable;
@@ -62,6 +84,18 @@ public static class CombatSearchFeatureProjector
         result["damageMultiplier"] = state.DamageMultiplier;
         result["uncertainty"] = state.Uncertainty;
         return result;
+    }
+
+    private static double Value(
+        IReadOnlyDictionary<string, double> values,
+        string key,
+        double fallback)
+    {
+        return values.TryGetValue(key, out var value)
+               && !double.IsNaN(value)
+               && !double.IsInfinity(value)
+            ? value
+            : fallback;
     }
 
     private static void CopyFinite(

@@ -372,8 +372,12 @@ internal static class AuraToolsCombatKnowledgeRuntime
     private static readonly DataType[] RelevantTables =
     {
         DataType.Card,
+        DataType.CardPack,
+        DataType.Career,
         DataType.Enemy,
         DataType.EnemyCard,
+        DataType.KeyWords,
+        DataType.EnchTag,
         DataType.Buff,
         DataType.Level,
         DataType.Partner,

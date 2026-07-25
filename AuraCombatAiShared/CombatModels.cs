@@ -320,11 +320,17 @@ public sealed class CombatStateObservation
 
     public int HandCount { get; set; }
 
+    public List<string> HandCardIds { get; set; } = new();
+
+    public List<string> RetainedHandCardIds { get; set; } = new();
+
     public List<string> DeckCardIds { get; set; } = new();
 
     public List<string> DrawPileCardIds { get; set; } = new();
 
     public List<string> DiscardPileCardIds { get; set; } = new();
+
+    public List<string> ExhaustPileCardIds { get; set; } = new();
 
     public double ExpectedIncomingDamage { get; set; }
 
@@ -359,7 +365,7 @@ public sealed class CombatDecisionProfile
 
     public double ThreatRiskTolerance { get; set; } = 0.65d;
 
-    public double SurplusDefendRetention { get; set; } = 0.05d;
+    public double SurplusDefendRetention { get; set; } = 0.65d;
 
     public int BeamWidth { get; set; } = 8;
 

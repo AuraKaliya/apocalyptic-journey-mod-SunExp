@@ -215,19 +215,30 @@ public static class CombatScenarioCloner
                 Deck = new List<string>(source.Player.Deck),
                 InitialStatuses = source.Player.InitialStatuses
                     .Select(CloneStatus)
-                    .ToList()
+                    .ToList(),
+                Variables = new Dictionary<string, double>(
+                    source.Player.Variables,
+                    StringComparer.OrdinalIgnoreCase)
             },
             Enemies = source.Enemies.Select(enemy => new CombatEnemySetup
             {
                 EnemyId = enemy.EnemyId,
                 InstanceKey = enemy.InstanceKey,
                 HpScale = enemy.HpScale,
-                InitialStatuses = enemy.InitialStatuses.Select(CloneStatus).ToList()
+                AttackScale = enemy.AttackScale,
+                InitialBlockBonus = enemy.InitialBlockBonus,
+                InitialStatuses = enemy.InitialStatuses.Select(CloneStatus).ToList(),
+                Variables = new Dictionary<string, double>(
+                    enemy.Variables,
+                    StringComparer.OrdinalIgnoreCase)
             }).ToList(),
             InitialDraw = source.InitialDraw,
             DrawPerTurn = source.DrawPerTurn,
             HandLimit = source.HandLimit,
             RetainBlockBetweenTurns = source.RetainBlockBetweenTurns,
+            MovePlayedCardAfterResolution = source.MovePlayedCardAfterResolution,
+            InitialDiscardCards = new List<string>(source.InitialDiscardCards),
+            DirectHpLossAfterPlayerCard = source.DirectHpLossAfterPlayerCard,
             RequireAuthoritativeRules = source.RequireAuthoritativeRules,
             TraceLevel = source.TraceLevel,
             Limits = (source.Limits ?? new CombatSimulationLimits()).Normalize()
@@ -236,11 +247,6 @@ public static class CombatScenarioCloner
 
     private static CombatInitialStatus CloneStatus(CombatInitialStatus source)
     {
-        return new CombatInitialStatus
-        {
-            StatusId = source.StatusId,
-            Stacks = source.Stacks,
-            Duration = source.Duration
-        };
+        return source.Clone();
     }
 }

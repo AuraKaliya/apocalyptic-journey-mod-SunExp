@@ -76,6 +76,9 @@ public enum CombatSimulationTarget
     Self,
     SelectedEnemy,
     AllEnemies,
+    AllAllies,
+    AllAlliesExceptSelf,
+    AllOpponents,
     RandomEnemy,
     Player,
     EventSource,
@@ -88,16 +91,33 @@ public enum CombatSimulationEffectKind
     TrueDamage,
     DirectHpLoss,
     GainBlock,
+    SetBlock,
     Heal,
+    SetHp,
+    SetHpToMax,
     Draw,
     DiscardRandom,
     ExhaustRandom,
     GainEnergy,
+    SkipTurn,
+    DrawToHandLimit,
+    CreateRandomCard,
+    AddCardTag,
+    RetrieveCards,
+    EqualizeHealthByStatus,
+    ModifyStatusCounter,
+    WinBattle,
+    EmitEvent,
     AddStatus,
     RemoveStatus,
     CreateCard,
     ChangeCardCost,
     ModifyVariable,
+    ModifyVariablePercent,
+    ScaleVariablePercent,
+    ScaleMaxHpPercent,
+    DeferVariableUntilVictory,
+    CopyStatuses,
     SummonEnemy,
     Despawn
 }
@@ -108,13 +128,20 @@ public enum CombatSimulationEventKind
     TurnStarted,
     TurnEnded,
     IntentSelected,
+    ActionStarted,
+    DiceChecked,
+    DeckShuffled,
     CardDrawn,
+    CardCreated,
     CardPlayed,
     ActionResolved,
     CardDiscarded,
     CardExhausted,
+    CardTagChanged,
+    DeferredEffectTriggered,
     DamageDealt,
     BlockGained,
+    BlockChanged,
     Healed,
     EnergyChanged,
     StatusAdded,
@@ -146,9 +173,44 @@ public sealed class CombatSimulationEffectDefinition
 
     public CombatSimulationValueExpression? AmountExpression { get; set; }
 
+    public CombatSimulationValueExpression? ConditionExpression { get; set; }
+
+    public CombatSimulationValueRounding Rounding { get; set; } =
+        CombatSimulationValueRounding.Round;
+
     public double Probability { get; set; } = 1d;
 
+    public string RandomChoiceGroup { get; set; } = "";
+
+    public double RandomChoiceWeight { get; set; } = 1d;
+
     public string DefinitionId { get; set; } = "";
+
+    public string SecondaryDefinitionId { get; set; } = "";
+
+    public string CounterKey { get; set; } = "";
+
+    public string RequiredStatusTag { get; set; } = "";
+
+    public string RequiredCardTag { get; set; } = "";
+
+    public int MinimumRarity { get; set; } = 1;
+
+    public int MaximumRarity { get; set; } = int.MaxValue;
+
+    public int CounterLimit { get; set; } = int.MaxValue;
+
+    public bool RemoveStatusAtCounterLimit { get; set; }
+
+    public CombatSimulationEventKind EmittedEventKind { get; set; }
+
+    public CombatCardZone DestinationZone { get; set; } = CombatCardZone.Hand;
+
+    public CombatCardZone SourceZone { get; set; } = CombatCardZone.DrawPile;
+
+    public bool UseEventCard { get; set; }
+
+    public bool RandomizeDestination { get; set; }
 
     public int Duration { get; set; }
 
@@ -156,12 +218,25 @@ public sealed class CombatSimulationEffectDefinition
 
     public bool ScaleWithStatusStacks { get; set; }
 
+    public int MinimumVariableValue { get; set; } = int.MinValue;
+
+    public int MaximumVariableValue { get; set; } = int.MaxValue;
+
     public CombatSimulationEffectDefinition Clone()
     {
         var clone = (CombatSimulationEffectDefinition)MemberwiseClone();
         clone.AmountExpression = AmountExpression?.Clone();
+        clone.ConditionExpression = ConditionExpression?.Clone();
         return clone;
     }
+}
+
+public enum CombatSimulationValueRounding
+{
+    Round,
+    Truncate,
+    Floor,
+    Ceiling
 }
 
 public enum CombatSimulationValueOperation
@@ -171,16 +246,32 @@ public enum CombatSimulationValueOperation
     TargetVariable,
     SourceStatusStacks,
     TargetStatusStacks,
+    SourceStatusCounter,
+    SourceStatusTagStacks,
+    SourceHandCount,
+    SourceHandTagCount,
+    PlayerHandCount,
     SourceHp,
     TargetHp,
     SourceMaxHp,
     TargetMaxHp,
+    SourceBlock,
+    TargetBlock,
+    LivingEnemyCount,
     Add,
     Subtract,
     Multiply,
     Divide,
     Minimum,
-    Maximum
+    Maximum,
+    GreaterThan,
+    GreaterThanOrEqual,
+    LessThan,
+    LessThanOrEqual,
+    Equal,
+    Conditional,
+    Floor,
+    Ceiling
 }
 
 public sealed class CombatSimulationValueExpression
@@ -215,13 +306,21 @@ public sealed class CombatCardDefinition
 
     public int Cost { get; set; }
 
+    public int Rarity { get; set; } = 1;
+
     public bool Exhaust { get; set; }
+
+    public List<string> Tags { get; set; } = new();
 
     public bool RequiresEnemyTarget { get; set; }
 
     public CombatRuleFidelity Fidelity { get; set; } = CombatRuleFidelity.Authoritative;
 
     public List<CombatSimulationEffectDefinition> Effects { get; set; } = new();
+
+    public List<CombatSimulationEffectDefinition> DrawEffects { get; set; } = new();
+
+    public List<CombatSimulationEffectDefinition> DiscardEffects { get; set; } = new();
 
     public CombatCardDefinition Clone()
     {
@@ -231,10 +330,14 @@ public sealed class CombatCardDefinition
             CardId = CardId,
             DisplayName = DisplayName,
             Cost = Cost,
+            Rarity = Rarity,
             Exhaust = Exhaust,
+            Tags = new List<string>(Tags),
             RequiresEnemyTarget = RequiresEnemyTarget,
             Fidelity = Fidelity,
-            Effects = Effects.Select(effect => effect.Clone()).ToList()
+            Effects = Effects.Select(effect => effect.Clone()).ToList(),
+            DrawEffects = DrawEffects.Select(effect => effect.Clone()).ToList(),
+            DiscardEffects = DiscardEffects.Select(effect => effect.Clone()).ToList()
         };
     }
 }
@@ -251,6 +354,12 @@ public sealed class CombatEnemyIntentDefinition
 
     public int CooldownTurns { get; set; }
 
+    public CombatSimulationValueExpression? CooldownExpression { get; set; }
+
+    public CombatSimulationValueExpression? PriorityExpression { get; set; }
+
+    public CombatSimulationValueExpression? AvailabilityExpression { get; set; }
+
     public int MinimumTurn { get; set; } = 1;
 
     public int MaximumTurn { get; set; } = int.MaxValue;
@@ -260,6 +369,8 @@ public sealed class CombatEnemyIntentDefinition
     public double MaximumHpRatio { get; set; } = 1d;
 
     public bool PreventConsecutiveUse { get; set; }
+
+    public List<string> Tags { get; set; } = new();
 
     public List<CombatSimulationEffectDefinition> Effects { get; set; } = new();
 
@@ -272,14 +383,36 @@ public sealed class CombatEnemyIntentDefinition
             Weight = Weight,
             Priority = Priority,
             CooldownTurns = CooldownTurns,
+            CooldownExpression = CooldownExpression?.Clone(),
+            PriorityExpression = PriorityExpression?.Clone(),
+            AvailabilityExpression = AvailabilityExpression?.Clone(),
             MinimumTurn = MinimumTurn,
             MaximumTurn = MaximumTurn,
             MinimumHpRatio = MinimumHpRatio,
             MaximumHpRatio = MaximumHpRatio,
             PreventConsecutiveUse = PreventConsecutiveUse,
+            Tags = new List<string>(Tags),
             Effects = Effects.Select(effect => effect.Clone()).ToList()
         };
     }
+}
+
+public enum CombatStatusTriggerOwnerRelation
+{
+    Any,
+    EventSource,
+    EventTarget,
+    EventTargetAllyExceptSelf
+}
+
+public enum CombatStatusCounterIncrementMode
+{
+    None,
+    Fixed,
+    EventAmount,
+    HandCount,
+    HandTagCount,
+    StatusTagStacks
 }
 
 public sealed class CombatEnemyDefinition
@@ -294,7 +427,14 @@ public sealed class CombatEnemyDefinition
 
     public int InitialBlock { get; set; }
 
+    public int ActionCount { get; set; } = 1;
+
     public CombatRuleFidelity Fidelity { get; set; } = CombatRuleFidelity.Authoritative;
+
+    public Dictionary<string, double> Variables { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public List<CombatInitialStatus> InitialStatuses { get; set; } = new();
 
     public List<CombatEnemyIntentDefinition> Intents { get; set; } = new();
 
@@ -307,7 +447,12 @@ public sealed class CombatEnemyDefinition
             DisplayName = DisplayName,
             MaxHp = MaxHp,
             InitialBlock = InitialBlock,
+            ActionCount = ActionCount,
             Fidelity = Fidelity,
+            Variables = new Dictionary<string, double>(
+                Variables,
+                StringComparer.OrdinalIgnoreCase),
+            InitialStatuses = InitialStatuses.Select(status => status.Clone()).ToList(),
             Intents = Intents.Select(intent => intent.Clone()).ToList()
         };
     }
@@ -323,6 +468,44 @@ public sealed class CombatStatusTriggerDefinition
 
     public int ConsumeStacks { get; set; }
 
+    public CombatStatusTriggerOwnerRelation OwnerRelation { get; set; }
+
+    public int MinimumStacks { get; set; }
+
+    public int MaximumStacks { get; set; } = int.MaxValue;
+
+    public int EveryNthEvent { get; set; } = 1;
+
+    public int MinimumEventAmount { get; set; } = int.MinValue;
+
+    public string RequiredActionTag { get; set; } = "";
+
+    public string ForbiddenActionTag { get; set; } = "";
+
+    public string RequiredDefinitionId { get; set; } = "";
+
+    public CombatSimulationValueExpression? ConditionExpression { get; set; }
+
+    public string CounterKey { get; set; } = "";
+
+    public CombatStatusCounterIncrementMode CounterIncrementMode { get; set; }
+
+    public int CounterIncrement { get; set; } = 1;
+
+    public string CounterFilter { get; set; } = "";
+
+    public int MinimumCounterValue { get; set; } = int.MinValue;
+
+    public int MaximumCounterValue { get; set; } = int.MaxValue;
+
+    public int CounterStep { get; set; }
+
+    public int CounterStepOrigin { get; set; }
+
+    public bool ResetCounterAfterTrigger { get; set; }
+
+    public bool RemoveStatusAfterTrigger { get; set; }
+
     public List<CombatSimulationEffectDefinition> Effects { get; set; } = new();
 
     public CombatStatusTriggerDefinition Clone()
@@ -333,6 +516,25 @@ public sealed class CombatStatusTriggerDefinition
             EventKind = EventKind,
             Priority = Priority,
             ConsumeStacks = ConsumeStacks,
+            OwnerRelation = OwnerRelation,
+            MinimumStacks = MinimumStacks,
+            MaximumStacks = MaximumStacks,
+            EveryNthEvent = EveryNthEvent,
+            MinimumEventAmount = MinimumEventAmount,
+            RequiredActionTag = RequiredActionTag,
+            ForbiddenActionTag = ForbiddenActionTag,
+            RequiredDefinitionId = RequiredDefinitionId,
+            ConditionExpression = ConditionExpression?.Clone(),
+            CounterKey = CounterKey,
+            CounterIncrementMode = CounterIncrementMode,
+            CounterIncrement = CounterIncrement,
+            CounterFilter = CounterFilter,
+            MinimumCounterValue = MinimumCounterValue,
+            MaximumCounterValue = MaximumCounterValue,
+            CounterStep = CounterStep,
+            CounterStepOrigin = CounterStepOrigin,
+            ResetCounterAfterTrigger = ResetCounterAfterTrigger,
+            RemoveStatusAfterTrigger = RemoveStatusAfterTrigger,
             Effects = Effects.Select(effect => effect.Clone()).ToList()
         };
     }
@@ -358,6 +560,10 @@ public sealed class CombatStatusDefinition
 
     public bool CanRemainAtZero { get; set; }
 
+    public int MaximumStacks { get; set; } = int.MaxValue;
+
+    public List<string> Tags { get; set; } = new();
+
     public Dictionary<string, double> DynamicModifiersPerStack { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
 
@@ -376,6 +582,8 @@ public sealed class CombatStatusDefinition
             ReducePerUse = ReducePerUse,
             ReducePerAttacked = ReducePerAttacked,
             CanRemainAtZero = CanRemainAtZero,
+            MaximumStacks = MaximumStacks,
+            Tags = new List<string>(Tags),
             DynamicModifiersPerStack = new Dictionary<string, double>(
                 DynamicModifiersPerStack,
                 StringComparer.OrdinalIgnoreCase),
@@ -427,6 +635,22 @@ public sealed class CombatInitialStatus
     public int Stacks { get; set; } = 1;
 
     public int Duration { get; set; }
+
+    public CombatSimulationValueExpression? StacksExpression { get; set; }
+
+    public CombatSimulationValueExpression? ConditionExpression { get; set; }
+
+    public CombatInitialStatus Clone()
+    {
+        return new CombatInitialStatus
+        {
+            StatusId = StatusId,
+            Stacks = Stacks,
+            Duration = Duration,
+            StacksExpression = StacksExpression?.Clone(),
+            ConditionExpression = ConditionExpression?.Clone()
+        };
+    }
 }
 
 public sealed class CombatSimulationLimits
@@ -475,7 +699,13 @@ public sealed class CombatScenarioDefinition
 
     public int HandLimit { get; set; } = 10;
 
-    public bool RetainBlockBetweenTurns { get; set; }
+    public bool RetainBlockBetweenTurns { get; set; } = true;
+
+    public bool MovePlayedCardAfterResolution { get; set; }
+
+    public List<string> InitialDiscardCards { get; set; } = new();
+
+    public int DirectHpLossAfterPlayerCard { get; set; }
 
     public bool RequireAuthoritativeRules { get; set; } = true;
 
@@ -503,9 +733,13 @@ public sealed class CombatCardInstanceState
 
     public int CostModifier { get; set; }
 
+    public List<string> Tags { get; set; } = new();
+
     public CombatCardInstanceState Clone()
     {
-        return (CombatCardInstanceState)MemberwiseClone();
+        var clone = (CombatCardInstanceState)MemberwiseClone();
+        clone.Tags = new List<string>(Tags);
+        return clone;
     }
 }
 
@@ -519,9 +753,16 @@ public sealed class CombatStatusState
 
     public int SourceActorId { get; set; }
 
+    public Dictionary<string, int> TriggerCounts { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public CombatStatusState Clone()
     {
-        return (CombatStatusState)MemberwiseClone();
+        var clone = (CombatStatusState)MemberwiseClone();
+        clone.TriggerCounts = new Dictionary<string, int>(
+            TriggerCounts,
+            StringComparer.OrdinalIgnoreCase);
+        return clone;
     }
 }
 
@@ -551,6 +792,10 @@ public sealed class CombatActorState
 
     public string PreviousIntentId { get; set; } = "";
 
+    public List<string> CurrentIntentIds { get; set; } = new();
+
+    public List<string> PreviousIntentIds { get; set; } = new();
+
     public Dictionary<string, double> Variables { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
 
@@ -577,6 +822,8 @@ public sealed class CombatActorState
             BaseEnergy = BaseEnergy,
             CurrentIntentId = CurrentIntentId,
             PreviousIntentId = PreviousIntentId,
+            CurrentIntentIds = new List<string>(CurrentIntentIds),
+            PreviousIntentIds = new List<string>(PreviousIntentIds),
             Variables = new Dictionary<string, double>(Variables, StringComparer.OrdinalIgnoreCase),
             IntentCooldowns = new Dictionary<string, int>(
                 IntentCooldowns,
@@ -597,6 +844,26 @@ public sealed class CombatRandomCounterState
         {
             Counters = new Dictionary<string, ulong>(Counters, StringComparer.Ordinal)
         };
+    }
+}
+
+public sealed class CombatDeferredVariableChangeState
+{
+    public int ActorId { get; set; }
+
+    public string DefinitionId { get; set; } = "";
+
+    public int Amount { get; set; }
+
+    public bool PersistAcrossBattles { get; set; }
+
+    public int MinimumVariableValue { get; set; } = int.MinValue;
+
+    public int MaximumVariableValue { get; set; } = int.MaxValue;
+
+    public CombatDeferredVariableChangeState Clone()
+    {
+        return (CombatDeferredVariableChangeState)MemberwiseClone();
     }
 }
 
@@ -626,6 +893,12 @@ public sealed class CombatBattleState
 
     public CombatRandomCounterState Random { get; set; } = new();
 
+    public List<CombatDeferredVariableChangeState> DeferredVictoryVariableChanges
+    {
+        get;
+        set;
+    } = new();
+
     public long ActionSequence { get; set; }
 
     public long EventSequence { get; set; }
@@ -652,6 +925,9 @@ public sealed class CombatBattleState
             DiscardPile = new List<int>(DiscardPile),
             ExhaustPile = new List<int>(ExhaustPile),
             Random = Random.Clone(),
+            DeferredVictoryVariableChanges = DeferredVictoryVariableChanges
+                .Select(item => item.Clone())
+                .ToList(),
             ActionSequence = ActionSequence,
             EventSequence = EventSequence,
             CommandCount = CommandCount,
@@ -848,9 +1124,39 @@ internal sealed class CombatSimulationCommand
 
     public string DefinitionId { get; set; } = "";
 
+    public string SecondaryDefinitionId { get; set; } = "";
+
+    public string CounterKey { get; set; } = "";
+
+    public string RequiredStatusTag { get; set; } = "";
+
+    public string RequiredCardTag { get; set; } = "";
+
+    public int MinimumRarity { get; set; } = 1;
+
+    public int MaximumRarity { get; set; } = int.MaxValue;
+
+    public int CounterLimit { get; set; } = int.MaxValue;
+
+    public bool RemoveStatusAtCounterLimit { get; set; }
+
+    public CombatSimulationEventKind EmittedEventKind { get; set; }
+
+    public CombatCardZone DestinationZone { get; set; } = CombatCardZone.Hand;
+
+    public CombatCardZone SourceZone { get; set; } = CombatCardZone.DrawPile;
+
+    public bool UseEventCard { get; set; }
+
+    public bool RandomizeDestination { get; set; }
+
     public int Duration { get; set; }
 
     public bool PersistAcrossBattles { get; set; }
+
+    public int MinimumVariableValue { get; set; } = int.MinValue;
+
+    public int MaximumVariableValue { get; set; } = int.MaxValue;
 
     public long ParentSequence { get; set; }
 

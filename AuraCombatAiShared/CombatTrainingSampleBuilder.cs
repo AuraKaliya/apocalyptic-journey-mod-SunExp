@@ -93,7 +93,6 @@ public static class CombatTrainingSampleBuilder
                 reward.EffectiveDamage
                 + reward.PlayerHpChange * 1.2d
                 + reward.UsefulDefend * 0.1d
-                - reward.WastedDefend * 0.15d
                 + reward.PowerChange * 0.2d
                 + reward.HandChange * 0.1d
                 + reward.TurnCost
@@ -135,11 +134,10 @@ public static class CombatTrainingSampleBuilder
         reward.PlayerHpChange = after.Player.CurrentHp - before.Player.CurrentHp;
         reward.ShieldGain = Math.Max(0, after.Player.Defend - before.Player.Defend);
         var threat = before.Threat ?? new CombatThreatForecast();
-        var requiredDefend = Math.Max(
-            0d,
-            threat.RiskAdjustedBlockableDamage(0.65d) - before.Player.Defend);
-        reward.UsefulDefend = Math.Min(reward.ShieldGain, requiredDefend);
-        reward.WastedDefend = Math.Max(0d, reward.ShieldGain - reward.UsefulDefend);
+        // Witch's Apocalyptic Journey keeps shield between turns.  Shield above the
+        // current telegraphed hit is therefore stored survivability, not waste.
+        reward.UsefulDefend = reward.ShieldGain;
+        reward.WastedDefend = 0d;
         reward.UnblockableThreat = Math.Max(
             0d,
             threat.ExpectedUnblockableDamage + threat.ExpectedDamageOverTime);

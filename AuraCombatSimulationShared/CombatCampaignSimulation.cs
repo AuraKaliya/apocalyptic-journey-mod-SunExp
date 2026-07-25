@@ -69,6 +69,8 @@ public sealed class CombatCampaignRewardDefinition
 
     public int Tier { get; set; } = 1;
 
+    public double OfferWeight { get; set; } = 1d;
+
     public double BaseValue { get; set; }
 
     public bool Negative { get; set; }
@@ -115,6 +117,23 @@ public sealed class CombatCampaignDifficultyDefinition
 
     public bool ApplyGameLevelShield { get; set; }
 
+    public bool MovePlayedCardAfterResolution { get; set; }
+
+    public List<string> InitialDiscardCards { get; set; } = new();
+
+    public int DirectHpLossAfterPlayerCard { get; set; }
+
+    public int AdditionalEnemyHpMultiplierMinimumGameLevel { get; set; } =
+        int.MaxValue;
+
+    public double AdditionalEnemyHpMultiplier { get; set; } = 1d;
+
+    public Dictionary<string, double> PlayerVariables { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, double> EnemyVariables { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public List<CombatInitialStatus> EnemyInitialStatuses { get; set; } = new();
 
     public List<CombatCampaignHardAffixDefinition> HardAffixes { get; set; } = new();
@@ -131,6 +150,8 @@ public sealed class CombatCampaignDefinition
     public string RulesetVersion { get; set; } = "1";
 
     public CombatPlayerSetup Player { get; set; } = new();
+
+    public int InitialMoney { get; set; } = 100;
 
     public string MainAttributeId { get; set; } = "Strength";
 
@@ -184,7 +205,7 @@ public sealed class CombatCampaignDefinition
 
     public int HandLimit { get; set; } = 10;
 
-    public bool RetainBlockBetweenTurns { get; set; }
+    public bool RetainBlockBetweenTurns { get; set; } = true;
 
     public bool RequireAuthoritativeRules { get; set; } = true;
 
@@ -315,6 +336,8 @@ public sealed class CombatCampaignState
     public int MaxHp { get; set; }
 
     public int CurrentHp { get; set; }
+
+    public int Money { get; set; }
 
     public Dictionary<string, int> Attributes { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
@@ -575,13 +598,13 @@ public static class CombatCampaignWorldPlanner
         var result = new CombatCampaignRewardOffer();
         var cards = definition.Rewards
             .Where(item => item.Kind == CombatCampaignRewardKind.Card)
-            .Select(item => item.RewardId)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(item => item, StringComparer.Ordinal)
+            .GroupBy(item => item.RewardId, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .OrderBy(item => item.RewardId, StringComparer.Ordinal)
             .ToList();
         for (var round = 0; round < definition.CardOfferRounds; round++)
         {
-            result.CardRounds.Add(PickDistinct(
+            result.CardRounds.Add(PickWeightedDistinct(
                 cards,
                 definition.CardChoicesPerRound,
                 worldSeed,
@@ -670,6 +693,45 @@ public static class CombatCampaignWorldPlanner
         return selected;
     }
 
+    private static List<string> PickWeightedDistinct(
+        IReadOnlyList<CombatCampaignRewardDefinition> source,
+        int count,
+        ulong seed,
+        string stream,
+        int step)
+    {
+        var remaining = source
+            .Where(item => !string.IsNullOrWhiteSpace(item.RewardId)
+                           && item.OfferWeight > 0d
+                           && !double.IsNaN(item.OfferWeight)
+                           && !double.IsInfinity(item.OfferWeight))
+            .ToList();
+        var selected = new List<string>();
+        for (var index = 0; index < count && remaining.Count > 0; index++)
+        {
+            var total = remaining.Sum(item => item.OfferWeight);
+            if (total <= 0d)
+            {
+                break;
+            }
+            var roll = NextUnit(seed, stream + ":" + index, step) * total;
+            var cursor = 0d;
+            var selectedIndex = remaining.Count - 1;
+            for (var candidateIndex = 0; candidateIndex < remaining.Count; candidateIndex++)
+            {
+                cursor += remaining[candidateIndex].OfferWeight;
+                if (roll < cursor)
+                {
+                    selectedIndex = candidateIndex;
+                    break;
+                }
+            }
+            selected.Add(remaining[selectedIndex].RewardId);
+            remaining.RemoveAt(selectedIndex);
+        }
+        return selected;
+    }
+
     private static int NextIndex(ulong seed, string stream, int step, int count)
     {
         if (count <= 1) return 0;
@@ -679,6 +741,16 @@ public static class CombatCampaignWorldPlanner
         value = (value ^ (value >> 27)) * 0x94D049BB133111EBUL;
         value ^= value >> 31;
         return (int)(value % (ulong)count);
+    }
+
+    private static double NextUnit(ulong seed, string stream, int step)
+    {
+        var value = seed ^ StableHash(stream) ^ ((ulong)(step + 1) * 0x9E3779B97F4A7C15UL);
+        value += 0x9E3779B97F4A7C15UL;
+        value = (value ^ (value >> 30)) * 0xBF58476D1CE4E5B9UL;
+        value = (value ^ (value >> 27)) * 0x94D049BB133111EBUL;
+        value ^= value >> 31;
+        return (value >> 11) * (1d / 9007199254740992d);
     }
 
     private static ulong StableHash(string value)
@@ -1245,6 +1317,11 @@ public sealed class CombatCampaignRunner
                     state.PermanentAttributeBonuses[attribute] + pair.Value);
                 continue;
             }
+            if (string.Equals(pair.Key, "Money", StringComparison.OrdinalIgnoreCase))
+            {
+                state.Money = Math.Max(0, state.Money + pair.Value);
+                continue;
+            }
             var cappedAttribute = definition.AttributeIds.FirstOrDefault(item =>
                 string.Equals(
                     item + "UpperBound",
@@ -1305,17 +1382,38 @@ public sealed class CombatCampaignRunner
             DrawPerTurn = definition.DrawPerTurn,
             HandLimit = definition.HandLimit,
             RetainBlockBetweenTurns = definition.RetainBlockBetweenTurns,
+            MovePlayedCardAfterResolution =
+                difficulty.MovePlayedCardAfterResolution,
+            InitialDiscardCards = new List<string>(
+                difficulty.InitialDiscardCards
+                ?? new List<string>()),
+            DirectHpLossAfterPlayerCard =
+                Math.Max(0, difficulty.DirectHpLossAfterPlayerCard),
             RequireAuthoritativeRules = definition.RequireAuthoritativeRules,
             TraceLevel = definition.TraceLevel,
             Limits = definition.Limits.Normalize()
         };
+        foreach (var pair in difficulty.PlayerVariables
+                     ?? new Dictionary<string, double>())
+        {
+            scenario.Player.Variables[pair.Key] = pair.Value;
+        }
+        scenario.Player.Variables["Money"] = state.Money;
         for (var index = 0; index < encounter.EnemyIds.Count; index++)
         {
             var enemyId = encounter.EnemyIds[index];
             var nativeLevel = enemyLevels.TryGetValue(enemyId, out var level) ? level : 1;
             var growth = ((encounter.GameLevel - 1) / 12) - nativeLevel + 1;
+            var highLevelHpMultiplier =
+                encounter.GameLevel
+                >= difficulty.AdditionalEnemyHpMultiplierMinimumGameLevel
+                    ? Math.Max(
+                        0.1d,
+                        difficulty.AdditionalEnemyHpMultiplier)
+                    : 1d;
             var hpScale = Math.Max(0.1d, 1d + growth * 0.3d)
-                          * Math.Max(0.1d, difficulty.EnemyHpMultiplier);
+                          * Math.Max(0.1d, difficulty.EnemyHpMultiplier)
+                          * highLevelHpMultiplier;
             var attackScale = Math.Max(0d, 1d + growth * 0.2d)
                               * Math.Max(0d, difficulty.EnemyAttackMultiplier);
             scenario.Enemies.Add(new CombatEnemySetup
@@ -1329,8 +1427,16 @@ public sealed class CombatCampaignRunner
                     : 0,
                 InitialStatuses = difficulty.EnemyInitialStatuses
                     .Select(CloneStatus)
-                    .ToList()
+                    .ToList(),
+                Variables = new Dictionary<string, double>(
+                    difficulty.EnemyVariables
+                    ?? new Dictionary<string, double>(),
+                    StringComparer.OrdinalIgnoreCase)
             });
+            scenario.Enemies[index].Variables["GameLevel"] =
+                encounter.GameLevel;
+            scenario.Enemies[index].Variables["EncounterKind"] =
+                (int)encounter.Kind;
         }
         return scenario;
     }
@@ -1416,6 +1522,7 @@ public sealed class CombatCampaignRunner
         {
             MaxHp = definition.Player.MaxHp,
             CurrentHp = definition.Player.CurrentHp,
+            Money = Math.Max(0, definition.InitialMoney),
             Deck = new List<string>(definition.Player.Deck)
         };
         foreach (var attribute in definition.AttributeIds)
@@ -1473,6 +1580,7 @@ public sealed class CombatCampaignRunner
             CurrentGameLevel = source.CurrentGameLevel,
             MaxHp = source.MaxHp,
             CurrentHp = source.CurrentHp,
+            Money = source.Money,
             Attributes = new Dictionary<string, int>(
                 source.Attributes,
                 StringComparer.OrdinalIgnoreCase),
@@ -1495,12 +1603,7 @@ public sealed class CombatCampaignRunner
 
     private static CombatInitialStatus CloneStatus(CombatInitialStatus source)
     {
-        return new CombatInitialStatus
-        {
-            StatusId = source.StatusId,
-            Stacks = source.Stacks,
-            Duration = source.Duration
-        };
+        return source.Clone();
     }
 
     private static ulong NamedBattleSeed(ulong worldSeed, int index)

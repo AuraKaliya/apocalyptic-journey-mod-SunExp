@@ -151,7 +151,7 @@ public sealed class CombatDecisionEngine
         var planSummary = search?.Summary ?? plan?.Summary ?? "";
         if (hasPlanAction
             && planAction != null
-            && planScore >= selectedProfile.MinimumActionScore)
+            && (search != null || planScore >= selectedProfile.MinimumActionScore))
         {
             return new CombatDecision
             {
@@ -284,7 +284,6 @@ public sealed class CombatDecisionEngine
             ? profile.FreeActionTieBreaker
             : 0d;
         risk += overkill * 0.15d;
-        risk += surplusDefend * (threat.CurrentIntentKnown ? 0.12d : 0.04d);
         if (semantics.RandomOutcome)
         {
             risk += 0.35d;
@@ -438,8 +437,10 @@ public sealed class CombatDecisionEngine
             ? 0d
             : Math.Max(0d, semantics.Defend);
         var requiredDefend = Math.Max(0d, riskAdjustedBlockable - player.Defend);
-        var usefulDefend = Math.Min(defend, requiredDefend);
-        var wastedDefend = Math.Max(0d, defend - usefulDefend);
+        var immediateDefend = Math.Min(defend, requiredDefend);
+        var shieldCarryGain = Math.Max(0d, defend - immediateDefend);
+        var usefulDefend = defend;
+        var wastedDefend = 0d;
         var missingHp = Math.Max(0d, player.MaxHp - player.CurrentHp);
         var heal = Math.Max(0d, semantics.Heal);
         var handCapacity = Math.Max(0d, 10 - state.HandCount);
@@ -484,6 +485,8 @@ public sealed class CombatDecisionEngine
         }
 
         features["requiredDefend"] = requiredDefend;
+        features["immediateDefend"] = immediateDefend;
+        features["shieldCarryGain"] = shieldCarryGain;
         features["usefulDefend"] = usefulDefend;
         features["wastedDefend"] = wastedDefend;
         features["effectiveHeal"] = Math.Min(heal, missingHp);

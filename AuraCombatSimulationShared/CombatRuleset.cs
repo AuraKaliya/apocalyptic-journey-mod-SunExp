@@ -141,7 +141,11 @@ public sealed class CombatRulesetBuilder
         {
             return this;
         }
-        if (definition!.Cost < 0 || definition.Effects == null)
+        if (definition!.Cost < 0
+            || definition.Effects == null
+            || definition.DrawEffects == null
+            || definition.DiscardEffects == null
+            || definition.Tags == null)
         {
             errors.Add("card " + key + " has invalid cost or effects");
             return this;
@@ -164,7 +168,12 @@ public sealed class CombatRulesetBuilder
         {
             return this;
         }
-        if (definition!.MaxHp <= 0 || definition.Intents == null || definition.Intents.Count == 0)
+        if (definition!.MaxHp <= 0
+            || definition.ActionCount <= 0
+            || definition.ActionCount > 16
+            || definition.InitialStatuses == null
+            || definition.Intents == null
+            || definition.Intents.Count == 0)
         {
             errors.Add("enemy " + key + " has invalid hp or no intents");
             return this;
@@ -202,9 +211,16 @@ public sealed class CombatRulesetBuilder
         {
             return this;
         }
-        if (definition!.Triggers == null
+        if (definition!.MaximumStacks <= 0
+            || definition.Triggers == null
             || definition.Triggers.Any(trigger =>
                 string.IsNullOrWhiteSpace(trigger.TriggerId)
+                || trigger.EveryNthEvent <= 0
+                || trigger.MaximumStacks < trigger.MinimumStacks
+                || trigger.MaximumCounterValue < trigger.MinimumCounterValue
+                || trigger.CounterStep < 0
+                || (trigger.CounterIncrementMode != CombatStatusCounterIncrementMode.None
+                    && string.IsNullOrWhiteSpace(trigger.CounterKey))
                 || trigger.Effects == null))
         {
             errors.Add("status " + key + " has an invalid trigger");
@@ -266,9 +282,23 @@ public sealed class CombatRulesetBuilder
         foreach (var card in cards.Values)
         {
             ValidateEffects("card " + card.CardId, card.Effects);
+            ValidateEffects("card draw " + card.CardId, card.DrawEffects);
+            ValidateEffects("card discard " + card.CardId, card.DiscardEffects);
         }
         foreach (var enemy in enemies.Values)
         {
+            foreach (var initial in enemy.InitialStatuses)
+            {
+                if (initial == null
+                    || string.IsNullOrWhiteSpace(initial.StatusId)
+                    || !statuses.ContainsKey(initial.StatusId))
+                {
+                    errors.Add(
+                        "enemy " + enemy.EnemyId
+                        + " references unknown initial status: "
+                        + initial?.StatusId);
+                }
+            }
             foreach (var intent in enemy.Intents)
             {
                 ValidateEffects("enemy intent " + enemy.EnemyId + "/" + intent.IntentId, intent.Effects);
@@ -294,7 +324,11 @@ public sealed class CombatRulesetBuilder
                 || effect.Probability > 1d
                 || (effect.Amount < 0
                     && effect.Kind != CombatSimulationEffectKind.ChangeCardCost
-                    && effect.Kind != CombatSimulationEffectKind.ModifyVariable))
+                    && effect.Kind != CombatSimulationEffectKind.ModifyVariable
+                    && effect.Kind != CombatSimulationEffectKind.ModifyVariablePercent
+                    && effect.Kind != CombatSimulationEffectKind.ScaleVariablePercent
+                    && effect.Kind != CombatSimulationEffectKind.DeferVariableUntilVictory
+                    && effect.Kind != CombatSimulationEffectKind.GainEnergy))
             {
                 errors.Add(source + " has an invalid effect");
                 continue;
@@ -309,6 +343,11 @@ public sealed class CombatRulesetBuilder
                 && !cards.ContainsKey(effect.DefinitionId ?? ""))
             {
                 errors.Add(source + " references unknown card: " + effect.DefinitionId);
+            }
+            if (effect.Kind == CombatSimulationEffectKind.AddCardTag
+                && string.IsNullOrWhiteSpace(effect.DefinitionId))
+            {
+                errors.Add(source + " requires a card tag");
             }
             if (effect.Kind == CombatSimulationEffectKind.SummonEnemy
                 && !enemies.ContainsKey(effect.DefinitionId ?? ""))
@@ -355,22 +394,54 @@ internal static class CombatRulesetHasher
         foreach (var card in cards.Values.OrderBy(item => item.CardId, StringComparer.Ordinal))
         {
             builder.Append("c|").Append(card.OwnerModId).Append('|').Append(card.CardId)
-                .Append('|').Append(card.Cost).Append('|').Append(card.Exhaust)
-                .Append('|').Append(card.RequiresEnemyTarget).Append('|').Append(card.Fidelity).Append('\n');
+                .Append('|').Append(card.Cost).Append('|').Append(card.Rarity)
+                .Append('|').Append(card.Exhaust)
+                .Append('|').Append(card.RequiresEnemyTarget).Append('|').Append(card.Fidelity)
+                .Append('|').Append(string.Join(
+                    ",",
+                    card.Tags.OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase)))
+                .Append('\n');
+            builder.Append("card-use-effects\n");
             AppendEffects(builder, card.Effects);
+            builder.Append("card-draw-effects\n");
+            AppendEffects(builder, card.DrawEffects);
+            builder.Append("card-discard-effects\n");
+            AppendEffects(builder, card.DiscardEffects);
         }
         foreach (var enemy in enemies.Values.OrderBy(item => item.EnemyId, StringComparer.Ordinal))
         {
             builder.Append("e|").Append(enemy.OwnerModId).Append('|').Append(enemy.EnemyId)
                 .Append('|').Append(enemy.MaxHp).Append('|').Append(enemy.InitialBlock)
-                .Append('|').Append(enemy.Fidelity).Append('\n');
+                .Append('|').Append(enemy.ActionCount).Append('|').Append(enemy.Fidelity).Append('\n');
+            foreach (var variable in enemy.Variables
+                         .OrderBy(item => item.Key, StringComparer.Ordinal))
+            {
+                builder.Append("ev|").Append(variable.Key).Append('|').Append(F(variable.Value))
+                    .Append('\n');
+            }
+            foreach (var initial in enemy.InitialStatuses)
+            {
+                builder.Append("x|").Append(initial.StatusId)
+                    .Append('|').Append(initial.Stacks)
+                    .Append('|').Append(initial.Duration)
+                    .Append('|').Append(Expression(initial.StacksExpression))
+                    .Append('|').Append(Expression(initial.ConditionExpression))
+                    .Append('\n');
+            }
             foreach (var intent in enemy.Intents.OrderBy(item => item.IntentId, StringComparer.Ordinal))
             {
                 builder.Append("i|").Append(intent.IntentId).Append('|').Append(intent.Weight)
                     .Append('|').Append(intent.Priority).Append('|').Append(intent.CooldownTurns)
+                    .Append('|').Append(Expression(intent.PriorityExpression))
+                    .Append('|').Append(Expression(intent.CooldownExpression))
+                    .Append('|').Append(Expression(intent.AvailabilityExpression))
                     .Append('|').Append(intent.MinimumTurn).Append('|').Append(intent.MaximumTurn)
                     .Append('|').Append(F(intent.MinimumHpRatio)).Append('|').Append(F(intent.MaximumHpRatio))
-                    .Append('|').Append(intent.PreventConsecutiveUse).Append('\n');
+                    .Append('|').Append(intent.PreventConsecutiveUse)
+                    .Append('|').Append(string.Join(
+                        ",",
+                        intent.Tags.OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase)))
+                    .Append('\n');
                 AppendEffects(builder, intent.Effects);
             }
         }
@@ -380,6 +451,10 @@ internal static class CombatRulesetHasher
                 .Append('|').Append(status.Fidelity).Append('|').Append(status.DecayAtRoundEnd)
                 .Append('|').Append(status.ReducePerTurn).Append('|').Append(status.ReducePerUse)
                 .Append('|').Append(status.ReducePerAttacked).Append('|').Append(status.CanRemainAtZero)
+                .Append('|').Append(status.MaximumStacks)
+                .Append('|').Append(string.Join(
+                    ",",
+                    status.Tags.OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase)))
                 .Append('\n');
             foreach (var modifier in status.DynamicModifiersPerStack
                          .OrderBy(item => item.Key, StringComparer.Ordinal))
@@ -393,6 +468,25 @@ internal static class CombatRulesetHasher
             {
                 builder.Append("t|").Append(trigger.TriggerId).Append('|').Append(trigger.EventKind)
                     .Append('|').Append(trigger.Priority).Append('|').Append(trigger.ConsumeStacks)
+                    .Append('|').Append(trigger.OwnerRelation)
+                    .Append('|').Append(trigger.MinimumStacks)
+                    .Append('|').Append(trigger.MaximumStacks)
+                    .Append('|').Append(trigger.EveryNthEvent)
+                    .Append('|').Append(trigger.MinimumEventAmount)
+                    .Append('|').Append(trigger.RequiredActionTag)
+                    .Append('|').Append(trigger.ForbiddenActionTag)
+                    .Append('|').Append(trigger.RequiredDefinitionId)
+                    .Append('|').Append(Expression(trigger.ConditionExpression))
+                    .Append('|').Append(trigger.CounterKey)
+                    .Append('|').Append(trigger.CounterIncrementMode)
+                    .Append('|').Append(trigger.CounterIncrement)
+                    .Append('|').Append(trigger.CounterFilter)
+                    .Append('|').Append(trigger.MinimumCounterValue)
+                    .Append('|').Append(trigger.MaximumCounterValue)
+                    .Append('|').Append(trigger.CounterStep)
+                    .Append('|').Append(trigger.CounterStepOrigin)
+                    .Append('|').Append(trigger.ResetCounterAfterTrigger)
+                    .Append('|').Append(trigger.RemoveStatusAfterTrigger)
                     .Append('\n');
                 AppendEffects(builder, trigger.Effects);
             }
@@ -416,9 +510,30 @@ internal static class CombatRulesetHasher
         {
             builder.Append("x|").Append(effect.Kind).Append('|').Append(effect.Target)
                 .Append('|').Append(effect.Amount).Append('|').Append(F(effect.Probability))
-                .Append('|').Append(effect.DefinitionId).Append('|').Append(effect.Duration)
+                .Append('|').Append(effect.RandomChoiceGroup)
+                .Append('|').Append(F(effect.RandomChoiceWeight))
+                .Append('|').Append(effect.DefinitionId)
+                .Append('|').Append(effect.SecondaryDefinitionId)
+                .Append('|').Append(effect.CounterKey)
+                .Append('|').Append(effect.RequiredStatusTag)
+                .Append('|').Append(effect.RequiredCardTag)
+                .Append('|').Append(effect.MinimumRarity)
+                .Append('|').Append(effect.MaximumRarity)
+                .Append('|').Append(effect.CounterLimit)
+                .Append('|').Append(effect.RemoveStatusAtCounterLimit)
+                .Append('|').Append(effect.EmittedEventKind)
+                .Append('|').Append(effect.Duration)
                 .Append('|').Append(effect.ScaleWithStatusStacks)
-                .Append('|').Append(Expression(effect.AmountExpression)).Append('\n');
+                .Append('|').Append(effect.DestinationZone)
+                .Append('|').Append(effect.SourceZone)
+                .Append('|').Append(effect.UseEventCard)
+                .Append('|').Append(effect.RandomizeDestination)
+                .Append('|').Append(effect.PersistAcrossBattles)
+                .Append('|').Append(effect.MinimumVariableValue)
+                .Append('|').Append(effect.MaximumVariableValue)
+                .Append('|').Append(effect.Rounding)
+                .Append('|').Append(Expression(effect.AmountExpression))
+                .Append('|').Append(Expression(effect.ConditionExpression)).Append('\n');
         }
     }
 

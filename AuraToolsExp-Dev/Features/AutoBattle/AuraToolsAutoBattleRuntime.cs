@@ -1259,7 +1259,9 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
 
 internal sealed class AuraToolsAutoBattleTrainingSink : ICombatTrainingSampleSink
 {
-    private readonly BlockingCollection<CombatTrainingSample> queue = new(2048);
+    private static readonly object StorageGate = new();
+    private static int storageGeneration;
+    private readonly BlockingCollection<QueuedTrainingSample> queue = new(2048);
     private readonly Thread writerThread;
 
     public AuraToolsAutoBattleTrainingSink()
@@ -1280,7 +1282,11 @@ internal sealed class AuraToolsAutoBattleTrainingSink : ICombatTrainingSampleSin
             return;
         }
 
-        if (!queue.TryAdd(sample))
+        if (!queue.TryAdd(new QueuedTrainingSample
+            {
+                Generation = Volatile.Read(ref storageGeneration),
+                Sample = sample
+            }))
         {
             AuraToolsLog.Warn("[AutoBattle] training sample queue is full; sample dropped");
         }
@@ -1314,30 +1320,78 @@ internal sealed class AuraToolsAutoBattleTrainingSink : ICombatTrainingSampleSin
             var episodesPath = AuraSharedLogStore.OwnerLogPath(
                 AuraToolsIds.ModId,
                 "live-combat-episodes-v1.jsonl");
-            using var writer = new StreamWriter(path, append: true);
-            using var episodeWriter = new StreamWriter(episodesPath, append: true);
             var sessions = new Dictionary<long, List<CombatTrainingSample>>();
-            var pending = 0;
-            foreach (var sample in queue.GetConsumingEnumerable())
+            var sessionGeneration = Volatile.Read(ref storageGeneration);
+            foreach (var queued in queue.GetConsumingEnumerable())
             {
-                writer.WriteLine(AuraSharedJson.SerializeCompact(sample));
-                RecordLiveEpisode(sample, sessions, episodeWriter);
-                pending++;
-                if (pending < 16 && queue.Count > 0)
+                var batch = new List<QueuedTrainingSample>(16) { queued };
+                while (batch.Count < 16 && queue.TryTake(out var pending))
                 {
-                    continue;
+                    batch.Add(pending);
                 }
-                writer.Flush();
-                episodeWriter.Flush();
-                pending = 0;
+                lock (StorageGate)
+                {
+                    var currentGeneration = Volatile.Read(ref storageGeneration);
+                    if (sessionGeneration != currentGeneration)
+                    {
+                        sessions.Clear();
+                        sessionGeneration = currentGeneration;
+                    }
+                    var currentBatch = batch
+                        .Where(item => item.Generation == currentGeneration)
+                        .ToList();
+                    if (currentBatch.Count == 0)
+                    {
+                        continue;
+                    }
+                    using var writer = new StreamWriter(path, append: true);
+                    using var episodeWriter = new StreamWriter(episodesPath, append: true);
+                    foreach (var item in currentBatch)
+                    {
+                        writer.WriteLine(AuraSharedJson.SerializeCompact(item.Sample));
+                        RecordLiveEpisode(item.Sample, sessions, episodeWriter);
+                    }
+                }
             }
-            writer.Flush();
-            episodeWriter.Flush();
         }
         catch (Exception ex)
         {
             AuraToolsLog.Warn("[AutoBattle] training sample writer stopped: " + ex.Message);
         }
+    }
+
+    public static void ClearPersistedData()
+    {
+        lock (StorageGate)
+        {
+            Interlocked.Increment(ref storageGeneration);
+            foreach (var fileName in new[]
+                     {
+                         "auto-battle-training-v4.jsonl",
+                         "live-combat-episodes-v1.jsonl"
+                     })
+            {
+                var path = AuraSharedLogStore.OwnerLogPath(
+                    AuraToolsIds.ModId,
+                    fileName);
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                }
+            }
+        }
+    }
+
+    public static bool OwnsPersistedFile(string fileName)
+    {
+        return string.Equals(
+                   fileName,
+                   "auto-battle-training-v4.jsonl",
+                   StringComparison.OrdinalIgnoreCase)
+               || string.Equals(
+                   fileName,
+                   "live-combat-episodes-v1.jsonl",
+                   StringComparison.OrdinalIgnoreCase);
     }
 
     private static void RecordLiveEpisode(
@@ -1410,5 +1464,12 @@ internal sealed class AuraToolsAutoBattleTrainingSink : ICombatTrainingSampleSin
         }
 
         return displayName + "(" + candidateId + ")";
+    }
+
+    private sealed class QueuedTrainingSample
+    {
+        public int Generation { get; set; }
+
+        public CombatTrainingSample Sample { get; set; } = new();
     }
 }
