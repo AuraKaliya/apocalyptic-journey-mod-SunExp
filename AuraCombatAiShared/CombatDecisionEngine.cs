@@ -10,6 +10,7 @@ public sealed class CombatDecisionEngine
     private readonly ICombatSearchGuidanceModel searchGuidance;
     private readonly ICombatPolicyValueModel policyValueModel;
     private readonly bool useRuntimeRegistries;
+    private readonly CombatChancePuctPlanner chancePuctPlanner;
 
     public CombatDecisionEngine(
         IDecisionResidualModel? residualModel = null,
@@ -21,6 +22,11 @@ public sealed class CombatDecisionEngine
         this.searchGuidance = searchGuidance ?? NullCombatSearchGuidanceModel.Instance;
         this.policyValueModel = policyValueModel ?? NullCombatPolicyValueModel.Instance;
         this.useRuntimeRegistries = useRuntimeRegistries;
+        chancePuctPlanner = new CombatChancePuctPlanner(
+            this.residualModel,
+            this.searchGuidance,
+            this.useRuntimeRegistries,
+            this.policyValueModel);
     }
 
     public CombatDecision Choose(
@@ -36,6 +42,11 @@ public sealed class CombatDecisionEngine
 
         var endTurn = (CombatActionObservation?)null;
         var evaluations = new List<CombatCandidateEvaluation>(state.Actions.Count);
+        var hasNonFakeLegalAction = state.Actions.Exists(action =>
+            action != null
+            && action.Kind != CombatActionKind.EndTurn
+            && action.Legal
+            && !IsVisibleFake(action));
         for (var i = 0; i < state.Actions.Count; i++)
         {
             var action = state.Actions[i];
@@ -60,6 +71,11 @@ public sealed class CombatDecisionEngine
 
             var rejectionReason = action.RejectionReason;
             var legal = action.Legal;
+            if (legal && hasNonFakeLegalAction && IsVisibleFake(action))
+            {
+                legal = false;
+                rejectionReason = "visible fake card is dominated by a safe action";
+            }
             if (legal && useRuntimeRegistries)
             {
                 legal = CombatAiRegistry.EvaluatePreflight(state, action, out rejectionReason);
@@ -134,12 +150,7 @@ public sealed class CombatDecisionEngine
         }
 
         var search = selectedProfile.UseChancePuct
-            ? new CombatChancePuctPlanner(
-                    residualModel,
-                    searchGuidance,
-                    useRuntimeRegistries,
-                    policyValueModel)
-                .Choose(state, evaluations, selectedProfile)
+            ? chancePuctPlanner.Choose(state, evaluations, selectedProfile)
             : null;
         var plan = search == null
             ? new CombatTurnPlanner(residualModel).Choose(state, evaluations, selectedProfile)
@@ -167,7 +178,12 @@ public sealed class CombatDecisionEngine
                 SearchSimulations = search?.Simulations ?? 0,
                 SearchNodes = search?.Nodes ?? 0,
                 SearchTranspositionHits = search?.TranspositionHits ?? 0,
-                SearchStoppedEarly = search?.StoppedEarly == true
+                SearchStoppedEarly = search?.StoppedEarly == true,
+                CertifiedLoops = search?.CertifiedLoops ?? 0,
+                SustainableControlLoops =
+                    search?.SustainableControlLoops ?? 0,
+                FakeLoops = search?.FakeLoops ?? 0,
+                BlockedLoops = search?.BlockedLoops ?? 0
             };
         }
 
@@ -186,7 +202,12 @@ public sealed class CombatDecisionEngine
                 SearchSimulations = search?.Simulations ?? 0,
                 SearchNodes = search?.Nodes ?? 0,
                 SearchTranspositionHits = search?.TranspositionHits ?? 0,
-                SearchStoppedEarly = search?.StoppedEarly == true
+                SearchStoppedEarly = search?.StoppedEarly == true,
+                CertifiedLoops = search?.CertifiedLoops ?? 0,
+                SustainableControlLoops =
+                    search?.SustainableControlLoops ?? 0,
+                FakeLoops = search?.FakeLoops ?? 0,
+                BlockedLoops = search?.BlockedLoops ?? 0
             };
         }
 
@@ -199,7 +220,12 @@ public sealed class CombatDecisionEngine
             SearchSimulations = search?.Simulations ?? 0,
             SearchNodes = search?.Nodes ?? 0,
             SearchTranspositionHits = search?.TranspositionHits ?? 0,
-            SearchStoppedEarly = search?.StoppedEarly == true
+            SearchStoppedEarly = search?.StoppedEarly == true,
+            CertifiedLoops = search?.CertifiedLoops ?? 0,
+            SustainableControlLoops =
+                search?.SustainableControlLoops ?? 0,
+            FakeLoops = search?.FakeLoops ?? 0,
+            BlockedLoops = search?.BlockedLoops ?? 0
         };
     }
 
@@ -233,7 +259,9 @@ public sealed class CombatDecisionEngine
         var unknown = Math.Max(0d, semantics.Uncertainty);
         var defend = Math.Max(0d, semantics.Defend);
         var heal = Math.Min(missingHp, Math.Max(0d, semantics.Heal));
-        var risk = semantics.Risk;
+        var risk = semantics.Risk
+                   + Math.Max(0d, semantics.SelfHpLoss) * 2d
+                   + Math.Max(0d, semantics.EndOfCycleSelfHpLoss) * 1.5d;
         if (action.TargetKind == CombatTargetKind.Enemy)
         {
             risk += defend + heal;
@@ -292,6 +320,11 @@ public sealed class CombatDecisionEngine
         {
             risk += 0.1d;
         }
+        if (IsVisibleFake(action))
+        {
+            risk += 24d;
+            unknown = Math.Max(unknown, 3d);
+        }
         if (semantics.Damage == 0d
             && semantics.Defend == 0d
             && semantics.Heal == 0d
@@ -339,42 +372,67 @@ public sealed class CombatDecisionEngine
         DecisionUtility utility,
         CombatDecisionProfile profile)
     {
+        var features = new Dictionary<string, double>(
+            StringComparer.OrdinalIgnoreCase);
+        BuildFeaturesInto(features, state, action, utility, profile);
+        return features;
+    }
+
+    public static void BuildFeaturesInto(
+        IDictionary<string, double> features,
+        CombatStateObservation state,
+        CombatActionObservation action,
+        DecisionUtility utility,
+        CombatDecisionProfile profile)
+    {
+        if (features == null) throw new ArgumentNullException(nameof(features));
         var semantics = action.Semantics ?? new CombatActionSemantics();
-        var features = new Dictionary<string, double>(action.Features, StringComparer.OrdinalIgnoreCase)
+        features.Clear();
+        foreach (var pair in action.Features)
         {
-            ["power"] = state.CurrentPower,
-            ["handCount"] = state.HandCount,
-            ["playerHp"] = state.Player.CurrentHp,
-            ["playerHpRatio"] = state.Player.MaxHp <= 0
-                ? 0d
-                : (double)state.Player.CurrentHp / state.Player.MaxHp,
-            ["cost"] = action.Cost,
-            ["damage"] = semantics.Damage,
-            ["trueDamage"] = semantics.TrueDamage,
-            ["damageOverTime"] = semantics.DamageOverTime,
-            ["hitCount"] = semantics.HitCount,
-            ["defend"] = semantics.Defend,
-            ["heal"] = semantics.Heal,
-            ["draw"] = semantics.Draw,
-            ["energyGain"] = semantics.EnergyGain,
-            ["buff"] = semantics.Buff,
-            ["debuff"] = semantics.Debuff,
-            ["cleanse"] = semantics.Cleanse,
-            ["costReduction"] = semantics.CostReduction,
-            ["cardGeneration"] = semantics.CardGeneration,
-            ["persistentValue"] = semantics.PersistentValue,
-            ["cooldownTurns"] = semantics.CooldownTurns,
-            ["expectedIncomingDamage"] = state.ExpectedIncomingDamage,
-            ["expectedBlockableDamage"] = state.Threat?.ExpectedBlockableDamage ?? 0d,
-            ["maximumBlockableDamage"] = state.Threat?.MaximumBlockableDamage ?? 0d,
-            ["expectedUnblockableDamage"] = state.Threat?.ExpectedUnblockableDamage ?? 0d,
-            ["expectedDamageOverTime"] = state.Threat?.ExpectedDamageOverTime ?? 0d,
-            ["attackProbability"] = state.Threat?.AttackProbability ?? 0d,
-            ["threatConfidence"] = state.Threat?.Confidence ?? 0d,
-            ["currentIntentKnown"] = state.Threat?.CurrentIntentKnown == true ? 1d : 0d,
-            ["isFreeAction"] = action.Cost == 0 ? 1d : 0d,
-            ["uncertainty"] = semantics.Uncertainty
-        };
+            features[pair.Key] = pair.Value;
+        }
+        features["power"] = state.CurrentPower;
+        features["handCount"] = state.HandCount;
+        features["playerHp"] = state.Player.CurrentHp;
+        features["playerHpRatio"] = state.Player.MaxHp <= 0
+            ? 0d
+            : (double)state.Player.CurrentHp / state.Player.MaxHp;
+        features["cost"] = action.Cost;
+        features["damage"] = semantics.Damage;
+        features["trueDamage"] = semantics.TrueDamage;
+        features["damageOverTime"] = semantics.DamageOverTime;
+        features["selfHpLoss"] = semantics.SelfHpLoss;
+        features["endOfCycleSelfHpLoss"] =
+            semantics.EndOfCycleSelfHpLoss;
+        features["hitCount"] = semantics.HitCount;
+        features["defend"] = semantics.Defend;
+        features["heal"] = semantics.Heal;
+        features["draw"] = semantics.Draw;
+        features["energyGain"] = semantics.EnergyGain;
+        features["buff"] = semantics.Buff;
+        features["debuff"] = semantics.Debuff;
+        features["cleanse"] = semantics.Cleanse;
+        features["costReduction"] = semantics.CostReduction;
+        features["cardGeneration"] = semantics.CardGeneration;
+        features["persistentValue"] = semantics.PersistentValue;
+        features["cooldownTurns"] = semantics.CooldownTurns;
+        features["expectedIncomingDamage"] = state.ExpectedIncomingDamage;
+        features["expectedBlockableDamage"] =
+            state.Threat?.ExpectedBlockableDamage ?? 0d;
+        features["maximumBlockableDamage"] =
+            state.Threat?.MaximumBlockableDamage ?? 0d;
+        features["expectedUnblockableDamage"] =
+            state.Threat?.ExpectedUnblockableDamage ?? 0d;
+        features["expectedDamageOverTime"] =
+            state.Threat?.ExpectedDamageOverTime ?? 0d;
+        features["attackProbability"] =
+            state.Threat?.AttackProbability ?? 0d;
+        features["threatConfidence"] = state.Threat?.Confidence ?? 0d;
+        features["currentIntentKnown"] =
+            state.Threat?.CurrentIntentKnown == true ? 1d : 0d;
+        features["isFreeAction"] = action.Cost == 0 ? 1d : 0d;
+        features["uncertainty"] = semantics.Uncertainty;
         foreach (var pair in state.Features)
         {
             if (!features.ContainsKey(pair.Key))
@@ -392,7 +450,6 @@ public sealed class CombatDecisionEngine
         }
 
         AddContextualFeatures(features, state, action, utility, profile, target);
-        return features;
     }
 
     public static DecisionResidualPrediction EvaluateResidual(
@@ -519,6 +576,13 @@ public sealed class CombatDecisionEngine
         features["categorySupport"] = category == "support" ? 1d : 0d;
         features["categorySkill"] = category == "skill" ? 1d : 0d;
         features["categoryOther"] = category == "other" ? 1d : 0d;
+    }
+
+    private static bool IsVisibleFake(CombatActionObservation action)
+    {
+        return action?.Features != null
+               && action.Features.TryGetValue("visibleFake", out var value)
+               && value > 0.5d;
     }
 
     private static string CategoryOf(CombatActionObservation action)

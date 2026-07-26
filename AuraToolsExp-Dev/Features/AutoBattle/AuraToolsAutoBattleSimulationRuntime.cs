@@ -207,8 +207,10 @@ internal static class AuraToolsAutoBattleSimulationRuntime
     private const string EvolutionWorkKey = "AutoBattle.PolicyEvolution";
     private static readonly object Gate = new();
     private static readonly object ResultCacheGate = new();
+    private static readonly object FoundationPackageCacheGate = new();
     private static readonly Dictionary<string, ResultPresentationCacheEntry> ResultCache =
         new(StringComparer.OrdinalIgnoreCase);
+    private static FoundationPackageCacheEntry? foundationPackageCache;
     private static AutoBattleSimulationStatus status = new();
     private static CancellationTokenSource? cancellation;
 
@@ -369,6 +371,10 @@ internal static class AuraToolsAutoBattleSimulationRuntime
                         result.ScenarioId,
                         result.ResultDirectory,
                         result.GatePassed);
+                    AuraToolsAutoBattleUiSnapshotRuntime.RequestRefresh(
+                        request.Settings.Profile,
+                        request.Settings.SelectedModelId,
+                        force: true);
                     (result.Success ? (Action<string>)AuraToolsLog.Info : AuraToolsLog.Warn)(
                         "[AutoBattle][Simulation] " + result.Message);
                 },
@@ -459,6 +465,10 @@ internal static class AuraToolsAutoBattleSimulationRuntime
                         result.ScenarioId,
                         result.ResultDirectory,
                         result.GatePassed);
+                    AuraToolsAutoBattleUiSnapshotRuntime.RequestRefresh(
+                        request.Settings.Profile,
+                        request.Settings.SelectedModelId,
+                        force: true);
                     (result.Success ? (Action<string>)AuraToolsLog.Info : AuraToolsLog.Warn)(
                         "[AutoBattle][Evolution] " + result.Message);
                 },
@@ -516,6 +526,7 @@ internal static class AuraToolsAutoBattleSimulationRuntime
         {
             ResultCache.Clear();
         }
+        InvalidateFoundationPackageCache();
     }
 
     internal static bool TryResolveFoundationPackage(
@@ -523,6 +534,16 @@ internal static class AuraToolsAutoBattleSimulationRuntime
         out CombatRuleset ruleset,
         out string message)
     {
+        lock (FoundationPackageCacheGate)
+        {
+            if (foundationPackageCache != null)
+            {
+                campaign = foundationPackageCache.Campaign;
+                ruleset = foundationPackageCache.Ruleset;
+                message = "";
+                return true;
+            }
+        }
         campaign = ResolveCampaign("witch.world-simulation.standard-v2")
                    ?? new CombatCampaignDefinition();
         if (string.IsNullOrWhiteSpace(campaign.CampaignId))
@@ -545,8 +566,44 @@ internal static class AuraToolsAutoBattleSimulationRuntime
             message = "底模训练尚未就绪：" + string.Join("；", readinessProblems);
             return false;
         }
+        lock (FoundationPackageCacheGate)
+        {
+            foundationPackageCache ??= new FoundationPackageCacheEntry
+            {
+                Campaign = campaign,
+                Ruleset = ruleset
+            };
+            campaign = foundationPackageCache.Campaign;
+            ruleset = foundationPackageCache.Ruleset;
+        }
         message = "";
         return true;
+    }
+
+    internal static bool TryGetCachedFoundationPackage(
+        out CombatCampaignDefinition campaign,
+        out CombatRuleset ruleset)
+    {
+        lock (FoundationPackageCacheGate)
+        {
+            if (foundationPackageCache == null)
+            {
+                campaign = new CombatCampaignDefinition();
+                ruleset = CombatRuleset.Empty;
+                return false;
+            }
+            campaign = foundationPackageCache.Campaign;
+            ruleset = foundationPackageCache.Ruleset;
+            return true;
+        }
+    }
+
+    internal static void InvalidateFoundationPackageCache()
+    {
+        lock (FoundationPackageCacheGate)
+        {
+            foundationPackageCache = null;
+        }
     }
 
     private static List<string> FoundationReadinessProblems(
@@ -760,6 +817,16 @@ internal static class AuraToolsAutoBattleSimulationRuntime
         if (projectedRewards > 0)
         {
             problems.Add("遗物/祝福效果仍有 " + projectedRewards + " 项非权威");
+        }
+        var rewardScriptFailures =
+            AuraToolsNativeRewardScriptAudit.Validate(campaign);
+        if (rewardScriptFailures.Count > 0)
+        {
+            problems.Add(
+                "遗物/祝福原生脚本兼容失败 "
+                + rewardScriptFailures.Count
+                + " 项："
+                + string.Join("；", rewardScriptFailures.Take(3)));
         }
 
         var missingAffixes = campaign.Difficulties
@@ -1262,7 +1329,8 @@ internal static class AuraToolsAutoBattleSimulationRuntime
                     {
                         var current = CombatScenarioCloner.Clone(scenario);
                         current.Seed = request.Simulation.SeedStart + (ulong)index;
-                        var engine = new CombatSimulationEngine();
+                        var engine = new CombatSimulationEngine(
+                            new AuraToolsNativeRewardExtensionFactory());
                         var baseline = engine.Run(
                             current,
                             rulesetResult.Ruleset,
@@ -1475,7 +1543,10 @@ internal static class AuraToolsAutoBattleSimulationRuntime
                     index =>
                     {
                         var worldSeed = request.Simulation.SeedStart + (ulong)index;
-                        var pair = new CombatCampaignRunner().RunPaired(
+                        var pair = new CombatCampaignRunner(
+                            new CombatSimulationEngine(
+                                new AuraToolsNativeRewardExtensionFactory()))
+                            .RunPaired(
                             campaign,
                             request.Simulation.DifficultyId,
                             worldSeed,
@@ -1771,6 +1842,16 @@ internal static class AuraToolsAutoBattleSimulationRuntime
                 .Append(reward.Relic.OfferedId)
                 .Append("→")
                 .Append(reward.Relic.Decision);
+            if (!string.IsNullOrWhiteSpace(reward.Relic.ResolvedId)
+                && !string.Equals(
+                    reward.Relic.ResolvedId,
+                    reward.Relic.OfferedId,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                markdown.Append("（实际转化为 ")
+                    .Append(reward.Relic.ResolvedId)
+                    .Append("）");
+            }
             if (!string.IsNullOrWhiteSpace(reward.Relic.ReplacedId))
             {
                 markdown.Append("（替换 ")
@@ -1797,10 +1878,31 @@ internal static class AuraToolsAutoBattleSimulationRuntime
                             + terminal.ScenarioId
                             + "`；结果："
                             + terminal.Outcome
+                            + "；终局判定："
+                            + terminal.TerminalResolution
                             + "；回合："
                             + terminal.Turns
                             + "；最终生命："
                             + terminal.FinalPlayerHp);
+        if (terminal.InitialTerminalOutcome
+            != CombatSimulationOutcome.None
+            && (terminal.InitialTerminalOutcome != terminal.Outcome
+                || terminal.InitialTerminationReason
+                != terminal.TerminationReason))
+        {
+            markdown.AppendLine("- 初始终局："
+                                + terminal.InitialTerminalOutcome
+                                + "/"
+                                + terminal.InitialTerminationReason
+                                + "；玩家生命 "
+                                + terminal.InitialTerminalPlayerHp
+                                + "；存活敌人 "
+                                + terminal.InitialTerminalLivingEnemyCount
+                                + "；结算后改判为 "
+                                + terminal.Outcome
+                                + "/"
+                                + terminal.TerminationReason);
+        }
         foreach (var turn in terminal.TurnsSummary)
         {
             markdown.AppendLine("- 回合 "
@@ -3102,5 +3204,12 @@ internal static class AuraToolsAutoBattleSimulationRuntime
                 CompletedUtc = DateTime.UtcNow
             };
         }
+    }
+
+    private sealed class FoundationPackageCacheEntry
+    {
+        public CombatCampaignDefinition Campaign { get; set; } = new();
+
+        public CombatRuleset Ruleset { get; set; } = CombatRuleset.Empty;
     }
 }

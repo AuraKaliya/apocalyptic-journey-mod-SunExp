@@ -3,6 +3,7 @@ using System.Collections;
 using System.Collections.Generic;
 using System.Linq;
 using System.Reflection;
+using System.Text.RegularExpressions;
 using AuraDecision.Shared;
 using Michsky.MUIP;
 using UnityEngine;
@@ -293,6 +294,7 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
             {
                 ["handIndex"] = index,
                 ["isCard"] = 1d,
+                ["visibleFake"] = IsVisibleFake(card) ? 1d : 0d,
                 ["retain"] = HasAnyTag(card, "Retain", "RetainCard") ? 1d : 0d,
                 ["inherent"] = HasAnyTag(card, "Inherent") ? 1d : 0d,
                 ["recycle"] = HasAnyTag(card, "Recycle") ? 1d : 0d,
@@ -309,6 +311,14 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
             RuntimeHandle = card,
             TargetHandle = target
         });
+    }
+
+    private static bool IsVisibleFake(CommonCardItem card)
+    {
+        return card?.Vars != null
+               && card.Vars.TryGetValue("IsFake", out var value)
+               && bool.TryParse(value, out var parsed)
+               && parsed;
     }
 
     private static void AddSkills(CombatStateObservation state, FightUI fightUi)
@@ -854,6 +864,25 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
 
             var level = Math.Max(0, config.Level);
             observed.Features["status:" + id] = level;
+            if (id.IndexOf(
+                    "limitdamage",
+                    StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                observed.Features["damageLimitActive"] = 1d;
+                observed.Features["damageLimitLevel"] = level;
+            }
+            if (id.IndexOf("frenzy", StringComparison.OrdinalIgnoreCase) >= 0
+                || id.IndexOf("keenedge", StringComparison.OrdinalIgnoreCase) >= 0
+                || id.IndexOf("counterattack", StringComparison.OrdinalIgnoreCase) >= 0
+                || id.IndexOf("thorns", StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                observed.Features["escalationPressure"] =
+                    observed.Features.TryGetValue(
+                        "escalationPressure",
+                        out var escalation)
+                        ? escalation + Math.Max(1, level)
+                        : Math.Max(1, level);
+            }
             observed.Statuses.Add(new CombatStatusObservation
             {
                 StatusId = id,
@@ -1119,6 +1148,25 @@ public static class WitchCombatValueEstimator
         ReadDictionary(config.Vars, result);
         var script = CombinedScript(config);
         var descriptiveValue = LargestDescriptiveValue(config);
+        var constantSelfHpLoss = ConstantSelfHpLoss(
+            script,
+            targetKind);
+        if (constantSelfHpLoss > 0d)
+        {
+            if (ContainsAny(
+                    script,
+                    "AddEvent(\"Action\"",
+                    "AddEvent(\"EndRound\"",
+                    "AddEvent(\"StartRound\""))
+            {
+                result.EndOfCycleSelfHpLoss += constantSelfHpLoss;
+            }
+            else
+            {
+                result.SelfHpLoss += constantSelfHpLoss;
+            }
+            result.Risk += constantSelfHpLoss;
+        }
         if (result.Damage <= 0d && ContainsAny(script, "Damage", "Hit("))
         {
             result.Damage = descriptiveValue;
@@ -1205,6 +1253,7 @@ public static class WitchCombatValueEstimator
 
         if (targetKind == CombatTargetKind.Self && result.Damage > 0d)
         {
+            result.SelfHpLoss += result.Damage;
             result.Risk += result.Damage;
             result.Damage = 0d;
         }
@@ -1229,6 +1278,35 @@ public static class WitchCombatValueEstimator
         }
 
         return result;
+    }
+
+    private static double ConstantSelfHpLoss(
+        string script,
+        CombatTargetKind targetKind)
+    {
+        if (string.IsNullOrWhiteSpace(script)
+            || (targetKind == CombatTargetKind.Enemy
+                && script.IndexOf(
+                    "SetStatus(\"Self\")",
+                    StringComparison.OrdinalIgnoreCase) < 0))
+        {
+            return 0d;
+        }
+        var total = 0d;
+        foreach (Match match in Regex.Matches(
+                     script,
+                     "ChangeHp\\s*\\(\\s*\"-(\\d+)\"\\s*\\)",
+                     RegexOptions.IgnoreCase
+                     | RegexOptions.CultureInvariant))
+        {
+            if (double.TryParse(
+                    match.Groups[1].Value,
+                    out var amount))
+            {
+                total += Math.Max(0d, amount);
+            }
+        }
+        return total;
     }
 
     public static string IdOf(IDataConfig? config)

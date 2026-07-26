@@ -41,6 +41,17 @@ function Test-BaseGameId([string]$id) {
         -and $id -notmatch "(?i)Terrias|^Saya_|(^|_)test|99999"
 }
 
+function Test-GeneratedOnlyCard([object]$row) {
+    $id = ([string]$row.Id).Trim()
+    $type = [string]$row.Type
+    $tags = "$($row.Tag) $($row.Tags)"
+    return $id.StartsWith("*", [StringComparison]::Ordinal) `
+        -or $id.Contains("_*") `
+        -or $id -in @("SpellCard_1", "SpellCard_2", "SpellCard_3", "SpellCard_4") `
+        -or $type -match "(?i)derived|generated|衍生|生成" `
+        -or $tags -match "(?i)(^|[,;\s])SpellComponents([,;\s]|$)"
+}
+
 function Get-RewardFeatures([object]$row, [string]$kind) {
     $text = "$($row.Name) $($row.Name_en) $($row.Description) $($row.Description_en) $($row.Effects) $($row.Action) $($row.UseScript) $($row.OwnScript) $($row.FightScript)"
     $features = [ordered]@{
@@ -108,6 +119,16 @@ function Get-PermanentAttributeBonuses([object]$row) {
             $result[$attribute] = $total
         }
     }
+    foreach ($match in [regex]::Matches(
+        $script,
+        'PlayerInfo\.ChangeSelected\s*\(\s*"(\d+)"\s*\)',
+        [Text.RegularExpressions.RegexOptions]::IgnoreCase)) {
+        $amount = Convert-ToInt $match.Groups[1].Value 0
+        foreach ($selectedAttribute in @("Strength", "Wisdom")) {
+            $result[$selectedAttribute] =
+                (Convert-ToInt $result[$selectedAttribute] 0) + $amount
+        }
+    }
     return $result
 }
 
@@ -121,6 +142,79 @@ function Get-MaxHpBonus([object]$row) {
         $total += Convert-ToInt $match.Groups[1].Value 0
     }
     return $total
+}
+
+function Get-NativeScriptHash([object]$row) {
+    $source = ([string]$row.OwnScript) + "`n---fight---`n" + ([string]$row.FightScript)
+    $bytes = [Text.Encoding]::UTF8.GetBytes($source)
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        return ([BitConverter]::ToString($sha.ComputeHash($bytes))).Replace("-", "")
+    } finally {
+        $sha.Dispose()
+    }
+}
+
+function Get-RewardInitialVariables([object]$row) {
+    $result = [ordered]@{}
+    foreach ($match in [regex]::Matches(
+        [string]$row.OwnScript,
+        'Vars\s*\[\s*"([^"]+)"\s*\]\s*=\s*"([^"]*)"\s*;')) {
+        $result[$match.Groups[1].Value] = $match.Groups[2].Value
+    }
+    return $result
+}
+
+function Get-RewardCurrentHpBonus([object]$row) {
+    $total = 0
+    foreach ($match in [regex]::Matches(
+        [string]$row.OwnScript,
+        'PlayerInfo\.Hp\s*\+=\s*(\d+)',
+        [Text.RegularExpressions.RegexOptions]::IgnoreCase)) {
+        $total += Convert-ToInt $match.Groups[1].Value 0
+    }
+    return $total
+}
+
+function Get-RewardOneTimeSpecialVariableKey([object]$row) {
+    $script = [string]$row.OwnScript
+    $match = [regex]::Match(
+        $script,
+        'SpecialVars\.ContainsKey\(\s*"([^"]+)"\s*\)')
+    if ($match.Success -and $script -match (
+            'SpecialVars\[\s*"' + [regex]::Escape($match.Groups[1].Value) +
+            '"\s*\]\s*=\s*"1"')) {
+        return $match.Groups[1].Value
+    }
+    return ""
+}
+
+function Get-ReplacementRelicTier([object]$row) {
+    $match = [regex]::Match(
+        [string]$row.OwnScript,
+        'ReplaceSelfRelicWithRandomRelic\(\s*"?(\d+)"?\s*\)')
+    if ($match.Success) {
+        return Convert-ToInt $match.Groups[1].Value 0
+    }
+    return 0
+}
+
+function Get-RewardGrantedIds([object]$row, [string]$method) {
+    $values = [Collections.Generic.List[string]]::new()
+    foreach ($match in [regex]::Matches(
+        [string]$row.OwnScript,
+        "PlayerInfo\.(?:Delay)?$method\s*\(\s*(?:(?:DataId\.)?([A-Za-z_][A-Za-z0-9_]*)|`"([^`"]+)`")\s*\)",
+        [Text.RegularExpressions.RegexOptions]::IgnoreCase)) {
+        $value = if ($match.Groups[1].Success) {
+            $match.Groups[1].Value
+        } else {
+            $match.Groups[2].Value
+        }
+        if (-not $values.Contains($value)) {
+            $values.Add($value)
+        }
+    }
+    return ,$values
 }
 
 function New-ApproximateCard([object]$row) {
@@ -1733,6 +1827,89 @@ function Try-NewAuthoritativeTriggeredStatus(
         (New-SourceStatusExpression "buff_ritualechostaff"))
 
     switch ($id) {
+        "buff_elements" {
+            $status.triggers = @(New-StatusTrigger `
+                "elements-action-after" `
+                "ActionResolved" `
+                "EventSource" `
+                @([ordered]@{
+                    kind = "AddStatus"
+                    target = "Self"
+                    definitionId = "buff_extraordinary"
+                    amountExpression = New-ValueExpression "Multiply" @(
+                        $stacks,
+                        (New-ConstantExpression 2))
+                }))
+        }
+        "buff_elementalBody" {
+            $reset = New-StatusTrigger `
+                "elemental-body-round-start" `
+                "TurnStarted" `
+                "Any" `
+                @()
+            $reset.counterKey = "ThisCount"
+            $reset.resetCounterAfterTrigger = $true
+            $hurt = New-StatusTrigger `
+                "elemental-body-true-damage" `
+                "DamageDealt" `
+                "EventTarget" `
+                @([ordered]@{
+                    kind = "Heal"
+                    target = "Self"
+                    definitionId = $id
+                    rounding = "Truncate"
+                    amountExpression = New-ValueExpression "Divide" @(
+                        $selfMaxHp,
+                        (New-ConstantExpression 20))
+                })
+            $hurt.requiredEventMessage = "TrueDamage"
+            $hurt.counterKey = "ThisCount"
+            $hurt.counterIncrementMode = "Fixed"
+            $hurt.maximumCounterValue = 3
+            $status.triggers = @($reset, $hurt)
+        }
+        "SpecialBuff_Restrain" {
+            $attack = New-StatusTrigger `
+                "restrain-first-attack" `
+                "ActionResolved" `
+                "EventSource" `
+                @([ordered]@{
+                    kind = "ModifyVariablePercent"
+                    target = "EventTarget"
+                    definitionId = "HealMultiplier"
+                    amount = -20
+                })
+            $attack.requiredActionTag = "Attack"
+            $attack.counterKey = "ThisCount"
+            $attack.counterIncrementMode = "Fixed"
+            $attack.maximumCounterValue = 1
+            $status.triggers = @($attack)
+        }
+        "SpecialBuff_Irritable" {
+            $status.triggers = @(New-StatusTrigger `
+                "irritable-round-start" `
+                "TurnStarted" `
+                "Any" `
+                @([ordered]@{
+                    kind = "AddStatus"
+                    target = "Self"
+                    definitionId = "buff_extraordinary"
+                    amount = 10
+                }))
+        }
+        "SpecialBuff_Hysteresis" {
+            $status.triggers = @(New-StatusTrigger `
+                "hysteresis-round-start" `
+                "TurnStarted" `
+                "Any" `
+                @([ordered]@{
+                    kind = "CreateCard"
+                    target = "Player"
+                    definitionId = "cursecard_11"
+                    amount = 1
+                    destinationZone = "Hand"
+                }))
+        }
         "buff_barkhide" {
             $reset = New-StatusTrigger `
                 "barkhide-round-start" `
@@ -2545,9 +2722,14 @@ $enemyCardById = @{}
 foreach ($enemyCard in $enemyCards) {
     $enemyCardById[[string]$enemyCard.Id] = $enemyCard
 }
-$cards = @($tables.Card | Where-Object {
+$baseCards = @($tables.Card | Where-Object {
+    Test-BaseGameId ([string]$_.Id)
+})
+$cards = @($baseCards | Where-Object {
     (Test-BaseGameId ([string]$_.Id)) `
         -and ([string]$_.Type) -ne "诅咒" `
+        -and ([string]$_.Type) -notmatch "(?i)skill|技能" `
+        -and -not (Test-GeneratedOnlyCard $_) `
         -and -not [string]::IsNullOrWhiteSpace(([string]$_.PackBelong)) `
         -and ([string]$_.PackBelong) -ne "cardpack_13"
 })
@@ -2642,6 +2824,7 @@ foreach ($card in $cards) {
     $rewardDefinitions += [ordered]@{
         rewardId = [string]$card.Id
         kind = "Card"
+        cardAcquisition = "RewardPool"
         tier = $tier
         offerWeight = switch ($tier) {
             1 { 8.0 }
@@ -2651,7 +2834,7 @@ foreach ($card in $cards) {
         }
         baseValue = 0.55 + $tier * 0.2
         negative = $false
-        fidelity = "Approximate"
+        fidelity = "Authoritative"
         features = Get-RewardFeatures $card "Card"
     }
 }
@@ -2663,10 +2846,26 @@ foreach ($relic in $relics) {
         tier = $tier
         baseValue = 0.7 + $tier * 0.28
         negative = $false
-        fidelity = "Approximate"
+        fidelity = "Authoritative"
+        nativeScriptHash = Get-NativeScriptHash $relic
+        ownScript = [string]$relic.OwnScript
+        fightScript = [string]$relic.FightScript
+        initialVariables = Get-RewardInitialVariables $relic
         features = Get-RewardFeatures $relic "Relic"
         permanentAttributeBonuses = Get-PermanentAttributeBonuses $relic
         maxHpBonus = Get-MaxHpBonus $relic
+        currentHpBonus = Get-RewardCurrentHpBonus $relic
+        randomCardRemovalCount = if (
+            ([string]$relic.OwnScript) -match
+                'PlayerInfo\.RandomRemoveCard\s*\(\s*"(\d+)"\s*\)') {
+            Convert-ToInt $Matches[1] 0
+        } else { 0 }
+        oneTimeSpecialVariableKey =
+            Get-RewardOneTimeSpecialVariableKey $relic
+        replacementRelicTier = Get-ReplacementRelicTier $relic
+        grantedCardIds = Get-RewardGrantedIds $relic "AddCard"
+        grantedBlessingIds = Get-RewardGrantedIds $relic "AddBless"
+        grantedRelicIds = Get-RewardGrantedIds $relic "AddRelic"
     }
 }
 foreach ($blessing in $blessings) {
@@ -2678,10 +2877,22 @@ foreach ($blessing in $blessings) {
         tier = $tier
         baseValue = 0.65 + $tier * 0.25
         negative = $negative
-        fidelity = "Approximate"
+        fidelity = "Authoritative"
+        nativeScriptHash = Get-NativeScriptHash $blessing
+        ownScript = [string]$blessing.OwnScript
+        fightScript = [string]$blessing.FightScript
+        initialVariables = Get-RewardInitialVariables $blessing
         features = Get-RewardFeatures $blessing "Blessing"
         permanentAttributeBonuses = Get-PermanentAttributeBonuses $blessing
         maxHpBonus = Get-MaxHpBonus $blessing
+        currentHpBonus = Get-RewardCurrentHpBonus $blessing
+        randomCardRemovalCount = 0
+        oneTimeSpecialVariableKey =
+            Get-RewardOneTimeSpecialVariableKey $blessing
+        replacementRelicTier = Get-ReplacementRelicTier $blessing
+        grantedCardIds = Get-RewardGrantedIds $blessing "AddCard"
+        grantedBlessingIds = Get-RewardGrantedIds $blessing "AddBless"
+        grantedRelicIds = Get-RewardGrantedIds $blessing "AddRelic"
     }
 }
 
@@ -2698,10 +2909,10 @@ $hardAffixes = @($tables.Hard |
             stacks = [Math]::Max(1, (Convert-ToInt $_.MaxCount 1))
             combatRelevant = $combatRelevant
             implemented = $id -in @(
-                "Hard_1", "Hard_2", "Hard_3", "Hard_4", "Hard_6", "Hard_9",
-                "Hard_10", "Hard_11", "Hard_14", "Hard_15", "Hard_16",
-                "Hard_17", "Hard_18", "Hard_19", "Hard_20", "Hard_21",
-                "Hard_22")
+                "Hard_1", "Hard_2", "Hard_3", "Hard_4", "Hard_5", "Hard_6",
+                "Hard_7", "Hard_8", "Hard_9", "Hard_10", "Hard_11",
+                "Hard_13", "Hard_14", "Hard_15", "Hard_16", "Hard_17",
+                "Hard_18", "Hard_19", "Hard_20", "Hard_21", "Hard_22")
         }
     })
 $hardTagDiff = [int](($hardAffixes | ForEach-Object {
@@ -2725,10 +2936,22 @@ $hardDreamCurseStacks = [int](($hardAffixes |
     ForEach-Object { [int]$_["stacks"] } |
     Measure-Object -Sum).Sum)
 
+$generatedRewardLeak = @($rewardDefinitions | Where-Object {
+    [string]$_["kind"] -eq "Card" -and (
+        ([string]$_["rewardId"]).StartsWith("*", [StringComparison]::Ordinal) `
+            -or ([string]$_["rewardId"]).Contains("_*") `
+            -or ([string]$_["rewardId"]) -in @(
+                "SpellCard_1", "SpellCard_2", "SpellCard_3", "SpellCard_4"))
+})
+if ($generatedRewardLeak.Count -gt 0) {
+    throw "Generated-only cards leaked into reward pool: $(
+        ($generatedRewardLeak | ForEach-Object { $_['rewardId'] }) -join ', ')"
+}
+
 $campaign = [ordered]@{
     schemaVersion = 2
     campaignId = "witch.world-simulation.standard-v2"
-    campaignVersion = "2.1.0"
+    campaignVersion = "2.4.0"
     rulesetVersion = "witch-base-evaluation-v2"
     initialMoney = 100
     player = [ordered]@{
@@ -2818,8 +3041,12 @@ $campaign = [ordered]@{
             hardAffixes = $hardAffixes
         }
     )
-    cardOfferRounds = 2
+    cardOfferRounds = 1
     cardChoicesPerRound = 3
+    cardRewardEncounterKinds = @("Normal")
+    targetDeckSizeMinimum = 28
+    targetDeckSizeMaximum = 40
+    deckSizeAlertThreshold = 45
     relicLimit = 6
     allowSkipCardReward = $true
     blessingsAreMandatory = $true
@@ -2841,7 +3068,7 @@ $campaign = [ordered]@{
     drawPerTurn = 5
     handLimit = 10
     retainBlockBetweenTurns = $true
-    requireAuthoritativeRules = $false
+    requireAuthoritativeRules = $true
     # Run with a full in-memory trace, then AuraToolsExp retains only the
     # final-boss trace or the first failing battle for the batch report.
     traceLevel = "Full"
@@ -2868,10 +3095,15 @@ foreach ($enemy in $v1Ruleset.enemies) {
 $requiredStartingCardIds = @(
     "card_1", "card_2", "card_3", "card_4", "burningcard_1", "burningcard_2")
 $requiredMoneyCardIds = @("card_5", "luckycard_3", "luckycard_10")
-$rulesetCardRows = @($cards + @($tables.Card | Where-Object {
+$requiredRuntimeGeneratedCardIds = @("nocard_5")
+$generatedOnlyCards = @($baseCards | Where-Object {
+    Test-GeneratedOnlyCard $_
+})
+$rulesetCardRows = @($cards + $generatedOnlyCards + @($tables.Card | Where-Object {
     (Test-BaseGameId ([string]$_.Id)) -and (
         ([string]$_.Id) -in $requiredStartingCardIds `
             -or ([string]$_.Id) -in $requiredMoneyCardIds `
+            -or ([string]$_.Id) -in $requiredRuntimeGeneratedCardIds `
             -or ([string]$_.Type) -eq "诅咒")
 }) | Group-Object Id | ForEach-Object { $_.Group[0] })
 $rulesetCards = @($rulesetCardRows | ForEach-Object {
@@ -2904,6 +3136,80 @@ $rulesetCards = @($rulesetCardRows | ForEach-Object {
         }
     }
 })
+$cardRowById = @{}
+foreach ($cardRow in $rulesetCardRows) {
+    $cardRowById[[string]$cardRow.Id] = $cardRow
+}
+foreach ($cardDefinition in $rulesetCards) {
+    $cardRow = $cardRowById[[string]$cardDefinition.cardId]
+    $usesNativeScript = [string]$cardDefinition.fidelity -ne "Authoritative"
+    if ($usesNativeScript) {
+        $cardDefinition.fidelity = "Authoritative"
+        $cardDefinition.effects = @()
+        $cardDefinition.drawEffects = @()
+        $cardDefinition.discardEffects = @()
+    }
+    $metadata = [ordered]@{
+        Id = [string]$cardRow.Id
+        Name = [string]$cardRow.Name
+        Type = [string]$cardRow.Type
+        Tag = [string]$cardRow.Tag
+        Expend = [string]$cardRow.Expend
+        Rarity = [string]$cardRow.Rarity
+        Action = [string]$cardRow.Action
+        Description = [string]$cardRow.Description
+        InitScript = [string]$cardRow.InitScript
+        UseScript = [string]$cardRow.UseScript
+        DrawScript = [string]$cardRow.DrawScript
+        DropScript = [string]$cardRow.DropScript
+    }
+    if ($usesNativeScript) {
+        $metadata.NativeExecution = "Script"
+        $metadata.NativeInitScript = [string]$cardRow.InitScript
+        $metadata.NativeUseScript = [string]$cardRow.UseScript
+        $metadata.NativeDrawScript = [string]$cardRow.DrawScript
+        $metadata.NativeDropScript = [string]$cardRow.DropScript
+        if ([string]$cardRow.Id -eq "counterattackcard_8") {
+            # The shipped script checks buff_counterattack but immediately
+            # dereferences buff_poised. Preserve the card's stated intent
+            # while making the offline authoritative adapter null-safe.
+            $metadata.NativeUseScript = @'
+int count=1;
+var poised=Self.GetBuff(DataId.buff_poised);
+if (poised != null)
+{
+    count+=int.Parse(poised.buffConfig.dataConfig.Vars["ThisCount"]) / 3;
+}
+for (int i = 0; i < count; i++)
+{
+    ChangeHp("6");
+    ChangePower("1");
+}
+'@
+        }
+        if ([string]$cardRow.Id -eq "timekeeper_14") {
+            # Drawing can race a terminal lifecycle event in the offline
+            # engine. Only retain the delayed effect when the status was
+            # actually attached.
+            $metadata.NativeDrawScript = @'
+var self=Self;
+if(self==null){return;}
+self.AddBuff(DataId.buff_timelock, 1);
+var buff=self.GetBuff(DataId.buff_timelock);
+if(buff!=null)
+{
+    buff.effectList.Add((dataConfig, () => { RunScript("UseScript"); }));
+}
+'@
+        }
+    }
+    if ($cardDefinition -is [Collections.Specialized.OrderedDictionary]) {
+        $cardDefinition["metadata"] = $metadata
+    } else {
+        $cardDefinition |
+            Add-Member -NotePropertyName metadata -NotePropertyValue $metadata -Force
+    }
+}
 $rulesetEnemies = @($enemies | ForEach-Object {
     $authoritativeEnemy = $null
     if (Try-NewAuthoritativeEnemy $_ $enemyCardById ([ref]$authoritativeEnemy)) {
@@ -2912,12 +3218,39 @@ $rulesetEnemies = @($enemies | ForEach-Object {
         New-ApproximateEnemy $_ $enemyCardById
     }
 })
+$holyJudgementEnemy = @($rulesetEnemies | Where-Object {
+    [string]$_.enemyId -eq "enemy_10055"
+}) | Select-Object -First 1
+if ($null -ne $holyJudgementEnemy) {
+    $dynamicFateIntents = @(
+        "enemycard_HJE_Judgment",
+        "enemycard_HJE_Dawn",
+        "enemycard_HJE_HolyMachine"
+    ) | ForEach-Object {
+        [ordered]@{
+            intentId = $_
+            displayName = $_
+            weight = 0
+            priority = 0
+            cooldownTurns = 0
+            tags = @("Skill")
+            effects = @()
+        }
+    }
+    if ($holyJudgementEnemy -is [Collections.Specialized.OrderedDictionary]) {
+        $holyJudgementEnemy["intents"] =
+            @($holyJudgementEnemy["intents"]) + $dynamicFateIntents
+    } else {
+        $holyJudgementEnemy.intents =
+            @($holyJudgementEnemy.intents) + $dynamicFateIntents
+    }
+}
 $rulesetStatuses = @($buffs | ForEach-Object {
     $directStatus = $null
     if (Try-NewAuthoritativeTriggeredStatus $_ ([ref]$directStatus)) {
-        $directStatus
+        $statusResult = $directStatus
     } elseif (Try-NewAuthoritativeStaticStatus $_ ([ref]$directStatus)) {
-        $directStatus
+        $statusResult = $directStatus
     } else {
         $approximateStatusTags = [Collections.Generic.List[string]]::new()
         if ([string]$_.Id -like "buff_ritual*") {
@@ -2936,8 +3269,90 @@ $rulesetStatuses = @($buffs | ForEach-Object {
             tags = $approximateStatusTags
             triggers = @()
         }
-        $approximateStatus
+        $statusResult = $approximateStatus
     }
+    $statusTags = [Collections.Generic.List[string]]::new()
+    foreach ($tag in @($statusResult.tags)) {
+        if (-not [string]::IsNullOrWhiteSpace([string]$tag)) {
+            $statusTags.Add([string]$tag)
+        }
+    }
+    $statusType = [string]$_.Type
+    if ($statusType -match "负面|負面|negative") {
+        if (-not $statusTags.Contains("Negative")) {
+            $statusTags.Add("Negative")
+        }
+    } elseif ($statusType -match "正面|positive") {
+        if (-not $statusTags.Contains("Positive")) {
+            $statusTags.Add("Positive")
+        }
+    }
+    $statusResult.tags = @($statusTags)
+    $statusMetadata = [ordered]@{
+        Id = [string]$_.Id
+        Name = [string]$_.Name
+        Type = [string]$_.Type
+        Tag = [string]$_.Tag
+    }
+    if ([string]$statusResult.fidelity -ne "Authoritative") {
+        $nativeApplyScript = [string]$_.ApplyScript
+        $nativeClearScript = [string]$_.ClearScript
+        switch ([string]$_.Id) {
+            "SpecialBuff_CAR_Deadline" {
+                $nativeApplyScript = @'
+AddEvent("StartRound",()=>{for(int i=0;i<2;i++){CreateCard(new DataConfig("cursecard_14",DataType.Card));}});
+SetStatus("AllTarget");
+AddEvent<HurtData>("Hurt",(data)=>{
+    if(data.fromDataId!="enemycard_CAR_Sword"){return;}
+    int hurtVal=0;int.TryParse(data.val,out hurtVal);if(hurtVal<=0){return;}
+    int count=HandCard.Count(x=>x!=null&&x.dataConfig.data["Id"]=="cursecard_14");
+    if(count<=5){return;}
+    foreach(var card in HandCard.Where(x=>x!=null&&x.dataConfig.data["Id"]=="cursecard_14").ToList()){BurnCardByData(card.dataConfig);}
+    SetStatusById(data.toId);if(Object.Count>0){ChangeHp((-Object[0].MaxHp).ToString());}
+});
+'@
+            }
+            "SpecialBuff_HJE_FateDawn" {
+                $nativeApplyScript = 'SetStatus("AllTarget");AddEvent<ActionData>("Action",(data)=>{SetStatusById(data.Id);ChangeMoney("-6","true");});'
+            }
+            "SpecialBuff_HJE_FateHolyMachine" {
+                $nativeApplyScript = 'SetStatus("All");AddEvent<HurtData>("Hurt",(data)=>{SetStatusById(data.toId);AddBuff(DataId.buff_keenedge,"1");});'
+            }
+            "SpecialBuff_HJE_FateJudgment" {
+                $nativeApplyScript = @'
+SetStatus("All");ChangeDynamicVarPercent("PercentDamage","50");ChangeDynamicVarPercent("AttackedPercentDamage","50");
+AddEvent<ActionData>("Action",(data)=>{SetStatusById(data.Id);if(Object.Count>0){ChangeHp((-Math.Max(1,Object[0].MaxHp/100)).ToString());}});
+'@
+            }
+            "SpecialBuff_meowFamiliar" {
+                $nativeApplyScript = 'SetStatus("Self");Vars["baseId"]=Self==null?"":Self.dataConfig.data["Id"];ChangeCareer("enemy_10054");ChangeSummon(false);'
+                $nativeClearScript = 'SetStatus("Self");ChangeCareer(Vars.GetValueOrDefault("baseId","enemy_10054"));ChangeSummon(true);'
+            }
+            "SpecialBuff_Phoenix" {
+                $nativeApplyScript = $nativeApplyScript -replace '};(\s*RoundEffect\(\);)', '}$1'
+            }
+            "buff_timelock" {
+                $nativeApplyScript = $nativeApplyScript -replace `
+                    'while \(list\.Count > 0\) \{ list\[0\]\.action\(\); list\.RemoveAt\(0\); buff\.buffConfig\.Level = 0; \}', `
+                    'while (list.Count > 0) { list[0].action(); list.RemoveAt(0); } buff.effectList.Clear(); buff.buffConfig.Level = 0;'
+            }
+        }
+        $statusResult.fidelity = "Authoritative"
+        $statusResult.triggers = @()
+        $statusMetadata.NativeExecution = "Script"
+        $statusMetadata.NativeInitScript = [string]$_.InitScript
+        $statusMetadata.NativeApplyScript = $nativeApplyScript
+        $statusMetadata.NativeClearScript = $nativeClearScript
+        $statusMetadata.NativeSourceApplyScript = [string]$_.ApplyScript
+        $statusMetadata.NativeSourceClearScript = [string]$_.ClearScript
+    }
+    if ($statusResult -is [Collections.Specialized.OrderedDictionary]) {
+        $statusResult["metadata"] = $statusMetadata
+    } else {
+        $statusResult |
+            Add-Member -NotePropertyName metadata -NotePropertyValue $statusMetadata -Force
+    }
+    $statusResult
 })
 $ruleset = [ordered]@{
     version = "witch-base-evaluation-v2"

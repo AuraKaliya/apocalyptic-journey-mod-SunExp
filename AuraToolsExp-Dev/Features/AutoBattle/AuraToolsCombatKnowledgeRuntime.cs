@@ -14,6 +14,7 @@ internal static class AuraToolsCombatKnowledgeRuntime
 {
     private static readonly List<IDisposable> Registrations = new();
     private static bool initialized;
+    private static bool packageLoadQueued;
 
     public static void Initialize()
     {
@@ -29,13 +30,7 @@ internal static class AuraToolsCombatKnowledgeRuntime
             "verified-core-rules",
             new VerifiedBaseSimulationProvider(),
             100));
-        LoadPackage(Path.Combine(
-            AuraToolsPaths.ConfigDirectory,
-            "combat-knowledge",
-            "base-game.json"));
-        LoadPackage(Path.Combine(
-            AuraToolsPaths.BundledConfigDirectory,
-            "combat-knowledge.base-game.json"));
+        BeginBundledPackageLoad();
     }
 
     public static CombatKnowledgeCoverageReport EvaluateCoverage(CombatStateObservation state)
@@ -155,28 +150,95 @@ internal static class AuraToolsCombatKnowledgeRuntime
         return false;
     }
 
-    private static void LoadPackage(string path)
+    private static void BeginBundledPackageLoad()
     {
-        try
+        if (packageLoadQueued)
+        {
+            return;
+        }
+        packageLoadQueued = true;
+        var paths = new[]
+        {
+            Path.Combine(
+                AuraToolsPaths.ConfigDirectory,
+                "combat-knowledge",
+                "base-game.json"),
+            Path.Combine(
+                AuraToolsPaths.BundledConfigDirectory,
+                "combat-knowledge.base-game.json")
+        };
+        var accepted = AuraSharedBackgroundWorkScheduler.Queue(
+            new AuraSharedBackgroundWorkRequest<List<KnowledgePackageLoad>>
+            {
+                OwnerId = AuraToolsIds.ModId,
+                Key = "AutoBattle.CombatKnowledge.Load",
+                Source = "AutoBattle.CombatKnowledge.Load",
+                Kind = AuraSharedBackgroundWorkKind.Io,
+                Work = _ => ReadPackages(paths),
+                ApplyOnMainThread = loaded =>
+                {
+                    packageLoadQueued = false;
+                    foreach (var item in loaded)
+                    {
+                        if (item.Package != null)
+                        {
+                            Register(item.Package, item.Path);
+                        }
+                        else if (!string.IsNullOrWhiteSpace(item.Error))
+                        {
+                            AuraToolsLog.Warn(
+                                "[AutoBattle][Knowledge] 知识包加载失败："
+                                + item.Path
+                                + "；"
+                                + item.Error);
+                        }
+                    }
+                },
+                OnFailedOnMainThread = ex =>
+                {
+                    packageLoadQueued = false;
+                    AuraToolsLog.Warn(
+                        "[AutoBattle][Knowledge] 后台知识包加载失败：" + ex);
+                }
+            });
+        if (!accepted)
+        {
+            packageLoadQueued = false;
+            AuraToolsLog.Warn("[AutoBattle][Knowledge] 后台知识包任务未能提交");
+        }
+    }
+
+    private static List<KnowledgePackageLoad> ReadPackages(
+        IEnumerable<string> paths)
+    {
+        var result = new List<KnowledgePackageLoad>();
+        foreach (var path in paths)
         {
             if (!File.Exists(path))
             {
-                return;
+                continue;
             }
-
-            var package = AuraSharedJson.Deserialize<CombatKnowledgePackage>(
-                File.ReadAllText(path));
-            if (package == null)
+            try
             {
-                AuraToolsLog.Warn("[AutoBattle][Knowledge] 知识包为空：" + path);
-                return;
+                var package = AuraSharedJson.Deserialize<CombatKnowledgePackage>(
+                    File.ReadAllText(path));
+                result.Add(new KnowledgePackageLoad
+                {
+                    Path = path,
+                    Package = package,
+                    Error = package == null ? "知识包为空" : ""
+                });
             }
-            Register(package, path);
+            catch (Exception ex)
+            {
+                result.Add(new KnowledgePackageLoad
+                {
+                    Path = path,
+                    Error = ex.Message
+                });
+            }
         }
-        catch (Exception ex)
-        {
-            AuraToolsLog.Warn("[AutoBattle][Knowledge] 知识包加载失败：" + path + "；" + ex.Message);
-        }
+        return result;
     }
 
     private static void Register(CombatKnowledgePackage package, string source)
@@ -218,6 +280,15 @@ internal static class AuraToolsCombatKnowledgeRuntime
             + " actions=" + package.Actions.Count
             + " statuses=" + package.Statuses.Count
             + " enemies=" + package.Enemies.Count);
+    }
+
+    private sealed class KnowledgePackageLoad
+    {
+        public string Path { get; set; } = "";
+
+        public CombatKnowledgePackage? Package { get; set; }
+
+        public string Error { get; set; } = "";
     }
 
     internal static string NormalizeGameBuild(string value)

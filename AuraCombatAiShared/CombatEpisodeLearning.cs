@@ -5,11 +5,20 @@ using System.Threading;
 
 namespace AuraCombatAi.Shared;
 
+public static class CombatPolicyValueProtocol
+{
+    public const string EpisodeProtocol = "aura.combat-ai.episode.v2";
+
+    public const int FeatureSchemaVersion = 7;
+}
+
 public sealed class CombatEpisode
 {
-    public string ModelProtocol { get; set; } = "aura.combat-ai.episode.v1";
+    public string ModelProtocol { get; set; } =
+        CombatPolicyValueProtocol.EpisodeProtocol;
 
-    public int FeatureSchemaVersion { get; set; } = 5;
+    public int FeatureSchemaVersion { get; set; } =
+        CombatPolicyValueProtocol.FeatureSchemaVersion;
 
     public string EpisodeId { get; set; } = "";
 
@@ -20,6 +29,8 @@ public sealed class CombatEpisode
     public long BattleSessionId { get; set; }
 
     public int JourneyBattleIndex { get; set; } = -1;
+
+    public CombatCampaignEpisodeMetadata Campaign { get; set; } = new();
 
     public ulong Seed { get; set; }
 
@@ -48,6 +59,31 @@ public sealed class CombatEpisode
     public string Provenance { get; set; } = "offline-simulation";
 
     public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
+}
+
+public sealed class CombatCampaignEpisodeMetadata
+{
+    public ulong WorldSeed { get; set; }
+
+    public string DifficultyId { get; set; } = "";
+
+    public bool FinalBossVictory { get; set; }
+
+    public bool ReachedFinalBoss { get; set; }
+
+    public int CampaignCompletedBattles { get; set; }
+
+    public int CampaignTotalBattles { get; set; }
+
+    public int FailureBattleIndex { get; set; } = -1;
+
+    public string TerminalScenarioId { get; set; } = "";
+
+    public string OutcomeClass { get; set; } = "unknown";
+
+    public string CurriculumStage { get; set; } = "";
+
+    public bool IntegrityValid { get; set; } = true;
 }
 
 public sealed class CombatEpisodeFrame
@@ -116,6 +152,18 @@ public sealed class CombatPolicyValueTrainingOptions
 
     public bool RequireAuthoritativeEpisodes { get; set; } = true;
 
+    public int BatchSize { get; set; } = 64;
+
+    public int MaximumDegreeOfParallelism { get; set; } = 1;
+
+    public int MinimumEpochs { get; set; } = 5;
+
+    public int EarlyStoppingPatience { get; set; } = 5;
+
+    public double EarlyStoppingMinimumDelta { get; set; } = 0.0005d;
+
+    public int ReplayEpisodeLimit { get; set; } = 5000;
+
     public CombatPolicyValueTrainingOptions Normalized()
     {
         return new CombatPolicyValueTrainingOptions
@@ -128,7 +176,23 @@ public sealed class CombatPolicyValueTrainingOptions
             HiddenDimensions = Math.Max(8, Math.Min(256, HiddenDimensions)),
             RandomSeed = RandomSeed,
             MinimumEpisodes = Math.Max(2, Math.Min(10000, MinimumEpisodes)),
-            RequireAuthoritativeEpisodes = RequireAuthoritativeEpisodes
+            RequireAuthoritativeEpisodes = RequireAuthoritativeEpisodes,
+            BatchSize = Math.Max(8, Math.Min(512, BatchSize)),
+            MaximumDegreeOfParallelism = Math.Max(
+                1,
+                Math.Min(Environment.ProcessorCount, MaximumDegreeOfParallelism)),
+            MinimumEpochs = Math.Max(1, Math.Min(Epochs, MinimumEpochs)),
+            EarlyStoppingPatience = Math.Max(
+                1,
+                Math.Min(50, EarlyStoppingPatience)),
+            EarlyStoppingMinimumDelta = Clamp(
+                EarlyStoppingMinimumDelta,
+                0.0000001d,
+                0.1d,
+                0.0005d),
+            ReplayEpisodeLimit = Math.Max(
+                64,
+                Math.Min(20000, ReplayEpisodeLimit))
         };
     }
 
@@ -150,6 +214,65 @@ public sealed class CombatPolicyValueTrainingResult
     public int FrameCount { get; set; }
 
     public CombatPolicyValueNetworkDefinition? Model { get; set; }
+
+    public int CompletedEpochs { get; set; }
+
+    public int BestEpoch { get; set; }
+
+    public bool EarlyStopped { get; set; }
+
+    public double ElapsedSeconds { get; set; }
+}
+
+public sealed class CombatPolicyValueTrainingProgress
+{
+    public string Stage { get; set; } = "";
+
+    public int Epoch { get; set; }
+
+    public int TotalEpochs { get; set; }
+
+    public int CompletedFrames { get; set; }
+
+    public int TotalFrames { get; set; }
+
+    public double EpochsPerSecond { get; set; }
+
+    public double EstimatedRemainingSeconds { get; set; }
+
+    public double ValidationLoss { get; set; }
+
+    public double BestValidationLoss { get; set; }
+
+    public int BestEpoch { get; set; }
+
+    public int StaleEpochs { get; set; }
+
+    public bool EarlyStopped { get; set; }
+}
+
+public sealed class CombatPolicyValueTrainingResumeState
+{
+    public int CompletedEpochs { get; set; }
+
+    public CombatPolicyValueNetworkDefinition? Model { get; set; }
+
+    public CombatPolicyValueNetworkDefinition? BestModel { get; set; }
+
+    public double BestValidationLoss { get; set; } = double.MaxValue;
+
+    public int BestEpoch { get; set; }
+
+    public int StaleEpochs { get; set; }
+}
+
+public sealed class CombatPolicyValueTrainingSession
+{
+    public CombatPolicyValueTrainingResumeState? Resume { get; set; }
+
+    public Action<CombatPolicyValueTrainingProgress>? Progress { get; set; }
+
+    public Action<CombatPolicyValueTrainingResumeState>? Checkpoint { get; set; }
 }
 
 public static class CombatPolicyValueTrainer
@@ -172,83 +295,27 @@ public static class CombatPolicyValueTrainer
         CombatPolicyValueTrainingOptions? trainingOptions,
         CancellationToken cancellationToken)
     {
-        cancellationToken.ThrowIfCancellationRequested();
-        var options = (trainingOptions ?? new CombatPolicyValueTrainingOptions()).Normalized();
-        var profile = NormalizeProfile(decisionProfile);
-        var episodes = (source ?? Array.Empty<CombatEpisode>())
-            .Where(episode => episode != null
-                              && episode.ModelProtocol == "aura.combat-ai.episode.v1"
-                              && episode.FeatureSchemaVersion == 5
-                              && (!options.RequireAuthoritativeEpisodes
-                                  || episode.Authoritative)
-                              && string.Equals(
-                                  NormalizeProfile(episode.DecisionProfile),
-                                  profile,
-                                  StringComparison.Ordinal))
-            .OrderBy(episode => episode.EpisodeId, StringComparer.Ordinal)
-            .ToList();
-        var result = new CombatPolicyValueTrainingResult
-        {
-            EpisodeCount = episodes.Count,
-            FrameCount = episodes.Sum(episode => episode.Frames?.Count ?? 0)
-        };
-        if (episodes.Count < options.MinimumEpisodes)
-        {
-            result.Message = (options.RequireAuthoritativeEpisodes
-                                 ? "完整权威战斗轨迹不足：当前 "
-                                 : "完整投影战斗轨迹不足：当前 ")
-                             + episodes.Count
-                             + "，最低要求 "
-                             + options.MinimumEpisodes;
-            return result;
-        }
+        return CombatPolicyValueBatchTrainer.Train(
+            source,
+            decisionProfile,
+            trainingOptions,
+            cancellationToken,
+            session: null);
+    }
 
-        var trainingEpisodes = episodes
-            .Where((_, index) => index % 5 != 0 || episodes.Count < 10)
-            .ToList();
-        var validationEpisodes = episodes
-            .Where((_, index) => index % 5 == 0 && episodes.Count >= 10)
-            .ToList();
-        var model = Initialize(profile, options);
-        var random = new Random(options.RandomSeed);
-        for (var epoch = 0; epoch < options.Epochs; epoch++)
-        {
-            cancellationToken.ThrowIfCancellationRequested();
-            var frames = trainingEpisodes
-                .SelectMany(episode => episode.Frames ?? new List<CombatEpisodeFrame>())
-                .OrderBy(_ => random.Next())
-                .ToList();
-            var rate = options.LearningRate / Math.Sqrt(1d + epoch * 0.05d);
-            foreach (var frame in frames)
-            {
-                cancellationToken.ThrowIfCancellationRequested();
-                TrainFrame(model, frame, rate, options.L2);
-            }
-        }
-
-        var trainingMetrics = Evaluate(model, trainingEpisodes, cancellationToken);
-        var validationMetrics = validationEpisodes.Count == 0
-            ? trainingMetrics
-            : Evaluate(model, validationEpisodes, cancellationToken);
-        model.Metrics = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
-        {
-            ["episodeCount"] = episodes.Count,
-            ["frameCount"] = result.FrameCount,
-            ["trainingPolicyAccuracy"] = trainingMetrics.PolicyAccuracy,
-            ["validationPolicyAccuracy"] = validationMetrics.PolicyAccuracy,
-            ["trainingValueMae"] = trainingMetrics.ValueMae,
-            ["validationValueMae"] = validationMetrics.ValueMae,
-            ["validationBrier"] = validationMetrics.Brier,
-            ["validationEpisodeCount"] = validationEpisodes.Count
-        };
-        result.Success = true;
-        result.Model = model;
-        result.Message = "已从 "
-                         + episodes.Count
-                         + " 场完整战斗、"
-                         + result.FrameCount
-                         + " 个决策训练策略价值网络";
-        return result;
+    public static CombatPolicyValueTrainingResult Train(
+        IEnumerable<CombatEpisode> source,
+        string decisionProfile,
+        CombatPolicyValueTrainingOptions? trainingOptions,
+        CancellationToken cancellationToken,
+        CombatPolicyValueTrainingSession? session)
+    {
+        return CombatPolicyValueBatchTrainer.Train(
+            source,
+            decisionProfile,
+            trainingOptions,
+            cancellationToken,
+            session);
     }
 
     private static CombatPolicyValueNetworkDefinition Initialize(
@@ -303,10 +370,9 @@ public static class CombatPolicyValueTrainer
         {
             return;
         }
-        var state = CombatPolicyValueEncoding.Encode(
+        var state = CombatPolicyValueEncoding.EncodeState(
             frame.StateFeatures,
-            model.StateDimensions,
-            "state");
+            model.StateDimensions);
         var statePre = Dense(state, model.StateWeights, model.StateBias, model.HiddenDimensions);
         var stateHidden = statePre.Select(Math.Tanh).ToArray();
         var actionVectors = new List<double[]>(legal.Count);

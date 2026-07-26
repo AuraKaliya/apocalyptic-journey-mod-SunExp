@@ -106,6 +106,13 @@
     </Reference>
   </ItemGroup>
 
+  <Target
+      Name="GenerateAuraNativePrograms"
+      BeforeTargets="BeforeCompile"
+      Condition="'$(DesignTimeBuild)' != 'true'">
+    <Exec Command="dotnet run --project &quot;$(MSBuildProjectDirectory)\..\tools\AuraNativeProgramCompiler\AuraNativeProgramCompiler.csproj&quot; -c Release -- --campaign &quot;$(MSBuildProjectDirectory)\..\AuraToolsExp\Config\combat-simulation\witch-world-simulation-v2.campaign.json&quot; --ruleset &quot;$(MSBuildProjectDirectory)\..\AuraToolsExp\Config\combat-simulation\witch-base-evaluation-v2.ruleset.json&quot; --output &quot;$(MSBuildProjectDirectory)\Features\AutoBattle\Generated\AuraToolsNativePrograms.g.cs&quot; --manifest &quot;$(MSBuildProjectDirectory)\..\AuraToolsExp\Config\combat-programs.base-game.manifest.json&quot;" />
+  </Target>
+
   <Target Name="CopyEntryDllToMod" AfterTargets="Build">
     <MakeDir Directories="$(ModScriptsPath)" />
     <Copy SourceFiles="$(TargetPath)" DestinationFiles="$(ModScriptsPath)\Entry.dll" />
@@ -114,6 +121,12 @@
   <Target Name="CopyAuraSharedDllToMod" AfterTargets="Build">
     <MakeDir Directories="$(ModScriptsPath)" />
     <Copy SourceFiles="..\AuraSharedRuntime-Dev\bin\$(Configuration)\net472\Aura.Shared.dll" DestinationFiles="$(ModScriptsPath)\Aura.Shared.dll" SkipUnchangedFiles="true" />
+  </Target>
+
+  <Target Name="PublishAuraFoundationTrainer"
+          AfterTargets="Build"
+          Condition="'$(Configuration)' == 'Release' and '$(BuildFoundationTrainer)' == 'true'">
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\tools\Build-AuraFoundationTrainer.ps1&quot; -Configuration $(Configuration)" />
   </Target>
 
 </Project>

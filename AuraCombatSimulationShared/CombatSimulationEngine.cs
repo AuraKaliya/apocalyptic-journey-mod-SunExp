@@ -7,6 +7,14 @@ namespace AuraCombatSimulation.Shared;
 
 public sealed class CombatSimulationEngine
 {
+    private readonly ICombatSimulationRuntimeExtensionFactory? extensionFactory;
+
+    public CombatSimulationEngine(
+        ICombatSimulationRuntimeExtensionFactory? extensionFactory = null)
+    {
+        this.extensionFactory = extensionFactory;
+    }
+
     public CombatSimulationResult Run(
         CombatScenarioDefinition scenario,
         CombatRuleset ruleset,
@@ -17,7 +25,11 @@ public sealed class CombatSimulationEngine
         if (ruleset == null) throw new ArgumentNullException(nameof(ruleset));
         if (policy == null) throw new ArgumentNullException(nameof(policy));
 
-        var session = new Session(scenario, ruleset, policy);
+        var session = new Session(
+            scenario,
+            ruleset,
+            policy,
+            extensionFactory?.Create(scenario, ruleset));
         try
         {
             if (!session.Initialize())
@@ -36,13 +48,22 @@ public sealed class CombatSimulationEngine
                     break;
                 }
             }
+            return session.CompleteResult();
         }
         catch (Exception ex)
         {
             session.AddUnsupported("engine-error:" + ex.GetType().Name + ":" + ex.Message);
+            if (!string.IsNullOrWhiteSpace(ex.StackTrace))
+            {
+                var stack = ex.StackTrace!
+                    .Replace(Environment.NewLine, " <- ");
+                session.AddUnsupported(
+                    "engine-stack:"
+                    + stack.Substring(0, Math.Min(2000, stack.Length)));
+            }
             session.Terminate(CombatSimulationOutcome.Invalid, CombatTerminationReason.EngineError);
+            return session.CompleteResultAfterFailure();
         }
-        return session.CompleteResult();
     }
 
     public IReadOnlyList<CombatSimulationAction> GetLegalPlayerActions(
@@ -67,7 +88,12 @@ public sealed class CombatSimulationEngine
         if (source == null) throw new ArgumentNullException(nameof(source));
         if (action == null) throw new ArgumentNullException(nameof(action));
 
-        var session = new Session(scenario, ruleset, FirstLegalCombatSimulationPolicy.Instance, source.Clone());
+        var session = new Session(
+            scenario,
+            ruleset,
+            FirstLegalCombatSimulationPolicy.Instance,
+            extensionFactory?.Create(scenario, ruleset),
+            source.Clone());
         var legal = Session.BuildLegalActions(scenario, ruleset, session.State);
         var selected = legal.FirstOrDefault(candidate =>
             string.Equals(candidate.CandidateId, action.CandidateId, StringComparison.Ordinal));
@@ -90,7 +116,7 @@ public sealed class CombatSimulationEngine
         };
     }
 
-    private sealed class Session
+    private sealed class Session : ICombatSimulationRuntimeContext
     {
         private readonly CombatScenarioDefinition scenario;
         private readonly CombatRuleset ruleset;
@@ -102,19 +128,42 @@ public sealed class CombatSimulationEngine
         private readonly CombatSimulationMetrics metrics = new();
         private readonly Dictionary<string, int> persistentVariableDeltas =
             new(StringComparer.OrdinalIgnoreCase);
+        private readonly List<CombatSimulationRewardMutation> rewardMutations =
+            new();
         private readonly List<CombatTurnSummary> turnSummaries = new();
         private int currentActionCommandCount;
+        private string currentActionDefinitionId = "";
+        private readonly Queue<string> recentCommands = new();
+        private CombatSimulationFailureDiagnostics failureDiagnostics = new();
         private readonly List<CombatSimulationEvent> secondaryCommandEvents = new();
+        private readonly ICombatSimulationRuntimeExtension? extension;
+        private readonly HashSet<long> extensionEventSequences = new();
+        private bool extensionInitialized;
+        private bool extensionCompleted;
+        private bool explicitRuleTermination;
+        private CombatTerminalResolution terminalResolution;
+        private CombatSimulationOutcome initialTerminalOutcome;
+        private CombatTerminationReason initialTerminationReason;
+        private int initialTerminalPlayerHp;
+        private int initialTerminalLivingEnemyCount;
+        private bool terminalSettlementInProgress;
+        private bool terminalConsistencyValid = true;
+        private string terminalConsistencyReason = "";
+        private int terminalPlayerHp;
+        private int terminalLivingEnemyCount;
+        private bool terminalStateCaptured;
 
         public Session(
             CombatScenarioDefinition scenario,
             CombatRuleset ruleset,
             ICombatSimulationPolicy policy,
+            ICombatSimulationRuntimeExtension? extension = null,
             CombatBattleState? initialState = null)
         {
             this.scenario = scenario;
             this.ruleset = ruleset;
             this.policy = policy;
+            this.extension = extension;
             limits = (scenario.Limits ?? new CombatSimulationLimits()).Normalize();
             State = initialState ?? new CombatBattleState();
         }
@@ -139,6 +188,16 @@ public sealed class CombatSimulationEngine
                 || scenario.Enemies.Count == 0)
             {
                 AddUnsupported("invalid-scenario");
+                Terminate(CombatSimulationOutcome.Invalid, CombatTerminationReason.InvalidScenario);
+                return false;
+            }
+            var duplicateRewardRule = scenario.RewardRules
+                .Where(item => item != null && !string.IsNullOrWhiteSpace(item.RewardId))
+                .GroupBy(item => item.RewardId, StringComparer.OrdinalIgnoreCase)
+                .FirstOrDefault(group => group.Count() > 1);
+            if (duplicateRewardRule != null)
+            {
+                AddUnsupported("duplicate-reward-rule:" + duplicateRewardRule.Key);
                 Terminate(CombatSimulationOutcome.Invalid, CombatTerminationReason.InvalidScenario);
                 return false;
             }
@@ -237,6 +296,8 @@ public sealed class CombatSimulationEngine
                 State.DiscardPile.Add(instance.InstanceId);
             }
 
+            extension?.Initialize(this);
+            extensionInitialized = extension != null;
             if (unsupported.Count > 0)
             {
                 Terminate(CombatSimulationOutcome.Invalid, CombatTerminationReason.UnsupportedRule);
@@ -309,30 +370,78 @@ public sealed class CombatSimulationEngine
             if (!playerTurnSkipped)
             {
                 DrawCards(
-                    State.Turn == 1 ? scenario.InitialDraw : scenario.DrawPerTurn,
+                    Math.Max(
+                        0,
+                        (State.Turn == 1
+                            ? scenario.InitialDraw
+                            : scenario.DrawPerTurn)
+                        + WitchRounded(Variable(
+                            player,
+                            "DrawPerTurnModifier",
+                            0d))),
                     player.ActorId,
                     0);
 
                 State.Phase = CombatSimulationPhase.PlayerAction;
+                var enemyHpAtLastProgress =
+                    State.LivingEnemies.Sum(enemy => enemy.Hp);
+                var actionsWithoutEnemyHpProgress = 0;
                 while (State.Outcome == CombatSimulationOutcome.None)
                 {
                     if (State.ActionSequence >= limits.MaximumActions)
                     {
+                        CaptureActionFailure();
                         Terminate(
                             CombatSimulationOutcome.Invalid,
                             CombatTerminationReason.MaximumActions);
                         return false;
                     }
 
+                    if (extension
+                        is ICombatSimulationDecisionRuntimeExtension
+                        decisionExtension)
+                    {
+                        decisionExtension.BeforePolicyDecision(this);
+                    }
                     var legal = BuildLegalActions(scenario, ruleset, State);
                     var context = new CombatSimulationPolicyContext
                     {
                         Scenario = scenario,
                         Ruleset = ruleset,
-                        State = State.Clone(),
+                        State = policy is ICombatSimulationBorrowedStatePolicy
+                            ? State
+                            : State.Clone(),
                         LegalActions = legal
                     };
                     var requested = policy.SelectAction(context);
+                    if (policy is ICombatSimulationPolicyMetricsProvider
+                        metricsProvider)
+                    {
+                        metrics.PolicyDecisions++;
+                        metrics.SearchSimulations += Math.Max(
+                            0,
+                            metricsProvider.LastDecisionMetrics.SearchSimulations);
+                        metrics.SearchNodes += Math.Max(
+                            0,
+                            metricsProvider.LastDecisionMetrics.SearchNodes);
+                        if (metricsProvider.LastDecisionMetrics.SearchStoppedEarly)
+                        {
+                            metrics.SearchEarlyStops++;
+                        }
+                        metrics.CertifiedLoops += Math.Max(
+                            0,
+                            metricsProvider.LastDecisionMetrics.CertifiedLoops);
+                        metrics.SustainableControlLoops += Math.Max(
+                            0,
+                            metricsProvider.LastDecisionMetrics
+                                .SustainableControlLoops);
+                        metrics.FakeLoops += Math.Max(
+                            0,
+                            metricsProvider.LastDecisionMetrics.FakeLoops);
+                        metrics.BlockedLoops += Math.Max(
+                            0,
+                            metricsProvider.LastDecisionMetrics.BlockedLoops);
+                    }
                     var selected = requested == null
                         ? null
                         : legal.FirstOrDefault(candidate =>
@@ -356,6 +465,27 @@ public sealed class CombatSimulationEngine
                     if (!ApplyPlayerAction(selected))
                     {
                         return false;
+                    }
+                    var currentEnemyHp =
+                        State.LivingEnemies.Sum(enemy => enemy.Hp);
+                    if (currentEnemyHp < enemyHpAtLastProgress)
+                    {
+                        enemyHpAtLastProgress = currentEnemyHp;
+                        actionsWithoutEnemyHpProgress = 0;
+                    }
+                    else
+                    {
+                        actionsWithoutEnemyHpProgress++;
+                    }
+                    if (actionsWithoutEnemyHpProgress >= 32)
+                    {
+                        // The player always has a legal EndTurn action. A
+                        // deterministic policy that keeps playing an
+                        // energy-neutral, non-damaging cycle should yield the
+                        // turn instead of invalidating the whole campaign at
+                        // the global action/command safety limit.
+                        metrics.ForcedEndTurns++;
+                        break;
                     }
                 }
             }
@@ -427,7 +557,7 @@ public sealed class CombatSimulationEngine
             if (player == null
                 || instance == null
                 || !State.Hand.Contains(instance.InstanceId)
-                || !ruleset.TryGetCardCore(instance.CardId, out var definition))
+                || !TryGetEffectiveCardCore(ruleset, instance, out var definition))
             {
                 Terminate(CombatSimulationOutcome.Invalid, CombatTerminationReason.IllegalPolicyAction);
                 return false;
@@ -442,6 +572,7 @@ public sealed class CombatSimulationEngine
 
             State.ActionSequence++;
             currentActionCommandCount = 0;
+            currentActionDefinitionId = definition.CardId;
             player.Energy -= cost;
             metrics.EnergySpent += cost;
             metrics.CardsPlayed++;
@@ -484,7 +615,9 @@ public sealed class CombatSimulationEngine
                     CardInstanceId = instance.InstanceId,
                     Amount = scenario.DirectHpLossAfterPlayerCard,
                     DefinitionId = "difficulty:player-card-hp-loss",
-                    ParentSequence = played.Sequence
+                    ParentSequence = played.Sequence,
+                    CausalChainId = played.CausalChainId,
+                    SourceActionId = State.ActionSequence
                 });
             }
             CompileEffects(
@@ -505,7 +638,8 @@ public sealed class CombatSimulationEngine
                     player.ActorId,
                     action.TargetActorId,
                     definition.CardId,
-                    1))
+                    1,
+                    instance.InstanceId))
             {
                 return false;
             }
@@ -541,12 +675,18 @@ public sealed class CombatSimulationEngine
             {
                 return null;
             }
-            State.Hand.Remove(instance.InstanceId);
+            if (!State.Hand.Contains(instance.InstanceId))
+            {
+                // A native use script may explicitly burn, discard, or
+                // otherwise relocate the played card before the delayed
+                // post-resolution move used by advanced difficulty.
+                return null;
+            }
             if (definition.Exhaust
                 || HasTag(instance, definition, "Burnout")
                 || HasTag(instance, definition, "Fragmented"))
             {
-                State.ExhaustPile.Add(instance.InstanceId);
+                MoveCardToZone(instance.InstanceId, CombatCardZone.ExhaustPile);
                 return Emit(
                     CombatSimulationEventKind.CardExhausted,
                     player.ActorId,
@@ -558,7 +698,7 @@ public sealed class CombatSimulationEngine
             }
             if (HasTag(instance, definition, "Ouroboros"))
             {
-                State.DrawPile.Add(instance.InstanceId);
+                MoveCardToZone(instance.InstanceId, CombatCardZone.DrawPile);
                 return Emit(
                     CombatSimulationEventKind.CardCreated,
                     player.ActorId,
@@ -568,7 +708,7 @@ public sealed class CombatSimulationEngine
                     1,
                     parentSequence);
             }
-            State.DiscardPile.Add(instance.InstanceId);
+            MoveCardToZone(instance.InstanceId, CombatCardZone.DiscardPile);
             return Emit(
                 CombatSimulationEventKind.CardDiscarded,
                 player.ActorId,
@@ -581,6 +721,18 @@ public sealed class CombatSimulationEngine
 
         public CombatSimulationResult CompleteResult()
         {
+            CompleteExtension();
+            return BuildResult();
+        }
+
+        public CombatSimulationResult CompleteResultAfterFailure()
+        {
+            extensionCompleted = true;
+            return BuildResult();
+        }
+
+        private CombatSimulationResult BuildResult()
+        {
             var player = State.Player;
             return new CombatSimulationResult
             {
@@ -590,6 +742,16 @@ public sealed class CombatSimulationEngine
                 PolicyId = policy.PolicyId,
                 Outcome = State.Outcome,
                 TerminationReason = State.TerminationReason,
+                TerminalConsistencyValid = terminalConsistencyValid,
+                TerminalConsistencyReason = terminalConsistencyReason,
+                ExplicitRuleTermination = explicitRuleTermination,
+                TerminalResolution = terminalResolution,
+                InitialTerminalOutcome = initialTerminalOutcome,
+                InitialTerminationReason = initialTerminationReason,
+                InitialTerminalPlayerHp = initialTerminalPlayerHp,
+                InitialTerminalLivingEnemyCount = initialTerminalLivingEnemyCount,
+                TerminalPlayerHp = terminalPlayerHp,
+                TerminalLivingEnemyCount = terminalLivingEnemyCount,
                 Turns = State.Turn,
                 FinalPlayerHp = player?.Hp ?? 0,
                 FinalStateHash = CombatBattleStateHasher.Hash(State),
@@ -598,9 +760,29 @@ public sealed class CombatSimulationEngine
                     : (double)authoritativeDefinitions.Count / referencedDefinitions.Count,
                 UnsupportedDefinitions = unsupported.OrderBy(value => value, StringComparer.Ordinal).ToList(),
                 Metrics = metrics,
+                FailureDiagnostics = failureDiagnostics.Clone(),
                 PersistentVariableDeltas = new Dictionary<string, int>(
                     persistentVariableDeltas,
                     StringComparer.OrdinalIgnoreCase),
+                RewardVariables = scenario.RewardRules
+                    .Where(item => item != null && !string.IsNullOrWhiteSpace(item.RewardId))
+                    .GroupBy(item => item.RewardId, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(
+                        group => group.Key,
+                        group => new Dictionary<string, string>(
+                            group.First().Variables,
+                            StringComparer.OrdinalIgnoreCase),
+                    StringComparer.OrdinalIgnoreCase),
+                CampaignVariables = new Dictionary<string, string>(
+                    scenario.CampaignVariables,
+                    StringComparer.OrdinalIgnoreCase),
+                RewardMutations = rewardMutations.Select(item =>
+                    new CombatSimulationRewardMutation
+                    {
+                        Operation = item.Operation,
+                        Kind = item.Kind,
+                        RewardId = item.RewardId
+                    }).ToList(),
                 TurnsSummary = turnSummaries,
                 Events = Events,
                 FinalState = State.Clone()
@@ -619,11 +801,61 @@ public sealed class CombatSimulationEngine
             CombatSimulationOutcome outcome,
             CombatTerminationReason reason)
         {
+            TerminateCore(outcome, reason, explicitRule: false);
+        }
+
+        private void TerminateCore(
+            CombatSimulationOutcome outcome,
+            CombatTerminationReason reason,
+            bool explicitRule)
+        {
             if (State.Outcome != CombatSimulationOutcome.None)
             {
+                TryOverridePhysicalDefeat(outcome, reason, explicitRule);
                 return;
             }
-            if (outcome == CombatSimulationOutcome.Victory)
+            explicitRuleTermination = explicitRule;
+            terminalResolution = explicitRule
+                ? CombatTerminalResolution.ExplicitRule
+                : CombatTerminalResolution.Physical;
+            CaptureTerminalState(outcome, explicitRule);
+            initialTerminalOutcome = outcome;
+            initialTerminationReason = reason;
+            initialTerminalPlayerHp = terminalPlayerHp;
+            initialTerminalLivingEnemyCount = terminalLivingEnemyCount;
+            if (!terminalConsistencyValid)
+            {
+                outcome = CombatSimulationOutcome.Invalid;
+                reason = CombatTerminationReason.EngineError;
+            }
+            State.Outcome = outcome;
+            State.TerminationReason = reason;
+            State.Phase = CombatSimulationPhase.Completed;
+            if (outcome == CombatSimulationOutcome.Defeat)
+            {
+                CaptureTerminalDiagnostics(outcome);
+            }
+            var ended = Emit(
+                CombatSimulationEventKind.BattleEnded,
+                State.PlayerActorId,
+                0,
+                0,
+                reason.ToString(),
+                (int)outcome);
+            terminalSettlementInProgress = true;
+            try
+            {
+                NotifyExtension(ended);
+                CompleteExtension();
+            }
+            finally
+            {
+                terminalSettlementInProgress = false;
+            }
+            ended.DefinitionId = State.TerminationReason.ToString();
+            ended.Amount = (int)State.Outcome;
+            ended.Message = terminalResolution.ToString();
+            if (State.Outcome == CombatSimulationOutcome.Victory)
             {
                 ApplyDeferredVictoryVariableChanges();
             }
@@ -631,16 +863,36 @@ public sealed class CombatSimulationEngine
             {
                 State.DeferredVictoryVariableChanges.Clear();
             }
+        }
+
+        private void TryOverridePhysicalDefeat(
+            CombatSimulationOutcome outcome,
+            CombatTerminationReason reason,
+            bool explicitRule)
+        {
+            var player = State.Player;
+            if (!terminalSettlementInProgress
+                || !explicitRule
+                || explicitRuleTermination
+                || State.Outcome != CombatSimulationOutcome.Defeat
+                || outcome != CombatSimulationOutcome.Victory
+                || player?.Alive != true)
+            {
+                return;
+            }
+
+            explicitRuleTermination = true;
+            terminalResolution =
+                CombatTerminalResolution.ResurrectionEscapeOverride;
             State.Outcome = outcome;
             State.TerminationReason = reason;
-            State.Phase = CombatSimulationPhase.Completed;
-            Emit(
-                CombatSimulationEventKind.BattleEnded,
-                State.PlayerActorId,
-                0,
-                0,
-                reason.ToString(),
-                (int)outcome);
+            terminalPlayerHp = player.Hp;
+            terminalLivingEnemyCount = State.LivingEnemies.Count();
+            terminalConsistencyValid = true;
+            terminalConsistencyReason = "";
+            metrics.RuleTerminalOverrides++;
+            failureDiagnostics.TerminalResolution =
+                terminalResolution.ToString();
         }
 
         public static IReadOnlyList<CombatSimulationAction> BuildLegalActions(
@@ -658,7 +910,8 @@ public sealed class CombatSimulationEngine
             foreach (var instanceId in state.Hand)
             {
                 var instance = state.FindCard(instanceId);
-                if (instance == null || !ruleset.TryGetCardCore(instance.CardId, out var definition))
+                if (instance == null
+                    || !TryGetEffectiveCardCore(ruleset, instance, out var definition))
                 {
                     continue;
                 }
@@ -936,19 +1189,25 @@ public sealed class CombatSimulationEngine
         {
             if (!ruleset.TryGetEnemyCore(enemy.DefinitionId, out var definition))
             {
+                AddUnsupported("enemy:" + enemy.DefinitionId);
                 Terminate(CombatSimulationOutcome.Invalid, CombatTerminationReason.UnsupportedRule);
                 return false;
             }
-            var intent = definition.Intents.FirstOrDefault(candidate =>
-                string.Equals(candidate.IntentId, intentId, StringComparison.OrdinalIgnoreCase));
+            var intent = ResolveEnemyIntent(definition, intentId);
             if (intent == null)
             {
+                AddUnsupported(
+                    "enemy-intent:"
+                    + enemy.DefinitionId
+                    + ":"
+                    + intentId);
                 Terminate(CombatSimulationOutcome.Invalid, CombatTerminationReason.UnsupportedRule);
                 return false;
             }
 
             State.ActionSequence++;
             currentActionCommandCount = 0;
+            currentActionDefinitionId = intent.IntentId;
             var queue = new Queue<CombatSimulationCommand>();
             var actionStarted = Emit(
                 CombatSimulationEventKind.ActionStarted,
@@ -977,6 +1236,24 @@ public sealed class CombatSimulationEngine
                 State.PlayerActorId,
                 intent.IntentId,
                 1);
+        }
+
+        private CombatEnemyIntentDefinition? ResolveEnemyIntent(
+            CombatEnemyDefinition owner,
+            string intentId)
+        {
+            return owner.Intents.FirstOrDefault(candidate =>
+                       string.Equals(
+                           candidate.IntentId,
+                           intentId,
+                           StringComparison.OrdinalIgnoreCase))
+                   ?? ruleset.SnapshotEnemies()
+                       .OrderBy(item => item.EnemyId, StringComparer.Ordinal)
+                       .SelectMany(item => item.Intents)
+                       .FirstOrDefault(candidate => string.Equals(
+                           candidate.IntentId,
+                           intentId,
+                           StringComparison.OrdinalIgnoreCase));
         }
 
         private void CompileEffects(
@@ -1141,6 +1418,18 @@ public sealed class CombatSimulationEngine
                             effect.MinimumVariableValue,
                             effect.MaximumVariableValue),
                         ParentSequence = parent?.Sequence ?? triggerEvent?.Sequence ?? 0,
+                        CausalChainId = parent?.CausalChainId
+                                        ?? triggerEvent?.CausalChainId
+                                        ?? 0,
+                        HandlerId = parent?.HandlerId
+                                    ?? triggerEvent?.HandlerId
+                                    ?? "",
+                        SourceRewardId = parent?.SourceRewardId
+                                         ?? triggerEvent?.SourceRewardId
+                                         ?? "",
+                        SourceActionId = parent?.SourceActionId
+                                         ?? triggerEvent?.SourceActionId
+                                         ?? State.ActionSequence,
                         TriggerWave = triggerWave,
                         RandomStreamId = chanceDraw?.StreamId ?? targetDraw?.StreamId ?? "",
                         RandomCounter = chanceDraw?.Counter ?? targetDraw?.Counter ?? 0,
@@ -1243,19 +1532,24 @@ public sealed class CombatSimulationEngine
         {
             while (queue.Count > 0 && State.Outcome == CombatSimulationOutcome.None)
             {
+                var pending = queue.Peek();
+                RememberCommand(pending);
                 if (State.CommandCount >= limits.MaximumCommands)
                 {
+                    CaptureCommandFailure("battle-total", pending);
                     Terminate(CombatSimulationOutcome.Invalid, CombatTerminationReason.MaximumCommands);
                     return false;
                 }
                 if (++currentActionCommandCount > limits.MaximumCommandsPerAction)
                 {
+                    CaptureCommandFailure("single-action", pending);
                     Terminate(CombatSimulationOutcome.Invalid, CombatTerminationReason.MaximumCommands);
                     return false;
                 }
                 var command = queue.Dequeue();
                 if (command.TriggerWave > limits.MaximumTriggerWavesPerAction)
                 {
+                    CaptureCommandFailure("trigger-wave", command);
                     Terminate(CombatSimulationOutcome.Invalid, CombatTerminationReason.TriggerLoop);
                     return false;
                 }
@@ -1281,7 +1575,8 @@ public sealed class CombatSimulationEngine
                         }
                     }
                 }
-                foreach (var secondaryCommandEvent in secondaryCommandEvents)
+                foreach (var secondaryCommandEvent in
+                         secondaryCommandEvents.ToArray())
                 {
                     EnqueueCardLifecycleEffects(
                         secondaryCommandEvent,
@@ -1289,10 +1584,183 @@ public sealed class CombatSimulationEngine
                         command.TriggerWave + 1);
                     EnqueueTriggers(secondaryCommandEvent, queue, command.TriggerWave + 1);
                 }
+            }
+            if (queue.Count == 0
+                && State.Outcome == CombatSimulationOutcome.None)
+            {
                 CheckOutcome();
             }
             return State.Outcome == CombatSimulationOutcome.None
                    || State.Outcome == CombatSimulationOutcome.Victory;
+        }
+
+        private void RememberCommand(CombatSimulationCommand command)
+        {
+            recentCommands.Enqueue(CommandDescription(command));
+            while (recentCommands.Count > 16)
+            {
+                recentCommands.Dequeue();
+            }
+        }
+
+        private void CaptureCommandFailure(
+            string scope,
+            CombatSimulationCommand pending)
+        {
+            failureDiagnostics = new CombatSimulationFailureDiagnostics
+            {
+                LimitScope = scope,
+                Turn = State.Turn,
+                ActionSequence = State.ActionSequence,
+                TotalCommandCount = State.CommandCount,
+                ActionCommandCount = currentActionCommandCount,
+                ActionDefinitionId = string.IsNullOrWhiteSpace(
+                    currentActionDefinitionId)
+                    ? !string.IsNullOrWhiteSpace(pending.SourceRewardId)
+                        ? pending.SourceRewardId
+                        : pending.DefinitionId
+                    : currentActionDefinitionId,
+                PendingCommand = CommandDescription(pending),
+                CausalChainId = pending.CausalChainId,
+                HandlerId = pending.HandlerId,
+                SourceRewardId = pending.SourceRewardId,
+                SourceActionId = pending.SourceActionId,
+                RecentCommands = recentCommands.ToList(),
+                StateSummary = BuildFailureStateSummary()
+            };
+        }
+
+        private void CaptureActionFailure()
+        {
+            failureDiagnostics = new CombatSimulationFailureDiagnostics
+            {
+                LimitScope = "battle-actions",
+                Turn = State.Turn,
+                ActionSequence = State.ActionSequence,
+                TotalCommandCount = State.CommandCount,
+                ActionCommandCount = currentActionCommandCount,
+                ActionDefinitionId = currentActionDefinitionId,
+                PendingCommand = "policy-decision",
+                RecentCommands = recentCommands.ToList(),
+                StateSummary = BuildFailureStateSummary()
+            };
+        }
+
+        private void CaptureTerminalDiagnostics(CombatSimulationOutcome outcome)
+        {
+            failureDiagnostics.TerminalOutcome = outcome.ToString();
+            failureDiagnostics.TerminalResolution = terminalResolution.ToString();
+            failureDiagnostics.Turn = State.Turn;
+            failureDiagnostics.ActionSequence = State.ActionSequence;
+            failureDiagnostics.TotalCommandCount = State.CommandCount;
+            failureDiagnostics.ActionCommandCount = currentActionCommandCount;
+            failureDiagnostics.ActionDefinitionId =
+                currentActionDefinitionId;
+            failureDiagnostics.RecentCommands = recentCommands.ToList();
+            failureDiagnostics.RecentEvents = Events
+                .Skip(Math.Max(0, Events.Count - 16))
+                .Select(EventDescription)
+                .ToList();
+            failureDiagnostics.StateSummary = BuildFailureStateSummary();
+        }
+
+        private static string EventDescription(CombatSimulationEvent item)
+        {
+            return item.Sequence
+                   + ":"
+                   + item.Kind
+                   + ":source="
+                   + item.SourceActorId
+                   + ":target="
+                   + item.TargetActorId
+                   + ":definition="
+                   + (item.DefinitionId ?? "")
+                   + ":amount="
+                   + item.Amount
+                   + ":message="
+                   + (item.Message ?? "");
+        }
+
+        private List<string> BuildFailureStateSummary()
+        {
+            var result = new List<string>
+            {
+                "zones:hand="
+                + State.Hand.Count
+                + ",draw="
+                + State.DrawPile.Count
+                + ",discard="
+                + State.DiscardPile.Count
+                + ",exhaust="
+                + State.ExhaustPile.Count
+            };
+            foreach (var actor in State.Actors.OrderBy(item => item.ActorId))
+            {
+                result.Add(
+                    "actor:"
+                    + actor.ActorId
+                    + ":"
+                    + actor.DefinitionId
+                    + ":hp="
+                    + actor.Hp
+                    + "/"
+                    + actor.MaxHp
+                    + ":energy="
+                    + actor.Energy
+                    + ":intent="
+                    + actor.CurrentIntentId
+                    + ":statuses="
+                    + string.Join(
+                        ",",
+                        actor.Statuses.Select(status =>
+                            status.StatusId + "=" + status.Stacks)));
+            }
+            foreach (var instanceId in State.Hand)
+            {
+                var card = State.FindCard(instanceId);
+                if (card == null)
+                {
+                    continue;
+                }
+                result.Add(
+                    "hand:"
+                    + card.InstanceId
+                    + ":"
+                    + card.CardId
+                    + ":apparent="
+                    + card.ApparentCardId
+                    + ":cost="
+                    + card.CostModifier
+                    + ":fake="
+                    + card.IsVisibleFake
+                    + ":tags="
+                    + string.Join(",", card.Tags));
+            }
+            return result;
+        }
+
+        private static string CommandDescription(
+            CombatSimulationCommand command)
+        {
+            return command.Kind
+                   + ":"
+                   + (command.DefinitionId ?? "")
+                   + ":source="
+                   + command.SourceActorId
+                   + ":target="
+                   + command.TargetActorId
+                   + ":card="
+                   + command.CardInstanceId
+                   + ":wave="
+                   + command.TriggerWave
+                   + ":chain="
+                   + command.CausalChainId
+                   + ":handler="
+                   + (command.HandlerId ?? "")
+                   + ":reward="
+                   + (command.SourceRewardId ?? "")
+                   + ":action="
+                   + command.SourceActionId;
         }
 
         private CombatSimulationEvent? ExecuteCommand(CombatSimulationCommand command)
@@ -1355,6 +1823,7 @@ public sealed class CombatSimulationEngine
                         command,
                         hpDamage,
                         beforeHash);
+                    damageEvent.Message = command.Kind.ToString();
                     if (target.Hp <= 0)
                     {
                         secondaryCommandEvents.Add(Emit(
@@ -1611,11 +2080,11 @@ public sealed class CombatSimulationEngine
                                                    command.RequiredCardTag)))
                         .Select(instance => instance!)
                         .OrderByDescending(instance =>
-                            ruleset.TryGetCardCore(instance.CardId, out var definition)
+                            TryGetEffectiveCardCore(ruleset, instance, out var definition)
                                 ? definition.Rarity
                                 : 0)
                         .ThenBy(instance =>
-                            ruleset.TryGetCardCore(instance.CardId, out var definition)
+                            TryGetEffectiveCardCore(ruleset, instance, out var definition)
                                 ? definition.Cost + instance.CostModifier
                                 : int.MaxValue)
                         .ThenBy(instance => instance.CardId, StringComparer.Ordinal)
@@ -1748,9 +2217,10 @@ public sealed class CombatSimulationEngine
                 }
 
                 case CombatSimulationEffectKind.WinBattle:
-                    Terminate(
+                    TerminateCore(
                         CombatSimulationOutcome.Victory,
-                        CombatTerminationReason.Victory);
+                        CombatTerminationReason.Victory,
+                        explicitRule: true);
                     return null;
 
                 case CombatSimulationEffectKind.EmitEvent:
@@ -1770,8 +2240,16 @@ public sealed class CombatSimulationEngine
                         beforeHash);
 
                 case CombatSimulationEffectKind.AddStatus:
-                    if (target == null || !target.Alive
-                        || !ruleset.TryGetStatusCore(command.DefinitionId, out var statusDefinition))
+                    if (target == null || !target.Alive)
+                    {
+                        // A prior command in the same authoritative effect
+                        // queue may have defeated the target. Native gameplay
+                        // treats the remaining status mutation as a no-op.
+                        return null;
+                    }
+                    if (!ruleset.TryGetStatusCore(
+                            command.DefinitionId,
+                            out var statusDefinition))
                     {
                         AddUnsupported("status:" + command.DefinitionId);
                         Terminate(CombatSimulationOutcome.Invalid, CombatTerminationReason.UnsupportedRule);
@@ -2108,6 +2586,7 @@ public sealed class CombatSimulationEngine
             Queue<CombatSimulationCommand> queue,
             int wave)
         {
+            NotifyExtension(sourceEvent);
             var matches = new List<TriggerMatch>();
             foreach (var actor in State.Actors
                          .Where(actor => actor.Alive
@@ -2140,6 +2619,11 @@ public sealed class CombatSimulationEngine
                                 && !string.Equals(
                                     trigger.RequiredDefinitionId,
                                     sourceEvent.DefinitionId,
+                                    StringComparison.OrdinalIgnoreCase))
+                            || (!string.IsNullOrWhiteSpace(trigger.RequiredEventMessage)
+                                && !string.Equals(
+                                    trigger.RequiredEventMessage,
+                                    sourceEvent.Message,
                                     StringComparison.OrdinalIgnoreCase))
                             || (!string.IsNullOrWhiteSpace(trigger.RequiredActionTag)
                                 && !EventHasActionTag(
@@ -2267,15 +2751,14 @@ public sealed class CombatSimulationEngine
                     break;
                 }
                 var instanceId = State.DrawPile[State.DrawPile.Count - 1];
-                State.DrawPile.RemoveAt(State.DrawPile.Count - 1);
-                State.Hand.Add(instanceId);
+                MoveCardToZone(instanceId, CombatCardZone.Hand);
                 metrics.CardsDrawn++;
                 var card = State.FindCard(instanceId);
                 if (!ProcessLifecycleEvent(
                         CombatSimulationEventKind.CardDrawn,
                         actorId,
                         actorId,
-                        card?.CardId ?? "",
+                        card == null ? "" : EffectiveCardDefinitionId(card),
                         1,
                         instanceId,
                         parentSequence,
@@ -2292,18 +2775,25 @@ public sealed class CombatSimulationEngine
             {
                 var card = State.FindCard(instanceId);
                 if (card != null
-                    && ruleset.TryGetCardCore(card.CardId, out var definition)
+                    && TryGetEffectiveCardCore(ruleset, card, out var definition)
                     && HasTag(card, definition, "Retain"))
                 {
                     continue;
                 }
-                State.Hand.Remove(instanceId);
-                State.DiscardPile.Add(instanceId);
+                if (!State.Hand.Contains(instanceId))
+                {
+                    // A prior discard lifecycle callback may have moved a
+                    // later card from this hand snapshot to another zone.
+                    continue;
+                }
+                MoveCardToZone(instanceId, CombatCardZone.DiscardPile);
                 if (!ProcessLifecycleEvent(
                         CombatSimulationEventKind.CardDiscarded,
                         actorId,
                         actorId,
-                        State.FindCard(instanceId)?.CardId ?? "",
+                        State.FindCard(instanceId) is { } discarded
+                            ? EffectiveCardDefinitionId(discarded)
+                            : "",
                         1,
                         instanceId,
                         0,
@@ -2325,7 +2815,8 @@ public sealed class CombatSimulationEngine
                 return;
             }
             var card = State.FindCard(sourceEvent.CardInstanceId);
-            if (card == null || !ruleset.TryGetCardCore(card.CardId, out var definition))
+            if (card == null
+                || !TryGetEffectiveCardCore(ruleset, card, out var definition))
             {
                 return;
             }
@@ -2362,18 +2853,19 @@ public sealed class CombatSimulationEngine
             if (source?.Kind == CombatSimulationActorKind.Enemy
                 && ruleset.TryGetEnemyCore(source.DefinitionId, out var enemy))
             {
-                var intent = enemy.Intents.FirstOrDefault(candidate =>
-                    string.Equals(
-                        candidate.IntentId,
-                        sourceEvent.DefinitionId,
-                        StringComparison.OrdinalIgnoreCase));
+                var intent = ResolveEnemyIntent(
+                    enemy,
+                    sourceEvent.DefinitionId);
                 return intent != null && intent.Tags.Contains(
                     actionTag,
                     StringComparer.OrdinalIgnoreCase);
             }
             var instance = State.FindCard(sourceEvent.CardInstanceId);
             if (instance != null
-                && ruleset.TryGetCardCore(instance.CardId, out var instanceDefinition))
+                && TryGetEffectiveCardCore(
+                    ruleset,
+                    instance,
+                    out var instanceDefinition))
             {
                 return HasTag(instance, instanceDefinition, actionTag);
             }
@@ -2397,7 +2889,7 @@ public sealed class CombatSimulationEngine
                 case CombatStatusCounterIncrementMode.HandTagCount:
                     return State.Hand.Count(instanceId =>
                         State.FindCard(instanceId) is { } instance
-                        && ruleset.TryGetCardCore(instance.CardId, out var card)
+                        && TryGetEffectiveCardCore(ruleset, instance, out var card)
                         && HasTag(instance, card, trigger.CounterFilter))
                            * trigger.CounterIncrement;
                 case CombatStatusCounterIncrementMode.StatusTagStacks:
@@ -2509,7 +3001,7 @@ public sealed class CombatSimulationEngine
             {
                 var card = State.FindCard(instanceId);
                 if (card != null
-                    && ruleset.TryGetCardCore(card.CardId, out var definition)
+                    && TryGetEffectiveCardCore(ruleset, card, out var definition)
                     && HasTag(card, definition, "Inherent"))
                 {
                     inherent.Add(instanceId);
@@ -2535,6 +3027,17 @@ public sealed class CombatSimulationEngine
             };
         }
 
+        private void MoveCardToZone(
+            int instanceId,
+            CombatCardZone destination)
+        {
+            State.DrawPile.RemoveAll(item => item == instanceId);
+            State.Hand.RemoveAll(item => item == instanceId);
+            State.DiscardPile.RemoveAll(item => item == instanceId);
+            State.ExhaustPile.RemoveAll(item => item == instanceId);
+            CardZone(destination).Add(instanceId);
+        }
+
         private static bool HasTag(
             CombatCardInstanceState? instance,
             CombatCardDefinition definition,
@@ -2543,6 +3046,24 @@ public sealed class CombatSimulationEngine
             return (instance?.Tags.Contains(tag, StringComparer.OrdinalIgnoreCase) ?? false)
                    || definition.Tags.Any(candidate =>
                        string.Equals(candidate, tag, StringComparison.OrdinalIgnoreCase));
+        }
+
+        private static bool TryGetEffectiveCardCore(
+            CombatRuleset ruleset,
+            CombatCardInstanceState instance,
+            out CombatCardDefinition definition)
+        {
+            return ruleset.TryGetCardCore(
+                EffectiveCardDefinitionId(instance),
+                out definition);
+        }
+
+        private static string EffectiveCardDefinitionId(
+            CombatCardInstanceState instance)
+        {
+            return string.IsNullOrWhiteSpace(instance.ApparentCardId)
+                ? instance.CardId
+                : instance.ApparentCardId;
         }
 
         private void RandomMoveFromHand(
@@ -2559,15 +3080,7 @@ public sealed class CombatSimulationEngine
                     out var draw);
                 TraceRandomDraw(draw, destination.ToString());
                 var instanceId = State.Hand[index];
-                State.Hand.RemoveAt(index);
-                if (destination == CombatCardZone.ExhaustPile)
-                {
-                    State.ExhaustPile.Add(instanceId);
-                }
-                else
-                {
-                    State.DiscardPile.Add(instanceId);
-                }
+                MoveCardToZone(instanceId, destination);
                 secondaryCommandEvents.Add(Emit(
                     destination == CombatCardZone.ExhaustPile
                         ? CombatSimulationEventKind.CardExhausted
@@ -2575,7 +3088,9 @@ public sealed class CombatSimulationEngine
                     command.SourceActorId,
                     command.TargetActorId,
                     instanceId,
-                    State.FindCard(instanceId)?.CardId ?? "",
+                    State.FindCard(instanceId) is { } moved
+                        ? EffectiveCardDefinitionId(moved)
+                        : "",
                     1,
                     command.ParentSequence,
                     draw));
@@ -2715,12 +3230,60 @@ public sealed class CombatSimulationEngine
             var player = State.Player;
             if (player == null || !player.Alive)
             {
-                Terminate(CombatSimulationOutcome.Defeat, CombatTerminationReason.Defeat);
+                TerminateCore(
+                    CombatSimulationOutcome.Defeat,
+                    CombatTerminationReason.Defeat,
+                    explicitRule: false);
             }
             else if (!State.LivingEnemies.Any())
             {
-                Terminate(CombatSimulationOutcome.Victory, CombatTerminationReason.Victory);
+                TerminateCore(
+                    CombatSimulationOutcome.Victory,
+                    CombatTerminationReason.Victory,
+                    explicitRule: false);
             }
+        }
+
+        private void CaptureTerminalState(
+            CombatSimulationOutcome outcome,
+            bool explicitRule)
+        {
+            if (terminalStateCaptured)
+            {
+                return;
+            }
+            terminalStateCaptured = true;
+            var playerAlive = State.Player?.Alive == true;
+            var livingEnemies = State.LivingEnemies.Count();
+            terminalPlayerHp = State.Player?.Hp ?? 0;
+            terminalLivingEnemyCount = livingEnemies;
+            if (explicitRule
+                || outcome == CombatSimulationOutcome.None
+                || outcome == CombatSimulationOutcome.Draw
+                || outcome == CombatSimulationOutcome.Invalid)
+            {
+                return;
+            }
+            var consistent = outcome switch
+            {
+                CombatSimulationOutcome.Defeat => !playerAlive,
+                CombatSimulationOutcome.Victory => playerAlive && livingEnemies == 0,
+                _ => true
+            };
+            if (consistent)
+            {
+                return;
+            }
+            terminalConsistencyValid = false;
+            terminalConsistencyReason =
+                "outcome="
+                + outcome
+                + ",playerAlive="
+                + playerAlive
+                + ",livingEnemies="
+                + livingEnemies;
+            AddUnsupported(
+                "terminal-consistency:" + terminalConsistencyReason);
         }
 
         private void ApplyDeferredVictoryVariableChanges()
@@ -2796,18 +3359,63 @@ public sealed class CombatSimulationEngine
                 .Concat(State.DiscardPile)
                 .Concat(State.ExhaustPile)
                 .ToList();
-            var valid = zones.Count == State.Cards.Count
-                        && zones.Distinct().Count() == zones.Count
-                        && State.Actors.Select(actor => actor.ActorId).Distinct().Count() == State.Actors.Count
-                        && State.Cards.Select(card => card.InstanceId).Distinct().Count() == State.Cards.Count
-                        && State.Actors.All(actor =>
-                            actor.Hp >= 0
-                            && actor.Hp <= actor.MaxHp
-                            && actor.Block >= 0
-                            && actor.Energy >= 0);
+            var zoneCountValid = zones.Count == State.Cards.Count;
+            var zonesDistinct = zones.Distinct().Count() == zones.Count;
+            var actorIdsDistinct =
+                State.Actors.Select(actor => actor.ActorId).Distinct().Count()
+                == State.Actors.Count;
+            var cardIdsDistinct =
+                State.Cards.Select(card => card.InstanceId).Distinct().Count()
+                == State.Cards.Count;
+            var invalidActors = State.Actors
+                .Where(actor =>
+                    actor.Hp < 0
+                    || actor.Hp > actor.MaxHp
+                    || actor.Block < 0
+                    || actor.Energy < 0)
+                .ToList();
+            var valid = zoneCountValid
+                        && zonesDistinct
+                        && actorIdsDistinct
+                        && cardIdsDistinct
+                        && invalidActors.Count == 0;
             if (!valid)
             {
                 AddUnsupported("state-invariant");
+                if (!zoneCountValid)
+                {
+                    AddUnsupported(
+                        "state-invariant:zone-count:"
+                        + zones.Count
+                        + "/"
+                        + State.Cards.Count);
+                }
+                if (!zonesDistinct)
+                {
+                    AddUnsupported("state-invariant:duplicate-zone-card");
+                }
+                if (!actorIdsDistinct)
+                {
+                    AddUnsupported("state-invariant:duplicate-actor-id");
+                }
+                if (!cardIdsDistinct)
+                {
+                    AddUnsupported("state-invariant:duplicate-card-id");
+                }
+                foreach (var actor in invalidActors)
+                {
+                    AddUnsupported(
+                        "state-invariant:actor:"
+                        + actor.ActorId
+                        + ":hp="
+                        + actor.Hp
+                        + "/"
+                        + actor.MaxHp
+                        + ":block="
+                        + actor.Block
+                        + ":energy="
+                        + actor.Energy);
+                }
                 Terminate(CombatSimulationOutcome.Invalid, CombatTerminationReason.EngineError);
             }
             return valid;
@@ -2845,7 +3453,11 @@ public sealed class CombatSimulationEngine
                 amount,
                 command.ParentSequence,
                 draw,
-                beforeHash);
+                beforeHash,
+                command.CausalChainId,
+                command.HandlerId,
+                command.SourceRewardId,
+                command.SourceActionId);
         }
 
         private CombatSimulationEvent Emit(
@@ -2857,7 +3469,11 @@ public sealed class CombatSimulationEngine
             int amount,
             long parentSequence = 0,
             CombatRandomDraw? randomDraw = null,
-            string? beforeStateHash = null)
+            string? beforeStateHash = null,
+            long causalChainId = 0,
+            string? handlerId = null,
+            string? sourceRewardId = null,
+            long sourceActionId = 0)
         {
             var captureHashes = scenario.TraceLevel == CombatSimulationTraceLevel.Full;
             var beforeHash = captureHashes
@@ -2868,6 +3484,16 @@ public sealed class CombatSimulationEngine
             {
                 Sequence = State.EventSequence,
                 ParentSequence = parentSequence,
+                CausalChainId = causalChainId > 0
+                    ? causalChainId
+                    : parentSequence > 0
+                        ? parentSequence
+                        : State.EventSequence,
+                HandlerId = handlerId ?? "",
+                SourceRewardId = sourceRewardId ?? "",
+                SourceActionId = sourceActionId > 0
+                    ? sourceActionId
+                    : State.ActionSequence,
                 Turn = State.Turn,
                 Phase = State.Phase,
                 Kind = kind,
@@ -2925,6 +3551,97 @@ public sealed class CombatSimulationEngine
                 0,
                 draw);
             item.Message = message;
+        }
+
+        CombatScenarioDefinition ICombatSimulationRuntimeContext.Scenario => scenario;
+
+        CombatRuleset ICombatSimulationRuntimeContext.Ruleset => ruleset;
+
+        void ICombatSimulationRuntimeContext.ApplyEffects(
+            IEnumerable<CombatSimulationEffectDefinition> effects,
+            int sourceActorId,
+            int selectedTargetId,
+            CombatSimulationEvent? sourceEvent)
+        {
+            if (effects == null || State.Outcome != CombatSimulationOutcome.None)
+            {
+                return;
+            }
+            var queue = new Queue<CombatSimulationCommand>();
+            CompileEffects(
+                effects,
+                sourceActorId,
+                selectedTargetId,
+                sourceEvent?.CardInstanceId ?? 0,
+                sourceEvent,
+                sourceEvent,
+                1,
+                queue);
+            ExecuteQueue(queue);
+        }
+
+        int ICombatSimulationRuntimeContext.NextRandomInt(
+            string streamId,
+            int exclusiveMaximum)
+        {
+            if (exclusiveMaximum <= 0)
+            {
+                return 0;
+            }
+            var value = CombatDeterministicRandom.NextInt(
+                scenario.Seed,
+                State.Random,
+                "extension:" + (streamId ?? ""),
+                exclusiveMaximum,
+                out var draw);
+            TraceRandomDraw(draw, "runtime extension");
+            return value;
+        }
+
+        void ICombatSimulationRuntimeContext.RecordRewardMutation(
+            string operation,
+            string kind,
+            string rewardId)
+        {
+            if (string.IsNullOrWhiteSpace(operation)
+                || string.IsNullOrWhiteSpace(kind)
+                || string.IsNullOrWhiteSpace(rewardId))
+            {
+                return;
+            }
+            rewardMutations.Add(new CombatSimulationRewardMutation
+            {
+                Operation = operation,
+                Kind = kind,
+                RewardId = rewardId
+            });
+        }
+
+        void ICombatSimulationRuntimeContext.Terminate(
+            CombatSimulationOutcome outcome,
+            CombatTerminationReason reason)
+        {
+            TerminateCore(outcome, reason, explicitRule: true);
+        }
+
+        private void NotifyExtension(CombatSimulationEvent sourceEvent)
+        {
+            if (extension == null
+                || !extensionEventSequences.Add(sourceEvent.Sequence))
+            {
+                return;
+            }
+            extension.OnEvent(this, sourceEvent);
+        }
+
+        private void CompleteExtension()
+        {
+            if (extension == null || !extensionInitialized || extensionCompleted)
+            {
+                return;
+            }
+            extensionCompleted = true;
+            extension.Complete(this);
         }
 
         private sealed class TriggerMatch

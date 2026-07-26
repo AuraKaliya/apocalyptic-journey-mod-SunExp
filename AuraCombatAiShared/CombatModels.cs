@@ -222,6 +222,10 @@ public sealed class CombatActionSemantics
 
     public double DamageOverTime { get; set; }
 
+    public double SelfHpLoss { get; set; }
+
+    public double EndOfCycleSelfHpLoss { get; set; }
+
     public double HitCount { get; set; } = 1d;
 
     public double Defend { get; set; }
@@ -387,6 +391,14 @@ public sealed class CombatDecisionProfile
 
     public double DeathRiskLimit { get; set; } = 0.05d;
 
+    public int LoopMaximumCertifiedCycles { get; set; } = 32;
+
+    public int LoopLimitDamageMaximumCycles { get; set; } = 8;
+
+    public double LoopMinimumEffectiveProgress { get; set; } = 1d;
+
+    public double LoopMinimumHpReserveRatio { get; set; } = 0.05d;
+
     public double TailRiskPenalty { get; set; } = 35d;
 
     public double UncertaintyPenalty { get; set; } = 0.75d;
@@ -473,6 +485,14 @@ public sealed class CombatDecision
     public int SearchTranspositionHits { get; set; }
 
     public bool SearchStoppedEarly { get; set; }
+
+    public int CertifiedLoops { get; set; }
+
+    public int SustainableControlLoops { get; set; }
+
+    public int FakeLoops { get; set; }
+
+    public int BlockedLoops { get; set; }
 
     public string SearchAlgorithm { get; set; } = "";
 }
