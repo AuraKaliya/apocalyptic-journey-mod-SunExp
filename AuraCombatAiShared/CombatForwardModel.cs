@@ -63,16 +63,31 @@ public sealed class CombatSimulationState
 
     public CombatSimulationState Clone()
     {
+        return CloneForTransition(
+            cloneCardPiles: true,
+            cloneFeatures: true,
+            cloneThreats: true);
+    }
+
+    internal CombatSimulationState CloneForTransition(
+        bool cloneCardPiles,
+        bool cloneFeatures,
+        bool cloneThreats = false)
+    {
         var enemies = new CombatSimulationUnit[Enemies.Length];
         for (var i = 0; i < enemies.Length; i++)
         {
             enemies[i] = Enemies[i].Clone();
         }
 
-        var threats = new CombatSimulationThreat[Threats.Length];
-        for (var i = 0; i < threats.Length; i++)
+        var threats = Threats;
+        if (cloneThreats)
         {
-            threats[i] = Threats[i].Clone();
+            threats = new CombatSimulationThreat[Threats.Length];
+            for (var i = 0; i < threats.Length; i++)
+            {
+                threats[i] = Threats[i].Clone();
+            }
         }
 
         return new CombatSimulationState
@@ -86,17 +101,31 @@ public sealed class CombatSimulationState
             HandCount = HandCount,
             HandLimit = HandLimit,
             CostReduction = CostReduction,
-            HandCardValues = new List<double>(HandCardValues),
-            RetainedHandCardValues = new List<double>(RetainedHandCardValues),
-            DrawPileValues = new List<double>(DrawPileValues),
-            DiscardPileValues = new List<double>(DiscardPileValues),
-            ExhaustPileValues = new List<double>(ExhaustPileValues),
+            HandCardValues = cloneCardPiles
+                ? new List<double>(HandCardValues)
+                : HandCardValues,
+            RetainedHandCardValues = cloneCardPiles
+                ? new List<double>(RetainedHandCardValues)
+                : RetainedHandCardValues,
+            DrawPileValues = cloneCardPiles
+                ? new List<double>(DrawPileValues)
+                : DrawPileValues,
+            DiscardPileValues = cloneCardPiles
+                ? new List<double>(DiscardPileValues)
+                : DiscardPileValues,
+            ExhaustPileValues = cloneCardPiles
+                ? new List<double>(ExhaustPileValues)
+                : ExhaustPileValues,
             DrawPileKnown = DrawPileKnown,
             DrawnCardPotential = DrawnCardPotential,
             SetupValue = SetupValue,
             PersistentValue = PersistentValue,
             DamageMultiplier = DamageMultiplier,
-            Features = new Dictionary<string, double>(Features, StringComparer.OrdinalIgnoreCase),
+            Features = cloneFeatures
+                ? new Dictionary<string, double>(
+                    Features,
+                    StringComparer.OrdinalIgnoreCase)
+                : Features,
             Uncertainty = Uncertainty,
             Enemies = enemies,
             Threats = threats,
@@ -264,6 +293,7 @@ public sealed class CombatSimulationState
                 Mix(ref hash, Enemies[i].RuntimeId);
                 Mix(ref hash, Enemies[i].Hp);
                 Mix(ref hash, Enemies[i].Defend);
+                MixFeatures(ref hash, Enemies[i].Features);
             }
             for (var i = 0; i < UsedActionWords.Length; i++)
             {
@@ -271,6 +301,67 @@ public sealed class CombatSimulationState
                 hash *= 1099511628211UL;
             }
             return hash;
+        }
+    }
+
+    public ulong CycleHash()
+    {
+        unchecked
+        {
+            var hash = 1469598103934665603UL;
+            Mix(ref hash, PlayerDefend);
+            Mix(ref hash, Power);
+            Mix(ref hash, HandCount);
+            Mix(ref hash, CostReduction);
+            Mix(ref hash, Turn);
+            Mix(ref hash, Quantize(SetupValue));
+            Mix(ref hash, Quantize(PersistentValue));
+            Mix(ref hash, Quantize(DamageMultiplier));
+            Mix(ref hash, Quantize(DrawnCardPotential));
+            Mix(ref hash, DrawPileKnown ? 1 : 0);
+            for (var i = 0; i < HandCardValues.Count; i++)
+            {
+                Mix(ref hash, Quantize(HandCardValues[i]));
+            }
+            for (var i = 0; i < RetainedHandCardValues.Count; i++)
+            {
+                Mix(ref hash, Quantize(RetainedHandCardValues[i]));
+            }
+            for (var i = 0; i < DrawPileValues.Count; i++)
+            {
+                Mix(ref hash, Quantize(DrawPileValues[i]));
+            }
+            for (var i = 0; i < DiscardPileValues.Count; i++)
+            {
+                Mix(ref hash, Quantize(DiscardPileValues[i]));
+            }
+            for (var i = 0; i < ExhaustPileValues.Count; i++)
+            {
+                Mix(ref hash, Quantize(ExhaustPileValues[i]));
+            }
+            MixFeatures(ref hash, Features);
+            for (var i = 0; i < Enemies.Length; i++)
+            {
+                Mix(ref hash, Enemies[i].RuntimeId);
+                MixFeatures(ref hash, Enemies[i].Features);
+            }
+            return hash;
+        }
+    }
+
+    private static void MixFeatures(
+        ref ulong hash,
+        IReadOnlyDictionary<string, double> features)
+    {
+        foreach (var pair in features.OrderBy(
+                     pair => pair.Key,
+                     StringComparer.Ordinal))
+        {
+            foreach (var character in pair.Key)
+            {
+                Mix(ref hash, character);
+            }
+            Mix(ref hash, Quantize(pair.Value));
         }
     }
 
@@ -307,9 +398,21 @@ public sealed class CombatSimulationUnit
 
     public int Defend { get; set; }
 
+    public Dictionary<string, double> Features { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public CombatSimulationUnit Clone()
     {
-        return (CombatSimulationUnit)MemberwiseClone();
+        return new CombatSimulationUnit
+        {
+            RuntimeId = RuntimeId,
+            Hp = Hp,
+            MaxHp = MaxHp,
+            Defend = Defend,
+            Features = new Dictionary<string, double>(
+                Features,
+                StringComparer.OrdinalIgnoreCase)
+        };
     }
 }
 
@@ -378,7 +481,10 @@ public static class CombatForwardModel
                 RuntimeId = enemy.RuntimeId,
                 Hp = enemy.CurrentHp,
                 MaxHp = enemy.MaxHp,
-                Defend = enemy.Defend
+                Defend = enemy.Defend,
+                Features = new Dictionary<string, double>(
+                    enemy.Features,
+                    StringComparer.OrdinalIgnoreCase)
             }).ToArray(),
             Threats = threats,
             Turn = state.Features.TryGetValue("turn", out var turn)
@@ -436,7 +542,18 @@ public static class CombatForwardModel
         CombatActionOutcome outcome,
         CombatDecisionProfile profile)
     {
-        var state = source.Clone();
+        var stateChanges = action.Semantics?.StateChanges;
+        var mutatesCardPiles = action.Kind == CombatActionKind.PlayCard;
+        for (var effectIndex = 0;
+             !mutatesCardPiles && effectIndex < outcome.Effects.Count;
+             effectIndex++)
+        {
+            mutatesCardPiles =
+                outcome.Effects[effectIndex].Kind == CombatEffectKind.Draw;
+        }
+        var state = source.CloneForTransition(
+            mutatesCardPiles,
+            stateChanges != null && stateChanges.Count > 0);
         var effectiveCost = Math.Max(0, action.Cost - state.CostReduction);
         var reductionSpent = Math.Min(Math.Max(0, action.Cost), state.CostReduction);
         state.CostReduction = Math.Max(0, state.CostReduction - reductionSpent);
@@ -478,10 +595,23 @@ public static class CombatForwardModel
         {
             ApplyEffect(state, outcome.Effects[i], action.TargetRuntimeId);
         }
-        foreach (var pair in action.Semantics?.StateChanges
-                     ?? new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase))
+        var selfHpLoss = Math.Max(
+            0d,
+            (action.Semantics?.SelfHpLoss ?? 0d)
+            + (action.Semantics?.EndOfCycleSelfHpLoss ?? 0d));
+        if (selfHpLoss > 0d)
         {
-            state.Features[pair.Key] = Value(state.Features, pair.Key) + pair.Value;
+            state.PlayerHp = Math.Max(
+                0,
+                state.PlayerHp
+                - Math.Max(0, (int)Math.Ceiling(selfHpLoss)));
+        }
+        if (stateChanges != null)
+        {
+            foreach (var pair in stateChanges)
+            {
+                state.Features[pair.Key] = Value(state.Features, pair.Key) + pair.Value;
+            }
         }
         state.Uncertainty += Math.Max(0d, 1d - Math.Min(1d, outcome.Probability))
                              * profile.UncertaintyPenalty;
@@ -492,7 +622,9 @@ public static class CombatForwardModel
         CombatSimulationState source,
         CombatDecisionProfile profile)
     {
-        var state = source.Clone();
+        var state = source.CloneForTransition(
+            cloneCardPiles: true,
+            cloneFeatures: false);
         var blockable = state.ActiveBlockableThreat(profile.ThreatRiskTolerance);
         var unavoidable = 0d;
         for (var i = 0; i < state.Threats.Length; i++)

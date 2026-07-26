@@ -239,6 +239,15 @@ public static class CombatScenarioCloner
             MovePlayedCardAfterResolution = source.MovePlayedCardAfterResolution,
             InitialDiscardCards = new List<string>(source.InitialDiscardCards),
             DirectHpLossAfterPlayerCard = source.DirectHpLossAfterPlayerCard,
+            RewardRules = source.RewardRules
+                .Select(item => item.Clone())
+                .ToList(),
+            RewardCatalog = source.RewardCatalog
+                .Select(item => item.Clone())
+                .ToList(),
+            CampaignVariables = new Dictionary<string, string>(
+                source.CampaignVariables,
+                StringComparer.OrdinalIgnoreCase),
             RequireAuthoritativeRules = source.RequireAuthoritativeRules,
             TraceLevel = source.TraceLevel,
             Limits = (source.Limits ?? new CombatSimulationLimits()).Normalize()

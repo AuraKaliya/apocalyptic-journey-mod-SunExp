@@ -50,12 +50,17 @@ $presenterPath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraTools
 $interactionPath = Join-Path $root "AuraCombatAiShared\GameApi\WitchCombatInteractionRuntime.cs"
 $runtimePath = Join-Path $root "AuraCombatAiShared\GameApi\WitchCombatRuntime.cs"
 $plannerPath = Join-Path $root "AuraCombatAiShared\CombatChancePuctPlanner.cs"
+$loopSafetyPath = Join-Path $root "AuraCombatAiShared\CombatLoopSafetyAnalyzer.cs"
 $forwardModelPath = Join-Path $root "AuraCombatAiShared\CombatForwardModel.cs"
+$searchProjectorPath = Join-Path $root "AuraCombatAiShared\CombatSearchFeatureProjector.cs"
+$batchTrainerPath = Join-Path $root "AuraCombatAiShared\CombatPolicyValueBatchTrainer.cs"
+$workerContractsPath = Join-Path $root "AuraCombatAiShared\CombatFoundationWorkerContracts.cs"
 $registryPath = Join-Path $root "AuraCombatAiShared\CombatAiRegistry.cs"
 $guidancePath = Join-Path $root "AuraCombatAiShared\CombatSearchGuidance.cs"
 $simulationEnginePath = Join-Path $root "AuraCombatSimulationShared\CombatSimulationEngine.cs"
 $simulationModelsPath = Join-Path $root "AuraCombatSimulationShared\CombatSimulationModels.cs"
 $simulationBatchPath = Join-Path $root "AuraCombatSimulationShared\CombatBatchRunner.cs"
+$campaignSimulationPath = Join-Path $root "AuraCombatSimulationShared\CombatCampaignSimulation.cs"
 $journeySimulationPath = Join-Path $root "AuraCombatSimulationShared\CombatJourneySimulation.cs"
 $journeyTrainingPath = Join-Path $root "AuraCombatSimulationShared\CombatJourneyTraining.cs"
 $simulationRegistryPath = Join-Path $root "AuraCombatSimulationShared\CombatSimulationRegistry.cs"
@@ -67,7 +72,14 @@ $liveEpisodeAssemblerPath = Join-Path $root "AuraCombatAiShared\CombatLiveEpisod
 $journeyProjectionPath = Join-Path $root "AuraCombatAiShared\CombatJourneyTrainingProjection.cs"
 $policyValuePath = Join-Path $root "AuraCombatAiShared\CombatPolicyValueNetwork.cs"
 $evolutionPath = Join-Path $root "AuraCombatAiShared\CombatPolicyEvolution.cs"
+$foundationTrainingPath = Join-Path $root "AuraCombatAiShared\CombatCampaignFoundationTraining.cs"
+$foundationStrategyPath = Join-Path $root "AuraCombatAiShared\CombatFoundationTrainingStrategy.cs"
 $simulationUiRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleSimulationRuntime.cs"
+$foundationRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleFoundationRuntime.cs"
+$foundationWorkerRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsFoundationWorkerRuntime.cs"
+$foundationWorkerProjectPath = Join-Path $root "AuraFoundationTrainer.Worker\AuraFoundationTrainer.Worker.csproj"
+$nativeRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsNativeRewardSimulationRuntime.cs"
+$nativeProgramsPath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\Generated\AuraToolsNativePrograms.g.cs"
 $modelUiRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleModelRuntime.cs"
 $journeyUiRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleJourneyRuntime.cs"
 $settingsUiRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\Settings\AuraToolsSettingsRuntime.cs"
@@ -78,12 +90,17 @@ $presenter = Get-Content -LiteralPath $presenterPath -Raw
 $interaction = Get-Content -LiteralPath $interactionPath -Raw
 $runtime = Get-Content -LiteralPath $runtimePath -Raw
 $planner = Get-Content -LiteralPath $plannerPath -Raw
+$loopSafety = Get-Content -LiteralPath $loopSafetyPath -Raw
 $forwardModel = Get-Content -LiteralPath $forwardModelPath -Raw
+$searchProjector = Get-Content -LiteralPath $searchProjectorPath -Raw
+$batchTrainer = Get-Content -LiteralPath $batchTrainerPath -Raw
+$workerContracts = Get-Content -LiteralPath $workerContractsPath -Raw
 $registry = Get-Content -LiteralPath $registryPath -Raw
 $guidance = Get-Content -LiteralPath $guidancePath -Raw
 $simulationEngine = Get-Content -LiteralPath $simulationEnginePath -Raw
 $simulationModels = Get-Content -LiteralPath $simulationModelsPath -Raw
 $simulationBatch = Get-Content -LiteralPath $simulationBatchPath -Raw
+$campaignSimulation = Get-Content -LiteralPath $campaignSimulationPath -Raw
 $journeySimulation = Get-Content -LiteralPath $journeySimulationPath -Raw
 $journeyTraining = Get-Content -LiteralPath $journeyTrainingPath -Raw
 $simulationRegistry = Get-Content -LiteralPath $simulationRegistryPath -Raw
@@ -95,7 +112,14 @@ $liveEpisodeAssembler = Get-Content -LiteralPath $liveEpisodeAssemblerPath -Raw
 $journeyProjection = Get-Content -LiteralPath $journeyProjectionPath -Raw
 $policyValue = Get-Content -LiteralPath $policyValuePath -Raw
 $evolution = Get-Content -LiteralPath $evolutionPath -Raw
+$foundationTraining = Get-Content -LiteralPath $foundationTrainingPath -Raw
+$foundationStrategy = Get-Content -LiteralPath $foundationStrategyPath -Raw
 $simulationUiRuntime = Get-Content -LiteralPath $simulationUiRuntimePath -Raw
+$foundationRuntime = Get-Content -LiteralPath $foundationRuntimePath -Raw
+$foundationWorkerRuntime = Get-Content -LiteralPath $foundationWorkerRuntimePath -Raw
+$foundationWorkerProject = Get-Content -LiteralPath $foundationWorkerProjectPath -Raw
+$nativeRuntime = Get-Content -LiteralPath $nativeRuntimePath -Raw
+$nativePrograms = Get-Content -LiteralPath $nativeProgramsPath -Raw
 $modelUiRuntime = Get-Content -LiteralPath $modelUiRuntimePath -Raw
 $journeyUiRuntime = Get-Content -LiteralPath $journeyUiRuntimePath -Raw
 $settingsUiRuntime = Get-Content -LiteralPath $settingsUiRuntimePath -Raw
@@ -233,7 +257,12 @@ foreach ($anchor in @(
     "ExecuteEnemyIntent",
     "MaximumTriggerWavesPerAction",
     "UnsupportedRule",
-    "CombatBattleStateHasher.Hash"
+    "CombatBattleStateHasher.Hash",
+    "duplicate-reward-rule:",
+    "CompleteResultAfterFailure",
+    "ResurrectionEscapeOverride",
+    "TryOverridePhysicalDefeat",
+    "RecentEvents"
 )) {
     if (-not $simulationEngine.Contains($anchor)) {
         throw "Aura authoritative combat simulation engine contract is missing: $anchor"
@@ -246,7 +275,13 @@ foreach ($anchor in @(
     "CombatSimulationEvent",
     "CombatSimulationResult",
     "CombatRuleFidelity",
-    "ParentSequence"
+    "ParentSequence",
+    "CausalChainId",
+    "HandlerId",
+    "SourceRewardId",
+    "SourceActionId",
+    "ICombatSimulationBorrowedStatePolicy",
+    "ICombatSimulationPolicyMetricsProvider"
 )) {
     if (-not $simulationModels.Contains($anchor)) {
         throw "Aura combat simulation model contract is missing: $anchor"
@@ -262,6 +297,173 @@ foreach ($anchor in @(
 )) {
     if (-not $simulationBatch.Contains($anchor)) {
         throw "Aura combat batch simulation contract is missing: $anchor"
+    }
+}
+
+foreach ($anchor in @(
+    "CombatCampaignCardAcquisition",
+    "CombatCampaignCardAcquisitionPolicy",
+    "CardRewardEncounterKinds",
+    "TargetDeckSizeMaximum",
+    "CombatCampaignBuildPlan",
+    "SynergySources",
+    "DeckDilutionPenalty",
+    "SkipScore"
+)) {
+    if (-not $campaignSimulation.Contains($anchor)) {
+        throw "Aura campaign progression-policy contract is missing: $anchor"
+    }
+}
+
+foreach ($anchor in @(
+    "MaximumDegreeOfParallelism",
+    "Parallel.For",
+    "Interlocked.Increment",
+    "EnableEarlyValidationStop",
+    "EarlyStopReason",
+    "CombatCampaignFoundationTelemetry",
+    "PeakConcurrentCampaigns",
+    "ObservedWorkerThreads",
+    "GC.CollectionCount",
+    "RunMonitored",
+    "MaximumCompletedBattleDepth",
+    "MaximumActiveBattleDepth",
+    "SearchSimulationsPerSecond",
+    "EstimatedRemainingSeconds",
+    "TrainingFailureCounts",
+    "TrainingFailures",
+    "AddIntegrityFailure",
+    "TrainingReplayDroppedDuplicates",
+    "TrainingReplayTargetNormalShare",
+    "TrainingReplayQuotaShortfalls",
+    "EnableHardSeedCurriculum",
+    "HardSeedReplayShare",
+    "HardSeedTrainingVictories",
+    "RuleTerminalOverrides",
+    "CertifiedLoops",
+    "FakeLoops",
+    "no-paired-win-gain",
+    "ArenaConfirmationPairs",
+    "TerminalConsistencyViolations",
+    "FeatureLeakageViolations",
+    "Math.Min(1024"
+)) {
+    if (-not $foundationTraining.Contains($anchor)) {
+        throw "Aura foundation CPU training contract is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
+    "CombatFoundationHardSeedCurriculum",
+    "TerminalScenarioId",
+    "WorldSeed",
+    "OutcomeClass",
+    "FailureCluster"
+)) {
+    if (-not $foundationStrategy.Contains($anchor)) {
+        throw "Aura hard-seed curriculum contract is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
+    "ModelTrainingProgress",
+    "CombatCampaignFoundationResumeState",
+    "PublishCheckpoint",
+    "CombatPolicyValueTrainingSession",
+    "ReplayEpisodeLimit"
+)) {
+    if (-not $foundationTraining.Contains($anchor)) {
+        throw "Aura resumable foundation training contract is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
+    "Parallel.For",
+    "ApplyBatch",
+    "Shuffle",
+    "EarlyStoppingPatience",
+    "CombatPolicyValueTrainingResumeState",
+    "Checkpoint",
+    "validationValueMae"
+)) {
+    if (-not $batchTrainer.Contains($anchor)) {
+        throw "Aura deterministic minibatch trainer contract is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
+    "AuraToolsNativeRewardExtensionFactory",
+    "AuraToolsNativeProgramPackageAudit.Validate",
+    "BeginReadinessRefresh",
+    "TryGetCachedFoundationPackage",
+    "foundation.ExecutionMode",
+    "AuraToolsFoundationWorkerRuntime.Run",
+    "PreflightSeedStart = foundation.TrainingSeedStart",
+    "result.TrainingFailures"
+)) {
+    if (-not $foundationRuntime.Contains($anchor)) {
+        throw "AuraTools authoritative foundation runtime contract is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
+    "CombatFoundationWorkerJob",
+    "CombatFoundationWorkerProgress",
+    "CombatFoundationWorkerResult",
+    "CombatFoundationWorkerCheckpoint",
+    "CheckpointEpisodesPath",
+    "Resumable"
+)) {
+    if (-not $workerContracts.Contains($anchor)) {
+        throw "Aura foundation worker protocol is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
+    "TrainingWorker",
+    "CancellationPath",
+    "ExpectedRulesetHash",
+    "CreateNoWindow",
+    "Kill"
+)) {
+    if (-not $foundationWorkerRuntime.Contains($anchor)) {
+        throw "AuraTools external foundation worker runtime is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
+    "net8.0",
+    "ServerGarbageCollection",
+    "ConcurrentGarbageCollection",
+    "TieredPGO",
+    "AuraToolsNativePrograms.g.cs"
+)) {
+    if (-not $foundationWorkerProject.Contains($anchor)) {
+        throw "Aura foundation worker build contract is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
+    "NativeRewardProgramRegistry",
+    "AuraToolsNativeProgramPackageAudit",
+    "NativeDefinitionPresence",
+    "AddAndGetBuff",
+    "Cast<NativeRewardDataConfig>"
+)) {
+    if (-not $nativeRuntime.Contains($anchor)) {
+        throw "AuraTools precompiled native program contract is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
+    "TryRunPrecompiledProgram",
+    "ContainsPrecompiledProgram",
+    "PrecompiledProgramProtocol"
+)) {
+    if (-not $nativePrograms.Contains($anchor)) {
+        throw "AuraTools generated native program contract is missing: $anchor"
+    }
+}
+foreach ($forbidden in @(
+    "CSharpScript",
+    "CSharpCompilation",
+    "Microsoft.CodeAnalysis",
+    "NativeRewardScriptCompiler",
+    "AuraToolsNativeRewardRuntimeWarmup"
+)) {
+    if ($nativeRuntime.Contains($forbidden)) {
+        throw "AuraTools runtime must not contain dynamic compilation: $forbidden"
     }
 }
 
@@ -290,7 +492,8 @@ foreach ($anchor in @(
 foreach ($anchor in @(
     "CombatJourneyTrainingProjection",
     "JourneyRunId",
-    "journeyRemainingBattles",
+    "CampaignCompletedBattles",
+    "OutcomeClass",
     "battleDiscount"
 )) {
     if (-not $journeyProjection.Contains($anchor)) {
@@ -360,10 +563,25 @@ foreach ($anchor in @(
     "TranspositionHits",
     "DeathRiskLimit",
     "TailRiskPenalty",
-    "BuildPrincipalVariation"
+    "BuildPrincipalVariation",
+    "RootLeadIsStable",
+    "CombatLoopSafetyAnalyzer",
+    "BuildLoopSummary"
 )) {
     if (-not $planner.Contains($anchor)) {
         throw "Aura combat AI Chance-PUCT planner contract is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
+    "CombatLoopClassification",
+    "CertifiedLethal",
+    "SustainableControl",
+    "damageLimitActive",
+    "escalationPressure",
+    "LoopMinimumHpReserveRatio"
+)) {
+    if (-not $loopSafety.Contains($anchor)) {
+        throw "Aura combat loop safety contract is missing: $anchor"
     }
 }
 
@@ -374,11 +592,18 @@ foreach ($anchor in @(
     "reductionSpent",
     "HandLimit",
     "public ulong Hash()",
-    "ApplyDamage"
+    "public ulong CycleHash()",
+    "SelfHpLoss",
+    "EndOfCycleSelfHpLoss",
+    "ApplyDamage",
+    "CloneForTransition"
 )) {
     if (-not $forwardModel.Contains($anchor)) {
         throw "Aura combat AI forward model contract is missing: $anchor"
     }
+}
+if (-not $searchProjector.Contains("ProjectLeafInto")) {
+    throw "Aura combat AI leaf projection must support reusable feature buffers."
 }
 
 foreach ($anchor in @(
@@ -406,10 +631,10 @@ foreach ($anchor in @(
 }
 
 foreach ($anchor in @(
-    "aura.combat-ai.episode.v1",
+    "aura.combat-ai.episode.v2",
+    "CombatCampaignEpisodeMetadata",
     "LongTermReturn",
     "SearchVisits",
-    "validationValueMae",
     "PolicyTargets",
     "CancellationToken cancellationToken"
 )) {
@@ -493,7 +718,11 @@ foreach ($anchor in @(
     "QueueEvolution",
     "AuraToolsAutoBattleSimulationResultView",
     "AuraToolsAutoBattleWorkLockView",
-    "InputField.ContentType.IntegerNumber"
+    "InputField.ContentType.IntegerNumber",
+    "EnsureContentBuilt",
+    "CPU 并行线程",
+    "CampaignsPerSecond",
+    "FormatDuration(status.EstimatedRemainingSeconds)"
 )) {
     if (-not $settingsUiRuntime.Contains($anchor)) {
         throw "AuraTools auto-battle interaction contract is missing: $anchor"

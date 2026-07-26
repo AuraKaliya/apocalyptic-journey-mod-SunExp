@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 17,
+  "schemaVersion": 20,
   "starterDeck": {
     "enabled": false,
     "mode": "Global",
@@ -70,11 +70,29 @@
       "policyValueHiddenDimensions": 48
     },
     "foundationTraining": {
+      "randomizeRunSeed": true,
+      "runSeed": 0,
       "iterations": 8,
       "trainingCampaignsPerIteration": 64,
       "arenaCampaignsPerDifficulty": 32,
+      "arenaConfirmationCampaignsPerDifficulty": 64,
       "normalValidationCampaigns": 200,
       "advancedValidationCampaigns": 500,
+      "preflightCampaignsPerDifficulty": 32,
+      "parallelism": 16,
+      "executionMode": "external",
+      "earlyValidationStop": true,
+      "enableCurriculum": true,
+      "enableStratifiedReplay": true,
+      "enableHardSeedCurriculum": true,
+      "hardSeedReplayShare": 0.35,
+      "selfPlayExplorationProbability": 0.15,
+      "selfPlayExplorationTemperature": 1.0,
+      "modelEpochs": 40,
+      "modelMinimumEpochs": 5,
+      "modelEarlyStoppingPatience": 5,
+      "modelBatchSize": 64,
+      "modelReplayEpisodeLimit": 5000,
       "trainingSeedStart": 10000,
       "arenaSeedStart": 1000000,
       "validationSeedStart": 2000000

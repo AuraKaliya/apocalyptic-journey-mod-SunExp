@@ -12,7 +12,9 @@ public sealed class FirstLegalCombatSimulationPolicy : ICombatSimulationPolicy
     public CombatSimulationAction? SelectAction(CombatSimulationPolicyContext context)
     {
         return context.LegalActions.FirstOrDefault(action =>
-                   action.Kind == CombatSimulationActionKind.PlayCard)
+                   action.Kind == CombatSimulationActionKind.PlayCard
+                   && context.State.FindCard(action.CardInstanceId)
+                       ?.IsVisibleFake != true)
                ?? context.LegalActions.FirstOrDefault(action =>
                    action.Kind == CombatSimulationActionKind.EndTurn);
     }
@@ -29,6 +31,8 @@ public sealed class GreedyCombatSimulationPolicy : ICombatSimulationPolicy
         foreach (var action in context.LegalActions)
         {
             if (action.Kind == CombatSimulationActionKind.EndTurn
+                || context.State.FindCard(action.CardInstanceId)
+                    ?.IsVisibleFake == true
                 || !context.Ruleset.TryGetCard(action.DefinitionId, out var card))
             {
                 continue;

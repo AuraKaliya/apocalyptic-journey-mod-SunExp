@@ -26,6 +26,14 @@ public sealed class CombatSearchResult
     public int TranspositionHits { get; set; }
 
     public bool StoppedEarly { get; set; }
+
+    public int CertifiedLoops { get; set; }
+
+    public int SustainableControlLoops { get; set; }
+
+    public int FakeLoops { get; set; }
+
+    public int BlockedLoops { get; set; }
 }
 
 public sealed class CombatChancePuctPlanner
@@ -36,12 +44,30 @@ public sealed class CombatChancePuctPlanner
     private readonly bool useRuntimeRegistries;
     private readonly Dictionary<ulong, SearchNode> transpositions = new();
     private readonly Dictionary<ulong, CombatPolicyValuePrediction> policyValueCache = new();
+    private SearchNode[] nodePathBuffer = Array.Empty<SearchNode>();
+    private SearchEdge[] edgePathBuffer = Array.Empty<SearchEdge>();
+    private ulong[] cycleHashPathBuffer = Array.Empty<ulong>();
+    private CombatSimulationState[] cycleStatePathBuffer =
+        Array.Empty<CombatSimulationState>();
+    private readonly CombatStateObservation scoreObservation = new();
+    private readonly CombatActionObservation scoreAction = new();
+    private readonly Dictionary<string, double> scoreStateFeatures =
+        new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, double> scoreActionFeatures =
+        new(StringComparer.OrdinalIgnoreCase);
+    private readonly Dictionary<string, double> leafFeatures =
+        new(StringComparer.OrdinalIgnoreCase);
+    private readonly CombatPolicyValueInput leafInput = new();
     private IReadOnlyList<SearchAction> actions = Array.Empty<SearchAction>();
     private CombatStateObservation rootObservation = new();
     private CombatDecisionProfile profile = new();
     private int nodeBudget;
     private int nodeCount;
     private int transpositionHits;
+    private int certifiedLoops;
+    private int sustainableControlLoops;
+    private int fakeLoops;
+    private int blockedLoops;
     private ICombatSimulationRule[] simulationRules = Array.Empty<ICombatSimulationRule>();
 
     public CombatChancePuctPlanner(
@@ -67,6 +93,37 @@ public sealed class CombatChancePuctPlanner
         policyValueCache.Clear();
         nodeCount = 0;
         transpositionHits = 0;
+        certifiedLoops = 0;
+        sustainableControlLoops = 0;
+        fakeLoops = 0;
+        blockedLoops = 0;
+        var pathCapacity = Math.Max(2, selectedProfile.SearchMaxPly + 1);
+        if (nodePathBuffer.Length < pathCapacity)
+        {
+            nodePathBuffer = new SearchNode[pathCapacity];
+        }
+        else
+        {
+            Array.Clear(nodePathBuffer, 0, nodePathBuffer.Length);
+        }
+        if (edgePathBuffer.Length < pathCapacity - 1)
+        {
+            edgePathBuffer = new SearchEdge[pathCapacity - 1];
+        }
+        else
+        {
+            Array.Clear(edgePathBuffer, 0, edgePathBuffer.Length);
+        }
+        if (cycleHashPathBuffer.Length < pathCapacity)
+        {
+            cycleHashPathBuffer = new ulong[pathCapacity];
+            cycleStatePathBuffer = new CombatSimulationState[pathCapacity];
+        }
+        else
+        {
+            Array.Clear(cycleHashPathBuffer, 0, cycleHashPathBuffer.Length);
+            Array.Clear(cycleStatePathBuffer, 0, cycleStatePathBuffer.Length);
+        }
         simulationRules = useRuntimeRegistries
             ? CombatAiRegistry.SnapshotSimulationRules()
             : Array.Empty<ICombatSimulationRule>();
@@ -103,7 +160,6 @@ public sealed class CombatChancePuctPlanner
         var stabilityWindow = Math.Max(16, profile.SearchStabilityWindow);
         var requiredStableChecks = Math.Max(1, profile.SearchStableChecks);
         var lastBestAction = -1;
-        var lastNodeCount = -1;
         var stableChecks = 0;
         var stoppedEarly = false;
         while (simulations < simulationBudget && nodeCount < nodeBudget)
@@ -119,7 +175,7 @@ public sealed class CombatChancePuctPlanner
             var currentBest = StableBestAction(root);
             if (currentBest >= 0
                 && currentBest == lastBestAction
-                && nodeCount == lastNodeCount)
+                && RootLeadIsStable(root, currentBest, stabilityWindow))
             {
                 stableChecks++;
                 if (stableChecks >= requiredStableChecks)
@@ -130,10 +186,15 @@ public sealed class CombatChancePuctPlanner
             }
             else
             {
-                stableChecks = 0;
+                stableChecks = currentBest >= 0
+                               && RootLeadIsStable(
+                                   root,
+                                   currentBest,
+                                   stabilityWindow)
+                    ? 1
+                    : 0;
             }
             lastBestAction = currentBest;
-            lastNodeCount = nodeCount;
         }
 
         var rootEdges = root.Edges.Values
@@ -182,8 +243,13 @@ public sealed class CombatChancePuctPlanner
             Nodes = nodeCount,
             TranspositionHits = transpositionHits,
             StoppedEarly = stoppedEarly,
+            CertifiedLoops = certifiedLoops,
+            SustainableControlLoops = sustainableControlLoops,
+            FakeLoops = fakeLoops,
+            BlockedLoops = blockedLoops,
             Summary = BuildSummary(best, steps, simulations)
                       + (stoppedEarly ? "; early-stop=stable" : "")
+                      + BuildLoopSummary()
         };
     }
 
@@ -206,14 +272,46 @@ public sealed class CombatChancePuctPlanner
             .ActionIndex;
     }
 
+    private bool RootLeadIsStable(
+        SearchNode root,
+        int bestActionIndex,
+        int stabilityWindow)
+    {
+        if (!root.Edges.TryGetValue(bestActionIndex, out var best)
+            || best.Visits <= 0)
+        {
+            return false;
+        }
+        var secondVisits = 0;
+        var secondValue = double.NegativeInfinity;
+        foreach (var candidate in root.Edges.Values)
+        {
+            if (candidate.ActionIndex == bestActionIndex
+                || candidate.Disabled
+                || candidate.Visits <= 0)
+            {
+                continue;
+            }
+            secondVisits = Math.Max(secondVisits, candidate.Visits);
+            secondValue = Math.Max(secondValue, RootSelectionValue(candidate));
+        }
+        var requiredVisitLead = Math.Max(4, stabilityWindow / 4);
+        return best.Visits - secondVisits >= requiredVisitLead
+               && RootSelectionValue(best) + 0.0000001d >= secondValue;
+    }
+
     private void Simulate(SearchNode root, SearchEdge? forcedRoot)
     {
         var node = root;
-        var nodePath = new List<SearchNode>(profile.SearchMaxPly + 1) { root };
-        var edgePath = new List<SearchEdge>(profile.SearchMaxPly);
+        var nodePathCount = 1;
+        var edgePathCount = 0;
+        nodePathBuffer[0] = root;
         var value = 0d;
         var risk = 0d;
         var pathReward = 0d;
+        var cyclePathCount = 1;
+        cycleHashPathBuffer[0] = root.State.CycleHash();
+        cycleStatePathBuffer[0] = root.State;
 
         for (var ply = 0; ply < Math.Max(1, profile.SearchMaxPly); ply++)
         {
@@ -245,7 +343,7 @@ public sealed class CombatChancePuctPlanner
                 continue;
             }
 
-            edgePath.Add(edge);
+            edgePathBuffer[edgePathCount++] = edge;
             if (searchAction.Action.Kind == CombatActionKind.EndTurn)
             {
                 var endState = CombatForwardModel.ApplyEndTurn(node.State, profile);
@@ -264,6 +362,51 @@ public sealed class CombatChancePuctPlanner
                 searchAction.UseGroupIndex,
                 outcome.Outcome,
                 profile);
+            var cycleHash = nextState.CycleHash();
+            var cycleStartIndex = FindCycleStart(
+                cycleHash,
+                cyclePathCount);
+            if (cycleStartIndex >= 0)
+            {
+                var assessment = CombatLoopSafetyAnalyzer.Analyze(
+                    cycleStatePathBuffer[cycleStartIndex],
+                    nextState,
+                    profile);
+                var leaf = EvaluateLeaf(nextState);
+                switch (assessment.Classification)
+                {
+                    case CombatLoopClassification.CertifiedLethal:
+                        certifiedLoops++;
+                        value = pathReward
+                                + Math.Max(leaf.Value, 100d)
+                                + Math.Min(
+                                    25d,
+                                    assessment.EffectiveEnemyProgress * 0.25d);
+                        risk = leaf.DeathRisk;
+                        goto CompleteSimulation;
+                    case CombatLoopClassification.Fake:
+                        fakeLoops++;
+                        value = pathReward + leaf.Value - 120d;
+                        risk = 1d;
+                        goto CompleteSimulation;
+                    case CombatLoopClassification.Blocked:
+                        blockedLoops++;
+                        value = pathReward + leaf.Value - 45d;
+                        risk = Math.Max(0.35d, leaf.DeathRisk);
+                        goto CompleteSimulation;
+                    case CombatLoopClassification.SustainableControl:
+                        sustainableControlLoops++;
+                        value = pathReward + leaf.Value - 15d;
+                        risk = leaf.DeathRisk;
+                        goto CompleteSimulation;
+                }
+            }
+            if (cyclePathCount < cycleHashPathBuffer.Length)
+            {
+                cycleHashPathBuffer[cyclePathCount] = cycleHash;
+                cycleStatePathBuffer[cyclePathCount] = nextState;
+                cyclePathCount++;
+            }
             var hash = nextState.Hash();
             SearchNode child;
             if (transpositions.TryGetValue(hash, out var existing))
@@ -287,7 +430,7 @@ public sealed class CombatChancePuctPlanner
             outcome.Child = child;
             outcome.Visits++;
             node = child;
-            nodePath.Add(node);
+            nodePathBuffer[nodePathCount++] = node;
             if (node.Visits == 0)
             {
                 var leaf = EvaluateLeaf(node.State);
@@ -304,18 +447,49 @@ public sealed class CombatChancePuctPlanner
             }
         }
 
-        for (var i = 0; i < nodePath.Count; i++)
+CompleteSimulation:
+        for (var i = 0; i < nodePathCount; i++)
         {
-            nodePath[i].Visits++;
-            nodePath[i].ValueSum += value;
-            nodePath[i].RiskSum += risk;
+            nodePathBuffer[i].Visits++;
+            nodePathBuffer[i].ValueSum += value;
+            nodePathBuffer[i].RiskSum += risk;
         }
-        for (var i = 0; i < edgePath.Count; i++)
+        for (var i = 0; i < edgePathCount; i++)
         {
-            edgePath[i].Visits++;
-            edgePath[i].ValueSum += value;
-            edgePath[i].RiskSum += risk;
+            edgePathBuffer[i].Visits++;
+            edgePathBuffer[i].ValueSum += value;
+            edgePathBuffer[i].RiskSum += risk;
         }
+    }
+
+    private int FindCycleStart(ulong cycleHash, int count)
+    {
+        for (var i = count - 1; i >= 0; i--)
+        {
+            if (cycleHashPathBuffer[i] == cycleHash)
+            {
+                return i;
+            }
+        }
+        return -1;
+    }
+
+    private string BuildLoopSummary()
+    {
+        var total = certifiedLoops
+                    + sustainableControlLoops
+                    + fakeLoops
+                    + blockedLoops;
+        return total == 0
+            ? ""
+            : "; loops=certified:"
+              + certifiedLoops
+              + ",control:"
+              + sustainableControlLoops
+              + ",fake:"
+              + fakeLoops
+              + ",blocked:"
+              + blockedLoops;
     }
 
     private void EnsureEdges(SearchNode node)
@@ -404,22 +578,40 @@ public sealed class CombatChancePuctPlanner
     {
         var state = ToObservation(simulation);
         var effectiveCost = CombatForwardModel.EffectiveCost(simulation, source);
-        var action = CloneAction(source, effectiveCost);
-        var utility = CombatDecisionEngine.BuildUtility(state, action, profile);
-        var features = CombatDecisionEngine.BuildFeatures(state, action, utility, profile);
-        var graph = DecisionGraphEvaluator.Evaluate(profile.Graph, features);
+        PrepareScoreAction(source, effectiveCost);
+        var utility = CombatDecisionEngine.BuildUtility(state, scoreAction, profile);
+        CombatDecisionEngine.BuildFeaturesInto(
+            scoreActionFeatures,
+            state,
+            scoreAction,
+            utility,
+            profile);
+        var graph = DecisionGraphEvaluator.Evaluate(
+            profile.Graph,
+            scoreActionFeatures);
         if (graph.Rejected)
         {
             return -1000d;
         }
         utility.Add(graph.UtilityDelta);
-        var residual = CombatDecisionEngine.EvaluateResidual(residualModel, features);
+        var residual = CombatDecisionEngine.EvaluateResidual(
+            residualModel,
+            scoreActionFeatures);
         return profile.Weights.Score(utility) + residual.AppliedCorrection;
     }
 
     private CombatStateObservation ToObservation(CombatSimulationState simulation)
     {
-        var threat = new CombatThreatForecast();
+        var threat = scoreObservation.Threat;
+        threat.ExpectedBlockableDamage = 0d;
+        threat.MaximumBlockableDamage = 0d;
+        threat.ExpectedUnblockableDamage = 0d;
+        threat.ExpectedDamageOverTime = 0d;
+        threat.AttackProbability = 0d;
+        threat.LethalProbability = 0d;
+        threat.IntentPoolSize = 0;
+        threat.Summary = "";
+        threat.Intents.Clear();
         for (var i = 0; i < simulation.Threats.Length; i++)
         {
             var item = simulation.Threats[i];
@@ -436,39 +628,49 @@ public sealed class CombatChancePuctPlanner
         }
         threat.CurrentIntentKnown = rootObservation.Threat?.CurrentIntentKnown == true;
         threat.Confidence = rootObservation.Threat?.Confidence ?? 0d;
-        return new CombatStateObservation
+        var player = scoreObservation.Player;
+        player.RuntimeId = simulation.PlayerRuntimeId;
+        player.Kind = CombatTargetKind.Self;
+        player.CurrentHp = simulation.PlayerHp;
+        player.MaxHp = simulation.PlayerMaxHp;
+        player.Defend = simulation.PlayerDefend;
+        while (scoreObservation.Enemies.Count < simulation.Enemies.Length)
         {
-            BattleSessionId = rootObservation.BattleSessionId,
-            Sequence = rootObservation.Sequence,
-            Player = new CombatUnitObservation
-            {
-                RuntimeId = simulation.PlayerRuntimeId,
-                Kind = CombatTargetKind.Self,
-                CurrentHp = simulation.PlayerHp,
-                MaxHp = simulation.PlayerMaxHp,
-                Defend = simulation.PlayerDefend
-            },
-            Enemies = simulation.Enemies.Select(enemy => new CombatUnitObservation
-            {
-                RuntimeId = enemy.RuntimeId,
-                Kind = CombatTargetKind.Enemy,
-                CurrentHp = enemy.Hp,
-                MaxHp = enemy.MaxHp,
-                Defend = enemy.Defend
-            }).ToList(),
-            CurrentPower = simulation.Power,
-            MaxPower = simulation.MaxPower,
-            HandCount = simulation.HandCount,
-            ExpectedIncomingDamage = threat.ExpectedBlockableDamage
-                                     + threat.ExpectedUnblockableDamage
-                                     + threat.ExpectedDamageOverTime,
-            Threat = threat,
-            Features = CombatSearchFeatureProjector.ProjectLeaf(
-                simulation,
-                profile,
-                rootObservation.Features),
-            IsPlayerActionWindow = true
-        };
+            scoreObservation.Enemies.Add(new CombatUnitObservation());
+        }
+        if (scoreObservation.Enemies.Count > simulation.Enemies.Length)
+        {
+            scoreObservation.Enemies.RemoveRange(
+                simulation.Enemies.Length,
+                scoreObservation.Enemies.Count - simulation.Enemies.Length);
+        }
+        for (var i = 0; i < simulation.Enemies.Length; i++)
+        {
+            var source = simulation.Enemies[i];
+            var target = scoreObservation.Enemies[i];
+            target.RuntimeId = source.RuntimeId;
+            target.Kind = CombatTargetKind.Enemy;
+            target.CurrentHp = source.Hp;
+            target.MaxHp = source.MaxHp;
+            target.Defend = source.Defend;
+        }
+        CombatSearchFeatureProjector.ProjectLeafInto(
+            scoreStateFeatures,
+            simulation,
+            profile,
+            rootObservation.Features);
+        scoreObservation.BattleSessionId = rootObservation.BattleSessionId;
+        scoreObservation.Sequence = rootObservation.Sequence;
+        scoreObservation.CurrentPower = simulation.Power;
+        scoreObservation.MaxPower = simulation.MaxPower;
+        scoreObservation.HandCount = simulation.HandCount;
+        scoreObservation.ExpectedIncomingDamage =
+            threat.ExpectedBlockableDamage
+            + threat.ExpectedUnblockableDamage
+            + threat.ExpectedDamageOverTime;
+        scoreObservation.Features = scoreStateFeatures;
+        scoreObservation.IsPlayerActionWindow = true;
+        return scoreObservation;
     }
 
     private IReadOnlyList<SearchAction> BuildActions(
@@ -493,7 +695,9 @@ public sealed class CombatChancePuctPlanner
         var logits = legal
             .Select(candidate => candidate.RuleScore
                                  + guidanceModel.PolicyLogit(candidate.Action.Features)
-                                 + NetworkPolicyLogit(networkPrediction, candidate.Action.CandidateId))
+                                 + NetworkPolicyLogit(
+                                     networkPrediction,
+                                     candidate.Action.CandidateId) * 0.35d)
             .Select(value => Math.Max(-30d, Math.Min(30d, value)))
             .ToArray();
         var maximum = logits.Max();
@@ -533,7 +737,8 @@ public sealed class CombatChancePuctPlanner
         {
             return baseline;
         }
-        var features = CombatSearchFeatureProjector.ProjectLeaf(
+        CombatSearchFeatureProjector.ProjectLeafInto(
+            leafFeatures,
             state,
             profile,
             rootObservation.Features);
@@ -544,23 +749,31 @@ public sealed class CombatChancePuctPlanner
                     policyValueModel,
                     NullCombatPolicyValueModel.Instance)
                 ? new CombatPolicyValuePrediction()
-                : policyValueModel.Evaluate(new CombatPolicyValueInput
-                {
-                    StateFeatures = features
-                });
+                : policyValueModel.Evaluate(PrepareLeafInput());
             policyValueCache[stateHash] = network;
         }
         return new CombatLeafEvaluation
         {
             Value = baseline.Value
-                    + guidanceModel.LeafValue(features)
-                    + network.ExpectedReturn * 25d,
+                    + guidanceModel.LeafValue(leafFeatures)
+                    + network.ExpectedReturn * 8d,
             DeathRisk = Math.Max(
                 baseline.DeathRisk,
                 Math.Max(
-                    guidanceModel.DeathRisk(features),
-                    network.DeathProbability))
+                    guidanceModel.DeathRisk(leafFeatures),
+                    baseline.DeathRisk
+                    + Math.Max(
+                        0d,
+                        network.DeathProbability - baseline.DeathRisk)
+                    * 0.25d))
         };
+    }
+
+    private CombatPolicyValueInput PrepareLeafInput()
+    {
+        leafInput.StateFeatures = leafFeatures;
+        leafInput.Candidates.Clear();
+        return leafInput;
     }
 
     private static double NetworkPolicyLogit(
@@ -678,25 +891,24 @@ public sealed class CombatChancePuctPlanner
                + RootSelectionValue(best).ToString("0.00");
     }
 
-    private static CombatActionObservation CloneAction(
+    private void PrepareScoreAction(
         CombatActionObservation source,
         int cost)
     {
-        return new CombatActionObservation
-        {
-            CandidateId = source.CandidateId,
-            SourceId = source.SourceId,
-            DisplayName = source.DisplayName,
-            Kind = source.Kind,
-            RuntimeId = source.RuntimeId,
-            TargetRuntimeId = source.TargetRuntimeId,
-            TargetKind = source.TargetKind,
-            Cost = cost,
-            Legal = source.Legal,
-            RejectionReason = source.RejectionReason,
-            Semantics = source.Semantics,
-            Features = new Dictionary<string, double>(source.Features, StringComparer.OrdinalIgnoreCase)
-        };
+        scoreAction.CandidateId = source.CandidateId;
+        scoreAction.SourceId = source.SourceId;
+        scoreAction.DisplayName = source.DisplayName;
+        scoreAction.Kind = source.Kind;
+        scoreAction.RuntimeId = source.RuntimeId;
+        scoreAction.TargetRuntimeId = source.TargetRuntimeId;
+        scoreAction.TargetKind = source.TargetKind;
+        scoreAction.Cost = cost;
+        scoreAction.Legal = source.Legal;
+        scoreAction.RejectionReason = source.RejectionReason;
+        scoreAction.Semantics = source.Semantics;
+        scoreAction.SemanticSource = source.SemanticSource;
+        scoreAction.SemanticFidelity = source.SemanticFidelity;
+        scoreAction.Features = source.Features;
     }
 
     private sealed class SearchAction

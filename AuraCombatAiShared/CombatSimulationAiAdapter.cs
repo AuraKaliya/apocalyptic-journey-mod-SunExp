@@ -6,18 +6,37 @@ using AuraDecision.Shared;
 
 namespace AuraCombatAi.Shared;
 
-public sealed class CombatDecisionSimulationPolicy : ICombatSimulationPolicy
+public sealed class CombatSelfPlayExplorationOptions
+{
+    public double Probability { get; set; }
+
+    public double Temperature { get; set; } = 1d;
+
+    public int RandomSeed { get; set; }
+}
+
+public sealed class CombatDecisionSimulationPolicy :
+    ICombatSimulationPolicy,
+    ICombatSimulationBorrowedStatePolicy,
+    ICombatSimulationPolicyMetricsProvider
 {
     private readonly CombatDecisionEngine decisionEngine;
     private readonly CombatDecisionProfile profile;
+    private readonly CombatSelfPlayExplorationOptions? exploration;
+    private readonly Random? explorationRandom;
 
     public CombatDecisionSimulationPolicy(
         CombatDecisionProfile? profile = null,
         IDecisionResidualModel? residualModel = null,
         ICombatSearchGuidanceModel? guidanceModel = null,
-        ICombatPolicyValueModel? policyValueModel = null)
+        ICombatPolicyValueModel? policyValueModel = null,
+        CombatSelfPlayExplorationOptions? exploration = null)
     {
         this.profile = profile ?? new CombatDecisionProfile();
+        this.exploration = Normalize(exploration);
+        explorationRandom = this.exploration == null
+            ? null
+            : new Random(this.exploration.RandomSeed);
         decisionEngine = new CombatDecisionEngine(
             residualModel,
             guidanceModel,
@@ -31,24 +50,105 @@ public sealed class CombatDecisionSimulationPolicy : ICombatSimulationPolicy
 
     public CombatStateObservation? LastObservation { get; private set; }
 
+    public CombatSimulationPolicyDecisionMetrics LastDecisionMetrics { get; } =
+        new();
+
     public CombatSimulationAction? SelectAction(CombatSimulationPolicyContext context)
     {
         var observation = CombatSimulationObservationProjector.Project(context);
         var decision = decisionEngine.Choose(observation, profile);
         LastObservation = observation;
         LastDecision = decision;
+        LastDecisionMetrics.SearchSimulations = decision.SearchSimulations;
+        LastDecisionMetrics.SearchNodes = decision.SearchNodes;
+        LastDecisionMetrics.SearchStoppedEarly = decision.SearchStoppedEarly;
+        LastDecisionMetrics.CertifiedLoops = decision.CertifiedLoops;
+        LastDecisionMetrics.SustainableControlLoops =
+            decision.SustainableControlLoops;
+        LastDecisionMetrics.FakeLoops = decision.FakeLoops;
+        LastDecisionMetrics.BlockedLoops = decision.BlockedLoops;
         if (!decision.HasAction || decision.Action == null)
         {
             return context.LegalActions.FirstOrDefault(action =>
                 action.Kind == CombatSimulationActionKind.EndTurn);
         }
-        return context.LegalActions.FirstOrDefault(action =>
+        var selected = SelectExplorationAction(context, decision);
+        return selected
+               ?? context.LegalActions.FirstOrDefault(action =>
                    string.Equals(
                        action.CandidateId,
                        decision.Action.CandidateId,
                        StringComparison.Ordinal))
                ?? context.LegalActions.FirstOrDefault(action =>
                    action.Kind == CombatSimulationActionKind.EndTurn);
+    }
+
+    private CombatSimulationAction? SelectExplorationAction(
+        CombatSimulationPolicyContext context,
+        CombatDecision decision)
+    {
+        if (exploration == null
+            || explorationRandom == null
+            || explorationRandom.NextDouble() >= exploration.Probability)
+        {
+            return null;
+        }
+        var legal = (decision.Candidates ?? new List<CombatCandidateEvaluation>())
+            .Where(candidate => candidate?.Action != null
+                                && candidate.Legal
+                                && context.LegalActions.Any(action =>
+                                    string.Equals(
+                                        action.CandidateId,
+                                        candidate.Action.CandidateId,
+                                        StringComparison.Ordinal)))
+            .ToList();
+        if (legal.Count <= 1)
+        {
+            return null;
+        }
+        var inverseTemperature = 1d / exploration.Temperature;
+        var weights = legal
+            .Select(candidate => Math.Pow(
+                Math.Max(1d, candidate.SearchVisits),
+                inverseTemperature))
+            .ToArray();
+        var total = weights.Sum();
+        var sample = explorationRandom.NextDouble() * total;
+        for (var index = 0; index < legal.Count; index++)
+        {
+            sample -= weights[index];
+            if (sample <= 0d)
+            {
+                var candidateId = legal[index].Action.CandidateId;
+                return context.LegalActions.First(action =>
+                    string.Equals(
+                        action.CandidateId,
+                        candidateId,
+                        StringComparison.Ordinal));
+            }
+        }
+        return null;
+    }
+
+    private static CombatSelfPlayExplorationOptions? Normalize(
+        CombatSelfPlayExplorationOptions? options)
+    {
+        if (options == null
+            || double.IsNaN(options.Probability)
+            || options.Probability <= 0d)
+        {
+            return null;
+        }
+        return new CombatSelfPlayExplorationOptions
+        {
+            Probability = Math.Min(1d, options.Probability),
+            Temperature =
+                double.IsNaN(options.Temperature)
+                || double.IsInfinity(options.Temperature)
+                    ? 1d
+                    : Math.Max(0.1d, Math.Min(5d, options.Temperature)),
+            RandomSeed = options.RandomSeed
+        };
     }
 }
 
@@ -185,11 +285,14 @@ public static class CombatSimulationObservationProjector
         var semantics = definition == null
             ? new CombatActionSemantics { Uncertainty = 10d }
             : ProjectSemantics(ruleset, state, definition, action);
+        var instance = state.FindCard(action.CardInstanceId);
         var features = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
         {
             ["authoritativeSimulation"] = 1d,
             ["cardInstanceId"] = action.CardInstanceId,
             ["turn"] = state.Turn,
+            ["visibleFake"] = instance?.IsVisibleFake == true ? 1d : 0d,
+            ["hasVisibleWarning"] = instance?.EnchantmentIds.Count > 0 ? 1d : 0d,
             ["retain"] = definition != null && HasTag(definition, "Retain") ? 1d : 0d,
             ["inherent"] = definition != null && HasTag(definition, "Inherent") ? 1d : 0d,
             ["recycle"] = definition != null && HasTag(definition, "Recycle") ? 1d : 0d,
@@ -272,6 +375,7 @@ public static class CombatSimulationObservationProjector
                     if (effect.Target == CombatSimulationTarget.Self
                         || effect.Target == CombatSimulationTarget.Player)
                     {
+                        semantics.SelfHpLoss += expected;
                         semantics.Risk += expected;
                     }
                     else
@@ -338,15 +442,25 @@ public static class CombatSimulationObservationProjector
                     semantics.TrueDamage += Math.Max(1d, expected);
                     break;
                 case CombatSimulationEffectKind.AddStatus:
+                    var marginalStatusStacks = MarginalStatusStacks(
+                        ruleset,
+                        state,
+                        effect,
+                        targetActorId,
+                        amount);
+                    if (marginalStatusStacks <= 0d)
+                    {
+                        break;
+                    }
                     if (effect.Target == CombatSimulationTarget.SelectedEnemy
                         || effect.Target == CombatSimulationTarget.AllEnemies
                         || effect.Target == CombatSimulationTarget.RandomEnemy)
                     {
-                        semantics.Debuff += Math.Max(1d, expected);
+                        semantics.Debuff += marginalStatusStacks;
                     }
                     else
                     {
-                        semantics.Buff += Math.Max(1d, expected);
+                        semantics.Buff += marginalStatusStacks;
                     }
                     break;
                 case CombatSimulationEffectKind.RemoveStatus:
@@ -364,6 +478,42 @@ public static class CombatSimulationObservationProjector
             }
         }
         return semantics;
+    }
+
+    private static double MarginalStatusStacks(
+        CombatRuleset ruleset,
+        CombatBattleState state,
+        CombatSimulationEffectDefinition effect,
+        int targetActorId,
+        int amount)
+    {
+        if (!ruleset.TryGetStatus(effect.DefinitionId, out var definition))
+        {
+            return Math.Max(1d, amount)
+                   * Math.Max(0d, Math.Min(1d, effect.Probability));
+        }
+        IEnumerable<CombatActorState> targets = effect.Target switch
+        {
+            CombatSimulationTarget.AllEnemies => state.LivingEnemies,
+            CombatSimulationTarget.AllAllies => state.Actors.Where(actor =>
+                actor.Alive
+                && actor.Kind != CombatSimulationActorKind.Enemy),
+            _ => state.FindActor(targetActorId) is { } target
+                ? new[] { target }
+                : Array.Empty<CombatActorState>()
+        };
+        var requested = Math.Max(1, amount);
+        var maximum = Math.Max(1, definition.MaximumStacks);
+        var marginal = targets.Sum(actor =>
+        {
+            var current = actor.Statuses.FirstOrDefault(status =>
+                string.Equals(
+                    status.StatusId,
+                    effect.DefinitionId,
+                    StringComparison.OrdinalIgnoreCase))?.Stacks ?? 0;
+            return Math.Max(0, Math.Min(maximum, current + requested) - current);
+        });
+        return marginal * Math.Max(0d, Math.Min(1d, effect.Probability));
     }
 
     private static int RoundEffectValue(
@@ -390,6 +540,7 @@ public static class CombatSimulationObservationProjector
         foreach (var status in actor.Statuses)
         {
             features["status:" + status.StatusId] = status.Stacks;
+            AddMechanicFeatures(features, status.StatusId, status.Stacks);
         }
         foreach (var variable in actor.Variables)
         {
@@ -398,6 +549,7 @@ public static class CombatSimulationObservationProjector
         return new CombatUnitObservation
         {
             RuntimeId = actor.ActorId,
+            DefinitionId = actor.DefinitionId,
             Name = actor.DisplayName,
             Kind = targetKind,
             CurrentHp = actor.Hp,
@@ -405,6 +557,31 @@ public static class CombatSimulationObservationProjector
             Defend = actor.Block,
             Features = features
         };
+    }
+
+    private static void AddMechanicFeatures(
+        IDictionary<string, double> features,
+        string statusId,
+        int stacks)
+    {
+        var id = statusId ?? "";
+        if (id.IndexOf(
+                "limitdamage",
+                StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            features["damageLimitActive"] = 1d;
+            features["damageLimitLevel"] = Math.Max(0, stacks);
+        }
+        if (id.IndexOf("frenzy", StringComparison.OrdinalIgnoreCase) >= 0
+            || id.IndexOf("keenedge", StringComparison.OrdinalIgnoreCase) >= 0
+            || id.IndexOf("counterattack", StringComparison.OrdinalIgnoreCase) >= 0
+            || id.IndexOf("thorns", StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            features["escalationPressure"] =
+                features.TryGetValue("escalationPressure", out var current)
+                    ? current + Math.Max(1, stacks)
+                    : Math.Max(1, stacks);
+        }
     }
 
     private static void AddThreat(

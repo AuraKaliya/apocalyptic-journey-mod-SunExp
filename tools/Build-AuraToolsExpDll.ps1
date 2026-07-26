@@ -12,5 +12,4 @@ if ([string]::IsNullOrWhiteSpace($ManagedPath)) {
     $ManagedPath = Join-Path $repoRoot "Managed"
 }
 
-dotnet build $project -c $Configuration /p:ManagedPath="$ManagedPath" /v:minimal
-
+dotnet build $project -c $Configuration /p:ManagedPath="$ManagedPath" /p:BuildFoundationTrainer=true /v:minimal

@@ -177,12 +177,30 @@ public static class CombatBattleStateHasher
         {
             Mix(ref hash, card.InstanceId);
             Mix(ref hash, card.CardId);
+            if (!string.IsNullOrWhiteSpace(card.ApparentCardId))
+            {
+                Mix(ref hash, "apparent-card");
+                Mix(ref hash, card.ApparentCardId);
+            }
             Mix(ref hash, card.CostModifier);
             foreach (var tag in card.Tags.OrderBy(
                          item => item,
                          StringComparer.OrdinalIgnoreCase))
             {
                 Mix(ref hash, tag);
+            }
+            foreach (var enchantmentId in card.EnchantmentIds.OrderBy(
+                         item => item,
+                         StringComparer.OrdinalIgnoreCase))
+            {
+                Mix(ref hash, enchantmentId);
+            }
+            foreach (var variable in card.Variables.OrderBy(
+                         item => item.Key,
+                         StringComparer.OrdinalIgnoreCase))
+            {
+                Mix(ref hash, variable.Key);
+                Mix(ref hash, variable.Value);
             }
         }
         MixList(ref hash, state.DrawPile);

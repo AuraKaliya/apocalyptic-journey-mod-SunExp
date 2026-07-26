@@ -51,6 +51,16 @@ public static class CombatJourneyTrainingProjection
                 episode.JourneyRunId = journey.JourneyRunId ?? "";
                 episode.JourneyBattleIndex = ordered[index].BattleIndex;
                 var remainingBattles = ordered.Count - index - 1;
+                episode.Campaign ??= new CombatCampaignEpisodeMetadata();
+                episode.Campaign.FinalBossVictory = terminal > 0d;
+                episode.Campaign.ReachedFinalBoss =
+                    ordered[index].BattleIndex == ordered.Count - 1;
+                episode.Campaign.CampaignCompletedBattles = ordered.Count;
+                episode.Campaign.CampaignTotalBattles = ordered.Count;
+                episode.Campaign.FailureBattleIndex =
+                    terminal < 0d ? ordered.Count - 1 : -1;
+                episode.Campaign.OutcomeClass =
+                    terminal > 0d ? "victory" : "defeat";
                 var journeyReturn = terminal * Math.Pow(
                     Math.Max(0.5d, Math.Min(1d, battleDiscount)),
                     remainingBattles);
@@ -63,8 +73,6 @@ public static class CombatJourneyTrainingProjection
                                                episode.Frames.Count - frameIndex - 1);
                     frame.WinTarget = terminal > 0d ? 1d : 0d;
                     frame.DeathTarget = terminal < 0d ? 1d : 0d;
-                    frame.StateFeatures["journeyBattleIndex"] = ordered[index].BattleIndex;
-                    frame.StateFeatures["journeyRemainingBattles"] = remainingBattles;
                 }
             }
         }

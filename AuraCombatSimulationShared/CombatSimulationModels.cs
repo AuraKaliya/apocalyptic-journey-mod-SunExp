@@ -50,6 +50,14 @@ public enum CombatTerminationReason
     EngineError
 }
 
+public enum CombatTerminalResolution
+{
+    None,
+    Physical,
+    ExplicitRule,
+    ResurrectionEscapeOverride
+}
+
 public enum CombatSimulationTraceLevel
 {
     Summary,
@@ -312,6 +320,9 @@ public sealed class CombatCardDefinition
 
     public List<string> Tags { get; set; } = new();
 
+    public Dictionary<string, string> Metadata { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public bool RequiresEnemyTarget { get; set; }
 
     public CombatRuleFidelity Fidelity { get; set; } = CombatRuleFidelity.Authoritative;
@@ -333,6 +344,9 @@ public sealed class CombatCardDefinition
             Rarity = Rarity,
             Exhaust = Exhaust,
             Tags = new List<string>(Tags),
+            Metadata = new Dictionary<string, string>(
+                Metadata,
+                StringComparer.OrdinalIgnoreCase),
             RequiresEnemyTarget = RequiresEnemyTarget,
             Fidelity = Fidelity,
             Effects = Effects.Select(effect => effect.Clone()).ToList(),
@@ -484,6 +498,8 @@ public sealed class CombatStatusTriggerDefinition
 
     public string RequiredDefinitionId { get; set; } = "";
 
+    public string RequiredEventMessage { get; set; } = "";
+
     public CombatSimulationValueExpression? ConditionExpression { get; set; }
 
     public string CounterKey { get; set; } = "";
@@ -524,6 +540,7 @@ public sealed class CombatStatusTriggerDefinition
             RequiredActionTag = RequiredActionTag,
             ForbiddenActionTag = ForbiddenActionTag,
             RequiredDefinitionId = RequiredDefinitionId,
+            RequiredEventMessage = RequiredEventMessage,
             ConditionExpression = ConditionExpression?.Clone(),
             CounterKey = CounterKey,
             CounterIncrementMode = CounterIncrementMode,
@@ -564,6 +581,9 @@ public sealed class CombatStatusDefinition
 
     public List<string> Tags { get; set; } = new();
 
+    public Dictionary<string, string> Metadata { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public Dictionary<string, double> DynamicModifiersPerStack { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
 
@@ -584,6 +604,9 @@ public sealed class CombatStatusDefinition
             CanRemainAtZero = CanRemainAtZero,
             MaximumStacks = MaximumStacks,
             Tags = new List<string>(Tags),
+            Metadata = new Dictionary<string, string>(
+                Metadata,
+                StringComparer.OrdinalIgnoreCase),
             DynamicModifiersPerStack = new Dictionary<string, double>(
                 DynamicModifiersPerStack,
                 StringComparer.OrdinalIgnoreCase),
@@ -707,6 +730,14 @@ public sealed class CombatScenarioDefinition
 
     public int DirectHpLossAfterPlayerCard { get; set; }
 
+    public List<CombatScenarioRewardRule> RewardRules { get; set; } = new();
+
+    public List<CombatScenarioRewardCatalogEntry> RewardCatalog { get; set; } =
+        new();
+
+    public Dictionary<string, string> CampaignVariables { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public bool RequireAuthoritativeRules { get; set; } = true;
 
     public CombatSimulationTraceLevel TraceLevel { get; set; } = CombatSimulationTraceLevel.Actions;
@@ -731,14 +762,30 @@ public sealed class CombatCardInstanceState
 
     public string CardId { get; set; } = "";
 
+    public string ApparentCardId { get; set; } = "";
+
     public int CostModifier { get; set; }
 
     public List<string> Tags { get; set; } = new();
+
+    public List<string> EnchantmentIds { get; set; } = new();
+
+    public Dictionary<string, string> Variables { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public bool IsVisibleFake =>
+        Variables.TryGetValue("IsFake", out var value)
+        && bool.TryParse(value, out var parsed)
+        && parsed;
 
     public CombatCardInstanceState Clone()
     {
         var clone = (CombatCardInstanceState)MemberwiseClone();
         clone.Tags = new List<string>(Tags);
+        clone.EnchantmentIds = new List<string>(EnchantmentIds);
+        clone.Variables = new Dictionary<string, string>(
+            Variables,
+            StringComparer.OrdinalIgnoreCase);
         return clone;
     }
 }
@@ -989,11 +1036,51 @@ public interface ICombatSimulationPolicy
     CombatSimulationAction? SelectAction(CombatSimulationPolicyContext context);
 }
 
+/// <summary>
+/// Marks a policy that only reads <see cref="CombatSimulationPolicyContext.State"/>
+/// during the synchronous SelectAction call. The simulation engine may lend its
+/// live state to these trusted policies instead of allocating a defensive deep
+/// clone for every decision.
+/// </summary>
+public interface ICombatSimulationBorrowedStatePolicy : ICombatSimulationPolicy
+{
+}
+
+public sealed class CombatSimulationPolicyDecisionMetrics
+{
+    public int SearchSimulations { get; set; }
+
+    public int SearchNodes { get; set; }
+
+    public bool SearchStoppedEarly { get; set; }
+
+    public int CertifiedLoops { get; set; }
+
+    public int SustainableControlLoops { get; set; }
+
+    public int FakeLoops { get; set; }
+
+    public int BlockedLoops { get; set; }
+}
+
+public interface ICombatSimulationPolicyMetricsProvider
+{
+    CombatSimulationPolicyDecisionMetrics LastDecisionMetrics { get; }
+}
+
 public sealed class CombatSimulationEvent
 {
     public long Sequence { get; set; }
 
     public long ParentSequence { get; set; }
+
+    public long CausalChainId { get; set; }
+
+    public string HandlerId { get; set; } = "";
+
+    public string SourceRewardId { get; set; } = "";
+
+    public long SourceActionId { get; set; }
 
     public int Turn { get; set; }
 
@@ -1059,8 +1146,86 @@ public sealed class CombatSimulationMetrics
 
     public int EnergySpent { get; set; }
 
+    public int PolicyDecisions { get; set; }
+
+    public long SearchSimulations { get; set; }
+
+    public long SearchNodes { get; set; }
+
+    public int SearchEarlyStops { get; set; }
+
+    public int ForcedEndTurns { get; set; }
+
+    public int RuleTerminalOverrides { get; set; }
+
+    public int CertifiedLoops { get; set; }
+
+    public int SustainableControlLoops { get; set; }
+
+    public int FakeLoops { get; set; }
+
+    public int BlockedLoops { get; set; }
+
     public Dictionary<string, int> CardPlayCounts { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
+}
+
+public sealed class CombatSimulationFailureDiagnostics
+{
+    public string LimitScope { get; set; } = "";
+
+    public int Turn { get; set; }
+
+    public long ActionSequence { get; set; }
+
+    public long TotalCommandCount { get; set; }
+
+    public int ActionCommandCount { get; set; }
+
+    public string ActionDefinitionId { get; set; } = "";
+
+    public string PendingCommand { get; set; } = "";
+
+    public long CausalChainId { get; set; }
+
+    public string HandlerId { get; set; } = "";
+
+    public string SourceRewardId { get; set; } = "";
+
+    public long SourceActionId { get; set; }
+
+    public string TerminalOutcome { get; set; } = "";
+
+    public string TerminalResolution { get; set; } = "";
+
+    public List<string> RecentCommands { get; set; } = new();
+
+    public List<string> RecentEvents { get; set; } = new();
+
+    public List<string> StateSummary { get; set; } = new();
+
+    public CombatSimulationFailureDiagnostics Clone()
+    {
+        return new CombatSimulationFailureDiagnostics
+        {
+            LimitScope = LimitScope,
+            Turn = Turn,
+            ActionSequence = ActionSequence,
+            TotalCommandCount = TotalCommandCount,
+            ActionCommandCount = ActionCommandCount,
+            ActionDefinitionId = ActionDefinitionId,
+            PendingCommand = PendingCommand,
+            CausalChainId = CausalChainId,
+            HandlerId = HandlerId,
+            SourceRewardId = SourceRewardId,
+            SourceActionId = SourceActionId,
+            TerminalOutcome = TerminalOutcome,
+            TerminalResolution = TerminalResolution,
+            RecentCommands = new List<string>(RecentCommands),
+            RecentEvents = new List<string>(RecentEvents),
+            StateSummary = new List<string>(StateSummary)
+        };
+    }
 }
 
 public sealed class CombatSimulationResult
@@ -1077,6 +1242,26 @@ public sealed class CombatSimulationResult
 
     public CombatTerminationReason TerminationReason { get; set; }
 
+    public bool TerminalConsistencyValid { get; set; } = true;
+
+    public string TerminalConsistencyReason { get; set; } = "";
+
+    public bool ExplicitRuleTermination { get; set; }
+
+    public CombatTerminalResolution TerminalResolution { get; set; }
+
+    public CombatSimulationOutcome InitialTerminalOutcome { get; set; }
+
+    public CombatTerminationReason InitialTerminationReason { get; set; }
+
+    public int InitialTerminalPlayerHp { get; set; }
+
+    public int InitialTerminalLivingEnemyCount { get; set; }
+
+    public int TerminalPlayerHp { get; set; }
+
+    public int TerminalLivingEnemyCount { get; set; }
+
     public int Turns { get; set; }
 
     public int FinalPlayerHp { get; set; }
@@ -1089,8 +1274,20 @@ public sealed class CombatSimulationResult
 
     public CombatSimulationMetrics Metrics { get; set; } = new();
 
+    public CombatSimulationFailureDiagnostics FailureDiagnostics { get; set; } =
+        new();
+
     public Dictionary<string, int> PersistentVariableDeltas { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, Dictionary<string, string>> RewardVariables { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, string> CampaignVariables { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public List<CombatSimulationRewardMutation> RewardMutations { get; set; } =
+        new();
 
     public List<CombatTurnSummary> TurnsSummary { get; set; } = new();
 
@@ -1159,6 +1356,14 @@ internal sealed class CombatSimulationCommand
     public int MaximumVariableValue { get; set; } = int.MaxValue;
 
     public long ParentSequence { get; set; }
+
+    public long CausalChainId { get; set; }
+
+    public string HandlerId { get; set; } = "";
+
+    public string SourceRewardId { get; set; } = "";
+
+    public long SourceActionId { get; set; }
 
     public int TriggerWave { get; set; }
 

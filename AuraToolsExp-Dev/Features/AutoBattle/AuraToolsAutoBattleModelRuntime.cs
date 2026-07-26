@@ -1024,6 +1024,145 @@ internal static class AuraToolsAutoBattleModelRuntime
         }
     }
 
+    public static bool TryClearFoundationTrainingData(out string message)
+    {
+        if (AnyTrainingBusy()
+            || AuraToolsAutoBattleSimulationRuntime.GetStatus().Busy)
+        {
+            message = "训练、模拟或导入任务仍在运行，不能清理";
+            return false;
+        }
+        try
+        {
+            var ownerLogs = Path.GetFullPath(
+                AuraSharedLogStore.OwnerDirectory(AuraToolsIds.ModId));
+            var resultRoot = Path.GetFullPath(
+                AuraToolsAutoBattleSimulationRuntime.ResultsRootDirectory);
+            var targets = new List<string>();
+            if (Directory.Exists(ownerLogs))
+            {
+                targets.AddRange(Directory.EnumerateFiles(
+                    ownerLogs,
+                    "foundation-model-bundle-*.json",
+                    SearchOption.TopDirectoryOnly));
+            }
+            if (Directory.Exists(resultRoot))
+            {
+                var exactNames = new HashSet<string>(
+                    StringComparer.OrdinalIgnoreCase)
+                {
+                    "foundation-worker-progress.json",
+                    "foundation-worker-result.json",
+                    "foundation-worker-job.json",
+                    "foundation-worker.cancel"
+                };
+                targets.AddRange(Directory.EnumerateFiles(
+                        resultRoot,
+                        "*",
+                        SearchOption.TopDirectoryOnly)
+                    .Where(path =>
+                    {
+                        var name = Path.GetFileName(path);
+                        return exactNames.Contains(name)
+                               || name.StartsWith(
+                                   "foundation-training-checkpoint-v",
+                                   StringComparison.OrdinalIgnoreCase)
+                               || name.StartsWith(
+                                   "foundation-training-checkpoint-episodes-v",
+                                   StringComparison.OrdinalIgnoreCase);
+                    }));
+                foreach (var historicalDirectory in
+                         Directory.EnumerateDirectories(
+                             resultRoot,
+                             "*-foundation",
+                             SearchOption.TopDirectoryOnly))
+                {
+                    targets.AddRange(Directory.EnumerateFiles(
+                            historicalDirectory,
+                            "*",
+                            SearchOption.TopDirectoryOnly)
+                        .Where(path =>
+                        {
+                            var name = Path.GetFileName(path);
+                            return name.StartsWith(
+                                       "foundation-training-episodes-v",
+                                       StringComparison.OrdinalIgnoreCase)
+                                   || name.StartsWith(
+                                       "foundation-training-checkpoint-v",
+                                       StringComparison.OrdinalIgnoreCase)
+                                   || name.StartsWith(
+                                       "foundation-training-checkpoint-episodes-v",
+                                       StringComparison.OrdinalIgnoreCase)
+                                   || exactNames.Contains(name);
+                        }));
+                }
+            }
+            var resolvedTargets = targets
+                .Select(Path.GetFullPath)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            foreach (var path in resolvedTargets)
+            {
+                if (!IsInside(path, ownerLogs)
+                    && !IsInside(path, resultRoot))
+                {
+                    throw new InvalidOperationException(
+                        "拒绝清理范围外文件：" + path);
+                }
+            }
+            Directory.CreateDirectory(ownerLogs);
+            var manifestPath = Path.Combine(
+                ownerLogs,
+                "foundation-cleanup-manifest-"
+                + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss")
+                + ".json");
+            using var storage = new AuraSharedStorageCoordinator(
+                AuraSharedPaths.RootDirectory);
+            storage.WriteTextAtomic(
+                manifestPath,
+                AuraSharedJson.Serialize(new
+                {
+                    schemaVersion = 1,
+                    cleanupKind = "foundation-training-only",
+                    createdUtc = DateTime.UtcNow,
+                    retainedHistoricalReports = true,
+                    files = resolvedTargets.Select(path =>
+                    {
+                        var info = new FileInfo(path);
+                        return new
+                        {
+                            path,
+                            bytes = info.Exists ? info.Length : 0L,
+                            lastWriteUtc = info.Exists
+                                ? info.LastWriteTimeUtc
+                                : DateTime.MinValue
+                        };
+                    }).ToList()
+                }),
+                createBackup: false);
+            foreach (var path in resolvedTargets)
+            {
+                if (File.Exists(path))
+                {
+                    File.Delete(path);
+                }
+            }
+            AuraToolsAutoBattleFoundationRuntime.ResetAfterDataClear();
+            AuraToolsAutoBattleRuntime.ReloadModels();
+            message = "已定向删除 "
+                      + resolvedTargets.Count
+                      + " 个旧底模、断点及活动回放文件；历史日志和训练报告已保留。清理清单："
+                      + manifestPath;
+            return true;
+        }
+        catch (Exception ex)
+        {
+            message = "底模定向清理失败：" + ex.Message;
+            return false;
+        }
+    }
+
     private static bool IsInside(string candidate, string root)
     {
         var normalizedRoot = Path.GetFullPath(root)

@@ -345,7 +345,7 @@ void TestConfigModelSerializationCompatibility()
     var matchExperience = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
         "{\"schemaVersion\":1,\"starterDeck\":{\"preferRoleModProfile\":false},\"safeBox\":null,\"modSync\":null,\"feast\":null,\"damageMeter\":null,\"cardRefresh\":null,\"autoBattle\":null}")!;
     matchExperience.Normalize();
-    Assert(matchExperience.SchemaVersion == 17
+    Assert(matchExperience.SchemaVersion == 20
            && matchExperience.StarterDeck.PreferRoleModProfile
            && matchExperience.SafeBox != null
            && matchExperience.ModSync != null
@@ -369,7 +369,23 @@ void TestConfigModelSerializationCompatibility()
            == "witch.world-simulation.standard-v2"
            && matchExperience.AutoBattle.Simulation.DifficultyId == "normal"
            && matchExperience.AutoBattle.Simulation.SimulationCount == 8
-           && matchExperience.AutoBattle.Simulation.Parallelism == 2,
+           && matchExperience.AutoBattle.Simulation.Parallelism == 2
+           && matchExperience.AutoBattle.FoundationTraining.ExecutionMode == "external"
+           && matchExperience.AutoBattle.FoundationTraining.Parallelism
+              == Math.Max(1, Math.Min(16, Environment.ProcessorCount))
+           && matchExperience.AutoBattle.FoundationTraining.ModelEpochs == 40
+           && matchExperience.AutoBattle.FoundationTraining.ModelBatchSize == 64
+           && matchExperience.AutoBattle.FoundationTraining
+                  .ModelEarlyStoppingPatience == 5
+           && matchExperience.AutoBattle.FoundationTraining.RandomizeRunSeed
+           && matchExperience.AutoBattle.FoundationTraining.EnableCurriculum
+           && matchExperience.AutoBattle.FoundationTraining.EnableStratifiedReplay
+           && matchExperience.AutoBattle.FoundationTraining
+                  .EnableHardSeedCurriculum
+           && Math.Abs(matchExperience.AutoBattle.FoundationTraining
+                  .HardSeedReplayShare - 0.35d) < 0.0001d
+           && Math.Abs(matchExperience.AutoBattle.FoundationTraining
+                  .SelfPlayExplorationProbability - 0.15d) < 0.0001d,
         "match-experience config keeps legacy schema migration and nested defaults after the file split");
 
     var steadyTraining = AutoBattleTrainingSettings.CreateSteady();
@@ -396,6 +412,14 @@ void TestConfigModelSerializationCompatibility()
     Assert(legacyTrainedModel.TrainedModelMode == "off"
            && !legacyTrainedModel.UseTrainedModel,
         "explicitly disabling the trained model survives normalization");
+    legacyTrainedModel.FoundationTraining.EnableHardSeedCurriculum = false;
+    legacyTrainedModel.FoundationTraining.HardSeedReplayShare = 0.2d;
+    legacyTrainedModel.Normalize();
+    Assert(!legacyTrainedModel.FoundationTraining.EnableHardSeedCurriculum
+           && Math.Abs(
+               legacyTrainedModel.FoundationTraining.HardSeedReplayShare
+               - 0.2d) < 0.0001d,
+        "current-schema normalization preserves explicit hard-seed curriculum settings");
     legacyTrainedModel.Simulation.SimulationCount = 500000;
     legacyTrainedModel.Simulation.Parallelism = 99;
     legacyTrainedModel.Simulation.MinimumAuthoritativeCoverage = double.NaN;
@@ -464,25 +488,35 @@ void TestCardRefreshSettingsAndPoolPolicy()
         CardRefresh = null!
     };
     settings.Normalize();
-    Assert(settings.SchemaVersion == 17, "match-experience settings migrate to the full foundation-training schema");
+    Assert(settings.SchemaVersion == 20, "match-experience settings migrate to the randomized curriculum foundation schema");
     Assert(settings.CardRefresh != null && !settings.CardRefresh.Enabled,
         "card refresh is restored with a disabled default during normalization");
     Assert(settings.AutoBattle.FoundationTraining.Iterations == 8
            && settings.AutoBattle.FoundationTraining.TrainingCampaignsPerIteration == 64
            && settings.AutoBattle.FoundationTraining.ArenaCampaignsPerDifficulty == 32
            && settings.AutoBattle.FoundationTraining.NormalValidationCampaigns == 200
-           && settings.AutoBattle.FoundationTraining.AdvancedValidationCampaigns == 500,
+           && settings.AutoBattle.FoundationTraining.AdvancedValidationCampaigns == 500
+           && settings.AutoBattle.FoundationTraining.ExecutionMode == "external"
+           && settings.AutoBattle.FoundationTraining.RandomizeRunSeed
+           && settings.AutoBattle.FoundationTraining.EnableCurriculum
+           && settings.AutoBattle.FoundationTraining.EnableStratifiedReplay
+           && settings.AutoBattle.FoundationTraining.EnableHardSeedCurriculum
+           && Math.Abs(settings.AutoBattle.FoundationTraining
+                  .HardSeedReplayShare - 0.35d) < 0.0001d
+           && settings.AutoBattle.FoundationTraining.Parallelism
+              == Math.Max(1, Math.Min(16, Environment.ProcessorCount)),
         "foundation defaults use a substantial self-play curriculum and independent 200/500 holdouts");
     var schema16Foundation = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
         "{\"schemaVersion\":16,\"autoBattle\":{\"foundationTraining\":{\"iterations\":3,\"trainingCampaignsPerIteration\":6,\"arenaCampaignsPerDifficulty\":4,\"validationCampaignsPerDifficulty\":10}}}")!;
     schema16Foundation.Normalize();
-    Assert(schema16Foundation.SchemaVersion == 17
+    Assert(schema16Foundation.SchemaVersion == 20
            && schema16Foundation.AutoBattle.FoundationTraining.Iterations == 8
            && schema16Foundation.AutoBattle.FoundationTraining.TrainingCampaignsPerIteration == 64
            && schema16Foundation.AutoBattle.FoundationTraining.ArenaCampaignsPerDifficulty == 32
            && schema16Foundation.AutoBattle.FoundationTraining.NormalValidationCampaigns == 200
-           && schema16Foundation.AutoBattle.FoundationTraining.AdvancedValidationCampaigns == 500,
-        "schema 16 foundation defaults migrate to the full curriculum without reusing the old 10-run gate");
+           && schema16Foundation.AutoBattle.FoundationTraining.AdvancedValidationCampaigns == 500
+           && schema16Foundation.AutoBattle.FoundationTraining.ExecutionMode == "external",
+        "schema 16 foundation defaults migrate to the full curriculum and external worker");
 
     var candidates = new[] { "a", "b", "c", "d", "e", "f" };
     var alternatives = CardRefreshPoolPolicy.PreferDifferentChoices(
@@ -1022,9 +1056,16 @@ void TestRuntimeArchitectureGuards()
            && cardRefreshNativeApi.Contains("new RandomPool(pool, dice).DrawByRarity", StringComparison.Ordinal)
            && cardRefreshNativeApi.Contains("manager.CardPackCheck", StringComparison.Ordinal),
         "card refresh recreates clean choice items and uses a window-local clone of the native reward draw pipeline");
-    Assert(matchExperienceConfig.Contains("\"schemaVersion\": 17", StringComparison.Ordinal)
+    Assert(matchExperienceConfig.Contains("\"schemaVersion\": 20", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"cardRefresh\"", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"foundationTraining\"", StringComparison.Ordinal)
+           && matchExperienceConfig.Contains("\"executionMode\": \"external\"", StringComparison.Ordinal)
+           && matchExperienceConfig.Contains("\"parallelism\": 16", StringComparison.Ordinal)
+           && matchExperienceConfig.Contains("\"modelEpochs\": 40", StringComparison.Ordinal)
+           && matchExperienceConfig.Contains("\"modelBatchSize\": 64", StringComparison.Ordinal)
+           && matchExperienceConfig.Contains("\"randomizeRunSeed\": true", StringComparison.Ordinal)
+           && matchExperienceConfig.Contains("\"enableCurriculum\": true", StringComparison.Ordinal)
+           && matchExperienceConfig.Contains("\"enableStratifiedReplay\": true", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"normalValidationCampaigns\": 200", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"advancedValidationCampaigns\": 500", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"enabled\": false", StringComparison.Ordinal),

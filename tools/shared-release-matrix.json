@@ -36,6 +36,13 @@
       "enabled": true
     },
     {
+      "id": "foundation-worker-smoke",
+      "kind": "script",
+      "path": "tools/Test-AuraFoundationTrainer.ps1",
+      "enabled": true,
+      "passConfiguration": true
+    },
+    {
       "id": "write-entrypoint-scan",
       "kind": "script",
       "path": "tools/Test-SharedWriteEntrypoints.ps1",
@@ -70,6 +77,13 @@
       "id": "auratools-feature-tests",
       "kind": "script",
       "path": "tools/Test-AuraToolsExp.ps1",
+      "enabled": true,
+      "passConfiguration": true
+    },
+    {
+      "id": "auratools-native-rewards",
+      "kind": "script",
+      "path": "tools/Test-AuraNativeRewards.ps1",
       "enabled": true,
       "passConfiguration": true
     },

@@ -12,6 +12,18 @@ public static class CombatSearchFeatureProjector
         IReadOnlyDictionary<string, double>? rootFeatures = null)
     {
         var result = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        ProjectLeafInto(result, state, profile, rootFeatures);
+        return result;
+    }
+
+    public static void ProjectLeafInto(
+        IDictionary<string, double> result,
+        CombatSimulationState state,
+        CombatDecisionProfile profile,
+        IReadOnlyDictionary<string, double>? rootFeatures = null)
+    {
+        if (result == null) throw new ArgumentNullException(nameof(result));
+        result.Clear();
         CopyFinite(result, rootFeatures);
         CopyFinite(result, state.Features);
 
@@ -83,7 +95,6 @@ public static class CombatSearchFeatureProjector
         result["persistentValue"] = state.PersistentValue;
         result["damageMultiplier"] = state.DamageMultiplier;
         result["uncertainty"] = state.Uncertainty;
-        return result;
     }
 
     private static double Value(

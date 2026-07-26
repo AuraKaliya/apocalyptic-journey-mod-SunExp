@@ -76,7 +76,8 @@ public sealed class CombatPolicyValueNetworkDefinition
 
     public int ProtocolVersion { get; set; } = 1;
 
-    public int FeatureSchemaVersion { get; set; } = 5;
+    public int FeatureSchemaVersion { get; set; } =
+        CombatPolicyValueProtocol.FeatureSchemaVersion;
 
     public string ModelId { get; set; } = "";
 
@@ -146,10 +147,9 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
     public CombatPolicyValuePrediction Evaluate(CombatPolicyValueInput input)
     {
         input ??= new CombatPolicyValueInput();
-        var state = CombatPolicyValueEncoding.Encode(
+        var state = CombatPolicyValueEncoding.EncodeState(
             input.StateFeatures,
-            definition.StateDimensions,
-            "state");
+            definition.StateDimensions);
         var hidden = DenseTanh(
             state,
             definition.StateWeights,
@@ -265,7 +265,8 @@ public static class CombatPolicyValueNetworkValidator
         if (model == null
             || model.ModelProtocol != "aura.combat-policy-value.mlp.v1"
             || model.ProtocolVersion != 1
-            || model.FeatureSchemaVersion != 5)
+            || model.FeatureSchemaVersion
+               != CombatPolicyValueProtocol.FeatureSchemaVersion)
         {
             reason = "策略价值模型协议不兼容";
             return false;
@@ -336,6 +337,32 @@ public static class CombatPolicyValueNetworkValidator
 
 public static class CombatPolicyValueEncoding
 {
+    private static readonly HashSet<string> ForbiddenStateFeatureKeys =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            "journeyProgress",
+            "journeyBattleIndex",
+            "journeyRemainingBattles",
+            "finalBossVictory",
+            "campaignVictory",
+            "campaignCompletedBattles",
+            "campaignTotalBattles",
+            "failureBattleIndex",
+            "outcome"
+        };
+
+    private static readonly string[] ForbiddenStateFeaturePrefixes =
+    {
+        "label:",
+        "label.",
+        "target:",
+        "target.",
+        "posthoc:",
+        "posthoc.",
+        "future:",
+        "future."
+    };
+
     public static double[] Encode(
         IReadOnlyDictionary<string, double>? values,
         int dimensions,
@@ -347,6 +374,43 @@ public static class CombatPolicyValueEncoding
             Add(result, prefix + ":" + pair.Key, Normalize(pair.Value));
         }
         return result;
+    }
+
+    public static double[] EncodeState(
+        IReadOnlyDictionary<string, double>? values,
+        int dimensions)
+    {
+        return Encode(SanitizeStateFeatures(values), dimensions, "state");
+    }
+
+    public static Dictionary<string, double> SanitizeStateFeatures(
+        IReadOnlyDictionary<string, double>? values)
+    {
+        var result = new Dictionary<string, double>(
+            StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in values ?? new Dictionary<string, double>())
+        {
+            if (!IsPermittedStateFeature(pair.Key))
+            {
+                continue;
+            }
+            result[pair.Key] = pair.Value;
+        }
+        return result;
+    }
+
+    public static bool IsPermittedStateFeature(string? key)
+    {
+        if (string.IsNullOrWhiteSpace(key)
+            || ForbiddenStateFeatureKeys.Contains(key!))
+        {
+            return false;
+        }
+        var permittedKey = key!;
+        return !ForbiddenStateFeaturePrefixes.Any(prefix =>
+            permittedKey.StartsWith(
+                prefix,
+                StringComparison.OrdinalIgnoreCase));
     }
 
     public static double[] EncodeCandidate(
@@ -384,9 +448,7 @@ public static class CombatPolicyValueEncoding
 
     public static Dictionary<string, double> BuildStateFeatures(CombatStateObservation state)
     {
-        var result = new Dictionary<string, double>(
-            state?.Features ?? new Dictionary<string, double>(),
-            StringComparer.OrdinalIgnoreCase);
+        var result = SanitizeStateFeatures(state?.Features);
         if (state == null)
         {
             return result;
@@ -446,6 +508,9 @@ public static class CombatPolicyValueEncoding
         result["damage"] = semantics.Damage;
         result["trueDamage"] = semantics.TrueDamage;
         result["damageOverTime"] = semantics.DamageOverTime;
+        result["selfHpLoss"] = semantics.SelfHpLoss;
+        result["endOfCycleSelfHpLoss"] =
+            semantics.EndOfCycleSelfHpLoss;
         result["hitCount"] = semantics.HitCount;
         result["defend"] = semantics.Defend;
         result["heal"] = semantics.Heal;

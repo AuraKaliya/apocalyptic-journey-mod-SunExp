@@ -5,7 +5,10 @@ using AuraCombatSimulation.Shared;
 
 namespace AuraCombatAi.Shared;
 
-public sealed class CombatEpisodeRecordingPolicy : ICombatSimulationPolicy
+public sealed class CombatEpisodeRecordingPolicy :
+    ICombatSimulationPolicy,
+    ICombatSimulationBorrowedStatePolicy,
+    ICombatSimulationPolicyMetricsProvider
 {
     private readonly ICombatSimulationPolicy inner;
     private readonly string decisionProfile;
@@ -24,6 +27,14 @@ public sealed class CombatEpisodeRecordingPolicy : ICombatSimulationPolicy
     public string PolicyId => inner.PolicyId + ":episode";
 
     public IReadOnlyList<CombatEpisodeFrame> Frames => frames;
+
+    public CombatSimulationPolicyDecisionMetrics LastDecisionMetrics =>
+        inner is ICombatSimulationPolicyMetricsProvider metrics
+            ? metrics.LastDecisionMetrics
+            : EmptyDecisionMetrics;
+
+    private static CombatSimulationPolicyDecisionMetrics EmptyDecisionMetrics { get; } =
+        new();
 
     public CombatSimulationAction? SelectAction(CombatSimulationPolicyContext context)
     {

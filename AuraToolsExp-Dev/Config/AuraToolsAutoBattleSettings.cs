@@ -59,7 +59,7 @@ public sealed class AutoBattleSettings
     [JsonProperty("simulation")]
     public AutoBattleSimulationSettings Simulation { get; set; } = new();
 
-    public void Normalize(int sourceSchemaVersion = 17)
+    public void Normalize(int sourceSchemaVersion = 20)
     {
         Training ??= sourceSchemaVersion < 14
             ? AutoBattleTrainingSettings.CreateLegacy()
@@ -114,6 +114,12 @@ public sealed class AutoBattleSettings
 
 public sealed class AutoBattleFoundationTrainingSettings
 {
+    [JsonProperty("randomizeRunSeed")]
+    public bool RandomizeRunSeed { get; set; } = true;
+
+    [JsonProperty("runSeed")]
+    public ulong RunSeed { get; set; }
+
     [JsonProperty("iterations")]
     public int Iterations { get; set; } = 8;
 
@@ -123,6 +129,9 @@ public sealed class AutoBattleFoundationTrainingSettings
     [JsonProperty("arenaCampaignsPerDifficulty")]
     public int ArenaCampaignsPerDifficulty { get; set; } = 32;
 
+    [JsonProperty("arenaConfirmationCampaignsPerDifficulty")]
+    public int ArenaConfirmationCampaignsPerDifficulty { get; set; } = 64;
+
     [JsonProperty("validationCampaignsPerDifficulty")]
     public int ValidationCampaignsPerDifficulty { get; set; }
 
@@ -131,6 +140,52 @@ public sealed class AutoBattleFoundationTrainingSettings
 
     [JsonProperty("advancedValidationCampaigns")]
     public int AdvancedValidationCampaigns { get; set; } = 500;
+
+    [JsonProperty("preflightCampaignsPerDifficulty")]
+    public int PreflightCampaignsPerDifficulty { get; set; } = 32;
+
+    [JsonProperty("parallelism")]
+    public int Parallelism { get; set; } =
+        Math.Max(1, Math.Min(16, Environment.ProcessorCount));
+
+    [JsonProperty("executionMode")]
+    public string ExecutionMode { get; set; } = "external";
+
+    [JsonProperty("earlyValidationStop")]
+    public bool EarlyValidationStop { get; set; } = true;
+
+    [JsonProperty("enableCurriculum")]
+    public bool EnableCurriculum { get; set; } = true;
+
+    [JsonProperty("enableStratifiedReplay")]
+    public bool EnableStratifiedReplay { get; set; } = true;
+
+    [JsonProperty("enableHardSeedCurriculum")]
+    public bool EnableHardSeedCurriculum { get; set; } = true;
+
+    [JsonProperty("hardSeedReplayShare")]
+    public double HardSeedReplayShare { get; set; } = 0.35d;
+
+    [JsonProperty("selfPlayExplorationProbability")]
+    public double SelfPlayExplorationProbability { get; set; } = 0.15d;
+
+    [JsonProperty("selfPlayExplorationTemperature")]
+    public double SelfPlayExplorationTemperature { get; set; } = 1d;
+
+    [JsonProperty("modelEpochs")]
+    public int ModelEpochs { get; set; } = 40;
+
+    [JsonProperty("modelMinimumEpochs")]
+    public int ModelMinimumEpochs { get; set; } = 5;
+
+    [JsonProperty("modelEarlyStoppingPatience")]
+    public int ModelEarlyStoppingPatience { get; set; } = 5;
+
+    [JsonProperty("modelBatchSize")]
+    public int ModelBatchSize { get; set; } = 64;
+
+    [JsonProperty("modelReplayEpisodeLimit")]
+    public int ModelReplayEpisodeLimit { get; set; } = 5000;
 
     [JsonProperty("trainingSeedStart")]
     public ulong TrainingSeedStart { get; set; } = 10_000UL;
@@ -143,17 +198,30 @@ public sealed class AutoBattleFoundationTrainingSettings
 
     public void MigrateFrom(int sourceSchemaVersion)
     {
-        if (sourceSchemaVersion >= 17)
-        {
-            return;
-        }
-        if (Iterations == 3
+        if (sourceSchemaVersion < 17
+            && Iterations == 3
             && TrainingCampaignsPerIteration == 6
             && ArenaCampaignsPerDifficulty == 4)
         {
             Iterations = 8;
             TrainingCampaignsPerIteration = 64;
             ArenaCampaignsPerDifficulty = 32;
+        }
+        if (sourceSchemaVersion < 18 && Parallelism == 8)
+        {
+            Parallelism = Math.Max(
+                1,
+                Math.Min(16, Environment.ProcessorCount));
+        }
+        if (sourceSchemaVersion < 20)
+        {
+            RandomizeRunSeed = true;
+            EnableCurriculum = true;
+            EnableStratifiedReplay = true;
+            EnableHardSeedCurriculum = true;
+            HardSeedReplayShare = 0.35d;
+            SelfPlayExplorationProbability = 0.15d;
+            SelfPlayExplorationTemperature = 1d;
         }
     }
 
@@ -166,6 +234,9 @@ public sealed class AutoBattleFoundationTrainingSettings
         ArenaCampaignsPerDifficulty = Math.Max(
             1,
             Math.Min(100, ArenaCampaignsPerDifficulty));
+        ArenaConfirmationCampaignsPerDifficulty = Math.Max(
+            0,
+            Math.Min(200, ArenaConfirmationCampaignsPerDifficulty));
         if (NormalValidationCampaigns <= 0)
         {
             NormalValidationCampaigns = ValidationCampaignsPerDifficulty > 0
@@ -184,9 +255,48 @@ public sealed class AutoBattleFoundationTrainingSettings
         AdvancedValidationCampaigns = Math.Max(
             10,
             Math.Min(1000, AdvancedValidationCampaigns));
+        PreflightCampaignsPerDifficulty = Math.Max(
+            1,
+            Math.Min(100, PreflightCampaignsPerDifficulty));
+        Parallelism = Math.Max(
+            1,
+            Math.Min(Math.Max(1, Environment.ProcessorCount), Parallelism));
+        ModelEpochs = Math.Max(5, Math.Min(200, ModelEpochs));
+        ModelMinimumEpochs = Math.Max(
+            1,
+            Math.Min(ModelEpochs, ModelMinimumEpochs));
+        ModelEarlyStoppingPatience = Math.Max(
+            1,
+            Math.Min(30, ModelEarlyStoppingPatience));
+        ModelBatchSize = Math.Max(8, Math.Min(512, ModelBatchSize));
+        ModelReplayEpisodeLimit = Math.Max(
+            64,
+            Math.Min(20000, ModelReplayEpisodeLimit));
+        HardSeedReplayShare = double.IsNaN(HardSeedReplayShare)
+                              || double.IsInfinity(HardSeedReplayShare)
+            ? 0.35d
+            : Math.Max(0d, Math.Min(0.75d, HardSeedReplayShare));
+        var executionMode = (ExecutionMode ?? "").Trim().ToLowerInvariant();
+        ExecutionMode = executionMode == "inprocess"
+            ? "inprocess"
+            : "external";
         TrainingSeedStart = TrainingSeedStart == 0UL ? 10_000UL : TrainingSeedStart;
         ArenaSeedStart = ArenaSeedStart == 0UL ? 1_000_000UL : ArenaSeedStart;
         ValidationSeedStart = ValidationSeedStart == 0UL ? 2_000_000UL : ValidationSeedStart;
+        SelfPlayExplorationProbability = double.IsNaN(
+                SelfPlayExplorationProbability)
+            || double.IsInfinity(SelfPlayExplorationProbability)
+                ? 0.15d
+                : Math.Max(
+                    0d,
+                    Math.Min(0.5d, SelfPlayExplorationProbability));
+        SelfPlayExplorationTemperature = double.IsNaN(
+                SelfPlayExplorationTemperature)
+            || double.IsInfinity(SelfPlayExplorationTemperature)
+                ? 1d
+                : Math.Max(
+                    0.1d,
+                    Math.Min(5d, SelfPlayExplorationTemperature));
     }
 }
 
