@@ -63,6 +63,7 @@ public static class CombatSearchBudgetPolicy
                 profile.LoopMinimumEffectiveProgress,
             LoopMinimumHpReserveRatio = profile.LoopMinimumHpReserveRatio,
             TailRiskPenalty = profile.TailRiskPenalty,
+            TailRiskQuantile = profile.TailRiskQuantile,
             UncertaintyPenalty = profile.UncertaintyPenalty,
             SetupValueWeight = profile.SetupValueWeight,
             PersistentValueWeight = profile.PersistentValueWeight,

@@ -270,6 +270,10 @@ public sealed class CombatActionSemantics
 
 public sealed class CombatActionObservation
 {
+    public string ObservationId { get; set; } = "";
+
+    public string ActionToken { get; set; } = "";
+
     public string CandidateId { get; set; } = "";
 
     public string SourceId { get; set; } = "";
@@ -298,14 +302,14 @@ public sealed class CombatActionObservation
         CombatKnowledgeFidelity.Approximate;
 
     public Dictionary<string, double> Features { get; set; } = new(StringComparer.OrdinalIgnoreCase);
-
-    public object? RuntimeHandle { get; set; }
-
-    public object? TargetHandle { get; set; }
 }
 
 public sealed class CombatStateObservation
 {
+    public int InformationBoundaryVersion { get; set; } = 2;
+
+    public string ObservationId { get; set; } = "";
+
     public long BattleSessionId { get; set; }
 
     public long Sequence { get; set; }
@@ -330,11 +334,11 @@ public sealed class CombatStateObservation
 
     public List<string> DeckCardIds { get; set; } = new();
 
-    public List<string> DrawPileCardIds { get; set; } = new();
-
     public List<string> DiscardPileCardIds { get; set; } = new();
 
     public List<string> ExhaustPileCardIds { get; set; } = new();
+
+    public CombatDeckKnowledge DeckKnowledge { get; set; } = new();
 
     public double ExpectedIncomingDamage { get; set; }
 
@@ -404,6 +408,8 @@ public sealed class CombatDecisionProfile
     public double LoopMinimumHpReserveRatio { get; set; } = 0.05d;
 
     public double TailRiskPenalty { get; set; } = 35d;
+
+    public double TailRiskQuantile { get; set; } = 0.1d;
 
     public double UncertaintyPenalty { get; set; } = 0.75d;
 
@@ -574,11 +580,29 @@ public interface ICombatTrainingSampleSink
     void Record(CombatTrainingSample sample);
 }
 
+public static class CombatTrainingProtocol
+{
+    public const string SampleProtocol = "aura.combat-ai.sample.v5";
+
+    public const int FeatureSchemaVersion = 5;
+
+    public static bool IsCompatible(CombatTrainingSample? sample)
+    {
+        return sample != null
+               && string.Equals(
+                   sample.ModelProtocol,
+                   SampleProtocol,
+                   StringComparison.Ordinal)
+               && sample.FeatureSchemaVersion == FeatureSchemaVersion;
+    }
+}
+
 public sealed class CombatTrainingSample
 {
-    public string ModelProtocol { get; set; } = "aura.combat-ai.sample.v4";
+    public string ModelProtocol { get; set; } = CombatTrainingProtocol.SampleProtocol;
 
-    public int FeatureSchemaVersion { get; set; } = 4;
+    public int FeatureSchemaVersion { get; set; } =
+        CombatTrainingProtocol.FeatureSchemaVersion;
 
     public string GameBuild { get; set; } = "";
 

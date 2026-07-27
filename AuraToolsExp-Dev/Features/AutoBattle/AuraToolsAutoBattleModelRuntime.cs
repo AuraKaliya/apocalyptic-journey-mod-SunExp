@@ -171,8 +171,7 @@ internal static class AuraToolsAutoBattleModelRuntime
         new(StringComparer.Ordinal);
     private static readonly string[] TrainingFiles =
     {
-        "auto-battle-training-v4.jsonl",
-        "auto-battle-training-v3.jsonl"
+        "auto-battle-training-v5.jsonl"
     };
 
     public static IDecisionResidualModel Load(
@@ -1447,7 +1446,7 @@ internal static class AuraToolsAutoBattleModelRuntime
                 "aura.decision-residual.linear.v1",
                 StringComparison.Ordinal)
             || model.ProtocolVersion != 1
-            || model.FeatureSchemaVersion != 4
+            || model.FeatureSchemaVersion != 5
             || model.ApplicabilityProtocolVersion != 1)
         {
             reason = "模型协议、特征版本或适用性协议不兼容";
@@ -1507,7 +1506,7 @@ internal static class AuraToolsAutoBattleModelRuntime
         if (model == null
             || !string.Equals(model.ModelProtocol, "aura.combat-search.gbdt.v1", StringComparison.Ordinal)
             || model.ProtocolVersion != 1
-            || model.FeatureSchemaVersion != 4
+            || model.FeatureSchemaVersion != 5
             || !string.Equals(
                 NormalizeProfile(model.DecisionProfile),
                 NormalizeProfile(decisionProfile),
@@ -1578,9 +1577,13 @@ internal static class AuraToolsAutoBattleModelRuntime
                 try
                 {
                     var sample = AuraSharedJson.Deserialize<CombatTrainingSample>(line);
-                    if (sample != null)
+                    if (CombatTrainingProtocol.IsCompatible(sample))
                     {
-                        samples.Add(sample);
+                        samples.Add(sample!);
+                    }
+                    else
+                    {
+                        invalidLines++;
                     }
                 }
                 catch
@@ -1848,12 +1851,22 @@ internal static class AuraToolsAutoBattleModelRuntime
                 {
                     var episode = AuraSharedJson.Deserialize<CombatEpisode>(line);
                     if (episode != null
+                        && string.Equals(
+                            episode.ModelProtocol,
+                            CombatPolicyValueProtocol.EpisodeProtocol,
+                            StringComparison.Ordinal)
+                        && episode.FeatureSchemaVersion
+                           == CombatPolicyValueProtocol.FeatureSchemaVersion
                         && !string.Equals(
                             episode.Provenance,
                             "offline-formal-evaluation",
                             StringComparison.OrdinalIgnoreCase))
                     {
                         result.Add(episode);
+                    }
+                    else
+                    {
+                        invalidLines++;
                     }
                 }
                 catch
@@ -2032,7 +2045,7 @@ internal static class AuraToolsAutoBattleModelRuntime
         }
         var liveEpisodesPath = AuraSharedLogStore.OwnerLogPath(
             AuraToolsIds.ModId,
-            "live-combat-episodes-v1.jsonl");
+            "live-combat-episodes-v2.jsonl");
         if (File.Exists(liveEpisodesPath)
             && !episodeSources.Contains(liveEpisodesPath, StringComparer.OrdinalIgnoreCase))
         {

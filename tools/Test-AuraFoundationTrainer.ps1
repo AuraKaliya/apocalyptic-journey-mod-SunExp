@@ -15,14 +15,11 @@ param(
 )
 
 $ErrorActionPreference = "Stop"
-Add-Type -AssemblyName System.Web.Extensions
 function Read-FoundationJson([string]$Path) {
-    $serializer = New-Object System.Web.Script.Serialization.JavaScriptSerializer
-    $serializer.MaxJsonLength = 100000000
-    return $serializer.DeserializeObject(
-        [System.IO.File]::ReadAllText(
-            $Path,
-            [System.Text.Encoding]::UTF8))
+    return [System.IO.File]::ReadAllText(
+        $Path,
+        [System.Text.Encoding]::UTF8) |
+        ConvertFrom-Json -Depth 100 -AsHashtable
 }
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $effectivePreflightCampaignsPerDifficulty = [Math]::Max(

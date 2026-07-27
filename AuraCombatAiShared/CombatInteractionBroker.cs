@@ -114,6 +114,23 @@ public static class CombatInteractionBroker
         }
     }
 
+    public static bool PublishVisibleChoices(
+        long requestId,
+        IReadOnlyList<CombatActionObservation>? choices)
+    {
+        lock (Gate)
+        {
+            if (active == null || active.RequestId != requestId)
+            {
+                return false;
+            }
+            active.Choices = choices == null
+                ? new List<CombatActionObservation>()
+                : new List<CombatActionObservation>(choices);
+            return true;
+        }
+    }
+
     public static void Clear(long requestId = 0)
     {
         lock (Gate)

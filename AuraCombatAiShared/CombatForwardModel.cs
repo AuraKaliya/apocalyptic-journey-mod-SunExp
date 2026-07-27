@@ -447,6 +447,38 @@ public static class CombatForwardModel
         CombatStateObservation state,
         int actionCount)
     {
+        if (state == null) throw new ArgumentNullException(nameof(state));
+        var belief = CombatBeliefTracker.FromObservation(state);
+        return Create(
+            state,
+            actionCount,
+            belief,
+            CombatPublicObservationHasher.Seed(state, 0));
+    }
+
+    public static CombatSimulationState Create(
+        CombatStateObservation state,
+        int actionCount,
+        CombatBeliefState belief,
+        int determinizationSeed)
+    {
+        if (state == null) throw new ArgumentNullException(nameof(state));
+        if (belief == null) throw new ArgumentNullException(nameof(belief));
+        return CreateCore(
+            state,
+            actionCount,
+            CombatRootDeterminizer.SampleDrawPile(
+                belief,
+                determinizationSeed),
+            drawPileKnown: belief.DrawPileCount > 0);
+    }
+
+    private static CombatSimulationState CreateCore(
+        CombatStateObservation state,
+        int actionCount,
+        IReadOnlyList<string> sampledDrawPile,
+        bool drawPileKnown)
+    {
         var threats = BuildThreats(state);
         return new CombatSimulationState
         {
@@ -464,7 +496,7 @@ public static class CombatForwardModel
             RetainedHandCardValues = state.RetainedHandCardIds
                 .Select(KnowledgeValue)
                 .ToList(),
-            DrawPileValues = state.DrawPileCardIds
+            DrawPileValues = sampledDrawPile
                 .Select(KnowledgeValue)
                 .ToList(),
             DiscardPileValues = state.DiscardPileCardIds
@@ -473,8 +505,7 @@ public static class CombatForwardModel
             ExhaustPileValues = state.ExhaustPileCardIds
                 .Select(KnowledgeValue)
                 .ToList(),
-            DrawPileKnown = state.Features.ContainsKey("drawPileCount")
-                            || state.DrawPileCardIds.Count > 0,
+            DrawPileKnown = drawPileKnown,
             Features = BuildStateFeatures(state),
             Enemies = state.Enemies.Select(enemy => new CombatSimulationUnit
             {
@@ -748,10 +779,9 @@ public static class CombatForwardModel
 
     private static Dictionary<string, double> BuildStateFeatures(CombatStateObservation state)
     {
-        var result = new Dictionary<string, double>(
-            state.Features ?? new Dictionary<string, double>(),
-            StringComparer.OrdinalIgnoreCase);
-        foreach (var pair in state.Player?.Features ?? new Dictionary<string, double>())
+        var result = CombatPublicFeaturePolicy.SanitizeState(state.Features);
+        foreach (var pair in CombatPublicFeaturePolicy.SanitizeUnit(
+                     state.Player?.Features))
         {
             result["player." + pair.Key] = pair.Value;
         }

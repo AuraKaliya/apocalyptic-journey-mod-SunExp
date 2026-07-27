@@ -352,32 +352,6 @@ public static class CombatPolicyValueNetworkValidator
 
 public static class CombatPolicyValueEncoding
 {
-    private static readonly HashSet<string> ForbiddenStateFeatureKeys =
-        new(StringComparer.OrdinalIgnoreCase)
-        {
-            "journeyProgress",
-            "journeyBattleIndex",
-            "journeyRemainingBattles",
-            "finalBossVictory",
-            "campaignVictory",
-            "campaignCompletedBattles",
-            "campaignTotalBattles",
-            "failureBattleIndex",
-            "outcome"
-        };
-
-    private static readonly string[] ForbiddenStateFeaturePrefixes =
-    {
-        "label:",
-        "label.",
-        "target:",
-        "target.",
-        "posthoc:",
-        "posthoc.",
-        "future:",
-        "future."
-    };
-
     public static double[] Encode(
         IReadOnlyDictionary<string, double>? values,
         int dimensions,
@@ -429,31 +403,18 @@ public static class CombatPolicyValueEncoding
     public static Dictionary<string, double> SanitizeStateFeatures(
         IReadOnlyDictionary<string, double>? values)
     {
-        var result = new Dictionary<string, double>(
-            StringComparer.OrdinalIgnoreCase);
-        foreach (var pair in values ?? new Dictionary<string, double>())
-        {
-            if (!IsPermittedStateFeature(pair.Key))
-            {
-                continue;
-            }
-            result[pair.Key] = pair.Value;
-        }
-        return result;
+        return CombatPublicFeaturePolicy.SanitizeState(values);
     }
 
     public static bool IsPermittedStateFeature(string? key)
     {
-        if (string.IsNullOrWhiteSpace(key)
-            || ForbiddenStateFeatureKeys.Contains(key!))
-        {
-            return false;
-        }
-        var permittedKey = key!;
-        return !ForbiddenStateFeaturePrefixes.Any(prefix =>
-            permittedKey.StartsWith(
-                prefix,
-                StringComparison.OrdinalIgnoreCase));
+        return !string.IsNullOrWhiteSpace(key)
+               && CombatPublicFeaturePolicy
+                   .SanitizeState(new Dictionary<string, double>
+                   {
+                       [key!] = 1d
+                   })
+                   .Count == 1;
     }
 
     public static double[] EncodeCandidate(
@@ -531,10 +492,6 @@ public static class CombatPolicyValueEncoding
         {
             Add(result, "retainedHand:" + id, 1d);
         }
-        foreach (var id in state.DrawPileCardIds ?? new List<string>())
-        {
-            Add(result, "draw:" + id, 1d);
-        }
         foreach (var id in state.DiscardPileCardIds ?? new List<string>())
         {
             Add(result, "discard:" + id, 1d);
@@ -550,15 +507,11 @@ public static class CombatPolicyValueEncoding
         CombatCandidateEvaluation candidate)
     {
         var action = candidate.Action ?? new CombatActionObservation();
-        var result = new Dictionary<string, double>(
-            action.Features ?? new Dictionary<string, double>(),
-            StringComparer.OrdinalIgnoreCase)
-        {
-            ["cost"] = action.Cost,
-            ["ruleScore"] = candidate.RuleScore,
-            ["baseRuleScore"] = candidate.BaseRuleScore,
-            ["planScore"] = candidate.PlanScore
-        };
+        var result = CombatPublicFeaturePolicy.SanitizeAction(action.Features);
+        result["cost"] = action.Cost;
+        result["ruleScore"] = candidate.RuleScore;
+        result["baseRuleScore"] = candidate.BaseRuleScore;
+        result["planScore"] = candidate.PlanScore;
         var semantics = action.Semantics ?? new CombatActionSemantics();
         result["damage"] = semantics.Damage;
         result["trueDamage"] = semantics.TrueDamage;

@@ -48,12 +48,13 @@ internal sealed class AuraToolsAutoBattlePredictionPresenter : MonoBehaviour
         FightUI fightUi,
         string fingerprint,
         CombatActionObservation action,
+        UnityEngine.Component actionComponent,
+        StatusManager? target,
         float actionHoldSeconds = 0f)
     {
         Clear();
         if (fightUi == null
             || action == null
-            || action.RuntimeHandle is not UnityEngine.Component actionComponent
             || actionComponent == null
             || ResolveActionTarget(actionComponent, action.Kind) is not { } actionRect)
         {
@@ -69,7 +70,7 @@ internal sealed class AuraToolsAutoBattlePredictionPresenter : MonoBehaviour
         holdActionUntil = Time.unscaledTime + Mathf.Max(0f, actionHoldSeconds);
         EnsureActionFrame(fightUi);
         SyncActionFrame();
-        ShowUnitMarker(action);
+        ShowUnitMarker(action, target);
         return actionFrame != null && actionFrame.gameObject.activeSelf;
     }
 
@@ -344,10 +345,11 @@ internal sealed class AuraToolsAutoBattlePredictionPresenter : MonoBehaviour
         return actionComponent.transform as RectTransform;
     }
 
-    private void ShowUnitMarker(CombatActionObservation action)
+    private void ShowUnitMarker(
+        CombatActionObservation action,
+        StatusManager? status)
     {
-        if (action.TargetHandle is not StatusManager status
-            || status == null
+        if (status == null
             || (action.TargetKind != CombatTargetKind.Enemy
                 && action.TargetKind != CombatTargetKind.Self
                 && action.TargetKind != CombatTargetKind.Friendly))

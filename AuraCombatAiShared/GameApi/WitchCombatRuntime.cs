@@ -14,7 +14,10 @@ using WitchUiManager = Witch.UI.UIManager;
 
 namespace AuraCombatAi.Shared.GameApi;
 
-public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActionExecutor
+public sealed class WitchCombatRuntime :
+    ICombatObservationProvider,
+    IPlayerCombatObservationProvider,
+    ICombatActionExecutor
 {
     private static readonly BindingFlags InstanceFlags =
         BindingFlags.Instance | BindingFlags.Public | BindingFlags.NonPublic;
@@ -25,6 +28,11 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
     private static readonly object ReflectionGate = new();
     private static readonly Dictionary<string, MemberInfo?> MemberCache = new(StringComparer.Ordinal);
     private static long sequence;
+    private CombatExecutionContext executionContext = new();
+    private long trackedDeckBattleSessionId;
+    private int trackedDrawPileCount = -1;
+    private int trackedDiscardPileCount = -1;
+    private int shuffleEpoch;
 
     public bool TryCapture(out CombatStateObservation observation, out string reason)
     {
@@ -45,45 +53,69 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
 
         observation.BattleSessionId = AuraShared.Core.AuraBattleLifecycleRouter.CurrentBattleSessionId;
         observation.Sequence = ++sequence;
+        observation.ObservationId = CombatPlayerObservationBoundary.BuildObservationId(
+            observation.BattleSessionId,
+            observation.Sequence);
+        var capturedExecutionContext = new CombatExecutionContext
+        {
+            ObservationId = observation.ObservationId
+        };
         if (player.Status is not StatusManager playerStatus)
         {
             reason = "local player status type is unsupported";
             return false;
         }
 
-        observation.Player = ObserveUnit(playerStatus, CombatTargetKind.Self);
-        if (RoleTable.Instance != null)
-        {
-            var money = ReadNumber(RoleTable.Instance, "Money", "money");
-            observation.Player.Features["Money"] = money;
-            observation.Features["player.Money"] = money;
-        }
+        observation.Player = ObserveUnit(playerStatus, CombatTargetKind.Self, 1);
+        capturedExecutionContext.BindActor(observation.Player.RuntimeId, playerStatus);
         observation.CurrentPower = player.CurPowerCount;
         observation.MaxPower = player.MaxPowerCount;
         observation.HandCount = FightUI.cardItemList?.Count ?? 0;
         observation.UiBusy = IsUiBusy(fightUi);
         observation.IsPlayerActionWindow = IsPlayerActionWindow(fightUi);
-        AddEnemiesAndNativeThreat(observation);
-        AddCards(observation, fightUi);
-        AddSkills(observation, fightUi);
+        AddEnemiesAndNativeThreat(observation, capturedExecutionContext);
+        AddCards(observation, fightUi, capturedExecutionContext);
+        AddSkills(observation, fightUi, capturedExecutionContext);
         ObserveDeck(observation);
         if (CombatAiRegistry.TryResolveThreat(observation, out var providedThreat))
         {
             observation.Threat = providedThreat;
         }
         NormalizeThreat(observation);
-        observation.Actions.Add(new CombatActionObservation
+        AddBoundAction(
+            observation,
+            capturedExecutionContext,
+            new CombatActionObservation
         {
             CandidateId = "end-turn",
             SourceId = "end-turn",
             DisplayName = "结束回合",
             Kind = CombatActionKind.EndTurn,
-            RuntimeId = fightUi.turnButton == null ? 0 : fightUi.turnButton.GetInstanceID(),
+            RuntimeId = 9000,
             Legal = observation.IsPlayerActionWindow,
-            RuntimeHandle = fightUi.turnButton
-        });
-        observation.Fingerprint = BuildFingerprint(observation);
+        },
+            fightUi.turnButton,
+            null);
+        observation = CombatPlayerObservationBoundary.Normalize(observation);
+        executionContext = capturedExecutionContext;
         reason = "";
+        return true;
+    }
+
+    public bool TryCapturePlayerObservation(
+        out PlayerCombatObservation observation,
+        out string reason)
+    {
+        if (!TryCapture(out var state, out reason))
+        {
+            observation = new PlayerCombatObservation();
+            return false;
+        }
+        observation = new PlayerCombatObservation
+        {
+            ObservationId = state.ObservationId,
+            State = state
+        };
         return true;
     }
 
@@ -98,6 +130,10 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
         if (fightUi == null || !IsPlayerActionWindow(fightUi))
         {
             return CombatExecutionResult.Rejected("player action window is not stable");
+        }
+        if (!executionContext.TryResolve(action, out var binding))
+        {
+            return CombatExecutionResult.Rejected("action token is stale");
         }
 
         try
@@ -114,10 +150,10 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
                     return CombatExecutionResult.Success("end turn");
 
                 case CombatActionKind.PlayCard:
-                    return ExecuteCard(action, fightUi);
+                    return ExecuteCard(action, binding, fightUi);
 
                 case CombatActionKind.UseSkill:
-                    return ExecuteSkill(action);
+                    return ExecuteSkill(action, binding);
 
                 default:
                     return CombatExecutionResult.Rejected("unsupported action kind");
@@ -153,11 +189,14 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
                || WitchCombatInteractionRuntime.HasActivePrompt;
     }
 
-    private static CombatExecutionResult ExecuteCard(CombatActionObservation action, FightUI fightUi)
+    private static CombatExecutionResult ExecuteCard(
+        CombatActionObservation action,
+        CombatExecutionBinding binding,
+        FightUI fightUi)
     {
-        if (action.RuntimeHandle is not CommonCardItem card
+        if (binding.SourceHandle is not CommonCardItem card
             || card == null
-            || card.GetInstanceID() != action.RuntimeId)
+            || card.gameObject == null)
         {
             return CombatExecutionResult.Rejected("card handle is stale");
         }
@@ -167,7 +206,7 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
             return CombatExecutionResult.Rejected(reason);
         }
 
-        var target = action.TargetHandle as StatusManager;
+        var target = binding.TargetHandle as StatusManager;
         if (card is AttackCardItem attack)
         {
             if (!IsCurrentTarget(action, target))
@@ -195,11 +234,13 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
         return CombatExecutionResult.Success("played card");
     }
 
-    private static CombatExecutionResult ExecuteSkill(CombatActionObservation action)
+    private static CombatExecutionResult ExecuteSkill(
+        CombatActionObservation action,
+        CombatExecutionBinding binding)
     {
-        if (action.RuntimeHandle is not SkillItem skill
+        if (binding.SourceHandle is not SkillItem skill
             || skill == null
-            || skill.GetInstanceID() != action.RuntimeId)
+            || skill.gameObject == null)
         {
             return CombatExecutionResult.Rejected("skill handle is stale");
         }
@@ -209,7 +250,7 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
             return CombatExecutionResult.Rejected(reason);
         }
 
-        var target = action.TargetHandle as StatusManager;
+        var target = binding.TargetHandle as StatusManager;
         if (!IsUntargetedSkill(skill) && target == null)
         {
             return CombatExecutionResult.Rejected("targeted skill has no target");
@@ -224,7 +265,10 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
         return CombatExecutionResult.Success("used skill");
     }
 
-    private static void AddCards(CombatStateObservation state, FightUI fightUi)
+    private static void AddCards(
+        CombatStateObservation state,
+        FightUI fightUi,
+        CombatExecutionContext context)
     {
         var cards = FightUI.cardItemList;
         if (cards == null)
@@ -245,46 +289,78 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
             {
                 if (state.Enemies.Count == 0)
                 {
-                    AddCardCandidate(state, card, i, null, false, "no living enemy target");
+                    AddCardCandidate(
+                        state,
+                        context,
+                        card,
+                        2000 + i,
+                        i,
+                        null,
+                        0,
+                        false,
+                        "no living enemy target");
                     continue;
                 }
 
                 for (var targetIndex = 0; targetIndex < state.Enemies.Count; targetIndex++)
                 {
-                    var target = ResolveStatus(state.Enemies[targetIndex].RuntimeId);
-                    AddCardCandidate(state, card, i, target, legal, reason);
+                    var targetId = state.Enemies[targetIndex].RuntimeId;
+                    context.TryResolveActor<StatusManager>(targetId, out var target);
+                    AddCardCandidate(
+                        state,
+                        context,
+                        card,
+                        2000 + i,
+                        i,
+                        target,
+                        targetId,
+                        legal,
+                        reason);
                 }
             }
             else
             {
-                AddCardCandidate(state, card, i, null, legal, reason);
+                AddCardCandidate(
+                    state,
+                    context,
+                    card,
+                    2000 + i,
+                    i,
+                    null,
+                    0,
+                    legal,
+                    reason);
             }
         }
     }
 
     private static void AddCardCandidate(
         CombatStateObservation state,
+        CombatExecutionContext context,
         CommonCardItem card,
+        int publicCardId,
         int index,
         StatusManager? target,
+        int publicTargetId,
         bool legal,
         string reason)
     {
         var sourceId = WitchCombatValueEstimator.IdOf(card.dataConfig);
-        var targetId = target == null ? 0 : target.GetInstanceID();
         var semantics = WitchCombatValueEstimator.Estimate(
             card.dataConfig,
             card is AttackCardItem,
             target == null ? CombatTargetKind.None : CombatTargetKind.Enemy);
-        ApplyRuntimeModifiers(state.Player, semantics);
-        state.Actions.Add(new CombatActionObservation
+        AddBoundAction(
+            state,
+            context,
+            new CombatActionObservation
         {
-            CandidateId = "card:" + card.GetInstanceID() + ":" + targetId,
+            CandidateId = "card:" + sourceId + ":" + publicCardId + ":" + publicTargetId,
             SourceId = sourceId,
             DisplayName = WitchCombatValueEstimator.NameOf(card.dataConfig),
             Kind = CombatActionKind.PlayCard,
-            RuntimeId = card.GetInstanceID(),
-            TargetRuntimeId = targetId,
+            RuntimeId = publicCardId,
+            TargetRuntimeId = publicTargetId,
             TargetKind = target == null ? CombatTargetKind.None : CombatTargetKind.Enemy,
             Cost = ComputeCardCost(card),
             Legal = legal,
@@ -307,10 +383,10 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
                     "Consumption")
                     ? 1d
                     : 0d
-            },
-            RuntimeHandle = card,
-            TargetHandle = target
-        });
+            }
+        },
+            card,
+            target);
     }
 
     private static bool IsVisibleFake(CommonCardItem card)
@@ -321,13 +397,17 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
                && parsed;
     }
 
-    private static void AddSkills(CombatStateObservation state, FightUI fightUi)
+    private static void AddSkills(
+        CombatStateObservation state,
+        FightUI fightUi,
+        CombatExecutionContext context)
     {
         if (SkillItemsField?.GetValue(fightUi) is not IEnumerable skills)
         {
             return;
         }
 
+        var skillIndex = 0;
         foreach (var value in skills)
         {
             if (value is not SkillItem skill)
@@ -335,52 +415,86 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
                 continue;
             }
 
+            var publicSkillId = 3000 + skillIndex++;
             var legal = TryPreflightSkill(skill, out var reason);
             if (IsUntargetedSkill(skill))
             {
-                AddSkillCandidate(state, skill, null, CombatTargetKind.None, legal, reason);
+                AddSkillCandidate(
+                    state,
+                    context,
+                    skill,
+                    publicSkillId,
+                    null,
+                    0,
+                    CombatTargetKind.None,
+                    legal,
+                    reason);
                 continue;
             }
 
             for (var i = 0; i < state.Enemies.Count; i++)
             {
-                var target = ResolveStatus(state.Enemies[i].RuntimeId);
+                var targetId = state.Enemies[i].RuntimeId;
+                context.TryResolveActor<StatusManager>(targetId, out var target);
                 if (target != null)
                 {
-                    AddSkillCandidate(state, skill, target, CombatTargetKind.Enemy, legal, reason);
+                    AddSkillCandidate(
+                        state,
+                        context,
+                        skill,
+                        publicSkillId,
+                        target,
+                        targetId,
+                        CombatTargetKind.Enemy,
+                        legal,
+                        reason);
                 }
             }
 
             if (FightPlayer.Instance?.Status is StatusManager self)
             {
-                AddSkillCandidate(state, skill, self, CombatTargetKind.Self, legal, reason);
+                AddSkillCandidate(
+                    state,
+                    context,
+                    skill,
+                    publicSkillId,
+                    self,
+                    state.Player.RuntimeId,
+                    CombatTargetKind.Self,
+                    legal,
+                    reason);
             }
         }
     }
 
     private static void AddSkillCandidate(
         CombatStateObservation state,
+        CombatExecutionContext context,
         SkillItem skill,
+        int publicSkillId,
         StatusManager? target,
+        int publicTargetId,
         CombatTargetKind targetKind,
         bool legal,
         string reason)
     {
-        var targetId = target == null ? 0 : target.GetInstanceID();
         var semantics = WitchCombatValueEstimator.Estimate(skill.dataConfig, false, targetKind);
-        ApplyRuntimeModifiers(state.Player, semantics);
         if (semantics.CooldownTurns <= 0d)
         {
             semantics.CooldownTurns = 1d;
         }
-        state.Actions.Add(new CombatActionObservation
+        var sourceId = WitchCombatValueEstimator.IdOf(skill.dataConfig);
+        AddBoundAction(
+            state,
+            context,
+            new CombatActionObservation
         {
-            CandidateId = "skill:" + skill.GetInstanceID() + ":" + targetId,
-            SourceId = WitchCombatValueEstimator.IdOf(skill.dataConfig),
+            CandidateId = "skill:" + sourceId + ":" + publicSkillId + ":" + publicTargetId,
+            SourceId = sourceId,
             DisplayName = WitchCombatValueEstimator.NameOf(skill.dataConfig),
             Kind = CombatActionKind.UseSkill,
-            RuntimeId = skill.GetInstanceID(),
-            TargetRuntimeId = targetId,
+            RuntimeId = publicSkillId,
+            TargetRuntimeId = publicTargetId,
             TargetKind = targetKind,
             Legal = legal,
             RejectionReason = reason,
@@ -388,10 +502,37 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
             Features = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
             {
                 ["isSkill"] = 1d
-            },
-            RuntimeHandle = skill,
-            TargetHandle = target
-        });
+            }
+        },
+            skill,
+            target);
+    }
+
+    private static void AddBoundAction(
+        CombatStateObservation state,
+        CombatExecutionContext context,
+        CombatActionObservation action,
+        object? sourceHandle,
+        object? targetHandle)
+    {
+        action.ObservationId = state.ObservationId;
+        action.ActionToken = "a" + state.Actions.Count;
+        if (action.Legal
+            && !CombatAiRegistry.EvaluateRuntimePreflight(
+                state,
+                action,
+                new CombatRuntimeActionContext
+                {
+                    SourceHandle = sourceHandle,
+                    TargetHandle = targetHandle
+                },
+                out var reason))
+        {
+            action.Legal = false;
+            action.RejectionReason = reason;
+        }
+        state.Actions.Add(action);
+        context.Bind(action, sourceHandle, targetHandle);
     }
 
     private static bool TryPreflightCard(CommonCardItem card, FightUI fightUi, out string reason)
@@ -505,7 +646,9 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
                && string.Equals(baseScript, "CommonCardItem", StringComparison.Ordinal);
     }
 
-    private static void AddEnemiesAndNativeThreat(CombatStateObservation state)
+    private static void AddEnemiesAndNativeThreat(
+        CombatStateObservation state,
+        CombatExecutionContext context)
     {
         var enemies = EnemyManager.Instance?.enemyList;
         if (enemies == null)
@@ -518,26 +661,29 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
             var enemy = enemies[i];
             if (enemy?.Status is StatusManager status && status.CurHp > 0)
             {
-                var observed = ObserveUnit(status, CombatTargetKind.Enemy);
+                var observed = ObserveUnit(
+                    status,
+                    CombatTargetKind.Enemy,
+                    1000 + i);
                 observed.DefinitionId = WitchCombatValueEstimator.IdOf(
                     ReadMember(enemy, "dataConfig", "DataConfig") as IDataConfig);
                 observed.Attack = ReadNumber(enemy, "Attack");
                 state.Enemies.Add(observed);
+                context.BindActor(observed.RuntimeId, status);
                 AddEnemyThreat(state, enemy, observed);
             }
         }
     }
 
-    private static void ObserveDeck(CombatStateObservation state)
+    private void ObserveDeck(CombatStateObservation state)
     {
         var manager = FightCardManager.Instance;
         if (manager == null)
         {
             return;
         }
-        state.DrawPileCardIds = ReadCardIds(manager.cardList);
-        state.DiscardPileCardIds = ReadCardIds(manager.usedCardList);
         state.DeckCardIds = ReadCardIds(manager.FightcardList);
+        state.DiscardPileCardIds = ReadCardIds(manager.usedCardList);
         state.HandCardIds = state.Actions
             .Where(action => action.Kind == CombatActionKind.PlayCard)
             .GroupBy(action => action.RuntimeId)
@@ -563,9 +709,39 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
                 state.DeckCardIds.Add(sourceId);
             }
         }
+        var drawPileCount = CountItems(manager.cardList);
+        var discardPileCount = CountItems(manager.usedCardList);
+        if (trackedDeckBattleSessionId != state.BattleSessionId)
+        {
+            trackedDeckBattleSessionId = state.BattleSessionId;
+            trackedDrawPileCount = -1;
+            trackedDiscardPileCount = -1;
+            shuffleEpoch = 0;
+        }
+        else if (trackedDrawPileCount >= 0
+                 && trackedDiscardPileCount >= 0
+                 && drawPileCount > trackedDrawPileCount
+                 && discardPileCount < trackedDiscardPileCount)
+        {
+            shuffleEpoch++;
+        }
+        trackedDrawPileCount = drawPileCount;
+        trackedDiscardPileCount = discardPileCount;
+        state.ExhaustPileCardIds.Clear();
+        state.DeckKnowledge = new CombatDeckKnowledge
+        {
+            DrawPileCount = drawPileCount,
+            DiscardPileCount = discardPileCount,
+            ExhaustPileCount = 0,
+            ShuffleEpoch = shuffleEpoch,
+            DiscardContentsVisible = true,
+            ExhaustContentsVisible = false,
+            KnownDeckCardIds = new List<string>(state.DeckCardIds)
+        };
         state.Features["deckCount"] = state.DeckCardIds.Count;
-        state.Features["drawPileCount"] = state.DrawPileCardIds.Count;
-        state.Features["discardPileCount"] = state.DiscardPileCardIds.Count;
+        state.Features["drawPileCount"] = drawPileCount;
+        state.Features["discardPileCount"] = discardPileCount;
+        state.Features["exhaustPileCount"] = 0d;
         foreach (var group in state.DeckCardIds
                      .GroupBy(id => id, StringComparer.OrdinalIgnoreCase)
                      .Take(128))
@@ -594,6 +770,24 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
         return result;
     }
 
+    private static int CountItems(IEnumerable? values)
+    {
+        if (values is ICollection collection)
+        {
+            return collection.Count;
+        }
+        if (values == null)
+        {
+            return 0;
+        }
+        var count = 0;
+        foreach (var _ in values)
+        {
+            count++;
+        }
+        return count;
+    }
+
     private static bool HasAnyTag(CommonCardItem card, params string[] tags)
     {
         return card?.Tags != null
@@ -605,55 +799,60 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
         CombatStateObservation state,
         object runtimeHandle)
     {
-        if (state == null || runtimeHandle is not UnityEngine.Object unityObject)
+        if (state == null || runtimeHandle == null)
         {
             return null;
         }
 
-        var runtimeId = unityObject.GetInstanceID();
-        var targetId = 0;
+        object? targetHandle = null;
         if (runtimeHandle is CommonCardItem card
             && card.dataConfig?.scriptExecutor?.Target is StatusManager cardTarget)
         {
-            targetId = cardTarget.GetInstanceID();
+            targetHandle = cardTarget;
         }
         else if (runtimeHandle is SkillItem skill
                  && SkillHitEnemyField?.GetValue(skill) is StatusManager skillTarget)
         {
-            targetId = skillTarget.GetInstanceID();
+            targetHandle = skillTarget;
         }
 
-        var matches = state.Actions
-            .Where(action => action.RuntimeId == runtimeId)
-            .ToList();
-        return matches.FirstOrDefault(action => targetId != 0 && action.TargetRuntimeId == targetId)
-               ?? matches.FirstOrDefault();
+        return executionContext.FindBySourceHandle(
+            state,
+            runtimeHandle,
+            targetHandle)
+               ?? executionContext.FindBySourceHandle(state, runtimeHandle);
     }
 
-    private static CombatUnitObservation ObserveUnit(StatusManager status, CombatTargetKind kind)
+    public bool TryResolvePresentation(
+        CombatActionObservation action,
+        out UnityEngine.Component? source,
+        out StatusManager? target)
+    {
+        source = null;
+        target = null;
+        if (!executionContext.TryResolve(action, out var binding))
+        {
+            return false;
+        }
+        source = binding.SourceHandle as UnityEngine.Component;
+        target = binding.TargetHandle as StatusManager;
+        return source != null;
+    }
+
+    private static CombatUnitObservation ObserveUnit(
+        StatusManager status,
+        CombatTargetKind kind,
+        int publicRuntimeId)
     {
         var result = new CombatUnitObservation
         {
-            RuntimeId = status.GetInstanceID(),
+            RuntimeId = publicRuntimeId,
             Name = status.gameObject == null ? "" : status.gameObject.name,
             Kind = kind,
             CurrentHp = status.CurHp,
             MaxHp = status.MaxHp,
             Defend = status.Defend
         };
-        if (status.dynamicVariables != null)
-        {
-            var count = 0;
-            foreach (var pair in status.dynamicVariables)
-            {
-                if (count++ >= 64 || string.IsNullOrWhiteSpace(pair.Key))
-                {
-                    break;
-                }
-
-                result.Features[pair.Key] = Finite(pair.Value);
-            }
-        }
         ObserveEffects(status, result);
         return result;
     }
@@ -679,7 +878,6 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
                     config,
                     forceAttack: false,
                     CombatTargetKind.Enemy);
-                ApplyRuntimeModifiers(observed, semantics);
                 var keywords = ReadStrings(ReadMember(rawCard, "keyWords", "KeyWords"));
                 if (semantics.Damage <= 0d
                     && semantics.TrueDamage <= 0d
@@ -708,7 +906,6 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
                     Confidence = knownSemantics ? 0.9d : 0.35d,
                     Current = true
                 };
-                ApplyIncomingModifiers(state.Player, intent);
                 state.Threat.Intents.Add(intent);
                 state.Threat.CurrentIntentKnown = true;
                 state.Threat.ExpectedBlockableDamage += intent.BlockableDamage;
@@ -782,57 +979,6 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
         state.Features["attackProbability"] = threat.AttackProbability;
         state.Features["threatConfidence"] = threat.Confidence;
         state.Features["currentIntentKnown"] = threat.CurrentIntentKnown ? 1d : 0d;
-        CopyUnitFeatures(state.Player, state.Features, "player.");
-    }
-
-    private static void ApplyRuntimeModifiers(
-        CombatUnitObservation unit,
-        CombatActionSemantics semantics)
-    {
-        semantics.Damage = Math.Max(
-            0d,
-            semantics.Damage * RuntimeMultiplier(unit, "PercentDamage")
-            + RuntimeValue(unit, "DefaultDamage"));
-        semantics.Defend *= RuntimeMultiplier(unit, "DefendPercent");
-        semantics.Heal *= RuntimeMultiplier(unit, "HealMultiplier");
-    }
-
-    private static void ApplyIncomingModifiers(
-        CombatUnitObservation target,
-        CombatIntentObservation intent)
-    {
-        intent.BlockableDamage = Math.Max(
-            0d,
-            (intent.BlockableDamage + RuntimeValue(target, "AttackedDefaultDamage"))
-            * RuntimeMultiplier(target, "AttackedPercentDamage"));
-        intent.UnblockableDamage = Math.Max(
-            0d,
-            intent.UnblockableDamage * RuntimeMultiplier(target, "AttackedPercentDamage"));
-    }
-
-    private static double RuntimeMultiplier(CombatUnitObservation unit, string key)
-    {
-        return unit.Features.TryGetValue(key, out var value)
-            ? Math.Max(0d, Finite(value))
-            : 1d;
-    }
-
-    private static double RuntimeValue(CombatUnitObservation unit, string key)
-    {
-        return unit.Features.TryGetValue(key, out var value)
-            ? Finite(value)
-            : 0d;
-    }
-
-    private static void CopyUnitFeatures(
-        CombatUnitObservation unit,
-        IDictionary<string, double> target,
-        string prefix)
-    {
-        foreach (var pair in unit.Features)
-        {
-            target[prefix + pair.Key] = Finite(pair.Value);
-        }
     }
 
     private static void ObserveEffects(StatusManager status, CombatUnitObservation observed)
@@ -1037,81 +1183,30 @@ public sealed class WitchCombatRuntime : ICombatObservationProvider, ICombatActi
         return double.IsNaN(value) || double.IsInfinity(value) ? 0d : value;
     }
 
-    private static StatusManager? ResolveStatus(int runtimeId)
-    {
-        if (FightPlayer.Instance?.Status is StatusManager self && self.GetInstanceID() == runtimeId)
-        {
-            return self;
-        }
-
-        var enemies = EnemyManager.Instance?.enemyList;
-        if (enemies == null)
-        {
-            return null;
-        }
-
-        for (var i = 0; i < enemies.Count; i++)
-        {
-            if (enemies[i]?.Status is StatusManager status && status.GetInstanceID() == runtimeId)
-            {
-                return status;
-            }
-        }
-
-        return null;
-    }
-
     private static bool IsCurrentTarget(
         CombatActionObservation action,
         StatusManager? target)
     {
         if (target == null
             || target.CurHp <= 0
-            || action.TargetRuntimeId == 0
-            || target.GetInstanceID() != action.TargetRuntimeId)
+            || action.TargetRuntimeId == 0)
         {
             return false;
         }
 
-        var current = ResolveStatus(action.TargetRuntimeId);
-        return current != null && current.GetInstanceID() == target.GetInstanceID();
-    }
-
-    private static string BuildFingerprint(CombatStateObservation state)
-    {
-        var enemyState = string.Join(",", state.Enemies.Select(enemy =>
-            enemy.RuntimeId
-            + ":" + enemy.CurrentHp
-            + ":" + enemy.Defend
-            + ":" + FeatureFingerprint(enemy.Features)));
-        var actionState = string.Join(",", state.Actions
-            .Where(action => action.Kind != CombatActionKind.EndTurn)
-            .Select(action => action.RuntimeId + ":" + action.SourceId)
-            .Distinct());
-        return state.BattleSessionId
-               + "|" + state.Player.CurrentHp
-               + "|" + state.Player.Defend
-               + "|" + FeatureFingerprint(state.Player.Features)
-               + "|" + state.CurrentPower
-               + "|" + state.HandCount
-               + "|" + enemyState
-               + "|" + (state.Threat?.Summary ?? "")
-               + "|" + actionState;
-    }
-
-    private static string FeatureFingerprint(IReadOnlyDictionary<string, double>? features)
-    {
-        if (features == null || features.Count == 0)
+        if (FightPlayer.Instance?.Status is StatusManager self
+            && ReferenceEquals(self, target))
         {
-            return "";
+            return action.TargetKind == CombatTargetKind.Self;
         }
-        return string.Join(
-            ",",
-            features
-                .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
-                .Take(64)
-                .Select(pair => pair.Key + "=" + Finite(pair.Value).ToString("0.####")));
+        var enemies = EnemyManager.Instance?.enemyList;
+        return enemies != null
+               && enemies.Any(enemy =>
+                   enemy?.Status is StatusManager status
+                   && status.CurHp > 0
+                   && ReferenceEquals(status, target));
     }
+
 }
 
 public static class WitchCombatValueEstimator

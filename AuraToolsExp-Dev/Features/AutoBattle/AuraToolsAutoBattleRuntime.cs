@@ -249,7 +249,7 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         CombatStateObservation? after = null;
         if (beforeAction != null && pendingDecision?.Action != null)
         {
-            runtime.TryCapture(out after, out _);
+            TryCapturePlayerState(out after, out _);
             transaction.Complete("battle ended after action");
             RecordPendingTrainingSample(
                 CombatActionTransactionState.Completed.ToString(),
@@ -259,7 +259,7 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         }
         if (teacherBeforeAction != null && teacherDecision?.Action != null)
         {
-            runtime.TryCapture(out var teacherAfter, out _);
+            TryCapturePlayerState(out var teacherAfter, out _);
             RecordTeacherTrainingSample(
                 CombatActionTransactionState.Completed.ToString(),
                 "battle ended after teacher action",
@@ -383,7 +383,7 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
 
     private void DecideAndExecute()
     {
-        if (!runtime.TryCapture(out var state, out _)
+        if (!TryCapturePlayerState(out var state, out _)
             || !state.IsPlayerActionWindow
             || state.UiBusy)
         {
@@ -418,12 +418,19 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         if (settings.ShowPredictionMarkers)
         {
             var fightUi = WitchUiManager.Instance?.GetUI<FightUI>("FightUI");
-            if (fightUi != null)
+            if (fightUi != null
+                && runtime.TryResolvePresentation(
+                    decision.Action,
+                    out var actionComponent,
+                    out var target)
+                && actionComponent != null)
             {
                 predictionPresenter?.Show(
                     fightUi,
                     state.Fingerprint,
                     decision.Action,
+                    actionComponent,
+                    target,
                     actionHoldSeconds: 0.45f);
             }
         }
@@ -461,7 +468,7 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
     {
         if (!CanCaptureTeacher()
             || runtimeHandle == null
-            || !runtime.TryCapture(out var state, out _)
+            || !TryCapturePlayerState(out var state, out _)
             || !state.IsPlayerActionWindow)
         {
             return;
@@ -478,7 +485,7 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
     internal void CaptureTeacherEndTurn()
     {
         if (!CanCaptureTeacher()
-            || !runtime.TryCapture(out var state, out _)
+            || !TryCapturePlayerState(out var state, out _)
             || !state.IsPlayerActionWindow)
         {
             return;
@@ -577,7 +584,7 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         }
         if (Time.unscaledTime - teacherStartedAt < settings.DecisionIntervalMs / 1000f
             || WitchCombatInteractionRuntime.HasActivePrompt
-            || !runtime.TryCapture(out var after, out _)
+            || !TryCapturePlayerState(out var after, out _)
             || after.UiBusy
             || !after.IsPlayerActionWindow
             || string.Equals(
@@ -632,7 +639,7 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
             return;
         }
 
-        if (!runtime.TryCapture(out var after, out _)
+        if (!TryCapturePlayerState(out var after, out _)
             || after.UiBusy
             || !after.IsPlayerActionWindow)
         {
@@ -747,7 +754,7 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         }
 
         nextPredictionAt = Time.unscaledTime + settings.DecisionIntervalMs / 1000f;
-        if (!runtime.TryCapture(out var state, out _)
+        if (!TryCapturePlayerState(out var state, out _)
             || !state.IsPlayerActionWindow
             || state.UiBusy)
         {
@@ -772,10 +779,17 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         if (!decision.HasAction
             || decision.Action == null
             || fightUi == null
+            || !runtime.TryResolvePresentation(
+                decision.Action,
+                out var actionComponent,
+                out var target)
+            || actionComponent == null
             || predictionPresenter?.Show(
                 fightUi,
                 state.Fingerprint,
-                decision.Action) != true)
+                decision.Action,
+                actionComponent,
+                target) != true)
         {
             ClearPredictionMarkers();
             return;
@@ -797,6 +811,19 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         var configured = AuraToolsConfigService.MatchExperience.AutoBattle.TrainingMode;
         return string.Equals(configured, "hybrid", StringComparison.OrdinalIgnoreCase)
                || string.Equals(configured, mode, StringComparison.OrdinalIgnoreCase);
+    }
+
+    private bool TryCapturePlayerState(
+        out CombatStateObservation state,
+        out string reason)
+    {
+        if (runtime.TryCapturePlayerObservation(out var observation, out reason))
+        {
+            state = observation.State;
+            return true;
+        }
+        state = new CombatStateObservation();
+        return false;
     }
 
     private void ReloadDecisionEngine()
@@ -861,12 +888,12 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         if (string.Equals(trainedModelMode, "active", StringComparison.OrdinalIgnoreCase)
             && !string.Equals(trainedModelId, "none", StringComparison.Ordinal))
         {
-            if (!AuraToolsCombatKnowledgeRuntime.HasAuthoritativeCoverage(
+            if (!AuraToolsCombatKnowledgeRuntime.HasPlayerEquivalentReadiness(
                     state,
                     out var coverageReason))
             {
                 AuraToolsLog.Debug(
-                    "[AutoBattle][Knowledge] 主动模型已对当前状态降级为底模：" + coverageReason);
+                    "[AutoBattle][Observation] 主动模型已对当前状态降级为底模：" + coverageReason);
                 return RunDecisionEngine(
                     baselineDecisionEngine,
                     state,
@@ -1316,10 +1343,10 @@ internal sealed class AuraToolsAutoBattleTrainingSink : ICombatTrainingSampleSin
         {
             var path = AuraSharedLogStore.OwnerLogPath(
                 AuraToolsIds.ModId,
-                "auto-battle-training-v4.jsonl");
+                "auto-battle-training-v5.jsonl");
             var episodesPath = AuraSharedLogStore.OwnerLogPath(
                 AuraToolsIds.ModId,
-                "live-combat-episodes-v1.jsonl");
+                "live-combat-episodes-v2.jsonl");
             var sessions = new Dictionary<long, List<CombatTrainingSample>>();
             var sessionGeneration = Volatile.Read(ref storageGeneration);
             foreach (var queued in queue.GetConsumingEnumerable())
@@ -1367,8 +1394,8 @@ internal sealed class AuraToolsAutoBattleTrainingSink : ICombatTrainingSampleSin
             Interlocked.Increment(ref storageGeneration);
             foreach (var fileName in new[]
                      {
-                         "auto-battle-training-v4.jsonl",
-                         "live-combat-episodes-v1.jsonl"
+                         "auto-battle-training-v5.jsonl",
+                         "live-combat-episodes-v2.jsonl"
                      })
             {
                 var path = AuraSharedLogStore.OwnerLogPath(
@@ -1386,11 +1413,11 @@ internal sealed class AuraToolsAutoBattleTrainingSink : ICombatTrainingSampleSin
     {
         return string.Equals(
                    fileName,
-                   "auto-battle-training-v4.jsonl",
+                   "auto-battle-training-v5.jsonl",
                    StringComparison.OrdinalIgnoreCase)
                || string.Equals(
                    fileName,
-                   "live-combat-episodes-v1.jsonl",
+                   "live-combat-episodes-v2.jsonl",
                    StringComparison.OrdinalIgnoreCase);
     }
 

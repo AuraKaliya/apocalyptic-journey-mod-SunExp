@@ -43,17 +43,6 @@ public static class WitchCombatInteractionRuntime
             return;
         }
 
-        var choices = new List<CombatActionObservation>(source.Count);
-        for (var i = 0; i < source.Count; i++)
-        {
-            if (source[i] is not IDataConfig config)
-            {
-                continue;
-            }
-
-            choices.Add(CreateChoice(config, i));
-        }
-
         var request = CombatInteractionBroker.Begin(
             new CombatInteractionHint
             {
@@ -63,7 +52,7 @@ public static class WitchCombatInteractionRuntime
                 Forced = true
             },
             count,
-            choices);
+            null);
         deckPrompt = new DeckPrompt(deckUi, source, request);
         handPrompt = null;
     }
@@ -119,14 +108,6 @@ public static class WitchCombatInteractionRuntime
         }
 
         var cards = FightUI.cardItemList ?? new List<CardItem>();
-        var choices = new List<CombatActionObservation>(cards.Count);
-        for (var i = 0; i < cards.Count; i++)
-        {
-            if (cards[i]?.dataConfig != null)
-            {
-                choices.Add(CreateChoice(cards[i].dataConfig, i, cards[i]));
-            }
-        }
 
         var request = CombatInteractionBroker.Begin(
             new CombatInteractionHint
@@ -138,7 +119,7 @@ public static class WitchCombatInteractionRuntime
                 PreferLowestValue = preferLowestValue
             },
             Math.Max(1, count),
-            choices);
+            null);
         handPrompt = new HandPrompt(
             fightUi,
             request,
@@ -209,6 +190,16 @@ public static class WitchCombatInteractionRuntime
                                  && button.gameObject.activeInHierarchy
                                  && button.GetComponentInChildren<DisplayCard>(true) != null)
                 .ToList();
+            CombatInteractionBroker.PublishVisibleChoices(
+                prompt.Request.RequestId,
+                buttons
+                    .Select((button, index) =>
+                        button.GetComponentInChildren<DisplayCard>(true)?.dataConfig is { } config
+                            ? CreateChoice(config, index)
+                            : null)
+                    .Where(choice => choice != null)
+                    .Cast<CombatActionObservation>()
+                    .ToList());
             if (buttons.Count < prompt.Request.RequiredCount)
             {
                 return WitchInteractionResolveResult.Pending;
@@ -281,6 +272,11 @@ public static class WitchCombatInteractionRuntime
                 {
                     prompt.Selection.SetRequiredCount(nativeRequired);
                 }
+                CombatInteractionBroker.PublishVisibleChoices(
+                    prompt.Request.RequestId,
+                    EligibleHandCards(prompt)
+                        .Select((card, index) => CreateChoice(card.dataConfig, index))
+                        .ToList());
                 CombatInteractionBroker.Transition(
                     prompt.Request.RequestId,
                     CombatInteractionState.AwaitingChoice,
@@ -454,18 +450,18 @@ public static class WitchCombatInteractionRuntime
 
     private static CombatActionObservation CreateChoice(
         IDataConfig config,
-        int index,
-        object? runtimeHandle = null)
+        int index)
     {
         return new CombatActionObservation
         {
+            ObservationId = "prompt",
+            ActionToken = "prompt:" + index,
             CandidateId = "prompt:" + index + ":" + WitchCombatValueEstimator.IdOf(config),
             SourceId = WitchCombatValueEstimator.IdOf(config),
             DisplayName = WitchCombatValueEstimator.NameOf(config),
             Kind = CombatActionKind.ResolvePrompt,
             RuntimeId = index,
-            Semantics = WitchCombatValueEstimator.Estimate(config, false, CombatTargetKind.None),
-            RuntimeHandle = runtimeHandle ?? config
+            Semantics = WitchCombatValueEstimator.Estimate(config, false, CombatTargetKind.None)
         };
     }
 

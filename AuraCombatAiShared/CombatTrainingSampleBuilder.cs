@@ -31,6 +31,10 @@ public static class CombatTrainingSampleBuilder
             throw new ArgumentException("decision must contain an action", nameof(decision));
         }
 
+        before = CombatPlayerObservationBoundary.Normalize(before);
+        after = after == null
+            ? null
+            : CombatPlayerObservationBoundary.Normalize(after);
         var reward = BuildReward(before, after, decision.Action, terminal);
         var executedBy = string.Equals(
             demonstrator,
@@ -87,7 +91,8 @@ public static class CombatTrainingSampleBuilder
             SearchTranspositionHits = decision.SearchTranspositionHits,
             SearchBudgetTier = decision.SearchBudgetTier,
             StateFeatures = BuildStateFeatures(before),
-            Features = SanitizeFeatures(decision.Action.Features),
+            Features = CombatPublicFeaturePolicy.SanitizeAction(
+                decision.Action.Features),
             PredictedScore = Finite(decision.Score),
             RewardComponents = reward,
             Reward = Finite(
@@ -161,7 +166,7 @@ public static class CombatTrainingSampleBuilder
 
     private static Dictionary<string, double> BuildStateFeatures(CombatStateObservation state)
     {
-        var features = SanitizeFeatures(state.Features);
+        var features = CombatPublicFeaturePolicy.SanitizeState(state.Features);
         features["playerHp"] = state.Player.CurrentHp;
         features["playerMaxHp"] = state.Player.MaxHp;
         features["playerHpRatio"] = state.Player.MaxHp <= 0
@@ -239,7 +244,7 @@ public static class CombatTrainingSampleBuilder
                                        action.CandidateId,
                                        policyPreselectedCandidateId,
                                        StringComparison.Ordinal),
-            Features = SanitizeFeatures(action.Features),
+            Features = CombatPublicFeaturePolicy.SanitizeAction(action.Features),
             Semantics = SanitizeSemantics(action.Semantics),
             Utility = ToTrainingUtility(evaluation.Utility),
             BaseRuleScore = Finite(evaluation.BaseRuleScore),
@@ -300,26 +305,6 @@ public static class CombatTrainingSampleBuilder
             Uncertainty = Finite(value.Uncertainty),
             Coordination = Finite(value.Coordination)
         };
-    }
-
-    private static Dictionary<string, double> SanitizeFeatures(
-        IReadOnlyDictionary<string, double>? features)
-    {
-        var result = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
-        if (features == null)
-        {
-            return result;
-        }
-
-        foreach (var pair in features)
-        {
-            if (!string.IsNullOrWhiteSpace(pair.Key))
-            {
-                result[pair.Key] = Finite(pair.Value);
-            }
-        }
-
-        return result;
     }
 
     private static int SumEnemyHp(CombatStateObservation state)

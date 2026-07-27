@@ -49,11 +49,8 @@ def load_samples(path: Path) -> list[dict]:
             except json.JSONDecodeError as exc:
                 raise ValueError(f"{path}:{line_number}: invalid JSON: {exc}") from exc
             if (
-                sample.get("ModelProtocol") in {
-                    "aura.combat-ai.sample.v3",
-                    "aura.combat-ai.sample.v4",
-                }
-                and int(sample.get("FeatureSchemaVersion", 0)) in {3, 4}
+                sample.get("ModelProtocol") == "aura.combat-ai.sample.v5"
+                and int(sample.get("FeatureSchemaVersion", 0)) == 5
                 and sample.get("CompletionState") == "Completed"
             ):
                 samples.append(sample)
@@ -289,7 +286,7 @@ def dataset_report(samples: list[dict], pairs: list[dict], gamma: float) -> dict
     human_total = human_agreements + human_disagreements
     return {
         "ReportProtocol": "aura.combat-ai.training-report.v1",
-        "SampleProtocol": "aura.combat-ai.sample.v3",
+        "SampleProtocol": "aura.combat-ai.sample.v5",
         "SelectionProtocol": "aura.combat-ai.selection.v1",
         "GeneratedUtc": datetime.now(timezone.utc).isoformat(),
         "SampleCount": len(samples),
@@ -457,8 +454,8 @@ def train(
 def self_test() -> int:
     samples = [
         {
-            "ModelProtocol": "aura.combat-ai.sample.v3",
-            "FeatureSchemaVersion": 3,
+            "ModelProtocol": "aura.combat-ai.sample.v5",
+            "FeatureSchemaVersion": 5,
             "CompletionState": "Completed",
             "BattleSessionId": index,
             "CandidateId": "attack",
@@ -490,8 +487,8 @@ def self_test() -> int:
     ]
     samples.append(
         {
-            "ModelProtocol": "aura.combat-ai.sample.v3",
-            "FeatureSchemaVersion": 3,
+            "ModelProtocol": "aura.combat-ai.sample.v5",
+            "FeatureSchemaVersion": 5,
             "CompletionState": "Completed",
             "BattleSessionId": 99,
             "CandidateId": "shield",
@@ -588,7 +585,7 @@ def main() -> int:
         return 0
     if not pairs:
         raise ValueError(
-            "no training pairs; collect completed v3 human samples where "
+            "no training pairs; collect completed v5 human samples where "
             "the player overrides the policy preselection"
         )
     weights, means, scales, minimums, maximums, counts, metrics = train(
@@ -629,7 +626,7 @@ def main() -> int:
         "ModelProtocol": "aura.decision-residual.linear.v1",
         "ModelId": "aura-combat-linear-" + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S"),
         "ProtocolVersion": 1,
-        "FeatureSchemaVersion": 4,
+        "FeatureSchemaVersion": 5,
         "ApplicabilityProtocolVersion": 1,
         "DecisionProfile": args.profile,
         "Bias": 0.0,

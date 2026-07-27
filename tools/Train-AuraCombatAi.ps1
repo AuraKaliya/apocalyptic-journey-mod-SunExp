@@ -1,5 +1,5 @@
 param(
-    [string]$InputPath = "D:\Steam\steamapps\common\Witch's Apocalyptic Journey\Witch's Apocalyptic Journey_Data\ModsData\AuraShared\Logs\AuraToolsExp\auto-battle-training-v4.jsonl",
+    [string]$InputPath = "D:\Steam\steamapps\common\Witch's Apocalyptic Journey\Witch's Apocalyptic Journey_Data\ModsData\AuraShared\Logs\AuraToolsExp\auto-battle-training-v5.jsonl",
     [string]$OutputPath = "",
     [string]$ReportPath = "D:\Steam\steamapps\common\Witch's Apocalyptic Journey\Witch's Apocalyptic Journey_Data\ModsData\AuraShared\Logs\AuraToolsExp\auto-battle-training-report.json",
     [ValidateSet("balanced", "aggressive", "defensive")]

@@ -55,7 +55,7 @@ public sealed class CombatDecisionSimulationPolicy :
 
     public CombatSimulationAction? SelectAction(CombatSimulationPolicyContext context)
     {
-        var observation = CombatSimulationObservationProjector.Project(context);
+        var observation = PlayerEquivalentSimulationObservationProjector.Project(context);
         var decision = decisionEngine.Choose(observation, profile);
         LastObservation = observation;
         LastDecision = decision;
@@ -184,17 +184,23 @@ public sealed class CombatDecisionSimulationPolicyFactory : ICombatSimulationPol
     }
 }
 
-public static class CombatSimulationObservationProjector
+public static class PlayerEquivalentSimulationObservationProjector
 {
     public static CombatStateObservation Project(CombatSimulationPolicyContext context)
     {
         if (context == null) throw new ArgumentNullException(nameof(context));
         var state = context.State;
         var player = state.Player ?? new CombatActorState();
+        var battleSessionId = StableSessionId(
+            context.Scenario.ScenarioId,
+            context.Scenario.Seed);
         var observation = new CombatStateObservation
         {
-            BattleSessionId = StableSessionId(context.Scenario.ScenarioId, context.Scenario.Seed),
+            BattleSessionId = battleSessionId,
             Sequence = state.ActionSequence,
+            ObservationId = CombatPlayerObservationBoundary.BuildObservationId(
+                battleSessionId,
+                state.ActionSequence),
             Player = ProjectActor(player, CombatTargetKind.Self),
             CurrentPower = player.Energy,
             MaxPower = player.BaseEnergy,
@@ -209,13 +215,20 @@ public static class CombatSimulationObservationProjector
                 state.DrawPile
                     .Concat(state.Hand)
                     .Concat(state.DiscardPile)
+                    .Concat(state.ExhaustPile)
                     .ToList()),
-            DrawPileCardIds = CardIds(state, state.DrawPile),
             DiscardPileCardIds = CardIds(state, state.DiscardPile),
             ExhaustPileCardIds = CardIds(state, state.ExhaustPile),
+            DeckKnowledge = new CombatDeckKnowledge
+            {
+                DrawPileCount = state.DrawPile.Count,
+                DiscardPileCount = state.DiscardPile.Count,
+                ExhaustPileCount = state.ExhaustPile.Count,
+                DiscardContentsVisible = true,
+                ExhaustContentsVisible = true
+            },
             IsPlayerActionWindow = state.Phase == CombatSimulationPhase.PlayerAction,
             UiBusy = false,
-            Fingerprint = CombatBattleStateHasher.Hash(state),
             Features = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
             {
                 ["turn"] = state.Turn,
@@ -229,10 +242,7 @@ public static class CombatSimulationObservationProjector
                 ["drawPerTurn"] = context.Scenario.DrawPerTurn
             }
         };
-        foreach (var variable in player.Variables)
-        {
-            observation.Features["player." + variable.Key] = variable.Value;
-        }
+        observation.DeckKnowledge.KnownDeckCardIds.AddRange(observation.DeckCardIds);
 
         foreach (var enemy in state.LivingEnemies.OrderBy(enemy => enemy.ActorId))
         {
@@ -246,11 +256,15 @@ public static class CombatSimulationObservationProjector
             + observation.Threat.ExpectedUnblockableDamage
             + observation.Threat.ExpectedDamageOverTime;
 
+        var actionIndex = 0;
         foreach (var legal in context.LegalActions)
         {
-            observation.Actions.Add(ProjectAction(context.Ruleset, state, legal));
+            var action = ProjectAction(context.Ruleset, state, legal);
+            action.ObservationId = observation.ObservationId;
+            action.ActionToken = "a" + actionIndex++;
+            observation.Actions.Add(action);
         }
-        return observation;
+        return CombatPlayerObservationBoundary.Normalize(observation);
     }
 
     private static List<string> CardIds(
@@ -289,8 +303,6 @@ public static class CombatSimulationObservationProjector
         var instance = state.FindCard(action.CardInstanceId);
         var features = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
         {
-            ["authoritativeSimulation"] = 1d,
-            ["cardInstanceId"] = action.CardInstanceId,
             ["turn"] = state.Turn,
             ["visibleFake"] = instance?.IsVisibleFake == true ? 1d : 0d,
             ["hasVisibleWarning"] = instance?.EnchantmentIds.Count > 0 ? 1d : 0d,
@@ -543,10 +555,6 @@ public static class CombatSimulationObservationProjector
             features["status:" + status.StatusId] = status.Stacks;
             AddMechanicFeatures(features, status.StatusId, status.Stacks);
         }
-        foreach (var variable in actor.Variables)
-        {
-            features[variable.Key] = variable.Value;
-        }
         return new CombatUnitObservation
         {
             RuntimeId = actor.ActorId,
@@ -556,6 +564,12 @@ public static class CombatSimulationObservationProjector
             CurrentHp = actor.Hp,
             MaxHp = actor.MaxHp,
             Defend = actor.Block,
+            Statuses = actor.Statuses.Select(status => new CombatStatusObservation
+            {
+                StatusId = status.StatusId,
+                DisplayName = status.StatusId,
+                Level = status.Stacks
+            }).ToList(),
             Features = features
         };
     }
@@ -651,5 +665,13 @@ public static class CombatSimulationObservationProjector
             }
             return (long)(hash & long.MaxValue);
         }
+    }
+}
+
+public static class CombatSimulationObservationProjector
+{
+    public static CombatStateObservation Project(CombatSimulationPolicyContext context)
+    {
+        return PlayerEquivalentSimulationObservationProjector.Project(context);
     }
 }

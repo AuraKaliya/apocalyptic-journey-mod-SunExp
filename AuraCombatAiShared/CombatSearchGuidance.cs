@@ -77,7 +77,7 @@ public sealed class CombatSearchGuidanceDefinition
 
     public int ProtocolVersion { get; set; } = 1;
 
-    public int FeatureSchemaVersion { get; set; } = 4;
+    public int FeatureSchemaVersion { get; set; } = 5;
 
     public string ModelId { get; set; } = "";
 
@@ -173,7 +173,7 @@ public static class CombatSearchGuidanceTrainer
         cancellationToken.ThrowIfCancellationRequested();
         var profile = NormalizeProfile(decisionProfile);
         var samples = (source ?? Array.Empty<CombatTrainingSample>())
-            .Where(sample => sample != null
+            .Where(sample => CombatTrainingProtocol.IsCompatible(sample)
                              && string.Equals(sample.CompletionState, "Completed", StringComparison.OrdinalIgnoreCase)
                              && string.Equals(NormalizeProfile(sample.DecisionProfile), profile, StringComparison.Ordinal))
             .ToList();
