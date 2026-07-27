@@ -335,6 +335,8 @@ public sealed class CombatCampaignRewardScore
     public double EnergyFit { get; set; }
 
     public double DilutionPenalty { get; set; }
+
+    public double RiskPenalty { get; set; }
 }
 
 public sealed class CombatCampaignBuildPlan
@@ -1327,6 +1329,23 @@ public static class CombatCampaignRewardSelector
                     : Math.Max(
                         0d,
                         1d - state.CurrentHp / (double)state.MaxHp);
+                var rebirthPlan =
+                    string.Equals(
+                        buildPlan.PrimaryArchetype,
+                        "rebirth",
+                        StringComparison.OrdinalIgnoreCase)
+                    || string.Equals(
+                        buildPlan.SecondaryArchetype,
+                        "rebirth",
+                        StringComparison.OrdinalIgnoreCase);
+                var riskPenalty =
+                    Feature(item, "risk")
+                    * (0.9d + missingHpRatio * 1.6d)
+                    * (rebirthPlan && Feature(item, "rebirth") > 0d
+                        ? 0.4d
+                        : 1d)
+                    + Feature(item, "gold-cost") * 1.25d
+                    + Feature(item, "hard-ban") * 100d;
                 var survivalFit = kind == CombatCampaignRewardKind.Card
                     ? (Feature(item, "defense") + Feature(item, "heal"))
                       * (0.35d + missingHpRatio)
@@ -1356,9 +1375,11 @@ public static class CombatCampaignRewardSelector
                     SurvivalFit = survivalFit,
                     EnergyFit = energyFit,
                     DilutionPenalty = dilution,
+                    RiskPenalty = riskPenalty,
                     Total = baseValue + tierValue + systemFit + tendency + bossFit
                             + archetypeFit + survivalFit + energyFit
                             - bloat - redundancy - dilution - offPlanPenalty
+                            - riskPenalty
                 };
             })
             .OrderByDescending(item => item.Total)
@@ -1385,7 +1406,9 @@ public static class CombatCampaignRewardSelector
             "heal",
             "aoe",
             "cycling",
-            "energy"
+            "energy",
+            "rebirth",
+            "time-cage"
         };
         var weights = archetypes.ToDictionary(
             key => key,
@@ -1455,10 +1478,116 @@ public static class CombatCampaignRewardSelector
         CombatCampaignRewardDefinition item,
         string key)
     {
-        return !string.IsNullOrWhiteSpace(key)
-               && item.Features.TryGetValue(key, out var value)
+        if (string.IsNullOrWhiteSpace(key))
+        {
+            return 0d;
+        }
+        return item.Features.TryGetValue(key, out var value)
             ? value
-            : 0d;
+            : InferredFeature(item, key);
+    }
+
+    private static double InferredFeature(
+        CombatCampaignRewardDefinition item,
+        string key)
+    {
+        var rewardId = item.RewardId;
+        if (string.Equals(key, "hard-ban", StringComparison.OrdinalIgnoreCase)
+            && string.Equals(
+                rewardId,
+                "luckycard_4",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return 1d;
+        }
+        if (string.Equals(key, "gold-cost", StringComparison.OrdinalIgnoreCase))
+        {
+            if (string.Equals(
+                    rewardId,
+                    "luckycard_4",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return 1d;
+            }
+            var script = (item.OwnScript ?? "") + "\n" + (item.FightScript ?? "");
+            var changesGold =
+                script.IndexOf("Money", StringComparison.OrdinalIgnoreCase) >= 0
+                || script.IndexOf(
+                    "ChangeMoney",
+                    StringComparison.OrdinalIgnoreCase) >= 0;
+            var hasCost =
+                script.IndexOf("ChangeHp", StringComparison.OrdinalIgnoreCase) >= 0
+                || script.IndexOf("SetHp", StringComparison.OrdinalIgnoreCase) >= 0
+                || script.IndexOf("DiceCheck", StringComparison.OrdinalIgnoreCase) >= 0
+                || script.IndexOf("* -", StringComparison.OrdinalIgnoreCase) >= 0
+                || script.IndexOf("-=", StringComparison.OrdinalIgnoreCase) >= 0;
+            return changesGold && hasCost ? 1d : 0d;
+        }
+        if (string.Equals(key, "rebirth", StringComparison.OrdinalIgnoreCase))
+        {
+            if (IdIn(rewardId, "Crowdfundingcard_6", "Crowdfundingcard_47"))
+            {
+                return 1d;
+            }
+            if (IdIn(
+                    rewardId,
+                    "Crowdfundingcard_8",
+                    "Crowdfundingcard_10",
+                    "Crowdfundingcard_11"))
+            {
+                return 0.9d;
+            }
+            if (IdIn(
+                    rewardId,
+                    "Crowdfundingcard_7",
+                    "Crowdfundingcard_9",
+                    "Crowdfundingcard_25",
+                    "Crowdfundingcard_49",
+                    "SpellCard_17",
+                    "universalcard_10",
+                    "universalcard_15"))
+            {
+                return 0.4d;
+            }
+        }
+        if (string.Equals(key, "time-cage", StringComparison.OrdinalIgnoreCase))
+        {
+            if (IdIn(
+                    rewardId,
+                    "timekeeper_3",
+                    "timekeeper_4",
+                    "timekeeper_6",
+                    "timekeeper_7",
+                    "timekeeper_8",
+                    "timekeeper_9",
+                    "timekeeper_10",
+                    "timekeeper_12",
+                    "timekeeper_13",
+                    "timekeeper_14",
+                    "timekeeper_17",
+                    "timekeeper_18"))
+            {
+                return 0.9d;
+            }
+            if (IdIn(
+                    rewardId,
+                    "timekeeper_2",
+                    "timekeeper_5",
+                    "timekeeper_15",
+                    "timekeeper_16"))
+            {
+                return 0.45d;
+            }
+        }
+        return 0d;
+    }
+
+    private static bool IdIn(string value, params string[] candidates)
+    {
+        return candidates.Any(candidate => string.Equals(
+            value,
+            candidate,
+            StringComparison.OrdinalIgnoreCase));
     }
 
     private static double DictionaryValue(
@@ -1558,6 +1687,27 @@ public static class CombatCampaignRewardSelector
                         ? value + pair.Value * sourceWeight
                         : pair.Value * sourceWeight;
                 }
+                foreach (var key in new[]
+                         {
+                             "rebirth",
+                             "time-cage",
+                             "gold-cost",
+                             "hard-ban"
+                         })
+                {
+                    if (item.Features.ContainsKey(key))
+                    {
+                        continue;
+                    }
+                    var inferred = InferredFeature(item, key);
+                    if (Math.Abs(inferred) <= 0.000001d)
+                    {
+                        continue;
+                    }
+                    result[key] = result.TryGetValue(key, out var inferredValue)
+                        ? inferredValue + inferred * sourceWeight
+                        : inferred * sourceWeight;
+                }
             }
         }
     }
@@ -1568,7 +1718,23 @@ public static class CombatCampaignRewardSelector
     {
         if (left == null || right == null) return 0d;
         return left.Sum(item =>
-            item.Value * (right.TryGetValue(item.Key, out var value) ? value : 0d));
+            IsPenaltyFeature(item.Key)
+                ? 0d
+                : item.Value
+                  * (right.TryGetValue(item.Key, out var value) ? value : 0d));
+    }
+
+    private static bool IsPenaltyFeature(string key)
+    {
+        return string.Equals(key, "risk", StringComparison.OrdinalIgnoreCase)
+               || string.Equals(
+                   key,
+                   "gold-cost",
+                   StringComparison.OrdinalIgnoreCase)
+               || string.Equals(
+                   key,
+                   "hard-ban",
+                   StringComparison.OrdinalIgnoreCase);
     }
 
     internal static void ApplyProgressionEffect(
@@ -1884,6 +2050,7 @@ public sealed class CombatCampaignRunner
                 new Dictionary<string, string>(
                     battle.CampaignVariables,
                     StringComparer.OrdinalIgnoreCase);
+            checkpoint.State.SpecialVariables.Remove("ResurrectionCount");
             if (battle.Outcome == CombatSimulationOutcome.Victory
                 && (encounter.Kind != CombatCampaignEncounterKind.FinalBoss
                     || definition.RewardAfterFinalBoss))
@@ -2221,6 +2388,7 @@ public sealed class CombatCampaignRunner
         scenario.CampaignVariables = new Dictionary<string, string>(
             state.SpecialVariables,
             StringComparer.OrdinalIgnoreCase);
+        scenario.CampaignVariables["ResurrectionCount"] = "0";
         scenario.Player.Variables["EncounterKind"] = (int)encounter.Kind;
         scenario.RewardCatalog = rewardCatalog;
         scenario.RewardRules = CombatCampaignRewardRuleProjector.Build(

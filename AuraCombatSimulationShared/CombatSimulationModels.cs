@@ -914,6 +914,26 @@ public sealed class CombatDeferredVariableChangeState
     }
 }
 
+public sealed class CombatDeferredEffectState
+{
+    public int Sequence { get; set; }
+
+    public int ActorId { get; set; }
+
+    public string StatusId { get; set; } = "";
+
+    public string SourceCardId { get; set; } = "";
+
+    public int SourceCardInstanceId { get; set; }
+
+    public int TargetActorId { get; set; }
+
+    public CombatDeferredEffectState Clone()
+    {
+        return (CombatDeferredEffectState)MemberwiseClone();
+    }
+}
+
 public sealed class CombatBattleState
 {
     public int Turn { get; set; }
@@ -946,6 +966,8 @@ public sealed class CombatBattleState
         set;
     } = new();
 
+    public List<CombatDeferredEffectState> DeferredEffects { get; set; } = new();
+
     public long ActionSequence { get; set; }
 
     public long EventSequence { get; set; }
@@ -973,6 +995,9 @@ public sealed class CombatBattleState
             ExhaustPile = new List<int>(ExhaustPile),
             Random = Random.Clone(),
             DeferredVictoryVariableChanges = DeferredVictoryVariableChanges
+                .Select(item => item.Clone())
+                .ToList(),
+            DeferredEffects = DeferredEffects
                 .Select(item => item.Clone())
                 .ToList(),
             ActionSequence = ActionSequence,

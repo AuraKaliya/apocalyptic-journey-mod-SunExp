@@ -33,6 +33,8 @@ public sealed class WitchCombatRuntime :
     private int trackedDrawPileCount = -1;
     private int trackedDiscardPileCount = -1;
     private int shuffleEpoch;
+    private long trackedMechanicBattleSessionId;
+    private int resurrectionCountBaseline;
 
     public bool TryCapture(out CombatStateObservation observation, out string reason)
     {
@@ -77,6 +79,7 @@ public sealed class WitchCombatRuntime :
         AddCards(observation, fightUi, capturedExecutionContext);
         AddSkills(observation, fightUi, capturedExecutionContext);
         ObserveDeck(observation);
+        ObservePublicMechanicState(playerStatus, observation);
         if (CombatAiRegistry.TryResolveThreat(observation, out var providedThreat))
         {
             observation.Threat = providedThreat;
@@ -350,6 +353,34 @@ public sealed class WitchCombatRuntime :
             card.dataConfig,
             card is AttackCardItem,
             target == null ? CombatTargetKind.None : CombatTargetKind.Enemy);
+        var features = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
+        {
+            ["handIndex"] = index,
+            ["isCard"] = 1d,
+            ["visibleFake"] = IsVisibleFake(card) ? 1d : 0d,
+            ["retain"] = HasAnyTag(card, "Retain", "RetainCard") ? 1d : 0d,
+            ["inherent"] = HasAnyTag(card, "Inherent") ? 1d : 0d,
+            ["recycle"] = HasAnyTag(card, "Recycle") ? 1d : 0d,
+            ["ouroboros"] = HasAnyTag(card, "Ouroboros") ? 1d : 0d,
+            ["exhaustOnUse"] = HasAnyTag(
+                card,
+                "Burnout",
+                "Fragmented",
+                "Exhaust",
+                "Consumption")
+                ? 1d
+                : 0d
+        };
+        if (card.Vars != null
+            && card.Vars.TryGetValue("ThisCount", out var useCountRaw)
+            && double.TryParse(
+                useCountRaw,
+                System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var useCount))
+        {
+            features["mechanic:card-use-count"] = Math.Max(0d, useCount);
+        }
         AddBoundAction(
             state,
             context,
@@ -366,24 +397,7 @@ public sealed class WitchCombatRuntime :
             Legal = legal,
             RejectionReason = reason,
             Semantics = semantics,
-            Features = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
-            {
-                ["handIndex"] = index,
-                ["isCard"] = 1d,
-                ["visibleFake"] = IsVisibleFake(card) ? 1d : 0d,
-                ["retain"] = HasAnyTag(card, "Retain", "RetainCard") ? 1d : 0d,
-                ["inherent"] = HasAnyTag(card, "Inherent") ? 1d : 0d,
-                ["recycle"] = HasAnyTag(card, "Recycle") ? 1d : 0d,
-                ["ouroboros"] = HasAnyTag(card, "Ouroboros") ? 1d : 0d,
-                ["exhaustOnUse"] = HasAnyTag(
-                    card,
-                    "Burnout",
-                    "Fragmented",
-                    "Exhaust",
-                    "Consumption")
-                    ? 1d
-                    : 0d
-            }
+            Features = features
         },
             card,
             target);
@@ -1039,6 +1053,80 @@ public sealed class WitchCombatRuntime :
                 ReducePerUse = config.ReducePerUse,
                 ReducePerAttacked = config.ReducePerAttacked,
                 Type = config.Type ?? ""
+            });
+        }
+    }
+
+    private void ObservePublicMechanicState(
+        StatusManager status,
+        CombatStateObservation state)
+    {
+        try
+        {
+            var specialVars = ScriptExecutor.PlayerInfo.SpecialVars;
+            if (specialVars != null
+                && specialVars.TryGetValue(
+                    "ResurrectionCount",
+                    out var resurrectionRaw)
+                && int.TryParse(resurrectionRaw, out var resurrectionCount))
+            {
+                if (trackedMechanicBattleSessionId != state.BattleSessionId)
+                {
+                    trackedMechanicBattleSessionId = state.BattleSessionId;
+                    resurrectionCountBaseline = Math.Max(0, resurrectionCount);
+                }
+                if (resurrectionCount < resurrectionCountBaseline)
+                {
+                    resurrectionCountBaseline = Math.Max(0, resurrectionCount);
+                }
+                state.Features[CombatArchetypePolicy.ResurrectionCountFeature] =
+                    Math.Max(0, resurrectionCount - resurrectionCountBaseline);
+            }
+        }
+        catch
+        {
+            // The deck and visible buff state remain a safe compatibility fallback.
+        }
+
+        IBuffItem[] buffs;
+        try
+        {
+            buffs = status.GetBuffs() ?? Array.Empty<IBuffItem>();
+        }
+        catch
+        {
+            return;
+        }
+        var timeLock = buffs.FirstOrDefault(item =>
+            item?.buffConfig != null
+            && string.Equals(
+                item.buffConfig.BuffId,
+                "buff_timelock",
+                StringComparison.OrdinalIgnoreCase));
+        var effects = ReadMember(timeLock!, "effectList", "EffectList") as IEnumerable;
+        if (effects == null)
+        {
+            return;
+        }
+        var sequence = 0;
+        foreach (var effect in effects)
+        {
+            if (sequence >= 64)
+            {
+                break;
+            }
+            var config = ReadMember(effect!, "Item1", "dataConfig", "DataConfig")
+                         as IDataConfig;
+            var sourceId = WitchCombatValueEstimator.IdOf(config);
+            if (string.IsNullOrWhiteSpace(sourceId))
+            {
+                continue;
+            }
+            state.DeferredEffects.Add(new CombatDeferredEffectObservation
+            {
+                Sequence = sequence++,
+                StatusId = "buff_timelock",
+                SourceId = sourceId
             });
         }
     }

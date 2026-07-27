@@ -219,6 +219,21 @@ public static class PlayerEquivalentSimulationObservationProjector
                     .ToList()),
             DiscardPileCardIds = CardIds(state, state.DiscardPile),
             ExhaustPileCardIds = CardIds(state, state.ExhaustPile),
+            DeferredEffects = state.DeferredEffects
+                .Where(item => item.ActorId == state.PlayerActorId
+                               && string.Equals(
+                                   item.StatusId,
+                                   "buff_timelock",
+                                   StringComparison.OrdinalIgnoreCase))
+                .OrderBy(item => item.Sequence)
+                .Select(item => new CombatDeferredEffectObservation
+                {
+                    Sequence = item.Sequence,
+                    StatusId = item.StatusId,
+                    SourceId = item.SourceCardId,
+                    TargetRuntimeId = item.TargetActorId
+                })
+                .ToList(),
             DeckKnowledge = new CombatDeckKnowledge
             {
                 DrawPileCount = state.DrawPile.Count,
@@ -243,6 +258,14 @@ public static class PlayerEquivalentSimulationObservationProjector
             }
         };
         observation.DeckKnowledge.KnownDeckCardIds.AddRange(observation.DeckCardIds);
+        if (context.Scenario.CampaignVariables.TryGetValue(
+                "ResurrectionCount",
+                out var resurrectionRaw)
+            && int.TryParse(resurrectionRaw, out var resurrectionCount))
+        {
+            observation.Features[CombatArchetypePolicy.ResurrectionCountFeature] =
+                Math.Max(0, resurrectionCount);
+        }
 
         foreach (var enemy in state.LivingEnemies.OrderBy(enemy => enemy.ActorId))
         {
@@ -318,6 +341,15 @@ public static class PlayerEquivalentSimulationObservationProjector
                 ? 1d
                 : 0d
         };
+        if (instance?.Variables.TryGetValue("ThisCount", out var useCountRaw) == true
+            && double.TryParse(
+                useCountRaw,
+                System.Globalization.NumberStyles.Float,
+                System.Globalization.CultureInfo.InvariantCulture,
+                out var useCount))
+        {
+            features["mechanic:card-use-count"] = Math.Max(0d, useCount);
+        }
         return new CombatActionObservation
         {
             CandidateId = action.CandidateId,

@@ -431,7 +431,20 @@ public static class CombatPublicFeaturePolicy
             "setupValue",
             "persistentValue",
             "damageMultiplier",
-            "uncertainty"
+            "uncertainty",
+            "archetype:rebirth.score",
+            "archetype:rebirth.committed",
+            "archetype:rebirth.commitment",
+            "archetype:time-cage.score",
+            "archetype:time-cage.committed",
+            "archetype:time-cage.commitment",
+            "mechanic:rebirth.stacks",
+            "mechanic:rebirth.count",
+            "mechanic:rebirth.keen-edge",
+            "mechanic:rebirth.phase",
+            "mechanic:time-cage.count",
+            "mechanic:time-cage.phase",
+            "mechanic:time-cage.payload-value"
         };
 
     private static readonly HashSet<string> UnitKeys =
@@ -533,7 +546,16 @@ public static class CombatPublicFeaturePolicy
             "categoryDefend",
             "categorySupport",
             "categorySkill",
-            "categoryOther"
+            "categoryOther",
+            "mechanic:card-use-count",
+            "mechanic:rebirth.phase",
+            "mechanic:time-cage.count",
+            "mechanic:time-cage.payload",
+            "mechanic:time-cage.operator",
+            "mechanic:time-cage.reverse",
+            "mechanic:time-cage.first-repeats",
+            "mechanic:time-cage.package",
+            "mechanic:time-cage.last-repeats"
         };
 
     public static Dictionary<string, double> SanitizeState(
@@ -637,6 +659,20 @@ public static class CombatPlayerObservationBoundary
             ExhaustPileCardIds = source.DeckKnowledge?.ExhaustContentsVisible == true
                 ? CleanIds(source.ExhaustPileCardIds)
                 : new List<string>(),
+            DeferredEffects = (source.DeferredEffects
+                               ?? new List<CombatDeferredEffectObservation>())
+                .Where(item => item != null
+                               && !string.IsNullOrWhiteSpace(item.SourceId))
+                .OrderBy(item => item.Sequence)
+                .Select(item => new CombatDeferredEffectObservation
+                {
+                    Sequence = Math.Max(0, item.Sequence),
+                    StatusId = item.StatusId ?? "",
+                    SourceId = item.SourceId ?? "",
+                    TargetRuntimeId = item.TargetRuntimeId,
+                    Semantics = NormalizeSemantics(item.Semantics)
+                })
+                .ToList(),
             DeckKnowledge = CloneDeckKnowledge(source),
             ExpectedIncomingDamage = Finite(source.ExpectedIncomingDamage),
             Threat = CloneThreat(source.Threat),
@@ -648,6 +684,7 @@ public static class CombatPlayerObservationBoundary
         {
             result.Actions.Add(CloneAction(action, result.ObservationId));
         }
+        CombatArchetypePolicy.Enrich(result);
         result.Fingerprint = CombatPublicObservationHasher.Hash(result);
         return result;
     }
@@ -920,6 +957,14 @@ public static class CombatPublicObservationHasher
         foreach (var id in deck.KnownTopCardIds)
         {
             Append(builder, id);
+        }
+        foreach (var effect in state.DeferredEffects
+                     ?? new List<CombatDeferredEffectObservation>())
+        {
+            Append(builder, effect.Sequence);
+            Append(builder, effect.StatusId);
+            Append(builder, effect.SourceId);
+            Append(builder, effect.TargetRuntimeId);
         }
         foreach (var intent in state.Threat?.Intents
                      ?? new List<CombatIntentObservation>())

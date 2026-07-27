@@ -77,6 +77,13 @@ public sealed class CombatDecisionEngine
                 legal = false;
                 rejectionReason = "visible fake card is dominated by a safe action";
             }
+            if (legal)
+            {
+                legal = CombatArchetypePolicy.IsLegal(
+                    state,
+                    action,
+                    out rejectionReason);
+            }
             if (legal && useRuntimeRegistries)
             {
                 legal = CombatAiRegistry.EvaluatePreflight(state, action, out rejectionReason);

@@ -304,6 +304,19 @@ public sealed class CombatActionObservation
     public Dictionary<string, double> Features { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
+public sealed class CombatDeferredEffectObservation
+{
+    public int Sequence { get; set; }
+
+    public string StatusId { get; set; } = "";
+
+    public string SourceId { get; set; } = "";
+
+    public int TargetRuntimeId { get; set; }
+
+    public CombatActionSemantics Semantics { get; set; } = new();
+}
+
 public sealed class CombatStateObservation
 {
     public int InformationBoundaryVersion { get; set; } = 2;
@@ -337,6 +350,8 @@ public sealed class CombatStateObservation
     public List<string> DiscardPileCardIds { get; set; } = new();
 
     public List<string> ExhaustPileCardIds { get; set; } = new();
+
+    public List<CombatDeferredEffectObservation> DeferredEffects { get; set; } = new();
 
     public CombatDeckKnowledge DeckKnowledge { get; set; } = new();
 
