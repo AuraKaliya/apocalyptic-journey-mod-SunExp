@@ -4631,6 +4631,78 @@ CombatCampaignRewardSelector.ClampAttributes(overflowState);
 Assert(overflowState.Attributes["Strength"] == 40
        && overflowState.PermanentAttributeBonuses["Strength"] == 0,
     "attribute overflow is discarded and does not return after a later cap increase");
+var mechanicBuildDefinition = new CombatCampaignDefinition
+{
+    CampaignId = "mechanic-build-test",
+    Rewards =
+    {
+        new CombatCampaignRewardDefinition
+        {
+            RewardId = "Crowdfundingcard_6",
+            Kind = CombatCampaignRewardKind.Card
+        },
+        new CombatCampaignRewardDefinition
+        {
+            RewardId = "Crowdfundingcard_8",
+            Kind = CombatCampaignRewardKind.Card
+        },
+        new CombatCampaignRewardDefinition
+        {
+            RewardId = "Crowdfundingcard_10",
+            Kind = CombatCampaignRewardKind.Card
+        },
+        new CombatCampaignRewardDefinition
+        {
+            RewardId = "Crowdfundingcard_11",
+            Kind = CombatCampaignRewardKind.Card
+        },
+        new CombatCampaignRewardDefinition
+        {
+            RewardId = "luckycard_4",
+            Kind = CombatCampaignRewardKind.Card,
+            BaseValue = 50d,
+            Features = { ["risk"] = 1d }
+        },
+        new CombatCampaignRewardDefinition
+        {
+            RewardId = "safe-card",
+            Kind = CombatCampaignRewardKind.Card,
+            BaseValue = 1d,
+            Features = { ["defense"] = 1d }
+        }
+    }
+};
+var mechanicBuildState = new CombatCampaignState
+{
+    CurrentLayer = 3,
+    MaxHp = 100,
+    CurrentHp = 100,
+    Deck =
+    {
+        "Crowdfundingcard_6",
+        "Crowdfundingcard_8",
+        "Crowdfundingcard_10",
+        "Crowdfundingcard_11"
+    }
+};
+var mechanicPlan = CombatCampaignRewardSelector.RefreshBuildPlan(
+    mechanicBuildDefinition,
+    mechanicBuildState);
+var mechanicRewardLookup = mechanicBuildDefinition.Rewards.ToDictionary(
+    item => item.RewardId,
+    StringComparer.OrdinalIgnoreCase);
+var mechanicRewardScores = CombatCampaignRewardSelector.ScoreRewards(
+    mechanicBuildDefinition,
+    mechanicBuildState,
+    new[] { "luckycard_4", "safe-card" },
+    mechanicRewardLookup,
+    12,
+    CombatCampaignRewardKind.Card);
+Assert(mechanicPlan.PrimaryArchetype == "rebirth"
+       && mechanicRewardScores.Single(item =>
+           item.RewardId == "luckycard_4").RiskPenalty >= 100d
+       && mechanicRewardScores[0].RewardId == "safe-card",
+    "campaign planning recognizes mechanic archetypes and hard-demotes curse alchemy despite an inflated base value");
 var campaignPair = new CombatCampaignRunner().RunPaired(
     campaign,
     "normal",
@@ -5655,6 +5727,274 @@ Assert(projectedOrderA.Fingerprint == projectedOrderB.Fingerprint
                CombatPolicyValueEncoding.BuildStateFeatures(projectedOrderB)
                    .OrderBy(pair => pair.Key)),
     "headless projection obeys the same hidden-state invariants as live observations");
+
+var rebirthInsurance = BuildPlayerEquivalentFixture(false);
+rebirthInsurance.Player.CurrentHp = 5;
+rebirthInsurance.Player.Statuses.Add(
+    new CombatStatusObservation { StatusId = "buff_rebirth", Level = 30 });
+rebirthInsurance.DeckCardIds =
+    new List<string> { "strike", "guard", "setup" };
+rebirthInsurance.HandCardIds = new List<string> { "blood-price" };
+rebirthInsurance.HandCount = 1;
+rebirthInsurance.Actions = new List<CombatActionObservation>
+{
+    new()
+    {
+        CandidateId = "blood-price",
+        SourceId = "blood-price",
+        Kind = CombatActionKind.PlayCard,
+        Cost = 0,
+        Semantics = new CombatActionSemantics { SelfHpLoss = 5d }
+    }
+};
+var insuranceAssessment = CombatArchetypePolicy.Enrich(rebirthInsurance);
+Assert(insuranceAssessment.RebirthCommitment
+           == CombatArchetypeCommitment.None
+       && !CombatArchetypePolicy.IsLegal(
+           rebirthInsurance,
+           rebirthInsurance.Actions[0],
+           out _),
+    "rebirth remains insurance and cannot justify intentional lethal damage outside a committed build");
+var insuranceForward = CombatForwardModel.Apply(
+    CombatForwardModel.Create(rebirthInsurance, 1),
+    rebirthInsurance.Actions[0],
+    0,
+    CombatForwardModel.Resolve(
+        rebirthInsurance,
+        rebirthInsurance.Actions[0]).Outcomes[0],
+    new CombatDecisionProfile());
+Assert(insuranceForward.PlayerHp == 30
+       && insuranceForward.Features[
+           CombatArchetypePolicy.RebirthStacksFeature] == 0d
+       && insuranceForward.Features[
+           CombatArchetypePolicy.ResurrectionCountFeature] == 1d,
+    "the forward model still consumes a non-committed rebirth buff as automatic battle insurance");
+
+var committedRebirth = BuildPlayerEquivalentFixture(false);
+committedRebirth.Player.CurrentHp = 5;
+committedRebirth.Player.Statuses.Add(
+    new CombatStatusObservation { StatusId = "buff_rebirth", Level = 30 });
+committedRebirth.DeckCardIds = new List<string>
+{
+    "Crowdfundingcard_6",
+    "Crowdfundingcard_8",
+    "Crowdfundingcard_10",
+    "Crowdfundingcard_11"
+};
+committedRebirth.HandCardIds = new List<string> { "blood-price" };
+committedRebirth.HandCount = 1;
+committedRebirth.Actions = new List<CombatActionObservation>
+{
+    new()
+    {
+        CandidateId = "blood-price",
+        SourceId = "blood-price",
+        Kind = CombatActionKind.PlayCard,
+        Cost = 0,
+        Semantics = new CombatActionSemantics { SelfHpLoss = 5d }
+    },
+    new()
+    {
+        CandidateId = "origin",
+        SourceId = "Crowdfundingcard_10",
+        Kind = CombatActionKind.PlayCard,
+        Cost = 1
+    }
+};
+var committedAssessment = CombatArchetypePolicy.Enrich(committedRebirth);
+Assert(committedAssessment.RebirthCommitment
+           == CombatArchetypeCommitment.Committed
+       && CombatArchetypePolicy.IsLegal(
+           committedRebirth,
+           committedRebirth.Actions[0],
+           out _)
+       && !CombatArchetypePolicy.IsLegal(
+           committedRebirth,
+           committedRebirth.Actions[1],
+           out _),
+    "committed rebirth builds may certify lethal conversion but preserve the 30-stack insurance floor");
+
+var uncoveredLifeConversion = BuildPlayerEquivalentFixture(false);
+uncoveredLifeConversion.Player.CurrentHp = 10;
+uncoveredLifeConversion.Player.MaxHp = 30;
+uncoveredLifeConversion.ExpectedIncomingDamage = 5d;
+uncoveredLifeConversion.DeckCardIds = new List<string>
+{
+    "Crowdfundingcard_6",
+    "Crowdfundingcard_8",
+    "Crowdfundingcard_10",
+    "Crowdfundingcard_11",
+    "SpellCard_17"
+};
+uncoveredLifeConversion.Actions = new List<CombatActionObservation>
+{
+    new()
+    {
+        CandidateId = "starfall",
+        SourceId = "SpellCard_17",
+        Kind = CombatActionKind.PlayCard,
+        Cost = 1
+    }
+};
+CombatArchetypePolicy.Enrich(uncoveredLifeConversion);
+var uncoveredRejected = !CombatArchetypePolicy.IsLegal(
+    uncoveredLifeConversion,
+    uncoveredLifeConversion.Actions[0],
+    out _);
+uncoveredLifeConversion.Player.Statuses.Add(
+    new CombatStatusObservation { StatusId = "buff_rebirth", Level = 30 });
+CombatArchetypePolicy.Enrich(uncoveredLifeConversion);
+Assert(uncoveredRejected
+       && CombatArchetypePolicy.IsLegal(
+           uncoveredLifeConversion,
+           uncoveredLifeConversion.Actions[0],
+           out _),
+    "high-risk rebirth support requires either a survivable post-action state or a ready insurance stack");
+
+var emptyCage = BuildPlayerEquivalentFixture(false);
+emptyCage.DeckCardIds = new List<string>
+{
+    "timekeeper_4",
+    "timekeeper_9",
+    "timekeeper_10",
+    "timekeeper_14"
+};
+emptyCage.Actions = new List<CombatActionObservation>
+{
+    new()
+    {
+        CandidateId = "empty-cage",
+        SourceId = "timekeeper_4",
+        Kind = CombatActionKind.PlayCard
+    }
+};
+var emptyCageAssessment = CombatArchetypePolicy.Enrich(emptyCage);
+Assert(emptyCageAssessment.TimeCageCommitment
+           == CombatArchetypeCommitment.Committed
+       && !CombatArchetypePolicy.IsLegal(
+           emptyCage,
+           emptyCage.Actions[0],
+           out _),
+    "time-cage commitment does not make an empty queue operator legal");
+
+var unsafePackage = BuildPlayerEquivalentFixture(false);
+unsafePackage.DeckCardIds = new List<string>
+{
+    "timekeeper_9",
+    "timekeeper_10",
+    "timekeeper_12",
+    "timekeeper_17"
+};
+unsafePackage.HandCardIds =
+    new List<string> { "timekeeper_12", "luckycard_4" };
+unsafePackage.HandCount = 2;
+unsafePackage.Actions = new List<CombatActionObservation>
+{
+    new()
+    {
+        CandidateId = "unsafe-package",
+        SourceId = "timekeeper_12",
+        Kind = CombatActionKind.PlayCard
+    }
+};
+CombatArchetypePolicy.Enrich(unsafePackage);
+Assert(!CombatArchetypePolicy.IsLegal(
+        unsafePackage,
+        unsafePackage.Actions[0],
+        out _),
+    "package cannot hide a hard-banned curse-alchemy execution");
+unsafePackage.HandCardIds =
+    new List<string> { "timekeeper_12", "strike" };
+unsafePackage.HandCount = 2;
+CombatArchetypePolicy.Enrich(unsafePackage);
+Assert(CombatArchetypePolicy.IsLegal(
+        unsafePackage,
+        unsafePackage.Actions[0],
+        out _),
+    "package remains legal for an eligible low-risk payload");
+
+var orderedCage = BuildPlayerEquivalentFixture(false);
+orderedCage.Player.CurrentHp = 20;
+orderedCage.Player.MaxHp = 20;
+orderedCage.Enemies[0].CurrentHp = 8;
+orderedCage.Enemies[0].MaxHp = 8;
+orderedCage.HandCardIds.Clear();
+orderedCage.HandCount = 0;
+orderedCage.DeckCardIds = new List<string>
+{
+    "timekeeper_4",
+    "timekeeper_9",
+    "timekeeper_14",
+    "timekeeper_17"
+};
+orderedCage.DeferredEffects = new List<CombatDeferredEffectObservation>
+{
+    new()
+    {
+        Sequence = 0,
+        StatusId = "buff_timelock",
+        SourceId = "timekeeper_14"
+    },
+    new()
+    {
+        Sequence = 1,
+        StatusId = "buff_timelock",
+        SourceId = "timekeeper_17"
+    }
+};
+CombatArchetypePolicy.Enrich(orderedCage);
+var orderedCageForward = CombatForwardModel.ApplyEndTurn(
+    CombatForwardModel.Create(orderedCage, 0),
+    new CombatDecisionProfile());
+Assert(orderedCageForward.DeferredEffects.Count == 0
+       && orderedCageForward.PlayerDefend == 2
+       && orderedCageForward.Enemies[0].Hp == 6,
+    "time-cage effects resolve in queue order before enemy actions and then clear");
+var discardedCagePayload = BuildPlayerEquivalentFixture(false);
+discardedCagePayload.Player.CurrentHp = 20;
+discardedCagePayload.Player.MaxHp = 20;
+discardedCagePayload.Enemies[0].CurrentHp = 8;
+discardedCagePayload.Enemies[0].MaxHp = 8;
+discardedCagePayload.HandCardIds = new List<string> { "timekeeper_17" };
+discardedCagePayload.HandCount = 1;
+discardedCagePayload.Features["drawPerTurn"] = 0d;
+CombatArchetypePolicy.Enrich(discardedCagePayload);
+var discardedCageForward = CombatForwardModel.ApplyEndTurn(
+    CombatForwardModel.Create(discardedCagePayload, 0),
+    new CombatDecisionProfile());
+Assert(discardedCageForward.DeferredEffects.Count == 1
+       && discardedCageForward.Enemies[0].Hp == 6,
+    "discard-triggered time-cage payloads are queued after the current turn resolution and apply their immediate effect");
+var surplusPower = BuildPlayerEquivalentFixture(false);
+surplusPower.CurrentPower = 5;
+surplusPower.MaxPower = 3;
+surplusPower.HandCardIds.Clear();
+surplusPower.HandCount = 0;
+surplusPower.Features["drawPerTurn"] = 0d;
+var surplusPowerForward = CombatForwardModel.ApplyEndTurn(
+    CombatForwardModel.Create(surplusPower, 0),
+    new CombatDecisionProfile());
+Assert(surplusPowerForward.Power == 5,
+    "end-turn energy reset restores deficits but preserves energy above the normal maximum");
+var reversedCage = BuildPlayerEquivalentFixture(false);
+reversedCage.DeferredEffects = new List<CombatDeferredEffectObservation>
+{
+    new()
+    {
+        Sequence = 0,
+        StatusId = "buff_timelock",
+        SourceId = "timekeeper_17"
+    },
+    new()
+    {
+        Sequence = 1,
+        StatusId = "buff_timelock",
+        SourceId = "timekeeper_14"
+    }
+};
+Assert(CombatPlayerObservationBoundary.Normalize(orderedCage).Fingerprint
+       != CombatPlayerObservationBoundary.Normalize(reversedCage).Fingerprint,
+    "time-cage queue order is part of the player-visible decision state");
 
 Console.WriteLine($"AuraCombatAiShared.Tests passed: {assertions} assertions.");
 

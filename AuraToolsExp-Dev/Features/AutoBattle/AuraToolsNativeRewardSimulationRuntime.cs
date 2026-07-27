@@ -515,6 +515,7 @@ internal sealed class AuraToolsNativeRewardExtension :
             phase,
             definition.Metadata.GetValueOrDefault(metadataKey, ""),
             sourceEvent);
+        globals.SynchronizeCardVariables();
     }
 
     private void EnsureStatusProgram(
@@ -1384,6 +1385,7 @@ public sealed partial class NativeRewardScriptGlobals
                     FightScript = script
                 },
                 currentEvent);
+            SynchronizeCardVariables();
         }
     }
 
@@ -2659,7 +2661,11 @@ public sealed partial class NativeRewardScriptGlobals
                 Action action)>();
             deferredEffects[key] = effects;
         }
-        return new NativeRewardDeferredEffectCollection(effects);
+        return new NativeRewardDeferredEffectCollection(
+            effects,
+            context.State.DeferredEffects,
+            actorId,
+            statusId);
     }
 
     internal NativeRewardDataConfig CardConfig(int instanceId)
@@ -2708,6 +2714,27 @@ public sealed partial class NativeRewardScriptGlobals
         }
         cardConfigurations[instanceId] = result;
         return result;
+    }
+
+    internal void SynchronizeCardVariables()
+    {
+        if (!int.TryParse(
+                dataConfig.InstanceID,
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out var instanceId))
+        {
+            return;
+        }
+        var instance = context.State.FindCard(instanceId);
+        if (instance == null)
+        {
+            return;
+        }
+        foreach (var pair in Vars)
+        {
+            instance.Variables[pair.Key] = pair.Value;
+        }
     }
 
     internal NativeRewardDataConfig StatusConfig(
@@ -3505,11 +3532,20 @@ public sealed class NativeRewardDeferredEffectCollection :
     private readonly List<(
         NativeRewardDataConfig dataConfig,
         Action action)> items;
+    private readonly List<CombatDeferredEffectState> stateItems;
+    private readonly int actorId;
+    private readonly string statusId;
 
     internal NativeRewardDeferredEffectCollection(
-        List<(NativeRewardDataConfig dataConfig, Action action)> items)
+        List<(NativeRewardDataConfig dataConfig, Action action)> items,
+        List<CombatDeferredEffectState> stateItems,
+        int actorId,
+        string statusId)
     {
         this.items = items;
+        this.stateItems = stateItems;
+        this.actorId = actorId;
+        this.statusId = statusId ?? "";
     }
 
     public int Count => items.Count;
@@ -3522,22 +3558,31 @@ public sealed class NativeRewardDeferredEffectCollection :
         Action action)
     {
         items.Add((dataConfig, action));
+        AddStateItem(dataConfig);
     }
 
     public void Add(
         (NativeRewardDataConfig dataConfig, Action action) item)
     {
         items.Add(item);
+        AddStateItem(item.dataConfig);
     }
 
     public void RemoveAt(int index)
     {
+        RemoveStateItem(index);
         items.RemoveAt(index);
     }
 
     public void Clear()
     {
         items.Clear();
+        stateItems.RemoveAll(item =>
+            item.ActorId == actorId
+            && string.Equals(
+                item.StatusId,
+                statusId,
+                StringComparison.OrdinalIgnoreCase));
     }
 
     public bool InvokeFirst()
@@ -3565,6 +3610,50 @@ public sealed class NativeRewardDeferredEffectCollection :
         Action action)> GetEnumerator()
     {
         return items.GetEnumerator();
+    }
+
+    private void AddStateItem(NativeRewardDataConfig dataConfig)
+    {
+        var nextSequence = stateItems
+            .Where(item => item.ActorId == actorId
+                           && string.Equals(
+                               item.StatusId,
+                               statusId,
+                               StringComparison.OrdinalIgnoreCase))
+            .Select(item => item.Sequence)
+            .DefaultIfEmpty(-1)
+            .Max() + 1;
+        _ = int.TryParse(
+            dataConfig?.InstanceID ?? "",
+            NumberStyles.Integer,
+            CultureInfo.InvariantCulture,
+            out var instanceId);
+        stateItems.Add(new CombatDeferredEffectState
+        {
+            Sequence = nextSequence,
+            ActorId = actorId,
+            StatusId = statusId,
+            SourceCardId = dataConfig?.data.GetValueOrDefault(
+                "Id",
+                dataConfig.InstanceID) ?? "",
+            SourceCardInstanceId = instanceId
+        });
+    }
+
+    private void RemoveStateItem(int index)
+    {
+        var matches = stateItems
+            .Where(item => item.ActorId == actorId
+                           && string.Equals(
+                               item.StatusId,
+                               statusId,
+                               StringComparison.OrdinalIgnoreCase))
+            .OrderBy(item => item.Sequence)
+            .ToList();
+        if (index >= 0 && index < matches.Count)
+        {
+            stateItems.Remove(matches[index]);
+        }
     }
 
     System.Collections.IEnumerator System.Collections.IEnumerable.GetEnumerator()

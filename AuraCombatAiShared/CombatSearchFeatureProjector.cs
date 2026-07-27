@@ -66,6 +66,14 @@ public static class CombatSearchFeatureProjector
         result["drawPileCount"] = state.DrawPileValues.Count;
         result["discardPileCount"] = state.DiscardPileValues.Count;
         result["exhaustPileCount"] = state.ExhaustPileValues.Count;
+        result["mechanic:time-cage.count"] = state.DeferredEffects.Count;
+        result["mechanic:time-cage.payload-value"] =
+            state.DeferredEffects.Sum(item =>
+                Math.Max(0d, item.Semantics.Damage)
+                * Math.Max(1d, item.Semantics.HitCount)
+                + Math.Max(0d, item.Semantics.Defend)
+                + Math.Max(0d, item.Semantics.Draw) * 2d
+                + Math.Max(0d, item.Semantics.EnergyGain) * 2d);
         var recyclableCount = state.DrawPileValues.Count
                               + state.DiscardPileValues.Count
                               + state.HandCardValues.Count;

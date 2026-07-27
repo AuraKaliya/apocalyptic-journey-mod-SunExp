@@ -53,6 +53,7 @@ function Test-GeneratedOnlyCard([object]$row) {
 }
 
 function Get-RewardFeatures([object]$row, [string]$kind) {
+    $id = [string]$row.Id
     $text = "$($row.Name) $($row.Name_en) $($row.Description) $($row.Description_en) $($row.Effects) $($row.Action) $($row.UseScript) $($row.OwnScript) $($row.FightScript)"
     $features = [ordered]@{
         burst = 0.0
@@ -62,8 +63,12 @@ function Get-RewardFeatures([object]$row, [string]$kind) {
         aoe = 0.0
         cycling = 0.0
         energy = 0.0
+        rebirth = 0.0
+        "time-cage" = 0.0
         reliability = 0.65
         risk = 0.0
+        "gold-cost" = 0.0
+        "hard-ban" = 0.0
     }
     if ($text -match "(?i)damage|伤害|流血|燃烧|Damage|AddHurt") {
         $features.burst = 0.7
@@ -86,6 +91,64 @@ function Get-RewardFeatures([object]$row, [string]$kind) {
     }
     if ($text -match "(?i)lose health|失去.*生命|弃牌|exhaust|消耗|随机") {
         $features.risk = 0.45
+    }
+    if (
+        $text -match "(?i)gold|金币|money|ChangeMoney" `
+        -and $text -match "(?i)lose health|流失|失去|扣除|ChangeHp\s*\(\s*\(?-|SetHp|随机|DiceCheck"
+    ) {
+        $features["gold-cost"] = 1.0
+        $features.risk = [Math]::Max($features.risk, 0.65)
+    }
+    if ($id -in @(
+        "Crowdfundingcard_6",
+        "Crowdfundingcard_47"
+    )) {
+        $features.rebirth = 1.0
+    } elseif ($id -in @(
+        "Crowdfundingcard_8",
+        "Crowdfundingcard_10",
+        "Crowdfundingcard_11"
+    )) {
+        $features.rebirth = 0.9
+    } elseif ($id -in @(
+        "Crowdfundingcard_7",
+        "Crowdfundingcard_9",
+        "Crowdfundingcard_25",
+        "Crowdfundingcard_49",
+        "SpellCard_17",
+        "universalcard_10",
+        "universalcard_15"
+    )) {
+        $features.rebirth = 0.4
+    }
+    if ($id -in @(
+        "timekeeper_3",
+        "timekeeper_4",
+        "timekeeper_6",
+        "timekeeper_7",
+        "timekeeper_8",
+        "timekeeper_9",
+        "timekeeper_10",
+        "timekeeper_12",
+        "timekeeper_13",
+        "timekeeper_14",
+        "timekeeper_17",
+        "timekeeper_18"
+    )) {
+        $features["time-cage"] = 0.9
+    } elseif ($id -in @(
+        "timekeeper_2",
+        "timekeeper_5",
+        "timekeeper_15",
+        "timekeeper_16"
+    )) {
+        $features["time-cage"] = 0.45
+    }
+    if ($id -eq "luckycard_4") {
+        $features["hard-ban"] = 1.0
+        $features["gold-cost"] = 1.0
+        $features.risk = 1.0
+        $features.reliability = 0.0
     }
     if ($kind -eq "Relic") {
         $features.reliability = 0.75
