@@ -24,17 +24,18 @@ flowchart TD
     C --> D["执行共享及内容方纯合法性规则"]
     D --> E["解析基础语义、内容效果和随机结果概率"]
     E --> F["构造纯 CombatSimulationState"]
-    F --> G["根候选逐一强制探索"]
-    G --> H["Chance-PUCT 选择动作和机会结果"]
+    F --> F1["从公开牌库信念采样根状态"]
+    F1 --> G["根候选逐一强制探索"]
+    G --> H["Root-sampling Chance-PUCT 选择动作和机会结果"]
     H --> I["前向模型应用费用、伤害、防御、治疗、抽牌和状态价值"]
     I --> J["转置表复用相同状态"]
     J --> K["叶节点结算存活、敌方威胁、尾部风险和模型价值"]
-    K --> L["按死亡风险门槛筛选根动作"]
+    K --> L["按死亡风险门槛和下尾 CVaR 筛选根动作"]
     L --> M["输出主变化线、访问量、价值和风险"]
     M --> N["控制器仅提交第一个动作"]
     N --> O["等待原生动画、队列和状态指纹变化"]
     O --> P["重新观察，不复用过期计划"]
-    P --> Q["记录 v4 训练样本和选择轨迹"]
+    P --> Q["记录 v5 训练样本和选择轨迹"]
     Q --> A
 ```
 
@@ -64,16 +65,18 @@ flowchart TD
 
 每次决策首先保证所有合法根动作至少获得一次证据，然后才允许 PUCT 集中预算。这样即使配置预算低于候选数，也不会因为排列顺序永久漏掉根动作。
 
-选择分数由四项组成：
+选择分数由平均价值、下尾 CVaR、死亡风险和探索项组成：
 
 ```text
-Q(s,a)
+0.65 * MeanReturn(s,a)
++ 0.35 * LowerTailCVaR(s,a)
 + C_puct * P(s,a) * sqrt(N(s)) / (1 + N(s,a))
 - TailRiskPenalty * DeathRisk(s,a)
 - UncertaintyPenalty * Uncertainty(s,a)
 ```
 
-- `Q` 是搜索回传的平均价值；
+- `MeanReturn` 是搜索回传的平均价值；
+- `LowerTailCVaR` 默认取最差 10% 回报的平均值；
 - `P` 来自规则特征与可选策略树模型；
 - `DeathRisk` 来自当前威胁叶结算与可选风险模型；
 - 随机动作通过机会结果边按声明概率分配访问；
@@ -92,13 +95,14 @@ Q(s,a)
 | `SearchExploration` | 1.15 | PUCT 探索强度 |
 | `DeathRiskLimit` | 0.05 | balanced 根动作风险门槛 |
 | `TailRiskPenalty` | 35 | 高风险分支惩罚 |
+| `TailRiskQuantile` | 0.1 | 下尾 CVaR 分位区间 |
 | `UncertaintyPenalty` | 0.75 | 未知语义惩罚 |
 
 原 Beam 的宽度 `8`、深度 `8` 对短且确定的回合足够，但会在目标组合、零费链、随机结果和高分支复合动作中快速丢失候选。新的默认预算不是把 Beam 简单扩大，而是用访问量自适应分配计算：先覆盖所有根动作，再把剩余预算投入更可能优质且安全的分支。
 
 ## 搜索引导模型
 
-`CombatSearchGuidanceTrainer` 从现有 v4 状态、候选和选择记录构建三组训练目标：
+`CombatSearchGuidanceTrainer` 从现有 v5 状态、候选和选择记录构建三组训练目标：
 
 - 策略：人工选择或实际策略选择的候选；
 - 价值：动作后即时奖励和已记录结果；

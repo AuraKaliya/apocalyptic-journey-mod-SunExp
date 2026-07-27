@@ -49,6 +49,7 @@ $controllerPath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraTool
 $presenterPath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattlePredictionPresenter.cs"
 $interactionPath = Join-Path $root "AuraCombatAiShared\GameApi\WitchCombatInteractionRuntime.cs"
 $runtimePath = Join-Path $root "AuraCombatAiShared\GameApi\WitchCombatRuntime.cs"
+$playerEquivalentPath = Join-Path $root "AuraCombatAiShared\CombatPlayerEquivalent.cs"
 $plannerPath = Join-Path $root "AuraCombatAiShared\CombatChancePuctPlanner.cs"
 $searchBudgetPath = Join-Path $root "AuraCombatAiShared\CombatSearchBudgetPolicy.cs"
 $loopSafetyPath = Join-Path $root "AuraCombatAiShared\CombatLoopSafetyAnalyzer.cs"
@@ -90,6 +91,7 @@ $controller = Get-Content -LiteralPath $controllerPath -Raw
 $presenter = Get-Content -LiteralPath $presenterPath -Raw
 $interaction = Get-Content -LiteralPath $interactionPath -Raw
 $runtime = Get-Content -LiteralPath $runtimePath -Raw
+$playerEquivalent = Get-Content -LiteralPath $playerEquivalentPath -Raw
 $planner = Get-Content -LiteralPath $plannerPath -Raw
 $searchBudget = Get-Content -LiteralPath $searchBudgetPath -Raw
 $loopSafety = Get-Content -LiteralPath $loopSafetyPath -Raw
@@ -133,7 +135,8 @@ $requiredControllerAnchors = @(
     "CombatActionTransaction",
     "CombatActionTransactionState.HandedOff",
     "CombatActionTransactionState.TimedOut",
-    "auto-battle-training-v4.jsonl",
+    "auto-battle-training-v5.jsonl",
+    "TryCapturePlayerObservation",
     "CaptureTeacherAction",
     "CaptureTeacherEndTurn",
     "FightUI.onChangeTurnBtn",
@@ -174,20 +177,38 @@ foreach ($anchor in @(
 }
 foreach ($anchor in @(
     "status.GetBuffs()",
-    '"DefendPercent"',
-    '"HealMultiplier"',
-    '"AttackedPercentDamage"',
     "CombatStatusObservation",
     "ObserveDeck",
-    "DrawPileCardIds",
-    "FightcardList"
+    "CombatDeckKnowledge",
+    "KnownDeckCardIds",
+    "CombatPlayerObservationBoundary.Normalize",
+    "AddBoundAction",
+    "TryResolvePresentation"
 )) {
     if (-not $runtime.Contains($anchor)) {
         throw "Aura combat AI authoritative observation contract is missing: $anchor"
     }
 }
+if ($runtime.Contains("DrawPileCardIds") -or
+    $runtime.Contains("result.Features[pair.Key]")) {
+    throw "Aura combat AI runtime still exposes hidden deck order or unregistered runtime variables."
+}
 if ($runtime.Contains('"PercentDefence"') -or $runtime.Contains('"PercentHeal"')) {
     throw "Aura combat AI still references obsolete runtime multiplier keys."
+}
+
+foreach ($anchor in @(
+    "PlayerCombatObservation",
+    "CombatBeliefTracker",
+    "CombatRootDeterminizer",
+    "CombatExecutionContext",
+    "CombatPublicFeatureRegistry",
+    "CombatPublicObservationHasher",
+    "NormalizeSemantics"
+)) {
+    if (-not $playerEquivalent.Contains($anchor)) {
+        throw "Aura player-equivalent observation boundary is missing: $anchor"
+    }
 }
 
 foreach ($anchor in @(
@@ -206,6 +227,7 @@ foreach ($anchor in @(
     '"elementscard_1"',
     '"buff_elements"',
     "HasAuthoritativeCoverage",
+    "HasPlayerEquivalentReadiness",
     "combat-knowledge.base-game.json"
 )) {
     if (-not $knowledgeRuntime.Contains($anchor)) {
@@ -562,6 +584,10 @@ foreach ($anchor in @(
     "TranspositionHits",
     "DeathRiskLimit",
     "TailRiskPenalty",
+    "LowerTailCvar",
+    "CombatBeliefTracker.FromObservation",
+    "CombatPublicObservationHasher.Seed",
+    "RequiresFreshObservation",
     "BuildPrincipalVariation",
     "RootLeadIsStable",
     "CombatLoopSafetyAnalyzer",
@@ -741,8 +767,7 @@ foreach ($anchor in @(
 }
 
 foreach ($anchor in @(
-    "aura.combat-ai.sample.v3",
-    "aura.combat-ai.sample.v4",
+    "aura.combat-ai.sample.v5",
     "aura.combat-ai.selection.v1",
     "aura.combat-ai.training-report.v1",
     "aura.decision-residual.linear.v1",

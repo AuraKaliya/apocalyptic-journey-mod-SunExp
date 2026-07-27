@@ -212,7 +212,7 @@ public sealed class DecisionResidualModelDefinition
 
     public int ProtocolVersion { get; set; } = 1;
 
-    public int FeatureSchemaVersion { get; set; } = 4;
+    public int FeatureSchemaVersion { get; set; } = 5;
 
     public int ApplicabilityProtocolVersion { get; set; } = 1;
 

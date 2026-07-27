@@ -22,7 +22,7 @@ public static class SpiritRuntime
         SpiritAttachmentPresenter.Initialize();
         SpiritCardFaceRuntime.Initialize();
         RegisterSpiritCardUseChecker();
-        autoBattlePreflightRegistration ??= CombatAiRegistry.RegisterPreflightRule(
+        autoBattlePreflightRegistration ??= CombatAiRegistry.RegisterRuntimePreflightRule(
             TerriasIds.ModId,
             "SpiritCards",
             new SpiritAutoBattlePreflightRule(),
@@ -166,14 +166,15 @@ public static class SpiritRuntime
         TerriasHookRegistry.After(config, target, action, "Spirit");
     }
 
-    private sealed class SpiritAutoBattlePreflightRule : ICombatPreflightRule
+    private sealed class SpiritAutoBattlePreflightRule : ICombatRuntimePreflightRule
     {
         public bool IsLegal(
             CombatStateObservation state,
             CombatActionObservation action,
+            CombatRuntimeActionContext runtime,
             out string reason)
         {
-            if (action.RuntimeHandle is not CommonCardItem card)
+            if (runtime.SourceHandle is not CommonCardItem card)
             {
                 reason = "";
                 return true;
@@ -192,7 +193,7 @@ public static class SpiritRuntime
             if (SpiritCardFactory.IsSpiritBall(card.dataConfig))
             {
                 var inspection = EnemyCatalogApi.Inspect(
-                    action.TargetHandle as IStatusManager,
+                    runtime.TargetHandle as IStatusManager,
                     "auto-battle-preflight");
                 if (!inspection.Eligible)
                 {

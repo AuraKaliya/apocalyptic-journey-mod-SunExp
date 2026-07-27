@@ -121,7 +121,7 @@ public static class CombatResidualTrainer
         var options = (trainingOptions ?? new CombatResidualTrainingOptions()).Normalized();
         var profile = NormalizeProfile(decisionProfile);
         var samples = (source ?? Array.Empty<CombatTrainingSample>())
-            .Where(sample => sample != null
+            .Where(sample => CombatTrainingProtocol.IsCompatible(sample)
                              && string.Equals(sample.CompletionState, "Completed", StringComparison.OrdinalIgnoreCase)
                              && string.Equals(NormalizeProfile(sample.DecisionProfile), profile, StringComparison.Ordinal))
             .ToList();
@@ -179,7 +179,7 @@ public static class CombatResidualTrainer
         var model = new DecisionResidualModelDefinition
         {
             ModelId = "aura-combat-contextual-" + DateTime.UtcNow.ToString("yyyyMMddHHmmss"),
-            FeatureSchemaVersion = 4,
+            FeatureSchemaVersion = 5,
             ApplicabilityProtocolVersion = 1,
             DecisionProfile = profile,
             TrainingPreset = options.PresetId,

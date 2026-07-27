@@ -11,6 +11,8 @@ public static class CombatAiRegistry
         new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, PreflightRegistration> PreflightRules =
         new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, RuntimePreflightRegistration> RuntimePreflightRules =
+        new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, ThreatRegistration> ThreatProviders =
         new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, EffectRegistration> EffectResolvers =
@@ -68,6 +70,32 @@ public static class CombatAiRegistry
             lock (Gate)
             {
                 PreflightRules.Remove(key);
+            }
+        });
+    }
+
+    public static IDisposable RegisterRuntimePreflightRule(
+        string ownerModId,
+        string ruleId,
+        ICombatRuntimePreflightRule rule,
+        int priority = 0)
+    {
+        if (rule == null)
+        {
+            return EmptyDisposable.Instance;
+        }
+
+        var key = Key(ownerModId, ruleId);
+        lock (Gate)
+        {
+            RuntimePreflightRules[key] = new RuntimePreflightRegistration(rule, priority);
+        }
+
+        return new Registration(() =>
+        {
+            lock (Gate)
+            {
+                RuntimePreflightRules.Remove(key);
             }
         });
     }
@@ -189,6 +217,32 @@ public static class CombatAiRegistry
         for (var i = 0; i < snapshot.Length; i++)
         {
             if (!snapshot[i].Rule.IsLegal(state, action, out reason))
+            {
+                return false;
+            }
+        }
+
+        reason = "";
+        return true;
+    }
+
+    public static bool EvaluateRuntimePreflight(
+        CombatStateObservation state,
+        CombatActionObservation action,
+        CombatRuntimeActionContext runtime,
+        out string reason)
+    {
+        RuntimePreflightRegistration[] snapshot;
+        lock (Gate)
+        {
+            snapshot = RuntimePreflightRules.Values
+                .OrderByDescending(item => item.Priority)
+                .ToArray();
+        }
+
+        for (var i = 0; i < snapshot.Length; i++)
+        {
+            if (!snapshot[i].Rule.IsLegal(state, action, runtime, out reason))
             {
                 return false;
             }
@@ -350,6 +404,21 @@ public static class CombatAiRegistry
         }
 
         public ICombatPreflightRule Rule { get; }
+
+        public int Priority { get; }
+    }
+
+    private sealed class RuntimePreflightRegistration
+    {
+        public RuntimePreflightRegistration(
+            ICombatRuntimePreflightRule rule,
+            int priority)
+        {
+            Rule = rule;
+            Priority = priority;
+        }
+
+        public ICombatRuntimePreflightRule Rule { get; }
 
         public int Priority { get; }
     }

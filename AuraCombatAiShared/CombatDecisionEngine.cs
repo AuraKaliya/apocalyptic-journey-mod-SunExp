@@ -39,6 +39,7 @@ public sealed class CombatDecisionEngine
         {
             return new CombatDecision { Reason = "no candidates" };
         }
+        state = CombatPlayerObservationBoundary.Normalize(state);
 
         var endTurn = (CombatActionObservation?)null;
         var evaluations = new List<CombatCandidateEvaluation>(state.Actions.Count);
@@ -83,6 +84,9 @@ public sealed class CombatDecisionEngine
             if (legal && useRuntimeRegistries)
             {
                 CombatAiRegistry.ApplySemantics(state, action);
+                action.Semantics =
+                    CombatPlayerObservationBoundary.NormalizeSemantics(
+                        action.Semantics);
             }
 
             var utility = BuildUtility(state, action, selectedProfile);
@@ -169,12 +173,16 @@ public sealed class CombatDecisionEngine
                 HasAction = true,
                 Action = planAction,
                 Score = planScore,
-                Reason = search == null ? "beam plan" : "risk-aware chance-puct",
+                Reason = search == null
+                    ? "beam plan"
+                    : "player-equivalent root-sampling search",
                 ProfileId = selectedProfile.Id,
                 Candidates = evaluations,
                 Plan = planSteps,
                 PlanSummary = planSummary,
-                SearchAlgorithm = search == null ? "bounded-beam" : "chance-puct",
+                SearchAlgorithm = search == null
+                    ? "bounded-beam"
+                    : "root-sampling-chance-puct-mpc",
                 SearchSimulations = search?.Simulations ?? 0,
                 SearchNodes = search?.Nodes ?? 0,
                 SearchTranspositionHits = search?.TranspositionHits ?? 0,
@@ -199,7 +207,9 @@ public sealed class CombatDecisionEngine
                 ProfileId = selectedProfile.Id,
                 Candidates = evaluations,
                 PlanSummary = planSummary,
-                SearchAlgorithm = search == null ? "bounded-beam" : "chance-puct",
+                SearchAlgorithm = search == null
+                    ? "bounded-beam"
+                    : "root-sampling-chance-puct-mpc",
                 SearchSimulations = search?.Simulations ?? 0,
                 SearchNodes = search?.Nodes ?? 0,
                 SearchTranspositionHits = search?.TranspositionHits ?? 0,
@@ -218,7 +228,9 @@ public sealed class CombatDecisionEngine
             Reason = planSummary,
             ProfileId = selectedProfile.Id,
             Candidates = evaluations,
-            SearchAlgorithm = search == null ? "bounded-beam" : "chance-puct",
+            SearchAlgorithm = search == null
+                ? "bounded-beam"
+                : "root-sampling-chance-puct-mpc",
             SearchSimulations = search?.Simulations ?? 0,
             SearchNodes = search?.Nodes ?? 0,
             SearchTranspositionHits = search?.TranspositionHits ?? 0,

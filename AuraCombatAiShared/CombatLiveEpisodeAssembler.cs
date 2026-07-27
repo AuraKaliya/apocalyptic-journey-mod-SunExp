@@ -12,7 +12,8 @@ public static class CombatLiveEpisodeAssembler
     public static List<CombatEpisode> Assemble(IEnumerable<CombatTrainingSample>? source)
     {
         return (source ?? Array.Empty<CombatTrainingSample>())
-            .Where(sample => sample != null && sample.BattleSessionId > 0)
+            .Where(sample => CombatTrainingProtocol.IsCompatible(sample)
+                             && sample.BattleSessionId > 0)
             .GroupBy(sample => sample.BattleSessionId)
             .Select(group => TryAssemble(group.Key, group, out var episode) ? episode : null)
             .Where(episode => episode != null)
@@ -33,7 +34,7 @@ public static class CombatLiveEpisodeAssembler
         }
 
         var samples = (source ?? Array.Empty<CombatTrainingSample>())
-            .Where(sample => sample != null
+            .Where(sample => CombatTrainingProtocol.IsCompatible(sample)
                              && sample.BattleSessionId == battleSessionId
                              && IsCompleted(sample))
             .OrderBy(sample => sample.DecisionIndex)

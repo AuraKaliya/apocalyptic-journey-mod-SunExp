@@ -50,6 +50,7 @@ public sealed class CombatChancePuctPlanner
     private readonly Dictionary<ulong, CombatPolicyValuePrediction> policyValueCache = new();
     private SearchNode[] nodePathBuffer = Array.Empty<SearchNode>();
     private SearchEdge[] edgePathBuffer = Array.Empty<SearchEdge>();
+    private double[] rewardPathBuffer = Array.Empty<double>();
     private ulong[] cycleHashPathBuffer = Array.Empty<ulong>();
     private CombatSimulationState[] cycleStatePathBuffer =
         Array.Empty<CombatSimulationState>();
@@ -74,6 +75,8 @@ public sealed class CombatChancePuctPlanner
     private int blockedLoops;
     private int searchMaxPly;
     private ICombatSimulationRule[] simulationRules = Array.Empty<ICombatSimulationRule>();
+    private CombatBeliefState rootBelief = new();
+    private int determinizationIndex;
 
     public CombatChancePuctPlanner(
         IDecisionResidualModel? residualModel = null,
@@ -102,6 +105,8 @@ public sealed class CombatChancePuctPlanner
         sustainableControlLoops = 0;
         fakeLoops = 0;
         blockedLoops = 0;
+        determinizationIndex = 0;
+        rootBelief = CombatBeliefTracker.FromObservation(state);
         actions = BuildActions(state, candidates);
         var budget = CombatSearchBudgetPolicy.Resolve(
             state,
@@ -120,10 +125,12 @@ public sealed class CombatChancePuctPlanner
         if (edgePathBuffer.Length < pathCapacity - 1)
         {
             edgePathBuffer = new SearchEdge[pathCapacity - 1];
+            rewardPathBuffer = new double[pathCapacity - 1];
         }
         else
         {
             Array.Clear(edgePathBuffer, 0, edgePathBuffer.Length);
+            Array.Clear(rewardPathBuffer, 0, rewardPathBuffer.Length);
         }
         if (cycleHashPathBuffer.Length < pathCapacity)
         {
@@ -145,7 +152,11 @@ public sealed class CombatChancePuctPlanner
         }
 
         var useGroupCount = actions.Count == 0 ? 0 : actions.Max(action => action.UseGroupIndex) + 1;
-        var rootState = CombatForwardModel.Create(state, useGroupCount);
+        var rootState = CombatForwardModel.Create(
+            state,
+            useGroupCount,
+            rootBelief,
+            CombatPublicObservationHasher.Seed(state, determinizationIndex++));
         var root = NewNode(rootState);
         EnsureEdges(root);
 
@@ -226,7 +237,8 @@ public sealed class CombatChancePuctPlanner
         var safe = rootEdges.Where(edge => edge.MeanRisk <= profile.DeathRiskLimit).ToList();
         var selectionPool = safe.Count > 0 ? safe : rootEdges;
         var best = selectionPool
-            .OrderByDescending(RootSelectionValue)
+            .OrderByDescending(edge => edge.LowerTailCvar(profile.TailRiskQuantile))
+            .ThenByDescending(RootSelectionValue)
             .ThenByDescending(edge => edge.Visits)
             .ThenByDescending(edge => edge.Prior)
             .First();
@@ -279,7 +291,8 @@ public sealed class CombatChancePuctPlanner
         var safe = rootEdges.Where(edge => edge.MeanRisk <= profile.DeathRiskLimit).ToList();
         var pool = safe.Count > 0 ? safe : rootEdges;
         return pool
-            .OrderByDescending(RootSelectionValue)
+            .OrderByDescending(edge => edge.LowerTailCvar(profile.TailRiskQuantile))
+            .ThenByDescending(RootSelectionValue)
             .ThenByDescending(edge => edge.Visits)
             .ThenByDescending(edge => edge.Prior)
             .First()
@@ -316,66 +329,91 @@ public sealed class CombatChancePuctPlanner
 
     private void Simulate(SearchNode root, SearchEdge? forcedRoot)
     {
+        var useGroupCount = actions.Count == 0
+            ? 0
+            : actions.Max(action => action.UseGroupIndex) + 1;
+        var currentState = CombatForwardModel.Create(
+            rootObservation,
+            useGroupCount,
+            rootBelief,
+            CombatPublicObservationHasher.Seed(
+                rootObservation,
+                determinizationIndex++));
         var node = root;
         var nodePathCount = 1;
         var edgePathCount = 0;
         nodePathBuffer[0] = root;
-        var value = 0d;
+        var terminalValue = 0d;
         var risk = 0d;
-        var pathReward = 0d;
+        var resolved = false;
         var cyclePathCount = 1;
-        cycleHashPathBuffer[0] = root.State.CycleHash();
-        cycleStatePathBuffer[0] = root.State;
+        cycleHashPathBuffer[0] = currentState.CycleHash();
+        cycleStatePathBuffer[0] = currentState;
 
         for (var ply = 0; ply < searchMaxPly; ply++)
         {
-            if (node.State.AllEnemiesDefeated)
+            if (currentState.AllEnemiesDefeated)
             {
-                var terminal = EvaluateLeaf(node.State);
-                value = pathReward + terminal.Value;
+                var terminal = EvaluateLeaf(currentState);
+                terminalValue = terminal.Value;
                 risk = terminal.DeathRisk;
+                resolved = true;
                 break;
             }
 
-            EnsureEdges(node);
+            EnsureEdges(node, currentState);
             var edge = ply == 0 && forcedRoot != null
                 ? forcedRoot
-                : SelectEdge(node);
+                : SelectEdge(node, currentState);
             if (edge == null)
             {
-                var leaf = EvaluateLeaf(node.State);
-                value = pathReward + leaf.Value;
+                var leaf = EvaluateLeaf(currentState);
+                terminalValue = leaf.Value;
                 risk = leaf.DeathRisk;
+                resolved = true;
                 break;
             }
 
             var searchAction = actions[edge.ActionIndex];
-            if (!IsUsable(node.State, searchAction))
+            if (!IsUsable(currentState, searchAction))
             {
-                edge.Disabled = true;
-                ply--;
-                continue;
+                var leaf = EvaluateLeaf(currentState);
+                terminalValue = leaf.Value - 25d;
+                risk = Math.Max(leaf.DeathRisk, 0.1d);
+                resolved = true;
+                break;
             }
 
-            edgePathBuffer[edgePathCount++] = edge;
+            edgePathBuffer[edgePathCount] = edge;
+            rewardPathBuffer[edgePathCount] = 0d;
+            edgePathCount++;
             if (searchAction.Action.Kind == CombatActionKind.EndTurn)
             {
-                var endState = CombatForwardModel.ApplyEndTurn(node.State, profile);
+                var endState = CombatForwardModel.ApplyEndTurn(currentState, profile);
                 var endLeaf = EvaluateLeaf(endState);
-                value = pathReward + endLeaf.Value;
+                terminalValue = endLeaf.Value;
                 risk = endLeaf.DeathRisk;
+                resolved = true;
                 break;
             }
 
             var outcome = SelectOutcome(edge);
-            var immediate = Score(node.State, searchAction.Action);
-            pathReward += immediate * Math.Pow(0.985d, ply);
+            var immediate = Score(currentState, searchAction.Action);
+            rewardPathBuffer[edgePathCount - 1] = immediate;
             var nextState = CombatForwardModel.Apply(
-                node.State,
+                currentState,
                 searchAction.Action,
                 searchAction.UseGroupIndex,
                 outcome.Outcome,
                 profile);
+            if (RequiresFreshObservation(searchAction.Action))
+            {
+                var observationLeaf = EvaluateLeaf(nextState);
+                terminalValue = observationLeaf.Value;
+                risk = observationLeaf.DeathRisk;
+                resolved = true;
+                goto CompleteSimulation;
+            }
             var cycleHash = nextState.CycleHash();
             var cycleStartIndex = FindCycleStart(
                 cycleHash,
@@ -391,27 +429,30 @@ public sealed class CombatChancePuctPlanner
                 {
                     case CombatLoopClassification.CertifiedLethal:
                         certifiedLoops++;
-                        value = pathReward
-                                + Math.Max(leaf.Value, 100d)
-                                + Math.Min(
-                                    25d,
-                                    assessment.EffectiveEnemyProgress * 0.25d);
+                        terminalValue = Math.Max(leaf.Value, 100d)
+                                        + Math.Min(
+                                            25d,
+                                            assessment.EffectiveEnemyProgress * 0.25d);
                         risk = leaf.DeathRisk;
+                        resolved = true;
                         goto CompleteSimulation;
                     case CombatLoopClassification.Fake:
                         fakeLoops++;
-                        value = pathReward + leaf.Value - 120d;
+                        terminalValue = leaf.Value - 120d;
                         risk = 1d;
+                        resolved = true;
                         goto CompleteSimulation;
                     case CombatLoopClassification.Blocked:
                         blockedLoops++;
-                        value = pathReward + leaf.Value - 45d;
+                        terminalValue = leaf.Value - 45d;
                         risk = Math.Max(0.35d, leaf.DeathRisk);
+                        resolved = true;
                         goto CompleteSimulation;
                     case CombatLoopClassification.SustainableControl:
                         sustainableControlLoops++;
-                        value = pathReward + leaf.Value - 15d;
+                        terminalValue = leaf.Value - 15d;
                         risk = leaf.DeathRisk;
+                        resolved = true;
                         goto CompleteSimulation;
                 }
             }
@@ -436,43 +477,57 @@ public sealed class CombatChancePuctPlanner
             else
             {
                 var leaf = EvaluateLeaf(nextState);
-                value = pathReward + leaf.Value;
+                terminalValue = leaf.Value;
                 risk = leaf.DeathRisk;
+                resolved = true;
                 break;
             }
 
             outcome.Child = child;
             outcome.Visits++;
             node = child;
+            currentState = child.State;
             nodePathBuffer[nodePathCount++] = node;
             if (node.Visits == 0)
             {
-                var leaf = EvaluateLeaf(node.State);
-                value = pathReward + leaf.Value;
+                var leaf = EvaluateLeaf(currentState);
+                terminalValue = leaf.Value;
                 risk = leaf.DeathRisk;
+                resolved = true;
                 break;
             }
 
             if (ply == searchMaxPly - 1)
             {
-                var leaf = EvaluateLeaf(node.State);
-                value = pathReward + leaf.Value;
+                var leaf = EvaluateLeaf(currentState);
+                terminalValue = leaf.Value;
                 risk = leaf.DeathRisk;
+                resolved = true;
             }
         }
 
 CompleteSimulation:
-        for (var i = 0; i < nodePathCount; i++)
+        if (!resolved)
         {
+            var leaf = EvaluateLeaf(currentState);
+            terminalValue = leaf.Value;
+            risk = leaf.DeathRisk;
+        }
+        if (nodePathCount > edgePathCount)
+        {
+            var leafNode = nodePathBuffer[nodePathCount - 1];
+            leafNode.Visits++;
+            leafNode.ValueSum += terminalValue;
+            leafNode.RiskSum += risk;
+        }
+        var value = terminalValue;
+        for (var i = edgePathCount - 1; i >= 0; i--)
+        {
+            value = rewardPathBuffer[i] + value * 0.985d;
+            edgePathBuffer[i].Record(value, risk);
             nodePathBuffer[i].Visits++;
             nodePathBuffer[i].ValueSum += value;
             nodePathBuffer[i].RiskSum += risk;
-        }
-        for (var i = 0; i < edgePathCount; i++)
-        {
-            edgePathBuffer[i].Visits++;
-            edgePathBuffer[i].ValueSum += value;
-            edgePathBuffer[i].RiskSum += risk;
         }
     }
 
@@ -486,6 +541,15 @@ CompleteSimulation:
             }
         }
         return -1;
+    }
+
+    private static bool RequiresFreshObservation(CombatActionObservation action)
+    {
+        var semantics = action?.Semantics;
+        return semantics != null
+               && (semantics.Draw > 0d
+                   || semantics.CardGeneration > 0d
+                   || semantics.OpensInteraction);
     }
 
     private string BuildLoopSummary()
@@ -506,12 +570,15 @@ CompleteSimulation:
               + blockedLoops;
     }
 
-    private void EnsureEdges(SearchNode node)
+    private void EnsureEdges(
+        SearchNode node,
+        CombatSimulationState? stateOverride = null)
     {
+        var legalityState = stateOverride ?? node.State;
         var priorTotal = 0d;
         for (var i = 0; i < actions.Count; i++)
         {
-            if (!IsUsable(node.State, actions[i]))
+            if (!IsUsable(legalityState, actions[i]))
             {
                 continue;
             }
@@ -544,8 +611,11 @@ CompleteSimulation:
         }
     }
 
-    private SearchEdge? SelectEdge(SearchNode node)
+    private SearchEdge? SelectEdge(
+        SearchNode node,
+        CombatSimulationState? stateOverride = null)
     {
+        var legalityState = stateOverride ?? node.State;
         SearchEdge? best = null;
         var bestScore = double.NegativeInfinity;
         var parentVisits = Math.Max(1, node.Visits);
@@ -553,14 +623,16 @@ CompleteSimulation:
         {
             if (edge.Disabled
                 || (edge.ActionIndex >= 0
-                    && !IsUsable(node.State, actions[edge.ActionIndex])))
+                    && !IsUsable(legalityState, actions[edge.ActionIndex])))
             {
                 continue;
             }
 
             var exploitation = edge.Visits == 0
                 ? 0d
-                : edge.MeanValue - profile.TailRiskPenalty * edge.MeanRisk;
+                : edge.MeanValue * 0.65d
+                  + edge.LowerTailCvar(profile.TailRiskQuantile) * 0.35d
+                  - profile.TailRiskPenalty * edge.MeanRisk;
             var exploration = profile.SearchExploration
                               * edge.NormalizedPrior
                               * Math.Sqrt(parentVisits)
@@ -833,7 +905,9 @@ CompleteSimulation:
 
     private double RootSelectionValue(SearchEdge edge)
     {
-        return edge.MeanValue - profile.TailRiskPenalty * edge.MeanRisk;
+        return edge.MeanValue * 0.65d
+               + edge.LowerTailCvar(profile.TailRiskQuantile) * 0.35d
+               - profile.TailRiskPenalty * edge.MeanRisk;
     }
 
     private List<CombatPlanStep> BuildPrincipalVariation(SearchNode root, SearchEdge first)
@@ -873,7 +947,10 @@ CompleteSimulation:
             edge = node.Edges.Values
                 .Where(candidate => candidate.Visits > 0 && !candidate.Disabled)
                 .OrderByDescending(candidate =>
-                    candidate.MeanValue - profile.TailRiskPenalty * candidate.MeanRisk)
+                    candidate.LowerTailCvar(profile.TailRiskQuantile))
+                .ThenByDescending(candidate =>
+                    candidate.MeanValue
+                    - profile.TailRiskPenalty * candidate.MeanRisk)
                 .ThenByDescending(candidate => candidate.Visits)
                 .FirstOrDefault()!;
             if (edge == null)
@@ -889,7 +966,7 @@ CompleteSimulation:
         IReadOnlyList<CombatPlanStep> steps,
         int simulations)
     {
-        return "chance-puct(simulations="
+        return "root-sampling-chance-puct-mpc(simulations="
                + simulations
                + ", nodes="
                + nodeCount
@@ -899,6 +976,8 @@ CompleteSimulation:
                + best.Visits
                + ", risk="
                + best.MeanRisk.ToString("0.000")
+               + ", cvar="
+               + best.LowerTailCvar(profile.TailRiskQuantile).ToString("0.00")
                + "); plan="
                + string.Join(" -> ", steps.Select(step => step.DisplayName))
                + "; value="
@@ -969,9 +1048,42 @@ CompleteSimulation:
 
         public List<SearchOutcome> Outcomes { get; } = new();
 
+        private List<double> ReturnSamples { get; } = new();
+
         public double MeanValue => Visits <= 0 ? 0d : ValueSum / Visits;
 
         public double MeanRisk => Visits <= 0 ? 1d : RiskSum / Visits;
+
+        public void Record(double value, double risk)
+        {
+            Visits++;
+            ValueSum += value;
+            RiskSum += risk;
+            if (ReturnSamples.Count < 2048)
+            {
+                ReturnSamples.Add(value);
+            }
+            else
+            {
+                ReturnSamples[Visits % ReturnSamples.Count] = value;
+            }
+        }
+
+        public double LowerTailCvar(double quantile)
+        {
+            if (ReturnSamples.Count == 0)
+            {
+                return MeanValue;
+            }
+            var normalized = Math.Max(0.01d, Math.Min(1d, quantile));
+            var count = Math.Max(
+                1,
+                (int)Math.Ceiling(ReturnSamples.Count * normalized));
+            return ReturnSamples
+                .OrderBy(value => value)
+                .Take(count)
+                .Average();
+        }
     }
 
     private sealed class SearchOutcome

@@ -307,6 +307,8 @@ public sealed class CombatTurnPlanner
     {
         return new CombatStateObservation
         {
+            InformationBoundaryVersion = source.InformationBoundaryVersion,
+            ObservationId = source.ObservationId,
             BattleSessionId = source.BattleSessionId,
             Sequence = source.Sequence,
             Player = CloneUnit(source.Player),
@@ -315,6 +317,12 @@ public sealed class CombatTurnPlanner
             CurrentPower = source.CurrentPower,
             MaxPower = source.MaxPower,
             HandCount = source.HandCount,
+            HandCardIds = new List<string>(source.HandCardIds),
+            RetainedHandCardIds = new List<string>(source.RetainedHandCardIds),
+            DeckCardIds = new List<string>(source.DeckCardIds),
+            DiscardPileCardIds = new List<string>(source.DiscardPileCardIds),
+            ExhaustPileCardIds = new List<string>(source.ExhaustPileCardIds),
+            DeckKnowledge = source.DeckKnowledge,
             ExpectedIncomingDamage = source.ExpectedIncomingDamage,
             Threat = source.Threat,
             Features = new Dictionary<string, double>(source.Features, StringComparer.OrdinalIgnoreCase),
@@ -343,6 +351,8 @@ public sealed class CombatTurnPlanner
     {
         return new CombatActionObservation
         {
+            ObservationId = source.ObservationId,
+            ActionToken = source.ActionToken,
             CandidateId = source.CandidateId,
             SourceId = source.SourceId,
             DisplayName = source.DisplayName,
@@ -354,9 +364,7 @@ public sealed class CombatTurnPlanner
             Legal = source.Legal,
             RejectionReason = source.RejectionReason,
             Semantics = source.Semantics,
-            Features = new Dictionary<string, double>(source.Features, StringComparer.OrdinalIgnoreCase),
-            RuntimeHandle = source.RuntimeHandle,
-            TargetHandle = source.TargetHandle
+            Features = new Dictionary<string, double>(source.Features, StringComparer.OrdinalIgnoreCase)
         };
     }
 

@@ -150,6 +150,39 @@ internal static class AuraToolsCombatKnowledgeRuntime
         return false;
     }
 
+    public static bool HasPlayerEquivalentReadiness(
+        CombatStateObservation state,
+        out string reason)
+    {
+        if (state == null
+            || state.InformationBoundaryVersion < 2
+            || string.IsNullOrWhiteSpace(state.ObservationId))
+        {
+            reason = "玩家观察协议不是 v2";
+            return false;
+        }
+        if (state.Actions.Any(action =>
+                string.IsNullOrWhiteSpace(action.ActionToken)
+                || !string.Equals(
+                    action.ObservationId,
+                    state.ObservationId,
+                    StringComparison.Ordinal)))
+        {
+            reason = "动作令牌未绑定当前公开观察";
+            return false;
+        }
+
+        var report = EvaluateCoverage(state);
+        var unsupported = state.Actions.Count(action =>
+            action.Kind != CombatActionKind.EndTurn
+            && action.SemanticFidelity == CombatKnowledgeFidelity.Unsupported);
+        reason = "player-equivalent-v2; "
+                 + report.Summary
+                 + "; unsupported-current-actions="
+                 + unsupported;
+        return true;
+    }
+
     private static void BeginBundledPackageLoad()
     {
         if (packageLoadQueued)

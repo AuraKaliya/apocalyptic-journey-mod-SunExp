@@ -511,7 +511,7 @@ using (CombatAiRegistry.RegisterThreatProvider(
 var model = new BoundedLinearDecisionResidualModel(new DecisionResidualModelDefinition
 {
     ModelId = "bounded-test",
-    FeatureSchemaVersion = 4,
+    FeatureSchemaVersion = 5,
     MaximumCorrection = 2d,
     Weights = new Dictionary<string, double> { ["effectiveDamage"] = 100d },
     FeatureMinimums = new Dictionary<string, double> { ["effectiveDamage"] = 0d },
@@ -567,11 +567,11 @@ var trainingSample = CombatTrainingSampleBuilder.Create(
     terminal: true,
     gameBuild: "test-game",
     sharedBuild: "test-shared");
-Assert(trainingSample.ModelProtocol == "aura.combat-ai.sample.v4"
-       && trainingSample.FeatureSchemaVersion == 4
+Assert(trainingSample.ModelProtocol == "aura.combat-ai.sample.v5"
+       && trainingSample.FeatureSchemaVersion == 5
        && trainingSample.Candidates.Count == state.Actions.Count
        && trainingSample.SourceId == "attack",
-    "training v4 captures the selected action and every candidate");
+    "training v5 captures the selected action and every candidate");
 Assert(trainingSample.Selection.Protocol == "aura.combat-ai.selection.v1"
        && trainingSample.Selection.ExecutedBy == "policy"
        && trainingSample.Selection.LabelKind == "policy-trajectory"
@@ -586,8 +586,8 @@ Assert(trainingSample.Selection.Protocol == "aura.combat-ai.selection.v1"
 Assert(trainingSample.Terminal
        && trainingSample.BattleOutcome == "victory"
        && trainingSample.RewardComponents.TerminalBonus == 50d,
-    "training v4 captures terminal outcome reward");
-Assert(trainingSample.Features["nonFinite"] == 0d,
+    "training v5 captures terminal outcome reward");
+Assert(!trainingSample.Features.ContainsKey("nonFinite"),
     "training features reject non-finite values");
 
 var humanSample = CombatTrainingSampleBuilder.Create(
@@ -663,7 +663,7 @@ Assert(originalFeatures.All(pair =>
 
 var trained = CombatResidualTrainer.Train(new[] { humanSample }, "balanced");
 Assert(trained.Success
-       && trained.Model?.FeatureSchemaVersion == 4
+       && trained.Model?.FeatureSchemaVersion == 5
        && trained.Model.DecisionProfile == "balanced"
        && trained.Model.FeatureMinimums.Count > 0
        && trained.Model.CategoryObservationCounts.Count > 0,
@@ -750,22 +750,27 @@ var guidanceModel = new BoundedTreeCombatSearchGuidanceModel(guidanceTraining.Mo
 Assert(!double.IsNaN(guidanceModel.PolicyLogit(originalFeatures))
        && guidanceModel.DeathRisk(humanSample.StateFeatures) == 0d,
     "untrained one-class terminal risk does not manufacture a death predictor");
-var legacyContext = CombatResidualTrainer.ContextualFeatures(
-    new CombatTrainingSample
+var incompatibleLegacySample = new CombatTrainingSample
+{
+    ModelProtocol = "aura.combat-ai.sample.v3",
+    FeatureSchemaVersion = 3,
+    CompletionState = "Completed",
+    DecisionProfile = "balanced",
+    BattleSessionId = 77,
+    StateFeatures = new Dictionary<string, double>
     {
-        ModelProtocol = "aura.combat-ai.sample.v3",
-        FeatureSchemaVersion = 3,
-        StateFeatures = new Dictionary<string, double>
-        {
-            ["playerHp"] = 20d,
-            ["playerMaxHp"] = 30d,
-            ["playerDefend"] = 0d,
-            ["expectedBlockableDamage"] = 0d,
-            ["power"] = 2d,
-            ["maxPower"] = 3d,
-            ["handCount"] = 2d
-        }
+        ["playerHp"] = 20d,
+        ["playerMaxHp"] = 30d,
+        ["playerDefend"] = 0d,
+        ["expectedBlockableDamage"] = 0d,
+        ["power"] = 2d,
+        ["maxPower"] = 3d,
+        ["handCount"] = 2d
     },
+    CandidateId = "legacy-defend"
+};
+var legacyContext = CombatResidualTrainer.ContextualFeatures(
+    incompatibleLegacySample,
     new CombatTrainingCandidate
     {
         ActionKind = "PlayCard",
@@ -774,7 +779,16 @@ var legacyContext = CombatResidualTrainer.ContextualFeatures(
 Assert(legacyContext["wastedDefend"] == 6d
        && legacyContext["semanticConfidence"] == 1d
        && legacyContext["categoryDefend"] == 1d,
-    "v3 samples are reconstructed into v4 contextual features inside the MOD trainer");
+    "context reconstruction remains deterministic for isolated diagnostics");
+var incompatibleTraining = CombatResidualTrainer.Train(
+    new[] { incompatibleLegacySample },
+    "balanced");
+Assert(!CombatTrainingProtocol.IsCompatible(incompatibleLegacySample)
+       && incompatibleTraining.CompletedSampleCount == 0
+       && !incompatibleTraining.Success
+       && CombatLiveEpisodeAssembler.Assemble(
+           new[] { incompatibleLegacySample }).Count == 0,
+    "legacy omniscient samples are rejected at every player-equivalent training ingress");
 
 var forwardRoot = new CombatStateObservation
 {
@@ -1114,7 +1128,7 @@ var coverageState = new CombatStateObservation
     }
 };
 var coverageDecision = new CombatDecisionEngine().Choose(coverageState, coverageProfile);
-Assert(coverageDecision.SearchAlgorithm == "chance-puct"
+Assert(coverageDecision.SearchAlgorithm == "root-sampling-chance-puct-mpc"
        && coverageDecision.SearchSimulations >= 2
        && coverageDecision.Candidates
            .Where(candidate => candidate.Action.Kind != CombatActionKind.EndTurn)
@@ -3410,10 +3424,10 @@ var moneyObservation = CombatSimulationObservationProjector.Project(
     });
 var moneyThrowObservation = moneyObservation.Actions.Single(item =>
     item.CandidateId == "money-throw");
-Assert(moneyObservation.Features["player.Money"] == 40d
+Assert(!moneyObservation.Features.ContainsKey("player.Money")
        && moneyThrowObservation.Semantics.Damage == 12d
-       && moneyThrowObservation.Semantics.StateChanges["player.Money"] == -20d,
-    "simulation observations expose combat money and evaluate money-dependent card semantics at the current balance");
+       && !moneyThrowObservation.Semantics.StateChanges.ContainsKey("player.Money"),
+    "player-equivalent observations exclude campaign money while retaining visible action damage");
 
 foreach (var lateMove in new[] { false, true })
 {
@@ -3810,7 +3824,13 @@ using (CombatKnowledgeRegistry.RegisterPackage(
             MaxHp = 20
         },
         HandCount = 1,
-        DrawPileCardIds = { "finisher" }
+        DeckCardIds = { "finisher" },
+        DeckKnowledge = new CombatDeckKnowledge
+        {
+            DrawPileCount = 1,
+            KnownDeckCardIds = { "finisher" },
+            KnownTopCardIds = { "finisher" }
+        }
     };
     var drawAction = new CombatActionObservation
     {
@@ -5502,6 +5522,140 @@ Assert(advancedDynamicEnemy.FinalState.LivingEnemies.Single().Statuses.Single(st
        < 0.000001d,
     "enemy definitions apply opening statuses, status copying, and percent variables");
 
+var hiddenOrderA = CombatPlayerObservationBoundary.Normalize(
+    BuildPlayerEquivalentFixture(reverseHiddenDrawOrder: false));
+var hiddenOrderB = CombatPlayerObservationBoundary.Normalize(
+    BuildPlayerEquivalentFixture(reverseHiddenDrawOrder: true));
+Assert(hiddenOrderA.InformationBoundaryVersion == 2
+       && !hiddenOrderA.Features.ContainsKey("secretRngCounter")
+       && !hiddenOrderA.Player.Features.ContainsKey("ResurrectionSource")
+       && hiddenOrderA.Fingerprint == hiddenOrderB.Fingerprint,
+    "hidden draw order and internal variables cannot change the public observation");
+var hiddenFeaturesA = CombatPolicyValueEncoding.BuildStateFeatures(hiddenOrderA);
+var hiddenFeaturesB = CombatPolicyValueEncoding.BuildStateFeatures(hiddenOrderB);
+Assert(hiddenFeaturesA.OrderBy(pair => pair.Key)
+           .SequenceEqual(hiddenFeaturesB.OrderBy(pair => pair.Key)),
+    "hidden-state permutations produce identical policy features");
+var hiddenBeliefA = CombatBeliefTracker.FromObservation(hiddenOrderA);
+var hiddenBeliefB = CombatBeliefTracker.FromObservation(hiddenOrderB);
+var hiddenSampleSeed = CombatPublicObservationHasher.Seed(hiddenOrderA, 7);
+Assert(CombatRootDeterminizer.SampleDrawPile(hiddenBeliefA, hiddenSampleSeed)
+           .SequenceEqual(
+               CombatRootDeterminizer.SampleDrawPile(
+                   hiddenBeliefB,
+                   hiddenSampleSeed)),
+    "belief determinization depends on public knowledge rather than authoritative order");
+var invariantProfile = new CombatDecisionProfile
+{
+    SearchSimulationBudget = 24,
+    SearchMinimumSimulations = 8,
+    SearchNodeBudget = 512,
+    SearchMaxPly = 4
+};
+var hiddenDecisionA = new CombatDecisionEngine().Choose(hiddenOrderA, invariantProfile);
+var hiddenDecisionB = new CombatDecisionEngine().Choose(hiddenOrderB, invariantProfile);
+Assert(hiddenDecisionA.Action?.CandidateId == hiddenDecisionB.Action?.CandidateId,
+    "player-equivalent search is invariant to hidden draw-order permutations");
+
+var revealedTopA = BuildPlayerEquivalentFixture(reverseHiddenDrawOrder: false);
+revealedTopA.DeckKnowledge.KnownTopCardIds.Add("guard");
+var revealedTopB = BuildPlayerEquivalentFixture(reverseHiddenDrawOrder: false);
+revealedTopB.DeckKnowledge.KnownTopCardIds.Add("setup");
+var normalizedRevealA = CombatPlayerObservationBoundary.Normalize(revealedTopA);
+var normalizedRevealB = CombatPlayerObservationBoundary.Normalize(revealedTopB);
+var revealedSample = CombatRootDeterminizer.SampleDrawPile(
+    CombatBeliefTracker.FromObservation(normalizedRevealA),
+    19);
+Assert(normalizedRevealA.Fingerprint != normalizedRevealB.Fingerprint
+       && revealedSample.Last() == "guard",
+    "public card reveals change the observation and constrain root determinization");
+
+var tokenSource = new object();
+var tokenTarget = new object();
+var tokenContext = new CombatExecutionContext { ObservationId = "battle:9" };
+var currentTokenAction = new CombatActionObservation
+{
+    ObservationId = "battle:9",
+    ActionToken = "a0",
+    CandidateId = "attack"
+};
+tokenContext.Bind(currentTokenAction, tokenSource, tokenTarget);
+var staleTokenAction = new CombatActionObservation
+{
+    ObservationId = "battle:10",
+    ActionToken = "a0",
+    CandidateId = "attack"
+};
+Assert(tokenContext.TryResolve(currentTokenAction, out var currentBinding)
+       && ReferenceEquals(currentBinding.SourceHandle, tokenSource)
+       && !tokenContext.TryResolve(staleTokenAction, out _),
+    "execution bindings accept the current observation and reject stale tokens");
+var aiDtoTypes = new[]
+{
+    typeof(PlayerCombatObservation),
+    typeof(CombatStateObservation),
+    typeof(CombatActionObservation),
+    typeof(CombatUnitObservation)
+};
+Assert(aiDtoTypes.All(type =>
+        type.GetProperties().All(property => property.PropertyType != typeof(object))),
+    "AI observation DTOs contain no runtime object handles");
+using (CombatPublicFeatureRegistry.Register(
+           "Tests",
+           CombatPublicFeatureScope.State,
+           "visibleModCounter"))
+{
+    var registeredFeatureState = BuildPlayerEquivalentFixture(false);
+    registeredFeatureState.Features["visibleModCounter"] = 4d;
+    Assert(CombatPlayerObservationBoundary.Normalize(registeredFeatureState)
+               .Features["visibleModCounter"] == 4d,
+        "mods can explicitly register a player-visible derived feature");
+}
+var unregisteredFeatureState = BuildPlayerEquivalentFixture(false);
+unregisteredFeatureState.Features["visibleModCounter"] = 4d;
+Assert(!CombatPlayerObservationBoundary.Normalize(unregisteredFeatureState)
+        .Features.ContainsKey("visibleModCounter"),
+    "unregistered derived features fail closed at the observation boundary");
+
+var promptRequest = CombatInteractionBroker.Begin(
+    new CombatInteractionHint { Purpose = "visibility-gate" },
+    1,
+    null);
+Assert(CombatInteractionBroker.Snapshot()?.Choices.Count == 0,
+    "prompt choices remain hidden before the native UI publishes them");
+CombatInteractionBroker.PublishVisibleChoices(
+    promptRequest.RequestId,
+    new[]
+    {
+        new CombatActionObservation
+        {
+            ObservationId = "prompt",
+            ActionToken = "prompt:0",
+            CandidateId = "visible-choice"
+        }
+    });
+Assert(CombatInteractionBroker.Snapshot()?.Choices.Single().CandidateId
+       == "visible-choice",
+    "prompt choices become observable only after the UI visibility gate");
+CombatInteractionBroker.Clear(promptRequest.RequestId);
+
+var projectedOrderA = ProjectPlayerEquivalentHiddenOrder(
+    bundledRulesV2.Ruleset,
+    reverseHiddenDrawOrder: false,
+    hiddenVariable: 10d);
+var projectedOrderB = ProjectPlayerEquivalentHiddenOrder(
+    bundledRulesV2.Ruleset,
+    reverseHiddenDrawOrder: true,
+    hiddenVariable: 900d);
+Assert(projectedOrderA.Fingerprint == projectedOrderB.Fingerprint
+       && !projectedOrderA.Features.ContainsKey("player.SecretCounter")
+       && CombatPolicyValueEncoding.BuildStateFeatures(projectedOrderA)
+           .OrderBy(pair => pair.Key)
+           .SequenceEqual(
+               CombatPolicyValueEncoding.BuildStateFeatures(projectedOrderB)
+                   .OrderBy(pair => pair.Key)),
+    "headless projection obeys the same hidden-state invariants as live observations");
+
 Console.WriteLine($"AuraCombatAiShared.Tests passed: {assertions} assertions.");
 
 void Assert(bool condition, string name)
@@ -5512,6 +5666,145 @@ void Assert(bool condition, string name)
     }
 
     assertions++;
+}
+
+CombatStateObservation BuildPlayerEquivalentFixture(bool reverseHiddenDrawOrder)
+{
+    var state = new CombatStateObservation
+    {
+        BattleSessionId = 77,
+        Sequence = 4,
+        Player = new CombatUnitObservation
+        {
+            RuntimeId = 1,
+            Kind = CombatTargetKind.Self,
+            CurrentHp = 24,
+            MaxHp = 30,
+            Features =
+            {
+                ["ResurrectionSource"] = reverseHiddenDrawOrder ? 99d : 1d
+            }
+        },
+        CurrentPower = 2,
+        MaxPower = 3,
+        HandCount = 1,
+        HandCardIds = { "strike" },
+        DeckCardIds = reverseHiddenDrawOrder
+            ? new List<string> { "setup", "guard", "strike" }
+            : new List<string> { "strike", "guard", "setup" },
+        DeckKnowledge = new CombatDeckKnowledge
+        {
+            DrawPileCount = 2,
+            KnownDeckCardIds = { "strike", "guard", "setup" }
+        },
+        Features =
+        {
+            ["turn"] = 1d,
+            ["drawPileCount"] = 2d,
+            ["secretRngCounter"] = reverseHiddenDrawOrder ? 700d : 3d
+        },
+        Enemies =
+        {
+            new CombatUnitObservation
+            {
+                RuntimeId = 2,
+                DefinitionId = "test-enemy",
+                Kind = CombatTargetKind.Enemy,
+                CurrentHp = 8,
+                MaxHp = 8
+            }
+        },
+        Actions =
+        {
+            new CombatActionObservation
+            {
+                CandidateId = "strike:enemy",
+                SourceId = "strike",
+                Kind = CombatActionKind.PlayCard,
+                RuntimeId = 2000,
+                TargetRuntimeId = 2,
+                TargetKind = CombatTargetKind.Enemy,
+                Cost = 1,
+                Semantics = new CombatActionSemantics { Damage = 5d },
+                Features = { ["isCard"] = 1d }
+            },
+            new CombatActionObservation
+            {
+                CandidateId = "end-turn",
+                SourceId = "end-turn",
+                Kind = CombatActionKind.EndTurn,
+                RuntimeId = 9000
+            }
+        }
+    };
+    return state;
+}
+
+CombatStateObservation ProjectPlayerEquivalentHiddenOrder(
+    CombatRuleset ruleset,
+    bool reverseHiddenDrawOrder,
+    double hiddenVariable)
+{
+    var state = new CombatBattleState
+    {
+        Turn = 1,
+        ActionSequence = 2,
+        Phase = CombatSimulationPhase.PlayerAction,
+        PlayerActorId = 1,
+        Actors =
+        {
+            new CombatActorState
+            {
+                ActorId = 1,
+                Kind = CombatSimulationActorKind.Player,
+                Hp = 20,
+                MaxHp = 20,
+                Energy = 2,
+                BaseEnergy = 3,
+                Variables = { ["SecretCounter"] = hiddenVariable }
+            }
+        },
+        Cards =
+        {
+            new CombatCardInstanceState { InstanceId = 1, CardId = "luckycard_3" },
+            new CombatCardInstanceState { InstanceId = 2, CardId = "card_1" },
+            new CombatCardInstanceState { InstanceId = 3, CardId = "ritualcard_1" }
+        },
+        Hand = { 1 }
+    };
+    if (reverseHiddenDrawOrder)
+    {
+        state.DrawPile.Add(3);
+        state.DrawPile.Add(2);
+    }
+    else
+    {
+        state.DrawPile.Add(2);
+        state.DrawPile.Add(3);
+    }
+    return PlayerEquivalentSimulationObservationProjector.Project(
+        new CombatSimulationPolicyContext
+        {
+            Scenario = new CombatScenarioDefinition
+            {
+                ScenarioId = "player-equivalent-projection",
+                Seed = 81,
+                HandLimit = 10
+            },
+            Ruleset = ruleset,
+            State = state,
+            LegalActions = new List<CombatSimulationAction>
+            {
+                new CombatSimulationAction
+                {
+                    CandidateId = "play-visible-card",
+                    Kind = CombatSimulationActionKind.PlayCard,
+                    CardInstanceId = 1,
+                    DefinitionId = "luckycard_3",
+                    Cost = 1
+                }
+            }
+        });
 }
 
 CombatCampaignDefinition BuildStandardCampaign()

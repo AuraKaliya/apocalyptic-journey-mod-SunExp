@@ -28,6 +28,62 @@ Close or reopen the Codex workspace, then rename the repository root from its pa
 
 ---
 
+## [ERR-20260727-005] foundation-smoke-system-web-loader
+
+**Logged**: 2026-07-27T00:00:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The foundation Worker completed, but its smoke test could not read the result because `JavaScriptSerializer` loaded an incompatible game-supplied `System.Web` assembly.
+
+### Error
+```text
+Could not load type 'System.Web.UI.WebResourceAttribute' from assembly 'System.Web, Version=4.0.0.0'
+```
+
+### Suggested Fix
+Use PowerShell's built-in `ConvertFrom-Json` for test artifacts so validation does not depend on the legacy full-framework `System.Web.Extensions` loader.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Test-AuraFoundationTrainer.ps1
+
+### Resolution
+- **Resolved**: 2026-07-27T00:00:00+08:00
+- **Notes**: Replaced `JavaScriptSerializer` with a UTF-8 raw read piped to `ConvertFrom-Json -Depth 100 -AsHashtable`; the hashtable form also accepts feature maps containing an empty-string key.
+
+---
+
+## [ERR-20260727-004] stale-source-contract-anchor
+
+**Logged**: 2026-07-27T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The first player-equivalent AI contract run checked for the root determinizer in the planner file even though the planner intentionally reaches it through the forward-model boundary.
+
+### Error
+```text
+Aura combat AI Chance-PUCT planner contract is missing: CombatRootDeterminizer
+```
+
+### Suggested Fix
+Anchor source-contract tests on the planner's actual public integration points rather than an internal dependency owned by another module.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Test-AuraCombatAi.ps1
+
+### Resolution
+- **Resolved**: 2026-07-27T00:00:00+08:00
+- **Notes**: Replaced the misplaced anchor with the planner's belief-tracker and public observation seed calls.
+
+---
+
 ## [ERR-20260723-001] powershell-package-inspection-policy-block
 
 **Logged**: 2026-07-23T16:30:00+08:00
@@ -495,7 +551,7 @@ Run shared release gates and shared core test harnesses serially, or give parall
 ### Metadata
 - Reproducible: yes
 - Related Files: tools\Test-SharedReleaseGate.ps1, tools\Test-AuraSharedCore.ps1
-- Recurrence-Count: 2
+- Recurrence-Count: 3
 
 ### Recurrence
 - **Observed**: 2026-07-22T13:00:00+08:00
@@ -776,6 +832,8 @@ After changing shared runtime sources, rebuild every consumer listed by `Test-Sh
 - **Notes**: A clean-source release-gate run rebuilt `Aura.Shared.dll` to 902144 bytes while all five prototype packages remained at 901120 bytes; the packaging hash gate failed again.
 - **Observed**: 2026-07-16T18:45:00+08:00
 - **Notes**: Building the Terrias evacuation feature refreshed the shared project output and Terrias package while the SanGuoShaExp and AuraToolsExp packages retained the earlier hash; resolved through the main-consumer build before final validation.
+- **Observed**: 2026-07-27T00:00:00+08:00
+- **Notes**: Player-equivalent AI changes refreshed the shared assembly through Terrias and AuraTools builds while SanGuoShaExp retained the prior hash; rebuilt the remaining main consumer before rerunning the packaging gate.
 
 ---
 
@@ -850,5 +908,7 @@ Use `Get-ChildItem` for optional-file discovery, collect PowerShell rows before 
 - **Notes**: A new UI `Configure` parameter named `modelMode` shadowed the existing string field, producing a string-to-Button assignment error. Use role-specific control suffixes such as `modelModeControl` when a state field already owns the base name.
 - **Observed**: 2026-07-24T21:15:00+08:00
 - **Notes**: A context-light patch inserted `operationDetailText` into the adjacent training status component instead of the simulation status component. Inspect the exact class field block after cross-cutting UI patches rather than relying on a repeated `statusText` anchor.
+- **Observed**: 2026-07-27T00:00:00+08:00
+- **Notes**: Used `Promise.all` for repository skill and optional `rg` discovery; the expected no-match `AGENTS.md` probe returned exit code 1 and hid every sibling result. Re-ran with per-command error isolation; use `Promise.allSettled` semantics for exploratory batches.
 
 ---
