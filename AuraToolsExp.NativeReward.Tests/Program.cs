@@ -178,6 +178,10 @@ try
         campaign,
         rulesetBuild.Ruleset,
         smokeEnemy));
+    runtimeFailures.AddRange(ValidateFullHandGeneratedCardOverflow(
+        campaign,
+        rulesetBuild.Ruleset,
+        smokeEnemy));
     runtimeFailures.AddRange(ValidateDeferredEffectSafety(
         campaign,
         rulesetBuild.Ruleset,
@@ -1115,6 +1119,134 @@ static IEnumerable<string> ValidateDrawPileSnapshotExecution(
             + supernovaId
             + ":expected-at-least-2-exhausted:"
             + result.FinalState.ExhaustPile.Count);
+    }
+    return failures;
+}
+
+static IEnumerable<string> ValidateFullHandGeneratedCardOverflow(
+    CombatCampaignDefinition campaign,
+    CombatRuleset ruleset,
+    CombatEnemyDefinition enemy)
+{
+    const string generatedCardId = "Crowdfundingcard_28";
+    const string generatorCardId = "test_full_hand_generator";
+    const string fillerCardId = "test_full_hand_filler";
+    var failures = new List<string>();
+    var builder = new CombatRulesetBuilder(
+        ruleset.Version + ".full-hand-overflow-test");
+    foreach (var card in ruleset.SnapshotCards())
+    {
+        builder.RegisterCard(card);
+    }
+    foreach (var status in ruleset.SnapshotStatuses())
+    {
+        builder.RegisterStatus(status);
+    }
+    foreach (var registeredEnemy in ruleset.SnapshotEnemies())
+    {
+        builder.RegisterEnemy(registeredEnemy);
+    }
+    builder.RegisterCard(new CombatCardDefinition
+    {
+        OwnerModId = "Tests",
+        CardId = generatorCardId,
+        Cost = 0,
+        Exhaust = true,
+        Effects =
+        {
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.CreateCard,
+                Target = CombatSimulationTarget.Self,
+                DefinitionId = generatedCardId,
+                Amount = 1,
+                DestinationZone = CombatCardZone.Hand
+            }
+        }
+    });
+    builder.RegisterCard(new CombatCardDefinition
+    {
+        OwnerModId = "Tests",
+        CardId = fillerCardId,
+        Cost = 99,
+        Tags = { "Unusable" }
+    });
+    var augmented = builder.Freeze();
+    if (!augmented.Success)
+    {
+        failures.Add(
+            "native-full-hand-overflow:ruleset:"
+            + string.Join(",", augmented.Errors.Take(3)));
+        return failures;
+    }
+
+    var scenario = new CombatScenarioDefinition
+    {
+        ScenarioId = "full-hand-generated-card-overflow",
+        RulesetVersion = augmented.Ruleset.Version,
+        Seed = 772029UL,
+        Player = new CombatPlayerSetup
+        {
+            RoleId = campaign.Player.RoleId,
+            MaxHp = 100,
+            CurrentHp = 100,
+            BaseEnergy = 99,
+            Deck = new List<string>
+            {
+                generatorCardId,
+                fillerCardId
+            }
+        },
+        Enemies =
+        {
+            new CombatEnemySetup
+            {
+                EnemyId = enemy.EnemyId,
+                InstanceKey = "full-hand-overflow-enemy",
+                HpScale = 100d
+            }
+        },
+        InitialDraw = 2,
+        DrawPerTurn = 0,
+        HandLimit = 2,
+        MovePlayedCardAfterResolution = true,
+        RequireAuthoritativeRules = false,
+        TraceLevel = CombatSimulationTraceLevel.Full,
+        Limits = new CombatSimulationLimits
+        {
+            MaximumTurns = 1,
+            MaximumActions = 10,
+            MaximumCommands = 100,
+            MaximumCommandsPerAction = 25
+        }
+    };
+    var result = new CombatSimulationEngine(
+        new AuraToolsNativeRewardExtensionFactory())
+        .Run(scenario, augmented.Ruleset, new SmokePolicy());
+    AddNativeRuntimeFailure(
+        failures,
+        "full-hand-overflow",
+        generatedCardId,
+        result);
+    var created = result.Events
+        .Where(item =>
+            item.Kind == CombatSimulationEventKind.CardCreated
+            && string.Equals(
+                item.DefinitionId,
+                generatedCardId,
+                StringComparison.OrdinalIgnoreCase))
+        .ToList();
+    if (created.Count != 1
+        || result.FinalState.DrawPile.LastOrDefault()
+           != created[0].CardInstanceId
+        || result.Events.Any(item =>
+            item.Kind == CombatSimulationEventKind.CardDiscarded
+            && item.CardInstanceId == created[0].CardInstanceId))
+    {
+        failures.Add(
+            "native-full-hand-overflow:"
+            + generatedCardId
+            + ":expected-single-card-on-draw-pile-top");
     }
     return failures;
 }

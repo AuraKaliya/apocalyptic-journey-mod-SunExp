@@ -50,6 +50,7 @@ $presenterPath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraTools
 $interactionPath = Join-Path $root "AuraCombatAiShared\GameApi\WitchCombatInteractionRuntime.cs"
 $runtimePath = Join-Path $root "AuraCombatAiShared\GameApi\WitchCombatRuntime.cs"
 $plannerPath = Join-Path $root "AuraCombatAiShared\CombatChancePuctPlanner.cs"
+$searchBudgetPath = Join-Path $root "AuraCombatAiShared\CombatSearchBudgetPolicy.cs"
 $loopSafetyPath = Join-Path $root "AuraCombatAiShared\CombatLoopSafetyAnalyzer.cs"
 $forwardModelPath = Join-Path $root "AuraCombatAiShared\CombatForwardModel.cs"
 $searchProjectorPath = Join-Path $root "AuraCombatAiShared\CombatSearchFeatureProjector.cs"
@@ -90,6 +91,7 @@ $presenter = Get-Content -LiteralPath $presenterPath -Raw
 $interaction = Get-Content -LiteralPath $interactionPath -Raw
 $runtime = Get-Content -LiteralPath $runtimePath -Raw
 $planner = Get-Content -LiteralPath $plannerPath -Raw
+$searchBudget = Get-Content -LiteralPath $searchBudgetPath -Raw
 $loopSafety = Get-Content -LiteralPath $loopSafetyPath -Raw
 $forwardModel = Get-Content -LiteralPath $forwardModelPath -Raw
 $searchProjector = Get-Content -LiteralPath $searchProjectorPath -Raw
@@ -556,9 +558,6 @@ if ($bundledRules.version -ne "witch-base-evaluation-v1" `
 
 foreach ($anchor in @(
     "CombatChancePuctPlanner",
-    "SearchSimulationBudget",
-    "SearchNodeBudget",
-    "SearchMaxPly",
     "SnapshotSimulationRules",
     "TranspositionHits",
     "DeathRiskLimit",
@@ -570,6 +569,18 @@ foreach ($anchor in @(
 )) {
     if (-not $planner.Contains($anchor)) {
         throw "Aura combat AI Chance-PUCT planner contract is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
+    "CombatSearchBudgetPolicy",
+    "SearchSimulationBudget",
+    "SearchNodeBudget",
+    "SearchMaxPly",
+    "damage-cap-or-limit",
+    "loop-or-fake-loop"
+)) {
+    if (-not $searchBudget.Contains($anchor)) {
+        throw "Aura combat AI dynamic search budget contract is missing: $anchor"
     }
 }
 foreach ($anchor in @(

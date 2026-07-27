@@ -345,7 +345,7 @@ void TestConfigModelSerializationCompatibility()
     var matchExperience = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
         "{\"schemaVersion\":1,\"starterDeck\":{\"preferRoleModProfile\":false},\"safeBox\":null,\"modSync\":null,\"feast\":null,\"damageMeter\":null,\"cardRefresh\":null,\"autoBattle\":null}")!;
     matchExperience.Normalize();
-    Assert(matchExperience.SchemaVersion == 20
+    Assert(matchExperience.SchemaVersion == 22
            && matchExperience.StarterDeck.PreferRoleModProfile
            && matchExperience.SafeBox != null
            && matchExperience.ModSync != null
@@ -376,12 +376,28 @@ void TestConfigModelSerializationCompatibility()
            && matchExperience.AutoBattle.FoundationTraining.ModelEpochs == 40
            && matchExperience.AutoBattle.FoundationTraining.ModelBatchSize == 64
            && matchExperience.AutoBattle.FoundationTraining
-                  .ModelEarlyStoppingPatience == 5
+                  .ModelEarlyStoppingPatience == 8
+           && matchExperience.AutoBattle.FoundationTraining.ModelMinimumEpochs == 8
+           && matchExperience.AutoBattle.FoundationTraining.ModelStateDimensions == 128
+           && matchExperience.AutoBattle.FoundationTraining.ModelHiddenDimensions == 64
+           && matchExperience.AutoBattle.FoundationTraining.ModelFeatureEncodingMode
+              == "partitioned-v2"
+           && matchExperience.AutoBattle.FoundationTraining.EnableDynamicSearchBudget
+           && matchExperience.AutoBattle.FoundationTraining.EnableArenaRecovery
+           && matchExperience.AutoBattle.FoundationTraining.EnableTuningArena
+           && Math.Abs(matchExperience.AutoBattle.FoundationTraining
+                  .NormalAcceptanceRate - 0.90d) < 0.0001d
+           && Math.Abs(matchExperience.AutoBattle.FoundationTraining
+                  .AdvancedAcceptanceRate - 0.50d) < 0.0001d
            && matchExperience.AutoBattle.FoundationTraining.RandomizeRunSeed
            && matchExperience.AutoBattle.FoundationTraining.EnableCurriculum
            && matchExperience.AutoBattle.FoundationTraining.EnableStratifiedReplay
            && matchExperience.AutoBattle.FoundationTraining
-                  .EnableHardSeedCurriculum
+                   .EnableHardSeedCurriculum
+           && matchExperience.AutoBattle.FoundationTraining
+                   .EnableSuccessCaseArchive
+           && Math.Abs(matchExperience.AutoBattle.FoundationTraining
+                   .SuccessExpertReplayShare - 0.20d) < 0.0001d
            && Math.Abs(matchExperience.AutoBattle.FoundationTraining
                   .HardSeedReplayShare - 0.35d) < 0.0001d
            && Math.Abs(matchExperience.AutoBattle.FoundationTraining
@@ -488,7 +504,7 @@ void TestCardRefreshSettingsAndPoolPolicy()
         CardRefresh = null!
     };
     settings.Normalize();
-    Assert(settings.SchemaVersion == 20, "match-experience settings migrate to the randomized curriculum foundation schema");
+    Assert(settings.SchemaVersion == 22, "match-experience settings migrate to the adaptive foundation training schema");
     Assert(settings.CardRefresh != null && !settings.CardRefresh.Enabled,
         "card refresh is restored with a disabled default during normalization");
     Assert(settings.AutoBattle.FoundationTraining.Iterations == 8
@@ -501,6 +517,16 @@ void TestCardRefreshSettingsAndPoolPolicy()
            && settings.AutoBattle.FoundationTraining.EnableCurriculum
            && settings.AutoBattle.FoundationTraining.EnableStratifiedReplay
            && settings.AutoBattle.FoundationTraining.EnableHardSeedCurriculum
+           && settings.AutoBattle.FoundationTraining.EnableSuccessCaseArchive
+           && settings.AutoBattle.FoundationTraining.EnableDynamicSearchBudget
+           && settings.AutoBattle.FoundationTraining.EnableArenaRecovery
+           && settings.AutoBattle.FoundationTraining.EnableTuningArena
+           && Math.Abs(settings.AutoBattle.FoundationTraining
+                  .NormalAcceptanceRate - 0.90d) < 0.0001d
+           && Math.Abs(settings.AutoBattle.FoundationTraining
+                  .AdvancedAcceptanceRate - 0.50d) < 0.0001d
+           && Math.Abs(settings.AutoBattle.FoundationTraining
+                   .SuccessExpertReplayShare - 0.20d) < 0.0001d
            && Math.Abs(settings.AutoBattle.FoundationTraining
                   .HardSeedReplayShare - 0.35d) < 0.0001d
            && settings.AutoBattle.FoundationTraining.Parallelism
@@ -509,7 +535,7 @@ void TestCardRefreshSettingsAndPoolPolicy()
     var schema16Foundation = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
         "{\"schemaVersion\":16,\"autoBattle\":{\"foundationTraining\":{\"iterations\":3,\"trainingCampaignsPerIteration\":6,\"arenaCampaignsPerDifficulty\":4,\"validationCampaignsPerDifficulty\":10}}}")!;
     schema16Foundation.Normalize();
-    Assert(schema16Foundation.SchemaVersion == 20
+    Assert(schema16Foundation.SchemaVersion == 22
            && schema16Foundation.AutoBattle.FoundationTraining.Iterations == 8
            && schema16Foundation.AutoBattle.FoundationTraining.TrainingCampaignsPerIteration == 64
            && schema16Foundation.AutoBattle.FoundationTraining.ArenaCampaignsPerDifficulty == 32

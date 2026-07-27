@@ -85,6 +85,7 @@ public static class CombatTrainingSampleBuilder
             SearchSimulations = decision.SearchSimulations,
             SearchNodes = decision.SearchNodes,
             SearchTranspositionHits = decision.SearchTranspositionHits,
+            SearchBudgetTier = decision.SearchBudgetTier,
             StateFeatures = BuildStateFeatures(before),
             Features = SanitizeFeatures(decision.Action.Features),
             PredictedScore = Finite(decision.Score),

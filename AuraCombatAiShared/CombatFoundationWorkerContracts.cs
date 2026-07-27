@@ -5,7 +5,7 @@ namespace AuraCombatAi.Shared;
 
 public sealed class CombatFoundationWorkerJob
 {
-    public int SchemaVersion { get; set; } = 2;
+    public int SchemaVersion { get; set; } = 3;
 
     public string JobId { get; set; } = "";
 
@@ -23,6 +23,8 @@ public sealed class CombatFoundationWorkerJob
 
     public string CheckpointEpisodesPath { get; set; } = "";
 
+    public string SuccessArchiveDirectory { get; set; } = "";
+
     public bool ResumeFromCheckpoint { get; set; } = true;
 
     public CombatCampaignFoundationTrainingRequest Request { get; set; } = new();
@@ -34,7 +36,7 @@ public sealed class CombatFoundationWorkerJob
 
 public sealed class CombatFoundationWorkerProgress
 {
-    public int SchemaVersion { get; set; } = 2;
+    public int SchemaVersion { get; set; } = 3;
 
     public string JobId { get; set; } = "";
 
@@ -45,7 +47,7 @@ public sealed class CombatFoundationWorkerProgress
 
 public sealed class CombatFoundationWorkerResult
 {
-    public int SchemaVersion { get; set; } = 2;
+    public int SchemaVersion { get; set; } = 3;
 
     public string JobId { get; set; } = "";
 
@@ -70,7 +72,7 @@ public sealed class CombatFoundationWorkerResult
 
 public sealed class CombatFoundationWorkerCheckpoint
 {
-    public int SchemaVersion { get; set; } = 2;
+    public int SchemaVersion { get; set; } = 3;
 
     public string RequestFingerprint { get; set; } = "";
 

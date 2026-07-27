@@ -62,6 +62,7 @@ public sealed class CombatDecisionSimulationPolicy :
         LastDecisionMetrics.SearchSimulations = decision.SearchSimulations;
         LastDecisionMetrics.SearchNodes = decision.SearchNodes;
         LastDecisionMetrics.SearchStoppedEarly = decision.SearchStoppedEarly;
+        LastDecisionMetrics.SearchBudgetTier = decision.SearchBudgetTier;
         LastDecisionMetrics.CertifiedLoops = decision.CertifiedLoops;
         LastDecisionMetrics.SustainableControlLoops =
             decision.SustainableControlLoops;

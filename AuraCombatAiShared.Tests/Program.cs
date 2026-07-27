@@ -1542,6 +1542,151 @@ Assert(burnoutSetHpResult.Outcome == CombatSimulationOutcome.Victory
            item.Kind == CombatSimulationEventKind.Healed),
     "SetHp assigns health directly and burnout bypasses native discard scripts");
 
+var fullHandCreationRules = new CombatRulesetBuilder("full-hand-creation-v1")
+    .RegisterCard(new CombatCardDefinition
+    {
+        OwnerModId = "Tests",
+        CardId = "overflow-generator",
+        Cost = 0,
+        Exhaust = true,
+        Effects =
+        {
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.CreateCard,
+                Target = CombatSimulationTarget.Self,
+                DefinitionId = "overflow-a",
+                Amount = 1,
+                DestinationZone = CombatCardZone.Hand
+            },
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.CreateCard,
+                Target = CombatSimulationTarget.Self,
+                DefinitionId = "overflow-b",
+                Amount = 1,
+                DestinationZone = CombatCardZone.Hand
+            }
+        }
+    })
+    .RegisterCard(new CombatCardDefinition
+    {
+        OwnerModId = "Tests",
+        CardId = "overflow-filler",
+        Cost = 99,
+        Tags = { "Unusable" }
+    })
+    .RegisterCard(new CombatCardDefinition
+    {
+        OwnerModId = "Tests",
+        CardId = "overflow-a",
+        Cost = 99,
+        Tags = { "Retain", "Unusable" },
+        DiscardEffects =
+        {
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.CreateCard,
+                Target = CombatSimulationTarget.Self,
+                DefinitionId = "overflow-a",
+                Amount = 1,
+                DestinationZone = CombatCardZone.Hand
+            }
+        }
+    })
+    .RegisterCard(new CombatCardDefinition
+    {
+        OwnerModId = "Tests",
+        CardId = "overflow-b",
+        Cost = 99,
+        Tags = { "Retain", "Unusable" },
+        DiscardEffects =
+        {
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.CreateCard,
+                Target = CombatSimulationTarget.Self,
+                DefinitionId = "overflow-b",
+                Amount = 1,
+                DestinationZone = CombatCardZone.Hand
+            }
+        }
+    })
+    .RegisterEnemy(new CombatEnemyDefinition
+    {
+        OwnerModId = "Tests",
+        EnemyId = "overflow-dummy",
+        MaxHp = 100,
+        Intents =
+        {
+            new CombatEnemyIntentDefinition
+            {
+                IntentId = "wait",
+                Weight = 1
+            }
+        }
+    })
+    .Freeze();
+var fullHandCreationResult = simulationEngine.Run(
+    new CombatScenarioDefinition
+    {
+        ScenarioId = "full-hand-created-card-overflow",
+        RulesetVersion = "full-hand-creation-v1",
+        Seed = 3,
+        InitialDraw = 2,
+        DrawPerTurn = 1,
+        HandLimit = 2,
+        MovePlayedCardAfterResolution = true,
+        TraceLevel = CombatSimulationTraceLevel.Full,
+        Player = new CombatPlayerSetup
+        {
+            RoleId = "tester",
+            MaxHp = 30,
+            CurrentHp = 30,
+            Deck = { "overflow-generator", "overflow-filler" }
+        },
+        Enemies =
+        {
+            new CombatEnemySetup { EnemyId = "overflow-dummy" }
+        },
+        Limits = new CombatSimulationLimits
+        {
+            MaximumTurns = 3,
+            MaximumActions = 10,
+            MaximumCommands = 100,
+            MaximumCommandsPerAction = 25
+        }
+    },
+    fullHandCreationRules.Ruleset,
+    new PlayCardOnceThenEndPolicy("overflow-generator"));
+var overflowCreated = fullHandCreationResult.Events
+    .Where(item =>
+        item.Kind == CombatSimulationEventKind.CardCreated
+        && (item.DefinitionId == "overflow-a"
+            || item.DefinitionId == "overflow-b"))
+    .OrderBy(item => item.Sequence)
+    .ToList();
+var overflowDrawn = fullHandCreationResult.Events
+    .Where(item =>
+        item.Kind == CombatSimulationEventKind.CardDrawn
+        && overflowCreated.Any(created =>
+            created.CardInstanceId == item.CardInstanceId))
+    .OrderBy(item => item.Sequence)
+    .ToList();
+Assert(fullHandCreationRules.Success
+       && fullHandCreationResult.Outcome != CombatSimulationOutcome.Invalid
+       && overflowCreated.Count == 2
+       && overflowCreated[0].DefinitionId == "overflow-a"
+       && overflowCreated[1].DefinitionId == "overflow-b"
+       && !fullHandCreationResult.Events.Any(item =>
+           item.Kind == CombatSimulationEventKind.CardDiscarded
+           && overflowCreated.Any(created =>
+               created.CardInstanceId == item.CardInstanceId))
+       && overflowDrawn.Count == 2
+       && overflowDrawn[0].DefinitionId == "overflow-b"
+       && overflowDrawn[1].DefinitionId == "overflow-a",
+    "cards created into a full hand stack on the draw-pile top without firing discard effects");
+
 var triggerRules = new CombatRulesetBuilder("trigger-semantics-v1")
     .RegisterStatus(new CombatStatusDefinition
     {
@@ -3903,10 +4048,20 @@ Assert(policyValueTraining.Success
        && policyValueTraining.Model != null
        && policyValueTraining.Model.Metrics["trainingRunCount"] == 4d
        && policyValueTraining.Model.Metrics["validationRunCount"] == 1d
+       && policyValueTraining.Model.Metrics.ContainsKey(
+           "validationPolicyCrossEntropy")
+       && policyValueTraining.Model.Metrics.ContainsKey(
+           "validationCriticalPolicyAccuracy")
+       && policyValueTraining.Model.Metrics.ContainsKey(
+           "validationDeathBrier")
+       && policyValueTraining.Model.Metrics.ContainsKey(
+           "validationCompositeLoss")
+       && policyValueTraining.CandidateModels.Count > 0
+       && policyValueTraining.CandidateModels.Count <= 3
        && CombatPolicyValueNetworkValidator.TryValidate(
            policyValueTraining.Model,
            out _),
-    "complete episodes train a validated managed policy-value network with whole journeys isolated between training and validation");
+    "complete episodes train a validated managed policy-value network, retain Top-K checkpoints, and select by multi-objective validation");
 var trainingCancellationObserved = false;
 using (var cancelledTraining = new CancellationTokenSource())
 {
@@ -4504,12 +4659,16 @@ Assert(foundationSeedPlanA.TrainingSeedStart
        == foundationSeedPlanARepeat.TrainingSeedStart
        && foundationSeedPlanA.ArenaSeedStart
        == foundationSeedPlanARepeat.ArenaSeedStart
+       && foundationSeedPlanA.TuningSeedStart
+       == foundationSeedPlanARepeat.TuningSeedStart
        && foundationSeedPlanA.ModelRandomSeed
        == foundationSeedPlanARepeat.ModelRandomSeed
        && foundationSeedPlanA.TrainingSeedStart
        != foundationSeedPlanB.TrainingSeedStart
        && foundationSeedPlanA.ArenaSeedStart
        != foundationSeedPlanB.ArenaSeedStart
+       && foundationSeedPlanA.TuningSeedStart
+       != foundationSeedPlanB.TuningSeedStart
        && foundationSeedPlanA.ModelRandomSeed
        != foundationSeedPlanB.ModelRandomSeed
        && foundationSeedPlanA.ValidationSeedStart == 2_000_000UL
@@ -4559,7 +4718,7 @@ var curriculumFinal = CombatFoundationCurriculum.BuildDifficulties(
     priorAdvancedWinRate: 0.8d,
     priorAdvancedTrials: 100);
 Assert(curriculumOpening.Count(item => item == "advanced") == 0
-       && curriculumFinal.Count(item => item == "advanced") == 4
+       && curriculumFinal.Count(item => item == "advanced") == 2
        && CombatFoundationCurriculum.BuildDifficulties(
                20,
                3,
@@ -4568,7 +4727,14 @@ Assert(curriculumOpening.Count(item => item == "advanced") == 0
                enabled: true,
                priorNormalWinRate: 0d,
                priorNormalTrials: 32)
-           .Count(item => item == "advanced") == 0
+           .Count(item => item == "advanced") == 4
+       && CombatFoundationCurriculum.BuildDifficulties(
+               20,
+               1,
+               4,
+               123456789UL,
+               enabled: true)
+           .Count(item => item == "advanced") == 3
        && curriculumOpening.SequenceEqual(
            CombatFoundationCurriculum.BuildDifficulties(
                8,
@@ -4576,7 +4742,117 @@ Assert(curriculumOpening.Count(item => item == "advanced") == 0
                4,
                123456789UL,
                enabled: true)),
-    "foundation curriculum uses confidence-bounded mastery and returns focus to normal when evidence is weak");
+    "foundation curriculum starts on normal, introduces 15 percent advanced play, and never removes advanced coverage after round one");
+CombatCandidateEvaluation BudgetCandidate(
+    string id,
+    CombatActionSemantics? semantics = null)
+{
+    return new CombatCandidateEvaluation
+    {
+        Legal = true,
+        Action = new CombatActionObservation
+        {
+            CandidateId = id,
+            Semantics = semantics ?? new CombatActionSemantics()
+        }
+    };
+}
+
+var budgetState = new CombatStateObservation
+{
+    Player = new CombatUnitObservation { CurrentHp = 80, MaxHp = 100 },
+    Enemies =
+    {
+        new CombatUnitObservation
+        {
+            DefinitionId = "ordinary-enemy",
+            CurrentHp = 100,
+            MaxHp = 100
+        }
+    }
+};
+var budgetProfile = new CombatDecisionProfile
+{
+    DynamicSearchBudgetEnabled = true,
+    SearchBudgetContext = "deployment"
+};
+var forcedBudget = CombatSearchBudgetPolicy.Resolve(
+    budgetState,
+    new[] { BudgetCandidate("only") },
+    budgetProfile);
+var simpleBudget = CombatSearchBudgetPolicy.Resolve(
+    budgetState,
+    new[] { BudgetCandidate("a"), BudgetCandidate("b") },
+    budgetProfile);
+var normalBudget = CombatSearchBudgetPolicy.Resolve(
+    budgetState,
+    Enumerable.Range(0, 5)
+        .Select(index => BudgetCandidate("normal-" + index))
+        .ToList(),
+    budgetProfile);
+var bossState = new CombatStateObservation
+{
+    Player = new CombatUnitObservation { CurrentHp = 80, MaxHp = 100 },
+    Enemies =
+    {
+        new CombatUnitObservation
+        {
+            DefinitionId = "final-boss",
+            CurrentHp = 500,
+            MaxHp = 500
+        }
+    }
+};
+var difficultBudget = CombatSearchBudgetPolicy.Resolve(
+    bossState,
+    Enumerable.Range(0, 5)
+        .Select(index => BudgetCandidate("boss-" + index))
+        .ToList(),
+    budgetProfile);
+var fakeLoopBudget = CombatSearchBudgetPolicy.Resolve(
+    budgetState,
+    new[]
+    {
+        BudgetCandidate(
+            "fake-loop",
+            new CombatActionSemantics
+            {
+                Draw = 1,
+                EnergyGain = 1,
+                CardGeneration = 1,
+                EndOfCycleSelfHpLoss = 1
+            }),
+        BudgetCandidate("escape")
+    },
+    budgetProfile);
+Assert(forcedBudget.Tier == "forced"
+       && forcedBudget.SimulationBudget == 1
+       && simpleBudget.Tier == "simple"
+       && simpleBudget.SimulationBudget == 96
+       && normalBudget.Tier == "normal"
+       && normalBudget.SimulationBudget == 224
+       && difficultBudget.Tier == "difficult"
+       && difficultBudget.SimulationBudget == 384
+       && fakeLoopBudget.Tier == "complex"
+       && fakeLoopBudget.MaxPly == 16,
+    "dynamic search spends one simulation on forced play and reserves deep budgets for bosses and fake-loop states");
+var partitionedStatus = CombatPolicyValueEncoding.EncodeState(
+    new Dictionary<string, double> { ["playerStatus:test"] = 1d },
+    128,
+    "partitioned-v2");
+var partitionedDeck = CombatPolicyValueEncoding.EncodeState(
+    new Dictionary<string, double> { ["deck:test"] = 1d },
+    128,
+    "partitioned-v2");
+Assert(partitionedStatus
+           .Select((value, index) => new { value, index })
+           .Where(item => Math.Abs(item.value) > 0.0000001d)
+           .All(item => item.index >= 32 && item.index < 56)
+       && partitionedDeck
+           .Select((value, index) => new { value, index })
+           .Where(item => Math.Abs(item.value) > 0.0000001d)
+           .All(item => item.index >= 56 && item.index < 80),
+    "partitioned state encoding keeps status and deck identities in disjoint feature ranges");
 var replayFixture = Enumerable.Range(0, 8)
     .Select(index => new CombatEpisode
     {
@@ -4622,6 +4898,144 @@ Assert(deduplicatedReplay.Episodes.Count == 8
            .Distinct(StringComparer.Ordinal)
            .Count() == 8,
     "foundation replay persistence never expands weighted priorities into duplicate episode payloads");
+
+CombatCampaignResult CaseCampaign(
+    ulong seed,
+    bool victory,
+    string archetype,
+    params string[] deck)
+{
+    return new CombatCampaignResult
+    {
+        CampaignId = "case-learning",
+        CampaignVersion = "1",
+        DifficultyId = "normal",
+        WorldSeed = seed,
+        PlanHash = "plan-" + seed,
+        PolicyId = victory ? "winner" : "failure",
+        FinalBossVictory = victory,
+        CampaignVictory = victory,
+        ReachedFinalBoss = victory,
+        CompletedBattles = victory ? 37 : 31,
+        TotalBattles = 37,
+        BattleSemanticCoverage = 1d,
+        ProgressionSemanticCoverage = 1d,
+        FinalState = new CombatCampaignState
+        {
+            CurrentHp = victory ? 70 : 0,
+            MaxHp = 100,
+            Deck = deck.ToList(),
+            BuildPlan = new CombatCampaignBuildPlan
+            {
+                PrimaryArchetype = archetype
+            }
+        },
+        Battles =
+        {
+            new CombatSimulationResult
+            {
+                ScenarioId = victory ? "final-boss" : "late-elite",
+                RulesetHash = "case-rules",
+                Outcome = victory
+                    ? CombatSimulationOutcome.Victory
+                    : CombatSimulationOutcome.Defeat,
+                TerminalConsistencyValid = true,
+                SemanticCoverage = 1d,
+                Turns = victory ? 4 : 12,
+                FinalPlayerHp = victory ? 70 : 0,
+                Metrics = new CombatSimulationMetrics
+                {
+                    CardsPlayed = victory ? 8 : 20,
+                    DamageDealt = victory ? 300 : 180,
+                    DamageTaken = victory ? 30 : 100
+                }
+            }
+        }
+    };
+}
+
+var caseEpisode = new CombatEpisode
+{
+    EpisodeId = "case-success-episode",
+    RulesetHash = "case-rules",
+    Authoritative = true,
+    SemanticCoverage = 1d,
+    JourneyBattleIndex = 36,
+    Campaign = new CombatCampaignEpisodeMetadata
+    {
+        FinalBossVictory = true,
+        IntegrityValid = true,
+        DifficultyId = "normal",
+        OutcomeClass = "victory"
+    }
+};
+var successfulCaseCampaign = CaseCampaign(
+    100UL,
+    true,
+    "cycle",
+    "engine",
+    "draw");
+var failedCaseCampaign = CaseCampaign(
+    100UL,
+    false,
+    "cycle",
+    "plain",
+    "plain",
+    "filler");
+var successfulObservation = CombatFoundationCaseLearning.Observe(
+    successfulCaseCampaign,
+    "arena",
+    1,
+    "candidate",
+    "case-rules",
+    "balanced",
+    "model-success",
+    new[] { caseEpisode });
+var failedObservation = CombatFoundationCaseLearning.Observe(
+    failedCaseCampaign,
+    "arena",
+    1,
+    "champion",
+    "case-rules",
+    "balanced",
+    "model-failure");
+var caseAnalysis = CombatFoundationCaseLearning.Analyze(
+    new[] { successfulObservation, failedObservation });
+Assert(successfulObservation.ArchiveEligible
+       && successfulObservation.RobustnessScore > 0d
+       && caseAnalysis.SuccessfulCases == 1
+       && caseAnalysis.FailedCases == 1
+       && caseAnalysis.MatchedPairs == 1
+       && caseAnalysis.Pairs[0].SuccessSeed
+       == caseAnalysis.Pairs[0].FailureSeed,
+    "foundation success learning archives authoritative wins and builds same-seed comparisons");
+var archivedCase = CombatFoundationCaseLearning.CreateSuccessCase(
+    successfulCaseCampaign,
+    successfulObservation,
+    new[] { caseEpisode });
+var compatibleExpertEpisodes =
+    CombatFoundationCaseLearning.SelectExpertEpisodes(
+        new[] { archivedCase },
+        "case-learning",
+        "1",
+        "case-rules",
+        8);
+var incompatibleExpertEpisodes =
+    CombatFoundationCaseLearning.SelectExpertEpisodes(
+        new[] { archivedCase },
+        "case-learning",
+        "1",
+        "different-rules",
+        8);
+Assert(compatibleExpertEpisodes.Count == 1
+       && incompatibleExpertEpisodes.Count == 0
+       && CombatFoundationCaseLearning.CompatibilityKey(
+           "case-learning",
+           "1",
+           "case-rules")
+       == successfulObservation.CompatibilityKey,
+    "foundation expert replay is bounded and isolated by campaign, ruleset and feature protocol");
+
 var hardSeedEpisodes = Enumerable.Range(0, 5)
     .Select(index => new CombatEpisode
     {
@@ -4710,6 +5124,12 @@ foundationRequest.Resume = new CombatCampaignFoundationResumeState
         }
     }
 };
+var incrementallyObservedFoundationCases = 0;
+var incrementallyArchivedFoundationCases = 0;
+foundationRequest.ObservationRecorded = _ =>
+    incrementallyObservedFoundationCases++;
+foundationRequest.SuccessCaseRecorded = _ =>
+    incrementallyArchivedFoundationCases++;
 var foundationTraining = new CombatCampaignFoundationTrainer().Run(
     foundationRequest,
     campaignRules.Ruleset);
@@ -4724,6 +5144,14 @@ Assert(foundationTraining.Success
        && foundationTraining.ValidationRuns.Count == 10
        && foundationTraining.Validation.NormalCampaigns == 5
        && foundationTraining.Validation.AdvancedCampaigns == 5
+       && foundationTraining.Validation.RequiredNormalVictories == 5
+       && foundationTraining.Validation.RequiredAdvancedVictories == 3
+       && Math.Abs(
+           foundationTraining.Validation.RequiredNormalWinRate - 0.9d)
+          < 0.0001d
+       && Math.Abs(
+           foundationTraining.Validation.RequiredAdvancedWinRate - 0.5d)
+          < 0.0001d
        && foundationTraining.CompletedCampaigns < 999
        && foundationTraining.Validation.NormalWinRate == 1d
        && foundationTraining.Validation.AdvancedWinRate == 1d
@@ -4742,8 +5170,13 @@ Assert(foundationTraining.Success
        && foundationTraining.PolicyDecisions > 0
        && foundationTraining.SearchSimulations > 0
        && foundationTraining.SearchNodes > 0
+       && incrementallyObservedFoundationCases
+          == foundationTraining.CampaignObservations.Count
+       && incrementallyArchivedFoundationCases
+          == foundationTraining.SuccessCases.Count
+       && incrementallyArchivedFoundationCases > 0
        && foundationTraining.ElapsedSeconds > 0d,
-    "foundation trainer enforces acceptance and reports battle-depth plus search-work telemetry");
+    "foundation trainer reports telemetry and streams successful cases as campaigns complete");
 CombatCampaignFoundationResumeState? capturedFoundationCheckpoint = null;
 var interruptedFoundationObserved = false;
 using (var interruptedFoundation = new CancellationTokenSource())
@@ -4776,6 +5209,19 @@ var resumedFoundationTraining = new CombatCampaignFoundationTrainer().Run(
     campaignRules.Ruleset);
 Assert(interruptedFoundationObserved
        && capturedFoundationCheckpoint != null
+       && capturedFoundationCheckpoint.SchemaVersion == 3
+       && capturedFoundationCheckpoint.Compatibility.FeatureSchemaVersion
+          == CombatPolicyValueProtocol.FeatureSchemaVersion
+       && capturedFoundationCheckpoint.Compatibility.CampaignId
+          == foundationRequest.TrainingCampaign.CampaignId
+       && !string.IsNullOrWhiteSpace(
+           capturedFoundationCheckpoint.Compatibility.TrainingCampaignHash)
+       && !string.IsNullOrWhiteSpace(
+           capturedFoundationCheckpoint.Compatibility.ValidationCampaignHash)
+       && capturedFoundationCheckpoint.Compatibility.FeatureEncodingMode
+          == "partitioned-v2"
+       && capturedFoundationCheckpoint.Compatibility.StateDimensions == 128
+       && capturedFoundationCheckpoint.Compatibility.HiddenDimensions == 8
        && capturedFoundationCheckpoint.CompletedCampaigns == 2
        && capturedFoundationCheckpoint.Replay.Count == 74
        && resumedFoundationTraining.Success
@@ -4840,7 +5286,7 @@ Assert(earlyStoppedFoundationTraining.Success
        && earlyStoppedFoundationTraining.Validation.AdvancedCampaigns == 0
        && earlyStoppedFoundationTraining.CompletedCampaigns
           < earlyStoppedFoundationTraining.RequestedCampaigns,
-    "foundation validation stops after a deterministic parallel batch once the 100 percent normal gate is impossible");
+    "foundation validation stops after a deterministic parallel batch once the configured normal acceptance gate is impossible");
 projectedStrike.Fidelity = CombatRuleFidelity.Approximate;
 var invalidPreflightTraining = new CombatCampaignFoundationTrainer().Run(
     foundationRequest,
@@ -5595,6 +6041,40 @@ sealed class EndTurnSimulationPolicy : ICombatSimulationPolicy
     public CombatSimulationAction? SelectAction(
         CombatSimulationPolicyContext context)
     {
+        return context.LegalActions.FirstOrDefault(item =>
+            item.Kind == CombatSimulationActionKind.EndTurn);
+    }
+}
+
+sealed class PlayCardOnceThenEndPolicy : ICombatSimulationPolicy
+{
+    private readonly string cardId;
+    private bool played;
+
+    public PlayCardOnceThenEndPolicy(string cardId)
+    {
+        this.cardId = cardId;
+    }
+
+    public string PolicyId => "tests:play-once-then-end";
+
+    public CombatSimulationAction? SelectAction(
+        CombatSimulationPolicyContext context)
+    {
+        if (!played)
+        {
+            var selected = context.LegalActions.FirstOrDefault(item =>
+                item.Kind == CombatSimulationActionKind.PlayCard
+                && string.Equals(
+                    item.DefinitionId,
+                    cardId,
+                    StringComparison.OrdinalIgnoreCase));
+            if (selected != null)
+            {
+                played = true;
+                return selected;
+            }
+        }
         return context.LegalActions.FirstOrDefault(item =>
             item.Kind == CombatSimulationActionKind.EndTurn);
     }

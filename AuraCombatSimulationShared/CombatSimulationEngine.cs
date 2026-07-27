@@ -428,6 +428,17 @@ public sealed class CombatSimulationEngine
                         {
                             metrics.SearchEarlyStops++;
                         }
+                        var searchTier =
+                            metricsProvider.LastDecisionMetrics.SearchBudgetTier;
+                        if (!string.IsNullOrWhiteSpace(searchTier))
+                        {
+                            metrics.SearchBudgetTierCounts[searchTier] =
+                                metrics.SearchBudgetTierCounts.TryGetValue(
+                                    searchTier,
+                                    out var tierCount)
+                                    ? tierCount + 1
+                                    : 1;
+                        }
                         metrics.CertifiedLoops += Math.Max(
                             0,
                             metricsProvider.LastDecisionMetrics.CertifiedLoops);
@@ -2934,7 +2945,10 @@ public sealed class CombatSimulationEngine
             if (destination == CombatCardZone.Hand
                 && State.Hand.Count >= Math.Max(1, scenario.HandLimit))
             {
-                destination = CombatCardZone.DiscardPile;
+                // Witch keeps a generated card on top of the draw pile when
+                // the hand is full. It is not a discard and must not execute
+                // the generated card's discard lifecycle.
+                destination = CombatCardZone.DrawPile;
             }
 
             List<int> zone;

@@ -12,6 +12,8 @@ public sealed class CombatFoundationSeedPlan
 
     public ulong ArenaSeedStart { get; set; }
 
+    public ulong TuningSeedStart { get; set; }
+
     public ulong ValidationSeedStart { get; set; }
 
     public int ModelRandomSeed { get; set; }
@@ -33,6 +35,10 @@ public sealed class CombatFoundationSeedPlan
             ArenaSeedStart =
                 0x3000000000000000UL
                 | (Mix(effectiveRunSeed ^ 0x4152454E41534545UL)
+                   & 0x0FFFFFFFFFFFFFFFUL),
+            TuningSeedStart =
+                0x2000000000000000UL
+                | (Mix(effectiveRunSeed ^ 0x54554E494E475345UL)
                    & 0x0FFFFFFFFFFFFFFFUL),
             ValidationSeedStart = canonicalValidationSeedStart,
             ModelRandomSeed = unchecked(
@@ -66,10 +72,31 @@ public static class CombatFoundationCurriculum
         public double AdvancedWilsonLowerBound { get; set; }
 
         public double AdvancedShare { get; set; }
+
+        public double MinimumAdvancedShare { get; set; }
+
+        public double MaximumAdvancedShare { get; set; }
     }
 
     public static Plan Evaluate(
         bool enabled,
+        int normalWins,
+        int normalTrials,
+        int advancedWins,
+        int advancedTrials)
+    {
+        return Evaluate(
+            enabled,
+            iteration: 0,
+            normalWins,
+            normalTrials,
+            advancedWins,
+            advancedTrials);
+    }
+
+    public static Plan Evaluate(
+        bool enabled,
+        int iteration,
         int normalWins,
         int normalTrials,
         int advancedWins,
@@ -86,49 +113,83 @@ public static class CombatFoundationCurriculum
                 AdvancedWilsonLowerBound = WilsonLowerBound(
                     advancedWins,
                     advancedTrials),
-                AdvancedShare = 0.5d
+                AdvancedShare = 0.5d,
+                MinimumAdvancedShare = 0.5d,
+                MaximumAdvancedShare = 0.5d
             };
         }
         var normalLower = WilsonLowerBound(normalWins, normalTrials);
         var advancedLower = WilsonLowerBound(advancedWins, advancedTrials);
-        if (normalLower < 0.75d)
+        if (iteration <= 0)
         {
             return new Plan
             {
-                Stage = "normal-focus",
+                Stage = "normal-foundation",
                 NormalWilsonLowerBound = normalLower,
                 AdvancedWilsonLowerBound = advancedLower,
-                AdvancedShare = 0d
+                AdvancedShare = 0d,
+                MinimumAdvancedShare = 0d,
+                MaximumAdvancedShare = 0d
             };
         }
-        if (normalLower < 0.90d)
+        if (iteration <= 2)
         {
             return new Plan
             {
                 Stage = "advanced-introduction",
                 NormalWilsonLowerBound = normalLower,
                 AdvancedWilsonLowerBound = advancedLower,
-                AdvancedShare = 0.10d
+                AdvancedShare = 0.15d,
+                MinimumAdvancedShare = 0.15d,
+                MaximumAdvancedShare = 0.15d
             };
         }
-        if (normalLower < 0.97d)
+        if (normalLower < 0.75d)
         {
             return new Plan
             {
-                Stage = "mixed-mastery",
+                Stage = "normal-recovery-with-advanced-floor",
                 NormalWilsonLowerBound = normalLower,
                 AdvancedWilsonLowerBound = advancedLower,
-                AdvancedShare = 0.25d
+                AdvancedShare = 0.20d,
+                MinimumAdvancedShare = 0.15d,
+                MaximumAdvancedShare = 0.35d
+            };
+        }
+        if (advancedLower < 0.25d)
+        {
+            return new Plan
+            {
+                Stage = "advanced-recovery",
+                NormalWilsonLowerBound = normalLower,
+                AdvancedWilsonLowerBound = advancedLower,
+                AdvancedShare = 0.35d,
+                MinimumAdvancedShare = 0.15d,
+                MaximumAdvancedShare = 0.35d
+            };
+        }
+        if (advancedLower < 0.50d)
+        {
+            return new Plan
+            {
+                Stage = "advanced-strengthening",
+                NormalWilsonLowerBound = normalLower,
+                AdvancedWilsonLowerBound = advancedLower,
+                AdvancedShare = 0.30d,
+                MinimumAdvancedShare = 0.15d,
+                MaximumAdvancedShare = 0.35d
             };
         }
         return new Plan
         {
-            Stage = advancedLower >= 0.60d
-                ? "balanced-mastery"
-                : "advanced-mastery",
+            Stage = advancedLower >= 0.70d
+                ? "balanced-maintenance"
+                : "mixed-mastery",
             NormalWilsonLowerBound = normalLower,
             AdvancedWilsonLowerBound = advancedLower,
-            AdvancedShare = advancedLower >= 0.60d ? 0.50d : 0.40d
+            AdvancedShare = advancedLower >= 0.70d ? 0.20d : 0.25d,
+            MinimumAdvancedShare = 0.15d,
+            MaximumAdvancedShare = 0.35d
         };
     }
 
@@ -161,6 +222,7 @@ public static class CombatFoundationCurriculum
                 * Math.Max(0, priorAdvancedTrials));
         var plan = Evaluate(
             enabled,
+            iteration,
             normalWins,
             priorNormalTrials,
             advancedWins,
@@ -200,7 +262,15 @@ public static class CombatFoundationCurriculum
 
     public static double AdvancedShare(int iteration, int totalIterations)
     {
-        return 0d;
+        if (iteration <= 0)
+        {
+            return 0d;
+        }
+        if (iteration <= 2)
+        {
+            return 0.15d;
+        }
+        return 0.20d;
     }
 
     public static double WilsonLowerBound(
@@ -233,11 +303,13 @@ public static class CombatFoundationCurriculum
         }
         return plan.Stage switch
         {
-            "normal-focus" => Math.Max(0.20d, value),
+            "normal-foundation" => Math.Max(0.20d, value),
+            "normal-recovery-with-advanced-floor" => Math.Max(0.18d, value),
             "advanced-introduction" => Math.Max(0.15d, value),
             "mixed-mastery" => Math.Min(0.12d, value),
-            "advanced-mastery" => Math.Min(0.10d, value),
-            "balanced-mastery" => Math.Min(0.08d, value),
+            "advanced-recovery" => Math.Min(0.12d, value),
+            "advanced-strengthening" => Math.Min(0.10d, value),
+            "balanced-maintenance" => Math.Min(0.08d, value),
             _ => value
         };
     }
@@ -252,6 +324,10 @@ public sealed class CombatFoundationHardSeed
     public string TerminalScenarioId { get; set; } = "";
 
     public int CompletedBattles { get; set; }
+
+    public string SourceCategory { get; set; } = "hard-diversity";
+
+    public double PriorityScore { get; set; }
 }
 
 public sealed class CombatFoundationHardSeedPlan
@@ -262,6 +338,34 @@ public sealed class CombatFoundationHardSeedPlan
 
     public Dictionary<string, int> Clusters { get; set; } =
         new(StringComparer.Ordinal);
+
+    public Dictionary<string, int> SourceCategories { get; set; } =
+        new(StringComparer.Ordinal);
+}
+
+public sealed class CombatFoundationHardSeedHistoryEntry
+{
+    public ulong WorldSeed { get; set; }
+
+    public string DifficultyId { get; set; } = "normal";
+
+    public string TerminalScenarioId { get; set; } = "";
+
+    public int CompletedBattles { get; set; }
+
+    public int FirstSeenIteration { get; set; }
+
+    public int LastSeenIteration { get; set; }
+
+    public int FailureOccurrences { get; set; }
+
+    public int TrainingAttempts { get; set; }
+
+    public int RecoverySuccesses { get; set; }
+
+    public int LastTrainedIteration { get; set; }
+
+    public bool Resolved { get; set; }
 }
 
 public static class CombatFoundationHardSeedCurriculum
@@ -274,13 +378,120 @@ public static class CombatFoundationHardSeedCurriculum
         ulong runSeed,
         bool enabled)
     {
+        var history = BuildHistory(source, iteration);
+        return Select(
+            history,
+            campaignCount,
+            replayShare,
+            iteration,
+            runSeed,
+            enabled);
+    }
+
+    public static CombatFoundationHardSeedPlan Select(
+        IEnumerable<CombatFoundationHardSeedHistoryEntry> source,
+        int campaignCount,
+        double replayShare,
+        int iteration,
+        ulong runSeed,
+        bool enabled)
+    {
         var plan = new CombatFoundationHardSeedPlan();
         if (!enabled || campaignCount <= 0 || replayShare <= 0d)
         {
             return plan;
         }
 
-        var campaigns = (source ?? Array.Empty<CombatEpisode>())
+        var campaigns = (source
+                         ?? Array.Empty<CombatFoundationHardSeedHistoryEntry>())
+            .Where(item => item != null
+                           && item.WorldSeed > 0UL
+                           && !item.Resolved
+                           && item.FailureOccurrences > 0)
+            .GroupBy(item => new
+            {
+                item.WorldSeed,
+                Difficulty = NormalizeDifficulty(item.DifficultyId)
+            })
+            .Select(group => group
+                .OrderByDescending(item => item.LastSeenIteration)
+                .ThenByDescending(item => item.FailureOccurrences)
+                .First())
+            .OrderBy(item => item.WorldSeed)
+            .ThenBy(item => item.DifficultyId, StringComparer.Ordinal)
+            .ToList();
+        plan.SourceCampaigns = campaigns.Count;
+        if (campaigns.Count == 0)
+        {
+            return plan;
+        }
+
+        var target = Math.Min(
+            campaignCount,
+            Math.Max(
+                1,
+                (int)Math.Round(
+                    campaignCount
+                    * Math.Max(0d, Math.Min(0.75d, replayShare)),
+                    MidpointRounding.AwayFromZero)));
+        var all = campaigns
+            .Select(item => ToSeed(item, iteration, runSeed))
+            .ToList();
+        var recurrent = all
+            .GroupBy(item => ClusterKey(item.TerminalScenarioId),
+                StringComparer.Ordinal)
+            .OrderByDescending(group => group.Sum(item => item.PriorityScore))
+            .ThenByDescending(group => group.Count())
+            .ThenBy(group => group.Key, StringComparer.Ordinal)
+            .SelectMany(group => group
+                .OrderByDescending(item => item.PriorityScore)
+                .ThenBy(item => StableRank(item, iteration, runSeed))
+                .ThenBy(item => item.WorldSeed)
+                .Take(4))
+            .ToList();
+        var recent = all
+            .Where(item => HistoryFor(campaigns, item).LastSeenIteration
+                           >= Math.Max(0, iteration - 1))
+            .OrderByDescending(item => item.PriorityScore)
+            .ThenBy(item => StableRank(item, iteration, runSeed))
+            .ToList();
+        var late = all
+            .Where(item => item.CompletedBattles >= 21
+                           || IsBossTerminal(item.TerminalScenarioId))
+            .OrderByDescending(item => item.CompletedBattles)
+            .ThenByDescending(item => item.PriorityScore)
+            .ThenBy(item => StableRank(item, iteration, runSeed))
+            .ToList();
+        var diversity = all
+            .OrderBy(item => StableRank(item, iteration, runSeed))
+            .ThenByDescending(item => item.PriorityScore)
+            .ToList();
+
+        var quotas = AllocateQuotas(target, new[]
+        {
+            0.50d, 0.25d, 0.15d, 0.10d
+        });
+        AddCategory(plan, recurrent, quotas[0], "hard-recurrent");
+        AddCategory(plan, recent, quotas[1], "hard-recent");
+        AddCategory(plan, late, quotas[2], "hard-late-boss");
+        AddCategory(plan, diversity, quotas[3], "hard-diversity");
+        if (plan.Seeds.Count < target)
+        {
+            AddCategory(
+                plan,
+                all.OrderByDescending(item => item.PriorityScore)
+                    .ThenBy(item => StableRank(item, iteration, runSeed)),
+                target - plan.Seeds.Count,
+                "hard-fill");
+        }
+        return plan;
+    }
+
+    public static List<CombatFoundationHardSeedHistoryEntry> BuildHistory(
+        IEnumerable<CombatEpisode> source,
+        int iteration)
+    {
+        return (source ?? Array.Empty<CombatEpisode>())
             .Where(episode =>
                 episode?.Campaign != null
                 && episode.Campaign.WorldSeed > 0UL
@@ -300,77 +511,144 @@ public static class CombatFoundationHardSeedCurriculum
                 var terminal = group
                     .OrderByDescending(item => item.JourneyBattleIndex)
                     .First();
-                return new CombatFoundationHardSeed
+                return new CombatFoundationHardSeedHistoryEntry
                 {
                     WorldSeed = group.Key.WorldSeed,
                     DifficultyId = group.Key.Difficulty,
                     TerminalScenarioId =
                         terminal.Campaign.TerminalScenarioId ?? "",
                     CompletedBattles =
-                        terminal.Campaign.CampaignCompletedBattles
+                        terminal.Campaign.CampaignCompletedBattles,
+                    FirstSeenIteration = Math.Max(
+                        0,
+                        terminal.Campaign.TrainingIteration),
+                    LastSeenIteration = Math.Max(
+                        Math.Max(0, terminal.Campaign.TrainingIteration),
+                        iteration),
+                    FailureOccurrences = 1
                 };
             })
-            .OrderBy(item => item.WorldSeed)
-            .ThenBy(item => item.DifficultyId, StringComparer.Ordinal)
             .ToList();
-        plan.SourceCampaigns = campaigns.Count;
-        if (campaigns.Count == 0)
-        {
-            return plan;
-        }
+    }
 
-        var target = Math.Min(
-            campaigns.Count,
-            Math.Max(
-                1,
-                (int)Math.Round(
-                    campaignCount
-                    * Math.Max(0d, Math.Min(0.75d, replayShare)),
-                    MidpointRounding.AwayFromZero)));
-        var clusters = campaigns
-            .GroupBy(
-                item => ClusterKey(item.TerminalScenarioId),
-                StringComparer.Ordinal)
-            .OrderByDescending(group => group.Count())
-            .ThenBy(group => group.Key, StringComparer.Ordinal)
-            .Select(group => group
-                .OrderBy(item => CombatFoundationSeedPlan.Mix(
-                    runSeed
-                    ^ item.WorldSeed
-                    ^ ((ulong)Math.Max(0, iteration) << 32)))
-                .ThenByDescending(item => item.CompletedBattles)
-                .ThenBy(item => item.WorldSeed)
-                .ToList())
-            .ToList();
-        for (var offset = 0; plan.Seeds.Count < target; offset++)
+    private static CombatFoundationHardSeed ToSeed(
+        CombatFoundationHardSeedHistoryEntry item,
+        int iteration,
+        ulong runSeed)
+    {
+        var unresolvedAge = Math.Max(0, iteration - item.FirstSeenIteration);
+        var recurrence = Math.Max(1, item.FailureOccurrences);
+        var severity = item.CompletedBattles >= 31
+            ? 4d
+            : item.CompletedBattles >= 21
+                ? 2d
+                : 0d;
+        return new CombatFoundationHardSeed
         {
-            var added = false;
-            foreach (var cluster in clusters)
-            {
-                if (offset >= cluster.Count)
-                {
-                    continue;
-                }
-                var selected = cluster[offset];
-                plan.Seeds.Add(selected);
-                var key = ClusterKey(selected.TerminalScenarioId);
-                plan.Clusters[key] = plan.Clusters.TryGetValue(
-                    key,
-                    out var current)
-                    ? current + 1
-                    : 1;
-                added = true;
-                if (plan.Seeds.Count >= target)
-                {
-                    break;
-                }
-            }
-            if (!added)
+            WorldSeed = item.WorldSeed,
+            DifficultyId = NormalizeDifficulty(item.DifficultyId),
+            TerminalScenarioId = item.TerminalScenarioId ?? "",
+            CompletedBattles = item.CompletedBattles,
+            PriorityScore = recurrence * 10d
+                            + unresolvedAge * 2d
+                            + severity
+                            + (IsBossTerminal(item.TerminalScenarioId) ? 5d : 0d)
+                            + (CombatFoundationSeedPlan.Mix(
+                                   runSeed ^ item.WorldSeed) & 0xFFFFUL)
+                              / 65536d
+        };
+    }
+
+    private static CombatFoundationHardSeedHistoryEntry HistoryFor(
+        IReadOnlyList<CombatFoundationHardSeedHistoryEntry> history,
+        CombatFoundationHardSeed seed)
+    {
+        return history.First(item =>
+            item.WorldSeed == seed.WorldSeed
+            && string.Equals(
+                NormalizeDifficulty(item.DifficultyId),
+                seed.DifficultyId,
+                StringComparison.Ordinal));
+    }
+
+    private static ulong StableRank(
+        CombatFoundationHardSeed item,
+        int iteration,
+        ulong runSeed)
+    {
+        return CombatFoundationSeedPlan.Mix(
+            runSeed
+            ^ item.WorldSeed
+            ^ ((ulong)Math.Max(0, iteration) << 32));
+    }
+
+    private static int[] AllocateQuotas(int total, IReadOnlyList<double> shares)
+    {
+        var result = new int[shares.Count];
+        var fractions = new List<(int Index, double Fraction)>();
+        var assigned = 0;
+        for (var index = 0; index < shares.Count; index++)
+        {
+            var exact = Math.Max(0d, shares[index]) * Math.Max(0, total);
+            result[index] = (int)Math.Floor(exact);
+            assigned += result[index];
+            fractions.Add((index, exact - result[index]));
+        }
+        foreach (var item in fractions
+                     .OrderByDescending(item => item.Fraction)
+                     .ThenBy(item => item.Index)
+                     .Take(Math.Max(0, total - assigned)))
+        {
+            result[item.Index]++;
+        }
+        return result;
+    }
+
+    private static void AddCategory(
+        CombatFoundationHardSeedPlan plan,
+        IEnumerable<CombatFoundationHardSeed> source,
+        int count,
+        string category)
+    {
+        var added = 0;
+        foreach (var item in source)
+        {
+            if (added >= count)
             {
                 break;
             }
+            if (plan.Seeds.Any(existing =>
+                    existing.WorldSeed == item.WorldSeed
+                    && string.Equals(
+                        existing.DifficultyId,
+                        item.DifficultyId,
+                        StringComparison.Ordinal)))
+            {
+                continue;
+            }
+            item.SourceCategory = category;
+            plan.Seeds.Add(item);
+            added++;
+            var cluster = ClusterKey(item.TerminalScenarioId);
+            plan.Clusters[cluster] = plan.Clusters.TryGetValue(
+                cluster,
+                out var clusterCount)
+                ? clusterCount + 1
+                : 1;
+            plan.SourceCategories[category] =
+                plan.SourceCategories.TryGetValue(category, out var current)
+                    ? current + 1
+                    : 1;
         }
-        return plan;
+    }
+
+    private static bool IsBossTerminal(string? value)
+    {
+        var normalized = value ?? "";
+        return normalized.IndexOf("boss", StringComparison.OrdinalIgnoreCase) >= 0
+               || normalized.IndexOf(
+                   "final",
+                   StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private static string NormalizeDifficulty(string value)
@@ -388,6 +666,126 @@ public static class CombatFoundationHardSeedCurriculum
         return string.IsNullOrWhiteSpace(value)
             ? "unknown-terminal"
             : value.Trim();
+    }
+}
+
+public sealed class CombatFoundationTrainingSlot
+{
+    public int Index { get; set; }
+
+    public ulong WorldSeed { get; set; }
+
+    public string DifficultyId { get; set; } = "normal";
+
+    public string SourceCategory { get; set; } = "fresh-normal";
+
+    public string FailureCluster { get; set; } = "";
+
+    public double PriorityScore { get; set; }
+
+    public bool HardSeed { get; set; }
+}
+
+public static class CombatFoundationTrainingSchedule
+{
+    public static IReadOnlyList<CombatFoundationTrainingSlot> Build(
+        int campaignCount,
+        ulong freshSeedStart,
+        ulong runSeed,
+        int iteration,
+        CombatFoundationCurriculum.Plan curriculum,
+        CombatFoundationHardSeedPlan hardSeeds)
+    {
+        var count = Math.Max(0, campaignCount);
+        if (count == 0)
+        {
+            return Array.Empty<CombatFoundationTrainingSlot>();
+        }
+        var result = Enumerable.Range(0, count)
+            .Select(index => new CombatFoundationTrainingSlot
+            {
+                Index = index,
+                WorldSeed = freshSeedStart + (ulong)index
+            })
+            .ToArray();
+        var hardSeedItems = hardSeeds?.Seeds
+                            ?? new List<CombatFoundationHardSeed>();
+        var hardPositions = Enumerable.Range(0, count)
+            .OrderBy(index => CombatFoundationSeedPlan.Mix(
+                runSeed
+                ^ ((ulong)Math.Max(0, iteration) << 32)
+                ^ (ulong)index
+                ^ 0x48415244534C4F54UL))
+            .Take(Math.Min(count, hardSeedItems.Count))
+            .ToArray();
+        for (var index = 0; index < hardPositions.Length; index++)
+        {
+            var hard = hardSeedItems[index];
+            result[hardPositions[index]] = new CombatFoundationTrainingSlot
+            {
+                Index = hardPositions[index],
+                WorldSeed = hard.WorldSeed,
+                DifficultyId = NormalizeDifficulty(hard.DifficultyId),
+                SourceCategory = hard.SourceCategory,
+                FailureCluster = string.IsNullOrWhiteSpace(
+                    hard.TerminalScenarioId)
+                    ? "unknown-terminal"
+                    : hard.TerminalScenarioId,
+                PriorityScore = hard.PriorityScore,
+                HardSeed = true
+            };
+        }
+
+        var desiredAdvanced = (int)Math.Round(
+            count * Math.Max(
+                curriculum.MinimumAdvancedShare,
+                Math.Min(
+                    curriculum.MaximumAdvancedShare <= 0d
+                        ? curriculum.AdvancedShare
+                        : curriculum.MaximumAdvancedShare,
+                    curriculum.AdvancedShare)),
+            MidpointRounding.AwayFromZero);
+        if (curriculum.AdvancedShare > 0d && desiredAdvanced == 0)
+        {
+            desiredAdvanced = 1;
+        }
+        var existingAdvanced = result.Count(slot =>
+            slot.HardSeed
+            && string.Equals(
+                slot.DifficultyId,
+                "advanced",
+                StringComparison.Ordinal));
+        var neededAdvanced = Math.Max(0, desiredAdvanced - existingAdvanced);
+        var freshPositions = result
+            .Where(slot => !slot.HardSeed)
+            .OrderBy(slot => CombatFoundationSeedPlan.Mix(
+                runSeed
+                ^ ((ulong)Math.Max(0, iteration) << 32)
+                ^ (ulong)slot.Index))
+            .Select(slot => slot.Index)
+            .ToList();
+        var advancedPositions = freshPositions
+            .Take(Math.Min(neededAdvanced, freshPositions.Count))
+            .ToHashSet();
+        foreach (var position in freshPositions)
+        {
+            var advanced = advancedPositions.Contains(position);
+            result[position].DifficultyId = advanced ? "advanced" : "normal";
+            result[position].SourceCategory = advanced
+                ? "fresh-advanced"
+                : "fresh-normal";
+        }
+        return result;
+    }
+
+    private static string NormalizeDifficulty(string value)
+    {
+        return string.Equals(
+            value,
+            "advanced",
+            StringComparison.OrdinalIgnoreCase)
+            ? "advanced"
+            : "normal";
     }
 }
 

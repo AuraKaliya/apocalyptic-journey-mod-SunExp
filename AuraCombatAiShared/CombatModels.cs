@@ -387,6 +387,10 @@ public sealed class CombatDecisionProfile
 
     public int SearchStableChecks { get; set; } = 2;
 
+    public bool DynamicSearchBudgetEnabled { get; set; }
+
+    public string SearchBudgetContext { get; set; } = "deployment";
+
     public double SearchExploration { get; set; } = 1.15d;
 
     public double DeathRiskLimit { get; set; } = 0.05d;
@@ -485,6 +489,8 @@ public sealed class CombatDecision
     public int SearchTranspositionHits { get; set; }
 
     public bool SearchStoppedEarly { get; set; }
+
+    public string SearchBudgetTier { get; set; } = "";
 
     public int CertifiedLoops { get; set; }
 
@@ -615,6 +621,8 @@ public sealed class CombatTrainingSample
     public int SearchNodes { get; set; }
 
     public int SearchTranspositionHits { get; set; }
+
+    public string SearchBudgetTier { get; set; } = "";
 
     public List<CombatTrainingCandidate> Candidates { get; set; } = new();
 

@@ -90,7 +90,7 @@ try {
         ValidationCampaign = $campaign
     }
     $job = [ordered]@{
-        SchemaVersion = 2
+        SchemaVersion = 3
         JobId = "worker-smoke"
         ExpectedRulesetHash = ""
         ResultDirectory = $smokeRoot
@@ -129,6 +129,23 @@ try {
     }
     if (-not (Test-Path -LiteralPath $result.EpisodesPath -PathType Leaf)) {
         throw "Foundation trainer episodes artifact is missing."
+    }
+    $caseAnalysisPath = Join-Path $smokeRoot "foundation-success-analysis-v1.json"
+    $caseObservationPath = Join-Path $smokeRoot "foundation-case-observations-v1.jsonl"
+    $caseIndexPath = Join-Path $smokeRoot "foundation-success-case-index-v1.jsonl"
+    if (-not (Test-Path -LiteralPath $caseAnalysisPath -PathType Leaf) `
+        -or -not (Test-Path -LiteralPath $caseObservationPath -PathType Leaf) `
+        -or -not (Test-Path -LiteralPath $caseIndexPath -PathType Leaf)) {
+        throw "Foundation trainer success-case learning artifacts are missing."
+    }
+    if ([string]::IsNullOrWhiteSpace(
+            [string]$result.Training.SuccessArchiveDirectory)) {
+        throw "Foundation trainer did not report its success archive directory."
+    }
+    if ([int]$result.Training.CaseAnalysis.ArchiveEligibleCases -gt 0 `
+        -and ([int]$result.Training.ArchivedSuccessCases `
+             + [int]$result.Training.DuplicateSuccessCases) -le 0) {
+        throw "Foundation trainer observed eligible successes but did not archive them."
     }
     $episodeCount = @(
         Get-Content -LiteralPath $result.EpisodesPath -Encoding UTF8
@@ -171,9 +188,31 @@ try {
             -or $progress.Telemetry.SearchSimulations -le 0) {
             throw "Foundation trainer model/search telemetry is incomplete."
     }
-    if ((Test-Path -LiteralPath $checkpointPath) `
-        -or (Test-Path -LiteralPath $checkpointEpisodesPath)) {
-        throw "Successful foundation training must remove resume checkpoints."
+    $checkpointExists = (Test-Path -LiteralPath $checkpointPath) `
+                        -and (Test-Path -LiteralPath $checkpointEpisodesPath)
+    if ($result.Training.AcceptancePassed -and $checkpointExists) {
+        throw "Accepted foundation training must remove resume checkpoints."
+    }
+    if (-not $result.Training.AcceptancePassed `
+        -and (-not $checkpointExists `
+             -or -not $result.Resumable `
+             -or [string]::IsNullOrWhiteSpace([string]$result.CheckpointPath))) {
+        throw "Unaccepted foundation training must retain a resumable checkpoint."
+    }
+    if (-not $result.Training.AcceptancePassed) {
+        $checkpoint = Read-FoundationJson $checkpointPath
+        if ([int]$checkpoint.SchemaVersion -ne 3 `
+            -or [int]$checkpoint.Resume.SchemaVersion -ne 3 `
+            -or [string]::IsNullOrWhiteSpace(
+                [string]$checkpoint.Resume.Compatibility.RulesetHash) `
+            -or [string]::IsNullOrWhiteSpace(
+                [string]$checkpoint.Resume.Compatibility.NativeProgramPackageHash) `
+            -or [string]::IsNullOrWhiteSpace(
+                [string]$checkpoint.Resume.Compatibility.TrainingCampaignHash) `
+            -or [string]::IsNullOrWhiteSpace(
+                [string]$checkpoint.Resume.Compatibility.ValidationCampaignHash)) {
+            throw "Foundation checkpoint compatibility manifest is incomplete."
+        }
     }
 
     Write-Host ("Aura foundation trainer smoke passed: campaigns={0}/{1}, battles={2}, runtime={3}" -f `

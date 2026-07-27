@@ -18,7 +18,7 @@ CombatFoundationWorkerJob? job = null;
 try
 {
     job = Deserialize<CombatFoundationWorkerJob>(File.ReadAllText(jobPath));
-    if (job == null || job.SchemaVersion != 2)
+    if (job == null || job.SchemaVersion != 3)
     {
         throw new InvalidOperationException("Unsupported or empty foundation worker job.");
     }
@@ -27,13 +27,13 @@ try
     {
         job.CheckpointPath = Path.Combine(
             job.ResultDirectory,
-            "foundation-training-checkpoint-v2.json");
+            "foundation-training-checkpoint-v3.json");
     }
     if (string.IsNullOrWhiteSpace(job.CheckpointEpisodesPath))
     {
         job.CheckpointEpisodesPath = Path.Combine(
             job.ResultDirectory,
-            "foundation-training-checkpoint-episodes-v2.jsonl");
+            "foundation-training-checkpoint-episodes-v3.jsonl");
     }
     var build = CombatSimulationRegistry.BuildRuleset(job.Ruleset);
     if (!build.Success)
@@ -63,6 +63,13 @@ try
             "Native program package validation failed: "
             + string.Join("; ", package.Errors.Take(8)));
     }
+    var workerAssemblyPath = Environment.ProcessPath;
+    job.Request.NativeProgramPackageHash =
+        string.IsNullOrWhiteSpace(workerAssemblyPath)
+        || !File.Exists(workerAssemblyPath)
+            ? "worker:unknown"
+            : Convert.ToHexString(
+                SHA256.HashData(File.ReadAllBytes(workerAssemblyPath)));
 
     var requestedWorkers = Math.Max(
         1,
@@ -193,6 +200,38 @@ try
                 }));
         }
     };
+    var incrementallyArchivedCases =
+        new HashSet<string>(StringComparer.Ordinal);
+    var incrementalArchiveErrors = new List<string>();
+    if (job.Request.EnableSuccessCaseArchive)
+    {
+        job.Request.ObservationRecorded = observation =>
+        {
+            try
+            {
+                PersistObservation(job, observation);
+            }
+            catch (Exception ex)
+            {
+                incrementalArchiveErrors.Add(ex.ToString());
+            }
+        };
+        job.Request.SuccessCaseRecorded = successCase =>
+        {
+            try
+            {
+                if (PersistSuccessCase(job, successCase))
+                {
+                    incrementallyArchivedCases.Add(
+                        successCase.Observation.CaseId);
+                }
+            }
+            catch (Exception ex)
+            {
+                incrementalArchiveErrors.Add(ex.ToString());
+            }
+        };
+    }
 
     var training = new CombatCampaignFoundationTrainer(
         new CombatCampaignRunner(
@@ -202,6 +241,26 @@ try
         build.Ruleset,
         job.InitialChampion,
         cancellation.Token);
+    try
+    {
+        if (job.Request.EnableSuccessCaseArchive)
+        {
+            PersistSuccessCases(
+                job,
+                training,
+                incrementallyArchivedCases,
+                incrementalArchiveErrors);
+        }
+    }
+    catch (Exception ex)
+    {
+        training.CaseAnalysis = CombatFoundationCaseLearning.Analyze(
+            training.CampaignObservations);
+        training.SuccessArchiveError = ex.ToString();
+        Console.Error.WriteLine(
+            "Foundation success archive failed without invalidating training: "
+            + ex);
+    }
     var episodesPath = Path.Combine(
         job.ResultDirectory,
         "foundation-training-episodes-v2.jsonl");
@@ -217,6 +276,8 @@ try
             ? training.Replay
             : Array.Empty<CombatEpisode>());
     training.Replay.Clear();
+    training.CampaignObservations.Clear();
+    training.SuccessCases.Clear();
     WriteAtomic(
         job.ResultPath,
         Serialize(new CombatFoundationWorkerResult
@@ -227,10 +288,19 @@ try
             Runtime = RuntimeDescription(requestedWorkers),
             RulesetHash = build.Ruleset.RulesetHash,
             EpisodesPath = episodesPath,
+            CheckpointPath = !training.AcceptancePassed
+                             && File.Exists(job.CheckpointPath)
+                ? job.CheckpointPath
+                : "",
+            Resumable = !training.AcceptancePassed
+                        && File.Exists(job.CheckpointPath),
             Training = training
         }));
-    TryDelete(job.CheckpointPath);
-    TryDelete(job.CheckpointEpisodesPath);
+    if (training.Success && training.AcceptancePassed)
+    {
+        TryDelete(job.CheckpointPath);
+        TryDelete(job.CheckpointEpisodesPath);
+    }
     Console.WriteLine(
         "Foundation worker completed: campaigns="
         + training.CompletedCampaigns
@@ -323,7 +393,7 @@ static bool TryLoadCheckpoint(
         var checkpoint = Deserialize<CombatFoundationWorkerCheckpoint>(
             File.ReadAllText(job.CheckpointPath));
         if (checkpoint == null
-            || checkpoint.SchemaVersion != 2
+            || checkpoint.SchemaVersion != 3
             || !string.Equals(
                 checkpoint.RequestFingerprint,
                 requestFingerprint,
@@ -352,7 +422,7 @@ static bool TryLoadCheckpoint(
         }
         checkpoint.Resume.Replay = episodes;
         resume = checkpoint.Resume;
-        return resume.SchemaVersion == 2;
+        return resume.SchemaVersion == 3;
     }
     catch
     {
@@ -369,12 +439,20 @@ static CombatCampaignFoundationResumeState WithoutReplay(
         Stage = source.Stage,
         NextIteration = source.NextIteration,
         CompletedCampaigns = source.CompletedCampaigns,
+        GeneratedReplayEpisodes = source.GeneratedReplayEpisodes,
         Champion = source.Champion,
         WorkingChampion = source.WorkingChampion,
         Iterations = new List<CombatCampaignFoundationIteration>(
             source.Iterations),
         ModelTraining = source.ModelTraining,
-        Telemetry = source.Telemetry
+        Telemetry = source.Telemetry,
+        HardSeedHistory =
+            new List<CombatFoundationHardSeedHistoryEntry>(
+                source.HardSeedHistory),
+        TrainingSchedule = new List<CombatFoundationTrainingSlot>(
+            source.TrainingSchedule),
+        ArenaReplacementCursor = source.ArenaReplacementCursor,
+        Compatibility = source.Compatibility
     };
 }
 
@@ -396,6 +474,228 @@ static void WriteEpisodes(
         foreach (var episode in episodes)
         {
             writer.WriteLine(SerializeCompact(episode));
+        }
+    }
+    File.Move(temporaryPath, fullPath, overwrite: true);
+}
+
+static string SuccessArchiveRoot(CombatFoundationWorkerJob job)
+{
+    return string.IsNullOrWhiteSpace(job.SuccessArchiveDirectory)
+        ? Path.Combine(job.ResultDirectory, "foundation-success-cases")
+        : Path.GetFullPath(job.SuccessArchiveDirectory);
+}
+
+static void PersistObservation(
+    CombatFoundationWorkerJob job,
+    CombatFoundationCampaignObservation observation)
+{
+    var path = Path.Combine(
+        SuccessArchiveRoot(job),
+        "v" + CombatFoundationCaseLearning.ArchiveSchemaVersion,
+        observation.CompatibilityKey,
+        "observations",
+        observation.CaseId + ".json");
+    if (!File.Exists(path))
+    {
+        WriteAtomic(path, Serialize(observation));
+    }
+}
+
+static bool PersistSuccessCase(
+    CombatFoundationWorkerJob job,
+    CombatFoundationSuccessCase successCase)
+{
+    var observation = successCase.Observation;
+    var compatibilityDirectory = Path.Combine(
+        SuccessArchiveRoot(job),
+        "v" + CombatFoundationCaseLearning.ArchiveSchemaVersion,
+        observation.CompatibilityKey);
+    var casePath = Path.Combine(
+        compatibilityDirectory,
+        "cases",
+        observation.CaseId + ".json");
+    var added = !File.Exists(casePath);
+    if (added)
+    {
+        WriteAtomic(casePath, Serialize(successCase));
+    }
+    if (successCase.Episodes.Count > 0)
+    {
+        var expertCasePath = Path.Combine(
+            compatibilityDirectory,
+            "expert-cases",
+            observation.CaseId + ".json");
+        if (!File.Exists(expertCasePath))
+        {
+            WriteAtomic(expertCasePath, Serialize(successCase));
+        }
+    }
+    return added;
+}
+
+static void PersistSuccessCases(
+    CombatFoundationWorkerJob job,
+    CombatCampaignFoundationTrainingResult training,
+    ISet<string> incrementallyArchivedCases,
+    IReadOnlyList<string> incrementalArchiveErrors)
+{
+    var archiveRoot = SuccessArchiveRoot(job);
+    Directory.CreateDirectory(archiveRoot);
+    var currentObservations = training.CampaignObservations
+        .Where(item => item != null)
+        .GroupBy(item => item.CaseId, StringComparer.Ordinal)
+        .Select(group => group.First())
+        .OrderBy(item => item.CaseId, StringComparer.Ordinal)
+        .ToList();
+    foreach (var observation in currentObservations)
+    {
+        var observationPath = Path.Combine(
+            archiveRoot,
+            "v" + CombatFoundationCaseLearning.ArchiveSchemaVersion,
+            observation.CompatibilityKey,
+            "observations",
+            observation.CaseId + ".json");
+        if (!File.Exists(observationPath))
+        {
+            WriteAtomic(observationPath, Serialize(observation));
+        }
+    }
+    var cumulativeObservations =
+        new List<CombatFoundationCampaignObservation>();
+    foreach (var compatibilityKey in currentObservations
+                 .Select(item => item.CompatibilityKey)
+                 .Distinct(StringComparer.Ordinal))
+    {
+        var observationDirectory = Path.Combine(
+            archiveRoot,
+            "v" + CombatFoundationCaseLearning.ArchiveSchemaVersion,
+            compatibilityKey,
+            "observations");
+        if (!Directory.Exists(observationDirectory))
+        {
+            continue;
+        }
+        foreach (var path in Directory.EnumerateFiles(
+                     observationDirectory,
+                     "*.json",
+                     SearchOption.TopDirectoryOnly)
+                 .OrderBy(item => item, StringComparer.Ordinal)
+                 .Take(20_000))
+        {
+            var observation =
+                Deserialize<CombatFoundationCampaignObservation>(
+                    File.ReadAllText(path));
+            if (observation != null)
+            {
+                cumulativeObservations.Add(observation);
+            }
+        }
+    }
+    training.CaseAnalysis = CombatFoundationCaseLearning.Analyze(
+        cumulativeObservations.Count == 0
+            ? currentObservations
+            : cumulativeObservations);
+    WriteJsonLines(
+        Path.Combine(
+            job.ResultDirectory,
+            "foundation-case-observations-v1.jsonl"),
+        currentObservations);
+    var observations = new List<CombatFoundationCampaignObservation>();
+    var archived = 0;
+    var duplicates = 0;
+    foreach (var successCase in training.SuccessCases
+                 .Where(item => item?.Observation?.ArchiveEligible == true)
+                 .GroupBy(
+                     item => item.Observation.CaseId,
+                     StringComparer.Ordinal)
+                 .Select(group => group.First())
+                 .OrderBy(
+                     item => item.Observation.CompatibilityKey,
+                     StringComparer.Ordinal)
+                 .ThenBy(
+                     item => item.Observation.CaseId,
+                     StringComparer.Ordinal))
+    {
+        var observation = successCase.Observation;
+        var compatibilityDirectory = Path.Combine(
+            archiveRoot,
+            "v" + CombatFoundationCaseLearning.ArchiveSchemaVersion,
+            observation.CompatibilityKey);
+        var casePath = Path.Combine(
+            compatibilityDirectory,
+            "cases",
+            observation.CaseId + ".json");
+        if (File.Exists(casePath))
+        {
+            if (incrementallyArchivedCases.Contains(observation.CaseId))
+            {
+                archived++;
+            }
+            else
+            {
+                duplicates++;
+            }
+        }
+        else
+        {
+            WriteAtomic(casePath, Serialize(successCase));
+            archived++;
+        }
+        if (successCase.Episodes.Count > 0)
+        {
+            var expertCasePath = Path.Combine(
+                archiveRoot,
+                "v" + CombatFoundationCaseLearning.ArchiveSchemaVersion,
+                observation.CompatibilityKey,
+                "expert-cases",
+                observation.CaseId + ".json");
+            if (!File.Exists(expertCasePath))
+            {
+                WriteAtomic(expertCasePath, Serialize(successCase));
+            }
+        }
+        observations.Add(observation);
+    }
+    var indexPath = Path.Combine(
+        job.ResultDirectory,
+        "foundation-success-case-index-v1.jsonl");
+    WriteJsonLines(indexPath, observations);
+    WriteAtomic(
+        Path.Combine(
+            job.ResultDirectory,
+            "foundation-success-analysis-v1.json"),
+        Serialize(training.CaseAnalysis));
+    training.ArchivedSuccessCases = archived;
+    training.DuplicateSuccessCases = duplicates;
+    training.SuccessArchiveDirectory = archiveRoot;
+    training.SuccessCaseIndexPath = indexPath;
+    if (incrementalArchiveErrors.Count > 0)
+    {
+        training.SuccessArchiveError = string.Join(
+            Environment.NewLine,
+            incrementalArchiveErrors.Take(4));
+    }
+}
+
+static void WriteJsonLines<T>(
+    string path,
+    IEnumerable<T> values)
+{
+    var fullPath = Path.GetFullPath(path);
+    Directory.CreateDirectory(
+        Path.GetDirectoryName(fullPath)
+        ?? throw new InvalidOperationException(
+            "JSONL output directory is missing."));
+    var temporaryPath = fullPath + ".tmp-" + Environment.ProcessId;
+    using (var writer = new StreamWriter(
+               temporaryPath,
+               append: false,
+               new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)))
+    {
+        foreach (var value in values)
+        {
+            writer.WriteLine(SerializeCompact(value!));
         }
     }
     File.Move(temporaryPath, fullPath, overwrite: true);

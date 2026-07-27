@@ -1054,6 +1054,8 @@ public sealed class CombatSimulationPolicyDecisionMetrics
 
     public bool SearchStoppedEarly { get; set; }
 
+    public string SearchBudgetTier { get; set; } = "";
+
     public int CertifiedLoops { get; set; }
 
     public int SustainableControlLoops { get; set; }
@@ -1153,6 +1155,9 @@ public sealed class CombatSimulationMetrics
     public long SearchNodes { get; set; }
 
     public int SearchEarlyStops { get; set; }
+
+    public Dictionary<string, int> SearchBudgetTierCounts { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
 
     public int ForcedEndTurns { get; set; }
 
