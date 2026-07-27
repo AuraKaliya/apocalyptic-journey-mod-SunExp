@@ -19,7 +19,7 @@ function Read-FoundationJson([string]$Path) {
     return [System.IO.File]::ReadAllText(
         $Path,
         [System.Text.Encoding]::UTF8) |
-        ConvertFrom-Json -Depth 100 -AsHashtable
+        ConvertFrom-Json
 }
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $effectivePreflightCampaignsPerDifficulty = [Math]::Max(
@@ -55,14 +55,13 @@ try {
         SearchMinimumSimulations = $SearchMinimumSimulations
         SearchStabilityWindow = $SearchStabilityWindow
         SearchStableChecks = $SearchStableChecks
-        UseChancePuct = $true
+        SearchBudgetMode = "fixed"
     }
     $request = [ordered]@{
         DecisionProfile = "balanced"
         Iterations = 1
         TrainingCampaignsPerIteration = 2
         ArenaCampaignsPerDifficulty = 1
-        ValidationCampaignsPerDifficulty = 5
         NormalValidationCampaigns = 5
         AdvancedValidationCampaigns = 5
         PreflightCampaignsPerDifficulty = $PreflightCampaignsPerDifficulty
@@ -87,7 +86,7 @@ try {
         ValidationCampaign = $campaign
     }
     $job = [ordered]@{
-        SchemaVersion = 3
+        SchemaVersion = 4
         JobId = "worker-smoke"
         ExpectedRulesetHash = ""
         ResultDirectory = $smokeRoot
@@ -187,19 +186,29 @@ try {
     }
     $checkpointExists = (Test-Path -LiteralPath $checkpointPath) `
                         -and (Test-Path -LiteralPath $checkpointEpisodesPath)
-    if ($result.Training.AcceptancePassed -and $checkpointExists) {
-        throw "Accepted foundation training must remove resume checkpoints."
+    if ($PreflightOnly) {
+        if ($result.CompletionKind -ne "preflight-passed" `
+            -or $result.Resumable `
+            -or $checkpointExists) {
+            throw "Preflight completion must not retain a training checkpoint."
+        }
     }
-    if (-not $result.Training.AcceptancePassed `
-        -and (-not $checkpointExists `
+    elseif ($result.Training.AcceptancePassed) {
+        if ($result.CompletionKind -ne "training-accepted" `
+            -or $checkpointExists) {
+            throw "Accepted foundation training must remove resume checkpoints."
+        }
+    }
+    elseif ($result.CompletionKind -ne "training-rejected-resumable" `
+        -or (-not $checkpointExists `
              -or -not $result.Resumable `
              -or [string]::IsNullOrWhiteSpace([string]$result.CheckpointPath))) {
         throw "Unaccepted foundation training must retain a resumable checkpoint."
     }
-    if (-not $result.Training.AcceptancePassed) {
+    if (-not $PreflightOnly -and -not $result.Training.AcceptancePassed) {
         $checkpoint = Read-FoundationJson $checkpointPath
-        if ([int]$checkpoint.SchemaVersion -ne 3 `
-            -or [int]$checkpoint.Resume.SchemaVersion -ne 3 `
+        if ([int]$checkpoint.SchemaVersion -ne 4 `
+            -or [int]$checkpoint.Resume.SchemaVersion -ne 4 `
             -or [string]::IsNullOrWhiteSpace(
                 [string]$checkpoint.Resume.Compatibility.RulesetHash) `
             -or [string]::IsNullOrWhiteSpace(
@@ -230,6 +239,24 @@ finally {
     if ((-not $KeepArtifactsOnFailure -or -not $smokeFailed) `
         -and $resolvedSmokeRoot.StartsWith($resolvedTempRoot, [System.StringComparison]::OrdinalIgnoreCase) `
         -and (Test-Path -LiteralPath $resolvedSmokeRoot)) {
-        Remove-Item -LiteralPath $resolvedSmokeRoot -Recurse -Force
+        for ($cleanupAttempt = 0; $cleanupAttempt -lt 3; $cleanupAttempt++) {
+            try {
+                Remove-Item -LiteralPath $resolvedSmokeRoot -Recurse -Force -ErrorAction Stop
+                break
+            }
+            catch {
+                Start-Sleep -Milliseconds 100
+            }
+        }
+        if (Test-Path -LiteralPath $resolvedSmokeRoot) {
+            try {
+                [System.IO.Directory]::Delete(
+                    "\\?\" + $resolvedSmokeRoot,
+                    $true)
+            }
+            catch {
+                Write-Warning "Foundation smoke artifacts could not be fully removed: $resolvedSmokeRoot"
+            }
+        }
     }
 }

@@ -31,7 +31,7 @@ $simulationOutput = Join-Path ([IO.Path]::GetTempPath()) "aura-combat-simulation
     --output $simulationOutput `
     --count 4 `
     --parallel 2 `
-    --policy chance-puct
+    --policy risk-puct
 if ($LASTEXITCODE -ne 0) {
     throw "Aura headless combat simulation contract failed with exit code $LASTEXITCODE."
 }
@@ -50,7 +50,8 @@ $presenterPath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraTools
 $interactionPath = Join-Path $root "AuraCombatAiShared\GameApi\WitchCombatInteractionRuntime.cs"
 $runtimePath = Join-Path $root "AuraCombatAiShared\GameApi\WitchCombatRuntime.cs"
 $playerEquivalentPath = Join-Path $root "AuraCombatAiShared\CombatPlayerEquivalent.cs"
-$plannerPath = Join-Path $root "AuraCombatAiShared\CombatChancePuctPlanner.cs"
+$plannerPath = Join-Path $root "AuraCombatAiShared\CombatRiskAwareRootSamplingPuctPlanner.cs"
+$riskStatisticsPath = Join-Path $root "AuraCombatAiShared\CombatSearchRiskStatistics.cs"
 $searchBudgetPath = Join-Path $root "AuraCombatAiShared\CombatSearchBudgetPolicy.cs"
 $loopSafetyPath = Join-Path $root "AuraCombatAiShared\CombatLoopSafetyAnalyzer.cs"
 $forwardModelPath = Join-Path $root "AuraCombatAiShared\CombatForwardModel.cs"
@@ -93,6 +94,7 @@ $interaction = Get-Content -LiteralPath $interactionPath -Raw
 $runtime = Get-Content -LiteralPath $runtimePath -Raw
 $playerEquivalent = Get-Content -LiteralPath $playerEquivalentPath -Raw
 $planner = Get-Content -LiteralPath $plannerPath -Raw
+$riskStatistics = Get-Content -LiteralPath $riskStatisticsPath -Raw
 $searchBudget = Get-Content -LiteralPath $searchBudgetPath -Raw
 $loopSafety = Get-Content -LiteralPath $loopSafetyPath -Raw
 $forwardModel = Get-Content -LiteralPath $forwardModelPath -Raw
@@ -135,7 +137,7 @@ $requiredControllerAnchors = @(
     "CombatActionTransaction",
     "CombatActionTransactionState.HandedOff",
     "CombatActionTransactionState.TimedOut",
-    "auto-battle-training-v5.jsonl",
+    "auto-battle-training-v6.jsonl",
     "TryCapturePlayerObservation",
     "CaptureTeacherAction",
     "CaptureTeacherEndTurn",
@@ -405,7 +407,11 @@ foreach ($anchor in @(
     "EarlyStoppingPatience",
     "CombatPolicyValueTrainingResumeState",
     "Checkpoint",
-    "validationValueMae"
+    "validationValueMae",
+    "optimizerAdamW",
+    "gradientClipCount",
+    "testCompositeLoss",
+    "stateFeatureCollisionRate"
 )) {
     if (-not $batchTrainer.Contains($anchor)) {
         throw "Aura deterministic minibatch trainer contract is missing: $anchor"
@@ -431,7 +437,8 @@ foreach ($anchor in @(
     "CombatFoundationWorkerResult",
     "CombatFoundationWorkerCheckpoint",
     "CheckpointEpisodesPath",
-    "Resumable"
+    "Resumable",
+    "CompletionKind"
 )) {
     if (-not $workerContracts.Contains($anchor)) {
         throw "Aura foundation worker protocol is missing: $anchor"
@@ -446,6 +453,32 @@ foreach ($anchor in @(
 )) {
     if (-not $foundationWorkerRuntime.Contains($anchor)) {
         throw "AuraTools external foundation worker runtime is missing: $anchor"
+    }
+}
+
+$forbiddenCurrentTreeMarkers = @(
+    ("Combat" + "TurnPlanner"),
+    ("UseChance" + "Puct"),
+    ("Beam" + "Width"),
+    ("EnableDynamic" + "SearchBudget"),
+    ("chance-" + "puct"),
+    ("aura.combat-ai.sample." + "v5"),
+    ("aura.combat-ai.episode." + "v2"),
+    ("partitioned-" + "v2"),
+    ("hashed-" + "v1"),
+    ("Create" + "Legacy"),
+    ("foundation-training-checkpoint-" + "v3"),
+    ("foundation-training-episodes-" + "v2"),
+    ("live-combat-episodes-" + "v2"),
+    ("auto-battle-training-" + "v5"),
+    ("UseTrained" + "Model"),
+    ("ValidationCampaignsPer" + "Difficulty")
+)
+foreach ($marker in $forbiddenCurrentTreeMarkers) {
+    $matches = & git -C $root grep -n -I -- $marker -- `
+        "*.cs" "*.py" "*.ps1" "*.json" "*.md" 2>$null
+    if ($LASTEXITCODE -eq 0) {
+        throw "Aura combat AI current tree still contains removed marker '$marker': $matches"
     }
 }
 foreach ($anchor in @(
@@ -579,12 +612,10 @@ if ($bundledRules.version -ne "witch-base-evaluation-v1" `
 }
 
 foreach ($anchor in @(
-    "CombatChancePuctPlanner",
+    "CombatRiskAwareRootSamplingPuctPlanner",
     "SnapshotSimulationRules",
     "TranspositionHits",
     "DeathRiskLimit",
-    "TailRiskPenalty",
-    "LowerTailCvar",
     "CombatBeliefTracker.FromObservation",
     "CombatPublicObservationHasher.Seed",
     "RequiresFreshObservation",
@@ -594,7 +625,18 @@ foreach ($anchor in @(
     "BuildLoopSummary"
 )) {
     if (-not $planner.Contains($anchor)) {
-        throw "Aura combat AI Chance-PUCT planner contract is missing: $anchor"
+        throw "Aura combat AI risk-aware root-sampling PUCT contract is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
+    "CombatSearchRiskStatistics",
+    "EffectiveLowerTailMean",
+    "TailRiskPenalty",
+    "UncertaintyPenalty",
+    "StandardError"
+)) {
+    if (-not $riskStatistics.Contains($anchor)) {
+        throw "Aura combat AI risk statistics contract is missing: $anchor"
     }
 }
 foreach ($anchor in @(
@@ -668,7 +710,7 @@ foreach ($anchor in @(
 }
 
 foreach ($anchor in @(
-    "aura.combat-ai.episode.v2",
+    "aura.combat-ai.episode.v3",
     "CombatCampaignEpisodeMetadata",
     "LongTermReturn",
     "SearchVisits",
@@ -767,7 +809,7 @@ foreach ($anchor in @(
 }
 
 foreach ($anchor in @(
-    "aura.combat-ai.sample.v5",
+    "aura.combat-ai.sample.v6",
     "aura.combat-ai.selection.v1",
     "aura.combat-ai.training-report.v1",
     "aura.decision-residual.linear.v1",

@@ -1690,7 +1690,7 @@ static CombatDecisionProfile IntegrityProfile()
         SearchMinimumSimulations = 8,
         SearchStabilityWindow = 16,
         SearchStableChecks = 1,
-        UseChancePuct = true
+        SearchBudgetMode = "fixed"
     };
 }
 

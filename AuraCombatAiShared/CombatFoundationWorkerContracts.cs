@@ -5,7 +5,7 @@ namespace AuraCombatAi.Shared;
 
 public sealed class CombatFoundationWorkerJob
 {
-    public int SchemaVersion { get; set; } = 3;
+    public int SchemaVersion { get; set; } = 4;
 
     public string JobId { get; set; } = "";
 
@@ -36,7 +36,7 @@ public sealed class CombatFoundationWorkerJob
 
 public sealed class CombatFoundationWorkerProgress
 {
-    public int SchemaVersion { get; set; } = 3;
+    public int SchemaVersion { get; set; } = 4;
 
     public string JobId { get; set; } = "";
 
@@ -47,13 +47,15 @@ public sealed class CombatFoundationWorkerProgress
 
 public sealed class CombatFoundationWorkerResult
 {
-    public int SchemaVersion { get; set; } = 3;
+    public int SchemaVersion { get; set; } = 4;
 
     public string JobId { get; set; } = "";
 
     public bool Success { get; set; }
 
     public bool Cancelled { get; set; }
+
+    public string CompletionKind { get; set; } = "";
 
     public string Message { get; set; } = "";
 
@@ -72,7 +74,7 @@ public sealed class CombatFoundationWorkerResult
 
 public sealed class CombatFoundationWorkerCheckpoint
 {
-    public int SchemaVersion { get; set; } = 3;
+    public int SchemaVersion { get; set; } = 4;
 
     public string RequestFingerprint { get; set; } = "";
 

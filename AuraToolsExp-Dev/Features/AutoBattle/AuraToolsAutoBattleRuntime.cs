@@ -1067,9 +1067,8 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
     {
         return state.Fingerprint
                + "|" + profile.Id
-               + "|" + profile.SearchSimulationBudget
-               + "|" + profile.SearchNodeBudget
-               + "|" + profile.SearchMaxPly
+               + "|" + profile.SearchBudgetMode
+               + "|" + profile.SearchQuality
                + "|" + trainedModelMode
                + "|" + trainedModelId;
     }
@@ -1343,10 +1342,10 @@ internal sealed class AuraToolsAutoBattleTrainingSink : ICombatTrainingSampleSin
         {
             var path = AuraSharedLogStore.OwnerLogPath(
                 AuraToolsIds.ModId,
-                "auto-battle-training-v5.jsonl");
+                "auto-battle-training-v6.jsonl");
             var episodesPath = AuraSharedLogStore.OwnerLogPath(
                 AuraToolsIds.ModId,
-                "live-combat-episodes-v2.jsonl");
+                "live-combat-episodes-v3.jsonl");
             var sessions = new Dictionary<long, List<CombatTrainingSample>>();
             var sessionGeneration = Volatile.Read(ref storageGeneration);
             foreach (var queued in queue.GetConsumingEnumerable())
@@ -1394,8 +1393,8 @@ internal sealed class AuraToolsAutoBattleTrainingSink : ICombatTrainingSampleSin
             Interlocked.Increment(ref storageGeneration);
             foreach (var fileName in new[]
                      {
-                         "auto-battle-training-v5.jsonl",
-                         "live-combat-episodes-v2.jsonl"
+                         "auto-battle-training-v6.jsonl",
+                         "live-combat-episodes-v3.jsonl"
                      })
             {
                 var path = AuraSharedLogStore.OwnerLogPath(
@@ -1413,11 +1412,11 @@ internal sealed class AuraToolsAutoBattleTrainingSink : ICombatTrainingSampleSin
     {
         return string.Equals(
                    fileName,
-                   "auto-battle-training-v5.jsonl",
+                   "auto-battle-training-v6.jsonl",
                    StringComparison.OrdinalIgnoreCase)
                || string.Equals(
                    fileName,
-                   "live-combat-episodes-v2.jsonl",
+                   "live-combat-episodes-v3.jsonl",
                    StringComparison.OrdinalIgnoreCase);
     }
 

@@ -171,7 +171,7 @@ internal static class AuraToolsAutoBattleModelRuntime
         new(StringComparer.Ordinal);
     private static readonly string[] TrainingFiles =
     {
-        "auto-battle-training-v5.jsonl"
+        "auto-battle-training-v6.jsonl"
     };
 
     public static IDecisionResidualModel Load(
@@ -1008,7 +1008,6 @@ internal static class AuraToolsAutoBattleModelRuntime
             var settings = AuraToolsConfigService.MatchExperience.AutoBattle;
             settings.SelectedModelId = "";
             settings.TrainedModelMode = "off";
-            settings.UseTrainedModel = false;
             settings.CaptureTrainingSamples = false;
             settings.Normalize();
             AuraToolsConfigService.SaveMatchExperience();
@@ -1446,7 +1445,8 @@ internal static class AuraToolsAutoBattleModelRuntime
                 "aura.decision-residual.linear.v1",
                 StringComparison.Ordinal)
             || model.ProtocolVersion != 1
-            || model.FeatureSchemaVersion != 5
+            || model.FeatureSchemaVersion
+               != CombatTrainingProtocol.FeatureSchemaVersion
             || model.ApplicabilityProtocolVersion != 1)
         {
             reason = "模型协议、特征版本或适用性协议不兼容";
@@ -1506,7 +1506,8 @@ internal static class AuraToolsAutoBattleModelRuntime
         if (model == null
             || !string.Equals(model.ModelProtocol, "aura.combat-search.gbdt.v1", StringComparison.Ordinal)
             || model.ProtocolVersion != 1
-            || model.FeatureSchemaVersion != 5
+            || model.FeatureSchemaVersion
+               != CombatTrainingProtocol.FeatureSchemaVersion
             || !string.Equals(
                 NormalizeProfile(model.DecisionProfile),
                 NormalizeProfile(decisionProfile),
@@ -2045,7 +2046,7 @@ internal static class AuraToolsAutoBattleModelRuntime
         }
         var liveEpisodesPath = AuraSharedLogStore.OwnerLogPath(
             AuraToolsIds.ModId,
-            "live-combat-episodes-v2.jsonl");
+            "live-combat-episodes-v3.jsonl");
         if (File.Exists(liveEpisodesPath)
             && !episodeSources.Contains(liveEpisodesPath, StringComparer.OrdinalIgnoreCase))
         {

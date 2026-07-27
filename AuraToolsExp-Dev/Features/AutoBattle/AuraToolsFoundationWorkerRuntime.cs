@@ -132,9 +132,11 @@ internal static class AuraToolsFoundationWorkerRuntime
             telemetry(finalProgress.Telemetry);
         }
         var result = ReadResult(job);
-        if (!string.Equals(result.JobId, job.JobId, StringComparison.Ordinal))
+        if (result.SchemaVersion != 4
+            || !string.Equals(result.JobId, job.JobId, StringComparison.Ordinal))
         {
-            throw new InvalidOperationException("独立训练器结果 jobId 不匹配");
+            throw new InvalidOperationException(
+                "独立训练器结果协议或 jobId 不匹配");
         }
         if (cancellationToken.IsCancellationRequested || result.Cancelled)
         {
@@ -194,7 +196,7 @@ internal static class AuraToolsFoundationWorkerRuntime
             var parsed = AuraSharedJson.Deserialize<CombatFoundationWorkerProgress>(
                 File.ReadAllText(job.ProgressPath));
             if (parsed == null
-                || parsed.SchemaVersion != 2
+                || parsed.SchemaVersion != 4
                 || !string.Equals(parsed.JobId, job.JobId, StringComparison.Ordinal))
             {
                 return false;

@@ -357,13 +357,11 @@ void TestConfigModelSerializationCompatibility()
            && matchExperience.AutoBattle.UnknownActionPolicy == "conservative"
            && matchExperience.AutoBattle.TrainingMode == "hybrid"
            && matchExperience.AutoBattle.ShowPredictionMarkers
-           && !matchExperience.AutoBattle.UseTrainedModel
            && matchExperience.AutoBattle.TrainedModelMode == "off"
-           && matchExperience.AutoBattle.SearchSimulationBudget == 256
-           && matchExperience.AutoBattle.SearchMaxPly == 10
-           && matchExperience.AutoBattle.Training.Preset == AutoBattleTrainingSettings.CustomPreset
-           && matchExperience.AutoBattle.Training.Epochs == 100
-           && matchExperience.AutoBattle.Training.MaximumCorrection == 2d
+           && matchExperience.AutoBattle.SearchQuality == "balanced"
+           && matchExperience.AutoBattle.Training.Preset == AutoBattleTrainingSettings.SteadyPreset
+           && matchExperience.AutoBattle.Training.Epochs == 80
+           && matchExperience.AutoBattle.Training.MaximumCorrection == 0.75d
            && matchExperience.AutoBattle.SelectedModelId == ""
            && matchExperience.AutoBattle.Simulation.ScenarioId
            == "witch.world-simulation.standard-v2"
@@ -381,8 +379,7 @@ void TestConfigModelSerializationCompatibility()
            && matchExperience.AutoBattle.FoundationTraining.ModelStateDimensions == 128
            && matchExperience.AutoBattle.FoundationTraining.ModelHiddenDimensions == 64
            && matchExperience.AutoBattle.FoundationTraining.ModelFeatureEncodingMode
-              == "partitioned-v2"
-           && matchExperience.AutoBattle.FoundationTraining.EnableDynamicSearchBudget
+              == "partitioned-v3"
            && matchExperience.AutoBattle.FoundationTraining.EnableArenaRecovery
            && matchExperience.AutoBattle.FoundationTraining.EnableTuningArena
            && Math.Abs(matchExperience.AutoBattle.FoundationTraining
@@ -402,7 +399,7 @@ void TestConfigModelSerializationCompatibility()
                   .HardSeedReplayShare - 0.35d) < 0.0001d
            && Math.Abs(matchExperience.AutoBattle.FoundationTraining
                   .SelfPlayExplorationProbability - 0.15d) < 0.0001d,
-        "match-experience config keeps legacy schema migration and nested defaults after the file split");
+        "match-experience config reconstructs the sole current auto-battle defaults");
 
     var steadyTraining = AutoBattleTrainingSettings.CreateSteady();
     Assert(steadyTraining.Preset == AutoBattleTrainingSettings.SteadyPreset
@@ -416,33 +413,30 @@ void TestConfigModelSerializationCompatibility()
            && steadyTraining.MaximumCorrection == 2d,
         "auto-battle training presets apply a complete reproducible parameter set");
 
-    var legacyTrainedModel = JsonConvert.DeserializeObject<AutoBattleSettings>(
-        "{\"useTrainedModel\":true}")!;
-    legacyTrainedModel.Normalize();
-    Assert(legacyTrainedModel.TrainedModelMode == "active"
-           && legacyTrainedModel.UseTrainedModel,
-        "legacy trained-model toggle migrates to bounded active mode");
-    legacyTrainedModel.TrainedModelMode = "off";
-    legacyTrainedModel.UseTrainedModel = false;
-    legacyTrainedModel.Normalize();
-    Assert(legacyTrainedModel.TrainedModelMode == "off"
-           && !legacyTrainedModel.UseTrainedModel,
+    var trainedModel = JsonConvert.DeserializeObject<AutoBattleSettings>(
+        "{\"trainedModelMode\":\"active\"}")!;
+    trainedModel.Normalize();
+    Assert(trainedModel.TrainedModelMode == "active",
+        "current trained-model mode preserves bounded active state");
+    trainedModel.TrainedModelMode = "off";
+    trainedModel.Normalize();
+    Assert(trainedModel.TrainedModelMode == "off",
         "explicitly disabling the trained model survives normalization");
-    legacyTrainedModel.FoundationTraining.EnableHardSeedCurriculum = false;
-    legacyTrainedModel.FoundationTraining.HardSeedReplayShare = 0.2d;
-    legacyTrainedModel.Normalize();
-    Assert(!legacyTrainedModel.FoundationTraining.EnableHardSeedCurriculum
+    trainedModel.FoundationTraining.EnableHardSeedCurriculum = false;
+    trainedModel.FoundationTraining.HardSeedReplayShare = 0.2d;
+    trainedModel.Normalize();
+    Assert(!trainedModel.FoundationTraining.EnableHardSeedCurriculum
            && Math.Abs(
-               legacyTrainedModel.FoundationTraining.HardSeedReplayShare
+               trainedModel.FoundationTraining.HardSeedReplayShare
                - 0.2d) < 0.0001d,
         "current-schema normalization preserves explicit hard-seed curriculum settings");
-    legacyTrainedModel.Simulation.SimulationCount = 500000;
-    legacyTrainedModel.Simulation.Parallelism = 99;
-    legacyTrainedModel.Simulation.MinimumAuthoritativeCoverage = double.NaN;
-    legacyTrainedModel.Normalize();
-    Assert(legacyTrainedModel.Simulation.SimulationCount == 100000
-           && legacyTrainedModel.Simulation.Parallelism == 16
-           && legacyTrainedModel.Simulation.MinimumAuthoritativeCoverage == 1d,
+    trainedModel.Simulation.SimulationCount = 500000;
+    trainedModel.Simulation.Parallelism = 99;
+    trainedModel.Simulation.MinimumAuthoritativeCoverage = double.NaN;
+    trainedModel.Normalize();
+    Assert(trainedModel.Simulation.SimulationCount == 100000
+           && trainedModel.Simulation.Parallelism == 16
+           && trainedModel.Simulation.MinimumAuthoritativeCoverage == 1d,
         "headless simulation settings clamp workload and release-gate thresholds");
 
     var legacyFeast = JsonConvert.DeserializeObject<FeastSettings>(
@@ -518,7 +512,6 @@ void TestCardRefreshSettingsAndPoolPolicy()
            && settings.AutoBattle.FoundationTraining.EnableStratifiedReplay
            && settings.AutoBattle.FoundationTraining.EnableHardSeedCurriculum
            && settings.AutoBattle.FoundationTraining.EnableSuccessCaseArchive
-           && settings.AutoBattle.FoundationTraining.EnableDynamicSearchBudget
            && settings.AutoBattle.FoundationTraining.EnableArenaRecovery
            && settings.AutoBattle.FoundationTraining.EnableTuningArena
            && Math.Abs(settings.AutoBattle.FoundationTraining
@@ -532,17 +525,17 @@ void TestCardRefreshSettingsAndPoolPolicy()
            && settings.AutoBattle.FoundationTraining.Parallelism
               == Math.Max(1, Math.Min(16, Environment.ProcessorCount)),
         "foundation defaults use a substantial self-play curriculum and independent 200/500 holdouts");
-    var schema16Foundation = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
-        "{\"schemaVersion\":16,\"autoBattle\":{\"foundationTraining\":{\"iterations\":3,\"trainingCampaignsPerIteration\":6,\"arenaCampaignsPerDifficulty\":4,\"validationCampaignsPerDifficulty\":10}}}")!;
-    schema16Foundation.Normalize();
-    Assert(schema16Foundation.SchemaVersion == 22
-           && schema16Foundation.AutoBattle.FoundationTraining.Iterations == 8
-           && schema16Foundation.AutoBattle.FoundationTraining.TrainingCampaignsPerIteration == 64
-           && schema16Foundation.AutoBattle.FoundationTraining.ArenaCampaignsPerDifficulty == 32
-           && schema16Foundation.AutoBattle.FoundationTraining.NormalValidationCampaigns == 200
-           && schema16Foundation.AutoBattle.FoundationTraining.AdvancedValidationCampaigns == 500
-           && schema16Foundation.AutoBattle.FoundationTraining.ExecutionMode == "external",
-        "schema 16 foundation defaults migrate to the full curriculum and external worker");
+    var boundedFoundation = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
+        "{\"schemaVersion\":22,\"autoBattle\":{\"foundationTraining\":{\"iterations\":0,\"trainingCampaignsPerIteration\":1,\"arenaCampaignsPerDifficulty\":0}}}")!;
+    boundedFoundation.Normalize();
+    Assert(boundedFoundation.SchemaVersion == 22
+           && boundedFoundation.AutoBattle.FoundationTraining.Iterations == 1
+           && boundedFoundation.AutoBattle.FoundationTraining.TrainingCampaignsPerIteration == 2
+           && boundedFoundation.AutoBattle.FoundationTraining.ArenaCampaignsPerDifficulty == 1
+           && boundedFoundation.AutoBattle.FoundationTraining.NormalValidationCampaigns == 200
+           && boundedFoundation.AutoBattle.FoundationTraining.AdvancedValidationCampaigns == 500
+           && boundedFoundation.AutoBattle.FoundationTraining.ExecutionMode == "external",
+        "current foundation settings clamp invalid input without migration paths");
 
     var candidates = new[] { "a", "b", "c", "d", "e", "f" };
     var alternatives = CardRefreshPoolPolicy.PreferDifferentChoices(
@@ -1082,7 +1075,7 @@ void TestRuntimeArchitectureGuards()
            && cardRefreshNativeApi.Contains("new RandomPool(pool, dice).DrawByRarity", StringComparison.Ordinal)
            && cardRefreshNativeApi.Contains("manager.CardPackCheck", StringComparison.Ordinal),
         "card refresh recreates clean choice items and uses a window-local clone of the native reward draw pipeline");
-    Assert(matchExperienceConfig.Contains("\"schemaVersion\": 20", StringComparison.Ordinal)
+    Assert(matchExperienceConfig.Contains("\"schemaVersion\": 22", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"cardRefresh\"", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"foundationTraining\"", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"executionMode\": \"external\"", StringComparison.Ordinal)
@@ -1105,7 +1098,7 @@ void TestRuntimeArchitectureGuards()
     Assert(autoBattleRuntime.Contains("WitchCombatInteractionRuntime.ObserveDeckPrompt", StringComparison.Ordinal)
            && autoBattleRuntime.Contains("WitchCombatInteractionRuntime.ObserveHandPrompt", StringComparison.Ordinal)
            && autoBattleRuntime.Contains("CaptureTeacherAction", StringComparison.Ordinal)
-           && autoBattleRuntime.Contains("auto-battle-training-v5.jsonl", StringComparison.Ordinal)
+           && autoBattleRuntime.Contains("auto-battle-training-v6.jsonl", StringComparison.Ordinal)
            && autoBattleRuntime.Contains("[AutoBattle][Training] actor=", StringComparison.Ordinal)
            && autoBattleRuntime.Contains("PolicyPreselectedCandidateId", StringComparison.Ordinal)
            && autoBattleRuntime.Contains("UpdateShadowPrediction", StringComparison.Ordinal)
@@ -1135,7 +1128,7 @@ void TestRuntimeArchitectureGuards()
            && autoBattleSimulationRuntime.Contains("Parallel.For", StringComparison.Ordinal)
            && autoBattleSimulationRuntime.Contains("CombatSimulationRegistry.SnapshotScenarios", StringComparison.Ordinal)
            && settingsRuntime.Contains("AuraToolsAutoBattleSimulationStatusView", StringComparison.Ordinal)
-           && matchExperienceConfig.Contains("\"searchSimulationBudget\": 256", StringComparison.Ordinal)
+           && matchExperienceConfig.Contains("\"searchQuality\": \"balanced\"", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"simulation\"", StringComparison.Ordinal),
         "auto battle ships terminal attribution, bounded search, paired headless evaluation and active-model gates");
     Assert(autoBattleSimulationRuntime.Contains("CombatCampaignRunner", StringComparison.Ordinal)

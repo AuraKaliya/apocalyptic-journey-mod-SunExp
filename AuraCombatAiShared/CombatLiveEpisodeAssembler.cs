@@ -69,7 +69,7 @@ public static class CombatLiveEpisodeAssembler
             1,
             (int)Math.Round(Feature(terminal.StateFeatures, "playerMaxHp")));
         var policyIds = samples
-            .Select(sample => sample.Selection?.ExecutedBy ?? sample.Demonstrator)
+            .Select(sample => sample.Selection.ExecutedBy)
             .Where(value => !string.IsNullOrWhiteSpace(value))
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
@@ -119,7 +119,7 @@ public static class CombatLiveEpisodeAssembler
             ActionSequence = sample.Sequence,
             StateFingerprint = sample.StateFingerprint ?? "",
             StateFeatures = CopyFinite(sample.StateFeatures),
-            ExecutedCandidateId = sample.CandidateId ?? ""
+            ExecutedCandidateId = sample.Selection.ExecutedCandidateId
         };
         foreach (var candidate in sample.Candidates ?? new List<CombatTrainingCandidate>())
         {
@@ -188,7 +188,7 @@ public static class CombatLiveEpisodeAssembler
     {
         return group
             .OrderByDescending(sample => string.Equals(
-                sample.Selection?.ExecutedBy ?? sample.Demonstrator,
+                sample.Selection.ExecutedBy,
                 "human",
                 StringComparison.OrdinalIgnoreCase))
             .ThenByDescending(sample => sample.Terminal)
@@ -201,7 +201,7 @@ public static class CombatLiveEpisodeAssembler
         return sample.DecisionIndex.ToString(CultureInfo.InvariantCulture)
                + "|" + sample.Sequence.ToString(CultureInfo.InvariantCulture)
                + "|" + (sample.StateFingerprint ?? "")
-               + "|" + (sample.CandidateId ?? "");
+               + "|" + sample.Selection.ExecutedCandidateId;
     }
 
     private static bool IsCompleted(CombatTrainingSample sample)
@@ -210,7 +210,12 @@ public static class CombatLiveEpisodeAssembler
                    sample.CompletionState,
                    "Completed",
                    StringComparison.OrdinalIgnoreCase)
-               && !string.IsNullOrWhiteSpace(sample.CandidateId);
+               && string.Equals(
+                   sample.Selection.Protocol,
+                   "aura.combat-ai.selection.v1",
+                   StringComparison.Ordinal)
+               && !string.IsNullOrWhiteSpace(
+                   sample.Selection.ExecutedCandidateId);
     }
 
     private static bool IsKnownOutcome(string? value)

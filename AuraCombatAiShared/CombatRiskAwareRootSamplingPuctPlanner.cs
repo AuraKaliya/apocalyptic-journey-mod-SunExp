@@ -40,7 +40,7 @@ public sealed class CombatSearchResult
     public int BlockedLoops { get; set; }
 }
 
-public sealed class CombatChancePuctPlanner
+public sealed class CombatRiskAwareRootSamplingPuctPlanner
 {
     private readonly IDecisionResidualModel residualModel;
     private readonly ICombatSearchGuidanceModel guidanceModel;
@@ -78,7 +78,7 @@ public sealed class CombatChancePuctPlanner
     private CombatBeliefState rootBelief = new();
     private int determinizationIndex;
 
-    public CombatChancePuctPlanner(
+    public CombatRiskAwareRootSamplingPuctPlanner(
         IDecisionResidualModel? residualModel = null,
         ICombatSearchGuidanceModel? guidanceModel = null,
         bool useRuntimeRegistries = true,
@@ -234,14 +234,7 @@ public sealed class CombatChancePuctPlanner
             };
         }
 
-        var safe = rootEdges.Where(edge => edge.MeanRisk <= profile.DeathRiskLimit).ToList();
-        var selectionPool = safe.Count > 0 ? safe : rootEdges;
-        var best = selectionPool
-            .OrderByDescending(edge => edge.LowerTailCvar(profile.TailRiskQuantile))
-            .ThenByDescending(RootSelectionValue)
-            .ThenByDescending(edge => edge.Visits)
-            .ThenByDescending(edge => edge.Prior)
-            .First();
+        var best = RankRootEdges(rootEdges).First();
         for (var i = 0; i < candidates.Count; i++)
         {
             var matching = rootEdges.FirstOrDefault(edge =>
@@ -288,15 +281,7 @@ public sealed class CombatChancePuctPlanner
         {
             return -1;
         }
-        var safe = rootEdges.Where(edge => edge.MeanRisk <= profile.DeathRiskLimit).ToList();
-        var pool = safe.Count > 0 ? safe : rootEdges;
-        return pool
-            .OrderByDescending(edge => edge.LowerTailCvar(profile.TailRiskQuantile))
-            .ThenByDescending(RootSelectionValue)
-            .ThenByDescending(edge => edge.Visits)
-            .ThenByDescending(edge => edge.Prior)
-            .First()
-            .ActionIndex;
+        return RankRootEdges(rootEdges).First().ActionIndex;
     }
 
     private bool RootLeadIsStable(
@@ -304,27 +289,39 @@ public sealed class CombatChancePuctPlanner
         int bestActionIndex,
         int stabilityWindow)
     {
-        if (!root.Edges.TryGetValue(bestActionIndex, out var best)
-            || best.Visits <= 0)
+        var ranked = RankRootEdges(
+                root.Edges.Values
+                    .Where(edge => edge.ActionIndex >= 0
+                                   && edge.Visits > 0
+                                   && !edge.Disabled)
+                    .ToList())
+            .ToList();
+        if (ranked.Count == 0
+            || ranked[0].ActionIndex != bestActionIndex)
         {
             return false;
         }
-        var secondVisits = 0;
-        var secondValue = double.NegativeInfinity;
-        foreach (var candidate in root.Edges.Values)
+        if (ranked.Count == 1)
         {
-            if (candidate.ActionIndex == bestActionIndex
-                || candidate.Disabled
-                || candidate.Visits <= 0)
-            {
-                continue;
-            }
-            secondVisits = Math.Max(secondVisits, candidate.Visits);
-            secondValue = Math.Max(secondValue, RootSelectionValue(candidate));
+            return ranked[0].Visits >= 2;
         }
+        var best = ranked[0];
+        var second = ranked[1];
+        if (best.Visits < 2 || second.Visits < 1)
+        {
+            return false;
+        }
+
         var requiredVisitLead = Math.Max(4, stabilityWindow / 4);
-        return best.Visits - secondVisits >= requiredVisitLead
-               && RootSelectionValue(best) + 0.0000001d >= secondValue;
+        var requiredValueLead = 0.1d
+                                * profile.UncertaintyPenalty
+                                * (best.RiskEstimate(profile.TailRiskQuantile)
+                                       .StandardError
+                                   + second.RiskEstimate(profile.TailRiskQuantile)
+                                       .StandardError);
+        return best.Visits - second.Visits >= requiredVisitLead
+               && RootSelectionValue(best) - RootSelectionValue(second)
+               > requiredValueLead;
     }
 
     private void Simulate(SearchNode root, SearchEdge? forcedRoot)
@@ -483,7 +480,7 @@ public sealed class CombatChancePuctPlanner
                 break;
             }
 
-            outcome.Child = child;
+            outcome.RecordChild(hash, child);
             outcome.Visits++;
             node = child;
             currentState = child.State;
@@ -630,9 +627,7 @@ CompleteSimulation:
 
             var exploitation = edge.Visits == 0
                 ? 0d
-                : edge.MeanValue * 0.65d
-                  + edge.LowerTailCvar(profile.TailRiskQuantile) * 0.35d
-                  - profile.TailRiskPenalty * edge.MeanRisk;
+                : RootSelectionValue(edge);
             var exploration = profile.SearchExploration
                               * edge.NormalizedPrior
                               * Math.Sqrt(parentVisits)
@@ -778,12 +773,27 @@ CompleteSimulation:
             ? new CombatPolicyValuePrediction()
             : policyValueModel.Evaluate(
                 CombatPolicyValueEncoding.BuildInput(state, legal));
+        var ruleMean = legal.Average(candidate => candidate.RuleScore);
+        var ruleVariance = legal.Average(candidate =>
+        {
+            var delta = candidate.RuleScore - ruleMean;
+            return delta * delta;
+        });
+        var ruleDeviation = Math.Sqrt(Math.Max(0d, ruleVariance));
         var logits = legal
-            .Select(candidate => candidate.RuleScore
-                                 + guidanceModel.PolicyLogit(candidate.Action.Features)
-                                 + NetworkPolicyLogit(
-                                     networkPrediction,
-                                     candidate.Action.CandidateId) * 0.35d)
+            .Select(candidate =>
+                NormalizeRuleScore(
+                    candidate.RuleScore,
+                    ruleMean,
+                    ruleDeviation)
+                + ClampFinite(
+                    guidanceModel.PolicyLogit(
+                        candidate.Action.Features),
+                    -4d,
+                    4d)
+                + NetworkPolicyLogit(
+                    networkPrediction,
+                    candidate.Action.CandidateId))
             .Select(value => Math.Max(-30d, Math.Min(30d, value)))
             .ToArray();
         var maximum = logits.Max();
@@ -814,6 +824,36 @@ CompleteSimulation:
             });
         }
         return result;
+    }
+
+    private static double NormalizeRuleScore(
+        double value,
+        double mean,
+        double standardDeviation)
+    {
+        if (double.IsNaN(value)
+            || double.IsInfinity(value)
+            || double.IsNaN(mean)
+            || double.IsInfinity(mean)
+            || double.IsNaN(standardDeviation)
+            || double.IsInfinity(standardDeviation)
+            || standardDeviation < 0.000001d)
+        {
+            return 0d;
+        }
+        return Math.Max(
+            -3d,
+            Math.Min(3d, (value - mean) / standardDeviation));
+    }
+
+    private static double ClampFinite(
+        double value,
+        double minimum,
+        double maximum)
+    {
+        return double.IsNaN(value) || double.IsInfinity(value)
+            ? 0d
+            : Math.Max(minimum, Math.Min(maximum, value));
     }
 
     private CombatLeafEvaluation EvaluateLeaf(CombatSimulationState state)
@@ -869,7 +909,7 @@ CompleteSimulation:
         return prediction.PolicyLogits.TryGetValue(candidateId ?? "", out var value)
                && !double.IsNaN(value)
                && !double.IsInfinity(value)
-            ? value
+            ? Math.Max(-4d, Math.Min(4d, value))
             : 0d;
     }
 
@@ -905,9 +945,43 @@ CompleteSimulation:
 
     private double RootSelectionValue(SearchEdge edge)
     {
-        return edge.MeanValue * 0.65d
-               + edge.LowerTailCvar(profile.TailRiskQuantile) * 0.35d
-               - profile.TailRiskPenalty * edge.MeanRisk;
+        var estimate = edge.RiskEstimate(profile.TailRiskQuantile);
+        return CombatRiskAdjustedSearchValue.Calculate(
+            estimate,
+            edge.MeanRisk,
+            profile);
+    }
+
+    private IOrderedEnumerable<SearchEdge> RankRootEdges(
+        IReadOnlyList<SearchEdge> rootEdges)
+    {
+        if (rootEdges.Count == 0)
+        {
+            return Enumerable.Empty<SearchEdge>()
+                .OrderBy(edge => edge.ActionIndex);
+        }
+        var safe = rootEdges
+            .Where(edge => edge.MeanRisk <= profile.DeathRiskLimit)
+            .ToList();
+        IReadOnlyList<SearchEdge> pool;
+        if (safe.Count > 0)
+        {
+            pool = safe;
+        }
+        else
+        {
+            var minimumRisk = rootEdges.Min(edge => edge.MeanRisk);
+            pool = rootEdges
+                .Where(edge => edge.MeanRisk <= minimumRisk + 0.01d)
+                .ToList();
+        }
+        return pool
+            .OrderByDescending(RootSelectionValue)
+            .ThenByDescending(edge => edge.Visits)
+            .ThenByDescending(edge => edge.Prior)
+            .ThenBy(
+                edge => actions[edge.ActionIndex].Action.CandidateId,
+                StringComparer.Ordinal);
     }
 
     private List<CombatPlanStep> BuildPrincipalVariation(SearchNode root, SearchEdge first)
@@ -919,10 +993,11 @@ CompleteSimulation:
         {
             var action = actions[edge.ActionIndex].Action;
             var outcome = edge.Outcomes
-                .Where(item => item.Child != null)
+                .Where(item => item.RepresentativeChild != null)
                 .OrderByDescending(item => item.Visits)
                 .ThenByDescending(item => item.Outcome.Probability)
                 .FirstOrDefault();
+            var representativeChild = outcome?.RepresentativeChild;
             result.Add(new CombatPlanStep
             {
                 CandidateId = action.CandidateId,
@@ -930,7 +1005,7 @@ CompleteSimulation:
                 DisplayName = action.DisplayName,
                 StepScore = edge.MeanValue,
                 CumulativeScore = RootSelectionValue(edge),
-                RemainingPower = outcome?.Child?.State.Power ?? node.State.Power,
+                RemainingPower = representativeChild?.State.Power ?? node.State.Power,
                 DeathRisk = edge.MeanRisk,
                 Visits = edge.Visits
             });
@@ -938,20 +1013,17 @@ CompleteSimulation:
             {
                 break;
             }
-            if (outcome?.Child == null)
+            if (representativeChild == null)
             {
                 break;
             }
-            node = outcome.Child;
+            node = representativeChild;
             EnsureEdges(node);
-            edge = node.Edges.Values
-                .Where(candidate => candidate.Visits > 0 && !candidate.Disabled)
-                .OrderByDescending(candidate =>
-                    candidate.LowerTailCvar(profile.TailRiskQuantile))
-                .ThenByDescending(candidate =>
-                    candidate.MeanValue
-                    - profile.TailRiskPenalty * candidate.MeanRisk)
-                .ThenByDescending(candidate => candidate.Visits)
+            edge = RankRootEdges(
+                    node.Edges.Values
+                        .Where(candidate => candidate.Visits > 0
+                                            && !candidate.Disabled)
+                        .ToList())
                 .FirstOrDefault()!;
             if (edge == null)
             {
@@ -966,7 +1038,7 @@ CompleteSimulation:
         IReadOnlyList<CombatPlanStep> steps,
         int simulations)
     {
-        return "root-sampling-chance-puct-mpc(simulations="
+        return "risk-aware-root-sampling-puct-mpc(simulations="
                + simulations
                + ", nodes="
                + nodeCount
@@ -977,7 +1049,13 @@ CompleteSimulation:
                + ", risk="
                + best.MeanRisk.ToString("0.000")
                + ", cvar="
-               + best.LowerTailCvar(profile.TailRiskQuantile).ToString("0.00")
+               + best.RiskEstimate(profile.TailRiskQuantile)
+                   .EffectiveLowerTailMean.ToString("0.00")
+               + ", tailSamples="
+               + best.RiskEstimate(profile.TailRiskQuantile).TailSampleCount
+               + ", tailConfidence="
+               + best.RiskEstimate(profile.TailRiskQuantile)
+                   .TailConfidence.ToString("0.00")
                + "); plan="
                + string.Join(" -> ", steps.Select(step => step.DisplayName))
                + "; value="
@@ -1038,51 +1116,26 @@ CompleteSimulation:
 
         public double NormalizedPrior { get; set; }
 
-        public int Visits { get; set; }
-
-        public double ValueSum { get; set; }
-
-        public double RiskSum { get; set; }
+        private CombatSearchRiskStatistics Statistics { get; } = new();
 
         public bool Disabled { get; set; }
 
         public List<SearchOutcome> Outcomes { get; } = new();
 
-        private List<double> ReturnSamples { get; } = new();
+        public int Visits => Statistics.Count;
 
-        public double MeanValue => Visits <= 0 ? 0d : ValueSum / Visits;
+        public double MeanValue => Statistics.Mean;
 
-        public double MeanRisk => Visits <= 0 ? 1d : RiskSum / Visits;
+        public double MeanRisk => Statistics.MeanRisk;
 
         public void Record(double value, double risk)
         {
-            Visits++;
-            ValueSum += value;
-            RiskSum += risk;
-            if (ReturnSamples.Count < 2048)
-            {
-                ReturnSamples.Add(value);
-            }
-            else
-            {
-                ReturnSamples[Visits % ReturnSamples.Count] = value;
-            }
+            Statistics.Record(value, risk);
         }
 
-        public double LowerTailCvar(double quantile)
+        public CombatSearchRiskEstimate RiskEstimate(double quantile)
         {
-            if (ReturnSamples.Count == 0)
-            {
-                return MeanValue;
-            }
-            var normalized = Math.Max(0.01d, Math.Min(1d, quantile));
-            var count = Math.Max(
-                1,
-                (int)Math.Ceiling(ReturnSamples.Count * normalized));
-            return ReturnSamples
-                .OrderBy(value => value)
-                .Take(count)
-                .Average();
+            return Statistics.Estimate(quantile);
         }
     }
 
@@ -1090,7 +1143,36 @@ CompleteSimulation:
     {
         public CombatActionOutcome Outcome { get; set; } = new();
 
-        public SearchNode? Child { get; set; }
+        public int Visits { get; set; }
+
+        private Dictionary<ulong, ChildEvidence> Children { get; } = new();
+
+        public SearchNode? RepresentativeChild => Children.Values
+            .OrderByDescending(item => item.Visits)
+            .ThenBy(item => item.Hash)
+            .Select(item => item.Node)
+            .FirstOrDefault();
+
+        public void RecordChild(ulong hash, SearchNode child)
+        {
+            if (!Children.TryGetValue(hash, out var evidence))
+            {
+                evidence = new ChildEvidence
+                {
+                    Hash = hash,
+                    Node = child
+                };
+                Children[hash] = evidence;
+            }
+            evidence.Visits++;
+        }
+    }
+
+    private sealed class ChildEvidence
+    {
+        public ulong Hash { get; set; }
+
+        public SearchNode Node { get; set; } = new();
 
         public int Visits { get; set; }
     }

@@ -270,7 +270,6 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                         var current = AuraToolsConfigService.MatchExperience.AutoBattle;
                         current.SelectedModelId = result.ModelId;
                         current.TrainedModelMode = "off";
-                        current.UseTrainedModel = false;
                         current.CaptureTrainingSamples = false;
                         current.Normalize();
                         AuraToolsConfigService.SaveMatchExperience();
@@ -448,15 +447,8 @@ internal static class AuraToolsAutoBattleFoundationRuntime
         }
         var decisionProfile =
             AuraToolsAutoBattleSimulationRuntime.BuildDecisionProfile(settings);
-        decisionProfile.SearchSimulationBudget = Math.Min(
-            512,
-            decisionProfile.SearchSimulationBudget);
-        decisionProfile.SearchNodeBudget = Math.Min(
-            4096,
-            decisionProfile.SearchNodeBudget);
-        decisionProfile.SearchMaxPly = Math.Min(12, decisionProfile.SearchMaxPly);
-        decisionProfile.DynamicSearchBudgetEnabled =
-            foundation.EnableDynamicSearchBudget;
+        decisionProfile.SearchBudgetMode = "dynamic";
+        decisionProfile.SearchQuality = "deep";
         decisionProfile.SearchMinimumSimulations = 64;
         decisionProfile.SearchStabilityWindow = 32;
         decisionProfile.SearchStableChecks = 2;
@@ -750,11 +742,11 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                         CheckpointPath = Path.Combine(
                             AuraToolsAutoBattleSimulationRuntime
                                 .ResultsRootDirectory,
-                            "foundation-training-checkpoint-v3.json"),
+                            "foundation-training-checkpoint-v4.json"),
                         CheckpointEpisodesPath = Path.Combine(
                             AuraToolsAutoBattleSimulationRuntime
                                 .ResultsRootDirectory,
-                            "foundation-training-checkpoint-episodes-v3.jsonl"),
+                            "foundation-training-checkpoint-episodes-v4.jsonl"),
                         SuccessArchiveDirectory = successArchiveDirectory,
                         Request = request,
                         Ruleset = new CombatRulesetDocument
@@ -787,7 +779,7 @@ internal static class AuraToolsAutoBattleFoundationRuntime
             var currentStatus = GetStatus();
             var resumeCheckpoint = Path.Combine(
                 AuraToolsAutoBattleSimulationRuntime.ResultsRootDirectory,
-                "foundation-training-checkpoint-v3.json");
+                "foundation-training-checkpoint-v4.json");
             var resumable = File.Exists(resumeCheckpoint);
             return new FoundationWorkResult
             {
@@ -1370,7 +1362,6 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                 settings.EnableStratifiedReplay,
                 settings.EnableHardSeedCurriculum,
                 settings.EnableSuccessCaseArchive,
-                settings.EnableDynamicSearchBudget,
                 settings.EnableArenaRecovery,
                 settings.ArenaInvalidRetryCount,
                 settings.ArenaInvalidRateLimit,
@@ -1538,7 +1529,7 @@ internal static class AuraToolsAutoBattleFoundationRuntime
             }));
         var episodesPath = Path.Combine(
             resultDirectory,
-            "foundation-training-episodes-v2.jsonl");
+            "foundation-training-episodes-v3.jsonl");
         if (!writeFullReplay
             || result.Replay.Count > 0
             || !File.Exists(episodesPath))

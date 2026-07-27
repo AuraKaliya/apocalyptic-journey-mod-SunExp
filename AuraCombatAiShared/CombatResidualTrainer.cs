@@ -23,7 +23,7 @@ public sealed class CombatResidualTrainingResult
 
 public sealed class CombatResidualTrainingOptions
 {
-    public string PresetId { get; set; } = "legacy";
+    public string PresetId { get; set; } = "custom";
 
     public int Epochs { get; set; } = 100;
 
@@ -179,7 +179,7 @@ public static class CombatResidualTrainer
         var model = new DecisionResidualModelDefinition
         {
             ModelId = "aura-combat-contextual-" + DateTime.UtcNow.ToString("yyyyMMddHHmmss"),
-            FeatureSchemaVersion = 5,
+            FeatureSchemaVersion = CombatTrainingProtocol.FeatureSchemaVersion,
             ApplicabilityProtocolVersion = 1,
             DecisionProfile = profile,
             TrainingPreset = options.PresetId,
@@ -233,7 +233,7 @@ public static class CombatResidualTrainer
         }
 
         AddUtility(result, candidate.Utility);
-        AddLegacyContext(result, sample, candidate);
+        AddDerivedContext(result, sample, candidate);
         return result;
     }
 
@@ -293,7 +293,7 @@ public static class CombatResidualTrainer
         result["utilityCoordination"] = Finite(utility.Coordination);
     }
 
-    private static void AddLegacyContext(
+    private static void AddDerivedContext(
         IDictionary<string, double> result,
         CombatTrainingSample sample,
         CombatTrainingCandidate candidate)

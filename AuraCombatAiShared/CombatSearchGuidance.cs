@@ -77,7 +77,8 @@ public sealed class CombatSearchGuidanceDefinition
 
     public int ProtocolVersion { get; set; } = 1;
 
-    public int FeatureSchemaVersion { get; set; } = 5;
+    public int FeatureSchemaVersion { get; set; } =
+        CombatTrainingProtocol.FeatureSchemaVersion;
 
     public string ModelId { get; set; } = "";
 
