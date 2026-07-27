@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.Diagnostics;
 using System.IO;
 using System.Linq;
@@ -454,6 +455,24 @@ internal static class AuraToolsAutoBattleFoundationRuntime
             4096,
             decisionProfile.SearchNodeBudget);
         decisionProfile.SearchMaxPly = Math.Min(12, decisionProfile.SearchMaxPly);
+        decisionProfile.DynamicSearchBudgetEnabled =
+            foundation.EnableDynamicSearchBudget;
+        decisionProfile.SearchMinimumSimulations = 64;
+        decisionProfile.SearchStabilityWindow = 32;
+        decisionProfile.SearchStableChecks = 2;
+        var successArchiveDirectory = SuccessArchiveDirectory();
+        var expertEpisodeLimit = foundation.EnableSuccessCaseArchive
+            ? Math.Min(
+                1024,
+                (int)Math.Round(
+                    foundation.ModelReplayEpisodeLimit
+                    * foundation.SuccessExpertReplayShare))
+            : 0;
+        var expertReplayEpisodes = LoadExpertReplayEpisodes(
+            successArchiveDirectory,
+            trainingCampaign,
+            ruleset.RulesetHash,
+            expertEpisodeLimit);
         var request = new CombatCampaignFoundationTrainingRequest
         {
             RunSeed = foundation.RunSeed,
@@ -474,6 +493,23 @@ internal static class AuraToolsAutoBattleFoundationRuntime
             EnableStratifiedReplay = foundation.EnableStratifiedReplay,
             EnableHardSeedCurriculum =
                 foundation.EnableHardSeedCurriculum,
+            EnableSuccessCaseArchive =
+                foundation.EnableSuccessCaseArchive,
+            EnableArenaRecovery = foundation.EnableArenaRecovery,
+            ArenaInvalidRetryCount =
+                foundation.ArenaInvalidRetryCount,
+            ArenaInvalidRateLimit =
+                foundation.ArenaInvalidRateLimit,
+            EnableTuningArena = foundation.EnableTuningArena,
+            TuningNormalCampaigns = foundation.TuningNormalCampaigns,
+            TuningAdvancedCampaigns =
+                foundation.TuningAdvancedCampaigns,
+            NormalAcceptanceRate = foundation.NormalAcceptanceRate,
+            AdvancedAcceptanceRate =
+                foundation.AdvancedAcceptanceRate,
+            NativeProgramPackageHash =
+                CurrentRuntimePackageHash(),
+            ExpertReplayEpisodes = expertReplayEpisodes,
             HardSeedReplayShare =
                 foundation.HardSeedReplayShare,
             SelfPlayExplorationProbability =
@@ -482,6 +518,7 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                 foundation.SelfPlayExplorationTemperature,
             TrainingSeedStart = foundation.TrainingSeedStart,
             ArenaSeedStart = foundation.ArenaSeedStart,
+            TuningSeedStart = foundation.TuningSeedStart,
             ValidationSeedStart = foundation.ValidationSeedStart,
             Profile = decisionProfile,
             TrainingCampaign = trainingCampaign,
@@ -489,16 +526,24 @@ internal static class AuraToolsAutoBattleFoundationRuntime
             Training = new CombatPolicyValueTrainingOptions
             {
                 Epochs = foundation.ModelEpochs,
-                LearningRate = Math.Min(0.02d, settings.Training.LearningRate),
-                L2 = settings.Training.L2,
-                HiddenDimensions = settings.Training.PolicyValueHiddenDimensions,
+                LearningRate = foundation.ModelLearningRate,
+                L2 = foundation.ModelL2,
+                StateDimensions = foundation.ModelStateDimensions,
+                ActionDimensions = foundation.ModelActionDimensions,
+                HiddenDimensions = foundation.ModelHiddenDimensions,
+                FeatureEncodingMode =
+                    foundation.ModelFeatureEncodingMode,
                 BatchSize = foundation.ModelBatchSize,
                 MaximumDegreeOfParallelism = foundation.Parallelism,
                 MinimumEpochs = foundation.ModelMinimumEpochs,
                 EarlyStoppingPatience =
                     foundation.ModelEarlyStoppingPatience,
+                EarlyStoppingMinimumDelta =
+                    foundation.ModelEarlyStoppingMinimumDelta,
                 ReplayEpisodeLimit =
                     foundation.ModelReplayEpisodeLimit,
+                RetainedModelCandidates =
+                    foundation.ModelRetainedCandidates,
                 MinimumEpisodes = Math.Min(
                     settings.Training.MinimumEpisodes,
                     foundation.TrainingCampaignsPerIteration)
@@ -628,6 +673,46 @@ internal static class AuraToolsAutoBattleFoundationRuntime
             AuraToolsAutoBattleSimulationRuntime.ResultsRootDirectory,
             runId);
         Directory.CreateDirectory(resultDirectory);
+        var incrementallyArchivedCases =
+            new HashSet<string>(StringComparer.Ordinal);
+        var incrementalArchiveErrors = new List<string>();
+        if (foundation.EnableSuccessCaseArchive
+            && string.Equals(
+                foundation.ExecutionMode,
+                "inprocess",
+                StringComparison.Ordinal))
+        {
+            request.ObservationRecorded = observation =>
+            {
+                try
+                {
+                    PersistObservation(
+                        successArchiveDirectory,
+                        observation);
+                }
+                catch (Exception ex)
+                {
+                    incrementalArchiveErrors.Add(ex.ToString());
+                }
+            };
+            request.SuccessCaseRecorded = successCase =>
+            {
+                try
+                {
+                    if (PersistSuccessCase(
+                            successArchiveDirectory,
+                            successCase))
+                    {
+                        incrementallyArchivedCases.Add(
+                            successCase.Observation.CaseId);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    incrementalArchiveErrors.Add(ex.ToString());
+                }
+            };
+        }
 
         CombatCampaignFoundationTrainingResult trained;
         try
@@ -665,11 +750,12 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                         CheckpointPath = Path.Combine(
                             AuraToolsAutoBattleSimulationRuntime
                                 .ResultsRootDirectory,
-                            "foundation-training-checkpoint-v2.json"),
+                            "foundation-training-checkpoint-v3.json"),
                         CheckpointEpisodesPath = Path.Combine(
                             AuraToolsAutoBattleSimulationRuntime
                                 .ResultsRootDirectory,
-                            "foundation-training-checkpoint-episodes-v2.jsonl"),
+                            "foundation-training-checkpoint-episodes-v3.jsonl"),
+                        SuccessArchiveDirectory = successArchiveDirectory,
                         Request = request,
                         Ruleset = new CombatRulesetDocument
                         {
@@ -701,7 +787,7 @@ internal static class AuraToolsAutoBattleFoundationRuntime
             var currentStatus = GetStatus();
             var resumeCheckpoint = Path.Combine(
                 AuraToolsAutoBattleSimulationRuntime.ResultsRootDirectory,
-                "foundation-training-checkpoint-v2.json");
+                "foundation-training-checkpoint-v3.json");
             var resumable = File.Exists(resumeCheckpoint);
             return new FoundationWorkResult
             {
@@ -770,6 +856,33 @@ internal static class AuraToolsAutoBattleFoundationRuntime
             searchEarlyStops: trained.SearchEarlyStops,
             searchSimulationsPerSecond: trained.SearchSimulations
                                         / finalElapsedSeconds);
+        if (foundation.EnableSuccessCaseArchive
+            && (trained.CampaignObservations.Count > 0
+            || trained.SuccessCases.Count > 0)
+           )
+        {
+            try
+            {
+                PersistSuccessCases(
+                    resultDirectory,
+                    successArchiveDirectory,
+                    trained,
+                    incrementallyArchivedCases,
+                    incrementalArchiveErrors);
+            }
+            catch (Exception ex)
+            {
+                trained.CaseAnalysis = CombatFoundationCaseLearning.Analyze(
+                    trained.CampaignObservations);
+                trained.SuccessArchiveError = ex.ToString();
+                AuraToolsLog.Info(
+                    "[AutoBattle][Foundation][SuccessArchive] write failed "
+                    + "without invalidating training: "
+                    + ex);
+                trained.CampaignObservations.Clear();
+                trained.SuccessCases.Clear();
+            }
+        }
         foreach (var validationRun in trained.ValidationRuns)
         {
             AuraToolsAutoBattleSimulationRuntime.PruneCampaignTrace(validationRun);
@@ -838,6 +951,305 @@ internal static class AuraToolsAutoBattleFoundationRuntime
             SearchSimulationsPerSecond = trained.SearchSimulations
                                          / finalElapsedSeconds
         };
+    }
+
+    private static string SuccessArchiveDirectory()
+    {
+        return Path.Combine(
+            AuraToolsAutoBattleSimulationRuntime.ResultsRootDirectory,
+            "foundation-success-cases");
+    }
+
+    private static List<CombatEpisode> LoadExpertReplayEpisodes(
+        string archiveRoot,
+        CombatCampaignDefinition campaign,
+        string rulesetHash,
+        int episodeLimit)
+    {
+        if (episodeLimit <= 0 || !Directory.Exists(archiveRoot))
+        {
+            return new List<CombatEpisode>();
+        }
+        try
+        {
+            var compatibilityKey =
+                CombatFoundationCaseLearning.CompatibilityKey(
+                    campaign.CampaignId,
+                    campaign.CampaignVersion,
+                    rulesetHash);
+            var casesDirectory = Path.Combine(
+                archiveRoot,
+                "v" + CombatFoundationCaseLearning.ArchiveSchemaVersion,
+                compatibilityKey,
+                "expert-cases");
+            if (!Directory.Exists(casesDirectory))
+            {
+                return new List<CombatEpisode>();
+            }
+            var cases = new List<CombatFoundationSuccessCase>();
+            foreach (var path in Directory.EnumerateFiles(
+                         casesDirectory,
+                         "*.json",
+                         SearchOption.TopDirectoryOnly)
+                     .OrderByDescending(File.GetLastWriteTimeUtc)
+                     .Take(512))
+            {
+                try
+                {
+                    var successCase =
+                        AuraSharedJson.Deserialize<CombatFoundationSuccessCase>(
+                            File.ReadAllText(path));
+                    if (successCase != null)
+                    {
+                        cases.Add(successCase);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AuraToolsLog.Info(
+                        "[AutoBattle][Foundation][SuccessArchive] ignored "
+                        + Path.GetFileName(path)
+                        + ": "
+                        + ex.Message);
+                }
+            }
+            var episodes = CombatFoundationCaseLearning.SelectExpertEpisodes(
+                cases,
+                campaign.CampaignId,
+                campaign.CampaignVersion,
+                rulesetHash,
+                episodeLimit);
+            AuraToolsLog.Info(
+                "[AutoBattle][Foundation][SuccessArchive] compatibleCases="
+                + cases.Count
+                + ", expertEpisodes="
+                + episodes.Count
+                + "/"
+                + episodeLimit
+                + ", compatibility="
+                + compatibilityKey);
+            return episodes;
+        }
+        catch (Exception ex)
+        {
+            AuraToolsLog.Info(
+                "[AutoBattle][Foundation][SuccessArchive] load failed: "
+                + ex.Message);
+            return new List<CombatEpisode>();
+        }
+    }
+
+    private static void PersistObservation(
+        string archiveRoot,
+        CombatFoundationCampaignObservation observation)
+    {
+        var path = Path.Combine(
+            archiveRoot,
+            "v" + CombatFoundationCaseLearning.ArchiveSchemaVersion,
+            observation.CompatibilityKey,
+            "observations",
+            observation.CaseId + ".json");
+        if (!File.Exists(path))
+        {
+            WriteText(path, AuraSharedJson.Serialize(observation));
+        }
+    }
+
+    private static bool PersistSuccessCase(
+        string archiveRoot,
+        CombatFoundationSuccessCase successCase)
+    {
+        var observation = successCase.Observation;
+        var compatibilityDirectory = Path.Combine(
+            archiveRoot,
+            "v" + CombatFoundationCaseLearning.ArchiveSchemaVersion,
+            observation.CompatibilityKey);
+        var casePath = Path.Combine(
+            compatibilityDirectory,
+            "cases",
+            observation.CaseId + ".json");
+        var added = !File.Exists(casePath);
+        if (added)
+        {
+            WriteText(casePath, AuraSharedJson.Serialize(successCase));
+        }
+        if (successCase.Episodes.Count > 0)
+        {
+            var expertCasePath = Path.Combine(
+                compatibilityDirectory,
+                "expert-cases",
+                observation.CaseId + ".json");
+            if (!File.Exists(expertCasePath))
+            {
+                WriteText(
+                    expertCasePath,
+                    AuraSharedJson.Serialize(successCase));
+            }
+        }
+        return added;
+    }
+
+    private static void PersistSuccessCases(
+        string resultDirectory,
+        string archiveRoot,
+        CombatCampaignFoundationTrainingResult result,
+        ISet<string> incrementallyArchivedCases,
+        IReadOnlyList<string> incrementalArchiveErrors)
+    {
+        Directory.CreateDirectory(archiveRoot);
+        var currentObservations = result.CampaignObservations
+            .Where(item => item != null)
+            .GroupBy(item => item.CaseId, StringComparer.Ordinal)
+            .Select(group => group.First())
+            .OrderBy(item => item.CaseId, StringComparer.Ordinal)
+            .ToList();
+        var observationIndex = new StringBuilder();
+        foreach (var observation in currentObservations)
+        {
+            var observationPath = Path.Combine(
+                archiveRoot,
+                "v" + CombatFoundationCaseLearning.ArchiveSchemaVersion,
+                observation.CompatibilityKey,
+                "observations",
+                observation.CaseId + ".json");
+            if (!File.Exists(observationPath))
+            {
+                WriteText(
+                    observationPath,
+                    AuraSharedJson.Serialize(observation));
+            }
+            observationIndex.AppendLine(
+                AuraSharedJson.SerializeCompact(observation));
+        }
+        WriteText(
+            Path.Combine(
+                resultDirectory,
+                "foundation-case-observations-v1.jsonl"),
+            observationIndex.ToString());
+        var cumulativeObservations =
+            new List<CombatFoundationCampaignObservation>();
+        foreach (var compatibilityKey in currentObservations
+                     .Select(item => item.CompatibilityKey)
+                     .Distinct(StringComparer.Ordinal))
+        {
+            var observationDirectory = Path.Combine(
+                archiveRoot,
+                "v" + CombatFoundationCaseLearning.ArchiveSchemaVersion,
+                compatibilityKey,
+                "observations");
+            if (!Directory.Exists(observationDirectory))
+            {
+                continue;
+            }
+            foreach (var path in Directory.EnumerateFiles(
+                         observationDirectory,
+                         "*.json",
+                         SearchOption.TopDirectoryOnly)
+                     .OrderBy(item => item, StringComparer.Ordinal)
+                     .Take(20_000))
+            {
+                try
+                {
+                    var observation = AuraSharedJson
+                        .Deserialize<CombatFoundationCampaignObservation>(
+                            File.ReadAllText(path));
+                    if (observation != null)
+                    {
+                        cumulativeObservations.Add(observation);
+                    }
+                }
+                catch (Exception ex)
+                {
+                    AuraToolsLog.Info(
+                        "[AutoBattle][Foundation][SuccessArchive] ignored "
+                        + Path.GetFileName(path)
+                        + ": "
+                        + ex.Message);
+                }
+            }
+        }
+        result.CaseAnalysis = CombatFoundationCaseLearning.Analyze(
+            cumulativeObservations.Count == 0
+                ? currentObservations
+                : cumulativeObservations);
+        var archived = 0;
+        var duplicates = 0;
+        var index = new StringBuilder();
+        foreach (var successCase in result.SuccessCases
+                     .Where(item =>
+                         item?.Observation?.ArchiveEligible == true)
+                     .GroupBy(
+                         item => item.Observation.CaseId,
+                         StringComparer.Ordinal)
+                     .Select(group => group.First())
+                     .OrderBy(
+                         item => item.Observation.CompatibilityKey,
+                         StringComparer.Ordinal)
+                     .ThenBy(
+                         item => item.Observation.CaseId,
+                         StringComparer.Ordinal))
+        {
+            var observation = successCase.Observation;
+            var casePath = Path.Combine(
+                archiveRoot,
+                "v" + CombatFoundationCaseLearning.ArchiveSchemaVersion,
+                observation.CompatibilityKey,
+                "cases",
+                observation.CaseId + ".json");
+            if (File.Exists(casePath))
+            {
+                if (incrementallyArchivedCases.Contains(observation.CaseId))
+                {
+                    archived++;
+                }
+                else
+                {
+                    duplicates++;
+                }
+            }
+            else
+            {
+                WriteText(casePath, AuraSharedJson.Serialize(successCase));
+                archived++;
+            }
+            if (successCase.Episodes.Count > 0)
+            {
+                var expertCasePath = Path.Combine(
+                    archiveRoot,
+                    "v" + CombatFoundationCaseLearning.ArchiveSchemaVersion,
+                    observation.CompatibilityKey,
+                    "expert-cases",
+                    observation.CaseId + ".json");
+                if (!File.Exists(expertCasePath))
+                {
+                    WriteText(
+                        expertCasePath,
+                        AuraSharedJson.Serialize(successCase));
+                }
+            }
+            index.AppendLine(AuraSharedJson.SerializeCompact(observation));
+        }
+        var indexPath = Path.Combine(
+            resultDirectory,
+            "foundation-success-case-index-v1.jsonl");
+        WriteText(indexPath, index.ToString());
+        WriteText(
+            Path.Combine(
+                resultDirectory,
+                "foundation-success-analysis-v1.json"),
+            AuraSharedJson.Serialize(result.CaseAnalysis));
+        result.ArchivedSuccessCases = archived;
+        result.DuplicateSuccessCases = duplicates;
+        result.SuccessArchiveDirectory = archiveRoot;
+        result.SuccessCaseIndexPath = indexPath;
+        if (incrementalArchiveErrors.Count > 0)
+        {
+            result.SuccessArchiveError = string.Join(
+                Environment.NewLine,
+                incrementalArchiveErrors.Take(4));
+        }
+        result.CampaignObservations.Clear();
+        result.SuccessCases.Clear();
     }
 
     private static void WriteReports(
@@ -920,7 +1332,7 @@ internal static class AuraToolsAutoBattleFoundationRuntime
             Path.Combine(resultDirectory, "foundation-training-report.json"),
             AuraSharedJson.Serialize(new
             {
-                schemaVersion = 4,
+                schemaVersion = 6,
                 reportKind = "career_1-world-simulation-foundation-training",
                 createdUtc = DateTime.UtcNow,
                 roleId = campaign.Player.RoleId,
@@ -940,6 +1352,7 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                     preflightSeedStart = result.TrainingSeedStart,
                     result.TrainingSeedStart,
                     result.ArenaSeedStart,
+                    result.TuningSeedStart,
                     result.ValidationSeedStart,
                     result.ModelRandomSeed,
                     randomized = settings.RandomizeRunSeed
@@ -956,6 +1369,17 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                 settings.EnableCurriculum,
                 settings.EnableStratifiedReplay,
                 settings.EnableHardSeedCurriculum,
+                settings.EnableSuccessCaseArchive,
+                settings.EnableDynamicSearchBudget,
+                settings.EnableArenaRecovery,
+                settings.ArenaInvalidRetryCount,
+                settings.ArenaInvalidRateLimit,
+                settings.EnableTuningArena,
+                settings.TuningNormalCampaigns,
+                settings.TuningAdvancedCampaigns,
+                settings.NormalAcceptanceRate,
+                settings.AdvancedAcceptanceRate,
+                settings.SuccessExpertReplayShare,
                 settings.HardSeedReplayShare,
                 settings.SelfPlayExplorationProbability,
                 settings.SelfPlayExplorationTemperature,
@@ -969,6 +1393,13 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                 result.DiscardedInvalidEpisodes,
                 result.TerminalConsistencyViolations,
                 result.FeatureLeakageViolations,
+                result.Compatibility,
+                result.HardSeedHistory,
+                result.ArenaRetryAttempts,
+                result.ArenaRecoveredCampaigns,
+                result.ArenaIsolatedPairs,
+                result.ArenaReplacementPairs,
+                result.ArenaInvalidSignatures,
                 result.TrainingFailureCounts,
                 result.TrainingFailures,
                 result.ArenaFailureCounts,
@@ -984,6 +1415,18 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                     reason = writeFullReplay
                         ? "bounded-prioritized-diverse-replay"
                         : "failed-training-keeps-only-reproduction-metadata"
+                },
+                successCaseLearning = new
+                {
+                    result.LoadedExpertReplayEpisodes,
+                    result.ArchivedSuccessCases,
+                    result.DuplicateSuccessCases,
+                    result.SuccessArchiveDirectory,
+                    result.SuccessCaseIndexPath,
+                    result.SuccessArchiveError,
+                    analysis = result.CaseAnalysis,
+                    replayPolicy =
+                        "bounded-success-demonstrations-plus-balanced-failures"
                 },
                 progression = new
                 {
@@ -1067,6 +1510,7 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                     result.SearchSimulations,
                     result.SearchNodes,
                     result.SearchEarlyStops,
+                    result.SearchBudgetTierCounts,
                     result.RuleTerminalOverrides,
                     result.CertifiedLoops,
                     result.SustainableControlLoops,
@@ -1129,12 +1573,21 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                     result.RunSeed,
                     result.TrainingSeedStart,
                     result.ArenaSeedStart,
+                    result.TuningSeedStart,
                     result.ValidationSeedStart,
                     result.ModelRandomSeed,
                     settings.Parallelism,
                     settings.Iterations,
                     settings.TrainingCampaignsPerIteration,
                     settings.ArenaCampaignsPerDifficulty,
+                    result.Compatibility,
+                    result.HardSeedHistory,
+                    result.ArenaRetryAttempts,
+                    result.ArenaRecoveredCampaigns,
+                    result.ArenaIsolatedPairs,
+                    result.ArenaReplacementPairs,
+                    result.ArenaInvalidSignatures,
+                    result.SearchBudgetTierCounts,
                     result.Message,
                     result.TrainingFailureCounts,
                     result.TrainingFailures,
@@ -1146,6 +1599,45 @@ internal static class AuraToolsAutoBattleFoundationRuntime
         }
 
         var markdown = new StringBuilder();
+        markdown.AppendLine("# 成功案例学习摘要");
+        markdown.AppendLine();
+        markdown.AppendLine(
+            "- 案例库：本轮新增 "
+            + result.ArchivedSuccessCases
+            + "，重复案例 "
+            + result.DuplicateSuccessCases
+            + "，本轮载入教师轨迹 "
+            + result.LoadedExpertReplayEpisodes
+            + "（配置占比 "
+            + settings.SuccessExpertReplayShare.ToString("P0")
+            + "）。");
+        markdown.AppendLine(
+            "- 累计兼容案例：有效 "
+            + result.CaseAnalysis.IntegrityValidCases
+            + "，成功 "
+            + result.CaseAnalysis.SuccessfulCases
+            + "，失败 "
+            + result.CaseAnalysis.FailedCases
+            + "，成功—失败匹配对 "
+            + result.CaseAnalysis.MatchedPairs
+            + "。");
+        markdown.AppendLine(
+            "- 成功平均终局牌组："
+            + result.CaseAnalysis.SuccessfulAverageDeckSize.ToString("F1")
+            + "；失败平均终局牌组："
+            + result.CaseAnalysis.FailedAverageDeckSize.ToString("F1")
+            + "；成功平均稳健度："
+            + result.CaseAnalysis.SuccessfulAverageRobustness.ToString("P1")
+            + "。");
+        if (!string.IsNullOrWhiteSpace(result.SuccessArchiveError))
+        {
+            markdown.AppendLine("- 案例库写入异常：" + result.SuccessArchiveError);
+        }
+        foreach (var recommendation in result.CaseAnalysis.Recommendations)
+        {
+            markdown.AppendLine("- 优化提示：" + recommendation);
+        }
+        markdown.AppendLine();
         markdown.AppendLine("# career_1 世界推演底模训练报告");
         markdown.AppendLine();
         markdown.AppendLine("- 卡池：本体 Normal 全离线卡包，排除联机包、诅咒奖励、衍生牌和 MOD 牌");
@@ -1156,6 +1648,8 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                             + result.TrainingSeedStart
                             + "；竞技场 "
                             + result.ArenaSeedStart
+                            + "；调参 "
+                            + result.TuningSeedStart
                             + "；模型 "
                             + result.ModelRandomSeed
                             + "；固定验证 "
@@ -1173,6 +1667,28 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                             + settings.SelfPlayExplorationProbability.ToString("P1")
                             + "；温度 "
                             + settings.SelfPlayExplorationTemperature.ToString("F2"));
+        markdown.AppendLine("- 兼容性清单：规则 "
+                            + result.Compatibility.RulesetHash
+                            + "；原生程序包 "
+                            + result.Compatibility.NativeProgramPackageHash
+                            + "；战役 "
+                            + result.Compatibility.CampaignId
+                            + "@"
+                            + result.Compatibility.CampaignVersion
+                            + "/"
+                            + result.Compatibility.TrainingCampaignHash
+                            + "/"
+                            + result.Compatibility.ValidationCampaignHash
+                            + "；特征 "
+                            + result.Compatibility.FeatureSchemaVersion
+                            + "/"
+                            + result.Compatibility.FeatureEncodingMode
+                            + "；网络 "
+                            + result.Compatibility.StateDimensions
+                            + "/"
+                            + result.Compatibility.ActionDimensions
+                            + "/"
+                            + result.Compatibility.HiddenDimensions);
         markdown.AppendLine("- CPU 并行工作线程：" + settings.Parallelism);
         markdown.AppendLine("- 回放保留："
                             + (writeFullReplay
@@ -1231,7 +1747,34 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                                     + string.Join(" | ", failure.Reasons));
             }
         }
-        markdown.AppendLine("- 验收线：普通 100%，高级至少 80%");
+        markdown.AppendLine("- 验收线：普通 "
+                            + result.Validation.RequiredNormalVictories
+                            + "/"
+                            + result.Validation.NormalPlannedCampaigns
+                            + "（"
+                            + result.Validation.RequiredNormalWinRate.ToString("P0")
+                            + "）；高级 "
+                            + result.Validation.RequiredAdvancedVictories
+                            + "/"
+                            + result.Validation.AdvancedPlannedCampaigns
+                            + "（"
+                            + result.Validation.RequiredAdvancedWinRate.ToString("P0")
+                            + "）");
+        markdown.AppendLine("- 竞技场完整性恢复：重试 "
+                            + result.ArenaRetryAttempts
+                            + "；恢复 "
+                            + result.ArenaRecoveredCampaigns
+                            + "；隔离 "
+                            + result.ArenaIsolatedPairs
+                            + "；替补 "
+                            + result.ArenaReplacementPairs
+                            + "；无效签名 "
+                            + (result.ArenaInvalidSignatures.Count == 0
+                                ? "none"
+                                : string.Join(
+                                    ", ",
+                                    result.ArenaInvalidSignatures.Select(
+                                        item => item.Key + "=" + item.Value))));
         markdown.AppendLine("- Observed concurrency peak: "
                             + result.PeakConcurrentCampaigns
                             + "; worker threads: "
@@ -1261,6 +1804,15 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                             + " simulations; "
                             + result.SearchEarlyStops
                             + " early stops");
+        markdown.AppendLine("- Search budget tiers: "
+                            + (result.SearchBudgetTierCounts.Count == 0
+                                ? "none"
+                                : string.Join(
+                                    ", ",
+                                    result.SearchBudgetTierCounts
+                                        .OrderBy(item => item.Key)
+                                        .Select(item =>
+                                            item.Key + "=" + item.Value))));
         markdown.AppendLine("- 循环安全：认证无限 "
                             + result.CertifiedLoops
                             + "；可持续控制循环 "
@@ -1386,6 +1938,30 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                                 + " ("
                                 + iteration.PromotionReason
                                 + ")");
+            markdown.AppendLine("  - 调参候选 "
+                                + iteration.TuningCandidateCount
+                                + "，选中 epoch "
+                                + iteration.TuningSelectedEpoch
+                                + "，得分 "
+                                + iteration.TuningSelectedScore.ToString("F3")
+                                + "，无效 "
+                                + iteration.TuningInvalidCampaigns
+                                + "；困难来源 "
+                                + (iteration.HardSeedSourceCategories.Count == 0
+                                    ? "none"
+                                    : string.Join(
+                                        ", ",
+                                        iteration.HardSeedSourceCategories
+                                            .Select(item =>
+                                                item.Key + "=" + item.Value)))
+                                + "；竞技场恢复 "
+                                + iteration.ArenaRetryAttempts
+                                + "/"
+                                + iteration.ArenaRecoveredCampaigns
+                                + "/"
+                                + iteration.ArenaIsolatedPairs
+                                + "/"
+                                + iteration.ArenaReplacementPairs);
         }
         markdown.AppendLine();
         markdown.AppendLine("## 最终隔离验证详情");
@@ -1450,7 +2026,8 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                 result.Validation.NormalWinRate,
                 result.Validation.NormalPlannedCampaigns),
             result.Validation.NormalCampaigns > 0
-            && result.Validation.NormalWinRate >= 1d);
+            && result.Validation.NormalVictories
+            >= result.Validation.RequiredNormalVictories);
         AppendMetric(
             html,
             "高级难度",
@@ -1460,7 +2037,8 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                 result.Validation.AdvancedWinRate,
                 result.Validation.AdvancedPlannedCampaigns),
             result.Validation.AdvancedCampaigns > 0
-            && result.Validation.AdvancedWinRate >= 0.8d);
+            && result.Validation.AdvancedVictories
+            >= result.Validation.RequiredAdvancedVictories);
         AppendMetric(
             html,
             "训练前权威快检",
@@ -1496,6 +2074,26 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                / Math.Max(0.001d, result.ElapsedSeconds)).ToString("F2")
             + " battles/s",
             result.PeakConcurrentCampaigns > 1);
+        AppendMetric(
+            html,
+            "成功案例库",
+            "新增 "
+            + result.ArchivedSuccessCases
+            + " / 重复 "
+            + result.DuplicateSuccessCases
+            + " / 教师轨迹 "
+            + result.LoadedExpertReplayEpisodes,
+            string.IsNullOrWhiteSpace(result.SuccessArchiveError));
+        AppendMetric(
+            html,
+            "成功—失败对照",
+            result.CaseAnalysis.SuccessfulCases
+            + " 成功 / "
+            + result.CaseAnalysis.FailedCases
+            + " 失败 / "
+            + result.CaseAnalysis.MatchedPairs
+            + " 匹配对",
+            result.CaseAnalysis.IntegrityValidCases > 0);
         AppendMetric(
             html,
             "Campaign depth / search",
@@ -1686,7 +2284,12 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                   + (settings.ArenaCampaignsPerDifficulty
                      + (settings.ArenaCampaignsPerDifficulty >= 32
                          ? settings.ArenaConfirmationCampaignsPerDifficulty
-                         : 0)) * 4)
+                         : 0)) * 4
+                  + (settings.EnableTuningArena
+                      ? settings.ModelRetainedCandidates
+                        * (settings.TuningNormalCampaigns
+                           + settings.TuningAdvancedCampaigns)
+                      : 0))
                + settings.NormalValidationCampaigns
                + settings.AdvancedValidationCampaigns;
     }
@@ -1700,6 +2303,30 @@ internal static class AuraToolsAutoBattleFoundationRuntime
         }
         var value = BitConverter.ToUInt64(bytes, 0);
         return value == 0UL ? 1UL : value;
+    }
+
+    private static string CurrentRuntimePackageHash()
+    {
+        try
+        {
+            var path =
+                System.Reflection.Assembly.GetExecutingAssembly().Location;
+            if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+            {
+                using var stream = File.OpenRead(path);
+                using var hash = SHA256.Create();
+                return BitConverter.ToString(hash.ComputeHash(stream))
+                    .Replace("-", "");
+            }
+        }
+        catch
+        {
+            // The protocol/count fallback remains deterministic for hosts that
+            // shadow-copy or do not expose the loaded assembly path.
+        }
+        return NativeRewardScriptGlobals.PrecompiledProgramProtocol
+               + ":"
+               + NativeRewardScriptGlobals.PrecompiledProgramCount;
     }
 
     private static void UpdateTrainingProgress(

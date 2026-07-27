@@ -59,7 +59,7 @@ public sealed class AutoBattleSettings
     [JsonProperty("simulation")]
     public AutoBattleSimulationSettings Simulation { get; set; } = new();
 
-    public void Normalize(int sourceSchemaVersion = 20)
+    public void Normalize(int sourceSchemaVersion = 22)
     {
         Training ??= sourceSchemaVersion < 14
             ? AutoBattleTrainingSettings.CreateLegacy()
@@ -163,6 +163,39 @@ public sealed class AutoBattleFoundationTrainingSettings
     [JsonProperty("enableHardSeedCurriculum")]
     public bool EnableHardSeedCurriculum { get; set; } = true;
 
+    [JsonProperty("enableSuccessCaseArchive")]
+    public bool EnableSuccessCaseArchive { get; set; } = true;
+
+    [JsonProperty("enableDynamicSearchBudget")]
+    public bool EnableDynamicSearchBudget { get; set; } = true;
+
+    [JsonProperty("enableArenaRecovery")]
+    public bool EnableArenaRecovery { get; set; } = true;
+
+    [JsonProperty("arenaInvalidRetryCount")]
+    public int ArenaInvalidRetryCount { get; set; } = 1;
+
+    [JsonProperty("arenaInvalidRateLimit")]
+    public double ArenaInvalidRateLimit { get; set; } = 0.02d;
+
+    [JsonProperty("enableTuningArena")]
+    public bool EnableTuningArena { get; set; } = true;
+
+    [JsonProperty("tuningNormalCampaigns")]
+    public int TuningNormalCampaigns { get; set; } = 8;
+
+    [JsonProperty("tuningAdvancedCampaigns")]
+    public int TuningAdvancedCampaigns { get; set; } = 12;
+
+    [JsonProperty("normalAcceptanceRate")]
+    public double NormalAcceptanceRate { get; set; } = 0.90d;
+
+    [JsonProperty("advancedAcceptanceRate")]
+    public double AdvancedAcceptanceRate { get; set; } = 0.50d;
+
+    [JsonProperty("successExpertReplayShare")]
+    public double SuccessExpertReplayShare { get; set; } = 0.20d;
+
     [JsonProperty("hardSeedReplayShare")]
     public double HardSeedReplayShare { get; set; } = 0.35d;
 
@@ -176,22 +209,49 @@ public sealed class AutoBattleFoundationTrainingSettings
     public int ModelEpochs { get; set; } = 40;
 
     [JsonProperty("modelMinimumEpochs")]
-    public int ModelMinimumEpochs { get; set; } = 5;
+    public int ModelMinimumEpochs { get; set; } = 8;
 
     [JsonProperty("modelEarlyStoppingPatience")]
-    public int ModelEarlyStoppingPatience { get; set; } = 5;
+    public int ModelEarlyStoppingPatience { get; set; } = 8;
+
+    [JsonProperty("modelEarlyStoppingMinimumDelta")]
+    public double ModelEarlyStoppingMinimumDelta { get; set; } = 0.0002d;
 
     [JsonProperty("modelBatchSize")]
     public int ModelBatchSize { get; set; } = 64;
 
     [JsonProperty("modelReplayEpisodeLimit")]
-    public int ModelReplayEpisodeLimit { get; set; } = 5000;
+    public int ModelReplayEpisodeLimit { get; set; } = 6000;
+
+    [JsonProperty("modelRetainedCandidates")]
+    public int ModelRetainedCandidates { get; set; } = 3;
+
+    [JsonProperty("modelLearningRate")]
+    public double ModelLearningRate { get; set; } = 0.0125d;
+
+    [JsonProperty("modelL2")]
+    public double ModelL2 { get; set; } = 0.0015d;
+
+    [JsonProperty("modelStateDimensions")]
+    public int ModelStateDimensions { get; set; } = 128;
+
+    [JsonProperty("modelActionDimensions")]
+    public int ModelActionDimensions { get; set; } = 96;
+
+    [JsonProperty("modelHiddenDimensions")]
+    public int ModelHiddenDimensions { get; set; } = 64;
+
+    [JsonProperty("modelFeatureEncodingMode")]
+    public string ModelFeatureEncodingMode { get; set; } = "partitioned-v2";
 
     [JsonProperty("trainingSeedStart")]
     public ulong TrainingSeedStart { get; set; } = 10_000UL;
 
     [JsonProperty("arenaSeedStart")]
     public ulong ArenaSeedStart { get; set; } = 1_000_000UL;
+
+    [JsonProperty("tuningSeedStart")]
+    public ulong TuningSeedStart { get; set; } = 1_500_000UL;
 
     [JsonProperty("validationSeedStart")]
     public ulong ValidationSeedStart { get; set; } = 2_000_000UL;
@@ -219,9 +279,40 @@ public sealed class AutoBattleFoundationTrainingSettings
             EnableCurriculum = true;
             EnableStratifiedReplay = true;
             EnableHardSeedCurriculum = true;
+            EnableSuccessCaseArchive = true;
+            SuccessExpertReplayShare = 0.20d;
             HardSeedReplayShare = 0.35d;
             SelfPlayExplorationProbability = 0.15d;
             SelfPlayExplorationTemperature = 1d;
+        }
+        if (sourceSchemaVersion < 21)
+        {
+            EnableSuccessCaseArchive = true;
+            SuccessExpertReplayShare = 0.20d;
+        }
+        if (sourceSchemaVersion < 22)
+        {
+            EnableDynamicSearchBudget = true;
+            EnableArenaRecovery = true;
+            ArenaInvalidRetryCount = 1;
+            ArenaInvalidRateLimit = 0.02d;
+            EnableTuningArena = true;
+            TuningNormalCampaigns = 8;
+            TuningAdvancedCampaigns = 12;
+            NormalAcceptanceRate = 0.90d;
+            AdvancedAcceptanceRate = 0.50d;
+            ModelMinimumEpochs = 8;
+            ModelEarlyStoppingPatience = 8;
+            ModelEarlyStoppingMinimumDelta = 0.0002d;
+            ModelReplayEpisodeLimit = 6000;
+            ModelRetainedCandidates = 3;
+            ModelLearningRate = 0.0125d;
+            ModelL2 = 0.0015d;
+            ModelStateDimensions = 128;
+            ModelActionDimensions = 96;
+            ModelHiddenDimensions = 64;
+            ModelFeatureEncodingMode = "partitioned-v2";
+            TuningSeedStart = 1_500_000UL;
         }
     }
 
@@ -268,20 +359,83 @@ public sealed class AutoBattleFoundationTrainingSettings
         ModelEarlyStoppingPatience = Math.Max(
             1,
             Math.Min(30, ModelEarlyStoppingPatience));
+        ModelEarlyStoppingMinimumDelta = ClampFinite(
+            ModelEarlyStoppingMinimumDelta,
+            0.0000001d,
+            0.1d,
+            0.0002d);
         ModelBatchSize = Math.Max(8, Math.Min(512, ModelBatchSize));
         ModelReplayEpisodeLimit = Math.Max(
             64,
             Math.Min(20000, ModelReplayEpisodeLimit));
+        ModelRetainedCandidates = Math.Max(
+            1,
+            Math.Min(5, ModelRetainedCandidates));
+        ModelLearningRate = ClampFinite(
+            ModelLearningRate,
+            0.0001d,
+            0.1d,
+            0.0125d);
+        ModelL2 = ClampFinite(ModelL2, 0d, 0.05d, 0.0015d);
+        ModelStateDimensions = Math.Max(
+            16,
+            Math.Min(512, ModelStateDimensions));
+        ModelActionDimensions = Math.Max(
+            16,
+            Math.Min(512, ModelActionDimensions));
+        ModelHiddenDimensions = Math.Max(
+            8,
+            Math.Min(256, ModelHiddenDimensions));
+        ModelFeatureEncodingMode = string.Equals(
+            ModelFeatureEncodingMode,
+            "hashed-v1",
+            StringComparison.OrdinalIgnoreCase)
+            ? "hashed-v1"
+            : "partitioned-v2";
+        ArenaInvalidRetryCount = Math.Max(
+            0,
+            Math.Min(3, ArenaInvalidRetryCount));
+        ArenaInvalidRateLimit = ClampFinite(
+            ArenaInvalidRateLimit,
+            0.0001d,
+            1d,
+            0.02d);
+        TuningNormalCampaigns = Math.Max(
+            0,
+            Math.Min(64, TuningNormalCampaigns));
+        TuningAdvancedCampaigns = Math.Max(
+            0,
+            Math.Min(64, TuningAdvancedCampaigns));
+        NormalAcceptanceRate = ClampFinite(
+            NormalAcceptanceRate,
+            0d,
+            1d,
+            0.90d);
+        AdvancedAcceptanceRate = ClampFinite(
+            AdvancedAcceptanceRate,
+            0d,
+            1d,
+            0.50d);
         HardSeedReplayShare = double.IsNaN(HardSeedReplayShare)
                               || double.IsInfinity(HardSeedReplayShare)
             ? 0.35d
             : Math.Max(0d, Math.Min(0.75d, HardSeedReplayShare));
+        SuccessExpertReplayShare =
+            double.IsNaN(SuccessExpertReplayShare)
+            || double.IsInfinity(SuccessExpertReplayShare)
+                ? 0.20d
+                : Math.Max(
+                    0d,
+                    Math.Min(0.40d, SuccessExpertReplayShare));
         var executionMode = (ExecutionMode ?? "").Trim().ToLowerInvariant();
         ExecutionMode = executionMode == "inprocess"
             ? "inprocess"
             : "external";
         TrainingSeedStart = TrainingSeedStart == 0UL ? 10_000UL : TrainingSeedStart;
         ArenaSeedStart = ArenaSeedStart == 0UL ? 1_000_000UL : ArenaSeedStart;
+        TuningSeedStart = TuningSeedStart == 0UL
+            ? 1_500_000UL
+            : TuningSeedStart;
         ValidationSeedStart = ValidationSeedStart == 0UL ? 2_000_000UL : ValidationSeedStart;
         SelfPlayExplorationProbability = double.IsNaN(
                 SelfPlayExplorationProbability)
@@ -297,6 +451,18 @@ public sealed class AutoBattleFoundationTrainingSettings
                 : Math.Max(
                     0.1d,
                     Math.Min(5d, SelfPlayExplorationTemperature));
+    }
+
+    private static double ClampFinite(
+        double value,
+        double minimum,
+        double maximum,
+        double fallback)
+    {
+        var finite = double.IsNaN(value) || double.IsInfinity(value)
+            ? fallback
+            : value;
+        return Math.Max(minimum, Math.Min(maximum, finite));
     }
 }
 

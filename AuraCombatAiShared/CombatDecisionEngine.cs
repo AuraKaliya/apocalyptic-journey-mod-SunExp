@@ -179,6 +179,7 @@ public sealed class CombatDecisionEngine
                 SearchNodes = search?.Nodes ?? 0,
                 SearchTranspositionHits = search?.TranspositionHits ?? 0,
                 SearchStoppedEarly = search?.StoppedEarly == true,
+                SearchBudgetTier = search?.BudgetTier ?? "",
                 CertifiedLoops = search?.CertifiedLoops ?? 0,
                 SustainableControlLoops =
                     search?.SustainableControlLoops ?? 0,
@@ -203,6 +204,7 @@ public sealed class CombatDecisionEngine
                 SearchNodes = search?.Nodes ?? 0,
                 SearchTranspositionHits = search?.TranspositionHits ?? 0,
                 SearchStoppedEarly = search?.StoppedEarly == true,
+                SearchBudgetTier = search?.BudgetTier ?? "",
                 CertifiedLoops = search?.CertifiedLoops ?? 0,
                 SustainableControlLoops =
                     search?.SustainableControlLoops ?? 0,
@@ -221,6 +223,7 @@ public sealed class CombatDecisionEngine
             SearchNodes = search?.Nodes ?? 0,
             SearchTranspositionHits = search?.TranspositionHits ?? 0,
             SearchStoppedEarly = search?.StoppedEarly == true,
+            SearchBudgetTier = search?.BudgetTier ?? "",
             CertifiedLoops = search?.CertifiedLoops ?? 0,
             SustainableControlLoops =
                 search?.SustainableControlLoops ?? 0,

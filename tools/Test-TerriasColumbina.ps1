@@ -47,7 +47,7 @@ Assert-True ([int]$fateStar.Expend -eq 1 -and [int]$fateStar.Rarity -eq 3) "Fate
 Assert-True ($fateStar.Tag -eq "Retain,Annihilation") "Fate Star must have Retain and Annihilation."
 Assert-True ($fateStar.PackBelong -eq "Terrias_terrias_cardpack_more_dimensions") "Fate Star must belong to More Dimensions."
 $fateStarText = $cardText | Where-Object Id -eq "fate_star" | Select-Object -First 1
-Assert-True ($fateStarText.Description -eq '若{Terrias_terrias_constellation}未达上限，点亮1层；否则四大本源上限增加10点。') "Fate Star description must explain its Constellation and origin-cap branches."
+Assert-True ($fateStarText.Description -eq (Decode-Text "6Iule1RlcnJpYXNfdGVycmlhc19jb25zdGVsbGF0aW9ufeacqui+vuS4iumZkO+8jOeCueS6rjHlsYLvvJvlkKbliJnlm5vlpKfmnKzmupDkuIrpmZDlop7liqAxMOeCueOAgg==")) "Fate Star description must explain its Constellation and origin-cap branches."
 Assert-True ($fateStarText.Description_en -eq 'If {Terrias_terrias_constellation} is not complete, light up 1 level; otherwise increase all four Origin caps by 10.') "Fate Star English description must explain its Constellation and origin-cap branches."
 
 $constellationText = $buffText | Where-Object Id -eq "constellation" | Select-Object -First 1

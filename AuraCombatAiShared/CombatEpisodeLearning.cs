@@ -9,7 +9,7 @@ public static class CombatPolicyValueProtocol
 {
     public const string EpisodeProtocol = "aura.combat-ai.episode.v2";
 
-    public const int FeatureSchemaVersion = 7;
+    public const int FeatureSchemaVersion = 8;
 }
 
 public sealed class CombatEpisode
@@ -83,6 +83,8 @@ public sealed class CombatCampaignEpisodeMetadata
 
     public string CurriculumStage { get; set; } = "";
 
+    public int TrainingIteration { get; set; }
+
     public bool IntegrityValid { get; set; } = true;
 }
 
@@ -134,17 +136,19 @@ public sealed class CombatEpisodeCandidate
 
 public sealed class CombatPolicyValueTrainingOptions
 {
-    public int Epochs { get; set; } = 60;
+    public int Epochs { get; set; } = 40;
 
-    public double LearningRate { get; set; } = 0.01d;
+    public double LearningRate { get; set; } = 0.0125d;
 
-    public double L2 { get; set; } = 0.0005d;
+    public double L2 { get; set; } = 0.0015d;
 
-    public int StateDimensions { get; set; } = 96;
+    public int StateDimensions { get; set; } = 128;
 
     public int ActionDimensions { get; set; } = 96;
 
-    public int HiddenDimensions { get; set; } = 48;
+    public int HiddenDimensions { get; set; } = 64;
+
+    public string FeatureEncodingMode { get; set; } = "partitioned-v2";
 
     public int RandomSeed { get; set; } = 20260724;
 
@@ -156,24 +160,32 @@ public sealed class CombatPolicyValueTrainingOptions
 
     public int MaximumDegreeOfParallelism { get; set; } = 1;
 
-    public int MinimumEpochs { get; set; } = 5;
+    public int MinimumEpochs { get; set; } = 8;
 
-    public int EarlyStoppingPatience { get; set; } = 5;
+    public int EarlyStoppingPatience { get; set; } = 8;
 
-    public double EarlyStoppingMinimumDelta { get; set; } = 0.0005d;
+    public double EarlyStoppingMinimumDelta { get; set; } = 0.0002d;
 
-    public int ReplayEpisodeLimit { get; set; } = 5000;
+    public int ReplayEpisodeLimit { get; set; } = 6000;
+
+    public int RetainedModelCandidates { get; set; } = 3;
 
     public CombatPolicyValueTrainingOptions Normalized()
     {
         return new CombatPolicyValueTrainingOptions
         {
             Epochs = Math.Max(5, Math.Min(500, Epochs)),
-            LearningRate = Clamp(LearningRate, 0.0001d, 0.1d, 0.01d),
-            L2 = Clamp(L2, 0d, 0.05d, 0.0005d),
+            LearningRate = Clamp(LearningRate, 0.0001d, 0.1d, 0.0125d),
+            L2 = Clamp(L2, 0d, 0.05d, 0.0015d),
             StateDimensions = Math.Max(16, Math.Min(512, StateDimensions)),
             ActionDimensions = Math.Max(16, Math.Min(512, ActionDimensions)),
             HiddenDimensions = Math.Max(8, Math.Min(256, HiddenDimensions)),
+            FeatureEncodingMode = string.Equals(
+                FeatureEncodingMode,
+                "hashed-v1",
+                StringComparison.OrdinalIgnoreCase)
+                ? "hashed-v1"
+                : "partitioned-v2",
             RandomSeed = RandomSeed,
             MinimumEpisodes = Math.Max(2, Math.Min(10000, MinimumEpisodes)),
             RequireAuthoritativeEpisodes = RequireAuthoritativeEpisodes,
@@ -189,10 +201,13 @@ public sealed class CombatPolicyValueTrainingOptions
                 EarlyStoppingMinimumDelta,
                 0.0000001d,
                 0.1d,
-                0.0005d),
+                0.0002d),
             ReplayEpisodeLimit = Math.Max(
                 64,
-                Math.Min(20000, ReplayEpisodeLimit))
+                Math.Min(20000, ReplayEpisodeLimit)),
+            RetainedModelCandidates = Math.Max(
+                1,
+                Math.Min(5, RetainedModelCandidates))
         };
     }
 
@@ -215,6 +230,9 @@ public sealed class CombatPolicyValueTrainingResult
 
     public CombatPolicyValueNetworkDefinition? Model { get; set; }
 
+    public List<CombatPolicyValueModelCandidate> CandidateModels { get; set; } =
+        new();
+
     public int CompletedEpochs { get; set; }
 
     public int BestEpoch { get; set; }
@@ -222,6 +240,15 @@ public sealed class CombatPolicyValueTrainingResult
     public bool EarlyStopped { get; set; }
 
     public double ElapsedSeconds { get; set; }
+}
+
+public sealed class CombatPolicyValueModelCandidate
+{
+    public int Epoch { get; set; }
+
+    public double ValidationLoss { get; set; }
+
+    public CombatPolicyValueNetworkDefinition Model { get; set; } = new();
 }
 
 public sealed class CombatPolicyValueTrainingProgress
@@ -264,6 +291,9 @@ public sealed class CombatPolicyValueTrainingResumeState
     public int BestEpoch { get; set; }
 
     public int StaleEpochs { get; set; }
+
+    public List<CombatPolicyValueModelCandidate> TopModels { get; set; } =
+        new();
 }
 
 public sealed class CombatPolicyValueTrainingSession
@@ -330,6 +360,7 @@ public static class CombatPolicyValueTrainer
             StateDimensions = options.StateDimensions,
             ActionDimensions = options.ActionDimensions,
             HiddenDimensions = options.HiddenDimensions,
+            FeatureEncodingMode = options.FeatureEncodingMode,
             StateWeights = RandomWeights(
                 random,
                 options.StateDimensions * options.HiddenDimensions,
@@ -372,7 +403,8 @@ public static class CombatPolicyValueTrainer
         }
         var state = CombatPolicyValueEncoding.EncodeState(
             frame.StateFeatures,
-            model.StateDimensions);
+            model.StateDimensions,
+            model.FeatureEncodingMode);
         var statePre = Dense(state, model.StateWeights, model.StateBias, model.HiddenDimensions);
         var stateHidden = statePre.Select(Math.Tanh).ToArray();
         var actionVectors = new List<double[]>(legal.Count);

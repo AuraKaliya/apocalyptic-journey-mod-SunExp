@@ -1038,6 +1038,8 @@ internal static class AuraToolsAutoBattleModelRuntime
                 AuraSharedLogStore.OwnerDirectory(AuraToolsIds.ModId));
             var resultRoot = Path.GetFullPath(
                 AuraToolsAutoBattleSimulationRuntime.ResultsRootDirectory);
+            var successArchiveDirectory = Path.GetFullPath(
+                Path.Combine(resultRoot, "foundation-success-cases"));
             var targets = new List<string>();
             if (Directory.Exists(ownerLogs))
             {
@@ -1070,7 +1072,14 @@ internal static class AuraToolsAutoBattleModelRuntime
                                || name.StartsWith(
                                    "foundation-training-checkpoint-episodes-v",
                                    StringComparison.OrdinalIgnoreCase);
-                    }));
+                     }));
+                if (Directory.Exists(successArchiveDirectory))
+                {
+                    targets.AddRange(Directory.EnumerateFiles(
+                        successArchiveDirectory,
+                        "*",
+                        SearchOption.AllDirectories));
+                }
                 foreach (var historicalDirectory in
                          Directory.EnumerateDirectories(
                              resultRoot,
@@ -1091,7 +1100,16 @@ internal static class AuraToolsAutoBattleModelRuntime
                                        "foundation-training-checkpoint-v",
                                        StringComparison.OrdinalIgnoreCase)
                                    || name.StartsWith(
-                                       "foundation-training-checkpoint-episodes-v",
+                                        "foundation-training-checkpoint-episodes-v",
+                                        StringComparison.OrdinalIgnoreCase)
+                                   || name.StartsWith(
+                                       "foundation-success-case-index-v",
+                                       StringComparison.OrdinalIgnoreCase)
+                                   || name.StartsWith(
+                                       "foundation-success-analysis-v",
+                                       StringComparison.OrdinalIgnoreCase)
+                                   || name.StartsWith(
+                                       "foundation-case-observations-v",
                                        StringComparison.OrdinalIgnoreCase)
                                    || exactNames.Contains(name);
                         }));
@@ -1110,6 +1128,12 @@ internal static class AuraToolsAutoBattleModelRuntime
                     throw new InvalidOperationException(
                         "拒绝清理范围外文件：" + path);
                 }
+            }
+            if (!IsInside(successArchiveDirectory, resultRoot))
+            {
+                throw new InvalidOperationException(
+                    "拒绝清理结果目录外的成功案例库："
+                    + successArchiveDirectory);
             }
             Directory.CreateDirectory(ownerLogs);
             var manifestPath = Path.Combine(
@@ -1147,6 +1171,10 @@ internal static class AuraToolsAutoBattleModelRuntime
                 {
                     File.Delete(path);
                 }
+            }
+            if (Directory.Exists(successArchiveDirectory))
+            {
+                Directory.Delete(successArchiveDirectory, recursive: true);
             }
             AuraToolsAutoBattleFoundationRuntime.ResetAfterDataClear();
             AuraToolsAutoBattleRuntime.ReloadModels();

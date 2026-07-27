@@ -83,11 +83,13 @@ public sealed class CombatPolicyValueNetworkDefinition
 
     public string DecisionProfile { get; set; } = "balanced";
 
-    public int StateDimensions { get; set; } = 96;
+    public int StateDimensions { get; set; } = 128;
 
     public int ActionDimensions { get; set; } = 96;
 
-    public int HiddenDimensions { get; set; } = 48;
+    public int HiddenDimensions { get; set; } = 64;
+
+    public string FeatureEncodingMode { get; set; } = "partitioned-v2";
 
     public double[] StateWeights { get; set; } = Array.Empty<double>();
 
@@ -149,7 +151,8 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
         input ??= new CombatPolicyValueInput();
         var state = CombatPolicyValueEncoding.EncodeState(
             input.StateFeatures,
-            definition.StateDimensions);
+            definition.StateDimensions,
+            definition.FeatureEncodingMode);
         var hidden = DenseTanh(
             state,
             definition.StateWeights,
@@ -281,6 +284,18 @@ public static class CombatPolicyValueNetworkValidator
             reason = "策略价值模型维度无效";
             return false;
         }
+        if (!string.Equals(
+                model.FeatureEncodingMode,
+                "hashed-v1",
+                StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(
+                model.FeatureEncodingMode,
+                "partitioned-v2",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            reason = "策略价值模型特征编码模式无效";
+            return false;
+        }
         if (!Length(model.StateWeights, model.StateDimensions * model.HiddenDimensions)
             || !Length(model.StateBias, model.HiddenDimensions)
             || !Length(model.ActionWeights, model.ActionDimensions * model.HiddenDimensions)
@@ -380,7 +395,35 @@ public static class CombatPolicyValueEncoding
         IReadOnlyDictionary<string, double>? values,
         int dimensions)
     {
-        return Encode(SanitizeStateFeatures(values), dimensions, "state");
+        return EncodeState(values, dimensions, "hashed-v1");
+    }
+
+    public static double[] EncodeState(
+        IReadOnlyDictionary<string, double>? values,
+        int dimensions,
+        string encodingMode)
+    {
+        var sanitized = SanitizeStateFeatures(values);
+        if (!string.Equals(
+                encodingMode,
+                "partitioned-v2",
+                StringComparison.OrdinalIgnoreCase)
+            || dimensions < 64)
+        {
+            return Encode(sanitized, dimensions, "state");
+        }
+        var result = new double[Math.Max(1, dimensions)];
+        foreach (var pair in sanitized)
+        {
+            var range = StateRange(pair.Key, result.Length);
+            AddRange(
+                result,
+                range.Start,
+                range.Length,
+                "state:" + pair.Key,
+                Normalize(pair.Value));
+        }
+        return result;
     }
 
     public static Dictionary<string, double> SanitizeStateFeatures(
@@ -480,6 +523,14 @@ public static class CombatPolicyValueEncoding
         {
             Add(result, "deck:" + id, 1d);
         }
+        foreach (var id in state.HandCardIds ?? new List<string>())
+        {
+            Add(result, "hand:" + id, 1d);
+        }
+        foreach (var id in state.RetainedHandCardIds ?? new List<string>())
+        {
+            Add(result, "retainedHand:" + id, 1d);
+        }
         foreach (var id in state.DrawPileCardIds ?? new List<string>())
         {
             Add(result, "draw:" + id, 1d);
@@ -487,6 +538,10 @@ public static class CombatPolicyValueEncoding
         foreach (var id in state.DiscardPileCardIds ?? new List<string>())
         {
             Add(result, "discard:" + id, 1d);
+        }
+        foreach (var id in state.ExhaustPileCardIds ?? new List<string>())
+        {
+            Add(result, "exhaust:" + id, 1d);
         }
         return result;
     }
@@ -547,6 +602,67 @@ public static class CombatPolicyValueEncoding
         var index = (int)(hash % (uint)values.Length);
         var sign = (hash & 0x80000000u) == 0u ? 1d : -1d;
         values[index] += sign * amount;
+    }
+
+    private static void AddRange(
+        double[] values,
+        int start,
+        int length,
+        string key,
+        double amount)
+    {
+        var safeLength = Math.Max(1, Math.Min(length, values.Length - start));
+        var hash = Hash(key);
+        var index = start + (int)(hash % (uint)safeLength);
+        var sign = (hash & 0x80000000u) == 0u ? 1d : -1d;
+        values[index] += sign * amount;
+    }
+
+    private static (int Start, int Length) StateRange(
+        string key,
+        int dimensions)
+    {
+        var normalized = key ?? "";
+        if (normalized.StartsWith("playerStatus:", StringComparison.OrdinalIgnoreCase))
+        {
+            return ScaleRange(32, 24, dimensions);
+        }
+        if (normalized.StartsWith("deck:", StringComparison.OrdinalIgnoreCase)
+            || normalized.StartsWith("hand:", StringComparison.OrdinalIgnoreCase)
+            || normalized.StartsWith(
+                "retainedHand:",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return ScaleRange(56, 24, dimensions);
+        }
+        if (normalized.StartsWith("draw:", StringComparison.OrdinalIgnoreCase))
+        {
+            return ScaleRange(80, 16, dimensions);
+        }
+        if (normalized.StartsWith("discard:", StringComparison.OrdinalIgnoreCase)
+            || normalized.StartsWith(
+                "exhaust:",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return ScaleRange(96, 12, dimensions);
+        }
+        if (normalized.StartsWith("enemy", StringComparison.OrdinalIgnoreCase))
+        {
+            return ScaleRange(108, 20, dimensions);
+        }
+        return ScaleRange(0, 32, dimensions);
+    }
+
+    private static (int Start, int Length) ScaleRange(
+        int start,
+        int length,
+        int dimensions)
+    {
+        var scaledStart = (int)Math.Floor(start / 128d * dimensions);
+        var scaledEnd = (int)Math.Floor((start + length) / 128d * dimensions);
+        scaledStart = Math.Max(0, Math.Min(dimensions - 1, scaledStart));
+        scaledEnd = Math.Max(scaledStart + 1, Math.Min(dimensions, scaledEnd));
+        return (scaledStart, scaledEnd - scaledStart);
     }
 
     private static uint Hash(string value)

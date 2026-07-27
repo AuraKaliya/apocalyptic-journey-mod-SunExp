@@ -9,7 +9,7 @@ namespace AuraToolsExp.Dll.Config;
 public sealed class AuraToolsMatchExperienceSettings
 {
     [JsonProperty("schemaVersion")]
-    public int SchemaVersion { get; set; } = 20;
+    public int SchemaVersion { get; set; } = 22;
 
     [JsonProperty("starterDeck")]
     public StarterDeckSettings StarterDeck { get; set; } = new();
@@ -35,7 +35,7 @@ public sealed class AuraToolsMatchExperienceSettings
     public void Normalize()
     {
         var loadedSchemaVersion = SchemaVersion;
-        SchemaVersion = Math.Max(20, SchemaVersion);
+        SchemaVersion = Math.Max(22, SchemaVersion);
         StarterDeck ??= new StarterDeckSettings();
         SafeBox ??= new SafeBoxSettings();
         ModSync ??= new ModSyncSettings();

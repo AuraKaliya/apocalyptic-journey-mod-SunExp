@@ -20,6 +20,7 @@ if (-not (Test-Path -LiteralPath $ownerLogs -PathType Container)) {
 }
 
 $resultRoot = Join-Path $ownerLogs "combat-simulation-results"
+$successArchiveRoot = Join-Path $resultRoot "foundation-success-cases"
 $targets = New-Object System.Collections.Generic.List[string]
 Get-ChildItem -LiteralPath $ownerLogs -File -Filter "foundation-model-bundle-*.json" |
     ForEach-Object { $targets.Add($_.FullName) }
@@ -45,10 +46,17 @@ if (Test-Path -LiteralPath $resultRoot -PathType Container) {
                     $_.Name -in $exactNames `
                     -or $_.Name -like "foundation-training-episodes-v*.jsonl" `
                     -or $_.Name -like "foundation-training-checkpoint-v*" `
-                    -or $_.Name -like "foundation-training-checkpoint-episodes-v*"
+                    -or $_.Name -like "foundation-training-checkpoint-episodes-v*" `
+                    -or $_.Name -like "foundation-success-case-index-v*" `
+                    -or $_.Name -like "foundation-success-analysis-v*" `
+                    -or $_.Name -like "foundation-case-observations-v*"
                 } |
                 ForEach-Object { $targets.Add($_.FullName) }
         }
+    if (Test-Path -LiteralPath $successArchiveRoot -PathType Container) {
+        Get-ChildItem -LiteralPath $successArchiveRoot -File -Recurse |
+            ForEach-Object { $targets.Add($_.FullName) }
+    }
 }
 
 $resolvedTargets = @(

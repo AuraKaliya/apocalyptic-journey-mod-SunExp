@@ -27,6 +27,10 @@ public sealed class CombatSearchResult
 
     public bool StoppedEarly { get; set; }
 
+    public string BudgetTier { get; set; } = "";
+
+    public string BudgetReason { get; set; } = "";
+
     public int CertifiedLoops { get; set; }
 
     public int SustainableControlLoops { get; set; }
@@ -68,6 +72,7 @@ public sealed class CombatChancePuctPlanner
     private int sustainableControlLoops;
     private int fakeLoops;
     private int blockedLoops;
+    private int searchMaxPly;
     private ICombatSimulationRule[] simulationRules = Array.Empty<ICombatSimulationRule>();
 
     public CombatChancePuctPlanner(
@@ -97,7 +102,13 @@ public sealed class CombatChancePuctPlanner
         sustainableControlLoops = 0;
         fakeLoops = 0;
         blockedLoops = 0;
-        var pathCapacity = Math.Max(2, selectedProfile.SearchMaxPly + 1);
+        actions = BuildActions(state, candidates);
+        var budget = CombatSearchBudgetPolicy.Resolve(
+            state,
+            candidates,
+            selectedProfile);
+        searchMaxPly = Math.Max(1, Math.Min(32, budget.MaxPly));
+        var pathCapacity = Math.Max(2, searchMaxPly + 1);
         if (nodePathBuffer.Length < pathCapacity)
         {
             nodePathBuffer = new SearchNode[pathCapacity];
@@ -127,8 +138,7 @@ public sealed class CombatChancePuctPlanner
         simulationRules = useRuntimeRegistries
             ? CombatAiRegistry.SnapshotSimulationRules()
             : Array.Empty<ICombatSimulationRule>();
-        nodeBudget = Math.Max(256, Math.Min(65536, profile.SearchNodeBudget));
-        actions = BuildActions(state, candidates);
+        nodeBudget = Math.Max(256, Math.Min(65536, budget.NodeBudget));
         if (actions.Count == 0)
         {
             return new CombatSearchResult { Summary = "no legal search action" };
@@ -153,12 +163,12 @@ public sealed class CombatChancePuctPlanner
 
         var simulationBudget = Math.Max(
             actions.Count,
-            Math.Min(20000, profile.SearchSimulationBudget));
+            Math.Min(20000, budget.SimulationBudget));
         var minimumSimulations = Math.Min(
             simulationBudget,
-            Math.Max(actions.Count, Math.Max(1, profile.SearchMinimumSimulations)));
-        var stabilityWindow = Math.Max(16, profile.SearchStabilityWindow);
-        var requiredStableChecks = Math.Max(1, profile.SearchStableChecks);
+            Math.Max(actions.Count, Math.Max(1, budget.MinimumSimulations)));
+        var stabilityWindow = Math.Max(1, budget.StabilityWindow);
+        var requiredStableChecks = Math.Max(1, budget.StableChecks);
         var lastBestAction = -1;
         var stableChecks = 0;
         var stoppedEarly = false;
@@ -207,7 +217,9 @@ public sealed class CombatChancePuctPlanner
                 Summary = "search produced no root evidence",
                 Simulations = simulations,
                 Nodes = nodeCount,
-                TranspositionHits = transpositionHits
+                TranspositionHits = transpositionHits,
+                BudgetTier = budget.Tier,
+                BudgetReason = budget.Reason
             };
         }
 
@@ -243,6 +255,8 @@ public sealed class CombatChancePuctPlanner
             Nodes = nodeCount,
             TranspositionHits = transpositionHits,
             StoppedEarly = stoppedEarly,
+            BudgetTier = budget.Tier,
+            BudgetReason = budget.Reason,
             CertifiedLoops = certifiedLoops,
             SustainableControlLoops = sustainableControlLoops,
             FakeLoops = fakeLoops,
@@ -313,7 +327,7 @@ public sealed class CombatChancePuctPlanner
         cycleHashPathBuffer[0] = root.State.CycleHash();
         cycleStatePathBuffer[0] = root.State;
 
-        for (var ply = 0; ply < Math.Max(1, profile.SearchMaxPly); ply++)
+        for (var ply = 0; ply < searchMaxPly; ply++)
         {
             if (node.State.AllEnemiesDefeated)
             {
@@ -439,7 +453,7 @@ public sealed class CombatChancePuctPlanner
                 break;
             }
 
-            if (ply == profile.SearchMaxPly - 1)
+            if (ply == searchMaxPly - 1)
             {
                 var leaf = EvaluateLeaf(node.State);
                 value = pathReward + leaf.Value;
@@ -827,7 +841,7 @@ CompleteSimulation:
         var result = new List<CombatPlanStep>();
         var edge = first;
         var node = root;
-        for (var depth = 0; depth < Math.Min(profile.SearchMaxPly, 16); depth++)
+        for (var depth = 0; depth < Math.Min(searchMaxPly, 16); depth++)
         {
             var action = actions[edge.ActionIndex].Action;
             var outcome = edge.Outcomes

@@ -129,6 +129,20 @@ internal static class CombatPolicyValueBatchTrainer
             : double.MaxValue;
         var bestEpoch = Math.Max(0, resume?.BestEpoch ?? 0);
         var staleEpochs = Math.Max(0, resume?.StaleEpochs ?? 0);
+        var topModels = (resume?.TopModels
+                         ?? new List<CombatPolicyValueModelCandidate>())
+            .Where(item => item?.Model != null
+                           && Compatible(item.Model, profile, options))
+            .Select(item => new CombatPolicyValueModelCandidate
+            {
+                Epoch = item.Epoch,
+                ValidationLoss = item.ValidationLoss,
+                Model = Clone(item.Model)
+            })
+            .OrderBy(item => item.ValidationLoss)
+            .ThenBy(item => item.Epoch)
+            .Take(options.RetainedModelCandidates)
+            .ToList();
         var order = Enumerable.Range(0, trainingFrames.Length).ToArray();
         var batchCapacity = Math.Min(options.BatchSize, trainingFrames.Length);
         var gradients = Enumerable.Range(0, batchCapacity)
@@ -215,9 +229,7 @@ internal static class CombatPolicyValueBatchTrainer
                 validationFrames,
                 options.MaximumDegreeOfParallelism,
                 cancellationToken);
-            var validationLoss = validation.ValueMae
-                                 + validation.Brier
-                                 + (1d - validation.PolicyAccuracy) * 0.25d;
+            var validationLoss = CompositeValidationLoss(validation);
             var completedEpochs = epoch + 1;
             completedEpochsActual = completedEpochs;
             if (bestLoss - validationLoss
@@ -232,6 +244,17 @@ internal static class CombatPolicyValueBatchTrainer
             {
                 staleEpochs++;
             }
+            topModels.Add(new CombatPolicyValueModelCandidate
+            {
+                Epoch = completedEpochs,
+                ValidationLoss = validationLoss,
+                Model = Clone(model)
+            });
+            topModels = topModels
+                .OrderBy(item => item.ValidationLoss)
+                .ThenBy(item => item.Epoch)
+                .Take(options.RetainedModelCandidates)
+                .ToList();
             var epochRate = completedEpochs <= startEpoch
                 ? 0d
                 : (completedEpochs - startEpoch)
@@ -261,7 +284,8 @@ internal static class CombatPolicyValueBatchTrainer
                     BestModel = Clone(bestModel),
                     BestValidationLoss = bestLoss,
                     BestEpoch = bestEpoch,
-                    StaleEpochs = staleEpochs
+                    StaleEpochs = staleEpochs,
+                    TopModels = CloneCandidates(topModels)
                 });
             if (completedEpochs >= options.MinimumEpochs
                 && staleEpochs >= options.EarlyStoppingPatience)
@@ -300,11 +324,22 @@ internal static class CombatPolicyValueBatchTrainer
                 .Count(),
             ["trainingPolicyAccuracy"] = trainingMetrics.PolicyAccuracy,
             ["validationPolicyAccuracy"] = validationMetrics.PolicyAccuracy,
+            ["validationPolicyCrossEntropy"] =
+                validationMetrics.PolicyCrossEntropy,
+            ["validationCriticalPolicyAccuracy"] =
+                validationMetrics.CriticalPolicyAccuracy,
             ["trainingValueMae"] = trainingMetrics.ValueMae,
             ["validationValueMae"] = validationMetrics.ValueMae,
             ["validationBrier"] = validationMetrics.Brier,
+            ["validationDeathBrier"] = validationMetrics.DeathBrier,
+            ["validationHpMae"] = validationMetrics.HpMae,
+            ["validationTurnHuber"] = validationMetrics.TurnHuber,
+            ["validationCompositeLoss"] =
+                CompositeValidationLoss(validationMetrics),
             ["validationEpisodeCount"] = validationEpisodes.Count,
-            ["completedEpochs"] = Math.Max(startEpoch, bestEpoch),
+            ["completedEpochs"] = Math.Max(
+                startEpoch,
+                completedEpochsActual),
             ["bestEpoch"] = bestEpoch,
             ["earlyStopped"] = stoppedEarly ? 1d : 0d,
             ["batchSize"] = options.BatchSize,
@@ -312,6 +347,7 @@ internal static class CombatPolicyValueBatchTrainer
         };
         result.Success = true;
         result.Model = model;
+        result.CandidateModels = CloneCandidates(topModels);
         result.CompletedEpochs = Math.Max(
             startEpoch,
             completedEpochsActual);
@@ -335,9 +371,7 @@ internal static class CombatPolicyValueBatchTrainer
             TotalEpochs = options.Epochs,
             CompletedFrames = result.CompletedEpochs * trainingFrames.Length,
             TotalFrames = options.Epochs * trainingFrames.Length,
-            ValidationLoss = validationMetrics.ValueMae
-                             + validationMetrics.Brier
-                             + (1d - validationMetrics.PolicyAccuracy) * 0.25d,
+            ValidationLoss = CompositeValidationLoss(validationMetrics),
             BestValidationLoss = bestLoss,
             BestEpoch = bestEpoch,
             EarlyStopped = stoppedEarly
@@ -388,11 +422,21 @@ internal static class CombatPolicyValueBatchTrainer
             return null;
         }
         var targets = PolicyTargets(legal, frame.ExecutedCandidateId);
+        var orderedVisits = legal
+            .Select(candidate => Math.Max(0, candidate.SearchVisits))
+            .OrderByDescending(value => value)
+            .Take(2)
+            .ToArray();
+        var riskValues = legal
+            .Select(candidate => candidate.SearchDeathRisk)
+            .Where(value => !double.IsNaN(value) && !double.IsInfinity(value))
+            .ToArray();
         return new EncodedFrame
         {
             State = CombatPolicyValueEncoding.EncodeState(
                 frame.StateFeatures,
-                options.StateDimensions),
+                options.StateDimensions,
+                options.FeatureEncodingMode),
             Actions = legal.Select(candidate =>
                     CombatPolicyValueEncoding.EncodeCandidate(
                         new CombatPolicyValueCandidate
@@ -409,7 +453,14 @@ internal static class CombatPolicyValueBatchTrainer
             WinTarget = Clamp(frame.WinTarget, 0d, 1d),
             DeathTarget = Clamp(frame.DeathTarget, 0d, 1d),
             HpTarget = Clamp(frame.RemainingHpRatioTarget, 0d, 1d),
-            TurnsTarget = Math.Max(0d, frame.RemainingTurnsTarget)
+            TurnsTarget = Math.Max(0d, frame.RemainingTurnsTarget),
+            Critical = frame.DeathTarget >= 0.5d
+                       || riskValues.Length > 1
+                          && riskValues.Max() - riskValues.Min() >= 0.20d
+                       || orderedVisits.Length > 1
+                          && orderedVisits[0] >= Math.Max(
+                              4,
+                              orderedVisits[1] * 2)
         };
     }
 
@@ -652,19 +703,41 @@ internal static class CombatPolicyValueBatchTrainer
             },
             index => results[index] = EvaluateFrame(model, frames[index]));
         var correct = 0;
+        var criticalCorrect = 0;
+        var criticalCount = 0;
         var valueError = 0d;
         var brier = 0d;
+        var deathBrier = 0d;
+        var hpError = 0d;
+        var turnHuber = 0d;
+        var policyCrossEntropy = 0d;
         for (var index = 0; index < results.Length; index++)
         {
             correct += results[index].Correct;
             valueError += results[index].ValueError;
             brier += results[index].Brier;
+            deathBrier += results[index].DeathBrier;
+            hpError += results[index].HpError;
+            turnHuber += results[index].TurnHuber;
+            policyCrossEntropy += results[index].PolicyCrossEntropy;
+            if (results[index].Critical)
+            {
+                criticalCount++;
+                criticalCorrect += results[index].Correct;
+            }
         }
         return new Metrics
         {
             PolicyAccuracy = (double)correct / results.Length,
             ValueMae = valueError / results.Length,
-            Brier = brier / results.Length
+            Brier = brier / results.Length,
+            DeathBrier = deathBrier / results.Length,
+            HpMae = hpError / results.Length,
+            TurnHuber = turnHuber / results.Length,
+            PolicyCrossEntropy = policyCrossEntropy / results.Length,
+            CriticalPolicyAccuracy = criticalCount == 0
+                ? (double)correct / results.Length
+                : (double)criticalCorrect / criticalCount
         };
     }
 
@@ -679,6 +752,7 @@ internal static class CombatPolicyValueBatchTrainer
             model.HiddenDimensions);
         var bestIndex = 0;
         var bestLogit = double.NegativeInfinity;
+        var logits = new double[frame.Actions.Length];
         for (var index = 0; index < frame.Actions.Length; index++)
         {
             var actionHidden = DenseTanh(
@@ -691,6 +765,7 @@ internal static class CombatPolicyValueBatchTrainer
                 actionHidden,
                 model.PolicyWeights)
                         + model.PolicyBias;
+            logits[index] = logit;
             if (logit > bestLogit)
             {
                 bestLogit = logit;
@@ -703,11 +778,31 @@ internal static class CombatPolicyValueBatchTrainer
             1d);
         var win = Sigmoid(Dot(hidden, model.WinWeights) + model.WinBias);
         var winDifference = win - frame.WinTarget;
+        var risk = Sigmoid(Dot(hidden, model.RiskWeights) + model.RiskBias);
+        var hp = Sigmoid(Dot(hidden, model.HpWeights) + model.HpBias);
+        var turns = SoftPlus(Dot(hidden, model.TurnWeights) + model.TurnBias);
+        var probabilities = Softmax(logits);
+        var crossEntropy = 0d;
+        for (var index = 0; index < probabilities.Length; index++)
+        {
+            crossEntropy -= frame.PolicyTargets[index]
+                            * Math.Log(Math.Max(0.000000001d,
+                                probabilities[index]));
+        }
+        var turnError = Math.Abs(turns - frame.TurnsTarget);
         return new FrameMetrics
         {
             Correct = bestIndex == frame.PolicyTargetIndex ? 1 : 0,
             ValueError = Math.Abs(value - frame.LongTermReturn),
-            Brier = winDifference * winDifference
+            Brier = winDifference * winDifference,
+            DeathBrier = (risk - frame.DeathTarget)
+                         * (risk - frame.DeathTarget),
+            HpError = Math.Abs(hp - frame.HpTarget),
+            TurnHuber = turnError <= 1d
+                ? 0.5d * turnError * turnError
+                : turnError - 0.5d,
+            PolicyCrossEntropy = crossEntropy,
+            Critical = frame.Critical
         };
     }
 
@@ -723,6 +818,7 @@ internal static class CombatPolicyValueBatchTrainer
             StateDimensions = options.StateDimensions,
             ActionDimensions = options.ActionDimensions,
             HiddenDimensions = options.HiddenDimensions,
+            FeatureEncodingMode = options.FeatureEncodingMode,
             StateWeights = RandomWeights(
                 random,
                 options.StateDimensions * options.HiddenDimensions,
@@ -748,6 +844,30 @@ internal static class CombatPolicyValueBatchTrainer
         };
     }
 
+    private static double CompositeValidationLoss(Metrics metrics)
+    {
+        return metrics.PolicyCrossEntropy * 0.30d
+               + (1d - metrics.CriticalPolicyAccuracy) * 0.15d
+               + metrics.ValueMae * 0.15d
+               + metrics.Brier * 0.15d
+               + metrics.DeathBrier * 0.15d
+               + metrics.HpMae * 0.05d
+               + Math.Min(1d, metrics.TurnHuber / 10d) * 0.05d;
+    }
+
+    private static List<CombatPolicyValueModelCandidate> CloneCandidates(
+        IEnumerable<CombatPolicyValueModelCandidate> source)
+    {
+        return (source ?? Array.Empty<CombatPolicyValueModelCandidate>())
+            .Select(item => new CombatPolicyValueModelCandidate
+            {
+                Epoch = item.Epoch,
+                ValidationLoss = item.ValidationLoss,
+                Model = Clone(item.Model)
+            })
+            .ToList();
+    }
+
     private static bool Compatible(
         CombatPolicyValueNetworkDefinition? model,
         string profile,
@@ -757,6 +877,10 @@ internal static class CombatPolicyValueBatchTrainer
                && model.StateDimensions == options.StateDimensions
                && model.ActionDimensions == options.ActionDimensions
                && model.HiddenDimensions == options.HiddenDimensions
+               && string.Equals(
+                   model.FeatureEncodingMode,
+                   options.FeatureEncodingMode,
+                   StringComparison.OrdinalIgnoreCase)
                && string.Equals(
                    NormalizeProfile(model.DecisionProfile),
                    profile,
@@ -779,6 +903,7 @@ internal static class CombatPolicyValueBatchTrainer
             StateDimensions = source.StateDimensions,
             ActionDimensions = source.ActionDimensions,
             HiddenDimensions = source.HiddenDimensions,
+            FeatureEncodingMode = source.FeatureEncodingMode,
             StateWeights = (double[])source.StateWeights.Clone(),
             StateBias = (double[])source.StateBias.Clone(),
             ActionWeights = (double[])source.ActionWeights.Clone(),
@@ -1019,6 +1144,8 @@ internal static class CombatPolicyValueBatchTrainer
         public double HpTarget { get; set; }
 
         public double TurnsTarget { get; set; }
+
+        public bool Critical { get; set; }
     }
 
     private sealed class ModelGradient
@@ -1097,6 +1224,16 @@ internal static class CombatPolicyValueBatchTrainer
         public double ValueMae { get; set; }
 
         public double Brier { get; set; }
+
+        public double DeathBrier { get; set; }
+
+        public double HpMae { get; set; }
+
+        public double TurnHuber { get; set; }
+
+        public double PolicyCrossEntropy { get; set; }
+
+        public double CriticalPolicyAccuracy { get; set; }
     }
 
     private struct FrameMetrics
@@ -1106,5 +1243,15 @@ internal static class CombatPolicyValueBatchTrainer
         public double ValueError { get; set; }
 
         public double Brier { get; set; }
+
+        public double DeathBrier { get; set; }
+
+        public double HpError { get; set; }
+
+        public double TurnHuber { get; set; }
+
+        public double PolicyCrossEntropy { get; set; }
+
+        public bool Critical { get; set; }
     }
 }

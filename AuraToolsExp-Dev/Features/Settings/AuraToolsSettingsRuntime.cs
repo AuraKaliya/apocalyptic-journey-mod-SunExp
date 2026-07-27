@@ -1129,6 +1129,114 @@ public static class AuraToolsSettingsRuntime
                     AuraToolsUi.TextMinHeight,
                     1f);
 
+                var foundationAdaptiveRow = CreateInlineRow(
+                    content,
+                    "AutoBattleFoundationAdaptiveRow");
+                AuraToolsUi.AddToggle(
+                    foundationAdaptiveRow.transform,
+                    foundationSettings.EnableDynamicSearchBudget,
+                    value =>
+                    {
+                        foundationSettings.EnableDynamicSearchBudget = value;
+                        autoBattle.Normalize();
+                        AuraToolsConfigService.SaveMatchExperience();
+                    });
+                AuraToolsUi.AddText(
+                    foundationAdaptiveRow.transform,
+                    "动态搜索",
+                    AuraToolsUi.HintFontSize,
+                    TextAnchor.MiddleLeft,
+                    AuraToolsUi.Text,
+                    AuraToolsUi.TextMinHeight,
+                    0f,
+                    76f);
+                AuraToolsUi.AddToggle(
+                    foundationAdaptiveRow.transform,
+                    foundationSettings.EnableArenaRecovery,
+                    value =>
+                    {
+                        foundationSettings.EnableArenaRecovery = value;
+                        autoBattle.Normalize();
+                        AuraToolsConfigService.SaveMatchExperience();
+                    });
+                AuraToolsUi.AddText(
+                    foundationAdaptiveRow.transform,
+                    "竞技场恢复",
+                    AuraToolsUi.HintFontSize,
+                    TextAnchor.MiddleLeft,
+                    AuraToolsUi.Text,
+                    AuraToolsUi.TextMinHeight,
+                    0f,
+                    90f);
+                AuraToolsUi.AddToggle(
+                    foundationAdaptiveRow.transform,
+                    foundationSettings.EnableTuningArena,
+                    value =>
+                    {
+                        foundationSettings.EnableTuningArena = value;
+                        autoBattle.Normalize();
+                        AuraToolsConfigService.SaveMatchExperience();
+                    });
+                AuraToolsUi.AddText(
+                    foundationAdaptiveRow.transform,
+                    "Top-K 调参",
+                    AuraToolsUi.HintFontSize,
+                    TextAnchor.MiddleLeft,
+                    AuraToolsUi.Text,
+                    AuraToolsUi.TextMinHeight,
+                    1f);
+
+                var foundationAcceptanceRow = CreateInlineRow(
+                    content,
+                    "AutoBattleFoundationAcceptanceRow");
+                AddAutoBattleFoundationDouble(
+                    foundationAcceptanceRow.transform,
+                    "普通验收率",
+                    foundationSettings.NormalAcceptanceRate,
+                    0.5d,
+                    1d,
+                    value => foundationSettings.NormalAcceptanceRate = value,
+                    autoBattle);
+                AddAutoBattleFoundationDouble(
+                    foundationAcceptanceRow.transform,
+                    "高级验收率",
+                    foundationSettings.AdvancedAcceptanceRate,
+                    0.1d,
+                    1d,
+                    value => foundationSettings.AdvancedAcceptanceRate = value,
+                    autoBattle);
+
+                var foundationSuccessArchiveRow = CreateInlineRow(
+                    content,
+                    "AutoBattleFoundationSuccessArchiveRow");
+                AuraToolsUi.AddToggle(
+                    foundationSuccessArchiveRow.transform,
+                    foundationSettings.EnableSuccessCaseArchive,
+                    value =>
+                    {
+                        foundationSettings.EnableSuccessCaseArchive = value;
+                        autoBattle.Normalize();
+                        AuraToolsConfigService.SaveMatchExperience();
+                    });
+                AuraToolsUi.AddText(
+                    foundationSuccessArchiveRow.transform,
+                    "成功案例库",
+                    AuraToolsUi.HintFontSize,
+                    TextAnchor.MiddleLeft,
+                    AuraToolsUi.Text,
+                    AuraToolsUi.TextMinHeight,
+                    0f,
+                    90f);
+                AddAutoBattleFoundationDouble(
+                    foundationSuccessArchiveRow.transform,
+                    "教师回放占比",
+                    foundationSettings.SuccessExpertReplayShare,
+                    0d,
+                    0.4d,
+                    value =>
+                        foundationSettings.SuccessExpertReplayShare = value,
+                    autoBattle);
+
                 var foundationModelRow = CreateInlineRow(
                     content,
                     "AutoBattleFoundationModelTrainingRow");
@@ -1202,11 +1310,15 @@ public static class AuraToolsSettingsRuntime
                 + " 次、高级 "
                 + foundationSettings.AdvancedValidationCampaigns
                 + " 次。必须分别达到 "
-                + foundationSettings.NormalValidationCampaigns
+                + (int)Math.Ceiling(
+                    foundationSettings.NormalValidationCampaigns
+                    * foundationSettings.NormalAcceptanceRate)
                 + "/"
                 + foundationSettings.NormalValidationCampaigns
                 + " 与至少 "
-                + (int)Math.Ceiling(foundationSettings.AdvancedValidationCampaigns * 0.8d)
+                + (int)Math.Ceiling(
+                    foundationSettings.AdvancedValidationCampaigns
+                    * foundationSettings.AdvancedAcceptanceRate)
                 + "/"
                 + foundationSettings.AdvancedValidationCampaigns
                 + "，才保存为 career_1 正式底模；0% 胜率只记为课程检查点。",
