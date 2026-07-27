@@ -18,7 +18,7 @@ CombatFoundationWorkerJob? job = null;
 try
 {
     job = Deserialize<CombatFoundationWorkerJob>(File.ReadAllText(jobPath));
-    if (job == null || job.SchemaVersion != 3)
+    if (job == null || job.SchemaVersion != 4)
     {
         throw new InvalidOperationException("Unsupported or empty foundation worker job.");
     }
@@ -27,13 +27,13 @@ try
     {
         job.CheckpointPath = Path.Combine(
             job.ResultDirectory,
-            "foundation-training-checkpoint-v3.json");
+            "foundation-training-checkpoint-v4.json");
     }
     if (string.IsNullOrWhiteSpace(job.CheckpointEpisodesPath))
     {
         job.CheckpointEpisodesPath = Path.Combine(
             job.ResultDirectory,
-            "foundation-training-checkpoint-episodes-v3.jsonl");
+            "foundation-training-checkpoint-episodes-v4.jsonl");
     }
     var build = CombatSimulationRegistry.BuildRuleset(job.Ruleset);
     if (!build.Success)
@@ -263,7 +263,7 @@ try
     }
     var episodesPath = Path.Combine(
         job.ResultDirectory,
-        "foundation-training-episodes-v2.jsonl");
+        "foundation-training-episodes-v3.jsonl");
     training.GeneratedReplayEpisodes = Math.Max(
         training.GeneratedReplayEpisodes,
         training.Replay.Count);
@@ -278,29 +278,41 @@ try
     training.Replay.Clear();
     training.CampaignObservations.Clear();
     training.SuccessCases.Clear();
+    if (job.Request.PreflightOnly || training.AcceptancePassed)
+    {
+        TryDelete(job.CheckpointPath);
+        TryDelete(job.CheckpointEpisodesPath);
+    }
+    var resumable = !job.Request.PreflightOnly
+                    && !training.AcceptancePassed
+                    && File.Exists(job.CheckpointPath)
+                    && File.Exists(job.CheckpointEpisodesPath);
+    var completionKind = job.Request.PreflightOnly
+        ? training.Success
+            ? "preflight-passed"
+            : "preflight-failed"
+        : training.AcceptancePassed
+            ? "training-accepted"
+            : resumable
+                ? "training-rejected-resumable"
+                : "training-rejected";
     WriteAtomic(
         job.ResultPath,
         Serialize(new CombatFoundationWorkerResult
         {
             JobId = job.JobId,
             Success = true,
+            CompletionKind = completionKind,
             Message = training.Message,
             Runtime = RuntimeDescription(requestedWorkers),
             RulesetHash = build.Ruleset.RulesetHash,
             EpisodesPath = episodesPath,
-            CheckpointPath = !training.AcceptancePassed
-                             && File.Exists(job.CheckpointPath)
+            CheckpointPath = resumable
                 ? job.CheckpointPath
                 : "",
-            Resumable = !training.AcceptancePassed
-                        && File.Exists(job.CheckpointPath),
+            Resumable = resumable,
             Training = training
         }));
-    if (training.Success && training.AcceptancePassed)
-    {
-        TryDelete(job.CheckpointPath);
-        TryDelete(job.CheckpointEpisodesPath);
-    }
     Console.WriteLine(
         "Foundation worker completed: campaigns="
         + training.CompletedCampaigns
@@ -314,12 +326,17 @@ catch (OperationCanceledException)
 {
     if (job != null)
     {
+        var resumable = File.Exists(job.CheckpointPath)
+                        && File.Exists(job.CheckpointEpisodesPath);
         WriteAtomic(
             job.ResultPath,
             Serialize(new CombatFoundationWorkerResult
             {
                 JobId = job.JobId,
                 Cancelled = true,
+                CompletionKind = resumable
+                    ? "cancelled-resumable"
+                    : "cancelled",
                 Message = "Foundation training cancelled.",
                 Runtime = RuntimeDescription(
                     job.Request.MaximumDegreeOfParallelism),
@@ -330,7 +347,7 @@ catch (OperationCanceledException)
                 CheckpointPath = File.Exists(job.CheckpointPath)
                     ? job.CheckpointPath
                     : "",
-                Resumable = File.Exists(job.CheckpointPath)
+                Resumable = resumable
             }));
     }
     return 3;
@@ -340,11 +357,16 @@ catch (Exception ex)
     Console.Error.WriteLine(ex);
     if (job != null && !string.IsNullOrWhiteSpace(job.ResultPath))
     {
+        var resumable = File.Exists(job.CheckpointPath)
+                        && File.Exists(job.CheckpointEpisodesPath);
         WriteAtomic(
             job.ResultPath,
             Serialize(new CombatFoundationWorkerResult
             {
                 JobId = job.JobId,
+                CompletionKind = resumable
+                    ? "failed-resumable"
+                    : "failed",
                 Message = ex.ToString(),
                 Runtime = RuntimeDescription(
                     job.Request.MaximumDegreeOfParallelism),
@@ -355,7 +377,7 @@ catch (Exception ex)
                 CheckpointPath = File.Exists(job.CheckpointPath)
                     ? job.CheckpointPath
                     : "",
-                Resumable = File.Exists(job.CheckpointPath)
+                Resumable = resumable
             }));
     }
     return 1;
@@ -393,7 +415,7 @@ static bool TryLoadCheckpoint(
         var checkpoint = Deserialize<CombatFoundationWorkerCheckpoint>(
             File.ReadAllText(job.CheckpointPath));
         if (checkpoint == null
-            || checkpoint.SchemaVersion != 3
+            || checkpoint.SchemaVersion != 4
             || !string.Equals(
                 checkpoint.RequestFingerprint,
                 requestFingerprint,
@@ -422,7 +444,7 @@ static bool TryLoadCheckpoint(
         }
         checkpoint.Resume.Replay = episodes;
         resume = checkpoint.Resume;
-        return resume.SchemaVersion == 3;
+        return resume.SchemaVersion == 4;
     }
     catch
     {

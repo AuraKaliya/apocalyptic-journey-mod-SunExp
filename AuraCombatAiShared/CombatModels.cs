@@ -390,10 +390,6 @@ public sealed class CombatDecisionProfile
 
     public double SurplusDefendRetention { get; set; } = 0.65d;
 
-    public int BeamWidth { get; set; } = 8;
-
-    public int MaxPlanDepth { get; set; } = 8;
-
     public int SearchSimulationBudget { get; set; } = 256;
 
     public int SearchNodeBudget { get; set; } = 8192;
@@ -406,7 +402,9 @@ public sealed class CombatDecisionProfile
 
     public int SearchStableChecks { get; set; } = 2;
 
-    public bool DynamicSearchBudgetEnabled { get; set; }
+    public string SearchBudgetMode { get; set; } = "dynamic";
+
+    public string SearchQuality { get; set; } = "balanced";
 
     public string SearchBudgetContext { get; set; } = "deployment";
 
@@ -434,7 +432,6 @@ public sealed class CombatDecisionProfile
 
     public bool PreferDominantFreeSetup { get; set; } = true;
 
-    public bool UseChancePuct { get; set; } = true;
 }
 
 public sealed class CombatCandidateEvaluation
@@ -597,9 +594,9 @@ public interface ICombatTrainingSampleSink
 
 public static class CombatTrainingProtocol
 {
-    public const string SampleProtocol = "aura.combat-ai.sample.v5";
+    public const string SampleProtocol = "aura.combat-ai.sample.v6";
 
-    public const int FeatureSchemaVersion = 5;
+    public const int FeatureSchemaVersion = 6;
 
     public static bool IsCompatible(CombatTrainingSample? sample)
     {
@@ -608,7 +605,14 @@ public static class CombatTrainingProtocol
                    sample.ModelProtocol,
                    SampleProtocol,
                    StringComparison.Ordinal)
-               && sample.FeatureSchemaVersion == FeatureSchemaVersion;
+               && sample.FeatureSchemaVersion == FeatureSchemaVersion
+               && sample.Selection != null
+               && string.Equals(
+                   sample.Selection.Protocol,
+                   "aura.combat-ai.selection.v1",
+                   StringComparison.Ordinal)
+               && !string.IsNullOrWhiteSpace(
+                   sample.Selection.ExecutedCandidateId);
     }
 }
 
@@ -638,14 +642,6 @@ public sealed class CombatTrainingSample
     public string NextStateFingerprint { get; set; } = "";
 
     public string DecisionProfile { get; set; } = "";
-
-    public string CandidateId { get; set; } = "";
-
-    public string SourceId { get; set; } = "";
-
-    public string Demonstrator { get; set; } = "policy";
-
-    public string RecommendedCandidateId { get; set; } = "";
 
     public CombatTrainingSelectionTrace Selection { get; set; } = new();
 

@@ -65,10 +65,6 @@ public static class CombatTrainingSampleBuilder
             StateFingerprint = before.Fingerprint,
             NextStateFingerprint = after?.Fingerprint ?? "",
             DecisionProfile = decision.ProfileId,
-            CandidateId = decision.Action.CandidateId,
-            SourceId = decision.Action.SourceId,
-            Demonstrator = executedBy,
-            RecommendedCandidateId = policyPreselectedCandidateId,
             Selection = new CombatTrainingSelectionTrace
             {
                 ExecutedBy = executedBy,

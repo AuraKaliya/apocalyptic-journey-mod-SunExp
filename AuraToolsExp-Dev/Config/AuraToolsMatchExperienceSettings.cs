@@ -51,6 +51,6 @@ public sealed class AuraToolsMatchExperienceSettings
         StarterDeck.Normalize();
         Feast.Normalize();
         DamageMeter.Normalize();
-        AutoBattle.Normalize(loadedSchemaVersion);
+        AutoBattle.Normalize();
     }
 }

@@ -511,7 +511,7 @@ using (CombatAiRegistry.RegisterThreatProvider(
 var model = new BoundedLinearDecisionResidualModel(new DecisionResidualModelDefinition
 {
     ModelId = "bounded-test",
-    FeatureSchemaVersion = 5,
+    FeatureSchemaVersion = 6,
     MaximumCorrection = 2d,
     Weights = new Dictionary<string, double> { ["effectiveDamage"] = 100d },
     FeatureMinimums = new Dictionary<string, double> { ["effectiveDamage"] = 0d },
@@ -567,10 +567,11 @@ var trainingSample = CombatTrainingSampleBuilder.Create(
     terminal: true,
     gameBuild: "test-game",
     sharedBuild: "test-shared");
-Assert(trainingSample.ModelProtocol == "aura.combat-ai.sample.v5"
-       && trainingSample.FeatureSchemaVersion == 5
+Assert(trainingSample.ModelProtocol == "aura.combat-ai.sample.v6"
+       && trainingSample.FeatureSchemaVersion == 6
        && trainingSample.Candidates.Count == state.Actions.Count
-       && trainingSample.SourceId == "attack",
+       && trainingSample.Candidates.Single(candidate =>
+           candidate.CandidateId == "attack").SourceId == "attack",
     "training v5 captures the selected action and every candidate");
 Assert(trainingSample.Selection.Protocol == "aura.combat-ai.selection.v1"
        && trainingSample.Selection.ExecutedBy == "policy"
@@ -663,7 +664,7 @@ Assert(originalFeatures.All(pair =>
 
 var trained = CombatResidualTrainer.Train(new[] { humanSample }, "balanced");
 Assert(trained.Success
-       && trained.Model?.FeatureSchemaVersion == 5
+       && trained.Model?.FeatureSchemaVersion == 6
        && trained.Model.DecisionProfile == "balanced"
        && trained.Model.FeatureMinimums.Count > 0
        && trained.Model.CategoryObservationCounts.Count > 0,
@@ -767,7 +768,10 @@ var incompatibleLegacySample = new CombatTrainingSample
         ["maxPower"] = 3d,
         ["handCount"] = 2d
     },
-    CandidateId = "legacy-defend"
+    Selection = new CombatTrainingSelectionTrace
+    {
+        ExecutedCandidateId = "legacy-defend"
+    }
 };
 var legacyContext = CombatResidualTrainer.ContextualFeatures(
     incompatibleLegacySample,
@@ -1074,6 +1078,7 @@ Assert(!ReferenceEquals(
 
 var coverageProfile = new CombatDecisionProfile
 {
+    SearchBudgetMode = "fixed",
     SearchSimulationBudget = 1,
     SearchNodeBudget = 512,
     SearchMaxPly = 4
@@ -1128,14 +1133,15 @@ var coverageState = new CombatStateObservation
     }
 };
 var coverageDecision = new CombatDecisionEngine().Choose(coverageState, coverageProfile);
-Assert(coverageDecision.SearchAlgorithm == "root-sampling-chance-puct-mpc"
+Assert(coverageDecision.SearchAlgorithm == "risk-aware-root-sampling-puct-mpc"
        && coverageDecision.SearchSimulations >= 2
        && coverageDecision.Candidates
            .Where(candidate => candidate.Action.Kind != CombatActionKind.EndTurn)
            .All(candidate => candidate.PlanScore != 0d),
-    "chance-puct gives every legal root action search evidence");
+    "risk-aware root-sampling PUCT gives every legal root action search evidence");
 var earlyStopProfile = new CombatDecisionProfile
 {
+    SearchBudgetMode = "fixed",
     SearchSimulationBudget = 128,
     SearchMinimumSimulations = 4,
     SearchStabilityWindow = 2,
@@ -1146,7 +1152,37 @@ var earlyStopProfile = new CombatDecisionProfile
 var earlyStopDecision = new CombatDecisionEngine().Choose(coverageState, earlyStopProfile);
 Assert(earlyStopDecision.SearchStoppedEarly
        && earlyStopDecision.SearchSimulations < earlyStopProfile.SearchSimulationBudget,
-    "chance-puct stops when the root ranking and graph have stabilized");
+    "risk-aware root-sampling PUCT stops when the root ranking and graph have stabilized");
+var sparseTailStatistics = new CombatSearchRiskStatistics();
+sparseTailStatistics.Record(-40d, 0d);
+var sparseTailEstimate = sparseTailStatistics.Estimate(0.1d);
+Assert(sparseTailEstimate.TailConfidence == 0d
+       && sparseTailEstimate.EffectiveLowerTailMean == sparseTailEstimate.Mean,
+    "tail-risk search shrinks a single return sample fully back to the mean");
+var highMeanStatistics = new CombatSearchRiskStatistics();
+var lowMeanStatistics = new CombatSearchRiskStatistics();
+for (var index = 0; index < 80; index++)
+{
+    highMeanStatistics.Record(index < 8 ? 0d : 100d, 0d);
+    lowMeanStatistics.Record(index < 8 ? 1d : 10d, 0d);
+}
+var rankingProfile = new CombatDecisionProfile
+{
+    TailRiskPenalty = 0d,
+    UncertaintyPenalty = 0d
+};
+var highMeanValue = CombatRiskAdjustedSearchValue.Calculate(
+    highMeanStatistics.Estimate(0.1d),
+    0d,
+    rankingProfile);
+var lowMeanValue = CombatRiskAdjustedSearchValue.Calculate(
+    lowMeanStatistics.Estimate(0.1d),
+    0d,
+    rankingProfile);
+Assert(highMeanStatistics.Estimate(0.1d).RawLowerTailMean
+       < lowMeanStatistics.Estimate(0.1d).RawLowerTailMean
+       && highMeanValue > lowMeanValue,
+    "root ranking uses the configured mean-tail objective instead of lexicographic raw CVaR");
 
 var targetVariantState = new CombatStateObservation
 {
@@ -1186,7 +1222,12 @@ var targetVariantState = new CombatStateObservation
 };
 var targetVariantDecision = new CombatDecisionEngine().Choose(
     targetVariantState,
-    new CombatDecisionProfile { SearchSimulationBudget = 128, SearchNodeBudget = 512 });
+    new CombatDecisionProfile
+    {
+        SearchBudgetMode = "fixed",
+        SearchSimulationBudget = 128,
+        SearchNodeBudget = 512
+    });
 Assert(targetVariantDecision.Plan.Count(step => step.CandidateId.StartsWith("same-card:", StringComparison.Ordinal)) <= 1,
     "target variants of one runtime card share a single-use group");
 
@@ -1230,6 +1271,7 @@ var transpositionDecision = new CombatDecisionEngine().Choose(
     transpositionState,
     new CombatDecisionProfile
     {
+        SearchBudgetMode = "fixed",
         SearchSimulationBudget = 256,
         SearchNodeBudget = 1024,
         SearchMaxPly = 4
@@ -2280,6 +2322,7 @@ var aiSimulation = simulationEngine.Run(
     new CombatDecisionSimulationPolicy(
         new CombatDecisionProfile
         {
+            SearchBudgetMode = "fixed",
             SearchSimulationBudget = 128,
             SearchNodeBudget = 1024,
             SearchMaxPly = 8
@@ -2677,8 +2720,6 @@ var liveBattleSamples = new List<CombatTrainingSample>
         Sequence = 1,
         StateFingerprint = "live-state-1",
         DecisionProfile = "balanced",
-        CandidateId = "card_1:enemy",
-        Demonstrator = "human",
         Selection = new CombatTrainingSelectionTrace
         {
             ExecutedBy = "human",
@@ -2713,8 +2754,6 @@ var liveBattleSamples = new List<CombatTrainingSample>
         Sequence = 2,
         StateFingerprint = "live-state-2",
         DecisionProfile = "balanced",
-        CandidateId = "card_14:enemy",
-        Demonstrator = "human",
         Selection = new CombatTrainingSelectionTrace
         {
             ExecutedBy = "human",
@@ -4027,6 +4066,7 @@ Assert(oceanApplication.Success
 var episodeProfile = new CombatDecisionProfile
 {
     Id = "balanced",
+    SearchBudgetMode = "fixed",
     SearchSimulationBudget = 128,
     SearchNodeBudget = 1024,
     SearchMaxPly = 8
@@ -4066,8 +4106,15 @@ var policyValueTraining = CombatPolicyValueTrainer.Train(
     });
 Assert(policyValueTraining.Success
        && policyValueTraining.Model != null
-       && policyValueTraining.Model.Metrics["trainingRunCount"] == 4d
+       && policyValueTraining.Model.Metrics["trainingRunCount"] == 3d
        && policyValueTraining.Model.Metrics["validationRunCount"] == 1d
+       && policyValueTraining.Model.Metrics["testRunCount"] == 1d
+       && policyValueTraining.Model.Metrics.ContainsKey("testCompositeLoss")
+       && policyValueTraining.Model.Metrics["optimizerAdamW"] == 1d
+       && policyValueTraining.Model.Metrics["optimizerStep"] > 0d
+       && policyValueTraining.Model.PolicyTemperature is >= 0.5d and <= 3d
+       && policyValueTraining.Model.Metrics["policyTemperature"]
+          == policyValueTraining.Model.PolicyTemperature
        && policyValueTraining.Model.Metrics.ContainsKey(
            "validationPolicyCrossEntropy")
        && policyValueTraining.Model.Metrics.ContainsKey(
@@ -4143,6 +4190,9 @@ using (var interruptedBatchTraining = new CancellationTokenSource())
     }
     Assert(interrupted
            && capturedBatchCheckpoint?.CompletedEpochs == 2
+           && capturedBatchCheckpoint.Optimizer?.Step > 0
+           && capturedBatchCheckpoint.Optimizer.FirstMoment.Length
+              == capturedBatchCheckpoint.Optimizer.SecondMoment.Length
            && batchProgress.Any(progress =>
                progress.Stage == "encoding")
            && batchProgress.Any(progress =>
@@ -4786,7 +4836,7 @@ var contaminatedFeatureVector = CombatPolicyValueEncoding.EncodeState(
     32);
 var legacyFeatureModel = new CombatPolicyValueNetworkDefinition
 {
-    FeatureSchemaVersion = 5
+    FeatureSchemaVersion = 6
 };
 Assert(cleanFeatureVector.SequenceEqual(contaminatedFeatureVector)
        && !CombatPolicyValueNetworkValidator.TryValidate(
@@ -4865,7 +4915,8 @@ var budgetState = new CombatStateObservation
 };
 var budgetProfile = new CombatDecisionProfile
 {
-    DynamicSearchBudgetEnabled = true,
+    SearchBudgetMode = "dynamic",
+    SearchQuality = "balanced",
     SearchBudgetContext = "deployment"
 };
 var forcedBudget = CombatSearchBudgetPolicy.Resolve(
@@ -4931,11 +4982,11 @@ Assert(forcedBudget.Tier == "forced"
 var partitionedStatus = CombatPolicyValueEncoding.EncodeState(
     new Dictionary<string, double> { ["playerStatus:test"] = 1d },
     128,
-    "partitioned-v2");
+    "partitioned-v3");
 var partitionedDeck = CombatPolicyValueEncoding.EncodeState(
     new Dictionary<string, double> { ["deck:test"] = 1d },
     128,
-    "partitioned-v2");
+    "partitioned-v3");
 Assert(partitionedStatus
            .Select((value, index) => new { value, index })
            .Where(item => Math.Abs(item.value) > 0.0000001d)
@@ -4945,6 +4996,35 @@ Assert(partitionedStatus
            .Where(item => Math.Abs(item.value) > 0.0000001d)
            .All(item => item.index >= 56 && item.index < 80),
     "partitioned state encoding keeps status and deck identities in disjoint feature ranges");
+var coreStateEncoding = CombatPolicyValueEncoding.EncodeState(
+    new Dictionary<string, double>
+    {
+        ["playerHp"] = 10d,
+        ["playerMaxHp"] = 20d
+    },
+    128,
+    "partitioned-v3");
+var coreActionEncoding = CombatPolicyValueEncoding.EncodeCandidate(
+    new CombatPolicyValueCandidate
+    {
+        SourceId = "test",
+        Features = new Dictionary<string, double>
+        {
+            ["cost"] = 1d,
+            ["risk"] = 2d
+        }
+    },
+    96,
+    "partitioned-v3");
+Assert(coreStateEncoding[0] != 0d
+       && coreStateEncoding[1] != 0d
+       && coreActionEncoding[0] != 0d
+       && coreActionEncoding[21] != 0d
+       && policyValueTraining.Model!.Metrics.ContainsKey(
+           "stateFeatureCollisionRate")
+       && policyValueTraining.Model.Metrics.ContainsKey(
+           "actionFeatureCollisionRate"),
+    "partitioned-v3 reserves fixed core slots and reports sparse collision telemetry");
 var replayFixture = Enumerable.Range(0, 8)
     .Select(index => new CombatEpisode
     {
@@ -5187,6 +5267,7 @@ var foundationRequest = new CombatCampaignFoundationTrainingRequest
     ValidationCampaign = projectedValidationCampaign,
     Profile = new CombatDecisionProfile
     {
+        SearchBudgetMode = "fixed",
         SearchSimulationBudget = 128,
         SearchNodeBudget = 512,
         SearchMaxPly = 4
@@ -5211,7 +5292,7 @@ foundationRequest.Resume = new CombatCampaignFoundationResumeState
     {
         new CombatEpisode
         {
-            FeatureSchemaVersion = 5,
+            FeatureSchemaVersion = 6,
             ModelProtocol = CombatPolicyValueProtocol.EpisodeProtocol
         }
     }
@@ -5301,7 +5382,7 @@ var resumedFoundationTraining = new CombatCampaignFoundationTrainer().Run(
     campaignRules.Ruleset);
 Assert(interruptedFoundationObserved
        && capturedFoundationCheckpoint != null
-       && capturedFoundationCheckpoint.SchemaVersion == 3
+       && capturedFoundationCheckpoint.SchemaVersion == 4
        && capturedFoundationCheckpoint.Compatibility.FeatureSchemaVersion
           == CombatPolicyValueProtocol.FeatureSchemaVersion
        && capturedFoundationCheckpoint.Compatibility.CampaignId
@@ -5311,7 +5392,7 @@ Assert(interruptedFoundationObserved
        && !string.IsNullOrWhiteSpace(
            capturedFoundationCheckpoint.Compatibility.ValidationCampaignHash)
        && capturedFoundationCheckpoint.Compatibility.FeatureEncodingMode
-          == "partitioned-v2"
+          == "partitioned-v3"
        && capturedFoundationCheckpoint.Compatibility.StateDimensions == 128
        && capturedFoundationCheckpoint.Compatibility.HiddenDimensions == 8
        && capturedFoundationCheckpoint.CompletedCampaigns == 2
@@ -5619,6 +5700,7 @@ Assert(CombatRootDeterminizer.SampleDrawPile(hiddenBeliefA, hiddenSampleSeed)
     "belief determinization depends on public knowledge rather than authoritative order");
 var invariantProfile = new CombatDecisionProfile
 {
+    SearchBudgetMode = "fixed",
     SearchSimulationBudget = 24,
     SearchMinimumSimulations = 8,
     SearchNodeBudget = 512,

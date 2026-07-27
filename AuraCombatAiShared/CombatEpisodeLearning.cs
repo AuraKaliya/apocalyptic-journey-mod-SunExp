@@ -7,9 +7,9 @@ namespace AuraCombatAi.Shared;
 
 public static class CombatPolicyValueProtocol
 {
-    public const string EpisodeProtocol = "aura.combat-ai.episode.v2";
+    public const string EpisodeProtocol = "aura.combat-ai.episode.v3";
 
-    public const int FeatureSchemaVersion = 9;
+    public const int FeatureSchemaVersion = 10;
 }
 
 public sealed class CombatEpisode
@@ -148,7 +148,7 @@ public sealed class CombatPolicyValueTrainingOptions
 
     public int HiddenDimensions { get; set; } = 64;
 
-    public string FeatureEncodingMode { get; set; } = "partitioned-v2";
+    public string FeatureEncodingMode { get; set; } = "partitioned-v3";
 
     public int RandomSeed { get; set; } = 20260724;
 
@@ -180,12 +180,7 @@ public sealed class CombatPolicyValueTrainingOptions
             StateDimensions = Math.Max(16, Math.Min(512, StateDimensions)),
             ActionDimensions = Math.Max(16, Math.Min(512, ActionDimensions)),
             HiddenDimensions = Math.Max(8, Math.Min(256, HiddenDimensions)),
-            FeatureEncodingMode = string.Equals(
-                FeatureEncodingMode,
-                "hashed-v1",
-                StringComparison.OrdinalIgnoreCase)
-                ? "hashed-v1"
-                : "partitioned-v2",
+            FeatureEncodingMode = "partitioned-v3",
             RandomSeed = RandomSeed,
             MinimumEpisodes = Math.Max(2, Math.Min(10000, MinimumEpisodes)),
             RequireAuthoritativeEpisodes = RequireAuthoritativeEpisodes,
@@ -240,6 +235,8 @@ public sealed class CombatPolicyValueTrainingResult
     public bool EarlyStopped { get; set; }
 
     public double ElapsedSeconds { get; set; }
+
+    public double TestLoss { get; set; }
 }
 
 public sealed class CombatPolicyValueModelCandidate
@@ -292,8 +289,19 @@ public sealed class CombatPolicyValueTrainingResumeState
 
     public int StaleEpochs { get; set; }
 
+    public CombatPolicyValueOptimizerState? Optimizer { get; set; }
+
     public List<CombatPolicyValueModelCandidate> TopModels { get; set; } =
         new();
+}
+
+public sealed class CombatPolicyValueOptimizerState
+{
+    public long Step { get; set; }
+
+    public double[] FirstMoment { get; set; } = Array.Empty<double>();
+
+    public double[] SecondMoment { get; set; } = Array.Empty<double>();
 }
 
 public sealed class CombatPolicyValueTrainingSession
@@ -420,7 +428,8 @@ public static class CombatPolicyValueTrainer
                     SourceId = legal[i].SourceId,
                     Features = legal[i].Features
                 },
-                model.ActionDimensions);
+                model.ActionDimensions,
+                model.FeatureEncodingMode);
             var pre = Dense(vector, model.ActionWeights, model.ActionBias, model.HiddenDimensions);
             var hidden = pre.Select(Math.Tanh).ToArray();
             actionVectors.Add(vector);

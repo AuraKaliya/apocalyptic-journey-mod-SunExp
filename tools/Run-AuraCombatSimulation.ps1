@@ -13,7 +13,7 @@ param(
     [ValidateRange(1, 256)]
     [int]$Parallel = 1,
 
-    [ValidateSet("greedy", "first", "chance-puct")]
+    [ValidateSet("greedy", "first", "risk-puct")]
     [string]$Policy = "greedy",
 
     [UInt64]$SeedStart = 0

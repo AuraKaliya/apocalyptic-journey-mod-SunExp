@@ -29,9 +29,6 @@ public sealed class AutoBattleSettings
     [JsonProperty("trainingMode")]
     public string TrainingMode { get; set; } = "hybrid";
 
-    [JsonProperty("useTrainedModel")]
-    public bool UseTrainedModel { get; set; }
-
     [JsonProperty("trainedModelMode")]
     public string TrainedModelMode { get; set; } = "off";
 
@@ -41,14 +38,8 @@ public sealed class AutoBattleSettings
     [JsonProperty("showPredictionMarkers")]
     public bool ShowPredictionMarkers { get; set; } = true;
 
-    [JsonProperty("searchSimulationBudget")]
-    public int SearchSimulationBudget { get; set; } = 256;
-
-    [JsonProperty("searchNodeBudget")]
-    public int SearchNodeBudget { get; set; } = 8192;
-
-    [JsonProperty("searchMaxPly")]
-    public int SearchMaxPly { get; set; } = 10;
+    [JsonProperty("searchQuality")]
+    public string SearchQuality { get; set; } = "balanced";
 
     [JsonProperty("training")]
     public AutoBattleTrainingSettings Training { get; set; } = AutoBattleTrainingSettings.CreateSteady();
@@ -59,15 +50,9 @@ public sealed class AutoBattleSettings
     [JsonProperty("simulation")]
     public AutoBattleSimulationSettings Simulation { get; set; } = new();
 
-    public void Normalize(int sourceSchemaVersion = 22)
+    public void Normalize()
     {
-        Training ??= sourceSchemaVersion < 14
-            ? AutoBattleTrainingSettings.CreateLegacy()
-            : AutoBattleTrainingSettings.CreateSteady();
-        if (sourceSchemaVersion < 14)
-        {
-            Training = AutoBattleTrainingSettings.CreateLegacy();
-        }
+        Training ??= AutoBattleTrainingSettings.CreateSteady();
 
         Profile = NormalizeChoice(Profile, "balanced", "aggressive", "defensive");
         UnknownActionPolicy = NormalizeChoice(
@@ -76,25 +61,20 @@ public sealed class AutoBattleSettings
             "allow",
             "handoff");
         TrainingMode = NormalizeChoice(TrainingMode, "auto", "shadow", "hybrid");
-        if (UseTrainedModel
-            && string.Equals(TrainedModelMode, "off", StringComparison.OrdinalIgnoreCase))
-        {
-            TrainedModelMode = "active";
-        }
         TrainedModelMode = NormalizeChoice(TrainedModelMode, "off", "shadow", "active");
-        UseTrainedModel = !string.Equals(TrainedModelMode, "off", StringComparison.Ordinal);
         SelectedModelId = SelectedModelId?.Trim() ?? "";
         DecisionIntervalMs = Math.Max(150, Math.Min(2000, DecisionIntervalMs));
         ActionTimeoutSeconds = Math.Max(3f, Math.Min(60f, ActionTimeoutSeconds));
-        SearchSimulationBudget = Math.Max(128, Math.Min(20000, SearchSimulationBudget));
-        SearchNodeBudget = Math.Max(512, Math.Min(65536, SearchNodeBudget));
-        SearchMaxPly = Math.Max(4, Math.Min(32, SearchMaxPly));
+        SearchQuality = NormalizeChoice(
+            SearchQuality,
+            "balanced",
+            "fast",
+            "deep");
         Training.Normalize();
         FoundationTraining ??= new AutoBattleFoundationTrainingSettings();
-        FoundationTraining.MigrateFrom(sourceSchemaVersion);
         FoundationTraining.Normalize();
         Simulation ??= new AutoBattleSimulationSettings();
-        Simulation.Normalize(sourceSchemaVersion);
+        Simulation.Normalize();
     }
 
     private static string NormalizeChoice(string value, params string[] choices)
@@ -132,9 +112,6 @@ public sealed class AutoBattleFoundationTrainingSettings
     [JsonProperty("arenaConfirmationCampaignsPerDifficulty")]
     public int ArenaConfirmationCampaignsPerDifficulty { get; set; } = 64;
 
-    [JsonProperty("validationCampaignsPerDifficulty")]
-    public int ValidationCampaignsPerDifficulty { get; set; }
-
     [JsonProperty("normalValidationCampaigns")]
     public int NormalValidationCampaigns { get; set; } = 200;
 
@@ -165,9 +142,6 @@ public sealed class AutoBattleFoundationTrainingSettings
 
     [JsonProperty("enableSuccessCaseArchive")]
     public bool EnableSuccessCaseArchive { get; set; } = true;
-
-    [JsonProperty("enableDynamicSearchBudget")]
-    public bool EnableDynamicSearchBudget { get; set; } = true;
 
     [JsonProperty("enableArenaRecovery")]
     public bool EnableArenaRecovery { get; set; } = true;
@@ -242,7 +216,7 @@ public sealed class AutoBattleFoundationTrainingSettings
     public int ModelHiddenDimensions { get; set; } = 64;
 
     [JsonProperty("modelFeatureEncodingMode")]
-    public string ModelFeatureEncodingMode { get; set; } = "partitioned-v2";
+    public string ModelFeatureEncodingMode { get; set; } = "partitioned-v3";
 
     [JsonProperty("trainingSeedStart")]
     public ulong TrainingSeedStart { get; set; } = 10_000UL;
@@ -256,66 +230,6 @@ public sealed class AutoBattleFoundationTrainingSettings
     [JsonProperty("validationSeedStart")]
     public ulong ValidationSeedStart { get; set; } = 2_000_000UL;
 
-    public void MigrateFrom(int sourceSchemaVersion)
-    {
-        if (sourceSchemaVersion < 17
-            && Iterations == 3
-            && TrainingCampaignsPerIteration == 6
-            && ArenaCampaignsPerDifficulty == 4)
-        {
-            Iterations = 8;
-            TrainingCampaignsPerIteration = 64;
-            ArenaCampaignsPerDifficulty = 32;
-        }
-        if (sourceSchemaVersion < 18 && Parallelism == 8)
-        {
-            Parallelism = Math.Max(
-                1,
-                Math.Min(16, Environment.ProcessorCount));
-        }
-        if (sourceSchemaVersion < 20)
-        {
-            RandomizeRunSeed = true;
-            EnableCurriculum = true;
-            EnableStratifiedReplay = true;
-            EnableHardSeedCurriculum = true;
-            EnableSuccessCaseArchive = true;
-            SuccessExpertReplayShare = 0.20d;
-            HardSeedReplayShare = 0.35d;
-            SelfPlayExplorationProbability = 0.15d;
-            SelfPlayExplorationTemperature = 1d;
-        }
-        if (sourceSchemaVersion < 21)
-        {
-            EnableSuccessCaseArchive = true;
-            SuccessExpertReplayShare = 0.20d;
-        }
-        if (sourceSchemaVersion < 22)
-        {
-            EnableDynamicSearchBudget = true;
-            EnableArenaRecovery = true;
-            ArenaInvalidRetryCount = 1;
-            ArenaInvalidRateLimit = 0.02d;
-            EnableTuningArena = true;
-            TuningNormalCampaigns = 8;
-            TuningAdvancedCampaigns = 12;
-            NormalAcceptanceRate = 0.90d;
-            AdvancedAcceptanceRate = 0.50d;
-            ModelMinimumEpochs = 8;
-            ModelEarlyStoppingPatience = 8;
-            ModelEarlyStoppingMinimumDelta = 0.0002d;
-            ModelReplayEpisodeLimit = 6000;
-            ModelRetainedCandidates = 3;
-            ModelLearningRate = 0.0125d;
-            ModelL2 = 0.0015d;
-            ModelStateDimensions = 128;
-            ModelActionDimensions = 96;
-            ModelHiddenDimensions = 64;
-            ModelFeatureEncodingMode = "partitioned-v2";
-            TuningSeedStart = 1_500_000UL;
-        }
-    }
-
     public void Normalize()
     {
         Iterations = Math.Max(1, Math.Min(20, Iterations));
@@ -328,18 +242,6 @@ public sealed class AutoBattleFoundationTrainingSettings
         ArenaConfirmationCampaignsPerDifficulty = Math.Max(
             0,
             Math.Min(200, ArenaConfirmationCampaignsPerDifficulty));
-        if (NormalValidationCampaigns <= 0)
-        {
-            NormalValidationCampaigns = ValidationCampaignsPerDifficulty > 0
-                ? ValidationCampaignsPerDifficulty
-                : 200;
-        }
-        if (AdvancedValidationCampaigns <= 0)
-        {
-            AdvancedValidationCampaigns = ValidationCampaignsPerDifficulty > 0
-                ? ValidationCampaignsPerDifficulty
-                : 500;
-        }
         NormalValidationCampaigns = Math.Max(
             10,
             Math.Min(1000, NormalValidationCampaigns));
@@ -386,12 +288,7 @@ public sealed class AutoBattleFoundationTrainingSettings
         ModelHiddenDimensions = Math.Max(
             8,
             Math.Min(256, ModelHiddenDimensions));
-        ModelFeatureEncodingMode = string.Equals(
-            ModelFeatureEncodingMode,
-            "hashed-v1",
-            StringComparison.OrdinalIgnoreCase)
-            ? "hashed-v1"
-            : "partitioned-v2";
+        ModelFeatureEncodingMode = "partitioned-v3";
         ArenaInvalidRetryCount = Math.Max(
             0,
             Math.Min(3, ArenaInvalidRetryCount));
@@ -504,14 +401,10 @@ public sealed class AutoBattleSimulationSettings
     [JsonProperty("evolutionArenaEpisodes")]
     public int EvolutionArenaEpisodes { get; set; } = 16;
 
-    public void Normalize(int sourceSchemaVersion = 17)
+    public void Normalize()
     {
         ScenarioId = ScenarioId?.Trim() ?? "";
-        if (string.IsNullOrWhiteSpace(ScenarioId)
-            || string.Equals(
-                ScenarioId,
-                "witch.world-simulation.standard-v1",
-                StringComparison.OrdinalIgnoreCase))
+        if (string.IsNullOrWhiteSpace(ScenarioId))
         {
             ScenarioId = "witch.world-simulation.standard-v2";
         }
@@ -521,10 +414,6 @@ public sealed class AutoBattleSimulationSettings
             StringComparison.OrdinalIgnoreCase)
             ? "advanced"
             : "normal";
-        if (sourceSchemaVersion < 15 && SimulationCount == 200)
-        {
-            SimulationCount = 8;
-        }
         SimulationCount = Math.Max(1, Math.Min(100000, SimulationCount));
         Parallelism = Math.Max(1, Math.Min(16, Parallelism));
         MinimumAuthoritativeCoverage = Clamp(
@@ -588,22 +477,6 @@ public sealed class AutoBattleTrainingSettings
         var settings = new AutoBattleTrainingSettings();
         settings.ApplyPreset(SteadyPreset);
         return settings;
-    }
-
-    public static AutoBattleTrainingSettings CreateLegacy()
-    {
-        return new AutoBattleTrainingSettings
-        {
-            Preset = CustomPreset,
-            Epochs = 100,
-            LearningRate = 0.05d,
-            L2 = 0.001d,
-            MaximumCorrection = 2d,
-            MinimumPreferencePairs = 1,
-            MinimumCategoryObservations = 5,
-            MinimumEpisodes = 2,
-            PolicyValueHiddenDimensions = 32
-        };
     }
 
     public void ApplyPreset(string preset)

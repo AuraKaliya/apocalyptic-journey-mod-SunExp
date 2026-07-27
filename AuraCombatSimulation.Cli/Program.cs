@@ -10,7 +10,7 @@ if (!parsed.Success)
     Console.Error.WriteLine(
         "Usage: --ruleset <rules.json> --scenario <scenario.json> "
         + "[--output <result.json>] [--count N] [--parallel N] "
-        + "[--seed-start N] [--policy greedy|first|chance-puct]");
+        + "[--seed-start N] [--policy greedy|first|risk-puct]");
     return 2;
 }
 
@@ -107,7 +107,7 @@ static ICombatSimulationPolicy Policy(string policy)
     {
         case "first":
             return FirstLegalCombatSimulationPolicy.Instance;
-        case "chance-puct":
+        case "risk-puct":
             return new CombatDecisionSimulationPolicy(new CombatDecisionProfile());
         default:
             return new GreedyCombatSimulationPolicy();
@@ -120,7 +120,7 @@ static ICombatSimulationPolicyFactory PolicyFactory(string policy)
     {
         case "first":
             return new FirstLegalPolicyFactory();
-        case "chance-puct":
+        case "risk-puct":
             return new CombatDecisionSimulationPolicyFactory(new CombatDecisionProfile());
         default:
             return new GreedyCombatSimulationPolicyFactory();
@@ -208,7 +208,7 @@ sealed class CommandLine
                     result.Policy = value.Trim().ToLowerInvariant();
                     if (result.Policy != "greedy"
                         && result.Policy != "first"
-                        && result.Policy != "chance-puct")
+                        && result.Policy != "risk-puct")
                     {
                         result.Message = "Unknown policy: " + value;
                         return result;

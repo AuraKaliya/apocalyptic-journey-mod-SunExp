@@ -89,7 +89,9 @@ public sealed class CombatPolicyValueNetworkDefinition
 
     public int HiddenDimensions { get; set; } = 64;
 
-    public string FeatureEncodingMode { get; set; } = "partitioned-v2";
+    public string FeatureEncodingMode { get; set; } = "partitioned-v3";
+
+    public double PolicyTemperature { get; set; } = 1d;
 
     public double[] StateWeights { get; set; } = Array.Empty<double>();
 
@@ -176,7 +178,8 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
             var candidate = input.Candidates[i] ?? new CombatPolicyValueCandidate();
             var action = CombatPolicyValueEncoding.EncodeCandidate(
                 candidate,
-                definition.ActionDimensions);
+                definition.ActionDimensions,
+                definition.FeatureEncodingMode);
             var actionHidden = DenseTanh(
                 action,
                 definition.ActionWeights,
@@ -187,7 +190,11 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
             {
                 interaction += hidden[j] * actionHidden[j] * definition.PolicyWeights[j];
             }
-            var logit = Clamp(interaction + definition.PolicyBias, -30d, 30d);
+            var logit = Clamp(
+                (interaction + definition.PolicyBias)
+                / definition.PolicyTemperature,
+                -30d,
+                30d);
             result.PolicyLogits[candidate.CandidateId ?? ""] = logit;
             minimum = Math.Min(minimum, logit);
             maximum = Math.Max(maximum, logit);
@@ -284,13 +291,16 @@ public static class CombatPolicyValueNetworkValidator
             reason = "策略价值模型维度无效";
             return false;
         }
+        if (!Finite(model.PolicyTemperature)
+            || model.PolicyTemperature < 0.25d
+            || model.PolicyTemperature > 4d)
+        {
+            reason = "策略价值模型策略温度无效";
+            return false;
+        }
         if (!string.Equals(
                 model.FeatureEncodingMode,
-                "hashed-v1",
-                StringComparison.OrdinalIgnoreCase)
-            && !string.Equals(
-                model.FeatureEncodingMode,
-                "partitioned-v2",
+                "partitioned-v3",
                 StringComparison.OrdinalIgnoreCase))
         {
             reason = "策略价值模型特征编码模式无效";
@@ -350,6 +360,19 @@ public static class CombatPolicyValueNetworkValidator
     }
 }
 
+public sealed class CombatFeatureCollisionTelemetry
+{
+    public int FeatureCount { get; set; }
+
+    public int UniqueBucketCount { get; set; }
+
+    public int CollisionCount => Math.Max(0, FeatureCount - UniqueBucketCount);
+
+    public double CollisionRate => FeatureCount == 0
+        ? 0d
+        : (double)CollisionCount / FeatureCount;
+}
+
 public static class CombatPolicyValueEncoding
 {
     public static double[] Encode(
@@ -369,7 +392,7 @@ public static class CombatPolicyValueEncoding
         IReadOnlyDictionary<string, double>? values,
         int dimensions)
     {
-        return EncodeState(values, dimensions, "hashed-v1");
+        return EncodeState(values, dimensions, "partitioned-v3");
     }
 
     public static double[] EncodeState(
@@ -377,18 +400,16 @@ public static class CombatPolicyValueEncoding
         int dimensions,
         string encodingMode)
     {
+        RequireCurrentEncoding(encodingMode);
         var sanitized = SanitizeStateFeatures(values);
-        if (!string.Equals(
-                encodingMode,
-                "partitioned-v2",
-                StringComparison.OrdinalIgnoreCase)
-            || dimensions < 64)
-        {
-            return Encode(sanitized, dimensions, "state");
-        }
         var result = new double[Math.Max(1, dimensions)];
         foreach (var pair in sanitized)
         {
+            if (TryCoreStateIndex(pair.Key, result.Length, out var coreIndex))
+            {
+                result[coreIndex] += Normalize(pair.Value);
+                continue;
+            }
             var range = StateRange(pair.Key, result.Length);
             AddRange(
                 result,
@@ -417,13 +438,90 @@ public static class CombatPolicyValueEncoding
                    .Count == 1;
     }
 
-    public static double[] EncodeCandidate(
+    public static CombatFeatureCollisionTelemetry MeasureStateCollisions(
+        IReadOnlyDictionary<string, double>? values,
+        int dimensions)
+    {
+        var buckets = new HashSet<int>();
+        var count = 0;
+        foreach (var pair in SanitizeStateFeatures(values))
+        {
+            count++;
+            buckets.Add(StateIndex(pair.Key, Math.Max(1, dimensions)));
+        }
+        return new CombatFeatureCollisionTelemetry
+        {
+            FeatureCount = count,
+            UniqueBucketCount = buckets.Count
+        };
+    }
+
+    public static CombatFeatureCollisionTelemetry MeasureCandidateCollisions(
         CombatPolicyValueCandidate candidate,
         int dimensions)
     {
-        var result = Encode(candidate.Features, dimensions, "action");
-        Add(result, "source:" + (candidate.SourceId ?? ""), 1d);
+        var safeDimensions = Math.Max(1, dimensions);
+        var buckets = new HashSet<int>();
+        var count = 0;
+        foreach (var pair in CombatPublicFeaturePolicy.SanitizeAction(
+                     candidate.Features))
+        {
+            count++;
+            buckets.Add(ActionIndex(pair.Key, safeDimensions));
+        }
+        count++;
+        buckets.Add(SparseActionIndex(
+            "source:" + (candidate.SourceId ?? ""),
+            safeDimensions));
+        return new CombatFeatureCollisionTelemetry
+        {
+            FeatureCount = count,
+            UniqueBucketCount = buckets.Count
+        };
+    }
+
+    public static double[] EncodeCandidate(
+        CombatPolicyValueCandidate candidate,
+        int dimensions,
+        string encodingMode = "partitioned-v3")
+    {
+        RequireCurrentEncoding(encodingMode);
+        var result = new double[Math.Max(1, dimensions)];
+        foreach (var pair in CombatPublicFeaturePolicy.SanitizeAction(
+                     candidate.Features))
+        {
+            if (TryCoreActionIndex(pair.Key, result.Length, out var coreIndex))
+            {
+                result[coreIndex] += Normalize(pair.Value);
+                continue;
+            }
+            AddRange(
+                result,
+                Math.Min(24, result.Length - 1),
+                Math.Max(1, result.Length - Math.Min(24, result.Length - 1)),
+                "action:" + pair.Key,
+                Normalize(pair.Value));
+        }
+        AddRange(
+            result,
+            Math.Min(24, result.Length - 1),
+            Math.Max(1, result.Length - Math.Min(24, result.Length - 1)),
+            "source:" + (candidate.SourceId ?? ""),
+            1d);
         return result;
+    }
+
+    private static void RequireCurrentEncoding(string encodingMode)
+    {
+        if (!string.Equals(
+                encodingMode,
+                "partitioned-v3",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            throw new ArgumentException(
+                "只接受当前策略价值特征编码 partitioned-v3",
+                nameof(encodingMode));
+        }
     }
 
     public static CombatPolicyValueInput BuildInput(
@@ -571,6 +669,93 @@ public static class CombatPolicyValueEncoding
         values[index] += sign * amount;
     }
 
+    private static bool TryCoreStateIndex(
+        string key,
+        int dimensions,
+        out int index)
+    {
+        var slot = (key ?? "").ToLowerInvariant() switch
+        {
+            "playerhp" => 0,
+            "playermaxhp" => 1,
+            "playerdefend" => 2,
+            "power" => 3,
+            "maxpower" => 4,
+            "handcount" => 5,
+            "enemycount" => 6,
+            "enemyhptotal" => 7,
+            "expectedincomingdamage" => 8,
+            "expectedblockabledamage" => 9,
+            "expectedunblockabledamage" => 10,
+            "expecteddamageovertime" => 11,
+            "turn" => 12,
+            _ => -1
+        };
+        index = slot < 0 ? -1 : Math.Min(dimensions - 1, slot);
+        return slot >= 0;
+    }
+
+    private static bool TryCoreActionIndex(
+        string key,
+        int dimensions,
+        out int index)
+    {
+        var slot = (key ?? "").ToLowerInvariant() switch
+        {
+            "cost" => 0,
+            "rulescore" => 1,
+            "baserulescore" => 2,
+            "planscore" => 3,
+            "damage" => 4,
+            "truedamage" => 5,
+            "damageovertime" => 6,
+            "selfhploss" => 7,
+            "endofcycleselfhploss" => 8,
+            "hitcount" => 9,
+            "defend" => 10,
+            "heal" => 11,
+            "draw" => 12,
+            "energygain" => 13,
+            "buff" => 14,
+            "debuff" => 15,
+            "cleanse" => 16,
+            "costreduction" => 17,
+            "cardgeneration" => 18,
+            "persistentvalue" => 19,
+            "scaling" => 20,
+            "risk" => 21,
+            "uncertainty" => 22,
+            _ => -1
+        };
+        index = slot < 0 ? -1 : Math.Min(dimensions - 1, slot);
+        return slot >= 0;
+    }
+
+    private static int StateIndex(string key, int dimensions)
+    {
+        if (TryCoreStateIndex(key, dimensions, out var coreIndex))
+        {
+            return coreIndex;
+        }
+        var range = StateRange(key, dimensions);
+        return range.Start
+               + (int)(Hash("state:" + key) % (uint)range.Length);
+    }
+
+    private static int ActionIndex(string key, int dimensions)
+    {
+        return TryCoreActionIndex(key, dimensions, out var coreIndex)
+            ? coreIndex
+            : SparseActionIndex("action:" + key, dimensions);
+    }
+
+    private static int SparseActionIndex(string key, int dimensions)
+    {
+        var start = Math.Min(24, dimensions - 1);
+        var length = Math.Max(1, dimensions - start);
+        return start + (int)(Hash(key) % (uint)length);
+    }
+
     private static (int Start, int Length) StateRange(
         string key,
         int dimensions)
@@ -603,7 +788,7 @@ public static class CombatPolicyValueEncoding
         {
             return ScaleRange(108, 20, dimensions);
         }
-        return ScaleRange(0, 32, dimensions);
+        return ScaleRange(16, 16, dimensions);
     }
 
     private static (int Start, int Length) ScaleRange(

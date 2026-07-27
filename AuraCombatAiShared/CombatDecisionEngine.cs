@@ -10,7 +10,7 @@ public sealed class CombatDecisionEngine
     private readonly ICombatSearchGuidanceModel searchGuidance;
     private readonly ICombatPolicyValueModel policyValueModel;
     private readonly bool useRuntimeRegistries;
-    private readonly CombatChancePuctPlanner chancePuctPlanner;
+    private readonly CombatRiskAwareRootSamplingPuctPlanner chancePuctPlanner;
 
     public CombatDecisionEngine(
         IDecisionResidualModel? residualModel = null,
@@ -22,7 +22,7 @@ public sealed class CombatDecisionEngine
         this.searchGuidance = searchGuidance ?? NullCombatSearchGuidanceModel.Instance;
         this.policyValueModel = policyValueModel ?? NullCombatPolicyValueModel.Instance;
         this.useRuntimeRegistries = useRuntimeRegistries;
-        chancePuctPlanner = new CombatChancePuctPlanner(
+        chancePuctPlanner = new CombatRiskAwareRootSamplingPuctPlanner(
             this.residualModel,
             this.searchGuidance,
             this.useRuntimeRegistries,
@@ -160,46 +160,40 @@ public sealed class CombatDecisionEngine
             };
         }
 
-        var search = selectedProfile.UseChancePuct
-            ? chancePuctPlanner.Choose(state, evaluations, selectedProfile)
-            : null;
-        var plan = search == null
-            ? new CombatTurnPlanner(residualModel).Choose(state, evaluations, selectedProfile)
-            : null;
-        var hasPlanAction = search?.HasAction == true || plan?.HasAction == true;
-        var planAction = search?.Action ?? plan?.Action;
-        var planScore = search?.Score ?? plan?.Score ?? 0d;
-        var planSteps = search?.Steps ?? plan?.Steps ?? new List<CombatPlanStep>();
-        var planSummary = search?.Summary ?? plan?.Summary ?? "";
+        var search = chancePuctPlanner.Choose(
+            state,
+            evaluations,
+            selectedProfile);
+        var hasPlanAction = search.HasAction;
+        var planAction = search.Action;
+        var planScore = search.Score;
+        var planSteps = search.Steps;
+        var planSummary = search.Summary;
         if (hasPlanAction
             && planAction != null
-            && (search != null || planScore >= selectedProfile.MinimumActionScore))
+            && planScore >= selectedProfile.MinimumActionScore)
         {
             return new CombatDecision
             {
                 HasAction = true,
                 Action = planAction,
                 Score = planScore,
-                Reason = search == null
-                    ? "beam plan"
-                    : "player-equivalent root-sampling search",
+                Reason = "player-equivalent risk-aware root-sampling search",
                 ProfileId = selectedProfile.Id,
                 Candidates = evaluations,
                 Plan = planSteps,
                 PlanSummary = planSummary,
-                SearchAlgorithm = search == null
-                    ? "bounded-beam"
-                    : "root-sampling-chance-puct-mpc",
-                SearchSimulations = search?.Simulations ?? 0,
-                SearchNodes = search?.Nodes ?? 0,
-                SearchTranspositionHits = search?.TranspositionHits ?? 0,
-                SearchStoppedEarly = search?.StoppedEarly == true,
-                SearchBudgetTier = search?.BudgetTier ?? "",
-                CertifiedLoops = search?.CertifiedLoops ?? 0,
+                SearchAlgorithm = "risk-aware-root-sampling-puct-mpc",
+                SearchSimulations = search.Simulations,
+                SearchNodes = search.Nodes,
+                SearchTranspositionHits = search.TranspositionHits,
+                SearchStoppedEarly = search.StoppedEarly,
+                SearchBudgetTier = search.BudgetTier,
+                CertifiedLoops = search.CertifiedLoops,
                 SustainableControlLoops =
-                    search?.SustainableControlLoops ?? 0,
-                FakeLoops = search?.FakeLoops ?? 0,
-                BlockedLoops = search?.BlockedLoops ?? 0
+                    search.SustainableControlLoops,
+                FakeLoops = search.FakeLoops,
+                BlockedLoops = search.BlockedLoops
             };
         }
 
@@ -214,19 +208,17 @@ public sealed class CombatDecisionEngine
                 ProfileId = selectedProfile.Id,
                 Candidates = evaluations,
                 PlanSummary = planSummary,
-                SearchAlgorithm = search == null
-                    ? "bounded-beam"
-                    : "root-sampling-chance-puct-mpc",
-                SearchSimulations = search?.Simulations ?? 0,
-                SearchNodes = search?.Nodes ?? 0,
-                SearchTranspositionHits = search?.TranspositionHits ?? 0,
-                SearchStoppedEarly = search?.StoppedEarly == true,
-                SearchBudgetTier = search?.BudgetTier ?? "",
-                CertifiedLoops = search?.CertifiedLoops ?? 0,
+                SearchAlgorithm = "risk-aware-root-sampling-puct-mpc",
+                SearchSimulations = search.Simulations,
+                SearchNodes = search.Nodes,
+                SearchTranspositionHits = search.TranspositionHits,
+                SearchStoppedEarly = search.StoppedEarly,
+                SearchBudgetTier = search.BudgetTier,
+                CertifiedLoops = search.CertifiedLoops,
                 SustainableControlLoops =
-                    search?.SustainableControlLoops ?? 0,
-                FakeLoops = search?.FakeLoops ?? 0,
-                BlockedLoops = search?.BlockedLoops ?? 0
+                    search.SustainableControlLoops,
+                FakeLoops = search.FakeLoops,
+                BlockedLoops = search.BlockedLoops
             };
         }
 
@@ -235,19 +227,17 @@ public sealed class CombatDecisionEngine
             Reason = planSummary,
             ProfileId = selectedProfile.Id,
             Candidates = evaluations,
-            SearchAlgorithm = search == null
-                ? "bounded-beam"
-                : "root-sampling-chance-puct-mpc",
-            SearchSimulations = search?.Simulations ?? 0,
-            SearchNodes = search?.Nodes ?? 0,
-            SearchTranspositionHits = search?.TranspositionHits ?? 0,
-            SearchStoppedEarly = search?.StoppedEarly == true,
-            SearchBudgetTier = search?.BudgetTier ?? "",
-            CertifiedLoops = search?.CertifiedLoops ?? 0,
+            SearchAlgorithm = "risk-aware-root-sampling-puct-mpc",
+            SearchSimulations = search.Simulations,
+            SearchNodes = search.Nodes,
+            SearchTranspositionHits = search.TranspositionHits,
+            SearchStoppedEarly = search.StoppedEarly,
+            SearchBudgetTier = search.BudgetTier,
+            CertifiedLoops = search.CertifiedLoops,
             SustainableControlLoops =
-                search?.SustainableControlLoops ?? 0,
-            FakeLoops = search?.FakeLoops ?? 0,
-            BlockedLoops = search?.BlockedLoops ?? 0
+                search.SustainableControlLoops,
+            FakeLoops = search.FakeLoops,
+            BlockedLoops = search.BlockedLoops
         };
     }
 

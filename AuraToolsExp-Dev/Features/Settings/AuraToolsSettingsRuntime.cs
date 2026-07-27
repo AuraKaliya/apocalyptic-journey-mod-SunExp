@@ -1134,24 +1134,6 @@ public static class AuraToolsSettingsRuntime
                     "AutoBattleFoundationAdaptiveRow");
                 AuraToolsUi.AddToggle(
                     foundationAdaptiveRow.transform,
-                    foundationSettings.EnableDynamicSearchBudget,
-                    value =>
-                    {
-                        foundationSettings.EnableDynamicSearchBudget = value;
-                        autoBattle.Normalize();
-                        AuraToolsConfigService.SaveMatchExperience();
-                    });
-                AuraToolsUi.AddText(
-                    foundationAdaptiveRow.transform,
-                    "动态搜索",
-                    AuraToolsUi.HintFontSize,
-                    TextAnchor.MiddleLeft,
-                    AuraToolsUi.Text,
-                    AuraToolsUi.TextMinHeight,
-                    0f,
-                    76f);
-                AuraToolsUi.AddToggle(
-                    foundationAdaptiveRow.transform,
                     foundationSettings.EnableArenaRecovery,
                     value =>
                     {
@@ -1409,10 +1391,6 @@ public static class AuraToolsSettingsRuntime
             var modelModeButton = AuraToolsUi.AddButton(modelModeRow.transform, "切换状态", () =>
             {
                 autoBattle.TrainedModelMode = NextAutoBattleModelMode(autoBattle.TrainedModelMode);
-                autoBattle.UseTrainedModel = !string.Equals(
-                    autoBattle.TrainedModelMode,
-                    "off",
-                    StringComparison.Ordinal);
                 autoBattle.Normalize();
                 AuraToolsConfigService.SaveMatchExperience();
                 RebuildPanel(activePanel!.transform);

@@ -1,11 +1,10 @@
 param(
-    [string]$InputPath = "D:\Steam\steamapps\common\Witch's Apocalyptic Journey\Witch's Apocalyptic Journey_Data\ModsData\AuraShared\Logs\AuraToolsExp\auto-battle-training-v5.jsonl",
+    [string]$InputPath = "D:\Steam\steamapps\common\Witch's Apocalyptic Journey\Witch's Apocalyptic Journey_Data\ModsData\AuraShared\Logs\AuraToolsExp\auto-battle-training-v6.jsonl",
     [string]$OutputPath = "",
     [string]$ReportPath = "D:\Steam\steamapps\common\Witch's Apocalyptic Journey\Witch's Apocalyptic Journey_Data\ModsData\AuraShared\Logs\AuraToolsExp\auto-battle-training-report.json",
     [ValidateSet("balanced", "aggressive", "defensive")]
     [string]$Profile = "balanced",
-    [switch]$ReportOnly,
-    [switch]$IncludePolicy
+    [switch]$ReportOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -30,10 +29,6 @@ $arguments = @(
 if ($ReportOnly) {
     $arguments += "--report-only"
 }
-if ($IncludePolicy) {
-    $arguments += "--include-policy"
-}
-
 & python @arguments
 if ($LASTEXITCODE -ne 0) {
     throw "Aura Combat AI trainer failed with exit code $LASTEXITCODE"

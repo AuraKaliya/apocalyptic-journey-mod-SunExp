@@ -42,15 +42,14 @@ public static class CombatSearchBudgetPolicy
             SkillCooldownPenalty = profile.SkillCooldownPenalty,
             ThreatRiskTolerance = profile.ThreatRiskTolerance,
             SurplusDefendRetention = profile.SurplusDefendRetention,
-            BeamWidth = profile.BeamWidth,
-            MaxPlanDepth = profile.MaxPlanDepth,
             SearchSimulationBudget = profile.SearchSimulationBudget,
             SearchNodeBudget = profile.SearchNodeBudget,
             SearchMaxPly = profile.SearchMaxPly,
             SearchMinimumSimulations = profile.SearchMinimumSimulations,
             SearchStabilityWindow = profile.SearchStabilityWindow,
             SearchStableChecks = profile.SearchStableChecks,
-            DynamicSearchBudgetEnabled = profile.DynamicSearchBudgetEnabled,
+            SearchBudgetMode = profile.SearchBudgetMode,
+            SearchQuality = profile.SearchQuality,
             SearchBudgetContext = string.IsNullOrWhiteSpace(context)
                 ? "deployment"
                 : context,
@@ -67,8 +66,7 @@ public static class CombatSearchBudgetPolicy
             UncertaintyPenalty = profile.UncertaintyPenalty,
             SetupValueWeight = profile.SetupValueWeight,
             PersistentValueWeight = profile.PersistentValueWeight,
-            PreferDominantFreeSetup = profile.PreferDominantFreeSetup,
-            UseChancePuct = profile.UseChancePuct
+            PreferDominantFreeSetup = profile.PreferDominantFreeSetup
         };
     }
 
@@ -81,13 +79,16 @@ public static class CombatSearchBudgetPolicy
             .Where(candidate => candidate?.Legal == true
                                 && candidate.Action != null)
             .ToList();
-        if (!profile.DynamicSearchBudgetEnabled)
+        if (string.Equals(
+                profile.SearchBudgetMode,
+                "fixed",
+                StringComparison.OrdinalIgnoreCase))
         {
             return Fixed(profile);
         }
         if (legal.Count <= 1)
         {
-            return Budget("forced", 1, 1, 1, 1, 4, 256,
+            return QualityBudget(profile, "forced", 1, 1, 1, 1, 4, 256,
                 "single-legal-action");
         }
 
@@ -135,7 +136,8 @@ public static class CombatSearchBudgetPolicy
 
         if (damageCap || loop)
         {
-            return Budget(
+            return QualityBudget(
+                profile,
                 "complex",
                 512,
                 128,
@@ -147,7 +149,8 @@ public static class CombatSearchBudgetPolicy
         }
         if (boss || highRisk || uncertain || hardTeacher)
         {
-            return Budget(
+            return QualityBudget(
+                profile,
                 "difficult",
                 teacher ? 512 : 384,
                 128,
@@ -165,7 +168,8 @@ public static class CombatSearchBudgetPolicy
         }
         if (lethal || legal.Count <= 3)
         {
-            return Budget(
+            return QualityBudget(
+                profile,
                 "simple",
                 teacher ? 128 : 96,
                 32,
@@ -175,7 +179,8 @@ public static class CombatSearchBudgetPolicy
                 1024,
                 lethal ? "visible-lethal" : "low-branching");
         }
-        return Budget(
+        return QualityBudget(
+            profile,
             "normal",
             teacher ? 384 : 224,
             64,
@@ -196,7 +201,66 @@ public static class CombatSearchBudgetPolicy
             Math.Max(1, profile.SearchStableChecks),
             Math.Max(1, profile.SearchMaxPly),
             Math.Max(256, profile.SearchNodeBudget),
-            "dynamic-budget-disabled");
+            "fixed-test-budget");
+    }
+
+    private static CombatSearchBudget QualityBudget(
+        CombatDecisionProfile profile,
+        string tier,
+        int simulations,
+        int minimum,
+        int stabilityWindow,
+        int stableChecks,
+        int maxPly,
+        int nodeBudget,
+        string reason)
+    {
+        if (string.Equals(tier, "forced", StringComparison.Ordinal))
+        {
+            return Budget(
+                tier,
+                simulations,
+                minimum,
+                stabilityWindow,
+                stableChecks,
+                maxPly,
+                nodeBudget,
+                reason + "; quality=" + NormalizeQuality(profile.SearchQuality));
+        }
+
+        var quality = NormalizeQuality(profile.SearchQuality);
+        var simulationScale = quality == "fast"
+            ? 0.65d
+            : quality == "deep"
+                ? 1.75d
+                : 1d;
+        var nodeScale = quality == "fast"
+            ? 0.75d
+            : quality == "deep"
+                ? 2d
+                : 1d;
+        var plyAdjustment = quality == "fast"
+            ? -2
+            : quality == "deep"
+                ? 4
+                : 0;
+        return Budget(
+            tier,
+            Math.Max(1, (int)Math.Ceiling(simulations * simulationScale)),
+            Math.Max(1, (int)Math.Ceiling(minimum * simulationScale)),
+            stabilityWindow,
+            stableChecks,
+            Math.Max(4, Math.Min(32, maxPly + plyAdjustment)),
+            Math.Max(256, (int)Math.Ceiling(nodeBudget * nodeScale)),
+            reason + "; quality=" + quality);
+    }
+
+    private static string NormalizeQuality(string? value)
+    {
+        var normalized = (value ?? "").Trim().ToLowerInvariant();
+        return normalized == "fast" || normalized == "deep"
+            ? normalized
+            : "balanced";
     }
 
     private static CombatSearchBudget Budget(

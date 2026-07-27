@@ -26,8 +26,6 @@ public sealed class CombatCampaignFoundationTrainingRequest
 
     public int ArenaConfirmationCampaignsPerDifficulty { get; set; } = 64;
 
-    public int ValidationCampaignsPerDifficulty { get; set; } = 10;
-
     public int NormalValidationCampaigns { get; set; } = 200;
 
     public int AdvancedValidationCampaigns { get; set; } = 500;
@@ -71,7 +69,7 @@ public sealed class CombatCampaignFoundationTrainingRequest
     public string NativeProgramPackageHash { get; set; } = "";
 
     public string TrainingPolicyVersion { get; set; } =
-        "foundation-governance-v3";
+        "foundation-governance-v4";
 
     public double HardSeedReplayShare { get; set; } = 0.35d;
 
@@ -116,7 +114,7 @@ public sealed class CombatCampaignFoundationTrainingRequest
 
 public sealed class CombatCampaignFoundationResumeState
 {
-    public int SchemaVersion { get; set; } = 3;
+    public int SchemaVersion { get; set; } = 4;
 
     public string Stage { get; set; } = "";
 
@@ -155,7 +153,7 @@ public sealed class CombatCampaignFoundationResumeState
 
 public sealed class CombatFoundationCompatibilityManifest
 {
-    public int SchemaVersion { get; set; } = 3;
+    public int SchemaVersion { get; set; } = 4;
 
     public string RulesetHash { get; set; } = "";
 
@@ -173,9 +171,9 @@ public sealed class CombatFoundationCompatibilityManifest
 
     public string FeatureEncodingMode { get; set; } = "";
 
-    public string SearchPolicyVersion { get; set; } = "dynamic-search-v1";
+    public string SearchPolicyVersion { get; set; } = "dynamic-search-v2";
 
-    public string CurriculumVersion { get; set; } = "curriculum-v3";
+    public string CurriculumVersion { get; set; } = "curriculum-v4";
 
     public string TrainingPolicyVersion { get; set; } = "";
 
@@ -705,15 +703,12 @@ public sealed class CombatCampaignFoundationTrainer
                         200,
                         request.ArenaConfirmationCampaignsPerDifficulty))
                 : 0;
-        var legacyValidationPerDifficulty = Math.Max(
+        var normalValidationCampaigns = Math.Max(
             5,
-            Math.Min(1000, request.ValidationCampaignsPerDifficulty));
-        var normalValidationCampaigns = request.NormalValidationCampaigns > 0
-            ? Math.Max(5, Math.Min(1000, request.NormalValidationCampaigns))
-            : legacyValidationPerDifficulty;
-        var advancedValidationCampaigns = request.AdvancedValidationCampaigns > 0
-            ? Math.Max(5, Math.Min(1000, request.AdvancedValidationCampaigns))
-            : legacyValidationPerDifficulty;
+            Math.Min(1000, request.NormalValidationCampaigns));
+        var advancedValidationCampaigns = Math.Max(
+            5,
+            Math.Min(1000, request.AdvancedValidationCampaigns));
         var tuningNormalCampaigns = request.EnableTuningArena
             ? Math.Max(0, Math.Min(64, request.TuningNormalCampaigns))
             : 0;
@@ -791,7 +786,7 @@ public sealed class CombatCampaignFoundationTrainer
             normalValidationCampaigns,
             advancedValidationCampaigns);
 
-        var resume = request.Resume?.SchemaVersion == 3
+        var resume = request.Resume?.SchemaVersion == 4
                      && ResumeCompatible(request.Resume)
                      && ManifestCompatible(
                          request.Resume.Compatibility,

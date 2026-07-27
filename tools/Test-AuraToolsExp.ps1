@@ -197,7 +197,7 @@ foreach ($anchor in @(
 foreach ($anchor in @(
     '[JsonProperty("executionMode")]',
     '"external"',
-    "sourceSchemaVersion < 18",
+    '"partitioned-v3"',
     "Environment.ProcessorCount",
     "ModelEpochs",
     "ModelBatchSize",

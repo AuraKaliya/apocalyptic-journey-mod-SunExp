@@ -49,9 +49,14 @@ def load_samples(path: Path) -> list[dict]:
             except json.JSONDecodeError as exc:
                 raise ValueError(f"{path}:{line_number}: invalid JSON: {exc}") from exc
             if (
-                sample.get("ModelProtocol") == "aura.combat-ai.sample.v5"
-                and int(sample.get("FeatureSchemaVersion", 0)) == 5
+                sample.get("ModelProtocol") == "aura.combat-ai.sample.v6"
+                and int(sample.get("FeatureSchemaVersion", 0)) == 6
                 and sample.get("CompletionState") == "Completed"
+                and (sample.get("Selection") or {}).get("Protocol")
+                == "aura.combat-ai.selection.v1"
+                and (sample.get("Selection") or {}).get(
+                    "ExecutedCandidateId"
+                )
             ):
                 samples.append(sample)
     return samples
@@ -66,20 +71,11 @@ def candidate_map(sample: dict) -> dict[str, dict]:
 
 
 def selection_trace(sample: dict) -> dict[str, object]:
-    selection = sample.get("Selection") or {}
-    executed_by = str(
-        selection.get("ExecutedBy")
-        or sample.get("Demonstrator")
-        or "policy"
-    ).lower()
-    executed_id = str(
-        selection.get("ExecutedCandidateId")
-        or sample.get("CandidateId")
-        or ""
-    )
+    selection = sample["Selection"]
+    executed_by = str(selection.get("ExecutedBy") or "policy").lower()
+    executed_id = str(selection["ExecutedCandidateId"])
     policy_id = str(
         selection.get("PolicyPreselectedCandidateId")
-        or sample.get("RecommendedCandidateId")
         or (executed_id if executed_by == "policy" else "")
     )
     agreement = bool(
@@ -200,7 +196,7 @@ def discounted_returns(samples: list[dict], gamma: float) -> dict[int, float]:
     return returns
 
 
-def make_pairs(samples: list[dict], include_policy: bool, gamma: float) -> list[dict]:
+def make_pairs(samples: list[dict], gamma: float) -> list[dict]:
     pairs: list[dict] = []
     for sample in samples:
         candidates = candidate_map(sample)
@@ -286,12 +282,11 @@ def dataset_report(samples: list[dict], pairs: list[dict], gamma: float) -> dict
     human_total = human_agreements + human_disagreements
     return {
         "ReportProtocol": "aura.combat-ai.training-report.v1",
-        "SampleProtocol": "aura.combat-ai.sample.v5",
+        "SampleProtocol": "aura.combat-ai.sample.v6",
         "SelectionProtocol": "aura.combat-ai.selection.v1",
         "GeneratedUtc": datetime.now(timezone.utc).isoformat(),
         "SampleCount": len(samples),
-        "SelectionV1Count": selection_v1_count,
-        "LegacySelectionFallbackCount": len(samples) - selection_v1_count,
+        "SelectionCount": selection_v1_count,
         "ActorCounts": dict(sorted(actor_counts.items())),
         "HumanPolicyAgreementCount": human_agreements,
         "HumanPolicyDisagreementCount": human_disagreements,
@@ -454,13 +449,10 @@ def train(
 def self_test() -> int:
     samples = [
         {
-            "ModelProtocol": "aura.combat-ai.sample.v5",
-            "FeatureSchemaVersion": 5,
+            "ModelProtocol": "aura.combat-ai.sample.v6",
+            "FeatureSchemaVersion": 6,
             "CompletionState": "Completed",
             "BattleSessionId": index,
-            "CandidateId": "attack",
-            "RecommendedCandidateId": "shield",
-            "Demonstrator": "human",
             "Selection": {
                 "Protocol": "aura.combat-ai.selection.v1",
                 "ExecutedBy": "human",
@@ -487,13 +479,19 @@ def self_test() -> int:
     ]
     samples.append(
         {
-            "ModelProtocol": "aura.combat-ai.sample.v5",
-            "FeatureSchemaVersion": 5,
+            "ModelProtocol": "aura.combat-ai.sample.v6",
+            "FeatureSchemaVersion": 6,
             "CompletionState": "Completed",
             "BattleSessionId": 99,
-            "CandidateId": "shield",
-            "RecommendedCandidateId": "shield",
-            "Demonstrator": "policy",
+            "Selection": {
+                "Protocol": "aura.combat-ai.selection.v1",
+                "ExecutedBy": "policy",
+                "ExecutedCandidateId": "shield",
+                "PolicyPreselectedCandidateId": "shield",
+                "PolicyWasExecuted": True,
+                "HumanPolicyAgreement": False,
+                "PolicyVisibleToHuman": False,
+            },
             "Reward": -100,
             "Candidates": [
                 {
@@ -513,7 +511,7 @@ def self_test() -> int:
             ],
         }
     )
-    pairs = make_pairs(samples, include_policy=True, gamma=0.97)
+    pairs = make_pairs(samples, gamma=0.97)
     if len(pairs) != 10:
         raise AssertionError("policy trajectories must not create preference pairs")
     if pairs[0]["weight"] != 0.5 or any(
@@ -539,11 +537,6 @@ def main() -> int:
     parser.add_argument("--output", type=Path)
     parser.add_argument("--report", type=Path)
     parser.add_argument("--report-only", action="store_true")
-    parser.add_argument(
-        "--include-policy",
-        action="store_true",
-        help="deprecated compatibility flag; policy trajectories are never preference labels",
-    )
     parser.add_argument("--gamma", type=float, default=0.97)
     parser.add_argument("--epochs", type=int, default=250)
     parser.add_argument("--learning-rate", type=float, default=0.04)
@@ -567,7 +560,7 @@ def main() -> int:
         if str(sample.get("DecisionProfile") or "balanced").lower()
         == args.profile
     ]
-    pairs = make_pairs(samples, args.include_policy, args.gamma)
+    pairs = make_pairs(samples, args.gamma)
     report_path = args.report or args.input.with_name(
         "auto-battle-training-report.json"
     )
@@ -575,17 +568,11 @@ def main() -> int:
     write_json(report_path, report)
     print(json.dumps(report, ensure_ascii=False))
     print(report_path)
-    if args.include_policy:
-        print(
-            "warning: --include-policy is deprecated; policy trajectories "
-            "were reported but not converted into preference labels",
-            file=sys.stderr,
-        )
     if args.report_only:
         return 0
     if not pairs:
         raise ValueError(
-            "no training pairs; collect completed v5 human samples where "
+            "no training pairs; collect completed v6 human samples where "
             "the player overrides the policy preselection"
         )
     weights, means, scales, minimums, maximums, counts, metrics = train(
@@ -626,7 +613,7 @@ def main() -> int:
         "ModelProtocol": "aura.decision-residual.linear.v1",
         "ModelId": "aura-combat-linear-" + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S"),
         "ProtocolVersion": 1,
-        "FeatureSchemaVersion": 5,
+        "FeatureSchemaVersion": 6,
         "ApplicabilityProtocolVersion": 1,
         "DecisionProfile": args.profile,
         "Bias": 0.0,

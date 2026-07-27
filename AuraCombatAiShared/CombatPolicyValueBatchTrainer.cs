@@ -73,23 +73,42 @@ internal static class CombatPolicyValueBatchTrainer
             .Distinct(StringComparer.Ordinal)
             .OrderBy(key => key, StringComparer.Ordinal)
             .ToList();
-        var validationRunKeys = episodes.Count >= 10 && runKeys.Count >= 2
-            ? runKeys
-                .Where((_, index) => index % 5 == 0)
-                .ToHashSet(StringComparer.Ordinal)
-            : new HashSet<string>(StringComparer.Ordinal);
+        var validationRunKeys = new HashSet<string>(StringComparer.Ordinal);
+        var testRunKeys = new HashSet<string>(StringComparer.Ordinal);
+        if (episodes.Count >= 10 && runKeys.Count >= 3)
+        {
+            var splitKeys = runKeys
+                .OrderBy(StableSplitHash)
+                .ThenBy(key => key, StringComparer.Ordinal)
+                .ToList();
+            var testCount = Math.Max(1, splitKeys.Count / 10);
+            var validationCount = Math.Max(1, splitKeys.Count / 10);
+            testCount = Math.Min(testCount, splitKeys.Count - 2);
+            validationCount = Math.Min(
+                validationCount,
+                splitKeys.Count - testCount - 1);
+            testRunKeys.UnionWith(splitKeys.Take(testCount));
+            validationRunKeys.UnionWith(
+                splitKeys.Skip(testCount).Take(validationCount));
+        }
         var trainingEpisodes = episodes
             .Where(episode =>
-                !validationRunKeys.Contains(StableRunKey(episode)))
+                !validationRunKeys.Contains(StableRunKey(episode))
+                && !testRunKeys.Contains(StableRunKey(episode)))
             .ToList();
         var validationEpisodes = episodes
             .Where(episode =>
                 validationRunKeys.Contains(StableRunKey(episode)))
             .ToList();
+        var testEpisodes = episodes
+            .Where(episode =>
+                testRunKeys.Contains(StableRunKey(episode)))
+            .ToList();
         if (trainingEpisodes.Count == 0)
         {
             trainingEpisodes = episodes;
             validationEpisodes.Clear();
+            testEpisodes.Clear();
         }
         var trainingFrames = Encode(
             trainingEpisodes,
@@ -99,6 +118,10 @@ internal static class CombatPolicyValueBatchTrainer
             validationEpisodes.Count == 0
                 ? trainingEpisodes
                 : validationEpisodes,
+            options,
+            cancellationToken);
+        var testFrames = Encode(
+            testEpisodes,
             options,
             cancellationToken);
         if (trainingFrames.Length == 0)
@@ -111,6 +134,9 @@ internal static class CombatPolicyValueBatchTrainer
         var model = Compatible(resume?.Model, profile, options)
             ? Clone(resume!.Model!)
             : Initialize(profile, options);
+        var optimizer = CompatibleOptimizer(resume?.Optimizer, model)
+            ? CloneOptimizer(resume!.Optimizer!)
+            : NewOptimizer(model);
         var bestModel = Compatible(resume?.BestModel, profile, options)
             ? Clone(resume!.BestModel!)
             : Clone(model);
@@ -150,6 +176,8 @@ internal static class CombatPolicyValueBatchTrainer
             .ToArray();
         var stoppedEarly = false;
         var completedEpochsActual = startEpoch;
+        var gradientClipCount = 0;
+        var maximumGradientNorm = 0d;
         var lastBatchProgressMilliseconds = -1000L;
         for (var epoch = startEpoch; epoch < options.Epochs; epoch++)
         {
@@ -182,12 +210,17 @@ internal static class CombatPolicyValueBatchTrainer
                             trainingFrames[order[batchStart + offset]],
                             gradient);
                     });
-                ApplyBatch(
+                var update = ApplyBatch(
                     model,
+                    optimizer,
                     gradients,
                     count,
                     rate,
                     options.L2);
+                maximumGradientNorm = Math.Max(
+                    maximumGradientNorm,
+                    update.GradientNorm);
+                gradientClipCount += update.Clipped ? 1 : 0;
                 var nowMilliseconds = clock.ElapsedMilliseconds;
                 if (nowMilliseconds - lastBatchProgressMilliseconds >= 500L)
                 {
@@ -285,6 +318,7 @@ internal static class CombatPolicyValueBatchTrainer
                     BestValidationLoss = bestLoss,
                     BestEpoch = bestEpoch,
                     StaleEpochs = staleEpochs,
+                    Optimizer = CloneOptimizer(optimizer),
                     TopModels = CloneCandidates(topModels)
                 });
             if (completedEpochs >= options.MinimumEpochs
@@ -299,6 +333,11 @@ internal static class CombatPolicyValueBatchTrainer
         }
 
         model = Clone(bestModel);
+        model.PolicyTemperature = CalibratePolicyTemperature(
+            model,
+            validationFrames,
+            options.MaximumDegreeOfParallelism,
+            cancellationToken);
         var trainingMetrics = Evaluate(
             model,
             trainingFrames,
@@ -309,6 +348,34 @@ internal static class CombatPolicyValueBatchTrainer
             validationFrames,
             options.MaximumDegreeOfParallelism,
             cancellationToken);
+        var testMetrics = testFrames.Length == 0
+            ? new Metrics()
+            : Evaluate(
+                model,
+                testFrames,
+                options.MaximumDegreeOfParallelism,
+                cancellationToken);
+        var stateCollision = CollisionRate(episodes
+            .SelectMany(episode => episode.Frames
+                                  ?? new List<CombatEpisodeFrame>())
+            .Select(frame => CombatPolicyValueEncoding
+                .MeasureStateCollisions(
+                    frame.StateFeatures,
+                    options.StateDimensions)));
+        var actionCollision = CollisionRate(episodes
+            .SelectMany(episode => episode.Frames
+                                  ?? new List<CombatEpisodeFrame>())
+            .SelectMany(frame => frame.Candidates
+                                ?? new List<CombatEpisodeCandidate>())
+            .Select(candidate => CombatPolicyValueEncoding
+                .MeasureCandidateCollisions(
+                    new CombatPolicyValueCandidate
+                    {
+                        CandidateId = candidate.CandidateId,
+                        SourceId = candidate.SourceId,
+                        Features = candidate.Features
+                    },
+                    options.ActionDimensions)));
         model.Metrics = new Dictionary<string, double>(
             StringComparer.OrdinalIgnoreCase)
         {
@@ -319,6 +386,10 @@ internal static class CombatPolicyValueBatchTrainer
                 .Distinct(StringComparer.Ordinal)
                 .Count(),
             ["validationRunCount"] = validationEpisodes
+                .Select(StableRunKey)
+                .Distinct(StringComparer.Ordinal)
+                .Count(),
+            ["testRunCount"] = testEpisodes
                 .Select(StableRunKey)
                 .Distinct(StringComparer.Ordinal)
                 .Count(),
@@ -336,14 +407,25 @@ internal static class CombatPolicyValueBatchTrainer
             ["validationTurnHuber"] = validationMetrics.TurnHuber,
             ["validationCompositeLoss"] =
                 CompositeValidationLoss(validationMetrics),
+            ["testCompositeLoss"] = testFrames.Length == 0
+                ? 0d
+                : CompositeValidationLoss(testMetrics),
             ["validationEpisodeCount"] = validationEpisodes.Count,
+            ["testEpisodeCount"] = testEpisodes.Count,
             ["completedEpochs"] = Math.Max(
                 startEpoch,
                 completedEpochsActual),
             ["bestEpoch"] = bestEpoch,
             ["earlyStopped"] = stoppedEarly ? 1d : 0d,
             ["batchSize"] = options.BatchSize,
-            ["trainingParallelism"] = options.MaximumDegreeOfParallelism
+            ["trainingParallelism"] = options.MaximumDegreeOfParallelism,
+            ["optimizerAdamW"] = 1d,
+            ["optimizerStep"] = optimizer.Step,
+            ["gradientClipCount"] = gradientClipCount,
+            ["maximumGradientNorm"] = maximumGradientNorm,
+            ["stateFeatureCollisionRate"] = stateCollision,
+            ["actionFeatureCollisionRate"] = actionCollision,
+            ["policyTemperature"] = model.PolicyTemperature
         };
         result.Success = true;
         result.Model = model;
@@ -354,6 +436,9 @@ internal static class CombatPolicyValueBatchTrainer
         result.BestEpoch = bestEpoch;
         result.EarlyStopped = stoppedEarly;
         result.ElapsedSeconds = clock.Elapsed.TotalSeconds;
+        result.TestLoss = testFrames.Length == 0
+            ? 0d
+            : CompositeValidationLoss(testMetrics);
         result.Message = "已从 "
                          + episodes.Count
                          + " 场完整战斗、"
@@ -384,6 +469,35 @@ internal static class CombatPolicyValueBatchTrainer
         return string.IsNullOrWhiteSpace(episode.JourneyRunId)
             ? "episode:" + (episode.EpisodeId ?? "")
             : "journey:" + episode.JourneyRunId;
+    }
+
+    private static uint StableSplitHash(string key)
+    {
+        unchecked
+        {
+            var hash = 2166136261u;
+            foreach (var character in key ?? "")
+            {
+                hash ^= character;
+                hash *= 16777619u;
+            }
+            return hash;
+        }
+    }
+
+    private static double CollisionRate(
+        IEnumerable<CombatFeatureCollisionTelemetry> source)
+    {
+        var featureCount = 0L;
+        var collisionCount = 0L;
+        foreach (var item in source)
+        {
+            featureCount += item.FeatureCount;
+            collisionCount += item.CollisionCount;
+        }
+        return featureCount == 0L
+            ? 0d
+            : (double)collisionCount / featureCount;
     }
 
     private static EncodedFrame[] Encode(
@@ -445,7 +559,8 @@ internal static class CombatPolicyValueBatchTrainer
                             SourceId = candidate.SourceId,
                             Features = candidate.Features
                         },
-                        options.ActionDimensions))
+                        options.ActionDimensions,
+                        options.FeatureEncodingMode))
                 .ToArray(),
             PolicyTargets = targets,
             PolicyTargetIndex = MaximumIndex(targets),
@@ -608,68 +723,126 @@ internal static class CombatPolicyValueBatchTrainer
         }
     }
 
-    private static void ApplyBatch(
+    private static BatchUpdate ApplyBatch(
         CombatPolicyValueNetworkDefinition model,
+        CombatPolicyValueOptimizerState optimizer,
         IReadOnlyList<ModelGradient> gradients,
         int count,
         double learningRate,
         double l2)
     {
-        var scale = learningRate / Math.Max(1, count);
-        ApplyArray(model.StateWeights, gradients, count,
-            gradient => gradient.StateWeights, scale, l2);
-        ApplyArray(model.StateBias, gradients, count,
-            gradient => gradient.StateBias, scale, 0d);
-        ApplyArray(model.ActionWeights, gradients, count,
-            gradient => gradient.ActionWeights, scale, l2);
-        ApplyArray(model.ActionBias, gradients, count,
-            gradient => gradient.ActionBias, scale, 0d);
-        ApplyArray(model.PolicyWeights, gradients, count,
-            gradient => gradient.PolicyWeights, scale, l2);
-        ApplyArray(model.ValueWeights, gradients, count,
-            gradient => gradient.ValueWeights, scale, l2);
-        ApplyArray(model.WinWeights, gradients, count,
-            gradient => gradient.WinWeights, scale, l2);
-        ApplyArray(model.RiskWeights, gradients, count,
-            gradient => gradient.RiskWeights, scale, l2);
-        ApplyArray(model.HpWeights, gradients, count,
-            gradient => gradient.HpWeights, scale, l2);
-        ApplyArray(model.TurnWeights, gradients, count,
-            gradient => gradient.TurnWeights, scale, l2);
-        model.PolicyBias -= scale * Sum(
+        var aggregate = new double[ParameterCount(model)];
+        var cursor = 0;
+        Aggregate(aggregate, ref cursor, gradients, count,
+            gradient => gradient.StateWeights);
+        Aggregate(aggregate, ref cursor, gradients, count,
+            gradient => gradient.StateBias);
+        Aggregate(aggregate, ref cursor, gradients, count,
+            gradient => gradient.ActionWeights);
+        Aggregate(aggregate, ref cursor, gradients, count,
+            gradient => gradient.ActionBias);
+        Aggregate(aggregate, ref cursor, gradients, count,
+            gradient => gradient.PolicyWeights);
+        Aggregate(aggregate, ref cursor, gradients, count,
+            gradient => gradient.ValueWeights);
+        Aggregate(aggregate, ref cursor, gradients, count,
+            gradient => gradient.WinWeights);
+        Aggregate(aggregate, ref cursor, gradients, count,
+            gradient => gradient.RiskWeights);
+        Aggregate(aggregate, ref cursor, gradients, count,
+            gradient => gradient.HpWeights);
+        Aggregate(aggregate, ref cursor, gradients, count,
+            gradient => gradient.TurnWeights);
+        aggregate[cursor++] = Average(
             gradients, count, gradient => gradient.PolicyBias);
-        model.ValueBias -= scale * Sum(
+        aggregate[cursor++] = Average(
             gradients, count, gradient => gradient.ValueBias);
-        model.WinBias -= scale * Sum(
+        aggregate[cursor++] = Average(
             gradients, count, gradient => gradient.WinBias);
-        model.RiskBias -= scale * Sum(
+        aggregate[cursor++] = Average(
             gradients, count, gradient => gradient.RiskBias);
-        model.HpBias -= scale * Sum(
+        aggregate[cursor++] = Average(
             gradients, count, gradient => gradient.HpBias);
-        model.TurnBias -= scale * Sum(
+        aggregate[cursor] = Average(
             gradients, count, gradient => gradient.TurnBias);
+
+        var squaredNorm = 0d;
+        foreach (var value in aggregate)
+        {
+            if (!Finite(value))
+            {
+                throw new InvalidOperationException(
+                    "策略价值网络梯度包含非有限值");
+            }
+            squaredNorm += value * value;
+        }
+        var norm = Math.Sqrt(squaredNorm);
+        var clipScale = norm > 1d ? 1d / norm : 1d;
+        if (clipScale < 1d)
+        {
+            for (var index = 0; index < aggregate.Length; index++)
+            {
+                aggregate[index] *= clipScale;
+            }
+        }
+
+        optimizer.Step++;
+        cursor = 0;
+        ApplyAdamW(model.StateWeights, aggregate, optimizer, ref cursor,
+            learningRate, l2);
+        ApplyAdamW(model.StateBias, aggregate, optimizer, ref cursor,
+            learningRate, 0d);
+        ApplyAdamW(model.ActionWeights, aggregate, optimizer, ref cursor,
+            learningRate, l2);
+        ApplyAdamW(model.ActionBias, aggregate, optimizer, ref cursor,
+            learningRate, 0d);
+        ApplyAdamW(model.PolicyWeights, aggregate, optimizer, ref cursor,
+            learningRate, l2);
+        ApplyAdamW(model.ValueWeights, aggregate, optimizer, ref cursor,
+            learningRate, l2);
+        ApplyAdamW(model.WinWeights, aggregate, optimizer, ref cursor,
+            learningRate, l2);
+        ApplyAdamW(model.RiskWeights, aggregate, optimizer, ref cursor,
+            learningRate, l2);
+        ApplyAdamW(model.HpWeights, aggregate, optimizer, ref cursor,
+            learningRate, l2);
+        ApplyAdamW(model.TurnWeights, aggregate, optimizer, ref cursor,
+            learningRate, l2);
+        model.PolicyBias = ApplyAdam(
+            model.PolicyBias, aggregate[cursor], optimizer, cursor++, learningRate);
+        model.ValueBias = ApplyAdam(
+            model.ValueBias, aggregate[cursor], optimizer, cursor++, learningRate);
+        model.WinBias = ApplyAdam(
+            model.WinBias, aggregate[cursor], optimizer, cursor++, learningRate);
+        model.RiskBias = ApplyAdam(
+            model.RiskBias, aggregate[cursor], optimizer, cursor++, learningRate);
+        model.HpBias = ApplyAdam(
+            model.HpBias, aggregate[cursor], optimizer, cursor++, learningRate);
+        model.TurnBias = ApplyAdam(
+            model.TurnBias, aggregate[cursor], optimizer, cursor, learningRate);
+        return new BatchUpdate(norm, clipScale < 1d);
     }
 
-    private static void ApplyArray(
+    private static void Aggregate(
         double[] target,
+        ref int cursor,
         IReadOnlyList<ModelGradient> gradients,
         int count,
-        Func<ModelGradient, double[]> select,
-        double scale,
-        double l2)
+        Func<ModelGradient, double[]> select)
     {
-        for (var index = 0; index < target.Length; index++)
+        var sourceLength = select(gradients[0]).Length;
+        for (var index = 0; index < sourceLength; index++)
         {
             var sum = 0d;
             for (var frame = 0; frame < count; frame++)
             {
                 sum += select(gradients[frame])[index];
             }
-            target[index] -= scale * sum + scale * count * l2 * target[index];
+            target[cursor++] = sum / Math.Max(1, count);
         }
     }
 
-    private static double Sum(
+    private static double Average(
         IReadOnlyList<ModelGradient> gradients,
         int count,
         Func<ModelGradient, double> select)
@@ -679,7 +852,115 @@ internal static class CombatPolicyValueBatchTrainer
         {
             sum += select(gradients[index]);
         }
-        return sum;
+        return sum / Math.Max(1, count);
+    }
+
+    private static void ApplyAdamW(
+        double[] target,
+        IReadOnlyList<double> gradient,
+        CombatPolicyValueOptimizerState optimizer,
+        ref int cursor,
+        double learningRate,
+        double weightDecay)
+    {
+        for (var index = 0; index < target.Length; index++)
+        {
+            if (weightDecay > 0d)
+            {
+                target[index] *= Math.Max(
+                    0d,
+                    1d - learningRate * weightDecay);
+            }
+            target[index] = ApplyAdam(
+                target[index],
+                gradient[cursor],
+                optimizer,
+                cursor,
+                learningRate);
+            cursor++;
+        }
+    }
+
+    private static double ApplyAdam(
+        double target,
+        double gradient,
+        CombatPolicyValueOptimizerState optimizer,
+        int index,
+        double learningRate)
+    {
+        const double beta1 = 0.9d;
+        const double beta2 = 0.999d;
+        const double epsilon = 0.00000001d;
+        var first = beta1 * optimizer.FirstMoment[index]
+                    + (1d - beta1) * gradient;
+        var second = beta2 * optimizer.SecondMoment[index]
+                     + (1d - beta2) * gradient * gradient;
+        optimizer.FirstMoment[index] = first;
+        optimizer.SecondMoment[index] = second;
+        var firstCorrection = 1d - Math.Pow(beta1, optimizer.Step);
+        var secondCorrection = 1d - Math.Pow(beta2, optimizer.Step);
+        var firstHat = first / Math.Max(epsilon, firstCorrection);
+        var secondHat = second / Math.Max(epsilon, secondCorrection);
+        var updated = target
+                      - learningRate
+                      * firstHat
+                      / (Math.Sqrt(secondHat) + epsilon);
+        if (!Finite(updated))
+        {
+            throw new InvalidOperationException(
+                "策略价值网络优化器产生非有限权重");
+        }
+        return updated;
+    }
+
+    private static int ParameterCount(CombatPolicyValueNetworkDefinition model)
+    {
+        return model.StateWeights.Length
+               + model.StateBias.Length
+               + model.ActionWeights.Length
+               + model.ActionBias.Length
+               + model.PolicyWeights.Length
+               + model.ValueWeights.Length
+               + model.WinWeights.Length
+               + model.RiskWeights.Length
+               + model.HpWeights.Length
+               + model.TurnWeights.Length
+               + 6;
+    }
+
+    private static CombatPolicyValueOptimizerState NewOptimizer(
+        CombatPolicyValueNetworkDefinition model)
+    {
+        var count = ParameterCount(model);
+        return new CombatPolicyValueOptimizerState
+        {
+            FirstMoment = new double[count],
+            SecondMoment = new double[count]
+        };
+    }
+
+    private static bool CompatibleOptimizer(
+        CombatPolicyValueOptimizerState? optimizer,
+        CombatPolicyValueNetworkDefinition model)
+    {
+        var count = ParameterCount(model);
+        return optimizer != null
+               && optimizer.Step >= 0
+               && optimizer.FirstMoment?.Length == count
+               && optimizer.SecondMoment?.Length == count
+               && optimizer.FirstMoment.All(Finite)
+               && optimizer.SecondMoment.All(Finite);
+    }
+
+    private static CombatPolicyValueOptimizerState CloneOptimizer(
+        CombatPolicyValueOptimizerState source)
+    {
+        return new CombatPolicyValueOptimizerState
+        {
+            Step = source.Step,
+            FirstMoment = (double[])source.FirstMoment.Clone(),
+            SecondMoment = (double[])source.SecondMoment.Clone()
+        };
     }
 
     private static Metrics Evaluate(
@@ -741,6 +1022,33 @@ internal static class CombatPolicyValueBatchTrainer
         };
     }
 
+    private static double CalibratePolicyTemperature(
+        CombatPolicyValueNetworkDefinition model,
+        IReadOnlyList<EncodedFrame> validationFrames,
+        int parallelism,
+        CancellationToken cancellationToken)
+    {
+        var candidates = new[] { 0.5d, 0.75d, 1d, 1.25d, 1.5d, 2d, 3d };
+        var bestTemperature = 1d;
+        var bestCrossEntropy = double.MaxValue;
+        foreach (var candidate in candidates)
+        {
+            model.PolicyTemperature = candidate;
+            var crossEntropy = Evaluate(
+                model,
+                validationFrames,
+                parallelism,
+                cancellationToken).PolicyCrossEntropy;
+            if (crossEntropy < bestCrossEntropy - 0.000000001d)
+            {
+                bestCrossEntropy = crossEntropy;
+                bestTemperature = candidate;
+            }
+        }
+        model.PolicyTemperature = bestTemperature;
+        return bestTemperature;
+    }
+
     private static FrameMetrics EvaluateFrame(
         CombatPolicyValueNetworkDefinition model,
         EncodedFrame frame)
@@ -760,11 +1068,13 @@ internal static class CombatPolicyValueBatchTrainer
                 model.ActionWeights,
                 model.ActionBias,
                 model.HiddenDimensions);
-            var logit = Interaction(
-                hidden,
-                actionHidden,
-                model.PolicyWeights)
-                        + model.PolicyBias;
+            var logit = (
+                Interaction(
+                    hidden,
+                    actionHidden,
+                    model.PolicyWeights)
+                + model.PolicyBias)
+                / model.PolicyTemperature;
             logits[index] = logit;
             if (logit > bestLogit)
             {
@@ -904,6 +1214,7 @@ internal static class CombatPolicyValueBatchTrainer
             ActionDimensions = source.ActionDimensions,
             HiddenDimensions = source.HiddenDimensions,
             FeatureEncodingMode = source.FeatureEncodingMode,
+            PolicyTemperature = source.PolicyTemperature,
             StateWeights = (double[])source.StateWeights.Clone(),
             StateBias = (double[])source.StateBias.Clone(),
             ActionWeights = (double[])source.ActionWeights.Clone(),
@@ -1234,6 +1545,19 @@ internal static class CombatPolicyValueBatchTrainer
         public double PolicyCrossEntropy { get; set; }
 
         public double CriticalPolicyAccuracy { get; set; }
+    }
+
+    private readonly struct BatchUpdate
+    {
+        public BatchUpdate(double gradientNorm, bool clipped)
+        {
+            GradientNorm = gradientNorm;
+            Clipped = clipped;
+        }
+
+        public double GradientNorm { get; }
+
+        public bool Clipped { get; }
     }
 
     private struct FrameMetrics

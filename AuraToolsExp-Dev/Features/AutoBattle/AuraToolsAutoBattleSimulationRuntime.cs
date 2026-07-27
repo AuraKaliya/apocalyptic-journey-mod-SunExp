@@ -263,14 +263,7 @@ internal static class AuraToolsAutoBattleSimulationRuntime
                     File.ReadAllText(path));
                 if (!string.IsNullOrWhiteSpace(journey?.JourneyId))
                 {
-                    var journeyId = journey!.JourneyId.Trim();
-                    if (!string.Equals(
-                            journeyId,
-                            "witch.world-simulation.standard-v1",
-                            StringComparison.OrdinalIgnoreCase))
-                    {
-                        ids.Add(journeyId);
-                    }
+                    ids.Add(journey!.JourneyId.Trim());
                 }
             }
             catch
@@ -883,16 +876,7 @@ internal static class AuraToolsAutoBattleSimulationRuntime
             normalizedProfile,
             "advanced",
             useModelSpecific ? requestedModelId : "");
-        if (!File.Exists(normalPath) && useModelSpecific)
-        {
-            normalPath = LatestSummaryPath(normalizedProfile, "normal");
-        }
-        if (!File.Exists(advancedPath) && useModelSpecific)
-        {
-            advancedPath = LatestSummaryPath(normalizedProfile, "advanced");
-        }
-        var legacyPath = LatestSummaryPath(normalizedProfile);
-        var pairedPath = File.Exists(normalPath) ? normalPath : legacyPath;
+        var pairedPath = normalPath;
         var evolutionPath = LatestEvolutionPath(normalizedProfile);
         var pairedWrite = File.Exists(pairedPath)
             ? File.GetLastWriteTimeUtc(pairedPath)
@@ -1057,14 +1041,10 @@ internal static class AuraToolsAutoBattleSimulationRuntime
         }
         var normalPath = LatestSummaryPath(profile, "normal", modelId);
         var advancedPath = LatestSummaryPath(profile, "advanced", modelId);
-        var legacyPath = LatestSummaryPath(profile);
         var paths = new[]
             {
                 normalPath,
-                advancedPath,
-                LatestSummaryPath(profile, "normal"),
-                LatestSummaryPath(profile, "advanced"),
-                legacyPath
+                advancedPath
             }
             .Where(File.Exists)
             .Distinct(StringComparer.OrdinalIgnoreCase)
@@ -1107,10 +1087,8 @@ internal static class AuraToolsAutoBattleSimulationRuntime
     {
         var profile = new CombatDecisionProfile
         {
-            SearchSimulationBudget = settings.SearchSimulationBudget,
-            SearchNodeBudget = settings.SearchNodeBudget,
-            SearchMaxPly = settings.SearchMaxPly,
-            UseChancePuct = true
+            SearchBudgetMode = "dynamic",
+            SearchQuality = settings.SearchQuality
         };
         switch (settings.Profile)
         {
@@ -2682,9 +2660,7 @@ internal static class AuraToolsAutoBattleSimulationRuntime
                 Profile = source.Profile,
                 SelectedModelId = source.SelectedModelId,
                 UnknownActionPolicy = source.UnknownActionPolicy,
-                SearchSimulationBudget = source.SearchSimulationBudget,
-                SearchNodeBudget = source.SearchNodeBudget,
-                SearchMaxPly = source.SearchMaxPly,
+                SearchQuality = source.SearchQuality,
                 Training = new AutoBattleTrainingSettings
                 {
                     Preset = source.Training.Preset,
