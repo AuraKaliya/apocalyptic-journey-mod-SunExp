@@ -1557,17 +1557,6 @@ public sealed class CombatCampaignFoundationTrainer
                     FinalizeCaseAnalysis(result);
                     return result;
                 }
-                PublishCheckpoint(
-                    request,
-                    CreateResumeState(
-                        "model-training",
-                        iteration,
-                        completedCampaigns,
-                        result,
-                        telemetry,
-                        workingChampion,
-                        modelTraining: null,
-                        trainingSchedule));
             }
 
             var replaySelection = CombatFoundationReplaySampler.Select(
@@ -1583,6 +1572,17 @@ public sealed class CombatCampaignFoundationTrainer
             var replayWindow = replaySelection.Episodes;
             result.Replay = replayWindow;
             telemetry.ReportStage("model-training:" + iterationNumber);
+            PublishCheckpoint(
+                request,
+                CreateResumeState(
+                    "model-training",
+                    iteration,
+                    completedCampaigns,
+                    result,
+                    telemetry,
+                    workingChampion,
+                    resumeModelTraining ? resume!.ModelTraining : null,
+                    trainingSchedule));
             var trainingSession = new CombatPolicyValueTrainingSession
             {
                 Resume = resumeModelTraining

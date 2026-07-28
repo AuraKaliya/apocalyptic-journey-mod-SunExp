@@ -58,6 +58,7 @@ $forwardModelPath = Join-Path $root "AuraCombatAiShared\CombatForwardModel.cs"
 $searchProjectorPath = Join-Path $root "AuraCombatAiShared\CombatSearchFeatureProjector.cs"
 $batchTrainerPath = Join-Path $root "AuraCombatAiShared\CombatPolicyValueBatchTrainer.cs"
 $workerContractsPath = Join-Path $root "AuraCombatAiShared\CombatFoundationWorkerContracts.cs"
+$checkpointStoragePath = Join-Path $root "AuraCombatAiShared\CombatFoundationCheckpointStorage.cs"
 $externalContractsPath = Join-Path $root "AuraCombatAiShared\CombatFoundationExternalContracts.cs"
 $registryPath = Join-Path $root "AuraCombatAiShared\CombatAiRegistry.cs"
 $guidancePath = Join-Path $root "AuraCombatAiShared\CombatSearchGuidance.cs"
@@ -110,6 +111,7 @@ $forwardModel = Get-Content -LiteralPath $forwardModelPath -Raw
 $searchProjector = Get-Content -LiteralPath $searchProjectorPath -Raw
 $batchTrainer = Get-Content -LiteralPath $batchTrainerPath -Raw
 $workerContracts = Get-Content -LiteralPath $workerContractsPath -Raw
+$checkpointStorage = Get-Content -LiteralPath $checkpointStoragePath -Raw
 $externalContracts = Get-Content -LiteralPath $externalContractsPath -Raw
 $registry = Get-Content -LiteralPath $registryPath -Raw
 $guidance = Get-Content -LiteralPath $guidancePath -Raw
@@ -366,7 +368,10 @@ foreach ($anchor in @(
     "CombatCampaignBuildPlan",
     "SynergySources",
     "DeckDilutionPenalty",
-    "SkipScore"
+    "SkipScore",
+    "CombatCampaignAttributeThresholdRewardDefinition",
+    "CombatCampaignAttributeThresholdRewardReconciler",
+    "AttributeThresholdRewards"
 )) {
     if (-not $campaignSimulation.Contains($anchor)) {
         throw "Aura campaign progression-policy contract is missing: $anchor"
@@ -609,6 +614,36 @@ $avoidedRelicIds = @(
     "CrowdFundingRelic_13"
 )
 $campaignV2Json = Get-Content -LiteralPath $bundledCampaignV2Path -Raw
+$campaignV2 = $campaignV2Json | ConvertFrom-Json
+$expectedOriginThresholdRewards = @{
+    Strength = @("blessing_101", "blessing_105", "blessing_109", "blessing_113")
+    Lucky = @("blessing_102", "blessing_106", "blessing_110", "blessing_114")
+    Perceive = @("blessing_104", "blessing_108", "blessing_112", "blessing_116")
+    Wisdom = @("blessing_103", "blessing_107", "blessing_111", "blessing_115")
+}
+if ($campaignV2.campaignVersion -ne "2.5.0" `
+    -or @($campaignV2.attributeThresholdRewards).Count -ne 16) {
+    throw "Bundled campaign origin threshold protocol is incomplete."
+}
+foreach ($attributeId in $expectedOriginThresholdRewards.Keys) {
+    $actualIds = @($campaignV2.attributeThresholdRewards |
+        Where-Object { $_.attributeId -eq $attributeId } |
+        Sort-Object threshold |
+        ForEach-Object { $_.rewardId })
+    if (($actualIds -join ",") -ne `
+        ($expectedOriginThresholdRewards[$attributeId] -join ",")) {
+        throw "Bundled campaign origin threshold mapping is invalid: $attributeId"
+    }
+}
+foreach ($anchor in @(
+    '$attributeThresholdRewards = @(',
+    'attributeThresholdRewards = @($attributeThresholdRewards)',
+    'campaignVersion = "2.5.0"'
+)) {
+    if (-not $campaignGenerator.Contains($anchor)) {
+        throw "Campaign generator origin threshold contract is missing: $anchor"
+    }
+}
 foreach ($relicId in $avoidedRelicIds) {
     $escapedRelicId = [regex]::Escape($relicId)
     $rewardPattern = '"rewardId"\s*:\s*"' + $escapedRelicId `
@@ -636,6 +671,20 @@ foreach ($anchor in @(
     }
 }
 foreach ($anchor in @(
+    "WriteEpisodeSnapshot",
+    "WriteAtomicText",
+    "ReadAndValidateJsonLines",
+    "FileShare.ReadWrite | FileShare.Delete",
+    "File.Replace",
+    "MaximumFileAttempts",
+    "CleanupArtifacts",
+    "DeleteCheckpointArtifacts"
+)) {
+    if (-not $checkpointStorage.Contains($anchor)) {
+        throw "Aura foundation transactional checkpoint storage is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
     "PrepareCaseArchive",
     "LoadSuccessCasePaths",
     "LoadObservationPaths",
@@ -646,7 +695,11 @@ foreach ($anchor in @(
     "ApplyRewardResiduals",
     "AcquireTrainingLease",
     "CombatFoundationModelPackageProtocol.Create",
-    "ModelPackagePath"
+    "ModelPackagePath",
+    "ReplayIdentity",
+    "EpisodeSnapshot = nextSnapshot",
+    "checkpointWriteFailures++",
+    "TryGetResumableCheckpoint"
 )) {
     if (-not $foundationWorkerProgram.Contains($anchor)) {
         throw "Aura foundation worker-owned case archive contract is missing: $anchor"

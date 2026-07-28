@@ -21,6 +21,10 @@ internal sealed class MainWindow : Window
         new(StringComparer.Ordinal);
     private readonly Dictionary<string, CheckBox> toggles =
         new(StringComparer.Ordinal);
+    private static readonly TimeSpan RunningRefreshInterval =
+        TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan IdleRefreshInterval =
+        TimeSpan.FromSeconds(5);
     private readonly DispatcherTimer timer;
     private readonly string[] launchArguments;
     private ControllerSettings settings = new();
@@ -42,6 +46,13 @@ internal sealed class MainWindow : Window
     private Button cancelButton = null!;
     private Button continueButton = null!;
     private Button openButton = null!;
+    private string cachedJobPath = "";
+    private long cachedJobLength = -1;
+    private DateTime cachedJobLastWriteUtc = DateTime.MinValue;
+    private CombatFoundationWorkerJob? cachedJob;
+    private string presentedResultPath = "";
+    private long presentedResultLength = -1;
+    private DateTime presentedResultLastWriteUtc = DateTime.MinValue;
 
     public MainWindow(string[] args)
     {
@@ -63,12 +74,13 @@ internal sealed class MainWindow : Window
         TryAttachLastSession();
         timer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromMilliseconds(500)
+            Interval = RunningRefreshInterval
         };
         timer.Tick += (_, _) => RefreshRunState();
         timer.Start();
         Closing += (_, _) =>
         {
+            timer.Stop();
             PullSettingsFromUi();
             SaveSettings();
         };
@@ -139,6 +151,9 @@ internal sealed class MainWindow : Window
         modRootInput = AddPathRow(panel, "MOD 目录", BrowseModRoot);
         dataRootInput = AddPathRow(panel, "ModsData 目录", BrowseDataRoot);
         environmentStatus = Hint(panel, "");
+        Hint(
+            panel,
+            "默认按控制台 EXE 的相对位置自动定位；“选择”仅用于本次运行的临时覆盖。");
 
         panel.Children.Add(Section("工作量与性能"));
         AddProfileSelect(panel);
@@ -337,7 +352,8 @@ internal sealed class MainWindow : Window
                 throw new InvalidOperationException("上一轮没有 Worker 结果");
             }
             var result = Deserialize<CombatFoundationWorkerResult>(
-                File.ReadAllText(resultPath));
+                CombatFoundationCheckpointStorage.ReadAllTextShared(
+                    resultPath));
             var champion = result?.Training?.Champion;
             if (champion == null
                 || !string.Equals(
@@ -381,23 +397,27 @@ internal sealed class MainWindow : Window
             "combat-simulation",
             "witch-base-evaluation-v2.ruleset.json");
         var sourceCampaign = Deserialize<CombatCampaignDefinition>(
-                                 File.ReadAllText(campaignPath))
+                                 CombatFoundationCheckpointStorage
+                                     .ReadAllTextShared(campaignPath))
                              ?? throw new InvalidOperationException("无法读取训练战役");
         var trainingCampaign = Deserialize<CombatCampaignDefinition>(
-                                   File.ReadAllText(campaignPath))
+                                   CombatFoundationCheckpointStorage
+                                       .ReadAllTextShared(campaignPath))
                                ?? throw new InvalidOperationException("无法克隆训练战役");
         trainingCampaign.TraceLevel = CombatSimulationTraceLevel.Summary;
         trainingCampaign.RequireAuthoritativeRules = true;
         trainingCampaign.RetainBlockBetweenTurns = true;
         var validationCampaign = Deserialize<CombatCampaignDefinition>(
-                                     File.ReadAllText(campaignPath))
+                                     CombatFoundationCheckpointStorage
+                                         .ReadAllTextShared(campaignPath))
                                  ?? throw new InvalidOperationException("无法克隆验证战役");
         validationCampaign.TraceLevel = CombatSimulationTraceLevel.Full;
         validationCampaign.FullTraceFinalEncounterOnly = true;
         validationCampaign.RequireAuthoritativeRules = true;
         validationCampaign.RetainBlockBetweenTurns = true;
         var rulesetDocument = Deserialize<CombatRulesetDocument>(
-                                  File.ReadAllText(rulesetPath))
+                                  CombatFoundationCheckpointStorage
+                                      .ReadAllTextShared(rulesetPath))
                               ?? throw new InvalidOperationException("无法读取规则集");
         var rulesetBuild = CombatSimulationRegistry.BuildRuleset(rulesetDocument);
         if (!rulesetBuild.Success)
@@ -486,6 +506,8 @@ internal sealed class MainWindow : Window
             ProcessId = workerProcess.Id,
             StartedUtc = DateTime.UtcNow
         };
+        ResetPollingCache();
+        timer.Interval = RunningRefreshInterval;
         settings.LastRunDirectory = resultDirectory;
         SaveSession();
         SaveSettings();
@@ -522,6 +544,7 @@ internal sealed class MainWindow : Window
     {
         if (session == null)
         {
+            timer.Interval = IdleRefreshInterval;
             SetIdleButtons();
             return;
         }
@@ -532,6 +555,9 @@ internal sealed class MainWindow : Window
             return;
         }
         var running = IsWorkerRunning();
+        timer.Interval = running
+            ? RunningRefreshInterval
+            : IdleRefreshInterval;
         startButton.IsEnabled = !running;
         continueButton.IsEnabled = !running;
         cancelButton.IsEnabled = running;
@@ -541,7 +567,8 @@ internal sealed class MainWindow : Window
             try
             {
                 var progress = Deserialize<CombatFoundationWorkerProgress>(
-                    File.ReadAllText(job.ProgressPath));
+                    CombatFoundationCheckpointStorage.ReadAllTextShared(
+                        job.ProgressPath));
                 if (progress?.Telemetry != null)
                 {
                     PresentTelemetry(progress.Telemetry, running);
@@ -556,19 +583,33 @@ internal sealed class MainWindow : Window
                 AppendLog("进度文件暂不可读：" + ex.Message);
             }
         }
-        if (!File.Exists(job.ResultPath))
+        if (!TryGetFileIdentity(
+                job.ResultPath,
+                out var resultLength,
+                out var resultLastWriteUtc))
+        {
+            return;
+        }
+        if (string.Equals(
+                presentedResultPath,
+                job.ResultPath,
+                StringComparison.OrdinalIgnoreCase)
+            && presentedResultLength == resultLength
+            && presentedResultLastWriteUtc == resultLastWriteUtc)
         {
             return;
         }
         try
         {
-            var result = Deserialize<CombatFoundationWorkerResult>(
-                File.ReadAllText(job.ResultPath));
+            var result = ReadResultSummaryStreaming(job.ResultPath);
             if (result == null)
             {
                 return;
             }
             PresentResult(result);
+            presentedResultPath = job.ResultPath;
+            presentedResultLength = resultLength;
+            presentedResultLastWriteUtc = resultLastWriteUtc;
         }
         catch (IOException)
         {
@@ -598,8 +639,8 @@ internal sealed class MainWindow : Window
             + $"{telemetry.MaximumActiveBattleDepth}/{telemetry.MaximumCompletedBattleDepth}/37";
         progressSecondary.Text =
             $"Epoch {telemetry.ModelEpoch}/{telemetry.ModelTotalEpochs} · "
-            + $"验证损失 {telemetry.ModelValidationLoss:0.000000} · "
-            + $"最佳 {telemetry.ModelBestValidationLoss:0.000000} · "
+            + $"验证损失 {FormatLoss(telemetry.ModelValidationLoss)} · "
+            + $"最佳 {FormatLoss(telemetry.ModelBestValidationLoss)} · "
             + $"并行 {telemetry.ActiveCampaigns}/{telemetry.EffectiveParallelism} · "
             + $"{telemetry.CampaignsPerSecond:0.00} 冒险/秒 · "
             + $"ETA {FormatDuration(telemetry.EstimatedRemainingSeconds)}";
@@ -616,7 +657,7 @@ internal sealed class MainWindow : Window
             + $"更新时间：{DateTime.Now:HH:mm:ss}";
     }
 
-    private void PresentResult(CombatFoundationWorkerResult result)
+    private void PresentResult(ControllerWorkerResultSummary result)
     {
         var accepted = string.Equals(
             result.CompletionKind,
@@ -649,21 +690,36 @@ internal sealed class MainWindow : Window
             + $"规则集：{result.RulesetHash}\r\n"
             + $"可恢复：{result.Resumable}\r\n"
             + $"检查点：{result.CheckpointPath}\r\n"
+            + $"检查点写入失败：{result.CheckpointWriteFailures}\r\n"
+            + (string.IsNullOrWhiteSpace(result.CheckpointWarning)
+                ? ""
+                : $"检查点提示：{result.CheckpointWarning}\r\n")
             + $"待验底模包：{result.ModelPackagePath}\r\n"
             + $"结果目录：{session?.ResultDirectory}";
     }
 
+    private static string FormatLoss(double value)
+    {
+        return double.IsNaN(value)
+               || double.IsInfinity(value)
+               || value >= double.MaxValue / 2d
+            ? "待计算"
+            : value.ToString("0.000000");
+    }
+
     private void LoadSettings()
     {
-        var defaultModRoot = ResolveArgument("--mod-root")
-                             ?? DiscoverModRoot();
-        var defaultDataRoot = ResolveArgument("--data-root")
-                              ?? DiscoverDataRoot(defaultModRoot);
-        var settingsPath = SettingsPath(defaultDataRoot);
+        var modRoot = ResolveArgument("--mod-root")
+                      ?? DiscoverModRoot();
+        var dataRoot = ResolveArgument("--data-root")
+                       ?? DiscoverDataRoot(modRoot);
+        var settingsPath = SettingsPath(dataRoot);
         try
         {
             settings = File.Exists(settingsPath)
-                ? Deserialize<ControllerSettings>(File.ReadAllText(settingsPath))
+                ? Deserialize<ControllerSettings>(
+                    CombatFoundationCheckpointStorage.ReadAllTextShared(
+                        settingsPath))
                   ?? new ControllerSettings()
                 : new ControllerSettings();
         }
@@ -671,16 +727,14 @@ internal sealed class MainWindow : Window
         {
             settings = new ControllerSettings();
         }
-        settings.ModRoot = string.IsNullOrWhiteSpace(ResolveArgument("--mod-root"))
-            ? string.IsNullOrWhiteSpace(settings.ModRoot)
-                ? defaultModRoot
-                : settings.ModRoot
-            : defaultModRoot;
-        settings.DataRoot = string.IsNullOrWhiteSpace(ResolveArgument("--data-root"))
-            ? string.IsNullOrWhiteSpace(settings.DataRoot)
-                ? defaultDataRoot
-                : settings.DataRoot
-            : defaultDataRoot;
+        settings.SchemaVersion = 2;
+        settings.ModRoot = modRoot;
+        settings.DataRoot = dataRoot;
+        if (!string.IsNullOrWhiteSpace(settings.LastRunDirectory)
+            && !Directory.Exists(settings.LastRunDirectory))
+        {
+            settings.LastRunDirectory = "";
+        }
         settings.Parameters ??= new CombatFoundationTrainingParameters();
         settings.Parameters.Normalized();
     }
@@ -716,9 +770,11 @@ internal sealed class MainWindow : Window
             {
                 return;
             }
-            session = Deserialize<ControllerSession>(File.ReadAllText(path));
+            session = Deserialize<ControllerSession>(
+                CombatFoundationCheckpointStorage.ReadAllTextShared(path));
             if (session != null)
             {
+                ResetPollingCache();
                 settings.LastRunDirectory = session.ResultDirectory;
                 AppendLog("已挂接最近训练任务：" + session.JobId);
             }
@@ -909,15 +965,266 @@ internal sealed class MainWindow : Window
     {
         try
         {
-            return session != null && File.Exists(session.JobPath)
-                ? Deserialize<CombatFoundationWorkerJob>(
-                    File.ReadAllText(session.JobPath))
-                : null;
+            if (session == null
+                || !TryGetFileIdentity(
+                    session.JobPath,
+                    out var length,
+                    out var lastWriteUtc))
+            {
+                return null;
+            }
+            if (cachedJob != null
+                && string.Equals(
+                    cachedJobPath,
+                    session.JobPath,
+                    StringComparison.OrdinalIgnoreCase)
+                && cachedJobLength == length
+                && cachedJobLastWriteUtc == lastWriteUtc)
+            {
+                return cachedJob;
+            }
+
+            cachedJob = DeserializeFileStreaming<CombatFoundationWorkerJob>(
+                session.JobPath);
+            cachedJobPath = session.JobPath;
+            cachedJobLength = length;
+            cachedJobLastWriteUtc = lastWriteUtc;
+            return cachedJob;
         }
         catch
         {
             return null;
         }
+    }
+
+    private void ResetPollingCache()
+    {
+        cachedJobPath = "";
+        cachedJobLength = -1;
+        cachedJobLastWriteUtc = DateTime.MinValue;
+        cachedJob = null;
+        presentedResultPath = "";
+        presentedResultLength = -1;
+        presentedResultLastWriteUtc = DateTime.MinValue;
+    }
+
+    private static bool TryGetFileIdentity(
+        string path,
+        out long length,
+        out DateTime lastWriteUtc)
+    {
+        length = 0;
+        lastWriteUtc = DateTime.MinValue;
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            return false;
+        }
+
+        var info = new FileInfo(path);
+        length = info.Length;
+        lastWriteUtc = info.LastWriteTimeUtc;
+        return true;
+    }
+
+    private static ControllerWorkerResultSummary? ReadResultSummaryStreaming(
+        string path)
+    {
+        using var reader = CreateJsonReader(path);
+        var serializer = JsonSerializer.CreateDefault();
+        var summary = new ControllerWorkerResultSummary();
+        if (!reader.Read() || reader.TokenType != JsonToken.StartObject)
+        {
+            return null;
+        }
+
+        while (reader.Read())
+        {
+            if (reader.TokenType == JsonToken.EndObject)
+            {
+                return summary;
+            }
+            if (reader.TokenType != JsonToken.PropertyName)
+            {
+                continue;
+            }
+
+            var propertyName = Convert.ToString(
+                                   reader.Value,
+                                   CultureInfo.InvariantCulture)
+                               ?? "";
+            if (!reader.Read())
+            {
+                return null;
+            }
+            switch (propertyName)
+            {
+                case nameof(ControllerWorkerResultSummary.SchemaVersion):
+                    summary.SchemaVersion = Convert.ToInt32(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerWorkerResultSummary.JobId):
+                    summary.JobId = Convert.ToString(
+                                        reader.Value,
+                                        CultureInfo.InvariantCulture)
+                                    ?? "";
+                    break;
+                case nameof(ControllerWorkerResultSummary.Success):
+                    summary.Success = Convert.ToBoolean(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerWorkerResultSummary.Cancelled):
+                    summary.Cancelled = Convert.ToBoolean(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerWorkerResultSummary.CompletionKind):
+                    summary.CompletionKind = Convert.ToString(
+                                                 reader.Value,
+                                                 CultureInfo.InvariantCulture)
+                                             ?? "";
+                    break;
+                case nameof(ControllerWorkerResultSummary.Message):
+                    summary.Message = Convert.ToString(
+                                          reader.Value,
+                                          CultureInfo.InvariantCulture)
+                                      ?? "";
+                    break;
+                case nameof(ControllerWorkerResultSummary.Runtime):
+                    summary.Runtime = Convert.ToString(
+                                          reader.Value,
+                                          CultureInfo.InvariantCulture)
+                                      ?? "";
+                    break;
+                case nameof(ControllerWorkerResultSummary.RulesetHash):
+                    summary.RulesetHash = Convert.ToString(
+                                              reader.Value,
+                                              CultureInfo.InvariantCulture)
+                                          ?? "";
+                    break;
+                case nameof(ControllerWorkerResultSummary.EpisodesPath):
+                    summary.EpisodesPath = Convert.ToString(
+                                              reader.Value,
+                                              CultureInfo.InvariantCulture)
+                                          ?? "";
+                    break;
+                case nameof(ControllerWorkerResultSummary.CheckpointPath):
+                    summary.CheckpointPath = Convert.ToString(
+                                                reader.Value,
+                                                CultureInfo.InvariantCulture)
+                                            ?? "";
+                    break;
+                case nameof(ControllerWorkerResultSummary.ModelPackagePath):
+                    summary.ModelPackagePath = Convert.ToString(
+                                                  reader.Value,
+                                                  CultureInfo.InvariantCulture)
+                                              ?? "";
+                    break;
+                case nameof(ControllerWorkerResultSummary.Resumable):
+                    summary.Resumable = Convert.ToBoolean(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerWorkerResultSummary.CheckpointWriteFailures):
+                    summary.CheckpointWriteFailures = Convert.ToInt32(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerWorkerResultSummary.CheckpointWarning):
+                    summary.CheckpointWarning = Convert.ToString(
+                                                   reader.Value,
+                                                   CultureInfo.InvariantCulture)
+                                               ?? "";
+                    break;
+                case nameof(ControllerWorkerResultSummary.Training):
+                    summary.Training = ReadTrainingSummary(
+                        reader,
+                        serializer);
+                    return summary;
+                default:
+                    reader.Skip();
+                    break;
+            }
+        }
+        return summary;
+    }
+
+    private static ControllerTrainingResultSummary? ReadTrainingSummary(
+        JsonTextReader reader,
+        JsonSerializer serializer)
+    {
+        if (reader.TokenType == JsonToken.Null)
+        {
+            return null;
+        }
+        if (reader.TokenType != JsonToken.StartObject)
+        {
+            reader.Skip();
+            return null;
+        }
+
+        var summary = new ControllerTrainingResultSummary();
+        while (reader.Read())
+        {
+            if (reader.TokenType == JsonToken.EndObject)
+            {
+                return summary;
+            }
+            if (reader.TokenType != JsonToken.PropertyName)
+            {
+                continue;
+            }
+
+            var propertyName = Convert.ToString(
+                                   reader.Value,
+                                   CultureInfo.InvariantCulture)
+                               ?? "";
+            if (!reader.Read())
+            {
+                return summary;
+            }
+            if (string.Equals(
+                    propertyName,
+                    nameof(ControllerTrainingResultSummary.Validation),
+                    StringComparison.Ordinal))
+            {
+                summary.Validation =
+                    serializer.Deserialize<CombatCampaignFoundationValidation>(
+                        reader)
+                    ?? new CombatCampaignFoundationValidation();
+                return summary;
+            }
+            reader.Skip();
+        }
+        return summary;
+    }
+
+    private static T? DeserializeFileStreaming<T>(string path)
+    {
+        using var reader = CreateJsonReader(path);
+        return JsonSerializer.CreateDefault().Deserialize<T>(reader);
+    }
+
+    private static JsonTextReader CreateJsonReader(string path)
+    {
+        var stream = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete,
+            64 * 1024,
+            FileOptions.SequentialScan);
+        var textReader = new StreamReader(
+            stream,
+            Encoding.UTF8,
+            detectEncodingFromByteOrderMarks: true,
+            bufferSize: 64 * 1024,
+            leaveOpen: false);
+        return new JsonTextReader(textReader)
+        {
+            CloseInput = true
+        };
     }
 
     private bool IsWorkerRunning()
@@ -1018,20 +1325,44 @@ internal sealed class MainWindow : Window
 
     private static string DiscoverModRoot()
     {
-        var candidates = new[]
+        var executableDirectory = ExecutableDirectory();
+        for (DirectoryInfo? current = new DirectoryInfo(executableDirectory);
+             current != null;
+             current = current.Parent)
         {
-            Directory.GetParent(AppContext.BaseDirectory)?.Parent?.FullName,
-            Path.Combine(Environment.CurrentDirectory, "AuraToolsExp"),
-            Environment.CurrentDirectory
-        };
-        return candidates.FirstOrDefault(candidate =>
-                   !string.IsNullOrWhiteSpace(candidate)
-                   && File.Exists(Path.Combine(
-                       candidate!,
-                       "Config",
-                       "combat-simulation",
-                       "witch-world-simulation-v2.campaign.json")))
-               ?? Environment.CurrentDirectory;
+            if (IsModRoot(current.FullName))
+            {
+                return current.FullName;
+            }
+            var child = Path.Combine(current.FullName, "AuraToolsExp");
+            if (IsModRoot(child))
+            {
+                return Path.GetFullPath(child);
+            }
+        }
+
+        return Directory.GetParent(executableDirectory)?.FullName
+               ?? executableDirectory;
+    }
+
+    private static string ExecutableDirectory()
+    {
+        var executablePath = Environment.ProcessPath;
+        if (!string.IsNullOrWhiteSpace(executablePath))
+        {
+            return Path.GetDirectoryName(Path.GetFullPath(executablePath))
+                   ?? Path.GetFullPath(AppContext.BaseDirectory);
+        }
+        return Path.GetFullPath(AppContext.BaseDirectory);
+    }
+
+    private static bool IsModRoot(string path)
+    {
+        return File.Exists(Path.Combine(
+            path,
+            "Config",
+            "combat-simulation",
+            "witch-world-simulation-v2.campaign.json"));
     }
 
     private static string DiscoverDataRoot(string modRoot)
@@ -1044,11 +1375,12 @@ internal sealed class MainWindow : Window
                 StringComparison.OrdinalIgnoreCase)
             && parent.Parent != null)
         {
-            return Path.Combine(parent.Parent.FullName, "ModsData");
+            return Path.GetFullPath(
+                Path.Combine(parent.Parent.FullName, "ModsData"));
         }
-        return Path.Combine(
+        return Path.GetFullPath(Path.Combine(
             Directory.GetParent(modRoot)?.FullName ?? modRoot,
-            "ModsData");
+            "ModsData"));
     }
 
     private static CombatDecisionProfile BuildProfile(string profileId)

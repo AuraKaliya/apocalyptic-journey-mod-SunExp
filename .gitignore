@@ -26,3 +26,5 @@ TerriasCardFrameDebug/*.csproj
 TerriasCardFrameDebug/*.sln
 TerriasCardFrameDebug/*.user
 TerriasCardFrameDebug.create.log
+
+ModsData/Logs/*

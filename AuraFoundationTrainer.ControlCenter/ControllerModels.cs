@@ -1,13 +1,16 @@
 using AuraCombatAi.Shared;
+using Newtonsoft.Json;
 
 namespace AuraFoundationTrainer.ControlCenter;
 
 internal sealed class ControllerSettings
 {
-    public int SchemaVersion { get; set; } = 1;
+    public int SchemaVersion { get; set; } = 2;
 
+    [JsonIgnore]
     public string ModRoot { get; set; } = "";
 
+    [JsonIgnore]
     public string DataRoot { get; set; } = "";
 
     public string LastRunDirectory { get; set; } = "";
@@ -30,4 +33,42 @@ internal sealed class ControllerSession
     public int ProcessId { get; set; }
 
     public DateTime StartedUtc { get; set; }
+}
+
+internal sealed class ControllerWorkerResultSummary
+{
+    public int SchemaVersion { get; set; }
+
+    public string JobId { get; set; } = "";
+
+    public bool Success { get; set; }
+
+    public bool Cancelled { get; set; }
+
+    public string CompletionKind { get; set; } = "";
+
+    public string Message { get; set; } = "";
+
+    public string Runtime { get; set; } = "";
+
+    public string RulesetHash { get; set; } = "";
+
+    public string EpisodesPath { get; set; } = "";
+
+    public string CheckpointPath { get; set; } = "";
+
+    public string ModelPackagePath { get; set; } = "";
+
+    public bool Resumable { get; set; }
+
+    public int CheckpointWriteFailures { get; set; }
+
+    public string CheckpointWarning { get; set; } = "";
+
+    public ControllerTrainingResultSummary? Training { get; set; }
+}
+
+internal sealed class ControllerTrainingResultSummary
+{
+    public CombatCampaignFoundationValidation Validation { get; set; } = new();
 }

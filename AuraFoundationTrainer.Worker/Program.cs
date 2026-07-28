@@ -15,9 +15,12 @@ if (string.IsNullOrWhiteSpace(jobPath) || !File.Exists(jobPath))
 }
 
 CombatFoundationWorkerJob? job = null;
+var checkpointWriteFailures = 0;
+var checkpointWarning = "";
 try
 {
-    job = Deserialize<CombatFoundationWorkerJob>(File.ReadAllText(jobPath));
+    job = Deserialize<CombatFoundationWorkerJob>(
+        CombatFoundationCheckpointStorage.ReadAllTextShared(jobPath));
     if (!CombatFoundationWorkerProtocol.TryValidateJob(
             job,
             out var jobDiagnostic))
@@ -88,12 +91,16 @@ try
         minimumIo);
     var requestFingerprint = Fingerprint(job, build.Ruleset.RulesetHash);
     var resume = new CombatCampaignFoundationResumeState();
+    CombatFoundationEpisodeSnapshot? checkpointSnapshot = null;
+    var resumeDiagnostic = "";
     var resumedFromCheckpoint = job.ResumeFromCheckpoint
                                 && TryLoadCheckpoint(
             job,
             requestFingerprint,
             build.Ruleset.RulesetHash,
-            out resume);
+            out resume,
+            out checkpointSnapshot,
+            out resumeDiagnostic);
     if (resumedFromCheckpoint)
     {
         job.Request.Resume = resume;
@@ -109,9 +116,16 @@ try
     }
     else if (job.ResumeFromCheckpoint)
     {
-        TryDelete(job.CheckpointPath);
-        TryDelete(job.CheckpointEpisodesPath);
+        Console.Error.WriteLine(
+            "Foundation checkpoint was not resumed and has been preserved: "
+            + resumeDiagnostic);
     }
+    CombatFoundationCheckpointStorage.CleanupArtifacts(
+        job.CheckpointPath,
+        job.CheckpointEpisodesPath,
+        checkpointSnapshot == null
+            ? Array.Empty<string>()
+            : new[] { checkpointSnapshot.Path });
     PrepareCaseArchive(job, build.Ruleset.RulesetHash);
 
     using var cancellation = new CancellationTokenSource();
@@ -150,7 +164,7 @@ try
             lastProgressMilliseconds = now;
             lastProgressStage = telemetry.Stage ?? "";
             latestTelemetry = telemetry;
-            WriteAtomic(
+            TryWriteAuxiliary(
                 job.ProgressPath,
                 Serialize(new CombatFoundationWorkerProgress
                 {
@@ -172,7 +186,7 @@ try
                     return;
                 }
                 lastProgressMilliseconds = progressClock.ElapsedMilliseconds;
-                WriteAtomic(
+                TryWriteAuxiliary(
                     job.ProgressPath,
                     Serialize(new CombatFoundationWorkerProgress
                     {
@@ -186,27 +200,62 @@ try
         TimeSpan.FromSeconds(2),
         TimeSpan.FromSeconds(2));
     var checkpointGate = new object();
-    var checkpointEpisodeCount = job.Request.Resume?.Replay.Count ?? -1;
+    var checkpointReplayIdentity =
+        checkpointSnapshot?.ReplayIdentity ?? "";
+    if (string.IsNullOrWhiteSpace(checkpointReplayIdentity)
+        && job.Request.Resume?.Replay != null)
+    {
+        checkpointReplayIdentity =
+            ReplayIdentity(job.Request.Resume.Replay);
+    }
     job.Request.Checkpoint = state =>
     {
         lock (checkpointGate)
         {
-            if (state.Replay.Count != checkpointEpisodeCount
-                || !File.Exists(job.CheckpointEpisodesPath))
+            try
             {
-                WriteEpisodes(job.CheckpointEpisodesPath, state.Replay);
-                checkpointEpisodeCount = state.Replay.Count;
-            }
-            WriteAtomic(
-                job.CheckpointPath,
-                Serialize(new CombatFoundationWorkerCheckpoint
+                var replayIdentity = ReplayIdentity(state.Replay);
+                var nextSnapshot = checkpointSnapshot;
+                if (nextSnapshot == null
+                    || !File.Exists(nextSnapshot.Path)
+                    || !string.Equals(
+                        checkpointReplayIdentity,
+                        replayIdentity,
+                        StringComparison.Ordinal))
                 {
-                    RequestFingerprint = requestFingerprint,
-                    RulesetHash = build.Ruleset.RulesetHash,
-                    EpisodesPath = job.CheckpointEpisodesPath,
-                    UpdatedUtc = DateTime.UtcNow,
-                    Resume = WithoutReplay(state)
-                }));
+                    nextSnapshot =
+                        CombatFoundationCheckpointStorage.WriteEpisodeSnapshot(
+                            job.CheckpointEpisodesPath,
+                            state.Replay.Select(SerializeCompact),
+                            replayIdentity);
+                }
+                CombatFoundationCheckpointStorage.WriteAtomicText(
+                    job.CheckpointPath,
+                    Serialize(new CombatFoundationWorkerCheckpoint
+                    {
+                        RequestFingerprint = requestFingerprint,
+                        RulesetHash = build.Ruleset.RulesetHash,
+                        EpisodesPath = nextSnapshot.Path,
+                        EpisodeSnapshot = nextSnapshot,
+                        UpdatedUtc = DateTime.UtcNow,
+                        Resume = WithoutReplay(state)
+                    }));
+                checkpointSnapshot = nextSnapshot;
+                checkpointReplayIdentity = replayIdentity;
+                checkpointWarning = "";
+                CombatFoundationCheckpointStorage.CleanupArtifacts(
+                    job.CheckpointPath,
+                    job.CheckpointEpisodesPath,
+                    new[] { nextSnapshot.Path });
+            }
+            catch (Exception ex)
+            {
+                checkpointWriteFailures++;
+                checkpointWarning =
+                    "检查点暂时无法写入，训练继续使用上一份有效快照："
+                    + ex.Message;
+                Console.Error.WriteLine(checkpointWarning);
+            }
         }
     };
     var incrementallyArchivedCases =
@@ -289,13 +338,16 @@ try
     training.SuccessCases.Clear();
     if (job.Request.PreflightOnly || training.AcceptancePassed)
     {
-        TryDelete(job.CheckpointPath);
-        TryDelete(job.CheckpointEpisodesPath);
+        CombatFoundationCheckpointStorage.DeleteCheckpointArtifacts(
+            job.CheckpointPath,
+            job.CheckpointEpisodesPath);
     }
+    var resumableEpisodesPath = "";
     var resumable = !job.Request.PreflightOnly
                     && !training.AcceptancePassed
-                    && File.Exists(job.CheckpointPath)
-                    && File.Exists(job.CheckpointEpisodesPath);
+                    && TryGetResumableCheckpoint(
+                        job,
+                        out resumableEpisodesPath);
     var completionKind = job.Request.PreflightOnly
         ? training.Success
             ? "preflight-passed"
@@ -318,6 +370,8 @@ try
             ? job.CheckpointPath
             : "",
         Resumable = resumable,
+        CheckpointWriteFailures = checkpointWriteFailures,
+        CheckpointWarning = checkpointWarning,
         Training = training
     };
     if (string.Equals(
@@ -348,8 +402,9 @@ catch (OperationCanceledException)
 {
     if (job != null)
     {
-        var resumable = File.Exists(job.CheckpointPath)
-                        && File.Exists(job.CheckpointEpisodesPath);
+        var resumable = TryGetResumableCheckpoint(
+            job,
+            out var resumableEpisodesPath);
         WriteAtomic(
             job.ResultPath,
             Serialize(new CombatFoundationWorkerResult
@@ -363,13 +418,13 @@ catch (OperationCanceledException)
                 Runtime = RuntimeDescription(
                     job.Request.MaximumDegreeOfParallelism),
                 RulesetHash = job.ExpectedRulesetHash,
-                EpisodesPath = File.Exists(job.CheckpointEpisodesPath)
-                    ? job.CheckpointEpisodesPath
-                    : "",
+                EpisodesPath = resumable ? resumableEpisodesPath : "",
                 CheckpointPath = File.Exists(job.CheckpointPath)
                     ? job.CheckpointPath
                     : "",
-                Resumable = resumable
+                Resumable = resumable,
+                CheckpointWriteFailures = checkpointWriteFailures,
+                CheckpointWarning = checkpointWarning
             }));
     }
     return 3;
@@ -379,8 +434,9 @@ catch (Exception ex)
     Console.Error.WriteLine(ex);
     if (job != null && !string.IsNullOrWhiteSpace(job.ResultPath))
     {
-        var resumable = File.Exists(job.CheckpointPath)
-                        && File.Exists(job.CheckpointEpisodesPath);
+        var resumable = TryGetResumableCheckpoint(
+            job,
+            out var resumableEpisodesPath);
         WriteAtomic(
             job.ResultPath,
             Serialize(new CombatFoundationWorkerResult
@@ -393,13 +449,13 @@ catch (Exception ex)
                 Runtime = RuntimeDescription(
                     job.Request.MaximumDegreeOfParallelism),
                 RulesetHash = job.ExpectedRulesetHash,
-                EpisodesPath = File.Exists(job.CheckpointEpisodesPath)
-                    ? job.CheckpointEpisodesPath
-                    : "",
+                EpisodesPath = resumable ? resumableEpisodesPath : "",
                 CheckpointPath = File.Exists(job.CheckpointPath)
                     ? job.CheckpointPath
                     : "",
-                Resumable = resumable
+                Resumable = resumable,
+                CheckpointWriteFailures = checkpointWriteFailures,
+                CheckpointWarning = checkpointWarning
             }));
     }
     return 1;
@@ -462,56 +518,98 @@ static bool TryLoadCheckpoint(
     CombatFoundationWorkerJob job,
     string requestFingerprint,
     string rulesetHash,
-    out CombatCampaignFoundationResumeState resume)
+    out CombatCampaignFoundationResumeState resume,
+    out CombatFoundationEpisodeSnapshot? episodeSnapshot,
+    out string diagnostic)
 {
     resume = new CombatCampaignFoundationResumeState();
-    try
+    episodeSnapshot = null;
+    var errors = new List<string>();
+    foreach (var checkpointPath in new[]
+             {
+                 job.CheckpointPath,
+                 CombatFoundationCheckpointStorage.BackupPath(
+                     job.CheckpointPath)
+             }.Distinct(StringComparer.OrdinalIgnoreCase))
     {
-        if (string.IsNullOrWhiteSpace(job.CheckpointPath)
-            || !File.Exists(job.CheckpointPath))
+        if (string.IsNullOrWhiteSpace(checkpointPath)
+            || !File.Exists(checkpointPath))
         {
-            return false;
+            continue;
         }
-        var checkpoint = Deserialize<CombatFoundationWorkerCheckpoint>(
-            File.ReadAllText(job.CheckpointPath));
-        if (checkpoint == null
-            || checkpoint.SchemaVersion
-               != CombatFoundationWorkerProtocol.SchemaVersion
-            || !string.Equals(
-                checkpoint.RequestFingerprint,
-                requestFingerprint,
-                StringComparison.Ordinal)
-            || !string.Equals(
-                checkpoint.RulesetHash,
-                rulesetHash,
-                StringComparison.Ordinal)
-            || string.IsNullOrWhiteSpace(checkpoint.EpisodesPath)
-            || !File.Exists(checkpoint.EpisodesPath))
+        try
         {
-            return false;
-        }
-        var episodes = new List<CombatEpisode>();
-        foreach (var line in File.ReadLines(checkpoint.EpisodesPath))
-        {
-            if (string.IsNullOrWhiteSpace(line))
+            var checkpoint = Deserialize<CombatFoundationWorkerCheckpoint>(
+                CombatFoundationCheckpointStorage.ReadAllTextShared(
+                    checkpointPath));
+            if (checkpoint == null
+                || checkpoint.SchemaVersion
+                   != CombatFoundationWorkerProtocol.SchemaVersion)
             {
-                continue;
+                throw new InvalidDataException(
+                    "checkpoint protocol is incompatible");
             }
-            var episode = Deserialize<CombatEpisode>(line);
-            if (episode != null)
+            if (!string.Equals(
+                    checkpoint.RequestFingerprint,
+                    requestFingerprint,
+                    StringComparison.Ordinal)
+                || !string.Equals(
+                    checkpoint.RulesetHash,
+                    rulesetHash,
+                    StringComparison.Ordinal))
             {
-                episodes.Add(episode);
+                throw new InvalidDataException(
+                    "checkpoint identity does not match this job");
             }
+            var snapshot = checkpoint.EpisodeSnapshot
+                           ?? new CombatFoundationEpisodeSnapshot
+                           {
+                               StorageVersion = 1,
+                               Path = checkpoint.EpisodesPath,
+                               EpisodeCount = -1,
+                               CreatedUtc = checkpoint.UpdatedUtc
+                           };
+            var episodes = CombatFoundationCheckpointStorage
+                .ReadAndValidateJsonLines(
+                    snapshot,
+                    line => Deserialize<CombatEpisode>(line));
+            if (!string.IsNullOrWhiteSpace(snapshot.ReplayIdentity)
+                && !string.Equals(
+                    snapshot.ReplayIdentity,
+                    ReplayIdentity(episodes),
+                    StringComparison.Ordinal))
+            {
+                throw new InvalidDataException(
+                    "checkpoint replay identity mismatch");
+            }
+            checkpoint.Resume.Replay = episodes;
+            if (checkpoint.Resume.SchemaVersion
+                != CombatFoundationWorkerProtocol.SchemaVersion)
+            {
+                throw new InvalidDataException(
+                    "checkpoint resume payload is incompatible");
+            }
+            resume = checkpoint.Resume;
+            episodeSnapshot = snapshot;
+            diagnostic = checkpointPath.Equals(
+                job.CheckpointPath,
+                StringComparison.OrdinalIgnoreCase)
+                ? ""
+                : "已从检查点备份恢复";
+            return true;
         }
-        checkpoint.Resume.Replay = episodes;
-        resume = checkpoint.Resume;
-        return resume.SchemaVersion
-               == CombatFoundationWorkerProtocol.SchemaVersion;
+        catch (Exception ex)
+        {
+            errors.Add(
+                Path.GetFileName(checkpointPath)
+                + ": "
+                + ex.Message);
+        }
     }
-    catch
-    {
-        return false;
-    }
+    diagnostic = errors.Count == 0
+        ? "未找到检查点"
+        : string.Join(" | ", errors);
+    return false;
 }
 
 static CombatCampaignFoundationResumeState WithoutReplay(
@@ -544,23 +642,9 @@ static void WriteEpisodes(
     string path,
     IReadOnlyList<CombatEpisode> episodes)
 {
-    var fullPath = Path.GetFullPath(path);
-    Directory.CreateDirectory(
-        Path.GetDirectoryName(fullPath)
-        ?? throw new InvalidOperationException(
-            "Episode output directory is missing."));
-    var temporaryPath = fullPath + ".tmp-" + Environment.ProcessId;
-    using (var writer = new StreamWriter(
-               temporaryPath,
-               append: false,
-               new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)))
-    {
-        foreach (var episode in episodes)
-        {
-            writer.WriteLine(SerializeCompact(episode));
-        }
-    }
-    File.Move(temporaryPath, fullPath, overwrite: true);
+    CombatFoundationCheckpointStorage.WriteAtomicJsonLines(
+        path,
+        episodes.Select(SerializeCompact));
 }
 
 static string SuccessArchiveRoot(CombatFoundationWorkerJob job)
@@ -1186,38 +1270,9 @@ static void WriteJsonLines<T>(
     string path,
     IEnumerable<T> values)
 {
-    var fullPath = Path.GetFullPath(path);
-    Directory.CreateDirectory(
-        Path.GetDirectoryName(fullPath)
-        ?? throw new InvalidOperationException(
-            "JSONL output directory is missing."));
-    var temporaryPath = fullPath + ".tmp-" + Environment.ProcessId;
-    using (var writer = new StreamWriter(
-               temporaryPath,
-               append: false,
-               new UTF8Encoding(encoderShouldEmitUTF8Identifier: false)))
-    {
-        foreach (var value in values)
-        {
-            writer.WriteLine(SerializeCompact(value!));
-        }
-    }
-    File.Move(temporaryPath, fullPath, overwrite: true);
-}
-
-static void TryDelete(string path)
-{
-    try
-    {
-        if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
-        {
-            File.Delete(path);
-        }
-    }
-    catch
-    {
-        // A completed result is valid even when stale resume files remain.
-    }
+    CombatFoundationCheckpointStorage.WriteAtomicJsonLines(
+        path,
+        values.Select(value => SerializeCompact(value!)));
 }
 
 static string ResolveArgument(string[] arguments, string name)
@@ -1260,19 +1315,92 @@ static string SerializeCompact(object value)
         });
 }
 
+static string ReplayIdentity(IReadOnlyList<CombatEpisode> episodes)
+{
+    var builder = new StringBuilder();
+    builder.Append(episodes.Count).Append('\n');
+    foreach (var episode in episodes)
+    {
+        var frames = episode.Frames ?? new List<CombatEpisodeFrame>();
+        builder.Append(episode.EpisodeId).Append('|')
+            .Append(episode.JourneyRunId).Append('|')
+            .Append(episode.JourneyBattleIndex).Append('|')
+            .Append(episode.Seed).Append('|')
+            .Append(episode.Outcome).Append('|')
+            .Append(episode.Turns).Append('|')
+            .Append(frames.Count).Append('|')
+            .Append(frames.FirstOrDefault()?.StateFingerprint ?? "")
+            .Append('|')
+            .Append(frames.LastOrDefault()?.StateFingerprint ?? "")
+            .Append('\n');
+    }
+    return Convert.ToHexString(
+        SHA256.HashData(Encoding.UTF8.GetBytes(builder.ToString())));
+}
+
+static bool TryGetResumableCheckpoint(
+    CombatFoundationWorkerJob job,
+    out string episodesPath)
+{
+    episodesPath = "";
+    foreach (var checkpointPath in new[]
+             {
+                 job.CheckpointPath,
+                 CombatFoundationCheckpointStorage.BackupPath(
+                     job.CheckpointPath)
+             }.Distinct(StringComparer.OrdinalIgnoreCase))
+    {
+        try
+        {
+            if (!File.Exists(checkpointPath))
+            {
+                continue;
+            }
+            var checkpoint = Deserialize<CombatFoundationWorkerCheckpoint>(
+                CombatFoundationCheckpointStorage.ReadAllTextShared(
+                    checkpointPath));
+            var candidate = checkpoint?.EpisodeSnapshot?.Path
+                            ?? checkpoint?.EpisodesPath
+                            ?? "";
+            if (checkpoint?.SchemaVersion
+                    == CombatFoundationWorkerProtocol.SchemaVersion
+                && !string.IsNullOrWhiteSpace(candidate)
+                && File.Exists(candidate))
+            {
+                episodesPath = candidate;
+                return true;
+            }
+        }
+        catch
+        {
+            // The backup pointer is checked next.
+        }
+    }
+    return false;
+}
+
+static void TryWriteAuxiliary(string path, string contents)
+{
+    try
+    {
+        WriteAtomic(path, contents);
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine(
+            "Auxiliary status write was skipped: "
+            + path
+            + " | "
+            + ex.Message);
+    }
+}
+
 static void WriteAtomic(string path, string contents)
 {
-    if (string.IsNullOrWhiteSpace(path))
-    {
-        return;
-    }
-    var fullPath = Path.GetFullPath(path);
-    Directory.CreateDirectory(
-        Path.GetDirectoryName(fullPath)
-        ?? throw new InvalidOperationException("Output directory is missing."));
-    var temporaryPath = fullPath + ".tmp-" + Environment.ProcessId;
-    File.WriteAllText(temporaryPath, contents, new UTF8Encoding(false));
-    File.Move(temporaryPath, fullPath, overwrite: true);
+    CombatFoundationCheckpointStorage.WriteAtomicText(
+        path,
+        contents,
+        retainBackup: false);
 }
 
 static string RuntimeDescription(int workers)

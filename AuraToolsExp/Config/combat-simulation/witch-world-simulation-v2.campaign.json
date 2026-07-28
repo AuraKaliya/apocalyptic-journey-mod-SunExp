@@ -1,7 +1,7 @@
 {
     "schemaVersion":  2,
     "campaignId":  "witch.world-simulation.standard-v2",
-    "campaignVersion":  "2.4.0",
+    "campaignVersion":  "2.5.0",
     "rulesetVersion":  "witch-base-evaluation-v2",
     "initialMoney":  100,
     "player":  {
@@ -44,6 +44,88 @@
     "mainAttributeUpperBound":  40,
     "secondaryAttributeUpperBound":  39,
     "unselectedAttributeUpperBound":  20,
+    "attributeThresholdRewards":  [
+                                      {
+                                          "attributeId":  "Strength",
+                                          "threshold":  10,
+                                          "rewardId":  "blessing_101"
+                                      },
+                                      {
+                                          "attributeId":  "Strength",
+                                          "threshold":  20,
+                                          "rewardId":  "blessing_105"
+                                      },
+                                      {
+                                          "attributeId":  "Strength",
+                                          "threshold":  30,
+                                          "rewardId":  "blessing_109"
+                                      },
+                                      {
+                                          "attributeId":  "Strength",
+                                          "threshold":  40,
+                                          "rewardId":  "blessing_113"
+                                      },
+                                      {
+                                          "attributeId":  "Lucky",
+                                          "threshold":  10,
+                                          "rewardId":  "blessing_102"
+                                      },
+                                      {
+                                          "attributeId":  "Lucky",
+                                          "threshold":  20,
+                                          "rewardId":  "blessing_106"
+                                      },
+                                      {
+                                          "attributeId":  "Lucky",
+                                          "threshold":  30,
+                                          "rewardId":  "blessing_110"
+                                      },
+                                      {
+                                          "attributeId":  "Lucky",
+                                          "threshold":  40,
+                                          "rewardId":  "blessing_114"
+                                      },
+                                      {
+                                          "attributeId":  "Perceive",
+                                          "threshold":  10,
+                                          "rewardId":  "blessing_104"
+                                      },
+                                      {
+                                          "attributeId":  "Perceive",
+                                          "threshold":  20,
+                                          "rewardId":  "blessing_108"
+                                      },
+                                      {
+                                          "attributeId":  "Perceive",
+                                          "threshold":  30,
+                                          "rewardId":  "blessing_112"
+                                      },
+                                      {
+                                          "attributeId":  "Perceive",
+                                          "threshold":  40,
+                                          "rewardId":  "blessing_116"
+                                      },
+                                      {
+                                          "attributeId":  "Wisdom",
+                                          "threshold":  10,
+                                          "rewardId":  "blessing_103"
+                                      },
+                                      {
+                                          "attributeId":  "Wisdom",
+                                          "threshold":  20,
+                                          "rewardId":  "blessing_107"
+                                      },
+                                      {
+                                          "attributeId":  "Wisdom",
+                                          "threshold":  30,
+                                          "rewardId":  "blessing_111"
+                                      },
+                                      {
+                                          "attributeId":  "Wisdom",
+                                          "threshold":  40,
+                                          "rewardId":  "blessing_115"
+                                      }
+                                  ],
     "layers":  [
                    {
                        "layerNumber":  1,

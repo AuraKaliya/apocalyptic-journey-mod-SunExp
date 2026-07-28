@@ -39,6 +39,15 @@ public sealed class CombatCampaignAttributePreset
     public int Unselected { get; set; }
 }
 
+public sealed class CombatCampaignAttributeThresholdRewardDefinition
+{
+    public string AttributeId { get; set; } = "";
+
+    public int Threshold { get; set; }
+
+    public string RewardId { get; set; } = "";
+}
+
 public sealed class CombatCampaignLayerDefinition
 {
     public int LayerNumber { get; set; }
@@ -200,6 +209,9 @@ public sealed class CombatCampaignDefinition
     public int SecondaryAttributeUpperBound { get; set; } = 39;
 
     public int UnselectedAttributeUpperBound { get; set; } = 20;
+
+    public List<CombatCampaignAttributeThresholdRewardDefinition>
+        AttributeThresholdRewards { get; set; } = new();
 
     public List<CombatCampaignLayerDefinition> Layers { get; set; } = new();
 
@@ -613,6 +625,101 @@ public static class CombatCampaignRewardRuleProjector
     }
 }
 
+public static class CombatCampaignAttributeThresholdRewardReconciler
+{
+    public static int Reconcile(
+        CombatCampaignDefinition definition,
+        CombatCampaignState state)
+    {
+        if (definition == null) throw new ArgumentNullException(nameof(definition));
+        if (state == null) throw new ArgumentNullException(nameof(state));
+
+        EnsureAttributeState(definition, state);
+
+        var rewardLookup = definition.Rewards.ToDictionary(
+            item => item.RewardId,
+            StringComparer.OrdinalIgnoreCase);
+        var grantedCount = 0;
+        bool granted;
+        do
+        {
+            granted = false;
+            foreach (var thresholdReward in definition.AttributeThresholdRewards
+                         .OrderBy(item => item.Threshold)
+                         .ThenBy(item => item.AttributeId, StringComparer.Ordinal)
+                         .ThenBy(item => item.RewardId, StringComparer.Ordinal))
+            {
+                if (!state.Attributes.TryGetValue(
+                        thresholdReward.AttributeId,
+                        out var value)
+                    || value < thresholdReward.Threshold
+                    || state.Blessings.Contains(
+                        thresholdReward.RewardId,
+                        StringComparer.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+                if (!rewardLookup.TryGetValue(
+                        thresholdReward.RewardId,
+                        out var reward)
+                    || reward.Kind != CombatCampaignRewardKind.Blessing)
+                {
+                    throw new InvalidOperationException(
+                        "Attribute threshold reward is not a registered blessing: "
+                        + thresholdReward.RewardId);
+                }
+
+                state.Blessings.Add(reward.RewardId);
+                CombatCampaignRewardSelector.ApplyProgressionEffect(
+                    definition,
+                    state,
+                    reward,
+                    reconcileAttributeThresholdRewards: false);
+                granted = true;
+                grantedCount++;
+            }
+        } while (granted);
+
+        return grantedCount;
+    }
+
+    private static void EnsureAttributeState(
+        CombatCampaignDefinition definition,
+        CombatCampaignState state)
+    {
+        foreach (var attributeId in definition.AttributeIds)
+        {
+            int currentValue;
+            if (!state.Attributes.TryGetValue(attributeId, out currentValue))
+            {
+                state.Attributes[attributeId] = 0;
+            }
+            if (!state.LayerBaseAttributes.ContainsKey(attributeId))
+            {
+                state.LayerBaseAttributes[attributeId] = currentValue;
+            }
+            if (!state.PermanentAttributeBonuses.ContainsKey(attributeId))
+            {
+                state.PermanentAttributeBonuses[attributeId] = 0;
+            }
+            if (!state.AttributeUpperBounds.ContainsKey(attributeId))
+            {
+                state.AttributeUpperBounds[attributeId] = string.Equals(
+                    attributeId,
+                    definition.MainAttributeId,
+                    StringComparison.OrdinalIgnoreCase)
+                    ? definition.MainAttributeUpperBound
+                    : string.Equals(
+                        attributeId,
+                        definition.SecondaryAttributeId,
+                        StringComparison.OrdinalIgnoreCase)
+                        ? definition.SecondaryAttributeUpperBound
+                        : definition.UnselectedAttributeUpperBound;
+            }
+        }
+    }
+}
+
 public sealed class CombatCampaignResult
 {
     public string CampaignId { get; set; } = "";
@@ -793,6 +900,30 @@ public static class CombatCampaignWorldPlanner
         {
             throw new ArgumentException("Campaign requires four attributes and distinct main/secondary ids.");
         }
+        var invalidThresholdReward = definition.AttributeThresholdRewards.FirstOrDefault(
+            item => item == null
+                    || string.IsNullOrWhiteSpace(item.AttributeId)
+                    || !attributes.Contains(
+                        item.AttributeId,
+                        StringComparer.OrdinalIgnoreCase)
+                    || item.Threshold <= 0
+                    || string.IsNullOrWhiteSpace(item.RewardId)
+                    || !rewardLookup.TryGetValue(item.RewardId, out var reward)
+                    || reward.Kind != CombatCampaignRewardKind.Blessing);
+        if (invalidThresholdReward != null
+            || definition.AttributeThresholdRewards
+                .GroupBy(
+                    item => item.AttributeId + "\0" + item.Threshold,
+                    StringComparer.OrdinalIgnoreCase)
+                .Any(group => group.Count() > 1)
+            || definition.AttributeThresholdRewards
+                .GroupBy(item => item.RewardId, StringComparer.OrdinalIgnoreCase)
+                .Any(group => group.Count() > 1))
+        {
+            throw new ArgumentException(
+                "Attribute threshold rewards must reference unique attributes, thresholds, and blessing rewards.",
+                nameof(definition));
+        }
         var layers = definition.Layers.OrderBy(item => item.LayerNumber).ToList();
         if (layers.Count != 7
             || layers.Select(item => item.LayerNumber).Where((number, index) => number != index + 1).Any())
@@ -893,7 +1024,12 @@ public static class CombatCampaignWorldPlanner
             .Where(item => item.Kind == CombatCampaignRewardKind.Blessing
                            && item.Tier >= minimumTier
                            && item.Tier <= maximumTier
-                           && (!definition.ExcludeNegativeBlessings || !item.Negative))
+                           && (!definition.ExcludeNegativeBlessings || !item.Negative)
+                           && !definition.AttributeThresholdRewards.Any(threshold =>
+                               string.Equals(
+                                   threshold.RewardId,
+                                   item.RewardId,
+                                   StringComparison.OrdinalIgnoreCase)))
             .Select(item => item.RewardId)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(item => item, StringComparer.Ordinal)
@@ -1828,7 +1964,8 @@ public static class CombatCampaignRewardSelector
     internal static void ApplyProgressionEffect(
         CombatCampaignDefinition definition,
         CombatCampaignState state,
-        CombatCampaignRewardDefinition reward)
+        CombatCampaignRewardDefinition reward,
+        bool reconcileAttributeThresholdRewards = true)
     {
         if (!string.IsNullOrWhiteSpace(reward.OneTimeSpecialVariableKey))
         {
@@ -1960,6 +2097,12 @@ public static class CombatCampaignRewardSelector
                     StringComparer.OrdinalIgnoreCase);
         }
         ClampAttributes(state);
+        if (reconcileAttributeThresholdRewards)
+        {
+            CombatCampaignAttributeThresholdRewardReconciler.Reconcile(
+                definition,
+                state);
+        }
     }
 
     internal static void RemoveProgressionEffect(
@@ -2485,6 +2628,9 @@ public sealed class CombatCampaignRunner
                 reward);
         }
         CombatCampaignRewardSelector.ClampAttributes(state);
+        CombatCampaignAttributeThresholdRewardReconciler.Reconcile(
+            definition,
+            state);
     }
 
     private static CombatScenarioDefinition BuildScenario(
@@ -2641,6 +2787,9 @@ public sealed class CombatCampaignRunner
             state.Attributes[attribute] = baseValue;
         }
         CombatCampaignRewardSelector.ClampAttributes(state);
+        CombatCampaignAttributeThresholdRewardReconciler.Reconcile(
+            definition,
+            state);
         CombatCampaignRewardSelector.RefreshBuildPlan(definition, state);
     }
 
@@ -2668,6 +2817,12 @@ public sealed class CombatCampaignRunner
             }
             var resumed = CloneCheckpoint(resumeFrom);
             resumed.State.WorldSeed = plan.WorldSeed;
+            CombatCampaignAttributeThresholdRewardReconciler.Reconcile(
+                definition,
+                resumed.State);
+            CombatCampaignRewardSelector.RefreshBuildPlan(
+                definition,
+                resumed.State);
             return resumed;
         }
         var state = new CombatCampaignState

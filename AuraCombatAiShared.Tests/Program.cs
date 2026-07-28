@@ -3046,6 +3046,95 @@ var bundledCampaignAdvanced = CombatCampaignWorldPlanner.Build(
     bundledCampaign,
     "advanced",
     23816797UL);
+var bundledThresholdRewardIds = bundledCampaign.AttributeThresholdRewards
+    .Select(item => item.RewardId)
+    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+var expectedThresholdRewards = new Dictionary<string, string[]>(
+    StringComparer.OrdinalIgnoreCase)
+{
+    ["Strength"] =
+        new[] { "blessing_101", "blessing_105", "blessing_109", "blessing_113" },
+    ["Lucky"] =
+        new[] { "blessing_102", "blessing_106", "blessing_110", "blessing_114" },
+    ["Perceive"] =
+        new[] { "blessing_104", "blessing_108", "blessing_112", "blessing_116" },
+    ["Wisdom"] =
+        new[] { "blessing_103", "blessing_107", "blessing_111", "blessing_115" }
+};
+Assert(
+    bundledCampaign.CampaignVersion == "2.5.0"
+    && bundledCampaign.AttributeThresholdRewards.Count == 16
+    && expectedThresholdRewards.All(pair =>
+        bundledCampaign.AttributeThresholdRewards
+            .Where(item => string.Equals(
+                item.AttributeId,
+                pair.Key,
+                StringComparison.OrdinalIgnoreCase))
+            .OrderBy(item => item.Threshold)
+            .Select(item => item.RewardId)
+            .SequenceEqual(pair.Value))
+    && bundledCampaignNormal.Encounters.All(item =>
+        !bundledThresholdRewardIds.Contains(item.RewardOffer.BlessingId))
+    && bundledCampaignAdvanced.Encounters.All(item =>
+        !bundledThresholdRewardIds.Contains(item.RewardOffer.BlessingId)),
+    "base-game origin threshold blessings are mapped authoritatively and excluded from ordinary blessing offers");
+
+foreach (var pair in expectedThresholdRewards)
+{
+    foreach (var value in new[] { 9, 10, 19, 20, 29, 30, 39, 40 })
+    {
+        var boundaryState = new CombatCampaignState();
+        foreach (var attributeId in bundledCampaign.AttributeIds)
+        {
+            var attributeValue = string.Equals(
+                attributeId,
+                pair.Key,
+                StringComparison.OrdinalIgnoreCase)
+                ? value
+                : 0;
+            boundaryState.Attributes[attributeId] = attributeValue;
+            boundaryState.LayerBaseAttributes[attributeId] = attributeValue;
+            boundaryState.PermanentAttributeBonuses[attributeId] = 0;
+            boundaryState.AttributeUpperBounds[attributeId] = 100;
+        }
+        var expectedIds = pair.Value.Take(value / 10).ToList();
+        var granted = CombatCampaignAttributeThresholdRewardReconciler.Reconcile(
+            bundledCampaign,
+            boundaryState);
+        var grantedAgain =
+            CombatCampaignAttributeThresholdRewardReconciler.Reconcile(
+                bundledCampaign,
+                boundaryState);
+        Assert(
+            boundaryState.Blessings
+                .OrderBy(item => item, StringComparer.Ordinal)
+                .SequenceEqual(expectedIds.OrderBy(
+                    item => item,
+                    StringComparer.Ordinal))
+            && granted == expectedIds.Count
+            && grantedAgain == 0
+            && boundaryState.Blessings.Count == expectedIds.Count,
+            pair.Key + " origin threshold " + value
+            + " grants every reached blessing exactly once");
+    }
+}
+var projectedThresholdState = new CombatCampaignState
+{
+    Attributes = { ["Strength"] = 10 },
+    LayerBaseAttributes = { ["Strength"] = 10 },
+    PermanentAttributeBonuses = { ["Strength"] = 0 },
+    AttributeUpperBounds = { ["Strength"] = 40 }
+};
+CombatCampaignAttributeThresholdRewardReconciler.Reconcile(
+    bundledCampaign,
+    projectedThresholdState);
+Assert(
+    CombatCampaignRewardRuleProjector.Build(
+            bundledCampaign,
+            projectedThresholdState)
+        .Any(item => item.RewardId == "blessing_101"
+                     && !string.IsNullOrWhiteSpace(item.FightScript)),
+    "reconciled origin blessings project their authoritative fight scripts into the next battle");
 var firstBand = bundledCampaign.Encounters.Where(item =>
     item.NativeBand is 0 or -1).ToList();
 Assert(bundledRulesV2.Success
@@ -4957,6 +5046,11 @@ var localEncounterCheckpoint = encounterStarts[10];
 localEncounterCheckpoint.Battles.Clear();
 localEncounterCheckpoint.Rewards.Clear();
 localEncounterCheckpoint.Completed = false;
+localEncounterCheckpoint.State.Blessings.RemoveAll(item =>
+    string.Equals(
+        item,
+        "blessing_105",
+        StringComparison.OrdinalIgnoreCase));
 var localEncounterResult = new CombatCampaignRunner().RunMonitoredSegment(
     campaign,
     encounterPlan,
@@ -4969,8 +5063,11 @@ Assert(localEncounterResult.Battles.Count == 1
        && localEncounterResult.Battles[0].ScenarioId.Contains(
            ":10:",
            StringComparison.Ordinal)
-       && localEncounterResult.Checkpoint.NextEncounterIndex == 11,
-    "campaign runner can replay exactly one failed encounter from a compact pre-battle checkpoint");
+       && localEncounterResult.Checkpoint.NextEncounterIndex == 11
+       && localEncounterResult.FinalState.Blessings.Contains(
+           "blessing_105",
+           StringComparer.OrdinalIgnoreCase),
+    "campaign resume repairs origin threshold blessings before replaying one failed encounter");
 Assert(campaignRules.Ruleset.TryGetCardCore("strike", out var projectedStrike),
     "foundation fixture resolves the starter attack definition");
 projectedStrike!.Fidelity = CombatRuleFidelity.Authoritative;
@@ -5853,6 +5950,115 @@ Assert(workerProtocolJob.SchemaVersion
        && new CombatFoundationCompatibilityManifest().SchemaVersion
            == CombatFoundationWorkerProtocol.SchemaVersion,
     "foundation worker artifacts share one protocol version constant");
+var checkpointStorageRoot = Path.Combine(
+    Path.GetTempPath(),
+    "aura-foundation-checkpoint-" + Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(checkpointStorageRoot);
+try
+{
+    var checkpointPointerPath = Path.Combine(
+        checkpointStorageRoot,
+        CombatFoundationWorkerProtocol.CheckpointFileName);
+    var checkpointEpisodesBasePath = Path.Combine(
+        checkpointStorageRoot,
+        CombatFoundationWorkerProtocol.CheckpointEpisodesFileName);
+    var firstSnapshot =
+        CombatFoundationCheckpointStorage.WriteEpisodeSnapshot(
+            checkpointEpisodesBasePath,
+            new[] { "{\"episode\":1}", "{\"episode\":2}" },
+            "replay-a");
+    var loadedSnapshot =
+        CombatFoundationCheckpointStorage.ReadAndValidateJsonLines(
+            firstSnapshot,
+            line => line);
+    Assert(firstSnapshot.StorageVersion
+               == CombatFoundationCheckpointStorage.SnapshotStorageVersion
+           && firstSnapshot.EpisodeCount == 2
+           && firstSnapshot.Length > 0
+           && firstSnapshot.ContentSha256.Length == 64
+           && File.Exists(firstSnapshot.Path)
+           && loadedSnapshot.SequenceEqual(
+               new[] { "{\"episode\":1}", "{\"episode\":2}" }),
+        "foundation checkpoint storage writes immutable snapshots with count, length and content-hash validation");
+
+    CombatFoundationCheckpointStorage.WriteAtomicText(
+        checkpointPointerPath,
+        "pointer-v1");
+    using (var blockedPointer = new FileStream(
+               checkpointPointerPath,
+               FileMode.Open,
+               FileAccess.Read,
+               FileShare.Read))
+    {
+        var releasePointer = Task.Run(() =>
+        {
+            Thread.Sleep(180);
+            blockedPointer.Dispose();
+        });
+        CombatFoundationCheckpointStorage.WriteAtomicText(
+            checkpointPointerPath,
+            "pointer-v2");
+        releasePointer.Wait();
+    }
+    Assert(CombatFoundationCheckpointStorage.ReadAllTextShared(
+               checkpointPointerPath)
+               == "pointer-v2"
+           && CombatFoundationCheckpointStorage.ReadAllTextShared(
+               CombatFoundationCheckpointStorage.BackupPath(
+                   checkpointPointerPath))
+               == "pointer-v1",
+        "foundation checkpoint pointer replacement retries transient Windows delete-sharing locks and retains the previous pointer");
+
+    var secondSnapshot =
+        CombatFoundationCheckpointStorage.WriteEpisodeSnapshot(
+            checkpointEpisodesBasePath,
+            new[] { "{\"episode\":1}", "{\"episode\":3}" },
+            "replay-b");
+    Assert(firstSnapshot.EpisodeCount == secondSnapshot.EpisodeCount
+           && !string.Equals(
+               firstSnapshot.ContentSha256,
+               secondSnapshot.ContentSha256,
+               StringComparison.Ordinal)
+           && !string.Equals(
+               firstSnapshot.ReplayIdentity,
+               secondSnapshot.ReplayIdentity,
+               StringComparison.Ordinal),
+        "foundation checkpoint snapshots detect same-count replay replacement instead of relying on episode count alone");
+
+    File.AppendAllText(secondSnapshot.Path, "corrupt");
+    var corruptedSnapshotRejected = false;
+    try
+    {
+        CombatFoundationCheckpointStorage.ReadAndValidateJsonLines(
+            secondSnapshot,
+            line => line);
+    }
+    catch (InvalidDataException)
+    {
+        corruptedSnapshotRejected = true;
+    }
+    Assert(corruptedSnapshotRejected,
+        "foundation checkpoint resume rejects truncated or modified episode snapshots before deserialization");
+
+    var orphanTemporaryPath =
+        checkpointEpisodesBasePath + ".tmp-orphan";
+    File.WriteAllText(orphanTemporaryPath, "orphan");
+    CombatFoundationCheckpointStorage.CleanupArtifacts(
+        checkpointPointerPath,
+        checkpointEpisodesBasePath,
+        new[] { firstSnapshot.Path },
+        retainNewestSnapshots: 1);
+    Assert(File.Exists(firstSnapshot.Path)
+           && !File.Exists(orphanTemporaryPath),
+        "foundation checkpoint cleanup preserves the referenced snapshot and removes orphan temporary files");
+}
+finally
+{
+    if (Directory.Exists(checkpointStorageRoot))
+    {
+        Directory.Delete(checkpointStorageRoot, recursive: true);
+    }
+}
 Assert(CombatFoundationWorkerProtocol.TryValidateJob(
            workerProtocolJob,
            out var validJobDiagnostic)
@@ -6100,7 +6306,8 @@ Assert(interruptedFoundationObserved
        && capturedFoundationCheckpoint.Compatibility.StateDimensions == 128
        && capturedFoundationCheckpoint.Compatibility.HiddenDimensions == 8
        && capturedFoundationCheckpoint.CompletedCampaigns == 2
-       && capturedFoundationCheckpoint.Replay.Count == 74
+       && capturedFoundationCheckpoint.Replay.Count > 0
+       && capturedFoundationCheckpoint.Replay.Count < 74
        && resumedFoundationTraining.Success
        && resumedFoundationTraining.Champion != null
        && foundationTraining.Champion != null
@@ -6108,7 +6315,7 @@ Assert(interruptedFoundationObserved
            foundationTraining.Champion.StateWeights)
        && resumedFoundationTraining.Champion.PolicyWeights.SequenceEqual(
            foundationTraining.Champion.PolicyWeights),
-    "foundation checkpoints preserve generated episodes and resume at model training without replaying campaigns");
+    "foundation checkpoints persist the sampled replay window and resume model training without replaying campaigns");
 foundationRequest.Resume = null;
 foundationRequest.MaximumDegreeOfParallelism = 1;
 var serialFoundationTraining = new CombatCampaignFoundationTrainer().Run(
@@ -7176,6 +7383,41 @@ CombatCampaignDefinition BuildStandardCampaign()
         Negative = true,
         Fidelity = CombatRuleFidelity.Authoritative
     });
+    foreach (var thresholdReward in new[]
+             {
+                 ("Strength", 10, "blessing_101"),
+                 ("Strength", 20, "blessing_105"),
+                 ("Strength", 30, "blessing_109"),
+                 ("Strength", 40, "blessing_113"),
+                 ("Lucky", 10, "blessing_102"),
+                 ("Lucky", 20, "blessing_106"),
+                 ("Lucky", 30, "blessing_110"),
+                 ("Lucky", 40, "blessing_114"),
+                 ("Perceive", 10, "blessing_104"),
+                 ("Perceive", 20, "blessing_108"),
+                 ("Perceive", 30, "blessing_112"),
+                 ("Perceive", 40, "blessing_116"),
+                 ("Wisdom", 10, "blessing_103"),
+                 ("Wisdom", 20, "blessing_107"),
+                 ("Wisdom", 30, "blessing_111"),
+                 ("Wisdom", 40, "blessing_115")
+             })
+    {
+        result.AttributeThresholdRewards.Add(
+            new CombatCampaignAttributeThresholdRewardDefinition
+            {
+                AttributeId = thresholdReward.Item1,
+                Threshold = thresholdReward.Item2,
+                RewardId = thresholdReward.Item3
+            });
+        result.Rewards.Add(new CombatCampaignRewardDefinition
+        {
+            RewardId = thresholdReward.Item3,
+            Kind = CombatCampaignRewardKind.Blessing,
+            Tier = thresholdReward.Item2 / 10,
+            Fidelity = CombatRuleFidelity.Authoritative
+        });
+    }
     result.Difficulties.Add(new CombatCampaignDifficultyDefinition
     {
         DifficultyId = "normal",

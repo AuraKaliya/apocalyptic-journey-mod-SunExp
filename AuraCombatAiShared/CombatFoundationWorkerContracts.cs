@@ -175,7 +175,29 @@ public sealed class CombatFoundationWorkerResult
 
     public bool Resumable { get; set; }
 
+    public int CheckpointWriteFailures { get; set; }
+
+    public string CheckpointWarning { get; set; } = "";
+
     public CombatCampaignFoundationTrainingResult? Training { get; set; }
+}
+
+public sealed class CombatFoundationEpisodeSnapshot
+{
+    public int StorageVersion { get; set; } =
+        CombatFoundationCheckpointStorage.SnapshotStorageVersion;
+
+    public string Path { get; set; } = "";
+
+    public string ContentSha256 { get; set; } = "";
+
+    public string ReplayIdentity { get; set; } = "";
+
+    public int EpisodeCount { get; set; } = -1;
+
+    public long Length { get; set; }
+
+    public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
 }
 
 public sealed class CombatFoundationWorkerCheckpoint
@@ -188,6 +210,8 @@ public sealed class CombatFoundationWorkerCheckpoint
     public string RulesetHash { get; set; } = "";
 
     public string EpisodesPath { get; set; } = "";
+
+    public CombatFoundationEpisodeSnapshot? EpisodeSnapshot { get; set; }
 
     public DateTime UpdatedUtc { get; set; } = DateTime.UtcNow;
 
