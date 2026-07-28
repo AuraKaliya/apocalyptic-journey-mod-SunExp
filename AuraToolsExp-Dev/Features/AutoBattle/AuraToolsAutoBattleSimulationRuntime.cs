@@ -1020,6 +1020,13 @@ internal static class AuraToolsAutoBattleSimulationRuntime
         string modelId,
         out string reason)
     {
+        var external = AuraToolsAutoBattleModelRuntime
+            .SnapshotExternalValidationModel();
+        var externalPromotion = external != null
+                                && string.Equals(
+                                    external.ModelId,
+                                    modelId,
+                                    StringComparison.Ordinal);
         var candidateModelId = AuraToolsAutoBattleModelRuntime.CandidateModelId(profile);
         var candidatePromotion = !string.Equals(
             candidateModelId,
@@ -1029,7 +1036,13 @@ internal static class AuraToolsAutoBattleSimulationRuntime
                                      candidateModelId,
                                      modelId,
                                      StringComparison.Ordinal);
-        if (candidatePromotion
+        if (externalPromotion
+                ? !AuraToolsAutoBattleModelRuntime
+                    .ExternalValidationMeetsGate(
+                        profile,
+                        modelId,
+                        out reason)
+            : candidatePromotion
                 ? !AuraToolsAutoBattleModelRuntime.CandidateMeetsValidationGate(
                     profile,
                     out reason)
@@ -1062,15 +1075,32 @@ internal static class AuraToolsAutoBattleSimulationRuntime
                 .Where(item => item != null)
                 .Cast<AutoBattleSimulationSummary>()
                 .ToList();
-            var passed = summaries.Any(summary =>
-                summary.GatePassed
-                && string.Equals(summary.ModelId, modelId, StringComparison.Ordinal));
+            var passed = externalPromotion
+                ? new[] { "normal", "advanced" }.All(difficulty =>
+                    summaries.Any(summary =>
+                        summary.GatePassed
+                        && string.Equals(
+                            summary.DifficultyId,
+                            difficulty,
+                            StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(
+                            summary.ModelId,
+                            modelId,
+                            StringComparison.Ordinal)))
+                : summaries.Any(summary =>
+                    summary.GatePassed
+                    && string.Equals(
+                        summary.ModelId,
+                        modelId,
+                        StringComparison.Ordinal));
             if (!passed)
             {
-                reason = summaries
-                             .OrderByDescending(item => item.CompletedUtc)
-                             .FirstOrDefault()?.GateReason
-                         ?? "模拟评估结果与当前模型不匹配";
+                reason = externalPromotion
+                    ? "外部待验底模必须分别通过普通与高级正式世界推演"
+                    : summaries
+                          .OrderByDescending(item => item.CompletedUtc)
+                          .FirstOrDefault()?.GateReason
+                      ?? "模拟评估结果与当前模型不匹配";
                 return false;
             }
             if (!AuraToolsAutoBattleGameValidationRuntime.CanPromote(
@@ -1171,6 +1201,20 @@ internal static class AuraToolsAutoBattleSimulationRuntime
         string guidanceDiagnostic;
         string policyValueDiagnostic;
         if (!string.IsNullOrWhiteSpace(request.Settings.SelectedModelId)
+            && AuraToolsAutoBattleModelRuntime.TryLoadExternalValidationModel(
+                profile.Id,
+                request.Settings.SelectedModelId,
+                out residual,
+                out guidance,
+                out policyValue,
+                out modelId,
+                out var externalDiagnostic))
+        {
+            residualDiagnostic = externalDiagnostic;
+            guidanceDiagnostic = "外部待验底模不含独立搜索引导";
+            policyValueDiagnostic = "外部待验长期策略价值";
+        }
+        else if (!string.IsNullOrWhiteSpace(request.Settings.SelectedModelId)
             && AuraToolsAutoBattleModelRuntime.TryLoadLibraryModel(
                 profile.Id,
                 request.Settings.SelectedModelId,
@@ -2665,7 +2709,11 @@ internal static class AuraToolsAutoBattleSimulationRuntime
             Settings = new AutoBattleSettings
             {
                 Profile = source.Profile,
-                SelectedModelId = source.SelectedModelId,
+                SelectedModelId = string.IsNullOrWhiteSpace(
+                    source.EvaluationModelId)
+                    ? source.SelectedModelId
+                    : source.EvaluationModelId,
+                EvaluationModelId = source.EvaluationModelId,
                 UnknownActionPolicy = source.UnknownActionPolicy,
                 SearchQuality = source.SearchQuality,
                 Training = new AutoBattleTrainingSettings

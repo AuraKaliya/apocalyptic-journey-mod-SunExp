@@ -212,8 +212,25 @@ try {
     }
     elseif ($result.Training.AcceptancePassed) {
         if ($result.CompletionKind -ne "training-accepted" `
-            -or $checkpointExists) {
+            -or $checkpointExists `
+            -or [string]::IsNullOrWhiteSpace(
+                [string]$result.ModelPackagePath) `
+            -or -not (Test-Path -LiteralPath (
+                [string]$result.ModelPackagePath) -PathType Leaf)) {
             throw "Accepted foundation training must remove resume checkpoints."
+        }
+        $modelPackage = Read-FoundationJson (
+            [string]$result.ModelPackagePath)
+        if ([int]$modelPackage.SchemaVersion -ne 1 `
+            -or [string]$modelPackage.ArtifactKind `
+                -ne "aura.foundation-model-package" `
+            -or [string]$modelPackage.CompletionKind `
+                -ne "training-accepted" `
+            -or [string]$modelPackage.JobId -ne [string]$job.JobId `
+            -or [string]$modelPackage.RulesetHash `
+                -ne [string]$result.RulesetHash `
+            -or $null -eq $modelPackage.Model) {
+            throw "Accepted foundation model package is invalid."
         }
     }
     elseif ($result.CompletionKind -ne "training-rejected-resumable" `

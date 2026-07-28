@@ -345,7 +345,7 @@ void TestConfigModelSerializationCompatibility()
     var matchExperience = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
         "{\"schemaVersion\":1,\"starterDeck\":{\"preferRoleModProfile\":false},\"safeBox\":null,\"modSync\":null,\"feast\":null,\"damageMeter\":null,\"cardRefresh\":null,\"autoBattle\":null}")!;
     matchExperience.Normalize();
-    Assert(matchExperience.SchemaVersion == 22
+    Assert(matchExperience.SchemaVersion == 23
            && matchExperience.StarterDeck.PreferRoleModProfile
            && matchExperience.SafeBox != null
            && matchExperience.ModSync != null
@@ -363,6 +363,7 @@ void TestConfigModelSerializationCompatibility()
            && matchExperience.AutoBattle.Training.Epochs == 80
            && matchExperience.AutoBattle.Training.MaximumCorrection == 0.75d
            && matchExperience.AutoBattle.SelectedModelId == ""
+           && matchExperience.AutoBattle.EvaluationModelId == ""
            && matchExperience.AutoBattle.Simulation.ScenarioId
            == "witch.world-simulation.standard-v2"
            && matchExperience.AutoBattle.Simulation.DifficultyId == "normal"
@@ -498,7 +499,7 @@ void TestCardRefreshSettingsAndPoolPolicy()
         CardRefresh = null!
     };
     settings.Normalize();
-    Assert(settings.SchemaVersion == 22, "match-experience settings migrate to the adaptive foundation training schema");
+    Assert(settings.SchemaVersion == 23, "match-experience settings migrate to the external foundation validation schema");
     Assert(settings.CardRefresh != null && !settings.CardRefresh.Enabled,
         "card refresh is restored with a disabled default during normalization");
     Assert(settings.AutoBattle.FoundationTraining.Iterations == 8
@@ -528,7 +529,7 @@ void TestCardRefreshSettingsAndPoolPolicy()
     var boundedFoundation = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
         "{\"schemaVersion\":22,\"autoBattle\":{\"foundationTraining\":{\"iterations\":0,\"trainingCampaignsPerIteration\":1,\"arenaCampaignsPerDifficulty\":0}}}")!;
     boundedFoundation.Normalize();
-    Assert(boundedFoundation.SchemaVersion == 22
+    Assert(boundedFoundation.SchemaVersion == 23
            && boundedFoundation.AutoBattle.FoundationTraining.Iterations == 1
            && boundedFoundation.AutoBattle.FoundationTraining.TrainingCampaignsPerIteration == 2
            && boundedFoundation.AutoBattle.FoundationTraining.ArenaCampaignsPerDifficulty == 1
@@ -1075,7 +1076,7 @@ void TestRuntimeArchitectureGuards()
            && cardRefreshNativeApi.Contains("new RandomPool(pool, dice).DrawByRarity", StringComparison.Ordinal)
            && cardRefreshNativeApi.Contains("manager.CardPackCheck", StringComparison.Ordinal),
         "card refresh recreates clean choice items and uses a window-local clone of the native reward draw pipeline");
-    Assert(matchExperienceConfig.Contains("\"schemaVersion\": 22", StringComparison.Ordinal)
+    Assert(matchExperienceConfig.Contains("\"schemaVersion\": 23", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"cardRefresh\"", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"foundationTraining\"", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"executionMode\": \"external\"", StringComparison.Ordinal)

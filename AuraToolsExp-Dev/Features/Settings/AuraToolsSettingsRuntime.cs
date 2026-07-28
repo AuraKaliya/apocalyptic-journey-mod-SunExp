@@ -1035,6 +1035,26 @@ public static class AuraToolsSettingsRuntime
                 "打开报告",
                 AuraToolsAutoBattleFoundationRuntime.OpenResultDirectory,
                 88f);
+            AuraToolsUi.AddButton(
+                foundationRow.transform,
+                "外部训练控制台",
+                () =>
+                {
+                    if (AuraToolsFoundationWorkerRuntime.LaunchControlCenter(
+                            out var controllerMessage))
+                    {
+                        AuraToolsLog.Info(
+                            "[AutoBattle][FoundationController] "
+                            + controllerMessage);
+                    }
+                    else
+                    {
+                        AuraToolsLog.Warn(
+                            "[AutoBattle][FoundationController] "
+                            + controllerMessage);
+                    }
+                },
+                126f);
             foundationRow.AddComponent<AuraToolsAutoBattleFoundationStatusView>().Configure(
                 foundationStatusText,
                 foundationButton,
@@ -2163,14 +2183,18 @@ public static class AuraToolsSettingsRuntime
         Transform parent,
         AutoBattleSettings autoBattle)
     {
+        var evaluationModelId = string.IsNullOrWhiteSpace(
+            autoBattle.EvaluationModelId)
+            ? autoBattle.SelectedModelId
+            : autoBattle.EvaluationModelId;
         var uiSnapshot = AuraToolsAutoBattleUiSnapshotRuntime.Snapshot(
             autoBattle.Profile,
-            autoBattle.SelectedModelId);
+            evaluationModelId);
         if (!uiSnapshot.Ready)
         {
             AuraToolsAutoBattleUiSnapshotRuntime.RequestRefresh(
                 autoBattle.Profile,
-                autoBattle.SelectedModelId);
+                evaluationModelId);
         }
         if (!AutoBattleAdvancedTrainingExpanded)
         {
@@ -2220,6 +2244,7 @@ public static class AuraToolsSettingsRuntime
                 autoBattle.SelectedModelId = index <= 0 || index > library.Count
                     ? ""
                     : library[index - 1].ModelId;
+                autoBattle.EvaluationModelId = "";
                 autoBattle.Normalize();
                 AuraToolsConfigService.SaveMatchExperience();
                 AuraToolsAutoBattleRuntime.ReloadModels();
@@ -2271,6 +2296,159 @@ public static class AuraToolsSettingsRuntime
                 : "模型库共 "
                   + library.Count
                   + " 个 career_1 / 当前风格模型；切换会同时影响实战、世界推演和后续策略进化。",
+            AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.MutedText,
+            AuraToolsUi.TextMinHeight,
+            1f);
+
+        var externalEntry =
+            AuraToolsAutoBattleModelRuntime.SnapshotExternalValidationModel();
+        var externalRow = CreateInlineRow(
+            parent,
+            "AutoBattleExternalFoundationValidationRow");
+        var externalStatusText = AuraToolsUi.AddText(
+            externalRow.transform,
+            externalEntry == null
+                ? "尚未选择外部待验底模"
+                : "外部待验底模："
+                  + externalEntry.DisplayName
+                  + (string.Equals(
+                        autoBattle.EvaluationModelId,
+                        externalEntry.ModelId,
+                        StringComparison.Ordinal)
+                      ? "（当前评估目标）"
+                      : ""),
+            AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.MutedText,
+            AuraToolsUi.TextMinHeight,
+            1f);
+        var selectExternalButton = AuraToolsUi.AddButton(
+            externalRow.transform,
+            "选择底模验证",
+            () =>
+            {
+                OptionalFileDialog.PickFileAsync(
+                    "选择外部待验底模包",
+                    new[]
+                    {
+                        new OptionalFileDialogFilter(
+                            "Aura 待验底模包",
+                            "foundation-model-package-v1.json;*.aura-model.json"),
+                        new OptionalFileDialogFilter("JSON 文件", "*.json")
+                    },
+                    "json",
+                    AuraToolsAutoBattleSimulationRuntime.ResultsRootDirectory,
+                    result =>
+                    {
+                        if (!result.Selected)
+                        {
+                            if (result.Status
+                                != OptionalFileDialogStatus.Cancelled)
+                            {
+                                AuraToolsLog.Warn(
+                                    "[AutoBattle][ExternalValidation] "
+                                    + result.Message);
+                            }
+                            return;
+                        }
+                        if (AuraToolsAutoBattleModelRuntime
+                            .TryStageExternalFoundationPackage(
+                                result.Path,
+                                out var externalModelId,
+                                out var stageMessage))
+                        {
+                            autoBattle.EvaluationModelId = externalModelId;
+                            autoBattle.Normalize();
+                            AuraToolsConfigService.SaveMatchExperience();
+                            AuraToolsAutoBattleUiSnapshotRuntime.RequestRefresh(
+                                autoBattle.Profile,
+                                externalModelId,
+                                force: true);
+                            AuraToolsLog.Info(
+                                "[AutoBattle][ExternalValidation] "
+                                + stageMessage);
+                            RebuildPanel(activePanel!.transform);
+                        }
+                        else
+                        {
+                            AuraToolsLog.Warn(
+                                "[AutoBattle][ExternalValidation] "
+                                + stageMessage);
+                        }
+                    });
+            },
+            112f);
+        var promoteExternalButton = AuraToolsUi.AddButton(
+            externalRow.transform,
+            "加入模型库",
+            () =>
+            {
+                var targetId = autoBattle.EvaluationModelId;
+                if (!AuraToolsAutoBattleSimulationRuntime.CanActivateModel(
+                        autoBattle.Profile,
+                        targetId,
+                        out var gateMessage))
+                {
+                    AuraToolsLog.Warn(
+                        "[AutoBattle][ExternalValidation] 尚不能入库："
+                        + gateMessage);
+                    return;
+                }
+                if (AuraToolsAutoBattleModelRuntime
+                    .TryPromoteExternalValidationModel(
+                        autoBattle.Profile,
+                        targetId,
+                        out var promotedModelId,
+                        out var promoteMessage))
+                {
+                    autoBattle.SelectedModelId = promotedModelId;
+                    autoBattle.EvaluationModelId = "";
+                    autoBattle.TrainedModelMode = "off";
+                    AuraToolsAutoBattleModelRuntime
+                        .ClearExternalValidationModel();
+                    AuraToolsConfigService.SaveMatchExperience();
+                    AuraToolsAutoBattleRuntime.ReloadModels();
+                    AuraToolsAutoBattleUiSnapshotRuntime.RequestRefresh(
+                        autoBattle.Profile,
+                        promotedModelId,
+                        force: true);
+                    AuraToolsLog.Info(
+                        "[AutoBattle][ExternalValidation] "
+                        + promoteMessage);
+                    RebuildPanel(activePanel!.transform);
+                }
+                else
+                {
+                    AuraToolsLog.Warn(
+                        "[AutoBattle][ExternalValidation] "
+                        + promoteMessage);
+                }
+            },
+            96f);
+        var clearExternalButton = AuraToolsUi.AddButton(
+            externalRow.transform,
+            "清除待验",
+            () =>
+            {
+                AuraToolsAutoBattleModelRuntime.ClearExternalValidationModel();
+                autoBattle.EvaluationModelId = "";
+                AuraToolsConfigService.SaveMatchExperience();
+                RebuildPanel(activePanel!.transform);
+            },
+            80f);
+        externalRow
+            .AddComponent<AuraToolsAutoBattleExternalValidationStatusView>()
+            .Configure(
+                autoBattle.Profile,
+                externalStatusText,
+                selectExternalButton,
+                promoteExternalButton,
+                clearExternalButton);
+        AuraToolsUi.AddText(
+            parent,
+            "外部底模只进入待验证区，不会替换当前实战模型。请依次完成普通/高级正式世界推演和游戏主体验证，通过后再加入模型库。",
             AuraToolsUi.HintFontSize,
             TextAnchor.MiddleLeft,
             AuraToolsUi.MutedText,
@@ -2549,7 +2727,7 @@ public static class AuraToolsSettingsRuntime
             "打开结果",
             () => AuraToolsAutoBattleSimulationRuntime.OpenResultDirectory(
                 autoBattle.Profile,
-                autoBattle.SelectedModelId),
+                evaluationModelId),
             84f);
         var operationDetailText = AuraToolsUi.AddText(
             parent,
@@ -2561,7 +2739,7 @@ public static class AuraToolsSettingsRuntime
             1f);
         actionRow.AddComponent<AuraToolsAutoBattleSimulationStatusView>().Configure(
             autoBattle.Profile,
-            autoBattle.SelectedModelId,
+            evaluationModelId,
             AutoBattleEvolutionView,
             statusText,
             operationDetailText,
@@ -2613,7 +2791,7 @@ public static class AuraToolsSettingsRuntime
             1f);
         actionRow.AddComponent<AuraToolsAutoBattleSimulationResultView>().Configure(
             autoBattle.Profile,
-            autoBattle.SelectedModelId,
+            evaluationModelId,
             resultTitle,
             resultPrimary,
             resultSecondary,
@@ -3134,11 +3312,18 @@ internal sealed class AuraToolsAutoBattleFoundationStatusView : MonoBehaviour
         }
         if (trainButton != null)
         {
-            trainButton.interactable = foundationReady && !status.Busy && !otherBusy;
+            var externalBusy =
+                AuraToolsFoundationWorkerRuntime.ExternalTrainingActive();
+            trainButton.interactable = foundationReady
+                                       && !status.Busy
+                                       && !otherBusy
+                                       && !externalBusy;
             SetButtonLabel(
                 trainButton,
                 status.Busy
                     ? "训练中..."
+                    : externalBusy
+                        ? "外部训练中"
                     : foundationReady
                         ? "训练底模"
                         : "知识未就绪");
@@ -3183,6 +3368,98 @@ internal sealed class AuraToolsAutoBattleFoundationStatusView : MonoBehaviour
         if (label != null)
         {
             label.text = value;
+        }
+    }
+}
+
+internal sealed class AuraToolsAutoBattleExternalValidationStatusView :
+    MonoBehaviour
+{
+    private string profile = "balanced";
+    private Text? statusText;
+    private Button? selectButton;
+    private Button? promoteButton;
+    private Button? clearButton;
+    private float nextRefreshAt;
+
+    public void Configure(
+        string decisionProfile,
+        Text text,
+        Button select,
+        Button promote,
+        Button clear)
+    {
+        profile = string.IsNullOrWhiteSpace(decisionProfile)
+            ? "balanced"
+            : decisionProfile;
+        statusText = text;
+        selectButton = select;
+        promoteButton = promote;
+        clearButton = clear;
+        Refresh();
+    }
+
+    private void Update()
+    {
+        if (Time.unscaledTime < nextRefreshAt)
+        {
+            return;
+        }
+        nextRefreshAt = Time.unscaledTime + 0.25f;
+        Refresh();
+    }
+
+    private void Refresh()
+    {
+        var entry =
+            AuraToolsAutoBattleModelRuntime.SnapshotExternalValidationModel();
+        var settings = AuraToolsConfigService.MatchExperience.AutoBattle;
+        var busy = AuraToolsAutoBattleFoundationRuntime.GetStatus().Busy
+                   || AuraToolsAutoBattleSimulationRuntime.GetStatus().Busy
+                   || AuraToolsAutoBattleGameValidationRuntime.GetStatus().Busy
+                   || AuraToolsAutoBattleModelRuntime.AnyTrainingBusy();
+        var selected = entry != null
+                       && string.Equals(
+                           settings.EvaluationModelId,
+                           entry.ModelId,
+                           StringComparison.Ordinal);
+        var gateReason = "";
+        var ready = selected
+                    && AuraToolsAutoBattleSimulationRuntime.CanActivateModel(
+                        profile,
+                        entry!.ModelId,
+                        out gateReason);
+        if (!selected)
+        {
+            gateReason = entry == null
+                ? "尚未选择外部底模包"
+                : "该底模尚未设为当前评估目标";
+        }
+        if (statusText != null)
+        {
+            statusText.text = entry == null
+                ? "尚未选择外部待验底模"
+                : "外部待验底模："
+                  + entry.DisplayName
+                  + " · "
+                  + (ready ? "双门禁已通过，可入库" : gateReason);
+            statusText.color = ready
+                ? AuraToolsUi.SuccessText
+                : entry == null
+                    ? AuraToolsUi.MutedText
+                    : AuraToolsUi.WarningText;
+        }
+        if (selectButton != null)
+        {
+            selectButton.interactable = !busy;
+        }
+        if (promoteButton != null)
+        {
+            promoteButton.interactable = !busy && ready;
+        }
+        if (clearButton != null)
+        {
+            clearButton.interactable = !busy && entry != null;
         }
     }
 }

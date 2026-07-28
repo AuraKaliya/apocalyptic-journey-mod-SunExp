@@ -125,6 +125,25 @@ internal sealed class AutoBattleModelLibraryDocument
     public List<AutoBattleModelLibraryEntry> Models { get; set; } = new();
 }
 
+internal sealed class AutoBattleExternalValidationEntry
+{
+    public int SchemaVersion { get; set; } = 1;
+
+    public string ModelId { get; set; } = "";
+
+    public string DisplayName { get; set; } = "";
+
+    public string Profile { get; set; } = "balanced";
+
+    public string PackageFile { get; set; } = "";
+
+    public string PackageSha256 { get; set; } = "";
+
+    public string SourcePath { get; set; } = "";
+
+    public DateTime StagedUtc { get; set; }
+}
+
 internal sealed class AutoBattleTrainingSnapshotManifest
 {
     public int SchemaVersion { get; set; } = 1;
@@ -160,9 +179,10 @@ internal sealed class AutoBattleTrainingSnapshotFile
 internal static class AuraToolsAutoBattleModelRuntime
 {
     private const string SystemId = "AuraCombatAI";
-    public const string CurrentRoleId = "career_1";
+    public const string CurrentRoleId =
+        CombatFoundationModelPackageProtocol.CurrentRoleId;
     public const string CurrentCardPoolScope =
-        "witch.normal.base-game.offline-packs.all-unlocked.no-curse.v1";
+        CombatFoundationModelPackageProtocol.CurrentCardPoolScope;
     private static readonly object StatusGate = new();
     private static readonly object LibraryGate = new();
     private static readonly Dictionary<string, AutoBattleTrainingStatus> StatusByProfile =
@@ -400,6 +420,229 @@ internal static class AuraToolsAutoBattleModelRuntime
         return true;
     }
 
+    public static bool TryStageExternalFoundationPackage(
+        string sourcePath,
+        out string modelId,
+        out string message)
+    {
+        modelId = "";
+        var path = (sourcePath ?? "").Trim().Trim('"');
+        try
+        {
+            if (!File.Exists(path))
+            {
+                message = "待验底模包不存在";
+                return false;
+            }
+            var file = new FileInfo(path);
+            if (file.Length <= 0L || file.Length > 64L * 1024L * 1024L)
+            {
+                message = "待验底模包大小必须在 1 字节到 64MB 之间";
+                return false;
+            }
+            var json = File.ReadAllText(path);
+            var package = AuraSharedJson.Deserialize<CombatFoundationModelPackage>(
+                json);
+            if (!CombatFoundationModelPackageProtocol.TryValidate(
+                    package,
+                    out message))
+            {
+                return false;
+            }
+            if (!TryValidateExternalPackageCompatibility(package!, out message))
+            {
+                return false;
+            }
+            modelId = package!.Model!.ModelId;
+            if (string.IsNullOrWhiteSpace(modelId)
+                || string.Equals(modelId, "none", StringComparison.Ordinal))
+            {
+                message = "待验底模没有稳定模型 ID";
+                return false;
+            }
+            var packageHash = HashBytes(Encoding.UTF8.GetBytes(json))
+                .ToLowerInvariant();
+            Directory.CreateDirectory(ExternalValidationDirectory());
+            var packageFile = "foundation-"
+                              + packageHash.Substring(0, 20)
+                              + ".json";
+            var destination = Path.Combine(
+                ExternalValidationDirectory(),
+                packageFile);
+            using (var storage = new AuraSharedStorageCoordinator(
+                       AuraSharedPaths.RootDirectory))
+            {
+                storage.WriteTextAtomic(
+                    destination,
+                    json,
+                    createBackup: false);
+                storage.WriteTextAtomic(
+                    ExternalValidationManifestPath(),
+                    AuraSharedJson.Serialize(
+                        new AutoBattleExternalValidationEntry
+                        {
+                            ModelId = modelId,
+                            DisplayName = string.IsNullOrWhiteSpace(
+                                package.DisplayName)
+                                ? "外部待验底模"
+                                : package.DisplayName.Trim(),
+                            Profile = NormalizeProfile(package.Profile),
+                            PackageFile = packageFile,
+                            PackageSha256 = packageHash,
+                            SourcePath = Path.GetFullPath(path),
+                            StagedUtc = DateTime.UtcNow
+                        }),
+                    createBackup: true);
+            }
+            message = "已暂存外部待验底模“"
+                      + (string.IsNullOrWhiteSpace(package.DisplayName)
+                          ? modelId
+                          : package.DisplayName)
+                      + "”；尚未加入模型库";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            message = "导入待验底模失败：" + ex.Message;
+            return false;
+        }
+    }
+
+    public static AutoBattleExternalValidationEntry?
+        SnapshotExternalValidationModel()
+    {
+        try
+        {
+            var path = ExternalValidationManifestPath();
+            if (!File.Exists(path))
+            {
+                return null;
+            }
+            var entry = AuraSharedJson.Deserialize<AutoBattleExternalValidationEntry>(
+                File.ReadAllText(path));
+            return entry?.SchemaVersion == 1 ? entry : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    public static bool TryLoadExternalValidationModel(
+        string decisionProfile,
+        string selectedModelId,
+        out IDecisionResidualModel residual,
+        out ICombatSearchGuidanceModel guidance,
+        out ICombatPolicyValueModel policyValue,
+        out string modelId,
+        out string diagnostic)
+    {
+        residual = NullDecisionResidualModel.Instance;
+        guidance = NullCombatSearchGuidanceModel.Instance;
+        policyValue = NullCombatPolicyValueModel.Instance;
+        modelId = "none";
+        if (!TryReadExternalValidationPackage(
+                decisionProfile,
+                selectedModelId,
+                out var package,
+                out diagnostic))
+        {
+            return false;
+        }
+        policyValue = new ManagedCombatPolicyValueModel(package.Model!);
+        modelId = package.Model!.ModelId;
+        diagnostic = "外部待验底模“" + package.DisplayName + "”";
+        return true;
+    }
+
+    public static bool ExternalValidationMeetsGate(
+        string decisionProfile,
+        string modelId,
+        out string reason)
+    {
+        if (!TryReadExternalValidationPackage(
+                decisionProfile,
+                modelId,
+                out var package,
+                out reason))
+        {
+            return false;
+        }
+        if (!package.Validation.Passed
+            || package.Validation.InvalidCampaigns != 0)
+        {
+            reason = "外部底模没有通过训练阶段的正式隔离验证";
+            return false;
+        }
+        reason = "外部底模训练与隔离验证门禁已通过";
+        return true;
+    }
+
+    public static bool TryPromoteExternalValidationModel(
+        string decisionProfile,
+        string modelId,
+        out string promotedModelId,
+        out string message)
+    {
+        promotedModelId = "";
+        if (!TryReadExternalValidationPackage(
+                decisionProfile,
+                modelId,
+                out var package,
+                out message))
+        {
+            return false;
+        }
+        var bundle = NewCandidateBundle(
+            NormalizeProfile(package.Profile),
+            "external-foundation:" + package.JobId,
+            package.PackageId);
+        bundle.BundleId = package.PackageId;
+        bundle.ModelPurpose = "foundation";
+        bundle.ProjectionNormalWinRate =
+            package.Validation.NormalWinRate;
+        bundle.ProjectionAdvancedWinRate =
+            package.Validation.AdvancedWinRate;
+        var sourcePath =
+            SnapshotExternalValidationModel()?.SourcePath ?? "";
+        bundle.TrainingReportDirectory =
+            string.IsNullOrWhiteSpace(sourcePath)
+                ? ""
+                : Path.GetDirectoryName(sourcePath) ?? "";
+        bundle.PolicyValue = package.Model;
+        promotedModelId = CandidateModelId(bundle);
+        RegisterLibraryBundle(bundle, promotedModelId);
+        message = "外部底模已加入模型库，默认保持关闭";
+        return true;
+    }
+
+    public static void ClearExternalValidationModel()
+    {
+        try
+        {
+            var entry = SnapshotExternalValidationModel();
+            if (entry != null && !string.IsNullOrWhiteSpace(entry.PackageFile))
+            {
+                var packagePath = Path.Combine(
+                    ExternalValidationDirectory(),
+                    Path.GetFileName(entry.PackageFile));
+                if (File.Exists(packagePath))
+                {
+                    File.Delete(packagePath);
+                }
+            }
+            if (File.Exists(ExternalValidationManifestPath()))
+            {
+                File.Delete(ExternalValidationManifestPath());
+            }
+        }
+        catch (Exception ex)
+        {
+            AuraToolsLog.Warn(
+                "[AutoBattle][ExternalValidation] 清理待验底模失败：" + ex.Message);
+        }
+    }
+
     public static bool TryResolveGameValidationArtifact(
         string decisionProfile,
         string selectedModelId,
@@ -419,6 +662,23 @@ internal static class AuraToolsAutoBattleModelRuntime
         modelId = "none";
         artifactHash = "";
         candidate = false;
+
+        if (TryReadExternalValidationPackage(
+                profile,
+                selectedModelId,
+                out var externalPackage,
+                out diagnostic))
+        {
+            policyValue = new ManagedCombatPolicyValueModel(
+                externalPackage.Model!);
+            modelId = externalPackage.Model!.ModelId;
+            artifactHash = HashBytes(
+                    Encoding.UTF8.GetBytes(
+                        AuraSharedJson.Serialize(externalPackage)))
+                .ToLowerInvariant();
+            diagnostic = "外部待验底模";
+            return true;
+        }
 
         if (preferCandidate
             && TryReadValidatedCandidateBundle(profile, out var candidateBundle, out diagnostic))
@@ -2438,6 +2698,118 @@ internal static class AuraToolsAutoBattleModelRuntime
         }
     }
 
+    private static bool TryReadExternalValidationPackage(
+        string decisionProfile,
+        string selectedModelId,
+        out CombatFoundationModelPackage package,
+        out string reason)
+    {
+        package = new CombatFoundationModelPackage();
+        var profile = NormalizeProfile(decisionProfile);
+        var modelId = (selectedModelId ?? "").Trim();
+        var entry = SnapshotExternalValidationModel();
+        if (entry == null
+            || string.IsNullOrWhiteSpace(modelId)
+            || !string.Equals(entry.ModelId, modelId, StringComparison.Ordinal)
+            || !string.Equals(
+                NormalizeProfile(entry.Profile),
+                profile,
+                StringComparison.Ordinal))
+        {
+            reason = "未选择匹配的外部待验底模";
+            return false;
+        }
+        try
+        {
+            var path = Path.Combine(
+                ExternalValidationDirectory(),
+                Path.GetFileName(entry.PackageFile));
+            if (!File.Exists(path))
+            {
+                reason = "外部待验底模文件已丢失";
+                return false;
+            }
+            var json = File.ReadAllText(path);
+            var hash = HashBytes(Encoding.UTF8.GetBytes(json))
+                .ToLowerInvariant();
+            if (!string.Equals(
+                    hash,
+                    entry.PackageSha256,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                reason = "外部待验底模暂存哈希不匹配";
+                return false;
+            }
+            package = AuraSharedJson.Deserialize<CombatFoundationModelPackage>(
+                          json)
+                      ?? new CombatFoundationModelPackage();
+            if (!CombatFoundationModelPackageProtocol.TryValidate(
+                    package,
+                    out reason)
+                || !string.Equals(
+                    package.Model!.ModelId,
+                    entry.ModelId,
+                    StringComparison.Ordinal)
+                || !TryValidateExternalPackageCompatibility(
+                    package,
+                    out reason))
+            {
+                return false;
+            }
+            return true;
+        }
+        catch (Exception ex)
+        {
+            reason = "读取外部待验底模失败：" + ex.Message;
+            return false;
+        }
+    }
+
+    private static bool TryValidateExternalPackageCompatibility(
+        CombatFoundationModelPackage package,
+        out string reason)
+    {
+        if (!AuraToolsAutoBattleSimulationRuntime.TryResolveFoundationPackage(
+                out var campaign,
+                out var ruleset,
+                out reason))
+        {
+            return false;
+        }
+        if (!string.Equals(
+                package.RulesetHash,
+                ruleset.RulesetHash,
+                StringComparison.Ordinal)
+            || !string.Equals(
+                package.Compatibility.CampaignId,
+                campaign.CampaignId,
+                StringComparison.Ordinal)
+            || !string.Equals(
+                package.Compatibility.CampaignVersion,
+                campaign.CampaignVersion,
+                StringComparison.Ordinal))
+        {
+            reason = "外部底模与当前冻结战役或规则集不兼容";
+            return false;
+        }
+        var workerPath = AuraToolsFoundationWorkerRuntime.ExecutablePath;
+        if (!string.IsNullOrWhiteSpace(package.WorkerSha256)
+            && File.Exists(workerPath))
+        {
+            var currentWorkerHash = HashFile(workerPath);
+            if (!string.Equals(
+                    currentWorkerHash,
+                    package.WorkerSha256,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                reason = "外部底模由不同版本的训练 Worker 生成";
+                return false;
+            }
+        }
+        reason = "";
+        return true;
+    }
+
     private static string LibraryDisplayName(string modelId)
     {
         lock (LibraryGate)
@@ -2499,6 +2871,20 @@ internal static class AuraToolsAutoBattleModelRuntime
     private static string ModelLibraryManifestPath()
     {
         return Path.Combine(ModelLibraryDirectory(), "models.json");
+    }
+
+    private static string ExternalValidationDirectory()
+    {
+        return Path.Combine(
+            AuraSharedLogStore.OwnerDirectory(AuraToolsIds.ModId),
+            "external-foundation-validation");
+    }
+
+    private static string ExternalValidationManifestPath()
+    {
+        return Path.Combine(
+            ExternalValidationDirectory(),
+            "selected-foundation.json");
     }
 
     private static string NewRunId(string prefix)
@@ -2666,6 +3052,14 @@ internal static class AuraToolsAutoBattleModelRuntime
     {
         using var sha = SHA256.Create();
         return BitConverter.ToString(sha.ComputeHash(bytes ?? Array.Empty<byte>()))
+            .Replace("-", "");
+    }
+
+    private static string HashFile(string path)
+    {
+        using var stream = File.OpenRead(path);
+        using var sha = SHA256.Create();
+        return BitConverter.ToString(sha.ComputeHash(stream))
             .Replace("-", "");
     }
 

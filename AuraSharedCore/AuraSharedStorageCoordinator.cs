@@ -242,6 +242,34 @@ public sealed class AuraSharedStorageCoordinator : IDisposable
         }
     }
 
+    public bool IsFileWriteLeaseHeld(string path)
+    {
+        var fullPath = Path.GetFullPath(path);
+        if (!IsInside(fullPath, rootDirectory))
+        {
+            throw new InvalidDataException(
+                "Lease probe target escapes shared storage: " + path);
+        }
+        EnsurePortablePath(fullPath, "lease-probe");
+        if (!File.Exists(fullPath))
+        {
+            return false;
+        }
+        try
+        {
+            using var probe = new FileStream(
+                fullPath,
+                FileMode.Open,
+                FileAccess.ReadWrite,
+                FileShare.None);
+            return false;
+        }
+        catch (IOException)
+        {
+            return true;
+        }
+    }
+
     public void WriteTextAtomic(string path, string text, bool createBackup)
     {
         var fullPath = Path.GetFullPath(path);

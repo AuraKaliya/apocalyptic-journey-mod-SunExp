@@ -58,6 +58,7 @@ $forwardModelPath = Join-Path $root "AuraCombatAiShared\CombatForwardModel.cs"
 $searchProjectorPath = Join-Path $root "AuraCombatAiShared\CombatSearchFeatureProjector.cs"
 $batchTrainerPath = Join-Path $root "AuraCombatAiShared\CombatPolicyValueBatchTrainer.cs"
 $workerContractsPath = Join-Path $root "AuraCombatAiShared\CombatFoundationWorkerContracts.cs"
+$externalContractsPath = Join-Path $root "AuraCombatAiShared\CombatFoundationExternalContracts.cs"
 $registryPath = Join-Path $root "AuraCombatAiShared\CombatAiRegistry.cs"
 $guidancePath = Join-Path $root "AuraCombatAiShared\CombatSearchGuidance.cs"
 $simulationEnginePath = Join-Path $root "AuraCombatSimulationShared\CombatSimulationEngine.cs"
@@ -109,6 +110,7 @@ $forwardModel = Get-Content -LiteralPath $forwardModelPath -Raw
 $searchProjector = Get-Content -LiteralPath $searchProjectorPath -Raw
 $batchTrainer = Get-Content -LiteralPath $batchTrainerPath -Raw
 $workerContracts = Get-Content -LiteralPath $workerContractsPath -Raw
+$externalContracts = Get-Content -LiteralPath $externalContractsPath -Raw
 $registry = Get-Content -LiteralPath $registryPath -Raw
 $guidance = Get-Content -LiteralPath $guidancePath -Raw
 $simulationEngine = Get-Content -LiteralPath $simulationEnginePath -Raw
@@ -506,16 +508,30 @@ foreach ($anchor in @(
     "TryGetCachedFoundationPackage",
     "foundation.ExecutionMode",
     "AuraToolsFoundationWorkerRuntime.Run",
-    "PreflightSeedStart = foundation.TrainingSeedStart",
+    "CombatFoundationWorkerJobFactory.Create",
+    "ToSharedParameters",
     "result.TrainingFailures",
     "EnableCounterfactualHardEncounters",
     "EnableFrameStratification",
-    "ExpertReplayEpisodeLimit",
-    "archive loading deferred to worker",
     "CombatFoundationCaseArchiveProtocol"
 )) {
     if (-not $foundationRuntime.Contains($anchor)) {
         throw "AuraTools authoritative foundation runtime contract is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
+    "CombatFoundationTrainingParameters",
+    "CombatFoundationWorkerJobFactory",
+    "PreflightSeedStart = parameters.TrainingSeedStart",
+    "ExpertReplayEpisodeLimit",
+    "archive loading deferred to worker",
+    "CombatFoundationModelPackageProtocol",
+    "foundation-model-package-v1.json",
+    "training-accepted",
+    "CombatPolicyValueNetworkValidator.TryValidate"
+)) {
+    if (-not $externalContracts.Contains($anchor)) {
+        throw "Aura external foundation training contract is missing: $anchor"
     }
 }
 foreach ($anchor in @(
@@ -531,6 +547,7 @@ foreach ($anchor in @(
     "CombatFoundationWorkerResult",
     "CombatFoundationWorkerCheckpoint",
     "CheckpointEpisodesPath",
+    "ModelPackagePath",
     "Resumable",
     "CompletionKind"
 )) {
@@ -626,7 +643,10 @@ foreach ($anchor in @(
     "MigratedObservations",
     "ResolveSuccessCasePath",
     "ResolveObservationPath",
-    "ApplyRewardResiduals"
+    "ApplyRewardResiduals",
+    "AcquireTrainingLease",
+    "CombatFoundationModelPackageProtocol.Create",
+    "ModelPackagePath"
 )) {
     if (-not $foundationWorkerProgram.Contains($anchor)) {
         throw "Aura foundation worker-owned case archive contract is missing: $anchor"
@@ -974,7 +994,7 @@ foreach ($anchor in @(
     "RestoreRole",
     "HideFightPresentation",
     "CanPromote",
-    "WriteTextAtomic"
+    "WriteRawJsonAtomic"
 )) {
     if (-not $gameValidationRuntime.Contains($anchor)) {
         throw "Aura game-host validation runtime is missing: $anchor"

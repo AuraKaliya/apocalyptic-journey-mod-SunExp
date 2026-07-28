@@ -171,6 +171,8 @@ public sealed class CombatFoundationWorkerResult
 
     public string CheckpointPath { get; set; } = "";
 
+    public string ModelPackagePath { get; set; } = "";
+
     public bool Resumable { get; set; }
 
     public CombatCampaignFoundationTrainingResult? Training { get; set; }

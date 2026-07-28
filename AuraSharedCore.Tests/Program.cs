@@ -29,6 +29,21 @@ try
     var packages = new AuraSharedPackageCoordinator(storage);
     var editable = new AuraSharedEditableResourceCoordinator(tempRoot);
 
+    var leasePath = Path.Combine(tempRoot, "Logs", "lease-test.lock");
+    Directory.CreateDirectory(Path.GetDirectoryName(leasePath)!);
+    File.WriteAllText(leasePath, "lease");
+    using (var lease = new FileStream(
+               leasePath,
+               FileMode.Open,
+               FileAccess.ReadWrite,
+               FileShare.Read))
+    {
+        Assert(storage.IsFileWriteLeaseHeld(leasePath),
+            "shared storage detects a held cross-process file lease");
+    }
+    Assert(!storage.IsFileWriteLeaseHeld(leasePath),
+        "shared storage reports a released cross-process file lease");
+
     var first = storage.Write(new AuraSharedStorageRequest
     {
         Scope = AuraSharedStorageScopes.Shared,

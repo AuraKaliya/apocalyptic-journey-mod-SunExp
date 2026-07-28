@@ -38,6 +38,7 @@ try
             job.ResultDirectory,
             CombatFoundationWorkerProtocol.CheckpointEpisodesFileName);
     }
+    using var trainingLease = AcquireTrainingLease(job);
     var build = CombatSimulationRegistry.BuildRuleset(job.Ruleset);
     if (!build.Success)
     {
@@ -67,12 +68,16 @@ try
             + string.Join("; ", package.Errors.Take(8)));
     }
     var workerAssemblyPath = Environment.ProcessPath;
-    job.Request.NativeProgramPackageHash =
+    var workerSha256 =
         string.IsNullOrWhiteSpace(workerAssemblyPath)
         || !File.Exists(workerAssemblyPath)
-            ? "worker:unknown"
+            ? ""
             : Convert.ToHexString(
                 SHA256.HashData(File.ReadAllBytes(workerAssemblyPath)));
+    job.Request.NativeProgramPackageHash =
+        string.IsNullOrWhiteSpace(workerSha256)
+            ? "worker:unknown"
+            : workerSha256;
 
     var requestedWorkers = Math.Max(
         1,
@@ -300,23 +305,36 @@ try
             : resumable
                 ? "training-rejected-resumable"
                 : "training-rejected";
-    WriteAtomic(
-        job.ResultPath,
-        Serialize(new CombatFoundationWorkerResult
-        {
-            JobId = job.JobId,
-            Success = true,
-            CompletionKind = completionKind,
-            Message = training.Message,
-            Runtime = RuntimeDescription(requestedWorkers),
-            RulesetHash = build.Ruleset.RulesetHash,
-            EpisodesPath = episodesPath,
-            CheckpointPath = resumable
-                ? job.CheckpointPath
-                : "",
-            Resumable = resumable,
-            Training = training
-        }));
+    var workerResult = new CombatFoundationWorkerResult
+    {
+        JobId = job.JobId,
+        Success = true,
+        CompletionKind = completionKind,
+        Message = training.Message,
+        Runtime = RuntimeDescription(requestedWorkers),
+        RulesetHash = build.Ruleset.RulesetHash,
+        EpisodesPath = episodesPath,
+        CheckpointPath = resumable
+            ? job.CheckpointPath
+            : "",
+        Resumable = resumable,
+        Training = training
+    };
+    if (string.Equals(
+            completionKind,
+            "training-accepted",
+            StringComparison.Ordinal))
+    {
+        var modelPackage = CombatFoundationModelPackageProtocol.Create(
+            job,
+            workerResult,
+            workerSha256);
+        workerResult.ModelPackagePath = Path.Combine(
+            job.ResultDirectory,
+            CombatFoundationModelPackageProtocol.FileName);
+        WriteAtomic(workerResult.ModelPackagePath, Serialize(modelPackage));
+    }
+    WriteAtomic(job.ResultPath, Serialize(workerResult));
     Console.WriteLine(
         "Foundation worker completed: campaigns="
         + training.CompletedCampaigns
@@ -385,6 +403,44 @@ catch (Exception ex)
             }));
     }
     return 1;
+}
+
+static FileStream AcquireTrainingLease(CombatFoundationWorkerJob job)
+{
+    var archiveRoot = string.IsNullOrWhiteSpace(job.SuccessArchiveDirectory)
+        ? job.ResultDirectory
+        : job.SuccessArchiveDirectory;
+    Directory.CreateDirectory(archiveRoot);
+    var leasePath = Path.Combine(archiveRoot, ".foundation-training.lock");
+    FileStream stream;
+    try
+    {
+        stream = new FileStream(
+            leasePath,
+            FileMode.OpenOrCreate,
+            FileAccess.ReadWrite,
+            FileShare.Read);
+    }
+    catch (IOException ex)
+    {
+        throw new InvalidOperationException(
+            "另一个底模训练进程正在使用同一案例库：" + archiveRoot,
+            ex);
+    }
+    var payload = Encoding.UTF8.GetBytes(
+        "jobId="
+        + job.JobId
+        + Environment.NewLine
+        + "pid="
+        + Environment.ProcessId
+        + Environment.NewLine
+        + "startedUtc="
+        + DateTime.UtcNow.ToString("O")
+        + Environment.NewLine);
+    stream.SetLength(0);
+    stream.Write(payload, 0, payload.Length);
+    stream.Flush(flushToDisk: true);
+    return stream;
 }
 
 static string Fingerprint(

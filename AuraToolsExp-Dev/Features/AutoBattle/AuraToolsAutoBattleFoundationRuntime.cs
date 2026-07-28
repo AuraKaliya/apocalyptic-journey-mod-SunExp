@@ -215,6 +215,11 @@ internal static class AuraToolsAutoBattleFoundationRuntime
             message = "候选训练、模拟评估或导入任务仍在运行";
             return false;
         }
+        if (AuraToolsFoundationWorkerRuntime.ExternalTrainingActive())
+        {
+            message = "独立训练控制台已有底模任务正在运行";
+            return false;
+        }
         if (!CheckReadiness(out var currentReadinessMessage))
         {
             message = currentReadinessMessage;
@@ -455,119 +460,46 @@ internal static class AuraToolsAutoBattleFoundationRuntime
         decisionProfile.SearchStabilityWindow = 32;
         decisionProfile.SearchStableChecks = 2;
         var successArchiveDirectory = SuccessArchiveDirectory();
-        var expertEpisodeLimit = foundation.EnableSuccessCaseArchive
-            ? Math.Min(
-                1024,
-                (int)Math.Round(
-                    foundation.ModelReplayEpisodeLimit
-                    * foundation.SuccessExpertReplayShare))
-            : 0;
-        var expertReplayEpisodes = new List<CombatEpisode>();
-        var expertReplaySelection =
-            new CombatFoundationExpertReplaySelection();
-        var rewardResidualTraining =
-            new CombatFoundationRewardResidualTrainingResult();
-        var caseArchiveLoad =
-            new CombatFoundationCaseArchiveLoadDiagnostics
+        var runId = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fff")
+                    + "-foundation";
+        var resultDirectory = Path.Combine(
+            AuraToolsAutoBattleSimulationRuntime.ResultsRootDirectory,
+            runId);
+        Directory.CreateDirectory(resultDirectory);
+        var preparedJob = CombatFoundationWorkerJobFactory.Create(
+            new CombatFoundationWorkerJobBuildRequest
             {
-                ProtocolVersion =
-                    CombatFoundationCaseArchiveProtocol.Version,
-                OwnerRuntime = "deferred to .NET 8 worker",
-                StorageVersion =
-                    CombatFoundationCaseArchiveProtocol.StorageVersion,
-                ArchiveExists = Directory.Exists(successArchiveDirectory),
-                Message = "archive loading deferred to worker"
-            };
-        var request = new CombatCampaignFoundationTrainingRequest
-        {
-            RunSeed = foundation.RunSeed,
-            DecisionProfile = decisionProfile.Id,
-            Iterations = foundation.Iterations,
-            TrainingCampaignsPerIteration = foundation.TrainingCampaignsPerIteration,
-            ArenaCampaignsPerDifficulty = foundation.ArenaCampaignsPerDifficulty,
-            ArenaConfirmationCampaignsPerDifficulty =
-                foundation.ArenaConfirmationCampaignsPerDifficulty,
-            NormalValidationCampaigns = foundation.NormalValidationCampaigns,
-            AdvancedValidationCampaigns = foundation.AdvancedValidationCampaigns,
-            CapabilityProbeCampaignsPerDifficulty =
-                foundation.CapabilityProbeCampaignsPerDifficulty,
-            PreflightCampaignsPerDifficulty =
-                foundation.PreflightCampaignsPerDifficulty,
-            PreflightSeedStart = foundation.TrainingSeedStart,
-            MaximumDegreeOfParallelism = foundation.Parallelism,
-            EnableEarlyValidationStop = foundation.EarlyValidationStop,
-            EnableCurriculum = foundation.EnableCurriculum,
-            EnableStratifiedReplay = foundation.EnableStratifiedReplay,
-            EnableHardSeedCurriculum =
-                foundation.EnableHardSeedCurriculum,
-            EnableCounterfactualHardEncounters =
-                foundation.EnableCounterfactualHardEncounters,
-            EnableSuccessCaseArchive =
-                foundation.EnableSuccessCaseArchive,
-            EnableArenaRecovery = foundation.EnableArenaRecovery,
-            ArenaInvalidRetryCount =
-                foundation.ArenaInvalidRetryCount,
-            ArenaInvalidRateLimit =
-                foundation.ArenaInvalidRateLimit,
-            EnableTuningArena = foundation.EnableTuningArena,
-            TuningNormalCampaigns = foundation.TuningNormalCampaigns,
-            TuningAdvancedCampaigns =
-                foundation.TuningAdvancedCampaigns,
-            MaximumConsecutiveRejectedIterations =
-                foundation.MaximumConsecutiveRejectedIterations,
-            NormalAcceptanceRate = foundation.NormalAcceptanceRate,
-            AdvancedAcceptanceRate =
-                foundation.AdvancedAcceptanceRate,
-            NativeProgramPackageHash =
-                CurrentRuntimePackageHash(),
-            ExpertReplayEpisodeLimit = expertEpisodeLimit,
-            ExpertReplayEpisodes = expertReplayEpisodes,
-            ExpertReplaySelection = expertReplaySelection,
-            RewardResidualTraining = rewardResidualTraining,
-            CaseArchiveLoad = caseArchiveLoad,
-            HardSeedReplayShare =
-                foundation.HardSeedReplayShare,
-            SelfPlayExplorationProbability =
-                foundation.SelfPlayExplorationProbability,
-            SelfPlayExplorationTemperature =
-                foundation.SelfPlayExplorationTemperature,
-            TrainingSeedStart = foundation.TrainingSeedStart,
-            ArenaSeedStart = foundation.ArenaSeedStart,
-            TuningSeedStart = foundation.TuningSeedStart,
-            ValidationSeedStart = foundation.ValidationSeedStart,
-            Profile = decisionProfile,
-            TrainingCampaign = trainingCampaign,
-            ValidationCampaign = validationCampaign,
-            Training = new CombatPolicyValueTrainingOptions
-            {
-                Epochs = foundation.ModelEpochs,
-                LearningRate = foundation.ModelLearningRate,
-                L2 = foundation.ModelL2,
-                StateDimensions = foundation.ModelStateDimensions,
-                ActionDimensions = foundation.ModelActionDimensions,
-                HiddenDimensions = foundation.ModelHiddenDimensions,
-                FeatureEncodingMode =
-                    foundation.ModelFeatureEncodingMode,
-                BatchSize = foundation.ModelBatchSize,
-                EnableFrameStratification =
-                    foundation.EnableFrameStratification,
-                MaximumFrameStratumWeight =
-                    foundation.ModelMaximumFrameStratumWeight,
-                MaximumDegreeOfParallelism = foundation.Parallelism,
-                MinimumEpochs = foundation.ModelMinimumEpochs,
-                EarlyStoppingPatience =
-                    foundation.ModelEarlyStoppingPatience,
-                EarlyStoppingMinimumDelta =
-                    foundation.ModelEarlyStoppingMinimumDelta,
-                ReplayEpisodeLimit =
-                    foundation.ModelReplayEpisodeLimit,
-                RetainedModelCandidates =
-                    foundation.ModelRetainedCandidates,
-                MinimumEpisodes = Math.Min(
+                JobId = runId,
+                ResultDirectory = resultDirectory,
+                SuccessArchiveDirectory = successArchiveDirectory,
+                CheckpointPath = Path.Combine(
+                    AuraToolsAutoBattleSimulationRuntime
+                        .ResultsRootDirectory,
+                    CombatFoundationWorkerProtocol.CheckpointFileName),
+                CheckpointEpisodesPath = Path.Combine(
+                    AuraToolsAutoBattleSimulationRuntime
+                        .ResultsRootDirectory,
+                    CombatFoundationWorkerProtocol
+                        .CheckpointEpisodesFileName),
+                ExpectedRulesetHash = ruleset.RulesetHash,
+                NativeProgramPackageHash =
+                    CurrentRuntimePackageHash(),
+                Parameters = ToSharedParameters(
+                    foundation,
                     settings.Training.MinimumEpisodes,
-                    foundation.TrainingCampaignsPerIteration)
-            }.Normalized()
-        };
+                    decisionProfile.Id),
+                Profile = decisionProfile,
+                TrainingCampaign = trainingCampaign,
+                ValidationCampaign = validationCampaign,
+                Ruleset = new CombatRulesetDocument
+                {
+                    Version = ruleset.Version,
+                    Cards = ruleset.SnapshotCards().ToList(),
+                    Enemies = ruleset.SnapshotEnemies().ToList(),
+                    Statuses = ruleset.SnapshotStatuses().ToList()
+                }
+            });
+        var request = preparedJob.Request;
         var requested = TotalCampaigns(foundation);
         var completed = 0;
         var stopwatch = Stopwatch.StartNew();
@@ -686,12 +618,6 @@ internal static class AuraToolsAutoBattleFoundationRuntime
             + foundation.RunSeed
             + ", randomizeRunSeed="
             + foundation.RandomizeRunSeed);
-        var runId = DateTime.UtcNow.ToString("yyyyMMdd-HHmmss-fff")
-                    + "-foundation";
-        var resultDirectory = Path.Combine(
-            AuraToolsAutoBattleSimulationRuntime.ResultsRootDirectory,
-            runId);
-        Directory.CreateDirectory(resultDirectory);
         var incrementallyArchivedCases =
             new HashSet<string>(StringComparer.Ordinal);
         var incrementalArchiveErrors = new List<string>();
@@ -752,39 +678,7 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                 request.Telemetry = null;
                 request.Checkpoint = null;
                 var workerResult = AuraToolsFoundationWorkerRuntime.Run(
-                    new CombatFoundationWorkerJob
-                    {
-                        JobId = runId,
-                        ExpectedRulesetHash = ruleset.RulesetHash,
-                        ResultDirectory = resultDirectory,
-                        ProgressPath = Path.Combine(
-                            resultDirectory,
-                            "foundation-worker-progress.json"),
-                        ResultPath = Path.Combine(
-                            resultDirectory,
-                            "foundation-worker-result.json"),
-                        CancellationPath = Path.Combine(
-                            resultDirectory,
-                            "foundation-worker.cancel"),
-                        CheckpointPath = Path.Combine(
-                            AuraToolsAutoBattleSimulationRuntime
-                                .ResultsRootDirectory,
-                            CombatFoundationWorkerProtocol.CheckpointFileName),
-                        CheckpointEpisodesPath = Path.Combine(
-                            AuraToolsAutoBattleSimulationRuntime
-                                .ResultsRootDirectory,
-                            CombatFoundationWorkerProtocol
-                                .CheckpointEpisodesFileName),
-                        SuccessArchiveDirectory = successArchiveDirectory,
-                        Request = request,
-                        Ruleset = new CombatRulesetDocument
-                        {
-                            Version = ruleset.Version,
-                            Cards = ruleset.SnapshotCards().ToList(),
-                            Enemies = ruleset.SnapshotEnemies().ToList(),
-                            Statuses = ruleset.SnapshotStatuses().ToList()
-                        }
-                    },
+                    preparedJob,
                     telemetryCallback,
                     UpdateTrainingDiagnostic,
                     cancellationToken);
@@ -2414,6 +2308,87 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                + settings.NormalValidationCampaigns
                + settings.AdvancedValidationCampaigns
                + settings.CapabilityProbeCampaignsPerDifficulty * 2 * 3;
+    }
+
+    private static CombatFoundationTrainingParameters ToSharedParameters(
+        AutoBattleFoundationTrainingSettings source,
+        int minimumEpisodes,
+        string decisionProfile)
+    {
+        return new CombatFoundationTrainingParameters
+        {
+            RunSeed = source.RunSeed,
+            DecisionProfile = decisionProfile,
+            Iterations = source.Iterations,
+            TrainingCampaignsPerIteration =
+                source.TrainingCampaignsPerIteration,
+            ArenaCampaignsPerDifficulty =
+                source.ArenaCampaignsPerDifficulty,
+            ArenaConfirmationCampaignsPerDifficulty =
+                source.ArenaConfirmationCampaignsPerDifficulty,
+            NormalValidationCampaigns =
+                source.NormalValidationCampaigns,
+            AdvancedValidationCampaigns =
+                source.AdvancedValidationCampaigns,
+            CapabilityProbeCampaignsPerDifficulty =
+                source.CapabilityProbeCampaignsPerDifficulty,
+            PreflightCampaignsPerDifficulty =
+                source.PreflightCampaignsPerDifficulty,
+            MaximumDegreeOfParallelism = source.Parallelism,
+            EnableEarlyValidationStop = source.EarlyValidationStop,
+            EnableCurriculum = source.EnableCurriculum,
+            EnableStratifiedReplay = source.EnableStratifiedReplay,
+            EnableHardSeedCurriculum =
+                source.EnableHardSeedCurriculum,
+            EnableCounterfactualHardEncounters =
+                source.EnableCounterfactualHardEncounters,
+            EnableSuccessCaseArchive =
+                source.EnableSuccessCaseArchive,
+            EnableArenaRecovery = source.EnableArenaRecovery,
+            ArenaInvalidRetryCount = source.ArenaInvalidRetryCount,
+            ArenaInvalidRateLimit = source.ArenaInvalidRateLimit,
+            EnableTuningArena = source.EnableTuningArena,
+            TuningNormalCampaigns = source.TuningNormalCampaigns,
+            TuningAdvancedCampaigns = source.TuningAdvancedCampaigns,
+            MaximumConsecutiveRejectedIterations =
+                source.MaximumConsecutiveRejectedIterations,
+            NormalAcceptanceRate = source.NormalAcceptanceRate,
+            AdvancedAcceptanceRate = source.AdvancedAcceptanceRate,
+            SuccessExpertReplayShare =
+                source.SuccessExpertReplayShare,
+            HardSeedReplayShare = source.HardSeedReplayShare,
+            SelfPlayExplorationProbability =
+                source.SelfPlayExplorationProbability,
+            SelfPlayExplorationTemperature =
+                source.SelfPlayExplorationTemperature,
+            ModelEpochs = source.ModelEpochs,
+            ModelMinimumEpochs = source.ModelMinimumEpochs,
+            ModelEarlyStoppingPatience =
+                source.ModelEarlyStoppingPatience,
+            ModelEarlyStoppingMinimumDelta =
+                source.ModelEarlyStoppingMinimumDelta,
+            ModelBatchSize = source.ModelBatchSize,
+            EnableFrameStratification =
+                source.EnableFrameStratification,
+            ModelMaximumFrameStratumWeight =
+                source.ModelMaximumFrameStratumWeight,
+            ModelReplayEpisodeLimit =
+                source.ModelReplayEpisodeLimit,
+            ModelRetainedCandidates =
+                source.ModelRetainedCandidates,
+            ModelLearningRate = source.ModelLearningRate,
+            ModelL2 = source.ModelL2,
+            ModelStateDimensions = source.ModelStateDimensions,
+            ModelActionDimensions = source.ModelActionDimensions,
+            ModelHiddenDimensions = source.ModelHiddenDimensions,
+            ModelFeatureEncodingMode =
+                source.ModelFeatureEncodingMode,
+            MinimumEpisodes = minimumEpisodes,
+            TrainingSeedStart = source.TrainingSeedStart,
+            ArenaSeedStart = source.ArenaSeedStart,
+            TuningSeedStart = source.TuningSeedStart,
+            ValidationSeedStart = source.ValidationSeedStart
+        }.Normalized();
     }
 
     private static ulong GenerateRunSeed()
