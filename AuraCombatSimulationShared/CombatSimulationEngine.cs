@@ -452,6 +452,36 @@ public sealed class CombatSimulationEngine
                         metrics.BlockedLoops += Math.Max(
                             0,
                             metricsProvider.LastDecisionMetrics.BlockedLoops);
+                        metrics.ExplorationDecisions += Math.Max(
+                            0,
+                            metricsProvider.LastDecisionMetrics
+                                .ExplorationDecisions);
+                        metrics.ExplorationActionOverrides += Math.Max(
+                            0,
+                            metricsProvider.LastDecisionMetrics
+                                .ExplorationActionOverrides);
+                        var rootVisitShare = metricsProvider
+                            .LastDecisionMetrics.RootMaximumVisitShare;
+                        if (!double.IsNaN(rootVisitShare)
+                            && !double.IsInfinity(rootVisitShare)
+                            && rootVisitShare > 0d)
+                        {
+                            metrics.RootMaximumVisitShareTotal +=
+                                Math.Min(1d, rootVisitShare);
+                            metrics.RootMaximumVisitShareSamples++;
+                        }
+                        metrics.AuthoritativeActionsAudited += Math.Max(
+                            0,
+                            metricsProvider.LastDecisionMetrics
+                                .AuthoritativeActionsAudited);
+                        metrics.AuthoritativeSemanticMismatches += Math.Max(
+                            0,
+                            metricsProvider.LastDecisionMetrics
+                                .AuthoritativeSemanticMismatches);
+                        metrics.AuthoritativeTeacherOverrides += Math.Max(
+                            0,
+                            metricsProvider.LastDecisionMetrics
+                                .AuthoritativeTeacherOverrides);
                     }
                     var selected = requested == null
                         ? null

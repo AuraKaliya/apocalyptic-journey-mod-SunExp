@@ -1088,6 +1088,18 @@ public sealed class CombatSimulationPolicyDecisionMetrics
     public int FakeLoops { get; set; }
 
     public int BlockedLoops { get; set; }
+
+    public int ExplorationDecisions { get; set; }
+
+    public int ExplorationActionOverrides { get; set; }
+
+    public double RootMaximumVisitShare { get; set; }
+
+    public int AuthoritativeActionsAudited { get; set; }
+
+    public int AuthoritativeSemanticMismatches { get; set; }
+
+    public int AuthoritativeTeacherOverrides { get; set; }
 }
 
 public interface ICombatSimulationPolicyMetricsProvider
@@ -1195,6 +1207,20 @@ public sealed class CombatSimulationMetrics
     public int FakeLoops { get; set; }
 
     public int BlockedLoops { get; set; }
+
+    public int ExplorationDecisions { get; set; }
+
+    public int ExplorationActionOverrides { get; set; }
+
+    public double RootMaximumVisitShareTotal { get; set; }
+
+    public int RootMaximumVisitShareSamples { get; set; }
+
+    public int AuthoritativeActionsAudited { get; set; }
+
+    public int AuthoritativeSemanticMismatches { get; set; }
+
+    public int AuthoritativeTeacherOverrides { get; set; }
 
     public Dictionary<string, int> CardPlayCounts { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);

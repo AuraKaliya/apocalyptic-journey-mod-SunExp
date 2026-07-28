@@ -829,13 +829,22 @@ public sealed class CombatFoundationReplaySelection
         new(StringComparer.Ordinal);
 }
 
+public sealed class CombatFoundationReplayBalanceOptions
+{
+    public double MinimumAdvancedShare { get; set; } = 0.35d;
+
+    public bool AllowCrossDifficultyBackfill { get; set; }
+}
+
 public static class CombatFoundationReplaySampler
 {
     public static CombatFoundationReplaySelection Select(
         IEnumerable<CombatEpisode> source,
         int episodeLimit,
-        bool enabled)
+        bool enabled,
+        CombatFoundationReplayBalanceOptions? balance = null)
     {
+        balance ??= new CombatFoundationReplayBalanceOptions();
         var sourceEpisodes = (source ?? Array.Empty<CombatEpisode>())
             .Where(episode => episode != null)
             .OrderBy(StableKey, StringComparer.Ordinal)
@@ -847,6 +856,11 @@ public static class CombatFoundationReplaySampler
         var limit = Math.Max(1, episodeLimit);
         var campaigns = BuildCampaigns(episodes);
         var targetNormalShare = DetermineNormalShare(campaigns);
+        targetNormalShare = Math.Min(
+            targetNormalShare,
+            1d - Math.Max(
+                0d,
+                Math.Min(0.90d, balance.MinimumAdvancedShare)));
         var quotaShortfalls = new Dictionary<string, int>(
             StringComparer.Ordinal);
         var selected = !enabled
@@ -855,7 +869,8 @@ public static class CombatFoundationReplaySampler
                 campaigns,
                 limit,
                 targetNormalShare,
-                quotaShortfalls);
+                quotaShortfalls,
+                balance.AllowCrossDifficultyBackfill);
         return new CombatFoundationReplaySelection
         {
             Episodes = selected,
@@ -884,7 +899,8 @@ public static class CombatFoundationReplaySampler
         IReadOnlyList<ReplayCampaign> campaigns,
         int limit,
         double targetNormalShare,
-        IDictionary<string, int> quotaShortfalls)
+        IDictionary<string, int> quotaShortfalls,
+        bool allowCrossDifficultyBackfill)
     {
         var representatives = campaigns.ToDictionary(
             campaign => campaign.Key,
@@ -923,7 +939,7 @@ public static class CombatFoundationReplaySampler
             advancedTarget,
             "advanced",
             quotaShortfalls);
-        if (result.Count < targetCount)
+        if (allowCrossDifficultyBackfill && result.Count < targetCount)
         {
             var selectedKeys = result
                 .Select(StableKey)
@@ -970,7 +986,10 @@ public static class CombatFoundationReplaySampler
             failures,
             representatives,
             failureTarget);
-        foreach (var episode in selectedWins.Concat(selectedFailures))
+        var selected = selectedWins
+            .Concat(selectedFailures)
+            .ToList();
+        foreach (var episode in selected)
         {
             result.Add(episode);
         }
@@ -982,6 +1001,27 @@ public static class CombatFoundationReplaySampler
             quotaShortfalls,
             difficulty + ":defeat",
             failureTarget - selectedFailures.Count);
+        if (selected.Count < target)
+        {
+            var selectedKeys = selected
+                .Select(StableKey)
+                .ToHashSet(StringComparer.Ordinal);
+            var sameDifficultyBackfill = campaigns
+                .SelectMany(campaign => representatives[campaign.Key])
+                .Where(episode =>
+                    !selectedKeys.Contains(StableKey(episode)))
+                .OrderBy(StableKey, StringComparer.Ordinal)
+                .Take(target - selected.Count)
+                .ToList();
+            foreach (var episode in sameDifficultyBackfill)
+            {
+                result.Add(episode);
+            }
+            RecordShortfall(
+                quotaShortfalls,
+                difficulty + ":total",
+                target - selected.Count - sameDifficultyBackfill.Count);
+        }
     }
 
     private static double DetermineNormalShare(

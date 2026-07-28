@@ -45,6 +45,17 @@ public static class CombatFoundationStagnationProtocol
     public const double ReducedHardSeedReplayShare = 0.12d;
 }
 
+public static class CombatFoundationPromotionProtocol
+{
+    public const string Version = "paired-incremental-v2";
+
+    public const double MinimumPairedWinWilsonLowerBound = 0.20d;
+
+    public const double MinimumScoreGain = 0.01d;
+
+    public const double MinimumDepthGain = 0.25d;
+}
+
 public enum CombatFoundationCounterfactualAdmission
 {
     Rejected = 0,
@@ -113,9 +124,11 @@ public sealed class CombatCampaignFoundationTrainingRequest
     public string NativeProgramPackageHash { get; set; } = "";
 
     public string TrainingPolicyVersion { get; set; } =
-        "foundation-governance-v7";
+        "foundation-governance-v8";
 
     public double HardSeedReplayShare { get; set; } = 0.35d;
+
+    public double MinimumAdvancedReplayShare { get; set; } = 0.35d;
 
     public int ExpertReplayEpisodeLimit { get; set; }
 
@@ -143,6 +156,10 @@ public sealed class CombatCampaignFoundationTrainingRequest
     public double SelfPlayExplorationProbability { get; set; } = 0.15d;
 
     public double SelfPlayExplorationTemperature { get; set; } = 1d;
+
+    public double TeacherExactBranchProbability { get; set; } = 0.15d;
+
+    public double HardTeacherExactBranchProbability { get; set; } = 1d;
 
     public ulong TrainingSeedStart { get; set; } = 10_000UL;
 
@@ -238,9 +255,9 @@ public sealed class CombatFoundationCompatibilityManifest
 
     public string FeatureEncodingMode { get; set; } = "";
 
-    public string SearchPolicyVersion { get; set; } = "dynamic-search-v2";
+    public string SearchPolicyVersion { get; set; } = "dynamic-search-v3";
 
-    public string CurriculumVersion { get; set; } = "curriculum-v6";
+    public string CurriculumVersion { get; set; } = "curriculum-v7";
 
     public string TrainingPolicyVersion { get; set; } = "";
 
@@ -335,6 +352,20 @@ public sealed class CombatCampaignFoundationTelemetry
     public int FakeLoops { get; set; }
 
     public int BlockedLoops { get; set; }
+
+    public long ExplorationDecisions { get; set; }
+
+    public long ExplorationActionOverrides { get; set; }
+
+    public double RootMaximumVisitShareMean { get; set; }
+
+    public int RootMaximumVisitShareSamples { get; set; }
+
+    public long AuthoritativeActionsAudited { get; set; }
+
+    public long AuthoritativeSemanticMismatches { get; set; }
+
+    public long AuthoritativeTeacherOverrides { get; set; }
 
     public double SearchSimulationsPerSecond { get; set; }
 
@@ -469,6 +500,16 @@ public sealed class CombatCampaignFoundationIteration
     public int CandidateOnlyWins { get; set; }
 
     public int ChampionOnlyWins { get; set; }
+
+    public double PairedWinWilsonLowerBound { get; set; }
+
+    public double CandidateScoreGain { get; set; }
+
+    public double CandidateDepthGain { get; set; }
+
+    public string IterativeGainKind { get; set; } = "";
+
+    public string PromotionProtocolVersion { get; set; } = "";
 
     public double ChampionAverageCompletedBattles { get; set; }
 
@@ -778,6 +819,20 @@ public sealed class CombatCampaignFoundationTrainingResult
     public int FakeLoops { get; set; }
 
     public int BlockedLoops { get; set; }
+
+    public long ExplorationDecisions { get; set; }
+
+    public long ExplorationActionOverrides { get; set; }
+
+    public double RootMaximumVisitShareMean { get; set; }
+
+    public int RootMaximumVisitShareSamples { get; set; }
+
+    public long AuthoritativeActionsAudited { get; set; }
+
+    public long AuthoritativeSemanticMismatches { get; set; }
+
+    public long AuthoritativeTeacherOverrides { get; set; }
 
     public int ModelCompletedEpochs { get; set; }
 
@@ -1244,7 +1299,11 @@ public sealed class CombatCampaignFoundationTrainer
                             request.DecisionProfile,
                             effectiveExplorationProbability,
                             request.SelfPlayExplorationTemperature,
-                            campaignSeed);
+                            campaignSeed,
+                            slot.HardSeed
+                                ? request.HardTeacherExactBranchProbability
+                                : request.TeacherExactBranchProbability,
+                            campaignRunner.SimulationEngine);
                         var localEncounter =
                             slot.HardSeed
                             && slot.FailureEncounterCheckpoint != null;
@@ -1302,7 +1361,9 @@ public sealed class CombatCampaignFoundationTrainer
                                     request.DecisionProfile,
                                     0d,
                                     1d,
-                                    campaignSeed);
+                                    campaignSeed,
+                                    request.HardTeacherExactBranchProbability,
+                                    campaignRunner.SimulationEngine);
                             counterfactualCampaign = RunCampaignSegment(
                                 request.TrainingCampaign,
                                 difficulty,
@@ -1512,7 +1573,13 @@ public sealed class CombatCampaignFoundationTrainer
             var replaySelection = CombatFoundationReplaySampler.Select(
                 result.Replay,
                 foundationTrainingOptions.ReplayEpisodeLimit,
-                request.EnableStratifiedReplay);
+                request.EnableStratifiedReplay,
+                new CombatFoundationReplayBalanceOptions
+                {
+                    MinimumAdvancedShare =
+                        request.MinimumAdvancedReplayShare,
+                    AllowCrossDifficultyBackfill = false
+                });
             var replayWindow = replaySelection.Episodes;
             result.Replay = replayWindow;
             telemetry.ReportStage("model-training:" + iterationNumber);
@@ -1720,6 +1787,29 @@ public sealed class CombatCampaignFoundationTrainer
             var screeningChampionOnlyWins = screeningPairIndexes.Count(index =>
                 championArena[index].FinalBossVictory
                 && !candidateArena[index].FinalBossVictory);
+            var screeningChampionScore = screeningPairIndexes.Count == 0
+                ? 0d
+                : screeningPairIndexes.Average(index =>
+                    Score(championArena[index]));
+            var screeningCandidateScore = screeningPairIndexes.Count == 0
+                ? 0d
+                : screeningPairIndexes.Average(index =>
+                    Score(candidateArena[index]));
+            var screeningChampionDepth = screeningPairIndexes.Count == 0
+                ? 0d
+                : screeningPairIndexes.Average(index =>
+                    championArena[index].CompletedBattles);
+            var screeningCandidateDepth = screeningPairIndexes.Count == 0
+                ? 0d
+                : screeningPairIndexes.Average(index =>
+                    candidateArena[index].CompletedBattles);
+            var screeningProgressGain =
+                screeningCandidateScore
+                >= screeningChampionScore
+                   + CombatFoundationPromotionProtocol.MinimumScoreGain
+                && screeningCandidateDepth
+                   >= screeningChampionDepth
+                      + CombatFoundationPromotionProtocol.MinimumDepthGain;
             var screeningPassed =
                 screeningPairIndexes.Count == arenaPerDifficulty * 2
                 && screeningCandidateNormal + 0.0000001d
@@ -1728,7 +1818,8 @@ public sealed class CombatCampaignFoundationTrainer
                    >= screeningChampionAdvanced
                 && (workingChampion == null
                     || screeningCandidateOnlyWins
-                       > screeningChampionOnlyWins);
+                       > screeningChampionOnlyWins
+                    || screeningProgressGain);
             var confirmationRan =
                 screeningPassed && arenaConfirmationPerDifficulty > 0;
             if (confirmationRan)
@@ -1950,19 +2041,39 @@ public sealed class CombatCampaignFoundationTrainer
                 validPairIndexes.Count == expectedArenaPairs
                                        && candidateNormal + 0.0000001d >= championNormal
                                        && candidateAdvanced + 0.0000001d >= championAdvanced;
+            var discordantPairs =
+                candidateOnlyWins + championOnlyWins;
+            var pairedWinWilsonLowerBound =
+                CombatFoundationCurriculum.WilsonLowerBound(
+                    candidateOnlyWins,
+                    discordantPairs);
             var meaningfulWinGain =
-                candidateOnlyWins > championOnlyWins;
+                candidateOnlyWins > championOnlyWins
+                && pairedWinWilsonLowerBound
+                   >= CombatFoundationPromotionProtocol
+                       .MinimumPairedWinWilsonLowerBound;
+            var meaningfulProgressGain =
+                candidateScore
+                >= championScore
+                   + CombatFoundationPromotionProtocol.MinimumScoreGain
+                && candidateAverageDepth
+                   >= championAverageDepth
+                      + CombatFoundationPromotionProtocol.MinimumDepthGain;
+            var iterativeGain =
+                meaningfulWinGain || meaningfulProgressGain;
             var bootstrapPromotion = workingChampion == null;
             var promoted = curriculumCheckpoint
-                           && (bootstrapPromotion || meaningfulWinGain);
+                           && (bootstrapPromotion || iterativeGain);
             var promotionReason = !curriculumCheckpoint
                 ? "regression-or-incomplete-arena"
                 : bootstrapPromotion
                     ? "bootstrap-champion"
-                : !meaningfulWinGain
-                    ? "no-paired-win-gain"
+                : !iterativeGain
+                    ? "no-iterative-gain"
                     : promoted
-                        ? "paired-win-gain"
+                        ? meaningfulWinGain
+                            ? "paired-win-gain"
+                            : "score-depth-gain"
                         : "no-meaningful-gain";
             result.Iterations.Add(new CombatCampaignFoundationIteration
             {
@@ -2087,6 +2198,21 @@ public sealed class CombatCampaignFoundationTrainer
                 ValidAdvancedArenaPairs = validAdvancedPairs,
                 CandidateOnlyWins = candidateOnlyWins,
                 ChampionOnlyWins = championOnlyWins,
+                PairedWinWilsonLowerBound =
+                    pairedWinWilsonLowerBound,
+                CandidateScoreGain =
+                    candidateScore - championScore,
+                CandidateDepthGain =
+                    candidateAverageDepth - championAverageDepth,
+                IterativeGainKind = bootstrapPromotion
+                    ? "bootstrap"
+                    : meaningfulWinGain
+                        ? "paired-win"
+                        : meaningfulProgressGain
+                            ? "score-depth"
+                            : "none",
+                PromotionProtocolVersion =
+                    CombatFoundationPromotionProtocol.Version,
                 ChampionAverageCompletedBattles = championAverageDepth,
                 CandidateAverageCompletedBattles = candidateAverageDepth,
                 Promoted = promoted,
@@ -2354,7 +2480,13 @@ public sealed class CombatCampaignFoundationTrainer
         var persistedReplay = CombatFoundationReplaySampler.Select(
             result.Replay,
             Math.Min(1024, foundationTrainingOptions.ReplayEpisodeLimit),
-            request.EnableStratifiedReplay);
+            request.EnableStratifiedReplay,
+            new CombatFoundationReplayBalanceOptions
+            {
+                MinimumAdvancedShare =
+                    request.MinimumAdvancedReplayShare,
+                AllowCrossDifficultyBackfill = false
+            });
         result.Replay = persistedReplay.Episodes;
         result.PersistedReplayEpisodes = result.Replay.Count;
         result.CompletedCampaigns = Volatile.Read(ref completedCampaigns);
@@ -2902,11 +3034,19 @@ public sealed class CombatCampaignFoundationTrainer
             (
                 Id: "champion-teacher-hard",
                 Factory: (Func<ICombatSimulationPolicyFactory>)(() =>
-                    new CombatDecisionSimulationPolicyFactory(
+                    new CombatAuthoritativeTeacherPolicyFactory(
                         CombatSearchBudgetPolicy.WithContext(
                             request.Profile,
                             "teacher-hard"),
-                        policyValueModel: model)))
+                        model,
+                        new CombatAuthoritativeTeacherOptions
+                        {
+                            AuditProbability =
+                                request.HardTeacherExactBranchProbability,
+                            RandomSeed = CombatFoundationSeedPlan.ToRandomSeed(
+                                seedStart ^ 0x54454143484552UL)
+                        },
+                        campaignRunner.SimulationEngine)))
         };
         var report = new CombatFoundationCapabilityProbe
         {
@@ -4031,6 +4171,13 @@ public sealed class CombatCampaignFoundationTrainer
         private int sustainableControlLoops;
         private int fakeLoops;
         private int blockedLoops;
+        private long explorationDecisions;
+        private long explorationActionOverrides;
+        private double rootMaximumVisitShareTotal;
+        private int rootMaximumVisitShareSamples;
+        private long authoritativeActionsAudited;
+        private long authoritativeSemanticMismatches;
+        private long authoritativeTeacherOverrides;
         private long nextCampaignWorkId;
         private long lastReportMilliseconds = -1000L;
         private int modelIteration;
@@ -4092,6 +4239,27 @@ public sealed class CombatCampaignFoundationTrainer
                     initial.SustainableControlLoops);
                 fakeLoops = Math.Max(0, initial.FakeLoops);
                 blockedLoops = Math.Max(0, initial.BlockedLoops);
+                explorationDecisions = Math.Max(
+                    0L,
+                    initial.ExplorationDecisions);
+                explorationActionOverrides = Math.Max(
+                    0L,
+                    initial.ExplorationActionOverrides);
+                rootMaximumVisitShareSamples = Math.Max(
+                    0,
+                    initial.RootMaximumVisitShareSamples);
+                rootMaximumVisitShareTotal =
+                    Math.Max(0d, initial.RootMaximumVisitShareMean)
+                    * rootMaximumVisitShareSamples;
+                authoritativeActionsAudited = Math.Max(
+                    0L,
+                    initial.AuthoritativeActionsAudited);
+                authoritativeSemanticMismatches = Math.Max(
+                    0L,
+                    initial.AuthoritativeSemanticMismatches);
+                authoritativeTeacherOverrides = Math.Max(
+                    0L,
+                    initial.AuthoritativeTeacherOverrides);
                 peakConcurrentCampaigns = Math.Max(
                     0,
                     initial.PeakConcurrentCampaigns);
@@ -4245,6 +4413,39 @@ public sealed class CombatCampaignFoundationTrainer
                 Interlocked.Add(
                     ref blockedLoops,
                     Math.Max(0, battle.Metrics.BlockedLoops));
+                Interlocked.Add(
+                    ref explorationDecisions,
+                    Math.Max(0, battle.Metrics.ExplorationDecisions));
+                Interlocked.Add(
+                    ref explorationActionOverrides,
+                    Math.Max(
+                        0,
+                        battle.Metrics.ExplorationActionOverrides));
+                Interlocked.Add(
+                    ref authoritativeActionsAudited,
+                    Math.Max(
+                        0,
+                        battle.Metrics.AuthoritativeActionsAudited));
+                Interlocked.Add(
+                    ref authoritativeSemanticMismatches,
+                    Math.Max(
+                        0,
+                        battle.Metrics
+                            .AuthoritativeSemanticMismatches));
+                Interlocked.Add(
+                    ref authoritativeTeacherOverrides,
+                    Math.Max(
+                        0,
+                        battle.Metrics.AuthoritativeTeacherOverrides));
+                lock (workerGate)
+                {
+                    rootMaximumVisitShareTotal += Math.Max(
+                        0d,
+                        battle.Metrics.RootMaximumVisitShareTotal);
+                    rootMaximumVisitShareSamples += Math.Max(
+                        0,
+                        battle.Metrics.RootMaximumVisitShareSamples);
+                }
             }
             Report(stage);
         }
@@ -4294,6 +4495,20 @@ public sealed class CombatCampaignFoundationTrainer
                 snapshot.SustainableControlLoops;
             result.FakeLoops = snapshot.FakeLoops;
             result.BlockedLoops = snapshot.BlockedLoops;
+            result.ExplorationDecisions =
+                snapshot.ExplorationDecisions;
+            result.ExplorationActionOverrides =
+                snapshot.ExplorationActionOverrides;
+            result.RootMaximumVisitShareMean =
+                snapshot.RootMaximumVisitShareMean;
+            result.RootMaximumVisitShareSamples =
+                snapshot.RootMaximumVisitShareSamples;
+            result.AuthoritativeActionsAudited =
+                snapshot.AuthoritativeActionsAudited;
+            result.AuthoritativeSemanticMismatches =
+                snapshot.AuthoritativeSemanticMismatches;
+            result.AuthoritativeTeacherOverrides =
+                snapshot.AuthoritativeTeacherOverrides;
             result.ModelCompletedEpochs = snapshot.ModelEpoch;
             result.ModelConfiguredEpochs = snapshot.ModelTotalEpochs;
             result.ModelBestEpoch = snapshot.ModelBestEpoch;
@@ -4359,6 +4574,8 @@ public sealed class CombatCampaignFoundationTrainer
             int snapshotModelStaleEpochs;
             bool snapshotModelEarlyStopped;
             double snapshotPhaseRemainingSeconds;
+            double snapshotRootMaximumVisitShareTotal;
+            int snapshotRootMaximumVisitShareSamples;
             lock (workerGate)
             {
                 observedThreads = observedWorkerThreads.Count;
@@ -4383,6 +4600,10 @@ public sealed class CombatCampaignFoundationTrainer
                 snapshotModelEarlyStopped = modelEarlyStopped;
                 snapshotPhaseRemainingSeconds =
                     phaseEstimatedRemainingSeconds;
+                snapshotRootMaximumVisitShareTotal =
+                    rootMaximumVisitShareTotal;
+                snapshotRootMaximumVisitShareSamples =
+                    rootMaximumVisitShareSamples;
             }
             var elapsedSeconds = Math.Max(0.001d, stopwatch.Elapsed.TotalSeconds);
             var campaigns = Volatile.Read(ref completedCampaigns);
@@ -4462,6 +4683,23 @@ public sealed class CombatCampaignFoundationTrainer
                     Volatile.Read(ref sustainableControlLoops),
                 FakeLoops = Volatile.Read(ref fakeLoops),
                 BlockedLoops = Volatile.Read(ref blockedLoops),
+                ExplorationDecisions =
+                    Volatile.Read(ref explorationDecisions),
+                ExplorationActionOverrides =
+                    Volatile.Read(ref explorationActionOverrides),
+                RootMaximumVisitShareMean =
+                    snapshotRootMaximumVisitShareSamples <= 0
+                        ? 0d
+                        : snapshotRootMaximumVisitShareTotal
+                          / snapshotRootMaximumVisitShareSamples,
+                RootMaximumVisitShareSamples =
+                    snapshotRootMaximumVisitShareSamples,
+                AuthoritativeActionsAudited =
+                    Volatile.Read(ref authoritativeActionsAudited),
+                AuthoritativeSemanticMismatches =
+                    Volatile.Read(ref authoritativeSemanticMismatches),
+                AuthoritativeTeacherOverrides =
+                    Volatile.Read(ref authoritativeTeacherOverrides),
                 SearchSimulationsPerSecond = simulationCount / elapsedSeconds,
                 ElapsedSeconds = elapsedSeconds,
                 CampaignsPerSecond = campaigns / elapsedSeconds,
@@ -4623,6 +4861,8 @@ public sealed class CombatCampaignFoundationTrainer
         private readonly double explorationProbability;
         private readonly double explorationTemperature;
         private readonly ulong campaignSeed;
+        private readonly double authoritativeAuditProbability;
+        private readonly CombatSimulationEngine authoritativeEngine;
         private readonly List<CombatEpisodeRecordingPolicy> policies = new();
 
         public RecordingCampaignPolicyFactory(
@@ -4631,7 +4871,9 @@ public sealed class CombatCampaignFoundationTrainer
             string decisionProfile,
             double explorationProbability,
             double explorationTemperature,
-            ulong campaignSeed)
+            ulong campaignSeed,
+            double authoritativeAuditProbability,
+            CombatSimulationEngine authoritativeEngine)
         {
             this.profile = profile;
             this.policyValue = policyValue;
@@ -4639,14 +4881,19 @@ public sealed class CombatCampaignFoundationTrainer
             this.explorationProbability = explorationProbability;
             this.explorationTemperature = explorationTemperature;
             this.campaignSeed = campaignSeed;
+            this.authoritativeAuditProbability = Math.Max(
+                0d,
+                Math.Min(1d, authoritativeAuditProbability));
+            this.authoritativeEngine = authoritativeEngine
+                ?? throw new ArgumentNullException(
+                    nameof(authoritativeEngine));
         }
 
         public string PolicyId => "aura-foundation-training:" + decisionProfile;
 
         public ICombatSimulationPolicy Create()
         {
-            var policy = new CombatEpisodeRecordingPolicy(
-                new CombatDecisionSimulationPolicy(
+            var decisionPolicy = new CombatDecisionSimulationPolicy(
                     profile,
                     policyValueModel: policyValue,
                     exploration: new CombatSelfPlayExplorationOptions
@@ -4656,7 +4903,23 @@ public sealed class CombatCampaignFoundationTrainer
                         RandomSeed = CombatFoundationSeedPlan.ToRandomSeed(
                             campaignSeed
                             ^ (ulong)(policies.Count + 1))
-                    }),
+                    });
+            ICombatSimulationPolicy teacher = authoritativeAuditProbability
+                <= 0d
+                ? decisionPolicy
+                : new CombatAuthoritativeBranchTeacherPolicy(
+                    decisionPolicy,
+                    new CombatAuthoritativeTeacherOptions
+                    {
+                        AuditProbability = authoritativeAuditProbability,
+                        RandomSeed = CombatFoundationSeedPlan.ToRandomSeed(
+                            campaignSeed
+                            ^ (ulong)(policies.Count + 1)
+                            ^ 0x4558414354UL)
+                    },
+                    authoritativeEngine);
+            var policy = new CombatEpisodeRecordingPolicy(
+                teacher,
                 decisionProfile);
             policies.Add(policy);
             return policy;

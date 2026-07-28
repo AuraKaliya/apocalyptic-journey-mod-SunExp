@@ -1854,6 +1854,19 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                                         .OrderBy(item => item.Key)
                                         .Select(item =>
                                             item.Key + "=" + item.Value))));
+        markdown.AppendLine("- Effective exploration: "
+                            + result.ExplorationDecisions
+                            + " activated; "
+                            + result.ExplorationActionOverrides
+                            + " selected a non-greedy action; mean max root visit share "
+                            + result.RootMaximumVisitShareMean.ToString("P2"));
+        markdown.AppendLine("- Authoritative teacher: "
+                            + result.AuthoritativeActionsAudited
+                            + " exact branches audited; "
+                            + result.AuthoritativeSemanticMismatches
+                            + " semantic mismatches; "
+                            + result.AuthoritativeTeacherOverrides
+                            + " corrected actions");
         markdown.AppendLine("- 循环安全：认证无限 "
                             + result.CertifiedLoops
                             + "；可持续控制循环 "
@@ -2009,6 +2022,18 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                                 + iteration.CandidateOnlyWins
                                 + "/"
                                 + iteration.ChampionOnlyWins
+                                + "；配对胜率 LCB "
+                                + iteration.PairedWinWilsonLowerBound
+                                    .ToString("P1")
+                                + "；得分/深度增益 "
+                                + iteration.CandidateScoreGain
+                                    .ToString("+0.000;-0.000;0.000")
+                                + "/"
+                                + iteration.CandidateDepthGain
+                                    .ToString("+0.00;-0.00;0.00")
+                                + "（"
+                                + iteration.IterativeGainKind
+                                + "）"
                                 + "）"
                                 + "；无效基准/候选 "
                                 + iteration.InvalidChampionCampaigns
@@ -2186,6 +2211,21 @@ internal static class AuraToolsAutoBattleFoundationRuntime
             + result.SearchEarlyStops
             + " early stops",
             result.MaximumCompletedBattleDepth > 0);
+        AppendMetric(
+            html,
+            "精确教师 / 有效探索",
+            result.AuthoritativeActionsAudited
+            + " branches · "
+            + result.AuthoritativeSemanticMismatches
+            + " mismatch · "
+            + result.AuthoritativeTeacherOverrides
+            + " corrections · "
+            + result.ExplorationActionOverrides
+            + "/"
+            + result.ExplorationDecisions
+            + " exploration overrides",
+            result.AuthoritativeActionsAudited > 0
+            && result.ExplorationDecisions > 0);
         AppendMetric(
             html,
             "循环安全 / 终局规则",

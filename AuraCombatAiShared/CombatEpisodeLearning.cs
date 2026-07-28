@@ -123,6 +123,8 @@ public sealed class CombatEpisodeFrame
     public double RemainingHpRatioTarget { get; set; }
 
     public double RemainingTurnsTarget { get; set; }
+
+    public double TrainingWeight { get; set; } = 1d;
 }
 
 public sealed class CombatEpisodeCandidate

@@ -462,9 +462,18 @@ internal static class CombatPolicyValueBatchTrainer
             ["minimumFrameWeight"] = result.MinimumFrameWeight,
             ["maximumFrameWeight"] = result.MaximumFrameWeight
         };
+        var calibratedCandidates = CalibrateCandidates(
+            topModels,
+            model,
+            bestEpoch,
+            validationFrames,
+            testFrames,
+            options.MaximumDegreeOfParallelism,
+            options.RetainedModelCandidates,
+            cancellationToken);
         result.Success = true;
         result.Model = model;
-        result.CandidateModels = CloneCandidates(topModels);
+        result.CandidateModels = calibratedCandidates;
         result.CompletedEpochs = Math.Max(
             startEpoch,
             completedEpochsActual);
@@ -497,6 +506,97 @@ internal static class CombatPolicyValueBatchTrainer
             EarlyStopped = stoppedEarly
         });
         return result;
+    }
+
+    private static List<CombatPolicyValueModelCandidate> CalibrateCandidates(
+        IEnumerable<CombatPolicyValueModelCandidate> source,
+        CombatPolicyValueNetworkDefinition selectedModel,
+        int selectedEpoch,
+        EncodedFrame[] validationFrames,
+        EncodedFrame[] testFrames,
+        int parallelism,
+        int maximumCandidates,
+        CancellationToken cancellationToken)
+    {
+        var result = new List<CombatPolicyValueModelCandidate>();
+        foreach (var candidate in source
+                     ?? Array.Empty<CombatPolicyValueModelCandidate>())
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            var calibrated = candidate.Epoch == selectedEpoch
+                ? Clone(selectedModel)
+                : Clone(candidate.Model);
+            if (candidate.Epoch != selectedEpoch)
+            {
+                calibrated.PolicyTemperature =
+                    CalibratePolicyTemperature(
+                        calibrated,
+                        validationFrames,
+                        parallelism,
+                        cancellationToken);
+            }
+            var validation = Evaluate(
+                calibrated,
+                validationFrames,
+                parallelism,
+                cancellationToken);
+            var test = testFrames.Length == 0
+                ? new Metrics()
+                : Evaluate(
+                    calibrated,
+                    testFrames,
+                    parallelism,
+                    cancellationToken);
+            var inherited = new Dictionary<string, double>(
+                calibrated.Metrics
+                ?? new Dictionary<string, double>(),
+                StringComparer.OrdinalIgnoreCase)
+            {
+                ["validationPolicyAccuracy"] =
+                    validation.PolicyAccuracy,
+                ["validationPolicyCrossEntropy"] =
+                    validation.PolicyCrossEntropy,
+                ["validationCriticalPolicyAccuracy"] =
+                    validation.CriticalPolicyAccuracy,
+                ["validationValueMae"] = validation.ValueMae,
+                ["validationBrier"] = validation.Brier,
+                ["validationDeathBrier"] = validation.DeathBrier,
+                ["validationHpMae"] = validation.HpMae,
+                ["validationTurnHuber"] = validation.TurnHuber,
+                ["validationCompositeLoss"] =
+                    CompositeValidationLoss(validation),
+                ["testCompositeLoss"] = testFrames.Length == 0
+                    ? 0d
+                    : CompositeValidationLoss(test),
+                ["policyTemperature"] = calibrated.PolicyTemperature,
+                ["candidateEpoch"] = candidate.Epoch
+            };
+            calibrated.Metrics = inherited;
+            result.Add(new CombatPolicyValueModelCandidate
+            {
+                Epoch = candidate.Epoch,
+                ValidationLoss = CompositeValidationLoss(validation),
+                Model = calibrated
+            });
+        }
+        if (result.All(item => item.Epoch != selectedEpoch))
+        {
+            result.Add(new CombatPolicyValueModelCandidate
+            {
+                Epoch = selectedEpoch,
+                ValidationLoss = selectedModel.Metrics.TryGetValue(
+                    "validationCompositeLoss",
+                    out var loss)
+                    ? loss
+                    : double.MaxValue,
+                Model = Clone(selectedModel)
+            });
+        }
+        return result
+            .OrderBy(item => item.ValidationLoss)
+            .ThenBy(item => item.Epoch)
+            .Take(Math.Max(1, maximumCandidates))
+            .ToList();
     }
 
     private static string StableRunKey(CombatEpisode episode)
@@ -623,13 +723,15 @@ internal static class CombatPolicyValueBatchTrainer
             Critical = critical,
             Stratum = FrameStratum(episode, critical),
             BaseSampleWeight = Clamp(
-                episode.Campaign?.TrainingWeight ?? 1d,
+                (episode.Campaign?.TrainingWeight ?? 1d)
+                * Math.Max(0.1d, frame.TrainingWeight),
                 0.10d,
-                1d),
+                2d),
             SampleWeight = Clamp(
-                episode.Campaign?.TrainingWeight ?? 1d,
+                (episode.Campaign?.TrainingWeight ?? 1d)
+                * Math.Max(0.1d, frame.TrainingWeight),
                 0.10d,
-                1d)
+                2d)
         };
     }
 

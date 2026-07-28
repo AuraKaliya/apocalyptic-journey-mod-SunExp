@@ -39,7 +39,7 @@ public sealed class CombatEpisodeRecordingPolicy :
     public CombatSimulationAction? SelectAction(CombatSimulationPolicyContext context)
     {
         var selected = inner.SelectAction(context);
-        if (inner is CombatDecisionSimulationPolicy decisionPolicy
+        if (inner is ICombatDecisionTracePolicy decisionPolicy
             && decisionPolicy.LastObservation != null
             && decisionPolicy.LastDecision != null)
         {
@@ -47,7 +47,10 @@ public sealed class CombatEpisodeRecordingPolicy :
                 context,
                 decisionPolicy.LastObservation,
                 decisionPolicy.LastDecision,
-                selected));
+                selected,
+                inner is ICombatSimulationPolicyMetricsProvider metrics
+                && metrics.LastDecisionMetrics
+                       .AuthoritativeTeacherOverrides > 0));
         }
         return selected;
     }
@@ -101,7 +104,8 @@ public sealed class CombatEpisodeRecordingPolicy :
         CombatSimulationPolicyContext context,
         CombatStateObservation observation,
         CombatDecision decision,
-        CombatSimulationAction? selected)
+        CombatSimulationAction? selected,
+        bool authoritativeTeacherOverride)
     {
         var frame = new CombatEpisodeFrame
         {
@@ -111,7 +115,8 @@ public sealed class CombatEpisodeRecordingPolicy :
             StateFeatures = CombatPolicyValueEncoding.BuildStateFeatures(observation),
             ExecutedCandidateId = selected?.CandidateId
                                   ?? decision.Action?.CandidateId
-                                  ?? ""
+                                  ?? "",
+            TrainingWeight = authoritativeTeacherOverride ? 1.5d : 1d
         };
         foreach (var candidate in decision.Candidates ?? new List<CombatCandidateEvaluation>())
         {
