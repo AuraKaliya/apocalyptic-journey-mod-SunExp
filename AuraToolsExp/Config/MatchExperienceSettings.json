@@ -127,6 +127,16 @@
       "retainDivergentTraces": true,
       "minimumAuthoritativeCoverage": 1.0,
       "maximumWinRateRegression": 0.01
+    },
+    "gameValidation": {
+      "requiredForPromotion": true,
+      "hidePresentation": true,
+      "repetitionsPerFinalBoss": 1,
+      "minimumWinsPerFinalBoss": 0,
+      "maximumInvalidRuns": 0,
+      "maximumActionsPerBattle": 400,
+      "minimumDecisionsPerBattle": 1,
+      "battleTimeoutSeconds": 180
     }
   },
   "damageMeter": {

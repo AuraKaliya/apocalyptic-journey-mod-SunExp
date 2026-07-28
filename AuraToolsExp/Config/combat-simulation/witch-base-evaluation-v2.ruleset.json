@@ -10658,45 +10658,6 @@
                                             ],
                         "intents":  [
                                         {
-                                            "intentId":  "enemycard_HJE_Judgment",
-                                            "displayName":  "enemycard_HJE_Judgment",
-                                            "weight":  0,
-                                            "priority":  0,
-                                            "cooldownTurns":  0,
-                                            "tags":  [
-                                                         "Skill"
-                                                     ],
-                                            "effects":  [
-
-                                                        ]
-                                        },
-                                        {
-                                            "intentId":  "enemycard_HJE_Dawn",
-                                            "displayName":  "enemycard_HJE_Dawn",
-                                            "weight":  0,
-                                            "priority":  0,
-                                            "cooldownTurns":  0,
-                                            "tags":  [
-                                                         "Skill"
-                                                     ],
-                                            "effects":  [
-
-                                                        ]
-                                        },
-                                        {
-                                            "intentId":  "enemycard_HJE_HolyMachine",
-                                            "displayName":  "enemycard_HJE_HolyMachine",
-                                            "weight":  0,
-                                            "priority":  0,
-                                            "cooldownTurns":  0,
-                                            "tags":  [
-                                                         "Skill"
-                                                     ],
-                                            "effects":  [
-
-                                                        ]
-                                        },
-                                        {
                                             "intentId":  "enemycard_defence",
                                             "displayName":  "魔力屏障",
                                             "weight":  1,
@@ -17591,6 +17552,45 @@
                                                 }
                                             ],
                         "intents":  [
+                                        {
+                                            "intentId":  "enemycard_HJE_Judgment",
+                                            "displayName":  "enemycard_HJE_Judgment",
+                                            "weight":  0,
+                                            "priority":  0,
+                                            "cooldownTurns":  0,
+                                            "tags":  [
+                                                         "Skill"
+                                                     ],
+                                            "effects":  [
+
+                                                        ]
+                                        },
+                                        {
+                                            "intentId":  "enemycard_HJE_Dawn",
+                                            "displayName":  "enemycard_HJE_Dawn",
+                                            "weight":  0,
+                                            "priority":  0,
+                                            "cooldownTurns":  0,
+                                            "tags":  [
+                                                         "Skill"
+                                                     ],
+                                            "effects":  [
+
+                                                        ]
+                                        },
+                                        {
+                                            "intentId":  "enemycard_HJE_HolyMachine",
+                                            "displayName":  "enemycard_HJE_HolyMachine",
+                                            "weight":  0,
+                                            "priority":  0,
+                                            "cooldownTurns":  0,
+                                            "tags":  [
+                                                         "Skill"
+                                                     ],
+                                            "effects":  [
+
+                                                        ]
+                                        },
                                         {
                                             "intentId":  "enemycard_defence",
                                             "displayName":  "魔力屏障",
@@ -25189,7 +25189,7 @@
                                           "Tag":  "",
                                           "NativeExecution":  "Script",
                                           "NativeInitScript":  "",
-                                          "NativeApplyScript":  "AddEvent(\"StartRound\",()=\u003e{for(int i=0;i\u003c2;i++){CreateCard(new DataConfig(\"cursecard_14\",DataType.Card));}});\nSetStatus(\"AllTarget\");\nAddEvent\u003cHurtData\u003e(\"Hurt\",(data)=\u003e{\n    if(data.fromDataId!=\"enemycard_CAR_Sword\"){return;}\n    int hurtVal=0;int.TryParse(data.val,out hurtVal);if(hurtVal\u003c=0){return;}\n    int count=HandCard.Count(x=\u003ex!=null\u0026\u0026x.dataConfig.data[\"Id\"]==\"cursecard_14\");\n    if(count\u003c=5){return;}\n    foreach(var card in HandCard.Where(x=\u003ex!=null\u0026\u0026x.dataConfig.data[\"Id\"]==\"cursecard_14\").ToList()){BurnCardByData(card.dataConfig);}\n    SetStatusById(data.toId);if(Object.Count\u003e0){ChangeHp((-Object[0].MaxHp).ToString());}\n});",
+                                          "NativeApplyScript":  "AddEvent(\"StartRound\",()=\u003e{for(int i=0;i\u003c2;i++){CreateCard(new DataConfig(\"cursecard_14\",DataType.Card));}});\nSetStatus(\"AllTarget\");\nAddEvent\u003cHurtData\u003e(\"Hurt\",(data)=\u003e{\n    if(data.fromDataId!=\"enemycard_CAR_Sword\"){return;}\n    int hurtVal=0;int.TryParse(data.val,out hurtVal);if(hurtVal\u003c=0){return;}\n    int count=HandCard.Count(x=\u003ex!=null\u0026\u0026x.dataConfig.data[\"Id\"]==\"cursecard_14\");\n    if(count\u003c=5){return;}\n    foreach(var card in HandCard.Where(x=\u003ex!=null\u0026\u0026x.dataConfig.data[\"Id\"]==\"cursecard_14\").ToList()){BurnCardByData(card.dataConfig);}\n    SetStatusById(data.toId);if(Object.Count\u003e0){Damage(Object[0].MaxHp.ToString(),\"True\");}\n});",
                                           "NativeClearScript":  "",
                                           "NativeSourceApplyScript":  "AddEvent(\"StartRound\",()=\u003e { for (int i = 0; i \u003c 2; i++) { CreateCard(new DataConfig(\"cursecard_14\", DataType.Card)); } });SetStatus(\"AllTarget\");var targets = new List\u003cIStatusManager\u003e(Object);foreach (var target in targets){ if (target == null) { continue; } string bindId = target.InstanceId; EventCenter.Instance.AddEventListener\u003cHurtData\u003e(\"Hurt\" + bindId, (data) =\u003e { if (data.fromDataId != \"enemycard_CAR_Sword\") { return; } int hurtVal = 0; int.TryParse(data.val, out hurtVal); if (hurtVal \u003c= 0) { return; } int deathSightCount = HandCard.Count(x =\u003e x != null \u0026\u0026 x.dataConfig.data[\"Id\"] == \"cursecard_14\"); if (deathSightCount \u003c= 5) { return; } var handCopy = HandCard.ToList(); foreach (var card in handCopy){ if (card != null \u0026\u0026 card.dataConfig.data[\"Id\"] == \"cursecard_14\") { BurnCardByData(card.dataConfig); }} var hurted = FightManager.Instance.statuses.GetValueOrDefault(bindId, null); if (hurted == null || hurted.state == IStatusManager.State.Dead) { return; } hurted.Hit(hurted.MaxHp, \"True\", dataConfig.data[\"Id\"], Self.InstanceId); }, this, EventDispose.OnFightEnd);}",
                                           "NativeSourceClearScript":  ""

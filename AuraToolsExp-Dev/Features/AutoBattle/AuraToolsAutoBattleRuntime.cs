@@ -99,6 +99,7 @@ public static class AuraToolsAutoBattleRuntime
             },
             AuraToolsLog.Info,
             AuraToolsLog.Warn);
+        AuraToolsAutoBattleGameValidationRuntime.Initialize(modConfig);
         trainingSinkRegistration = CombatAiRegistry.RegisterTrainingSink(
             AuraToolsIds.ModId,
             "JsonLinesV4",
@@ -119,6 +120,16 @@ public static class AuraToolsAutoBattleRuntime
     public static void ReloadModels()
     {
         controller?.ApplyConfiguration();
+    }
+
+    internal static void BeginGameValidationBattle()
+    {
+        EnsureController().BeginGameValidationBattle();
+    }
+
+    internal static void EndGameValidationBattle()
+    {
+        controller?.EndGameValidationBattle();
     }
 
     private static void ResetForBattle()
@@ -289,6 +300,18 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         UpdateButtonLabel();
     }
 
+    internal void BeginGameValidationBattle()
+    {
+        ReloadDecisionEngine();
+        SetActive(true);
+        DestroyButton();
+    }
+
+    internal void EndGameValidationBattle()
+    {
+        SetActive(false);
+    }
+
     private void Update()
     {
         if (Time.unscaledTime >= nextUiProbeAt)
@@ -394,6 +417,8 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         var decision = ChooseDecision(state, "execute");
         if (!decision.HasAction || decision.Action == null)
         {
+            AuraToolsAutoBattleGameValidationRuntime.RecordExecutionFailure(
+                "模型没有返回可执行动作");
             StopWithReason("没有可执行的合法动作");
             return;
         }
@@ -437,11 +462,14 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         var execution = runtime.Execute(decision.Action);
         if (!execution.Accepted)
         {
+            AuraToolsAutoBattleGameValidationRuntime.RecordExecutionFailure(
+                execution.Message);
             transaction.Fail(execution.Message);
             StopWithReason(execution.Message);
             return;
         }
 
+        AuraToolsAutoBattleGameValidationRuntime.RecordDecision(state, decision);
         beforeAction = state;
         pendingDecision = decision;
         pendingSampleRecorded = false;
@@ -829,6 +857,26 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
     private void ReloadDecisionEngine()
     {
         var settings = AuraToolsConfigService.MatchExperience.AutoBattle;
+        if (AuraToolsAutoBattleGameValidationRuntime.TryGetValidationModels(
+                out var validationResidual,
+                out var validationGuidance,
+                out var validationPolicyValue,
+                out var validationModelId))
+        {
+            trainedModelMode = "active";
+            baselineDecisionEngine = new CombatDecisionEngine();
+            trainedDecisionEngine = new CombatDecisionEngine(
+                validationResidual,
+                validationGuidance,
+                policyValueModel: validationPolicyValue);
+            trainedModelId = validationModelId;
+            lastModelComparisonFingerprint = "";
+            pendingShadowFingerprint = "";
+            ClearDecisionCache();
+            lastModelDiagnostic = "游戏主体验证专用加载=" + validationModelId;
+            AuraToolsLog.Info("[AutoBattle] " + lastModelDiagnostic);
+            return;
+        }
         trainedModelMode = settings.TrainedModelMode;
         var model = AuraToolsAutoBattleModelRuntime.Load(
             settings.Profile,

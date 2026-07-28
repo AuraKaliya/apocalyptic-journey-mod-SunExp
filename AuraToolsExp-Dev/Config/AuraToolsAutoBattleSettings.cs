@@ -50,6 +50,9 @@ public sealed class AutoBattleSettings
     [JsonProperty("simulation")]
     public AutoBattleSimulationSettings Simulation { get; set; } = new();
 
+    [JsonProperty("gameValidation")]
+    public AutoBattleGameValidationSettings GameValidation { get; set; } = new();
+
     public void Normalize()
     {
         Training ??= AutoBattleTrainingSettings.CreateSteady();
@@ -75,6 +78,8 @@ public sealed class AutoBattleSettings
         FoundationTraining.Normalize();
         Simulation ??= new AutoBattleSimulationSettings();
         Simulation.Normalize();
+        GameValidation ??= new AutoBattleGameValidationSettings();
+        GameValidation.Normalize();
     }
 
     private static string NormalizeChoice(string value, params string[] choices)
@@ -89,6 +94,47 @@ public sealed class AutoBattleSettings
         }
 
         return choices[0];
+    }
+}
+
+public sealed class AutoBattleGameValidationSettings
+{
+    [JsonProperty("requiredForPromotion")]
+    public bool RequiredForPromotion { get; set; } = true;
+
+    [JsonProperty("hidePresentation")]
+    public bool HidePresentation { get; set; } = true;
+
+    [JsonProperty("repetitionsPerFinalBoss")]
+    public int RepetitionsPerFinalBoss { get; set; } = 1;
+
+    [JsonProperty("minimumWinsPerFinalBoss")]
+    public int MinimumWinsPerFinalBoss { get; set; }
+
+    [JsonProperty("maximumInvalidRuns")]
+    public int MaximumInvalidRuns { get; set; }
+
+    [JsonProperty("maximumActionsPerBattle")]
+    public int MaximumActionsPerBattle { get; set; } = 400;
+
+    [JsonProperty("minimumDecisionsPerBattle")]
+    public int MinimumDecisionsPerBattle { get; set; } = 1;
+
+    [JsonProperty("battleTimeoutSeconds")]
+    public int BattleTimeoutSeconds { get; set; } = 180;
+
+    public void Normalize()
+    {
+        RepetitionsPerFinalBoss = Math.Max(1, Math.Min(20, RepetitionsPerFinalBoss));
+        MinimumWinsPerFinalBoss = Math.Max(
+            0,
+            Math.Min(RepetitionsPerFinalBoss, MinimumWinsPerFinalBoss));
+        MaximumInvalidRuns = Math.Max(0, Math.Min(20, MaximumInvalidRuns));
+        MaximumActionsPerBattle = Math.Max(20, Math.Min(2000, MaximumActionsPerBattle));
+        MinimumDecisionsPerBattle = Math.Max(
+            1,
+            Math.Min(MaximumActionsPerBattle, MinimumDecisionsPerBattle));
+        BattleTimeoutSeconds = Math.Max(30, Math.Min(1800, BattleTimeoutSeconds));
     }
 }
 

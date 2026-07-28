@@ -28,6 +28,30 @@ Close or reopen the Codex workspace, then rename the repository root from its pa
 
 ---
 
+## [ERR-20260728-002] foundation-worker-smoke-max-path
+
+**Logged**: 2026-07-28T18:20:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The foundation worker smoke reached archive migration but PowerShell 5 `Copy-Item` failed on a 265-character legacy observation path.
+
+### Error
+```text
+DirectoryNotFoundException: Could not find a part of the path ...\v1\<compatibility>\observations\<case>.json
+```
+
+### Suggested Fix
+Use `System.IO.File.Copy` with Windows extended-length `\\?\` paths for the intentionally long v1 migration fixture.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Test-AuraFoundationTrainer.ps1
+
+---
+
 ## [ERR-20260727-005] foundation-smoke-system-web-loader
 
 **Logged**: 2026-07-27T00:00:00+08:00

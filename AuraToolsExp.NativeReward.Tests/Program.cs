@@ -195,6 +195,8 @@ try
     runtimeFailures.AddRange(ValidateKnownIntegritySeeds(
         campaign,
         rulesetBuild.Ruleset));
+    runtimeFailures.AddRange(ValidateFinalBossAuthority(
+        rulesetBuild.Ruleset));
     runtimeFailures.AddRange(ValidateIntegritySeedSweep(
         campaign,
         rulesetBuild.Ruleset,
@@ -224,6 +226,53 @@ catch (Exception ex)
         Console.Error.WriteLine(ex.InnerException.Message);
     }
     return 3;
+}
+
+static IEnumerable<string> ValidateFinalBossAuthority(CombatRuleset ruleset)
+{
+    var failures = new List<string>();
+    if (!ruleset.TryGetEnemy("enemy_10007", out var lostWitch)
+        || lostWitch.Intents.Any(item =>
+            item.IntentId.StartsWith("enemycard_HJE_", StringComparison.Ordinal)))
+    {
+        failures.Add(
+            "final-boss-authority: HJE dynamic intents leaked into enemy_10007");
+    }
+    var requiredHjeIntents = new[]
+    {
+        "enemycard_HJE_Judgment",
+        "enemycard_HJE_Dawn",
+        "enemycard_HJE_HolyMachine"
+    };
+    if (!ruleset.TryGetEnemy("enemy_10055", out var hje)
+        || requiredHjeIntents.Any(expected =>
+            hje.Intents.All(item =>
+                !string.Equals(
+                    item.IntentId,
+                    expected,
+                    StringComparison.Ordinal))))
+    {
+        failures.Add(
+            "final-boss-authority: enemy_10055 is missing one or more dynamic fate intents");
+    }
+    if (!ruleset.TryGetStatus(
+            "SpecialBuff_CAR_Deadline",
+            out var deadline)
+        || !deadline.Metadata.TryGetValue(
+            "NativeApplyScript",
+            out var deadlineScript)
+        || deadlineScript.IndexOf(
+            "Damage(Object[0].MaxHp.ToString(),\"True\")",
+            StringComparison.Ordinal) < 0
+        || deadlineScript.IndexOf(
+            "ChangeHp((-Object[0].MaxHp)",
+            StringComparison.Ordinal) >= 0)
+    {
+        failures.Add(
+            "final-boss-authority: Caroline deadline must execute max-HP true damage, not direct HP loss");
+    }
+    Console.WriteLine("Final boss authority checks: 3 cases.");
+    return failures;
 }
 
 static IEnumerable<string> ValidateHardAffixes(

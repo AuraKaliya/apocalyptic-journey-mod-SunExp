@@ -1073,7 +1073,14 @@ internal static class AuraToolsAutoBattleSimulationRuntime
                          ?? "模拟评估结果与当前模型不匹配";
                 return false;
             }
-            reason = "分组验证与至少一枚难度验证标记均已通过";
+            if (!AuraToolsAutoBattleGameValidationRuntime.CanPromote(
+                    profile,
+                    modelId,
+                    out reason))
+            {
+                return false;
+            }
+            reason = "分组验证、外部同种子评测与游戏主体回执均已通过";
             return true;
         }
         catch (Exception ex)
