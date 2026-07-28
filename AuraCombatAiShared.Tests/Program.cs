@@ -4085,7 +4085,18 @@ for (var episodeIndex = 0; episodeIndex < 10; episodeIndex++)
         episodePolicy);
     var recordedEpisode = episodePolicy.Complete(episodeResult);
     recordedEpisode.JourneyRunId = "policy-value-run:" + episodeIndex / 2;
-    recordedEpisode.JourneyBattleIndex = episodeIndex % 2;
+    recordedEpisode.JourneyBattleIndex = (episodeIndex % 4) switch
+    {
+        0 => 2,
+        1 => 12,
+        2 => 25,
+        _ => 36
+    };
+    recordedEpisode.Campaign.DifficultyId =
+        episodeIndex % 3 == 0 ? "advanced" : "normal";
+    recordedEpisode.Campaign.OutcomeClass =
+        episodeIndex % 2 == 0 ? "victory" : "defeat";
+    recordedEpisode.Campaign.FinalBossVictory = episodeIndex % 2 == 0;
     episodes.Add(recordedEpisode);
 }
 Assert(episodes.All(episode => episode.Frames.Count > 0
@@ -4125,6 +4136,12 @@ Assert(policyValueTraining.Success
            "validationCompositeLoss")
        && policyValueTraining.CandidateModels.Count > 0
        && policyValueTraining.CandidateModels.Count <= 3
+       && policyValueTraining.FrameStratificationProtocol
+          == CombatPolicyValueFrameStratificationProtocol.Version
+       && policyValueTraining.FrameStrata.Count >= 4
+       && policyValueTraining.MinimumFrameWeight
+          >= CombatPolicyValueFrameStratificationProtocol.MinimumWeight
+       && policyValueTraining.MaximumFrameWeight <= 3d
        && CombatPolicyValueNetworkValidator.TryValidate(
            policyValueTraining.Model,
            out _),
@@ -4735,6 +4752,97 @@ var mechanicBuildState = new CombatCampaignState
         "Crowdfundingcard_11"
     }
 };
+var boundedResidualDefinition = new CombatCampaignDefinition
+{
+    RewardScoreResidualMaximumAbsolute = 0.20d,
+    RewardScoreResiduals =
+    {
+        ["residual-positive"] = 10d,
+        ["residual-negative"] = -10d
+    },
+    Rewards =
+    {
+        new CombatCampaignRewardDefinition
+        {
+            RewardId = "residual-positive",
+            Kind = CombatCampaignRewardKind.Card,
+            BaseValue = 1d
+        },
+        new CombatCampaignRewardDefinition
+        {
+            RewardId = "residual-negative",
+            Kind = CombatCampaignRewardKind.Card,
+            BaseValue = 1d
+        }
+    }
+};
+var boundedResidualScores = CombatCampaignRewardSelector.ScoreRewards(
+    boundedResidualDefinition,
+    new CombatCampaignState
+    {
+        CurrentLayer = 1,
+        MaxHp = 100,
+        CurrentHp = 100
+    },
+    new[] { "residual-negative", "residual-positive" },
+    boundedResidualDefinition.Rewards.ToDictionary(
+        item => item.RewardId,
+        StringComparer.OrdinalIgnoreCase),
+    0,
+    CombatCampaignRewardKind.Card);
+Assert(boundedResidualScores[0].RewardId == "residual-positive"
+       && boundedResidualScores[0].LearnedResidual == 0.20d
+       && boundedResidualScores[1].LearnedResidual == -0.20d,
+    "campaign reward scoring applies learned residuals without exceeding the configured safety bound");
+var configuredRelicBiasDefinition = new CombatCampaignDefinition
+{
+    RewardScoreResidualMaximumAbsolute = 0.20d,
+    RewardScoreResiduals = { ["relic-keep"] = 0.10d },
+    RewardScoreBiasMaximumAbsolute = 8d,
+    RewardScoreBiases = { ["relic-avoid"] = -4d },
+    Rewards =
+    {
+        new CombatCampaignRewardDefinition
+        {
+            RewardId = "relic-keep",
+            Kind = CombatCampaignRewardKind.Relic,
+            BaseValue = 1d,
+            OfferWeight = 1d
+        },
+        new CombatCampaignRewardDefinition
+        {
+            RewardId = "relic-avoid",
+            Kind = CombatCampaignRewardKind.Relic,
+            BaseValue = 1d,
+            OfferWeight = 0d
+        }
+    }
+};
+var configuredRelicBiasScores = CombatCampaignRewardSelector.ScoreRewards(
+    configuredRelicBiasDefinition,
+    new CombatCampaignState
+    {
+        CurrentLayer = 1,
+        MaxHp = 100,
+        CurrentHp = 100
+    },
+    new[] { "relic-avoid", "relic-keep" },
+    configuredRelicBiasDefinition.Rewards.ToDictionary(
+        item => item.RewardId,
+        StringComparer.OrdinalIgnoreCase),
+    0,
+    CombatCampaignRewardKind.Relic);
+var weightedRelicPick = CombatCampaignWorldPlanner.PickWeightedUnused(
+    configuredRelicBiasDefinition.Rewards,
+    new HashSet<string>(StringComparer.OrdinalIgnoreCase),
+    123UL,
+    "relic-offer-test",
+    0);
+Assert(configuredRelicBiasScores[0].RewardId == "relic-keep"
+       && configuredRelicBiasScores[0].LearnedResidual == 0.10d
+       && configuredRelicBiasScores[1].ConfiguredBias == -4d
+       && weightedRelicPick == "relic-keep",
+    "configured relic avoidance lowers both deterministic offer probability and reward selection score");
 var mechanicPlan = CombatCampaignRewardSelector.RefreshBuildPlan(
     mechanicBuildDefinition,
     mechanicBuildState);
@@ -4780,6 +4888,36 @@ Assert(campaignPair.Baseline.CampaignVictory
        && campaignPair.Baseline.Rewards.All(item =>
            item.BuildPlan.TargetDeckSizeMaximum <= 35),
     "campaign runner carries full state, applies layer-aware deck bounds, and records the build plan separately from battle policy");
+var encounterStarts = new List<CombatCampaignCheckpoint>();
+var encounterPlan = CombatCampaignWorldPlanner.Build(
+    campaign,
+    "normal",
+    701UL);
+_ = new CombatCampaignRunner().RunMonitoredWithEncounterStarts(
+    campaign,
+    encounterPlan,
+    campaignRules.Ruleset,
+    new GreedyCombatSimulationPolicyFactory(),
+    battleProgress: null,
+    encounterStart: checkpoint => encounterStarts.Add(checkpoint));
+var localEncounterCheckpoint = encounterStarts[10];
+localEncounterCheckpoint.Battles.Clear();
+localEncounterCheckpoint.Rewards.Clear();
+localEncounterCheckpoint.Completed = false;
+var localEncounterResult = new CombatCampaignRunner().RunMonitoredSegment(
+    campaign,
+    encounterPlan,
+    campaignRules.Ruleset,
+    new GreedyCombatSimulationPolicyFactory(),
+    localEncounterCheckpoint,
+    maximumEncounters: 1,
+    battleProgress: null);
+Assert(localEncounterResult.Battles.Count == 1
+       && localEncounterResult.Battles[0].ScenarioId.Contains(
+           ":10:",
+           StringComparison.Ordinal)
+       && localEncounterResult.Checkpoint.NextEncounterIndex == 11,
+    "campaign runner can replay exactly one failed encounter from a compact pre-battle checkpoint");
 Assert(campaignRules.Ruleset.TryGetCardCore("strike", out var projectedStrike),
     "foundation fixture resolves the starter attack definition");
 projectedStrike!.Fidelity = CombatRuleFidelity.Authoritative;
@@ -4869,14 +5007,14 @@ Assert(curriculumOpening.Count(item => item == "advanced") == 0
                enabled: true,
                priorNormalWinRate: 0d,
                priorNormalTrials: 32)
-           .Count(item => item == "advanced") == 4
+           .Count(item => item == "advanced") == 7
        && CombatFoundationCurriculum.BuildDifficulties(
                20,
                1,
                4,
                123456789UL,
                enabled: true)
-           .Count(item => item == "advanced") == 3
+           .Count(item => item == "advanced") == 5
        && curriculumOpening.SequenceEqual(
            CombatFoundationCurriculum.BuildDifficulties(
                8,
@@ -4884,7 +5022,7 @@ Assert(curriculumOpening.Count(item => item == "advanced") == 0
                4,
                123456789UL,
                enabled: true)),
-    "foundation curriculum starts on normal, introduces 15 percent advanced play, and never removes advanced coverage after round one");
+    "foundation curriculum starts on normal, introduces 25 percent advanced play, and raises recovery coverage to 35 percent");
 CombatCandidateEvaluation BudgetCandidate(
     string id,
     CombatActionSemantics? semantics = null)
@@ -5207,6 +5345,99 @@ Assert(compatibleExpertEpisodes.Count == 1
            "case-rules")
        == successfulObservation.CompatibilityKey,
     "foundation expert replay is bounded and isolated by campaign, ruleset and feature protocol");
+var stratifiedExpertCases = Enumerable.Range(0, 8)
+    .Select(caseIndex =>
+    {
+        var advanced = caseIndex >= 6;
+        return new CombatFoundationSuccessCase
+        {
+            Observation = new CombatFoundationCampaignObservation
+            {
+                CaseId = "stratified-case-" + caseIndex,
+                ArchiveEligible = true,
+                CampaignId = "case-learning",
+                CampaignVersion = "1",
+                RulesetHash = "case-rules",
+                DifficultyId = advanced ? "advanced" : "normal",
+                StrategyFingerprint = "strategy-" + (caseIndex % 3),
+                RobustnessScore = 1d - caseIndex * 0.01d
+            },
+            Episodes = Enumerable.Range(0, 4)
+                .Select(battleIndex => new CombatEpisode
+                {
+                    EpisodeId = "stratified-episode-"
+                                + caseIndex
+                                + "-"
+                                + battleIndex,
+                    JourneyRunId = "stratified-run-" + caseIndex,
+                    JourneyBattleIndex = battleIndex,
+                    RulesetHash = "case-rules",
+                    Authoritative = true,
+                    Campaign = new CombatCampaignEpisodeMetadata
+                    {
+                        DifficultyId = advanced ? "advanced" : "normal",
+                        IntegrityValid = true,
+                        FinalBossVictory = true
+                    }
+                })
+                .ToList()
+        };
+    })
+    .ToList();
+var stratifiedExpertSelection =
+    CombatFoundationCaseLearning.SelectExpertReplay(
+        stratifiedExpertCases,
+        "case-learning",
+        "1",
+        "case-rules",
+        episodeLimit: 16,
+        targetAdvancedShare: 0.35d,
+        maximumEpisodesPerRun: 2);
+Assert(stratifiedExpertSelection.Episodes.Count == 16
+       && stratifiedExpertSelection.SelectedAdvancedEpisodes == 4
+       && stratifiedExpertSelection.SelectedNormalEpisodes == 12
+       && stratifiedExpertSelection.DistinctRuns == 8
+       && stratifiedExpertSelection.QuotaShortfalls["advanced"] == 2,
+    "expert replay is campaign-first, run-bounded, difficulty-stratified, and reports unavoidable quota shortfalls");
+var rewardResidualObservations = Enumerable.Range(0, 60)
+    .Select(index => new CombatFoundationCampaignObservation
+    {
+        CaseId = "reward-residual-" + index,
+        IntegrityValid = true,
+        FinalBossVictory = index < 30,
+        CompletedBattles = index < 30 ? 37 : 34,
+        SelectedCards =
+        {
+            index < 30 ? "learned-good-card" : "learned-bad-card"
+        },
+        Relics =
+        {
+            index < 30 ? "relic_learned_good" : "relic_learned_bad"
+        },
+        Blessings =
+        {
+            index < 30
+                ? "blessing_learned_good"
+                : "blessing_learned_bad"
+        }
+    })
+    .ToList();
+var rewardResidualTraining =
+    CombatFoundationCaseLearning.TrainRewardResiduals(
+        rewardResidualObservations);
+Assert(rewardResidualTraining.EligibleObservations == 60
+       && rewardResidualTraining.Residuals["learned-good-card"] > 0d
+       && rewardResidualTraining.Residuals["learned-bad-card"] < 0d
+       && rewardResidualTraining.Residuals["relic_learned_good"] > 0d
+       && rewardResidualTraining.Residuals["relic_learned_bad"] < 0d
+       && rewardResidualTraining.Residuals["blessing_learned_good"] > 0d
+       && rewardResidualTraining.Residuals["blessing_learned_bad"] < 0d
+       && rewardResidualTraining.CardResiduals == 2
+       && rewardResidualTraining.RelicResiduals == 2
+       && rewardResidualTraining.BlessingResiduals == 2
+       && rewardResidualTraining.Residuals.Values.All(value =>
+           Math.Abs(value) <= 0.20d),
+    "reward residual learning uses late comparable outcomes and hard-bounds every learned adjustment");
 
 var hardSeedEpisodes = Enumerable.Range(0, 5)
     .Select(index => new CombatEpisode
@@ -5249,6 +5480,355 @@ Assert(hardSeedPlan.SourceCampaigns == 4
            .SequenceEqual(hardSeedRepeat.Seeds.Select(seed => seed.WorldSeed))
        && hardSeedPlan.Clusters["recurring-gatekeeper"] == 3,
     "hard-seed curriculum deterministically replays valid prior defeats and emphasizes recurring terminal clusters");
+var cooledHardSeedPlan = CombatFoundationHardSeedCurriculum.Select(
+    new[]
+    {
+        new CombatFoundationHardSeedHistoryEntry
+        {
+            WorldSeed = 66_001UL,
+            DifficultyId = "normal",
+            TerminalScenarioId = "unsolved-gate",
+            FailureOccurrences = 3,
+            TrainingAttempts = 2,
+            RecoverySuccesses = 0,
+            LastTrainedIteration = 4
+        }
+    },
+    campaignCount: 8,
+    replayShare: 0.35d,
+    iteration: 5,
+    runSeed: 123UL,
+    enabled: true);
+Assert(cooledHardSeedPlan.SourceCampaigns == 0
+       && cooledHardSeedPlan.Seeds.Count == 0,
+    "repeated hard seeds with no recovery enter a cooldown instead of consuming every following curriculum round");
+var hardEncounterCheckpoint = new CombatCampaignCheckpoint
+{
+    CampaignId = "hard-encounter",
+    CampaignVersion = "1",
+    DifficultyId = "advanced",
+    WorldSeed = 77_001UL,
+    PlanHash = "hard-plan",
+    PolicyId = "aura-foundation-training:balanced",
+    NextEncounterIndex = 5
+};
+var hardEncounterPlan = CombatFoundationHardSeedCurriculum.Select(
+    new[]
+    {
+        new CombatFoundationHardSeedHistoryEntry
+        {
+            WorldSeed = 77_001UL,
+            DifficultyId = "advanced",
+            TerminalScenarioId = "hard-encounter:5:gate",
+            CompletedBattles = 6,
+            FirstSeenIteration = 1,
+            LastSeenIteration = 1,
+            FailureOccurrences = 2,
+            FailureEncounterCheckpoint = hardEncounterCheckpoint
+        }
+    },
+    campaignCount: 4,
+    replayShare: 0.5d,
+    iteration: 2,
+    runSeed: 99UL,
+    enabled: true);
+var hardEncounterSchedule = CombatFoundationTrainingSchedule.Build(
+    4,
+    80_000UL,
+    99UL,
+    2,
+    CombatFoundationCurriculum.Evaluate(
+        true,
+        2,
+        10,
+        32,
+        0,
+        32),
+    hardEncounterPlan);
+Assert(hardEncounterPlan.Seeds.Single().FailureEncounterCheckpoint
+           ?.NextEncounterIndex == 5
+       && hardEncounterSchedule.Single(slot => slot.HardSeed)
+           .FailureEncounterCheckpoint?.NextEncounterIndex == 5,
+    "hard-seed planning carries the compact failed-encounter checkpoint into the training schedule");
+var terminalCreditEpisodes = Enumerable.Range(0, 3)
+    .Select(index => new CombatEpisode
+    {
+        JourneyBattleIndex = index,
+        Frames =
+        {
+            new CombatEpisodeFrame(),
+            new CombatEpisodeFrame()
+        }
+    })
+    .ToList();
+var terminalCreditCampaign = new CombatCampaignResult
+{
+    WorldSeed = 9001UL,
+    DifficultyId = "normal",
+    CompletedBattles = 3,
+    TotalBattles = 37,
+    Battles =
+    {
+        new CombatSimulationResult
+        {
+            ScenarioId = "won-1",
+            Outcome = CombatSimulationOutcome.Victory
+        },
+        new CombatSimulationResult
+        {
+            ScenarioId = "won-2",
+            Outcome = CombatSimulationOutcome.Victory
+        },
+        new CombatSimulationResult
+        {
+            ScenarioId = "lost-3",
+            Outcome = CombatSimulationOutcome.Defeat
+        }
+    }
+};
+CombatCampaignFoundationTrainer.ApplyCampaignTargets(
+    terminalCreditEpisodes,
+    terminalCreditCampaign,
+    "terminal-credit-test",
+    1);
+Assert(terminalCreditEpisodes[0].Frames[0].LongTermReturn > 0d
+       && terminalCreditEpisodes[0].Campaign.OutcomeClass
+          == "battle-victory"
+       && terminalCreditEpisodes[1].Frames[0].LongTermReturn
+          > terminalCreditEpisodes[2].Frames[0].LongTermReturn
+       && terminalCreditEpisodes[2].Frames[^1].LongTermReturn == -1d,
+    "terminal credit preserves local victories while assigning the strongest negative target to the actual failing encounter");
+Assert(CombatCampaignFoundationTrainer.ShouldRunCounterfactualHardEncounter(
+           new CombatCampaignFoundationTrainingRequest
+           {
+               EnableCounterfactualHardEncounters = true
+           },
+           true,
+           terminalCreditCampaign)
+       && !CombatCampaignFoundationTrainer.ShouldRunCounterfactualHardEncounter(
+           new CombatCampaignFoundationTrainingRequest
+           {
+               EnableCounterfactualHardEncounters = false
+           },
+           true,
+           terminalCreditCampaign),
+    "hard-encounter counterfactual replay is gated by protocol setting and a real local defeat");
+var counterfactualBaseline = new CombatCampaignResult
+{
+    Battles =
+    {
+        new CombatSimulationResult
+        {
+            Outcome = CombatSimulationOutcome.Defeat,
+            Turns = 3,
+            Metrics = new CombatSimulationMetrics
+            {
+                DamageDealt = 40
+            }
+        }
+    }
+};
+var counterfactualImprovement = new CombatCampaignResult
+{
+    Battles =
+    {
+        new CombatSimulationResult
+        {
+            Outcome = CombatSimulationOutcome.Defeat,
+            Turns = 4,
+            Metrics = new CombatSimulationMetrics
+            {
+                DamageDealt = 55
+            }
+        }
+    }
+};
+var counterfactualVictory = new CombatCampaignResult
+{
+    Battles =
+    {
+        new CombatSimulationResult
+        {
+            Outcome = CombatSimulationOutcome.Victory,
+            Turns = 4
+        }
+    }
+};
+var counterfactualNoGain = new CombatCampaignResult
+{
+    Battles =
+    {
+        new CombatSimulationResult
+        {
+            Outcome = CombatSimulationOutcome.Defeat,
+            Turns = 3,
+            Metrics = new CombatSimulationMetrics
+            {
+                DamageDealt = 44
+            }
+        }
+    }
+};
+Assert(CombatCampaignFoundationTrainer.ClassifyCounterfactual(
+           counterfactualBaseline,
+           counterfactualVictory)
+       == CombatFoundationCounterfactualAdmission.Victory
+       && CombatCampaignFoundationTrainer.ClassifyCounterfactual(
+           counterfactualBaseline,
+           counterfactualImprovement)
+       == CombatFoundationCounterfactualAdmission.Improved
+       && CombatCampaignFoundationTrainer.ClassifyCounterfactual(
+           counterfactualBaseline,
+           counterfactualNoGain)
+       == CombatFoundationCounterfactualAdmission.Rejected,
+    "counterfactual admission retains victories and measurable improvements while rejecting no-gain teacher defeats");
+var ineffectiveHardIterations = new List<CombatCampaignFoundationIteration>
+{
+    new()
+    {
+        HardSeedCounterfactualCampaigns = 10
+    },
+    new()
+    {
+        HardSeedCounterfactualCampaigns = 10
+    }
+};
+var adaptiveHardRequest = new CombatCampaignFoundationTrainingRequest
+{
+    HardSeedReplayShare = 0.35d
+};
+Assert(Math.Abs(
+           CombatCampaignFoundationTrainer.EffectiveHardSeedReplayShare(
+               adaptiveHardRequest,
+               ineffectiveHardIterations)
+           - CombatFoundationStagnationProtocol.ReducedHardSeedReplayShare)
+       < 0.000001d,
+    "hard-seed replay share is reduced after a sustained unsolved counterfactual window");
+ineffectiveHardIterations[1].HardSeedCounterfactualVictories = 1;
+Assert(Math.Abs(
+           CombatCampaignFoundationTrainer.EffectiveHardSeedReplayShare(
+               adaptiveHardRequest,
+               ineffectiveHardIterations)
+           - adaptiveHardRequest.HardSeedReplayShare)
+       < 0.000001d,
+    "hard-seed replay share remains configured when the recent solve-rate floor is met");
+var stagnationIterations = new List<CombatCampaignFoundationIteration>
+{
+    new() { Promoted = true },
+    new() { Promoted = false },
+    new() { Promoted = false },
+    new() { Promoted = false }
+};
+Assert(CombatCampaignFoundationTrainer.ShouldStopForStagnation(
+           new CombatCampaignFoundationTrainingRequest
+           {
+               MaximumConsecutiveRejectedIterations = 3
+           },
+           stagnationIterations,
+           hasChampion: true)
+       && !CombatCampaignFoundationTrainer.ShouldStopForStagnation(
+           new CombatCampaignFoundationTrainingRequest
+           {
+               MaximumConsecutiveRejectedIterations = 3
+           },
+           stagnationIterations,
+           hasChampion: false),
+    "stagnation control stops only after the configured rejected-candidate streak and only when a usable champion exists");
+var longArchiveRoot =
+    @"D:\Steam\steamapps\common\Witch's Apocalyptic Journey\Witch's Apocalyptic Journey_Data\ModsData\AuraShared\Logs\AuraToolsExp\combat-simulation-results\foundation-success-cases";
+var fullCompatibilityKey = new string('a', 64);
+var fullCaseId = new string('b', 64);
+var compactArchivePath = CombatFoundationCaseArchiveProtocol.EntryPath(
+    longArchiveRoot,
+    fullCompatibilityKey,
+    CombatFoundationCaseArchiveProtocol.ExpertDirectoryName,
+    fullCaseId);
+var legacyArchivePath = Path.Combine(
+    CombatFoundationCaseArchiveProtocol.LegacyCompatibilityDirectory(
+        longArchiveRoot,
+        fullCompatibilityKey),
+    "expert-cases",
+    fullCaseId + ".json");
+Assert(CombatFoundationCaseArchiveProtocol.Version
+           == "success-case-archive-worker-v2"
+       && compactArchivePath.Length < 260
+       && compactArchivePath.Length < legacyArchivePath.Length
+       && compactArchivePath.Contains(
+           Path.DirectorySeparatorChar
+           + "v2"
+           + Path.DirectorySeparatorChar,
+           StringComparison.Ordinal)
+       && !compactArchivePath.Contains(
+           fullCompatibilityKey,
+           StringComparison.Ordinal),
+    "case archive v2 keeps long Steam install paths below the legacy MAX_PATH boundary while payload ids remain authoritative");
+var workerProtocolJob = new CombatFoundationWorkerJob
+{
+    JobId = "worker-protocol-test"
+};
+var workerProtocolProgress = new CombatFoundationWorkerProgress
+{
+    JobId = workerProtocolJob.JobId
+};
+var workerProtocolResult = new CombatFoundationWorkerResult
+{
+    JobId = workerProtocolJob.JobId
+};
+Assert(workerProtocolJob.SchemaVersion
+           == CombatFoundationWorkerProtocol.SchemaVersion
+       && CombatFoundationWorkerProtocol.SchemaVersion == 7
+       && CombatFoundationTerminalCreditProtocol.Version
+          == "terminal-credit-v2"
+       && CombatFoundationCounterfactualProtocol.Version
+          == "hard-encounter-counterfactual-v2"
+       && CombatFoundationStagnationProtocol.Version
+          == "foundation-stagnation-v1"
+       && CombatPolicyValueFrameStratificationProtocol.Version
+          == "frame-strata-v1"
+       && workerProtocolProgress.SchemaVersion
+           == CombatFoundationWorkerProtocol.SchemaVersion
+       && workerProtocolResult.SchemaVersion
+           == CombatFoundationWorkerProtocol.SchemaVersion
+       && new CombatFoundationWorkerCheckpoint().SchemaVersion
+           == CombatFoundationWorkerProtocol.SchemaVersion
+       && new CombatCampaignFoundationResumeState().SchemaVersion
+           == CombatFoundationWorkerProtocol.SchemaVersion
+       && new CombatFoundationCompatibilityManifest().SchemaVersion
+           == CombatFoundationWorkerProtocol.SchemaVersion,
+    "foundation worker artifacts share one protocol version constant");
+Assert(CombatFoundationWorkerProtocol.TryValidateJob(
+           workerProtocolJob,
+           out var validJobDiagnostic)
+       && string.IsNullOrEmpty(validJobDiagnostic)
+       && CombatFoundationWorkerProtocol.TryValidateProgress(
+           workerProtocolProgress,
+           workerProtocolJob.JobId,
+           out var validProgressDiagnostic)
+       && string.IsNullOrEmpty(validProgressDiagnostic)
+       && CombatFoundationWorkerProtocol.TryValidateResult(
+           workerProtocolResult,
+           workerProtocolJob.JobId,
+           out var validResultDiagnostic)
+       && string.IsNullOrEmpty(validResultDiagnostic),
+    "foundation worker host accepts matching job, progress and result artifacts");
+workerProtocolProgress.SchemaVersion =
+    CombatFoundationWorkerProtocol.SchemaVersion - 1;
+Assert(!CombatFoundationWorkerProtocol.TryValidateProgress(
+           workerProtocolProgress,
+           workerProtocolJob.JobId,
+           out var versionDiagnostic)
+       && versionDiagnostic.Contains("worker=6", StringComparison.Ordinal)
+       && versionDiagnostic.Contains("host=7", StringComparison.Ordinal),
+    "foundation worker host rejects stale progress with an actionable protocol diagnostic");
+workerProtocolProgress.SchemaVersion =
+    CombatFoundationWorkerProtocol.SchemaVersion;
+workerProtocolProgress.JobId = "other-worker-job";
+Assert(!CombatFoundationWorkerProtocol.TryValidateProgress(
+           workerProtocolProgress,
+           workerProtocolJob.JobId,
+           out var jobIdDiagnostic)
+       && jobIdDiagnostic.Contains("jobId 不匹配", StringComparison.Ordinal),
+    "foundation worker host rejects progress from a different job with an actionable diagnostic");
 var foundationRequest = new CombatCampaignFoundationTrainingRequest
 {
     DecisionProfile = "balanced",
@@ -5259,7 +5839,15 @@ var foundationRequest = new CombatCampaignFoundationTrainingRequest
     PreflightSeedStart = 19_000,
     NormalValidationCampaigns = 5,
     AdvancedValidationCampaigns = 5,
+    CapabilityProbeCampaignsPerDifficulty = 1,
     MaximumDegreeOfParallelism = 4,
+    CaseArchiveLoad = new CombatFoundationCaseArchiveLoadDiagnostics
+    {
+        ArchiveExists = true,
+        LoadedCases = 3,
+        LoadedObservations = 9,
+        Message = "fixture"
+    },
     TrainingSeedStart = 10_000,
     ArenaSeedStart = 20_000,
     ValidationSeedStart = 30_000,
@@ -5326,6 +5914,8 @@ Assert(foundationTraining.Success
            foundationTraining.Validation.RequiredAdvancedWinRate - 0.5d)
           < 0.0001d
        && foundationTraining.CompletedCampaigns < 999
+       && foundationTraining.CaseArchiveLoad.LoadedCases == 3
+       && foundationTraining.CaseArchiveLoad.LoadedObservations == 9
        && foundationTraining.Validation.NormalWinRate == 1d
        && foundationTraining.Validation.AdvancedWinRate == 1d
        && foundationTraining.EffectiveParallelism == 4
@@ -5343,6 +5933,11 @@ Assert(foundationTraining.Success
        && foundationTraining.PolicyDecisions > 0
        && foundationTraining.SearchSimulations > 0
        && foundationTraining.SearchNodes > 0
+       && foundationTraining.CapabilityProbe.Arms.Count == 3
+       && foundationTraining.CapabilityProbe.Arms.All(arm =>
+           arm.NormalCampaigns == 1
+           && arm.AdvancedCampaigns == 1
+           && arm.InvalidCampaigns == 0)
        && incrementallyObservedFoundationCases
           == foundationTraining.CampaignObservations.Count
        && incrementallyArchivedFoundationCases
@@ -5382,7 +5977,8 @@ var resumedFoundationTraining = new CombatCampaignFoundationTrainer().Run(
     campaignRules.Ruleset);
 Assert(interruptedFoundationObserved
        && capturedFoundationCheckpoint != null
-       && capturedFoundationCheckpoint.SchemaVersion == 4
+       && capturedFoundationCheckpoint.SchemaVersion
+          == CombatFoundationWorkerProtocol.SchemaVersion
        && capturedFoundationCheckpoint.Compatibility.FeatureSchemaVersion
           == CombatPolicyValueProtocol.FeatureSchemaVersion
        && capturedFoundationCheckpoint.Compatibility.CampaignId

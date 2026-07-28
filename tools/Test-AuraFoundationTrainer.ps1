@@ -16,10 +16,14 @@ param(
 
 $ErrorActionPreference = "Stop"
 function Read-FoundationJson([string]$Path) {
-    return [System.IO.File]::ReadAllText(
+    $json = [System.IO.File]::ReadAllText(
         $Path,
-        [System.Text.Encoding]::UTF8) |
-        ConvertFrom-Json
+        [System.Text.Encoding]::UTF8)
+    # Windows PowerShell 5 rejects otherwise valid JSON objects that contain
+    # an empty property name. Native simulation state can legitimately expose
+    # an empty runtime-variable key, so normalize only that property token in
+    # the smoke-test reader.
+    return $json.Replace('"":', '"__empty":') | ConvertFrom-Json
 }
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $effectivePreflightCampaignsPerDifficulty = [Math]::Max(
@@ -47,6 +51,7 @@ try {
     $cancelPath = Join-Path $smokeRoot "cancel"
     $checkpointPath = Join-Path $smokeRoot "checkpoint.json"
     $checkpointEpisodesPath = Join-Path $smokeRoot "checkpoint-episodes.jsonl"
+    $archiveRoot = Join-Path $smokeRoot "foundation-success-cases"
     $profile = [ordered]@{
         Id = "balanced"
         SearchSimulationBudget = $SearchSimulationBudget
@@ -64,6 +69,7 @@ try {
         ArenaCampaignsPerDifficulty = 1
         NormalValidationCampaigns = 5
         AdvancedValidationCampaigns = 5
+        CapabilityProbeCampaignsPerDifficulty = 0
         PreflightCampaignsPerDifficulty = $PreflightCampaignsPerDifficulty
         PreflightSeedStart = $PreflightSeedStart
         PreflightOnly = [bool]$PreflightOnly
@@ -85,8 +91,9 @@ try {
         TrainingCampaign = $campaign
         ValidationCampaign = $campaign
     }
+    $protocolVersion = 7
     $job = [ordered]@{
-        SchemaVersion = 4
+        SchemaVersion = $protocolVersion
         JobId = "worker-smoke"
         ExpectedRulesetHash = ""
         ResultDirectory = $smokeRoot
@@ -95,6 +102,7 @@ try {
         CancellationPath = $cancelPath
         CheckpointPath = $checkpointPath
         CheckpointEpisodesPath = $checkpointEpisodesPath
+        SuccessArchiveDirectory = $archiveRoot
         Request = $request
         Ruleset = $ruleset
     }
@@ -171,6 +179,15 @@ try {
         throw "Foundation trainer progress artifact is missing."
     }
     $progress = Read-FoundationJson $progressPath
+    if ([int]$progress.SchemaVersion -ne $protocolVersion `
+        -or [string]$progress.JobId -ne [string]$job.JobId `
+        -or [int]$result.SchemaVersion -ne $protocolVersion `
+        -or [string]$result.JobId -ne [string]$job.JobId) {
+        throw (
+            "Foundation worker artifacts are incompatible with the host protocol: " `
+            + "job=$($job.SchemaVersion), progress=$($progress.SchemaVersion), " `
+            + "result=$($result.SchemaVersion).")
+    }
     if ($PreflightOnly) {
         if (-not $result.Training.Success `
             -or $result.Training.Preflight.CompletedCampaigns `
@@ -207,8 +224,8 @@ try {
     }
     if (-not $PreflightOnly -and -not $result.Training.AcceptancePassed) {
         $checkpoint = Read-FoundationJson $checkpointPath
-        if ([int]$checkpoint.SchemaVersion -ne 4 `
-            -or [int]$checkpoint.Resume.SchemaVersion -ne 4 `
+        if ([int]$checkpoint.SchemaVersion -ne $protocolVersion `
+            -or [int]$checkpoint.Resume.SchemaVersion -ne $protocolVersion `
             -or [string]::IsNullOrWhiteSpace(
                 [string]$checkpoint.Resume.Compatibility.RulesetHash) `
             -or [string]::IsNullOrWhiteSpace(
@@ -218,6 +235,69 @@ try {
             -or [string]::IsNullOrWhiteSpace(
                 [string]$checkpoint.Resume.Compatibility.ValidationCampaignHash)) {
             throw "Foundation checkpoint compatibility manifest is incomplete."
+        }
+    }
+
+    if (-not $PreflightOnly) {
+        $compactObservation = Get-ChildItem -LiteralPath $archiveRoot `
+            -Filter "*.json" -File -Recurse |
+            Where-Object {
+                $_.Directory.Name -eq "o" `
+                -and $_.FullName.Contains(
+                    [System.IO.Path]::DirectorySeparatorChar `
+                    + "v2" `
+                    + [System.IO.Path]::DirectorySeparatorChar)
+            } |
+            Select-Object -First 1
+        if ($null -eq $compactObservation) {
+            throw "Foundation worker did not write a compact v2 observation."
+        }
+        $observation = Read-FoundationJson $compactObservation.FullName
+        $legacyObservationDirectory = Join-Path $archiveRoot (
+            "v1\" `
+            + [string]$observation.CompatibilityKey `
+            + "\observations")
+        New-Item -ItemType Directory -Force `
+            -Path $legacyObservationDirectory | Out-Null
+        $legacyObservationPath = Join-Path $legacyObservationDirectory (
+            [string]$observation.CaseId + ".json")
+        Copy-Item -LiteralPath $compactObservation.FullName `
+            -Destination $legacyObservationPath -Force
+        Remove-Item -LiteralPath $compactObservation.FullName -Force
+
+        $migrationJobPath = Join-Path $smokeRoot "migration-job.json"
+        $migrationProgressPath = Join-Path $smokeRoot "migration-progress.json"
+        $migrationResultPath = Join-Path $smokeRoot "migration-result.json"
+        $job.JobId = "worker-archive-migration"
+        $job.ProgressPath = $migrationProgressPath
+        $job.ResultPath = $migrationResultPath
+        $job.ResumeFromCheckpoint = $false
+        $job.Request.PreflightOnly = $true
+        $job.Request.PreflightCampaignsPerDifficulty = 1
+        $job | ConvertTo-Json -Depth 100 |
+            Set-Content -LiteralPath $migrationJobPath -Encoding UTF8
+        & $worker --job $migrationJobPath
+        if ($LASTEXITCODE -ne 0) {
+            throw "Foundation archive migration smoke process failed: $LASTEXITCODE"
+        }
+        $migrationResult = Read-FoundationJson $migrationResultPath
+        $archiveLoad = $migrationResult.Training.CaseArchiveLoad
+        $migratedCompactPath = Join-Path $archiveRoot (
+            "v2\" `
+            + ([string]$observation.CompatibilityKey).Substring(0, 16) `
+            + "\o\" `
+            + ([string]$observation.CaseId).Substring(0, 24) `
+            + ".json")
+        if ([string]$archiveLoad.ProtocolVersion `
+                -ne "success-case-archive-worker-v2" `
+            -or [string]$archiveLoad.OwnerRuntime -ne ".NET 8 worker" `
+            -or [int]$archiveLoad.LegacyObservationFiles -lt 1 `
+            -or [int]$archiveLoad.LoadedObservations -lt 1 `
+            -or [int]$archiveLoad.MigratedObservations -lt 1 `
+            -or -not (Test-Path -LiteralPath $migratedCompactPath -PathType Leaf)) {
+            throw (
+                "Foundation archive v1-to-v2 migration contract failed: " `
+                + ($archiveLoad | ConvertTo-Json -Depth 8 -Compress))
         }
     }
 

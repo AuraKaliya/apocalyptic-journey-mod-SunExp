@@ -118,6 +118,9 @@ public sealed class AutoBattleFoundationTrainingSettings
     [JsonProperty("advancedValidationCampaigns")]
     public int AdvancedValidationCampaigns { get; set; } = 500;
 
+    [JsonProperty("capabilityProbeCampaignsPerDifficulty")]
+    public int CapabilityProbeCampaignsPerDifficulty { get; set; } = 16;
+
     [JsonProperty("preflightCampaignsPerDifficulty")]
     public int PreflightCampaignsPerDifficulty { get; set; } = 32;
 
@@ -140,6 +143,9 @@ public sealed class AutoBattleFoundationTrainingSettings
     [JsonProperty("enableHardSeedCurriculum")]
     public bool EnableHardSeedCurriculum { get; set; } = true;
 
+    [JsonProperty("enableCounterfactualHardEncounters")]
+    public bool EnableCounterfactualHardEncounters { get; set; } = true;
+
     [JsonProperty("enableSuccessCaseArchive")]
     public bool EnableSuccessCaseArchive { get; set; } = true;
 
@@ -156,10 +162,13 @@ public sealed class AutoBattleFoundationTrainingSettings
     public bool EnableTuningArena { get; set; } = true;
 
     [JsonProperty("tuningNormalCampaigns")]
-    public int TuningNormalCampaigns { get; set; } = 8;
+    public int TuningNormalCampaigns { get; set; } = 24;
 
     [JsonProperty("tuningAdvancedCampaigns")]
-    public int TuningAdvancedCampaigns { get; set; } = 12;
+    public int TuningAdvancedCampaigns { get; set; } = 24;
+
+    [JsonProperty("maximumConsecutiveRejectedIterations")]
+    public int MaximumConsecutiveRejectedIterations { get; set; } = 3;
 
     [JsonProperty("normalAcceptanceRate")]
     public double NormalAcceptanceRate { get; set; } = 0.90d;
@@ -193,6 +202,12 @@ public sealed class AutoBattleFoundationTrainingSettings
 
     [JsonProperty("modelBatchSize")]
     public int ModelBatchSize { get; set; } = 64;
+
+    [JsonProperty("enableFrameStratification")]
+    public bool EnableFrameStratification { get; set; } = true;
+
+    [JsonProperty("modelMaximumFrameStratumWeight")]
+    public double ModelMaximumFrameStratumWeight { get; set; } = 3d;
 
     [JsonProperty("modelReplayEpisodeLimit")]
     public int ModelReplayEpisodeLimit { get; set; } = 6000;
@@ -248,6 +263,9 @@ public sealed class AutoBattleFoundationTrainingSettings
         AdvancedValidationCampaigns = Math.Max(
             10,
             Math.Min(1000, AdvancedValidationCampaigns));
+        CapabilityProbeCampaignsPerDifficulty = Math.Max(
+            0,
+            Math.Min(32, CapabilityProbeCampaignsPerDifficulty));
         PreflightCampaignsPerDifficulty = Math.Max(
             1,
             Math.Min(100, PreflightCampaignsPerDifficulty));
@@ -267,6 +285,11 @@ public sealed class AutoBattleFoundationTrainingSettings
             0.1d,
             0.0002d);
         ModelBatchSize = Math.Max(8, Math.Min(512, ModelBatchSize));
+        ModelMaximumFrameStratumWeight = ClampFinite(
+            ModelMaximumFrameStratumWeight,
+            1d,
+            5d,
+            3d);
         ModelReplayEpisodeLimit = Math.Max(
             64,
             Math.Min(20000, ModelReplayEpisodeLimit));
@@ -303,6 +326,9 @@ public sealed class AutoBattleFoundationTrainingSettings
         TuningAdvancedCampaigns = Math.Max(
             0,
             Math.Min(64, TuningAdvancedCampaigns));
+        MaximumConsecutiveRejectedIterations = Math.Max(
+            0,
+            Math.Min(8, MaximumConsecutiveRejectedIterations));
         NormalAcceptanceRate = ClampFinite(
             NormalAcceptanceRate,
             0d,

@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using AuraCombatSimulation.Shared;
 
 namespace AuraCombatAi.Shared;
 
@@ -139,9 +140,9 @@ public static class CombatFoundationCurriculum
                 Stage = "advanced-introduction",
                 NormalWilsonLowerBound = normalLower,
                 AdvancedWilsonLowerBound = advancedLower,
-                AdvancedShare = 0.15d,
-                MinimumAdvancedShare = 0.15d,
-                MaximumAdvancedShare = 0.15d
+                AdvancedShare = 0.25d,
+                MinimumAdvancedShare = 0.25d,
+                MaximumAdvancedShare = 0.25d
             };
         }
         if (normalLower < 0.75d)
@@ -151,9 +152,9 @@ public static class CombatFoundationCurriculum
                 Stage = "normal-recovery-with-advanced-floor",
                 NormalWilsonLowerBound = normalLower,
                 AdvancedWilsonLowerBound = advancedLower,
-                AdvancedShare = 0.20d,
-                MinimumAdvancedShare = 0.15d,
-                MaximumAdvancedShare = 0.35d
+                AdvancedShare = 0.35d,
+                MinimumAdvancedShare = 0.30d,
+                MaximumAdvancedShare = 0.45d
             };
         }
         if (advancedLower < 0.25d)
@@ -268,9 +269,9 @@ public static class CombatFoundationCurriculum
         }
         if (iteration <= 2)
         {
-            return 0.15d;
+            return 0.25d;
         }
-        return 0.20d;
+        return 0.35d;
     }
 
     public static double WilsonLowerBound(
@@ -328,6 +329,8 @@ public sealed class CombatFoundationHardSeed
     public string SourceCategory { get; set; } = "hard-diversity";
 
     public double PriorityScore { get; set; }
+
+    public CombatCampaignCheckpoint? FailureEncounterCheckpoint { get; set; }
 }
 
 public sealed class CombatFoundationHardSeedPlan
@@ -366,6 +369,8 @@ public sealed class CombatFoundationHardSeedHistoryEntry
     public int LastTrainedIteration { get; set; }
 
     public bool Resolved { get; set; }
+
+    public CombatCampaignCheckpoint? FailureEncounterCheckpoint { get; set; }
 }
 
 public static class CombatFoundationHardSeedCurriculum
@@ -407,7 +412,11 @@ public static class CombatFoundationHardSeedCurriculum
             .Where(item => item != null
                            && item.WorldSeed > 0UL
                            && !item.Resolved
-                           && item.FailureOccurrences > 0)
+                           && item.FailureOccurrences > 0
+                           && (item.TrainingAttempts < 2
+                               || item.RecoverySuccesses > 0
+                               || item.LastTrainedIteration
+                                  < Math.Max(0, iteration - 1)))
             .GroupBy(item => new
             {
                 item.WorldSeed,
@@ -549,6 +558,7 @@ public static class CombatFoundationHardSeedCurriculum
             DifficultyId = NormalizeDifficulty(item.DifficultyId),
             TerminalScenarioId = item.TerminalScenarioId ?? "",
             CompletedBattles = item.CompletedBattles,
+            FailureEncounterCheckpoint = item.FailureEncounterCheckpoint,
             PriorityScore = recurrence * 10d
                             + unresolvedAge * 2d
                             + severity
@@ -684,6 +694,8 @@ public sealed class CombatFoundationTrainingSlot
     public double PriorityScore { get; set; }
 
     public bool HardSeed { get; set; }
+
+    public CombatCampaignCheckpoint? FailureEncounterCheckpoint { get; set; }
 }
 
 public static class CombatFoundationTrainingSchedule
@@ -732,7 +744,9 @@ public static class CombatFoundationTrainingSchedule
                     ? "unknown-terminal"
                     : hard.TerminalScenarioId,
                 PriorityScore = hard.PriorityScore,
-                HardSeed = true
+                HardSeed = true,
+                FailureEncounterCheckpoint =
+                    hard.FailureEncounterCheckpoint
             };
         }
 
@@ -1010,6 +1024,10 @@ public static class CombatFoundationReplaySampler
                || string.Equals(
                    episode.Campaign?.OutcomeClass,
                    "victory",
+                   StringComparison.OrdinalIgnoreCase)
+               || string.Equals(
+                   episode.Campaign?.OutcomeClass,
+                   "encounter-victory",
                    StringComparison.OrdinalIgnoreCase);
     }
 

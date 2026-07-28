@@ -104,6 +104,108 @@ public sealed class CombatFoundationSuccessCase
     public List<CombatEpisode> Episodes { get; set; } = new();
 }
 
+public sealed class CombatFoundationExpertReplaySelection
+{
+    public List<CombatEpisode> Episodes { get; set; } = new();
+
+    public int CompatibleCases { get; set; }
+
+    public int SelectedCases { get; set; }
+
+    public int SelectedNormalEpisodes { get; set; }
+
+    public int SelectedAdvancedEpisodes { get; set; }
+
+    public int DistinctRuns { get; set; }
+
+    public double TargetAdvancedShare { get; set; }
+
+    public Dictionary<string, int> QuotaShortfalls { get; set; } =
+        new(StringComparer.Ordinal);
+}
+
+public sealed class CombatFoundationRewardResidualTrainingResult
+{
+    public Dictionary<string, double> Residuals { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public int EligibleObservations { get; set; }
+
+    public int SuccessfulObservations { get; set; }
+
+    public int FailedObservations { get; set; }
+
+    public int MinimumCompletedBattles { get; set; }
+
+    public double MaximumAbsoluteResidual { get; set; }
+
+    public int CardResiduals { get; set; }
+
+    public int RelicResiduals { get; set; }
+
+    public int BlessingResiduals { get; set; }
+}
+
+public sealed class CombatFoundationCaseArchiveLoadDiagnostics
+{
+    public string ProtocolVersion { get; set; } =
+        CombatFoundationCaseArchiveProtocol.Version;
+
+    public string OwnerRuntime { get; set; } = "";
+
+    public int StorageVersion { get; set; } =
+        CombatFoundationCaseArchiveProtocol.StorageVersion;
+
+    public bool ArchiveExists { get; set; }
+
+    public bool CompatibilityDirectoryExists { get; set; }
+
+    public bool LegacyCompatibilityDirectoryExists { get; set; }
+
+    public bool ExpertCasesDirectoryExists { get; set; }
+
+    public bool ObservationsDirectoryExists { get; set; }
+
+    public int CompactExpertCaseFiles { get; set; }
+
+    public int LegacyExpertCaseFiles { get; set; }
+
+    public int ExpertCaseFiles { get; set; }
+
+    public int LoadedCases { get; set; }
+
+    public int DistinctLoadedCases { get; set; }
+
+    public int RejectedCaseFiles { get; set; }
+
+    public int MigratedCases { get; set; }
+
+    public int CompactObservationFiles { get; set; }
+
+    public int LegacyObservationFiles { get; set; }
+
+    public int ObservationFiles { get; set; }
+
+    public int LoadedObservations { get; set; }
+
+    public int DistinctLoadedObservations { get; set; }
+
+    public int RejectedObservationFiles { get; set; }
+
+    public int MigratedObservations { get; set; }
+
+    public int PathAccessFailures { get; set; }
+
+    public int MaximumObservedPathLength { get; set; }
+
+    public Dictionary<string, int> RejectionReasons { get; set; } =
+        new(StringComparer.Ordinal);
+
+    public string CompatibilityKey { get; set; } = "";
+
+    public string Message { get; set; } = "";
+}
+
 public sealed class CombatFoundationMatchedCase
 {
     public string SuccessCaseId { get; set; } = "";
@@ -422,17 +524,41 @@ public static class CombatFoundationCaseLearning
         string rulesetHash,
         int episodeLimit)
     {
+        return SelectExpertReplay(
+            cases,
+            campaignId,
+            campaignVersion,
+            rulesetHash,
+            episodeLimit).Episodes;
+    }
+
+    public static CombatFoundationExpertReplaySelection SelectExpertReplay(
+        IEnumerable<CombatFoundationSuccessCase> cases,
+        string campaignId,
+        string campaignVersion,
+        string rulesetHash,
+        int episodeLimit,
+        double targetAdvancedShare = 0.35d,
+        int maximumEpisodesPerRun = 8)
+    {
         var limit = Math.Max(0, episodeLimit);
+        var result = new CombatFoundationExpertReplaySelection
+        {
+            TargetAdvancedShare = Math.Max(
+                0d,
+                Math.Min(0.5d, targetAdvancedShare))
+        };
         if (limit == 0)
         {
-            return new List<CombatEpisode>();
+            return result;
         }
-        var selected = new List<CombatEpisode>(limit);
-        var seenEpisodes = new HashSet<string>(StringComparer.Ordinal);
-        var rankedCases = (cases ?? Array.Empty<CombatFoundationSuccessCase>())
+        var compatible = (cases ?? Array.Empty<CombatFoundationSuccessCase>())
             .Where(item =>
                 item?.Observation != null
                 && item.Observation.ArchiveEligible
+                && !(item.Observation.SourceStage ?? "").StartsWith(
+                    "validation",
+                    StringComparison.OrdinalIgnoreCase)
                 && string.Equals(
                     item.Observation.CampaignId,
                     campaignId,
@@ -445,39 +571,192 @@ public static class CombatFoundationCaseLearning
                     item.Observation.RulesetHash,
                     rulesetHash,
                     StringComparison.Ordinal))
-            .GroupBy(
-                item => item.Observation.StrategyFingerprint,
-                StringComparer.Ordinal)
-            .OrderByDescending(group => group.Count())
-            .ThenBy(group => group.Key, StringComparer.Ordinal)
-            .SelectMany(group => group
-                .OrderByDescending(item => item.Observation.RobustnessScore)
-                .ThenBy(item => item.Observation.CaseId, StringComparer.Ordinal))
+            .GroupBy(item => item.Observation.CaseId, StringComparer.Ordinal)
+            .Select(group => group.First())
             .ToList();
-        foreach (var successCase in rankedCases)
+        result.CompatibleCases = compatible.Count;
+        if (compatible.Count == 0)
         {
-            foreach (var episode in successCase.Episodes
-                         .OrderByDescending(item => item.JourneyBattleIndex)
-                         .ThenBy(item => item.EpisodeId, StringComparer.Ordinal))
+            return result;
+        }
+
+        var advancedTarget = (int)Math.Round(
+            limit * result.TargetAdvancedShare,
+            MidpointRounding.AwayFromZero);
+        var normalTarget = limit - advancedTarget;
+        var selectedCaseIds = new HashSet<string>(StringComparer.Ordinal);
+        AddExpertDifficulty(
+            result.Episodes,
+            compatible.Where(item => !IsAdvanced(item)).ToList(),
+            normalTarget,
+            Math.Max(1, maximumEpisodesPerRun),
+            selectedCaseIds);
+        AddExpertDifficulty(
+            result.Episodes,
+            compatible.Where(IsAdvanced).ToList(),
+            advancedTarget,
+            Math.Max(1, maximumEpisodesPerRun),
+            selectedCaseIds);
+        RecordShortfall(
+            result.QuotaShortfalls,
+            "normal",
+            normalTarget - result.Episodes.Count(episode =>
+                !EpisodeIsAdvanced(episode)));
+        RecordShortfall(
+            result.QuotaShortfalls,
+            "advanced",
+            advancedTarget - result.Episodes.Count(EpisodeIsAdvanced));
+
+        if (result.Episodes.Count < limit)
+        {
+            var seen = result.Episodes
+                .Select(EpisodeKey)
+                .ToHashSet(StringComparer.Ordinal);
+            foreach (var successCase in DiverseCases(compatible))
             {
-                if (selected.Count >= limit)
+                foreach (var episode in RepresentativeEpisodes(
+                             successCase,
+                             Math.Max(1, maximumEpisodesPerRun)))
                 {
-                    return selected;
+                    if (result.Episodes.Count >= limit)
+                    {
+                        break;
+                    }
+                    if (EligibleExpertEpisode(episode, rulesetHash)
+                        && seen.Add(EpisodeKey(episode)))
+                    {
+                        result.Episodes.Add(episode);
+                        selectedCaseIds.Add(
+                            successCase.Observation.CaseId);
+                    }
                 }
-                if (episode.Authoritative
-                    && episode.Campaign?.IntegrityValid == true
-                    && episode.Campaign.FinalBossVictory
-                    && string.Equals(
-                        episode.RulesetHash,
-                        rulesetHash,
-                        StringComparison.Ordinal)
-                    && seenEpisodes.Add(EpisodeKey(episode)))
+                if (result.Episodes.Count >= limit)
                 {
-                    selected.Add(episode);
+                    break;
                 }
             }
         }
-        return selected;
+        result.Episodes = result.Episodes
+            .Take(limit)
+            .OrderBy(EpisodeKey, StringComparer.Ordinal)
+            .ToList();
+        result.SelectedCases = selectedCaseIds.Count;
+        result.SelectedNormalEpisodes = result.Episodes.Count(episode =>
+            !EpisodeIsAdvanced(episode));
+        result.SelectedAdvancedEpisodes =
+            result.Episodes.Count(EpisodeIsAdvanced);
+        result.DistinctRuns = result.Episodes
+            .Select(episode => episode.JourneyRunId ?? "")
+            .Distinct(StringComparer.Ordinal)
+            .Count();
+        return result;
+    }
+
+    public static CombatFoundationRewardResidualTrainingResult
+        TrainRewardResiduals(
+            IEnumerable<CombatFoundationCampaignObservation> source,
+            int minimumCompletedBattles = 31,
+            int minimumSupport = 20,
+            double maximumAbsoluteResidual = 0.20d)
+    {
+        var maximum = Math.Max(0d, Math.Min(0.50d, maximumAbsoluteResidual));
+        var eligible = (source
+                        ?? Array.Empty<CombatFoundationCampaignObservation>())
+            .Where(item =>
+                item != null
+                && item.IntegrityValid
+                && !(item.SourceStage ?? "").StartsWith(
+                    "validation",
+                    StringComparison.OrdinalIgnoreCase)
+                && item.CompletedBattles >= Math.Max(
+                    1,
+                    minimumCompletedBattles))
+            .GroupBy(item => item.CaseId, StringComparer.Ordinal)
+            .Select(group => group.First())
+            .ToList();
+        var successes = eligible.Where(item => item.FinalBossVictory).ToList();
+        var failures = eligible.Where(item => !item.FinalBossVictory).ToList();
+        var result = new CombatFoundationRewardResidualTrainingResult
+        {
+            EligibleObservations = eligible.Count,
+            SuccessfulObservations = successes.Count,
+            FailedObservations = failures.Count,
+            MinimumCompletedBattles = Math.Max(1, minimumCompletedBattles),
+            MaximumAbsoluteResidual = maximum
+        };
+        if (successes.Count == 0 || failures.Count == 0 || maximum <= 0d)
+        {
+            return result;
+        }
+        var ids = successes.SelectMany(SelectedRewardIds)
+            .Concat(failures.SelectMany(SelectedRewardIds))
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+        foreach (var id in ids)
+        {
+            var successCount = successes.Count(item =>
+                SelectedRewardIds(item).Contains(
+                    id,
+                    StringComparer.OrdinalIgnoreCase));
+            var failureCount = failures.Count(item =>
+                SelectedRewardIds(item).Contains(
+                    id,
+                    StringComparer.OrdinalIgnoreCase));
+            var support = successCount + failureCount;
+            if (support < Math.Max(1, minimumSupport))
+            {
+                continue;
+            }
+            var successRate = (successCount + 1d) / (successes.Count + 2d);
+            var failureRate = (failureCount + 1d) / (failures.Count + 2d);
+            var uplift = successRate - failureRate;
+            var shrinkage = support / (support + 100d);
+            var residual = Math.Max(
+                -maximum,
+                Math.Min(maximum, uplift * shrinkage));
+            if (Math.Abs(residual) >= 0.005d)
+            {
+                result.Residuals[id] = residual;
+            }
+        }
+        result.CardResiduals = result.Residuals.Keys.Count(IsCard);
+        result.RelicResiduals = result.Residuals.Keys.Count(IsRelic);
+        result.BlessingResiduals =
+            result.Residuals.Count
+            - result.CardResiduals
+            - result.RelicResiduals;
+        return result;
+    }
+
+    private static IEnumerable<string> SelectedRewardIds(
+        CombatFoundationCampaignObservation observation)
+    {
+        return (observation.SelectedCards ?? new List<string>())
+            .Concat(observation.Relics ?? new List<string>())
+            .Concat(observation.Blessings ?? new List<string>())
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Distinct(StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static bool IsRelic(string id)
+    {
+        return (id ?? "").StartsWith(
+                   "relic_",
+                   StringComparison.OrdinalIgnoreCase)
+               || (id ?? "").StartsWith(
+                   "CrowdFundingRelic_",
+                   StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool IsCard(string id)
+    {
+        return !IsRelic(id)
+               && !(id ?? "").StartsWith(
+                   "blessing_",
+                   StringComparison.OrdinalIgnoreCase)
+               && !(id ?? "").StartsWith(
+                   "CrowdfundingBlessing_",
+                   StringComparison.OrdinalIgnoreCase);
     }
 
     private static List<CombatFoundationMatchedCase> Match(
@@ -760,6 +1039,162 @@ public static class CombatFoundationCaseLearning
             .GroupBy(item => item.Trim(), StringComparer.OrdinalIgnoreCase)
             .OrderBy(group => group.Key, StringComparer.OrdinalIgnoreCase)
             .Select(group => group.Key + "*" + group.Count()));
+    }
+
+    private static void AddExpertDifficulty(
+        ICollection<CombatEpisode> target,
+        IReadOnlyList<CombatFoundationSuccessCase> cases,
+        int count,
+        int maximumEpisodesPerRun,
+        ISet<string> selectedCaseIds)
+    {
+        if (count <= 0 || cases.Count == 0)
+        {
+            return;
+        }
+        var seen = target
+            .Select(EpisodeKey)
+            .ToHashSet(StringComparer.Ordinal);
+        var rulesetHash = cases[0].Observation.RulesetHash;
+        foreach (var successCase in DiverseCases(cases))
+        {
+            if (target.Count(episode =>
+                    EpisodeIsAdvanced(episode)
+                    == IsAdvanced(successCase)) >= count)
+            {
+                break;
+            }
+            var added = false;
+            foreach (var episode in RepresentativeEpisodes(
+                         successCase,
+                         maximumEpisodesPerRun))
+            {
+                if (!EligibleExpertEpisode(episode, rulesetHash)
+                    || !seen.Add(EpisodeKey(episode)))
+                {
+                    continue;
+                }
+                target.Add(episode);
+                added = true;
+                if (target.Count(item =>
+                        EpisodeIsAdvanced(item)
+                        == IsAdvanced(successCase)) >= count)
+                {
+                    break;
+                }
+            }
+            if (added)
+            {
+                selectedCaseIds.Add(successCase.Observation.CaseId);
+            }
+        }
+    }
+
+    private static List<CombatFoundationSuccessCase> DiverseCases(
+        IEnumerable<CombatFoundationSuccessCase> source)
+    {
+        var groups = (source ?? Array.Empty<CombatFoundationSuccessCase>())
+            .GroupBy(
+                item => item.Observation.StrategyFingerprint ?? "",
+                StringComparer.Ordinal)
+            .OrderBy(group => group.Key, StringComparer.Ordinal)
+            .Select(group => new Queue<CombatFoundationSuccessCase>(
+                group.OrderByDescending(item =>
+                        item.Observation.RobustnessScore)
+                    .ThenBy(item =>
+                        item.Observation.CaseId,
+                        StringComparer.Ordinal)))
+            .ToList();
+        var result = new List<CombatFoundationSuccessCase>();
+        while (groups.Any(group => group.Count > 0))
+        {
+            foreach (var group in groups)
+            {
+                if (group.Count > 0)
+                {
+                    result.Add(group.Dequeue());
+                }
+            }
+        }
+        return result;
+    }
+
+    private static IEnumerable<CombatEpisode> RepresentativeEpisodes(
+        CombatFoundationSuccessCase successCase,
+        int maximumEpisodesPerRun)
+    {
+        var limit = Math.Max(1, maximumEpisodesPerRun);
+        var episodes = successCase.Episodes
+            .Where(item => item != null)
+            .OrderBy(item => item.JourneyBattleIndex)
+            .ThenBy(item => item.EpisodeId, StringComparer.Ordinal)
+            .ToList();
+        var selected = new List<CombatEpisode>();
+        var seen = new HashSet<string>(StringComparer.Ordinal);
+        void Add(CombatEpisode episode)
+        {
+            if (selected.Count < limit && seen.Add(EpisodeKey(episode)))
+            {
+                selected.Add(episode);
+            }
+        }
+        foreach (var episode in episodes
+                     .OrderByDescending(item => item.JourneyBattleIndex)
+                     .Take(3))
+        {
+            Add(episode);
+        }
+        var boundaries = new HashSet<int> { 4, 9, 14, 19, 24, 29, 36 };
+        foreach (var episode in episodes.Where(item =>
+                     boundaries.Contains(item.JourneyBattleIndex)))
+        {
+            Add(episode);
+        }
+        foreach (var episode in episodes)
+        {
+            Add(episode);
+        }
+        return selected;
+    }
+
+    private static bool EligibleExpertEpisode(
+        CombatEpisode episode,
+        string rulesetHash)
+    {
+        return episode.Authoritative
+               && episode.Campaign?.IntegrityValid == true
+               && episode.Campaign.FinalBossVictory
+               && string.Equals(
+                   episode.RulesetHash,
+                   rulesetHash,
+                   StringComparison.Ordinal);
+    }
+
+    private static bool IsAdvanced(CombatFoundationSuccessCase successCase)
+    {
+        return string.Equals(
+            successCase.Observation.DifficultyId,
+            "advanced",
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static bool EpisodeIsAdvanced(CombatEpisode episode)
+    {
+        return string.Equals(
+            episode.Campaign?.DifficultyId,
+            "advanced",
+            StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static void RecordShortfall(
+        IDictionary<string, int> target,
+        string key,
+        int value)
+    {
+        if (value > 0)
+        {
+            target[key] = value;
+        }
     }
 
     private static string EpisodeKey(CombatEpisode episode)

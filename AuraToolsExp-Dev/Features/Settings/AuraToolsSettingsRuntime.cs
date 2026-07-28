@@ -3031,6 +3031,8 @@ internal sealed class AuraToolsAutoBattleFoundationStatusView : MonoBehaviour
                 _ => status.Message
             };
             statusText.color = status.Stage == AutoBattleFoundationStage.Failed
+                               || !string.IsNullOrWhiteSpace(
+                                   status.ProgressDiagnostic)
                                || (status.Stage == AutoBattleFoundationStage.Idle
                                    && !foundationReady)
                                || (status.Stage == AutoBattleFoundationStage.Completed

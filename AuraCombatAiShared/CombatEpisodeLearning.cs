@@ -12,6 +12,15 @@ public static class CombatPolicyValueProtocol
     public const int FeatureSchemaVersion = 10;
 }
 
+public static class CombatPolicyValueFrameStratificationProtocol
+{
+    public const string Version = "frame-strata-v1";
+
+    public const double MinimumWeight = 0.50d;
+
+    public const double DefaultMaximumWeight = 3.0d;
+}
+
 public sealed class CombatEpisode
 {
     public string ModelProtocol { get; set; } =
@@ -86,6 +95,8 @@ public sealed class CombatCampaignEpisodeMetadata
     public int TrainingIteration { get; set; }
 
     public bool IntegrityValid { get; set; } = true;
+
+    public double TrainingWeight { get; set; } = 1d;
 }
 
 public sealed class CombatEpisodeFrame
@@ -170,6 +181,11 @@ public sealed class CombatPolicyValueTrainingOptions
 
     public int RetainedModelCandidates { get; set; } = 3;
 
+    public bool EnableFrameStratification { get; set; } = true;
+
+    public double MaximumFrameStratumWeight { get; set; } =
+        CombatPolicyValueFrameStratificationProtocol.DefaultMaximumWeight;
+
     public CombatPolicyValueTrainingOptions Normalized()
     {
         return new CombatPolicyValueTrainingOptions
@@ -202,7 +218,14 @@ public sealed class CombatPolicyValueTrainingOptions
                 Math.Min(20000, ReplayEpisodeLimit)),
             RetainedModelCandidates = Math.Max(
                 1,
-                Math.Min(5, RetainedModelCandidates))
+                Math.Min(5, RetainedModelCandidates)),
+            EnableFrameStratification = EnableFrameStratification,
+            MaximumFrameStratumWeight = Clamp(
+                MaximumFrameStratumWeight,
+                1d,
+                5d,
+                CombatPolicyValueFrameStratificationProtocol
+                    .DefaultMaximumWeight)
         };
     }
 
@@ -237,6 +260,15 @@ public sealed class CombatPolicyValueTrainingResult
     public double ElapsedSeconds { get; set; }
 
     public double TestLoss { get; set; }
+
+    public string FrameStratificationProtocol { get; set; } = "";
+
+    public Dictionary<string, int> FrameStrata { get; set; } =
+        new(StringComparer.Ordinal);
+
+    public double MinimumFrameWeight { get; set; } = 1d;
+
+    public double MaximumFrameWeight { get; set; } = 1d;
 }
 
 public sealed class CombatPolicyValueModelCandidate

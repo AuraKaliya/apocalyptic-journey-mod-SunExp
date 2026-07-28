@@ -77,10 +77,13 @@ $policyValuePath = Join-Path $root "AuraCombatAiShared\CombatPolicyValueNetwork.
 $evolutionPath = Join-Path $root "AuraCombatAiShared\CombatPolicyEvolution.cs"
 $foundationTrainingPath = Join-Path $root "AuraCombatAiShared\CombatCampaignFoundationTraining.cs"
 $foundationStrategyPath = Join-Path $root "AuraCombatAiShared\CombatFoundationTrainingStrategy.cs"
+$foundationCaseLearningPath = Join-Path $root "AuraCombatAiShared\CombatFoundationCaseLearning.cs"
+$foundationCaseArchiveProtocolPath = Join-Path $root "AuraCombatAiShared\CombatFoundationCaseArchiveProtocol.cs"
 $simulationUiRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleSimulationRuntime.cs"
 $foundationRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleFoundationRuntime.cs"
 $foundationWorkerRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsFoundationWorkerRuntime.cs"
 $foundationWorkerProjectPath = Join-Path $root "AuraFoundationTrainer.Worker\AuraFoundationTrainer.Worker.csproj"
+$foundationWorkerProgramPath = Join-Path $root "AuraFoundationTrainer.Worker\Program.cs"
 $nativeRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsNativeRewardSimulationRuntime.cs"
 $nativeProgramsPath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\Generated\AuraToolsNativePrograms.g.cs"
 $modelUiRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleModelRuntime.cs"
@@ -88,6 +91,8 @@ $journeyUiRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\Au
 $settingsUiRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\Settings\AuraToolsSettingsRuntime.cs"
 $bundledRulesPath = Join-Path $root "AuraToolsExp\Config\combat-simulation\witch-base-evaluation-v1.ruleset.json"
 $bundledJourneyPath = Join-Path $root "AuraToolsExp\Config\combat-simulation\witch-world-simulation-v1.journey.json"
+$bundledCampaignV2Path = Join-Path $root "AuraToolsExp\Config\combat-simulation\witch-world-simulation-v2.campaign.json"
+$campaignGeneratorPath = Join-Path $root "tools\Build-AuraStandardCampaign.ps1"
 $controller = Get-Content -LiteralPath $controllerPath -Raw
 $presenter = Get-Content -LiteralPath $presenterPath -Raw
 $interaction = Get-Content -LiteralPath $interactionPath -Raw
@@ -120,16 +125,20 @@ $policyValue = Get-Content -LiteralPath $policyValuePath -Raw
 $evolution = Get-Content -LiteralPath $evolutionPath -Raw
 $foundationTraining = Get-Content -LiteralPath $foundationTrainingPath -Raw
 $foundationStrategy = Get-Content -LiteralPath $foundationStrategyPath -Raw
+$foundationCaseLearning = Get-Content -LiteralPath $foundationCaseLearningPath -Raw
+$foundationCaseArchiveProtocol = Get-Content -LiteralPath $foundationCaseArchiveProtocolPath -Raw
 $simulationUiRuntime = Get-Content -LiteralPath $simulationUiRuntimePath -Raw
 $foundationRuntime = Get-Content -LiteralPath $foundationRuntimePath -Raw
 $foundationWorkerRuntime = Get-Content -LiteralPath $foundationWorkerRuntimePath -Raw
 $foundationWorkerProject = Get-Content -LiteralPath $foundationWorkerProjectPath -Raw
+$foundationWorkerProgram = Get-Content -LiteralPath $foundationWorkerProgramPath -Raw
 $nativeRuntime = Get-Content -LiteralPath $nativeRuntimePath -Raw
 $nativePrograms = Get-Content -LiteralPath $nativeProgramsPath -Raw
 $modelUiRuntime = Get-Content -LiteralPath $modelUiRuntimePath -Raw
 $journeyUiRuntime = Get-Content -LiteralPath $journeyUiRuntimePath -Raw
 $settingsUiRuntime = Get-Content -LiteralPath $settingsUiRuntimePath -Raw
 $trainer = Get-Content -LiteralPath $trainerPath -Raw
+$campaignGenerator = Get-Content -LiteralPath $campaignGeneratorPath -Raw
 
 $requiredControllerAnchors = @(
     "FightUI.ThrowCardScript",
@@ -365,6 +374,21 @@ foreach ($anchor in @(
     "EnableHardSeedCurriculum",
     "HardSeedReplayShare",
     "HardSeedTrainingVictories",
+    "ApplyHardEncounterTargets",
+    "CombatFoundationTerminalCreditProtocol",
+    "CombatFoundationCounterfactualProtocol",
+    "ClassifyCounterfactual",
+    "HardSeedCounterfactualImprovements",
+    "DiscardedCounterfactualEpisodes",
+    "CombatFoundationStagnationProtocol",
+    "MaximumConsecutiveRejectedIterations",
+    "StoppedForStagnation",
+    "ShouldStopForStagnation",
+    "ShouldRunCounterfactualHardEncounter",
+    "HardSeedCounterfactualVictories",
+    "RunCapabilityProbe",
+    "champion-teacher-hard",
+    "RewardResidualTraining",
     "RuleTerminalOverrides",
     "CertifiedLoops",
     "FakeLoops",
@@ -383,10 +407,43 @@ foreach ($anchor in @(
     "TerminalScenarioId",
     "WorldSeed",
     "OutcomeClass",
-    "FailureCluster"
+    "FailureCluster",
+    "FailureEncounterCheckpoint",
+    "AdvancedShare = 0.35d"
 )) {
     if (-not $foundationStrategy.Contains($anchor)) {
         throw "Aura hard-seed curriculum contract is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
+    "CombatFoundationExpertReplaySelection",
+    "SelectExpertReplay",
+    "maximumEpisodesPerRun",
+    "QuotaShortfalls",
+    "TrainRewardResiduals",
+    "maximumAbsoluteResidual",
+    "SelectedRewardIds",
+    "RelicResiduals",
+    "BlessingResiduals",
+    "CombatFoundationCaseArchiveLoadDiagnostics"
+)) {
+    if (-not $foundationCaseLearning.Contains($anchor)) {
+        throw "Aura foundation case-learning contract is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
+    "RewardScoreResiduals",
+    "RewardScoreResidualMaximumAbsolute",
+    "LearnedResidual",
+    "RewardScoreBiases",
+    "RewardScoreBiasMaximumAbsolute",
+    "ConfiguredBias",
+    "PickWeightedUnused",
+    "RunMonitoredSegment",
+    "RunMonitoredWithEncounterStarts"
+)) {
+    if (-not $campaignSimulation.Contains($anchor)) {
+        throw "Aura campaign optimization contract is missing: $anchor"
     }
 }
 foreach ($anchor in @(
@@ -411,7 +468,11 @@ foreach ($anchor in @(
     "optimizerAdamW",
     "gradientClipCount",
     "testCompositeLoss",
-    "stateFeatureCollisionRate"
+    "stateFeatureCollisionRate",
+    "CombatPolicyValueFrameStratificationProtocol",
+    "BuildStratifiedOrder",
+    "SampleWeight",
+    "maximumFrameWeight"
 )) {
     if (-not $batchTrainer.Contains($anchor)) {
         throw "Aura deterministic minibatch trainer contract is missing: $anchor"
@@ -425,13 +486,25 @@ foreach ($anchor in @(
     "foundation.ExecutionMode",
     "AuraToolsFoundationWorkerRuntime.Run",
     "PreflightSeedStart = foundation.TrainingSeedStart",
-    "result.TrainingFailures"
+    "result.TrainingFailures",
+    "EnableCounterfactualHardEncounters",
+    "EnableFrameStratification",
+    "ExpertReplayEpisodeLimit",
+    "archive loading deferred to worker",
+    "CombatFoundationCaseArchiveProtocol"
 )) {
     if (-not $foundationRuntime.Contains($anchor)) {
         throw "AuraTools authoritative foundation runtime contract is missing: $anchor"
     }
 }
 foreach ($anchor in @(
+    "CombatFoundationWorkerProtocol",
+    "public const int SchemaVersion = 7",
+    "CheckpointFileName",
+    "CheckpointEpisodesFileName",
+    "TryValidateJob",
+    "TryValidateProgress",
+    "TryValidateResult",
     "CombatFoundationWorkerJob",
     "CombatFoundationWorkerProgress",
     "CombatFoundationWorkerResult",
@@ -449,7 +522,10 @@ foreach ($anchor in @(
     "CancellationPath",
     "ExpectedRulesetHash",
     "CreateNoWindow",
-    "Kill"
+    "Kill",
+    "CombatFoundationWorkerProtocol.TryValidateProgress",
+    "progressDiagnostic",
+    "[Worker][Progress]"
 )) {
     if (-not $foundationWorkerRuntime.Contains($anchor)) {
         throw "AuraTools external foundation worker runtime is missing: $anchor"
@@ -468,6 +544,8 @@ $forbiddenCurrentTreeMarkers = @(
     ("hashed-" + "v1"),
     ("Create" + "Legacy"),
     ("foundation-training-checkpoint-" + "v3"),
+    ("foundation-training-checkpoint-" + "v4"),
+    ("foundation-training-checkpoint-" + "v5"),
     ("foundation-training-episodes-" + "v2"),
     ("live-combat-episodes-" + "v2"),
     ("auto-battle-training-" + "v5"),
@@ -480,6 +558,63 @@ foreach ($marker in $forbiddenCurrentTreeMarkers) {
     if ($LASTEXITCODE -eq 0) {
         throw "Aura combat AI current tree still contains removed marker '$marker': $matches"
     }
+}
+
+$avoidedRelicIds = @(
+    "relic_5",
+    "relic_28",
+    "relic_52",
+    "CrowdFundingRelic_24",
+    "CrowdFundingRelic_43",
+    "relic_38",
+    "CrowdFundingRelic_12",
+    "CrowdFundingRelic_13"
+)
+$campaignV2Json = Get-Content -LiteralPath $bundledCampaignV2Path -Raw
+foreach ($relicId in $avoidedRelicIds) {
+    $escapedRelicId = [regex]::Escape($relicId)
+    $rewardPattern = '"rewardId"\s*:\s*"' + $escapedRelicId `
+        + '"[\s\S]{0,180}?"offerWeight"\s*:\s*0\.05(?:0+)?'
+    $biasPattern = '"' + $escapedRelicId `
+        + '"\s*:\s*-4(?:\.0+)?'
+    if (-not [regex]::IsMatch($campaignV2Json, $rewardPattern) `
+        -or -not [regex]::IsMatch($campaignV2Json, $biasPattern)) {
+        throw "Avoided relic campaign weight/bias is invalid: $relicId"
+    }
+    if (-not $campaignGenerator.Contains('"' + $relicId + '" = -4.0')) {
+        throw "Campaign generator is missing avoided relic policy: $relicId"
+    }
+}
+foreach ($anchor in @(
+    'Version = "success-case-archive-worker-v2"',
+    "StorageVersion = 2",
+    "CompatibilityKeyLength = 16",
+    "EntryKeyLength = 24",
+    "LegacyCompatibilityDirectory",
+    "CompactIdentifier"
+)) {
+    if (-not $foundationCaseArchiveProtocol.Contains($anchor)) {
+        throw "Aura foundation compact case archive protocol is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
+    "PrepareCaseArchive",
+    "LoadSuccessCasePaths",
+    "LoadObservationPaths",
+    "MigratedCases",
+    "MigratedObservations",
+    "ResolveSuccessCasePath",
+    "ResolveObservationPath",
+    "ApplyRewardResiduals"
+)) {
+    if (-not $foundationWorkerProgram.Contains($anchor)) {
+        throw "Aura foundation worker-owned case archive contract is missing: $anchor"
+    }
+}
+if (-not [regex]::IsMatch(
+        $campaignV2Json,
+        '"rewardScoreBiasMaximumAbsolute"\s*:\s*8(?:\.0+)?')) {
+    throw "Campaign reward score bias bound is invalid."
 }
 foreach ($anchor in @(
     "net8.0",
@@ -801,7 +936,8 @@ foreach ($anchor in @(
     "EnsureContentBuilt",
     "CPU 并行线程",
     "CampaignsPerSecond",
-    "FormatDuration(status.EstimatedRemainingSeconds)"
+    "FormatDuration(status.EstimatedRemainingSeconds)",
+    "status.ProgressDiagnostic"
 )) {
     if (-not $settingsUiRuntime.Contains($anchor)) {
         throw "AuraTools auto-battle interaction contract is missing: $anchor"
@@ -832,3 +968,4 @@ if ($trainer.Contains("positive, negative = other, chosen")) {
 
 Write-Host "Aura combat AI source contracts passed."
 & (Join-Path $root "tools\Test-AuraCombatKnowledge.ps1")
+$global:LASTEXITCODE = 0
