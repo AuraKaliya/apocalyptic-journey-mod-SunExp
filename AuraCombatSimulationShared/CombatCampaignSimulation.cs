@@ -2009,6 +2009,8 @@ public sealed class CombatCampaignRunner
         this.engine = engine ?? new CombatSimulationEngine();
     }
 
+    public CombatSimulationEngine SimulationEngine => engine;
+
     public CombatCampaignResult Run(
         CombatCampaignDefinition definition,
         CombatCampaignWorldPlan plan,

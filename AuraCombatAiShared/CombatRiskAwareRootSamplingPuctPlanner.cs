@@ -77,6 +77,7 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
     private ICombatSimulationRule[] simulationRules = Array.Empty<ICombatSimulationRule>();
     private CombatBeliefState rootBelief = new();
     private int determinizationIndex;
+    private CombatSearchExplorationOptions? rootExploration;
 
     public CombatRiskAwareRootSamplingPuctPlanner(
         IDecisionResidualModel? residualModel = null,
@@ -93,7 +94,8 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
     public CombatSearchResult Choose(
         CombatStateObservation state,
         IReadOnlyList<CombatCandidateEvaluation> candidates,
-        CombatDecisionProfile selectedProfile)
+        CombatDecisionProfile selectedProfile,
+        CombatSearchExplorationOptions? exploration = null)
     {
         rootObservation = state;
         profile = selectedProfile;
@@ -106,6 +108,7 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
         fakeLoops = 0;
         blockedLoops = 0;
         determinizationIndex = 0;
+        rootExploration = exploration;
         rootBelief = CombatBeliefTracker.FromObservation(state);
         actions = BuildActions(state, candidates);
         var budget = CombatSearchBudgetPolicy.Resolve(
@@ -801,6 +804,10 @@ CompleteSimulation:
             .Select((candidate, index) => Math.Exp(logits[index] - maximum))
             .ToArray();
         var total = Math.Max(0.000001d, unnormalized.Sum());
+        var priors = unnormalized
+            .Select(value => value / total)
+            .ToArray();
+        ApplyRootExploration(priors);
         var result = new List<SearchAction>(legal.Count);
         var useGroups = new Dictionary<string, int>(StringComparer.Ordinal);
         for (var i = 0; i < legal.Count; i++)
@@ -819,11 +826,101 @@ CompleteSimulation:
                 Action = action,
                 Evaluation = legal[i],
                 Model = CombatForwardModel.Resolve(state, action, useRuntimeRegistries),
-                Prior = unnormalized[i] / total,
+                Prior = priors[i],
                 UseGroupIndex = useGroupIndex
             });
         }
         return result;
+    }
+
+    private void ApplyRootExploration(double[] priors)
+    {
+        if (rootExploration == null
+            || priors.Length <= 1
+            || rootExploration.RootNoiseFraction <= 0d)
+        {
+            return;
+        }
+        var random = new Random(rootExploration.RandomSeed);
+        var noise = SampleDirichlet(
+            random,
+            priors.Length,
+            Math.Max(0.03d, rootExploration.RootDirichletAlpha));
+        var fraction = Math.Max(
+            0d,
+            Math.Min(0.75d, rootExploration.RootNoiseFraction));
+        for (var index = 0; index < priors.Length; index++)
+        {
+            priors[index] =
+                (1d - fraction) * priors[index]
+                + fraction * noise[index];
+        }
+    }
+
+    private static double[] SampleDirichlet(
+        Random random,
+        int count,
+        double alpha)
+    {
+        var result = new double[count];
+        var total = 0d;
+        for (var index = 0; index < count; index++)
+        {
+            result[index] = SampleGamma(random, alpha);
+            total += result[index];
+        }
+        if (total <= 0d)
+        {
+            for (var index = 0; index < count; index++)
+            {
+                result[index] = 1d / count;
+            }
+            return result;
+        }
+        for (var index = 0; index < count; index++)
+        {
+            result[index] /= total;
+        }
+        return result;
+    }
+
+    private static double SampleGamma(Random random, double shape)
+    {
+        if (shape < 1d)
+        {
+            var sample = SampleGamma(random, shape + 1d);
+            return sample * Math.Pow(
+                Math.Max(0.000000001d, random.NextDouble()),
+                1d / shape);
+        }
+        var d = shape - 1d / 3d;
+        var c = 1d / Math.Sqrt(9d * d);
+        while (true)
+        {
+            var x = SampleStandardNormal(random);
+            var v = 1d + c * x;
+            if (v <= 0d)
+            {
+                continue;
+            }
+            v *= v * v;
+            var u = random.NextDouble();
+            if (u < 1d - 0.0331d * x * x * x * x
+                || Math.Log(Math.Max(0.000000001d, u))
+                   < 0.5d * x * x
+                     + d * (1d - v + Math.Log(v)))
+            {
+                return d * v;
+            }
+        }
+    }
+
+    private static double SampleStandardNormal(Random random)
+    {
+        var u1 = Math.Max(0.000000001d, random.NextDouble());
+        var u2 = random.NextDouble();
+        return Math.Sqrt(-2d * Math.Log(u1))
+               * Math.Cos(2d * Math.PI * u2);
     }
 
     private static double NormalizeRuleScore(

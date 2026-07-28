@@ -6,6 +6,13 @@ using AuraDecision.Shared;
 
 namespace AuraCombatAi.Shared;
 
+public interface ICombatDecisionTracePolicy
+{
+    CombatDecision? LastDecision { get; }
+
+    CombatStateObservation? LastObservation { get; }
+}
+
 public sealed class CombatSelfPlayExplorationOptions
 {
     public double Probability { get; set; }
@@ -13,12 +20,26 @@ public sealed class CombatSelfPlayExplorationOptions
     public double Temperature { get; set; } = 1d;
 
     public int RandomSeed { get; set; }
+
+    public double RootDirichletAlpha { get; set; } = 0.30d;
+
+    public double RootNoiseFraction { get; set; } = 0.25d;
+}
+
+public sealed class CombatSearchExplorationOptions
+{
+    public double RootDirichletAlpha { get; set; } = 0.30d;
+
+    public double RootNoiseFraction { get; set; } = 0.25d;
+
+    public int RandomSeed { get; set; }
 }
 
 public sealed class CombatDecisionSimulationPolicy :
     ICombatSimulationPolicy,
     ICombatSimulationBorrowedStatePolicy,
-    ICombatSimulationPolicyMetricsProvider
+    ICombatSimulationPolicyMetricsProvider,
+    ICombatDecisionTracePolicy
 {
     private readonly CombatDecisionEngine decisionEngine;
     private readonly CombatDecisionProfile profile;
@@ -56,7 +77,11 @@ public sealed class CombatDecisionSimulationPolicy :
     public CombatSimulationAction? SelectAction(CombatSimulationPolicyContext context)
     {
         var observation = PlayerEquivalentSimulationObservationProjector.Project(context);
-        var decision = decisionEngine.Choose(observation, profile);
+        var searchExploration = BeginExploration();
+        var decision = decisionEngine.Choose(
+            observation,
+            profile,
+            searchExploration);
         LastObservation = observation;
         LastDecision = decision;
         LastDecisionMetrics.SearchSimulations = decision.SearchSimulations;
@@ -68,12 +93,33 @@ public sealed class CombatDecisionSimulationPolicy :
             decision.SustainableControlLoops;
         LastDecisionMetrics.FakeLoops = decision.FakeLoops;
         LastDecisionMetrics.BlockedLoops = decision.BlockedLoops;
+        LastDecisionMetrics.ExplorationDecisions =
+            searchExploration == null ? 0 : 1;
+        LastDecisionMetrics.ExplorationActionOverrides = 0;
+        LastDecisionMetrics.RootMaximumVisitShare =
+            searchExploration == null
+                ? 0d
+                : MaximumRootVisitShare(decision);
+        LastDecisionMetrics.AuthoritativeActionsAudited = 0;
+        LastDecisionMetrics.AuthoritativeSemanticMismatches = 0;
+        LastDecisionMetrics.AuthoritativeTeacherOverrides = 0;
         if (!decision.HasAction || decision.Action == null)
         {
             return context.LegalActions.FirstOrDefault(action =>
                 action.Kind == CombatSimulationActionKind.EndTurn);
         }
-        var selected = SelectExplorationAction(context, decision);
+        var selected = SelectExplorationAction(
+            context,
+            decision,
+            searchExploration != null);
+        if (selected != null
+            && !string.Equals(
+                selected.CandidateId,
+                decision.Action.CandidateId,
+                StringComparison.Ordinal))
+        {
+            LastDecisionMetrics.ExplorationActionOverrides = 1;
+        }
         return selected
                ?? context.LegalActions.FirstOrDefault(action =>
                    string.Equals(
@@ -86,11 +132,13 @@ public sealed class CombatDecisionSimulationPolicy :
 
     private CombatSimulationAction? SelectExplorationAction(
         CombatSimulationPolicyContext context,
-        CombatDecision decision)
+        CombatDecision decision,
+        bool explorationActive)
     {
-        if (exploration == null
+        if (!explorationActive
+            || exploration == null
             || explorationRandom == null
-            || explorationRandom.NextDouble() >= exploration.Probability)
+            || decision.SearchSimulations <= 0)
         {
             return null;
         }
@@ -131,6 +179,33 @@ public sealed class CombatDecisionSimulationPolicy :
         return null;
     }
 
+    private CombatSearchExplorationOptions? BeginExploration()
+    {
+        if (exploration == null
+            || explorationRandom == null
+            || explorationRandom.NextDouble() >= exploration.Probability)
+        {
+            return null;
+        }
+        return new CombatSearchExplorationOptions
+        {
+            RootDirichletAlpha = exploration.RootDirichletAlpha,
+            RootNoiseFraction = exploration.RootNoiseFraction,
+            RandomSeed = explorationRandom.Next()
+        };
+    }
+
+    private static double MaximumRootVisitShare(CombatDecision decision)
+    {
+        var visits = (decision.Candidates
+                      ?? new List<CombatCandidateEvaluation>())
+            .Where(candidate => candidate?.Legal == true)
+            .Select(candidate => Math.Max(0, candidate.SearchVisits))
+            .ToArray();
+        var total = visits.Sum();
+        return total <= 0 ? 0d : visits.Max() / (double)total;
+    }
+
     private static CombatSelfPlayExplorationOptions? Normalize(
         CombatSelfPlayExplorationOptions? options)
     {
@@ -148,7 +223,287 @@ public sealed class CombatDecisionSimulationPolicy :
                 || double.IsInfinity(options.Temperature)
                     ? 1d
                     : Math.Max(0.1d, Math.Min(5d, options.Temperature)),
-            RandomSeed = options.RandomSeed
+            RandomSeed = options.RandomSeed,
+            RootDirichletAlpha =
+                double.IsNaN(options.RootDirichletAlpha)
+                || double.IsInfinity(options.RootDirichletAlpha)
+                    ? 0.30d
+                    : Math.Max(
+                        0.03d,
+                        Math.Min(2d, options.RootDirichletAlpha)),
+            RootNoiseFraction =
+                double.IsNaN(options.RootNoiseFraction)
+                || double.IsInfinity(options.RootNoiseFraction)
+                    ? 0.25d
+                    : Math.Max(
+                        0d,
+                        Math.Min(0.75d, options.RootNoiseFraction))
+        };
+    }
+}
+
+public sealed class CombatAuthoritativeTeacherOptions
+{
+    public double AuditProbability { get; set; } = 0.15d;
+
+    public int MaximumCandidates { get; set; } = 6;
+
+    public double MinimumOverrideGain { get; set; } = 0.5d;
+
+    public int RandomSeed { get; set; }
+}
+
+public sealed class CombatAuthoritativeBranchTeacherPolicy :
+    ICombatSimulationPolicy,
+    ICombatSimulationBorrowedStatePolicy,
+    ICombatSimulationPolicyMetricsProvider,
+    ICombatDecisionTracePolicy
+{
+    private readonly CombatDecisionSimulationPolicy inner;
+    private readonly CombatSimulationEngine engine;
+    private readonly CombatAuthoritativeTeacherOptions options;
+    private readonly Random random;
+
+    public CombatAuthoritativeBranchTeacherPolicy(
+        CombatDecisionSimulationPolicy inner,
+        CombatAuthoritativeTeacherOptions? options = null,
+        CombatSimulationEngine? engine = null)
+    {
+        this.inner = inner ?? throw new ArgumentNullException(nameof(inner));
+        this.options = Normalize(options);
+        this.engine = engine ?? new CombatSimulationEngine();
+        random = new Random(this.options.RandomSeed);
+    }
+
+    public string PolicyId => inner.PolicyId + ":authoritative-teacher";
+
+    public CombatDecision? LastDecision => inner.LastDecision;
+
+    public CombatStateObservation? LastObservation => inner.LastObservation;
+
+    public CombatSimulationPolicyDecisionMetrics LastDecisionMetrics =>
+        inner.LastDecisionMetrics;
+
+    public CombatSimulationAction? SelectAction(
+        CombatSimulationPolicyContext context)
+    {
+        var baseline = inner.SelectAction(context);
+        if (!ShouldAudit(context))
+        {
+            return baseline;
+        }
+        var candidates = SelectCandidates(context, baseline);
+        if (candidates.Count == 0)
+        {
+            return baseline;
+        }
+
+        CombatSimulationAction? bestAction = null;
+        var bestScore = double.NegativeInfinity;
+        var baselineScore = baseline?.Kind
+                            == CombatSimulationActionKind.PlayCard
+            ? double.NegativeInfinity
+            : 0d;
+        foreach (var candidate in candidates)
+        {
+            var applied = engine.ForkAndApplyPlayerAction(
+                context.Scenario,
+                context.Ruleset,
+                context.State,
+                candidate);
+            if (!applied.Success)
+            {
+                continue;
+            }
+            var score = ScoreTransition(
+                context.State,
+                applied.State,
+                candidate);
+            LastDecisionMetrics.AuthoritativeActionsAudited++;
+            if (SemanticMismatch(
+                    context.State,
+                    applied.State,
+                    candidate))
+            {
+                LastDecisionMetrics.AuthoritativeSemanticMismatches++;
+            }
+            if (baseline != null
+                && string.Equals(
+                    candidate.CandidateId,
+                    baseline.CandidateId,
+                    StringComparison.Ordinal))
+            {
+                baselineScore = score;
+            }
+            if (score > bestScore)
+            {
+                bestScore = score;
+                bestAction = candidate;
+            }
+        }
+        if (bestAction == null
+            || bestScore
+               < baselineScore + options.MinimumOverrideGain
+            || baseline != null
+               && string.Equals(
+                   bestAction.CandidateId,
+                   baseline.CandidateId,
+                   StringComparison.Ordinal))
+        {
+            return baseline;
+        }
+
+        LastDecisionMetrics.AuthoritativeTeacherOverrides = 1;
+        MakeTeacherTarget(bestAction.CandidateId);
+        return bestAction;
+    }
+
+    private bool ShouldAudit(CombatSimulationPolicyContext context)
+    {
+        var player = context.State.Player;
+        var critical = player != null
+                       && player.Hp
+                          <= Math.Max(1, (int)Math.Ceiling(
+                              player.MaxHp * 0.40d));
+        return critical || random.NextDouble() < options.AuditProbability;
+    }
+
+    private List<CombatSimulationAction> SelectCandidates(
+        CombatSimulationPolicyContext context,
+        CombatSimulationAction? baseline)
+    {
+        var visits = (LastDecision?.Candidates
+                      ?? new List<CombatCandidateEvaluation>())
+            .Where(item => item?.Action != null && item.Legal)
+            .ToDictionary(
+                item => item.Action.CandidateId,
+                item => item.SearchVisits,
+                StringComparer.Ordinal);
+        return context.LegalActions
+            .Where(item => item.Kind == CombatSimulationActionKind.PlayCard)
+            .OrderByDescending(item => baseline != null
+                                       && string.Equals(
+                                           item.CandidateId,
+                                           baseline.CandidateId,
+                                           StringComparison.Ordinal))
+            .ThenByDescending(item => visits.TryGetValue(
+                item.CandidateId,
+                out var count)
+                ? count
+                : 0)
+            .ThenBy(item => item.CandidateId, StringComparer.Ordinal)
+            .Take(options.MaximumCandidates)
+            .ToList();
+    }
+
+    private bool SemanticMismatch(
+        CombatBattleState before,
+        CombatBattleState after,
+        CombatSimulationAction action)
+    {
+        var projected = LastObservation?.Actions.FirstOrDefault(item =>
+            string.Equals(
+                item.CandidateId,
+                action.CandidateId,
+                StringComparison.Ordinal));
+        if (projected == null)
+        {
+            return true;
+        }
+        var beforePlayer = before.Player;
+        var afterPlayer = after.Player;
+        var actualDamage = before.LivingEnemies.Sum(item => item.Hp)
+                           - after.LivingEnemies.Sum(item => item.Hp);
+        var predictedDamage = projected.Semantics.Damage
+                              + projected.Semantics.TrueDamage;
+        var actualBlock = (afterPlayer?.Block ?? 0)
+                          - (beforePlayer?.Block ?? 0);
+        var actualHeal = (afterPlayer?.Hp ?? 0)
+                         - (beforePlayer?.Hp ?? 0);
+        var actualDraw = after.Hand.Count - before.Hand.Count + 1;
+        var actualEnergy = (afterPlayer?.Energy ?? 0)
+                           - (beforePlayer?.Energy ?? 0)
+                           + action.Cost;
+        return Different(predictedDamage, actualDamage)
+               || Different(projected.Semantics.Defend, actualBlock)
+               || Different(projected.Semantics.Heal, actualHeal)
+               || Different(projected.Semantics.Draw, actualDraw)
+               || Different(projected.Semantics.EnergyGain, actualEnergy);
+    }
+
+    private static bool Different(double predicted, double actual)
+    {
+        var tolerance = Math.Max(
+            2d,
+            Math.Max(Math.Abs(predicted), Math.Abs(actual)) * 0.25d);
+        return Math.Abs(predicted - actual) > tolerance;
+    }
+
+    private static double ScoreTransition(
+        CombatBattleState before,
+        CombatBattleState after,
+        CombatSimulationAction action)
+    {
+        var beforePlayer = before.Player;
+        var afterPlayer = after.Player;
+        var enemyHpGain = before.LivingEnemies.Sum(item => item.Hp)
+                          - after.LivingEnemies.Sum(item => item.Hp);
+        var defeated = before.LivingEnemies.Count()
+                       - after.LivingEnemies.Count();
+        var hpGain = (afterPlayer?.Hp ?? 0) - (beforePlayer?.Hp ?? 0);
+        var blockGain =
+            (afterPlayer?.Block ?? 0) - (beforePlayer?.Block ?? 0);
+        var energyGain =
+            (afterPlayer?.Energy ?? 0) - (beforePlayer?.Energy ?? 0)
+            + action.Cost;
+        var handGain = after.Hand.Count - before.Hand.Count + 1;
+        return enemyHpGain * 2d
+               + defeated * 40d
+               + hpGain * 4d
+               + blockGain * 0.75d
+               + energyGain
+               + handGain * 1.5d;
+    }
+
+    private void MakeTeacherTarget(string candidateId)
+    {
+        if (LastDecision?.Candidates == null)
+        {
+            return;
+        }
+        var targetVisits = Math.Max(
+            1,
+            LastDecision.Candidates.Sum(item =>
+                Math.Max(0, item.SearchVisits)));
+        foreach (var candidate in LastDecision.Candidates)
+        {
+            candidate.SearchVisits = string.Equals(
+                candidate.Action?.CandidateId,
+                candidateId,
+                StringComparison.Ordinal)
+                ? targetVisits
+                : 0;
+        }
+    }
+
+    private static CombatAuthoritativeTeacherOptions Normalize(
+        CombatAuthoritativeTeacherOptions? source)
+    {
+        source ??= new CombatAuthoritativeTeacherOptions();
+        return new CombatAuthoritativeTeacherOptions
+        {
+            AuditProbability = double.IsNaN(source.AuditProbability)
+                ? 0.15d
+                : Math.Max(0d, Math.Min(1d, source.AuditProbability)),
+            MaximumCandidates = Math.Max(
+                1,
+                Math.Min(16, source.MaximumCandidates)),
+            MinimumOverrideGain =
+                double.IsNaN(source.MinimumOverrideGain)
+                || double.IsInfinity(source.MinimumOverrideGain)
+                    ? 0.5d
+                    : Math.Max(0d, source.MinimumOverrideGain),
+            RandomSeed = source.RandomSeed
         };
     }
 }
@@ -181,6 +536,41 @@ public sealed class CombatDecisionSimulationPolicyFactory : ICombatSimulationPol
             residualModel,
             guidanceModel,
             policyValueModel);
+    }
+}
+
+public sealed class CombatAuthoritativeTeacherPolicyFactory :
+    ICombatSimulationPolicyFactory
+{
+    private readonly CombatDecisionProfile profile;
+    private readonly ICombatPolicyValueModel policyValueModel;
+    private readonly CombatAuthoritativeTeacherOptions options;
+    private readonly CombatSimulationEngine? engine;
+
+    public CombatAuthoritativeTeacherPolicyFactory(
+        CombatDecisionProfile? profile = null,
+        ICombatPolicyValueModel? policyValueModel = null,
+        CombatAuthoritativeTeacherOptions? options = null,
+        CombatSimulationEngine? engine = null)
+    {
+        this.profile = profile ?? new CombatDecisionProfile();
+        this.policyValueModel =
+            policyValueModel ?? NullCombatPolicyValueModel.Instance;
+        this.options = options ?? new CombatAuthoritativeTeacherOptions();
+        this.engine = engine;
+    }
+
+    public string PolicyId => "aura-combat-authoritative-teacher:"
+                              + profile.Id;
+
+    public ICombatSimulationPolicy Create()
+    {
+        return new CombatAuthoritativeBranchTeacherPolicy(
+            new CombatDecisionSimulationPolicy(
+                profile,
+                policyValueModel: policyValueModel),
+            options,
+            engine);
     }
 }
 

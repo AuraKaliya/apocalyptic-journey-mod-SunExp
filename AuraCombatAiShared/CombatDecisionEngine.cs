@@ -31,7 +31,8 @@ public sealed class CombatDecisionEngine
 
     public CombatDecision Choose(
         CombatStateObservation state,
-        CombatDecisionProfile? profile = null)
+        CombatDecisionProfile? profile = null,
+        CombatSearchExplorationOptions? exploration = null)
     {
         var selectedProfile = profile ?? new CombatDecisionProfile();
         selectedProfile.Weights ??= new DecisionWeights();
@@ -163,7 +164,8 @@ public sealed class CombatDecisionEngine
         var search = chancePuctPlanner.Choose(
             state,
             evaluations,
-            selectedProfile);
+            selectedProfile,
+            exploration);
         var hasPlanAction = search.HasAction;
         var planAction = search.Action;
         var planScore = search.Score;

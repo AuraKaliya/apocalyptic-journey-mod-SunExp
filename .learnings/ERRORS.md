@@ -859,7 +859,7 @@ Use `Get-ChildItem` for optional-file discovery, collect PowerShell rows before 
 ### Metadata
 - Reproducible: yes
 - Related Files: .learnings/ERRORS.md
-- Recurrence-Count: 19
+- Recurrence-Count: 20
 
 ### Resolution
 - **Resolved**: 2026-07-16T14:30:00+08:00
@@ -910,5 +910,51 @@ Use `Get-ChildItem` for optional-file discovery, collect PowerShell rows before 
 - **Notes**: A context-light patch inserted `operationDetailText` into the adjacent training status component instead of the simulation status component. Inspect the exact class field block after cross-cutting UI patches rather than relying on a repeated `statusText` anchor.
 - **Observed**: 2026-07-27T00:00:00+08:00
 - **Notes**: Used `Promise.all` for repository skill and optional `rg` discovery; the expected no-match `AGENTS.md` probe returned exit code 1 and hid every sibling result. Re-ran with per-command error isolation; use `Promise.allSettled` semantics for exploratory batches.
+- **Observed**: 2026-07-28T10:00:00+08:00
+- **Notes**: Repeated the invalid direct `foreach (...) { ... } | Format-Table` form while inspecting card-pack assignments. Re-ran by collecting the loop output in `$rows` before formatting.
+- **Observed**: 2026-07-28T14:20:00+08:00
+- **Notes**: Guessed `CombatCampaignFoundationTraining.cs` under `AuraToolsExp-Dev`; the shared implementation lives under `AuraCombatAiShared`. Resolved it with `rg --files` before continuing.
+- **Observed**: 2026-07-28T15:10:00+08:00
+- **Notes**: Ran `AuraToolsExp.NativeReward.Tests` without its two required fixture paths, then used `rg --files` against ignored generated/config content and got no results. Read the test entrypoint and project build command to recover the bundled campaign/ruleset arguments.
+- **Observed**: 2026-07-28T15:35:00+08:00
+- **Notes**: Included guessed shared/worker filenames in otherwise valid `rg` searches three times. The matches still exposed the real files, but the probes exited nonzero; resolve optional paths first or search only known directory roots.
+- **Observed**: 2026-07-28T16:05:00+08:00
+- **Notes**: Repeated the invalid direct `foreach (...) { ... } | Format-List` PowerShell form while auditing boss definitions, and previously attempted to add two `FileInfo` results with `+`. Collect loop/file outputs into an array before formatting or concatenating.
+- **Observed**: 2026-07-28T16:12:00+08:00
+- **Notes**: Ran recursive `rg` across the entire decompiled-reference tree and tutorial copy for `GetTagDiff`, exceeding the timeout. Search the known aggregate `AllScripts.cs` and indexed decompiled source roots separately.
+- **Observed**: 2026-07-28T16:40:00+08:00
+- **Notes**: Guessed a nonexistent `Text/Hard/Hard.csv`, guessed `CombatSimulationEngine.cs` under the wrong shared directory, and repeated the invalid direct `foreach { } | Format-List` form during the boss audit. Resolve files with `rg --files` first and always collect loop output before piping.
+- **Observed**: 2026-07-28T16:45:00+08:00
+- **Notes**: Started two known long-running PowerShell test scripts with a one-second timeout, causing avoidable killed runs before rerunning with realistic limits. Inspect test entrypoints and assign the full expected build-and-test timeout on the first run.
+
+---
+
+## [ERR-20260728-001] artifact-tool-successful-export-nonzero-exit
+
+**Logged**: 2026-07-28T10:10:00+08:00
+**Priority**: low
+**Status**: pending
+**Area**: docs
+
+### Summary
+The spreadsheet builder exported and rendered a valid workbook but returned exit code 1 without an exception.
+
+### Error
+```text
+Inspect result written to file: ...\游戏主体卡牌总表.xlsx.inspect.ndjson
+Exit code: 1
+```
+
+### Context
+- `@oai/artifact-tool` created the requested `.xlsx`, rendered a readable preview, and returned valid inspection data.
+- The generated catalog contained 241 unique rows, no missing fields, no unresolved placeholders, and no formulas.
+- A diagnostic `.inspect.ndjson` sidecar was emitted during shutdown and removed by the builder.
+
+### Suggested Fix
+Treat the exported workbook, render, and inspection results as the primary success signals; investigate whether the artifact runtime sets a nonzero shutdown code when emitting its automatic inspect sidecar.
+
+### Metadata
+- Reproducible: yes
+- Related Files: docs/游戏主体内容/卡牌内容/游戏主体卡牌总表.xlsx
 
 ---

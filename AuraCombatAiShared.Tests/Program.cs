@@ -2331,6 +2331,53 @@ Assert(aiSimulation.Outcome == CombatSimulationOutcome.Victory
        && aiSimulation.PolicyId.StartsWith("aura-combat-decision:", StringComparison.Ordinal),
     "existing Chance-PUCT decision AI consumes projected headless observations and completes a battle");
 
+var exploratorySimulation = simulationEngine.Run(
+    BuildSimulationScenario(seed: 44UL, CombatSimulationTraceLevel.Summary),
+    simulationRules.Ruleset,
+    new CombatDecisionSimulationPolicy(
+        new CombatDecisionProfile
+        {
+            SearchBudgetMode = "fixed",
+            SearchSimulationBudget = 96,
+            SearchNodeBudget = 768,
+            SearchMaxPly = 6
+        },
+        exploration: new CombatSelfPlayExplorationOptions
+        {
+            Probability = 1d,
+            Temperature = 1.25d,
+            RootDirichletAlpha = 0.30d,
+            RootNoiseFraction = 0.25d,
+            RandomSeed = 44
+        }));
+Assert(exploratorySimulation.Metrics.ExplorationDecisions > 0
+       && exploratorySimulation.Metrics
+              .RootMaximumVisitShareSamples > 0
+       && exploratorySimulation.Metrics
+              .RootMaximumVisitShareTotal > 0d,
+    "self-play injects deterministic Dirichlet noise before root search and records effective exploration telemetry");
+
+var authoritativeTeacherSimulation = simulationEngine.Run(
+    BuildSimulationScenario(seed: 45UL, CombatSimulationTraceLevel.Summary),
+    simulationRules.Ruleset,
+    new CombatAuthoritativeBranchTeacherPolicy(
+        new CombatDecisionSimulationPolicy(
+            new CombatDecisionProfile
+            {
+                SearchBudgetMode = "fixed",
+                SearchSimulationBudget = 96,
+                SearchNodeBudget = 768,
+                SearchMaxPly = 6
+            }),
+        new CombatAuthoritativeTeacherOptions
+        {
+            AuditProbability = 1d,
+            RandomSeed = 45
+        }));
+Assert(authoritativeTeacherSimulation.Metrics
+           .AuthoritativeActionsAudited > 0,
+    "teacher policy audits projected choices through authoritative immutable action branches");
+
 var branchState = new CombatBattleState
 {
     Turn = 1,
@@ -4136,6 +4183,12 @@ Assert(policyValueTraining.Success
            "validationCompositeLoss")
        && policyValueTraining.CandidateModels.Count > 0
        && policyValueTraining.CandidateModels.Count <= 3
+       && policyValueTraining.CandidateModels.All(candidate =>
+           candidate.Model.PolicyTemperature is >= 0.5d and <= 3d
+           && candidate.Model.Metrics.ContainsKey(
+               "validationCompositeLoss")
+           && candidate.Model.Metrics["policyTemperature"]
+              == candidate.Model.PolicyTemperature)
        && policyValueTraining.FrameStratificationProtocol
           == CombatPolicyValueFrameStratificationProtocol.Version
        && policyValueTraining.FrameStrata.Count >= 4
@@ -5191,22 +5244,26 @@ var replaySelectionFixture = CombatFoundationReplaySampler.Select(
     replayFixture,
     8,
     enabled: true);
-Assert(replaySelectionFixture.Episodes.Count == 8
-       && replaySelectionFixture.NormalEpisodes == 6
+Assert(replaySelectionFixture.Episodes.Count == 7
+       && replaySelectionFixture.NormalEpisodes == 5
        && replaySelectionFixture.AdvancedEpisodes == 2
-       && replaySelectionFixture.SuccessfulEpisodes > 0,
-    "foundation replay stratification adapts toward weak normal play and retains rare successful/deep episodes");
+       && replaySelectionFixture.SuccessfulEpisodes > 0
+       && replaySelectionFixture.QuotaShortfalls.TryGetValue(
+           "advanced:defeat",
+           out var advancedDefeatShortfall)
+       && advancedDefeatShortfall == 1,
+    "foundation replay stratification preserves the advanced quota, reports scarcity, and never silently backfills it with normal episodes");
 var replayWithDuplicate = replayFixture.Concat(new[] { replayFixture[7] }).ToList();
 var deduplicatedReplay = CombatFoundationReplaySampler.Select(
     replayWithDuplicate,
     8,
     enabled: true);
-Assert(deduplicatedReplay.Episodes.Count == 8
+Assert(deduplicatedReplay.Episodes.Count == 7
        && deduplicatedReplay.DroppedDuplicateEpisodes == 1
        && deduplicatedReplay.Episodes
            .Select(item => item.EpisodeId)
            .Distinct(StringComparer.Ordinal)
-           .Count() == 8,
+           .Count() == 7,
     "foundation replay persistence never expands weighted priorities into duplicate episode payloads");
 
 CombatCampaignResult CaseCampaign(
