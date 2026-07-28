@@ -417,59 +417,59 @@ public sealed partial class NativeRewardScriptGlobals
                     NativeProgram_0099();
                     message = "";
                     return true;
-                case "3793F50806C1C07319BC7DC0F9619B38CEA4664A7039D43D48D8E499137E06FF":
+                case "38FC32308AD7E8980BD2C9A960F3BFD758F307A2186878DEFFE98142458CD3A6":
                     NativeProgram_0100();
                     message = "";
                     return true;
-                case "38FC32308AD7E8980BD2C9A960F3BFD758F307A2186878DEFFE98142458CD3A6":
+                case "395F92AB9C4D22D51EC9131D43BDED630756B3774EA2EA76C0317BA06B2A801C":
                     NativeProgram_0101();
                     message = "";
                     return true;
-                case "395F92AB9C4D22D51EC9131D43BDED630756B3774EA2EA76C0317BA06B2A801C":
+                case "39B43BB2908CF4986E25D6F133E4103ED4C6A4FF99180F49F243C00E4E31F34F":
                     NativeProgram_0102();
                     message = "";
                     return true;
-                case "39B43BB2908CF4986E25D6F133E4103ED4C6A4FF99180F49F243C00E4E31F34F":
+                case "3B7D6BC6098D1DF8F3831208ACAF6EAD8CBB4CF8F9298268BA497C35ABCCC12A":
                     NativeProgram_0103();
                     message = "";
                     return true;
-                case "3B7D6BC6098D1DF8F3831208ACAF6EAD8CBB4CF8F9298268BA497C35ABCCC12A":
+                case "3BBBCA36DF74C593E551B540425EDCCC38C37A96C2D26888772ECBA8AA6D3FEE":
                     NativeProgram_0104();
                     message = "";
                     return true;
-                case "3BBBCA36DF74C593E551B540425EDCCC38C37A96C2D26888772ECBA8AA6D3FEE":
+                case "3C14A350F9C09945ABA1D7F3F4F6770D75E0BB19D12455553AF5BE745E2A14EF":
                     NativeProgram_0105();
                     message = "";
                     return true;
-                case "3C14A350F9C09945ABA1D7F3F4F6770D75E0BB19D12455553AF5BE745E2A14EF":
+                case "3C913013832FDDDB4EFD9703FA9E099E2394F460F415A6B4870CA4238391AECC":
                     NativeProgram_0106();
                     message = "";
                     return true;
-                case "3C913013832FDDDB4EFD9703FA9E099E2394F460F415A6B4870CA4238391AECC":
+                case "3CE073D9A84BCD2DA47DEE283C7024B5F9649C20F72ED883DFAD90B89EF1D71C":
                     NativeProgram_0107();
                     message = "";
                     return true;
-                case "3CE073D9A84BCD2DA47DEE283C7024B5F9649C20F72ED883DFAD90B89EF1D71C":
+                case "3D1CD9BF3C9316929DC7A9CE899FB05D21ECAD8CFD96334DE94ABC6D8FFED5A8":
                     NativeProgram_0108();
                     message = "";
                     return true;
-                case "3D1CD9BF3C9316929DC7A9CE899FB05D21ECAD8CFD96334DE94ABC6D8FFED5A8":
+                case "3E7FAFEECA6FA2E9922424BAEFFAD1EE0577A6FFE84D3BEEF343F276E428764C":
                     NativeProgram_0109();
                     message = "";
                     return true;
-                case "3E7FAFEECA6FA2E9922424BAEFFAD1EE0577A6FFE84D3BEEF343F276E428764C":
+                case "3E874387B307C113D7EC524CB42CC0FC602786A2159B2EF77F1C8BEA4E6647BA":
                     NativeProgram_0110();
                     message = "";
                     return true;
-                case "3E874387B307C113D7EC524CB42CC0FC602786A2159B2EF77F1C8BEA4E6647BA":
+                case "3EE7AEA0307C819A523421234B8D533F50C2252F3B0557E3346A50EC2373A95E":
                     NativeProgram_0111();
                     message = "";
                     return true;
-                case "3EE7AEA0307C819A523421234B8D533F50C2252F3B0557E3346A50EC2373A95E":
+                case "3FB6E7FF60E5E9C8A54AE9FC10DA6C77A889060F76F1DE4EFF694143EE954B74":
                     NativeProgram_0112();
                     message = "";
                     return true;
-                case "3FB6E7FF60E5E9C8A54AE9FC10DA6C77A889060F76F1DE4EFF694143EE954B74":
+                case "41006C61C28E5F77E8C448FB30FD3F0267DDE4C3F81FC573E672B22F9E966A9F":
                     NativeProgram_0113();
                     message = "";
                     return true;
@@ -2125,7 +2125,6 @@ public sealed partial class NativeRewardScriptGlobals
             case "3524C11D3F79ABC0753B704B89B3FCB3A112526C8D3927ECC15A1040A0F97241":
             case "353FE9254DEAA974AFA2445B8DE1555278F800EDCC9378D7385F7FA688EC2BAE":
             case "367D854D35B99F3A80DBA0118F285BC565DC6F1C795B4072021DD8563E1730BE":
-            case "3793F50806C1C07319BC7DC0F9619B38CEA4664A7039D43D48D8E499137E06FF":
             case "38FC32308AD7E8980BD2C9A960F3BFD758F307A2186878DEFFE98142458CD3A6":
             case "395F92AB9C4D22D51EC9131D43BDED630756B3774EA2EA76C0317BA06B2A801C":
             case "39B43BB2908CF4986E25D6F133E4103ED4C6A4FF99180F49F243C00E4E31F34F":
@@ -2139,6 +2138,7 @@ public sealed partial class NativeRewardScriptGlobals
             case "3E874387B307C113D7EC524CB42CC0FC602786A2159B2EF77F1C8BEA4E6647BA":
             case "3EE7AEA0307C819A523421234B8D533F50C2252F3B0557E3346A50EC2373A95E":
             case "3FB6E7FF60E5E9C8A54AE9FC10DA6C77A889060F76F1DE4EFF694143EE954B74":
+            case "41006C61C28E5F77E8C448FB30FD3F0267DDE4C3F81FC573E672B22F9E966A9F":
             case "410ACB41D0ED8AF3B711B4720BC489F3F3C1CD56149CBA413812175DF1C5DBC9":
             case "4148DDDAA9E33EBBF81A155DE59844EBAFDC714E5E9DBA43BE368C8757EC72D6":
             case "423A1021860D21940A5593E3ABECFEDEEAD410B21CB1F87F01C0693E129B75D8":
@@ -3718,29 +3718,15 @@ public sealed partial class NativeRewardScriptGlobals
 
     private void NativeProgram_0100()
     {
-        AddEvent("StartRound",()=>{for(int i=0;i<2;i++){CreateCard(new NativeRewardDataConfig("cursecard_14",NativeRewardDataType.Card));}});
-        SetStatus("AllTarget");
-        AddEvent<NativeRewardHurtData>("Hurt",(data)=>{
-            if(data.fromDataId!="enemycard_CAR_Sword"){return;}
-            int hurtVal=0;int.TryParse(data.val,out hurtVal);if(hurtVal<=0){return;}
-            int count=HandCard.Count(x=>x!=null&&x.dataConfig.data["Id"]=="cursecard_14");
-            if(count<=5){return;}
-            foreach(var card in HandCard.Where(x=>x!=null&&x.dataConfig.data["Id"]=="cursecard_14").ToList()){BurnCardByData(card.dataConfig);}
-            SetStatusById(data.toId);if(Object.Count>0){ChangeHp((-Object[0].MaxHp).ToString());}
-        });
+        SetStatus("Self");ChangeHp((-Self.MaxHp/10).ToString());var _rb=Self!=null?Self.GetBuff("buff_ReturnAgain"):null;if(_rb!=null){_rb.buffConfig.Level=Math.Max(0,_rb.buffConfig.Level-10);}
     }
 
     private void NativeProgram_0101()
     {
-        SetStatus("Self");ChangeHp((-Self.MaxHp/10).ToString());var _rb=Self!=null?Self.GetBuff("buff_ReturnAgain"):null;if(_rb!=null){_rb.buffConfig.Level=Math.Max(0,_rb.buffConfig.Level-10);}
-    }
-
-    private void NativeProgram_0102()
-    {
         Vars["BaseScript"]="AttackCardItem";AddDescription("1","Buff","3");
     }
 
-    private void NativeProgram_0103()
+    private void NativeProgram_0102()
     {
         SetStatus("Self");
                 if (Self!=null&&Self.GetBuff("buff_revelation")!=null)
@@ -3755,7 +3741,7 @@ public sealed partial class NativeRewardScriptGlobals
                 }
     }
 
-    private void NativeProgram_0104()
+    private void NativeProgram_0103()
     {
         Vars["ThisCount"]="0";
                Self.DamageFilter["buff_burn"]=0f;
@@ -3781,7 +3767,7 @@ public sealed partial class NativeRewardScriptGlobals
                  });
     }
 
-    private void NativeProgram_0105()
+    private void NativeProgram_0104()
     {
         Vars["ThisCount"]="0";
                 AddEvent("CostPower", () =>
@@ -3794,7 +3780,7 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0106()
+    private void NativeProgram_0105()
     {
         AddEvent("StartRound", () =>
          {
@@ -3812,12 +3798,12 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0107()
+    private void NativeProgram_0106()
     {
         AddEvent("FightStart",(() => {PlayerInfo.Hp+=2;}));
     }
 
-    private void NativeProgram_0108()
+    private void NativeProgram_0107()
     {
         SetStatus("AllTarget");
                 AddEvent<NativeRewardActionData>("Action", (data) =>
@@ -3839,17 +3825,17 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0109()
+    private void NativeProgram_0108()
     {
         AddEvent("FightStart",(() => {SetStatus("Self");AddBuff("buff_fast","1");}));
     }
 
-    private void NativeProgram_0110()
+    private void NativeProgram_0109()
     {
         AddEvent("Action",(() => ChangePower("1")));
     }
 
-    private void NativeProgram_0111()
+    private void NativeProgram_0110()
     {
         Vars["ThisCount"]="0";
                 AddEvent<NativeRewardActionData>("Action", (NativeRewardActionData fromdata) =>
@@ -3877,7 +3863,7 @@ public sealed partial class NativeRewardScriptGlobals
                 AddEvent("Resurrection",()=>{PlayerInfo.RemoveRelic("CrowdFundingRelic_54");});
     }
 
-    private void NativeProgram_0112()
+    private void NativeProgram_0111()
     {
         AddEvent("FightStart",() =>
                 {
@@ -3885,9 +3871,23 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0113()
+    private void NativeProgram_0112()
     {
         AddEvent("FightStart",() => {SetStatus("Self");AddBuff("buff_resilient","2");});
+    }
+
+    private void NativeProgram_0113()
+    {
+        AddEvent("StartRound",()=>{for(int i=0;i<2;i++){CreateCard(new NativeRewardDataConfig("cursecard_14",NativeRewardDataType.Card));}});
+        SetStatus("AllTarget");
+        AddEvent<NativeRewardHurtData>("Hurt",(data)=>{
+            if(data.fromDataId!="enemycard_CAR_Sword"){return;}
+            int hurtVal=0;int.TryParse(data.val,out hurtVal);if(hurtVal<=0){return;}
+            int count=HandCard.Count(x=>x!=null&&x.dataConfig.data["Id"]=="cursecard_14");
+            if(count<=5){return;}
+            foreach(var card in HandCard.Where(x=>x!=null&&x.dataConfig.data["Id"]=="cursecard_14").ToList()){BurnCardByData(card.dataConfig);}
+            SetStatusById(data.toId);if(Object.Count>0){Damage(Object[0].MaxHp.ToString(),"True");}
+        });
     }
 
     private void NativeProgram_0114()

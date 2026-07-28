@@ -1,5 +1,28 @@
 # Learnings
 
+## [LRN-20260728-003] knowledge_gap
+
+**Logged**: 2026-07-28T18:35:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: backend
+
+### Summary
+Final-boss validation level and enemy IDs must come from the bundled runtime Level export, not names or remembered mappings.
+
+### Details
+The authoritative mappings are `level_0 -> enemy_10027`, `level_10046 -> enemy_10048` (with sword adds), `level_10048 -> enemy_10055`, and `level_10051 -> enemy_10058`. Similar level and enemy numbers are not interchangeable.
+
+### Suggested Action
+Keep the release test that checks the hidden game-host validation cases against `combat-knowledge.base-game.json`.
+
+### Metadata
+- Source: error
+- Related Files: AuraToolsExp/Config/combat-knowledge.base-game.json, AuraToolsAutoBattleGameValidationRuntime.cs
+- Tags: auto-battle, boss, authority, validation
+
+---
+
 ## [LRN-20260716-001] correction
 
 **Logged**: 2026-07-16T14:40:00+08:00

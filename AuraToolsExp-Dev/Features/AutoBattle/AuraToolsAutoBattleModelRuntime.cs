@@ -400,6 +400,56 @@ internal static class AuraToolsAutoBattleModelRuntime
         return true;
     }
 
+    public static bool TryResolveGameValidationArtifact(
+        string decisionProfile,
+        string selectedModelId,
+        bool preferCandidate,
+        out IDecisionResidualModel residual,
+        out ICombatSearchGuidanceModel guidance,
+        out ICombatPolicyValueModel policyValue,
+        out string modelId,
+        out string artifactHash,
+        out bool candidate,
+        out string diagnostic)
+    {
+        var profile = NormalizeProfile(decisionProfile);
+        residual = NullDecisionResidualModel.Instance;
+        guidance = NullCombatSearchGuidanceModel.Instance;
+        policyValue = NullCombatPolicyValueModel.Instance;
+        modelId = "none";
+        artifactHash = "";
+        candidate = false;
+
+        if (preferCandidate
+            && TryReadValidatedCandidateBundle(profile, out var candidateBundle, out diagnostic))
+        {
+            candidate = true;
+            PopulateModels(
+                candidateBundle,
+                out residual,
+                out guidance,
+                out policyValue);
+            modelId = CandidateModelId(candidateBundle);
+            artifactHash = HashBytes(
+                Encoding.UTF8.GetBytes(AuraSharedJson.Serialize(candidateBundle)))
+                .ToLowerInvariant();
+            diagnostic = "待导入候选模型";
+            return true;
+        }
+
+        if (!TryReadLibraryBundle(profile, selectedModelId, out var libraryBundle, out diagnostic))
+        {
+            return false;
+        }
+        PopulateModels(libraryBundle, out residual, out guidance, out policyValue);
+        modelId = CandidateModelId(libraryBundle);
+        artifactHash = HashBytes(
+            Encoding.UTF8.GetBytes(AuraSharedJson.Serialize(libraryBundle)))
+            .ToLowerInvariant();
+        diagnostic = "模型库模型";
+        return true;
+    }
+
     public static IReadOnlyList<AutoBattleModelLibraryEntry> SnapshotModelLibrary(
         string decisionProfile)
     {
@@ -2235,6 +2285,23 @@ internal static class AuraToolsAutoBattleModelRuntime
                          && !string.Equals(id, "none", StringComparison.Ordinal))
             .ToArray();
         return ids.Length == 0 ? "none" : string.Join("+", ids);
+    }
+
+    private static void PopulateModels(
+        AutoBattleCandidateBundle bundle,
+        out IDecisionResidualModel residual,
+        out ICombatSearchGuidanceModel guidance,
+        out ICombatPolicyValueModel policyValue)
+    {
+        residual = bundle.Residual == null
+            ? NullDecisionResidualModel.Instance
+            : new BoundedLinearDecisionResidualModel(bundle.Residual);
+        guidance = bundle.SearchGuidance == null
+            ? NullCombatSearchGuidanceModel.Instance
+            : new BoundedTreeCombatSearchGuidanceModel(bundle.SearchGuidance);
+        policyValue = bundle.PolicyValue == null
+            ? NullCombatPolicyValueModel.Instance
+            : new ManagedCombatPolicyValueModel(bundle.PolicyValue);
     }
 
     private static void RegisterLibraryBundle(

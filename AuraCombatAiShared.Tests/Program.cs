@@ -6731,6 +6731,79 @@ Assert(CombatPlayerObservationBoundary.Normalize(orderedCage).Fingerprint
        != CombatPlayerObservationBoundary.Normalize(reversedCage).Fingerprint,
     "time-cage queue order is part of the player-visible decision state");
 
+var gameValidationRequest = new CombatGameValidationRequest
+{
+    RequestId = "validation-1",
+    Profile = "balanced",
+    ModelId = "policy-v1",
+    ModelArtifactHash = "artifact-a",
+    GameBuild = "1.2.3",
+    CampaignId = "campaign",
+    CampaignVersion = "2",
+    RulesetHash = "rules-a",
+    NativePackageHash = "native-a",
+    CreatedUtc = "2026-07-28T00:00:00.0000000Z",
+    Cases =
+    {
+        new CombatGameValidationCase
+        {
+            CaseId = "final-boss.hje",
+            LevelId = "level_10048",
+            EncounterId = "enemy_10055",
+            Repetitions = 2,
+            MinimumWins = 1
+        }
+    }
+};
+Assert(CombatGameValidationProtocol.ValidateRequest(
+        gameValidationRequest,
+        out _),
+    "game-host validation request requires immutable model and semantic identities");
+var gameValidationReport = new CombatGameValidationReport
+{
+    RequestId = gameValidationRequest.RequestId,
+    ModelId = gameValidationRequest.ModelId,
+    CompatibilityKey = CombatGameValidationProtocol.BuildCompatibilityKey(
+        gameValidationRequest.Profile,
+        gameValidationRequest.ModelId,
+        gameValidationRequest.ModelArtifactHash,
+        gameValidationRequest.GameBuild,
+        gameValidationRequest.CampaignId,
+        gameValidationRequest.CampaignVersion,
+        gameValidationRequest.RulesetHash,
+        gameValidationRequest.NativePackageHash),
+    Completed = true,
+    Passed = true,
+    StartedUtc = "2026-07-28T00:00:01.0000000Z",
+    CompletedUtc = "2026-07-28T00:03:01.0000000Z",
+    Cases =
+    {
+        new CombatGameValidationCaseResult
+        {
+            CaseId = "final-boss.hje",
+            LevelId = "level_10048",
+            Attempts = 2,
+            Wins = 1,
+            Losses = 1,
+            Decisions = 18
+        }
+    }
+};
+gameValidationReport.ReceiptHash =
+    CombatGameValidationProtocol.BuildReceiptHash(gameValidationReport);
+Assert(CombatGameValidationProtocol.ValidateReport(
+        gameValidationRequest,
+        gameValidationReport,
+        out _),
+    "complete game-host receipt passes when coverage, outcome and identity match");
+gameValidationRequest.RulesetHash = "rules-b";
+Assert(!CombatGameValidationProtocol.ValidateReport(
+        gameValidationRequest,
+        gameValidationReport,
+        out var staleGameValidationReason)
+       && staleGameValidationReason.Contains("不匹配", StringComparison.Ordinal),
+    "game-host receipt is invalidated by an authoritative ruleset change");
+
 Console.WriteLine($"AuraCombatAiShared.Tests passed: {assertions} assertions.");
 
 void Assert(bool condition, string name)

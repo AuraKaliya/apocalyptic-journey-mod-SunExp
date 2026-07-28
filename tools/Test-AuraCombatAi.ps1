@@ -79,7 +79,9 @@ $foundationTrainingPath = Join-Path $root "AuraCombatAiShared\CombatCampaignFoun
 $foundationStrategyPath = Join-Path $root "AuraCombatAiShared\CombatFoundationTrainingStrategy.cs"
 $foundationCaseLearningPath = Join-Path $root "AuraCombatAiShared\CombatFoundationCaseLearning.cs"
 $foundationCaseArchiveProtocolPath = Join-Path $root "AuraCombatAiShared\CombatFoundationCaseArchiveProtocol.cs"
+$gameValidationProtocolPath = Join-Path $root "AuraCombatAiShared\CombatGameValidation.cs"
 $simulationUiRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleSimulationRuntime.cs"
+$gameValidationRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleGameValidationRuntime.cs"
 $foundationRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleFoundationRuntime.cs"
 $foundationWorkerRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsFoundationWorkerRuntime.cs"
 $foundationWorkerProjectPath = Join-Path $root "AuraFoundationTrainer.Worker\AuraFoundationTrainer.Worker.csproj"
@@ -89,6 +91,7 @@ $nativeProgramsPath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\Gene
 $modelUiRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleModelRuntime.cs"
 $journeyUiRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleJourneyRuntime.cs"
 $settingsUiRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\Settings\AuraToolsSettingsRuntime.cs"
+$baseGameKnowledgePath = Join-Path $root "AuraToolsExp\Config\combat-knowledge.base-game.json"
 $bundledRulesPath = Join-Path $root "AuraToolsExp\Config\combat-simulation\witch-base-evaluation-v1.ruleset.json"
 $bundledJourneyPath = Join-Path $root "AuraToolsExp\Config\combat-simulation\witch-world-simulation-v1.journey.json"
 $bundledCampaignV2Path = Join-Path $root "AuraToolsExp\Config\combat-simulation\witch-world-simulation-v2.campaign.json"
@@ -127,7 +130,9 @@ $foundationTraining = Get-Content -LiteralPath $foundationTrainingPath -Raw
 $foundationStrategy = Get-Content -LiteralPath $foundationStrategyPath -Raw
 $foundationCaseLearning = Get-Content -LiteralPath $foundationCaseLearningPath -Raw
 $foundationCaseArchiveProtocol = Get-Content -LiteralPath $foundationCaseArchiveProtocolPath -Raw
+$gameValidationProtocol = Get-Content -LiteralPath $gameValidationProtocolPath -Raw
 $simulationUiRuntime = Get-Content -LiteralPath $simulationUiRuntimePath -Raw
+$gameValidationRuntime = Get-Content -LiteralPath $gameValidationRuntimePath -Raw
 $foundationRuntime = Get-Content -LiteralPath $foundationRuntimePath -Raw
 $foundationWorkerRuntime = Get-Content -LiteralPath $foundationWorkerRuntimePath -Raw
 $foundationWorkerProject = Get-Content -LiteralPath $foundationWorkerProjectPath -Raw
@@ -219,6 +224,22 @@ foreach ($anchor in @(
 )) {
     if (-not $playerEquivalent.Contains($anchor)) {
         throw "Aura player-equivalent observation boundary is missing: $anchor"
+    }
+}
+$baseGameKnowledge = Get-Content -LiteralPath $baseGameKnowledgePath -Raw |
+    ConvertFrom-Json
+foreach ($expectedBossEncounter in @(
+    @{ Level = "level_0"; Enemy = "enemy_10027" },
+    @{ Level = "level_10046"; Enemy = "enemy_10048" },
+    @{ Level = "level_10048"; Enemy = "enemy_10055" },
+    @{ Level = "level_10051"; Enemy = "enemy_10058" }
+)) {
+    $actualEncounter = $baseGameKnowledge.encounters |
+        Where-Object { $_.encounterId -eq $expectedBossEncounter.Level } |
+        Select-Object -First 1
+    if ($null -eq $actualEncounter `
+        -or $actualEncounter.enemyIds -notcontains $expectedBossEncounter.Enemy) {
+        throw "Bundled final-boss encounter authority mismatch: $($expectedBossEncounter.Level) -> $($expectedBossEncounter.Enemy)"
     }
 }
 
@@ -392,7 +413,7 @@ foreach ($anchor in @(
     "RuleTerminalOverrides",
     "CertifiedLoops",
     "FakeLoops",
-    "no-paired-win-gain",
+    "no-meaningful-gain",
     "ArenaConfirmationPairs",
     "TerminalConsistencyViolations",
     "FeatureLeakageViolations",
@@ -927,6 +948,40 @@ foreach ($anchor in @(
 }
 
 foreach ($anchor in @(
+    "BuildCompatibilityKey",
+    "BuildReceiptHash",
+    "ValidateRequest",
+    "ValidateReport",
+    "ModelArtifactHash",
+    "NativePackageHash"
+)) {
+    if (-not $gameValidationProtocol.Contains($anchor)) {
+        throw "Aura game-host validation protocol is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
+    "FinalBossCases",
+    "level_0",
+    "enemy_10027",
+    "level_10046",
+    "enemy_10048",
+    "level_10048",
+    "enemy_10055",
+    "level_10051",
+    "enemy_10058",
+    "ReadyToInit",
+    "IsFake = true",
+    "RestoreRole",
+    "HideFightPresentation",
+    "CanPromote",
+    "WriteTextAtomic"
+)) {
+    if (-not $gameValidationRuntime.Contains($anchor)) {
+        throw "Aura game-host validation runtime is missing: $anchor"
+    }
+}
+
+foreach ($anchor in @(
     "AutoBattleEvolutionView",
     "QueueRun",
     "QueueEvolution",
@@ -937,7 +992,9 @@ foreach ($anchor in @(
     "CPU 并行线程",
     "CampaignsPerSecond",
     "FormatDuration(status.EstimatedRemainingSeconds)",
-    "status.ProgressDiagnostic"
+    "status.ProgressDiagnostic",
+    "AuraToolsAutoBattleGameValidationStatusView",
+    "隐藏战斗画面"
 )) {
     if (-not $settingsUiRuntime.Contains($anchor)) {
         throw "AuraTools auto-battle interaction contract is missing: $anchor"

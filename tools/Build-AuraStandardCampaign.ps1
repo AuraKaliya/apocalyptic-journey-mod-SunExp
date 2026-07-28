@@ -3390,7 +3390,7 @@ AddEvent<HurtData>("Hurt",(data)=>{
     int count=HandCard.Count(x=>x!=null&&x.dataConfig.data["Id"]=="cursecard_14");
     if(count<=5){return;}
     foreach(var card in HandCard.Where(x=>x!=null&&x.dataConfig.data["Id"]=="cursecard_14").ToList()){BurnCardByData(card.dataConfig);}
-    SetStatusById(data.toId);if(Object.Count>0){ChangeHp((-Object[0].MaxHp).ToString());}
+    SetStatusById(data.toId);if(Object.Count>0){Damage(Object[0].MaxHp.ToString(),"True");}
 });
 '@
             }

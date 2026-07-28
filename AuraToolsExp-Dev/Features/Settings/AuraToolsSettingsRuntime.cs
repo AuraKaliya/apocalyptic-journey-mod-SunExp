@@ -1373,7 +1373,97 @@ public static class AuraToolsSettingsRuntime
 
             AuraToolsUi.AddText(
                 content,
-                "⑤ 保存与应用：标准评估门禁通过后，才可把玩家候选保存为新冠军；底模训练成功后先保持关闭。",
+                "⑤ 游戏主体验证：在真实 FightManager、RoleTable 与卡牌脚本上自动挑战四名最终首领；默认隐藏战斗画面，只保留一小轮主体验收。",
+                AuraToolsUi.BodyFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.Text,
+                AuraToolsUi.TextMinHeight,
+                1f);
+            var gameValidationRow = CreateInlineRow(
+                content,
+                "AutoBattleGameValidationRow");
+            var gameValidationStatusText = AuraToolsUi.AddText(
+                gameValidationRow.transform,
+                "",
+                AuraToolsUi.HintFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.MutedText,
+                AuraToolsUi.TextMinHeight,
+                1f);
+            var runGameValidationButton = AuraToolsUi.AddButton(
+                gameValidationRow.transform,
+                "实机验证",
+                () =>
+                {
+                    if (!AuraToolsAutoBattleGameValidationRuntime.Queue(
+                            autoBattle,
+                            out var validationMessage))
+                    {
+                        AuraToolsLog.Warn(
+                            "[AutoBattle][GameValidation] " + validationMessage);
+                    }
+                },
+                92f);
+            var cancelGameValidationButton = AuraToolsUi.AddButton(
+                gameValidationRow.transform,
+                "取消",
+                AuraToolsAutoBattleGameValidationRuntime.Cancel,
+                66f);
+            var openGameValidationButton = AuraToolsUi.AddButton(
+                gameValidationRow.transform,
+                "打开回执",
+                AuraToolsAutoBattleGameValidationRuntime.OpenResultDirectory,
+                88f);
+            gameValidationRow
+                .AddComponent<AuraToolsAutoBattleGameValidationStatusView>()
+                .Configure(
+                    gameValidationStatusText,
+                    runGameValidationButton,
+                    cancelGameValidationButton,
+                    openGameValidationButton);
+
+            var gameValidationSettings = autoBattle.GameValidation;
+            var gameValidationOptionsRow = CreateInlineRow(
+                content,
+                "AutoBattleGameValidationOptionsRow");
+            AuraToolsUi.AddToggle(
+                gameValidationOptionsRow.transform,
+                gameValidationSettings.HidePresentation,
+                value =>
+                {
+                    gameValidationSettings.HidePresentation = value;
+                    autoBattle.Normalize();
+                    AuraToolsConfigService.SaveMatchExperience();
+                });
+            AuraToolsUi.AddText(
+                gameValidationOptionsRow.transform,
+                "隐藏战斗画面",
+                AuraToolsUi.HintFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.Text,
+                AuraToolsUi.TextMinHeight,
+                0f,
+                112f);
+            AddAutoBattleSimulationInt(
+                gameValidationOptionsRow.transform,
+                "每名最终首领场次",
+                gameValidationSettings.RepetitionsPerFinalBoss,
+                1,
+                20,
+                value => gameValidationSettings.RepetitionsPerFinalBoss = value,
+                autoBattle);
+            AuraToolsUi.AddText(
+                content,
+                "验证使用游戏主体真实运行时，不把结果回流训练集；角色状态会在每场后还原。回执绑定模型工件、游戏版本、规则集与权威程序包，任一变化都必须重验。",
+                AuraToolsUi.HintFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.MutedText,
+                AuraToolsUi.TextMinHeight,
+                1f);
+
+            AuraToolsUi.AddText(
+                content,
+                "⑥ 保存与应用：标准评估和游戏主体验证门禁都通过后，才可把玩家候选保存为新冠军；底模训练成功后先保持关闭。",
                 AuraToolsUi.BodyFontSize,
                 TextAnchor.MiddleLeft,
                 AuraToolsUi.Text,
@@ -3085,6 +3175,89 @@ internal sealed class AuraToolsAutoBattleFoundationStatusView : MonoBehaviour
             : span.Minutes.ToString("00")
               + ":"
               + span.Seconds.ToString("00");
+    }
+
+    private static void SetButtonLabel(Button button, string value)
+    {
+        var label = button.GetComponentInChildren<Text>(true);
+        if (label != null)
+        {
+            label.text = value;
+        }
+    }
+}
+
+internal sealed class AuraToolsAutoBattleGameValidationStatusView : MonoBehaviour
+{
+    private Text? statusText;
+    private Button? runButton;
+    private Button? cancelButton;
+    private Button? openButton;
+    private float nextRefreshAt;
+
+    public void Configure(
+        Text text,
+        Button run,
+        Button cancel,
+        Button open)
+    {
+        statusText = text;
+        runButton = run;
+        cancelButton = cancel;
+        openButton = open;
+        Refresh();
+    }
+
+    private void Update()
+    {
+        if (Time.unscaledTime < nextRefreshAt)
+        {
+            return;
+        }
+        nextRefreshAt = Time.unscaledTime + 0.2f;
+        Refresh();
+    }
+
+    private void Refresh()
+    {
+        var status = AuraToolsAutoBattleGameValidationRuntime.GetStatus();
+        var otherBusy = AuraToolsAutoBattleFoundationRuntime.GetStatus().Busy
+                        || AuraToolsAutoBattleSimulationRuntime.GetStatus().Busy
+                        || AuraToolsAutoBattleModelRuntime.GetTrainingStatus(
+                            AuraToolsConfigService.MatchExperience.AutoBattle.Profile).Busy;
+        if (statusText != null)
+        {
+            var progress = status.RequestedBattles <= 0
+                ? ""
+                : " · "
+                  + status.CompletedBattles
+                  + "/"
+                  + status.RequestedBattles
+                  + " 战";
+            statusText.text = status.Message + progress;
+            statusText.color = status.Stage == AutoBattleGameValidationStage.Failed
+                               || status.Stage == AutoBattleGameValidationStage.Cancelled
+                ? AuraToolsUi.WarningText
+                : status.Stage == AutoBattleGameValidationStage.Passed
+                    ? AuraToolsUi.SuccessText
+                    : AuraToolsUi.MutedText;
+        }
+        if (runButton != null)
+        {
+            runButton.interactable = !status.Busy && !otherBusy;
+            SetButtonLabel(runButton, status.Busy ? "验证中..." : "实机验证");
+        }
+        if (cancelButton != null)
+        {
+            cancelButton.interactable = status.Busy
+                                        && status.Stage
+                                        != AutoBattleGameValidationStage.Cancelling;
+        }
+        if (openButton != null)
+        {
+            openButton.interactable = Directory.Exists(
+                AuraToolsAutoBattleGameValidationRuntime.ResultsRootDirectory);
+        }
     }
 
     private static void SetButtonLabel(Button button, string value)

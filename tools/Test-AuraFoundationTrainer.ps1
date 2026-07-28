@@ -261,8 +261,11 @@ try {
             -Path $legacyObservationDirectory | Out-Null
         $legacyObservationPath = Join-Path $legacyObservationDirectory (
             [string]$observation.CaseId + ".json")
-        Copy-Item -LiteralPath $compactObservation.FullName `
-            -Destination $legacyObservationPath -Force
+        # PowerShell 5's FileSystemProvider still enforces MAX_PATH here.
+        [System.IO.File]::Copy(
+            "\\?\" + $compactObservation.FullName,
+            "\\?\" + [System.IO.Path]::GetFullPath($legacyObservationPath),
+            $true)
         Remove-Item -LiteralPath $compactObservation.FullName -Force
 
         $migrationJobPath = Join-Path $smokeRoot "migration-job.json"
