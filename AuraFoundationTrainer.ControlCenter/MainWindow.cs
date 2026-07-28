@@ -28,6 +28,10 @@ internal sealed class MainWindow : Window
     private Process? workerProcess;
     private TextBox modRootInput = null!;
     private TextBox dataRootInput = null!;
+    private readonly Dictionary<string, Button> profileButtons =
+        new(StringComparer.Ordinal);
+    private string selectedProfile = "balanced";
+    private ScrollViewer parametersScroll = null!;
     private TextBlock environmentStatus = null!;
     private TextBlock runStatus = null!;
     private TextBlock progressPrimary = null!;
@@ -48,9 +52,11 @@ internal sealed class MainWindow : Window
         MinWidth = 920;
         MinHeight = 680;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
-        Background = new SolidColorBrush(Color.FromRgb(25, 28, 35));
-        Foreground = Brushes.WhiteSmoke;
+        TrainerTheme.Apply(this);
         Content = BuildUi();
+        Loaded += (_, _) => Dispatcher.BeginInvoke(
+            () => parametersScroll.ScrollToTop(),
+            DispatcherPriority.ContextIdle);
         LoadSettings();
         ApplySettingsToUi();
         ValidateEnvironment();
@@ -70,27 +76,45 @@ internal sealed class MainWindow : Window
 
     private UIElement BuildUi()
     {
-        var root = new DockPanel { Margin = new Thickness(16) };
-        var title = new TextBlock
+        var root = new DockPanel();
+        var header = new Border
         {
-            Text = "Aura Foundation Trainer",
-            FontSize = 24,
-            FontWeight = FontWeights.SemiBold,
-            Margin = new Thickness(0, 0, 0, 12)
+            Background = TrainerTheme.Header,
+            BorderBrush = TrainerTheme.Border,
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Padding = new Thickness(24, 18, 24, 16)
         };
-        DockPanel.SetDock(title, Dock.Top);
-        root.Children.Add(title);
+        var heading = new StackPanel();
+        heading.Children.Add(new TextBlock
+        {
+            Text = "Aura 外部底模训练器",
+            FontSize = 23,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = TrainerTheme.Text
+        });
+        heading.Children.Add(new TextBlock
+        {
+            Text = "独立训练 · 模拟校准 · 受控验收",
+            Margin = new Thickness(0, 5, 0, 0),
+            Foreground = TrainerTheme.Muted
+        });
+        header.Child = heading;
+        DockPanel.SetDock(header, Dock.Top);
+        root.Children.Add(header);
 
-        var tabs = new TabControl();
+        var tabs = new TabControl
+        {
+            Margin = new Thickness(20, 16, 20, 20)
+        };
         tabs.Items.Add(new TabItem
         {
-            Header = "训练参数",
-            Content = BuildParametersTab()
+            Header = "训练配置",
+            Content = TrainerTheme.ContentSurface(BuildParametersTab())
         });
         tabs.Items.Add(new TabItem
         {
-            Header = "进度与结果",
-            Content = BuildProgressTab()
+            Header = "运行监控",
+            Content = TrainerTheme.ContentSurface(BuildProgressTab())
         });
         root.Children.Add(tabs);
         return root;
@@ -98,12 +122,18 @@ internal sealed class MainWindow : Window
 
     private UIElement BuildParametersTab()
     {
-        var scroll = new ScrollViewer
+        parametersScroll = new ScrollViewer
         {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Background = TrainerTheme.Window
         };
-        var panel = new StackPanel { Margin = new Thickness(12) };
-        scroll.Content = panel;
+        var panel = new StackPanel
+        {
+            Margin = new Thickness(2, 0, 12, 0),
+            MaxWidth = 920,
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+        parametersScroll.Content = panel;
 
         panel.Children.Add(Section("运行环境"));
         modRootInput = AddPathRow(panel, "MOD 目录", BrowseModRoot);
@@ -111,8 +141,10 @@ internal sealed class MainWindow : Window
         environmentStatus = Hint(panel, "");
 
         panel.Children.Add(Section("工作量与性能"));
+        AddProfileSelect(panel);
         AddNumber(panel, "Iterations", "训练轮数", 1, 20);
         AddNumber(panel, "TrainingCampaignsPerIteration", "每轮训练冒险", 2, 1000);
+        AddNumber(panel, "PreflightCampaignsPerDifficulty", "预检冒险/难度", 1, 100);
         AddNumber(panel, "ArenaCampaignsPerDifficulty", "竞技场/难度", 1, 100);
         AddNumber(
             panel,
@@ -136,8 +168,11 @@ internal sealed class MainWindow : Window
         AddNumber(panel, "ModelEarlyStoppingPatience", "早停耐心", 1, 30);
         AddDouble(panel, "ModelEarlyStoppingMinimumDelta", "早停最小增益");
         AddNumber(panel, "ModelBatchSize", "Minibatch", 8, 512);
+        AddNumber(panel, "MinimumEpisodes", "最少训练 Episodes", 2, 1000);
         AddNumber(panel, "ModelReplayEpisodeLimit", "Replay 上限", 64, 20000);
         AddNumber(panel, "ModelRetainedCandidates", "Top-K 候选", 1, 5);
+        AddToggle(panel, "EnableFrameStratification", "启用帧分层再平衡");
+        AddDouble(panel, "ModelMaximumFrameStratumWeight", "帧分层最大权重");
         AddDouble(panel, "ModelLearningRate", "学习率");
         AddDouble(panel, "ModelL2", "L2");
         AddNumber(panel, "ModelStateDimensions", "状态维度", 16, 512);
@@ -156,6 +191,16 @@ internal sealed class MainWindow : Window
         AddToggle(panel, "EnableArenaRecovery", "启用竞技场恢复");
         AddToggle(panel, "EnableTuningArena", "启用 Top-K 调优竞技场");
         AddToggle(panel, "EnableEarlyValidationStop", "启用验证提前停止");
+        AddNumber(panel, "ArenaInvalidRetryCount", "无效竞技场重试", 0, 3);
+        AddDouble(panel, "ArenaInvalidRateLimit", "无效竞技场率上限");
+        AddNumber(panel, "TuningNormalCampaigns", "普通调优冒险", 0, 64);
+        AddNumber(panel, "TuningAdvancedCampaigns", "高级调优冒险", 0, 64);
+        AddNumber(
+            panel,
+            "MaximumConsecutiveRejectedIterations",
+            "连续拒绝停止阈值",
+            0,
+            8);
         AddDouble(panel, "NormalAcceptanceRate", "普通验收率");
         AddDouble(panel, "AdvancedAcceptanceRate", "高级验收率");
         AddDouble(panel, "SuccessExpertReplayShare", "成功教师回放占比");
@@ -175,30 +220,58 @@ internal sealed class MainWindow : Window
             Orientation = Orientation.Horizontal,
             Margin = new Thickness(0, 16, 0, 20)
         };
-        startButton = ActionButton("开始 / 恢复训练", StartTraining);
+        startButton = ActionButton(
+            "开始 / 恢复训练",
+            StartTraining,
+            TrainerButtonTone.Primary);
         continueButton = ActionButton("以上轮 Champion 继续", ContinueTraining);
-        cancelButton = ActionButton("安全取消", CancelTraining);
+        cancelButton = ActionButton(
+            "安全取消",
+            CancelTraining,
+            TrainerButtonTone.Danger);
         openButton = ActionButton("打开运行目录", OpenRunDirectory);
         actions.Children.Add(startButton);
         actions.Children.Add(continueButton);
         actions.Children.Add(cancelButton);
         actions.Children.Add(openButton);
         panel.Children.Add(actions);
-        return scroll;
+        return parametersScroll;
     }
 
     private UIElement BuildProgressTab()
     {
-        var panel = new StackPanel { Margin = new Thickness(16) };
+        var panel = new Grid
+        {
+            Margin = new Thickness(2, 0, 2, 0),
+            Background = TrainerTheme.Window
+        };
+        for (var i = 0; i < 5; i++)
+        {
+            panel.RowDefinitions.Add(new RowDefinition
+            {
+                Height = GridLength.Auto
+            });
+        }
+        panel.RowDefinitions.Add(new RowDefinition
+        {
+            Height = new GridLength(1, GridUnitType.Star)
+        });
         runStatus = new TextBlock
         {
             Text = "尚未开始训练",
             FontSize = 20,
             FontWeight = FontWeights.SemiBold,
+            Foreground = TrainerTheme.Text,
             TextWrapping = TextWrapping.Wrap
         };
-        progressPrimary = Hint(panel, "");
-        progressSecondary = Hint(panel, "");
+        Grid.SetRow(runStatus, 0);
+        panel.Children.Add(runStatus);
+        progressPrimary = ProgressText();
+        Grid.SetRow(progressPrimary, 1);
+        panel.Children.Add(progressPrimary);
+        progressSecondary = ProgressText();
+        Grid.SetRow(progressSecondary, 2);
+        panel.Children.Add(progressSecondary);
         progressBar = new ProgressBar
         {
             Height = 18,
@@ -206,26 +279,30 @@ internal sealed class MainWindow : Window
             Maximum = 100,
             Margin = new Thickness(0, 12, 0, 12)
         };
-        panel.Children.Insert(0, runStatus);
+        Grid.SetRow(progressBar, 3);
         panel.Children.Add(progressBar);
-        panel.Children.Add(new TextBlock
+        var logTitle = new TextBlock
         {
             Text = "运行信息",
             FontSize = 16,
             FontWeight = FontWeights.SemiBold,
+            Foreground = TrainerTheme.Accent,
             Margin = new Thickness(0, 12, 0, 6)
-        });
+        };
+        Grid.SetRow(logTitle, 4);
+        panel.Children.Add(logTitle);
         logBox = new TextBox
         {
             IsReadOnly = true,
             AcceptsReturn = true,
             TextWrapping = TextWrapping.Wrap,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Height = 420,
-            Background = new SolidColorBrush(Color.FromRgb(16, 18, 23)),
-            Foreground = new SolidColorBrush(Color.FromRgb(205, 214, 224)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(65, 72, 84))
+            MinHeight = 220,
+            Background = TrainerTheme.Input,
+            Foreground = TrainerTheme.Text,
+            BorderBrush = TrainerTheme.Border
         };
+        Grid.SetRow(logBox, 5);
         panel.Children.Add(logBox);
         return panel;
     }
@@ -509,6 +586,8 @@ internal sealed class MainWindow : Window
                          + "/"
                          + telemetry.TotalIterations
                          + " 轮";
+        runStatus.Foreground =
+            running ? TrainerTheme.Accent : TrainerTheme.Text;
         var total = Math.Max(1, telemetry.RequestedCampaigns);
         progressBar.Value = Math.Max(
             0,
@@ -548,6 +627,11 @@ internal sealed class MainWindow : Window
             : result.Cancelled
                 ? "训练已取消"
                 : "训练结束 · " + result.CompletionKind;
+        runStatus.Foreground = accepted
+            ? TrainerTheme.Success
+            : result.Cancelled
+                ? TrainerTheme.Warning
+                : TrainerTheme.Danger;
         progressBar.Value = accepted ? 100 : progressBar.Value;
         progressPrimary.Text = result.Message;
         if (result.Training != null)
@@ -650,8 +734,11 @@ internal sealed class MainWindow : Window
         settings.ModRoot = Path.GetFullPath(modRootInput.Text.Trim());
         settings.DataRoot = Path.GetFullPath(dataRootInput.Text.Trim());
         var p = settings.Parameters;
+        p.DecisionProfile = selectedProfile;
         p.Iterations = Int("Iterations");
         p.TrainingCampaignsPerIteration = Int("TrainingCampaignsPerIteration");
+        p.PreflightCampaignsPerDifficulty =
+            Int("PreflightCampaignsPerDifficulty");
         p.ArenaCampaignsPerDifficulty = Int("ArenaCampaignsPerDifficulty");
         p.ArenaConfirmationCampaignsPerDifficulty =
             Int("ArenaConfirmationCampaignsPerDifficulty");
@@ -666,6 +753,10 @@ internal sealed class MainWindow : Window
         p.ModelEarlyStoppingMinimumDelta =
             Double("ModelEarlyStoppingMinimumDelta");
         p.ModelBatchSize = Int("ModelBatchSize");
+        p.MinimumEpisodes = Int("MinimumEpisodes");
+        p.EnableFrameStratification = Toggle("EnableFrameStratification");
+        p.ModelMaximumFrameStratumWeight =
+            Double("ModelMaximumFrameStratumWeight");
         p.ModelReplayEpisodeLimit = Int("ModelReplayEpisodeLimit");
         p.ModelRetainedCandidates = Int("ModelRetainedCandidates");
         p.ModelLearningRate = Double("ModelLearningRate");
@@ -682,6 +773,12 @@ internal sealed class MainWindow : Window
         p.EnableArenaRecovery = Toggle("EnableArenaRecovery");
         p.EnableTuningArena = Toggle("EnableTuningArena");
         p.EnableEarlyValidationStop = Toggle("EnableEarlyValidationStop");
+        p.ArenaInvalidRetryCount = Int("ArenaInvalidRetryCount");
+        p.ArenaInvalidRateLimit = Double("ArenaInvalidRateLimit");
+        p.TuningNormalCampaigns = Int("TuningNormalCampaigns");
+        p.TuningAdvancedCampaigns = Int("TuningAdvancedCampaigns");
+        p.MaximumConsecutiveRejectedIterations =
+            Int("MaximumConsecutiveRejectedIterations");
         p.NormalAcceptanceRate = Double("NormalAcceptanceRate");
         p.AdvancedAcceptanceRate = Double("AdvancedAcceptanceRate");
         p.SuccessExpertReplayShare = Double("SuccessExpertReplayShare");
@@ -705,8 +802,12 @@ internal sealed class MainWindow : Window
         modRootInput.Text = settings.ModRoot;
         dataRootInput.Text = settings.DataRoot;
         var p = settings.Parameters;
+        SelectProfile(p.DecisionProfile);
         Set("Iterations", p.Iterations);
         Set("TrainingCampaignsPerIteration", p.TrainingCampaignsPerIteration);
+        Set(
+            "PreflightCampaignsPerDifficulty",
+            p.PreflightCampaignsPerDifficulty);
         Set("ArenaCampaignsPerDifficulty", p.ArenaCampaignsPerDifficulty);
         Set(
             "ArenaConfirmationCampaignsPerDifficulty",
@@ -722,6 +823,10 @@ internal sealed class MainWindow : Window
         Set("ModelEarlyStoppingPatience", p.ModelEarlyStoppingPatience);
         Set("ModelEarlyStoppingMinimumDelta", p.ModelEarlyStoppingMinimumDelta);
         Set("ModelBatchSize", p.ModelBatchSize);
+        Set("MinimumEpisodes", p.MinimumEpisodes);
+        Set(
+            "ModelMaximumFrameStratumWeight",
+            p.ModelMaximumFrameStratumWeight);
         Set("ModelReplayEpisodeLimit", p.ModelReplayEpisodeLimit);
         Set("ModelRetainedCandidates", p.ModelRetainedCandidates);
         Set("ModelLearningRate", p.ModelLearningRate);
@@ -735,6 +840,13 @@ internal sealed class MainWindow : Window
         Set("HardSeedReplayShare", p.HardSeedReplayShare);
         Set("SelfPlayExplorationProbability", p.SelfPlayExplorationProbability);
         Set("SelfPlayExplorationTemperature", p.SelfPlayExplorationTemperature);
+        Set("ArenaInvalidRetryCount", p.ArenaInvalidRetryCount);
+        Set("ArenaInvalidRateLimit", p.ArenaInvalidRateLimit);
+        Set("TuningNormalCampaigns", p.TuningNormalCampaigns);
+        Set("TuningAdvancedCampaigns", p.TuningAdvancedCampaigns);
+        Set(
+            "MaximumConsecutiveRejectedIterations",
+            p.MaximumConsecutiveRejectedIterations);
         Set("RunSeed", p.RunSeed);
         Set("TrainingSeedStart", p.TrainingSeedStart);
         Set("ArenaSeedStart", p.ArenaSeedStart);
@@ -750,6 +862,7 @@ internal sealed class MainWindow : Window
         SetToggle("EnableArenaRecovery", p.EnableArenaRecovery);
         SetToggle("EnableTuningArena", p.EnableTuningArena);
         SetToggle("EnableEarlyValidationStop", p.EnableEarlyValidationStop);
+        SetToggle("EnableFrameStratification", p.EnableFrameStratification);
     }
 
     private bool ValidateEnvironment(bool throwOnFailure = false)
@@ -783,7 +896,8 @@ internal sealed class MainWindow : Window
         environmentStatus.Text = ok
             ? "环境就绪。Worker、固定战役和冻结规则集均可用。"
             : "环境未就绪：" + string.Join("；", errors.Take(3));
-        environmentStatus.Foreground = ok ? Brushes.LightGreen : Brushes.Orange;
+        environmentStatus.Foreground =
+            ok ? TrainerTheme.Success : TrainerTheme.Warning;
         if (!ok && throwOnFailure)
         {
             throw new InvalidOperationException(environmentStatus.Text);
@@ -1051,13 +1165,49 @@ internal sealed class MainWindow : Window
         Action browse)
     {
         var row = NewRow();
-        row.Children.Add(Label(label, 180));
-        var input = Input(600);
+        row.Children.Add(Label(label, 170));
+        var input = Input(500);
         row.Children.Add(input);
         var button = ActionButton("选择", browse);
         row.Children.Add(button);
         panel.Children.Add(row);
         return input;
+    }
+
+    private void AddProfileSelect(Panel panel)
+    {
+        var row = NewRow();
+        row.Children.Add(Label("决策风格", 240));
+        foreach (var choice in new[]
+                 {
+                     new ProfileChoice("balanced", "均衡"),
+                     new ProfileChoice("aggressive", "进攻"),
+                     new ProfileChoice("defensive", "防守")
+                 })
+        {
+            var profileId = choice.Id;
+            var button = ActionButton(
+                choice.Label,
+                () => SelectProfile(profileId));
+            button.MinWidth = 72;
+            profileButtons[profileId] = button;
+            row.Children.Add(button);
+        }
+        panel.Children.Add(row);
+    }
+
+    private void SelectProfile(string? profileId)
+    {
+        selectedProfile = profileButtons.ContainsKey(profileId ?? "")
+            ? profileId!
+            : "balanced";
+        foreach (var pair in profileButtons)
+        {
+            pair.Value.Style = TrainerTheme.ButtonStyle(
+                pair.Key == selectedProfile
+                    ? TrainerButtonTone.Primary
+                    : TrainerButtonTone.Secondary);
+        }
     }
 
     private void AddNumber(
@@ -1091,8 +1241,8 @@ internal sealed class MainWindow : Window
         var check = new CheckBox
         {
             Content = label,
-            Margin = new Thickness(0, 5, 0, 5),
-            Foreground = Brushes.WhiteSmoke
+            Margin = new Thickness(0, 4, 0, 4),
+            Foreground = TrainerTheme.Text
         };
         toggles[key] = check;
         panel.Children.Add(check);
@@ -1114,7 +1264,7 @@ internal sealed class MainWindow : Window
             Text = text,
             FontSize = 17,
             FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromRgb(132, 191, 255)),
+            Foreground = TrainerTheme.Accent,
             Margin = new Thickness(0, 18, 0, 8)
         };
     }
@@ -1125,6 +1275,7 @@ internal sealed class MainWindow : Window
         {
             Text = text,
             Width = width,
+            Foreground = TrainerTheme.Text,
             VerticalAlignment = VerticalAlignment.Center
         };
     }
@@ -1136,22 +1287,22 @@ internal sealed class MainWindow : Window
             Width = width,
             Height = 28,
             Margin = new Thickness(0, 0, 8, 0),
-            Background = new SolidColorBrush(Color.FromRgb(42, 47, 57)),
-            Foreground = Brushes.WhiteSmoke,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(75, 84, 99)),
             VerticalContentAlignment = VerticalAlignment.Center
         };
     }
 
-    private static Button ActionButton(string text, Action action)
+    private static Button ActionButton(
+        string text,
+        Action action,
+        TrainerButtonTone tone = TrainerButtonTone.Secondary)
     {
         var button = new Button
         {
             Content = text,
             MinWidth = 94,
-            Height = 30,
+            Height = 34,
             Margin = new Thickness(0, 0, 8, 0),
-            Padding = new Thickness(10, 0, 10, 0)
+            Style = TrainerTheme.ButtonStyle(tone)
         };
         button.Click += (_, _) => action();
         return button;
@@ -1162,13 +1313,25 @@ internal sealed class MainWindow : Window
         var block = new TextBlock
         {
             Text = text,
-            Foreground = new SolidColorBrush(Color.FromRgb(167, 176, 190)),
+            Foreground = TrainerTheme.Muted,
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 4, 0, 4)
         };
         panel.Children.Add(block);
         return block;
     }
+
+    private static TextBlock ProgressText()
+    {
+        return new TextBlock
+        {
+            Foreground = TrainerTheme.Muted,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 4, 0, 4)
+        };
+    }
+
+    private sealed record ProfileChoice(string Id, string Label);
 
     private int Int(string key)
     {
