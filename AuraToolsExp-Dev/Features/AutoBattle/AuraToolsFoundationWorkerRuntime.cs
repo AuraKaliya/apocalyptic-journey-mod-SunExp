@@ -45,6 +45,7 @@ internal static class AuraToolsFoundationWorkerRuntime
     public static CombatFoundationWorkerResult Run(
         CombatFoundationWorkerJob job,
         Action<CombatCampaignFoundationTelemetry> telemetry,
+        Action<string> progressDiagnostic,
         CancellationToken cancellationToken)
     {
         if (job == null) throw new ArgumentNullException(nameof(job));
@@ -96,14 +97,29 @@ internal static class AuraToolsFoundationWorkerRuntime
 
         DateTime progressWriteUtc = DateTime.MinValue;
         var cancellationRequestedUtc = DateTime.MinValue;
+        var lastProgressDiagnostic = "";
         while (!process.WaitForExit(250))
         {
             if (TryReadProgress(
                     job,
                     ref progressWriteUtc,
-                    out var progress))
+                    out var progress,
+                    out var diagnostic))
             {
+                lastProgressDiagnostic = "";
                 telemetry(progress.Telemetry);
+            }
+            else if (!string.IsNullOrWhiteSpace(diagnostic)
+                     && !string.Equals(
+                         lastProgressDiagnostic,
+                         diagnostic,
+                         StringComparison.Ordinal))
+            {
+                lastProgressDiagnostic = diagnostic;
+                AuraToolsLog.Warn(
+                    "[AutoBattle][Foundation][Worker][Progress] "
+                    + diagnostic);
+                progressDiagnostic(diagnostic);
             }
             if (!cancellationToken.IsCancellationRequested)
             {
@@ -127,16 +143,32 @@ internal static class AuraToolsFoundationWorkerRuntime
             }
         }
         process.WaitForExit();
-        if (TryReadProgress(job, ref progressWriteUtc, out var finalProgress))
+        if (TryReadProgress(
+                job,
+                ref progressWriteUtc,
+                out var finalProgress,
+                out var finalDiagnostic))
         {
             telemetry(finalProgress.Telemetry);
         }
-        var result = ReadResult(job);
-        if (result.SchemaVersion != 4
-            || !string.Equals(result.JobId, job.JobId, StringComparison.Ordinal))
+        else if (!string.IsNullOrWhiteSpace(finalDiagnostic)
+                 && !string.Equals(
+                     lastProgressDiagnostic,
+                     finalDiagnostic,
+                     StringComparison.Ordinal))
         {
-            throw new InvalidOperationException(
-                "独立训练器结果协议或 jobId 不匹配");
+            AuraToolsLog.Warn(
+                "[AutoBattle][Foundation][Worker][Progress] "
+                + finalDiagnostic);
+            progressDiagnostic(finalDiagnostic);
+        }
+        var result = ReadResult(job);
+        if (!CombatFoundationWorkerProtocol.TryValidateResult(
+                result,
+                job.JobId,
+                out var resultDiagnostic))
+        {
+            throw new InvalidOperationException(resultDiagnostic);
         }
         if (cancellationToken.IsCancellationRequested || result.Cancelled)
         {
@@ -179,9 +211,11 @@ internal static class AuraToolsFoundationWorkerRuntime
     private static bool TryReadProgress(
         CombatFoundationWorkerJob job,
         ref DateTime observedWriteUtc,
-        out CombatFoundationWorkerProgress progress)
+        out CombatFoundationWorkerProgress progress,
+        out string diagnostic)
     {
         progress = new CombatFoundationWorkerProgress();
+        diagnostic = "";
         try
         {
             if (!File.Exists(job.ProgressPath))
@@ -195,18 +229,23 @@ internal static class AuraToolsFoundationWorkerRuntime
             }
             var parsed = AuraSharedJson.Deserialize<CombatFoundationWorkerProgress>(
                 File.ReadAllText(job.ProgressPath));
-            if (parsed == null
-                || parsed.SchemaVersion != 4
-                || !string.Equals(parsed.JobId, job.JobId, StringComparison.Ordinal))
+            observedWriteUtc = writeUtc;
+            if (!CombatFoundationWorkerProtocol.TryValidateProgress(
+                    parsed,
+                    job.JobId,
+                    out diagnostic))
             {
                 return false;
             }
-            observedWriteUtc = writeUtc;
-            progress = parsed;
+            progress = parsed!;
             return true;
         }
-        catch (IOException)
+        catch (Exception ex)
         {
+            diagnostic = "无法读取底模训练进度："
+                         + ex.GetType().Name
+                         + "："
+                         + ex.Message;
             return false;
         }
     }

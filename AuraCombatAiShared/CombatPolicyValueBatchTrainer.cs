@@ -129,6 +129,25 @@ internal static class CombatPolicyValueBatchTrainer
             result.Message = "完整战斗轨迹没有可训练的合法决策帧";
             return result;
         }
+        if (options.EnableFrameStratification)
+        {
+            ApplyFrameStratumWeights(
+                trainingFrames,
+                options.MaximumFrameStratumWeight);
+            result.FrameStratificationProtocol =
+                CombatPolicyValueFrameStratificationProtocol.Version;
+            result.FrameStrata = trainingFrames
+                .GroupBy(frame => frame.Stratum, StringComparer.Ordinal)
+                .OrderBy(group => group.Key, StringComparer.Ordinal)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.Count(),
+                    StringComparer.Ordinal);
+            result.MinimumFrameWeight =
+                trainingFrames.Min(frame => frame.SampleWeight);
+            result.MaximumFrameWeight =
+                trainingFrames.Max(frame => frame.SampleWeight);
+        }
 
         var resume = session?.Resume;
         var model = Compatible(resume?.Model, profile, options)
@@ -182,8 +201,18 @@ internal static class CombatPolicyValueBatchTrainer
         for (var epoch = startEpoch; epoch < options.Epochs; epoch++)
         {
             cancellationToken.ThrowIfCancellationRequested();
-            ResetOrder(order);
-            Shuffle(order, options.RandomSeed, epoch);
+            if (options.EnableFrameStratification)
+            {
+                order = BuildStratifiedOrder(
+                    trainingFrames,
+                    options.RandomSeed,
+                    epoch);
+            }
+            else
+            {
+                ResetOrder(order);
+                Shuffle(order, options.RandomSeed, epoch);
+            }
             var rate = options.LearningRate / Math.Sqrt(1d + epoch * 0.05d);
             for (var batchStart = 0;
                  batchStart < order.Length;
@@ -209,6 +238,9 @@ internal static class CombatPolicyValueBatchTrainer
                             model,
                             trainingFrames[order[batchStart + offset]],
                             gradient);
+                        gradient.Scale(
+                            trainingFrames[order[batchStart + offset]]
+                                .SampleWeight);
                     });
                 var update = ApplyBatch(
                     model,
@@ -425,7 +457,10 @@ internal static class CombatPolicyValueBatchTrainer
             ["maximumGradientNorm"] = maximumGradientNorm,
             ["stateFeatureCollisionRate"] = stateCollision,
             ["actionFeatureCollisionRate"] = actionCollision,
-            ["policyTemperature"] = model.PolicyTemperature
+            ["policyTemperature"] = model.PolicyTemperature,
+            ["frameStratumCount"] = result.FrameStrata.Count,
+            ["minimumFrameWeight"] = result.MinimumFrameWeight,
+            ["maximumFrameWeight"] = result.MaximumFrameWeight
         };
         result.Success = true;
         result.Model = model;
@@ -506,8 +541,13 @@ internal static class CombatPolicyValueBatchTrainer
         CancellationToken cancellationToken)
     {
         var frames = episodes
-            .SelectMany(episode => episode.Frames
-                                  ?? new List<CombatEpisodeFrame>())
+            .SelectMany(episode =>
+                (episode.Frames ?? new List<CombatEpisodeFrame>())
+                .Select(frame => new FrameSource
+                {
+                    Episode = episode,
+                    Frame = frame
+                }))
             .ToArray();
         var encoded = new EncodedFrame?[frames.Length];
         Parallel.For(
@@ -519,11 +559,15 @@ internal static class CombatPolicyValueBatchTrainer
                 MaxDegreeOfParallelism =
                     options.MaximumDegreeOfParallelism
             },
-            index => encoded[index] = EncodeFrame(frames[index], options));
+            index => encoded[index] = EncodeFrame(
+                frames[index].Episode,
+                frames[index].Frame,
+                options));
         return encoded.Where(item => item != null).Select(item => item!).ToArray();
     }
 
     private static EncodedFrame? EncodeFrame(
+        CombatEpisode episode,
         CombatEpisodeFrame frame,
         CombatPolicyValueTrainingOptions options)
     {
@@ -545,6 +589,13 @@ internal static class CombatPolicyValueBatchTrainer
             .Select(candidate => candidate.SearchDeathRisk)
             .Where(value => !double.IsNaN(value) && !double.IsInfinity(value))
             .ToArray();
+        var critical = frame.DeathTarget >= 0.5d
+                       || riskValues.Length > 1
+                          && riskValues.Max() - riskValues.Min() >= 0.20d
+                       || orderedVisits.Length > 1
+                          && orderedVisits[0] >= Math.Max(
+                              4,
+                              orderedVisits[1] * 2);
         return new EncodedFrame
         {
             State = CombatPolicyValueEncoding.EncodeState(
@@ -569,14 +620,126 @@ internal static class CombatPolicyValueBatchTrainer
             DeathTarget = Clamp(frame.DeathTarget, 0d, 1d),
             HpTarget = Clamp(frame.RemainingHpRatioTarget, 0d, 1d),
             TurnsTarget = Math.Max(0d, frame.RemainingTurnsTarget),
-            Critical = frame.DeathTarget >= 0.5d
-                       || riskValues.Length > 1
-                          && riskValues.Max() - riskValues.Min() >= 0.20d
-                       || orderedVisits.Length > 1
-                          && orderedVisits[0] >= Math.Max(
-                              4,
-                              orderedVisits[1] * 2)
+            Critical = critical,
+            Stratum = FrameStratum(episode, critical),
+            BaseSampleWeight = Clamp(
+                episode.Campaign?.TrainingWeight ?? 1d,
+                0.10d,
+                1d),
+            SampleWeight = Clamp(
+                episode.Campaign?.TrainingWeight ?? 1d,
+                0.10d,
+                1d)
         };
+    }
+
+    internal static string FrameStratum(
+        CombatEpisode episode,
+        bool critical)
+    {
+        var difficulty = string.Equals(
+            episode.Campaign?.DifficultyId,
+            "advanced",
+            StringComparison.OrdinalIgnoreCase)
+            ? "advanced"
+            : "normal";
+        var battleIndex = Math.Max(0, episode.JourneyBattleIndex);
+        var phase = battleIndex <= 5
+            ? "opening"
+            : battleIndex <= 20
+                ? "middle"
+                : battleIndex <= 34
+                    ? "late"
+                    : "final";
+        var outcome = (episode.Campaign?.OutcomeClass ?? episode.Outcome ?? "")
+            .IndexOf(
+                "victory",
+                StringComparison.OrdinalIgnoreCase) >= 0
+            ? "victory"
+            : "defeat";
+        return difficulty
+               + ":"
+               + phase
+               + ":"
+               + outcome
+               + ":"
+               + (critical ? "critical" : "regular");
+    }
+
+    private static void ApplyFrameStratumWeights(
+        IReadOnlyList<EncodedFrame> frames,
+        double maximumWeight)
+    {
+        if (frames.Count == 0)
+        {
+            return;
+        }
+        var groups = frames
+            .GroupBy(frame => frame.Stratum, StringComparer.Ordinal)
+            .ToList();
+        var stratumCount = Math.Max(1, groups.Count);
+        foreach (var group in groups)
+        {
+            var raw = Math.Sqrt(
+                frames.Count
+                / (double)(stratumCount * Math.Max(1, group.Count())));
+            var weight = Clamp(
+                raw,
+                CombatPolicyValueFrameStratificationProtocol.MinimumWeight,
+                maximumWeight);
+            foreach (var frame in group)
+            {
+                frame.SampleWeight = weight * frame.BaseSampleWeight;
+            }
+        }
+        var mean = frames.Average(frame => frame.SampleWeight);
+        if (mean <= 0d)
+        {
+            return;
+        }
+        foreach (var frame in frames)
+        {
+            frame.SampleWeight = Clamp(
+                frame.SampleWeight / mean,
+                0.10d,
+                maximumWeight);
+        }
+    }
+
+    private static int[] BuildStratifiedOrder(
+        IReadOnlyList<EncodedFrame> frames,
+        int seed,
+        int epoch)
+    {
+        var groups = frames
+            .Select((frame, index) => new
+            {
+                frame.Stratum,
+                Index = index
+            })
+            .GroupBy(item => item.Stratum, StringComparer.Ordinal)
+            .OrderBy(group => group.Key, StringComparer.Ordinal)
+            .Select(group => group.Select(item => item.Index).ToArray())
+            .ToList();
+        for (var groupIndex = 0; groupIndex < groups.Count; groupIndex++)
+        {
+            Shuffle(
+                groups[groupIndex],
+                unchecked(seed ^ groupIndex * 104729),
+                epoch);
+        }
+        var order = new List<int>(frames.Count);
+        for (var offset = 0; order.Count < frames.Count; offset++)
+        {
+            foreach (var group in groups)
+            {
+                if (offset < group.Length)
+                {
+                    order.Add(group[offset]);
+                }
+            }
+        }
+        return order.ToArray();
     }
 
     private static void AccumulateGradient(
@@ -1457,6 +1620,19 @@ internal static class CombatPolicyValueBatchTrainer
         public double TurnsTarget { get; set; }
 
         public bool Critical { get; set; }
+
+        public string Stratum { get; set; } = "";
+
+        public double SampleWeight { get; set; } = 1d;
+
+        public double BaseSampleWeight { get; set; } = 1d;
+    }
+
+    private sealed class FrameSource
+    {
+        public CombatEpisode Episode { get; set; } = new();
+
+        public CombatEpisodeFrame Frame { get; set; } = new();
     }
 
     private sealed class ModelGradient
@@ -1525,6 +1701,34 @@ internal static class CombatPolicyValueBatchTrainer
             RiskBias = 0d;
             HpBias = 0d;
             TurnBias = 0d;
+        }
+
+        public void Scale(double factor)
+        {
+            Scale(StateWeights, factor);
+            Scale(StateBias, factor);
+            Scale(ActionWeights, factor);
+            Scale(ActionBias, factor);
+            Scale(PolicyWeights, factor);
+            Scale(ValueWeights, factor);
+            Scale(WinWeights, factor);
+            Scale(RiskWeights, factor);
+            Scale(HpWeights, factor);
+            Scale(TurnWeights, factor);
+            PolicyBias *= factor;
+            ValueBias *= factor;
+            WinBias *= factor;
+            RiskBias *= factor;
+            HpBias *= factor;
+            TurnBias *= factor;
+        }
+
+        private static void Scale(double[] values, double factor)
+        {
+            for (var index = 0; index < values.Length; index++)
+            {
+                values[index] *= factor;
+            }
         }
     }
 

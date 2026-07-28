@@ -12,6 +12,46 @@ using AuraCombatSimulation.Shared;
 
 namespace AuraCombatAi.Shared;
 
+public static class CombatFoundationTerminalCreditProtocol
+{
+    public const string Version = "terminal-credit-v2";
+
+    public const double WonBattleCredit = 0.30d;
+
+    public const double FailureBackpropagationDecay = 0.50d;
+}
+
+public static class CombatFoundationCounterfactualProtocol
+{
+    public const string Version = "hard-encounter-counterfactual-v2";
+
+    public const double ImprovedEpisodeWeight = 0.35d;
+
+    public const double MinimumDamageImprovementRatio = 0.15d;
+
+    public const int MinimumDamageImprovement = 10;
+}
+
+public static class CombatFoundationStagnationProtocol
+{
+    public const string Version = "foundation-stagnation-v1";
+
+    public const int DefaultMaximumConsecutiveRejectedIterations = 3;
+
+    public const int HardSeedSolveRateWindow = 2;
+
+    public const double MinimumHardSeedSolveRate = 0.05d;
+
+    public const double ReducedHardSeedReplayShare = 0.12d;
+}
+
+public enum CombatFoundationCounterfactualAdmission
+{
+    Rejected = 0,
+    Improved = 1,
+    Victory = 2
+}
+
 public sealed class CombatCampaignFoundationTrainingRequest
 {
     public ulong RunSeed { get; set; }
@@ -30,6 +70,8 @@ public sealed class CombatCampaignFoundationTrainingRequest
 
     public int AdvancedValidationCampaigns { get; set; } = 500;
 
+    public int CapabilityProbeCampaignsPerDifficulty { get; set; } = 16;
+
     public int PreflightCampaignsPerDifficulty { get; set; }
 
     public ulong PreflightSeedStart { get; set; } = 1_000_000UL;
@@ -46,6 +88,8 @@ public sealed class CombatCampaignFoundationTrainingRequest
 
     public bool EnableHardSeedCurriculum { get; set; } = true;
 
+    public bool EnableCounterfactualHardEncounters { get; set; } = true;
+
     public bool EnableSuccessCaseArchive { get; set; } = true;
 
     public bool EnableArenaRecovery { get; set; } = true;
@@ -56,9 +100,9 @@ public sealed class CombatCampaignFoundationTrainingRequest
 
     public bool EnableTuningArena { get; set; } = true;
 
-    public int TuningNormalCampaigns { get; set; } = 8;
+    public int TuningNormalCampaigns { get; set; } = 24;
 
-    public int TuningAdvancedCampaigns { get; set; } = 12;
+    public int TuningAdvancedCampaigns { get; set; } = 24;
 
     public ulong TuningSeedStart { get; set; } = 1_500_000UL;
 
@@ -69,11 +113,32 @@ public sealed class CombatCampaignFoundationTrainingRequest
     public string NativeProgramPackageHash { get; set; } = "";
 
     public string TrainingPolicyVersion { get; set; } =
-        "foundation-governance-v4";
+        "foundation-governance-v7";
 
     public double HardSeedReplayShare { get; set; } = 0.35d;
 
+    public int ExpertReplayEpisodeLimit { get; set; }
+
+    public int MaximumConsecutiveRejectedIterations { get; set; } =
+        CombatFoundationStagnationProtocol
+            .DefaultMaximumConsecutiveRejectedIterations;
+
     public List<CombatEpisode> ExpertReplayEpisodes { get; set; } = new();
+
+    public CombatFoundationExpertReplaySelection ExpertReplaySelection {
+        get;
+        set;
+    } = new();
+
+    public CombatFoundationRewardResidualTrainingResult RewardResidualTraining {
+        get;
+        set;
+    } = new();
+
+    public CombatFoundationCaseArchiveLoadDiagnostics CaseArchiveLoad {
+        get;
+        set;
+    } = new();
 
     public double SelfPlayExplorationProbability { get; set; } = 0.15d;
 
@@ -114,7 +179,8 @@ public sealed class CombatCampaignFoundationTrainingRequest
 
 public sealed class CombatCampaignFoundationResumeState
 {
-    public int SchemaVersion { get; set; } = 4;
+    public int SchemaVersion { get; set; } =
+        CombatFoundationWorkerProtocol.SchemaVersion;
 
     public string Stage { get; set; } = "";
 
@@ -153,7 +219,8 @@ public sealed class CombatCampaignFoundationResumeState
 
 public sealed class CombatFoundationCompatibilityManifest
 {
-    public int SchemaVersion { get; set; } = 4;
+    public int SchemaVersion { get; set; } =
+        CombatFoundationWorkerProtocol.SchemaVersion;
 
     public string RulesetHash { get; set; } = "";
 
@@ -173,7 +240,7 @@ public sealed class CombatFoundationCompatibilityManifest
 
     public string SearchPolicyVersion { get; set; } = "dynamic-search-v2";
 
-    public string CurriculumVersion { get; set; } = "curriculum-v4";
+    public string CurriculumVersion { get; set; } = "curriculum-v6";
 
     public string TrainingPolicyVersion { get; set; } = "";
 
@@ -317,6 +384,18 @@ public sealed class CombatCampaignFoundationIteration
 
     public int HardSeedTrainingVictories { get; set; }
 
+    public int HardSeedEncounterCampaigns { get; set; }
+
+    public int HardSeedCounterfactualCampaigns { get; set; }
+
+    public int HardSeedCounterfactualVictories { get; set; }
+
+    public int HardSeedCounterfactualImprovements { get; set; }
+
+    public int HardSeedCounterfactualRejected { get; set; }
+
+    public double EffectiveHardSeedReplayShare { get; set; }
+
     public Dictionary<string, int> HardSeedClusters { get; set; } =
         new(StringComparer.Ordinal);
 
@@ -332,6 +411,13 @@ public sealed class CombatCampaignFoundationIteration
     public double AdvancedWilsonLowerBound { get; set; }
 
     public double SelfPlayExplorationProbability { get; set; }
+
+    public Dictionary<string, int> ModelFrameStrata { get; set; } =
+        new(StringComparer.Ordinal);
+
+    public double ModelMinimumFrameWeight { get; set; } = 1d;
+
+    public double ModelMaximumFrameWeight { get; set; } = 1d;
 
     public string CandidateModelId { get; set; } = "";
 
@@ -395,6 +481,10 @@ public sealed class CombatCampaignFoundationIteration
     public string PromotionKind { get; set; } = "rejected";
 
     public string PromotionReason { get; set; } = "";
+
+    public int ConsecutiveRejectedIterations { get; set; }
+
+    public bool StagnationStopTriggered { get; set; }
 }
 
 public sealed class CombatCampaignFoundationValidation
@@ -468,6 +558,37 @@ public sealed class CombatCampaignFoundationIntegrityReport
         new();
 }
 
+public sealed class CombatFoundationCapabilityProbeArm
+{
+    public string ArmId { get; set; } = "";
+
+    public int NormalCampaigns { get; set; }
+
+    public int NormalVictories { get; set; }
+
+    public int AdvancedCampaigns { get; set; }
+
+    public int AdvancedVictories { get; set; }
+
+    public int InvalidCampaigns { get; set; }
+
+    public double AverageCompletedBattles { get; set; }
+
+    public double NormalWilsonLowerBound { get; set; }
+
+    public double AdvancedWilsonLowerBound { get; set; }
+}
+
+public sealed class CombatFoundationCapabilityProbe
+{
+    public int CampaignsPerDifficulty { get; set; }
+
+    public ulong SeedStart { get; set; }
+
+    public List<CombatFoundationCapabilityProbeArm> Arms { get; set; } =
+        new();
+}
+
 public sealed class CombatCampaignFoundationArenaFailure
 {
     public int Iteration { get; set; }
@@ -511,7 +632,24 @@ public sealed class CombatCampaignFoundationTrainingResult
 
     public int PersistedReplayEpisodes { get; set; }
 
+    public int DiscardedCounterfactualEpisodes { get; set; }
+
     public int LoadedExpertReplayEpisodes { get; set; }
+
+    public CombatFoundationExpertReplaySelection ExpertReplaySelection {
+        get;
+        set;
+    } = new();
+
+    public CombatFoundationRewardResidualTrainingResult RewardResidualTraining {
+        get;
+        set;
+    } = new();
+
+    public CombatFoundationCaseArchiveLoadDiagnostics CaseArchiveLoad {
+        get;
+        set;
+    } = new();
 
     public int ArchivedSuccessCases { get; set; }
 
@@ -556,9 +694,18 @@ public sealed class CombatCampaignFoundationTrainingResult
 
     public List<CombatCampaignFoundationIteration> Iterations { get; set; } = new();
 
+    public bool StoppedForStagnation { get; set; }
+
+    public int ConsecutiveRejectedIterations { get; set; }
+
+    public string IterationStopReason { get; set; } = "";
+
     public CombatCampaignFoundationValidation Validation { get; set; } = new();
 
     public CombatCampaignFoundationIntegrityReport Preflight { get; set; } = new();
+
+    public CombatFoundationCapabilityProbe CapabilityProbe { get; set; } =
+        new();
 
     public List<CombatCampaignResult> ValidationRuns { get; set; } = new();
 
@@ -709,6 +856,9 @@ public sealed class CombatCampaignFoundationTrainer
         var advancedValidationCampaigns = Math.Max(
             5,
             Math.Min(1000, request.AdvancedValidationCampaigns));
+        var capabilityProbeCampaigns = Math.Max(
+            0,
+            Math.Min(32, request.CapabilityProbeCampaignsPerDifficulty));
         var tuningNormalCampaigns = request.EnableTuningArena
             ? Math.Max(0, Math.Min(64, request.TuningNormalCampaigns))
             : 0;
@@ -786,7 +936,8 @@ public sealed class CombatCampaignFoundationTrainer
             normalValidationCampaigns,
             advancedValidationCampaigns);
 
-        var resume = request.Resume?.SchemaVersion == 4
+        var resume = request.Resume?.SchemaVersion
+                         == CombatFoundationWorkerProtocol.SchemaVersion
                      && ResumeCompatible(request.Resume)
                      && ManifestCompatible(
                          request.Resume.Compatibility,
@@ -840,6 +991,48 @@ public sealed class CombatCampaignFoundationTrainer
                     StringComparison.Ordinal))
             .ToList();
         result.LoadedExpertReplayEpisodes = expertReplay.Count;
+        var expertDiagnostics = request.ExpertReplaySelection
+                                ?? new CombatFoundationExpertReplaySelection();
+        result.ExpertReplaySelection =
+            new CombatFoundationExpertReplaySelection
+            {
+                CompatibleCases = expertDiagnostics.CompatibleCases,
+                SelectedCases = expertDiagnostics.SelectedCases,
+                SelectedNormalEpisodes =
+                    expertDiagnostics.SelectedNormalEpisodes,
+                SelectedAdvancedEpisodes =
+                    expertDiagnostics.SelectedAdvancedEpisodes,
+                DistinctRuns = expertDiagnostics.DistinctRuns,
+                TargetAdvancedShare =
+                    expertDiagnostics.TargetAdvancedShare,
+                QuotaShortfalls = new Dictionary<string, int>(
+                    expertDiagnostics.QuotaShortfalls,
+                    StringComparer.Ordinal)
+            };
+        if (result.ExpertReplaySelection.SelectedNormalEpisodes
+                + result.ExpertReplaySelection.SelectedAdvancedEpisodes
+            == 0
+            && expertReplay.Count > 0)
+        {
+            result.ExpertReplaySelection.SelectedAdvancedEpisodes =
+                expertReplay.Count(episode => string.Equals(
+                    episode.Campaign?.DifficultyId,
+                    "advanced",
+                    StringComparison.OrdinalIgnoreCase));
+            result.ExpertReplaySelection.SelectedNormalEpisodes =
+                expertReplay.Count
+                - result.ExpertReplaySelection.SelectedAdvancedEpisodes;
+            result.ExpertReplaySelection.DistinctRuns = expertReplay
+                .Select(episode => episode.JourneyRunId ?? "")
+                .Distinct(StringComparer.Ordinal)
+                .Count();
+        }
+        result.RewardResidualTraining =
+            request.RewardResidualTraining
+            ?? new CombatFoundationRewardResidualTrainingResult();
+        result.CaseArchiveLoad =
+            request.CaseArchiveLoad
+            ?? new CombatFoundationCaseArchiveLoadDiagnostics();
         result.Replay.AddRange(expertReplay);
         var workingChampion = resume?.WorkingChampion ?? result.Champion;
         ICombatPolicyValueModel championModel = workingChampion == null
@@ -876,7 +1069,8 @@ public sealed class CombatCampaignFoundationTrainer
                                    * foundationTrainingOptions
                                        .RetainedModelCandidates)
                              + normalValidationCampaigns
-                             + advancedValidationCampaigns;
+                             + advancedValidationCampaigns
+                             + capabilityProbeCampaigns * 2 * 3;
         result.RequestedCampaigns = totalCampaigns;
         var telemetry = new FoundationTelemetryTracker(
             request,
@@ -931,10 +1125,28 @@ public sealed class CombatCampaignFoundationTrainer
             }
         }
 
+        result.ConsecutiveRejectedIterations =
+            ConsecutiveRejectedIterations(result.Iterations);
+        if (ShouldStopForStagnation(
+                request,
+                result.Iterations,
+                workingChampion != null))
+        {
+            result.StoppedForStagnation = true;
+            result.IterationStopReason =
+                CombatFoundationStagnationProtocol.Version
+                + ": resumed after consecutive rejected candidates="
+                + result.ConsecutiveRejectedIterations;
+        }
+
         for (var iteration = startIteration;
              iteration < iterations;
              iteration++)
         {
+            if (result.StoppedForStagnation)
+            {
+                break;
+            }
             cancellationToken.ThrowIfCancellationRequested();
             var iterationNumber = iteration + 1;
             var priorNormalTrials = result.Iterations.Sum(item =>
@@ -966,14 +1178,20 @@ public sealed class CombatCampaignFoundationTrainer
                 CombatFoundationCurriculum.ExplorationProbability(
                     curriculumPlan,
                     request.SelfPlayExplorationProbability);
+            var effectiveHardSeedReplayShare =
+                EffectiveHardSeedReplayShare(request, result.Iterations);
             var hardSeedPlan = CombatFoundationHardSeedCurriculum.Select(
                 result.HardSeedHistory,
                 trainingCampaigns,
-                request.HardSeedReplayShare,
+                effectiveHardSeedReplayShare,
                 iteration,
                 seedPlan.RunSeed,
                 request.EnableHardSeedCurriculum);
             var hardSeedTrainingVictories = 0;
+            var hardSeedCounterfactualCampaigns = 0;
+            var hardSeedCounterfactualVictories = 0;
+            var hardSeedCounterfactualImprovements = 0;
+            var hardSeedCounterfactualRejected = 0;
             IReadOnlyList<CombatFoundationTrainingSlot> trainingSchedule =
                 resume != null
                 && resume.NextIteration == iteration
@@ -1027,23 +1245,98 @@ public sealed class CombatCampaignFoundationTrainer
                             effectiveExplorationProbability,
                             request.SelfPlayExplorationTemperature,
                             campaignSeed);
-                        var campaign = RunCampaign(
-                            request.TrainingCampaign,
-                            difficulty,
-                            campaignSeed,
-                            ruleset,
-                            factory,
-                            telemetry,
-                            "training:" + iterationNumber,
-                            cancellationToken);
-                        var episodes = factory.Complete(campaign);
+                        var localEncounter =
+                            slot.HardSeed
+                            && slot.FailureEncounterCheckpoint != null;
+                        CombatCampaignCheckpoint? failureEncounterCheckpoint =
+                            null;
+                        var campaign = localEncounter
+                            ? RunCampaignSegment(
+                                request.TrainingCampaign,
+                                difficulty,
+                                campaignSeed,
+                                ruleset,
+                                factory,
+                                slot.FailureEncounterCheckpoint!,
+                                telemetry,
+                                "training-hard-encounter:"
+                                + iterationNumber,
+                                cancellationToken)
+                            : RunCampaign(
+                                request.TrainingCampaign,
+                                difficulty,
+                                campaignSeed,
+                                ruleset,
+                                factory,
+                                telemetry,
+                                "training:" + iterationNumber,
+                                cancellationToken,
+                                encounterStart =>
+                                    failureEncounterCheckpoint =
+                                        CompactEncounterCheckpoint(
+                                            encounterStart));
+                        var encounterStartIndex = localEncounter
+                            ? slot.FailureEncounterCheckpoint!
+                                .NextEncounterIndex
+                            : 0;
+                        var episodes = factory.Complete(
+                            campaign,
+                            encounterStartIndex,
+                            localEncounter
+                                ? ":hard-encounter:"
+                                  + iterationNumber
+                                  + ":"
+                                  + campaignIndex
+                                : "");
+                        CombatCampaignResult? counterfactualCampaign = null;
+                        var counterfactualEpisodes = new List<CombatEpisode>();
+                        if (ShouldRunCounterfactualHardEncounter(
+                                request,
+                                localEncounter,
+                                campaign))
+                        {
+                            var counterfactualFactory =
+                                new RecordingCampaignPolicyFactory(
+                                    hardTeacherProfile,
+                                    NullCombatPolicyValueModel.Instance,
+                                    request.DecisionProfile,
+                                    0d,
+                                    1d,
+                                    campaignSeed);
+                            counterfactualCampaign = RunCampaignSegment(
+                                request.TrainingCampaign,
+                                difficulty,
+                                campaignSeed,
+                                ruleset,
+                                counterfactualFactory,
+                                slot.FailureEncounterCheckpoint!,
+                                telemetry,
+                                "training-hard-counterfactual:"
+                                + iterationNumber,
+                                cancellationToken);
+                            counterfactualEpisodes =
+                                counterfactualFactory.Complete(
+                                    counterfactualCampaign,
+                                    encounterStartIndex,
+                                    ":hard-counterfactual:"
+                                    + iterationNumber
+                                    + ":"
+                                    + campaignIndex);
+                        }
                         trainingRuns[campaignIndex] =
                             new FoundationTrainingCampaignRun
                             {
                                 Campaign = campaign,
                                 Episodes = episodes,
+                                CounterfactualCampaign =
+                                    counterfactualCampaign,
+                                CounterfactualEpisodes =
+                                    counterfactualEpisodes,
                                 HardSeed = slot.HardSeed,
-                                Schedule = slot
+                                Schedule = slot,
+                                LocalEncounter = localEncounter,
+                                FailureEncounterCheckpoint =
+                                    failureEncounterCheckpoint
                             };
                         ReportProgress(
                             request,
@@ -1073,39 +1366,112 @@ public sealed class CombatCampaignFoundationTrainer
                     }
                     else
                     {
-                        ApplyCampaignTargets(
-                            trainingRun.Episodes,
-                            trainingRun.Campaign,
-                            curriculumPlan.Stage,
-                            iterationNumber);
+                        if (trainingRun.LocalEncounter)
+                        {
+                            ApplyHardEncounterTargets(
+                                trainingRun.Episodes,
+                                trainingRun.Campaign,
+                                curriculumPlan.Stage,
+                                iterationNumber);
+                        }
+                        else
+                        {
+                            ApplyCampaignTargets(
+                                trainingRun.Episodes,
+                                trainingRun.Campaign,
+                                curriculumPlan.Stage,
+                                iterationNumber);
+                        }
                         result.FeatureLeakageViolations +=
                             SanitizeEpisodeFeatures(trainingRun.Episodes);
                         result.GeneratedReplayEpisodes +=
                             trainingRun.Episodes.Count;
+                        if (trainingRun.CounterfactualCampaign != null)
+                        {
+                            hardSeedCounterfactualCampaigns++;
+                            var admission = ClassifyCounterfactual(
+                                trainingRun.Campaign,
+                                trainingRun.CounterfactualCampaign);
+                            if (admission
+                                != CombatFoundationCounterfactualAdmission
+                                    .Rejected)
+                            {
+                                ApplyHardEncounterTargets(
+                                    trainingRun.CounterfactualEpisodes,
+                                    trainingRun.CounterfactualCampaign,
+                                    curriculumPlan.Stage
+                                    + ":counterfactual",
+                                    iterationNumber);
+                                if (admission
+                                    == CombatFoundationCounterfactualAdmission
+                                        .Improved)
+                                {
+                                    ApplyImprovedCounterfactualTargets(
+                                        trainingRun.CounterfactualEpisodes);
+                                    hardSeedCounterfactualImprovements++;
+                                }
+                                result.FeatureLeakageViolations +=
+                                    SanitizeEpisodeFeatures(
+                                        trainingRun.CounterfactualEpisodes);
+                                result.GeneratedReplayEpisodes +=
+                                    trainingRun.CounterfactualEpisodes.Count;
+                                result.Replay.AddRange(
+                                    trainingRun.CounterfactualEpisodes);
+                                if (trainingRun.CounterfactualCampaign
+                                        .Battles.LastOrDefault()?.Outcome
+                                    == CombatSimulationOutcome.Victory)
+                                {
+                                    hardSeedCounterfactualVictories++;
+                                }
+                            }
+                            else
+                            {
+                                hardSeedCounterfactualRejected++;
+                                result.DiscardedCounterfactualEpisodes +=
+                                    trainingRun.CounterfactualEpisodes.Count;
+                            }
+                        }
                         if (trainingRun.HardSeed
-                            && trainingRun.Campaign.FinalBossVictory)
+                            && TrainingObjectiveVictory(trainingRun))
                         {
                             hardSeedTrainingVictories++;
                         }
-                        RecordCase(
-                            result,
-                            trainingRun.Campaign,
-                            "training",
-                            iterationNumber,
-                            trainingRun.HardSeed
-                                ? "hard-seed-self-play"
-                                : "self-play",
-                            ruleset.RulesetHash,
-                            request.DecisionProfile,
-                            workingChampion?.ModelId ?? "",
-                            trainingRun.Episodes,
-                            request);
+                        if (!trainingRun.LocalEncounter)
+                        {
+                            RecordCase(
+                                result,
+                                trainingRun.Campaign,
+                                "training",
+                                iterationNumber,
+                                trainingRun.HardSeed
+                                    ? "hard-seed-self-play"
+                                    : "self-play",
+                                ruleset.RulesetHash,
+                                request.DecisionProfile,
+                                workingChampion?.ModelId ?? "",
+                                trainingRun.Episodes,
+                                request);
+                        }
                     }
                     UpdateHardSeedHistory(
                         result.HardSeedHistory,
                         trainingRun.Campaign,
                         trainingRun.Schedule,
-                        iterationNumber);
+                        iterationNumber,
+                        trainingRun.FailureEncounterCheckpoint,
+                        trainingRun.LocalEncounter);
+                    if (trainingRun.CounterfactualCampaign?.Battles
+                            .LastOrDefault()?.Outcome
+                        == CombatSimulationOutcome.Victory)
+                    {
+                        UpdateHardSeedHistory(
+                            result.HardSeedHistory,
+                            trainingRun.CounterfactualCampaign,
+                            trainingRun.Schedule,
+                            iterationNumber,
+                            trainingRun.FailureEncounterCheckpoint,
+                            localEncounter: true);
+                    }
                     result.TerminalConsistencyViolations +=
                         CountTerminalConsistencyViolations(
                             trainingRun.Campaign);
@@ -1629,6 +1995,20 @@ public sealed class CombatCampaignFoundationTrainer
                     hardSeedPlan.Seeds.Count,
                 HardSeedTrainingVictories =
                     hardSeedTrainingVictories,
+                HardSeedEncounterCampaigns =
+                    trainingSchedule.Count(slot =>
+                        slot.HardSeed
+                        && slot.FailureEncounterCheckpoint != null),
+                HardSeedCounterfactualCampaigns =
+                    hardSeedCounterfactualCampaigns,
+                HardSeedCounterfactualVictories =
+                    hardSeedCounterfactualVictories,
+                HardSeedCounterfactualImprovements =
+                    hardSeedCounterfactualImprovements,
+                HardSeedCounterfactualRejected =
+                    hardSeedCounterfactualRejected,
+                EffectiveHardSeedReplayShare =
+                    effectiveHardSeedReplayShare,
                 HardSeedClusters =
                     new Dictionary<string, int>(
                         hardSeedPlan.Clusters,
@@ -1649,6 +2029,14 @@ public sealed class CombatCampaignFoundationTrainer
                     curriculumPlan.AdvancedWilsonLowerBound,
                 SelfPlayExplorationProbability =
                     effectiveExplorationProbability,
+                ModelFrameStrata =
+                    new Dictionary<string, int>(
+                        trained.FrameStrata,
+                        StringComparer.Ordinal),
+                ModelMinimumFrameWeight =
+                    trained.MinimumFrameWeight,
+                ModelMaximumFrameWeight =
+                    trained.MaximumFrameWeight,
                 CandidateModelId = trained.Model.ModelId,
                 TuningSelectedEpoch = tuning.Epoch,
                 TuningSelectedScore = tuning.Score,
@@ -1706,7 +2094,10 @@ public sealed class CombatCampaignFoundationTrainer
                 PromotionKind = promoted
                     ? "formal-champion"
                     : "rejected",
-                PromotionReason = promotionReason
+                PromotionReason = promotionReason,
+                ConsecutiveRejectedIterations = promoted
+                    ? 0
+                    : ConsecutiveRejectedIterations(result.Iterations) + 1
             });
             if (systemicArenaFailure
                 || invalidCandidate > 0
@@ -1737,6 +2128,14 @@ public sealed class CombatCampaignFoundationTrainer
             {
                 result.Champion = trained.Model;
             }
+            var latestIteration = result.Iterations.Last();
+            result.ConsecutiveRejectedIterations =
+                latestIteration.ConsecutiveRejectedIterations;
+            var stagnationStop = ShouldStopForStagnation(
+                request,
+                result.Iterations,
+                workingChampion != null);
+            latestIteration.StagnationStopTriggered = stagnationStop;
             PublishCheckpoint(
                 request,
                 CreateResumeState(
@@ -1748,6 +2147,15 @@ public sealed class CombatCampaignFoundationTrainer
                     workingChampion,
                     modelTraining: null));
             resume = null;
+            if (stagnationStop)
+            {
+                result.StoppedForStagnation = true;
+                result.IterationStopReason =
+                    CombatFoundationStagnationProtocol.Version
+                    + ": consecutive rejected candidates="
+                    + result.ConsecutiveRejectedIterations;
+                break;
+            }
         }
 
         if (result.Champion == null)
@@ -1760,6 +2168,21 @@ public sealed class CombatCampaignFoundationTrainer
             telemetry.ApplyTo(result);
             FinalizeCaseAnalysis(result);
             return result;
+        }
+
+        if (capabilityProbeCampaigns > 0)
+        {
+            result.CapabilityProbe = RunCapabilityProbe(
+                request,
+                ruleset,
+                result.Champion,
+                telemetry,
+                capabilityProbeCampaigns,
+                seedPlan.ValidationSeedStart,
+                parallelism,
+                ref completedCampaigns,
+                totalCampaigns,
+                cancellationToken);
         }
 
         PublishCheckpoint(
@@ -2263,24 +2686,41 @@ public sealed class CombatCampaignFoundationTrainer
         ICombatSimulationPolicyFactory factory,
         FoundationTelemetryTracker telemetry,
         string stage,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        Action<CombatCampaignCheckpoint>? encounterStart = null)
     {
         var campaignWorkId = telemetry.EnterCampaign(stage);
         CombatCampaignResult? result = null;
         try
         {
-            result = campaignRunner.RunMonitored(
-                campaign,
-                CombatCampaignWorldPlanner.Build(campaign, difficulty, seed),
-                ruleset,
-                factory,
-                (depth, battle) =>
-                    telemetry.BattleCompleted(
-                        campaignWorkId,
-                        depth,
-                        battle,
-                        stage),
-                cancellationToken);
+            var plan =
+                CombatCampaignWorldPlanner.Build(campaign, difficulty, seed);
+            result = encounterStart == null
+                ? campaignRunner.RunMonitored(
+                    campaign,
+                    plan,
+                    ruleset,
+                    factory,
+                    (depth, battle) =>
+                        telemetry.BattleCompleted(
+                            campaignWorkId,
+                            depth,
+                            battle,
+                            stage),
+                    cancellationToken)
+                : campaignRunner.RunMonitoredWithEncounterStarts(
+                    campaign,
+                    plan,
+                    ruleset,
+                    factory,
+                    (depth, battle) =>
+                        telemetry.BattleCompleted(
+                            campaignWorkId,
+                            depth,
+                            battle,
+                            stage),
+                    encounterStart,
+                    cancellationToken);
             return result;
         }
         catch (OperationCanceledException)
@@ -2302,6 +2742,60 @@ public sealed class CombatCampaignFoundationTrainer
         {
             telemetry.ExitCampaign(campaignWorkId, result, stage);
         }
+    }
+
+    private CombatCampaignResult RunCampaignSegment(
+        CombatCampaignDefinition campaign,
+        string difficulty,
+        ulong seed,
+        CombatRuleset ruleset,
+        ICombatSimulationPolicyFactory factory,
+        CombatCampaignCheckpoint checkpoint,
+        FoundationTelemetryTracker telemetry,
+        string stage,
+        CancellationToken cancellationToken)
+    {
+        var campaignWorkId = telemetry.EnterCampaign(stage);
+        CombatCampaignResult? result = null;
+        try
+        {
+            result = campaignRunner.RunMonitoredSegment(
+                campaign,
+                CombatCampaignWorldPlanner.Build(campaign, difficulty, seed),
+                ruleset,
+                factory,
+                checkpoint,
+                1,
+                (depth, battle) =>
+                    telemetry.BattleCompleted(
+                        campaignWorkId,
+                        checkpoint.NextEncounterIndex + depth,
+                        battle,
+                        stage),
+                cancellationToken);
+            return result;
+        }
+        finally
+        {
+            telemetry.ExitCampaign(campaignWorkId, result, stage);
+        }
+    }
+
+    private static CombatCampaignCheckpoint CompactEncounterCheckpoint(
+        CombatCampaignCheckpoint source)
+    {
+        return new CombatCampaignCheckpoint
+        {
+            CampaignId = source.CampaignId,
+            CampaignVersion = source.CampaignVersion,
+            DifficultyId = source.DifficultyId,
+            WorldSeed = source.WorldSeed,
+            PlanHash = source.PlanHash,
+            PolicyId = source.PolicyId,
+            NextEncounterIndex = source.NextEncounterIndex,
+            State = source.State,
+            Completed = false
+        };
     }
 
     private CombatCampaignFoundationIntegrityReport RunIntegrityPreflight(
@@ -2370,6 +2864,116 @@ public sealed class CombatCampaignFoundationTrainer
         report.Passed = report.CompletedCampaigns == runs.Length
                         && report.InvalidCampaigns == 0
                         && report.TerminalConsistencyViolations == 0;
+        return report;
+    }
+
+    private CombatFoundationCapabilityProbe RunCapabilityProbe(
+        CombatCampaignFoundationTrainingRequest request,
+        CombatRuleset ruleset,
+        CombatPolicyValueNetworkDefinition champion,
+        FoundationTelemetryTracker telemetry,
+        int campaignsPerDifficulty,
+        ulong seedStart,
+        int parallelism,
+        ref int completedCampaigns,
+        int totalCampaigns,
+        CancellationToken cancellationToken)
+    {
+        _ = parallelism;
+        telemetry.ReportStage("capability-probe");
+        var model = new ManagedCombatPolicyValueModel(champion);
+        var definitions = new[]
+        {
+            (
+                Id: "rule-baseline",
+                Factory: (Func<ICombatSimulationPolicyFactory>)(() =>
+                    new CombatDecisionSimulationPolicyFactory(
+                        CombatSearchBudgetPolicy.WithContext(
+                            request.Profile,
+                            "deployment")))),
+            (
+                Id: "champion-deployment",
+                Factory: (Func<ICombatSimulationPolicyFactory>)(() =>
+                    new CombatDecisionSimulationPolicyFactory(
+                        CombatSearchBudgetPolicy.WithContext(
+                            request.Profile,
+                            "deployment"),
+                        policyValueModel: model))),
+            (
+                Id: "champion-teacher-hard",
+                Factory: (Func<ICombatSimulationPolicyFactory>)(() =>
+                    new CombatDecisionSimulationPolicyFactory(
+                        CombatSearchBudgetPolicy.WithContext(
+                            request.Profile,
+                            "teacher-hard"),
+                        policyValueModel: model)))
+        };
+        var report = new CombatFoundationCapabilityProbe
+        {
+            CampaignsPerDifficulty = campaignsPerDifficulty,
+            SeedStart = seedStart
+        };
+        foreach (var definition in definitions)
+        {
+            var runs = new List<CombatCampaignResult>();
+            foreach (var difficulty in new[] { "normal", "advanced" })
+            {
+                for (var index = 0;
+                     index < campaignsPerDifficulty;
+                     index++)
+                {
+                    var campaign = RunCampaign(
+                        request.ValidationCampaign,
+                        difficulty,
+                        seedStart + (ulong)index,
+                        ruleset,
+                        definition.Factory(),
+                        telemetry,
+                        "capability-probe:" + definition.Id,
+                        cancellationToken);
+                    runs.Add(campaign);
+                    ReportProgress(
+                        request,
+                        telemetry,
+                        campaign,
+                        ref completedCampaigns,
+                        totalCampaigns,
+                        "能力上限诊断：" + definition.Id);
+                }
+            }
+            var normal = runs.Where(item => string.Equals(
+                item.DifficultyId,
+                "normal",
+                StringComparison.Ordinal)).ToList();
+            var advanced = runs.Where(item => string.Equals(
+                item.DifficultyId,
+                "advanced",
+                StringComparison.Ordinal)).ToList();
+            var normalVictories =
+                normal.Count(item => item.FinalBossVictory);
+            var advancedVictories =
+                advanced.Count(item => item.FinalBossVictory);
+            report.Arms.Add(new CombatFoundationCapabilityProbeArm
+            {
+                ArmId = definition.Id,
+                NormalCampaigns = normal.Count,
+                NormalVictories = normalVictories,
+                AdvancedCampaigns = advanced.Count,
+                AdvancedVictories = advancedVictories,
+                InvalidCampaigns = runs.Count(item => item.Invalid),
+                AverageCompletedBattles = runs.Count == 0
+                    ? 0d
+                    : runs.Average(item => item.CompletedBattles),
+                NormalWilsonLowerBound =
+                    CombatFoundationCurriculum.WilsonLowerBound(
+                        normalVictories,
+                        normal.Count),
+                AdvancedWilsonLowerBound =
+                    CombatFoundationCurriculum.WilsonLowerBound(
+                        advancedVictories,
+                        advanced.Count)
+            });
+        }
         return report;
     }
 
@@ -2833,7 +3437,7 @@ public sealed class CombatCampaignFoundationTrainer
             }));
     }
 
-    private static void ApplyCampaignTargets(
+    internal static void ApplyCampaignTargets(
         IReadOnlyList<CombatEpisode> episodes,
         CombatCampaignResult campaign,
         string curriculumStage,
@@ -2844,16 +3448,21 @@ public sealed class CombatCampaignFoundationTrainer
             campaign.TotalBattles > 0
                 ? campaign.TotalBattles
                 : Math.Max(campaign.CompletedBattles, episodes.Count));
-        var progress = Math.Max(
-            0d,
-            Math.Min(1d, campaign.CompletedBattles / (double)totalBattles));
-        var campaignReturn = campaign.FinalBossVictory
-            ? 1d
-            : Math.Max(-1d, Math.Min(-0.75d, -1d + progress * 0.25d));
-        var remainingBattles = episodes.Count;
+        var failureEpisodeIndex = campaign.FinalBossVictory
+            ? -1
+            : Math.Max(
+                0,
+                Math.Min(
+                    episodes.Count - 1,
+                    campaign.CompletedBattles - 1));
         for (var episodeIndex = 0; episodeIndex < episodes.Count; episodeIndex++)
         {
             var episode = episodes[episodeIndex];
+            var battle = episodeIndex < campaign.Battles.Count
+                ? campaign.Battles[episodeIndex]
+                : null;
+            var localVictory =
+                battle?.Outcome == CombatSimulationOutcome.Victory;
             episode.Campaign ??= new CombatCampaignEpisodeMetadata();
             episode.Campaign.WorldSeed = campaign.WorldSeed;
             episode.Campaign.DifficultyId = campaign.DifficultyId;
@@ -2868,10 +3477,12 @@ public sealed class CombatCampaignFoundationTrainer
                     : Math.Max(0, campaign.CompletedBattles - 1);
             episode.Campaign.TerminalScenarioId =
                 campaign.Battles.LastOrDefault()?.ScenarioId ?? "";
-            episode.Campaign.OutcomeClass = campaign.FinalBossVictory
-                ? "victory"
-                : campaign.Invalid
-                    ? "invalid"
+            episode.Campaign.OutcomeClass = campaign.Invalid
+                ? "invalid"
+                : localVictory || campaign.FinalBossVictory
+                    ? campaign.FinalBossVictory
+                        ? "victory"
+                        : "battle-victory"
                     : "defeat";
             episode.Campaign.CurriculumStage = curriculumStage ?? "";
             episode.Campaign.TrainingIteration =
@@ -2880,22 +3491,248 @@ public sealed class CombatCampaignFoundationTrainer
                 !campaign.Invalid
                 && campaign.Battles.All(battle =>
                     battle.TerminalConsistencyValid);
-            var journeySignal = campaignReturn
-                                * Math.Pow(0.995d, Math.Max(0, remainingBattles - episodeIndex - 1));
+            var distanceFromFailure = failureEpisodeIndex < 0
+                ? Math.Max(0, episodes.Count - episodeIndex - 1)
+                : Math.Max(0, failureEpisodeIndex - episodeIndex);
+            var journeySignal = campaign.FinalBossVictory
+                ? 0.65d
+                  + 0.35d
+                  * (episodeIndex + 1d)
+                  / Math.Max(1d, episodes.Count)
+                : localVictory
+                    ? CombatFoundationTerminalCreditProtocol.WonBattleCredit
+                      - 0.75d
+                      * Math.Pow(
+                          CombatFoundationTerminalCreditProtocol
+                              .FailureBackpropagationDecay,
+                          distanceFromFailure)
+                    : -1d;
+            journeySignal = Math.Max(-1d, Math.Min(1d, journeySignal));
+            for (var frameIndex = 0;
+                 frameIndex < episode.Frames.Count;
+                 frameIndex++)
+            {
+                var frame = episode.Frames[frameIndex];
+                if (!campaign.FinalBossVictory && !localVictory)
+                {
+                    var terminalProgress = (frameIndex + 1d)
+                                           / Math.Max(
+                                               1d,
+                                               episode.Frames.Count);
+                    frame.LongTermReturn =
+                        -0.75d - 0.25d * terminalProgress;
+                }
+                else
+                {
+                    frame.LongTermReturn = journeySignal;
+                }
+            }
+        }
+    }
+
+    internal static void ApplyHardEncounterTargets(
+        IReadOnlyList<CombatEpisode> episodes,
+        CombatCampaignResult campaign,
+        string curriculumStage,
+        int trainingIteration)
+    {
+        var battle = campaign.Battles.LastOrDefault();
+        var victory =
+            battle?.Outcome == CombatSimulationOutcome.Victory;
+        foreach (var episode in episodes)
+        {
+            episode.Campaign ??= new CombatCampaignEpisodeMetadata();
+            episode.Campaign.WorldSeed = campaign.WorldSeed;
+            episode.Campaign.DifficultyId = campaign.DifficultyId;
+            episode.Campaign.FinalBossVictory = false;
+            episode.Campaign.ReachedFinalBoss = false;
+            episode.Campaign.CampaignCompletedBattles = 1;
+            episode.Campaign.CampaignTotalBattles = 1;
+            episode.Campaign.FailureBattleIndex =
+                victory ? -1 : episode.JourneyBattleIndex;
+            episode.Campaign.TerminalScenarioId =
+                battle?.ScenarioId ?? "";
+            episode.Campaign.OutcomeClass = victory
+                ? "encounter-victory"
+                : campaign.Invalid
+                    ? "invalid"
+                    : "encounter-defeat";
+            episode.Campaign.CurriculumStage =
+                (curriculumStage ?? "") + ":hard-encounter";
+            episode.Campaign.TrainingIteration =
+                Math.Max(0, trainingIteration);
+            episode.Campaign.IntegrityValid =
+                !campaign.Invalid
+                && campaign.Battles.All(item =>
+                    item.TerminalConsistencyValid);
+            foreach (var frame in episode.Frames)
+            {
+                frame.LongTermReturn = victory ? 0.75d : -1d;
+            }
+        }
+    }
+
+    private static void ApplyImprovedCounterfactualTargets(
+        IReadOnlyList<CombatEpisode> episodes)
+    {
+        foreach (var episode in episodes)
+        {
+            episode.Campaign ??= new CombatCampaignEpisodeMetadata();
+            episode.Campaign.OutcomeClass =
+                "encounter-improved-defeat";
+            episode.Campaign.CurriculumStage =
+                (episode.Campaign.CurriculumStage ?? "")
+                + ":improved";
+            episode.Campaign.TrainingWeight =
+                CombatFoundationCounterfactualProtocol
+                    .ImprovedEpisodeWeight;
             foreach (var frame in episode.Frames)
             {
                 frame.LongTermReturn = Math.Max(
-                    -1d,
-                    Math.Min(1d, journeySignal));
+                    frame.LongTermReturn,
+                    -0.50d);
             }
         }
+    }
+
+    internal static CombatFoundationCounterfactualAdmission
+        ClassifyCounterfactual(
+            CombatCampaignResult baseline,
+            CombatCampaignResult counterfactual)
+    {
+        if (baseline == null
+            || counterfactual == null
+            || counterfactual.Invalid)
+        {
+            return CombatFoundationCounterfactualAdmission.Rejected;
+        }
+        var counterfactualBattle =
+            counterfactual.Battles.LastOrDefault();
+        if (counterfactualBattle?.Outcome
+            == CombatSimulationOutcome.Victory)
+        {
+            return CombatFoundationCounterfactualAdmission.Victory;
+        }
+        var baselineBattle = baseline.Battles.LastOrDefault();
+        if (baselineBattle == null
+            || counterfactualBattle == null
+            || baselineBattle.Outcome == CombatSimulationOutcome.Victory)
+        {
+            return CombatFoundationCounterfactualAdmission.Rejected;
+        }
+        var baselineDamage = Math.Max(
+            0,
+            baselineBattle.Metrics?.DamageDealt ?? 0);
+        var counterfactualDamage = Math.Max(
+            0,
+            counterfactualBattle.Metrics?.DamageDealt ?? 0);
+        var requiredDamageGain = Math.Max(
+            CombatFoundationCounterfactualProtocol
+                .MinimumDamageImprovement,
+            (int)Math.Ceiling(
+                baselineDamage
+                * CombatFoundationCounterfactualProtocol
+                    .MinimumDamageImprovementRatio));
+        return counterfactualDamage - baselineDamage >= requiredDamageGain
+               && counterfactualBattle.Turns >= baselineBattle.Turns
+            ? CombatFoundationCounterfactualAdmission.Improved
+            : CombatFoundationCounterfactualAdmission.Rejected;
+    }
+
+    internal static double EffectiveHardSeedReplayShare(
+        CombatCampaignFoundationTrainingRequest request,
+        IReadOnlyList<CombatCampaignFoundationIteration> iterations)
+    {
+        var configured = Math.Max(
+            0d,
+            Math.Min(0.75d, request.HardSeedReplayShare));
+        var all = iterations
+                  ?? Array.Empty<CombatCampaignFoundationIteration>();
+        var recent = all
+            .Skip(Math.Max(
+                0,
+                all.Count
+                - CombatFoundationStagnationProtocol
+                    .HardSeedSolveRateWindow))
+            .ToList();
+        var attempts = recent.Sum(item =>
+            item.HardSeedCounterfactualCampaigns);
+        var solved = recent.Sum(item =>
+            item.HardSeedCounterfactualVictories
+            + item.HardSeedCounterfactualImprovements);
+        if (attempts < 8
+            || solved / (double)Math.Max(1, attempts)
+            >= CombatFoundationStagnationProtocol.MinimumHardSeedSolveRate)
+        {
+            return configured;
+        }
+        return Math.Min(
+            configured,
+            CombatFoundationStagnationProtocol.ReducedHardSeedReplayShare);
+    }
+
+    private static int ConsecutiveRejectedIterations(
+        IReadOnlyList<CombatCampaignFoundationIteration> iterations)
+    {
+        var count = 0;
+        for (var index = iterations.Count - 1; index >= 0; index--)
+        {
+            if (iterations[index].Promoted)
+            {
+                break;
+            }
+            count++;
+        }
+        return count;
+    }
+
+    internal static bool ShouldStopForStagnation(
+        CombatCampaignFoundationTrainingRequest request,
+        IReadOnlyList<CombatCampaignFoundationIteration> iterations,
+        bool hasChampion)
+    {
+        if (!hasChampion)
+        {
+            return false;
+        }
+        var limit = Math.Max(
+            0,
+            request.MaximumConsecutiveRejectedIterations);
+        return limit > 0
+               && ConsecutiveRejectedIterations(
+                   iterations
+                   ?? Array.Empty<CombatCampaignFoundationIteration>())
+               >= limit;
+    }
+
+    private static bool TrainingObjectiveVictory(
+        FoundationTrainingCampaignRun trainingRun)
+    {
+        return trainingRun.LocalEncounter
+            ? trainingRun.Campaign.Battles.LastOrDefault()?.Outcome
+              == CombatSimulationOutcome.Victory
+            : trainingRun.Campaign.FinalBossVictory;
+    }
+
+    internal static bool ShouldRunCounterfactualHardEncounter(
+        CombatCampaignFoundationTrainingRequest request,
+        bool localEncounter,
+        CombatCampaignResult campaign)
+    {
+        return request.EnableCounterfactualHardEncounters
+               && localEncounter
+               && !campaign.Invalid
+               && campaign.Battles.LastOrDefault()?.Outcome
+               != CombatSimulationOutcome.Victory;
     }
 
     private static void UpdateHardSeedHistory(
         IList<CombatFoundationHardSeedHistoryEntry> history,
         CombatCampaignResult campaign,
         CombatFoundationTrainingSlot? slot,
-        int iteration)
+        int iteration,
+        CombatCampaignCheckpoint? failureEncounterCheckpoint = null,
+        bool localEncounter = false)
     {
         if (campaign == null || campaign.Invalid || campaign.WorldSeed == 0UL)
         {
@@ -2923,9 +3760,16 @@ public sealed class CombatCampaignFoundationTrainer
             };
             history.Add(existing);
         }
+        var objectiveVictory = localEncounter
+            ? campaign.Battles.LastOrDefault()?.Outcome
+              == CombatSimulationOutcome.Victory
+            : campaign.FinalBossVictory;
         existing.CompletedBattles = Math.Max(
             existing.CompletedBattles,
-            campaign.CompletedBattles);
+            localEncounter
+                ? (slot?.FailureEncounterCheckpoint?.NextEncounterIndex ?? 0)
+                  + campaign.CompletedBattles
+                : campaign.CompletedBattles);
         existing.LastSeenIteration = Math.Max(
             existing.LastSeenIteration,
             iteration);
@@ -2934,7 +3778,7 @@ public sealed class CombatCampaignFoundationTrainer
             existing.TrainingAttempts++;
             existing.LastTrainedIteration = iteration;
         }
-        if (campaign.FinalBossVictory)
+        if (objectiveVictory)
         {
             if (slot?.HardSeed == true)
             {
@@ -2949,6 +3793,11 @@ public sealed class CombatCampaignFoundationTrainer
             campaign.Battles.LastOrDefault()?.ScenarioId
             ?? slot?.FailureCluster
             ?? existing.TerminalScenarioId;
+        if (!localEncounter && failureEncounterCheckpoint != null)
+        {
+            existing.FailureEncounterCheckpoint =
+                failureEncounterCheckpoint;
+        }
     }
 
     private TuningSelection SelectTunedCandidate(
@@ -3683,9 +4532,21 @@ public sealed class CombatCampaignFoundationTrainer
 
         public List<CombatEpisode> Episodes { get; set; } = new();
 
+        public CombatCampaignResult? CounterfactualCampaign { get; set; }
+
+        public List<CombatEpisode> CounterfactualEpisodes { get; set; } =
+            new();
+
         public bool HardSeed { get; set; }
 
         public CombatFoundationTrainingSlot Schedule { get; set; } = new();
+
+        public bool LocalEncounter { get; set; }
+
+        public CombatCampaignCheckpoint? FailureEncounterCheckpoint {
+            get;
+            set;
+        }
     }
 
     private sealed class TuningSelection
@@ -3801,7 +4662,10 @@ public sealed class CombatCampaignFoundationTrainer
             return policy;
         }
 
-        public List<CombatEpisode> Complete(CombatCampaignResult result)
+        public List<CombatEpisode> Complete(
+            CombatCampaignResult result,
+            int journeyBattleIndexOffset = 0,
+            string journeyRunSuffix = "")
         {
             if (policies.Count != result.Battles.Count)
             {
@@ -3815,12 +4679,14 @@ public sealed class CombatCampaignFoundationTrainer
                                + ":"
                                + result.DifficultyId
                                + ":"
-                               + result.WorldSeed;
+                               + result.WorldSeed
+                               + (journeyRunSuffix ?? "");
             return policies.Select((policy, index) =>
             {
                 var episode = policy.Complete(result.Battles[index]);
                 episode.JourneyRunId = journeyRunId;
-                episode.JourneyBattleIndex = index;
+                episode.JourneyBattleIndex =
+                    Math.Max(0, journeyBattleIndexOffset) + index;
                 return episode;
             }).ToList();
         }

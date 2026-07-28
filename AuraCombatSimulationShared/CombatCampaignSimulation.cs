@@ -243,6 +243,16 @@ public sealed class CombatCampaignDefinition
     public Dictionary<string, double> BossPreference { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
 
+    public Dictionary<string, double> RewardScoreResiduals { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public double RewardScoreResidualMaximumAbsolute { get; set; } = 0.20d;
+
+    public Dictionary<string, double> RewardScoreBiases { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public double RewardScoreBiasMaximumAbsolute { get; set; } = 8d;
+
     public int InitialDraw { get; set; } = 5;
 
     public int DrawPerTurn { get; set; } = 5;
@@ -337,6 +347,10 @@ public sealed class CombatCampaignRewardScore
     public double DilutionPenalty { get; set; }
 
     public double RiskPenalty { get; set; }
+
+    public double LearnedResidual { get; set; }
+
+    public double ConfiguredBias { get; set; }
 }
 
 public sealed class CombatCampaignBuildPlan
@@ -865,11 +879,11 @@ public static class CombatCampaignWorldPlanner
             .Where(item => item.Kind == CombatCampaignRewardKind.Relic
                            && item.Tier >= minimumTier
                            && item.Tier <= maximumTier)
-            .Select(item => item.RewardId)
-            .Distinct(StringComparer.OrdinalIgnoreCase)
-            .OrderBy(item => item, StringComparer.Ordinal)
+            .GroupBy(item => item.RewardId, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .OrderBy(item => item.RewardId, StringComparer.Ordinal)
             .ToList();
-        result.RelicId = PickUnused(
+        result.RelicId = PickWeightedUnused(
             relics,
             usedRelics,
             worldSeed,
@@ -922,6 +936,51 @@ public static class CombatCampaignWorldPlanner
         var selected = candidates[NextIndex(seed, stream, step, candidates.Count)];
         used.Add(selected);
         return selected;
+    }
+
+    internal static string PickWeightedUnused(
+        IReadOnlyList<CombatCampaignRewardDefinition> source,
+        HashSet<string> used,
+        ulong seed,
+        string stream,
+        int step)
+    {
+        var eligible = source
+            .Where(item => !string.IsNullOrWhiteSpace(item.RewardId)
+                           && item.OfferWeight > 0d
+                           && !double.IsNaN(item.OfferWeight)
+                           && !double.IsInfinity(item.OfferWeight))
+            .ToList();
+        if (eligible.Count == 0)
+        {
+            return "";
+        }
+        var candidates = eligible
+            .Where(item => !used.Contains(item.RewardId))
+            .ToList();
+        if (candidates.Count == 0)
+        {
+            candidates = eligible;
+        }
+        var total = candidates.Sum(item => item.OfferWeight);
+        if (total <= 0d)
+        {
+            return "";
+        }
+        var roll = NextUnit(seed, stream, step) * total;
+        var cursor = 0d;
+        var selected = candidates[candidates.Count - 1];
+        foreach (var candidate in candidates)
+        {
+            cursor += candidate.OfferWeight;
+            if (roll < cursor)
+            {
+                selected = candidate;
+                break;
+            }
+        }
+        used.Add(selected.RewardId);
+        return selected.RewardId;
     }
 
     private static List<string> PickDistinct(
@@ -1361,6 +1420,32 @@ public static class CombatCampaignRewardSelector
                         item,
                         buildPlan)
                     : 0d;
+                var learnedResidual =
+                    definition.RewardScoreResiduals.TryGetValue(
+                        id,
+                        out var configuredResidual)
+                        ? Math.Max(
+                            -Math.Abs(
+                                definition.RewardScoreResidualMaximumAbsolute),
+                            Math.Min(
+                                Math.Abs(
+                                    definition
+                                        .RewardScoreResidualMaximumAbsolute),
+                                configuredResidual))
+                        : 0d;
+                var configuredBias =
+                    definition.RewardScoreBiases.TryGetValue(
+                        id,
+                        out var configuredRewardBias)
+                        ? Math.Max(
+                            -Math.Abs(
+                                definition.RewardScoreBiasMaximumAbsolute),
+                            Math.Min(
+                                Math.Abs(
+                                    definition
+                                        .RewardScoreBiasMaximumAbsolute),
+                                configuredRewardBias))
+                        : 0d;
                 return new CombatCampaignRewardScore
                 {
                     RewardId = id,
@@ -1376,8 +1461,11 @@ public static class CombatCampaignRewardSelector
                     EnergyFit = energyFit,
                     DilutionPenalty = dilution,
                     RiskPenalty = riskPenalty,
+                    LearnedResidual = learnedResidual,
+                    ConfiguredBias = configuredBias,
                     Total = baseValue + tierValue + systemFit + tendency + bossFit
                             + archetypeFit + survivalFit + energyFit
+                            + learnedResidual + configuredBias
                             - bloat - redundancy - dilution - offPlanPenalty
                             - riskPenalty
                 };
@@ -1938,6 +2026,8 @@ public sealed class CombatCampaignRunner
             resumeFrom,
             checkpointSink,
             null,
+            null,
+            int.MaxValue,
             cancellationToken);
     }
 
@@ -1957,6 +2047,57 @@ public sealed class CombatCampaignRunner
             null,
             null,
             battleProgress,
+            null,
+            int.MaxValue,
+            cancellationToken);
+    }
+
+    public CombatCampaignResult RunMonitoredSegment(
+        CombatCampaignDefinition definition,
+        CombatCampaignWorldPlan plan,
+        CombatRuleset ruleset,
+        ICombatSimulationPolicyFactory policyFactory,
+        CombatCampaignCheckpoint resumeFrom,
+        int maximumEncounters,
+        Action<int, CombatSimulationResult>? battleProgress,
+        CancellationToken cancellationToken = default)
+    {
+        if (resumeFrom == null)
+        {
+            throw new ArgumentNullException(nameof(resumeFrom));
+        }
+        return RunCore(
+            definition,
+            plan,
+            ruleset,
+            policyFactory,
+            resumeFrom,
+            null,
+            battleProgress,
+            null,
+            Math.Max(1, maximumEncounters),
+            cancellationToken);
+    }
+
+    public CombatCampaignResult RunMonitoredWithEncounterStarts(
+        CombatCampaignDefinition definition,
+        CombatCampaignWorldPlan plan,
+        CombatRuleset ruleset,
+        ICombatSimulationPolicyFactory policyFactory,
+        Action<int, CombatSimulationResult>? battleProgress,
+        Action<CombatCampaignCheckpoint>? encounterStart,
+        CancellationToken cancellationToken = default)
+    {
+        return RunCore(
+            definition,
+            plan,
+            ruleset,
+            policyFactory,
+            null,
+            null,
+            battleProgress,
+            encounterStart,
+            int.MaxValue,
             cancellationToken);
     }
 
@@ -1968,6 +2109,8 @@ public sealed class CombatCampaignRunner
         CombatCampaignCheckpoint? resumeFrom,
         Action<CombatCampaignCheckpoint>? checkpointSink,
         Action<int, CombatSimulationResult>? battleProgress,
+        Action<CombatCampaignCheckpoint>? encounterStart,
+        int maximumEncounters,
         CancellationToken cancellationToken)
     {
         CombatCampaignWorldPlanner.Validate(definition);
@@ -2007,9 +2150,15 @@ public sealed class CombatCampaignRunner
             .ToList();
         var finalIndex = plan.Encounters.FindIndex(item =>
             item.Kind == CombatCampaignEncounterKind.FinalBoss);
-        for (var index = checkpoint.NextEncounterIndex; index < plan.Encounters.Count; index++)
+        var encounterLimit = Math.Min(
+            plan.Encounters.Count,
+            checkpoint.NextEncounterIndex + Math.Max(1, maximumEncounters));
+        for (var index = checkpoint.NextEncounterIndex;
+             index < encounterLimit;
+             index++)
         {
             cancellationToken.ThrowIfCancellationRequested();
+            encounterStart?.Invoke(CloneCheckpoint(checkpoint));
             var encounter = plan.Encounters[index];
             if (encounter.StartsLayer)
             {

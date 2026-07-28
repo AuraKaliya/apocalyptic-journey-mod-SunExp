@@ -201,6 +201,13 @@ foreach ($anchor in @(
     "Environment.ProcessorCount",
     "ModelEpochs",
     "ModelBatchSize",
+    "EnableFrameStratification",
+    "ModelMaximumFrameStratumWeight",
+    "EnableCounterfactualHardEncounters",
+    "MaximumConsecutiveRejectedIterations",
+    "CapabilityProbeCampaignsPerDifficulty",
+    "TuningNormalCampaigns",
+    "TuningAdvancedCampaigns",
     "ModelEarlyStoppingPatience",
     "ModelReplayEpisodeLimit"
 )) {

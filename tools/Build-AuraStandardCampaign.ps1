@@ -2881,6 +2881,17 @@ $encounters += @(
     }
 )
 
+$avoidedRelicScoreBiases = [ordered]@{
+    "relic_5" = -4.0
+    "relic_28" = -4.0
+    "relic_52" = -4.0
+    "CrowdFundingRelic_24" = -4.0
+    "CrowdFundingRelic_43" = -4.0
+    "relic_38" = -4.0
+    "CrowdFundingRelic_12" = -4.0
+    "CrowdFundingRelic_13" = -4.0
+}
+
 $rewardDefinitions = @()
 foreach ($card in $cards) {
     $tier = [Math]::Max(1, [Math]::Min(4, (Convert-ToInt $card.Rarity 1)))
@@ -2903,10 +2914,16 @@ foreach ($card in $cards) {
 }
 foreach ($relic in $relics) {
     $tier = [Math]::Max(1, [Math]::Min(4, (Convert-ToInt $relic.Rarity 1)))
+    $relicId = [string]$relic.Id
     $rewardDefinitions += [ordered]@{
-        rewardId = [string]$relic.Id
+        rewardId = $relicId
         kind = "Relic"
         tier = $tier
+        offerWeight = if ($avoidedRelicScoreBiases.Contains($relicId)) {
+            0.05
+        } else {
+            1.0
+        }
         baseValue = 0.7 + $tier * 0.28
         negative = $false
         fidelity = "Authoritative"
@@ -3127,6 +3144,8 @@ $campaign = [ordered]@{
         burst = 0.5; sustained = 0.8; defense = 0.75; heal = 0.6
         aoe = 0.0; cycling = 0.35; energy = 0.4; reliability = 0.85; risk = -0.9
     }
+    rewardScoreBiases = $avoidedRelicScoreBiases
+    rewardScoreBiasMaximumAbsolute = 8.0
     initialDraw = 5
     drawPerTurn = 5
     handLimit = 10

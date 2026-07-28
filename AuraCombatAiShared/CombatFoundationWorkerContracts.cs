@@ -3,9 +3,111 @@ using AuraCombatSimulation.Shared;
 
 namespace AuraCombatAi.Shared;
 
+public static class CombatFoundationWorkerProtocol
+{
+    public const int SchemaVersion = 7;
+    public const string CheckpointFileName =
+        "foundation-training-checkpoint-v7.json";
+    public const string CheckpointEpisodesFileName =
+        "foundation-training-checkpoint-episodes-v7.jsonl";
+
+    public static bool TryValidateJob(
+        CombatFoundationWorkerJob? job,
+        out string diagnostic)
+    {
+        if (job == null)
+        {
+            diagnostic = "底模训练任务为空";
+            return false;
+        }
+        if (job.SchemaVersion != SchemaVersion)
+        {
+            diagnostic = "底模训练任务协议不兼容：job="
+                         + job.SchemaVersion
+                         + "，worker="
+                         + SchemaVersion;
+            return false;
+        }
+        diagnostic = "";
+        return true;
+    }
+
+    public static bool TryValidateProgress(
+        CombatFoundationWorkerProgress? progress,
+        string expectedJobId,
+        out string diagnostic)
+    {
+        if (progress == null)
+        {
+            diagnostic = "底模训练进度为空";
+            return false;
+        }
+        if (progress.SchemaVersion != SchemaVersion)
+        {
+            diagnostic = "底模训练进度协议不兼容：worker="
+                         + progress.SchemaVersion
+                         + "，host="
+                         + SchemaVersion;
+            return false;
+        }
+        if (!string.Equals(
+                progress.JobId,
+                expectedJobId,
+                StringComparison.Ordinal))
+        {
+            diagnostic = "底模训练进度 jobId 不匹配：worker="
+                         + (progress.JobId ?? "")
+                         + "，host="
+                         + (expectedJobId ?? "");
+            return false;
+        }
+        if (progress.Telemetry == null)
+        {
+            diagnostic = "底模训练进度缺少 Telemetry";
+            return false;
+        }
+        diagnostic = "";
+        return true;
+    }
+
+    public static bool TryValidateResult(
+        CombatFoundationWorkerResult? result,
+        string expectedJobId,
+        out string diagnostic)
+    {
+        if (result == null)
+        {
+            diagnostic = "底模训练结果为空";
+            return false;
+        }
+        if (result.SchemaVersion != SchemaVersion)
+        {
+            diagnostic = "底模训练结果协议不兼容：worker="
+                         + result.SchemaVersion
+                         + "，host="
+                         + SchemaVersion;
+            return false;
+        }
+        if (!string.Equals(
+                result.JobId,
+                expectedJobId,
+                StringComparison.Ordinal))
+        {
+            diagnostic = "底模训练结果 jobId 不匹配：worker="
+                         + (result.JobId ?? "")
+                         + "，host="
+                         + (expectedJobId ?? "");
+            return false;
+        }
+        diagnostic = "";
+        return true;
+    }
+}
+
 public sealed class CombatFoundationWorkerJob
 {
-    public int SchemaVersion { get; set; } = 4;
+    public int SchemaVersion { get; set; } =
+        CombatFoundationWorkerProtocol.SchemaVersion;
 
     public string JobId { get; set; } = "";
 
@@ -36,7 +138,8 @@ public sealed class CombatFoundationWorkerJob
 
 public sealed class CombatFoundationWorkerProgress
 {
-    public int SchemaVersion { get; set; } = 4;
+    public int SchemaVersion { get; set; } =
+        CombatFoundationWorkerProtocol.SchemaVersion;
 
     public string JobId { get; set; } = "";
 
@@ -47,7 +150,8 @@ public sealed class CombatFoundationWorkerProgress
 
 public sealed class CombatFoundationWorkerResult
 {
-    public int SchemaVersion { get; set; } = 4;
+    public int SchemaVersion { get; set; } =
+        CombatFoundationWorkerProtocol.SchemaVersion;
 
     public string JobId { get; set; } = "";
 
@@ -74,7 +178,8 @@ public sealed class CombatFoundationWorkerResult
 
 public sealed class CombatFoundationWorkerCheckpoint
 {
-    public int SchemaVersion { get; set; } = 4;
+    public int SchemaVersion { get; set; } =
+        CombatFoundationWorkerProtocol.SchemaVersion;
 
     public string RequestFingerprint { get; set; } = "";
 
