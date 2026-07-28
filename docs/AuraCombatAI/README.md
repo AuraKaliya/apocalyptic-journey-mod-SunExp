@@ -25,7 +25,8 @@
 | 长期轨迹 | `aura.combat-ai.episode.v3`，特征 10 |
 | 策略价值编码 | `partitioned-v3` |
 | 策略价值模型 | `aura.combat-policy-value.mlp.v1` |
-| Worker | schema 4 |
+| Worker | schema 7 |
+| 外部模型包 | `foundation-model-package-v1` |
 | CLI 搜索策略 | `risk-puct` |
 
 输入不满足这些合同会被拒绝。需要改变布局时，应同时切换写入、读取、测试、示例与文档，并删除被替代内容。

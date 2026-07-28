@@ -6002,6 +6002,57 @@ Assert(foundationTraining.Success
        && incrementallyArchivedFoundationCases > 0
        && foundationTraining.ElapsedSeconds > 0d,
     "foundation trainer reports telemetry and streams successful cases as campaigns complete");
+var packageJob = new CombatFoundationWorkerJob
+{
+    JobId = "foundation-package-test",
+    Request = foundationRequest
+};
+var packageResult = new CombatFoundationWorkerResult
+{
+    JobId = packageJob.JobId,
+    Success = true,
+    CompletionKind = "training-accepted",
+    RulesetHash = foundationTraining.Compatibility.RulesetHash,
+    Training = foundationTraining
+};
+var foundationPackage = CombatFoundationModelPackageProtocol.Create(
+    packageJob,
+    packageResult,
+    "ABCDEF");
+foundationPackage.RoleId =
+    CombatFoundationModelPackageProtocol.CurrentRoleId;
+Assert(CombatFoundationModelPackageProtocol.TryValidate(
+           foundationPackage,
+           out var foundationPackageDiagnostic)
+       && string.IsNullOrEmpty(foundationPackageDiagnostic)
+       && foundationPackage.Model != null
+       && foundationPackage.Model.ModelId
+          == foundationTraining.Champion!.ModelId
+       && foundationPackage.Validation.Passed,
+    "accepted worker results export a self-contained foundation model package");
+foundationPackage.CompletionKind = "training-rejected";
+Assert(!CombatFoundationModelPackageProtocol.TryValidate(
+           foundationPackage,
+           out var rejectedFoundationPackageDiagnostic)
+       && rejectedFoundationPackageDiagnostic.Contains(
+           "已验收",
+           StringComparison.Ordinal),
+    "external foundation package validation rejects non-accepted training results");
+foundationPackage.CompletionKind = "training-accepted";
+var sharedParameters = new CombatFoundationTrainingParameters
+{
+    Iterations = 0,
+    TrainingCampaignsPerIteration = 1,
+    MaximumDegreeOfParallelism = int.MaxValue,
+    ModelEpochs = 1
+}.Normalized();
+Assert(sharedParameters.Iterations == 1
+       && sharedParameters.TrainingCampaignsPerIteration == 2
+       && sharedParameters.ModelEpochs == 5
+       && sharedParameters.MaximumDegreeOfParallelism
+          <= Math.Max(1, Environment.ProcessorCount)
+       && sharedParameters.EstimatedCampaigns() > 0,
+    "shared foundation job parameters normalize identically for game and control-center adapters");
 CombatCampaignFoundationResumeState? capturedFoundationCheckpoint = null;
 var interruptedFoundationObserved = false;
 using (var interruptedFoundation = new CancellationTokenSource())

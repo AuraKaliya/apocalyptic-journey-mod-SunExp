@@ -35,6 +35,12 @@ $foundationWorkerRuntime = Get-Content -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsFoundationWorkerRuntime.cs") -Raw
 $foundationWorkerProgram = Get-Content -LiteralPath (
     Join-Path $repoRoot "AuraFoundationTrainer.Worker\Program.cs") -Raw
+$modelRuntime = Get-Content -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleModelRuntime.cs") -Raw
+$simulationRuntime = Get-Content -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleSimulationRuntime.cs") -Raw
+$gameValidationRuntime = Get-Content -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleGameValidationRuntime.cs") -Raw
 $autoBattleSettings = Get-Content -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp-Dev\Config\AuraToolsAutoBattleSettings.cs") -Raw
 $foundationWorkerBuild = Get-Content -LiteralPath (
@@ -125,7 +131,8 @@ foreach ($anchor in @(
     "foundation-training-failure-repro-v1.json",
     "if (!writeFullReplay",
     "if (writeFullReplay)",
-    "PreflightSeedStart = foundation.TrainingSeedStart"
+    "CombatFoundationWorkerJobFactory.Create",
+    "ToSharedParameters"
 )) {
     if (-not $foundationRuntime.Contains($anchor)) {
         throw "AuraTools readable foundation report contract is missing: $anchor"
@@ -177,7 +184,10 @@ foreach ($anchor in @(
 foreach ($anchor in @(
     "training.GeneratedReplayEpisodes = Math.Max(",
     "training.PersistedReplayEpisodes = training.Success",
-    "Array.Empty<CombatEpisode>()"
+    "Array.Empty<CombatEpisode>()",
+    "AcquireTrainingLease",
+    "CombatFoundationModelPackageProtocol.Create",
+    "ModelPackagePath"
 )) {
     if (-not $foundationWorkerProgram.Contains($anchor)) {
         throw "Aura foundation worker failed-replay contract is missing: $anchor"
@@ -188,7 +198,10 @@ foreach ($anchor in @(
     "ExpectedRulesetHash",
     "CancellationPath",
     "CreateNoWindow",
-    "BeginOutputReadLine"
+    "BeginOutputReadLine",
+    "LaunchControlCenter",
+    "ExternalTrainingActive",
+    "AuraFoundationTrainer.ControlCenter.exe"
 )) {
     if (-not $foundationWorkerRuntime.Contains($anchor)) {
         throw "AuraTools foundation worker process contract is missing: $anchor"
@@ -216,10 +229,37 @@ foreach ($anchor in @(
     }
 }
 foreach ($anchor in @(
+    "TryStageExternalFoundationPackage",
+    "TryPromoteExternalValidationModel",
+    "EvaluationModelId"
+)) {
+    if (-not $settingsRuntime.Contains($anchor)) {
+        throw "AuraTools external foundation validation UI contract is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
+    "TryStageExternalFoundationPackage",
+    "ExternalValidationMeetsGate",
+    "TryPromoteExternalValidationModel",
+    "ClearExternalValidationModel",
+    "CombatFoundationModelPackageProtocol.TryValidate"
+)) {
+    if (-not $modelRuntime.Contains($anchor)) {
+        throw "AuraTools external foundation staging contract is missing: $anchor"
+    }
+}
+if (-not $simulationRuntime.Contains("EvaluationModelId") `
+    -or -not $simulationRuntime.Contains("ExternalValidationMeetsGate") `
+    -or -not $gameValidationRuntime.Contains("EvaluationModelId")) {
+    throw "AuraTools external foundation dual-validation routing contract is missing."
+}
+foreach ($anchor in @(
     "PublishSingleFile=true",
     "EnableCompressionInSingleFile=true",
     "win-x64",
-    "TrainingWorker"
+    "TrainingWorker",
+    "AuraFoundationTrainer.ControlCenter",
+    "controlCenterProject"
 )) {
     if (-not $foundationWorkerBuild.Contains($anchor)) {
         throw "Aura foundation worker packaging contract is missing: $anchor"

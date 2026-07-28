@@ -14,6 +14,8 @@ internal static class AuraToolsFoundationWorkerRuntime
 {
     private const string WorkerDirectoryName = "TrainingWorker";
     private const string WorkerExecutableName = "AuraFoundationTrainer.Worker.exe";
+    private const string ControlCenterExecutableName =
+        "AuraFoundationTrainer.ControlCenter.exe";
 
     public static string ExecutablePath
     {
@@ -27,6 +29,68 @@ internal static class AuraToolsFoundationWorkerRuntime
                     AuraToolsConfigService.ModDirectory,
                     WorkerDirectoryName,
                     WorkerExecutableName);
+        }
+    }
+
+    public static string ControlCenterExecutablePath =>
+        Path.Combine(
+            AuraToolsConfigService.ModDirectory,
+            WorkerDirectoryName,
+            ControlCenterExecutableName);
+
+    public static bool LaunchControlCenter(out string message)
+    {
+        var path = ControlCenterExecutablePath;
+        if (!File.Exists(path))
+        {
+            message = "独立训练控制台不存在：" + path;
+            return false;
+        }
+        try
+        {
+            Process.Start(new ProcessStartInfo
+            {
+                FileName = path,
+                Arguments = "--mod-root \""
+                            + AuraToolsConfigService.ModDirectory
+                                .Replace("\"", "\\\"")
+                            + "\" --data-root \""
+                            + AuraToolsConfigService.DataRootDirectory
+                                .Replace("\"", "\\\"")
+                            + "\"",
+                WorkingDirectory = Path.GetDirectoryName(path)
+                                   ?? AuraToolsConfigService.ModDirectory,
+                UseShellExecute = true
+            });
+            message = "已打开独立底模训练控制台";
+            return true;
+        }
+        catch (Exception ex)
+        {
+            message = "打开独立训练控制台失败：" + ex.Message;
+            return false;
+        }
+    }
+
+    public static bool ExternalTrainingActive()
+    {
+        var leasePath = Path.Combine(
+            AuraToolsAutoBattleSimulationRuntime.ResultsRootDirectory,
+            "foundation-success-cases",
+            ".foundation-training.lock");
+        if (!File.Exists(leasePath))
+        {
+            return false;
+        }
+        try
+        {
+            using var storage = new AuraSharedStorageCoordinator(
+                AuraSharedPaths.RootDirectory);
+            return storage.IsFileWriteLeaseHeld(leasePath);
+        }
+        catch
+        {
+            return false;
         }
     }
 

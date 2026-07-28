@@ -35,6 +35,9 @@ public sealed class AutoBattleSettings
     [JsonProperty("selectedModelId")]
     public string SelectedModelId { get; set; } = "";
 
+    [JsonProperty("evaluationModelId")]
+    public string EvaluationModelId { get; set; } = "";
+
     [JsonProperty("showPredictionMarkers")]
     public bool ShowPredictionMarkers { get; set; } = true;
 
@@ -66,6 +69,7 @@ public sealed class AutoBattleSettings
         TrainingMode = NormalizeChoice(TrainingMode, "auto", "shadow", "hybrid");
         TrainedModelMode = NormalizeChoice(TrainedModelMode, "off", "shadow", "active");
         SelectedModelId = SelectedModelId?.Trim() ?? "";
+        EvaluationModelId = EvaluationModelId?.Trim() ?? "";
         DecisionIntervalMs = Math.Max(150, Math.Min(2000, DecisionIntervalMs));
         ActionTimeoutSeconds = Math.Max(3f, Math.Min(60f, ActionTimeoutSeconds));
         SearchQuality = NormalizeChoice(

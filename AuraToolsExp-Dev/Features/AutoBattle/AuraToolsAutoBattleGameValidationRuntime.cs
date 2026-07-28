@@ -181,11 +181,15 @@ internal static class AuraToolsAutoBattleGameValidationRuntime
             message = "请在非战斗状态下启动游戏主体验证";
             return false;
         }
+        var evaluationModelId = string.IsNullOrWhiteSpace(
+            settings.EvaluationModelId)
+            ? settings.SelectedModelId
+            : settings.EvaluationModelId;
         if (!AuraToolsAutoBattleModelRuntime.TryResolveGameValidationArtifact(
                 settings.Profile,
-                settings.SelectedModelId,
+                evaluationModelId,
                 preferCandidate: string.IsNullOrWhiteSpace(
-                    settings.SelectedModelId),
+                    evaluationModelId),
                 out validationResidual,
                 out validationGuidance,
                 out validationPolicyValue,
@@ -241,7 +245,7 @@ internal static class AuraToolsAutoBattleGameValidationRuntime
 
         try
         {
-            roleSnapshot = JsonConvert.SerializeObject(RoleTable.Instance);
+            roleSnapshot = AuraSharedJson.Serialize(RoleTable.Instance);
             request = nextRequest;
             report = NewReport(nextRequest);
             runs = BuildRuns(nextRequest);
@@ -822,10 +826,7 @@ internal static class AuraToolsAutoBattleGameValidationRuntime
     {
         Directory.CreateDirectory(Path.GetDirectoryName(path) ?? ResultsRootDirectory);
         using var storage = new AuraSharedStorageCoordinator(AuraSharedPaths.RootDirectory);
-        storage.WriteTextAtomic(
-            path,
-            JsonConvert.SerializeObject(value, Formatting.Indented),
-            createBackup: true);
+        storage.WriteRawJsonAtomic(path, value!, createBackup: true);
     }
 
     private sealed class ValidationRun

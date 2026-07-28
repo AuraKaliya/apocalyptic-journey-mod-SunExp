@@ -1,0 +1,42 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>WinExe</OutputType>
+    <TargetFramework>net8.0-windows</TargetFramework>
+    <UseWPF>true</UseWPF>
+    <AssemblyName>AuraFoundationTrainer.ControlCenter</AssemblyName>
+    <RootNamespace>AuraFoundationTrainer.ControlCenter</RootNamespace>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <DebugType>none</DebugType>
+    <NoWarn>$(NoWarn);CS0108</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\AuraDecisionShared\*.cs"
+             Link="Decision\%(Filename)%(Extension)" />
+    <Compile Include="..\AuraCombatSimulationShared\*.cs"
+             Link="Simulation\%(Filename)%(Extension)" />
+    <Compile Include="..\AuraCombatAiShared\*.cs"
+             Link="Combat\%(Filename)%(Extension)" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\AutoBattle\AuraToolsNativeRewardSimulationRuntime.cs"
+             Link="Native\AuraToolsNativeRewardSimulationRuntime.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\AutoBattle\Generated\AuraToolsNativePrograms.g.cs"
+             Link="Native\AuraToolsNativePrograms.g.cs" />
+    <Compile Include="..\AuraFoundationTrainer.Worker\WorkerNativeShims.cs"
+             Link="Native\WorkerNativeShims.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>..\Managed\Newtonsoft.Json.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+
+  <Target Name="GenerateAuraNativePrograms"
+          BeforeTargets="BeforeCompile"
+          Condition="'$(DesignTimeBuild)' != 'true'">
+    <Exec Command="dotnet run --project &quot;$(MSBuildProjectDirectory)\..\tools\AuraNativeProgramCompiler\AuraNativeProgramCompiler.csproj&quot; -c Release -- --campaign &quot;$(MSBuildProjectDirectory)\..\AuraToolsExp\Config\combat-simulation\witch-world-simulation-v2.campaign.json&quot; --ruleset &quot;$(MSBuildProjectDirectory)\..\AuraToolsExp\Config\combat-simulation\witch-base-evaluation-v2.ruleset.json&quot; --output &quot;$(MSBuildProjectDirectory)\..\AuraToolsExp-Dev\Features\AutoBattle\Generated\AuraToolsNativePrograms.g.cs&quot; --manifest &quot;$(MSBuildProjectDirectory)\..\AuraToolsExp\Config\combat-programs.base-game.manifest.json&quot;" />
+  </Target>
+</Project>
