@@ -143,8 +143,11 @@ try
     }
     else if (job.ResumeFromCheckpoint)
     {
+        CombatFoundationCheckpointStorage.DeleteCheckpointArtifacts(
+            job.CheckpointPath,
+            job.CheckpointEpisodesPath);
         Console.Error.WriteLine(
-            "Foundation checkpoint was not resumed and has been preserved: "
+            "Foundation checkpoint was incompatible and has been discarded: "
             + resumeDiagnostic);
     }
     CombatFoundationCheckpointStorage.CleanupArtifacts(
@@ -544,8 +547,41 @@ static string Fingerprint(
         request.TuningSeedStart,
         request.ValidationSeedStart,
         request.DecisionProfile,
+        Profile = HashCompact(request.Profile),
         request.TrainingPolicyVersion,
         CombatPolicyValueProtocol.TrainingSemanticsVersion,
+        request.Iterations,
+        request.AdditionalIterationsOnResume,
+        request.TrainingCampaignsPerIteration,
+        request.ArenaCampaignsPerDifficulty,
+        request.ArenaConfirmationCampaignsPerDifficulty,
+        request.NormalValidationCampaigns,
+        request.AdvancedValidationCampaigns,
+        request.CapabilityProbeCampaignsPerDifficulty,
+        request.RequireCapabilityProbeBaselineGain,
+        request.CapabilityProbeMinimumVictoryGain,
+        request.CapabilityProbeMinimumDepthGain,
+        request.EnableEarlyValidationStop,
+        request.EnableCurriculum,
+        request.EnableStratifiedReplay,
+        request.EnableHardSeedCurriculum,
+        request.EnableCounterfactualHardEncounters,
+        request.EnableSuccessCaseArchive,
+        request.EnableArenaRecovery,
+        request.ArenaInvalidRetryCount,
+        request.ArenaInvalidRateLimit,
+        request.EnableTuningArena,
+        request.TuningNormalCampaigns,
+        request.TuningAdvancedCampaigns,
+        request.NormalAcceptanceRate,
+        request.AdvancedAcceptanceRate,
+        request.HardSeedReplayShare,
+        HardEncounterWeights = HashCompact(request.HardEncounterWeights),
+        request.MinimumAdvancedReplayShare,
+        request.MinimumAdvancedDefeatReplayShare,
+        request.ExpertReplayEpisodeLimit,
+        request.SelfPlayExplorationProbability,
+        request.SelfPlayExplorationTemperature,
         CampaignId = request.TrainingCampaign?.CampaignId ?? "",
         CampaignVersion =
             request.TrainingCampaign?.CampaignVersion ?? "",
@@ -624,11 +660,6 @@ static bool TryLoadCheckpoint(
                 throw new InvalidDataException(
                     "checkpoint identity does not match this job");
             }
-            var migratedContinuation =
-                !string.Equals(
-                    checkpoint.RequestFingerprint,
-                    requestFingerprint,
-                    StringComparison.Ordinal);
             var snapshot = checkpoint.EpisodeSnapshot
                            ?? new CombatFoundationEpisodeSnapshot
                            {
@@ -662,12 +693,8 @@ static bool TryLoadCheckpoint(
             diagnostic = checkpointPath.Equals(
                 job.CheckpointPath,
                 StringComparison.OrdinalIgnoreCase)
-                ? migratedContinuation
-                    ? "已按兼容清单迁移终态检查点并追加训练"
-                    : ""
-                : migratedContinuation
-                    ? "已从备份迁移终态检查点并追加训练"
-                    : "已从检查点备份恢复";
+                ? ""
+                : "已从检查点备份恢复";
             return true;
         }
         catch (Exception ex)
@@ -712,68 +739,7 @@ static bool CheckpointIdentityCompatible(
                    job.Request.NativeProgramPackageHash,
                    StringComparison.Ordinal);
     }
-    var resume = checkpoint.Resume;
-    var compatibility = resume?.Compatibility;
-    var training = job.Request.Training;
-    var trainingCampaign = job.Request.TrainingCampaign;
-    var validationCampaign = job.Request.ValidationCampaign;
-    if (resume == null
-        || compatibility == null
-        || string.Equals(
-            resume.Stage,
-            "model-training",
-            StringComparison.Ordinal)
-        || compatibility.SchemaVersion
-           != CombatFoundationWorkerProtocol.SchemaVersion
-        || compatibility.FeatureSchemaVersion
-           != CombatPolicyValueProtocol.FeatureSchemaVersion
-        || compatibility.StateDimensions != training.StateDimensions
-        || compatibility.ActionDimensions != training.ActionDimensions
-        || compatibility.HiddenDimensions != training.HiddenDimensions
-        || trainingCampaign == null
-        || validationCampaign == null)
-    {
-        return false;
-    }
-    if (resume.RunSeed != 0UL
-        && resume.RunSeed != job.Request.RunSeed)
-    {
-        return false;
-    }
-    return string.Equals(
-               compatibility.RulesetHash,
-               rulesetHash,
-               StringComparison.Ordinal)
-           && string.Equals(
-               compatibility.CampaignId,
-               trainingCampaign.CampaignId,
-               StringComparison.Ordinal)
-           && string.Equals(
-               compatibility.CampaignVersion,
-               trainingCampaign.CampaignVersion,
-               StringComparison.Ordinal)
-           && string.Equals(
-               compatibility.TrainingCampaignHash,
-               CombatCampaignFoundationTrainer.CampaignFingerprint(
-                   trainingCampaign),
-               StringComparison.Ordinal)
-           && string.Equals(
-               compatibility.ValidationCampaignHash,
-               CombatCampaignFoundationTrainer.CampaignFingerprint(
-                   validationCampaign),
-               StringComparison.Ordinal)
-           && string.Equals(
-               compatibility.FeatureEncodingMode,
-               training.FeatureEncodingMode,
-               StringComparison.Ordinal)
-           && string.Equals(
-               compatibility.TrainingPolicyVersion,
-               job.Request.TrainingPolicyVersion,
-               StringComparison.Ordinal)
-           && string.Equals(
-               compatibility.TrainingSemanticsVersion,
-               CombatPolicyValueProtocol.TrainingSemanticsVersion,
-               StringComparison.Ordinal);
+    return false;
 }
 
 static CombatCampaignFoundationResumeState WithoutReplay(
@@ -858,6 +824,8 @@ static void PrepareCaseArchive(
                 rulesetHash,
                 job.Request.NativeProgramPackageHash,
                 job.Request.TrainingPolicyVersion);
+        job.Request.CaseArchiveCompatibilityKey =
+            diagnostics.CompatibilityKey;
         if (!diagnostics.ArchiveExists)
         {
             diagnostics.Message = "archive root is absent";
@@ -918,7 +886,11 @@ static void PrepareCaseArchive(
             rulesetHash,
             job.Request.NativeProgramPackageHash,
             job.Request.TrainingPolicyVersion,
-            Math.Max(0, job.Request.ExpertReplayEpisodeLimit));
+            Math.Max(0, job.Request.ExpertReplayEpisodeLimit),
+            targetAdvancedShare: Math.Max(
+                job.Request.HardSeedReplayShare,
+                job.Request.MinimumAdvancedReplayShare),
+            maximumEpisodesPerRun: 16);
         job.Request.ExpertReplayEpisodes =
             new List<CombatEpisode>(selection.Episodes);
         selection.Episodes.Clear();

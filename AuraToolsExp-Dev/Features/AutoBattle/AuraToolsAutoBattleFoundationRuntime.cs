@@ -225,6 +225,7 @@ internal static class AuraToolsAutoBattleFoundationRuntime
             message = currentReadinessMessage;
             return false;
         }
+        AuraToolsAutoBattleGameParameterRuntime.ResolvePresetReferences(settings);
         var liveFoundation = settings.FoundationTraining;
         if (liveFoundation.RandomizeRunSeed || liveFoundation.RunSeed == 0UL)
         {
@@ -427,9 +428,11 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                 TotalCampaigns(settings.FoundationTraining));
         }
         var trainingCampaign = CloneCampaign(sourceCampaign);
+        AuraToolsAutoBattleGameParameterRuntime.Apply(settings, trainingCampaign);
         trainingCampaign.TraceLevel = CombatSimulationTraceLevel.Summary;
         trainingCampaign.RequireAuthoritativeRules = true;
         var validationCampaign = CloneCampaign(sourceCampaign);
+        AuraToolsAutoBattleGameParameterRuntime.Apply(settings, validationCampaign);
         validationCampaign.TraceLevel = CombatSimulationTraceLevel.Full;
         validationCampaign.FullTraceFinalEncounterOnly = true;
         validationCampaign.RequireAuthoritativeRules = true;
@@ -441,7 +444,7 @@ internal static class AuraToolsAutoBattleFoundationRuntime
             requested: TotalCampaigns(foundation),
             workerCount: foundation.Parallelism);
         var packageValidation = AuraToolsNativeProgramPackageAudit.Validate(
-            sourceCampaign,
+            trainingCampaign,
             ruleset);
         if (!packageValidation.Success)
         {
@@ -1166,10 +1169,27 @@ internal static class AuraToolsAutoBattleFoundationRuntime
             Path.Combine(resultDirectory, "foundation-training-report.json"),
             AuraSharedJson.Serialize(new
             {
-                schemaVersion = 6,
-                reportKind = "career_1-world-simulation-foundation-training",
+                schemaVersion = 7,
+                reportKind = "world-simulation-foundation-training",
                 createdUtc = DateTime.UtcNow,
                 roleId = campaign.Player.RoleId,
+                partnerId = campaign.Player.PartnerId,
+                gameParameterPresetId =
+                    campaign.Player.GameParameterPresetId,
+                gameParameterHash = campaign.Player.GameParameterHash,
+                gameParameters = new
+                {
+                    roleSkillCardIds = campaign.Player.SkillCardIds,
+                    familiarBlessingIds =
+                        campaign.Player.FamiliarBlessingIds,
+                    enabledRewardCardPackIds =
+                        campaign.EnabledRewardCardPackIds,
+                    preferredDeckSizeMinimum =
+                        campaign.TargetDeckSizeMinimum,
+                    preferredDeckSizeMaximum =
+                        campaign.TargetDeckSizeMaximum,
+                    startingDeckCount = campaign.Player.Deck.Count
+                },
                 campaignId = campaign.CampaignId,
                 campaignVersion = campaign.CampaignVersion,
                 rulesetVersion = ruleset.Version,
@@ -2051,6 +2071,18 @@ internal static class AuraToolsAutoBattleFoundationRuntime
         html.AppendLine("</head><body><h1>世界推演底模训练报告</h1>");
         html.Append("<p>角色 <code>")
             .Append(Html(campaign.Player.RoleId))
+            .Append("</code> · 使魔 <code>")
+            .Append(Html(campaign.Player.PartnerId))
+            .Append("</code> · 游戏预设 <code>")
+            .Append(Html(campaign.Player.GameParameterPresetId))
+            .Append("</code> · 奖励卡包 ")
+            .Append(campaign.EnabledRewardCardPackIds.Count)
+            .Append(" · 牌组倾向 ")
+            .Append(campaign.TargetDeckSizeMinimum)
+            .Append("–")
+            .Append(campaign.TargetDeckSizeMaximum)
+            .Append(" · 参数指纹 <code>")
+            .Append(Html(campaign.Player.GameParameterHash))
             .Append("</code> · 线程 ")
             .Append(settings.Parallelism)
             .Append(" · 完成 ")

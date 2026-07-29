@@ -49,6 +49,10 @@ static bool WriteIfChanged(
     string content,
     Encoding encoding)
 {
+    content = content
+        .Replace("\r\n", "\n", StringComparison.Ordinal)
+        .Replace('\r', '\n');
+    content = Regex.Replace(content, @"[ \t]+(?=\n|$)", "");
     if (File.Exists(path)
         && string.Equals(
             File.ReadAllText(path, encoding),
@@ -238,6 +242,8 @@ static string Normalize(string script)
         "NativeRewardScriptExecuteData");
     result = Regex.Replace(result, @"\bIDataConfig\b", "NativeRewardDataConfig");
     result = Regex.Replace(result, @"\bDataConfig\b", "NativeRewardDataConfig");
+    result = Regex.Replace(result, @"\bCardItem\b", "NativeRewardCardItem");
+    result = result.Replace("FightManager.Instance.statuses", "Statuses");
     result = Regex.Replace(result, @"\bDataType\b", "NativeRewardDataType");
     result = Regex.Replace(result, @"\bIStatusManager\b", "NativeRewardActor");
     result = result.Replace(

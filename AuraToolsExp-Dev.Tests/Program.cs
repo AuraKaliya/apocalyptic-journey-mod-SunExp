@@ -345,7 +345,7 @@ void TestConfigModelSerializationCompatibility()
     var matchExperience = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
         "{\"schemaVersion\":1,\"starterDeck\":{\"preferRoleModProfile\":false},\"safeBox\":null,\"modSync\":null,\"feast\":null,\"damageMeter\":null,\"cardRefresh\":null,\"autoBattle\":null}")!;
     matchExperience.Normalize();
-    Assert(matchExperience.SchemaVersion == 23
+    Assert(matchExperience.SchemaVersion == 24
            && matchExperience.StarterDeck.PreferRoleModProfile
            && matchExperience.SafeBox != null
            && matchExperience.ModSync != null
@@ -359,6 +359,20 @@ void TestConfigModelSerializationCompatibility()
            && matchExperience.AutoBattle.ShowPredictionMarkers
            && matchExperience.AutoBattle.TrainedModelMode == "off"
            && matchExperience.AutoBattle.SearchQuality == "balanced"
+           && matchExperience.AutoBattle.GameParameters.ActivePreset.RoleId
+              == "career_1"
+           && matchExperience.AutoBattle.GameParameters.ActivePreset.PartnerId
+              == "Partner_10001"
+           && matchExperience.AutoBattle.GameParameters.ActivePreset
+               .EnabledRewardCardPackIds.Contains("cardpack_1")
+           && matchExperience.AutoBattle.GameParameters.ActivePreset
+               .EnabledRewardCardPackIds.Contains("cardpack_2")
+           && !matchExperience.AutoBattle.GameParameters.ActivePreset
+               .EnabledRewardCardPackIds.Contains("cardpack_13")
+           && matchExperience.AutoBattle.GameParameters.ActivePreset
+                  .PreferredDeckSizeMinimum == 15
+           && matchExperience.AutoBattle.GameParameters.ActivePreset
+                  .PreferredDeckSizeMaximum == 24
            && matchExperience.AutoBattle.Training.Preset == AutoBattleTrainingSettings.SteadyPreset
            && matchExperience.AutoBattle.Training.Epochs == 80
            && matchExperience.AutoBattle.Training.MaximumCorrection == 0.75d
@@ -383,10 +397,18 @@ void TestConfigModelSerializationCompatibility()
               == "partitioned-v3"
            && matchExperience.AutoBattle.FoundationTraining.EnableArenaRecovery
            && matchExperience.AutoBattle.FoundationTraining.EnableTuningArena
+           && matchExperience.AutoBattle.FoundationTraining
+                  .TuningNormalCampaigns == 32
+           && matchExperience.AutoBattle.FoundationTraining
+                  .TuningAdvancedCampaigns == 64
            && Math.Abs(matchExperience.AutoBattle.FoundationTraining
-                  .NormalAcceptanceRate - 0.90d) < 0.0001d
+                  .NormalAcceptanceRate - 0.80d) < 0.0001d
            && Math.Abs(matchExperience.AutoBattle.FoundationTraining
-                  .AdvancedAcceptanceRate - 0.50d) < 0.0001d
+                  .AdvancedAcceptanceRate - 0.30d) < 0.0001d
+           && Math.Abs(matchExperience.AutoBattle.FoundationTraining
+                  .ModelLearningRate - 0.00625d) < 0.000001d
+           && matchExperience.AutoBattle.FoundationTraining
+                  .HardEncounterWeights.Count == 8
            && matchExperience.AutoBattle.FoundationTraining.RandomizeRunSeed
            && matchExperience.AutoBattle.FoundationTraining.EnableCurriculum
            && matchExperience.AutoBattle.FoundationTraining.EnableStratifiedReplay
@@ -499,7 +521,7 @@ void TestCardRefreshSettingsAndPoolPolicy()
         CardRefresh = null!
     };
     settings.Normalize();
-    Assert(settings.SchemaVersion == 23, "match-experience settings migrate to the external foundation validation schema");
+    Assert(settings.SchemaVersion == 24, "match-experience settings migrate to the game-parameter preset schema");
     Assert(settings.CardRefresh != null && !settings.CardRefresh.Enabled,
         "card refresh is restored with a disabled default during normalization");
     Assert(settings.AutoBattle.FoundationTraining.Iterations == 8
@@ -516,9 +538,9 @@ void TestCardRefreshSettingsAndPoolPolicy()
            && settings.AutoBattle.FoundationTraining.EnableArenaRecovery
            && settings.AutoBattle.FoundationTraining.EnableTuningArena
            && Math.Abs(settings.AutoBattle.FoundationTraining
-                  .NormalAcceptanceRate - 0.90d) < 0.0001d
+                  .NormalAcceptanceRate - 0.80d) < 0.0001d
            && Math.Abs(settings.AutoBattle.FoundationTraining
-                  .AdvancedAcceptanceRate - 0.50d) < 0.0001d
+                  .AdvancedAcceptanceRate - 0.30d) < 0.0001d
            && Math.Abs(settings.AutoBattle.FoundationTraining
                    .SuccessExpertReplayShare - 0.20d) < 0.0001d
            && Math.Abs(settings.AutoBattle.FoundationTraining
@@ -529,7 +551,7 @@ void TestCardRefreshSettingsAndPoolPolicy()
     var boundedFoundation = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
         "{\"schemaVersion\":22,\"autoBattle\":{\"foundationTraining\":{\"iterations\":0,\"trainingCampaignsPerIteration\":1,\"arenaCampaignsPerDifficulty\":0}}}")!;
     boundedFoundation.Normalize();
-    Assert(boundedFoundation.SchemaVersion == 23
+    Assert(boundedFoundation.SchemaVersion == 24
            && boundedFoundation.AutoBattle.FoundationTraining.Iterations == 1
            && boundedFoundation.AutoBattle.FoundationTraining.TrainingCampaignsPerIteration == 2
            && boundedFoundation.AutoBattle.FoundationTraining.ArenaCampaignsPerDifficulty == 1
@@ -1076,8 +1098,11 @@ void TestRuntimeArchitectureGuards()
            && cardRefreshNativeApi.Contains("new RandomPool(pool, dice).DrawByRarity", StringComparison.Ordinal)
            && cardRefreshNativeApi.Contains("manager.CardPackCheck", StringComparison.Ordinal),
         "card refresh recreates clean choice items and uses a window-local clone of the native reward draw pipeline");
-    Assert(matchExperienceConfig.Contains("\"schemaVersion\": 23", StringComparison.Ordinal)
+    Assert(matchExperienceConfig.Contains("\"schemaVersion\": 24", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"cardRefresh\"", StringComparison.Ordinal)
+           && matchExperienceConfig.Contains("\"gameParameters\"", StringComparison.Ordinal)
+           && matchExperienceConfig.Contains("\"partnerId\": \"Partner_10001\"", StringComparison.Ordinal)
+           && matchExperienceConfig.Contains("\"preferredDeckSizeMinimum\": 15", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"foundationTraining\"", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"executionMode\": \"external\"", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"parallelism\": 16", StringComparison.Ordinal)

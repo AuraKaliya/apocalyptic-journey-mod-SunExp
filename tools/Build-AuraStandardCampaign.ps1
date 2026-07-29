@@ -2795,17 +2795,38 @@ foreach ($enemyCard in $enemyCards) {
 $baseCards = @($tables.Card | Where-Object {
     Test-BaseGameId ([string]$_.Id)
 })
+$careerSkillIds = [Collections.Generic.HashSet[string]]::new(
+    [StringComparer]::OrdinalIgnoreCase)
+foreach ($career in @($tables.Career)) {
+    foreach ($property in $career.PSObject.Properties | Where-Object {
+        $_.Name -match '^Skill\d+$'
+    }) {
+        foreach ($skillId in @(([string]$property.Value -split ',|;|\|') |
+            ForEach-Object { $_.Trim().TrimStart('*') } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) })) {
+            [void]$careerSkillIds.Add($skillId)
+        }
+    }
+}
 $cards = @($baseCards | Where-Object {
     (Test-BaseGameId ([string]$_.Id)) `
         -and ([string]$_.Type) -ne "诅咒" `
-        -and ([string]$_.Type) -notmatch "(?i)skill|技能" `
         -and -not (Test-GeneratedOnlyCard $_) `
-        -and -not [string]::IsNullOrWhiteSpace(([string]$_.PackBelong)) `
+        -and -not $careerSkillIds.Contains(([string]$_.Id).TrimStart('*')) `
         -and ([string]$_.PackBelong) -ne "cardpack_13"
 })
 $relics = @($tables.Relic | Where-Object { Test-BaseGameId ([string]$_.Id) })
 $blessings = @($tables.Bless | Where-Object { Test-BaseGameId ([string]$_.Id) })
 $buffs = @($tables.Buff | Where-Object { Test-BaseGameId ([string]$_.Id) })
+$familiarBlessingIds = [Collections.Generic.HashSet[string]]::new(
+    [StringComparer]::OrdinalIgnoreCase)
+foreach ($partner in @($tables.Partner)) {
+    foreach ($blessingId in @(([string]$partner.Bless -split ',|;|\|') |
+        ForEach-Object { $_.Trim() } |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) })) {
+        [void]$familiarBlessingIds.Add($blessingId)
+    }
+}
 
 $route = @("Normal", "Normal", "Elite", "Normal", "Normal", "Boss")
 $attributePresets = @(
@@ -2821,7 +2842,9 @@ $layers = for ($index = 0; $index -lt 7; $index++) {
     $layerRoute = if ($index -lt 6) { @($route) } else { @("FinalBoss") }
     [ordered]@{
         layerNumber = $index + 1
-        nativeBand = if ($index -lt 6) { [Math]::Floor($index / 2) } else { 3 }
+        nativeBand = if ($index -lt 6) {
+            [int][Math]::Floor($index / 2)
+        } else { 3 }
         attributes = [ordered]@{
             main = $attributePresets[$index][0]
             secondary = $attributePresets[$index][1]
@@ -2900,20 +2923,45 @@ $avoidedRelicScoreBiases = [ordered]@{
 }
 
 $rewardDefinitions = @()
-foreach ($card in $cards) {
+foreach ($card in $baseCards) {
     $tier = [Math]::Max(1, [Math]::Min(4, (Convert-ToInt $card.Rarity 1)))
+    $cardId = ([string]$card.Id).Trim()
+    $normalizedCardId = $cardId.TrimStart('*')
+    $cardAcquisition = if ($careerSkillIds.Contains($normalizedCardId) `
+        -or $normalizedCardId.StartsWith(
+            "careercard_",
+            [StringComparison]::OrdinalIgnoreCase)) {
+        "SkillOnly"
+    } elseif (([string]$card.Type) -eq "诅咒") {
+        "CurseOnly"
+    } elseif (Test-GeneratedOnlyCard $card) {
+        "GeneratedOnly"
+    } else {
+        "RewardPool"
+    }
+    $rewardCardPackId = if (
+        [string]::IsNullOrWhiteSpace(([string]$card.PackBelong))) {
+        "cardpack_1"
+    } else {
+        ([string]$card.PackBelong).Trim()
+    }
     $rewardDefinitions += [ordered]@{
-        rewardId = [string]$card.Id
+        rewardId = $cardId
         kind = "Card"
-        cardAcquisition = "RewardPool"
+        rewardCardPackId = $rewardCardPackId
+        cardAcquisition = $cardAcquisition
         tier = $tier
-        offerWeight = switch ($tier) {
-            1 { 8.0 }
-            2 { 5.0 }
-            3 { 2.0 }
-            default { 1.0 }
+        offerWeight = if ($cardAcquisition -ne "RewardPool") {
+            0.0
+        } else {
+            switch ($tier) {
+                1 { 8.0 }
+                2 { 5.0 }
+                3 { 2.0 }
+                default { 1.0 }
+            }
         }
-        baseValue = if ([string]$card.Id -eq "ritualcard_8") {
+        baseValue = if ($cardId -eq "ritualcard_8") {
             1.2
         } else {
             0.55 + $tier * 0.2
@@ -2965,6 +3013,14 @@ foreach ($blessing in $blessings) {
     $rewardDefinitions += [ordered]@{
         rewardId = [string]$blessing.Id
         kind = "Blessing"
+        blessingAcquisition = if ($familiarBlessingIds.Contains(
+            [string]$blessing.Id)) {
+            "FamiliarInnate"
+        } elseif (([string]$blessing.Source) -match "技能|skill") {
+            "SkillOnly"
+        } else {
+            "RewardPool"
+        }
         tier = $tier
         baseValue = 0.65 + $tier * 0.25
         negative = $negative
@@ -3004,6 +3060,115 @@ $attributeThresholdRewards = @(
     [ordered]@{ attributeId = "Wisdom"; threshold = 20; rewardId = "blessing_107" }
     [ordered]@{ attributeId = "Wisdom"; threshold = 30; rewardId = "blessing_111" }
     [ordered]@{ attributeId = "Wisdom"; threshold = 40; rewardId = "blessing_115" }
+)
+
+$strategies = @(
+    [ordered]@{
+        strategyId = "infinite.clock-instant-swordshield"
+        displayName = "破损表盘·瞬念·剑盾"
+        kind = "Infinite"
+        deterministic = $true
+        requiredCardIds = @("counterattackcard_4")
+        requiredRelicIds = @("relic_24", "relic_18")
+        requiredBlessingIds = @()
+        requiredSkillCardIds = @()
+        maximumActiveDeckSize = 24
+        rewardCompletionBonus = 4.5
+        playPriority = 1.6
+    },
+    [ordered]@{
+        strategyId = "infinite.clock-instant-redstone"
+        displayName = "破损表盘·瞬念·红石"
+        kind = "Infinite"
+        deterministic = $true
+        requiredCardIds = @("counterattackcard_4")
+        requiredRelicIds = @("relic_24", "relic_6")
+        requiredBlessingIds = @()
+        requiredSkillCardIds = @()
+        maximumActiveDeckSize = 24
+        rewardCompletionBonus = 4.25
+        playPriority = 1.55
+    },
+    [ordered]@{
+        strategyId = "cycle.timeworm-battery-meditation"
+        displayName = "时虫之鳞·魔能电池·冥想"
+        kind = "Cycle"
+        deterministic = $true
+        requiredCardIds = @("card_17", "universalcard_1", "SpellCard_8")
+        requiredRelicIds = @("relic_45")
+        requiredBlessingIds = @()
+        requiredSkillCardIds = @()
+        maximumActiveDeckSize = 18
+        rewardCompletionBonus = 3.5
+        playPriority = 1.2
+    },
+    [ordered]@{
+        strategyId = "cycle.element-source"
+        displayName = "魔力源晶·元素升华循环"
+        kind = "Cycle"
+        deterministic = $true
+        requiredCardIds = @(
+            "elementscard_11", "elementscard_12", "elementscard_13")
+        requiredRelicIds = @("relic_17")
+        requiredBlessingIds = @()
+        requiredSkillCardIds = @()
+        maximumActiveDeckSize = 20
+        rewardCompletionBonus = 3.25
+        playPriority = 1.3
+    },
+    [ordered]@{
+        strategyId = "cycle.ritual-research"
+        displayName = "行星研究·仪式过牌"
+        kind = "Cycle"
+        deterministic = $true
+        requiredCardIds = @("ritualcard_13", "ritualcard_3", "ritualcard_10")
+        requiredRelicIds = @("relic_70")
+        requiredBlessingIds = @()
+        requiredSkillCardIds = @()
+        maximumActiveDeckSize = 20
+        rewardCompletionBonus = 3.25
+        playPriority = 1.25
+    },
+    [ordered]@{
+        strategyId = "cycle.yin-yang-blood-meditation"
+        displayName = "阴阳·血契冥想"
+        kind = "Cycle"
+        deterministic = $true
+        requiredCardIds = @("universalcard_1", "universalcard_15")
+        requiredRelicIds = @("relic_54")
+        requiredBlessingIds = @()
+        requiredSkillCardIds = @()
+        maximumActiveDeckSize = 18
+        rewardCompletionBonus = 3.0
+        playPriority = 1.15
+    },
+    [ordered]@{
+        strategyId = "cycle.spell-sequence"
+        displayName = "魔网源流·序列重构"
+        kind = "Cycle"
+        deterministic = $true
+        requiredCardIds = @("SpellCard_8", "SpellCard_13", "SpellCard_15")
+        requiredRelicIds = @("CrowdFundingRelic_49")
+        requiredBlessingIds = @()
+        requiredSkillCardIds = @()
+        maximumActiveDeckSize = 20
+        rewardCompletionBonus = 3.0
+        playPriority = 1.2
+    },
+    [ordered]@{
+        strategyId = "cycle.time-cage"
+        displayName = "笼中雀·封装钟声"
+        kind = "Cycle"
+        deterministic = $true
+        requiredCardIds = @(
+            "timekeeper_4", "timekeeper_12", "timekeeper_18")
+        requiredRelicIds = @("relic_64")
+        requiredBlessingIds = @()
+        requiredSkillCardIds = @()
+        maximumActiveDeckSize = 20
+        rewardCompletionBonus = 3.25
+        playPriority = 1.3
+    }
 )
 
 $hardAffixes = @($tables.Hard |
@@ -3047,7 +3212,8 @@ $hardDreamCurseStacks = [int](($hardAffixes |
     Measure-Object -Sum).Sum)
 
 $generatedRewardLeak = @($rewardDefinitions | Where-Object {
-    [string]$_["kind"] -eq "Card" -and (
+    [string]$_["kind"] -eq "Card" `
+        -and [string]$_["cardAcquisition"] -eq "RewardPool" -and (
         ([string]$_["rewardId"]).StartsWith("*", [StringComparison]::Ordinal) `
             -or ([string]$_["rewardId"]).Contains("_*") `
             -or ([string]$_["rewardId"]) -in @(
@@ -3061,11 +3227,18 @@ if ($generatedRewardLeak.Count -gt 0) {
 $campaign = [ordered]@{
     schemaVersion = 2
     campaignId = "witch.world-simulation.standard-v2"
-    campaignVersion = "2.7.0"
+    campaignVersion = "3.0.0"
     rulesetVersion = "witch-base-evaluation-v2"
     initialMoney = 100
     player = [ordered]@{
         roleId = "career_1"
+        partnerId = "Partner_10001"
+        gameParameterPresetId = "standard"
+        gameParameterHash =
+            "standard-career-1-partner-10001-packs-all-deck-15-24-v1"
+        skillCardIds = @("careercard_1")
+        skillCooldownTurns = [ordered]@{ careercard_1 = 1 }
+        familiarBlessingIds = @("blessing_38")
         maxHp = 100
         currentHp = 100
         baseEnergy = 3
@@ -3078,7 +3251,9 @@ $campaign = [ordered]@{
             # as secondary, matching GameEntryUI.NormalGame.
             "burningcard_2", "elementscard_9",
             "card_3", "elementscard_1")
-        initialStatuses = @()
+        initialStatuses = @(
+            [ordered]@{ statusId = "buff_impregnable"; stacks = 2 },
+            [ordered]@{ statusId = "buff_elements"; stacks = 3 })
         variables = [ordered]@{}
     }
     mainAttributeId = "Strength"
@@ -3097,6 +3272,13 @@ $campaign = [ordered]@{
     })
     encounters = @($encounters)
     rewards = @($rewardDefinitions)
+    strategies = @($strategies)
+    enabledRewardCardPackIds = @(
+        "cardpack_1", "cardpack_2", "cardpack_3", "cardpack_4",
+        "cardpack_5", "cardpack_6", "cardpack_7", "cardpack_8",
+        "cardpack_9", "cardpack_10", "cardpack_11", "cardpack_12",
+        "cardpack_14", "cardpack_15", "cardpack_16", "cardpack_17",
+        "cardpack_18", "cardpack_19")
     difficulties = @(
         [ordered]@{
             difficultyId = "normal"
@@ -3155,9 +3337,9 @@ $campaign = [ordered]@{
     cardOfferRounds = 1
     cardChoicesPerRound = 3
     cardRewardEncounterKinds = @("Normal")
-    targetDeckSizeMinimum = 28
-    targetDeckSizeMaximum = 40
-    deckSizeAlertThreshold = 45
+    targetDeckSizeMinimum = 15
+    targetDeckSizeMaximum = 24
+    deckSizeAlertThreshold = 29
     relicLimit = 6
     allowSkipCardReward = $true
     blessingsAreMandatory = $true
@@ -3211,7 +3393,10 @@ $requiredRuntimeGeneratedCardIds = @("nocard_5")
 $generatedOnlyCards = @($baseCards | Where-Object {
     Test-GeneratedOnlyCard $_
 })
-$rulesetCardRows = @($cards + $generatedOnlyCards + @($tables.Card | Where-Object {
+$careerSkillCards = @($baseCards | Where-Object {
+    $careerSkillIds.Contains(([string]$_.Id).TrimStart('*'))
+})
+$rulesetCardRows = @($cards + $careerSkillCards + $generatedOnlyCards + @($tables.Card | Where-Object {
     (Test-BaseGameId ([string]$_.Id)) -and (
         ([string]$_.Id) -in $requiredStartingCardIds `
             -or ([string]$_.Id) -in $requiredMoneyCardIds `
@@ -3489,4 +3674,8 @@ $rulesetPath = Join-Path $OutputDirectory "witch-base-evaluation-v2.ruleset.json
 Write-Host "Campaign: $campaignPath"
 Write-Host "Ruleset: $rulesetPath"
 Write-Host "Pools: $($encounters.Count) encounters, $($enemies.Count) enemies"
-Write-Host "Rewards: $($cards.Count) cards, $($relics.Count) relics, $($blessings.Count) blessings"
+$rewardPoolCardCount = @($rewardDefinitions | Where-Object {
+    [string]$_["kind"] -eq "Card" `
+        -and [string]$_["cardAcquisition"] -eq "RewardPool"
+}).Count
+Write-Host "Rewards: $rewardPoolCardCount cards, $($relics.Count) relics, $($blessings.Count) blessings"

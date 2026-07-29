@@ -25,6 +25,9 @@ public sealed class RoleInfo
     public List<string> Aliases { get; set; } = new();
 
     public List<RoleSkillInfo> Skills { get; set; } = new();
+
+    public Dictionary<string, int> InitialStatuses { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
 }
 
 public sealed class RoleSkillInfo
@@ -34,6 +37,8 @@ public sealed class RoleSkillInfo
     public string DisplayName { get; set; } = "";
 
     public int Slot { get; set; }
+
+    public int CooldownTurns { get; set; } = 1;
 }
 
 public static class RoleCatalog
@@ -152,7 +157,8 @@ public static class RoleCatalog
                         .Concat(new[] { normalizedId })
                         .Distinct(StringComparer.OrdinalIgnoreCase)
                         .ToList(),
-                    Skills = ResolveSkills(row)
+                    Skills = ResolveSkills(row),
+                    InitialStatuses = ResolveInitialStatuses(row)
                 });
             }
         }
@@ -211,12 +217,47 @@ public static class RoleCatalog
                 {
                     Id = id,
                     DisplayName = ResolveActiveSkillDisplayName(row, slot, id),
-                    Slot = slot
+                    Slot = slot,
+                    CooldownTurns = ResolveActiveSkillCooldown(row, slot)
                 });
             }
         }
 
         return skills;
+    }
+
+    private static Dictionary<string, int> ResolveInitialStatuses(
+        IReadOnlyDictionary<string, string> row)
+    {
+        var result = new Dictionary<string, int>(
+            StringComparer.OrdinalIgnoreCase);
+        var script = row.TryGetValue("SkillScript", out var value)
+            ? value ?? ""
+            : "";
+        var eventIndex = script.IndexOf(
+            "AddEvent",
+            StringComparison.OrdinalIgnoreCase);
+        if (eventIndex >= 0)
+        {
+            script = script.Substring(0, eventIndex);
+        }
+        foreach (Match match in Regex.Matches(
+                     script,
+                     @"AddBuff\s*\(\s*(?:""|\bDataId\.)?([A-Za-z0-9_]+)""?\s*,\s*""?(\d+)""?\s*\)",
+                     RegexOptions.IgnoreCase))
+        {
+            var statusId = match.Groups[1].Value;
+            if (string.IsNullOrWhiteSpace(statusId)
+                || !int.TryParse(match.Groups[2].Value, out var stacks)
+                || stacks <= 0)
+            {
+                continue;
+            }
+            result[statusId] = result.TryGetValue(statusId, out var current)
+                ? current + stacks
+                : stacks;
+        }
+        return result;
     }
 
     private static bool IsSkillSlotKey(string key)
@@ -275,6 +316,20 @@ public static class RoleCatalog
     {
         var actionName = ExtractTaggedName(ResolveLocalizedCareerField(row, "Action" + slot));
         return string.IsNullOrWhiteSpace(actionName) ? ResolveCardDisplayName(cardId) : actionName;
+    }
+
+    private static int ResolveActiveSkillCooldown(
+        IReadOnlyDictionary<string, string> row,
+        int slot)
+    {
+        var action = ResolveLocalizedCareerField(row, "Action" + slot);
+        var match = Regex.Match(
+            action,
+            @"(?:<cd>\s*)?CD\s*[:：]\s*(\d+)",
+            RegexOptions.IgnoreCase);
+        return match.Success && int.TryParse(match.Groups[1].Value, out var value)
+            ? Math.Max(1, value)
+            : 1;
     }
 
     private static string ResolveLocalizedCareerField(IReadOnlyDictionary<string, string> data, string key)

@@ -278,6 +278,24 @@ public sealed class CombatSimulationEngine
                 State.Cards.Add(instance);
                 State.DrawPile.Add(instance.InstanceId);
             }
+            foreach (var cardId in scenario.Player.SkillCardIds
+                         ?? new List<string>())
+            {
+                if (!ruleset.TryGetCardCore(cardId, out var definition))
+                {
+                    AddUnsupported("skill-card:" + cardId);
+                    continue;
+                }
+                Reference("card:" + definition.CardId, definition.Fidelity);
+                var instance = new CombatCardInstanceState
+                {
+                    InstanceId = State.NextCardInstanceId++,
+                    CardId = definition.CardId
+                };
+                State.Cards.Add(instance);
+                State.SkillCards.Add(instance.InstanceId);
+                State.SkillCooldowns[instance.InstanceId] = 0;
+            }
             foreach (var cardId in scenario.InitialDiscardCards
                          ?? new List<string>())
             {
@@ -340,6 +358,12 @@ public sealed class CombatSimulationEngine
             player.Energy = Math.Max(
                 0,
                 WitchRounded(Variable(player, "BaseEnergy", player.BaseEnergy)));
+            foreach (var skillId in State.SkillCooldowns.Keys.ToList())
+            {
+                State.SkillCooldowns[skillId] = Math.Max(
+                    0,
+                    State.SkillCooldowns[skillId] - 1);
+            }
             SelectEnemyIntents();
             var summary = new CombatTurnSummary
             {
@@ -616,16 +640,27 @@ public sealed class CombatSimulationEngine
         {
             var player = State.Player;
             var instance = State.FindCard(action.CardInstanceId);
+            var useSkill = action.Kind == CombatSimulationActionKind.UseSkill;
+            var validSource = useSkill
+                ? State.SkillCards.Contains(action.CardInstanceId)
+                  && (!State.SkillCooldowns.TryGetValue(
+                          action.CardInstanceId,
+                          out var cooldown)
+                      || cooldown <= 0)
+                : action.Kind == CombatSimulationActionKind.PlayCard
+                  && State.Hand.Contains(action.CardInstanceId);
             if (player == null
                 || instance == null
-                || !State.Hand.Contains(instance.InstanceId)
+                || !validSource
                 || !TryGetEffectiveCardCore(ruleset, instance, out var definition))
             {
                 Terminate(CombatSimulationOutcome.Invalid, CombatTerminationReason.IllegalPolicyAction);
                 return false;
             }
 
-            var cost = Math.Max(0, definition.Cost + instance.CostModifier);
+            var cost = useSkill
+                ? 0
+                : Math.Max(0, definition.Cost + instance.CostModifier);
             if (player.Energy < cost)
             {
                 Terminate(CombatSimulationOutcome.Invalid, CombatTerminationReason.IllegalPolicyAction);
@@ -642,7 +677,7 @@ public sealed class CombatSimulationEngine
             metrics.CardPlayCounts[definition.CardId] =
                 metrics.CardPlayCounts.TryGetValue(definition.CardId, out var count) ? count + 1 : 1;
             CombatSimulationEvent? playedCardZoneEvent = null;
-            if (!scenario.MovePlayedCardAfterResolution)
+            if (!useSkill && !scenario.MovePlayedCardAfterResolution)
             {
                 playedCardZoneEvent = MovePlayedCardToDestination(
                     player,
@@ -708,7 +743,7 @@ public sealed class CombatSimulationEngine
             }
             ReduceStatuses(player, definition => definition.ReducePerUse);
 
-            if (scenario.MovePlayedCardAfterResolution)
+            if (!useSkill && scenario.MovePlayedCardAfterResolution)
             {
                 playedCardZoneEvent = MovePlayedCardToDestination(
                     player,
@@ -724,6 +759,16 @@ public sealed class CombatSimulationEngine
                 {
                     return false;
                 }
+            }
+            if (useSkill)
+            {
+                // Native active skills are independent of the draw pile.
+                State.SkillCooldowns[instance.InstanceId] =
+                    scenario.Player.SkillCooldownTurns.TryGetValue(
+                        definition.CardId,
+                        out var configuredCooldown)
+                        ? Math.Max(1, configuredCooldown)
+                        : 1;
             }
             return ValidateState();
         }
@@ -1012,6 +1057,55 @@ public sealed class CombatSimulationEngine
                         ActorId = player.ActorId,
                         CardInstanceId = instance.InstanceId,
                         Cost = cost,
+                        DefinitionId = definition.CardId
+                    });
+                }
+            }
+            foreach (var instanceId in state.SkillCards)
+            {
+                var instance = state.FindCard(instanceId);
+                if (instance == null
+                    || state.SkillCooldowns.TryGetValue(
+                        instanceId,
+                        out var cooldown)
+                    && cooldown > 0
+                    || !TryGetEffectiveCardCore(
+                        ruleset,
+                        instance,
+                        out var definition)
+                    || HasTag(instance, definition, "Unusable"))
+                {
+                    continue;
+                }
+                if (definition.RequiresEnemyTarget)
+                {
+                    foreach (var enemy in enemies)
+                    {
+                        result.Add(new CombatSimulationAction
+                        {
+                            CandidateId =
+                                "skill:"
+                                + instance.InstanceId
+                                + ":target:"
+                                + enemy.ActorId,
+                            Kind = CombatSimulationActionKind.UseSkill,
+                            ActorId = player.ActorId,
+                            CardInstanceId = instance.InstanceId,
+                            TargetActorId = enemy.ActorId,
+                            Cost = 0,
+                            DefinitionId = definition.CardId
+                        });
+                    }
+                }
+                else
+                {
+                    result.Add(new CombatSimulationAction
+                    {
+                        CandidateId = "skill:" + instance.InstanceId,
+                        Kind = CombatSimulationActionKind.UseSkill,
+                        ActorId = player.ActorId,
+                        CardInstanceId = instance.InstanceId,
+                        Cost = 0,
                         DefinitionId = definition.CardId
                     });
                 }
@@ -3451,6 +3545,7 @@ public sealed class CombatSimulationEngine
                 .Concat(State.Hand)
                 .Concat(State.DiscardPile)
                 .Concat(State.ExhaustPile)
+                .Concat(State.SkillCards)
                 .ToList();
             var zoneCountValid = zones.Count == State.Cards.Count;
             var zonesDistinct = zones.Distinct().Count() == zones.Count;

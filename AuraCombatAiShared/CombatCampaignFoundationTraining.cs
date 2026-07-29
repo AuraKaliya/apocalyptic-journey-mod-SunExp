@@ -128,15 +128,15 @@ public sealed class CombatCampaignFoundationTrainingRequest
 
     public bool EnableTuningArena { get; set; } = true;
 
-    public int TuningNormalCampaigns { get; set; } = 24;
+    public int TuningNormalCampaigns { get; set; } = 32;
 
-    public int TuningAdvancedCampaigns { get; set; } = 24;
+    public int TuningAdvancedCampaigns { get; set; } = 64;
 
     public ulong TuningSeedStart { get; set; } = 1_500_000UL;
 
-    public double NormalAcceptanceRate { get; set; } = 0.90d;
+    public double NormalAcceptanceRate { get; set; } = 0.80d;
 
-    public double AdvancedAcceptanceRate { get; set; } = 0.50d;
+    public double AdvancedAcceptanceRate { get; set; } = 0.30d;
 
     public string NativeProgramPackageHash { get; set; } = "";
 
@@ -174,6 +174,8 @@ public sealed class CombatCampaignFoundationTrainingRequest
         get;
         set;
     } = new();
+
+    public string CaseArchiveCompatibilityKey { get; set; } = "";
 
     public double SelfPlayExplorationProbability { get; set; } = 0.15d;
 
@@ -1026,12 +1028,12 @@ public sealed class CombatCampaignFoundationTrainer
         var normalAcceptanceRate =
             double.IsNaN(request.NormalAcceptanceRate)
             || double.IsInfinity(request.NormalAcceptanceRate)
-                ? 0.90d
+                ? 0.80d
                 : Math.Max(0d, Math.Min(1d, request.NormalAcceptanceRate));
         var advancedAcceptanceRate =
             double.IsNaN(request.AdvancedAcceptanceRate)
             || double.IsInfinity(request.AdvancedAcceptanceRate)
-                ? 0.50d
+                ? 0.30d
                 : Math.Max(
                     0d,
                     Math.Min(1d, request.AdvancedAcceptanceRate));
@@ -1947,12 +1949,19 @@ public sealed class CombatCampaignFoundationTrainer
                 && screeningCandidateDepth
                    >= screeningChampionDepth
                       + CombatFoundationPromotionProtocol.MinimumDepthGain;
+            var screeningAdvancedRecoveryRequired =
+                result.Champion != null
+                && screeningChampionAdvanced + 0.0000001d
+                   < advancedAcceptanceRate;
             var screeningPassed =
                 screeningPairIndexes.Count == arenaPerDifficulty * 2
                 && screeningCandidateNormal + 0.0000001d
                    >= screeningChampionNormal
                 && screeningCandidateAdvanced + 0.0000001d
                    >= screeningChampionAdvanced
+                && (!screeningAdvancedRecoveryRequired
+                    || screeningCandidateAdvanced
+                       > screeningChampionAdvanced + 0.0000001d)
                 && (workingChampion == null
                     || screeningCandidateOnlyWins
                        > screeningChampionOnlyWins
@@ -2174,10 +2183,18 @@ public sealed class CombatCampaignFoundationTrainer
                  + (confirmationRan
                      ? arenaConfirmationPerDifficulty
                      : 0)) * 2;
+            var advancedRecoveryRequired =
+                result.Champion != null
+                && championAdvanced + 0.0000001d
+                   < advancedAcceptanceRate;
             var curriculumCheckpoint =
                 validPairIndexes.Count == expectedArenaPairs
                                        && candidateNormal + 0.0000001d >= championNormal
-                                       && candidateAdvanced + 0.0000001d >= championAdvanced;
+                                       && candidateAdvanced + 0.0000001d >= championAdvanced
+                                       && (!advancedRecoveryRequired
+                                           || candidateAdvanced
+                                              > championAdvanced
+                                                + 0.0000001d);
             var discordantPairs =
                 candidateOnlyWins + championOnlyWins;
             var pairedWinWilsonLowerBound =
@@ -2218,7 +2235,11 @@ public sealed class CombatCampaignFoundationTrainer
                               .CandidateAverageCompletedBattles
                             + 0.0000001d);
             var promotionReason = !curriculumCheckpoint
-                ? "regression-or-incomplete-arena"
+                ? advancedRecoveryRequired
+                  && candidateAdvanced
+                     <= championAdvanced + 0.0000001d
+                    ? "advanced-target-not-improved"
+                    : "regression-or-incomplete-arena"
                 : bootstrapPromotion
                     ? "bootstrap-champion"
                 : !iterativeGain
@@ -2583,7 +2604,9 @@ public sealed class CombatCampaignFoundationTrainer
                         ? "普通难度剩余样本不足以达到 "
                           + normalAcceptanceRate.ToString("P0")
                           + " 验收线"
-                        : "高级难度失败数已超过 20% 验收上限";
+                        : "高级难度剩余样本不足以达到 "
+                          + advancedAcceptanceRate.ToString("P0")
+                          + " 验收线";
                     break;
                 }
             }
@@ -2747,6 +2770,12 @@ public sealed class CombatCampaignFoundationTrainer
             decisionProfile,
             modelId,
             episodes);
+        if (!string.IsNullOrWhiteSpace(
+                request.CaseArchiveCompatibilityKey))
+        {
+            observation.CompatibilityKey =
+                request.CaseArchiveCompatibilityKey;
+        }
         result.CampaignObservations.Add(observation);
         request.ObservationRecorded?.Invoke(observation);
         if (observation.ArchiveEligible)
@@ -4078,6 +4107,21 @@ public sealed class CombatCampaignFoundationTrainer
                 - CombatFoundationStagnationProtocol
                     .HardSeedSolveRateWindow))
             .ToList();
+        var latestChampionArena = all.LastOrDefault(item =>
+            item.Promoted && item.ValidAdvancedArenaPairs > 0);
+        var acceptance = double.IsNaN(request.AdvancedAcceptanceRate)
+                         || double.IsInfinity(
+                             request.AdvancedAcceptanceRate)
+            ? 0.30d
+            : Math.Max(
+                0d,
+                Math.Min(1d, request.AdvancedAcceptanceRate));
+        if (latestChampionArena == null
+            || latestChampionArena.CandidateAdvancedWinRate + 0.0000001d
+               < acceptance)
+        {
+            return configured;
+        }
         var attempts = recent.Sum(item =>
             item.HardSeedCounterfactualCampaigns);
         var solved = recent.Sum(item =>

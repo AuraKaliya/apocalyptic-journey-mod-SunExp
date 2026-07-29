@@ -318,8 +318,14 @@ public static class CombatSemanticAuditor
         CombatSimulationEvent item,
         CombatSimulationAction action)
     {
-        if (!string.IsNullOrWhiteSpace(item.HandlerId)
-            || !string.IsNullOrWhiteSpace(item.SourceRewardId))
+        var actionReward = !string.IsNullOrWhiteSpace(item.SourceRewardId)
+                           && string.Equals(
+                               item.SourceRewardId,
+                               action.DefinitionId,
+                               StringComparison.OrdinalIgnoreCase);
+        if ((!string.IsNullOrWhiteSpace(item.HandlerId)
+             || !string.IsNullOrWhiteSpace(item.SourceRewardId))
+            && !actionReward)
         {
             return false;
         }

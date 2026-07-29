@@ -662,9 +662,16 @@ internal static class AuraToolsAutoBattleSimulationRuntime
         {
             RequireCard(cardId);
         }
+        foreach (var cardId in campaign.Player.SkillCardIds)
+        {
+            RequireCard(cardId);
+        }
         foreach (var reward in campaign.Rewards)
         {
-            if (reward.Kind == CombatCampaignRewardKind.Card)
+            if (reward.Kind == CombatCampaignRewardKind.Card
+                && CombatCampaignCardAcquisitionPolicy.CanEnterRewardPool(
+                    reward,
+                    campaign.EnabledRewardCardPackIds))
             {
                 RequireCard(reward.RewardId);
             }
@@ -1166,6 +1173,12 @@ internal static class AuraToolsAutoBattleSimulationRuntime
             requested: request.Simulation.SimulationCount,
             scenarioId: request.Simulation.ScenarioId);
         var campaign = ResolveCampaign(request.Simulation.ScenarioId);
+        if (campaign != null)
+        {
+            AuraToolsAutoBattleGameParameterRuntime.Apply(
+                request.Settings,
+                campaign);
+        }
         var journey = campaign == null
             ? ResolveJourney(request.Simulation.ScenarioId)
             : null;
@@ -2704,6 +2717,7 @@ internal static class AuraToolsAutoBattleSimulationRuntime
 
     private static SimulationRequest Snapshot(AutoBattleSettings source)
     {
+        AuraToolsAutoBattleGameParameterRuntime.ResolvePresetReferences(source);
         return new SimulationRequest
         {
             Settings = new AutoBattleSettings
@@ -2716,6 +2730,10 @@ internal static class AuraToolsAutoBattleSimulationRuntime
                 EvaluationModelId = source.EvaluationModelId,
                 UnknownActionPolicy = source.UnknownActionPolicy,
                 SearchQuality = source.SearchQuality,
+                GameParameters =
+                    AuraSharedJson.Deserialize<AutoBattleGameParameterSettings>(
+                        AuraSharedJson.Serialize(source.GameParameters))
+                    ?? new AutoBattleGameParameterSettings(),
                 Training = new AutoBattleTrainingSettings
                 {
                     Preset = source.Training.Preset,

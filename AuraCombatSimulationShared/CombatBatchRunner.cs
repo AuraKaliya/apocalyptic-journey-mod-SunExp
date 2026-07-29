@@ -209,6 +209,17 @@ public static class CombatScenarioCloner
             Player = new CombatPlayerSetup
             {
                 RoleId = source.Player.RoleId,
+                PartnerId = source.Player.PartnerId,
+                GameParameterPresetId =
+                    source.Player.GameParameterPresetId,
+                GameParameterHash = source.Player.GameParameterHash,
+                SkillCardIds = new List<string>(
+                    source.Player.SkillCardIds),
+                SkillCooldownTurns = new Dictionary<string, int>(
+                    source.Player.SkillCooldownTurns,
+                    StringComparer.OrdinalIgnoreCase),
+                FamiliarBlessingIds = new List<string>(
+                    source.Player.FamiliarBlessingIds),
                 MaxHp = source.Player.MaxHp,
                 CurrentHp = source.Player.CurrentHp,
                 BaseEnergy = source.Player.BaseEnergy,
@@ -243,6 +254,19 @@ public static class CombatScenarioCloner
                 .ToList(),
             RewardCatalog = source.RewardCatalog
                 .Select(item => item.Clone())
+                .ToList(),
+            StrategyProgress = source.StrategyProgress
+                .Select(item => new CombatScenarioStrategyProgress
+                {
+                    StrategyId = item.StrategyId,
+                    Kind = item.Kind,
+                    Deterministic = item.Deterministic,
+                    Executable = item.Executable,
+                    Completion = item.Completion,
+                    PlayPriority = item.PlayPriority,
+                    ComponentCardIds = new List<string>(
+                        item.ComponentCardIds)
+                })
                 .ToList(),
             CampaignVariables = new Dictionary<string, string>(
                 source.CampaignVariables,

@@ -30,6 +30,62 @@ public enum CombatCampaignCardAcquisition
     SkillOnly
 }
 
+public enum CombatCampaignBlessingAcquisition
+{
+    RewardPool,
+    FamiliarInnate,
+    GrantedOnly,
+    SkillOnly
+}
+
+public enum CombatCampaignStrategyKind
+{
+    Cycle,
+    Infinite
+}
+
+public sealed class CombatCampaignStrategyDefinition
+{
+    public string StrategyId { get; set; } = "";
+
+    public string DisplayName { get; set; } = "";
+
+    public CombatCampaignStrategyKind Kind { get; set; }
+
+    public bool Deterministic { get; set; } = true;
+
+    public List<string> RequiredCardIds { get; set; } = new();
+
+    public List<string> RequiredRelicIds { get; set; } = new();
+
+    public List<string> RequiredBlessingIds { get; set; } = new();
+
+    public List<string> RequiredSkillCardIds { get; set; } = new();
+
+    public int MaximumActiveDeckSize { get; set; } = 24;
+
+    public double RewardCompletionBonus { get; set; } = 3d;
+
+    public double PlayPriority { get; set; } = 1d;
+}
+
+public sealed class CombatCampaignStrategyProgress
+{
+    public string StrategyId { get; set; } = "";
+
+    public CombatCampaignStrategyKind Kind { get; set; }
+
+    public bool Accessible { get; set; }
+
+    public bool Executable { get; set; }
+
+    public int OwnedComponents { get; set; }
+
+    public int RequiredComponents { get; set; }
+
+    public double Completion { get; set; }
+}
+
 public sealed class CombatCampaignAttributePreset
 {
     public int Main { get; set; }
@@ -85,8 +141,13 @@ public sealed class CombatCampaignRewardDefinition
 
     public CombatCampaignRewardKind Kind { get; set; }
 
+    public string RewardCardPackId { get; set; } = "";
+
     public CombatCampaignCardAcquisition CardAcquisition { get; set; } =
         CombatCampaignCardAcquisition.RewardPool;
+
+    public CombatCampaignBlessingAcquisition BlessingAcquisition { get; set; } =
+        CombatCampaignBlessingAcquisition.RewardPool;
 
     public int Tier { get; set; } = 1;
 
@@ -221,6 +282,12 @@ public sealed class CombatCampaignDefinition
 
     public List<CombatCampaignRewardDefinition> Rewards { get; set; } = new();
 
+    public List<CombatCampaignStrategyDefinition> Strategies { get; set; } =
+        new();
+
+    public List<string> EnabledRewardCardPackIds { get; set; } =
+        new() { "cardpack_1", "cardpack_2" };
+
     public List<CombatCampaignDifficultyDefinition> Difficulties { get; set; } = new();
 
     public int CardOfferRounds { get; set; } = 1;
@@ -323,6 +390,8 @@ public sealed class CombatCampaignWorldPlan
 
     public ulong WorldSeed { get; set; }
 
+    public string GameParameterHash { get; set; } = "";
+
     public string PlanHash { get; set; } = "";
 
     public List<CombatCampaignPlannedEncounter> Encounters { get; set; } = new();
@@ -361,6 +430,8 @@ public sealed class CombatCampaignRewardScore
     public double LearnedResidual { get; set; }
 
     public double ConfiguredBias { get; set; }
+
+    public double StrategyFit { get; set; }
 }
 
 public sealed class CombatCampaignBuildPlan
@@ -379,6 +450,11 @@ public sealed class CombatCampaignBuildPlan
 
     public int Revision { get; set; }
 
+    public string FocusStrategyId { get; set; } = "";
+
+    public Dictionary<string, double> StrategyCompletion { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public Dictionary<string, double> FeatureWeights { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
 
@@ -396,6 +472,10 @@ public sealed class CombatCampaignBuildPlan
             TargetDeckSizeMaximum = TargetDeckSizeMaximum,
             DeckSizeAlert = DeckSizeAlert,
             Revision = Revision,
+            FocusStrategyId = FocusStrategyId,
+            StrategyCompletion = new Dictionary<string, double>(
+                StrategyCompletion,
+                StringComparer.OrdinalIgnoreCase),
             FeatureWeights = new Dictionary<string, double>(
                 FeatureWeights,
                 StringComparer.OrdinalIgnoreCase),
@@ -443,6 +523,25 @@ public sealed class CombatCampaignBlessingDecision
     public bool Acquired { get; set; }
 }
 
+public sealed class CombatCampaignDeckAdjustment
+{
+    public bool Applied { get; set; }
+
+    public int BeforeDeckSize { get; set; }
+
+    public int AfterDeckSize { get; set; }
+
+    public int ReserveSize { get; set; }
+
+    public int PreferredMinimum { get; set; }
+
+    public int PreferredMaximum { get; set; }
+
+    public List<string> MovedToDeckIds { get; set; } = new();
+
+    public List<string> MovedToReserveIds { get; set; } = new();
+}
+
 public sealed class CombatCampaignRewardDecision
 {
     public int EncounterIndex { get; set; }
@@ -456,6 +555,8 @@ public sealed class CombatCampaignRewardDecision
     public CombatCampaignBlessingDecision Blessing { get; set; } = new();
 
     public List<string> RemovedCardIds { get; set; } = new();
+
+    public CombatCampaignDeckAdjustment DeckAdjustment { get; set; } = new();
 
     public CombatCampaignBuildPlan BuildPlan { get; set; } = new();
 }
@@ -488,9 +589,13 @@ public sealed class CombatCampaignState
 
     public List<string> Deck { get; set; } = new();
 
+    public List<string> ReserveCards { get; set; } = new();
+
     public List<string> Relics { get; set; } = new();
 
     public List<string> Blessings { get; set; } = new();
+
+    public List<string> InnateBlessings { get; set; } = new();
 
     public Dictionary<string, Dictionary<string, string>> RewardVariables { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
@@ -505,6 +610,8 @@ public sealed class CombatCampaignState
 
 public static class CombatCampaignCardAcquisitionPolicy
 {
+    public const string BaseCardPackId = "cardpack_1";
+
     private static readonly HashSet<string> KnownGeneratedOnlyCards =
         new(StringComparer.OrdinalIgnoreCase)
         {
@@ -531,6 +638,32 @@ public static class CombatCampaignCardAcquisitionPolicy
                && !IsGeneratedOnlyIdentifier(reward.RewardId);
     }
 
+    public static bool CanEnterRewardPool(
+        CombatCampaignRewardDefinition reward,
+        IEnumerable<string>? enabledRewardCardPackIds)
+    {
+        if (!CanEnterRewardPool(reward))
+        {
+            return false;
+        }
+        var enabled = new HashSet<string>(
+            enabledRewardCardPackIds ?? Array.Empty<string>(),
+            StringComparer.OrdinalIgnoreCase)
+        {
+            BaseCardPackId,
+            "cardpack_2"
+        };
+        return enabled.Contains(ResolveRewardCardPackId(reward));
+    }
+
+    public static string ResolveRewardCardPackId(
+        CombatCampaignRewardDefinition reward)
+    {
+        return string.IsNullOrWhiteSpace(reward.RewardCardPackId)
+            ? BaseCardPackId
+            : reward.RewardCardPackId.Trim();
+    }
+
     public static bool CanEnterStartingDeck(
         CombatCampaignRewardDefinition reward)
     {
@@ -539,6 +672,161 @@ public static class CombatCampaignCardAcquisitionPolicy
                    CombatCampaignCardAcquisition.RewardPool
                    or CombatCampaignCardAcquisition.StartingOnly
                && !IsGeneratedOnlyIdentifier(reward.RewardId);
+    }
+}
+
+public static class CombatCampaignStrategyEvaluator
+{
+    public static List<CombatCampaignStrategyProgress> Evaluate(
+        CombatCampaignDefinition definition,
+        CombatCampaignState state,
+        IReadOnlyDictionary<string, CombatCampaignRewardDefinition> rewardLookup,
+        CombatCampaignRewardDefinition? additionalReward = null)
+    {
+        var ownedCards = new HashSet<string>(
+            state.Deck.Concat(state.ReserveCards),
+            StringComparer.OrdinalIgnoreCase);
+        var activeCards = new HashSet<string>(
+            state.Deck,
+            StringComparer.OrdinalIgnoreCase);
+        var ownedRelics = new HashSet<string>(
+            state.Relics,
+            StringComparer.OrdinalIgnoreCase);
+        var ownedBlessings = new HashSet<string>(
+            state.Blessings.Concat(state.InnateBlessings),
+            StringComparer.OrdinalIgnoreCase);
+        if (additionalReward != null)
+        {
+            switch (additionalReward.Kind)
+            {
+                case CombatCampaignRewardKind.Card:
+                    ownedCards.Add(additionalReward.RewardId);
+                    break;
+                case CombatCampaignRewardKind.Relic:
+                    ownedRelics.Add(additionalReward.RewardId);
+                    break;
+                case CombatCampaignRewardKind.Blessing:
+                    ownedBlessings.Add(additionalReward.RewardId);
+                    break;
+            }
+        }
+
+        return (definition.Strategies
+                ?? new List<CombatCampaignStrategyDefinition>())
+            .Where(item => item != null
+                           && !string.IsNullOrWhiteSpace(item.StrategyId))
+            .Select(strategy => EvaluateOne(
+                definition,
+                state,
+                rewardLookup,
+                strategy,
+                ownedCards,
+                activeCards,
+                ownedRelics,
+                ownedBlessings))
+            .ToList();
+    }
+
+    public static double MarginalRewardValue(
+        CombatCampaignDefinition definition,
+        CombatCampaignState state,
+        IReadOnlyDictionary<string, CombatCampaignRewardDefinition> rewardLookup,
+        CombatCampaignRewardDefinition reward)
+    {
+        if (definition.Strategies == null || definition.Strategies.Count == 0)
+        {
+            return 0d;
+        }
+        var baseline = Evaluate(definition, state, rewardLookup)
+            .ToDictionary(
+                item => item.StrategyId,
+                item => item,
+                StringComparer.OrdinalIgnoreCase);
+        var after = Evaluate(definition, state, rewardLookup, reward);
+        var result = 0d;
+        foreach (var progress in after.Where(item => item.Accessible))
+        {
+            var before = baseline.TryGetValue(progress.StrategyId, out var value)
+                ? value.Completion
+                : 0d;
+            var strategy = definition.Strategies.First(item => string.Equals(
+                item.StrategyId,
+                progress.StrategyId,
+                StringComparison.OrdinalIgnoreCase));
+            result += Math.Max(0d, progress.Completion - before)
+                      * Math.Max(0d, strategy.RewardCompletionBonus);
+        }
+        return result;
+    }
+
+    private static CombatCampaignStrategyProgress EvaluateOne(
+        CombatCampaignDefinition definition,
+        CombatCampaignState state,
+        IReadOnlyDictionary<string, CombatCampaignRewardDefinition> rewardLookup,
+        CombatCampaignStrategyDefinition strategy,
+        ISet<string> ownedCards,
+        ISet<string> activeCards,
+        ISet<string> ownedRelics,
+        ISet<string> ownedBlessings)
+    {
+        var cards = Distinct(strategy.RequiredCardIds);
+        var relics = Distinct(strategy.RequiredRelicIds);
+        var blessings = Distinct(strategy.RequiredBlessingIds);
+        var skills = Distinct(strategy.RequiredSkillCardIds);
+        var required = cards.Count + relics.Count + blessings.Count + skills.Count;
+        var owned = cards.Count(ownedCards.Contains)
+                    + relics.Count(ownedRelics.Contains)
+                    + blessings.Count(ownedBlessings.Contains)
+                    + skills.Count(id => definition.Player.SkillCardIds.Contains(
+                        id,
+                        StringComparer.OrdinalIgnoreCase));
+        var accessible =
+            cards.Where(id => !ownedCards.Contains(id))
+                .All(id => rewardLookup.TryGetValue(id, out var reward)
+                           && CombatCampaignCardAcquisitionPolicy
+                               .CanEnterRewardPool(
+                                   reward,
+                                   definition.EnabledRewardCardPackIds))
+            && relics.Where(id => !ownedRelics.Contains(id))
+                .All(id => rewardLookup.TryGetValue(id, out var reward)
+                           && reward.Kind == CombatCampaignRewardKind.Relic)
+            && blessings.Where(id => !ownedBlessings.Contains(id))
+                .All(id => rewardLookup.TryGetValue(id, out var reward)
+                           && reward.Kind == CombatCampaignRewardKind.Blessing
+                           && reward.BlessingAcquisition
+                              == CombatCampaignBlessingAcquisition.RewardPool)
+            && skills.All(id => definition.Player.SkillCardIds.Contains(
+                id,
+                StringComparer.OrdinalIgnoreCase));
+        var completion = required <= 0 || !accessible
+            ? 0d
+            : owned / (double)required;
+        var maximumDeckSize = Math.Max(1, strategy.MaximumActiveDeckSize);
+        if (state.Deck.Count > maximumDeckSize)
+        {
+            completion *= maximumDeckSize / (double)state.Deck.Count;
+        }
+        return new CombatCampaignStrategyProgress
+        {
+            StrategyId = strategy.StrategyId,
+            Kind = strategy.Kind,
+            Accessible = accessible,
+            Executable = accessible
+                         && owned == required
+                         && cards.All(activeCards.Contains)
+                         && state.Deck.Count <= maximumDeckSize,
+            OwnedComponents = owned,
+            RequiredComponents = required,
+            Completion = Math.Max(0d, Math.Min(1d, completion))
+        };
+    }
+
+    private static List<string> Distinct(IEnumerable<string>? values)
+    {
+        return (values ?? Array.Empty<string>())
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 }
 
@@ -589,6 +877,7 @@ public static class CombatCampaignRewardRuleProjector
         var result = new List<CombatScenarioRewardRule>();
         foreach (var rewardId in state.Relics
                      .Concat(state.Blessings)
+                     .Concat(state.InnateBlessings)
                      .Distinct(StringComparer.OrdinalIgnoreCase))
         {
             if (!rewardLookup.TryGetValue(rewardId, out var reward)
@@ -603,10 +892,12 @@ public static class CombatCampaignRewardRuleProjector
                 Stacks = reward.Kind == CombatCampaignRewardKind.Blessing
                     ? Math.Max(
                         1,
-                        state.Blessings.Count(item => string.Equals(
-                            item,
-                            rewardId,
-                            StringComparison.OrdinalIgnoreCase)))
+                        state.Blessings
+                            .Concat(state.InnateBlessings)
+                            .Count(item => string.Equals(
+                                item,
+                                rewardId,
+                                StringComparison.OrdinalIgnoreCase)))
                     : 1,
                 NativeScriptHash = reward.NativeScriptHash,
                 FightScript = reward.FightScript,
@@ -730,6 +1021,20 @@ public sealed class CombatCampaignResult
 
     public ulong WorldSeed { get; set; }
 
+    public string RoleId { get; set; } = "";
+
+    public string PartnerId { get; set; } = "";
+
+    public string GameParameterPresetId { get; set; } = "";
+
+    public string GameParameterHash { get; set; } = "";
+
+    public List<string> SkillCardIds { get; set; } = new();
+
+    public List<string> FamiliarBlessingIds { get; set; } = new();
+
+    public List<string> EnabledRewardCardPackIds { get; set; } = new();
+
     public string PlanHash { get; set; } = "";
 
     public string PolicyId { get; set; } = "";
@@ -784,7 +1089,8 @@ public static class CombatCampaignWorldPlanner
             CampaignId = definition.CampaignId,
             CampaignVersion = definition.CampaignVersion,
             DifficultyId = difficulty.DifficultyId,
-            WorldSeed = worldSeed
+            WorldSeed = worldSeed,
+            GameParameterHash = definition.Player.GameParameterHash
         };
         var usedRelics = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
         var usedBlessings = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
@@ -860,7 +1166,7 @@ public static class CombatCampaignWorldPlanner
         }
         if (definition.CardOfferRounds < 0
             || definition.CardChoicesPerRound < 1
-            || definition.TargetDeckSizeMinimum < definition.Player.Deck.Count
+            || definition.TargetDeckSizeMinimum < 1
             || definition.TargetDeckSizeMaximum < definition.TargetDeckSizeMinimum
             || definition.DeckSizeAlertThreshold <= definition.TargetDeckSizeMaximum)
         {
@@ -986,7 +1292,10 @@ public static class CombatCampaignWorldPlanner
     {
         var result = new CombatCampaignRewardOffer();
         var cards = definition.Rewards
-            .Where(CombatCampaignCardAcquisitionPolicy.CanEnterRewardPool)
+            .Where(item =>
+                CombatCampaignCardAcquisitionPolicy.CanEnterRewardPool(
+                    item,
+                    definition.EnabledRewardCardPackIds))
             .GroupBy(item => item.RewardId, StringComparer.OrdinalIgnoreCase)
             .Select(group => group.First())
             .OrderBy(item => item.RewardId, StringComparer.Ordinal)
@@ -1022,6 +1331,8 @@ public static class CombatCampaignWorldPlanner
             encounterIndex);
         var blessings = definition.Rewards
             .Where(item => item.Kind == CombatCampaignRewardKind.Blessing
+                           && item.BlessingAcquisition
+                              == CombatCampaignBlessingAcquisition.RewardPool
                            && item.Tier >= minimumTier
                            && item.Tier <= maximumTier
                            && (!definition.ExcludeNegativeBlessings || !item.Negative)
@@ -1216,6 +1527,7 @@ public static class CombatCampaignWorldPlanner
                         + "|" + plan.CampaignVersion
                         + "|" + plan.DifficultyId
                         + "|" + plan.WorldSeed
+                        + "|" + plan.GameParameterHash
                         + "|" + string.Join(
                             ";",
                             plan.Encounters.Select(item =>
@@ -1260,31 +1572,15 @@ public static class CombatCampaignRewardSelector
                 CombatCampaignRewardKind.Card);
             var best = scores.FirstOrDefault();
             var buildPlan = state.BuildPlan;
-            var hardCap = state.Deck.Count >= 40;
-            var targetCap = state.Deck.Count
-                            >= buildPlan.TargetDeckSizeMaximum;
-            var survivalOverride = best != null
-                                   && state.MaxHp > 0
-                                   && state.CurrentHp
-                                      / (double)state.MaxHp <= 0.35d
-                                   && best.SurvivalFit >= 0.75d
-                                   && !hardCap;
             var skipScore = CardSkipScore(state, buildPlan);
             var belowMarginal = best == null
                                 || best.Total <= skipScore + 0.10d;
-            var skipped = hardCap
-                          || (definition.AllowSkipCardReward
-                              && !survivalOverride
-                              && (targetCap || belowMarginal));
+            var skipped = definition.AllowSkipCardReward && belowMarginal;
             var skipReason = !skipped
                 ? ""
-                : hardCap
-                    ? "deck-cap"
-                    : targetCap
-                        ? "layer-target"
-                        : best == null
-                            ? "no-valid-card"
-                            : "below-marginal";
+                : best == null
+                    ? "no-valid-card"
+                    : "below-marginal";
             var decision = new CombatCampaignCardDecision
             {
                 Round = round + 1,
@@ -1298,7 +1594,7 @@ public static class CombatCampaignRewardSelector
             result.Cards.Add(decision);
             if (!skipped && lookup.TryGetValue(decision.SelectedId, out var selected))
             {
-                state.Deck.Add(selected.RewardId);
+                state.ReserveCards.Add(selected.RewardId);
                 ApplyProgressionEffect(definition, state, selected);
                 result.BuildPlan = RefreshBuildPlan(definition, state).Clone();
             }
@@ -1327,12 +1623,11 @@ public static class CombatCampaignRewardSelector
             OfferedId = blessingId,
             Acquired = acquired
         };
-        result.RemovedCardIds.AddRange(
-            ApplyRoutineCardRemoval(
-                definition,
-                encounter,
-                state,
-                lookup));
+        result.DeckAdjustment = AdjustDeckAtLayerEnd(
+            definition,
+            encounter,
+            state,
+            lookup);
         result.BuildPlan = RefreshBuildPlan(definition, state).Clone();
         return result;
     }
@@ -1491,6 +1786,7 @@ public static class CombatCampaignRewardSelector
         var buildPlan = RefreshBuildPlan(definition, state);
         var deckFeatures = AggregateBuildFeatures(state, lookup);
         var deckCounts = state.Deck
+            .Concat(state.ReserveCards)
             .GroupBy(item => item, StringComparer.OrdinalIgnoreCase)
             .ToDictionary(group => group.Key, group => group.Count(), StringComparer.OrdinalIgnoreCase);
         var progress = Math.Max(0d, Math.Min(1d, encounterIndex / 36d));
@@ -1512,7 +1808,11 @@ public static class CombatCampaignRewardSelector
                 var bossFit = Dot(item.Features, definition.BossPreference)
                               * (0.25d + progress * 0.75d);
                 var bloat = kind == CombatCampaignRewardKind.Card
-                    ? Math.Max(0, state.Deck.Count - definition.Player.Deck.Count) * 0.04d
+                    ? Math.Max(
+                        0,
+                        state.Deck.Count
+                        + state.ReserveCards.Count
+                        - definition.Player.Deck.Count) * 0.02d
                     : 0d;
                 var redundancy = copies <= 0 ? 0d : Math.Sqrt(copies) * 0.75d;
                 var archetypeFit = kind == CombatCampaignRewardKind.Card
@@ -1588,6 +1888,12 @@ public static class CombatCampaignRewardSelector
                                         .RewardScoreBiasMaximumAbsolute),
                                 configuredRewardBias))
                         : 0d;
+                var strategyFit =
+                    CombatCampaignStrategyEvaluator.MarginalRewardValue(
+                        definition,
+                        state,
+                        lookup,
+                        item);
                 return new CombatCampaignRewardScore
                 {
                     RewardId = id,
@@ -1605,8 +1911,10 @@ public static class CombatCampaignRewardSelector
                     RiskPenalty = riskPenalty,
                     LearnedResidual = learnedResidual,
                     ConfiguredBias = configuredBias,
+                    StrategyFit = strategyFit,
                     Total = baseValue + tierValue + systemFit + tendency + bossFit
                             + archetypeFit + survivalFit + energyFit
+                            + strategyFit
                             + learnedResidual + configuredBias
                             - bloat - redundancy - dilution - offPlanPenalty
                             - riskPenalty
@@ -1674,8 +1982,19 @@ public static class CombatCampaignRewardSelector
                   ?? ""
                 : "";
         }
-        var (targetMinimum, targetMaximum) =
-            TargetDeckBand(layerNumber);
+        var targetMinimum = Math.Max(1, definition.TargetDeckSizeMinimum);
+        var targetMaximum = Math.Max(
+            targetMinimum,
+            definition.TargetDeckSizeMaximum);
+        var strategyProgress = CombatCampaignStrategyEvaluator.Evaluate(
+                definition,
+                state,
+                lookup)
+            .Where(item => item.Accessible)
+            .OrderByDescending(item => item.Completion)
+            .ThenByDescending(item => item.Kind)
+            .ThenBy(item => item.StrategyId, StringComparer.Ordinal)
+            .ToList();
         var revised = layerChanged
                       && !string.IsNullOrWhiteSpace(
                           previous.PrimaryArchetype)
@@ -1692,13 +2011,21 @@ public static class CombatCampaignRewardSelector
             TargetDeckSizeMaximum = targetMaximum,
             DeckSizeAlert = state.Deck.Count >= definition.DeckSizeAlertThreshold,
             Revision = previous.Revision + (revised ? 1 : 0),
+            FocusStrategyId =
+                strategyProgress.FirstOrDefault()?.StrategyId ?? "",
+            StrategyCompletion = strategyProgress.ToDictionary(
+                item => item.StrategyId,
+                item => item.Completion,
+                StringComparer.OrdinalIgnoreCase),
             FeatureWeights = weights,
             SynergySources = new Dictionary<string, int>(
                 StringComparer.OrdinalIgnoreCase)
             {
                 ["card"] = state.Deck.Count,
+                ["reserve-card"] = state.ReserveCards.Count,
                 ["relic"] = state.Relics.Count,
-                ["blessing"] = state.Blessings.Count
+                ["blessing"] =
+                    state.Blessings.Count + state.InnateBlessings.Count
             }
         };
         return state.BuildPlan;
@@ -1854,58 +2181,191 @@ public static class CombatCampaignRewardSelector
         CombatCampaignState state,
         CombatCampaignBuildPlan plan)
     {
-        if (state.Deck.Count < plan.TargetDeckSizeMinimum)
-        {
-            return 0d;
-        }
-        var span = Math.Max(
-            1,
-            plan.TargetDeckSizeMaximum - plan.TargetDeckSizeMinimum);
-        var position = Math.Max(
-            0d,
-            Math.Min(
-                1d,
-                (state.Deck.Count - plan.TargetDeckSizeMinimum)
-                / (double)span));
-        return 1.75d + position * 1.50d;
+        var ownedBeyondPreferredMaximum = Math.Max(
+            0,
+            state.Deck.Count
+            + state.ReserveCards.Count
+            - plan.TargetDeckSizeMaximum);
+        return Math.Min(1.75d, 0.35d + ownedBeyondPreferredMaximum * 0.04d);
     }
 
-    private static (int Minimum, int Maximum) TargetDeckBand(int layerNumber)
-    {
-        return layerNumber switch
-        {
-            <= 1 => (15, 18),
-            2 => (16, 20),
-            3 => (17, 21),
-            4 => (18, 22),
-            5 => (19, 23),
-            _ => (20, 24)
-        };
-    }
-
-    private static IReadOnlyList<string> ApplyRoutineCardRemoval(
+    private static CombatCampaignDeckAdjustment AdjustDeckAtLayerEnd(
         CombatCampaignDefinition definition,
         CombatCampaignPlannedEncounter encounter,
         CombatCampaignState state,
         IReadOnlyDictionary<string, CombatCampaignRewardDefinition> lookup)
     {
         var plan = RefreshBuildPlan(definition, state);
-        var overflow = Math.Max(
-            0,
-            state.Deck.Count - plan.TargetDeckSizeMaximum);
-        var routineOpportunity = encounter.EndsLayer
-                                 && encounter.LayerNumber >= 2
-            ? 1
-            : 0;
-        var removalCount = Math.Max(
-            routineOpportunity,
-            Math.Min(2, overflow));
-        return RemoveLowestMarginalCards(
+        var adjustment = new CombatCampaignDeckAdjustment
+        {
+            Applied = encounter.EndsLayer,
+            BeforeDeckSize = state.Deck.Count,
+            AfterDeckSize = state.Deck.Count,
+            ReserveSize = state.ReserveCards.Count,
+            PreferredMinimum = plan.TargetDeckSizeMinimum,
+            PreferredMaximum = plan.TargetDeckSizeMaximum
+        };
+        if (!encounter.EndsLayer)
+        {
+            return adjustment;
+        }
+
+        var candidates = state.Deck
+            .Select((id, index) => new DeckAdjustmentCandidate(
+                id,
+                true,
+                index))
+            .Concat(state.ReserveCards.Select((id, index) =>
+                new DeckAdjustmentCandidate(id, false, index)))
+            .ToList();
+        var minimum = Math.Min(
+            candidates.Count,
+            Math.Max(1, plan.TargetDeckSizeMinimum));
+        var maximum = Math.Min(
+            candidates.Count,
+            Math.Max(minimum, plan.TargetDeckSizeMaximum));
+        var copyOrdinals = new Dictionary<string, int>(
+            StringComparer.OrdinalIgnoreCase);
+        foreach (var candidate in candidates)
+        {
+            copyOrdinals[candidate.CardId] =
+                copyOrdinals.TryGetValue(candidate.CardId, out var count)
+                    ? count + 1
+                    : 1;
+            candidate.Score = CardAdjustmentKeepScore(
+                definition,
+                state,
+                lookup,
+                plan,
+                candidate.CardId,
+                copyOrdinals[candidate.CardId],
+                candidate.WasInDeck);
+        }
+        var ranked = candidates
+            .OrderByDescending(item => item.Score)
+            .ThenByDescending(item => item.WasInDeck)
+            .ThenBy(item => item.CardId, StringComparer.Ordinal)
+            .ThenBy(item => item.OriginalIndex)
+            .ToList();
+        var preferredCount = ranked.Count(item => item.Score >= 1.75d);
+        var selectedCount = Math.Max(
+            minimum,
+            Math.Min(maximum, preferredCount));
+        var selected = new HashSet<DeckAdjustmentCandidate>(
+            ranked.Take(selectedCount));
+
+        adjustment.MovedToDeckIds = candidates
+            .Where(item => !item.WasInDeck && selected.Contains(item))
+            .Select(item => item.CardId)
+            .ToList();
+        adjustment.MovedToReserveIds = candidates
+            .Where(item => item.WasInDeck && !selected.Contains(item))
+            .Select(item => item.CardId)
+            .ToList();
+        state.Deck = ranked
+            .Take(selectedCount)
+            .Select(item => item.CardId)
+            .ToList();
+        state.ReserveCards = ranked
+            .Skip(selectedCount)
+            .Select(item => item.CardId)
+            .ToList();
+        adjustment.AfterDeckSize = state.Deck.Count;
+        adjustment.ReserveSize = state.ReserveCards.Count;
+        RefreshBuildPlan(definition, state);
+        return adjustment;
+    }
+
+    private static double CardAdjustmentKeepScore(
+        CombatCampaignDefinition definition,
+        CombatCampaignState state,
+        IReadOnlyDictionary<string, CombatCampaignRewardDefinition> lookup,
+        CombatCampaignBuildPlan plan,
+        string cardId,
+        int copyOrdinal,
+        bool wasInDeck)
+    {
+        if (!lookup.TryGetValue(cardId, out var reward))
+        {
+            return wasInDeck ? 1d : 0.5d;
+        }
+        var scored = ScoreRewards(
+                definition,
+                state,
+                new[] { cardId },
+                lookup,
+                Math.Max(0, state.CurrentGameLevel - 1),
+                CombatCampaignRewardKind.Card)
+            .FirstOrDefault();
+        var result = scored?.Total ?? reward.BaseValue;
+        result += wasInDeck ? 0.05d : 0d;
+        result -= Math.Max(0, copyOrdinal - 1) * 0.18d;
+        result += Math.Max(
+            0d,
+            Feature(reward, plan.PrimaryArchetype)
+            + Feature(reward, plan.SecondaryArchetype) * 0.5d);
+        if (Feature(reward, "cycling") > 0d
+            || Feature(reward, "energy") > 0d)
+        {
+            result += 0.25d;
+        }
+        result += StrategyComponentKeepValue(
             definition,
             state,
             lookup,
-            removalCount,
-            plan);
+            cardId);
+        return result;
+    }
+
+    private static double StrategyComponentKeepValue(
+        CombatCampaignDefinition definition,
+        CombatCampaignState state,
+        IReadOnlyDictionary<string, CombatCampaignRewardDefinition> lookup,
+        string cardId)
+    {
+        var progress = CombatCampaignStrategyEvaluator.Evaluate(
+                definition,
+                state,
+                lookup)
+            .Where(item => item.Accessible)
+            .ToDictionary(
+                item => item.StrategyId,
+                item => item.Completion,
+                StringComparer.OrdinalIgnoreCase);
+        return (definition.Strategies
+                ?? new List<CombatCampaignStrategyDefinition>())
+            .Where(strategy =>
+                strategy.RequiredCardIds.Contains(
+                    cardId,
+                    StringComparer.OrdinalIgnoreCase)
+                && progress.ContainsKey(strategy.StrategyId))
+            .Sum(strategy =>
+                0.75d
+                + progress[strategy.StrategyId]
+                * (strategy.Kind == CombatCampaignStrategyKind.Infinite
+                    ? 1.25d
+                    : 0.75d));
+    }
+
+    private sealed class DeckAdjustmentCandidate
+    {
+        public DeckAdjustmentCandidate(
+            string cardId,
+            bool wasInDeck,
+            int originalIndex)
+        {
+            CardId = cardId;
+            WasInDeck = wasInDeck;
+            OriginalIndex = originalIndex;
+        }
+
+        public string CardId { get; }
+
+        public bool WasInDeck { get; }
+
+        public int OriginalIndex { get; }
+
+        public double Score { get; set; }
     }
 
     private static IReadOnlyList<string> RemoveLowestMarginalCards(
@@ -1916,15 +2376,13 @@ public static class CombatCampaignRewardSelector
         CombatCampaignBuildPlan? plan = null)
     {
         var removed = new List<string>();
-        var minimumDeckSize = Math.Max(
-            12,
-            (plan ?? state.BuildPlan)?.TargetDeckSizeMinimum - 2 ?? 12);
         for (var draw = 0;
              draw < Math.Max(0, requested)
-             && state.Deck.Count > minimumDeckSize;
+             && state.Deck.Count + state.ReserveCards.Count > 1;
              draw++)
         {
             var counts = state.Deck
+                .Concat(state.ReserveCards)
                 .GroupBy(id => id, StringComparer.OrdinalIgnoreCase)
                 .ToDictionary(
                     group => group.Key,
@@ -1935,6 +2393,7 @@ public static class CombatCampaignRewardSelector
                 {
                     Id = id,
                     Index = index,
+                    InDeck = true,
                     Score = CardRemovalScore(
                         definition,
                         state,
@@ -1945,6 +2404,22 @@ public static class CombatCampaignRewardSelector
                             ? copies
                             : 1)
                 })
+                .Concat(state.ReserveCards.Select((id, index) => new
+                {
+                    Id = id,
+                    Index = index,
+                    InDeck = false,
+                    Score = CardRemovalScore(
+                        definition,
+                        state,
+                        lookup,
+                        plan ?? state.BuildPlan,
+                        id,
+                        counts.TryGetValue(id, out var copies)
+                            ? copies
+                            : 1)
+                        + 0.05d
+                }))
                 .OrderByDescending(item => item.Score)
                 .ThenBy(item => item.Id, StringComparer.Ordinal)
                 .ThenBy(item => item.Index)
@@ -1953,8 +2428,20 @@ public static class CombatCampaignRewardSelector
             {
                 break;
             }
-            state.Deck.RemoveAt(selected.Index);
+            if (selected.InDeck)
+            {
+                state.Deck.RemoveAt(selected.Index);
+            }
+            else
+            {
+                state.ReserveCards.RemoveAt(selected.Index);
+            }
             removed.Add(selected.Id);
+        }
+        if (state.Deck.Count == 0 && state.ReserveCards.Count > 0)
+        {
+            state.Deck.Add(state.ReserveCards[0]);
+            state.ReserveCards.RemoveAt(0);
         }
         return removed;
     }
@@ -2018,6 +2505,7 @@ public static class CombatCampaignRewardSelector
         AddFeatureSources(state.Deck, 1d);
         AddFeatureSources(state.Relics, 1.5d);
         AddFeatureSources(state.Blessings, 1.2d);
+        AddFeatureSources(state.InnateBlessings, 1.2d);
         var divisor = Math.Max(1d, totalWeight);
         foreach (var key in result.Keys.ToList())
         {
@@ -2151,7 +2639,7 @@ public static class CombatCampaignRewardSelector
             Math.Max(0, state.CurrentHp + reward.CurrentHpBonus));
         foreach (var cardId in reward.GrantedCardIds)
         {
-            state.Deck.Add(cardId);
+            state.ReserveCards.Add(cardId);
         }
         foreach (var blessingId in reward.GrantedBlessingIds)
         {
@@ -2533,6 +3021,22 @@ public sealed class CombatCampaignRunner
             CampaignVersion = definition.CampaignVersion,
             DifficultyId = difficulty.DifficultyId,
             WorldSeed = plan.WorldSeed,
+            RoleId = definition.Player.RoleId,
+            PartnerId = definition.Player.PartnerId,
+            GameParameterPresetId =
+                definition.Player.GameParameterPresetId,
+            GameParameterHash = definition.Player.GameParameterHash,
+            SkillCardIds = new List<string>(
+                definition.Player.SkillCardIds ?? new List<string>()),
+            FamiliarBlessingIds = new List<string>(
+                definition.Player.FamiliarBlessingIds
+                ?? new List<string>()),
+            EnabledRewardCardPackIds =
+                definition.EnabledRewardCardPackIds
+                    .Where(id => !string.IsNullOrWhiteSpace(id))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(id => id, StringComparer.Ordinal)
+                    .ToList(),
             PlanHash = plan.PlanHash,
             PolicyId = policyFactory.PolicyId,
             ReachedFinalBoss = finalBattle != null,
@@ -2774,6 +3278,20 @@ public sealed class CombatCampaignRunner
             Player = new CombatPlayerSetup
             {
                 RoleId = definition.Player.RoleId,
+                PartnerId = definition.Player.PartnerId,
+                GameParameterPresetId =
+                    definition.Player.GameParameterPresetId,
+                GameParameterHash = definition.Player.GameParameterHash,
+                SkillCardIds = new List<string>(
+                    definition.Player.SkillCardIds
+                    ?? new List<string>()),
+                SkillCooldownTurns = new Dictionary<string, int>(
+                    definition.Player.SkillCooldownTurns
+                    ?? new Dictionary<string, int>(),
+                    StringComparer.OrdinalIgnoreCase),
+                FamiliarBlessingIds = new List<string>(
+                    definition.Player.FamiliarBlessingIds
+                    ?? new List<string>()),
                 MaxHp = state.MaxHp,
                 CurrentHp = state.CurrentHp,
                 BaseEnergy = definition.Player.BaseEnergy,
@@ -2804,6 +3322,41 @@ public sealed class CombatCampaignRunner
                 : definition.TraceLevel,
             Limits = definition.Limits.Normalize()
         };
+        var strategiesById = (definition.Strategies
+                              ?? new List<CombatCampaignStrategyDefinition>())
+            .Where(item => item != null
+                           && !string.IsNullOrWhiteSpace(item.StrategyId))
+            .GroupBy(
+                item => item.StrategyId,
+                StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => group.First(),
+                StringComparer.OrdinalIgnoreCase);
+        scenario.StrategyProgress = CombatCampaignStrategyEvaluator.Evaluate(
+                definition,
+                state,
+                rewardLookup)
+            .Where(item => item.Accessible
+                           && strategiesById.ContainsKey(item.StrategyId))
+            .Select(item =>
+            {
+                var strategy = strategiesById[item.StrategyId];
+                return new CombatScenarioStrategyProgress
+                {
+                    StrategyId = item.StrategyId,
+                    Kind = item.Kind.ToString(),
+                    Deterministic = strategy.Deterministic,
+                    Executable = item.Executable,
+                    Completion = item.Completion,
+                    PlayPriority = strategy.PlayPriority,
+                    ComponentCardIds = strategy.RequiredCardIds
+                        .Concat(strategy.RequiredSkillCardIds)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToList()
+                };
+            })
+            .ToList();
         scenario.CampaignVariables = new Dictionary<string, string>(
             state.SpecialVariables,
             StringComparer.OrdinalIgnoreCase);
@@ -2865,7 +3418,9 @@ public sealed class CombatCampaignRunner
         IReadOnlyDictionary<string, CombatCampaignRewardDefinition> rewardLookup,
         CombatCampaignState state)
     {
-        foreach (var id in state.Relics.Concat(state.Blessings))
+        foreach (var id in state.Relics
+                     .Concat(state.Blessings)
+                     .Concat(state.InnateBlessings))
         {
             if (!rewardLookup.TryGetValue(id, out var reward)) continue;
             foreach (var status in reward.InitialStatuses)
@@ -2953,7 +3508,12 @@ public sealed class CombatCampaignRunner
             MaxHp = definition.Player.MaxHp,
             CurrentHp = definition.Player.CurrentHp,
             Money = Math.Max(0, definition.InitialMoney),
-            Deck = new List<string>(definition.Player.Deck)
+            Deck = new List<string>(definition.Player.Deck),
+            InnateBlessings = (definition.Player.FamiliarBlessingIds
+                                  ?? new List<string>())
+                .Where(id => !string.IsNullOrWhiteSpace(id))
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList()
         };
         foreach (var attribute in definition.AttributeIds)
         {
@@ -3026,8 +3586,10 @@ public sealed class CombatCampaignRunner
                 source.AttributeUpperBounds,
                 StringComparer.OrdinalIgnoreCase),
             Deck = new List<string>(source.Deck),
+            ReserveCards = new List<string>(source.ReserveCards),
             Relics = new List<string>(source.Relics),
             Blessings = new List<string>(source.Blessings),
+            InnateBlessings = new List<string>(source.InnateBlessings),
             RewardVariables = source.RewardVariables.ToDictionary(
                 item => item.Key,
                 item => new Dictionary<string, string>(

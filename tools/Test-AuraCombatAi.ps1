@@ -538,7 +538,7 @@ foreach ($anchor in @(
     "ExpertReplayEpisodeLimit",
     "archive loading deferred to worker",
     "CombatFoundationModelPackageProtocol",
-    "foundation-model-package-v1.json",
+    "foundation-model-package-v2.json",
     "training-accepted",
     "CombatPolicyValueNetworkValidator.TryValidate"
 )) {
@@ -661,6 +661,9 @@ foreach ($anchor in @(
     if (-not $campaignGenerator.Contains($anchor)) {
         throw "Campaign generator origin threshold contract is missing: $anchor"
     }
+}
+if ($campaignGenerator.Contains('-notmatch "(?i)skill|技能"')) {
+    throw "Campaign generator must not exclude skill cards from reward and ruleset generation."
 }
 foreach ($relicId in $avoidedRelicIds) {
     $escapedRelicId = [regex]::Escape($relicId)

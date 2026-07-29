@@ -179,10 +179,30 @@ internal sealed class AutoBattleTrainingSnapshotFile
 internal static class AuraToolsAutoBattleModelRuntime
 {
     private const string SystemId = "AuraCombatAI";
-    public const string CurrentRoleId =
-        CombatFoundationModelPackageProtocol.CurrentRoleId;
-    public const string CurrentCardPoolScope =
-        CombatFoundationModelPackageProtocol.CurrentCardPoolScope;
+    public static string CurrentRoleId
+    {
+        get
+        {
+            var settings = AuraToolsConfigService.MatchExperience.AutoBattle;
+            settings.Normalize();
+            return settings.GameParameters.ActivePreset.RoleId;
+        }
+    }
+
+    public static string CurrentCardPoolScope
+    {
+        get
+        {
+            var settings = AuraToolsConfigService.MatchExperience.AutoBattle;
+            settings.Normalize();
+            var preset = settings.GameParameters.ActivePreset;
+            return CombatFoundationModelPackageProtocol.BuildCardPoolScope(
+                preset.PartnerId,
+                preset.EnabledRewardCardPackIds,
+                preset.PreferredDeckSizeMinimum,
+                preset.PreferredDeckSizeMaximum);
+        }
+    }
     private static readonly object StatusGate = new();
     private static readonly object LibraryGate = new();
     private static readonly Dictionary<string, AutoBattleTrainingStatus> StatusByProfile =
@@ -2442,9 +2462,9 @@ internal static class AuraToolsAutoBattleModelRuntime
                         bundle.ModelPurpose,
                         "foundation",
                         StringComparison.Ordinal)
-                        ? "career_1 底模 "
+                        ? bundle.RoleId + " 底模 "
                           + DateTime.Now.ToString("yyyy-MM-dd HH:mm")
-                        : "career_1 战斗模型 "
+                        : bundle.RoleId + " 战斗模型 "
                                   + DateTime.Now.ToString("yyyy-MM-dd HH:mm"),
                     CreatedUtc = DateTime.UtcNow
                 };
@@ -2627,6 +2647,14 @@ internal static class AuraToolsAutoBattleModelRuntime
                 ruleset.RulesetHash,
                 StringComparison.Ordinal)
             || !string.Equals(
+                package.RoleId,
+                CurrentRoleId,
+                StringComparison.OrdinalIgnoreCase)
+            || !string.Equals(
+                package.CardPoolScope,
+                CurrentCardPoolScope,
+                StringComparison.Ordinal)
+            || !string.Equals(
                 package.Compatibility.CampaignId,
                 campaign.CampaignId,
                 StringComparison.Ordinal)
@@ -2635,7 +2663,7 @@ internal static class AuraToolsAutoBattleModelRuntime
                 campaign.CampaignVersion,
                 StringComparison.Ordinal))
         {
-            reason = "外部底模与当前冻结战役或规则集不兼容";
+            reason = "外部底模与当前角色、使魔、卡包、卡组倾向或冻结规则不兼容";
             return false;
         }
         var workerPath = AuraToolsFoundationWorkerRuntime.ExecutablePath;

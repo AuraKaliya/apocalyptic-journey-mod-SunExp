@@ -398,6 +398,10 @@ internal sealed class MainWindow : Window
         {
             PullSettingsFromUi();
             ValidateEnvironment(throwOnFailure: true);
+            if (!ConfirmTrainingConfigurationChange())
+            {
+                return;
+            }
             StartWorker(initialChampion: null, continueGeneration: false);
         }
         catch (Exception ex)
@@ -406,6 +410,122 @@ internal sealed class MainWindow : Window
             MessageBox.Show(this, ex.Message, "无法启动训练", MessageBoxButton.OK,
                 MessageBoxImage.Error);
         }
+    }
+
+    private bool ConfirmTrainingConfigurationChange()
+    {
+        if (string.IsNullOrWhiteSpace(settings.LastRunDirectory))
+        {
+            return true;
+        }
+        var resultPath = Path.Combine(
+            settings.LastRunDirectory,
+            "foundation-worker-result.json");
+        var jobPath = Path.Combine(
+            settings.LastRunDirectory,
+            "foundation-worker-job.json");
+        if (!File.Exists(resultPath) || !File.Exists(jobPath))
+        {
+            return true;
+        }
+        var result = Deserialize<CombatFoundationWorkerResult>(
+            CombatFoundationCheckpointStorage.ReadAllTextShared(resultPath));
+        if (result?.Resumable != true)
+        {
+            return true;
+        }
+        var prior = Deserialize<CombatFoundationWorkerJob>(
+            CombatFoundationCheckpointStorage.ReadAllTextShared(jobPath));
+        if (prior?.Request == null)
+        {
+            return true;
+        }
+
+        var current = settings.Parameters;
+        var differences = new List<string>();
+        AddDifference(
+            differences,
+            "决策档位",
+            prior.Request.DecisionProfile,
+            current.DecisionProfile);
+        AddDifference(
+            differences,
+            "学习率",
+            prior.Request.Training.LearningRate,
+            current.ModelLearningRate);
+        AddDifference(
+            differences,
+            "高级调优样本",
+            prior.Request.TuningAdvancedCampaigns,
+            current.TuningAdvancedCampaigns);
+        AddDifference(
+            differences,
+            "困难种子占比",
+            prior.Request.HardSeedReplayShare,
+            current.HardSeedReplayShare);
+        AddDifference(
+            differences,
+            "普通验收线",
+            prior.Request.NormalAcceptanceRate,
+            current.NormalAcceptanceRate);
+        AddDifference(
+            differences,
+            "高级验收线",
+            prior.Request.AdvancedAcceptanceRate,
+            current.AdvancedAcceptanceRate);
+        var priorWeights = SerializeOrdered(prior.Request.HardEncounterWeights);
+        var currentWeights = SerializeOrdered(current.HardEncounterWeights);
+        AddDifference(
+            differences,
+            "困难遭遇分布",
+            priorWeights,
+            currentWeights);
+        if (differences.Count == 0)
+        {
+            return true;
+        }
+
+        var message =
+            "检测到上一轮可恢复检查点与当前训练参数不同。"
+            + Environment.NewLine
+            + "为避免把不同目标混入同一权重，本轮将从新模型开始，成功案例库仍会复用。"
+            + Environment.NewLine
+            + Environment.NewLine
+            + string.Join(Environment.NewLine, differences.Take(8))
+            + Environment.NewLine
+            + Environment.NewLine
+            + "是否按当前参数开始全新训练？";
+        return MessageBox.Show(
+                   this,
+                   message,
+                   "训练参数已变化",
+                   MessageBoxButton.YesNo,
+                   MessageBoxImage.Warning)
+               == MessageBoxResult.Yes;
+    }
+
+    private static void AddDifference<T>(
+        ICollection<string> destination,
+        string label,
+        T prior,
+        T current)
+    {
+        if (EqualityComparer<T>.Default.Equals(prior, current))
+        {
+            return;
+        }
+        destination.Add(label + "：" + prior + " -> " + current);
+    }
+
+    private static string SerializeOrdered(
+        IReadOnlyDictionary<string, double>? values)
+    {
+        return string.Join(
+            ", ",
+            (values ?? new Dictionary<string, double>())
+            .OrderBy(item => item.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(item =>
+                item.Key + "=" + item.Value.ToString("0.###")));
     }
 
     private void ContinueTraining()

@@ -2502,6 +2502,43 @@ Assert(!matchingSemanticAudit.Mismatch
        && mismatchingSemanticAudit.MismatchKinds.Contains("damage")
        && mismatchingSemanticAudit.MismatchKinds.Contains("defend"),
     "semantic auditing compares projected action meaning with causal authoritative events instead of noisy net state deltas");
+var nativeIntrinsicAudit = CombatSemanticAuditor.Audit(
+    semanticAuditState,
+    new[]
+    {
+        new CombatSimulationEvent
+        {
+            SourceActionId = 1,
+            CardInstanceId = 41,
+            HandlerId = "native:universalcard_16:on-use",
+            SourceRewardId = "universalcard_16",
+            Kind = CombatSimulationEventKind.BlockGained,
+            TargetActorId = 1,
+            Amount = 8
+        },
+        new CombatSimulationEvent
+        {
+            SourceActionId = 1,
+            CardInstanceId = 41,
+            HandlerId = "native:relic-trigger",
+            SourceRewardId = "relic_1",
+            Kind = CombatSimulationEventKind.BlockGained,
+            TargetActorId = 1,
+            Amount = 3
+        }
+    },
+    new CombatActionSemantics { Defend = 8d },
+    new CombatSimulationAction
+    {
+        CardInstanceId = 41,
+        DefinitionId = "universalcard_16"
+    });
+Assert(!nativeIntrinsicAudit.Mismatch
+       && nativeIntrinsicAudit.Comparisons.Any(item =>
+           item.Kind == "defend"
+           && item.Classification == "explained"
+           && item.Explanation == "trigger-side-effect"),
+    "native on-use events sourced from the played card are intrinsic while downstream reward triggers remain contextual");
 
 var branchState = new CombatBattleState
 {
@@ -3461,7 +3498,7 @@ var expectedThresholdRewards = new Dictionary<string, string[]>(
         new[] { "blessing_103", "blessing_107", "blessing_111", "blessing_115" }
 };
 Assert(
-    bundledCampaign.CampaignVersion == "2.7.0"
+    bundledCampaign.CampaignVersion == "3.0.0"
     && bundledCampaign.AttributeThresholdRewards.Count == 16
     && expectedThresholdRewards.All(pair =>
         bundledCampaign.AttributeThresholdRewards
@@ -3537,11 +3574,11 @@ Assert(
 var firstBand = bundledCampaign.Encounters.Where(item =>
     item.NativeBand is 0 or -1).ToList();
 Assert(bundledRulesV2.Success
-       && bundledRulesV2.Ruleset.CardCount == 228
+       && bundledRulesV2.Ruleset.CardCount == 273
        && bundledRulesV2.Ruleset.EnemyCount == 55
         && bundledRulesV2.Ruleset.StatusCount == 129
         && bundledRulesV2.Ruleset.SnapshotCards().Count(item =>
-            item.Fidelity == CombatRuleFidelity.Authoritative) == 228
+            item.Fidelity == CombatRuleFidelity.Authoritative) == 273
         && bundledRulesV2.Ruleset.SnapshotStatuses().Count(item =>
             item.Fidelity == CombatRuleFidelity.Authoritative) == 129
         && bundledRulesV2.Ruleset.SnapshotEnemies().Count(item =>
@@ -3662,9 +3699,29 @@ Assert(bundledRulesV2.Success
            "NativeExecution",
            "") == "Script"
         && bundledCampaign.Encounters.Count == 48
-       && bundledCampaign.Rewards.Count == 428
+       && bundledCampaign.Rewards.Count == 514
+       && bundledCampaign.Rewards
+           .Where(item => item.RewardId is
+               "SpellCard_1"
+               or "SpellCard_2"
+               or "SpellCard_3"
+               or "SpellCard_4")
+           .All(item => item.CardAcquisition
+               == CombatCampaignCardAcquisition.GeneratedOnly)
        && bundledCampaign.RequireAuthoritativeRules
        && bundledCampaign.InitialMoney == 100
+       && bundledCampaign.Player.RoleId == "career_1"
+       && bundledCampaign.Player.PartnerId == "Partner_10001"
+       && bundledCampaign.Player.SkillCardIds.SequenceEqual(
+           new[] { "careercard_1" })
+       && bundledCampaign.Player.FamiliarBlessingIds.SequenceEqual(
+           new[] { "blessing_38" })
+       && bundledCampaign.Strategies.Count == 8
+       && bundledCampaign.EnabledRewardCardPackIds.Contains("cardpack_1")
+       && bundledCampaign.EnabledRewardCardPackIds.Contains("cardpack_2")
+       && !bundledCampaign.EnabledRewardCardPackIds.Contains("cardpack_13")
+       && bundledCampaign.TargetDeckSizeMinimum == 15
+       && bundledCampaign.TargetDeckSizeMaximum == 24
        && bundledCampaign.Player.MaxHp == 100
        && bundledCampaign.Player.CurrentHp == 100
        && bundledCampaign.Player.Deck.SequenceEqual(new[]
@@ -3689,16 +3746,28 @@ Assert(bundledRulesV2.Success
            item.DifficultyId == "advanced").AdditionalEnemyHpMultiplier == 3d
        && bundledCampaign.Rewards
            .Where(item => item.Kind == CombatCampaignRewardKind.Card)
+           .Where(item => item.CardAcquisition
+               == CombatCampaignCardAcquisition.RewardPool)
            .All(item => item.OfferWeight is 8d or 5d or 2d or 1d)
+       && bundledCampaign.Rewards
+           .Where(item => item.Kind == CombatCampaignRewardKind.Card
+                          && item.CardAcquisition
+                             != CombatCampaignCardAcquisition.RewardPool)
+           .All(item => item.OfferWeight == 0d)
        && bundledCampaign.Rewards.Single(item =>
                item.RewardId == "ritualcard_8").BaseValue == 1.2d
        && bundledCampaign.Rewards.Single(item =>
                item.RewardId == "ritualcard_8").Features["defense"] == 1d
        && bundledCampaign.Rewards.Single(item =>
                item.RewardId == "ritualcard_8").Features["cycling"] == 0.8d
-       && !bundledCampaign.Rewards.Any(item =>
+       && bundledCampaign.Rewards
+           .Where(item =>
            item.Kind == CombatCampaignRewardKind.Card
-           && item.RewardId.StartsWith("curse", StringComparison.OrdinalIgnoreCase))
+           && item.RewardId.StartsWith(
+               "curse",
+               StringComparison.OrdinalIgnoreCase))
+           .All(item => item.CardAcquisition
+               == CombatCampaignCardAcquisition.CurseOnly)
        && bundledRulesV2.Ruleset.SnapshotEnemies()
            .All(item => item.ActionCount is >= 1 and <= 3)
        && bundledRulesV2.Ruleset.SnapshotEnemies()
@@ -3749,7 +3818,43 @@ Assert(bundledRulesV2.Success
            .Contains("Terrias", StringComparison.OrdinalIgnoreCase)
        && !File.ReadAllText(bundledRulesV2Path)
            .Contains("Saya_", StringComparison.OrdinalIgnoreCase),
-     "bundled campaign v2 fixes seven layers, base-game pools, positive rewards, final bosses, and paired difficulty worlds");
+      "bundled campaign v3 fixes seven layers, acquisition classes, game presets, strategies, final bosses, and paired difficulty worlds");
+var bundledRewardLookup = bundledCampaign.Rewards
+    .GroupBy(item => item.RewardId, StringComparer.OrdinalIgnoreCase)
+    .ToDictionary(
+        group => group.Key,
+        group => group.First(),
+        StringComparer.OrdinalIgnoreCase);
+foreach (var strategy in bundledCampaign.Strategies)
+{
+    var strategyState = new CombatCampaignState
+    {
+        Deck = new List<string>(strategy.RequiredCardIds),
+        Relics = new List<string>(strategy.RequiredRelicIds),
+        Blessings = new List<string>(strategy.RequiredBlessingIds)
+    };
+    var strategyProgress = CombatCampaignStrategyEvaluator.Evaluate(
+            bundledCampaign,
+            strategyState,
+            bundledRewardLookup)
+        .Single(item => string.Equals(
+            item.StrategyId,
+            strategy.StrategyId,
+            StringComparison.OrdinalIgnoreCase));
+    Assert(strategy.Deterministic
+           && strategyProgress.Accessible
+           && strategyProgress.Executable
+           && Math.Abs(strategyProgress.Completion - 1d) < 0.0001d
+           && strategy.RequiredCardIds.All(cardId =>
+               bundledRewardLookup.TryGetValue(cardId, out var reward)
+               && CombatCampaignCardAcquisitionPolicy.CanEnterRewardPool(
+                   reward,
+                   bundledCampaign.EnabledRewardCardPackIds))
+           && strategy.RequiredRelicIds.All(
+               bundledRewardLookup.ContainsKey),
+        "bundled deterministic strategy is attainable and executable: "
+        + strategy.StrategyId);
+}
 
 CombatSimulationResult RunBundledStatusScenario(
     string enemyId,
@@ -4884,6 +4989,323 @@ Assert(normalPlan.PlanHash != advancedPlan.PlanHash
            .SequenceEqual(advancedPlan.Encounters.Select(item => item.EncounterId)),
     "difficulty is part of evaluation identity without changing the paired encounter stream");
 
+var rewardPoolPackRule = new CombatCampaignRewardDefinition
+{
+    RewardId = "pack-3-card",
+    Kind = CombatCampaignRewardKind.Card,
+    RewardCardPackId = "cardpack_3",
+    CardAcquisition = CombatCampaignCardAcquisition.RewardPool
+};
+var blankPackRule = new CombatCampaignRewardDefinition
+{
+    RewardId = "blank-pack-card",
+    Kind = CombatCampaignRewardKind.Card,
+    CardAcquisition = CombatCampaignCardAcquisition.RewardPool
+};
+var roleSkillRule = new CombatCampaignRewardDefinition
+{
+    RewardId = "careercard_test",
+    Kind = CombatCampaignRewardKind.Card,
+    RewardCardPackId = "cardpack_1",
+    CardAcquisition = CombatCampaignCardAcquisition.SkillOnly
+};
+Assert(!CombatCampaignCardAcquisitionPolicy.CanEnterRewardPool(
+           rewardPoolPackRule,
+           new[] { "cardpack_1", "cardpack_2" })
+       && CombatCampaignCardAcquisitionPolicy.CanEnterRewardPool(
+           rewardPoolPackRule,
+           new[] { "cardpack_1", "cardpack_2", "cardpack_3" })
+       && CombatCampaignCardAcquisitionPolicy.CanEnterRewardPool(
+           blankPackRule,
+           Array.Empty<string>())
+       && !CombatCampaignCardAcquisitionPolicy.CanEnterRewardPool(
+           roleSkillRule,
+           new[] { "cardpack_1", "cardpack_2" }),
+    "reward packs filter only RewardPool cards, map blank ownership to cardpack_1, and never leak role skills");
+
+var strategyCampaign = new CombatCampaignDefinition
+{
+    Player = new CombatPlayerSetup
+    {
+        RoleId = "strategy-role",
+        SkillCardIds = { "careercard_test" }
+    },
+    EnabledRewardCardPackIds =
+    {
+        "cardpack_1",
+        "cardpack_2",
+        "cardpack_3"
+    },
+    TargetDeckSizeMinimum = 1,
+    TargetDeckSizeMaximum = 24,
+    DeckSizeAlertThreshold = 25
+};
+var strategyCards = new[]
+{
+    "cycle-a", "cycle-b", "cycle-c", "cycle-d",
+    "cycle-e", "cycle-f", "cycle-g", "cycle-h"
+};
+for (var index = 0; index < strategyCards.Length; index++)
+{
+    strategyCampaign.Rewards.Add(new CombatCampaignRewardDefinition
+    {
+        RewardId = strategyCards[index],
+        Kind = CombatCampaignRewardKind.Card,
+        RewardCardPackId = index == 7 ? "cardpack_18" : "cardpack_3",
+        CardAcquisition = CombatCampaignCardAcquisition.RewardPool
+    });
+    strategyCampaign.Rewards.Add(new CombatCampaignRewardDefinition
+    {
+        RewardId = "strategy-relic-" + index,
+        Kind = CombatCampaignRewardKind.Relic
+    });
+    strategyCampaign.Strategies.Add(new CombatCampaignStrategyDefinition
+    {
+        StrategyId = "deterministic-strategy-" + index,
+        Kind = index < 2
+            ? CombatCampaignStrategyKind.Infinite
+            : CombatCampaignStrategyKind.Cycle,
+        Deterministic = true,
+        RequiredCardIds = { strategyCards[index] },
+        RequiredRelicIds = { "strategy-relic-" + index },
+        MaximumActiveDeckSize = 24,
+        RewardCompletionBonus = 4d
+    });
+}
+var strategyLookup = strategyCampaign.Rewards.ToDictionary(
+    item => item.RewardId,
+    StringComparer.OrdinalIgnoreCase);
+var completedStrategyState = new CombatCampaignState
+{
+    Deck = strategyCards.ToList(),
+    Relics = Enumerable.Range(0, 8)
+        .Select(index => "strategy-relic-" + index)
+        .ToList()
+};
+var completedStrategies = CombatCampaignStrategyEvaluator.Evaluate(
+    strategyCampaign,
+    completedStrategyState,
+    strategyLookup);
+Assert(completedStrategies.Count == 8
+       && completedStrategies.All(item =>
+           item.Accessible
+           && item.Executable
+           && Math.Abs(item.Completion - 1d) < 0.0001d),
+    "all eight deterministic cycle and infinite strategy presets certify when their active-deck components are present");
+strategyCampaign.EnabledRewardCardPackIds.RemoveAll(item =>
+    string.Equals(item, "cardpack_18", StringComparison.OrdinalIgnoreCase));
+var disabledComponentProgress = CombatCampaignStrategyEvaluator.Evaluate(
+        strategyCampaign,
+        new CombatCampaignState(),
+        strategyLookup)
+    .Single(item => item.StrategyId == "deterministic-strategy-7");
+Assert(!disabledComponentProgress.Accessible
+       && disabledComponentProgress.Completion == 0d,
+    "components from disabled reward packs cannot contribute phantom strategy completion");
+strategyCampaign.EnabledRewardCardPackIds.Add("cardpack_18");
+var partialStrategyState = new CombatCampaignState
+{
+    Relics = { "strategy-relic-0" }
+};
+var componentScore = CombatCampaignStrategyEvaluator.MarginalRewardValue(
+    strategyCampaign,
+    partialStrategyState,
+    strategyLookup,
+    strategyLookup["cycle-a"]);
+Assert(componentScore > 0d,
+    "a reward that closes a deterministic strategy receives a positive completion bonus");
+
+var strategyProjectionRulesBuilder =
+    new CombatRulesetBuilder("strategy-projection");
+strategyProjectionRulesBuilder.RegisterCard(new CombatCardDefinition
+{
+    OwnerModId = "Tests",
+    CardId = "cycle-a",
+    Cost = 0,
+    Effects =
+    {
+        new CombatSimulationEffectDefinition
+        {
+            Kind = CombatSimulationEffectKind.GainBlock,
+            Target = CombatSimulationTarget.Self,
+            Amount = 1
+        }
+    }
+});
+var strategyProjectionRules = strategyProjectionRulesBuilder.Freeze();
+var strategyProjectionState = new CombatBattleState
+{
+    Turn = 1,
+    Phase = CombatSimulationPhase.PlayerAction,
+    PlayerActorId = 1,
+    Actors =
+    {
+        new CombatActorState
+        {
+            ActorId = 1,
+            Kind = CombatSimulationActorKind.Player,
+            Hp = 20,
+            MaxHp = 20,
+            Energy = 1
+        }
+    },
+    Cards =
+    {
+        new CombatCardInstanceState
+        {
+            InstanceId = 1,
+            CardId = "cycle-a"
+        }
+    },
+    Hand = { 1 }
+};
+var strategyProjectionAction = new CombatSimulationAction
+{
+    CandidateId = "card:1",
+    Kind = CombatSimulationActionKind.PlayCard,
+    ActorId = 1,
+    CardInstanceId = 1,
+    DefinitionId = "cycle-a"
+};
+var strategyProjectionPolicy = new CombatDecisionSimulationPolicy(
+    new CombatDecisionProfile
+    {
+        SearchBudgetMode = "fixed",
+        SearchSimulationBudget = 1,
+        SearchNodeBudget = 8,
+        SearchMaxPly = 1,
+        SearchMinimumSimulations = 1
+    });
+strategyProjectionPolicy.SelectAction(new CombatSimulationPolicyContext
+{
+    Scenario = new CombatScenarioDefinition
+    {
+        StrategyProgress =
+        {
+            new CombatScenarioStrategyProgress
+            {
+                StrategyId = "deterministic-strategy-0",
+                Kind = "Infinite",
+                Deterministic = true,
+                Executable = true,
+                Completion = 1d,
+                PlayPriority = 1.5d,
+                ComponentCardIds = { "cycle-a" }
+            }
+        }
+    },
+    Ruleset = strategyProjectionRules.Ruleset,
+    State = strategyProjectionState,
+    LegalActions = new List<CombatSimulationAction>
+    {
+        strategyProjectionAction,
+        new CombatSimulationAction
+        {
+            CandidateId = "end-turn",
+            Kind = CombatSimulationActionKind.EndTurn,
+            ActorId = 1
+        }
+    }
+});
+var projectedStrategyAction =
+    strategyProjectionPolicy.LastObservation!.Actions.Single(item =>
+        item.CandidateId == strategyProjectionAction.CandidateId);
+Assert(projectedStrategyAction.Features["synergy"] > 0d
+       && projectedStrategyAction.Features["strategyInfinite"] == 1d,
+    "completed deterministic strategy progress is projected into card-play ordering features");
+
+var roleSkillRulesBuilder = new CombatRulesetBuilder("role-skill-rules");
+roleSkillRulesBuilder.RegisterCard(new CombatCardDefinition
+{
+    OwnerModId = "Tests",
+    CardId = "careercard_test",
+    Cost = 9,
+    Effects =
+    {
+        new CombatSimulationEffectDefinition
+        {
+            Kind = CombatSimulationEffectKind.GainBlock,
+            Target = CombatSimulationTarget.Self,
+            Amount = 3
+        }
+    }
+});
+var roleSkillRules = roleSkillRulesBuilder.Freeze();
+var roleSkillState = new CombatBattleState
+{
+    Turn = 1,
+    Phase = CombatSimulationPhase.PlayerAction,
+    PlayerActorId = 1,
+    Actors =
+    {
+        new CombatActorState
+        {
+            ActorId = 1,
+            Kind = CombatSimulationActorKind.Player,
+            Hp = 20,
+            MaxHp = 20,
+            Energy = 0
+        }
+    },
+    Cards =
+    {
+        new CombatCardInstanceState
+        {
+            InstanceId = 1,
+            CardId = "careercard_test"
+        }
+    },
+    SkillCards = { 1 },
+    SkillCooldowns = { [1] = 0 }
+};
+var roleSkillScenario = new CombatScenarioDefinition
+{
+    Player = new CombatPlayerSetup
+    {
+        SkillCardIds = { "careercard_test" },
+        SkillCooldownTurns = { ["careercard_test"] = 5 }
+    }
+};
+var roleSkillEngine = new CombatSimulationEngine();
+var legalRoleSkill = roleSkillEngine.GetLegalPlayerActions(
+        roleSkillScenario,
+        roleSkillRules.Ruleset,
+        roleSkillState)
+    .Single(item => item.Kind == CombatSimulationActionKind.UseSkill);
+var appliedRoleSkill = roleSkillEngine.ForkAndApplyPlayerAction(
+    roleSkillScenario,
+    roleSkillRules.Ruleset,
+    roleSkillState,
+    legalRoleSkill);
+Assert(appliedRoleSkill.Success
+       && appliedRoleSkill.State.SkillCards.SequenceEqual(new[] { 1 })
+       && appliedRoleSkill.State.Hand.Count == 0
+       && appliedRoleSkill.State.DiscardPile.Count == 0
+       && appliedRoleSkill.State.Player?.Block == 3
+       && appliedRoleSkill.State.Player?.Energy == 0
+       && appliedRoleSkill.State.SkillCooldowns[1] == 5,
+    "role skills remain outside the deck, ignore printed card energy cost, and use role-specific cooldowns");
+var familiarRule = new CombatCampaignRewardDefinition
+{
+    RewardId = "familiar-blessing",
+    Kind = CombatCampaignRewardKind.Blessing,
+    BlessingAcquisition = CombatCampaignBlessingAcquisition.FamiliarInnate,
+    FightScript = "SetStatus(\"Self\");"
+};
+var familiarRules = CombatCampaignRewardRuleProjector.Build(
+    new CombatCampaignDefinition
+    {
+        Rewards = { familiarRule }
+    },
+    new CombatCampaignState
+    {
+        InnateBlessings = { "familiar-blessing" }
+    });
+Assert(familiarRules.Count == 1
+       && familiarRules[0].RewardId == "familiar-blessing"
+       && familiarRules[0].Stacks == 1,
+    "familiar blessings are projected as innate battle rules without entering ordinary blessing rewards");
+
 var campaignRulesBuilder = new CombatRulesetBuilder(campaign.RulesetVersion);
 foreach (var cardId in new[] { "strike", "guard", "skip-me" })
 {
@@ -5432,6 +5854,8 @@ Assert(!unsafeFinaleLegal
 var concentratedDeckDefinition = new CombatCampaignDefinition
 {
     CampaignId = "deck-concentration",
+    TargetDeckSizeMinimum = 15,
+    TargetDeckSizeMaximum = 21,
     Player = new CombatPlayerSetup
     {
         Deck =
@@ -5441,6 +5865,56 @@ var concentratedDeckDefinition = new CombatCampaignDefinition
         }
     }
 };
+var reserveAcquisitionDefinition = new CombatCampaignDefinition
+{
+    AllowSkipCardReward = false,
+    TargetDeckSizeMinimum = 1,
+    TargetDeckSizeMaximum = 2,
+    Rewards =
+    {
+        new CombatCampaignRewardDefinition
+        {
+            RewardId = "reward-to-reserve",
+            Kind = CombatCampaignRewardKind.Card,
+            RewardCardPackId = "cardpack_1",
+            BaseValue = 5d
+        }
+    }
+};
+var reserveAcquisitionState = new CombatCampaignState
+{
+    Deck = { "fixed-starter" },
+    AttributeUpperBounds =
+    {
+        ["Strength"] = 40,
+        ["Lucky"] = 20,
+        ["Perceive"] = 20,
+        ["Wisdom"] = 39
+    }
+};
+var reserveAcquisitionDecision = CombatCampaignRewardSelector.Apply(
+    reserveAcquisitionDefinition,
+    new CombatCampaignPlannedEncounter
+    {
+        EncounterId = "normal-reward",
+        EndsLayer = false,
+        RewardOffer = new CombatCampaignRewardOffer
+        {
+            CardRounds =
+            {
+                new List<string> { "reward-to-reserve" }
+            }
+        }
+    },
+    reserveAcquisitionState);
+Assert(reserveAcquisitionDecision.Cards.Single().SelectedId
+       == "reward-to-reserve"
+       && reserveAcquisitionState.Deck.SequenceEqual(
+           new[] { "fixed-starter" })
+       && reserveAcquisitionState.ReserveCards.SequenceEqual(
+           new[] { "reward-to-reserve" })
+       && !reserveAcquisitionDecision.DeckAdjustment.Applied,
+    "card rewards enter reserve without mutating the fixed active deck before a layer-end adjustment");
 var concentratedDeckState = new CombatCampaignState
 {
     CurrentLayer = 3,
@@ -5456,6 +5930,19 @@ var concentratedDeckState = new CombatCampaignState
         "engine_13", "engine_14", "engine_15"
     }
 };
+foreach (var cardId in concentratedDeckState.Deck.Distinct(
+             StringComparer.OrdinalIgnoreCase))
+{
+    concentratedDeckDefinition.Rewards.Add(new CombatCampaignRewardDefinition
+    {
+        RewardId = cardId,
+        Kind = CombatCampaignRewardKind.Card,
+        RewardCardPackId = "cardpack_1",
+        BaseValue = cardId.StartsWith("engine_", StringComparison.Ordinal)
+            ? 5d
+            : 0d
+    });
+}
 var concentratedDeckDecision = CombatCampaignRewardSelector.Apply(
     concentratedDeckDefinition,
     new CombatCampaignPlannedEncounter
@@ -5465,11 +5952,15 @@ var concentratedDeckDecision = CombatCampaignRewardSelector.Apply(
         EndsLayer = true
     },
     concentratedDeckState);
-Assert(concentratedDeckDecision.RemovedCardIds.Count >= 1
-       && concentratedDeckDecision.RemovedCardIds.All(id =>
+Assert(concentratedDeckDecision.RemovedCardIds.Count == 0
+       && concentratedDeckDecision.DeckAdjustment.Applied
+       && concentratedDeckDecision.DeckAdjustment.MovedToReserveIds.Count >= 1
+       && concentratedDeckDecision.DeckAdjustment.MovedToReserveIds.All(id =>
            id == "card_1" || id == "card_2")
-       && concentratedDeckState.Deck.Count <= 21,
-    "campaign progression uses deterministic marginal-value removal to concentrate mature decks and preferentially retire weak base cards");
+       && concentratedDeckState.Deck.Count is >= 15 and <= 21
+       && concentratedDeckState.Deck.Count
+          + concentratedDeckState.ReserveCards.Count == 22,
+    "layer-end adjustment concentrates the active deck within its tendency interval, moves weak base cards to reserve, and does not delete ownership");
 var resurrectionRules = new CombatRulesetBuilder("resurrection-settlement-v1")
     .RegisterCard(new CombatCardDefinition
     {
@@ -5830,8 +6321,9 @@ Assert(campaignPair.Baseline.CampaignVictory
        && campaignPair.Baseline.FinalState.BuildPlan.SynergySources["relic"]
           == campaignPair.Baseline.FinalState.Relics.Count
        && campaignPair.Baseline.Rewards.All(item =>
-           item.BuildPlan.TargetDeckSizeMaximum <= 35),
-    "campaign runner carries full state, applies layer-aware deck bounds, and records the build plan separately from battle policy");
+           item.BuildPlan.TargetDeckSizeMaximum
+           == campaign.TargetDeckSizeMaximum),
+    "campaign runner carries full state, applies the configured deck-size tendency, and records the build plan separately from battle policy");
 var encounterStarts = new List<CombatCampaignCheckpoint>();
 var encounterPlan = CombatCampaignWorldPlanner.Build(
     campaign,
@@ -6786,15 +7278,26 @@ var ineffectiveHardIterations = new List<CombatCampaignFoundationIteration>
 };
 var adaptiveHardRequest = new CombatCampaignFoundationTrainingRequest
 {
-    HardSeedReplayShare = 0.35d
+    HardSeedReplayShare = 0.35d,
+    AdvancedAcceptanceRate = 0.30d
 };
+Assert(Math.Abs(
+           CombatCampaignFoundationTrainer.EffectiveHardSeedReplayShare(
+               adaptiveHardRequest,
+               ineffectiveHardIterations)
+           - adaptiveHardRequest.HardSeedReplayShare)
+       < 0.000001d,
+    "hard-seed replay share remains configured until advanced arena evidence reaches its acceptance target");
+ineffectiveHardIterations[1].ValidAdvancedArenaPairs = 32;
+ineffectiveHardIterations[1].CandidateAdvancedWinRate = 0.30d;
+ineffectiveHardIterations[1].Promoted = true;
 Assert(Math.Abs(
            CombatCampaignFoundationTrainer.EffectiveHardSeedReplayShare(
                adaptiveHardRequest,
                ineffectiveHardIterations)
            - CombatFoundationStagnationProtocol.ReducedHardSeedReplayShare)
        < 0.000001d,
-    "hard-seed replay share is reduced after a sustained unsolved counterfactual window");
+    "hard-seed replay share may decay only after advanced performance reaches its acceptance target");
 ineffectiveHardIterations[1].HardSeedCounterfactualVictories = 1;
 Assert(Math.Abs(
            CombatCampaignFoundationTrainer.EffectiveHardSeedReplayShare(
@@ -7080,6 +7583,7 @@ var foundationRequest = new CombatCampaignFoundationTrainingRequest
         LoadedObservations = 9,
         Message = "fixture"
     },
+    CaseArchiveCompatibilityKey = "frozen-archive-key",
     TrainingSeedStart = 10_000,
     ArenaSeedStart = 20_000,
     ValidationSeedStart = 30_000,
@@ -7137,13 +7641,13 @@ Assert(foundationTraining.Success
        && foundationTraining.ValidationRuns.Count == 10
        && foundationTraining.Validation.NormalCampaigns == 5
        && foundationTraining.Validation.AdvancedCampaigns == 5
-       && foundationTraining.Validation.RequiredNormalVictories == 5
-       && foundationTraining.Validation.RequiredAdvancedVictories == 3
+       && foundationTraining.Validation.RequiredNormalVictories == 4
+       && foundationTraining.Validation.RequiredAdvancedVictories == 2
        && Math.Abs(
-           foundationTraining.Validation.RequiredNormalWinRate - 0.9d)
+           foundationTraining.Validation.RequiredNormalWinRate - 0.8d)
           < 0.0001d
        && Math.Abs(
-           foundationTraining.Validation.RequiredAdvancedWinRate - 0.5d)
+           foundationTraining.Validation.RequiredAdvancedWinRate - 0.3d)
           < 0.0001d
        && foundationTraining.CompletedCampaigns < 999
        && foundationTraining.CaseArchiveLoad.LoadedCases == 3
@@ -7172,6 +7676,8 @@ Assert(foundationTraining.Success
            && arm.InvalidCampaigns == 0)
        && incrementallyObservedFoundationCases
           == foundationTraining.CampaignObservations.Count
+       && foundationTraining.CampaignObservations.All(item =>
+           item.CompatibilityKey == "frozen-archive-key")
        && incrementallyArchivedFoundationCases
           == foundationTraining.SuccessCases.Count
        && incrementallyArchivedFoundationCases > 0
@@ -7182,6 +7688,29 @@ var packageJob = new CombatFoundationWorkerJob
     JobId = "foundation-package-test",
     Request = foundationRequest
 };
+var packageOriginalRoleId =
+    packageJob.Request.TrainingCampaign.Player.RoleId;
+var packageOriginalPartnerId =
+    packageJob.Request.TrainingCampaign.Player.PartnerId;
+var packageOriginalPresetId =
+    packageJob.Request.TrainingCampaign.Player.GameParameterPresetId;
+var packageOriginalParameterHash =
+    packageJob.Request.TrainingCampaign.Player.GameParameterHash;
+var packageOriginalPacks = new List<string>(
+    packageJob.Request.TrainingCampaign.EnabledRewardCardPackIds);
+var packageOriginalDeckMinimum =
+    packageJob.Request.TrainingCampaign.TargetDeckSizeMinimum;
+var packageOriginalDeckMaximum =
+    packageJob.Request.TrainingCampaign.TargetDeckSizeMaximum;
+packageJob.Request.TrainingCampaign.Player.RoleId = "career_1";
+packageJob.Request.TrainingCampaign.Player.PartnerId = "Partner_10001";
+packageJob.Request.TrainingCampaign.Player.GameParameterPresetId = "standard";
+packageJob.Request.TrainingCampaign.Player.GameParameterHash =
+    "foundation-package-game-parameters";
+packageJob.Request.TrainingCampaign.EnabledRewardCardPackIds =
+    new List<string> { "cardpack_1", "cardpack_2", "cardpack_3" };
+packageJob.Request.TrainingCampaign.TargetDeckSizeMinimum = 1;
+packageJob.Request.TrainingCampaign.TargetDeckSizeMaximum = 24;
 var packageResult = new CombatFoundationWorkerResult
 {
     JobId = packageJob.JobId,
@@ -7194,8 +7723,6 @@ var foundationPackage = CombatFoundationModelPackageProtocol.Create(
     packageJob,
     packageResult,
     "ABCDEF");
-foundationPackage.RoleId =
-    CombatFoundationModelPackageProtocol.CurrentRoleId;
 Assert(CombatFoundationModelPackageProtocol.TryValidate(
            foundationPackage,
            out var foundationPackageDiagnostic)
@@ -7203,6 +7730,8 @@ Assert(CombatFoundationModelPackageProtocol.TryValidate(
        && foundationPackage.Model != null
        && foundationPackage.Model.ModelId
           == foundationTraining.Champion!.ModelId
+       && foundationPackage.PartnerId == "Partner_10001"
+       && foundationPackage.EnabledRewardCardPackIds.Contains("cardpack_3")
        && foundationPackage.Validation.Passed,
     "accepted worker results export a self-contained foundation model package");
 foundationPackage.CompletionKind = "training-rejected";
@@ -7214,6 +7743,18 @@ Assert(!CombatFoundationModelPackageProtocol.TryValidate(
            StringComparison.Ordinal),
     "external foundation package validation rejects non-accepted training results");
 foundationPackage.CompletionKind = "training-accepted";
+packageJob.Request.TrainingCampaign.Player.RoleId = packageOriginalRoleId;
+packageJob.Request.TrainingCampaign.Player.PartnerId = packageOriginalPartnerId;
+packageJob.Request.TrainingCampaign.Player.GameParameterPresetId =
+    packageOriginalPresetId;
+packageJob.Request.TrainingCampaign.Player.GameParameterHash =
+    packageOriginalParameterHash;
+packageJob.Request.TrainingCampaign.EnabledRewardCardPackIds =
+    packageOriginalPacks;
+packageJob.Request.TrainingCampaign.TargetDeckSizeMinimum =
+    packageOriginalDeckMinimum;
+packageJob.Request.TrainingCampaign.TargetDeckSizeMaximum =
+    packageOriginalDeckMaximum;
 var sharedParameters = new CombatFoundationTrainingParameters
 {
     Iterations = 0,

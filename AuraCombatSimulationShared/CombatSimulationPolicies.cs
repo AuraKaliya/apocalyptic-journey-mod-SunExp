@@ -12,7 +12,8 @@ public sealed class FirstLegalCombatSimulationPolicy : ICombatSimulationPolicy
     public CombatSimulationAction? SelectAction(CombatSimulationPolicyContext context)
     {
         return context.LegalActions.FirstOrDefault(action =>
-                   action.Kind == CombatSimulationActionKind.PlayCard
+                   (action.Kind is CombatSimulationActionKind.PlayCard
+                       or CombatSimulationActionKind.UseSkill)
                    && context.State.FindCard(action.CardInstanceId)
                        ?.IsVisibleFake != true)
                ?? context.LegalActions.FirstOrDefault(action =>

@@ -865,6 +865,8 @@ internal static class NativeRewardProgramRegistry
             "NativeRewardScriptExecuteData");
         result = Regex.Replace(result, @"\bIDataConfig\b", "NativeRewardDataConfig");
         result = Regex.Replace(result, @"\bDataConfig\b", "NativeRewardDataConfig");
+        result = Regex.Replace(result, @"\bCardItem\b", "NativeRewardCardItem");
+        result = result.Replace("FightManager.Instance.statuses", "Statuses");
         result = Regex.Replace(result, @"\bDataType\b", "NativeRewardDataType");
         result = Regex.Replace(result, @"\bIStatusManager\b", "NativeRewardActor");
         result = result.Replace(
@@ -972,6 +974,41 @@ public static class AuraToolsNativeRewardScriptAudit
                 failures.Add(
                     starterId
                     + ": card acquisition policy forbids starting deck");
+            }
+        }
+        foreach (var skillId in campaign.Player.SkillCardIds)
+        {
+            var card = campaign.Rewards.FirstOrDefault(item =>
+                item.Kind == CombatCampaignRewardKind.Card
+                && string.Equals(
+                    item.RewardId,
+                    skillId,
+                    StringComparison.OrdinalIgnoreCase));
+            if (card == null
+                || card.CardAcquisition
+                   != CombatCampaignCardAcquisition.SkillOnly
+                || CombatCampaignCardAcquisitionPolicy.CanEnterRewardPool(card))
+            {
+                failures.Add(
+                    skillId
+                    + ": role skill must be classified SkillOnly and excluded from rewards");
+            }
+        }
+        foreach (var blessingId in campaign.Player.FamiliarBlessingIds)
+        {
+            var blessing = campaign.Rewards.FirstOrDefault(item =>
+                item.Kind == CombatCampaignRewardKind.Blessing
+                && string.Equals(
+                    item.RewardId,
+                    blessingId,
+                    StringComparison.OrdinalIgnoreCase));
+            if (blessing == null
+                || blessing.BlessingAcquisition
+                   != CombatCampaignBlessingAcquisition.FamiliarInnate)
+            {
+                failures.Add(
+                    blessingId
+                    + ": familiar blessing must be classified FamiliarInnate");
             }
         }
         foreach (var reward in campaign.Rewards
@@ -1341,6 +1378,11 @@ public sealed partial class NativeRewardScriptGlobals
         .Where(item => item != null)
         .Cast<NativeRewardActor>()
         .ToList();
+
+    public Dictionary<int, NativeRewardActor> Statuses =>
+        context.State.Actors.ToDictionary(
+            actor => actor.ActorId,
+            actor => new NativeRewardActor(this, actor.ActorId));
 
     public List<NativeRewardCardItem> HandCard =>
         Cards(context.State.Hand);
@@ -2032,6 +2074,20 @@ public sealed partial class NativeRewardScriptGlobals
         }
     }
 
+    public void DesEnemyAction()
+    {
+        foreach (var actorId in Targets())
+        {
+            var actor = context.State.FindActor(actorId);
+            if (actor?.Kind != CombatSimulationActorKind.Enemy)
+            {
+                continue;
+            }
+            actor.CurrentIntentIds.Clear();
+            actor.CurrentIntentId = "";
+        }
+    }
+
     public void DoAction(object index)
     {
         var actor = context.State.FindActor(executionSourceActorId);
@@ -2104,6 +2160,11 @@ public sealed partial class NativeRewardScriptGlobals
                     1);
             }
         }
+    }
+
+    public void RemoveBadBuff(object count)
+    {
+        RemoveBadBuff(count, false);
     }
 
     public void RemoveAllBadBuff()
@@ -2305,6 +2366,55 @@ public sealed partial class NativeRewardScriptGlobals
             .Take(Math.Max(0, Number(count)))
             .Select(item => item.Clone())
             .ToList());
+    }
+
+    public void PackToDeckAction(
+        object count,
+        List<NativeRewardDataConfig> cards,
+        Action<List<NativeRewardDataConfig>>? action)
+    {
+        action?.Invoke(cards
+            .Take(Math.Max(0, Number(count)))
+            .ToList());
+    }
+
+    public void PackToDeckAction(
+        object count,
+        List<NativeRewardDataConfig> cards,
+        Action<List<NativeRewardDataConfig>>? action,
+        object? _)
+    {
+        PackToDeckAction(count, cards, action);
+    }
+
+    public void GetCardFromDeck(NativeRewardDataConfig card)
+    {
+        if (!int.TryParse(
+                card.InstanceID,
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out var instanceId)
+            || !context.State.DrawPile.Contains(instanceId)
+            || context.State.Hand.Count >= context.Scenario.HandLimit)
+        {
+            return;
+        }
+        context.State.DrawPile.Remove(instanceId);
+        context.State.Hand.Add(instanceId);
+    }
+
+    public void UpdateSkillTime()
+    {
+    }
+
+    public string GetDesValue(object index)
+    {
+        return Vars.GetValueOrDefault("DesVal" + Text(index), "0");
+    }
+
+    public void Log(object value)
+    {
+        NativeRewardDebug.Log(value);
     }
 
     public int atk()
@@ -2519,6 +2629,25 @@ public sealed partial class NativeRewardScriptGlobals
     {
         context.Scenario.RewardRules.RemoveAll(item =>
             string.Equals(item.RewardId, Text(id), StringComparison.OrdinalIgnoreCase));
+    }
+
+    public void RemoveCard(object instanceId)
+    {
+        var raw = Convert.ToString(
+            instanceId,
+            CultureInfo.InvariantCulture) ?? "";
+        var cardId = int.TryParse(
+                         raw,
+                         NumberStyles.Integer,
+                         CultureInfo.InvariantCulture,
+                         out var runtimeId)
+            ? context.State.FindCard(runtimeId)?.CardId ?? raw
+            : raw;
+        context.RecordRewardMutation("Remove", "Card", cardId);
+    }
+
+    public void ShowItemShowUI(params object[] _)
+    {
     }
 
     public void RemoveBless(object id)
@@ -3772,6 +3901,13 @@ public sealed class NativeRewardPlayerInfo
     public Dictionary<string, string> SpecialVars =>
         globals.Context.Scenario.CampaignVariables;
 
+    public Dictionary<string, int> SkillTime =>
+        globals.Context.State.SkillUseCounts;
+
+    public void ShowCaption(object _)
+    {
+    }
+
     public int Strength
     {
         get => Variable("Strength");
@@ -3984,6 +4120,25 @@ public sealed class NativeRewardPlayerInfo
                 text,
                 StringComparison.OrdinalIgnoreCase));
         globals.Context.RecordRewardMutation("Remove", "Relic", text);
+    }
+
+    public void RemoveCard(object instanceId)
+    {
+        var raw = Convert.ToString(
+            instanceId,
+            CultureInfo.InvariantCulture) ?? "";
+        var cardId = int.TryParse(
+                         raw,
+                         NumberStyles.Integer,
+                         CultureInfo.InvariantCulture,
+                         out var runtimeId)
+            ? globals.Context.State.FindCard(runtimeId)?.CardId ?? raw
+            : raw;
+        globals.Context.RecordRewardMutation("Remove", "Card", cardId);
+    }
+
+    public void ShowItemShowUI(params object[] _)
+    {
     }
 
     public void AddCard(object id)

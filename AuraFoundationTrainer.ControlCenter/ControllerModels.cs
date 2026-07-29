@@ -17,7 +17,27 @@ internal sealed class ControllerSettings
 
     public int ContinueGeneration { get; set; }
 
-    public CombatFoundationTrainingParameters Parameters { get; set; } = new();
+    public CombatFoundationTrainingParameters Parameters { get; set; } =
+        CreateDefaultParameters();
+
+    private static CombatFoundationTrainingParameters CreateDefaultParameters()
+    {
+        return new CombatFoundationTrainingParameters
+        {
+            HardEncounterWeights = new Dictionary<string, double>(
+                StringComparer.OrdinalIgnoreCase)
+            {
+                ["level_10011"] = 0.25d,
+                ["level_10040"] = 0.15d,
+                ["level_10004"] = 0.15d,
+                ["level_10001"] = 0.15d,
+                ["level_10009"] = 0.12d,
+                ["level_10006"] = 0.10d,
+                ["@other"] = 0.05d,
+                ["@final-boss"] = 0.03d
+            }
+        };
+    }
 }
 
 internal sealed class ControllerSession

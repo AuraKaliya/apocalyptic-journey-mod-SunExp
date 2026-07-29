@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 23,
+  "schemaVersion": 24,
   "starterDeck": {
     "enabled": false,
     "mode": "Global",
@@ -56,6 +56,52 @@
     "evaluationModelId": "",
     "showPredictionMarkers": true,
     "searchQuality": "balanced",
+    "gameParameters": {
+      "selectedPresetId": "standard",
+      "presets": [
+        {
+          "id": "standard",
+          "displayName": "标准预设",
+          "roleId": "career_1",
+          "partnerId": "Partner_10001",
+          "enabledRewardCardPackIds": [
+            "cardpack_1",
+            "cardpack_2",
+            "cardpack_3",
+            "cardpack_4",
+            "cardpack_5",
+            "cardpack_6",
+            "cardpack_7",
+            "cardpack_8",
+            "cardpack_9",
+            "cardpack_10",
+            "cardpack_11",
+            "cardpack_12",
+            "cardpack_14",
+            "cardpack_15",
+            "cardpack_16",
+            "cardpack_17",
+            "cardpack_18",
+            "cardpack_19"
+          ],
+          "preferredDeckSizeMinimum": 15,
+          "preferredDeckSizeMaximum": 24,
+          "resolvedRoleSkillIds": [
+            "careercard_1"
+          ],
+          "resolvedRoleInitialStatuses": {
+            "buff_impregnable": 2,
+            "buff_elements": 3
+          },
+          "resolvedRoleSkillCooldownTurns": {
+            "careercard_1": 1
+          },
+          "resolvedFamiliarBlessingIds": [
+            "blessing_38"
+          ]
+        }
+      ]
+    },
     "training": {
       "preset": "steady",
       "epochs": 80,
@@ -93,18 +139,22 @@
         "arenaInvalidRetryCount": 1,
         "arenaInvalidRateLimit": 0.02,
         "enableTuningArena": true,
-        "tuningNormalCampaigns": 24,
-        "tuningAdvancedCampaigns": 24,
+        "tuningNormalCampaigns": 32,
+        "tuningAdvancedCampaigns": 64,
         "maximumConsecutiveRejectedIterations": 3,
-        "normalAcceptanceRate": 0.9,
-        "advancedAcceptanceRate": 0.5,
+        "normalAcceptanceRate": 0.8,
+        "advancedAcceptanceRate": 0.3,
         "successExpertReplayShare": 0.2,
         "hardSeedReplayShare": 0.35,
         "hardEncounterWeights": {
-          "level_10011": 0.5,
-          "@final-boss": 0.3,
-          "level_10040": 0.1,
-          "@other": 0.1
+          "level_10011": 0.25,
+          "level_10040": 0.15,
+          "level_10004": 0.15,
+          "level_10001": 0.15,
+          "level_10009": 0.12,
+          "level_10006": 0.1,
+          "@other": 0.05,
+          "@final-boss": 0.03
         },
       "selfPlayExplorationProbability": 0.15,
       "selfPlayExplorationTemperature": 1.0,
@@ -118,7 +168,7 @@
       "modelMaximumFramesPerEpisode": 96,
       "modelReplayEpisodeLimit": 6000,
       "modelRetainedCandidates": 3,
-      "modelLearningRate": 0.0125,
+      "modelLearningRate": 0.00625,
       "modelL2": 0.0015,
       "modelStateDimensions": 128,
       "modelActionDimensions": 96,

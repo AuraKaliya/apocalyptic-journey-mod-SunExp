@@ -46,6 +46,9 @@ public sealed class AutoBattleSettings
     [JsonProperty("searchQuality")]
     public string SearchQuality { get; set; } = "balanced";
 
+    [JsonProperty("gameParameters")]
+    public AutoBattleGameParameterSettings GameParameters { get; set; } = new();
+
     [JsonProperty("training")]
     public AutoBattleTrainingSettings Training { get; set; } = AutoBattleTrainingSettings.CreateSteady();
 
@@ -60,6 +63,7 @@ public sealed class AutoBattleSettings
 
     public void Normalize()
     {
+        GameParameters ??= new AutoBattleGameParameterSettings();
         Training ??= AutoBattleTrainingSettings.CreateSteady();
 
         Profile = NormalizeChoice(Profile, "balanced", "aggressive", "defensive");
@@ -79,6 +83,7 @@ public sealed class AutoBattleSettings
             "balanced",
             "fast",
             "deep");
+        GameParameters.Normalize();
         Training.Normalize();
         FoundationTraining ??= new AutoBattleFoundationTrainingSettings();
         FoundationTraining.Normalize();
@@ -100,6 +105,232 @@ public sealed class AutoBattleSettings
         }
 
         return choices[0];
+    }
+}
+
+public sealed class AutoBattleGameParameterSettings
+{
+    [JsonProperty("selectedPresetId")]
+    public string SelectedPresetId { get; set; } = "standard";
+
+    [JsonProperty("presets")]
+    public List<AutoBattleGameParameterPreset> Presets { get; set; } =
+        new() { AutoBattleGameParameterPreset.CreateDefault() };
+
+    [JsonIgnore]
+    public AutoBattleGameParameterPreset ActivePreset =>
+        Presets.FirstOrDefault(item => string.Equals(
+            item.Id,
+            SelectedPresetId,
+            StringComparison.OrdinalIgnoreCase))
+        ?? Presets[0];
+
+    public void Normalize()
+    {
+        Presets ??= new List<AutoBattleGameParameterPreset>();
+        Presets = Presets
+            .Where(item => item != null)
+            .ToList();
+        if (Presets.Count == 0)
+        {
+            Presets.Add(AutoBattleGameParameterPreset.CreateDefault());
+        }
+
+        var usedIds = new HashSet<string>(StringComparer.OrdinalIgnoreCase);
+        for (var index = 0; index < Presets.Count; index++)
+        {
+            var preset = Presets[index];
+            preset.Normalize(index);
+            var baseId = preset.Id;
+            var suffix = 2;
+            while (!usedIds.Add(preset.Id))
+            {
+                preset.Id = baseId + "-" + suffix++;
+            }
+        }
+
+        SelectedPresetId = (SelectedPresetId ?? "").Trim();
+        if (!Presets.Any(item => string.Equals(
+                item.Id,
+                SelectedPresetId,
+                StringComparison.OrdinalIgnoreCase)))
+        {
+            SelectedPresetId = Presets[0].Id;
+        }
+    }
+}
+
+public sealed class AutoBattleGameParameterPreset
+{
+    private static readonly string[] DefaultRewardCardPacks =
+    {
+        "cardpack_1",
+        "cardpack_2",
+        "cardpack_3",
+        "cardpack_4",
+        "cardpack_5",
+        "cardpack_6",
+        "cardpack_7",
+        "cardpack_8",
+        "cardpack_9",
+        "cardpack_10",
+        "cardpack_11",
+        "cardpack_12",
+        "cardpack_14",
+        "cardpack_15",
+        "cardpack_16",
+        "cardpack_17",
+        "cardpack_18",
+        "cardpack_19"
+    };
+
+    [JsonProperty("id")]
+    public string Id { get; set; } = "standard";
+
+    [JsonProperty("displayName")]
+    public string DisplayName { get; set; } = "标准预设";
+
+    [JsonProperty("roleId")]
+    public string RoleId { get; set; } = "career_1";
+
+    [JsonProperty("partnerId")]
+    public string PartnerId { get; set; } = "Partner_10001";
+
+    [JsonProperty("enabledRewardCardPackIds")]
+    public List<string> EnabledRewardCardPackIds { get; set; } =
+        DefaultRewardCardPacks.ToList();
+
+    [JsonProperty("preferredDeckSizeMinimum")]
+    public int PreferredDeckSizeMinimum { get; set; } = 15;
+
+    [JsonProperty("preferredDeckSizeMaximum")]
+    public int PreferredDeckSizeMaximum { get; set; } = 24;
+
+    // Resolved on the Unity thread before a background training snapshot starts.
+    [JsonProperty("resolvedRoleSkillIds")]
+    public List<string> ResolvedRoleSkillIds { get; set; } = new();
+
+    [JsonProperty("resolvedRoleInitialStatuses")]
+    public Dictionary<string, int> ResolvedRoleInitialStatuses { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    [JsonProperty("resolvedRoleSkillCooldownTurns")]
+    public Dictionary<string, int> ResolvedRoleSkillCooldownTurns { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    [JsonProperty("resolvedFamiliarBlessingIds")]
+    public List<string> ResolvedFamiliarBlessingIds { get; set; } = new();
+
+    public static AutoBattleGameParameterPreset CreateDefault()
+    {
+        return new AutoBattleGameParameterPreset();
+    }
+
+    public AutoBattleGameParameterPreset CloneAs(string id, string displayName)
+    {
+        return new AutoBattleGameParameterPreset
+        {
+            Id = id,
+            DisplayName = displayName,
+            RoleId = RoleId,
+            PartnerId = PartnerId,
+            EnabledRewardCardPackIds = EnabledRewardCardPackIds.ToList(),
+            PreferredDeckSizeMinimum = PreferredDeckSizeMinimum,
+            PreferredDeckSizeMaximum = PreferredDeckSizeMaximum,
+            ResolvedRoleSkillIds = ResolvedRoleSkillIds.ToList(),
+            ResolvedRoleInitialStatuses = new Dictionary<string, int>(
+                ResolvedRoleInitialStatuses,
+                StringComparer.OrdinalIgnoreCase),
+            ResolvedRoleSkillCooldownTurns = new Dictionary<string, int>(
+                ResolvedRoleSkillCooldownTurns,
+                StringComparer.OrdinalIgnoreCase),
+            ResolvedFamiliarBlessingIds = ResolvedFamiliarBlessingIds.ToList()
+        };
+    }
+
+    public void Normalize(int index = 0)
+    {
+        Id = NormalizeId(Id, "preset-" + (index + 1));
+        DisplayName = string.IsNullOrWhiteSpace(DisplayName)
+            ? "游戏预设 " + (index + 1)
+            : DisplayName.Trim();
+        RoleId = string.IsNullOrWhiteSpace(RoleId) ? "career_1" : RoleId.Trim();
+        PartnerId = string.IsNullOrWhiteSpace(PartnerId)
+            ? "Partner_10001"
+            : PartnerId.Trim();
+        EnabledRewardCardPackIds ??= new List<string>();
+        EnabledRewardCardPackIds = EnabledRewardCardPackIds
+            .Select(item => (item ?? "").Trim())
+            .Where(item => !string.IsNullOrWhiteSpace(item)
+                           && !string.Equals(
+                               item,
+                               "cardpack_13",
+                               StringComparison.OrdinalIgnoreCase))
+            .Concat(new[] { "cardpack_1", "cardpack_2" })
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .OrderBy(CardPackOrder)
+            .ThenBy(item => item, StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        PreferredDeckSizeMinimum = Math.Max(
+            1,
+            Math.Min(80, PreferredDeckSizeMinimum));
+        PreferredDeckSizeMaximum = Math.Max(
+            PreferredDeckSizeMinimum,
+            Math.Min(80, PreferredDeckSizeMaximum));
+        ResolvedRoleSkillIds = NormalizeIds(ResolvedRoleSkillIds);
+        ResolvedRoleInitialStatuses =
+            (ResolvedRoleInitialStatuses
+             ?? new Dictionary<string, int>(
+                 StringComparer.OrdinalIgnoreCase))
+            .Where(item => !string.IsNullOrWhiteSpace(item.Key)
+                           && item.Value > 0)
+            .ToDictionary(
+                item => item.Key.Trim(),
+                item => item.Value,
+                StringComparer.OrdinalIgnoreCase);
+        ResolvedRoleSkillCooldownTurns =
+            (ResolvedRoleSkillCooldownTurns
+             ?? new Dictionary<string, int>(
+                 StringComparer.OrdinalIgnoreCase))
+            .Where(item => !string.IsNullOrWhiteSpace(item.Key))
+            .ToDictionary(
+                item => item.Key.Trim(),
+                item => Math.Max(1, Math.Min(99, item.Value)),
+                StringComparer.OrdinalIgnoreCase);
+        ResolvedFamiliarBlessingIds = NormalizeIds(
+            ResolvedFamiliarBlessingIds);
+    }
+
+    private static List<string> NormalizeIds(IEnumerable<string>? values)
+    {
+        return (values ?? Array.Empty<string>())
+            .Select(item => (item ?? "").Trim())
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+    }
+
+    private static string NormalizeId(string value, string fallback)
+    {
+        var normalized = new string((value ?? "")
+            .Trim()
+            .ToLowerInvariant()
+            .Select(character =>
+                char.IsLetterOrDigit(character) || character == '-'
+                    ? character
+                    : '-')
+            .ToArray())
+            .Trim('-');
+        return string.IsNullOrWhiteSpace(normalized) ? fallback : normalized;
+    }
+
+    private static int CardPackOrder(string id)
+    {
+        const string prefix = "cardpack_";
+        return id.StartsWith(prefix, StringComparison.OrdinalIgnoreCase)
+               && int.TryParse(id.Substring(prefix.Length), out var value)
+            ? value
+            : int.MaxValue;
     }
 }
 
@@ -223,19 +454,19 @@ public sealed class AutoBattleFoundationTrainingSettings
     public bool EnableTuningArena { get; set; } = true;
 
     [JsonProperty("tuningNormalCampaigns")]
-    public int TuningNormalCampaigns { get; set; } = 24;
+    public int TuningNormalCampaigns { get; set; } = 32;
 
     [JsonProperty("tuningAdvancedCampaigns")]
-    public int TuningAdvancedCampaigns { get; set; } = 24;
+    public int TuningAdvancedCampaigns { get; set; } = 64;
 
     [JsonProperty("maximumConsecutiveRejectedIterations")]
     public int MaximumConsecutiveRejectedIterations { get; set; } = 3;
 
     [JsonProperty("normalAcceptanceRate")]
-    public double NormalAcceptanceRate { get; set; } = 0.90d;
+    public double NormalAcceptanceRate { get; set; } = 0.80d;
 
     [JsonProperty("advancedAcceptanceRate")]
-    public double AdvancedAcceptanceRate { get; set; } = 0.50d;
+    public double AdvancedAcceptanceRate { get; set; } = 0.30d;
 
     [JsonProperty("successExpertReplayShare")]
     public double SuccessExpertReplayShare { get; set; } = 0.20d;
@@ -247,10 +478,14 @@ public sealed class AutoBattleFoundationTrainingSettings
     public Dictionary<string, double> HardEncounterWeights { get; set; } =
         new(StringComparer.OrdinalIgnoreCase)
         {
-            ["level_10011"] = 0.50d,
-            ["@final-boss"] = 0.30d,
-            ["level_10040"] = 0.10d,
-            ["@other"] = 0.10d
+            ["level_10011"] = 0.25d,
+            ["level_10040"] = 0.15d,
+            ["level_10004"] = 0.15d,
+            ["level_10001"] = 0.15d,
+            ["level_10009"] = 0.12d,
+            ["level_10006"] = 0.10d,
+            ["@other"] = 0.05d,
+            ["@final-boss"] = 0.03d
         };
 
     [JsonProperty("selfPlayExplorationProbability")]
@@ -290,7 +525,7 @@ public sealed class AutoBattleFoundationTrainingSettings
     public int ModelRetainedCandidates { get; set; } = 3;
 
     [JsonProperty("modelLearningRate")]
-    public double ModelLearningRate { get; set; } = 0.0125d;
+    public double ModelLearningRate { get; set; } = 0.00625d;
 
     [JsonProperty("modelL2")]
     public double ModelL2 { get; set; } = 0.0015d;
@@ -385,7 +620,7 @@ public sealed class AutoBattleFoundationTrainingSettings
             ModelLearningRate,
             0.0001d,
             0.1d,
-            0.0125d);
+            0.00625d);
         ModelL2 = ClampFinite(ModelL2, 0d, 0.05d, 0.0015d);
         ModelStateDimensions = Math.Max(
             16,
@@ -418,12 +653,12 @@ public sealed class AutoBattleFoundationTrainingSettings
             NormalAcceptanceRate,
             0d,
             1d,
-            0.90d);
+            0.80d);
         AdvancedAcceptanceRate = ClampFinite(
             AdvancedAcceptanceRate,
             0d,
             1d,
-            0.50d);
+            0.30d);
         HardSeedReplayShare = double.IsNaN(HardSeedReplayShare)
                               || double.IsInfinity(HardSeedReplayShare)
             ? 0.35d

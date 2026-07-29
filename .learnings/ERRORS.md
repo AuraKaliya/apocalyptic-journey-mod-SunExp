@@ -28,6 +28,38 @@ Close or reopen the Codex workspace, then rename the repository root from its pa
 
 ---
 
+## [ERR-20260729-002] perl-unavailable-on-windows
+
+**Logged**: 2026-07-29T20:30:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+The local Windows toolchain does not provide `perl`, so it cannot be used for line-ending normalization.
+
+### Error
+```text
+The term 'perl' is not recognized as a name of a cmdlet, function, script file, or executable program.
+```
+
+### Context
+- Attempted to normalize CRLF in generated artifacts before running `git diff --check`.
+- The workspace shell is PowerShell on Windows.
+
+### Suggested Fix
+Use a .NET/PowerShell byte-preserving normalization command or an available formatter instead of assuming Unix text utilities exist.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraToolsExp-Dev/Features/AutoBattle/Generated/AuraToolsNativePrograms.g.cs
+
+### Resolution
+- **Resolved**: 2026-07-29T20:31:00+08:00
+- **Notes**: Switched to a .NET-based newline normalization command.
+
+---
+
 ## [ERR-20260729-001] exploratory-rg-batching
 
 **Logged**: 2026-07-29T10:05:00+08:00
@@ -1101,5 +1133,42 @@ Treat the exported workbook, render, and inspection results as the primary succe
 ### Metadata
 - Reproducible: yes
 - Related Files: docs/游戏主体内容/卡牌内容/游戏主体卡牌总表.xlsx
+
+---
+
+## [ERR-20260729-003] powershell-markdown-generator-binding
+
+**Logged**: 2026-07-29T17:01:37+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: docs
+
+### Summary
+A new PowerShell Markdown generator first failed on smart quotes inside double-quoted strings, then on binding a populated generic string list to a helper parameter.
+
+### Error
+```text
+ParserError: Missing ')' in method call.
+Cannot bind argument to parameter 'Lines' because it is an empty string.
+```
+
+### Context
+- PowerShell recognizes Unicode smart quotes as string delimiters, so prose smart quotes inside a double-quoted string can terminate it unexpectedly.
+- The helper's strongly typed `List[string]` parameter was subject to pipeline-style collection unrolling during argument binding.
+
+### Suggested Fix
+Use Chinese corner brackets or escaped ASCII quotes inside PowerShell prose strings, and accept the mutable line collection without a concrete parameter type when passing `List[string]` between helpers.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Export-GameAndTerriasContentDocs.ps1
+
+### Resolution
+- **Resolved**: 2026-07-29T17:01:37+08:00
+- **Notes**: Replaced smart quotes, relaxed the helper parameter type, and regenerated both catalogs successfully.
+
+### Recurrence
+- **Observed**: 2026-07-29T17:04:00+08:00
+- **Notes**: A follow-up validation command interpolated `$p:` inside a double-quoted error message, which PowerShell parsed as an invalid scoped variable. Delimit variables before punctuation, for example `${p}:`.
 
 ---

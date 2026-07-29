@@ -328,7 +328,8 @@ public sealed class CombatAuthoritativeBranchTeacherPolicy :
         var audits = new Dictionary<string, CombatSemanticAuditResult>(
             StringComparer.Ordinal);
         var baselineScore = baseline?.Kind
-                            == CombatSimulationActionKind.PlayCard
+                            is CombatSimulationActionKind.PlayCard
+                            or CombatSimulationActionKind.UseSkill
             ? double.NegativeInfinity
             : 0d;
         foreach (var candidate in candidates)
@@ -547,7 +548,8 @@ public sealed class CombatAuthoritativeBranchTeacherPolicy :
                 item => item.SearchVisits,
                 StringComparer.Ordinal);
         return context.LegalActions
-            .Where(item => item.Kind == CombatSimulationActionKind.PlayCard)
+            .Where(item => item.Kind is CombatSimulationActionKind.PlayCard
+                or CombatSimulationActionKind.UseSkill)
             .OrderByDescending(item => baseline != null
                                        && string.Equals(
                                            item.CandidateId,
@@ -833,7 +835,11 @@ public static class PlayerEquivalentSimulationObservationProjector
         var actionIndex = 0;
         foreach (var legal in context.LegalActions)
         {
-            var action = ProjectAction(context.Ruleset, state, legal);
+            var action = ProjectAction(
+                context.Scenario,
+                context.Ruleset,
+                state,
+                legal);
             action.ObservationId = observation.ObservationId;
             action.ActionToken = "a" + actionIndex++;
             observation.Actions.Add(action);
@@ -853,6 +859,7 @@ public static class PlayerEquivalentSimulationObservationProjector
     }
 
     private static CombatActionObservation ProjectAction(
+        CombatScenarioDefinition scenario,
         CombatRuleset ruleset,
         CombatBattleState state,
         CombatSimulationAction action)
@@ -878,6 +885,8 @@ public static class PlayerEquivalentSimulationObservationProjector
         var features = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
         {
             ["turn"] = state.Turn,
+            ["isSkill"] =
+                action.Kind == CombatSimulationActionKind.UseSkill ? 1d : 0d,
             ["visibleFake"] = instance?.IsVisibleFake == true ? 1d : 0d,
             ["hasVisibleWarning"] = instance?.EnchantmentIds.Count > 0 ? 1d : 0d,
             ["retain"] = definition != null && HasTag(definition, "Retain") ? 1d : 0d,
@@ -892,6 +901,28 @@ public static class PlayerEquivalentSimulationObservationProjector
                 ? 1d
                 : 0d
         };
+        var strategyMatches = (scenario.StrategyProgress
+                               ?? new List<CombatScenarioStrategyProgress>())
+            .Where(item => item.ComponentCardIds.Contains(
+                action.DefinitionId,
+                StringComparer.OrdinalIgnoreCase))
+            .ToList();
+        if (strategyMatches.Count > 0)
+        {
+            features["strategyCompletion"] =
+                strategyMatches.Max(item => item.Completion);
+            features["synergy"] = strategyMatches.Max(item =>
+                Math.Max(0d, item.PlayPriority)
+                * (0.5d + Math.Max(0d, Math.Min(1d, item.Completion)))
+                * (item.Executable ? 1.25d : 1d));
+            features["strategyInfinite"] = strategyMatches.Any(item =>
+                string.Equals(
+                    item.Kind,
+                    "Infinite",
+                    StringComparison.OrdinalIgnoreCase))
+                ? 1d
+                : 0d;
+        }
         var effectiveProjection = CombatSemanticAuditor.ProjectEffective(
             state,
             action,
@@ -920,7 +951,9 @@ public static class PlayerEquivalentSimulationObservationProjector
             CandidateId = action.CandidateId,
             SourceId = definition?.CardId ?? action.DefinitionId,
             DisplayName = definition?.DisplayName ?? action.DefinitionId,
-            Kind = CombatActionKind.PlayCard,
+            Kind = action.Kind == CombatSimulationActionKind.UseSkill
+                ? CombatActionKind.UseSkill
+                : CombatActionKind.PlayCard,
             RuntimeId = action.CardInstanceId,
             TargetRuntimeId = action.TargetActorId,
             TargetKind = action.TargetActorId == 0

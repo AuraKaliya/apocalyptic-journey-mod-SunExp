@@ -638,6 +638,8 @@ public static class AuraToolsSettingsRuntime
         yield return null;
         CreateAudioSection(content);
         yield return null;
+        CreateGameParametersSection(content);
+        yield return null;
         CreateMatchExperienceSection(content);
         yield return null;
         CreateLoggingSection(content);
@@ -675,6 +677,7 @@ public static class AuraToolsSettingsRuntime
         CreateDataDirectorySection(content);
         CreateSkinSection(content);
         CreateAudioSection(content);
+        CreateGameParametersSection(content);
         CreateMatchExperienceSection(content);
         CreateLoggingSection(content);
         panelBuilt = true;
@@ -837,6 +840,7 @@ public static class AuraToolsSettingsRuntime
         }, AuraToolsConfigService.MatchExperience.CardRefresh.Enabled ? AuraToolsUi.SuccessText : AuraToolsUi.MutedText);
 
         var autoBattle = AuraToolsConfigService.MatchExperience.AutoBattle;
+        CreateSectionLabel(parent, "训练参数");
         CreateSubmodule(parent, "战斗策略实验室（工具）", autoBattle.Enabled, value =>
         {
             autoBattle.Enabled = value;
@@ -1688,6 +1692,275 @@ public static class AuraToolsSettingsRuntime
         });
     }
 
+    private static void CreateGameParametersSection(Transform parent)
+    {
+        CreateSectionLabel(parent, "游戏参数");
+        var autoBattle = AuraToolsConfigService.MatchExperience.AutoBattle;
+        autoBattle.Normalize();
+        var parameters = autoBattle.GameParameters;
+        var preset = parameters.ActivePreset;
+
+        var presetRow = CreateInlineRow(parent, "AutoBattleGamePresetRow");
+        AuraToolsUi.AddText(
+            presetRow.transform,
+            "角色 + 使魔预设",
+            AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.Text,
+            AuraToolsUi.TextMinHeight,
+            0f,
+            128f);
+        var presetButton = AuraToolsUi.AddSelectButton(
+            presetRow.transform,
+            parameters.Presets.Select(item => item.DisplayName).ToArray(),
+            Math.Max(
+                0,
+                parameters.Presets.FindIndex(item => string.Equals(
+                    item.Id,
+                    parameters.SelectedPresetId,
+                    StringComparison.OrdinalIgnoreCase))),
+            index =>
+            {
+                if (index < 0 || index >= parameters.Presets.Count)
+                {
+                    return;
+                }
+                parameters.SelectedPresetId = parameters.Presets[index].Id;
+                autoBattle.Normalize();
+                AuraToolsConfigService.SaveMatchExperience();
+                RebuildPanel(activePanel!.transform);
+            },
+            172f);
+        var addPresetButton = AuraToolsUi.AddButton(
+            presetRow.transform,
+            "新增预设",
+            () =>
+            {
+                var number = parameters.Presets.Count + 1;
+                var id = "preset-" + number;
+                while (parameters.Presets.Any(item => string.Equals(
+                           item.Id,
+                           id,
+                           StringComparison.OrdinalIgnoreCase)))
+                {
+                    id = "preset-" + ++number;
+                }
+                var clone = preset.CloneAs(id, "游戏预设 " + number);
+                parameters.Presets.Add(clone);
+                parameters.SelectedPresetId = clone.Id;
+                autoBattle.Normalize();
+                AuraToolsConfigService.SaveMatchExperience();
+                RebuildPanel(activePanel!.transform);
+            },
+            88f);
+        var deletePresetButton = AuraToolsUi.AddButton(
+            presetRow.transform,
+            "删除",
+            () =>
+            {
+                if (parameters.Presets.Count <= 1)
+                {
+                    return;
+                }
+                parameters.Presets.Remove(preset);
+                parameters.SelectedPresetId = parameters.Presets[0].Id;
+                autoBattle.Normalize();
+                AuraToolsConfigService.SaveMatchExperience();
+                RebuildPanel(activePanel!.transform);
+            },
+            66f);
+        deletePresetButton.interactable = parameters.Presets.Count > 1;
+        AttachAutoBattleWorkLock(
+            presetRow,
+            presetButton,
+            addPresetButton,
+            deletePresetButton);
+
+        var roles = RoleCatalog.GetRoles();
+        var partners = PartnerCatalog.GetPartners();
+        var identityRow = CreateInlineRow(parent, "AutoBattleGameIdentityRow");
+        AuraToolsUi.AddText(
+            identityRow.transform,
+            "角色",
+            AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.Text,
+            AuraToolsUi.TextMinHeight,
+            0f,
+            56f);
+        var roleItems = roles.Count > 0
+            ? roles.ToList()
+            : new List<RoleInfo>
+            {
+                new() { Id = preset.RoleId, DisplayName = preset.RoleId }
+            };
+        var roleButton = AuraToolsUi.AddSelectButton(
+            identityRow.transform,
+            roleItems.Select(item => item.DisplayName).ToArray(),
+            Math.Max(
+                0,
+                roleItems.FindIndex(item => string.Equals(
+                    item.Id,
+                    preset.RoleId,
+                    StringComparison.OrdinalIgnoreCase))),
+            index =>
+            {
+                if (index < 0 || index >= roleItems.Count)
+                {
+                    return;
+                }
+                preset.RoleId = roleItems[index].Id;
+                preset.ResolvedRoleSkillIds = roleItems[index].Skills
+                    .Select(item => item.Id)
+                    .ToList();
+                preset.ResolvedRoleInitialStatuses =
+                    new Dictionary<string, int>(
+                        roleItems[index].InitialStatuses,
+                        StringComparer.OrdinalIgnoreCase);
+                preset.ResolvedRoleSkillCooldownTurns = roleItems[index].Skills
+                    .GroupBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
+                    .ToDictionary(
+                        group => group.Key,
+                        group => Math.Max(
+                            1,
+                            group.First().CooldownTurns),
+                        StringComparer.OrdinalIgnoreCase);
+                autoBattle.Normalize();
+                AuraToolsConfigService.SaveMatchExperience();
+                RebuildPanel(activePanel!.transform);
+            },
+            164f);
+        AuraToolsUi.AddText(
+            identityRow.transform,
+            "使魔",
+            AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.Text,
+            AuraToolsUi.TextMinHeight,
+            0f,
+            56f);
+        var partnerItems = partners.Count > 0
+            ? partners.ToList()
+            : new List<PartnerInfo>
+            {
+                new() { Id = preset.PartnerId, DisplayName = preset.PartnerId }
+            };
+        var partnerButton = AuraToolsUi.AddSelectButton(
+            identityRow.transform,
+            partnerItems.Select(item => item.DisplayName).ToArray(),
+            Math.Max(
+                0,
+                partnerItems.FindIndex(item => string.Equals(
+                    item.Id,
+                    preset.PartnerId,
+                    StringComparison.OrdinalIgnoreCase))),
+            index =>
+            {
+                if (index < 0 || index >= partnerItems.Count)
+                {
+                    return;
+                }
+                preset.PartnerId = partnerItems[index].Id;
+                preset.ResolvedFamiliarBlessingIds =
+                    partnerItems[index].BlessingIds.ToList();
+                autoBattle.Normalize();
+                AuraToolsConfigService.SaveMatchExperience();
+                RebuildPanel(activePanel!.transform);
+            },
+            164f);
+        AttachAutoBattleWorkLock(identityRow, roleButton, partnerButton);
+
+        var deckRow = CreateInlineRow(parent, "AutoBattlePreferredDeckSizeRow");
+        var deckMinimum = AddAutoBattleSimulationInt(
+            deckRow.transform,
+            "卡组倾向下限",
+            preset.PreferredDeckSizeMinimum,
+            1,
+            80,
+            value => preset.PreferredDeckSizeMinimum = value,
+            autoBattle);
+        var deckMaximum = AddAutoBattleSimulationInt(
+            deckRow.transform,
+            "卡组倾向上限",
+            preset.PreferredDeckSizeMaximum,
+            1,
+            80,
+            value => preset.PreferredDeckSizeMaximum = value,
+            autoBattle);
+        AttachAutoBattleWorkLock(deckRow, deckMinimum, deckMaximum);
+
+        const string packFoldoutKey = "AutoBattle.GameParameters.CardPacks";
+        var packExpanded = FoldoutStates.TryGetValue(
+            packFoldoutKey,
+            out var storedExpanded)
+            && storedExpanded;
+        var packHeader = CreateInlineRow(parent, "AutoBattleRewardCardPackHeader");
+        AuraToolsUi.AddText(
+            packHeader.transform,
+            "奖励卡包范围：" + preset.EnabledRewardCardPackIds.Count + " 个",
+            AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.Text,
+            AuraToolsUi.TextMinHeight,
+            1f);
+        var packFoldoutButton = AuraToolsUi.AddButton(
+            packHeader.transform,
+            packExpanded ? "收起" : "展开",
+            () =>
+            {
+                FoldoutStates[packFoldoutKey] = !packExpanded;
+                RebuildPanel(activePanel!.transform);
+            },
+            72f);
+        AttachAutoBattleWorkLock(packHeader, packFoldoutButton);
+        if (!packExpanded)
+        {
+            return;
+        }
+
+        foreach (var pack in AuraToolsAutoBattleGameParameterRuntime
+                     .GetRewardCardPacks())
+        {
+            var packRow = CreateInlineRow(
+                parent,
+                "AutoBattleRewardCardPack-" + pack.Id);
+            var enabled = preset.EnabledRewardCardPackIds.Contains(
+                pack.Id,
+                StringComparer.OrdinalIgnoreCase);
+            var packToggle = AuraToolsUi.AddToggle(
+                packRow.transform,
+                enabled,
+                value =>
+                {
+                    preset.EnabledRewardCardPackIds.RemoveAll(item =>
+                        string.Equals(
+                            item,
+                            pack.Id,
+                            StringComparison.OrdinalIgnoreCase));
+                    if (value || pack.Required)
+                    {
+                        preset.EnabledRewardCardPackIds.Add(pack.Id);
+                    }
+                    autoBattle.Normalize();
+                    AuraToolsConfigService.SaveMatchExperience();
+                });
+            packToggle.interactable = !pack.Required;
+            AuraToolsUi.AddText(
+                packRow.transform,
+                pack.DisplayName
+                + "  ["
+                + pack.Id
+                + "]"
+                + (pack.Required ? "（基础包，固定开启）" : ""),
+                AuraToolsUi.BodyFontSize,
+                TextAnchor.MiddleLeft,
+                pack.Required ? AuraToolsUi.MutedText : AuraToolsUi.Text,
+                AuraToolsUi.TextMinHeight,
+                1f);
+            AttachAutoBattleWorkLock(packRow, packToggle);
+        }
+    }
+
     private static void CreateLoggingSection(Transform parent)
     {
         CreateSectionLabel(parent, "日志文件");
@@ -2378,7 +2651,7 @@ public static class AuraToolsSettingsRuntime
                     {
                         new OptionalFileDialogFilter(
                             "Aura 待验底模包",
-                            "foundation-model-package-v1.json;*.aura-model.json"),
+                            "foundation-model-package-v2.json;*.aura-model.json"),
                         new OptionalFileDialogFilter("JSON 文件", "*.json")
                     },
                     "json",

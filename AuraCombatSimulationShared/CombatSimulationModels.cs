@@ -75,6 +75,7 @@ public enum CombatSimulationActorKind
 public enum CombatSimulationActionKind
 {
     PlayCard,
+    UseSkill,
     EndTurn
 }
 
@@ -619,6 +620,19 @@ public sealed class CombatPlayerSetup
 {
     public string RoleId { get; set; } = "";
 
+    public string PartnerId { get; set; } = "";
+
+    public string GameParameterPresetId { get; set; } = "";
+
+    public string GameParameterHash { get; set; } = "";
+
+    public List<string> SkillCardIds { get; set; } = new();
+
+    public Dictionary<string, int> SkillCooldownTurns { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public List<string> FamiliarBlessingIds { get; set; } = new();
+
     public int MaxHp { get; set; } = 30;
 
     public int CurrentHp { get; set; } = 30;
@@ -733,6 +747,9 @@ public sealed class CombatScenarioDefinition
     public List<CombatScenarioRewardCatalogEntry> RewardCatalog { get; set; } =
         new();
 
+    public List<CombatScenarioStrategyProgress> StrategyProgress { get; set; } =
+        new();
+
     public Dictionary<string, string> CampaignVariables { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
 
@@ -741,6 +758,23 @@ public sealed class CombatScenarioDefinition
     public CombatSimulationTraceLevel TraceLevel { get; set; } = CombatSimulationTraceLevel.Actions;
 
     public CombatSimulationLimits Limits { get; set; } = new();
+}
+
+public sealed class CombatScenarioStrategyProgress
+{
+    public string StrategyId { get; set; } = "";
+
+    public string Kind { get; set; } = "";
+
+    public bool Deterministic { get; set; }
+
+    public bool Executable { get; set; }
+
+    public double Completion { get; set; }
+
+    public double PlayPriority { get; set; }
+
+    public List<string> ComponentCardIds { get; set; } = new();
 }
 
 public sealed class CombatRulesetDocument
@@ -956,6 +990,13 @@ public sealed class CombatBattleState
 
     public List<int> ExhaustPile { get; set; } = new();
 
+    public List<int> SkillCards { get; set; } = new();
+
+    public Dictionary<int, int> SkillCooldowns { get; set; } = new();
+
+    public Dictionary<string, int> SkillUseCounts { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public CombatRandomCounterState Random { get; set; } = new();
 
     public List<CombatDeferredVariableChangeState> DeferredVictoryVariableChanges
@@ -991,6 +1032,11 @@ public sealed class CombatBattleState
             Hand = new List<int>(Hand),
             DiscardPile = new List<int>(DiscardPile),
             ExhaustPile = new List<int>(ExhaustPile),
+            SkillCards = new List<int>(SkillCards),
+            SkillCooldowns = new Dictionary<int, int>(SkillCooldowns),
+            SkillUseCounts = new Dictionary<string, int>(
+                SkillUseCounts,
+                StringComparer.OrdinalIgnoreCase),
             Random = Random.Clone(),
             DeferredVictoryVariableChanges = DeferredVictoryVariableChanges
                 .Select(item => item.Clone())

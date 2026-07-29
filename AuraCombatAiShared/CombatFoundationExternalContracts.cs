@@ -1,6 +1,9 @@
 using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 using AuraCombatSimulation.Shared;
 
 namespace AuraCombatAi.Shared;
@@ -58,15 +61,15 @@ public sealed class CombatFoundationTrainingParameters
 
     public bool EnableTuningArena { get; set; } = true;
 
-    public int TuningNormalCampaigns { get; set; } = 24;
+    public int TuningNormalCampaigns { get; set; } = 32;
 
-    public int TuningAdvancedCampaigns { get; set; } = 24;
+    public int TuningAdvancedCampaigns { get; set; } = 64;
 
     public int MaximumConsecutiveRejectedIterations { get; set; } = 3;
 
-    public double NormalAcceptanceRate { get; set; } = 0.90d;
+    public double NormalAcceptanceRate { get; set; } = 0.80d;
 
-    public double AdvancedAcceptanceRate { get; set; } = 0.50d;
+    public double AdvancedAcceptanceRate { get; set; } = 0.30d;
 
     public double SuccessExpertReplayShare { get; set; } = 0.20d;
 
@@ -103,7 +106,7 @@ public sealed class CombatFoundationTrainingParameters
 
     public int ModelRetainedCandidates { get; set; } = 3;
 
-    public double ModelLearningRate { get; set; } = 0.0125d;
+    public double ModelLearningRate { get; set; } = 0.00625d;
 
     public double ModelL2 { get; set; } = 0.0015d;
 
@@ -172,8 +175,8 @@ public sealed class CombatFoundationTrainingParameters
         MaximumConsecutiveRejectedIterations = Math.Max(
             0,
             Math.Min(8, MaximumConsecutiveRejectedIterations));
-        NormalAcceptanceRate = Clamp(NormalAcceptanceRate, 0d, 1d, 0.90d);
-        AdvancedAcceptanceRate = Clamp(AdvancedAcceptanceRate, 0d, 1d, 0.50d);
+        NormalAcceptanceRate = Clamp(NormalAcceptanceRate, 0d, 1d, 0.80d);
+        AdvancedAcceptanceRate = Clamp(AdvancedAcceptanceRate, 0d, 1d, 0.30d);
         SuccessExpertReplayShare = Clamp(
             SuccessExpertReplayShare,
             0d,
@@ -225,7 +228,7 @@ public sealed class CombatFoundationTrainingParameters
             64,
             Math.Min(20000, ModelReplayEpisodeLimit));
         ModelRetainedCandidates = Math.Max(1, Math.Min(5, ModelRetainedCandidates));
-        ModelLearningRate = Clamp(ModelLearningRate, 0.0001d, 0.1d, 0.0125d);
+        ModelLearningRate = Clamp(ModelLearningRate, 0.0001d, 0.1d, 0.00625d);
         ModelL2 = Clamp(ModelL2, 0d, 0.05d, 0.0015d);
         ModelStateDimensions = Math.Max(16, Math.Min(512, ModelStateDimensions));
         ModelActionDimensions = Math.Max(16, Math.Min(512, ModelActionDimensions));
@@ -495,16 +498,11 @@ public static class CombatFoundationWorkerJobFactory
 
 public static class CombatFoundationModelPackageProtocol
 {
-    public const int SchemaVersion = 1;
+    public const int SchemaVersion = 2;
 
     public const string ArtifactKind = "aura.foundation-model-package";
 
-    public const string FileName = "foundation-model-package-v1.json";
-
-    public const string CurrentRoleId = "career_1";
-
-    public const string CurrentCardPoolScope =
-        "witch.normal.base-game.offline-packs.all-unlocked.no-curse.v1";
+    public const string FileName = "foundation-model-package-v2.json";
 
     public static CombatFoundationModelPackage Create(
         CombatFoundationWorkerJob job,
@@ -530,20 +528,35 @@ public static class CombatFoundationModelPackageProtocol
                 "只有通过正式隔离验收的 Worker 结果才能导出底模包");
         }
         var model = training.Champion;
+        var campaign = job.Request.TrainingCampaign;
+        var player = campaign.Player ?? new CombatPlayerSetup();
+        var cardPoolScope = BuildCardPoolScope(
+            player.PartnerId,
+            campaign.EnabledRewardCardPackIds,
+            campaign.TargetDeckSizeMinimum,
+            campaign.TargetDeckSizeMaximum);
         return new CombatFoundationModelPackage
         {
             PackageId = "foundation-package-"
                         + DateTime.UtcNow.ToString("yyyyMMdd-HHmmssfff")
                         + "-"
                         + Guid.NewGuid().ToString("N").Substring(0, 8),
-            DisplayName = "career_1 外部底模 "
+            DisplayName = player.RoleId
+                          + " + "
+                          + player.PartnerId
+                          + " 外部底模 "
                           + DateTime.Now.ToString("yyyy-MM-dd HH:mm"),
             Profile = model.DecisionProfile,
-            RoleId = string.IsNullOrWhiteSpace(
-                job.Request.TrainingCampaign.Player.RoleId)
-                ? CurrentRoleId
-                : job.Request.TrainingCampaign.Player.RoleId,
-            CardPoolScope = CurrentCardPoolScope,
+            RoleId = player.RoleId ?? "",
+            PartnerId = player.PartnerId ?? "",
+            GameParameterPresetId = player.GameParameterPresetId ?? "",
+            GameParameterHash = player.GameParameterHash ?? "",
+            EnabledRewardCardPackIds =
+                campaign.EnabledRewardCardPackIds.ToList(),
+            StartingDeckHash = HashIds(player.Deck, preserveOrder: true),
+            PreferredDeckSizeMinimum = campaign.TargetDeckSizeMinimum,
+            PreferredDeckSizeMaximum = campaign.TargetDeckSizeMaximum,
+            CardPoolScope = cardPoolScope,
             JobId = job.JobId,
             CompletionKind = result.CompletionKind,
             WorkerSha256 = workerSha256 ?? "",
@@ -582,16 +595,31 @@ public static class CombatFoundationModelPackageProtocol
             diagnostic = "底模包缺少已验收训练来源";
             return false;
         }
-        if (!string.Equals(
-                package.RoleId,
-                CurrentRoleId,
-                StringComparison.OrdinalIgnoreCase)
+        if (string.IsNullOrWhiteSpace(package.RoleId)
+            || string.IsNullOrWhiteSpace(package.PartnerId)
+            || string.IsNullOrWhiteSpace(package.GameParameterPresetId)
+            || string.IsNullOrWhiteSpace(package.GameParameterHash)
+            || string.IsNullOrWhiteSpace(package.StartingDeckHash)
+            || package.PreferredDeckSizeMinimum < 1
+            || package.PreferredDeckSizeMaximum
+               < package.PreferredDeckSizeMinimum
+            || package.EnabledRewardCardPackIds == null
+            || !package.EnabledRewardCardPackIds.Contains(
+                "cardpack_1",
+                StringComparer.OrdinalIgnoreCase)
+            || !package.EnabledRewardCardPackIds.Contains(
+                "cardpack_2",
+                StringComparer.OrdinalIgnoreCase)
             || !string.Equals(
                 package.CardPoolScope,
-                CurrentCardPoolScope,
+                BuildCardPoolScope(
+                    package.PartnerId,
+                    package.EnabledRewardCardPackIds,
+                    package.PreferredDeckSizeMinimum,
+                    package.PreferredDeckSizeMaximum),
                 StringComparison.Ordinal))
         {
-            diagnostic = "底模包不属于当前 career_1 / 本体离线卡池作用域";
+            diagnostic = "底模包缺少有效的角色、使魔、奖励卡包或卡组倾向作用域";
             return false;
         }
         if (package.Validation == null
@@ -665,6 +693,51 @@ public static class CombatFoundationModelPackageProtocol
         return true;
     }
 
+    public static string BuildCardPoolScope(
+        string partnerId,
+        IEnumerable<string>? enabledRewardCardPackIds,
+        int preferredDeckSizeMinimum,
+        int preferredDeckSizeMaximum)
+    {
+        var canonical = "partner="
+                        + (partnerId ?? "").Trim().ToLowerInvariant()
+                        + ";packs="
+                        + string.Join(
+                            ",",
+                            (enabledRewardCardPackIds ?? Array.Empty<string>())
+                            .Where(item => !string.IsNullOrWhiteSpace(item))
+                            .Select(item => item.Trim().ToLowerInvariant())
+                            .Distinct(StringComparer.OrdinalIgnoreCase)
+                            .OrderBy(item => item, StringComparer.Ordinal))
+                        + ";deck="
+                        + preferredDeckSizeMinimum
+                        + "-"
+                        + preferredDeckSizeMaximum;
+        return "witch.reward-scope.v2:" + HashText(canonical).Substring(0, 24);
+    }
+
+    private static string HashIds(
+        IEnumerable<string>? values,
+        bool preserveOrder)
+    {
+        var source = (values ?? Array.Empty<string>())
+            .Select(item => (item ?? "").Trim());
+        if (!preserveOrder)
+        {
+            source = source.OrderBy(item => item, StringComparer.Ordinal);
+        }
+        return HashText(string.Join("\n", source));
+    }
+
+    private static string HashText(string value)
+    {
+        using var sha = SHA256.Create();
+        return BitConverter.ToString(
+                sha.ComputeHash(Encoding.UTF8.GetBytes(value ?? "")))
+            .Replace("-", "")
+            .ToLowerInvariant();
+    }
+
     private static string NormalizeProfile(string value)
     {
         var normalized = (value ?? "").Trim().ToLowerInvariant();
@@ -690,11 +763,23 @@ public sealed class CombatFoundationModelPackage
 
     public string Profile { get; set; } = "balanced";
 
-    public string RoleId { get; set; } =
-        CombatFoundationModelPackageProtocol.CurrentRoleId;
+    public string RoleId { get; set; } = "";
 
-    public string CardPoolScope { get; set; } =
-        CombatFoundationModelPackageProtocol.CurrentCardPoolScope;
+    public string PartnerId { get; set; } = "";
+
+    public string GameParameterPresetId { get; set; } = "";
+
+    public string GameParameterHash { get; set; } = "";
+
+    public List<string> EnabledRewardCardPackIds { get; set; } = new();
+
+    public string StartingDeckHash { get; set; } = "";
+
+    public int PreferredDeckSizeMinimum { get; set; }
+
+    public int PreferredDeckSizeMaximum { get; set; }
+
+    public string CardPoolScope { get; set; } = "";
 
     public string JobId { get; set; } = "";
 

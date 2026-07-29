@@ -33,6 +33,14 @@ public sealed class CombatFoundationCampaignObservation
 
     public string ModelId { get; set; } = "";
 
+    public string RoleId { get; set; } = "";
+
+    public string PartnerId { get; set; } = "";
+
+    public string GameParameterPresetId { get; set; } = "";
+
+    public string GameParameterHash { get; set; } = "";
+
     public string DifficultyId { get; set; } = "";
 
     public ulong WorldSeed { get; set; }
@@ -84,6 +92,14 @@ public sealed class CombatFoundationCampaignObservation
     public string SecondaryArchetype { get; set; } = "";
 
     public List<string> FinalDeck { get; set; } = new();
+
+    public List<string> ReserveCards { get; set; } = new();
+
+    public List<string> SkillCardIds { get; set; } = new();
+
+    public List<string> FamiliarBlessingIds { get; set; } = new();
+
+    public List<string> EnabledRewardCardPackIds { get; set; } = new();
 
     public List<string> Relics { get; set; } = new();
 
@@ -280,7 +296,7 @@ public sealed class CombatFoundationCaseAnalysis
 
 public static class CombatFoundationCaseLearning
 {
-    public const int ArchiveSchemaVersion = 2;
+    public const int ArchiveSchemaVersion = 3;
 
     public static CombatFoundationCampaignObservation Observe(
         CombatCampaignResult campaign,
@@ -335,14 +351,28 @@ public static class CombatFoundationCaseLearning
             nativeProgramPackageHash,
             trainingPolicyVersion);
         var strategyFingerprint = Hash(
-            "strategy-v1|"
+            "strategy-v2|"
             + campaign.DifficultyId
+            + "|role="
+            + campaign.RoleId
+            + "|partner="
+            + campaign.PartnerId
+            + "|game="
+            + campaign.GameParameterHash
+            + "|skills="
+            + StableMultiset(campaign.SkillCardIds)
+            + "|familiar="
+            + StableMultiset(campaign.FamiliarBlessingIds)
+            + "|reward-packs="
+            + StableMultiset(campaign.EnabledRewardCardPackIds)
             + "|"
             + campaign.FinalState.BuildPlan.PrimaryArchetype
             + "|"
             + campaign.FinalState.BuildPlan.SecondaryArchetype
             + "|deck="
             + StableMultiset(finalDeck)
+            + "|reserve="
+            + StableMultiset(campaign.FinalState.ReserveCards)
             + "|relic="
             + StableMultiset(campaign.FinalState.Relics)
             + "|blessing="
@@ -384,6 +414,10 @@ public static class CombatFoundationCaseLearning
             RulesetHash = rulesHash,
             DecisionProfile = decisionProfile ?? "",
             ModelId = modelId ?? "",
+            RoleId = campaign.RoleId,
+            PartnerId = campaign.PartnerId,
+            GameParameterPresetId = campaign.GameParameterPresetId,
+            GameParameterHash = campaign.GameParameterHash,
             DifficultyId = campaign.DifficultyId,
             WorldSeed = campaign.WorldSeed,
             PlanHash = campaign.PlanHash,
@@ -418,6 +452,13 @@ public static class CombatFoundationCaseLearning
             SecondaryArchetype =
                 campaign.FinalState.BuildPlan.SecondaryArchetype ?? "",
             FinalDeck = finalDeck,
+            ReserveCards = new List<string>(
+                campaign.FinalState.ReserveCards),
+            SkillCardIds = new List<string>(campaign.SkillCardIds),
+            FamiliarBlessingIds =
+                new List<string>(campaign.FamiliarBlessingIds),
+            EnabledRewardCardPackIds =
+                new List<string>(campaign.EnabledRewardCardPackIds),
             Relics = new List<string>(campaign.FinalState.Relics),
             Blessings = new List<string>(campaign.FinalState.Blessings),
             SelectedCards = selectedCards

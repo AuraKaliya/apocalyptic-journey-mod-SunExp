@@ -207,6 +207,19 @@ public static class CombatBattleStateHasher
         MixList(ref hash, state.Hand);
         MixList(ref hash, state.DiscardPile);
         MixList(ref hash, state.ExhaustPile);
+        MixList(ref hash, state.SkillCards);
+        foreach (var cooldown in state.SkillCooldowns.OrderBy(pair => pair.Key))
+        {
+            Mix(ref hash, cooldown.Key);
+            Mix(ref hash, cooldown.Value);
+        }
+        foreach (var useCount in state.SkillUseCounts.OrderBy(
+                     pair => pair.Key,
+                     StringComparer.OrdinalIgnoreCase))
+        {
+            Mix(ref hash, useCount.Key);
+            Mix(ref hash, useCount.Value);
+        }
         foreach (var pair in state.Random.Counters.OrderBy(pair => pair.Key, StringComparer.Ordinal))
         {
             Mix(ref hash, pair.Key);

@@ -514,6 +514,18 @@ public sealed class CombatJourneyRunner
                 Player = new CombatPlayerSetup
                 {
                     RoleId = definition.Player.RoleId,
+                    PartnerId = definition.Player.PartnerId,
+                    GameParameterPresetId =
+                        definition.Player.GameParameterPresetId,
+                    GameParameterHash =
+                        definition.Player.GameParameterHash,
+                    SkillCardIds = new List<string>(
+                        definition.Player.SkillCardIds),
+                    SkillCooldownTurns = new Dictionary<string, int>(
+                        definition.Player.SkillCooldownTurns,
+                        StringComparer.OrdinalIgnoreCase),
+                    FamiliarBlessingIds = new List<string>(
+                        definition.Player.FamiliarBlessingIds),
                     MaxHp = definition.Player.MaxHp,
                     CurrentHp = checkpoint.CurrentHp,
                     BaseEnergy = definition.Player.BaseEnergy,
