@@ -29,3 +29,8 @@ TerriasCardFrameDebug/*.user
 TerriasCardFrameDebug.create.log
 
 ModsData/Logs/*
+
+/Terrias/Scripts/*
+/AuraToolsExp/Scripts/*
+/SanGuoShaExp/Scripts/*
+/TestMods/*.dll
