@@ -323,6 +323,7 @@ public sealed class CombatRulesetBuilder
                 || effect.Probability < 0d
                 || effect.Probability > 1d
                 || (effect.Amount < 0
+                    && effect.Kind != CombatSimulationEffectKind.AddStatus
                     && effect.Kind != CombatSimulationEffectKind.ChangeCardCost
                     && effect.Kind != CombatSimulationEffectKind.ModifyVariable
                     && effect.Kind != CombatSimulationEffectKind.ModifyVariablePercent

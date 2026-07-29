@@ -366,6 +366,12 @@ public sealed class CombatFoundationHardSeedHistoryEntry
 
     public int RecoverySuccesses { get; set; }
 
+    public int CounterfactualAttempts { get; set; }
+
+    public int CounterfactualAccepted { get; set; }
+
+    public string SolvabilityClass { get; set; } = "unknown";
+
     public int LastTrainedIteration { get; set; }
 
     public bool Resolved { get; set; }
@@ -381,7 +387,8 @@ public static class CombatFoundationHardSeedCurriculum
         double replayShare,
         int iteration,
         ulong runSeed,
-        bool enabled)
+        bool enabled,
+        IReadOnlyDictionary<string, double>? encounterWeights = null)
     {
         var history = BuildHistory(source, iteration);
         return Select(
@@ -390,7 +397,8 @@ public static class CombatFoundationHardSeedCurriculum
             replayShare,
             iteration,
             runSeed,
-            enabled);
+            enabled,
+            encounterWeights);
     }
 
     public static CombatFoundationHardSeedPlan Select(
@@ -399,7 +407,8 @@ public static class CombatFoundationHardSeedCurriculum
         double replayShare,
         int iteration,
         ulong runSeed,
-        bool enabled)
+        bool enabled,
+        IReadOnlyDictionary<string, double>? encounterWeights = null)
     {
         var plan = new CombatFoundationHardSeedPlan();
         if (!enabled || campaignCount <= 0 || replayShare <= 0d)
@@ -412,6 +421,7 @@ public static class CombatFoundationHardSeedCurriculum
             .Where(item => item != null
                            && item.WorldSeed > 0UL
                            && !item.Resolved
+                           && !IsBuildLimited(item.SolvabilityClass)
                            && item.FailureOccurrences > 0
                            && (item.TrainingAttempts < 2
                                || item.RecoverySuccesses > 0
@@ -446,6 +456,37 @@ public static class CombatFoundationHardSeedCurriculum
         var all = campaigns
             .Select(item => ToSeed(item, iteration, runSeed))
             .ToList();
+        var configuredWeights = (encounterWeights
+                                 ?? new Dictionary<string, double>())
+            .Where(item => !string.IsNullOrWhiteSpace(item.Key)
+                           && item.Value > 0d
+                           && !double.IsNaN(item.Value)
+                           && !double.IsInfinity(item.Value))
+            .ToList();
+        if (configuredWeights.Count > 0)
+        {
+            var configuredQuotas = AllocateQuotas(
+                target,
+                configuredWeights.Select(item => item.Value).ToArray());
+            for (var weightIndex = 0;
+                 weightIndex < configuredWeights.Count;
+                 weightIndex++)
+            {
+                var key = configuredWeights[weightIndex].Key;
+                AddCategory(
+                    plan,
+                    all.Where(item => string.Equals(
+                            ConfiguredGroup(
+                                item.TerminalScenarioId,
+                                configuredWeights.Select(pair => pair.Key)),
+                            key,
+                            StringComparison.OrdinalIgnoreCase))
+                        .OrderByDescending(item => item.PriorityScore)
+                        .ThenBy(item => StableRank(item, iteration, runSeed)),
+                    configuredQuotas[weightIndex],
+                    "target:" + key);
+            }
+        }
         var recurrent = all
             .GroupBy(item => ClusterKey(item.TerminalScenarioId),
                 StringComparer.Ordinal)
@@ -476,7 +517,9 @@ public static class CombatFoundationHardSeedCurriculum
             .ThenByDescending(item => item.PriorityScore)
             .ToList();
 
-        var quotas = AllocateQuotas(target, new[]
+        var quotas = AllocateQuotas(
+            Math.Max(0, target - plan.Seeds.Count),
+            new[]
         {
             0.50d, 0.25d, 0.15d, 0.10d
         });
@@ -494,6 +537,53 @@ public static class CombatFoundationHardSeedCurriculum
                 "hard-fill");
         }
         return plan;
+    }
+
+    private static bool IsBuildLimited(string? solvabilityClass)
+    {
+        return string.Equals(
+                   solvabilityClass,
+                   "build-limited",
+                   StringComparison.OrdinalIgnoreCase)
+               || string.Equals(
+                   solvabilityClass,
+                   "build-limited-provisional",
+                   StringComparison.OrdinalIgnoreCase);
+    }
+
+    private static string ConfiguredGroup(
+        string terminalScenarioId,
+        IEnumerable<string> configuredKeys)
+    {
+        var terminal = terminalScenarioId ?? "";
+        var keys = configuredKeys.ToList();
+        foreach (var key in keys.Where(item =>
+                     !item.StartsWith("@", StringComparison.Ordinal)))
+        {
+            if (string.Equals(terminal, key, StringComparison.OrdinalIgnoreCase)
+                || terminal.EndsWith(
+                    ":" + key,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return key;
+            }
+        }
+        if (keys.Any(item => string.Equals(
+                item,
+                "@final-boss",
+                StringComparison.OrdinalIgnoreCase))
+            && IsBossTerminal(terminal))
+        {
+            return keys.First(item => string.Equals(
+                item,
+                "@final-boss",
+                StringComparison.OrdinalIgnoreCase));
+        }
+        return keys.FirstOrDefault(item => string.Equals(
+                   item,
+                   "@other",
+                   StringComparison.OrdinalIgnoreCase))
+               ?? "";
     }
 
     public static List<CombatFoundationHardSeedHistoryEntry> BuildHistory(
@@ -563,6 +653,12 @@ public static class CombatFoundationHardSeedCurriculum
                             + unresolvedAge * 2d
                             + severity
                             + (IsBossTerminal(item.TerminalScenarioId) ? 5d : 0d)
+                            + (string.Equals(
+                                   item.SolvabilityClass,
+                                   "build-limited",
+                                   StringComparison.Ordinal)
+                                ? -25d
+                                : 0d)
                             + (CombatFoundationSeedPlan.Mix(
                                    runSeed ^ item.WorldSeed) & 0xFFFFUL)
                               / 65536d
@@ -813,11 +909,15 @@ public sealed class CombatFoundationReplaySelection
 
     public int AdvancedEpisodes { get; set; }
 
+    public int AdvancedDefeatEpisodes { get; set; }
+
     public int SuccessfulEpisodes { get; set; }
 
     public int DroppedDuplicateEpisodes { get; set; }
 
     public double TargetNormalShare { get; set; }
+
+    public double TargetAdvancedDefeatShare { get; set; }
 
     public int SourceCampaigns { get; set; }
 
@@ -832,6 +932,8 @@ public sealed class CombatFoundationReplaySelection
 public sealed class CombatFoundationReplayBalanceOptions
 {
     public double MinimumAdvancedShare { get; set; } = 0.35d;
+
+    public double MinimumAdvancedDefeatShare { get; set; } = 0.25d;
 
     public bool AllowCrossDifficultyBackfill { get; set; }
 }
@@ -863,12 +965,18 @@ public static class CombatFoundationReplaySampler
                 Math.Min(0.90d, balance.MinimumAdvancedShare)));
         var quotaShortfalls = new Dictionary<string, int>(
             StringComparer.Ordinal);
+        var minimumAdvancedDefeatShare = Math.Max(
+            0d,
+            Math.Min(
+                1d - targetNormalShare,
+                balance.MinimumAdvancedDefeatShare));
         var selected = !enabled
             ? episodes.Skip(Math.Max(0, episodes.Count - limit)).ToList()
             : SelectCampaignFirst(
                 campaigns,
                 limit,
                 targetNormalShare,
+                minimumAdvancedDefeatShare,
                 quotaShortfalls,
                 balance.AllowCrossDifficultyBackfill);
         return new CombatFoundationReplaySelection
@@ -878,9 +986,12 @@ public static class CombatFoundationReplaySampler
             NormalEpisodes = selected.Count(episode =>
                 !IsAdvanced(episode)),
             AdvancedEpisodes = selected.Count(IsAdvanced),
+            AdvancedDefeatEpisodes = selected.Count(episode =>
+                IsAdvanced(episode) && !IsSuccessful(episode)),
             SuccessfulEpisodes = selected.Count(IsSuccessful),
             DroppedDuplicateEpisodes = sourceEpisodes.Count - episodes.Count,
             TargetNormalShare = targetNormalShare,
+            TargetAdvancedDefeatShare = minimumAdvancedDefeatShare,
             SourceCampaigns = campaigns.Count,
             SelectedCampaigns = selected
                 .Select(CampaignKey)
@@ -899,6 +1010,7 @@ public static class CombatFoundationReplaySampler
         IReadOnlyList<ReplayCampaign> campaigns,
         int limit,
         double targetNormalShare,
+        double minimumAdvancedDefeatShare,
         IDictionary<string, int> quotaShortfalls,
         bool allowCrossDifficultyBackfill)
     {
@@ -924,6 +1036,10 @@ public static class CombatFoundationReplaySampler
                 ? targetCount
                 : 0;
         var advancedTarget = targetCount - normalTarget;
+        var advancedDefeatTarget = Math.Min(
+            advancedTarget,
+            (int)Math.Ceiling(
+                targetCount * Math.Max(0d, minimumAdvancedDefeatShare)));
         var result = new List<CombatEpisode>(targetCount);
         AddDifficultySelection(
             result,
@@ -931,14 +1047,16 @@ public static class CombatFoundationReplaySampler
             representatives,
             normalTarget,
             "normal",
-            quotaShortfalls);
+            quotaShortfalls,
+            minimumFailureTarget: 0);
         AddDifficultySelection(
             result,
             campaigns.Where(campaign => campaign.Advanced).ToList(),
             representatives,
             advancedTarget,
             "advanced",
-            quotaShortfalls);
+            quotaShortfalls,
+            advancedDefeatTarget);
         if (allowCrossDifficultyBackfill && result.Count < targetCount)
         {
             var selectedKeys = result
@@ -964,7 +1082,8 @@ public static class CombatFoundationReplaySampler
         IReadOnlyDictionary<string, List<CombatEpisode>> representatives,
         int target,
         string difficulty,
-        IDictionary<string, int> quotaShortfalls)
+        IDictionary<string, int> quotaShortfalls,
+        int minimumFailureTarget)
     {
         if (target <= 0)
         {
@@ -972,12 +1091,14 @@ public static class CombatFoundationReplaySampler
         }
         var wins = campaigns.Where(campaign => campaign.Successful).ToList();
         var failures = campaigns.Where(campaign => !campaign.Successful).ToList();
-        var winTarget = wins.Count > 0 && failures.Count > 0
-            ? target / 2
-            : wins.Count > 0
+        var failureTarget = wins.Count > 0 && failures.Count > 0
+            ? Math.Min(
+                target,
+                Math.Max(target - target / 2, minimumFailureTarget))
+            : failures.Count > 0
                 ? target
                 : 0;
-        var failureTarget = target - winTarget;
+        var winTarget = target - failureTarget;
         var selectedWins = TakeCampaignRoundRobin(
             wins,
             representatives,

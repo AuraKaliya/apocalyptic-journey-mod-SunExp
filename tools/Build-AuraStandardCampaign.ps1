@@ -2173,7 +2173,7 @@ function Try-NewAuthoritativeTriggeredStatus(
                 }))
         }
         "buff_rotten" {
-            $status.triggers = @(New-StatusTrigger "rotten-action" "ActionStarted" "EventSource" @(
+            $status.triggers = @(New-StatusTrigger "rotten-action" "ActionResolved" "EventSource" @(
                 [ordered]@{ kind = "SetBlock"; target = "Self"; amount = 0 }))
         }
         "buff_revelation" {
@@ -2976,6 +2976,25 @@ foreach ($blessing in $blessings) {
     }
 }
 
+$attributeThresholdRewards = @(
+    [ordered]@{ attributeId = "Strength"; threshold = 10; rewardId = "blessing_101" }
+    [ordered]@{ attributeId = "Strength"; threshold = 20; rewardId = "blessing_105" }
+    [ordered]@{ attributeId = "Strength"; threshold = 30; rewardId = "blessing_109" }
+    [ordered]@{ attributeId = "Strength"; threshold = 40; rewardId = "blessing_113" }
+    [ordered]@{ attributeId = "Lucky"; threshold = 10; rewardId = "blessing_102" }
+    [ordered]@{ attributeId = "Lucky"; threshold = 20; rewardId = "blessing_106" }
+    [ordered]@{ attributeId = "Lucky"; threshold = 30; rewardId = "blessing_110" }
+    [ordered]@{ attributeId = "Lucky"; threshold = 40; rewardId = "blessing_114" }
+    [ordered]@{ attributeId = "Perceive"; threshold = 10; rewardId = "blessing_104" }
+    [ordered]@{ attributeId = "Perceive"; threshold = 20; rewardId = "blessing_108" }
+    [ordered]@{ attributeId = "Perceive"; threshold = 30; rewardId = "blessing_112" }
+    [ordered]@{ attributeId = "Perceive"; threshold = 40; rewardId = "blessing_116" }
+    [ordered]@{ attributeId = "Wisdom"; threshold = 10; rewardId = "blessing_103" }
+    [ordered]@{ attributeId = "Wisdom"; threshold = 20; rewardId = "blessing_107" }
+    [ordered]@{ attributeId = "Wisdom"; threshold = 30; rewardId = "blessing_111" }
+    [ordered]@{ attributeId = "Wisdom"; threshold = 40; rewardId = "blessing_115" }
+)
+
 $hardAffixes = @($tables.Hard |
     Where-Object { Test-BaseGameId ([string]$_.Id) } |
     ForEach-Object {
@@ -3031,7 +3050,7 @@ if ($generatedRewardLeak.Count -gt 0) {
 $campaign = [ordered]@{
     schemaVersion = 2
     campaignId = "witch.world-simulation.standard-v2"
-    campaignVersion = "2.4.0"
+    campaignVersion = "2.6.0"
     rulesetVersion = "witch-base-evaluation-v2"
     initialMoney = 100
     player = [ordered]@{
@@ -3057,6 +3076,7 @@ $campaign = [ordered]@{
     mainAttributeUpperBound = 40
     secondaryAttributeUpperBound = 39
     unselectedAttributeUpperBound = 20
+    attributeThresholdRewards = @($attributeThresholdRewards)
     layers = @($layers)
     enemies = @($enemies | ForEach-Object {
         [ordered]@{

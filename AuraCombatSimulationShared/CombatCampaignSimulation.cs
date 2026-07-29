@@ -39,6 +39,15 @@ public sealed class CombatCampaignAttributePreset
     public int Unselected { get; set; }
 }
 
+public sealed class CombatCampaignAttributeThresholdRewardDefinition
+{
+    public string AttributeId { get; set; } = "";
+
+    public int Threshold { get; set; }
+
+    public string RewardId { get; set; } = "";
+}
+
 public sealed class CombatCampaignLayerDefinition
 {
     public int LayerNumber { get; set; }
@@ -200,6 +209,9 @@ public sealed class CombatCampaignDefinition
     public int SecondaryAttributeUpperBound { get; set; } = 39;
 
     public int UnselectedAttributeUpperBound { get; set; } = 20;
+
+    public List<CombatCampaignAttributeThresholdRewardDefinition>
+        AttributeThresholdRewards { get; set; } = new();
 
     public List<CombatCampaignLayerDefinition> Layers { get; set; } = new();
 
@@ -445,6 +457,8 @@ public sealed class CombatCampaignRewardDecision
 
     public CombatCampaignBlessingDecision Blessing { get; set; } = new();
 
+    public List<string> RemovedCardIds { get; set; } = new();
+
     public CombatCampaignBuildPlan BuildPlan { get; set; } = new();
 }
 
@@ -610,6 +624,101 @@ public static class CombatCampaignRewardRuleProjector
             });
         }
         return result;
+    }
+}
+
+public static class CombatCampaignAttributeThresholdRewardReconciler
+{
+    public static int Reconcile(
+        CombatCampaignDefinition definition,
+        CombatCampaignState state)
+    {
+        if (definition == null) throw new ArgumentNullException(nameof(definition));
+        if (state == null) throw new ArgumentNullException(nameof(state));
+
+        EnsureAttributeState(definition, state);
+
+        var rewardLookup = definition.Rewards.ToDictionary(
+            item => item.RewardId,
+            StringComparer.OrdinalIgnoreCase);
+        var grantedCount = 0;
+        bool granted;
+        do
+        {
+            granted = false;
+            foreach (var thresholdReward in definition.AttributeThresholdRewards
+                         .OrderBy(item => item.Threshold)
+                         .ThenBy(item => item.AttributeId, StringComparer.Ordinal)
+                         .ThenBy(item => item.RewardId, StringComparer.Ordinal))
+            {
+                if (!state.Attributes.TryGetValue(
+                        thresholdReward.AttributeId,
+                        out var value)
+                    || value < thresholdReward.Threshold
+                    || state.Blessings.Contains(
+                        thresholdReward.RewardId,
+                        StringComparer.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+                if (!rewardLookup.TryGetValue(
+                        thresholdReward.RewardId,
+                        out var reward)
+                    || reward.Kind != CombatCampaignRewardKind.Blessing)
+                {
+                    throw new InvalidOperationException(
+                        "Attribute threshold reward is not a registered blessing: "
+                        + thresholdReward.RewardId);
+                }
+
+                state.Blessings.Add(reward.RewardId);
+                CombatCampaignRewardSelector.ApplyProgressionEffect(
+                    definition,
+                    state,
+                    reward,
+                    reconcileAttributeThresholdRewards: false);
+                granted = true;
+                grantedCount++;
+            }
+        } while (granted);
+
+        return grantedCount;
+    }
+
+    private static void EnsureAttributeState(
+        CombatCampaignDefinition definition,
+        CombatCampaignState state)
+    {
+        foreach (var attributeId in definition.AttributeIds)
+        {
+            int currentValue;
+            if (!state.Attributes.TryGetValue(attributeId, out currentValue))
+            {
+                state.Attributes[attributeId] = 0;
+            }
+            if (!state.LayerBaseAttributes.ContainsKey(attributeId))
+            {
+                state.LayerBaseAttributes[attributeId] = currentValue;
+            }
+            if (!state.PermanentAttributeBonuses.ContainsKey(attributeId))
+            {
+                state.PermanentAttributeBonuses[attributeId] = 0;
+            }
+            if (!state.AttributeUpperBounds.ContainsKey(attributeId))
+            {
+                state.AttributeUpperBounds[attributeId] = string.Equals(
+                    attributeId,
+                    definition.MainAttributeId,
+                    StringComparison.OrdinalIgnoreCase)
+                    ? definition.MainAttributeUpperBound
+                    : string.Equals(
+                        attributeId,
+                        definition.SecondaryAttributeId,
+                        StringComparison.OrdinalIgnoreCase)
+                        ? definition.SecondaryAttributeUpperBound
+                        : definition.UnselectedAttributeUpperBound;
+            }
+        }
     }
 }
 
@@ -793,6 +902,30 @@ public static class CombatCampaignWorldPlanner
         {
             throw new ArgumentException("Campaign requires four attributes and distinct main/secondary ids.");
         }
+        var invalidThresholdReward = definition.AttributeThresholdRewards.FirstOrDefault(
+            item => item == null
+                    || string.IsNullOrWhiteSpace(item.AttributeId)
+                    || !attributes.Contains(
+                        item.AttributeId,
+                        StringComparer.OrdinalIgnoreCase)
+                    || item.Threshold <= 0
+                    || string.IsNullOrWhiteSpace(item.RewardId)
+                    || !rewardLookup.TryGetValue(item.RewardId, out var reward)
+                    || reward.Kind != CombatCampaignRewardKind.Blessing);
+        if (invalidThresholdReward != null
+            || definition.AttributeThresholdRewards
+                .GroupBy(
+                    item => item.AttributeId + "\0" + item.Threshold,
+                    StringComparer.OrdinalIgnoreCase)
+                .Any(group => group.Count() > 1)
+            || definition.AttributeThresholdRewards
+                .GroupBy(item => item.RewardId, StringComparer.OrdinalIgnoreCase)
+                .Any(group => group.Count() > 1))
+        {
+            throw new ArgumentException(
+                "Attribute threshold rewards must reference unique attributes, thresholds, and blessing rewards.",
+                nameof(definition));
+        }
         var layers = definition.Layers.OrderBy(item => item.LayerNumber).ToList();
         if (layers.Count != 7
             || layers.Select(item => item.LayerNumber).Where((number, index) => number != index + 1).Any())
@@ -893,7 +1026,12 @@ public static class CombatCampaignWorldPlanner
             .Where(item => item.Kind == CombatCampaignRewardKind.Blessing
                            && item.Tier >= minimumTier
                            && item.Tier <= maximumTier
-                           && (!definition.ExcludeNegativeBlessings || !item.Negative))
+                           && (!definition.ExcludeNegativeBlessings || !item.Negative)
+                           && !definition.AttributeThresholdRewards.Any(threshold =>
+                               string.Equals(
+                                   threshold.RewardId,
+                                   item.RewardId,
+                                   StringComparison.OrdinalIgnoreCase)))
             .Select(item => item.RewardId)
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .OrderBy(item => item, StringComparer.Ordinal)
@@ -1191,6 +1329,12 @@ public static class CombatCampaignRewardSelector
             OfferedId = blessingId,
             Acquired = acquired
         };
+        result.RemovedCardIds.AddRange(
+            ApplyRoutineCardRemoval(
+                definition,
+                encounter,
+                state,
+                lookup));
         result.BuildPlan = RefreshBuildPlan(definition, state).Clone();
         return result;
     }
@@ -1732,13 +1876,138 @@ public static class CombatCampaignRewardSelector
     {
         return layerNumber switch
         {
-            <= 1 => (18, 20),
-            2 => (21, 24),
-            3 => (24, 27),
-            4 => (27, 30),
-            5 => (29, 33),
-            _ => (30, 35)
+            <= 1 => (15, 18),
+            2 => (16, 20),
+            3 => (17, 21),
+            4 => (18, 22),
+            5 => (19, 23),
+            _ => (20, 24)
         };
+    }
+
+    private static IReadOnlyList<string> ApplyRoutineCardRemoval(
+        CombatCampaignDefinition definition,
+        CombatCampaignPlannedEncounter encounter,
+        CombatCampaignState state,
+        IReadOnlyDictionary<string, CombatCampaignRewardDefinition> lookup)
+    {
+        var plan = RefreshBuildPlan(definition, state);
+        var overflow = Math.Max(
+            0,
+            state.Deck.Count - plan.TargetDeckSizeMaximum);
+        var routineOpportunity = encounter.EndsLayer
+                                 && encounter.LayerNumber >= 2
+            ? 1
+            : 0;
+        var removalCount = Math.Max(
+            routineOpportunity,
+            Math.Min(2, overflow));
+        return RemoveLowestMarginalCards(
+            definition,
+            state,
+            lookup,
+            removalCount,
+            plan);
+    }
+
+    private static IReadOnlyList<string> RemoveLowestMarginalCards(
+        CombatCampaignDefinition definition,
+        CombatCampaignState state,
+        IReadOnlyDictionary<string, CombatCampaignRewardDefinition> lookup,
+        int requested,
+        CombatCampaignBuildPlan? plan = null)
+    {
+        var removed = new List<string>();
+        var minimumDeckSize = Math.Max(
+            12,
+            (plan ?? state.BuildPlan)?.TargetDeckSizeMinimum - 2 ?? 12);
+        for (var draw = 0;
+             draw < Math.Max(0, requested)
+             && state.Deck.Count > minimumDeckSize;
+             draw++)
+        {
+            var counts = state.Deck
+                .GroupBy(id => id, StringComparer.OrdinalIgnoreCase)
+                .ToDictionary(
+                    group => group.Key,
+                    group => group.Count(),
+                    StringComparer.OrdinalIgnoreCase);
+            var selected = state.Deck
+                .Select((id, index) => new
+                {
+                    Id = id,
+                    Index = index,
+                    Score = CardRemovalScore(
+                        definition,
+                        state,
+                        lookup,
+                        plan ?? state.BuildPlan,
+                        id,
+                        counts.TryGetValue(id, out var copies)
+                            ? copies
+                            : 1)
+                })
+                .OrderByDescending(item => item.Score)
+                .ThenBy(item => item.Id, StringComparer.Ordinal)
+                .ThenBy(item => item.Index)
+                .FirstOrDefault();
+            if (selected == null || selected.Score <= 0d)
+            {
+                break;
+            }
+            state.Deck.RemoveAt(selected.Index);
+            removed.Add(selected.Id);
+        }
+        return removed;
+    }
+
+    private static double CardRemovalScore(
+        CombatCampaignDefinition definition,
+        CombatCampaignState state,
+        IReadOnlyDictionary<string, CombatCampaignRewardDefinition> lookup,
+        CombatCampaignBuildPlan plan,
+        string cardId,
+        int copies)
+    {
+        var score = Math.Max(0, copies - 1) * 0.35d;
+        if (string.Equals(cardId, "card_1", StringComparison.OrdinalIgnoreCase))
+        {
+            score += 8d;
+        }
+        else if (string.Equals(cardId, "card_2", StringComparison.OrdinalIgnoreCase))
+        {
+            score += 7d;
+            if (state.CurrentLayer <= 2
+                && state.MaxHp > 0
+                && state.CurrentHp / (double)state.MaxHp <= 0.4d)
+            {
+                score -= 4d;
+            }
+        }
+        else if (cardId.StartsWith(
+                     "cursecard_",
+                     StringComparison.OrdinalIgnoreCase)
+                 || cardId.StartsWith(
+                     "nocard_",
+                     StringComparison.OrdinalIgnoreCase))
+        {
+            score += 10d;
+        }
+        if (!lookup.TryGetValue(cardId, out var reward))
+        {
+            return score;
+        }
+        var archetypeFit =
+            Feature(reward, plan.PrimaryArchetype)
+            + Feature(reward, plan.SecondaryArchetype) * 0.5d;
+        score -= Math.Max(0d, reward.BaseValue) * 0.8d;
+        score -= Math.Max(0d, archetypeFit) * 2d;
+        score += Math.Max(0d, Feature(reward, "risk")) * 0.75d;
+        if (Feature(reward, "hard-ban") > 0d)
+        {
+            score += 20d;
+        }
+        return score;
     }
 
     private static Dictionary<string, double> AggregateBuildFeatures(
@@ -1828,7 +2097,8 @@ public static class CombatCampaignRewardSelector
     internal static void ApplyProgressionEffect(
         CombatCampaignDefinition definition,
         CombatCampaignState state,
-        CombatCampaignRewardDefinition reward)
+        CombatCampaignRewardDefinition reward,
+        bool reconcileAttributeThresholdRewards = true)
     {
         if (!string.IsNullOrWhiteSpace(reward.OneTimeSpecialVariableKey))
         {
@@ -1926,31 +2196,23 @@ public static class CombatCampaignRewardSelector
         }
         if (reward.RandomCardRemovalCount > 0)
         {
-            var removable = state.Deck
-                .Select((id, index) => new { id, index })
-                .Where(item => !definition.Player.Deck.Contains(
-                    item.id,
-                    StringComparer.OrdinalIgnoreCase)
-                    || state.Deck.Count > definition.Player.Deck.Count)
-                .ToList();
-            var selected = new List<int>();
-            for (var draw = 0;
-                 draw < reward.RandomCardRemovalCount
-                 && removable.Count > 0;
-                 draw++)
-            {
-                var selectedIndex = StableProgressionIndex(
-                    state.WorldSeed,
-                    reward.RewardId + ":remove-card",
-                    state.CurrentGameLevel * 31 + draw,
-                    removable.Count);
-                selected.Add(removable[selectedIndex].index);
-                removable.RemoveAt(selectedIndex);
-            }
-            foreach (var index in selected.OrderByDescending(item => item))
-            {
-                state.Deck.RemoveAt(index);
-            }
+            var lookup = definition.Rewards.ToDictionary(
+                item => item.RewardId,
+                StringComparer.OrdinalIgnoreCase);
+            RemoveLowestMarginalCards(
+                definition,
+                state,
+                lookup,
+                reward.RandomCardRemovalCount,
+                new CombatCampaignBuildPlan
+                {
+                    LayerNumber = state.CurrentLayer,
+                    PrimaryArchetype = state.BuildPlan.PrimaryArchetype,
+                    SecondaryArchetype = state.BuildPlan.SecondaryArchetype,
+                    TargetDeckSizeMinimum = 14,
+                    TargetDeckSizeMaximum =
+                        state.BuildPlan.TargetDeckSizeMaximum
+                });
         }
         if (!state.RewardVariables.ContainsKey(reward.RewardId))
         {
@@ -1960,6 +2222,12 @@ public static class CombatCampaignRewardSelector
                     StringComparer.OrdinalIgnoreCase);
         }
         ClampAttributes(state);
+        if (reconcileAttributeThresholdRewards)
+        {
+            CombatCampaignAttributeThresholdRewardReconciler.Reconcile(
+                definition,
+                state);
+        }
     }
 
     internal static void RemoveProgressionEffect(
@@ -2485,6 +2753,9 @@ public sealed class CombatCampaignRunner
                 reward);
         }
         CombatCampaignRewardSelector.ClampAttributes(state);
+        CombatCampaignAttributeThresholdRewardReconciler.Reconcile(
+            definition,
+            state);
     }
 
     private static CombatScenarioDefinition BuildScenario(
@@ -2641,6 +2912,9 @@ public sealed class CombatCampaignRunner
             state.Attributes[attribute] = baseValue;
         }
         CombatCampaignRewardSelector.ClampAttributes(state);
+        CombatCampaignAttributeThresholdRewardReconciler.Reconcile(
+            definition,
+            state);
         CombatCampaignRewardSelector.RefreshBuildPlan(definition, state);
     }
 
@@ -2668,6 +2942,12 @@ public sealed class CombatCampaignRunner
             }
             var resumed = CloneCheckpoint(resumeFrom);
             resumed.State.WorldSeed = plan.WorldSeed;
+            CombatCampaignAttributeThresholdRewardReconciler.Reconcile(
+                definition,
+                resumed.State);
+            CombatCampaignRewardSelector.RefreshBuildPlan(
+                definition,
+                resumed.State);
             return resumed;
         }
         var state = new CombatCampaignState

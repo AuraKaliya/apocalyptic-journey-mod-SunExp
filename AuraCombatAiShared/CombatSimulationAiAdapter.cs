@@ -24,6 +24,8 @@ public sealed class CombatSelfPlayExplorationOptions
     public double RootDirichletAlpha { get; set; } = 0.30d;
 
     public double RootNoiseFraction { get; set; } = 0.25d;
+
+    public double ActionUniformMixture { get; set; } = 0.25d;
 }
 
 public sealed class CombatSearchExplorationOptions
@@ -102,7 +104,13 @@ public sealed class CombatDecisionSimulationPolicy :
                 : MaximumRootVisitShare(decision);
         LastDecisionMetrics.AuthoritativeActionsAudited = 0;
         LastDecisionMetrics.AuthoritativeSemanticMismatches = 0;
+        LastDecisionMetrics.AuthoritativeSelectedActionsAudited = 0;
+        LastDecisionMetrics.AuthoritativeSelectedSemanticMismatches = 0;
         LastDecisionMetrics.AuthoritativeTeacherOverrides = 0;
+        LastDecisionMetrics.AuthoritativeSemanticMismatchKinds.Clear();
+        LastDecisionMetrics.AuthoritativeSemanticMismatchSources.Clear();
+        LastDecisionMetrics.AuthoritativeSemanticMismatchScenarios.Clear();
+        LastDecisionMetrics.SemanticAudit = new CombatSemanticAuditMetrics();
         if (!decision.HasAction || decision.Action == null)
         {
             return context.LegalActions.FirstOrDefault(action =>
@@ -161,8 +169,18 @@ public sealed class CombatDecisionSimulationPolicy :
                 Math.Max(1d, candidate.SearchVisits),
                 inverseTemperature))
             .ToArray();
-        var total = weights.Sum();
-        var sample = explorationRandom.NextDouble() * total;
+        var visitTotal = weights.Sum();
+        var uniform = 1d / legal.Count;
+        for (var index = 0; index < weights.Length; index++)
+        {
+            var visitShare = visitTotal <= 0d
+                ? uniform
+                : weights[index] / visitTotal;
+            weights[index] =
+                (1d - exploration.ActionUniformMixture) * visitShare
+                + exploration.ActionUniformMixture * uniform;
+        }
+        var sample = explorationRandom.NextDouble();
         for (var index = 0; index < legal.Count; index++)
         {
             sample -= weights[index];
@@ -237,7 +255,14 @@ public sealed class CombatDecisionSimulationPolicy :
                     ? 0.25d
                     : Math.Max(
                         0d,
-                        Math.Min(0.75d, options.RootNoiseFraction))
+                        Math.Min(0.75d, options.RootNoiseFraction)),
+            ActionUniformMixture =
+                double.IsNaN(options.ActionUniformMixture)
+                || double.IsInfinity(options.ActionUniformMixture)
+                    ? 0.25d
+                    : Math.Max(
+                        0d,
+                        Math.Min(0.75d, options.ActionUniformMixture))
         };
     }
 }
@@ -300,6 +325,8 @@ public sealed class CombatAuthoritativeBranchTeacherPolicy :
 
         CombatSimulationAction? bestAction = null;
         var bestScore = double.NegativeInfinity;
+        var audits = new Dictionary<string, CombatSemanticAuditResult>(
+            StringComparer.Ordinal);
         var baselineScore = baseline?.Kind
                             == CombatSimulationActionKind.PlayCard
             ? double.NegativeInfinity
@@ -315,17 +342,51 @@ public sealed class CombatAuthoritativeBranchTeacherPolicy :
             {
                 continue;
             }
+            var projected = LastObservation?.Actions.FirstOrDefault(item =>
+                string.Equals(
+                    item.CandidateId,
+                    candidate.CandidateId,
+                    StringComparison.Ordinal));
             var score = ScoreTransition(
                 context.State,
                 applied.State,
-                candidate);
+                candidate,
+                projected?.Semantics);
             LastDecisionMetrics.AuthoritativeActionsAudited++;
-            if (SemanticMismatch(
-                    context.State,
-                    applied.State,
-                    candidate))
+            var audit = CombatSemanticAuditor.Audit(
+                context.State,
+                applied.State,
+                applied.Events,
+                projected?.Semantics,
+                candidate,
+                context.Ruleset);
+            audits[candidate.CandidateId] = audit;
+            RecordAudit(
+                LastDecisionMetrics,
+                audit,
+                candidate.DefinitionId,
+                context.Scenario.ScenarioId);
+            if (audit.Mismatch)
             {
                 LastDecisionMetrics.AuthoritativeSemanticMismatches++;
+                foreach (var kind in audit.MismatchKinds.Distinct(
+                             StringComparer.OrdinalIgnoreCase))
+                {
+                    Increment(
+                        LastDecisionMetrics
+                            .AuthoritativeSemanticMismatchKinds,
+                        kind);
+                }
+                Increment(
+                    LastDecisionMetrics.AuthoritativeSemanticMismatchSources,
+                    string.IsNullOrWhiteSpace(candidate.DefinitionId)
+                        ? "unknown"
+                        : candidate.DefinitionId);
+                Increment(
+                    LastDecisionMetrics.AuthoritativeSemanticMismatchScenarios,
+                    string.IsNullOrWhiteSpace(context.Scenario.ScenarioId)
+                        ? "unknown"
+                        : context.Scenario.ScenarioId);
             }
             if (baseline != null
                 && string.Equals(
@@ -341,21 +402,127 @@ public sealed class CombatAuthoritativeBranchTeacherPolicy :
                 bestAction = candidate;
             }
         }
-        if (bestAction == null
-            || bestScore
-               < baselineScore + options.MinimumOverrideGain
-            || baseline != null
-               && string.Equals(
-                   bestAction.CandidateId,
-                   baseline.CandidateId,
-                   StringComparison.Ordinal))
+        var selected = baseline;
+        if (bestAction != null
+            && bestScore
+               >= baselineScore + options.MinimumOverrideGain
+            && (baseline == null
+                || !string.Equals(
+                    bestAction.CandidateId,
+                    baseline.CandidateId,
+                    StringComparison.Ordinal)))
         {
-            return baseline;
+            LastDecisionMetrics.AuthoritativeTeacherOverrides = 1;
+            MakeTeacherTarget(bestAction.CandidateId);
+            selected = bestAction;
         }
+        if (selected != null
+            && audits.TryGetValue(selected.CandidateId, out var selectedAudit))
+        {
+            LastDecisionMetrics.AuthoritativeSelectedActionsAudited = 1;
+            LastDecisionMetrics.AuthoritativeSelectedSemanticMismatches =
+                selectedAudit.Mismatch ? 1 : 0;
+            var selectedSource = string.IsNullOrWhiteSpace(selected.DefinitionId)
+                ? "unknown"
+                : selected.DefinitionId;
+            Increment(
+                LastDecisionMetrics.SemanticAudit.SelectedAuditedSources,
+                selectedSource);
+            if (selectedAudit.ExplainedDifference)
+            {
+                LastDecisionMetrics.SemanticAudit.SelectedExplainedActions = 1;
+                LastDecisionMetrics.SemanticAudit
+                    .SelectedContextAdjustedActions = 1;
+            }
+            if (selectedAudit.Mismatch)
+            {
+                LastDecisionMetrics.SemanticAudit
+                    .SelectedUnexplainedMismatchActions = 1;
+                Increment(
+                    LastDecisionMetrics.SemanticAudit
+                        .SelectedUnexplainedMismatchSources,
+                    selectedSource);
+                foreach (var kind in selectedAudit.MismatchKinds.Distinct(
+                             StringComparer.OrdinalIgnoreCase))
+                {
+                    Increment(
+                        LastDecisionMetrics.SemanticAudit
+                            .SelectedUnexplainedMismatchKinds,
+                        kind);
+                    var key = SourceKindKey(selectedSource, kind);
+                    Increment(
+                        LastDecisionMetrics.SemanticAudit
+                            .SelectedSourceKindUnexplainedMismatches,
+                        key);
+                    if (LastDecisionMetrics.SemanticAudit
+                            .SelectedUnexplainedExamples.Count
+                        < CombatSemanticAuditMetrics.MaximumExamples
+                        && !LastDecisionMetrics.SemanticAudit
+                            .SelectedUnexplainedExamples.ContainsKey(key))
+                    {
+                        LastDecisionMetrics.SemanticAudit
+                            .SelectedUnexplainedExamples[key] =
+                            selectedAudit.Describe(selectedSource);
+                    }
+                }
+            }
+        }
+        return selected;
+    }
 
-        LastDecisionMetrics.AuthoritativeTeacherOverrides = 1;
-        MakeTeacherTarget(bestAction.CandidateId);
-        return bestAction;
+    private static void RecordAudit(
+        CombatSimulationPolicyDecisionMetrics metrics,
+        CombatSemanticAuditResult audit,
+        string sourceId,
+        string scenarioId)
+    {
+        var source = string.IsNullOrWhiteSpace(sourceId)
+            ? "unknown"
+            : sourceId;
+        Increment(metrics.SemanticAudit.AuditedSources, source);
+        foreach (var kind in audit.AuditedKinds.Distinct(
+                     StringComparer.OrdinalIgnoreCase))
+        {
+            Increment(metrics.SemanticAudit.AuditedKinds, kind);
+            Increment(
+                metrics.SemanticAudit.SourceKindAudits,
+                SourceKindKey(source, kind));
+        }
+        if (audit.ExplainedDifference)
+        {
+            metrics.SemanticAudit.ExplainedActions = 1;
+            foreach (var kind in audit.ExplainedKinds.Distinct(
+                         StringComparer.OrdinalIgnoreCase))
+            {
+                Increment(metrics.SemanticAudit.ExplainedKinds, kind);
+            }
+        }
+        foreach (var kind in audit.MismatchKinds.Distinct(
+                     StringComparer.OrdinalIgnoreCase))
+        {
+            var key = SourceKindKey(source, kind);
+            Increment(metrics.SemanticAudit.SourceKindMismatches, key);
+            if (metrics.SemanticAudit.Examples.Count
+                < CombatSemanticAuditMetrics.MaximumExamples
+                && !metrics.SemanticAudit.Examples.ContainsKey(key))
+            {
+                metrics.SemanticAudit.Examples[key] = audit.Describe(source);
+            }
+        }
+    }
+
+    private static string SourceKindKey(string source, string kind)
+    {
+        return source + "|" + kind;
+    }
+
+    private static void Increment(
+        IDictionary<string, int> counts,
+        string key)
+    {
+        counts[key] = counts.TryGetValue(key, out var current)
+            ? current + 1
+            : 1;
     }
 
     private bool ShouldAudit(CombatSimulationPolicyContext context)
@@ -396,58 +563,20 @@ public sealed class CombatAuthoritativeBranchTeacherPolicy :
             .ToList();
     }
 
-    private bool SemanticMismatch(
-        CombatBattleState before,
-        CombatBattleState after,
-        CombatSimulationAction action)
-    {
-        var projected = LastObservation?.Actions.FirstOrDefault(item =>
-            string.Equals(
-                item.CandidateId,
-                action.CandidateId,
-                StringComparison.Ordinal));
-        if (projected == null)
-        {
-            return true;
-        }
-        var beforePlayer = before.Player;
-        var afterPlayer = after.Player;
-        var actualDamage = before.LivingEnemies.Sum(item => item.Hp)
-                           - after.LivingEnemies.Sum(item => item.Hp);
-        var predictedDamage = projected.Semantics.Damage
-                              + projected.Semantics.TrueDamage;
-        var actualBlock = (afterPlayer?.Block ?? 0)
-                          - (beforePlayer?.Block ?? 0);
-        var actualHeal = (afterPlayer?.Hp ?? 0)
-                         - (beforePlayer?.Hp ?? 0);
-        var actualDraw = after.Hand.Count - before.Hand.Count + 1;
-        var actualEnergy = (afterPlayer?.Energy ?? 0)
-                           - (beforePlayer?.Energy ?? 0)
-                           + action.Cost;
-        return Different(predictedDamage, actualDamage)
-               || Different(projected.Semantics.Defend, actualBlock)
-               || Different(projected.Semantics.Heal, actualHeal)
-               || Different(projected.Semantics.Draw, actualDraw)
-               || Different(projected.Semantics.EnergyGain, actualEnergy);
-    }
-
-    private static bool Different(double predicted, double actual)
-    {
-        var tolerance = Math.Max(
-            2d,
-            Math.Max(Math.Abs(predicted), Math.Abs(actual)) * 0.25d);
-        return Math.Abs(predicted - actual) > tolerance;
-    }
-
     private static double ScoreTransition(
         CombatBattleState before,
         CombatBattleState after,
-        CombatSimulationAction action)
+        CombatSimulationAction action,
+        CombatActionSemantics? projected)
     {
         var beforePlayer = before.Player;
         var afterPlayer = after.Player;
-        var enemyHpGain = before.LivingEnemies.Sum(item => item.Hp)
-                          - after.LivingEnemies.Sum(item => item.Hp);
+        var enemyDurabilityGain = before.LivingEnemies.Sum(item =>
+                                      Math.Max(0, item.Hp)
+                                      + Math.Max(0, item.Block))
+                                  - after.LivingEnemies.Sum(item =>
+                                      Math.Max(0, item.Hp)
+                                      + Math.Max(0, item.Block));
         var defeated = before.LivingEnemies.Count()
                        - after.LivingEnemies.Count();
         var hpGain = (afterPlayer?.Hp ?? 0) - (beforePlayer?.Hp ?? 0);
@@ -457,12 +586,44 @@ public sealed class CombatAuthoritativeBranchTeacherPolicy :
             (afterPlayer?.Energy ?? 0) - (beforePlayer?.Energy ?? 0)
             + action.Cost;
         var handGain = after.Hand.Count - before.Hand.Count + 1;
-        return enemyHpGain * 2d
+        var semantics = projected ?? new CombatActionSemantics();
+        var continuationValue = ContinuationValue(after);
+        return enemyDurabilityGain * 2d
                + defeated * 40d
                + hpGain * 4d
                + blockGain * 0.75d
                + energyGain
-               + handGain * 1.5d;
+               + handGain * 1.5d
+               + Math.Max(0d, semantics.Debuff) * 1.25d
+               + Math.Max(0d, semantics.Buff) * 0.9d
+               + Math.Max(0d, semantics.Draw) * 0.5d
+               + continuationValue * 0.35d
+               + (after.Outcome == CombatSimulationOutcome.Victory
+                   ? 200d
+                   : 0d)
+               - (after.Outcome == CombatSimulationOutcome.Defeat
+                   ? 200d
+                   : 0d);
+    }
+
+    private static double ContinuationValue(CombatBattleState state)
+    {
+        var player = state.Player;
+        if (player == null)
+        {
+            return -100d;
+        }
+        var hpRatio = player.MaxHp <= 0
+            ? 0d
+            : Math.Max(0d, Math.Min(1d, player.Hp / (double)player.MaxHp));
+        var enemyPressure = state.LivingEnemies.Sum(item =>
+            Math.Max(0, item.Hp) + Math.Max(0, item.Block));
+        return hpRatio * 24d
+               + Math.Max(0, player.Block) * 0.25d
+               + Math.Max(0, player.Energy) * 0.3d
+               + state.Hand.Count * 0.4d
+               - enemyPressure * 0.08d
+               - state.LivingEnemies.Count() * 2d;
     }
 
     private void MakeTeacherTarget(string candidateId)
@@ -731,6 +892,20 @@ public static class PlayerEquivalentSimulationObservationProjector
                 ? 1d
                 : 0d
         };
+        var effectiveProjection = CombatSemanticAuditor.ProjectEffective(
+            state,
+            action,
+            semantics);
+        features["effectiveHpDamage"] = effectiveProjection.Damage;
+        features["effectiveDurabilityDamage"] =
+            effectiveProjection.DurabilityDamage;
+        features["effectiveDefend"] = effectiveProjection.Defend;
+        features["effectiveHeal"] = effectiveProjection.Heal;
+        var targetActor = state.FindActor(action.TargetActorId);
+        var remainingBossPhases = RemainingBossPhases(targetActor);
+        features["remainingBossPhases"] = remainingBossPhases;
+        features["terminalLethalEligible"] =
+            remainingBossPhases <= 0 ? 1d : 0d;
         if (instance?.Variables.TryGetValue("ThisCount", out var useCountRaw) == true
             && double.TryParse(
                 useCountRaw,
@@ -756,6 +931,34 @@ public static class PlayerEquivalentSimulationObservationProjector
             Semantics = semantics,
             Features = features
         };
+    }
+
+    private static int RemainingBossPhases(CombatActorState? target)
+    {
+        if (target == null)
+        {
+            return 0;
+        }
+        var remaining = 0;
+        foreach (var statusId in new[]
+                 {
+                     "SpecialBuff_OriginalSin",
+                     "SpecialBuff_HJE_AbsoluteShield"
+                 })
+        {
+            remaining = Math.Max(
+                remaining,
+                target.Statuses.FirstOrDefault(status => string.Equals(
+                    status.StatusId,
+                    statusId,
+                    StringComparison.OrdinalIgnoreCase))?.Stacks ?? 0);
+        }
+        var immortalGodhead = target.Statuses.FirstOrDefault(status =>
+            string.Equals(
+                status.StatusId,
+                "SpecialBuff_ImmortalGodhead",
+                StringComparison.OrdinalIgnoreCase))?.Stacks ?? 0;
+        return Math.Max(remaining, Math.Max(0, immortalGodhead - 1));
     }
 
     private static bool HasTag(CombatCardDefinition card, string tag)

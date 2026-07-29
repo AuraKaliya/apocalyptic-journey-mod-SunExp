@@ -18,7 +18,7 @@ var programs = sources
     .ToList();
 
 Directory.CreateDirectory(Path.GetDirectoryName(options.OutputPath) ?? ".");
-File.WriteAllText(
+var sourceChanged = WriteIfChanged(
     options.OutputPath,
     GenerateSource(programs),
     new UTF8Encoding(false));
@@ -33,7 +33,7 @@ var manifest = new
     programSetSha256 = Hash(string.Join("\n", programs.Select(item => item.Key)))
 };
 Directory.CreateDirectory(Path.GetDirectoryName(options.ManifestPath) ?? ".");
-File.WriteAllText(
+var manifestChanged = WriteIfChanged(
     options.ManifestPath,
     JsonSerializer.Serialize(
         manifest,
@@ -41,7 +41,25 @@ File.WriteAllText(
     new UTF8Encoding(false));
 
 Console.WriteLine(
-    $"Generated {programs.Count} precompiled native programs: {options.OutputPath}");
+    $"{(sourceChanged ? "Generated" : "Reused")} {programs.Count} precompiled native programs: {options.OutputPath}"
+    + (manifestChanged ? " (manifest updated)" : ""));
+
+static bool WriteIfChanged(
+    string path,
+    string content,
+    Encoding encoding)
+{
+    if (File.Exists(path)
+        && string.Equals(
+            File.ReadAllText(path, encoding),
+            content,
+            StringComparison.Ordinal))
+    {
+        return false;
+    }
+    File.WriteAllText(path, content, encoding);
+    return true;
+}
 
 static void CollectCampaign(string path, ISet<string> target)
 {

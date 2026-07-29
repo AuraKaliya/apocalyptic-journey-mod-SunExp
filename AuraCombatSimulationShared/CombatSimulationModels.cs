@@ -1099,7 +1099,180 @@ public sealed class CombatSimulationPolicyDecisionMetrics
 
     public int AuthoritativeSemanticMismatches { get; set; }
 
+    public int AuthoritativeSelectedActionsAudited { get; set; }
+
+    public int AuthoritativeSelectedSemanticMismatches { get; set; }
+
     public int AuthoritativeTeacherOverrides { get; set; }
+
+    public Dictionary<string, int> AuthoritativeSemanticMismatchKinds {
+        get;
+        set;
+    } = new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, int> AuthoritativeSemanticMismatchSources {
+        get;
+        set;
+    } = new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, int> AuthoritativeSemanticMismatchScenarios {
+        get;
+        set;
+    } = new(StringComparer.OrdinalIgnoreCase);
+
+    public CombatSemanticAuditMetrics SemanticAudit { get; set; } = new();
+}
+
+public sealed class CombatSemanticAuditMetrics
+{
+    public const int MaximumExamples = 32;
+
+    public int ExplainedActions { get; set; }
+
+    public int SelectedExplainedActions { get; set; }
+
+    public int SelectedContextAdjustedActions { get; set; }
+
+    public int SelectedUnexplainedMismatchActions { get; set; }
+
+    public Dictionary<string, int> AuditedSources { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, int> SelectedAuditedSources { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, int> SelectedUnexplainedMismatchSources {
+        get;
+        set;
+    } = new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, int> SelectedUnexplainedMismatchKinds {
+        get;
+        set;
+    } = new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, int> SelectedSourceKindUnexplainedMismatches {
+        get;
+        set;
+    } = new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, int> AuditedKinds { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, int> SourceKindAudits { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, int> SourceKindMismatches { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, int> ExplainedKinds { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, string> Examples { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, string> SelectedUnexplainedExamples {
+        get;
+        set;
+    } = new(StringComparer.OrdinalIgnoreCase);
+
+    public void MergeFrom(CombatSemanticAuditMetrics? source)
+    {
+        if (source == null)
+        {
+            return;
+        }
+        ExplainedActions = SaturatingAdd(
+            ExplainedActions,
+            source.ExplainedActions);
+        SelectedExplainedActions = SaturatingAdd(
+            SelectedExplainedActions,
+            source.SelectedExplainedActions);
+        SelectedContextAdjustedActions = SaturatingAdd(
+            SelectedContextAdjustedActions,
+            source.SelectedContextAdjustedActions);
+        SelectedUnexplainedMismatchActions = SaturatingAdd(
+            SelectedUnexplainedMismatchActions,
+            source.SelectedUnexplainedMismatchActions);
+        MergeCounts(AuditedSources, source.AuditedSources);
+        MergeCounts(SelectedAuditedSources, source.SelectedAuditedSources);
+        MergeCounts(
+            SelectedUnexplainedMismatchSources,
+            source.SelectedUnexplainedMismatchSources);
+        MergeCounts(
+            SelectedUnexplainedMismatchKinds,
+            source.SelectedUnexplainedMismatchKinds);
+        MergeCounts(
+            SelectedSourceKindUnexplainedMismatches,
+            source.SelectedSourceKindUnexplainedMismatches);
+        MergeCounts(AuditedKinds, source.AuditedKinds);
+        MergeCounts(SourceKindAudits, source.SourceKindAudits);
+        MergeCounts(SourceKindMismatches, source.SourceKindMismatches);
+        MergeCounts(ExplainedKinds, source.ExplainedKinds);
+        var mergedExamples = Examples
+            .Concat(source.Examples ?? new Dictionary<string, string>())
+            .GroupBy(item => item.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(group => new
+            {
+                Key = group.Key,
+                Value = group.Select(item => item.Value ?? "")
+                    .OrderBy(value => value, StringComparer.Ordinal)
+                    .First()
+            })
+            .OrderBy(item => item.Key, StringComparer.OrdinalIgnoreCase)
+            .Take(MaximumExamples)
+            .ToList();
+        Examples.Clear();
+        foreach (var pair in mergedExamples)
+        {
+            Examples[pair.Key] = pair.Value;
+        }
+        MergeExamples(
+            SelectedUnexplainedExamples,
+            source.SelectedUnexplainedExamples);
+    }
+
+    private static void MergeExamples(
+        IDictionary<string, string> target,
+        IReadOnlyDictionary<string, string>? source)
+    {
+        var merged = target
+            .Concat(source ?? new Dictionary<string, string>())
+            .GroupBy(item => item.Key, StringComparer.OrdinalIgnoreCase)
+            .Select(group => new
+            {
+                Key = group.Key,
+                Value = group.Select(item => item.Value ?? "")
+                    .OrderBy(value => value, StringComparer.Ordinal)
+                    .First()
+            })
+            .OrderBy(item => item.Key, StringComparer.OrdinalIgnoreCase)
+            .Take(MaximumExamples)
+            .ToList();
+        target.Clear();
+        foreach (var pair in merged)
+        {
+            target[pair.Key] = pair.Value;
+        }
+    }
+
+    private static void MergeCounts(
+        IDictionary<string, int> target,
+        IReadOnlyDictionary<string, int>? source)
+    {
+        foreach (var pair in source ?? new Dictionary<string, int>())
+        {
+            target[pair.Key] = SaturatingAdd(
+                target.TryGetValue(pair.Key, out var current) ? current : 0,
+                Math.Max(0, pair.Value));
+        }
+    }
+
+    private static int SaturatingAdd(int left, int right)
+    {
+        var sum = (long)Math.Max(0, left) + Math.Max(0, right);
+        return sum >= int.MaxValue ? int.MaxValue : (int)sum;
+    }
 }
 
 public interface ICombatSimulationPolicyMetricsProvider
@@ -1220,7 +1393,28 @@ public sealed class CombatSimulationMetrics
 
     public int AuthoritativeSemanticMismatches { get; set; }
 
+    public int AuthoritativeSelectedActionsAudited { get; set; }
+
+    public int AuthoritativeSelectedSemanticMismatches { get; set; }
+
     public int AuthoritativeTeacherOverrides { get; set; }
+
+    public Dictionary<string, int> AuthoritativeSemanticMismatchKinds {
+        get;
+        set;
+    } = new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, int> AuthoritativeSemanticMismatchSources {
+        get;
+        set;
+    } = new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, int> AuthoritativeSemanticMismatchScenarios {
+        get;
+        set;
+    } = new(StringComparer.OrdinalIgnoreCase);
+
+    public CombatSemanticAuditMetrics SemanticAudit { get; set; } = new();
 
     public Dictionary<string, int> CardPlayCounts { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);

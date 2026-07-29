@@ -14,7 +14,7 @@ public static class CombatPolicyValueProtocol
 
 public static class CombatPolicyValueFrameStratificationProtocol
 {
-    public const string Version = "frame-strata-v1";
+    public const string Version = "frame-strata-v2";
 
     public const double MinimumWeight = 0.50d;
 
@@ -188,6 +188,8 @@ public sealed class CombatPolicyValueTrainingOptions
     public double MaximumFrameStratumWeight { get; set; } =
         CombatPolicyValueFrameStratificationProtocol.DefaultMaximumWeight;
 
+    public int MaximumFramesPerEpisode { get; set; } = 96;
+
     public CombatPolicyValueTrainingOptions Normalized()
     {
         return new CombatPolicyValueTrainingOptions
@@ -227,7 +229,10 @@ public sealed class CombatPolicyValueTrainingOptions
                 1d,
                 5d,
                 CombatPolicyValueFrameStratificationProtocol
-                    .DefaultMaximumWeight)
+                    .DefaultMaximumWeight),
+            MaximumFramesPerEpisode = Math.Max(
+                8,
+                Math.Min(512, MaximumFramesPerEpisode))
         };
     }
 
@@ -247,6 +252,8 @@ public sealed class CombatPolicyValueTrainingResult
     public int EpisodeCount { get; set; }
 
     public int FrameCount { get; set; }
+
+    public int DroppedFramesByEpisodeCap { get; set; }
 
     public CombatPolicyValueNetworkDefinition? Model { get; set; }
 

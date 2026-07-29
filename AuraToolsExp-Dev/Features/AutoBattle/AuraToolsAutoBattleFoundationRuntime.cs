@@ -1237,6 +1237,8 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                 settings.SelfPlayExplorationTemperature,
                 settings.EnableFrameStratification,
                 settings.ModelMaximumFrameStratumWeight,
+                settings.ModelMaximumFramesPerEpisode,
+                settings.HardEncounterWeights,
                 result.Success,
                 computationSucceeded = result.Success,
                 result.AcceptancePassed,
@@ -1374,6 +1376,19 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                     result.SustainableControlLoops,
                     result.FakeLoops,
                     result.BlockedLoops,
+                    result.ExplorationDecisions,
+                    result.ExplorationActionOverrides,
+                    result.RootMaximumVisitShareMean,
+                    result.RootMaximumVisitShareSamples,
+                    result.AuthoritativeActionsAudited,
+                    result.AuthoritativeSemanticMismatches,
+                    result.AuthoritativeSelectedActionsAudited,
+                    result.AuthoritativeSelectedSemanticMismatches,
+                    result.AuthoritativeTeacherOverrides,
+                    result.AuthoritativeSemanticMismatchKinds,
+                    result.AuthoritativeSemanticMismatchSources,
+                    result.AuthoritativeSemanticMismatchScenarios,
+                    result.SemanticAudit,
                     result.ModelCompletedEpochs,
                     result.ModelConfiguredEpochs,
                     result.ModelBestEpoch,
@@ -1761,6 +1776,37 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                             + " semantic mismatches; "
                             + result.AuthoritativeTeacherOverrides
                             + " corrected actions");
+        markdown.AppendLine("- Selected-action semantic mismatch: "
+                            + result.AuthoritativeSelectedSemanticMismatches
+                            + "/"
+                            + result.AuthoritativeSelectedActionsAudited
+                            + "; top kinds: "
+                            + FormatTopCounts(
+                                result.AuthoritativeSemanticMismatchKinds,
+                                5)
+                            + "; top sources: "
+                            + FormatTopCounts(
+                                result.AuthoritativeSemanticMismatchSources,
+                                5)
+                            + "; top scenarios: "
+                            + FormatTopCounts(
+                                result.AuthoritativeSemanticMismatchScenarios,
+                                5));
+        markdown.AppendLine("- Unexplained semantic rates by source: "
+                            + FormatTopRates(
+                                result.SemanticAudit.AuditedSources,
+                                result.AuthoritativeSemanticMismatchSources,
+                                5)
+                            + "; source/kind: "
+                            + FormatTopRates(
+                                result.SemanticAudit.SourceKindAudits,
+                                result.SemanticAudit.SourceKindMismatches,
+                                5)
+                            + "; explained actions: "
+                            + result.SemanticAudit.ExplainedActions
+                            + " (selected "
+                            + result.SemanticAudit.SelectedExplainedActions
+                            + ")");
         markdown.AppendLine("- 循环安全：认证无限 "
                             + result.CertifiedLoops
                             + "；可持续控制循环 "
@@ -1825,6 +1871,11 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                 + "; mean depth "
                 + arm.AverageCompletedBattles.ToString("F1"));
         }
+        markdown.AppendLine(
+            "- Capability baseline gate: "
+            + (result.CapabilityProbe.PassedBaselineGate ? "passed" : "blocked")
+            + "; "
+            + result.CapabilityProbe.BaselineGateReason);
         foreach (var iteration in result.Iterations)
         {
             markdown.AppendLine("- 第 "
@@ -2112,6 +2163,10 @@ internal static class AuraToolsAutoBattleFoundationRuntime
             + " branches · "
             + result.AuthoritativeSemanticMismatches
             + " mismatch · "
+            + result.AuthoritativeSelectedSemanticMismatches
+            + "/"
+            + result.AuthoritativeSelectedActionsAudited
+            + " selected mismatch · "
             + result.AuthoritativeTeacherOverrides
             + " corrections · "
             + result.ExplorationActionOverrides
@@ -2120,6 +2175,38 @@ internal static class AuraToolsAutoBattleFoundationRuntime
             + " exploration overrides",
             result.AuthoritativeActionsAudited > 0
             && result.ExplorationDecisions > 0);
+        AppendMetric(
+            html,
+            "Semantic mismatch Top-N",
+            "kind: "
+            + FormatTopCounts(
+                result.AuthoritativeSemanticMismatchKinds,
+                3)
+            + " · source: "
+            + FormatTopCounts(
+                result.AuthoritativeSemanticMismatchSources,
+                3)
+            + " · scenario: "
+            + FormatTopCounts(
+                result.AuthoritativeSemanticMismatchScenarios,
+                3),
+            result.AuthoritativeSemanticMismatchKinds.Count == 0);
+        AppendMetric(
+            html,
+            "Unexplained semantic rate",
+            "source: "
+            + FormatTopRates(
+                result.SemanticAudit.AuditedSources,
+                result.AuthoritativeSemanticMismatchSources,
+                3)
+            + " · source/kind: "
+            + FormatTopRates(
+                result.SemanticAudit.SourceKindAudits,
+                result.SemanticAudit.SourceKindMismatches,
+                3)
+            + " · explained "
+            + result.SemanticAudit.ExplainedActions,
+            result.AuthoritativeSemanticMismatches == 0);
         AppendMetric(
             html,
             "循环安全 / 终局规则",
@@ -2332,6 +2419,12 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                 source.AdvancedValidationCampaigns,
             CapabilityProbeCampaignsPerDifficulty =
                 source.CapabilityProbeCampaignsPerDifficulty,
+            RequireCapabilityProbeBaselineGain =
+                source.RequireCapabilityProbeBaselineGain,
+            CapabilityProbeMinimumVictoryGain =
+                source.CapabilityProbeMinimumVictoryGain,
+            CapabilityProbeMinimumDepthGain =
+                source.CapabilityProbeMinimumDepthGain,
             PreflightCampaignsPerDifficulty =
                 source.PreflightCampaignsPerDifficulty,
             MaximumDegreeOfParallelism = source.Parallelism,
@@ -2357,6 +2450,9 @@ internal static class AuraToolsAutoBattleFoundationRuntime
             SuccessExpertReplayShare =
                 source.SuccessExpertReplayShare,
             HardSeedReplayShare = source.HardSeedReplayShare,
+            HardEncounterWeights = new Dictionary<string, double>(
+                source.HardEncounterWeights,
+                StringComparer.OrdinalIgnoreCase),
             SelfPlayExplorationProbability =
                 source.SelfPlayExplorationProbability,
             SelfPlayExplorationTemperature =
@@ -2372,6 +2468,8 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                 source.EnableFrameStratification,
             ModelMaximumFrameStratumWeight =
                 source.ModelMaximumFrameStratumWeight,
+            ModelMaximumFramesPerEpisode =
+                source.ModelMaximumFramesPerEpisode,
             ModelReplayEpisodeLimit =
                 source.ModelReplayEpisodeLimit,
             ModelRetainedCandidates =
@@ -2400,6 +2498,65 @@ internal static class AuraToolsAutoBattleFoundationRuntime
         }
         var value = BitConverter.ToUInt64(bytes, 0);
         return value == 0UL ? 1UL : value;
+    }
+
+    private static string FormatTopCounts(
+        IReadOnlyDictionary<string, int>? counts,
+        int limit)
+    {
+        if (counts == null || counts.Count == 0)
+        {
+            return "none";
+        }
+        return string.Join(
+            ", ",
+            counts.OrderByDescending(item => item.Value)
+                .ThenBy(item => item.Key, StringComparer.Ordinal)
+                .Take(Math.Max(1, limit))
+                .Select(item => item.Key + "=" + item.Value));
+    }
+
+    private static string FormatTopRates(
+        IReadOnlyDictionary<string, int>? audits,
+        IReadOnlyDictionary<string, int>? mismatches,
+        int limit)
+    {
+        if (audits == null || audits.Count == 0)
+        {
+            return "none";
+        }
+        mismatches ??= new Dictionary<string, int>();
+        return string.Join(
+            ", ",
+            audits.Where(item => item.Value > 0)
+                .Select(item =>
+                {
+                    var mismatch = mismatches.TryGetValue(
+                        item.Key,
+                        out var count)
+                        ? Math.Max(0, count)
+                        : 0;
+                    return new
+                    {
+                        item.Key,
+                        Audits = item.Value,
+                        Mismatches = mismatch,
+                        Rate = mismatch / (double)item.Value
+                    };
+                })
+                .OrderByDescending(item => item.Rate)
+                .ThenByDescending(item => item.Audits)
+                .ThenBy(item => item.Key, StringComparer.Ordinal)
+                .Take(Math.Max(1, limit))
+                .Select(item =>
+                    item.Key
+                    + "="
+                    + item.Mismatches
+                    + "/"
+                    + item.Audits
+                    + " ("
+                    + item.Rate.ToString("P1")
+                    + ")"));
     }
 
     private static string CurrentRuntimePackageHash()

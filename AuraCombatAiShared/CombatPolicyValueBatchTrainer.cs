@@ -49,7 +49,13 @@ internal static class CombatPolicyValueBatchTrainer
         var result = new CombatPolicyValueTrainingResult
         {
             EpisodeCount = episodes.Count,
-            FrameCount = episodes.Sum(episode => episode.Frames?.Count ?? 0)
+            FrameCount = episodes.Sum(episode => Math.Min(
+                episode.Frames?.Count ?? 0,
+                options.MaximumFramesPerEpisode)),
+            DroppedFramesByEpisodeCap = episodes.Sum(episode => Math.Max(
+                0,
+                (episode.Frames?.Count ?? 0)
+                - options.MaximumFramesPerEpisode))
         };
         if (episodes.Count < options.MinimumEpisodes)
         {
@@ -642,7 +648,7 @@ internal static class CombatPolicyValueBatchTrainer
     {
         var frames = episodes
             .SelectMany(episode =>
-                (episode.Frames ?? new List<CombatEpisodeFrame>())
+                SelectEpisodeFrames(episode, options.MaximumFramesPerEpisode)
                 .Select(frame => new FrameSource
                 {
                     Episode = episode,
@@ -664,6 +670,26 @@ internal static class CombatPolicyValueBatchTrainer
                 frames[index].Frame,
                 options));
         return encoded.Where(item => item != null).Select(item => item!).ToArray();
+    }
+
+    private static IReadOnlyList<CombatEpisodeFrame> SelectEpisodeFrames(
+        CombatEpisode episode,
+        int maximumFrames)
+    {
+        var frames = episode.Frames ?? new List<CombatEpisodeFrame>();
+        if (frames.Count <= maximumFrames)
+        {
+            return frames;
+        }
+        var selected = new List<CombatEpisodeFrame>(maximumFrames);
+        for (var index = 0; index < maximumFrames; index++)
+        {
+            var sourceIndex = (int)Math.Round(
+                index * (frames.Count - 1d) / (maximumFrames - 1d),
+                MidpointRounding.AwayFromZero);
+            selected.Add(frames[sourceIndex]);
+        }
+        return selected;
     }
 
     private static EncodedFrame? EncodeFrame(
@@ -753,12 +779,20 @@ internal static class CombatPolicyValueBatchTrainer
                 : battleIndex <= 34
                     ? "late"
                     : "final";
-        var outcome = (episode.Campaign?.OutcomeClass ?? episode.Outcome ?? "")
-            .IndexOf(
+        var outcomeClass =
+            episode.Campaign?.OutcomeClass ?? episode.Outcome ?? "";
+        var encounterVictory = outcomeClass.IndexOf(
+            "encounter-victory",
+            StringComparison.OrdinalIgnoreCase) >= 0;
+        var outcome = episode.Campaign != null
+            ? (episode.Campaign.FinalBossVictory || encounterVictory
+                ? "victory"
+                : "defeat")
+            : (outcomeClass.IndexOf(
                 "victory",
                 StringComparison.OrdinalIgnoreCase) >= 0
-            ? "victory"
-            : "defeat";
+                ? "victory"
+                : "defeat");
         return difficulty
                + ":"
                + phase

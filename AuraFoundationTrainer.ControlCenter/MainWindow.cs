@@ -1,10 +1,13 @@
 using System.Diagnostics;
 using System.Globalization;
 using System.IO;
+using System.Media;
+using System.Runtime.InteropServices;
 using System.Security.Cryptography;
 using System.Text;
 using System.Windows;
 using System.Windows.Controls;
+using System.Windows.Interop;
 using System.Windows.Media;
 using System.Windows.Threading;
 using AuraCombatAi.Shared;
@@ -21,6 +24,14 @@ internal sealed class MainWindow : Window
         new(StringComparer.Ordinal);
     private readonly Dictionary<string, CheckBox> toggles =
         new(StringComparer.Ordinal);
+    private static readonly TimeSpan RunningRefreshInterval =
+        TimeSpan.FromSeconds(1);
+    private static readonly TimeSpan IdleRefreshInterval =
+        TimeSpan.FromSeconds(5);
+    private const int ProgressTabIndex = 1;
+    private const uint FlashStop = 0;
+    private const uint FlashAll = 3;
+    private const uint FlashTimerNoForeground = 12;
     private readonly DispatcherTimer timer;
     private readonly string[] launchArguments;
     private ControllerSettings settings = new();
@@ -28,7 +39,14 @@ internal sealed class MainWindow : Window
     private Process? workerProcess;
     private TextBox modRootInput = null!;
     private TextBox dataRootInput = null!;
+    private readonly Dictionary<string, Button> profileButtons =
+        new(StringComparer.Ordinal);
+    private string selectedProfile = "balanced";
+    private TabControl tabs = null!;
+    private ScrollViewer parametersScroll = null!;
     private TextBlock environmentStatus = null!;
+    private TextBlock recentResultStatus = null!;
+    private TextBlock recentResultDetails = null!;
     private TextBlock runStatus = null!;
     private TextBlock progressPrimary = null!;
     private TextBlock progressSecondary = null!;
@@ -38,6 +56,15 @@ internal sealed class MainWindow : Window
     private Button cancelButton = null!;
     private Button continueButton = null!;
     private Button openButton = null!;
+    private string cachedJobPath = "";
+    private long cachedJobLength = -1;
+    private DateTime cachedJobLastWriteUtc = DateTime.MinValue;
+    private CombatFoundationWorkerJob? cachedJob;
+    private string presentedResultPath = "";
+    private long presentedResultLength = -1;
+    private DateTime presentedResultLastWriteUtc = DateTime.MinValue;
+    private ControllerWorkerResultSummary? presentedResult;
+    private bool completionNotificationArmed;
 
     public MainWindow(string[] args)
     {
@@ -48,21 +75,24 @@ internal sealed class MainWindow : Window
         MinWidth = 920;
         MinHeight = 680;
         WindowStartupLocation = WindowStartupLocation.CenterScreen;
-        Background = new SolidColorBrush(Color.FromRgb(25, 28, 35));
-        Foreground = Brushes.WhiteSmoke;
+        TrainerTheme.Apply(this);
         Content = BuildUi();
+        Loaded += (_, _) => Dispatcher.BeginInvoke(
+            () => parametersScroll.ScrollToTop(),
+            DispatcherPriority.ContextIdle);
         LoadSettings();
         ApplySettingsToUi();
         ValidateEnvironment();
         TryAttachLastSession();
         timer = new DispatcherTimer
         {
-            Interval = TimeSpan.FromMilliseconds(500)
+            Interval = RunningRefreshInterval
         };
         timer.Tick += (_, _) => RefreshRunState();
         timer.Start();
         Closing += (_, _) =>
         {
+            timer.Stop();
             PullSettingsFromUi();
             SaveSettings();
         };
@@ -70,27 +100,45 @@ internal sealed class MainWindow : Window
 
     private UIElement BuildUi()
     {
-        var root = new DockPanel { Margin = new Thickness(16) };
-        var title = new TextBlock
+        var root = new DockPanel();
+        var header = new Border
         {
-            Text = "Aura Foundation Trainer",
-            FontSize = 24,
-            FontWeight = FontWeights.SemiBold,
-            Margin = new Thickness(0, 0, 0, 12)
+            Background = TrainerTheme.Header,
+            BorderBrush = TrainerTheme.Border,
+            BorderThickness = new Thickness(0, 0, 0, 1),
+            Padding = new Thickness(24, 18, 24, 16)
         };
-        DockPanel.SetDock(title, Dock.Top);
-        root.Children.Add(title);
+        var heading = new StackPanel();
+        heading.Children.Add(new TextBlock
+        {
+            Text = "Aura 外部底模训练器",
+            FontSize = 23,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = TrainerTheme.Text
+        });
+        heading.Children.Add(new TextBlock
+        {
+            Text = "独立训练 · 模拟校准 · 受控验收",
+            Margin = new Thickness(0, 5, 0, 0),
+            Foreground = TrainerTheme.Muted
+        });
+        header.Child = heading;
+        DockPanel.SetDock(header, Dock.Top);
+        root.Children.Add(header);
 
-        var tabs = new TabControl();
+        tabs = new TabControl
+        {
+            Margin = new Thickness(20, 16, 20, 20)
+        };
         tabs.Items.Add(new TabItem
         {
-            Header = "训练参数",
-            Content = BuildParametersTab()
+            Header = "训练配置",
+            Content = TrainerTheme.ContentSurface(BuildParametersTab())
         });
         tabs.Items.Add(new TabItem
         {
-            Header = "进度与结果",
-            Content = BuildProgressTab()
+            Header = "运行监控",
+            Content = TrainerTheme.ContentSurface(BuildProgressTab())
         });
         root.Children.Add(tabs);
         return root;
@@ -98,21 +146,67 @@ internal sealed class MainWindow : Window
 
     private UIElement BuildParametersTab()
     {
-        var scroll = new ScrollViewer
+        parametersScroll = new ScrollViewer
         {
-            VerticalScrollBarVisibility = ScrollBarVisibility.Auto
+            VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
+            Background = TrainerTheme.Window
         };
-        var panel = new StackPanel { Margin = new Thickness(12) };
-        scroll.Content = panel;
+        var panel = new StackPanel
+        {
+            Margin = new Thickness(2, 0, 12, 0),
+            MaxWidth = 920,
+            HorizontalAlignment = HorizontalAlignment.Left
+        };
+        parametersScroll.Content = panel;
 
         panel.Children.Add(Section("运行环境"));
         modRootInput = AddPathRow(panel, "MOD 目录", BrowseModRoot);
         dataRootInput = AddPathRow(panel, "ModsData 目录", BrowseDataRoot);
         environmentStatus = Hint(panel, "");
+        Hint(
+            panel,
+            "默认按控制台 EXE 的相对位置自动定位；“选择”仅用于本次运行的临时覆盖。");
+
+        panel.Children.Add(Section("最近一次训练"));
+        var recentResultPanel = new StackPanel();
+        recentResultStatus = new TextBlock
+        {
+            Text = "暂无训练结果",
+            FontSize = 15,
+            FontWeight = FontWeights.SemiBold,
+            Foreground = TrainerTheme.Muted,
+            TextWrapping = TextWrapping.Wrap
+        };
+        recentResultDetails = new TextBlock
+        {
+            Text = "训练结束后，这里会持续显示验收状态和胜场摘要。",
+            Margin = new Thickness(0, 6, 0, 0),
+            Foreground = TrainerTheme.Muted,
+            TextWrapping = TextWrapping.Wrap
+        };
+        recentResultPanel.Children.Add(recentResultStatus);
+        recentResultPanel.Children.Add(recentResultDetails);
+        panel.Children.Add(new Border
+        {
+            Background = TrainerTheme.Surface,
+            BorderBrush = TrainerTheme.Border,
+            BorderThickness = new Thickness(1),
+            CornerRadius = new CornerRadius(6),
+            Padding = new Thickness(14, 12, 14, 12),
+            Child = recentResultPanel
+        });
 
         panel.Children.Add(Section("工作量与性能"));
+        AddProfileSelect(panel);
+        AddNumber(
+            panel,
+            "AdditionalIterationsOnResume",
+            "恢复后追加轮数",
+            0,
+            20);
         AddNumber(panel, "Iterations", "训练轮数", 1, 20);
         AddNumber(panel, "TrainingCampaignsPerIteration", "每轮训练冒险", 2, 1000);
+        AddNumber(panel, "PreflightCampaignsPerDifficulty", "预检冒险/难度", 1, 100);
         AddNumber(panel, "ArenaCampaignsPerDifficulty", "竞技场/难度", 1, 100);
         AddNumber(
             panel,
@@ -127,7 +221,21 @@ internal sealed class MainWindow : Window
             "CapabilityProbeCampaignsPerDifficulty",
             "能力探针/难度",
             0,
-            32);
+            64);
+        AddToggle(
+            panel,
+            "RequireCapabilityProbeBaselineGain",
+            "能力探针要求超过规则基线");
+        AddNumber(
+            panel,
+            "CapabilityProbeMinimumVictoryGain",
+            "能力探针最少胜场增益",
+            1,
+            64);
+        AddDouble(
+            panel,
+            "CapabilityProbeMinimumDepthGain",
+            "能力探针最少深度增益");
         AddNumber(panel, "MaximumDegreeOfParallelism", "CPU 并行度", 1, 64);
 
         panel.Children.Add(Section("模型训练"));
@@ -136,9 +244,13 @@ internal sealed class MainWindow : Window
         AddNumber(panel, "ModelEarlyStoppingPatience", "早停耐心", 1, 30);
         AddDouble(panel, "ModelEarlyStoppingMinimumDelta", "早停最小增益");
         AddNumber(panel, "ModelBatchSize", "Minibatch", 8, 512);
+        AddNumber(panel, "MinimumEpisodes", "最少训练 Episodes", 2, 1000);
         AddNumber(panel, "ModelReplayEpisodeLimit", "Replay 上限", 64, 20000);
         AddNumber(panel, "ModelRetainedCandidates", "Top-K 候选", 1, 5);
+        AddToggle(panel, "EnableFrameStratification", "启用帧分层再平衡");
+        AddDouble(panel, "ModelMaximumFrameStratumWeight", "帧分层最大权重");
         AddDouble(panel, "ModelLearningRate", "学习率");
+        AddNumber(panel, "ModelMaximumFramesPerEpisode", "Frames per episode", 8, 512);
         AddDouble(panel, "ModelL2", "L2");
         AddNumber(panel, "ModelStateDimensions", "状态维度", 16, 512);
         AddNumber(panel, "ModelActionDimensions", "动作维度", 16, 512);
@@ -156,10 +268,28 @@ internal sealed class MainWindow : Window
         AddToggle(panel, "EnableArenaRecovery", "启用竞技场恢复");
         AddToggle(panel, "EnableTuningArena", "启用 Top-K 调优竞技场");
         AddToggle(panel, "EnableEarlyValidationStop", "启用验证提前停止");
+        AddNumber(panel, "ArenaInvalidRetryCount", "无效竞技场重试", 0, 3);
+        AddDouble(panel, "ArenaInvalidRateLimit", "无效竞技场率上限");
+        AddNumber(panel, "TuningNormalCampaigns", "普通调优冒险", 0, 64);
+        AddNumber(panel, "TuningAdvancedCampaigns", "高级调优冒险", 0, 64);
+        AddNumber(
+            panel,
+            "MaximumConsecutiveRejectedIterations",
+            "连续拒绝停止阈值",
+            0,
+            8);
         AddDouble(panel, "NormalAcceptanceRate", "普通验收率");
         AddDouble(panel, "AdvancedAcceptanceRate", "高级验收率");
         AddDouble(panel, "SuccessExpertReplayShare", "成功教师回放占比");
         AddDouble(panel, "HardSeedReplayShare", "困难种子占比");
+        AddDouble(
+            panel,
+            "MinimumAdvancedReplayShare",
+            "高级回放最低占比");
+        AddDouble(
+            panel,
+            "MinimumAdvancedDefeatReplayShare",
+            "高级失败回放最低占比");
         AddDouble(panel, "SelfPlayExplorationProbability", "自博弈探索率");
         AddDouble(panel, "SelfPlayExplorationTemperature", "探索温度");
 
@@ -175,30 +305,58 @@ internal sealed class MainWindow : Window
             Orientation = Orientation.Horizontal,
             Margin = new Thickness(0, 16, 0, 20)
         };
-        startButton = ActionButton("开始 / 恢复训练", StartTraining);
+        startButton = ActionButton(
+            "开始 / 恢复训练",
+            StartTraining,
+            TrainerButtonTone.Primary);
         continueButton = ActionButton("以上轮 Champion 继续", ContinueTraining);
-        cancelButton = ActionButton("安全取消", CancelTraining);
+        cancelButton = ActionButton(
+            "安全取消",
+            CancelTraining,
+            TrainerButtonTone.Danger);
         openButton = ActionButton("打开运行目录", OpenRunDirectory);
         actions.Children.Add(startButton);
         actions.Children.Add(continueButton);
         actions.Children.Add(cancelButton);
         actions.Children.Add(openButton);
         panel.Children.Add(actions);
-        return scroll;
+        return parametersScroll;
     }
 
     private UIElement BuildProgressTab()
     {
-        var panel = new StackPanel { Margin = new Thickness(16) };
+        var panel = new Grid
+        {
+            Margin = new Thickness(2, 0, 2, 0),
+            Background = TrainerTheme.Window
+        };
+        for (var i = 0; i < 5; i++)
+        {
+            panel.RowDefinitions.Add(new RowDefinition
+            {
+                Height = GridLength.Auto
+            });
+        }
+        panel.RowDefinitions.Add(new RowDefinition
+        {
+            Height = new GridLength(1, GridUnitType.Star)
+        });
         runStatus = new TextBlock
         {
             Text = "尚未开始训练",
             FontSize = 20,
             FontWeight = FontWeights.SemiBold,
+            Foreground = TrainerTheme.Text,
             TextWrapping = TextWrapping.Wrap
         };
-        progressPrimary = Hint(panel, "");
-        progressSecondary = Hint(panel, "");
+        Grid.SetRow(runStatus, 0);
+        panel.Children.Add(runStatus);
+        progressPrimary = ProgressText();
+        Grid.SetRow(progressPrimary, 1);
+        panel.Children.Add(progressPrimary);
+        progressSecondary = ProgressText();
+        Grid.SetRow(progressSecondary, 2);
+        panel.Children.Add(progressSecondary);
         progressBar = new ProgressBar
         {
             Height = 18,
@@ -206,26 +364,30 @@ internal sealed class MainWindow : Window
             Maximum = 100,
             Margin = new Thickness(0, 12, 0, 12)
         };
-        panel.Children.Insert(0, runStatus);
+        Grid.SetRow(progressBar, 3);
         panel.Children.Add(progressBar);
-        panel.Children.Add(new TextBlock
+        var logTitle = new TextBlock
         {
             Text = "运行信息",
             FontSize = 16,
             FontWeight = FontWeights.SemiBold,
+            Foreground = TrainerTheme.Accent,
             Margin = new Thickness(0, 12, 0, 6)
-        });
+        };
+        Grid.SetRow(logTitle, 4);
+        panel.Children.Add(logTitle);
         logBox = new TextBox
         {
             IsReadOnly = true,
             AcceptsReturn = true,
             TextWrapping = TextWrapping.Wrap,
             VerticalScrollBarVisibility = ScrollBarVisibility.Auto,
-            Height = 420,
-            Background = new SolidColorBrush(Color.FromRgb(16, 18, 23)),
-            Foreground = new SolidColorBrush(Color.FromRgb(205, 214, 224)),
-            BorderBrush = new SolidColorBrush(Color.FromRgb(65, 72, 84))
+            MinHeight = 220,
+            Background = TrainerTheme.Input,
+            Foreground = TrainerTheme.Text,
+            BorderBrush = TrainerTheme.Border
         };
+        Grid.SetRow(logBox, 5);
         panel.Children.Add(logBox);
         return panel;
     }
@@ -260,7 +422,8 @@ internal sealed class MainWindow : Window
                 throw new InvalidOperationException("上一轮没有 Worker 结果");
             }
             var result = Deserialize<CombatFoundationWorkerResult>(
-                File.ReadAllText(resultPath));
+                CombatFoundationCheckpointStorage.ReadAllTextShared(
+                    resultPath));
             var champion = result?.Training?.Champion;
             if (champion == null
                 || !string.Equals(
@@ -304,23 +467,27 @@ internal sealed class MainWindow : Window
             "combat-simulation",
             "witch-base-evaluation-v2.ruleset.json");
         var sourceCampaign = Deserialize<CombatCampaignDefinition>(
-                                 File.ReadAllText(campaignPath))
+                                 CombatFoundationCheckpointStorage
+                                     .ReadAllTextShared(campaignPath))
                              ?? throw new InvalidOperationException("无法读取训练战役");
         var trainingCampaign = Deserialize<CombatCampaignDefinition>(
-                                   File.ReadAllText(campaignPath))
+                                   CombatFoundationCheckpointStorage
+                                       .ReadAllTextShared(campaignPath))
                                ?? throw new InvalidOperationException("无法克隆训练战役");
         trainingCampaign.TraceLevel = CombatSimulationTraceLevel.Summary;
         trainingCampaign.RequireAuthoritativeRules = true;
         trainingCampaign.RetainBlockBetweenTurns = true;
         var validationCampaign = Deserialize<CombatCampaignDefinition>(
-                                     File.ReadAllText(campaignPath))
+                                     CombatFoundationCheckpointStorage
+                                         .ReadAllTextShared(campaignPath))
                                  ?? throw new InvalidOperationException("无法克隆验证战役");
         validationCampaign.TraceLevel = CombatSimulationTraceLevel.Full;
         validationCampaign.FullTraceFinalEncounterOnly = true;
         validationCampaign.RequireAuthoritativeRules = true;
         validationCampaign.RetainBlockBetweenTurns = true;
         var rulesetDocument = Deserialize<CombatRulesetDocument>(
-                                  File.ReadAllText(rulesetPath))
+                                  CombatFoundationCheckpointStorage
+                                      .ReadAllTextShared(rulesetPath))
                               ?? throw new InvalidOperationException("无法读取规则集");
         var rulesetBuild = CombatSimulationRegistry.BuildRuleset(rulesetDocument);
         if (!rulesetBuild.Success)
@@ -409,6 +576,9 @@ internal sealed class MainWindow : Window
             ProcessId = workerProcess.Id,
             StartedUtc = DateTime.UtcNow
         };
+        ResetPollingCache();
+        completionNotificationArmed = true;
+        timer.Interval = RunningRefreshInterval;
         settings.LastRunDirectory = resultDirectory;
         SaveSession();
         SaveSettings();
@@ -419,6 +589,11 @@ internal sealed class MainWindow : Window
             + parameters.EstimatedCampaigns()
             + "，PID="
             + workerProcess.Id);
+        recentResultStatus.Text = "训练运行中 · " + jobId;
+        recentResultStatus.Foreground = TrainerTheme.Accent;
+        recentResultDetails.Text =
+            "完成后将自动切换到运行监控页，并显示验收结果。";
+        tabs.SelectedIndex = ProgressTabIndex;
         RefreshRunState();
     }
 
@@ -445,6 +620,7 @@ internal sealed class MainWindow : Window
     {
         if (session == null)
         {
+            timer.Interval = IdleRefreshInterval;
             SetIdleButtons();
             return;
         }
@@ -455,16 +631,57 @@ internal sealed class MainWindow : Window
             return;
         }
         var running = IsWorkerRunning();
+        timer.Interval = running
+            ? RunningRefreshInterval
+            : IdleRefreshInterval;
         startButton.IsEnabled = !running;
         continueButton.IsEnabled = !running;
         cancelButton.IsEnabled = running;
         openButton.IsEnabled = Directory.Exists(session.ResultDirectory);
+        if (TryGetFileIdentity(
+                job.ResultPath,
+                out var resultLength,
+                out var resultLastWriteUtc))
+        {
+            if (string.Equals(
+                    presentedResultPath,
+                    job.ResultPath,
+                    StringComparison.OrdinalIgnoreCase)
+                && presentedResultLength == resultLength
+                && presentedResultLastWriteUtc == resultLastWriteUtc)
+            {
+                TryShowCompletionNotification(running);
+                return;
+            }
+            try
+            {
+                var result = ReadResultSummaryStreaming(job.ResultPath);
+                if (result != null)
+                {
+                    PresentResult(result);
+                    presentedResult = result;
+                    presentedResultPath = job.ResultPath;
+                    presentedResultLength = resultLength;
+                    presentedResultLastWriteUtc = resultLastWriteUtc;
+                    TryShowCompletionNotification(running);
+                    return;
+                }
+            }
+            catch (IOException)
+            {
+            }
+            catch (JsonException ex)
+            {
+                AppendLog("结果文件暂不可读：" + ex.Message);
+            }
+        }
         if (File.Exists(job.ProgressPath))
         {
             try
             {
                 var progress = Deserialize<CombatFoundationWorkerProgress>(
-                    File.ReadAllText(job.ProgressPath));
+                    CombatFoundationCheckpointStorage.ReadAllTextShared(
+                        job.ProgressPath));
                 if (progress?.Telemetry != null)
                 {
                     PresentTelemetry(progress.Telemetry, running);
@@ -479,23 +696,6 @@ internal sealed class MainWindow : Window
                 AppendLog("进度文件暂不可读：" + ex.Message);
             }
         }
-        if (!File.Exists(job.ResultPath))
-        {
-            return;
-        }
-        try
-        {
-            var result = Deserialize<CombatFoundationWorkerResult>(
-                File.ReadAllText(job.ResultPath));
-            if (result == null)
-            {
-                return;
-            }
-            PresentResult(result);
-        }
-        catch (IOException)
-        {
-        }
     }
 
     private void PresentTelemetry(
@@ -509,6 +709,8 @@ internal sealed class MainWindow : Window
                          + "/"
                          + telemetry.TotalIterations
                          + " 轮";
+        runStatus.Foreground =
+            running ? TrainerTheme.Accent : TrainerTheme.Text;
         var total = Math.Max(1, telemetry.RequestedCampaigns);
         progressBar.Value = Math.Max(
             0,
@@ -519,8 +721,8 @@ internal sealed class MainWindow : Window
             + $"{telemetry.MaximumActiveBattleDepth}/{telemetry.MaximumCompletedBattleDepth}/37";
         progressSecondary.Text =
             $"Epoch {telemetry.ModelEpoch}/{telemetry.ModelTotalEpochs} · "
-            + $"验证损失 {telemetry.ModelValidationLoss:0.000000} · "
-            + $"最佳 {telemetry.ModelBestValidationLoss:0.000000} · "
+            + $"验证损失 {FormatLoss(telemetry.ModelValidationLoss)} · "
+            + $"最佳 {FormatLoss(telemetry.ModelBestValidationLoss)} · "
             + $"并行 {telemetry.ActiveCampaigns}/{telemetry.EffectiveParallelism} · "
             + $"{telemetry.CampaignsPerSecond:0.00} 冒险/秒 · "
             + $"ETA {FormatDuration(telemetry.EstimatedRemainingSeconds)}";
@@ -537,7 +739,7 @@ internal sealed class MainWindow : Window
             + $"更新时间：{DateTime.Now:HH:mm:ss}";
     }
 
-    private void PresentResult(CombatFoundationWorkerResult result)
+    private void PresentResult(ControllerWorkerResultSummary result)
     {
         var accepted = string.Equals(
             result.CompletionKind,
@@ -548,7 +750,12 @@ internal sealed class MainWindow : Window
             : result.Cancelled
                 ? "训练已取消"
                 : "训练结束 · " + result.CompletionKind;
-        progressBar.Value = accepted ? 100 : progressBar.Value;
+        runStatus.Foreground = accepted
+            ? TrainerTheme.Success
+            : result.Cancelled
+                ? TrainerTheme.Warning
+                : TrainerTheme.Danger;
+        progressBar.Value = 100;
         progressPrimary.Text = result.Message;
         if (result.Training != null)
         {
@@ -565,21 +772,134 @@ internal sealed class MainWindow : Window
             + $"规则集：{result.RulesetHash}\r\n"
             + $"可恢复：{result.Resumable}\r\n"
             + $"检查点：{result.CheckpointPath}\r\n"
+            + $"检查点写入失败：{result.CheckpointWriteFailures}\r\n"
+            + (string.IsNullOrWhiteSpace(result.CheckpointWarning)
+                ? ""
+                : $"检查点提示：{result.CheckpointWarning}\r\n")
             + $"待验底模包：{result.ModelPackagePath}\r\n"
             + $"结果目录：{session?.ResultDirectory}";
+        recentResultStatus.Text = runStatus.Text;
+        recentResultStatus.Foreground = runStatus.Foreground;
+        recentResultDetails.Text = ResultSummary(result);
+    }
+
+    private void TryShowCompletionNotification(bool running)
+    {
+        if (running
+            || !completionNotificationArmed
+            || presentedResult == null)
+        {
+            return;
+        }
+        completionNotificationArmed = false;
+        tabs.SelectedIndex = ProgressTabIndex;
+        FlashTaskbar(start: true);
+        PlayCompletionSound(presentedResult);
+        var accepted = string.Equals(
+            presentedResult.CompletionKind,
+            "training-accepted",
+            StringComparison.Ordinal);
+        var title = accepted
+            ? "训练完成并通过验收"
+            : presentedResult.Cancelled
+                ? "训练已取消"
+                : presentedResult.Resumable
+                    ? "训练未通过，可恢复"
+                    : "训练结束";
+        var icon = accepted
+            ? MessageBoxImage.Information
+            : presentedResult.Cancelled
+                ? MessageBoxImage.Warning
+                : MessageBoxImage.Exclamation;
+        MessageBox.Show(
+            this,
+            ResultSummary(presentedResult),
+            title,
+            MessageBoxButton.OK,
+            icon);
+        FlashTaskbar(start: false);
+    }
+
+    private static void PlayCompletionSound(ControllerWorkerResultSummary result)
+    {
+        if (string.Equals(
+                result.CompletionKind,
+                "training-accepted",
+                StringComparison.Ordinal))
+        {
+            SystemSounds.Asterisk.Play();
+            return;
+        }
+        SystemSounds.Exclamation.Play();
+    }
+
+    private void FlashTaskbar(bool start)
+    {
+        var handle = new WindowInteropHelper(this).Handle;
+        if (handle == IntPtr.Zero)
+        {
+            return;
+        }
+        var info = new FlashWindowInfo
+        {
+            Size = (uint)Marshal.SizeOf<FlashWindowInfo>(),
+            WindowHandle = handle,
+            Flags = start
+                ? FlashAll | FlashTimerNoForeground
+                : FlashStop,
+            Count = start ? 5u : 0u,
+            Timeout = 0
+        };
+        FlashWindowEx(ref info);
+    }
+
+    private static string ResultSummary(ControllerWorkerResultSummary result)
+    {
+        var validation = result.Training?.Validation;
+        var validationText = validation == null
+            ? "未生成验证摘要"
+            : $"普通 {validation.NormalVictories}/{validation.NormalCampaigns}"
+              + $"（计划 {validation.NormalPlannedCampaigns}） · "
+              + $"高级 {validation.AdvancedVictories}/{validation.AdvancedCampaigns}"
+              + $"（计划 {validation.AdvancedPlannedCampaigns}） · "
+              + $"无效 {validation.InvalidCampaigns}";
+        var recoveryText = result.Resumable
+            ? "检查点已保存，可恢复训练。"
+            : string.Equals(
+                result.CompletionKind,
+                "training-accepted",
+                StringComparison.Ordinal)
+                ? "底模已通过隔离验收。"
+                : "当前结果不可恢复。";
+        return validationText
+               + Environment.NewLine
+               + result.Message
+               + Environment.NewLine
+               + recoveryText;
+    }
+
+    private static string FormatLoss(double value)
+    {
+        return double.IsNaN(value)
+               || double.IsInfinity(value)
+               || value >= double.MaxValue / 2d
+            ? "待计算"
+            : value.ToString("0.000000");
     }
 
     private void LoadSettings()
     {
-        var defaultModRoot = ResolveArgument("--mod-root")
-                             ?? DiscoverModRoot();
-        var defaultDataRoot = ResolveArgument("--data-root")
-                              ?? DiscoverDataRoot(defaultModRoot);
-        var settingsPath = SettingsPath(defaultDataRoot);
+        var modRoot = ResolveArgument("--mod-root")
+                      ?? DiscoverModRoot();
+        var dataRoot = ResolveArgument("--data-root")
+                       ?? DiscoverDataRoot(modRoot);
+        var settingsPath = SettingsPath(dataRoot);
         try
         {
             settings = File.Exists(settingsPath)
-                ? Deserialize<ControllerSettings>(File.ReadAllText(settingsPath))
+                ? Deserialize<ControllerSettings>(
+                    CombatFoundationCheckpointStorage.ReadAllTextShared(
+                        settingsPath))
                   ?? new ControllerSettings()
                 : new ControllerSettings();
         }
@@ -587,17 +907,26 @@ internal sealed class MainWindow : Window
         {
             settings = new ControllerSettings();
         }
-        settings.ModRoot = string.IsNullOrWhiteSpace(ResolveArgument("--mod-root"))
-            ? string.IsNullOrWhiteSpace(settings.ModRoot)
-                ? defaultModRoot
-                : settings.ModRoot
-            : defaultModRoot;
-        settings.DataRoot = string.IsNullOrWhiteSpace(ResolveArgument("--data-root"))
-            ? string.IsNullOrWhiteSpace(settings.DataRoot)
-                ? defaultDataRoot
-                : settings.DataRoot
-            : defaultDataRoot;
+        var loadedSchemaVersion = settings.SchemaVersion;
+        settings.ModRoot = modRoot;
+        settings.DataRoot = dataRoot;
+        if (!string.IsNullOrWhiteSpace(settings.LastRunDirectory)
+            && !Directory.Exists(settings.LastRunDirectory))
+        {
+            settings.LastRunDirectory = "";
+        }
         settings.Parameters ??= new CombatFoundationTrainingParameters();
+        if (loadedSchemaVersion < 3)
+        {
+            settings.Parameters.RequireCapabilityProbeBaselineGain = true;
+        }
+        if (loadedSchemaVersion < 4)
+        {
+            settings.Parameters.AdditionalIterationsOnResume = 3;
+            settings.Parameters.MinimumAdvancedReplayShare = 0.40d;
+            settings.Parameters.MinimumAdvancedDefeatReplayShare = 0.25d;
+        }
+        settings.SchemaVersion = 4;
         settings.Parameters.Normalized();
     }
 
@@ -632,10 +961,13 @@ internal sealed class MainWindow : Window
             {
                 return;
             }
-            session = Deserialize<ControllerSession>(File.ReadAllText(path));
+            session = Deserialize<ControllerSession>(
+                CombatFoundationCheckpointStorage.ReadAllTextShared(path));
             if (session != null)
             {
+                ResetPollingCache();
                 settings.LastRunDirectory = session.ResultDirectory;
+                completionNotificationArmed = IsWorkerRunning();
                 AppendLog("已挂接最近训练任务：" + session.JobId);
             }
         }
@@ -650,8 +982,13 @@ internal sealed class MainWindow : Window
         settings.ModRoot = Path.GetFullPath(modRootInput.Text.Trim());
         settings.DataRoot = Path.GetFullPath(dataRootInput.Text.Trim());
         var p = settings.Parameters;
+        p.DecisionProfile = selectedProfile;
         p.Iterations = Int("Iterations");
+        p.AdditionalIterationsOnResume =
+            Int("AdditionalIterationsOnResume");
         p.TrainingCampaignsPerIteration = Int("TrainingCampaignsPerIteration");
+        p.PreflightCampaignsPerDifficulty =
+            Int("PreflightCampaignsPerDifficulty");
         p.ArenaCampaignsPerDifficulty = Int("ArenaCampaignsPerDifficulty");
         p.ArenaConfirmationCampaignsPerDifficulty =
             Int("ArenaConfirmationCampaignsPerDifficulty");
@@ -659,6 +996,12 @@ internal sealed class MainWindow : Window
         p.AdvancedValidationCampaigns = Int("AdvancedValidationCampaigns");
         p.CapabilityProbeCampaignsPerDifficulty =
             Int("CapabilityProbeCampaignsPerDifficulty");
+        p.RequireCapabilityProbeBaselineGain =
+            Toggle("RequireCapabilityProbeBaselineGain");
+        p.CapabilityProbeMinimumVictoryGain =
+            Int("CapabilityProbeMinimumVictoryGain");
+        p.CapabilityProbeMinimumDepthGain =
+            Double("CapabilityProbeMinimumDepthGain");
         p.MaximumDegreeOfParallelism = Int("MaximumDegreeOfParallelism");
         p.ModelEpochs = Int("ModelEpochs");
         p.ModelMinimumEpochs = Int("ModelMinimumEpochs");
@@ -666,6 +1009,12 @@ internal sealed class MainWindow : Window
         p.ModelEarlyStoppingMinimumDelta =
             Double("ModelEarlyStoppingMinimumDelta");
         p.ModelBatchSize = Int("ModelBatchSize");
+        p.MinimumEpisodes = Int("MinimumEpisodes");
+        p.EnableFrameStratification = Toggle("EnableFrameStratification");
+        p.ModelMaximumFrameStratumWeight =
+            Double("ModelMaximumFrameStratumWeight");
+        p.ModelMaximumFramesPerEpisode =
+            Int("ModelMaximumFramesPerEpisode");
         p.ModelReplayEpisodeLimit = Int("ModelReplayEpisodeLimit");
         p.ModelRetainedCandidates = Int("ModelRetainedCandidates");
         p.ModelLearningRate = Double("ModelLearningRate");
@@ -682,10 +1031,20 @@ internal sealed class MainWindow : Window
         p.EnableArenaRecovery = Toggle("EnableArenaRecovery");
         p.EnableTuningArena = Toggle("EnableTuningArena");
         p.EnableEarlyValidationStop = Toggle("EnableEarlyValidationStop");
+        p.ArenaInvalidRetryCount = Int("ArenaInvalidRetryCount");
+        p.ArenaInvalidRateLimit = Double("ArenaInvalidRateLimit");
+        p.TuningNormalCampaigns = Int("TuningNormalCampaigns");
+        p.TuningAdvancedCampaigns = Int("TuningAdvancedCampaigns");
+        p.MaximumConsecutiveRejectedIterations =
+            Int("MaximumConsecutiveRejectedIterations");
         p.NormalAcceptanceRate = Double("NormalAcceptanceRate");
         p.AdvancedAcceptanceRate = Double("AdvancedAcceptanceRate");
         p.SuccessExpertReplayShare = Double("SuccessExpertReplayShare");
         p.HardSeedReplayShare = Double("HardSeedReplayShare");
+        p.MinimumAdvancedReplayShare =
+            Double("MinimumAdvancedReplayShare");
+        p.MinimumAdvancedDefeatReplayShare =
+            Double("MinimumAdvancedDefeatReplayShare");
         p.SelfPlayExplorationProbability =
             Double("SelfPlayExplorationProbability");
         p.SelfPlayExplorationTemperature =
@@ -705,8 +1064,15 @@ internal sealed class MainWindow : Window
         modRootInput.Text = settings.ModRoot;
         dataRootInput.Text = settings.DataRoot;
         var p = settings.Parameters;
+        SelectProfile(p.DecisionProfile);
         Set("Iterations", p.Iterations);
+        Set(
+            "AdditionalIterationsOnResume",
+            p.AdditionalIterationsOnResume);
         Set("TrainingCampaignsPerIteration", p.TrainingCampaignsPerIteration);
+        Set(
+            "PreflightCampaignsPerDifficulty",
+            p.PreflightCampaignsPerDifficulty);
         Set("ArenaCampaignsPerDifficulty", p.ArenaCampaignsPerDifficulty);
         Set(
             "ArenaConfirmationCampaignsPerDifficulty",
@@ -716,12 +1082,28 @@ internal sealed class MainWindow : Window
         Set(
             "CapabilityProbeCampaignsPerDifficulty",
             p.CapabilityProbeCampaignsPerDifficulty);
+        SetToggle(
+            "RequireCapabilityProbeBaselineGain",
+            p.RequireCapabilityProbeBaselineGain);
+        Set(
+            "CapabilityProbeMinimumVictoryGain",
+            p.CapabilityProbeMinimumVictoryGain);
+        Set(
+            "CapabilityProbeMinimumDepthGain",
+            p.CapabilityProbeMinimumDepthGain);
         Set("MaximumDegreeOfParallelism", p.MaximumDegreeOfParallelism);
         Set("ModelEpochs", p.ModelEpochs);
         Set("ModelMinimumEpochs", p.ModelMinimumEpochs);
         Set("ModelEarlyStoppingPatience", p.ModelEarlyStoppingPatience);
         Set("ModelEarlyStoppingMinimumDelta", p.ModelEarlyStoppingMinimumDelta);
         Set("ModelBatchSize", p.ModelBatchSize);
+        Set("MinimumEpisodes", p.MinimumEpisodes);
+        Set(
+            "ModelMaximumFrameStratumWeight",
+            p.ModelMaximumFrameStratumWeight);
+        Set(
+            "ModelMaximumFramesPerEpisode",
+            p.ModelMaximumFramesPerEpisode);
         Set("ModelReplayEpisodeLimit", p.ModelReplayEpisodeLimit);
         Set("ModelRetainedCandidates", p.ModelRetainedCandidates);
         Set("ModelLearningRate", p.ModelLearningRate);
@@ -733,8 +1115,21 @@ internal sealed class MainWindow : Window
         Set("AdvancedAcceptanceRate", p.AdvancedAcceptanceRate);
         Set("SuccessExpertReplayShare", p.SuccessExpertReplayShare);
         Set("HardSeedReplayShare", p.HardSeedReplayShare);
+        Set(
+            "MinimumAdvancedReplayShare",
+            p.MinimumAdvancedReplayShare);
+        Set(
+            "MinimumAdvancedDefeatReplayShare",
+            p.MinimumAdvancedDefeatReplayShare);
         Set("SelfPlayExplorationProbability", p.SelfPlayExplorationProbability);
         Set("SelfPlayExplorationTemperature", p.SelfPlayExplorationTemperature);
+        Set("ArenaInvalidRetryCount", p.ArenaInvalidRetryCount);
+        Set("ArenaInvalidRateLimit", p.ArenaInvalidRateLimit);
+        Set("TuningNormalCampaigns", p.TuningNormalCampaigns);
+        Set("TuningAdvancedCampaigns", p.TuningAdvancedCampaigns);
+        Set(
+            "MaximumConsecutiveRejectedIterations",
+            p.MaximumConsecutiveRejectedIterations);
         Set("RunSeed", p.RunSeed);
         Set("TrainingSeedStart", p.TrainingSeedStart);
         Set("ArenaSeedStart", p.ArenaSeedStart);
@@ -750,6 +1145,7 @@ internal sealed class MainWindow : Window
         SetToggle("EnableArenaRecovery", p.EnableArenaRecovery);
         SetToggle("EnableTuningArena", p.EnableTuningArena);
         SetToggle("EnableEarlyValidationStop", p.EnableEarlyValidationStop);
+        SetToggle("EnableFrameStratification", p.EnableFrameStratification);
     }
 
     private bool ValidateEnvironment(bool throwOnFailure = false)
@@ -783,7 +1179,8 @@ internal sealed class MainWindow : Window
         environmentStatus.Text = ok
             ? "环境就绪。Worker、固定战役和冻结规则集均可用。"
             : "环境未就绪：" + string.Join("；", errors.Take(3));
-        environmentStatus.Foreground = ok ? Brushes.LightGreen : Brushes.Orange;
+        environmentStatus.Foreground =
+            ok ? TrainerTheme.Success : TrainerTheme.Warning;
         if (!ok && throwOnFailure)
         {
             throw new InvalidOperationException(environmentStatus.Text);
@@ -795,15 +1192,267 @@ internal sealed class MainWindow : Window
     {
         try
         {
-            return session != null && File.Exists(session.JobPath)
-                ? Deserialize<CombatFoundationWorkerJob>(
-                    File.ReadAllText(session.JobPath))
-                : null;
+            if (session == null
+                || !TryGetFileIdentity(
+                    session.JobPath,
+                    out var length,
+                    out var lastWriteUtc))
+            {
+                return null;
+            }
+            if (cachedJob != null
+                && string.Equals(
+                    cachedJobPath,
+                    session.JobPath,
+                    StringComparison.OrdinalIgnoreCase)
+                && cachedJobLength == length
+                && cachedJobLastWriteUtc == lastWriteUtc)
+            {
+                return cachedJob;
+            }
+
+            cachedJob = DeserializeFileStreaming<CombatFoundationWorkerJob>(
+                session.JobPath);
+            cachedJobPath = session.JobPath;
+            cachedJobLength = length;
+            cachedJobLastWriteUtc = lastWriteUtc;
+            return cachedJob;
         }
         catch
         {
             return null;
         }
+    }
+
+    private void ResetPollingCache()
+    {
+        cachedJobPath = "";
+        cachedJobLength = -1;
+        cachedJobLastWriteUtc = DateTime.MinValue;
+        cachedJob = null;
+        presentedResultPath = "";
+        presentedResultLength = -1;
+        presentedResultLastWriteUtc = DateTime.MinValue;
+        presentedResult = null;
+    }
+
+    private static bool TryGetFileIdentity(
+        string path,
+        out long length,
+        out DateTime lastWriteUtc)
+    {
+        length = 0;
+        lastWriteUtc = DateTime.MinValue;
+        if (string.IsNullOrWhiteSpace(path) || !File.Exists(path))
+        {
+            return false;
+        }
+
+        var info = new FileInfo(path);
+        length = info.Length;
+        lastWriteUtc = info.LastWriteTimeUtc;
+        return true;
+    }
+
+    private static ControllerWorkerResultSummary? ReadResultSummaryStreaming(
+        string path)
+    {
+        using var reader = CreateJsonReader(path);
+        var serializer = JsonSerializer.CreateDefault();
+        var summary = new ControllerWorkerResultSummary();
+        if (!reader.Read() || reader.TokenType != JsonToken.StartObject)
+        {
+            return null;
+        }
+
+        while (reader.Read())
+        {
+            if (reader.TokenType == JsonToken.EndObject)
+            {
+                return summary;
+            }
+            if (reader.TokenType != JsonToken.PropertyName)
+            {
+                continue;
+            }
+
+            var propertyName = Convert.ToString(
+                                   reader.Value,
+                                   CultureInfo.InvariantCulture)
+                               ?? "";
+            if (!reader.Read())
+            {
+                return null;
+            }
+            switch (propertyName)
+            {
+                case nameof(ControllerWorkerResultSummary.SchemaVersion):
+                    summary.SchemaVersion = Convert.ToInt32(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerWorkerResultSummary.JobId):
+                    summary.JobId = Convert.ToString(
+                                        reader.Value,
+                                        CultureInfo.InvariantCulture)
+                                    ?? "";
+                    break;
+                case nameof(ControllerWorkerResultSummary.Success):
+                    summary.Success = Convert.ToBoolean(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerWorkerResultSummary.Cancelled):
+                    summary.Cancelled = Convert.ToBoolean(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerWorkerResultSummary.CompletionKind):
+                    summary.CompletionKind = Convert.ToString(
+                                                 reader.Value,
+                                                 CultureInfo.InvariantCulture)
+                                             ?? "";
+                    break;
+                case nameof(ControllerWorkerResultSummary.Message):
+                    summary.Message = Convert.ToString(
+                                          reader.Value,
+                                          CultureInfo.InvariantCulture)
+                                      ?? "";
+                    break;
+                case nameof(ControllerWorkerResultSummary.Runtime):
+                    summary.Runtime = Convert.ToString(
+                                          reader.Value,
+                                          CultureInfo.InvariantCulture)
+                                      ?? "";
+                    break;
+                case nameof(ControllerWorkerResultSummary.RulesetHash):
+                    summary.RulesetHash = Convert.ToString(
+                                              reader.Value,
+                                              CultureInfo.InvariantCulture)
+                                          ?? "";
+                    break;
+                case nameof(ControllerWorkerResultSummary.EpisodesPath):
+                    summary.EpisodesPath = Convert.ToString(
+                                              reader.Value,
+                                              CultureInfo.InvariantCulture)
+                                          ?? "";
+                    break;
+                case nameof(ControllerWorkerResultSummary.CheckpointPath):
+                    summary.CheckpointPath = Convert.ToString(
+                                                reader.Value,
+                                                CultureInfo.InvariantCulture)
+                                            ?? "";
+                    break;
+                case nameof(ControllerWorkerResultSummary.ModelPackagePath):
+                    summary.ModelPackagePath = Convert.ToString(
+                                                  reader.Value,
+                                                  CultureInfo.InvariantCulture)
+                                              ?? "";
+                    break;
+                case nameof(ControllerWorkerResultSummary.Resumable):
+                    summary.Resumable = Convert.ToBoolean(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerWorkerResultSummary.CheckpointWriteFailures):
+                    summary.CheckpointWriteFailures = Convert.ToInt32(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerWorkerResultSummary.CheckpointWarning):
+                    summary.CheckpointWarning = Convert.ToString(
+                                                   reader.Value,
+                                                   CultureInfo.InvariantCulture)
+                                               ?? "";
+                    break;
+                case nameof(ControllerWorkerResultSummary.Training):
+                    summary.Training = ReadTrainingSummary(
+                        reader,
+                        serializer);
+                    return summary;
+                default:
+                    reader.Skip();
+                    break;
+            }
+        }
+        return summary;
+    }
+
+    private static ControllerTrainingResultSummary? ReadTrainingSummary(
+        JsonTextReader reader,
+        JsonSerializer serializer)
+    {
+        if (reader.TokenType == JsonToken.Null)
+        {
+            return null;
+        }
+        if (reader.TokenType != JsonToken.StartObject)
+        {
+            reader.Skip();
+            return null;
+        }
+
+        var summary = new ControllerTrainingResultSummary();
+        while (reader.Read())
+        {
+            if (reader.TokenType == JsonToken.EndObject)
+            {
+                return summary;
+            }
+            if (reader.TokenType != JsonToken.PropertyName)
+            {
+                continue;
+            }
+
+            var propertyName = Convert.ToString(
+                                   reader.Value,
+                                   CultureInfo.InvariantCulture)
+                               ?? "";
+            if (!reader.Read())
+            {
+                return summary;
+            }
+            if (string.Equals(
+                    propertyName,
+                    nameof(ControllerTrainingResultSummary.Validation),
+                    StringComparison.Ordinal))
+            {
+                summary.Validation =
+                    serializer.Deserialize<CombatCampaignFoundationValidation>(
+                        reader)
+                    ?? new CombatCampaignFoundationValidation();
+                return summary;
+            }
+            reader.Skip();
+        }
+        return summary;
+    }
+
+    private static T? DeserializeFileStreaming<T>(string path)
+    {
+        using var reader = CreateJsonReader(path);
+        return JsonSerializer.CreateDefault().Deserialize<T>(reader);
+    }
+
+    private static JsonTextReader CreateJsonReader(string path)
+    {
+        var stream = new FileStream(
+            path,
+            FileMode.Open,
+            FileAccess.Read,
+            FileShare.ReadWrite | FileShare.Delete,
+            64 * 1024,
+            FileOptions.SequentialScan);
+        var textReader = new StreamReader(
+            stream,
+            Encoding.UTF8,
+            detectEncodingFromByteOrderMarks: true,
+            bufferSize: 64 * 1024,
+            leaveOpen: false);
+        return new JsonTextReader(textReader)
+        {
+            CloseInput = true
+        };
     }
 
     private bool IsWorkerRunning()
@@ -904,20 +1553,44 @@ internal sealed class MainWindow : Window
 
     private static string DiscoverModRoot()
     {
-        var candidates = new[]
+        var executableDirectory = ExecutableDirectory();
+        for (DirectoryInfo? current = new DirectoryInfo(executableDirectory);
+             current != null;
+             current = current.Parent)
         {
-            Directory.GetParent(AppContext.BaseDirectory)?.Parent?.FullName,
-            Path.Combine(Environment.CurrentDirectory, "AuraToolsExp"),
-            Environment.CurrentDirectory
-        };
-        return candidates.FirstOrDefault(candidate =>
-                   !string.IsNullOrWhiteSpace(candidate)
-                   && File.Exists(Path.Combine(
-                       candidate!,
-                       "Config",
-                       "combat-simulation",
-                       "witch-world-simulation-v2.campaign.json")))
-               ?? Environment.CurrentDirectory;
+            if (IsModRoot(current.FullName))
+            {
+                return current.FullName;
+            }
+            var child = Path.Combine(current.FullName, "AuraToolsExp");
+            if (IsModRoot(child))
+            {
+                return Path.GetFullPath(child);
+            }
+        }
+
+        return Directory.GetParent(executableDirectory)?.FullName
+               ?? executableDirectory;
+    }
+
+    private static string ExecutableDirectory()
+    {
+        var executablePath = Environment.ProcessPath;
+        if (!string.IsNullOrWhiteSpace(executablePath))
+        {
+            return Path.GetDirectoryName(Path.GetFullPath(executablePath))
+                   ?? Path.GetFullPath(AppContext.BaseDirectory);
+        }
+        return Path.GetFullPath(AppContext.BaseDirectory);
+    }
+
+    private static bool IsModRoot(string path)
+    {
+        return File.Exists(Path.Combine(
+            path,
+            "Config",
+            "combat-simulation",
+            "witch-world-simulation-v2.campaign.json"));
     }
 
     private static string DiscoverDataRoot(string modRoot)
@@ -930,11 +1603,12 @@ internal sealed class MainWindow : Window
                 StringComparison.OrdinalIgnoreCase)
             && parent.Parent != null)
         {
-            return Path.Combine(parent.Parent.FullName, "ModsData");
+            return Path.GetFullPath(
+                Path.Combine(parent.Parent.FullName, "ModsData"));
         }
-        return Path.Combine(
+        return Path.GetFullPath(Path.Combine(
             Directory.GetParent(modRoot)?.FullName ?? modRoot,
-            "ModsData");
+            "ModsData"));
     }
 
     private static CombatDecisionProfile BuildProfile(string profileId)
@@ -1051,13 +1725,49 @@ internal sealed class MainWindow : Window
         Action browse)
     {
         var row = NewRow();
-        row.Children.Add(Label(label, 180));
-        var input = Input(600);
+        row.Children.Add(Label(label, 170));
+        var input = Input(500);
         row.Children.Add(input);
         var button = ActionButton("选择", browse);
         row.Children.Add(button);
         panel.Children.Add(row);
         return input;
+    }
+
+    private void AddProfileSelect(Panel panel)
+    {
+        var row = NewRow();
+        row.Children.Add(Label("决策风格", 240));
+        foreach (var choice in new[]
+                 {
+                     new ProfileChoice("balanced", "均衡"),
+                     new ProfileChoice("aggressive", "进攻"),
+                     new ProfileChoice("defensive", "防守")
+                 })
+        {
+            var profileId = choice.Id;
+            var button = ActionButton(
+                choice.Label,
+                () => SelectProfile(profileId));
+            button.MinWidth = 72;
+            profileButtons[profileId] = button;
+            row.Children.Add(button);
+        }
+        panel.Children.Add(row);
+    }
+
+    private void SelectProfile(string? profileId)
+    {
+        selectedProfile = profileButtons.ContainsKey(profileId ?? "")
+            ? profileId!
+            : "balanced";
+        foreach (var pair in profileButtons)
+        {
+            pair.Value.Style = TrainerTheme.ButtonStyle(
+                pair.Key == selectedProfile
+                    ? TrainerButtonTone.Primary
+                    : TrainerButtonTone.Secondary);
+        }
     }
 
     private void AddNumber(
@@ -1091,8 +1801,8 @@ internal sealed class MainWindow : Window
         var check = new CheckBox
         {
             Content = label,
-            Margin = new Thickness(0, 5, 0, 5),
-            Foreground = Brushes.WhiteSmoke
+            Margin = new Thickness(0, 4, 0, 4),
+            Foreground = TrainerTheme.Text
         };
         toggles[key] = check;
         panel.Children.Add(check);
@@ -1114,7 +1824,7 @@ internal sealed class MainWindow : Window
             Text = text,
             FontSize = 17,
             FontWeight = FontWeights.SemiBold,
-            Foreground = new SolidColorBrush(Color.FromRgb(132, 191, 255)),
+            Foreground = TrainerTheme.Accent,
             Margin = new Thickness(0, 18, 0, 8)
         };
     }
@@ -1125,6 +1835,7 @@ internal sealed class MainWindow : Window
         {
             Text = text,
             Width = width,
+            Foreground = TrainerTheme.Text,
             VerticalAlignment = VerticalAlignment.Center
         };
     }
@@ -1136,22 +1847,22 @@ internal sealed class MainWindow : Window
             Width = width,
             Height = 28,
             Margin = new Thickness(0, 0, 8, 0),
-            Background = new SolidColorBrush(Color.FromRgb(42, 47, 57)),
-            Foreground = Brushes.WhiteSmoke,
-            BorderBrush = new SolidColorBrush(Color.FromRgb(75, 84, 99)),
             VerticalContentAlignment = VerticalAlignment.Center
         };
     }
 
-    private static Button ActionButton(string text, Action action)
+    private static Button ActionButton(
+        string text,
+        Action action,
+        TrainerButtonTone tone = TrainerButtonTone.Secondary)
     {
         var button = new Button
         {
             Content = text,
             MinWidth = 94,
-            Height = 30,
+            Height = 34,
             Margin = new Thickness(0, 0, 8, 0),
-            Padding = new Thickness(10, 0, 10, 0)
+            Style = TrainerTheme.ButtonStyle(tone)
         };
         button.Click += (_, _) => action();
         return button;
@@ -1162,13 +1873,25 @@ internal sealed class MainWindow : Window
         var block = new TextBlock
         {
             Text = text,
-            Foreground = new SolidColorBrush(Color.FromRgb(167, 176, 190)),
+            Foreground = TrainerTheme.Muted,
             TextWrapping = TextWrapping.Wrap,
             Margin = new Thickness(0, 4, 0, 4)
         };
         panel.Children.Add(block);
         return block;
     }
+
+    private static TextBlock ProgressText()
+    {
+        return new TextBlock
+        {
+            Foreground = TrainerTheme.Muted,
+            TextWrapping = TextWrapping.Wrap,
+            Margin = new Thickness(0, 4, 0, 4)
+        };
+    }
+
+    private sealed record ProfileChoice(string Id, string Label);
 
     private int Int(string key)
     {
@@ -1258,5 +1981,19 @@ internal sealed class MainWindow : Window
         catch
         {
         }
+    }
+
+    [DllImport("user32.dll")]
+    [return: MarshalAs(UnmanagedType.Bool)]
+    private static extern bool FlashWindowEx(ref FlashWindowInfo info);
+
+    [StructLayout(LayoutKind.Sequential)]
+    private struct FlashWindowInfo
+    {
+        public uint Size;
+        public IntPtr WindowHandle;
+        public uint Flags;
+        public uint Count;
+        public uint Timeout;
     }
 }

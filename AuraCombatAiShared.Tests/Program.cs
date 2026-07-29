@@ -2375,8 +2375,79 @@ var authoritativeTeacherSimulation = simulationEngine.Run(
             RandomSeed = 45
         }));
 Assert(authoritativeTeacherSimulation.Metrics
-           .AuthoritativeActionsAudited > 0,
+           .AuthoritativeActionsAudited > 0
+       && authoritativeTeacherSimulation.Metrics
+              .AuthoritativeSelectedActionsAudited > 0
+       && authoritativeTeacherSimulation.Metrics.SemanticAudit
+              .AuditedSources.Count > 0
+       && authoritativeTeacherSimulation.Metrics.SemanticAudit
+              .SourceKindAudits.Count > 0
+       && authoritativeTeacherSimulation.Metrics.SemanticAudit
+              .SelectedContextAdjustedActions
+          == authoritativeTeacherSimulation.Metrics.SemanticAudit
+              .SelectedExplainedActions
+       && authoritativeTeacherSimulation.Metrics.SemanticAudit
+              .SelectedUnexplainedMismatchActions
+          == authoritativeTeacherSimulation.Metrics
+              .AuthoritativeSelectedSemanticMismatches
+       && (authoritativeTeacherSimulation.Metrics
+               .AuthoritativeSelectedSemanticMismatches == 0
+           || authoritativeTeacherSimulation.Metrics.SemanticAudit
+                  .SelectedUnexplainedMismatchSources.Values.Sum()
+              == authoritativeTeacherSimulation.Metrics
+                  .AuthoritativeSelectedSemanticMismatches),
     "teacher policy audits projected choices through authoritative immutable action branches");
+
+var semanticAuditState = new CombatBattleState
+{
+    PlayerActorId = 1,
+    Actors =
+    {
+        new CombatActorState
+        {
+            ActorId = 1,
+            Kind = CombatSimulationActorKind.Player,
+            Hp = 20,
+            MaxHp = 30
+        },
+        new CombatActorState
+        {
+            ActorId = 2,
+            Kind = CombatSimulationActorKind.Enemy,
+            Hp = 5,
+            MaxHp = 5
+        }
+    }
+};
+var semanticAuditEvents = new List<CombatSimulationEvent>
+{
+    new()
+    {
+        Kind = CombatSimulationEventKind.DamageDealt,
+        TargetActorId = 2,
+        Amount = 5
+    },
+    new()
+    {
+        Kind = CombatSimulationEventKind.CardDrawn,
+        TargetActorId = 1,
+        Amount = 1
+    }
+};
+var matchingSemanticAudit = CombatSemanticAuditor.Audit(
+    semanticAuditState,
+    semanticAuditEvents,
+    new CombatActionSemantics { Damage = 5d, Draw = 1d },
+    new CombatSimulationAction { DefinitionId = "audit-card" });
+var mismatchingSemanticAudit = CombatSemanticAuditor.Audit(
+    semanticAuditState,
+    semanticAuditEvents,
+    new CombatActionSemantics { Defend = 10d },
+    new CombatSimulationAction { DefinitionId = "audit-card" });
+Assert(!matchingSemanticAudit.Mismatch
+       && mismatchingSemanticAudit.MismatchKinds.Contains("damage")
+       && mismatchingSemanticAudit.MismatchKinds.Contains("defend"),
+    "semantic auditing compares projected action meaning with causal authoritative events instead of noisy net state deltas");
 
 var branchState = new CombatBattleState
 {
@@ -2950,6 +3021,188 @@ var bundledRulesV2Document = JsonSerializer.Deserialize<CombatRulesetDocument>(
     File.ReadAllText(bundledRulesV2Path),
     bundledJsonOptions);
 var bundledRulesV2 = CombatSimulationRegistry.BuildRuleset(bundledRulesV2Document);
+bundledRulesV2.Ruleset.TryGetStatus("buff_burn", out var bundledBurn);
+var baseCardAuditState = new CombatBattleState
+{
+    PlayerActorId = 1,
+    Actors =
+    {
+        new CombatActorState
+        {
+            ActorId = 1,
+            Kind = CombatSimulationActorKind.Player,
+            Hp = 30,
+            MaxHp = 30,
+            Variables = { ["Perceive"] = 5d }
+        },
+        new CombatActorState
+        {
+            ActorId = 2,
+            Kind = CombatSimulationActorKind.Enemy,
+            Hp = 20,
+            MaxHp = 20,
+            Block = 5
+        }
+    }
+};
+var strikeAfter = baseCardAuditState.Clone();
+strikeAfter.FindActor(2)!.Block = 0;
+var strikeAudit = CombatSemanticAuditor.Audit(
+    baseCardAuditState,
+    strikeAfter,
+    new[]
+    {
+        new CombatSimulationEvent
+        {
+            SourceActionId = 1,
+            CardInstanceId = 101,
+            Kind = CombatSimulationEventKind.DamageDealt,
+            TargetActorId = 2,
+            Amount = 0
+        }
+    },
+    new CombatActionSemantics { Damage = 5d },
+    new CombatSimulationAction
+    {
+        ActorId = 1,
+        CardInstanceId = 101,
+        TargetActorId = 2,
+        DefinitionId = "card_1"
+    },
+    bundledRulesV2.Ruleset);
+var defendAfter = baseCardAuditState.Clone();
+defendAfter.Player!.Block = 6;
+var defendAudit = CombatSemanticAuditor.Audit(
+    baseCardAuditState,
+    defendAfter,
+    new[]
+    {
+        new CombatSimulationEvent
+        {
+            SourceActionId = 1,
+            CardInstanceId = 102,
+            Kind = CombatSimulationEventKind.BlockGained,
+            TargetActorId = 1,
+            Amount = 6
+        }
+    },
+    new CombatActionSemantics { Defend = 5d },
+    new CombatSimulationAction
+    {
+        ActorId = 1,
+        CardInstanceId = 102,
+        DefinitionId = "card_2"
+    },
+    bundledRulesV2.Ruleset);
+var cappedBurnBefore = baseCardAuditState.Clone();
+cappedBurnBefore.FindActor(2)!.Block = 0;
+cappedBurnBefore.FindActor(2)!.Statuses.Add(new CombatStatusState
+{
+    StatusId = "buff_burn",
+    Stacks = bundledBurn?.MaximumStacks ?? 99
+});
+var cappedBurnAfter = cappedBurnBefore.Clone();
+cappedBurnAfter.FindActor(2)!.Hp -= 6;
+var burningAudit = CombatSemanticAuditor.Audit(
+    cappedBurnBefore,
+    cappedBurnAfter,
+    new[]
+    {
+        new CombatSimulationEvent
+        {
+            SourceActionId = 1,
+            CardInstanceId = 103,
+            Kind = CombatSimulationEventKind.StatusAdded,
+            TargetActorId = 2,
+            DefinitionId = "buff_burn",
+            Amount = 2
+        },
+        new CombatSimulationEvent
+        {
+            SourceActionId = 1,
+            CardInstanceId = 103,
+            Kind = CombatSimulationEventKind.DamageDealt,
+            TargetActorId = 2,
+            Amount = 6
+        }
+    },
+    new CombatActionSemantics { Damage = 6d },
+    new CombatSimulationAction
+    {
+        ActorId = 1,
+        CardInstanceId = 103,
+        TargetActorId = 2,
+        DefinitionId = "burningcard_2"
+    },
+    bundledRulesV2.Ruleset);
+var elementBefore = baseCardAuditState.Clone();
+elementBefore.FindActor(2)!.Block = 0;
+var elementAfter = elementBefore.Clone();
+elementAfter.FindActor(2)!.Hp -= 7;
+elementAfter.Player!.Statuses.Add(new CombatStatusState
+{
+    StatusId = "buff_elements",
+    Stacks = 1
+});
+elementAfter.FindActor(2)!.Statuses.Add(new CombatStatusState
+{
+    StatusId = "buff_burn",
+    Stacks = 2
+});
+var elementAudit = CombatSemanticAuditor.Audit(
+    elementBefore,
+    elementAfter,
+    new[]
+    {
+        new CombatSimulationEvent
+        {
+            SourceActionId = 1,
+            CardInstanceId = 104,
+            Kind = CombatSimulationEventKind.StatusAdded,
+            TargetActorId = 1,
+            DefinitionId = "buff_elements",
+            Amount = 1
+        },
+        new CombatSimulationEvent
+        {
+            SourceActionId = 1,
+            CardInstanceId = 104,
+            Kind = CombatSimulationEventKind.StatusAdded,
+            TargetActorId = 2,
+            DefinitionId = "buff_burn",
+            Amount = 2
+        },
+        new CombatSimulationEvent
+        {
+            SourceActionId = 1,
+            CardInstanceId = 104,
+            Kind = CombatSimulationEventKind.DamageDealt,
+            TargetActorId = 2,
+            Amount = 7
+        }
+    },
+    new CombatActionSemantics
+    {
+        Damage = 7d,
+        Buff = 1d,
+        Debuff = 2d
+    },
+    new CombatSimulationAction
+    {
+        ActorId = 1,
+        CardInstanceId = 104,
+        TargetActorId = 2,
+        DefinitionId = "elementscard_9"
+    },
+    bundledRulesV2.Ruleset);
+Assert(!strikeAudit.Mismatch
+       && strikeAudit.ExplainedKinds.Contains("damage")
+       && !defendAudit.Mismatch
+       && defendAudit.ExplainedKinds.Contains("defend")
+       && !burningAudit.Mismatch
+       && !burningAudit.MismatchKinds.Contains("debuff")
+       && !elementAudit.Mismatch,
+    "base deck semantic audits distinguish block, Perceive and status caps from unexplained card projection errors");
 bundledRulesV2.Ruleset.TryGetStatus(
     "buff_impregnable",
     out var bundledImpregnable);
@@ -3046,6 +3299,95 @@ var bundledCampaignAdvanced = CombatCampaignWorldPlanner.Build(
     bundledCampaign,
     "advanced",
     23816797UL);
+var bundledThresholdRewardIds = bundledCampaign.AttributeThresholdRewards
+    .Select(item => item.RewardId)
+    .ToHashSet(StringComparer.OrdinalIgnoreCase);
+var expectedThresholdRewards = new Dictionary<string, string[]>(
+    StringComparer.OrdinalIgnoreCase)
+{
+    ["Strength"] =
+        new[] { "blessing_101", "blessing_105", "blessing_109", "blessing_113" },
+    ["Lucky"] =
+        new[] { "blessing_102", "blessing_106", "blessing_110", "blessing_114" },
+    ["Perceive"] =
+        new[] { "blessing_104", "blessing_108", "blessing_112", "blessing_116" },
+    ["Wisdom"] =
+        new[] { "blessing_103", "blessing_107", "blessing_111", "blessing_115" }
+};
+Assert(
+    bundledCampaign.CampaignVersion == "2.6.0"
+    && bundledCampaign.AttributeThresholdRewards.Count == 16
+    && expectedThresholdRewards.All(pair =>
+        bundledCampaign.AttributeThresholdRewards
+            .Where(item => string.Equals(
+                item.AttributeId,
+                pair.Key,
+                StringComparison.OrdinalIgnoreCase))
+            .OrderBy(item => item.Threshold)
+            .Select(item => item.RewardId)
+            .SequenceEqual(pair.Value))
+    && bundledCampaignNormal.Encounters.All(item =>
+        !bundledThresholdRewardIds.Contains(item.RewardOffer.BlessingId))
+    && bundledCampaignAdvanced.Encounters.All(item =>
+        !bundledThresholdRewardIds.Contains(item.RewardOffer.BlessingId)),
+    "base-game origin threshold blessings are mapped authoritatively and excluded from ordinary blessing offers");
+
+foreach (var pair in expectedThresholdRewards)
+{
+    foreach (var value in new[] { 9, 10, 19, 20, 29, 30, 39, 40 })
+    {
+        var boundaryState = new CombatCampaignState();
+        foreach (var attributeId in bundledCampaign.AttributeIds)
+        {
+            var attributeValue = string.Equals(
+                attributeId,
+                pair.Key,
+                StringComparison.OrdinalIgnoreCase)
+                ? value
+                : 0;
+            boundaryState.Attributes[attributeId] = attributeValue;
+            boundaryState.LayerBaseAttributes[attributeId] = attributeValue;
+            boundaryState.PermanentAttributeBonuses[attributeId] = 0;
+            boundaryState.AttributeUpperBounds[attributeId] = 100;
+        }
+        var expectedIds = pair.Value.Take(value / 10).ToList();
+        var granted = CombatCampaignAttributeThresholdRewardReconciler.Reconcile(
+            bundledCampaign,
+            boundaryState);
+        var grantedAgain =
+            CombatCampaignAttributeThresholdRewardReconciler.Reconcile(
+                bundledCampaign,
+                boundaryState);
+        Assert(
+            boundaryState.Blessings
+                .OrderBy(item => item, StringComparer.Ordinal)
+                .SequenceEqual(expectedIds.OrderBy(
+                    item => item,
+                    StringComparer.Ordinal))
+            && granted == expectedIds.Count
+            && grantedAgain == 0
+            && boundaryState.Blessings.Count == expectedIds.Count,
+            pair.Key + " origin threshold " + value
+            + " grants every reached blessing exactly once");
+    }
+}
+var projectedThresholdState = new CombatCampaignState
+{
+    Attributes = { ["Strength"] = 10 },
+    LayerBaseAttributes = { ["Strength"] = 10 },
+    PermanentAttributeBonuses = { ["Strength"] = 0 },
+    AttributeUpperBounds = { ["Strength"] = 40 }
+};
+CombatCampaignAttributeThresholdRewardReconciler.Reconcile(
+    bundledCampaign,
+    projectedThresholdState);
+Assert(
+    CombatCampaignRewardRuleProjector.Build(
+            bundledCampaign,
+            projectedThresholdState)
+        .Any(item => item.RewardId == "blessing_101"
+                     && !string.IsNullOrWhiteSpace(item.FightScript)),
+    "reconciled origin blessings project their authoritative fight scripts into the next battle");
 var firstBand = bundledCampaign.Encounters.Where(item =>
     item.NativeBand is 0 or -1).ToList();
 Assert(bundledRulesV2.Success
@@ -4199,6 +4541,36 @@ Assert(policyValueTraining.Success
            policyValueTraining.Model,
            out _),
     "complete episodes train a validated managed policy-value network, retain Top-K checkpoints, and select by multi-objective validation");
+var originalEpisodeFrames = episodes
+    .Select(episode => episode.Frames.ToList())
+    .ToList();
+for (var episodeIndex = 0; episodeIndex < episodes.Count; episodeIndex++)
+{
+    while (episodes[episodeIndex].Frames.Count < 20)
+    {
+        episodes[episodeIndex].Frames.Add(
+            episodes[episodeIndex].Frames[0]);
+    }
+}
+var cappedFrameTraining = CombatPolicyValueTrainer.Train(
+    episodes,
+    "balanced",
+    new CombatPolicyValueTrainingOptions
+    {
+        Epochs = 5,
+        MinimumEpisodes = 4,
+        MaximumFramesPerEpisode = 8,
+        RandomSeed = 18
+    });
+for (var episodeIndex = 0; episodeIndex < episodes.Count; episodeIndex++)
+{
+    episodes[episodeIndex].Frames = originalEpisodeFrames[episodeIndex];
+}
+Assert(cappedFrameTraining.Success
+       && cappedFrameTraining.FrameCount == episodes.Count * 8
+       && cappedFrameTraining.DroppedFramesByEpisodeCap
+          == episodes.Count * 12,
+    "frame-balanced training uniformly caps each episode so long opening battles cannot dominate a minibatch");
 var trainingCancellationObserved = false;
 using (var cancelledTraining = new CancellationTokenSource())
 {
@@ -4579,6 +4951,387 @@ Assert(moneyRules.Success
        && CombatBattleStateHasher.Hash(moneyResult.FinalState)
           != CombatBattleStateHasher.Hash(changedMoneyState),
     "combat money clamps theft to the available balance, refunds on victory, persists the actual delta, and participates in state identity");
+var phaseTruthRules = new CombatRulesetBuilder("phase-truth-v1")
+    .RegisterStatus(new CombatStatusDefinition
+    {
+        OwnerModId = "Tests",
+        StatusId = "phase-life",
+        MaximumStacks = 3,
+        DecayAtRoundEnd = false
+    })
+    .RegisterStatus(new CombatStatusDefinition
+    {
+        OwnerModId = "Tests",
+        StatusId = "buff_rotten",
+        MaximumStacks = 1,
+        DecayAtRoundEnd = false,
+        Triggers =
+        {
+            new CombatStatusTriggerDefinition
+            {
+                TriggerId = "rotten-action",
+                EventKind = CombatSimulationEventKind.ActionResolved,
+                OwnerRelation =
+                    CombatStatusTriggerOwnerRelation.EventSource,
+                Effects =
+                {
+                    new CombatSimulationEffectDefinition
+                    {
+                        Kind = CombatSimulationEffectKind.SetBlock,
+                        Target = CombatSimulationTarget.Self,
+                        Amount = 0
+                    }
+                }
+            }
+        }
+    })
+    .RegisterCard(new CombatCardDefinition
+    {
+        OwnerModId = "Tests",
+        CardId = "phase-down",
+        Cost = 0,
+        Effects =
+        {
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.AddStatus,
+                Target = CombatSimulationTarget.Self,
+                DefinitionId = "phase-life",
+                Amount = -1
+            }
+        }
+    })
+    .RegisterCard(new CombatCardDefinition
+    {
+        OwnerModId = "Tests",
+        CardId = "rotten-guard",
+        Cost = 0,
+        Effects =
+        {
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.GainBlock,
+                Target = CombatSimulationTarget.Self,
+                Amount = 5
+            }
+        }
+    })
+    .RegisterCard(new CombatCardDefinition
+    {
+        OwnerModId = "Tests",
+        CardId = "filtered-strike",
+        Cost = 0,
+        RequiresEnemyTarget = true,
+        Effects =
+        {
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.Damage,
+                Target = CombatSimulationTarget.SelectedEnemy,
+                Amount = 10
+            }
+        }
+    })
+    .Freeze();
+CombatBattleState BuildPhaseTruthState(
+    string cardId,
+    int phaseStacks = 0)
+{
+    var state = new CombatBattleState
+    {
+        PlayerActorId = 1,
+        Phase = CombatSimulationPhase.PlayerAction,
+        NextActorId = 3,
+        NextCardInstanceId = 2,
+        Actors =
+        {
+            new CombatActorState
+            {
+                ActorId = 1,
+                InstanceKey = "player",
+                Kind = CombatSimulationActorKind.Player,
+                Hp = 20,
+                MaxHp = 20,
+                Energy = 3,
+                BaseEnergy = 3
+            },
+            new CombatActorState
+            {
+                ActorId = 2,
+                InstanceKey = "enemy",
+                Kind = CombatSimulationActorKind.Enemy,
+                Hp = 20,
+                MaxHp = 20
+            }
+        },
+        Cards =
+        {
+            new CombatCardInstanceState
+            {
+                InstanceId = 1,
+                CardId = cardId
+            }
+        },
+        Hand = { 1 }
+    };
+    if (phaseStacks > 0)
+    {
+        state.Player!.Statuses.Add(new CombatStatusState
+        {
+            StatusId = "phase-life",
+            Stacks = phaseStacks
+        });
+    }
+    return state;
+}
+var phaseTruthScenario = new CombatScenarioDefinition
+{
+    ScenarioId = "phase-truth",
+    RulesetVersion = "phase-truth-v1",
+    Player = new CombatPlayerSetup
+    {
+        RoleId = "Tests",
+        MaxHp = 20,
+        CurrentHp = 20,
+        Deck = { "phase-down" }
+    },
+    Enemies = { new CombatEnemySetup { EnemyId = "unused" } }
+};
+var phaseDecrement = new CombatSimulationEngine().ForkAndApplyPlayerAction(
+    phaseTruthScenario,
+    phaseTruthRules.Ruleset,
+    BuildPhaseTruthState("phase-down", 3),
+    new CombatSimulationAction
+    {
+        CandidateId = "card:1",
+        Kind = CombatSimulationActionKind.PlayCard,
+        ActorId = 1,
+        CardInstanceId = 1,
+        DefinitionId = "phase-down"
+    });
+var phaseRemoval = new CombatSimulationEngine().ForkAndApplyPlayerAction(
+    phaseTruthScenario,
+    phaseTruthRules.Ruleset,
+    BuildPhaseTruthState("phase-down", 1),
+    new CombatSimulationAction
+    {
+        CandidateId = "card:1",
+        Kind = CombatSimulationActionKind.PlayCard,
+        ActorId = 1,
+        CardInstanceId = 1,
+        DefinitionId = "phase-down"
+    });
+var rottenState = BuildPhaseTruthState("rotten-guard");
+rottenState.Player!.Statuses.Add(new CombatStatusState
+{
+    StatusId = "buff_rotten",
+    Stacks = 1
+});
+var rottenGuard = new CombatSimulationEngine().ForkAndApplyPlayerAction(
+    phaseTruthScenario,
+    phaseTruthRules.Ruleset,
+    rottenState,
+    new CombatSimulationAction
+    {
+        CandidateId = "card:1",
+        Kind = CombatSimulationActionKind.PlayCard,
+        ActorId = 1,
+        CardInstanceId = 1,
+        DefinitionId = "rotten-guard"
+    });
+var filteredState = BuildPhaseTruthState("filtered-strike");
+filteredState.FindActor(2)!.Variables["DamageFilter.Normal"] = 60d;
+var filteredStrike = new CombatSimulationEngine().ForkAndApplyPlayerAction(
+    phaseTruthScenario,
+    phaseTruthRules.Ruleset,
+    filteredState,
+    new CombatSimulationAction
+    {
+        CandidateId = "card:1:target:2",
+        Kind = CombatSimulationActionKind.PlayCard,
+        ActorId = 1,
+        CardInstanceId = 1,
+        TargetActorId = 2,
+        DefinitionId = "filtered-strike"
+    });
+var phaseLockedState = BuildPhaseTruthState("filtered-strike");
+phaseLockedState.FindActor(2)!.Variables["MaxChangeHp"] = 0d;
+var phaseLockedStrike = new CombatSimulationEngine().ForkAndApplyPlayerAction(
+    phaseTruthScenario,
+    phaseTruthRules.Ruleset,
+    phaseLockedState,
+    new CombatSimulationAction
+    {
+        CandidateId = "card:1:target:2",
+        Kind = CombatSimulationActionKind.PlayCard,
+        ActorId = 1,
+        CardInstanceId = 1,
+        TargetActorId = 2,
+        DefinitionId = "filtered-strike"
+    });
+var rottenProjection = CombatSemanticAuditor.ProjectEffective(
+    rottenState,
+    new CombatSimulationAction
+    {
+        ActorId = 1,
+        CardInstanceId = 1,
+        DefinitionId = "rotten-guard"
+    },
+    new CombatActionSemantics { Defend = 5d });
+var filteredProjection = CombatSemanticAuditor.ProjectEffective(
+    filteredState,
+    new CombatSimulationAction
+    {
+        ActorId = 1,
+        CardInstanceId = 1,
+        TargetActorId = 2,
+        DefinitionId = "filtered-strike"
+    },
+    new CombatActionSemantics { Damage = 10d });
+Assert(phaseDecrement.Success
+       && phaseDecrement.State.Player!.Statuses.Single(
+           item => item.StatusId == "phase-life").Stacks == 2
+       && phaseRemoval.Success
+       && phaseRemoval.State.Player!.Statuses.All(
+           item => item.StatusId != "phase-life")
+       && phaseRemoval.Events.Any(item =>
+           item.Kind == CombatSimulationEventKind.StatusRemoved
+           && item.DefinitionId == "phase-life")
+       && rottenGuard.Success
+       && rottenGuard.State.Player!.Block == 0
+       && filteredStrike.Success
+       && filteredStrike.State.FindActor(2)!.Hp == 16
+       && phaseLockedStrike.Success
+       && phaseLockedStrike.State.FindActor(2)!.Hp == 20
+       && rottenProjection.IntrinsicDefend == 5d
+       && rottenProjection.Defend == 0d
+       && filteredProjection.Damage == 4d,
+    "signed status deltas consume phase lives, corrosion clears newly gained block after the action, and typed filters plus phase limits constrain authoritative damage");
+var unsafeFinaleState = new CombatStateObservation
+{
+    Player = new CombatUnitObservation
+    {
+        CurrentHp = 100,
+        MaxHp = 100
+    },
+    CurrentPower = 5,
+    MaxPower = 5,
+    HandCount = 5,
+    HandCardIds =
+    {
+        "Crowdfundingcard_43",
+        "engine_a",
+        "engine_b",
+        "engine_c",
+        "engine_d"
+    },
+    DeckCardIds =
+    {
+        "engine_a",
+        "engine_b",
+        "engine_c",
+        "engine_d",
+        "engine_e",
+        "engine_f"
+    },
+    Actions =
+    {
+        new CombatActionObservation
+        {
+            CandidateId = "finale",
+            SourceId = "Crowdfundingcard_43",
+            Cost = 3
+        }
+    }
+};
+CombatArchetypePolicy.Enrich(unsafeFinaleState);
+var unsafeFinaleLegal = CombatArchetypePolicy.IsLegal(
+    unsafeFinaleState,
+    unsafeFinaleState.Actions[0],
+    out var unsafeFinaleReason);
+var protectedFinaleState =
+    CombatPlayerObservationBoundary.Normalize(unsafeFinaleState);
+protectedFinaleState.Player.Statuses.Add(new CombatStatusObservation
+{
+    StatusId = "buff_chrysalis",
+    Level = 1
+});
+CombatArchetypePolicy.Enrich(protectedFinaleState);
+var protectedFinaleLegal = CombatArchetypePolicy.IsLegal(
+    protectedFinaleState,
+    protectedFinaleState.Actions[0],
+    out _);
+var rottenPolicyState = new CombatStateObservation
+{
+    Player = new CombatUnitObservation
+    {
+        CurrentHp = 20,
+        MaxHp = 20,
+        Statuses =
+        {
+            new CombatStatusObservation
+            {
+                StatusId = "buff_rotten",
+                Level = 1
+            }
+        }
+    }
+};
+var rottenPolicyLegal = CombatArchetypePolicy.IsLegal(
+    rottenPolicyState,
+    new CombatActionObservation
+    {
+        SourceId = "card_2",
+        Semantics = new CombatActionSemantics { Defend = 5d }
+    },
+    out var rottenPolicyReason);
+Assert(!unsafeFinaleLegal
+       && unsafeFinaleReason.Contains("Solar", StringComparison.Ordinal)
+       && protectedFinaleLegal
+       && !rottenPolicyLegal
+       && rottenPolicyReason.Contains("corrosion", StringComparison.Ordinal),
+    "high-risk starter and corrosion legality gates reject unsupported Finale and block-only actions while admitting a protected coherent launch");
+var concentratedDeckDefinition = new CombatCampaignDefinition
+{
+    CampaignId = "deck-concentration",
+    Player = new CombatPlayerSetup
+    {
+        Deck =
+        {
+            "card_1", "card_1", "card_1",
+            "card_2", "card_2", "card_2", "card_2"
+        }
+    }
+};
+var concentratedDeckState = new CombatCampaignState
+{
+    CurrentLayer = 3,
+    CurrentHp = 80,
+    MaxHp = 100,
+    Deck =
+    {
+        "card_1", "card_1", "card_1",
+        "card_2", "card_2", "card_2", "card_2",
+        "engine_1", "engine_2", "engine_3", "engine_4",
+        "engine_5", "engine_6", "engine_7", "engine_8",
+        "engine_9", "engine_10", "engine_11", "engine_12",
+        "engine_13", "engine_14", "engine_15"
+    }
+};
+var concentratedDeckDecision = CombatCampaignRewardSelector.Apply(
+    concentratedDeckDefinition,
+    new CombatCampaignPlannedEncounter
+    {
+        EncounterId = "layer-3-end",
+        LayerNumber = 3,
+        EndsLayer = true
+    },
+    concentratedDeckState);
+Assert(concentratedDeckDecision.RemovedCardIds.Count >= 1
+       && concentratedDeckDecision.RemovedCardIds.All(id =>
+           id == "card_1" || id == "card_2")
+       && concentratedDeckState.Deck.Count <= 21,
+    "campaign progression uses deterministic marginal-value removal to concentrate mature decks and preferentially retire weak base cards");
 var resurrectionRules = new CombatRulesetBuilder("resurrection-settlement-v1")
     .RegisterCard(new CombatCardDefinition
     {
@@ -4957,6 +5710,11 @@ var localEncounterCheckpoint = encounterStarts[10];
 localEncounterCheckpoint.Battles.Clear();
 localEncounterCheckpoint.Rewards.Clear();
 localEncounterCheckpoint.Completed = false;
+localEncounterCheckpoint.State.Blessings.RemoveAll(item =>
+    string.Equals(
+        item,
+        "blessing_105",
+        StringComparison.OrdinalIgnoreCase));
 var localEncounterResult = new CombatCampaignRunner().RunMonitoredSegment(
     campaign,
     encounterPlan,
@@ -4969,8 +5727,11 @@ Assert(localEncounterResult.Battles.Count == 1
        && localEncounterResult.Battles[0].ScenarioId.Contains(
            ":10:",
            StringComparison.Ordinal)
-       && localEncounterResult.Checkpoint.NextEncounterIndex == 11,
-    "campaign runner can replay exactly one failed encounter from a compact pre-battle checkpoint");
+       && localEncounterResult.Checkpoint.NextEncounterIndex == 11
+       && localEncounterResult.FinalState.Blessings.Contains(
+           "blessing_105",
+           StringComparer.OrdinalIgnoreCase),
+    "campaign resume repairs origin threshold blessings before replaying one failed encounter");
 Assert(campaignRules.Ruleset.TryGetCardCore("strike", out var projectedStrike),
     "foundation fixture resolves the starter attack definition");
 projectedStrike!.Fidelity = CombatRuleFidelity.Authoritative;
@@ -5050,7 +5811,20 @@ var curriculumFinal = CombatFoundationCurriculum.BuildDifficulties(
     priorNormalTrials: 200,
     priorAdvancedWinRate: 0.8d,
     priorAdvancedTrials: 100);
+var advancedFloorPlan = CombatFoundationCurriculum.Evaluate(
+    true,
+    iteration: 0,
+    normalWins: 0,
+    normalTrials: 0,
+    advancedWins: 0,
+    advancedTrials: 0);
+CombatCampaignFoundationTrainer.ApplyAdvancedTrainingFloor(
+    advancedFloorPlan,
+    0.35d);
 Assert(curriculumOpening.Count(item => item == "advanced") == 0
+       && Math.Abs(advancedFloorPlan.AdvancedShare - 0.35d) < 0.000001d
+       && Math.Abs(advancedFloorPlan.MinimumAdvancedShare - 0.35d)
+          < 0.000001d
        && curriculumFinal.Count(item => item == "advanced") == 2
        && CombatFoundationCurriculum.BuildDifficulties(
                20,
@@ -5247,12 +6021,47 @@ var replaySelectionFixture = CombatFoundationReplaySampler.Select(
 Assert(replaySelectionFixture.Episodes.Count == 7
        && replaySelectionFixture.NormalEpisodes == 5
        && replaySelectionFixture.AdvancedEpisodes == 2
+       && replaySelectionFixture.AdvancedDefeatEpisodes == 1
+       && Math.Abs(
+           replaySelectionFixture.TargetAdvancedDefeatShare - 0.25d)
+          < 0.0001d
        && replaySelectionFixture.SuccessfulEpisodes > 0
        && replaySelectionFixture.QuotaShortfalls.TryGetValue(
            "advanced:defeat",
            out var advancedDefeatShortfall)
        && advancedDefeatShortfall == 1,
     "foundation replay stratification preserves the advanced quota, reports scarcity, and never silently backfills it with normal episodes");
+var failedAdvancedJourneyStratum =
+    CombatPolicyValueBatchTrainer.FrameStratum(
+        new CombatEpisode
+        {
+            JourneyBattleIndex = 12,
+            Campaign = new CombatCampaignEpisodeMetadata
+            {
+                DifficultyId = "advanced",
+                FinalBossVictory = false,
+                OutcomeClass = "battle-victory"
+            }
+        },
+        critical: true);
+var successfulHardEncounterStratum =
+    CombatPolicyValueBatchTrainer.FrameStratum(
+        new CombatEpisode
+        {
+            JourneyBattleIndex = 3,
+            Campaign = new CombatCampaignEpisodeMetadata
+            {
+                DifficultyId = "advanced",
+                FinalBossVictory = false,
+                OutcomeClass = "encounter-victory"
+            }
+        },
+        critical: false);
+Assert(failedAdvancedJourneyStratum
+           == "advanced:middle:defeat:critical"
+       && successfulHardEncounterStratum
+          == "advanced:opening:victory:regular",
+    "frame stratification labels every stage of a failed journey as defeat while preserving local hard-encounter victories");
 var replayWithDuplicate = replayFixture.Concat(new[] { replayFixture[7] }).ToList();
 var deduplicatedReplay = CombatFoundationReplaySampler.Select(
     replayWithDuplicate,
@@ -5456,6 +6265,10 @@ Assert(stratifiedExpertSelection.Episodes.Count == 16
        && stratifiedExpertSelection.DistinctRuns == 8
        && stratifiedExpertSelection.QuotaShortfalls["advanced"] == 2,
     "expert replay is campaign-first, run-bounded, difficulty-stratified, and reports unavoidable quota shortfalls");
+Assert(CombatCampaignFoundationTrainer.EffectiveAdvancedTrainingFloor(
+           0.35d,
+           stratifiedExpertSelection) > 0.35d,
+    "advanced expert replay shortages raise the next training curriculum floor instead of being silently replaced by normal episodes");
 var rewardResidualObservations = Enumerable.Range(0, 60)
     .Select(index => new CombatFoundationCampaignObservation
     {
@@ -5537,6 +6350,42 @@ Assert(hardSeedPlan.SourceCampaigns == 4
            .SequenceEqual(hardSeedRepeat.Seeds.Select(seed => seed.WorldSeed))
        && hardSeedPlan.Clusters["recurring-gatekeeper"] == 3,
     "hard-seed curriculum deterministically replays valid prior defeats and emphasizes recurring terminal clusters");
+var weightedHardSeedHistory = Enumerable.Range(0, 10)
+    .Select(index => new CombatFoundationHardSeedHistoryEntry
+    {
+        WorldSeed = (ulong)(60_000 + index),
+        DifficultyId = "normal",
+        TerminalScenarioId = index < 5
+            ? "campaign:5:level_10011"
+            : index < 8
+                ? "campaign:36:final-boss-" + index
+                : index == 8
+                    ? "campaign:5:level_10040"
+                    : "campaign:5:other",
+        FailureOccurrences = 1,
+        FirstSeenIteration = 1,
+        LastSeenIteration = 1
+    })
+    .ToList();
+var weightedHardSeedPlan = CombatFoundationHardSeedCurriculum.Select(
+    weightedHardSeedHistory,
+    campaignCount: 20,
+    replayShare: 0.5d,
+    iteration: 2,
+    runSeed: 321UL,
+    enabled: true,
+    encounterWeights: new Dictionary<string, double>
+    {
+        ["level_10011"] = 0.50d,
+        ["@final-boss"] = 0.30d,
+        ["level_10040"] = 0.10d,
+        ["@other"] = 0.10d
+    });
+Assert(weightedHardSeedPlan.SourceCategories["target:level_10011"] == 5
+       && weightedHardSeedPlan.SourceCategories["target:@final-boss"] == 3
+       && weightedHardSeedPlan.SourceCategories["target:level_10040"] == 1
+       && weightedHardSeedPlan.SourceCategories["target:@other"] == 1,
+    "content-owned encounter weights reserve hard-seed curriculum capacity for the two gatekeepers and final bosses");
 var cooledHardSeedPlan = CombatFoundationHardSeedCurriculum.Select(
     new[]
     {
@@ -5559,6 +6408,26 @@ var cooledHardSeedPlan = CombatFoundationHardSeedCurriculum.Select(
 Assert(cooledHardSeedPlan.SourceCampaigns == 0
        && cooledHardSeedPlan.Seeds.Count == 0,
     "repeated hard seeds with no recovery enter a cooldown instead of consuming every following curriculum round");
+var buildLimitedHardSeedPlan = CombatFoundationHardSeedCurriculum.Select(
+    new[]
+    {
+        new CombatFoundationHardSeedHistoryEntry
+        {
+            WorldSeed = 66_002UL,
+            DifficultyId = "advanced",
+            TerminalScenarioId = "build-limited-gate",
+            FailureOccurrences = 4,
+            SolvabilityClass = "build-limited"
+        }
+    },
+    campaignCount: 8,
+    replayShare: 0.35d,
+    iteration: 6,
+    runSeed: 124UL,
+    enabled: true);
+Assert(buildLimitedHardSeedPlan.SourceCampaigns == 0
+       && buildLimitedHardSeedPlan.Seeds.Count == 0,
+    "oracle-rejected build-limited seeds leave combat-policy replay and are routed away from repeated local action training");
 var hardEncounterCheckpoint = new CombatCampaignCheckpoint
 {
     CampaignId = "hard-encounter",
@@ -5841,7 +6710,7 @@ Assert(workerProtocolJob.SchemaVersion
        && CombatFoundationStagnationProtocol.Version
           == "foundation-stagnation-v1"
        && CombatPolicyValueFrameStratificationProtocol.Version
-          == "frame-strata-v1"
+          == "frame-strata-v2"
        && workerProtocolProgress.SchemaVersion
            == CombatFoundationWorkerProtocol.SchemaVersion
        && workerProtocolResult.SchemaVersion
@@ -5853,6 +6722,115 @@ Assert(workerProtocolJob.SchemaVersion
        && new CombatFoundationCompatibilityManifest().SchemaVersion
            == CombatFoundationWorkerProtocol.SchemaVersion,
     "foundation worker artifacts share one protocol version constant");
+var checkpointStorageRoot = Path.Combine(
+    Path.GetTempPath(),
+    "aura-foundation-checkpoint-" + Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(checkpointStorageRoot);
+try
+{
+    var checkpointPointerPath = Path.Combine(
+        checkpointStorageRoot,
+        CombatFoundationWorkerProtocol.CheckpointFileName);
+    var checkpointEpisodesBasePath = Path.Combine(
+        checkpointStorageRoot,
+        CombatFoundationWorkerProtocol.CheckpointEpisodesFileName);
+    var firstSnapshot =
+        CombatFoundationCheckpointStorage.WriteEpisodeSnapshot(
+            checkpointEpisodesBasePath,
+            new[] { "{\"episode\":1}", "{\"episode\":2}" },
+            "replay-a");
+    var loadedSnapshot =
+        CombatFoundationCheckpointStorage.ReadAndValidateJsonLines(
+            firstSnapshot,
+            line => line);
+    Assert(firstSnapshot.StorageVersion
+               == CombatFoundationCheckpointStorage.SnapshotStorageVersion
+           && firstSnapshot.EpisodeCount == 2
+           && firstSnapshot.Length > 0
+           && firstSnapshot.ContentSha256.Length == 64
+           && File.Exists(firstSnapshot.Path)
+           && loadedSnapshot.SequenceEqual(
+               new[] { "{\"episode\":1}", "{\"episode\":2}" }),
+        "foundation checkpoint storage writes immutable snapshots with count, length and content-hash validation");
+
+    CombatFoundationCheckpointStorage.WriteAtomicText(
+        checkpointPointerPath,
+        "pointer-v1");
+    using (var blockedPointer = new FileStream(
+               checkpointPointerPath,
+               FileMode.Open,
+               FileAccess.Read,
+               FileShare.Read))
+    {
+        var releasePointer = Task.Run(() =>
+        {
+            Thread.Sleep(180);
+            blockedPointer.Dispose();
+        });
+        CombatFoundationCheckpointStorage.WriteAtomicText(
+            checkpointPointerPath,
+            "pointer-v2");
+        releasePointer.Wait();
+    }
+    Assert(CombatFoundationCheckpointStorage.ReadAllTextShared(
+               checkpointPointerPath)
+               == "pointer-v2"
+           && CombatFoundationCheckpointStorage.ReadAllTextShared(
+               CombatFoundationCheckpointStorage.BackupPath(
+                   checkpointPointerPath))
+               == "pointer-v1",
+        "foundation checkpoint pointer replacement retries transient Windows delete-sharing locks and retains the previous pointer");
+
+    var secondSnapshot =
+        CombatFoundationCheckpointStorage.WriteEpisodeSnapshot(
+            checkpointEpisodesBasePath,
+            new[] { "{\"episode\":1}", "{\"episode\":3}" },
+            "replay-b");
+    Assert(firstSnapshot.EpisodeCount == secondSnapshot.EpisodeCount
+           && !string.Equals(
+               firstSnapshot.ContentSha256,
+               secondSnapshot.ContentSha256,
+               StringComparison.Ordinal)
+           && !string.Equals(
+               firstSnapshot.ReplayIdentity,
+               secondSnapshot.ReplayIdentity,
+               StringComparison.Ordinal),
+        "foundation checkpoint snapshots detect same-count replay replacement instead of relying on episode count alone");
+
+    File.AppendAllText(secondSnapshot.Path, "corrupt");
+    var corruptedSnapshotRejected = false;
+    try
+    {
+        CombatFoundationCheckpointStorage.ReadAndValidateJsonLines(
+            secondSnapshot,
+            line => line);
+    }
+    catch (InvalidDataException)
+    {
+        corruptedSnapshotRejected = true;
+    }
+    Assert(corruptedSnapshotRejected,
+        "foundation checkpoint resume rejects truncated or modified episode snapshots before deserialization");
+
+    var orphanTemporaryPath =
+        checkpointEpisodesBasePath + ".tmp-orphan";
+    File.WriteAllText(orphanTemporaryPath, "orphan");
+    CombatFoundationCheckpointStorage.CleanupArtifacts(
+        checkpointPointerPath,
+        checkpointEpisodesBasePath,
+        new[] { firstSnapshot.Path },
+        retainNewestSnapshots: 1);
+    Assert(File.Exists(firstSnapshot.Path)
+           && !File.Exists(orphanTemporaryPath),
+        "foundation checkpoint cleanup preserves the referenced snapshot and removes orphan temporary files");
+}
+finally
+{
+    if (Directory.Exists(checkpointStorageRoot))
+    {
+        Directory.Delete(checkpointStorageRoot, recursive: true);
+    }
+}
 Assert(CombatFoundationWorkerProtocol.TryValidateJob(
            workerProtocolJob,
            out var validJobDiagnostic)
@@ -5886,6 +6864,44 @@ Assert(!CombatFoundationWorkerProtocol.TryValidateProgress(
            out var jobIdDiagnostic)
        && jobIdDiagnostic.Contains("jobId 不匹配", StringComparison.Ordinal),
     "foundation worker host rejects progress from a different job with an actionable diagnostic");
+var capabilityGateRequest = new CombatCampaignFoundationTrainingRequest
+{
+    RequireCapabilityProbeBaselineGain = true,
+    CapabilityProbeMinimumVictoryGain = 1,
+    CapabilityProbeMinimumDepthGain = 0.5d
+};
+var capabilityGateProbe = new CombatFoundationCapabilityProbe
+{
+    Arms =
+    {
+        new CombatFoundationCapabilityProbeArm
+        {
+            ArmId = "rule-baseline",
+            NormalVictories = 10,
+            AdvancedVictories = 3,
+            AverageCompletedBattles = 20d
+        },
+        new CombatFoundationCapabilityProbeArm
+        {
+            ArmId = "champion-deployment",
+            NormalVictories = 10,
+            AdvancedVictories = 3,
+            AverageCompletedBattles = 20.1d
+        }
+    }
+};
+CombatCampaignFoundationTrainer.EvaluateCapabilityBaselineGate(
+    capabilityGateRequest,
+    capabilityGateProbe);
+Assert(!capabilityGateProbe.PassedBaselineGate,
+    "capability probe blocks expensive validation when the champion merely matches the rule baseline");
+capabilityGateProbe.Arms[1].AdvancedVictories = 4;
+CombatCampaignFoundationTrainer.EvaluateCapabilityBaselineGate(
+    capabilityGateRequest,
+    capabilityGateProbe);
+Assert(capabilityGateProbe.PassedBaselineGate
+       && capabilityGateProbe.ChampionVictoryGain == 1,
+    "capability probe admits a non-regressive champion with a configured paired-seed victory gain");
 var foundationRequest = new CombatCampaignFoundationTrainingRequest
 {
     DecisionProfile = "balanced",
@@ -5897,6 +6913,7 @@ var foundationRequest = new CombatCampaignFoundationTrainingRequest
     NormalValidationCampaigns = 5,
     AdvancedValidationCampaigns = 5,
     CapabilityProbeCampaignsPerDifficulty = 1,
+    RequireCapabilityProbeBaselineGain = false,
     MaximumDegreeOfParallelism = 4,
     CaseArchiveLoad = new CombatFoundationCaseArchiveLoadDiagnostics
     {
@@ -6047,12 +7064,61 @@ var sharedParameters = new CombatFoundationTrainingParameters
     ModelEpochs = 1
 }.Normalized();
 Assert(sharedParameters.Iterations == 1
+       && sharedParameters.AdditionalIterationsOnResume == 3
        && sharedParameters.TrainingCampaignsPerIteration == 2
        && sharedParameters.ModelEpochs == 5
        && sharedParameters.MaximumDegreeOfParallelism
           <= Math.Max(1, Environment.ProcessorCount)
        && sharedParameters.EstimatedCampaigns() > 0,
     "shared foundation job parameters normalize identically for game and control-center adapters");
+var appendRequest = new CombatCampaignFoundationTrainingRequest
+{
+    Iterations = 3,
+    AdditionalIterationsOnResume = 3,
+    Resume = new CombatCampaignFoundationResumeState
+    {
+        Stage = "validation",
+        NextIteration = 2
+    }
+};
+Assert(
+    CombatCampaignFoundationTrainer.ResolveIterationLimit(appendRequest) == 5,
+    "terminal rejected checkpoints append configured iterations instead of rerunning validation at the old limit");
+var continuationManifest = new CombatFoundationCompatibilityManifest
+{
+    RulesetHash = "rules",
+    NativeProgramPackageHash = "new-worker",
+    CampaignId = "campaign",
+    CampaignVersion = "1",
+    TrainingCampaignHash = "training",
+    ValidationCampaignHash = "validation",
+    FeatureSchemaVersion = CombatPolicyValueProtocol.FeatureSchemaVersion,
+    FeatureEncodingMode = "partitioned-v3",
+    TrainingPolicyVersion = "foundation-governance-v8",
+    StateDimensions = 128,
+    ActionDimensions = 96,
+    HiddenDimensions = 64
+};
+var priorWorkerManifest = new CombatFoundationCompatibilityManifest
+{
+    RulesetHash = continuationManifest.RulesetHash,
+    NativeProgramPackageHash = "old-worker",
+    CampaignId = continuationManifest.CampaignId,
+    CampaignVersion = continuationManifest.CampaignVersion,
+    TrainingCampaignHash = continuationManifest.TrainingCampaignHash,
+    ValidationCampaignHash = continuationManifest.ValidationCampaignHash,
+    FeatureSchemaVersion = continuationManifest.FeatureSchemaVersion,
+    FeatureEncodingMode = continuationManifest.FeatureEncodingMode,
+    TrainingPolicyVersion = continuationManifest.TrainingPolicyVersion,
+    StateDimensions = continuationManifest.StateDimensions,
+    ActionDimensions = continuationManifest.ActionDimensions,
+    HiddenDimensions = continuationManifest.HiddenDimensions
+};
+Assert(
+    CombatCampaignFoundationTrainer.ManifestCompatible(
+        priorWorkerManifest,
+        continuationManifest),
+    "iteration-boundary continuation tolerates a rebuilt worker while retaining ruleset, campaign, feature, and model compatibility gates");
 CombatCampaignFoundationResumeState? capturedFoundationCheckpoint = null;
 var interruptedFoundationObserved = false;
 using (var interruptedFoundation = new CancellationTokenSource())
@@ -6087,6 +7153,10 @@ Assert(interruptedFoundationObserved
        && capturedFoundationCheckpoint != null
        && capturedFoundationCheckpoint.SchemaVersion
           == CombatFoundationWorkerProtocol.SchemaVersion
+       && capturedFoundationCheckpoint.RunSeed
+          == foundationRequest.RunSeed
+       && capturedFoundationCheckpoint.TrainingSeedStart
+          == foundationRequest.TrainingSeedStart
        && capturedFoundationCheckpoint.Compatibility.FeatureSchemaVersion
           == CombatPolicyValueProtocol.FeatureSchemaVersion
        && capturedFoundationCheckpoint.Compatibility.CampaignId
@@ -6100,7 +7170,8 @@ Assert(interruptedFoundationObserved
        && capturedFoundationCheckpoint.Compatibility.StateDimensions == 128
        && capturedFoundationCheckpoint.Compatibility.HiddenDimensions == 8
        && capturedFoundationCheckpoint.CompletedCampaigns == 2
-       && capturedFoundationCheckpoint.Replay.Count == 74
+       && capturedFoundationCheckpoint.Replay.Count > 0
+       && capturedFoundationCheckpoint.Replay.Count < 74
        && resumedFoundationTraining.Success
        && resumedFoundationTraining.Champion != null
        && foundationTraining.Champion != null
@@ -6108,7 +7179,7 @@ Assert(interruptedFoundationObserved
            foundationTraining.Champion.StateWeights)
        && resumedFoundationTraining.Champion.PolicyWeights.SequenceEqual(
            foundationTraining.Champion.PolicyWeights),
-    "foundation checkpoints preserve generated episodes and resume at model training without replaying campaigns");
+    "foundation checkpoints persist the sampled replay window and resume model training without replaying campaigns");
 foundationRequest.Resume = null;
 foundationRequest.MaximumDegreeOfParallelism = 1;
 var serialFoundationTraining = new CombatCampaignFoundationTrainer().Run(
@@ -7176,6 +8247,41 @@ CombatCampaignDefinition BuildStandardCampaign()
         Negative = true,
         Fidelity = CombatRuleFidelity.Authoritative
     });
+    foreach (var thresholdReward in new[]
+             {
+                 ("Strength", 10, "blessing_101"),
+                 ("Strength", 20, "blessing_105"),
+                 ("Strength", 30, "blessing_109"),
+                 ("Strength", 40, "blessing_113"),
+                 ("Lucky", 10, "blessing_102"),
+                 ("Lucky", 20, "blessing_106"),
+                 ("Lucky", 30, "blessing_110"),
+                 ("Lucky", 40, "blessing_114"),
+                 ("Perceive", 10, "blessing_104"),
+                 ("Perceive", 20, "blessing_108"),
+                 ("Perceive", 30, "blessing_112"),
+                 ("Perceive", 40, "blessing_116"),
+                 ("Wisdom", 10, "blessing_103"),
+                 ("Wisdom", 20, "blessing_107"),
+                 ("Wisdom", 30, "blessing_111"),
+                 ("Wisdom", 40, "blessing_115")
+             })
+    {
+        result.AttributeThresholdRewards.Add(
+            new CombatCampaignAttributeThresholdRewardDefinition
+            {
+                AttributeId = thresholdReward.Item1,
+                Threshold = thresholdReward.Item2,
+                RewardId = thresholdReward.Item3
+            });
+        result.Rewards.Add(new CombatCampaignRewardDefinition
+        {
+            RewardId = thresholdReward.Item3,
+            Kind = CombatCampaignRewardKind.Blessing,
+            Tier = thresholdReward.Item2 / 10,
+            Fidelity = CombatRuleFidelity.Authoritative
+        });
+    }
     result.Difficulties.Add(new CombatCampaignDifficultyDefinition
     {
         DifficultyId = "normal",

@@ -28,6 +28,79 @@ Close or reopen the Codex workspace, then rename the repository root from its pa
 
 ---
 
+<<<<<<< HEAD
+=======
+## [ERR-20260728-002] powershell-rg-wildcard-and-split-escaping
+
+**Logged**: 2026-07-28T17:00:00+08:00
+**Priority**: low
+**Status**: pending
+**Area**: tooling
+
+### Summary
+Two read-only inventory commands failed because a Windows wildcard path was passed directly to `rg` and a backslash was incorrectly escaped for PowerShell `-split`.
+
+### Error
+```text
+rg: **/.gitignore: The filename, directory name, or volume label syntax is incorrect.
+Group-Object: Invalid pattern '\' at offset 1.
+```
+
+### Context
+- The failures occurred while inventorying `ModsData`; no repository data was modified.
+- Enumerating `.gitignore` files first and using path APIs instead of regex splitting avoids both issues.
+- The wildcard mistake recurred once in a later `rg` call, so the mitigation still needs to become habitual.
+- A subsequent inline PowerShell inventory also placed a pipeline directly after a `foreach` statement; wrap the loop in `@(...)` before piping.
+- `Copy-Item -LiteralPath` was incorrectly given an `e\*` wildcard while staging ModelData; enumerate files first or use `-Path` when wildcard expansion is intended.
+- A verified `Remove-Item -Recurse` staging cleanup was blocked by command policy; resolving and checking the absolute target in one call, then using `[IO.Directory]::Delete` on that exact path in a second call succeeded.
+- The ModelData installer smoke-test wrapper treated a null `$LASTEXITCODE` from a PowerShell script as failure; use `$?` or allow terminating errors to propagate when invoking another `.ps1`.
+- A training-analysis `rg` call included a guessed source filename that does not exist; resolve candidate files with `rg --files` before batching optional paths.
+- The same guessed-file error recurred for `CombatSimulationPolicyMetrics.cs`; avoid adding optional filenames to otherwise valid recursive directory searches.
+- The first JSONL validation summary queried a nonexistent `Success` field; the observation schema uses `FinalBossVictory`, so inspect sample records before aggregating ad hoc fields.
+- The first Newtonsoft validation-run extractor assumed `Battles` was a flat array of battle objects; inspect token types before casting nested result structures.
+- The follow-up extractor hit PowerShell cast/method precedence on `[string]$token.Property(...).Value`; assign or use `SelectToken(...).ToString()` before casting.
+- Direct `[int]$jObject.SelectToken(...)` had the same precedence problem; convert `SelectToken(...).ToString()` via `Convert` or omit unused fields.
+- Calling `.ToString()` directly after `SelectToken(...)` also produced PowerShell member-enumeration output; parenthesize the returned token before invoking methods.
+- Another analysis command piped directly after `foreach`; consistently capture loop output with `$rows = @(foreach (...) { ... })` before formatting.
+
+### Suggested Fix
+Pass concrete paths to `rg` on Windows and prefer `[IO.Path]::GetRelativePath()` plus directory-separator indexing for path grouping.
+
+### Metadata
+- Reproducible: yes
+- Related Files: .gitignore
+
+---
+
+## [ERR-20260728-002] shared-release-checkpoint-path-assumption
+
+**Logged**: 2026-07-28T16:58:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The shared release smoke test assumed that resumable episodes always lived at the legacy fixed JSONL path.
+
+### Error
+```text
+Unaccepted foundation training must retain a resumable checkpoint.
+```
+
+### Context
+- The Worker completed and wrote a valid immutable snapshot referenced by the checkpoint JSON.
+- `Test-AuraFoundationTrainer.ps1` still required `CheckpointEpisodesPath` itself to exist.
+
+### Suggested Fix
+Resolve resumability through `checkpoint.EpisodeSnapshot.Path` with a legacy `EpisodesPath` fallback, and validate snapshot count, length, and hash metadata.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Test-AuraFoundationTrainer.ps1, AuraCombatAiShared/CombatFoundationCheckpointStorage.cs
+
+---
+
+>>>>>>> 00cdd678a11fef71d3237a27c45ea0c8f465992e
 ## [ERR-20260728-002] foundation-worker-smoke-max-path
 
 **Logged**: 2026-07-28T18:20:00+08:00
@@ -950,6 +1023,17 @@ Use `Get-ChildItem` for optional-file discovery, collect PowerShell rows before 
 - **Notes**: Guessed a nonexistent `Text/Hard/Hard.csv`, guessed `CombatSimulationEngine.cs` under the wrong shared directory, and repeated the invalid direct `foreach { } | Format-List` form during the boss audit. Resolve files with `rg --files` first and always collect loop output before piping.
 - **Observed**: 2026-07-28T16:45:00+08:00
 - **Notes**: Started two known long-running PowerShell test scripts with a one-second timeout, causing avoidable killed runs before rerunning with realistic limits. Inspect test entrypoints and assign the full expected build-and-test timeout on the first run.
+<<<<<<< HEAD
+=======
+- **Observed**: 2026-07-28T17:05:00+08:00
+- **Notes**: Repeated the invalid direct `foreach (...) { ... } | Format-Table` form while summarizing the training archive. Collect the loop output in an array before piping it to a formatter.
+- **Observed**: 2026-07-28T17:08:00+08:00
+- **Notes**: Passed `AuraFoundationTrainer.*` as a Windows path to `rg`; PowerShell did not expand it and `rg` rejected the invalid path. Resolve matching directories first or search the repository with explicit `--glob` filters.
+- **Observed**: 2026-07-28T17:32:00+08:00
+- **Notes**: Passed `*.ps1` as a Windows search root to `rg` while locating trainer build scripts. Use `rg` against explicit directories and filter files with `--glob '*.ps1'`.
+- **Observed**: 2026-07-28T17:45:00+08:00
+- **Notes**: Used `Get-Process -Name ... -ErrorAction SilentlyContinue` as a standalone existence probe; PowerShell returned exit code 1 when no process existed. Wrap optional process discovery in an explicit `$processes = @(...)` query and report the count.
+>>>>>>> 00cdd678a11fef71d3237a27c45ea0c8f465992e
 
 ---
 

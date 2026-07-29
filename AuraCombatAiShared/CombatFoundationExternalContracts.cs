@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using System.IO;
 using AuraCombatSimulation.Shared;
 
@@ -12,6 +13,8 @@ public sealed class CombatFoundationTrainingParameters
 
     public int Iterations { get; set; } = 8;
 
+    public int AdditionalIterationsOnResume { get; set; } = 3;
+
     public int TrainingCampaignsPerIteration { get; set; } = 64;
 
     public int ArenaCampaignsPerDifficulty { get; set; } = 32;
@@ -23,6 +26,12 @@ public sealed class CombatFoundationTrainingParameters
     public int AdvancedValidationCampaigns { get; set; } = 500;
 
     public int CapabilityProbeCampaignsPerDifficulty { get; set; } = 16;
+
+    public bool RequireCapabilityProbeBaselineGain { get; set; } = true;
+
+    public int CapabilityProbeMinimumVictoryGain { get; set; } = 1;
+
+    public double CapabilityProbeMinimumDepthGain { get; set; } = 0.5d;
 
     public int PreflightCampaignsPerDifficulty { get; set; } = 32;
 
@@ -63,6 +72,13 @@ public sealed class CombatFoundationTrainingParameters
 
     public double HardSeedReplayShare { get; set; } = 0.35d;
 
+    public Dictionary<string, double> HardEncounterWeights { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public double MinimumAdvancedReplayShare { get; set; } = 0.40d;
+
+    public double MinimumAdvancedDefeatReplayShare { get; set; } = 0.25d;
+
     public double SelfPlayExplorationProbability { get; set; } = 0.15d;
 
     public double SelfPlayExplorationTemperature { get; set; } = 1d;
@@ -80,6 +96,8 @@ public sealed class CombatFoundationTrainingParameters
     public bool EnableFrameStratification { get; set; } = true;
 
     public double ModelMaximumFrameStratumWeight { get; set; } = 3d;
+
+    public int ModelMaximumFramesPerEpisode { get; set; } = 96;
 
     public int ModelReplayEpisodeLimit { get; set; } = 6000;
 
@@ -110,6 +128,9 @@ public sealed class CombatFoundationTrainingParameters
     public CombatFoundationTrainingParameters Normalized()
     {
         Iterations = Math.Max(1, Math.Min(20, Iterations));
+        AdditionalIterationsOnResume = Math.Max(
+            0,
+            Math.Min(20, AdditionalIterationsOnResume));
         TrainingCampaignsPerIteration = Math.Max(
             2,
             Math.Min(1000, TrainingCampaignsPerIteration));
@@ -127,7 +148,15 @@ public sealed class CombatFoundationTrainingParameters
             Math.Min(1000, AdvancedValidationCampaigns));
         CapabilityProbeCampaignsPerDifficulty = Math.Max(
             0,
-            Math.Min(32, CapabilityProbeCampaignsPerDifficulty));
+            Math.Min(64, CapabilityProbeCampaignsPerDifficulty));
+        CapabilityProbeMinimumVictoryGain = Math.Max(
+            1,
+            Math.Min(64, CapabilityProbeMinimumVictoryGain));
+        CapabilityProbeMinimumDepthGain = Clamp(
+            CapabilityProbeMinimumDepthGain,
+            0d,
+            37d,
+            0.5d);
         PreflightCampaignsPerDifficulty = Math.Max(
             1,
             Math.Min(100, PreflightCampaignsPerDifficulty));
@@ -151,6 +180,18 @@ public sealed class CombatFoundationTrainingParameters
             0.40d,
             0.20d);
         HardSeedReplayShare = Clamp(HardSeedReplayShare, 0d, 0.75d, 0.35d);
+        MinimumAdvancedReplayShare = Clamp(
+            MinimumAdvancedReplayShare,
+            0d,
+            0.90d,
+            0.40d);
+        MinimumAdvancedDefeatReplayShare = Clamp(
+            MinimumAdvancedDefeatReplayShare,
+            0d,
+            MinimumAdvancedReplayShare,
+            0.25d);
+        HardEncounterWeights ??=
+            new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
         SelfPlayExplorationProbability = Clamp(
             SelfPlayExplorationProbability,
             0d,
@@ -177,6 +218,9 @@ public sealed class CombatFoundationTrainingParameters
             1d,
             5d,
             3d);
+        ModelMaximumFramesPerEpisode = Math.Max(
+            8,
+            Math.Min(512, ModelMaximumFramesPerEpisode));
         ModelReplayEpisodeLimit = Math.Max(
             64,
             Math.Min(20000, ModelReplayEpisodeLimit));
@@ -325,6 +369,8 @@ public static class CombatFoundationWorkerJobFactory
                 RunSeed = parameters.RunSeed,
                 DecisionProfile = parameters.DecisionProfile,
                 Iterations = parameters.Iterations,
+                AdditionalIterationsOnResume =
+                    parameters.AdditionalIterationsOnResume,
                 TrainingCampaignsPerIteration =
                     parameters.TrainingCampaignsPerIteration,
                 ArenaCampaignsPerDifficulty =
@@ -337,6 +383,12 @@ public static class CombatFoundationWorkerJobFactory
                     parameters.AdvancedValidationCampaigns,
                 CapabilityProbeCampaignsPerDifficulty =
                     parameters.CapabilityProbeCampaignsPerDifficulty,
+                RequireCapabilityProbeBaselineGain =
+                    parameters.RequireCapabilityProbeBaselineGain,
+                CapabilityProbeMinimumVictoryGain =
+                    parameters.CapabilityProbeMinimumVictoryGain,
+                CapabilityProbeMinimumDepthGain =
+                    parameters.CapabilityProbeMinimumDepthGain,
                 PreflightCampaignsPerDifficulty =
                     parameters.PreflightCampaignsPerDifficulty,
                 PreflightSeedStart = parameters.TrainingSeedStart,
@@ -381,6 +433,13 @@ public static class CombatFoundationWorkerJobFactory
                     Message = "archive loading deferred to worker"
                 },
                 HardSeedReplayShare = parameters.HardSeedReplayShare,
+                HardEncounterWeights = new Dictionary<string, double>(
+                    parameters.HardEncounterWeights,
+                    StringComparer.OrdinalIgnoreCase),
+                MinimumAdvancedReplayShare =
+                    parameters.MinimumAdvancedReplayShare,
+                MinimumAdvancedDefeatReplayShare =
+                    parameters.MinimumAdvancedDefeatReplayShare,
                 SelfPlayExplorationProbability =
                     parameters.SelfPlayExplorationProbability,
                 SelfPlayExplorationTemperature =
@@ -411,6 +470,8 @@ public static class CombatFoundationWorkerJobFactory
                         parameters.EnableFrameStratification,
                     MaximumFrameStratumWeight =
                         parameters.ModelMaximumFrameStratumWeight,
+                    MaximumFramesPerEpisode =
+                        parameters.ModelMaximumFramesPerEpisode,
                     MaximumDegreeOfParallelism =
                         parameters.MaximumDegreeOfParallelism,
                     MinimumEpochs = parameters.ModelMinimumEpochs,

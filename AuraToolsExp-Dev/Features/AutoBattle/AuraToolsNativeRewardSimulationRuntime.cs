@@ -354,11 +354,24 @@ internal sealed class AuraToolsNativeRewardExtension :
                     "drop");
                 break;
             case CombatSimulationEventKind.StatusAdded:
+                var statusProgramKey =
+                    sourceEvent.TargetActorId + "|" + sourceEvent.DefinitionId;
+                var statusProgramAlreadyExisted =
+                    statusPrograms.ContainsKey(statusProgramKey);
                 EnsureStatusProgram(
                     context,
                     sourceEvent.TargetActorId,
                     sourceEvent.DefinitionId,
                     sourceEvent);
+                if (statusProgramAlreadyExisted
+                    && statusPrograms.TryGetValue(
+                        statusProgramKey,
+                        out var changedStatusProgram))
+                {
+                    changedStatusProgram.DispatchNamedEvent(
+                        sourceEvent.DefinitionId + "OnLevelChange",
+                        sourceEvent);
+                }
                 break;
             case CombatSimulationEventKind.StatusRemoved:
                 ClearStatusProgram(context, sourceEvent);
@@ -2087,17 +2100,16 @@ public sealed partial class NativeRewardScriptGlobals
 
     public void SetDamageFilter(object _, object percent)
     {
-        var multiplier = Math.Max(0d, 1d - Number(percent) / 100d);
+        var filterId = Text(_);
+        var reduction = Math.Max(0d, Math.Min(100d, Number(percent)));
         foreach (var actorId in Targets())
         {
-            var actor = context.State.FindActor(actorId);
+            var actor = Actor(actorId);
             if (actor != null)
             {
-                actor.Variables["AttackedPercentDamage"] = Math.Min(
-                    actor.Variables.GetValueOrDefault(
-                        "AttackedPercentDamage",
-                        1d),
-                    multiplier);
+                actor.DamageFilter[filterId] = Math.Max(
+                    actor.DamageFilter.GetValueOrDefault(filterId),
+                    reduction);
             }
         }
     }
@@ -3370,7 +3382,9 @@ public sealed class NativeRewardActor
         this.globals = globals;
         this.actorId = actorId;
         dynamicVariables = new NativeRewardDoubleDictionary(() => State.Variables);
-        DamageFilter = new NativeRewardDoubleDictionary(() => State.Variables);
+        DamageFilter = new NativeRewardDoubleDictionary(
+            () => State.Variables,
+            "DamageFilter.");
     }
 
     private CombatActorState State =>
@@ -4404,36 +4418,59 @@ public sealed class NativeRewardCardItem
 public sealed class NativeRewardDoubleDictionary
 {
     private readonly Func<Dictionary<string, double>> source;
+    private readonly string keyPrefix;
 
-    public NativeRewardDoubleDictionary(Func<Dictionary<string, double>> source)
+    public NativeRewardDoubleDictionary(
+        Func<Dictionary<string, double>> source,
+        string keyPrefix = "")
     {
         this.source = source;
+        this.keyPrefix = keyPrefix ?? "";
     }
 
     public double this[string key]
     {
-        get => source().GetValueOrDefault(key, 0d);
-        set => source()[key] = value;
+        get => source().GetValueOrDefault(StoredKey(key), 0d);
+        set => source()[StoredKey(key)] = value;
     }
 
     public bool ContainsKey(string key)
     {
-        return source().ContainsKey(key);
+        return source().ContainsKey(StoredKey(key));
     }
 
     public double GetValueOrDefault(string key, double fallback = 0d)
     {
-        return source().TryGetValue(key, out var value) ? value : fallback;
+        return source().TryGetValue(StoredKey(key), out var value)
+            ? value
+            : fallback;
     }
 
     public void Add(string key, double value)
     {
-        source().Add(key, value);
+        source().Add(StoredKey(key), value);
     }
 
     public void Clear()
     {
-        source().Clear();
+        if (keyPrefix.Length == 0)
+        {
+            source().Clear();
+            return;
+        }
+        foreach (var key in source().Keys
+                     .Where(key => key.StartsWith(
+                         keyPrefix,
+                         StringComparison.OrdinalIgnoreCase))
+                     .ToList())
+        {
+            source().Remove(key);
+        }
+    }
+
+    private string StoredKey(string key)
+    {
+        return keyPrefix + (key ?? "");
     }
 }
 

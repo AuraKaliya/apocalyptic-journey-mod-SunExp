@@ -51,13 +51,6 @@ internal static class AuraToolsFoundationWorkerRuntime
             Process.Start(new ProcessStartInfo
             {
                 FileName = path,
-                Arguments = "--mod-root \""
-                            + AuraToolsConfigService.ModDirectory
-                                .Replace("\"", "\\\"")
-                            + "\" --data-root \""
-                            + AuraToolsConfigService.DataRootDirectory
-                                .Replace("\"", "\\\"")
-                            + "\"",
                 WorkingDirectory = Path.GetDirectoryName(path)
                                    ?? AuraToolsConfigService.ModDirectory,
                 UseShellExecute = true
@@ -292,7 +285,8 @@ internal static class AuraToolsFoundationWorkerRuntime
                 return false;
             }
             var parsed = AuraSharedJson.Deserialize<CombatFoundationWorkerProgress>(
-                File.ReadAllText(job.ProgressPath));
+                CombatFoundationCheckpointStorage.ReadAllTextShared(
+                    job.ProgressPath));
             observedWriteUtc = writeUtc;
             if (!CombatFoundationWorkerProtocol.TryValidateProgress(
                     parsed,
@@ -325,7 +319,8 @@ internal static class AuraToolsFoundationWorkerRuntime
                 if (File.Exists(job.ResultPath))
                 {
                     return AuraSharedJson.Deserialize<CombatFoundationWorkerResult>(
-                               File.ReadAllText(job.ResultPath))
+                               CombatFoundationCheckpointStorage
+                                   .ReadAllTextShared(job.ResultPath))
                            ?? throw new InvalidOperationException(
                                "独立训练器结果为空");
                 }

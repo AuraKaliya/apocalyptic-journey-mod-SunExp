@@ -262,17 +262,34 @@ public sealed class CombatDecisionEngine
         var hitCount = Math.Max(1d, semantics.HitCount);
         var normalDamage = Math.Max(0d, semantics.Damage) * hitCount;
         var bypassDamage = Math.Max(0d, semantics.TrueDamage) + Math.Max(0d, semantics.DamageOverTime);
-        var hpDamage = Math.Max(0d, normalDamage - targetDefend) + bypassDamage;
-        var effectiveDamage = targetHp > 0
+        var projectedHpDamage =
+            Math.Max(0d, normalDamage - targetDefend) + bypassDamage;
+        var hpDamage = Feature(
+            action,
+            "effectiveHpDamage",
+            projectedHpDamage);
+        var projectedEffectiveDamage = targetHp > 0
             ? Math.Min(targetHp + targetDefend, normalDamage) + Math.Min(targetHp, bypassDamage)
             : normalDamage + bypassDamage;
+        var effectiveDamage = Feature(
+            action,
+            "effectiveDurabilityDamage",
+            projectedEffectiveDamage);
         var overkill = targetHp > 0 ? Math.Max(0d, hpDamage - targetHp) : 0d;
-        var lethal = targetHp > 0 && hpDamage >= targetHp
+        var terminalLethalEligible =
+            Feature(action, "terminalLethalEligible", 1d) > 0.5d;
+        var lethal = targetHp > 0
+                     && hpDamage >= targetHp
+                     && terminalLethalEligible
             ? 16d + Math.Min(8d, targetHp * 0.25d)
             : 0d;
         var unknown = Math.Max(0d, semantics.Uncertainty);
-        var defend = Math.Max(0d, semantics.Defend);
-        var heal = Math.Min(missingHp, Math.Max(0d, semantics.Heal));
+        var defend = Math.Max(
+            0d,
+            Feature(action, "effectiveDefend", semantics.Defend));
+        var heal = Math.Min(
+            missingHp,
+            Math.Max(0d, Feature(action, "effectiveHeal", semantics.Heal)));
         var risk = semantics.Risk
                    + Math.Max(0d, semantics.SelfHpLoss) * 2d
                    + Math.Max(0d, semantics.EndOfCycleSelfHpLoss) * 1.5d;
@@ -369,6 +386,18 @@ public sealed class CombatDecisionEngine
             Coordination = freeActionOrderValue
                            + (action.Features.TryGetValue("coordination", out var coordination) ? coordination : 0d)
         };
+    }
+
+    private static double Feature(
+        CombatActionObservation action,
+        string key,
+        double fallback)
+    {
+        return action.Features.TryGetValue(key, out var value)
+               && !double.IsNaN(value)
+               && !double.IsInfinity(value)
+            ? value
+            : fallback;
     }
 
     public static Dictionary<string, double> BuildFeatures(

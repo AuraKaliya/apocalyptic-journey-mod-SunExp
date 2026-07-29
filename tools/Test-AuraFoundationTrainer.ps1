@@ -201,18 +201,42 @@ try {
             -or $progress.Telemetry.SearchSimulations -le 0) {
             throw "Foundation trainer model/search telemetry is incomplete."
     }
-    $checkpointExists = (Test-Path -LiteralPath $checkpointPath) `
-                        -and (Test-Path -LiteralPath $checkpointEpisodesPath)
+    $checkpoint = $null
+    $checkpointSnapshotPath = ""
+    if (Test-Path -LiteralPath $checkpointPath -PathType Leaf) {
+        $checkpoint = Read-FoundationJson $checkpointPath
+        $checkpointSnapshotPath = if (
+            $null -ne $checkpoint.EpisodeSnapshot `
+            -and -not [string]::IsNullOrWhiteSpace(
+                [string]$checkpoint.EpisodeSnapshot.Path)) {
+            [string]$checkpoint.EpisodeSnapshot.Path
+        }
+        else {
+            [string]$checkpoint.EpisodesPath
+        }
+    }
+    $checkpointExists = $null -ne $checkpoint `
+                        -and -not [string]::IsNullOrWhiteSpace(
+                            $checkpointSnapshotPath) `
+                        -and (Test-Path -LiteralPath $checkpointSnapshotPath `
+                            -PathType Leaf)
+    $checkpointSnapshots = @(
+        Get-ChildItem -LiteralPath $smokeRoot `
+            -Filter "checkpoint-episodes.snapshot-*.jsonl" `
+            -File -ErrorAction SilentlyContinue
+    )
     if ($PreflightOnly) {
         if ($result.CompletionKind -ne "preflight-passed" `
             -or $result.Resumable `
-            -or $checkpointExists) {
+            -or $checkpointExists `
+            -or $checkpointSnapshots.Count -ne 0) {
             throw "Preflight completion must not retain a training checkpoint."
         }
     }
     elseif ($result.Training.AcceptancePassed) {
         if ($result.CompletionKind -ne "training-accepted" `
             -or $checkpointExists `
+            -or $checkpointSnapshots.Count -ne 0 `
             -or [string]::IsNullOrWhiteSpace(
                 [string]$result.ModelPackagePath) `
             -or -not (Test-Path -LiteralPath (
@@ -240,9 +264,15 @@ try {
         throw "Unaccepted foundation training must retain a resumable checkpoint."
     }
     if (-not $PreflightOnly -and -not $result.Training.AcceptancePassed) {
-        $checkpoint = Read-FoundationJson $checkpointPath
         if ([int]$checkpoint.SchemaVersion -ne $protocolVersion `
             -or [int]$checkpoint.Resume.SchemaVersion -ne $protocolVersion `
+            -or [int]$checkpoint.EpisodeSnapshot.StorageVersion -ne 2 `
+            -or [int]$checkpoint.EpisodeSnapshot.EpisodeCount -le 0 `
+            -or [int64]$checkpoint.EpisodeSnapshot.Length -ne (
+                Get-Item -LiteralPath $checkpointSnapshotPath).Length `
+            -or [string]$checkpoint.EpisodeSnapshot.ContentSha256 -ne (
+                Get-FileHash -LiteralPath $checkpointSnapshotPath `
+                    -Algorithm SHA256).Hash.ToLowerInvariant() `
             -or [string]::IsNullOrWhiteSpace(
                 [string]$checkpoint.Resume.Compatibility.RulesetHash) `
             -or [string]::IsNullOrWhiteSpace(

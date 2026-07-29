@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Linq;
 using Newtonsoft.Json;
 
 namespace AuraToolsExp.Dll.Config;
@@ -171,6 +173,15 @@ public sealed class AutoBattleFoundationTrainingSettings
     [JsonProperty("capabilityProbeCampaignsPerDifficulty")]
     public int CapabilityProbeCampaignsPerDifficulty { get; set; } = 16;
 
+    [JsonProperty("requireCapabilityProbeBaselineGain")]
+    public bool RequireCapabilityProbeBaselineGain { get; set; } = true;
+
+    [JsonProperty("capabilityProbeMinimumVictoryGain")]
+    public int CapabilityProbeMinimumVictoryGain { get; set; } = 1;
+
+    [JsonProperty("capabilityProbeMinimumDepthGain")]
+    public double CapabilityProbeMinimumDepthGain { get; set; } = 0.5d;
+
     [JsonProperty("preflightCampaignsPerDifficulty")]
     public int PreflightCampaignsPerDifficulty { get; set; } = 32;
 
@@ -232,6 +243,16 @@ public sealed class AutoBattleFoundationTrainingSettings
     [JsonProperty("hardSeedReplayShare")]
     public double HardSeedReplayShare { get; set; } = 0.35d;
 
+    [JsonProperty("hardEncounterWeights")]
+    public Dictionary<string, double> HardEncounterWeights { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            ["level_10011"] = 0.50d,
+            ["@final-boss"] = 0.30d,
+            ["level_10040"] = 0.10d,
+            ["@other"] = 0.10d
+        };
+
     [JsonProperty("selfPlayExplorationProbability")]
     public double SelfPlayExplorationProbability { get; set; } = 0.15d;
 
@@ -258,6 +279,9 @@ public sealed class AutoBattleFoundationTrainingSettings
 
     [JsonProperty("modelMaximumFrameStratumWeight")]
     public double ModelMaximumFrameStratumWeight { get; set; } = 3d;
+
+    [JsonProperty("modelMaximumFramesPerEpisode")]
+    public int ModelMaximumFramesPerEpisode { get; set; } = 96;
 
     [JsonProperty("modelReplayEpisodeLimit")]
     public int ModelReplayEpisodeLimit { get; set; } = 6000;
@@ -316,6 +340,14 @@ public sealed class AutoBattleFoundationTrainingSettings
         CapabilityProbeCampaignsPerDifficulty = Math.Max(
             0,
             Math.Min(32, CapabilityProbeCampaignsPerDifficulty));
+        CapabilityProbeMinimumVictoryGain = Math.Max(
+            1,
+            Math.Min(32, CapabilityProbeMinimumVictoryGain));
+        CapabilityProbeMinimumDepthGain = ClampFinite(
+            CapabilityProbeMinimumDepthGain,
+            0d,
+            37d,
+            0.5d);
         PreflightCampaignsPerDifficulty = Math.Max(
             1,
             Math.Min(100, PreflightCampaignsPerDifficulty));
@@ -340,6 +372,9 @@ public sealed class AutoBattleFoundationTrainingSettings
             1d,
             5d,
             3d);
+        ModelMaximumFramesPerEpisode = Math.Max(
+            8,
+            Math.Min(512, ModelMaximumFramesPerEpisode));
         ModelReplayEpisodeLimit = Math.Max(
             64,
             Math.Min(20000, ModelReplayEpisodeLimit));
@@ -393,6 +428,16 @@ public sealed class AutoBattleFoundationTrainingSettings
                               || double.IsInfinity(HardSeedReplayShare)
             ? 0.35d
             : Math.Max(0d, Math.Min(0.75d, HardSeedReplayShare));
+        HardEncounterWeights = (HardEncounterWeights
+                                ?? new Dictionary<string, double>())
+            .Where(item => !string.IsNullOrWhiteSpace(item.Key)
+                           && item.Value > 0d
+                           && !double.IsNaN(item.Value)
+                           && !double.IsInfinity(item.Value))
+            .ToDictionary(
+                item => item.Key,
+                item => item.Value,
+                StringComparer.OrdinalIgnoreCase);
         SuccessExpertReplayShare =
             double.IsNaN(SuccessExpertReplayShare)
             || double.IsInfinity(SuccessExpertReplayShare)

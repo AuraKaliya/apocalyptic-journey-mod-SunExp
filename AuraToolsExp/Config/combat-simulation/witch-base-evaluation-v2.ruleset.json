@@ -19556,7 +19556,7 @@
                          "triggers":  [
                                           {
                                               "triggerId":  "rotten-action",
-                                              "eventKind":  "ActionStarted",
+                                              "eventKind":  "ActionResolved",
                                               "ownerRelation":  "EventSource",
                                               "everyNthEvent":  1,
                                               "minimumEventAmount":  -2147483648,

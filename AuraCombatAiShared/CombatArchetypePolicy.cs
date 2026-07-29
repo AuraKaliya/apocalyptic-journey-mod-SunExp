@@ -57,6 +57,8 @@ public static class CombatArchetypePolicy
     public const string ResurrectionCountFeature = "mechanic:rebirth.count";
     public const string KeenEdgeFeature = "mechanic:rebirth.keen-edge";
     public const string TimeCageCountFeature = "mechanic:time-cage.count";
+    public const string TerminalLethalCertifiedFeature =
+        "mechanic:terminal-lethal-certified";
 
     private static readonly HashSet<string> RebirthStarters =
         new(StringComparer.OrdinalIgnoreCase)
@@ -149,6 +151,13 @@ public static class CombatArchetypePolicy
             "SpellCard_17",
             "universalcard_10",
             "universalcard_15"
+        };
+
+    private static readonly HashSet<string> HighRiskEngineStarters =
+        new(StringComparer.OrdinalIgnoreCase)
+        {
+            "Crowdfundingcard_43",
+            "card_7"
         };
 
     private static readonly HashSet<string> HardBanCards =
@@ -285,6 +294,21 @@ public static class CombatArchetypePolicy
             reason = "hard-banned card has unacceptable combat downside";
             return false;
         }
+        if (StatusLevel(state.Player, "buff_rotten") > 0
+            && IsPureBlockAction(action))
+        {
+            reason = "post-action corrosion nullifies this block-only action";
+            return false;
+        }
+        if (HighRiskEngineStarters.Contains(id)
+            && !HighRiskEngineStarterIsSafe(
+                state,
+                action,
+                assessment,
+                out reason))
+        {
+            return false;
+        }
         if (IdEquals(id, "Crowdfundingcard_10")
             && assessment.RebirthStacks < 59)
         {
@@ -308,7 +332,8 @@ public static class CombatArchetypePolicy
                 return false;
             }
         }
-        if (WouldCauseLethalSelfLoss(state, action))
+        if (!HighRiskEngineStarters.Contains(id)
+            && WouldCauseLethalSelfLoss(state, action))
         {
             if (assessment.RebirthCommitment != CombatArchetypeCommitment.Committed)
             {
@@ -364,6 +389,11 @@ public static class CombatArchetypePolicy
         return HighRiskRebirthCards.Contains(cardId ?? "");
     }
 
+    public static bool IsHighRiskEngineStarter(string cardId)
+    {
+        return HighRiskEngineStarters.Contains(cardId ?? "");
+    }
+
     private static void WriteFeatures(
         CombatStateObservation state,
         CombatArchetypeAssessment value)
@@ -401,6 +431,46 @@ public static class CombatArchetypePolicy
 
         switch (id)
         {
+            case "Crowdfundingcard_43":
+            {
+                var protectedByChrysalis =
+                    StatusLevel(state.Player, "buff_chrysalis") > 0
+                    || Value(state.Features, "blessing:blessing_34") > 0d;
+                var certifiedTerminalFollowUp =
+                    Value(state.Features, TerminalLethalCertifiedFeature) > 0d
+                    || HasImmediateTerminalFollowUp(
+                        state,
+                        action,
+                        state.CurrentPower - Math.Max(0, action.Cost));
+                var toxinSettlement = certifiedTerminalFollowUp
+                    ? 0d
+                    : protectedByChrysalis
+                    ? Math.Min(
+                        999d,
+                        Math.Max(1d, Math.Floor(state.Player.MaxHp * 0.5d)))
+                    : 999d;
+                semantics.EndOfCycleSelfHpLoss = toxinSettlement;
+                semantics.Buff = Math.Max(semantics.Buff, 3d);
+                semantics.Risk = Math.Max(
+                    semantics.Risk,
+                    Math.Max(toxinSettlement, state.Player.CurrentHp * 0.5d));
+                derived = true;
+                break;
+            }
+            case "card_7":
+            {
+                semantics.PersistentValue = Math.Max(
+                    semantics.PersistentValue,
+                    4d);
+                semantics.CostReduction = Math.Max(
+                    semantics.CostReduction,
+                    2d);
+                semantics.Risk = Math.Max(
+                    semantics.Risk,
+                    Math.Max(20d, state.Player.CurrentHp));
+                derived = true;
+                break;
+            }
             case "Crowdfundingcard_25":
             {
                 ResetTactical(semantics);
@@ -718,6 +788,142 @@ public static class CombatArchetypePolicy
         }
         reason = "";
         return true;
+    }
+
+    private static bool HighRiskEngineStarterIsSafe(
+        CombatStateObservation state,
+        CombatActionObservation action,
+        CombatArchetypeAssessment assessment,
+        out string reason)
+    {
+        var id = action.SourceId ?? "";
+        var remainingPower = state.CurrentPower - Math.Max(0, action.Cost);
+        var continuationCards = (state.HandCardIds ?? new List<string>())
+            .Where(cardId => !IdEquals(cardId, id))
+            .Where(cardId => !IsDeadHandCard(cardId))
+            .ToList();
+        var distinctContinuationCards = continuationCards
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .Count();
+        var nonBasicDeckCards = (state.DeckCardIds ?? new List<string>())
+            .Count(cardId => !IsBasicOrDeadCard(cardId));
+        var committedEngine =
+            assessment.RebirthCommitment == CombatArchetypeCommitment.Committed
+            || assessment.TimeCageCommitment == CombatArchetypeCommitment.Committed
+            || distinctContinuationCards >= 3
+            && nonBasicDeckCards >= 6;
+        if (!committedEngine)
+        {
+            reason = "high-risk engine starter requires a coherent deck engine";
+            return false;
+        }
+        if (remainingPower < 2)
+        {
+            reason = "high-risk engine starter leaves insufficient follow-up energy";
+            return false;
+        }
+        if (continuationCards.Count < 3)
+        {
+            reason = "high-risk engine starter requires at least three actionable follow-up cards";
+            return false;
+        }
+        if (IdEquals(id, "Crowdfundingcard_43"))
+        {
+            if (StatusLevel(state.Player, "buff_toxin") > 0)
+            {
+                reason = "finale cannot safely stack another lethal toxin cycle";
+                return false;
+            }
+            var terminalLethalCertified =
+                Value(state.Features, TerminalLethalCertifiedFeature) > 0d
+                || HasImmediateTerminalFollowUp(
+                    state,
+                    action,
+                    remainingPower);
+            if (!terminalLethalCertified
+                && StatusLevel(state.Player, "buff_chrysalis") <= 0
+                && Value(state.Features, "blessing:blessing_34") <= 0d)
+            {
+                reason = "finale requires Solar/chrysalis protection unless a terminal line is already certified";
+                return false;
+            }
+            if (!terminalLethalCertified
+                && EstimatedSelfHpLoss(action)
+                >= Math.Max(1, state.Player.CurrentHp))
+            {
+                reason = "finale toxin settlement is lethal at the current health";
+                return false;
+            }
+        }
+        if (IdEquals(id, "card_7")
+            && StatusLevel(state.Player, "buff_eclipse") > 0)
+        {
+            reason = "magic heart cannot safely restart an active eclipse contract";
+            return false;
+        }
+        reason = "";
+        return true;
+    }
+
+    private static bool IsPureBlockAction(CombatActionObservation action)
+    {
+        var semantics = action.Semantics ?? new CombatActionSemantics();
+        if (semantics.Defend <= 0d)
+        {
+            return false;
+        }
+        return semantics.Damage <= 0d
+               && semantics.TrueDamage <= 0d
+               && semantics.DamageOverTime <= 0d
+               && semantics.Heal <= 0d
+               && semantics.Draw <= 0d
+               && semantics.EnergyGain <= 0d
+               && semantics.Cleanse <= 0d
+               && semantics.CardGeneration <= 0d
+               && semantics.PersistentValue <= 0d
+               && semantics.Buff <= 0d
+               && semantics.Debuff <= 0d;
+    }
+
+    private static bool HasImmediateTerminalFollowUp(
+        CombatStateObservation state,
+        CombatActionObservation starter,
+        int remainingPower)
+    {
+        return (state.Actions ?? new List<CombatActionObservation>())
+            .Where(action => action != null
+                             && !ReferenceEquals(action, starter)
+                             && !IdEquals(action.SourceId, starter.SourceId)
+                             && action.Cost <= remainingPower)
+            .Any(action =>
+            {
+                var target = state.Enemies.FirstOrDefault(enemy =>
+                    enemy.RuntimeId == action.TargetRuntimeId);
+                return target != null
+                       && target.CurrentHp > 0
+                       && Value(
+                           action.Features,
+                           "terminalLethalEligible") > 0.5d
+                       && Value(
+                           action.Features,
+                           "effectiveHpDamage")
+                       >= target.CurrentHp;
+            });
+    }
+
+    private static bool IsDeadHandCard(string cardId)
+    {
+        return string.IsNullOrWhiteSpace(cardId)
+               || cardId.StartsWith("cursecard_", StringComparison.OrdinalIgnoreCase)
+               || cardId.StartsWith("nocard_", StringComparison.OrdinalIgnoreCase)
+               || HardBanCards.Contains(cardId);
+    }
+
+    private static bool IsBasicOrDeadCard(string cardId)
+    {
+        return IsDeadHandCard(cardId)
+               || IdEquals(cardId, "card_1")
+               || IdEquals(cardId, "card_2");
     }
 
     private static bool IsEmptyCageOperator(string id)

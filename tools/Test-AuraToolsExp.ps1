@@ -33,8 +33,14 @@ $foundationRuntime = Get-Content -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleFoundationRuntime.cs") -Raw
 $foundationWorkerRuntime = Get-Content -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsFoundationWorkerRuntime.cs") -Raw
+$foundationControllerRuntime = Get-Content -LiteralPath (
+    Join-Path $repoRoot "AuraFoundationTrainer.ControlCenter\MainWindow.cs") -Raw
+$foundationControllerModels = Get-Content -LiteralPath (
+    Join-Path $repoRoot "AuraFoundationTrainer.ControlCenter\ControllerModels.cs") -Raw
 $foundationWorkerProgram = Get-Content -LiteralPath (
     Join-Path $repoRoot "AuraFoundationTrainer.Worker\Program.cs") -Raw
+$foundationCheckpointStorage = Get-Content -LiteralPath (
+    Join-Path $repoRoot "AuraCombatAiShared\CombatFoundationCheckpointStorage.cs") -Raw
 $modelRuntime = Get-Content -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleModelRuntime.cs") -Raw
 $simulationRuntime = Get-Content -LiteralPath (
@@ -187,10 +193,25 @@ foreach ($anchor in @(
     "Array.Empty<CombatEpisode>()",
     "AcquireTrainingLease",
     "CombatFoundationModelPackageProtocol.Create",
-    "ModelPackagePath"
+    "ModelPackagePath",
+    "EpisodeSnapshot = nextSnapshot",
+    "ReplayIdentity",
+    "TryGetResumableCheckpoint"
 )) {
     if (-not $foundationWorkerProgram.Contains($anchor)) {
         throw "Aura foundation worker failed-replay contract is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
+    "WriteEpisodeSnapshot",
+    "WriteAtomicText",
+    "ReadAndValidateJsonLines",
+    "FileShare.ReadWrite | FileShare.Delete",
+    "File.Replace",
+    "CleanupArtifacts"
+)) {
+    if (-not $foundationCheckpointStorage.Contains($anchor)) {
+        throw "Aura foundation checkpoint durability contract is missing: $anchor"
     }
 }
 foreach ($anchor in @(
@@ -206,6 +227,59 @@ foreach ($anchor in @(
     if (-not $foundationWorkerRuntime.Contains($anchor)) {
         throw "AuraTools foundation worker process contract is missing: $anchor"
     }
+}
+foreach ($anchor in @(
+    "Environment.ProcessPath",
+    "ExecutableDirectory",
+    "DiscoverModRoot",
+    "settings.ModRoot = modRoot",
+    "settings.DataRoot = dataRoot",
+    "FormatLoss",
+    "CheckpointWriteFailures",
+    "ReadAllTextShared",
+    "recentResultStatus",
+    "completionNotificationArmed",
+    "tabs.SelectedIndex = ProgressTabIndex",
+    "TryShowCompletionNotification",
+    "FlashTaskbar",
+    "PlayCompletionSound",
+    "ResultSummary",
+    'SetToggle(',
+    '"RequireCapabilityProbeBaselineGain"'
+)) {
+    if (-not $foundationControllerRuntime.Contains($anchor)) {
+        throw "Foundation controller relative-path contract is missing: $anchor"
+    }
+}
+if ($foundationControllerRuntime -match
+        '(?s)Set\(\s*"RequireCapabilityProbeBaselineGain"') {
+    throw "Foundation controller must restore the capability baseline gate through its checkbox."
+}
+$resultPollingIndex = $foundationControllerRuntime.IndexOf(
+    "TryGetFileIdentity(")
+$progressPollingIndex = $foundationControllerRuntime.IndexOf(
+    "if (File.Exists(job.ProgressPath))")
+if ($resultPollingIndex -lt 0 `
+        -or $progressPollingIndex -lt 0 `
+        -or $resultPollingIndex -gt $progressPollingIndex) {
+    throw "Foundation controller must prioritize final results over stale progress snapshots."
+}
+if (-not $foundationControllerRuntime.Contains(
+        "loadedSchemaVersion < 3") `
+        -or -not $foundationControllerRuntime.Contains(
+            "loadedSchemaVersion < 4") `
+        -or -not $foundationControllerRuntime.Contains(
+            "AdditionalIterationsOnResume") `
+        -or -not $foundationControllerRuntime.Contains(
+            "MinimumAdvancedDefeatReplayShare") `
+        -or -not $foundationControllerModels.Contains(
+            "SchemaVersion { get; set; } = 4")) {
+    throw "Foundation controller resumable-training settings migration is missing."
+}
+if ($foundationWorkerRuntime.Contains("--mod-root") -or
+    $foundationWorkerRuntime.Contains("--data-root") -or
+    -not $foundationControllerModels.Contains("[JsonIgnore]")) {
+    throw "Foundation controller must derive runtime roots from its EXE instead of persisted absolute paths."
 }
 foreach ($anchor in @(
     '[JsonProperty("executionMode")]',
@@ -249,9 +323,24 @@ foreach ($anchor in @(
     }
 }
 if (-not $simulationRuntime.Contains("EvaluationModelId") `
-    -or -not $simulationRuntime.Contains("ExternalValidationMeetsGate") `
-    -or -not $gameValidationRuntime.Contains("EvaluationModelId")) {
+        -or -not $simulationRuntime.Contains("ExternalValidationMeetsGate") `
+        -or -not $gameValidationRuntime.Contains("EvaluationModelId")) {
     throw "AuraTools external foundation dual-validation routing contract is missing."
+}
+foreach ($anchor in @(
+    "ReadResultSummaryStreaming",
+    "DeserializeFileStreaming<CombatFoundationWorkerJob>",
+    "presentedResultLastWriteUtc",
+    "IdleRefreshInterval",
+    "FileOptions.SequentialScan"
+)) {
+    if (-not $foundationControllerRuntime.Contains($anchor)) {
+        throw "Aura foundation controller low-overhead polling contract is missing: $anchor"
+    }
+}
+if ($foundationControllerRuntime.Contains(
+        "ReadAllTextShared(`r`n                    job.ResultPath)")) {
+    throw "Aura foundation controller must not repeatedly materialize the full worker result."
 }
 foreach ($anchor in @(
     "PublishSingleFile=true",

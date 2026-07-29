@@ -330,6 +330,7 @@ public sealed class CombatSimulationEngine
 
             State.Turn++;
             State.Phase = CombatSimulationPhase.PlayerTurnStart;
+            ResetHpLossWindow();
             var player = State.Player;
             if (player == null || !player.Alive)
             {
@@ -478,10 +479,33 @@ public sealed class CombatSimulationEngine
                             0,
                             metricsProvider.LastDecisionMetrics
                                 .AuthoritativeSemanticMismatches);
+                        metrics.AuthoritativeSelectedActionsAudited += Math.Max(
+                            0,
+                            metricsProvider.LastDecisionMetrics
+                                .AuthoritativeSelectedActionsAudited);
+                        metrics.AuthoritativeSelectedSemanticMismatches +=
+                            Math.Max(
+                                0,
+                                metricsProvider.LastDecisionMetrics
+                                    .AuthoritativeSelectedSemanticMismatches);
                         metrics.AuthoritativeTeacherOverrides += Math.Max(
                             0,
                             metricsProvider.LastDecisionMetrics
                                 .AuthoritativeTeacherOverrides);
+                        MergeCounts(
+                            metrics.AuthoritativeSemanticMismatchKinds,
+                            metricsProvider.LastDecisionMetrics
+                                .AuthoritativeSemanticMismatchKinds);
+                        MergeCounts(
+                            metrics.AuthoritativeSemanticMismatchSources,
+                            metricsProvider.LastDecisionMetrics
+                                .AuthoritativeSemanticMismatchSources);
+                        MergeCounts(
+                            metrics.AuthoritativeSemanticMismatchScenarios,
+                            metricsProvider.LastDecisionMetrics
+                                .AuthoritativeSemanticMismatchScenarios);
+                        metrics.SemanticAudit.MergeFrom(
+                            metricsProvider.LastDecisionMetrics.SemanticAudit);
                     }
                     var selected = requested == null
                         ? null
@@ -538,6 +562,7 @@ public sealed class CombatSimulationEngine
             }
 
             State.Phase = CombatSimulationPhase.PlayerTurnEnd;
+            ResetHpLossWindow();
             if (!ProcessLifecycleEvent(
                     CombatSimulationEventKind.TurnEnded,
                     player.ActorId,
@@ -612,6 +637,7 @@ public sealed class CombatSimulationEngine
             }
 
             State.ActionSequence++;
+            ResetHpLossWindow();
             currentActionCommandCount = 0;
             currentActionDefinitionId = definition.CardId;
             player.Energy -= cost;
@@ -1247,6 +1273,7 @@ public sealed class CombatSimulationEngine
             }
 
             State.ActionSequence++;
+            ResetHpLossWindow();
             currentActionCommandCount = 0;
             currentActionDefinitionId = intent.IntentId;
             var queue = new Queue<CombatSimulationCommand>();
@@ -1428,7 +1455,8 @@ public sealed class CombatSimulationEngine
                         SourceActorId = sourceActorId,
                         TargetActorId = targetId,
                         CardInstanceId = cardInstanceId,
-                        Amount = effect.Kind == CombatSimulationEffectKind.ChangeCardCost
+                        Amount = effect.Kind == CombatSimulationEffectKind.AddStatus
+                                 || effect.Kind == CombatSimulationEffectKind.ChangeCardCost
                                  || effect.Kind == CombatSimulationEffectKind.ModifyVariable
                                  || effect.Kind == CombatSimulationEffectKind.ModifyVariablePercent
                                  || effect.Kind == CombatSimulationEffectKind.ScaleVariablePercent
@@ -1839,16 +1867,27 @@ public sealed class CombatSimulationEngine
                                 * Variable(
                                     target,
                                     "DirectHpLossTaken." + command.DefinitionId,
-                                    1d)))
+                                    1d)
+                                * DamageFilterMultiplier(
+                                    target,
+                                    command.Kind,
+                                    command.DefinitionId)))
                         : Math.Max(
                             0,
-                            (int)((outgoingAmount + incomingFlat) * incomingMultiplier));
+                            (int)((outgoingAmount + incomingFlat)
+                                  * incomingMultiplier
+                                  * DamageFilterMultiplier(
+                                      target,
+                                      command.Kind,
+                                      command.DefinitionId)));
                     var blocked = command.Kind == CombatSimulationEffectKind.TrueDamage
                                   || command.Kind == CombatSimulationEffectKind.DirectHpLoss
                         ? 0
                         : Math.Min(target.Block, incoming);
                     target.Block -= blocked;
-                    var hpDamage = Math.Min(target.Hp, Math.Max(0, incoming - blocked));
+                    var hpDamage = LimitHpLoss(
+                        target,
+                        Math.Min(target.Hp, Math.Max(0, incoming - blocked)));
                     target.Hp -= hpDamage;
                     if (source?.Kind == CombatSimulationActorKind.Player
                         && target.Kind == CombatSimulationActorKind.Enemy)
@@ -2306,21 +2345,35 @@ public sealed class CombatSimulationEngine
                         string.Equals(status.StatusId, command.DefinitionId, StringComparison.OrdinalIgnoreCase));
                     if (existing == null)
                     {
+                        if (command.Amount <= 0)
+                        {
+                            return null;
+                        }
                         target.Statuses.Add(new CombatStatusState
                         {
                             StatusId = command.DefinitionId,
                             Stacks = Math.Min(
                                 Math.Max(1, statusDefinition.MaximumStacks),
-                                Math.Max(1, command.Amount)),
+                                command.Amount),
                             Duration = command.Duration,
                             SourceActorId = command.SourceActorId
                         });
                     }
                     else
                     {
-                        existing.Stacks = Math.Min(
+                        var nextStacks = Math.Min(
                             Math.Max(1, statusDefinition.MaximumStacks),
-                            existing.Stacks + Math.Max(1, command.Amount));
+                            existing.Stacks + command.Amount);
+                        if (nextStacks <= 0)
+                        {
+                            target.Statuses.Remove(existing);
+                            return EmitFromCommand(
+                                CombatSimulationEventKind.StatusRemoved,
+                                command,
+                                Math.Abs(command.Amount),
+                                beforeHash);
+                        }
+                        existing.Stacks = nextStacks;
                         existing.Duration = Math.Max(existing.Duration, command.Duration);
                     }
                     return EmitFromCommand(
@@ -3686,6 +3739,106 @@ public sealed class CombatSimulationEngine
             }
             extensionCompleted = true;
             extension.Complete(this);
+        }
+
+        private void ResetHpLossWindow()
+        {
+            foreach (var actor in State.Actors)
+            {
+                if (actor.Variables.ContainsKey("MaxChangeHp")
+                    || actor.Variables.ContainsKey("HpLossThisAction"))
+                {
+                    actor.Variables["HpLossThisAction"] = 0d;
+                }
+            }
+        }
+
+        private int LimitHpLoss(
+            CombatActorState target,
+            int requested)
+        {
+            requested = Math.Max(0, requested);
+            if (requested <= 0
+                || !target.Variables.TryGetValue(
+                    "MaxChangeHp",
+                    out var maximumChangeRatio))
+            {
+                return requested;
+            }
+            var ratio = Math.Max(0d, Math.Min(1d, maximumChangeRatio));
+            var maximumLoss = Math.Max(
+                0,
+                (int)Math.Floor(target.MaxHp * ratio));
+            var alreadyLost = Math.Max(
+                0,
+                WitchRounded(Variable(
+                    target,
+                    "HpLossThisAction",
+                    0d)));
+            var applied = Math.Min(
+                requested,
+                Math.Max(0, maximumLoss - alreadyLost));
+            target.Variables["HpLossThisAction"] = alreadyLost + applied;
+            return applied;
+        }
+
+        private double DamageFilterMultiplier(
+            CombatActorState target,
+            CombatSimulationEffectKind kind,
+            string definitionId)
+        {
+            var damageType = kind switch
+            {
+                CombatSimulationEffectKind.TrueDamage => "True",
+                CombatSimulationEffectKind.DirectHpLoss
+                    when (definitionId ?? "").StartsWith(
+                        "buff_",
+                        StringComparison.OrdinalIgnoreCase) => "Dot",
+                CombatSimulationEffectKind.DirectHpLoss => "DirectHpLoss",
+                _ => "Normal"
+            };
+            var typedMultiplier = Math.Max(
+                0d,
+                Variable(
+                    target,
+                    "DamageTakenMultiplier." + damageType,
+                    1d));
+            var typeReduction = Math.Max(
+                0d,
+                Variable(
+                    target,
+                    "DamageFilter." + damageType,
+                    0d));
+            var sourceReduction = string.IsNullOrWhiteSpace(definitionId)
+                ? 0d
+                : Math.Max(
+                    0d,
+                    Variable(
+                        target,
+                        "DamageFilter." + definitionId,
+                        0d));
+            return typedMultiplier
+                   * Math.Max(
+                       0d,
+                       1d - Math.Max(typeReduction, sourceReduction) / 100d);
+        }
+
+        private static void MergeCounts(
+            IDictionary<string, int> target,
+            IReadOnlyDictionary<string, int>? source)
+        {
+            if (source == null)
+            {
+                return;
+            }
+            foreach (var pair in source)
+            {
+                target[pair.Key] = target.TryGetValue(
+                    pair.Key,
+                    out var current)
+                    ? current + Math.Max(0, pair.Value)
+                    : Math.Max(0, pair.Value);
+            }
         }
 
         private sealed class TriggerMatch
