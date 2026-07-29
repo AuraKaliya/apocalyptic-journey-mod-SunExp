@@ -40,7 +40,7 @@ Remove-Item -LiteralPath $simulationOutput -Force
 if ($simulationResult.Statistics.CompletedSimulations -ne 4 `
     -or $simulationResult.Statistics.Invalid -ne 0 `
     -or $simulationResult.Statistics.AuthoritativeSimulations -ne 4 `
-    -or $simulationResult.Results[0].FinalStateHash -ne "6f7e8c1d398fbdb9" `
+    -or $simulationResult.Results[0].FinalStateHash -ne "b564d06c54cb9756" `
     -or [string]::IsNullOrWhiteSpace($simulationResult.RulesetHash)) {
     throw "Aura headless combat simulation result contract is invalid."
 }
@@ -377,7 +377,8 @@ foreach ($anchor in @(
     "CombatCampaignAttributeThresholdRewardReconciler",
     "AttributeThresholdRewards",
     "RemovedCardIds",
-    "ApplyRoutineCardRemoval",
+    "AdjustDeckAtLayerEnd",
+    "ReserveCards",
     "CardRemovalScore"
 )) {
     if (-not $campaignSimulation.Contains($anchor)) {
@@ -636,7 +637,7 @@ $expectedOriginThresholdRewards = @{
     Perceive = @("blessing_104", "blessing_108", "blessing_112", "blessing_116")
     Wisdom = @("blessing_103", "blessing_107", "blessing_111", "blessing_115")
 }
-if ($campaignV2.campaignVersion -ne "2.7.0" `
+if ($campaignV2.campaignVersion -ne "3.0.0" `
     -or @($campaignV2.attributeThresholdRewards).Count -ne 16) {
     throw "Bundled campaign origin threshold protocol is incomplete."
 }
@@ -653,10 +654,10 @@ foreach ($attributeId in $expectedOriginThresholdRewards.Keys) {
 foreach ($anchor in @(
     '$attributeThresholdRewards = @(',
     'attributeThresholdRewards = @($attributeThresholdRewards)',
-    'campaignVersion = "2.7.0"',
+    'campaignVersion = "3.0.0"',
     'New-StatusTrigger "rotten-action" "ActionResolved"',
     'witch-base-authoritative-seed.json',
-    'if ([string]$card.Id -eq "ritualcard_8")'
+    'if ($id -eq "ritualcard_8")'
 )) {
     if (-not $campaignGenerator.Contains($anchor)) {
         throw "Campaign generator origin threshold contract is missing: $anchor"

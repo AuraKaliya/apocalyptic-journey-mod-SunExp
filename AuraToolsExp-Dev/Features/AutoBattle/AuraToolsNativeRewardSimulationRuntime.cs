@@ -866,6 +866,10 @@ internal static class NativeRewardProgramRegistry
         result = Regex.Replace(result, @"\bIDataConfig\b", "NativeRewardDataConfig");
         result = Regex.Replace(result, @"\bDataConfig\b", "NativeRewardDataConfig");
         result = Regex.Replace(result, @"\bCardItem\b", "NativeRewardCardItem");
+        result = Regex.Replace(
+            result,
+            @"(\b[A-Za-z_][A-Za-z0-9_]*)\.data\.Localize\(([^)\r\n]+)\)",
+            "$1.data.GetValueOrDefault($2, \"\")");
         result = result.Replace("FightManager.Instance.statuses", "Statuses");
         result = Regex.Replace(result, @"\bDataType\b", "NativeRewardDataType");
         result = Regex.Replace(result, @"\bIStatusManager\b", "NativeRewardActor");
