@@ -5,11 +5,11 @@ namespace AuraCombatAi.Shared;
 
 public static class CombatFoundationWorkerProtocol
 {
-    public const int SchemaVersion = 7;
+    public const int SchemaVersion = 8;
     public const string CheckpointFileName =
-        "foundation-training-checkpoint-v7.json";
+        "foundation-training-checkpoint-v8.json";
     public const string CheckpointEpisodesFileName =
-        "foundation-training-checkpoint-episodes-v7.jsonl";
+        "foundation-training-checkpoint-episodes-v8.jsonl";
 
     public static bool TryValidateJob(
         CombatFoundationWorkerJob? job,

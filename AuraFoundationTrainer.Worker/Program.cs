@@ -70,17 +70,38 @@ try
             "Native program package validation failed: "
             + string.Join("; ", package.Errors.Take(8)));
     }
+    var semanticProbe = CombatFoundationSemanticProbe.Validate(
+        job.Request.TrainingCampaign,
+        build.Ruleset);
+    if (!semanticProbe.Success)
+    {
+        throw new InvalidOperationException(
+            "Training semantic probe failed: "
+            + string.Join("; ", semanticProbe.Errors.Take(8)));
+    }
+    Console.WriteLine(
+        "Training semantic probe passed: "
+        + semanticProbe.Version);
+    if (!string.IsNullOrWhiteSpace(job.Request.NativeProgramPackageHash)
+        && !string.Equals(
+            job.Request.NativeProgramPackageHash,
+            package.ProgramSetSha256,
+            StringComparison.Ordinal))
+    {
+        throw new InvalidOperationException(
+            "Native program package hash mismatch: expected="
+            + job.Request.NativeProgramPackageHash
+            + ", actual="
+            + package.ProgramSetSha256);
+    }
+    job.Request.NativeProgramPackageHash = package.ProgramSetSha256;
     var workerAssemblyPath = Environment.ProcessPath;
-    var workerSha256 =
+    var workerBinarySha256 =
         string.IsNullOrWhiteSpace(workerAssemblyPath)
         || !File.Exists(workerAssemblyPath)
             ? ""
             : Convert.ToHexString(
                 SHA256.HashData(File.ReadAllBytes(workerAssemblyPath)));
-    job.Request.NativeProgramPackageHash =
-        string.IsNullOrWhiteSpace(workerSha256)
-            ? "worker:unknown"
-            : workerSha256;
 
     var requestedWorkers = Math.Max(
         1,
@@ -327,7 +348,7 @@ try
     }
     var episodesPath = Path.Combine(
         job.ResultDirectory,
-        "foundation-training-episodes-v3.jsonl");
+        "foundation-training-episodes-v4.jsonl");
     training.GeneratedReplayEpisodes = Math.Max(
         training.GeneratedReplayEpisodes,
         training.Replay.Count);
@@ -388,7 +409,7 @@ try
         var modelPackage = CombatFoundationModelPackageProtocol.Create(
             job,
             workerResult,
-            workerSha256);
+            workerBinarySha256);
         workerResult.ModelPackagePath = Path.Combine(
             job.ResultDirectory,
             CombatFoundationModelPackageProtocol.FileName);
@@ -524,6 +545,7 @@ static string Fingerprint(
         request.ValidationSeedStart,
         request.DecisionProfile,
         request.TrainingPolicyVersion,
+        CombatPolicyValueProtocol.TrainingSemanticsVersion,
         CampaignId = request.TrainingCampaign?.CampaignId ?? "",
         CampaignVersion =
             request.TrainingCampaign?.CampaignVersion ?? "",
@@ -747,6 +769,10 @@ static bool CheckpointIdentityCompatible(
            && string.Equals(
                compatibility.TrainingPolicyVersion,
                job.Request.TrainingPolicyVersion,
+               StringComparison.Ordinal)
+           && string.Equals(
+               compatibility.TrainingSemanticsVersion,
+               CombatPolicyValueProtocol.TrainingSemanticsVersion,
                StringComparison.Ordinal);
 }
 
@@ -827,100 +853,58 @@ static void PrepareCaseArchive(
             CombatFoundationCaseLearning.CompatibilityKey(
                 job.Request.TrainingCampaign.CampaignId,
                 job.Request.TrainingCampaign.CampaignVersion,
-                rulesetHash);
+                CombatCampaignFoundationTrainer.CampaignFingerprint(
+                    job.Request.TrainingCampaign),
+                rulesetHash,
+                job.Request.NativeProgramPackageHash,
+                job.Request.TrainingPolicyVersion);
         if (!diagnostics.ArchiveExists)
         {
             diagnostics.Message = "archive root is absent";
             return;
         }
 
-        var compactDirectory =
+        var compatibilityDirectory =
             CombatFoundationCaseArchiveProtocol.CompatibilityDirectory(
                 archiveRoot,
                 diagnostics.CompatibilityKey);
-        var legacyDirectory =
-            CombatFoundationCaseArchiveProtocol.LegacyCompatibilityDirectory(
-                archiveRoot,
-                diagnostics.CompatibilityKey);
         diagnostics.CompatibilityDirectoryExists =
-            Directory.Exists(compactDirectory);
-        diagnostics.LegacyCompatibilityDirectoryExists =
-            Directory.Exists(legacyDirectory);
-        var compactExpertDirectory = Path.Combine(
-            compactDirectory,
+            Directory.Exists(compatibilityDirectory);
+        var expertDirectory = Path.Combine(
+            compatibilityDirectory,
             CombatFoundationCaseArchiveProtocol.ExpertDirectoryName);
-        var legacyExpertDirectory = Path.Combine(
-            legacyDirectory,
-            "expert-cases");
-        var compactObservationDirectory = Path.Combine(
-            compactDirectory,
+        var observationDirectory = Path.Combine(
+            compatibilityDirectory,
             CombatFoundationCaseArchiveProtocol.ObservationDirectoryName);
-        var legacyObservationDirectory = Path.Combine(
-            legacyDirectory,
-            "observations");
         diagnostics.ExpertCasesDirectoryExists =
-            Directory.Exists(compactExpertDirectory)
-            || Directory.Exists(legacyExpertDirectory);
+            Directory.Exists(expertDirectory);
         diagnostics.ObservationsDirectoryExists =
-            Directory.Exists(compactObservationDirectory)
-            || Directory.Exists(legacyObservationDirectory);
+            Directory.Exists(observationDirectory);
 
-        var compactCasePaths = EnumerateArchiveFiles(
-            compactExpertDirectory,
+        var casePaths = EnumerateArchiveFiles(
+            expertDirectory,
             2048);
-        var legacyCasePaths = EnumerateArchiveFiles(
-            legacyExpertDirectory,
-            2048);
-        diagnostics.CompactExpertCaseFiles = compactCasePaths.Count;
-        diagnostics.LegacyExpertCaseFiles = legacyCasePaths.Count;
-        diagnostics.ExpertCaseFiles =
-            compactCasePaths.Count + legacyCasePaths.Count;
+        diagnostics.ExpertCaseFiles = casePaths.Count;
         var cases = new Dictionary<
             string,
             CombatFoundationSuccessCase>(StringComparer.Ordinal);
         LoadSuccessCasePaths(
-            job,
-            compactCasePaths,
+            casePaths,
             diagnostics.CompatibilityKey,
-            migrate: false,
-            cases,
-            diagnostics);
-        LoadSuccessCasePaths(
-            job,
-            legacyCasePaths,
-            diagnostics.CompatibilityKey,
-            migrate: true,
             cases,
             diagnostics);
         diagnostics.DistinctLoadedCases = cases.Count;
 
-        var compactObservationPaths = EnumerateArchiveFiles(
-            compactObservationDirectory,
+        var observationPaths = EnumerateArchiveFiles(
+            observationDirectory,
             8192);
-        var legacyObservationPaths = EnumerateArchiveFiles(
-            legacyObservationDirectory,
-            8192);
-        diagnostics.CompactObservationFiles =
-            compactObservationPaths.Count;
-        diagnostics.LegacyObservationFiles =
-            legacyObservationPaths.Count;
-        diagnostics.ObservationFiles =
-            compactObservationPaths.Count + legacyObservationPaths.Count;
+        diagnostics.ObservationFiles = observationPaths.Count;
         var observations = new Dictionary<
             string,
             CombatFoundationCampaignObservation>(StringComparer.Ordinal);
         LoadObservationPaths(
-            job,
-            compactObservationPaths,
+            observationPaths,
             diagnostics.CompatibilityKey,
-            migrate: false,
-            observations,
-            diagnostics);
-        LoadObservationPaths(
-            job,
-            legacyObservationPaths,
-            diagnostics.CompatibilityKey,
-            migrate: true,
             observations,
             diagnostics);
         diagnostics.DistinctLoadedObservations = observations.Count;
@@ -929,7 +913,11 @@ static void PrepareCaseArchive(
             cases.Values,
             job.Request.TrainingCampaign.CampaignId,
             job.Request.TrainingCampaign.CampaignVersion,
+            CombatCampaignFoundationTrainer.CampaignFingerprint(
+                job.Request.TrainingCampaign),
             rulesetHash,
+            job.Request.NativeProgramPackageHash,
+            job.Request.TrainingPolicyVersion,
             Math.Max(0, job.Request.ExpertReplayEpisodeLimit));
         job.Request.ExpertReplayEpisodes =
             new List<CombatEpisode>(selection.Episodes);
@@ -952,7 +940,6 @@ static void PrepareCaseArchive(
             : diagnostics.ExpertCaseFiles + diagnostics.ObservationFiles > 0
                 ? "archive files found but none were compatible"
                 : diagnostics.CompatibilityDirectoryExists
-                  || diagnostics.LegacyCompatibilityDirectoryExists
                     ? "compatible archive is empty"
                     : "compatibility directory is absent";
         Console.WriteLine(
@@ -966,10 +953,6 @@ static void PrepareCaseArchive(
             + diagnostics.LoadedObservations
             + "/"
             + diagnostics.ObservationFiles
-            + ", migrated="
-            + diagnostics.MigratedCases
-            + "/"
-            + diagnostics.MigratedObservations
             + ", rejected="
             + rejected
             + ", maxPath="
@@ -1003,10 +986,8 @@ static List<string> EnumerateArchiveFiles(string directory, int limit)
 }
 
 static void LoadSuccessCasePaths(
-    CombatFoundationWorkerJob job,
     IEnumerable<string> paths,
     string compatibilityKey,
-    bool migrate,
     IDictionary<string, CombatFoundationSuccessCase> destination,
     CombatFoundationCaseArchiveLoadDiagnostics diagnostics)
 {
@@ -1021,6 +1002,8 @@ static void LoadSuccessCasePaths(
                 File.ReadAllText(path));
             if (successCase?.Observation == null
                 || successCase.SchemaVersion
+                != CombatFoundationCaseLearning.ArchiveSchemaVersion
+                || successCase.Observation.SchemaVersion
                 != CombatFoundationCaseLearning.ArchiveSchemaVersion
                 || string.IsNullOrWhiteSpace(
                     successCase.Observation.CaseId)
@@ -1039,19 +1022,6 @@ static void LoadSuccessCasePaths(
             }
             destination[successCase.Observation.CaseId] = successCase;
             diagnostics.LoadedCases++;
-            if (migrate)
-            {
-                var compactPath = ResolveSuccessCasePath(
-                    job,
-                    successCase,
-                    CombatFoundationCaseArchiveProtocol.ExpertDirectoryName);
-                var existed = File.Exists(compactPath);
-                if (!existed)
-                {
-                    WriteAtomic(compactPath, Serialize(successCase));
-                    diagnostics.MigratedCases++;
-                }
-            }
         }
         catch (Exception ex)
         {
@@ -1066,10 +1036,8 @@ static void LoadSuccessCasePaths(
 }
 
 static void LoadObservationPaths(
-    CombatFoundationWorkerJob job,
     IEnumerable<string> paths,
     string compatibilityKey,
-    bool migrate,
     IDictionary<string, CombatFoundationCampaignObservation> destination,
     CombatFoundationCaseArchiveLoadDiagnostics diagnostics)
 {
@@ -1102,15 +1070,6 @@ static void LoadObservationPaths(
             }
             destination[observation.CaseId] = observation;
             diagnostics.LoadedObservations++;
-            if (migrate)
-            {
-                var compactPath = ResolveObservationPath(job, observation);
-                if (!File.Exists(compactPath))
-                {
-                    WriteAtomic(compactPath, Serialize(observation));
-                    diagnostics.MigratedObservations++;
-                }
-            }
         }
         catch (Exception ex)
         {

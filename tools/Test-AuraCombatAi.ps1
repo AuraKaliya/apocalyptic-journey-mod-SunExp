@@ -548,7 +548,7 @@ foreach ($anchor in @(
 }
 foreach ($anchor in @(
     "CombatFoundationWorkerProtocol",
-    "public const int SchemaVersion = 7",
+    "public const int SchemaVersion = 8",
     "CheckpointFileName",
     "CheckpointEpisodesFileName",
     "TryValidateJob",
@@ -631,7 +631,7 @@ $expectedOriginThresholdRewards = @{
     Perceive = @("blessing_104", "blessing_108", "blessing_112", "blessing_116")
     Wisdom = @("blessing_103", "blessing_107", "blessing_111", "blessing_115")
 }
-if ($campaignV2.campaignVersion -ne "2.6.0" `
+if ($campaignV2.campaignVersion -ne "2.7.0" `
     -or @($campaignV2.attributeThresholdRewards).Count -ne 16) {
     throw "Bundled campaign origin threshold protocol is incomplete."
 }
@@ -648,7 +648,7 @@ foreach ($attributeId in $expectedOriginThresholdRewards.Keys) {
 foreach ($anchor in @(
     '$attributeThresholdRewards = @(',
     'attributeThresholdRewards = @($attributeThresholdRewards)',
-    'campaignVersion = "2.6.0"',
+    'campaignVersion = "2.7.0"',
     'New-StatusTrigger "rotten-action" "ActionResolved"',
     'witch-base-authoritative-seed.json',
     'if ([string]$card.Id -eq "ritualcard_8")'
@@ -672,11 +672,10 @@ foreach ($relicId in $avoidedRelicIds) {
     }
 }
 foreach ($anchor in @(
-    'Version = "success-case-archive-worker-v2"',
-    "StorageVersion = 2",
+    'Version = "success-case-archive-worker-v3"',
+    "StorageVersion = 3",
     "CompatibilityKeyLength = 16",
     "EntryKeyLength = 24",
-    "LegacyCompatibilityDirectory",
     "CompactIdentifier"
 )) {
     if (-not $foundationCaseArchiveProtocol.Contains($anchor)) {
@@ -701,8 +700,6 @@ foreach ($anchor in @(
     "PrepareCaseArchive",
     "LoadSuccessCasePaths",
     "LoadObservationPaths",
-    "MigratedCases",
-    "MigratedObservations",
     "ResolveSuccessCasePath",
     "ResolveObservationPath",
     "ApplyRewardResiduals",
@@ -958,7 +955,7 @@ foreach ($anchor in @(
 }
 
 foreach ($anchor in @(
-    "aura.combat-ai.episode.v3",
+    "aura.combat-ai.episode.v4",
     "CombatCampaignEpisodeMetadata",
     "LongTermReturn",
     "SearchVisits",

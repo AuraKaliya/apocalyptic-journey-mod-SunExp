@@ -1413,15 +1413,15 @@ public static class AuraToolsSettingsRuntime
             var clearDataRow = CreateInlineRow(content, "AutoBattleClearDataRow");
             AuraToolsUi.AddText(
                 clearDataRow.transform,
-                "底模重训前清场（不可恢复）：只删除旧底模、底模断点和活动回放；保留玩家样本、候选模型、历史日志与报告。",
+                "重训前清场（不可恢复）：删除玩家样本、训练快照、候选/冠军/模型库、底模任务、断点、案例库及报告；保留知识包与规则配置。",
                 AuraToolsUi.HintFontSize,
                 TextAnchor.MiddleLeft,
                 AuraToolsUi.WarningText,
                 AuraToolsUi.TextMinHeight,
                 1f);
-            AuraToolsUi.AddButton(clearDataRow.transform, "清空旧底模数据", () =>
+            AuraToolsUi.AddButton(clearDataRow.transform, "清空全部训练数据", () =>
             {
-                if (AuraToolsAutoBattleModelRuntime.TryClearFoundationTrainingData(
+                if (AuraToolsAutoBattleModelRuntime.TryClearAllCombatLearningData(
                         out var clearMessage))
                 {
                     AuraToolsLog.Info("[AutoBattle][Clear] " + clearMessage);

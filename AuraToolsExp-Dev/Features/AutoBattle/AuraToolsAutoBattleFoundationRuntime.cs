@@ -481,7 +481,7 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                         .CheckpointEpisodesFileName),
                 ExpectedRulesetHash = ruleset.RulesetHash,
                 NativeProgramPackageHash =
-                    CurrentRuntimePackageHash(),
+                    packageValidation.ProgramSetSha256,
                 Parameters = ToSharedParameters(
                     foundation,
                     settings.Training.MinimumEpisodes,
@@ -1413,7 +1413,7 @@ internal static class AuraToolsAutoBattleFoundationRuntime
             }));
         var episodesPath = Path.Combine(
             resultDirectory,
-            "foundation-training-episodes-v3.jsonl");
+            "foundation-training-episodes-v4.jsonl");
         if (!writeFullReplay
             || result.Replay.Count > 0
             || !File.Exists(episodesPath))
@@ -1563,10 +1563,6 @@ internal static class AuraToolsAutoBattleFoundationRuntime
             + ", rejected "
             + (result.CaseArchiveLoad.RejectedCaseFiles
                + result.CaseArchiveLoad.RejectedObservationFiles)
-            + ", migrated cases/observations "
-            + result.CaseArchiveLoad.MigratedCases
-            + "/"
-            + result.CaseArchiveLoad.MigratedObservations
             + ", owner "
             + result.CaseArchiveLoad.OwnerRuntime
             + ", protocol "
@@ -2555,30 +2551,6 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                     + " ("
                     + item.Rate.ToString("P1")
                     + ")"));
-    }
-
-    private static string CurrentRuntimePackageHash()
-    {
-        try
-        {
-            var path =
-                System.Reflection.Assembly.GetExecutingAssembly().Location;
-            if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
-            {
-                using var stream = File.OpenRead(path);
-                using var hash = SHA256.Create();
-                return BitConverter.ToString(hash.ComputeHash(stream))
-                    .Replace("-", "");
-            }
-        }
-        catch
-        {
-            // The protocol/count fallback remains deterministic for hosts that
-            // shadow-copy or do not expose the loaded assembly path.
-        }
-        return NativeRewardScriptGlobals.PrecompiledProgramProtocol
-               + ":"
-               + NativeRewardScriptGlobals.PrecompiledProgramCount;
     }
 
     private static void UpdateTrainingProgress(

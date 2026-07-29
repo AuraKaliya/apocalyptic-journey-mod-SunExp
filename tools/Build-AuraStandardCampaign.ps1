@@ -3061,7 +3061,7 @@ if ($generatedRewardLeak.Count -gt 0) {
 $campaign = [ordered]@{
     schemaVersion = 2
     campaignId = "witch.world-simulation.standard-v2"
-    campaignVersion = "2.6.0"
+    campaignVersion = "2.7.0"
     rulesetVersion = "witch-base-evaluation-v2"
     initialMoney = 100
     player = [ordered]@{

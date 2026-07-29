@@ -3429,6 +3429,14 @@ bundledRulesV2.Ruleset.TryGetCard(
     "nocard_5",
     out var bundledLuckyPrize);
 CombatCampaignWorldPlanner.Validate(bundledCampaign);
+var bundledSemanticProbe = CombatFoundationSemanticProbe.Validate(
+    bundledCampaign,
+    bundledRulesV2.Ruleset);
+Assert(
+    bundledSemanticProbe.Success
+    && bundledSemanticProbe.Version == "resource-recurrence-monotonic-v1",
+    "foundation semantic probe covers Blade and Shield, limit damage, "
+    + "resource recurrence, monotonic gains, retain, and reshuffle");
 var bundledCampaignNormal = CombatCampaignWorldPlanner.Build(
     bundledCampaign,
     "normal",
@@ -3453,7 +3461,7 @@ var expectedThresholdRewards = new Dictionary<string, string[]>(
         new[] { "blessing_103", "blessing_107", "blessing_111", "blessing_115" }
 };
 Assert(
-    bundledCampaign.CampaignVersion == "2.6.0"
+    bundledCampaign.CampaignVersion == "2.7.0"
     && bundledCampaign.AttributeThresholdRewards.Count == 16
     && expectedThresholdRewards.All(pair =>
         bundledCampaign.AttributeThresholdRewards
@@ -6294,6 +6302,9 @@ var successfulObservation = CombatFoundationCaseLearning.Observe(
     1,
     "candidate",
     "case-rules",
+    "case-campaign-fingerprint",
+    "case-native-package",
+    CombatFoundationTrainingProtocol.TrainingPolicyVersion,
     "balanced",
     "model-success",
     new[] { caseEpisode });
@@ -6303,6 +6314,9 @@ var failedObservation = CombatFoundationCaseLearning.Observe(
     1,
     "champion",
     "case-rules",
+    "case-campaign-fingerprint",
+    "case-native-package",
+    CombatFoundationTrainingProtocol.TrainingPolicyVersion,
     "balanced",
     "model-failure");
 var caseAnalysis = CombatFoundationCaseLearning.Analyze(
@@ -6324,23 +6338,40 @@ var compatibleExpertEpisodes =
         new[] { archivedCase },
         "case-learning",
         "1",
+        "case-campaign-fingerprint",
         "case-rules",
+        "case-native-package",
+        CombatFoundationTrainingProtocol.TrainingPolicyVersion,
         8);
 var incompatibleExpertEpisodes =
     CombatFoundationCaseLearning.SelectExpertEpisodes(
         new[] { archivedCase },
         "case-learning",
         "1",
+        "case-campaign-fingerprint",
         "different-rules",
+        "case-native-package",
+        CombatFoundationTrainingProtocol.TrainingPolicyVersion,
         8);
 Assert(compatibleExpertEpisodes.Count == 1
        && incompatibleExpertEpisodes.Count == 0
        && CombatFoundationCaseLearning.CompatibilityKey(
            "case-learning",
            "1",
-           "case-rules")
+           "case-campaign-fingerprint",
+           "case-rules",
+           "case-native-package",
+           CombatFoundationTrainingProtocol.TrainingPolicyVersion)
        == successfulObservation.CompatibilityKey,
     "foundation expert replay is bounded and isolated by campaign, ruleset and feature protocol");
+var stratifiedCompatibilityKey =
+    CombatFoundationCaseLearning.CompatibilityKey(
+        "case-learning",
+        "1",
+        "case-campaign-fingerprint",
+        "case-rules",
+        "case-native-package",
+        CombatFoundationTrainingProtocol.TrainingPolicyVersion);
 var stratifiedExpertCases = Enumerable.Range(0, 8)
     .Select(caseIndex =>
     {
@@ -6354,6 +6385,7 @@ var stratifiedExpertCases = Enumerable.Range(0, 8)
                 CampaignId = "case-learning",
                 CampaignVersion = "1",
                 RulesetHash = "case-rules",
+                CompatibilityKey = stratifiedCompatibilityKey,
                 DifficultyId = advanced ? "advanced" : "normal",
                 StrategyFingerprint = "strategy-" + (caseIndex % 3),
                 RobustnessScore = 1d - caseIndex * 0.01d
@@ -6385,7 +6417,10 @@ var stratifiedExpertSelection =
         stratifiedExpertCases,
         "case-learning",
         "1",
+        "case-campaign-fingerprint",
         "case-rules",
+        "case-native-package",
+        CombatFoundationTrainingProtocol.TrainingPolicyVersion,
         episodeLimit: 16,
         targetAdvancedShare: 0.35d,
         maximumEpisodesPerRun: 2);
@@ -6799,25 +6834,18 @@ var compactArchivePath = CombatFoundationCaseArchiveProtocol.EntryPath(
     fullCompatibilityKey,
     CombatFoundationCaseArchiveProtocol.ExpertDirectoryName,
     fullCaseId);
-var legacyArchivePath = Path.Combine(
-    CombatFoundationCaseArchiveProtocol.LegacyCompatibilityDirectory(
-        longArchiveRoot,
-        fullCompatibilityKey),
-    "expert-cases",
-    fullCaseId + ".json");
 Assert(CombatFoundationCaseArchiveProtocol.Version
-           == "success-case-archive-worker-v2"
+           == "success-case-archive-worker-v3"
        && compactArchivePath.Length < 260
-       && compactArchivePath.Length < legacyArchivePath.Length
        && compactArchivePath.Contains(
            Path.DirectorySeparatorChar
-           + "v2"
+           + "v3"
            + Path.DirectorySeparatorChar,
            StringComparison.Ordinal)
        && !compactArchivePath.Contains(
            fullCompatibilityKey,
            StringComparison.Ordinal),
-    "case archive v2 keeps long Steam install paths below the legacy MAX_PATH boundary while payload ids remain authoritative");
+    "case archive v3 keeps long install paths bounded while payload ids remain authoritative");
 var workerProtocolJob = new CombatFoundationWorkerJob
 {
     JobId = "worker-protocol-test"
@@ -6832,7 +6860,7 @@ var workerProtocolResult = new CombatFoundationWorkerResult
 };
 Assert(workerProtocolJob.SchemaVersion
            == CombatFoundationWorkerProtocol.SchemaVersion
-       && CombatFoundationWorkerProtocol.SchemaVersion == 7
+       && CombatFoundationWorkerProtocol.SchemaVersion == 8
        && CombatFoundationTerminalCreditProtocol.Version
           == "terminal-credit-v2"
        && CombatFoundationCounterfactualProtocol.Version
@@ -6982,8 +7010,8 @@ Assert(!CombatFoundationWorkerProtocol.TryValidateProgress(
            workerProtocolProgress,
            workerProtocolJob.JobId,
            out var versionDiagnostic)
-       && versionDiagnostic.Contains("worker=6", StringComparison.Ordinal)
-       && versionDiagnostic.Contains("host=7", StringComparison.Ordinal),
+       && versionDiagnostic.Contains("worker=7", StringComparison.Ordinal)
+       && versionDiagnostic.Contains("host=8", StringComparison.Ordinal),
     "foundation worker host rejects stale progress with an actionable protocol diagnostic");
 workerProtocolProgress.SchemaVersion =
     CombatFoundationWorkerProtocol.SchemaVersion;
@@ -7224,7 +7252,8 @@ var continuationManifest = new CombatFoundationCompatibilityManifest
     ValidationCampaignHash = "validation",
     FeatureSchemaVersion = CombatPolicyValueProtocol.FeatureSchemaVersion,
     FeatureEncodingMode = "partitioned-v3",
-    TrainingPolicyVersion = "foundation-governance-v8",
+    TrainingPolicyVersion =
+        CombatFoundationTrainingProtocol.TrainingPolicyVersion,
     StateDimensions = 128,
     ActionDimensions = 96,
     HiddenDimensions = 64

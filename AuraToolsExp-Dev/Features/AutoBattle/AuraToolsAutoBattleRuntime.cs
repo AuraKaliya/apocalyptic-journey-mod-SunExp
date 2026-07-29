@@ -1393,7 +1393,7 @@ internal sealed class AuraToolsAutoBattleTrainingSink : ICombatTrainingSampleSin
                 "auto-battle-training-v6.jsonl");
             var episodesPath = AuraSharedLogStore.OwnerLogPath(
                 AuraToolsIds.ModId,
-                "live-combat-episodes-v3.jsonl");
+                "live-combat-episodes-v4.jsonl");
             var sessions = new Dictionary<long, List<CombatTrainingSample>>();
             var sessionGeneration = Volatile.Read(ref storageGeneration);
             foreach (var queued in queue.GetConsumingEnumerable())
@@ -1442,7 +1442,7 @@ internal sealed class AuraToolsAutoBattleTrainingSink : ICombatTrainingSampleSin
             foreach (var fileName in new[]
                      {
                          "auto-battle-training-v6.jsonl",
-                         "live-combat-episodes-v3.jsonl"
+                         "live-combat-episodes-v4.jsonl"
                      })
             {
                 var path = AuraSharedLogStore.OwnerLogPath(
@@ -1464,7 +1464,7 @@ internal sealed class AuraToolsAutoBattleTrainingSink : ICombatTrainingSampleSin
                    StringComparison.OrdinalIgnoreCase)
                || string.Equals(
                    fileName,
-                   "live-combat-episodes-v3.jsonl",
+                   "live-combat-episodes-v4.jsonl",
                    StringComparison.OrdinalIgnoreCase);
     }
 

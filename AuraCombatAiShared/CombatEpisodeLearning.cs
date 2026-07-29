@@ -7,9 +7,12 @@ namespace AuraCombatAi.Shared;
 
 public static class CombatPolicyValueProtocol
 {
-    public const string EpisodeProtocol = "aura.combat-ai.episode.v3";
+    public const string EpisodeProtocol = "aura.combat-ai.episode.v4";
 
-    public const int FeatureSchemaVersion = 10;
+    public const int FeatureSchemaVersion = 11;
+
+    public const string TrainingSemanticsVersion =
+        "resource-recurrence-monotonic-v1";
 }
 
 public static class CombatPolicyValueFrameStratificationProtocol

@@ -11,6 +11,7 @@ obj/
 
 # External trainer runtime state is local to each machine.
 /ModsData/Config/Owners/AuraToolsExp/FoundationTrainer/
+/AuraToolsExp/TrainingWorker/*.exe
 
 Terrias-Dev/VisualAssets/UnityProject/
 Terrias-Dev/VisualAssets/*.unity-build.log

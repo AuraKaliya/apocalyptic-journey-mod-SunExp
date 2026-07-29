@@ -624,9 +624,23 @@ public static class CombatFoundationModelPackageProtocol
         if (package.Compatibility == null
             || package.Compatibility.FeatureSchemaVersion
                != package.Model.FeatureSchemaVersion
+            || package.Compatibility.FeatureSchemaVersion
+               != CombatPolicyValueProtocol.FeatureSchemaVersion
             || !string.Equals(
                 package.Compatibility.FeatureEncodingMode,
                 package.Model.FeatureEncodingMode,
+                StringComparison.Ordinal)
+            || !string.Equals(
+                package.Compatibility.TrainingSemanticsVersion,
+                CombatPolicyValueProtocol.TrainingSemanticsVersion,
+                StringComparison.Ordinal)
+            || !string.Equals(
+                package.Compatibility.SearchPolicyVersion,
+                CombatFoundationTrainingProtocol.SearchPolicyVersion,
+                StringComparison.Ordinal)
+            || !string.Equals(
+                package.Compatibility.TrainingPolicyVersion,
+                CombatFoundationTrainingProtocol.TrainingPolicyVersion,
                 StringComparison.Ordinal)
             || package.Compatibility.StateDimensions
                != package.Model.StateDimensions

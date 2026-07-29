@@ -10,7 +10,8 @@ namespace AuraCombatAi.Shared;
 
 public sealed class CombatFoundationCampaignObservation
 {
-    public int SchemaVersion { get; set; } = 1;
+    public int SchemaVersion { get; set; } =
+        CombatFoundationCaseLearning.ArchiveSchemaVersion;
 
     public string CaseId { get; set; } = "";
 
@@ -93,7 +94,8 @@ public sealed class CombatFoundationCampaignObservation
 
 public sealed class CombatFoundationSuccessCase
 {
-    public int SchemaVersion { get; set; } = 1;
+    public int SchemaVersion { get; set; } =
+        CombatFoundationCaseLearning.ArchiveSchemaVersion;
 
     public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
 
@@ -160,15 +162,9 @@ public sealed class CombatFoundationCaseArchiveLoadDiagnostics
 
     public bool CompatibilityDirectoryExists { get; set; }
 
-    public bool LegacyCompatibilityDirectoryExists { get; set; }
-
     public bool ExpertCasesDirectoryExists { get; set; }
 
     public bool ObservationsDirectoryExists { get; set; }
-
-    public int CompactExpertCaseFiles { get; set; }
-
-    public int LegacyExpertCaseFiles { get; set; }
 
     public int ExpertCaseFiles { get; set; }
 
@@ -178,12 +174,6 @@ public sealed class CombatFoundationCaseArchiveLoadDiagnostics
 
     public int RejectedCaseFiles { get; set; }
 
-    public int MigratedCases { get; set; }
-
-    public int CompactObservationFiles { get; set; }
-
-    public int LegacyObservationFiles { get; set; }
-
     public int ObservationFiles { get; set; }
 
     public int LoadedObservations { get; set; }
@@ -191,8 +181,6 @@ public sealed class CombatFoundationCaseArchiveLoadDiagnostics
     public int DistinctLoadedObservations { get; set; }
 
     public int RejectedObservationFiles { get; set; }
-
-    public int MigratedObservations { get; set; }
 
     public int PathAccessFailures { get; set; }
 
@@ -292,7 +280,7 @@ public sealed class CombatFoundationCaseAnalysis
 
 public static class CombatFoundationCaseLearning
 {
-    public const int ArchiveSchemaVersion = 1;
+    public const int ArchiveSchemaVersion = 2;
 
     public static CombatFoundationCampaignObservation Observe(
         CombatCampaignResult campaign,
@@ -300,6 +288,9 @@ public static class CombatFoundationCaseLearning
         int iteration,
         string competitor,
         string rulesetHash,
+        string campaignFingerprint,
+        string nativeProgramPackageHash,
+        string trainingPolicyVersion,
         string decisionProfile,
         string modelId,
         IReadOnlyList<CombatEpisode>? episodes = null)
@@ -339,7 +330,10 @@ public static class CombatFoundationCaseLearning
         var compatibilityKey = CompatibilityKey(
             campaign.CampaignId,
             campaign.CampaignVersion,
-            rulesHash);
+            campaignFingerprint,
+            rulesHash,
+            nativeProgramPackageHash,
+            trainingPolicyVersion);
         var strategyFingerprint = Hash(
             "strategy-v1|"
             + campaign.DifficultyId
@@ -374,6 +368,8 @@ public static class CombatFoundationCaseLearning
             + campaign.PolicyId
             + "|"
             + modelId
+            + "|"
+            + compatibilityKey
             + "|"
             + strategyFingerprint);
         var observation = new CombatFoundationCampaignObservation
@@ -502,33 +498,55 @@ public static class CombatFoundationCaseLearning
     public static string CompatibilityKey(
         string campaignId,
         string campaignVersion,
-        string rulesetHash)
+        string campaignFingerprint,
+        string rulesetHash,
+        string nativeProgramPackageHash,
+        string trainingPolicyVersion)
     {
         return Hash(
-            "compat-v1|"
+            "compat-v2|"
             + (campaignId ?? "").Trim()
             + "|"
             + (campaignVersion ?? "").Trim()
             + "|"
+            + (campaignFingerprint ?? "").Trim()
+            + "|"
             + (rulesetHash ?? "").Trim()
+            + "|"
+            + (nativeProgramPackageHash ?? "").Trim()
+            + "|"
+            + (trainingPolicyVersion ?? "").Trim()
             + "|"
             + CombatPolicyValueProtocol.EpisodeProtocol
             + "|"
-            + CombatPolicyValueProtocol.FeatureSchemaVersion);
+            + CombatPolicyValueProtocol.FeatureSchemaVersion
+            + "|"
+            + CombatPolicyValueProtocol.TrainingSemanticsVersion
+            + "|"
+            + CombatFoundationTrainingProtocol.SearchPolicyVersion
+            + "|"
+            + CombatFoundationTrainingProtocol.CurriculumVersion
+            + "|partitioned-v3");
     }
 
     public static List<CombatEpisode> SelectExpertEpisodes(
         IEnumerable<CombatFoundationSuccessCase> cases,
         string campaignId,
         string campaignVersion,
+        string campaignFingerprint,
         string rulesetHash,
+        string nativeProgramPackageHash,
+        string trainingPolicyVersion,
         int episodeLimit)
     {
         return SelectExpertReplay(
             cases,
             campaignId,
             campaignVersion,
+            campaignFingerprint,
             rulesetHash,
+            nativeProgramPackageHash,
+            trainingPolicyVersion,
             episodeLimit).Episodes;
     }
 
@@ -536,7 +554,10 @@ public static class CombatFoundationCaseLearning
         IEnumerable<CombatFoundationSuccessCase> cases,
         string campaignId,
         string campaignVersion,
+        string campaignFingerprint,
         string rulesetHash,
+        string nativeProgramPackageHash,
+        string trainingPolicyVersion,
         int episodeLimit,
         double targetAdvancedShare = 0.35d,
         int maximumEpisodesPerRun = 8)
@@ -552,6 +573,13 @@ public static class CombatFoundationCaseLearning
         {
             return result;
         }
+        var expectedCompatibilityKey = CompatibilityKey(
+            campaignId,
+            campaignVersion,
+            campaignFingerprint,
+            rulesetHash,
+            nativeProgramPackageHash,
+            trainingPolicyVersion);
         var compatible = (cases ?? Array.Empty<CombatFoundationSuccessCase>())
             .Where(item =>
                 item?.Observation != null
@@ -560,16 +588,8 @@ public static class CombatFoundationCaseLearning
                     "validation",
                     StringComparison.OrdinalIgnoreCase)
                 && string.Equals(
-                    item.Observation.CampaignId,
-                    campaignId,
-                    StringComparison.Ordinal)
-                && string.Equals(
-                    item.Observation.CampaignVersion,
-                    campaignVersion,
-                    StringComparison.Ordinal)
-                && string.Equals(
-                    item.Observation.RulesetHash,
-                    rulesetHash,
+                    item.Observation.CompatibilityKey,
+                    expectedCompatibilityKey,
                     StringComparison.Ordinal))
             .GroupBy(item => item.Observation.CaseId, StringComparer.Ordinal)
             .Select(group => group.First())

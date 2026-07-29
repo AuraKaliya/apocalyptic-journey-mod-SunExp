@@ -5,11 +5,9 @@ namespace AuraCombatAi.Shared;
 
 public static class CombatFoundationCaseArchiveProtocol
 {
-    public const string Version = "success-case-archive-worker-v2";
+    public const string Version = "success-case-archive-worker-v3";
 
-    public const int LegacyStorageVersion = 1;
-
-    public const int StorageVersion = 2;
+    public const int StorageVersion = 3;
 
     public const int CompatibilityKeyLength = 16;
 
@@ -41,11 +39,7 @@ public static class CombatFoundationCaseArchiveProtocol
         return Path.Combine(
             Path.GetFullPath(archiveRoot),
             "v" + storageVersion,
-            CompactIdentifier(
-                compatibilityKey,
-                storageVersion == LegacyStorageVersion
-                    ? int.MaxValue
-                    : CompatibilityKeyLength));
+            CompactIdentifier(compatibilityKey, CompatibilityKeyLength));
     }
 
     public static string EntryPath(
@@ -71,16 +65,6 @@ public static class CombatFoundationCaseArchiveProtocol
             CompatibilityDirectory(archiveRoot, compatibilityKey),
             directoryName,
             CompactIdentifier(entryId, identifierLength) + ".json");
-    }
-
-    public static string LegacyCompatibilityDirectory(
-        string archiveRoot,
-        string compatibilityKey)
-    {
-        return Path.Combine(
-            Path.GetFullPath(archiveRoot),
-            "v" + LegacyStorageVersion,
-            compatibilityKey);
     }
 
     public static string CompactIdentifier(string value, int maximumLength)

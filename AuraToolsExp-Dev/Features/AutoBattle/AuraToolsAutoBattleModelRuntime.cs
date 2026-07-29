@@ -1250,6 +1250,10 @@ internal static class AuraToolsAutoBattleModelRuntime
                 AuraSharedPaths.OwnerSystemConfigDirectory(
                     AuraToolsIds.ModId,
                     SystemId));
+            var foundationTrainerConfig = Path.GetFullPath(
+                AuraSharedPaths.OwnerSystemConfigDirectory(
+                    AuraToolsIds.ModId,
+                    "FoundationTrainer"));
             var resultRoot = Path.GetFullPath(
                 AuraToolsAutoBattleSimulationRuntime.ResultsRootDirectory);
             AuraToolsAutoBattleTrainingSink.ClearPersistedData();
@@ -1261,7 +1265,8 @@ internal static class AuraToolsAutoBattleModelRuntime
                 Path.Combine(ownerLogs, "model-library"),
                 Path.Combine(ownerLogs, "training-batches"),
                 resultRoot,
-                ownerConfig
+                ownerConfig,
+                foundationTrainerConfig
             };
             foreach (var directory in directories
                          .Select(Path.GetFullPath)
@@ -1289,6 +1294,7 @@ internal static class AuraToolsAutoBattleModelRuntime
                     "auto-battle-search-model-candidate-",
                     "auto-battle-policy-value-candidate-",
                     "foundation-model-bundle-",
+                    "foundation-cleanup-manifest-",
                     "live-combat-episodes-",
                     "journey-episodes-"
                 };
@@ -1307,6 +1313,13 @@ internal static class AuraToolsAutoBattleModelRuntime
                     {
                         File.Delete(path);
                     }
+                }
+                var controllerSessionPath = Path.Combine(
+                    ownerLogs,
+                    "foundation-controller-session.json");
+                if (File.Exists(controllerSessionPath))
+                {
+                    File.Delete(controllerSessionPath);
                 }
             }
             lock (StatusGate)
@@ -1328,173 +1341,6 @@ internal static class AuraToolsAutoBattleModelRuntime
         catch (Exception ex)
         {
             message = "清理失败：" + ex.Message;
-            return false;
-        }
-    }
-
-    public static bool TryClearFoundationTrainingData(out string message)
-    {
-        if (AnyTrainingBusy()
-            || AuraToolsAutoBattleSimulationRuntime.GetStatus().Busy)
-        {
-            message = "训练、模拟或导入任务仍在运行，不能清理";
-            return false;
-        }
-        try
-        {
-            var ownerLogs = Path.GetFullPath(
-                AuraSharedLogStore.OwnerDirectory(AuraToolsIds.ModId));
-            var resultRoot = Path.GetFullPath(
-                AuraToolsAutoBattleSimulationRuntime.ResultsRootDirectory);
-            var successArchiveDirectory = Path.GetFullPath(
-                Path.Combine(resultRoot, "foundation-success-cases"));
-            var targets = new List<string>();
-            if (Directory.Exists(ownerLogs))
-            {
-                targets.AddRange(Directory.EnumerateFiles(
-                    ownerLogs,
-                    "foundation-model-bundle-*.json",
-                    SearchOption.TopDirectoryOnly));
-            }
-            if (Directory.Exists(resultRoot))
-            {
-                var exactNames = new HashSet<string>(
-                    StringComparer.OrdinalIgnoreCase)
-                {
-                    "foundation-worker-progress.json",
-                    "foundation-worker-result.json",
-                    "foundation-worker-job.json",
-                    "foundation-worker.cancel"
-                };
-                targets.AddRange(Directory.EnumerateFiles(
-                        resultRoot,
-                        "*",
-                        SearchOption.TopDirectoryOnly)
-                    .Where(path =>
-                    {
-                        var name = Path.GetFileName(path);
-                        return exactNames.Contains(name)
-                               || name.StartsWith(
-                                   "foundation-training-checkpoint-v",
-                                   StringComparison.OrdinalIgnoreCase)
-                               || name.StartsWith(
-                                   "foundation-training-checkpoint-episodes-v",
-                                   StringComparison.OrdinalIgnoreCase);
-                     }));
-                if (Directory.Exists(successArchiveDirectory))
-                {
-                    targets.AddRange(Directory.EnumerateFiles(
-                        successArchiveDirectory,
-                        "*",
-                        SearchOption.AllDirectories));
-                }
-                foreach (var historicalDirectory in
-                         Directory.EnumerateDirectories(
-                             resultRoot,
-                             "*-foundation",
-                             SearchOption.TopDirectoryOnly))
-                {
-                    targets.AddRange(Directory.EnumerateFiles(
-                            historicalDirectory,
-                            "*",
-                            SearchOption.TopDirectoryOnly)
-                        .Where(path =>
-                        {
-                            var name = Path.GetFileName(path);
-                            return name.StartsWith(
-                                       "foundation-training-episodes-v",
-                                       StringComparison.OrdinalIgnoreCase)
-                                   || name.StartsWith(
-                                       "foundation-training-checkpoint-v",
-                                       StringComparison.OrdinalIgnoreCase)
-                                   || name.StartsWith(
-                                        "foundation-training-checkpoint-episodes-v",
-                                        StringComparison.OrdinalIgnoreCase)
-                                   || name.StartsWith(
-                                       "foundation-success-case-index-v",
-                                       StringComparison.OrdinalIgnoreCase)
-                                   || name.StartsWith(
-                                       "foundation-success-analysis-v",
-                                       StringComparison.OrdinalIgnoreCase)
-                                   || name.StartsWith(
-                                       "foundation-case-observations-v",
-                                       StringComparison.OrdinalIgnoreCase)
-                                   || exactNames.Contains(name);
-                        }));
-                }
-            }
-            var resolvedTargets = targets
-                .Select(Path.GetFullPath)
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .OrderBy(path => path, StringComparer.OrdinalIgnoreCase)
-                .ToList();
-            foreach (var path in resolvedTargets)
-            {
-                if (!IsInside(path, ownerLogs)
-                    && !IsInside(path, resultRoot))
-                {
-                    throw new InvalidOperationException(
-                        "拒绝清理范围外文件：" + path);
-                }
-            }
-            if (!IsInside(successArchiveDirectory, resultRoot))
-            {
-                throw new InvalidOperationException(
-                    "拒绝清理结果目录外的成功案例库："
-                    + successArchiveDirectory);
-            }
-            Directory.CreateDirectory(ownerLogs);
-            var manifestPath = Path.Combine(
-                ownerLogs,
-                "foundation-cleanup-manifest-"
-                + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss")
-                + ".json");
-            using var storage = new AuraSharedStorageCoordinator(
-                AuraSharedPaths.RootDirectory);
-            storage.WriteTextAtomic(
-                manifestPath,
-                AuraSharedJson.Serialize(new
-                {
-                    schemaVersion = 1,
-                    cleanupKind = "foundation-training-only",
-                    createdUtc = DateTime.UtcNow,
-                    retainedHistoricalReports = true,
-                    files = resolvedTargets.Select(path =>
-                    {
-                        var info = new FileInfo(path);
-                        return new
-                        {
-                            path,
-                            bytes = info.Exists ? info.Length : 0L,
-                            lastWriteUtc = info.Exists
-                                ? info.LastWriteTimeUtc
-                                : DateTime.MinValue
-                        };
-                    }).ToList()
-                }),
-                createBackup: false);
-            foreach (var path in resolvedTargets)
-            {
-                if (File.Exists(path))
-                {
-                    File.Delete(path);
-                }
-            }
-            if (Directory.Exists(successArchiveDirectory))
-            {
-                Directory.Delete(successArchiveDirectory, recursive: true);
-            }
-            AuraToolsAutoBattleFoundationRuntime.ResetAfterDataClear();
-            AuraToolsAutoBattleRuntime.ReloadModels();
-            message = "已定向删除 "
-                      + resolvedTargets.Count
-                      + " 个旧底模、断点及活动回放文件；历史日志和训练报告已保留。清理清单："
-                      + manifestPath;
-            return true;
-        }
-        catch (Exception ex)
-        {
-            message = "底模定向清理失败：" + ex.Message;
             return false;
         }
     }
@@ -2356,7 +2202,7 @@ internal static class AuraToolsAutoBattleModelRuntime
         }
         var liveEpisodesPath = AuraSharedLogStore.OwnerLogPath(
             AuraToolsIds.ModId,
-            "live-combat-episodes-v3.jsonl");
+            "live-combat-episodes-v4.jsonl");
         if (File.Exists(liveEpisodesPath)
             && !episodeSources.Contains(liveEpisodesPath, StringComparer.OrdinalIgnoreCase))
         {

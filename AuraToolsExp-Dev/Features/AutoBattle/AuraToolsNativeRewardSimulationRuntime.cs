@@ -43,6 +43,8 @@ public sealed class AuraToolsNativeProgramPackageValidation
 
     public int PrecompiledProgramCount { get; set; }
 
+    public string ProgramSetSha256 { get; set; } = "";
+
     public List<string> Errors { get; set; } = new();
 
     public bool Success => Errors.Count == 0;
@@ -90,8 +92,24 @@ public static class AuraToolsNativeProgramPackageAudit
         {
             ReferencedProgramCount = scripts.Count,
             PrecompiledProgramCount = NativeRewardProgramRegistry.ProgramCount,
+            ProgramSetSha256 = HashProgramSet(scripts),
             Errors = errors
         };
+    }
+
+    private static string HashProgramSet(IEnumerable<string> keys)
+    {
+        using var sha256 = SHA256.Create();
+        var payload = string.Join(
+            "\n",
+            keys.OrderBy(item => item, StringComparer.Ordinal));
+        var bytes = sha256.ComputeHash(Encoding.UTF8.GetBytes(payload));
+        var result = new StringBuilder(bytes.Length * 2);
+        foreach (var value in bytes)
+        {
+            result.Append(value.ToString("X2", CultureInfo.InvariantCulture));
+        }
+        return result.ToString();
     }
 
     private static void AddMetadata(

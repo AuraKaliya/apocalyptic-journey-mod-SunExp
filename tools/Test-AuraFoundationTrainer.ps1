@@ -91,7 +91,7 @@ try {
         TrainingCampaign = $campaign
         ValidationCampaign = $campaign
     }
-    $protocolVersion = 7
+    $protocolVersion = 8
     $job = [ordered]@{
         SchemaVersion = $protocolVersion
         JobId = "worker-smoke"
@@ -280,73 +280,49 @@ try {
             -or [string]::IsNullOrWhiteSpace(
                 [string]$checkpoint.Resume.Compatibility.TrainingCampaignHash) `
             -or [string]::IsNullOrWhiteSpace(
-                [string]$checkpoint.Resume.Compatibility.ValidationCampaignHash)) {
+                [string]$checkpoint.Resume.Compatibility.ValidationCampaignHash) `
+            -or [string]$checkpoint.Resume.Compatibility.TrainingSemanticsVersion `
+                -ne "resource-recurrence-monotonic-v1" `
+            -or [string]$checkpoint.Resume.Compatibility.SearchPolicyVersion `
+                -ne "dynamic-search-v4" `
+            -or [string]$checkpoint.Resume.Compatibility.TrainingPolicyVersion `
+                -ne "foundation-governance-v9") {
             throw "Foundation checkpoint compatibility manifest is incomplete."
         }
     }
 
     if (-not $PreflightOnly) {
-        $compactObservation = Get-ChildItem -LiteralPath $archiveRoot `
+        $currentObservation = Get-ChildItem -LiteralPath $archiveRoot `
             -Filter "*.json" -File -Recurse |
             Where-Object {
                 $_.Directory.Name -eq "o" `
                 -and $_.FullName.Contains(
                     [System.IO.Path]::DirectorySeparatorChar `
-                    + "v2" `
+                    + "v3" `
                     + [System.IO.Path]::DirectorySeparatorChar)
             } |
             Select-Object -First 1
-        if ($null -eq $compactObservation) {
-            throw "Foundation worker did not write a compact v2 observation."
+        if ($null -eq $currentObservation) {
+            throw "Foundation worker did not write a v3 observation."
         }
-        $observation = Read-FoundationJson $compactObservation.FullName
-        $legacyObservationDirectory = Join-Path $archiveRoot (
-            "v1\" `
-            + [string]$observation.CompatibilityKey `
-            + "\observations")
-        New-Item -ItemType Directory -Force `
-            -Path $legacyObservationDirectory | Out-Null
-        $legacyObservationPath = Join-Path $legacyObservationDirectory (
-            [string]$observation.CaseId + ".json")
-        # PowerShell 5's FileSystemProvider still enforces MAX_PATH here.
-        [System.IO.File]::Copy(
-            "\\?\" + $compactObservation.FullName,
-            "\\?\" + [System.IO.Path]::GetFullPath($legacyObservationPath),
-            $true)
-        Remove-Item -LiteralPath $compactObservation.FullName -Force
-
-        $migrationJobPath = Join-Path $smokeRoot "migration-job.json"
-        $migrationProgressPath = Join-Path $smokeRoot "migration-progress.json"
-        $migrationResultPath = Join-Path $smokeRoot "migration-result.json"
-        $job.JobId = "worker-archive-migration"
-        $job.ProgressPath = $migrationProgressPath
-        $job.ResultPath = $migrationResultPath
-        $job.ResumeFromCheckpoint = $false
-        $job.Request.PreflightOnly = $true
-        $job.Request.PreflightCampaignsPerDifficulty = 1
-        $job | ConvertTo-Json -Depth 100 |
-            Set-Content -LiteralPath $migrationJobPath -Encoding UTF8
-        & $worker --job $migrationJobPath
-        if ($LASTEXITCODE -ne 0) {
-            throw "Foundation archive migration smoke process failed: $LASTEXITCODE"
-        }
-        $migrationResult = Read-FoundationJson $migrationResultPath
-        $archiveLoad = $migrationResult.Training.CaseArchiveLoad
-        $migratedCompactPath = Join-Path $archiveRoot (
-            "v2\" `
+        $observation = Read-FoundationJson $currentObservation.FullName
+        $archiveLoad = $result.Training.CaseArchiveLoad
+        $expectedObservationPath = Join-Path $archiveRoot (
+            "v3\" `
             + ([string]$observation.CompatibilityKey).Substring(0, 16) `
             + "\o\" `
             + ([string]$observation.CaseId).Substring(0, 24) `
             + ".json")
         if ([string]$archiveLoad.ProtocolVersion `
-                -ne "success-case-archive-worker-v2" `
+                -ne "success-case-archive-worker-v3" `
             -or [string]$archiveLoad.OwnerRuntime -ne ".NET 8 worker" `
-            -or [int]$archiveLoad.LegacyObservationFiles -lt 1 `
-            -or [int]$archiveLoad.LoadedObservations -lt 1 `
-            -or [int]$archiveLoad.MigratedObservations -lt 1 `
-            -or -not (Test-Path -LiteralPath $migratedCompactPath -PathType Leaf)) {
+            -or [int]$archiveLoad.StorageVersion -ne 3 `
+            -or [int]$observation.SchemaVersion -ne 2 `
+            -or [string]::IsNullOrWhiteSpace(
+                [string]$observation.CompatibilityKey) `
+            -or -not (Test-Path -LiteralPath $expectedObservationPath -PathType Leaf)) {
             throw (
-                "Foundation archive v1-to-v2 migration contract failed: " `
+                "Foundation archive v3 contract failed: " `
                 + ($archiveLoad | ConvertTo-Json -Depth 8 -Compress))
         }
     }

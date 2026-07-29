@@ -22,10 +22,10 @@
 | 搜索预算 | `dynamic`，质量档 `fast / balanced / deep` |
 | 在线样本 | `aura.combat-ai.sample.v6`，特征 6 |
 | 选择轨迹 | `aura.combat-ai.selection.v1` |
-| 长期轨迹 | `aura.combat-ai.episode.v3`，特征 10 |
+| 长期轨迹 | `aura.combat-ai.episode.v4`，特征 11 |
 | 策略价值编码 | `partitioned-v3` |
 | 策略价值模型 | `aura.combat-policy-value.mlp.v1` |
-| Worker | schema 7 |
+| Worker | schema 8 |
 | 外部模型包 | `foundation-model-package-v1` |
 | CLI 搜索策略 | `risk-puct` |
 

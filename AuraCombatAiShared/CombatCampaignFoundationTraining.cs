@@ -12,6 +12,15 @@ using AuraCombatSimulation.Shared;
 
 namespace AuraCombatAi.Shared;
 
+public static class CombatFoundationTrainingProtocol
+{
+    public const string TrainingPolicyVersion = "foundation-governance-v9";
+
+    public const string SearchPolicyVersion = "dynamic-search-v4";
+
+    public const string CurriculumVersion = "curriculum-v7";
+}
+
 public static class CombatFoundationTerminalCreditProtocol
 {
     public const string Version = "terminal-credit-v2";
@@ -132,7 +141,7 @@ public sealed class CombatCampaignFoundationTrainingRequest
     public string NativeProgramPackageHash { get; set; } = "";
 
     public string TrainingPolicyVersion { get; set; } =
-        "foundation-governance-v8";
+        CombatFoundationTrainingProtocol.TrainingPolicyVersion;
 
     public double HardSeedReplayShare { get; set; } = 0.35d;
 
@@ -280,11 +289,16 @@ public sealed class CombatFoundationCompatibilityManifest
 
     public string FeatureEncodingMode { get; set; } = "";
 
-    public string SearchPolicyVersion { get; set; } = "dynamic-search-v3";
+    public string SearchPolicyVersion { get; set; } =
+        CombatFoundationTrainingProtocol.SearchPolicyVersion;
 
-    public string CurriculumVersion { get; set; } = "curriculum-v7";
+    public string CurriculumVersion { get; set; } =
+        CombatFoundationTrainingProtocol.CurriculumVersion;
 
     public string TrainingPolicyVersion { get; set; } = "";
+
+    public string TrainingSemanticsVersion { get; set; } =
+        CombatPolicyValueProtocol.TrainingSemanticsVersion;
 
     public int StateDimensions { get; set; }
 
@@ -1064,6 +1078,8 @@ public sealed class CombatCampaignFoundationTrainer
             FeatureEncodingMode =
                 foundationTrainingOptions.FeatureEncodingMode,
             TrainingPolicyVersion = request.TrainingPolicyVersion ?? "",
+            TrainingSemanticsVersion =
+                CombatPolicyValueProtocol.TrainingSemanticsVersion,
             StateDimensions = foundationTrainingOptions.StateDimensions,
             ActionDimensions = foundationTrainingOptions.ActionDimensions,
             HiddenDimensions = foundationTrainingOptions.HiddenDimensions
@@ -2713,12 +2729,21 @@ public sealed class CombatCampaignFoundationTrainer
             // every low-level event from thousands of campaigns in memory.
             campaign.Battles[battleIndex].Events.Clear();
         }
+        var campaignDefinition = string.Equals(
+            sourceStage,
+            "validation",
+            StringComparison.OrdinalIgnoreCase)
+            ? request.ValidationCampaign
+            : request.TrainingCampaign;
         var observation = CombatFoundationCaseLearning.Observe(
             campaign,
             sourceStage,
             iteration,
             competitor,
             rulesetHash,
+            CampaignFingerprint(campaignDefinition),
+            request.NativeProgramPackageHash,
+            request.TrainingPolicyVersion,
             decisionProfile,
             modelId,
             episodes);
@@ -2806,6 +2831,10 @@ public sealed class CombatCampaignFoundationTrainer
                && string.Equals(
                    checkpoint.TrainingPolicyVersion,
                    current.TrainingPolicyVersion,
+                   StringComparison.Ordinal)
+               && string.Equals(
+                   checkpoint.TrainingSemanticsVersion,
+                   current.TrainingSemanticsVersion,
                    StringComparison.Ordinal);
     }
 
