@@ -337,10 +337,6 @@ public sealed class CombatSimulationEngine
                 Terminate(CombatSimulationOutcome.Defeat, CombatTerminationReason.Defeat);
                 return false;
             }
-            if (!scenario.RetainBlockBetweenTurns)
-            {
-                player.Block = 0;
-            }
             player.Energy = Math.Max(
                 0,
                 WitchRounded(Variable(player, "BaseEnergy", player.BaseEnergy)));

@@ -74,20 +74,46 @@ public static class CombatSearchFeatureProjector
                 + Math.Max(0d, item.Semantics.Defend)
                 + Math.Max(0d, item.Semantics.Draw) * 2d
                 + Math.Max(0d, item.Semantics.EnergyGain) * 2d);
+        var retainedCount = Math.Min(
+            state.HandCount,
+            state.RetainedHandCardValues.Count);
+        var unretainedHandCount = Math.Max(
+            0,
+            state.HandCount - retainedCount);
         var recyclableCount = state.DrawPileValues.Count
                               + state.DiscardPileValues.Count
-                              + state.HandCardValues.Count;
+                              + unretainedHandCount;
+        var availableHandSlots = Math.Max(0, state.HandLimit - state.HandCount);
+        var nextTurnHandSlots = Math.Max(0, state.HandLimit - retainedCount);
+        var requestedDraw = Math.Max(
+            0d,
+            Value(state.Features, "drawPerTurn", 5d));
+        var effectiveNextDraw = Math.Min(requestedDraw, nextTurnHandSlots);
         result["recyclableCardCount"] = recyclableCount;
+        result["unretainedHandCount"] = unretainedHandCount;
+        result["lockedHandCount"] = retainedCount;
+        result["availableHandSlots"] = availableHandSlots;
+        result["effectiveNextDraw"] = effectiveNextDraw;
+        result["drawPileShortfall"] = Math.Max(
+            0d,
+            effectiveNextDraw - state.DrawPileValues.Count);
+        result["reshuffleWithinNextDraw"] =
+            effectiveNextDraw > state.DrawPileValues.Count
+            && state.DiscardPileValues.Count + unretainedHandCount > 0
+                ? 1d
+                : 0d;
         result["turnsToReshuffle"] = state.DrawPileValues.Count <= 0
             ? 0d
+            : effectiveNextDraw <= 0d
+                ? -1d
             : Math.Ceiling(
                 (double)state.DrawPileValues.Count
-                / Math.Max(1d, Value(state.Features, "drawPerTurn", 5d)));
+                / effectiveNextDraw);
         result["cycleAccessRate"] = recyclableCount <= 0
             ? 0d
             : Math.Min(
                 1d,
-                Value(state.Features, "drawPerTurn", 5d) / recyclableCount);
+                effectiveNextDraw / recyclableCount);
         result["enemyCount"] = state.Enemies.Count(enemy => enemy.Hp > 0);
         result["enemyHpTotal"] = state.Enemies.Sum(enemy => Math.Max(0, enemy.Hp));
         result["expectedBlockableDamage"] = expectedBlockable;

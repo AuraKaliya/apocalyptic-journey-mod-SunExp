@@ -369,16 +369,16 @@ public sealed class CombatSimulationState
     {
         unchecked
         {
+            // A cycle is identified by the resources required to repeat it.
+            // Monotonic payoffs such as damage, block, setup value, and stacked
+            // state are assessed separately by CombatLoopSafetyAnalyzer.
             var hash = 1469598103934665603UL;
-            Mix(ref hash, PlayerDefend);
             Mix(ref hash, Power);
+            Mix(ref hash, MaxPower);
             Mix(ref hash, HandCount);
+            Mix(ref hash, HandLimit);
             Mix(ref hash, CostReduction);
             Mix(ref hash, Turn);
-            Mix(ref hash, Quantize(SetupValue));
-            Mix(ref hash, Quantize(PersistentValue));
-            Mix(ref hash, Quantize(DamageMultiplier));
-            Mix(ref hash, Quantize(DrawnCardPotential));
             Mix(ref hash, DrawPileKnown ? 1 : 0);
             for (var i = 0; i < HandCardValues.Count; i++)
             {
@@ -400,11 +400,11 @@ public sealed class CombatSimulationState
             {
                 Mix(ref hash, Quantize(ExhaustPileValues[i]));
             }
-            MixFeatures(ref hash, Features);
-            for (var i = 0; i < Enemies.Length; i++)
+            for (var i = 0; i < DeferredEffects.Count; i++)
             {
-                Mix(ref hash, Enemies[i].RuntimeId);
-                MixFeatures(ref hash, Enemies[i].Features);
+                Mix(ref hash, DeferredEffects[i].StatusId);
+                Mix(ref hash, DeferredEffects[i].SourceId);
+                Mix(ref hash, DeferredEffects[i].TargetRuntimeId);
             }
             return hash;
         }

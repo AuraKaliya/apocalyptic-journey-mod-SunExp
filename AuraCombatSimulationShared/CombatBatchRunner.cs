@@ -235,7 +235,6 @@ public static class CombatScenarioCloner
             InitialDraw = source.InitialDraw,
             DrawPerTurn = source.DrawPerTurn,
             HandLimit = source.HandLimit,
-            RetainBlockBetweenTurns = source.RetainBlockBetweenTurns,
             MovePlayedCardAfterResolution = source.MovePlayedCardAfterResolution,
             InitialDiscardCards = new List<string>(source.InitialDiscardCards),
             DirectHpLossAfterPlayerCard = source.DirectHpLossAfterPlayerCard,

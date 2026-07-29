@@ -114,10 +114,23 @@ foreach ($anchor in @(
 foreach ($anchor in @(
     "BeginBundledPackageLoad",
     "KnowledgePackageLoad",
-    "AuraSharedBackgroundWorkKind.Io"
+    "AuraSharedBackgroundWorkKind.Io",
+    "TryExportBaseGameTables",
+    "OpenBaseGameTableExportDirectory",
+    "witch-tables-"
 )) {
     if (-not $knowledgeRuntime.Contains($anchor)) {
         throw "AuraTools knowledge package background-loading contract is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
+    "AutoBattleDatasetExportRow",
+    "一键导出游戏数据集",
+    "TryExportBaseGameTables",
+    "OpenBaseGameTableExportDirectory"
+)) {
+    if (-not $settingsRuntime.Contains($anchor)) {
+        throw "AuraTools game dataset export UI contract is missing: $anchor"
     }
 }
 foreach ($anchor in @(

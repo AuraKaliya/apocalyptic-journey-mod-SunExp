@@ -28,6 +28,43 @@ Close or reopen the Codex workspace, then rename the repository root from its pa
 
 ---
 
+## [ERR-20260729-001] exploratory-rg-batching
+
+**Logged**: 2026-07-29T10:05:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+Exploratory search batches failed because Windows wildcards were passed as path
+arguments and expected `rg` no-match exit codes were treated as fatal.
+
+### Error
+```text
+rg: .codex\skills\terrias-*: IO error ... (os error 123)
+rg: AuraToolsExp\Config\combat-simulation\*.json: ... (os error 123)
+Script error: Exit code: 1
+```
+
+### Context
+- PowerShell did not expand wildcard directory or file roots for `rg`.
+- `Promise.all` hid successful sibling search output when one optional probe
+  returned exit code 1.
+
+### Suggested Fix
+Search an existing directory and filter with `-g`, and isolate optional
+exploratory commands instead of treating no matches as a batch failure.
+
+### Metadata
+- Reproducible: yes
+- Related Files: .learnings/ERRORS.md
+
+### Resolution
+- **Resolved**: 2026-07-29T10:05:00+08:00
+- **Notes**: Re-ran searches against explicit directory roots with `-g`.
+
+---
+
 <<<<<<< HEAD
 =======
 ## [ERR-20260728-002] powershell-rg-wildcard-and-split-escaping

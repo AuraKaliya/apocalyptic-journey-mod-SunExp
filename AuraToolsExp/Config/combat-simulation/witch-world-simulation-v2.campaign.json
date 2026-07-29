@@ -3629,19 +3629,19 @@
                         "kind":  "Card",
                         "tier":  1,
                         "offerWeight":  8,
-                        "baseValue":  0.75,
+                        "baseValue":  1.2,
                         "negative":  false,
                         "fidelity":  "Authoritative",
                         "features":  {
                                          "burst":  0.7,
-                                         "sustained":  0.35,
-                                         "defense":  0.8,
+                                         "sustained":  0.85,
+                                         "defense":  1,
                                          "heal":  0,
                                          "aoe":  0,
-                                         "cycling":  0,
+                                         "cycling":  0.8,
                                          "energy":  0,
-                                         "reliability":  0.65,
-                                         "risk":  0
+                                         "reliability":  0.95,
+                                         "risk":  0.2
                                      },
                         "cardAcquisition":  "RewardPool"
                     },
@@ -14819,7 +14819,6 @@
     "initialDraw":  5,
     "drawPerTurn":  5,
     "handLimit":  10,
-    "retainBlockBetweenTurns":  true,
     "requireAuthoritativeRules":  true,
     "traceLevel":  "Full",
     "limits":  {

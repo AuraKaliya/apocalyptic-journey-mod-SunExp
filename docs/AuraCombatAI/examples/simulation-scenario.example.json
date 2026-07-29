@@ -1,6 +1,6 @@
 {
   "scenarioId": "example-training-dummy",
-  "rulesetVersion": "example-v1",
+  "rulesetVersion": "example-current",
   "seed": 42,
   "player": {
     "roleId": "example_tester",
@@ -31,7 +31,6 @@
   "initialDraw": 4,
   "drawPerTurn": 4,
   "handLimit": 10,
-  "retainBlockBetweenTurns": false,
   "requireAuthoritativeRules": true,
   "traceLevel": "Full",
   "limits": {

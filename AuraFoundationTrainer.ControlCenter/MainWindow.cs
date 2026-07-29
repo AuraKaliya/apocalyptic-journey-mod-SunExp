@@ -476,7 +476,6 @@ internal sealed class MainWindow : Window
                                ?? throw new InvalidOperationException("无法克隆训练战役");
         trainingCampaign.TraceLevel = CombatSimulationTraceLevel.Summary;
         trainingCampaign.RequireAuthoritativeRules = true;
-        trainingCampaign.RetainBlockBetweenTurns = true;
         var validationCampaign = Deserialize<CombatCampaignDefinition>(
                                      CombatFoundationCheckpointStorage
                                          .ReadAllTextShared(campaignPath))
@@ -484,7 +483,6 @@ internal sealed class MainWindow : Window
         validationCampaign.TraceLevel = CombatSimulationTraceLevel.Full;
         validationCampaign.FullTraceFinalEncounterOnly = true;
         validationCampaign.RequireAuthoritativeRules = true;
-        validationCampaign.RetainBlockBetweenTurns = true;
         var rulesetDocument = Deserialize<CombatRulesetDocument>(
                                   CombatFoundationCheckpointStorage
                                       .ReadAllTextShared(rulesetPath))

@@ -271,8 +271,6 @@ public sealed class CombatCampaignDefinition
 
     public int HandLimit { get; set; } = 10;
 
-    public bool RetainBlockBetweenTurns { get; set; } = true;
-
     public bool RequireAuthoritativeRules { get; set; } = true;
 
     public CombatSimulationTraceLevel TraceLevel { get; set; } =
@@ -2792,7 +2790,6 @@ public sealed class CombatCampaignRunner
             InitialDraw = definition.InitialDraw,
             DrawPerTurn = definition.DrawPerTurn,
             HandLimit = definition.HandLimit,
-            RetainBlockBetweenTurns = definition.RetainBlockBetweenTurns,
             MovePlayedCardAfterResolution =
                 difficulty.MovePlayedCardAfterResolution,
             InitialDiscardCards = new List<string>(

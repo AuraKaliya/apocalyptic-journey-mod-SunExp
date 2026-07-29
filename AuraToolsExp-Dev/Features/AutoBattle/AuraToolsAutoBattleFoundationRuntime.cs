@@ -429,12 +429,10 @@ internal static class AuraToolsAutoBattleFoundationRuntime
         var trainingCampaign = CloneCampaign(sourceCampaign);
         trainingCampaign.TraceLevel = CombatSimulationTraceLevel.Summary;
         trainingCampaign.RequireAuthoritativeRules = true;
-        trainingCampaign.RetainBlockBetweenTurns = true;
         var validationCampaign = CloneCampaign(sourceCampaign);
         validationCampaign.TraceLevel = CombatSimulationTraceLevel.Full;
         validationCampaign.FullTraceFinalEncounterOnly = true;
         validationCampaign.RequireAuthoritativeRules = true;
-        validationCampaign.RetainBlockBetweenTurns = true;
         var foundation = settings.FoundationTraining;
         foundation.Normalize();
         SetStatus(

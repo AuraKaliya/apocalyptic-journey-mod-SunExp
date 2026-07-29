@@ -23,6 +23,38 @@ Keep the release test that checks the hidden game-host validation cases against 
 
 ---
 
+## [LRN-20260729-001] correction
+
+**Logged**: 2026-07-29T10:00:00+08:00
+**Priority**: high
+**Status**: pending
+**Area**: docs
+
+### Summary
+Base-game combat guidance must distinguish deck reshuffle cycling, the `Recycle` card keyword, and a resource-closed infinite loop.
+
+### Details
+Player block persists between turns. When a draw request exceeds the remaining
+draw pile, the discard pile is shuffled back and drawing continues. Unretained
+cards normally enter the discard pile at turn end, while retained or
+`Recycle`-keyword cards occupy hand slots and can reduce future draw throughput.
+`ritualcard_8` converts all damage dealt after activation into persistent block
+at turn end, making damage loops a major defensive engine against
+damage-limiting bosses.
+
+### Suggested Action
+Correct the combat-flow document, use separate terms for deck cycling,
+`Recycle`-keyword repetition, and infinite resource closure, then add regression
+coverage for persistent block, mid-draw reshuffling, and Ritual Courage block
+conversion.
+
+### Metadata
+- Source: user_feedback
+- Related Files: docs/游戏主体内容/战斗流程/游戏主体战斗流程与高价值构筑清单.md, AuraCombatSimulationShared/CombatSimulationEngine.cs, AuraCombatAiShared/CombatLoopSafetyAnalyzer.cs
+- Tags: combat-flow, deck-cycle, retain, shield, ritual
+
+---
+
 ## [LRN-20260716-001] correction
 
 **Logged**: 2026-07-16T14:40:00+08:00

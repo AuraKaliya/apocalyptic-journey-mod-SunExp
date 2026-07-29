@@ -879,6 +879,49 @@ public static class AuraToolsSettingsRuntime
             }, 96f);
             AttachAutoBattleWorkLock(policyRow, unknownPolicyButton);
 
+            var datasetRow = CreateInlineRow(content, "AutoBattleDatasetExportRow");
+            var datasetStatus = AuraToolsUi.AddText(
+                content,
+                "导出当前游戏版本已加载的卡牌、Buff、敌人、关卡、遗物与祝福",
+                AuraToolsUi.HintFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.MutedText,
+                AuraToolsUi.TextMinHeight,
+                1f);
+            AuraToolsUi.AddText(
+                datasetRow.transform,
+                "游戏数据集",
+                AuraToolsUi.BodyFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.Text,
+                AuraToolsUi.TextMinHeight,
+                1f);
+            AuraToolsUi.AddButton(
+                datasetRow.transform,
+                "一键导出游戏数据集",
+                () =>
+                {
+                    if (AuraToolsCombatKnowledgeRuntime.TryExportBaseGameTables(
+                            out var exportedPath,
+                            out var exportMessage))
+                    {
+                        datasetStatus.text = exportMessage + "："
+                                             + Path.GetFileName(exportedPath);
+                        datasetStatus.color = AuraToolsUi.SuccessText;
+                    }
+                    else
+                    {
+                        datasetStatus.text = exportMessage;
+                        datasetStatus.color = AuraToolsUi.WarningText;
+                    }
+                },
+                172f);
+            AuraToolsUi.AddButton(
+                datasetRow.transform,
+                "打开目录",
+                AuraToolsCombatKnowledgeRuntime.OpenBaseGameTableExportDirectory,
+                88f);
+
             AuraToolsUi.AddText(
                 content,
                 "① 实战采集：正常完成【世界推演】。每场战斗、奖励选择、卡组成长和最终结局会自动归入同一次旅程。",
@@ -2551,12 +2594,6 @@ public static class AuraToolsSettingsRuntime
                 "高级输入目录",
                 AuraToolsAutoBattleSimulationRuntime.OpenInputDirectory,
                 112f);
-            var exportButton = AuraToolsUi.AddButton(
-                scenarioRow.transform,
-                "高级导出游戏表",
-                AuraToolsCombatKnowledgeRuntime.ExportBaseGameTables,
-                120f);
-            lockedControls.Add(exportButton);
         }
         AuraToolsUi.AddText(
             parent,

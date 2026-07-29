@@ -76,15 +76,19 @@ internal static class AuraToolsCombatKnowledgeRuntime
                + "（待验证内容可用于探索模拟，不会获得正式验证标记）";
     }
 
-    public static void ExportBaseGameTables()
+    public static bool TryExportBaseGameTables(
+        out string exportedPath,
+        out string message)
     {
+        exportedPath = "";
         try
         {
             var manager = GameConfigManager.Instance;
             if (manager == null)
             {
-                AuraToolsLog.Warn("[AutoBattle][Knowledge] 游戏数据表尚未初始化");
-                return;
+                message = "游戏数据表尚未初始化，请进入主界面后重试";
+                AuraToolsLog.Warn("[AutoBattle][Knowledge] " + message);
+                return false;
             }
 
             var export = new BaseGameTableExport
@@ -103,28 +107,43 @@ internal static class AuraToolsCombatKnowledgeRuntime
                     ?? new List<Dictionary<string, string>>();
             }
 
-            var directory = Path.Combine(
-                AuraToolsPaths.ConfigDirectory,
-                "combat-knowledge",
-                "table-exports");
+            var directory = BaseGameTableExportDirectory;
             Directory.CreateDirectory(directory);
-            var path = Path.Combine(
+            exportedPath = Path.Combine(
                 directory,
                 "witch-tables-" + DateTime.UtcNow.ToString("yyyyMMdd-HHmmss") + ".json");
             using (var storage = new AuraSharedStorageCoordinator(AuraSharedPaths.RootDirectory))
             {
                 storage.WriteTextAtomic(
-                    path,
+                    exportedPath,
                     AuraSharedJson.Serialize(export),
                     createBackup: false);
             }
-            AuraToolsLog.Info("[AutoBattle][Knowledge] 游戏数据表已导出：" + path);
+            message = "已导出 " + export.Tables.Sum(item => item.Value.Count)
+                      + " 行游戏数据";
+            AuraToolsLog.Info(
+                "[AutoBattle][Knowledge] " + message + "：" + exportedPath);
+            return true;
         }
         catch (Exception ex)
         {
+            exportedPath = "";
+            message = "导出失败，请查看 AuraToolsExp 日志";
             AuraToolsLog.Warn("[AutoBattle][Knowledge] 游戏数据表导出失败：" + ex);
+            return false;
         }
     }
+
+    public static void OpenBaseGameTableExportDirectory()
+    {
+        Directory.CreateDirectory(BaseGameTableExportDirectory);
+        FileResourceUtil.OpenDirectory(BaseGameTableExportDirectory);
+    }
+
+    private static string BaseGameTableExportDirectory => Path.Combine(
+        AuraToolsPaths.ConfigDirectory,
+        "combat-knowledge",
+        "table-exports");
 
     public static bool HasAuthoritativeCoverage(
         CombatStateObservation state,

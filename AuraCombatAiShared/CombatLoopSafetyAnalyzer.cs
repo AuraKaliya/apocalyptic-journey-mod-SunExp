@@ -20,6 +20,12 @@ public sealed class CombatLoopSafetyAssessment
 
     public int PlayerHpDelta { get; set; }
 
+    public int PlayerBlockDelta { get; set; }
+
+    public double MonotonicStateGain { get; set; }
+
+    public double ResourceStateLoss { get; set; }
+
     public int RequiredCycles { get; set; }
 
     public int SafeCycles { get; set; }
@@ -46,6 +52,15 @@ public static class CombatLoopSafetyAnalyzer
                        - EffectiveEnemyHealth(end);
         var hpDelta = end.PlayerHp - start.PlayerHp;
         var attrition = Math.Max(0, -hpDelta);
+        var blockDelta = end.PlayerDefend - start.PlayerDefend;
+        var monotonicStateGain =
+            PositiveDelta(start.SetupValue, end.SetupValue)
+            + PositiveDelta(start.PersistentValue, end.PersistentValue)
+            + PositiveDelta(start.DamageMultiplier, end.DamageMultiplier)
+            + PositiveDelta(start.DrawnCardPotential, end.DrawnCardPotential)
+            + PositiveFeatureGain(start.Features, end.Features);
+        var resourceStateLoss = FeatureLoss(start.Features, end.Features);
+        var defensiveOrStateGain = blockDelta > 0 || monotonicStateGain > 0d;
         var limitDamage = end.Enemies
             .Where(enemy => enemy.Hp > 0)
             .Any(enemy => Feature(
@@ -89,42 +104,50 @@ public static class CombatLoopSafetyAnalyzer
         {
             EffectiveEnemyProgress = progress,
             PlayerHpDelta = hpDelta,
+            PlayerBlockDelta = blockDelta,
+            MonotonicStateGain = monotonicStateGain,
+            ResourceStateLoss = resourceStateLoss,
             RequiredCycles = requiredCycles,
             SafeCycles = safeCycles,
             EnemyLimitDamageActive = limitDamage,
             EnemyEscalationPressure = escalation
         };
 
+        if (attrition > 0 || resourceStateLoss > 0d)
+        {
+            assessment.Classification = CombatLoopClassification.Fake;
+            assessment.Reason = attrition > 0
+                ? "repeatable structure consumes finite player hp"
+                : "repeatable structure consumes finite player state";
+            return assessment;
+        }
+
         if (progress < minimumProgress)
         {
-            assessment.Classification = attrition > 0
-                ? CombatLoopClassification.Fake
+            assessment.Classification = defensiveOrStateGain
+                ? CombatLoopClassification.SustainableControl
                 : limitDamage || escalation > 0d
                     ? CombatLoopClassification.Blocked
                     : CombatLoopClassification.SustainableControl;
-            assessment.Reason = attrition > 0
-                ? "resource cycle loses player hp without effective enemy progress"
+            assessment.Reason = defensiveOrStateGain
+                ? "resources repeat while block or persistent state grows"
                 : limitDamage || escalation > 0d
-                    ? "enemy mechanic blocks lethal progress"
+                    ? "enemy mechanic blocks lethal progress without compensating growth"
                     : "resource cycle is stable but has no lethal progress";
             return assessment;
         }
 
-        if (attrition > 0 && requiredCycles > safeCycles)
-        {
-            assessment.Classification = CombatLoopClassification.Fake;
-            assessment.Reason =
-                "projected player hp reserve expires before the loop can kill";
-            return assessment;
-        }
         if (limitDamage
             && requiredCycles > Math.Max(
                 1,
                 profile.LoopLimitDamageMaximumCycles))
         {
-            assessment.Classification = CombatLoopClassification.Blocked;
-            assessment.Reason =
-                "limit-damage makes the projected lethal loop too slow";
+            assessment.Classification = defensiveOrStateGain
+                ? CombatLoopClassification.SustainableControl
+                : CombatLoopClassification.Blocked;
+            assessment.Reason = defensiveOrStateGain
+                ? "limit-damage slows lethal progress while persistent defense or state grows"
+                : "limit-damage makes the projected lethal loop too slow";
             return assessment;
         }
         if (escalation > 0d && requiredCycles > safeCycles)
@@ -138,9 +161,12 @@ public static class CombatLoopSafetyAnalyzer
                 1,
                 profile.LoopMaximumCertifiedCycles))
         {
-            assessment.Classification = CombatLoopClassification.Blocked;
-            assessment.Reason =
-                "projected lethal requires too many repeated cycles";
+            assessment.Classification = defensiveOrStateGain
+                ? CombatLoopClassification.SustainableControl
+                : CombatLoopClassification.Blocked;
+            assessment.Reason = defensiveOrStateGain
+                ? "resources repeat with growth but current lethal progress is not certifiable"
+                : "projected lethal requires too many repeated cycles";
             return assessment;
         }
 
@@ -149,6 +175,42 @@ public static class CombatLoopSafetyAnalyzer
         assessment.Reason =
             "resources repeat with safe hp reserve and effective lethal progress";
         return assessment;
+    }
+
+    private static double PositiveDelta(double start, double end)
+    {
+        return Math.Max(0d, Finite(end) - Finite(start));
+    }
+
+    private static double PositiveFeatureGain(
+        System.Collections.Generic.IReadOnlyDictionary<string, double> start,
+        System.Collections.Generic.IReadOnlyDictionary<string, double> end)
+    {
+        return end.Sum(pair =>
+        {
+            var before = start.TryGetValue(pair.Key, out var value)
+                ? Finite(value)
+                : 0d;
+            return Math.Max(0d, Finite(pair.Value) - before);
+        });
+    }
+
+    private static double FeatureLoss(
+        System.Collections.Generic.IReadOnlyDictionary<string, double> start,
+        System.Collections.Generic.IReadOnlyDictionary<string, double> end)
+    {
+        return start.Sum(pair =>
+        {
+            var after = end.TryGetValue(pair.Key, out var value)
+                ? Finite(value)
+                : 0d;
+            return Math.Max(0d, Finite(pair.Value) - after);
+        });
+    }
+
+    private static double Finite(double value)
+    {
+        return double.IsNaN(value) || double.IsInfinity(value) ? 0d : value;
     }
 
     private static double EffectiveEnemyHealth(CombatSimulationState state)

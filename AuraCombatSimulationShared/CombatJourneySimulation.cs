@@ -58,8 +58,6 @@ public sealed class CombatJourneyDefinition
 
     public int HandLimit { get; set; } = 10;
 
-    public bool RetainBlockBetweenTurns { get; set; }
-
     public bool RequireAuthoritativeRules { get; set; } = true;
 
     public CombatSimulationTraceLevel TraceLevel { get; set; } =
@@ -535,7 +533,6 @@ public sealed class CombatJourneyRunner
                 InitialDraw = definition.InitialDraw,
                 DrawPerTurn = definition.DrawPerTurn,
                 HandLimit = definition.HandLimit,
-                RetainBlockBetweenTurns = definition.RetainBlockBetweenTurns,
                 RequireAuthoritativeRules = definition.RequireAuthoritativeRules,
                 TraceLevel = definition.TraceLevel,
                 Limits = definition.Limits.Normalize()

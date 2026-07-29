@@ -722,8 +722,6 @@ public sealed class CombatScenarioDefinition
 
     public int HandLimit { get; set; } = 10;
 
-    public bool RetainBlockBetweenTurns { get; set; } = true;
-
     public bool MovePlayedCardAfterResolution { get; set; }
 
     public List<string> InitialDiscardCards { get; set; } = new();

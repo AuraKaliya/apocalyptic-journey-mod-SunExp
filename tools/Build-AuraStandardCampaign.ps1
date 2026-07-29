@@ -150,6 +150,13 @@ function Get-RewardFeatures([object]$row, [string]$kind) {
         $features.risk = 1.0
         $features.reliability = 0.0
     }
+    if ($id -eq "ritualcard_8") {
+        $features.sustained = 0.85
+        $features.defense = 1.0
+        $features.cycling = 0.8
+        $features.reliability = 0.95
+        $features.risk = 0.2
+    }
     if ($kind -eq "Relic") {
         $features.reliability = 0.75
     }
@@ -2906,7 +2913,11 @@ foreach ($card in $cards) {
             3 { 2.0 }
             default { 1.0 }
         }
-        baseValue = 0.55 + $tier * 0.2
+        baseValue = if ([string]$card.Id -eq "ritualcard_8") {
+            1.2
+        } else {
+            0.55 + $tier * 0.2
+        }
         negative = $false
         fidelity = "Authoritative"
         features = Get-RewardFeatures $card "Card"
@@ -3169,7 +3180,6 @@ $campaign = [ordered]@{
     initialDraw = 5
     drawPerTurn = 5
     handLimit = 10
-    retainBlockBetweenTurns = $true
     requireAuthoritativeRules = $true
     # Run with a full in-memory trace, then AuraToolsExp retains only the
     # final-boss trace or the first failing battle for the batch report.
@@ -3184,14 +3194,14 @@ $campaign = [ordered]@{
     }
 }
 
-$v1RulesetPath = Join-Path $OutputDirectory "witch-base-evaluation-v1.ruleset.json"
-$v1Ruleset = Get-Content -Raw -Encoding UTF8 -LiteralPath $v1RulesetPath | ConvertFrom-Json
+$authoritativeSeedPath = Join-Path $PSScriptRoot "combat-simulation\witch-base-authoritative-seed.json"
+$authoritativeSeed = Get-Content -Raw -Encoding UTF8 -LiteralPath $authoritativeSeedPath | ConvertFrom-Json
 $authoritativeCards = @{}
-foreach ($card in $v1Ruleset.cards) {
+foreach ($card in $authoritativeSeed.cards) {
     $authoritativeCards[[string]$card.cardId] = $card
 }
 $authoritativeEnemies = @{}
-foreach ($enemy in $v1Ruleset.enemies) {
+foreach ($enemy in $authoritativeSeed.enemies) {
     $authoritativeEnemies[[string]$enemy.enemyId] = $enemy
 }
 $requiredStartingCardIds = @(

@@ -40,7 +40,7 @@ Remove-Item -LiteralPath $simulationOutput -Force
 if ($simulationResult.Statistics.CompletedSimulations -ne 4 `
     -or $simulationResult.Statistics.Invalid -ne 0 `
     -or $simulationResult.Statistics.AuthoritativeSimulations -ne 4 `
-    -or $simulationResult.Results[0].FinalStateHash -ne "1deca1bb25d9997c" `
+    -or $simulationResult.Results[0].FinalStateHash -ne "6f7e8c1d398fbdb9" `
     -or [string]::IsNullOrWhiteSpace($simulationResult.RulesetHash)) {
     throw "Aura headless combat simulation result contract is invalid."
 }
@@ -94,9 +94,11 @@ $modelUiRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\Aura
 $journeyUiRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleJourneyRuntime.cs"
 $settingsUiRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\Settings\AuraToolsSettingsRuntime.cs"
 $baseGameKnowledgePath = Join-Path $root "AuraToolsExp\Config\combat-knowledge.base-game.json"
-$bundledRulesPath = Join-Path $root "AuraToolsExp\Config\combat-simulation\witch-base-evaluation-v1.ruleset.json"
-$bundledJourneyPath = Join-Path $root "AuraToolsExp\Config\combat-simulation\witch-world-simulation-v1.journey.json"
+$bundledRulesPath = Join-Path $root "AuraToolsExp\Config\combat-simulation\witch-base-evaluation-v2.ruleset.json"
 $bundledCampaignV2Path = Join-Path $root "AuraToolsExp\Config\combat-simulation\witch-world-simulation-v2.campaign.json"
+$authoritativeSeedPath = Join-Path $root "tools\combat-simulation\witch-base-authoritative-seed.json"
+$obsoleteRulesPath = Join-Path $root "AuraToolsExp\Config\combat-simulation\witch-base-evaluation-v1.ruleset.json"
+$obsoleteJourneyPath = Join-Path $root "AuraToolsExp\Config\combat-simulation\witch-world-simulation-v1.journey.json"
 $campaignGeneratorPath = Join-Path $root "tools\Build-AuraStandardCampaign.ps1"
 $controller = Get-Content -LiteralPath $controllerPath -Raw
 $presenter = Get-Content -LiteralPath $presenterPath -Raw
@@ -647,7 +649,9 @@ foreach ($anchor in @(
     '$attributeThresholdRewards = @(',
     'attributeThresholdRewards = @($attributeThresholdRewards)',
     'campaignVersion = "2.6.0"',
-    'New-StatusTrigger "rotten-action" "ActionResolved"'
+    'New-StatusTrigger "rotten-action" "ActionResolved"',
+    'witch-base-authoritative-seed.json',
+    'if ([string]$card.Id -eq "ritualcard_8")'
 )) {
     if (-not $campaignGenerator.Contains($anchor)) {
         throw "Campaign generator origin threshold contract is missing: $anchor"
@@ -837,15 +841,20 @@ foreach ($anchor in @(
 }
 
 if (-not (Test-Path -LiteralPath $bundledRulesPath -PathType Leaf) `
-    -or -not (Test-Path -LiteralPath $bundledJourneyPath -PathType Leaf)) {
+    -or -not (Test-Path -LiteralPath $bundledCampaignV2Path -PathType Leaf) `
+    -or -not (Test-Path -LiteralPath $authoritativeSeedPath -PathType Leaf) `
+    -or (Test-Path -LiteralPath $obsoleteRulesPath) `
+    -or (Test-Path -LiteralPath $obsoleteJourneyPath)) {
     throw "Bundled standard evaluation package is incomplete."
 }
 $bundledRules = Get-Content -LiteralPath $bundledRulesPath -Raw -Encoding UTF8 | ConvertFrom-Json
-$bundledJourney = Get-Content -LiteralPath $bundledJourneyPath -Raw -Encoding UTF8 | ConvertFrom-Json
-if ($bundledRules.version -ne "witch-base-evaluation-v1" `
-    -or $bundledJourney.rulesetVersion -ne $bundledRules.version `
-    -or $bundledJourney.player.roleId -ne "career_1" `
-    -or $bundledJourney.stages[-1].encounterPool[0] -ne "enemy_10022" `
+$bundledCampaign = Get-Content -LiteralPath $bundledCampaignV2Path -Raw -Encoding UTF8 | ConvertFrom-Json
+$authoritativeSeed = Get-Content -LiteralPath $authoritativeSeedPath -Raw -Encoding UTF8 | ConvertFrom-Json
+if ($bundledRules.version -ne "witch-base-evaluation-v2" `
+    -or $bundledCampaign.rulesetVersion -ne $bundledRules.version `
+    -or $bundledCampaign.player.roleId -ne "career_1" `
+    -or $bundledCampaign.PSObject.Properties.Name -contains "retainBlockBetweenTurns" `
+    -or $authoritativeSeed.seedId -ne "witch-base-authoritative-seed" `
     -or (Get-Content -LiteralPath $bundledRulesPath -Raw -Encoding UTF8).Contains("Terrias")) {
     throw "Bundled standard evaluation package does not satisfy the base-game-only contract."
 }

@@ -308,6 +308,29 @@ Assert(projectedLeafFeatures["expectedBlockableDamage"] == 7d
        && projectedLeafFeatures["damageMultiplier"] == 1.2d
        && projectedLeafFeatures["turn"] == 3d,
     "search leaf inference uses the same feature names as training");
+var cycleLeafFeatures = CombatSearchFeatureProjector.ProjectLeaf(
+    new CombatSimulationState
+    {
+        PlayerHp = 20,
+        PlayerMaxHp = 20,
+        HandCount = 4,
+        HandLimit = 5,
+        HandCardValues = { 1d, 2d, 3d, 4d },
+        RetainedHandCardValues = { 3d, 4d },
+        DrawPileValues = { 5d },
+        DiscardPileValues = { 6d, 7d, 8d },
+        Features = { ["drawPerTurn"] = 4d }
+    },
+    new CombatDecisionProfile());
+Assert(cycleLeafFeatures["recyclableCardCount"] == 6d
+       && cycleLeafFeatures["unretainedHandCount"] == 2d
+       && cycleLeafFeatures["lockedHandCount"] == 2d
+       && cycleLeafFeatures["availableHandSlots"] == 1d
+       && cycleLeafFeatures["effectiveNextDraw"] == 3d
+       && cycleLeafFeatures["drawPileShortfall"] == 2d
+       && cycleLeafFeatures["reshuffleWithinNextDraw"] == 1d
+       && cycleLeafFeatures["cycleAccessRate"] == 0.5d,
+    "cycle features separate locked hand slots from cards that can return through the discard pile");
 var setupLeafState = new CombatSimulationState
 {
     PlayerHp = 20,
@@ -931,6 +954,21 @@ var limitedLoopEnd = loopStart.Clone();
 limitedLoopEnd.Enemies[0].Hp = 19;
 limitedLoopEnd.Enemies[0].Features["damageLimitActive"] = 1d;
 var controlLoopEnd = loopStart.Clone();
+var shieldControlLoopEnd = limitedLoopEnd.Clone();
+shieldControlLoopEnd.Enemies[0].Hp = 20;
+shieldControlLoopEnd.PlayerDefend = 12;
+var stackingControlLoopEnd = limitedLoopEnd.Clone();
+stackingControlLoopEnd.Enemies[0].Hp = 20;
+stackingControlLoopEnd.Features["status:buff_elements"] = 5d;
+var drainingResourceLoopStart = loopStart.Clone();
+drainingResourceLoopStart.Features["status:buff_revelation"] = 2d;
+var drainingResourceLoopEnd = drainingResourceLoopStart.Clone();
+drainingResourceLoopEnd.Features["status:buff_revelation"] = 1d;
+var monotonicCycleStart = loopStart.Clone();
+var monotonicCycleEnd = monotonicCycleStart.Clone();
+monotonicCycleEnd.PlayerDefend = 25;
+monotonicCycleEnd.SetupValue = 3d;
+monotonicCycleEnd.Features["status:buff_elements"] = 7d;
 Assert(CombatLoopSafetyAnalyzer.Analyze(
            loopStart,
            safeLoopEnd,
@@ -950,8 +988,24 @@ Assert(CombatLoopSafetyAnalyzer.Analyze(
            loopStart,
            controlLoopEnd,
            new CombatDecisionProfile()).Classification
-       == CombatLoopClassification.SustainableControl,
-    "loop safety distinguishes lethal, hp-draining fake, limit-damage blocked, and control-only cycles");
+       == CombatLoopClassification.SustainableControl
+       && CombatLoopSafetyAnalyzer.Analyze(
+           loopStart,
+           shieldControlLoopEnd,
+           new CombatDecisionProfile()).Classification
+       == CombatLoopClassification.SustainableControl
+       && CombatLoopSafetyAnalyzer.Analyze(
+           loopStart,
+           stackingControlLoopEnd,
+           new CombatDecisionProfile()).Classification
+       == CombatLoopClassification.SustainableControl
+       && CombatLoopSafetyAnalyzer.Analyze(
+           drainingResourceLoopStart,
+           drainingResourceLoopEnd,
+           new CombatDecisionProfile()).Classification
+       == CombatLoopClassification.Fake
+       && monotonicCycleStart.CycleHash() == monotonicCycleEnd.CycleHash(),
+    "loop safety separates repeated resources from hp or state costs and monotonic block or state gains");
 
 var threatRoot = new CombatStateObservation
 {
@@ -2947,71 +3001,34 @@ Assert(assembledLiveEpisodes[0].JourneyRunId == "live-journey-1"
     "complete journey outcome replaces local battle return while keeping post-hoc labels out of model features");
 
 var repositoryRoot = Directory.GetCurrentDirectory();
-var bundledRulesPath = Path.Combine(
-    repositoryRoot,
-    "AuraToolsExp",
-    "Config",
-    "combat-simulation",
-    "witch-base-evaluation-v1.ruleset.json");
-if (!File.Exists(bundledRulesPath))
-{
-    repositoryRoot = Path.GetFullPath(
-        Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
-    bundledRulesPath = Path.Combine(
-        repositoryRoot,
-        "AuraToolsExp",
-        "Config",
-        "combat-simulation",
-        "witch-base-evaluation-v1.ruleset.json");
-}
-var bundledJourneyPath = Path.Combine(
-    repositoryRoot,
-    "AuraToolsExp",
-    "Config",
-    "combat-simulation",
-    "witch-world-simulation-v1.journey.json");
-var bundledJsonOptions = new JsonSerializerOptions
-{
-    PropertyNameCaseInsensitive = true
-};
-bundledJsonOptions.Converters.Add(new JsonStringEnumConverter());
-var bundledRulesDocument = JsonSerializer.Deserialize<CombatRulesetDocument>(
-    File.ReadAllText(bundledRulesPath),
-    bundledJsonOptions);
-var bundledJourney = JsonSerializer.Deserialize<CombatJourneyDefinition>(
-    File.ReadAllText(bundledJourneyPath),
-    bundledJsonOptions);
-var loadedBundledJourney = bundledJourney
-                           ?? throw new InvalidOperationException(
-                               "Bundled journey JSON could not be deserialized.");
-var bundledRules = CombatSimulationRegistry.BuildRuleset(bundledRulesDocument);
-CombatJourneyWorldPlanner.Validate(loadedBundledJourney);
-Assert(bundledRules.Success
-       && bundledRules.Ruleset.CardCount == 10
-       && bundledRules.Ruleset.EnemyCount == 5
-       && loadedBundledJourney.Player.RoleId == "career_1"
-       && loadedBundledJourney.Stages.Last().EncounterPool.SequenceEqual(
-           new[] { "enemy_10022" })
-       && loadedBundledJourney.Player.Deck.All(cardId =>
-           bundledRules.Ruleset.TryGetCard(cardId, out _))
-       && loadedBundledJourney.Stages.SelectMany(stage => stage.EncounterPool)
-           .All(enemyId => bundledRules.Ruleset.TryGetEnemy(enemyId, out _))
-       && !File.ReadAllText(bundledRulesPath)
-           .Contains("Terrias", StringComparison.OrdinalIgnoreCase),
-    "bundled standard evaluation package uses only resolvable base-game content");
-
-var bundledCampaignPath = Path.Combine(
-    repositoryRoot,
-    "AuraToolsExp",
-    "Config",
-    "combat-simulation",
-    "witch-world-simulation-v2.campaign.json");
 var bundledRulesV2Path = Path.Combine(
     repositoryRoot,
     "AuraToolsExp",
     "Config",
     "combat-simulation",
     "witch-base-evaluation-v2.ruleset.json");
+if (!File.Exists(bundledRulesV2Path))
+{
+    repositoryRoot = Path.GetFullPath(
+        Path.Combine(AppContext.BaseDirectory, "..", "..", "..", ".."));
+    bundledRulesV2Path = Path.Combine(
+        repositoryRoot,
+        "AuraToolsExp",
+        "Config",
+        "combat-simulation",
+        "witch-base-evaluation-v2.ruleset.json");
+}
+var bundledJsonOptions = new JsonSerializerOptions
+{
+    PropertyNameCaseInsensitive = true
+};
+bundledJsonOptions.Converters.Add(new JsonStringEnumConverter());
+var bundledCampaignPath = Path.Combine(
+    repositoryRoot,
+    "AuraToolsExp",
+    "Config",
+    "combat-simulation",
+    "witch-world-simulation-v2.campaign.json");
 var bundledCampaign = JsonSerializer.Deserialize<CombatCampaignDefinition>(
     File.ReadAllText(bundledCampaignPath),
     bundledJsonOptions)
@@ -3022,6 +3039,127 @@ var bundledRulesV2Document = JsonSerializer.Deserialize<CombatRulesetDocument>(
     bundledJsonOptions);
 var bundledRulesV2 = CombatSimulationRegistry.BuildRuleset(bundledRulesV2Document);
 bundledRulesV2.Ruleset.TryGetStatus("buff_burn", out var bundledBurn);
+var lifecycleCoreRules = new CombatRulesetBuilder("lifecycle-core-current")
+    .RegisterCard(new CombatCardDefinition
+    {
+        OwnerModId = "Tests",
+        CardId = "cycle-guard",
+        Cost = 0,
+        Effects =
+        {
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.GainBlock,
+                Target = CombatSimulationTarget.Self,
+                Amount = 5
+            }
+        }
+    })
+    .RegisterCard(new CombatCardDefinition
+    {
+        OwnerModId = "Tests",
+        CardId = "cycle-filler",
+        Cost = 99
+    })
+    .RegisterEnemy(new CombatEnemyDefinition
+    {
+        OwnerModId = "Tests",
+        EnemyId = "waiting-enemy",
+        MaxHp = 100,
+        Intents =
+        {
+            new CombatEnemyIntentDefinition
+            {
+                IntentId = "wait",
+                Effects =
+                {
+                    new CombatSimulationEffectDefinition
+                    {
+                        Kind = CombatSimulationEffectKind.GainBlock,
+                        Target = CombatSimulationTarget.Self,
+                        Amount = 0
+                    }
+                }
+            }
+        }
+    })
+    .Freeze();
+var midDrawShuffleResult = new CombatSimulationEngine().Run(
+    new CombatScenarioDefinition
+    {
+        ScenarioId = "mid-draw-discard-recycle",
+        RulesetVersion = lifecycleCoreRules.Ruleset.Version,
+        InitialDraw = 2,
+        DrawPerTurn = 0,
+        InitialDiscardCards = { "cycle-filler" },
+        Player = new CombatPlayerSetup
+        {
+            MaxHp = 30,
+            CurrentHp = 30,
+            Deck = { "cycle-guard" }
+        },
+        Enemies = { new CombatEnemySetup { EnemyId = "waiting-enemy" } },
+        Limits = new CombatSimulationLimits { MaximumTurns = 1 }
+    },
+    lifecycleCoreRules.Ruleset,
+    EndTurnSimulationPolicy.Instance);
+var persistentBlockResult = new CombatSimulationEngine().Run(
+    new CombatScenarioDefinition
+    {
+        ScenarioId = "persistent-player-block",
+        RulesetVersion = lifecycleCoreRules.Ruleset.Version,
+        InitialDraw = 2,
+        DrawPerTurn = 0,
+        Player = new CombatPlayerSetup
+        {
+            MaxHp = 30,
+            CurrentHp = 30,
+            Deck = { "cycle-guard", "cycle-filler" }
+        },
+        Enemies = { new CombatEnemySetup { EnemyId = "waiting-enemy" } },
+        Limits = new CombatSimulationLimits { MaximumTurns = 2 }
+    },
+    lifecycleCoreRules.Ruleset,
+    new PlayCardsInOrderThenEndPolicy("cycle-guard"));
+Assert(lifecycleCoreRules.Success
+       && midDrawShuffleResult.Metrics.CardsDrawn == 2
+       && midDrawShuffleResult.Events.Any(item =>
+           item.Kind == CombatSimulationEventKind.DeckShuffled)
+       && persistentBlockResult.FinalState.Player?.Block == 5
+       && persistentBlockResult.Events.Any(item =>
+           item.Kind == CombatSimulationEventKind.CardDiscarded
+           && item.DefinitionId == "cycle-filler"),
+    "combat lifecycle keeps block, recycles discard mid-draw, and discards unretained hand cards");
+
+var ritualCourageResult = new CombatSimulationEngine().Run(
+    new CombatScenarioDefinition
+    {
+        ScenarioId = "ritual-courage-damage-conversion",
+        RulesetVersion = bundledRulesV2.Ruleset.Version,
+        InitialDraw = 2,
+        DrawPerTurn = 0,
+        RequireAuthoritativeRules = true,
+        TraceLevel = CombatSimulationTraceLevel.Full,
+        Player = new CombatPlayerSetup
+        {
+            RoleId = "career_1",
+            MaxHp = 100,
+            CurrentHp = 100,
+            BaseEnergy = 5,
+            Deck = { "ritualcard_8", "card_1" }
+        },
+        Enemies = { new CombatEnemySetup { EnemyId = "enemy_10001" } },
+        Limits = new CombatSimulationLimits { MaximumTurns = 1 }
+    },
+    bundledRulesV2.Ruleset,
+    new PlayCardsInOrderThenEndPolicy("ritualcard_8", "card_1"));
+Assert(ritualCourageResult.Events.Any(item =>
+           item.Kind == CombatSimulationEventKind.BlockGained
+           && item.SourceActorId == ritualCourageResult.FinalState.PlayerActorId
+           && item.Amount == 5)
+       && ritualCourageResult.FinalState.Player?.Statuses.All(item =>
+           item.StatusId != "buff_ritualcourage") == true,
+    "ritual courage converts actual player damage into block at turn end and then ends");
 var baseCardAuditState = new CombatBattleState
 {
     PlayerActorId = 1,
@@ -3544,6 +3682,12 @@ Assert(bundledRulesV2.Success
        && bundledCampaign.Rewards
            .Where(item => item.Kind == CombatCampaignRewardKind.Card)
            .All(item => item.OfferWeight is 8d or 5d or 2d or 1d)
+       && bundledCampaign.Rewards.Single(item =>
+               item.RewardId == "ritualcard_8").BaseValue == 1.2d
+       && bundledCampaign.Rewards.Single(item =>
+               item.RewardId == "ritualcard_8").Features["defense"] == 1d
+       && bundledCampaign.Rewards.Single(item =>
+               item.RewardId == "ritualcard_8").Features["cycling"] == 0.8d
        && !bundledCampaign.Rewards.Any(item =>
            item.Kind == CombatCampaignRewardKind.Card
            && item.RewardId.StartsWith("curse", StringComparison.OrdinalIgnoreCase))
@@ -4131,20 +4275,6 @@ Assert(bundledCampaignSmoke.CompletedBattles >= 1
        && Math.Abs(bundledCampaignSmoke.BattleSemanticCoverage - 1d)
        < 0.000001d,
     "bundled campaign v2 executes with complete authoritative semantic coverage");
-var bundledRuns = Enumerable.Range(0, 8)
-    .Select(index => new CombatJourneyRunner().Run(
-        loadedBundledJourney,
-        CombatJourneyWorldPlanner.Build(
-            loadedBundledJourney,
-            (ulong)(1000 + index)),
-        bundledRules.Ruleset,
-        new GreedyCombatSimulationPolicyFactory()))
-    .ToList();
-Assert(bundledRuns.All(run => !run.Invalid && run.Battles.Count > 0)
-       && bundledRuns.Any(run => run.ReachedBoss)
-       && bundledRuns.Any(run => run.JourneyVictory)
-       && bundledRuns.Select(run => run.PlanHash).Distinct().Count() > 1,
-    "bundled world simulation is valid, seed-varied, and can defeat its base-game final boss");
 
 var knowledgePackage = new CombatKnowledgePackage
 {
@@ -8670,6 +8800,39 @@ sealed class PlayCardOnceThenEndPolicy : ICombatSimulationPolicy
             if (selected != null)
             {
                 played = true;
+                return selected;
+            }
+        }
+        return context.LegalActions.FirstOrDefault(item =>
+            item.Kind == CombatSimulationActionKind.EndTurn);
+    }
+}
+
+sealed class PlayCardsInOrderThenEndPolicy : ICombatSimulationPolicy
+{
+    private readonly Queue<string> cardIds;
+
+    public PlayCardsInOrderThenEndPolicy(params string[] cardIds)
+    {
+        this.cardIds = new Queue<string>(cardIds);
+    }
+
+    public string PolicyId => "tests:play-in-order-then-end";
+
+    public CombatSimulationAction? SelectAction(
+        CombatSimulationPolicyContext context)
+    {
+        if (cardIds.Count > 0)
+        {
+            var selected = context.LegalActions.FirstOrDefault(item =>
+                item.Kind == CombatSimulationActionKind.PlayCard
+                && string.Equals(
+                    item.DefinitionId,
+                    cardIds.Peek(),
+                    StringComparison.OrdinalIgnoreCase));
+            if (selected != null)
+            {
+                cardIds.Dequeue();
                 return selected;
             }
         }
