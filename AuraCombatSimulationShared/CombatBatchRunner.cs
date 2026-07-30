@@ -255,6 +255,9 @@ public static class CombatScenarioCloner
             RewardCatalog = source.RewardCatalog
                 .Select(item => item.Clone())
                 .ToList(),
+            EnabledRewardCardPackIds = new List<string>(
+                source.EnabledRewardCardPackIds
+                ?? new List<string>()),
             StrategyProgress = source.StrategyProgress
                 .Select(item => new CombatScenarioStrategyProgress
                 {

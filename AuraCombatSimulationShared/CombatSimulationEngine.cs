@@ -81,7 +81,8 @@ public sealed class CombatSimulationEngine
         CombatScenarioDefinition scenario,
         CombatRuleset ruleset,
         CombatBattleState source,
-        CombatSimulationAction action)
+        CombatSimulationAction action,
+        bool captureSemanticEvents = false)
     {
         if (scenario == null) throw new ArgumentNullException(nameof(scenario));
         if (ruleset == null) throw new ArgumentNullException(nameof(ruleset));
@@ -93,7 +94,8 @@ public sealed class CombatSimulationEngine
             ruleset,
             FirstLegalCombatSimulationPolicy.Instance,
             extensionFactory?.Create(scenario, ruleset),
-            source.Clone());
+            source.Clone(),
+            captureSemanticEvents);
         var legal = Session.BuildLegalActions(scenario, ruleset, session.State);
         var selected = legal.FirstOrDefault(candidate =>
             string.Equals(candidate.CandidateId, action.CandidateId, StringComparison.Ordinal));
@@ -152,18 +154,21 @@ public sealed class CombatSimulationEngine
         private int terminalPlayerHp;
         private int terminalLivingEnemyCount;
         private bool terminalStateCaptured;
+        private readonly bool captureSemanticEvents;
 
         public Session(
             CombatScenarioDefinition scenario,
             CombatRuleset ruleset,
             ICombatSimulationPolicy policy,
             ICombatSimulationRuntimeExtension? extension = null,
-            CombatBattleState? initialState = null)
+            CombatBattleState? initialState = null,
+            bool captureSemanticEvents = false)
         {
             this.scenario = scenario;
             this.ruleset = ruleset;
             this.policy = policy;
             this.extension = extension;
+            this.captureSemanticEvents = captureSemanticEvents;
             limits = (scenario.Limits ?? new CombatSimulationLimits()).Normalize();
             State = initialState ?? new CombatBattleState();
         }
@@ -273,7 +278,9 @@ public sealed class CombatSimulationEngine
                 var instance = new CombatCardInstanceState
                 {
                     InstanceId = State.NextCardInstanceId++,
-                    CardId = definition.CardId
+                    CardId = definition.CardId,
+                    CreationSource = "starting-deck",
+                    CreationSourceId = scenario.Player.RoleId
                 };
                 State.Cards.Add(instance);
                 State.DrawPile.Add(instance.InstanceId);
@@ -290,7 +297,9 @@ public sealed class CombatSimulationEngine
                 var instance = new CombatCardInstanceState
                 {
                     InstanceId = State.NextCardInstanceId++,
-                    CardId = definition.CardId
+                    CardId = definition.CardId,
+                    CreationSource = "role-skill",
+                    CreationSourceId = scenario.Player.RoleId
                 };
                 State.Cards.Add(instance);
                 State.SkillCards.Add(instance.InstanceId);
@@ -308,7 +317,9 @@ public sealed class CombatSimulationEngine
                 var instance = new CombatCardInstanceState
                 {
                     InstanceId = State.NextCardInstanceId++,
-                    CardId = definition.CardId
+                    CardId = definition.CardId,
+                    CreationSource = "initial-discard",
+                    CreationSourceId = scenario.Player.RoleId
                 };
                 State.Cards.Add(instance);
                 State.DiscardPile.Add(instance.InstanceId);
@@ -2315,13 +2326,18 @@ public sealed class CombatSimulationEngine
 
                 case CombatSimulationEffectKind.CreateRandomCard:
                 {
+                    var allowCrossRoleSkill =
+                        AllowsCrossRoleSkill(command.SourceRewardId);
                     var candidates = ruleset.SnapshotCards()
                         .Where(card => card.Rarity >= command.MinimumRarity
                                        && card.Rarity <= command.MaximumRarity
                                        && (string.IsNullOrWhiteSpace(command.DefinitionId)
-                                           || card.Tags.Contains(
-                                               command.DefinitionId,
-                                               StringComparer.OrdinalIgnoreCase)))
+                                            || card.Tags.Contains(
+                                                command.DefinitionId,
+                                                StringComparer.OrdinalIgnoreCase))
+                                       && CanEnterDynamicCardPool(
+                                           card.CardId,
+                                           allowCrossRoleSkill))
                         .OrderBy(card => card.CardId, StringComparer.Ordinal)
                         .ToList();
                     if (candidates.Count == 0)
@@ -2362,7 +2378,15 @@ public sealed class CombatSimulationEngine
                         var card = new CombatCardInstanceState
                         {
                             InstanceId = State.NextCardInstanceId++,
-                            CardId = randomCardDefinition.CardId
+                            CardId = randomCardDefinition.CardId,
+                            CreationSource = "effect-random-card",
+                            CreationSourceId = command.SourceRewardId,
+                            CreationParentInstanceId =
+                                command.CardInstanceId,
+                            CreationRandomStreamId =
+                                selectionDraw.StreamId,
+                            CreationCrossRoleSkillAuthorized =
+                                allowCrossRoleSkill
                         };
                         State.Cards.Add(card);
                         lastRandomCreatedEvent = PlaceCreatedCard(card, command);
@@ -2686,7 +2710,13 @@ public sealed class CombatSimulationEngine
                         var card = new CombatCardInstanceState
                         {
                             InstanceId = State.NextCardInstanceId++,
-                            CardId = cardDefinition.CardId
+                            CardId = cardDefinition.CardId,
+                            CreationSource = "effect-create-card",
+                            CreationSourceId = command.SourceRewardId,
+                            CreationParentInstanceId =
+                                command.CardInstanceId,
+                            CreationRandomStreamId =
+                                command.RandomStreamId
                         };
                         State.Cards.Add(card);
                         lastCreatedEvent = PlaceCreatedCard(card, command);
@@ -3800,6 +3830,40 @@ public sealed class CombatSimulationEngine
             return valid;
         }
 
+        private bool CanEnterDynamicCardPool(
+            string cardId,
+            bool allowCrossRoleSkill)
+        {
+            var entry = scenario.RewardCatalog.FirstOrDefault(item =>
+                item.Kind.Equals(
+                    "Card",
+                    StringComparison.OrdinalIgnoreCase)
+                && string.Equals(
+                    item.RewardId,
+                    cardId,
+                    StringComparison.OrdinalIgnoreCase));
+            return CombatCampaignCardAcquisitionPolicy
+                .CanEnterDynamicGenerationPool(
+                    entry,
+                    scenario.Player.SkillCardIds,
+                    scenario.EnabledRewardCardPackIds,
+                    allowCrossRoleSkill);
+        }
+
+        private bool AllowsCrossRoleSkill(string sourceRewardId)
+        {
+            var source = scenario.RewardRules.FirstOrDefault(item =>
+                string.Equals(
+                    item.RewardId,
+                    sourceRewardId,
+                    StringComparison.OrdinalIgnoreCase));
+            return source?.Variables.TryGetValue(
+                       "AllowCrossRoleSkill",
+                       out var value) == true
+                   && bool.TryParse(value, out var parsed)
+                   && parsed;
+        }
+
         private void FinishSummary(CombatTurnSummary summary)
         {
             var player = State.Player;
@@ -3896,6 +3960,10 @@ public sealed class CombatSimulationEngine
 
         private bool ShouldTrace(CombatSimulationEventKind kind)
         {
+            if (captureSemanticEvents)
+            {
+                return true;
+            }
             if (scenario.TraceLevel == CombatSimulationTraceLevel.Full)
             {
                 return true;

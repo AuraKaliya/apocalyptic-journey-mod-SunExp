@@ -391,16 +391,26 @@ void TestConfigModelSerializationCompatibility()
            && matchExperience.AutoBattle.FoundationTraining
                   .ModelEarlyStoppingPatience == 8
            && matchExperience.AutoBattle.FoundationTraining.ModelMinimumEpochs == 8
-           && matchExperience.AutoBattle.FoundationTraining.ModelStateDimensions == 128
+           && matchExperience.AutoBattle.FoundationTraining.ModelStateDimensions == 256
+           && matchExperience.AutoBattle.FoundationTraining.ModelActionDimensions == 192
            && matchExperience.AutoBattle.FoundationTraining.ModelHiddenDimensions == 64
+           && matchExperience.AutoBattle.FoundationTraining.ModelReplayEpisodeLimit == 8000
            && matchExperience.AutoBattle.FoundationTraining.ModelFeatureEncodingMode
               == "partitioned-v3"
            && matchExperience.AutoBattle.FoundationTraining.EnableArenaRecovery
            && matchExperience.AutoBattle.FoundationTraining.EnableTuningArena
            && matchExperience.AutoBattle.FoundationTraining
+               .EnableProgressiveTuning
+           && matchExperience.AutoBattle.FoundationTraining
                   .TuningNormalCampaigns == 32
            && matchExperience.AutoBattle.FoundationTraining
                   .TuningAdvancedCampaigns == 64
+           && matchExperience.AutoBattle.FoundationTraining
+                  .TuningScreeningNormalCampaigns == 8
+           && matchExperience.AutoBattle.FoundationTraining
+                  .TuningScreeningAdvancedCampaigns == 16
+           && matchExperience.AutoBattle.FoundationTraining
+                  .TuningFinalistCount == 2
            && Math.Abs(matchExperience.AutoBattle.FoundationTraining
                   .NormalAcceptanceRate - 0.80d) < 0.0001d
            && Math.Abs(matchExperience.AutoBattle.FoundationTraining
@@ -529,6 +539,8 @@ void TestCardRefreshSettingsAndPoolPolicy()
            && settings.AutoBattle.FoundationTraining.ArenaCampaignsPerDifficulty == 32
            && settings.AutoBattle.FoundationTraining.NormalValidationCampaigns == 200
            && settings.AutoBattle.FoundationTraining.AdvancedValidationCampaigns == 500
+           && settings.AutoBattle.FoundationTraining.ModelGradientShardCount == 12
+           && settings.AutoBattle.FoundationTraining.ValidationEarlyStopBatchSize == 32
            && settings.AutoBattle.FoundationTraining.ExecutionMode == "external"
            && settings.AutoBattle.FoundationTraining.RandomizeRunSeed
            && settings.AutoBattle.FoundationTraining.EnableCurriculum
@@ -537,6 +549,7 @@ void TestCardRefreshSettingsAndPoolPolicy()
            && settings.AutoBattle.FoundationTraining.EnableSuccessCaseArchive
            && settings.AutoBattle.FoundationTraining.EnableArenaRecovery
            && settings.AutoBattle.FoundationTraining.EnableTuningArena
+           && settings.AutoBattle.FoundationTraining.EnableProgressiveTuning
            && Math.Abs(settings.AutoBattle.FoundationTraining
                   .NormalAcceptanceRate - 0.80d) < 0.0001d
            && Math.Abs(settings.AutoBattle.FoundationTraining

@@ -1215,11 +1215,11 @@ CompleteSimulation:
 
     private sealed class SearchAction
     {
-        public CombatActionObservation Action { get; set; } = new();
+        public CombatActionObservation Action { get; set; } = null!;
 
-        public CombatCandidateEvaluation Evaluation { get; set; } = new();
+        public CombatCandidateEvaluation Evaluation { get; set; } = null!;
 
-        public CombatActionModel Model { get; set; } = new();
+        public CombatActionModel Model { get; set; } = null!;
 
         public double Prior { get; set; }
 
@@ -1228,7 +1228,7 @@ CompleteSimulation:
 
     private sealed class SearchNode
     {
-        public CombatSimulationState State { get; set; } = new();
+        public CombatSimulationState State { get; set; } = null!;
 
         public Dictionary<int, SearchEdge> Edges { get; } = new();
 
@@ -1272,7 +1272,7 @@ CompleteSimulation:
 
     private sealed class SearchOutcome
     {
-        public CombatActionOutcome Outcome { get; set; } = new();
+        public CombatActionOutcome Outcome { get; set; } = null!;
 
         public int Visits { get; set; }
 
@@ -1303,7 +1303,7 @@ CompleteSimulation:
     {
         public ulong Hash { get; set; }
 
-        public SearchNode Node { get; set; } = new();
+        public SearchNode Node { get; set; } = null!;
 
         public int Visits { get; set; }
     }

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Generic;
 using AuraCombatSimulation.Shared;
 
 namespace AuraCombatAi.Shared;
@@ -6,6 +7,11 @@ namespace AuraCombatAi.Shared;
 public static class CombatFoundationWorkerProtocol
 {
     public const int SchemaVersion = 8;
+    public const int TrainingMetricsSchemaVersion = 1;
+    public const string TrainingMetricsFileName =
+        "foundation-training-metrics-v1.jsonl";
+    public const string TrainingAnalysisFileName =
+        "foundation-training-analysis-v1.json";
     public const string CheckpointFileName =
         "foundation-training-checkpoint-v8.json";
     public const string CheckpointEpisodesFileName =
@@ -127,6 +133,10 @@ public sealed class CombatFoundationWorkerJob
 
     public string SuccessArchiveDirectory { get; set; } = "";
 
+    public string TrainingMetricsPath { get; set; } = "";
+
+    public string TrainingAnalysisPath { get; set; } = "";
+
     public bool ResumeFromCheckpoint { get; set; } = true;
 
     public CombatCampaignFoundationTrainingRequest Request { get; set; } = new();
@@ -173,6 +183,14 @@ public sealed class CombatFoundationWorkerResult
 
     public string ModelPackagePath { get; set; } = "";
 
+    public string TrainingMetricsPath { get; set; } = "";
+
+    public string TrainingAnalysisPath { get; set; } = "";
+
+    public int TrainingMetricWriteFailures { get; set; }
+
+    public string TrainingMetricWarning { get; set; } = "";
+
     public bool Resumable { get; set; }
 
     public int CheckpointWriteFailures { get; set; }
@@ -180,6 +198,74 @@ public sealed class CombatFoundationWorkerResult
     public string CheckpointWarning { get; set; } = "";
 
     public CombatCampaignFoundationTrainingResult? Training { get; set; }
+}
+
+public sealed class CombatFoundationTrainingMetricRecord
+{
+    public int SchemaVersion { get; set; } =
+        CombatFoundationWorkerProtocol.TrainingMetricsSchemaVersion;
+
+    public string JobId { get; set; } = "";
+
+    public DateTime RecordedUtc { get; set; } = DateTime.UtcNow;
+
+    public string RulesetHash { get; set; } = "";
+
+    public string NativeProgramPackageHash { get; set; } = "";
+
+    public CombatPolicyValueEpochMetrics Metrics { get; set; } = new();
+}
+
+public sealed class CombatFoundationTrainingAnalysis
+{
+    public int SchemaVersion { get; set; } =
+        CombatFoundationWorkerProtocol.TrainingMetricsSchemaVersion;
+
+    public string JobId { get; set; } = "";
+
+    public DateTime GeneratedUtc { get; set; } = DateTime.UtcNow;
+
+    public string SourceMetricsPath { get; set; } = "";
+
+    public double EmaAlpha { get; set; } = 0.30d;
+
+    public int EpochCount { get; set; }
+
+    public int IterationCount { get; set; }
+
+    public double BestValidationLoss { get; set; }
+
+    public int BestIteration { get; set; }
+
+    public int BestEpoch { get; set; }
+
+    public List<CombatFoundationTrainingAnalysisPoint> Points { get; set; } =
+        new();
+}
+
+public sealed class CombatFoundationTrainingAnalysisPoint
+{
+    public int Iteration { get; set; }
+
+    public int Epoch { get; set; }
+
+    public double TrainingLoss { get; set; }
+
+    public double ValidationLoss { get; set; }
+
+    public double TrainingLossEma { get; set; }
+
+    public double ValidationLossEma { get; set; }
+
+    public double ValidationCiLower { get; set; }
+
+    public double ValidationCiUpper { get; set; }
+
+    public double GeneralizationGap { get; set; }
+
+    public bool Improved { get; set; }
+
+    public bool EarlyStopped { get; set; }
 }
 
 public sealed class CombatFoundationEpisodeSnapshot

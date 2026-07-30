@@ -29,6 +29,7 @@ internal sealed class MainWindow : Window
     private static readonly TimeSpan IdleRefreshInterval =
         TimeSpan.FromSeconds(5);
     private const int ProgressTabIndex = 1;
+    private const int DiagnosticsTabIndex = 2;
     private const uint FlashStop = 0;
     private const uint FlashAll = 3;
     private const uint FlashTimerNoForeground = 12;
@@ -52,6 +53,8 @@ internal sealed class MainWindow : Window
         new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Button> profileButtons =
         new(StringComparer.Ordinal);
+    private static readonly int[] GradientShardPresets =
+        { 1, 2, 4, 8, 12, 16, 24, 32 };
     private string selectedProfile = "balanced";
     private TabControl tabs = null!;
     private ScrollViewer parametersScroll = null!;
@@ -63,10 +66,12 @@ internal sealed class MainWindow : Window
     private TextBlock progressSecondary = null!;
     private ProgressBar progressBar = null!;
     private TextBox logBox = null!;
+    private ComboBox gradientShardInput = null!;
     private Button startButton = null!;
     private Button cancelButton = null!;
     private Button continueButton = null!;
     private Button openButton = null!;
+    private TrainingDiagnosticsPanel diagnostics = null!;
     private string cachedJobPath = "";
     private long cachedJobLength = -1;
     private DateTime cachedJobLastWriteUtc = DateTime.MinValue;
@@ -151,6 +156,12 @@ internal sealed class MainWindow : Window
             Header = "运行监控",
             Content = TrainerTheme.ContentSurface(BuildProgressTab())
         });
+        diagnostics = new TrainingDiagnosticsPanel();
+        tabs.Items.Add(new TabItem
+        {
+            Header = "训练诊断",
+            Content = TrainerTheme.ContentSurface(diagnostics.View)
+        });
         root.Children.Add(tabs);
         return root;
     }
@@ -229,6 +240,7 @@ internal sealed class MainWindow : Window
             200);
         AddNumber(panel, "NormalValidationCampaigns", "普通隔离验证", 10, 1000);
         AddNumber(panel, "AdvancedValidationCampaigns", "高级隔离验证", 10, 1000);
+        AddNumber(panel, "ValidationEarlyStopBatchSize", "验证检查批次", 1, 128);
         AddNumber(
             panel,
             "CapabilityProbeCampaignsPerDifficulty",
@@ -257,11 +269,19 @@ internal sealed class MainWindow : Window
         AddNumber(panel, "ModelEarlyStoppingPatience", "早停耐心", 1, 30);
         AddDouble(panel, "ModelEarlyStoppingMinimumDelta", "早停最小增益");
         AddNumber(panel, "ModelBatchSize", "Minibatch", 8, 512);
+        AddGradientShardSelect(panel);
         AddNumber(panel, "MinimumEpisodes", "最少训练 Episodes", 2, 1000);
         AddNumber(panel, "ModelReplayEpisodeLimit", "Replay 上限", 64, 20000);
         AddNumber(panel, "ModelRetainedCandidates", "Top-K 候选", 1, 5);
         AddToggle(panel, "EnableFrameStratification", "启用帧分层再平衡");
         AddDouble(panel, "ModelMaximumFrameStratumWeight", "帧分层最大权重");
+        AddToggle(panel, "EnableEndTurnSpecialization", "启用结束回合专项训练");
+        AddDouble(panel, "ModelEndTurnFrameWeight", "结束回合帧权重");
+        AddDouble(panel, "ModelPolicyTargetTemperature", "策略目标温度");
+        AddDouble(
+            panel,
+            "ModelMaximumPolicyTargetProbability",
+            "策略目标概率上限");
         AddDouble(panel, "ModelLearningRate", "学习率");
         AddNumber(panel, "ModelMaximumFramesPerEpisode", "Frames per episode", 8, 512);
         AddDouble(panel, "ModelL2", "L2");
@@ -272,6 +292,7 @@ internal sealed class MainWindow : Window
         panel.Children.Add(Section("课程、探索与验收"));
         AddToggle(panel, "EnableCurriculum", "启用课程难度");
         AddToggle(panel, "EnableStratifiedReplay", "启用分层回放");
+        AddToggle(panel, "EnablePrioritizedReplay", "启用优先级回放");
         AddToggle(panel, "EnableHardSeedCurriculum", "启用困难种子课程");
         AddToggle(
             panel,
@@ -280,11 +301,25 @@ internal sealed class MainWindow : Window
         AddToggle(panel, "EnableSuccessCaseArchive", "启用成功案例库");
         AddToggle(panel, "EnableArenaRecovery", "启用竞技场恢复");
         AddToggle(panel, "EnableTuningArena", "启用 Top-K 调优竞技场");
+        AddToggle(panel, "EnableProgressiveTuning", "启用渐进式调优筛选");
         AddToggle(panel, "EnableEarlyValidationStop", "启用验证提前停止");
         AddNumber(panel, "ArenaInvalidRetryCount", "无效竞技场重试", 0, 3);
         AddDouble(panel, "ArenaInvalidRateLimit", "无效竞技场率上限");
         AddNumber(panel, "TuningNormalCampaigns", "普通调优冒险", 0, 64);
         AddNumber(panel, "TuningAdvancedCampaigns", "高级调优冒险", 0, 64);
+        AddNumber(
+            panel,
+            "TuningScreeningNormalCampaigns",
+            "普通调优初筛冒险",
+            0,
+            64);
+        AddNumber(
+            panel,
+            "TuningScreeningAdvancedCampaigns",
+            "高级调优初筛冒险",
+            0,
+            64);
+        AddNumber(panel, "TuningFinalistCount", "调优决选模型数", 1, 8);
         AddNumber(
             panel,
             "MaximumConsecutiveRejectedIterations",
@@ -541,6 +576,11 @@ internal sealed class MainWindow : Window
             "高级验收线",
             prior.Request.AdvancedAcceptanceRate,
             current.AdvancedAcceptanceRate);
+        AddDifference(
+            differences,
+            "验证检查批次",
+            prior.Request.ValidationEarlyStopBatchSize,
+            current.ValidationEarlyStopBatchSize);
         var priorWeights = SerializeOrdered(prior.Request.HardEncounterWeights);
         var currentWeights = SerializeOrdered(current.HardEncounterWeights);
         AddDifference(
@@ -931,6 +971,7 @@ internal sealed class MainWindow : Window
             + $"{telemetry.MaximumActiveBattleDepth}/{telemetry.MaximumCompletedBattleDepth}/37";
         progressSecondary.Text =
             $"Epoch {telemetry.ModelEpoch}/{telemetry.ModelTotalEpochs} · "
+            + $"训练损失 {FormatLoss(telemetry.ModelTrainingLoss)} · "
             + $"验证损失 {FormatLoss(telemetry.ModelValidationLoss)} · "
             + $"最佳 {FormatLoss(telemetry.ModelBestValidationLoss)} · "
             + $"并行 {telemetry.ActiveCampaigns}/{telemetry.EffectiveParallelism} · "
@@ -947,6 +988,7 @@ internal sealed class MainWindow : Window
             + $"GC：{telemetry.Gen0Collections}/"
             + $"{telemetry.Gen1Collections}/{telemetry.Gen2Collections}\r\n"
             + $"更新时间：{DateTime.Now:HH:mm:ss}";
+        diagnostics.PresentTelemetry(telemetry);
     }
 
     private void PresentResult(ControllerWorkerResultSummary result)
@@ -971,9 +1013,11 @@ internal sealed class MainWindow : Window
         {
             progressSecondary.Text =
                 $"普通 {result.Training.Validation.NormalVictories}/"
-                + $"{result.Training.Validation.NormalCampaigns} · "
+                + $"{result.Training.Validation.NormalCampaigns}"
+                + $"（LB {result.Training.Validation.NormalWilsonLowerBound:P1}） · "
                 + $"高级 {result.Training.Validation.AdvancedVictories}/"
-                + $"{result.Training.Validation.AdvancedCampaigns} · "
+                + $"{result.Training.Validation.AdvancedCampaigns}"
+                + $"（LB {result.Training.Validation.AdvancedWilsonLowerBound:P1}） · "
                 + $"无效 {result.Training.Validation.InvalidCampaigns}";
         }
         logBox.Text =
@@ -986,11 +1030,18 @@ internal sealed class MainWindow : Window
             + (string.IsNullOrWhiteSpace(result.CheckpointWarning)
                 ? ""
                 : $"检查点提示：{result.CheckpointWarning}\r\n")
+            + $"训练指标：{result.TrainingMetricsPath}\r\n"
+            + $"训练分析：{result.TrainingAnalysisPath}\r\n"
+            + $"指标写入失败：{result.TrainingMetricWriteFailures}\r\n"
+            + (string.IsNullOrWhiteSpace(result.TrainingMetricWarning)
+                ? ""
+                : $"指标提示：{result.TrainingMetricWarning}\r\n")
             + $"待验底模包：{result.ModelPackagePath}\r\n"
             + $"结果目录：{session?.ResultDirectory}";
         recentResultStatus.Text = runStatus.Text;
         recentResultStatus.Foreground = runStatus.Foreground;
         recentResultDetails.Text = ResultSummary(result);
+        diagnostics.PresentResult(result);
     }
 
     private void TryShowCompletionNotification(bool running)
@@ -1002,7 +1053,7 @@ internal sealed class MainWindow : Window
             return;
         }
         completionNotificationArmed = false;
-        tabs.SelectedIndex = ProgressTabIndex;
+        tabs.SelectedIndex = DiagnosticsTabIndex;
         FlashTaskbar(start: true);
         PlayCompletionSound(presentedResult);
         var accepted = string.Equals(
@@ -1069,9 +1120,11 @@ internal sealed class MainWindow : Window
         var validationText = validation == null
             ? "未生成验证摘要"
             : $"普通 {validation.NormalVictories}/{validation.NormalCampaigns}"
-              + $"（计划 {validation.NormalPlannedCampaigns}） · "
+              + $"（计划 {validation.NormalPlannedCampaigns}，"
+              + $"LB {validation.NormalWilsonLowerBound:P1}） · "
               + $"高级 {validation.AdvancedVictories}/{validation.AdvancedCampaigns}"
-              + $"（计划 {validation.AdvancedPlannedCampaigns}） · "
+              + $"（计划 {validation.AdvancedPlannedCampaigns}，"
+              + $"LB {validation.AdvancedWilsonLowerBound:P1}） · "
               + $"无效 {validation.InvalidCampaigns}";
         var recoveryText = result.Resumable
             ? "检查点已保存，可恢复训练。"
@@ -1263,6 +1316,7 @@ internal sealed class MainWindow : Window
             Int("ArenaConfirmationCampaignsPerDifficulty");
         p.NormalValidationCampaigns = Int("NormalValidationCampaigns");
         p.AdvancedValidationCampaigns = Int("AdvancedValidationCampaigns");
+        p.ValidationEarlyStopBatchSize = Int("ValidationEarlyStopBatchSize");
         p.CapabilityProbeCampaignsPerDifficulty =
             Int("CapabilityProbeCampaignsPerDifficulty");
         p.RequireCapabilityProbeBaselineGain =
@@ -1278,10 +1332,20 @@ internal sealed class MainWindow : Window
         p.ModelEarlyStoppingMinimumDelta =
             Double("ModelEarlyStoppingMinimumDelta");
         p.ModelBatchSize = Int("ModelBatchSize");
+        p.ModelGradientShardCount = Convert.ToInt32(
+            gradientShardInput.SelectedItem ?? 12,
+            CultureInfo.InvariantCulture);
         p.MinimumEpisodes = Int("MinimumEpisodes");
         p.EnableFrameStratification = Toggle("EnableFrameStratification");
+        p.EnableEndTurnSpecialization =
+            Toggle("EnableEndTurnSpecialization");
         p.ModelMaximumFrameStratumWeight =
             Double("ModelMaximumFrameStratumWeight");
+        p.ModelEndTurnFrameWeight = Double("ModelEndTurnFrameWeight");
+        p.ModelPolicyTargetTemperature =
+            Double("ModelPolicyTargetTemperature");
+        p.ModelMaximumPolicyTargetProbability =
+            Double("ModelMaximumPolicyTargetProbability");
         p.ModelMaximumFramesPerEpisode =
             Int("ModelMaximumFramesPerEpisode");
         p.ModelReplayEpisodeLimit = Int("ModelReplayEpisodeLimit");
@@ -1293,17 +1357,24 @@ internal sealed class MainWindow : Window
         p.ModelHiddenDimensions = Int("ModelHiddenDimensions");
         p.EnableCurriculum = Toggle("EnableCurriculum");
         p.EnableStratifiedReplay = Toggle("EnableStratifiedReplay");
+        p.EnablePrioritizedReplay = Toggle("EnablePrioritizedReplay");
         p.EnableHardSeedCurriculum = Toggle("EnableHardSeedCurriculum");
         p.EnableCounterfactualHardEncounters =
             Toggle("EnableCounterfactualHardEncounters");
         p.EnableSuccessCaseArchive = Toggle("EnableSuccessCaseArchive");
         p.EnableArenaRecovery = Toggle("EnableArenaRecovery");
         p.EnableTuningArena = Toggle("EnableTuningArena");
+        p.EnableProgressiveTuning = Toggle("EnableProgressiveTuning");
         p.EnableEarlyValidationStop = Toggle("EnableEarlyValidationStop");
         p.ArenaInvalidRetryCount = Int("ArenaInvalidRetryCount");
         p.ArenaInvalidRateLimit = Double("ArenaInvalidRateLimit");
         p.TuningNormalCampaigns = Int("TuningNormalCampaigns");
         p.TuningAdvancedCampaigns = Int("TuningAdvancedCampaigns");
+        p.TuningScreeningNormalCampaigns =
+            Int("TuningScreeningNormalCampaigns");
+        p.TuningScreeningAdvancedCampaigns =
+            Int("TuningScreeningAdvancedCampaigns");
+        p.TuningFinalistCount = Int("TuningFinalistCount");
         p.MaximumConsecutiveRejectedIterations =
             Int("MaximumConsecutiveRejectedIterations");
         p.NormalAcceptanceRate = Double("NormalAcceptanceRate");
@@ -1349,6 +1420,7 @@ internal sealed class MainWindow : Window
             p.ArenaConfirmationCampaignsPerDifficulty);
         Set("NormalValidationCampaigns", p.NormalValidationCampaigns);
         Set("AdvancedValidationCampaigns", p.AdvancedValidationCampaigns);
+        Set("ValidationEarlyStopBatchSize", p.ValidationEarlyStopBatchSize);
         Set(
             "CapabilityProbeCampaignsPerDifficulty",
             p.CapabilityProbeCampaignsPerDifficulty);
@@ -1367,10 +1439,18 @@ internal sealed class MainWindow : Window
         Set("ModelEarlyStoppingPatience", p.ModelEarlyStoppingPatience);
         Set("ModelEarlyStoppingMinimumDelta", p.ModelEarlyStoppingMinimumDelta);
         Set("ModelBatchSize", p.ModelBatchSize);
+        SetGradientShardCount(p.ModelGradientShardCount);
         Set("MinimumEpisodes", p.MinimumEpisodes);
         Set(
             "ModelMaximumFrameStratumWeight",
             p.ModelMaximumFrameStratumWeight);
+        Set("ModelEndTurnFrameWeight", p.ModelEndTurnFrameWeight);
+        Set(
+            "ModelPolicyTargetTemperature",
+            p.ModelPolicyTargetTemperature);
+        Set(
+            "ModelMaximumPolicyTargetProbability",
+            p.ModelMaximumPolicyTargetProbability);
         Set(
             "ModelMaximumFramesPerEpisode",
             p.ModelMaximumFramesPerEpisode);
@@ -1398,6 +1478,13 @@ internal sealed class MainWindow : Window
         Set("TuningNormalCampaigns", p.TuningNormalCampaigns);
         Set("TuningAdvancedCampaigns", p.TuningAdvancedCampaigns);
         Set(
+            "TuningScreeningNormalCampaigns",
+            p.TuningScreeningNormalCampaigns);
+        Set(
+            "TuningScreeningAdvancedCampaigns",
+            p.TuningScreeningAdvancedCampaigns);
+        Set("TuningFinalistCount", p.TuningFinalistCount);
+        Set(
             "MaximumConsecutiveRejectedIterations",
             p.MaximumConsecutiveRejectedIterations);
         Set("RunSeed", p.RunSeed);
@@ -1407,6 +1494,7 @@ internal sealed class MainWindow : Window
         Set("ValidationSeedStart", p.ValidationSeedStart);
         SetToggle("EnableCurriculum", p.EnableCurriculum);
         SetToggle("EnableStratifiedReplay", p.EnableStratifiedReplay);
+        SetToggle("EnablePrioritizedReplay", p.EnablePrioritizedReplay);
         SetToggle("EnableHardSeedCurriculum", p.EnableHardSeedCurriculum);
         SetToggle(
             "EnableCounterfactualHardEncounters",
@@ -1414,8 +1502,14 @@ internal sealed class MainWindow : Window
         SetToggle("EnableSuccessCaseArchive", p.EnableSuccessCaseArchive);
         SetToggle("EnableArenaRecovery", p.EnableArenaRecovery);
         SetToggle("EnableTuningArena", p.EnableTuningArena);
+        SetToggle(
+            "EnableProgressiveTuning",
+            p.EnableProgressiveTuning);
         SetToggle("EnableEarlyValidationStop", p.EnableEarlyValidationStop);
         SetToggle("EnableFrameStratification", p.EnableFrameStratification);
+        SetToggle(
+            "EnableEndTurnSpecialization",
+            p.EnableEndTurnSpecialization);
     }
 
     private void PullGameSubjectFromUi()
@@ -1665,6 +1759,7 @@ internal sealed class MainWindow : Window
         presentedResultLength = -1;
         presentedResultLastWriteUtc = DateTime.MinValue;
         presentedResult = null;
+        diagnostics.Reset();
     }
 
     private static bool TryGetFileIdentity(
@@ -1780,6 +1875,29 @@ internal sealed class MainWindow : Window
                                                   CultureInfo.InvariantCulture)
                                               ?? "";
                     break;
+                case nameof(ControllerWorkerResultSummary.TrainingMetricsPath):
+                    summary.TrainingMetricsPath = Convert.ToString(
+                                                      reader.Value,
+                                                      CultureInfo.InvariantCulture)
+                                                  ?? "";
+                    break;
+                case nameof(ControllerWorkerResultSummary.TrainingAnalysisPath):
+                    summary.TrainingAnalysisPath = Convert.ToString(
+                                                       reader.Value,
+                                                       CultureInfo.InvariantCulture)
+                                                   ?? "";
+                    break;
+                case nameof(ControllerWorkerResultSummary.TrainingMetricWriteFailures):
+                    summary.TrainingMetricWriteFailures = Convert.ToInt32(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerWorkerResultSummary.TrainingMetricWarning):
+                    summary.TrainingMetricWarning = Convert.ToString(
+                                                        reader.Value,
+                                                        CultureInfo.InvariantCulture)
+                                                    ?? "";
+                    break;
                 case nameof(ControllerWorkerResultSummary.Resumable):
                     summary.Resumable = Convert.ToBoolean(
                         reader.Value,
@@ -1843,18 +1961,170 @@ internal sealed class MainWindow : Window
             {
                 return summary;
             }
-            if (string.Equals(
-                    propertyName,
-                    nameof(ControllerTrainingResultSummary.Validation),
-                    StringComparison.Ordinal))
+            switch (propertyName)
             {
-                summary.Validation =
-                    serializer.Deserialize<CombatCampaignFoundationValidation>(
-                        reader)
-                    ?? new CombatCampaignFoundationValidation();
-                return summary;
+                case nameof(ControllerTrainingResultSummary.Success):
+                    summary.Success = Convert.ToBoolean(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerTrainingResultSummary.AcceptancePassed):
+                    summary.AcceptancePassed = Convert.ToBoolean(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerTrainingResultSummary.Message):
+                    summary.Message = Convert.ToString(
+                                          reader.Value,
+                                          CultureInfo.InvariantCulture)
+                                      ?? "";
+                    break;
+                case nameof(ControllerTrainingResultSummary.GeneratedReplayEpisodes):
+                    summary.GeneratedReplayEpisodes = Convert.ToInt32(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerTrainingResultSummary.LoadedExpertReplayEpisodes):
+                    summary.LoadedExpertReplayEpisodes = Convert.ToInt32(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerTrainingResultSummary.ExpertReplaySelection):
+                    summary.ExpertReplaySelection =
+                        serializer.Deserialize<CombatFoundationExpertReplaySelection>(
+                            reader)
+                        ?? new CombatFoundationExpertReplaySelection();
+                    break;
+                case nameof(ControllerTrainingResultSummary.RewardResidualTraining):
+                    summary.RewardResidualTraining =
+                        serializer
+                            .Deserialize<CombatFoundationRewardResidualTrainingResult>(
+                                reader)
+                        ?? new CombatFoundationRewardResidualTrainingResult();
+                    break;
+                case nameof(ControllerTrainingResultSummary.Iterations):
+                    summary.Iterations =
+                        serializer
+                            .Deserialize<List<CombatCampaignFoundationIteration>>(
+                                reader)
+                        ?? new List<CombatCampaignFoundationIteration>();
+                    break;
+                case nameof(ControllerTrainingResultSummary.Validation):
+                    summary.Validation =
+                        serializer.Deserialize<CombatCampaignFoundationValidation>(
+                            reader)
+                        ?? new CombatCampaignFoundationValidation();
+                    break;
+                case nameof(ControllerTrainingResultSummary.Preflight):
+                    summary.Preflight =
+                        serializer
+                            .Deserialize<CombatCampaignFoundationIntegrityReport>(
+                                reader)
+                        ?? new CombatCampaignFoundationIntegrityReport();
+                    break;
+                case nameof(ControllerTrainingResultSummary.CapabilityProbe):
+                    summary.CapabilityProbe =
+                        serializer.Deserialize<CombatFoundationCapabilityProbe>(
+                            reader)
+                        ?? new CombatFoundationCapabilityProbe();
+                    break;
+                case nameof(ControllerTrainingResultSummary.InvalidTrainingCampaigns):
+                    summary.InvalidTrainingCampaigns = Convert.ToInt32(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerTrainingResultSummary.TerminalConsistencyViolations):
+                    summary.TerminalConsistencyViolations = Convert.ToInt32(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerTrainingResultSummary.FeatureLeakageViolations):
+                    summary.FeatureLeakageViolations = Convert.ToInt32(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerTrainingResultSummary.TrainingFailureCounts):
+                    summary.TrainingFailureCounts =
+                        serializer.Deserialize<Dictionary<string, int>>(reader)
+                        ?? new Dictionary<string, int>(
+                            StringComparer.OrdinalIgnoreCase);
+                    break;
+                case nameof(ControllerTrainingResultSummary.TrainingFailures):
+                    summary.TrainingFailures =
+                        serializer
+                            .Deserialize<
+                                List<CombatCampaignFoundationIntegrityFailure>>(
+                                reader)
+                        ?? new List<CombatCampaignFoundationIntegrityFailure>();
+                    break;
+                case nameof(ControllerTrainingResultSummary.AuthoritativeSelectedActionsAudited):
+                    summary.AuthoritativeSelectedActionsAudited =
+                        Convert.ToInt64(
+                            reader.Value,
+                            CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerTrainingResultSummary.AuthoritativeSelectedSemanticMismatches):
+                    summary.AuthoritativeSelectedSemanticMismatches =
+                        Convert.ToInt64(
+                            reader.Value,
+                            CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerTrainingResultSummary.AuthoritativeTeacherOverrides):
+                    summary.AuthoritativeTeacherOverrides = Convert.ToInt64(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerTrainingResultSummary.RootMaximumVisitShareMean):
+                    summary.RootMaximumVisitShareMean = Convert.ToDouble(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerTrainingResultSummary.ModelCompletedEpochs):
+                    summary.ModelCompletedEpochs = Convert.ToInt32(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerTrainingResultSummary.ModelConfiguredEpochs):
+                    summary.ModelConfiguredEpochs = Convert.ToInt32(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerTrainingResultSummary.ModelBestEpoch):
+                    summary.ModelBestEpoch = Convert.ToInt32(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerTrainingResultSummary.ModelEarlyStopped):
+                    summary.ModelEarlyStopped = Convert.ToBoolean(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerTrainingResultSummary.ModelTrainingLoss):
+                    summary.ModelTrainingLoss = Convert.ToDouble(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerTrainingResultSummary.ModelValidationLoss):
+                    summary.ModelValidationLoss = Convert.ToDouble(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerTrainingResultSummary.ModelBestValidationLoss):
+                    summary.ModelBestValidationLoss = Convert.ToDouble(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerTrainingResultSummary.ModelEpochHistory):
+                    summary.ModelEpochHistory =
+                        serializer
+                            .Deserialize<List<CombatPolicyValueEpochMetrics>>(
+                                reader)
+                        ?? new List<CombatPolicyValueEpochMetrics>();
+                    break;
+                default:
+                    reader.Skip();
+                    break;
             }
-            reader.Skip();
         }
         return summary;
     }
@@ -2223,6 +2493,30 @@ internal sealed class MainWindow : Window
     private void AddDouble(Panel panel, string key, string label)
     {
         AddNumber(panel, key, label, 0, 0);
+    }
+
+    private void AddGradientShardSelect(Panel panel)
+    {
+        var row = NewRow();
+        row.Children.Add(Label("梯度并行分片", 240));
+        gradientShardInput = new ComboBox
+        {
+            Width = 180,
+            Height = 30,
+            Margin = new Thickness(0, 0, 8, 0),
+            ItemsSource = GradientShardPresets,
+            SelectedItem = 12,
+            ToolTip = "可选 1、2、4、8、12、16、24、32"
+        };
+        row.Children.Add(gradientShardInput);
+        panel.Children.Add(row);
+    }
+
+    private void SetGradientShardCount(int value)
+    {
+        gradientShardInput.SelectedItem = GradientShardPresets.Contains(value)
+            ? value
+            : 12;
     }
 
     private void AddUlong(Panel panel, string key, string label)

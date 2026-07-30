@@ -747,6 +747,9 @@ public sealed class CombatScenarioDefinition
     public List<CombatScenarioRewardCatalogEntry> RewardCatalog { get; set; } =
         new();
 
+    public List<string> EnabledRewardCardPackIds { get; set; } =
+        new() { "cardpack_1", "cardpack_2" };
+
     public List<CombatScenarioStrategyProgress> StrategyProgress { get; set; } =
         new();
 
@@ -795,6 +798,16 @@ public sealed class CombatCardInstanceState
     public string CardId { get; set; } = "";
 
     public string ApparentCardId { get; set; } = "";
+
+    public string CreationSource { get; set; } = "";
+
+    public string CreationSourceId { get; set; } = "";
+
+    public int CreationParentInstanceId { get; set; }
+
+    public string CreationRandomStreamId { get; set; } = "";
+
+    public bool CreationCrossRoleSkillAuthorized { get; set; }
 
     public int CostModifier { get; set; }
 
@@ -1186,6 +1199,14 @@ public sealed class CombatSemanticAuditMetrics
 {
     public const int MaximumExamples = 32;
 
+    public int InvalidActions { get; set; }
+
+    public int SelectedInvalidActions { get; set; }
+
+    public int ValidActions { get; set; }
+
+    public int SelectedValidActions { get; set; }
+
     public int ExplainedActions { get; set; }
 
     public int SelectedExplainedActions { get; set; }
@@ -1198,6 +1219,15 @@ public sealed class CombatSemanticAuditMetrics
         new(StringComparer.OrdinalIgnoreCase);
 
     public Dictionary<string, int> SelectedAuditedSources { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, int> InvalidSources { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, int> SelectedInvalidSources { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, int> InvalidKinds { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
 
     public Dictionary<string, int> SelectedUnexplainedMismatchSources {
@@ -1230,6 +1260,9 @@ public sealed class CombatSemanticAuditMetrics
     public Dictionary<string, string> Examples { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
 
+    public Dictionary<string, string> InvalidExamples { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public Dictionary<string, string> SelectedUnexplainedExamples {
         get;
         set;
@@ -1241,6 +1274,18 @@ public sealed class CombatSemanticAuditMetrics
         {
             return;
         }
+        InvalidActions = SaturatingAdd(
+            InvalidActions,
+            source.InvalidActions);
+        SelectedInvalidActions = SaturatingAdd(
+            SelectedInvalidActions,
+            source.SelectedInvalidActions);
+        ValidActions = SaturatingAdd(
+            ValidActions,
+            source.ValidActions);
+        SelectedValidActions = SaturatingAdd(
+            SelectedValidActions,
+            source.SelectedValidActions);
         ExplainedActions = SaturatingAdd(
             ExplainedActions,
             source.ExplainedActions);
@@ -1255,6 +1300,9 @@ public sealed class CombatSemanticAuditMetrics
             source.SelectedUnexplainedMismatchActions);
         MergeCounts(AuditedSources, source.AuditedSources);
         MergeCounts(SelectedAuditedSources, source.SelectedAuditedSources);
+        MergeCounts(InvalidSources, source.InvalidSources);
+        MergeCounts(SelectedInvalidSources, source.SelectedInvalidSources);
+        MergeCounts(InvalidKinds, source.InvalidKinds);
         MergeCounts(
             SelectedUnexplainedMismatchSources,
             source.SelectedUnexplainedMismatchSources);
@@ -1286,6 +1334,7 @@ public sealed class CombatSemanticAuditMetrics
         {
             Examples[pair.Key] = pair.Value;
         }
+        MergeExamples(InvalidExamples, source.InvalidExamples);
         MergeExamples(
             SelectedUnexplainedExamples,
             source.SelectedUnexplainedExamples);
@@ -1380,6 +1429,11 @@ public sealed class CombatSimulationEvent
     public ulong RandomValue { get; set; }
 
     public string Message { get; set; } = "";
+
+    public CombatSimulationEvent Clone()
+    {
+        return (CombatSimulationEvent)MemberwiseClone();
+    }
 }
 
 public sealed class CombatTurnSummary

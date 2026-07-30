@@ -13,7 +13,8 @@ param(
     [int]$MaximumDegreeOfParallelism = 4,
     [int]$NormalValidationCampaigns = 5,
     [int]$AdvancedValidationCampaigns = 5,
-    [switch]$KeepArtifactsOnFailure
+    [switch]$KeepArtifactsOnFailure,
+    [string]$WorkerPath = ""
 )
 
 $ErrorActionPreference = "Stop"
@@ -40,7 +41,11 @@ $effectiveAdvancedValidationCampaigns = [Math]::Max(
 if (-not $SkipPublish) {
     & (Join-Path $repoRoot "tools\Build-AuraFoundationTrainer.ps1") -Configuration $Configuration
 }
-$worker = Join-Path $repoRoot "AuraToolsExp\TrainingWorker\AuraFoundationTrainer.Worker.exe"
+$worker = if ([string]::IsNullOrWhiteSpace($WorkerPath)) {
+    Join-Path $repoRoot "AuraToolsExp\TrainingWorker\AuraFoundationTrainer.Worker.exe"
+} else {
+    [System.IO.Path]::GetFullPath($WorkerPath)
+}
 if (-not (Test-Path -LiteralPath $worker -PathType Leaf)) {
     throw "Foundation trainer is missing: $worker"
 }
@@ -145,6 +150,10 @@ try {
     if (-not (Test-Path -LiteralPath $result.EpisodesPath -PathType Leaf)) {
         throw "Foundation trainer episodes artifact is missing."
     }
+    if (-not (Test-Path -LiteralPath $result.TrainingMetricsPath -PathType Leaf) `
+        -or -not (Test-Path -LiteralPath $result.TrainingAnalysisPath -PathType Leaf)) {
+        throw "Foundation trainer independent metric artifacts are missing."
+    }
     $caseAnalysisPath = Join-Path $smokeRoot "foundation-success-analysis-v1.json"
     $caseObservationPath = Join-Path $smokeRoot "foundation-case-observations-v1.jsonl"
     $caseIndexPath = Join-Path $smokeRoot "foundation-success-case-index-v1.jsonl"
@@ -199,6 +208,9 @@ try {
             + "job=$($job.SchemaVersion), progress=$($progress.SchemaVersion), " `
             + "result=$($result.SchemaVersion).")
     }
+    if (@($progress.Telemetry.ModelEpochHistory).Count -ne 0) {
+        throw "Frequent progress payload retained the growing Epoch history."
+    }
     if ($PreflightOnly) {
         if (-not $result.Training.Success `
             -or $result.Training.Preflight.CompletedCampaigns `
@@ -211,6 +223,30 @@ try {
             -or $progress.Telemetry.PolicyDecisions -le 0 `
             -or $progress.Telemetry.SearchSimulations -le 0) {
             throw "Foundation trainer model/search telemetry is incomplete."
+    }
+    if (-not $PreflightOnly) {
+        $epochHistory = @($result.Training.ModelEpochHistory)
+        $metricRecords = @(
+            Get-Content -LiteralPath $result.TrainingMetricsPath -Encoding UTF8
+        )
+        $trainingAnalysis = Read-FoundationJson $result.TrainingAnalysisPath
+        if ($epochHistory.Count -lt 2 `
+            -or $metricRecords.Count -lt 2 `
+            -or [int]$trainingAnalysis.EpochCount -lt 1 `
+            -or @($trainingAnalysis.Points).Count -lt 1 `
+            -or [double]$result.Training.ModelTrainingLoss -le 0 `
+            -or [double]$result.Training.ModelValidationLoss -le 0 `
+            -or @($epochHistory | Where-Object {
+                -not $_.Calibrated `
+                -and ([double]$_.Training.CompositeLoss -le 0 `
+                     -or [double]$_.Validation.CompositeLoss -le 0)
+            }).Count -gt 0) {
+            throw (
+                "Foundation trainer loss diagnostics are incomplete: " `
+                + "history=$($epochHistory.Count), " `
+                + "training=$($result.Training.ModelTrainingLoss), " `
+                + "validation=$($result.Training.ModelValidationLoss).")
+        }
     }
     if (-not $PreflightOnly) {
         $expectedParallelism = [Math]::Max(
@@ -338,7 +374,7 @@ try {
             -or [string]$checkpoint.Resume.Compatibility.SearchPolicyVersion `
                 -ne "dynamic-search-v4" `
             -or [string]$checkpoint.Resume.Compatibility.TrainingPolicyVersion `
-                -ne "foundation-governance-v9") {
+                -ne "foundation-governance-v10") {
             throw "Foundation checkpoint compatibility manifest is incomplete."
         }
     }

@@ -50,6 +50,87 @@ try
         rulesetBuild.Ruleset);
     failures.AddRange(
         packageValidation.Errors.Select(item => "package: " + item));
+    var dynamicPoolScenario = new CombatScenarioDefinition
+    {
+        ScenarioId = "dynamic-card-pool-boundary",
+        Player = new CombatPlayerSetup
+        {
+            RoleId = campaign.Player.RoleId,
+            SkillCardIds = new List<string>(
+                campaign.Player.SkillCardIds)
+        },
+        EnabledRewardCardPackIds = new List<string>(
+            campaign.EnabledRewardCardPackIds),
+        RewardCatalog = campaign.Rewards.Select(item =>
+            new CombatScenarioRewardCatalogEntry
+            {
+                RewardId = item.RewardId,
+                Kind = item.Kind.ToString(),
+                Tier = item.Tier,
+                Negative = item.Negative,
+                RewardCardPackId = item.RewardCardPackId,
+                CardAcquisition = item.CardAcquisition
+            }).ToList()
+    };
+    var dynamicPoolContext = new NativePoolTestContext(
+        dynamicPoolScenario,
+        rulesetBuild.Ruleset);
+    var dynamicPoolGlobals = new NativeRewardScriptGlobals(
+        dynamicPoolContext,
+        new CombatScenarioRewardRule
+        {
+            RewardId = "dynamic-pool-test",
+            Kind = "Card"
+        });
+    var dynamicPoolCards = dynamicPoolGlobals
+        .GetcardsByRarity(1, 99);
+    var dynamicPoolIds = dynamicPoolCards
+        .Select(item => item.GetValueOrDefault("Id", ""))
+        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    if (dynamicPoolCards.Any(item =>
+            item.GetValueOrDefault("CreationSource", "")
+            != "dynamic-card-pool"))
+    {
+        failures.Add(
+            "dynamic-card-pool: generated card candidate lacks provenance");
+    }
+    var foreignRoleSkills = campaign.Rewards
+        .Where(item =>
+            item.Kind == CombatCampaignRewardKind.Card
+            && item.CardAcquisition
+               == CombatCampaignCardAcquisition.SkillOnly
+            && !campaign.Player.SkillCardIds.Contains(
+                item.RewardId,
+                StringComparer.OrdinalIgnoreCase))
+        .Select(item => item.RewardId)
+        .ToList();
+    if (foreignRoleSkills.Any(dynamicPoolIds.Contains))
+    {
+        failures.Add(
+            "dynamic-card-pool: foreign role SkillOnly card entered default pool");
+    }
+    var crossRoleGlobals = new NativeRewardScriptGlobals(
+        dynamicPoolContext,
+        new CombatScenarioRewardRule
+        {
+            RewardId = "dynamic-pool-opt-in-test",
+            Kind = "Card",
+            Variables = new Dictionary<string, string>(
+                StringComparer.OrdinalIgnoreCase)
+            {
+                ["AllowCrossRoleSkill"] = "true"
+            }
+        });
+    var crossRolePoolIds = crossRoleGlobals
+        .GetcardsByRarity(1, 99)
+        .Select(item => item.GetValueOrDefault("Id", ""))
+        .ToHashSet(StringComparer.OrdinalIgnoreCase);
+    if (foreignRoleSkills.Count > 0
+        && !foreignRoleSkills.Any(crossRolePoolIds.Contains))
+    {
+        failures.Add(
+            "dynamic-card-pool: explicit cross-role skill opt-in was ignored");
+    }
 
     Console.WriteLine(
         $"Native reward scripts: {nonCardRewards.Count} rewards, "
@@ -64,6 +145,51 @@ try
     var smokeEnemy = rulesetBuild.Ruleset.SnapshotEnemies()
         .OrderBy(item => item.EnemyId, StringComparer.Ordinal)
         .First();
+    if (foreignRoleSkills.Count > 0)
+    {
+        var leakedSkillScenario = CombatScenarioCloner.Clone(
+            dynamicPoolScenario);
+        leakedSkillScenario.ScenarioId =
+            "cross-role-skill-audit";
+        leakedSkillScenario.Player.MaxHp = 100;
+        leakedSkillScenario.Player.CurrentHp = 100;
+        leakedSkillScenario.Player.BaseEnergy = 0;
+        leakedSkillScenario.Player.Deck =
+            new List<string> { foreignRoleSkills[0] };
+        leakedSkillScenario.Enemies =
+            new List<CombatEnemySetup>
+            {
+                new()
+                {
+                    EnemyId = smokeEnemy.EnemyId,
+                    InstanceKey = "cross-role-skill-audit-enemy"
+                }
+            };
+        leakedSkillScenario.InitialDraw = 1;
+        leakedSkillScenario.DrawPerTurn = 1;
+        leakedSkillScenario.Limits = new CombatSimulationLimits
+        {
+            MaximumTurns = 1,
+            MaximumActions = 5,
+            MaximumCommands = 100
+        };
+        var leakedSkillResult = new CombatSimulationEngine(
+            new AuraToolsNativeRewardExtensionFactory())
+            .Run(
+                leakedSkillScenario,
+                rulesetBuild.Ruleset,
+                new EndTurnPolicy());
+        if (leakedSkillResult.Outcome
+                != CombatSimulationOutcome.Invalid
+            || !leakedSkillResult.UnsupportedDefinitions.Any(item =>
+                item.StartsWith(
+                    "cross-role-skill-card:",
+                    StringComparison.OrdinalIgnoreCase)))
+        {
+            failures.Add(
+                "dynamic-card-pool: provenance audit did not isolate an unauthorized foreign role skill");
+        }
+    }
     foreach (var reward in nonCardRewards.Where(item =>
                  !string.IsNullOrWhiteSpace(item.FightScript)))
     {
@@ -75,6 +201,8 @@ try
             Player = new CombatPlayerSetup
             {
                 RoleId = campaign.Player.RoleId,
+                SkillCardIds = new List<string>(
+                    campaign.Player.SkillCardIds),
                 MaxHp = 100,
                 CurrentHp = 100,
                 BaseEnergy = 99,
@@ -103,14 +231,23 @@ try
             HandLimit = 20,
             RequireAuthoritativeRules = false,
             TraceLevel = CombatSimulationTraceLevel.Summary,
-            RewardCatalog = nonCardRewards.Select(item =>
+            RewardCatalog = campaign.Rewards.Select(item =>
                 new CombatScenarioRewardCatalogEntry
                 {
                     RewardId = item.RewardId,
                     Kind = item.Kind.ToString(),
                     Tier = item.Tier,
-                    Negative = item.Negative
+                    Negative = item.Negative,
+                    RewardCardPackId = item.RewardCardPackId,
+                    CardAcquisition = item.CardAcquisition,
+                    NativeScriptHash = item.NativeScriptHash,
+                    FightScript = item.FightScript,
+                    Variables = new Dictionary<string, string>(
+                        item.InitialVariables,
+                        StringComparer.OrdinalIgnoreCase)
                 }).ToList(),
+            EnabledRewardCardPackIds = new List<string>(
+                campaign.EnabledRewardCardPackIds),
             Limits = new CombatSimulationLimits
             {
                 MaximumTurns = 2,
@@ -326,6 +463,8 @@ static IEnumerable<string> ValidateHardAffixes(
         Player = new CombatPlayerSetup
         {
             RoleId = campaign.Player.RoleId,
+            SkillCardIds = new List<string>(
+                campaign.Player.SkillCardIds),
             MaxHp = 10000,
             CurrentHp = 10000,
             BaseEnergy = 0,
@@ -795,12 +934,20 @@ static IEnumerable<string> ValidateNativeCombatSemantics(
             or CombatTerminationReason.TriggerLoop
         || causalDamage.Count == 0
         || causalDamage.Any(item =>
+            item.Amount != 1
+            || item.SourceActorId
+               != crowdfundingFeedback.FinalState.PlayerActorId
+            || crowdfundingFeedback.FinalState.FindActor(
+                   item.TargetActorId)?.Kind
+               != CombatSimulationActorKind.Enemy)
+        || causalDamage.Any(item =>
             item.CausalChainId <= 0
             || string.IsNullOrWhiteSpace(item.HandlerId)
             || item.SourceActionId <= 0))
     {
         failures.Add(
-            "native-semantics:CrowdFundingRelic_17:causal-recursion-guard:"
+            "native-semantics:CrowdFundingRelic_17:"
+            + "hurt-only-one-true-damage-per-enemy:"
             + crowdfundingFeedback.TerminationReason
             + ":"
             + crowdfundingFeedback.FailureDiagnostics.PendingCommand);
@@ -928,6 +1075,23 @@ static CombatScenarioDefinition NewNativeScenario(
         HandLimit = 20,
         RequireAuthoritativeRules = true,
         TraceLevel = CombatSimulationTraceLevel.Summary,
+        EnabledRewardCardPackIds = new List<string>(
+            campaign.EnabledRewardCardPackIds),
+        RewardCatalog = campaign.Rewards.Select(item =>
+            new CombatScenarioRewardCatalogEntry
+            {
+                RewardId = item.RewardId,
+                Kind = item.Kind.ToString(),
+                Tier = item.Tier,
+                Negative = item.Negative,
+                RewardCardPackId = item.RewardCardPackId,
+                CardAcquisition = item.CardAcquisition,
+                NativeScriptHash = item.NativeScriptHash,
+                FightScript = item.FightScript,
+                Variables = new Dictionary<string, string>(
+                    item.InitialVariables,
+                    StringComparer.OrdinalIgnoreCase)
+            }).ToList(),
         CampaignVariables = new Dictionary<string, string>
         {
             ["DoomPower"] = "0",
@@ -1413,7 +1577,15 @@ static IEnumerable<string> ValidateKnownIntegritySeeds(
         (Difficulty: "normal", Seed: 773604UL),
         // 2026-07-26 arena failure: CrowdFundingRelic_17 recursively
         // re-entered its own Hurt handler at level_10020.
-        (Difficulty: "normal", Seed: 3707272656116217686UL)
+        (Difficulty: "normal", Seed: 3707272656116217686UL),
+        // 2026-07-30 self-play failure: careercard_9 created a blessing
+        // config without metadata/runtime context at level_10024.
+        (Difficulty: "advanced", Seed: 2031138444152085570UL),
+        // 2026-07-30 self-play failures: core CreateRandomCard bypassed the
+        // role-aware dynamic pool and generated foreign career skills.
+        (Difficulty: "advanced", Seed: 1251924352389057161UL),
+        (Difficulty: "advanced", Seed: 1251924352389057199UL),
+        (Difficulty: "normal", Seed: 1251924352389057202UL)
     };
     var runner = new CombatCampaignRunner(
         new CombatSimulationEngine(
@@ -1430,6 +1602,40 @@ static IEnumerable<string> ValidateKnownIntegritySeeds(
             plan,
             ruleset,
             policyFactory);
+        var allowedRoleSkills = new HashSet<string>(
+            campaign.Player.SkillCardIds,
+            StringComparer.OrdinalIgnoreCase);
+        var skillOnlyCards = new HashSet<string>(
+            campaign.Rewards
+                .Where(item =>
+                    item.Kind == CombatCampaignRewardKind.Card
+                    && item.CardAcquisition
+                       == CombatCampaignCardAcquisition.SkillOnly)
+                .Select(item => item.RewardId),
+            StringComparer.OrdinalIgnoreCase);
+        var leakedRoleSkills = result.Battles
+            .SelectMany(item => item.FinalState.Cards)
+            .Where(item =>
+                skillOnlyCards.Contains(item.CardId)
+                && !allowedRoleSkills.Contains(item.CardId))
+            .Select(item =>
+                item.CardId
+                + "@"
+                + item.CreationSource
+                + ":"
+                + item.CreationSourceId)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (leakedRoleSkills.Count > 0)
+        {
+            failures.Add(
+                "known-integrity-seed:"
+                + entry.Difficulty
+                + ":"
+                + entry.Seed
+                + ":cross-role-skill-leak:"
+                + string.Join(",", leakedRoleSkills));
+        }
         if (!result.Invalid)
         {
             continue;
@@ -1785,5 +1991,52 @@ sealed class EndTurnPolicy : ICombatSimulationPolicy
     {
         return context.LegalActions.FirstOrDefault(item =>
             item.Kind == CombatSimulationActionKind.EndTurn);
+    }
+}
+
+sealed class NativePoolTestContext : ICombatSimulationRuntimeContext
+{
+    public NativePoolTestContext(
+        CombatScenarioDefinition scenario,
+        CombatRuleset ruleset)
+    {
+        Scenario = scenario;
+        Ruleset = ruleset;
+    }
+
+    public CombatScenarioDefinition Scenario { get; }
+
+    public CombatRuleset Ruleset { get; }
+
+    public CombatBattleState State { get; } = new();
+
+    public void ApplyEffects(
+        IEnumerable<CombatSimulationEffectDefinition> effects,
+        int sourceActorId,
+        int selectedTargetId,
+        CombatSimulationEvent? sourceEvent = null)
+    {
+    }
+
+    public int NextRandomInt(string streamId, int exclusiveMaximum)
+    {
+        return 0;
+    }
+
+    public void AddUnsupported(string definitionId)
+    {
+    }
+
+    public void RecordRewardMutation(
+        string operation,
+        string kind,
+        string rewardId)
+    {
+    }
+
+    public void Terminate(
+        CombatSimulationOutcome outcome,
+        CombatTerminationReason reason)
+    {
     }
 }

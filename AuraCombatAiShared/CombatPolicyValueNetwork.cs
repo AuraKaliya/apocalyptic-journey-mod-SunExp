@@ -1,6 +1,11 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
+using System.Threading;
+#if NET8_0_OR_GREATER
+using System.Numerics;
+#endif
 
 namespace AuraCombatAi.Shared;
 
@@ -72,6 +77,219 @@ public sealed class NullCombatPolicyValueModel : ICombatPolicyValueModel
     }
 }
 
+public sealed class ConcurrentBatchedCombatPolicyValueModel :
+    ICombatPolicyValueModel
+{
+    [ThreadStatic]
+    private static List<CombatPolicyValueInput>? threadInputs;
+
+    private readonly ICombatPolicyValueModel inner;
+    private readonly int maximumBatchSize;
+    private readonly long coalescingTicks;
+    private readonly object gate = new();
+    private readonly List<BatchRequest> pending = new();
+    private readonly Stack<BatchRequest> requestPool = new();
+    private readonly Stack<List<BatchRequest>> batchPool = new();
+    private long batchEvaluationCount;
+    private long batchedInputCount;
+
+    public ConcurrentBatchedCombatPolicyValueModel(
+        ICombatPolicyValueModel inner,
+        int maximumBatchSize,
+        TimeSpan? coalescingWindow = null)
+    {
+        this.inner = inner ?? throw new ArgumentNullException(nameof(inner));
+        this.maximumBatchSize = Math.Max(2, maximumBatchSize);
+        var window = coalescingWindow ?? TimeSpan.FromTicks(100);
+        coalescingTicks = Math.Max(
+            1L,
+            (long)Math.Ceiling(
+                Math.Max(0d, window.TotalSeconds)
+                * Stopwatch.Frequency));
+    }
+
+    public string ModelId => inner.ModelId;
+
+    public long BatchEvaluationCount =>
+        Interlocked.Read(ref batchEvaluationCount);
+
+    public long BatchedInputCount =>
+        Interlocked.Read(ref batchedInputCount);
+
+    public CombatPolicyValuePrediction Evaluate(
+        CombatPolicyValueInput input)
+    {
+        BatchRequest request;
+        List<BatchRequest>? batch = null;
+        lock (gate)
+        {
+            request = RentRequest();
+            request.Input = input;
+            pending.Add(request);
+            if (pending.Count >= maximumBatchSize)
+            {
+                batch = DrainPending();
+            }
+        }
+
+        if (batch == null)
+        {
+            var deadline = Stopwatch.GetTimestamp() + coalescingTicks;
+            var spinner = new SpinWait();
+            while (!request.Completed.IsSet
+                   && Stopwatch.GetTimestamp() < deadline)
+            {
+                if (spinner.Count < 10)
+                {
+                    spinner.SpinOnce();
+                }
+                else
+                {
+                    Thread.Yield();
+                }
+            }
+            if (!request.Completed.IsSet)
+            {
+                lock (gate)
+                {
+                    if (!request.Completed.IsSet
+                        && pending.Contains(request))
+                    {
+                        batch = DrainPending();
+                    }
+                }
+            }
+        }
+
+        if (batch != null)
+        {
+            Execute(batch);
+        }
+        request.Completed.Wait();
+        var result = request.Result ?? new CombatPolicyValuePrediction();
+        var error = request.Error;
+        lock (gate)
+        {
+            ReturnRequest(request);
+        }
+        if (error != null)
+        {
+            throw error;
+        }
+        return result;
+    }
+
+    public IReadOnlyList<CombatPolicyValuePrediction> EvaluateBatch(
+        IReadOnlyList<CombatPolicyValueInput> inputs)
+    {
+        if (inputs == null)
+        {
+            throw new ArgumentNullException(nameof(inputs));
+        }
+        var count = inputs.Count;
+        if (count == 0)
+        {
+            return Array.Empty<CombatPolicyValuePrediction>();
+        }
+        Interlocked.Increment(ref batchEvaluationCount);
+        Interlocked.Add(ref batchedInputCount, count);
+        return inner.EvaluateBatch(inputs);
+    }
+
+    private BatchRequest RentRequest()
+    {
+        if (requestPool.Count == 0)
+        {
+            return new BatchRequest();
+        }
+        var request = requestPool.Pop();
+        request.Completed.Reset();
+        return request;
+    }
+
+    private void ReturnRequest(BatchRequest request)
+    {
+        request.Input = null;
+        request.Result = null;
+        request.Error = null;
+        requestPool.Push(request);
+    }
+
+    private List<BatchRequest> DrainPending()
+    {
+        var batch = batchPool.Count == 0
+            ? new List<BatchRequest>(maximumBatchSize)
+            : batchPool.Pop();
+        batch.AddRange(pending);
+        pending.Clear();
+        return batch;
+    }
+
+    private void Execute(List<BatchRequest> batch)
+    {
+        try
+        {
+            var inputs = threadInputs ??= new List<CombatPolicyValueInput>(8);
+            inputs.Clear();
+            for (var i = 0; i < batch.Count; i++)
+            {
+                inputs.Add(
+                    batch[i].Input ?? new CombatPolicyValueInput());
+            }
+            IReadOnlyList<CombatPolicyValuePrediction> results;
+            try
+            {
+                results = inner.EvaluateBatch(inputs);
+            }
+            finally
+            {
+                inputs.Clear();
+            }
+            if (results.Count != batch.Count)
+            {
+                throw new InvalidOperationException(
+                    "Policy-value batch result count mismatch.");
+            }
+            Interlocked.Increment(ref batchEvaluationCount);
+            Interlocked.Add(ref batchedInputCount, batch.Count);
+            for (var i = 0; i < batch.Count; i++)
+            {
+                batch[i].Result = results[i];
+            }
+        }
+        catch (Exception exception)
+        {
+            for (var i = 0; i < batch.Count; i++)
+            {
+                batch[i].Error = exception;
+            }
+        }
+        finally
+        {
+            for (var i = 0; i < batch.Count; i++)
+            {
+                batch[i].Completed.Set();
+            }
+            lock (gate)
+            {
+                batch.Clear();
+                batchPool.Push(batch);
+            }
+        }
+    }
+
+    private sealed class BatchRequest
+    {
+        public ManualResetEventSlim Completed { get; } = new(false);
+
+        public CombatPolicyValueInput? Input { get; set; }
+
+        public CombatPolicyValuePrediction? Result { get; set; }
+
+        public Exception? Error { get; set; }
+    }
+}
+
 public sealed class CombatPolicyValueNetworkDefinition
 {
     public string ModelProtocol { get; set; } = "aura.combat-policy-value.mlp.v1";
@@ -85,9 +303,9 @@ public sealed class CombatPolicyValueNetworkDefinition
 
     public string DecisionProfile { get; set; } = "balanced";
 
-    public int StateDimensions { get; set; } = 128;
+    public int StateDimensions { get; set; } = 256;
 
-    public int ActionDimensions { get; set; } = 96;
+    public int ActionDimensions { get; set; } = 192;
 
     public int HiddenDimensions { get; set; } = 64;
 
@@ -136,6 +354,10 @@ public sealed class CombatPolicyValueNetworkDefinition
 public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
 {
     private readonly CombatPolicyValueNetworkDefinition definition;
+    [ThreadStatic]
+    private static InferenceWorkspace? threadWorkspace;
+    [ThreadStatic]
+    private static BatchInferenceWorkspace? threadBatchWorkspace;
 
     public ManagedCombatPolicyValueModel(CombatPolicyValueNetworkDefinition definition)
     {
@@ -153,99 +375,531 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
     public CombatPolicyValuePrediction Evaluate(CombatPolicyValueInput input)
     {
         input ??= new CombatPolicyValueInput();
-        var state = CombatPolicyValueEncoding.EncodeState(
-            input.StateFeatures,
+        var workspace = threadWorkspace ??= new InferenceWorkspace();
+        workspace.Prepare(
             definition.StateDimensions,
-            definition.FeatureEncodingMode);
-        var hidden = DenseTanh(
-            state,
-            definition.StateWeights,
-            definition.StateBias,
+            definition.ActionDimensions,
             definition.HiddenDimensions);
-        var result = new CombatPolicyValuePrediction
+        var state = workspace.State;
+        var hidden = workspace.Hidden;
+        var action = workspace.Action;
+        var actionHidden = workspace.ActionHidden;
         {
-            ExpectedReturn = Clamp(Dot(hidden, definition.ValueWeights) + definition.ValueBias, -1d, 1d),
-            WinProbability = Sigmoid(Dot(hidden, definition.WinWeights) + definition.WinBias),
-            DeathProbability = Sigmoid(Dot(hidden, definition.RiskWeights) + definition.RiskBias),
-            ExpectedRemainingHpRatio = Sigmoid(Dot(hidden, definition.HpWeights) + definition.HpBias),
-            ExpectedRemainingTurns = Math.Max(
-                0d,
-                SoftPlus(Dot(hidden, definition.TurnWeights) + definition.TurnBias))
-        };
-
-        var minimum = double.PositiveInfinity;
-        var maximum = double.NegativeInfinity;
-        for (var i = 0; i < input.Candidates.Count; i++)
-        {
-            var candidate = input.Candidates[i] ?? new CombatPolicyValueCandidate();
-            var action = CombatPolicyValueEncoding.EncodeCandidate(
-                candidate,
-                definition.ActionDimensions,
+            CombatPolicyValueEncoding.EncodeStateInto(
+                input.StateFeatures,
+                state,
+                definition.StateDimensions,
                 definition.FeatureEncodingMode);
-            var actionHidden = DenseTanh(
-                action,
-                definition.ActionWeights,
-                definition.ActionBias,
+            DenseTanhInto(
+                state,
+                definition.StateDimensions,
+                definition.StateWeights,
+                definition.StateBias,
+                hidden,
                 definition.HiddenDimensions);
-            var interaction = 0d;
-            for (var j = 0; j < hidden.Length; j++)
+            var result = PredictionFromHidden(
+                hidden,
+                0);
+            var minimum = double.PositiveInfinity;
+            var maximum = double.NegativeInfinity;
+            for (var i = 0; i < input.Candidates.Count; i++)
             {
-                interaction += hidden[j] * actionHidden[j] * definition.PolicyWeights[j];
+                var candidate = input.Candidates[i]
+                                ?? new CombatPolicyValueCandidate();
+                CombatPolicyValueEncoding.EncodeCandidateInto(
+                    candidate,
+                    action,
+                    definition.ActionDimensions,
+                    definition.FeatureEncodingMode);
+                DenseTanhInto(
+                    action,
+                    definition.ActionDimensions,
+                    definition.ActionWeights,
+                    definition.ActionBias,
+                    actionHidden,
+                    definition.HiddenDimensions);
+                var logit = PolicyLogit(
+                    hidden,
+                    0,
+                    actionHidden,
+                    0,
+                    definition.HiddenDimensions);
+                result.PolicyLogits[candidate.CandidateId ?? ""] = logit;
+                minimum = Math.Min(minimum, logit);
+                maximum = Math.Max(maximum, logit);
             }
-            var logit = Clamp(
-                (interaction + definition.PolicyBias)
-                / definition.PolicyTemperature,
-                -30d,
-                30d);
-            result.PolicyLogits[candidate.CandidateId ?? ""] = logit;
-            minimum = Math.Min(minimum, logit);
-            maximum = Math.Max(maximum, logit);
+            result.Uncertainty = input.Candidates.Count <= 1
+                ? 0d
+                : 1d / (1d + Math.Max(0d, maximum - minimum));
+            return result;
         }
-        result.Uncertainty = input.Candidates.Count <= 1
-            ? 0d
-            : 1d / (1d + Math.Max(0d, maximum - minimum));
-        return result;
     }
 
     public IReadOnlyList<CombatPolicyValuePrediction> EvaluateBatch(
         IReadOnlyList<CombatPolicyValueInput> inputs)
     {
-        var result = new List<CombatPolicyValuePrediction>(inputs?.Count ?? 0);
-        for (var i = 0; i < (inputs?.Count ?? 0); i++)
+        var count = inputs?.Count ?? 0;
+        if (count == 0)
         {
-            result.Add(Evaluate(inputs![i]));
+            return Array.Empty<CombatPolicyValuePrediction>();
         }
-        return result;
-    }
-
-    private static double[] DenseTanh(
-        IReadOnlyList<double> input,
-        IReadOnlyList<double> weights,
-        IReadOnlyList<double> bias,
-        int outputs)
-    {
-        var result = new double[outputs];
-        for (var output = 0; output < outputs; output++)
+        var stateCount = checked(count * definition.StateDimensions);
+        var hiddenCount = checked(count * definition.HiddenDimensions);
+        var candidateCount = 0;
+        for (var index = 0; index < count; index++)
         {
-            var value = bias[output];
-            var offset = output * input.Count;
-            for (var inputIndex = 0; inputIndex < input.Count; inputIndex++)
+            candidateCount += inputs![index]?.Candidates.Count ?? 0;
+        }
+        var actionCount = checked(
+            Math.Max(1, candidateCount) * definition.ActionDimensions);
+        var actionHiddenCount = checked(
+            Math.Max(1, candidateCount) * definition.HiddenDimensions);
+        var workspace =
+            threadBatchWorkspace ??= new BatchInferenceWorkspace();
+        workspace.Prepare(
+            stateCount,
+            hiddenCount,
+            actionCount,
+            actionHiddenCount,
+            count,
+            candidateCount);
+        var states = workspace.States;
+        var hidden = workspace.Hidden;
+        var actions = workspace.Actions;
+        var actionHidden = workspace.ActionHidden;
+        {
+            var results = new CombatPolicyValuePrediction[count];
+            var candidateOwners = workspace.CandidateOwners;
+            var candidates = workspace.Candidates;
+            var cursor = 0;
+            for (var inputIndex = 0; inputIndex < count; inputIndex++)
             {
-                value += input[inputIndex] * weights[offset + inputIndex];
+                var input = inputs![inputIndex]
+                            ?? new CombatPolicyValueInput();
+                CombatPolicyValueEncoding.EncodeStateInto(
+                    input.StateFeatures,
+                    states,
+                    inputIndex * definition.StateDimensions,
+                    definition.StateDimensions,
+                    definition.FeatureEncodingMode);
+                foreach (var source in input.Candidates)
+                {
+                    var candidate = source ?? new CombatPolicyValueCandidate();
+                    candidateOwners[cursor] = inputIndex;
+                    candidates[cursor] = candidate;
+                    CombatPolicyValueEncoding.EncodeCandidateInto(
+                        candidate,
+                        actions,
+                        cursor * definition.ActionDimensions,
+                        definition.ActionDimensions,
+                        definition.FeatureEncodingMode);
+                    cursor++;
+                }
             }
-            result[output] = Math.Tanh(value);
+            DenseTanhBatch(
+                states,
+                count,
+                definition.StateDimensions,
+                definition.StateWeights,
+                definition.StateBias,
+                hidden,
+                definition.HiddenDimensions);
+            if (candidateCount > 0)
+            {
+                DenseTanhBatch(
+                    actions,
+                    candidateCount,
+                    definition.ActionDimensions,
+                    definition.ActionWeights,
+                    definition.ActionBias,
+                    actionHidden,
+                    definition.HiddenDimensions);
+            }
+            for (var inputIndex = 0; inputIndex < count; inputIndex++)
+            {
+                results[inputIndex] = PredictionFromHidden(
+                    hidden,
+                    inputIndex * definition.HiddenDimensions);
+            }
+            var minimum = workspace.Minimum;
+            var maximum = workspace.Maximum;
+            for (var inputIndex = 0; inputIndex < count; inputIndex++)
+            {
+                minimum[inputIndex] = double.PositiveInfinity;
+                maximum[inputIndex] = double.NegativeInfinity;
+            }
+            for (var candidateIndex = 0;
+                 candidateIndex < candidateCount;
+                 candidateIndex++)
+            {
+                var owner = candidateOwners[candidateIndex];
+                var logit = PolicyLogit(
+                    hidden,
+                    owner * definition.HiddenDimensions,
+                    actionHidden,
+                    candidateIndex * definition.HiddenDimensions,
+                    definition.HiddenDimensions);
+                results[owner].PolicyLogits[
+                    candidates[candidateIndex].CandidateId ?? ""] = logit;
+                minimum[owner] = Math.Min(minimum[owner], logit);
+                maximum[owner] = Math.Max(maximum[owner], logit);
+            }
+            for (var inputIndex = 0; inputIndex < count; inputIndex++)
+            {
+                var input = inputs![inputIndex]
+                            ?? new CombatPolicyValueInput();
+                results[inputIndex].Uncertainty =
+                    input.Candidates.Count <= 1
+                        ? 0d
+                        : 1d / (1d + Math.Max(
+                            0d,
+                            maximum[inputIndex] - minimum[inputIndex]));
+            }
+            Array.Clear(candidates, 0, candidateCount);
+            return results;
         }
-        return result;
     }
 
-    private static double Dot(IReadOnlyList<double> left, IReadOnlyList<double> right)
+    private CombatPolicyValuePrediction PredictionFromHidden(
+        double[] hidden,
+        int offset)
+    {
+        return new CombatPolicyValuePrediction
+        {
+            ExpectedReturn = Clamp(
+                Dot(
+                    hidden,
+                    offset,
+                    definition.ValueWeights,
+                    0,
+                    definition.HiddenDimensions)
+                + definition.ValueBias,
+                -1d,
+                1d),
+            WinProbability = Sigmoid(
+                Dot(
+                    hidden,
+                    offset,
+                    definition.WinWeights,
+                    0,
+                    definition.HiddenDimensions)
+                + definition.WinBias),
+            DeathProbability = Sigmoid(
+                Dot(
+                    hidden,
+                    offset,
+                    definition.RiskWeights,
+                    0,
+                    definition.HiddenDimensions)
+                + definition.RiskBias),
+            ExpectedRemainingHpRatio = Sigmoid(
+                Dot(
+                    hidden,
+                    offset,
+                    definition.HpWeights,
+                    0,
+                    definition.HiddenDimensions)
+                + definition.HpBias),
+            ExpectedRemainingTurns = Math.Max(
+                0d,
+                SoftPlus(
+                    Dot(
+                        hidden,
+                        offset,
+                        definition.TurnWeights,
+                        0,
+                        definition.HiddenDimensions)
+                    + definition.TurnBias))
+        };
+    }
+
+    private double PolicyLogit(
+        double[] hidden,
+        int hiddenOffset,
+        double[] actionHidden,
+        int actionOffset,
+        int length)
+    {
+        var interaction = Interaction(
+            hidden,
+            hiddenOffset,
+            actionHidden,
+            actionOffset,
+            definition.PolicyWeights,
+            length);
+        return Clamp(
+            (interaction + definition.PolicyBias)
+            / definition.PolicyTemperature,
+            -30d,
+            30d);
+    }
+
+    private static void DenseTanhBatch(
+        double[] input,
+        int batchCount,
+        int inputDimensions,
+        double[] weights,
+        double[] bias,
+        double[] output,
+        int outputDimensions)
+    {
+        if (batchCount == 1)
+        {
+            DenseTanhInto(
+                input,
+                0,
+                inputDimensions,
+                weights,
+                bias,
+                output,
+                0,
+                outputDimensions);
+            return;
+        }
+        for (var outputIndex = 0;
+             outputIndex < outputDimensions;
+             outputIndex++)
+        {
+            var weightOffset = outputIndex * inputDimensions;
+            for (var batch = 0; batch < batchCount; batch++)
+            {
+                output[batch * outputDimensions + outputIndex] =
+                    bias[outputIndex];
+            }
+            for (var inputIndex = 0;
+                 inputIndex < inputDimensions;
+                 inputIndex++)
+            {
+                var weight = weights[weightOffset + inputIndex];
+                for (var batch = 0; batch < batchCount; batch++)
+                {
+                    output[batch * outputDimensions + outputIndex] +=
+                        input[batch * inputDimensions + inputIndex]
+                        * weight;
+                }
+            }
+            for (var batch = 0; batch < batchCount; batch++)
+            {
+                var offset = batch * outputDimensions + outputIndex;
+                output[offset] = Math.Tanh(output[offset]);
+            }
+        }
+    }
+
+    private static void DenseTanhInto(
+        double[] input,
+        int inputDimensions,
+        double[] weights,
+        double[] bias,
+        double[] output,
+        int outputDimensions)
+    {
+        DenseTanhInto(
+            input,
+            0,
+            inputDimensions,
+            weights,
+            bias,
+            output,
+            0,
+            outputDimensions);
+    }
+
+    private static void DenseTanhInto(
+        double[] input,
+        int inputOffset,
+        int inputDimensions,
+        double[] weights,
+        double[] bias,
+        double[] output,
+        int outputOffset,
+        int outputDimensions)
+    {
+        for (var outputIndex = 0;
+             outputIndex < outputDimensions;
+             outputIndex++)
+        {
+            var weightOffset = outputIndex * inputDimensions;
+            var value = bias[outputIndex]
+                        + Dot(
+                            input,
+                            inputOffset,
+                            weights,
+                            weightOffset,
+                            inputDimensions);
+            output[outputOffset + outputIndex] = Math.Tanh(value);
+        }
+    }
+
+    private static double Dot(
+        double[] left,
+        int leftOffset,
+        double[] right,
+        int rightOffset,
+        int length)
     {
         var result = 0d;
-        for (var i = 0; i < Math.Min(left.Count, right.Count); i++)
+        var index = 0;
+#if NET8_0_OR_GREATER
+        if (Vector.IsHardwareAccelerated
+            && length >= Vector<double>.Count)
         {
-            result += left[i] * right[i];
+            var vectorSum = Vector<double>.Zero;
+            var vectorEnd = length - length % Vector<double>.Count;
+            for (; index < vectorEnd; index += Vector<double>.Count)
+            {
+                vectorSum += new Vector<double>(left, leftOffset + index)
+                             * new Vector<double>(
+                                 right,
+                                 rightOffset + index);
+            }
+            for (var lane = 0; lane < Vector<double>.Count; lane++)
+            {
+                result += vectorSum[lane];
+            }
+        }
+#endif
+        for (; index < length; index++)
+        {
+            result += left[leftOffset + index]
+                      * right[rightOffset + index];
         }
         return result;
+    }
+
+    private static double Interaction(
+        double[] state,
+        int stateOffset,
+        double[] action,
+        int actionOffset,
+        double[] weights,
+        int length)
+    {
+        var result = 0d;
+        var index = 0;
+#if NET8_0_OR_GREATER
+        if (Vector.IsHardwareAccelerated
+            && length >= Vector<double>.Count)
+        {
+            var vectorSum = Vector<double>.Zero;
+            var vectorEnd = length - length % Vector<double>.Count;
+            for (; index < vectorEnd; index += Vector<double>.Count)
+            {
+                vectorSum += new Vector<double>(state, stateOffset + index)
+                             * new Vector<double>(
+                                 action,
+                                 actionOffset + index)
+                             * new Vector<double>(weights, index);
+            }
+            for (var lane = 0; lane < Vector<double>.Count; lane++)
+            {
+                result += vectorSum[lane];
+            }
+        }
+#endif
+        for (; index < length; index++)
+        {
+            result += state[stateOffset + index]
+                      * action[actionOffset + index]
+                      * weights[index];
+        }
+        return result;
+    }
+
+    private sealed class InferenceWorkspace
+    {
+        public double[] State { get; private set; } = Array.Empty<double>();
+
+        public double[] Hidden { get; private set; } = Array.Empty<double>();
+
+        public double[] Action { get; private set; } = Array.Empty<double>();
+
+        public double[] ActionHidden { get; private set; } =
+            Array.Empty<double>();
+
+        public void Prepare(
+            int stateDimensions,
+            int actionDimensions,
+            int hiddenDimensions)
+        {
+            if (State.Length < stateDimensions)
+            {
+                State = new double[stateDimensions];
+            }
+            if (Action.Length < actionDimensions)
+            {
+                Action = new double[actionDimensions];
+            }
+            if (Hidden.Length < hiddenDimensions)
+            {
+                Hidden = new double[hiddenDimensions];
+                ActionHidden = new double[hiddenDimensions];
+            }
+        }
+    }
+
+    private sealed class BatchInferenceWorkspace
+    {
+        public double[] States = Array.Empty<double>();
+
+        public double[] Hidden = Array.Empty<double>();
+
+        public double[] Actions = Array.Empty<double>();
+
+        public double[] ActionHidden = Array.Empty<double>();
+
+        public int[] CandidateOwners = Array.Empty<int>();
+
+        public CombatPolicyValueCandidate[] Candidates =
+            Array.Empty<CombatPolicyValueCandidate>();
+
+        public double[] Minimum = Array.Empty<double>();
+
+        public double[] Maximum = Array.Empty<double>();
+
+        public void Prepare(
+            int stateCount,
+            int hiddenCount,
+            int actionCount,
+            int actionHiddenCount,
+            int inputCount,
+            int candidateCount)
+        {
+            Ensure(ref States, stateCount);
+            Ensure(ref Hidden, hiddenCount);
+            Ensure(ref Actions, actionCount);
+            Ensure(ref ActionHidden, actionHiddenCount);
+            Ensure(ref CandidateOwners, Math.Max(1, candidateCount));
+            Ensure(ref Candidates, Math.Max(1, candidateCount));
+            Ensure(ref Minimum, inputCount);
+            Ensure(ref Maximum, inputCount);
+        }
+
+        private static void Ensure(ref double[] values, int length)
+        {
+            if (values.Length < length)
+            {
+                values = new double[length];
+            }
+        }
+
+        private static void Ensure(ref int[] values, int length)
+        {
+            if (values.Length < length)
+            {
+                values = new int[length];
+            }
+        }
+
+        private static void Ensure(
+            ref CombatPolicyValueCandidate[] values,
+            int length)
+        {
+            if (values.Length < length)
+            {
+                values = new CombatPolicyValueCandidate[length];
+            }
+        }
     }
 
     private static double Sigmoid(double value)
@@ -402,25 +1056,56 @@ public static class CombatPolicyValueEncoding
         int dimensions,
         string encodingMode)
     {
-        RequireCurrentEncoding(encodingMode);
-        var sanitized = SanitizeStateFeatures(values);
         var result = new double[Math.Max(1, dimensions)];
+        EncodeStateInto(
+            values,
+            result,
+            result.Length,
+            encodingMode);
+        return result;
+    }
+
+    public static void EncodeStateInto(
+        IReadOnlyDictionary<string, double>? values,
+        double[] target,
+        int dimensions,
+        string encodingMode)
+    {
+        EncodeStateInto(values, target, 0, dimensions, encodingMode);
+    }
+
+    public static void EncodeStateInto(
+        IReadOnlyDictionary<string, double>? values,
+        double[] target,
+        int offset,
+        int dimensions,
+        string encodingMode)
+    {
+        RequireCurrentEncoding(encodingMode);
+        var safeDimensions = Math.Max(
+            1,
+            Math.Min(dimensions, target.Length - offset));
+        Array.Clear(target, offset, safeDimensions);
+        var sanitized = SanitizeStateFeatures(values);
         foreach (var pair in sanitized)
         {
-            if (TryCoreStateIndex(pair.Key, result.Length, out var coreIndex))
+            if (TryCoreStateIndex(
+                    pair.Key,
+                    safeDimensions,
+                    out var coreIndex))
             {
-                result[coreIndex] += Normalize(pair.Value);
+                target[offset + coreIndex] += Normalize(pair.Value);
                 continue;
             }
-            var range = StateRange(pair.Key, result.Length);
+            var range = StateRange(pair.Key, safeDimensions);
             AddRange(
-                result,
-                range.Start,
+                target,
+                offset + range.Start,
                 range.Length,
                 "state:" + pair.Key,
-                Normalize(pair.Value));
+                Normalize(pair.Value),
+                offset + safeDimensions);
         }
-        return result;
     }
 
     public static Dictionary<string, double> SanitizeStateFeatures(
@@ -487,30 +1172,69 @@ public static class CombatPolicyValueEncoding
         int dimensions,
         string encodingMode = "partitioned-v3")
     {
-        RequireCurrentEncoding(encodingMode);
         var result = new double[Math.Max(1, dimensions)];
+        EncodeCandidateInto(
+            candidate,
+            result,
+            result.Length,
+            encodingMode);
+        return result;
+    }
+
+    public static void EncodeCandidateInto(
+        CombatPolicyValueCandidate candidate,
+        double[] target,
+        int dimensions,
+        string encodingMode = "partitioned-v3")
+    {
+        EncodeCandidateInto(
+            candidate,
+            target,
+            0,
+            dimensions,
+            encodingMode);
+    }
+
+    public static void EncodeCandidateInto(
+        CombatPolicyValueCandidate candidate,
+        double[] target,
+        int offset,
+        int dimensions,
+        string encodingMode = "partitioned-v3")
+    {
+        RequireCurrentEncoding(encodingMode);
+        var safeDimensions = Math.Max(
+            1,
+            Math.Min(dimensions, target.Length - offset));
+        Array.Clear(target, offset, safeDimensions);
         foreach (var pair in CombatPublicFeaturePolicy.SanitizeAction(
                      candidate.Features))
         {
-            if (TryCoreActionIndex(pair.Key, result.Length, out var coreIndex))
+            if (TryCoreActionIndex(
+                    pair.Key,
+                    safeDimensions,
+                    out var coreIndex))
             {
-                result[coreIndex] += Normalize(pair.Value);
+                target[offset + coreIndex] += Normalize(pair.Value);
                 continue;
             }
+            var sparseStart = Math.Min(24, safeDimensions - 1);
             AddRange(
-                result,
-                Math.Min(24, result.Length - 1),
-                Math.Max(1, result.Length - Math.Min(24, result.Length - 1)),
+                target,
+                offset + sparseStart,
+                Math.Max(1, safeDimensions - sparseStart),
                 "action:" + pair.Key,
-                Normalize(pair.Value));
+                Normalize(pair.Value),
+                offset + safeDimensions);
         }
+        var sourceStart = Math.Min(24, safeDimensions - 1);
         AddRange(
-            result,
-            Math.Min(24, result.Length - 1),
-            Math.Max(1, result.Length - Math.Min(24, result.Length - 1)),
+            target,
+            offset + sourceStart,
+            Math.Max(1, safeDimensions - sourceStart),
             "source:" + (candidate.SourceId ?? ""),
-            1d);
-        return result;
+            1d,
+            offset + safeDimensions);
     }
 
     private static void RequireCurrentEncoding(string encodingMode)
@@ -671,7 +1395,20 @@ public static class CombatPolicyValueEncoding
         string key,
         double amount)
     {
-        var safeLength = Math.Max(1, Math.Min(length, values.Length - start));
+        AddRange(values, start, length, key, amount, values.Length);
+    }
+
+    private static void AddRange(
+        double[] values,
+        int start,
+        int length,
+        string key,
+        double amount,
+        int exclusiveEnd)
+    {
+        var safeLength = Math.Max(
+            1,
+            Math.Min(length, exclusiveEnd - start));
         var hash = Hash(key);
         var index = start + (int)(hash % (uint)safeLength);
         var sign = (hash & 0x80000000u) == 0u ? 1d : -1d;

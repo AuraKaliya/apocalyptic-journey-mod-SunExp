@@ -632,13 +632,48 @@ public sealed class CoverageAwareCombatPolicyValueModel :
     public IReadOnlyList<CombatPolicyValuePrediction> EvaluateBatch(
         IReadOnlyList<CombatPolicyValueInput> inputs)
     {
-        var result = new List<CombatPolicyValuePrediction>(
-            inputs?.Count ?? 0);
-        for (var index = 0; index < (inputs?.Count ?? 0); index++)
+        var count = inputs?.Count ?? 0;
+        var results = new CombatPolicyValuePrediction[count];
+        var activeInputs = new List<CombatPolicyValueInput>(count);
+        var activeIndices = new List<int>(count);
+        var fallbackIds = new List<List<string>>(count);
+        for (var index = 0; index < count; index++)
         {
-            result.Add(Evaluate(inputs![index]));
+            var input = inputs![index] ?? new CombatPolicyValueInput();
+            var filtered = FilterState(input, out var stateChanged);
+            var fallback = input.Candidates
+                .Where(ShouldFallback)
+                .Select(item => item.CandidateId ?? "")
+                .ToList();
+            fallbackIds.Add(fallback);
+            var actionable = input.Candidates
+                .Where(item => !string.Equals(
+                    item?.ActionKind,
+                    CombatActionKind.EndTurn.ToString(),
+                    StringComparison.OrdinalIgnoreCase))
+                .ToList();
+            if (actionable.Count > 0 && actionable.All(ShouldFallback))
+            {
+                results[index] = new CombatPolicyValuePrediction();
+                continue;
+            }
+            activeIndices.Add(index);
+            activeInputs.Add(stateChanged ? filtered : input);
         }
-        return result;
+        var activeResults = inner.EvaluateBatch(activeInputs);
+        for (var activeIndex = 0;
+             activeIndex < activeIndices.Count;
+             activeIndex++)
+        {
+            var resultIndex = activeIndices[activeIndex];
+            var prediction = activeResults[activeIndex];
+            foreach (var candidateId in fallbackIds[resultIndex])
+            {
+                prediction.PolicyLogits[candidateId] = 0d;
+            }
+            results[resultIndex] = prediction;
+        }
+        return results;
     }
 
     private bool ShouldFallback(CombatPolicyValueCandidate candidate)

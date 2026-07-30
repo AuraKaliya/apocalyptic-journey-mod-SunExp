@@ -69,6 +69,18 @@ public sealed class CombatScenarioRewardCatalogEntry
 
     public bool Negative { get; set; }
 
+    public string RewardCardPackId { get; set; } = "";
+
+    public CombatCampaignCardAcquisition CardAcquisition { get; set; } =
+        CombatCampaignCardAcquisition.RewardPool;
+
+    public string NativeScriptHash { get; set; } = "";
+
+    public string FightScript { get; set; } = "";
+
+    public Dictionary<string, string> Variables { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public CombatScenarioRewardCatalogEntry Clone()
     {
         return new CombatScenarioRewardCatalogEntry
@@ -76,7 +88,14 @@ public sealed class CombatScenarioRewardCatalogEntry
             RewardId = RewardId,
             Kind = Kind,
             Tier = Tier,
-            Negative = Negative
+            Negative = Negative,
+            RewardCardPackId = RewardCardPackId,
+            CardAcquisition = CardAcquisition,
+            NativeScriptHash = NativeScriptHash,
+            FightScript = FightScript,
+            Variables = new Dictionary<string, string>(
+                Variables,
+                StringComparer.OrdinalIgnoreCase)
         };
     }
 }

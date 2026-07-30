@@ -925,6 +925,12 @@ public sealed class CombatFoundationReplaySelection
 
     public int SuccessfulCampaigns { get; set; }
 
+    public double SourcePriorityMean { get; set; }
+
+    public double SelectedPriorityMean { get; set; }
+
+    public int SelectedHighPriorityEpisodes { get; set; }
+
     public Dictionary<string, int> QuotaShortfalls { get; set; } =
         new(StringComparer.Ordinal);
 }
@@ -936,6 +942,12 @@ public sealed class CombatFoundationReplayBalanceOptions
     public double MinimumAdvancedDefeatShare { get; set; } = 0.25d;
 
     public bool AllowCrossDifficultyBackfill { get; set; }
+
+    public bool EnablePrioritySampling { get; set; } = true;
+
+    public double PriorityAlpha { get; set; } = 0.60d;
+
+    public double? TargetAdvancedShare { get; set; }
 }
 
 public static class CombatFoundationReplaySampler
@@ -956,8 +968,10 @@ public static class CombatFoundationReplaySampler
             .Select(group => group.First())
             .ToList();
         var limit = Math.Max(1, episodeLimit);
-        var campaigns = BuildCampaigns(episodes);
-        var targetNormalShare = DetermineNormalShare(campaigns);
+        var campaigns = BuildCampaigns(episodes, balance.PriorityAlpha);
+        var targetNormalShare = balance.TargetAdvancedShare.HasValue
+            ? 1d - Clamp01(balance.TargetAdvancedShare.Value)
+            : DetermineNormalShare(campaigns);
         targetNormalShare = Math.Min(
             targetNormalShare,
             1d - Math.Max(
@@ -970,7 +984,7 @@ public static class CombatFoundationReplaySampler
             Math.Min(
                 1d - targetNormalShare,
                 balance.MinimumAdvancedDefeatShare));
-        var selected = !enabled
+        var selected = !enabled && !balance.EnablePrioritySampling
             ? episodes.Skip(Math.Max(0, episodes.Count - limit)).ToList()
             : SelectCampaignFirst(
                 campaigns,
@@ -978,7 +992,17 @@ public static class CombatFoundationReplaySampler
                 targetNormalShare,
                 minimumAdvancedDefeatShare,
                 quotaShortfalls,
-                balance.AllowCrossDifficultyBackfill);
+                balance.AllowCrossDifficultyBackfill,
+                balance.EnablePrioritySampling);
+        var sourcePriorities = episodes
+            .Select(EpisodePriority)
+            .OrderBy(value => value)
+            .ToArray();
+        var highPriorityThreshold = sourcePriorities.Length == 0
+            ? double.MaxValue
+            : sourcePriorities[Math.Min(
+                sourcePriorities.Length - 1,
+                (int)Math.Floor(sourcePriorities.Length * 0.75d))];
         return new CombatFoundationReplaySelection
         {
             Episodes = selected,
@@ -1002,6 +1026,14 @@ public static class CombatFoundationReplaySampler
                 .Select(CampaignKey)
                 .Distinct(StringComparer.Ordinal)
                 .Count(),
+            SourcePriorityMean = sourcePriorities.Length == 0
+                ? 0d
+                : sourcePriorities.Average(),
+            SelectedPriorityMean = selected.Count == 0
+                ? 0d
+                : selected.Average(EpisodePriority),
+            SelectedHighPriorityEpisodes = selected.Count(episode =>
+                EpisodePriority(episode) >= highPriorityThreshold),
             QuotaShortfalls = quotaShortfalls
         };
     }
@@ -1012,11 +1044,14 @@ public static class CombatFoundationReplaySampler
         double targetNormalShare,
         double minimumAdvancedDefeatShare,
         IDictionary<string, int> quotaShortfalls,
-        bool allowCrossDifficultyBackfill)
+        bool allowCrossDifficultyBackfill,
+        bool enablePrioritySampling)
     {
         var representatives = campaigns.ToDictionary(
             campaign => campaign.Key,
-            SelectRepresentativeEpisodes,
+            campaign => SelectRepresentativeEpisodes(
+                campaign,
+                enablePrioritySampling),
             StringComparer.Ordinal);
         var availableCount = representatives.Values.Sum(items => items.Count);
         var targetCount = Math.Min(limit, availableCount);
@@ -1048,7 +1083,8 @@ public static class CombatFoundationReplaySampler
             normalTarget,
             "normal",
             quotaShortfalls,
-            minimumFailureTarget: 0);
+            minimumFailureTarget: 0,
+            enablePrioritySampling: enablePrioritySampling);
         AddDifficultySelection(
             result,
             campaigns.Where(campaign => campaign.Advanced).ToList(),
@@ -1056,7 +1092,8 @@ public static class CombatFoundationReplaySampler
             advancedTarget,
             "advanced",
             quotaShortfalls,
-            advancedDefeatTarget);
+            advancedDefeatTarget,
+            enablePrioritySampling);
         if (allowCrossDifficultyBackfill && result.Count < targetCount)
         {
             var selectedKeys = result
@@ -1065,7 +1102,11 @@ public static class CombatFoundationReplaySampler
             var remaining = campaigns
                 .SelectMany(campaign => representatives[campaign.Key])
                 .Where(episode => !selectedKeys.Contains(StableKey(episode)))
-                .OrderBy(episode => CampaignKey(episode), StringComparer.Ordinal)
+                .OrderByDescending(episode =>
+                    enablePrioritySampling ? EpisodePriority(episode) : 0d)
+                .ThenBy(
+                    episode => CampaignKey(episode),
+                    StringComparer.Ordinal)
                 .ThenBy(episode => episode.JourneyBattleIndex)
                 .ThenBy(StableKey, StringComparer.Ordinal)
                 .Take(targetCount - result.Count);
@@ -1083,7 +1124,8 @@ public static class CombatFoundationReplaySampler
         int target,
         string difficulty,
         IDictionary<string, int> quotaShortfalls,
-        int minimumFailureTarget)
+        int minimumFailureTarget,
+        bool enablePrioritySampling)
     {
         if (target <= 0)
         {
@@ -1102,11 +1144,13 @@ public static class CombatFoundationReplaySampler
         var selectedWins = TakeCampaignRoundRobin(
             wins,
             representatives,
-            winTarget);
+            winTarget,
+            enablePrioritySampling);
         var selectedFailures = TakeFailureDepthBalanced(
             failures,
             representatives,
-            failureTarget);
+            failureTarget,
+            enablePrioritySampling);
         var selected = selectedWins
             .Concat(selectedFailures)
             .ToList();
@@ -1131,7 +1175,9 @@ public static class CombatFoundationReplaySampler
                 .SelectMany(campaign => representatives[campaign.Key])
                 .Where(episode =>
                     !selectedKeys.Contains(StableKey(episode)))
-                .OrderBy(StableKey, StringComparer.Ordinal)
+                .OrderByDescending(episode =>
+                    enablePrioritySampling ? EpisodePriority(episode) : 0d)
+                .ThenBy(StableKey, StringComparer.Ordinal)
                 .Take(target - selected.Count)
                 .ToList();
             foreach (var episode in sameDifficultyBackfill)
@@ -1193,7 +1239,8 @@ public static class CombatFoundationReplaySampler
     }
 
     private static List<ReplayCampaign> BuildCampaigns(
-        IReadOnlyList<CombatEpisode> episodes)
+        IReadOnlyList<CombatEpisode> episodes,
+        double priorityAlpha)
     {
         return episodes
             .GroupBy(CampaignKey, StringComparer.Ordinal)
@@ -1214,7 +1261,10 @@ public static class CombatFoundationReplaySampler
                         last.Campaign?.TerminalScenarioId ?? "",
                     CompletedBattles = Math.Max(
                         ordered.Count,
-                        last.Campaign?.CampaignCompletedBattles ?? 0)
+                        last.Campaign?.CampaignCompletedBattles ?? 0),
+                    PriorityScore = Math.Pow(
+                        Math.Max(0.01d, ordered.Max(EpisodePriority)),
+                        Math.Max(0d, Math.Min(1d, priorityAlpha)))
                 };
             })
             .OrderBy(campaign => campaign.Key, StringComparer.Ordinal)
@@ -1222,7 +1272,8 @@ public static class CombatFoundationReplaySampler
     }
 
     private static List<CombatEpisode> SelectRepresentativeEpisodes(
-        ReplayCampaign campaign)
+        ReplayCampaign campaign,
+        bool enablePrioritySampling)
     {
         const int maximumEpisodesPerCampaign = 8;
         var selected = new List<CombatEpisode>();
@@ -1236,6 +1287,16 @@ public static class CombatFoundationReplaySampler
             }
         }
 
+        if (enablePrioritySampling)
+        {
+            foreach (var episode in campaign.Episodes
+                         .OrderByDescending(EpisodePriority)
+                         .ThenByDescending(item => item.JourneyBattleIndex)
+                         .Take(3))
+            {
+                Add(episode);
+            }
+        }
         foreach (var episode in campaign.Episodes
                      .OrderByDescending(item => item.JourneyBattleIndex)
                      .Take(3))
@@ -1270,11 +1331,14 @@ public static class CombatFoundationReplaySampler
     private static List<CombatEpisode> TakeCampaignRoundRobin(
         IReadOnlyList<ReplayCampaign> campaigns,
         IReadOnlyDictionary<string, List<CombatEpisode>> representatives,
-        int count)
+        int count,
+        bool enablePrioritySampling)
     {
         var result = new List<CombatEpisode>();
         var ordered = campaigns
-            .OrderBy(campaign => campaign.Key, StringComparer.Ordinal)
+            .OrderByDescending(campaign =>
+                enablePrioritySampling ? campaign.PriorityScore : 0d)
+            .ThenBy(campaign => campaign.Key, StringComparer.Ordinal)
             .ToList();
         for (var offset = 0; result.Count < count; offset++)
         {
@@ -1304,7 +1368,8 @@ public static class CombatFoundationReplaySampler
     private static List<CombatEpisode> TakeFailureDepthBalanced(
         IReadOnlyList<ReplayCampaign> failures,
         IReadOnlyDictionary<string, List<CombatEpisode>> representatives,
-        int count)
+        int count,
+        bool enablePrioritySampling)
     {
         var clusterCounts = failures
             .GroupBy(
@@ -1319,13 +1384,133 @@ public static class CombatFoundationReplaySampler
                 clusterCounts[FailureCluster(
                     campaign.TerminalScenarioId)])
             .ThenBy(campaign => DepthBucket(campaign.CompletedBattles))
+            .ThenByDescending(campaign =>
+                enablePrioritySampling ? campaign.PriorityScore : 0d)
             .ThenByDescending(campaign => campaign.CompletedBattles)
             .ThenBy(campaign => campaign.Key, StringComparer.Ordinal)
             .ToList();
         return TakeCampaignRoundRobin(
             ordered,
             representatives,
-            count);
+            count,
+            enablePrioritySampling);
+    }
+
+    internal static double EpisodePriority(CombatEpisode episode)
+    {
+        var priority = 1d;
+        if (IsAdvanced(episode))
+        {
+            priority += 0.25d;
+        }
+        if (!IsSuccessful(episode))
+        {
+            priority += 0.50d;
+        }
+        var failureIndex = episode.Campaign?.FailureBattleIndex ?? -1;
+        if (failureIndex >= 0
+            && Math.Abs(failureIndex - episode.JourneyBattleIndex) <= 2)
+        {
+            priority += 0.40d;
+        }
+        var frames = episode.Frames ?? new List<CombatEpisodeFrame>();
+        if (frames.Count == 0)
+        {
+            return priority;
+        }
+        var temporalErrors = new List<double>();
+        var entropyTotal = 0d;
+        var entropyFrames = 0;
+        var maximumDeathRisk = 0d;
+        var endTurnDecisions = 0;
+        foreach (var frame in frames)
+        {
+            var candidates = (frame.Candidates
+                              ?? new List<CombatEpisodeCandidate>())
+                .Where(candidate => candidate.Legal)
+                .ToList();
+            var executed = candidates.FirstOrDefault(candidate =>
+                string.Equals(
+                    candidate.CandidateId,
+                    frame.ExecutedCandidateId,
+                    StringComparison.Ordinal));
+            if (executed != null)
+            {
+                temporalErrors.Add(Math.Min(
+                    2d,
+                    Math.Abs(executed.SearchValue - frame.LongTermReturn)));
+            }
+            maximumDeathRisk = Math.Max(
+                maximumDeathRisk,
+                candidates.Count == 0
+                    ? 0d
+                    : candidates.Max(candidate =>
+                        Finite(candidate.SearchDeathRisk)
+                            ? Math.Max(0d, candidate.SearchDeathRisk)
+                            : 0d));
+            var visits = candidates.Sum(candidate =>
+                Math.Max(0, candidate.SearchVisits));
+            if (visits > 0 && candidates.Count > 1)
+            {
+                var entropy = 0d;
+                foreach (var candidate in candidates)
+                {
+                    var probability =
+                        Math.Max(0, candidate.SearchVisits) / (double)visits;
+                    if (probability > 0d)
+                    {
+                        entropy -= probability * Math.Log(probability);
+                    }
+                }
+                entropyTotal += entropy / Math.Log(candidates.Count);
+                entropyFrames++;
+            }
+            if (candidates.Any(IsEndTurnCandidate)
+                && candidates.Any(candidate => !IsEndTurnCandidate(candidate)))
+            {
+                endTurnDecisions++;
+            }
+        }
+        priority += 0.75d * Math.Min(
+            1d,
+            temporalErrors.Count == 0 ? 0d : temporalErrors.Average());
+        priority += 0.30d * (entropyFrames == 0
+            ? 0d
+            : entropyTotal / entropyFrames);
+        priority += 0.35d * Math.Min(1d, maximumDeathRisk);
+        priority += 0.25d * Math.Min(
+            1d,
+            endTurnDecisions / (double)Math.Max(1, frames.Count / 4));
+        if (frames.Any(frame => frame.TrainingWeight > 1d))
+        {
+            priority += 0.30d;
+        }
+        return Math.Max(0.10d, Math.Min(5d, priority));
+    }
+
+    private static bool IsEndTurnCandidate(CombatEpisodeCandidate candidate)
+    {
+        return string.Equals(
+                   candidate.SourceId,
+                   "simulation:end-turn",
+                   StringComparison.OrdinalIgnoreCase)
+               || candidate.Features != null
+               && candidate.Features.TryGetValue(
+                   "actionKindEndTurn",
+                   out var value)
+               && value > 0.5d;
+    }
+
+    private static bool Finite(double value)
+    {
+        return !double.IsNaN(value) && !double.IsInfinity(value);
+    }
+
+    private static double Clamp01(double value)
+    {
+        return Finite(value)
+            ? Math.Max(0d, Math.Min(1d, value))
+            : 0d;
     }
 
     private static string FailureCluster(string value)
@@ -1392,5 +1577,7 @@ public static class CombatFoundationReplaySampler
         public string TerminalScenarioId { get; set; } = "";
 
         public int CompletedBattles { get; set; }
+
+        public double PriorityScore { get; set; }
     }
 }

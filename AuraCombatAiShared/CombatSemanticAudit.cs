@@ -6,6 +6,13 @@ using AuraCombatSimulation.Shared;
 
 namespace AuraCombatAi.Shared;
 
+public enum CombatSemanticAuditStatus
+{
+    ValidMatch,
+    ValidMismatch,
+    Invalid
+}
+
 public sealed class CombatSemanticAuditComparison
 {
     public string Kind { get; set; } = "";
@@ -27,21 +34,38 @@ public sealed class CombatSemanticAuditResult
 
     public List<string> MismatchKinds { get; set; } = new();
 
+    public List<string> InvalidKinds { get; set; } = new();
+
     public List<string> ExplainedKinds { get; set; } = new();
 
     public List<CombatSemanticAuditComparison> Comparisons { get; set; } = new();
 
-    public bool Mismatch => MismatchKinds.Count > 0;
+    public bool Valid => InvalidKinds.Count == 0;
+
+    public bool Invalid => !Valid;
+
+    public bool Mismatch => Valid && MismatchKinds.Count > 0;
 
     public bool ExplainedDifference => ExplainedKinds.Count > 0;
+
+    public CombatSemanticAuditStatus Status => Invalid
+        ? CombatSemanticAuditStatus.Invalid
+        : Mismatch
+            ? CombatSemanticAuditStatus.ValidMismatch
+            : CombatSemanticAuditStatus.ValidMatch;
 
     public string Describe(string sourceId)
     {
         var details = Comparisons
-            .Where(item => string.Equals(
-                item.Classification,
-                "unexplained",
-                StringComparison.Ordinal))
+            .Where(item =>
+                string.Equals(
+                    item.Classification,
+                    "unexplained",
+                    StringComparison.Ordinal)
+                || string.Equals(
+                    item.Classification,
+                    "invalid",
+                    StringComparison.Ordinal))
             .Take(4)
             .Select(item =>
                 item.Kind
@@ -114,14 +138,10 @@ public static class CombatSemanticAuditor
         var result = new CombatSemanticAuditResult();
         if (projected == null)
         {
-            result.AuditedKinds.Add("projection");
-            result.MismatchKinds.Add("projection-missing");
-            result.Comparisons.Add(new CombatSemanticAuditComparison
-            {
-                Kind = "projection",
-                Classification = "unexplained",
-                Explanation = "no projected semantics were available"
-            });
+            AddInvalid(
+                result,
+                "projection",
+                "no projected semantics were available");
             return result;
         }
 
@@ -131,6 +151,14 @@ public static class CombatSemanticAuditor
         var actionEvents = ScopeActionEvents(
             before,
             events ?? Array.Empty<CombatSimulationEvent>());
+        if (!actionEvents.Any(IsSemanticTraceEvidence))
+        {
+            AddInvalid(
+                result,
+                "action-trace",
+                "no action-scoped semantic events were captured");
+            return result;
+        }
         var intrinsicEvents = actionEvents
             .Where(item => IsIntrinsic(item, action))
             .ToList();
@@ -144,6 +172,16 @@ public static class CombatSemanticAuditor
             .Where(item => item.Kind == CombatSimulationEventKind.DamageDealt
                            && IsEnemy(before, item.TargetActorId))
             .Sum(item => Math.Max(0, item.Amount));
+        var observedDurabilityDamage = before.LivingEnemies.Sum(item =>
+                                           Math.Max(0, item.Hp)
+                                           + Math.Max(0, item.Block))
+                                       - after.LivingEnemies.Sum(item =>
+                                           Math.Max(0, item.Hp)
+                                           + Math.Max(0, item.Block));
+        var damageTraceComplete = observedDurabilityDamage <= 0
+                                  || actionEvents.Any(item =>
+                                      item.Kind
+                                      == CombatSimulationEventKind.DamageDealt);
         var effectiveProjection = ProjectEffective(before, action, projected);
         var effectiveDamage = effectiveProjection.Damage;
         Compare(
@@ -152,7 +190,8 @@ public static class CombatSemanticAuditor
             projected.Damage + projected.TrueDamage,
             effectiveDamage,
             actualDamage,
-            ExplainDamage(before, action, projected, effectiveDamage));
+            ExplainDamage(before, action, projected, effectiveDamage),
+            damageTraceComplete);
 
         var actualBlock = intrinsicEvents
             .Where(item =>
@@ -161,6 +200,14 @@ public static class CombatSemanticAuditor
                     || item.Kind == CombatSimulationEventKind.BlockChanged))
             .Sum(item => Math.Max(0, item.Amount));
         var effectiveBlock = effectiveProjection.IntrinsicDefend;
+        var observedBlockGain = Math.Max(
+            0,
+            (after.Player?.Block ?? 0) - (before.Player?.Block ?? 0));
+        var blockTraceComplete = observedBlockGain <= 0
+                                 || actionEvents.Any(item =>
+                                     item.Kind
+                                     is CombatSimulationEventKind.BlockGained
+                                     or CombatSimulationEventKind.BlockChanged);
         Compare(
             result,
             "defend",
@@ -169,7 +216,8 @@ public static class CombatSemanticAuditor
             actualBlock,
             Different(projected.Defend, effectiveBlock)
                 ? "attribute-or-status-modified"
-                : "");
+                : "",
+            blockTraceComplete);
         if (Different(
                 effectiveProjection.IntrinsicDefend,
                 effectiveProjection.Defend))
@@ -185,6 +233,13 @@ public static class CombatSemanticAuditor
                            && item.TargetActorId == playerId)
             .Sum(item => Math.Max(0, item.Amount));
         var effectiveHeal = effectiveProjection.Heal;
+        var observedHeal = Math.Max(
+            0,
+            (after.Player?.Hp ?? 0) - (before.Player?.Hp ?? 0));
+        var healTraceComplete = observedHeal <= 0
+                                || actionEvents.Any(item =>
+                                    item.Kind
+                                    == CombatSimulationEventKind.Healed);
         Compare(
             result,
             "heal",
@@ -193,40 +248,72 @@ public static class CombatSemanticAuditor
             actualHeal,
             Different(projected.Heal, effectiveHeal)
                 ? "missing-hp-or-heal-modifier"
-                : "");
+                : "",
+            healTraceComplete);
 
         var actualDraw = intrinsicEvents.Count(item =>
             item.Kind == CombatSimulationEventKind.CardDrawn
             && (item.TargetActorId == 0 || item.TargetActorId == playerId));
+        var consumedCard = action.Kind == CombatSimulationActionKind.PlayCard
+                           && before.Hand.Contains(action.CardInstanceId)
+                           && !after.Hand.Contains(action.CardInstanceId)
+            ? 1
+            : 0;
+        var observedDraw = Math.Max(
+            0,
+            after.Hand.Count - before.Hand.Count + consumedCard);
+        var drawTraceComplete = observedDraw <= 0
+                                || actionEvents.Any(item =>
+                                    item.Kind
+                                    == CombatSimulationEventKind.CardDrawn);
         Compare(
             result,
             "draw",
             projected.Draw,
             projected.Draw,
             actualDraw,
-            projected.Draw > actualDraw ? "draw-cap-or-empty-pile" : "");
+            projected.Draw > actualDraw ? "draw-cap-or-empty-pile" : "",
+            drawTraceComplete);
 
         var actualEnergy = intrinsicEvents
             .Where(item => item.Kind == CombatSimulationEventKind.EnergyChanged
                            && item.TargetActorId == playerId)
             .Sum(item => Math.Max(0, item.Amount));
+        var observedEnergyGain = Math.Max(
+            0,
+            (after.Player?.Energy ?? 0)
+            - (before.Player?.Energy ?? 0)
+            + Math.Max(0, action.Cost));
+        var energyTraceComplete = observedEnergyGain <= 0
+                                  || actionEvents.Any(item =>
+                                      item.Kind
+                                      == CombatSimulationEventKind.EnergyChanged);
         Compare(
             result,
             "energy-gain",
             projected.EnergyGain,
             projected.EnergyGain,
             actualEnergy,
-            "");
+            "",
+            energyTraceComplete);
 
         var actualGenerated = intrinsicEvents.Count(item =>
             item.Kind == CombatSimulationEventKind.CardCreated);
+        var observedGenerated = Math.Max(
+            0,
+            after.Cards.Count - before.Cards.Count);
+        var generationTraceComplete = observedGenerated <= 0
+                                      || actionEvents.Any(item =>
+                                          item.Kind
+                                          == CombatSimulationEventKind.CardCreated);
         Compare(
             result,
             "card-generation",
             projected.CardGeneration,
             projected.CardGeneration,
             actualGenerated,
-            "");
+            "",
+            generationTraceComplete);
 
         var (actualBuff, actualDebuff, hasExactStatusProjection) =
             StatusDeltas(
@@ -332,6 +419,14 @@ public static class CombatSemanticAuditor
         return item.CardInstanceId == 0
                || action.CardInstanceId == 0
                || item.CardInstanceId == action.CardInstanceId;
+    }
+
+    private static bool IsSemanticTraceEvidence(CombatSimulationEvent item)
+    {
+        return item.Kind is not CombatSimulationEventKind.BattleStarted
+            and not CombatSimulationEventKind.BattleEnded
+            and not CombatSimulationEventKind.TurnStarted
+            and not CombatSimulationEventKind.TurnEnded;
     }
 
     private static double EffectiveDamage(
@@ -676,12 +771,24 @@ public static class CombatSemanticAuditor
         double projected,
         double effectiveProjected,
         double actual,
-        string explanation)
+        string explanation,
+        bool traceComplete = true)
     {
         if (Math.Abs(projected) <= 0.000001d
             && Math.Abs(effectiveProjected) <= 0.000001d
             && Math.Abs(actual) <= 0.000001d)
         {
+            return;
+        }
+        if (!traceComplete)
+        {
+            AddInvalid(
+                result,
+                kind,
+                "state transition occurred without an attributed event",
+                projected,
+                effectiveProjected,
+                actual);
             return;
         }
         result.AuditedKinds.Add(kind);
@@ -722,6 +829,43 @@ public static class CombatSemanticAuditor
             EffectiveProjected = effectiveProjected,
             Actual = actual,
             Classification = "unexplained",
+            Explanation = explanation
+        });
+    }
+
+    private static void AddInvalid(
+        CombatSemanticAuditResult result,
+        string kind,
+        string explanation,
+        double projected = 0d,
+        double effectiveProjected = 0d,
+        double actual = 0d)
+    {
+        if (!result.InvalidKinds.Contains(
+                kind,
+                StringComparer.OrdinalIgnoreCase))
+        {
+            result.InvalidKinds.Add(kind);
+        }
+        if (result.Comparisons.Any(item =>
+                string.Equals(
+                    item.Kind,
+                    kind,
+                    StringComparison.OrdinalIgnoreCase)
+                && string.Equals(
+                    item.Classification,
+                    "invalid",
+                    StringComparison.Ordinal)))
+        {
+            return;
+        }
+        result.Comparisons.Add(new CombatSemanticAuditComparison
+        {
+            Kind = kind,
+            Projected = projected,
+            EffectiveProjected = effectiveProjected,
+            Actual = actual,
+            Classification = "invalid",
             Explanation = explanation
         });
     }

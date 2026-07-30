@@ -270,6 +270,15 @@ static string Normalize(string script)
         "UsedCard.Select(x => x.dataConfig).ToList()");
     result = Regex.Replace(
         result,
+        @"\bnew\s+NativeRewardDataConfig\s*\(",
+        "CreateDataConfig(");
+    result = Regex.Replace(
+        result,
+        @"\b(?<config>[A-Za-z_][A-Za-z0-9_]*)\.data\s*=\s*"
+        + @"(?<value>[A-Za-z_][A-Za-z0-9_]*)\s*;",
+        "${config}.ReplaceData(${value});");
+    result = Regex.Replace(
+        result,
         @"\b(?<pile>DeckCard|HandCard|UsedCard)\s*"
         + @"\.Cast<NativeRewardDataConfig>\s*\(\s*\)",
         "${pile}.Select(x => x.dataConfig)");

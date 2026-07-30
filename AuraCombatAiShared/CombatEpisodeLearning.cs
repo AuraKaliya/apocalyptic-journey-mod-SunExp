@@ -17,7 +17,7 @@ public static class CombatPolicyValueProtocol
 
 public static class CombatPolicyValueFrameStratificationProtocol
 {
-    public const string Version = "frame-strata-v2";
+    public const string Version = "frame-strata-v3-end-turn";
 
     public const double MinimumWeight = 0.50d;
 
@@ -154,13 +154,13 @@ public sealed class CombatPolicyValueTrainingOptions
 {
     public int Epochs { get; set; } = 40;
 
-    public double LearningRate { get; set; } = 0.0125d;
+    public double LearningRate { get; set; } = 0.00625d;
 
     public double L2 { get; set; } = 0.0015d;
 
-    public int StateDimensions { get; set; } = 128;
+    public int StateDimensions { get; set; } = 256;
 
-    public int ActionDimensions { get; set; } = 96;
+    public int ActionDimensions { get; set; } = 192;
 
     public int HiddenDimensions { get; set; } = 64;
 
@@ -174,6 +174,8 @@ public sealed class CombatPolicyValueTrainingOptions
 
     public int BatchSize { get; set; } = 64;
 
+    public int GradientShardCount { get; set; } = 12;
+
     public int MaximumDegreeOfParallelism { get; set; } = 1;
 
     public int MinimumEpochs { get; set; } = 8;
@@ -182,11 +184,19 @@ public sealed class CombatPolicyValueTrainingOptions
 
     public double EarlyStoppingMinimumDelta { get; set; } = 0.0002d;
 
-    public int ReplayEpisodeLimit { get; set; } = 6000;
+    public int ReplayEpisodeLimit { get; set; } = 8000;
 
     public int RetainedModelCandidates { get; set; } = 3;
 
     public bool EnableFrameStratification { get; set; } = true;
+
+    public bool EnableEndTurnSpecialization { get; set; } = true;
+
+    public double EndTurnFrameWeight { get; set; } = 2d;
+
+    public double PolicyTargetTemperature { get; set; } = 1.25d;
+
+    public double MaximumPolicyTargetProbability { get; set; } = 0.90d;
 
     public double MaximumFrameStratumWeight { get; set; } =
         CombatPolicyValueFrameStratificationProtocol.DefaultMaximumWeight;
@@ -198,7 +208,7 @@ public sealed class CombatPolicyValueTrainingOptions
         return new CombatPolicyValueTrainingOptions
         {
             Epochs = Math.Max(5, Math.Min(500, Epochs)),
-            LearningRate = Clamp(LearningRate, 0.0001d, 0.1d, 0.0125d),
+            LearningRate = Clamp(LearningRate, 0.0001d, 0.1d, 0.00625d),
             L2 = Clamp(L2, 0d, 0.05d, 0.0015d),
             StateDimensions = Math.Max(16, Math.Min(512, StateDimensions)),
             ActionDimensions = Math.Max(16, Math.Min(512, ActionDimensions)),
@@ -208,6 +218,9 @@ public sealed class CombatPolicyValueTrainingOptions
             MinimumEpisodes = Math.Max(2, Math.Min(10000, MinimumEpisodes)),
             RequireAuthoritativeEpisodes = RequireAuthoritativeEpisodes,
             BatchSize = Math.Max(8, Math.Min(512, BatchSize)),
+            GradientShardCount = Math.Max(
+                1,
+                Math.Min(32, GradientShardCount)),
             MaximumDegreeOfParallelism = Math.Max(
                 1,
                 Math.Min(Environment.ProcessorCount, MaximumDegreeOfParallelism)),
@@ -227,6 +240,22 @@ public sealed class CombatPolicyValueTrainingOptions
                 1,
                 Math.Min(5, RetainedModelCandidates)),
             EnableFrameStratification = EnableFrameStratification,
+            EnableEndTurnSpecialization = EnableEndTurnSpecialization,
+            EndTurnFrameWeight = Clamp(
+                EndTurnFrameWeight,
+                1d,
+                5d,
+                2d),
+            PolicyTargetTemperature = Clamp(
+                PolicyTargetTemperature,
+                1d,
+                3d,
+                1.25d),
+            MaximumPolicyTargetProbability = Clamp(
+                MaximumPolicyTargetProbability,
+                0.55d,
+                1d,
+                0.90d),
             MaximumFrameStratumWeight = Clamp(
                 MaximumFrameStratumWeight,
                 1d,
@@ -281,6 +310,24 @@ public sealed class CombatPolicyValueTrainingResult
     public double MinimumFrameWeight { get; set; } = 1d;
 
     public double MaximumFrameWeight { get; set; } = 1d;
+
+    public int EndTurnDecisionFrames { get; set; }
+
+    public int UnsafeEndTurnFrames { get; set; }
+
+    public double MeanPolicyTargetMaximum { get; set; }
+
+    public CombatPolicyValueMetricSnapshot TrainingMetrics { get; set; } =
+        new();
+
+    public CombatPolicyValueMetricSnapshot ValidationMetrics { get; set; } =
+        new();
+
+    public CombatPolicyValueMetricSnapshot TestMetrics { get; set; } =
+        new();
+
+    public List<CombatPolicyValueEpochMetrics> EpochHistory { get; set; } =
+        new();
 }
 
 public sealed class CombatPolicyValueModelCandidate
@@ -288,6 +335,15 @@ public sealed class CombatPolicyValueModelCandidate
     public int Epoch { get; set; }
 
     public double ValidationLoss { get; set; }
+
+    public CombatPolicyValueMetricSnapshot TrainingMetrics { get; set; } =
+        new();
+
+    public CombatPolicyValueMetricSnapshot ValidationMetrics { get; set; } =
+        new();
+
+    public CombatPolicyValueMetricSnapshot TestMetrics { get; set; } =
+        new();
 
     public CombatPolicyValueNetworkDefinition Model { get; set; } = new();
 }
@@ -317,6 +373,78 @@ public sealed class CombatPolicyValueTrainingProgress
     public int StaleEpochs { get; set; }
 
     public bool EarlyStopped { get; set; }
+
+    public CombatPolicyValueEpochMetrics? Metrics { get; set; }
+}
+
+public sealed class CombatPolicyValueMetricSnapshot
+{
+    public int FrameCount { get; set; }
+
+    public int RunCount { get; set; }
+
+    public double CompositeLoss { get; set; }
+
+    public double CompositeLossStandardError { get; set; }
+
+    public double CompositeLossCiLower { get; set; }
+
+    public double CompositeLossCiUpper { get; set; }
+
+    public double PolicyAccuracy { get; set; }
+
+    public double CriticalPolicyAccuracy { get; set; }
+
+    public double PolicyCrossEntropy { get; set; }
+
+    public double ValueMae { get; set; }
+
+    public double Brier { get; set; }
+
+    public double DeathBrier { get; set; }
+
+    public double HpMae { get; set; }
+
+    public double TurnHuber { get; set; }
+}
+
+public sealed class CombatPolicyValueEpochMetrics
+{
+    public int Iteration { get; set; }
+
+    public int Epoch { get; set; }
+
+    public bool Calibrated { get; set; }
+
+    public string EventKind { get; set; } = "epoch";
+
+    public string TrainingMeasurement { get; set; } = "full-evaluation";
+
+    public double ElapsedSeconds { get; set; }
+
+    public double LearningRate { get; set; }
+
+    public double GradientNorm { get; set; }
+
+    public int GradientClipCount { get; set; }
+
+    public bool Improved { get; set; }
+
+    public int BestEpoch { get; set; }
+
+    public double BestValidationLoss { get; set; }
+
+    public int StaleEpochs { get; set; }
+
+    public bool EarlyStopped { get; set; }
+
+    public string TrainingSplitHash { get; set; } = "";
+
+    public string ValidationSplitHash { get; set; } = "";
+
+    public CombatPolicyValueMetricSnapshot Training { get; set; } = new();
+
+    public CombatPolicyValueMetricSnapshot Validation { get; set; } = new();
 }
 
 public sealed class CombatPolicyValueTrainingResumeState
@@ -337,6 +465,9 @@ public sealed class CombatPolicyValueTrainingResumeState
 
     public List<CombatPolicyValueModelCandidate> TopModels { get; set; } =
         new();
+
+    public List<CombatPolicyValueEpochMetrics> EpochHistory { get; set; } =
+        new();
 }
 
 public sealed class CombatPolicyValueOptimizerState
@@ -353,6 +484,8 @@ public sealed class CombatPolicyValueTrainingSession
     public CombatPolicyValueTrainingResumeState? Resume { get; set; }
 
     public Action<CombatPolicyValueTrainingProgress>? Progress { get; set; }
+
+    public Action<CombatPolicyValueEpochMetrics>? EpochCompleted { get; set; }
 
     public Action<CombatPolicyValueTrainingResumeState>? Checkpoint { get; set; }
 }

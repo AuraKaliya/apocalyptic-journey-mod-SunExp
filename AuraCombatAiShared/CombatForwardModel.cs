@@ -113,6 +113,13 @@ public sealed class CombatSimulationState
             }
         }
 
+        var deferredEffects =
+            new List<CombatDeferredEffectSimulation>(DeferredEffects.Count);
+        for (var i = 0; i < DeferredEffects.Count; i++)
+        {
+            deferredEffects.Add(DeferredEffects[i].Clone());
+        }
+
         return new CombatSimulationState
         {
             PlayerRuntimeId = PlayerRuntimeId,
@@ -154,13 +161,9 @@ public sealed class CombatSimulationState
             ExhaustPileCardIds = cloneCardPiles
                 ? new List<string>(ExhaustPileCardIds)
                 : ExhaustPileCardIds,
-            DeferredEffects = DeferredEffects
-                .Select(item => item.Clone())
-                .ToList(),
-            KnownCardSemantics = KnownCardSemantics.ToDictionary(
-                pair => pair.Key,
-                pair => CloneSemantics(pair.Value),
-                StringComparer.OrdinalIgnoreCase),
+            DeferredEffects = deferredEffects,
+            // This catalog is immutable after root-state construction.
+            KnownCardSemantics = KnownCardSemantics,
             DrawPileKnown = DrawPileKnown,
             DrawnCardPotential = DrawnCardPotential,
             SetupValue = SetupValue,

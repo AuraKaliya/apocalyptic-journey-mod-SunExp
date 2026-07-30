@@ -43,9 +43,13 @@ public sealed class CombatFoundationTrainingParameters
 
     public bool EnableEarlyValidationStop { get; set; } = true;
 
+    public int ValidationEarlyStopBatchSize { get; set; } = 32;
+
     public bool EnableCurriculum { get; set; } = true;
 
     public bool EnableStratifiedReplay { get; set; } = true;
+
+    public bool EnablePrioritizedReplay { get; set; } = true;
 
     public bool EnableHardSeedCurriculum { get; set; } = true;
 
@@ -64,6 +68,14 @@ public sealed class CombatFoundationTrainingParameters
     public int TuningNormalCampaigns { get; set; } = 32;
 
     public int TuningAdvancedCampaigns { get; set; } = 64;
+
+    public bool EnableProgressiveTuning { get; set; } = true;
+
+    public int TuningScreeningNormalCampaigns { get; set; } = 8;
+
+    public int TuningScreeningAdvancedCampaigns { get; set; } = 16;
+
+    public int TuningFinalistCount { get; set; } = 2;
 
     public int MaximumConsecutiveRejectedIterations { get; set; } = 3;
 
@@ -96,13 +108,23 @@ public sealed class CombatFoundationTrainingParameters
 
     public int ModelBatchSize { get; set; } = 64;
 
+    public int ModelGradientShardCount { get; set; } = 12;
+
     public bool EnableFrameStratification { get; set; } = true;
+
+    public bool EnableEndTurnSpecialization { get; set; } = true;
+
+    public double ModelEndTurnFrameWeight { get; set; } = 2d;
+
+    public double ModelPolicyTargetTemperature { get; set; } = 1.25d;
+
+    public double ModelMaximumPolicyTargetProbability { get; set; } = 0.90d;
 
     public double ModelMaximumFrameStratumWeight { get; set; } = 3d;
 
     public int ModelMaximumFramesPerEpisode { get; set; } = 96;
 
-    public int ModelReplayEpisodeLimit { get; set; } = 6000;
+    public int ModelReplayEpisodeLimit { get; set; } = 8000;
 
     public int ModelRetainedCandidates { get; set; } = 3;
 
@@ -110,9 +132,9 @@ public sealed class CombatFoundationTrainingParameters
 
     public double ModelL2 { get; set; } = 0.0015d;
 
-    public int ModelStateDimensions { get; set; } = 128;
+    public int ModelStateDimensions { get; set; } = 256;
 
-    public int ModelActionDimensions { get; set; } = 96;
+    public int ModelActionDimensions { get; set; } = 192;
 
     public int ModelHiddenDimensions { get; set; } = 64;
 
@@ -168,10 +190,22 @@ public sealed class CombatFoundationTrainingParameters
             Math.Min(
                 Math.Max(1, Environment.ProcessorCount),
                 MaximumDegreeOfParallelism));
+        ValidationEarlyStopBatchSize = Math.Max(
+            1,
+            Math.Min(128, ValidationEarlyStopBatchSize));
         ArenaInvalidRetryCount = Math.Max(0, Math.Min(3, ArenaInvalidRetryCount));
         ArenaInvalidRateLimit = Clamp(ArenaInvalidRateLimit, 0.0001d, 1d, 0.02d);
         TuningNormalCampaigns = Math.Max(0, Math.Min(64, TuningNormalCampaigns));
         TuningAdvancedCampaigns = Math.Max(0, Math.Min(64, TuningAdvancedCampaigns));
+        TuningScreeningNormalCampaigns = Math.Max(
+            0,
+            Math.Min(TuningNormalCampaigns, TuningScreeningNormalCampaigns));
+        TuningScreeningAdvancedCampaigns = Math.Max(
+            0,
+            Math.Min(TuningAdvancedCampaigns, TuningScreeningAdvancedCampaigns));
+        TuningFinalistCount = Math.Max(
+            1,
+            Math.Min(ModelRetainedCandidates, TuningFinalistCount));
         MaximumConsecutiveRejectedIterations = Math.Max(
             0,
             Math.Min(8, MaximumConsecutiveRejectedIterations));
@@ -216,11 +250,29 @@ public sealed class CombatFoundationTrainingParameters
             0.1d,
             0.0002d);
         ModelBatchSize = Math.Max(8, Math.Min(512, ModelBatchSize));
+        ModelGradientShardCount = Math.Max(
+            1,
+            Math.Min(32, ModelGradientShardCount));
         ModelMaximumFrameStratumWeight = Clamp(
             ModelMaximumFrameStratumWeight,
             1d,
             5d,
             3d);
+        ModelEndTurnFrameWeight = Clamp(
+            ModelEndTurnFrameWeight,
+            1d,
+            5d,
+            2d);
+        ModelPolicyTargetTemperature = Clamp(
+            ModelPolicyTargetTemperature,
+            1d,
+            3d,
+            1.25d);
+        ModelMaximumPolicyTargetProbability = Clamp(
+            ModelMaximumPolicyTargetProbability,
+            0.55d,
+            1d,
+            0.90d);
         ModelMaximumFramesPerEpisode = Math.Max(
             8,
             Math.Min(512, ModelMaximumFramesPerEpisode));
@@ -257,8 +309,14 @@ public sealed class CombatFoundationTrainingParameters
                          ? ArenaConfirmationCampaignsPerDifficulty
                          : 0)) * 4
                   + (EnableTuningArena
-                      ? ModelRetainedCandidates
-                        * (TuningNormalCampaigns + TuningAdvancedCampaigns)
+                      ? CombatCampaignFoundationTrainer.EstimateTuningCampaigns(
+                          ModelRetainedCandidates,
+                          TuningNormalCampaigns,
+                          TuningAdvancedCampaigns,
+                          EnableProgressiveTuning,
+                          TuningScreeningNormalCampaigns,
+                          TuningScreeningAdvancedCampaigns,
+                          TuningFinalistCount)
                       : 0))
                + NormalValidationCampaigns
                + AdvancedValidationCampaigns
@@ -367,6 +425,12 @@ public static class CombatFoundationWorkerJobFactory
                 source.SuccessArchiveDirectory)
                 ? Path.Combine(resultDirectory, "foundation-success-cases")
                 : Path.GetFullPath(source.SuccessArchiveDirectory),
+            TrainingMetricsPath = Path.Combine(
+                resultDirectory,
+                CombatFoundationWorkerProtocol.TrainingMetricsFileName),
+            TrainingAnalysisPath = Path.Combine(
+                resultDirectory,
+                CombatFoundationWorkerProtocol.TrainingAnalysisFileName),
             Request = new CombatCampaignFoundationTrainingRequest
             {
                 RunSeed = parameters.RunSeed,
@@ -400,9 +464,13 @@ public static class CombatFoundationWorkerJobFactory
                 RetainValidationRunDetails = false,
                 EnableEarlyValidationStop =
                     parameters.EnableEarlyValidationStop,
+                ValidationEarlyStopBatchSize =
+                    parameters.ValidationEarlyStopBatchSize,
                 EnableCurriculum = parameters.EnableCurriculum,
                 EnableStratifiedReplay =
                     parameters.EnableStratifiedReplay,
+                EnablePrioritizedReplay =
+                    parameters.EnablePrioritizedReplay,
                 EnableHardSeedCurriculum =
                     parameters.EnableHardSeedCurriculum,
                 EnableCounterfactualHardEncounters =
@@ -418,6 +486,13 @@ public static class CombatFoundationWorkerJobFactory
                 TuningNormalCampaigns = parameters.TuningNormalCampaigns,
                 TuningAdvancedCampaigns =
                     parameters.TuningAdvancedCampaigns,
+                EnableProgressiveTuning =
+                    parameters.EnableProgressiveTuning,
+                TuningScreeningNormalCampaigns =
+                    parameters.TuningScreeningNormalCampaigns,
+                TuningScreeningAdvancedCampaigns =
+                    parameters.TuningScreeningAdvancedCampaigns,
+                TuningFinalistCount = parameters.TuningFinalistCount,
                 MaximumConsecutiveRejectedIterations =
                     parameters.MaximumConsecutiveRejectedIterations,
                 NormalAcceptanceRate = parameters.NormalAcceptanceRate,
@@ -470,8 +545,18 @@ public static class CombatFoundationWorkerJobFactory
                     FeatureEncodingMode =
                         parameters.ModelFeatureEncodingMode,
                     BatchSize = parameters.ModelBatchSize,
+                    GradientShardCount =
+                        parameters.ModelGradientShardCount,
                     EnableFrameStratification =
                         parameters.EnableFrameStratification,
+                    EnableEndTurnSpecialization =
+                        parameters.EnableEndTurnSpecialization,
+                    EndTurnFrameWeight =
+                        parameters.ModelEndTurnFrameWeight,
+                    PolicyTargetTemperature =
+                        parameters.ModelPolicyTargetTemperature,
+                    MaximumPolicyTargetProbability =
+                        parameters.ModelMaximumPolicyTargetProbability,
                     MaximumFrameStratumWeight =
                         parameters.ModelMaximumFrameStratumWeight,
                     MaximumFramesPerEpisode =

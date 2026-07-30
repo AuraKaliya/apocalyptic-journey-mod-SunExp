@@ -2549,6 +2549,18 @@ Assert(authoritativeTeacherSimulation.Metrics
        && authoritativeTeacherSimulation.Metrics.SemanticAudit
               .SourceKindAudits.Count > 0
        && authoritativeTeacherSimulation.Metrics.SemanticAudit
+              .InvalidActions == 0
+       && authoritativeTeacherSimulation.Metrics.SemanticAudit
+              .SelectedInvalidActions == 0
+       && authoritativeTeacherSimulation.Metrics.SemanticAudit
+              .ValidActions
+          == authoritativeTeacherSimulation.Metrics
+              .AuthoritativeActionsAudited
+       && authoritativeTeacherSimulation.Metrics.SemanticAudit
+              .SelectedValidActions
+          == authoritativeTeacherSimulation.Metrics
+              .AuthoritativeSelectedActionsAudited
+       && authoritativeTeacherSimulation.Metrics.SemanticAudit
               .SelectedContextAdjustedActions
           == authoritativeTeacherSimulation.Metrics.SemanticAudit
               .SelectedExplainedActions
@@ -2610,9 +2622,19 @@ var mismatchingSemanticAudit = CombatSemanticAuditor.Audit(
     semanticAuditEvents,
     new CombatActionSemantics { Defend = 10d },
     new CombatSimulationAction { DefinitionId = "audit-card" });
+var invalidSemanticAudit = CombatSemanticAuditor.Audit(
+    semanticAuditState,
+    semanticAuditState,
+    Array.Empty<CombatSimulationEvent>(),
+    new CombatActionSemantics { Damage = 5d },
+    new CombatSimulationAction { DefinitionId = "audit-card" },
+    null);
 Assert(!matchingSemanticAudit.Mismatch
        && mismatchingSemanticAudit.MismatchKinds.Contains("damage")
-       && mismatchingSemanticAudit.MismatchKinds.Contains("defend"),
+       && mismatchingSemanticAudit.MismatchKinds.Contains("defend")
+       && invalidSemanticAudit.Invalid
+       && !invalidSemanticAudit.Mismatch
+       && invalidSemanticAudit.Status == CombatSemanticAuditStatus.Invalid,
     "semantic auditing compares projected action meaning with causal authoritative events instead of noisy net state deltas");
 var nativeIntrinsicAudit = CombatSemanticAuditor.Audit(
     semanticAuditState,
@@ -3589,14 +3611,30 @@ bundledRulesV2.Ruleset.TryGetCard(
     "nocard_5",
     out var bundledLuckyPrize);
 CombatCampaignWorldPlanner.Validate(bundledCampaign);
+bundledCampaign.TraceLevel = CombatSimulationTraceLevel.Summary;
 var bundledSemanticProbe = CombatFoundationSemanticProbe.Validate(
     bundledCampaign,
-    bundledRulesV2.Ruleset);
+    bundledRulesV2.Ruleset,
+    new CombatSimulationEngine());
 Assert(
     bundledSemanticProbe.Success
-    && bundledSemanticProbe.Version == "resource-recurrence-monotonic-v1",
+    && bundledCampaign.TraceLevel == CombatSimulationTraceLevel.Summary
+    && bundledSemanticProbe.Version == "resource-recurrence-monotonic-v1"
+    && bundledSemanticProbe.CanaryVersion
+       == CombatFoundationSemanticProbeResult.CurrentCanaryVersion,
     "foundation semantic probe covers Blade and Shield, limit damage, "
-    + "resource recurrence, monotonic gains, retain, and reshuffle");
+    + "resource recurrence, retain, reshuffle, and the Summary-trace "
+    + "semantic audit pipeline: "
+    + "success="
+    + bundledSemanticProbe.Success
+    + ", trace="
+    + bundledCampaign.TraceLevel
+    + ", version="
+    + bundledSemanticProbe.Version
+    + ", canary="
+    + bundledSemanticProbe.CanaryVersion
+    + ", errors="
+    + string.Join("; ", bundledSemanticProbe.Errors));
 var bundledCampaignNormal = CombatCampaignWorldPlanner.Build(
     bundledCampaign,
     "normal",
@@ -4860,6 +4898,8 @@ Assert(episodes.All(episode => episode.Frames.Count > 0
                                    && frame.RemainingTurnsTarget >= 0d))
        && episodes.All(episode => episode.Authoritative),
     "episode recorder captures search targets and backfills cross-turn terminal returns");
+var recordedEpochMetrics =
+    new List<CombatPolicyValueEpochMetrics>();
 var policyValueTraining = CombatPolicyValueTrainer.Train(
     episodes,
     "balanced",
@@ -4869,6 +4909,12 @@ var policyValueTraining = CombatPolicyValueTrainer.Train(
         LearningRate = 0.01d,
         MinimumEpisodes = 4,
         RandomSeed = 17
+    },
+    CancellationToken.None,
+    new CombatPolicyValueTrainingSession
+    {
+        EpochCompleted = metrics =>
+            recordedEpochMetrics.Add(metrics)
     });
 Assert(policyValueTraining.Success
        && policyValueTraining.Model != null
@@ -4889,6 +4935,37 @@ Assert(policyValueTraining.Success
            "validationDeathBrier")
        && policyValueTraining.Model.Metrics.ContainsKey(
            "validationCompositeLoss")
+       && policyValueTraining.Model.Metrics.ContainsKey(
+           "trainingCompositeLoss")
+       && policyValueTraining.TrainingMetrics.FrameCount > 0
+       && policyValueTraining.ValidationMetrics.FrameCount > 0
+       && policyValueTraining.ValidationMetrics.RunCount > 0
+       && policyValueTraining.ValidationMetrics
+              .CompositeLossCiUpper
+          >= policyValueTraining.ValidationMetrics
+              .CompositeLossCiLower
+       && policyValueTraining.EpochHistory.Count
+          >= policyValueTraining.CompletedEpochs
+       && policyValueTraining.EpochHistory.Any(item => item.Calibrated)
+       && policyValueTraining.EpochHistory
+           .Where(item => !item.Calibrated)
+           .All(item =>
+               item.Training.CompositeLoss > 0d
+               && item.Validation.CompositeLoss > 0d
+               && item.TrainingMeasurement
+                  == "online-minibatch"
+               && !string.IsNullOrWhiteSpace(
+                   item.TrainingSplitHash)
+               && !string.IsNullOrWhiteSpace(
+                   item.ValidationSplitHash))
+       && recordedEpochMetrics.Count
+          == policyValueTraining.CompletedEpochs + 1
+       && recordedEpochMetrics.Count(item =>
+           item.EventKind == "epoch")
+          == policyValueTraining.CompletedEpochs
+       && recordedEpochMetrics.Count(item =>
+           item.EventKind == "calibrated")
+          == 1
        && policyValueTraining.CandidateModels.Count > 0
        && policyValueTraining.CandidateModels.Count <= 3
        && policyValueTraining.CandidateModels.All(candidate =>
@@ -4985,7 +5062,7 @@ using (var interruptedBatchTraining = new CancellationTokenSource())
                 Checkpoint = checkpoint =>
                 {
                     capturedBatchCheckpoint = checkpoint;
-                    if (checkpoint.CompletedEpochs >= 2)
+                    if (checkpoint.CompletedEpochs >= 4)
                     {
                         interruptedBatchTraining.Cancel();
                     }
@@ -4997,7 +5074,7 @@ using (var interruptedBatchTraining = new CancellationTokenSource())
         interrupted = true;
     }
     Assert(interrupted
-           && capturedBatchCheckpoint?.CompletedEpochs == 2
+           && capturedBatchCheckpoint?.CompletedEpochs == 4
            && capturedBatchCheckpoint.Optimizer?.Step > 0
            && capturedBatchCheckpoint.Optimizer.FirstMoment.Length
               == capturedBatchCheckpoint.Optimizer.SecondMoment.Length
@@ -5006,7 +5083,7 @@ using (var interruptedBatchTraining = new CancellationTokenSource())
            && batchProgress.Any(progress =>
                progress.Stage == "training"
                && progress.CompletedFrames > 0),
-        "batch policy-value training reports frame progress and checkpoints every completed epoch");
+        "batch policy-value training reports frame progress and keeps periodic resumable checkpoints");
 }
 var resumedBatchTraining = CombatPolicyValueTrainer.Train(
     episodes,
@@ -5034,7 +5111,7 @@ Assert(resumedBatchTraining.Success
     "resumed deterministic minibatch training produces the uninterrupted model weights");
 var policyValueModel = new ManagedCombatPolicyValueModel(policyValueTraining.Model!);
 var firstEpisodeFrame = episodes[0].Frames[0];
-var policyValuePrediction = policyValueModel.Evaluate(new CombatPolicyValueInput
+var policyValueInput = new CombatPolicyValueInput
 {
     StateFeatures = firstEpisodeFrame.StateFeatures,
     Candidates = firstEpisodeFrame.Candidates
@@ -5046,12 +5123,72 @@ var policyValuePrediction = policyValueModel.Evaluate(new CombatPolicyValueInput
             Features = candidate.Features
         })
         .ToList()
-});
+};
+var policyValuePrediction = policyValueModel.Evaluate(policyValueInput);
 Assert(policyValuePrediction.PolicyLogits.Count
        == firstEpisodeFrame.Candidates.Count(candidate => candidate.Legal)
        && policyValuePrediction.WinProbability is >= 0d and <= 1d
        && policyValuePrediction.DeathProbability is >= 0d and <= 1d,
     "managed policy-value inference returns masked action logits and calibrated probability ranges");
+var batchPolicyPredictions = policyValueModel.EvaluateBatch(
+    new[] { policyValueInput, policyValueInput });
+Assert(batchPolicyPredictions.Count == 2
+       && batchPolicyPredictions.All(prediction =>
+           Math.Abs(
+               prediction.ExpectedReturn
+               - policyValuePrediction.ExpectedReturn) < 0.000000001d
+           && Math.Abs(
+               prediction.WinProbability
+               - policyValuePrediction.WinProbability) < 0.000000001d
+           && prediction.PolicyLogits.Count
+              == policyValuePrediction.PolicyLogits.Count
+           && prediction.PolicyLogits.All(pair =>
+               Math.Abs(
+                   pair.Value
+                   - policyValuePrediction.PolicyLogits[pair.Key])
+               < 0.000000001d)),
+    "managed policy-value batch inference evaluates a shared state/action matrix with scalar-equivalent outputs");
+var concurrentBatchModel = new ConcurrentBatchedCombatPolicyValueModel(
+    policyValueModel,
+    4,
+    TimeSpan.FromMilliseconds(50));
+var concurrentPredictions = new CombatPolicyValuePrediction?[4];
+var concurrentErrors = new Exception?[4];
+using (var concurrentBarrier = new Barrier(4))
+{
+    var inferenceThreads = Enumerable.Range(0, 4)
+        .Select(index => new Thread(() =>
+        {
+            try
+            {
+                concurrentBarrier.SignalAndWait();
+                concurrentPredictions[index] =
+                    concurrentBatchModel.Evaluate(policyValueInput);
+            }
+            catch (Exception exception)
+            {
+                concurrentErrors[index] = exception;
+            }
+        }))
+        .ToArray();
+    foreach (var thread in inferenceThreads)
+    {
+        thread.Start();
+    }
+    foreach (var thread in inferenceThreads)
+    {
+        thread.Join();
+    }
+}
+Assert(concurrentErrors.All(error => error == null)
+       && concurrentPredictions.All(prediction =>
+           prediction != null
+           && Math.Abs(
+               prediction.ExpectedReturn
+               - policyValuePrediction.ExpectedReturn) < 0.000000001d)
+       && concurrentBatchModel.BatchedInputCount == 4
+       && concurrentBatchModel.BatchEvaluationCount == 1,
+    "parallel campaign inference coalesces synchronous calls into one true model batch");
 var evolution = new CombatPolicyEvolutionRunner().Run(
     new CombatPolicyEvolutionRequest
     {
@@ -6827,6 +6964,152 @@ Assert(deduplicatedReplay.Episodes.Count == 7
            .Distinct(StringComparer.Ordinal)
            .Count() == 7,
     "foundation replay persistence never expands weighted priorities into duplicate episode payloads");
+var concentratedPolicyTargets =
+    CombatPolicyValueBatchTrainer.PolicyTargets(
+        new[]
+        {
+            new CombatEpisodeCandidate
+            {
+                CandidateId = "dominant",
+                SearchVisits = 100
+            },
+            new CombatEpisodeCandidate
+            {
+                CandidateId = "alternative",
+                SearchVisits = 0
+            }
+        },
+        "dominant",
+        temperature: 1.25d,
+        maximumProbability: 0.80d);
+Assert(Math.Abs(concentratedPolicyTargets.Sum() - 1d) < 0.000001d
+       && concentratedPolicyTargets.Max() <= 0.800001d
+       && concentratedPolicyTargets.Min() >= 0.199999d,
+    "policy target temperature and cap preserve probability mass without one-hot collapse");
+var endTurnTrainingEpisodes = Enumerable.Range(0, 4)
+    .Select(index => new CombatEpisode
+    {
+        EpisodeId = "end-turn-specialist-" + index,
+        JourneyRunId = "end-turn-specialist:" + index,
+        JourneyBattleIndex = index,
+        Authoritative = true,
+        DecisionProfile = "balanced",
+        Campaign = new CombatCampaignEpisodeMetadata
+        {
+            DifficultyId = index % 2 == 0 ? "normal" : "advanced",
+            OutcomeClass = index % 2 == 0 ? "defeat" : "victory",
+            FinalBossVictory = index % 2 != 0
+        },
+        Frames =
+        {
+            new CombatEpisodeFrame
+            {
+                ExecutedCandidateId = index == 0 ? "end" : "play",
+                StateFeatures =
+                {
+                    ["power"] = 2d
+                },
+                Candidates =
+                {
+                    new CombatEpisodeCandidate
+                    {
+                        CandidateId = "play",
+                        SourceId = "card:test",
+                        Legal = true,
+                        SearchVisits = 7
+                    },
+                    new CombatEpisodeCandidate
+                    {
+                        CandidateId = "end",
+                        SourceId = "simulation:end-turn",
+                        Legal = true,
+                        SearchVisits = 3
+                    }
+                }
+            }
+        }
+    })
+    .ToList();
+var endTurnSpecialistTraining = CombatPolicyValueTrainer.Train(
+    endTurnTrainingEpisodes,
+    "balanced",
+    new CombatPolicyValueTrainingOptions
+    {
+        Epochs = 5,
+        MinimumEpisodes = 2,
+        StateDimensions = 16,
+        ActionDimensions = 16,
+        HiddenDimensions = 8,
+        EnableEndTurnSpecialization = true,
+        EndTurnFrameWeight = 2d,
+        MaximumDegreeOfParallelism = 1
+    });
+Assert(endTurnSpecialistTraining.Success
+       && endTurnSpecialistTraining.EndTurnDecisionFrames == 4
+       && endTurnSpecialistTraining.UnsafeEndTurnFrames == 1
+       && endTurnSpecialistTraining.FrameStrata.Keys.Any(key =>
+           key.EndsWith(
+               ":unsafe-end-turn",
+               StringComparison.Ordinal)),
+    "end-turn specialist identifies discretionary and unsafe end turns as dedicated weighted strata");
+var priorityReplayFixture = Enumerable.Range(0, 10)
+    .Select(index => new CombatEpisode
+    {
+        EpisodeId = "priority-" + index,
+        JourneyRunId = "priority:normal:" + index,
+        JourneyBattleIndex = index,
+        Campaign = new CombatCampaignEpisodeMetadata
+        {
+            DifficultyId = "normal",
+            OutcomeClass = "defeat",
+            FailureBattleIndex = index == 9 ? index : 36
+        },
+        Frames =
+        {
+            new CombatEpisodeFrame
+            {
+                LongTermReturn = index == 9 ? -1d : 0d,
+                ExecutedCandidateId = "play",
+                Candidates =
+                {
+                    new CombatEpisodeCandidate
+                    {
+                        CandidateId = "play",
+                        SourceId = "card:test",
+                        Legal = true,
+                        SearchVisits = 8,
+                        SearchValue = index == 9 ? 1d : 0d,
+                        SearchDeathRisk = index == 9 ? 1d : 0d
+                    },
+                    new CombatEpisodeCandidate
+                    {
+                        CandidateId = "end",
+                        SourceId = "simulation:end-turn",
+                        Legal = true,
+                        SearchVisits = 2
+                    }
+                }
+            }
+        }
+    })
+    .ToList();
+var priorityReplay = CombatFoundationReplaySampler.Select(
+    priorityReplayFixture,
+    4,
+    enabled: true,
+    balance: new CombatFoundationReplayBalanceOptions
+    {
+        EnablePrioritySampling = true
+    });
+Assert(priorityReplay.Episodes.Any(item => item.EpisodeId == "priority-9")
+       && priorityReplay.SelectedPriorityMean
+          >= priorityReplay.SourcePriorityMean
+       && priorityReplay.SelectedHighPriorityEpisodes > 0,
+    "prioritized replay retains high-error, high-risk end-turn decisions before low-information recent episodes");
+Assert(
+    CombatCampaignFoundationTrainer.RequiredWilsonVictories(200, 0.80d)
+    > 160,
+    "final validation derives victory requirements from the Wilson lower bound instead of the point estimate");
 
 CombatCampaignResult CaseCampaign(
     ulong seed,
@@ -7494,7 +7777,7 @@ Assert(workerProtocolJob.SchemaVersion
        && CombatFoundationStagnationProtocol.Version
           == "foundation-stagnation-v1"
        && CombatPolicyValueFrameStratificationProtocol.Version
-          == "frame-strata-v2"
+          == "frame-strata-v3-end-turn"
        && workerProtocolProgress.SchemaVersion
            == CombatFoundationWorkerProtocol.SchemaVersion
        && workerProtocolResult.SchemaVersion
@@ -7682,23 +7965,42 @@ var capabilityGateProbe = new CombatFoundationCapabilityProbe
         new CombatFoundationCapabilityProbeArm
         {
             ArmId = "rule-baseline",
+            NormalCampaigns = 12,
             NormalVictories = 10,
+            AdvancedCampaigns = 12,
             AdvancedVictories = 3,
             AverageCompletedBattles = 20d
         },
         new CombatFoundationCapabilityProbeArm
         {
             ArmId = "champion-deployment",
+            NormalCampaigns = 12,
             NormalVictories = 10,
+            AdvancedCampaigns = 12,
             AdvancedVictories = 3,
             AverageCompletedBattles = 20.1d
+        },
+        new CombatFoundationCapabilityProbeArm
+        {
+            ArmId = "champion-teacher-hard",
+            NormalCampaigns = 12,
+            NormalVictories = 11,
+            AdvancedCampaigns = 12,
+            AdvancedVictories = 5,
+            AverageCompletedBattles = 22d
         }
     }
 };
 CombatCampaignFoundationTrainer.EvaluateCapabilityBaselineGate(
     capabilityGateRequest,
     capabilityGateProbe);
-Assert(!capabilityGateProbe.PassedBaselineGate,
+Assert(!capabilityGateProbe.PassedBaselineGate
+       && capabilityGateProbe.BaselineGateReason.Contains(
+           "deployment=normal 10/12, advanced 3/12",
+           StringComparison.Ordinal)
+       && capabilityGateProbe.BaselineGateReason.Contains(
+           "teacher-hard=normal 11/12, advanced 5/12",
+           StringComparison.Ordinal),
     "capability probe blocks expensive validation when the champion merely matches the rule baseline");
 capabilityGateProbe.Arms[1].AdvancedVictories = 4;
 CombatCampaignFoundationTrainer.EvaluateCapabilityBaselineGate(
@@ -7707,6 +8009,32 @@ CombatCampaignFoundationTrainer.EvaluateCapabilityBaselineGate(
 Assert(capabilityGateProbe.PassedBaselineGate
        && capabilityGateProbe.ChampionVictoryGain == 1,
     "capability probe admits a non-regressive champion with a configured paired-seed victory gain");
+Assert(new CombatPolicyValueTrainingOptions
+       {
+           GradientShardCount = 24
+       }.Normalized().GradientShardCount == 24
+       && new CombatPolicyValueTrainingOptions
+       {
+           GradientShardCount = 32
+       }.Normalized().GradientShardCount == 32,
+    "policy-value training preserves 24 and 32 gradient shard presets for high-parallelism hosts");
+Assert(CombatCampaignFoundationTrainer.EstimateTuningCampaigns(
+           3,
+           32,
+           64,
+           progressive: true,
+           screeningNormalCampaigns: 8,
+           screeningAdvancedCampaigns: 16,
+           finalistCount: 2) == 216
+       && CombatCampaignFoundationTrainer.EstimateTuningCampaigns(
+           3,
+           32,
+           64,
+           progressive: false,
+           screeningNormalCampaigns: 8,
+           screeningAdvancedCampaigns: 16,
+           finalistCount: 2) == 288,
+    "progressive tuning screens all checkpoints on paired seeds and reserves the full arena for finalists");
 var foundationRequest = new CombatCampaignFoundationTrainingRequest
 {
     DecisionProfile = "balanced",
@@ -7720,6 +8048,11 @@ var foundationRequest = new CombatCampaignFoundationTrainingRequest
     CapabilityProbeCampaignsPerDifficulty = 1,
     RequireCapabilityProbeBaselineGain = false,
     MaximumDegreeOfParallelism = 4,
+    TuningNormalCampaigns = 2,
+    TuningAdvancedCampaigns = 2,
+    TuningScreeningNormalCampaigns = 1,
+    TuningScreeningAdvancedCampaigns = 1,
+    TuningFinalistCount = 1,
     CaseArchiveLoad = new CombatFoundationCaseArchiveLoadDiagnostics
     {
         ArchiveExists = true,
@@ -7742,7 +8075,8 @@ var foundationRequest = new CombatCampaignFoundationTrainingRequest
     },
     Training = new CombatPolicyValueTrainingOptions
     {
-        Epochs = 2,
+        Epochs = 3,
+        RetainedModelCandidates = 3,
         MinimumEpisodes = 2,
         HiddenDimensions = 8,
         RandomSeed = 73
@@ -7767,26 +8101,36 @@ foundationRequest.Resume = new CombatCampaignFoundationResumeState
 };
 var incrementallyObservedFoundationCases = 0;
 var incrementallyArchivedFoundationCases = 0;
+var incrementallyRecordedModelMetrics =
+    new List<CombatPolicyValueEpochMetrics>();
 foundationRequest.ObservationRecorded = _ =>
     incrementallyObservedFoundationCases++;
 foundationRequest.SuccessCaseRecorded = _ =>
     incrementallyArchivedFoundationCases++;
+foundationRequest.ModelMetricRecorded = metrics =>
+    incrementallyRecordedModelMetrics.Add(metrics);
 var foundationTraining = new CombatCampaignFoundationTrainer().Run(
     foundationRequest,
     campaignRules.Ruleset);
+var foundationDepthBucketCampaigns =
+    foundationTraining.Depth1To5Campaigns
+    + foundationTraining.Depth6To10Campaigns
+    + foundationTraining.Depth11To20Campaigns
+    + foundationTraining.Depth21To30Campaigns
+    + foundationTraining.Depth31To37Campaigns;
 Assert(foundationTraining.Success
        && foundationTraining.AcceptancePassed
        && foundationTraining.Champion != null
        && foundationTraining.Preflight.Passed
        && foundationTraining.Preflight.CompletedCampaigns == 2
        && foundationTraining.Preflight.InvalidCampaigns == 0
-       && foundationTraining.Replay.Count == 16
+       && foundationTraining.Replay.Count is > 0 and <= 16
        && foundationTraining.Replay.All(episode => episode.Authoritative)
        && foundationTraining.ValidationRuns.Count == 10
        && foundationTraining.Validation.NormalCampaigns == 5
        && foundationTraining.Validation.AdvancedCampaigns == 5
-       && foundationTraining.Validation.RequiredNormalVictories == 4
-       && foundationTraining.Validation.RequiredAdvancedVictories == 2
+       && foundationTraining.Validation.RequiredNormalVictories == 5
+       && foundationTraining.Validation.RequiredAdvancedVictories == 4
        && Math.Abs(
            foundationTraining.Validation.RequiredNormalWinRate - 0.8d)
           < 0.0001d
@@ -7798,21 +8142,39 @@ Assert(foundationTraining.Success
        && foundationTraining.CaseArchiveLoad.LoadedObservations == 9
        && foundationTraining.Validation.NormalWinRate == 1d
        && foundationTraining.Validation.AdvancedWinRate == 1d
+       && foundationTraining.Validation.NormalWilsonLowerBound > 0.56d
+       && foundationTraining.Validation.AdvancedWilsonLowerBound > 0.56d
        && foundationTraining.EffectiveParallelism == 4
        && foundationTraining.PeakConcurrentCampaigns >= 1
        && foundationTraining.ObservedWorkerThreads >= 1
        && foundationTraining.CompletedBattles > 0
        && foundationTraining.MaximumCompletedBattleDepth == 37
-       && foundationTraining.Depth1To5Campaigns
-          + foundationTraining.Depth6To10Campaigns
-          + foundationTraining.Depth11To20Campaigns
-          + foundationTraining.Depth21To30Campaigns
-          + foundationTraining.Depth31To37Campaigns
-          == foundationTraining.CompletedCampaigns
+       && foundationDepthBucketCampaigns == foundationTraining.CompletedCampaigns
        && foundationTraining.ProjectedBattleDepth == 37d
        && foundationTraining.PolicyDecisions > 0
        && foundationTraining.SearchSimulations > 0
        && foundationTraining.SearchNodes > 0
+       && foundationTraining.AllocatedBytes > 0
+       && foundationTraining.CpuSeconds > 0d
+       && foundationTraining.PhaseElapsedSeconds.Count > 0
+       && foundationTraining.PhaseElapsedSeconds.ContainsKey("self-play")
+       && foundationTraining.PhaseElapsedSeconds.ContainsKey("model-training")
+       && foundationTraining.PhaseElapsedSeconds.ContainsKey("validation")
+       && foundationTraining.ModelTrainingLoss > 0d
+       && foundationTraining.ModelValidationLoss > 0d
+       && foundationTraining.ModelEpochHistory.Count > 0
+       && foundationTraining.Iterations.All(item =>
+            item.ModelEpochHistory.Count > 0
+            && item.ModelTrainingMetrics.FrameCount > 0
+            && item.ModelValidationMetrics.FrameCount > 0
+            && item.TuningCandidateCount >= 2
+            && item.TuningFinalistCount == 1
+            && item.TuningCampaignsExecuted > 0
+            && item.TuningCampaignsSaved > 0)
+       && incrementallyRecordedModelMetrics.Count > 0
+       && incrementallyRecordedModelMetrics.All(item =>
+           item.Iteration > 0
+           && item.Epoch > 0)
        && foundationTraining.CapabilityProbe.Arms.Count == 3
        && foundationTraining.CapabilityProbe.Arms.All(arm =>
            arm.NormalCampaigns == 1
@@ -7826,7 +8188,15 @@ Assert(foundationTraining.Success
           == foundationTraining.SuccessCases.Count
        && incrementallyArchivedFoundationCases > 0
        && foundationTraining.ElapsedSeconds > 0d,
-    "foundation trainer reports telemetry and streams successful cases as campaigns complete");
+    "foundation trainer reports telemetry and streams successful cases as campaigns complete"
+    + $" (success={foundationTraining.Success}, acceptance={foundationTraining.AcceptancePassed},"
+    + $" preflight={foundationTraining.Preflight.Passed}/{foundationTraining.Preflight.CompletedCampaigns}/"
+    + $"{foundationTraining.Preflight.InvalidCampaigns}, replay={foundationTraining.Replay.Count},"
+    + $" validationRuns={foundationTraining.ValidationRuns.Count}, completed={foundationTraining.CompletedCampaigns},"
+    + $" depthBuckets={foundationDepthBucketCampaigns}, probeArms={foundationTraining.CapabilityProbe.Arms.Count},"
+    + $" observations={incrementallyObservedFoundationCases}/{foundationTraining.CampaignObservations.Count},"
+    + $" cases={incrementallyArchivedFoundationCases}/{foundationTraining.SuccessCases.Count},"
+    + $" elapsed={foundationTraining.ElapsedSeconds:F6})");
 var packageJob = new CombatFoundationWorkerJob
 {
     JobId = "foundation-package-test",
@@ -8045,6 +8415,13 @@ Assert(sharedParameters.Iterations == 1
        && sharedParameters.AdditionalIterationsOnResume == 3
        && sharedParameters.TrainingCampaignsPerIteration == 2
        && sharedParameters.ModelEpochs == 5
+       && sharedParameters.EnablePrioritizedReplay
+       && sharedParameters.EnableEndTurnSpecialization
+       && sharedParameters.ModelEndTurnFrameWeight == 2d
+       && sharedParameters.ModelPolicyTargetTemperature == 1.25d
+       && sharedParameters.ModelMaximumPolicyTargetProbability == 0.90d
+       && sharedParameters.ModelGradientShardCount == 12
+       && sharedParameters.ValidationEarlyStopBatchSize == 32
        && sharedParameters.MaximumDegreeOfParallelism
           <= Math.Max(1, Environment.ProcessorCount)
        && sharedParameters.EstimatedCampaigns() > 0,
@@ -8146,7 +8523,8 @@ Assert(interruptedFoundationObserved
            capturedFoundationCheckpoint.Compatibility.ValidationCampaignHash)
        && capturedFoundationCheckpoint.Compatibility.FeatureEncodingMode
           == "partitioned-v3"
-       && capturedFoundationCheckpoint.Compatibility.StateDimensions == 128
+       && capturedFoundationCheckpoint.Compatibility.StateDimensions
+          == foundationRequest.Training.StateDimensions
        && capturedFoundationCheckpoint.Compatibility.HiddenDimensions == 8
        && capturedFoundationCheckpoint.CompletedCampaigns == 2
        && capturedFoundationCheckpoint.Replay.Count > 0
@@ -8158,7 +8536,13 @@ Assert(interruptedFoundationObserved
            foundationTraining.Champion.StateWeights)
        && resumedFoundationTraining.Champion.PolicyWeights.SequenceEqual(
            foundationTraining.Champion.PolicyWeights),
-    "foundation checkpoints persist the sampled replay window and resume model training without replaying campaigns");
+    "foundation checkpoints persist the sampled replay window and resume model training without replaying campaigns"
+    + $" (interrupted={interruptedFoundationObserved}, captured={capturedFoundationCheckpoint != null},"
+    + $" completed={capturedFoundationCheckpoint?.CompletedCampaigns}, replay={capturedFoundationCheckpoint?.Replay.Count},"
+    + $" resumedSuccess={resumedFoundationTraining.Success}, resumedChampion={resumedFoundationTraining.Champion != null},"
+    + $" baselineChampion={foundationTraining.Champion != null},"
+    + $" stateEqual={resumedFoundationTraining.Champion?.StateWeights.SequenceEqual(foundationTraining.Champion?.StateWeights ?? Array.Empty<double>())},"
+    + $" policyEqual={resumedFoundationTraining.Champion?.PolicyWeights.SequenceEqual(foundationTraining.Champion?.PolicyWeights ?? Array.Empty<double>())})");
 foundationRequest.Resume = null;
 foundationRequest.MaximumDegreeOfParallelism = 1;
 var serialFoundationTraining = new CombatCampaignFoundationTrainer().Run(
@@ -8187,6 +8571,8 @@ Console.WriteLine(
     + foundationTraining.ObservedWorkerThreads
     + ", battles="
     + foundationTraining.CompletedBattles
+    + ", allocatedMB="
+    + (foundationTraining.AllocatedBytes / 1048576d).ToString("F1")
     + ", elapsed="
     + foundationTraining.ElapsedSeconds.ToString("F3")
     + "s; serial elapsed="
@@ -8210,16 +8596,16 @@ var earlyStoppedFoundationTraining = new CombatCampaignFoundationTrainer().Run(
 Assert(earlyStoppedFoundationTraining.Success
        && !earlyStoppedFoundationTraining.AcceptancePassed
        && earlyStoppedFoundationTraining.Validation.EarlyStopped
-       && earlyStoppedFoundationTraining.Validation.NormalCampaigns == 4
+       && earlyStoppedFoundationTraining.Validation.NormalCampaigns == 5
        && earlyStoppedFoundationTraining.Validation.AdvancedCampaigns == 0
        && earlyStoppedFoundationTraining.CompletedCampaigns
           < earlyStoppedFoundationTraining.RequestedCampaigns
-       && earlyStoppedFoundationTraining.ValidationRuns.Count == 4
+       && earlyStoppedFoundationTraining.ValidationRuns.Count == 5
        && earlyStoppedFoundationTraining.ValidationRuns.All(item =>
            item.Battles.Count == 0
            && item.Rewards.Count == 0
            && !item.FinalBossVictory),
-    "foundation validation analyzes one deterministic parallel batch and releases full battle graphs when the external worker retention policy is active");
+    "foundation validation analyzes one deterministic configured batch and releases full battle graphs when the external worker retention policy is active");
 foundationRequest.RetainValidationRunDetails = true;
 projectedStrike.Fidelity = CombatRuleFidelity.Approximate;
 var invalidPreflightTraining = new CombatCampaignFoundationTrainer().Run(

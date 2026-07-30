@@ -673,6 +673,40 @@ public static class CombatCampaignCardAcquisitionPolicy
                    or CombatCampaignCardAcquisition.StartingOnly
                && !IsGeneratedOnlyIdentifier(reward.RewardId);
     }
+
+    public static bool CanEnterDynamicGenerationPool(
+        CombatScenarioRewardCatalogEntry? entry,
+        IEnumerable<string>? currentRoleSkillCardIds,
+        IEnumerable<string>? enabledRewardCardPackIds,
+        bool allowCrossRoleSkill = false)
+    {
+        if (entry == null
+            || !entry.Kind.Equals(
+                "Card",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return false;
+        }
+        if (entry.CardAcquisition == CombatCampaignCardAcquisition.SkillOnly)
+        {
+            return allowCrossRoleSkill
+                   || (currentRoleSkillCardIds ?? Array.Empty<string>())
+                   .Contains(
+                       entry.RewardId,
+                       StringComparer.OrdinalIgnoreCase);
+        }
+        var reward = new CombatCampaignRewardDefinition
+        {
+            RewardId = entry.RewardId,
+            Kind = CombatCampaignRewardKind.Card,
+            RewardCardPackId = entry.RewardCardPackId,
+            CardAcquisition = entry.CardAcquisition
+                == CombatCampaignCardAcquisition.CurseOnly
+                    ? CombatCampaignCardAcquisition.RewardPool
+                    : entry.CardAcquisition
+        };
+        return CanEnterRewardPool(reward, enabledRewardCardPackIds);
+    }
 }
 
 public static class CombatCampaignStrategyEvaluator
@@ -2895,13 +2929,19 @@ public sealed class CombatCampaignRunner
             item => item.RewardId,
             StringComparer.OrdinalIgnoreCase);
         var rewardCatalog = definition.Rewards
-            .Where(item => item.Kind != CombatCampaignRewardKind.Card)
             .Select(item => new CombatScenarioRewardCatalogEntry
             {
                 RewardId = item.RewardId,
                 Kind = item.Kind.ToString(),
                 Tier = item.Tier,
-                Negative = item.Negative
+                Negative = item.Negative,
+                RewardCardPackId = item.RewardCardPackId,
+                CardAcquisition = item.CardAcquisition,
+                NativeScriptHash = item.NativeScriptHash,
+                FightScript = item.FightScript,
+                Variables = new Dictionary<string, string>(
+                    item.InitialVariables,
+                    StringComparer.OrdinalIgnoreCase)
             })
             .ToList();
         var finalIndex = plan.Encounters.FindIndex(item =>
@@ -3315,6 +3355,9 @@ public sealed class CombatCampaignRunner
                 ?? new List<string>()),
             DirectHpLossAfterPlayerCard =
                 Math.Max(0, difficulty.DirectHpLossAfterPlayerCard),
+            EnabledRewardCardPackIds = new List<string>(
+                definition.EnabledRewardCardPackIds
+                ?? new List<string>()),
             RequireAuthoritativeRules = definition.RequireAuthoritativeRules,
             TraceLevel = definition.FullTraceFinalEncounterOnly
                          && encounter.Kind != CombatCampaignEncounterKind.FinalBoss

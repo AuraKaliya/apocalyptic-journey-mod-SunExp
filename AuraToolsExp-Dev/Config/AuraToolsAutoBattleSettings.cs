@@ -426,6 +426,9 @@ public sealed class AutoBattleFoundationTrainingSettings
     [JsonProperty("earlyValidationStop")]
     public bool EarlyValidationStop { get; set; } = true;
 
+    [JsonProperty("validationEarlyStopBatchSize")]
+    public int ValidationEarlyStopBatchSize { get; set; } = 32;
+
     [JsonProperty("enableCurriculum")]
     public bool EnableCurriculum { get; set; } = true;
 
@@ -458,6 +461,18 @@ public sealed class AutoBattleFoundationTrainingSettings
 
     [JsonProperty("tuningAdvancedCampaigns")]
     public int TuningAdvancedCampaigns { get; set; } = 64;
+
+    [JsonProperty("enableProgressiveTuning")]
+    public bool EnableProgressiveTuning { get; set; } = true;
+
+    [JsonProperty("tuningScreeningNormalCampaigns")]
+    public int TuningScreeningNormalCampaigns { get; set; } = 8;
+
+    [JsonProperty("tuningScreeningAdvancedCampaigns")]
+    public int TuningScreeningAdvancedCampaigns { get; set; } = 16;
+
+    [JsonProperty("tuningFinalistCount")]
+    public int TuningFinalistCount { get; set; } = 2;
 
     [JsonProperty("maximumConsecutiveRejectedIterations")]
     public int MaximumConsecutiveRejectedIterations { get; set; } = 3;
@@ -509,6 +524,9 @@ public sealed class AutoBattleFoundationTrainingSettings
     [JsonProperty("modelBatchSize")]
     public int ModelBatchSize { get; set; } = 64;
 
+    [JsonProperty("modelGradientShardCount")]
+    public int ModelGradientShardCount { get; set; } = 12;
+
     [JsonProperty("enableFrameStratification")]
     public bool EnableFrameStratification { get; set; } = true;
 
@@ -519,7 +537,7 @@ public sealed class AutoBattleFoundationTrainingSettings
     public int ModelMaximumFramesPerEpisode { get; set; } = 96;
 
     [JsonProperty("modelReplayEpisodeLimit")]
-    public int ModelReplayEpisodeLimit { get; set; } = 6000;
+    public int ModelReplayEpisodeLimit { get; set; } = 8000;
 
     [JsonProperty("modelRetainedCandidates")]
     public int ModelRetainedCandidates { get; set; } = 3;
@@ -531,10 +549,10 @@ public sealed class AutoBattleFoundationTrainingSettings
     public double ModelL2 { get; set; } = 0.0015d;
 
     [JsonProperty("modelStateDimensions")]
-    public int ModelStateDimensions { get; set; } = 128;
+    public int ModelStateDimensions { get; set; } = 256;
 
     [JsonProperty("modelActionDimensions")]
-    public int ModelActionDimensions { get; set; } = 96;
+    public int ModelActionDimensions { get; set; } = 192;
 
     [JsonProperty("modelHiddenDimensions")]
     public int ModelHiddenDimensions { get; set; } = 64;
@@ -589,6 +607,9 @@ public sealed class AutoBattleFoundationTrainingSettings
         Parallelism = Math.Max(
             1,
             Math.Min(Math.Max(1, Environment.ProcessorCount), Parallelism));
+        ValidationEarlyStopBatchSize = Math.Max(
+            1,
+            Math.Min(128, ValidationEarlyStopBatchSize));
         ModelEpochs = Math.Max(5, Math.Min(200, ModelEpochs));
         ModelMinimumEpochs = Math.Max(
             1,
@@ -602,6 +623,9 @@ public sealed class AutoBattleFoundationTrainingSettings
             0.1d,
             0.0002d);
         ModelBatchSize = Math.Max(8, Math.Min(512, ModelBatchSize));
+        ModelGradientShardCount = Math.Max(
+            1,
+            Math.Min(32, ModelGradientShardCount));
         ModelMaximumFrameStratumWeight = ClampFinite(
             ModelMaximumFrameStratumWeight,
             1d,
@@ -646,6 +670,19 @@ public sealed class AutoBattleFoundationTrainingSettings
         TuningAdvancedCampaigns = Math.Max(
             0,
             Math.Min(64, TuningAdvancedCampaigns));
+        TuningScreeningNormalCampaigns = Math.Max(
+            0,
+            Math.Min(
+                TuningNormalCampaigns,
+                TuningScreeningNormalCampaigns));
+        TuningScreeningAdvancedCampaigns = Math.Max(
+            0,
+            Math.Min(
+                TuningAdvancedCampaigns,
+                TuningScreeningAdvancedCampaigns));
+        TuningFinalistCount = Math.Max(
+            1,
+            Math.Min(ModelRetainedCandidates, TuningFinalistCount));
         MaximumConsecutiveRejectedIterations = Math.Max(
             0,
             Math.Min(8, MaximumConsecutiveRejectedIterations));

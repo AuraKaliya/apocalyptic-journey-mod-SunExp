@@ -17,6 +17,8 @@ if (string.IsNullOrWhiteSpace(jobPath) || !File.Exists(jobPath))
 CombatFoundationWorkerJob? job = null;
 var checkpointWriteFailures = 0;
 var checkpointWarning = "";
+var trainingMetricWriteFailures = 0;
+var trainingMetricWarning = "";
 try
 {
     job = Deserialize<CombatFoundationWorkerJob>(
@@ -33,6 +35,19 @@ try
     // accumulate across hundreds of validation campaigns.
     job.Request.RetainValidationRunDetails = false;
     Directory.CreateDirectory(job.ResultDirectory);
+    if (string.IsNullOrWhiteSpace(job.TrainingMetricsPath))
+    {
+        job.TrainingMetricsPath = Path.Combine(
+            job.ResultDirectory,
+            CombatFoundationWorkerProtocol.TrainingMetricsFileName);
+    }
+    if (string.IsNullOrWhiteSpace(job.TrainingAnalysisPath))
+    {
+        job.TrainingAnalysisPath = Path.Combine(
+            job.ResultDirectory,
+            CombatFoundationWorkerProtocol.TrainingAnalysisFileName);
+    }
+    job.Request.IncludeMetricHistoryInTelemetry = false;
     if (string.IsNullOrWhiteSpace(job.CheckpointPath))
     {
         job.CheckpointPath = Path.Combine(
@@ -74,18 +89,6 @@ try
             "Native program package validation failed: "
             + string.Join("; ", package.Errors.Take(8)));
     }
-    var semanticProbe = CombatFoundationSemanticProbe.Validate(
-        job.Request.TrainingCampaign,
-        build.Ruleset);
-    if (!semanticProbe.Success)
-    {
-        throw new InvalidOperationException(
-            "Training semantic probe failed: "
-            + string.Join("; ", semanticProbe.Errors.Take(8)));
-    }
-    Console.WriteLine(
-        "Training semantic probe passed: "
-        + semanticProbe.Version);
     if (!string.IsNullOrWhiteSpace(job.Request.NativeProgramPackageHash)
         && !string.Equals(
             job.Request.NativeProgramPackageHash,
@@ -99,6 +102,24 @@ try
             + package.ProgramSetSha256);
     }
     job.Request.NativeProgramPackageHash = package.ProgramSetSha256;
+    var simulationEngine = new CombatSimulationEngine(
+        new AuraToolsNativeRewardExtensionFactory());
+    var semanticProbe = CombatFoundationSemanticProbe.Validate(
+        job.Request.TrainingCampaign,
+        build.Ruleset,
+        simulationEngine,
+        requireNativeProgramCanary: true);
+    if (!semanticProbe.Success)
+    {
+        throw new InvalidOperationException(
+            "Training semantic probe failed: "
+            + string.Join("; ", semanticProbe.Errors.Take(8)));
+    }
+    Console.WriteLine(
+        "Training semantic probe passed: "
+        + semanticProbe.Version
+        + ", canary="
+        + semanticProbe.CanaryVersion);
     var workerAssemblyPath = Environment.ProcessPath;
     var workerBinarySha256 =
         string.IsNullOrWhiteSpace(workerAssemblyPath)
@@ -161,6 +182,48 @@ try
             ? Array.Empty<string>()
             : new[] { checkpointSnapshot.Path });
     PrepareCaseArchive(job, build.Ruleset.RulesetHash);
+    var metricGate = new object();
+    using var metricStream = new FileStream(
+        job.TrainingMetricsPath,
+        FileMode.Append,
+        FileAccess.Write,
+        FileShare.Read);
+    using var metricWriter = new StreamWriter(
+        metricStream,
+        new UTF8Encoding(false),
+        16 * 1024,
+        leaveOpen: false)
+    {
+        AutoFlush = true
+    };
+    job.Request.ModelMetricRecorded = metrics =>
+    {
+        lock (metricGate)
+        {
+            try
+            {
+                metricWriter.WriteLine(SerializeCompact(
+                    new CombatFoundationTrainingMetricRecord
+                    {
+                        JobId = job.JobId,
+                        RecordedUtc = DateTime.UtcNow,
+                        RulesetHash = build.Ruleset.RulesetHash,
+                        NativeProgramPackageHash =
+                            job.Request.NativeProgramPackageHash,
+                        Metrics = metrics
+                    }));
+                trainingMetricWarning = "";
+            }
+            catch (Exception ex)
+            {
+                trainingMetricWriteFailures++;
+                trainingMetricWarning =
+                    "训练指标暂时无法写入，训练继续："
+                    + ex.Message;
+                Console.Error.WriteLine(trainingMetricWarning);
+            }
+        }
+    };
 
     using var cancellation = new CancellationTokenSource();
     using var cancellationTimer = new Timer(
@@ -326,9 +389,7 @@ try
     }
 
     var training = new CombatCampaignFoundationTrainer(
-        new CombatCampaignRunner(
-            new CombatSimulationEngine(
-                new AuraToolsNativeRewardExtensionFactory()))).Run(
+        new CombatCampaignRunner(simulationEngine)).Run(
         job.Request,
         build.Ruleset,
         job.InitialChampion,
@@ -406,6 +467,10 @@ try
         Resumable = resumable,
         CheckpointWriteFailures = checkpointWriteFailures,
         CheckpointWarning = checkpointWarning,
+        TrainingMetricsPath = job.TrainingMetricsPath,
+        TrainingAnalysisPath = job.TrainingAnalysisPath,
+        TrainingMetricWriteFailures = trainingMetricWriteFailures,
+        TrainingMetricWarning = trainingMetricWarning,
         Training = training
     };
     if (string.Equals(
@@ -422,6 +487,9 @@ try
             CombatFoundationModelPackageProtocol.FileName);
         WriteAtomicJson(workerResult.ModelPackagePath, modelPackage);
     }
+    WriteAtomicJson(
+        job.TrainingAnalysisPath,
+        BuildTrainingAnalysis(job, training));
     training.ValidationRuns.Clear();
     WriteAtomicJson(job.ResultPath, workerResult);
     Console.WriteLine(
@@ -459,7 +527,12 @@ catch (OperationCanceledException)
                     : "",
                 Resumable = resumable,
                 CheckpointWriteFailures = checkpointWriteFailures,
-                CheckpointWarning = checkpointWarning
+                CheckpointWarning = checkpointWarning,
+                TrainingMetricsPath = job.TrainingMetricsPath,
+                TrainingAnalysisPath = job.TrainingAnalysisPath,
+                TrainingMetricWriteFailures =
+                    trainingMetricWriteFailures,
+                TrainingMetricWarning = trainingMetricWarning
             });
     }
     return 3;
@@ -490,7 +563,12 @@ catch (Exception ex)
                     : "",
                 Resumable = resumable,
                 CheckpointWriteFailures = checkpointWriteFailures,
-                CheckpointWarning = checkpointWarning
+                CheckpointWarning = checkpointWarning,
+                TrainingMetricsPath = job.TrainingMetricsPath,
+                TrainingAnalysisPath = job.TrainingAnalysisPath,
+                TrainingMetricWriteFailures =
+                    trainingMetricWriteFailures,
+                TrainingMetricWarning = trainingMetricWarning
             });
     }
     return 1;
@@ -555,6 +633,8 @@ static string Fingerprint(
         Profile = HashCompact(request.Profile),
         request.TrainingPolicyVersion,
         CombatPolicyValueProtocol.TrainingSemanticsVersion,
+        SemanticCanaryVersion =
+            CombatFoundationSemanticProbeResult.CurrentCanaryVersion,
         request.Iterations,
         request.AdditionalIterationsOnResume,
         request.TrainingCampaignsPerIteration,
@@ -567,8 +647,10 @@ static string Fingerprint(
         request.CapabilityProbeMinimumVictoryGain,
         request.CapabilityProbeMinimumDepthGain,
         request.EnableEarlyValidationStop,
+        request.ValidationEarlyStopBatchSize,
         request.EnableCurriculum,
         request.EnableStratifiedReplay,
+        request.EnablePrioritizedReplay,
         request.EnableHardSeedCurriculum,
         request.EnableCounterfactualHardEncounters,
         request.EnableSuccessCaseArchive,
@@ -578,6 +660,10 @@ static string Fingerprint(
         request.EnableTuningArena,
         request.TuningNormalCampaigns,
         request.TuningAdvancedCampaigns,
+        request.EnableProgressiveTuning,
+        request.TuningScreeningNormalCampaigns,
+        request.TuningScreeningAdvancedCampaigns,
+        request.TuningFinalistCount,
         request.NormalAcceptanceRate,
         request.AdvancedAcceptanceRate,
         request.HardSeedReplayShare,
@@ -595,6 +681,7 @@ static string Fingerprint(
         training.StateDimensions,
         training.ActionDimensions,
         training.HiddenDimensions,
+        training.GradientShardCount,
         training.FeatureEncodingMode,
         training.LearningRate,
         training.L2,
@@ -604,6 +691,10 @@ static string Fingerprint(
         training.EarlyStoppingMinimumDelta,
         training.BatchSize,
         training.EnableFrameStratification,
+        training.EnableEndTurnSpecialization,
+        training.EndTurnFrameWeight,
+        training.PolicyTargetTemperature,
+        training.MaximumPolicyTargetProbability,
         training.MaximumFrameStratumWeight,
         training.MaximumFramesPerEpisode,
         training.ReplayEpisodeLimit,
@@ -1509,6 +1600,97 @@ static void WriteAtomicJson(string path, object value)
             textWriter.Flush();
         },
         retainBackup: false);
+}
+
+static CombatFoundationTrainingAnalysis BuildTrainingAnalysis(
+    CombatFoundationWorkerJob job,
+    CombatCampaignFoundationTrainingResult training)
+{
+    const double alpha = 0.30d;
+    var iterationMetrics = (training.Iterations
+                            ?? new List<CombatCampaignFoundationIteration>())
+        .SelectMany(iteration =>
+            iteration.ModelEpochHistory
+            ?? new List<CombatPolicyValueEpochMetrics>())
+        .ToList();
+    var source = iterationMetrics.Count > 0
+        ? iterationMetrics
+        : training.ModelEpochHistory
+          ?? new List<CombatPolicyValueEpochMetrics>();
+    var epochs = source
+        .Where(item => item != null
+                       && !item.Calibrated
+                       && item.Epoch > 0)
+        .GroupBy(
+            item => (
+                Iteration: Math.Max(1, item.Iteration),
+                item.Epoch))
+        .Select(group => group
+            .OrderByDescending(item => item.ElapsedSeconds)
+            .First())
+        .OrderBy(item => item.Iteration)
+        .ThenBy(item => item.Epoch)
+        .ToList();
+    var analysis = new CombatFoundationTrainingAnalysis
+    {
+        JobId = job.JobId,
+        GeneratedUtc = DateTime.UtcNow,
+        SourceMetricsPath = job.TrainingMetricsPath,
+        EmaAlpha = alpha,
+        EpochCount = epochs.Count,
+        IterationCount = epochs
+            .Select(item => Math.Max(1, item.Iteration))
+            .Distinct()
+            .Count()
+    };
+    foreach (var iteration in epochs.GroupBy(item =>
+                 Math.Max(1, item.Iteration)))
+    {
+        double? trainingEma = null;
+        double? validationEma = null;
+        foreach (var metric in iteration.OrderBy(item => item.Epoch))
+        {
+            trainingEma = trainingEma.HasValue
+                ? alpha * metric.Training.CompositeLoss
+                  + (1d - alpha) * trainingEma.Value
+                : metric.Training.CompositeLoss;
+            validationEma = validationEma.HasValue
+                ? alpha * metric.Validation.CompositeLoss
+                  + (1d - alpha) * validationEma.Value
+                : metric.Validation.CompositeLoss;
+            analysis.Points.Add(
+                new CombatFoundationTrainingAnalysisPoint
+                {
+                    Iteration = iteration.Key,
+                    Epoch = metric.Epoch,
+                    TrainingLoss = metric.Training.CompositeLoss,
+                    ValidationLoss = metric.Validation.CompositeLoss,
+                    TrainingLossEma = trainingEma.Value,
+                    ValidationLossEma = validationEma.Value,
+                    ValidationCiLower =
+                        metric.Validation.CompositeLossCiLower,
+                    ValidationCiUpper =
+                        metric.Validation.CompositeLossCiUpper,
+                    GeneralizationGap =
+                        metric.Validation.CompositeLoss
+                        - metric.Training.CompositeLoss,
+                    Improved = metric.Improved,
+                    EarlyStopped = metric.EarlyStopped
+                });
+        }
+    }
+    var best = epochs
+        .OrderBy(item => item.Validation.CompositeLoss)
+        .ThenBy(item => item.Iteration)
+        .ThenBy(item => item.Epoch)
+        .FirstOrDefault();
+    if (best != null)
+    {
+        analysis.BestValidationLoss = best.Validation.CompositeLoss;
+        analysis.BestIteration = Math.Max(1, best.Iteration);
+        analysis.BestEpoch = best.Epoch;
+    }
+    return analysis;
 }
 
 static string RuntimeDescription(int workers)

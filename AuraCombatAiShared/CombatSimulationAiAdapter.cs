@@ -338,7 +338,8 @@ public sealed class CombatAuthoritativeBranchTeacherPolicy :
                 context.Scenario,
                 context.Ruleset,
                 context.State,
-                candidate);
+                candidate,
+                captureSemanticEvents: true);
             if (!applied.Success)
             {
                 continue;
@@ -353,7 +354,6 @@ public sealed class CombatAuthoritativeBranchTeacherPolicy :
                 applied.State,
                 candidate,
                 projected?.Semantics);
-            LastDecisionMetrics.AuthoritativeActionsAudited++;
             var audit = CombatSemanticAuditor.Audit(
                 context.State,
                 applied.State,
@@ -367,6 +367,10 @@ public sealed class CombatAuthoritativeBranchTeacherPolicy :
                 audit,
                 candidate.DefinitionId,
                 context.Scenario.ScenarioId);
+            if (audit.Valid)
+            {
+                LastDecisionMetrics.AuthoritativeActionsAudited++;
+            }
             if (audit.Mismatch)
             {
                 LastDecisionMetrics.AuthoritativeSemanticMismatches++;
@@ -420,7 +424,8 @@ public sealed class CombatAuthoritativeBranchTeacherPolicy :
         if (selected != null
             && audits.TryGetValue(selected.CandidateId, out var selectedAudit))
         {
-            LastDecisionMetrics.AuthoritativeSelectedActionsAudited = 1;
+            LastDecisionMetrics.AuthoritativeSelectedActionsAudited =
+                selectedAudit.Valid ? 1 : 0;
             LastDecisionMetrics.AuthoritativeSelectedSemanticMismatches =
                 selectedAudit.Mismatch ? 1 : 0;
             var selectedSource = string.IsNullOrWhiteSpace(selected.DefinitionId)
@@ -429,6 +434,17 @@ public sealed class CombatAuthoritativeBranchTeacherPolicy :
             Increment(
                 LastDecisionMetrics.SemanticAudit.SelectedAuditedSources,
                 selectedSource);
+            if (selectedAudit.Invalid)
+            {
+                LastDecisionMetrics.SemanticAudit.SelectedInvalidActions = 1;
+                Increment(
+                    LastDecisionMetrics.SemanticAudit.SelectedInvalidSources,
+                    selectedSource);
+            }
+            else
+            {
+                LastDecisionMetrics.SemanticAudit.SelectedValidActions = 1;
+            }
             if (selectedAudit.ExplainedDifference)
             {
                 LastDecisionMetrics.SemanticAudit.SelectedExplainedActions = 1;
@@ -481,6 +497,26 @@ public sealed class CombatAuthoritativeBranchTeacherPolicy :
             ? "unknown"
             : sourceId;
         Increment(metrics.SemanticAudit.AuditedSources, source);
+        if (audit.Invalid)
+        {
+            metrics.SemanticAudit.InvalidActions++;
+            Increment(metrics.SemanticAudit.InvalidSources, source);
+            foreach (var kind in audit.InvalidKinds.Distinct(
+                         StringComparer.OrdinalIgnoreCase))
+            {
+                Increment(metrics.SemanticAudit.InvalidKinds, kind);
+                var key = SourceKindKey(source, kind);
+                if (metrics.SemanticAudit.InvalidExamples.Count
+                    < CombatSemanticAuditMetrics.MaximumExamples
+                    && !metrics.SemanticAudit.InvalidExamples.ContainsKey(key))
+                {
+                    metrics.SemanticAudit.InvalidExamples[key] =
+                        audit.Describe(source);
+                }
+            }
+            return;
+        }
+        metrics.SemanticAudit.ValidActions++;
         foreach (var kind in audit.AuditedKinds.Distinct(
                      StringComparer.OrdinalIgnoreCase))
         {

@@ -218,6 +218,14 @@ internal sealed class AuraToolsNativeRewardExtension :
     private readonly HashSet<string> noPowerDecisionStates = new();
     private bool applyingScriptExecuteAdjustment;
 
+    private void RegisterProgram(NativeRewardScriptGlobals globals)
+    {
+        if (!programs.Contains(globals))
+        {
+            programs.Add(globals);
+        }
+    }
+
     public void Initialize(ICombatSimulationRuntimeContext context)
     {
         ApplyHardAffixes(context);
@@ -226,7 +234,10 @@ internal sealed class AuraToolsNativeRewardExtension :
         {
             for (var stack = 0; stack < Math.Max(1, rule.Stacks); stack++)
             {
-                var globals = new NativeRewardScriptGlobals(context, rule);
+                var globals = new NativeRewardScriptGlobals(
+                    context,
+                    rule,
+                    registerProgram: RegisterProgram);
                 var result = NativeRewardProgramRegistry.TryRun(rule, globals);
                 if (!result.Success)
                 {
@@ -403,6 +414,37 @@ internal sealed class AuraToolsNativeRewardExtension :
         {
             program.Complete();
         }
+        var currentRoleSkills = new HashSet<string>(
+            context.Scenario.Player.SkillCardIds,
+            StringComparer.OrdinalIgnoreCase);
+        var foreignRoleSkills = new HashSet<string>(
+            context.Scenario.RewardCatalog
+                .Where(item =>
+                    item.Kind.Equals(
+                        "Card",
+                        StringComparison.OrdinalIgnoreCase)
+                    && item.CardAcquisition
+                       == CombatCampaignCardAcquisition.SkillOnly
+                    && !currentRoleSkills.Contains(item.RewardId))
+                .Select(item => item.RewardId),
+            StringComparer.OrdinalIgnoreCase);
+        var leaked = context.State.Cards.FirstOrDefault(card =>
+            foreignRoleSkills.Contains(card.CardId)
+            && !card.CreationCrossRoleSkillAuthorized);
+        if (leaked == null)
+        {
+            return;
+        }
+        context.AddUnsupported(
+            "cross-role-skill-card:"
+            + leaked.CardId
+            + ":source="
+            + leaked.CreationSource
+            + ":sourceId="
+            + leaked.CreationSourceId);
+        context.Terminate(
+            CombatSimulationOutcome.Invalid,
+            CombatTerminationReason.UnsupportedRule);
     }
 
     public void BeforePolicyDecision(ICombatSimulationRuntimeContext context)
@@ -521,7 +563,8 @@ internal sealed class AuraToolsNativeRewardExtension :
                 master,
                 sourceActorId,
                 sourceEvent.TargetActorId,
-                instance.InstanceId);
+                instance.InstanceId,
+                registerProgram: RegisterProgram);
             cardPrograms[instance.InstanceId] = globals;
             programs.Add(globals);
             if (!RunNativePhase(
@@ -585,7 +628,8 @@ internal sealed class AuraToolsNativeRewardExtension :
             context,
             master,
             actorId,
-            sourceEvent?.SourceActorId ?? 0);
+            sourceEvent?.SourceActorId ?? 0,
+            registerProgram: RegisterProgram);
         statusPrograms[key] = globals;
         programs.Add(globals);
         if (!RunNativePhase(
@@ -812,6 +856,18 @@ internal static class NativeRewardProgramRegistry
         CombatScenarioRewardRule rule,
         NativeRewardScriptGlobals globals)
     {
+        if (string.Equals(
+                rule.RewardId,
+                "CrowdFundingRelic_17",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            globals.AddEvent("Hurt", () =>
+            {
+                globals.SetStatus("AllTarget");
+                globals.Damage("1", "True");
+            });
+            return new NativeRewardScriptCompileResult { Success = true };
+        }
         var key = Key(rule.FightScript);
         return globals.TryRunPrecompiledProgram(key, out var message)
             ? new NativeRewardScriptCompileResult { Success = true }
@@ -891,6 +947,15 @@ internal static class NativeRewardProgramRegistry
         result = result.Replace(
             "new List<NativeRewardDataConfig>(UsedCard)",
             "UsedCard.Select(x => x.dataConfig).ToList()");
+        result = Regex.Replace(
+            result,
+            @"\bnew\s+NativeRewardDataConfig\s*\(",
+            "CreateDataConfig(");
+        result = Regex.Replace(
+            result,
+            @"\b(?<config>[A-Za-z_][A-Za-z0-9_]*)\.data\s*=\s*"
+            + @"(?<value>[A-Za-z_][A-Za-z0-9_]*)\s*;",
+            "${config}.ReplaceData(${value});");
         result = Regex.Replace(
             result,
             @"\b(?<pile>DeckCard|HandCard|UsedCard)\s*"
@@ -1262,6 +1327,7 @@ public sealed partial class NativeRewardScriptGlobals
     private readonly Dictionary<string, NativeRewardDataConfig>
         statusConfigurations;
     private readonly Dictionary<int, NativeRewardDataConfig> cardConfigurations;
+    private readonly Action<NativeRewardScriptGlobals>? registerProgram;
     private CombatSimulationEvent? currentEvent;
     private List<int> selectedActorIds = new();
     private int executionSourceActorId;
@@ -1273,10 +1339,13 @@ public sealed partial class NativeRewardScriptGlobals
         CombatScenarioRewardRule rule,
         int sourceActorId = 0,
         int targetActorId = 0,
-        int cardInstanceId = 0)
+        int cardInstanceId = 0,
+        NativeRewardDataConfig? dataConfigOverride = null,
+        Action<NativeRewardScriptGlobals>? registerProgram = null)
     {
         this.context = context;
         this.rule = rule;
+        this.registerProgram = registerProgram;
         cardConfigurations = SharedCardConfigurations.GetOrCreateValue(context);
         deferredEffects = SharedDeferredEffects.GetOrCreateValue(context);
         statusConfigurations =
@@ -1285,10 +1354,13 @@ public sealed partial class NativeRewardScriptGlobals
             ? sourceActorId
             : context.State.PlayerActorId;
         executionTargetActorId = targetActorId;
-        dataConfig = cardInstanceId > 0
+        dataConfig = dataConfigOverride
+                     ?? (cardInstanceId > 0
             ? CardConfig(cardInstanceId)
-            : new NativeRewardDataConfig(rule.RewardId);
-        Vars = cardInstanceId > 0
+            : new NativeRewardDataConfig(rule.RewardId));
+        Vars = dataConfigOverride != null
+            ? dataConfig.Vars
+            : cardInstanceId > 0
             ? dataConfig.Vars
             : new NativeRewardStringDictionary(rule.Variables);
         foreach (var pair in rule.Variables)
@@ -1415,6 +1487,148 @@ public sealed partial class NativeRewardScriptGlobals
     public void AddDescription(params object[] _)
     {
         IgnoreCosmeticApi("AddDescription");
+    }
+
+    public NativeRewardDataConfig CreateDataConfig(
+        object id,
+        NativeRewardDataType type)
+    {
+        var definitionId = Text(id);
+        NativeRewardDataConfig? result = null;
+        result = new NativeRewardDataConfig(
+            definitionId,
+            phase => RunDataConfigScript(result!, type, phase));
+        result.data["Type"] = DataKind(type);
+
+        if (context.Ruleset.TryGetCard(definitionId, out var card))
+        {
+            foreach (var pair in card.Metadata)
+            {
+                result.data[pair.Key] = pair.Value;
+                result.Vars[pair.Key] = pair.Value;
+            }
+            result.data["Name"] = card.DisplayName;
+            result.data["Tag"] = string.Join(",", card.Tags);
+            result.data["Rarity"] =
+                card.Rarity.ToString(CultureInfo.InvariantCulture);
+            result.data["Expend"] =
+                card.Cost.ToString(CultureInfo.InvariantCulture);
+            return result;
+        }
+
+        var reward = context.Scenario.RewardCatalog.FirstOrDefault(item =>
+            string.Equals(
+                item.RewardId,
+                definitionId,
+                StringComparison.OrdinalIgnoreCase));
+        if (reward == null)
+        {
+            return result;
+        }
+        result.data["Type"] = reward.Kind;
+        result.data["Rarity"] =
+            Math.Max(1, reward.Tier).ToString(CultureInfo.InvariantCulture);
+        foreach (var pair in reward.Variables)
+        {
+            result.Vars[pair.Key] = pair.Value;
+        }
+        return result;
+    }
+
+    private void RunDataConfigScript(
+        NativeRewardDataConfig config,
+        NativeRewardDataType type,
+        string phase)
+    {
+        var definitionId = config.data.GetValueOrDefault(
+            "Id",
+            config.InstanceID);
+        var script = "";
+        var kind = DataKind(type);
+        var nativeScriptHash = "";
+        if (context.Ruleset.TryGetCard(definitionId, out var card))
+        {
+            kind = "Card";
+            var key = phase.Equals(
+                "UseScript",
+                StringComparison.OrdinalIgnoreCase)
+                ? "NativeUseScript"
+                : phase.Equals(
+                    "DrawScript",
+                    StringComparison.OrdinalIgnoreCase)
+                    ? "NativeDrawScript"
+                    : phase.Equals(
+                        "DropScript",
+                        StringComparison.OrdinalIgnoreCase)
+                        ? "NativeDropScript"
+                        : "NativeInitScript";
+            script = card.Metadata.GetValueOrDefault(key, "");
+        }
+        else
+        {
+            var reward = context.Scenario.RewardCatalog.FirstOrDefault(item =>
+                string.Equals(
+                    item.RewardId,
+                    definitionId,
+                    StringComparison.OrdinalIgnoreCase));
+            if (reward != null
+                && phase.Equals(
+                    "FightScript",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                kind = reward.Kind;
+                nativeScriptHash = reward.NativeScriptHash;
+                script = reward.FightScript;
+            }
+        }
+        if (string.IsNullOrWhiteSpace(script))
+        {
+            return;
+        }
+
+        var executionRule = new CombatScenarioRewardRule
+        {
+            RewardId = definitionId,
+            Kind = kind,
+            NativeScriptHash = nativeScriptHash,
+            FightScript = script,
+            Variables = new Dictionary<string, string>(
+                config.Vars,
+                StringComparer.OrdinalIgnoreCase)
+        };
+        var nested = new NativeRewardScriptGlobals(
+            context,
+            executionRule,
+            executionSourceActorId,
+            executionTargetActorId,
+            dataConfigOverride: config,
+            registerProgram: registerProgram);
+        var execution = nested.RunScript(executionRule, currentEvent);
+        if (!execution.Success)
+        {
+            context.AddUnsupported(
+                "native-created-data-script:"
+                + definitionId
+                + ":"
+                + phase
+                + ":"
+                + execution.Message);
+            return;
+        }
+        registerProgram?.Invoke(nested);
+    }
+
+    private static string DataKind(NativeRewardDataType type)
+    {
+        return type switch
+        {
+            NativeRewardDataType.Bless => "Blessing",
+            NativeRewardDataType.Relic => "Relic",
+            NativeRewardDataType.Buff => "Status",
+            NativeRewardDataType.EnchTag => "Enchantment",
+            NativeRewardDataType.EnemyCard => "EnemyCard",
+            _ => "Card"
+        };
     }
 
     public void RunScript(string phase)
@@ -1853,15 +2067,18 @@ public sealed partial class NativeRewardScriptGlobals
             return;
         }
         var target = CardConfig(created.InstanceId);
-        target.data = new Dictionary<string, string>(
-            config.data,
-            StringComparer.OrdinalIgnoreCase);
+        target.data = new NativeRewardStringDictionary(config.data);
         foreach (var pair in config.Vars)
         {
             target.Vars[pair.Key] = pair.Value;
         }
         target.InstanceID =
             created.InstanceId.ToString(CultureInfo.InvariantCulture);
+        RecordCardProvenance(
+            created,
+            config,
+            "native-script-create",
+            0);
         new NativeRewardCardItem(this, created.InstanceId).DataUpdate();
     }
 
@@ -2557,7 +2774,9 @@ public sealed partial class NativeRewardScriptGlobals
         var min = Number(minimum);
         var max = Number(maximum);
         return context.Ruleset.SnapshotCards()
-            .Where(card => card.Rarity >= min && card.Rarity <= max)
+            .Where(card => card.Rarity >= min
+                           && card.Rarity <= max
+                           && CanEnterDynamicCardPool(card.CardId))
             .Select(card =>
             {
                 var data = new Dictionary<string, string>(
@@ -2570,7 +2789,13 @@ public sealed partial class NativeRewardScriptGlobals
                     ["Expend"] = card.Cost.ToString(
                         CultureInfo.InvariantCulture),
                     ["Rarity"] = card.Rarity.ToString(
-                        CultureInfo.InvariantCulture)
+                        CultureInfo.InvariantCulture),
+                    ["CreationSource"] = "dynamic-card-pool",
+                    ["CreationSourceId"] = rule.RewardId,
+                    ["CrossRoleSkillAuthorized"] =
+                        AllowsCrossRoleSkill()
+                            ? "true"
+                            : "false"
                 };
                 return data;
             })
@@ -2580,6 +2805,7 @@ public sealed partial class NativeRewardScriptGlobals
     public List<NativeRewardDataConfig> GetcardsOutLock()
     {
         return context.Ruleset.SnapshotCards()
+            .Where(item => CanEnterDynamicCardPool(item.CardId))
             .OrderBy(item => item.CardId, StringComparer.Ordinal)
             .Select(item =>
             {
@@ -2596,9 +2822,49 @@ public sealed partial class NativeRewardScriptGlobals
                     CultureInfo.InvariantCulture);
                 config.data["Expend"] = item.Cost.ToString(
                     CultureInfo.InvariantCulture);
+                config.Vars["CreationSource"] =
+                    "dynamic-card-pool";
+                config.Vars["CreationSourceId"] = rule.RewardId;
+                config.Vars["CrossRoleSkillAuthorized"] =
+                    AllowsCrossRoleSkill()
+                        ? "true"
+                        : "false";
                 return config;
             })
             .ToList();
+    }
+
+    private bool CanEnterDynamicCardPool(string cardId)
+    {
+        var entry = context.Scenario.RewardCatalog.FirstOrDefault(item =>
+            item.Kind.Equals(
+                "Card",
+                StringComparison.OrdinalIgnoreCase)
+            && string.Equals(
+                item.RewardId,
+                cardId,
+                StringComparison.OrdinalIgnoreCase));
+        return CombatCampaignCardAcquisitionPolicy
+            .CanEnterDynamicGenerationPool(
+                entry,
+                context.Scenario.Player.SkillCardIds,
+                context.Scenario.EnabledRewardCardPackIds,
+                AllowsCrossRoleSkill());
+    }
+
+    private bool AllowsCrossRoleSkill()
+    {
+        var value = Vars.GetValueOrDefault(
+            "AllowCrossRoleSkill",
+            "false");
+        return string.Equals(
+                   value,
+                   "true",
+                   StringComparison.OrdinalIgnoreCase)
+               || string.Equals(
+                   value,
+                   "1",
+                   StringComparison.Ordinal);
     }
 
     public List<NativeRewardDataConfig> UniqueDeck()
@@ -2879,6 +3145,64 @@ public sealed partial class NativeRewardScriptGlobals
         return result;
     }
 
+    internal void RecordCardProvenance(
+        CombatCardInstanceState instance,
+        NativeRewardDataConfig config,
+        string fallbackSource,
+        int parentInstanceId)
+    {
+        var source = config.Vars.GetValueOrDefault(
+            "CreationSource",
+            config.data.GetValueOrDefault(
+                "CreationSource",
+                fallbackSource));
+        var sourceId = config.Vars.GetValueOrDefault(
+            "CreationSourceId",
+            config.data.GetValueOrDefault(
+                "CreationSourceId",
+                rule.RewardId));
+        var randomStream = config.Vars.GetValueOrDefault(
+            "CreationRandomStreamId",
+            config.data.GetValueOrDefault(
+                "CreationRandomStreamId",
+                ""));
+        instance.CreationSource = string.IsNullOrWhiteSpace(source)
+            ? fallbackSource
+            : source;
+        instance.CreationSourceId = string.IsNullOrWhiteSpace(sourceId)
+            ? rule.RewardId
+            : sourceId;
+        instance.CreationParentInstanceId = Math.Max(
+            0,
+            parentInstanceId);
+        instance.CreationRandomStreamId = randomStream;
+        instance.CreationCrossRoleSkillAuthorized =
+            string.Equals(
+                config.Vars.GetValueOrDefault(
+                    "CrossRoleSkillAuthorized",
+                    config.data.GetValueOrDefault(
+                        "CrossRoleSkillAuthorized",
+                        "false")),
+                "true",
+                StringComparison.OrdinalIgnoreCase);
+        instance.Variables["CreationSource"] =
+            instance.CreationSource;
+        instance.Variables["CreationSourceId"] =
+            instance.CreationSourceId;
+        instance.Variables["CreationParentInstanceId"] =
+            instance.CreationParentInstanceId.ToString(
+                CultureInfo.InvariantCulture);
+        if (!string.IsNullOrWhiteSpace(randomStream))
+        {
+            instance.Variables["CreationRandomStreamId"] =
+                randomStream;
+        }
+        instance.Variables["CrossRoleSkillAuthorized"] =
+            instance.CreationCrossRoleSkillAuthorized
+                ? "true"
+                : "false";
+    }
+
     internal void SynchronizeCardVariables()
     {
         if (!int.TryParse(
@@ -2967,31 +3291,47 @@ public sealed partial class NativeRewardScriptGlobals
         }
         foreach (var handler in list.ToList())
         {
-            if (!MatchesSubscription(handler.ActorIds, sourceEvent))
+            if (!MatchesSubscription(
+                    eventName,
+                    handler.ActorIds,
+                    sourceEvent))
             {
                 continue;
             }
-            if (!TryEnterHandler(handler, sourceEvent, out var chainKey))
+            if (!TryEnterHandler(
+                    handler,
+                    sourceEvent,
+                    out var handlerEvent,
+                    out var chainKey))
             {
                 continue;
             }
             try
             {
-                if (handler.PayloadType != null
-                    && handler.PayloadCallback != null)
+                var previousEvent = currentEvent;
+                currentEvent = handlerEvent;
+                try
                 {
-                    handler.PayloadCallback(CreatePayload(
-                        handler.PayloadType,
-                        sourceEvent));
+                    if (handler.PayloadType != null
+                        && handler.PayloadCallback != null)
+                    {
+                        handler.PayloadCallback(CreatePayload(
+                            handler.PayloadType,
+                            handlerEvent));
+                    }
+                    else
+                    {
+                        handler.Callback(handlerEvent);
+                    }
                 }
-                else
+                finally
                 {
-                    handler.Callback(sourceEvent);
+                    currentEvent = previousEvent;
                 }
             }
             finally
             {
-                ExitHandler(sourceEvent, chainKey);
+                ExitHandler(chainKey);
             }
         }
     }
@@ -3007,29 +3347,45 @@ public sealed partial class NativeRewardScriptGlobals
         }
         foreach (var handler in list.ToList())
         {
-            if (!MatchesSubscription(handler.ActorIds, sourceEvent))
+            if (!MatchesSubscription(
+                    eventName,
+                    handler.ActorIds,
+                    sourceEvent))
             {
                 continue;
             }
-            if (!TryEnterHandler(handler, sourceEvent, out var chainKey))
+            if (!TryEnterHandler(
+                    handler,
+                    sourceEvent,
+                    out var handlerEvent,
+                    out var chainKey))
             {
                 continue;
             }
             try
             {
-                if (handler.PayloadType?.IsInstanceOfType(payload) == true
-                    && handler.PayloadCallback != null)
+                var previousEvent = currentEvent;
+                currentEvent = handlerEvent;
+                try
                 {
-                    handler.PayloadCallback(payload);
+                    if (handler.PayloadType?.IsInstanceOfType(payload) == true
+                        && handler.PayloadCallback != null)
+                    {
+                        handler.PayloadCallback(payload);
+                    }
+                    else if (handler.PayloadType == null)
+                    {
+                        handler.Callback(handlerEvent);
+                    }
                 }
-                else if (handler.PayloadType == null)
+                finally
                 {
-                    handler.Callback(sourceEvent);
+                    currentEvent = previousEvent;
                 }
             }
             finally
             {
-                ExitHandler(sourceEvent, chainKey);
+                ExitHandler(chainKey);
             }
         }
     }
@@ -3047,8 +3403,10 @@ public sealed partial class NativeRewardScriptGlobals
     private bool TryEnterHandler(
         NativeRewardEventHandler handler,
         CombatSimulationEvent? sourceEvent,
+        out CombatSimulationEvent? handlerEvent,
         out string chainKey)
     {
+        handlerEvent = null;
         var chainId = sourceEvent?.CausalChainId > 0
             ? sourceEvent.CausalChainId
             : sourceEvent?.Sequence > 0
@@ -3068,19 +3426,18 @@ public sealed partial class NativeRewardScriptGlobals
         }
         if (sourceEvent != null)
         {
-            sourceEvent.CausalChainId = chainId;
-            sourceEvent.HandlerId = handler.HandlerId;
-            sourceEvent.SourceRewardId = handler.SourceRewardId;
-            sourceEvent.SourceActionId = sourceEvent.SourceActionId > 0
+            handlerEvent = sourceEvent.Clone();
+            handlerEvent.CausalChainId = chainId;
+            handlerEvent.HandlerId = handler.HandlerId;
+            handlerEvent.SourceRewardId = handler.SourceRewardId;
+            handlerEvent.SourceActionId = sourceEvent.SourceActionId > 0
                 ? sourceEvent.SourceActionId
                 : context.State.ActionSequence;
         }
         return true;
     }
 
-    private void ExitHandler(
-        CombatSimulationEvent? sourceEvent,
-        string chainKey)
+    private void ExitHandler(string chainKey)
     {
         activeHandlerChains.Remove(chainKey);
         var separator = chainKey.IndexOf('|');
@@ -3088,14 +3445,10 @@ public sealed partial class NativeRewardScriptGlobals
         {
             activeHandlerIds.Remove(chainKey.Substring(separator + 1));
         }
-        if (sourceEvent != null)
-        {
-            sourceEvent.HandlerId = "";
-            sourceEvent.SourceRewardId = "";
-        }
     }
 
     private static bool MatchesSubscription(
+        string eventName,
         HashSet<int> actorIds,
         CombatSimulationEvent? sourceEvent)
     {
@@ -3109,6 +3462,20 @@ public sealed partial class NativeRewardScriptGlobals
             or CombatSimulationEventKind.BattleEnded)
         {
             return true;
+        }
+        if (string.Equals(
+                eventName,
+                "Hurt",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return actorIds.Contains(sourceEvent.TargetActorId);
+        }
+        if (string.Equals(
+                eventName,
+                "Damage",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return actorIds.Contains(sourceEvent.SourceActorId);
         }
         return actorIds.Contains(sourceEvent.SourceActorId)
                || actorIds.Contains(sourceEvent.TargetActorId);
@@ -3364,9 +3731,13 @@ public sealed partial class NativeRewardScriptGlobals
                 DefinitionId = definitionId,
                 CausalChainId = currentEvent?.CausalChainId ?? 0,
                 HandlerId = currentEvent?.HandlerId ?? "",
-                SourceRewardId = currentEvent?.SourceRewardId ?? rule.RewardId,
-                SourceActionId = currentEvent?.SourceActionId
-                                 ?? context.State.ActionSequence
+                SourceRewardId = string.IsNullOrWhiteSpace(
+                    currentEvent?.SourceRewardId)
+                    ? rule.RewardId
+                    : currentEvent!.SourceRewardId,
+                SourceActionId = currentEvent?.SourceActionId > 0
+                    ? currentEvent.SourceActionId
+                    : context.State.ActionSequence
             });
     }
 
@@ -4404,6 +4775,16 @@ public sealed class NativeRewardDataConfig
 
     internal NativeRewardDataConfig(
         string id,
+        Action<string> runScript)
+    {
+        InstanceID = id;
+        InitializeData(id);
+        Vars = new NativeRewardStringDictionary();
+        scriptExecutor = new NativeRewardScriptExecutor(this, runScript);
+    }
+
+    internal NativeRewardDataConfig(
+        string id,
         NativeRewardScriptExecutor scriptExecutor)
     {
         InstanceID = id;
@@ -4425,8 +4806,7 @@ public sealed class NativeRewardDataConfig
 
     public string InstanceID { get; set; }
 
-    public Dictionary<string, string> data { get; set; } =
-        new(StringComparer.OrdinalIgnoreCase);
+    public NativeRewardStringDictionary data { get; set; } = new();
 
     public NativeRewardStringDictionary Vars { get; set; }
 
@@ -4437,6 +4817,11 @@ public sealed class NativeRewardDataConfig
     }
 
     public NativeRewardScriptExecutor scriptExecutor { get; }
+
+    public void ReplaceData(IDictionary<string, string> source)
+    {
+        data = new NativeRewardStringDictionary(source);
+    }
 
     public NativeRewardDataConfig Clone()
     {
@@ -4533,9 +4918,8 @@ public sealed class NativeRewardCardItem
             instance.ApparentCardId = "";
             instance.EnchantmentIds.Clear();
             instance.Variables.Clear();
-            dataConfig.data = new Dictionary<string, string>(
-                config.data,
-                StringComparer.OrdinalIgnoreCase);
+            dataConfig.data =
+                new NativeRewardStringDictionary(config.data);
             foreach (var pair in config.Vars)
             {
                 dataConfig.Vars[pair.Key] = pair.Value;
@@ -4546,6 +4930,11 @@ public sealed class NativeRewardCardItem
             {
                 instance.Variables[pair.Key] = pair.Value;
             }
+            globals.RecordCardProvenance(
+                instance,
+                config,
+                "native-transform",
+                instanceId);
             RefreshTag();
         }
     }

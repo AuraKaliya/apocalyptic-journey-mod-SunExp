@@ -1246,6 +1246,10 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                 settings.EnableTuningArena,
                 settings.TuningNormalCampaigns,
                 settings.TuningAdvancedCampaigns,
+                settings.EnableProgressiveTuning,
+                settings.TuningScreeningNormalCampaigns,
+                settings.TuningScreeningAdvancedCampaigns,
+                settings.TuningFinalistCount,
                 settings.MaximumConsecutiveRejectedIterations,
                 settings.NormalAcceptanceRate,
                 settings.AdvancedAcceptanceRate,
@@ -2424,9 +2428,15 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                          ? settings.ArenaConfirmationCampaignsPerDifficulty
                          : 0)) * 4
                   + (settings.EnableTuningArena
-                      ? settings.ModelRetainedCandidates
-                        * (settings.TuningNormalCampaigns
-                           + settings.TuningAdvancedCampaigns)
+                      ? CombatCampaignFoundationTrainer
+                        .EstimateTuningCampaigns(
+                            settings.ModelRetainedCandidates,
+                            settings.TuningNormalCampaigns,
+                            settings.TuningAdvancedCampaigns,
+                            settings.EnableProgressiveTuning,
+                            settings.TuningScreeningNormalCampaigns,
+                            settings.TuningScreeningAdvancedCampaigns,
+                            settings.TuningFinalistCount)
                       : 0))
                + settings.NormalValidationCampaigns
                + settings.AdvancedValidationCampaigns
@@ -2465,6 +2475,8 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                 source.PreflightCampaignsPerDifficulty,
             MaximumDegreeOfParallelism = source.Parallelism,
             EnableEarlyValidationStop = source.EarlyValidationStop,
+            ValidationEarlyStopBatchSize =
+                source.ValidationEarlyStopBatchSize,
             EnableCurriculum = source.EnableCurriculum,
             EnableStratifiedReplay = source.EnableStratifiedReplay,
             EnableHardSeedCurriculum =
@@ -2479,6 +2491,12 @@ internal static class AuraToolsAutoBattleFoundationRuntime
             EnableTuningArena = source.EnableTuningArena,
             TuningNormalCampaigns = source.TuningNormalCampaigns,
             TuningAdvancedCampaigns = source.TuningAdvancedCampaigns,
+            EnableProgressiveTuning = source.EnableProgressiveTuning,
+            TuningScreeningNormalCampaigns =
+                source.TuningScreeningNormalCampaigns,
+            TuningScreeningAdvancedCampaigns =
+                source.TuningScreeningAdvancedCampaigns,
+            TuningFinalistCount = source.TuningFinalistCount,
             MaximumConsecutiveRejectedIterations =
                 source.MaximumConsecutiveRejectedIterations,
             NormalAcceptanceRate = source.NormalAcceptanceRate,
@@ -2500,6 +2518,7 @@ internal static class AuraToolsAutoBattleFoundationRuntime
             ModelEarlyStoppingMinimumDelta =
                 source.ModelEarlyStoppingMinimumDelta,
             ModelBatchSize = source.ModelBatchSize,
+            ModelGradientShardCount = source.ModelGradientShardCount,
             EnableFrameStratification =
                 source.EnableFrameStratification,
             ModelMaximumFrameStratumWeight =

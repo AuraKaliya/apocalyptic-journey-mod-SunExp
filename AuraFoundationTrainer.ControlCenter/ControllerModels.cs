@@ -82,6 +82,14 @@ internal sealed class ControllerWorkerResultSummary
 
     public string ModelPackagePath { get; set; } = "";
 
+    public string TrainingMetricsPath { get; set; } = "";
+
+    public string TrainingAnalysisPath { get; set; } = "";
+
+    public int TrainingMetricWriteFailures { get; set; }
+
+    public string TrainingMetricWarning { get; set; } = "";
+
     public bool Resumable { get; set; }
 
     public int CheckpointWriteFailures { get; set; }
@@ -93,5 +101,73 @@ internal sealed class ControllerWorkerResultSummary
 
 internal sealed class ControllerTrainingResultSummary
 {
+    public bool Success { get; set; }
+
+    public bool AcceptancePassed { get; set; }
+
+    public string Message { get; set; } = "";
+
+    public int GeneratedReplayEpisodes { get; set; }
+
+    public int LoadedExpertReplayEpisodes { get; set; }
+
+    public CombatFoundationExpertReplaySelection ExpertReplaySelection {
+        get;
+        set;
+    } = new();
+
+    public CombatFoundationRewardResidualTrainingResult RewardResidualTraining {
+        get;
+        set;
+    } = new();
+
+    public List<CombatCampaignFoundationIteration> Iterations { get; set; } =
+        new();
+
     public CombatCampaignFoundationValidation Validation { get; set; } = new();
+
+    public CombatCampaignFoundationIntegrityReport Preflight { get; set; } =
+        new();
+
+    public CombatFoundationCapabilityProbe CapabilityProbe { get; set; } =
+        new();
+
+    public int InvalidTrainingCampaigns { get; set; }
+
+    public int TerminalConsistencyViolations { get; set; }
+
+    public int FeatureLeakageViolations { get; set; }
+
+    public Dictionary<string, int> TrainingFailureCounts { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public List<CombatCampaignFoundationIntegrityFailure> TrainingFailures {
+        get;
+        set;
+    } = new();
+
+    public long AuthoritativeSelectedActionsAudited { get; set; }
+
+    public long AuthoritativeSelectedSemanticMismatches { get; set; }
+
+    public long AuthoritativeTeacherOverrides { get; set; }
+
+    public double RootMaximumVisitShareMean { get; set; }
+
+    public int ModelCompletedEpochs { get; set; }
+
+    public int ModelConfiguredEpochs { get; set; }
+
+    public int ModelBestEpoch { get; set; }
+
+    public bool ModelEarlyStopped { get; set; }
+
+    public double ModelTrainingLoss { get; set; }
+
+    public double ModelValidationLoss { get; set; }
+
+    public double ModelBestValidationLoss { get; set; }
+
+    public List<CombatPolicyValueEpochMetrics> ModelEpochHistory { get; set; } =
+        new();
 }

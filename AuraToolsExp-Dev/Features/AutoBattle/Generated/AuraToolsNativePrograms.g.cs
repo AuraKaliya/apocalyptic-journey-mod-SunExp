@@ -29,23 +29,23 @@ public sealed partial class NativeRewardScriptGlobals
                     NativeProgram_0002();
                     message = "";
                     return true;
-                case "045E67FC0B9457C8C2B3E6A95B891828200A4440C4E152CE2A042371245A5E34":
+                case "047DDC3CC9CDF4B53DC7B344117B93E193DEFE61ED55CA7B31251D691C63F9D3":
                     NativeProgram_0003();
                     message = "";
                     return true;
-                case "047DDC3CC9CDF4B53DC7B344117B93E193DEFE61ED55CA7B31251D691C63F9D3":
+                case "048234D25B059DC05C66124DB28F2CBE379FA6B79416C4359136A8652195C99E":
                     NativeProgram_0004();
                     message = "";
                     return true;
-                case "048234D25B059DC05C66124DB28F2CBE379FA6B79416C4359136A8652195C99E":
+                case "04A53977D0C04531F9C72F4CD8E846F75A3BE8545954409B0242D02CAAF20B6A":
                     NativeProgram_0005();
                     message = "";
                     return true;
-                case "04A53977D0C04531F9C72F4CD8E846F75A3BE8545954409B0242D02CAAF20B6A":
+                case "05247F9969715C6CCEF08FA1D881249B9FD998E26B5487677866639346A564F7":
                     NativeProgram_0006();
                     message = "";
                     return true;
-                case "05247F9969715C6CCEF08FA1D881249B9FD998E26B5487677866639346A564F7":
+                case "06AB324486A060127C175B6BB60789B28E37BDB6968285D770DBD5BB7BFAA5A7":
                     NativeProgram_0007();
                     message = "";
                     return true;
@@ -145,63 +145,63 @@ public sealed partial class NativeRewardScriptGlobals
                     NativeProgram_0031();
                     message = "";
                     return true;
-                case "1568CE7D1341DA338B362365F9EAF2215261ED9FDC7140CBBAF03C8F218322B2":
+                case "1533543845CF179AF63E9AF60CEE4519DFD1B38A1DFC8D173F52B213E99BF228":
                     NativeProgram_0032();
                     message = "";
                     return true;
-                case "15911ED39AC1E37D78AD2EECEFC24E157A6A37A5E7A693D33BFCB3B65846CE5D":
+                case "1568CE7D1341DA338B362365F9EAF2215261ED9FDC7140CBBAF03C8F218322B2":
                     NativeProgram_0033();
                     message = "";
                     return true;
-                case "15F0D5A1A5A2C973D78AF4EB49463B7BB44326D90815E2457068DF1FA8FA3BFC":
+                case "15911ED39AC1E37D78AD2EECEFC24E157A6A37A5E7A693D33BFCB3B65846CE5D":
                     NativeProgram_0034();
                     message = "";
                     return true;
-                case "161ACE4FC79C35548E99DB106A0173E1B6187BFD4F732AB10F0069298BBEDBF7":
+                case "15F0D5A1A5A2C973D78AF4EB49463B7BB44326D90815E2457068DF1FA8FA3BFC":
                     NativeProgram_0035();
                     message = "";
                     return true;
-                case "162D1054E1AAA14D37B99827146D2B98B59C57937052DEE77670523BA1EB2F05":
+                case "161ACE4FC79C35548E99DB106A0173E1B6187BFD4F732AB10F0069298BBEDBF7":
                     NativeProgram_0036();
                     message = "";
                     return true;
-                case "16AD85CF467AFEA87B9780D53984C7984C64D016179CC7FD301CE8801F9F972E":
+                case "162D1054E1AAA14D37B99827146D2B98B59C57937052DEE77670523BA1EB2F05":
                     NativeProgram_0037();
                     message = "";
                     return true;
-                case "17D2CFBF7191674D0D76FD68C35FA013D7715E63F63A25BAB34B02011A711138":
+                case "16AD85CF467AFEA87B9780D53984C7984C64D016179CC7FD301CE8801F9F972E":
                     NativeProgram_0038();
                     message = "";
                     return true;
-                case "1836C36ACED7DDD89866C5D8710941AA531F071E83E1FC8FB8D3E4FD70FF0F44":
+                case "17D2CFBF7191674D0D76FD68C35FA013D7715E63F63A25BAB34B02011A711138":
                     NativeProgram_0039();
                     message = "";
                     return true;
-                case "18A4100D4CE16E3E8BD3AC50B904D4BAF67944CDEC7CC6A2B09CA4690A3DA816":
+                case "1836C36ACED7DDD89866C5D8710941AA531F071E83E1FC8FB8D3E4FD70FF0F44":
                     NativeProgram_0040();
                     message = "";
                     return true;
-                case "18DFDC1E5C478C43806C681712DA3371C8DF4F82A96B277843557D0D0EF10605":
+                case "18A4100D4CE16E3E8BD3AC50B904D4BAF67944CDEC7CC6A2B09CA4690A3DA816":
                     NativeProgram_0041();
                     message = "";
                     return true;
-                case "1944997016953DBA0D46F69CFCDA12710D2A70C803AAD16662CE6051E9A37333":
+                case "18DFDC1E5C478C43806C681712DA3371C8DF4F82A96B277843557D0D0EF10605":
                     NativeProgram_0042();
                     message = "";
                     return true;
-                case "19B762E6779350460D8D474C3ECE9D0867D664C042242364F161E99E97EA2D2D":
+                case "1944997016953DBA0D46F69CFCDA12710D2A70C803AAD16662CE6051E9A37333":
                     NativeProgram_0043();
                     message = "";
                     return true;
-                case "1A218F3B26E9E164B902412916A1D5C756D399D39EBA6A0912DA1B4C61227A8F":
+                case "19B762E6779350460D8D474C3ECE9D0867D664C042242364F161E99E97EA2D2D":
                     NativeProgram_0044();
                     message = "";
                     return true;
-                case "1B4B4F1323B11CA0464160C5539B563418E3ACC4C34529BFBC9C6ED02C6D1B24":
+                case "1A218F3B26E9E164B902412916A1D5C756D399D39EBA6A0912DA1B4C61227A8F":
                     NativeProgram_0045();
                     message = "";
                     return true;
-                case "1CF2FB796FB2F2979CFA458600AA65090EA06CAC9C5777D1BC05CB7B2E631B4B":
+                case "1B4B4F1323B11CA0464160C5539B563418E3ACC4C34529BFBC9C6ED02C6D1B24":
                     NativeProgram_0046();
                     message = "";
                     return true;
@@ -209,119 +209,119 @@ public sealed partial class NativeRewardScriptGlobals
                     NativeProgram_0047();
                     message = "";
                     return true;
-                case "1D6B5C00CB4CF9068B80E15DFC335FD077E1FB9E7DFC7D8EE462CF283D925993":
+                case "1F7FE1CB65ABEE85DA539D0F14071DE0E377F5751D8572481AD4CF00A802F953":
                     NativeProgram_0048();
                     message = "";
                     return true;
-                case "1F7FE1CB65ABEE85DA539D0F14071DE0E377F5751D8572481AD4CF00A802F953":
+                case "1FAEEE51736F5DD4D8EB87AE084581694E3AEE998DCC5A8E63C6C0F4CD4B06BD":
                     NativeProgram_0049();
                     message = "";
                     return true;
-                case "1FAEEE51736F5DD4D8EB87AE084581694E3AEE998DCC5A8E63C6C0F4CD4B06BD":
+                case "20780BCE5C7E02F755EBDECE0DF3B9D0679C4C454B8B1A22FF5DAFF9C70058CD":
                     NativeProgram_0050();
                     message = "";
                     return true;
-                case "20780BCE5C7E02F755EBDECE0DF3B9D0679C4C454B8B1A22FF5DAFF9C70058CD":
+                case "207C5BF88B0189971B1E26D20B6EA841258322F85F6597260AA63E0D86276C72":
                     NativeProgram_0051();
                     message = "";
                     return true;
-                case "207C5BF88B0189971B1E26D20B6EA841258322F85F6597260AA63E0D86276C72":
+                case "208AAE3D6B6952E192A3818E5EAC0A4C2FF993F0A3687D2F605A0E75F7358B2A":
                     NativeProgram_0052();
                     message = "";
                     return true;
-                case "208AAE3D6B6952E192A3818E5EAC0A4C2FF993F0A3687D2F605A0E75F7358B2A":
+                case "21320EEECB4F00409DA699C8C8551EB41CC545F90544A0A8D1CDE78C8B07E13E":
                     NativeProgram_0053();
                     message = "";
                     return true;
-                case "21320EEECB4F00409DA699C8C8551EB41CC545F90544A0A8D1CDE78C8B07E13E":
+                case "2158728E31A2202E600B3353C854D2ABCCD7E5160145A0D9BBF538838294F1CC":
                     NativeProgram_0054();
                     message = "";
                     return true;
-                case "2158728E31A2202E600B3353C854D2ABCCD7E5160145A0D9BBF538838294F1CC":
+                case "217769A432EA0A68DBC04EC172A8048586A4BD7F84AB090EC44B0D449A73A68B":
                     NativeProgram_0055();
                     message = "";
                     return true;
-                case "217769A432EA0A68DBC04EC172A8048586A4BD7F84AB090EC44B0D449A73A68B":
+                case "218AB54591964A20A04C3AEE2D5870EFABF1D19D97865055BB34BD89E6E44D64":
                     NativeProgram_0056();
                     message = "";
                     return true;
-                case "218AB54591964A20A04C3AEE2D5870EFABF1D19D97865055BB34BD89E6E44D64":
+                case "21C4C7A709221BB3B1CC5BA53390C223134BBB5D1ADBFF8B50B2373274C8B7E2":
                     NativeProgram_0057();
                     message = "";
                     return true;
-                case "21C4C7A709221BB3B1CC5BA53390C223134BBB5D1ADBFF8B50B2373274C8B7E2":
+                case "222DC685AB1AB0E332D1B9B15235881DD589C9D9B13BEB4FBA27136F3C2F9460":
                     NativeProgram_0058();
                     message = "";
                     return true;
-                case "222DC685AB1AB0E332D1B9B15235881DD589C9D9B13BEB4FBA27136F3C2F9460":
+                case "22422B288326E218708C3F39A0A75D0228D04D94F0707505AB282E16E016C911":
                     NativeProgram_0059();
                     message = "";
                     return true;
-                case "22422B288326E218708C3F39A0A75D0228D04D94F0707505AB282E16E016C911":
+                case "228C67C89151A034363EE80F552CD57C5A3D5BEA1FE9FBD7CA465837B61C067D":
                     NativeProgram_0060();
                     message = "";
                     return true;
-                case "228C67C89151A034363EE80F552CD57C5A3D5BEA1FE9FBD7CA465837B61C067D":
+                case "2297F09BD8015E75A6DC4B55CD4E1E943C05F3CD82E8C3938017D9AE2A917CA2":
                     NativeProgram_0061();
                     message = "";
                     return true;
-                case "2297F09BD8015E75A6DC4B55CD4E1E943C05F3CD82E8C3938017D9AE2A917CA2":
+                case "23A5F0D8657BF65641071BA37ED47E5D2977A35C951C98439F72BACACED2217C":
                     NativeProgram_0062();
                     message = "";
                     return true;
-                case "23A5F0D8657BF65641071BA37ED47E5D2977A35C951C98439F72BACACED2217C":
+                case "23D06C4CD7C18EB413DB8B0EEBCB7C5B104F523A2E1C5A1EF61AEB088D0FEA07":
                     NativeProgram_0063();
                     message = "";
                     return true;
-                case "23D06C4CD7C18EB413DB8B0EEBCB7C5B104F523A2E1C5A1EF61AEB088D0FEA07":
+                case "24689AC68E3D1D6DEC723B6D1E86085245AE46A9D02139EC680A9BC52852B530":
                     NativeProgram_0064();
                     message = "";
                     return true;
-                case "24689AC68E3D1D6DEC723B6D1E86085245AE46A9D02139EC680A9BC52852B530":
+                case "24C21ED666FB6C2EDC549075A93AAF40B78C1BCAD756D489256D53614E86ECCE":
                     NativeProgram_0065();
                     message = "";
                     return true;
-                case "24C21ED666FB6C2EDC549075A93AAF40B78C1BCAD756D489256D53614E86ECCE":
+                case "251BC7339A1C74C3FAB58D9F4FEB55E0AFF306DFB3A58F2BC0456E6BA1F75E6A":
                     NativeProgram_0066();
                     message = "";
                     return true;
-                case "251BC7339A1C74C3FAB58D9F4FEB55E0AFF306DFB3A58F2BC0456E6BA1F75E6A":
+                case "25B73C1C071E11526413B37D6451378247F6FE71DD2F3CB71F84F8B1349CC8F5":
                     NativeProgram_0067();
                     message = "";
                     return true;
-                case "25B73C1C071E11526413B37D6451378247F6FE71DD2F3CB71F84F8B1349CC8F5":
+                case "26DDC1E5895755DEDD676538828B7F309864EBC98958D3D0C4197E98F4E9F3B6":
                     NativeProgram_0068();
                     message = "";
                     return true;
-                case "26DDC1E5895755DEDD676538828B7F309864EBC98958D3D0C4197E98F4E9F3B6":
+                case "279A1DB0E55DEC4D3E18F4CDEB56E918F90F6AED0400D6249DA78B37BFFE5261":
                     NativeProgram_0069();
                     message = "";
                     return true;
-                case "279A1DB0E55DEC4D3E18F4CDEB56E918F90F6AED0400D6249DA78B37BFFE5261":
+                case "284AA9222788D188FC6853A0974396F5F6CF95ADB187934B147E63EBBE80C194":
                     NativeProgram_0070();
                     message = "";
                     return true;
-                case "284AA9222788D188FC6853A0974396F5F6CF95ADB187934B147E63EBBE80C194":
+                case "28C35AE0659D1B1532227E946153C29F5588511AA1C512288CC56D53B46EB1AE":
                     NativeProgram_0071();
                     message = "";
                     return true;
-                case "28C35AE0659D1B1532227E946153C29F5588511AA1C512288CC56D53B46EB1AE":
+                case "28D31FC33978A0F13AAA015D816F1286E482E382135DF1FBE6D7E28A8B027C12":
                     NativeProgram_0072();
                     message = "";
                     return true;
-                case "28D31FC33978A0F13AAA015D816F1286E482E382135DF1FBE6D7E28A8B027C12":
+                case "293CBBFFD5DDBF56219B3F426265460E87B1F7439EB92B488C54F354C536FE0E":
                     NativeProgram_0073();
                     message = "";
                     return true;
-                case "293CBBFFD5DDBF56219B3F426265460E87B1F7439EB92B488C54F354C536FE0E":
+                case "2959C9D4877C19B1A7E0D9DC94F424F83A705AD895BBDCAE54E4D782F98C8B23":
                     NativeProgram_0074();
                     message = "";
                     return true;
-                case "2959C9D4877C19B1A7E0D9DC94F424F83A705AD895BBDCAE54E4D782F98C8B23":
+                case "2984830D51FD4C61684F110DD8636C4055F23080F4C609730724C5D9A6F82103":
                     NativeProgram_0075();
                     message = "";
                     return true;
-                case "2984830D51FD4C61684F110DD8636C4055F23080F4C609730724C5D9A6F82103":
+                case "2989A63BB596B4BBB7E86C37E68C0B88F171830ECBA64F3459EA19E1F750C9C4":
                     NativeProgram_0076();
                     message = "";
                     return true;
@@ -381,23 +381,23 @@ public sealed partial class NativeRewardScriptGlobals
                     NativeProgram_0090();
                     message = "";
                     return true;
-                case "3199875D727D8511D5AE3FD5597E67B5A398C82BB200B20CE85D0A801B436A4D":
+                case "318ADA196B331628D80A1A19A93D4CED542C6CE71416F622A31C58CA9E96D775":
                     NativeProgram_0091();
                     message = "";
                     return true;
-                case "31BF9E6D9E96B12EEEBEF16FC6B1F3E436690307DCFDD4DB66E89FDE8259AC43":
+                case "3199875D727D8511D5AE3FD5597E67B5A398C82BB200B20CE85D0A801B436A4D":
                     NativeProgram_0092();
                     message = "";
                     return true;
-                case "31D5AC66DFC6AAE88693FDE56FCB02E4600494CEF477EACEC2AD5AE0748C43CD":
+                case "31BF9E6D9E96B12EEEBEF16FC6B1F3E436690307DCFDD4DB66E89FDE8259AC43":
                     NativeProgram_0093();
                     message = "";
                     return true;
-                case "32AC30C701060843F9484FDED785988CEEB284ADE20E11562451C1F366CFB8DB":
+                case "31D5AC66DFC6AAE88693FDE56FCB02E4600494CEF477EACEC2AD5AE0748C43CD":
                     NativeProgram_0094();
                     message = "";
                     return true;
-                case "331D3A9793DDD6FB5444527F7124ACCA1BDC0E4087AB1475EA574D6ED7F881C0":
+                case "32AC30C701060843F9484FDED785988CEEB284ADE20E11562451C1F366CFB8DB":
                     NativeProgram_0095();
                     message = "";
                     return true;
@@ -421,11 +421,11 @@ public sealed partial class NativeRewardScriptGlobals
                     NativeProgram_0100();
                     message = "";
                     return true;
-                case "34633187425D4BBA989E1DECBD8FA9CB4770B8D21C56D1A0BAD536B6B18B0803":
+                case "340CFEB27D3F9A6AAED13EC07E951C16E78E222D05D409F1B61E26688E4FD93F":
                     NativeProgram_0101();
                     message = "";
                     return true;
-                case "347F689D11B20F182D6ACCAB1916B6C4CC01B993888B1B6FE0C892650CB98BE9":
+                case "34633187425D4BBA989E1DECBD8FA9CB4770B8D21C56D1A0BAD536B6B18B0803":
                     NativeProgram_0102();
                     message = "";
                     return true;
@@ -441,235 +441,235 @@ public sealed partial class NativeRewardScriptGlobals
                     NativeProgram_0105();
                     message = "";
                     return true;
-                case "367D854D35B99F3A80DBA0118F285BC565DC6F1C795B4072021DD8563E1730BE":
+                case "366370604A0A076ECBD947ACAA38C1C0BD7003EE8A8B1481EBE2C2D136FEC12B":
                     NativeProgram_0106();
                     message = "";
                     return true;
-                case "38FC32308AD7E8980BD2C9A960F3BFD758F307A2186878DEFFE98142458CD3A6":
+                case "367D854D35B99F3A80DBA0118F285BC565DC6F1C795B4072021DD8563E1730BE":
                     NativeProgram_0107();
                     message = "";
                     return true;
-                case "395F92AB9C4D22D51EC9131D43BDED630756B3774EA2EA76C0317BA06B2A801C":
+                case "377EC780AEF6815F3B1594D3CE578A2CAAA056EC95DB419F37D2D3F6CD451DB2":
                     NativeProgram_0108();
                     message = "";
                     return true;
-                case "39B43BB2908CF4986E25D6F133E4103ED4C6A4FF99180F49F243C00E4E31F34F":
+                case "38FC32308AD7E8980BD2C9A960F3BFD758F307A2186878DEFFE98142458CD3A6":
                     NativeProgram_0109();
                     message = "";
                     return true;
-                case "3B7D6BC6098D1DF8F3831208ACAF6EAD8CBB4CF8F9298268BA497C35ABCCC12A":
+                case "395F92AB9C4D22D51EC9131D43BDED630756B3774EA2EA76C0317BA06B2A801C":
                     NativeProgram_0110();
                     message = "";
                     return true;
-                case "3BBBCA36DF74C593E551B540425EDCCC38C37A96C2D26888772ECBA8AA6D3FEE":
+                case "39B43BB2908CF4986E25D6F133E4103ED4C6A4FF99180F49F243C00E4E31F34F":
                     NativeProgram_0111();
                     message = "";
                     return true;
-                case "3C14A350F9C09945ABA1D7F3F4F6770D75E0BB19D12455553AF5BE745E2A14EF":
+                case "3B7D6BC6098D1DF8F3831208ACAF6EAD8CBB4CF8F9298268BA497C35ABCCC12A":
                     NativeProgram_0112();
                     message = "";
                     return true;
-                case "3C913013832FDDDB4EFD9703FA9E099E2394F460F415A6B4870CA4238391AECC":
+                case "3BBBCA36DF74C593E551B540425EDCCC38C37A96C2D26888772ECBA8AA6D3FEE":
                     NativeProgram_0113();
                     message = "";
                     return true;
-                case "3CE073D9A84BCD2DA47DEE283C7024B5F9649C20F72ED883DFAD90B89EF1D71C":
+                case "3C14A350F9C09945ABA1D7F3F4F6770D75E0BB19D12455553AF5BE745E2A14EF":
                     NativeProgram_0114();
                     message = "";
                     return true;
-                case "3CF89392947A8E74D2702D1D637EE5DC97F7418B482D9F1C8A9BBF2C4934182F":
+                case "3C913013832FDDDB4EFD9703FA9E099E2394F460F415A6B4870CA4238391AECC":
                     NativeProgram_0115();
                     message = "";
                     return true;
-                case "3D1CD9BF3C9316929DC7A9CE899FB05D21ECAD8CFD96334DE94ABC6D8FFED5A8":
+                case "3CE073D9A84BCD2DA47DEE283C7024B5F9649C20F72ED883DFAD90B89EF1D71C":
                     NativeProgram_0116();
                     message = "";
                     return true;
-                case "3E7FAFEECA6FA2E9922424BAEFFAD1EE0577A6FFE84D3BEEF343F276E428764C":
+                case "3CF89392947A8E74D2702D1D637EE5DC97F7418B482D9F1C8A9BBF2C4934182F":
                     NativeProgram_0117();
                     message = "";
                     return true;
-                case "3E874387B307C113D7EC524CB42CC0FC602786A2159B2EF77F1C8BEA4E6647BA":
+                case "3D1CD9BF3C9316929DC7A9CE899FB05D21ECAD8CFD96334DE94ABC6D8FFED5A8":
                     NativeProgram_0118();
                     message = "";
                     return true;
-                case "3EE7AEA0307C819A523421234B8D533F50C2252F3B0557E3346A50EC2373A95E":
+                case "3E7FAFEECA6FA2E9922424BAEFFAD1EE0577A6FFE84D3BEEF343F276E428764C":
                     NativeProgram_0119();
                     message = "";
                     return true;
-                case "3FB6E7FF60E5E9C8A54AE9FC10DA6C77A889060F76F1DE4EFF694143EE954B74":
+                case "3E874387B307C113D7EC524CB42CC0FC602786A2159B2EF77F1C8BEA4E6647BA":
                     NativeProgram_0120();
                     message = "";
                     return true;
-                case "41006C61C28E5F77E8C448FB30FD3F0267DDE4C3F81FC573E672B22F9E966A9F":
+                case "3EE7AEA0307C819A523421234B8D533F50C2252F3B0557E3346A50EC2373A95E":
                     NativeProgram_0121();
                     message = "";
                     return true;
-                case "410ACB41D0ED8AF3B711B4720BC489F3F3C1CD56149CBA413812175DF1C5DBC9":
+                case "3FB6E7FF60E5E9C8A54AE9FC10DA6C77A889060F76F1DE4EFF694143EE954B74":
                     NativeProgram_0122();
                     message = "";
                     return true;
-                case "4148DDDAA9E33EBBF81A155DE59844EBAFDC714E5E9DBA43BE368C8757EC72D6":
+                case "40099F217C1F0AB1FE34D785E0EB9C6C683993B5D28E124D5B6FB722C148017F":
                     NativeProgram_0123();
                     message = "";
                     return true;
-                case "41931A522F32B85A54135C1CB1B73F436D957095264357FF9F9F989CC155FBD0":
+                case "410ACB41D0ED8AF3B711B4720BC489F3F3C1CD56149CBA413812175DF1C5DBC9":
                     NativeProgram_0124();
                     message = "";
                     return true;
-                case "423A1021860D21940A5593E3ABECFEDEEAD410B21CB1F87F01C0693E129B75D8":
+                case "4148DDDAA9E33EBBF81A155DE59844EBAFDC714E5E9DBA43BE368C8757EC72D6":
                     NativeProgram_0125();
                     message = "";
                     return true;
-                case "4242335391CEB95810BB5C046DDBB821A069CCC19EBD0B0D03D22B876BA4A1B4":
+                case "41931A522F32B85A54135C1CB1B73F436D957095264357FF9F9F989CC155FBD0":
                     NativeProgram_0126();
                     message = "";
                     return true;
-                case "424D05563D32CF67D5AC420751F2F78D6CF5C633AF978A33921FAAFEC2E10BF7":
+                case "423A1021860D21940A5593E3ABECFEDEEAD410B21CB1F87F01C0693E129B75D8":
                     NativeProgram_0127();
                     message = "";
                     return true;
-                case "42A29A6446375372D64071DCC16435D17338300FBB88D5405587611B7D87FCE0":
+                case "4242335391CEB95810BB5C046DDBB821A069CCC19EBD0B0D03D22B876BA4A1B4":
                     NativeProgram_0128();
                     message = "";
                     return true;
-                case "438ADC734C71A5A54A976D77AD08BFB282872E02B47CEF47B2024E53982EF792":
+                case "424D05563D32CF67D5AC420751F2F78D6CF5C633AF978A33921FAAFEC2E10BF7":
                     NativeProgram_0129();
                     message = "";
                     return true;
-                case "440E32068A9958F732FE36CE297F14DD2BB324A36947985E2E019C16C491C27C":
+                case "42A29A6446375372D64071DCC16435D17338300FBB88D5405587611B7D87FCE0":
                     NativeProgram_0130();
                     message = "";
                     return true;
-                case "442437EDA8F0B3FB09B8D9ED0091FAF676847D6280BDB72E26871FAE0C8FE449":
+                case "438ADC734C71A5A54A976D77AD08BFB282872E02B47CEF47B2024E53982EF792":
                     NativeProgram_0131();
                     message = "";
                     return true;
-                case "44351B133D9B6CF784198DA352C18474ADF6A139C8FC185B6140B09715407C26":
+                case "440E32068A9958F732FE36CE297F14DD2BB324A36947985E2E019C16C491C27C":
                     NativeProgram_0132();
                     message = "";
                     return true;
-                case "445EE1B649B9ED32FA8184D7D0251FF5BA9DE0EA52521DDF59010EAB721BC772":
+                case "442437EDA8F0B3FB09B8D9ED0091FAF676847D6280BDB72E26871FAE0C8FE449":
                     NativeProgram_0133();
                     message = "";
                     return true;
-                case "44B7D334096C548265B5119EC33270614DEA3BBC1DF270FAE0237FDE06C6BB4B":
+                case "44351B133D9B6CF784198DA352C18474ADF6A139C8FC185B6140B09715407C26":
                     NativeProgram_0134();
                     message = "";
                     return true;
-                case "454AD7A837739A75E3FCCF1AAC5B6E0643C378E5F21368F78B063941D5DCD2D2":
+                case "445EE1B649B9ED32FA8184D7D0251FF5BA9DE0EA52521DDF59010EAB721BC772":
                     NativeProgram_0135();
                     message = "";
                     return true;
-                case "455C0719DEA11303DA14839058BC1FE43894A4CC15553F67AF2C7F8F4D54591D":
+                case "44B7D334096C548265B5119EC33270614DEA3BBC1DF270FAE0237FDE06C6BB4B":
                     NativeProgram_0136();
                     message = "";
                     return true;
-                case "456FB42547F652B8433838AF246CBDEF95D58B7E0B2CB7D25E19E3E4B6A11523":
+                case "454AD7A837739A75E3FCCF1AAC5B6E0643C378E5F21368F78B063941D5DCD2D2":
                     NativeProgram_0137();
                     message = "";
                     return true;
-                case "45F9CAEBD73BC9886628FD7CCDBB69D2782F8E68E141FDCBE6340F307C3666BD":
+                case "455C0719DEA11303DA14839058BC1FE43894A4CC15553F67AF2C7F8F4D54591D":
                     NativeProgram_0138();
                     message = "";
                     return true;
-                case "460F354C311ED292E65CB643A965B73A918CEBB7776C2317915ECDBAA9D2A0D1":
+                case "456FB42547F652B8433838AF246CBDEF95D58B7E0B2CB7D25E19E3E4B6A11523":
                     NativeProgram_0139();
                     message = "";
                     return true;
-                case "4650CC77ED2008142C4C46C19E3F205396765CC507F8D736892EC724B0E76327":
+                case "45F9CAEBD73BC9886628FD7CCDBB69D2782F8E68E141FDCBE6340F307C3666BD":
                     NativeProgram_0140();
                     message = "";
                     return true;
-                case "4765BD7A6BC44A800A24EB239F1D1B521C5B264B5B4DE977DCA71D2608D914D7":
+                case "460F354C311ED292E65CB643A965B73A918CEBB7776C2317915ECDBAA9D2A0D1":
                     NativeProgram_0141();
                     message = "";
                     return true;
-                case "47833B12614C957F65887E65714A8ABCAA4DF88BA1EA8BB200CBA754A973CAA5":
+                case "4650CC77ED2008142C4C46C19E3F205396765CC507F8D736892EC724B0E76327":
                     NativeProgram_0142();
                     message = "";
                     return true;
-                case "47AE8094F3CB7B26673E92A43FBDD126CFFE5D9140436987EE4C50313992AAA3":
+                case "4765BD7A6BC44A800A24EB239F1D1B521C5B264B5B4DE977DCA71D2608D914D7":
                     NativeProgram_0143();
                     message = "";
                     return true;
-                case "491E641684371DFA1A1C138157F3874075448A17BC4BB4A5A0B79792885BE1BE":
+                case "47833B12614C957F65887E65714A8ABCAA4DF88BA1EA8BB200CBA754A973CAA5":
                     NativeProgram_0144();
                     message = "";
                     return true;
-                case "4929DE34C95DC4C19F4B77989FE53C0225C1C477BF6A57B16F525F7E654C82C7":
+                case "47AE8094F3CB7B26673E92A43FBDD126CFFE5D9140436987EE4C50313992AAA3":
                     NativeProgram_0145();
                     message = "";
                     return true;
-                case "49BF93700A02F77CEFC38AF904609DB0A706CE3B85740DB76DCE56E85359FE4C":
+                case "491E641684371DFA1A1C138157F3874075448A17BC4BB4A5A0B79792885BE1BE":
                     NativeProgram_0146();
                     message = "";
                     return true;
-                case "4A940D4C5791A90C9BCE64F33A637C9BDA98056A908FD4DC861A6749A4287C18":
+                case "4929DE34C95DC4C19F4B77989FE53C0225C1C477BF6A57B16F525F7E654C82C7":
                     NativeProgram_0147();
                     message = "";
                     return true;
-                case "4ADBEA183986227CB2145DD091569ACE9C9E00A9F3B037AC4050D70F2212EDCA":
+                case "49BF93700A02F77CEFC38AF904609DB0A706CE3B85740DB76DCE56E85359FE4C":
                     NativeProgram_0148();
                     message = "";
                     return true;
-                case "4AE74F31778F94811F4946D2C8CCC6439AE2E87D3CDF53F4F564D3612FC4D458":
+                case "4A940D4C5791A90C9BCE64F33A637C9BDA98056A908FD4DC861A6749A4287C18":
                     NativeProgram_0149();
                     message = "";
                     return true;
-                case "4B1B2096680CFF1455464E0E0E64D971A8BC3AC9C0A689D64D12561747EE4F27":
+                case "4ADBEA183986227CB2145DD091569ACE9C9E00A9F3B037AC4050D70F2212EDCA":
                     NativeProgram_0150();
                     message = "";
                     return true;
-                case "4B77E9C2BE8DC1EC8AF79F333CB590336ED2BFD6605C5C34EDE74F2FFBC70A94":
+                case "4AE74F31778F94811F4946D2C8CCC6439AE2E87D3CDF53F4F564D3612FC4D458":
                     NativeProgram_0151();
                     message = "";
                     return true;
-                case "4C1151D1E408B272D52290ED68030BF0661645DF8B2C4F2CFB46AF16B4819A54":
+                case "4B1B2096680CFF1455464E0E0E64D971A8BC3AC9C0A689D64D12561747EE4F27":
                     NativeProgram_0152();
                     message = "";
                     return true;
-                case "4CAB16879DF35A7900D3BAEC8C1E29E2F2ED0F5BA5615BBB274023F317C962CC":
+                case "4B77E9C2BE8DC1EC8AF79F333CB590336ED2BFD6605C5C34EDE74F2FFBC70A94":
                     NativeProgram_0153();
                     message = "";
                     return true;
-                case "4CAF5810381D97DE35C6ABE48D66547F9B93FD4D6777F56957C43FDB2EE3EA03":
+                case "4CAB16879DF35A7900D3BAEC8C1E29E2F2ED0F5BA5615BBB274023F317C962CC":
                     NativeProgram_0154();
                     message = "";
                     return true;
-                case "4CDCA3143C8A1640E20FFE6193A0ECF19F6C90CDFC7C60E7CDAA4358FE6CDF87":
+                case "4CAF5810381D97DE35C6ABE48D66547F9B93FD4D6777F56957C43FDB2EE3EA03":
                     NativeProgram_0155();
                     message = "";
                     return true;
-                case "4D60E40F6DC288429F45C4B0A2AEA107860E524187DDEEA222C885619AB543A3":
+                case "4CDCA3143C8A1640E20FFE6193A0ECF19F6C90CDFC7C60E7CDAA4358FE6CDF87":
                     NativeProgram_0156();
                     message = "";
                     return true;
-                case "4E2D55C5C710CB27AA3DF237B885F790E45BA33AAC95C309A8F89FC9FF8174CA":
+                case "4D60E40F6DC288429F45C4B0A2AEA107860E524187DDEEA222C885619AB543A3":
                     NativeProgram_0157();
                     message = "";
                     return true;
-                case "4E830E1C547AB921865F6C55E927E55ED3045EEBABB1101A425CF746DA03E0ED":
+                case "4E2D55C5C710CB27AA3DF237B885F790E45BA33AAC95C309A8F89FC9FF8174CA":
                     NativeProgram_0158();
                     message = "";
                     return true;
-                case "4E8B681CEB56C47FCFF7F3122724BAAD38CE95D19E6E86F2AF6ECE1E3B1DC500":
+                case "4E830E1C547AB921865F6C55E927E55ED3045EEBABB1101A425CF746DA03E0ED":
                     NativeProgram_0159();
                     message = "";
                     return true;
-                case "4EF1685DD68BB636BAE95D53516F639F96B045814D0E6F4541508FFA52B804E8":
+                case "4E8B681CEB56C47FCFF7F3122724BAAD38CE95D19E6E86F2AF6ECE1E3B1DC500":
                     NativeProgram_0160();
                     message = "";
                     return true;
-                case "4F53E119D1BFA5201E768BBEEA07B2B19BB8D5B9408E2E3928CD71AD18F89CCB":
+                case "4EF1685DD68BB636BAE95D53516F639F96B045814D0E6F4541508FFA52B804E8":
                     NativeProgram_0161();
                     message = "";
                     return true;
-                case "4FA8842D1038C9B9C9CE470AAF553894DBD909C436EEC80E5423D1EC90290E3C":
+                case "4F53E119D1BFA5201E768BBEEA07B2B19BB8D5B9408E2E3928CD71AD18F89CCB":
                     NativeProgram_0162();
                     message = "";
                     return true;
-                case "5023E08577B3A86C09BF0418D09D2D004F923D1D5CF8C375CB5D52D254777DA9":
+                case "4FA8842D1038C9B9C9CE470AAF553894DBD909C436EEC80E5423D1EC90290E3C":
                     NativeProgram_0163();
                     message = "";
                     return true;
@@ -689,495 +689,495 @@ public sealed partial class NativeRewardScriptGlobals
                     NativeProgram_0167();
                     message = "";
                     return true;
-                case "52D70953B6F7C4E5AEB81F4C92B177DE2DEF734B4C73E4A2F2308AC079ECAD1F":
+                case "5320057943FBF4BD9FCD0E480BB626B681257A62B28ADC8D2F8292D0B9DDA684":
                     NativeProgram_0168();
                     message = "";
                     return true;
-                case "5320057943FBF4BD9FCD0E480BB626B681257A62B28ADC8D2F8292D0B9DDA684":
+                case "532F8673B57D94931C2180E6D75DD4A68892355B7955B9D7A221EF025D16D67F":
                     NativeProgram_0169();
                     message = "";
                     return true;
-                case "532F8673B57D94931C2180E6D75DD4A68892355B7955B9D7A221EF025D16D67F":
+                case "539365B17649AFC1390B71948F56020939AC5AE9765CC6F6EA212573DAB5CEA5":
                     NativeProgram_0170();
                     message = "";
                     return true;
-                case "539365B17649AFC1390B71948F56020939AC5AE9765CC6F6EA212573DAB5CEA5":
+                case "554328BB18010F9E21052A9068E20EDFB9624377CD69C8A2FB2D653C9EF0CF47":
                     NativeProgram_0171();
                     message = "";
                     return true;
-                case "554328BB18010F9E21052A9068E20EDFB9624377CD69C8A2FB2D653C9EF0CF47":
+                case "56A959EC87E8111D9B327C3EDCA9867A377C901C08BEE9EB3EC5CCF64BEE4810":
                     NativeProgram_0172();
                     message = "";
                     return true;
-                case "56A959EC87E8111D9B327C3EDCA9867A377C901C08BEE9EB3EC5CCF64BEE4810":
+                case "56F98E785DC928F682EA365A63DAEB032D1E44F11CD4350C9089F5646B6EF9DA":
                     NativeProgram_0173();
                     message = "";
                     return true;
-                case "56F98E785DC928F682EA365A63DAEB032D1E44F11CD4350C9089F5646B6EF9DA":
+                case "571082814A98D9F02D45575A6DD74913C722054BA96A9ED571A227F15F88E0CE":
                     NativeProgram_0174();
                     message = "";
                     return true;
-                case "571082814A98D9F02D45575A6DD74913C722054BA96A9ED571A227F15F88E0CE":
+                case "57517DC0D72AC857A36358D87B69E8B7937A0E038AF9B2201DF1A897A9470517":
                     NativeProgram_0175();
                     message = "";
                     return true;
-                case "57517DC0D72AC857A36358D87B69E8B7937A0E038AF9B2201DF1A897A9470517":
+                case "57535198F8F3BB13155ABDB44B0E709EB4B8733F7E7F253D74486FF823433D25":
                     NativeProgram_0176();
                     message = "";
                     return true;
-                case "57535198F8F3BB13155ABDB44B0E709EB4B8733F7E7F253D74486FF823433D25":
+                case "57B3C91D24F6FCBFB2F6BCFF856C234457BEE3B49C8B3DDF5D7ED10B7974A98C":
                     NativeProgram_0177();
                     message = "";
                     return true;
-                case "57B3C91D24F6FCBFB2F6BCFF856C234457BEE3B49C8B3DDF5D7ED10B7974A98C":
+                case "583CB6C162B3EC6C49A41FFAD4A26C360CBD0E38625295EE1D85A138EE050613":
                     NativeProgram_0178();
                     message = "";
                     return true;
-                case "583CB6C162B3EC6C49A41FFAD4A26C360CBD0E38625295EE1D85A138EE050613":
+                case "58A991B236FD93ECE319B6460DBFFDAF572DBB52D4DC82411405DDA20F9950C9":
                     NativeProgram_0179();
                     message = "";
                     return true;
-                case "58A991B236FD93ECE319B6460DBFFDAF572DBB52D4DC82411405DDA20F9950C9":
+                case "58F1F066DFD646B130F105D5877376DF86FA338EB5B1F06B4E6D98E72BADE205":
                     NativeProgram_0180();
                     message = "";
                     return true;
-                case "58F1F066DFD646B130F105D5877376DF86FA338EB5B1F06B4E6D98E72BADE205":
+                case "599D53B6412F84396A828AA0854AB5DDA33A60A874F5A8E9ABC7F5F57655BD6C":
                     NativeProgram_0181();
                     message = "";
                     return true;
-                case "599D53B6412F84396A828AA0854AB5DDA33A60A874F5A8E9ABC7F5F57655BD6C":
+                case "5A4DC731D5B53EBF40CA8E15FF76E1FCBDBF87B7ED85A23251BA62109B3B71D0":
                     NativeProgram_0182();
                     message = "";
                     return true;
-                case "5A4DC731D5B53EBF40CA8E15FF76E1FCBDBF87B7ED85A23251BA62109B3B71D0":
+                case "5CA2B2F6CBCBC23DA3269FEB176362170CB4A80A260EBDCAB7A0B2CD1CC42D6E":
                     NativeProgram_0183();
                     message = "";
                     return true;
-                case "5CA2B2F6CBCBC23DA3269FEB176362170CB4A80A260EBDCAB7A0B2CD1CC42D6E":
+                case "5DE8DCAB5368EA13D101485E95EB0AE9202C70A5BAC0DCFE1EC5641D7E369045":
                     NativeProgram_0184();
                     message = "";
                     return true;
-                case "5D08B52C10DDE8F2B1853EED96DA6F60B120A36C4DA3243A22D3D0E1EE3DBEC9":
+                case "5E47B7C709993B5DA3646648119D72480E97C1F901FC8B5B884952AC029CCFAF":
                     NativeProgram_0185();
                     message = "";
                     return true;
-                case "5D829587E0D0985AE1306C4A0BE13E57F04793CADEDCCC9C1A7EDE362982BE6C":
+                case "5EED0233C55D9BC22FFDB90B55E2B4B3248FDAE75072EC09DC27E54AB1D0A126":
                     NativeProgram_0186();
                     message = "";
                     return true;
-                case "5DE8DCAB5368EA13D101485E95EB0AE9202C70A5BAC0DCFE1EC5641D7E369045":
+                case "5EFC37ACBC265E2FF442A627977399729084CBCF71BB9045ADA57533412CE5BF":
                     NativeProgram_0187();
                     message = "";
                     return true;
-                case "5E47B7C709993B5DA3646648119D72480E97C1F901FC8B5B884952AC029CCFAF":
+                case "5F1468C2B859419A409064D9E020088B3B88F599F1C7473320C2250846C4FCB7":
                     NativeProgram_0188();
                     message = "";
                     return true;
-                case "5EED0233C55D9BC22FFDB90B55E2B4B3248FDAE75072EC09DC27E54AB1D0A126":
+                case "5F24674B9D2FE574BFA6DC2419A637E65E7B0F1821D09E3F1BE637C989B33463":
                     NativeProgram_0189();
                     message = "";
                     return true;
-                case "5EFC37ACBC265E2FF442A627977399729084CBCF71BB9045ADA57533412CE5BF":
+                case "5F63E3A38513BFD3CC0EA004963E348C2D0C9265CB8037DC5639828361DDE583":
                     NativeProgram_0190();
                     message = "";
                     return true;
-                case "5F1468C2B859419A409064D9E020088B3B88F599F1C7473320C2250846C4FCB7":
+                case "601DEA7CAAD4FBF80FF2F4C88E7B93A94B9616FFC47D540FBA561E0969F357A8":
                     NativeProgram_0191();
                     message = "";
                     return true;
-                case "5F63E3A38513BFD3CC0EA004963E348C2D0C9265CB8037DC5639828361DDE583":
+                case "6076864A40276CC52179E45493BD32947F8ED3386A56014F7097F0872B2E7E44":
                     NativeProgram_0192();
                     message = "";
                     return true;
-                case "601DEA7CAAD4FBF80FF2F4C88E7B93A94B9616FFC47D540FBA561E0969F357A8":
+                case "61B27F709336B0F86B3D8B6EFF97BBC81A46191542E19CE83713824CE923FEAB":
                     NativeProgram_0193();
                     message = "";
                     return true;
-                case "6076864A40276CC52179E45493BD32947F8ED3386A56014F7097F0872B2E7E44":
+                case "62BC8E65005EC94B44F3F55ED73621CC99D7DD6B5B22627F35129672494DE7F9":
                     NativeProgram_0194();
                     message = "";
                     return true;
-                case "61B27F709336B0F86B3D8B6EFF97BBC81A46191542E19CE83713824CE923FEAB":
+                case "62CEA35738B49B33DFFE402BB10EAFA361490AAF3C174166D492CEE7CDF8F9D5":
                     NativeProgram_0195();
                     message = "";
                     return true;
-                case "62516D3BDF38496925CD0C98283E4C1C4B201D98621C74D43ACD45972AFFC530":
+                case "62F767796025ACA9085FCA214A1DD1251D2B7EEF81BD1C3657520D7A68DF0706":
                     NativeProgram_0196();
                     message = "";
                     return true;
-                case "627DB2091706568F354E2C2CA14C7F9C1364ACAFE954675D33C9663799B8ABAC":
+                case "630276A2F206888D3003AB85DB6EBF357C6EE6A141A3462E3B58706E87BDEE99":
                     NativeProgram_0197();
                     message = "";
                     return true;
-                case "62BC8E65005EC94B44F3F55ED73621CC99D7DD6B5B22627F35129672494DE7F9":
+                case "631C3A369A75A66A74681212722B12438CCE3E680631E1B5F33F264D505F9B3D":
                     NativeProgram_0198();
                     message = "";
                     return true;
-                case "62CEA35738B49B33DFFE402BB10EAFA361490AAF3C174166D492CEE7CDF8F9D5":
+                case "634FF80D52BBB19D409275FD53F76BABB8AAB3020A876EB3CB87109535460AF2":
                     NativeProgram_0199();
                     message = "";
                     return true;
-                case "62F767796025ACA9085FCA214A1DD1251D2B7EEF81BD1C3657520D7A68DF0706":
+                case "63552322DCD1AD43B34475BB1E5AC64066025292A52052F6746428162953A779":
                     NativeProgram_0200();
                     message = "";
                     return true;
-                case "630276A2F206888D3003AB85DB6EBF357C6EE6A141A3462E3B58706E87BDEE99":
+                case "6361CE576191B7A04765333B06DD244B46317B38DB459992B37EB03723A9488A":
                     NativeProgram_0201();
                     message = "";
                     return true;
-                case "631C3A369A75A66A74681212722B12438CCE3E680631E1B5F33F264D505F9B3D":
+                case "63E34CFE44801D52B808FF59C1DEBE4E5D1F6C43BC2D7FD2378A998B9EBFACC4":
                     NativeProgram_0202();
                     message = "";
                     return true;
-                case "634FF80D52BBB19D409275FD53F76BABB8AAB3020A876EB3CB87109535460AF2":
+                case "6411957108E84A6762C6ECB7595FF260B6CD05F921EEDDA9579102293F46F474":
                     NativeProgram_0203();
                     message = "";
                     return true;
-                case "63552322DCD1AD43B34475BB1E5AC64066025292A52052F6746428162953A779":
+                case "6428E5241F6AD9F3B7282A91E1743D0058B84B2A633B2D74D523E7CB0999C83E":
                     NativeProgram_0204();
                     message = "";
                     return true;
-                case "6361CE576191B7A04765333B06DD244B46317B38DB459992B37EB03723A9488A":
+                case "645ADDB001EC4672D64799E4700FF6AD5E2970322A3264A7A2FCBA5264B57BFA":
                     NativeProgram_0205();
                     message = "";
                     return true;
-                case "63E34CFE44801D52B808FF59C1DEBE4E5D1F6C43BC2D7FD2378A998B9EBFACC4":
+                case "65027B1DBA53F789C9968D247713675EB7D2249E3433FEE201C95CDDE30C0472":
                     NativeProgram_0206();
                     message = "";
                     return true;
-                case "6411957108E84A6762C6ECB7595FF260B6CD05F921EEDDA9579102293F46F474":
+                case "65C05A651084936CDAB296988C062859B1A1A7CAADD311E48F50E271C3611914":
                     NativeProgram_0207();
                     message = "";
                     return true;
-                case "6428E5241F6AD9F3B7282A91E1743D0058B84B2A633B2D74D523E7CB0999C83E":
+                case "669AD17DFFEC682A103BAF0698D9C82D38A858E78053C9814A8F993C65A2B0BA":
                     NativeProgram_0208();
                     message = "";
                     return true;
-                case "645ADDB001EC4672D64799E4700FF6AD5E2970322A3264A7A2FCBA5264B57BFA":
+                case "66C5CEEE0469913B222424F54C69DB71CFC4CCB9159CBD3AA70AC689A5C64D63":
                     NativeProgram_0209();
                     message = "";
                     return true;
-                case "65027B1DBA53F789C9968D247713675EB7D2249E3433FEE201C95CDDE30C0472":
+                case "6833F779D160767F658E9D4BAD2AE2D2D401E8B9B516B22D801D8E41D0740EA8":
                     NativeProgram_0210();
                     message = "";
                     return true;
-                case "669AD17DFFEC682A103BAF0698D9C82D38A858E78053C9814A8F993C65A2B0BA":
+                case "6856E7FE5641FAF731B3480E17B50C1ACF4FA47A00824C7E88F85FF9E92B353F":
                     NativeProgram_0211();
                     message = "";
                     return true;
-                case "66C5CEEE0469913B222424F54C69DB71CFC4CCB9159CBD3AA70AC689A5C64D63":
+                case "68EA205F2A6488D0EA8EB25B0692E4F60F96702D87D67C6076E7ED95E5D63C56":
                     NativeProgram_0212();
                     message = "";
                     return true;
-                case "6833F779D160767F658E9D4BAD2AE2D2D401E8B9B516B22D801D8E41D0740EA8":
+                case "68FD6930835EB90EF1008B26A1288C7C2F569B32904FED75F71A55246D52C47C":
                     NativeProgram_0213();
                     message = "";
                     return true;
-                case "6856E7FE5641FAF731B3480E17B50C1ACF4FA47A00824C7E88F85FF9E92B353F":
+                case "69482CEDC5E4A9311E6E521519BBBB23B37A895950A7DF6C4B843CFC89BA6DAA":
                     NativeProgram_0214();
                     message = "";
                     return true;
-                case "68EA205F2A6488D0EA8EB25B0692E4F60F96702D87D67C6076E7ED95E5D63C56":
+                case "6949EEFBCD7AEA4995DC5B8B257E575522A2113621A514FB74ED3DC1577A7FFF":
                     NativeProgram_0215();
                     message = "";
                     return true;
-                case "68FD6930835EB90EF1008B26A1288C7C2F569B32904FED75F71A55246D52C47C":
+                case "6981A753EC239C0EAA25C1D0CA0301760F004B913CA8A6598CD47B294228D32D":
                     NativeProgram_0216();
                     message = "";
                     return true;
-                case "69482CEDC5E4A9311E6E521519BBBB23B37A895950A7DF6C4B843CFC89BA6DAA":
+                case "69DAD319A6832A3597EA1BB418185B32D8EE5C0333193238BD70F5D6CA2A0C34":
                     NativeProgram_0217();
                     message = "";
                     return true;
-                case "6949EEFBCD7AEA4995DC5B8B257E575522A2113621A514FB74ED3DC1577A7FFF":
+                case "6A2692463D8647A485479AF2FF722CC7464C9DD4F56E98C33632AD2698F0F345":
                     NativeProgram_0218();
                     message = "";
                     return true;
-                case "6981A753EC239C0EAA25C1D0CA0301760F004B913CA8A6598CD47B294228D32D":
+                case "6A77479E5AE1AB6939BCF4F063FD4A37D35C1C51CDCB0B57251ADD61B3903F9B":
                     NativeProgram_0219();
                     message = "";
                     return true;
-                case "69DAD319A6832A3597EA1BB418185B32D8EE5C0333193238BD70F5D6CA2A0C34":
+                case "6AFDD2FAF35DBA6A6C962FBB8210B1B8E812297C22FF69E63DC6549B1B9761CA":
                     NativeProgram_0220();
                     message = "";
                     return true;
-                case "6A2692463D8647A485479AF2FF722CC7464C9DD4F56E98C33632AD2698F0F345":
+                case "6B1E576F48DFC40FB9A6CF271E593E67D1EFCB461FFBFA275C3A23B771196AB9":
                     NativeProgram_0221();
                     message = "";
                     return true;
-                case "6A77479E5AE1AB6939BCF4F063FD4A37D35C1C51CDCB0B57251ADD61B3903F9B":
+                case "6B5FCCACFD66D7D21B447D10C4C0DB9682FECF7C57503ECAE5F02ACD0A460B37":
                     NativeProgram_0222();
                     message = "";
                     return true;
-                case "6AFDD2FAF35DBA6A6C962FBB8210B1B8E812297C22FF69E63DC6549B1B9761CA":
+                case "6BCEFB0CE397D60558347D5DBF81E3B164936FBFA5379E2FEB50AB699E74ACDE":
                     NativeProgram_0223();
                     message = "";
                     return true;
-                case "6B1E576F48DFC40FB9A6CF271E593E67D1EFCB461FFBFA275C3A23B771196AB9":
+                case "6BEDDDB4629011521625A2F20BE4DA2C42DAE9BE4917907C28EE12A43EA22FF1":
                     NativeProgram_0224();
                     message = "";
                     return true;
-                case "6B5FCCACFD66D7D21B447D10C4C0DB9682FECF7C57503ECAE5F02ACD0A460B37":
+                case "6C102948E029350811EC8C43ACCF6C7B2C6BC516149D3EBD8FFA0F427A46FE4F":
                     NativeProgram_0225();
                     message = "";
                     return true;
-                case "6BCEFB0CE397D60558347D5DBF81E3B164936FBFA5379E2FEB50AB699E74ACDE":
+                case "6CFE330748524EF50732513D703561D3A2FB7B17CAB6881B9D8EF785AEF11E2D":
                     NativeProgram_0226();
                     message = "";
                     return true;
-                case "6BEDDDB4629011521625A2F20BE4DA2C42DAE9BE4917907C28EE12A43EA22FF1":
+                case "6D14B9447833F4482B7BBAF4B4C1F1D1295CC3BE6CE513CCF2AE63230847FC69":
                     NativeProgram_0227();
                     message = "";
                     return true;
-                case "6C102948E029350811EC8C43ACCF6C7B2C6BC516149D3EBD8FFA0F427A46FE4F":
+                case "6DD8DCE68C75822C0BD6113704233370036E3523510231192C60A2434422A08F":
                     NativeProgram_0228();
                     message = "";
                     return true;
-                case "6CFE330748524EF50732513D703561D3A2FB7B17CAB6881B9D8EF785AEF11E2D":
+                case "6E8E13995125D300E4C04087BF6BAA7C1FB508DDF111EFE15CDD935FCC89A491":
                     NativeProgram_0229();
                     message = "";
                     return true;
-                case "6D14B9447833F4482B7BBAF4B4C1F1D1295CC3BE6CE513CCF2AE63230847FC69":
+                case "6EECEDB938B7ED61F19B36BB921BD9BB87486ECD35A224842C4BB893460A2416":
                     NativeProgram_0230();
                     message = "";
                     return true;
-                case "6DD8DCE68C75822C0BD6113704233370036E3523510231192C60A2434422A08F":
+                case "6EED3BFFC1B3F43A58D61CD75E79315566E601FD5231F079396CA7AB8E35E459":
                     NativeProgram_0231();
                     message = "";
                     return true;
-                case "6E8E13995125D300E4C04087BF6BAA7C1FB508DDF111EFE15CDD935FCC89A491":
+                case "6F0615BEC435B6EF2C888762713974106A6211A4B202543DD7C82E01C119761A":
                     NativeProgram_0232();
                     message = "";
                     return true;
-                case "6EECEDB938B7ED61F19B36BB921BD9BB87486ECD35A224842C4BB893460A2416":
+                case "6F08B15667D1588875A2DBC6ACC75AA0CCE8ABA4F18C523DDE51F27AA8F0CD3C":
                     NativeProgram_0233();
                     message = "";
                     return true;
-                case "6EED3BFFC1B3F43A58D61CD75E79315566E601FD5231F079396CA7AB8E35E459":
+                case "6F2AC4ABBD0BAE1D4C6CDBBCE848FB73F4443FB48463013A26C47E89633D03F4":
                     NativeProgram_0234();
                     message = "";
                     return true;
-                case "6F0615BEC435B6EF2C888762713974106A6211A4B202543DD7C82E01C119761A":
+                case "6FA5B0FE16E7D0CD189FE83DFACCC2983214DF28D779FD1B8A955EBC783555AA":
                     NativeProgram_0235();
                     message = "";
                     return true;
-                case "6F08B15667D1588875A2DBC6ACC75AA0CCE8ABA4F18C523DDE51F27AA8F0CD3C":
+                case "6FE084DE73E2B3603B8298ABD85A9A859E58898FE7EE91898C6692BCBEF0BD90":
                     NativeProgram_0236();
                     message = "";
                     return true;
-                case "6F2AC4ABBD0BAE1D4C6CDBBCE848FB73F4443FB48463013A26C47E89633D03F4":
+                case "700BBD7AAEA202F78C4C83B62A3324A88867AE3B3F23E618B0EB3E417CAE6E92":
                     NativeProgram_0237();
                     message = "";
                     return true;
-                case "6FA5B0FE16E7D0CD189FE83DFACCC2983214DF28D779FD1B8A955EBC783555AA":
+                case "7065E8AA8953BCFB20434D2783F5B3CB0AC4E31B56EE727471C15D51F8143A06":
                     NativeProgram_0238();
                     message = "";
                     return true;
-                case "6FE084DE73E2B3603B8298ABD85A9A859E58898FE7EE91898C6692BCBEF0BD90":
+                case "70CAABC435C55832F37F224A198F79DCA2029A5ED06AEE61FCC81AE11149ADD9":
                     NativeProgram_0239();
                     message = "";
                     return true;
-                case "700BBD7AAEA202F78C4C83B62A3324A88867AE3B3F23E618B0EB3E417CAE6E92":
+                case "713B90D85087F1E60C54DC3090E98C072EBD42658E8DAFC906BC741A510C58FB":
                     NativeProgram_0240();
                     message = "";
                     return true;
-                case "7065E8AA8953BCFB20434D2783F5B3CB0AC4E31B56EE727471C15D51F8143A06":
+                case "7165FD7859E38B2222591C27B409B069747B0F323F362730BE7882DB1CEE4AF0":
                     NativeProgram_0241();
                     message = "";
                     return true;
-                case "70CAABC435C55832F37F224A198F79DCA2029A5ED06AEE61FCC81AE11149ADD9":
+                case "71A90023E12C656CAB015CC15D72F1A368F08AE82333A652B88367E5B8B25A33":
                     NativeProgram_0242();
                     message = "";
                     return true;
-                case "713B90D85087F1E60C54DC3090E98C072EBD42658E8DAFC906BC741A510C58FB":
+                case "71B47F96ADAF343779AC4F1CB53CE15A4B6D31759BF160386381244DE42DF027":
                     NativeProgram_0243();
                     message = "";
                     return true;
-                case "7165FD7859E38B2222591C27B409B069747B0F323F362730BE7882DB1CEE4AF0":
+                case "72286B1F7A75F44ED46FB50D04651051389295CC53FB31C4F213D79ABB37F558":
                     NativeProgram_0244();
                     message = "";
                     return true;
-                case "71A90023E12C656CAB015CC15D72F1A368F08AE82333A652B88367E5B8B25A33":
+                case "724CBF2BC5E45C311B4D241264CF4FABD4731A71A09157FBFB4F2F42F9DCAD80":
                     NativeProgram_0245();
                     message = "";
                     return true;
-                case "71B47F96ADAF343779AC4F1CB53CE15A4B6D31759BF160386381244DE42DF027":
+                case "7337A1482093053740AC00CCDC3D9E8F15F060565B822561EB9C0DAEF139E3F5":
                     NativeProgram_0246();
                     message = "";
                     return true;
-                case "72286B1F7A75F44ED46FB50D04651051389295CC53FB31C4F213D79ABB37F558":
+                case "733D7C4B72EA50581077D5C0C6DFF6E44881635890811A013968020ED934F07A":
                     NativeProgram_0247();
                     message = "";
                     return true;
-                case "724CBF2BC5E45C311B4D241264CF4FABD4731A71A09157FBFB4F2F42F9DCAD80":
+                case "737F251B7E3B577D59A10DEE1D1201B8D18952DB8E5801750D372C2F14154303":
                     NativeProgram_0248();
                     message = "";
                     return true;
-                case "7337A1482093053740AC00CCDC3D9E8F15F060565B822561EB9C0DAEF139E3F5":
+                case "73E7FB85478D3276414954E063640AF98B72E74D4D73771EADF8714E072FF83D":
                     NativeProgram_0249();
                     message = "";
                     return true;
-                case "733D7C4B72EA50581077D5C0C6DFF6E44881635890811A013968020ED934F07A":
+                case "73FA3C3B611B48046F9C0FD3AD38353D276132305AFAA6CFFEECFFFA4FCA69EF":
                     NativeProgram_0250();
                     message = "";
                     return true;
-                case "737F251B7E3B577D59A10DEE1D1201B8D18952DB8E5801750D372C2F14154303":
+                case "74B0E0B26400C39E7AAF6B66802598BF25711BB9140F8BB75E307F3BBFDFAD6D":
                     NativeProgram_0251();
                     message = "";
                     return true;
-                case "739A461FEBC41152042320DB3ACC099463D7C1D2687955C87C50E1EAFF41FB24":
+                case "74EA47FA705DD54862746F0BEEE9FF12DCF10227F242195FD681E2620CFD6ED0":
                     NativeProgram_0252();
                     message = "";
                     return true;
-                case "73E7FB85478D3276414954E063640AF98B72E74D4D73771EADF8714E072FF83D":
+                case "755DC2FBDFC5CF577AB8A38AF3BE9FD90871F31706C66A3A211FE4F8FB7094CC":
                     NativeProgram_0253();
                     message = "";
                     return true;
-                case "73FA3C3B611B48046F9C0FD3AD38353D276132305AFAA6CFFEECFFFA4FCA69EF":
+                case "7611CCE0664F5A6459EC999FB1FC29CA11F094D5A2EC192DF8C3FF0AC125C799":
                     NativeProgram_0254();
                     message = "";
                     return true;
-                case "74B0E0B26400C39E7AAF6B66802598BF25711BB9140F8BB75E307F3BBFDFAD6D":
+                case "764AA213E3C0DE23DC97BEB86627A755B2D760B60B4F38CBDCAD0CC6861796D5":
                     NativeProgram_0255();
                     message = "";
                     return true;
-                case "74EA47FA705DD54862746F0BEEE9FF12DCF10227F242195FD681E2620CFD6ED0":
+                case "7675590867273903A809416E2D5581D2A6C13A8A256FB1F7F99FF68A0141ABD7":
                     NativeProgram_0256();
                     message = "";
                     return true;
-                case "755DC2FBDFC5CF577AB8A38AF3BE9FD90871F31706C66A3A211FE4F8FB7094CC":
+                case "771922935B816AECD6CB955B8C2D864251FDD5AAE206496C368E68963B8F244D":
                     NativeProgram_0257();
                     message = "";
                     return true;
-                case "7611CCE0664F5A6459EC999FB1FC29CA11F094D5A2EC192DF8C3FF0AC125C799":
+                case "779A72CBCE4E4878AF76F5935DF21BFCD0D3A3D7E4B94330F281739C26987610":
                     NativeProgram_0258();
                     message = "";
                     return true;
-                case "764AA213E3C0DE23DC97BEB86627A755B2D760B60B4F38CBDCAD0CC6861796D5":
+                case "78EEAC1B94955EA99057B963C722D4C23CB6C546BAD3B9BEA15C15E2C5293685":
                     NativeProgram_0259();
                     message = "";
                     return true;
-                case "7675590867273903A809416E2D5581D2A6C13A8A256FB1F7F99FF68A0141ABD7":
+                case "7917A82E681E92EA17675943EF482AE934BA9AA2D9E78FD4230A8EF114A2D13A":
                     NativeProgram_0260();
                     message = "";
                     return true;
-                case "771922935B816AECD6CB955B8C2D864251FDD5AAE206496C368E68963B8F244D":
+                case "795A9528F308AA3D15BDF333D7938999CE3DEA35D75378915A01AB6FF4834FE3":
                     NativeProgram_0261();
                     message = "";
                     return true;
-                case "779A72CBCE4E4878AF76F5935DF21BFCD0D3A3D7E4B94330F281739C26987610":
+                case "79F43EA3FA6236A77DF430738359DF3CDE428FBD9C19FF3A6F9FDA5BDFB5885A":
                     NativeProgram_0262();
                     message = "";
                     return true;
-                case "78EEAC1B94955EA99057B963C722D4C23CB6C546BAD3B9BEA15C15E2C5293685":
+                case "7A7B32EB226FD7D4FF8F7D9320E3241C226AC68A8AA11BC02D22E8EDED655E82":
                     NativeProgram_0263();
                     message = "";
                     return true;
-                case "795A9528F308AA3D15BDF333D7938999CE3DEA35D75378915A01AB6FF4834FE3":
+                case "7ABB908D9B4087ADF60787030E10841466804F6FB8B6D9305D311F553C814A96":
                     NativeProgram_0264();
                     message = "";
                     return true;
-                case "79F43EA3FA6236A77DF430738359DF3CDE428FBD9C19FF3A6F9FDA5BDFB5885A":
+                case "7AFF893A09E3D7E74716CB43762235C0A1C24F86EDE6504421F34414F23B342C":
                     NativeProgram_0265();
                     message = "";
                     return true;
-                case "7A7B32EB226FD7D4FF8F7D9320E3241C226AC68A8AA11BC02D22E8EDED655E82":
+                case "7B436F570E60062872D2DF2A1714144B60B2D58B13E513897F7D22F87629A413":
                     NativeProgram_0266();
                     message = "";
                     return true;
-                case "7ABB908D9B4087ADF60787030E10841466804F6FB8B6D9305D311F553C814A96":
+                case "7B9FEAE473BC3BF2EE02127F82CE4CF17B6B43C43ADA89E67EABCB20078C66D9":
                     NativeProgram_0267();
                     message = "";
                     return true;
-                case "7AFF893A09E3D7E74716CB43762235C0A1C24F86EDE6504421F34414F23B342C":
+                case "7BEE6D1B995F74205FADA3C49ED7E5578242652BC56293432A0749F825876442":
                     NativeProgram_0268();
                     message = "";
                     return true;
-                case "7B436F570E60062872D2DF2A1714144B60B2D58B13E513897F7D22F87629A413":
+                case "7BEEBBA19C786D0DB35E73586CDD4705A489C21CBDC3FF03E689946578B375BB":
                     NativeProgram_0269();
                     message = "";
                     return true;
-                case "7B9FEAE473BC3BF2EE02127F82CE4CF17B6B43C43ADA89E67EABCB20078C66D9":
+                case "7C1B48052CFA67B3E9365FE21EE81223934F3B839EE3F3242AD136A2F965180D":
                     NativeProgram_0270();
                     message = "";
                     return true;
-                case "7BEE6D1B995F74205FADA3C49ED7E5578242652BC56293432A0749F825876442":
+                case "7C3E48D816CD3BD1586AFBBA0A398580D8827F0828961A2009C3AB5120C67C8A":
                     NativeProgram_0271();
                     message = "";
                     return true;
-                case "7BEEBBA19C786D0DB35E73586CDD4705A489C21CBDC3FF03E689946578B375BB":
+                case "7C78BCFC2C18AAE93C2541BBDA6102F09837CE2B556A1AAFB32FBAADA867C27A":
                     NativeProgram_0272();
                     message = "";
                     return true;
-                case "7C1B48052CFA67B3E9365FE21EE81223934F3B839EE3F3242AD136A2F965180D":
+                case "7CC98A27D9A589F0A22FFB89A094C84C19E1AB9CBE2957402CD7098D32BFD685":
                     NativeProgram_0273();
                     message = "";
                     return true;
-                case "7C3E48D816CD3BD1586AFBBA0A398580D8827F0828961A2009C3AB5120C67C8A":
+                case "7D7B8AFACE1214F3F06BB44B78DFA6584311053808387906A76C4FA7398B9875":
                     NativeProgram_0274();
                     message = "";
                     return true;
-                case "7C78BCFC2C18AAE93C2541BBDA6102F09837CE2B556A1AAFB32FBAADA867C27A":
+                case "7DD3C1C75B1A70D3A31CBEBED04B42E3A1C16F37042AE308202BAE1B0A314FEC":
                     NativeProgram_0275();
                     message = "";
                     return true;
-                case "7CC98A27D9A589F0A22FFB89A094C84C19E1AB9CBE2957402CD7098D32BFD685":
+                case "7EA2C6A6B632C8A513D95EEF9C49DCE32FD9DC69A2C52B185193D222D85DEEB4":
                     NativeProgram_0276();
                     message = "";
                     return true;
-                case "7D7B8AFACE1214F3F06BB44B78DFA6584311053808387906A76C4FA7398B9875":
+                case "80A0AA3032D71361221A0813D34AA244183E01E76733812CB9DCD1C98552E8AB":
                     NativeProgram_0277();
                     message = "";
                     return true;
-                case "7DD3C1C75B1A70D3A31CBEBED04B42E3A1C16F37042AE308202BAE1B0A314FEC":
+                case "80C3D77B8B19FE8B1EBFC99B99E8720BC8A5B25F84370EF961A9D47F49354CBB":
                     NativeProgram_0278();
                     message = "";
                     return true;
-                case "80A0AA3032D71361221A0813D34AA244183E01E76733812CB9DCD1C98552E8AB":
+                case "823C1B6CDBB80CC3EE273E92AC267313F87F58F5DD8C5C747101AC2135FFBA22":
                     NativeProgram_0279();
                     message = "";
                     return true;
-                case "80C3D77B8B19FE8B1EBFC99B99E8720BC8A5B25F84370EF961A9D47F49354CBB":
+                case "82B1AB438CCEB61D8310571C53C4F5E476B82403D6C844F3ACE59FBBBDEAAA17":
                     NativeProgram_0280();
                     message = "";
                     return true;
-                case "823C1B6CDBB80CC3EE273E92AC267313F87F58F5DD8C5C747101AC2135FFBA22":
+                case "82D7D3CFDA117CF9F8FDD7976D0D006F36EA38B650E1FE1A8534601A5B20CA14":
                     NativeProgram_0281();
                     message = "";
                     return true;
-                case "82D7D3CFDA117CF9F8FDD7976D0D006F36EA38B650E1FE1A8534601A5B20CA14":
+                case "834CA8115AA73515EF7109C820695C913780F889B534713F91A2E8390BC3AB12":
                     NativeProgram_0282();
                     message = "";
                     return true;
-                case "834CA8115AA73515EF7109C820695C913780F889B534713F91A2E8390BC3AB12":
+                case "839F02F69DAC89D418D01E854EE7B18E43C6D297F5242C20129ABA79BD7DE397":
                     NativeProgram_0283();
                     message = "";
                     return true;
-                case "839F02F69DAC89D418D01E854EE7B18E43C6D297F5242C20129ABA79BD7DE397":
+                case "846F662DD537427E976BEC3BFA8AD900EAD39C9E1C54A60A1FD1EF99D632C9EC":
                     NativeProgram_0284();
                     message = "";
                     return true;
-                case "846F662DD537427E976BEC3BFA8AD900EAD39C9E1C54A60A1FD1EF99D632C9EC":
+                case "85372B400194A92F50ABA9DBF3EA113AD78C86B278988BB85E43C1835B04AD8E":
                     NativeProgram_0285();
                     message = "";
                     return true;
-                case "85372B400194A92F50ABA9DBF3EA113AD78C86B278988BB85E43C1835B04AD8E":
+                case "85C11888BFE3223674B2E80897D78E388160AD5DD0B7C2AE3E4B9F51A5B6ED6F":
                     NativeProgram_0286();
                     message = "";
                     return true;
-                case "85C11888BFE3223674B2E80897D78E388160AD5DD0B7C2AE3E4B9F51A5B6ED6F":
+                case "85D6E391C622EE17D61ADC916FF6DDB1BA978B81368073640C2EAFD0DFA38F9D":
                     NativeProgram_0287();
                     message = "";
                     return true;
-                case "85D6E391C622EE17D61ADC916FF6DDB1BA978B81368073640C2EAFD0DFA38F9D":
+                case "860A9D52ED7EF01A5A29AA5DC50355BB2315C84BCAD1BD408020B4AA97A5ED19":
                     NativeProgram_0288();
                     message = "";
                     return true;
-                case "860A9D52ED7EF01A5A29AA5DC50355BB2315C84BCAD1BD408020B4AA97A5ED19":
+                case "8622E60E4081B54AE462D8252AAB448D7A38B83E15FF16B0BA3EE71D3FF66CE7":
                     NativeProgram_0289();
                     message = "";
                     return true;
-                case "8622E60E4081B54AE462D8252AAB448D7A38B83E15FF16B0BA3EE71D3FF66CE7":
+                case "86F88216BCFDC87F379AE731B7FBB579012831E2ACB5371EC0490EFF8169BC33":
                     NativeProgram_0290();
                     message = "";
                     return true;
@@ -1209,123 +1209,123 @@ public sealed partial class NativeRewardScriptGlobals
                     NativeProgram_0297();
                     message = "";
                     return true;
-                case "88E331C0395820FBBB67F6BD66F6BC352EC019608985525BA66754A7FB218757":
+                case "88A2FBB0F293108535CFA3C7FB136DAB9E9D77DD13FC44A7D7C395A6368089C5":
                     NativeProgram_0298();
                     message = "";
                     return true;
-                case "88E7793D413982BD3E7FC26685F9BF7047982660BDEE967D633A34A430E2DDBD":
+                case "88E331C0395820FBBB67F6BD66F6BC352EC019608985525BA66754A7FB218757":
                     NativeProgram_0299();
                     message = "";
                     return true;
-                case "899CDDCFBBDFD60FC678FF405F3AD0B28C658CA0D686C0DFB2509D57ACF53C28":
+                case "88E7793D413982BD3E7FC26685F9BF7047982660BDEE967D633A34A430E2DDBD":
                     NativeProgram_0300();
                     message = "";
                     return true;
-                case "8AEA14BFF641E4AEDBCBC6F95BBCAE4FF053770B30C966F1DDC28488FFD79C99":
+                case "899CDDCFBBDFD60FC678FF405F3AD0B28C658CA0D686C0DFB2509D57ACF53C28":
                     NativeProgram_0301();
                     message = "";
                     return true;
-                case "8B53CB3C67EB8A941D08FC5C76D00A6000E7D98CFBA6874FEE1BA4A33612B1B8":
+                case "8AEA14BFF641E4AEDBCBC6F95BBCAE4FF053770B30C966F1DDC28488FFD79C99":
                     NativeProgram_0302();
                     message = "";
                     return true;
-                case "8B5FB30A4BFB69AA4CDE66E5DF6EA585388E0171C38DA9738A74336AF315953A":
+                case "8B53CB3C67EB8A941D08FC5C76D00A6000E7D98CFBA6874FEE1BA4A33612B1B8":
                     NativeProgram_0303();
                     message = "";
                     return true;
-                case "8C50057D72EE00FCC4D89828808A582E6BCE77BCC480F540A74F842C7FC3895F":
+                case "8B5FB30A4BFB69AA4CDE66E5DF6EA585388E0171C38DA9738A74336AF315953A":
                     NativeProgram_0304();
                     message = "";
                     return true;
-                case "8D293300B1D12959C6ABC3FB266BBFE8EEBD02193E825A8AD852C03E39EC970D":
+                case "8C50057D72EE00FCC4D89828808A582E6BCE77BCC480F540A74F842C7FC3895F":
                     NativeProgram_0305();
                     message = "";
                     return true;
-                case "8D417B36CD9DAD6136CD66FB4EA2CCA9546A2582415875248E3E6CC677AD8228":
+                case "8D293300B1D12959C6ABC3FB266BBFE8EEBD02193E825A8AD852C03E39EC970D":
                     NativeProgram_0306();
                     message = "";
                     return true;
-                case "8D860DC70762B9263B10B2687C4BD4014E40712BCF07E598E1ACA0F9EE52A714":
+                case "8D417B36CD9DAD6136CD66FB4EA2CCA9546A2582415875248E3E6CC677AD8228":
                     NativeProgram_0307();
                     message = "";
                     return true;
-                case "8E2F63B0AB4A1E51D4C12712DB8F3DC98CE1C1BD0F5D0526D1A5D6B9B9007754":
+                case "8D860DC70762B9263B10B2687C4BD4014E40712BCF07E598E1ACA0F9EE52A714":
                     NativeProgram_0308();
                     message = "";
                     return true;
-                case "8F59D5F773834987DC31EB84D901389B58FA8AB538F47327AC44CBEE686B81E1":
+                case "8E2F63B0AB4A1E51D4C12712DB8F3DC98CE1C1BD0F5D0526D1A5D6B9B9007754":
                     NativeProgram_0309();
                     message = "";
                     return true;
-                case "8F9638AE6C365858B0CA97DE82670824538177840605476D6C922EE8C0B412E6":
+                case "8E39DC8EEB71E5C908E30DDB1775B2DFFC755CFA72A96B76C0185C36072007CA":
                     NativeProgram_0310();
                     message = "";
                     return true;
-                case "8FDA3CA774BF3C7F5FF3986D6155F91783C20D0D5EC73D15A451CF82D0188552":
+                case "8F59D5F773834987DC31EB84D901389B58FA8AB538F47327AC44CBEE686B81E1":
                     NativeProgram_0311();
                     message = "";
                     return true;
-                case "904B996B4576BD8AE659139F8736CF6A09EAD07D7676B2ECDB020C503AADA0DA":
+                case "8F9638AE6C365858B0CA97DE82670824538177840605476D6C922EE8C0B412E6":
                     NativeProgram_0312();
                     message = "";
                     return true;
-                case "90DC55867E6C6B6DE34B8CE1D714DEE341AE90C56FA73FFB68E59A1091283B45":
+                case "8FDA3CA774BF3C7F5FF3986D6155F91783C20D0D5EC73D15A451CF82D0188552":
                     NativeProgram_0313();
                     message = "";
                     return true;
-                case "90DF62459CFCD2BC522D44C25739730FCB2805A76E7FFC09F613DAAEF40C4321":
+                case "904B996B4576BD8AE659139F8736CF6A09EAD07D7676B2ECDB020C503AADA0DA":
                     NativeProgram_0314();
                     message = "";
                     return true;
-                case "91AFF4B8A8E067820B2CA6AD9028A25E6ECE3C61C4CDDB626561AEA0931B1256":
+                case "90DF62459CFCD2BC522D44C25739730FCB2805A76E7FFC09F613DAAEF40C4321":
                     NativeProgram_0315();
                     message = "";
                     return true;
-                case "91B2067A21AAE57A9741342CF464305C61CF3791A78BFFB0A466CA0B37D7DC41":
+                case "91AFF4B8A8E067820B2CA6AD9028A25E6ECE3C61C4CDDB626561AEA0931B1256":
                     NativeProgram_0316();
                     message = "";
                     return true;
-                case "91CFAE19C5B2DA4A02CAEC859ECFB83EC7130629FBF5234A1B95590E621F0C0A":
+                case "91B2067A21AAE57A9741342CF464305C61CF3791A78BFFB0A466CA0B37D7DC41":
                     NativeProgram_0317();
                     message = "";
                     return true;
-                case "920CA502FC14EEB23F31980CA33E781CA7D32A09E27B2299BC85699E4A169278":
+                case "91CFAE19C5B2DA4A02CAEC859ECFB83EC7130629FBF5234A1B95590E621F0C0A":
                     NativeProgram_0318();
                     message = "";
                     return true;
-                case "935D0886CC655B5E3FE9FCF3371246CA0F8CD2EB90F3576BFE6E5449DBC29DFA":
+                case "920CA502FC14EEB23F31980CA33E781CA7D32A09E27B2299BC85699E4A169278":
                     NativeProgram_0319();
                     message = "";
                     return true;
-                case "94FC7785BDE963807019693DC1B1667A6F362889ADEEB46B5432C4F8698619B5":
+                case "935D0886CC655B5E3FE9FCF3371246CA0F8CD2EB90F3576BFE6E5449DBC29DFA":
                     NativeProgram_0320();
                     message = "";
                     return true;
-                case "952BE2159103FE25704E908D0CB3F40D37181CE985FD48E63B75E2B680E63C95":
+                case "94FC7785BDE963807019693DC1B1667A6F362889ADEEB46B5432C4F8698619B5":
                     NativeProgram_0321();
                     message = "";
                     return true;
-                case "954142D3441C61423E00428CEF8D36C9EAC83674C6E51B15B87070665982EBD2":
+                case "952BE2159103FE25704E908D0CB3F40D37181CE985FD48E63B75E2B680E63C95":
                     NativeProgram_0322();
                     message = "";
                     return true;
-                case "955E61D90ADBD244024D04321D574B7BB4EFBBF2BC9F7DE622AF17EC74CA55D6":
+                case "954142D3441C61423E00428CEF8D36C9EAC83674C6E51B15B87070665982EBD2":
                     NativeProgram_0323();
                     message = "";
                     return true;
-                case "97B3F2C54E378C83FB5F723033AE1AFDF255EBF17CE452B5A98546D356F7DCCF":
+                case "955E61D90ADBD244024D04321D574B7BB4EFBBF2BC9F7DE622AF17EC74CA55D6":
                     NativeProgram_0324();
                     message = "";
                     return true;
-                case "97E6671CCAB3B7883D0F7EDBAC9CAD3957B54D14360E4D2EF77310FFDFB4A7CA":
+                case "97B3F2C54E378C83FB5F723033AE1AFDF255EBF17CE452B5A98546D356F7DCCF":
                     NativeProgram_0325();
                     message = "";
                     return true;
-                case "985370849D75A1DE98DF04E99028AAA404C7FA2FAC77FAEFF3FD3D62BF8E8525":
+                case "97E6671CCAB3B7883D0F7EDBAC9CAD3957B54D14360E4D2EF77310FFDFB4A7CA":
                     NativeProgram_0326();
                     message = "";
                     return true;
-                case "98575B74AA8A1497F4EDE7277AEA122431291445A064BEFE70705149ED74E0DC":
+                case "985370849D75A1DE98DF04E99028AAA404C7FA2FAC77FAEFF3FD3D62BF8E8525":
                     NativeProgram_0327();
                     message = "";
                     return true;
@@ -1353,863 +1353,863 @@ public sealed partial class NativeRewardScriptGlobals
                     NativeProgram_0333();
                     message = "";
                     return true;
-                case "9AF3C20AB87711F748523709A638A2914C5D3550EFCB6DAE594FF160D2CBD57F":
+                case "9A69FF9B350946D77E315B87A46B9DE928FF485AB2213807A075CB79D9828973":
                     NativeProgram_0334();
                     message = "";
                     return true;
-                case "9AF4D3548C4F348CB694DF509B1B789A1E33161FAA262D6D339F6E92BA3E1271":
+                case "9AF3C20AB87711F748523709A638A2914C5D3550EFCB6DAE594FF160D2CBD57F":
                     NativeProgram_0335();
                     message = "";
                     return true;
-                case "9B1C04599D08E7C353803E0C67B5EA0F1F07E861FAC29BD5EA5DC6DAD9E43476":
+                case "9AF4D3548C4F348CB694DF509B1B789A1E33161FAA262D6D339F6E92BA3E1271":
                     NativeProgram_0336();
                     message = "";
                     return true;
-                case "9CBAF087961417F0F6384BD990A7EE142FC82A5F12C3C6228E9BD4F7749126F0":
+                case "9B1C04599D08E7C353803E0C67B5EA0F1F07E861FAC29BD5EA5DC6DAD9E43476":
                     NativeProgram_0337();
                     message = "";
                     return true;
-                case "9E249729A10B0A837F5474008BF4F87F465E3B5F4D63A554A81072040871B48E":
+                case "9CBAF087961417F0F6384BD990A7EE142FC82A5F12C3C6228E9BD4F7749126F0":
                     NativeProgram_0338();
                     message = "";
                     return true;
-                case "9ECB753B0F43BD93533A0220F00FD32329DD70D871314361C662BE7567308EEA":
+                case "9E249729A10B0A837F5474008BF4F87F465E3B5F4D63A554A81072040871B48E":
                     NativeProgram_0339();
                     message = "";
                     return true;
-                case "9F5054637A952A032B16D0EEA03A245841ACA3674C67B23893ED85CE31AA621A":
+                case "9ECB753B0F43BD93533A0220F00FD32329DD70D871314361C662BE7567308EEA":
                     NativeProgram_0340();
                     message = "";
                     return true;
-                case "9F9223E0D32D917B13DED580FD4EB6637F505BFE779C7AFE9CC9E31711F869A7":
+                case "9F5054637A952A032B16D0EEA03A245841ACA3674C67B23893ED85CE31AA621A":
                     NativeProgram_0341();
                     message = "";
                     return true;
-                case "9FB08B18738795D8AD3B3B2FB9FE6E32B4F280C16E66EFEDBE4807512FE9A2A2":
+                case "9F9223E0D32D917B13DED580FD4EB6637F505BFE779C7AFE9CC9E31711F869A7":
                     NativeProgram_0342();
                     message = "";
                     return true;
-                case "A1404A8190447C9E627ACDDE6D4B7D61AD3935B9886974F31C11C71585842855":
+                case "9FB08B18738795D8AD3B3B2FB9FE6E32B4F280C16E66EFEDBE4807512FE9A2A2":
                     NativeProgram_0343();
                     message = "";
                     return true;
-                case "A190724FC71C7C1BADCAE46EDAA9A1816FA242B16F1BCCD9B1519D9FBD192A40":
+                case "A1404A8190447C9E627ACDDE6D4B7D61AD3935B9886974F31C11C71585842855":
                     NativeProgram_0344();
                     message = "";
                     return true;
-                case "A25E5D04640B6ABDFA27C4E259F7427A9E08F673280F75AF0F88399720C59B23":
+                case "A190724FC71C7C1BADCAE46EDAA9A1816FA242B16F1BCCD9B1519D9FBD192A40":
                     NativeProgram_0345();
                     message = "";
                     return true;
-                case "A2D4C442AD84C280FD37B680042F4074016D93EFC8142DC30F1B1D313F134640":
+                case "A25E5D04640B6ABDFA27C4E259F7427A9E08F673280F75AF0F88399720C59B23":
                     NativeProgram_0346();
                     message = "";
                     return true;
-                case "A34FEC8CB2230183A0750F91E5D1CC4B988005CC9542F52736B31DA802F45B61":
+                case "A2D4C442AD84C280FD37B680042F4074016D93EFC8142DC30F1B1D313F134640":
                     NativeProgram_0347();
                     message = "";
                     return true;
-                case "A3C5C3C96A902AE07582F8F9E693ADF5C030045AFD45FDBFF4C50DFDC5C4078F":
+                case "A34FEC8CB2230183A0750F91E5D1CC4B988005CC9542F52736B31DA802F45B61":
                     NativeProgram_0348();
                     message = "";
                     return true;
-                case "A3D3D125367CD281477B82E6056BADB48127EF9A79500F83FA1E6787C3F2431F":
+                case "A3C5C3C96A902AE07582F8F9E693ADF5C030045AFD45FDBFF4C50DFDC5C4078F":
                     NativeProgram_0349();
                     message = "";
                     return true;
-                case "A42E7EECAFC27F5B922D6CBD46C6FF546291E186D1D6920D01E583C6FD4D3AF4":
+                case "A3D3D125367CD281477B82E6056BADB48127EF9A79500F83FA1E6787C3F2431F":
                     NativeProgram_0350();
                     message = "";
                     return true;
-                case "A4502835780D5C2493F909660B007CF8B930874A9F1F82AD24045A1B6A404B81":
+                case "A42E7EECAFC27F5B922D6CBD46C6FF546291E186D1D6920D01E583C6FD4D3AF4":
                     NativeProgram_0351();
                     message = "";
                     return true;
-                case "A502AC033BA5B28ECD748D872E1A29AEBA66F35E5F3E616B09506C40CA2BDD29":
+                case "A4502835780D5C2493F909660B007CF8B930874A9F1F82AD24045A1B6A404B81":
                     NativeProgram_0352();
                     message = "";
                     return true;
-                case "A540EBD1F08DDD08951988BA16E94C264F131C3962A1E955BED170FCA08CE112":
+                case "A502AC033BA5B28ECD748D872E1A29AEBA66F35E5F3E616B09506C40CA2BDD29":
                     NativeProgram_0353();
                     message = "";
                     return true;
-                case "A5D7006EEF61038E30A232E89BD4EF8B284A22600490C347C2145EA591A16F09":
+                case "A540EBD1F08DDD08951988BA16E94C264F131C3962A1E955BED170FCA08CE112":
                     NativeProgram_0354();
                     message = "";
                     return true;
-                case "A6D394BF8A0350A716D3ED35F2376DB11DD5BCB4505B1BF4CC1083627A61A3F2":
+                case "A5D7006EEF61038E30A232E89BD4EF8B284A22600490C347C2145EA591A16F09":
                     NativeProgram_0355();
                     message = "";
                     return true;
-                case "A6F6C650F3CB2D717F454B6B9A7123A3EB22BA325B8328418A562495902E47CD":
+                case "A6D394BF8A0350A716D3ED35F2376DB11DD5BCB4505B1BF4CC1083627A61A3F2":
                     NativeProgram_0356();
                     message = "";
                     return true;
-                case "A774C8DDE7477A33EEAC2A29CA1743759EFC03C04114AC068EC7115F6DA37A2B":
+                case "A6F6C650F3CB2D717F454B6B9A7123A3EB22BA325B8328418A562495902E47CD":
                     NativeProgram_0357();
                     message = "";
                     return true;
-                case "AA5595AD265AEE00D8DBF067989A2F29D51F15341F1844C95E42FA582B22E200":
+                case "A774C8DDE7477A33EEAC2A29CA1743759EFC03C04114AC068EC7115F6DA37A2B":
                     NativeProgram_0358();
                     message = "";
                     return true;
-                case "AAB103D01D08F40EF471694CA90E6088D5558B3A55C98A5142ED9BFC312BE9F0":
+                case "AA5595AD265AEE00D8DBF067989A2F29D51F15341F1844C95E42FA582B22E200":
                     NativeProgram_0359();
                     message = "";
                     return true;
-                case "AAE5CD5FBA61DE79ED6AC008CF2A580BC2969527FC17E27EA7F0B06422F513A4":
+                case "AAB103D01D08F40EF471694CA90E6088D5558B3A55C98A5142ED9BFC312BE9F0":
                     NativeProgram_0360();
                     message = "";
                     return true;
-                case "AAFEC91B71E6DD2A632B03CF1AFD337CB496F6098F1F7A1B22CFE4AE9B112A99":
+                case "AAE5CD5FBA61DE79ED6AC008CF2A580BC2969527FC17E27EA7F0B06422F513A4":
                     NativeProgram_0361();
                     message = "";
                     return true;
-                case "AB7734081641C290E26A2D5925FB57ACA2176C2A660DAC96F93A2BD0C628E90B":
+                case "AAFEC91B71E6DD2A632B03CF1AFD337CB496F6098F1F7A1B22CFE4AE9B112A99":
                     NativeProgram_0362();
                     message = "";
                     return true;
-                case "AC49AA178DB2A57BE4FB102DAAF00BA3281411DE9F5314C82EAE26BB33366F3D":
+                case "AB7734081641C290E26A2D5925FB57ACA2176C2A660DAC96F93A2BD0C628E90B":
                     NativeProgram_0363();
                     message = "";
                     return true;
-                case "AC77A2DFD28089340C196FC347184ECF8803D24D3191F6D0936490F1F7A4A3A5":
+                case "AC49AA178DB2A57BE4FB102DAAF00BA3281411DE9F5314C82EAE26BB33366F3D":
                     NativeProgram_0364();
                     message = "";
                     return true;
-                case "ACE19C77762D9C868133C5A5830BBC567114913DEEA13C4D7D2EC01F955F2904":
+                case "AC77A2DFD28089340C196FC347184ECF8803D24D3191F6D0936490F1F7A4A3A5":
                     NativeProgram_0365();
                     message = "";
                     return true;
-                case "ACFFBA005F8D996CD529B8105ACD1FA6FAA3976C566308A99E463BD95FC8DEDB":
+                case "ACE19C77762D9C868133C5A5830BBC567114913DEEA13C4D7D2EC01F955F2904":
                     NativeProgram_0366();
                     message = "";
                     return true;
-                case "AD1A83DF744AA6A0CDB2BE89CB87D11ECF8361C61307D392C97D099548C11D7B":
+                case "ACFFBA005F8D996CD529B8105ACD1FA6FAA3976C566308A99E463BD95FC8DEDB":
                     NativeProgram_0367();
                     message = "";
                     return true;
-                case "AD79CD97185D819333B30FED12AB735C35B559EBC25156ECF68927B13C15B81A":
+                case "AD1A83DF744AA6A0CDB2BE89CB87D11ECF8361C61307D392C97D099548C11D7B":
                     NativeProgram_0368();
                     message = "";
                     return true;
-                case "AD998A85308D10BF0DAB66D65C90385C72126F5A015B39B8181DCED4F858D171":
+                case "AD79CD97185D819333B30FED12AB735C35B559EBC25156ECF68927B13C15B81A":
                     NativeProgram_0369();
                     message = "";
                     return true;
-                case "ADAEA89E41A3B97512F000D753EC4375DF7F2D24B112A4788A75D64201BA781D":
+                case "AD998A85308D10BF0DAB66D65C90385C72126F5A015B39B8181DCED4F858D171":
                     NativeProgram_0370();
                     message = "";
                     return true;
-                case "ADFF276760484CC8050F548AAFD71AC5DC2DDA5DD716250A4646A69E898005EA":
+                case "ADAEA89E41A3B97512F000D753EC4375DF7F2D24B112A4788A75D64201BA781D":
                     NativeProgram_0371();
                     message = "";
                     return true;
-                case "AE3D586C6C60B2D77956CF92CA2BA46FF6386E4330F06EFA862FA74CEEC278D3":
+                case "ADFF276760484CC8050F548AAFD71AC5DC2DDA5DD716250A4646A69E898005EA":
                     NativeProgram_0372();
                     message = "";
                     return true;
-                case "AEABB989F43CDDE00297F9724C4E27520F9558C70B6CDD4F79959687CFC102BA":
+                case "AE3D586C6C60B2D77956CF92CA2BA46FF6386E4330F06EFA862FA74CEEC278D3":
                     NativeProgram_0373();
                     message = "";
                     return true;
-                case "AF070DB059F1B1D6405C185987B29F91128E522E523A92BB76D2912AB5C67663":
+                case "AE416C21BD3ECBBCDD8D026BC251C4870B3D97A3820A8342B1C2B9BE627E6001":
                     NativeProgram_0374();
                     message = "";
                     return true;
-                case "AF25E3A0403B2456BDC29668FDA6255F53A4B87C4A0DE0FF555228475F81609F":
+                case "AEABB989F43CDDE00297F9724C4E27520F9558C70B6CDD4F79959687CFC102BA":
                     NativeProgram_0375();
                     message = "";
                     return true;
-                case "B094B2D38C020596054A17098FAAA4FC23A19CF4D0D892267708D8356D51D2E3":
+                case "AF070DB059F1B1D6405C185987B29F91128E522E523A92BB76D2912AB5C67663":
                     NativeProgram_0376();
                     message = "";
                     return true;
-                case "B0CE34523E21FFBE8A5FAC5790E503BDB244723CDBD15631C59B691B42D766F2":
+                case "AF25E3A0403B2456BDC29668FDA6255F53A4B87C4A0DE0FF555228475F81609F":
                     NativeProgram_0377();
                     message = "";
                     return true;
-                case "B17DECEE82EB42D6E3D18BD0318AEACDF61F1E07B156302082FEDF0C59B3F752":
+                case "B094B2D38C020596054A17098FAAA4FC23A19CF4D0D892267708D8356D51D2E3":
                     NativeProgram_0378();
                     message = "";
                     return true;
-                case "B18A166C2BD0761D90B9F18C29E5E9A782AE85F3C4B2AB6C7ED41C1CE90C18D6":
+                case "B0CE34523E21FFBE8A5FAC5790E503BDB244723CDBD15631C59B691B42D766F2":
                     NativeProgram_0379();
                     message = "";
                     return true;
-                case "B1B78AA04E7646FDF7C6A4BEC363F18634622CA76D692BA53B7DBE9B29C15A67":
+                case "B17DECEE82EB42D6E3D18BD0318AEACDF61F1E07B156302082FEDF0C59B3F752":
                     NativeProgram_0380();
                     message = "";
                     return true;
-                case "B4CD74976FFAA642A267BD69303833FF8A04289E6883F10A67B17CDC57C4EF52":
+                case "B18A166C2BD0761D90B9F18C29E5E9A782AE85F3C4B2AB6C7ED41C1CE90C18D6":
                     NativeProgram_0381();
                     message = "";
                     return true;
-                case "B66B1CFA7B39C83B814D7180A0EFCBC4936B2A8007F757BA42BCC7F221A21144":
+                case "B1B78AA04E7646FDF7C6A4BEC363F18634622CA76D692BA53B7DBE9B29C15A67":
                     NativeProgram_0382();
                     message = "";
                     return true;
-                case "B697B774AFA9B1C09405EC8A6F08AC2DC8C9327E1312ADC711C4EF60EBBA516C":
+                case "B4CD74976FFAA642A267BD69303833FF8A04289E6883F10A67B17CDC57C4EF52":
                     NativeProgram_0383();
                     message = "";
                     return true;
-                case "B6AD345734FC377F5AF7D29C61F847C228C5E67158F18DDB0D731E3DA4864CFC":
+                case "B66B1CFA7B39C83B814D7180A0EFCBC4936B2A8007F757BA42BCC7F221A21144":
                     NativeProgram_0384();
                     message = "";
                     return true;
-                case "B6D7DBFCCB8B9FB13562F6D2B7A6BC2C9FD8B6665A11E9EE44CF8309F5DEA5F4":
+                case "B697B774AFA9B1C09405EC8A6F08AC2DC8C9327E1312ADC711C4EF60EBBA516C":
                     NativeProgram_0385();
                     message = "";
                     return true;
-                case "B739CD3F55C31D6F2E76443594696D345C3916AC83B9070FA04AAFDE1CB791F6":
+                case "B6AD345734FC377F5AF7D29C61F847C228C5E67158F18DDB0D731E3DA4864CFC":
                     NativeProgram_0386();
                     message = "";
                     return true;
-                case "B7755B830433FBD12DEE942D8D23CA31D6C6B7DEA04BE93177B333AB0E00F328":
+                case "B6D7DBFCCB8B9FB13562F6D2B7A6BC2C9FD8B6665A11E9EE44CF8309F5DEA5F4":
                     NativeProgram_0387();
                     message = "";
                     return true;
-                case "B791E553CBD3C23B7B8CA5A663075D567DE75EC27B9C68C61222D1B5CCBA9B9F":
+                case "B739CD3F55C31D6F2E76443594696D345C3916AC83B9070FA04AAFDE1CB791F6":
                     NativeProgram_0388();
                     message = "";
                     return true;
-                case "B7A54D17602DC9F45AAD234D57A3748061B8A4A66CA97DBB32BB691F8268ABB5":
+                case "B7755B830433FBD12DEE942D8D23CA31D6C6B7DEA04BE93177B333AB0E00F328":
                     NativeProgram_0389();
                     message = "";
                     return true;
-                case "B7F65E17729846074BAFFE3975FA9CFCE5C625DE3507DB37C888CAF6223DDCC3":
+                case "B791E553CBD3C23B7B8CA5A663075D567DE75EC27B9C68C61222D1B5CCBA9B9F":
                     NativeProgram_0390();
                     message = "";
                     return true;
-                case "B83C8ABD58F5A19CD3E835AA60E2F3BA133D18AA58BC798E02C364EF3C2AD0E3":
+                case "B7A54D17602DC9F45AAD234D57A3748061B8A4A66CA97DBB32BB691F8268ABB5":
                     NativeProgram_0391();
                     message = "";
                     return true;
-                case "B84F0A84D5E4943EC58C6A4EC3E333557E4F3B0BA004767119369628204E1A98":
+                case "B7F65E17729846074BAFFE3975FA9CFCE5C625DE3507DB37C888CAF6223DDCC3":
                     NativeProgram_0392();
                     message = "";
                     return true;
-                case "B9BA487A13D69BE92D62E6499410754BDBD23A23A9DF384A69682E519938631D":
+                case "B83C8ABD58F5A19CD3E835AA60E2F3BA133D18AA58BC798E02C364EF3C2AD0E3":
                     NativeProgram_0393();
                     message = "";
                     return true;
-                case "BA3953B1BEE3611A9EF89D7A8E1D59C15C015BCADBE41F99C2A0B656D1EAAB1D":
+                case "B84F0A84D5E4943EC58C6A4EC3E333557E4F3B0BA004767119369628204E1A98":
                     NativeProgram_0394();
                     message = "";
                     return true;
-                case "BACAD74F0F9413FCC855E05EF39AFB115BF12F8F9B92E1BDC9A90BC8BD823410":
+                case "B9BA487A13D69BE92D62E6499410754BDBD23A23A9DF384A69682E519938631D":
                     NativeProgram_0395();
                     message = "";
                     return true;
-                case "BAE3F8E55CB9E47668A14EA378B251F3600F782364104380C4A310A498448A69":
+                case "BA3953B1BEE3611A9EF89D7A8E1D59C15C015BCADBE41F99C2A0B656D1EAAB1D":
                     NativeProgram_0396();
                     message = "";
                     return true;
-                case "BAE5301E01F44D38405D3F809572CBD5D2E4DAF6D8657BC5A5D2C5552F6C934C":
+                case "BACAD74F0F9413FCC855E05EF39AFB115BF12F8F9B92E1BDC9A90BC8BD823410":
                     NativeProgram_0397();
                     message = "";
                     return true;
-                case "BB228AE72946701468C9BD06150C9619F2D763C2000398384FF286016A2C2711":
+                case "BAE3F8E55CB9E47668A14EA378B251F3600F782364104380C4A310A498448A69":
                     NativeProgram_0398();
                     message = "";
                     return true;
-                case "BB41BC45C8D5758F995FD154D66660921DE10CFE032CA2557D420C75FE428697":
+                case "BAE5301E01F44D38405D3F809572CBD5D2E4DAF6D8657BC5A5D2C5552F6C934C":
                     NativeProgram_0399();
                     message = "";
                     return true;
-                case "BB546E528E8B2B8FD01E30B3A16B3B28899DD2998AE19AC80D3D49FA8C80F7FC":
+                case "BB228AE72946701468C9BD06150C9619F2D763C2000398384FF286016A2C2711":
                     NativeProgram_0400();
                     message = "";
                     return true;
-                case "BCA388CB69517FF23A27CB1E729786758C320FDEB8E0631D79E04F5E14D5193B":
+                case "BB41BC45C8D5758F995FD154D66660921DE10CFE032CA2557D420C75FE428697":
                     NativeProgram_0401();
                     message = "";
                     return true;
-                case "BCFE16D61925753F42A5B1C4D43D722DD62932C88B49150C2F0FD256E08E0672":
+                case "BB546E528E8B2B8FD01E30B3A16B3B28899DD2998AE19AC80D3D49FA8C80F7FC":
                     NativeProgram_0402();
                     message = "";
                     return true;
-                case "BD09D5CC3DB935BC29BEEC993787FAD487F8B0618F9FC79E81CF5AE0B698DBAD":
+                case "BC25DFA5018FF5832E463A14E5BD3F6DC3443F6C7E05C7DEE0D0D1070CF6C7E1":
                     NativeProgram_0403();
                     message = "";
                     return true;
-                case "BDACFA8EAD916588CC3ACC8727C7BEE0FB68A830EFF0E199C5A119851AE054E7":
+                case "BCA388CB69517FF23A27CB1E729786758C320FDEB8E0631D79E04F5E14D5193B":
                     NativeProgram_0404();
                     message = "";
                     return true;
-                case "BDD06A2D1CE0721F7DB5B01B66DC19B6EFDBE83037043899C09170720172BFC1":
+                case "BCFE16D61925753F42A5B1C4D43D722DD62932C88B49150C2F0FD256E08E0672":
                     NativeProgram_0405();
                     message = "";
                     return true;
-                case "BE210B380983F4EAD66523394A4D175B74F29E97D5C117E409101527DCA9A700":
+                case "BD09D5CC3DB935BC29BEEC993787FAD487F8B0618F9FC79E81CF5AE0B698DBAD":
                     NativeProgram_0406();
                     message = "";
                     return true;
-                case "BFDD68F9B1C1696B48E9E0F595BAD70C715997FF127CAFE9BC5B7BCA69A4B8BE":
+                case "BDACFA8EAD916588CC3ACC8727C7BEE0FB68A830EFF0E199C5A119851AE054E7":
                     NativeProgram_0407();
                     message = "";
                     return true;
-                case "BFF1F8F266B38F87B0A5C10F8CC89CA8F929397809D871C02D445B49D5E48E1F":
+                case "BDD06A2D1CE0721F7DB5B01B66DC19B6EFDBE83037043899C09170720172BFC1":
                     NativeProgram_0408();
                     message = "";
                     return true;
-                case "C00323D6131F9A375B0E82DFD36492A111C551D621C8F52E39E74DED56BDB1DF":
+                case "BE210B380983F4EAD66523394A4D175B74F29E97D5C117E409101527DCA9A700":
                     NativeProgram_0409();
                     message = "";
                     return true;
-                case "C12A76ED08C45A12BA81312488A84D6E41078E2745C0635E3ACD085D3F31A8D8":
+                case "BFDD68F9B1C1696B48E9E0F595BAD70C715997FF127CAFE9BC5B7BCA69A4B8BE":
                     NativeProgram_0410();
                     message = "";
                     return true;
-                case "C2301AEC927B037F29D8D4FAE9310758021FD783642263CC74500A0CC0F895E7":
+                case "BFF1F8F266B38F87B0A5C10F8CC89CA8F929397809D871C02D445B49D5E48E1F":
                     NativeProgram_0411();
                     message = "";
                     return true;
-                case "C3C40A17480C237F6A058BDE3FA7B084F3FA173F67786558CFF775054F008171":
+                case "C00323D6131F9A375B0E82DFD36492A111C551D621C8F52E39E74DED56BDB1DF":
                     NativeProgram_0412();
                     message = "";
                     return true;
-                case "C3EBCC52B257417A17DC4CFC18F5216B619B167C84891DA7F1C44F8BFB0D32AD":
+                case "C13C60D3557DE856D78EFBAB9C83117498BA0CDAA095A029E18F3A589E3982B2":
                     NativeProgram_0413();
                     message = "";
                     return true;
-                case "C46A6D8F7F87CC66B9607BAA235B29B99E7FD21EB071CF83A00C6D9322CA49BC":
+                case "C1AAA2791A774CCC23DA10BEF47FFA6534E31C4B21E0DBB90F2A4C87E6B05A8C":
                     NativeProgram_0414();
                     message = "";
                     return true;
-                case "C50E250439DA20A5B077DAD9CFAD3EFBADA6A37E3B73D6A2CC332E64E8C7C259":
+                case "C2301AEC927B037F29D8D4FAE9310758021FD783642263CC74500A0CC0F895E7":
                     NativeProgram_0415();
                     message = "";
                     return true;
-                case "C56526EC377462CBD43D6237FA1AECE88DF94CADEBE919C5612FCBA656EF0777":
+                case "C3C40A17480C237F6A058BDE3FA7B084F3FA173F67786558CFF775054F008171":
                     NativeProgram_0416();
                     message = "";
                     return true;
-                case "C5678865734A9F6DB782924B794221FBEBA15CDD1ABC150654FCD0E17654E85B":
+                case "C3EBCC52B257417A17DC4CFC18F5216B619B167C84891DA7F1C44F8BFB0D32AD":
                     NativeProgram_0417();
                     message = "";
                     return true;
-                case "C6135B7AF2A642A771CA23181958B3035C3FC2E52B4106DC06294022D32136B6":
+                case "C46A6D8F7F87CC66B9607BAA235B29B99E7FD21EB071CF83A00C6D9322CA49BC":
                     NativeProgram_0418();
                     message = "";
                     return true;
-                case "C6D2AAA2A884D5C84750F2C849D260936E05DCC17D0C279B0D2B90CF4B4B5F2B":
+                case "C50E250439DA20A5B077DAD9CFAD3EFBADA6A37E3B73D6A2CC332E64E8C7C259":
                     NativeProgram_0419();
                     message = "";
                     return true;
-                case "C70A2C1079C6304783E776A3DB3542A9F805BDE560D7E07E6F73CD2C34E8A2F5":
+                case "C56526EC377462CBD43D6237FA1AECE88DF94CADEBE919C5612FCBA656EF0777":
                     NativeProgram_0420();
                     message = "";
                     return true;
-                case "C783AA18D2ADB0B684FC3DFBD8CC5A850F60C09649990040AAE04ECC91379323":
+                case "C5678865734A9F6DB782924B794221FBEBA15CDD1ABC150654FCD0E17654E85B":
                     NativeProgram_0421();
                     message = "";
                     return true;
-                case "C7F5C7D3B914FA6DCC16A131176AD049EA4862B9B246780F5DE9BC0B8DA85A01":
+                case "C6135B7AF2A642A771CA23181958B3035C3FC2E52B4106DC06294022D32136B6":
                     NativeProgram_0422();
                     message = "";
                     return true;
-                case "C8127481B5A0FF4EB7A256B2CB73FC81D9B4ADDC72002ACFFCAF1C9CFF8E2C44":
+                case "C6D2AAA2A884D5C84750F2C849D260936E05DCC17D0C279B0D2B90CF4B4B5F2B":
                     NativeProgram_0423();
                     message = "";
                     return true;
-                case "C94CD468B8F42AA92D28D044BF58A234E7A04BF79644021DBDD5E59E97F98282":
+                case "C70A2C1079C6304783E776A3DB3542A9F805BDE560D7E07E6F73CD2C34E8A2F5":
                     NativeProgram_0424();
                     message = "";
                     return true;
-                case "C94DF7E7077493C3BF93F14AC444A25AF9B5AC61D269559EE14ECD302D1A188A":
+                case "C783AA18D2ADB0B684FC3DFBD8CC5A850F60C09649990040AAE04ECC91379323":
                     NativeProgram_0425();
                     message = "";
                     return true;
-                case "C9FE49035D3B98F028891B7D4C2AFA2F6D053865BB3761EE4C677CBFE2065418":
+                case "C7F5C7D3B914FA6DCC16A131176AD049EA4862B9B246780F5DE9BC0B8DA85A01":
                     NativeProgram_0426();
                     message = "";
                     return true;
-                case "CB8AA2BC97E060DE921D9AA266AF414E2AA8885046C95A517824A65291E492C2":
+                case "C8127481B5A0FF4EB7A256B2CB73FC81D9B4ADDC72002ACFFCAF1C9CFF8E2C44":
                     NativeProgram_0427();
                     message = "";
                     return true;
-                case "CC0CD8B76DBA42C17BCB58E15508A7BC8ACCAB7D9ED5697E22CF4D008A07B17C":
+                case "C94CD468B8F42AA92D28D044BF58A234E7A04BF79644021DBDD5E59E97F98282":
                     NativeProgram_0428();
                     message = "";
                     return true;
-                case "CC1D988DE06123AC79A1BE0ACB3F6900F45F689617EC608200EFD289A332D126":
+                case "C94DF7E7077493C3BF93F14AC444A25AF9B5AC61D269559EE14ECD302D1A188A":
                     NativeProgram_0429();
                     message = "";
                     return true;
-                case "CCB0993A35970317A0B8C6B8D44DCEA84A04A8B7204C5E74AF144A4EE13F0160":
+                case "C9FE49035D3B98F028891B7D4C2AFA2F6D053865BB3761EE4C677CBFE2065418":
                     NativeProgram_0430();
                     message = "";
                     return true;
-                case "CCCFDBA4BEFC970387D80F8DAD0F45DE43A9865C17008F1B9A6F70A116F5DC74":
+                case "CB8AA2BC97E060DE921D9AA266AF414E2AA8885046C95A517824A65291E492C2":
                     NativeProgram_0431();
                     message = "";
                     return true;
-                case "CDA63453A2A2AB66C83651173222376D7A59CFD593C444C52302E835FD1ABA60":
+                case "CC0CD8B76DBA42C17BCB58E15508A7BC8ACCAB7D9ED5697E22CF4D008A07B17C":
                     NativeProgram_0432();
                     message = "";
                     return true;
-                case "CEE1AE319B94A50EB3ED2FF4B137CEE233D3DEE3A13977D55FFF4665D922C982":
+                case "CC1D988DE06123AC79A1BE0ACB3F6900F45F689617EC608200EFD289A332D126":
                     NativeProgram_0433();
                     message = "";
                     return true;
-                case "CF5E281E33BCE5EB5E068CB9957C1D02AA83D5E0A4926F31776BA90C036CA849":
+                case "CCB0993A35970317A0B8C6B8D44DCEA84A04A8B7204C5E74AF144A4EE13F0160":
                     NativeProgram_0434();
                     message = "";
                     return true;
-                case "CFD6103183B13A777E7FF3E1274F8A7AD73E571F7EF12786E40F65DE0F3C8360":
+                case "CCCFDBA4BEFC970387D80F8DAD0F45DE43A9865C17008F1B9A6F70A116F5DC74":
                     NativeProgram_0435();
                     message = "";
                     return true;
-                case "CFF2CBDFA2A1118DA2FB8483C0EF29EBB43BB0F5BFE99504E51B8B9A2EA258FA":
+                case "CDA63453A2A2AB66C83651173222376D7A59CFD593C444C52302E835FD1ABA60":
                     NativeProgram_0436();
                     message = "";
                     return true;
-                case "D01B9DD3E45AB42A8D333AAAB6777BD88ADF414CE42102650A270A02FC1D1A1A":
+                case "CEE1AE319B94A50EB3ED2FF4B137CEE233D3DEE3A13977D55FFF4665D922C982":
                     NativeProgram_0437();
                     message = "";
                     return true;
-                case "D0838FA424BBDB91C4A362032B4CB764082D9BA8B926A83F593811796937F96E":
+                case "CF5E281E33BCE5EB5E068CB9957C1D02AA83D5E0A4926F31776BA90C036CA849":
                     NativeProgram_0438();
                     message = "";
                     return true;
-                case "D0AF795E3B426E38AADF5FFA67C36FED8D17F5E664EABE1E60506CDD8B40704C":
+                case "CFD6103183B13A777E7FF3E1274F8A7AD73E571F7EF12786E40F65DE0F3C8360":
                     NativeProgram_0439();
                     message = "";
                     return true;
-                case "D0D3D5ABE8C1ED55108ABBA9576EAD2A3F7F36D3726C801B0C0718DFAFE478F9":
+                case "CFF2CBDFA2A1118DA2FB8483C0EF29EBB43BB0F5BFE99504E51B8B9A2EA258FA":
                     NativeProgram_0440();
                     message = "";
                     return true;
-                case "D106FEF22936054EFDCB17BE9DD06301562B9D32A42EE3684A279D36B2509ABB":
+                case "D0838FA424BBDB91C4A362032B4CB764082D9BA8B926A83F593811796937F96E":
                     NativeProgram_0441();
                     message = "";
                     return true;
-                case "D3818EED49B9F40A66FA13FCE37E6B7563DE52568CB9200F8A01E212C112530A":
+                case "D0AF795E3B426E38AADF5FFA67C36FED8D17F5E664EABE1E60506CDD8B40704C":
                     NativeProgram_0442();
                     message = "";
                     return true;
-                case "D45317120BE70C53E323153BB620410E2EBDA37669B1854E45623EDD8CB6F9CA":
+                case "D106FEF22936054EFDCB17BE9DD06301562B9D32A42EE3684A279D36B2509ABB":
                     NativeProgram_0443();
                     message = "";
                     return true;
-                case "D48FB91607C2EFF4F6C38522B832AFCAF037AB605B1873D445BE25C19130EB4A":
+                case "D3818EED49B9F40A66FA13FCE37E6B7563DE52568CB9200F8A01E212C112530A":
                     NativeProgram_0444();
                     message = "";
                     return true;
-                case "D4A1D878CFCF24E5A947E376ED324E302DC43EEB00EE495164C7F62EF8211A38":
+                case "D45317120BE70C53E323153BB620410E2EBDA37669B1854E45623EDD8CB6F9CA":
                     NativeProgram_0445();
                     message = "";
                     return true;
-                case "D70C9E796AA8DFD64F08FA4AEE8985B72AF07D5ED35DB91AE8FE74F8F92A7CAD":
+                case "D48FB91607C2EFF4F6C38522B832AFCAF037AB605B1873D445BE25C19130EB4A":
                     NativeProgram_0446();
                     message = "";
                     return true;
-                case "D74CCE19192D0B81328A51B7E458419702C96D943815CB5369A9FE18E6906ED1":
+                case "D4A1D878CFCF24E5A947E376ED324E302DC43EEB00EE495164C7F62EF8211A38":
                     NativeProgram_0447();
                     message = "";
                     return true;
-                case "D752F3CD2611AFCB7774246A15A0B2374B2681907D416A584C1354F9211FC8BE":
+                case "D70C9E796AA8DFD64F08FA4AEE8985B72AF07D5ED35DB91AE8FE74F8F92A7CAD":
                     NativeProgram_0448();
                     message = "";
                     return true;
-                case "D77B8B6129C807841B05F9E7539B9A9B469FB1E9E1E77620AEE1A6402EE1EDDF":
+                case "D711780753FF0CA1FE0F0D2E0FBD6734F0F9EB60F4DC8B197C837D9E6CD7C9C7":
                     NativeProgram_0449();
                     message = "";
                     return true;
-                case "D7F31D5EDDBBF79CA28E703F16744656BB09ACD9635F8132FF0E52E1E0FC2C51":
+                case "D74CCE19192D0B81328A51B7E458419702C96D943815CB5369A9FE18E6906ED1":
                     NativeProgram_0450();
                     message = "";
                     return true;
-                case "D833DF84F4E5B8A625F7CB6E44D3FCC3362A8C5BA01EE5AE8496EB780B67552E":
+                case "D752F3CD2611AFCB7774246A15A0B2374B2681907D416A584C1354F9211FC8BE":
                     NativeProgram_0451();
                     message = "";
                     return true;
-                case "D8CC4FD1BCBDB2B111B894767A750848EE9D7BFE9AFC318882C5182BA7CEB075":
+                case "D77B8B6129C807841B05F9E7539B9A9B469FB1E9E1E77620AEE1A6402EE1EDDF":
                     NativeProgram_0452();
                     message = "";
                     return true;
-                case "D91DD4AAC93764B436170A87E1F78ECB615D1C86C706A4261E94FAF0E657AD4B":
+                case "D7F31D5EDDBBF79CA28E703F16744656BB09ACD9635F8132FF0E52E1E0FC2C51":
                     NativeProgram_0453();
                     message = "";
                     return true;
-                case "D991493BB0D39EA8EB059975E853E7F122C3014E7699DBE7CCA30AA2B454FC72":
+                case "D833DF84F4E5B8A625F7CB6E44D3FCC3362A8C5BA01EE5AE8496EB780B67552E":
                     NativeProgram_0454();
                     message = "";
                     return true;
-                case "D9BE4DB54E829DE9DDE99827B6A81104B0F1D92CF09DC255D99E93E68F83C3CA":
+                case "D8CC4FD1BCBDB2B111B894767A750848EE9D7BFE9AFC318882C5182BA7CEB075":
                     NativeProgram_0455();
                     message = "";
                     return true;
-                case "DA2307797E33F9BC25E6218835243D09D777459D25890C03087297618DB0FCF4":
+                case "D91DD4AAC93764B436170A87E1F78ECB615D1C86C706A4261E94FAF0E657AD4B":
                     NativeProgram_0456();
                     message = "";
                     return true;
-                case "DA75C1AF69C9D2A5F56D6B1BE197065B143ACE8CA314E11CD202C40DA2837975":
+                case "D991493BB0D39EA8EB059975E853E7F122C3014E7699DBE7CCA30AA2B454FC72":
                     NativeProgram_0457();
                     message = "";
                     return true;
-                case "DB33AE4071C53850ACD3E5E6FCE3605075329AD971DF509D04B97371CC1916C3":
+                case "D9BE4DB54E829DE9DDE99827B6A81104B0F1D92CF09DC255D99E93E68F83C3CA":
                     NativeProgram_0458();
                     message = "";
                     return true;
-                case "DB6B7F4C9609944450F9D7A195CE357770A652959CAFA715BC3347F160F86BD5":
+                case "DA2307797E33F9BC25E6218835243D09D777459D25890C03087297618DB0FCF4":
                     NativeProgram_0459();
                     message = "";
                     return true;
-                case "DBB5F7B9C9E34F7689330D1101EA67D4A689857BA630BFB0A2D38A643E9CE21C":
+                case "DA75C1AF69C9D2A5F56D6B1BE197065B143ACE8CA314E11CD202C40DA2837975":
                     NativeProgram_0460();
                     message = "";
                     return true;
-                case "DBDAACF08DA4D64316EB960F877F34F1DC0C7D25378F18DA462BDB1A414EA18C":
+                case "DB33AE4071C53850ACD3E5E6FCE3605075329AD971DF509D04B97371CC1916C3":
                     NativeProgram_0461();
                     message = "";
                     return true;
-                case "DC6BFE6821E1188D6A097DF5A04A6E895FFD5866236A1DF9870122628B5647D9":
+                case "DB6B7F4C9609944450F9D7A195CE357770A652959CAFA715BC3347F160F86BD5":
                     NativeProgram_0462();
                     message = "";
                     return true;
-                case "DC7136C374A0BFD7AE5CABEA0135546C0DCDD3E463AB12543852BB0393114B31":
+                case "DBB5F7B9C9E34F7689330D1101EA67D4A689857BA630BFB0A2D38A643E9CE21C":
                     NativeProgram_0463();
                     message = "";
                     return true;
-                case "DC8938A5F044126A1664747D8D06FE5EC3DEB99BDEC0E1ABE48DF30D9EE8AFBD":
+                case "DBDAACF08DA4D64316EB960F877F34F1DC0C7D25378F18DA462BDB1A414EA18C":
                     NativeProgram_0464();
                     message = "";
                     return true;
-                case "DD423EBFA8B60CA7A2087DEE8AD8551D9519826B17079693C6BDA96DE207D4E0":
+                case "DC6BFE6821E1188D6A097DF5A04A6E895FFD5866236A1DF9870122628B5647D9":
                     NativeProgram_0465();
                     message = "";
                     return true;
-                case "DD7569F67FF60EA9A7C84F8A6D5B1151AB11DC88539593B1401CB09F285A5E39":
+                case "DC7136C374A0BFD7AE5CABEA0135546C0DCDD3E463AB12543852BB0393114B31":
                     NativeProgram_0466();
                     message = "";
                     return true;
-                case "DDFC9E471A300C5908E9E5A8387AC89B516DE375E001D023C1323B933D11AD64":
+                case "DC8938A5F044126A1664747D8D06FE5EC3DEB99BDEC0E1ABE48DF30D9EE8AFBD":
                     NativeProgram_0467();
                     message = "";
                     return true;
-                case "DE8213483384E8BE1F59E9AD03137BA790E400656C213FEB72BE3AD20FB27CC0":
+                case "DD423EBFA8B60CA7A2087DEE8AD8551D9519826B17079693C6BDA96DE207D4E0":
                     NativeProgram_0468();
                     message = "";
                     return true;
-                case "DF01E067FF2D3CC18BFBBDB9C626F727CF10F20257E12066313135FDF608A66F":
+                case "DD7569F67FF60EA9A7C84F8A6D5B1151AB11DC88539593B1401CB09F285A5E39":
                     NativeProgram_0469();
                     message = "";
                     return true;
-                case "DF4A16298030793D92A798615F679A17EF4E919658A3EB952CE4C6EEA741B7B6":
+                case "DDFC9E471A300C5908E9E5A8387AC89B516DE375E001D023C1323B933D11AD64":
                     NativeProgram_0470();
                     message = "";
                     return true;
-                case "DF9B1A1BF2AE1725502E624387782060C209B9C29A22AE5884BE2B35C28B8A9D":
+                case "DE8213483384E8BE1F59E9AD03137BA790E400656C213FEB72BE3AD20FB27CC0":
                     NativeProgram_0471();
                     message = "";
                     return true;
-                case "E0CD2E68567AE88FAB86E629482301EC7DD8510E7FFFD38E1780C18F75B5FCDB":
+                case "DF01E067FF2D3CC18BFBBDB9C626F727CF10F20257E12066313135FDF608A66F":
                     NativeProgram_0472();
                     message = "";
                     return true;
-                case "E0DBFC729338CF560AD1CE9CEF034BDD5F454E34E78E2E0908141A0B5E275C25":
+                case "DF9B1A1BF2AE1725502E624387782060C209B9C29A22AE5884BE2B35C28B8A9D":
                     NativeProgram_0473();
                     message = "";
                     return true;
-                case "E15851248585ABEE12B1A297EFD7235F4D0002D33EDF36FCCD5B74FCB9C649D9":
+                case "E0CD2E68567AE88FAB86E629482301EC7DD8510E7FFFD38E1780C18F75B5FCDB":
                     NativeProgram_0474();
                     message = "";
                     return true;
-                case "E25BA844F30F33F9B6F186962DB2280A88DF0C5BBA84E0B7323CB9786F800092":
+                case "E0DBFC729338CF560AD1CE9CEF034BDD5F454E34E78E2E0908141A0B5E275C25":
                     NativeProgram_0475();
                     message = "";
                     return true;
-                case "E26F8F506DA20C807472D377ACF64BC738F447C083BAE777CB40D819592042C0":
+                case "E15851248585ABEE12B1A297EFD7235F4D0002D33EDF36FCCD5B74FCB9C649D9":
                     NativeProgram_0476();
                     message = "";
                     return true;
-                case "E2931A685CB41A3978097259EEE1E395C71A088D950CB61E25BEECBF36FC928B":
+                case "E25BA844F30F33F9B6F186962DB2280A88DF0C5BBA84E0B7323CB9786F800092":
                     NativeProgram_0477();
                     message = "";
                     return true;
-                case "E2976617E887F011BEBEBA3BFE38A6145C03ADA2AE667950B47A4A41B421B17A":
+                case "E26F8F506DA20C807472D377ACF64BC738F447C083BAE777CB40D819592042C0":
                     NativeProgram_0478();
                     message = "";
                     return true;
-                case "E31E6B5FDBD373181A8B32EE00C5AEFCB67EFE41913465F303F9D6D9BB688240":
+                case "E2931A685CB41A3978097259EEE1E395C71A088D950CB61E25BEECBF36FC928B":
                     NativeProgram_0479();
                     message = "";
                     return true;
-                case "E3B2F9C1FEED951CC12CCA8B09D4B35340F3288FCD395F477A594F7937251497":
+                case "E2976617E887F011BEBEBA3BFE38A6145C03ADA2AE667950B47A4A41B421B17A":
                     NativeProgram_0480();
                     message = "";
                     return true;
-                case "E55ABE3BA6D8E5D86EA243B5D78703BA4B47FDC69F05D6E7990A3652A54585F7":
+                case "E31E6B5FDBD373181A8B32EE00C5AEFCB67EFE41913465F303F9D6D9BB688240":
                     NativeProgram_0481();
                     message = "";
                     return true;
-                case "E5F3671C484425E3D047B923CF85DBE359BED181C4F8C6F5766D6870BE027FE6":
+                case "E3B2F9C1FEED951CC12CCA8B09D4B35340F3288FCD395F477A594F7937251497":
                     NativeProgram_0482();
                     message = "";
                     return true;
-                case "E68A2159D75EF46D2A0B1B36A07B316827053277FF4C93DCF7A198463B502FE1":
+                case "E55ABE3BA6D8E5D86EA243B5D78703BA4B47FDC69F05D6E7990A3652A54585F7":
                     NativeProgram_0483();
                     message = "";
                     return true;
-                case "E745ABB65FFA13234256CC0E48A4AF820004059DB61817873E4C9354EF424871":
+                case "E5F3671C484425E3D047B923CF85DBE359BED181C4F8C6F5766D6870BE027FE6":
                     NativeProgram_0484();
                     message = "";
                     return true;
-                case "E7BDCFC4E03E8C6F0ADC50C3AC894575023F6B1A65808F0C7BA2387857D35210":
+                case "E68A2159D75EF46D2A0B1B36A07B316827053277FF4C93DCF7A198463B502FE1":
                     NativeProgram_0485();
                     message = "";
                     return true;
-                case "E866E6C79463871D46F60EC235AF14B1C9F788DF7585746D516FA30BEE53414A":
+                case "E745ABB65FFA13234256CC0E48A4AF820004059DB61817873E4C9354EF424871":
                     NativeProgram_0486();
                     message = "";
                     return true;
-                case "E96FAC848CF3CC8BCA3AA74F0935CE633D8F53EA3976587F96872CA0899EC454":
+                case "E7BDCFC4E03E8C6F0ADC50C3AC894575023F6B1A65808F0C7BA2387857D35210":
                     NativeProgram_0487();
                     message = "";
                     return true;
-                case "EB81695063A7DDFE05C860DC778EC661BA75BCA8D81AEB40329A50858923C9F0":
+                case "E866E6C79463871D46F60EC235AF14B1C9F788DF7585746D516FA30BEE53414A":
                     NativeProgram_0488();
                     message = "";
                     return true;
-                case "EBEAEBCCA991EAFB1290D8A1C09A037E64768A45CE874E0EA747348DC3522630":
+                case "E96FAC848CF3CC8BCA3AA74F0935CE633D8F53EA3976587F96872CA0899EC454":
                     NativeProgram_0489();
                     message = "";
                     return true;
-                case "EC22D7E2FA354E7B173B3CC2B7A02685CD354B6A8386EBE60381F6A31CAB9401":
+                case "EB81695063A7DDFE05C860DC778EC661BA75BCA8D81AEB40329A50858923C9F0":
                     NativeProgram_0490();
                     message = "";
                     return true;
-                case "ECA77E46D139D0AB1D093D586884F7AD0650E51608BF16D39E7B72584A4DD201":
+                case "EBEAEBCCA991EAFB1290D8A1C09A037E64768A45CE874E0EA747348DC3522630":
                     NativeProgram_0491();
                     message = "";
                     return true;
-                case "ED833CC81C33AE85CFA4F37C43BFCCFE1D13955532694158F4385F8DE0663FAE":
+                case "EC22D7E2FA354E7B173B3CC2B7A02685CD354B6A8386EBE60381F6A31CAB9401":
                     NativeProgram_0492();
                     message = "";
                     return true;
-                case "EDEE5B895578A65A7984173BAF1E674179B48174C67C8B6C2E4504EDE7F4EFA2":
+                case "ECA77E46D139D0AB1D093D586884F7AD0650E51608BF16D39E7B72584A4DD201":
                     NativeProgram_0493();
                     message = "";
                     return true;
-                case "EE3F2D5FB226B3438DA60E971EB8D64262D8C5DCF1CF014C05F5BBD9E985F17D":
+                case "ED833CC81C33AE85CFA4F37C43BFCCFE1D13955532694158F4385F8DE0663FAE":
                     NativeProgram_0494();
                     message = "";
                     return true;
-                case "EEA9D66042D70360BE69E92CB57C102F94EDDF51FD3D6D3F42A06825183DE29D":
+                case "EDEE5B895578A65A7984173BAF1E674179B48174C67C8B6C2E4504EDE7F4EFA2":
                     NativeProgram_0495();
                     message = "";
                     return true;
-                case "EED46E6FB7A8176D4F3A49FFF6BBBA5CAC378D58215C302BBB7F4F41488EF6E0":
+                case "EE3F2D5FB226B3438DA60E971EB8D64262D8C5DCF1CF014C05F5BBD9E985F17D":
                     NativeProgram_0496();
                     message = "";
                     return true;
-                case "EF2FC2EEBDB039EF66874154E135929A44DF4633DEB4C367F3A8FF445EFE81E8":
+                case "EEA9D66042D70360BE69E92CB57C102F94EDDF51FD3D6D3F42A06825183DE29D":
                     NativeProgram_0497();
                     message = "";
                     return true;
-                case "EF698B8835847F02F174F71E93DD4CCEDF27AC239033F14A2097FA505B666C9D":
+                case "EED46E6FB7A8176D4F3A49FFF6BBBA5CAC378D58215C302BBB7F4F41488EF6E0":
                     NativeProgram_0498();
                     message = "";
                     return true;
-                case "F00AFC6450A2A56864C10A6FB51E4CE383299AF1F64CC9098E109F3DE82FC513":
+                case "EF2FC2EEBDB039EF66874154E135929A44DF4633DEB4C367F3A8FF445EFE81E8":
                     NativeProgram_0499();
                     message = "";
                     return true;
-                case "F00E1C62E25F7B0A5EE668E460CC7699EEAE40895E32B9DDDAC0D74092F4D3E3":
+                case "EF698B8835847F02F174F71E93DD4CCEDF27AC239033F14A2097FA505B666C9D":
                     NativeProgram_0500();
                     message = "";
                     return true;
-                case "F0156842BA05C70064E400051EAFFB8E927E7303C72C191DEE69AA677EBFE0DD":
+                case "F00AFC6450A2A56864C10A6FB51E4CE383299AF1F64CC9098E109F3DE82FC513":
                     NativeProgram_0501();
                     message = "";
                     return true;
-                case "F139C0A2547100CA2ED27658F52BD1A0A49A4ADBA33011FEE568AF3E969F9488":
+                case "F00E1C62E25F7B0A5EE668E460CC7699EEAE40895E32B9DDDAC0D74092F4D3E3":
                     NativeProgram_0502();
                     message = "";
                     return true;
-                case "F1D7B86872664100C52EBC781F48E8D730F24D3A1D0A4B6F3FB98EA75DE53A79":
+                case "F0156842BA05C70064E400051EAFFB8E927E7303C72C191DEE69AA677EBFE0DD":
                     NativeProgram_0503();
                     message = "";
                     return true;
-                case "F2D9CF8F1D6CC0CAEE6B6EE13DB350E6853F8D622119D77E70B4F95637FF2554":
+                case "F139C0A2547100CA2ED27658F52BD1A0A49A4ADBA33011FEE568AF3E969F9488":
                     NativeProgram_0504();
                     message = "";
                     return true;
-                case "F327CD4B2AA1079D1FDFFA56E9527FFFD336ECE3E46A19215E0C6327A797A562":
+                case "F1D7B86872664100C52EBC781F48E8D730F24D3A1D0A4B6F3FB98EA75DE53A79":
                     NativeProgram_0505();
                     message = "";
                     return true;
-                case "F32B2281D49DD68905EDA055ADA5728AD1D6CF3824B1CF71B93713A526F0E482":
+                case "F2D9CF8F1D6CC0CAEE6B6EE13DB350E6853F8D622119D77E70B4F95637FF2554":
                     NativeProgram_0506();
                     message = "";
                     return true;
-                case "F366EDD520BE0EB643F9B4303FA04EC21CD14196496B3D5F420949BE4EC2D866":
+                case "F327CD4B2AA1079D1FDFFA56E9527FFFD336ECE3E46A19215E0C6327A797A562":
                     NativeProgram_0507();
                     message = "";
                     return true;
-                case "F3C248502975CD7992BAC63179738BDEFD48F24F842D9D25AE1B551319404F72":
+                case "F32B2281D49DD68905EDA055ADA5728AD1D6CF3824B1CF71B93713A526F0E482":
                     NativeProgram_0508();
                     message = "";
                     return true;
-                case "F3C8EC9ECCFEDC3EF0AE3F494750175389068780035245DBD52BD01CF1C5A34E":
+                case "F366EDD520BE0EB643F9B4303FA04EC21CD14196496B3D5F420949BE4EC2D866":
                     NativeProgram_0509();
                     message = "";
                     return true;
-                case "F3E352ECE2CFD9B53FF2B42352E62ED3DEB3A7084B674625FE0399A40E1D3375":
+                case "F3C248502975CD7992BAC63179738BDEFD48F24F842D9D25AE1B551319404F72":
                     NativeProgram_0510();
                     message = "";
                     return true;
-                case "F3FBF62F59C05AF7B3A067E56DF0C9145508501EE760210B53282E15F7638267":
+                case "F3E352ECE2CFD9B53FF2B42352E62ED3DEB3A7084B674625FE0399A40E1D3375":
                     NativeProgram_0511();
                     message = "";
                     return true;
-                case "F4196E77DB39430A7CD4197DD41E68ADECB61250F815609A02DF1094EBA820C6":
+                case "F3FBF62F59C05AF7B3A067E56DF0C9145508501EE760210B53282E15F7638267":
                     NativeProgram_0512();
                     message = "";
                     return true;
-                case "F4C673CFC74EC4A7D253CCB853D746AE72A5CEEBA2C844CB666339B49171B79B":
+                case "F4196E77DB39430A7CD4197DD41E68ADECB61250F815609A02DF1094EBA820C6":
                     NativeProgram_0513();
                     message = "";
                     return true;
-                case "F5CA22F9A2A9202FACE87520144B37C897E8F9228C0510B88A60A9582C0D8C98":
+                case "F4C673CFC74EC4A7D253CCB853D746AE72A5CEEBA2C844CB666339B49171B79B":
                     NativeProgram_0514();
                     message = "";
                     return true;
-                case "F60641D6536DE9373A7EB75F2DEE27E5B26F59A2BD2B892C18A392DE9CB02AD0":
+                case "F5CA22F9A2A9202FACE87520144B37C897E8F9228C0510B88A60A9582C0D8C98":
                     NativeProgram_0515();
                     message = "";
                     return true;
-                case "F683B116A6BBA41C843A0C15F3A5E6C30592030065FA706D2FE06EF82DEF12E3":
+                case "F60641D6536DE9373A7EB75F2DEE27E5B26F59A2BD2B892C18A392DE9CB02AD0":
                     NativeProgram_0516();
                     message = "";
                     return true;
-                case "F73FB24AD0CD01C51EBAF9CCF7C81E7E7289AC8D9C53970A0CC869D6F0D1884C":
+                case "F683B116A6BBA41C843A0C15F3A5E6C30592030065FA706D2FE06EF82DEF12E3":
                     NativeProgram_0517();
                     message = "";
                     return true;
-                case "F795FC75E60C43C9B79A1B7CBED40EB68FE359E61E1FF97A4D174C00FCDF3104":
+                case "F73FB24AD0CD01C51EBAF9CCF7C81E7E7289AC8D9C53970A0CC869D6F0D1884C":
                     NativeProgram_0518();
                     message = "";
                     return true;
-                case "F80CFC72FB1769F0ED65F8CA2732381F70F1692765EC5BC297BA610A32382ED6":
+                case "F795FC75E60C43C9B79A1B7CBED40EB68FE359E61E1FF97A4D174C00FCDF3104":
                     NativeProgram_0519();
                     message = "";
                     return true;
-                case "F8A07AD817EB875161BCB8933831BE232F1A5BF5AA22B8247541AA2709306E6D":
+                case "F80CFC72FB1769F0ED65F8CA2732381F70F1692765EC5BC297BA610A32382ED6":
                     NativeProgram_0520();
                     message = "";
                     return true;
-                case "F9246BA0CA14AF99441575638DA0144A6B9A3123943C5C92DD3F4D41D7A7B0D5":
+                case "F8A07AD817EB875161BCB8933831BE232F1A5BF5AA22B8247541AA2709306E6D":
                     NativeProgram_0521();
                     message = "";
                     return true;
-                case "F9CD3FAA2A9A7608E727B5E3C6A0B697461B5A504F47BD6D8F2D162B952F6169":
+                case "F9246BA0CA14AF99441575638DA0144A6B9A3123943C5C92DD3F4D41D7A7B0D5":
                     NativeProgram_0522();
                     message = "";
                     return true;
-                case "FA022ADFDB7219AB106877657C2BD19930473C645BC72417B7CC768790370105":
+                case "F9CD3FAA2A9A7608E727B5E3C6A0B697461B5A504F47BD6D8F2D162B952F6169":
                     NativeProgram_0523();
                     message = "";
                     return true;
-                case "FA58D1A933A791BD30ECE9A51511E9DFFEFB08403A9AA24A8C300D7209112461":
+                case "FA022ADFDB7219AB106877657C2BD19930473C645BC72417B7CC768790370105":
                     NativeProgram_0524();
                     message = "";
                     return true;
-                case "FA6234EAD9706E8CFBBB0FDF64ED6C87D4CD8187CB8A4AE6842CC910815E71AA":
+                case "FA58D1A933A791BD30ECE9A51511E9DFFEFB08403A9AA24A8C300D7209112461":
                     NativeProgram_0525();
                     message = "";
                     return true;
-                case "FA66E04C72FB606E4DDB3E541596E76ECF5A7347C3E58137E80C77083B17C561":
+                case "FA6234EAD9706E8CFBBB0FDF64ED6C87D4CD8187CB8A4AE6842CC910815E71AA":
                     NativeProgram_0526();
                     message = "";
                     return true;
-                case "FA7953E81CCCCC86E42DEFE1F2B536A7B6FD41B54C89A14E11FA14D1ED489516":
+                case "FA66E04C72FB606E4DDB3E541596E76ECF5A7347C3E58137E80C77083B17C561":
                     NativeProgram_0527();
                     message = "";
                     return true;
-                case "FB0BDB2061BA636D62CFE73A01241B1517CC47CD60BA7B74B18F8A864F7B4713":
+                case "FA7953E81CCCCC86E42DEFE1F2B536A7B6FD41B54C89A14E11FA14D1ED489516":
                     NativeProgram_0528();
                     message = "";
                     return true;
-                case "FB1D4EF536D7FB23927BB299311123EBDF46FE507ECE8F0D792E4C1F8FFD3636":
+                case "FB0BDB2061BA636D62CFE73A01241B1517CC47CD60BA7B74B18F8A864F7B4713":
                     NativeProgram_0529();
                     message = "";
                     return true;
-                case "FB2C64602390A3F90ADCD0A2C9232A07E07C69398D3D7979CB27F9156CCAAE40":
+                case "FB1D4EF536D7FB23927BB299311123EBDF46FE507ECE8F0D792E4C1F8FFD3636":
                     NativeProgram_0530();
                     message = "";
                     return true;
-                case "FB2CFB83E2AE500C94C8CD300E3B7C2E40439E594B0BB3591D88AC5141540389":
+                case "FB2C64602390A3F90ADCD0A2C9232A07E07C69398D3D7979CB27F9156CCAAE40":
                     NativeProgram_0531();
                     message = "";
                     return true;
-                case "FBF03E680237F068BC14BE293E622B4B4ECCD6D5C056BDCE73D25FFE30F2ED76":
+                case "FB2CFB83E2AE500C94C8CD300E3B7C2E40439E594B0BB3591D88AC5141540389":
                     NativeProgram_0532();
                     message = "";
                     return true;
-                case "FBF8FADC856466088D8CEFE8A28BCF5D24E2E50234977B6F1959A5DDBE992894":
+                case "FBF03E680237F068BC14BE293E622B4B4ECCD6D5C056BDCE73D25FFE30F2ED76":
                     NativeProgram_0533();
                     message = "";
                     return true;
-                case "FC17C8F0E928CE7423C871B91A36A1DA787619EA39B13BAD9B017D53459A0C66":
+                case "FBF8FADC856466088D8CEFE8A28BCF5D24E2E50234977B6F1959A5DDBE992894":
                     NativeProgram_0534();
                     message = "";
                     return true;
-                case "FC333A55AA79E2F6473279487A67D50642E5E251D9E806F21B8FE4B4B8169D9A":
+                case "FC17C8F0E928CE7423C871B91A36A1DA787619EA39B13BAD9B017D53459A0C66":
                     NativeProgram_0535();
                     message = "";
                     return true;
-                case "FC3941100AA01BCE0DEDB579CA6A88802E7B3E849FA0D78CA5AFB1EB083D1A46":
+                case "FC333A55AA79E2F6473279487A67D50642E5E251D9E806F21B8FE4B4B8169D9A":
                     NativeProgram_0536();
                     message = "";
                     return true;
-                case "FC63192BD5745031A5C672756CAE03FD3723FFBF2A5E62493D55B8E4094FF7E2":
+                case "FC3941100AA01BCE0DEDB579CA6A88802E7B3E849FA0D78CA5AFB1EB083D1A46":
                     NativeProgram_0537();
                     message = "";
                     return true;
-                case "FCEB3C235A08523ABD2398B4C4EBB589EE5BCA56A9F29AF4B545E575F808BC1B":
+                case "FC63192BD5745031A5C672756CAE03FD3723FFBF2A5E62493D55B8E4094FF7E2":
                     NativeProgram_0538();
                     message = "";
                     return true;
-                case "FD475B322C701CE7B831B289B6F69E48C13DE1090208CA9BE885616A4B81AFDD":
+                case "FCEB3C235A08523ABD2398B4C4EBB589EE5BCA56A9F29AF4B545E575F808BC1B":
                     NativeProgram_0539();
                     message = "";
                     return true;
-                case "FD663F975E471D9201C5E0AA63A4E5BA893E409BE611B94B8B80FA80FED45B14":
+                case "FD475B322C701CE7B831B289B6F69E48C13DE1090208CA9BE885616A4B81AFDD":
                     NativeProgram_0540();
                     message = "";
                     return true;
-                case "FDDD533E2759FDF6ABBB824DF1C8C444111EBFB9F504861A9D93504E11C85418":
+                case "FD663F975E471D9201C5E0AA63A4E5BA893E409BE611B94B8B80FA80FED45B14":
                     NativeProgram_0541();
                     message = "";
                     return true;
-                case "FE1F4DC61765DCEE7E956C57E3C2B0B12D4D34C1C3307F30AF677AA236D2A597":
+                case "FDDD533E2759FDF6ABBB824DF1C8C444111EBFB9F504861A9D93504E11C85418":
                     NativeProgram_0542();
                     message = "";
                     return true;
-                case "FE6E61437AA538580D8E5F98370AD7433D18EEFD069E84F4BED91423A0F89220":
+                case "FE1F4DC61765DCEE7E956C57E3C2B0B12D4D34C1C3307F30AF677AA236D2A597":
                     NativeProgram_0543();
                     message = "";
                     return true;
-                case "FE9DA899B1828C4D8A2B7D1240B127285FB3DAB43869417FF5EBDA885046AAF0":
+                case "FE6E61437AA538580D8E5F98370AD7433D18EEFD069E84F4BED91423A0F89220":
                     NativeProgram_0544();
                     message = "";
                     return true;
-                case "FEC3264BA432FA115BFFF4F1D17724DAA4AD72B736EAF9CDD79DF22FF68A1C8A":
+                case "FE9DA899B1828C4D8A2B7D1240B127285FB3DAB43869417FF5EBDA885046AAF0":
                     NativeProgram_0545();
                     message = "";
                     return true;
-                case "FEC6D7BEC8EA816013C689EF2664DB91C099AE424B18AA125298B17D3C6DD5BB":
+                case "FEC3264BA432FA115BFFF4F1D17724DAA4AD72B736EAF9CDD79DF22FF68A1C8A":
                     NativeProgram_0546();
                     message = "";
                     return true;
-                case "FF4072359B3B96BF17C0335001C2EE0EF2A6490D7D25F3E265C6EACBE59B4DF4":
+                case "FEC6D7BEC8EA816013C689EF2664DB91C099AE424B18AA125298B17D3C6DD5BB":
                     NativeProgram_0547();
                     message = "";
                     return true;
-                case "FF8D0C471558C78DB7811DA8E48252246746B207E5194CA9A68C61E02729AF66":
+                case "FF4072359B3B96BF17C0335001C2EE0EF2A6490D7D25F3E265C6EACBE59B4DF4":
                     NativeProgram_0548();
                     message = "";
                     return true;
@@ -2236,11 +2236,11 @@ public sealed partial class NativeRewardScriptGlobals
             case "01ACE9C8DDB31851CF61BB1196FE365C7345E81BBB2E54D1CFE4EC6B8D8C6449":
             case "02A80631AA4650D14A850FCC019C51326ABB691B0A03D2D02354AE9A93682C21":
             case "03046D41D95EF9A61C83A0E70B4488A4059086D238780BA477BCC62AB59B033A":
-            case "045E67FC0B9457C8C2B3E6A95B891828200A4440C4E152CE2A042371245A5E34":
             case "047DDC3CC9CDF4B53DC7B344117B93E193DEFE61ED55CA7B31251D691C63F9D3":
             case "048234D25B059DC05C66124DB28F2CBE379FA6B79416C4359136A8652195C99E":
             case "04A53977D0C04531F9C72F4CD8E846F75A3BE8545954409B0242D02CAAF20B6A":
             case "05247F9969715C6CCEF08FA1D881249B9FD998E26B5487677866639346A564F7":
+            case "06AB324486A060127C175B6BB60789B28E37BDB6968285D770DBD5BB7BFAA5A7":
             case "06AFC56025E1D20BDCC7CA5BF10D454BCFCCAF1379A1DFB32DC5D87A380E9288":
             case "074C7F8F4FFCCF09D56A030D2D287AB55FB77A9887B0D5DB427277429E5DC0D3":
             case "0787DBE6F64CD3548A0AF49AD1BFE6C05EF96FB4E0D79847477142F673485868":
@@ -2265,6 +2265,7 @@ public sealed partial class NativeRewardScriptGlobals
             case "12979697C30BC388830F41E15727365E1BC381A9225C10821B1A551A494E8837":
             case "137D66F8975F5A1876FA5035F2D84EAEE08C527A884F9A7DB68E4EF38552A02A":
             case "1506619F3F6120519C8B63E1A52B6753FBA79B5AF24BA9B20197F4657204537D":
+            case "1533543845CF179AF63E9AF60CEE4519DFD1B38A1DFC8D173F52B213E99BF228":
             case "1568CE7D1341DA338B362365F9EAF2215261ED9FDC7140CBBAF03C8F218322B2":
             case "15911ED39AC1E37D78AD2EECEFC24E157A6A37A5E7A693D33BFCB3B65846CE5D":
             case "15F0D5A1A5A2C973D78AF4EB49463B7BB44326D90815E2457068DF1FA8FA3BFC":
@@ -2279,9 +2280,7 @@ public sealed partial class NativeRewardScriptGlobals
             case "19B762E6779350460D8D474C3ECE9D0867D664C042242364F161E99E97EA2D2D":
             case "1A218F3B26E9E164B902412916A1D5C756D399D39EBA6A0912DA1B4C61227A8F":
             case "1B4B4F1323B11CA0464160C5539B563418E3ACC4C34529BFBC9C6ED02C6D1B24":
-            case "1CF2FB796FB2F2979CFA458600AA65090EA06CAC9C5777D1BC05CB7B2E631B4B":
             case "1D4A135A3C61AEFE6252FC001E0A7A49911CE9A959FD91BA842E56C3AEAEDB23":
-            case "1D6B5C00CB4CF9068B80E15DFC335FD077E1FB9E7DFC7D8EE462CF283D925993":
             case "1F7FE1CB65ABEE85DA539D0F14071DE0E377F5751D8572481AD4CF00A802F953":
             case "1FAEEE51736F5DD4D8EB87AE084581694E3AEE998DCC5A8E63C6C0F4CD4B06BD":
             case "20780BCE5C7E02F755EBDECE0DF3B9D0679C4C454B8B1A22FF5DAFF9C70058CD":
@@ -2310,6 +2309,7 @@ public sealed partial class NativeRewardScriptGlobals
             case "293CBBFFD5DDBF56219B3F426265460E87B1F7439EB92B488C54F354C536FE0E":
             case "2959C9D4877C19B1A7E0D9DC94F424F83A705AD895BBDCAE54E4D782F98C8B23":
             case "2984830D51FD4C61684F110DD8636C4055F23080F4C609730724C5D9A6F82103":
+            case "2989A63BB596B4BBB7E86C37E68C0B88F171830ECBA64F3459EA19E1F750C9C4":
             case "2A397E4CD9E320BA04231F6599B04E137CB7122E87569F27B02BFD8C5C0C2985":
             case "2A96934990E2E6914E30AA46CBD0BE5EEE7E23EB48FC17B855DD360FB82A33CB":
             case "2BA5D434FD825377F393E313C4710EE9C78A30E37E43BF13EA6F1652A93A8437":
@@ -2324,22 +2324,24 @@ public sealed partial class NativeRewardScriptGlobals
             case "2F3281A220F133CDB598849454E9AB5A9B7BA4DC078AB5E9FB37BEE42733D704":
             case "30161A6356EE932C69874E0401B4AE0E914F900EAC3E6B24F59270C7D131568F":
             case "30F511D033DB1BA36390640891B1F1E6ABDB798136FE614F9CAC4496E0B31463":
+            case "318ADA196B331628D80A1A19A93D4CED542C6CE71416F622A31C58CA9E96D775":
             case "3199875D727D8511D5AE3FD5597E67B5A398C82BB200B20CE85D0A801B436A4D":
             case "31BF9E6D9E96B12EEEBEF16FC6B1F3E436690307DCFDD4DB66E89FDE8259AC43":
             case "31D5AC66DFC6AAE88693FDE56FCB02E4600494CEF477EACEC2AD5AE0748C43CD":
             case "32AC30C701060843F9484FDED785988CEEB284ADE20E11562451C1F366CFB8DB":
-            case "331D3A9793DDD6FB5444527F7124ACCA1BDC0E4087AB1475EA574D6ED7F881C0":
             case "334249F8BF6F8A6ED6C05C36CA5407FE81C512F3948B9F82FF8C748B78AE7F2B":
             case "33A17AD22AD6D02543F6C3BCF7A5F9077E0C25E36F194B1F1F38961DB323FEB1":
             case "33BBD5D19A5E017DE162501BC26411282836C4045E5D085CC19587F664E95829":
             case "33BE4AE840EB0FC2C267B6F07CBFA42264AC701CEDAEF825886542A60B4BAB1D":
             case "33E3E9D14960F1BD687FC13D24632A9F0BBA90BA398BC79BCCF5856E6A85ACF6":
+            case "340CFEB27D3F9A6AAED13EC07E951C16E78E222D05D409F1B61E26688E4FD93F":
             case "34633187425D4BBA989E1DECBD8FA9CB4770B8D21C56D1A0BAD536B6B18B0803":
-            case "347F689D11B20F182D6ACCAB1916B6C4CC01B993888B1B6FE0C892650CB98BE9":
             case "3487CB279FE1092D08614FB4BFFA5FFBE1CD19F42F74A0469DACB6815CD74719":
             case "3524C11D3F79ABC0753B704B89B3FCB3A112526C8D3927ECC15A1040A0F97241":
             case "353FE9254DEAA974AFA2445B8DE1555278F800EDCC9378D7385F7FA688EC2BAE":
+            case "366370604A0A076ECBD947ACAA38C1C0BD7003EE8A8B1481EBE2C2D136FEC12B":
             case "367D854D35B99F3A80DBA0118F285BC565DC6F1C795B4072021DD8563E1730BE":
+            case "377EC780AEF6815F3B1594D3CE578A2CAAA056EC95DB419F37D2D3F6CD451DB2":
             case "38FC32308AD7E8980BD2C9A960F3BFD758F307A2186878DEFFE98142458CD3A6":
             case "395F92AB9C4D22D51EC9131D43BDED630756B3774EA2EA76C0317BA06B2A801C":
             case "39B43BB2908CF4986E25D6F133E4103ED4C6A4FF99180F49F243C00E4E31F34F":
@@ -2354,7 +2356,7 @@ public sealed partial class NativeRewardScriptGlobals
             case "3E874387B307C113D7EC524CB42CC0FC602786A2159B2EF77F1C8BEA4E6647BA":
             case "3EE7AEA0307C819A523421234B8D533F50C2252F3B0557E3346A50EC2373A95E":
             case "3FB6E7FF60E5E9C8A54AE9FC10DA6C77A889060F76F1DE4EFF694143EE954B74":
-            case "41006C61C28E5F77E8C448FB30FD3F0267DDE4C3F81FC573E672B22F9E966A9F":
+            case "40099F217C1F0AB1FE34D785E0EB9C6C683993B5D28E124D5B6FB722C148017F":
             case "410ACB41D0ED8AF3B711B4720BC489F3F3C1CD56149CBA413812175DF1C5DBC9":
             case "4148DDDAA9E33EBBF81A155DE59844EBAFDC714E5E9DBA43BE368C8757EC72D6":
             case "41931A522F32B85A54135C1CB1B73F436D957095264357FF9F9F989CC155FBD0":
@@ -2385,7 +2387,6 @@ public sealed partial class NativeRewardScriptGlobals
             case "4AE74F31778F94811F4946D2C8CCC6439AE2E87D3CDF53F4F564D3612FC4D458":
             case "4B1B2096680CFF1455464E0E0E64D971A8BC3AC9C0A689D64D12561747EE4F27":
             case "4B77E9C2BE8DC1EC8AF79F333CB590336ED2BFD6605C5C34EDE74F2FFBC70A94":
-            case "4C1151D1E408B272D52290ED68030BF0661645DF8B2C4F2CFB46AF16B4819A54":
             case "4CAB16879DF35A7900D3BAEC8C1E29E2F2ED0F5BA5615BBB274023F317C962CC":
             case "4CAF5810381D97DE35C6ABE48D66547F9B93FD4D6777F56957C43FDB2EE3EA03":
             case "4CDCA3143C8A1640E20FFE6193A0ECF19F6C90CDFC7C60E7CDAA4358FE6CDF87":
@@ -2396,12 +2397,10 @@ public sealed partial class NativeRewardScriptGlobals
             case "4EF1685DD68BB636BAE95D53516F639F96B045814D0E6F4541508FFA52B804E8":
             case "4F53E119D1BFA5201E768BBEEA07B2B19BB8D5B9408E2E3928CD71AD18F89CCB":
             case "4FA8842D1038C9B9C9CE470AAF553894DBD909C436EEC80E5423D1EC90290E3C":
-            case "5023E08577B3A86C09BF0418D09D2D004F923D1D5CF8C375CB5D52D254777DA9":
             case "51A1AE8A612F30DC13F06CA292FAB2233E41D5B2A62512F910E81C0C650A78D0":
             case "51FA4A0E0B68AC4FCAD96C08A84A4EE43A340E0BA13E57135CACC7FD55082FAD":
             case "52240B730928BCC3545AEF1C4BD7F97FAE3E2689F319B64A4D4D4E39ABA2754E":
             case "526F3B7293C0394321FE6A75E9BF42F436C0B5C0C26EC932AE3137899AE876F8":
-            case "52D70953B6F7C4E5AEB81F4C92B177DE2DEF734B4C73E4A2F2308AC079ECAD1F":
             case "5320057943FBF4BD9FCD0E480BB626B681257A62B28ADC8D2F8292D0B9DDA684":
             case "532F8673B57D94931C2180E6D75DD4A68892355B7955B9D7A221EF025D16D67F":
             case "539365B17649AFC1390B71948F56020939AC5AE9765CC6F6EA212573DAB5CEA5":
@@ -2418,19 +2417,16 @@ public sealed partial class NativeRewardScriptGlobals
             case "599D53B6412F84396A828AA0854AB5DDA33A60A874F5A8E9ABC7F5F57655BD6C":
             case "5A4DC731D5B53EBF40CA8E15FF76E1FCBDBF87B7ED85A23251BA62109B3B71D0":
             case "5CA2B2F6CBCBC23DA3269FEB176362170CB4A80A260EBDCAB7A0B2CD1CC42D6E":
-            case "5D08B52C10DDE8F2B1853EED96DA6F60B120A36C4DA3243A22D3D0E1EE3DBEC9":
-            case "5D829587E0D0985AE1306C4A0BE13E57F04793CADEDCCC9C1A7EDE362982BE6C":
             case "5DE8DCAB5368EA13D101485E95EB0AE9202C70A5BAC0DCFE1EC5641D7E369045":
             case "5E47B7C709993B5DA3646648119D72480E97C1F901FC8B5B884952AC029CCFAF":
             case "5EED0233C55D9BC22FFDB90B55E2B4B3248FDAE75072EC09DC27E54AB1D0A126":
             case "5EFC37ACBC265E2FF442A627977399729084CBCF71BB9045ADA57533412CE5BF":
             case "5F1468C2B859419A409064D9E020088B3B88F599F1C7473320C2250846C4FCB7":
+            case "5F24674B9D2FE574BFA6DC2419A637E65E7B0F1821D09E3F1BE637C989B33463":
             case "5F63E3A38513BFD3CC0EA004963E348C2D0C9265CB8037DC5639828361DDE583":
             case "601DEA7CAAD4FBF80FF2F4C88E7B93A94B9616FFC47D540FBA561E0969F357A8":
             case "6076864A40276CC52179E45493BD32947F8ED3386A56014F7097F0872B2E7E44":
             case "61B27F709336B0F86B3D8B6EFF97BBC81A46191542E19CE83713824CE923FEAB":
-            case "62516D3BDF38496925CD0C98283E4C1C4B201D98621C74D43ACD45972AFFC530":
-            case "627DB2091706568F354E2C2CA14C7F9C1364ACAFE954675D33C9663799B8ABAC":
             case "62BC8E65005EC94B44F3F55ED73621CC99D7DD6B5B22627F35129672494DE7F9":
             case "62CEA35738B49B33DFFE402BB10EAFA361490AAF3C174166D492CEE7CDF8F9D5":
             case "62F767796025ACA9085FCA214A1DD1251D2B7EEF81BD1C3657520D7A68DF0706":
@@ -2444,6 +2440,7 @@ public sealed partial class NativeRewardScriptGlobals
             case "6428E5241F6AD9F3B7282A91E1743D0058B84B2A633B2D74D523E7CB0999C83E":
             case "645ADDB001EC4672D64799E4700FF6AD5E2970322A3264A7A2FCBA5264B57BFA":
             case "65027B1DBA53F789C9968D247713675EB7D2249E3433FEE201C95CDDE30C0472":
+            case "65C05A651084936CDAB296988C062859B1A1A7CAADD311E48F50E271C3611914":
             case "669AD17DFFEC682A103BAF0698D9C82D38A858E78053C9814A8F993C65A2B0BA":
             case "66C5CEEE0469913B222424F54C69DB71CFC4CCB9159CBD3AA70AC689A5C64D63":
             case "6833F779D160767F658E9D4BAD2AE2D2D401E8B9B516B22D801D8E41D0740EA8":
@@ -2485,7 +2482,6 @@ public sealed partial class NativeRewardScriptGlobals
             case "7337A1482093053740AC00CCDC3D9E8F15F060565B822561EB9C0DAEF139E3F5":
             case "733D7C4B72EA50581077D5C0C6DFF6E44881635890811A013968020ED934F07A":
             case "737F251B7E3B577D59A10DEE1D1201B8D18952DB8E5801750D372C2F14154303":
-            case "739A461FEBC41152042320DB3ACC099463D7C1D2687955C87C50E1EAFF41FB24":
             case "73E7FB85478D3276414954E063640AF98B72E74D4D73771EADF8714E072FF83D":
             case "73FA3C3B611B48046F9C0FD3AD38353D276132305AFAA6CFFEECFFFA4FCA69EF":
             case "74B0E0B26400C39E7AAF6B66802598BF25711BB9140F8BB75E307F3BBFDFAD6D":
@@ -2497,6 +2493,7 @@ public sealed partial class NativeRewardScriptGlobals
             case "771922935B816AECD6CB955B8C2D864251FDD5AAE206496C368E68963B8F244D":
             case "779A72CBCE4E4878AF76F5935DF21BFCD0D3A3D7E4B94330F281739C26987610":
             case "78EEAC1B94955EA99057B963C722D4C23CB6C546BAD3B9BEA15C15E2C5293685":
+            case "7917A82E681E92EA17675943EF482AE934BA9AA2D9E78FD4230A8EF114A2D13A":
             case "795A9528F308AA3D15BDF333D7938999CE3DEA35D75378915A01AB6FF4834FE3":
             case "79F43EA3FA6236A77DF430738359DF3CDE428FBD9C19FF3A6F9FDA5BDFB5885A":
             case "7A7B32EB226FD7D4FF8F7D9320E3241C226AC68A8AA11BC02D22E8EDED655E82":
@@ -2512,9 +2509,11 @@ public sealed partial class NativeRewardScriptGlobals
             case "7CC98A27D9A589F0A22FFB89A094C84C19E1AB9CBE2957402CD7098D32BFD685":
             case "7D7B8AFACE1214F3F06BB44B78DFA6584311053808387906A76C4FA7398B9875":
             case "7DD3C1C75B1A70D3A31CBEBED04B42E3A1C16F37042AE308202BAE1B0A314FEC":
+            case "7EA2C6A6B632C8A513D95EEF9C49DCE32FD9DC69A2C52B185193D222D85DEEB4":
             case "80A0AA3032D71361221A0813D34AA244183E01E76733812CB9DCD1C98552E8AB":
             case "80C3D77B8B19FE8B1EBFC99B99E8720BC8A5B25F84370EF961A9D47F49354CBB":
             case "823C1B6CDBB80CC3EE273E92AC267313F87F58F5DD8C5C747101AC2135FFBA22":
+            case "82B1AB438CCEB61D8310571C53C4F5E476B82403D6C844F3ACE59FBBBDEAAA17":
             case "82D7D3CFDA117CF9F8FDD7976D0D006F36EA38B650E1FE1A8534601A5B20CA14":
             case "834CA8115AA73515EF7109C820695C913780F889B534713F91A2E8390BC3AB12":
             case "839F02F69DAC89D418D01E854EE7B18E43C6D297F5242C20129ABA79BD7DE397":
@@ -2524,6 +2523,7 @@ public sealed partial class NativeRewardScriptGlobals
             case "85D6E391C622EE17D61ADC916FF6DDB1BA978B81368073640C2EAFD0DFA38F9D":
             case "860A9D52ED7EF01A5A29AA5DC50355BB2315C84BCAD1BD408020B4AA97A5ED19":
             case "8622E60E4081B54AE462D8252AAB448D7A38B83E15FF16B0BA3EE71D3FF66CE7":
+            case "86F88216BCFDC87F379AE731B7FBB579012831E2ACB5371EC0490EFF8169BC33":
             case "87224F8125580CCEBAD730CEDF0D63C4CAA216771566BCF4058FB5E1C7EF50CA":
             case "8735371EFEE8E19D80A4186CF90EA2B8EDEB0FBC030AEB98A30A58BDBF92B6E5":
             case "875C2B2FE33968FC7126B0E1EFBA783A34E0C809B8C7EF968053F5D986403EA8":
@@ -2531,6 +2531,7 @@ public sealed partial class NativeRewardScriptGlobals
             case "8825028569B35188762162CA55C796A3C3EB254FF41C39E36D9AC85C78026891":
             case "883AB4BD4517E1A76F8825C35B74F6FB376BF969740E80FF4D8E8AC34C49854D":
             case "8899EB1745900B88075387C40AFCB1C72DF0DC9423C9747023CE6405A9DA5EC7":
+            case "88A2FBB0F293108535CFA3C7FB136DAB9E9D77DD13FC44A7D7C395A6368089C5":
             case "88E331C0395820FBBB67F6BD66F6BC352EC019608985525BA66754A7FB218757":
             case "88E7793D413982BD3E7FC26685F9BF7047982660BDEE967D633A34A430E2DDBD":
             case "899CDDCFBBDFD60FC678FF405F3AD0B28C658CA0D686C0DFB2509D57ACF53C28":
@@ -2542,11 +2543,11 @@ public sealed partial class NativeRewardScriptGlobals
             case "8D417B36CD9DAD6136CD66FB4EA2CCA9546A2582415875248E3E6CC677AD8228":
             case "8D860DC70762B9263B10B2687C4BD4014E40712BCF07E598E1ACA0F9EE52A714":
             case "8E2F63B0AB4A1E51D4C12712DB8F3DC98CE1C1BD0F5D0526D1A5D6B9B9007754":
+            case "8E39DC8EEB71E5C908E30DDB1775B2DFFC755CFA72A96B76C0185C36072007CA":
             case "8F59D5F773834987DC31EB84D901389B58FA8AB538F47327AC44CBEE686B81E1":
             case "8F9638AE6C365858B0CA97DE82670824538177840605476D6C922EE8C0B412E6":
             case "8FDA3CA774BF3C7F5FF3986D6155F91783C20D0D5EC73D15A451CF82D0188552":
             case "904B996B4576BD8AE659139F8736CF6A09EAD07D7676B2ECDB020C503AADA0DA":
-            case "90DC55867E6C6B6DE34B8CE1D714DEE341AE90C56FA73FFB68E59A1091283B45":
             case "90DF62459CFCD2BC522D44C25739730FCB2805A76E7FFC09F613DAAEF40C4321":
             case "91AFF4B8A8E067820B2CA6AD9028A25E6ECE3C61C4CDDB626561AEA0931B1256":
             case "91B2067A21AAE57A9741342CF464305C61CF3791A78BFFB0A466CA0B37D7DC41":
@@ -2560,13 +2561,13 @@ public sealed partial class NativeRewardScriptGlobals
             case "97B3F2C54E378C83FB5F723033AE1AFDF255EBF17CE452B5A98546D356F7DCCF":
             case "97E6671CCAB3B7883D0F7EDBAC9CAD3957B54D14360E4D2EF77310FFDFB4A7CA":
             case "985370849D75A1DE98DF04E99028AAA404C7FA2FAC77FAEFF3FD3D62BF8E8525":
-            case "98575B74AA8A1497F4EDE7277AEA122431291445A064BEFE70705149ED74E0DC":
             case "98B9799C925BCB823DFB24DAA0CA71BAC339632B1E67EEB19DD9FD95412978D4":
             case "997C596E9B627E9F44394E60972C08450594D444A1E43E44712350E40FC762DB":
             case "999CF5820C79E6B719604C6EF3ACB57CF86E103F0AC563F7220DD938771C1D75":
             case "99A2E014865F715E2969311FD0F75109658D7CF8ECC28CBB7EEDBC324B38D4F5":
             case "99F57ED96CE1182BA6D1864114E23A231231C43B1481B8E3AA694EF394FA8308":
             case "9A1DFBA9EC9AE7DAAAA6B47F049C3F95767C7CCEC94CB82AEAEDF3CC637659B1":
+            case "9A69FF9B350946D77E315B87A46B9DE928FF485AB2213807A075CB79D9828973":
             case "9AF3C20AB87711F748523709A638A2914C5D3550EFCB6DAE594FF160D2CBD57F":
             case "9AF4D3548C4F348CB694DF509B1B789A1E33161FAA262D6D339F6E92BA3E1271":
             case "9B1C04599D08E7C353803E0C67B5EA0F1F07E861FAC29BD5EA5DC6DAD9E43476":
@@ -2606,6 +2607,7 @@ public sealed partial class NativeRewardScriptGlobals
             case "ADAEA89E41A3B97512F000D753EC4375DF7F2D24B112A4788A75D64201BA781D":
             case "ADFF276760484CC8050F548AAFD71AC5DC2DDA5DD716250A4646A69E898005EA":
             case "AE3D586C6C60B2D77956CF92CA2BA46FF6386E4330F06EFA862FA74CEEC278D3":
+            case "AE416C21BD3ECBBCDD8D026BC251C4870B3D97A3820A8342B1C2B9BE627E6001":
             case "AEABB989F43CDDE00297F9724C4E27520F9558C70B6CDD4F79959687CFC102BA":
             case "AF070DB059F1B1D6405C185987B29F91128E522E523A92BB76D2912AB5C67663":
             case "AF25E3A0403B2456BDC29668FDA6255F53A4B87C4A0DE0FF555228475F81609F":
@@ -2634,6 +2636,7 @@ public sealed partial class NativeRewardScriptGlobals
             case "BB228AE72946701468C9BD06150C9619F2D763C2000398384FF286016A2C2711":
             case "BB41BC45C8D5758F995FD154D66660921DE10CFE032CA2557D420C75FE428697":
             case "BB546E528E8B2B8FD01E30B3A16B3B28899DD2998AE19AC80D3D49FA8C80F7FC":
+            case "BC25DFA5018FF5832E463A14E5BD3F6DC3443F6C7E05C7DEE0D0D1070CF6C7E1":
             case "BCA388CB69517FF23A27CB1E729786758C320FDEB8E0631D79E04F5E14D5193B":
             case "BCFE16D61925753F42A5B1C4D43D722DD62932C88B49150C2F0FD256E08E0672":
             case "BD09D5CC3DB935BC29BEEC993787FAD487F8B0618F9FC79E81CF5AE0B698DBAD":
@@ -2643,7 +2646,8 @@ public sealed partial class NativeRewardScriptGlobals
             case "BFDD68F9B1C1696B48E9E0F595BAD70C715997FF127CAFE9BC5B7BCA69A4B8BE":
             case "BFF1F8F266B38F87B0A5C10F8CC89CA8F929397809D871C02D445B49D5E48E1F":
             case "C00323D6131F9A375B0E82DFD36492A111C551D621C8F52E39E74DED56BDB1DF":
-            case "C12A76ED08C45A12BA81312488A84D6E41078E2745C0635E3ACD085D3F31A8D8":
+            case "C13C60D3557DE856D78EFBAB9C83117498BA0CDAA095A029E18F3A589E3982B2":
+            case "C1AAA2791A774CCC23DA10BEF47FFA6534E31C4B21E0DBB90F2A4C87E6B05A8C":
             case "C2301AEC927B037F29D8D4FAE9310758021FD783642263CC74500A0CC0F895E7":
             case "C3C40A17480C237F6A058BDE3FA7B084F3FA173F67786558CFF775054F008171":
             case "C3EBCC52B257417A17DC4CFC18F5216B619B167C84891DA7F1C44F8BFB0D32AD":
@@ -2670,16 +2674,15 @@ public sealed partial class NativeRewardScriptGlobals
             case "CF5E281E33BCE5EB5E068CB9957C1D02AA83D5E0A4926F31776BA90C036CA849":
             case "CFD6103183B13A777E7FF3E1274F8A7AD73E571F7EF12786E40F65DE0F3C8360":
             case "CFF2CBDFA2A1118DA2FB8483C0EF29EBB43BB0F5BFE99504E51B8B9A2EA258FA":
-            case "D01B9DD3E45AB42A8D333AAAB6777BD88ADF414CE42102650A270A02FC1D1A1A":
             case "D0838FA424BBDB91C4A362032B4CB764082D9BA8B926A83F593811796937F96E":
             case "D0AF795E3B426E38AADF5FFA67C36FED8D17F5E664EABE1E60506CDD8B40704C":
-            case "D0D3D5ABE8C1ED55108ABBA9576EAD2A3F7F36D3726C801B0C0718DFAFE478F9":
             case "D106FEF22936054EFDCB17BE9DD06301562B9D32A42EE3684A279D36B2509ABB":
             case "D3818EED49B9F40A66FA13FCE37E6B7563DE52568CB9200F8A01E212C112530A":
             case "D45317120BE70C53E323153BB620410E2EBDA37669B1854E45623EDD8CB6F9CA":
             case "D48FB91607C2EFF4F6C38522B832AFCAF037AB605B1873D445BE25C19130EB4A":
             case "D4A1D878CFCF24E5A947E376ED324E302DC43EEB00EE495164C7F62EF8211A38":
             case "D70C9E796AA8DFD64F08FA4AEE8985B72AF07D5ED35DB91AE8FE74F8F92A7CAD":
+            case "D711780753FF0CA1FE0F0D2E0FBD6734F0F9EB60F4DC8B197C837D9E6CD7C9C7":
             case "D74CCE19192D0B81328A51B7E458419702C96D943815CB5369A9FE18E6906ED1":
             case "D752F3CD2611AFCB7774246A15A0B2374B2681907D416A584C1354F9211FC8BE":
             case "D77B8B6129C807841B05F9E7539B9A9B469FB1E9E1E77620AEE1A6402EE1EDDF":
@@ -2703,7 +2706,6 @@ public sealed partial class NativeRewardScriptGlobals
             case "DDFC9E471A300C5908E9E5A8387AC89B516DE375E001D023C1323B933D11AD64":
             case "DE8213483384E8BE1F59E9AD03137BA790E400656C213FEB72BE3AD20FB27CC0":
             case "DF01E067FF2D3CC18BFBBDB9C626F727CF10F20257E12066313135FDF608A66F":
-            case "DF4A16298030793D92A798615F679A17EF4E919658A3EB952CE4C6EEA741B7B6":
             case "DF9B1A1BF2AE1725502E624387782060C209B9C29A22AE5884BE2B35C28B8A9D":
             case "E0CD2E68567AE88FAB86E629482301EC7DD8510E7FFFD38E1780C18F75B5FCDB":
             case "E0DBFC729338CF560AD1CE9CEF034BDD5F454E34E78E2E0908141A0B5E275C25":
@@ -2742,7 +2744,6 @@ public sealed partial class NativeRewardScriptGlobals
             case "F32B2281D49DD68905EDA055ADA5728AD1D6CF3824B1CF71B93713A526F0E482":
             case "F366EDD520BE0EB643F9B4303FA04EC21CD14196496B3D5F420949BE4EC2D866":
             case "F3C248502975CD7992BAC63179738BDEFD48F24F842D9D25AE1B551319404F72":
-            case "F3C8EC9ECCFEDC3EF0AE3F494750175389068780035245DBD52BD01CF1C5A34E":
             case "F3E352ECE2CFD9B53FF2B42352E62ED3DEB3A7084B674625FE0399A40E1D3375":
             case "F3FBF62F59C05AF7B3A067E56DF0C9145508501EE760210B53282E15F7638267":
             case "F4196E77DB39430A7CD4197DD41E68ADECB61250F815609A02DF1094EBA820C6":
@@ -2781,7 +2782,6 @@ public sealed partial class NativeRewardScriptGlobals
             case "FEC3264BA432FA115BFFF4F1D17724DAA4AD72B736EAF9CDD79DF22FF68A1C8A":
             case "FEC6D7BEC8EA816013C689EF2664DB91C099AE424B18AA125298B17D3C6DD5BB":
             case "FF4072359B3B96BF17C0335001C2EE0EF2A6490D7D25F3E265C6EACBE59B4DF4":
-            case "FF8D0C471558C78DB7811DA8E48252246746B207E5194CA9A68C61E02729AF66":
             case "FFC844F2BDE206366A825D538B0B71E1C3FC12751A627865819F951C7836AD5E":
                 return true;
             default:
@@ -2806,84 +2806,10 @@ public sealed partial class NativeRewardScriptGlobals
 
     private void NativeProgram_0003()
     {
-        if (DeckCard == null || DeckCard.Count == 0)
-                {
-                    PlayerInfo.ShowCaption("Your draw pile is empty");
-                    return;
-                }
-                if (!PlayerInfo.SkillTime.ContainsKey("careercard_9"))
-                {
-                    PlayerInfo.SkillTime["careercard_9"] = 0;
-                }
-                PlayerInfo.SkillTime["careercard_9"] += 2;
-                PackToDeckAction("1", DeckCard.Select(x => x.dataConfig).ToList(), (list) =>
-                {
-                    if (list.Count == 0)
-                    {
-                        PlayerInfo.SkillTime["careercard_9"] -=2;
-                        UpdateSkillTime();
-                        return;
-                    }
-
-                    var selected = list[0] as NativeRewardDataConfig;
-                    if (selected == null)
-                    {
-                        PlayerInfo.SkillTime["careercard_9"] -=2;
-                        UpdateSkillTime();
-                        return;
-                    }
-                    int expend = int.Parse(selected.data.GetValueOrDefault("Expend", "0"));
-                    int rarity = int.Parse(selected.data.GetValueOrDefault("Rarity", "1"));
-                    PlayerInfo.RemoveCard(selected.InstanceID);
-                    BurnCardByData(selected);
-                    string TargetId="";
-                    if (rarity <= 2)
-                    {
-                        if (expend <= 1)
-                        {
-                            TargetId="blessing_43";
-                        }
-                        else if (expend == 2)
-                        {
-                            TargetId="blessing_44";
-                        }
-                        else
-                        {
-                            TargetId="blessing_45";
-                        }
-                    }
-                    else
-                    {
-                        if (expend <= 1)
-                        {
-                            TargetId="blessing_46";
-                        }
-                        else if (expend == 2)
-                        {
-                            TargetId="blessing_47";
-                        }
-                        else
-                        {
-                            TargetId="blessing_48";
-                        }
-                    }
-                    PlayerInfo.AddBless(TargetId);
-                    NativeRewardDataConfig newData=new NativeRewardDataConfig(TargetId,NativeRewardDataType.Bless);
-                    PlayerInfo.ShowItemShowUI(newData.data["Icon"],newData.data.GetValueOrDefault("Name", ""),newData.data.GetValueOrDefault("Description", ""));
-                    newData.scriptExecutor.Self=Self;
-                    newData.scriptExecutor.Object.Clear();
-                    newData.scriptExecutor.Object.Add(Self);
-                    newData.scriptExecutor.RunScript("FightScript");
-
-            },1.33f);
-    }
-
-    private void NativeProgram_0004()
-    {
         Vars["BaseScript"]="CommonCardItem";AddDescription("1","Value","95");AddDescription("2","Value","10");AddDescription("3","Default","1~10");AddDescription("4","Value","20");
     }
 
-    private void NativeProgram_0005()
+    private void NativeProgram_0004()
     {
         SetStatus("Self");
          ChangeDefence("5");
@@ -2892,12 +2818,12 @@ public sealed partial class NativeRewardScriptGlobals
          buff?.effectList.InvokeLast();
     }
 
-    private void NativeProgram_0006()
+    private void NativeProgram_0005()
     {
         Vars["BaseScript"]="AttackCardItem";AddDescription("1","Damage","12");
     }
 
-    private void NativeProgram_0007()
+    private void NativeProgram_0006()
     {
         SetStatus("Self");
         ChangeDefence("8");
@@ -2913,6 +2839,28 @@ public sealed partial class NativeRewardScriptGlobals
                     buff.effectList.Add(item);
                 }
                 ChangePower("1");
+    }
+
+    private void NativeProgram_0007()
+    {
+        List<Dictionary<string, string>> list = GetcardsByRarity("3", "3").Where(x => x["Type"].Contains("技能牌")).ToList();
+                int count=DefaultDice.WithRange(0, list.Count - 1).Roll().Value;
+                var newData = dataConfig.data.ToDictionary(x => x.Key, x => x.Value);
+                newData["Id"] = list[count]["Id"];
+                newData["UseScript"] = list[count]["UseScript"];;
+                newData["Description"]= list[count]["Description"];
+                newData["InitScript"]= list[count]["InitScript"];
+                dataConfig.ReplaceData(newData);
+                dataConfig.Vars["Usable"]="1";
+                ScriptDict.Remove("UseScript");
+                ScriptDict.Remove("InitScript");
+                foreach (var item in HandCard)
+                {
+                    if (item.dataConfig==dataConfig)
+                    {
+                        item.DataUpdate();
+                    }
+                }
     }
 
     private void NativeProgram_0008()
@@ -3242,11 +3190,16 @@ public sealed partial class NativeRewardScriptGlobals
 
     private void NativeProgram_0032()
     {
+        SetStatus("Self");int _rg=(int)(15*Self.dynamicVariables.GetValueOrDefault("ReturnAgainGainMultiplier",1f));if(_rg>0){AddBuff("buff_ReturnAgain",_rg.ToString());}int lv=Self!=null&&Self.GetBuff("buff_ReturnAgain")!=null?Self.GetBuff("buff_ReturnAgain").buffConfig.Level:0;SetStatus("Target");Damage(Math.Max(1,lv/4).ToString());var t=HandCard.FirstOrDefault(x=>x!=null&&x.data!=null&&!x.data["Id"].StartsWith("ReturnAgain_"));if(t!=null){t.TransformToConfiguredType(CreateDataConfig("ReturnAgain_9",NativeRewardDataType.Card));}
+    }
+
+    private void NativeProgram_0033()
+    {
         Vars["BaseScript"]="CommonCardItem";AddDescription("1","Defence","10");AddDescription("2","Value","8");
                AddDescription("3","Draw","1");AddDescription("4","Buff","100");
     }
 
-    private void NativeProgram_0033()
+    private void NativeProgram_0034()
     {
         Vars["ThisGet"]="0";
          SetStatus("Self");
@@ -3269,19 +3222,19 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0034()
+    private void NativeProgram_0035()
     {
         Vars["BaseScript"]="AttackCardItem";AddDescription("1","Damage","6");
     }
 
-    private void NativeProgram_0035()
+    private void NativeProgram_0036()
     {
         AddEvent("FightStart", () =>
          {  AddBuff("buff_elements","6");
          });
     }
 
-    private void NativeProgram_0036()
+    private void NativeProgram_0037()
     {
         SetStatus("AllExSelf");
                         var tempList=new List<NativeRewardActor>(Object);
@@ -3292,12 +3245,12 @@ public sealed partial class NativeRewardScriptGlobals
                         }
     }
 
-    private void NativeProgram_0037()
+    private void NativeProgram_0038()
     {
         AddEvent("Resurrection",() => {SetStatus("Self");AddBuff("buff_immortal","1");});
     }
 
-    private void NativeProgram_0038()
+    private void NativeProgram_0039()
     {
         if (PlayerInfo.Perceive<10)
                 {
@@ -3305,35 +3258,35 @@ public sealed partial class NativeRewardScriptGlobals
                 }AddEvent("FightStart",(() => {SetStatus("Self");ChangeDefence("6");}));
     }
 
-    private void NativeProgram_0039()
+    private void NativeProgram_0040()
     {
         SetStatus("All");ChangeDynamicVarPercent("PercentDamage","50");ChangeDynamicVarPercent("AttackedPercentDamage","50");
         AddEvent<NativeRewardActionData>("Action",(data)=>{SetStatusById(data.Id);if(Object.Count>0){ChangeHp((-Math.Max(1,Object[0].MaxHp/100)).ToString());}});
     }
 
-    private void NativeProgram_0040()
+    private void NativeProgram_0041()
     {
         Vars["BaseScript"]="CommonCardItem";AddDescription("1", "Defence","5");
                 AddDescription("2", "Draw",(int.Parse(Vars["ThisCount"])+1).ToString());
     }
 
-    private void NativeProgram_0041()
+    private void NativeProgram_0042()
     {
         AddEvent("StartRound",() => {
                     AddBuff("buff_evergreen","3");AddBuff("buff_extraordinary","10");});
     }
 
-    private void NativeProgram_0042()
+    private void NativeProgram_0043()
     {
         SetStatus("Self");ChangeHp("-5");int p=int.Parse(Vars.GetValueOrDefault("ThisCount","2"));SetStatus("Target");if(Object.Count>0){int v=Math.Max(1,Object[0].MaxHp*p/100);Damage(v.ToString(),"True");}p=Math.Min(18,p+2);Vars["ThisCount"]=p.ToString();
     }
 
-    private void NativeProgram_0043()
+    private void NativeProgram_0044()
     {
         Vars["NegAddCount"]="0";Vars["GainCount"]="0";AddEvent<NativeRewardAddBuffData>("AddBuff",(d)=>{if(d.data==null||d.data.data==null)return;if(d.data.data["Type"]!="负面")return;if(d.fromId!=Self.InstanceId)return;Vars["NegAddCount"]=(int.Parse(Vars["NegAddCount"])+1).ToString();while(int.Parse(Vars["NegAddCount"])>=5&&int.Parse(Vars["GainCount"])<10){Vars["NegAddCount"]=(int.Parse(Vars["NegAddCount"])-5).ToString();Vars["GainCount"]=(int.Parse(Vars["GainCount"])+1).ToString();SetStatus("AllFriends");ChangeMaxHp("1");}});
     }
 
-    private void NativeProgram_0044()
+    private void NativeProgram_0045()
     {
         SetStatus("Target");
          if (Object.Count == 0 || Object[0] == null)
@@ -3366,47 +3319,9 @@ public sealed partial class NativeRewardScriptGlobals
          PlayerInfo.SkillTime["careercard_8"] +=5;
     }
 
-    private void NativeProgram_0045()
-    {
-        Vars["BaseScript"]="CommonCardItem";AddDescription("1", "Draw", "3");
-    }
-
     private void NativeProgram_0046()
     {
-        int check=CheckDice.Roll().Value;
-                bool failed=true;
-                var cards=GetcardsByRarity("1","3");
-                if (check>100)
-                {
-                    failed=false;
-                    var tempList=cards.Where(x=>x["Rarity"]=="3").ToList();
-                    int index=DefaultDice.WithRange(0,tempList.Count()-1).Roll().Value;
-                    string tempId=tempList[index]["Id"];
-                    var tempdata=new NativeRewardDataConfig(tempId,NativeRewardDataType.Card);
-                    tempdata.Vars["TotalExCost"]="-99";
-                    CreateCard(tempdata);
-                    check-=100;
-                }
-                if (check>=60)
-                {
-                    failed=false;
-                    var tempList=cards.Where(x=>x["Rarity"]=="3").ToList();
-                    int index=DefaultDice.WithRange(0,tempList.Count()-1).Roll().Value;
-                    string tempId=tempList[index]["Id"];
-                    var tempdata=new NativeRewardDataConfig(tempId,NativeRewardDataType.Card);
-                    tempdata.Vars["TotalExCost"]="-99";
-                    CreateCard(tempdata);
-
-                }
-                if (failed)
-                {
-                    var tempList=cards.Where(x=>x["Rarity"]=="1").ToList();
-                    int index=DefaultDice.WithRange(0,tempList.Count()-1).Roll().Value;
-                    string tempId=tempList[index]["Id"];
-                    var tempdata=new NativeRewardDataConfig(tempId,NativeRewardDataType.Card);
-                    tempdata.Vars["TotalExCost"]="-99";
-                    CreateCard(tempdata);
-                }
+        Vars["BaseScript"]="CommonCardItem";AddDescription("1", "Draw", "3");
     }
 
     private void NativeProgram_0047()
@@ -3416,34 +3331,25 @@ public sealed partial class NativeRewardScriptGlobals
 
     private void NativeProgram_0048()
     {
-        SetStatus("Self");
-                var tempList = GetcardsOutLock().Where(x=>x["Tag"].Contains("Curse")).ToList();
-                    string id= tempList[DefaultDice.WithRange(0, tempList.Count-1).Roll().Value]["Id"];
-                    CreateCard(new NativeRewardDataConfig(id,NativeRewardDataType.Card));
-                AddBuff("buff_ProfaneButterflyHymn","1");
+        Vars["BaseScript"]="CommonCardItem";AddDescription("1","Damage","15");AddDescription("2","Value","80");
     }
 
     private void NativeProgram_0049()
     {
-        Vars["BaseScript"]="CommonCardItem";AddDescription("1","Damage","15");AddDescription("2","Value","80");
+        Vars["BaseScript"]="CommonCardItem";Vars["DesVal1"]="2";
     }
 
     private void NativeProgram_0050()
     {
-        Vars["BaseScript"]="CommonCardItem";Vars["DesVal1"]="2";
+        if(Vars.GetValueOrDefault("Played","0")=="1"){Vars["Played"]="0";return;}SetStatus("AllRandomTarget1");AddBuff("buff_bleeding","5");
     }
 
     private void NativeProgram_0051()
     {
-        if(Vars.GetValueOrDefault("Played","0")=="1"){Vars["Played"]="0";return;}SetStatus("AllRandomTarget1");AddBuff("buff_bleeding","5");
-    }
-
-    private void NativeProgram_0052()
-    {
         ThrowCard("1","1");var _rb=Self!=null?Self.GetBuff("buff_ReturnAgain"):null;if(_rb!=null){int _dec=20+(_rb.buffConfig.Level>50?10:0);_rb.buffConfig.Level=Math.Max(0,_rb.buffConfig.Level-_dec);}
     }
 
-    private void NativeProgram_0053()
+    private void NativeProgram_0052()
     {
         AddEvent("StartRound", () => {  AddBuff("buff_keenedge", "4"); });
                 AddEvent("Action",() => {SetStatus("Self");
@@ -3458,12 +3364,12 @@ public sealed partial class NativeRewardScriptGlobals
                     });
     }
 
-    private void NativeProgram_0054()
+    private void NativeProgram_0053()
     {
         Vars["BaseScript"]="AttackCardItem";AddDescription("1","Buff","1");AddDescription("2","Damage","10");
     }
 
-    private void NativeProgram_0055()
+    private void NativeProgram_0054()
     {
         if (Self.GetBuff("buff_counterattack") == null)
                 {
@@ -3472,7 +3378,7 @@ public sealed partial class NativeRewardScriptGlobals
                 ChangeHp(Self.GetBuff("buff_counterattack").buffConfig.Level.ToString());
     }
 
-    private void NativeProgram_0056()
+    private void NativeProgram_0055()
     {
         AddEvent<NativeRewardHurtData>("Hurt",(from) =>
          {
@@ -3485,7 +3391,7 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0057()
+    private void NativeProgram_0056()
     {
         AddEvent("FightStart",() => {
                     if (!Vars.ContainsKey("ThisCount"))
@@ -3499,7 +3405,7 @@ public sealed partial class NativeRewardScriptGlobals
                     }});AddEvent("Dead",() => {Vars["ThisCount"]="2";});
     }
 
-    private void NativeProgram_0058()
+    private void NativeProgram_0057()
     {
         if (PlayerInfo.enemylevel==2)
                 {
@@ -3507,7 +3413,7 @@ public sealed partial class NativeRewardScriptGlobals
                 }
     }
 
-    private void NativeProgram_0059()
+    private void NativeProgram_0058()
     {
          var tempList=DeckCard.Select(x => x.dataConfig).ToList();
                 var newList=UsedCard.Select(x => x.dataConfig).ToList();
@@ -3539,7 +3445,7 @@ public sealed partial class NativeRewardScriptGlobals
                 DrawCount(count.ToString());
     }
 
-    private void NativeProgram_0060()
+    private void NativeProgram_0059()
     {
         SetStatus("Target");
                 Damage("4");
@@ -3554,7 +3460,7 @@ public sealed partial class NativeRewardScriptGlobals
                 }
     }
 
-    private void NativeProgram_0061()
+    private void NativeProgram_0060()
     {
         AddEvent("FightStart",()=>{SetStatus("Self");AddBuff("buff_elements","8");});
          Vars["AttackCount"]="0";
@@ -3573,7 +3479,7 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0062()
+    private void NativeProgram_0061()
     {
         if (PlayerInfo.SpecialVars==null)
                 {
@@ -3586,12 +3492,12 @@ public sealed partial class NativeRewardScriptGlobals
                 Damage((4+count/8).ToString());
     }
 
-    private void NativeProgram_0063()
+    private void NativeProgram_0062()
     {
         Vars["BaseScript"]="CommonCardItem";AddDescription("1", "Buff", "10");AddDescription("2","Defence","8");
     }
 
-    private void NativeProgram_0064()
+    private void NativeProgram_0063()
     {
         SetStatus("Self");
                 RandomAddGoodBuff("5","2");
@@ -3600,7 +3506,7 @@ public sealed partial class NativeRewardScriptGlobals
                 AddCardById(dataConfig.data["Id"]);
     }
 
-    private void NativeProgram_0065()
+    private void NativeProgram_0064()
     {
         Vars["BaseScript"]="AttackCardItem";
                 AddDescription("1","Special","2");
@@ -3608,7 +3514,7 @@ public sealed partial class NativeRewardScriptGlobals
                 AddDescription("3","Special","1");
     }
 
-    private void NativeProgram_0066()
+    private void NativeProgram_0065()
     {
         if (PlayerInfo.SpecialVars!=null && !PlayerInfo.SpecialVars.ContainsKey("combo_14"))
                 {
@@ -3619,12 +3525,12 @@ public sealed partial class NativeRewardScriptGlobals
                 AddDescription("2", "Damage", (int.Parse(PlayerInfo.SpecialVars !=null ? PlayerInfo.SpecialVars.GetValueOrDefault("combo_14", "0"):"0") / 2 + 4).ToString());
     }
 
-    private void NativeProgram_0067()
+    private void NativeProgram_0066()
     {
         Vars["BaseScript"]="CommonCardItem";AddDescription("1","Damage","150");
     }
 
-    private void NativeProgram_0068()
+    private void NativeProgram_0067()
     {
         SetStatus("AllTarget");
         Dictionary<string,int>CardIdCount=new();
@@ -3649,7 +3555,7 @@ public sealed partial class NativeRewardScriptGlobals
         });
     }
 
-    private void NativeProgram_0069()
+    private void NativeProgram_0068()
     {
         SetStatus("Self");
         int A = 0;
@@ -3665,7 +3571,7 @@ public sealed partial class NativeRewardScriptGlobals
         AddBuff("buff_keenedge",(A/2).ToString());
     }
 
-    private void NativeProgram_0070()
+    private void NativeProgram_0069()
     {
 
          var buff = Self.GetBuff("buff_timelock");
@@ -3685,7 +3591,7 @@ public sealed partial class NativeRewardScriptGlobals
          buff.ClearBuff();
     }
 
-    private void NativeProgram_0071()
+    private void NativeProgram_0070()
     {
         SetStatus("All");
          int count=0;
@@ -3706,12 +3612,12 @@ public sealed partial class NativeRewardScriptGlobals
         ChangeDefence(count.ToString());
     }
 
-    private void NativeProgram_0072()
+    private void NativeProgram_0071()
     {
         AddEvent("FightStart",(() => {SetStatus("Self");ChangeMaxHp("-2");ChangeMoney("40");}));
     }
 
-    private void NativeProgram_0073()
+    private void NativeProgram_0072()
     {
         if (!Vars.ContainsKey("timekeeper_3"))
         {
@@ -3722,7 +3628,7 @@ public sealed partial class NativeRewardScriptGlobals
         Vars["timekeeper_3"]= (int.Parse(Vars["timekeeper_3"])+1).ToString();
     }
 
-    private void NativeProgram_0074()
+    private void NativeProgram_0073()
     {
         SetStatus("Self");int c=int.Parse(Vars.GetValueOrDefault("ThisCount","0"))+1;Vars["ThisCount"]=c.ToString();
                if(c==1){ChangeDefence("10");}else if(c==2){ChangeHp("8");DrawCount("1");}
@@ -3731,14 +3637,148 @@ public sealed partial class NativeRewardScriptGlobals
                }
     }
 
-    private void NativeProgram_0075()
+    private void NativeProgram_0074()
     {
         Vars["BaseScript"]="CommonCardItem"; Vars["DesVal1"] = PlayerInfo.SkillTime != null && PlayerInfo.SkillTime.ContainsKey("careercard_7") ? PlayerInfo.SkillTime["careercard_7"].ToString() : "0";
     }
 
-    private void NativeProgram_0076()
+    private void NativeProgram_0075()
     {
         Vars["BaseScript"]="CommonCardItem";AddDescription("1","Value","40");AddDescription("2","Buff","2");AddDescription("3","Buff","1");
+    }
+
+    private void NativeProgram_0076()
+    {
+        Vars["SpecialCount"]="0";
+                Vars["SpellChain"] = "";
+                Vars["GrantedSequence"] = "";
+                string GetFlagByCardId(string cardId)
+                {
+                    if (string.IsNullOrEmpty(cardId)) { return ""; }
+                    if (cardId == "SpellCard_1" || cardId == "1" || cardId.EndsWith("_1")) { return "A"; }
+                    if (cardId == "SpellCard_2" || cardId == "2" || cardId.EndsWith("_2")) { return "B"; }
+                    if (cardId == "SpellCard_3" || cardId == "3" || cardId.EndsWith("_3")) { return "C"; }
+                    if (cardId == "SpellCard_4" || cardId == "4" || cardId.EndsWith("_4")) { return "D"; }
+                    return "";
+                }
+
+                void ClearChain()
+                {
+                    Vars["SpellChain"] = "";
+                    Vars["GrantedSequence"] = "";
+                    Vars["ThisCount"] = "0";
+                    ClearAllDharmasSpellList();
+                }
+
+                void CreateAllDharmasCard(NativeRewardDataConfig card)
+                {
+                    CreateCard(card);
+                    Vars["SpecialCount"]=(int.Parse(Vars["SpecialCount"])+1).ToString();
+                    PlayerInfo.EventTrigger("AllDharmas"+Self.InstanceId);
+                }
+
+                void GrantByFlag(string flag)
+                {
+                    if (string.IsNullOrEmpty(flag)) { return; }
+
+                    string chain = Vars.GetValueOrDefault("SpellChain", "");
+                    if (chain.Contains(flag)) { chain = flag; }
+                    else { chain += flag; }
+
+                    Vars["SpellChain"] = chain;
+                    UpdateAllDharmasSpellList();
+                    string sorted = new string(chain.OrderBy(c => c).ToArray());
+
+                    string gainId = "";
+                    if (sorted == "AB") { gainId = "SpellCard_22"; }
+                    else if (sorted == "AC") { gainId = "SpellCard_23"; }
+                    else if (sorted == "BC") { gainId = "SpellCard_21"; }
+                    else if (sorted == "ABC") { gainId = "SpellCard_17"; }
+                    else if (sorted == "ABD") { gainId = "SpellCard_19"; }
+                    else if (sorted == "ACD") { gainId = "SpellCard_20"; }
+                    else if (sorted == "BCD") { gainId = "SpellCard_18"; }
+                    else if (sorted == "ABCD") { gainId = "SpellCard_16";
+                    PlayerInfo.UpdateAch("achievement_third_tier_spell",1);
+                    }
+
+                    if (string.IsNullOrEmpty(gainId)) { return; }
+
+                    var grantedList = Vars.GetValueOrDefault("GrantedSequence", "")
+                        .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
+                        .ToList();
+                    int currentCount = Vars.GetValueOrDefault("ThisCount", "0").ToInt();
+                    if (grantedList.Contains(gainId) || currentCount >= 9) { return; }
+
+                    Vars["ThisCount"] = (currentCount + 1).ToString();
+
+                    var card = CreateDataConfig(gainId, NativeRewardDataType.Card);
+                    if (card.Vars.ContainsKey("SpecialTag"))
+                    {
+                        if (!card.Vars["SpecialTag"].Contains("Fragmented"))
+                        {
+                            card.Vars["SpecialTag"] += ",Fragmented";
+                        }
+                    }
+                    else
+                    {
+                        card.Vars["SpecialTag"] = "Fragmented";
+                    }
+
+                    CreateAllDharmasCard(card);
+                    grantedList.Add(gainId);
+                    Vars["GrantedSequence"] = string.Join(",", grantedList);
+
+                    DiceCheck(30, ok =>
+                    {
+                        if (ok)
+                        {
+                            CreateAllDharmasCard(CreateDataConfig("SpellCard_4", NativeRewardDataType.Card));
+                        }
+                    });
+                }
+
+                void JudgeCard(NativeRewardDataConfig cardData)
+                {
+                    if (cardData == null) { return; }
+
+                    string tags = "";
+                    if (cardData.data != null)
+                    {
+                        tags = cardData.data.GetValueOrDefault("Tag", "");
+                    }
+                    if (cardData.Vars.ContainsKey("Tag"))
+                    {
+                        tags += "," + cardData.Vars["Tag"];
+                    }
+                    if (cardData.Vars.ContainsKey("SpecialTag"))
+                    {
+                        tags += "," + cardData.Vars["SpecialTag"];
+                    }
+                    if (!tags.Contains("SpellComponents"))
+                    {
+                        //ClearChain();
+                        return;
+                    }
+
+                    string cardId = cardData.Vars.GetValueOrDefault("Id",
+                        cardData.data != null ? cardData.data.GetValueOrDefault("Id", "") : "");
+                    GrantByFlag(GetFlagByCardId(cardId));
+                }
+
+                AddEvent("StartRound", () => { ClearChain(); });
+                AddEvent<NativeRewardActionData>("Action", actionData => { JudgeCard(actionData.data); });
+
+                var pendingId = PlayerInfo.SpecialVars != null
+                    ? PlayerInfo.SpecialVars.GetValueOrDefault("AllDharmasPendingCardId", "")
+                    : "";
+                if (!string.IsNullOrEmpty(pendingId))
+                {
+                    GrantByFlag(GetFlagByCardId(pendingId));
+                    if (PlayerInfo.SpecialVars != null)
+                    {
+                        PlayerInfo.SpecialVars["AllDharmasPendingCardId"] = "";
+                    }
+                }
     }
 
     private void NativeProgram_0077()
@@ -4004,20 +4044,43 @@ public sealed partial class NativeRewardScriptGlobals
 
     private void NativeProgram_0091()
     {
-        SetStatus("Self");int _rg=(int)(5*Self.dynamicVariables.GetValueOrDefault("ReturnAgainGainMultiplier",1f));if(_rg>0){AddBuff("buff_ReturnAgain",_rg.ToString());}DrawCount("2");int lv=Self!=null&&Self.GetBuff("buff_ReturnAgain")!=null?Self.GetBuff("buff_ReturnAgain").buffConfig.Level:0;SetStatus("Self");ChangeDefence((lv/2).ToString());
+        if((!PlayerInfo.RelicList.Any(x=>x.data["Id"]=="CrowdFundingRelic_12"))||PlayerInfo.SpecialVars==null){return;}
+                SetStatus("Self");AddBuff("buff_elements","1");
+                int curse=PlayerInfo.SpecialVars.ContainsKey("SevenCursePower")?int.Parse(PlayerInfo.SpecialVars["SevenCursePower"])/2 : 0;
+                int dmg=(int)(10*(1+curse*0.1f));
+                int trueDmg=dmg;
+                if (Self!=null)
+                {
+                    trueDmg=Self.DamageCalculate(trueDmg);
+                }
+                if (Target!=null)
+                {
+                    trueDmg=Self.DamageCalculate(trueDmg);
+                }
+                SetStatus("Target");Damage(dmg.ToString());
+
+                SetStatus("Self");ChangeHp(Math.Max(1,trueDmg/10).ToString());
+                var tempList=GetcardsOutLock().Where(x=>x["Tag"].Contains("Curse")).ToList();
+                if(tempList.Count>0){string id=tempList[DefaultDice.WithRange(0,tempList.Count-1).Roll().Value]["Id"];
+                AddCardToFightManager(CreateDataConfig(id,NativeRewardDataType.Card));}
     }
 
     private void NativeProgram_0092()
     {
-        Vars["LastGain"]="0";AddEvent("StartRound",()=>{SetStatus("Self");var b=Self.GetBuff("buff_ReturnAgain");if(b==null)return;int gain=b.buffConfig.Level/33;int last=int.Parse(Vars.GetValueOrDefault("LastGain","0"));if(gain>last){int add=gain-last;ChangeDynamicVar("RoundCard",add.ToString());Vars["LastGain"]=gain.ToString();}});
+        SetStatus("Self");int _rg=(int)(5*Self.dynamicVariables.GetValueOrDefault("ReturnAgainGainMultiplier",1f));if(_rg>0){AddBuff("buff_ReturnAgain",_rg.ToString());}DrawCount("2");int lv=Self!=null&&Self.GetBuff("buff_ReturnAgain")!=null?Self.GetBuff("buff_ReturnAgain").buffConfig.Level:0;SetStatus("Self");ChangeDefence((lv/2).ToString());
     }
 
     private void NativeProgram_0093()
     {
-        AddEvent("Action",()=>{ if(CheckDice.Roll().Value>50){ SetStatus("Self"); AddBuff("buff_revelation","1"); Vars["ThisCount"]=(int.Parse(Vars["ThisCount"])+1).ToString();UpdateRelicShow();}});
+        Vars["LastGain"]="0";AddEvent("StartRound",()=>{SetStatus("Self");var b=Self.GetBuff("buff_ReturnAgain");if(b==null)return;int gain=b.buffConfig.Level/33;int last=int.Parse(Vars.GetValueOrDefault("LastGain","0"));if(gain>last){int add=gain-last;ChangeDynamicVar("RoundCard",add.ToString());Vars["LastGain"]=gain.ToString();}});
     }
 
     private void NativeProgram_0094()
+    {
+        AddEvent("Action",()=>{ if(CheckDice.Roll().Value>50){ SetStatus("Self"); AddBuff("buff_revelation","1"); Vars["ThisCount"]=(int.Parse(Vars["ThisCount"])+1).ToString();UpdateRelicShow();}});
+    }
+
+    private void NativeProgram_0095()
     {
         Self.DamageFilter["buff_bleeding"] = 100f;
                 AddEvent<NativeRewardHurtData>("Hurt", (data=>
@@ -4034,11 +4097,6 @@ public sealed partial class NativeRewardScriptGlobals
                         ChangeRound();
                     }
                 });
-    }
-
-    private void NativeProgram_0095()
-    {
-        SetStatus("Self");int _rg=(int)(15*Self.dynamicVariables.GetValueOrDefault("ReturnAgainGainMultiplier",1f));if(_rg>0){AddBuff("buff_ReturnAgain",_rg.ToString());}int lv=Self!=null&&Self.GetBuff("buff_ReturnAgain")!=null?Self.GetBuff("buff_ReturnAgain").buffConfig.Level:0;SetStatus("Target");Damage(Math.Max(1,lv/4).ToString());var t=HandCard.FirstOrDefault(x=>x!=null&&x.data!=null&&!x.data["Id"].StartsWith("ReturnAgain_"));if(t!=null){t.TransformToConfiguredType(new NativeRewardDataConfig("ReturnAgain_9",NativeRewardDataType.Card));}
     }
 
     private void NativeProgram_0096()
@@ -4083,6 +4141,16 @@ public sealed partial class NativeRewardScriptGlobals
 
     private void NativeProgram_0101()
     {
+        SetStatus("Self");int _rg=(int)(5*Self.dynamicVariables.GetValueOrDefault("ReturnAgainGainMultiplier",1f));
+                if(_rg>0){AddBuff("buff_ReturnAgain",_rg.ToString());}
+                var pool=new List<string>{"ReturnAgain_1","ReturnAgain_3","ReturnAgain_4","ReturnAgain_5","ReturnAgain_6","ReturnAgain_7","ReturnAgain_8","ReturnAgain_9","ReturnAgain_10","ReturnAgain_11","ReturnAgain_12","ReturnAgain_13","ReturnAgain_14","ReturnAgain_15"};
+                if(pool.Count>0)
+                {int idx=DefaultDice.WithRange(0,pool.Count-1).Roll().Value;
+                CreateCard(CreateDataConfig(pool[idx],NativeRewardDataType.Card));}
+    }
+
+    private void NativeProgram_0102()
+    {
 
                     var cards = HandCard
         .Where(card => card != null && !card.Tags.Contains("Froze") && !card.Tags.Contains("Combo"))
@@ -4099,16 +4167,6 @@ public sealed partial class NativeRewardScriptGlobals
                         }
 
 
-    }
-
-    private void NativeProgram_0102()
-    {
-        AddEvent("FightStart", () =>
-                {
-                    var temp=new NativeRewardDataConfig("SpellCard_4",NativeRewardDataType.Card);
-                    temp.Vars["OnceExCost"]="-3";
-                    CreateCard(temp);
-                });
     }
 
     private void NativeProgram_0103()
@@ -4156,20 +4214,52 @@ public sealed partial class NativeRewardScriptGlobals
 
     private void NativeProgram_0106()
     {
-        Vars["BaseScript"]="CommonCardItem";AddDescription("1","Power","1");
+        AddEvent("FightStart", () =>
+                {
+                    ChangeMaxPower("1");
+                    for (int i = 0; i < 2; i++)
+                    {
+                        int count=DefaultDice.WithRange(1,99).Roll().Value;
+                        if (count>=100)
+                        {
+                            count=99;
+                        }
+                        var temp=CreateDataConfig("SpellCard_"+(count/25+1),NativeRewardDataType.Card);
+                        CreateCard(temp);
+                    }
+                });
     }
 
     private void NativeProgram_0107()
     {
-        SetStatus("Self");ChangeHp((-Self.MaxHp/10).ToString());var _rb=Self!=null?Self.GetBuff("buff_ReturnAgain"):null;if(_rb!=null){_rb.buffConfig.Level=Math.Max(0,_rb.buffConfig.Level-10);}
+        Vars["BaseScript"]="CommonCardItem";AddDescription("1","Power","1");
     }
 
     private void NativeProgram_0108()
     {
-        Vars["BaseScript"]="AttackCardItem";AddDescription("1","Buff","3");
+        SetStatus("Self");
+                var c=CreateDataConfig(dataConfig.data["Id"],NativeRewardDataType.Card);NativeRewardFightCardManager.Instance.cardList.Add(c);
+                 SetStatus("Target");int total=0;
+                foreach(var b in Self.GetBuffs().Where(x=>x!=null&&x.buffConfig.BuffId.Contains("ritual")).ToList())
+                {
+                total+=int.Parse(b.buffConfig.dataConfig.Vars["ThisCount"]);}
+                Damage((5+total*3).ToString());SetStatus("Self");
+                var buffs=Self.GetBuffs().Where(x=>x!=null&&x.buffConfig.BuffId.Contains("ritual")).ToList();
+                if(buffs.Count>0){var rb=buffs[DefaultDice.WithRange(0,buffs.Count-1).Roll().Value];
+                rb.buffConfig.dataConfig.Vars["ThisCount"]=(rb.buffConfig.dataConfig.Vars["ThisCount"].ToInt()+1).ToString();}
     }
 
     private void NativeProgram_0109()
+    {
+        SetStatus("Self");ChangeHp((-Self.MaxHp/10).ToString());var _rb=Self!=null?Self.GetBuff("buff_ReturnAgain"):null;if(_rb!=null){_rb.buffConfig.Level=Math.Max(0,_rb.buffConfig.Level-10);}
+    }
+
+    private void NativeProgram_0110()
+    {
+        Vars["BaseScript"]="AttackCardItem";AddDescription("1","Buff","3");
+    }
+
+    private void NativeProgram_0111()
     {
         SetStatus("Self");
                 if (Self!=null&&Self.GetBuff("buff_revelation")!=null)
@@ -4184,7 +4274,7 @@ public sealed partial class NativeRewardScriptGlobals
                 }
     }
 
-    private void NativeProgram_0110()
+    private void NativeProgram_0112()
     {
         Vars["ThisCount"]="0";
                Self.DamageFilter["buff_burn"]=0f;
@@ -4210,7 +4300,7 @@ public sealed partial class NativeRewardScriptGlobals
                  });
     }
 
-    private void NativeProgram_0111()
+    private void NativeProgram_0113()
     {
         Vars["ThisCount"]="0";
                 AddEvent("CostPower", () =>
@@ -4223,7 +4313,7 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0112()
+    private void NativeProgram_0114()
     {
         AddEvent("StartRound", () =>
          {
@@ -4241,12 +4331,12 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0113()
+    private void NativeProgram_0115()
     {
         AddEvent("FightStart",(() => {PlayerInfo.Hp+=2;}));
     }
 
-    private void NativeProgram_0114()
+    private void NativeProgram_0116()
     {
         SetStatus("AllTarget");
                 AddEvent<NativeRewardActionData>("Action", (data) =>
@@ -4268,7 +4358,7 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0115()
+    private void NativeProgram_0117()
     {
         SetStatus("Target");
          AddBuff("buff_oniblood", "1");
@@ -4279,17 +4369,17 @@ public sealed partial class NativeRewardScriptGlobals
          PlayerInfo.SkillTime["careercard_10"] +=2;
     }
 
-    private void NativeProgram_0116()
+    private void NativeProgram_0118()
     {
         AddEvent("FightStart",(() => {SetStatus("Self");AddBuff("buff_fast","1");}));
     }
 
-    private void NativeProgram_0117()
+    private void NativeProgram_0119()
     {
         AddEvent("Action",(() => ChangePower("1")));
     }
 
-    private void NativeProgram_0118()
+    private void NativeProgram_0120()
     {
         Vars["ThisCount"]="0";
                 AddEvent<NativeRewardActionData>("Action", (NativeRewardActionData fromdata) =>
@@ -4317,7 +4407,7 @@ public sealed partial class NativeRewardScriptGlobals
                 AddEvent("Resurrection",()=>{PlayerInfo.RemoveRelic("CrowdFundingRelic_54");});
     }
 
-    private void NativeProgram_0119()
+    private void NativeProgram_0121()
     {
         AddEvent("FightStart",() =>
                 {
@@ -4325,470 +4415,12 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0120()
+    private void NativeProgram_0122()
     {
         AddEvent("FightStart",() => {SetStatus("Self");AddBuff("buff_resilient","2");});
     }
 
-    private void NativeProgram_0121()
-    {
-        AddEvent("StartRound",()=>{for(int i=0;i<2;i++){CreateCard(new NativeRewardDataConfig("cursecard_14",NativeRewardDataType.Card));}});
-        SetStatus("AllTarget");
-        AddEvent<NativeRewardHurtData>("Hurt",(data)=>{
-            if(data.fromDataId!="enemycard_CAR_Sword"){return;}
-            int hurtVal=0;int.TryParse(data.val,out hurtVal);if(hurtVal<=0){return;}
-            int count=HandCard.Count(x=>x!=null&&x.dataConfig.data["Id"]=="cursecard_14");
-            if(count<=5){return;}
-            foreach(var card in HandCard.Where(x=>x!=null&&x.dataConfig.data["Id"]=="cursecard_14").ToList()){BurnCardByData(card.dataConfig);}
-            SetStatusById(data.toId);if(Object.Count>0){Damage(Object[0].MaxHp.ToString(),"True");}
-        });
-    }
-
-    private void NativeProgram_0122()
-    {
-        AddBuff("buff_impregnable","5");
-                Vars["ThisCount"]="0";
-                AddEvent("Hurt", () =>
-                {
-                    Vars["ThisCount"] = (Vars["ThisCount"].ToInt() + 1).ToString();
-                   if ((int.Parse(Vars["ThisCount"])%4==0))
-                   {
-                     Self.AddBuff("buff_impregnable", 1);
-                   }
-                });
-                AddEvent("StartRound",()=>{RemoveBuff("buff_impregnable");});
-    }
-
     private void NativeProgram_0123()
-    {
-        Vars["BaseScript"]="CommonCardItem";AddDescription("1", "Buff", "10");
-    }
-
-    private void NativeProgram_0124()
-    {
-        SetStatus("Target");
-                int count = 0;
-                foreach (var item in Object)
-                {
-                        var buffs = item.GetBuffs();
-                        Log(buffs.Length.ToString());
-                        for (int i = 0; i < buffs.Length; i++)
-                        {
-                            if (buffs[i] == null)
-                            {
-                                continue;
-                            }
-                            if (buffs[i].buffConfig.dataConfig.data["Type"] == "负面")
-                            {
-                                count += Math.Min(Math.Max(1,
-                                int.Parse(buffs[i].buffConfig.dataConfig.data["Rarity"])*buffs[i].buffConfig.Level/5),10);
-                            }
-                        }
-                }
-              if (Object.Count>0&&Object[0]!=Self)
-              {
-                Damage("5");
-                if (!Object[0].InstanceId.Contains("e"))
-                {
-                    PlayerInfo.UpdateAch("achievement_nana_devour_teammate",1);
-                }
-              }
-                RemoveAllBadBuff("0");
-                SetStatus("Self");
-                AddBuff("buff_DoomPower", count.ToString());
-                if (!PlayerInfo.SkillTime.ContainsKey("careercard_2"))
-                {
-                    PlayerInfo.SkillTime["careercard_2"] = 0;
-                }
-                PlayerInfo.SkillTime["careercard_2"] += 5;
-                SetStatus("Target");
-    }
-
-    private void NativeProgram_0125()
-    {
-        AddEvent("FightStart",() => {SetStatus("Self");AddBuff("buff_resilient","1");});
-    }
-
-    private void NativeProgram_0126()
-    {
-        CopyCardWare("1", HandCard.Select(x => x.dataConfig).Cast<NativeRewardDataConfig>().ToList(), (list) =>
-                {
-                    if (list.Count==0)
-                    {
-                        PlayerInfo.SkillTime["careercard_12"]=0;
-                        UpdateSkillTime();
-                    }
-                }); if (!PlayerInfo.SkillTime.ContainsKey("careercard_12"))
-         {
-         PlayerInfo.SkillTime["careercard_12"] = 0;
-         }
-         PlayerInfo.SkillTime["careercard_12"] +=2;
-    }
-
-    private void NativeProgram_0127()
-    {
-        Vars["BaseScript"]="CommonCardItem";AddDescription("1","Value","50");AddDescription("2","Draw","3");AddDescription("3","Draw","1");
-    }
-
-    private void NativeProgram_0128()
-    {
-        SetStatus("Self");int _rg=(int)(5*Self.dynamicVariables.GetValueOrDefault("ReturnAgainGainMultiplier",1f));if(_rg>0){AddBuff("buff_ReturnAgain",_rg.ToString());}ThrowCard("1","1");SetStatus("Self");AddBuff("buff_ReturnAgainDoubleNext","1");
-    }
-
-    private void NativeProgram_0129()
-    {
-         ChooseCardToAction("20", (cardlist) =>
-                {
-                    foreach (var item in cardlist)
-                    {
-                        AddBuff("buff_rebirth","15");
-                        item.InternalBurning();
-                    }
-
-                },"2");
-    }
-
-    private void NativeProgram_0130()
-    {
-        SetStatus("Self");
-                int a=CheckDice.Roll().Value;
-                if (a<90)
-                {
-                    ChangePower("1");
-                }
-                else
-                {
-                    ChangeMoney("200");
-                }
-    }
-
-    private void NativeProgram_0131()
-    {
-        SetStatus("Self");
-                AddEvent<NativeRewardOutHealData>("HealOut", (from) =>
-                {
-                    SetStatus("AllTarget");
-                    Damage(from.val,"True");
-                });
-    }
-
-    private void NativeProgram_0132()
-    {
-        if (PlayerInfo.Strength<30)
-                {
-                    return;
-                }AddEvent("Action",() => {
-        SetStatus("AllRandomTarget1");Damage("6");
-         });
-    }
-
-    private void NativeProgram_0133()
-    {
-        SetStatus("All");
-         AddEvent<NativeRewardAddBuffData>("AddBuff",(d)=>{
-         if(d.data.data["Type"]!="负面")return;
-         if(d.toId==Self.InstanceId)return;
-         Vars["ThisCount"]=(int.Parse( Vars["ThisCount"])+1).ToString();
-         if (int.Parse( Vars["ThisCount"])%2==0)
-         {
-            SetStatus("Self");
-         RandomAddGoodBuff("1");
-         }
-
-         });
-    }
-
-    private void NativeProgram_0134()
-    {
-        DrawCount("1");
-    }
-
-    private void NativeProgram_0135()
-    {
-        AddEvent("EndRound",()=> {
-                 var buff = Self.GetBuff("buff_timelock");
-                if (buff == null) { return; } var list = buff.effectList.ToList();
-                while (list.Count > 0) { list[0].action(); list.RemoveAt(0); } buff.effectList.Clear(); buff.buffConfig.Level = 0;  });
-    }
-
-    private void NativeProgram_0136()
-    {
-        AddEvent("FightStart",(() => {SetStatus("Self");AddCard("nocard_5");}));
-    }
-
-    private void NativeProgram_0137()
-    {
-        Vars["BaseScript"]="AttackCardItem";float cast=1;
-                if (Self!=null&&Self.GetBuff("buff_AllDharmas")!=null)
-                {
-                    cast=float.Parse(Self.GetBuff("buff_AllDharmas").buffConfig.dataConfig.Vars.GetValueOrDefault("SpecialCount","1"));
-                    if (cast<1)
-                    {
-                        cast=1;
-                    }
-                }
-                cast=(int)(cast);
-                AddDescription("1","Value",cast.ToString());
-    }
-
-    private void NativeProgram_0138()
-    {
-        AddEvent("EndRound", () =>
-                {
-                    ChangeDefence(UsedCard.Count.ToString());
-                });
-    }
-
-    private void NativeProgram_0139()
-    {
-        var buff = AddAndGetBuff(Self, "buff_timelock", 1);
-        buff.effectList.Add(dataConfig, () => { RunScript("UseScript"); });
-    }
-
-    private void NativeProgram_0140()
-    {
-        for (int i = 0; i < 3; i++)
-          {
-          RandomAddCard("healcard_1");
-          }
-    }
-
-    private void NativeProgram_0141()
-    {
-        AddEvent("FightStart",(() => {SetStatus("Self");AddBuff("buff_oniblood","1");}));
-    }
-
-    private void NativeProgram_0142()
-    {
-        AddEvent("BurnCard",()=>{SetStatus("Self");ChangeDefence("10");});
-    }
-
-    private void NativeProgram_0143()
-    {
-        Vars["BaseScript"]="CommonCardItem";int count;
-                if (PlayerInfo.SpecialVars!=null)
-                {
-                    count=int.Parse(PlayerInfo.SpecialVars.GetValueOrDefault("Soul", "0"));
-                }
-                else
-                {
-                    count = 0;
-                }
-                AddDescription("1","Damage",(4+count/8).ToString());
-                AddDescription("2","Defence",(4+count/8).ToString());
-    }
-
-    private void NativeProgram_0144()
-    {
-        SetStatus("Target");Damage(((Self.MaxHp)/10).ToString());
-    }
-
-    private void NativeProgram_0145()
-    {
-        AddEvent<NativeRewardBurnData>("BurnCard",(burnData)=>{
-                    NativeRewardDataConfig config=burnData.data as NativeRewardDataConfig;
-                    if (config.Vars["Tag"].Contains("Curse"))
-                    {
-                        return;
-                    }
-                    int baseCount=CheckDice.Roll().Value;
-                    if (baseCount>80)
-                    {
-                        AddCardToFightManager(config);
-                    }
-                });
-    }
-
-    private void NativeProgram_0146()
-    {
-        Vars["BaseScript"]="AttackCardItem"; Vars["DesVal1"] = PlayerInfo.SkillTime != null && PlayerInfo.SkillTime.ContainsKey("careercard_5") ? PlayerInfo.SkillTime["careercard_5"].ToString() : "0";
-    }
-
-    private void NativeProgram_0147()
-    {
-        Vars["BaseScript"]="CommonCardItem"; AddDescription("1","Damage","9");
-    }
-
-    private void NativeProgram_0148()
-    {
-        Vars["BaseScript"]="CommonCardItem"; AddDescription("1","Damage","10");AddDescription("2", "Money", Math.Min(int.Parse(GetDesValue("1")), 100).ToString());
-    }
-
-    private void NativeProgram_0149()
-    {
-        SetStatus("Self");int _rg=(int)(10*Self.dynamicVariables.GetValueOrDefault("ReturnAgainGainMultiplier",1f));if(_rg>0){AddBuff("buff_ReturnAgain",_rg.ToString());}SetStatus("Self");ChangeDefence("15");AddEvent("StartRound",()=>{int cur=HandCard.Count(x=>x!=null&&x.isReverse);if(cur>0){SetStatus("Self");AddBuff("buff_resilient",cur.ToString());ChangeDefence((cur*5).ToString());}});
-    }
-
-    private void NativeProgram_0150()
-    {
-        AddEvent("Damage", () =>
-                {
-                    SetStatus("Target");
-                    int count=DefaultDice.WithRange(0,3).Roll().Value;
-                    switch (count)
-                    {
-                        case 0:
-                            ChangeVars("Strength", "-1");
-                            break;
-                        case 1:
-                            ChangeVars("Lucky", "-1");
-                            break;
-                        case 2:
-                            ChangeVars("Wisdom", "-1");
-                            break;
-                        case 3:
-                            ChangeVars("Perceive", "-1");
-                            break;
-                        default:
-                        break;
-                    }
-                });
-                AddEvent<NativeRewardHurtData>("Hurt", (fromdata) =>
-                {
-                    if (!Self.DamageFilter.ContainsKey(fromdata.fromDataId))
-                    {
-                        Self.DamageFilter[fromdata.fromDataId] = 0f;
-                    }
-                    Self.DamageFilter[fromdata.fromDataId]+=5f;
-                });
-               AddEvent("Action", () =>
-               {
-                   Self.DamageFilter.Clear();
-               });
-    }
-
-    private void NativeProgram_0151()
-    {
-        AddEvent("FightStart",(() => {SetStatus("AllRandomTarget1");AddBuff("buff_timestop","1");}));
-    }
-
-    private void NativeProgram_0152()
-    {
-        AddEvent("FightStart",(() => {SetStatus("Self");List<Dictionary<string,string>>cards=GetcardsByRarity("1","3");
-                cards=cards.Where(x => x["Type"]!=("诅咒")).ToList();
-                NativeRewardDataConfig newData=new NativeRewardDataConfig(cards[DefaultDice.WithRange(0, cards.Count - 1).Roll().Value]["Id"],NativeRewardDataType.Card);
-                newData.Vars["Tag"]+=",Burnout";
-                newData.Vars["TotalExCost"]="-999";
-                CreateCard(newData);}));
-    }
-
-    private void NativeProgram_0153()
-    {
-        if (PlayerInfo.Perceive<40)
-                {
-                    return;
-                }
-                AddEvent("FightStart",(() => {SetStatus("Self");AddBuff("buff_sourcecast","1");
-
-                }));
-                AddEvent("StartRound",()=>{SetStatus("Self");foreach (var item in Object)
-                {
-                    if (GetStatus.ContainsKey(item))
-                    {
-                        item.CurHp = GetStatus[item]["CurHp"];
-                        item.MaxHp = GetStatus[item]["MaxHp"];
-                    }
-                    else
-                    {
-                        GetStatus[item] = new Dictionary<string, int>
-                        {
-                            { "CurHp", item.CurHp },
-                            { "MaxHp", item.MaxHp },
-                        };
-                    }
-
-                };});
-    }
-
-    private void NativeProgram_0154()
-    {
-        Vars["BaseScript"]="AttackCardItem"; Vars["DesVal1"] = PlayerInfo.SkillTime != null && PlayerInfo.SkillTime.ContainsKey("careercard_6") ? PlayerInfo.SkillTime["careercard_6"].ToString() : "0";
-    }
-
-    private void NativeProgram_0155()
-    {
-        AddEvent("buff_fastOnLevelChange",() => {ChangeDynamicVar("RoundCard",Self.GetBuff("buff_fast").buffConfig.Level.ToString());});
-    }
-
-    private void NativeProgram_0156()
-    {
-         var buff = Self.GetBuff("buff_timelock");
-         if (buff == null)
-         {
-         return;
-         }
-         var list = buff.effectList.ToList();
-         while (list.Count > 0)
-         {
-         list[0].action();
-         list.RemoveAt(0);
-         }
-    }
-
-    private void NativeProgram_0157()
-    {
-        if (PlayerInfo.Wisdom<10)
-                {
-                    return;
-                }AddEvent("FightStart",(() => {SetStatus("Self");ChangePower("1");}));
-    }
-
-    private void NativeProgram_0158()
-    {
-        SetStatus("Self");int check=CheckDice.Roll().Value;if(check>=40){SetStatus("Target");for(int i=0;i<(check>100?8:4);i++){Damage("5");}}else{SetStatus("Self");ChangeDefence("12");}
-    }
-
-    private void NativeProgram_0159()
-    {
-        SetStatus("Self");int _rg=(int)(20*Self.dynamicVariables.GetValueOrDefault("ReturnAgainGainMultiplier",1f));if(_rg>0){AddBuff("buff_ReturnAgain",_rg.ToString());}
-                ShuffleDeck();
-                ShuffleHand();
-
-                int count=DeckCard.Count()-1;
-                for (int i = 0; i < 4; i++)
-                {
-                    if ((count - i)<0)
-                    {
-                        break;
-                    }
-                    NativeRewardDataConfig data = DeckCard[count - i];
-                    NativeRewardDataConfig tempData = data.Clone() as NativeRewardDataConfig;
-                    tempData.Vars["OnceExCost"] = "-999";
-                    CreateCard(tempData);
-                }
-    }
-
-    private void NativeProgram_0160()
-    {
-        SetStatus("Self");Vars["baseId"]=Self==null?"":Self.dataConfig.data["Id"];ChangeCareer("enemy_10054");ChangeSummon(false);
-    }
-
-    private void NativeProgram_0161()
-    {
-        Vars["BaseScript"]="AttackCardItem";AddDescription("1","Damage","1");
-                int baseDa=1;
-                if (!Self.IsNull())
-                {
-                    baseDa=Self.DamageCalculate(1);
-                if (Object.Count>0)
-                {
-                    baseDa=Object[0].UnDamageCalucate(baseDa);
-                }
-                if (baseDa>10)
-                {
-                    baseDa=10;
-                }
-                }
-
-                AddDescription("2","Value",(baseDa).ToString());
-    }
-
-    private void NativeProgram_0162()
-    {
-        SetStatus("AllRandomTarget1");for (int i=0;i<3;i++) Damage("4");
-    }
-
-    private void NativeProgram_0163()
     {
         SetStatus("Self");
                 Vars["CanChange"]="True";
@@ -4832,7 +4464,7 @@ public sealed partial class NativeRewardScriptGlobals
                     SetStatus("Self");
                     ClearFateMarks();
 
-                    AddEnemyAction(new NativeRewardDataConfig("enemycard_HJE_"+nextFate, NativeRewardDataType.EnemyCard));
+                    AddEnemyAction(CreateDataConfig("enemycard_HJE_"+nextFate, NativeRewardDataType.EnemyCard));
                     if (nextFate == "Judgment")
                     {
                         AddBuff("SpecialBuff_HJE_FateJudgment", "1");
@@ -4879,6 +4511,440 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
+    private void NativeProgram_0124()
+    {
+        AddBuff("buff_impregnable","5");
+                Vars["ThisCount"]="0";
+                AddEvent("Hurt", () =>
+                {
+                    Vars["ThisCount"] = (Vars["ThisCount"].ToInt() + 1).ToString();
+                   if ((int.Parse(Vars["ThisCount"])%4==0))
+                   {
+                     Self.AddBuff("buff_impregnable", 1);
+                   }
+                });
+                AddEvent("StartRound",()=>{RemoveBuff("buff_impregnable");});
+    }
+
+    private void NativeProgram_0125()
+    {
+        Vars["BaseScript"]="CommonCardItem";AddDescription("1", "Buff", "10");
+    }
+
+    private void NativeProgram_0126()
+    {
+        SetStatus("Target");
+                int count = 0;
+                foreach (var item in Object)
+                {
+                        var buffs = item.GetBuffs();
+                        Log(buffs.Length.ToString());
+                        for (int i = 0; i < buffs.Length; i++)
+                        {
+                            if (buffs[i] == null)
+                            {
+                                continue;
+                            }
+                            if (buffs[i].buffConfig.dataConfig.data["Type"] == "负面")
+                            {
+                                count += Math.Min(Math.Max(1,
+                                int.Parse(buffs[i].buffConfig.dataConfig.data["Rarity"])*buffs[i].buffConfig.Level/5),10);
+                            }
+                        }
+                }
+              if (Object.Count>0&&Object[0]!=Self)
+              {
+                Damage("5");
+                if (!Object[0].InstanceId.Contains("e"))
+                {
+                    PlayerInfo.UpdateAch("achievement_nana_devour_teammate",1);
+                }
+              }
+                RemoveAllBadBuff("0");
+                SetStatus("Self");
+                AddBuff("buff_DoomPower", count.ToString());
+                if (!PlayerInfo.SkillTime.ContainsKey("careercard_2"))
+                {
+                    PlayerInfo.SkillTime["careercard_2"] = 0;
+                }
+                PlayerInfo.SkillTime["careercard_2"] += 5;
+                SetStatus("Target");
+    }
+
+    private void NativeProgram_0127()
+    {
+        AddEvent("FightStart",() => {SetStatus("Self");AddBuff("buff_resilient","1");});
+    }
+
+    private void NativeProgram_0128()
+    {
+        CopyCardWare("1", HandCard.Select(x => x.dataConfig).Cast<NativeRewardDataConfig>().ToList(), (list) =>
+                {
+                    if (list.Count==0)
+                    {
+                        PlayerInfo.SkillTime["careercard_12"]=0;
+                        UpdateSkillTime();
+                    }
+                }); if (!PlayerInfo.SkillTime.ContainsKey("careercard_12"))
+         {
+         PlayerInfo.SkillTime["careercard_12"] = 0;
+         }
+         PlayerInfo.SkillTime["careercard_12"] +=2;
+    }
+
+    private void NativeProgram_0129()
+    {
+        Vars["BaseScript"]="CommonCardItem";AddDescription("1","Value","50");AddDescription("2","Draw","3");AddDescription("3","Draw","1");
+    }
+
+    private void NativeProgram_0130()
+    {
+        SetStatus("Self");int _rg=(int)(5*Self.dynamicVariables.GetValueOrDefault("ReturnAgainGainMultiplier",1f));if(_rg>0){AddBuff("buff_ReturnAgain",_rg.ToString());}ThrowCard("1","1");SetStatus("Self");AddBuff("buff_ReturnAgainDoubleNext","1");
+    }
+
+    private void NativeProgram_0131()
+    {
+         ChooseCardToAction("20", (cardlist) =>
+                {
+                    foreach (var item in cardlist)
+                    {
+                        AddBuff("buff_rebirth","15");
+                        item.InternalBurning();
+                    }
+
+                },"2");
+    }
+
+    private void NativeProgram_0132()
+    {
+        SetStatus("Self");
+                int a=CheckDice.Roll().Value;
+                if (a<90)
+                {
+                    ChangePower("1");
+                }
+                else
+                {
+                    ChangeMoney("200");
+                }
+    }
+
+    private void NativeProgram_0133()
+    {
+        SetStatus("Self");
+                AddEvent<NativeRewardOutHealData>("HealOut", (from) =>
+                {
+                    SetStatus("AllTarget");
+                    Damage(from.val,"True");
+                });
+    }
+
+    private void NativeProgram_0134()
+    {
+        if (PlayerInfo.Strength<30)
+                {
+                    return;
+                }AddEvent("Action",() => {
+        SetStatus("AllRandomTarget1");Damage("6");
+         });
+    }
+
+    private void NativeProgram_0135()
+    {
+        SetStatus("All");
+         AddEvent<NativeRewardAddBuffData>("AddBuff",(d)=>{
+         if(d.data.data["Type"]!="负面")return;
+         if(d.toId==Self.InstanceId)return;
+         Vars["ThisCount"]=(int.Parse( Vars["ThisCount"])+1).ToString();
+         if (int.Parse( Vars["ThisCount"])%2==0)
+         {
+            SetStatus("Self");
+         RandomAddGoodBuff("1");
+         }
+
+         });
+    }
+
+    private void NativeProgram_0136()
+    {
+        DrawCount("1");
+    }
+
+    private void NativeProgram_0137()
+    {
+        AddEvent("EndRound",()=> {
+                 var buff = Self.GetBuff("buff_timelock");
+                if (buff == null) { return; } var list = buff.effectList.ToList();
+                while (list.Count > 0) { list[0].action(); list.RemoveAt(0); } buff.effectList.Clear(); buff.buffConfig.Level = 0;  });
+    }
+
+    private void NativeProgram_0138()
+    {
+        AddEvent("FightStart",(() => {SetStatus("Self");AddCard("nocard_5");}));
+    }
+
+    private void NativeProgram_0139()
+    {
+        Vars["BaseScript"]="AttackCardItem";float cast=1;
+                if (Self!=null&&Self.GetBuff("buff_AllDharmas")!=null)
+                {
+                    cast=float.Parse(Self.GetBuff("buff_AllDharmas").buffConfig.dataConfig.Vars.GetValueOrDefault("SpecialCount","1"));
+                    if (cast<1)
+                    {
+                        cast=1;
+                    }
+                }
+                cast=(int)(cast);
+                AddDescription("1","Value",cast.ToString());
+    }
+
+    private void NativeProgram_0140()
+    {
+        AddEvent("EndRound", () =>
+                {
+                    ChangeDefence(UsedCard.Count.ToString());
+                });
+    }
+
+    private void NativeProgram_0141()
+    {
+        var buff = AddAndGetBuff(Self, "buff_timelock", 1);
+        buff.effectList.Add(dataConfig, () => { RunScript("UseScript"); });
+    }
+
+    private void NativeProgram_0142()
+    {
+        for (int i = 0; i < 3; i++)
+          {
+          RandomAddCard("healcard_1");
+          }
+    }
+
+    private void NativeProgram_0143()
+    {
+        AddEvent("FightStart",(() => {SetStatus("Self");AddBuff("buff_oniblood","1");}));
+    }
+
+    private void NativeProgram_0144()
+    {
+        AddEvent("BurnCard",()=>{SetStatus("Self");ChangeDefence("10");});
+    }
+
+    private void NativeProgram_0145()
+    {
+        Vars["BaseScript"]="CommonCardItem";int count;
+                if (PlayerInfo.SpecialVars!=null)
+                {
+                    count=int.Parse(PlayerInfo.SpecialVars.GetValueOrDefault("Soul", "0"));
+                }
+                else
+                {
+                    count = 0;
+                }
+                AddDescription("1","Damage",(4+count/8).ToString());
+                AddDescription("2","Defence",(4+count/8).ToString());
+    }
+
+    private void NativeProgram_0146()
+    {
+        SetStatus("Target");Damage(((Self.MaxHp)/10).ToString());
+    }
+
+    private void NativeProgram_0147()
+    {
+        AddEvent<NativeRewardBurnData>("BurnCard",(burnData)=>{
+                    NativeRewardDataConfig config=burnData.data as NativeRewardDataConfig;
+                    if (config.Vars["Tag"].Contains("Curse"))
+                    {
+                        return;
+                    }
+                    int baseCount=CheckDice.Roll().Value;
+                    if (baseCount>80)
+                    {
+                        AddCardToFightManager(config);
+                    }
+                });
+    }
+
+    private void NativeProgram_0148()
+    {
+        Vars["BaseScript"]="AttackCardItem"; Vars["DesVal1"] = PlayerInfo.SkillTime != null && PlayerInfo.SkillTime.ContainsKey("careercard_5") ? PlayerInfo.SkillTime["careercard_5"].ToString() : "0";
+    }
+
+    private void NativeProgram_0149()
+    {
+        Vars["BaseScript"]="CommonCardItem"; AddDescription("1","Damage","9");
+    }
+
+    private void NativeProgram_0150()
+    {
+        Vars["BaseScript"]="CommonCardItem"; AddDescription("1","Damage","10");AddDescription("2", "Money", Math.Min(int.Parse(GetDesValue("1")), 100).ToString());
+    }
+
+    private void NativeProgram_0151()
+    {
+        SetStatus("Self");int _rg=(int)(10*Self.dynamicVariables.GetValueOrDefault("ReturnAgainGainMultiplier",1f));if(_rg>0){AddBuff("buff_ReturnAgain",_rg.ToString());}SetStatus("Self");ChangeDefence("15");AddEvent("StartRound",()=>{int cur=HandCard.Count(x=>x!=null&&x.isReverse);if(cur>0){SetStatus("Self");AddBuff("buff_resilient",cur.ToString());ChangeDefence((cur*5).ToString());}});
+    }
+
+    private void NativeProgram_0152()
+    {
+        AddEvent("Damage", () =>
+                {
+                    SetStatus("Target");
+                    int count=DefaultDice.WithRange(0,3).Roll().Value;
+                    switch (count)
+                    {
+                        case 0:
+                            ChangeVars("Strength", "-1");
+                            break;
+                        case 1:
+                            ChangeVars("Lucky", "-1");
+                            break;
+                        case 2:
+                            ChangeVars("Wisdom", "-1");
+                            break;
+                        case 3:
+                            ChangeVars("Perceive", "-1");
+                            break;
+                        default:
+                        break;
+                    }
+                });
+                AddEvent<NativeRewardHurtData>("Hurt", (fromdata) =>
+                {
+                    if (!Self.DamageFilter.ContainsKey(fromdata.fromDataId))
+                    {
+                        Self.DamageFilter[fromdata.fromDataId] = 0f;
+                    }
+                    Self.DamageFilter[fromdata.fromDataId]+=5f;
+                });
+               AddEvent("Action", () =>
+               {
+                   Self.DamageFilter.Clear();
+               });
+    }
+
+    private void NativeProgram_0153()
+    {
+        AddEvent("FightStart",(() => {SetStatus("AllRandomTarget1");AddBuff("buff_timestop","1");}));
+    }
+
+    private void NativeProgram_0154()
+    {
+        if (PlayerInfo.Perceive<40)
+                {
+                    return;
+                }
+                AddEvent("FightStart",(() => {SetStatus("Self");AddBuff("buff_sourcecast","1");
+
+                }));
+                AddEvent("StartRound",()=>{SetStatus("Self");foreach (var item in Object)
+                {
+                    if (GetStatus.ContainsKey(item))
+                    {
+                        item.CurHp = GetStatus[item]["CurHp"];
+                        item.MaxHp = GetStatus[item]["MaxHp"];
+                    }
+                    else
+                    {
+                        GetStatus[item] = new Dictionary<string, int>
+                        {
+                            { "CurHp", item.CurHp },
+                            { "MaxHp", item.MaxHp },
+                        };
+                    }
+
+                };});
+    }
+
+    private void NativeProgram_0155()
+    {
+        Vars["BaseScript"]="AttackCardItem"; Vars["DesVal1"] = PlayerInfo.SkillTime != null && PlayerInfo.SkillTime.ContainsKey("careercard_6") ? PlayerInfo.SkillTime["careercard_6"].ToString() : "0";
+    }
+
+    private void NativeProgram_0156()
+    {
+        AddEvent("buff_fastOnLevelChange",() => {ChangeDynamicVar("RoundCard",Self.GetBuff("buff_fast").buffConfig.Level.ToString());});
+    }
+
+    private void NativeProgram_0157()
+    {
+         var buff = Self.GetBuff("buff_timelock");
+         if (buff == null)
+         {
+         return;
+         }
+         var list = buff.effectList.ToList();
+         while (list.Count > 0)
+         {
+         list[0].action();
+         list.RemoveAt(0);
+         }
+    }
+
+    private void NativeProgram_0158()
+    {
+        if (PlayerInfo.Wisdom<10)
+                {
+                    return;
+                }AddEvent("FightStart",(() => {SetStatus("Self");ChangePower("1");}));
+    }
+
+    private void NativeProgram_0159()
+    {
+        SetStatus("Self");int check=CheckDice.Roll().Value;if(check>=40){SetStatus("Target");for(int i=0;i<(check>100?8:4);i++){Damage("5");}}else{SetStatus("Self");ChangeDefence("12");}
+    }
+
+    private void NativeProgram_0160()
+    {
+        SetStatus("Self");int _rg=(int)(20*Self.dynamicVariables.GetValueOrDefault("ReturnAgainGainMultiplier",1f));if(_rg>0){AddBuff("buff_ReturnAgain",_rg.ToString());}
+                ShuffleDeck();
+                ShuffleHand();
+
+                int count=DeckCard.Count()-1;
+                for (int i = 0; i < 4; i++)
+                {
+                    if ((count - i)<0)
+                    {
+                        break;
+                    }
+                    NativeRewardDataConfig data = DeckCard[count - i];
+                    NativeRewardDataConfig tempData = data.Clone() as NativeRewardDataConfig;
+                    tempData.Vars["OnceExCost"] = "-999";
+                    CreateCard(tempData);
+                }
+    }
+
+    private void NativeProgram_0161()
+    {
+        SetStatus("Self");Vars["baseId"]=Self==null?"":Self.dataConfig.data["Id"];ChangeCareer("enemy_10054");ChangeSummon(false);
+    }
+
+    private void NativeProgram_0162()
+    {
+        Vars["BaseScript"]="AttackCardItem";AddDescription("1","Damage","1");
+                int baseDa=1;
+                if (!Self.IsNull())
+                {
+                    baseDa=Self.DamageCalculate(1);
+                if (Object.Count>0)
+                {
+                    baseDa=Object[0].UnDamageCalucate(baseDa);
+                }
+                if (baseDa>10)
+                {
+                    baseDa=10;
+                }
+                }
+
+                AddDescription("2","Value",(baseDa).ToString());
+    }
+
+    private void NativeProgram_0163()
+    {
+        SetStatus("AllRandomTarget1");for (int i=0;i<3;i++) Damage("4");
+    }
+
     private void NativeProgram_0164()
     {
         AddEvent("Action",() => {if(CheckDice.Roll().Value>80){ChangePower("1");}});
@@ -4911,11 +4977,6 @@ public sealed partial class NativeRewardScriptGlobals
 
     private void NativeProgram_0168()
     {
-        SetStatus("Self");ChangeMaxPower("1");CreateCard(new NativeRewardDataConfig("SpellCard_3",NativeRewardDataType.Card));
-    }
-
-    private void NativeProgram_0169()
-    {
         SetStatus("Self");
                 AddEvent("buff_chrysalisOnLevelChange",()=>
                 {
@@ -4924,17 +4985,17 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0170()
+    private void NativeProgram_0169()
     {
         int safety=0;while(safety<30){safety++;SetStatus("AllTarget");Damage("15");if(CheckDice.Roll().Value<80){break;}}
     }
 
-    private void NativeProgram_0171()
+    private void NativeProgram_0170()
     {
         AddEvent("FightStart",(() => {SetStatus("Self");AddBuff("buff_impregnable","1");}));
     }
 
-    private void NativeProgram_0172()
+    private void NativeProgram_0171()
     {
         int need = int.Parse(Vars.GetValueOrDefault("CheckNeed", "95")); int check = CheckDice.Roll().Value;
                 if (check >= need)
@@ -4955,7 +5016,7 @@ public sealed partial class NativeRewardScriptGlobals
                 else { Vars["CheckNeed"] = (need - 20).ToString(); }
     }
 
-    private void NativeProgram_0173()
+    private void NativeProgram_0172()
     {
         AddEvent("FightStart", () => {
                 Vars["ThisCount"] = "0";
@@ -4979,12 +5040,12 @@ public sealed partial class NativeRewardScriptGlobals
                     }});
     }
 
-    private void NativeProgram_0174()
+    private void NativeProgram_0173()
     {
         AddBuff("SpecialBuff_Crow", "1");
     }
 
-    private void NativeProgram_0175()
+    private void NativeProgram_0174()
     {
         if (PlayerInfo.Strength<10)
                 {
@@ -5002,7 +5063,7 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0176()
+    private void NativeProgram_0175()
     {
         SetStatus("Self");AddBuff("buff_elements","2"); if (Self.GetBuff("buff_elements")==null)
                 {
@@ -5010,7 +5071,7 @@ public sealed partial class NativeRewardScriptGlobals
                 }Vars["elements"]=Self.GetBuff("buff_elements").buffConfig.Level.ToString();ChangePower((int.Parse(Vars["elements"])/4).ToString());
     }
 
-    private void NativeProgram_0177()
+    private void NativeProgram_0176()
     {
         SetStatus("AllTarget");
                 AddEvent("Action",()=>
@@ -5043,28 +5104,28 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0178()
+    private void NativeProgram_0177()
     {
         AddEvent("FightStart",() => {SetStatus("Self");AddBuff("buff_frenzy","1");ChangeMaxPower("1");});
     }
 
-    private void NativeProgram_0179()
+    private void NativeProgram_0178()
     {
         SetStatus("Target");
                 AddCardById(dataConfig.data["Id"]);
     }
 
-    private void NativeProgram_0180()
+    private void NativeProgram_0179()
     {
         AddEvent("StartRound",(() =>{SetStatus("Self");ChangeDynamicVar("UseCount","1");}));
     }
 
-    private void NativeProgram_0181()
+    private void NativeProgram_0180()
     {
         AddEvent("Hurt",(() => {SetStatus("Self");ChangeDefence("7");}));
     }
 
-    private void NativeProgram_0182()
+    private void NativeProgram_0181()
     {
         Vars["BaseScript"]="CommonCardItem";AddDescription("1","Buff","9");
                if (PlayerInfo.SpecialVars==null)
@@ -5079,12 +5140,12 @@ public sealed partial class NativeRewardScriptGlobals
                 }
     }
 
-    private void NativeProgram_0183()
+    private void NativeProgram_0182()
     {
         SetStatus("Self");AddEvent("FightStart",()=>{AddBuff("buff_fate","2");});
     }
 
-    private void NativeProgram_0184()
+    private void NativeProgram_0183()
     {
         AddEvent("FightStart", () => { Vars["ToCount"] = PlayerInfo.enemyCount.ToString();Vars["ThisCount"] = "0"; });
                 SetStatus("AllTarget");
@@ -5098,146 +5159,7 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0185()
-    {
-        for(int i=0;i<5;i++){SetStatus("AllRandomTarget1");Damage("1");}CreateCard(new NativeRewardDataConfig("SpellCard_1",NativeRewardDataType.Card));
-    }
-
-    private void NativeProgram_0186()
-    {
-        Vars["SpecialCount"]="0";
-                Vars["SpellChain"] = "";
-                Vars["GrantedSequence"] = "";
-                string GetFlagByCardId(string cardId)
-                {
-                    if (string.IsNullOrEmpty(cardId)) { return ""; }
-                    if (cardId == "SpellCard_1" || cardId == "1" || cardId.EndsWith("_1")) { return "A"; }
-                    if (cardId == "SpellCard_2" || cardId == "2" || cardId.EndsWith("_2")) { return "B"; }
-                    if (cardId == "SpellCard_3" || cardId == "3" || cardId.EndsWith("_3")) { return "C"; }
-                    if (cardId == "SpellCard_4" || cardId == "4" || cardId.EndsWith("_4")) { return "D"; }
-                    return "";
-                }
-
-                void ClearChain()
-                {
-                    Vars["SpellChain"] = "";
-                    Vars["GrantedSequence"] = "";
-                    Vars["ThisCount"] = "0";
-                    ClearAllDharmasSpellList();
-                }
-
-                void CreateAllDharmasCard(NativeRewardDataConfig card)
-                {
-                    CreateCard(card);
-                    Vars["SpecialCount"]=(int.Parse(Vars["SpecialCount"])+1).ToString();
-                    PlayerInfo.EventTrigger("AllDharmas"+Self.InstanceId);
-                }
-
-                void GrantByFlag(string flag)
-                {
-                    if (string.IsNullOrEmpty(flag)) { return; }
-
-                    string chain = Vars.GetValueOrDefault("SpellChain", "");
-                    if (chain.Contains(flag)) { chain = flag; }
-                    else { chain += flag; }
-
-                    Vars["SpellChain"] = chain;
-                    UpdateAllDharmasSpellList();
-                    string sorted = new string(chain.OrderBy(c => c).ToArray());
-
-                    string gainId = "";
-                    if (sorted == "AB") { gainId = "SpellCard_22"; }
-                    else if (sorted == "AC") { gainId = "SpellCard_23"; }
-                    else if (sorted == "BC") { gainId = "SpellCard_21"; }
-                    else if (sorted == "ABC") { gainId = "SpellCard_17"; }
-                    else if (sorted == "ABD") { gainId = "SpellCard_19"; }
-                    else if (sorted == "ACD") { gainId = "SpellCard_20"; }
-                    else if (sorted == "BCD") { gainId = "SpellCard_18"; }
-                    else if (sorted == "ABCD") { gainId = "SpellCard_16";
-                    PlayerInfo.UpdateAch("achievement_third_tier_spell",1);
-                    }
-
-                    if (string.IsNullOrEmpty(gainId)) { return; }
-
-                    var grantedList = Vars.GetValueOrDefault("GrantedSequence", "")
-                        .Split(new[] { ',' }, StringSplitOptions.RemoveEmptyEntries)
-                        .ToList();
-                    int currentCount = Vars.GetValueOrDefault("ThisCount", "0").ToInt();
-                    if (grantedList.Contains(gainId) || currentCount >= 9) { return; }
-
-                    Vars["ThisCount"] = (currentCount + 1).ToString();
-
-                    var card = new NativeRewardDataConfig(gainId, NativeRewardDataType.Card);
-                    if (card.Vars.ContainsKey("SpecialTag"))
-                    {
-                        if (!card.Vars["SpecialTag"].Contains("Fragmented"))
-                        {
-                            card.Vars["SpecialTag"] += ",Fragmented";
-                        }
-                    }
-                    else
-                    {
-                        card.Vars["SpecialTag"] = "Fragmented";
-                    }
-
-                    CreateAllDharmasCard(card);
-                    grantedList.Add(gainId);
-                    Vars["GrantedSequence"] = string.Join(",", grantedList);
-
-                    DiceCheck(30, ok =>
-                    {
-                        if (ok)
-                        {
-                            CreateAllDharmasCard(new NativeRewardDataConfig("SpellCard_4", NativeRewardDataType.Card));
-                        }
-                    });
-                }
-
-                void JudgeCard(NativeRewardDataConfig cardData)
-                {
-                    if (cardData == null) { return; }
-
-                    string tags = "";
-                    if (cardData.data != null)
-                    {
-                        tags = cardData.data.GetValueOrDefault("Tag", "");
-                    }
-                    if (cardData.Vars.ContainsKey("Tag"))
-                    {
-                        tags += "," + cardData.Vars["Tag"];
-                    }
-                    if (cardData.Vars.ContainsKey("SpecialTag"))
-                    {
-                        tags += "," + cardData.Vars["SpecialTag"];
-                    }
-                    if (!tags.Contains("SpellComponents"))
-                    {
-                        //ClearChain();
-                        return;
-                    }
-
-                    string cardId = cardData.Vars.GetValueOrDefault("Id",
-                        cardData.data != null ? cardData.data.GetValueOrDefault("Id", "") : "");
-                    GrantByFlag(GetFlagByCardId(cardId));
-                }
-
-                AddEvent("StartRound", () => { ClearChain(); });
-                AddEvent<NativeRewardActionData>("Action", actionData => { JudgeCard(actionData.data); });
-
-                var pendingId = PlayerInfo.SpecialVars != null
-                    ? PlayerInfo.SpecialVars.GetValueOrDefault("AllDharmasPendingCardId", "")
-                    : "";
-                if (!string.IsNullOrEmpty(pendingId))
-                {
-                    GrantByFlag(GetFlagByCardId(pendingId));
-                    if (PlayerInfo.SpecialVars != null)
-                    {
-                        PlayerInfo.SpecialVars["AllDharmasPendingCardId"] = "";
-                    }
-                }
-    }
-
-    private void NativeProgram_0187()
+    private void NativeProgram_0184()
     {
         SetStatus("AllTarget"); AddBuff("buff_bleeding", "3");
                 int count = 0;
@@ -5254,7 +5176,7 @@ public sealed partial class NativeRewardScriptGlobals
                 RandomAddBuff(count.ToString());
     }
 
-    private void NativeProgram_0188()
+    private void NativeProgram_0185()
     {
 
          AddEvent("BurnCard",()=>
@@ -5280,12 +5202,12 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0189()
+    private void NativeProgram_0186()
     {
         Vars["BaseScript"]="AttackCardItem";AddDescription("1","Damage",(NativeRewardMathf.Pow(2,int.Parse(Vars["ThisCount"]))+3).ToString());
     }
 
-    private void NativeProgram_0190()
+    private void NativeProgram_0187()
     {
         AddEvent<NativeRewardHurtData>("Hurt",
                 (fromData) =>
@@ -5299,19 +5221,28 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0191()
+    private void NativeProgram_0188()
     {
         Vars["BaseScript"]="CommonCardItem";AddDescription("1", "Defence", "5");
     }
 
-    private void NativeProgram_0192()
+    private void NativeProgram_0189()
+    {
+        SetStatus("Self");
+                var tempList = GetcardsOutLock().Where(x=>x["Tag"].Contains("Curse")).ToList();
+                    string id= tempList[DefaultDice.WithRange(0, tempList.Count-1).Roll().Value]["Id"];
+                    CreateCard(CreateDataConfig(id,NativeRewardDataType.Card));
+                AddBuff("buff_ProfaneButterflyHymn","1");
+    }
+
+    private void NativeProgram_0190()
     {
         SetStatus("Self"); var b = Self.GetBuff("buff_rebirth");
                  if (b == null) return; int cost = b.buffConfig.Level / 2;
                   b.buffConfig.Level -= cost; int gain=cost/2;if(gain>0){AddBuff("buff_keenedge", gain.ToString());}
     }
 
-    private void NativeProgram_0193()
+    private void NativeProgram_0191()
     {
         SetStatus("Self");
         Vars["LostHpCount"] = "0";
@@ -5350,12 +5281,12 @@ public sealed partial class NativeRewardScriptGlobals
         });
     }
 
-    private void NativeProgram_0194()
+    private void NativeProgram_0192()
     {
         AddEvent("ICreateCardItem",()=> { ChangeDefence((DefaultDice.Roll().Value/30).ToString()); });
     }
 
-    private void NativeProgram_0195()
+    private void NativeProgram_0193()
     {
         if (PlayerInfo.Wisdom<40)
                 {
@@ -5364,68 +5295,28 @@ public sealed partial class NativeRewardScriptGlobals
                 SetStatus("AllTarget");AddBuff("buff_timestop","1");});
     }
 
-    private void NativeProgram_0196()
-    {
-        List<Dictionary<string, string>> list = GetcardsByRarity("3", "3").Where(x => x["Type"].Contains("技能牌")).ToList();
-                int count=DefaultDice.WithRange(0, list.Count - 1).Roll().Value;
-                var newData = dataConfig.data.ToDictionary(x => x.Key, x => x.Value);
-                newData["Id"] = list[count]["Id"];
-                newData["UseScript"] = list[count]["UseScript"];;
-                newData["Description"]= list[count]["Description"];
-                newData["InitScript"]= list[count]["InitScript"];
-                dataConfig.data = newData;
-                dataConfig.Vars["Usable"]="1";
-                ScriptDict.Remove("UseScript");
-                ScriptDict.Remove("InitScript");
-                foreach (var item in HandCard)
-                {
-                    if (item.dataConfig==dataConfig)
-                    {
-                        item.DataUpdate();
-                    }
-                }
-    }
-
-    private void NativeProgram_0197()
-    {
-        AddEvent("FightStart", () =>
-                {
-                    ChangeMaxPower("1");
-                    for (int i = 0; i < 2; i++)
-                    {
-                        int count=DefaultDice.WithRange(1,99).Roll().Value;
-                        if (count>=100)
-                        {
-                            count=99;
-                        }
-                        var temp=new NativeRewardDataConfig("SpellCard_"+(count/25+1),NativeRewardDataType.Card);
-                        CreateCard(temp);
-                    }
-                });
-    }
-
-    private void NativeProgram_0198()
+    private void NativeProgram_0194()
     {
         SetStatus("Self");
         AddEvent("buff_eclipseOnLevelChange",()=>{ChangeDynamicVar("CardCost","-2");});
     }
 
-    private void NativeProgram_0199()
+    private void NativeProgram_0195()
     {
         AddEvent("FightStart",(() => {SetStatus("Self");AddBuff("buff_unyielding","1");}));
     }
 
-    private void NativeProgram_0200()
+    private void NativeProgram_0196()
     {
         SetStatus("Target");Damage("7");SetStatus("Self");ChangeRound();ChangeHp("6");
     }
 
-    private void NativeProgram_0201()
+    private void NativeProgram_0197()
     {
         AddEvent("OnDiceCheck", () => { CheckDice.OnRoll += result => { var r2 = CheckDice.InternalRoll(); new NativeRewardDiceState(Math.Max(result.Value, r2.Value), result.Bonus).CopyTo(result); }; });
     }
 
-    private void NativeProgram_0202()
+    private void NativeProgram_0198()
     {
         if (PlayerInfo.Wisdom<20)
                 {
@@ -5433,7 +5324,7 @@ public sealed partial class NativeRewardScriptGlobals
                 }AddEvent("FightStart",(() => {SetStatus("Self");AddBuff("buff_epiphany","1");}));
     }
 
-    private void NativeProgram_0203()
+    private void NativeProgram_0199()
     {
         if (int.Parse(Vars["ThisCount"])>= 6*PlayerInfo.PlayerCount)
                     {
@@ -5443,7 +5334,7 @@ public sealed partial class NativeRewardScriptGlobals
                     }
     }
 
-    private void NativeProgram_0204()
+    private void NativeProgram_0200()
     {
         AddEvent<NativeRewardHurtData>("Hurt",(hurtData) =>
          {
@@ -5472,12 +5363,12 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0205()
+    private void NativeProgram_0201()
     {
         ChangeDynamicVar("UseCount","1");
     }
 
-    private void NativeProgram_0206()
+    private void NativeProgram_0202()
     {
         SetStatus("AllTarget");Damage("10");
                 SetStatus("Self");string a=Self.DamageCalculate(10)<100?Self.DamageCalculate(10).ToString():"100";
@@ -5485,7 +5376,7 @@ public sealed partial class NativeRewardScriptGlobals
                 ChangeRound();
     }
 
-    private void NativeProgram_0207()
+    private void NativeProgram_0203()
     {
         SetStatus("Self");AddBuff("buff_elements","2"); if (Self.GetBuff("buff_elements")==null)
                 {
@@ -5494,7 +5385,7 @@ public sealed partial class NativeRewardScriptGlobals
                 Damage((int.Parse(Vars["elements"])* 2).ToString());
     }
 
-    private void NativeProgram_0208()
+    private void NativeProgram_0204()
     {
         int index=PlayerInfo.RelicList.FindIndex(x=>x.InstanceID==dataConfig.InstanceID);
                 if (index==0||index==-1)
@@ -5505,12 +5396,12 @@ public sealed partial class NativeRewardScriptGlobals
                 target.scriptExecutor.RunScript("FightScript");
     }
 
-    private void NativeProgram_0209()
+    private void NativeProgram_0205()
     {
         Vars["BaseScript"]="AttackCardItem"; AddDescription("1","Damage","10");
     }
 
-    private void NativeProgram_0210()
+    private void NativeProgram_0206()
     {
         if (PlayerInfo.Wisdom<30)
                 {
@@ -5518,7 +5409,17 @@ public sealed partial class NativeRewardScriptGlobals
                 }AddEvent("FightStart",(() => {SetStatus("Self");AddBuff("buff_oniblood","1");}));
     }
 
-    private void NativeProgram_0211()
+    private void NativeProgram_0207()
+    {
+        AddEvent("FightStart", () =>
+                {
+                    var temp=CreateDataConfig("SpellCard_4",NativeRewardDataType.Card);
+                    temp.Vars["OnceExCost"]="-3";
+                    CreateCard(temp);
+                });
+    }
+
+    private void NativeProgram_0208()
     {
         Vars["CorCount"]="0";SetStatus("AllFriends");int count = 0;
                var temp=new List<NativeRewardActor>(Object);
@@ -5537,20 +5438,20 @@ public sealed partial class NativeRewardScriptGlobals
                      dataConfig.Vars["DesVal1"] = count.ToString();}
     }
 
-    private void NativeProgram_0212()
+    private void NativeProgram_0209()
     {
         List<NativeRewardDataConfig> cards = DeckCard.Select(x => x.dataConfig).ToList();
               CopyCardWare("1",cards,null,"");
     }
 
-    private void NativeProgram_0213()
+    private void NativeProgram_0210()
     {
         AddEvent("FightStart",()=> {
                         RandomAddBuff("5");
                       });
     }
 
-    private void NativeProgram_0214()
+    private void NativeProgram_0211()
     {
         AddEvent("FightStart",() => {SetStatus("Self");
                 GetStatus.Add(Self,new Dictionary<string, int>{["CurHp"]=Self.CurHp,["MaxHp"]=Self.MaxHp});
@@ -5563,7 +5464,7 @@ public sealed partial class NativeRewardScriptGlobals
           }});
     }
 
-    private void NativeProgram_0215()
+    private void NativeProgram_0212()
     {
         SetStatus("Self");
                 AddEvent("BeforeDead", () =>
@@ -5599,7 +5500,7 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0216()
+    private void NativeProgram_0213()
     {
         SetStatus("Self");foreach (var item in Object)
           {
@@ -5619,7 +5520,7 @@ public sealed partial class NativeRewardScriptGlobals
           };
     }
 
-    private void NativeProgram_0217()
+    private void NativeProgram_0214()
     {
         SetStatus("Self");int _rg=(int)(10*Self.dynamicVariables.GetValueOrDefault("ReturnAgainGainMultiplier",1f));
                 if(_rg>0){AddBuff("buff_ReturnAgain",_rg.ToString());}
@@ -5633,7 +5534,7 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0218()
+    private void NativeProgram_0215()
     {
         AddEvent("Resurrection",()=>{Vars["ThisCount"]=(int.Parse(Vars["ThisCount"])+9).ToString();});
          AddEvent<NativeRewardHurtData>("Hurt",(fromdata)=>{
@@ -5650,7 +5551,7 @@ public sealed partial class NativeRewardScriptGlobals
          ChangeHp((int.Parse(fromdata.val)+Self.MaxHp/20).ToString());});
     }
 
-    private void NativeProgram_0219()
+    private void NativeProgram_0216()
     {
         if (PlayerInfo.Perceive<20)
                 {
@@ -5658,7 +5559,7 @@ public sealed partial class NativeRewardScriptGlobals
                 }AddEvent("FightStart",(() => {SetStatus("Self");AddBuff("buff_impregnable","2");}));
     }
 
-    private void NativeProgram_0220()
+    private void NativeProgram_0217()
     {
         Vars["ThisCount"] = "0";
                 AddEvent("Hurt", () =>
@@ -5671,17 +5572,17 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0221()
+    private void NativeProgram_0218()
     {
         Vars["BaseScript"]="CommonCardItem";AddDescription("1", "Defence", "15");AddDescription("2", "Defence", "5");
     }
 
-    private void NativeProgram_0222()
+    private void NativeProgram_0219()
     {
         AddEvent("Action",(() => {SetStatus("Self");AddBuff("buff_elements","1");}));
     }
 
-    private void NativeProgram_0223()
+    private void NativeProgram_0220()
     {
         if (PlayerInfo.SpecialVars==null)
                 {
@@ -5695,12 +5596,12 @@ public sealed partial class NativeRewardScriptGlobals
                 Damage((6+count/8).ToString(),"True");
     }
 
-    private void NativeProgram_0224()
+    private void NativeProgram_0221()
     {
         AddEvent("Hurt",(() => ChangeMoney("8")));
     }
 
-    private void NativeProgram_0225()
+    private void NativeProgram_0222()
     {
         if (!dataConfig.Vars.ContainsKey("stack"))
                 {
@@ -5708,17 +5609,17 @@ public sealed partial class NativeRewardScriptGlobals
                 }AddDescription("1", "Hp", Vars["stack"].ToInt() * 4);
     }
 
-    private void NativeProgram_0226()
+    private void NativeProgram_0223()
     {
         Vars["BaseScript"]="CommonCardItem";AddDescription("1","Buff","6");
     }
 
-    private void NativeProgram_0227()
+    private void NativeProgram_0224()
     {
         AddEvent("EndRound",() => {ChangeHp((PlayerInfo.Power*6).ToString());ChangePower((-1*PlayerInfo.Power).ToString()); });
     }
 
-    private void NativeProgram_0228()
+    private void NativeProgram_0225()
     {
         AddEvent<NativeRewardScriptExecuteData>("ScriptExecute", data =>
          {
@@ -5770,18 +5671,18 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0229()
+    private void NativeProgram_0226()
     {
         SetStatus("Self");
                 ChangeRound();AddBuff("buff_impregnable","3");
     }
 
-    private void NativeProgram_0230()
+    private void NativeProgram_0227()
     {
         AddEvent("FightStart",(() => {SetStatus("Self");AddBuff("buff_chaos","1");}));
     }
 
-    private void NativeProgram_0231()
+    private void NativeProgram_0228()
     {
         SetStatus("Target");for(int i=0;i<3;i++){Damage("1");}
                 int baseDa=Self.DamageCalculate(1);
@@ -5795,7 +5696,7 @@ public sealed partial class NativeRewardScriptGlobals
                 Resentment(baseDa.ToString());
     }
 
-    private void NativeProgram_0232()
+    private void NativeProgram_0229()
     {
         Vars["RetainAdd"]="0";
          bool UniqueDeck()
@@ -5821,17 +5722,17 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0233()
+    private void NativeProgram_0230()
     {
         SetStatus("Self");int check=CheckDice.Roll().Value;if(check>=50){ChangeHp((check>100?20:10).ToString());}else{DrawCount("1");}
     }
 
-    private void NativeProgram_0234()
+    private void NativeProgram_0231()
     {
         AddEvent("StartRound",() => {SetStatus("Self");ChangeDefence(Vars["layersExperienced"]);});
     }
 
-    private void NativeProgram_0235()
+    private void NativeProgram_0232()
     {
         SetStatus("Target");
                 DrawCount("5");
@@ -5842,7 +5743,7 @@ public sealed partial class NativeRewardScriptGlobals
         PlayerInfo.SkillTime["careercard_5"] +=3;
     }
 
-    private void NativeProgram_0236()
+    private void NativeProgram_0233()
     {
         AddEvent("StartRound",()=>{
          SetStatus("Self");
@@ -5897,24 +5798,24 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0237()
+    private void NativeProgram_0234()
     {
         AddEvent("FightStart", ()=> { ChangeMaxPower("1"); ChangeDynamicVar("BurnCount","1");});
     }
 
-    private void NativeProgram_0238()
+    private void NativeProgram_0235()
     {
         SetStatus("Self");
                 ChangeDynamicVar("BurnCount","1");
          AddEvent("BurnCard",()=>{SetStatus("AllTarget");Resentment("2");});
     }
 
-    private void NativeProgram_0239()
+    private void NativeProgram_0236()
     {
         AddEvent("FightStart",()=>{SetStatus("Self");ChangePower("1");});
     }
 
-    private void NativeProgram_0240()
+    private void NativeProgram_0237()
     {
         if (PlayerInfo.SpecialVars.ContainsKey("meowCount")&&PlayerInfo.SpecialVars["meowCount"]=="1")
                 {
@@ -5923,7 +5824,7 @@ public sealed partial class NativeRewardScriptGlobals
                AddBuff("SpecialBuff_meow", "1");AddBuff("buff_rebirth", "70");
     }
 
-    private void NativeProgram_0241()
+    private void NativeProgram_0238()
     {
         PlayerInfo.TempStrength -=  int.Parse(Vars["ThisCount"]);
                 PlayerInfo.TempPerceive -=  int.Parse(Vars["ThisCount"]);
@@ -5931,7 +5832,7 @@ public sealed partial class NativeRewardScriptGlobals
                 ChangeCareer("career_2");
     }
 
-    private void NativeProgram_0242()
+    private void NativeProgram_0239()
     {
         ChangeDefence("6");
                 SetStatus("Self");
@@ -5939,12 +5840,12 @@ public sealed partial class NativeRewardScriptGlobals
                 ChangeMoney("60");
     }
 
-    private void NativeProgram_0243()
+    private void NativeProgram_0240()
     {
         Vars["BaseScript"]="CommonCardItem";AddDescription("1","Draw","3");
     }
 
-    private void NativeProgram_0244()
+    private void NativeProgram_0241()
     {
         if (PlayerInfo.SpecialVars.ContainsKey("blessing_35") ||PlayerInfo.enemylevel==4)
                 {
@@ -5977,7 +5878,7 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0245()
+    private void NativeProgram_0242()
     {
         AddEvent<NativeRewardBurnData>("BurnCard",(from)=>{ SetStatus("Self"); AddBuff("buff_revelation","1");
                 if (TagCheck(from.data,"Combo"))
@@ -5996,17 +5897,17 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0246()
+    private void NativeProgram_0243()
     {
         Vars["BaseScript"]="AttackCardItem";AddDescription("1","Value","90");AddDescription("2","Buff","2");AddDescription("3","Power","1");AddDescription("4","Value","5");
     }
 
-    private void NativeProgram_0247()
+    private void NativeProgram_0244()
     {
         AddEvent("Action",(() => {SetStatus("AllRandomTarget1");AddBuff("buff_weak","1");}));
     }
 
-    private void NativeProgram_0248()
+    private void NativeProgram_0245()
     {
         AddEvent("FightStart",() =>
                 {
@@ -6015,7 +5916,7 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0249()
+    private void NativeProgram_0246()
     {
          SetStatus("Self");
                AddEvent("StartRound", () =>
@@ -6038,12 +5939,12 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0250()
+    private void NativeProgram_0247()
     {
         SetStatus("All");AddEvent<NativeRewardHurtData>("Hurt",(data)=>{SetStatusById(data.toId);AddBuff("buff_keenedge","1");});
     }
 
-    private void NativeProgram_0251()
+    private void NativeProgram_0248()
     {
         SetStatus("Self");
                 AddBuff("buff_elements", "2");
@@ -6059,27 +5960,22 @@ public sealed partial class NativeRewardScriptGlobals
                 DrawCount((count).ToString());
     }
 
-    private void NativeProgram_0252()
-    {
-        int c=HandCard.Count;for(int i=0;i<c;i++){if(HandCard.Count==0){break;}HandCard[0].InternalThrow();}var pool=new List<string>{"SpellCard_1","SpellCard_2","SpellCard_3","SpellCard_4"};for(int i=0;i<c;i++){int idx=DefaultDice.WithRange(0,pool.Count-1).Roll().Value;CreateCard(new NativeRewardDataConfig(pool[idx],NativeRewardDataType.Card));}
-    }
-
-    private void NativeProgram_0253()
+    private void NativeProgram_0249()
     {
         Vars["BaseScript"]="CommonCardItem";
     }
 
-    private void NativeProgram_0254()
+    private void NativeProgram_0250()
     {
         AddEvent("FightStart",(() => {SetStatus("Self");AddBuff("buff_evergreen","1");}));
     }
 
-    private void NativeProgram_0255()
+    private void NativeProgram_0251()
     {
         Vars["BaseScript"]="AttackCardItem";AddDescription("1","Buff","1");AddDescription("2","Value","3");
     }
 
-    private void NativeProgram_0256()
+    private void NativeProgram_0252()
     {
 
                 if (ComboCheck())
@@ -6088,7 +5984,7 @@ public sealed partial class NativeRewardScriptGlobals
                 }
     }
 
-    private void NativeProgram_0257()
+    private void NativeProgram_0253()
     {
         AddEvent("FightStart",()=> { DrawCount("5");Vars["ThisCount"] = "5"; });
                 AddEvent("Action",()=> { Vars["ThisCount"] = (int.Parse(Vars["ThisCount"]) + 1).ToString();UpdateRelicShow(); });
@@ -6097,7 +5993,7 @@ public sealed partial class NativeRewardScriptGlobals
                      Vars["ThisCount"] = "0"; });
     }
 
-    private void NativeProgram_0258()
+    private void NativeProgram_0254()
     {
 
          var cards = HandCard
@@ -6117,13 +6013,13 @@ public sealed partial class NativeRewardScriptGlobals
                 DrawCount(i.ToString());
     }
 
-    private void NativeProgram_0259()
+    private void NativeProgram_0255()
     {
         Vars["BaseScript"]="AttackCardItem";int lv=Self!=null&&Self.GetBuff("buff_ReturnAgain")!=null?Self.GetBuff("buff_ReturnAgain").buffConfig.Level:0;
                AddDescription("1","Damage",(lv/4).ToString());
     }
 
-    private void NativeProgram_0260()
+    private void NativeProgram_0256()
     {
         if (int.Parse(Vars["ThisCount"])<=2)
                 {
@@ -6132,19 +6028,19 @@ public sealed partial class NativeRewardScriptGlobals
                 Vars["BaseScript"]="AttackCardItem";AddDescription("1","TrueDamage","5");AddDescription("2","TrueDamage",Vars["ThisCount"]);
     }
 
-    private void NativeProgram_0261()
+    private void NativeProgram_0257()
     {
         AddEvent("FightStart",() => {
                    SetStatus("AllTarget");
                    AddBuff("buff_degrade","4"); });
     }
 
-    private void NativeProgram_0262()
+    private void NativeProgram_0258()
     {
         Vars["BaseScript"]="AttackCardItem";
     }
 
-    private void NativeProgram_0263()
+    private void NativeProgram_0259()
     {
         SetStatus("Self");int _rg=(int)(10*Self.dynamicVariables.GetValueOrDefault("ReturnAgainGainMultiplier",1f));
                 if(_rg>0){AddBuff("buff_ReturnAgain",_rg.ToString());}
@@ -6157,7 +6053,12 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0264()
+    private void NativeProgram_0260()
+    {
+        for(int i=0;i<5;i++){SetStatus("AllRandomTarget1");Damage("1");}CreateCard(CreateDataConfig("SpellCard_1",NativeRewardDataType.Card));
+    }
+
+    private void NativeProgram_0261()
     {
         if (PlayerInfo.Lucky<30)
                 {
@@ -6165,22 +6066,22 @@ public sealed partial class NativeRewardScriptGlobals
                 }AddEvent("FightStart",() => PlayerInfo.Reward+=1);
     }
 
-    private void NativeProgram_0265()
+    private void NativeProgram_0262()
     {
         SetStatus("Target");for(int i=0;i<3;i++){Resentment("1");}if(Object.Count>0){var t=Object[0];var buffs=t.GetBuffs();if(buffs!=null){var neg=buffs.Where(x=>x!=null&&x.buffConfig!=null&&x.buffConfig.dataConfig.data["Type"]=="负面").ToArray();foreach(var b in neg){SetStatusById(t.InstanceId);AddBuff(b.buffConfig.BuffId,"1");}int nt=neg.Select(x=>x.buffConfig.BuffId).Distinct().Count();var re=t.GetBuff("buff_resentment");int rv=re==null?0:re.buffConfig.Level;if(rv*nt>t.CurHp){SetStatusById(t.InstanceId);Damage(t.CurHp.ToString(),"True");}}}
     }
 
-    private void NativeProgram_0266()
+    private void NativeProgram_0263()
     {
         AddEvent("FightStart",(() => {SetStatus("Self");AddBuff("buff_keenedge","1");}));
     }
 
-    private void NativeProgram_0267()
+    private void NativeProgram_0264()
     {
         Vars["BaseScript"]="AttackCardItem"; Vars["DesVal1"] = PlayerInfo.SkillTime != null && PlayerInfo.SkillTime.ContainsKey("careercard_8") ? PlayerInfo.SkillTime["careercard_8"].ToString() : "0";
     }
 
-    private void NativeProgram_0268()
+    private void NativeProgram_0265()
     {
         int check=CheckDice.Roll().Value;
                 bool failed=true;
@@ -6204,7 +6105,7 @@ public sealed partial class NativeRewardScriptGlobals
                 }
     }
 
-    private void NativeProgram_0269()
+    private void NativeProgram_0266()
     {
         if (Self.GetBuff("buff_revelation") != null)
                 {
@@ -6217,7 +6118,7 @@ public sealed partial class NativeRewardScriptGlobals
                 }
     }
 
-    private void NativeProgram_0270()
+    private void NativeProgram_0267()
     {
         AddEvent("FightStart",() => {
          SetStatus("AllTarget");
@@ -6225,7 +6126,7 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0271()
+    private void NativeProgram_0268()
     {
         ChangeDynamicVarPercent("AttackedPercentDamage","40");
          ChangeDynamicVarPercent("DefendPercent","-40");
@@ -6254,7 +6155,7 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0272()
+    private void NativeProgram_0269()
     {
         Vars["BaseScript"]="AttackCardItem";
                 if (Self==null||Self.GetBuff("buff_keenedge")==null)
@@ -6268,32 +6169,32 @@ public sealed partial class NativeRewardScriptGlobals
                 AddDescription("2","Value","5");
     }
 
-    private void NativeProgram_0273()
+    private void NativeProgram_0270()
     {
         AddEvent("Hurt",() => {SetStatus("Self");if(CheckDice.Roll().Value>50){AddBuff("buff_evergreen","1");}});
     }
 
-    private void NativeProgram_0274()
+    private void NativeProgram_0271()
     {
         AddEvent("FightStart",(() => {SetStatus("Self");AddBuff("buff_epiphany","1");AddBuff("buff_impregnable","1");}));
     }
 
-    private void NativeProgram_0275()
+    private void NativeProgram_0272()
     {
         AddEvent("FightStart",(() => {DrawCount("1");}));
     }
 
-    private void NativeProgram_0276()
+    private void NativeProgram_0273()
     {
         SetStatus("Self");AddEvent("OnDiceCheck",()=>{CheckDice.OnRoll += result => { var r2 = CheckDice.InternalRoll(); new NativeRewardDiceState(Math.Max(result.Value, r2.Value), result.Bonus).CopyTo(result); };});
     }
 
-    private void NativeProgram_0277()
+    private void NativeProgram_0274()
     {
         Vars["BaseScript"]="AttackCardItem";
     }
 
-    private void NativeProgram_0278()
+    private void NativeProgram_0275()
     {
         Vars["ThisCount"]="0";
                 AddEvent("FightStart", () =>
@@ -6310,7 +6211,12 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0279()
+    private void NativeProgram_0276()
+    {
+        Vars["Done"]="0";AddEvent("FightStart",()=>{if(Vars["Done"]=="1")return;CreateCard(CreateDataConfig("ReturnAgain_2",NativeRewardDataType.Card));Vars["Done"]="1";});
+    }
+
+    private void NativeProgram_0277()
     {
         if (!PlayerInfo.RelicList.Any(x=>x.data["Id"]=="CrowdFundingRelic_12"))
          {
@@ -6355,7 +6261,7 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0280()
+    private void NativeProgram_0278()
     {
         if(Self==null||!PlayerInfo.RelicList.Any(x=>x.data["Id"]=="CrowdFundingRelic_12"))return;
                   SetStatus("AllTarget");
@@ -6375,13 +6281,27 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0281()
+    private void NativeProgram_0279()
     {
         SetStatus("Self");
                UseAndBurnDrawPileSnapshot();
     }
 
-    private void NativeProgram_0282()
+    private void NativeProgram_0280()
+    {
+        AddEvent("StartRound",()=>{for(int i=0;i<2;i++){CreateCard(CreateDataConfig("cursecard_14",NativeRewardDataType.Card));}});
+        SetStatus("AllTarget");
+        AddEvent<NativeRewardHurtData>("Hurt",(data)=>{
+            if(data.fromDataId!="enemycard_CAR_Sword"){return;}
+            int hurtVal=0;int.TryParse(data.val,out hurtVal);if(hurtVal<=0){return;}
+            int count=HandCard.Count(x=>x!=null&&x.dataConfig.data["Id"]=="cursecard_14");
+            if(count<=5){return;}
+            foreach(var card in HandCard.Where(x=>x!=null&&x.dataConfig.data["Id"]=="cursecard_14").ToList()){BurnCardByData(card.dataConfig);}
+            SetStatusById(data.toId);if(Object.Count>0){Damage(Object[0].MaxHp.ToString(),"True");}
+        });
+    }
+
+    private void NativeProgram_0281()
     {
         Vars["Stack"]="0";
          SetStatus("AllTarget");
@@ -6400,7 +6320,7 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0283()
+    private void NativeProgram_0282()
     {
         AddEvent("EndRound",() => {
                 SetStatus("Self");
@@ -6413,22 +6333,22 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0284()
+    private void NativeProgram_0283()
     {
         SetStatus("Self");AddBuff("buff_elements","2");SetStatus("Target");AddBuff("buff_burn","2");SetStatus("AllTarget");RunImmediately("buff_burn","StartRound");
     }
 
-    private void NativeProgram_0285()
+    private void NativeProgram_0284()
     {
         AddEvent("FightStart",(() => {SetStatus("Self");AddBuff("buff_extraordinary","20");}));
     }
 
-    private void NativeProgram_0286()
+    private void NativeProgram_0285()
     {
         DrawCount("3");SetStatus("Self");var hasRitual=Self.GetBuffs().Any(x=>x!=null&&x.buffConfig.BuffId.Contains("ritual"));if(!hasRitual){ThrowCard("3","1");}
     }
 
-    private void NativeProgram_0287()
+    private void NativeProgram_0286()
     {
         int totalBleeding = 0;
          foreach (var kv in Statuses)
@@ -6457,7 +6377,7 @@ public sealed partial class NativeRewardScriptGlobals
          PlayerInfo.SkillTime["careercard_11"] +=1;
     }
 
-    private void NativeProgram_0288()
+    private void NativeProgram_0287()
     {
         int count=1;
                  if (Self.GetBuff("buff_poised") != null)
@@ -6476,14 +6396,50 @@ public sealed partial class NativeRewardScriptGlobals
                 }
     }
 
-    private void NativeProgram_0289()
+    private void NativeProgram_0288()
     {
         Vars["BaseScript"]="CommonCardItem";AddDescription("1","Buff","1");
     }
 
-    private void NativeProgram_0290()
+    private void NativeProgram_0289()
     {
         Vars["BaseScript"]="AttackCardItem"; AddDescription("1","Damage","7");AddDescription("2", "Hp", "6");
+    }
+
+    private void NativeProgram_0290()
+    {
+        Vars["ThisCount"]="0";
+                var tempList=GetcardsByRarity("1","3").Where(x=>x["Tag"].Contains("Combo")).ToList();
+                if (tempList.Count==0)
+                {
+                    return;
+                }
+                AddEvent("StartRound", () =>
+                {
+
+                    int count=DefaultDice.WithRange(0,tempList.Count()-1).Roll().Value;
+                    AddCardById(tempList[count]["Id"]);
+                });
+                  AddEvent("buff_revelationOnLevelChange", () =>
+                {
+                    if (Self==null||Self.GetBuff("buff_revelation")==null)
+                    {
+                        return;
+                    }
+                    var buff=Self.GetBuff("buff_revelation");
+                    if (buff.buffConfig.Level>int.Parse(Vars["ThisCount"]))
+                    {
+                        Vars["ThisCount"]=buff.buffConfig.Level.ToString();
+                        int count =CheckDice.Roll().Value;
+                        if (count>95)
+                        {
+                            int index=DefaultDice.WithRange(0,tempList.Count()-1).Roll().Value;
+                    NativeRewardDataConfig newData=CreateDataConfig(tempList[index]["Id"],NativeRewardDataType.Card);
+                newData.Vars["TotalExCost"]="-1";
+                CreateCard(newData);
+                        }
+                    }
+                });
     }
 
     private void NativeProgram_0291()
@@ -6552,6 +6508,11 @@ public sealed partial class NativeRewardScriptGlobals
 
     private void NativeProgram_0298()
     {
+        SetStatus("Self");ChangeMaxPower("1");CreateCard(CreateDataConfig("SpellCard_3",NativeRewardDataType.Card));
+    }
+
+    private void NativeProgram_0299()
+    {
         SetStatus("Self");
         AddBuff("buff_bleeding", "2");
         SetStatus("Target");
@@ -6561,13 +6522,13 @@ public sealed partial class NativeRewardScriptGlobals
          }
     }
 
-    private void NativeProgram_0299()
+    private void NativeProgram_0300()
     {
         AddEvent("FightStart",() => {SetStatus("Self");ChangeHp((Self.CurHp/10*(-3)).ToString());});
                 AddEvent("Action",() => {if(CheckDice.Roll().Value>60) ChangeDynamicVar("UseCount","1");});
     }
 
-    private void NativeProgram_0300()
+    private void NativeProgram_0301()
     {
         Vars["BaseScript"]="AttackCardItem";
         if (Self!=null&&Self.GetBuff("buff_counterattack") != null)
@@ -6584,7 +6545,7 @@ public sealed partial class NativeRewardScriptGlobals
         }
     }
 
-    private void NativeProgram_0301()
+    private void NativeProgram_0302()
     {
         if (PlayerInfo.Lucky<10)
                 {
@@ -6592,7 +6553,7 @@ public sealed partial class NativeRewardScriptGlobals
                 }AddEvent("FightStart",(() => {DrawCount("1");}));
     }
 
-    private void NativeProgram_0302()
+    private void NativeProgram_0303()
     {
         if (PlayerInfo.Power>3)
                 {
@@ -6600,7 +6561,7 @@ public sealed partial class NativeRewardScriptGlobals
                 }
     }
 
-    private void NativeProgram_0303()
+    private void NativeProgram_0304()
     {
         SetStatus("Self");int _rg=(int)(10*Self.dynamicVariables.GetValueOrDefault("ReturnAgainGainMultiplier",1f));if(_rg>0)
                  {AddBuff("buff_ReturnAgain",_rg.ToString());}SetStatus("Self");ChangeDefence("5");
@@ -6617,7 +6578,7 @@ public sealed partial class NativeRewardScriptGlobals
                  });
     }
 
-    private void NativeProgram_0304()
+    private void NativeProgram_0305()
     {
         SetStatus("Self");
                 AddEvent("Dead",()=>{
@@ -6656,7 +6617,7 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0305()
+    private void NativeProgram_0306()
     {
         SetStatus("Self");Vars["ThisCount"] = "0";
                 AddEvent("StartRound",()=> { Vars["ThisCount"] = "0"; });
@@ -6671,17 +6632,17 @@ public sealed partial class NativeRewardScriptGlobals
                  });
     }
 
-    private void NativeProgram_0306()
+    private void NativeProgram_0307()
     {
         Vars["BaseScript"]="CommonCardItem";AddDescription("1","Damage","9");
     }
 
-    private void NativeProgram_0307()
+    private void NativeProgram_0308()
     {
         Vars["BaseScript"]="AttackCardItem";AddDescription("1","Buff","1");AddDescription("2","Damage","8");
     }
 
-    private void NativeProgram_0308()
+    private void NativeProgram_0309()
     {
         AddEvent("Action",() => {
                     Vars["ThisCount"]=(int.Parse(Vars["ThisCount"])+1).ToString();
@@ -6694,12 +6655,50 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0309()
+    private void NativeProgram_0310()
+    {
+        int check=CheckDice.Roll().Value;
+                bool failed=true;
+                var cards=GetcardsByRarity("1","3");
+                if (check>100)
+                {
+                    failed=false;
+                    var tempList=cards.Where(x=>x["Rarity"]=="3").ToList();
+                    int index=DefaultDice.WithRange(0,tempList.Count()-1).Roll().Value;
+                    string tempId=tempList[index]["Id"];
+                    var tempdata=CreateDataConfig(tempId,NativeRewardDataType.Card);
+                    tempdata.Vars["TotalExCost"]="-99";
+                    CreateCard(tempdata);
+                    check-=100;
+                }
+                if (check>=60)
+                {
+                    failed=false;
+                    var tempList=cards.Where(x=>x["Rarity"]=="3").ToList();
+                    int index=DefaultDice.WithRange(0,tempList.Count()-1).Roll().Value;
+                    string tempId=tempList[index]["Id"];
+                    var tempdata=CreateDataConfig(tempId,NativeRewardDataType.Card);
+                    tempdata.Vars["TotalExCost"]="-99";
+                    CreateCard(tempdata);
+
+                }
+                if (failed)
+                {
+                    var tempList=cards.Where(x=>x["Rarity"]=="1").ToList();
+                    int index=DefaultDice.WithRange(0,tempList.Count()-1).Roll().Value;
+                    string tempId=tempList[index]["Id"];
+                    var tempdata=CreateDataConfig(tempId,NativeRewardDataType.Card);
+                    tempdata.Vars["TotalExCost"]="-99";
+                    CreateCard(tempdata);
+                }
+    }
+
+    private void NativeProgram_0311()
     {
         AddEvent("StartRound",() => {SetStatus("Self");ChangePower("1");});
     }
 
-    private void NativeProgram_0310()
+    private void NativeProgram_0312()
     {
         AddEvent<NativeRewardActionData>("Action",(thisData)=>
                 {
@@ -6726,7 +6725,7 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0311()
+    private void NativeProgram_0313()
     {
         if (PlayerInfo.Strength<40)
                 {
@@ -6735,29 +6734,12 @@ public sealed partial class NativeRewardScriptGlobals
                     AddBuff("buff_extraordinary","500");});
     }
 
-    private void NativeProgram_0312()
+    private void NativeProgram_0314()
     {
         AddEvent("FightStart",(() => {DrawCount("2");ChangeMaxHp("+1");}));
     }
 
-    private void NativeProgram_0313()
-    {
-        AddEvent("StartRound", () =>
-                {
-                    for (int i = 0; i < 2; i++)
-                    {
-                        int count=DefaultDice.WithRange(1,99).Roll().Value;
-                        if (count>=100)
-                        {
-                            count=99;
-                        }
-                        var temp=new NativeRewardDataConfig("SpellCard_"+(count/25+1),NativeRewardDataType.Card);
-                        CreateCard(temp);
-                    }
-                });
-    }
-
-    private void NativeProgram_0314()
+    private void NativeProgram_0315()
     {
         AddEvent("StartRound", () => { SetStatus("AllTarget"); AddBuff("buff_bleeding", "5"); });
                 bool isTrigger = false;
@@ -6785,17 +6767,17 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0315()
+    private void NativeProgram_0316()
     {
         Vars["BaseScript"]="AttackCardItem";AddDescription("1", "Buff", "2");
     }
 
-    private void NativeProgram_0316()
+    private void NativeProgram_0317()
     {
         Vars["BaseScript"]="CommonCardItem";Vars["DesVal1"] = PlayerInfo.SkillTime != null && PlayerInfo.SkillTime.ContainsKey("careercard_3") ? PlayerInfo.SkillTime["careercard_3"].ToString() : "0";
     }
 
-    private void NativeProgram_0317()
+    private void NativeProgram_0318()
     {
         Vars["BaseScript"]="AttackCardItem";int total=0;SetStatus("Self");
                if (!Self.IsNull()&&!(Self.GetBuffs()==null))
@@ -6807,7 +6789,7 @@ public sealed partial class NativeRewardScriptGlobals
                 AddDescription("1","Damage",(5+total*3).ToString());
     }
 
-    private void NativeProgram_0318()
+    private void NativeProgram_0319()
     {
         Vars["BaseScript"]="CommonCardItem";
                 if (Self!=null&&Self.GetBuff("buff_bleeding")!=null)
@@ -6817,7 +6799,7 @@ public sealed partial class NativeRewardScriptGlobals
                else{Vars["Usable"]="0";}
     }
 
-    private void NativeProgram_0319()
+    private void NativeProgram_0320()
     {
         AddEvent("FightStart",() => {SetStatus("Self");ChangeHp("15");Vars["ThisCount"]="0";});AddEvent("StartRound",() => {
                     Vars["ThisCount"]=(int.Parse(Vars["ThisCount"])+1).ToString();UpdateRelicShow();
@@ -6828,12 +6810,12 @@ public sealed partial class NativeRewardScriptGlobals
                     }});
     }
 
-    private void NativeProgram_0320()
+    private void NativeProgram_0321()
     {
         SetStatus("Self");int _rg=(int)(5*Self.dynamicVariables.GetValueOrDefault("ReturnAgainGainMultiplier",1f));if(_rg>0){AddBuff("buff_ReturnAgain",_rg.ToString());}SetStatus("Self");ChangeHp((-Self.CurHp*3/10).ToString());SetStatus("AllTarget");Damage("150");
     }
 
-    private void NativeProgram_0321()
+    private void NativeProgram_0322()
     {
 
         AddEvent("EndRound",() => {
@@ -6844,7 +6826,7 @@ public sealed partial class NativeRewardScriptGlobals
         });AddEvent("Action",() => {ChangeHp((int.Parse(Self.GetBuff("buff_oniblood").buffConfig.Level.ToString())*4).ToString());});
     }
 
-    private void NativeProgram_0322()
+    private void NativeProgram_0323()
     {
         SetStatus("Self");
                 AddBuff("SpecialBuff_CalamityIncarnates","1");
@@ -6856,7 +6838,7 @@ public sealed partial class NativeRewardScriptGlobals
                 ChangeCareer("career_4");
     }
 
-    private void NativeProgram_0323()
+    private void NativeProgram_0324()
     {
         Vars["ThisCount"] = "0";
                 UpdateRelicShow();
@@ -6876,7 +6858,7 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0324()
+    private void NativeProgram_0325()
     {
         AddEvent("FightStart", () =>
                 {
@@ -6887,7 +6869,7 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0325()
+    private void NativeProgram_0326()
     {
         Vars["TrueDamageCount"]="0";
          Vars["TrueDamageGain"]="0";
@@ -6938,45 +6920,9 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0326()
-    {
-        SetStatus("AllTarget");AddEvent<NativeRewardActionData>("Action",(data)=>{SetStatusById(data.Id);ChangeMoney("-6","true");});
-    }
-
     private void NativeProgram_0327()
     {
-        Vars["ThisCount"]="0";
-                var tempList=GetcardsByRarity("1","3").Where(x=>x["Tag"].Contains("Combo")).ToList();
-                if (tempList.Count==0)
-                {
-                    return;
-                }
-                AddEvent("StartRound", () =>
-                {
-
-                    int count=DefaultDice.WithRange(0,tempList.Count()-1).Roll().Value;
-                    AddCardById(tempList[count]["Id"]);
-                });
-                  AddEvent("buff_revelationOnLevelChange", () =>
-                {
-                    if (Self==null||Self.GetBuff("buff_revelation")==null)
-                    {
-                        return;
-                    }
-                    var buff=Self.GetBuff("buff_revelation");
-                    if (buff.buffConfig.Level>int.Parse(Vars["ThisCount"]))
-                    {
-                        Vars["ThisCount"]=buff.buffConfig.Level.ToString();
-                        int count =CheckDice.Roll().Value;
-                        if (count>95)
-                        {
-                            int index=DefaultDice.WithRange(0,tempList.Count()-1).Roll().Value;
-                    NativeRewardDataConfig newData=new NativeRewardDataConfig(tempList[index]["Id"],NativeRewardDataType.Card);
-                newData.Vars["TotalExCost"]="-1";
-                CreateCard(newData);
-                        }
-                    }
-                });
+        SetStatus("AllTarget");AddEvent<NativeRewardActionData>("Action",(data)=>{SetStatusById(data.Id);ChangeMoney("-6","true");});
     }
 
     private void NativeProgram_0328()
@@ -7055,10 +7001,84 @@ public sealed partial class NativeRewardScriptGlobals
 
     private void NativeProgram_0334()
     {
-        Vars.TryAdd("ThisCount", "0");
+        if (DeckCard == null || DeckCard.Count == 0)
+                {
+                    PlayerInfo.ShowCaption("Your draw pile is empty");
+                    return;
+                }
+                if (!PlayerInfo.SkillTime.ContainsKey("careercard_9"))
+                {
+                    PlayerInfo.SkillTime["careercard_9"] = 0;
+                }
+                PlayerInfo.SkillTime["careercard_9"] += 2;
+                PackToDeckAction("1", DeckCard.Select(x => x.dataConfig).ToList(), (list) =>
+                {
+                    if (list.Count == 0)
+                    {
+                        PlayerInfo.SkillTime["careercard_9"] -=2;
+                        UpdateSkillTime();
+                        return;
+                    }
+
+                    var selected = list[0] as NativeRewardDataConfig;
+                    if (selected == null)
+                    {
+                        PlayerInfo.SkillTime["careercard_9"] -=2;
+                        UpdateSkillTime();
+                        return;
+                    }
+                    int expend = int.Parse(selected.data.GetValueOrDefault("Expend", "0"));
+                    int rarity = int.Parse(selected.data.GetValueOrDefault("Rarity", "1"));
+                    PlayerInfo.RemoveCard(selected.InstanceID);
+                    BurnCardByData(selected);
+                    string TargetId="";
+                    if (rarity <= 2)
+                    {
+                        if (expend <= 1)
+                        {
+                            TargetId="blessing_43";
+                        }
+                        else if (expend == 2)
+                        {
+                            TargetId="blessing_44";
+                        }
+                        else
+                        {
+                            TargetId="blessing_45";
+                        }
+                    }
+                    else
+                    {
+                        if (expend <= 1)
+                        {
+                            TargetId="blessing_46";
+                        }
+                        else if (expend == 2)
+                        {
+                            TargetId="blessing_47";
+                        }
+                        else
+                        {
+                            TargetId="blessing_48";
+                        }
+                    }
+                    PlayerInfo.AddBless(TargetId);
+                    NativeRewardDataConfig newData=CreateDataConfig(TargetId,NativeRewardDataType.Bless);
+                    PlayerInfo.ShowItemShowUI(newData.data["Icon"],newData.data.GetValueOrDefault("Name", ""),newData.data.GetValueOrDefault("Description", ""));
+                    newData.scriptExecutor.Self=Self;
+                    newData.scriptExecutor.Object.Clear();
+                    newData.scriptExecutor.Object.Add(Self);
+                    newData.scriptExecutor.RunScript("FightScript");
+
+            },1.33f);
     }
 
     private void NativeProgram_0335()
+    {
+        Vars.TryAdd("ThisCount", "0");
+    }
+
+    private void NativeProgram_0336()
     {
         SetStatus("Self");
          AddEvent<NativeRewardActionData>("Action",(d)=>{
@@ -7073,7 +7093,7 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0336()
+    private void NativeProgram_0337()
     {
         Vars["BaseScript"]="CommonCardItem";int count;
                 if (PlayerInfo.SpecialVars!=null)
@@ -7089,7 +7109,7 @@ public sealed partial class NativeRewardScriptGlobals
                 AddDescription("3","Defence",(6+count/8).ToString());
     }
 
-    private void NativeProgram_0337()
+    private void NativeProgram_0338()
     {
         AddEvent("EndRound",()=>
                 {
@@ -7106,12 +7126,12 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0338()
+    private void NativeProgram_0339()
     {
         Vars["BaseScript"]="CommonCardItem";AddDescription("1","Buff","2");
     }
 
-    private void NativeProgram_0339()
+    private void NativeProgram_0340()
     {
         if (!PlayerInfo.SkillTime.ContainsKey("careercard_13"))
          {
@@ -7134,7 +7154,7 @@ public sealed partial class NativeRewardScriptGlobals
                 },"2");
     }
 
-    private void NativeProgram_0340()
+    private void NativeProgram_0341()
     {
         SetStatus("Self");
 
@@ -7153,12 +7173,12 @@ public sealed partial class NativeRewardScriptGlobals
                 }
     }
 
-    private void NativeProgram_0341()
+    private void NativeProgram_0342()
     {
         Vars["Stack"]="0";AddEvent("Hurt",()=>{Vars["Stack"]=(int.Parse(Vars["Stack"])+1).ToString();SetStatus("AllTarget");Damage(Vars["Stack"],"True");});
     }
 
-    private void NativeProgram_0342()
+    private void NativeProgram_0343()
     {
         if (!Vars.ContainsKey("counterattackcard_5")){ Vars["counterattackcard_5"]="0";}
                SetStatus("Self");
@@ -7167,7 +7187,7 @@ public sealed partial class NativeRewardScriptGlobals
                 Vars["counterattackcard_5"] = (Vars["counterattackcard_5"].ToInt() + 1).ToString();
     }
 
-    private void NativeProgram_0343()
+    private void NativeProgram_0344()
     {
         AddEvent("StartRound",() => {Vars["Used"]="True";SetStatus("Self");ChangeDynamicVar("DefaultDamage","6");});
                 AddEvent("AttackDone",() => {
@@ -7182,7 +7202,7 @@ public sealed partial class NativeRewardScriptGlobals
                     });
     }
 
-    private void NativeProgram_0344()
+    private void NativeProgram_0345()
     {
         BurnCard("2", "1");
         List<Dictionary<string, string>> cards = GetcardsByRarity("2", "3").Where(x => !x["Id"].Contains("*")&&(x["Type"]!="诅咒")).ToList();
@@ -7193,35 +7213,35 @@ public sealed partial class NativeRewardScriptGlobals
                 DrawCount("3");
     }
 
-    private void NativeProgram_0345()
+    private void NativeProgram_0346()
     {
 
          var buff = AddAndGetBuff(Self, "buff_timelock", 1);
          buff.effectList.Add(dataConfig, () => { RunScript("UseScript"); });ChangePower("1");
     }
 
-    private void NativeProgram_0346()
+    private void NativeProgram_0347()
     {
         Vars["BaseScript"]="CommonCardItem";AddDescription("1","Defence","6");
                 AddDescription("2","Defence","6");
     }
 
-    private void NativeProgram_0347()
+    private void NativeProgram_0348()
     {
         AddEvent("FightStart",() => PlayerInfo.Reward+=1);
     }
 
-    private void NativeProgram_0348()
+    private void NativeProgram_0349()
     {
         AddEvent("EndRound",()=>{int ct=HandCard.Where(x=>x!=null&&x.data["Tag"].Contains("Curse")).Select(x=>x.data["Name"]).Distinct().Count();if(ct>=7){PlayerInfo.WinTheFight();}});
     }
 
-    private void NativeProgram_0349()
+    private void NativeProgram_0350()
     {
         Vars["BaseScript"]="CommonCardItem"; Vars["DesVal1"] = PlayerInfo.SkillTime != null && PlayerInfo.SkillTime.ContainsKey("careercard_11") ? PlayerInfo.SkillTime["careercard_11"].ToString() : "0";
     }
 
-    private void NativeProgram_0350()
+    private void NativeProgram_0351()
     {
         SetStatus("Self");
          AddEvent<NativeRewardAddBuffData>("AddBuff",(d)=>{
@@ -7235,7 +7255,7 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0351()
+    private void NativeProgram_0352()
     {
         SetStatus("Target");AddBuff("buff_weakness","1");
                 if (ComboCheck())
@@ -7245,7 +7265,7 @@ public sealed partial class NativeRewardScriptGlobals
                 }
     }
 
-    private void NativeProgram_0352()
+    private void NativeProgram_0353()
     {
 
                 if (ComboCheck())
@@ -7263,22 +7283,22 @@ public sealed partial class NativeRewardScriptGlobals
                 }
     }
 
-    private void NativeProgram_0353()
+    private void NativeProgram_0354()
     {
         AddEvent("FightStart",(() => {SetStatus("Self");AddBuff("buff_elements","4");}));
     }
 
-    private void NativeProgram_0354()
+    private void NativeProgram_0355()
     {
         Vars["BaseScript"]="CommonCardItem";AddDescription("1","Value","50");AddDescription("2","Buff","10");AddDescription("3","Value","50");
     }
 
-    private void NativeProgram_0355()
+    private void NativeProgram_0356()
     {
         AddEvent("FightStart",(() => {SetStatus("Self");AddBuff("buff_oniblood","1");AddBuff("buff_keenedge","2");}));
     }
 
-    private void NativeProgram_0356()
+    private void NativeProgram_0357()
     {
          SetStatus("AllTarget");
                 Vars["ThisCount"] = "0";
@@ -7299,7 +7319,7 @@ public sealed partial class NativeRewardScriptGlobals
                 );
     }
 
-    private void NativeProgram_0357()
+    private void NativeProgram_0358()
     {
         if (Self.GetBuff("buff_counterattack") == null)
                 {SetStatus("Target");Damage((Self.Defend/5).ToString());
@@ -7309,7 +7329,7 @@ public sealed partial class NativeRewardScriptGlobals
                 Damage((Self.Defend*Self.GetBuff("buff_counterattack").buffConfig.Level/5).ToString());
     }
 
-    private void NativeProgram_0358()
+    private void NativeProgram_0359()
     {
         if (PlayerInfo.Strength<20)
                 {
@@ -7317,7 +7337,7 @@ public sealed partial class NativeRewardScriptGlobals
                 }AddEvent("FightStart",() => {SetStatus("Self");AddBuff("buff_keenedge","3");});
     }
 
-    private void NativeProgram_0359()
+    private void NativeProgram_0360()
     {
         SetStatus("Self");
                 AddEvent("SpecialBuff_Demigod'sBodyOnLevelChange",()=>
@@ -7331,12 +7351,12 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0360()
+    private void NativeProgram_0361()
     {
         AddEvent("FightStart",(() => {SetStatus("Self");AddBuff("buff_elements","2");}));
     }
 
-    private void NativeProgram_0361()
+    private void NativeProgram_0362()
     {
 
                 if (ComboCheck())
@@ -7348,17 +7368,17 @@ public sealed partial class NativeRewardScriptGlobals
                 }
     }
 
-    private void NativeProgram_0362()
+    private void NativeProgram_0363()
     {
         Vars["BaseScript"]="CommonCardItem"; Vars["DesVal1"] = PlayerInfo.SkillTime != null && PlayerInfo.SkillTime.ContainsKey("careercard_9") ? PlayerInfo.SkillTime["careercard_9"].ToString() : "0";
     }
 
-    private void NativeProgram_0363()
+    private void NativeProgram_0364()
     {
         AddEvent("FightStart",(() => {SetStatus("Self");AddBuff("buff_poised","3");}));
     }
 
-    private void NativeProgram_0364()
+    private void NativeProgram_0365()
     {
         SetStatus("Self");
                 DrawCount("1");
@@ -7369,7 +7389,7 @@ public sealed partial class NativeRewardScriptGlobals
                 }
     }
 
-    private void NativeProgram_0365()
+    private void NativeProgram_0366()
     {
         ShuffleHand();ShuffleDeck();DrawCount("5");SetStatus("Self");
                 if (PlayerInfo.Power<PlayerInfo.MaxPower)
@@ -7378,29 +7398,29 @@ public sealed partial class NativeRewardScriptGlobals
                 }
     }
 
-    private void NativeProgram_0366()
+    private void NativeProgram_0367()
     {
         Vars["BaseScript"]="CommonCardItem";AddDescription("1", "Buff", "3");
     }
 
-    private void NativeProgram_0367()
+    private void NativeProgram_0368()
     {
         SetStatus("AllTarget");Damage("15");var cards=HandCard.Where(x=>x!=null&&x.data["Tag"].Contains("Ritual")).ToList();
 
                 if(cards.Count>0){UseCard(cards[DefaultDice.WithRange(0,cards.Count-1).Roll().Value].dataConfig);}
     }
 
-    private void NativeProgram_0368()
+    private void NativeProgram_0369()
     {
         Vars["BaseScript"]="AttackCardItem";Vars["CanEnemy"]="False";Vars["CanSelf"]="True";
     }
 
-    private void NativeProgram_0369()
+    private void NativeProgram_0370()
     {
         SetStatus("Self");ChangeRound();SetStatus("AllTarget");Damage((14).ToString());
     }
 
-    private void NativeProgram_0370()
+    private void NativeProgram_0371()
     {
         AddEvent("FightStart",() => {SetStatus("Self");
                 if (Self.CurHp>Self.MaxHp/5*2)
@@ -7410,7 +7430,7 @@ public sealed partial class NativeRewardScriptGlobals
                     Vars["MaxHp"]=Self.MaxHp.ToString();SetHp((int.Parse(Vars["MaxHp"])/5*2).ToString());});
     }
 
-    private void NativeProgram_0371()
+    private void NativeProgram_0372()
     {
         SetStatus("AllTarget");
                 AddEvent("ICreateCardItem",()=>
@@ -7428,12 +7448,29 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0372()
+    private void NativeProgram_0373()
     {
         Vars["BaseScript"]="CommonCardItem";AddDescription("1", "Defence", "8");AddDescription("2", "Power", "1");
     }
 
-    private void NativeProgram_0373()
+    private void NativeProgram_0374()
+    {
+        AddEvent("StartRound", () =>
+                {
+                    for (int i = 0; i < 2; i++)
+                    {
+                        int count=DefaultDice.WithRange(1,99).Roll().Value;
+                        if (count>=100)
+                        {
+                            count=99;
+                        }
+                        var temp=CreateDataConfig("SpellCard_"+(count/25+1),NativeRewardDataType.Card);
+                        CreateCard(temp);
+                    }
+                });
+    }
+
+    private void NativeProgram_0375()
     {
         AddEvent("EndRound",()=>{SetStatus("Self");var b=Self.GetBuff("buff_ReturnAgain");
                 if(b!=null&&b.buffConfig.Level>80){b.buffConfig.Level=Math.Max(0,b.buffConfig.Level -10);}
@@ -7443,23 +7480,23 @@ public sealed partial class NativeRewardScriptGlobals
                 }});
     }
 
-    private void NativeProgram_0374()
+    private void NativeProgram_0376()
     {
         SetStatus("Self");
         RemoveBuff("buff_limitdamage");
     }
 
-    private void NativeProgram_0375()
+    private void NativeProgram_0377()
     {
         AddEvent("FightStart",(() => {SetStatus("Self");AddBuff("buff_impregnable","2");AddBuff("buff_degrade","2");}));
     }
 
-    private void NativeProgram_0376()
+    private void NativeProgram_0378()
     {
         Vars["BaseScript"]="AttackCardItem";AddDescription("1","Damage","1");AddDescription("2","Buff","1");
     }
 
-    private void NativeProgram_0377()
+    private void NativeProgram_0379()
     {
         PlayerInfo.EventTrigger("RandomEffect"+Self.InstanceId); if (!PlayerInfo.SkillTime.ContainsKey("careercard_7"))
                 {
@@ -7468,7 +7505,7 @@ public sealed partial class NativeRewardScriptGlobals
         PlayerInfo.SkillTime["careercard_7"] +=2;
     }
 
-    private void NativeProgram_0378()
+    private void NativeProgram_0380()
     {
         if (!PlayerInfo.SkillTime.ContainsKey("careercard_4"))
                 {
@@ -7502,7 +7539,7 @@ public sealed partial class NativeRewardScriptGlobals
 
     }
 
-    private void NativeProgram_0379()
+    private void NativeProgram_0381()
     {
         AddEvent("Action",() => {
           if (CheckDice.Roll().Value>=50)
@@ -7512,7 +7549,7 @@ public sealed partial class NativeRewardScriptGlobals
           });
     }
 
-    private void NativeProgram_0380()
+    private void NativeProgram_0382()
     {
 
         Self.GetBuff("buff_limitdamage").buffConfig.Level=
@@ -7542,22 +7579,22 @@ public sealed partial class NativeRewardScriptGlobals
                    });
     }
 
-    private void NativeProgram_0381()
+    private void NativeProgram_0383()
     {
         AddEvent("FightStart",(() => {SetStatus("Self");AddBuff("buff_cycle","2");}));
     }
 
-    private void NativeProgram_0382()
+    private void NativeProgram_0384()
     {
         SetStatus("Self");ChangeDefence("8");ChangeHp("3");if(Self.GetBuff("buff_AllDharmas")==null){PlayerInfo.SpecialVars["AllDharmasPendingCardId"]="SpellCard_2";AddBuff("buff_AllDharmas","1");}
     }
 
-    private void NativeProgram_0383()
+    private void NativeProgram_0385()
     {
         for(int i=0;i<3;i++){SetStatus("AllRandomTarget1");Damage("9");}
     }
 
-    private void NativeProgram_0384()
+    private void NativeProgram_0386()
     {
         int c=HandCard.Count(x=>x!=null&&TagCheck(x.dataConfig,"Combo"));SetStatus("Self");
                 if(c>0){AddBuff("buff_impregnable",(c/2).ToString());}
@@ -7565,7 +7602,7 @@ public sealed partial class NativeRewardScriptGlobals
                 AddBuff("buff_resilient",hc.ToString());AddBuff("buff_keenedge",hc.ToString());}
     }
 
-    private void NativeProgram_0385()
+    private void NativeProgram_0387()
     {
         SetStatus("Self");int selfDamage=Math.Min(Math.Max(0,Self.MaxHp/2-1),Math.Max(0,Self.CurHp-2));if(selfDamage>0)
                 {ChangeHp((-selfDamage).ToString());}AddBuff("buff_bleeding","10");
@@ -7574,7 +7611,7 @@ public sealed partial class NativeRewardScriptGlobals
                 Damage(v.ToString());DesEnemyAllAction();}
     }
 
-    private void NativeProgram_0386()
+    private void NativeProgram_0388()
     {
         SetStatus("Self");
                 Vars["ThisCount"]="0";
@@ -7645,7 +7682,7 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0387()
+    private void NativeProgram_0389()
     {
         Vars["ThisCount"]="0";
                 AddEvent("FightStart",()=>{SetStatus("Self");AddBuff("buff_revelation","3");});
@@ -7660,12 +7697,12 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0388()
+    private void NativeProgram_0390()
     {
         Vars["BaseScript"]="CommonCardItem";AddDescription("1","Buff","6");AddDescription("2","Hp","20");
     }
 
-    private void NativeProgram_0389()
+    private void NativeProgram_0391()
     {
 
                 SetStatus("Self");
@@ -7715,7 +7752,7 @@ public sealed partial class NativeRewardScriptGlobals
 
     }
 
-    private void NativeProgram_0390()
+    private void NativeProgram_0392()
     {
         if (Self.GetBuff("buff_bleeding") == null) return;
         string count=(Self.GetBuff("buff_bleeding").buffConfig.Level*2).ToString();
@@ -7725,13 +7762,13 @@ public sealed partial class NativeRewardScriptGlobals
         Self.RemoveBuff("buff_bleeding");
     }
 
-    private void NativeProgram_0391()
+    private void NativeProgram_0393()
     {
         Vars["BaseScript"]="CommonCardItem";
         AddDescription("1","Power","2");
     }
 
-    private void NativeProgram_0392()
+    private void NativeProgram_0394()
     {
         AddEvent<NativeRewardHurtData>("Hurt", (data) =>
                 {
@@ -7764,7 +7801,7 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0393()
+    private void NativeProgram_0395()
     {
         AddEvent("FightStart", () =>
          {
@@ -7779,17 +7816,17 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0394()
+    private void NativeProgram_0396()
     {
         Vars["BaseScript"]="CommonCardItem";AddDescription("1","Hp","2");
     }
 
-    private void NativeProgram_0395()
+    private void NativeProgram_0397()
     {
         SetStatus("Self");ChangeDefence("8");int check=CheckDice.Roll().Value;if(check>=60){for(int i=0;i<(check>100?2:1);i++){AddBuff("buff_elements","3");}}else{AddBuff("buff_toxin","2");}
     }
 
-    private void NativeProgram_0396()
+    private void NativeProgram_0398()
     {
         AddEvent("Heal", () =>
                 {
@@ -7803,7 +7840,7 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0397()
+    private void NativeProgram_0399()
     {
         SetStatus("Target");if(Target==null){return;}
                 float cast=1;
@@ -7818,18 +7855,18 @@ public sealed partial class NativeRewardScriptGlobals
                 if((Target.CurHp/cast)<Self.MaxHp){Damage(Target.MaxHp.ToString(),"True");}
     }
 
-    private void NativeProgram_0398()
+    private void NativeProgram_0400()
     {
         SetStatus("Self");ThrowCard("1","2");
                 DrawCount("2");
     }
 
-    private void NativeProgram_0399()
+    private void NativeProgram_0401()
     {
         AddEvent("FightStart",(() => {SetStatus("AllRandomTarget1");AddBuff("buff_vulnerability","1");}));
     }
 
-    private void NativeProgram_0400()
+    private void NativeProgram_0402()
     {
         if (!dataConfig.Vars.ContainsKey("stack"))
                 {
@@ -7838,14 +7875,19 @@ public sealed partial class NativeRewardScriptGlobals
         AddDescription("2", "Hp", Vars["stack"]);
     }
 
-    private void NativeProgram_0401()
+    private void NativeProgram_0403()
+    {
+        int c=HandCard.Count;for(int i=0;i<c;i++){if(HandCard.Count==0){break;}HandCard[0].InternalThrow();}var pool=new List<string>{"SpellCard_1","SpellCard_2","SpellCard_3","SpellCard_4"};for(int i=0;i<c;i++){int idx=DefaultDice.WithRange(0,pool.Count-1).Roll().Value;CreateCard(CreateDataConfig(pool[idx],NativeRewardDataType.Card));}
+    }
+
+    private void NativeProgram_0404()
     {
         ChangeDefence("5");Vars["ThisCount"]= (int.Parse(Vars["ThisCount"])+1).ToString();
                 DrawCount(Vars["ThisCount"]);
 
     }
 
-    private void NativeProgram_0402()
+    private void NativeProgram_0405()
     {
         if (PlayerInfo.Perceive<30)
                 {
@@ -7853,7 +7895,7 @@ public sealed partial class NativeRewardScriptGlobals
                 }AddEvent("StartRound",() => {AddBuff("buff_impregnable","1");});
     }
 
-    private void NativeProgram_0403()
+    private void NativeProgram_0406()
     {
         if (Self==null)
                 {
@@ -7864,7 +7906,7 @@ public sealed partial class NativeRewardScriptGlobals
                 int dmg=(1+bufflevel)*(int)Math.Pow(2,rc);SetStatus("AllTarget");for(int i=0;i<5;i++){Damage(dmg.ToString());}
     }
 
-    private void NativeProgram_0404()
+    private void NativeProgram_0407()
     {
         if (Self.GetBuff("buff_keenedge")== null)
                 {
@@ -7873,12 +7915,12 @@ public sealed partial class NativeRewardScriptGlobals
                 ChangeHp( (Self.GetBuff("buff_keenedge").buffConfig.Level*4).ToString());
     }
 
-    private void NativeProgram_0405()
+    private void NativeProgram_0408()
     {
         Vars["BaseScript"] = "CommonCardItem"; Vars["DesVal1"] = PlayerInfo.SkillTime != null && PlayerInfo.SkillTime.ContainsKey("careercard_1") ? PlayerInfo.SkillTime["careercard_1"].ToString() : "0";
     }
 
-    private void NativeProgram_0406()
+    private void NativeProgram_0409()
     {
         int pending=1;
                 int targetValue=30;
@@ -7887,7 +7929,7 @@ public sealed partial class NativeRewardScriptGlobals
                 int check=CheckDice.Roll().Value;if(check>=targetValue){pending+=check>100?2:1;targetValue+=10;}}
     }
 
-    private void NativeProgram_0407()
+    private void NativeProgram_0410()
     {
         SetStatus("AllTarget");
                 AddEvent("Dead",()=> {
@@ -7898,40 +7940,75 @@ public sealed partial class NativeRewardScriptGlobals
                 }});
     }
 
-    private void NativeProgram_0408()
+    private void NativeProgram_0411()
     {
         Vars["BaseScript"]="CommonCardItem";AddDescription("1","Value","60");AddDescription("2","Power","2");AddDescription("3","Defence","8");
     }
 
-    private void NativeProgram_0409()
+    private void NativeProgram_0412()
     {
         SetStatus("Self");RemoveBadBuff("2");
     }
 
-    private void NativeProgram_0410()
+    private void NativeProgram_0413()
     {
-        if((!PlayerInfo.RelicList.Any(x=>x.data["Id"]=="CrowdFundingRelic_12"))||PlayerInfo.SpecialVars==null){return;}
-                SetStatus("Self");AddBuff("buff_elements","1");
-                int curse=PlayerInfo.SpecialVars.ContainsKey("SevenCursePower")?int.Parse(PlayerInfo.SpecialVars["SevenCursePower"])/2 : 0;
-                int dmg=(int)(10*(1+curse*0.1f));
-                int trueDmg=dmg;
-                if (Self!=null)
+        AddEvent("EndRound", () =>
                 {
-                    trueDmg=Self.DamageCalculate(trueDmg);
-                }
-                if (Target!=null)
-                {
-                    trueDmg=Self.DamageCalculate(trueDmg);
-                }
-                SetStatus("Target");Damage(dmg.ToString());
-
-                SetStatus("Self");ChangeHp(Math.Max(1,trueDmg/10).ToString());
-                var tempList=GetcardsOutLock().Where(x=>x["Tag"].Contains("Curse")).ToList();
-                if(tempList.Count>0){string id=tempList[DefaultDice.WithRange(0,tempList.Count-1).Roll().Value]["Id"];
-                AddCardToFightManager(new NativeRewardDataConfig(id,NativeRewardDataType.Card));}
+                    if (Self == null || Self.IsNull()) { return; }
+                    var buff = Self.GetBuff("buff_ReturnAgain"); if (buff == null) { return; }
+                    int level = buff.buffConfig.Level;
+                    if (level <= 0) { return; }
+                    int transformCount = 0;
+                    if (level >= 20) { transformCount = 1; if (level >= 40) { transformCount = 2; } }
+                    if (transformCount > 0)
+                    {
+                        var reverseHand = HandCard.Where(x => x != null).Reverse().ToList();
+                        int changed = 0; for (int i = 0; i < reverseHand.Count && changed < transformCount; i++)
+                        {
+                            var target = reverseHand[i]; if (target?.data == null) { continue; }
+                            if (target.data["Id"].StartsWith("ReturnAgain_")||(CardGetEnch(target.dataConfig)!=null&&CardGetEnch(target.dataConfig).data["Id"]=="Crowdfundingenchtag_19"))
+                            { continue; }
+                            string toId;
+                            if (level == 100) { toId = "ReturnAgain_13"; }
+                            else
+                            {
+                                var pool = new List<string> { "ReturnAgain_1", "ReturnAgain_2", "ReturnAgain_3", "ReturnAgain_4", "ReturnAgain_5", "ReturnAgain_6", "ReturnAgain_7", "ReturnAgain_8", "ReturnAgain_9", "ReturnAgain_10", "ReturnAgain_11", "ReturnAgain_12", "ReturnAgain_13", "ReturnAgain_14", "ReturnAgain_15" };
+                                int idx = DefaultDice.WithRange(0, pool.Count - 1).Roll().Value; toId = pool[idx];
+                            }
+                            NativeRewardDataConfig tempCard=CreateDataConfig(toId, NativeRewardDataType.Card);
+                            tempCard.Vars["Tag"]+=",Retain";
+                            target.TransformToConfiguredType(tempCard); changed++;
+                        }
+                    }
+                    if (level >= 50)
+                    {
+                        int flipCount = (level - 50) / 10; var canFlip = HandCard.Where(x => x != null && !x.isReverse).ToList();
+                        for (int i = 0; i < flipCount && canFlip.Count > 0; i++) { int idx = DefaultDice.WithRange(0, canFlip.Count - 1).Roll().Value; canFlip[idx].Reverse(); canFlip.RemoveAt(idx); }
+                    }
+                    if (level >= 60)
+                    {
+                        int autoCount = level > 80 ? 2 : 1;
+                        for (int i = 0; i < autoCount; i++)
+                        {
+                            var card = HandCard.FirstOrDefault(x => x != null); if (card == null) { break; }
+                            card.dataConfig.Vars["OnceExCost"]="-999";
+                            UseCard(card.dataConfig);
+                        }
+                    }
+                });
     }
 
-    private void NativeProgram_0411()
+    private void NativeProgram_0414()
+    {
+        AddEvent("FightStart",(() => {SetStatus("Self");List<Dictionary<string,string>>cards=GetcardsByRarity("1","3");
+                cards=cards.Where(x => x["Type"]!=("诅咒")).ToList();
+                NativeRewardDataConfig newData=CreateDataConfig(cards[DefaultDice.WithRange(0, cards.Count - 1).Roll().Value]["Id"],NativeRewardDataType.Card);
+                newData.Vars["Tag"]+=",Burnout";
+                newData.Vars["TotalExCost"]="-999";
+                CreateCard(newData);}));
+    }
+
+    private void NativeProgram_0415()
     {
         AddEvent("StartRound", () =>
                 {
@@ -7954,12 +8031,12 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0412()
+    private void NativeProgram_0416()
     {
         AddEvent("FightStart",(() => {SetStatus("Self");ChangeDynamicVar("RetainCard","2"); }));
     }
 
-    private void NativeProgram_0413()
+    private void NativeProgram_0417()
     {
         AddEvent("buff_DoomPowerOnLevelChange",()=>
                  {
@@ -7973,12 +8050,12 @@ public sealed partial class NativeRewardScriptGlobals
                  });
     }
 
-    private void NativeProgram_0414()
+    private void NativeProgram_0418()
     {
         AddEvent("Shuffle",(() => {SetStatus("AllRandomTarget1");ChangeHp("-20");}));
     }
 
-    private void NativeProgram_0415()
+    private void NativeProgram_0419()
     {
         SetStatus("Self");int total=0;
                 var tempList=Self.GetBuffs().Where(x=>x!=null&&x.buffConfig!=null&&x.buffConfig.BuffId.StartsWith("buff_ritual")).ToList();
@@ -7989,7 +8066,7 @@ public sealed partial class NativeRewardScriptGlobals
                 {b.ClearBuff();}DrawCount(Math.Min(tempList.Count,10).ToString());if(total>0){SetStatus("AllTarget");Damage(total.ToString());}SetStatus("Self");
     }
 
-    private void NativeProgram_0416()
+    private void NativeProgram_0420()
     {
          AddEvent("Win", () =>
                 {
@@ -8006,7 +8083,7 @@ public sealed partial class NativeRewardScriptGlobals
                 AddEvent("EndRound",()=>{SetStatus("Self");ChangeHp((-Self.CurHp*18/100).ToString());});
     }
 
-    private void NativeProgram_0417()
+    private void NativeProgram_0421()
     {
         Vars["ThisCount"]="0";
                 AddEvent<NativeRewardHurtData>("Hurt", (from) =>
@@ -8043,7 +8120,7 @@ public sealed partial class NativeRewardScriptGlobals
                 });;
     }
 
-    private void NativeProgram_0418()
+    private void NativeProgram_0422()
     {
          Vars["ToPower"] = "0";Vars["ToCard"] = "0";
                 AddEvent("StartRound", () => { Vars["ToPower"] = "0";Vars["ToCard"] = "0"; });
@@ -8059,7 +8136,7 @@ public sealed partial class NativeRewardScriptGlobals
                 }});
     }
 
-    private void NativeProgram_0419()
+    private void NativeProgram_0423()
     {
         if (Self.GetBuff("buff_keenedge") == null)
                 {
@@ -8073,12 +8150,12 @@ public sealed partial class NativeRewardScriptGlobals
           Self.GetBuff("buff_keenedge").buffConfig.Level=(a/2);
     }
 
-    private void NativeProgram_0420()
+    private void NativeProgram_0424()
     {
         AddEvent("StartRound",()=>{if(Self==null||Self.IsNull()||Self.GetBuff("buff_SpellNextClearImpregnable")==null){return;}SetStatus("Self");RemoveBuff("buff_impregnable");RemoveBuff("buff_SpellNextClearImpregnable");});
     }
 
-    private void NativeProgram_0421()
+    private void NativeProgram_0425()
     {
         SetStatus("Self");
                 AddEvent<NativeRewardAddBuffData>("AddBuff",(d)=>{ if(d.data.data["Type"]!="负面")return;
@@ -8086,7 +8163,7 @@ public sealed partial class NativeRewardScriptGlobals
          AddBuff("buff_burn", "1");});
     }
 
-    private void NativeProgram_0422()
+    private void NativeProgram_0426()
     {
         AddEvent("StartRound", () =>
          {
@@ -8103,7 +8180,7 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0423()
+    private void NativeProgram_0427()
     {
         Vars["BaseScript"]="CommonCardItem";int count;
                 if (PlayerInfo.SpecialVars!=null)
@@ -8119,17 +8196,17 @@ public sealed partial class NativeRewardScriptGlobals
                 AddDescription("3","Defence",(8+count/8).ToString());
     }
 
-    private void NativeProgram_0424()
+    private void NativeProgram_0428()
     {
         SetStatus("Self");AddEvent<NativeRewardActionData>("Action",(d)=>{int c=int.Parse(d.data.data.GetValueOrDefault("Expend","0"));if(c>0){AddBuff("buff_rebirth",c.ToString());}});
     }
 
-    private void NativeProgram_0425()
+    private void NativeProgram_0429()
     {
         AddEvent("FightStart",()=> { ChangeDefence("12"); });
     }
 
-    private void NativeProgram_0426()
+    private void NativeProgram_0430()
     {
         var cards = HandCard
         .Where(card => card != null && card.Tags.Contains("Combo"))
@@ -8148,17 +8225,17 @@ public sealed partial class NativeRewardScriptGlobals
                 }
     }
 
-    private void NativeProgram_0427()
+    private void NativeProgram_0431()
     {
         AddEvent("Win",()=> { PlayerInfo.Money += 5; });
     }
 
-    private void NativeProgram_0428()
+    private void NativeProgram_0432()
     {
         SetStatus("Self");ChangeDefence(DefaultDice.WithRange(1,15).Roll().Value.ToString());
     }
 
-    private void NativeProgram_0429()
+    private void NativeProgram_0433()
     {
         if (PlayerInfo.CardTotalCount>10&&PlayerInfo.CardTotalCount<20)
                 {
@@ -8170,12 +8247,12 @@ public sealed partial class NativeRewardScriptGlobals
                 }
     }
 
-    private void NativeProgram_0430()
+    private void NativeProgram_0434()
     {
         AddEvent("Action",(() => {SetStatus("AllRandomTarget1");Damage("1");SetStatus("Self");ChangeDefence("1");}));
     }
 
-    private void NativeProgram_0431()
+    private void NativeProgram_0435()
     {
         AddEvent("EndRound",()=> {if (HandCard.Count < DeckCard.Count )
                     {
@@ -8184,7 +8261,7 @@ public sealed partial class NativeRewardScriptGlobals
 
     }
 
-    private void NativeProgram_0432()
+    private void NativeProgram_0436()
     {
         AddEvent<NativeRewardCreateData>("CreateInt",(from)=>{
                     if (PlayerInfo.CardList.Any(x=>x.InstanceID==from.data.InstanceID)||PlayerInfo.UnCardList.Any(x=>x.InstanceID==from.data.InstanceID))
@@ -8203,12 +8280,12 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0433()
+    private void NativeProgram_0437()
     {
         AddEvent("FightStart",(() => {SetStatus("Self");ChangeMaxHp("3");}));
     }
 
-    private void NativeProgram_0434()
+    private void NativeProgram_0438()
     {
         Vars["BaseScript"]="CommonCardItem";AddDescription("1","Draw","5");
                 if (Self!=null&& Self.GetBuff("buff_revelation")!=null)
@@ -8217,13 +8294,13 @@ public sealed partial class NativeRewardScriptGlobals
                 }
     }
 
-    private void NativeProgram_0435()
+    private void NativeProgram_0439()
     {
         int need=int.Parse(Vars.GetValueOrDefault("CheckNeed","90"));
                 int check=CheckDice.Roll().Value;if(check>=need){SetStatus("Target");AddBuff("SpecialBuff_meowFamiliar","2");if(check>100){AddBuff("SpecialBuff_meowFamiliar","2");}Vars["HasBurn"]="True";BurnCardByData(dataConfig);}else{SetStatus("Self");ChangePower("1");Vars["CheckNeed"]=(need-5).ToString();}
     }
 
-    private void NativeProgram_0436()
+    private void NativeProgram_0440()
     {
         AddEvent("FightStart", () =>
          {
@@ -8240,55 +8317,7 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0437()
-    {
-        AddEvent("EndRound", () =>
-                {
-                    if (Self == null || Self.IsNull()) { return; }
-                    var buff = Self.GetBuff("buff_ReturnAgain"); if (buff == null) { return; }
-                    int level = buff.buffConfig.Level;
-                    if (level <= 0) { return; }
-                    int transformCount = 0;
-                    if (level >= 20) { transformCount = 1; if (level >= 40) { transformCount = 2; } }
-                    if (transformCount > 0)
-                    {
-                        var reverseHand = HandCard.Where(x => x != null).Reverse().ToList();
-                        int changed = 0; for (int i = 0; i < reverseHand.Count && changed < transformCount; i++)
-                        {
-                            var target = reverseHand[i]; if (target?.data == null) { continue; }
-                            if (target.data["Id"].StartsWith("ReturnAgain_")||(CardGetEnch(target.dataConfig)!=null&&CardGetEnch(target.dataConfig).data["Id"]=="Crowdfundingenchtag_19"))
-                            { continue; }
-                            string toId;
-                            if (level == 100) { toId = "ReturnAgain_13"; }
-                            else
-                            {
-                                var pool = new List<string> { "ReturnAgain_1", "ReturnAgain_2", "ReturnAgain_3", "ReturnAgain_4", "ReturnAgain_5", "ReturnAgain_6", "ReturnAgain_7", "ReturnAgain_8", "ReturnAgain_9", "ReturnAgain_10", "ReturnAgain_11", "ReturnAgain_12", "ReturnAgain_13", "ReturnAgain_14", "ReturnAgain_15" };
-                                int idx = DefaultDice.WithRange(0, pool.Count - 1).Roll().Value; toId = pool[idx];
-                            }
-                            NativeRewardDataConfig tempCard=new NativeRewardDataConfig(toId, NativeRewardDataType.Card);
-                            tempCard.Vars["Tag"]+=",Retain";
-                            target.TransformToConfiguredType(tempCard); changed++;
-                        }
-                    }
-                    if (level >= 50)
-                    {
-                        int flipCount = (level - 50) / 10; var canFlip = HandCard.Where(x => x != null && !x.isReverse).ToList();
-                        for (int i = 0; i < flipCount && canFlip.Count > 0; i++) { int idx = DefaultDice.WithRange(0, canFlip.Count - 1).Roll().Value; canFlip[idx].Reverse(); canFlip.RemoveAt(idx); }
-                    }
-                    if (level >= 60)
-                    {
-                        int autoCount = level > 80 ? 2 : 1;
-                        for (int i = 0; i < autoCount; i++)
-                        {
-                            var card = HandCard.FirstOrDefault(x => x != null); if (card == null) { break; }
-                            card.dataConfig.Vars["OnceExCost"]="-999";
-                            UseCard(card.dataConfig);
-                        }
-                    }
-                });
-    }
-
-    private void NativeProgram_0438()
+    private void NativeProgram_0441()
     {
         Vars["Used2"] = "0";
          Vars["Used3"] = "0";
@@ -8325,7 +8354,7 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0439()
+    private void NativeProgram_0442()
     {
         int count=0;
             if (Self!=null&&Self.GetBuff("buff_elements")!=null)
@@ -8335,28 +8364,12 @@ public sealed partial class NativeRewardScriptGlobals
                Vars["BaseScript"]="CommonCardItem";AddDescription("1", "Buff", "2");AddDescription("2","Damage",count.ToString());
     }
 
-    private void NativeProgram_0440()
-    {
-        AddEvent("AllDharmas", () =>
-                {
-                    int count=DefaultDice.WithRange(0,100).Roll().Value;
-                    if (count<50)
-                    {
-                        CreateCard(new NativeRewardDataConfig("SpellCard_3",NativeRewardDataType.Card));
-                    }
-                    else
-                    {
-                        CreateCard(new NativeRewardDataConfig("SpellCard_4",NativeRewardDataType.Card));
-                    }
-                });
-    }
-
-    private void NativeProgram_0441()
+    private void NativeProgram_0443()
     {
         SetStatus("Self");if(Vars.GetValueOrDefault("DejaVuEvent","0")!="1"){Vars["DejaVuEvent"]="1";AddEvent("Action",()=>{if(HandCard.Any(c=>c!=null&&c.dataConfig==dataConfig)){SetStatus("Self");AddBuff("buff_extraordinary","1");int lv=Self.GetBuff("buff_extraordinary")==null?1:Self.GetBuff("buff_extraordinary").buffConfig.Level;Vars["ExCost"]=Math.Max(0,lv-1).ToString();var item=HandCard.FirstOrDefault(c=>c!=null&&c.dataConfig==dataConfig);if(item!=null){item.DataUpdate();}}});}int x=Self.GetBuff("buff_extraordinary")==null?1:Self.GetBuff("buff_extraordinary").buffConfig.Level;Vars["ExCost"]=Math.Max(0,x-1).ToString();var selfItem=HandCard.FirstOrDefault(c=>c!=null&&c.dataConfig==dataConfig);if(selfItem!=null){selfItem.DataUpdate();}
     }
 
-    private void NativeProgram_0442()
+    private void NativeProgram_0444()
     {
         Vars["BaseScript"]="CommonCardItem";
                 if (int.Parse(Vars["ThisCount"])<6)
@@ -8366,23 +8379,23 @@ public sealed partial class NativeRewardScriptGlobals
         AddDescription("1", "Value", (int.Parse(Vars["ThisCount"])+1).ToString());
     }
 
-    private void NativeProgram_0443()
+    private void NativeProgram_0445()
     {
         Vars["BaseScript"]="CommonCardItem";AddDescription("1", "Hp", "6");AddDescription("2", "Buff", "1");
     }
 
-    private void NativeProgram_0444()
+    private void NativeProgram_0446()
     {
         Vars["BaseScript"]="CommonCardItem";AddDescription("1", "Defence", "1");AddDescription("2", "Defence", "15");
 
     }
 
-    private void NativeProgram_0445()
+    private void NativeProgram_0447()
     {
         AddEvent("FightStart",(() => {SetStatus("Self");AddBuff("buff_frenzy","1");}));
     }
 
-    private void NativeProgram_0446()
+    private void NativeProgram_0448()
     {
         if (!dataConfig.Vars.ContainsKey("stack"))
                 {
@@ -8390,7 +8403,23 @@ public sealed partial class NativeRewardScriptGlobals
                 }AddDescription("1", "Damage", Vars["stack"].ToInt() * 9);
     }
 
-    private void NativeProgram_0447()
+    private void NativeProgram_0449()
+    {
+        AddEvent("AllDharmas", () =>
+                {
+                    int count=DefaultDice.WithRange(0,100).Roll().Value;
+                    if (count<50)
+                    {
+                        CreateCard(CreateDataConfig("SpellCard_3",NativeRewardDataType.Card));
+                    }
+                    else
+                    {
+                        CreateCard(CreateDataConfig("SpellCard_4",NativeRewardDataType.Card));
+                    }
+                });
+    }
+
+    private void NativeProgram_0450()
     {
         Vars["ThisCount"] = "0";
                 AddEvent("Action",(() =>
@@ -8405,12 +8434,12 @@ public sealed partial class NativeRewardScriptGlobals
                 }));
     }
 
-    private void NativeProgram_0448()
+    private void NativeProgram_0451()
     {
         Vars["BaseScript"]="CommonCardItem";AddDescription("1","Value","1");
     }
 
-    private void NativeProgram_0449()
+    private void NativeProgram_0452()
     {
         UpdateRelicShow();
                 List<string>NameList=new();
@@ -8429,7 +8458,7 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0450()
+    private void NativeProgram_0453()
     {
         Vars["ThisCount"] = PlayerInfo.SpecialVars["DoomPower"];
                  PlayerInfo.TempStrength +=  int.Parse(PlayerInfo.SpecialVars["DoomPower"]);
@@ -8437,17 +8466,17 @@ public sealed partial class NativeRewardScriptGlobals
                 AddEvent("Action",()=> { SetStatus("AllTarget");Damage((Self.MaxHp/50).ToString()); });
     }
 
-    private void NativeProgram_0451()
+    private void NativeProgram_0454()
     {
         Vars["BaseScript"]="AttackCardItem"; AddDescription("1","Damage","5");Vars["DesVal2"] = PlayerInfo.SkillTime != null && PlayerInfo.SkillTime.ContainsKey("careercard_2") ? PlayerInfo.SkillTime["careercard_2"].ToString() : "0";
     }
 
-    private void NativeProgram_0452()
+    private void NativeProgram_0455()
     {
         SetStatus("Self");int check=CheckDice.Roll().Value;if(check>=40){for(int i=0;i<(check>100?2:1);i++){RandomAddGoodBuff("2","1");}}else{RandomAddGoodBuff("1","0");}
     }
 
-    private void NativeProgram_0453()
+    private void NativeProgram_0456()
     {
         if (PlayerInfo.enemylevel==4)
                 {
@@ -8464,7 +8493,7 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0454()
+    private void NativeProgram_0457()
     {
         AddEvent("ICreateCardItem",() => {
                 if (!Vars.ContainsKey("ThisCount"))
@@ -8483,7 +8512,7 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0455()
+    private void NativeProgram_0458()
     {
         SetStatus("AllTarget");AddBuff("buff_bleeding", "2");
         SetStatus("Target");
@@ -8497,7 +8526,7 @@ public sealed partial class NativeRewardScriptGlobals
          }
     }
 
-    private void NativeProgram_0456()
+    private void NativeProgram_0459()
     {
         Vars["ThisCount"] = "0";
          AddEvent("Action",() =>
@@ -8511,7 +8540,7 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0457()
+    private void NativeProgram_0460()
     {
         AddEvent("StartRound",()=>{
          if(HandCard.Count==0)return;
@@ -8523,12 +8552,12 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0458()
+    private void NativeProgram_0461()
     {
         SetStatus("Self");var b=Self.GetBuff("buff_extraordinary");if(b!=null){b.buffConfig.Level=0;}Vars["ExCost"]="0";
     }
 
-    private void NativeProgram_0459()
+    private void NativeProgram_0462()
     {
 
                 SetStatus("Self");
@@ -8549,12 +8578,12 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0460()
+    private void NativeProgram_0463()
     {
         Vars["BaseScript"]="CommonCardItem"; AddDescription("1","Damage","2");
     }
 
-    private void NativeProgram_0461()
+    private void NativeProgram_0464()
     {
         AddEvent("Hurt",()=> {
                     Vars["ThisCount"] = (int.Parse(Vars["ThisCount"]) + 1).ToString();
@@ -8563,23 +8592,23 @@ public sealed partial class NativeRewardScriptGlobals
                      });
     }
 
-    private void NativeProgram_0462()
+    private void NativeProgram_0465()
     {
         SetStatus("Self");var tempList=GetcardsOutLock().Where(x=>x["Tag"].Contains("Curse")).ToList();
                 for(int i=0;i<2&&tempList.Count>0;i++){string id=tempList[DefaultDice.WithRange(0,tempList.Count-1).Roll().Value]["Id"];RandomAddCard(id);DrawCount("1");}AddBuff("buff_contagion","2");
     }
 
-    private void NativeProgram_0463()
+    private void NativeProgram_0466()
     {
         SetStatus("Target");Damage("8");SetStatus("Self");AddBuff("buff_extraordinary","5");if(Self.GetBuff("buff_AllDharmas")==null){PlayerInfo.SpecialVars["AllDharmasPendingCardId"]="SpellCard_1";AddBuff("buff_AllDharmas","1");}
     }
 
-    private void NativeProgram_0464()
+    private void NativeProgram_0467()
     {
         Vars["BaseScript"]="CommonCardItem";AddDescription("1","Value","50");AddDescription("2","Value","10");AddDescription("3","Draw","1");
     }
 
-    private void NativeProgram_0465()
+    private void NativeProgram_0468()
     {
         Vars["BaseScript"]="CommonCardItem";
                 if (Self!=null&&Self.CurHp>Self.MaxHp*0.3f)
@@ -8592,7 +8621,7 @@ public sealed partial class NativeRewardScriptGlobals
                 }
     }
 
-    private void NativeProgram_0466()
+    private void NativeProgram_0469()
     {
         ChangeDefence("6");
                 if (ComboCheck())
@@ -8601,7 +8630,7 @@ public sealed partial class NativeRewardScriptGlobals
                 }
     }
 
-    private void NativeProgram_0467()
+    private void NativeProgram_0470()
     {
         AddEvent("EndRound", () =>
                 {
@@ -8609,12 +8638,12 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0468()
+    private void NativeProgram_0471()
     {
         SetStatus("AllRandomTarget1");Damage(((Self.MaxHp-Self.CurHp)/2).ToString());
     }
 
-    private void NativeProgram_0469()
+    private void NativeProgram_0472()
     {
         Vars["Triggered"]="0";
          AddEvent("FightStart",()=>{ChangePower("1");});
@@ -8622,17 +8651,12 @@ public sealed partial class NativeRewardScriptGlobals
          AddBaseEvent("Win",()=>{if(Vars["Triggered"]=="1"){PlayerInfo.ChangeSelected("2");Vars["Triggered"]="0";}});
     }
 
-    private void NativeProgram_0470()
-    {
-        Vars["Done"]="0";AddEvent("FightStart",()=>{if(Vars["Done"]=="1")return;CreateCard(new NativeRewardDataConfig("ReturnAgain_2",NativeRewardDataType.Card));Vars["Done"]="1";});
-    }
-
-    private void NativeProgram_0471()
+    private void NativeProgram_0473()
     {
         SetStatus("Self");if(Self==null||Self.IsNull()){return;}Self.dynamicVariables["ReturnAgainGainMultiplier"]=0f;AddEvent("StartRound",()=>{if(Self==null||Self.IsNull()||Self.GetBuff("buff_ReturnAgainDoubleNext")==null){return;}Self.dynamicVariables["ReturnAgainGainMultiplier"]=2f;AddTempEvent("StartRound",()=>{if(Self==null||Self.IsNull()){return;}Self.dynamicVariables["ReturnAgainGainMultiplier"]=1f;});RemoveBuff("buff_ReturnAgainDoubleNext");});
     }
 
-    private void NativeProgram_0472()
+    private void NativeProgram_0474()
     {
         SetStatus("Target");
                DesEnemyAction();if (!PlayerInfo.SkillTime.ContainsKey("careercard_6"))
@@ -8642,32 +8666,32 @@ public sealed partial class NativeRewardScriptGlobals
         PlayerInfo.SkillTime["careercard_6"] +=3;
     }
 
-    private void NativeProgram_0473()
+    private void NativeProgram_0475()
     {
         SetStatus("Self");AddBuff("buff_impregnable","6");ChangeHp("20");AddBuff("buff_SpellNextClearImpregnable","1");ChangeRound();
     }
 
-    private void NativeProgram_0474()
+    private void NativeProgram_0476()
     {
         AddEvent("FightStart",(() => {SetStatus("Self");AddBuff("buff_cycle","1");}));
     }
 
-    private void NativeProgram_0475()
+    private void NativeProgram_0477()
     {
         SetStatus("Self");int _rg=(int)(20*Self.dynamicVariables.GetValueOrDefault("ReturnAgainGainMultiplier",1f));if(_rg>0){AddBuff("buff_ReturnAgain",_rg.ToString());}ThrowCard("1","1");SetStatus("Target");AddBuff("buff_timestop","1");
     }
 
-    private void NativeProgram_0476()
+    private void NativeProgram_0478()
     {
         Vars["BaseScript"]="CommonCardItem";AddDescription("1","Damage","15");
     }
 
-    private void NativeProgram_0477()
+    private void NativeProgram_0479()
     {
         Vars["BaseScript"]="CommonCardItem";AddDescription("1","Buff","5");
     }
 
-    private void NativeProgram_0478()
+    private void NativeProgram_0480()
     {
         SetStatus("AllTarget");
          Resentment("3");
@@ -8697,24 +8721,24 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0479()
+    private void NativeProgram_0481()
     {
         AddEvent("StartRound",() => {ChangeCardTop("1");
                     SetStatus("AllRandomTarget1");
                     for (int i = 0; i < PlayerInfo.Wisdom / 5; i++) { Damage("2"); } ;});
     }
 
-    private void NativeProgram_0480()
+    private void NativeProgram_0482()
     {
         Vars["BaseScript"]="CommonCardItem";AddDescription("1", "Buff", "2");
     }
 
-    private void NativeProgram_0481()
+    private void NativeProgram_0483()
     {
         Vars["BaseScript"]="CommonCardItem";AddDescription("1", "Defence", "6");AddDescription("2", "Money", "60");
     }
 
-    private void NativeProgram_0482()
+    private void NativeProgram_0484()
     {
         Vars["ThisCount"] = "0";
                AddEvent("StartRound",()=>{Vars["ThisCount"]="0"; });
@@ -8725,7 +8749,7 @@ public sealed partial class NativeRewardScriptGlobals
                 } ; });
     }
 
-    private void NativeProgram_0483()
+    private void NativeProgram_0485()
     {
         SetStatus("Self");
                 AddBuff("buff_RegenerationPrayer","1");
@@ -8739,7 +8763,7 @@ public sealed partial class NativeRewardScriptGlobals
                 }
     }
 
-    private void NativeProgram_0484()
+    private void NativeProgram_0486()
     {
         SetStatus("Self");
                 AddEvent("Dead",()=>{Resurrection("100");
@@ -8772,18 +8796,18 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0485()
+    private void NativeProgram_0487()
     {
         Vars["BaseScript"]="AttackCardItem";AddDescription("1","Damage","8");AddDescription("2","Buff","5");
     }
 
-    private void NativeProgram_0486()
+    private void NativeProgram_0488()
     {
         AddEvent("FightStart",
                 (() => {AddBuff("buff_immortal","1");}));
     }
 
-    private void NativeProgram_0487()
+    private void NativeProgram_0489()
     {
         var cards = HandCard
                  .Where(card => card != null&&(!card.dataConfig.data["Tag"].Contains("Froze")))
@@ -8806,7 +8830,7 @@ public sealed partial class NativeRewardScriptGlobals
                 }
     }
 
-    private void NativeProgram_0488()
+    private void NativeProgram_0490()
     {
         Vars["Round"]="0";
          Vars["Applied"]="0";
@@ -8833,7 +8857,7 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0489()
+    private void NativeProgram_0491()
     {
 
          var buff = AddAndGetBuff(Self, "buff_timelock", 1);
@@ -8841,7 +8865,7 @@ public sealed partial class NativeRewardScriptGlobals
          SetStatus("AllTarget");Damage("2");
     }
 
-    private void NativeProgram_0490()
+    private void NativeProgram_0492()
     {
         SetStatus("All");
          int count=0;
@@ -8858,7 +8882,7 @@ public sealed partial class NativeRewardScriptGlobals
          }
     }
 
-    private void NativeProgram_0491()
+    private void NativeProgram_0493()
     {
         AddEvent<NativeRewardActionData>("Action",(thisData)=>
                 {
@@ -8875,12 +8899,12 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0492()
+    private void NativeProgram_0494()
     {
         ChangeHp("-9999");
     }
 
-    private void NativeProgram_0493()
+    private void NativeProgram_0495()
     {
         AddEvent("StartRound",() => {Vars["ThisCount"]="0";});
          AddEvent("CostPower",() => {
@@ -8916,12 +8940,12 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0494()
+    private void NativeProgram_0496()
     {
         var pow=PlayerInfo.Power;SetPower(pow>2?pow.ToString():"2");
     }
 
-    private void NativeProgram_0495()
+    private void NativeProgram_0497()
     {
         Vars["BaseScript"]="CommonCardItem";
             if (Vars.ContainsKey("timekeeper_3"))
@@ -8934,7 +8958,7 @@ public sealed partial class NativeRewardScriptGlobals
             }
     }
 
-    private void NativeProgram_0496()
+    private void NativeProgram_0498()
     {
         SetStatus("AllTarget");
                 Damage("9");
@@ -8944,54 +8968,54 @@ public sealed partial class NativeRewardScriptGlobals
                 }
     }
 
-    private void NativeProgram_0497()
+    private void NativeProgram_0499()
     {
         AddEvent("FightStart",(() => {SetStatus("Self");AddBuff("buff_evergreen","5");}));
     }
 
-    private void NativeProgram_0498()
+    private void NativeProgram_0500()
     {
         Action effect=()=>{SetStatus("AllTarget");ChangePower("2");DrawCount("2");};
                 AddEvent("Dead",()=>{RepeatByBuffLevel("buff_ritualbountymana",effect);});
     }
 
-    private void NativeProgram_0499()
+    private void NativeProgram_0501()
     {
         Vars["BaseScript"]="CommonCardItem"; AddDescription("1","Damage","10");
     }
 
-    private void NativeProgram_0500()
+    private void NativeProgram_0502()
     {
         SetStatus("AllFriendsExSelf");int count = 0;foreach (var status in Object){var buff = status.GetBuff("buff_synergies"); if (buff != null) count ++;}foreach (var status in Object){var buff = status.GetBuff("buff_synergies"); if (buff != null) buff.buffConfig.dataConfig.Vars["CorCount"]=count.ToString(); buff.buffConfig.dataConfig.Vars["DesVal1"] = count.ToString();}
     }
 
-    private void NativeProgram_0501()
+    private void NativeProgram_0503()
     {
         SetStatus("Self");int check=CheckDice.Roll().Value;if(check>=60){ChangePower((check>100?4:2).ToString());}else{ChangeDefence("8");}
     }
 
-    private void NativeProgram_0502()
+    private void NativeProgram_0504()
     {
         Vars["BaseScript"]="CommonCardItem"; Vars["DesVal1"] = PlayerInfo.SkillTime != null && PlayerInfo.SkillTime.ContainsKey("careercard_12") ? PlayerInfo.SkillTime["careercard_12"].ToString() : "0";
     }
 
-    private void NativeProgram_0503()
+    private void NativeProgram_0505()
     {
         Vars["BaseScript"]="AttackCardItem"; Vars["DesVal1"] = PlayerInfo.SkillTime != null && PlayerInfo.SkillTime.ContainsKey("careercard_10") ? PlayerInfo.SkillTime["careercard_10"].ToString() : "0";
     }
 
-    private void NativeProgram_0504()
+    private void NativeProgram_0506()
     {
         SetStatus("Self");
                 AddEvent("AttackDone",()=> { SetStatus("AllTarget");Damage("5","True"); });
     }
 
-    private void NativeProgram_0505()
+    private void NativeProgram_0507()
     {
         Vars["BaseScript"]="CommonCardItem";AddDescription("1","Draw","2");AddDescription("2","Power","2");
     }
 
-    private void NativeProgram_0506()
+    private void NativeProgram_0508()
     {
         if (PlayerInfo.Lucky<40)
                 {
@@ -9007,42 +9031,32 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0507()
+    private void NativeProgram_0509()
     {
         Vars["BaseScript"]="AttackCardItem";AddDescription("1","Power","1");
     }
 
-    private void NativeProgram_0508()
+    private void NativeProgram_0510()
     {
         int check=CheckDice.Roll().Value;if(check>=50){DrawCount((check>100?6:3).ToString());}else{DrawCount("1");}
     }
 
-    private void NativeProgram_0509()
-    {
-        SetStatus("Self");int _rg=(int)(5*Self.dynamicVariables.GetValueOrDefault("ReturnAgainGainMultiplier",1f));
-                if(_rg>0){AddBuff("buff_ReturnAgain",_rg.ToString());}
-                var pool=new List<string>{"ReturnAgain_1","ReturnAgain_3","ReturnAgain_4","ReturnAgain_5","ReturnAgain_6","ReturnAgain_7","ReturnAgain_8","ReturnAgain_9","ReturnAgain_10","ReturnAgain_11","ReturnAgain_12","ReturnAgain_13","ReturnAgain_14","ReturnAgain_15"};
-                if(pool.Count>0)
-                {int idx=DefaultDice.WithRange(0,pool.Count-1).Roll().Value;
-                CreateCard(new NativeRewardDataConfig(pool[idx],NativeRewardDataType.Card));}
-    }
-
-    private void NativeProgram_0510()
+    private void NativeProgram_0511()
     {
         Vars["BaseScript"]="CommonCardItem";AddDescription("1", "Buff", "30");
     }
 
-    private void NativeProgram_0511()
+    private void NativeProgram_0512()
     {
         Vars["BaseScript"]="AttackCardItem";AddDescription("1","Value","40");AddDescription("2","Damage","5");AddDescription("3","Defence","12");
     }
 
-    private void NativeProgram_0512()
+    private void NativeProgram_0513()
     {
         Vars["BaseScript"]="AttackCardItem";AddDescription("1", "Buff", "2");AddDescription("2", "Buff", "2");
     }
 
-    private void NativeProgram_0513()
+    private void NativeProgram_0514()
     {
         Vars["ThisCount"] = "0";
                 AddEvent("Action", () =>
@@ -9070,12 +9084,12 @@ public sealed partial class NativeRewardScriptGlobals
                 AddEvent("BurnCard",(() => {Vars["ThisCount"] =(int.Parse(Vars["ThisCount"])+1).ToString();UpdateRelicShow();}));
     }
 
-    private void NativeProgram_0514()
+    private void NativeProgram_0515()
     {
         AddEvent("StartRound",() => {SetStatus("Self");if(Self.CurHp<50){AddBuff("buff_oniblood","1");}});
     }
 
-    private void NativeProgram_0515()
+    private void NativeProgram_0516()
     {
         Vars["Used"]="0";
          Vars["Guarding"]="0";
@@ -9112,36 +9126,36 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0516()
+    private void NativeProgram_0517()
     {
         Vars["BaseScript"]="CommonCardItem"; AddDescription("1","Damage","14");
     }
 
-    private void NativeProgram_0517()
+    private void NativeProgram_0518()
     {
         SetStatus("Self");BurnCard("1","0");
         ChangeHp("-1");
         DrawCount("3");
     }
 
-    private void NativeProgram_0518()
+    private void NativeProgram_0519()
     {
         AddEvent("FightStart",()=>{SetStatus("Self");AddBuff("buff_ReturnAgain","10");});
     }
 
-    private void NativeProgram_0519()
+    private void NativeProgram_0520()
     {
 
          var buff = AddAndGetBuff(Self, "buff_timelock", 1);
          buff.effectList.Add(dataConfig, () => { RunScript("UseScript"); });
     }
 
-    private void NativeProgram_0520()
+    private void NativeProgram_0521()
     {
         SetStatus("Self");int x=Math.Max(1,Self.GetBuff("buff_extraordinary")==null?1:Self.GetBuff("buff_extraordinary").buffConfig.Level);DrawCount(x.ToString());
     }
 
-    private void NativeProgram_0521()
+    private void NativeProgram_0522()
     {
         SetStatus("AllTarget");AddBuff("buff_bleeding", "2");
         SetStatus("Target");
@@ -9156,7 +9170,7 @@ public sealed partial class NativeRewardScriptGlobals
          }
     }
 
-    private void NativeProgram_0522()
+    private void NativeProgram_0523()
     {
         if (PlayerInfo.Lucky<20)
                 {
@@ -9164,7 +9178,7 @@ public sealed partial class NativeRewardScriptGlobals
                 }AddEvent("FightStart",()=>{PlayerInfo.Money+=45;});
     }
 
-    private void NativeProgram_0523()
+    private void NativeProgram_0524()
     {
         Vars["Triggered"]="0";Vars["NormalHurt"]="0";Vars["TrueHurt"]="0";Vars["AilmentHurt"]="0";AddEvent<NativeRewardHurtData>
               ("Hurt", (data) => { int damageVal = 0; int.TryParse(data.val, out damageVal);
@@ -9195,7 +9209,7 @@ public sealed partial class NativeRewardScriptGlobals
                 });
     }
 
-    private void NativeProgram_0524()
+    private void NativeProgram_0525()
     {
         AddEvent("FightStart", () =>
          {
@@ -9210,12 +9224,12 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0525()
+    private void NativeProgram_0526()
     {
         AddEvent("FightStart",() => {SetStatus("Self");AddBuff("buff_oniblood","1");AddBuff("buff_fast","3");ChangeHp((Self.CurHp/6*-1).ToString());});
     }
 
-    private void NativeProgram_0526()
+    private void NativeProgram_0527()
     {
         AddEvent("FightStart",() => {
           if (PlayerInfo.CardTotalCount>18)
@@ -9225,7 +9239,7 @@ public sealed partial class NativeRewardScriptGlobals
           });
     }
 
-    private void NativeProgram_0527()
+    private void NativeProgram_0528()
     {
         AddEvent("FightStart", () => {
                     Vars["ThisCount"] = (int.Parse(Vars.GetValueOrDefault("ThisCount", "0")) + 1).ToString();
@@ -9261,7 +9275,7 @@ public sealed partial class NativeRewardScriptGlobals
                      });
     }
 
-    private void NativeProgram_0528()
+    private void NativeProgram_0529()
     {
         AddEvent("FightStart", () =>
                 {
@@ -9284,7 +9298,7 @@ public sealed partial class NativeRewardScriptGlobals
         });
     }
 
-    private void NativeProgram_0529()
+    private void NativeProgram_0530()
     {
         Vars["ThisCount"] = "0";
                 AddEvent("StartRound",(() => {Vars["ThisCount"] = "0";UpdateRelicShow();}));
@@ -9292,12 +9306,12 @@ public sealed partial class NativeRewardScriptGlobals
                     ChangeHp((Math.Pow(int.Parse(Vars["ThisCount"]) + 1,2)*-1).ToString());Vars["ThisCount"] = (int.Parse(Vars["ThisCount"]) + 1).ToString();UpdateRelicShow();}));
     }
 
-    private void NativeProgram_0530()
+    private void NativeProgram_0531()
     {
         Vars["BaseScript"]="CommonCardItem";AddDescription("1","Defence","8");AddDescription("2","Value","60");AddDescription("3","Buff","3");AddDescription("4","Buff","2");
     }
 
-    private void NativeProgram_0531()
+    private void NativeProgram_0532()
     {
         Vars["Round"]="0";
          AddEvent("EndRound",() => {
@@ -9314,17 +9328,17 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0532()
+    private void NativeProgram_0533()
     {
         AddEvent<NativeRewardHurtData>("Hurt",(d)=>{ if(!Vars.ContainsKey("RH"))Vars["RH"]="0"; Vars["RH"]=(int.Parse(Vars["RH"])+System.Math.Max(0,int.Parse(d.val))).ToString();}); AddEvent("StartRound",()=>{ SetStatus("Self"); Vars["RH"]="0"; int r=int.Parse(Vars["ThisCount"]); ChangeHp((-System.Math.Min(20,r)).ToString()); Vars["ThisCount"]=(r+1).ToString();UpdateRelicShow();}); AddEvent("EndRound",()=>{ SetStatus("Self"); if(!Vars.ContainsKey("RH"))Vars["RH"]="0"; int h=int.Parse(Vars["RH"]); if(h>0){ ChangeHp((h*2).ToString());}});
     }
 
-    private void NativeProgram_0533()
+    private void NativeProgram_0534()
     {
         BurnCard("1","2");AddBuff("buff_extraordinary","30");
     }
 
-    private void NativeProgram_0534()
+    private void NativeProgram_0535()
     {
         Vars["Used"]="0";
          AddEvent("FightStart",() => {SetStatus("Self");AddBuff("buff_evergreen","3");});
@@ -9338,12 +9352,12 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0535()
+    private void NativeProgram_0536()
     {
         AddEvent("StartRound",(() => {SetStatus("Self");AddBuff("buff_elements","4");ChangePower("1");}));
     }
 
-    private void NativeProgram_0536()
+    private void NativeProgram_0537()
     {
         SetStatus("Target");
                 if (Self.GetBuff("buff_revelation") == null)
@@ -9364,13 +9378,13 @@ public sealed partial class NativeRewardScriptGlobals
                 }
     }
 
-    private void NativeProgram_0537()
+    private void NativeProgram_0538()
     {
         SetStatus("Target");Damage(NativeRewardMathf.Pow(2,int.Parse(Vars["ThisCount"])+3).ToString());
                 Vars["ThisCount"]=(int.Parse(Vars["ThisCount"])+1).ToString();
     }
 
-    private void NativeProgram_0538()
+    private void NativeProgram_0539()
     {
         AddEvent("FightStart", () =>
          {
@@ -9385,12 +9399,12 @@ public sealed partial class NativeRewardScriptGlobals
          });
     }
 
-    private void NativeProgram_0539()
+    private void NativeProgram_0540()
     {
         Vars["BaseScript"]="CommonCardItem";Vars["DesVal1"]="1";
     }
 
-    private void NativeProgram_0540()
+    private void NativeProgram_0541()
     {
          if (PlayerInfo.SpecialVars==null)
                 {
@@ -9405,29 +9419,29 @@ public sealed partial class NativeRewardScriptGlobals
                 Damage((8+count/8).ToString(),"True");
     }
 
-    private void NativeProgram_0541()
+    private void NativeProgram_0542()
     {
          var buff = Self.GetBuff("buff_timelock");
          buff?.effectList.InvokeFirst();
          buff?.effectList.InvokeFirst();
     }
 
-    private void NativeProgram_0542()
+    private void NativeProgram_0543()
     {
         AddEvent("FightStart",(() => DrawCount("2")));
     }
 
-    private void NativeProgram_0543()
+    private void NativeProgram_0544()
     {
         SetStatus("Target");Resentment("1");int nt=0;if(Object.Count>0){var buffs=Object[0].GetBuffs();if(buffs!=null){nt=buffs.Where(x=>x!=null&&x.buffConfig!=null&&x.buffConfig.dataConfig.data["Type"]=="负面").Select(x=>x.buffConfig.BuffId).Distinct().Count();}}if(nt>0){Damage((8*nt).ToString());}
     }
 
-    private void NativeProgram_0544()
+    private void NativeProgram_0545()
     {
         Vars["BaseScript"]="AttackCardItem";AddDescription("1","Damage","1");AddDescription("2","Value","5");
     }
 
-    private void NativeProgram_0545()
+    private void NativeProgram_0546()
     {
         if (int.Parse(PlayerInfo.GetTagDiff())>30)
                 {
@@ -9441,28 +9455,14 @@ public sealed partial class NativeRewardScriptGlobals
                 }
     }
 
-    private void NativeProgram_0546()
+    private void NativeProgram_0547()
     {
         AddEvent("FightStart",(() => {SetStatus("AllRandomTarget1");AddBuff("buff_vulnerability","4");}));
     }
 
-    private void NativeProgram_0547()
-    {
-        SetStatus("Target");int nt=0;if(Object.Count>0){var buffs=Object[0].GetBuffs();if(buffs!=null){nt=buffs.Where(x=>x!=null&&x.buffConfig!=null&&x.buffConfig.dataConfig.data["Type"]=="负面").Select(x=>x.buffConfig.BuffId).Distinct().Count();}}AddBuff("buff_weak",(3+1*nt).ToString());
-    }
-
     private void NativeProgram_0548()
     {
-        SetStatus("Self");
-                var c=new NativeRewardDataConfig(dataConfig.data["Id"],NativeRewardDataType.Card);NativeRewardFightCardManager.Instance.cardList.Add(c);
-                 SetStatus("Target");int total=0;
-                foreach(var b in Self.GetBuffs().Where(x=>x!=null&&x.buffConfig.BuffId.Contains("ritual")).ToList())
-                {
-                total+=int.Parse(b.buffConfig.dataConfig.Vars["ThisCount"]);}
-                Damage((5+total*3).ToString());SetStatus("Self");
-                var buffs=Self.GetBuffs().Where(x=>x!=null&&x.buffConfig.BuffId.Contains("ritual")).ToList();
-                if(buffs.Count>0){var rb=buffs[DefaultDice.WithRange(0,buffs.Count-1).Roll().Value];
-                rb.buffConfig.dataConfig.Vars["ThisCount"]=(rb.buffConfig.dataConfig.Vars["ThisCount"].ToInt()+1).ToString();}
+        SetStatus("Target");int nt=0;if(Object.Count>0){var buffs=Object[0].GetBuffs();if(buffs!=null){nt=buffs.Where(x=>x!=null&&x.buffConfig!=null&&x.buffConfig.dataConfig.data["Type"]=="负面").Select(x=>x.buffConfig.BuffId).Distinct().Count();}}AddBuff("buff_weak",(3+1*nt).ToString());
     }
 
     private void NativeProgram_0549()

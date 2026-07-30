@@ -1,6 +1,7 @@
 param(
     [Parameter(Mandatory = $true)]
-    [string]$OwnerLogsDirectory
+    [string]$OwnerLogsDirectory,
+    [switch]$IncludeControllerSettings
 )
 
 $ErrorActionPreference = "Stop"
@@ -81,10 +82,12 @@ $directoryTargets = @(
 }
 $directoryTargets += @(
     [System.IO.Path]::GetFullPath(
-        (Join-Path $ownerConfigRoot "AutoBattle")),
-    [System.IO.Path]::GetFullPath(
-        (Join-Path $ownerConfigRoot "FoundationTrainer"))
+        (Join-Path $ownerConfigRoot "AutoBattle"))
 )
+if ($IncludeControllerSettings) {
+    $directoryTargets += [System.IO.Path]::GetFullPath(
+        (Join-Path $ownerConfigRoot "FoundationTrainer"))
+}
 
 $filePrefixes = @(
     "auto-battle-training-",
