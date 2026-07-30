@@ -28,6 +28,10 @@ try
         throw new InvalidOperationException(jobDiagnostic);
     }
     job = job ?? throw new InvalidOperationException("底模训练任务为空");
+    // The external worker persists validation aggregates and case artifacts.
+    // Full validation battle graphs are process-local diagnostics and must not
+    // accumulate across hundreds of validation campaigns.
+    job.Request.RetainValidationRunDetails = false;
     Directory.CreateDirectory(job.ResultDirectory);
     if (string.IsNullOrWhiteSpace(job.CheckpointPath))
     {
@@ -416,9 +420,10 @@ try
         workerResult.ModelPackagePath = Path.Combine(
             job.ResultDirectory,
             CombatFoundationModelPackageProtocol.FileName);
-        WriteAtomic(workerResult.ModelPackagePath, Serialize(modelPackage));
+        WriteAtomicJson(workerResult.ModelPackagePath, modelPackage);
     }
-    WriteAtomic(job.ResultPath, Serialize(workerResult));
+    training.ValidationRuns.Clear();
+    WriteAtomicJson(job.ResultPath, workerResult);
     Console.WriteLine(
         "Foundation worker completed: campaigns="
         + training.CompletedCampaigns
@@ -435,9 +440,9 @@ catch (OperationCanceledException)
         var resumable = TryGetResumableCheckpoint(
             job,
             out var resumableEpisodesPath);
-        WriteAtomic(
+        WriteAtomicJson(
             job.ResultPath,
-            Serialize(new CombatFoundationWorkerResult
+            new CombatFoundationWorkerResult
             {
                 JobId = job.JobId,
                 Cancelled = true,
@@ -455,7 +460,7 @@ catch (OperationCanceledException)
                 Resumable = resumable,
                 CheckpointWriteFailures = checkpointWriteFailures,
                 CheckpointWarning = checkpointWarning
-            }));
+            });
     }
     return 3;
 }
@@ -467,9 +472,9 @@ catch (Exception ex)
         var resumable = TryGetResumableCheckpoint(
             job,
             out var resumableEpisodesPath);
-        WriteAtomic(
+        WriteAtomicJson(
             job.ResultPath,
-            Serialize(new CombatFoundationWorkerResult
+            new CombatFoundationWorkerResult
             {
                 JobId = job.JobId,
                 CompletionKind = resumable
@@ -486,7 +491,7 @@ catch (Exception ex)
                 Resumable = resumable,
                 CheckpointWriteFailures = checkpointWriteFailures,
                 CheckpointWarning = checkpointWarning
-            }));
+            });
     }
     return 1;
 }
@@ -1475,6 +1480,34 @@ static void WriteAtomic(string path, string contents)
     CombatFoundationCheckpointStorage.WriteAtomicText(
         path,
         contents,
+        retainBackup: false);
+}
+
+static void WriteAtomicJson(string path, object value)
+{
+    CombatFoundationCheckpointStorage.WriteAtomicStream(
+        path,
+        stream =>
+        {
+            using var textWriter = new StreamWriter(
+                stream,
+                new UTF8Encoding(false),
+                64 * 1024,
+                leaveOpen: true);
+            using var jsonWriter = new JsonTextWriter(textWriter)
+            {
+                CloseOutput = false,
+                Formatting = Formatting.Indented
+            };
+            var serializer = JsonSerializer.Create(
+                new JsonSerializerSettings
+                {
+                    NullValueHandling = NullValueHandling.Ignore
+                });
+            serializer.Serialize(jsonWriter, value);
+            jsonWriter.Flush();
+            textWriter.Flush();
+        },
         retainBackup: false);
 }
 

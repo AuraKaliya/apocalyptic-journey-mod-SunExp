@@ -125,6 +125,14 @@ public static class CombatSearchFeatureProjector
         result["attackProbability"] = attackProbability;
         result["blockableThreat"] = state.ActiveBlockableThreat(profile.ThreatRiskTolerance);
         result["stepCount"] = state.StepCount;
+        result[CombatTurnFeatureNames.ActionsTakenThisTurn] =
+            state.TurnActionsTaken;
+        result[CombatTurnFeatureNames.EnergySpentThisTurn] =
+            state.TurnEnergySpent;
+        result[CombatTurnFeatureNames.EnemyHpAtTurnStart] =
+            state.EnemyHpAtTurnStart;
+        result[CombatTurnFeatureNames.ConsecutiveNoProgressTurns] =
+            state.ConsecutiveNoProgressTurns;
         result["setupValue"] = state.SetupValue;
         result["persistentValue"] = state.PersistentValue;
         result["damageMultiplier"] = state.DamageMultiplier;

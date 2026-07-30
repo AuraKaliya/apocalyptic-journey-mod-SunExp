@@ -96,9 +96,33 @@ public static class CombatFoundationCheckpointStorage
         string contents,
         bool retainBackup = true)
     {
+        WriteAtomicStream(
+            path,
+            stream =>
+            {
+                using var writer = new StreamWriter(
+                    stream,
+                    new UTF8Encoding(false),
+                    64 * 1024,
+                    leaveOpen: true);
+                writer.Write(contents ?? "");
+                writer.Flush();
+            },
+            retainBackup);
+    }
+
+    public static void WriteAtomicStream(
+        string path,
+        Action<Stream> write,
+        bool retainBackup = true)
+    {
         if (string.IsNullOrWhiteSpace(path))
         {
             return;
+        }
+        if (write == null)
+        {
+            throw new ArgumentNullException(nameof(write));
         }
         var fullPath = Path.GetFullPath(path);
         Directory.CreateDirectory(
@@ -115,12 +139,8 @@ public static class CombatFoundationCheckpointStorage
                        FileShare.Read,
                        64 * 1024,
                        FileOptions.SequentialScan))
-            using (var writer = new StreamWriter(
-                       stream,
-                       new UTF8Encoding(false)))
             {
-                writer.Write(contents ?? "");
-                writer.Flush();
+                write(stream);
                 stream.Flush(true);
             }
             ReplaceTemporaryFile(

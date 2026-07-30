@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using AuraDecision.Shared;
 
 namespace AuraCombatAi.Shared;
@@ -43,6 +44,7 @@ public sealed class CombatDecisionEngine
         state = CombatPlayerObservationBoundary.Normalize(state);
 
         var endTurn = (CombatActionObservation?)null;
+        var endTurnEvaluation = (CombatCandidateEvaluation?)null;
         var evaluations = new List<CombatCandidateEvaluation>(state.Actions.Count);
         var hasNonFakeLegalAction = state.Actions.Exists(action =>
             action != null
@@ -61,13 +63,14 @@ public sealed class CombatDecisionEngine
             {
                 endTurn = action;
                 action.Features = BuildFeatures(state, action);
-                evaluations.Add(new CombatCandidateEvaluation
+                endTurnEvaluation = new CombatCandidateEvaluation
                 {
                     Action = action,
                     Legal = action.Legal,
                     RejectionReason = action.RejectionReason,
                     RuleScore = 0d
-                });
+                };
+                evaluations.Add(endTurnEvaluation);
                 continue;
             }
 
@@ -127,6 +130,18 @@ public sealed class CombatDecisionEngine
                 AppliedResidualScore = residual.AppliedCorrection,
                 RuleScore = baseRuleScore + residual.AppliedCorrection
             });
+        }
+
+        var endTurnAssessment = CombatEndTurnSafety.Assess(
+            state,
+            evaluations,
+            selectedProfile);
+        if (endTurn != null && endTurnEvaluation != null)
+        {
+            CombatEndTurnSafety.Annotate(
+                endTurn,
+                endTurnEvaluation,
+                endTurnAssessment);
         }
 
         var dominantSetup = CombatActionDominance.SelectSafeFreeSetup(
@@ -199,7 +214,9 @@ public sealed class CombatDecisionEngine
             };
         }
 
-        if (endTurn != null && endTurn.Legal)
+        if (endTurn != null
+            && endTurn.Legal
+            && !endTurnAssessment.Prohibited)
         {
             return new CombatDecision
             {
@@ -222,6 +239,39 @@ public sealed class CombatDecisionEngine
                 FakeLoops = search.FakeLoops,
                 BlockedLoops = search.BlockedLoops
             };
+        }
+
+        if (endTurnAssessment.Prohibited)
+        {
+            var safeFallback = evaluations
+                .Where(candidate =>
+                    CombatEndTurnSafety.IsSafeAlternative(
+                        state,
+                        candidate,
+                        selectedProfile))
+                .OrderByDescending(candidate => candidate.RuleScore)
+                .ThenBy(candidate => candidate.Action.CandidateId, StringComparer.Ordinal)
+                .FirstOrDefault();
+            if (safeFallback != null)
+            {
+                return new CombatDecision
+                {
+                    HasAction = true,
+                    Action = safeFallback.Action,
+                    Score = safeFallback.RuleScore,
+                    Reason = "end-turn safety fallback: "
+                             + endTurnAssessment.Reason,
+                    ProfileId = selectedProfile.Id,
+                    Candidates = evaluations,
+                    PlanSummary = planSummary,
+                    SearchAlgorithm = "end-turn-safety",
+                    SearchSimulations = search.Simulations,
+                    SearchNodes = search.Nodes,
+                    SearchTranspositionHits = search.TranspositionHits,
+                    SearchStoppedEarly = search.StoppedEarly,
+                    SearchBudgetTier = search.BudgetTier
+                };
+            }
         }
 
         return new CombatDecision
@@ -475,6 +525,12 @@ public sealed class CombatDecisionEngine
         features["currentIntentKnown"] =
             state.Threat?.CurrentIntentKnown == true ? 1d : 0d;
         features["isFreeAction"] = action.Cost == 0 ? 1d : 0d;
+        features["actionKindPlayCard"] =
+            action.Kind == CombatActionKind.PlayCard ? 1d : 0d;
+        features["actionKindUseSkill"] =
+            action.Kind == CombatActionKind.UseSkill ? 1d : 0d;
+        features["actionKindEndTurn"] =
+            action.Kind == CombatActionKind.EndTurn ? 1d : 0d;
         features["uncertainty"] = semantics.Uncertainty;
         foreach (var pair in state.Features)
         {

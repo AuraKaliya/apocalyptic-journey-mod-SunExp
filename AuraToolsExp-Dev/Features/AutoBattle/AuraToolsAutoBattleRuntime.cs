@@ -122,6 +122,96 @@ public static class AuraToolsAutoBattleRuntime
         controller?.ApplyConfiguration();
     }
 
+    public static bool TrySetModelApplicationMode(
+        string requestedMode,
+        out AutoBattleModelApplicationStatus status,
+        out string message)
+    {
+        var mode = NormalizeModelApplicationMode(requestedMode);
+        var settings = AuraToolsConfigService.MatchExperience.AutoBattle;
+        var selectedModelId = (settings.SelectedModelId ?? "").Trim();
+        if (!string.Equals(mode, "off", StringComparison.Ordinal)
+            && string.IsNullOrWhiteSpace(selectedModelId))
+        {
+            status = SnapshotModelApplicationStatus();
+            message = "请先从模型库选择一个模型";
+            return false;
+        }
+        if (string.Equals(mode, "active", StringComparison.Ordinal)
+            && !AuraToolsAutoBattleSimulationRuntime.CanActivateModel(
+                settings.Profile,
+                selectedModelId,
+                out var gateReason))
+        {
+            status = SnapshotModelApplicationStatus();
+            message = "所选模型尚不能受限应用：" + gateReason;
+            return false;
+        }
+
+        settings.TrainedModelMode = mode;
+        settings.Normalize();
+        AuraToolsConfigService.SaveMatchExperience();
+        EnsureController().ApplyConfiguration();
+        status = SnapshotModelApplicationStatus();
+        var applied = string.Equals(
+            status.EffectiveMode,
+            mode,
+            StringComparison.Ordinal);
+        message = applied
+            ? "模型应用状态已切换为" + ModelApplicationModeLabel(mode)
+            : "配置已保存，但运行时实际状态为"
+              + ModelApplicationModeLabel(status.EffectiveMode)
+              + "：" + status.Diagnostic;
+        AuraToolsLog.Info(
+            "[AutoBattle][ModelActivation] configured="
+            + status.ConfiguredMode
+            + " effective="
+            + status.EffectiveMode
+            + " selected="
+            + status.SelectedModelId
+            + " loaded="
+            + status.LoadedModelId);
+        return applied;
+    }
+
+    public static AutoBattleModelApplicationStatus
+        SnapshotModelApplicationStatus()
+    {
+        var settings = AuraToolsConfigService.MatchExperience.AutoBattle;
+        return controller?.SnapshotModelApplicationStatus(
+                   settings.TrainedModelMode,
+                   settings.SelectedModelId)
+               ?? new AutoBattleModelApplicationStatus
+               {
+                   ConfiguredMode = NormalizeModelApplicationMode(
+                       settings.TrainedModelMode),
+                   EffectiveMode = "off",
+                   SelectedModelId = settings.SelectedModelId ?? "",
+                   LoadedModelId = "none",
+                   Diagnostic = "自动战斗运行时尚未初始化"
+               };
+    }
+
+    private static string NormalizeModelApplicationMode(string value)
+    {
+        return value switch
+        {
+            "shadow" => "shadow",
+            "active" => "active",
+            _ => "off"
+        };
+    }
+
+    private static string ModelApplicationModeLabel(string value)
+    {
+        return value switch
+        {
+            "shadow" => "影子评估",
+            "active" => "受限应用",
+            _ => "关闭"
+        };
+    }
+
     internal static void BeginGameValidationBattle()
     {
         EnsureController().BeginGameValidationBattle();
@@ -169,6 +259,19 @@ public static class AuraToolsAutoBattleRuntime
     }
 }
 
+public sealed class AutoBattleModelApplicationStatus
+{
+    public string ConfiguredMode { get; set; } = "off";
+
+    public string EffectiveMode { get; set; } = "off";
+
+    public string SelectedModelId { get; set; } = "";
+
+    public string LoadedModelId { get; set; } = "none";
+
+    public string Diagnostic { get; set; } = "";
+}
+
 internal sealed class AuraToolsAutoBattleController : MonoBehaviour
 {
     private const string ButtonName = "AuraToolsAutoBattleButton";
@@ -207,6 +310,20 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
     private string pendingShadowFingerprint = "";
 
     public bool Active { get; private set; }
+
+    internal AutoBattleModelApplicationStatus SnapshotModelApplicationStatus(
+        string configuredMode,
+        string selectedModelId)
+    {
+        return new AutoBattleModelApplicationStatus
+        {
+            ConfiguredMode = configuredMode ?? "off",
+            EffectiveMode = trainedModelMode,
+            SelectedModelId = selectedModelId ?? "",
+            LoadedModelId = trainedModelId,
+            Diagnostic = lastModelDiagnostic
+        };
+    }
 
     private void Awake()
     {
@@ -951,7 +1068,13 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
             if (string.Equals(decisionCacheKey, cacheKey, StringComparison.Ordinal)
                 && cachedLearnedDecision != null)
             {
-                return cachedLearnedDecision;
+                return BindDecisionToCurrentObservation(
+                    cachedLearnedDecision,
+                    state,
+                    trainedDecisionEngine,
+                    profile,
+                    learned: true,
+                    "learned-active-cache");
             }
             ClearDecisionCache();
             decisionCacheKey = cacheKey;
@@ -960,7 +1083,13 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
                 state,
                 profile,
                 "learned-active");
-            return cachedLearnedDecision;
+            return BindDecisionToCurrentObservation(
+                cachedLearnedDecision,
+                state,
+                trainedDecisionEngine,
+                profile,
+                learned: true,
+                "learned-active");
         }
 
         if (!string.Equals(decisionCacheKey, cacheKey, StringComparison.Ordinal))
@@ -968,12 +1097,19 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
             ClearDecisionCache();
             decisionCacheKey = cacheKey;
         }
-        var baseline = cachedBaselineDecision
-                       ??= RunDecisionEngine(
-                           baselineDecisionEngine,
-                           state,
-                           profile,
-                           "baseline");
+        var baselineTemplate = cachedBaselineDecision
+                               ??= RunDecisionEngine(
+                                   baselineDecisionEngine,
+                                   state,
+                                   profile,
+                                   "baseline");
+        var baseline = BindDecisionToCurrentObservation(
+            baselineTemplate,
+            state,
+            baselineDecisionEngine,
+            profile,
+            learned: false,
+            "baseline-cache");
         if (!string.Equals(trainedModelMode, "shadow", StringComparison.OrdinalIgnoreCase)
             || string.Equals(trainedModelId, "none", StringComparison.Ordinal)
             || string.Equals(
@@ -986,6 +1122,58 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
 
         QueueShadowComparison(state, profile, baseline, cacheKey, source);
         return baseline;
+    }
+
+    private CombatDecision BindDecisionToCurrentObservation(
+        CombatDecision template,
+        CombatStateObservation state,
+        CombatDecisionEngine engine,
+        CombatDecisionProfile profile,
+        bool learned,
+        string source)
+    {
+        if (CombatDecisionExecutionBindingProtocol.TryBindToObservation(
+                template,
+                state,
+                out var bound,
+                out _))
+        {
+            return bound;
+        }
+
+        var refreshed = RunDecisionEngine(
+            engine,
+            state,
+            profile,
+            source + "-refresh");
+        if (learned)
+        {
+            cachedLearnedDecision = refreshed;
+        }
+        else
+        {
+            cachedBaselineDecision = refreshed;
+        }
+        if (CombatDecisionExecutionBindingProtocol.TryBindToObservation(
+                refreshed,
+                state,
+                out bound,
+                out var reason))
+        {
+            AuraToolsLog.Debug(
+                "[AutoBattle][ActionRebind] cached decision refreshed for "
+                + state.ObservationId);
+            return bound;
+        }
+
+        AuraToolsLog.Warn(
+            "[AutoBattle][ActionRebind] current action binding failed: "
+            + reason);
+        return new CombatDecision
+        {
+            Reason = "current action binding failed: " + reason,
+            ProfileId = profile.Id
+        };
     }
 
     private void QueueShadowComparison(
@@ -1166,7 +1354,10 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
               + " residualRaw=" + selected.RawResidualScore.ToString("0.00")
               + " residualSupport=" + selected.ResidualApplicability.ToString("0.00")
               + " residualApplied=" + selected.AppliedResidualScore.ToString("0.00")
-              + " final=" + selected.RuleScore.ToString("0.00");
+              + " policyPrior=" + selected.SearchPrior.ToString("0.000")
+              + " visits=" + selected.SearchVisits
+              + " plan=" + selected.PlanScore.ToString("0.00")
+              + " ruleFinal=" + selected.RuleScore.ToString("0.00");
     }
 
     private void LogInteractionProgress(CombatInteractionRequest? request)

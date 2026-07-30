@@ -40,7 +40,7 @@ Remove-Item -LiteralPath $simulationOutput -Force
 if ($simulationResult.Statistics.CompletedSimulations -ne 4 `
     -or $simulationResult.Statistics.Invalid -ne 0 `
     -or $simulationResult.Statistics.AuthoritativeSimulations -ne 4 `
-    -or $simulationResult.Results[0].FinalStateHash -ne "b564d06c54cb9756" `
+    -or $simulationResult.Results[0].FinalStateHash -ne "d9fe51bf4348e831" `
     -or [string]::IsNullOrWhiteSpace($simulationResult.RulesetHash)) {
     throw "Aura headless combat simulation result contract is invalid."
 }
@@ -81,6 +81,7 @@ $foundationTrainingPath = Join-Path $root "AuraCombatAiShared\CombatCampaignFoun
 $foundationStrategyPath = Join-Path $root "AuraCombatAiShared\CombatFoundationTrainingStrategy.cs"
 $foundationCaseLearningPath = Join-Path $root "AuraCombatAiShared\CombatFoundationCaseLearning.cs"
 $foundationCaseArchiveProtocolPath = Join-Path $root "AuraCombatAiShared\CombatFoundationCaseArchiveProtocol.cs"
+$modelCoveragePath = Join-Path $root "AuraCombatAiShared\CombatModelCoverage.cs"
 $gameValidationProtocolPath = Join-Path $root "AuraCombatAiShared\CombatGameValidation.cs"
 $simulationUiRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleSimulationRuntime.cs"
 $gameValidationRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleGameValidationRuntime.cs"
@@ -136,6 +137,7 @@ $foundationTraining = Get-Content -LiteralPath $foundationTrainingPath -Raw
 $foundationStrategy = Get-Content -LiteralPath $foundationStrategyPath -Raw
 $foundationCaseLearning = Get-Content -LiteralPath $foundationCaseLearningPath -Raw
 $foundationCaseArchiveProtocol = Get-Content -LiteralPath $foundationCaseArchiveProtocolPath -Raw
+$modelCoverage = Get-Content -LiteralPath $modelCoveragePath -Raw
 $gameValidationProtocol = Get-Content -LiteralPath $gameValidationProtocolPath -Raw
 $simulationUiRuntime = Get-Content -LiteralPath $simulationUiRuntimePath -Raw
 $gameValidationRuntime = Get-Content -LiteralPath $gameValidationRuntimePath -Raw
@@ -198,6 +200,21 @@ foreach ($anchor in @(
     }
 }
 foreach ($anchor in @(
+    "CombatFoundationTrainingSubject",
+    "CombatFoundationDeclaredCoverage",
+    "CombatModelCoverageAssessment",
+    "CreateDeclaredCoverage",
+    "RuntimeExtraCardPackIds",
+    "RoleSkillFallbackRequired",
+    "CoverageAwareCombatPolicyValueModel",
+    "CombatActionKind.UseSkill",
+    "CombatActionKind.PlayCard"
+)) {
+    if (-not $modelCoverage.Contains($anchor)) {
+        throw "Aura portable foundation model coverage contract is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
     "status.GetBuffs()",
     "CombatStatusObservation",
     "ObserveDeck",
@@ -224,6 +241,9 @@ foreach ($anchor in @(
     "CombatBeliefTracker",
     "CombatRootDeterminizer",
     "CombatExecutionContext",
+    "CombatDecisionExecutionBindingProtocol",
+    "TryBindToObservation",
+    "selected candidate has no current execution token",
     "CombatPublicFeatureRegistry",
     "CombatPublicObservationHasher",
     "NormalizeSemantics"
@@ -432,7 +452,9 @@ foreach ($anchor in @(
     "ArenaConfirmationPairs",
     "TerminalConsistencyViolations",
     "FeatureLeakageViolations",
-    "Math.Min(1024"
+    "Math.Min(1024",
+    "RetainValidationRunDetails",
+    "CompactValidationRun(campaign)"
 )) {
     if (-not $foundationTraining.Contains($anchor)) {
         throw "Aura foundation CPU training contract is missing: $anchor"
@@ -694,6 +716,7 @@ foreach ($anchor in @(
 foreach ($anchor in @(
     "WriteEpisodeSnapshot",
     "WriteAtomicText",
+    "WriteAtomicStream",
     "ReadAndValidateJsonLines",
     "FileShare.ReadWrite | FileShare.Delete",
     "File.Replace",
@@ -718,7 +741,9 @@ foreach ($anchor in @(
     "ReplayIdentity",
     "EpisodeSnapshot = nextSnapshot",
     "checkpointWriteFailures++",
-    "TryGetResumableCheckpoint"
+    "TryGetResumableCheckpoint",
+    "WriteAtomicJson",
+    "training.ValidationRuns.Clear()"
 )) {
     if (-not $foundationWorkerProgram.Contains($anchor)) {
         throw "Aura foundation worker-owned case archive contract is missing: $anchor"

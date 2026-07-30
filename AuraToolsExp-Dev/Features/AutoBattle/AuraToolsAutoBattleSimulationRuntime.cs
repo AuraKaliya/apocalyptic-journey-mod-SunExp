@@ -1027,6 +1027,14 @@ internal static class AuraToolsAutoBattleSimulationRuntime
         string modelId,
         out string reason)
     {
+        if (AuraToolsAutoBattleModelRuntime
+            .PortableFoundationMeetsActivationGate(
+                profile,
+                modelId,
+                out reason))
+        {
+            return true;
+        }
         var external = AuraToolsAutoBattleModelRuntime
             .SnapshotExternalValidationModel();
         var externalPromotion = external != null

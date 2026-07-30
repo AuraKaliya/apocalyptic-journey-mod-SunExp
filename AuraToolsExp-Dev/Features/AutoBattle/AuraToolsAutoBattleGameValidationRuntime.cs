@@ -157,6 +157,24 @@ internal static class AuraToolsAutoBattleGameValidationRuntime
         }
     }
 
+    public static bool IsStartEnvironmentReady(out string message)
+    {
+        if (!AuraToolsAutoBattleRuntime.ModuleEnabled)
+        {
+            message = "请先启用战斗策略实验室";
+            return false;
+        }
+        if (FightManager.Instance == null
+            || FightManager.Instance.fightType != FightType.None
+            || RoleTable.Instance == null)
+        {
+            message = "仅可在非战斗状态下启动游戏主体验证";
+            return false;
+        }
+        message = "";
+        return true;
+    }
+
     public static bool Queue(AutoBattleSettings settings, out string message)
     {
         settings ??= new AutoBattleSettings();
@@ -169,16 +187,8 @@ internal static class AuraToolsAutoBattleGameValidationRuntime
                 return false;
             }
         }
-        if (!AuraToolsAutoBattleRuntime.ModuleEnabled)
+        if (!IsStartEnvironmentReady(out message))
         {
-            message = "请先启用自动战斗模块";
-            return false;
-        }
-        if (FightManager.Instance == null
-            || FightManager.Instance.fightType != FightType.None
-            || RoleTable.Instance == null)
-        {
-            message = "请在非战斗状态下启动游戏主体验证";
             return false;
         }
         var evaluationModelId = string.IsNullOrWhiteSpace(

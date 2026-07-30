@@ -807,7 +807,19 @@ public static class PlayerEquivalentSimulationObservationProjector
                 ["discardPileCount"] = state.DiscardPile.Count,
                 ["exhaustPile"] = state.ExhaustPile.Count,
                 ["exhaustPileCount"] = state.ExhaustPile.Count,
-                ["drawPerTurn"] = context.Scenario.DrawPerTurn
+                ["drawPerTurn"] = context.Scenario.DrawPerTurn,
+                [CombatTurnFeatureNames.ActionsTakenThisTurn] =
+                    state.PlayerActionsThisTurn,
+                [CombatTurnFeatureNames.EnergySpentThisTurn] =
+                    state.PlayerEnergySpentThisTurn,
+                [CombatTurnFeatureNames.EnemyHpAtTurnStart] =
+                    state.EnemyHpAtTurnStart,
+                [CombatTurnFeatureNames.ConsecutiveNoProgressTurns] =
+                    state.ConsecutiveNoProgressTurns,
+                [CombatTurnFeatureNames.EndTurnPurposeValue] =
+                    state.EndTurnPurposeValue,
+                [CombatTurnFeatureNames.EndTurnPurposeCount] =
+                    state.EndTurnPurposeValue > 0d ? 1d : 0d
             }
         };
         observation.DeckKnowledge.KnownDeckCardIds.AddRange(observation.DeckCardIds);
@@ -822,7 +834,20 @@ public static class PlayerEquivalentSimulationObservationProjector
 
         foreach (var enemy in state.LivingEnemies.OrderBy(enemy => enemy.ActorId))
         {
-            observation.Enemies.Add(ProjectActor(enemy, CombatTargetKind.Enemy));
+            var projectedEnemy = ProjectActor(enemy, CombatTargetKind.Enemy);
+            if (context.Ruleset.TryGetEnemy(enemy.DefinitionId, out var enemyDefinition))
+            {
+                projectedEnemy.Attack = Math.Max(
+                    0d,
+                    enemy.Variables.TryGetValue("Attack", out var attack)
+                        ? attack
+                        : 0d);
+                projectedEnemy.Features["attack"] = projectedEnemy.Attack;
+                projectedEnemy.Features["actionCount"] = Math.Max(
+                    1,
+                    enemyDefinition.ActionCount);
+            }
+            observation.Enemies.Add(projectedEnemy);
             AddThreat(context.Ruleset, enemy, observation.Threat);
         }
         observation.Threat.CurrentIntentKnown = observation.Enemies.Count > 0;
@@ -1248,7 +1273,8 @@ public static class PlayerEquivalentSimulationObservationProjector
         if (id.IndexOf("frenzy", StringComparison.OrdinalIgnoreCase) >= 0
             || id.IndexOf("keenedge", StringComparison.OrdinalIgnoreCase) >= 0
             || id.IndexOf("counterattack", StringComparison.OrdinalIgnoreCase) >= 0
-            || id.IndexOf("thorns", StringComparison.OrdinalIgnoreCase) >= 0)
+            || id.IndexOf("thorns", StringComparison.OrdinalIgnoreCase) >= 0
+            || id.IndexOf("extraordinary", StringComparison.OrdinalIgnoreCase) >= 0)
         {
             features["escalationPressure"] =
                 features.TryGetValue("escalationPressure", out var current)

@@ -1,9 +1,6 @@
 using System;
 using System.Collections.Generic;
-using System.Globalization;
 using System.Linq;
-using System.Security.Cryptography;
-using System.Text;
 using AuraCombatSimulation.Shared;
 using AuraGameData.Shared;
 using AuraGameData.Shared.GameApi;
@@ -74,33 +71,9 @@ internal static class AuraToolsAutoBattleGameParameterRuntime
         var preset = settings.GameParameters.ActivePreset;
         preset.Normalize();
 
-        campaign.Player ??= new CombatPlayerSetup();
-        campaign.Player.RoleId = preset.RoleId;
-        campaign.Player.PartnerId = preset.PartnerId;
-        campaign.Player.SkillCardIds = preset.ResolvedRoleSkillIds.ToList();
-        campaign.Player.SkillCooldownTurns =
-            new Dictionary<string, int>(
-                preset.ResolvedRoleSkillCooldownTurns,
-                StringComparer.OrdinalIgnoreCase);
-        campaign.Player.InitialStatuses =
-            preset.ResolvedRoleInitialStatuses
-                .Select(item => new CombatInitialStatus
-                {
-                    StatusId = item.Key,
-                    Stacks = item.Value
-                })
-                .ToList();
-        campaign.Player.FamiliarBlessingIds =
-            preset.ResolvedFamiliarBlessingIds.ToList();
-        campaign.Player.GameParameterPresetId = preset.Id;
-        campaign.EnabledRewardCardPackIds =
-            preset.EnabledRewardCardPackIds.ToList();
-        campaign.TargetDeckSizeMinimum = preset.PreferredDeckSizeMinimum;
-        campaign.TargetDeckSizeMaximum = preset.PreferredDeckSizeMaximum;
-        campaign.DeckSizeAlertThreshold = Math.Max(
-            preset.PreferredDeckSizeMaximum + 5,
-            preset.PreferredDeckSizeMaximum);
-        campaign.Player.GameParameterHash = ComputeHash(preset, campaign.Player.Deck);
+        CombatGameSubjectPresetRuntime.Apply(
+            ToSharedPreset(preset),
+            campaign);
         return preset;
     }
 
@@ -126,46 +99,39 @@ internal static class AuraToolsAutoBattleGameParameterRuntime
         AutoBattleGameParameterPreset preset,
         IEnumerable<string> startingDeck)
     {
-        var canonical = string.Join(
-            "\n",
-            new[]
-            {
-                "preset=" + preset.Id,
-                "role=" + preset.RoleId,
-                "partner=" + preset.PartnerId,
-                "skills=" + JoinSorted(preset.ResolvedRoleSkillIds),
-                "skillCooldowns="
-                + string.Join(
-                    ",",
-                    preset.ResolvedRoleSkillCooldownTurns
-                        .OrderBy(
-                            item => item.Key,
-                            StringComparer.OrdinalIgnoreCase)
-                        .Select(item => item.Key + ":" + item.Value)),
-                "roleStatuses="
-                + string.Join(
-                    ",",
-                    preset.ResolvedRoleInitialStatuses
-                        .OrderBy(
-                            item => item.Key,
-                            StringComparer.OrdinalIgnoreCase)
-                        .Select(item => item.Key + ":" + item.Value)),
-                "familiarBlessings="
-                + JoinSorted(preset.ResolvedFamiliarBlessingIds),
-                "rewardPacks=" + JoinSorted(preset.EnabledRewardCardPackIds),
-                "deckMin=" + preset.PreferredDeckSizeMinimum.ToString(
-                    CultureInfo.InvariantCulture),
-                "deckMax=" + preset.PreferredDeckSizeMaximum.ToString(
-                    CultureInfo.InvariantCulture),
-                "startingDeck=" + string.Join(
-                    ",",
-                    startingDeck ?? Array.Empty<string>())
-            });
-        using var sha = SHA256.Create();
-        return BitConverter.ToString(
-                sha.ComputeHash(Encoding.UTF8.GetBytes(canonical)))
-            .Replace("-", "")
-            .ToLowerInvariant();
+        return CombatGameSubjectPresetRuntime.ComputeHash(
+            ToSharedPreset(preset),
+            startingDeck);
+    }
+
+    private static CombatGameSubjectPreset ToSharedPreset(
+        AutoBattleGameParameterPreset preset)
+    {
+        return new CombatGameSubjectPreset
+        {
+            Id = preset.Id,
+            DisplayName = preset.DisplayName,
+            RoleId = preset.RoleId,
+            PartnerId = preset.PartnerId,
+            EnabledRewardCardPackIds =
+                preset.EnabledRewardCardPackIds.ToList(),
+            PreferredDeckSizeMinimum =
+                preset.PreferredDeckSizeMinimum,
+            PreferredDeckSizeMaximum =
+                preset.PreferredDeckSizeMaximum,
+            ResolvedRoleSkillIds =
+                preset.ResolvedRoleSkillIds.ToList(),
+            ResolvedRoleInitialStatuses =
+                new Dictionary<string, int>(
+                    preset.ResolvedRoleInitialStatuses,
+                    StringComparer.OrdinalIgnoreCase),
+            ResolvedRoleSkillCooldownTurns =
+                new Dictionary<string, int>(
+                    preset.ResolvedRoleSkillCooldownTurns,
+                    StringComparer.OrdinalIgnoreCase),
+            ResolvedFamiliarBlessingIds =
+                preset.ResolvedFamiliarBlessingIds.ToList()
+        }.Normalize();
     }
 
     private static List<AutoBattleRewardCardPackInfo> ScanRewardCardPacks()
@@ -245,15 +211,6 @@ internal static class AuraToolsAutoBattleGameParameterRuntime
                && !string.IsNullOrWhiteSpace(name)
             ? name
             : id;
-    }
-
-    private static string JoinSorted(IEnumerable<string> values)
-    {
-        return string.Join(
-            ",",
-            (values ?? Array.Empty<string>())
-            .Where(item => !string.IsNullOrWhiteSpace(item))
-            .OrderBy(item => item, StringComparer.OrdinalIgnoreCase));
     }
 
     private static bool IsRequiredPack(string id)

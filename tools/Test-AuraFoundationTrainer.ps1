@@ -11,6 +11,8 @@ param(
     [int]$SearchStabilityWindow = 16,
     [int]$SearchStableChecks = 1,
     [int]$MaximumDegreeOfParallelism = 4,
+    [int]$NormalValidationCampaigns = 5,
+    [int]$AdvancedValidationCampaigns = 5,
     [switch]$KeepArtifactsOnFailure
 )
 
@@ -29,6 +31,12 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $effectivePreflightCampaignsPerDifficulty = [Math]::Max(
     0,
     [Math]::Min(100, $PreflightCampaignsPerDifficulty))
+$effectiveNormalValidationCampaigns = [Math]::Max(
+    1,
+    [Math]::Min(1000, $NormalValidationCampaigns))
+$effectiveAdvancedValidationCampaigns = [Math]::Max(
+    1,
+    [Math]::Min(1000, $AdvancedValidationCampaigns))
 if (-not $SkipPublish) {
     & (Join-Path $repoRoot "tools\Build-AuraFoundationTrainer.ps1") -Configuration $Configuration
 }
@@ -67,8 +75,8 @@ try {
         Iterations = 1
         TrainingCampaignsPerIteration = 2
         ArenaCampaignsPerDifficulty = 1
-        NormalValidationCampaigns = 5
-        AdvancedValidationCampaigns = 5
+        NormalValidationCampaigns = $effectiveNormalValidationCampaigns
+        AdvancedValidationCampaigns = $effectiveAdvancedValidationCampaigns
         CapabilityProbeCampaignsPerDifficulty = 0
         PreflightCampaignsPerDifficulty = $PreflightCampaignsPerDifficulty
         PreflightSeedStart = $PreflightSeedStart
@@ -127,6 +135,9 @@ try {
             ConvertTo-Json -Depth 10 -Compress
         throw ("Foundation trainer smoke result failed: {0}; preflight={1}" -f `
             $result.Message, $preflightFailures)
+    }
+    if (@($result.Training.ValidationRuns).Count -ne 0) {
+        throw "Foundation worker result retained process-local validation run details."
     }
     if ([string]::IsNullOrWhiteSpace($result.RulesetHash)) {
         throw "Foundation trainer did not return a ruleset hash."
@@ -201,6 +212,29 @@ try {
             -or $progress.Telemetry.SearchSimulations -le 0) {
             throw "Foundation trainer model/search telemetry is incomplete."
     }
+    if (-not $PreflightOnly) {
+        $expectedParallelism = [Math]::Max(
+            1,
+            [Math]::Min(
+                [Environment]::ProcessorCount,
+                $MaximumDegreeOfParallelism))
+        $expectedValidationPeak = [Math]::Min(
+            $expectedParallelism,
+            [Math]::Max(
+                $effectiveNormalValidationCampaigns,
+                $effectiveAdvancedValidationCampaigns))
+        if ([int]$result.Training.EffectiveParallelism `
+                -ne $expectedParallelism `
+            -or [int]$result.Training.PeakConcurrentCampaigns `
+                -lt $expectedValidationPeak) {
+            throw (
+                "Foundation worker did not sustain configured parallelism: " `
+                + "effective=$($result.Training.EffectiveParallelism)/" `
+                + "$expectedParallelism, peak=" `
+                + "$($result.Training.PeakConcurrentCampaigns)/" `
+                + "$expectedValidationPeak.")
+        }
+    }
     $checkpoint = $null
     $checkpointSnapshotPath = ""
     if (Test-Path -LiteralPath $checkpointPath -PathType Leaf) {
@@ -245,7 +279,7 @@ try {
         }
         $modelPackage = Read-FoundationJson (
             [string]$result.ModelPackagePath)
-        if ([int]$modelPackage.SchemaVersion -ne 1 `
+        if ([int]$modelPackage.SchemaVersion -ne 2 `
             -or [string]$modelPackage.ArtifactKind `
                 -ne "aura.foundation-model-package" `
             -or [string]$modelPackage.CompletionKind `
@@ -253,8 +287,26 @@ try {
             -or [string]$modelPackage.JobId -ne [string]$job.JobId `
             -or [string]$modelPackage.RulesetHash `
                 -ne [string]$result.RulesetHash `
+            -or [string]::IsNullOrWhiteSpace(
+                [string]$modelPackage.RoleId) `
+            -or [string]::IsNullOrWhiteSpace(
+                [string]$modelPackage.PartnerId) `
+            -or [string]::IsNullOrWhiteSpace(
+                [string]$modelPackage.GameParameterPresetId) `
+            -or [string]::IsNullOrWhiteSpace(
+                [string]$modelPackage.GameParameterHash) `
+            -or @($modelPackage.EnabledRewardCardPackIds |
+                Group-Object | Where-Object Count -gt 1).Count -ne 0 `
             -or $null -eq $modelPackage.Model) {
-            throw "Accepted foundation model package is invalid."
+            throw (
+                "Accepted foundation model package is invalid: " `
+                + "schema=$($modelPackage.SchemaVersion), " `
+                + "kind=$($modelPackage.ArtifactKind), " `
+                + "completion=$($modelPackage.CompletionKind), " `
+                + "job=$($modelPackage.JobId)/$($job.JobId), " `
+                + "ruleset=$($modelPackage.RulesetHash)/$($result.RulesetHash), " `
+                + "modelPresent=$($null -ne $modelPackage.Model), " `
+                + "path=$($result.ModelPackagePath)")
         }
     }
     elseif ($result.CompletionKind -ne "training-rejected-resumable" `
@@ -292,6 +344,17 @@ try {
     }
 
     if (-not $PreflightOnly) {
+        $archiveLoad = $result.Training.CaseArchiveLoad
+        if ([string]$archiveLoad.ProtocolVersion `
+                -ne "success-case-archive-worker-v3" `
+            -or [string]$archiveLoad.OwnerRuntime -ne ".NET 8 worker" `
+            -or [int]$archiveLoad.StorageVersion -ne 3 `
+            -or [string]::IsNullOrWhiteSpace(
+                [string]$archiveLoad.CompatibilityKey)) {
+            throw (
+                "Foundation archive v3 load contract failed: " `
+                + ($archiveLoad | ConvertTo-Json -Depth 8 -Compress))
+        }
         $currentObservation = Get-ChildItem -LiteralPath $archiveRoot `
             -Filter "*.json" -File -Recurse |
             Where-Object {
@@ -302,28 +365,28 @@ try {
                     + [System.IO.Path]::DirectorySeparatorChar)
             } |
             Select-Object -First 1
-        if ($null -eq $currentObservation) {
+        $eligibleCases =
+            [int]$result.Training.CaseAnalysis.ArchiveEligibleCases
+        if ($eligibleCases -gt 0 -and $null -eq $currentObservation) {
             throw "Foundation worker did not write a v3 observation."
         }
-        $observation = Read-FoundationJson $currentObservation.FullName
-        $archiveLoad = $result.Training.CaseArchiveLoad
-        $expectedObservationPath = Join-Path $archiveRoot (
-            "v3\" `
-            + ([string]$observation.CompatibilityKey).Substring(0, 16) `
-            + "\o\" `
-            + ([string]$observation.CaseId).Substring(0, 24) `
-            + ".json")
-        if ([string]$archiveLoad.ProtocolVersion `
-                -ne "success-case-archive-worker-v3" `
-            -or [string]$archiveLoad.OwnerRuntime -ne ".NET 8 worker" `
-            -or [int]$archiveLoad.StorageVersion -ne 3 `
-            -or [int]$observation.SchemaVersion -ne 2 `
-            -or [string]::IsNullOrWhiteSpace(
-                [string]$observation.CompatibilityKey) `
-            -or -not (Test-Path -LiteralPath $expectedObservationPath -PathType Leaf)) {
-            throw (
-                "Foundation archive v3 contract failed: " `
-                + ($archiveLoad | ConvertTo-Json -Depth 8 -Compress))
+        if ($null -ne $currentObservation) {
+            $observation = Read-FoundationJson $currentObservation.FullName
+            $expectedObservationPath = Join-Path $archiveRoot (
+                "v3\" `
+                + ([string]$observation.CompatibilityKey).Substring(0, 16) `
+                + "\o\" `
+                + ([string]$observation.CaseId).Substring(0, 24) `
+                + ".json")
+            if ([int]$observation.SchemaVersion -ne 3 `
+                -or [string]::IsNullOrWhiteSpace(
+                    [string]$observation.CompatibilityKey) `
+                -or -not (Test-Path -LiteralPath $expectedObservationPath `
+                    -PathType Leaf)) {
+                throw (
+                    "Foundation archive v3 contract failed: " `
+                    + ($archiveLoad | ConvertTo-Json -Depth 8 -Compress))
+            }
         }
     }
 

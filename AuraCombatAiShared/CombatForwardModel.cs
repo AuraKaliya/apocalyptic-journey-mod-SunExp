@@ -74,6 +74,14 @@ public sealed class CombatSimulationState
 
     public int Turn { get; set; }
 
+    public int TurnActionsTaken { get; set; }
+
+    public int TurnEnergySpent { get; set; }
+
+    public int EnemyHpAtTurnStart { get; set; }
+
+    public int ConsecutiveNoProgressTurns { get; set; }
+
     public bool AllEnemiesDefeated => Enemies.All(enemy => enemy.Hp <= 0);
 
     public CombatSimulationState Clone()
@@ -168,7 +176,11 @@ public sealed class CombatSimulationState
             Threats = threats,
             UsedActionWords = (ulong[])UsedActionWords.Clone(),
             StepCount = StepCount,
-            Turn = Turn
+            Turn = Turn,
+            TurnActionsTaken = TurnActionsTaken,
+            TurnEnergySpent = TurnEnergySpent,
+            EnemyHpAtTurnStart = EnemyHpAtTurnStart,
+            ConsecutiveNoProgressTurns = ConsecutiveNoProgressTurns
         };
     }
 
@@ -277,6 +289,7 @@ public sealed class CombatSimulationState
                     + SetupValue * Math.Max(0d, profile.SetupValueWeight)
                     + PersistentValue * Math.Max(0d, profile.PersistentValueWeight)
                     + DrawnCardPotential * 0.2d
+                    - ConsecutiveNoProgressTurns * 8d
                     - Uncertainty * profile.UncertaintyPenalty;
         return new CombatLeafEvaluation
         {
@@ -297,6 +310,10 @@ public sealed class CombatSimulationState
             Mix(ref hash, CostReduction);
             Mix(ref hash, StepCount);
             Mix(ref hash, Turn);
+            Mix(ref hash, TurnActionsTaken);
+            Mix(ref hash, TurnEnergySpent);
+            Mix(ref hash, EnemyHpAtTurnStart);
+            Mix(ref hash, ConsecutiveNoProgressTurns);
             Mix(ref hash, Quantize(SetupValue));
             Mix(ref hash, Quantize(PersistentValue));
             Mix(ref hash, Quantize(DamageMultiplier));
@@ -379,6 +396,9 @@ public sealed class CombatSimulationState
             Mix(ref hash, HandLimit);
             Mix(ref hash, CostReduction);
             Mix(ref hash, Turn);
+            Mix(ref hash, TurnActionsTaken);
+            Mix(ref hash, TurnEnergySpent);
+            Mix(ref hash, ConsecutiveNoProgressTurns);
             Mix(ref hash, DrawPileKnown ? 1 : 0);
             for (var i = 0; i < HandCardValues.Count; i++)
             {
@@ -635,14 +655,32 @@ public static class CombatForwardModel
                 Hp = enemy.CurrentHp,
                 MaxHp = enemy.MaxHp,
                 Defend = enemy.Defend,
-                Features = new Dictionary<string, double>(
-                    enemy.Features,
-                    StringComparer.OrdinalIgnoreCase)
+                Features = BuildEnemyFeatures(enemy)
             }).ToArray(),
             Threats = threats,
             Turn = state.Features.TryGetValue("turn", out var turn)
                 ? Math.Max(1, (int)Math.Round(turn))
                 : 1,
+            TurnActionsTaken = Math.Max(
+                0,
+                (int)Math.Round(Value(
+                    state.Features,
+                    CombatTurnFeatureNames.ActionsTakenThisTurn))),
+            TurnEnergySpent = Math.Max(
+                0,
+                (int)Math.Round(Value(
+                    state.Features,
+                    CombatTurnFeatureNames.EnergySpentThisTurn))),
+            EnemyHpAtTurnStart = Math.Max(
+                0,
+                (int)Math.Round(Value(
+                    state.Features,
+                    CombatTurnFeatureNames.EnemyHpAtTurnStart))),
+            ConsecutiveNoProgressTurns = Math.Max(
+                0,
+                (int)Math.Round(Value(
+                    state.Features,
+                    CombatTurnFeatureNames.ConsecutiveNoProgressTurns))),
             UsedActionWords = new ulong[(Math.Max(0, actionCount) + 63) / 64]
         };
     }
@@ -711,6 +749,8 @@ public static class CombatForwardModel
         var reductionSpent = Math.Min(Math.Max(0, action.Cost), state.CostReduction);
         state.CostReduction = Math.Max(0, state.CostReduction - reductionSpent);
         state.Power = Math.Max(0, state.Power - effectiveCost);
+        state.TurnActionsTaken++;
+        state.TurnEnergySpent += effectiveCost;
         var recycle =
             action.Features.TryGetValue("recycle", out var recycleValue)
             && recycleValue > 0d
@@ -826,7 +866,18 @@ public static class CombatForwardModel
     {
         var state = source.CloneForTransition(
             cloneCardPiles: true,
-            cloneFeatures: false);
+            cloneFeatures: true);
+        var livingEnemyHpBeforeEnemyPhase = state.Enemies.Sum(enemy =>
+            Math.Max(0, enemy.Hp));
+        var enemyHpAtTurnStart = state.EnemyHpAtTurnStart > 0
+            ? state.EnemyHpAtTurnStart
+            : livingEnemyHpBeforeEnemyPhase;
+        var madeProgress = livingEnemyHpBeforeEnemyPhase < enemyHpAtTurnStart;
+        var hasEndTurnPurpose = CombatEndTurnSafety.HasDeliberatePurpose(
+            state.Features);
+        state.ConsecutiveNoProgressTurns = madeProgress || hasEndTurnPurpose
+            ? 0
+            : state.ConsecutiveNoProgressTurns + 1;
         ResolveDeferredEffects(state, state.DeferredEffects.ToList(), 1d);
         state.DeferredEffects.Clear();
         state.Features[CombatArchetypePolicy.TimeCageCountFeature] = 0d;
@@ -873,6 +924,9 @@ public static class CombatForwardModel
         var hpLoss = Math.Max(0d, blockable - blocked) + unavoidable;
         state.PlayerHp = Math.Max(0, state.PlayerHp - Math.Max(0, (int)Math.Ceiling(hpLoss)));
         ApplyRebirthIfNeeded(state);
+        // The game clears ordinary shield before the next player action window.
+        // End-of-round effects have already contributed to the enemy phase above.
+        state.PlayerDefend = 0;
         state.Power = Math.Max(state.MaxPower, state.Power);
         state.CostReduction = 0;
         state.UsedActionWords = new ulong[state.UsedActionWords.Length];
@@ -883,9 +937,129 @@ public static class CombatForwardModel
             ? Math.Max(0, (int)Math.Round(configuredDraw))
             : 5;
         DrawCards(state, Math.Min(drawPerTurn, state.HandLimit));
-        state.Threats = Array.Empty<CombatSimulationThreat>();
-        state.Uncertainty += 0.25d;
+        state.Threats = ProjectNextTurnThreats(source, state, profile);
+        state.TurnActionsTaken = 0;
+        state.TurnEnergySpent = 0;
+        state.EnemyHpAtTurnStart = state.Enemies.Sum(enemy =>
+            Math.Max(0, enemy.Hp));
+        state.Features[CombatTurnFeatureNames.ActionsTakenThisTurn] = 0d;
+        state.Features[CombatTurnFeatureNames.EnergySpentThisTurn] = 0d;
+        state.Features[CombatTurnFeatureNames.EnemyHpAtTurnStart] =
+            state.EnemyHpAtTurnStart;
+        state.Features[CombatTurnFeatureNames.ConsecutiveNoProgressTurns] =
+            state.ConsecutiveNoProgressTurns;
+        state.Uncertainty += Math.Max(0d, profile.EndTurnUncertainty);
         return state;
+    }
+
+    private static CombatSimulationThreat[] ProjectNextTurnThreats(
+        CombatSimulationState source,
+        CombatSimulationState next,
+        CombatDecisionProfile profile)
+    {
+        if (next.AllEnemiesDefeated)
+        {
+            return Array.Empty<CombatSimulationThreat>();
+        }
+
+        var retention = Math.Max(
+            0d,
+            Math.Min(1d, profile.NextTurnThreatRetention));
+        var probabilityFloor = Math.Max(
+            0d,
+            Math.Min(1d, profile.UnknownNextTurnThreatProbabilityFloor));
+        var projected = new List<CombatSimulationThreat>();
+        var coveredSources = new HashSet<int>();
+        for (var i = 0; i < source.Threats.Length; i++)
+        {
+            var threat = source.Threats[i];
+            var enemy = threat.SourceRuntimeId == 0
+                ? null
+                : next.Enemies.FirstOrDefault(item =>
+                    item.RuntimeId == threat.SourceRuntimeId && item.Hp > 0);
+            if (threat.SourceRuntimeId != 0 && enemy == null)
+            {
+                continue;
+            }
+            var escalation = enemy == null
+                ? 0d
+                : Value(enemy.Features, "escalationPressure");
+            var damageScale = 1d + Math.Min(0.75d, escalation * 0.01d);
+            projected.Add(new CombatSimulationThreat
+            {
+                SourceRuntimeId = threat.SourceRuntimeId,
+                Probability = Math.Max(
+                    probabilityFloor,
+                    Math.Min(1d, threat.Probability * retention)),
+                BlockableDamage = Math.Max(0d, threat.BlockableDamage)
+                                  * damageScale,
+                UnblockableDamage = Math.Max(0d, threat.UnblockableDamage)
+                                    * damageScale,
+                DamageOverTime = Math.Max(0d, threat.DamageOverTime)
+                                 * damageScale
+            });
+            if (threat.SourceRuntimeId != 0)
+            {
+                coveredSources.Add(threat.SourceRuntimeId);
+            }
+        }
+
+        foreach (var enemy in next.Enemies.Where(item => item.Hp > 0))
+        {
+            if (coveredSources.Contains(enemy.RuntimeId))
+            {
+                continue;
+            }
+            var attack = Math.Max(0d, Value(enemy.Features, "attack"));
+            if (attack <= 0d)
+            {
+                continue;
+            }
+            var actionCount = Math.Max(
+                1d,
+                Value(enemy.Features, "actionCount"));
+            var escalation = Math.Max(
+                0d,
+                Value(enemy.Features, "escalationPressure"));
+            projected.Add(new CombatSimulationThreat
+            {
+                SourceRuntimeId = enemy.RuntimeId,
+                Probability = probabilityFloor,
+                BlockableDamage = attack
+                                  * actionCount
+                                  * (1d + Math.Min(0.75d, escalation * 0.01d))
+            });
+        }
+
+        if (projected.Count == 0)
+        {
+            var fallback = Math.Max(
+                Value(source.Features, "maximumBlockableDamage"),
+                Value(source.Features, "expectedBlockableDamage"));
+            if (fallback > 0d)
+            {
+                projected.Add(new CombatSimulationThreat
+                {
+                    Probability = probabilityFloor,
+                    BlockableDamage = fallback
+                });
+            }
+        }
+        return projected.ToArray();
+    }
+
+    private static Dictionary<string, double> BuildEnemyFeatures(
+        CombatUnitObservation enemy)
+    {
+        var result = new Dictionary<string, double>(
+            enemy.Features,
+            StringComparer.OrdinalIgnoreCase);
+        result["attack"] = Math.Max(0d, enemy.Attack);
+        if (!result.ContainsKey("actionCount"))
+        {
+            result["actionCount"] = 1d;
+        }
+        return result;
     }
 
     public static int EffectiveCost(CombatSimulationState state, CombatActionObservation action)

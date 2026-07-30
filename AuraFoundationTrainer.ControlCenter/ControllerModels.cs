@@ -1,11 +1,12 @@
 using AuraCombatAi.Shared;
+using AuraCombatSimulation.Shared;
 using Newtonsoft.Json;
 
 namespace AuraFoundationTrainer.ControlCenter;
 
 internal sealed class ControllerSettings
 {
-    public int SchemaVersion { get; set; } = 4;
+    public int SchemaVersion { get; set; } = 5;
 
     [JsonIgnore]
     public string ModRoot { get; set; } = "";
@@ -16,6 +17,8 @@ internal sealed class ControllerSettings
     public string LastRunDirectory { get; set; } = "";
 
     public int ContinueGeneration { get; set; }
+
+    public CombatGameSubjectPreset GameSubject { get; set; } = new();
 
     public CombatFoundationTrainingParameters Parameters { get; set; } =
         CreateDefaultParameters();

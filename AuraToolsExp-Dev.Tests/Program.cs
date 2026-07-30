@@ -1139,7 +1139,7 @@ void TestRuntimeArchitectureGuards()
            && autoBattleModelRuntime.Contains("AutoBattleTrainingStage.CandidateReady", StringComparison.Ordinal)
            && autoBattleModelRuntime.Contains("MinimumPreferencePairs", StringComparison.Ordinal)
            && settingsRuntime.Contains("AuraToolsAutoBattleTrainingStatusView", StringComparison.Ordinal)
-           && settingsRuntime.Contains("显示高级参数与自定义场景工具", StringComparison.Ordinal)
+           && settingsRuntime.Contains("\"高级选项\"", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"preset\": \"steady\"", StringComparison.Ordinal),
         "auto battle exposes bounded training presets and persistent visible task feedback");
     Assert(autoBattleRuntime.Contains("CombatActionTransactionState.Completed.ToString()", StringComparison.Ordinal)
@@ -1165,14 +1165,22 @@ void TestRuntimeArchitectureGuards()
            && autoBattleRuntime.Contains("settings.SelectedModelId", StringComparison.Ordinal)
            && autoBattleSimulationRuntime.Contains("RequireEffectDependencies", StringComparison.Ordinal)
            && autoBattleSimulationRuntime.Contains("战斗状态语义缺失", StringComparison.Ordinal)
-           && settingsRuntime.Contains("战斗策略实验室（工具）", StringComparison.Ordinal)
-           && settingsRuntime.Contains("高级难度（本体满词条）", StringComparison.Ordinal)
+           && settingsRuntime.Contains("CreateAutoBattleModelManagementSection", StringComparison.Ordinal)
+           && settingsRuntime.Contains("CreateAutoBattleModelApplicationRows", StringComparison.Ordinal)
+           && settingsRuntime.Contains("CreateAutoBattleEvaluationSection", StringComparison.Ordinal)
+           && settingsRuntime.Contains("AuraToolsLocalSectionRefreshView", StringComparison.Ordinal)
+           && settingsRuntime.Contains("CreateVerticalStack", StringComparison.Ordinal)
+           && settingsRuntime.Contains("CreateCompactFoldout", StringComparison.Ordinal)
+           && settingsRuntime.Contains(
+               "AutoBattle.ValidationAndDiagnostics",
+               StringComparison.Ordinal)
+           && autoBattleRuntime.Contains("TrySetModelApplicationMode", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"selectedModelId\": \"\"", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"difficultyId\": \"normal\"", StringComparison.Ordinal)
            && matchExperienceConfig.Contains(
                "\"scenarioId\": \"witch.world-simulation.standard-v2\"",
                StringComparison.Ordinal),
-        "strategy laboratory ships campaign-v2 difficulty badges and a renameable selectable model library");
+        "strategy laboratory ships campaign-v2 evaluation and locally refreshed model management/application flows");
     Assert(autoBattlePredictionPresenter.Contains("UI/SelectedIcon", StringComparison.Ordinal)
            && autoBattlePredictionPresenter.Contains("raycastTarget = false", StringComparison.Ordinal)
            && autoBattlePredictionPresenter.Contains("blocksRaycasts = false", StringComparison.Ordinal)

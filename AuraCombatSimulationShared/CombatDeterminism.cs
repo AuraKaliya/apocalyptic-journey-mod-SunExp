@@ -121,6 +121,11 @@ public static class CombatBattleStateHasher
 
         var hash = 1469598103934665603UL;
         Mix(ref hash, state.Turn);
+        Mix(ref hash, state.PlayerActionsThisTurn);
+        Mix(ref hash, state.PlayerEnergySpentThisTurn);
+        Mix(ref hash, state.EnemyHpAtTurnStart);
+        Mix(ref hash, state.ConsecutiveNoProgressTurns);
+        Mix(ref hash, BitConverter.DoubleToInt64Bits(state.EndTurnPurposeValue));
         Mix(ref hash, (int)state.Phase);
         Mix(ref hash, (int)state.Outcome);
         Mix(ref hash, state.PlayerActorId);

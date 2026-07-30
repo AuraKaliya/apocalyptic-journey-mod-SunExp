@@ -10,6 +10,8 @@ public sealed class CombatPolicyValueCandidate
 
     public string SourceId { get; set; } = "";
 
+    public string ActionKind { get; set; } = "";
+
     public Dictionary<string, double> Features { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
 }
@@ -542,6 +544,7 @@ public static class CombatPolicyValueEncoding
             {
                 CandidateId = candidate.Action.CandidateId,
                 SourceId = candidate.Action.SourceId,
+                ActionKind = candidate.Action.Kind.ToString(),
                 Features = BuildCandidateFeatures(candidate)
             });
         }
@@ -631,6 +634,12 @@ public static class CombatPolicyValueEncoding
         result["scaling"] = semantics.Scaling;
         result["risk"] = semantics.Risk;
         result["uncertainty"] = semantics.Uncertainty;
+        result["actionKindPlayCard"] =
+            action.Kind == CombatActionKind.PlayCard ? 1d : 0d;
+        result["actionKindUseSkill"] =
+            action.Kind == CombatActionKind.UseSkill ? 1d : 0d;
+        result["actionKindEndTurn"] =
+            action.Kind == CombatActionKind.EndTurn ? 1d : 0d;
         return result;
     }
 

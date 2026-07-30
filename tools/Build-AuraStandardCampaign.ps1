@@ -41,6 +41,77 @@ function Test-BaseGameId([string]$id) {
         -and $id -notmatch "(?i)Terrias|^Saya_|(^|_)test|99999"
 }
 
+function Get-CareerSkillIds([object]$row) {
+    $result = [Collections.Generic.List[string]]::new()
+    foreach ($property in $row.PSObject.Properties | Where-Object {
+        $_.Name -match '^Skill\d+$'
+    } | Sort-Object {
+        [int]($_.Name.Substring("Skill".Length))
+    }) {
+        foreach ($skillId in @(([string]$property.Value -split ',|;|\|') |
+            ForEach-Object { $_.Trim().Replace("*", "") } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) })) {
+            if (-not $result.Contains($skillId)) {
+                $result.Add($skillId)
+            }
+        }
+    }
+    return @($result)
+}
+
+function Get-CareerSkillCooldowns([object]$row) {
+    $result = [ordered]@{}
+    foreach ($property in $row.PSObject.Properties | Where-Object {
+        $_.Name -match '^Skill\d+$'
+    }) {
+        $slot = [int]$property.Name.Substring("Skill".Length)
+        $actionProperty = "Action$slot"
+        $action = [string]$row.$actionProperty
+        $match = [regex]::Match(
+            $action,
+            '(?i)(?:<cd>\s*)?CD\s*[:：]\s*(\d+)')
+        $cooldown = if ($match.Success) {
+            [Math]::Max(1, (Convert-ToInt $match.Groups[1].Value 1))
+        } else {
+            1
+        }
+        foreach ($skillId in @(([string]$property.Value -split ',|;|\|') |
+            ForEach-Object { $_.Trim().Replace("*", "") } |
+            Where-Object { -not [string]::IsNullOrWhiteSpace($_) })) {
+            $result[$skillId] = $cooldown
+        }
+    }
+    return $result
+}
+
+function Get-CareerInitialStatuses([object]$row) {
+    $result = [ordered]@{}
+    $script = [string]$row.SkillScript
+    $eventIndex = $script.IndexOf(
+        "AddEvent",
+        [StringComparison]::OrdinalIgnoreCase)
+    if ($eventIndex -ge 0) {
+        $script = $script.Substring(0, $eventIndex)
+    }
+    foreach ($match in [regex]::Matches(
+        $script,
+        'AddBuff\s*\(\s*(?:"|\bDataId\.)?([A-Za-z0-9_]+)"?\s*,\s*"?(\d+)"?\s*\)',
+        [Text.RegularExpressions.RegexOptions]::IgnoreCase)) {
+        $statusId = $match.Groups[1].Value
+        $stacks = Convert-ToInt $match.Groups[2].Value 0
+        if ([string]::IsNullOrWhiteSpace($statusId) -or $stacks -le 0) {
+            continue
+        }
+        $current = if ($result.Contains($statusId)) {
+            Convert-ToInt $result[$statusId] 0
+        } else {
+            0
+        }
+        $result[$statusId] = $current + $stacks
+    }
+    return $result
+}
+
 function Test-GeneratedOnlyCard([object]$row) {
     $id = ([string]$row.Id).Trim()
     $type = [string]$row.Type
@@ -2784,7 +2855,9 @@ function Try-NewAuthoritativeTriggeredStatus(
 }
 
 $resolvedExport = (Resolve-Path -LiteralPath $TableExport).Path
-$tables = (Get-Content -Raw -Encoding UTF8 -LiteralPath $resolvedExport | ConvertFrom-Json).tables
+$tableDocument = Get-Content -Raw -Encoding UTF8 -LiteralPath $resolvedExport |
+    ConvertFrom-Json
+$tables = $tableDocument.tables
 $levels = @($tables.Level | Where-Object { Test-BaseGameId ([string]$_.Id) })
 $enemies = @($tables.Enemy | Where-Object { Test-BaseGameId ([string]$_.Id) })
 $enemyCards = @($tables.EnemyCard | Where-Object { Test-BaseGameId ([string]$_.Id) })
@@ -3222,6 +3295,66 @@ $generatedRewardLeak = @($rewardDefinitions | Where-Object {
 if ($generatedRewardLeak.Count -gt 0) {
     throw "Generated-only cards leaked into reward pool: $(
         ($generatedRewardLeak | ForEach-Object { $_['rewardId'] }) -join ', ')"
+}
+
+$gameSubjectCatalog = [ordered]@{
+    schemaVersion = 1
+    catalogId = "witch-base-game-subjects-v1"
+    gameBuild = [string]$tableDocument.GameBuild
+    roles = @($tables.Career |
+        Where-Object { Test-BaseGameId ([string]$_.Id) } |
+        ForEach-Object {
+            [ordered]@{
+                id = [string]$_.Id
+                displayName = if ([string]::IsNullOrWhiteSpace(
+                    [string]$_.Name)) {
+                    [string]$_.Id
+                } else {
+                    [string]$_.Name
+                }
+                skillCardIds = @(Get-CareerSkillIds $_)
+                skillCooldownTurns = Get-CareerSkillCooldowns $_
+                initialStatuses = Get-CareerInitialStatuses $_
+            }
+        })
+    familiars = @($tables.Partner |
+        Where-Object { Test-BaseGameId ([string]$_.Id) } |
+        ForEach-Object {
+            [ordered]@{
+                id = [string]$_.Id
+                displayName = if ([string]::IsNullOrWhiteSpace(
+                    [string]$_.Name)) {
+                    [string]$_.Id
+                } else {
+                    [string]$_.Name
+                }
+                blessingIds = @(([string]$_.Bless -split ',|;|\|') |
+                    ForEach-Object { $_.Trim() } |
+                    Where-Object {
+                        -not [string]::IsNullOrWhiteSpace($_)
+                    })
+            }
+        })
+    cardPacks = @($tables.CardPack |
+        Where-Object {
+            (Test-BaseGameId ([string]$_.Id)) `
+                -and ([string]$_.Id) -match '^cardpack_\d+$' `
+                -and ([string]$_.Id) -ne "cardpack_13"
+        } |
+        ForEach-Object {
+            [ordered]@{
+                id = [string]$_.Id
+                displayName = if ([string]::IsNullOrWhiteSpace(
+                    [string]$_.Name)) {
+                    [string]$_.Id
+                } else {
+                    [string]$_.Name
+                }
+                required = ([string]$_.Id) -in @(
+                    "cardpack_1",
+                    "cardpack_2")
+            }
+        })
 }
 
 $campaign = [ordered]@{
@@ -3662,6 +3795,8 @@ New-Item -ItemType Directory -Force -Path $OutputDirectory | Out-Null
 $utf8 = [Text.UTF8Encoding]::new($false)
 $campaignPath = Join-Path $OutputDirectory "witch-world-simulation-v2.campaign.json"
 $rulesetPath = Join-Path $OutputDirectory "witch-base-evaluation-v2.ruleset.json"
+$gameSubjectCatalogPath = Join-Path $OutputDirectory (
+    "witch-game-subjects-v1.catalog.json")
 [IO.File]::WriteAllText(
     $campaignPath,
     (($campaign | ConvertTo-Json -Depth 30).Replace("`r`n", "`n")),
@@ -3670,8 +3805,15 @@ $rulesetPath = Join-Path $OutputDirectory "witch-base-evaluation-v2.ruleset.json
     $rulesetPath,
     (($ruleset | ConvertTo-Json -Depth 30).Replace("`r`n", "`n")),
     $utf8)
+[IO.File]::WriteAllText(
+    $gameSubjectCatalogPath,
+    (($gameSubjectCatalog | ConvertTo-Json -Depth 30).Replace(
+        "`r`n",
+        "`n")),
+    $utf8)
 
 Write-Host "Campaign: $campaignPath"
+Write-Host "Game subjects: $gameSubjectCatalogPath"
 Write-Host "Ruleset: $rulesetPath"
 Write-Host "Pools: $($encounters.Count) encounters, $($enemies.Count) enemies"
 $rewardPoolCardCount = @($rewardDefinitions | Where-Object {

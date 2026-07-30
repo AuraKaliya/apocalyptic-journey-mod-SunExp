@@ -9,7 +9,7 @@ public static class CombatPolicyValueProtocol
 {
     public const string EpisodeProtocol = "aura.combat-ai.episode.v4";
 
-    public const int FeatureSchemaVersion = 11;
+    public const int FeatureSchemaVersion = 12;
 
     public const string TrainingSemanticsVersion =
         "resource-recurrence-monotonic-v1";

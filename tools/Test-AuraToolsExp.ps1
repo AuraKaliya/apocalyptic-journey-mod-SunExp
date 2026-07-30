@@ -55,6 +55,8 @@ $generatedProgramsPath = Join-Path $repoRoot (
     "AuraToolsExp-Dev\Features\AutoBattle\Generated\AuraToolsNativePrograms.g.cs")
 $manifestPath = Join-Path $repoRoot (
     "AuraToolsExp\Config\combat-programs.base-game.manifest.json")
+$gameSubjectCatalogPath = Join-Path $repoRoot (
+    "AuraToolsExp\Config\combat-simulation\witch-game-subjects-v1.catalog.json")
 
 foreach ($forbidden in @(
     "Microsoft.CodeAnalysis",
@@ -282,12 +284,41 @@ if (-not $foundationControllerRuntime.Contains(
         -or -not $foundationControllerRuntime.Contains(
             "loadedSchemaVersion < 4") `
         -or -not $foundationControllerRuntime.Contains(
+            "loadedSchemaVersion < 5") `
+        -or -not $foundationControllerRuntime.Contains(
             "AdditionalIterationsOnResume") `
         -or -not $foundationControllerRuntime.Contains(
             "MinimumAdvancedDefeatReplayShare") `
         -or -not $foundationControllerModels.Contains(
-            "SchemaVersion { get; set; } = 4")) {
+            "SchemaVersion { get; set; } = 5")) {
     throw "Foundation controller resumable-training settings migration is missing."
+}
+foreach ($anchor in @(
+    "BuildGameSubjectSection",
+    "CombatGameSubjectPreset",
+    "CombatGameSubjectPresetRuntime.Apply",
+    "witch-game-subjects-v1.catalog.json",
+    "PullGameSubjectFromUi",
+    "GameParameterHash"
+)) {
+    if (-not $foundationControllerRuntime.Contains($anchor) `
+            -and -not $foundationControllerModels.Contains($anchor)) {
+        throw "Foundation controller game-subject persistence is missing: $anchor"
+    }
+}
+if (-not (Test-Path -LiteralPath $gameSubjectCatalogPath -PathType Leaf)) {
+    throw "Foundation controller game-subject catalog is missing."
+}
+$gameSubjectCatalog = Get-Content -Raw -Encoding UTF8 `
+    -LiteralPath $gameSubjectCatalogPath | ConvertFrom-Json
+if ($gameSubjectCatalog.schemaVersion -ne 1 `
+        -or @($gameSubjectCatalog.roles).Count -lt 9 `
+        -or @($gameSubjectCatalog.familiars).Count -lt 5 `
+        -or @($gameSubjectCatalog.cardPacks).Count -ne 18 `
+        -or @($gameSubjectCatalog.cardPacks | Where-Object {
+            $_.id -eq "cardpack_13"
+        }).Count -ne 0) {
+    throw "Foundation controller game-subject catalog is incomplete or unsafe."
 }
 if ($foundationWorkerRuntime.Contains("--mod-root") -or
     $foundationWorkerRuntime.Contains("--data-root") -or
@@ -318,7 +349,19 @@ foreach ($anchor in @(
 foreach ($anchor in @(
     "TryStageExternalFoundationPackage",
     "TryPromoteExternalValidationModel",
-    "EvaluationModelId"
+    "EvaluationModelId",
+    "CreateGameParametersSection(content)",
+    "CreateAutoBattleModelManagementSection",
+    "CreateAutoBattleModelApplicationRows",
+    "AuraToolsLocalSectionRefreshView",
+    "AuraToolsScrollRestoreDriver",
+    "CreateVerticalStack",
+    "CreateCompactFoldout",
+    "AutoBattle.ValidationAndDiagnostics",
+    "LayoutRebuilder.ForceRebuildLayoutImmediate",
+    "AutoBattleExternalFoundationValidationActions",
+    "AutoBattleFoundationTrainingActions",
+    "AutoBattleGameValidationActions"
 )) {
     if (-not $settingsRuntime.Contains($anchor)) {
         throw "AuraTools external foundation validation UI contract is missing: $anchor"
@@ -329,15 +372,44 @@ foreach ($anchor in @(
     "ExternalValidationMeetsGate",
     "TryPromoteExternalValidationModel",
     "ClearExternalValidationModel",
-    "CombatFoundationModelPackageProtocol.TryValidate"
+    "CombatFoundationModelPackageProtocol.TryValidate",
+    "ResolvePackageCoverage",
+    "CoverageAwareCombatPolicyValueModel",
+    "FoundationArtifactValidated",
+    "PortableFoundationMeetsActivationGate"
 )) {
     if (-not $modelRuntime.Contains($anchor)) {
         throw "AuraTools external foundation staging contract is missing: $anchor"
     }
 }
+if ($settingsRuntime.Contains("NextAutoBattleModelMode")) {
+    throw "AuraTools battle strategy laboratory must use the compact explicit model-application flow."
+}
+$snapshotChangedMatch = [regex]::Match(
+    $settingsRuntime,
+    "(?s)private static void OnAutoBattleUiSnapshotChanged\(\).*?\n    \}")
+if (-not $snapshotChangedMatch.Success -or
+    $snapshotChangedMatch.Value.Contains("RebuildPanel(")) {
+    throw "Auto-battle snapshot updates must not rebuild the complete settings viewport."
+}
+foreach ($anchor in @(
+    "TrySetModelApplicationMode",
+    "SnapshotModelApplicationStatus",
+    "CombatDecisionExecutionBindingProtocol.TryBindToObservation",
+    "[AutoBattle][ActionRebind]",
+    "policyPrior="
+)) {
+    if (-not $startupRuntime.Contains($anchor)) {
+        throw "AuraTools live model application contract is missing: $anchor"
+    }
+}
+if ($modelRuntime.Contains("TryValidateExternalPackageCompatibility")) {
+    throw "AuraTools external model import must not reject a valid package because the current game subject differs."
+}
 if (-not $simulationRuntime.Contains("EvaluationModelId") `
         -or -not $simulationRuntime.Contains("ExternalValidationMeetsGate") `
-        -or -not $gameValidationRuntime.Contains("EvaluationModelId")) {
+        -or -not $gameValidationRuntime.Contains("EvaluationModelId") `
+        -or -not $gameValidationRuntime.Contains("IsStartEnvironmentReady")) {
     throw "AuraTools external foundation dual-validation routing contract is missing."
 }
 foreach ($anchor in @(

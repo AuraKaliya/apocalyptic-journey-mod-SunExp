@@ -39,6 +39,17 @@ internal sealed class MainWindow : Window
     private Process? workerProcess;
     private TextBox modRootInput = null!;
     private TextBox dataRootInput = null!;
+    private TextBox gamePresetIdInput = null!;
+    private TextBox gamePresetNameInput = null!;
+    private TextBox preferredDeckMinimumInput = null!;
+    private TextBox preferredDeckMaximumInput = null!;
+    private ComboBox roleInput = null!;
+    private ComboBox familiarInput = null!;
+    private WrapPanel cardPackPanel = null!;
+    private TextBlock gameSubjectStatus = null!;
+    private CombatGameSubjectCatalog gameSubjectCatalog = new();
+    private readonly Dictionary<string, CheckBox> cardPackToggles =
+        new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, Button> profileButtons =
         new(StringComparer.Ordinal);
     private string selectedProfile = "balanced";
@@ -196,6 +207,8 @@ internal sealed class MainWindow : Window
             Child = recentResultPanel
         });
 
+        BuildGameSubjectSection(panel);
+
         panel.Children.Add(Section("工作量与性能"));
         AddProfileSelect(panel);
         AddNumber(
@@ -323,6 +336,51 @@ internal sealed class MainWindow : Window
         return parametersScroll;
     }
 
+    private void BuildGameSubjectSection(Panel panel)
+    {
+        panel.Children.Add(Section("游戏主体"));
+        var presetRow = NewRow();
+        presetRow.Children.Add(Label("预设 ID", 100));
+        gamePresetIdInput = Input(190);
+        presetRow.Children.Add(gamePresetIdInput);
+        presetRow.Children.Add(Label("显示名称", 88));
+        gamePresetNameInput = Input(220);
+        presetRow.Children.Add(gamePresetNameInput);
+        panel.Children.Add(presetRow);
+
+        var identityRow = NewRow();
+        identityRow.Children.Add(Label("角色", 100));
+        roleInput = ChoiceInput(260);
+        identityRow.Children.Add(roleInput);
+        identityRow.Children.Add(Label("使魔", 88));
+        familiarInput = ChoiceInput(260);
+        identityRow.Children.Add(familiarInput);
+        panel.Children.Add(identityRow);
+
+        var deckRow = NewRow();
+        deckRow.Children.Add(Label("牌组倾向下限", 100));
+        preferredDeckMinimumInput = Input(110);
+        preferredDeckMinimumInput.ToolTip = "范围 1–80";
+        deckRow.Children.Add(preferredDeckMinimumInput);
+        deckRow.Children.Add(Label("牌组倾向上限", 120));
+        preferredDeckMaximumInput = Input(110);
+        preferredDeckMaximumInput.ToolTip = "范围 1–80";
+        deckRow.Children.Add(preferredDeckMaximumInput);
+        panel.Children.Add(deckRow);
+
+        panel.Children.Add(Label("开启奖励卡包", 240));
+        cardPackPanel = new WrapPanel
+        {
+            Margin = new Thickness(0, 4, 0, 4),
+            MaxWidth = 900
+        };
+        panel.Children.Add(cardPackPanel);
+        gameSubjectStatus = Hint(panel, "");
+        Hint(
+            panel,
+            "完整预设会冻结角色技能与初始状态、使魔固有祝福、奖励卡包和牌组倾向；训练与验证使用同一份快照。");
+    }
+
     private UIElement BuildProgressTab()
     {
         var panel = new Grid
@@ -443,6 +501,16 @@ internal sealed class MainWindow : Window
 
         var current = settings.Parameters;
         var differences = new List<string>();
+        var priorCampaign = prior.Request.TrainingCampaign;
+        var currentGameParameterHash =
+            CombatGameSubjectPresetRuntime.ComputeHash(
+                settings.GameSubject,
+                priorCampaign.Player?.Deck);
+        AddDifference(
+            differences,
+            "游戏主体",
+            priorCampaign.Player?.GameParameterHash ?? "",
+            currentGameParameterHash);
         AddDifference(
             differences,
             "决策档位",
@@ -554,6 +622,26 @@ internal sealed class MainWindow : Window
                 throw new InvalidOperationException(
                     "只有已通过验收的上一轮 Champion 才能作为新一轮起点");
             }
+            var priorJobPath = Path.Combine(
+                settings.LastRunDirectory,
+                "foundation-worker-job.json");
+            var priorJob = File.Exists(priorJobPath)
+                ? Deserialize<CombatFoundationWorkerJob>(
+                    CombatFoundationCheckpointStorage.ReadAllTextShared(
+                        priorJobPath))
+                : null;
+            var priorCampaign = priorJob?.Request?.TrainingCampaign;
+            if (priorCampaign == null
+                || !string.Equals(
+                    priorCampaign.Player?.GameParameterHash,
+                    CombatGameSubjectPresetRuntime.ComputeHash(
+                        settings.GameSubject,
+                        priorCampaign.Player?.Deck),
+                    StringComparison.Ordinal))
+            {
+                throw new InvalidOperationException(
+                    "当前游戏主体与上一轮 Champion 不一致；请开始新的训练任务");
+            }
             StartWorker(champion, continueGeneration: true);
         }
         catch (Exception ex)
@@ -576,26 +664,21 @@ internal sealed class MainWindow : Window
             settings.ModRoot,
             "TrainingWorker",
             "AuraFoundationTrainer.Worker.exe");
-        var campaignPath = Path.Combine(
-            settings.ModRoot,
-            "Config",
-            "combat-simulation",
-            "witch-world-simulation-v2.campaign.json");
+        var campaignPath = CampaignPath(settings.ModRoot);
         var rulesetPath = Path.Combine(
             settings.ModRoot,
             "Config",
             "combat-simulation",
             "witch-base-evaluation-v2.ruleset.json");
-        var sourceCampaign = Deserialize<CombatCampaignDefinition>(
-                                 CombatFoundationCheckpointStorage
-                                     .ReadAllTextShared(campaignPath))
-                             ?? throw new InvalidOperationException("无法读取训练战役");
         var trainingCampaign = Deserialize<CombatCampaignDefinition>(
                                    CombatFoundationCheckpointStorage
                                        .ReadAllTextShared(campaignPath))
                                ?? throw new InvalidOperationException("无法克隆训练战役");
         trainingCampaign.TraceLevel = CombatSimulationTraceLevel.Summary;
         trainingCampaign.RequireAuthoritativeRules = true;
+        CombatGameSubjectPresetRuntime.Apply(
+            settings.GameSubject,
+            trainingCampaign);
         var validationCampaign = Deserialize<CombatCampaignDefinition>(
                                      CombatFoundationCheckpointStorage
                                          .ReadAllTextShared(campaignPath))
@@ -603,6 +686,9 @@ internal sealed class MainWindow : Window
         validationCampaign.TraceLevel = CombatSimulationTraceLevel.Full;
         validationCampaign.FullTraceFinalEncounterOnly = true;
         validationCampaign.RequireAuthoritativeRules = true;
+        CombatGameSubjectPresetRuntime.Apply(
+            settings.GameSubject,
+            validationCampaign);
         var rulesetDocument = Deserialize<CombatRulesetDocument>(
                                   CombatFoundationCheckpointStorage
                                       .ReadAllTextShared(rulesetPath))
@@ -614,7 +700,7 @@ internal sealed class MainWindow : Window
                 "规则集构建失败：" + string.Join("；", rulesetBuild.Errors.Take(5)));
         }
         var packageAudit = AuraToolsNativeProgramPackageAudit.Validate(
-            sourceCampaign,
+            trainingCampaign,
             rulesetBuild.Ruleset);
         if (!packageAudit.Success)
         {
@@ -703,6 +789,12 @@ internal sealed class MainWindow : Window
         AppendLog(
             "训练已启动："
             + jobId
+            + "，主体="
+            + trainingCampaign.Player.RoleId
+            + "+"
+            + trainingCampaign.Player.PartnerId
+            + "，卡包="
+            + trainingCampaign.EnabledRewardCardPackIds.Count
             + "，预计冒险 "
             + parameters.EstimatedCampaigns()
             + "，PID="
@@ -1044,8 +1136,66 @@ internal sealed class MainWindow : Window
             settings.Parameters.MinimumAdvancedReplayShare = 0.40d;
             settings.Parameters.MinimumAdvancedDefeatReplayShare = 0.25d;
         }
-        settings.SchemaVersion = 4;
+        if (loadedSchemaVersion < 5)
+        {
+            settings.GameSubject = LoadDefaultGameSubject(modRoot);
+            settings.LastRunDirectory = "";
+            settings.ContinueGeneration = 0;
+        }
+        settings.GameSubject ??= LoadDefaultGameSubject(modRoot);
+        settings.GameSubject.Normalize();
+        gameSubjectCatalog = LoadGameSubjectCatalog(modRoot);
+        gameSubjectCatalog.ResolveReferences(settings.GameSubject);
+        settings.SchemaVersion = 5;
         settings.Parameters.Normalized();
+    }
+
+    private static CombatGameSubjectPreset LoadDefaultGameSubject(
+        string modRoot)
+    {
+        try
+        {
+            var campaign = Deserialize<CombatCampaignDefinition>(
+                CombatFoundationCheckpointStorage.ReadAllTextShared(
+                    CampaignPath(modRoot)));
+            if (campaign != null)
+            {
+                return CombatGameSubjectPreset.FromCampaign(campaign);
+            }
+        }
+        catch
+        {
+        }
+        return new CombatGameSubjectPreset().Normalize();
+    }
+
+    private static CombatGameSubjectCatalog LoadGameSubjectCatalog(
+        string modRoot)
+    {
+        try
+        {
+            var path = Path.Combine(
+                modRoot,
+                "Config",
+                "combat-simulation",
+                "witch-game-subjects-v1.catalog.json");
+            var catalog = Deserialize<CombatGameSubjectCatalog>(
+                CombatFoundationCheckpointStorage.ReadAllTextShared(path));
+            return (catalog ?? new CombatGameSubjectCatalog()).Normalize();
+        }
+        catch
+        {
+            return new CombatGameSubjectCatalog();
+        }
+    }
+
+    private static string CampaignPath(string modRoot)
+    {
+        return Path.Combine(
+            modRoot,
+            "Config",
+            "combat-simulation",
+            "witch-world-simulation-v2.campaign.json");
     }
 
     private void SaveSettings()
@@ -1099,6 +1249,7 @@ internal sealed class MainWindow : Window
     {
         settings.ModRoot = Path.GetFullPath(modRootInput.Text.Trim());
         settings.DataRoot = Path.GetFullPath(dataRootInput.Text.Trim());
+        PullGameSubjectFromUi();
         var p = settings.Parameters;
         p.DecisionProfile = selectedProfile;
         p.Iterations = Int("Iterations");
@@ -1181,6 +1332,7 @@ internal sealed class MainWindow : Window
     {
         modRootInput.Text = settings.ModRoot;
         dataRootInput.Text = settings.DataRoot;
+        ApplyGameSubjectToUi();
         var p = settings.Parameters;
         SelectProfile(p.DecisionProfile);
         Set("Iterations", p.Iterations);
@@ -1266,6 +1418,162 @@ internal sealed class MainWindow : Window
         SetToggle("EnableFrameStratification", p.EnableFrameStratification);
     }
 
+    private void PullGameSubjectFromUi()
+    {
+        var subject = settings.GameSubject?.Clone()
+                      ?? new CombatGameSubjectPreset();
+        subject.Id = gamePresetIdInput.Text;
+        subject.DisplayName = gamePresetNameInput.Text;
+        subject.RoleId = Convert.ToString(
+                             roleInput.SelectedValue,
+                             CultureInfo.InvariantCulture)
+                         ?? subject.RoleId;
+        subject.PartnerId = Convert.ToString(
+                                familiarInput.SelectedValue,
+                                CultureInfo.InvariantCulture)
+                            ?? subject.PartnerId;
+        subject.PreferredDeckSizeMinimum = ParseBoundedInt(
+            preferredDeckMinimumInput.Text,
+            "牌组倾向下限",
+            1,
+            80);
+        subject.PreferredDeckSizeMaximum = ParseBoundedInt(
+            preferredDeckMaximumInput.Text,
+            "牌组倾向上限",
+            1,
+            80);
+        if (subject.PreferredDeckSizeMaximum
+            < subject.PreferredDeckSizeMinimum)
+        {
+            throw new FormatException("牌组倾向上限不能小于下限");
+        }
+        subject.EnabledRewardCardPackIds = cardPackToggles
+            .Where(item => item.Value.IsChecked == true)
+            .Select(item => item.Key)
+            .ToList();
+        gameSubjectCatalog.ResolveReferences(subject);
+        settings.GameSubject = subject.Normalize();
+    }
+
+    private void ApplyGameSubjectToUi()
+    {
+        var subject = settings.GameSubject ?? new CombatGameSubjectPreset();
+        subject.Normalize();
+        gamePresetIdInput.Text = subject.Id;
+        gamePresetNameInput.Text = subject.DisplayName;
+        preferredDeckMinimumInput.Text =
+            subject.PreferredDeckSizeMinimum.ToString(
+                CultureInfo.InvariantCulture);
+        preferredDeckMaximumInput.Text =
+            subject.PreferredDeckSizeMaximum.ToString(
+                CultureInfo.InvariantCulture);
+
+        roleInput.ItemsSource = Choices(
+            gameSubjectCatalog.Roles.Select(item =>
+                new GameSubjectChoice(
+                    item.Id,
+                    item.DisplayName + "  [" + item.Id + "]")),
+            subject.RoleId);
+        roleInput.SelectedValue = subject.RoleId;
+        familiarInput.ItemsSource = Choices(
+            gameSubjectCatalog.Familiars.Select(item =>
+                new GameSubjectChoice(
+                    item.Id,
+                    item.DisplayName + "  [" + item.Id + "]")),
+            subject.PartnerId);
+        familiarInput.SelectedValue = subject.PartnerId;
+
+        cardPackPanel.Children.Clear();
+        cardPackToggles.Clear();
+        var packs = gameSubjectCatalog.CardPacks.ToList();
+        foreach (var selectedId in subject.EnabledRewardCardPackIds)
+        {
+            if (packs.All(item => !string.Equals(
+                    item.Id,
+                    selectedId,
+                    StringComparison.OrdinalIgnoreCase)))
+            {
+                packs.Add(new CombatGameSubjectCardPack
+                {
+                    Id = selectedId,
+                    DisplayName = selectedId
+                }.Normalize());
+            }
+        }
+        foreach (var pack in packs)
+        {
+            var enabled = pack.Required
+                          || subject.EnabledRewardCardPackIds.Contains(
+                              pack.Id,
+                              StringComparer.OrdinalIgnoreCase);
+            var toggle = new CheckBox
+            {
+                Content = pack.DisplayName + "  [" + pack.Id + "]",
+                IsChecked = enabled,
+                IsEnabled = !pack.Required,
+                Width = 285,
+                Margin = new Thickness(0, 2, 10, 2),
+                Foreground = pack.Required
+                    ? TrainerTheme.Muted
+                    : TrainerTheme.Text
+            };
+            cardPackToggles[pack.Id] = toggle;
+            cardPackPanel.Children.Add(toggle);
+        }
+        gameSubjectStatus.Text = gameSubjectCatalog.Roles.Count > 0
+            ? "目录已加载：角色 "
+              + gameSubjectCatalog.Roles.Count
+              + " · 使魔 "
+              + gameSubjectCatalog.Familiars.Count
+              + " · 奖励卡包 "
+              + gameSubjectCatalog.CardPacks.Count
+              + "；当前预设将保存到控制台设置。"
+            : "游戏主体目录缺失；当前只能保留已有预设标识。";
+        gameSubjectStatus.Foreground =
+            gameSubjectCatalog.Roles.Count > 0
+                ? TrainerTheme.Success
+                : TrainerTheme.Warning;
+    }
+
+    private static List<GameSubjectChoice> Choices(
+        IEnumerable<GameSubjectChoice> source,
+        string selectedId)
+    {
+        var result = source
+            .GroupBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First())
+            .ToList();
+        if (!string.IsNullOrWhiteSpace(selectedId)
+            && result.All(item => !string.Equals(
+                item.Id,
+                selectedId,
+                StringComparison.OrdinalIgnoreCase)))
+        {
+            result.Add(new GameSubjectChoice(selectedId, selectedId));
+        }
+        return result;
+    }
+
+    private static int ParseBoundedInt(
+        string value,
+        string label,
+        int minimum,
+        int maximum)
+    {
+        if (!int.TryParse(
+                value,
+                NumberStyles.Integer,
+                CultureInfo.InvariantCulture,
+                out var parsed)
+            || parsed < minimum
+            || parsed > maximum)
+        {
+            throw new FormatException(
+                label + " 必须在 " + minimum + "–" + maximum + " 之间");
+        }
+        return parsed;
+    }
+
     private bool ValidateEnvironment(bool throwOnFailure = false)
     {
         var errors = new List<string>();
@@ -1286,7 +1594,12 @@ internal sealed class MainWindow : Window
                 modRoot,
                 "Config",
                 "combat-simulation",
-                "witch-base-evaluation-v2.ruleset.json")
+                "witch-base-evaluation-v2.ruleset.json"),
+            Path.Combine(
+                modRoot,
+                "Config",
+                "combat-simulation",
+                "witch-game-subjects-v1.catalog.json")
         };
         errors.AddRange(required.Where(path => !File.Exists(path)));
         if (string.IsNullOrWhiteSpace(dataRoot))
@@ -1295,7 +1608,7 @@ internal sealed class MainWindow : Window
         }
         var ok = errors.Count == 0;
         environmentStatus.Text = ok
-            ? "环境就绪。Worker、固定战役和冻结规则集均可用。"
+            ? "环境就绪。Worker、固定战役、游戏主体目录和冻结规则集均可用。"
             : "环境未就绪：" + string.Join("；", errors.Take(3));
         environmentStatus.Foreground =
             ok ? TrainerTheme.Success : TrainerTheme.Warning;
@@ -1634,6 +1947,9 @@ internal sealed class MainWindow : Window
         if (dialog.ShowDialog(this) == true)
         {
             modRootInput.Text = dialog.FolderName;
+            gameSubjectCatalog = LoadGameSubjectCatalog(dialog.FolderName);
+            gameSubjectCatalog.ResolveReferences(settings.GameSubject);
+            ApplyGameSubjectToUi();
             ValidateEnvironment();
         }
     }
@@ -1969,6 +2285,18 @@ internal sealed class MainWindow : Window
         };
     }
 
+    private static ComboBox ChoiceInput(double width)
+    {
+        return new ComboBox
+        {
+            Width = width,
+            Height = 30,
+            Margin = new Thickness(0, 0, 8, 0),
+            DisplayMemberPath = nameof(GameSubjectChoice.Label),
+            SelectedValuePath = nameof(GameSubjectChoice.Id)
+        };
+    }
+
     private static Button ActionButton(
         string text,
         Action action,
@@ -2010,6 +2338,8 @@ internal sealed class MainWindow : Window
     }
 
     private sealed record ProfileChoice(string Id, string Label);
+
+    private sealed record GameSubjectChoice(string Id, string Label);
 
     private int Int(string key)
     {

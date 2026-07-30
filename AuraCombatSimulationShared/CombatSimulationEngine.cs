@@ -347,6 +347,8 @@ public sealed class CombatSimulationEngine
             }
 
             State.Turn++;
+            State.PlayerActionsThisTurn = 0;
+            State.PlayerEnergySpentThisTurn = 0;
             State.Phase = CombatSimulationPhase.PlayerTurnStart;
             ResetHpLossWindow();
             var player = State.Player;
@@ -358,6 +360,12 @@ public sealed class CombatSimulationEngine
             player.Energy = Math.Max(
                 0,
                 WitchRounded(Variable(player, "BaseEnergy", player.BaseEnergy)));
+            // The native player-turn entry point clears shield on every
+            // registered combat status before StartRound is dispatched.
+            foreach (var actor in State.Actors)
+            {
+                actor.Block = 0;
+            }
             foreach (var skillId in State.SkillCooldowns.Keys.ToList())
             {
                 State.SkillCooldowns[skillId] = Math.Max(
@@ -365,6 +373,9 @@ public sealed class CombatSimulationEngine
                     State.SkillCooldowns[skillId] - 1);
             }
             SelectEnemyIntents();
+            State.EnemyHpAtTurnStart =
+                State.LivingEnemies.Sum(enemy => Math.Max(0, enemy.Hp));
+            State.EndTurnPurposeValue = ComputeEndTurnPurposeValue();
             var summary = new CombatTurnSummary
             {
                 Turn = State.Turn,
@@ -543,6 +554,7 @@ public sealed class CombatSimulationEngine
                     }
                     if (selected.Kind == CombatSimulationActionKind.EndTurn)
                     {
+                        RecordEndTurnDecision(forced: false);
                         break;
                     }
 
@@ -570,6 +582,7 @@ public sealed class CombatSimulationEngine
                         // turn instead of invalidating the whole campaign at
                         // the global action/command safety limit.
                         metrics.ForcedEndTurns++;
+                        RecordEndTurnDecision(forced: true);
                         break;
                     }
                 }
@@ -606,8 +619,33 @@ public sealed class CombatSimulationEngine
             State.Phase = CombatSimulationPhase.EnemyAction;
             foreach (var enemy in State.LivingEnemies.OrderBy(actor => actor.ActorId).ToList())
             {
+                if (!ProcessLifecycleEvent(
+                        CombatSimulationEventKind.TurnStarted,
+                        enemy.ActorId,
+                        enemy.ActorId,
+                        enemy.DefinitionId,
+                        State.Turn))
+                {
+                    FinishSummary(summary);
+                    return false;
+                }
+                if (State.Outcome != CombatSimulationOutcome.None)
+                {
+                    FinishSummary(summary);
+                    return false;
+                }
                 if (ConsumeTurnSkip(enemy))
                 {
+                    if (!ProcessLifecycleEvent(
+                            CombatSimulationEventKind.TurnEnded,
+                            enemy.ActorId,
+                            enemy.ActorId,
+                            enemy.DefinitionId,
+                            State.Turn))
+                    {
+                        FinishSummary(summary);
+                        return false;
+                    }
                     continue;
                 }
                 var intentIds = enemy.CurrentIntentIds.Count > 0
@@ -628,12 +666,153 @@ public sealed class CombatSimulationEngine
                         return false;
                     }
                 }
+                if (!ProcessLifecycleEvent(
+                        CombatSimulationEventKind.TurnEnded,
+                        enemy.ActorId,
+                        enemy.ActorId,
+                        enemy.DefinitionId,
+                        State.Turn))
+                {
+                    FinishSummary(summary);
+                    return false;
+                }
+                if (State.Outcome != CombatSimulationOutcome.None)
+                {
+                    FinishSummary(summary);
+                    return false;
+                }
             }
 
             State.Phase = CombatSimulationPhase.RoundEnd;
             DecayStatuses();
             FinishSummary(summary);
             return State.Outcome == CombatSimulationOutcome.None;
+        }
+
+        private void RecordEndTurnDecision(bool forced)
+        {
+            var player = State.Player;
+            if (player == null)
+            {
+                return;
+            }
+
+            var legal = BuildLegalActions(scenario, ruleset, State);
+            var hasSafeAlternative = legal.Any(action =>
+                action.Kind != CombatSimulationActionKind.EndTurn
+                && State.FindCard(action.CardInstanceId)?.IsVisibleFake != true);
+            var madeProgress = State.LivingEnemies.Sum(enemy =>
+                Math.Max(0, enemy.Hp)) < State.EnemyHpAtTurnStart;
+            State.ConsecutiveNoProgressTurns =
+                madeProgress || State.EndTurnPurposeValue > 0d
+                    ? 0
+                    : State.ConsecutiveNoProgressTurns + 1;
+
+            if (!forced)
+            {
+                metrics.VoluntaryEndTurns++;
+            }
+            if (State.PlayerActionsThisTurn == 0)
+            {
+                metrics.EmptyEndTurns++;
+            }
+            if (player.Energy > 0 && hasSafeAlternative)
+            {
+                metrics.EndTurnsWithUnusedEnergy++;
+                metrics.UnusedEnergyAtEndTurns += player.Energy;
+            }
+            if (State.EndTurnPurposeValue <= 0d && hasSafeAlternative)
+            {
+                metrics.SevereEndTurnMistakes++;
+            }
+            metrics.MaximumConsecutiveNoProgressTurns = Math.Max(
+                metrics.MaximumConsecutiveNoProgressTurns,
+                State.ConsecutiveNoProgressTurns);
+        }
+
+        private double ComputeEndTurnPurposeValue()
+        {
+            var player = State.Player;
+            if (player == null)
+            {
+                return 0d;
+            }
+
+            var purpose = 0d;
+            foreach (var status in player.Statuses)
+            {
+                if (!ruleset.TryGetStatusCore(status.StatusId, out var definition))
+                {
+                    continue;
+                }
+                foreach (var trigger in definition.Triggers.Where(trigger =>
+                             trigger.EventKind == CombatSimulationEventKind.TurnEnded))
+                {
+                    purpose += trigger.Effects.Count(IsBeneficialEndTurnEffect)
+                               * Math.Max(1, status.Stacks);
+                }
+            }
+
+            foreach (var reward in scenario.RewardRules)
+            {
+                var script = reward?.FightScript ?? "";
+                if (ContainsEndTurnMarker(script)
+                    && ContainsBeneficialEndTurnMarker(script))
+                {
+                    purpose += Math.Max(1, reward!.Stacks);
+                }
+            }
+            return purpose;
+        }
+
+        private static bool IsBeneficialEndTurnEffect(
+            CombatSimulationEffectDefinition effect)
+        {
+            return effect.Kind == CombatSimulationEffectKind.Damage
+                   || effect.Kind == CombatSimulationEffectKind.TrueDamage
+                   || effect.Kind == CombatSimulationEffectKind.GainBlock
+                   || effect.Kind == CombatSimulationEffectKind.SetBlock
+                   || effect.Kind == CombatSimulationEffectKind.Heal
+                   || effect.Kind == CombatSimulationEffectKind.SetHp
+                   || effect.Kind == CombatSimulationEffectKind.SetHpToMax
+                   || effect.Kind == CombatSimulationEffectKind.Draw
+                   || effect.Kind == CombatSimulationEffectKind.GainEnergy
+                   || effect.Kind == CombatSimulationEffectKind.DrawToHandLimit
+                   || effect.Kind == CombatSimulationEffectKind.CreateRandomCard
+                   || effect.Kind == CombatSimulationEffectKind.RetrieveCards
+                   || effect.Kind == CombatSimulationEffectKind.WinBattle
+                   || effect.Kind == CombatSimulationEffectKind.AddStatus
+                   || effect.Kind == CombatSimulationEffectKind.RemoveStatus
+                   || effect.Kind == CombatSimulationEffectKind.CreateCard
+                   || effect.Kind == CombatSimulationEffectKind.ChangeCardCost
+                   || effect.Kind == CombatSimulationEffectKind.ModifyVariable
+                   || effect.Kind == CombatSimulationEffectKind.ModifyVariablePercent
+                   || effect.Kind == CombatSimulationEffectKind.ScaleVariablePercent
+                   || effect.Kind == CombatSimulationEffectKind.ScaleMaxHpPercent
+                   || effect.Kind == CombatSimulationEffectKind.CopyStatuses;
+        }
+
+        private static bool ContainsEndTurnMarker(string script)
+        {
+            return script.IndexOf(
+                       "EndRound",
+                       StringComparison.OrdinalIgnoreCase) >= 0
+                   || script.IndexOf(
+                       "TurnEnded",
+                       StringComparison.OrdinalIgnoreCase) >= 0;
+        }
+
+        private static bool ContainsBeneficialEndTurnMarker(string script)
+        {
+            var markers = new[]
+            {
+                "GiveWin", "Damage", "Defend", "Shield", "Heal", "Cure",
+                "Draw", "GetCard", "CreateCard", "AddCard", "AddPower",
+                "GainEnergy", "AddBuff", "RemoveBuff", "ClearBuff"
+            };
+            return markers.Any(marker => script.IndexOf(
+                marker,
+                StringComparison.OrdinalIgnoreCase) >= 0);
         }
 
         public bool ApplyPlayerAction(CombatSimulationAction action)
@@ -672,6 +851,8 @@ public sealed class CombatSimulationEngine
             currentActionCommandCount = 0;
             currentActionDefinitionId = definition.CardId;
             player.Energy -= cost;
+            State.PlayerActionsThisTurn++;
+            State.PlayerEnergySpentThisTurn += cost;
             metrics.EnergySpent += cost;
             metrics.CardsPlayed++;
             metrics.CardPlayCounts[definition.CardId] =
@@ -3095,6 +3276,16 @@ public sealed class CombatSimulationEngine
             CombatStatusTriggerDefinition trigger,
             CombatSimulationEvent sourceEvent)
         {
+            if (trigger.OwnerRelation == CombatStatusTriggerOwnerRelation.Any
+                && (sourceEvent.Kind == CombatSimulationEventKind.TurnStarted
+                    || sourceEvent.Kind == CombatSimulationEventKind.TurnEnded))
+            {
+                // Native StartRound/EndRound events are keyed by the acting
+                // status instance. "Any" means no extra source/target filter
+                // inside that actor's event, not every actor's round event.
+                return actor.ActorId == sourceEvent.SourceActorId
+                       || actor.ActorId == sourceEvent.TargetActorId;
+            }
             return trigger.OwnerRelation switch
             {
                 CombatStatusTriggerOwnerRelation.EventSource =>

@@ -1864,6 +1864,16 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                                 result.Validation.AdvancedWinRate,
                                 result.Validation.AdvancedPlannedCampaigns));
         markdown.AppendLine("- 正式隔离验收：" + (result.AcceptancePassed ? "通过" : "未通过"));
+        markdown.AppendLine("- 结束回合行为门槛："
+                            + (result.Validation.BehaviorPassed ? "通过" : "未通过")
+                            + "；严重失误 "
+                            + result.Validation.SevereEndTurnMistakes
+                            + "；空回合 "
+                            + result.Validation.EmptyEndTurns
+                            + "；未用能量结束 "
+                            + result.Validation.EndTurnsWithUnusedEnergy
+                            + "；最大连续无进展 "
+                            + result.Validation.MaximumConsecutiveNoProgressTurns);
         markdown.AppendLine();
         markdown.AppendLine("## 训练迭代");
         markdown.AppendLine();

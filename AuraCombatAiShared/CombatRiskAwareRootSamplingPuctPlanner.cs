@@ -280,7 +280,9 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
         var rootEdges = root.Edges.Values
             .Where(edge => edge.ActionIndex >= 0 && edge.Visits > 0)
             .ToList();
-        if (rootEdges.Count != actions.Count)
+        var usableRootActions = actions.Count(action =>
+            IsUsable(root.State, action));
+        if (rootEdges.Count != usableRootActions)
         {
             return -1;
         }
@@ -1016,8 +1018,15 @@ CompleteSimulation:
     {
         if (searchAction.Action.Kind == CombatActionKind.EndTurn)
         {
-            return searchAction.Action.Legal;
+            return searchAction.Action.Legal && CanEndTurn(state);
         }
+        return IsNonEndUsable(state, searchAction);
+    }
+
+    private bool IsNonEndUsable(
+        CombatSimulationState state,
+        SearchAction searchAction)
+    {
         if (state.WasUsed(searchAction.UseGroupIndex)
             || !state.TargetAlive(searchAction.Action.TargetRuntimeId)
             || CombatForwardModel.EffectiveCost(state, searchAction.Action) > state.Power)
@@ -1027,6 +1036,31 @@ CompleteSimulation:
         for (var i = 0; i < simulationRules.Length; i++)
         {
             if (!simulationRules[i].IsLegal(state, searchAction.Action, out _))
+            {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    private bool CanEndTurn(CombatSimulationState state)
+    {
+        if (CombatEndTurnSafety.HasDeliberatePurpose(state.Features))
+        {
+            return true;
+        }
+        for (var i = 0; i < actions.Count; i++)
+        {
+            var candidate = actions[i];
+            if (candidate.Action.Kind == CombatActionKind.EndTurn
+                || !IsNonEndUsable(state, candidate))
+            {
+                continue;
+            }
+            var dynamicScore = Score(state, candidate.Action);
+            if (dynamicScore >= profile.MinimumActionScore
+                || candidate.Evaluation.RuleScore
+                   >= profile.MinimumActionScore)
             {
                 return false;
             }

@@ -1,0 +1,267 @@
+{
+    "schemaVersion":  1,
+    "catalogId":  "witch-base-game-subjects-v1",
+    "gameBuild":  "v1.0.23816797",
+    "roles":  [
+                  {
+                      "id":  "career_1",
+                      "displayName":  "阿米莉娅",
+                      "skillCardIds":  [
+                                           "careercard_1"
+                                       ],
+                      "skillCooldownTurns":  {
+                                                 "careercard_1":  1
+                                             },
+                      "initialStatuses":  {
+                                              "buff_impregnable":  2,
+                                              "buff_elements":  3
+                                          }
+                  },
+                  {
+                      "id":  "career_2",
+                      "displayName":  "奈奈",
+                      "skillCardIds":  [
+                                           "careercard_2",
+                                           "careercard_3"
+                                       ],
+                      "skillCooldownTurns":  {
+                                                 "careercard_2":  5,
+                                                 "careercard_3":  2
+                                             },
+                      "initialStatuses":  {
+
+                                          }
+                  },
+                  {
+                      "id":  "career_3",
+                      "displayName":  "阿黛拉",
+                      "skillCardIds":  [
+                                           "careercard_4"
+                                       ],
+                      "skillCooldownTurns":  {
+                                                 "careercard_4":  12
+                                             },
+                      "initialStatuses":  {
+
+                                          }
+                  },
+                  {
+                      "id":  "career_4",
+                      "displayName":  "灾厄化身",
+                      "skillCardIds":  [
+                                           "careercard_2",
+                                           "careercard_3"
+                                       ],
+                      "skillCooldownTurns":  {
+                                                 "careercard_2":  5,
+                                                 "careercard_3":  1
+                                             },
+                      "initialStatuses":  {
+
+                                          }
+                  },
+                  {
+                      "id":  "career_5",
+                      "displayName":  "卡洛琳",
+                      "skillCardIds":  [
+                                           "careercard_5",
+                                           "careercard_6"
+                                       ],
+                      "skillCooldownTurns":  {
+                                                 "careercard_5":  3,
+                                                 "careercard_6":  3
+                                             },
+                      "initialStatuses":  {
+
+                                          }
+                  },
+                  {
+                      "id":  "career_6",
+                      "displayName":  "厄米娅",
+                      "skillCardIds":  [
+                                           "careercard_7"
+                                       ],
+                      "skillCooldownTurns":  {
+                                                 "careercard_7":  2
+                                             },
+                      "initialStatuses":  {
+
+                                          }
+                  },
+                  {
+                      "id":  "career_7",
+                      "displayName":  "可可",
+                      "skillCardIds":  [
+                                           "careercard_8",
+                                           "careercard_9"
+                                       ],
+                      "skillCooldownTurns":  {
+                                                 "careercard_8":  5,
+                                                 "careercard_9":  2
+                                             },
+                      "initialStatuses":  {
+                                              "buff_impregnable":  2,
+                                              "buff_degrade":  2
+                                          }
+                  },
+                  {
+                      "id":  "career_8",
+                      "displayName":  "薇薇安",
+                      "skillCardIds":  [
+                                           "careercard_10",
+                                           "careercard_11"
+                                       ],
+                      "skillCooldownTurns":  {
+                                                 "careercard_10":  2,
+                                                 "careercard_11":  1
+                                             },
+                      "initialStatuses":  {
+
+                                          }
+                  },
+                  {
+                      "id":  "career_9",
+                      "displayName":  "失心躯壳",
+                      "skillCardIds":  [
+                                           "careercard_12",
+                                           "careercard_13"
+                                       ],
+                      "skillCooldownTurns":  {
+                                                 "careercard_12":  2,
+                                                 "careercard_13":  99
+                                             },
+                      "initialStatuses":  {
+
+                                          }
+                  }
+              ],
+    "familiars":  [
+                      {
+                          "id":  "Partner_10001",
+                          "displayName":  "报丧偈羽",
+                          "blessingIds":  [
+                                              "blessing_38"
+                                          ]
+                      },
+                      {
+                          "id":  "Partner_10002",
+                          "displayName":  "匣上黑猫",
+                          "blessingIds":  [
+                                              "blessing_39"
+                                          ]
+                      },
+                      {
+                          "id":  "Partner_10003",
+                          "displayName":  "噩梦原型",
+                          "blessingIds":  [
+                                              "blessing_40"
+                                          ]
+                      },
+                      {
+                          "id":  "Partner_10004",
+                          "displayName":  "使魔猫猫",
+                          "blessingIds":  [
+                                              "blessing_41"
+                                          ]
+                      },
+                      {
+                          "id":  "Partner_10005",
+                          "displayName":  "小克莉斯娜",
+                          "blessingIds":  [
+                                              "blessing_42"
+                                          ]
+                      }
+                  ],
+    "cardPacks":  [
+                      {
+                          "id":  "cardpack_1",
+                          "displayName":  "基础卡包",
+                          "required":  true
+                      },
+                      {
+                          "id":  "cardpack_2",
+                          "displayName":  "通用卡包",
+                          "required":  true
+                      },
+                      {
+                          "id":  "cardpack_3",
+                          "displayName":  "教廷防卫技战术",
+                          "required":  false
+                      },
+                      {
+                          "id":  "cardpack_4",
+                          "displayName":  "时空奇旅",
+                          "required":  false
+                      },
+                      {
+                          "id":  "cardpack_5",
+                          "displayName":  "爱与梦魇的阶梯",
+                          "required":  false
+                      },
+                      {
+                          "id":  "cardpack_6",
+                          "displayName":  "黑色巫术",
+                          "required":  false
+                      },
+                      {
+                          "id":  "cardpack_7",
+                          "displayName":  "蛇自阴影中袭来",
+                          "required":  false
+                      },
+                      {
+                          "id":  "cardpack_8",
+                          "displayName":  "七重试炼",
+                          "required":  false
+                      },
+                      {
+                          "id":  "cardpack_9",
+                          "displayName":  "奥尔德林诸神谕",
+                          "required":  false
+                      },
+                      {
+                          "id":  "cardpack_10",
+                          "displayName":  "飞升之路",
+                          "required":  false
+                      },
+                      {
+                          "id":  "cardpack_11",
+                          "displayName":  "高阶魔法基础·必修三",
+                          "required":  false
+                      },
+                      {
+                          "id":  "cardpack_12",
+                          "displayName":  "混沌乐团",
+                          "required":  false
+                      },
+                      {
+                          "id":  "cardpack_14",
+                          "displayName":  "血鬼谱系综述",
+                          "required":  false
+                      },
+                      {
+                          "id":  "cardpack_15",
+                          "displayName":  "万物元素之始",
+                          "required":  false
+                      },
+                      {
+                          "id":  "cardpack_16",
+                          "displayName":  "深渊生存法则",
+                          "required":  false
+                      },
+                      {
+                          "id":  "cardpack_17",
+                          "displayName":  "鎏金要略",
+                          "required":  false
+                      },
+                      {
+                          "id":  "cardpack_18",
+                          "displayName":  "法术序列",
+                          "required":  false
+                      },
+                      {
+                          "id":  "cardpack_19",
+                          "displayName":  "超位仪式",
+                          "required":  false
+                      }
+                  ]
+}

@@ -430,6 +430,12 @@ public sealed class CombatDecisionProfile
 
     public double PersistentValueWeight { get; set; } = 1d;
 
+    public double NextTurnThreatRetention { get; set; } = 0.80d;
+
+    public double UnknownNextTurnThreatProbabilityFloor { get; set; } = 0.35d;
+
+    public double EndTurnUncertainty { get; set; } = 0.35d;
+
     public bool PreferDominantFreeSetup { get; set; } = true;
 
 }

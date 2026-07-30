@@ -7,6 +7,82 @@ using System.Threading;
 
 var assertions = 0;
 
+var gameSubjectCatalog = new CombatGameSubjectCatalog
+{
+    Roles =
+    {
+        new CombatGameSubjectRole
+        {
+            Id = "career_test",
+            DisplayName = "Test Role",
+            SkillCardIds = { "skill_test" },
+            SkillCooldownTurns = { ["skill_test"] = 3 },
+            InitialStatuses = { ["status_test"] = 2 }
+        }
+    },
+    Familiars =
+    {
+        new CombatGameSubjectFamiliar
+        {
+            Id = "partner_test",
+            DisplayName = "Test Familiar",
+            BlessingIds = { "blessing_test" }
+        }
+    },
+    CardPacks =
+    {
+        new CombatGameSubjectCardPack
+        {
+            Id = "cardpack_1",
+            Required = true
+        },
+        new CombatGameSubjectCardPack
+        {
+            Id = "cardpack_2",
+            Required = true
+        },
+        new CombatGameSubjectCardPack
+        {
+            Id = "cardpack_3"
+        }
+    }
+}.Normalize();
+var gameSubject = new CombatGameSubjectPreset
+{
+    Id = "test-subject",
+    RoleId = "career_test",
+    PartnerId = "partner_test",
+    EnabledRewardCardPackIds = { "cardpack_3" },
+    PreferredDeckSizeMinimum = 12,
+    PreferredDeckSizeMaximum = 20
+};
+gameSubjectCatalog.ResolveReferences(gameSubject);
+var gameSubjectCampaign = new CombatCampaignDefinition
+{
+    Player = new CombatPlayerSetup
+    {
+        Deck = { "strike", "guard" }
+    }
+};
+CombatGameSubjectPresetRuntime.Apply(gameSubject, gameSubjectCampaign);
+Assert(
+    gameSubjectCampaign.Player.RoleId == "career_test"
+    && gameSubjectCampaign.Player.PartnerId == "partner_test"
+    && gameSubjectCampaign.Player.SkillCardIds.SequenceEqual(
+        new[] { "skill_test" })
+    && gameSubjectCampaign.Player.SkillCooldownTurns["skill_test"] == 3
+    && gameSubjectCampaign.Player.InitialStatuses.Single().StatusId
+       == "status_test"
+    && gameSubjectCampaign.Player.FamiliarBlessingIds.SequenceEqual(
+        new[] { "blessing_test" })
+    && gameSubjectCampaign.EnabledRewardCardPackIds.SequenceEqual(
+        new[] { "cardpack_1", "cardpack_2", "cardpack_3" })
+    && gameSubjectCampaign.Player.GameParameterHash
+       == CombatGameSubjectPresetRuntime.ComputeHash(
+           gameSubject,
+           gameSubjectCampaign.Player.Deck),
+    "game subject preset resolves and applies one immutable campaign snapshot");
+
 var graph = new DecisionGraph
 {
     RootNodeId = "low-health",
@@ -1193,6 +1269,31 @@ Assert(coverageDecision.SearchAlgorithm == "risk-aware-root-sampling-puct-mpc"
            .Where(candidate => candidate.Action.Kind != CombatActionKind.EndTurn)
            .All(candidate => candidate.PlanScore != 0d),
     "risk-aware root-sampling PUCT gives every legal root action search evidence");
+var guardedEndTurn = coverageDecision.Candidates.Single(candidate =>
+    candidate.Action.Kind == CombatActionKind.EndTurn);
+Assert(coverageDecision.Action?.Kind != CombatActionKind.EndTurn
+       && !guardedEndTurn.Legal
+       && guardedEndTurn.Action.Features.TryGetValue(
+           CombatTurnFeatureNames.EndTurnSevereMistake,
+           out var severeEndTurn)
+       && severeEndTurn == 1d
+       && guardedEndTurn.SearchVisits == 0,
+    "end-turn safety makes passing with playable cards and unused energy a non-searchable severe mistake");
+var deliberateEndTurnState = new CombatStateObservation
+{
+    CurrentPower = 1,
+    Features =
+    {
+        [CombatTurnFeatureNames.EndTurnPurposeValue] = 5d
+    }
+};
+var deliberateEndTurnAssessment = CombatEndTurnSafety.Assess(
+    deliberateEndTurnState,
+    coverageDecision.Candidates,
+    coverageProfile);
+Assert(deliberateEndTurnAssessment.HasDeliberatePurpose
+       && !deliberateEndTurnAssessment.Prohibited,
+    "explicit end-of-round relic or buff purpose can authorize an otherwise premature pass");
 var earlyStopProfile = new CombatDecisionProfile
 {
     SearchBudgetMode = "fixed",
@@ -1347,10 +1448,20 @@ var persistentShieldTurn = CombatForwardModel.ApplyEndTurn(
         DiscardPileValues = { 3d },
         DrawPileKnown = true,
         Features = { ["drawPerTurn"] = 2d },
+        Enemies =
+        [
+            new CombatSimulationUnit
+            {
+                RuntimeId = 1,
+                Hp = 20,
+                MaxHp = 20
+            }
+        ],
         Threats =
         [
             new CombatSimulationThreat
             {
+                SourceRuntimeId = 1,
                 BlockableDamage = 7d,
                 Probability = 1d
             }
@@ -1358,14 +1469,15 @@ var persistentShieldTurn = CombatForwardModel.ApplyEndTurn(
     },
     new CombatDecisionProfile());
 Assert(persistentShieldTurn.PlayerHp == 30
-       && persistentShieldTurn.PlayerDefend == 5
+       && persistentShieldTurn.PlayerDefend == 0
        && persistentShieldTurn.Power == 3
        && persistentShieldTurn.HandCount == 2
        && persistentShieldTurn.HandCardValues.Count == 2
        && persistentShieldTurn.DrawPileValues.Count == 1
        && persistentShieldTurn.DiscardPileValues.Count == 0
-       && persistentShieldTurn.Threats.Length == 0,
-    "end-turn baseline spends only incoming shield and models discard, reshuffle, and next-turn draw");
+       && persistentShieldTurn.Threats.Length == 1
+       && persistentShieldTurn.Threats[0].BlockableDamage > 0d,
+    "end-turn baseline resolves enemy damage, clears shield, models card cycling, and projects next intent");
 var retainedCycleTurn = CombatForwardModel.ApplyEndTurn(
     new CombatSimulationState
     {
@@ -3158,15 +3270,26 @@ var persistentBlockResult = new CombatSimulationEngine().Run(
     },
     lifecycleCoreRules.Ruleset,
     new PlayCardsInOrderThenEndPolicy("cycle-guard"));
+var waitingEnemyActorId = persistentBlockResult.FinalState.Actors
+    .Single(actor => actor.Kind == CombatSimulationActorKind.Enemy)
+    .ActorId;
 Assert(lifecycleCoreRules.Success
        && midDrawShuffleResult.Metrics.CardsDrawn == 2
+       && midDrawShuffleResult.Metrics.EmptyEndTurns == 1
+       && midDrawShuffleResult.Metrics.SevereEndTurnMistakes == 1
        && midDrawShuffleResult.Events.Any(item =>
            item.Kind == CombatSimulationEventKind.DeckShuffled)
-       && persistentBlockResult.FinalState.Player?.Block == 5
+       && persistentBlockResult.FinalState.Player?.Block == 0
        && persistentBlockResult.Events.Any(item =>
            item.Kind == CombatSimulationEventKind.CardDiscarded
-           && item.DefinitionId == "cycle-filler"),
-    "combat lifecycle keeps block, recycles discard mid-draw, and discards unretained hand cards");
+           && item.DefinitionId == "cycle-filler")
+       && persistentBlockResult.Events.Any(item =>
+           item.Kind == CombatSimulationEventKind.TurnStarted
+           && item.SourceActorId == waitingEnemyActorId)
+       && persistentBlockResult.Events.Any(item =>
+           item.Kind == CombatSimulationEventKind.TurnEnded
+           && item.SourceActorId == waitingEnemyActorId),
+    "combat lifecycle clears prior-turn block, cycles cards, and emits actor-scoped enemy round events");
 
 var ritualCourageResult = new CombatSimulationEngine().Run(
     new CombatScenarioDefinition
@@ -7442,6 +7565,27 @@ try
                == "pointer-v1",
         "foundation checkpoint pointer replacement retries transient Windows delete-sharing locks and retains the previous pointer");
 
+    var streamedArtifactPath = Path.Combine(
+        checkpointStorageRoot,
+        "streamed-artifact.json");
+    CombatFoundationCheckpointStorage.WriteAtomicStream(
+        streamedArtifactPath,
+        stream =>
+        {
+            using var writer = new StreamWriter(
+                stream,
+                new System.Text.UTF8Encoding(false),
+                1024,
+                leaveOpen: true);
+            writer.Write("{\"mode\":\"streamed\",\"ok\":true}");
+            writer.Flush();
+        },
+        retainBackup: false);
+    Assert(CombatFoundationCheckpointStorage.ReadAllTextShared(
+               streamedArtifactPath)
+               == "{\"mode\":\"streamed\",\"ok\":true}",
+        "foundation storage atomically publishes streamed artifacts without constructing a full output string");
+
     var secondSnapshot =
         CombatFoundationCheckpointStorage.WriteEpisodeSnapshot(
             checkpointEpisodesBasePath,
@@ -7686,7 +7830,14 @@ Assert(foundationTraining.Success
 var packageJob = new CombatFoundationWorkerJob
 {
     JobId = "foundation-package-test",
-    Request = foundationRequest
+    Request = foundationRequest,
+    Ruleset = new CombatRulesetDocument
+    {
+        Version = campaignRules.Ruleset.Version,
+        Cards = campaignRules.Ruleset.SnapshotCards().ToList(),
+        Enemies = campaignRules.Ruleset.SnapshotEnemies().ToList(),
+        Statuses = campaignRules.Ruleset.SnapshotStatuses().ToList()
+    }
 };
 var packageOriginalRoleId =
     packageJob.Request.TrainingCampaign.Player.RoleId;
@@ -7732,8 +7883,136 @@ Assert(CombatFoundationModelPackageProtocol.TryValidate(
           == foundationTraining.Champion!.ModelId
        && foundationPackage.PartnerId == "Partner_10001"
        && foundationPackage.EnabledRewardCardPackIds.Contains("cardpack_3")
+       && foundationPackage.TrainingSubject?.RoleId == "career_1"
+       && foundationPackage.TrainingSubject?.PartnerId == "Partner_10001"
+       && foundationPackage.TrainingSubject.EnabledRewardCardPackIds
+           .Contains("cardpack_3")
+       && foundationPackage.DeclaredCoverage?.EntityCoverageKnown == true
        && foundationPackage.Validation.Passed,
     "accepted worker results export a self-contained foundation model package");
+var supersetCoverage = CombatFoundationModelCoverageProtocol.Assess(
+    foundationPackage.TrainingSubject!,
+    foundationPackage.DeclaredCoverage!,
+    new CombatModelRuntimeContext
+    {
+        RoleId = "career_1",
+        PartnerId = "Partner_10001",
+        EnabledRewardCardPackIds =
+            new List<string> { "cardpack_1", "cardpack_2" },
+        PreferredDeckSizeMinimum = 1,
+        PreferredDeckSizeMaximum = 20
+    });
+Assert(supersetCoverage.Level == "full"
+       && supersetCoverage.RuntimeExtraCardPackIds.Count == 0
+       && supersetCoverage.TrainingOnlyCardPackIds.SequenceEqual(
+           new[] { "cardpack_3" }),
+    "a model trained with more card packs fully covers a runtime with fewer packs");
+var partialCoverage = CombatFoundationModelCoverageProtocol.Assess(
+    foundationPackage.TrainingSubject!,
+    foundationPackage.DeclaredCoverage!,
+    new CombatModelRuntimeContext
+    {
+        RoleId = "career_other",
+        PartnerId = "Partner_10001",
+        EnabledRewardCardPackIds =
+            new List<string>
+            {
+                "cardpack_1",
+                "cardpack_2",
+                "cardpack_4"
+            },
+        PreferredDeckSizeMinimum = 1,
+        PreferredDeckSizeMaximum = 24
+    });
+Assert(partialCoverage.Level == "partial"
+       && partialCoverage.RoleSkillFallbackRequired
+       && partialCoverage.RuntimeExtraCardPackIds.SequenceEqual(
+           new[] { "cardpack_4" }),
+    "role changes and runtime-only card packs are assessed as partial coverage instead of incompatibility");
+var recordingCoverageModel = new RecordingPolicyValueModel();
+var coverageAwareModel = new CoverageAwareCombatPolicyValueModel(
+    recordingCoverageModel,
+    new CombatFoundationTrainingSubject
+    {
+        RoleId = "career_trained",
+        PartnerId = "partner_trained",
+        EnabledRewardCardPackIds =
+            new List<string> { "cardpack_1", "cardpack_2" },
+        PreferredDeckSizeMinimum = 1,
+        PreferredDeckSizeMaximum = 24
+    },
+    new CombatFoundationDeclaredCoverage
+    {
+        EntityCoverageKnown = true,
+        CardIds = new List<string> { "known-card" },
+        StatusIds = new List<string> { "known-status" }
+    },
+    new CombatModelRuntimeContext
+    {
+        RoleId = "career_other",
+        PartnerId = "partner_trained"
+    });
+var coveragePrediction = coverageAwareModel.Evaluate(
+    new CombatPolicyValueInput
+    {
+        StateFeatures = new Dictionary<string, double>(
+            StringComparer.OrdinalIgnoreCase)
+        {
+            ["playerHp"] = 20d,
+            ["playerStatus:known-status"] = 1d,
+            ["playerStatus:unknown-status"] = 2d
+        },
+        Candidates =
+        {
+            new CombatPolicyValueCandidate
+            {
+                CandidateId = "known",
+                SourceId = "known-card",
+                ActionKind = CombatActionKind.PlayCard.ToString()
+            },
+            new CombatPolicyValueCandidate
+            {
+                CandidateId = "unknown",
+                SourceId = "unknown-card",
+                ActionKind = CombatActionKind.PlayCard.ToString()
+            },
+            new CombatPolicyValueCandidate
+            {
+                CandidateId = "role-skill",
+                SourceId = "skill-other",
+                ActionKind = CombatActionKind.UseSkill.ToString()
+            }
+        }
+    });
+Assert(recordingCoverageModel.LastInput != null
+       && recordingCoverageModel.LastInput.StateFeatures.ContainsKey(
+           "playerStatus:known-status")
+       && !recordingCoverageModel.LastInput.StateFeatures.ContainsKey(
+           "playerStatus:unknown-status")
+       && coveragePrediction.PolicyLogits["known"] == 2d
+       && coveragePrediction.PolicyLogits["unknown"] == 0d
+       && coveragePrediction.PolicyLogits["role-skill"] == 0d,
+    "coverage-aware inference keeps learned card decisions while unknown cards and foreign role skills fall back");
+var packageTrainingSubject = foundationPackage.TrainingSubject;
+var packageDeclaredCoverage = foundationPackage.DeclaredCoverage;
+foundationPackage.TrainingSubject = null;
+foundationPackage.DeclaredCoverage = null;
+Assert(CombatFoundationModelPackageProtocol.TryValidate(
+        foundationPackage,
+        out var legacyPackageDiagnostic)
+       && string.IsNullOrEmpty(legacyPackageDiagnostic),
+    "legacy v2 foundation packages without coverage extensions remain importable");
+foundationPackage.TrainingSubject = packageTrainingSubject;
+foundationPackage.DeclaredCoverage = packageDeclaredCoverage;
+foundationPackage.TrainingSubject!.RoleId = "tampered-role";
+Assert(!CombatFoundationModelPackageProtocol.TryValidate(
+        foundationPackage,
+        out var inconsistentSubjectDiagnostic)
+       && inconsistentSubjectDiagnostic.Contains(
+           "训练主体元数据",
+           StringComparison.Ordinal),
+    "extended foundation packages reject internally inconsistent training subject metadata");
+foundationPackage.TrainingSubject.RoleId = foundationPackage.RoleId;
 foundationPackage.CompletionKind = "training-rejected";
 Assert(!CombatFoundationModelPackageProtocol.TryValidate(
            foundationPackage,
@@ -7923,6 +8202,7 @@ foreach (var difficulty in failingValidationCampaign.Difficulties)
 }
 foundationRequest.MaximumDegreeOfParallelism = 4;
 foundationRequest.ValidationCampaign = failingValidationCampaign;
+foundationRequest.RetainValidationRunDetails = false;
 var earlyStoppedFoundationTraining = new CombatCampaignFoundationTrainer().Run(
     foundationRequest,
     campaignRules.Ruleset,
@@ -7933,8 +8213,14 @@ Assert(earlyStoppedFoundationTraining.Success
        && earlyStoppedFoundationTraining.Validation.NormalCampaigns == 4
        && earlyStoppedFoundationTraining.Validation.AdvancedCampaigns == 0
        && earlyStoppedFoundationTraining.CompletedCampaigns
-          < earlyStoppedFoundationTraining.RequestedCampaigns,
-    "foundation validation stops after a deterministic parallel batch once the configured normal acceptance gate is impossible");
+          < earlyStoppedFoundationTraining.RequestedCampaigns
+       && earlyStoppedFoundationTraining.ValidationRuns.Count == 4
+       && earlyStoppedFoundationTraining.ValidationRuns.All(item =>
+           item.Battles.Count == 0
+           && item.Rewards.Count == 0
+           && !item.FinalBossVictory),
+    "foundation validation analyzes one deterministic parallel batch and releases full battle graphs when the external worker retention policy is active");
+foundationRequest.RetainValidationRunDetails = true;
 projectedStrike.Fidelity = CombatRuleFidelity.Approximate;
 var invalidPreflightTraining = new CombatCampaignFoundationTrainer().Run(
     foundationRequest,
@@ -8219,6 +8505,53 @@ Assert(tokenContext.TryResolve(currentTokenAction, out var currentBinding)
        && ReferenceEquals(currentBinding.SourceHandle, tokenSource)
        && !tokenContext.TryResolve(staleTokenAction, out _),
     "execution bindings accept the current observation and reject stale tokens");
+var cachedDecision = new CombatDecision
+{
+    HasAction = true,
+    Action = currentTokenAction,
+    Candidates =
+    {
+        new CombatCandidateEvaluation
+        {
+            Action = currentTokenAction,
+            Legal = true,
+            SearchPrior = 0.75d
+        }
+    }
+};
+var currentObservationAction = new CombatActionObservation
+{
+    ObservationId = "battle:10",
+    ActionToken = "a7",
+    CandidateId = "attack",
+    Legal = true
+};
+var currentObservation = new CombatStateObservation
+{
+    ObservationId = "battle:10",
+    Actions = { currentObservationAction }
+};
+Assert(
+    CombatDecisionExecutionBindingProtocol.TryBindToObservation(
+        cachedDecision,
+        currentObservation,
+        out var reboundDecision,
+        out _)
+    && ReferenceEquals(reboundDecision.Action, currentObservationAction)
+    && reboundDecision.Action.ActionToken == "a7"
+    && reboundDecision.Candidates[0].SearchPrior == 0.75d,
+    "cached semantic decisions rebind to the current observation action token");
+currentObservationAction.Legal = false;
+Assert(
+    !CombatDecisionExecutionBindingProtocol.TryBindToObservation(
+        cachedDecision,
+        currentObservation,
+        out _,
+        out var illegalRebindReason)
+    && illegalRebindReason.Contains(
+        "no longer legal",
+        StringComparison.Ordinal),
+    "cached decisions never bypass current-observation legality");
 var aiDtoTypes = new[]
 {
     typeof(PlayerCombatObservation),
@@ -8504,7 +8837,7 @@ var orderedCageForward = CombatForwardModel.ApplyEndTurn(
     CombatForwardModel.Create(orderedCage, 0),
     new CombatDecisionProfile());
 Assert(orderedCageForward.DeferredEffects.Count == 0
-       && orderedCageForward.PlayerDefend == 2
+       && orderedCageForward.PlayerDefend == 0
        && orderedCageForward.Enemies[0].Hp == 6,
     "time-cage effects resolve in queue order before enemy actions and then clear");
 var discardedCagePayload = BuildPlayerEquivalentFixture(false);
@@ -9622,5 +9955,32 @@ sealed class FixedEffectResolver : ICombatEffectResolver
             }
         };
         return true;
+    }
+}
+
+sealed class RecordingPolicyValueModel : ICombatPolicyValueModel
+{
+    public string ModelId => "recording-policy-value";
+
+    public CombatPolicyValueInput? LastInput { get; private set; }
+
+    public CombatPolicyValuePrediction Evaluate(CombatPolicyValueInput input)
+    {
+        LastInput = input;
+        var result = new CombatPolicyValuePrediction
+        {
+            ExpectedReturn = 0.75d
+        };
+        foreach (var candidate in input.Candidates)
+        {
+            result.PolicyLogits[candidate.CandidateId] = 2d;
+        }
+        return result;
+    }
+
+    public IReadOnlyList<CombatPolicyValuePrediction> EvaluateBatch(
+        IReadOnlyList<CombatPolicyValueInput> inputs)
+    {
+        return inputs.Select(Evaluate).ToList();
     }
 }

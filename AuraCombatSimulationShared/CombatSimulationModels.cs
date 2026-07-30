@@ -970,6 +970,16 @@ public sealed class CombatBattleState
 {
     public int Turn { get; set; }
 
+    public int PlayerActionsThisTurn { get; set; }
+
+    public int PlayerEnergySpentThisTurn { get; set; }
+
+    public int EnemyHpAtTurnStart { get; set; }
+
+    public int ConsecutiveNoProgressTurns { get; set; }
+
+    public double EndTurnPurposeValue { get; set; }
+
     public CombatSimulationPhase Phase { get; set; }
 
     public CombatSimulationOutcome Outcome { get; set; }
@@ -1022,6 +1032,11 @@ public sealed class CombatBattleState
         return new CombatBattleState
         {
             Turn = Turn,
+            PlayerActionsThisTurn = PlayerActionsThisTurn,
+            PlayerEnergySpentThisTurn = PlayerEnergySpentThisTurn,
+            EnemyHpAtTurnStart = EnemyHpAtTurnStart,
+            ConsecutiveNoProgressTurns = ConsecutiveNoProgressTurns,
+            EndTurnPurposeValue = EndTurnPurposeValue,
             Phase = Phase,
             Outcome = Outcome,
             TerminationReason = TerminationReason,
@@ -1414,6 +1429,18 @@ public sealed class CombatSimulationMetrics
         new(StringComparer.OrdinalIgnoreCase);
 
     public int ForcedEndTurns { get; set; }
+
+    public int VoluntaryEndTurns { get; set; }
+
+    public int EmptyEndTurns { get; set; }
+
+    public int EndTurnsWithUnusedEnergy { get; set; }
+
+    public int UnusedEnergyAtEndTurns { get; set; }
+
+    public int SevereEndTurnMistakes { get; set; }
+
+    public int MaximumConsecutiveNoProgressTurns { get; set; }
 
     public int RuleTerminalOverrides { get; set; }
 

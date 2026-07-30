@@ -290,6 +290,128 @@ public sealed class CombatExecutionContext
     }
 }
 
+public static class CombatDecisionExecutionBindingProtocol
+{
+    public static bool TryBindToObservation(
+        CombatDecision template,
+        CombatStateObservation observation,
+        out CombatDecision bound,
+        out string reason)
+    {
+        bound = CloneDecision(template);
+        if (template == null)
+        {
+            reason = "decision is null";
+            return false;
+        }
+        if (!template.HasAction || template.Action == null)
+        {
+            reason = "";
+            return true;
+        }
+        if (observation == null
+            || string.IsNullOrWhiteSpace(observation.ObservationId))
+        {
+            reason = "current observation is unavailable";
+            return false;
+        }
+
+        var actions = (observation.Actions
+                       ?? new List<CombatActionObservation>())
+            .Where(action => action != null
+                             && string.Equals(
+                                 action.ObservationId,
+                                 observation.ObservationId,
+                                 StringComparison.Ordinal))
+            .ToList();
+        var selected = actions.FirstOrDefault(action => string.Equals(
+            action.CandidateId,
+            template.Action.CandidateId,
+            StringComparison.Ordinal));
+        if (selected == null)
+        {
+            reason = "selected candidate is no longer present in the current observation";
+            return false;
+        }
+        if (!selected.Legal)
+        {
+            reason = string.IsNullOrWhiteSpace(selected.RejectionReason)
+                ? "selected candidate is no longer legal"
+                : selected.RejectionReason;
+            return false;
+        }
+        if (string.IsNullOrWhiteSpace(selected.ActionToken))
+        {
+            reason = "selected candidate has no current execution token";
+            return false;
+        }
+
+        bound.Action = selected;
+        bound.Candidates = template.Candidates
+            .Select(candidate => CloneCandidate(
+                candidate,
+                actions.FirstOrDefault(action => string.Equals(
+                    action.CandidateId,
+                    candidate.Action?.CandidateId,
+                    StringComparison.Ordinal))
+                ?? candidate.Action))
+            .ToList();
+        reason = "";
+        return true;
+    }
+
+    private static CombatDecision CloneDecision(CombatDecision? source)
+    {
+        if (source == null)
+        {
+            return new CombatDecision();
+        }
+        return new CombatDecision
+        {
+            HasAction = source.HasAction,
+            Action = source.Action,
+            Score = source.Score,
+            Reason = source.Reason,
+            ProfileId = source.ProfileId,
+            Candidates = source.Candidates.ToList(),
+            Plan = source.Plan.ToList(),
+            PlanSummary = source.PlanSummary,
+            SearchSimulations = source.SearchSimulations,
+            SearchNodes = source.SearchNodes,
+            SearchTranspositionHits = source.SearchTranspositionHits,
+            SearchStoppedEarly = source.SearchStoppedEarly,
+            SearchBudgetTier = source.SearchBudgetTier,
+            CertifiedLoops = source.CertifiedLoops,
+            SustainableControlLoops = source.SustainableControlLoops,
+            FakeLoops = source.FakeLoops,
+            BlockedLoops = source.BlockedLoops,
+            SearchAlgorithm = source.SearchAlgorithm
+        };
+    }
+
+    private static CombatCandidateEvaluation CloneCandidate(
+        CombatCandidateEvaluation source,
+        CombatActionObservation action)
+    {
+        return new CombatCandidateEvaluation
+        {
+            Action = action,
+            Legal = source.Legal,
+            RejectionReason = source.RejectionReason,
+            Utility = source.Utility,
+            BaseRuleScore = source.BaseRuleScore,
+            RawResidualScore = source.RawResidualScore,
+            ResidualApplicability = source.ResidualApplicability,
+            AppliedResidualScore = source.AppliedResidualScore,
+            RuleScore = source.RuleScore,
+            PlanScore = source.PlanScore,
+            SearchPrior = source.SearchPrior,
+            SearchVisits = source.SearchVisits,
+            SearchDeathRisk = source.SearchDeathRisk
+        };
+    }
+}
+
 public interface IPlayerCombatObservationProvider
 {
     bool TryCapturePlayerObservation(
@@ -432,6 +554,12 @@ public static class CombatPublicFeaturePolicy
             "persistentValue",
             "damageMultiplier",
             "uncertainty",
+            "turnActionsTaken",
+            "turnEnergySpent",
+            "enemyHpAtTurnStart",
+            "consecutiveNoProgressTurns",
+            "endTurnPurposeValue",
+            "endTurnPurposeCount",
             "archetype:rebirth.score",
             "archetype:rebirth.committed",
             "archetype:rebirth.commitment",
@@ -497,6 +625,11 @@ public static class CombatPublicFeaturePolicy
             "cooldownTurns",
             "risk",
             "uncertainty",
+            "endTurnSevereMistake",
+            "endTurnSafeAlternativeCount",
+            "endTurnPlayableCardCount",
+            "endTurnUnusedEnergy",
+            "endTurnPurposeValue",
             "opensInteraction",
             "randomOutcome",
             "targetHp",

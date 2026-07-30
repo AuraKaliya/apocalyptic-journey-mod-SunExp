@@ -74,6 +74,26 @@ internal sealed class AutoBattleCandidateBundle
 
     public string CardPoolScope { get; set; } = "";
 
+    public string PartnerId { get; set; } = "";
+
+    public List<string> EnabledRewardCardPackIds { get; set; } = new();
+
+    public int PreferredDeckSizeMinimum { get; set; }
+
+    public int PreferredDeckSizeMaximum { get; set; }
+
+    public CombatFoundationTrainingSubject? TrainingSubject { get; set; }
+
+    public CombatFoundationDeclaredCoverage? DeclaredCoverage { get; set; }
+
+    public bool FoundationArtifactValidated { get; set; }
+
+    public string FoundationPackageId { get; set; } = "";
+
+    public string FoundationWorkerSha256 { get; set; } = "";
+
+    public string FoundationRulesetHash { get; set; } = "";
+
     public string ModelPurpose { get; set; } = "candidate";
 
     public double ProjectionNormalWinRate { get; set; }
@@ -106,6 +126,18 @@ internal sealed class AutoBattleModelLibraryEntry
     public string RoleId { get; set; } = "";
 
     public string CardPoolScope { get; set; } = "";
+
+    public string PartnerId { get; set; } = "";
+
+    public List<string> EnabledRewardCardPackIds { get; set; } = new();
+
+    public int PreferredDeckSizeMinimum { get; set; }
+
+    public int PreferredDeckSizeMaximum { get; set; }
+
+    public string CoverageLevel { get; set; } = "partial";
+
+    public string CoverageSummary { get; set; } = "";
 
     public string ModelPurpose { get; set; } = "candidate";
 
@@ -142,6 +174,14 @@ internal sealed class AutoBattleExternalValidationEntry
     public string SourcePath { get; set; } = "";
 
     public DateTime StagedUtc { get; set; }
+
+    public CombatFoundationTrainingSubject? TrainingSubject { get; set; }
+
+    public CombatFoundationDeclaredCoverage? DeclaredCoverage { get; set; }
+
+    public CombatModelCoverageAssessment? CoverageAssessment { get; set; }
+
+    public string WorkerProvenance { get; set; } = "";
 }
 
 internal sealed class AutoBattleTrainingSnapshotManifest
@@ -202,6 +242,25 @@ internal static class AuraToolsAutoBattleModelRuntime
                 preset.PreferredDeckSizeMinimum,
                 preset.PreferredDeckSizeMaximum);
         }
+    }
+
+    private static CombatModelRuntimeContext CurrentRuntimeContext()
+    {
+        var settings = AuraToolsConfigService.MatchExperience.AutoBattle;
+        settings.Normalize();
+        var preset = settings.GameParameters.ActivePreset;
+        return new CombatModelRuntimeContext
+        {
+            RoleId = preset.RoleId,
+            PartnerId = preset.PartnerId,
+            EnabledRewardCardPackIds =
+                preset.EnabledRewardCardPackIds.ToList(),
+            RoleSkillCardIds = preset.ResolvedRoleSkillIds.ToList(),
+            FamiliarBlessingIds =
+                preset.ResolvedFamiliarBlessingIds.ToList(),
+            PreferredDeckSizeMinimum = preset.PreferredDeckSizeMinimum,
+            PreferredDeckSizeMaximum = preset.PreferredDeckSizeMaximum
+        };
     }
     private static readonly object StatusGate = new();
     private static readonly object LibraryGate = new();
@@ -317,8 +376,15 @@ internal static class AuraToolsAutoBattleModelRuntime
                 libraryBundle.PolicyValue,
                 out diagnostic))
         {
-            diagnostic = "已加载模型库策略价值=" + libraryBundle.PolicyValue.ModelId;
-            return new ManagedCombatPolicyValueModel(libraryBundle.PolicyValue);
+            var assessment = AssessBundleCoverage(libraryBundle);
+            diagnostic = "已加载模型库策略价值="
+                         + libraryBundle.PolicyValue.ModelId
+                         + (assessment == null
+                             ? ""
+                             : "；" + assessment.Summary);
+            return CreateCoverageAwarePolicyValue(
+                libraryBundle.PolicyValue,
+                libraryBundle);
         }
 
         var snapshot = AuraSharedConfigStore.ReadOwner(
@@ -387,18 +453,11 @@ internal static class AuraToolsAutoBattleModelRuntime
         {
             return false;
         }
-        if (bundle.Residual != null)
-        {
-            residual = new BoundedLinearDecisionResidualModel(bundle.Residual);
-        }
-        if (bundle.SearchGuidance != null)
-        {
-            guidance = new BoundedTreeCombatSearchGuidanceModel(bundle.SearchGuidance);
-        }
-        if (bundle.PolicyValue != null)
-        {
-            policyValue = new ManagedCombatPolicyValueModel(bundle.PolicyValue);
-        }
+        PopulateModels(
+            bundle,
+            out residual,
+            out guidance,
+            out policyValue);
         modelId = CandidateModelId(bundle);
         diagnostic = "已加载候选原子包 " + bundle.BundleId
                      + "，训练快照=" + bundle.TrainingSnapshotId;
@@ -423,20 +482,19 @@ internal static class AuraToolsAutoBattleModelRuntime
         {
             return false;
         }
-        if (bundle.Residual != null)
-        {
-            residual = new BoundedLinearDecisionResidualModel(bundle.Residual);
-        }
-        if (bundle.SearchGuidance != null)
-        {
-            guidance = new BoundedTreeCombatSearchGuidanceModel(bundle.SearchGuidance);
-        }
-        if (bundle.PolicyValue != null)
-        {
-            policyValue = new ManagedCombatPolicyValueModel(bundle.PolicyValue);
-        }
+        PopulateModels(
+            bundle,
+            out residual,
+            out guidance,
+            out policyValue);
         modelId = CandidateModelId(bundle);
-        diagnostic = "已从模型库加载“" + LibraryDisplayName(modelId) + "”";
+        var assessment = AssessBundleCoverage(bundle);
+        diagnostic = "已从模型库加载“"
+                     + LibraryDisplayName(modelId)
+                     + "”"
+                     + (assessment == null
+                         ? ""
+                         : "；" + assessment.Summary);
         return true;
     }
 
@@ -469,10 +527,15 @@ internal static class AuraToolsAutoBattleModelRuntime
             {
                 return false;
             }
-            if (!TryValidateExternalPackageCompatibility(package!, out message))
-            {
-                return false;
-            }
+            ResolvePackageCoverage(
+                package!,
+                out var trainingSubject,
+                out var declaredCoverage);
+            var coverageAssessment =
+                CombatFoundationModelCoverageProtocol.Assess(
+                    trainingSubject,
+                    declaredCoverage,
+                    CurrentRuntimeContext());
             modelId = package!.Model!.ModelId;
             if (string.IsNullOrWhiteSpace(modelId)
                 || string.Equals(modelId, "none", StringComparison.Ordinal))
@@ -510,15 +573,22 @@ internal static class AuraToolsAutoBattleModelRuntime
                             PackageFile = packageFile,
                             PackageSha256 = packageHash,
                             SourcePath = Path.GetFullPath(path),
-                            StagedUtc = DateTime.UtcNow
+                            StagedUtc = DateTime.UtcNow,
+                            TrainingSubject = trainingSubject,
+                            DeclaredCoverage = declaredCoverage,
+                            CoverageAssessment = coverageAssessment,
+                            WorkerProvenance =
+                                DescribeWorkerProvenance(package)
                         }),
                     createBackup: true);
             }
-            message = "已暂存外部待验底模“"
+            message = "底模正确性验证通过，已解析并暂存“"
                       + (string.IsNullOrWhiteSpace(package.DisplayName)
                           ? modelId
                           : package.DisplayName)
-                      + "”；尚未加入模型库";
+                      + "”；"
+                      + coverageAssessment.Summary
+                      + "；尚未加入模型库";
             return true;
         }
         catch (Exception ex)
@@ -569,9 +639,21 @@ internal static class AuraToolsAutoBattleModelRuntime
         {
             return false;
         }
-        policyValue = new ManagedCombatPolicyValueModel(package.Model!);
+        policyValue = CreateCoverageAwarePolicyValue(
+            package.Model!,
+            package);
         modelId = package.Model!.ModelId;
-        diagnostic = "外部待验底模“" + package.DisplayName + "”";
+        ResolvePackageCoverage(
+            package,
+            out var subject,
+            out var coverage);
+        diagnostic = "外部待验底模“"
+                     + package.DisplayName
+                     + "”；"
+                     + CombatFoundationModelCoverageProtocol.Assess(
+                         subject,
+                         coverage,
+                         CurrentRuntimeContext()).Summary;
         return true;
     }
 
@@ -589,12 +671,45 @@ internal static class AuraToolsAutoBattleModelRuntime
             return false;
         }
         if (!package.Validation.Passed
+            || !package.Validation.BehaviorPassed
+            || package.Validation.SevereEndTurnMistakes != 0
             || package.Validation.InvalidCampaigns != 0)
         {
             reason = "外部底模没有通过训练阶段的正式隔离验证";
             return false;
         }
         reason = "外部底模训练与隔离验证门禁已通过";
+        return true;
+    }
+
+    public static bool PortableFoundationMeetsActivationGate(
+        string decisionProfile,
+        string modelId,
+        out string reason)
+    {
+        if (!TryReadLibraryBundle(
+                NormalizeProfile(decisionProfile),
+                modelId,
+                out var bundle,
+                out reason))
+        {
+            return false;
+        }
+        if (!string.Equals(
+                bundle.ModelPurpose,
+                "foundation",
+                StringComparison.Ordinal)
+            || !bundle.FoundationArtifactValidated
+            || bundle.PolicyValue == null)
+        {
+            reason = "所选模型不是已通过正确性验证的可移植底模";
+            return false;
+        }
+        var assessment = AssessBundleCoverage(bundle);
+        reason = "底模工件正确性验证已通过"
+                 + (assessment == null
+                     ? ""
+                     : "；" + assessment.Summary);
         return true;
     }
 
@@ -619,6 +734,25 @@ internal static class AuraToolsAutoBattleModelRuntime
             package.PackageId);
         bundle.BundleId = package.PackageId;
         bundle.ModelPurpose = "foundation";
+        ResolvePackageCoverage(
+            package,
+            out var trainingSubject,
+            out var declaredCoverage);
+        bundle.RoleId = package.RoleId;
+        bundle.PartnerId = package.PartnerId;
+        bundle.EnabledRewardCardPackIds =
+            package.EnabledRewardCardPackIds.ToList();
+        bundle.PreferredDeckSizeMinimum =
+            package.PreferredDeckSizeMinimum;
+        bundle.PreferredDeckSizeMaximum =
+            package.PreferredDeckSizeMaximum;
+        bundle.CardPoolScope = package.CardPoolScope;
+        bundle.TrainingSubject = trainingSubject;
+        bundle.DeclaredCoverage = declaredCoverage;
+        bundle.FoundationArtifactValidated = true;
+        bundle.FoundationPackageId = package.PackageId;
+        bundle.FoundationWorkerSha256 = package.WorkerSha256;
+        bundle.FoundationRulesetHash = package.RulesetHash;
         bundle.ProjectionNormalWinRate =
             package.Validation.NormalWinRate;
         bundle.ProjectionAdvancedWinRate =
@@ -632,7 +766,11 @@ internal static class AuraToolsAutoBattleModelRuntime
         bundle.PolicyValue = package.Model;
         promotedModelId = CandidateModelId(bundle);
         RegisterLibraryBundle(bundle, promotedModelId);
-        message = "外部底模已加入模型库，默认保持关闭";
+        message = "外部底模已加入模型库，默认保持关闭；"
+                  + CombatFoundationModelCoverageProtocol.Assess(
+                      trainingSubject,
+                      declaredCoverage,
+                      CurrentRuntimeContext()).Summary;
         return true;
     }
 
@@ -689,8 +827,9 @@ internal static class AuraToolsAutoBattleModelRuntime
                 out var externalPackage,
                 out diagnostic))
         {
-            policyValue = new ManagedCombatPolicyValueModel(
-                externalPackage.Model!);
+            policyValue = CreateCoverageAwarePolicyValue(
+                externalPackage.Model!,
+                externalPackage);
             modelId = externalPackage.Model!.ModelId;
             artifactHash = HashBytes(
                     Encoding.UTF8.GetBytes(
@@ -741,16 +880,20 @@ internal static class AuraToolsAutoBattleModelRuntime
                     NormalizeProfile(item.Profile),
                     profile,
                     StringComparison.Ordinal)
-                               && string.Equals(
-                                   item.RoleId,
-                                   CurrentRoleId,
-                                   StringComparison.OrdinalIgnoreCase)
-                               && string.Equals(
-                                   item.CardPoolScope,
-                                   CurrentCardPoolScope,
-                                   StringComparison.Ordinal))
+                               && (string.Equals(
+                                       item.ModelPurpose,
+                                       "foundation",
+                                       StringComparison.Ordinal)
+                                   || string.Equals(
+                                       item.RoleId,
+                                       CurrentRoleId,
+                                       StringComparison.OrdinalIgnoreCase)
+                                   && string.Equals(
+                                       item.CardPoolScope,
+                                       CurrentCardPoolScope,
+                                       StringComparison.Ordinal)))
                 .OrderByDescending(item => item.CreatedUtc)
-                .Select(CloneLibraryEntry)
+                .Select(CloneLibraryEntryForCurrentContext)
                 .ToArray();
         }
     }
@@ -895,7 +1038,10 @@ internal static class AuraToolsAutoBattleModelRuntime
         {
             throw new InvalidOperationException("底模策略价值网络无效：" + reason);
         }
-        if (validation == null || !validation.Passed)
+        if (validation == null
+            || !validation.Passed
+            || !validation.BehaviorPassed
+            || validation.SevereEndTurnMistakes != 0)
         {
             throw new InvalidOperationException(
                 "底模尚未通过正式隔离验收线：普通难度须 200/200，"
@@ -2311,12 +2457,20 @@ internal static class AuraToolsAutoBattleModelRuntime
         string snapshotId,
         string snapshotHash)
     {
+        var settings = AuraToolsConfigService.MatchExperience.AutoBattle;
+        settings.Normalize();
+        var preset = settings.GameParameters.ActivePreset;
         return new AutoBattleCandidateBundle
         {
             BundleId = NewRunId("candidate"),
             Profile = profile,
             RoleId = CurrentRoleId,
             CardPoolScope = CurrentCardPoolScope,
+            PartnerId = preset.PartnerId,
+            EnabledRewardCardPackIds =
+                preset.EnabledRewardCardPackIds.ToList(),
+            PreferredDeckSizeMinimum = preset.PreferredDeckSizeMinimum,
+            PreferredDeckSizeMaximum = preset.PreferredDeckSizeMaximum,
             GeneratedUtc = DateTime.UtcNow,
             TrainingSnapshotId = snapshotId ?? "",
             TrainingSnapshotHash = snapshotHash ?? ""
@@ -2326,6 +2480,10 @@ internal static class AuraToolsAutoBattleModelRuntime
     private static bool MatchesCurrentRoleScope(AutoBattleCandidateBundle bundle)
     {
         return string.Equals(
+                   bundle.ModelPurpose,
+                   "foundation",
+                   StringComparison.Ordinal)
+               || string.Equals(
                    bundle.RoleId,
                    CurrentRoleId,
                    StringComparison.OrdinalIgnoreCase)
@@ -2427,7 +2585,43 @@ internal static class AuraToolsAutoBattleModelRuntime
             : new BoundedTreeCombatSearchGuidanceModel(bundle.SearchGuidance);
         policyValue = bundle.PolicyValue == null
             ? NullCombatPolicyValueModel.Instance
-            : new ManagedCombatPolicyValueModel(bundle.PolicyValue);
+            : CreateCoverageAwarePolicyValue(bundle.PolicyValue, bundle);
+    }
+
+    private static ICombatPolicyValueModel CreateCoverageAwarePolicyValue(
+        CombatPolicyValueNetworkDefinition definition,
+        CombatFoundationModelPackage package)
+    {
+        ResolvePackageCoverage(
+            package,
+            out var subject,
+            out var coverage);
+        return new CoverageAwareCombatPolicyValueModel(
+            new ManagedCombatPolicyValueModel(definition),
+            subject,
+            coverage,
+            CurrentRuntimeContext());
+    }
+
+    private static ICombatPolicyValueModel CreateCoverageAwarePolicyValue(
+        CombatPolicyValueNetworkDefinition definition,
+        AutoBattleCandidateBundle bundle)
+    {
+        if (!string.Equals(
+                bundle.ModelPurpose,
+                "foundation",
+                StringComparison.Ordinal)
+            || bundle.TrainingSubject == null)
+        {
+            return new ManagedCombatPolicyValueModel(definition);
+        }
+        return new CoverageAwareCombatPolicyValueModel(
+            new ManagedCombatPolicyValueModel(definition),
+            bundle.TrainingSubject,
+            bundle.DeclaredCoverage
+            ?? CombatFoundationModelCoverageProtocol.LegacyUnknownCoverage(
+                bundle.TrainingSubject),
+            CurrentRuntimeContext());
     }
 
     private static void RegisterLibraryBundle(
@@ -2473,6 +2667,17 @@ internal static class AuraToolsAutoBattleModelRuntime
             existing.Profile = NormalizeProfile(bundle.Profile);
             existing.RoleId = bundle.RoleId;
             existing.CardPoolScope = bundle.CardPoolScope;
+            existing.PartnerId = bundle.PartnerId;
+            existing.EnabledRewardCardPackIds =
+                bundle.EnabledRewardCardPackIds.ToList();
+            existing.PreferredDeckSizeMinimum =
+                bundle.PreferredDeckSizeMinimum;
+            existing.PreferredDeckSizeMaximum =
+                bundle.PreferredDeckSizeMaximum;
+            var coverage = AssessBundleCoverage(bundle);
+            existing.CoverageLevel = coverage?.Level ?? "exact-local";
+            existing.CoverageSummary = coverage?.Summary
+                                       ?? "当前角色与卡池专属模型";
             existing.ModelPurpose = bundle.ModelPurpose;
             existing.ProjectionNormalWinRate = bundle.ProjectionNormalWinRate;
             existing.ProjectionAdvancedWinRate = bundle.ProjectionAdvancedWinRate;
@@ -2505,14 +2710,18 @@ internal static class AuraToolsAutoBattleModelRuntime
                         NormalizeProfile(item.Profile),
                         profile,
                         StringComparison.Ordinal)
-                    && string.Equals(
-                        item.RoleId,
-                        CurrentRoleId,
-                        StringComparison.OrdinalIgnoreCase)
-                    && string.Equals(
-                        item.CardPoolScope,
-                        CurrentCardPoolScope,
-                        StringComparison.Ordinal));
+                    && (string.Equals(
+                            item.ModelPurpose,
+                            "foundation",
+                            StringComparison.Ordinal)
+                        || string.Equals(
+                            item.RoleId,
+                            CurrentRoleId,
+                            StringComparison.OrdinalIgnoreCase)
+                        && string.Equals(
+                            item.CardPoolScope,
+                            CurrentCardPoolScope,
+                            StringComparison.Ordinal)));
             }
             if (entry == null)
             {
@@ -2615,13 +2824,11 @@ internal static class AuraToolsAutoBattleModelRuntime
                 || !string.Equals(
                     package.Model!.ModelId,
                     entry.ModelId,
-                    StringComparison.Ordinal)
-                || !TryValidateExternalPackageCompatibility(
-                    package,
-                    out reason))
+                    StringComparison.Ordinal))
             {
                 return false;
             }
+            ResolvePackageCoverage(package, out _, out _);
             return true;
         }
         catch (Exception ex)
@@ -2631,57 +2838,74 @@ internal static class AuraToolsAutoBattleModelRuntime
         }
     }
 
-    private static bool TryValidateExternalPackageCompatibility(
+    private static void ResolvePackageCoverage(
         CombatFoundationModelPackage package,
-        out string reason)
+        out CombatFoundationTrainingSubject subject,
+        out CombatFoundationDeclaredCoverage coverage)
     {
-        if (!AuraToolsAutoBattleSimulationRuntime.TryResolveFoundationPackage(
+        subject = package.TrainingSubject
+                  ?? CombatFoundationModelCoverageProtocol.FromLegacyPackage(
+                      package);
+        subject = CombatFoundationModelCoverageProtocol.Normalize(subject);
+        if (package.DeclaredCoverage != null)
+        {
+            coverage = package.DeclaredCoverage;
+            return;
+        }
+        if (AuraToolsAutoBattleSimulationRuntime.TryResolveFoundationPackage(
                 out var campaign,
                 out var ruleset,
-                out reason))
+                out _))
         {
-            return false;
+            coverage =
+                CombatFoundationModelCoverageProtocol.CreateDeclaredCoverage(
+                    campaign,
+                    ruleset,
+                    subject);
+            return;
         }
+        coverage =
+            CombatFoundationModelCoverageProtocol.LegacyUnknownCoverage(
+                subject);
+    }
+
+    private static CombatModelCoverageAssessment? AssessBundleCoverage(
+        AutoBattleCandidateBundle bundle)
+    {
         if (!string.Equals(
-                package.RulesetHash,
-                ruleset.RulesetHash,
+                bundle.ModelPurpose,
+                "foundation",
                 StringComparison.Ordinal)
-            || !string.Equals(
-                package.RoleId,
-                CurrentRoleId,
-                StringComparison.OrdinalIgnoreCase)
-            || !string.Equals(
-                package.CardPoolScope,
-                CurrentCardPoolScope,
-                StringComparison.Ordinal)
-            || !string.Equals(
-                package.Compatibility.CampaignId,
-                campaign.CampaignId,
-                StringComparison.Ordinal)
-            || !string.Equals(
-                package.Compatibility.CampaignVersion,
-                campaign.CampaignVersion,
-                StringComparison.Ordinal))
+            || bundle.TrainingSubject == null)
         {
-            reason = "外部底模与当前角色、使魔、卡包、卡组倾向或冻结规则不兼容";
-            return false;
+            return null;
         }
+        return CombatFoundationModelCoverageProtocol.Assess(
+            bundle.TrainingSubject,
+            bundle.DeclaredCoverage
+            ?? CombatFoundationModelCoverageProtocol.LegacyUnknownCoverage(
+                bundle.TrainingSubject),
+            CurrentRuntimeContext());
+    }
+
+    private static string DescribeWorkerProvenance(
+        CombatFoundationModelPackage package)
+    {
         var workerPath = AuraToolsFoundationWorkerRuntime.ExecutablePath;
-        if (!string.IsNullOrWhiteSpace(package.WorkerSha256)
-            && File.Exists(workerPath))
+        if (string.IsNullOrWhiteSpace(package.WorkerSha256))
         {
-            var currentWorkerHash = HashFile(workerPath);
-            if (!string.Equals(
-                    currentWorkerHash,
-                    package.WorkerSha256,
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                reason = "外部底模由不同版本的训练 Worker 生成";
-                return false;
-            }
+            return "训练 Worker 未记录；模型语义协议已验证";
         }
-        reason = "";
-        return true;
+        if (!File.Exists(workerPath))
+        {
+            return "训练 Worker SHA256=" + package.WorkerSha256;
+        }
+        return string.Equals(
+            HashFile(workerPath),
+            package.WorkerSha256,
+            StringComparison.OrdinalIgnoreCase)
+            ? "训练 Worker 与本机一致"
+            : "训练 Worker 与本机不同；仅作为来源提示，不影响导入";
     }
 
     private static string LibraryDisplayName(string modelId)
@@ -2727,12 +2951,59 @@ internal static class AuraToolsAutoBattleModelRuntime
             Profile = source.Profile,
             RoleId = source.RoleId,
             CardPoolScope = source.CardPoolScope,
+            PartnerId = source.PartnerId,
+            EnabledRewardCardPackIds =
+                source.EnabledRewardCardPackIds.ToList(),
+            PreferredDeckSizeMinimum = source.PreferredDeckSizeMinimum,
+            PreferredDeckSizeMaximum = source.PreferredDeckSizeMaximum,
+            CoverageLevel = source.CoverageLevel,
+            CoverageSummary = source.CoverageSummary,
             ModelPurpose = source.ModelPurpose,
             ProjectionNormalWinRate = source.ProjectionNormalWinRate,
             ProjectionAdvancedWinRate = source.ProjectionAdvancedWinRate,
             BundleFile = source.BundleFile,
             CreatedUtc = source.CreatedUtc
         };
+    }
+
+    private static AutoBattleModelLibraryEntry
+        CloneLibraryEntryForCurrentContext(
+            AutoBattleModelLibraryEntry source)
+    {
+        var clone = CloneLibraryEntry(source);
+        if (!string.Equals(
+                clone.ModelPurpose,
+                "foundation",
+                StringComparison.Ordinal))
+        {
+            return clone;
+        }
+        var subject = new CombatFoundationTrainingSubject
+        {
+            RoleId = clone.RoleId,
+            PartnerId = clone.PartnerId,
+            EnabledRewardCardPackIds =
+                clone.EnabledRewardCardPackIds.ToList(),
+            PreferredDeckSizeMinimum = Math.Max(
+                1,
+                clone.PreferredDeckSizeMinimum),
+            PreferredDeckSizeMaximum = Math.Max(
+                Math.Max(1, clone.PreferredDeckSizeMinimum),
+                clone.PreferredDeckSizeMaximum)
+        };
+        var assessment = CombatFoundationModelCoverageProtocol.Assess(
+            subject,
+            new CombatFoundationDeclaredCoverage
+            {
+                EntityCoverageKnown = !string.Equals(
+                    clone.CoverageLevel,
+                    "legacy",
+                    StringComparison.OrdinalIgnoreCase)
+            },
+            CurrentRuntimeContext());
+        clone.CoverageLevel = assessment.Level;
+        clone.CoverageSummary = assessment.Summary;
+        return clone;
     }
 
     private static string ModelLibraryDirectory()

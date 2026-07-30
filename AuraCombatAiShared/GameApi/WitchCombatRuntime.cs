@@ -35,6 +35,14 @@ public sealed class WitchCombatRuntime :
     private int shuffleEpoch;
     private long trackedMechanicBattleSessionId;
     private int resurrectionCountBaseline;
+    private long trackedTurnBattleSessionId;
+    private int trackedActionsThisTurn;
+    private int trackedEnergySpentThisTurn;
+    private int trackedEnemyHpAtTurnStart;
+    private int trackedConsecutiveNoProgressTurns;
+    private int lastObservedEnemyHp;
+    private bool beginNewTurnOnNextObservation;
+    private double lastObservedEndTurnPurposeValue;
 
     public bool TryCapture(out CombatStateObservation observation, out string reason)
     {
@@ -78,6 +86,8 @@ public sealed class WitchCombatRuntime :
         AddEnemiesAndNativeThreat(observation, capturedExecutionContext);
         AddCards(observation, fightUi, capturedExecutionContext);
         AddSkills(observation, fightUi, capturedExecutionContext);
+        ObserveTurnEconomy(observation);
+        ObserveEndTurnPurpose(playerStatus, observation);
         ObserveDeck(observation);
         ObservePublicMechanicState(playerStatus, observation);
         if (CombatAiRegistry.TryResolveThreat(observation, out var providedThreat))
@@ -150,13 +160,28 @@ public sealed class WitchCombatRuntime :
                     }
 
                     fightUi.turnButton.onClick.Invoke();
+                    RecordAcceptedAction(action);
                     return CombatExecutionResult.Success("end turn");
 
                 case CombatActionKind.PlayCard:
-                    return ExecuteCard(action, binding, fightUi);
+                {
+                    var result = ExecuteCard(action, binding, fightUi);
+                    if (result.Accepted)
+                    {
+                        RecordAcceptedAction(action);
+                    }
+                    return result;
+                }
 
                 case CombatActionKind.UseSkill:
-                    return ExecuteSkill(action, binding);
+                {
+                    var result = ExecuteSkill(action, binding);
+                    if (result.Accepted)
+                    {
+                        RecordAcceptedAction(action);
+                    }
+                    return result;
+                }
 
                 default:
                     return CombatExecutionResult.Rejected("unsupported action kind");
@@ -166,6 +191,92 @@ public sealed class WitchCombatRuntime :
         {
             return CombatExecutionResult.Rejected("execution failed: " + ex.Message);
         }
+    }
+
+    private void ObserveTurnEconomy(CombatStateObservation state)
+    {
+        var enemyHp = state.Enemies.Sum(enemy => Math.Max(0, enemy.CurrentHp));
+        if (trackedTurnBattleSessionId != state.BattleSessionId)
+        {
+            trackedTurnBattleSessionId = state.BattleSessionId;
+            trackedActionsThisTurn = 0;
+            trackedEnergySpentThisTurn = 0;
+            trackedEnemyHpAtTurnStart = enemyHp;
+            trackedConsecutiveNoProgressTurns = 0;
+            beginNewTurnOnNextObservation = false;
+        }
+        else if (beginNewTurnOnNextObservation)
+        {
+            trackedActionsThisTurn = 0;
+            trackedEnergySpentThisTurn = 0;
+            trackedEnemyHpAtTurnStart = enemyHp;
+            beginNewTurnOnNextObservation = false;
+        }
+
+        lastObservedEnemyHp = enemyHp;
+        state.Features[CombatTurnFeatureNames.ActionsTakenThisTurn] =
+            trackedActionsThisTurn;
+        state.Features[CombatTurnFeatureNames.EnergySpentThisTurn] =
+            trackedEnergySpentThisTurn;
+        state.Features[CombatTurnFeatureNames.EnemyHpAtTurnStart] =
+            trackedEnemyHpAtTurnStart;
+        state.Features[CombatTurnFeatureNames.ConsecutiveNoProgressTurns] =
+            trackedConsecutiveNoProgressTurns;
+    }
+
+    private void ObserveEndTurnPurpose(
+        StatusManager playerStatus,
+        CombatStateObservation state)
+    {
+        var purposeValue = 0d;
+        try
+        {
+            foreach (var buff in playerStatus.GetBuffs() ?? Array.Empty<IBuffItem>())
+            {
+                purposeValue += WitchCombatValueEstimator.EstimateEndTurnPurpose(
+                    buff?.buffConfig?.dataConfig);
+            }
+        }
+        catch
+        {
+            // A malformed runtime buff must not disable combat observation.
+        }
+
+        try
+        {
+            foreach (var relic in ScriptExecutor.PlayerInfo.RelicList
+                         ?? new List<IDataConfig>())
+            {
+                purposeValue += WitchCombatValueEstimator.EstimateEndTurnPurpose(relic);
+            }
+        }
+        catch
+        {
+            // PlayerInfo may still be initializing at the start of combat.
+        }
+
+        lastObservedEndTurnPurposeValue = Math.Max(0d, purposeValue);
+        state.Features[CombatTurnFeatureNames.EndTurnPurposeValue] =
+            lastObservedEndTurnPurposeValue;
+        state.Features[CombatTurnFeatureNames.EndTurnPurposeCount] =
+            lastObservedEndTurnPurposeValue > 0d ? 1d : 0d;
+    }
+
+    private void RecordAcceptedAction(CombatActionObservation action)
+    {
+        if (action.Kind == CombatActionKind.EndTurn)
+        {
+            var madeProgress = lastObservedEnemyHp < trackedEnemyHpAtTurnStart;
+            trackedConsecutiveNoProgressTurns =
+                madeProgress || lastObservedEndTurnPurposeValue > 0d
+                    ? 0
+                    : trackedConsecutiveNoProgressTurns + 1;
+            beginNewTurnOnNextObservation = true;
+            return;
+        }
+
+        trackedActionsThisTurn++;
+        trackedEnergySpentThisTurn += Math.Max(0, action.Cost);
     }
 
     public static bool IsPlayerActionWindow(FightUI fightUi)
@@ -682,6 +793,7 @@ public sealed class WitchCombatRuntime :
                 observed.DefinitionId = WitchCombatValueEstimator.IdOf(
                     ReadMember(enemy, "dataConfig", "DataConfig") as IDataConfig);
                 observed.Attack = ReadNumber(enemy, "Attack");
+                observed.Features["attack"] = Math.Max(0d, observed.Attack);
                 state.Enemies.Add(observed);
                 context.BindActor(observed.RuntimeId, status);
                 AddEnemyThreat(state, enemy, observed);
@@ -932,6 +1044,9 @@ public sealed class WitchCombatRuntime :
         }
 
         var enemyConfig = ReadMember(enemy, "dataConfig", "DataConfig") as IDataConfig;
+        observed.Features["actionCount"] = Math.Max(
+            1d,
+            ReadNumber(enemy, "ActionCount", "MaxActionCount"));
         state.Threat.IntentPoolSize += CountIntentPool(enemyConfig);
         if (currentCount == 0 && observed.Attack > 0d)
         {
@@ -1034,7 +1149,8 @@ public sealed class WitchCombatRuntime :
             if (id.IndexOf("frenzy", StringComparison.OrdinalIgnoreCase) >= 0
                 || id.IndexOf("keenedge", StringComparison.OrdinalIgnoreCase) >= 0
                 || id.IndexOf("counterattack", StringComparison.OrdinalIgnoreCase) >= 0
-                || id.IndexOf("thorns", StringComparison.OrdinalIgnoreCase) >= 0)
+                || id.IndexOf("thorns", StringComparison.OrdinalIgnoreCase) >= 0
+                || id.IndexOf("extraordinary", StringComparison.OrdinalIgnoreCase) >= 0)
             {
                 observed.Features["escalationPressure"] =
                     observed.Features.TryGetValue(
@@ -1314,6 +1430,16 @@ public static class WitchCombatValueEstimator
     private static readonly string[] CostReductionTokens = { "reducecost", "costreduce", "expendreduce", "excostreduce" };
     private static readonly string[] CardGenerationTokens = { "createcard", "addcard", "generatecard", "getcard" };
     private static readonly string[] CooldownTokens = { "cooldown", "skillcd", "cdturn" };
+
+    public static double EstimateEndTurnPurpose(IDataConfig? config)
+    {
+        if (config == null)
+        {
+            return 0d;
+        }
+        return CombatEndTurnSafety.ScoreNativeEndTurnPurpose(
+            CombinedScript(config));
+    }
 
     public static CombatActionSemantics Estimate(
         IDataConfig? config,

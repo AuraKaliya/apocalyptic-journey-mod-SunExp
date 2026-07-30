@@ -397,6 +397,7 @@ public static class CombatFoundationWorkerJobFactory
                 PreflightSeedStart = parameters.TrainingSeedStart,
                 MaximumDegreeOfParallelism =
                     parameters.MaximumDegreeOfParallelism,
+                RetainValidationRunDetails = false,
                 EnableEarlyValidationStop =
                     parameters.EnableEarlyValidationStop,
                 EnableCurriculum = parameters.EnableCurriculum,
@@ -518,6 +519,8 @@ public static class CombatFoundationModelPackageProtocol
             || !training.Success
             || !training.AcceptancePassed
             || !training.Validation.Passed
+            || !training.Validation.BehaviorPassed
+            || training.Validation.SevereEndTurnMistakes != 0
             || training.Champion == null
             || !string.Equals(
                 result.CompletionKind,
@@ -530,6 +533,14 @@ public static class CombatFoundationModelPackageProtocol
         var model = training.Champion;
         var campaign = job.Request.TrainingCampaign;
         var player = campaign.Player ?? new CombatPlayerSetup();
+        var trainingSubject =
+            CombatFoundationModelCoverageProtocol.CreateTrainingSubject(
+                campaign);
+        var declaredCoverage =
+            CombatFoundationModelCoverageProtocol.CreateDeclaredCoverage(
+                campaign,
+                job.Ruleset ?? new CombatRulesetDocument(),
+                trainingSubject);
         var cardPoolScope = BuildCardPoolScope(
             player.PartnerId,
             campaign.EnabledRewardCardPackIds,
@@ -552,7 +563,12 @@ public static class CombatFoundationModelPackageProtocol
             GameParameterPresetId = player.GameParameterPresetId ?? "",
             GameParameterHash = player.GameParameterHash ?? "",
             EnabledRewardCardPackIds =
-                campaign.EnabledRewardCardPackIds.ToList(),
+                campaign.EnabledRewardCardPackIds
+                    .Where(item => !string.IsNullOrWhiteSpace(item))
+                    .Select(item => item.Trim())
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .OrderBy(item => item, StringComparer.OrdinalIgnoreCase)
+                    .ToList(),
             StartingDeckHash = HashIds(player.Deck, preserveOrder: true),
             PreferredDeckSizeMinimum = campaign.TargetDeckSizeMinimum,
             PreferredDeckSizeMaximum = campaign.TargetDeckSizeMaximum,
@@ -563,6 +579,8 @@ public static class CombatFoundationModelPackageProtocol
             RulesetHash = result.RulesetHash,
             Compatibility = training.Compatibility,
             Validation = training.Validation,
+            TrainingSubject = trainingSubject,
+            DeclaredCoverage = declaredCoverage,
             Model = model
         };
     }
@@ -624,6 +642,8 @@ public static class CombatFoundationModelPackageProtocol
         }
         if (package.Validation == null
             || !package.Validation.Passed
+            || !package.Validation.BehaviorPassed
+            || package.Validation.SevereEndTurnMistakes != 0
             || package.Validation.InvalidCampaigns != 0)
         {
             diagnostic = "底模包没有通过正式隔离验证";
@@ -689,6 +709,44 @@ public static class CombatFoundationModelPackageProtocol
             diagnostic = "底模包规则集哈希不一致";
             return false;
         }
+        if (package.TrainingSubject != null)
+        {
+            var subject = CombatFoundationModelCoverageProtocol.Normalize(
+                package.TrainingSubject);
+            if (!string.Equals(
+                    subject.RoleId,
+                    package.RoleId,
+                    StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(
+                    subject.PartnerId,
+                    package.PartnerId,
+                    StringComparison.OrdinalIgnoreCase)
+                || !string.Equals(
+                    subject.GameParameterPresetId,
+                    package.GameParameterPresetId,
+                    StringComparison.Ordinal)
+                || !string.Equals(
+                    subject.GameParameterHash,
+                    package.GameParameterHash,
+                    StringComparison.Ordinal)
+                || subject.PreferredDeckSizeMinimum
+                   != package.PreferredDeckSizeMinimum
+                || subject.PreferredDeckSizeMaximum
+                   != package.PreferredDeckSizeMaximum
+                || !SameIds(
+                    subject.EnabledRewardCardPackIds,
+                    package.EnabledRewardCardPackIds))
+            {
+                diagnostic = "底模包训练主体元数据与兼容字段不一致";
+                return false;
+            }
+        }
+        if (package.DeclaredCoverage != null
+            && package.DeclaredCoverage.SchemaVersion != 1)
+        {
+            diagnostic = "底模包训练覆盖清单协议不兼容";
+            return false;
+        }
         diagnostic = "";
         return true;
     }
@@ -745,6 +803,16 @@ public static class CombatFoundationModelPackageProtocol
             ? normalized
             : "balanced";
     }
+
+    private static bool SameIds(
+        IEnumerable<string>? left,
+        IEnumerable<string>? right)
+    {
+        return new HashSet<string>(
+                   left ?? Array.Empty<string>(),
+                   StringComparer.OrdinalIgnoreCase)
+               .SetEquals(right ?? Array.Empty<string>());
+    }
 }
 
 public sealed class CombatFoundationModelPackage
@@ -795,6 +863,10 @@ public sealed class CombatFoundationModelPackage
         new();
 
     public CombatCampaignFoundationValidation Validation { get; set; } = new();
+
+    public CombatFoundationTrainingSubject? TrainingSubject { get; set; }
+
+    public CombatFoundationDeclaredCoverage? DeclaredCoverage { get; set; }
 
     public CombatPolicyValueNetworkDefinition? Model { get; set; }
 }

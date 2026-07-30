@@ -108,6 +108,8 @@ public sealed class CombatCampaignFoundationTrainingRequest
 
     public int MaximumDegreeOfParallelism { get; set; } = 1;
 
+    public bool RetainValidationRunDetails { get; set; } = true;
+
     public bool EnableEarlyValidationStop { get; set; } = true;
 
     public bool EnableCurriculum { get; set; } = true;
@@ -633,6 +635,20 @@ public sealed class CombatCampaignFoundationValidation
     public double NormalWinRate { get; set; }
 
     public double AdvancedWinRate { get; set; }
+
+    public int VoluntaryEndTurns { get; set; }
+
+    public int EmptyEndTurns { get; set; }
+
+    public int EndTurnsWithUnusedEnergy { get; set; }
+
+    public int UnusedEnergyAtEndTurns { get; set; }
+
+    public int SevereEndTurnMistakes { get; set; }
+
+    public int MaximumConsecutiveNoProgressTurns { get; set; }
+
+    public bool BehaviorPassed { get; set; }
 
     public bool Passed { get; set; }
 
@@ -2522,6 +2538,12 @@ public sealed class CombatCampaignFoundationTrainer
                 workingChampion,
                 modelTraining: null));
         var earlyStopReason = "";
+        var validationVoluntaryEndTurns = 0;
+        var validationEmptyEndTurns = 0;
+        var validationEndTurnsWithUnusedEnergy = 0;
+        var validationUnusedEnergyAtEndTurns = 0;
+        var validationSevereEndTurnMistakes = 0;
+        var validationMaximumConsecutiveNoProgressTurns = 0;
         foreach (var difficulty in new[] { "normal", "advanced" })
         {
             if (!string.IsNullOrWhiteSpace(earlyStopReason))
@@ -2564,12 +2586,6 @@ public sealed class CombatCampaignFoundationTrainer
                             telemetry,
                             "validation:" + difficulty,
                             cancellationToken);
-                        for (var battleIndex = 0;
-                             battleIndex < validationRun.Battles.Count - 1;
-                             battleIndex++)
-                        {
-                            validationRun.Battles[battleIndex].Events.Clear();
-                        }
                         difficultyRuns[index] = validationRun;
                         ReportProgress(
                             request,
@@ -2579,9 +2595,60 @@ public sealed class CombatCampaignFoundationTrainer
                             totalCampaigns,
                             "最终隔离验证：" + difficulty);
                     });
+                for (var batchOffset = 0;
+                     batchOffset < batchCount;
+                     batchOffset++)
+                {
+                    var index = batchStart + batchOffset;
+                    var campaign = difficultyRuns[index];
+                    if (campaign == null)
+                    {
+                        continue;
+                    }
+                    RecordCase(
+                        result,
+                        campaign,
+                        "validation",
+                        iterations,
+                        "champion",
+                        ruleset.RulesetHash,
+                        request.DecisionProfile,
+                        result.Champion?.ModelId ?? "",
+                        episodes: null,
+                        request: request);
+                    result.TerminalConsistencyViolations +=
+                        CountTerminalConsistencyViolations(campaign);
+                    foreach (var battle in campaign.Battles)
+                    {
+                        validationVoluntaryEndTurns +=
+                            battle.Metrics.VoluntaryEndTurns;
+                        validationEmptyEndTurns +=
+                            battle.Metrics.EmptyEndTurns;
+                        validationEndTurnsWithUnusedEnergy +=
+                            battle.Metrics.EndTurnsWithUnusedEnergy;
+                        validationUnusedEnergyAtEndTurns +=
+                            battle.Metrics.UnusedEnergyAtEndTurns;
+                        validationSevereEndTurnMistakes +=
+                            battle.Metrics.SevereEndTurnMistakes;
+                        validationMaximumConsecutiveNoProgressTurns = Math.Max(
+                            validationMaximumConsecutiveNoProgressTurns,
+                            battle.Metrics.MaximumConsecutiveNoProgressTurns);
+                    }
+                    if (!request.RetainValidationRunDetails)
+                    {
+                        difficultyRuns[index] =
+                            CompactValidationRun(campaign);
+                    }
+                }
                 if (!request.EnableEarlyValidationStop)
                 {
                     continue;
+                }
+                if (validationSevereEndTurnMistakes > 0)
+                {
+                    earlyStopReason =
+                        "隔离验收检测到严重结束回合失误；该指标必须为 0";
+                    break;
                 }
                 var completedRuns = difficultyRuns
                     .Where(item => item != null)
@@ -2614,20 +2681,6 @@ public sealed class CombatCampaignFoundationTrainer
                 difficultyRuns
                     .Where(item => item != null)
                     .Select(item => item!));
-        }
-        foreach (var campaign in result.ValidationRuns)
-        {
-            RecordCase(
-                result,
-                campaign,
-                "validation",
-                iterations,
-                "champion",
-                ruleset.RulesetHash,
-                request.DecisionProfile,
-                result.Champion?.ModelId ?? "",
-                episodes: null,
-                request: request);
         }
 
         var normalRuns = result.ValidationRuns.Where(item =>
@@ -2662,12 +2715,19 @@ public sealed class CombatCampaignFoundationTrainer
             AdvancedWinRate = advancedRuns.Count == 0
                 ? 0d
                 : advancedRuns.Count(item => item.FinalBossVictory) / (double)advancedRuns.Count,
+            VoluntaryEndTurns = validationVoluntaryEndTurns,
+            EmptyEndTurns = validationEmptyEndTurns,
+            EndTurnsWithUnusedEnergy = validationEndTurnsWithUnusedEnergy,
+            UnusedEnergyAtEndTurns = validationUnusedEnergyAtEndTurns,
+            SevereEndTurnMistakes = validationSevereEndTurnMistakes,
+            MaximumConsecutiveNoProgressTurns =
+                validationMaximumConsecutiveNoProgressTurns,
+            BehaviorPassed = validationSevereEndTurnMistakes == 0,
             EarlyStopped = !string.IsNullOrWhiteSpace(earlyStopReason),
             EarlyStopReason = earlyStopReason
         };
-        result.TerminalConsistencyViolations +=
-            result.ValidationRuns.Sum(CountTerminalConsistencyViolations);
         result.Validation.Passed = result.Validation.InvalidCampaigns == 0
+                                   && result.Validation.BehaviorPassed
                                    && result.TerminalConsistencyViolations == 0
                                    && result.FeatureLeakageViolations == 0
                                    && result.Validation.NormalVictories
@@ -2728,6 +2788,44 @@ public sealed class CombatCampaignFoundationTrainer
         telemetry.ApplyTo(result);
         FinalizeCaseAnalysis(result);
         return result;
+    }
+
+    private static CombatCampaignResult CompactValidationRun(
+        CombatCampaignResult source)
+    {
+        return new CombatCampaignResult
+        {
+            CampaignId = source.CampaignId,
+            CampaignVersion = source.CampaignVersion,
+            DifficultyId = source.DifficultyId,
+            WorldSeed = source.WorldSeed,
+            RoleId = source.RoleId,
+            PartnerId = source.PartnerId,
+            GameParameterPresetId = source.GameParameterPresetId,
+            GameParameterHash = source.GameParameterHash,
+            SkillCardIds = new List<string>(
+                source.SkillCardIds ?? new List<string>()),
+            FamiliarBlessingIds =
+                new List<string>(
+                    source.FamiliarBlessingIds ?? new List<string>()),
+            EnabledRewardCardPackIds =
+                new List<string>(
+                    source.EnabledRewardCardPackIds ?? new List<string>()),
+            PlanHash = source.PlanHash,
+            PolicyId = source.PolicyId,
+            ReachedFinalBoss = source.ReachedFinalBoss,
+            FinalBossVictory = source.FinalBossVictory,
+            CampaignVictory = source.CampaignVictory,
+            Invalid = source.Invalid,
+            CompletedBattles = source.CompletedBattles,
+            TotalBattles = source.TotalBattles,
+            BattleSemanticCoverage = source.BattleSemanticCoverage,
+            ProgressionSemanticCoverage =
+                source.ProgressionSemanticCoverage,
+            UnsupportedDefinitions =
+                new List<string>(
+                    source.UnsupportedDefinitions ?? new List<string>())
+        };
     }
 
     private static void RecordCase(
