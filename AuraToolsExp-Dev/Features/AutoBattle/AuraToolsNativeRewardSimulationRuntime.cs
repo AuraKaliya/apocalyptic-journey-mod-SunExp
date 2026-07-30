@@ -288,6 +288,7 @@ internal sealed class AuraToolsNativeRewardExtension :
                     null);
             }
         }
+        AuditCrossRoleSkillCards(context);
     }
 
     public void OnEvent(
@@ -414,6 +415,12 @@ internal sealed class AuraToolsNativeRewardExtension :
         {
             program.Complete();
         }
+        AuditCrossRoleSkillCards(context);
+    }
+
+    private static bool AuditCrossRoleSkillCards(
+        ICombatSimulationRuntimeContext context)
+    {
         var currentRoleSkills = new HashSet<string>(
             context.Scenario.Player.SkillCardIds,
             StringComparer.OrdinalIgnoreCase);
@@ -433,7 +440,7 @@ internal sealed class AuraToolsNativeRewardExtension :
             && !card.CreationCrossRoleSkillAuthorized);
         if (leaked == null)
         {
-            return;
+            return false;
         }
         context.AddUnsupported(
             "cross-role-skill-card:"
@@ -445,10 +452,15 @@ internal sealed class AuraToolsNativeRewardExtension :
         context.Terminate(
             CombatSimulationOutcome.Invalid,
             CombatTerminationReason.UnsupportedRule);
+        return true;
     }
 
     public void BeforePolicyDecision(ICombatSimulationRuntimeContext context)
     {
+        if (AuditCrossRoleSkillCards(context))
+        {
+            return;
+        }
         var player = context.State.Player;
         if (player == null || !player.Alive || context.State.Hand.Count == 0)
         {
@@ -856,18 +868,6 @@ internal static class NativeRewardProgramRegistry
         CombatScenarioRewardRule rule,
         NativeRewardScriptGlobals globals)
     {
-        if (string.Equals(
-                rule.RewardId,
-                "CrowdFundingRelic_17",
-                StringComparison.OrdinalIgnoreCase))
-        {
-            globals.AddEvent("Hurt", () =>
-            {
-                globals.SetStatus("AllTarget");
-                globals.Damage("1", "True");
-            });
-            return new NativeRewardScriptCompileResult { Success = true };
-        }
         var key = Key(rule.FightScript);
         return globals.TryRunPrecompiledProgram(key, out var message)
             ? new NativeRewardScriptCompileResult { Success = true }

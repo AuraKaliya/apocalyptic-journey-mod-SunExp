@@ -179,15 +179,32 @@ try
                 leakedSkillScenario,
                 rulesetBuild.Ruleset,
                 new EndTurnPolicy());
-        if (leakedSkillResult.Outcome
-                != CombatSimulationOutcome.Invalid
-            || !leakedSkillResult.UnsupportedDefinitions.Any(item =>
-                item.StartsWith(
-                    "cross-role-skill-card:",
-                    StringComparison.OrdinalIgnoreCase)))
+        var leakedSkillIsolated =
+            leakedSkillResult.Outcome == CombatSimulationOutcome.Invalid
+            && (leakedSkillResult.TerminationReason
+                    == CombatTerminationReason.InvalidScenario
+                || leakedSkillResult.UnsupportedDefinitions.Any(item =>
+                    item.StartsWith(
+                        "cross-role-skill-card:",
+                        StringComparison.OrdinalIgnoreCase)));
+        if (!leakedSkillIsolated)
         {
             failures.Add(
-                "dynamic-card-pool: provenance audit did not isolate an unauthorized foreign role skill");
+                "dynamic-card-pool: provenance audit did not isolate an unauthorized foreign role skill:"
+                + leakedSkillResult.Outcome
+                + ":"
+                + leakedSkillResult.TerminationReason
+                + ":"
+                + string.Join(",", leakedSkillResult.UnsupportedDefinitions)
+                + ":"
+                + string.Join(
+                    ",",
+                    leakedSkillResult.FinalState.Cards.Select(card =>
+                        card.CardId
+                        + "/"
+                        + card.CreationSource
+                        + "/authorized="
+                        + card.CreationCrossRoleSkillAuthorized)));
         }
     }
     foreach (var reward in nonCardRewards.Where(item =>
@@ -344,6 +361,15 @@ try
     foreach (var failure in runtimeFailures)
     {
         Console.Error.WriteLine(failure);
+    }
+    foreach (var failure in failures)
+    {
+        if (!packageValidation.Errors.Contains(
+                failure,
+                StringComparer.Ordinal))
+        {
+            Console.Error.WriteLine(failure);
+        }
     }
 
     return failures.Count == 0
@@ -904,10 +930,14 @@ static IEnumerable<string> ValidateNativeCombatSemantics(
             StringComparison.OrdinalIgnoreCase));
     var crowdfundingFeedback = Run(
         "crowdfunding-relic-causal-chain",
-        new List<string> { "card_1" },
+        new List<string>
+        {
+            "universalcard_11",
+            "universalcard_11"
+        },
         scenario =>
         {
-            scenario.InitialDraw = 1;
+            scenario.InitialDraw = 2;
             scenario.Limits.MaximumCommandsPerAction = 100;
             scenario.RewardRules.Add(new CombatScenarioRewardRule
             {
@@ -929,13 +959,20 @@ static IEnumerable<string> ValidateNativeCombatSemantics(
                 "CrowdFundingRelic_17",
                 StringComparison.OrdinalIgnoreCase))
         .ToList();
+    var causalDamageAmounts = causalDamage
+        .OrderBy(item => item.Sequence)
+        .Select(item => item.Amount)
+        .ToList();
+    var increasingDamage =
+        causalDamageAmounts.Count >= 2
+        && causalDamageAmounts.SequenceEqual(
+            Enumerable.Range(1, causalDamageAmounts.Count));
     if (crowdfundingFeedback.TerminationReason
             is CombatTerminationReason.MaximumCommands
             or CombatTerminationReason.TriggerLoop
-        || causalDamage.Count == 0
+        || !increasingDamage
         || causalDamage.Any(item =>
-            item.Amount != 1
-            || item.SourceActorId
+            item.SourceActorId
                != crowdfundingFeedback.FinalState.PlayerActorId
             || crowdfundingFeedback.FinalState.FindActor(
                    item.TargetActorId)?.Kind
@@ -947,10 +984,25 @@ static IEnumerable<string> ValidateNativeCombatSemantics(
     {
         failures.Add(
             "native-semantics:CrowdFundingRelic_17:"
-            + "hurt-only-one-true-damage-per-enemy:"
+            + "hurt-count-increasing-true-damage:"
             + crowdfundingFeedback.TerminationReason
             + ":"
-            + crowdfundingFeedback.FailureDiagnostics.PendingCommand);
+            + crowdfundingFeedback.FailureDiagnostics.PendingCommand
+            + ":"
+            + string.Join(
+                ",",
+                causalDamage.Select(item =>
+                    item.Amount
+                    + "/"
+                    + item.SourceActorId
+                    + ">"
+                    + item.TargetActorId
+                    + "/chain="
+                    + item.CausalChainId
+                    + "/handler="
+                    + item.HandlerId
+                    + "/action="
+                    + item.SourceActionId)));
     }
 
     var timekeeperDraw = Run(
