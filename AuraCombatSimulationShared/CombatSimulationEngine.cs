@@ -732,7 +732,17 @@ public sealed class CombatSimulationEngine
                 metrics.EndTurnsWithUnusedEnergy++;
                 metrics.UnusedEnergyAtEndTurns += player.Energy;
             }
-            if (State.EndTurnPurposeValue <= 0d && hasSafeAlternative)
+            var policyMetrics =
+                policy is ICombatSimulationPolicyMetricsProvider provider
+                    ? provider.LastDecisionMetrics
+                    : null;
+            var severeEndTurn = !forced
+                                && (policyMetrics?.EndTurnSafetyAssessed == true
+                                    ? policyMetrics
+                                        .SelectedEndTurnSevereMistake
+                                    : State.EndTurnPurposeValue <= 0d
+                                      && hasSafeAlternative);
+            if (severeEndTurn)
             {
                 metrics.SevereEndTurnMistakes++;
             }
@@ -2130,46 +2140,18 @@ public sealed class CombatSimulationEngine
                     {
                         return null;
                     }
-                    var outgoingMultiplier = Variable(source, "PercentDamage", 1d);
-                    var outgoingFlat = Variable(source, "DefaultDamage", 0d);
-                    var incomingMultiplier = Variable(target, "AttackedPercentDamage", 1d);
-                    var incomingFlat = Variable(target, "AttackedDefaultDamage", 0d);
-                    var attributeMultiplier = source?.Kind == CombatSimulationActorKind.Player
-                                              && command.Kind == CombatSimulationEffectKind.Damage
-                        ? 1d + Math.Max(0d, Variable(source, "Strength", 0d)) * 0.03d
-                        : 1d;
-                    var outgoingAmount = WitchRounded(
-                        (command.Amount * outgoingMultiplier + outgoingFlat)
-                        * attributeMultiplier);
-                    var incoming = command.Kind == CombatSimulationEffectKind.DirectHpLoss
-                        ? Math.Max(
-                            0,
-                            WitchRounded(
-                                command.Amount
-                                * Variable(
-                                    target,
-                                    "DirectHpLossTaken." + command.DefinitionId,
-                                    1d)
-                                * DamageFilterMultiplier(
-                                    target,
-                                    command.Kind,
-                                    command.DefinitionId)))
-                        : Math.Max(
-                            0,
-                            (int)((outgoingAmount + incomingFlat)
-                                  * incomingMultiplier
-                                  * DamageFilterMultiplier(
-                                      target,
-                                      command.Kind,
-                                      command.DefinitionId)));
-                    var blocked = command.Kind == CombatSimulationEffectKind.TrueDamage
-                                  || command.Kind == CombatSimulationEffectKind.DirectHpLoss
-                        ? 0
-                        : Math.Min(target.Block, incoming);
+                    var damage = CombatDamageResolver.Resolve(
+                        source,
+                        target,
+                        ruleset,
+                        command.Kind,
+                        command.Amount,
+                        command.DefinitionId);
+                    var blocked = damage.BlockedAmount;
                     target.Block -= blocked;
                     var hpDamage = LimitHpLoss(
                         target,
-                        Math.Min(target.Hp, Math.Max(0, incoming - blocked)));
+                        damage.UnboundedHpDamage);
                     target.Hp -= hpDamage;
                     if (source?.Kind == CombatSimulationActorKind.Player
                         && target.Kind == CombatSimulationActorKind.Enemy)
@@ -2644,18 +2626,22 @@ public sealed class CombatSimulationEngine
                         {
                             return null;
                         }
+                        var addedStacks = Math.Min(
+                            Math.Max(1, statusDefinition.MaximumStacks),
+                            command.Amount);
                         target.Statuses.Add(new CombatStatusState
                         {
                             StatusId = command.DefinitionId,
-                            Stacks = Math.Min(
-                                Math.Max(1, statusDefinition.MaximumStacks),
-                                command.Amount),
+                            Stacks = addedStacks,
                             Duration = command.Duration,
-                            SourceActorId = command.SourceActorId
+                            SourceActorId = command.SourceActorId,
+                            LastStackGainActionId = command.SourceActionId,
+                            StacksGainedInLastAction = Math.Max(0, addedStacks)
                         });
                     }
                     else
                     {
+                        var previousStacks = existing.Stacks;
                         var nextStacks = Math.Min(
                             Math.Max(1, statusDefinition.MaximumStacks),
                             existing.Stacks + command.Amount);
@@ -2670,6 +2656,23 @@ public sealed class CombatSimulationEngine
                         }
                         existing.Stacks = nextStacks;
                         existing.Duration = Math.Max(existing.Duration, command.Duration);
+                        var gainedStacks = Math.Max(0, nextStacks - previousStacks);
+                        if (gainedStacks > 0)
+                        {
+                            if (existing.LastStackGainActionId
+                                == command.SourceActionId)
+                            {
+                                existing.StacksGainedInLastAction +=
+                                    gainedStacks;
+                            }
+                            else
+                            {
+                                existing.LastStackGainActionId =
+                                    command.SourceActionId;
+                                existing.StacksGainedInLastAction =
+                                    gainedStacks;
+                            }
+                        }
                     }
                     return EmitFromCommand(
                         CombatSimulationEventKind.StatusAdded,
@@ -3077,6 +3080,23 @@ public sealed class CombatSimulationEngine
                          .ThenBy(item => item.Trigger.TriggerId, StringComparer.Ordinal)
                          .ThenBy(item => item.Actor.ActorId))
             {
+                var triggerStacks = match.Status.Stacks;
+                if (match.Trigger.ExcludeStacksAcquiredFromSameAction
+                    && sourceEvent.SourceActionId > 0
+                    && match.Status.LastStackGainActionId
+                    == sourceEvent.SourceActionId)
+                {
+                    triggerStacks = Math.Max(
+                        0,
+                        triggerStacks
+                        - Math.Min(
+                            triggerStacks,
+                            match.Status.StacksGainedInLastAction));
+                }
+                if (triggerStacks <= 0)
+                {
+                    continue;
+                }
                 CompileEffects(
                     match.Trigger.Effects,
                     match.Actor.ActorId,
@@ -3086,7 +3106,7 @@ public sealed class CombatSimulationEngine
                     sourceEvent,
                     wave,
                     queue,
-                    match.Status.Stacks);
+                    triggerStacks);
                 if (match.Trigger.ResetCounterAfterTrigger
                     && !string.IsNullOrWhiteSpace(match.Trigger.CounterKey))
                 {

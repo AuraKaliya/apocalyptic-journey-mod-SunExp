@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using AuraDecision.Shared;
 
 namespace AuraCombatAi.Shared;
@@ -276,6 +277,32 @@ public static class CombatTrainingSampleBuilder
             CostReduction = Finite(value.CostReduction),
             CardGeneration = Finite(value.CardGeneration),
             PersistentValue = Finite(value.PersistentValue),
+            DamageMultiplierGain = Finite(value.DamageMultiplierGain),
+            ImmediateHpDamage = Finite(value.ImmediateHpDamage),
+            ImmediateDurabilityDamage =
+                Finite(value.ImmediateDurabilityDamage),
+            DeferredHpDamage = Finite(value.DeferredHpDamage),
+            AffectedEnemyCount = Math.Max(0, value.AffectedEnemyCount),
+            TargetEffects = value.TargetEffects.Select(item =>
+                new CombatTargetedSemanticEffect
+                {
+                    Phase = item.Phase,
+                    Kind = item.Kind,
+                    TargetRuntimeId = item.TargetRuntimeId,
+                    DefinitionId = item.DefinitionId ?? "",
+                    Trigger = item.Trigger ?? "",
+                    RawAmount = Finite(item.RawAmount),
+                    EffectiveAmount = Finite(item.EffectiveAmount),
+                    EffectiveDurabilityAmount =
+                        Finite(item.EffectiveDurabilityAmount),
+                    Probability = Math.Max(
+                        0d,
+                        Math.Min(1d, Finite(item.Probability))),
+                    BypassesBlock = item.BypassesBlock,
+                    Contextual = item.Contextual
+                }).ToList(),
+            StateChanges = CombatPublicFeaturePolicy.SanitizeStateChanges(
+                value.StateChanges),
             CooldownTurns = Finite(value.CooldownTurns),
             Risk = Finite(value.Risk),
             Uncertainty = Finite(value.Uncertainty),

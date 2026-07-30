@@ -7,7 +7,8 @@ namespace AuraCombatAi.Shared;
 
 public sealed class CombatFoundationSemanticProbeResult
 {
-    public const string CurrentCanaryVersion = "semantic-audit-pipeline-v2";
+    public const string CurrentCanaryVersion =
+        "targeted-phased-semantic-pipeline-v3";
 
     public string Version { get; set; } =
         CombatPolicyValueProtocol.TrainingSemanticsVersion;
@@ -72,6 +73,9 @@ public static class CombatFoundationSemanticProbe
                      "card_2",
                      "card_3",
                      "burningcard_1",
+                     "burningcard_2",
+                     "card_4",
+                     "elementscard_9",
                      "timekeeper_11",
                      "Crowdfundingcard_48"
                  })

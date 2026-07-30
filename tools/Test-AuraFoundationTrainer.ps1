@@ -370,7 +370,7 @@ try {
             -or [string]::IsNullOrWhiteSpace(
                 [string]$checkpoint.Resume.Compatibility.ValidationCampaignHash) `
             -or [string]$checkpoint.Resume.Compatibility.TrainingSemanticsVersion `
-                -ne "resource-recurrence-monotonic-v1" `
+                -ne "targeted-phased-authoritative-v2" `
             -or [string]$checkpoint.Resume.Compatibility.SearchPolicyVersion `
                 -ne "dynamic-search-v4" `
             -or [string]$checkpoint.Resume.Compatibility.TrainingPolicyVersion `

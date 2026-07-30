@@ -92,7 +92,7 @@ public sealed class CombatCampaignFoundationTrainingRequest
 
     public int AdvancedValidationCampaigns { get; set; } = 500;
 
-    public int CapabilityProbeCampaignsPerDifficulty { get; set; } = 16;
+    public int CapabilityProbeCampaignsPerDifficulty { get; set; } = 128;
 
     public bool RequireCapabilityProbeBaselineGain { get; set; } = true;
 
@@ -773,6 +773,25 @@ public sealed class CombatFoundationCapabilityProbeArm
     public double AdvancedWilsonLowerBound { get; set; }
 }
 
+public sealed class CombatFoundationCapabilityProbePair
+{
+    public string DifficultyId { get; set; } = "";
+
+    public ulong WorldSeed { get; set; }
+
+    public bool BaselineVictory { get; set; }
+
+    public bool ChampionVictory { get; set; }
+
+    public int BaselineCompletedBattles { get; set; }
+
+    public int ChampionCompletedBattles { get; set; }
+
+    public bool BaselineInvalid { get; set; }
+
+    public bool ChampionInvalid { get; set; }
+}
+
 public sealed class CombatFoundationCapabilityProbe
 {
     public int CampaignsPerDifficulty { get; set; }
@@ -782,6 +801,11 @@ public sealed class CombatFoundationCapabilityProbe
     public List<CombatFoundationCapabilityProbeArm> Arms { get; set; } =
         new();
 
+    public List<CombatFoundationCapabilityProbePair> Pairs { get; set; } =
+        new();
+
+    public List<int> CompletedStages { get; set; } = new();
+
     public bool BaselineGateRequired { get; set; }
 
     public bool PassedBaselineGate { get; set; }
@@ -789,6 +813,26 @@ public sealed class CombatFoundationCapabilityProbe
     public int ChampionVictoryGain { get; set; }
 
     public double ChampionDepthGain { get; set; }
+
+    public int ChampionOnlyWins { get; set; }
+
+    public int BaselineOnlyWins { get; set; }
+
+    public int NormalChampionOnlyWins { get; set; }
+
+    public int NormalBaselineOnlyWins { get; set; }
+
+    public int AdvancedChampionOnlyWins { get; set; }
+
+    public int AdvancedBaselineOnlyWins { get; set; }
+
+    public double PairedWinWilsonLowerBound { get; set; }
+
+    public double PairedWinWilsonUpperBound { get; set; }
+
+    public double PairedLossMedianDepthGain { get; set; }
+
+    public string BaselineGateVerdict { get; set; } = "inconclusive";
 
     public string BaselineGateReason { get; set; } = "";
 }
@@ -1113,7 +1157,7 @@ public sealed class CombatCampaignFoundationTrainer
             Math.Min(1000, request.AdvancedValidationCampaigns));
         var capabilityProbeCampaigns = Math.Max(
             0,
-            Math.Min(64, request.CapabilityProbeCampaignsPerDifficulty));
+            Math.Min(128, request.CapabilityProbeCampaignsPerDifficulty));
         var tuningNormalCampaigns = request.EnableTuningArena
             ? Math.Max(0, Math.Min(64, request.TuningNormalCampaigns))
             : 0;
@@ -3695,6 +3739,48 @@ public sealed class CombatCampaignFoundationTrainer
                         advanced.Count)
             });
         }
+        report.CompletedStages.AddRange(new[]
+            {
+                Math.Min(32, campaignsPerDifficulty),
+                Math.Min(64, campaignsPerDifficulty),
+                campaignsPerDifficulty
+            }
+            .Where(item => item > 0)
+            .Distinct()
+            .OrderBy(item => item));
+        for (var difficultyIndex = 0;
+             difficultyIndex < difficulties.Length;
+             difficultyIndex++)
+        {
+            for (var campaignIndex = 0;
+                 campaignIndex < campaignsPerDifficulty;
+                 campaignIndex++)
+            {
+                var offset =
+                    difficultyIndex * campaignsPerDifficulty
+                    + campaignIndex;
+                var baselineRun = runsByArm[0][offset];
+                var championRun = runsByArm[1][offset];
+                if (baselineRun == null || championRun == null)
+                {
+                    continue;
+                }
+                report.Pairs.Add(
+                    new CombatFoundationCapabilityProbePair
+                    {
+                        DifficultyId = difficulties[difficultyIndex],
+                        WorldSeed = seedStart + (ulong)campaignIndex,
+                        BaselineVictory = baselineRun.FinalBossVictory,
+                        ChampionVictory = championRun.FinalBossVictory,
+                        BaselineCompletedBattles =
+                            baselineRun.CompletedBattles,
+                        ChampionCompletedBattles =
+                            championRun.CompletedBattles,
+                        BaselineInvalid = baselineRun.Invalid,
+                        ChampionInvalid = championRun.Invalid
+                    });
+            }
+        }
         EvaluateCapabilityBaselineGate(request, report);
         return report;
     }
@@ -3810,12 +3896,14 @@ public sealed class CombatCampaignFoundationTrainer
         if (!report.BaselineGateRequired)
         {
             report.PassedBaselineGate = true;
+            report.BaselineGateVerdict = "pass";
             report.BaselineGateReason = "baseline gain gate disabled";
             return;
         }
         if (baseline == null || champion == null)
         {
             report.PassedBaselineGate = false;
+            report.BaselineGateVerdict = "fail";
             report.BaselineGateReason =
                 "baseline or champion probe arm is missing";
             return;
@@ -3828,28 +3916,156 @@ public sealed class CombatCampaignFoundationTrainer
         report.ChampionDepthGain =
             champion.AverageCompletedBattles
             - baseline.AverageCompletedBattles;
-        var noDifficultyRegression =
-            champion.NormalVictories >= baseline.NormalVictories
-            && champion.AdvancedVictories >= baseline.AdvancedVictories;
-        var meaningfulGain =
-            report.ChampionVictoryGain
-            >= Math.Max(1, request.CapabilityProbeMinimumVictoryGain)
-            || report.ChampionDepthGain
-            >= Math.Max(0d, request.CapabilityProbeMinimumDepthGain);
-        report.PassedBaselineGate =
-            noDifficultyRegression && meaningfulGain;
-        report.BaselineGateReason = report.PassedBaselineGate
-            ? "champion is non-regressive and exceeds the configured paired-seed gain"
-            : "victoryGain="
+        var validPairs = report.Pairs.Where(item =>
+            !item.BaselineInvalid && !item.ChampionInvalid).ToList();
+        if (baseline.InvalidCampaigns > 0
+            || champion.InvalidCampaigns > 0
+            || report.Pairs.Any(item =>
+                item.BaselineInvalid || item.ChampionInvalid))
+        {
+            report.PassedBaselineGate = false;
+            report.BaselineGateVerdict = "fail";
+            report.BaselineGateReason =
+                "invalid campaign in paired capability probe";
+            return;
+        }
+        if (validPairs.Count == 0)
+        {
+            // Compatibility fallback for persisted reports created before
+            // paired outcomes were retained.
+            var noDifficultyRegression =
+                champion.NormalVictories >= baseline.NormalVictories
+                && champion.AdvancedVictories >= baseline.AdvancedVictories;
+            var meaningfulGain =
+                report.ChampionVictoryGain
+                >= Math.Max(
+                    1,
+                    request.CapabilityProbeMinimumVictoryGain);
+            report.BaselineGateVerdict =
+                noDifficultyRegression && meaningfulGain
+                    ? "pass"
+                    : noDifficultyRegression
+                        ? "inconclusive"
+                        : "fail";
+            report.PassedBaselineGate =
+                !string.Equals(
+                    report.BaselineGateVerdict,
+                    "fail",
+                    StringComparison.Ordinal);
+            report.BaselineGateReason =
+                "legacy aggregate probe; verdict="
+                + report.BaselineGateVerdict
+                + ", victoryGain="
+                + report.ChampionVictoryGain;
+            return;
+        }
+
+        report.ChampionOnlyWins = validPairs.Count(item =>
+            item.ChampionVictory && !item.BaselineVictory);
+        report.BaselineOnlyWins = validPairs.Count(item =>
+            item.BaselineVictory && !item.ChampionVictory);
+        report.NormalChampionOnlyWins = validPairs.Count(item =>
+            string.Equals(
+                item.DifficultyId,
+                "normal",
+                StringComparison.Ordinal)
+            && item.ChampionVictory
+            && !item.BaselineVictory);
+        report.NormalBaselineOnlyWins = validPairs.Count(item =>
+            string.Equals(
+                item.DifficultyId,
+                "normal",
+                StringComparison.Ordinal)
+            && item.BaselineVictory
+            && !item.ChampionVictory);
+        report.AdvancedChampionOnlyWins = validPairs.Count(item =>
+            string.Equals(
+                item.DifficultyId,
+                "advanced",
+                StringComparison.Ordinal)
+            && item.ChampionVictory
+            && !item.BaselineVictory);
+        report.AdvancedBaselineOnlyWins = validPairs.Count(item =>
+            string.Equals(
+                item.DifficultyId,
+                "advanced",
+                StringComparison.Ordinal)
+            && item.BaselineVictory
+            && !item.ChampionVictory);
+        var discordant =
+            report.ChampionOnlyWins + report.BaselineOnlyWins;
+        report.PairedWinWilsonLowerBound =
+            CombatFoundationCurriculum.WilsonLowerBound(
+                report.ChampionOnlyWins,
+                discordant);
+        report.PairedWinWilsonUpperBound = discordant <= 0
+            ? 1d
+            : 1d - CombatFoundationCurriculum.WilsonLowerBound(
+                report.BaselineOnlyWins,
+                discordant);
+        report.PairedLossMedianDepthGain = Median(validPairs
+            .Where(item =>
+                !item.BaselineVictory && !item.ChampionVictory)
+            .Select(item =>
+                (double)(item.ChampionCompletedBattles
+                         - item.BaselineCompletedBattles))
+            .ToList());
+
+        var normalRegression = CrediblePairedRegression(
+            report.NormalChampionOnlyWins,
+            report.NormalBaselineOnlyWins);
+        var advancedRegression = CrediblePairedRegression(
+            report.AdvancedChampionOnlyWins,
+            report.AdvancedBaselineOnlyWins);
+        var credibleWinGain =
+            discordant > 0
+            && report.PairedWinWilsonLowerBound > 0.5d
+            && report.ChampionOnlyWins - report.BaselineOnlyWins
+            >= Math.Max(
+                1,
+                request.CapabilityProbeMinimumVictoryGain);
+        if (normalRegression || advancedRegression)
+        {
+            report.BaselineGateVerdict = "fail";
+        }
+        else if (credibleWinGain)
+        {
+            report.BaselineGateVerdict = "pass";
+        }
+        else
+        {
+            report.BaselineGateVerdict = "inconclusive";
+        }
+        // Inconclusive evidence is explicitly allowed to continue to the
+        // larger probe stage or formal validation. Only credible regression
+        // and invalid campaigns block the candidate.
+        report.PassedBaselineGate = !string.Equals(
+            report.BaselineGateVerdict,
+            "fail",
+            StringComparison.Ordinal);
+        report.BaselineGateReason =
+            "verdict="
+              + report.BaselineGateVerdict
+              + ", victoryGain="
               + report.ChampionVictoryGain
-              + ", depthGain="
-              + report.ChampionDepthGain.ToString(
+              + ", paired="
+              + report.ChampionOnlyWins
+              + ":"
+              + report.BaselineOnlyWins
+              + ", pairedWilson="
+              + report.PairedWinWilsonLowerBound.ToString(
                   "0.###",
                   System.Globalization.CultureInfo.InvariantCulture)
-              + "; required victoryGain>="
-              + Math.Max(1, request.CapabilityProbeMinimumVictoryGain)
-              + " or depthGain>="
-              + Math.Max(0d, request.CapabilityProbeMinimumDepthGain).ToString(
+              + ".."
+              + report.PairedWinWilsonUpperBound.ToString(
+                  "0.###",
+                  System.Globalization.CultureInfo.InvariantCulture)
+              + ", pairedLossMedianDepthGain="
+              + report.PairedLossMedianDepthGain.ToString(
+                  "0.###",
+                  System.Globalization.CultureInfo.InvariantCulture)
+              + ", aggregateDepthGain="
+              + report.ChampionDepthGain.ToString(
                   "0.###",
                   System.Globalization.CultureInfo.InvariantCulture)
               + "; deployment="
@@ -3859,6 +4075,32 @@ public sealed class CombatCampaignFoundationTrainer
               + (teacher == null
                   ? ""
                   : "; teacher-hard=" + FormatCapabilityProbeArm(teacher));
+    }
+
+    private static bool CrediblePairedRegression(
+        int championOnlyWins,
+        int baselineOnlyWins)
+    {
+        var discordant = Math.Max(
+            0,
+            championOnlyWins + baselineOnlyWins);
+        return discordant > 0
+               && CombatFoundationCurriculum.WilsonLowerBound(
+                   baselineOnlyWins,
+                   discordant) > 0.5d;
+    }
+
+    private static double Median(IReadOnlyList<double> values)
+    {
+        if (values == null || values.Count == 0)
+        {
+            return 0d;
+        }
+        var ordered = values.OrderBy(item => item).ToArray();
+        var middle = ordered.Length / 2;
+        return ordered.Length % 2 == 0
+            ? (ordered[middle - 1] + ordered[middle]) / 2d
+            : ordered[middle];
     }
 
     private static string FormatCapabilityProbeArm(

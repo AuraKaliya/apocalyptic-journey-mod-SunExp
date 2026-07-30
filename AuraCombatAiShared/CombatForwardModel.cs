@@ -707,8 +707,47 @@ public static class CombatForwardModel
         {
             OutcomeId = "expected"
         };
-        Add(outcome, CombatEffectKind.Damage, action.TargetRuntimeId, semantics.Damage * Math.Max(1d, semantics.HitCount));
-        Add(outcome, CombatEffectKind.TrueDamage, action.TargetRuntimeId, semantics.TrueDamage);
+        var immediateTargetEffects = semantics.TargetEffects
+            .Where(item =>
+                item.Phase == CombatSemanticEffectPhase.Immediate
+                && item.Kind is CombatSemanticEffectKind.Damage
+                    or CombatSemanticEffectKind.TrueDamage
+                    or CombatSemanticEffectKind.DirectHpLoss)
+            .ToList();
+        if (immediateTargetEffects.Count > 0)
+        {
+            foreach (var effect in immediateTargetEffects)
+            {
+                var magnitude = Math.Max(
+                    0d,
+                    effect.Kind == CombatSemanticEffectKind.Damage
+                        ? effect.EffectiveDurabilityAmount
+                        : effect.EffectiveAmount);
+                Add(
+                    outcome,
+                    effect.Kind == CombatSemanticEffectKind.Damage
+                        ? CombatEffectKind.Damage
+                        : CombatEffectKind.TrueDamage,
+                    effect.TargetRuntimeId,
+                    magnitude
+                    * Math.Max(
+                        0d,
+                        Math.Min(1d, effect.Probability)));
+            }
+        }
+        else
+        {
+            Add(
+                outcome,
+                CombatEffectKind.Damage,
+                action.TargetRuntimeId,
+                semantics.Damage * Math.Max(1d, semantics.HitCount));
+            Add(
+                outcome,
+                CombatEffectKind.TrueDamage,
+                action.TargetRuntimeId,
+                semantics.TrueDamage);
+        }
         Add(outcome, CombatEffectKind.DamageOverTime, action.TargetRuntimeId, semantics.DamageOverTime);
         Add(outcome, CombatEffectKind.GainDefend, action.TargetRuntimeId, semantics.Defend);
         Add(outcome, CombatEffectKind.Heal, action.TargetRuntimeId, semantics.Heal);

@@ -523,6 +523,8 @@ public sealed class CombatStatusTriggerDefinition
 
     public bool RemoveStatusAfterTrigger { get; set; }
 
+    public bool ExcludeStacksAcquiredFromSameAction { get; set; }
+
     public List<CombatSimulationEffectDefinition> Effects { get; set; } = new();
 
     public CombatStatusTriggerDefinition Clone()
@@ -553,6 +555,8 @@ public sealed class CombatStatusTriggerDefinition
             CounterStepOrigin = CounterStepOrigin,
             ResetCounterAfterTrigger = ResetCounterAfterTrigger,
             RemoveStatusAfterTrigger = RemoveStatusAfterTrigger,
+            ExcludeStacksAcquiredFromSameAction =
+                ExcludeStacksAcquiredFromSameAction,
             Effects = Effects.Select(effect => effect.Clone()).ToList()
         };
     }
@@ -844,6 +848,10 @@ public sealed class CombatStatusState
     public int Duration { get; set; }
 
     public int SourceActorId { get; set; }
+
+    public long LastStackGainActionId { get; set; }
+
+    public int StacksGainedInLastAction { get; set; }
 
     public Dictionary<string, int> TriggerCounts { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
@@ -1166,6 +1174,12 @@ public sealed class CombatSimulationPolicyDecisionMetrics
     public int ExplorationActionOverrides { get; set; }
 
     public double RootMaximumVisitShare { get; set; }
+
+    public bool EndTurnSafetyAssessed { get; set; }
+
+    public bool SelectedEndTurnSevereMistake { get; set; }
+
+    public int EndTurnSafeAlternativeCount { get; set; }
 
     public int AuthoritativeActionsAudited { get; set; }
 

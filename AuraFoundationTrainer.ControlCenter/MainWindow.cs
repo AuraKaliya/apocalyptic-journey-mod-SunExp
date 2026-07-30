@@ -246,7 +246,7 @@ internal sealed class MainWindow : Window
             "CapabilityProbeCampaignsPerDifficulty",
             "能力探针/难度",
             0,
-            64);
+            128);
         AddToggle(
             panel,
             "RequireCapabilityProbeBaselineGain",
@@ -260,7 +260,7 @@ internal sealed class MainWindow : Window
         AddDouble(
             panel,
             "CapabilityProbeMinimumDepthGain",
-            "能力探针最少深度增益");
+            "能力探针深度诊断阈值（不用于晋级）");
         AddNumber(panel, "MaximumDegreeOfParallelism", "CPU 并行度", 1, 64);
 
         panel.Children.Add(Section("模型训练"));
@@ -1195,11 +1195,15 @@ internal sealed class MainWindow : Window
             settings.LastRunDirectory = "";
             settings.ContinueGeneration = 0;
         }
+        if (loadedSchemaVersion < 6)
+        {
+            settings.Parameters.CapabilityProbeCampaignsPerDifficulty = 128;
+        }
         settings.GameSubject ??= LoadDefaultGameSubject(modRoot);
         settings.GameSubject.Normalize();
         gameSubjectCatalog = LoadGameSubjectCatalog(modRoot);
         gameSubjectCatalog.ResolveReferences(settings.GameSubject);
-        settings.SchemaVersion = 5;
+        settings.SchemaVersion = 6;
         settings.Parameters.Normalized();
     }
 

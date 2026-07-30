@@ -28,7 +28,7 @@ public sealed class CombatFoundationTrainingParameters
 
     public int AdvancedValidationCampaigns { get; set; } = 500;
 
-    public int CapabilityProbeCampaignsPerDifficulty { get; set; } = 16;
+    public int CapabilityProbeCampaignsPerDifficulty { get; set; } = 128;
 
     public bool RequireCapabilityProbeBaselineGain { get; set; } = true;
 
@@ -173,7 +173,7 @@ public sealed class CombatFoundationTrainingParameters
             Math.Min(1000, AdvancedValidationCampaigns));
         CapabilityProbeCampaignsPerDifficulty = Math.Max(
             0,
-            Math.Min(64, CapabilityProbeCampaignsPerDifficulty));
+            Math.Min(128, CapabilityProbeCampaignsPerDifficulty));
         CapabilityProbeMinimumVictoryGain = Math.Max(
             1,
             Math.Min(64, CapabilityProbeMinimumVictoryGain));

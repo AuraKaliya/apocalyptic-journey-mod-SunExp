@@ -107,6 +107,9 @@ public sealed class CombatDecisionSimulationPolicy :
         LastDecisionMetrics.AuthoritativeSelectedActionsAudited = 0;
         LastDecisionMetrics.AuthoritativeSelectedSemanticMismatches = 0;
         LastDecisionMetrics.AuthoritativeTeacherOverrides = 0;
+        LastDecisionMetrics.EndTurnSafetyAssessed = false;
+        LastDecisionMetrics.SelectedEndTurnSevereMistake = false;
+        LastDecisionMetrics.EndTurnSafeAlternativeCount = 0;
         LastDecisionMetrics.AuthoritativeSemanticMismatchKinds.Clear();
         LastDecisionMetrics.AuthoritativeSemanticMismatchSources.Clear();
         LastDecisionMetrics.AuthoritativeSemanticMismatchScenarios.Clear();
@@ -128,14 +131,29 @@ public sealed class CombatDecisionSimulationPolicy :
         {
             LastDecisionMetrics.ExplorationActionOverrides = 1;
         }
-        return selected
-               ?? context.LegalActions.FirstOrDefault(action =>
-                   string.Equals(
-                       action.CandidateId,
-                       decision.Action.CandidateId,
-                       StringComparison.Ordinal))
-               ?? context.LegalActions.FirstOrDefault(action =>
-                   action.Kind == CombatSimulationActionKind.EndTurn);
+        var resolved = selected
+                       ?? context.LegalActions.FirstOrDefault(action =>
+                           string.Equals(
+                               action.CandidateId,
+                               decision.Action.CandidateId,
+                               StringComparison.Ordinal))
+                       ?? context.LegalActions.FirstOrDefault(action =>
+                           action.Kind
+                           == CombatSimulationActionKind.EndTurn);
+        if (resolved?.Kind == CombatSimulationActionKind.EndTurn)
+        {
+            var endTurnAssessment = CombatEndTurnSafety.Assess(
+                observation,
+                decision.Candidates
+                ?? new List<CombatCandidateEvaluation>(),
+                profile);
+            LastDecisionMetrics.EndTurnSafetyAssessed = true;
+            LastDecisionMetrics.SelectedEndTurnSevereMistake =
+                endTurnAssessment.SevereMistake;
+            LastDecisionMetrics.EndTurnSafeAlternativeCount =
+                endTurnAssessment.SafeAlternativeCount;
+        }
+        return resolved;
     }
 
     private CombatSimulationAction? SelectExplorationAction(
@@ -987,12 +1005,16 @@ public static class PlayerEquivalentSimulationObservationProjector
         var effectiveProjection = CombatSemanticAuditor.ProjectEffective(
             state,
             action,
-            semantics);
+            semantics,
+            ruleset);
         features["effectiveHpDamage"] = effectiveProjection.Damage;
         features["effectiveDurabilityDamage"] =
             effectiveProjection.DurabilityDamage;
         features["effectiveDefend"] = effectiveProjection.Defend;
         features["effectiveHeal"] = effectiveProjection.Heal;
+        features["deferredHpDamage"] =
+            CombatActionSemanticMetrics.DeferredHpDamage(semantics);
+        features["affectedEnemyCount"] = semantics.AffectedEnemyCount;
         var targetActor = state.FindActor(action.TargetActorId);
         var remainingBossPhases = RemainingBossPhases(targetActor);
         features["remainingBossPhases"] = remainingBossPhases;
@@ -1067,149 +1089,11 @@ public static class PlayerEquivalentSimulationObservationProjector
         CombatCardDefinition card,
         CombatSimulationAction action)
     {
-        var semantics = new CombatActionSemantics();
-        foreach (var effect in card.Effects)
-        {
-            var targetActorId = effect.Target == CombatSimulationTarget.Self
-                || effect.Target == CombatSimulationTarget.Player
-                ? state.PlayerActorId
-                : action.TargetActorId;
-            if (effect.ConditionExpression != null
-                && CombatSimulationExpressionEvaluator.Evaluate(
-                    effect.ConditionExpression,
-                    state,
-                    ruleset,
-                    state.PlayerActorId,
-                    targetActorId) <= 0d)
-            {
-                continue;
-            }
-            var amount = effect.AmountExpression == null
-                ? effect.Amount
-                : RoundEffectValue(
-                    CombatSimulationExpressionEvaluator.Evaluate(
-                        effect.AmountExpression,
-                        state,
-                        ruleset,
-                        state.PlayerActorId,
-                        targetActorId),
-                    effect.Rounding);
-            var expected = amount * Math.Max(0d, Math.Min(1d, effect.Probability));
-            switch (effect.Kind)
-            {
-                case CombatSimulationEffectKind.Damage:
-                    semantics.Damage += expected;
-                    break;
-                case CombatSimulationEffectKind.TrueDamage:
-                    semantics.TrueDamage += expected;
-                    break;
-                case CombatSimulationEffectKind.DirectHpLoss:
-                    if (effect.Target == CombatSimulationTarget.Self
-                        || effect.Target == CombatSimulationTarget.Player)
-                    {
-                        semantics.SelfHpLoss += expected;
-                        semantics.Risk += expected;
-                    }
-                    else
-                    {
-                        semantics.TrueDamage += expected;
-                    }
-                    break;
-                case CombatSimulationEffectKind.GainBlock:
-                    semantics.Defend += expected;
-                    break;
-                case CombatSimulationEffectKind.Heal:
-                    semantics.Heal += expected;
-                    break;
-                case CombatSimulationEffectKind.SetHp:
-                {
-                    var currentHp = state.Player?.Hp ?? 0;
-                    var hpDelta = expected - currentHp;
-                    semantics.StateChanges["player.hp"] = hpDelta;
-                    if (hpDelta < 0d)
-                    {
-                        semantics.Risk += -hpDelta;
-                    }
-                    else
-                    {
-                        semantics.Heal += hpDelta;
-                    }
-                    break;
-                }
-                case CombatSimulationEffectKind.Draw:
-                    semantics.Draw += expected;
-                    break;
-                case CombatSimulationEffectKind.GainEnergy:
-                    semantics.EnergyGain += expected;
-                    break;
-                case CombatSimulationEffectKind.CreateCard:
-                    semantics.CardGeneration += Math.Max(0d, effect.Probability);
-                    break;
-                case CombatSimulationEffectKind.ChangeCardCost:
-                    semantics.CostReduction += Math.Max(0d, -expected);
-                    break;
-                case CombatSimulationEffectKind.ModifyVariable:
-                    if (effect.Target == CombatSimulationTarget.Self
-                        || effect.Target == CombatSimulationTarget.Player)
-                    {
-                        var key = "player." + effect.DefinitionId;
-                        var current = state.Player?.Variables.TryGetValue(
-                            effect.DefinitionId,
-                            out var value) == true
-                            ? value
-                            : 0d;
-                        var after = Math.Max(
-                            effect.MinimumVariableValue,
-                            Math.Min(effect.MaximumVariableValue, current + amount));
-                        semantics.StateChanges[key] =
-                            semantics.StateChanges.TryGetValue(key, out var delta)
-                                ? delta + after - current
-                                : after - current;
-                    }
-                    break;
-                case CombatSimulationEffectKind.SummonEnemy:
-                    semantics.Risk += Math.Max(1d, expected);
-                    break;
-                case CombatSimulationEffectKind.Despawn:
-                    semantics.TrueDamage += Math.Max(1d, expected);
-                    break;
-                case CombatSimulationEffectKind.AddStatus:
-                    var marginalStatusStacks = MarginalStatusStacks(
-                        ruleset,
-                        state,
-                        effect,
-                        targetActorId,
-                        amount);
-                    if (marginalStatusStacks <= 0d)
-                    {
-                        break;
-                    }
-                    if (effect.Target == CombatSimulationTarget.SelectedEnemy
-                        || effect.Target == CombatSimulationTarget.AllEnemies
-                        || effect.Target == CombatSimulationTarget.RandomEnemy)
-                    {
-                        semantics.Debuff += marginalStatusStacks;
-                    }
-                    else
-                    {
-                        semantics.Buff += marginalStatusStacks;
-                    }
-                    break;
-                case CombatSimulationEffectKind.RemoveStatus:
-                    semantics.Cleanse += Math.Max(1d, expected);
-                    break;
-                case CombatSimulationEffectKind.DiscardRandom:
-                case CombatSimulationEffectKind.ExhaustRandom:
-                    semantics.Risk += expected;
-                    break;
-            }
-            if (effect.Probability < 1d)
-            {
-                semantics.RandomOutcome = true;
-                semantics.Uncertainty += 1d - Math.Max(0d, effect.Probability);
-            }
-        }
-        return semantics;
+        return CombatAuthoritativeSemanticProjector.Project(
+            ruleset,
+            state,
+            card,
+            action);
     }
 
     private static double MarginalStatusStacks(

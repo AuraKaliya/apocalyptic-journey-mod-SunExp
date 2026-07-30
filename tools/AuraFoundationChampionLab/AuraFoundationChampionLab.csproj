@@ -1,0 +1,32 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+    <NoWarn>$(NoWarn);CS0108</NoWarn>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\..\AuraDecisionShared\*.cs"
+             Link="Decision\%(Filename)%(Extension)" />
+    <Compile Include="..\..\AuraCombatSimulationShared\*.cs"
+             Link="Simulation\%(Filename)%(Extension)" />
+    <Compile Include="..\..\AuraCombatAiShared\*.cs"
+             Link="Combat\%(Filename)%(Extension)" />
+    <Compile Include="..\..\AuraToolsExp-Dev\Features\AutoBattle\AuraToolsNativeRewardSimulationRuntime.cs"
+             Link="Native\AuraToolsNativeRewardSimulationRuntime.cs" />
+    <Compile Include="..\..\AuraToolsExp-Dev\Features\AutoBattle\Generated\AuraToolsNativePrograms.g.cs"
+             Link="Native\AuraToolsNativePrograms.g.cs" />
+    <Compile Include="..\..\AuraFoundationTrainer.Worker\WorkerNativeShims.cs"
+             Link="Native\WorkerNativeShims.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>..\..\Managed\Newtonsoft.Json.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+</Project>

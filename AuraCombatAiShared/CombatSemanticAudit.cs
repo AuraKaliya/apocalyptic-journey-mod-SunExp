@@ -106,11 +106,38 @@ public static class CombatSemanticAuditor
         CombatSimulationAction action,
         CombatActionSemantics projected)
     {
+        return ProjectEffective(before, action, projected, null);
+    }
+
+    public static CombatEffectiveActionProjection ProjectEffective(
+        CombatBattleState before,
+        CombatSimulationAction action,
+        CombatActionSemantics projected,
+        CombatRuleset? ruleset)
+    {
+        var targetedDamage = projected.TargetEffects
+            .Where(item =>
+                item.Phase == CombatSemanticEffectPhase.Immediate
+                && item.Kind is CombatSemanticEffectKind.Damage
+                    or CombatSemanticEffectKind.TrueDamage
+                    or CombatSemanticEffectKind.DirectHpLoss)
+            .ToList();
         return new CombatEffectiveActionProjection
         {
-            Damage = EffectiveDamage(before, action, projected),
-            DurabilityDamage =
-                EffectiveDurabilityDamage(before, action, projected),
+            Damage = targetedDamage.Count > 0
+                ? targetedDamage.Sum(item =>
+                    Math.Max(0d, item.EffectiveAmount)
+                    * Probability(item))
+                : EffectiveDamage(before, action, projected, ruleset),
+            DurabilityDamage = targetedDamage.Count > 0
+                ? targetedDamage.Sum(item =>
+                    Math.Max(0d, item.EffectiveDurabilityAmount)
+                    * Probability(item))
+                : EffectiveDurabilityDamage(
+                    before,
+                    action,
+                    projected,
+                    ruleset),
             IntrinsicDefend =
                 EffectiveBlock(before.Player, projected.Defend),
             Defend = NetEffectiveBlock(before.Player, projected.Defend),
@@ -168,10 +195,14 @@ public static class CombatSemanticAuditor
         var playerId = before.PlayerActorId;
         var target = before.FindActor(action.TargetActorId);
 
-        var actualDamage = intrinsicEvents
+        var actualDamageByTarget = intrinsicEvents
             .Where(item => item.Kind == CombatSimulationEventKind.DamageDealt
                            && IsEnemy(before, item.TargetActorId))
-            .Sum(item => Math.Max(0, item.Amount));
+            .GroupBy(item => item.TargetActorId)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Sum(item => Math.Max(0, item.Amount)));
+        var actualDamage = actualDamageByTarget.Values.Sum();
         var observedDurabilityDamage = before.LivingEnemies.Sum(item =>
                                            Math.Max(0, item.Hp)
                                            + Math.Max(0, item.Block))
@@ -182,12 +213,57 @@ public static class CombatSemanticAuditor
                                   || actionEvents.Any(item =>
                                       item.Kind
                                       == CombatSimulationEventKind.DamageDealt);
-        var effectiveProjection = ProjectEffective(before, action, projected);
+        var effectiveProjection = ProjectEffective(
+            before,
+            action,
+            projected,
+            ruleset);
         var effectiveDamage = effectiveProjection.Damage;
+        var targetedDamage = projected.TargetEffects
+            .Where(item =>
+                item.Phase == CombatSemanticEffectPhase.Immediate
+                && item.Kind is CombatSemanticEffectKind.Damage
+                    or CombatSemanticEffectKind.TrueDamage
+                    or CombatSemanticEffectKind.DirectHpLoss)
+            .ToList();
+        IEnumerable<int> auditedDamageTargets = targetedDamage.Count == 0
+            ? Array.Empty<int>()
+            : targetedDamage
+                .Select(item => item.TargetRuntimeId)
+                .Concat(actualDamageByTarget.Keys)
+                .Distinct()
+                .OrderBy(item => item);
+        foreach (var targetId in auditedDamageTargets)
+        {
+            var targetProjection = targetedDamage
+                .Where(item => item.TargetRuntimeId == targetId)
+                .ToList();
+            Compare(
+                result,
+                "damage:target:" + targetId,
+                targetProjection.Sum(item =>
+                    Math.Max(0d, item.RawAmount)
+                    * Probability(item)),
+                targetProjection.Sum(item =>
+                    Math.Max(0d, item.EffectiveAmount)
+                    * Probability(item)),
+                actualDamageByTarget.TryGetValue(
+                    targetId,
+                    out var targetDamage)
+                    ? targetDamage
+                    : 0d,
+                "",
+                damageTraceComplete);
+        }
+        var projectedDamage = targetedDamage.Count > 0
+            ? targetedDamage.Sum(item =>
+                Math.Max(0d, item.RawAmount)
+                * Probability(item))
+            : projected.Damage + projected.TrueDamage;
         Compare(
             result,
             "damage",
-            projected.Damage + projected.TrueDamage,
+            projectedDamage,
             effectiveDamage,
             actualDamage,
             ExplainDamage(before, action, projected, effectiveDamage),
@@ -395,10 +471,12 @@ public static class CombatSemanticAuditor
         IReadOnlyList<CombatSimulationEvent> events)
     {
         var sourceActionId = Math.Max(1L, before.ActionSequence + 1L);
-        return events
-            .Where(item => item.SourceActionId == 0
-                           || item.SourceActionId == sourceActionId)
+        var attributed = events
+            .Where(item => item.SourceActionId == sourceActionId)
             .ToList();
+        return attributed.Count > 0
+            ? attributed
+            : events.Where(item => item.SourceActionId == 0).ToList();
     }
 
     private static bool IsIntrinsic(
@@ -432,7 +510,8 @@ public static class CombatSemanticAuditor
     private static double EffectiveDamage(
         CombatBattleState before,
         CombatSimulationAction action,
-        CombatActionSemantics projected)
+        CombatActionSemantics projected,
+        CombatRuleset? ruleset)
     {
         var source = before.FindActor(action.ActorId) ?? before.Player;
         var target = before.FindActor(action.TargetActorId);
@@ -441,21 +520,43 @@ public static class CombatSemanticAuditor
             return Math.Max(0d, projected.Damage + projected.TrueDamage);
         }
         var hp = Math.Max(0, target.Hp);
-        var normal = ModifiedDamage(
-            source,
-            target,
-            projected.Damage,
-            applyStrength: source?.Kind == CombatSimulationActorKind.Player,
-            damageType: "Normal");
-        var blocked = Math.Min(Math.Max(0, target.Block), normal);
-        var hpDamage = Math.Min(hp, Math.Max(0, normal - blocked));
+        var normalResolution = ruleset == null
+            ? null
+            : CombatDamageResolver.Resolve(
+                source,
+                target,
+                ruleset,
+                CombatSimulationEffectKind.Damage,
+                WitchRounded(projected.Damage));
+        var normal = normalResolution?.IncomingAmount
+                     ?? ModifiedDamage(
+                         source,
+                         target,
+                         projected.Damage,
+                         applyStrength:
+                             source?.Kind
+                             == CombatSimulationActorKind.Player,
+                         damageType: "Normal");
+        var blocked = normalResolution?.BlockedAmount
+                      ?? Math.Min(Math.Max(0, target.Block), normal);
+        var hpDamage = normalResolution?.HpDamage
+                       ?? Math.Min(hp, Math.Max(0, normal - blocked));
         hp -= hpDamage;
-        var trueDamage = ModifiedDamage(
-            source,
-            target,
-            projected.TrueDamage,
-            applyStrength: false,
-            damageType: "True");
+        var trueResolution = ruleset == null
+            ? null
+            : CombatDamageResolver.Resolve(
+                source,
+                target,
+                ruleset,
+                CombatSimulationEffectKind.TrueDamage,
+                WitchRounded(projected.TrueDamage));
+        var trueDamage = trueResolution?.HpDamage
+                         ?? ModifiedDamage(
+                             source,
+                             target,
+                             projected.TrueDamage,
+                             applyStrength: false,
+                             damageType: "True");
         var totalHpDamage =
             hpDamage + Math.Min(hp, Math.Max(0, trueDamage));
         return ApplyHpLossLimit(target, totalHpDamage);
@@ -464,7 +565,8 @@ public static class CombatSemanticAuditor
     private static double EffectiveDurabilityDamage(
         CombatBattleState before,
         CombatSimulationAction action,
-        CombatActionSemantics projected)
+        CombatActionSemantics projected,
+        CombatRuleset? ruleset)
     {
         var source = before.FindActor(action.ActorId) ?? before.Player;
         var target = before.FindActor(action.TargetActorId);
@@ -473,27 +575,49 @@ public static class CombatSemanticAuditor
             return Math.Max(0d, projected.Damage + projected.TrueDamage);
         }
         var durability = Math.Max(0, target.Hp) + Math.Max(0, target.Block);
-        var normal = ModifiedDamage(
-            source,
-            target,
-            projected.Damage,
-            applyStrength: source?.Kind == CombatSimulationActorKind.Player,
-            damageType: "Normal");
-        var blockDamage = Math.Min(
-            Math.Max(0, target.Block),
-            Math.Max(0, normal));
-        var normalHpDamage = Math.Min(
-            Math.Max(0, target.Hp),
-            Math.Max(0, normal - blockDamage));
+        var normalResolution = ruleset == null
+            ? null
+            : CombatDamageResolver.Resolve(
+                source,
+                target,
+                ruleset,
+                CombatSimulationEffectKind.Damage,
+                WitchRounded(projected.Damage));
+        var normal = normalResolution?.IncomingAmount
+                     ?? ModifiedDamage(
+                         source,
+                         target,
+                         projected.Damage,
+                         applyStrength:
+                             source?.Kind
+                             == CombatSimulationActorKind.Player,
+                         damageType: "Normal");
+        var blockDamage = normalResolution?.BlockedAmount
+                          ?? Math.Min(
+                              Math.Max(0, target.Block),
+                              Math.Max(0, normal));
+        var normalHpDamage = normalResolution?.HpDamage
+                             ?? Math.Min(
+                                 Math.Max(0, target.Hp),
+                                 Math.Max(0, normal - blockDamage));
         var hpAfterNormal = Math.Max(
             0,
             target.Hp - normalHpDamage);
-        var trueDamage = ModifiedDamage(
-            source,
-            target,
-            projected.TrueDamage,
-            applyStrength: false,
-            damageType: "True");
+        var trueResolution = ruleset == null
+            ? null
+            : CombatDamageResolver.Resolve(
+                source,
+                target,
+                ruleset,
+                CombatSimulationEffectKind.TrueDamage,
+                WitchRounded(projected.TrueDamage));
+        var trueDamage = trueResolution?.HpDamage
+                         ?? ModifiedDamage(
+                             source,
+                             target,
+                             projected.TrueDamage,
+                             applyStrength: false,
+                             damageType: "True");
         var hpDamage = normalHpDamage
                        + Math.Min(
                            hpAfterNormal,
@@ -917,6 +1041,12 @@ public static class CombatSemanticAuditor
         return actor?.Variables.TryGetValue(key, out var value) == true
             ? value
             : fallback;
+    }
+
+    private static double Probability(
+        CombatTargetedSemanticEffect effect)
+    {
+        return Math.Max(0d, Math.Min(1d, effect.Probability));
     }
 
     private static int WitchRounded(double value)

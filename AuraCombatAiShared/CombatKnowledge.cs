@@ -439,6 +439,14 @@ public static class CombatKnowledgeRegistry
             CardGeneration = source.CardGeneration,
             PersistentValue = source.PersistentValue,
             DamageMultiplierGain = source.DamageMultiplierGain,
+            ImmediateHpDamage = source.ImmediateHpDamage,
+            ImmediateDurabilityDamage =
+                source.ImmediateDurabilityDamage,
+            DeferredHpDamage = source.DeferredHpDamage,
+            AffectedEnemyCount = source.AffectedEnemyCount,
+            TargetEffects = source.TargetEffects
+                .Select(item => item.Clone())
+                .ToList(),
             StateChanges = new Dictionary<string, double>(
                 source.StateChanges,
                 StringComparer.OrdinalIgnoreCase),

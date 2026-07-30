@@ -286,11 +286,13 @@ if (-not $foundationControllerRuntime.Contains(
         -or -not $foundationControllerRuntime.Contains(
             "loadedSchemaVersion < 5") `
         -or -not $foundationControllerRuntime.Contains(
+            "loadedSchemaVersion < 6") `
+        -or -not $foundationControllerRuntime.Contains(
             "AdditionalIterationsOnResume") `
         -or -not $foundationControllerRuntime.Contains(
             "MinimumAdvancedDefeatReplayShare") `
         -or -not $foundationControllerModels.Contains(
-            "SchemaVersion { get; set; } = 5")) {
+            "SchemaVersion { get; set; } = 6")) {
     throw "Foundation controller resumable-training settings migration is missing."
 }
 foreach ($anchor in @(

@@ -170,6 +170,8 @@ public static class CombatBattleStateHasher
                 Mix(ref hash, status.Stacks);
                 Mix(ref hash, status.Duration);
                 Mix(ref hash, status.SourceActorId);
+                Mix(ref hash, status.LastStackGainActionId);
+                Mix(ref hash, status.StacksGainedInLastAction);
                 foreach (var counter in status.TriggerCounts
                              .OrderBy(item => item.Key, StringComparer.Ordinal))
                 {

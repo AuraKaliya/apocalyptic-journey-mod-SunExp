@@ -963,6 +963,29 @@ public static class CombatPlayerObservationBoundary
             CardGeneration = Finite(source.CardGeneration),
             PersistentValue = Finite(source.PersistentValue),
             DamageMultiplierGain = Finite(source.DamageMultiplierGain),
+            ImmediateHpDamage = Finite(source.ImmediateHpDamage),
+            ImmediateDurabilityDamage =
+                Finite(source.ImmediateDurabilityDamage),
+            DeferredHpDamage = Finite(source.DeferredHpDamage),
+            AffectedEnemyCount = Math.Max(0, source.AffectedEnemyCount),
+            TargetEffects = source.TargetEffects.Select(item =>
+                new CombatTargetedSemanticEffect
+                {
+                    Phase = item.Phase,
+                    Kind = item.Kind,
+                    TargetRuntimeId = item.TargetRuntimeId,
+                    DefinitionId = item.DefinitionId ?? "",
+                    Trigger = item.Trigger ?? "",
+                    RawAmount = Finite(item.RawAmount),
+                    EffectiveAmount = Finite(item.EffectiveAmount),
+                    EffectiveDurabilityAmount =
+                        Finite(item.EffectiveDurabilityAmount),
+                    Probability = Math.Max(
+                        0d,
+                        Math.Min(1d, Finite(item.Probability))),
+                    BypassesBlock = item.BypassesBlock,
+                    Contextual = item.Contextual
+                }).ToList(),
             StateChanges = CombatPublicFeaturePolicy.SanitizeStateChanges(
                 source.StateChanges),
             CooldownTurns = Finite(source.CooldownTurns),

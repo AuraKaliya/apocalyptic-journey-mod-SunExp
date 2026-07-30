@@ -3523,6 +3523,316 @@ Assert(!strikeAudit.Mismatch
        && !burningAudit.MismatchKinds.Contains("debuff")
        && !elementAudit.Mismatch,
     "base deck semantic audits distinguish block, Perceive and status caps from unexplained card projection errors");
+
+var phasedSemanticState = new CombatBattleState
+{
+    Turn = 1,
+    Phase = CombatSimulationPhase.PlayerAction,
+    PlayerActorId = 1,
+    NextActorId = 4,
+    NextCardInstanceId = 105,
+    Actors =
+    {
+        new CombatActorState
+        {
+            ActorId = 1,
+            InstanceKey = "player",
+            DefinitionId = "career_1",
+            Kind = CombatSimulationActorKind.Player,
+            Hp = 100,
+            MaxHp = 100,
+            Energy = 10,
+            BaseEnergy = 10
+        },
+        new CombatActorState
+        {
+            ActorId = 2,
+            InstanceKey = "semantic-enemy-a",
+            DefinitionId = "enemy_10001",
+            Kind = CombatSimulationActorKind.Enemy,
+            Hp = 200,
+            MaxHp = 200
+        },
+        new CombatActorState
+        {
+            ActorId = 3,
+            InstanceKey = "semantic-enemy-b",
+            DefinitionId = "enemy_10001",
+            Kind = CombatSimulationActorKind.Enemy,
+            Hp = 200,
+            MaxHp = 200
+        }
+    },
+    Cards =
+    {
+        new CombatCardInstanceState
+        {
+            InstanceId = 101,
+            CardId = "burningcard_1",
+            ApparentCardId = "burningcard_1"
+        },
+        new CombatCardInstanceState
+        {
+            InstanceId = 102,
+            CardId = "burningcard_2",
+            ApparentCardId = "burningcard_2"
+        },
+        new CombatCardInstanceState
+        {
+            InstanceId = 103,
+            CardId = "card_4",
+            ApparentCardId = "card_4"
+        },
+        new CombatCardInstanceState
+        {
+            InstanceId = 104,
+            CardId = "elementscard_9",
+            ApparentCardId = "elementscard_9"
+        }
+    },
+    Hand = { 101, 102, 103, 104 }
+};
+bundledRulesV2.Ruleset.TryGetCard(
+    "burningcard_1",
+    out var goldenFireRain);
+bundledRulesV2.Ruleset.TryGetCard(
+    "burningcard_2",
+    out var goldenBlazingNova);
+bundledRulesV2.Ruleset.TryGetCard(
+    "card_4",
+    out var goldenHeavyBlade);
+bundledRulesV2.Ruleset.TryGetCard(
+    "elementscard_9",
+    out var goldenCannedElement);
+var fireRainAction = new CombatSimulationAction
+{
+    Kind = CombatSimulationActionKind.PlayCard,
+    ActorId = 1,
+    CardInstanceId = 101,
+    TargetActorId = 2,
+    DefinitionId = "burningcard_1"
+};
+var fireRainProjection = CombatAuthoritativeSemanticProjector.Project(
+    bundledRulesV2.Ruleset,
+    phasedSemanticState,
+    goldenFireRain!,
+    fireRainAction);
+var fireRainImmediate = fireRainProjection.TargetEffects.Where(item =>
+    item.Phase == CombatSemanticEffectPhase.Immediate
+    && item.Kind == CombatSemanticEffectKind.Damage).ToList();
+var fireRainBurn = fireRainProjection.TargetEffects.Where(item =>
+    item.Phase == CombatSemanticEffectPhase.Immediate
+    && item.Kind == CombatSemanticEffectKind.AddStatus
+    && item.DefinitionId == "buff_burn").ToList();
+var fireRainDeferred = fireRainProjection.TargetEffects.Where(item =>
+    item.Phase == CombatSemanticEffectPhase.Deferred
+    && item.Kind == CombatSemanticEffectKind.DirectHpLoss
+    && item.DefinitionId == "buff_burn").ToList();
+Assert(fireRainImmediate.Count == 2
+       && fireRainImmediate.All(item =>
+           item.RawAmount == 4d
+           && item.EffectiveAmount == 4d)
+       && fireRainProjection.ImmediateHpDamage == 8d
+       && fireRainProjection.AffectedEnemyCount == 2
+       && fireRainBurn.Count == 2
+       && fireRainBurn.All(item => item.EffectiveAmount == 2d)
+       && fireRainDeferred.Count == 2
+       && fireRainDeferred.All(item =>
+           item.EffectiveAmount == 4d
+           && item.BypassesBlock)
+       && fireRainProjection.DeferredHpDamage == 8d,
+    "fire rain projects per-enemy immediate damage, aggregate damage, two burn stacks, and deferred shield-bypassing burn");
+
+var novaProjection = CombatAuthoritativeSemanticProjector.Project(
+    bundledRulesV2.Ruleset,
+    phasedSemanticState,
+    goldenBlazingNova!,
+    new CombatSimulationAction
+    {
+        Kind = CombatSimulationActionKind.PlayCard,
+        ActorId = 1,
+        CardInstanceId = 102,
+        TargetActorId = 2,
+        DefinitionId = "burningcard_2"
+    });
+Assert(novaProjection.TargetEffects.Count(item =>
+           item.Phase == CombatSemanticEffectPhase.Immediate
+           && item.Kind == CombatSemanticEffectKind.Damage) == 1
+       && novaProjection.ImmediateHpDamage == 6d
+       && novaProjection.TargetEffects.Single(item =>
+           item.Phase == CombatSemanticEffectPhase.Immediate
+           && item.Kind == CombatSemanticEffectKind.AddStatus
+           && item.DefinitionId == "buff_burn").EffectiveAmount == 2d,
+    "blazing nova keeps its single-target six damage and two burn semantics");
+
+var empoweredState = phasedSemanticState.Clone();
+empoweredState.Player!.Variables["Strength"] = 10d;
+empoweredState.Player.Statuses.Add(new CombatStatusState
+{
+    StatusId = "buff_extraordinary",
+    Stacks = 20
+});
+var heavyBladeProjection = CombatAuthoritativeSemanticProjector.Project(
+    bundledRulesV2.Ruleset,
+    empoweredState,
+    goldenHeavyBlade!,
+    new CombatSimulationAction
+    {
+        Kind = CombatSimulationActionKind.PlayCard,
+        ActorId = 1,
+        CardInstanceId = 103,
+        TargetActorId = 2,
+        DefinitionId = "card_4"
+    });
+Assert(heavyBladeProjection.TargetEffects.Count(item =>
+           item.Phase == CombatSemanticEffectPhase.Immediate
+           && item.Kind == CombatSemanticEffectKind.Damage
+           && item.RawAmount == 6d
+           && item.EffectiveAmount == 9d) == 2
+       && heavyBladeProjection.ImmediateHpDamage == 18d,
+    "heavy blade uses the shared Strength and extraordinary resolver for every enemy");
+
+var phasedScenario = new CombatScenarioDefinition
+{
+    ScenarioId = "targeted-phased-golden",
+    RulesetVersion = bundledRulesV2.Ruleset.Version,
+    InitialDraw = 0,
+    DrawPerTurn = 0,
+    HandLimit = 10,
+    RequireAuthoritativeRules = true,
+    TraceLevel = CombatSimulationTraceLevel.Full,
+    Player = new CombatPlayerSetup
+    {
+        RoleId = "career_1",
+        MaxHp = 100,
+        CurrentHp = 100,
+        BaseEnergy = 10
+    },
+    Enemies =
+    {
+        new CombatEnemySetup { EnemyId = "enemy_10001" },
+        new CombatEnemySetup { EnemyId = "enemy_10001" }
+    },
+    Limits = new CombatSimulationLimits
+    {
+        MaximumTurns = 2,
+        MaximumActions = 20,
+        MaximumCommands = 1000,
+        MaximumCommandsPerAction = 500,
+        MaximumTriggerWavesPerAction = 50
+    }
+};
+var phasedEngine = new CombatSimulationEngine();
+var goldenFireActions = phasedEngine.GetLegalPlayerActions(
+    phasedScenario,
+    bundledRulesV2.Ruleset,
+    phasedSemanticState);
+var goldenFireAction = goldenFireActions.Single(item =>
+    item.Kind == CombatSimulationActionKind.PlayCard
+    && item.DefinitionId == "burningcard_1");
+var goldenFireApplied = phasedEngine.ForkAndApplyPlayerAction(
+    phasedScenario,
+    bundledRulesV2.Ruleset,
+    phasedSemanticState,
+    goldenFireAction,
+    captureSemanticEvents: true);
+var goldenFireAudit = CombatSemanticAuditor.Audit(
+    phasedSemanticState,
+    goldenFireApplied.State,
+    goldenFireApplied.Events,
+    fireRainProjection,
+    goldenFireAction,
+    bundledRulesV2.Ruleset);
+Assert(goldenFireApplied.Success
+       && !goldenFireAudit.Invalid
+       && !goldenFireAudit.Mismatch
+       && goldenFireAudit.AuditedKinds.Contains("damage:target:2")
+       && goldenFireAudit.AuditedKinds.Contains("damage:target:3"),
+    "multi-target audit compares the same per-target vector and aggregate observed by the simulator");
+
+var elementTimingState = phasedSemanticState.Clone();
+elementTimingState.Actors.RemoveAll(item => item.ActorId == 3);
+elementTimingState.Hand.Clear();
+elementTimingState.Hand.AddRange(new[] { 104, 101 });
+var elementActions = phasedEngine.GetLegalPlayerActions(
+    phasedScenario,
+    bundledRulesV2.Ruleset,
+    elementTimingState);
+var elementApplied = phasedEngine.ForkAndApplyPlayerAction(
+    phasedScenario,
+    bundledRulesV2.Ruleset,
+    elementTimingState,
+    elementActions.Single(item =>
+        item.Kind == CombatSimulationActionKind.PlayCard
+        && item.DefinitionId == "elementscard_9"),
+    captureSemanticEvents: true);
+var elementProjection = CombatAuthoritativeSemanticProjector.Project(
+    bundledRulesV2.Ruleset,
+    elementTimingState,
+    goldenCannedElement!,
+    elementActions.Single(item =>
+        item.Kind == CombatSimulationActionKind.PlayCard
+        && item.DefinitionId == "elementscard_9"));
+var elementTimingScenario = new CombatScenarioDefinition
+{
+    ScenarioId = "element-acquisition-action-boundary",
+    RulesetVersion = bundledRulesV2.Ruleset.Version,
+    InitialDraw = 2,
+    DrawPerTurn = 0,
+    HandLimit = 10,
+    RequireAuthoritativeRules = true,
+    TraceLevel = CombatSimulationTraceLevel.Full,
+    Player = new CombatPlayerSetup
+    {
+        RoleId = "career_1",
+        MaxHp = 100,
+        CurrentHp = 100,
+        BaseEnergy = 10,
+        Deck = { "elementscard_9", "burningcard_1" }
+    },
+    Enemies =
+    {
+        new CombatEnemySetup { EnemyId = "enemy_10001", HpScale = 5d }
+    },
+    Limits = new CombatSimulationLimits
+    {
+        MaximumTurns = 1,
+        MaximumActions = 20,
+        MaximumCommands = 1000,
+        MaximumCommandsPerAction = 500,
+        MaximumTriggerWavesPerAction = 50
+    }
+};
+var elementSequenceResult = phasedEngine.Run(
+    elementTimingScenario,
+    bundledRulesV2.Ruleset,
+    new PlayCardsInOrderThenEndPolicy(
+        "elementscard_9",
+        "burningcard_1"));
+Assert(elementProjection.TargetEffects.All(item =>
+           item.Phase != CombatSemanticEffectPhase.PostAction
+           || item.DefinitionId != "buff_extraordinary"),
+    "the phased semantic projection excludes newly acquired elements from the acquisition action");
+Assert(elementSequenceResult.Outcome != CombatSimulationOutcome.Invalid
+       && !elementSequenceResult.Events.Any(item =>
+           item.Kind == CombatSimulationEventKind.StatusAdded
+           && item.DefinitionId == "buff_extraordinary"
+           && item.SourceActionId == 1)
+       && elementSequenceResult.Events.Any(item =>
+           item.Kind == CombatSimulationEventKind.StatusAdded
+           && item.DefinitionId == "buff_extraordinary"
+           && item.SourceActionId == 2
+           && item.Amount == 2)
+       && elementSequenceResult.FinalState.Player?.Statuses.Single(item =>
+           item.StatusId == "buff_extraordinary").Stacks == 2,
+    "new element stacks do not answer their acquisition action and start adding extraordinary after the next action: outcome="
+    + elementSequenceResult.Outcome
+    + ", statuses="
+    + string.Join(",", elementSequenceResult.FinalState.Player?.Statuses.Select(
+        item => item.StatusId + "=" + item.Stacks) ?? Array.Empty<string>())
+    + ", unsupported="
+    + string.Join(",", elementSequenceResult.UnsupportedDefinitions));
+
 bundledRulesV2.Ruleset.TryGetStatus(
     "buff_impregnable",
     out var bundledImpregnable);
@@ -3619,7 +3929,8 @@ var bundledSemanticProbe = CombatFoundationSemanticProbe.Validate(
 Assert(
     bundledSemanticProbe.Success
     && bundledCampaign.TraceLevel == CombatSimulationTraceLevel.Summary
-    && bundledSemanticProbe.Version == "resource-recurrence-monotonic-v1"
+    && bundledSemanticProbe.Version
+       == CombatPolicyValueProtocol.TrainingSemanticsVersion
     && bundledSemanticProbe.CanaryVersion
        == CombatFoundationSemanticProbeResult.CurrentCanaryVersion,
     "foundation semantic probe covers Blade and Shield, limit damage, "
@@ -7989,26 +8300,77 @@ var capabilityGateProbe = new CombatFoundationCapabilityProbe
             AdvancedVictories = 5,
             AverageCompletedBattles = 22d
         }
+    },
+    Pairs =
+    {
+        new CombatFoundationCapabilityProbePair
+        {
+            DifficultyId = "normal",
+            WorldSeed = 1,
+            BaselineVictory = true,
+            ChampionVictory = true,
+            BaselineCompletedBattles = 20,
+            ChampionCompletedBattles = 20
+        },
+        new CombatFoundationCapabilityProbePair
+        {
+            DifficultyId = "advanced",
+            WorldSeed = 1,
+            BaselineVictory = false,
+            ChampionVictory = false,
+            BaselineCompletedBattles = 18,
+            ChampionCompletedBattles = 19
+        }
     }
 };
 CombatCampaignFoundationTrainer.EvaluateCapabilityBaselineGate(
     capabilityGateRequest,
     capabilityGateProbe);
-Assert(!capabilityGateProbe.PassedBaselineGate
+Assert(capabilityGateProbe.PassedBaselineGate
+       && capabilityGateProbe.BaselineGateVerdict == "inconclusive"
        && capabilityGateProbe.BaselineGateReason.Contains(
            "deployment=normal 10/12, advanced 3/12",
            StringComparison.Ordinal)
        && capabilityGateProbe.BaselineGateReason.Contains(
            "teacher-hard=normal 11/12, advanced 5/12",
            StringComparison.Ordinal),
-    "capability probe blocks expensive validation when the champion merely matches the rule baseline");
-capabilityGateProbe.Arms[1].AdvancedVictories = 4;
+    "capability probe preserves a tied paired result as inconclusive instead of rejecting the champion");
+capabilityGateProbe.Pairs.Clear();
+for (var pairedIndex = 0; pairedIndex < 24; pairedIndex++)
+{
+    capabilityGateProbe.Pairs.Add(
+        new CombatFoundationCapabilityProbePair
+        {
+            DifficultyId = pairedIndex < 12 ? "normal" : "advanced",
+            WorldSeed = (ulong)pairedIndex,
+            BaselineVictory = pairedIndex >= 20,
+            ChampionVictory = pairedIndex < 22,
+            BaselineCompletedBattles = 18,
+            ChampionCompletedBattles = 20
+        });
+}
+capabilityGateProbe.Arms[1].NormalVictories = 12;
+capabilityGateProbe.Arms[1].AdvancedVictories = 10;
 CombatCampaignFoundationTrainer.EvaluateCapabilityBaselineGate(
     capabilityGateRequest,
     capabilityGateProbe);
 Assert(capabilityGateProbe.PassedBaselineGate
-       && capabilityGateProbe.ChampionVictoryGain == 1,
-    "capability probe admits a non-regressive champion with a configured paired-seed victory gain");
+       && capabilityGateProbe.BaselineGateVerdict == "pass"
+       && capabilityGateProbe.ChampionOnlyWins == 20
+       && capabilityGateProbe.BaselineOnlyWins == 2
+       && capabilityGateProbe.PairedWinWilsonLowerBound > 0.5d,
+    "capability probe promotes only a credible paired-seed win advantage");
+foreach (var pair in capabilityGateProbe.Pairs)
+{
+    (pair.BaselineVictory, pair.ChampionVictory) =
+        (pair.ChampionVictory, pair.BaselineVictory);
+}
+CombatCampaignFoundationTrainer.EvaluateCapabilityBaselineGate(
+    capabilityGateRequest,
+    capabilityGateProbe);
+Assert(!capabilityGateProbe.PassedBaselineGate
+       && capabilityGateProbe.BaselineGateVerdict == "fail",
+    "capability probe rejects a credible paired-seed regression");
 Assert(new CombatPolicyValueTrainingOptions
        {
            GradientShardCount = 24

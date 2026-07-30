@@ -19169,27 +19169,15 @@
           "counterStepOrigin": 0,
           "resetCounterAfterTrigger": false,
           "removeStatusAfterTrigger": false,
+          "excludeStacksAcquiredFromSameAction": true,
           "consumeStacks": 0,
           "effects": [
             {
               "kind": "AddStatus",
               "target": "Self",
               "definitionId": "buff_extraordinary",
-              "amountExpression": {
-                "operation": "Multiply",
-                "arguments": [
-                  {
-                    "operation": "SourceStatusStacks",
-                    "key": "buff_elements",
-                    "arguments": []
-                  },
-                  {
-                    "operation": "Constant",
-                    "constant": 2.0,
-                    "arguments": []
-                  }
-                ]
-              }
+              "amount": 2,
+              "scaleWithStatusStacks": true
             }
           ]
         }

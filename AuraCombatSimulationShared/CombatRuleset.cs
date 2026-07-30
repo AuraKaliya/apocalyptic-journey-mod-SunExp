@@ -488,6 +488,8 @@ internal static class CombatRulesetHasher
                     .Append('|').Append(trigger.CounterStepOrigin)
                     .Append('|').Append(trigger.ResetCounterAfterTrigger)
                     .Append('|').Append(trigger.RemoveStatusAfterTrigger)
+                    .Append('|').Append(
+                        trigger.ExcludeStacksAcquiredFromSameAction)
                     .Append('\n');
                 AppendEffects(builder, trigger.Effects);
             }

@@ -1969,7 +1969,7 @@ function Try-NewAuthoritativeTriggeredStatus(
 
     switch ($id) {
         "buff_elements" {
-            $status.triggers = @(New-StatusTrigger `
+            $elementsTrigger = New-StatusTrigger `
                 "elements-action-after" `
                 "ActionResolved" `
                 "EventSource" `
@@ -1977,10 +1977,11 @@ function Try-NewAuthoritativeTriggeredStatus(
                     kind = "AddStatus"
                     target = "Self"
                     definitionId = "buff_extraordinary"
-                    amountExpression = New-ValueExpression "Multiply" @(
-                        $stacks,
-                        (New-ConstantExpression 2))
-                }))
+                    amount = 2
+                    scaleWithStatusStacks = $true
+                })
+            $elementsTrigger.excludeStacksAcquiredFromSameAction = $true
+            $status.triggers = @($elementsTrigger)
         }
         "buff_elementalBody" {
             $reset = New-StatusTrigger `

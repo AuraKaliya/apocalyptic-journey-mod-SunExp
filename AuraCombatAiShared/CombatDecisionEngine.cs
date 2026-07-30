@@ -325,6 +325,10 @@ public sealed class CombatDecisionEngine
             action,
             "effectiveDurabilityDamage",
             projectedEffectiveDamage);
+        var deferredHpDamage = Feature(
+            action,
+            "deferredHpDamage",
+            CombatActionSemanticMetrics.DeferredHpDamage(semantics));
         var overkill = targetHp > 0 ? Math.Max(0d, hpDamage - targetHp) : 0d;
         var terminalLethalEligible =
             Feature(action, "terminalLethalEligible", 1d) > 0.5d;
@@ -373,6 +377,7 @@ public sealed class CombatDecisionEngine
         var followUpCount = Math.Max(0, state.HandCount - 1);
         var setupValue = Math.Max(0d, semantics.Buff) * 0.8d
                          + Math.Max(0d, semantics.Debuff) * 0.9d
+                         + Math.Max(0d, deferredHpDamage) * 0.75d
                          + Math.Max(0d, semantics.Cleanse)
                          + Math.Max(0d, semantics.PersistentValue)
                          + Math.Max(0d, semantics.CostReduction) * Math.Min(3, followUpCount) * 0.65d
@@ -495,6 +500,13 @@ public sealed class CombatDecisionEngine
         features["damage"] = semantics.Damage;
         features["trueDamage"] = semantics.TrueDamage;
         features["damageOverTime"] = semantics.DamageOverTime;
+        features["immediateHpDamage"] =
+            CombatActionSemanticMetrics.ImmediateHpDamage(semantics);
+        features["immediateDurabilityDamage"] =
+            semantics.ImmediateDurabilityDamage;
+        features["deferredHpDamage"] =
+            CombatActionSemanticMetrics.DeferredHpDamage(semantics);
+        features["affectedEnemyCount"] = semantics.AffectedEnemyCount;
         features["selfHpLoss"] = semantics.SelfHpLoss;
         features["endOfCycleSelfHpLoss"] =
             semantics.EndOfCycleSelfHpLoss;
@@ -616,6 +628,8 @@ public sealed class CombatDecisionEngine
             : normalDamage + bypassDamage;
         var setupValue = Math.Max(0d, semantics.Buff)
                          + Math.Max(0d, semantics.Debuff)
+                         + CombatActionSemanticMetrics.DeferredHpDamage(
+                             semantics) * 0.75d
                          + Math.Max(0d, semantics.Cleanse)
                          + Math.Max(0d, semantics.CostReduction)
                          + Math.Max(0d, semantics.CardGeneration)

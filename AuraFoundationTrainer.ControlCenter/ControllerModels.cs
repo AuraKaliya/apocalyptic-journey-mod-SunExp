@@ -6,7 +6,7 @@ namespace AuraFoundationTrainer.ControlCenter;
 
 internal sealed class ControllerSettings
 {
-    public int SchemaVersion { get; set; } = 5;
+    public int SchemaVersion { get; set; } = 6;
 
     [JsonIgnore]
     public string ModRoot { get; set; } = "";

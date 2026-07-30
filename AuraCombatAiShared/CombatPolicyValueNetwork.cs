@@ -359,10 +359,15 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
     [ThreadStatic]
     private static BatchInferenceWorkspace? threadBatchWorkspace;
 
-    public ManagedCombatPolicyValueModel(CombatPolicyValueNetworkDefinition definition)
+    public ManagedCombatPolicyValueModel(
+        CombatPolicyValueNetworkDefinition definition,
+        bool allowDiagnosticLegacySchema = false)
     {
         this.definition = definition ?? throw new ArgumentNullException(nameof(definition));
-        if (!CombatPolicyValueNetworkValidator.TryValidate(definition, out var reason))
+        if (!CombatPolicyValueNetworkValidator.TryValidate(
+                definition,
+                out var reason,
+                allowDiagnosticLegacySchema))
         {
             throw new ArgumentException(reason, nameof(definition));
         }
@@ -928,11 +933,27 @@ public static class CombatPolicyValueNetworkValidator
         CombatPolicyValueNetworkDefinition? model,
         out string reason)
     {
+        return TryValidate(
+            model,
+            out reason,
+            allowDiagnosticLegacySchema: false);
+    }
+
+    public static bool TryValidate(
+        CombatPolicyValueNetworkDefinition? model,
+        out string reason,
+        bool allowDiagnosticLegacySchema)
+    {
         if (model == null
             || model.ModelProtocol != "aura.combat-policy-value.mlp.v1"
             || model.ProtocolVersion != 1
-            || model.FeatureSchemaVersion
-               != CombatPolicyValueProtocol.FeatureSchemaVersion)
+            || (!allowDiagnosticLegacySchema
+                && model.FeatureSchemaVersion
+                   != CombatPolicyValueProtocol.FeatureSchemaVersion)
+            || (allowDiagnosticLegacySchema
+                && (model.FeatureSchemaVersion < 1
+                    || model.FeatureSchemaVersion
+                       > CombatPolicyValueProtocol.FeatureSchemaVersion)))
         {
             reason = "策略价值模型协议不兼容";
             return false;
@@ -1341,6 +1362,13 @@ public static class CombatPolicyValueEncoding
         result["damage"] = semantics.Damage;
         result["trueDamage"] = semantics.TrueDamage;
         result["damageOverTime"] = semantics.DamageOverTime;
+        result["immediateHpDamage"] =
+            CombatActionSemanticMetrics.ImmediateHpDamage(semantics);
+        result["immediateDurabilityDamage"] =
+            semantics.ImmediateDurabilityDamage;
+        result["deferredHpDamage"] =
+            CombatActionSemanticMetrics.DeferredHpDamage(semantics);
+        result["affectedEnemyCount"] = semantics.AffectedEnemyCount;
         result["selfHpLoss"] = semantics.SelfHpLoss;
         result["endOfCycleSelfHpLoss"] =
             semantics.EndOfCycleSelfHpLoss;

@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using AuraDecision.Shared;
 
 namespace AuraCombatAi.Shared;
@@ -214,6 +215,55 @@ public sealed class CombatThreatForecast
     }
 }
 
+public enum CombatSemanticEffectPhase
+{
+    Immediate,
+    PostAction,
+    Deferred
+}
+
+public enum CombatSemanticEffectKind
+{
+    Damage,
+    TrueDamage,
+    DirectHpLoss,
+    Defend,
+    Heal,
+    AddStatus,
+    RemoveStatus,
+    StateChange
+}
+
+public sealed class CombatTargetedSemanticEffect
+{
+    public CombatSemanticEffectPhase Phase { get; set; }
+
+    public CombatSemanticEffectKind Kind { get; set; }
+
+    public int TargetRuntimeId { get; set; }
+
+    public string DefinitionId { get; set; } = "";
+
+    public string Trigger { get; set; } = "";
+
+    public double RawAmount { get; set; }
+
+    public double EffectiveAmount { get; set; }
+
+    public double EffectiveDurabilityAmount { get; set; }
+
+    public double Probability { get; set; } = 1d;
+
+    public bool BypassesBlock { get; set; }
+
+    public bool Contextual { get; set; }
+
+    public CombatTargetedSemanticEffect Clone()
+    {
+        return (CombatTargetedSemanticEffect)MemberwiseClone();
+    }
+}
+
 public sealed class CombatActionSemantics
 {
     public double Damage { get; set; }
@@ -254,6 +304,17 @@ public sealed class CombatActionSemantics
 
     public double DamageMultiplierGain { get; set; }
 
+    public double ImmediateHpDamage { get; set; }
+
+    public double ImmediateDurabilityDamage { get; set; }
+
+    public double DeferredHpDamage { get; set; }
+
+    public int AffectedEnemyCount { get; set; }
+
+    public List<CombatTargetedSemanticEffect> TargetEffects { get; set; } =
+        new();
+
     public Dictionary<string, double> StateChanges { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
 
@@ -266,6 +327,59 @@ public sealed class CombatActionSemantics
     public bool OpensInteraction { get; set; }
 
     public bool RandomOutcome { get; set; }
+}
+
+public static class CombatActionSemanticMetrics
+{
+    public static double ImmediateHpDamage(CombatActionSemantics? semantics)
+    {
+        if (semantics == null)
+        {
+            return 0d;
+        }
+        if (semantics.TargetEffects.Count > 0)
+        {
+            return semantics.TargetEffects
+                .Where(item =>
+                    item.Phase == CombatSemanticEffectPhase.Immediate
+                    && item.Kind is CombatSemanticEffectKind.Damage
+                        or CombatSemanticEffectKind.TrueDamage
+                        or CombatSemanticEffectKind.DirectHpLoss)
+                .Sum(item =>
+                    Math.Max(0d, item.EffectiveAmount)
+                    * Math.Max(0d, Math.Min(1d, item.Probability)));
+        }
+        if (semantics.ImmediateHpDamage > 0d)
+        {
+            return semantics.ImmediateHpDamage;
+        }
+        return Math.Max(0d, semantics.Damage)
+               * Math.Max(1d, semantics.HitCount)
+               + Math.Max(0d, semantics.TrueDamage);
+    }
+
+    public static double DeferredHpDamage(CombatActionSemantics? semantics)
+    {
+        if (semantics == null)
+        {
+            return 0d;
+        }
+        if (semantics.TargetEffects.Count > 0)
+        {
+            return semantics.TargetEffects
+                .Where(item =>
+                    item.Phase == CombatSemanticEffectPhase.Deferred
+                    && item.Kind is CombatSemanticEffectKind.Damage
+                        or CombatSemanticEffectKind.TrueDamage
+                        or CombatSemanticEffectKind.DirectHpLoss)
+                .Sum(item =>
+                    Math.Max(0d, item.EffectiveAmount)
+                    * Math.Max(0d, Math.Min(1d, item.Probability)));
+        }
+        return Math.Max(
+            Math.Max(0d, semantics.DeferredHpDamage),
+            Math.Max(0d, semantics.DamageOverTime));
+    }
 }
 
 public sealed class CombatActionObservation
