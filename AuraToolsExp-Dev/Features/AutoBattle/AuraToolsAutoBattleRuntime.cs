@@ -308,6 +308,8 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
     private CombatDecision? cachedLearnedDecision;
     private readonly List<double> decisionTimingsMs = new();
     private string pendingShadowFingerprint = "";
+    private readonly HashSet<string> failedActionStateKeys =
+        new(StringComparer.Ordinal);
 
     public bool Active { get; private set; }
 
@@ -366,6 +368,7 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         ClearPredictionMarkers();
         nextPredictionAt = 0f;
         transaction.Reset();
+        failedActionStateKeys.Clear();
         ReloadDecisionEngine();
         SetActive(startActive);
         DestroyButton();
@@ -440,9 +443,15 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         ObserveTeacherSettlement();
         UpdateShadowPrediction();
 
-        if (transaction.CheckDeadline(Time.unscaledTime))
+        if (transaction.IsActive
+            && Time.unscaledTime > transaction.Deadline)
         {
             WitchCombatInteractionRuntime.TryResolve(false);
+            if (HandleNoEffectTimeout())
+            {
+                return;
+            }
+            transaction.CheckDeadline(Time.unscaledTime);
             RecordPendingTrainingSample(
                 CombatActionTransactionState.TimedOut.ToString(),
                 transaction.TerminalReason,
@@ -531,6 +540,7 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
             return;
         }
 
+        ApplyFailedActionSuppressions(state);
         var decision = ChooseDecision(state, "execute");
         if (!decision.HasAction || decision.Action == null)
         {
@@ -793,14 +803,16 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
 
         if (beforeAction != null && pendingDecision?.Action != null)
         {
-            if (string.Equals(
-                    after.Fingerprint,
-                    beforeAction.Fingerprint,
-                    StringComparison.Ordinal))
+            if (!CombatActionSettlementPolicy.HasMeaningfulProgress(
+                    beforeAction,
+                    after,
+                    pendingDecision.Action,
+                    out var settlementReason))
             {
                 return;
             }
-            transaction.Complete("action settled");
+            runtime.ConfirmSettledAction(pendingDecision.Action, after);
+            transaction.Complete("action settled: " + settlementReason);
             RecordPendingTrainingSample(
                 CombatActionTransactionState.Completed.ToString(),
                 transaction.TerminalReason,
@@ -811,6 +823,77 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         ClearPendingAction();
         transaction.Reset();
         nextDecisionAt = Time.unscaledTime + settings.DecisionIntervalMs / 1000f;
+    }
+
+    private bool HandleNoEffectTimeout()
+    {
+        if (beforeAction == null || pendingDecision?.Action == null)
+        {
+            return false;
+        }
+        if (TryCapturePlayerState(out var after, out _)
+            && CombatActionSettlementPolicy.HasMeaningfulProgress(
+                beforeAction,
+                after,
+                pendingDecision.Action,
+                out var progressReason))
+        {
+            runtime.ConfirmSettledAction(pendingDecision.Action, after);
+            transaction.Complete(
+                "action settled at timeout boundary: " + progressReason);
+            RecordPendingTrainingSample(
+                CombatActionTransactionState.Completed.ToString(),
+                transaction.TerminalReason,
+                after.Enemies.Count == 0 || after.Player.CurrentHp <= 0,
+                after);
+            ClearPendingAction();
+            transaction.Reset();
+            nextDecisionAt = Time.unscaledTime + 0.05f;
+            return true;
+        }
+
+        var failedAction = pendingDecision.Action;
+        failedActionStateKeys.Add(
+            FailedActionStateKey(beforeAction, failedAction));
+        RecordPendingTrainingSample(
+            CombatActionTransactionState.Failed.ToString(),
+            "action produced no semantic game-state effect and was suppressed",
+            terminal: false,
+            after);
+        AuraToolsLog.Warn(
+            "[AutoBattle] suppressed no-effect action source="
+            + failedAction.SourceId
+            + " candidate=" + failedAction.CandidateId);
+        ClearPendingAction();
+        transaction.Reset();
+        nextDecisionAt = Time.unscaledTime + 0.05f;
+        return true;
+    }
+
+    private void ApplyFailedActionSuppressions(
+        CombatStateObservation state)
+    {
+        foreach (var action in state.Actions)
+        {
+            if (!failedActionStateKeys.Contains(
+                    FailedActionStateKey(state, action)))
+            {
+                continue;
+            }
+            action.Legal = false;
+            action.RejectionReason =
+                "suppressed after producing no semantic game-state effect";
+            action.Features["semanticUnavailable"] = 1d;
+        }
+    }
+
+    private static string FailedActionStateKey(
+        CombatStateObservation state,
+        CombatActionObservation action)
+    {
+        return state.BattleSessionId
+               + "|" + state.Fingerprint
+               + "|" + action.CandidateId;
     }
 
     private void EnsurePromptTransaction()

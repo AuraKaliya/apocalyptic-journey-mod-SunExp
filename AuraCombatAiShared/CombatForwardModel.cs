@@ -327,21 +327,41 @@ public sealed class CombatSimulationState
             {
                 Mix(ref hash, Quantize(HandCardValues[i]));
             }
+            for (var i = 0; i < HandCardIds.Count; i++)
+            {
+                Mix(ref hash, HandCardIds[i]);
+            }
             for (var i = 0; i < RetainedHandCardValues.Count; i++)
             {
                 Mix(ref hash, Quantize(RetainedHandCardValues[i]));
+            }
+            for (var i = 0; i < RetainedHandCardIds.Count; i++)
+            {
+                Mix(ref hash, RetainedHandCardIds[i]);
             }
             for (var i = 0; i < DrawPileValues.Count; i++)
             {
                 Mix(ref hash, Quantize(DrawPileValues[i]));
             }
+            for (var i = 0; i < DrawPileCardIds.Count; i++)
+            {
+                Mix(ref hash, DrawPileCardIds[i]);
+            }
             for (var i = 0; i < DiscardPileValues.Count; i++)
             {
                 Mix(ref hash, Quantize(DiscardPileValues[i]));
             }
+            for (var i = 0; i < DiscardPileCardIds.Count; i++)
+            {
+                Mix(ref hash, DiscardPileCardIds[i]);
+            }
             for (var i = 0; i < ExhaustPileValues.Count; i++)
             {
                 Mix(ref hash, Quantize(ExhaustPileValues[i]));
+            }
+            for (var i = 0; i < ExhaustPileCardIds.Count; i++)
+            {
+                Mix(ref hash, ExhaustPileCardIds[i]);
             }
             for (var i = 0; i < HandCardIds.Count; i++)
             {
@@ -393,15 +413,10 @@ public sealed class CombatSimulationState
             // Monotonic payoffs such as damage, block, setup value, and stacked
             // state are assessed separately by CombatLoopSafetyAnalyzer.
             var hash = 1469598103934665603UL;
-            Mix(ref hash, Power);
             Mix(ref hash, MaxPower);
             Mix(ref hash, HandCount);
             Mix(ref hash, HandLimit);
             Mix(ref hash, CostReduction);
-            Mix(ref hash, Turn);
-            Mix(ref hash, TurnActionsTaken);
-            Mix(ref hash, TurnEnergySpent);
-            Mix(ref hash, ConsecutiveNoProgressTurns);
             Mix(ref hash, DrawPileKnown ? 1 : 0);
             for (var i = 0; i < HandCardValues.Count; i++)
             {
@@ -1764,9 +1779,22 @@ public static class CombatForwardModel
         {
             return;
         }
-        var absorbed = bypassDefend ? 0 : Math.Min(target.Defend, amount);
+        var positiveAmount = Math.Max(0, amount);
+        var absorbed = bypassDefend
+            ? 0
+            : Math.Min(target.Defend, positiveAmount);
         target.Defend -= absorbed;
-        target.Hp = Math.Max(0, target.Hp - Math.Max(0, amount - absorbed));
+        var requestedHpDamage = Math.Max(0, positiveAmount - absorbed);
+        var hpDamage = requestedHpDamage;
+        if (CombatDamageLimitPolicy.TryGetRemainingBudget(
+                target.Features,
+                out var remaining))
+        {
+            hpDamage = (int)Math.Min(hpDamage, Math.Floor(remaining));
+        }
+        hpDamage = Math.Min(target.Hp, hpDamage);
+        target.Hp = Math.Max(0, target.Hp - hpDamage);
+        CombatDamageLimitPolicy.ConsumeBudget(target.Features, hpDamage);
     }
 
     private static CombatSimulationThreat[] BuildThreats(CombatStateObservation state)

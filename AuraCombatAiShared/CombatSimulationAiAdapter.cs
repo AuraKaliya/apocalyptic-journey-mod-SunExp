@@ -110,6 +110,7 @@ public sealed class CombatDecisionSimulationPolicy :
         LastDecisionMetrics.EndTurnSafetyAssessed = false;
         LastDecisionMetrics.SelectedEndTurnSevereMistake = false;
         LastDecisionMetrics.EndTurnSafeAlternativeCount = 0;
+        LastDecisionMetrics.EndTurnAvoidableUnusedEnergy = 0;
         LastDecisionMetrics.AuthoritativeSemanticMismatchKinds.Clear();
         LastDecisionMetrics.AuthoritativeSemanticMismatchSources.Clear();
         LastDecisionMetrics.AuthoritativeSemanticMismatchScenarios.Clear();
@@ -152,6 +153,8 @@ public sealed class CombatDecisionSimulationPolicy :
                 endTurnAssessment.SevereMistake;
             LastDecisionMetrics.EndTurnSafeAlternativeCount =
                 endTurnAssessment.SafeAlternativeCount;
+            LastDecisionMetrics.EndTurnAvoidableUnusedEnergy =
+                endTurnAssessment.AvoidableUnusedEnergy;
         }
         return resolved;
     }
@@ -967,6 +970,13 @@ public static class PlayerEquivalentSimulationObservationProjector
             ["isSkill"] =
                 action.Kind == CombatSimulationActionKind.UseSkill ? 1d : 0d,
             ["visibleFake"] = instance?.IsVisibleFake == true ? 1d : 0d,
+            ["curse"] = definition != null && HasTag(definition, "Curse")
+                ? 1d
+                : 0d,
+            ["unplayable"] =
+                definition != null && HasTag(definition, "Unusable")
+                    ? 1d
+                    : 0d,
             ["hasVisibleWarning"] = instance?.EnchantmentIds.Count > 0 ? 1d : 0d,
             ["retain"] = definition != null && HasTag(definition, "Retain") ? 1d : 0d,
             ["inherent"] = definition != null && HasTag(definition, "Inherent") ? 1d : 0d,

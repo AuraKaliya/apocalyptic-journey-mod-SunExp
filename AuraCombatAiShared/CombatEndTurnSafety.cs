@@ -10,12 +10,15 @@ public static class CombatTurnFeatureNames
     public const string EnergySpentThisTurn = "turnEnergySpent";
     public const string EnemyHpAtTurnStart = "enemyHpAtTurnStart";
     public const string ConsecutiveNoProgressTurns = "consecutiveNoProgressTurns";
+    public const string TurnSequence = "turnSequence";
     public const string EndTurnPurposeValue = "endTurnPurposeValue";
     public const string EndTurnPurposeCount = "endTurnPurposeCount";
     public const string EndTurnSevereMistake = "endTurnSevereMistake";
     public const string EndTurnSafeAlternativeCount = "endTurnSafeAlternativeCount";
     public const string EndTurnPlayableCardCount = "endTurnPlayableCardCount";
     public const string EndTurnUnusedEnergy = "endTurnUnusedEnergy";
+    public const string EndTurnAvoidableUnusedEnergy =
+        "endTurnAvoidableUnusedEnergy";
 }
 
 public sealed class CombatEndTurnAssessment
@@ -33,6 +36,8 @@ public sealed class CombatEndTurnAssessment
     public int ActionsTakenThisTurn { get; set; }
 
     public int UnusedEnergy { get; set; }
+
+    public int AvoidableUnusedEnergy { get; set; }
 
     public int ConsecutiveNoProgressTurns { get; set; }
 
@@ -74,12 +79,10 @@ public static class CombatEndTurnSafety
             candidate.Action.Kind == CombatActionKind.PlayCard);
         var hasPurpose = purposeValue > 0.000001d;
         var unusedEnergy = Math.Max(0, state.CurrentPower);
-        var severe = !hasPurpose
-                     && safe.Count > 0
-                     && (actionsTaken == 0
-                         || unusedEnergy > 0
-                         || playableCards > 0
-                         || noProgressTurns > 0);
+        var avoidableUnusedEnergy = safe.Count > 0
+            ? unusedEnergy
+            : 0;
+        var severe = safe.Count > 0;
         var reason = severe
             ? "end turn blocked: safe action remains"
               + ", actions=" + actionsTaken
@@ -87,7 +90,7 @@ public static class CombatEndTurnSafety
               + ", unusedEnergy=" + unusedEnergy
               + ", noProgressTurns=" + noProgressTurns
             : hasPurpose
-                ? "end turn has explicit lifecycle purpose"
+                ? "end turn lifecycle purpose is admissible because no productive action remains"
                 : safe.Count == 0
                     ? "no safe positive action remains"
                     : "end turn allowed";
@@ -100,13 +103,14 @@ public static class CombatEndTurnSafety
             PlayableCardCount = playableCards,
             ActionsTakenThisTurn = actionsTaken,
             UnusedEnergy = unusedEnergy,
+            AvoidableUnusedEnergy = avoidableUnusedEnergy,
             ConsecutiveNoProgressTurns = noProgressTurns,
             PurposeValue = purposeValue,
             OpportunityCost = severe
                 ? 100d
                   + safe.Count * 8d
                   + playableCards * 10d
-                  + unusedEnergy * 12d
+                  + avoidableUnusedEnergy * 12d
                   + (actionsTaken == 0 ? 24d : 0d)
                   + noProgressTurns * 16d
                 : 0d,
@@ -135,8 +139,7 @@ public static class CombatEndTurnSafety
             return false;
         }
 
-        return candidate.RuleScore >= profile.MinimumActionScore
-               || HasKnownPositiveUtility(candidate.Utility);
+        return CombatActionProductivity.Assess(state, candidate).Productive;
     }
 
     public static void Annotate(
@@ -156,6 +159,9 @@ public static class CombatEndTurnSafety
             assessment.PlayableCardCount;
         endTurn.Features[CombatTurnFeatureNames.EndTurnUnusedEnergy] =
             assessment.UnusedEnergy;
+        endTurn.Features[
+                CombatTurnFeatureNames.EndTurnAvoidableUnusedEnergy] =
+            assessment.AvoidableUnusedEnergy;
         endTurn.Features[CombatTurnFeatureNames.EndTurnPurposeValue] =
             assessment.PurposeValue;
         if (assessment.Prohibited)
@@ -211,24 +217,6 @@ public static class CombatEndTurnSafety
             score += 2d;
         }
         return score;
-    }
-
-    private static bool HasKnownPositiveUtility(AuraDecision.Shared.DecisionUtility utility)
-    {
-        if (utility == null)
-        {
-            return false;
-        }
-        var positive = utility.Survival
-                       + utility.Lethal
-                       + utility.Tempo
-                       + utility.Resource
-                       + utility.DeckEconomy
-                       + utility.Scaling
-                       + utility.Synergy
-                       + utility.Continuation
-                       + utility.Coordination;
-        return positive > utility.Risk + utility.Uncertainty + 0.05d;
     }
 
     private static bool IsVisibleFake(CombatActionObservation action)

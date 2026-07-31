@@ -26,11 +26,15 @@ public sealed class CombatLoopSafetyAssessment
 
     public double ResourceStateLoss { get; set; }
 
+    public int EnergyDelta { get; set; }
+
     public int RequiredCycles { get; set; }
 
     public int SafeCycles { get; set; }
 
     public bool EnemyLimitDamageActive { get; set; }
+
+    public double EnemyDamageBudgetRemaining { get; set; }
 
     public double EnemyEscalationPressure { get; set; }
 
@@ -59,7 +63,10 @@ public static class CombatLoopSafetyAnalyzer
             + PositiveDelta(start.DamageMultiplier, end.DamageMultiplier)
             + PositiveDelta(start.DrawnCardPotential, end.DrawnCardPotential)
             + PositiveFeatureGain(start.Features, end.Features);
-        var resourceStateLoss = FeatureLoss(start.Features, end.Features);
+        var energyDelta = end.Power - start.Power;
+        var resourceStateLoss =
+            FeatureLoss(start.Features, end.Features)
+            + Math.Max(0, -energyDelta);
         var defensiveOrStateGain = blockDelta > 0 || monotonicStateGain > 0d;
         var limitDamage = end.Enemies
             .Where(enemy => enemy.Hp > 0)
@@ -67,6 +74,16 @@ public static class CombatLoopSafetyAnalyzer
                 enemy,
                 "damageLimitActive",
                 "status:buff_limitdamage") > 0d);
+        var remainingDamageBudget = end.Enemies
+            .Where(enemy => enemy.Hp > 0)
+            .Select(enemy =>
+                CombatDamageLimitPolicy.TryGetRemainingBudget(
+                    enemy.Features,
+                    out var remaining)
+                    ? remaining
+                    : double.PositiveInfinity)
+            .DefaultIfEmpty(double.PositiveInfinity)
+            .Min();
         var escalation = end.Enemies
             .Where(enemy => enemy.Hp > 0)
             .Sum(enemy => Feature(
@@ -107,9 +124,11 @@ public static class CombatLoopSafetyAnalyzer
             PlayerBlockDelta = blockDelta,
             MonotonicStateGain = monotonicStateGain,
             ResourceStateLoss = resourceStateLoss,
+            EnergyDelta = energyDelta,
             RequiredCycles = requiredCycles,
             SafeCycles = safeCycles,
             EnemyLimitDamageActive = limitDamage,
+            EnemyDamageBudgetRemaining = remainingDamageBudget,
             EnemyEscalationPressure = escalation
         };
 
@@ -133,7 +152,9 @@ public static class CombatLoopSafetyAnalyzer
                 ? "resources repeat while block or persistent state grows"
                 : limitDamage || escalation > 0d
                     ? "enemy mechanic blocks lethal progress without compensating growth"
-                    : "resource cycle is stable but has no lethal progress";
+                    : energyDelta > 0
+                        ? "repeatable structure grows energy but has no current lethal progress"
+                        : "resource cycle is stable but has no lethal progress";
             return assessment;
         }
 

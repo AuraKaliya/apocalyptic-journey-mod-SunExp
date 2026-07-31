@@ -716,7 +716,7 @@ public static class CombatTrainingProtocol
 {
     public const string SampleProtocol = "aura.combat-ai.sample.v6";
 
-    public const int FeatureSchemaVersion = 6;
+    public const int FeatureSchemaVersion = 7;
 
     public static bool IsCompatible(CombatTrainingSample? sample)
     {

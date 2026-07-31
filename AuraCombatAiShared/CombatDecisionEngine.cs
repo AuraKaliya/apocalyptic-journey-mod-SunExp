@@ -305,22 +305,14 @@ public sealed class CombatDecisionEngine
         var hpRatio = player.MaxHp <= 0 ? 1d : (double)player.CurrentHp / player.MaxHp;
         var targetHp = target != null && target.Kind == CombatTargetKind.Enemy
             ? Math.Max(0, target.CurrentHp)
-            : 0;
-        var targetDefend = target != null && target.Kind == CombatTargetKind.Enemy
-            ? Math.Max(0, target.Defend)
-            : 0;
-        var hitCount = Math.Max(1d, semantics.HitCount);
-        var normalDamage = Math.Max(0d, semantics.Damage) * hitCount;
-        var bypassDamage = Math.Max(0d, semantics.TrueDamage) + Math.Max(0d, semantics.DamageOverTime);
-        var projectedHpDamage =
-            Math.Max(0d, normalDamage - targetDefend) + bypassDamage;
+            : state.Enemies.Where(enemy => enemy.Alive).Sum(enemy => enemy.CurrentHp);
+        var projection = CombatDamageLimitPolicy.Project(state, action);
+        var projectedHpDamage = projection.HpDamage;
         var hpDamage = Feature(
             action,
             "effectiveHpDamage",
             projectedHpDamage);
-        var projectedEffectiveDamage = targetHp > 0
-            ? Math.Min(targetHp + targetDefend, normalDamage) + Math.Min(targetHp, bypassDamage)
-            : normalDamage + bypassDamage;
+        var projectedEffectiveDamage = projection.DurabilityDamage;
         var effectiveDamage = Feature(
             action,
             "effectiveDurabilityDamage",
@@ -613,33 +605,24 @@ public sealed class CombatDecisionEngine
         var heal = Math.Max(0d, semantics.Heal);
         var handCapacity = Math.Max(0d, 10 - state.HandCount);
         var draw = Math.Max(0d, semantics.Draw);
-        var normalDamage = Math.Max(0d, semantics.Damage) * Math.Max(1d, semantics.HitCount);
+        var normalDamage = Math.Max(0d, semantics.Damage)
+                           * Math.Max(1d, semantics.HitCount);
         var bypassDamage = Math.Max(0d, semantics.TrueDamage)
                            + Math.Max(0d, semantics.DamageOverTime);
         var targetHp = target != null && target.Kind == CombatTargetKind.Enemy
             ? Math.Max(0d, target.CurrentHp)
-            : 0d;
-        var targetDefend = target != null && target.Kind == CombatTargetKind.Enemy
-            ? Math.Max(0d, target.Defend)
-            : 0d;
-        var hpDamage = Math.Max(0d, normalDamage - targetDefend) + bypassDamage;
-        var effectiveDamage = targetHp > 0d
-            ? Math.Min(targetHp + targetDefend, normalDamage) + Math.Min(targetHp, bypassDamage)
-            : normalDamage + bypassDamage;
-        var setupValue = Math.Max(0d, semantics.Buff)
-                         + Math.Max(0d, semantics.Debuff)
-                         + CombatActionSemanticMetrics.DeferredHpDamage(
-                             semantics) * 0.75d
-                         + Math.Max(0d, semantics.Cleanse)
-                         + Math.Max(0d, semantics.CostReduction)
-                         + Math.Max(0d, semantics.CardGeneration)
-                         + Math.Max(0d, semantics.PersistentValue)
-                         + Math.Max(0d, semantics.Scaling);
+            : state.Enemies.Where(enemy => enemy.Alive).Sum(enemy => enemy.CurrentHp);
+        var projection = CombatDamageLimitPolicy.Project(state, action);
+        var hpDamage = projection.HpDamage;
+        var effectiveDamage = projection.DurabilityDamage;
+        var setupValue = CombatActionProductivity.SetupValue(semantics);
+        var marginalSetupValue =
+            CombatActionProductivity.MarginalSetupValue(state, semantics);
         var usefulNow = effectiveDamage + usefulDefend
                         + Math.Min(heal, missingHp)
                         + Math.Min(draw, handCapacity)
                         + Math.Max(0d, semantics.EnergyGain)
-                        + setupValue > 0d;
+                        + marginalSetupValue > 0d;
         var recognizedSemantics = normalDamage + bypassDamage
                                   + defend
                                   + heal
@@ -664,6 +647,12 @@ public sealed class CombatDecisionEngine
         features["effectiveDraw"] = Math.Min(draw, handCapacity);
         features["overdraw"] = Math.Max(0d, draw - handCapacity);
         features["effectiveDamage"] = effectiveDamage;
+        features["effectiveHpDamage"] = hpDamage;
+        features["effectiveDurabilityDamage"] = effectiveDamage;
+        features["damagePreventedByLimit"] = projection.PreventedHpDamage;
+        features["damageLimitActive"] =
+            projection.LimitDamageActive ? 1d : 0d;
+        features["marginalSetupValue"] = marginalSetupValue;
         features["overkill"] = targetHp > 0d ? Math.Max(0d, hpDamage - targetHp) : 0d;
         features["lethal"] = targetHp > 0d && hpDamage >= targetHp ? 1d : 0d;
         features["energyScarcity"] = state.MaxPower <= 0

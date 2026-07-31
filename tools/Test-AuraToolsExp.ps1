@@ -435,11 +435,22 @@ foreach ($anchor in @(
     "win-x64",
     "TrainingWorker",
     "AuraFoundationTrainer.ControlCenter",
-    "controlCenterProject"
+    "controlCenterProject",
+    "StopRunningTrainer",
+    "Request-WorkerCancellation",
+    "CancellationPath",
+    "AuraFoundationTrainer.Publish",
+    "Copy-PublishedFileWithRetry"
 )) {
     if (-not $foundationWorkerBuild.Contains($anchor)) {
         throw "Aura foundation worker packaging contract is missing: $anchor"
     }
+}
+if (-not $runtimeProject.Contains("StopRunningFoundationTrainer") `
+    -or $foundationWorkerBuild.Contains(".Kill(")) {
+    throw (
+        "Aura foundation worker deployment must expose graceful shutdown " +
+        "without force-killing an active training process.")
 }
 
 Write-Host "AuraToolsExp runtime compilation and retained-UI gates passed."

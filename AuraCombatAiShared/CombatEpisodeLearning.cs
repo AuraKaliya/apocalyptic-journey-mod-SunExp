@@ -9,15 +9,15 @@ public static class CombatPolicyValueProtocol
 {
     public const string EpisodeProtocol = "aura.combat-ai.episode.v4";
 
-    public const int FeatureSchemaVersion = 13;
+    public const int FeatureSchemaVersion = 14;
 
     public const string TrainingSemanticsVersion =
-        "targeted-phased-authoritative-v2";
+        "effective-action-limit-loop-v3";
 }
 
 public static class CombatPolicyValueFrameStratificationProtocol
 {
-    public const string Version = "frame-strata-v3-end-turn";
+    public const string Version = "frame-strata-v4-effective-end-turn";
 
     public const double MinimumWeight = 0.50d;
 

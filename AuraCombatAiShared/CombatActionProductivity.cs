@@ -1,0 +1,323 @@
+using System;
+using System.Collections.Generic;
+
+namespace AuraCombatAi.Shared;
+
+public sealed class CombatActionProductivityAssessment
+{
+    public bool Productive { get; set; }
+
+    public bool RecognizedSemantics { get; set; }
+
+    public bool ExplicitlyHarmful { get; set; }
+
+    public double MarginalBenefit { get; set; }
+
+    public double MarginalHarm { get; set; }
+
+    public string Reason { get; set; } = "";
+}
+
+public static class CombatActionProductivity
+{
+    private const double Epsilon = 0.000001d;
+
+    public static CombatActionProductivityAssessment Assess(
+        CombatStateObservation state,
+        CombatCandidateEvaluation candidate)
+    {
+        if (state == null) throw new ArgumentNullException(nameof(state));
+        if (candidate?.Action == null)
+        {
+            return Rejected("missing action");
+        }
+        var action = candidate.Action;
+        if (!candidate.Legal
+            || action.Kind == CombatActionKind.EndTurn
+            || action.Cost > state.CurrentPower)
+        {
+            return Rejected("action is not currently executable");
+        }
+        if (Flag(action.Features, "visibleFake")
+            || Flag(action.Features, "curse")
+            || Flag(action.Features, "unplayable")
+            || Flag(action.Features, "semanticUnavailable"))
+        {
+            return Rejected("action is explicitly unavailable or harmful");
+        }
+
+        var semantics = action.Semantics ?? new CombatActionSemantics();
+        var recognized = HasRecognizedSemantics(semantics);
+        var marginalBenefit =
+            Positive(action.Features, "effectiveDurabilityDamage", "effectiveDamage")
+            + Positive(action.Features, "immediateDefend")
+            + Positive(action.Features, "effectiveHeal")
+            + Positive(action.Features, "effectiveDraw")
+            + Positive(action.Features, "marginalSetupValue")
+            + Math.Max(0d, semantics.EnergyGain);
+        var marginalHarm =
+            Math.Max(0d, semantics.SelfHpLoss) * 2d
+            + Math.Max(0d, semantics.EndOfCycleSelfHpLoss) * 1.5d
+            + Math.Max(0d, semantics.Risk);
+        var explicitlyHarmful =
+            marginalHarm > marginalBenefit + Epsilon
+            && marginalBenefit <= Epsilon;
+
+        if (!recognized)
+        {
+            return new CombatActionProductivityAssessment
+            {
+                Productive = true,
+                RecognizedSemantics = false,
+                MarginalBenefit = marginalBenefit,
+                MarginalHarm = marginalHarm,
+                Reason =
+                    "playable non-curse action has unknown semantics; conservatively keep it ahead of end turn"
+            };
+        }
+        if (explicitlyHarmful)
+        {
+            return new CombatActionProductivityAssessment
+            {
+                Productive = false,
+                RecognizedSemantics = true,
+                ExplicitlyHarmful = true,
+                MarginalBenefit = marginalBenefit,
+                MarginalHarm = marginalHarm,
+                Reason = "recognized action is purely harmful"
+            };
+        }
+        var productive = marginalBenefit + Epsilon >= marginalHarm
+                         && marginalBenefit > Epsilon;
+        return new CombatActionProductivityAssessment
+        {
+            Productive = productive,
+            RecognizedSemantics = true,
+            ExplicitlyHarmful = explicitlyHarmful,
+            MarginalBenefit = marginalBenefit,
+            MarginalHarm = marginalHarm,
+            Reason = productive
+                ? "action has non-negative marginal combat value"
+                : "recognized action is saturated in the current state"
+        };
+    }
+
+    public static bool IsProductive(
+        CombatSimulationState state,
+        CombatActionObservation action,
+        int effectiveCost,
+        CombatDecisionProfile profile)
+    {
+        if (state == null
+            || action == null
+            || action.Kind == CombatActionKind.EndTurn
+            || effectiveCost > state.Power
+            || Flag(action.Features, "visibleFake")
+            || Flag(action.Features, "curse")
+            || Flag(action.Features, "unplayable")
+            || Flag(action.Features, "semanticUnavailable"))
+        {
+            return false;
+        }
+        var semantics = action.Semantics ?? new CombatActionSemantics();
+        if (!HasRecognizedSemantics(semantics))
+        {
+            return true;
+        }
+
+        var normalDamage = Math.Max(0d, semantics.Damage)
+                           * Math.Max(1d, semantics.HitCount);
+        var bypassDamage = Math.Max(0d, semantics.TrueDamage)
+                           + Math.Max(0d, semantics.DamageOverTime);
+        var damage = 0d;
+        for (var i = 0; i < state.Enemies.Length; i++)
+        {
+            var enemy = state.Enemies[i];
+            if (enemy.Hp <= 0
+                || action.TargetRuntimeId != 0
+                   && action.TargetRuntimeId != enemy.RuntimeId)
+            {
+                continue;
+            }
+            damage += CombatDamageLimitPolicy.Project(
+                enemy,
+                normalDamage,
+                bypassDamage).DurabilityDamage;
+        }
+        var requiredDefend = Math.Max(
+            0d,
+            state.ActiveBlockableThreat(profile.ThreatRiskTolerance)
+            - state.PlayerDefend);
+        var immediateDefend = Math.Min(
+            Math.Max(0d, semantics.Defend),
+            requiredDefend);
+        var missingHp = Math.Max(0, state.PlayerMaxHp - state.PlayerHp);
+        var handCapacity = Math.Max(0, state.HandLimit - state.HandCount);
+        var setup = MarginalSetupValue(state, semantics);
+        var benefit = damage
+                      + immediateDefend
+                      + Math.Min(missingHp, Math.Max(0d, semantics.Heal))
+                      + Math.Min(handCapacity, Math.Max(0d, semantics.Draw))
+                      + Math.Max(0d, semantics.EnergyGain)
+                      + setup;
+        var harm = Math.Max(0d, semantics.SelfHpLoss) * 2d
+                   + Math.Max(0d, semantics.EndOfCycleSelfHpLoss) * 1.5d
+                   + Math.Max(0d, semantics.Risk);
+        return benefit > Epsilon && benefit + Epsilon >= harm;
+    }
+
+    public static double SetupValue(CombatActionSemantics semantics)
+    {
+        return Math.Max(0d, semantics.Buff)
+               + Math.Max(0d, semantics.Debuff)
+               + Math.Max(0d, semantics.Cleanse)
+               + Math.Max(0d, semantics.CostReduction)
+               + Math.Max(0d, semantics.CardGeneration)
+               + Math.Max(0d, semantics.PersistentValue)
+               + Math.Max(0d, semantics.Scaling)
+               + Math.Max(0d, semantics.DamageMultiplierGain)
+               + CombatActionSemanticMetrics.DeferredHpDamage(semantics) * 0.75d;
+    }
+
+    public static double MarginalSetupValue(
+        CombatStateObservation state,
+        CombatActionSemantics semantics)
+    {
+        if (state == null) throw new ArgumentNullException(nameof(state));
+        if (semantics == null) throw new ArgumentNullException(nameof(semantics));
+
+        var handCapacity = Math.Max(0, 10 - state.HandCount);
+        return Math.Max(0d, semantics.Buff)
+               + Math.Max(0d, semantics.Debuff)
+               + (HasCleansableStatus(state.Player.Statuses)
+                   ? Math.Max(0d, semantics.Cleanse)
+                   : 0d)
+               + (state.HandCount > 1
+                   ? Math.Max(0d, semantics.CostReduction)
+                   : 0d)
+               + (handCapacity > 0
+                   ? Math.Max(0d, semantics.CardGeneration)
+                   : 0d)
+               + Math.Max(0d, semantics.PersistentValue)
+               + Math.Max(0d, semantics.Scaling)
+               + Math.Max(0d, semantics.DamageMultiplierGain)
+               + CombatActionSemanticMetrics.DeferredHpDamage(semantics)
+                 * 0.75d;
+    }
+
+    public static double MarginalSetupValue(
+        CombatSimulationState state,
+        CombatActionSemantics semantics)
+    {
+        if (state == null) throw new ArgumentNullException(nameof(state));
+        if (semantics == null) throw new ArgumentNullException(nameof(semantics));
+
+        var handCapacity = Math.Max(0, state.HandLimit - state.HandCount);
+        return Math.Max(0d, semantics.Buff)
+               + Math.Max(0d, semantics.Debuff)
+               + (state.HandCount > 1
+                   ? Math.Max(0d, semantics.CostReduction)
+                   : 0d)
+               + (handCapacity > 0
+                   ? Math.Max(0d, semantics.CardGeneration)
+                   : 0d)
+               + Math.Max(0d, semantics.PersistentValue)
+               + Math.Max(0d, semantics.Scaling)
+               + Math.Max(0d, semantics.DamageMultiplierGain)
+               + CombatActionSemanticMetrics.DeferredHpDamage(semantics)
+                 * 0.75d;
+    }
+
+    private static bool HasRecognizedSemantics(CombatActionSemantics semantics)
+    {
+        return Math.Max(0d, semantics.Damage)
+               + Math.Max(0d, semantics.TrueDamage)
+               + Math.Max(0d, semantics.DamageOverTime)
+               + Math.Max(0d, semantics.SelfHpLoss)
+               + Math.Max(0d, semantics.EndOfCycleSelfHpLoss)
+               + Math.Max(0d, semantics.Defend)
+               + Math.Max(0d, semantics.Heal)
+               + Math.Max(0d, semantics.Draw)
+               + Math.Max(0d, semantics.EnergyGain)
+               + SetupValue(semantics) > Epsilon;
+    }
+
+    private static bool HasCleansableStatus(
+        IReadOnlyList<CombatStatusObservation> statuses)
+    {
+        foreach (var status in statuses)
+        {
+            var type = status.Type ?? "";
+            var id = status.StatusId ?? "";
+            if (ContainsAny(
+                    type,
+                    "debuff",
+                    "bad",
+                    "negative",
+                    "curse")
+                || ContainsAny(
+                    id,
+                    "poison",
+                    "burn",
+                    "bleed",
+                    "weak",
+                    "vulnerable",
+                    "curse",
+                    "dot"))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static bool ContainsAny(
+        string value,
+        params string[] tokens)
+    {
+        foreach (var token in tokens)
+        {
+            if (value.IndexOf(
+                    token,
+                    StringComparison.OrdinalIgnoreCase) >= 0)
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static CombatActionProductivityAssessment Rejected(string reason)
+    {
+        return new CombatActionProductivityAssessment { Reason = reason };
+    }
+
+    private static bool Flag(
+        IReadOnlyDictionary<string, double> features,
+        string key)
+    {
+        return features.TryGetValue(key, out var value)
+               && IsFinite(value)
+               && value > 0.5d;
+    }
+
+    private static double Positive(
+        IReadOnlyDictionary<string, double> features,
+        params string[] keys)
+    {
+        foreach (var key in keys)
+        {
+            if (features.TryGetValue(key, out var value)
+                && IsFinite(value))
+            {
+                return Math.Max(0d, value);
+            }
+        }
+        return 0d;
+    }
+
+    private static bool IsFinite(double value)
+    {
+        return !double.IsNaN(value) && !double.IsInfinity(value);
+    }
+}

@@ -736,6 +736,22 @@ public sealed class CombatSimulationEngine
                 policy is ICombatSimulationPolicyMetricsProvider provider
                     ? provider.LastDecisionMetrics
                     : null;
+            if (!forced && player.Energy > 0)
+            {
+                if (policyMetrics?.EndTurnSafetyAssessed == true
+                    && policyMetrics.EndTurnSafeAlternativeCount > 0)
+                {
+                    metrics.AvoidableEndTurnsWithUnusedEnergy++;
+                    metrics.AvoidableUnusedEnergyAtEndTurns +=
+                        Math.Max(
+                            0,
+                            policyMetrics.EndTurnAvoidableUnusedEnergy);
+                }
+                else
+                {
+                    metrics.SaturatedEndTurnsWithUnusedEnergy++;
+                }
+            }
             var severeEndTurn = !forced
                                 && (policyMetrics?.EndTurnSafetyAssessed == true
                                     ? policyMetrics

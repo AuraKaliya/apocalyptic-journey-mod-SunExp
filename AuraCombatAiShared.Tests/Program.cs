@@ -667,11 +667,11 @@ var trainingSample = CombatTrainingSampleBuilder.Create(
     gameBuild: "test-game",
     sharedBuild: "test-shared");
 Assert(trainingSample.ModelProtocol == "aura.combat-ai.sample.v6"
-       && trainingSample.FeatureSchemaVersion == 6
+       && trainingSample.FeatureSchemaVersion == 7
        && trainingSample.Candidates.Count == state.Actions.Count
        && trainingSample.Candidates.Single(candidate =>
            candidate.CandidateId == "attack").SourceId == "attack",
-    "training v5 captures the selected action and every candidate");
+    "training sample captures the selected action and every candidate");
 Assert(trainingSample.Selection.Protocol == "aura.combat-ai.selection.v1"
        && trainingSample.Selection.ExecutedBy == "policy"
        && trainingSample.Selection.LabelKind == "policy-trajectory"
@@ -686,7 +686,7 @@ Assert(trainingSample.Selection.Protocol == "aura.combat-ai.selection.v1"
 Assert(trainingSample.Terminal
        && trainingSample.BattleOutcome == "victory"
        && trainingSample.RewardComponents.TerminalBonus == 50d,
-    "training v5 captures terminal outcome reward");
+    "training sample captures terminal outcome reward");
 Assert(!trainingSample.Features.ContainsKey("nonFinite"),
     "training features reject non-finite values");
 
@@ -763,7 +763,7 @@ Assert(originalFeatures.All(pair =>
 
 var trained = CombatResidualTrainer.Train(new[] { humanSample }, "balanced");
 Assert(trained.Success
-       && trained.Model?.FeatureSchemaVersion == 6
+       && trained.Model?.FeatureSchemaVersion == 7
        && trained.Model.DecisionProfile == "balanced"
        && trained.Model.FeatureMinimums.Count > 0
        && trained.Model.CategoryObservationCounts.Count > 0,
@@ -1045,6 +1045,17 @@ var monotonicCycleEnd = monotonicCycleStart.Clone();
 monotonicCycleEnd.PlayerDefend = 25;
 monotonicCycleEnd.SetupValue = 3d;
 monotonicCycleEnd.Features["status:buff_elements"] = 7d;
+monotonicCycleEnd.Power = 8;
+monotonicCycleEnd.TurnActionsTaken = 12;
+monotonicCycleEnd.TurnEnergySpent = 9;
+var drainingEnergyLoopEnd = loopStart.Clone();
+drainingEnergyLoopEnd.Power = 2;
+var growingEnergyLoopEnd = loopStart.Clone();
+growingEnergyLoopEnd.Power = 6;
+var growingEnergyAssessment = CombatLoopSafetyAnalyzer.Analyze(
+    loopStart,
+    growingEnergyLoopEnd,
+    new CombatDecisionProfile());
 Assert(CombatLoopSafetyAnalyzer.Analyze(
            loopStart,
            safeLoopEnd,
@@ -1080,8 +1091,16 @@ Assert(CombatLoopSafetyAnalyzer.Analyze(
            drainingResourceLoopEnd,
            new CombatDecisionProfile()).Classification
        == CombatLoopClassification.Fake
+       && CombatLoopSafetyAnalyzer.Analyze(
+           loopStart,
+           drainingEnergyLoopEnd,
+           new CombatDecisionProfile()).Classification
+       == CombatLoopClassification.Fake
+       && growingEnergyAssessment.Classification
+       == CombatLoopClassification.SustainableControl
+       && growingEnergyAssessment.EnergyDelta == 3
        && monotonicCycleStart.CycleHash() == monotonicCycleEnd.CycleHash(),
-    "loop safety separates repeated resources from hp or state costs and monotonic block or state gains");
+    "structural loop safety ignores growing energy and counters, permits energy growth, and rejects finite energy loss");
 
 var threatRoot = new CombatStateObservation
 {
@@ -1292,8 +1311,186 @@ var deliberateEndTurnAssessment = CombatEndTurnSafety.Assess(
     coverageDecision.Candidates,
     coverageProfile);
 Assert(deliberateEndTurnAssessment.HasDeliberatePurpose
-       && !deliberateEndTurnAssessment.Prohibited,
-    "explicit end-of-round relic or buff purpose can authorize an otherwise premature pass");
+       && deliberateEndTurnAssessment.Prohibited,
+    "explicit end-of-round purpose cannot override a productive executable action");
+var saturatedCandidates = new List<CombatCandidateEvaluation>
+{
+    new()
+    {
+        Legal = true,
+        Action = new CombatActionObservation
+        {
+            CandidateId = "saturated-defense",
+            Kind = CombatActionKind.PlayCard,
+            Cost = 1,
+            Semantics = new CombatActionSemantics { Defend = 5d },
+            Features =
+            {
+                ["immediateDefend"] = 0d,
+                ["effectiveDurabilityDamage"] = 0d,
+                ["effectiveHeal"] = 0d,
+                ["effectiveDraw"] = 0d,
+                ["marginalSetupValue"] = 0d
+            }
+        }
+    }
+};
+var saturatedEndTurnAssessment = CombatEndTurnSafety.Assess(
+    deliberateEndTurnState,
+    saturatedCandidates,
+    coverageProfile);
+Assert(!saturatedEndTurnAssessment.Prohibited
+       && saturatedEndTurnAssessment.UnusedEnergy == 1
+       && saturatedEndTurnAssessment.AvoidableUnusedEnergy == 0,
+    "unused energy is rational when every recognized action is saturated");
+var unknownPlayable = new CombatCandidateEvaluation
+{
+    Legal = true,
+    Action = new CombatActionObservation
+    {
+        CandidateId = "unknown-playable",
+        Kind = CombatActionKind.PlayCard,
+        Cost = 1
+    }
+};
+Assert(CombatActionProductivity.Assess(
+           deliberateEndTurnState,
+           unknownPlayable).Productive,
+    "unknown playable non-curse cards conservatively outrank end turn");
+unknownPlayable.Action.Features["curse"] = 1d;
+Assert(!CombatActionProductivity.Assess(
+        deliberateEndTurnState,
+        unknownPlayable).Productive,
+    "curse cards are excluded from the end-turn productivity gate");
+
+var limitedDamageState = new CombatStateObservation
+{
+    Player = new CombatUnitObservation
+    {
+        RuntimeId = 920,
+        CurrentHp = 20,
+        MaxHp = 20
+    },
+    CurrentPower = 1,
+    MaxPower = 1,
+    Enemies =
+    {
+        new CombatUnitObservation
+        {
+            RuntimeId = 921,
+            Kind = CombatTargetKind.Enemy,
+            CurrentHp = 10,
+            MaxHp = 10,
+            Defend = 3,
+            Features =
+            {
+                [CombatDamageLimitPolicy.ActiveFeature] = 1d,
+                [CombatDamageLimitPolicy.RemainingFeature] = 2d
+            }
+        }
+    }
+};
+var limitedAttack = new CombatActionObservation
+{
+    CandidateId = "limited-attack",
+    Kind = CombatActionKind.PlayCard,
+    RuntimeId = 922,
+    TargetRuntimeId = 921,
+    TargetKind = CombatTargetKind.Enemy,
+    Cost = 1,
+    Semantics = new CombatActionSemantics
+    {
+        Damage = 5d,
+        TrueDamage = 4d
+    }
+};
+var limitedProjection = CombatDamageLimitPolicy.Project(
+    limitedDamageState,
+    limitedAttack);
+var limitedForward = CombatForwardModel.Apply(
+    CombatForwardModel.Create(limitedDamageState, 1),
+    limitedAttack,
+    0,
+    CombatForwardModel.Resolve(
+        limitedDamageState,
+        limitedAttack).Outcomes[0],
+    new CombatDecisionProfile());
+Assert(limitedProjection.BlockDamage == 3d
+       && limitedProjection.HpDamage == 2d
+       && limitedProjection.DurabilityDamage == 5d
+       && limitedForward.Enemies[0].Defend == 0
+       && limitedForward.Enemies[0].Hp == 8
+       && limitedForward.Enemies[0].Features[
+           CombatDamageLimitPolicy.RemainingFeature] == 0d,
+    "damage projection and forward simulation consume the enemy's remaining per-turn hp-damage budget");
+limitedDamageState.Enemies[0].Defend = 0;
+limitedDamageState.Enemies[0].Features[
+    CombatDamageLimitPolicy.RemainingFeature] = 0d;
+limitedAttack.Features = CombatDecisionEngine.BuildFeatures(
+    limitedDamageState,
+    limitedAttack);
+var exhaustedAttackEvaluation = new CombatCandidateEvaluation
+{
+    Action = limitedAttack,
+    Legal = true
+};
+Assert(!CombatActionProductivity.Assess(
+        limitedDamageState,
+        exhaustedAttackEvaluation).Productive,
+    "pure attacks stop blocking end turn once the enemy damage budget is exhausted");
+limitedAttack.Semantics.Draw = 1d;
+limitedAttack.Features = CombatDecisionEngine.BuildFeatures(
+    limitedDamageState,
+    limitedAttack);
+Assert(CombatActionProductivity.Assess(
+        limitedDamageState,
+        exhaustedAttackEvaluation).Productive,
+    "an attack with an independent useful side effect remains productive after damage is capped");
+
+var noEffectBefore = CombatPlayerObservationBoundary.Normalize(
+    limitedDamageState);
+var noEffectAfter = CombatPlayerObservationBoundary.Normalize(
+    new CombatStateObservation
+    {
+        BattleSessionId = noEffectBefore.BattleSessionId,
+        Player = new CombatUnitObservation
+        {
+            RuntimeId = noEffectBefore.Player.RuntimeId,
+            CurrentHp = noEffectBefore.Player.CurrentHp,
+            MaxHp = noEffectBefore.Player.MaxHp,
+            Defend = noEffectBefore.Player.Defend
+        },
+        CurrentPower = noEffectBefore.CurrentPower,
+        MaxPower = noEffectBefore.MaxPower,
+        HandCount = noEffectBefore.HandCount,
+        Enemies =
+        {
+            new CombatUnitObservation
+            {
+                RuntimeId = 921,
+                Kind = CombatTargetKind.Enemy,
+                CurrentHp = 10,
+                MaxHp = 10,
+                Features =
+                {
+                    [CombatDamageLimitPolicy.ActiveFeature] = 1d,
+                    [CombatDamageLimitPolicy.RemainingFeature] = 0d
+                }
+            }
+        },
+        Actions = { limitedAttack }
+    });
+noEffectBefore.Actions.Add(limitedAttack);
+noEffectBefore.Features[
+    CombatTurnFeatureNames.ActionsTakenThisTurn] = 0d;
+noEffectAfter.Features[
+    CombatTurnFeatureNames.ActionsTakenThisTurn] = 1d;
+Assert(!CombatActionSettlementPolicy.HasMeaningfulProgress(
+        noEffectBefore,
+        noEffectAfter,
+        limitedAttack,
+        out _),
+    "transaction bookkeeping alone cannot make a no-effect game action settle successfully");
 var earlyStopProfile = new CombatDecisionProfile
 {
     SearchBudgetMode = "fixed",
@@ -8088,7 +8285,7 @@ Assert(workerProtocolJob.SchemaVersion
        && CombatFoundationStagnationProtocol.Version
           == "foundation-stagnation-v1"
        && CombatPolicyValueFrameStratificationProtocol.Version
-          == "frame-strata-v3-end-turn"
+          == "frame-strata-v4-effective-end-turn"
        && workerProtocolProgress.SchemaVersion
            == CombatFoundationWorkerProtocol.SchemaVersion
        && workerProtocolResult.SchemaVersion
@@ -8622,6 +8819,25 @@ Assert(CombatFoundationModelPackageProtocol.TryValidate(
        && foundationPackage.DeclaredCoverage?.EntityCoverageKnown == true
        && foundationPackage.Validation.Passed,
     "accepted worker results export a self-contained foundation model package");
+var avoidableEndTurnGateRejected = false;
+foundationTraining.Validation.AvoidableEndTurnsWithUnusedEnergy = 1;
+try
+{
+    CombatFoundationModelPackageProtocol.Create(
+        packageJob,
+        packageResult,
+        "ABCDEF");
+}
+catch (InvalidOperationException)
+{
+    avoidableEndTurnGateRejected = true;
+}
+finally
+{
+    foundationTraining.Validation.AvoidableEndTurnsWithUnusedEnergy = 0;
+}
+Assert(avoidableEndTurnGateRejected,
+    "foundation export rejects validation with avoidable unused-energy end turns");
 var supersetCoverage = CombatFoundationModelCoverageProtocol.Assess(
     foundationPackage.TrainingSubject!,
     foundationPackage.DeclaredCoverage!,

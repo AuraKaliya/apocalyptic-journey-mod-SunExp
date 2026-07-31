@@ -2,7 +2,8 @@ param(
     [ValidateSet("Debug", "Release")]
     [string]$Configuration = "Release",
     [string]$ManagedPath = "",
-    [switch]$RunTests
+    [switch]$RunTests,
+    [switch]$StopRunningFoundationTrainer
 )
 
 $ErrorActionPreference = "Stop"
@@ -57,6 +58,7 @@ Invoke-BuildStep `
     -Script "Build-AuraFoundationTrainer.ps1" `
     -Arguments @{
         Configuration = $Configuration
+        StopRunningTrainer = $StopRunningFoundationTrainer
     }
 
 if ($RunTests) {

@@ -606,6 +606,7 @@ public static class CombatFoundationModelPackageProtocol
             || !training.Validation.Passed
             || !training.Validation.BehaviorPassed
             || training.Validation.SevereEndTurnMistakes != 0
+            || training.Validation.AvoidableEndTurnsWithUnusedEnergy != 0
             || training.Champion == null
             || !string.Equals(
                 result.CompletionKind,
@@ -729,6 +730,7 @@ public static class CombatFoundationModelPackageProtocol
             || !package.Validation.Passed
             || !package.Validation.BehaviorPassed
             || package.Validation.SevereEndTurnMistakes != 0
+            || package.Validation.AvoidableEndTurnsWithUnusedEnergy != 0
             || package.Validation.InvalidCampaigns != 0)
         {
             diagnostic = "底模包没有通过正式隔离验证";

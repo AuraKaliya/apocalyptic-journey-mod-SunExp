@@ -1045,10 +1045,6 @@ CompleteSimulation:
 
     private bool CanEndTurn(CombatSimulationState state)
     {
-        if (CombatEndTurnSafety.HasDeliberatePurpose(state.Features))
-        {
-            return true;
-        }
         for (var i = 0; i < actions.Count; i++)
         {
             var candidate = actions[i];
@@ -1057,10 +1053,13 @@ CompleteSimulation:
             {
                 continue;
             }
-            var dynamicScore = Score(state, candidate.Action);
-            if (dynamicScore >= profile.MinimumActionScore
-                || candidate.Evaluation.RuleScore
-                   >= profile.MinimumActionScore)
+            if (CombatActionProductivity.IsProductive(
+                    state,
+                    candidate.Action,
+                    CombatForwardModel.EffectiveCost(
+                        state,
+                        candidate.Action),
+                    profile))
             {
                 return false;
             }

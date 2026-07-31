@@ -1181,6 +1181,8 @@ public sealed class CombatSimulationPolicyDecisionMetrics
 
     public int EndTurnSafeAlternativeCount { get; set; }
 
+    public int EndTurnAvoidableUnusedEnergy { get; set; }
+
     public int AuthoritativeActionsAudited { get; set; }
 
     public int AuthoritativeSemanticMismatches { get; set; }
@@ -1505,6 +1507,12 @@ public sealed class CombatSimulationMetrics
     public int EndTurnsWithUnusedEnergy { get; set; }
 
     public int UnusedEnergyAtEndTurns { get; set; }
+
+    public int AvoidableEndTurnsWithUnusedEnergy { get; set; }
+
+    public int AvoidableUnusedEnergyAtEndTurns { get; set; }
+
+    public int SaturatedEndTurnsWithUnusedEnergy { get; set; }
 
     public int SevereEndTurnMistakes { get; set; }
 

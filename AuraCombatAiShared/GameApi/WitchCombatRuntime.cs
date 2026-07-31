@@ -40,6 +40,7 @@ public sealed class WitchCombatRuntime :
     private int trackedEnergySpentThisTurn;
     private int trackedEnemyHpAtTurnStart;
     private int trackedConsecutiveNoProgressTurns;
+    private int trackedTurnSequence;
     private int lastObservedEnemyHp;
     private bool beginNewTurnOnNextObservation;
     private double lastObservedEndTurnPurposeValue;
@@ -85,10 +86,10 @@ public sealed class WitchCombatRuntime :
         observation.IsPlayerActionWindow = IsPlayerActionWindow(fightUi);
         AddEnemiesAndNativeThreat(observation, capturedExecutionContext);
         AddCards(observation, fightUi, capturedExecutionContext);
+        ObserveDeck(observation);
         AddSkills(observation, fightUi, capturedExecutionContext);
         ObserveTurnEconomy(observation);
         ObserveEndTurnPurpose(playerStatus, observation);
-        ObserveDeck(observation);
         ObservePublicMechanicState(playerStatus, observation);
         if (CombatAiRegistry.TryResolveThreat(observation, out var providedThreat))
         {
@@ -165,22 +166,12 @@ public sealed class WitchCombatRuntime :
 
                 case CombatActionKind.PlayCard:
                 {
-                    var result = ExecuteCard(action, binding, fightUi);
-                    if (result.Accepted)
-                    {
-                        RecordAcceptedAction(action);
-                    }
-                    return result;
+                    return ExecuteCard(action, binding, fightUi);
                 }
 
                 case CombatActionKind.UseSkill:
                 {
-                    var result = ExecuteSkill(action, binding);
-                    if (result.Accepted)
-                    {
-                        RecordAcceptedAction(action);
-                    }
-                    return result;
+                    return ExecuteSkill(action, binding);
                 }
 
                 default:
@@ -203,6 +194,7 @@ public sealed class WitchCombatRuntime :
             trackedEnergySpentThisTurn = 0;
             trackedEnemyHpAtTurnStart = enemyHp;
             trackedConsecutiveNoProgressTurns = 0;
+            trackedTurnSequence = 0;
             beginNewTurnOnNextObservation = false;
         }
         else if (beginNewTurnOnNextObservation)
@@ -222,6 +214,8 @@ public sealed class WitchCombatRuntime :
             trackedEnemyHpAtTurnStart;
         state.Features[CombatTurnFeatureNames.ConsecutiveNoProgressTurns] =
             trackedConsecutiveNoProgressTurns;
+        state.Features[CombatTurnFeatureNames.TurnSequence] =
+            trackedTurnSequence;
     }
 
     private void ObserveEndTurnPurpose(
@@ -266,6 +260,7 @@ public sealed class WitchCombatRuntime :
     {
         if (action.Kind == CombatActionKind.EndTurn)
         {
+            trackedTurnSequence++;
             var madeProgress = lastObservedEnemyHp < trackedEnemyHpAtTurnStart;
             trackedConsecutiveNoProgressTurns =
                 madeProgress || lastObservedEndTurnPurposeValue > 0d
@@ -277,6 +272,24 @@ public sealed class WitchCombatRuntime :
 
         trackedActionsThisTurn++;
         trackedEnergySpentThisTurn += Math.Max(0, action.Cost);
+    }
+
+    public void ConfirmSettledAction(
+        CombatActionObservation action,
+        CombatStateObservation? settledState = null)
+    {
+        if (action == null || action.Kind == CombatActionKind.EndTurn)
+        {
+            return;
+        }
+        RecordAcceptedAction(action);
+        if (settledState != null)
+        {
+            settledState.Features[CombatTurnFeatureNames.ActionsTakenThisTurn] =
+                trackedActionsThisTurn;
+            settledState.Features[CombatTurnFeatureNames.EnergySpentThisTurn] =
+                trackedEnergySpentThisTurn;
+        }
     }
 
     public static bool IsPlayerActionWindow(FightUI fightUi)
@@ -469,6 +482,8 @@ public sealed class WitchCombatRuntime :
             ["handIndex"] = index,
             ["isCard"] = 1d,
             ["visibleFake"] = IsVisibleFake(card) ? 1d : 0d,
+            ["curse"] = HasAnyTag(card, "Curse") ? 1d : 0d,
+            ["unplayable"] = HasAnyTag(card, "Unusable") ? 1d : 0d,
             ["retain"] = HasAnyTag(card, "Retain", "RetainCard") ? 1d : 0d,
             ["inherent"] = HasAnyTag(card, "Inherent") ? 1d : 0d,
             ["recycle"] = HasAnyTag(card, "Recycle") ? 1d : 0d,
@@ -609,6 +624,19 @@ public sealed class WitchCombatRuntime :
             semantics.CooldownTurns = 1d;
         }
         var sourceId = WitchCombatValueEstimator.IdOf(skill.dataConfig);
+        var requiresDeckCard = string.Equals(
+            sourceId,
+            "careercard_1",
+            StringComparison.OrdinalIgnoreCase);
+        var availableDeckCards =
+            state.DeckKnowledge.DrawPileCount
+            + state.DeckKnowledge.DiscardPileCount;
+        if (legal && requiresDeckCard && availableDeckCards <= 0)
+        {
+            legal = false;
+            reason =
+                "skill requires a card in the draw or discard pile";
+        }
         AddBoundAction(
             state,
             context,
@@ -626,7 +654,11 @@ public sealed class WitchCombatRuntime :
             Semantics = semantics,
             Features = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
             {
-                ["isSkill"] = 1d
+                ["isSkill"] = 1d,
+                ["requiresAvailableDeckCard"] =
+                    requiresDeckCard ? 1d : 0d,
+                ["semanticUnavailable"] =
+                    requiresDeckCard && availableDeckCards <= 0 ? 1d : 0d
             }
         },
             skill,

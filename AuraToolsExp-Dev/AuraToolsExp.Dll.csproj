@@ -126,7 +126,11 @@
   <Target Name="PublishAuraFoundationTrainer"
           AfterTargets="Build"
           Condition="'$(Configuration)' == 'Release' and '$(BuildFoundationTrainer)' == 'true'">
-    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\tools\Build-AuraFoundationTrainer.ps1&quot; -Configuration $(Configuration)" />
+    <PropertyGroup>
+      <FoundationTrainerStopArgument
+          Condition="'$(StopRunningFoundationTrainer)' == 'true'">-StopRunningTrainer</FoundationTrainerStopArgument>
+    </PropertyGroup>
+    <Exec Command="powershell -NoProfile -ExecutionPolicy Bypass -File &quot;$(MSBuildProjectDirectory)\..\tools\Build-AuraFoundationTrainer.ps1&quot; -Configuration $(Configuration) $(FoundationTrainerStopArgument)" />
   </Target>
 
 </Project>

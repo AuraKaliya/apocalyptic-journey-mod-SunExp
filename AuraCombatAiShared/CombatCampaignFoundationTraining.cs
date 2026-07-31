@@ -14,9 +14,9 @@ namespace AuraCombatAi.Shared;
 
 public static class CombatFoundationTrainingProtocol
 {
-    public const string TrainingPolicyVersion = "foundation-governance-v10";
+    public const string TrainingPolicyVersion = "foundation-governance-v11";
 
-    public const string SearchPolicyVersion = "dynamic-search-v4";
+    public const string SearchPolicyVersion = "dynamic-search-v5";
 
     public const string CurriculumVersion = "curriculum-v8";
 }
@@ -708,6 +708,12 @@ public sealed class CombatCampaignFoundationValidation
     public int EndTurnsWithUnusedEnergy { get; set; }
 
     public int UnusedEnergyAtEndTurns { get; set; }
+
+    public int AvoidableEndTurnsWithUnusedEnergy { get; set; }
+
+    public int AvoidableUnusedEnergyAtEndTurns { get; set; }
+
+    public int SaturatedEndTurnsWithUnusedEnergy { get; set; }
 
     public int SevereEndTurnMistakes { get; set; }
 
@@ -2789,6 +2795,9 @@ public sealed class CombatCampaignFoundationTrainer
         var validationEmptyEndTurns = 0;
         var validationEndTurnsWithUnusedEnergy = 0;
         var validationUnusedEnergyAtEndTurns = 0;
+        var validationAvoidableEndTurnsWithUnusedEnergy = 0;
+        var validationAvoidableUnusedEnergyAtEndTurns = 0;
+        var validationSaturatedEndTurnsWithUnusedEnergy = 0;
         var validationSevereEndTurnMistakes = 0;
         var validationMaximumConsecutiveNoProgressTurns = 0;
         foreach (var difficulty in new[] { "normal", "advanced" })
@@ -2877,6 +2886,15 @@ public sealed class CombatCampaignFoundationTrainer
                             battle.Metrics.EndTurnsWithUnusedEnergy;
                         validationUnusedEnergyAtEndTurns +=
                             battle.Metrics.UnusedEnergyAtEndTurns;
+                        validationAvoidableEndTurnsWithUnusedEnergy +=
+                            battle.Metrics
+                                .AvoidableEndTurnsWithUnusedEnergy;
+                        validationAvoidableUnusedEnergyAtEndTurns +=
+                            battle.Metrics
+                                .AvoidableUnusedEnergyAtEndTurns;
+                        validationSaturatedEndTurnsWithUnusedEnergy +=
+                            battle.Metrics
+                                .SaturatedEndTurnsWithUnusedEnergy;
                         validationSevereEndTurnMistakes +=
                             battle.Metrics.SevereEndTurnMistakes;
                         validationMaximumConsecutiveNoProgressTurns = Math.Max(
@@ -2893,7 +2911,8 @@ public sealed class CombatCampaignFoundationTrainer
                 {
                     continue;
                 }
-                if (validationSevereEndTurnMistakes > 0)
+                if (validationSevereEndTurnMistakes > 0
+                    || validationAvoidableEndTurnsWithUnusedEnergy > 0)
                 {
                     earlyStopReason =
                         "隔离验收检测到严重结束回合失误；该指标必须为 0";
@@ -2987,10 +3006,18 @@ public sealed class CombatCampaignFoundationTrainer
             EmptyEndTurns = validationEmptyEndTurns,
             EndTurnsWithUnusedEnergy = validationEndTurnsWithUnusedEnergy,
             UnusedEnergyAtEndTurns = validationUnusedEnergyAtEndTurns,
+            AvoidableEndTurnsWithUnusedEnergy =
+                validationAvoidableEndTurnsWithUnusedEnergy,
+            AvoidableUnusedEnergyAtEndTurns =
+                validationAvoidableUnusedEnergyAtEndTurns,
+            SaturatedEndTurnsWithUnusedEnergy =
+                validationSaturatedEndTurnsWithUnusedEnergy,
             SevereEndTurnMistakes = validationSevereEndTurnMistakes,
             MaximumConsecutiveNoProgressTurns =
                 validationMaximumConsecutiveNoProgressTurns,
-            BehaviorPassed = validationSevereEndTurnMistakes == 0,
+            BehaviorPassed = validationSevereEndTurnMistakes == 0
+                             && validationAvoidableEndTurnsWithUnusedEnergy
+                             == 0,
             EarlyStopped = !string.IsNullOrWhiteSpace(earlyStopReason),
             EarlyStopReason = earlyStopReason
         };

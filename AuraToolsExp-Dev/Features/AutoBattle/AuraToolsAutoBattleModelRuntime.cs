@@ -673,6 +673,7 @@ internal static class AuraToolsAutoBattleModelRuntime
         if (!package.Validation.Passed
             || !package.Validation.BehaviorPassed
             || package.Validation.SevereEndTurnMistakes != 0
+            || package.Validation.AvoidableEndTurnsWithUnusedEnergy != 0
             || package.Validation.InvalidCampaigns != 0)
         {
             reason = "外部底模没有通过训练阶段的正式隔离验证";
@@ -1041,7 +1042,8 @@ internal static class AuraToolsAutoBattleModelRuntime
         if (validation == null
             || !validation.Passed
             || !validation.BehaviorPassed
-            || validation.SevereEndTurnMistakes != 0)
+            || validation.SevereEndTurnMistakes != 0
+            || validation.AvoidableEndTurnsWithUnusedEnergy != 0)
         {
             throw new InvalidOperationException(
                 "底模尚未通过正式隔离验收线：普通难度须 200/200，"
