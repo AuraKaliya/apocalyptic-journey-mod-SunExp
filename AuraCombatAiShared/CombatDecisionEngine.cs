@@ -159,6 +159,7 @@ public sealed class CombatDecisionEngine
                 Reason = "safe free setup dominance",
                 ProfileId = selectedProfile.Id,
                 Candidates = evaluations,
+                EndTurnTrace = endTurnAssessment.Trace.ToCompactString(),
                 Plan = new List<CombatPlanStep>
                 {
                     new()
@@ -198,6 +199,7 @@ public sealed class CombatDecisionEngine
                 Reason = "player-equivalent risk-aware root-sampling search",
                 ProfileId = selectedProfile.Id,
                 Candidates = evaluations,
+                EndTurnTrace = endTurnAssessment.Trace.ToCompactString(),
                 Plan = planSteps,
                 PlanSummary = planSummary,
                 SearchAlgorithm = "risk-aware-root-sampling-puct-mpc",
@@ -226,6 +228,7 @@ public sealed class CombatDecisionEngine
                 Reason = hasPlanAction ? "best plan below threshold" : "no positive legal action",
                 ProfileId = selectedProfile.Id,
                 Candidates = evaluations,
+                EndTurnTrace = endTurnAssessment.Trace.ToCompactString(),
                 PlanSummary = planSummary,
                 SearchAlgorithm = "risk-aware-root-sampling-puct-mpc",
                 SearchSimulations = search.Simulations,
@@ -263,6 +266,7 @@ public sealed class CombatDecisionEngine
                              + endTurnAssessment.Reason,
                     ProfileId = selectedProfile.Id,
                     Candidates = evaluations,
+                    EndTurnTrace = endTurnAssessment.Trace.ToCompactString(),
                     PlanSummary = planSummary,
                     SearchAlgorithm = "end-turn-safety",
                     SearchSimulations = search.Simulations,
@@ -279,6 +283,7 @@ public sealed class CombatDecisionEngine
             Reason = planSummary,
             ProfileId = selectedProfile.Id,
             Candidates = evaluations,
+            EndTurnTrace = endTurnAssessment.Trace.ToCompactString(),
             SearchAlgorithm = "risk-aware-root-sampling-puct-mpc",
             SearchSimulations = search.Simulations,
             SearchNodes = search.Nodes,

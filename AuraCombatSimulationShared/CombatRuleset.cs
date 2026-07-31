@@ -145,7 +145,8 @@ public sealed class CombatRulesetBuilder
             || definition.Effects == null
             || definition.DrawEffects == null
             || definition.DiscardEffects == null
-            || definition.Tags == null)
+            || definition.Tags == null
+            || !ValidateActionContract(definition, key))
         {
             errors.Add("card " + key + " has invalid cost or effects");
             return this;
@@ -313,6 +314,64 @@ public sealed class CombatRulesetBuilder
         }
     }
 
+    private bool ValidateActionContract(
+        CombatCardDefinition definition,
+        string key)
+    {
+        var contract = definition.ActionContract;
+        if (contract == null)
+        {
+            return true;
+        }
+        if (!string.Equals(
+                contract.Version,
+                CombatActionContractProtocol.Version,
+                StringComparison.Ordinal)
+            || contract.Preconditions == null
+            || contract.Preconditions.Any(item =>
+                item == null
+                || item.Amount <= 0
+                || !Enum.IsDefined(
+                    typeof(CombatActionPreconditionKind),
+                    item.Kind))
+            || contract.PreconditionFailureOutcome
+            is not (CombatActionApplicationOutcome.NoEffect
+                or CombatActionApplicationOutcome.Rejected)
+            || contract.MinimumCardsMovedFromDrawPileToHandOnApplied < 0)
+        {
+            errors.Add("card " + key + " has an invalid action contract");
+            return false;
+        }
+        if (contract.MinimumCardsMovedFromDrawPileToHandOnApplied > 0)
+        {
+            var minimum = contract
+                .MinimumCardsMovedFromDrawPileToHandOnApplied;
+            var drawRequirement = contract.Preconditions
+                .Where(item =>
+                    item.Kind
+                    == CombatActionPreconditionKind.DrawPileCountAtLeast)
+                .Select(item => item.Amount)
+                .DefaultIfEmpty(0)
+                .Max();
+            var handRequirement = contract.Preconditions
+                .Where(item =>
+                    item.Kind
+                    == CombatActionPreconditionKind.AvailableHandSlotsAtLeast)
+                .Select(item => item.Amount)
+                .DefaultIfEmpty(0)
+                .Max();
+            if (drawRequirement < minimum || handRequirement < minimum)
+            {
+                errors.Add(
+                    "card "
+                    + key
+                    + " action contract postcondition lacks matching prerequisites");
+                return false;
+            }
+        }
+        return true;
+    }
+
     private void ValidateEffects(string source, IEnumerable<CombatSimulationEffectDefinition> effects)
     {
         foreach (var effect in effects)
@@ -398,10 +457,12 @@ internal static class CombatRulesetHasher
                 .Append('|').Append(card.Cost).Append('|').Append(card.Rarity)
                 .Append('|').Append(card.Exhaust)
                 .Append('|').Append(card.RequiresEnemyTarget).Append('|').Append(card.Fidelity)
+                .Append('|').Append(card.VerificationSource)
                 .Append('|').Append(string.Join(
                     ",",
                     card.Tags.OrderBy(tag => tag, StringComparer.OrdinalIgnoreCase)))
                 .Append('\n');
+            AppendActionContract(builder, card.ActionContract);
             builder.Append("card-use-effects\n");
             AppendEffects(builder, card.Effects);
             builder.Append("card-draw-effects\n");
@@ -503,6 +564,33 @@ internal static class CombatRulesetHasher
             hash *= 1099511628211UL;
         }
         return hash.ToString("x16", CultureInfo.InvariantCulture);
+    }
+
+    private static void AppendActionContract(
+        StringBuilder builder,
+        CombatActionContractDefinition? contract)
+    {
+        if (contract == null)
+        {
+            builder.Append("action-contract|none\n");
+            return;
+        }
+        builder.Append("action-contract|")
+            .Append(contract.Version).Append('|')
+            .Append(contract.PreconditionFailureOutcome).Append('|')
+            .Append(contract.PolicyEligibleOnPreconditionFailure).Append('|')
+            .Append(contract.CooldownOnApplied).Append('|')
+            .Append(contract.MinimumCardsMovedFromDrawPileToHandOnApplied)
+            .Append('\n');
+        foreach (var precondition in contract.Preconditions
+                     .OrderBy(item => item.Kind)
+                     .ThenBy(item => item.Amount))
+        {
+            builder.Append("action-precondition|")
+                .Append(precondition.Kind).Append('|')
+                .Append(precondition.Amount)
+                .Append('\n');
+        }
     }
 
     private static void AppendEffects(

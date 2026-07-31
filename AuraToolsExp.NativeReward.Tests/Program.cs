@@ -142,6 +142,8 @@ try
         Console.Error.WriteLine(failure);
     }
     var runtimeFailures = new List<string>();
+    runtimeFailures.AddRange(
+        ValidateDivineChoiceActionContract(rulesetBuild.Ruleset));
     var smokeEnemy = rulesetBuild.Ruleset.SnapshotEnemies()
         .OrderBy(item => item.EnemyId, StringComparer.Ordinal)
         .First();
@@ -389,6 +391,158 @@ catch (Exception ex)
         Console.Error.WriteLine(ex.InnerException.Message);
     }
     return 3;
+}
+
+static IEnumerable<string> ValidateDivineChoiceActionContract(
+    CombatRuleset ruleset)
+{
+    var failures = new List<string>();
+    if (!ruleset.TryGetCard("careercard_1", out var divineChoice)
+        || divineChoice.RequiresEnemyTarget
+        || divineChoice.ActionContract == null
+        || divineChoice.ActionContract.Version
+           != CombatActionContractProtocol.Version
+        || divineChoice.VerificationSource
+           != "Decompiler:v1.0.23816797")
+    {
+        failures.Add(
+            "divine-choice-contract: bundled semantic contract is missing or invalid");
+        return failures;
+    }
+
+    var scenario = new CombatScenarioDefinition
+    {
+        ScenarioId = "divine-choice-contract",
+        HandLimit = 1,
+        Player = new CombatPlayerSetup
+        {
+            RoleId = "career_1",
+            SkillCardIds = { "careercard_1" },
+            SkillCooldownTurns = { ["careercard_1"] = 1 }
+        }
+    };
+    CombatBattleState State(bool drawCard, bool fullHand)
+    {
+        var state = new CombatBattleState
+        {
+            Turn = 1,
+            Phase = CombatSimulationPhase.PlayerAction,
+            PlayerActorId = 1,
+            Actors =
+            {
+                new CombatActorState
+                {
+                    ActorId = 1,
+                    Kind = CombatSimulationActorKind.Player,
+                    Hp = 20,
+                    MaxHp = 20,
+                    Energy = 0
+                }
+            },
+            Cards =
+            {
+                new CombatCardInstanceState
+                {
+                    InstanceId = 1,
+                    CardId = "careercard_1",
+                    CreationSource = "role-skill",
+                    CreationSourceId = "career_1"
+                }
+            },
+            SkillCards = { 1 },
+            SkillCooldowns = { [1] = 0 },
+            NextCardInstanceId = 2
+        };
+        if (drawCard)
+        {
+            state.Cards.Add(new CombatCardInstanceState
+            {
+                InstanceId = 2,
+                CardId = "card_1",
+                CreationSource = "fixture"
+            });
+            state.DrawPile.Add(2);
+            state.NextCardInstanceId = 3;
+        }
+        if (fullHand)
+        {
+            state.Cards.Add(new CombatCardInstanceState
+            {
+                InstanceId = 3,
+                CardId = "card_1",
+                CreationSource = "fixture"
+            });
+            state.Hand.Add(3);
+            state.NextCardInstanceId = 4;
+        }
+        return state;
+    }
+
+    var engine = new CombatSimulationEngine(
+        new AuraToolsNativeRewardExtensionFactory());
+    var emptyDraw = State(drawCard: false, fullHand: false);
+    var emptyDrawSkill = engine.GetInvocablePlayerActions(
+            scenario,
+            ruleset,
+            emptyDraw)
+        .Single(item => item.Kind == CombatSimulationActionKind.UseSkill);
+    var forcedEmptyDraw = engine.ForkAndApplyPlayerAction(
+        scenario,
+        ruleset,
+        emptyDraw,
+        emptyDrawSkill,
+        allowPolicyIneligible: true);
+    if (emptyDrawSkill.PolicyEligible
+        || emptyDrawSkill.ExpectedOutcome
+           != CombatActionApplicationOutcome.NoEffect
+        || !forcedEmptyDraw.Success
+        || forcedEmptyDraw.Outcome
+           != CombatActionApplicationOutcome.NoEffect
+        || forcedEmptyDraw.State.DrawPile.Count != 0
+        || forcedEmptyDraw.State.Hand.Count != 0
+        || forcedEmptyDraw.State.SkillCooldowns[1] != 0)
+    {
+        failures.Add(
+            "divine-choice-contract: empty draw pile must remain a no-effect, no-cooldown invocation");
+    }
+
+    var fullHand = State(drawCard: true, fullHand: true);
+    var fullHandSkill = engine.GetInvocablePlayerActions(
+            scenario,
+            ruleset,
+            fullHand)
+        .Single(item => item.Kind == CombatSimulationActionKind.UseSkill);
+    if (fullHandSkill.PolicyEligible
+        || fullHandSkill.ExpectedOutcome
+           != CombatActionApplicationOutcome.NoEffect)
+    {
+        failures.Add(
+            "divine-choice-contract: full hand must be excluded from policy candidates");
+    }
+
+    var applicable = State(drawCard: true, fullHand: false);
+    var applicableSkill = engine.GetLegalPlayerActions(
+            scenario,
+            ruleset,
+            applicable)
+        .Single(item => item.Kind == CombatSimulationActionKind.UseSkill);
+    var applied = engine.ForkAndApplyPlayerAction(
+        scenario,
+        ruleset,
+        applicable,
+        applicableSkill);
+    if (!applied.Success
+        || applied.Outcome != CombatActionApplicationOutcome.Applied
+        || !applied.State.Hand.SequenceEqual(new[] { 2 })
+        || applied.State.DrawPile.Count != 0
+        || applied.State.SkillCooldowns[1] != 1)
+    {
+        failures.Add(
+            "divine-choice-contract: successful selection must move one draw-pile card to hand and start cooldown");
+    }
+
+    Console.WriteLine("Divine Choice action contract checks: 3 cases.");
+    return failures;
 }
 
 static IEnumerable<string> ValidateFinalBossAuthority(CombatRuleset ruleset)

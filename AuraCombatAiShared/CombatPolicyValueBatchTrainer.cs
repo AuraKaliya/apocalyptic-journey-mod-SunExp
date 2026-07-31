@@ -916,19 +916,38 @@ internal static class CombatPolicyValueBatchTrainer
         CombatEpisodeFrame frame,
         CombatPolicyValueTrainingOptions options)
     {
-        var legal = (frame.Candidates
-                     ?? new List<CombatEpisodeCandidate>())
+        var allCandidates = frame.Candidates
+                            ?? new List<CombatEpisodeCandidate>();
+        var legal = allCandidates
             .Where(candidate => candidate.Legal)
             .ToList();
         if (legal.Count == 0)
         {
             return null;
         }
+        var endTurnCandidate = allCandidates.FirstOrDefault(
+            IsEndTurnCandidate);
+        var dominatedEndTurn = endTurnCandidate != null
+                               && Feature(
+                                   endTurnCandidate.Features,
+                                   CombatTurnFeatureNames.EndTurnDominated) > 0.5d;
+        var policyCandidates = new List<CombatEpisodeCandidate>(legal);
+        if (dominatedEndTurn
+            && endTurnCandidate != null
+            && !policyCandidates.Contains(endTurnCandidate))
+        {
+            policyCandidates.Add(endTurnCandidate);
+        }
         var targets = PolicyTargets(
-            legal,
+            policyCandidates,
             frame.ExecutedCandidateId,
             options.PolicyTargetTemperature,
             options.MaximumPolicyTargetProbability);
+        if (dominatedEndTurn && endTurnCandidate != null)
+        {
+            var dominatedIndex = policyCandidates.IndexOf(endTurnCandidate);
+            SuppressPolicyTarget(targets, dominatedIndex);
+        }
         var orderedVisits = legal
             .Select(candidate => Math.Max(0, candidate.SearchVisits))
             .OrderByDescending(value => value)
@@ -945,8 +964,7 @@ internal static class CombatPolicyValueBatchTrainer
                           && orderedVisits[0] >= Math.Max(
                               4,
                               orderedVisits[1] * 2);
-        var endTurnCandidate = legal.FirstOrDefault(IsEndTurnCandidate);
-        var executedCandidate = legal.FirstOrDefault(candidate =>
+        var executedCandidate = allCandidates.FirstOrDefault(candidate =>
             string.Equals(
                 candidate.CandidateId,
                 frame.ExecutedCandidateId,
@@ -962,9 +980,10 @@ internal static class CombatPolicyValueBatchTrainer
                                "power",
                                out var power)
             && power > 0.5d;
-        var unsafeEndTurn = executedEndTurn
-                            && hasPlayableAlternative
-                            && unusedEnergy;
+        var unsafeEndTurn = dominatedEndTurn
+                            || (executedEndTurn
+                                && hasPlayableAlternative
+                                && unusedEnergy);
         var endTurnWeight = options.EnableEndTurnSpecialization
                             && endTurnDecision
             ? options.EndTurnFrameWeight * (unsafeEndTurn ? 1.25d : 1d)
@@ -982,7 +1001,7 @@ internal static class CombatPolicyValueBatchTrainer
                 frame.StateFeatures,
                 options.StateDimensions,
                 options.FeatureEncodingMode),
-            Actions = legal.Select(candidate =>
+            Actions = policyCandidates.Select(candidate =>
                     CombatPolicyValueEncoding.EncodeCandidate(
                         new CombatPolicyValueCandidate
                         {
@@ -1026,6 +1045,51 @@ internal static class CombatPolicyValueBatchTrainer
                    "actionKindEndTurn",
                    out var value)
                && value > 0.5d;
+    }
+
+    private static double Feature(
+        IReadOnlyDictionary<string, double>? features,
+        string key)
+    {
+        return features != null
+               && features.TryGetValue(key, out var value)
+               && !double.IsNaN(value)
+               && !double.IsInfinity(value)
+            ? value
+            : 0d;
+    }
+
+    internal static void SuppressPolicyTarget(
+        double[] targets,
+        int suppressedIndex)
+    {
+        if (targets == null
+            || suppressedIndex < 0
+            || suppressedIndex >= targets.Length)
+        {
+            return;
+        }
+        targets[suppressedIndex] = 0d;
+        var remaining = targets.Sum();
+        if (remaining > 0.000000001d)
+        {
+            for (var index = 0; index < targets.Length; index++)
+            {
+                targets[index] = Math.Max(0d, targets[index]) / remaining;
+            }
+            return;
+        }
+        var alternatives = Math.Max(0, targets.Length - 1);
+        if (alternatives == 0)
+        {
+            targets[suppressedIndex] = 1d;
+            return;
+        }
+        var uniform = 1d / alternatives;
+        for (var index = 0; index < targets.Length; index++)
+        {
+            targets[index] = index == suppressedIndex ? 0d : uniform;
+        }
     }
 
     internal static string FrameStratum(
@@ -1104,7 +1168,7 @@ internal static class CombatPolicyValueBatchTrainer
         {
             frame.SampleWeight = Clamp(
                 frame.SampleWeight / mean,
-                0.10d,
+                CombatPolicyValueFrameStratificationProtocol.MinimumWeight,
                 maximumWeight);
         }
     }

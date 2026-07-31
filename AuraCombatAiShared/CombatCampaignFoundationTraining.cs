@@ -14,9 +14,9 @@ namespace AuraCombatAi.Shared;
 
 public static class CombatFoundationTrainingProtocol
 {
-    public const string TrainingPolicyVersion = "foundation-governance-v11";
+    public const string TrainingPolicyVersion = "foundation-governance-v12";
 
-    public const string SearchPolicyVersion = "dynamic-search-v5";
+    public const string SearchPolicyVersion = "dynamic-search-v6";
 
     public const string CurriculumVersion = "curriculum-v8";
 }
@@ -297,6 +297,9 @@ public sealed class CombatFoundationCompatibilityManifest
         CombatFoundationWorkerProtocol.SchemaVersion;
 
     public string RulesetHash { get; set; } = "";
+
+    public string ActionContractVersion { get; set; } =
+        CombatActionContractProtocol.Version;
 
     public string NativeProgramPackageHash { get; set; } = "";
 
@@ -717,7 +720,27 @@ public sealed class CombatCampaignFoundationValidation
 
     public int SevereEndTurnMistakes { get; set; }
 
+    public int DominatedEndTurns { get; set; }
+
+    public int EndTurnsIntoAvoidableLethal { get; set; }
+
+    public int EndTurnsWithCertifiedCycle { get; set; }
+
+    public int EndTurnsWithUnknownLifecycle { get; set; }
+
+    public int EndTurnsWithBankedSurplus { get; set; }
+
+    public int BankedSurplusAtEndTurns { get; set; }
+
     public int MaximumConsecutiveNoProgressTurns { get; set; }
+
+    public int NoEffectActionAttempts { get; set; }
+
+    public int RepeatedNoEffectActionAttempts { get; set; }
+
+    public int GuaranteedNoEffectActionAttempts { get; set; }
+
+    public int InteractiveActionContractFailures { get; set; }
 
     public bool BehaviorPassed { get; set; }
 
@@ -1237,6 +1260,7 @@ public sealed class CombatCampaignFoundationTrainer
         var compatibility = new CombatFoundationCompatibilityManifest
         {
             RulesetHash = ruleset.RulesetHash,
+            ActionContractVersion = CombatActionContractProtocol.Version,
             NativeProgramPackageHash = request.NativeProgramPackageHash ?? "",
             CampaignId = request.TrainingCampaign.CampaignId ?? "",
             CampaignVersion =
@@ -2799,7 +2823,17 @@ public sealed class CombatCampaignFoundationTrainer
         var validationAvoidableUnusedEnergyAtEndTurns = 0;
         var validationSaturatedEndTurnsWithUnusedEnergy = 0;
         var validationSevereEndTurnMistakes = 0;
+        var validationDominatedEndTurns = 0;
+        var validationEndTurnsIntoAvoidableLethal = 0;
+        var validationEndTurnsWithCertifiedCycle = 0;
+        var validationEndTurnsWithUnknownLifecycle = 0;
+        var validationEndTurnsWithBankedSurplus = 0;
+        var validationBankedSurplusAtEndTurns = 0;
         var validationMaximumConsecutiveNoProgressTurns = 0;
+        var validationNoEffectActionAttempts = 0;
+        var validationRepeatedNoEffectActionAttempts = 0;
+        var validationGuaranteedNoEffectActionAttempts = 0;
+        var validationInteractiveActionContractFailures = 0;
         foreach (var difficulty in new[] { "normal", "advanced" })
         {
             if (!string.IsNullOrWhiteSpace(earlyStopReason))
@@ -2897,9 +2931,29 @@ public sealed class CombatCampaignFoundationTrainer
                                 .SaturatedEndTurnsWithUnusedEnergy;
                         validationSevereEndTurnMistakes +=
                             battle.Metrics.SevereEndTurnMistakes;
+                        validationDominatedEndTurns +=
+                            battle.Metrics.DominatedEndTurns;
+                        validationEndTurnsIntoAvoidableLethal +=
+                            battle.Metrics.EndTurnsIntoAvoidableLethal;
+                        validationEndTurnsWithCertifiedCycle +=
+                            battle.Metrics.EndTurnsWithCertifiedCycle;
+                        validationEndTurnsWithUnknownLifecycle +=
+                            battle.Metrics.EndTurnsWithUnknownLifecycle;
+                        validationEndTurnsWithBankedSurplus +=
+                            battle.Metrics.EndTurnsWithBankedSurplus;
+                        validationBankedSurplusAtEndTurns +=
+                            battle.Metrics.BankedSurplusAtEndTurns;
                         validationMaximumConsecutiveNoProgressTurns = Math.Max(
                             validationMaximumConsecutiveNoProgressTurns,
                             battle.Metrics.MaximumConsecutiveNoProgressTurns);
+                        validationNoEffectActionAttempts +=
+                            battle.Metrics.NoEffectActionAttempts;
+                        validationRepeatedNoEffectActionAttempts +=
+                            battle.Metrics.RepeatedNoEffectActionAttempts;
+                        validationGuaranteedNoEffectActionAttempts +=
+                            battle.Metrics.GuaranteedNoEffectActionAttempts;
+                        validationInteractiveActionContractFailures +=
+                            battle.Metrics.InteractiveActionContractFailures;
                     }
                     if (!request.RetainValidationRunDetails)
                     {
@@ -2912,10 +2966,18 @@ public sealed class CombatCampaignFoundationTrainer
                     continue;
                 }
                 if (validationSevereEndTurnMistakes > 0
-                    || validationAvoidableEndTurnsWithUnusedEnergy > 0)
+                    || validationDominatedEndTurns > 0
+                    || validationEndTurnsIntoAvoidableLethal > 0
+                    || validationEndTurnsWithCertifiedCycle > 0
+                    || validationAvoidableEndTurnsWithUnusedEnergy > 0
+                    || validationNoEffectActionAttempts > 0
+                    || validationRepeatedNoEffectActionAttempts > 0
+                    || validationGuaranteedNoEffectActionAttempts > 0
+                    || validationInteractiveActionContractFailures > 0)
                 {
                     earlyStopReason =
-                        "隔离验收检测到严重结束回合失误；该指标必须为 0";
+                        "隔离验收检测到严重结束回合失误、无效果动作"
+                        + "或交互动作契约失败；这些指标必须为 0";
                     break;
                 }
                 var completedRuns = difficultyRuns
@@ -3013,11 +3075,36 @@ public sealed class CombatCampaignFoundationTrainer
             SaturatedEndTurnsWithUnusedEnergy =
                 validationSaturatedEndTurnsWithUnusedEnergy,
             SevereEndTurnMistakes = validationSevereEndTurnMistakes,
+            DominatedEndTurns = validationDominatedEndTurns,
+            EndTurnsIntoAvoidableLethal =
+                validationEndTurnsIntoAvoidableLethal,
+            EndTurnsWithCertifiedCycle =
+                validationEndTurnsWithCertifiedCycle,
+            EndTurnsWithUnknownLifecycle =
+                validationEndTurnsWithUnknownLifecycle,
+            EndTurnsWithBankedSurplus =
+                validationEndTurnsWithBankedSurplus,
+            BankedSurplusAtEndTurns =
+                validationBankedSurplusAtEndTurns,
             MaximumConsecutiveNoProgressTurns =
                 validationMaximumConsecutiveNoProgressTurns,
+            NoEffectActionAttempts = validationNoEffectActionAttempts,
+            RepeatedNoEffectActionAttempts =
+                validationRepeatedNoEffectActionAttempts,
+            GuaranteedNoEffectActionAttempts =
+                validationGuaranteedNoEffectActionAttempts,
+            InteractiveActionContractFailures =
+                validationInteractiveActionContractFailures,
             BehaviorPassed = validationSevereEndTurnMistakes == 0
+                             && validationDominatedEndTurns == 0
+                             && validationEndTurnsIntoAvoidableLethal == 0
+                             && validationEndTurnsWithCertifiedCycle == 0
                              && validationAvoidableEndTurnsWithUnusedEnergy
-                             == 0,
+                             == 0
+                             && validationNoEffectActionAttempts == 0
+                             && validationRepeatedNoEffectActionAttempts == 0
+                             && validationGuaranteedNoEffectActionAttempts == 0
+                             && validationInteractiveActionContractFailures == 0,
             EarlyStopped = !string.IsNullOrWhiteSpace(earlyStopReason),
             EarlyStopReason = earlyStopReason
         };
@@ -3231,6 +3318,10 @@ public sealed class CombatCampaignFoundationTrainer
                && string.Equals(
                    checkpoint.RulesetHash,
                    current.RulesetHash,
+                   StringComparison.Ordinal)
+               && string.Equals(
+                   checkpoint.ActionContractVersion,
+                   current.ActionContractVersion,
                    StringComparison.Ordinal)
                && string.Equals(
                    checkpoint.CampaignId,

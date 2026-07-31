@@ -56,6 +56,12 @@ public static class CombatSearchFeatureProjector
         result["playerDefend"] = state.PlayerDefend;
         result["power"] = state.Power;
         result["maxPower"] = state.MaxPower;
+        result["nextTurnPowerOnEnd"] =
+            CombatTurnRules.NextTurnPower(state.Power, state.MaxPower);
+        result["bankedSurplusPower"] =
+            Math.Max(0, state.Power - state.MaxPower);
+        result["expiringPower"] =
+            state.Power <= state.MaxPower ? Math.Max(0, state.Power) : 0;
         result["handCount"] = state.HandCount;
         result["retainedHandCount"] = state.RetainedHandCardValues.Count;
         result["handLimit"] = state.HandLimit;
@@ -133,6 +139,8 @@ public static class CombatSearchFeatureProjector
             state.EnemyHpAtTurnStart;
         result[CombatTurnFeatureNames.ConsecutiveNoProgressTurns] =
             state.ConsecutiveNoProgressTurns;
+        result[CombatTurnFeatureNames.NoEffectActionAttemptsThisTurn] =
+            state.NoEffectActionAttemptsThisTurn;
         result["setupValue"] = state.SetupValue;
         result["persistentValue"] = state.PersistentValue;
         result["damageMultiplier"] = state.DamageMultiplier;

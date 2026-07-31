@@ -15,6 +15,14 @@ public sealed class CombatActionProductivityAssessment
 
     public double MarginalHarm { get; set; }
 
+    public double EnergyCarryOpportunityCost { get; set; }
+
+    public double NetBenefit { get; set; }
+
+    public bool UrgentDefense { get; set; }
+
+    public CombatCycleOpportunityClassification CycleClassification { get; set; }
+
     public string Reason { get; set; } = "";
 }
 
@@ -47,20 +55,38 @@ public static class CombatActionProductivity
         }
 
         var semantics = action.Semantics ?? new CombatActionSemantics();
-        var recognized = HasRecognizedSemantics(semantics);
+        var cycleClassification =
+            CombatCycleOpportunityClassifier.Classify(action);
+        var cycleConnectorValue =
+            CombatCycleOpportunityClassifier.ConnectorValue(
+                cycleClassification,
+                action.Features);
+        var recognized = HasRecognizedSemantics(semantics)
+                         || cycleClassification
+                         != CombatCycleOpportunityClassification.None;
         var marginalBenefit =
             Positive(action.Features, "effectiveDurabilityDamage", "effectiveDamage")
             + Positive(action.Features, "immediateDefend")
             + Positive(action.Features, "effectiveHeal")
             + Positive(action.Features, "effectiveDraw")
             + Positive(action.Features, "marginalSetupValue")
-            + Math.Max(0d, semantics.EnergyGain);
+            + Math.Max(0d, semantics.EnergyGain)
+            + cycleConnectorValue;
         var marginalHarm =
             Math.Max(0d, semantics.SelfHpLoss) * 2d
             + Math.Max(0d, semantics.EndOfCycleSelfHpLoss) * 1.5d
             + Math.Max(0d, semantics.Risk);
+        var energyCarryCost = CombatTurnRules.EnergyCarryOpportunityCost(
+            state.CurrentPower,
+            state.MaxPower,
+            Math.Max(0, action.Cost),
+            semantics.EnergyGain);
+        var netBenefit = marginalBenefit - marginalHarm - energyCarryCost;
+        var urgentDefense =
+            Positive(action.Features, "immediateDefend") > Epsilon
+            && state.ExpectedIncomingDamage > state.Player.Defend;
         var explicitlyHarmful =
-            marginalHarm > marginalBenefit + Epsilon
+            marginalHarm + energyCarryCost > marginalBenefit + Epsilon
             && marginalBenefit <= Epsilon;
 
         if (!recognized)
@@ -71,6 +97,10 @@ public static class CombatActionProductivity
                 RecognizedSemantics = false,
                 MarginalBenefit = marginalBenefit,
                 MarginalHarm = marginalHarm,
+                EnergyCarryOpportunityCost = energyCarryCost,
+                NetBenefit = netBenefit,
+                UrgentDefense = urgentDefense,
+                CycleClassification = cycleClassification,
                 Reason =
                     "playable non-curse action has unknown semantics; conservatively keep it ahead of end turn"
             };
@@ -84,11 +114,14 @@ public static class CombatActionProductivity
                 ExplicitlyHarmful = true,
                 MarginalBenefit = marginalBenefit,
                 MarginalHarm = marginalHarm,
+                EnergyCarryOpportunityCost = energyCarryCost,
+                NetBenefit = netBenefit,
+                UrgentDefense = urgentDefense,
+                CycleClassification = cycleClassification,
                 Reason = "recognized action is purely harmful"
             };
         }
-        var productive = marginalBenefit + Epsilon >= marginalHarm
-                         && marginalBenefit > Epsilon;
+        var productive = netBenefit > Epsilon;
         return new CombatActionProductivityAssessment
         {
             Productive = productive,
@@ -96,9 +129,20 @@ public static class CombatActionProductivity
             ExplicitlyHarmful = explicitlyHarmful,
             MarginalBenefit = marginalBenefit,
             MarginalHarm = marginalHarm,
+            EnergyCarryOpportunityCost = energyCarryCost,
+            NetBenefit = netBenefit,
+            UrgentDefense = urgentDefense,
+            CycleClassification = cycleClassification,
             Reason = productive
-                ? "action has non-negative marginal combat value"
-                : "recognized action is saturated in the current state"
+                ? cycleClassification
+                  is CombatCycleOpportunityClassification.Certified
+                    or CombatCycleOpportunityClassification.Reachable
+                    ? "action has positive continuation value toward an executable cycle"
+                    : "action has positive marginal combat value after energy carry cost"
+                : energyCarryCost > Epsilon
+                  && marginalBenefit > Epsilon
+                    ? "action benefit does not exceed preserved surplus-energy cost"
+                    : "recognized action is saturated in the current state"
         };
     }
 
@@ -154,16 +198,28 @@ public static class CombatActionProductivity
         var missingHp = Math.Max(0, state.PlayerMaxHp - state.PlayerHp);
         var handCapacity = Math.Max(0, state.HandLimit - state.HandCount);
         var setup = MarginalSetupValue(state, semantics);
+        var cycleClassification =
+            CombatCycleOpportunityClassifier.Classify(action);
+        var cycleConnectorValue =
+            CombatCycleOpportunityClassifier.ConnectorValue(
+                cycleClassification,
+                action.Features);
         var benefit = damage
                       + immediateDefend
                       + Math.Min(missingHp, Math.Max(0d, semantics.Heal))
                       + Math.Min(handCapacity, Math.Max(0d, semantics.Draw))
                       + Math.Max(0d, semantics.EnergyGain)
-                      + setup;
+                      + setup
+                      + cycleConnectorValue;
         var harm = Math.Max(0d, semantics.SelfHpLoss) * 2d
                    + Math.Max(0d, semantics.EndOfCycleSelfHpLoss) * 1.5d
                    + Math.Max(0d, semantics.Risk);
-        return benefit > Epsilon && benefit + Epsilon >= harm;
+        var energyCarryCost = CombatTurnRules.EnergyCarryOpportunityCost(
+            state.Power,
+            state.MaxPower,
+            effectiveCost,
+            semantics.EnergyGain);
+        return benefit - harm - energyCarryCost > Epsilon;
     }
 
     public static double SetupValue(CombatActionSemantics semantics)

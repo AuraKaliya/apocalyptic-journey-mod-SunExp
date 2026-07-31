@@ -1053,7 +1053,7 @@ CompleteSimulation:
             {
                 continue;
             }
-            if (CombatActionProductivity.IsProductive(
+            if (CombatEndTurnSafety.IsSafeAlternative(
                     state,
                     candidate.Action,
                     CombatForwardModel.EffectiveCost(

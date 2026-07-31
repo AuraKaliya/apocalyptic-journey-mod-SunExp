@@ -155,14 +155,31 @@ public sealed class WitchCombatRuntime :
             switch (action.Kind)
             {
                 case CombatActionKind.EndTurn:
+                {
                     if (fightUi.turnButton == null || !fightUi.turnButton.isInteractable)
                     {
                         return CombatExecutionResult.Rejected("end-turn button is unavailable");
+                    }
+                    if (!TryCapture(out var freshState, out var captureReason))
+                    {
+                        return CombatExecutionResult.Rejected(
+                            "end-turn recapture failed: " + captureReason);
+                    }
+                    var assessment =
+                        CombatEndTurnSafety.AssessObservation(freshState);
+                    if (assessment.Prohibited)
+                    {
+                        return CombatExecutionResult.Rejected(
+                            "end-turn state changed: "
+                            + assessment.Reason
+                            + "; "
+                            + assessment.Trace.ToCompactString());
                     }
 
                     fightUi.turnButton.onClick.Invoke();
                     RecordAcceptedAction(action);
                     return CombatExecutionResult.Success("end turn");
+                }
 
                 case CombatActionKind.PlayCard:
                 {
@@ -223,12 +240,16 @@ public sealed class WitchCombatRuntime :
         CombatStateObservation state)
     {
         var purposeValue = 0d;
+        var lifecycle = new WitchCombatLifecycleEstimate();
         try
         {
             foreach (var buff in playerStatus.GetBuffs() ?? Array.Empty<IBuffItem>())
             {
-                purposeValue += WitchCombatValueEstimator.EstimateEndTurnPurpose(
-                    buff?.buffConfig?.dataConfig);
+                var config = buff?.buffConfig?.dataConfig;
+                purposeValue +=
+                    WitchCombatValueEstimator.EstimateEndTurnPurpose(config);
+                lifecycle.Merge(
+                    WitchCombatValueEstimator.EstimateLifecycle(config));
             }
         }
         catch
@@ -242,6 +263,8 @@ public sealed class WitchCombatRuntime :
                          ?? new List<IDataConfig>())
             {
                 purposeValue += WitchCombatValueEstimator.EstimateEndTurnPurpose(relic);
+                lifecycle.Merge(
+                    WitchCombatValueEstimator.EstimateLifecycle(relic));
             }
         }
         catch
@@ -254,6 +277,7 @@ public sealed class WitchCombatRuntime :
             lastObservedEndTurnPurposeValue;
         state.Features[CombatTurnFeatureNames.EndTurnPurposeCount] =
             lastObservedEndTurnPurposeValue > 0d ? 1d : 0d;
+        lifecycle.ProjectInto(state.Features);
     }
 
     private void RecordAcceptedAction(CombatActionObservation action)
@@ -1445,6 +1469,109 @@ public sealed class WitchCombatRuntime :
 
 }
 
+public sealed class WitchCombatLifecycleEstimate
+{
+    public double EndTurnHpLoss { get; set; }
+
+    public double EndTurnHeal { get; set; }
+
+    public double EndTurnDefend { get; set; }
+
+    public double EndTurnPowerGain { get; set; }
+
+    public double EndTurnDraw { get; set; }
+
+    public double StartTurnHpLoss { get; set; }
+
+    public double StartTurnHeal { get; set; }
+
+    public double StartTurnDefend { get; set; }
+
+    public double StartTurnPowerGain { get; set; }
+
+    public double StartTurnDraw { get; set; }
+
+    public int UnknownEffectCount { get; set; }
+
+    public void Merge(WitchCombatLifecycleEstimate? other)
+    {
+        if (other == null)
+        {
+            return;
+        }
+        EndTurnHpLoss += other.EndTurnHpLoss;
+        EndTurnHeal += other.EndTurnHeal;
+        EndTurnDefend += other.EndTurnDefend;
+        EndTurnPowerGain += other.EndTurnPowerGain;
+        EndTurnDraw += other.EndTurnDraw;
+        StartTurnHpLoss += other.StartTurnHpLoss;
+        StartTurnHeal += other.StartTurnHeal;
+        StartTurnDefend += other.StartTurnDefend;
+        StartTurnPowerGain += other.StartTurnPowerGain;
+        StartTurnDraw += other.StartTurnDraw;
+        UnknownEffectCount += Math.Max(0, other.UnknownEffectCount);
+    }
+
+    public void ProjectInto(IDictionary<string, double> features)
+    {
+        Set(
+            features,
+            CombatTurnFeatureNames.EndTurnLifecycleHpLoss,
+            EndTurnHpLoss);
+        Set(
+            features,
+            CombatTurnFeatureNames.EndTurnLifecycleHeal,
+            EndTurnHeal);
+        Set(
+            features,
+            CombatTurnFeatureNames.EndTurnLifecycleDefend,
+            EndTurnDefend);
+        Set(
+            features,
+            CombatTurnFeatureNames.EndTurnLifecyclePowerGain,
+            EndTurnPowerGain);
+        Set(
+            features,
+            CombatTurnFeatureNames.EndTurnLifecycleDraw,
+            EndTurnDraw);
+        Set(
+            features,
+            CombatTurnFeatureNames.StartTurnLifecycleHpLoss,
+            StartTurnHpLoss);
+        Set(
+            features,
+            CombatTurnFeatureNames.StartTurnLifecycleHeal,
+            StartTurnHeal);
+        Set(
+            features,
+            CombatTurnFeatureNames.StartTurnLifecycleDefend,
+            StartTurnDefend);
+        Set(
+            features,
+            CombatTurnFeatureNames.StartTurnLifecyclePowerGain,
+            StartTurnPowerGain);
+        Set(
+            features,
+            CombatTurnFeatureNames.StartTurnLifecycleDraw,
+            StartTurnDraw);
+        features[CombatTurnFeatureNames.UnknownLifecycleEffectCount] =
+            Math.Max(0, UnknownEffectCount);
+    }
+
+    private static void Set(
+        IDictionary<string, double> features,
+        string key,
+        double value)
+    {
+        if (!double.IsNaN(value)
+            && !double.IsInfinity(value)
+            && value > 0d)
+        {
+            features[key] = value;
+        }
+    }
+}
+
 public static class WitchCombatValueEstimator
 {
     private static readonly string[] TrueDamageTokens = { "truedamage", "piercingdamage", "unblockabledamage" };
@@ -1471,6 +1598,75 @@ public static class WitchCombatValueEstimator
         }
         return CombatEndTurnSafety.ScoreNativeEndTurnPurpose(
             CombinedScript(config));
+    }
+
+    public static WitchCombatLifecycleEstimate EstimateLifecycle(
+        IDataConfig? config)
+    {
+        var result = new WitchCombatLifecycleEstimate();
+        if (config == null)
+        {
+            return result;
+        }
+        var script = CombinedScript(config);
+        var endTurn = ContainsAny(
+            script,
+            "AddEvent(\"EndRound\"",
+            "AddEvent (\"EndRound\"",
+            "TurnEnded");
+        var startTurn = ContainsAny(
+            script,
+            "AddEvent(\"StartRound\"",
+            "AddEvent (\"StartRound\"",
+            "TurnStarted",
+            "RoundStart",
+            "TurnStart");
+        if (!endTurn && !startTurn)
+        {
+            return result;
+        }
+        if (endTurn && startTurn)
+        {
+            result.UnknownEffectCount = 1;
+            return result;
+        }
+
+        var semantics = Estimate(
+            config,
+            forceAttack: false,
+            CombatTargetKind.Self);
+        var hpLoss = Math.Max(
+            0d,
+            Math.Max(
+                semantics.EndOfCycleSelfHpLoss,
+                semantics.SelfHpLoss));
+        var recognized = hpLoss > 0d
+                         || semantics.Heal > 0d
+                         || semantics.Defend > 0d
+                         || semantics.EnergyGain > 0d
+                         || semantics.Draw > 0d
+                         || EstimateEndTurnPurpose(config) > 0d;
+        if (endTurn)
+        {
+            result.EndTurnHpLoss = hpLoss;
+            result.EndTurnHeal = Math.Max(0d, semantics.Heal);
+            result.EndTurnDefend = Math.Max(0d, semantics.Defend);
+            result.EndTurnPowerGain = Math.Max(0d, semantics.EnergyGain);
+            result.EndTurnDraw = Math.Max(0d, semantics.Draw);
+        }
+        else
+        {
+            result.StartTurnHpLoss = hpLoss;
+            result.StartTurnHeal = Math.Max(0d, semantics.Heal);
+            result.StartTurnDefend = Math.Max(0d, semantics.Defend);
+            result.StartTurnPowerGain = Math.Max(0d, semantics.EnergyGain);
+            result.StartTurnDraw = Math.Max(0d, semantics.Draw);
+        }
+        if (!recognized || semantics.Uncertainty >= 1.5d)
+        {
+            result.UnknownEffectCount = 1;
+        }
+        return result;
     }
 
     public static CombatActionSemantics Estimate(

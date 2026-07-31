@@ -111,6 +111,14 @@ public sealed class CombatDecisionSimulationPolicy :
         LastDecisionMetrics.SelectedEndTurnSevereMistake = false;
         LastDecisionMetrics.EndTurnSafeAlternativeCount = 0;
         LastDecisionMetrics.EndTurnAvoidableUnusedEnergy = 0;
+        LastDecisionMetrics.EndTurnVerdict = "";
+        LastDecisionMetrics.EndTurnDominanceMargin = 0d;
+        LastDecisionMetrics.EndTurnCertifiedCycleCount = 0;
+        LastDecisionMetrics.EndTurnReachableCycleCount = 0;
+        LastDecisionMetrics.EndTurnAvoidableLethal = false;
+        LastDecisionMetrics.EndTurnExpiringEnergy = 0;
+        LastDecisionMetrics.EndTurnBankedSurplusEnergy = 0;
+        LastDecisionMetrics.EndTurnUnknownLifecycleEffectCount = 0;
         LastDecisionMetrics.AuthoritativeSemanticMismatchKinds.Clear();
         LastDecisionMetrics.AuthoritativeSemanticMismatchSources.Clear();
         LastDecisionMetrics.AuthoritativeSemanticMismatchScenarios.Clear();
@@ -155,6 +163,22 @@ public sealed class CombatDecisionSimulationPolicy :
                 endTurnAssessment.SafeAlternativeCount;
             LastDecisionMetrics.EndTurnAvoidableUnusedEnergy =
                 endTurnAssessment.AvoidableUnusedEnergy;
+            LastDecisionMetrics.EndTurnVerdict =
+                endTurnAssessment.Verdict.ToString();
+            LastDecisionMetrics.EndTurnDominanceMargin =
+                endTurnAssessment.DominanceMargin;
+            LastDecisionMetrics.EndTurnCertifiedCycleCount =
+                endTurnAssessment.CertifiedCycleCount;
+            LastDecisionMetrics.EndTurnReachableCycleCount =
+                endTurnAssessment.ReachableCycleCount;
+            LastDecisionMetrics.EndTurnAvoidableLethal =
+                endTurnAssessment.AvoidableLethal;
+            LastDecisionMetrics.EndTurnExpiringEnergy =
+                endTurnAssessment.Projection.ExpiringPower;
+            LastDecisionMetrics.EndTurnBankedSurplusEnergy =
+                endTurnAssessment.Projection.BankedSurplusPower;
+            LastDecisionMetrics.EndTurnUnknownLifecycleEffectCount =
+                endTurnAssessment.Projection.UnknownLifecycleEffectCount;
         }
         return resolved;
     }
@@ -873,12 +897,19 @@ public static class PlayerEquivalentSimulationObservationProjector
                     state.EnemyHpAtTurnStart,
                 [CombatTurnFeatureNames.ConsecutiveNoProgressTurns] =
                     state.ConsecutiveNoProgressTurns,
+                [CombatTurnFeatureNames.NoEffectActionAttemptsThisTurn] =
+                    state.NoEffectActionAttemptsThisTurn.Values.Sum(),
                 [CombatTurnFeatureNames.EndTurnPurposeValue] =
                     state.EndTurnPurposeValue,
                 [CombatTurnFeatureNames.EndTurnPurposeCount] =
                     state.EndTurnPurposeValue > 0d ? 1d : 0d
             }
         };
+        ProjectLifecycleFeatures(
+            context.Scenario,
+            context.Ruleset,
+            state,
+            observation.Features);
         observation.DeckKnowledge.KnownDeckCardIds.AddRange(observation.DeckCardIds);
         if (context.Scenario.CampaignVariables.TryGetValue(
                 "ResurrectionCount",
@@ -927,6 +958,316 @@ public static class PlayerEquivalentSimulationObservationProjector
             observation.Actions.Add(action);
         }
         return CombatPlayerObservationBoundary.Normalize(observation);
+    }
+
+    private static void ProjectLifecycleFeatures(
+        CombatScenarioDefinition scenario,
+        CombatRuleset ruleset,
+        CombatBattleState state,
+        IDictionary<string, double> features)
+    {
+        var player = state.Player;
+        if (player == null)
+        {
+            return;
+        }
+        var unknown = 0;
+        foreach (var status in player.Statuses)
+        {
+            if (!ruleset.TryGetStatus(status.StatusId, out var definition))
+            {
+                unknown++;
+                continue;
+            }
+            foreach (var trigger in definition.Triggers)
+            {
+                if (trigger.EventKind != CombatSimulationEventKind.TurnEnded
+                    && trigger.EventKind
+                    != CombatSimulationEventKind.TurnStarted)
+                {
+                    continue;
+                }
+                if (!LifecycleTriggerMatches(
+                        trigger,
+                        status,
+                        player,
+                        state,
+                        ruleset))
+                {
+                    continue;
+                }
+                var startTurn =
+                    trigger.EventKind == CombatSimulationEventKind.TurnStarted;
+                foreach (var effect in trigger.Effects)
+                {
+                    if (!LifecycleEffectConditionMatches(
+                            effect,
+                            player,
+                            state,
+                            ruleset))
+                    {
+                        continue;
+                    }
+                    if (!ProjectsToPlayer(effect.Target, effect.Kind))
+                    {
+                        if (effect.Target
+                            is not CombatSimulationTarget.SelectedEnemy
+                            and not CombatSimulationTarget.AllEnemies
+                            and not CombatSimulationTarget.AllOpponents)
+                        {
+                            unknown++;
+                        }
+                        continue;
+                    }
+                    var amount = ProjectLifecycleAmount(
+                        effect,
+                        status,
+                        player,
+                        state,
+                        ruleset);
+                    if (!ProjectLifecycleEffect(
+                            features,
+                            effect.Kind,
+                            amount,
+                            startTurn,
+                            player,
+                            state,
+                            scenario.HandLimit))
+                    {
+                        unknown++;
+                    }
+                }
+                if (definition.Fidelity != CombatRuleFidelity.Authoritative)
+                {
+                    unknown++;
+                }
+            }
+        }
+        features[CombatTurnFeatureNames.UnknownLifecycleEffectCount] =
+            Math.Max(0, unknown);
+    }
+
+    private static bool LifecycleTriggerMatches(
+        CombatStatusTriggerDefinition trigger,
+        CombatStatusState status,
+        CombatActorState player,
+        CombatBattleState state,
+        CombatRuleset ruleset)
+    {
+        if (status.Stacks < trigger.MinimumStacks
+            || status.Stacks > trigger.MaximumStacks
+            || trigger.OwnerRelation
+            == CombatStatusTriggerOwnerRelation.EventTargetAllyExceptSelf
+            || !string.IsNullOrWhiteSpace(trigger.RequiredDefinitionId)
+            || !string.IsNullOrWhiteSpace(trigger.RequiredEventMessage)
+            || !string.IsNullOrWhiteSpace(trigger.RequiredActionTag))
+        {
+            return false;
+        }
+        if (trigger.ConditionExpression != null
+            && CombatSimulationExpressionEvaluator.Evaluate(
+                trigger.ConditionExpression,
+                state,
+                ruleset,
+                player.ActorId,
+                player.ActorId) <= 0d)
+        {
+            return false;
+        }
+        if (trigger.EveryNthEvent > 1)
+        {
+            var next = status.TriggerCounts.TryGetValue(
+                trigger.TriggerId,
+                out var previous)
+                ? previous + 1
+                : 1;
+            if (next % trigger.EveryNthEvent != 0)
+            {
+                return false;
+            }
+        }
+        if (string.IsNullOrWhiteSpace(trigger.CounterKey))
+        {
+            return true;
+        }
+        var counter = status.TriggerCounts.TryGetValue(
+            trigger.CounterKey,
+            out var stored)
+            ? stored
+            : 0;
+        counter += trigger.CounterIncrementMode switch
+        {
+            CombatStatusCounterIncrementMode.Fixed =>
+                trigger.CounterIncrement,
+            CombatStatusCounterIncrementMode.EventAmount =>
+                state.Turn * trigger.CounterIncrement,
+            CombatStatusCounterIncrementMode.HandCount =>
+                state.Hand.Count * trigger.CounterIncrement,
+            _ => 0
+        };
+        return counter >= trigger.MinimumCounterValue
+               && counter <= trigger.MaximumCounterValue
+               && (trigger.CounterStep <= 0
+                   || counter >= trigger.CounterStepOrigin
+                   && (counter - trigger.CounterStepOrigin)
+                   % trigger.CounterStep == 0);
+    }
+
+    private static bool LifecycleEffectConditionMatches(
+        CombatSimulationEffectDefinition effect,
+        CombatActorState player,
+        CombatBattleState state,
+        CombatRuleset ruleset)
+    {
+        return effect.ConditionExpression == null
+               || CombatSimulationExpressionEvaluator.Evaluate(
+                   effect.ConditionExpression,
+                   state,
+                   ruleset,
+                   player.ActorId,
+                   player.ActorId) > 0d;
+    }
+
+    private static bool ProjectsToPlayer(
+        CombatSimulationTarget target,
+        CombatSimulationEffectKind kind)
+    {
+        if (target is CombatSimulationTarget.Self
+            or CombatSimulationTarget.Player
+            or CombatSimulationTarget.EventSource
+            or CombatSimulationTarget.EventTarget
+            or CombatSimulationTarget.AllAllies)
+        {
+            return true;
+        }
+        return target == CombatSimulationTarget.None
+               && kind is CombatSimulationEffectKind.Draw
+                   or CombatSimulationEffectKind.DrawToHandLimit
+                   or CombatSimulationEffectKind.GainEnergy;
+    }
+
+    private static double ProjectLifecycleAmount(
+        CombatSimulationEffectDefinition effect,
+        CombatStatusState status,
+        CombatActorState player,
+        CombatBattleState state,
+        CombatRuleset ruleset)
+    {
+        var amount = effect.AmountExpression == null
+            ? effect.Amount
+            : CombatSimulationExpressionEvaluator.Evaluate(
+                effect.AmountExpression,
+                state,
+                ruleset,
+                player.ActorId,
+                player.ActorId);
+        if (effect.ScaleWithStatusStacks)
+        {
+            amount *= Math.Max(1, status.Stacks);
+        }
+        return amount * Math.Max(0d, Math.Min(1d, effect.Probability));
+    }
+
+    private static bool ProjectLifecycleEffect(
+        IDictionary<string, double> features,
+        CombatSimulationEffectKind kind,
+        double amount,
+        bool startTurn,
+        CombatActorState player,
+        CombatBattleState state,
+        int handLimit)
+    {
+        var prefix = startTurn ? "startTurn" : "endTurn";
+        switch (kind)
+        {
+            case CombatSimulationEffectKind.Damage:
+            case CombatSimulationEffectKind.TrueDamage:
+            case CombatSimulationEffectKind.DirectHpLoss:
+                AddFeature(
+                    features,
+                    prefix + "LifecycleHpLoss",
+                    Math.Max(0d, amount));
+                return true;
+            case CombatSimulationEffectKind.Heal:
+                AddFeature(
+                    features,
+                    prefix + "LifecycleHeal",
+                    Math.Max(0d, amount));
+                return true;
+            case CombatSimulationEffectKind.SetHp:
+                if (amount >= player.Hp)
+                {
+                    AddFeature(
+                        features,
+                        prefix + "LifecycleHeal",
+                        amount - player.Hp);
+                }
+                else
+                {
+                    AddFeature(
+                        features,
+                        prefix + "LifecycleHpLoss",
+                        player.Hp - amount);
+                }
+                return true;
+            case CombatSimulationEffectKind.SetHpToMax:
+                AddFeature(
+                    features,
+                    prefix + "LifecycleHeal",
+                    Math.Max(0, player.MaxHp - player.Hp));
+                return true;
+            case CombatSimulationEffectKind.GainBlock:
+                AddFeature(
+                    features,
+                    prefix + "LifecycleDefend",
+                    Math.Max(0d, amount));
+                return true;
+            case CombatSimulationEffectKind.SetBlock:
+                AddFeature(
+                    features,
+                    prefix + "LifecycleDefend",
+                    Math.Max(0d, amount - player.Block));
+                return true;
+            case CombatSimulationEffectKind.GainEnergy:
+                AddFeature(
+                    features,
+                    prefix
+                    + (amount >= 0d
+                        ? "LifecyclePowerGain"
+                        : "LifecyclePowerLoss"),
+                    Math.Abs(amount));
+                return true;
+            case CombatSimulationEffectKind.Draw:
+                AddFeature(
+                    features,
+                    prefix + "LifecycleDraw",
+                    Math.Max(0d, amount));
+                return true;
+            case CombatSimulationEffectKind.DrawToHandLimit:
+                AddFeature(
+                    features,
+                    prefix + "LifecycleDraw",
+                    Math.Max(0, handLimit - state.Hand.Count));
+                return true;
+            default:
+                return false;
+        }
+    }
+
+    private static void AddFeature(
+        IDictionary<string, double> features,
+        string key,
+        double value)
+    {
+        if (value <= 0d
+            || double.IsNaN(value)
+            || double.IsInfinity(value))
+        {
+            return;
+        }
+        features[key] = features.TryGetValue(key, out var previous)
+            ? previous + value
+            : value;
     }
 
     private static List<string> CardIds(
@@ -1009,6 +1350,14 @@ public static class PlayerEquivalentSimulationObservationProjector
                     item.Kind,
                     "Infinite",
                     StringComparison.OrdinalIgnoreCase))
+                ? 1d
+                : 0d;
+            features["strategyExecutable"] = strategyMatches.Any(item =>
+                item.Executable)
+                ? 1d
+                : 0d;
+            features["strategyDeterministic"] = strategyMatches.Any(item =>
+                item.Deterministic)
                 ? 1d
                 : 0d;
         }

@@ -369,12 +369,14 @@ try {
                 [string]$checkpoint.Resume.Compatibility.TrainingCampaignHash) `
             -or [string]::IsNullOrWhiteSpace(
                 [string]$checkpoint.Resume.Compatibility.ValidationCampaignHash) `
+            -or [string]$checkpoint.Resume.Compatibility.ActionContractVersion `
+                -ne "action-contract-v1" `
             -or [string]$checkpoint.Resume.Compatibility.TrainingSemanticsVersion `
-                -ne "targeted-phased-authoritative-v2" `
+                -ne "end-turn-counterfactual-v5" `
             -or [string]$checkpoint.Resume.Compatibility.SearchPolicyVersion `
-                -ne "dynamic-search-v4" `
+                -ne "dynamic-search-v6" `
             -or [string]$checkpoint.Resume.Compatibility.TrainingPolicyVersion `
-                -ne "foundation-governance-v10") {
+                -ne "foundation-governance-v12") {
             throw "Foundation checkpoint compatibility manifest is incomplete."
         }
     }

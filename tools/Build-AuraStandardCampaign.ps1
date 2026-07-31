@@ -3634,6 +3634,37 @@ if(buff!=null)
 '@
         }
     }
+    if ([string]$cardRow.Id -eq "careercard_1") {
+        $cardDefinition.requiresEnemyTarget = $false
+        $actionContract = [ordered]@{
+            version = "action-contract-v1"
+            preconditions = @(
+                [ordered]@{
+                    kind = "DrawPileCountAtLeast"
+                    amount = 1
+                },
+                [ordered]@{
+                    kind = "AvailableHandSlotsAtLeast"
+                    amount = 1
+                })
+            preconditionFailureOutcome = "NoEffect"
+            policyEligibleOnPreconditionFailure = $false
+            cooldownOnApplied = $true
+            minimumCardsMovedFromDrawPileToHandOnApplied = 1
+        }
+        if ($cardDefinition -is [Collections.Specialized.OrderedDictionary]) {
+            $cardDefinition["verificationSource"] =
+                "Decompiler:v1.0.23816797"
+            $cardDefinition["actionContract"] = $actionContract
+        } else {
+            $cardDefinition |
+                Add-Member -NotePropertyName verificationSource `
+                    -NotePropertyValue "Decompiler:v1.0.23816797" -Force
+            $cardDefinition |
+                Add-Member -NotePropertyName actionContract `
+                    -NotePropertyValue $actionContract -Force
+        }
+    }
     if ($cardDefinition -is [Collections.Specialized.OrderedDictionary]) {
         $cardDefinition["metadata"] = $metadata
     } else {

@@ -212,6 +212,10 @@ public static class CombatActionSettlementPolicy
                || string.Equals(
                    key,
                    CombatTurnFeatureNames.ConsecutiveNoProgressTurns,
+                   StringComparison.OrdinalIgnoreCase)
+               || string.Equals(
+                   key,
+                   CombatTurnFeatureNames.NoEffectActionAttemptsThisTurn,
                    StringComparison.OrdinalIgnoreCase);
     }
 

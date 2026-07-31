@@ -55,6 +55,8 @@ $riskStatisticsPath = Join-Path $root "AuraCombatAiShared\CombatSearchRiskStatis
 $searchBudgetPath = Join-Path $root "AuraCombatAiShared\CombatSearchBudgetPolicy.cs"
 $loopSafetyPath = Join-Path $root "AuraCombatAiShared\CombatLoopSafetyAnalyzer.cs"
 $forwardModelPath = Join-Path $root "AuraCombatAiShared\CombatForwardModel.cs"
+$endTurnSafetyPath = Join-Path $root "AuraCombatAiShared\CombatEndTurnSafety.cs"
+$endTurnTransitionPath = Join-Path $root "AuraCombatAiShared\CombatEndTurnTransition.cs"
 $searchProjectorPath = Join-Path $root "AuraCombatAiShared\CombatSearchFeatureProjector.cs"
 $batchTrainerPath = Join-Path $root "AuraCombatAiShared\CombatPolicyValueBatchTrainer.cs"
 $workerContractsPath = Join-Path $root "AuraCombatAiShared\CombatFoundationWorkerContracts.cs"
@@ -64,6 +66,8 @@ $registryPath = Join-Path $root "AuraCombatAiShared\CombatAiRegistry.cs"
 $guidancePath = Join-Path $root "AuraCombatAiShared\CombatSearchGuidance.cs"
 $simulationEnginePath = Join-Path $root "AuraCombatSimulationShared\CombatSimulationEngine.cs"
 $simulationModelsPath = Join-Path $root "AuraCombatSimulationShared\CombatSimulationModels.cs"
+$actionContractsPath = Join-Path $root "AuraCombatSimulationShared\CombatActionContracts.cs"
+$turnTransitionRulesPath = Join-Path $root "AuraCombatSimulationShared\CombatTurnTransitionRules.cs"
 $simulationBatchPath = Join-Path $root "AuraCombatSimulationShared\CombatBatchRunner.cs"
 $campaignSimulationPath = Join-Path $root "AuraCombatSimulationShared\CombatCampaignSimulation.cs"
 $journeySimulationPath = Join-Path $root "AuraCombatSimulationShared\CombatJourneySimulation.cs"
@@ -111,6 +115,8 @@ $riskStatistics = Get-Content -LiteralPath $riskStatisticsPath -Raw
 $searchBudget = Get-Content -LiteralPath $searchBudgetPath -Raw
 $loopSafety = Get-Content -LiteralPath $loopSafetyPath -Raw
 $forwardModel = Get-Content -LiteralPath $forwardModelPath -Raw
+$endTurnSafety = Get-Content -LiteralPath $endTurnSafetyPath -Raw
+$endTurnTransition = Get-Content -LiteralPath $endTurnTransitionPath -Raw
 $searchProjector = Get-Content -LiteralPath $searchProjectorPath -Raw
 $batchTrainer = Get-Content -LiteralPath $batchTrainerPath -Raw
 $workerContracts = Get-Content -LiteralPath $workerContractsPath -Raw
@@ -120,6 +126,8 @@ $registry = Get-Content -LiteralPath $registryPath -Raw
 $guidance = Get-Content -LiteralPath $guidancePath -Raw
 $simulationEngine = Get-Content -LiteralPath $simulationEnginePath -Raw
 $simulationModels = Get-Content -LiteralPath $simulationModelsPath -Raw
+$actionContracts = Get-Content -LiteralPath $actionContractsPath -Raw
+$turnTransitionRules = Get-Content -LiteralPath $turnTransitionRulesPath -Raw
 $simulationBatch = Get-Content -LiteralPath $simulationBatchPath -Raw
 $campaignSimulation = Get-Content -LiteralPath $campaignSimulationPath -Raw
 $journeySimulation = Get-Content -LiteralPath $journeySimulationPath -Raw
@@ -333,6 +341,38 @@ foreach ($anchor in @(
 }
 
 foreach ($anchor in @(
+    "end-turn recapture failed",
+    "CombatEndTurnSafety.AssessObservation",
+    "end-turn state changed"
+)) {
+    if (-not $runtime.Contains($anchor)) {
+        throw "Aura combat AI live end-turn preflight is missing: $anchor"
+    }
+}
+
+foreach ($anchor in @(
+    "CombatEndTurnVerdict",
+    "CombatEndTurnDecisionTrace",
+    "EndTurnDominated",
+    "EndTurnAvoidableLethal",
+    "CombatCycleOpportunityClassification.Certified"
+)) {
+    if (-not $endTurnSafety.Contains($anchor) `
+        -and -not $endTurnTransition.Contains($anchor)) {
+        throw "Aura combat AI end-turn counterfactual contract is missing: $anchor"
+    }
+}
+
+foreach ($anchor in @(
+    "NextTurnPower",
+    "EnergyCarryOpportunityCost"
+)) {
+    if (-not $turnTransitionRules.Contains($anchor)) {
+        throw "Aura combat turn-transition rule is missing: $anchor"
+    }
+}
+
+foreach ($anchor in @(
     "CombatSimulationEngine",
     "ProcessLifecycleEvent",
     "BuildLegalActions",
@@ -346,7 +386,10 @@ foreach ($anchor in @(
     "TryOverridePhysicalDefeat",
     "HpLossThisAction",
     "DamageFilterMultiplier",
-    "RecentEvents"
+    "RecentEvents",
+    "BuildInvocableActions",
+    "RecordNoEffectAction",
+    "InteractiveActionContractFailures"
 )) {
     if (-not $simulationEngine.Contains($anchor)) {
         throw "Aura authoritative combat simulation engine contract is missing: $anchor"
@@ -364,11 +407,26 @@ foreach ($anchor in @(
     "HandlerId",
     "SourceRewardId",
     "SourceActionId",
+    "CombatActionApplicationOutcome",
+    "NoEffectActionAttemptsThisTurn",
     "ICombatSimulationBorrowedStatePolicy",
     "ICombatSimulationPolicyMetricsProvider"
 )) {
     if (-not $simulationModels.Contains($anchor)) {
         throw "Aura combat simulation model contract is missing: $anchor"
+    }
+}
+
+foreach ($anchor in @(
+    "action-contract-v1",
+    "CombatActionContractDefinition",
+    "GameInvocable",
+    "PolicyEligible",
+    "AppliedPostconditionsSatisfied",
+    "suppressed after a no-effect attempt this turn"
+)) {
+    if (-not $actionContracts.Contains($anchor)) {
+        throw "Aura combat action contract is missing: $anchor"
     }
 }
 
@@ -889,6 +947,18 @@ if ($bundledRules.version -ne "witch-base-evaluation-v2" `
     -or (Get-Content -LiteralPath $bundledRulesPath -Raw -Encoding UTF8).Contains("Terrias")) {
     throw "Bundled standard evaluation package does not satisfy the base-game-only contract."
 }
+$divineChoice = @($bundledRules.cards | Where-Object {
+    $_.cardId -eq "careercard_1"
+}) | Select-Object -First 1
+if ($null -eq $divineChoice `
+    -or $divineChoice.requiresEnemyTarget `
+    -or $divineChoice.verificationSource -ne "Decompiler:v1.0.23816797" `
+    -or $divineChoice.actionContract.version -ne "action-contract-v1" `
+    -or @($divineChoice.actionContract.preconditions).Count -ne 2 `
+    -or $divineChoice.actionContract.preconditionFailureOutcome -ne "NoEffect" `
+    -or $divineChoice.actionContract.policyEligibleOnPreconditionFailure) {
+    throw "Bundled Divine Choice action contract is missing or unsafe."
+}
 
 foreach ($anchor in @(
     "CombatRiskAwareRootSamplingPuctPlanner",
@@ -990,6 +1060,9 @@ foreach ($anchor in @(
 
 foreach ($anchor in @(
     "aura.combat-ai.episode.v4",
+    "public const int FeatureSchemaVersion = 16",
+    "end-turn-counterfactual-v5",
+    "frame-strata-v5-end-turn-counterfactual",
     "CombatCampaignEpisodeMetadata",
     "LongTermReturn",
     "SearchVisits",

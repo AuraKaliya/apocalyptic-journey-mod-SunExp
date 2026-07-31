@@ -620,6 +620,8 @@ public sealed class CombatDecision
 
     public string PlanSummary { get; set; } = "";
 
+    public string EndTurnTrace { get; set; } = "";
+
     public int SearchSimulations { get; set; }
 
     public int SearchNodes { get; set; }

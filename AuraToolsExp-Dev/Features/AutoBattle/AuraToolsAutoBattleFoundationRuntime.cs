@@ -1877,7 +1877,13 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                             + "；未用能量结束 "
                             + result.Validation.EndTurnsWithUnusedEnergy
                             + "；最大连续无进展 "
-                            + result.Validation.MaximumConsecutiveNoProgressTurns);
+                            + result.Validation.MaximumConsecutiveNoProgressTurns
+                            + "；无效果动作 "
+                            + result.Validation.NoEffectActionAttempts
+                            + "；重复无效果 "
+                            + result.Validation.RepeatedNoEffectActionAttempts
+                            + "；交互契约失败 "
+                            + result.Validation.InteractiveActionContractFailures);
         markdown.AppendLine();
         markdown.AppendLine("## 训练迭代");
         markdown.AppendLine();

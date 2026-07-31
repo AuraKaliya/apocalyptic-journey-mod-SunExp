@@ -227,6 +227,13 @@ public static class CombatBattleStateHasher
             Mix(ref hash, useCount.Key);
             Mix(ref hash, useCount.Value);
         }
+        foreach (var attempt in state.NoEffectActionAttemptsThisTurn.OrderBy(
+                     pair => pair.Key,
+                     StringComparer.Ordinal))
+        {
+            Mix(ref hash, attempt.Key);
+            Mix(ref hash, attempt.Value);
+        }
         foreach (var pair in state.Random.Counters.OrderBy(pair => pair.Key, StringComparer.Ordinal))
         {
             Mix(ref hash, pair.Key);

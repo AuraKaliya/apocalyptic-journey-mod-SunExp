@@ -1,5 +1,105 @@
 # Errors
 
+## [ERR-20260731-015] undersized-project-test-timeout
+
+**Logged**: 2026-07-31T15:15:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The project-level combat AI test was started with a one-second shell timeout,
+which terminated the wrapper before its managed suite could complete.
+
+### Error
+```text
+command timed out after 5039 milliseconds
+```
+
+### Context
+- The underlying shared test alone normally takes about 48 seconds.
+- The wrapper also runs Python and headless-simulation contract checks.
+
+### Suggested Fix
+Give full project test wrappers a timeout of at least three minutes.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Test-AuraCombatAi.ps1
+
+### Resolution
+- **Resolved**: 2026-07-31T15:15:00+08:00
+- **Notes**: Re-ran the wrapper with a 180-second timeout.
+
+---
+
+## [ERR-20260731-014] ripgrep-no-match-exit-code
+
+**Logged**: 2026-07-31T15:05:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tooling
+
+### Summary
+A source excerpt command failed because a follow-up `rg` probe found no match,
+even though the preceding `Get-Content` output succeeded.
+
+### Error
+```text
+Exit code: 1
+```
+
+### Context
+- PowerShell propagated ripgrep's normal no-match status to the combined probe.
+- The missing phrase revealed a stale static-test anchor, not a source defect.
+
+### Suggested Fix
+Run exploratory no-match searches separately or explicitly tolerate exit code 1.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Test-AuraCombatAi.ps1
+
+### Resolution
+- **Resolved**: 2026-07-31T15:05:00+08:00
+- **Notes**: Replaced the speculative phrase with the actual runtime rejection
+  anchor `end-turn state changed`.
+
+---
+
+## [ERR-20260731-013] ripgrep-missing-search-root
+
+**Logged**: 2026-07-31T15:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tooling
+
+### Summary
+A repository-wide version search included a non-existent top-level `config`
+directory and therefore returned a failing exit code after producing results.
+
+### Error
+```text
+rg: config: 系统找不到指定的文件。 (os error 2)
+```
+
+### Context
+- This repository stores the relevant configuration under `AuraToolsExp/Config`.
+- The useful search results were still printed before ripgrep exited.
+
+### Suggested Fix
+Use `rg --files` or verify optional roots before passing them to a search.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraToolsExp/Config
+
+### Resolution
+- **Resolved**: 2026-07-31T15:00:00+08:00
+- **Notes**: Subsequent searches used only verified repository roots.
+
+---
+
 ## [ERR-20260721-002] workspace-root-rename-lock
 
 **Logged**: 2026-07-21T16:05:00+08:00
@@ -25,6 +125,222 @@ Close or reopen the Codex workspace, then rename the repository root from its pa
 ### Metadata
 - Reproducible: yes
 - Related Files: repository root
+
+---
+
+## [ERR-20260731-012] policy-value-regression-after-end-target-change
+
+**Logged**: 2026-07-31T14:10:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The combat AI suite reached the managed policy-value training integration test
+but its aggregate acceptance assertion failed after counterfactual end-turn
+target changes.
+
+### Error
+```text
+Assertion failed: complete episodes train a validated managed policy-value
+network, retain Top-K checkpoints, and select by multi-objective validation
+```
+
+### Context
+- Earlier end-turn, forward-model, simulator-energy, and transposition tests
+  passed in the same run.
+- The failing assertion aggregates several training/checkpoint conditions and
+  needs its individual values inspected before changing behavior.
+
+### Suggested Fix
+Read the assertion inputs, add diagnostic values if absent, and determine
+whether the new candidate inclusion changed a real model contract or only a
+fixture expectation.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraCombatAiShared.Tests/Program.cs
+- Related Files: AuraCombatAiShared/CombatPolicyValueBatchTrainer.cs
+
+### Resolution
+- **Resolved**: 2026-07-31T14:20:00+08:00
+- **Notes**: Counterfactual end-turn weighting exposed that post-normalization
+  frame weights used a generic 0.10 floor instead of the declared protocol
+  minimum. The final clamp now enforces `MinimumWeight`.
+
+---
+
+## [ERR-20260731-011] surplus-energy-test-overconstraint
+
+**Logged**: 2026-07-31T14:05:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The new surplus-energy contract test also required an unrelated second-turn
+victory, even though the energy capture already proved the target invariant.
+
+### Error
+```text
+rules=True, outcome=Draw, secondTurnEnergy=8, finalEnergy=8
+```
+
+### Context
+- The test's actual contract is preservation of energy 8 over a base cap of 3.
+- Card redraw/finish behavior is covered by separate deck-cycle tests.
+
+### Suggested Fix
+Assert the energy transition directly and avoid coupling it to battle outcome.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraCombatAiShared.Tests/Program.cs
+
+### Resolution
+- **Resolved**: 2026-07-31T14:05:00+08:00
+- **Notes**: Removed the unrelated victory requirement.
+
+---
+
+## [ERR-20260731-010] forward-state-random-seed-hash
+
+**Logged**: 2026-07-31T14:00:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The first combat AI regression run lost the commutative-action transposition
+hit after adding determinization-local shuffle state.
+
+### Error
+```text
+Assertion failed: commutative action orders reuse a physical-state
+transposition node
+```
+
+### Context
+- `DeterminizationSeed` and `ShuffleEpoch` were added to the full physical
+  state hash while replacing optimistic discard sorting with sampled shuffles.
+- Determinization identity is not itself a physical combat resource.
+
+### Suggested Fix
+Keep shuffle entropy on the simulation state for future reshuffles, but exclude
+the root seed from the physical transposition hash. Include only shuffle epochs
+or realized card-zone order when it changes observable transition state.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraCombatAiShared/CombatForwardModel.cs
+
+### Resolution
+- **Resolved**: 2026-07-31T14:02:00+08:00
+- **Notes**: Kept shuffle entropy on the state but removed the determinization
+  seed from the physical transposition hash.
+
+---
+
+## [ERR-20260731-009] ripgrep-windows-directory-glob
+
+**Logged**: 2026-07-31T13:20:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: docs
+
+### Summary
+A Windows `rg` invocation passed `AuraCombatAiShared/*.cs` as a positional
+path, which is not expanded by PowerShell for this command.
+
+### Error
+```text
+rg: AuraCombatAiShared/*.cs: The filename, directory name, or volume label
+syntax is incorrect.
+```
+
+### Context
+- The command was a read-only feature-registry search.
+
+### Suggested Fix
+Pass the directory as the search root and use `-g "*.cs"` for the file filter.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraCombatAiShared
+
+### Resolution
+- **Resolved**: 2026-07-31T13:20:00+08:00
+- **Notes**: Reissued the search with a ripgrep include glob.
+
+---
+
+## [ERR-20260731-008] assumed-shared-project-files
+
+**Logged**: 2026-07-31T13:15:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: docs
+
+### Summary
+An inspection command assumed the shared source directories each contained a
+same-named `.csproj`.
+
+### Error
+```text
+Cannot find path 'AuraCombatAiShared\AuraCombatAiShared.csproj'
+Cannot find path 'AuraCombatSimulationShared\AuraCombatSimulationShared.csproj'
+```
+
+### Context
+- These directories are linked source surfaces consumed by other projects.
+- The failed command was read-only.
+
+### Suggested Fix
+Locate project files with `rg --files -g "*.csproj"` before inspecting source
+ownership.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraCombatAiShared; AuraCombatSimulationShared
+
+### Resolution
+- **Resolved**: 2026-07-31T13:15:00+08:00
+- **Notes**: Continued inspection through the consuming project files.
+
+---
+
+## [ERR-20260731-007] stale-simulation-path
+
+**Logged**: 2026-07-31T13:10:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: docs
+
+### Summary
+An inspection command used the former `AuraToolsExp/Infrastructure/Training`
+path for `CombatSimulationEngine.cs`.
+
+### Error
+```text
+rg: AuraToolsExp/Infrastructure/Training/CombatSimulationEngine.cs:
+The system cannot find the path specified.
+```
+
+### Context
+- The simulator has moved to `AuraCombatSimulationShared`.
+- The command was read-only and made no workspace changes.
+
+### Suggested Fix
+Resolve implementation paths with `rg --files` before using paths preserved
+in older analysis notes.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraCombatSimulationShared/CombatSimulationEngine.cs
+
+### Resolution
+- **Resolved**: 2026-07-31T13:10:00+08:00
+- **Notes**: Located the current simulator path with `rg --files`.
 
 ---
 
@@ -1461,5 +1777,219 @@ successful syntax check.
 ### Resolution
 - **Resolved**: 2026-07-30T00:00:00+08:00
 - **Notes**: Corrected command used the full versioned SDK path.
+
+---
+
+## [ERR-20260731-001] recursive-decompiled-search-timeout
+
+**Logged**: 2026-07-31T10:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: docs
+
+### Summary
+A recursive search across the full decompiled tree and the 8 MB script inventory exceeded the command timeout.
+
+### Error
+```text
+command timed out after 14039 milliseconds
+```
+
+### Context
+- The command combined recursive directory enumeration with an unrestricted `rg` over several large roots.
+- The needed reference root was available directly under `开发参考资料/反编译文件夹v1.0.23816797`.
+
+### Suggested Fix
+Resolve the decompiled root first, then search specific source directories or known class filenames with explicit globs.
+
+### Metadata
+- Reproducible: yes
+- Related Files: 开发参考资料/反编译文件夹v1.0.23816797
+
+### Resolution
+- **Resolved**: 2026-07-31T10:00:00+08:00
+- **Notes**: Narrowed subsequent searches to the identified decompiled project.
+
+### Recurrence
+- **Observed**: 2026-07-31T10:03:00+08:00
+- **Notes**: A multi-file `rg` inspection returned exit code 1 because the final file had no matches even though earlier files produced useful output. Wrap optional `rg` probes so a no-match result does not mark the whole inspection as failed.
+
+---
+
+## [ERR-20260731-002] ambiguous-ruleset-json-patch
+
+**Logged**: 2026-07-31T11:00:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: config
+
+### Summary
+An action-contract JSON patch matched the first generic
+`requiresEnemyTarget`/`fidelity` pair and attached the Divine Choice contract
+to `blood_7` instead of `careercard_1`.
+
+### Error
+```text
+known-integrity-seed:...:action-contract:blood_7:
+expected at least 1 card(s) to move from draw pile to hand
+```
+
+### Context
+- The patch hunk did not include the stable `cardId` identity.
+- Native reward integrity tests caught the misplaced contract immediately.
+
+### Suggested Fix
+Anchor manual structured-data patches on the owning identity field, then query
+the resulting document for the new property before running broad tests.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraToolsExp/Config/combat-simulation/witch-base-evaluation-v2.ruleset.json
+
+### Resolution
+- **Resolved**: 2026-07-31T11:00:00+08:00
+- **Notes**: Restored `blood_7` and moved the contract under the explicit `careercard_1` object.
+
+---
+
+## [ERR-20260731-003] action-contract-settlement-boundary
+
+**Logged**: 2026-07-31T12:00:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The first Divine Choice postcondition check ran after `ActionResolved`, so
+later triggers that moved the drawn card were misclassified as native action
+contract failures.
+
+### Error
+```text
+action-contract:careercard_1:expected at least 1 card(s) to move from draw pile to hand
+```
+
+### Context
+- Four campaigns in the 64-seed native integrity sweep produced false failures.
+- The contract describes the immediate result of the native `UseScript`, not
+  the state after all action lifecycle triggers have settled.
+
+### Suggested Fix
+Validate immediate native action postconditions directly after the
+`CardPlayed` extension phase, before `ActionStarted` and later lifecycle
+events.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraCombatSimulationShared/CombatSimulationEngine.cs
+
+### Resolution
+- **Resolved**: 2026-07-31T12:00:00+08:00
+- **Notes**: Moved the check to the native script commit boundary; the full
+  64-campaign sweep then passed with zero failures.
+
+---
+
+## [ERR-20260731-004] stale-foundation-compatibility-assertions
+
+**Logged**: 2026-07-31T12:20:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The foundation smoke test still expected the previous training, search, and
+governance protocol versions after those protocols were intentionally bumped.
+
+### Error
+```text
+Foundation checkpoint compatibility manifest is incomplete.
+```
+
+### Context
+- The produced checkpoint contained the current compatibility manifest.
+- The PowerShell assertion compared it with obsolete literal version strings.
+
+### Suggested Fix
+Update compatibility assertions whenever a protocol version is bumped, and
+assert the new action-contract protocol in the same block.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Test-AuraFoundationTrainer.ps1
+
+### Resolution
+- **Resolved**: 2026-07-31T12:20:00+08:00
+- **Notes**: Updated all three protocol literals and added the
+  `action-contract-v1` assertion; the 232-campaign smoke test passed.
+
+---
+
+## [ERR-20260731-005] action-contract-command-queue-boundary
+
+**Logged**: 2026-07-31T12:30:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: tests
+
+### Summary
+Checking the action postcondition immediately after extension notification
+worked for synchronous native programs but ran before queued simulation effects.
+
+### Error
+```text
+Assertion failed: successful contract execution satisfies its draw-to-hand postcondition before cooldown
+```
+
+### Context
+- Native `UseScript` executes synchronously during `CardPlayed`.
+- Generic ruleset effects are compiled into the action command queue.
+- Both representations must reach the same contract settlement boundary.
+
+### Suggested Fix
+Check postconditions after the current action command queue is executed, but
+before the `ActionResolved` lifecycle event is dispatched.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraCombatSimulationShared/CombatSimulationEngine.cs
+
+### Resolution
+- **Resolved**: 2026-07-31T12:30:00+08:00
+- **Notes**: Both the 359-assertion shared suite and the 64-campaign native
+  integrity sweep now pass.
+
+---
+
+## [ERR-20260731-006] powershell-rg-regex-quoting
+
+**Logged**: 2026-07-31T12:40:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: docs
+
+### Summary
+A PowerShell `rg` probe used a grouped regular expression containing escaped
+quotes and was parsed as an unclosed group.
+
+### Error
+```text
+regex parse error: unclosed group
+```
+
+### Context
+- The search only needed several exact decompiler anchors.
+
+### Suggested Fix
+Use `rg -F` with separate `-e` arguments for literal multi-pattern searches.
+
+### Metadata
+- Reproducible: yes
+- Related Files: 开发参考资料/反编译文件夹v1.0.23816797/AllScripts/AllScripts.cs
+
+### Resolution
+- **Resolved**: 2026-07-31T12:40:00+08:00
+- **Notes**: The literal search located the Divine Choice script at line
+  20275 and its cooldown update at line 20293.
 
 ---

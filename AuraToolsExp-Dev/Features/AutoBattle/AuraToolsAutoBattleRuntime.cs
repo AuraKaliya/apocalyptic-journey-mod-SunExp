@@ -616,6 +616,7 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
             + " nodes=" + decision.SearchNodes
             + " transpositions=" + decision.SearchTranspositionHits
             + " " + ScoreBreakdown(decision)
+            + " " + decision.EndTurnTrace
             + " " + decision.PlanSummary);
     }
 

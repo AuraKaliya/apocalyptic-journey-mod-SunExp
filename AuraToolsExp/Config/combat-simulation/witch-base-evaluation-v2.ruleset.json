@@ -1258,8 +1258,26 @@
       "rarity": 3,
       "exhaust": false,
       "tags": [],
-      "requiresEnemyTarget": true,
+      "requiresEnemyTarget": false,
       "fidelity": "Authoritative",
+      "verificationSource": "Decompiler:v1.0.23816797",
+      "actionContract": {
+        "version": "action-contract-v1",
+        "preconditions": [
+          {
+            "kind": "DrawPileCountAtLeast",
+            "amount": 1
+          },
+          {
+            "kind": "AvailableHandSlotsAtLeast",
+            "amount": 1
+          }
+        ],
+        "preconditionFailureOutcome": "NoEffect",
+        "policyEligibleOnPreconditionFailure": false,
+        "cooldownOnApplied": true,
+        "minimumCardsMovedFromDrawPileToHandOnApplied": 1
+      },
       "effects": [],
       "drawEffects": [],
       "discardEffects": [],

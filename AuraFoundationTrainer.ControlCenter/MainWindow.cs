@@ -1018,7 +1018,11 @@ internal sealed class MainWindow : Window
                 + $"高级 {result.Training.Validation.AdvancedVictories}/"
                 + $"{result.Training.Validation.AdvancedCampaigns}"
                 + $"（LB {result.Training.Validation.AdvancedWilsonLowerBound:P1}） · "
-                + $"无效 {result.Training.Validation.InvalidCampaigns}";
+                + $"无效 {result.Training.Validation.InvalidCampaigns} · "
+                + $"无效果动作 "
+                + $"{result.Training.Validation.NoEffectActionAttempts} · "
+                + $"交互契约失败 "
+                + $"{result.Training.Validation.InteractiveActionContractFailures}";
         }
         logBox.Text =
             $"完成类型：{result.CompletionKind}\r\n"

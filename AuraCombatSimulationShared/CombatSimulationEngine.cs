@@ -77,12 +77,24 @@ public sealed class CombatSimulationEngine
         return Session.BuildLegalActions(scenario, ruleset, state);
     }
 
+    public IReadOnlyList<CombatSimulationAction> GetInvocablePlayerActions(
+        CombatScenarioDefinition scenario,
+        CombatRuleset ruleset,
+        CombatBattleState state)
+    {
+        if (scenario == null) throw new ArgumentNullException(nameof(scenario));
+        if (ruleset == null) throw new ArgumentNullException(nameof(ruleset));
+        if (state == null) throw new ArgumentNullException(nameof(state));
+        return Session.BuildInvocableActions(scenario, ruleset, state);
+    }
+
     public CombatActionApplicationResult ForkAndApplyPlayerAction(
         CombatScenarioDefinition scenario,
         CombatRuleset ruleset,
         CombatBattleState source,
         CombatSimulationAction action,
-        bool captureSemanticEvents = false)
+        bool captureSemanticEvents = false,
+        bool allowPolicyIneligible = false)
     {
         if (scenario == null) throw new ArgumentNullException(nameof(scenario));
         if (ruleset == null) throw new ArgumentNullException(nameof(ruleset));
@@ -96,14 +108,19 @@ public sealed class CombatSimulationEngine
             extensionFactory?.Create(scenario, ruleset),
             source.Clone(),
             captureSemanticEvents);
-        var legal = Session.BuildLegalActions(scenario, ruleset, session.State);
-        var selected = legal.FirstOrDefault(candidate =>
+        var candidates = allowPolicyIneligible
+            ? Session.BuildInvocableActions(scenario, ruleset, session.State)
+            : Session.BuildLegalActions(scenario, ruleset, session.State);
+        var selected = candidates.FirstOrDefault(candidate =>
             string.Equals(candidate.CandidateId, action.CandidateId, StringComparison.Ordinal));
         if (selected == null || selected.Kind == CombatSimulationActionKind.EndTurn)
         {
             return new CombatActionApplicationResult
             {
-                Reason = "action is not a legal playable card",
+                Reason = allowPolicyIneligible
+                    ? "action is not game-invocable"
+                    : "action is not policy-eligible",
+                Outcome = CombatActionApplicationOutcome.Rejected,
                 State = source.Clone()
             };
         }
@@ -112,7 +129,15 @@ public sealed class CombatSimulationEngine
         return new CombatActionApplicationResult
         {
             Success = success,
-            Reason = success ? "" : session.State.TerminationReason.ToString(),
+            Reason = success
+                ? session.LastActionOutcome
+                  == CombatActionApplicationOutcome.NoEffect
+                    ? selected.EligibilityReason
+                    : ""
+                : session.State.TerminationReason.ToString(),
+            Outcome = session.LastActionOutcome,
+            PolicyEligible = selected.PolicyEligible,
+            ActionContractVersion = session.LastActionContractVersion,
             State = session.State.Clone(),
             Events = new List<CombatSimulationEvent>(session.Events)
         };
@@ -176,6 +201,11 @@ public sealed class CombatSimulationEngine
         public CombatBattleState State { get; }
 
         public List<CombatSimulationEvent> Events { get; } = new();
+
+        public CombatActionApplicationOutcome LastActionOutcome { get; private set; } =
+            CombatActionApplicationOutcome.Rejected;
+
+        public string LastActionContractVersion { get; private set; } = "";
 
         public bool Initialize()
         {
@@ -360,6 +390,7 @@ public sealed class CombatSimulationEngine
             State.Turn++;
             State.PlayerActionsThisTurn = 0;
             State.PlayerEnergySpentThisTurn = 0;
+            State.NoEffectActionAttemptsThisTurn.Clear();
             State.Phase = CombatSimulationPhase.PlayerTurnStart;
             ResetHpLossWindow();
             var player = State.Player;
@@ -368,9 +399,10 @@ public sealed class CombatSimulationEngine
                 Terminate(CombatSimulationOutcome.Defeat, CombatTerminationReason.Defeat);
                 return false;
             }
-            player.Energy = Math.Max(
-                0,
-                WitchRounded(Variable(player, "BaseEnergy", player.BaseEnergy)));
+            player.Energy = CombatTurnTransitionRules.NextTurnPower(
+                player.Energy,
+                WitchRounded(
+                    Variable(player, "BaseEnergy", player.BaseEnergy)));
             // The native player-turn entry point clears shield on every
             // registered combat status before StartRound is dispatched.
             foreach (var actor in State.Actors)
@@ -736,6 +768,36 @@ public sealed class CombatSimulationEngine
                 policy is ICombatSimulationPolicyMetricsProvider provider
                     ? provider.LastDecisionMetrics
                     : null;
+            var bankedSurplus = policyMetrics?.EndTurnSafetyAssessed == true
+                ? Math.Max(
+                    0,
+                    policyMetrics.EndTurnBankedSurplusEnergy)
+                : Math.Max(0, player.Energy - player.BaseEnergy);
+            if (bankedSurplus > 0)
+            {
+                metrics.EndTurnsWithBankedSurplus++;
+                metrics.BankedSurplusAtEndTurns += bankedSurplus;
+            }
+            if (!forced
+                && policyMetrics?.EndTurnSafetyAssessed == true)
+            {
+                if (policyMetrics.SelectedEndTurnSevereMistake)
+                {
+                    metrics.DominatedEndTurns++;
+                }
+                if (policyMetrics.EndTurnAvoidableLethal)
+                {
+                    metrics.EndTurnsIntoAvoidableLethal++;
+                }
+                if (policyMetrics.EndTurnCertifiedCycleCount > 0)
+                {
+                    metrics.EndTurnsWithCertifiedCycle++;
+                }
+                if (policyMetrics.EndTurnUnknownLifecycleEffectCount > 0)
+                {
+                    metrics.EndTurnsWithUnknownLifecycle++;
+                }
+            }
             if (!forced && player.Energy > 0)
             {
                 if (policyMetrics?.EndTurnSafetyAssessed == true
@@ -854,6 +916,8 @@ public sealed class CombatSimulationEngine
 
         public bool ApplyPlayerAction(CombatSimulationAction action)
         {
+            LastActionOutcome = CombatActionApplicationOutcome.Rejected;
+            LastActionContractVersion = "";
             var player = State.Player;
             var instance = State.FindCard(action.CardInstanceId);
             var useSkill = action.Kind == CombatSimulationActionKind.UseSkill;
@@ -873,6 +937,29 @@ public sealed class CombatSimulationEngine
                 Terminate(CombatSimulationOutcome.Invalid, CombatTerminationReason.IllegalPolicyAction);
                 return false;
             }
+            LastActionContractVersion = definition.ActionContract?.Version ?? "";
+            var eligibility = CombatActionContractEvaluator.Evaluate(
+                scenario,
+                State,
+                definition,
+                action);
+            CombatActionContractEvaluator.Apply(action, eligibility);
+            if (eligibility.ExpectedOutcome
+                == CombatActionApplicationOutcome.NoEffect)
+            {
+                RecordNoEffectAction(action, eligibility.GuaranteedNoEffect);
+                LastActionOutcome = CombatActionApplicationOutcome.NoEffect;
+                return true;
+            }
+            if (!eligibility.PolicyEligible
+                || eligibility.ExpectedOutcome
+                != CombatActionApplicationOutcome.Applied)
+            {
+                Terminate(
+                    CombatSimulationOutcome.Invalid,
+                    CombatTerminationReason.IllegalPolicyAction);
+                return false;
+            }
 
             var cost = useSkill
                 ? 0
@@ -883,6 +970,8 @@ public sealed class CombatSimulationEngine
                 return false;
             }
 
+            var contractSnapshot =
+                CombatActionContractSnapshot.Capture(State);
             State.ActionSequence++;
             ResetHpLossWindow();
             currentActionCommandCount = 0;
@@ -949,6 +1038,24 @@ public sealed class CombatSimulationEngine
             {
                 return false;
             }
+            if (!CombatActionContractEvaluator.AppliedPostconditionsSatisfied(
+                    definition.ActionContract,
+                    contractSnapshot,
+                    CombatActionContractSnapshot.Capture(State),
+                    out var contractFailureReason))
+            {
+                metrics.InteractiveActionContractFailures++;
+                LastActionOutcome = CombatActionApplicationOutcome.NoEffect;
+                AddUnsupported(
+                    "action-contract:"
+                    + definition.CardId
+                    + ":"
+                    + contractFailureReason);
+                Terminate(
+                    CombatSimulationOutcome.Invalid,
+                    CombatTerminationReason.UnsupportedRule);
+                return false;
+            }
             if (!ProcessLifecycleEvent(
                     CombatSimulationEventKind.ActionResolved,
                     player.ActorId,
@@ -978,9 +1085,9 @@ public sealed class CombatSimulationEngine
                     return false;
                 }
             }
-            if (useSkill)
+            if (useSkill
+                && (definition.ActionContract?.CooldownOnApplied ?? true))
             {
-                // Native active skills are independent of the draw pile.
                 State.SkillCooldowns[instance.InstanceId] =
                     scenario.Player.SkillCooldownTurns.TryGetValue(
                         definition.CardId,
@@ -988,7 +1095,30 @@ public sealed class CombatSimulationEngine
                         ? Math.Max(1, configuredCooldown)
                         : 1;
             }
+            LastActionOutcome = CombatActionApplicationOutcome.Applied;
             return ValidateState();
+        }
+
+        private void RecordNoEffectAction(
+            CombatSimulationAction action,
+            bool guaranteedNoEffect)
+        {
+            var key = CombatActionContractEvaluator.ActionKey(action);
+            var previous = State.NoEffectActionAttemptsThisTurn.TryGetValue(
+                key,
+                out var count)
+                ? Math.Max(0, count)
+                : 0;
+            State.NoEffectActionAttemptsThisTurn[key] = previous + 1;
+            metrics.NoEffectActionAttempts++;
+            if (previous > 0)
+            {
+                metrics.RepeatedNoEffectActionAttempts++;
+            }
+            if (guaranteedNoEffect)
+            {
+                metrics.GuaranteedNoEffectActionAttempts++;
+            }
         }
 
         private CombatSimulationEvent? MovePlayedCardToDestination(
@@ -1226,6 +1356,16 @@ public sealed class CombatSimulationEngine
             CombatRuleset ruleset,
             CombatBattleState state)
         {
+            return BuildInvocableActions(scenario, ruleset, state)
+                .Where(action => action.PolicyEligible)
+                .ToList();
+        }
+
+        public static IReadOnlyList<CombatSimulationAction> BuildInvocableActions(
+            CombatScenarioDefinition scenario,
+            CombatRuleset ruleset,
+            CombatBattleState state)
+        {
             var result = new List<CombatSimulationAction>();
             var player = state.Player;
             if (player == null || !player.Alive)
@@ -1254,29 +1394,39 @@ public sealed class CombatSimulationEngine
                 {
                     foreach (var enemy in enemies)
                     {
-                        result.Add(new CombatSimulationAction
-                        {
-                            CandidateId = "card:" + instance.InstanceId + ":target:" + enemy.ActorId,
-                            Kind = CombatSimulationActionKind.PlayCard,
-                            ActorId = player.ActorId,
-                            CardInstanceId = instance.InstanceId,
-                            TargetActorId = enemy.ActorId,
-                            Cost = cost,
-                            DefinitionId = definition.CardId
-                        });
+                        AddInvocableAction(
+                            result,
+                            scenario,
+                            state,
+                            definition,
+                            new CombatSimulationAction
+                            {
+                                CandidateId = "card:" + instance.InstanceId + ":target:" + enemy.ActorId,
+                                Kind = CombatSimulationActionKind.PlayCard,
+                                ActorId = player.ActorId,
+                                CardInstanceId = instance.InstanceId,
+                                TargetActorId = enemy.ActorId,
+                                Cost = cost,
+                                DefinitionId = definition.CardId
+                            });
                     }
                 }
                 else
                 {
-                    result.Add(new CombatSimulationAction
-                    {
-                        CandidateId = "card:" + instance.InstanceId,
-                        Kind = CombatSimulationActionKind.PlayCard,
-                        ActorId = player.ActorId,
-                        CardInstanceId = instance.InstanceId,
-                        Cost = cost,
-                        DefinitionId = definition.CardId
-                    });
+                    AddInvocableAction(
+                        result,
+                        scenario,
+                        state,
+                        definition,
+                        new CombatSimulationAction
+                        {
+                            CandidateId = "card:" + instance.InstanceId,
+                            Kind = CombatSimulationActionKind.PlayCard,
+                            ActorId = player.ActorId,
+                            CardInstanceId = instance.InstanceId,
+                            Cost = cost,
+                            DefinitionId = definition.CardId
+                        });
                 }
             }
             foreach (var instanceId in state.SkillCards)
@@ -1299,33 +1449,43 @@ public sealed class CombatSimulationEngine
                 {
                     foreach (var enemy in enemies)
                     {
-                        result.Add(new CombatSimulationAction
-                        {
-                            CandidateId =
-                                "skill:"
-                                + instance.InstanceId
-                                + ":target:"
-                                + enemy.ActorId,
-                            Kind = CombatSimulationActionKind.UseSkill,
-                            ActorId = player.ActorId,
-                            CardInstanceId = instance.InstanceId,
-                            TargetActorId = enemy.ActorId,
-                            Cost = 0,
-                            DefinitionId = definition.CardId
-                        });
+                        AddInvocableAction(
+                            result,
+                            scenario,
+                            state,
+                            definition,
+                            new CombatSimulationAction
+                            {
+                                CandidateId =
+                                    "skill:"
+                                    + instance.InstanceId
+                                    + ":target:"
+                                    + enemy.ActorId,
+                                Kind = CombatSimulationActionKind.UseSkill,
+                                ActorId = player.ActorId,
+                                CardInstanceId = instance.InstanceId,
+                                TargetActorId = enemy.ActorId,
+                                Cost = 0,
+                                DefinitionId = definition.CardId
+                            });
                     }
                 }
                 else
                 {
-                    result.Add(new CombatSimulationAction
-                    {
-                        CandidateId = "skill:" + instance.InstanceId,
-                        Kind = CombatSimulationActionKind.UseSkill,
-                        ActorId = player.ActorId,
-                        CardInstanceId = instance.InstanceId,
-                        Cost = 0,
-                        DefinitionId = definition.CardId
-                    });
+                    AddInvocableAction(
+                        result,
+                        scenario,
+                        state,
+                        definition,
+                        new CombatSimulationAction
+                        {
+                            CandidateId = "skill:" + instance.InstanceId,
+                            Kind = CombatSimulationActionKind.UseSkill,
+                            ActorId = player.ActorId,
+                            CardInstanceId = instance.InstanceId,
+                            Cost = 0,
+                            DefinitionId = definition.CardId
+                        });
                 }
             }
             result.Add(new CombatSimulationAction
@@ -1335,6 +1495,23 @@ public sealed class CombatSimulationEngine
                 ActorId = player.ActorId
             });
             return result;
+        }
+
+        private static void AddInvocableAction(
+            ICollection<CombatSimulationAction> result,
+            CombatScenarioDefinition scenario,
+            CombatBattleState state,
+            CombatCardDefinition definition,
+            CombatSimulationAction action)
+        {
+            CombatActionContractEvaluator.Apply(
+                action,
+                CombatActionContractEvaluator.Evaluate(
+                    scenario,
+                    state,
+                    definition,
+                    action));
+            result.Add(action);
         }
 
         private void AddInitialStatuses(

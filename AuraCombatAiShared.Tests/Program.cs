@@ -1363,6 +1363,162 @@ Assert(!CombatActionProductivity.Assess(
         unknownPlayable).Productive,
     "curse cards are excluded from the end-turn productivity gate");
 
+Assert(CombatTurnTransitionRules.NextTurnPower(2, 3) == 3
+       && CombatTurnTransitionRules.NextTurnPower(5, 3) == 5
+       && Math.Abs(
+           CombatTurnTransitionRules.EnergyCarryOpportunityCost(
+               3,
+               3,
+               2,
+               0)) < 0.000001d
+       && Math.Abs(
+           CombatTurnTransitionRules.EnergyCarryOpportunityCost(
+               5,
+               3,
+               2,
+               0) - 2d) < 0.000001d,
+    "shared turn rules refill energy at or below the cap and price only banked surplus above it");
+var bankedPowerState = new CombatStateObservation
+{
+    Player = new CombatUnitObservation
+    {
+        RuntimeId = 910,
+        CurrentHp = 20,
+        MaxHp = 20
+    },
+    CurrentPower = 5,
+    MaxPower = 3,
+    Enemies =
+    {
+        new CombatUnitObservation
+        {
+            RuntimeId = 911,
+            Kind = CombatTargetKind.Enemy,
+            CurrentHp = 20,
+            MaxHp = 20
+        }
+    }
+};
+var lowYieldSurplusAction = new CombatCandidateEvaluation
+{
+    Legal = true,
+    Action = new CombatActionObservation
+    {
+        CandidateId = "surplus-low-yield",
+        Kind = CombatActionKind.PlayCard,
+        Cost = 1,
+        TargetRuntimeId = 911,
+        Semantics = new CombatActionSemantics { Damage = 1d },
+        Features = { ["effectiveDurabilityDamage"] = 1d }
+    }
+};
+var highYieldSurplusAction = new CombatCandidateEvaluation
+{
+    Legal = true,
+    Action = new CombatActionObservation
+    {
+        CandidateId = "surplus-high-yield",
+        Kind = CombatActionKind.PlayCard,
+        Cost = 1,
+        TargetRuntimeId = 911,
+        Semantics = new CombatActionSemantics { Damage = 2d },
+        Features = { ["effectiveDurabilityDamage"] = 2d }
+    }
+};
+Assert(!CombatActionProductivity.Assess(
+           bankedPowerState,
+           lowYieldSurplusAction).Productive
+       && CombatActionProductivity.Assess(
+           bankedPowerState,
+           highYieldSurplusAction).Productive,
+    "end-turn productivity compares action value with the next-turn cost of spending banked surplus energy");
+var lethalProjectionState = new CombatStateObservation
+{
+    Player = new CombatUnitObservation
+    {
+        RuntimeId = 912,
+        CurrentHp = 4,
+        MaxHp = 20
+    },
+    CurrentPower = 1,
+    MaxPower = 1,
+    HandCount = 2,
+    HandCardIds = { "guard", "keep" },
+    RetainedHandCardIds = { "keep" },
+    DeckKnowledge = new CombatDeckKnowledge
+    {
+        DrawPileCount = 0,
+        DiscardPileCount = 2
+    },
+    Threat = new CombatThreatForecast
+    {
+        ExpectedBlockableDamage = 5d,
+        CurrentIntentKnown = true,
+        Confidence = 1d
+    },
+    Features =
+    {
+        ["handLimit"] = 10d,
+        ["drawPerTurn"] = 5d,
+        [CombatTurnFeatureNames.UnknownLifecycleEffectCount] = 1d
+    }
+};
+var lifeSavingGuard = new CombatCandidateEvaluation
+{
+    Legal = true,
+    Action = new CombatActionObservation
+    {
+        CandidateId = "life-saving-guard",
+        Kind = CombatActionKind.PlayCard,
+        Cost = 1,
+        Semantics = new CombatActionSemantics { Defend = 5d },
+        Features = { ["immediateDefend"] = 5d }
+    }
+};
+var lethalEndTurnAssessment = CombatEndTurnSafety.Assess(
+    lethalProjectionState,
+    new[] { lifeSavingGuard },
+    new CombatDecisionProfile());
+Assert(lethalEndTurnAssessment.Prohibited
+       && lethalEndTurnAssessment.AvoidableLethal
+       && lethalEndTurnAssessment.Verdict
+       == CombatEndTurnVerdict.BlockedLethal
+       && lethalEndTurnAssessment.Projection.UnretainedHandCount == 1
+       && lethalEndTurnAssessment.Projection.RetainedHandCount == 1
+       && lethalEndTurnAssessment.Projection.ReshuffleDuringNextDraw
+       && lethalEndTurnAssessment.Projection.UnretainedReturnDelayTurns == 0,
+    "end-turn projection combines retain/discard/reshuffle rules with avoidable lethal intent");
+var certifiedCycleAction = new CombatCandidateEvaluation
+{
+    Legal = true,
+    Action = new CombatActionObservation
+    {
+        CandidateId = "certified-cycle-connector",
+        Kind = CombatActionKind.PlayCard,
+        Cost = 0,
+        Features =
+        {
+            ["strategyInfinite"] = 1d,
+            ["strategyExecutable"] = 1d,
+            ["strategyDeterministic"] = 1d
+        }
+    }
+};
+var certifiedCycleAssessment = CombatEndTurnSafety.Assess(
+    new CombatStateObservation
+    {
+        Player = new CombatUnitObservation { CurrentHp = 20, MaxHp = 20 },
+        CurrentPower = 3,
+        MaxPower = 3
+    },
+    new[] { certifiedCycleAction },
+    new CombatDecisionProfile());
+Assert(certifiedCycleAssessment.Prohibited
+       && certifiedCycleAssessment.Verdict
+       == CombatEndTurnVerdict.BlockedCycle
+       && certifiedCycleAssessment.CertifiedCycleCount == 1,
+    "deterministic executable infinite components block end turn even when the connector has no immediate numeric payoff");
+
 var limitedDamageState = new CombatStateObservation
 {
     Player = new CombatUnitObservation
@@ -1694,6 +1850,49 @@ Assert(retainedCycleTurn.HandCount == 3
        && retainedCycleTurn.RetainedHandCardValues.Count == 1
        && retainedCycleTurn.DiscardPileValues.SequenceEqual(new[] { 1d }),
     "end-turn cycle keeps retained cards while only unretained cards enter the discard pile");
+var lifecycleForwardTurn = CombatForwardModel.ApplyEndTurn(
+    new CombatSimulationState
+    {
+        PlayerHp = 10,
+        PlayerMaxHp = 20,
+        PlayerDefend = 0,
+        Power = 3,
+        MaxPower = 3,
+        HandLimit = 10,
+        DrawPileKnown = true,
+        Features =
+        {
+            ["drawPerTurn"] = 0d,
+            [CombatTurnFeatureNames.EndTurnLifecycleHpLoss] = 1d,
+            [CombatTurnFeatureNames.EndTurnLifecycleDefend] = 3d,
+            [CombatTurnFeatureNames.StartTurnLifecycleHpLoss] = 1d,
+            [CombatTurnFeatureNames.StartTurnLifecycleHeal] = 2d,
+            [CombatTurnFeatureNames.StartTurnLifecycleDefend] = 4d
+        },
+        Enemies =
+        [
+            new CombatSimulationUnit
+            {
+                RuntimeId = 2,
+                Hp = 10,
+                MaxHp = 10
+            }
+        ],
+        Threats =
+        [
+            new CombatSimulationThreat
+            {
+                SourceRuntimeId = 2,
+                Probability = 1d,
+                BlockableDamage = 8d
+            }
+        ]
+    },
+    new CombatDecisionProfile());
+Assert(lifecycleForwardTurn.PlayerHp == 5
+       && lifecycleForwardTurn.PlayerDefend == 4
+       && lifecycleForwardTurn.Power == 3,
+    "forward end-turn transition resolves player end effects, enemy intent, reset, and next-turn start effects in order");
 
 using (CombatAiRegistry.RegisterEffectResolver(
            "Tests",
@@ -2678,6 +2877,89 @@ Assert(ritualRules.Success
        && rollResult.Events.Count(item =>
            item.Kind == CombatSimulationEventKind.DiceChecked) == 1,
     "ritual counters, echo scaling, explicit dice checks, and exclusive random branches are deterministic");
+
+var surplusEnergyRules = new CombatRulesetBuilder(
+        "surplus-energy-transition-v1")
+    .RegisterCard(new CombatCardDefinition
+    {
+        OwnerModId = "Tests",
+        CardId = "charge-surplus",
+        Cost = 0,
+        Exhaust = true,
+        Effects =
+        {
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.GainEnergy,
+                Target = CombatSimulationTarget.Self,
+                Amount = 5
+            }
+        }
+    })
+    .RegisterCard(new CombatCardDefinition
+    {
+        OwnerModId = "Tests",
+        CardId = "finish-after-charge",
+        Cost = 0,
+        Effects =
+        {
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.Damage,
+                Target = CombatSimulationTarget.SelectedEnemy,
+                Amount = 50
+            }
+        }
+    })
+    .RegisterEnemy(new CombatEnemyDefinition
+    {
+        OwnerModId = "Tests",
+        EnemyId = "surplus-dummy",
+        MaxHp = 20,
+        Intents =
+        {
+            new CombatEnemyIntentDefinition
+            {
+                IntentId = "wait",
+                Effects =
+                {
+                    new CombatSimulationEffectDefinition
+                    {
+                        Kind = CombatSimulationEffectKind.GainBlock,
+                        Target = CombatSimulationTarget.Self,
+                        Amount = 0
+                    }
+                }
+            }
+        }
+    })
+    .Freeze();
+var preserveSurplusPolicy = new PreserveSurplusThenFinishPolicy();
+var preserveSurplusResult = simulationEngine.Run(
+    new CombatScenarioDefinition
+    {
+        ScenarioId = "preserve-surplus-between-turns",
+        RulesetVersion = "surplus-energy-transition-v1",
+        InitialDraw = 2,
+        DrawPerTurn = 1,
+        Player = new CombatPlayerSetup
+        {
+            MaxHp = 20,
+            CurrentHp = 20,
+            BaseEnergy = 3,
+            Deck = { "charge-surplus", "finish-after-charge" }
+        },
+        Enemies = { new CombatEnemySetup { EnemyId = "surplus-dummy" } },
+        Limits = new CombatSimulationLimits { MaximumTurns = 3 }
+    },
+    surplusEnergyRules.Ruleset,
+    preserveSurplusPolicy);
+Assert(surplusEnergyRules.Success
+       && preserveSurplusPolicy.SecondTurnEnergy == 8,
+    "authoritative simulator preserves above-cap energy at the next player turn instead of resetting it to base energy"
+    + $" (rules={surplusEnergyRules.Success}, outcome={preserveSurplusResult.Outcome},"
+    + $" secondTurnEnergy={preserveSurplusPolicy.SecondTurnEnergy},"
+    + $" finalEnergy={preserveSurplusResult.FinalState.Player?.Energy})");
 
 var aiSimulation = simulationEngine.Run(
     BuildSimulationScenario(seed: 43UL, CombatSimulationTraceLevel.Actions),
@@ -4117,6 +4399,9 @@ bundledRulesV2.Ruleset.TryGetCard(
 bundledRulesV2.Ruleset.TryGetCard(
     "nocard_5",
     out var bundledLuckyPrize);
+bundledRulesV2.Ruleset.TryGetCard(
+    "careercard_1",
+    out var bundledDivineChoice);
 CombatCampaignWorldPlanner.Validate(bundledCampaign);
 bundledCampaign.TraceLevel = CombatSimulationTraceLevel.Summary;
 var bundledSemanticProbe = CombatFoundationSemanticProbe.Validate(
@@ -4367,6 +4652,14 @@ Assert(bundledRulesV2.Success
        && bundledLuckyPrize.Metadata.GetValueOrDefault(
            "NativeExecution",
            "") == "Script"
+       && !bundledDivineChoice.RequiresEnemyTarget
+       && bundledDivineChoice.VerificationSource
+          == "Decompiler:v1.0.23816797"
+       && bundledDivineChoice.ActionContract?.Version
+          == CombatActionContractProtocol.Version
+       && bundledDivineChoice.ActionContract.Preconditions.Count == 2
+       && bundledDivineChoice.ActionContract
+              .MinimumCardsMovedFromDrawPileToHandOnApplied == 1
         && bundledCampaign.Encounters.Count == 48
        && bundledCampaign.Rewards.Count == 514
        && bundledCampaign.Rewards
@@ -5424,6 +5717,80 @@ var policyValueTraining = CombatPolicyValueTrainer.Train(
         EpochCompleted = metrics =>
             recordedEpochMetrics.Add(metrics)
     });
+var policyValueNetworkValid = CombatPolicyValueNetworkValidator.TryValidate(
+    policyValueTraining.Model,
+    out var policyValueValidationDiagnostic);
+var invalidPolicyEpochs = policyValueTraining.EpochHistory
+    .Where(item => !item.Calibrated)
+    .Count(item =>
+        item.Training.CompositeLoss <= 0d
+        || item.Validation.CompositeLoss <= 0d
+        || item.TrainingMeasurement != "online-minibatch"
+        || string.IsNullOrWhiteSpace(item.TrainingSplitHash)
+        || string.IsNullOrWhiteSpace(item.ValidationSplitHash));
+var invalidPolicyCandidates = policyValueTraining.CandidateModels.Count(candidate =>
+    candidate.Model.PolicyTemperature is < 0.5d or > 3d
+    || !candidate.Model.Metrics.ContainsKey("validationCompositeLoss")
+    || candidate.Model.Metrics["policyTemperature"]
+       != candidate.Model.PolicyTemperature);
+var policyValueDiagnosticChecks = new Dictionary<string, bool>
+{
+    ["metric:testCompositeLoss"] =
+        policyValueTraining.Model?.Metrics.ContainsKey("testCompositeLoss")
+        == true,
+    ["metric:optimizerAdamW"] =
+        policyValueTraining.Model?.Metrics.GetValueOrDefault(
+            "optimizerAdamW") == 1d,
+    ["metric:temperature"] =
+        policyValueTraining.Model?.Metrics.GetValueOrDefault(
+            "policyTemperature")
+        == policyValueTraining.Model?.PolicyTemperature,
+    ["metric:validationPolicyCrossEntropy"] =
+        policyValueTraining.Model?.Metrics.ContainsKey(
+            "validationPolicyCrossEntropy") == true,
+    ["metric:validationCriticalPolicyAccuracy"] =
+        policyValueTraining.Model?.Metrics.ContainsKey(
+            "validationCriticalPolicyAccuracy") == true,
+    ["metric:validationDeathBrier"] =
+        policyValueTraining.Model?.Metrics.ContainsKey(
+            "validationDeathBrier") == true,
+    ["metric:validationCompositeLoss"] =
+        policyValueTraining.Model?.Metrics.ContainsKey(
+            "validationCompositeLoss") == true,
+    ["metric:trainingCompositeLoss"] =
+        policyValueTraining.Model?.Metrics.ContainsKey(
+            "trainingCompositeLoss") == true,
+    ["frame-counts"] =
+        policyValueTraining.TrainingMetrics.FrameCount > 0
+        && policyValueTraining.ValidationMetrics.FrameCount > 0
+        && policyValueTraining.ValidationMetrics.RunCount > 0,
+    ["ci-order"] =
+        policyValueTraining.ValidationMetrics.CompositeLossCiUpper
+        >= policyValueTraining.ValidationMetrics.CompositeLossCiLower,
+    ["epochs"] =
+        policyValueTraining.EpochHistory.Count
+        >= policyValueTraining.CompletedEpochs
+        && invalidPolicyEpochs == 0,
+    ["events"] =
+        recordedEpochMetrics.Count
+        == policyValueTraining.CompletedEpochs + 1,
+    ["candidates"] =
+        policyValueTraining.CandidateModels.Count is > 0 and <= 3
+        && invalidPolicyCandidates == 0,
+    ["strata"] =
+        policyValueTraining.FrameStratificationProtocol
+        == CombatPolicyValueFrameStratificationProtocol.Version
+        && policyValueTraining.FrameStrata.Count >= 4
+        && policyValueTraining.MinimumFrameWeight
+        >= CombatPolicyValueFrameStratificationProtocol.MinimumWeight
+        && policyValueTraining.MaximumFrameWeight <= 3d,
+    ["network"] = policyValueNetworkValid
+};
+var failedPolicyValueChecks = string.Join(
+    ",",
+    policyValueDiagnosticChecks
+        .Where(item => !item.Value)
+        .Select(item => item.Key));
 Assert(policyValueTraining.Success
        && policyValueTraining.Model != null
        && policyValueTraining.Model.Metrics["trainingRunCount"] == 3d
@@ -5488,10 +5855,32 @@ Assert(policyValueTraining.Success
        && policyValueTraining.MinimumFrameWeight
           >= CombatPolicyValueFrameStratificationProtocol.MinimumWeight
        && policyValueTraining.MaximumFrameWeight <= 3d
-       && CombatPolicyValueNetworkValidator.TryValidate(
-           policyValueTraining.Model,
-           out _),
-    "complete episodes train a validated managed policy-value network, retain Top-K checkpoints, and select by multi-objective validation");
+       && policyValueNetworkValid,
+    "complete episodes train a validated managed policy-value network, retain Top-K checkpoints, and select by multi-objective validation"
+    + $" (success={policyValueTraining.Success}, model={policyValueTraining.Model != null},"
+    + $" runs={policyValueTraining.Model?.Metrics.GetValueOrDefault("trainingRunCount")}/"
+    + $"{policyValueTraining.Model?.Metrics.GetValueOrDefault("validationRunCount")}/"
+    + $"{policyValueTraining.Model?.Metrics.GetValueOrDefault("testRunCount")},"
+    + $" frames={policyValueTraining.TrainingMetrics.FrameCount}/"
+    + $"{policyValueTraining.ValidationMetrics.FrameCount},"
+    + $" epochs={policyValueTraining.CompletedEpochs}/{policyValueTraining.EpochHistory.Count}/"
+    + $"{recordedEpochMetrics.Count}, candidates={policyValueTraining.CandidateModels.Count},"
+    + $" strata={policyValueTraining.FrameStrata.Count},"
+    + $" weights={policyValueTraining.MinimumFrameWeight:F3}-"
+    + $"{policyValueTraining.MaximumFrameWeight:F3},"
+    + $" endFrames={policyValueTraining.EndTurnDecisionFrames},"
+    + $" unsafeEndFrames={policyValueTraining.UnsafeEndTurnFrames},"
+    + $" temp={policyValueTraining.Model?.PolicyTemperature:F3},"
+    + $" calibrated={policyValueTraining.EpochHistory.Count(item => item.Calibrated)},"
+    + $" epochEvents={recordedEpochMetrics.Count(item => item.EventKind == "epoch")},"
+    + $" calibratedEvents={recordedEpochMetrics.Count(item => item.EventKind == "calibrated")},"
+    + $" badEpochs={invalidPolicyEpochs}, badCandidates={invalidPolicyCandidates},"
+    + $" ci={policyValueTraining.ValidationMetrics.CompositeLossCiLower:F3}-"
+    + $"{policyValueTraining.ValidationMetrics.CompositeLossCiUpper:F3},"
+    + $" optimizer={policyValueTraining.Model?.Metrics.GetValueOrDefault("optimizerStep")},"
+    + $" failed={failedPolicyValueChecks},"
+    + $" protocol={policyValueTraining.FrameStratificationProtocol},"
+    + $" valid={policyValueNetworkValid}:{policyValueValidationDiagnostic})");
 var originalEpisodeFrames = episodes
     .Select(episode => episode.Frames.ToList())
     .ToList();
@@ -6053,6 +6442,214 @@ Assert(appliedRoleSkill.Success
        && appliedRoleSkill.State.Player?.Energy == 0
        && appliedRoleSkill.State.SkillCooldowns[1] == 5,
     "role skills remain outside the deck, ignore printed card energy cost, and use role-specific cooldowns");
+
+var contractRulesBuilder = new CombatRulesetBuilder("action-contract-rules");
+contractRulesBuilder.RegisterCard(new CombatCardDefinition
+{
+    OwnerModId = "Tests",
+    CardId = "contract_draw_skill",
+    VerificationSource = "Decompiler:test",
+    ActionContract = new CombatActionContractDefinition
+    {
+        Preconditions =
+        {
+            new CombatActionPreconditionDefinition
+            {
+                Kind = CombatActionPreconditionKind.DrawPileCountAtLeast,
+                Amount = 1
+            },
+            new CombatActionPreconditionDefinition
+            {
+                Kind = CombatActionPreconditionKind.AvailableHandSlotsAtLeast,
+                Amount = 1
+            }
+        },
+        MinimumCardsMovedFromDrawPileToHandOnApplied = 1
+    },
+    Effects =
+    {
+        new CombatSimulationEffectDefinition
+        {
+            Kind = CombatSimulationEffectKind.Draw,
+            Target = CombatSimulationTarget.Self,
+            Amount = 1
+        }
+    }
+});
+contractRulesBuilder.RegisterCard(new CombatCardDefinition
+{
+    OwnerModId = "Tests",
+    CardId = "contract_draw_target"
+});
+var contractRules = contractRulesBuilder.Freeze();
+Assert(contractRules.Success
+       && contractRules.Ruleset.TryGetCard(
+           "contract_draw_skill",
+           out var frozenContractSkill)
+       && frozenContractSkill.VerificationSource == "Decompiler:test"
+       && frozenContractSkill.ActionContract?.Version
+       == CombatActionContractProtocol.Version,
+    "action contracts are validated, cloned, and retained by the ruleset");
+var invalidContractRules = new CombatRulesetBuilder("invalid-action-contract")
+    .RegisterCard(new CombatCardDefinition
+    {
+        OwnerModId = "Tests",
+        CardId = "invalid_contract_skill",
+        ActionContract = new CombatActionContractDefinition
+        {
+            MinimumCardsMovedFromDrawPileToHandOnApplied = 1
+        }
+    })
+    .Freeze();
+Assert(!invalidContractRules.Success
+       && invalidContractRules.Errors.Any(item =>
+           item.Contains(
+               "postcondition lacks matching prerequisites",
+               StringComparison.Ordinal)),
+    "ruleset validation rejects interactive postconditions without matching prerequisites");
+var contractScenario = new CombatScenarioDefinition
+{
+    HandLimit = 1,
+    Player = new CombatPlayerSetup
+    {
+        SkillCardIds = { "contract_draw_skill" },
+        SkillCooldownTurns = { ["contract_draw_skill"] = 1 }
+    }
+};
+CombatBattleState ContractState(bool withDrawCard, bool handFull)
+{
+    var state = new CombatBattleState
+    {
+        Turn = 1,
+        Phase = CombatSimulationPhase.PlayerAction,
+        PlayerActorId = 1,
+        Actors =
+        {
+            new CombatActorState
+            {
+                ActorId = 1,
+                Kind = CombatSimulationActorKind.Player,
+                Hp = 20,
+                MaxHp = 20,
+                Energy = 0
+            }
+        },
+        Cards =
+        {
+            new CombatCardInstanceState
+            {
+                InstanceId = 1,
+                CardId = "contract_draw_skill"
+            }
+        },
+        SkillCards = { 1 },
+        SkillCooldowns = { [1] = 0 },
+        NextCardInstanceId = 2
+    };
+    if (withDrawCard)
+    {
+        state.Cards.Add(new CombatCardInstanceState
+        {
+            InstanceId = 2,
+            CardId = "contract_draw_target"
+        });
+        state.DrawPile.Add(2);
+        state.NextCardInstanceId = 3;
+    }
+    if (handFull)
+    {
+        state.Cards.Add(new CombatCardInstanceState
+        {
+            InstanceId = 3,
+            CardId = "contract_draw_target"
+        });
+        state.Hand.Add(3);
+        state.NextCardInstanceId = 4;
+    }
+    return state;
+}
+
+var contractEngine = new CombatSimulationEngine();
+var emptyDrawState = ContractState(withDrawCard: false, handFull: false);
+var invocableEmptyDrawSkill = contractEngine.GetInvocablePlayerActions(
+        contractScenario,
+        contractRules.Ruleset,
+        emptyDrawState)
+    .Single(item => item.Kind == CombatSimulationActionKind.UseSkill);
+Assert(invocableEmptyDrawSkill.GameInvocable
+       && !invocableEmptyDrawSkill.PolicyEligible
+       && invocableEmptyDrawSkill.ExpectedOutcome
+       == CombatActionApplicationOutcome.NoEffect
+       && !contractEngine.GetLegalPlayerActions(
+               contractScenario,
+               contractRules.Ruleset,
+               emptyDrawState)
+           .Any(item => item.Kind == CombatSimulationActionKind.UseSkill),
+    "a guaranteed no-effect skill stays game-invocable but is excluded from policy candidates");
+var forcedEmptyDraw = contractEngine.ForkAndApplyPlayerAction(
+    contractScenario,
+    contractRules.Ruleset,
+    emptyDrawState,
+    invocableEmptyDrawSkill,
+    allowPolicyIneligible: true);
+Assert(forcedEmptyDraw.Success
+       && forcedEmptyDraw.Outcome == CombatActionApplicationOutcome.NoEffect
+       && forcedEmptyDraw.State.ActionSequence == emptyDrawState.ActionSequence
+       && forcedEmptyDraw.State.Hand.Count == 0
+       && forcedEmptyDraw.State.DrawPile.Count == 0
+       && forcedEmptyDraw.State.SkillCooldowns[1] == 0
+       && forcedEmptyDraw.State.NoEffectActionAttemptsThisTurn.Values.Single()
+       == 1,
+    "forced no-effect execution preserves battle state and records controller failure memory");
+var suppressedEmptyDrawSkill = contractEngine.GetInvocablePlayerActions(
+        contractScenario,
+        contractRules.Ruleset,
+        forcedEmptyDraw.State)
+    .Single(item => item.Kind == CombatSimulationActionKind.UseSkill);
+var forcedRepeatedNoEffect = contractEngine.ForkAndApplyPlayerAction(
+    contractScenario,
+    contractRules.Ruleset,
+    forcedEmptyDraw.State,
+    suppressedEmptyDrawSkill,
+    allowPolicyIneligible: true);
+Assert(forcedRepeatedNoEffect.Success
+       && forcedRepeatedNoEffect.Outcome
+       == CombatActionApplicationOutcome.NoEffect
+       && forcedRepeatedNoEffect.State.NoEffectActionAttemptsThisTurn
+           .Values.Single() == 2,
+    "no-effect attempt memory persists for the remainder of the simulated turn");
+
+var fullHandState = ContractState(withDrawCard: true, handFull: true);
+var fullHandSkill = contractEngine.GetInvocablePlayerActions(
+        contractScenario,
+        contractRules.Ruleset,
+        fullHandState)
+    .Single(item => item.Kind == CombatSimulationActionKind.UseSkill);
+Assert(!fullHandSkill.PolicyEligible
+       && fullHandSkill.ExpectedOutcome
+       == CombatActionApplicationOutcome.NoEffect,
+    "hand-capacity preconditions exclude a guaranteed no-effect skill");
+
+var applicableContractState =
+    ContractState(withDrawCard: true, handFull: false);
+var applicableContractSkill = contractEngine.GetLegalPlayerActions(
+        contractScenario,
+        contractRules.Ruleset,
+        applicableContractState)
+    .Single(item => item.Kind == CombatSimulationActionKind.UseSkill);
+var appliedContractSkill = contractEngine.ForkAndApplyPlayerAction(
+    contractScenario,
+    contractRules.Ruleset,
+    applicableContractState,
+    applicableContractSkill);
+Assert(appliedContractSkill.Success
+       && appliedContractSkill.Outcome
+       == CombatActionApplicationOutcome.Applied
+       && appliedContractSkill.State.DrawPile.Count == 0
+       && appliedContractSkill.State.Hand.SequenceEqual(new[] { 2 })
+       && appliedContractSkill.State.SkillCooldowns[1] == 1,
+    "successful contract execution satisfies its draw-to-hand postcondition before cooldown");
+
 var familiarRule = new CombatCampaignRewardDefinition
 {
     RewardId = "familiar-blessing",
@@ -7494,6 +8091,13 @@ Assert(Math.Abs(concentratedPolicyTargets.Sum() - 1d) < 0.000001d
        && concentratedPolicyTargets.Max() <= 0.800001d
        && concentratedPolicyTargets.Min() >= 0.199999d,
     "policy target temperature and cap preserve probability mass without one-hot collapse");
+var dominatedEndTurnTargets = new[] { 0.25d, 0.75d };
+CombatPolicyValueBatchTrainer.SuppressPolicyTarget(
+    dominatedEndTurnTargets,
+    1);
+Assert(Math.Abs(dominatedEndTurnTargets[0] - 1d) < 0.000001d
+       && dominatedEndTurnTargets[1] == 0d,
+    "counterfactual policy targets assign zero mass to a deterministically dominated end turn");
 var endTurnTrainingEpisodes = Enumerable.Range(0, 4)
     .Select(index => new CombatEpisode
     {
@@ -7530,8 +8134,14 @@ var endTurnTrainingEpisodes = Enumerable.Range(0, 4)
                     {
                         CandidateId = "end",
                         SourceId = "simulation:end-turn",
-                        Legal = true,
-                        SearchVisits = 3
+                        Legal = index != 1,
+                        SearchVisits = 3,
+                        Features = index == 1
+                            ? new Dictionary<string, double>
+                            {
+                                [CombatTurnFeatureNames.EndTurnDominated] = 1d
+                            }
+                            : new Dictionary<string, double>()
                     }
                 }
             }
@@ -7554,7 +8164,7 @@ var endTurnSpecialistTraining = CombatPolicyValueTrainer.Train(
     });
 Assert(endTurnSpecialistTraining.Success
        && endTurnSpecialistTraining.EndTurnDecisionFrames == 4
-       && endTurnSpecialistTraining.UnsafeEndTurnFrames == 1
+       && endTurnSpecialistTraining.UnsafeEndTurnFrames == 2
        && endTurnSpecialistTraining.FrameStrata.Keys.Any(key =>
            key.EndsWith(
                ":unsafe-end-turn",
@@ -8285,7 +8895,7 @@ Assert(workerProtocolJob.SchemaVersion
        && CombatFoundationStagnationProtocol.Version
           == "foundation-stagnation-v1"
        && CombatPolicyValueFrameStratificationProtocol.Version
-          == "frame-strata-v4-effective-end-turn"
+          == "frame-strata-v5-end-turn-counterfactual"
        && workerProtocolProgress.SchemaVersion
            == CombatFoundationWorkerProtocol.SchemaVersion
        && workerProtocolResult.SchemaVersion
@@ -8838,6 +9448,70 @@ finally
 }
 Assert(avoidableEndTurnGateRejected,
     "foundation export rejects validation with avoidable unused-energy end turns");
+var endTurnCounterfactualGateRejected = false;
+foundationTraining.Validation.DominatedEndTurns = 1;
+foundationTraining.Validation.EndTurnsIntoAvoidableLethal = 1;
+foundationTraining.Validation.EndTurnsWithCertifiedCycle = 1;
+try
+{
+    CombatFoundationModelPackageProtocol.Create(
+        packageJob,
+        packageResult,
+        "ABCDEF");
+}
+catch (InvalidOperationException)
+{
+    endTurnCounterfactualGateRejected = true;
+}
+finally
+{
+    foundationTraining.Validation.DominatedEndTurns = 0;
+    foundationTraining.Validation.EndTurnsIntoAvoidableLethal = 0;
+    foundationTraining.Validation.EndTurnsWithCertifiedCycle = 0;
+}
+Assert(endTurnCounterfactualGateRejected,
+    "foundation export rejects dominated, avoidable-lethal, or certified-cycle end turns");
+foundationPackage.Validation.EndTurnsWithCertifiedCycle = 1;
+Assert(!CombatFoundationModelPackageProtocol.TryValidate(
+        foundationPackage,
+        out var certifiedCycleGateDiagnostic)
+       && certifiedCycleGateDiagnostic.Contains(
+           "验证",
+           StringComparison.Ordinal),
+    "foundation import rejects validation that abandoned a certified cycle");
+foundationPackage.Validation.EndTurnsWithCertifiedCycle = 0;
+var noEffectActionGateRejected = false;
+foundationTraining.Validation.NoEffectActionAttempts = 1;
+try
+{
+    CombatFoundationModelPackageProtocol.Create(
+        packageJob,
+        packageResult,
+        "ABCDEF");
+}
+catch (InvalidOperationException)
+{
+    noEffectActionGateRejected = true;
+}
+finally
+{
+    foundationTraining.Validation.NoEffectActionAttempts = 0;
+}
+Assert(noEffectActionGateRejected,
+    "foundation export rejects validation containing no-effect action attempts");
+var currentActionContractVersion =
+    foundationPackage.Compatibility.ActionContractVersion;
+foundationPackage.Compatibility.ActionContractVersion =
+    "action-contract-legacy";
+Assert(!CombatFoundationModelPackageProtocol.TryValidate(
+        foundationPackage,
+        out var actionContractCompatibilityDiagnostic)
+       && actionContractCompatibilityDiagnostic.Contains(
+           "兼容",
+           StringComparison.Ordinal),
+    "foundation import rejects models trained under an incompatible action contract");
+foundationPackage.Compatibility.ActionContractVersion =
+    currentActionContractVersion;
 var supersetCoverage = CombatFoundationModelCoverageProtocol.Assess(
     foundationPackage.TrainingSubject!,
     foundationPackage.DeclaredCoverage!,
@@ -10668,6 +11342,50 @@ sealed class PlayCardOnceThenEndPolicy : ICombatSimulationPolicy
             {
                 played = true;
                 return selected;
+            }
+        }
+        return context.LegalActions.FirstOrDefault(item =>
+            item.Kind == CombatSimulationActionKind.EndTurn);
+    }
+}
+
+sealed class PreserveSurplusThenFinishPolicy : ICombatSimulationPolicy
+{
+    private bool charged;
+
+    public string PolicyId => "tests:preserve-surplus-then-finish";
+
+    public int SecondTurnEnergy { get; private set; } = -1;
+
+    public CombatSimulationAction? SelectAction(
+        CombatSimulationPolicyContext context)
+    {
+        if (context.State.Turn <= 1 && !charged)
+        {
+            var charge = context.LegalActions.FirstOrDefault(item =>
+                item.Kind == CombatSimulationActionKind.PlayCard
+                && string.Equals(
+                    item.DefinitionId,
+                    "charge-surplus",
+                    StringComparison.OrdinalIgnoreCase));
+            if (charge != null)
+            {
+                charged = true;
+                return charge;
+            }
+        }
+        if (context.State.Turn >= 2)
+        {
+            SecondTurnEnergy = context.State.Player?.Energy ?? -1;
+            var finish = context.LegalActions.FirstOrDefault(item =>
+                item.Kind == CombatSimulationActionKind.PlayCard
+                && string.Equals(
+                    item.DefinitionId,
+                    "finish-after-charge",
+                    StringComparison.OrdinalIgnoreCase));
+            if (finish != null)
+            {
+                return finish;
             }
         }
         return context.LegalActions.FirstOrDefault(item =>

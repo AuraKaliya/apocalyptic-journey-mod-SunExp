@@ -82,6 +82,12 @@ public sealed class CombatSimulationState
 
     public int ConsecutiveNoProgressTurns { get; set; }
 
+    public int NoEffectActionAttemptsThisTurn { get; set; }
+
+    public int DeterminizationSeed { get; set; }
+
+    public int ShuffleEpoch { get; set; }
+
     public bool AllEnemiesDefeated => Enemies.All(enemy => enemy.Hp <= 0);
 
     public CombatSimulationState Clone()
@@ -183,7 +189,11 @@ public sealed class CombatSimulationState
             TurnActionsTaken = TurnActionsTaken,
             TurnEnergySpent = TurnEnergySpent,
             EnemyHpAtTurnStart = EnemyHpAtTurnStart,
-            ConsecutiveNoProgressTurns = ConsecutiveNoProgressTurns
+            ConsecutiveNoProgressTurns = ConsecutiveNoProgressTurns,
+            NoEffectActionAttemptsThisTurn =
+                NoEffectActionAttemptsThisTurn,
+            DeterminizationSeed = DeterminizationSeed,
+            ShuffleEpoch = ShuffleEpoch
         };
     }
 
@@ -293,6 +303,7 @@ public sealed class CombatSimulationState
                     + PersistentValue * Math.Max(0d, profile.PersistentValueWeight)
                     + DrawnCardPotential * 0.2d
                     - ConsecutiveNoProgressTurns * 8d
+                    - NoEffectActionAttemptsThisTurn * 40d
                     - Uncertainty * profile.UncertaintyPenalty;
         return new CombatLeafEvaluation
         {
@@ -317,6 +328,8 @@ public sealed class CombatSimulationState
             Mix(ref hash, TurnEnergySpent);
             Mix(ref hash, EnemyHpAtTurnStart);
             Mix(ref hash, ConsecutiveNoProgressTurns);
+            Mix(ref hash, NoEffectActionAttemptsThisTurn);
+            Mix(ref hash, ShuffleEpoch);
             Mix(ref hash, Quantize(SetupValue));
             Mix(ref hash, Quantize(PersistentValue));
             Mix(ref hash, Quantize(DamageMultiplier));
@@ -602,14 +615,16 @@ public static class CombatForwardModel
             CombatRootDeterminizer.SampleDrawPile(
                 belief,
                 determinizationSeed),
-            drawPileKnown: belief.DrawPileCount > 0);
+            drawPileKnown: belief.DrawPileCount > 0,
+            determinizationSeed);
     }
 
     private static CombatSimulationState CreateCore(
         CombatStateObservation state,
         int actionCount,
         IReadOnlyList<string> sampledDrawPile,
-        bool drawPileKnown)
+        bool drawPileKnown,
+        int determinizationSeed)
     {
         var threats = BuildThreats(state);
         return new CombatSimulationState
@@ -699,6 +714,13 @@ public static class CombatForwardModel
                 (int)Math.Round(Value(
                     state.Features,
                     CombatTurnFeatureNames.ConsecutiveNoProgressTurns))),
+            NoEffectActionAttemptsThisTurn = Math.Max(
+                0,
+                (int)Math.Round(Value(
+                    state.Features,
+                    CombatTurnFeatureNames.NoEffectActionAttemptsThisTurn))),
+            DeterminizationSeed = determinizationSeed,
+            ShuffleEpoch = 0,
             UsedActionWords = new ulong[(Math.Max(0, actionCount) + 63) / 64]
         };
     }
@@ -938,6 +960,8 @@ public static class CombatForwardModel
         ResolveDeferredEffects(state, state.DeferredEffects.ToList(), 1d);
         state.DeferredEffects.Clear();
         state.Features[CombatArchetypePolicy.TimeCageCountFeature] = 0d;
+        ApplyProjectedLifecycle(state, startTurn: false);
+        ApplyRebirthIfNeeded(state);
 
         var unretained = new List<double>(state.HandCardValues);
         foreach (var retainedValue in state.RetainedHandCardValues)
@@ -984,12 +1008,16 @@ public static class CombatForwardModel
         // The game clears ordinary shield before the next player action window.
         // End-of-round effects have already contributed to the enemy phase above.
         state.PlayerDefend = 0;
-        state.Power = Math.Max(state.MaxPower, state.Power);
+        state.Power = CombatTurnRules.NextTurnPower(
+            state.Power,
+            state.MaxPower);
         state.CostReduction = 0;
         state.UsedActionWords = new ulong[state.UsedActionWords.Length];
         state.StepCount++;
         state.Turn++;
 
+        ApplyProjectedLifecycle(state, startTurn: true);
+        ApplyRebirthIfNeeded(state);
         var drawPerTurn = state.Features.TryGetValue("drawPerTurn", out var configuredDraw)
             ? Math.Max(0, (int)Math.Round(configuredDraw))
             : 5;
@@ -997,6 +1025,7 @@ public static class CombatForwardModel
         state.Threats = ProjectNextTurnThreats(source, state, profile);
         state.TurnActionsTaken = 0;
         state.TurnEnergySpent = 0;
+        state.NoEffectActionAttemptsThisTurn = 0;
         state.EnemyHpAtTurnStart = state.Enemies.Sum(enemy =>
             Math.Max(0, enemy.Hp));
         state.Features[CombatTurnFeatureNames.ActionsTakenThisTurn] = 0d;
@@ -1005,8 +1034,54 @@ public static class CombatForwardModel
             state.EnemyHpAtTurnStart;
         state.Features[CombatTurnFeatureNames.ConsecutiveNoProgressTurns] =
             state.ConsecutiveNoProgressTurns;
+        state.Features[CombatTurnFeatureNames.NoEffectActionAttemptsThisTurn] =
+            0d;
         state.Uncertainty += Math.Max(0d, profile.EndTurnUncertainty);
         return state;
+    }
+
+    private static void ApplyProjectedLifecycle(
+        CombatSimulationState state,
+        bool startTurn)
+    {
+        var prefix = startTurn ? "startTurn" : "endTurn";
+        var hpLoss = Math.Max(
+            0,
+            (int)Math.Ceiling(
+                Value(state.Features, prefix + "LifecycleHpLoss")));
+        var heal = Math.Max(
+            0,
+            (int)Math.Floor(
+                Value(state.Features, prefix + "LifecycleHeal")));
+        var defend = Math.Max(
+            0,
+            (int)Math.Floor(
+                Value(state.Features, prefix + "LifecycleDefend")));
+        var powerGain = Math.Max(
+            0,
+            (int)Math.Floor(
+                Value(state.Features, prefix + "LifecyclePowerGain")));
+        var powerLoss = Math.Max(
+            0,
+            (int)Math.Ceiling(
+                Value(state.Features, prefix + "LifecyclePowerLoss")));
+        var draw = Math.Max(
+            0,
+            (int)Math.Floor(
+                Value(state.Features, prefix + "LifecycleDraw")));
+        state.PlayerHp = Math.Max(
+            0,
+            Math.Min(
+                state.PlayerMaxHp,
+                state.PlayerHp + heal - hpLoss));
+        state.PlayerDefend = Math.Max(0, state.PlayerDefend + defend);
+        state.Power = Math.Max(
+            0,
+            state.Power + powerGain - powerLoss);
+        if (draw > 0)
+        {
+            DrawCards(state, draw);
+        }
     }
 
     private static CombatSimulationThreat[] ProjectNextTurnThreats(
@@ -1569,26 +1644,23 @@ public static class CombatForwardModel
         {
             if (state.DrawPileValues.Count == 0 && state.DiscardPileValues.Count > 0)
             {
-                var shuffled = state.DiscardPileCardIds.Count
-                               == state.DiscardPileValues.Count
-                    ? state.DiscardPileCardIds
-                        .Select((id, index) => new
-                        {
-                            Id = id,
-                            Value = state.DiscardPileValues[index]
-                        })
-                        .OrderBy(item => item.Value)
-                        .ThenBy(item => item.Id, StringComparer.OrdinalIgnoreCase)
-                        .ToList()
-                    : null;
+                var shuffled = new List<KeyValuePair<string, double>>(
+                    state.DiscardPileValues.Count);
+                for (var cardIndex = 0;
+                     cardIndex < state.DiscardPileValues.Count;
+                     cardIndex++)
+                {
+                    shuffled.Add(new KeyValuePair<string, double>(
+                        cardIndex < state.DiscardPileCardIds.Count
+                            ? state.DiscardPileCardIds[cardIndex]
+                            : "",
+                        state.DiscardPileValues[cardIndex]));
+                }
+                ShuffleRecycledCards(state, shuffled);
                 state.DrawPileValues.AddRange(
-                    shuffled?.Select(item => item.Value)
-                    ?? state.DiscardPileValues.OrderBy(value => value));
+                    shuffled.Select(item => item.Value));
                 state.DrawPileCardIds.AddRange(
-                    shuffled?.Select(item => item.Id)
-                    ?? state.DiscardPileCardIds.OrderBy(
-                        value => value,
-                        StringComparer.OrdinalIgnoreCase));
+                    shuffled.Select(item => item.Key));
                 state.DiscardPileValues.Clear();
                 state.DiscardPileCardIds.Clear();
             }
@@ -1619,6 +1691,34 @@ public static class CombatForwardModel
             }
             state.DrawnCardPotential += Math.Max(0d, cardValue);
             state.HandCount++;
+        }
+    }
+
+    private static void ShuffleRecycledCards(
+        CombatSimulationState state,
+        IList<KeyValuePair<string, double>> cards)
+    {
+        unchecked
+        {
+            var random = (uint)state.DeterminizationSeed
+                         ^ (uint)(state.ShuffleEpoch + 1) * 0x9E3779B9u
+                         ^ (uint)(state.Turn + 1) * 0x85EBCA6Bu
+                         ^ (uint)(state.StepCount + 1) * 0xC2B2AE35u;
+            if (random == 0u)
+            {
+                random = 0xA341316Cu;
+            }
+            for (var index = cards.Count - 1; index > 0; index--)
+            {
+                random ^= random << 13;
+                random ^= random >> 17;
+                random ^= random << 5;
+                var selected = (int)(random % (uint)(index + 1));
+                var current = cards[index];
+                cards[index] = cards[selected];
+                cards[selected] = current;
+            }
+            state.ShuffleEpoch++;
         }
     }
 

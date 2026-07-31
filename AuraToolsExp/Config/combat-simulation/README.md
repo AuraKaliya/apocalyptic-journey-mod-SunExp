@@ -7,6 +7,7 @@
 - `witch-world-simulation-v2.campaign.json`：正式的固定七层情景模拟定义。
 - `witch-base-evaluation-v2.ruleset.json`：当前包含 227 张可执行卡牌规则、55 个本体敌人与 129 个战斗状态；已排除同环境中的 Terrias、Saya 等外部内容。
 - 标准包只保留当前规则和战役定义，不提供过时配置的兼容入口。
+- 规则可通过 `action-contract-v1` 分别声明游戏可调用性与 AI 候选资格。当前【神选】按反编译版本 `v1.0.23816797` 建模：抽牌堆为空或手牌已满时返回 `NoEffect`、不进入冷却，并在模型与搜索评分前排除。
 
 权威建模进度：
 

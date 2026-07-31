@@ -22,7 +22,7 @@
 - 严重结束回合错误：0
 - 最终 `BehaviorPassed = true`
 
-这些数据就在[阿米莉娅-全卡包底模.json](<D:/Project/Apocalypic-journey-mods-creator/ModExp/AuraToolsExp/ModResource/Model/阿米莉娅-全卡包底模.json:78>)。
+这些数据就在[阿米莉娅-全卡包底模.json](</AuraToolsExp/ModResource/Model/阿米莉娅-全卡包底模.json:78>)。
 
 也就是说，不是“模拟中没有出现”，而是旧规则只把非常狭窄的一类结束回合判为 `SevereEndTurnMistake`。剩余能量结束回合只是统计项，不是硬性淘汰项。
 
@@ -38,7 +38,7 @@ SevereEndTurnMistakes == 0
 AvoidableEndTurnsWithUnusedEnergy == 0
 ```
 
-对应当前验收逻辑在[CombatCampaignFoundationTraining.cs](D:/Project/Apocalypic-journey-mods-creator/ModExp/AuraCombatAiShared/CombatCampaignFoundationTraining.cs:3018)。这修复了旧底模的主要准入漏洞，但只解决了“验收标准”这一层。
+对应当前验收逻辑在[CombatCampaignFoundationTraining.cs](/AuraCombatAiShared/CombatCampaignFoundationTraining.cs:3018)。这修复了旧底模的主要准入漏洞，但只解决了“验收标准”这一层。
 
 ### 2. 【神选】无效循环：模拟器实际上掩盖了这个问题
 
@@ -50,13 +50,13 @@ AvoidableEndTurnsWithUnusedEnergy == 0
 - 手牌已满：直接返回，不进入冷却。
 - 成功进入选牌并取牌后：才增加冷却。
 
-规则集里保留了这段原始脚本，见[witch-base-evaluation-v2.ruleset.json](D:/Project/Apocalypic-journey-mods-creator/ModExp/AuraToolsExp/Config/combat-simulation/witch-base-evaluation-v2.ruleset.json:1276)。
+规则集里保留了这段原始脚本，见[witch-base-evaluation-v2.ruleset.json](/AuraToolsExp/Config/combat-simulation/witch-base-evaluation-v2.ruleset.json:1276)。
 
 但是模拟器有三个不同之处：
 
-- 构造技能合法动作时，只检查技能冷却和 `Unusable` 标签，不检查抽牌堆、手牌上限等技能前置条件，见[CombatSimulationEngine.cs](D:/Project/Apocalypic-journey-mods-creator/ModExp/AuraCombatSimulationShared/CombatSimulationEngine.cs:1282)。
+- 构造技能合法动作时，只检查技能冷却和 `Unusable` 标签，不检查抽牌堆、手牌上限等技能前置条件，见[CombatSimulationEngine.cs](/AuraCombatSimulationShared/CombatSimulationEngine.cs:1282)。
 - 规则集甚至错误地把【神选】标记成 `requiresEnemyTarget: true`，见[witch-base-evaluation-v2.ruleset.json](D:/Project/Apocalypic-journey-mods-creator/ModExp/AuraToolsExp/Config/combat-simulation/witch-base-evaluation-v2.ruleset.json:1261)。
-- 最关键的是，无论原生脚本是否提前返回，模拟器最后都会强制给技能设置至少一回合冷却，见[CombatSimulationEngine.cs](D:/Project/Apocalypic-journey-mods-creator/ModExp/AuraCombatSimulationShared/CombatSimulationEngine.cs:981)。
+- 最关键的是，无论原生脚本是否提前返回，模拟器最后都会强制给技能设置至少一回合冷却，见[CombatSimulationEngine.cs](/AuraCombatSimulationShared/CombatSimulationEngine.cs:981)。
 
 所以在抽牌堆为空时：
 
@@ -79,7 +79,7 @@ AvoidableEndTurnsWithUnusedEnergy == 0
 
 但执行层完全不同。
 
-真实战斗通过游戏里的 `FightUI`、卡牌对象和技能对象执行 `TrueUse()`，见[WitchCombatRuntime.cs](D:/Project/Apocalypic-journey-mods-creator/ModExp/AuraCombatAiShared/GameApi/WitchCombatRuntime.cs:351)。
+真实战斗通过游戏里的 `FightUI`、卡牌对象和技能对象执行 `TrueUse()`，见[WitchCombatRuntime.cs](/AuraCombatAiShared/GameApi/WitchCombatRuntime.cs:351)。
 
 模拟器则自己实现：
 
@@ -91,7 +91,7 @@ AvoidableEndTurnsWithUnusedEnergy == 0
 - 回合切换
 - 卡牌效果解释
 
-见[CombatSimulationEngine.cs](D:/Project/Apocalypic-journey-mods-creator/ModExp/AuraCombatSimulationShared/CombatSimulationEngine.cs:352)。
+见[CombatSimulationEngine.cs]/AuraCombatSimulationShared/CombatSimulationEngine.cs:352)。
 
 因此它不能自然继承游戏主体里的这些行为：
 
@@ -105,7 +105,7 @@ AvoidableEndTurnsWithUnusedEnergy == 0
 
 例如模拟器中的选牌不是一个真实的决策阶段，而是直接取列表前 N 张：
 
-[ AuraToolsNativeRewardSimulationRuntime.cs](D:/Project/Apocalypic-journey-mods-creator/ModExp/AuraToolsExp-Dev/Features/AutoBattle/AuraToolsNativeRewardSimulationRuntime.cs:2592)
+[ AuraToolsNativeRewardSimulationRuntime.cs]/AuraToolsExp-Dev/Features/AutoBattle/AuraToolsNativeRewardSimulationRuntime.cs:2592)
 
 这会系统性高估交互牌的稳定性。
 
@@ -115,7 +115,7 @@ AvoidableEndTurnsWithUnusedEnergy == 0
 
 > 规则集中所引用的卡牌、状态、敌人具有“权威语义”标记。
 
-模拟回放只要语义覆盖率达到 100%，就会被标记为权威样本，见[CombatEpisodeRecorder.cs](D:/Project/Apocalypic-journey-mods-creator/ModExp/AuraCombatAiShared/CombatEpisodeRecorder.cs:98)。
+模拟回放只要语义覆盖率达到 100%，就会被标记为权威样本，见[CombatEpisodeRecorder.cs](/AuraCombatAiShared/CombatEpisodeRecorder.cs:98)。
 
 但是语义投影器、教师策略、模拟执行器都读取同一份规则集。它们证明的是“模拟系统内部是否自洽”，不是“模拟结果是否和真实游戏一致”。
 

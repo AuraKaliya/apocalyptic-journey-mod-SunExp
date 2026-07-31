@@ -79,6 +79,20 @@ public enum CombatSimulationActionKind
     EndTurn
 }
 
+public enum CombatActionApplicationOutcome
+{
+    Rejected,
+    Applied,
+    NoEffect,
+    AwaitingChoice
+}
+
+public enum CombatActionPreconditionKind
+{
+    DrawPileCountAtLeast,
+    AvailableHandSlotsAtLeast
+}
+
 public enum CombatSimulationTarget
 {
     None,
@@ -328,6 +342,10 @@ public sealed class CombatCardDefinition
 
     public CombatRuleFidelity Fidelity { get; set; } = CombatRuleFidelity.Authoritative;
 
+    public string VerificationSource { get; set; } = "";
+
+    public CombatActionContractDefinition? ActionContract { get; set; }
+
     public List<CombatSimulationEffectDefinition> Effects { get; set; } = new();
 
     public List<CombatSimulationEffectDefinition> DrawEffects { get; set; } = new();
@@ -350,6 +368,8 @@ public sealed class CombatCardDefinition
                 StringComparer.OrdinalIgnoreCase),
             RequiresEnemyTarget = RequiresEnemyTarget,
             Fidelity = Fidelity,
+            VerificationSource = VerificationSource,
+            ActionContract = ActionContract?.Clone(),
             Effects = Effects.Select(effect => effect.Clone()).ToList(),
             DrawEffects = DrawEffects.Select(effect => effect.Clone()).ToList(),
             DiscardEffects = DiscardEffects.Select(effect => effect.Clone()).ToList()
@@ -1028,6 +1048,9 @@ public sealed class CombatBattleState
     public Dictionary<string, int> SkillUseCounts { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
 
+    public Dictionary<string, int> NoEffectActionAttemptsThisTurn { get; set; } =
+        new(StringComparer.Ordinal);
+
     public CombatRandomCounterState Random { get; set; } = new();
 
     public List<CombatDeferredVariableChangeState> DeferredVictoryVariableChanges
@@ -1073,6 +1096,9 @@ public sealed class CombatBattleState
             SkillUseCounts = new Dictionary<string, int>(
                 SkillUseCounts,
                 StringComparer.OrdinalIgnoreCase),
+            NoEffectActionAttemptsThisTurn = new Dictionary<string, int>(
+                NoEffectActionAttemptsThisTurn,
+                StringComparer.Ordinal),
             Random = Random.Clone(),
             DeferredVictoryVariableChanges = DeferredVictoryVariableChanges
                 .Select(item => item.Clone())
@@ -1120,6 +1146,15 @@ public sealed class CombatSimulationAction
     public int Cost { get; set; }
 
     public string DefinitionId { get; set; } = "";
+
+    public bool GameInvocable { get; set; } = true;
+
+    public bool PolicyEligible { get; set; } = true;
+
+    public CombatActionApplicationOutcome ExpectedOutcome { get; set; } =
+        CombatActionApplicationOutcome.Applied;
+
+    public string EligibilityReason { get; set; } = "";
 }
 
 public sealed class CombatSimulationPolicyContext
@@ -1182,6 +1217,22 @@ public sealed class CombatSimulationPolicyDecisionMetrics
     public int EndTurnSafeAlternativeCount { get; set; }
 
     public int EndTurnAvoidableUnusedEnergy { get; set; }
+
+    public string EndTurnVerdict { get; set; } = "";
+
+    public double EndTurnDominanceMargin { get; set; }
+
+    public int EndTurnCertifiedCycleCount { get; set; }
+
+    public int EndTurnReachableCycleCount { get; set; }
+
+    public bool EndTurnAvoidableLethal { get; set; }
+
+    public int EndTurnExpiringEnergy { get; set; }
+
+    public int EndTurnBankedSurplusEnergy { get; set; }
+
+    public int EndTurnUnknownLifecycleEffectCount { get; set; }
 
     public int AuthoritativeActionsAudited { get; set; }
 
@@ -1516,7 +1567,27 @@ public sealed class CombatSimulationMetrics
 
     public int SevereEndTurnMistakes { get; set; }
 
+    public int DominatedEndTurns { get; set; }
+
+    public int EndTurnsIntoAvoidableLethal { get; set; }
+
+    public int EndTurnsWithCertifiedCycle { get; set; }
+
+    public int EndTurnsWithUnknownLifecycle { get; set; }
+
+    public int EndTurnsWithBankedSurplus { get; set; }
+
+    public int BankedSurplusAtEndTurns { get; set; }
+
     public int MaximumConsecutiveNoProgressTurns { get; set; }
+
+    public int NoEffectActionAttempts { get; set; }
+
+    public int RepeatedNoEffectActionAttempts { get; set; }
+
+    public int GuaranteedNoEffectActionAttempts { get; set; }
+
+    public int InteractiveActionContractFailures { get; set; }
 
     public int RuleTerminalOverrides { get; set; }
 
@@ -1698,6 +1769,13 @@ public sealed class CombatActionApplicationResult
     public bool Success { get; set; }
 
     public string Reason { get; set; } = "";
+
+    public CombatActionApplicationOutcome Outcome { get; set; } =
+        CombatActionApplicationOutcome.Rejected;
+
+    public bool PolicyEligible { get; set; }
+
+    public string ActionContractVersion { get; set; } = "";
 
     public CombatBattleState State { get; set; } = new();
 

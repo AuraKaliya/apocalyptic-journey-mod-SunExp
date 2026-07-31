@@ -606,7 +606,14 @@ public static class CombatFoundationModelPackageProtocol
             || !training.Validation.Passed
             || !training.Validation.BehaviorPassed
             || training.Validation.SevereEndTurnMistakes != 0
+            || training.Validation.DominatedEndTurns != 0
+            || training.Validation.EndTurnsIntoAvoidableLethal != 0
+            || training.Validation.EndTurnsWithCertifiedCycle != 0
             || training.Validation.AvoidableEndTurnsWithUnusedEnergy != 0
+            || training.Validation.NoEffectActionAttempts != 0
+            || training.Validation.RepeatedNoEffectActionAttempts != 0
+            || training.Validation.GuaranteedNoEffectActionAttempts != 0
+            || training.Validation.InteractiveActionContractFailures != 0
             || training.Champion == null
             || !string.Equals(
                 result.CompletionKind,
@@ -730,7 +737,14 @@ public static class CombatFoundationModelPackageProtocol
             || !package.Validation.Passed
             || !package.Validation.BehaviorPassed
             || package.Validation.SevereEndTurnMistakes != 0
+            || package.Validation.DominatedEndTurns != 0
+            || package.Validation.EndTurnsIntoAvoidableLethal != 0
+            || package.Validation.EndTurnsWithCertifiedCycle != 0
             || package.Validation.AvoidableEndTurnsWithUnusedEnergy != 0
+            || package.Validation.NoEffectActionAttempts != 0
+            || package.Validation.RepeatedNoEffectActionAttempts != 0
+            || package.Validation.GuaranteedNoEffectActionAttempts != 0
+            || package.Validation.InteractiveActionContractFailures != 0
             || package.Validation.InvalidCampaigns != 0)
         {
             diagnostic = "底模包没有通过正式隔离验证";
@@ -770,6 +784,10 @@ public static class CombatFoundationModelPackageProtocol
                 CombatPolicyValueProtocol.TrainingSemanticsVersion,
                 StringComparison.Ordinal)
             || !string.Equals(
+                package.Compatibility.ActionContractVersion,
+                CombatActionContractProtocol.Version,
+                StringComparison.Ordinal)
+            || !string.Equals(
                 package.Compatibility.SearchPolicyVersion,
                 CombatFoundationTrainingProtocol.SearchPolicyVersion,
                 StringComparison.Ordinal)
@@ -784,7 +802,8 @@ public static class CombatFoundationModelPackageProtocol
             || package.Compatibility.HiddenDimensions
                != package.Model.HiddenDimensions)
         {
-            diagnostic = "底模包兼容清单与模型维度不一致";
+            diagnostic =
+                "底模包兼容清单与当前特征、搜索、动作契约或模型维度不一致";
             return false;
         }
         if (string.IsNullOrWhiteSpace(package.RulesetHash)
