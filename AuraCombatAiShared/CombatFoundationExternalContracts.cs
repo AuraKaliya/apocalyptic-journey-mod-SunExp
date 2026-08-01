@@ -114,7 +114,13 @@ public sealed class CombatFoundationTrainingParameters
 
     public bool EnableEndTurnSpecialization { get; set; } = true;
 
-    public double ModelEndTurnFrameWeight { get; set; } = 2d;
+    public double ModelEndTurnFrameWeight { get; set; } = 1d;
+
+    public double ModelMaximumUnsafeEndTurnFrameShare { get; set; } = 0.35d;
+
+    public int ModelMinimumValidationRunGroups { get; set; } = 16;
+
+    public int ModelMinimumTestRunGroups { get; set; } = 16;
 
     public double ModelPolicyTargetTemperature { get; set; } = 1.25d;
 
@@ -260,9 +266,20 @@ public sealed class CombatFoundationTrainingParameters
             3d);
         ModelEndTurnFrameWeight = Clamp(
             ModelEndTurnFrameWeight,
+            0.25d,
             1d,
-            5d,
-            2d);
+            1d);
+        ModelMaximumUnsafeEndTurnFrameShare = Clamp(
+            ModelMaximumUnsafeEndTurnFrameShare,
+            0.10d,
+            0.80d,
+            0.35d);
+        ModelMinimumValidationRunGroups = Math.Max(
+            1,
+            Math.Min(256, ModelMinimumValidationRunGroups));
+        ModelMinimumTestRunGroups = Math.Max(
+            1,
+            Math.Min(256, ModelMinimumTestRunGroups));
         ModelPolicyTargetTemperature = Clamp(
             ModelPolicyTargetTemperature,
             1d,
@@ -553,6 +570,12 @@ public static class CombatFoundationWorkerJobFactory
                         parameters.EnableEndTurnSpecialization,
                     EndTurnFrameWeight =
                         parameters.ModelEndTurnFrameWeight,
+                    MaximumUnsafeEndTurnFrameShare =
+                        parameters.ModelMaximumUnsafeEndTurnFrameShare,
+                    MinimumValidationRunGroups =
+                        parameters.ModelMinimumValidationRunGroups,
+                    MinimumTestRunGroups =
+                        parameters.ModelMinimumTestRunGroups,
                     PolicyTargetTemperature =
                         parameters.ModelPolicyTargetTemperature,
                     MaximumPolicyTargetProbability =

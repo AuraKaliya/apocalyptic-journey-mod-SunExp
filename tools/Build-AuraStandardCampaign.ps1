@@ -3637,7 +3637,7 @@ if(buff!=null)
     if ([string]$cardRow.Id -eq "careercard_1") {
         $cardDefinition.requiresEnemyTarget = $false
         $actionContract = [ordered]@{
-            version = "action-contract-v1"
+            version = "action-contract-v2"
             preconditions = @(
                 [ordered]@{
                     kind = "DrawPileCountAtLeast"

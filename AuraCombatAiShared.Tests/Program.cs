@@ -3153,6 +3153,112 @@ Assert(!nativeIntrinsicAudit.Mismatch
            && item.Explanation == "trigger-side-effect"),
     "native on-use events sourced from the played card are intrinsic while downstream reward triggers remain contextual");
 
+var realizedBefore = semanticAuditState.Clone();
+realizedBefore.ActionSequence = 0;
+realizedBefore.Cards.Add(new CombatCardInstanceState
+{
+    InstanceId = 41,
+    CardId = "dynamic-native-card"
+});
+realizedBefore.Hand.Add(41);
+var realizedAfter = realizedBefore.Clone();
+realizedAfter.Player!.Hp = 30;
+realizedAfter.FindActor(2)!.Hp = 0;
+realizedAfter.Hand.Remove(41);
+realizedAfter.Cards.Add(new CombatCardInstanceState
+{
+    InstanceId = 42,
+    CardId = "generated-card"
+});
+realizedAfter.Hand.Add(42);
+var realizedEvents = new List<CombatSimulationEvent>
+{
+    new()
+    {
+        SourceActionId = 1,
+        CardInstanceId = 41,
+        SourceRewardId = "dynamic-native-card",
+        Kind = CombatSimulationEventKind.DamageDealt,
+        TargetActorId = 2,
+        Amount = 5
+    },
+    new()
+    {
+        SourceActionId = 1,
+        CardInstanceId = 41,
+        SourceRewardId = "dynamic-native-card",
+        Kind = CombatSimulationEventKind.VariableChanged,
+        TargetActorId = 1,
+        DefinitionId = "Hp",
+        Message = "Hp",
+        Amount = 10
+    },
+    new()
+    {
+        SourceActionId = 1,
+        CardInstanceId = 42,
+        SourceRewardId = "dynamic-native-card",
+        Kind = CombatSimulationEventKind.CardDrawn,
+        TargetActorId = 1,
+        Amount = 1
+    },
+    new()
+    {
+        SourceActionId = 1,
+        SourceRewardId = "dynamic-native-card",
+        Kind = CombatSimulationEventKind.RandomResolved,
+        Amount = 1
+    }
+};
+var realizedAction = new CombatSimulationAction
+{
+    ActorId = 1,
+    CardInstanceId = 41,
+    TargetActorId = 2,
+    DefinitionId = "dynamic-native-card"
+};
+var realizedSemantics = CombatSemanticAuditor.ProjectRealized(
+    realizedBefore,
+    realizedAfter,
+    realizedEvents,
+    realizedAction,
+    null);
+var realizedAudit = CombatSemanticAuditor.Audit(
+    realizedBefore,
+    realizedAfter,
+    realizedEvents,
+    realizedSemantics,
+    realizedAction,
+    null);
+var untracedCreationAfter = realizedBefore.Clone();
+untracedCreationAfter.Cards.Add(new CombatCardInstanceState
+{
+    InstanceId = 43,
+    CardId = "untraced-card"
+});
+var untracedCreationSemantics = CombatSemanticAuditor.ProjectRealized(
+    realizedBefore,
+    untracedCreationAfter,
+    realizedEvents.Take(2).ToList(),
+    realizedAction,
+    null);
+var untracedCreationAudit = CombatSemanticAuditor.Audit(
+    realizedBefore,
+    untracedCreationAfter,
+    realizedEvents.Take(2).ToList(),
+    untracedCreationSemantics,
+    realizedAction,
+    null);
+Assert(realizedSemantics.Damage == 5d
+       && realizedSemantics.Heal == 10d
+       && realizedSemantics.CardGeneration == 1d
+       && realizedSemantics.Draw == 0d
+       && realizedSemantics.RandomOutcome
+       && realizedAudit.Valid
+       && !realizedAudit.Mismatch
+       && untracedCreationAudit.InvalidKinds.Contains("card-generation"),
+    "authoritative realized projection separates created-to-hand cards from draws, represents direct HP assignment, and still rejects untraced mutations");
+
 var branchState = new CombatBattleState
 {
     Turn = 1,
@@ -6650,6 +6756,45 @@ Assert(appliedContractSkill.Success
        && appliedContractSkill.State.SkillCooldowns[1] == 1,
     "successful contract execution satisfies its draw-to-hand postcondition before cooldown");
 
+var causalContract = new CombatActionContractDefinition
+{
+    MinimumCardsMovedFromDrawPileToHandOnApplied = 1
+};
+var causalBeforeState = new CombatBattleState
+{
+    DrawPile = { 2 },
+    Hand = { 3 }
+};
+var causalAfterState = new CombatBattleState
+{
+    DrawPile = { 4, 5 },
+    Hand = { 2, 3 }
+};
+var causalPostconditionPassed =
+    CombatActionContractEvaluator.AppliedPostconditionsSatisfied(
+        causalContract,
+        CombatActionContractSnapshot.Capture(causalBeforeState),
+        CombatActionContractSnapshot.Capture(causalAfterState),
+        new[]
+        {
+            new CombatSimulationEvent
+            {
+                Kind = CombatSimulationEventKind.CardDrawn,
+                CardInstanceId = 2,
+                SourceActionId = 7
+            },
+            new CombatSimulationEvent
+            {
+                Kind = CombatSimulationEventKind.CardCreated,
+                CardInstanceId = 4,
+                SourceActionId = 7
+            }
+        },
+        7,
+        out _);
+Assert(causalPostconditionPassed,
+    "action-contract-v2 accepts a causally proven draw-to-hand move even when concurrent card creation makes both net zone counts grow");
+
 var familiarRule = new CombatCampaignRewardDefinition
 {
     RewardId = "familiar-blessing",
@@ -8170,6 +8315,36 @@ Assert(endTurnSpecialistTraining.Success
                ":unsafe-end-turn",
                StringComparison.Ordinal)),
     "end-turn specialist identifies discretionary and unsafe end turns as dedicated weighted strata");
+var imbalancedEndTurnEpisodes = Enumerable.Range(0, 100)
+    .Select(index =>
+    {
+        var template = endTurnTrainingEpisodes[index < 90 ? 0 : 2];
+        var clone = JsonSerializer.Deserialize<CombatEpisode>(
+            JsonSerializer.Serialize(template))!;
+        clone.EpisodeId = "end-turn-cap-" + index;
+        clone.JourneyRunId = "end-turn-cap:" + index;
+        return clone;
+    })
+    .ToList();
+var balancedEndTurnTraining = CombatPolicyValueTrainer.Train(
+    imbalancedEndTurnEpisodes,
+    "balanced",
+    new CombatPolicyValueTrainingOptions
+    {
+        Epochs = 5,
+        MinimumEpisodes = 2,
+        StateDimensions = 16,
+        ActionDimensions = 16,
+        HiddenDimensions = 8,
+        MaximumUnsafeEndTurnFrameShare = 0.35d,
+        MaximumDegreeOfParallelism = 1
+    });
+Assert(balancedEndTurnTraining.Success
+       && balancedEndTurnTraining.DroppedUnsafeEndTurnFrames > 0
+       && balancedEndTurnTraining.TrainingFrameCount > 0
+       && (double)balancedEndTurnTraining.UnsafeEndTurnFrames
+          / balancedEndTurnTraining.TrainingFrameCount <= 0.351d,
+    "large imbalanced training sets deterministically cap unsafe end-turn frames at the configured share");
 var priorityReplayFixture = Enumerable.Range(0, 10)
     .Select(index => new CombatEpisode
     {
@@ -8862,17 +9037,17 @@ var compactArchivePath = CombatFoundationCaseArchiveProtocol.EntryPath(
     CombatFoundationCaseArchiveProtocol.ExpertDirectoryName,
     fullCaseId);
 Assert(CombatFoundationCaseArchiveProtocol.Version
-           == "success-case-archive-worker-v3"
+           == "success-case-archive-worker-v4"
        && compactArchivePath.Length < 260
        && compactArchivePath.Contains(
            Path.DirectorySeparatorChar
-           + "v3"
+           + "v4"
            + Path.DirectorySeparatorChar,
            StringComparison.Ordinal)
        && !compactArchivePath.Contains(
            fullCompatibilityKey,
            StringComparison.Ordinal),
-    "case archive v3 keeps long install paths bounded while payload ids remain authoritative");
+    "case archive v4 keeps long install paths bounded while payload ids remain authoritative");
 var workerProtocolJob = new CombatFoundationWorkerJob
 {
     JobId = "worker-protocol-test"
@@ -9291,7 +9466,11 @@ Assert(foundationTraining.Success
        && foundationTraining.AcceptancePassed
        && foundationTraining.Champion != null
        && foundationTraining.Preflight.Passed
-       && foundationTraining.Preflight.CompletedCampaigns == 2
+       && foundationTraining.Preflight.CompletedCampaigns
+          == 2 + CombatFoundationIntegritySeedCorpus.KnownFailures.Count
+       && foundationTraining.Preflight.RegressionSeedCampaigns
+          == CombatFoundationIntegritySeedCorpus.KnownFailures.Count
+       && foundationTraining.Preflight.SemanticGatePassed
        && foundationTraining.Preflight.InvalidCampaigns == 0
        && foundationTraining.Replay.Count is > 0 and <= 16
        && foundationTraining.Replay.All(episode => episode.Authoritative)
@@ -9669,7 +9848,10 @@ Assert(sharedParameters.Iterations == 1
        && sharedParameters.ModelEpochs == 5
        && sharedParameters.EnablePrioritizedReplay
        && sharedParameters.EnableEndTurnSpecialization
-       && sharedParameters.ModelEndTurnFrameWeight == 2d
+       && sharedParameters.ModelEndTurnFrameWeight == 1d
+       && sharedParameters.ModelMaximumUnsafeEndTurnFrameShare == 0.35d
+       && sharedParameters.ModelMinimumValidationRunGroups == 16
+       && sharedParameters.ModelMinimumTestRunGroups == 16
        && sharedParameters.ModelPolicyTargetTemperature == 1.25d
        && sharedParameters.ModelMaximumPolicyTargetProbability == 0.90d
        && sharedParameters.ModelGradientShardCount == 12
@@ -9867,10 +10049,12 @@ var invalidPreflightTraining = new CombatCampaignFoundationTrainer().Run(
 projectedStrike.Fidelity = CombatRuleFidelity.Authoritative;
 Assert(!invalidPreflightTraining.Success
        && !invalidPreflightTraining.Preflight.Passed
-       && invalidPreflightTraining.Preflight.InvalidCampaigns == 2
-       && invalidPreflightTraining.Preflight.Failures.Select(item =>
-               item.DifficultyId + ":" + item.WorldSeed)
-           .SequenceEqual(new[] { "normal:19000", "advanced:19001" })
+       && invalidPreflightTraining.Preflight.InvalidCampaigns
+          == 2 + CombatFoundationIntegritySeedCorpus.KnownFailures.Count
+       && invalidPreflightTraining.Preflight.Failures.Any(item =>
+           item.DifficultyId == "normal" && item.WorldSeed == 19000UL)
+       && invalidPreflightTraining.Preflight.Failures.Any(item =>
+           item.DifficultyId == "advanced" && item.WorldSeed == 19001UL)
        && invalidPreflightTraining.CompletedCampaigns == 0
        && invalidPreflightTraining.Replay.Count == 0
        && invalidPreflightTraining.Message.Contains(

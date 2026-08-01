@@ -11,6 +11,7 @@ param(
     [int]$SearchStabilityWindow = 16,
     [int]$SearchStableChecks = 1,
     [int]$MaximumDegreeOfParallelism = 4,
+    [int]$TrainingCampaignsPerIteration = 2,
     [int]$NormalValidationCampaigns = 5,
     [int]$AdvancedValidationCampaigns = 5,
     [switch]$KeepArtifactsOnFailure,
@@ -38,6 +39,9 @@ $effectiveNormalValidationCampaigns = [Math]::Max(
 $effectiveAdvancedValidationCampaigns = [Math]::Max(
     1,
     [Math]::Min(1000, $AdvancedValidationCampaigns))
+$effectiveTrainingCampaignsPerIteration = [Math]::Max(
+    2,
+    [Math]::Min(1000, $TrainingCampaignsPerIteration))
 if (-not $SkipPublish) {
     & (Join-Path $repoRoot "tools\Build-AuraFoundationTrainer.ps1") -Configuration $Configuration
 }
@@ -78,7 +82,7 @@ try {
     $request = [ordered]@{
         DecisionProfile = "balanced"
         Iterations = 1
-        TrainingCampaignsPerIteration = 2
+        TrainingCampaignsPerIteration = $effectiveTrainingCampaignsPerIteration
         ArenaCampaignsPerDifficulty = 1
         NormalValidationCampaigns = $effectiveNormalValidationCampaigns
         AdvancedValidationCampaigns = $effectiveAdvancedValidationCampaigns
@@ -128,6 +132,7 @@ try {
         throw "Foundation trainer smoke result is missing."
     }
     $result = Read-FoundationJson $resultPath
+    $semanticRejected = -not [bool]$result.Training.SemanticGatePassed
     if (-not $result.Success `
         -or $null -eq $result.Training `
         -or -not $result.Training.Preflight.Passed `
@@ -140,6 +145,14 @@ try {
             ConvertTo-Json -Depth 10 -Compress
         throw ("Foundation trainer smoke result failed: {0}; preflight={1}" -f `
             $result.Message, $preflightFailures)
+    }
+    if (-not $PreflightOnly -and $semanticRejected) {
+        throw (
+            "Foundation trainer semantic admission failed: " `
+            + "selectedInvalid=" `
+            + [int]$result.Training.SemanticAudit.SelectedInvalidActions `
+            + ", selectedUnexplained=" `
+            + [int]$result.Training.SemanticAudit.SelectedUnexplainedMismatchActions)
     }
     if (@($result.Training.ValidationRuns).Count -ne 0) {
         throw "Foundation worker result retained process-local validation run details."
@@ -214,17 +227,18 @@ try {
     if ($PreflightOnly) {
         if (-not $result.Training.Success `
             -or $result.Training.Preflight.CompletedCampaigns `
-                -ne $effectivePreflightCampaignsPerDifficulty * 2 `
+                -ne ($effectivePreflightCampaignsPerDifficulty * 2 + 3) `
             -or $result.Training.CompletedCampaigns -ne 0) {
             throw "Foundation trainer preflight-only result is incomplete."
         }
     }
-    elseif ($progress.Telemetry.ModelTotalEpochs -lt 5 `
+    elseif (-not $semanticRejected `
+            -and ($progress.Telemetry.ModelTotalEpochs -lt 5 `
             -or $progress.Telemetry.PolicyDecisions -le 0 `
-            -or $progress.Telemetry.SearchSimulations -le 0) {
+            -or $progress.Telemetry.SearchSimulations -le 0)) {
             throw "Foundation trainer model/search telemetry is incomplete."
     }
-    if (-not $PreflightOnly) {
+    if (-not $PreflightOnly -and -not $semanticRejected) {
         $epochHistory = @($result.Training.ModelEpochHistory)
         $metricRecords = @(
             Get-Content -LiteralPath $result.TrainingMetricsPath -Encoding UTF8
@@ -248,7 +262,7 @@ try {
                 + "validation=$($result.Training.ModelValidationLoss).")
         }
     }
-    if (-not $PreflightOnly) {
+    if (-not $PreflightOnly -and -not $semanticRejected) {
         $expectedParallelism = [Math]::Max(
             1,
             [Math]::Min(
@@ -303,6 +317,22 @@ try {
             throw "Preflight completion must not retain a training checkpoint."
         }
     }
+    elseif ($semanticRejected) {
+        if ($result.CompletionKind -ne "training-rejected" `
+            -or $result.Resumable `
+            -or $checkpointExists `
+            -or $checkpointSnapshots.Count -ne 0 `
+            -or [bool]$result.ModelAccepted `
+            -or [bool]$result.TrainingSucceeded `
+            -or -not [bool]$result.WorkerCompleted `
+            -or [int]$result.Training.SemanticRejectedCampaigns -le 0 `
+            -or [int]$result.Training.DiscardedSemanticEpisodes -le 0 `
+            -or [int]$result.Training.PersistedReplayEpisodes -ne 0 `
+            -or -not [string]::IsNullOrWhiteSpace(
+                [string]$result.ModelPackagePath)) {
+            throw "Semantic admission rejection did not produce a clean non-resumable worker result."
+        }
+    }
     elseif ($result.Training.AcceptancePassed) {
         if ($result.CompletionKind -ne "training-accepted" `
             -or $checkpointExists `
@@ -351,7 +381,9 @@ try {
              -or [string]::IsNullOrWhiteSpace([string]$result.CheckpointPath))) {
         throw "Unaccepted foundation training must retain a resumable checkpoint."
     }
-    if (-not $PreflightOnly -and -not $result.Training.AcceptancePassed) {
+    if (-not $PreflightOnly `
+        -and -not $semanticRejected `
+        -and -not $result.Training.AcceptancePassed) {
         if ([int]$checkpoint.SchemaVersion -ne $protocolVersion `
             -or [int]$checkpoint.Resume.SchemaVersion -ne $protocolVersion `
             -or [int]$checkpoint.EpisodeSnapshot.StorageVersion -ne 2 `
@@ -370,7 +402,7 @@ try {
             -or [string]::IsNullOrWhiteSpace(
                 [string]$checkpoint.Resume.Compatibility.ValidationCampaignHash) `
             -or [string]$checkpoint.Resume.Compatibility.ActionContractVersion `
-                -ne "action-contract-v1" `
+                -ne "action-contract-v2" `
             -or [string]$checkpoint.Resume.Compatibility.TrainingSemanticsVersion `
                 -ne "end-turn-counterfactual-v5" `
             -or [string]$checkpoint.Resume.Compatibility.SearchPolicyVersion `
@@ -384,13 +416,13 @@ try {
     if (-not $PreflightOnly) {
         $archiveLoad = $result.Training.CaseArchiveLoad
         if ([string]$archiveLoad.ProtocolVersion `
-                -ne "success-case-archive-worker-v3" `
+                -ne "success-case-archive-worker-v4" `
             -or [string]$archiveLoad.OwnerRuntime -ne ".NET 8 worker" `
-            -or [int]$archiveLoad.StorageVersion -ne 3 `
+            -or [int]$archiveLoad.StorageVersion -ne 4 `
             -or [string]::IsNullOrWhiteSpace(
                 [string]$archiveLoad.CompatibilityKey)) {
             throw (
-                "Foundation archive v3 load contract failed: " `
+                "Foundation archive v4 load contract failed: " `
                 + ($archiveLoad | ConvertTo-Json -Depth 8 -Compress))
         }
         $currentObservation = Get-ChildItem -LiteralPath $archiveRoot `
@@ -399,19 +431,19 @@ try {
                 $_.Directory.Name -eq "o" `
                 -and $_.FullName.Contains(
                     [System.IO.Path]::DirectorySeparatorChar `
-                    + "v3" `
+                    + "v4" `
                     + [System.IO.Path]::DirectorySeparatorChar)
             } |
             Select-Object -First 1
         $eligibleCases =
             [int]$result.Training.CaseAnalysis.ArchiveEligibleCases
         if ($eligibleCases -gt 0 -and $null -eq $currentObservation) {
-            throw "Foundation worker did not write a v3 observation."
+            throw "Foundation worker did not write a v4 observation."
         }
         if ($null -ne $currentObservation) {
             $observation = Read-FoundationJson $currentObservation.FullName
             $expectedObservationPath = Join-Path $archiveRoot (
-                "v3\" `
+                "v4\" `
                 + ([string]$observation.CompatibilityKey).Substring(0, 16) `
                 + "\o\" `
                 + ([string]$observation.CaseId).Substring(0, 24) `
@@ -422,16 +454,43 @@ try {
                 -or -not (Test-Path -LiteralPath $expectedObservationPath `
                     -PathType Leaf)) {
                 throw (
-                    "Foundation archive v3 contract failed: " `
+                    "Foundation archive v4 contract failed: " `
                     + ($archiveLoad | ConvertTo-Json -Depth 8 -Compress))
+            }
+        }
+        $expertReference = Get-ChildItem -LiteralPath $archiveRoot `
+            -Filter "*.json" -File -Recurse |
+            Where-Object {
+                $_.Directory.Name -eq "e" `
+                -and $_.FullName.Contains(
+                    [System.IO.Path]::DirectorySeparatorChar `
+                    + "v4" `
+                    + [System.IO.Path]::DirectorySeparatorChar)
+            } |
+            Select-Object -First 1
+        if ($null -ne $expertReference) {
+            $reference = Read-FoundationJson $expertReference.FullName
+            $canonicalPath = Join-Path (
+                Join-Path $expertReference.Directory.Parent.FullName "c") (
+                [string]$reference.CanonicalFileName)
+            if ([string]$reference.ProtocolVersion `
+                    -ne "success-case-archive-worker-v4" `
+                -or [int]$reference.StorageVersion -ne 4 `
+                -or [string]::IsNullOrWhiteSpace([string]$reference.CaseId) `
+                -or -not (Test-Path -LiteralPath $canonicalPath -PathType Leaf) `
+                -or $expertReference.Length -ge (
+                    Get-Item -LiteralPath $canonicalPath).Length) {
+                throw "Foundation archive v4 expert reference is not deduplicated."
             }
         }
     }
 
-    Write-Host ("Aura foundation trainer smoke passed: campaigns={0}/{1}, battles={2}, runtime={3}" -f `
+    Write-Host ("Aura foundation trainer smoke passed: campaigns={0}/{1}, battles={2}, semanticSelected={3}/{4}, runtime={5}" -f `
         $result.Training.CompletedCampaigns, `
         $result.Training.RequestedCampaigns, `
         $result.Training.CompletedBattles, `
+        $result.Training.SemanticAudit.SelectedInvalidActions, `
+        $result.Training.SemanticAudit.SelectedUnexplainedMismatchActions, `
         $result.Runtime)
 }
 catch {

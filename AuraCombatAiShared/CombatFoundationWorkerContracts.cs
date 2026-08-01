@@ -167,6 +167,20 @@ public sealed class CombatFoundationWorkerResult
 
     public bool Success { get; set; }
 
+    public bool WorkerCompleted { get; set; }
+
+    public bool TrainingSucceeded { get; set; }
+
+    public bool ModelAccepted { get; set; }
+
+    public int EpochsExecuted { get; set; }
+
+    public int SelectedEpoch { get; set; }
+
+    public int PersistedReplayEpisodes { get; set; }
+
+    public long CheckpointBytes { get; set; }
+
     public bool Cancelled { get; set; }
 
     public string CompletionKind { get; set; } = "";

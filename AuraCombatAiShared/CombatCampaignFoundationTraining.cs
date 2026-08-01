@@ -65,6 +65,44 @@ public static class CombatFoundationPromotionProtocol
     public const double MinimumDepthGain = 0.25d;
 }
 
+public static class CombatFoundationSemanticGateProtocol
+{
+    public const string Version = "semantic-admission-v1";
+}
+
+public sealed class CombatFoundationIntegritySeed
+{
+    public string DifficultyId { get; set; } = "advanced";
+
+    public ulong WorldSeed { get; set; }
+}
+
+public static class CombatFoundationIntegritySeedCorpus
+{
+    public const string Version = "integrity-seeds-v1";
+
+    public static IReadOnlyList<CombatFoundationIntegritySeed> KnownFailures {
+        get;
+    } = new[]
+    {
+        new CombatFoundationIntegritySeed
+        {
+            DifficultyId = "advanced",
+            WorldSeed = 1904247873788260473UL
+        },
+        new CombatFoundationIntegritySeed
+        {
+            DifficultyId = "advanced",
+            WorldSeed = 1630047245334700981UL
+        },
+        new CombatFoundationIntegritySeed
+        {
+            DifficultyId = "advanced",
+            WorldSeed = 1465699506046447325UL
+        }
+    };
+}
+
 public enum CombatFoundationCounterfactualAdmission
 {
     Rejected = 0,
@@ -300,6 +338,12 @@ public sealed class CombatFoundationCompatibilityManifest
 
     public string ActionContractVersion { get; set; } =
         CombatActionContractProtocol.Version;
+
+    public string SemanticGateVersion { get; set; } =
+        CombatFoundationSemanticGateProtocol.Version;
+
+    public string IntegritySeedCorpusVersion { get; set; } =
+        CombatFoundationIntegritySeedCorpus.Version;
 
     public string NativeProgramPackageHash { get; set; } = "";
 
@@ -562,6 +606,10 @@ public sealed class CombatCampaignFoundationIteration
 
     public int ModelDroppedFramesByEpisodeCap { get; set; }
 
+    public int ModelTrainingFrameCount { get; set; }
+
+    public int ModelDroppedUnsafeEndTurnFrames { get; set; }
+
     public int ModelEndTurnDecisionFrames { get; set; }
 
     public int ModelUnsafeEndTurnFrames { get; set; }
@@ -764,13 +812,27 @@ public sealed class CombatCampaignFoundationIntegrityFailure
 
 public sealed class CombatCampaignFoundationIntegrityReport
 {
+    public string SemanticGateVersion { get; set; } =
+        CombatFoundationSemanticGateProtocol.Version;
+
+    public string IntegritySeedCorpusVersion { get; set; } =
+        CombatFoundationIntegritySeedCorpus.Version;
+
     public int CampaignsPerDifficulty { get; set; }
+
+    public int RegressionSeedCampaigns { get; set; }
 
     public int CompletedCampaigns { get; set; }
 
     public int InvalidCampaigns { get; set; }
 
     public int TerminalConsistencyViolations { get; set; }
+
+    public int SelectedInvalidActions { get; set; }
+
+    public int SelectedUnexplainedMismatchActions { get; set; }
+
+    public bool SemanticGatePassed { get; set; }
 
     public bool Passed { get; set; }
 
@@ -934,6 +996,10 @@ public sealed class CombatCampaignFoundationTrainingResult
 
     public int DuplicateSuccessCases { get; set; }
 
+    public long ExpertReferenceBytes { get; set; }
+
+    public long DeduplicatedExpertBytes { get; set; }
+
     public string SuccessArchiveDirectory { get; set; } = "";
 
     public string SuccessCaseIndexPath { get; set; } = "";
@@ -995,6 +1061,14 @@ public sealed class CombatCampaignFoundationTrainingResult
     public int InvalidTrainingCampaigns { get; set; }
 
     public int DiscardedInvalidEpisodes { get; set; }
+
+    public bool SemanticGatePassed { get; set; } = true;
+
+    public int SemanticRejectedCampaigns { get; set; }
+
+    public int DiscardedSemanticEpisodes { get; set; }
+
+    public string SemanticGateFailureReason { get; set; } = "";
 
     public int TerminalConsistencyViolations { get; set; }
 
@@ -1261,6 +1335,10 @@ public sealed class CombatCampaignFoundationTrainer
         {
             RulesetHash = ruleset.RulesetHash,
             ActionContractVersion = CombatActionContractProtocol.Version,
+            SemanticGateVersion =
+                CombatFoundationSemanticGateProtocol.Version,
+            IntegritySeedCorpusVersion =
+                CombatFoundationIntegritySeedCorpus.Version,
             NativeProgramPackageHash = request.NativeProgramPackageHash ?? "",
             CampaignId = request.TrainingCampaign.CampaignId ?? "",
             CampaignVersion =
@@ -1476,6 +1554,16 @@ public sealed class CombatCampaignFoundationTrainer
             {
                 result.CompletedCampaigns =
                     Volatile.Read(ref completedCampaigns);
+                result.SemanticGatePassed =
+                    result.Preflight.SemanticGatePassed;
+                result.SemanticGateFailureReason =
+                    result.Preflight.SemanticGatePassed
+                        ? ""
+                        : "selected invalid actions="
+                          + result.Preflight.SelectedInvalidActions
+                          + ", selected unexplained mismatches="
+                          + result.Preflight
+                              .SelectedUnexplainedMismatchActions;
                 result.Message =
                     "底模训练前权威快检失败："
                     + result.Preflight.InvalidCampaigns
@@ -1597,6 +1685,8 @@ public sealed class CombatCampaignFoundationTrainer
                 telemetry.BeginPhase("self-play");
                 var invalidTrainingCampaignsBefore =
                     result.InvalidTrainingCampaigns;
+                var semanticRejectedCampaignsBefore =
+                    result.SemanticRejectedCampaigns;
                 var trainingSeedBase = trainingSeed;
                 trainingSeed += (ulong)trainingCampaigns;
                 trainingSchedule = CombatFoundationTrainingSchedule.Build(
@@ -1744,6 +1834,12 @@ public sealed class CombatCampaignFoundationTrainer
                      campaignIndex++)
                 {
                     var trainingRun = trainingRuns[campaignIndex]!;
+                    var semanticAudit = AggregateSemanticAudit(
+                        new[]
+                        {
+                            trainingRun.Campaign,
+                            trainingRun.CounterfactualCampaign
+                        }.Where(item => item != null).Select(item => item!));
                     if (trainingRun.Campaign.Invalid)
                     {
                         result.InvalidTrainingCampaigns++;
@@ -1754,6 +1850,25 @@ public sealed class CombatCampaignFoundationTrainer
                             result.TrainingFailureCounts,
                             trainingRun.Campaign);
                         trainingRun.Episodes.Clear();
+                    }
+                    else if (!SemanticGateSatisfied(semanticAudit))
+                    {
+                        result.SemanticGatePassed = false;
+                        result.SemanticRejectedCampaigns++;
+                        result.GeneratedReplayEpisodes +=
+                            trainingRun.Episodes.Count
+                            + trainingRun.CounterfactualEpisodes.Count;
+                        result.DiscardedSemanticEpisodes +=
+                            trainingRun.Episodes.Count
+                            + trainingRun.CounterfactualEpisodes.Count;
+                        result.SemanticGateFailureReason =
+                            "selected invalid actions="
+                            + semanticAudit.SelectedInvalidActions
+                            + ", selected unexplained mismatches="
+                            + semanticAudit
+                                .SelectedUnexplainedMismatchActions;
+                        trainingRun.Episodes.Clear();
+                        trainingRun.CounterfactualEpisodes.Clear();
                     }
                     else
                     {
@@ -1892,6 +2007,19 @@ public sealed class CombatCampaignFoundationTrainer
                         + FormatIntegrityFailureSummary(
                             result.TrainingFailures,
                             4);
+                    telemetry.ApplyTo(result);
+                    FinalizeCaseAnalysis(result);
+                    return result;
+                }
+                if (result.SemanticRejectedCampaigns
+                    > semanticRejectedCampaignsBefore)
+                {
+                    result.CompletedCampaigns =
+                        Volatile.Read(ref completedCampaigns);
+                    result.Message =
+                        "自博弈阶段检测到语义准入失败；相关轨迹已隔离，"
+                        + "训练已停止以避免污染底模。"
+                        + result.SemanticGateFailureReason;
                     telemetry.ApplyTo(result);
                     FinalizeCaseAnalysis(result);
                     return result;
@@ -2605,6 +2733,9 @@ public sealed class CombatCampaignFoundationTrainer
                     trained.MaximumFrameWeight,
                 ModelDroppedFramesByEpisodeCap =
                     trained.DroppedFramesByEpisodeCap,
+                ModelTrainingFrameCount = trained.TrainingFrameCount,
+                ModelDroppedUnsafeEndTurnFrames =
+                    trained.DroppedUnsafeEndTurnFrames,
                 ModelEndTurnDecisionFrames =
                     trained.EndTurnDecisionFrames,
                 ModelUnsafeEndTurnFrames =
@@ -3324,6 +3455,14 @@ public sealed class CombatCampaignFoundationTrainer
                    current.ActionContractVersion,
                    StringComparison.Ordinal)
                && string.Equals(
+                   checkpoint.SemanticGateVersion,
+                   current.SemanticGateVersion,
+                   StringComparison.Ordinal)
+               && string.Equals(
+                   checkpoint.IntegritySeedCorpusVersion,
+                   current.IntegritySeedCorpusVersion,
+                   StringComparison.Ordinal)
+               && string.Equals(
                    checkpoint.CampaignId,
                    current.CampaignId,
                    StringComparison.Ordinal)
@@ -3661,8 +3800,19 @@ public sealed class CombatCampaignFoundationTrainer
     {
         telemetry.BeginPhase("preflight");
         var difficulties = new[] { "normal", "advanced" };
-        var runs =
-            new CombatCampaignResult?[campaignsPerDifficulty * difficulties.Length];
+        var schedule = new List<CombatFoundationIntegritySeed>();
+        for (var index = 0;
+             index < campaignsPerDifficulty * difficulties.Length;
+             index++)
+        {
+            schedule.Add(new CombatFoundationIntegritySeed
+            {
+                DifficultyId = difficulties[index % difficulties.Length],
+                WorldSeed = seedStart + (ulong)index
+            });
+        }
+        schedule.AddRange(CombatFoundationIntegritySeedCorpus.KnownFailures);
+        var runs = new CombatCampaignResult?[schedule.Count];
         Parallel.For(
             0,
             runs.Length,
@@ -3673,8 +3823,8 @@ public sealed class CombatCampaignFoundationTrainer
             },
             index =>
             {
-                var difficulty = difficulties[index % difficulties.Length];
-                var seed = seedStart + (ulong)index;
+                var difficulty = schedule[index].DifficultyId;
+                var seed = schedule[index].WorldSeed;
                 runs[index] = RunCampaign(
                     request.TrainingCampaign,
                     difficulty,
@@ -3696,11 +3846,19 @@ public sealed class CombatCampaignFoundationTrainer
         var report = new CombatCampaignFoundationIntegrityReport
         {
             CampaignsPerDifficulty = campaignsPerDifficulty,
+            RegressionSeedCampaigns =
+                CombatFoundationIntegritySeedCorpus.KnownFailures.Count,
             CompletedCampaigns = completed.Count,
             InvalidCampaigns = completed.Count(item => item.Invalid),
             TerminalConsistencyViolations = completed.Sum(
                 CountTerminalConsistencyViolations)
         };
+        var semanticAudit = AggregateSemanticAudit(completed);
+        report.SelectedInvalidActions =
+            semanticAudit.SelectedInvalidActions;
+        report.SelectedUnexplainedMismatchActions =
+            semanticAudit.SelectedUnexplainedMismatchActions;
+        report.SemanticGatePassed = SemanticGateSatisfied(semanticAudit);
         foreach (var campaign in completed.Where(item => item.Invalid))
         {
             AddIntegrityFailure(
@@ -3714,8 +3872,31 @@ public sealed class CombatCampaignFoundationTrainer
             .ToList();
         report.Passed = report.CompletedCampaigns == runs.Length
                         && report.InvalidCampaigns == 0
-                        && report.TerminalConsistencyViolations == 0;
+                        && report.TerminalConsistencyViolations == 0
+                        && report.SemanticGatePassed;
         return report;
+    }
+
+    private static CombatSemanticAuditMetrics AggregateSemanticAudit(
+        IEnumerable<CombatCampaignResult> campaigns)
+    {
+        var result = new CombatSemanticAuditMetrics();
+        foreach (var battle in (campaigns ?? Array.Empty<CombatCampaignResult>())
+                     .Where(item => item != null)
+                     .SelectMany(item => item.Battles
+                         ?? new List<CombatSimulationResult>()))
+        {
+            result.MergeFrom(battle?.Metrics?.SemanticAudit);
+        }
+        return result;
+    }
+
+    private static bool SemanticGateSatisfied(
+        CombatSemanticAuditMetrics? audit)
+    {
+        return audit == null
+               || (audit.SelectedInvalidActions == 0
+                   && audit.SelectedUnexplainedMismatchActions == 0);
     }
 
     private CombatFoundationCapabilityProbe RunCapabilityProbe(

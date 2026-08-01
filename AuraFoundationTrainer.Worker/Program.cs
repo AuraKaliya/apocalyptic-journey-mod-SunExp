@@ -456,6 +456,18 @@ try
     {
         JobId = job.JobId,
         Success = true,
+        WorkerCompleted = true,
+        TrainingSucceeded = training.Success,
+        ModelAccepted = training.AcceptancePassed,
+        EpochsExecuted = training.ModelEpochHistory.Count(item =>
+            !item.Calibrated),
+        SelectedEpoch = training.ModelBestEpoch,
+        PersistedReplayEpisodes = training.PersistedReplayEpisodes,
+        CheckpointBytes = resumable
+            ? new[] { job.CheckpointPath, resumableEpisodesPath }
+                .Where(File.Exists)
+                .Sum(path => new FileInfo(path).Length)
+            : 0L,
         CompletionKind = completionKind,
         Message = training.Message,
         Runtime = RuntimeDescription(requestedWorkers),
@@ -513,6 +525,7 @@ catch (OperationCanceledException)
             new CombatFoundationWorkerResult
             {
                 JobId = job.JobId,
+                WorkerCompleted = true,
                 Cancelled = true,
                 CompletionKind = resumable
                     ? "cancelled-resumable"
@@ -526,6 +539,11 @@ catch (OperationCanceledException)
                     ? job.CheckpointPath
                     : "",
                 Resumable = resumable,
+                CheckpointBytes = resumable
+                    ? new[] { job.CheckpointPath, resumableEpisodesPath }
+                        .Where(File.Exists)
+                        .Sum(path => new FileInfo(path).Length)
+                    : 0L,
                 CheckpointWriteFailures = checkpointWriteFailures,
                 CheckpointWarning = checkpointWarning,
                 TrainingMetricsPath = job.TrainingMetricsPath,
@@ -550,6 +568,7 @@ catch (Exception ex)
             new CombatFoundationWorkerResult
             {
                 JobId = job.JobId,
+                WorkerCompleted = true,
                 CompletionKind = resumable
                     ? "failed-resumable"
                     : "failed",
@@ -562,6 +581,11 @@ catch (Exception ex)
                     ? job.CheckpointPath
                     : "",
                 Resumable = resumable,
+                CheckpointBytes = resumable
+                    ? new[] { job.CheckpointPath, resumableEpisodesPath }
+                        .Where(File.Exists)
+                        .Sum(path => new FileInfo(path).Length)
+                    : 0L,
                 CheckpointWriteFailures = checkpointWriteFailures,
                 CheckpointWarning = checkpointWarning,
                 TrainingMetricsPath = job.TrainingMetricsPath,
@@ -1066,8 +1090,43 @@ static void LoadSuccessCasePaths(
             path.Length);
         try
         {
+            var json = File.ReadAllText(path);
+            var reference =
+                Deserialize<CombatFoundationExpertCaseReference>(json);
+            if (reference != null
+                && !string.IsNullOrWhiteSpace(
+                    reference.CanonicalFileName))
+            {
+                if (reference.StorageVersion
+                        != CombatFoundationCaseArchiveProtocol.StorageVersion
+                    || !string.Equals(
+                        reference.ProtocolVersion,
+                        CombatFoundationCaseArchiveProtocol.Version,
+                        StringComparison.Ordinal)
+                    || !string.Equals(
+                        reference.CompatibilityKey,
+                        compatibilityKey,
+                        StringComparison.Ordinal)
+                    || !string.Equals(
+                        Path.GetFileName(reference.CanonicalFileName),
+                        reference.CanonicalFileName,
+                        StringComparison.Ordinal))
+                {
+                    throw new InvalidDataException(
+                        "Invalid expert-case reference.");
+                }
+                var compatibilityDirectory = Directory.GetParent(
+                    Path.GetDirectoryName(path)!)?.FullName
+                    ?? throw new InvalidDataException(
+                        "Expert-case reference has no compatibility directory.");
+                var canonicalPath = Path.Combine(
+                    compatibilityDirectory,
+                    CombatFoundationCaseArchiveProtocol.CaseDirectoryName,
+                    reference.CanonicalFileName);
+                json = File.ReadAllText(canonicalPath);
+            }
             var successCase = Deserialize<CombatFoundationSuccessCase>(
-                File.ReadAllText(path));
+                json);
             if (successCase?.Observation == null
                 || successCase.SchemaVersion
                 != CombatFoundationCaseLearning.ArchiveSchemaVersion
@@ -1214,16 +1273,52 @@ static bool PersistSuccessCase(
     }
     if (successCase.Episodes.Count > 0)
     {
-        var expertCasePath = ResolveSuccessCasePath(
-            job,
-            successCase,
-            CombatFoundationCaseArchiveProtocol.ExpertDirectoryName);
+        var expertCasePath = ResolveExpertReferencePath(job, successCase);
         if (!File.Exists(expertCasePath))
         {
-            WriteAtomic(expertCasePath, Serialize(successCase));
+            WriteExpertReference(
+                expertCasePath,
+                successCase,
+                casePath);
         }
     }
     return added;
+}
+
+static string ResolveExpertReferencePath(
+    CombatFoundationWorkerJob job,
+    CombatFoundationSuccessCase successCase)
+{
+    var observation = successCase.Observation;
+    var path = CombatFoundationCaseArchiveProtocol.EntryPath(
+        SuccessArchiveRoot(job),
+        observation.CompatibilityKey,
+        CombatFoundationCaseArchiveProtocol.ExpertDirectoryName,
+        observation.CaseId);
+    if (!File.Exists(path)
+        || ExistingExpertReferenceMatches(path, observation.CaseId))
+    {
+        return path;
+    }
+    return CombatFoundationCaseArchiveProtocol.EntryPath(
+        SuccessArchiveRoot(job),
+        observation.CompatibilityKey,
+        CombatFoundationCaseArchiveProtocol.ExpertDirectoryName,
+        observation.CaseId,
+        40);
+}
+
+static void WriteExpertReference(
+    string path,
+    CombatFoundationSuccessCase successCase,
+    string canonicalPath)
+{
+    WriteAtomic(path, Serialize(new CombatFoundationExpertCaseReference
+    {
+        CompatibilityKey = successCase.Observation.CompatibilityKey,
+        CaseId = successCase.Observation.CaseId,
+        CanonicalFileName = Path.GetFileName(canonicalPath)
+    }));
 }
 
 static string ResolveObservationPath(
@@ -1295,6 +1390,22 @@ static bool ExistingSuccessCaseMatches(string path, string caseId)
         return string.Equals(
             Deserialize<CombatFoundationSuccessCase>(
                 File.ReadAllText(path))?.Observation?.CaseId,
+            caseId,
+            StringComparison.Ordinal);
+    }
+    catch
+    {
+        return false;
+    }
+}
+
+static bool ExistingExpertReferenceMatches(string path, string caseId)
+{
+    try
+    {
+        return string.Equals(
+            Deserialize<CombatFoundationExpertCaseReference>(
+                File.ReadAllText(path))?.CaseId,
             caseId,
             StringComparison.Ordinal);
     }
@@ -1405,14 +1516,22 @@ static void PersistSuccessCases(
         }
         if (successCase.Episodes.Count > 0)
         {
-            var expertCasePath = ResolveSuccessCasePath(
+            var expertCasePath = ResolveExpertReferencePath(
                 job,
-                successCase,
-                CombatFoundationCaseArchiveProtocol.ExpertDirectoryName);
+                successCase);
             if (!File.Exists(expertCasePath))
             {
-                WriteAtomic(expertCasePath, Serialize(successCase));
+                WriteExpertReference(
+                    expertCasePath,
+                    successCase,
+                    casePath);
             }
+            training.ExpertReferenceBytes +=
+                new FileInfo(expertCasePath).Length;
+            training.DeduplicatedExpertBytes += Math.Max(
+                0L,
+                new FileInfo(casePath).Length
+                - new FileInfo(expertCasePath).Length);
         }
         observations.Add(observation);
     }

@@ -394,32 +394,26 @@ public sealed class CombatAuthoritativeBranchTeacherPolicy :
                     item.CandidateId,
                     candidate.CandidateId,
                     StringComparison.Ordinal));
-            var score = ScoreTransition(
-                context.State,
-                applied.State,
-                candidate,
-                projected?.Semantics);
-            var audit = CombatSemanticAuditor.Audit(
+            var sourceAudit = CombatSemanticAuditor.Audit(
                 context.State,
                 applied.State,
                 applied.Events,
                 projected?.Semantics,
                 candidate,
                 context.Ruleset);
-            audits[candidate.CandidateId] = audit;
             RecordAudit(
                 LastDecisionMetrics,
-                audit,
+                sourceAudit,
                 candidate.DefinitionId,
                 context.Scenario.ScenarioId);
-            if (audit.Valid)
+            if (sourceAudit.Valid)
             {
                 LastDecisionMetrics.AuthoritativeActionsAudited++;
             }
-            if (audit.Mismatch)
+            if (sourceAudit.Mismatch)
             {
                 LastDecisionMetrics.AuthoritativeSemanticMismatches++;
-                foreach (var kind in audit.MismatchKinds.Distinct(
+                foreach (var kind in sourceAudit.MismatchKinds.Distinct(
                              StringComparer.OrdinalIgnoreCase))
                 {
                     Increment(
@@ -438,6 +432,43 @@ public sealed class CombatAuthoritativeBranchTeacherPolicy :
                         ? "unknown"
                         : context.Scenario.ScenarioId);
             }
+            var realized = CombatSemanticAuditor.ProjectRealized(
+                context.State,
+                applied.State,
+                applied.Events,
+                candidate,
+                context.Ruleset);
+            if (projected != null)
+            {
+                projected.Semantics = realized;
+                var effective = CombatSemanticAuditor.ProjectEffective(
+                    context.State,
+                    candidate,
+                    realized,
+                    context.Ruleset);
+                projected.Features["effectiveHpDamage"] = effective.Damage;
+                projected.Features["effectiveDurabilityDamage"] =
+                    effective.DurabilityDamage;
+                projected.Features["effectiveDefend"] = effective.Defend;
+                projected.Features["effectiveHeal"] = effective.Heal;
+                projected.Features["deferredHpDamage"] =
+                    CombatActionSemanticMetrics.DeferredHpDamage(realized);
+                projected.Features["affectedEnemyCount"] =
+                    realized.AffectedEnemyCount;
+            }
+            var audit = CombatSemanticAuditor.Audit(
+                context.State,
+                applied.State,
+                applied.Events,
+                realized,
+                candidate,
+                context.Ruleset);
+            audits[candidate.CandidateId] = audit;
+            var score = ScoreTransition(
+                context.State,
+                applied.State,
+                candidate,
+                realized);
             if (baseline != null
                 && string.Equals(
                     candidate.CandidateId,

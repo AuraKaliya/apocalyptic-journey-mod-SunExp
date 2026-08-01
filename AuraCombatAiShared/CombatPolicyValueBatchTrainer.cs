@@ -90,8 +90,16 @@ internal static class CombatPolicyValueBatchTrainer
                 .OrderBy(StableSplitHash)
                 .ThenBy(key => key, StringComparer.Ordinal)
                 .ToList();
-            var testCount = Math.Max(1, splitKeys.Count / 10);
-            var validationCount = Math.Max(1, splitKeys.Count / 10);
+            var testCount = Math.Max(
+                splitKeys.Count >= 64
+                    ? options.MinimumTestRunGroups
+                    : 1,
+                splitKeys.Count / 10);
+            var validationCount = Math.Max(
+                splitKeys.Count >= 64
+                    ? options.MinimumValidationRunGroups
+                    : 1,
+                splitKeys.Count / 10);
             testCount = Math.Min(testCount, splitKeys.Count - 2);
             validationCount = Math.Min(
                 validationCount,
@@ -130,6 +138,10 @@ internal static class CombatPolicyValueBatchTrainer
             trainingEpisodes,
             options,
             cancellationToken);
+        trainingFrames = CapUnsafeEndTurnFrames(
+            trainingFrames,
+            options.MaximumUnsafeEndTurnFrameShare,
+            out var droppedUnsafeEndTurnFrames);
         var validationFrames = Encode(
             validationEpisodes.Count == 0
                 ? trainingEpisodes
@@ -145,6 +157,9 @@ internal static class CombatPolicyValueBatchTrainer
             result.Message = "完整战斗轨迹没有可训练的合法决策帧";
             return result;
         }
+        result.TrainingFrameCount = trainingFrames.Length;
+        result.DroppedUnsafeEndTurnFrames =
+            droppedUnsafeEndTurnFrames;
         result.EndTurnDecisionFrames =
             trainingFrames.Count(frame => frame.EndTurnDecision);
         result.UnsafeEndTurnFrames =
@@ -824,6 +839,54 @@ internal static class CombatPolicyValueBatchTrainer
         }
     }
 
+    private static EncodedFrame[] CapUnsafeEndTurnFrames(
+        EncodedFrame[] source,
+        double maximumShare,
+        out int droppedFrames)
+    {
+        droppedFrames = 0;
+        if (source.Length < 64)
+        {
+            return source;
+        }
+        var nonUnsafeCount = source.Count(frame => !frame.UnsafeEndTurn);
+        var unsafeCount = source.Length - nonUnsafeCount;
+        if (nonUnsafeCount == 0 || unsafeCount == 0)
+        {
+            return source;
+        }
+        var maximumUnsafeCount = Math.Max(
+            1,
+            (int)Math.Floor(
+                nonUnsafeCount
+                * maximumShare
+                / Math.Max(0.000001d, 1d - maximumShare)));
+        if (unsafeCount <= maximumUnsafeCount)
+        {
+            return source;
+        }
+        var retainedUnsafeIndices = source
+            .Select((frame, index) => new { Frame = frame, Index = index })
+            .Where(item => item.Frame.UnsafeEndTurn)
+            .OrderBy(item => StableSplitHash(
+                item.Frame.RunKey
+                + "|"
+                + item.Frame.Stratum
+                + "|"
+                + item.Index))
+            .ThenBy(item => item.Index)
+            .Take(maximumUnsafeCount)
+            .Select(item => item.Index)
+            .ToHashSet();
+        var retained = source
+            .Where((frame, index) =>
+                !frame.UnsafeEndTurn
+                || retainedUnsafeIndices.Contains(index))
+            .ToArray();
+        droppedFrames = source.Length - retained.Length;
+        return retained;
+    }
+
     private static string SplitIdentity(IEnumerable<string> source)
     {
         unchecked
@@ -986,7 +1049,7 @@ internal static class CombatPolicyValueBatchTrainer
                                 && unusedEnergy);
         var endTurnWeight = options.EnableEndTurnSpecialization
                             && endTurnDecision
-            ? options.EndTurnFrameWeight * (unsafeEndTurn ? 1.25d : 1d)
+            ? options.EndTurnFrameWeight * (unsafeEndTurn ? 0.75d : 1d)
             : 1d;
         var baseSampleWeight = Clamp(
             (episode.Campaign?.TrainingWeight ?? 1d)

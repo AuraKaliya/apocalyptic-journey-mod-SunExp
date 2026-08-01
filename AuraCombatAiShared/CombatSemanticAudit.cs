@@ -101,6 +101,118 @@ public sealed class CombatEffectiveActionProjection
 
 public static class CombatSemanticAuditor
 {
+    public static CombatActionSemantics ProjectRealized(
+        CombatBattleState before,
+        CombatBattleState after,
+        IReadOnlyList<CombatSimulationEvent> events,
+        CombatSimulationAction action,
+        CombatRuleset? ruleset)
+    {
+        before ??= new CombatBattleState();
+        after ??= before;
+        action ??= new CombatSimulationAction();
+        var actionEvents = ScopeActionEvents(
+            before,
+            events ?? Array.Empty<CombatSimulationEvent>());
+        var intrinsicEvents = actionEvents
+            .Where(item => IsIntrinsic(item, action))
+            .ToList();
+        var result = new CombatActionSemantics();
+        result.StateChanges["projection.realized"] = 1d;
+        var playerId = before.PlayerActorId;
+
+        foreach (var damage in intrinsicEvents.Where(item =>
+                     item.Kind == CombatSimulationEventKind.DamageDealt
+                     && IsEnemy(before, item.TargetActorId)))
+        {
+            var kind = string.Equals(
+                damage.Message,
+                CombatSimulationEffectKind.TrueDamage.ToString(),
+                StringComparison.OrdinalIgnoreCase)
+                ? CombatSemanticEffectKind.TrueDamage
+                : string.Equals(
+                    damage.Message,
+                    CombatSimulationEffectKind.DirectHpLoss.ToString(),
+                    StringComparison.OrdinalIgnoreCase)
+                    ? CombatSemanticEffectKind.DirectHpLoss
+                    : CombatSemanticEffectKind.Damage;
+            var amount = Math.Max(0, damage.Amount);
+            result.TargetEffects.Add(new CombatTargetedSemanticEffect
+            {
+                Phase = CombatSemanticEffectPhase.Immediate,
+                Kind = kind,
+                TargetRuntimeId = damage.TargetActorId,
+                DefinitionId = damage.DefinitionId,
+                RawAmount = amount,
+                EffectiveAmount = amount,
+                EffectiveDurabilityAmount = amount,
+                Probability = 1d
+            });
+            if (kind == CombatSemanticEffectKind.Damage)
+            {
+                result.Damage += amount;
+            }
+            else
+            {
+                result.TrueDamage += amount;
+            }
+        }
+
+        result.Defend = intrinsicEvents
+            .Where(item => item.TargetActorId == playerId
+                           && item.Kind is CombatSimulationEventKind.BlockGained
+                               or CombatSimulationEventKind.BlockChanged)
+            .Sum(item => Math.Max(0, item.Amount));
+        result.Heal = intrinsicEvents
+            .Where(item => item.TargetActorId == playerId
+                           && (item.Kind == CombatSimulationEventKind.Healed
+                               || IsHpAssignment(item)))
+            .Sum(item => Math.Max(0, item.Amount));
+        result.EnergyGain = intrinsicEvents
+            .Where(item => item.TargetActorId == playerId
+                           && item.Kind == CombatSimulationEventKind.EnergyChanged)
+            .Sum(item => Math.Max(0, item.Amount));
+
+        var beforeCardIds = before.Cards
+            .Select(item => item.InstanceId)
+            .ToHashSet();
+        var createdCardIds = after.Cards
+            .Where(item => !beforeCardIds.Contains(item.InstanceId))
+            .Select(item => item.InstanceId)
+            .ToHashSet();
+        result.CardGeneration = createdCardIds.Count;
+        result.Draw = intrinsicEvents.Count(item =>
+            item.Kind == CombatSimulationEventKind.CardDrawn
+            && !createdCardIds.Contains(item.CardInstanceId)
+            && (item.TargetActorId == 0 || item.TargetActorId == playerId));
+
+        var statusDeltas = StatusDeltas(
+            before,
+            action,
+            ruleset,
+            intrinsicEvents);
+        result.Buff = statusDeltas.Buff;
+        result.Debuff = statusDeltas.Debuff;
+        result.RandomOutcome = intrinsicEvents.Any(item =>
+            item.Kind is CombatSimulationEventKind.RandomResolved
+                or CombatSimulationEventKind.DiceChecked);
+        result.Uncertainty = result.RandomOutcome ? 1d : 0d;
+        result.AffectedEnemyCount = result.TargetEffects
+            .Where(item => IsEnemy(before, item.TargetRuntimeId))
+            .Select(item => item.TargetRuntimeId)
+            .Distinct()
+            .Count();
+        result.ImmediateHpDamage =
+            CombatActionSemanticMetrics.ImmediateHpDamage(result);
+        result.ImmediateDurabilityDamage = Math.Max(
+            0d,
+            before.LivingEnemies.Sum(item =>
+                Math.Max(0, item.Hp) + Math.Max(0, item.Block))
+            - after.LivingEnemies.Sum(item =>
+                Math.Max(0, item.Hp) + Math.Max(0, item.Block)));
+        return result;
+    }
+
     public static CombatEffectiveActionProjection ProjectEffective(
         CombatBattleState before,
         CombatSimulationAction action,
@@ -115,6 +227,10 @@ public static class CombatSemanticAuditor
         CombatActionSemantics projected,
         CombatRuleset? ruleset)
     {
+        var realized = projected.StateChanges.TryGetValue(
+            "projection.realized",
+            out var realizedValue)
+            && realizedValue > 0d;
         var targetedDamage = projected.TargetEffects
             .Where(item =>
                 item.Phase == CombatSemanticEffectPhase.Immediate
@@ -128,8 +244,12 @@ public static class CombatSemanticAuditor
                 ? targetedDamage.Sum(item =>
                     Math.Max(0d, item.EffectiveAmount)
                     * Probability(item))
-                : EffectiveDamage(before, action, projected, ruleset),
-            DurabilityDamage = targetedDamage.Count > 0
+                : realized
+                    ? Math.Max(0d, projected.Damage + projected.TrueDamage)
+                    : EffectiveDamage(before, action, projected, ruleset),
+            DurabilityDamage = realized
+                ? Math.Max(0d, projected.ImmediateDurabilityDamage)
+                : targetedDamage.Count > 0
                 ? targetedDamage.Sum(item =>
                     Math.Max(0d, item.EffectiveDurabilityAmount)
                     * Probability(item))
@@ -138,10 +258,15 @@ public static class CombatSemanticAuditor
                     action,
                     projected,
                     ruleset),
-            IntrinsicDefend =
-                EffectiveBlock(before.Player, projected.Defend),
-            Defend = NetEffectiveBlock(before.Player, projected.Defend),
-            Heal = EffectiveHeal(before.Player, projected.Heal)
+            IntrinsicDefend = realized
+                ? Math.Max(0d, projected.Defend)
+                : EffectiveBlock(before.Player, projected.Defend),
+            Defend = realized
+                ? Math.Max(0d, projected.Defend)
+                : NetEffectiveBlock(before.Player, projected.Defend),
+            Heal = realized
+                ? Math.Max(0d, projected.Heal)
+                : EffectiveHeal(before.Player, projected.Heal)
         };
     }
 
@@ -305,8 +430,9 @@ public static class CombatSemanticAuditor
         }
 
         var actualHeal = intrinsicEvents
-            .Where(item => item.Kind == CombatSimulationEventKind.Healed
-                           && item.TargetActorId == playerId)
+            .Where(item => item.TargetActorId == playerId
+                           && (item.Kind == CombatSimulationEventKind.Healed
+                               || IsHpAssignment(item)))
             .Sum(item => Math.Max(0, item.Amount));
         var effectiveHeal = effectiveProjection.Heal;
         var observedHeal = Math.Max(
@@ -314,8 +440,8 @@ public static class CombatSemanticAuditor
             (after.Player?.Hp ?? 0) - (before.Player?.Hp ?? 0));
         var healTraceComplete = observedHeal <= 0
                                 || actionEvents.Any(item =>
-                                    item.Kind
-                                    == CombatSimulationEventKind.Healed);
+                                    item.Kind == CombatSimulationEventKind.Healed
+                                    || IsHpAssignment(item));
         Compare(
             result,
             "heal",
@@ -327,8 +453,16 @@ public static class CombatSemanticAuditor
                 : "",
             healTraceComplete);
 
+        var beforeCardIds = before.Cards
+            .Select(item => item.InstanceId)
+            .ToHashSet();
+        var createdCardIds = after.Cards
+            .Where(item => !beforeCardIds.Contains(item.InstanceId))
+            .Select(item => item.InstanceId)
+            .ToHashSet();
         var actualDraw = intrinsicEvents.Count(item =>
             item.Kind == CombatSimulationEventKind.CardDrawn
+            && !createdCardIds.Contains(item.CardInstanceId)
             && (item.TargetActorId == 0 || item.TargetActorId == playerId));
         var consumedCard = action.Kind == CombatSimulationActionKind.PlayCard
                            && before.Hand.Contains(action.CardInstanceId)
@@ -373,15 +507,16 @@ public static class CombatSemanticAuditor
             "",
             energyTraceComplete);
 
-        var actualGenerated = intrinsicEvents.Count(item =>
-            item.Kind == CombatSimulationEventKind.CardCreated);
-        var observedGenerated = Math.Max(
-            0,
-            after.Cards.Count - before.Cards.Count);
-        var generationTraceComplete = observedGenerated <= 0
-                                      || actionEvents.Any(item =>
-                                          item.Kind
-                                          == CombatSimulationEventKind.CardCreated);
+        var actualGenerated = createdCardIds.Count;
+        var generationTraceComplete = createdCardIds.Count == 0
+                                      || createdCardIds.All(instanceId =>
+                                          actionEvents.Any(item =>
+                                              item.CardInstanceId == instanceId
+                                              && item.Kind is
+                                                  CombatSimulationEventKind.CardCreated
+                                                  or CombatSimulationEventKind.CardDrawn
+                                                  or CombatSimulationEventKind.CardDiscarded
+                                                  or CombatSimulationEventKind.CardExhausted));
         Compare(
             result,
             "card-generation",
@@ -507,12 +642,29 @@ public static class CombatSemanticAuditor
             and not CombatSimulationEventKind.TurnEnded;
     }
 
+    private static bool IsHpAssignment(CombatSimulationEvent item)
+    {
+        return item.Kind == CombatSimulationEventKind.VariableChanged
+               && (string.Equals(
+                       item.DefinitionId,
+                       "Hp",
+                       StringComparison.OrdinalIgnoreCase)
+                   || string.Equals(
+                       item.Message,
+                       "Hp",
+                       StringComparison.OrdinalIgnoreCase));
+    }
+
     private static double EffectiveDamage(
         CombatBattleState before,
         CombatSimulationAction action,
         CombatActionSemantics projected,
         CombatRuleset? ruleset)
     {
+        if (projected.Damage <= 0d && projected.TrueDamage <= 0d)
+        {
+            return 0d;
+        }
         var source = before.FindActor(action.ActorId) ?? before.Player;
         var target = before.FindActor(action.TargetActorId);
         if (target == null)
@@ -568,6 +720,10 @@ public static class CombatSemanticAuditor
         CombatActionSemantics projected,
         CombatRuleset? ruleset)
     {
+        if (projected.Damage <= 0d && projected.TrueDamage <= 0d)
+        {
+            return 0d;
+        }
         var source = before.FindActor(action.ActorId) ?? before.Player;
         var target = before.FindActor(action.TargetActorId);
         if (target == null)
@@ -754,6 +910,13 @@ public static class CombatSemanticAuditor
                 {
                     TargetId = targetId,
                     StatusId = effect.DefinitionId
+                }))
+            .Concat(intrinsicEvents
+                .Where(item => item.Kind == CombatSimulationEventKind.StatusAdded)
+                .Select(item => new
+                {
+                    TargetId = item.TargetActorId,
+                    StatusId = item.DefinitionId
                 }))
             .Distinct()
             .ToList();

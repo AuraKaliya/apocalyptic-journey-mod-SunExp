@@ -163,6 +163,7 @@ public sealed class CombatSimulationEngine
         private readonly Queue<string> recentCommands = new();
         private CombatSimulationFailureDiagnostics failureDiagnostics = new();
         private readonly List<CombatSimulationEvent> secondaryCommandEvents = new();
+        private List<CombatSimulationEvent>? currentActionContractEvents;
         private readonly ICombatSimulationRuntimeExtension? extension;
         private readonly HashSet<long> extensionEventSequences = new();
         private bool extensionInitialized;
@@ -972,7 +973,9 @@ public sealed class CombatSimulationEngine
 
             var contractSnapshot =
                 CombatActionContractSnapshot.Capture(State);
+            currentActionContractEvents = new List<CombatSimulationEvent>();
             State.ActionSequence++;
+            var sourceActionId = State.ActionSequence;
             ResetHpLossWindow();
             currentActionCommandCount = 0;
             currentActionDefinitionId = definition.CardId;
@@ -1038,10 +1041,15 @@ public sealed class CombatSimulationEngine
             {
                 return false;
             }
+            var contractEvents = currentActionContractEvents
+                                 ?? new List<CombatSimulationEvent>();
+            currentActionContractEvents = null;
             if (!CombatActionContractEvaluator.AppliedPostconditionsSatisfied(
                     definition.ActionContract,
                     contractSnapshot,
                     CombatActionContractSnapshot.Capture(State),
+                    contractEvents,
+                    sourceActionId,
                     out var contractFailureReason))
             {
                 metrics.InteractiveActionContractFailures++;
@@ -2462,13 +2470,27 @@ public sealed class CombatSimulationEngine
                     // Witch ScriptExecutor.SetHp assigns CurHp directly. It is
                     // intentionally neither healing nor damage and therefore
                     // must not emit either lifecycle event.
+                    var previousSetHp = target.Hp;
                     target.Hp = command.Amount;
-                    return null;
+                    var setHpEvent = EmitFromCommand(
+                        CombatSimulationEventKind.VariableChanged,
+                        command,
+                        target.Hp - previousSetHp,
+                        beforeHash);
+                    setHpEvent.Message = "Hp";
+                    return setHpEvent;
 
                 case CombatSimulationEffectKind.SetHpToMax:
                     if (target == null) return null;
+                    var previousMaxHp = target.Hp;
                     target.Hp = Math.Max(1, target.MaxHp);
-                    return null;
+                    var setMaxHpEvent = EmitFromCommand(
+                        CombatSimulationEventKind.VariableChanged,
+                        command,
+                        target.Hp - previousMaxHp,
+                        beforeHash);
+                    setMaxHpEvent.Message = "Hp";
+                    return setMaxHpEvent;
 
                 case CombatSimulationEffectKind.Draw:
                     DrawCards(command.Amount, command.TargetActorId, command.ParentSequence);
@@ -4164,6 +4186,7 @@ public sealed class CombatSimulationEngine
                 RandomCounter = randomDraw?.Counter ?? 0,
                 RandomValue = randomDraw?.Value ?? 0
             };
+            currentActionContractEvents?.Add(item);
             if (ShouldTrace(kind))
             {
                 Events.Add(item);

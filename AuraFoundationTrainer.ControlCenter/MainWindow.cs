@@ -277,6 +277,22 @@ internal sealed class MainWindow : Window
         AddDouble(panel, "ModelMaximumFrameStratumWeight", "帧分层最大权重");
         AddToggle(panel, "EnableEndTurnSpecialization", "启用结束回合专项训练");
         AddDouble(panel, "ModelEndTurnFrameWeight", "结束回合帧权重");
+        AddDouble(
+            panel,
+            "ModelMaximumUnsafeEndTurnFrameShare",
+            "不安全结束回合最大占比");
+        AddNumber(
+            panel,
+            "ModelMinimumValidationRunGroups",
+            "最少验证运行组",
+            1,
+            256);
+        AddNumber(
+            panel,
+            "ModelMinimumTestRunGroups",
+            "最少测试运行组",
+            1,
+            256);
         AddDouble(panel, "ModelPolicyTargetTemperature", "策略目标温度");
         AddDouble(
             panel,
@@ -993,15 +1009,19 @@ internal sealed class MainWindow : Window
 
     private void PresentResult(ControllerWorkerResultSummary result)
     {
-        var accepted = string.Equals(
-            result.CompletionKind,
-            "training-accepted",
-            StringComparison.Ordinal);
+        var accepted = result.ModelAccepted
+                       || string.Equals(
+                           result.CompletionKind,
+                           "training-accepted",
+                           StringComparison.Ordinal);
+        var semanticRejected = result.Training?.SemanticGatePassed == false;
         runStatus.Text = accepted
             ? "训练完成 · 底模已通过隔离验收"
             : result.Cancelled
                 ? "训练已取消"
-                : "训练结束 · " + result.CompletionKind;
+                : semanticRejected
+                    ? "训练已安全拒绝 · 语义门禁未通过"
+                    : "训练结束 · " + result.CompletionKind;
         runStatus.Foreground = accepted
             ? TrainerTheme.Success
             : result.Cancelled
@@ -1022,10 +1042,18 @@ internal sealed class MainWindow : Window
                 + $"无效果动作 "
                 + $"{result.Training.Validation.NoEffectActionAttempts} · "
                 + $"交互契约失败 "
-                + $"{result.Training.Validation.InteractiveActionContractFailures}";
+                + $"{result.Training.Validation.InteractiveActionContractFailures} · "
+                + $"语义隔离 {result.Training.SemanticRejectedCampaigns}/"
+                + $"{result.Training.DiscardedSemanticEpisodes}";
         }
         logBox.Text =
             $"完成类型：{result.CompletionKind}\r\n"
+            + $"Worker 已完成：{result.WorkerCompleted}\r\n"
+            + $"训练成功：{result.TrainingSucceeded}\r\n"
+            + $"模型已接受：{result.ModelAccepted}\r\n"
+            + $"执行/选中 epoch：{result.EpochsExecuted}/{result.SelectedEpoch}\r\n"
+            + $"持久化回放：{result.PersistedReplayEpisodes}\r\n"
+            + $"检查点大小：{result.CheckpointBytes:N0} bytes\r\n"
             + $"运行时：{result.Runtime}\r\n"
             + $"规则集：{result.RulesetHash}\r\n"
             + $"可恢复：{result.Resumable}\r\n"
@@ -1350,6 +1378,12 @@ internal sealed class MainWindow : Window
         p.ModelMaximumFrameStratumWeight =
             Double("ModelMaximumFrameStratumWeight");
         p.ModelEndTurnFrameWeight = Double("ModelEndTurnFrameWeight");
+        p.ModelMaximumUnsafeEndTurnFrameShare =
+            Double("ModelMaximumUnsafeEndTurnFrameShare");
+        p.ModelMinimumValidationRunGroups =
+            Int("ModelMinimumValidationRunGroups");
+        p.ModelMinimumTestRunGroups =
+            Int("ModelMinimumTestRunGroups");
         p.ModelPolicyTargetTemperature =
             Double("ModelPolicyTargetTemperature");
         p.ModelMaximumPolicyTargetProbability =
@@ -1453,6 +1487,15 @@ internal sealed class MainWindow : Window
             "ModelMaximumFrameStratumWeight",
             p.ModelMaximumFrameStratumWeight);
         Set("ModelEndTurnFrameWeight", p.ModelEndTurnFrameWeight);
+        Set(
+            "ModelMaximumUnsafeEndTurnFrameShare",
+            p.ModelMaximumUnsafeEndTurnFrameShare);
+        Set(
+            "ModelMinimumValidationRunGroups",
+            p.ModelMinimumValidationRunGroups);
+        Set(
+            "ModelMinimumTestRunGroups",
+            p.ModelMinimumTestRunGroups);
         Set(
             "ModelPolicyTargetTemperature",
             p.ModelPolicyTargetTemperature);
@@ -1836,6 +1879,41 @@ internal sealed class MainWindow : Window
                         reader.Value,
                         CultureInfo.InvariantCulture);
                     break;
+                case nameof(ControllerWorkerResultSummary.WorkerCompleted):
+                    summary.WorkerCompleted = Convert.ToBoolean(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerWorkerResultSummary.TrainingSucceeded):
+                    summary.TrainingSucceeded = Convert.ToBoolean(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerWorkerResultSummary.ModelAccepted):
+                    summary.ModelAccepted = Convert.ToBoolean(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerWorkerResultSummary.EpochsExecuted):
+                    summary.EpochsExecuted = Convert.ToInt32(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerWorkerResultSummary.SelectedEpoch):
+                    summary.SelectedEpoch = Convert.ToInt32(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerWorkerResultSummary.PersistedReplayEpisodes):
+                    summary.PersistedReplayEpisodes = Convert.ToInt32(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerWorkerResultSummary.CheckpointBytes):
+                    summary.CheckpointBytes = Convert.ToInt64(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
                 case nameof(ControllerWorkerResultSummary.Cancelled):
                     summary.Cancelled = Convert.ToBoolean(
                         reader.Value,
@@ -1991,6 +2069,32 @@ internal sealed class MainWindow : Window
                     summary.GeneratedReplayEpisodes = Convert.ToInt32(
                         reader.Value,
                         CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerTrainingResultSummary.PersistedReplayEpisodes):
+                    summary.PersistedReplayEpisodes = Convert.ToInt32(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerTrainingResultSummary.SemanticGatePassed):
+                    summary.SemanticGatePassed = Convert.ToBoolean(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerTrainingResultSummary.SemanticRejectedCampaigns):
+                    summary.SemanticRejectedCampaigns = Convert.ToInt32(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerTrainingResultSummary.DiscardedSemanticEpisodes):
+                    summary.DiscardedSemanticEpisodes = Convert.ToInt32(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerTrainingResultSummary.SemanticGateFailureReason):
+                    summary.SemanticGateFailureReason = Convert.ToString(
+                                                           reader.Value,
+                                                           CultureInfo.InvariantCulture)
+                                                       ?? "";
                     break;
                 case nameof(ControllerTrainingResultSummary.LoadedExpertReplayEpisodes):
                     summary.LoadedExpertReplayEpisodes = Convert.ToInt32(

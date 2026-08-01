@@ -33,6 +33,118 @@ Give full project test wrappers a timeout of at least three minutes.
 
 ---
 
+## [ERR-20260801-001] realized-semantics-double-normalization
+
+**Logged**: 2026-08-01T00:00:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: training
+
+### Summary
+Authoritative branch events already contained resolved damage, block, and heal
+amounts, but semantic auditing applied combat modifiers to those amounts again.
+
+### Error
+```text
+card_2|defend:projected=7,effective=10,actual=7
+```
+
+### Context
+- A two-campaign smoke happened not to select an affected action.
+- A 16-campaign run found 115 selected unexplained mismatches.
+- Zero-damage semantics could also acquire positive damage from flat modifiers.
+
+### Suggested Fix
+Mark event-derived semantics as realized, bypass modifier normalization for that
+projection, and short-circuit effective damage when no damage is projected.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraCombatAiShared/CombatSemanticAudit.cs
+
+### Resolution
+- **Resolved**: 2026-08-01T00:00:00+08:00
+- **Notes**: The expanded run completed 246/246 campaigns and 8386 battles
+  with selected invalid/unexplained counts both equal to zero.
+
+---
+
+## [ERR-20260801-002] relative-managed-path-consumer-build
+
+**Logged**: 2026-08-01T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: build
+
+### Summary
+Passing `./Managed` to the multi-project consumer build made MSBuild resolve the
+reference directory relative to each project instead of the repository root.
+
+### Error
+```text
+MSB3245: Could not resolve UnityEngine.CoreModule / Witch / Newtonsoft.Json
+```
+
+### Suggested Fix
+Resolve `Managed` to an absolute path before invoking
+`Build-MainSharedConsumers.ps1`.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Build-MainSharedConsumers.ps1
+
+### Resolution
+- **Resolved**: 2026-08-01T00:00:00+08:00
+- **Notes**: All three consumers built serially with zero warnings/errors.
+
+---
+
+## [ERR-20260801-001] action-contract-net-count-and-native-trace-gap
+
+**Logged**: 2026-08-01T12:00:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: training-integrity
+
+### Summary
+The Divine Choice postcondition compared draw-pile and hand net counts. Long
+foundation runs therefore rejected valid actions when the same causal action
+also created or moved other cards. Requiring only `CardDrawn` trace events was
+also insufficient because authoritative native programs may mutate card zones
+without emitting that fine-grained event.
+
+### Error
+```text
+action-contract:careercard_1: expected at least 1 card(s) to move from draw
+pile to hand (draw 1->15, hand 6->8)
+```
+
+### Context
+- The action boundary was correct, but aggregate zone sizes were not a causal
+  proof of which card moved.
+- Summary/no-trace simulation modes intentionally omit most events.
+- The native `GetCardFromDeck` path updates `DrawPile` and `Hand` directly.
+
+### Suggested Fix
+Capture card instance IDs at the action boundary. Accept a postcondition when
+the same instance is proven by a matching `SourceActionId` event, or by the
+atomic before/after action snapshots when a native path has no fine-grained
+event. Keep the historical failure seeds in every preflight.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraCombatSimulationShared/CombatActionContracts.cs,
+  AuraCombatSimulationShared/CombatSimulationEngine.cs,
+  AuraCombatAiShared/CombatCampaignFoundationTraining.cs
+
+### Resolution
+- **Resolved**: 2026-08-01T12:00:00+08:00
+- **Notes**: Introduced `action-contract-v2`, added the three observed world
+  seeds to `integrity-seeds-v1`, and passed the 64-campaign native integrity
+  sweep plus the shared release gate.
+
+---
+
 ## [ERR-20260731-014] ripgrep-no-match-exit-code
 
 **Logged**: 2026-07-31T15:05:00+08:00

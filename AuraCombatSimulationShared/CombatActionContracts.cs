@@ -6,7 +6,7 @@ namespace AuraCombatSimulation.Shared;
 
 public static class CombatActionContractProtocol
 {
-    public const string Version = "action-contract-v1";
+    public const string Version = "action-contract-v2";
 }
 
 public sealed class CombatActionPreconditionDefinition
@@ -71,22 +71,30 @@ public sealed class CombatActionEligibility
 
 public readonly struct CombatActionContractSnapshot
 {
-    public CombatActionContractSnapshot(int drawPileCount, int handCount)
+    public CombatActionContractSnapshot(
+        IReadOnlyCollection<int> drawPileInstanceIds,
+        IReadOnlyCollection<int> handInstanceIds)
     {
-        DrawPileCount = drawPileCount;
-        HandCount = handCount;
+        DrawPileInstanceIds = new HashSet<int>(
+            drawPileInstanceIds ?? Array.Empty<int>());
+        HandInstanceIds = new HashSet<int>(
+            handInstanceIds ?? Array.Empty<int>());
     }
 
-    public int DrawPileCount { get; }
+    public IReadOnlyCollection<int> DrawPileInstanceIds { get; }
 
-    public int HandCount { get; }
+    public IReadOnlyCollection<int> HandInstanceIds { get; }
+
+    public int DrawPileCount => DrawPileInstanceIds.Count;
+
+    public int HandCount => HandInstanceIds.Count;
 
     public static CombatActionContractSnapshot Capture(CombatBattleState state)
     {
         if (state == null) throw new ArgumentNullException(nameof(state));
         return new CombatActionContractSnapshot(
-            state.DrawPile.Count,
-            state.Hand.Count);
+            state.DrawPile,
+            state.Hand);
     }
 }
 
@@ -172,6 +180,8 @@ public static class CombatActionContractEvaluator
         CombatActionContractDefinition? contract,
         CombatActionContractSnapshot before,
         CombatActionContractSnapshot after,
+        IReadOnlyList<CombatSimulationEvent>? actionEvents,
+        long sourceActionId,
         out string reason)
     {
         var minimumMoved =
@@ -181,9 +191,25 @@ public static class CombatActionContractEvaluator
             reason = "";
             return true;
         }
-        var removedFromDraw = before.DrawPileCount - after.DrawPileCount;
-        var addedToHand = after.HandCount - before.HandCount;
-        if (removedFromDraw >= minimumMoved && addedToHand >= minimumMoved)
+        var eventMovedInstanceIds = (actionEvents
+                                     ?? Array.Empty<CombatSimulationEvent>())
+            .Where(item => item.Kind == CombatSimulationEventKind.CardDrawn
+                           && item.SourceActionId == sourceActionId
+                           && before.DrawPileInstanceIds.Contains(
+                               item.CardInstanceId)
+                           && after.HandInstanceIds.Contains(
+                               item.CardInstanceId))
+            .Select(item => item.CardInstanceId)
+            .Distinct()
+            .ToList();
+        var snapshotMovedInstanceIds = before.DrawPileInstanceIds
+            .Where(item => after.HandInstanceIds.Contains(item))
+            .ToList();
+        var movedInstanceIds = eventMovedInstanceIds
+            .Concat(snapshotMovedInstanceIds)
+            .Distinct()
+            .ToList();
+        if (movedInstanceIds.Count >= minimumMoved)
         {
             reason = "";
             return true;
@@ -192,7 +218,11 @@ public static class CombatActionContractEvaluator
             "expected at least "
             + minimumMoved
             + " card(s) to move from draw pile to hand"
-            + " (draw "
+            + " for source action "
+            + sourceActionId
+            + " (causal moves "
+            + movedInstanceIds.Count
+            + ", draw "
             + before.DrawPileCount
             + "->"
             + after.DrawPileCount
@@ -200,6 +230,15 @@ public static class CombatActionContractEvaluator
             + before.HandCount
             + "->"
             + after.HandCount
+            + "; card-drawn evidence "
+            + string.Join(
+                ",",
+                (actionEvents ?? Array.Empty<CombatSimulationEvent>())
+                    .Where(item =>
+                        item.Kind == CombatSimulationEventKind.CardDrawn)
+                    .Take(8)
+                    .Select(item =>
+                        item.SourceActionId + ":" + item.CardInstanceId))
             + ")";
         return false;
     }

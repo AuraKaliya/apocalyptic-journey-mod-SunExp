@@ -1262,7 +1262,7 @@
       "fidelity": "Authoritative",
       "verificationSource": "Decompiler:v1.0.23816797",
       "actionContract": {
-        "version": "action-contract-v1",
+        "version": "action-contract-v2",
         "preconditions": [
           {
             "kind": "DrawPileCountAtLeast",

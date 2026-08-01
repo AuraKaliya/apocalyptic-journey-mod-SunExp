@@ -66,6 +66,20 @@ internal sealed class ControllerWorkerResultSummary
 
     public bool Success { get; set; }
 
+    public bool WorkerCompleted { get; set; }
+
+    public bool TrainingSucceeded { get; set; }
+
+    public bool ModelAccepted { get; set; }
+
+    public int EpochsExecuted { get; set; }
+
+    public int SelectedEpoch { get; set; }
+
+    public int PersistedReplayEpisodes { get; set; }
+
+    public long CheckpointBytes { get; set; }
+
     public bool Cancelled { get; set; }
 
     public string CompletionKind { get; set; } = "";
@@ -108,6 +122,16 @@ internal sealed class ControllerTrainingResultSummary
     public string Message { get; set; } = "";
 
     public int GeneratedReplayEpisodes { get; set; }
+
+    public int PersistedReplayEpisodes { get; set; }
+
+    public bool SemanticGatePassed { get; set; } = true;
+
+    public int SemanticRejectedCampaigns { get; set; }
+
+    public int DiscardedSemanticEpisodes { get; set; }
+
+    public string SemanticGateFailureReason { get; set; } = "";
 
     public int LoadedExpertReplayEpisodes { get; set; }
 

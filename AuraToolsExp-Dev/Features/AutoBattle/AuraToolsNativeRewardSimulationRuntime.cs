@@ -1886,7 +1886,11 @@ public sealed partial class NativeRewardScriptGlobals
             var actor = context.State.FindActor(actorId);
             if (actor != null)
             {
-                actor.Hp = Math.Max(0, Math.Min(actor.MaxHp, Number(amount)));
+                ApplyTo(
+                    actorId,
+                    CombatSimulationEffectKind.SetHp,
+                    "Hp",
+                    Math.Max(0, Math.Min(actor.MaxHp, Number(amount))));
             }
         }
     }

@@ -418,7 +418,7 @@ foreach ($anchor in @(
 }
 
 foreach ($anchor in @(
-    "action-contract-v1",
+    "action-contract-v2",
     "CombatActionContractDefinition",
     "GameInvocable",
     "PolicyEligible",
@@ -761,8 +761,8 @@ foreach ($relicId in $avoidedRelicIds) {
     }
 }
 foreach ($anchor in @(
-    'Version = "success-case-archive-worker-v3"',
-    "StorageVersion = 3",
+    'Version = "success-case-archive-worker-v4"',
+    "StorageVersion = 4",
     "CompatibilityKeyLength = 16",
     "EntryKeyLength = 24",
     "CompactIdentifier"
@@ -953,7 +953,7 @@ $divineChoice = @($bundledRules.cards | Where-Object {
 if ($null -eq $divineChoice `
     -or $divineChoice.requiresEnemyTarget `
     -or $divineChoice.verificationSource -ne "Decompiler:v1.0.23816797" `
-    -or $divineChoice.actionContract.version -ne "action-contract-v1" `
+    -or $divineChoice.actionContract.version -ne "action-contract-v2" `
     -or @($divineChoice.actionContract.preconditions).Count -ne 2 `
     -or $divineChoice.actionContract.preconditionFailureOutcome -ne "NoEffect" `
     -or $divineChoice.actionContract.policyEligibleOnPreconditionFailure) {

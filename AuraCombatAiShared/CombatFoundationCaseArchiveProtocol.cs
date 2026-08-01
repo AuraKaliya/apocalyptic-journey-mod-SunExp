@@ -5,9 +5,9 @@ namespace AuraCombatAi.Shared;
 
 public static class CombatFoundationCaseArchiveProtocol
 {
-    public const string Version = "success-case-archive-worker-v3";
+    public const string Version = "success-case-archive-worker-v4";
 
-    public const int StorageVersion = 3;
+    public const int StorageVersion = 4;
 
     public const int CompatibilityKeyLength = 16;
 
@@ -83,4 +83,19 @@ public static class CombatFoundationCaseArchiveProtocol
         }
         return safe.Substring(0, maximumLength);
     }
+}
+
+public sealed class CombatFoundationExpertCaseReference
+{
+    public string ProtocolVersion { get; set; } =
+        CombatFoundationCaseArchiveProtocol.Version;
+
+    public int StorageVersion { get; set; } =
+        CombatFoundationCaseArchiveProtocol.StorageVersion;
+
+    public string CompatibilityKey { get; set; } = "";
+
+    public string CaseId { get; set; } = "";
+
+    public string CanonicalFileName { get; set; } = "";
 }

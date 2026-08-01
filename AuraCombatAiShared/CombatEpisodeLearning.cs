@@ -192,7 +192,13 @@ public sealed class CombatPolicyValueTrainingOptions
 
     public bool EnableEndTurnSpecialization { get; set; } = true;
 
-    public double EndTurnFrameWeight { get; set; } = 2d;
+    public double EndTurnFrameWeight { get; set; } = 1d;
+
+    public double MaximumUnsafeEndTurnFrameShare { get; set; } = 0.35d;
+
+    public int MinimumValidationRunGroups { get; set; } = 16;
+
+    public int MinimumTestRunGroups { get; set; } = 16;
 
     public double PolicyTargetTemperature { get; set; } = 1.25d;
 
@@ -243,9 +249,20 @@ public sealed class CombatPolicyValueTrainingOptions
             EnableEndTurnSpecialization = EnableEndTurnSpecialization,
             EndTurnFrameWeight = Clamp(
                 EndTurnFrameWeight,
+                0.25d,
                 1d,
-                5d,
-                2d),
+                1d),
+            MaximumUnsafeEndTurnFrameShare = Clamp(
+                MaximumUnsafeEndTurnFrameShare,
+                0.10d,
+                0.80d,
+                0.35d),
+            MinimumValidationRunGroups = Math.Max(
+                1,
+                Math.Min(256, MinimumValidationRunGroups)),
+            MinimumTestRunGroups = Math.Max(
+                1,
+                Math.Min(256, MinimumTestRunGroups)),
             PolicyTargetTemperature = Clamp(
                 PolicyTargetTemperature,
                 1d,
@@ -286,6 +303,10 @@ public sealed class CombatPolicyValueTrainingResult
     public int FrameCount { get; set; }
 
     public int DroppedFramesByEpisodeCap { get; set; }
+
+    public int TrainingFrameCount { get; set; }
+
+    public int DroppedUnsafeEndTurnFrames { get; set; }
 
     public CombatPolicyValueNetworkDefinition? Model { get; set; }
 
