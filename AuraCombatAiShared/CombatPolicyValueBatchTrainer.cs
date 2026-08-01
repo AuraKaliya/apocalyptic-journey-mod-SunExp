@@ -614,6 +614,7 @@ internal static class CombatPolicyValueBatchTrainer
                 startEpoch,
                 completedEpochsActual),
             ["bestEpoch"] = bestEpoch,
+            ["candidateEpoch"] = bestEpoch,
             ["earlyStopped"] = stoppedEarly ? 1d : 0d,
             ["batchSize"] = options.BatchSize,
             ["gradientShardCount"] = options.GradientShardCount,
@@ -739,30 +740,38 @@ internal static class CombatPolicyValueBatchTrainer
                     testFrames,
                     parallelism,
                     cancellationToken);
+            // Epoch snapshots are captured before the final full-evaluation
+            // metric set is assembled. Start from the selected model's full
+            // manifest and then overlay epoch-specific values so a tuning
+            // winner never loses provenance/training diagnostics merely
+            // because it came from a retained non-best epoch.
             var inherited = new Dictionary<string, double>(
-                calibrated.Metrics
+                selectedModel.Metrics
                 ?? new Dictionary<string, double>(),
-                StringComparer.OrdinalIgnoreCase)
+                StringComparer.OrdinalIgnoreCase);
+            foreach (var metric in calibrated.Metrics
+                         ?? new Dictionary<string, double>())
             {
-                ["validationPolicyAccuracy"] =
-                    validation.PolicyAccuracy,
-                ["validationPolicyCrossEntropy"] =
-                    validation.PolicyCrossEntropy,
-                ["validationCriticalPolicyAccuracy"] =
-                    validation.CriticalPolicyAccuracy,
-                ["validationValueMae"] = validation.ValueMae,
-                ["validationBrier"] = validation.Brier,
-                ["validationDeathBrier"] = validation.DeathBrier,
-                ["validationHpMae"] = validation.HpMae,
-                ["validationTurnHuber"] = validation.TurnHuber,
-                ["validationCompositeLoss"] =
-                    CompositeValidationLoss(validation),
-                ["testCompositeLoss"] = testFrames.Length == 0
-                    ? 0d
-                    : CompositeValidationLoss(test),
-                ["policyTemperature"] = calibrated.PolicyTemperature,
-                ["candidateEpoch"] = candidate.Epoch
-            };
+                inherited[metric.Key] = metric.Value;
+            }
+            inherited["validationPolicyAccuracy"] =
+                validation.PolicyAccuracy;
+            inherited["validationPolicyCrossEntropy"] =
+                validation.PolicyCrossEntropy;
+            inherited["validationCriticalPolicyAccuracy"] =
+                validation.CriticalPolicyAccuracy;
+            inherited["validationValueMae"] = validation.ValueMae;
+            inherited["validationBrier"] = validation.Brier;
+            inherited["validationDeathBrier"] = validation.DeathBrier;
+            inherited["validationHpMae"] = validation.HpMae;
+            inherited["validationTurnHuber"] = validation.TurnHuber;
+            inherited["validationCompositeLoss"] =
+                CompositeValidationLoss(validation);
+            inherited["testCompositeLoss"] = testFrames.Length == 0
+                ? 0d
+                : CompositeValidationLoss(test);
+            inherited["policyTemperature"] = calibrated.PolicyTemperature;
+            inherited["candidateEpoch"] = candidate.Epoch;
             calibrated.Metrics = inherited;
             result.Add(new CombatPolicyValueModelCandidate
             {
@@ -780,9 +789,10 @@ internal static class CombatPolicyValueBatchTrainer
             result.Add(new CombatPolicyValueModelCandidate
             {
                 Epoch = selectedEpoch,
-                ValidationLoss = selectedModel.Metrics.TryGetValue(
-                    "validationCompositeLoss",
-                    out var loss)
+                ValidationLoss = selectedModel.Metrics != null
+                                 && selectedModel.Metrics.TryGetValue(
+                                     "validationCompositeLoss",
+                                     out var loss)
                     ? loss
                     : double.MaxValue,
                 TrainingMetrics = Snapshot(

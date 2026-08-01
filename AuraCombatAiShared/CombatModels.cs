@@ -74,11 +74,14 @@ public enum CombatEffectKind
     Heal,
     Draw,
     GainEnergy,
+    SetEnergy,
+    SetCardCostMultiplier,
     ReduceCost,
     Buff,
     Debuff,
     Cleanse,
     GenerateCard,
+    RetrieveCards,
     PersistentValue,
     Scaling,
     DamageMultiplier
@@ -95,6 +98,34 @@ public sealed class CombatEffectOperation
     public double SecondaryMagnitude { get; set; }
 
     public string SemanticId { get; set; } = "";
+
+    public CombatCardZoneKind SourceCardZone { get; set; }
+
+    public CombatCardZoneKind DestinationCardZone { get; set; }
+
+    public int SelectionRank { get; set; }
+}
+
+public enum CombatCardZoneKind
+{
+    DrawPile,
+    Hand,
+    DiscardPile,
+    ExhaustPile
+}
+
+public sealed class CombatCardRetrievalSemantic
+{
+    public CombatCardZoneKind SourceZone { get; set; }
+
+    public CombatCardZoneKind DestinationZone { get; set; } =
+        CombatCardZoneKind.Hand;
+
+    public int Amount { get; set; }
+
+    public string RequiredCardTag { get; set; } = "";
+
+    public int CandidateBranchCount { get; set; } = 3;
 }
 
 public sealed class CombatActionOutcome
@@ -286,6 +317,15 @@ public sealed class CombatActionSemantics
 
     public double EnergyGain { get; set; }
 
+    public double? EnergySetAmount { get; set; }
+
+    public double? EnergyMinimum { get; set; }
+
+    public bool RestoreEnergyToMaximum { get; set; }
+
+    public List<CombatCardRetrievalSemantic> CardRetrievals { get; set; } =
+        new();
+
     public double Scaling { get; set; }
 
     public double DeckValue { get; set; }
@@ -465,6 +505,9 @@ public sealed class CombatStateObservation
 
     public List<string> ExhaustPileCardIds { get; set; } = new();
 
+    public Dictionary<string, List<string>> CardTagsById { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public List<CombatDeferredEffectObservation> DeferredEffects { get; set; } = new();
 
     public CombatDeckKnowledge DeckKnowledge { get; set; } = new();
@@ -522,6 +565,8 @@ public sealed class CombatDecisionProfile
 
     public string SearchBudgetContext { get; set; } = "deployment";
 
+    public int SearchTimeBudgetMilliseconds { get; set; }
+
     public double SearchExploration { get; set; } = 1.15d;
 
     public double DeathRiskLimit { get; set; } = 0.05d;
@@ -551,6 +596,10 @@ public sealed class CombatDecisionProfile
     public double EndTurnUncertainty { get; set; } = 0.35d;
 
     public bool PreferDominantFreeSetup { get; set; } = true;
+
+    public bool UseLowConfidenceFallback { get; set; } = true;
+
+    public double MinimumSearchConfidence { get; set; } = 0.35d;
 
 }
 
@@ -630,6 +679,20 @@ public sealed class CombatDecision
 
     public bool SearchStoppedEarly { get; set; }
 
+    public bool SearchStoppedByTime { get; set; }
+
+    public double SearchConfidence { get; set; }
+
+    public double SearchValueGap { get; set; }
+
+    public int SearchBestVisits { get; set; }
+
+    public int SearchSecondBestVisits { get; set; }
+
+    public int SearchCandidateCount { get; set; }
+
+    public int SearchOriginalCandidateCount { get; set; }
+
     public string SearchBudgetTier { get; set; } = "";
 
     public int CertifiedLoops { get; set; }
@@ -641,6 +704,10 @@ public sealed class CombatDecision
     public int BlockedLoops { get; set; }
 
     public string SearchAlgorithm { get; set; } = "";
+
+    public int InferenceWorkerCount { get; set; } = 1;
+
+    public double InferenceAgreement { get; set; } = 1d;
 }
 
 public sealed class CombatExecutionResult

@@ -430,6 +430,18 @@ public static class CombatKnowledgeRegistry
             Heal = source.Heal,
             Draw = source.Draw,
             EnergyGain = source.EnergyGain,
+            EnergySetAmount = source.EnergySetAmount,
+            EnergyMinimum = source.EnergyMinimum,
+            RestoreEnergyToMaximum = source.RestoreEnergyToMaximum,
+            CardRetrievals = source.CardRetrievals.Select(item =>
+                new CombatCardRetrievalSemantic
+                {
+                    SourceZone = item.SourceZone,
+                    DestinationZone = item.DestinationZone,
+                    Amount = item.Amount,
+                    RequiredCardTag = item.RequiredCardTag,
+                    CandidateBranchCount = item.CandidateBranchCount
+                }).ToList(),
             Scaling = source.Scaling,
             DeckValue = source.DeckValue,
             Buff = source.Buff,

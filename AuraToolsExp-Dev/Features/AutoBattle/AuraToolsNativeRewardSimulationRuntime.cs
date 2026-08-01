@@ -1945,14 +1945,10 @@ public sealed partial class NativeRewardScriptGlobals
 
     public void SetPower(object amount)
     {
-        foreach (var actorId in Targets())
-        {
-            var actor = context.State.FindActor(actorId);
-            if (actor != null)
-            {
-                actor.Energy = Math.Max(0, Number(amount));
-            }
-        }
+        Apply(
+            CombatSimulationEffectKind.SetEnergy,
+            rule.RewardId,
+            Math.Max(0, Number(amount)));
     }
 
     public void ChangeRound()
@@ -5136,10 +5132,17 @@ public sealed class NativeRewardFightCardManager
 {
     public static NativeRewardFightCardManager Instance { get; } = new();
 
+    [ThreadStatic]
+    private static NativeRewardScriptGlobals? threadGlobals;
+
     public Dictionary<NativeRewardDataConfig, List<string>> CardTags { get; } =
         new();
 
-    internal NativeRewardScriptGlobals? Globals { get; set; }
+    internal NativeRewardScriptGlobals? Globals
+    {
+        get => threadGlobals;
+        set => threadGlobals = value;
+    }
 
     public List<NativeRewardDataConfig> cardList =>
         Globals?.DeckCard.Select(item => item.dataConfig).ToList()

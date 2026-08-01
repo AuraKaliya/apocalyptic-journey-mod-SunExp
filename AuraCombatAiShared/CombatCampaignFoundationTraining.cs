@@ -563,6 +563,10 @@ public sealed class CombatCampaignFoundationIteration
 
     public int HardSeedSourceCampaigns { get; set; }
 
+    public int HardSeedRoutedBuildLimitedCampaigns { get; set; }
+
+    public int HardSeedRoutedProvisionalBuildLimitedCampaigns { get; set; }
+
     public int HardSeedTrainingCampaigns { get; set; }
 
     public int HardSeedTrainingVictories { get; set; }
@@ -996,6 +1000,10 @@ public sealed class CombatCampaignFoundationTrainingResult
 
     public int DuplicateSuccessCases { get; set; }
 
+    public int ArchiveCapacityRejectedObservations { get; set; }
+
+    public int ArchiveCapacityRejectedCases { get; set; }
+
     public long ExpertReferenceBytes { get; set; }
 
     public long DeduplicatedExpertBytes { get; set; }
@@ -1003,6 +1011,12 @@ public sealed class CombatCampaignFoundationTrainingResult
     public string SuccessArchiveDirectory { get; set; } = "";
 
     public string SuccessCaseIndexPath { get; set; } = "";
+
+    public string BuildLimitedSeedIndexPath { get; set; } = "";
+
+    public int BuildLimitedSeedCases { get; set; }
+
+    public int ProvisionalBuildLimitedSeedCases { get; set; }
 
     public string SuccessArchiveError { get; set; } = "";
 
@@ -2683,6 +2697,10 @@ public sealed class CombatCampaignFoundationTrainer
                         StringComparer.Ordinal),
                 HardSeedSourceCampaigns =
                     hardSeedPlan.SourceCampaigns,
+                HardSeedRoutedBuildLimitedCampaigns =
+                    hardSeedPlan.RoutedBuildLimitedCampaigns,
+                HardSeedRoutedProvisionalBuildLimitedCampaigns =
+                    hardSeedPlan.RoutedProvisionalBuildLimitedCampaigns,
                 HardSeedTrainingCampaigns =
                     hardSeedPlan.Seeds.Count,
                 HardSeedTrainingVictories =
@@ -3399,7 +3417,9 @@ public sealed class CombatCampaignFoundationTrainer
         }
         result.CampaignObservations.Add(observation);
         request.ObservationRecorded?.Invoke(observation);
-        if (observation.ArchiveEligible)
+        if (observation.ArchiveEligible
+            && episodes != null
+            && episodes.Count > 0)
         {
             var successCase = CombatFoundationCaseLearning.CreateSuccessCase(
                 campaign,

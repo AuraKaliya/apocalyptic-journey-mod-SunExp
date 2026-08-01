@@ -520,6 +520,41 @@ public static class CombatAuthoritativeSemanticProjector
             case CombatSimulationEffectKind.GainEnergy:
                 semantics.EnergyGain += expected;
                 break;
+            case CombatSimulationEffectKind.SetEnergy:
+                var energyBefore = state.FindActor(targetActorId)?.Energy ?? 0;
+                var energyDelta = expected - energyBefore;
+                semantics.EnergyGain += Math.Max(0d, energyDelta);
+                if (effect.AmountExpression?.Operation
+                    == CombatSimulationValueOperation.SourceMaxEnergy)
+                {
+                    semantics.RestoreEnergyToMaximum = true;
+                }
+                else if (TryReadEnergyFloor(
+                             effect.AmountExpression,
+                             out var energyFloor))
+                {
+                    semantics.EnergyMinimum = energyFloor;
+                }
+                else
+                {
+                    semantics.EnergySetAmount = Math.Max(0d, expected);
+                }
+                if (targetActorId == state.PlayerActorId)
+                {
+                    semantics.StateChanges["player.energy"] = energyDelta;
+                }
+                break;
+            case CombatSimulationEffectKind.RetrieveCards:
+                semantics.CardRetrievals.Add(new CombatCardRetrievalSemantic
+                {
+                    SourceZone = ToAiCardZone(effect.SourceZone),
+                    DestinationZone = ToAiCardZone(effect.DestinationZone),
+                    Amount = Math.Max(0, (int)Math.Round(expected)),
+                    RequiredCardTag = effect.RequiredCardTag ?? "",
+                    CandidateBranchCount = 3
+                });
+                semantics.OpensInteraction = true;
+                break;
             case CombatSimulationEffectKind.CreateCard:
                 semantics.CardGeneration +=
                     Math.Max(0d, effect.Probability);
@@ -575,6 +610,39 @@ public static class CombatAuthoritativeSemanticProjector
                 semantics.Risk += expected;
                 break;
         }
+    }
+
+    private static CombatCardZoneKind ToAiCardZone(CombatCardZone zone)
+    {
+        return zone switch
+        {
+            CombatCardZone.Hand => CombatCardZoneKind.Hand,
+            CombatCardZone.DiscardPile => CombatCardZoneKind.DiscardPile,
+            CombatCardZone.ExhaustPile => CombatCardZoneKind.ExhaustPile,
+            _ => CombatCardZoneKind.DrawPile
+        };
+    }
+
+    private static bool TryReadEnergyFloor(
+        CombatSimulationValueExpression? expression,
+        out double floor)
+    {
+        floor = 0d;
+        if (expression?.Operation != CombatSimulationValueOperation.Maximum
+            || expression.Arguments.Count != 2)
+        {
+            return false;
+        }
+        var energy = expression.Arguments.FirstOrDefault(argument =>
+            argument.Operation == CombatSimulationValueOperation.SourceEnergy);
+        var constant = expression.Arguments.FirstOrDefault(argument =>
+            argument.Operation == CombatSimulationValueOperation.Constant);
+        if (energy == null || constant == null)
+        {
+            return false;
+        }
+        floor = Math.Max(0d, constant.Constant);
+        return true;
     }
 
     private static List<TargetProjection> ResolveTargets(

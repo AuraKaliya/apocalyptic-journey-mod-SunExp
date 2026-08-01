@@ -269,6 +269,24 @@ public static class CombatTrainingSampleBuilder
             Heal = Finite(value.Heal),
             Draw = Finite(value.Draw),
             EnergyGain = Finite(value.EnergyGain),
+            EnergySetAmount = value.EnergySetAmount.HasValue
+                ? Finite(value.EnergySetAmount.Value)
+                : null,
+            EnergyMinimum = value.EnergyMinimum.HasValue
+                ? Finite(value.EnergyMinimum.Value)
+                : null,
+            RestoreEnergyToMaximum = value.RestoreEnergyToMaximum,
+            CardRetrievals = value.CardRetrievals.Select(item =>
+                new CombatCardRetrievalSemantic
+                {
+                    SourceZone = item.SourceZone,
+                    DestinationZone = item.DestinationZone,
+                    Amount = Math.Max(0, item.Amount),
+                    RequiredCardTag = item.RequiredCardTag ?? "",
+                    CandidateBranchCount = Math.Max(
+                        1,
+                        Math.Min(3, item.CandidateBranchCount))
+                }).ToList(),
             Scaling = Finite(value.Scaling),
             DeckValue = Finite(value.DeckValue),
             Buff = Finite(value.Buff),

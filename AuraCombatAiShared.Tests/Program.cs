@@ -280,8 +280,13 @@ Assert(selection.TryBeginAttempt(0, 0d)
        && selection.TryBeginAttempt(1, 0.2d)
        && selection.Observe(2, 0.3d) == CombatSelectionProgress.Complete,
     "multi-select reaches the exact required count");
-Assert(selection.TryIssueConfirm(2) && !selection.TryIssueConfirm(2),
+Assert(selection.TryIssueConfirm(2, 0.3d) && !selection.TryIssueConfirm(2, 0.3d),
     "prompt confirmation can only be issued once");
+Assert(selection.Observe(2, 0.4d)
+       == CombatSelectionProgress.AwaitingNativeClose
+       && selection.Observe(2, 2.31d)
+       == CombatSelectionProgress.TimedOut,
+    "confirmed prompts wait for native closure without selecting again and fail on a bounded close timeout");
 
 var setupState = new CombatStateObservation
 {
@@ -943,6 +948,134 @@ var secondDiscounted = new CombatActionObservation
 };
 Assert(CombatForwardModel.EffectiveCost(forwardState, secondDiscounted) == 1,
     "surplus cost reduction cannot make every later card free");
+var setEnergyRoot = new CombatStateObservation
+{
+    Player = new CombatUnitObservation { RuntimeId = 71, CurrentHp = 20, MaxHp = 20 },
+    CurrentPower = 1,
+    MaxPower = 4
+};
+var setEnergyAction = new CombatActionObservation
+{
+    CandidateId = "restore-energy",
+    SourceId = "timekeeper_2",
+    Kind = CombatActionKind.PlayCard,
+    Semantics = new CombatActionSemantics { RestoreEnergyToMaximum = true }
+};
+var setEnergyState = CombatForwardModel.Create(setEnergyRoot, 1);
+setEnergyState = CombatForwardModel.Apply(
+    setEnergyState,
+    setEnergyAction,
+    0,
+    CombatForwardModel.Resolve(setEnergyRoot, setEnergyAction).Outcomes[0],
+    new CombatDecisionProfile());
+Assert(setEnergyState.Power == 4,
+    "authoritative set-energy semantics restore the simulated resource to its maximum");
+
+var forwardRetrievalRoot = new CombatStateObservation
+{
+    Player = new CombatUnitObservation { RuntimeId = 72, CurrentHp = 20, MaxHp = 20 },
+    HandCount = 1,
+    HandCardIds = { "timekeeper_18" },
+    CardTagsById =
+    {
+        ["timekeeper_18"] = new List<string> { "Froze" }
+    }
+};
+var forwardRetrievalAction = new CombatActionObservation
+{
+    CandidateId = "retrieve-self",
+    SourceId = "timekeeper_18",
+    Kind = CombatActionKind.PlayCard,
+    Features = { ["cardBaseCost"] = 0d },
+    Semantics = new CombatActionSemantics
+    {
+        CardRetrievals =
+        {
+            new CombatCardRetrievalSemantic
+            {
+                SourceZone = CombatCardZoneKind.DiscardPile,
+                DestinationZone = CombatCardZoneKind.Hand,
+                Amount = 1,
+                RequiredCardTag = "Froze"
+            }
+        }
+    }
+};
+var forwardRetrievalState = CombatForwardModel.Create(forwardRetrievalRoot, 1);
+forwardRetrievalState = CombatForwardModel.Apply(
+    forwardRetrievalState,
+    forwardRetrievalAction,
+    0,
+    CombatForwardModel.Resolve(
+        forwardRetrievalRoot,
+        forwardRetrievalAction).Outcomes[0],
+    new CombatDecisionProfile());
+Assert(forwardRetrievalState.HandCardIds.Contains("timekeeper_18")
+       && forwardRetrievalState.HandCount == 1
+       && forwardRetrievalState.UseCount(0) == 0,
+    "generic tagged retrieval moves the real card between zones and re-enables a retrieved card for loop analysis");
+
+var chaosRoot = new CombatStateObservation
+{
+    Player = new CombatUnitObservation
+    {
+        RuntimeId = 73,
+        CurrentHp = 20,
+        MaxHp = 20,
+        Statuses =
+        {
+            new CombatStatusObservation { StatusId = "buff_chaos", DisplayName = "混乱" }
+        }
+    },
+    CurrentPower = 4,
+    MaxPower = 4,
+    HandCount = 2,
+    Features = { ["cardCostMultiplier"] = 1d }
+};
+var chaosAction = new CombatActionObservation
+{
+    CandidateId = "chaos-card-a",
+    SourceId = "chaos-card-a",
+    Kind = CombatActionKind.PlayCard,
+    Cost = 2,
+    Features =
+    {
+        ["cardBaseCost"] = 2d,
+        ["cardCostCap"] = 4d
+    }
+};
+var chaosFollowUp = new CombatActionObservation
+{
+    CandidateId = "chaos-card-b",
+    SourceId = "chaos-card-b",
+    Kind = CombatActionKind.PlayCard,
+    Cost = 2,
+    Features =
+    {
+        ["cardBaseCost"] = 2d,
+        ["cardCostCap"] = 4d
+    }
+};
+var chaosModel = CombatForwardModel.Resolve(chaosRoot, chaosAction);
+var chaosHashes = new List<ulong>();
+var chaosCosts = chaosModel.Outcomes
+    .Select(outcome =>
+    {
+        var branch = CombatForwardModel.Apply(
+            CombatForwardModel.Create(chaosRoot, 2),
+            chaosAction,
+            0,
+            outcome,
+            new CombatDecisionProfile());
+        chaosHashes.Add(branch.Hash());
+        return CombatForwardModel.EffectiveCost(branch, chaosFollowUp);
+    })
+    .OrderBy(value => value)
+    .ToArray();
+Assert(chaosModel.Outcomes.Count == 3
+       && chaosCosts.SequenceEqual(new[] { 0, 2, 4 })
+       && chaosHashes.Distinct().Count() == 3,
+    "chaos branches the post-action card-cost multiplier and recomputes later card costs in the search tree");
 var multiplierRoot = new CombatStateObservation
 {
     Player = new CombatUnitObservation { RuntimeId = 75, CurrentHp = 20, MaxHp = 20 },
@@ -1647,6 +1780,221 @@ Assert(!CombatActionSettlementPolicy.HasMeaningfulProgress(
         limitedAttack,
         out _),
     "transaction bookkeeping alone cannot make a no-effect game action settle successfully");
+
+var divineChoice = new CombatActionObservation
+{
+    CandidateId = "skill:careercard_1:1:1",
+    SourceId = CombatActionExecutionPolicy.DivineChoiceSourceId,
+    Kind = CombatActionKind.UseSkill,
+    RuntimeId = 1,
+    TargetRuntimeId = 1,
+    TargetKind = CombatTargetKind.Self,
+    Legal = true
+};
+CombatStateObservation DivineChoiceState(
+    int drawPileCount,
+    int discardPileCount,
+    int handCount,
+    long battleSessionId = 77)
+{
+    var result = new CombatStateObservation
+    {
+        BattleSessionId = battleSessionId,
+        Sequence = 1,
+        Player = new CombatUnitObservation
+        {
+            RuntimeId = 1,
+            Kind = CombatTargetKind.Self,
+            CurrentHp = 20,
+            MaxHp = 20
+        },
+        HandCount = handCount,
+        CurrentPower = 3,
+        MaxPower = 3,
+        IsPlayerActionWindow = true,
+        DeckKnowledge = new CombatDeckKnowledge
+        {
+            DrawPileCount = drawPileCount,
+            DiscardPileCount = discardPileCount
+        },
+        Actions = { divineChoice }
+    };
+    for (var index = 0; index < handCount; index++)
+    {
+        result.HandCardIds.Add("hand-" + index);
+    }
+    return CombatPlayerObservationBoundary.Normalize(result);
+}
+
+var emptyDivineChoiceState = DivineChoiceState(0, 5, 3);
+var fullHandDivineChoiceState = DivineChoiceState(3, 0, 10);
+var legalDivineChoiceState = DivineChoiceState(3, 0, 9);
+var expandedHandDivineChoiceState = DivineChoiceState(3, 0, 10);
+expandedHandDivineChoiceState.Features["handLimit"] = 99;
+Assert(!CombatActionExecutionPolicy.IsLiveEligible(
+           emptyDivineChoiceState,
+           emptyDivineChoiceState.Actions[0],
+           out var emptyDivineChoiceReason)
+       && emptyDivineChoiceReason.Contains("draw pile", StringComparison.Ordinal)
+       && !CombatActionExecutionPolicy.IsLiveEligible(
+           fullHandDivineChoiceState,
+           fullHandDivineChoiceState.Actions[0],
+           out var fullHandDivineChoiceReason)
+       && fullHandDivineChoiceReason.Contains("hand slot", StringComparison.Ordinal)
+       && CombatActionExecutionPolicy.IsLiveEligible(
+           legalDivineChoiceState,
+           legalDivineChoiceState.Actions[0],
+           out _)
+       && CombatActionExecutionPolicy.IsLiveEligible(
+           expandedHandDivineChoiceState,
+           expandedHandDivineChoiceState.Actions[0],
+           out _),
+    "divine choice live eligibility requires a draw-pile card and the runtime-configured free hand slot without counting discard cards");
+
+var unrelatedDivineChoiceAfter = DivineChoiceState(3, 0, 9);
+unrelatedDivineChoiceAfter.Enemies.Add(new CombatUnitObservation
+{
+    RuntimeId = 2,
+    Kind = CombatTargetKind.Enemy,
+    CurrentHp = 8,
+    MaxHp = 10
+});
+var settledDivineChoiceAfter = DivineChoiceState(2, 0, 10);
+settledDivineChoiceAfter.HandCardIds[9] = "chosen-card";
+Assert(!CombatActionSettlementPolicy.HasMeaningfulProgress(
+           legalDivineChoiceState,
+           unrelatedDivineChoiceAfter,
+           legalDivineChoiceState.Actions[0],
+           out _)
+       && CombatActionSettlementPolicy.HasMeaningfulProgress(
+           legalDivineChoiceState,
+           settledDivineChoiceAfter,
+           legalDivineChoiceState.Actions[0],
+           out var divineChoiceSettlementReason)
+       && divineChoiceSettlementReason.Contains(
+           "draw-pile card into hand",
+           StringComparison.Ordinal),
+    "divine choice settlement ignores unrelated state changes and requires the card transfer postcondition");
+
+var sameEligibilityDivineChoiceState = DivineChoiceState(8, 2, 4);
+sameEligibilityDivineChoiceState.Player.CurrentHp = 7;
+var changedEligibilityDivineChoiceState = DivineChoiceState(0, 10, 4);
+var divineSuppressionKey =
+    CombatActionExecutionPolicy.BuildFailureSuppressionKey(
+        legalDivineChoiceState,
+        legalDivineChoiceState.Actions[0]);
+Assert(divineSuppressionKey ==
+       CombatActionExecutionPolicy.BuildFailureSuppressionKey(
+           sameEligibilityDivineChoiceState,
+           sameEligibilityDivineChoiceState.Actions[0])
+       && divineSuppressionKey !=
+       CombatActionExecutionPolicy.BuildFailureSuppressionKey(
+           changedEligibilityDivineChoiceState,
+           changedEligibilityDivineChoiceState.Actions[0]),
+    "divine choice failure suppression follows only draw and hand eligibility changes instead of unrelated fingerprints");
+
+var divineDecision = new CombatDecision
+{
+    HasAction = true,
+    Action = legalDivineChoiceState.Actions[0]
+};
+Assert(CombatDecisionFreshnessPolicy.TryBindCurrent(
+           legalDivineChoiceState.BattleSessionId,
+           legalDivineChoiceState.Fingerprint,
+           legalDivineChoiceState,
+           divineDecision,
+           out var reboundDivineDecision,
+           out _)
+       && reboundDivineDecision.Action == legalDivineChoiceState.Actions[0]
+       && !CombatDecisionFreshnessPolicy.TryBindCurrent(
+           legalDivineChoiceState.BattleSessionId,
+           legalDivineChoiceState.Fingerprint,
+           fullHandDivineChoiceState,
+           divineDecision,
+           out _,
+           out _),
+    "background decisions bind only to the unchanged battle observation and pass execution-time eligibility again");
+
+var isolatedSourceState = CombatPlayerObservationBoundary.Normalize(
+    new CombatStateObservation
+    {
+        BattleSessionId = 88,
+        Sequence = 1,
+        Player = new CombatUnitObservation
+        {
+            RuntimeId = 1,
+            Kind = CombatTargetKind.Self,
+            CurrentHp = 20,
+            MaxHp = 20
+        },
+        Enemies =
+        {
+            new CombatUnitObservation
+            {
+                RuntimeId = 2,
+                Kind = CombatTargetKind.Enemy,
+                CurrentHp = 5,
+                MaxHp = 5
+            }
+        },
+        Actions =
+        {
+            new CombatActionObservation
+            {
+                CandidateId = "isolated-reject",
+                SourceId = "isolated-reject",
+                Kind = CombatActionKind.PlayCard,
+                TargetRuntimeId = 2,
+                TargetKind = CombatTargetKind.Enemy,
+                Legal = true,
+                Semantics = new CombatActionSemantics { Damage = 5d }
+            },
+            new CombatActionObservation
+            {
+                CandidateId = "isolated-fallback",
+                SourceId = "isolated-fallback",
+                Kind = CombatActionKind.PlayCard,
+                TargetRuntimeId = 2,
+                TargetKind = CombatTargetKind.Enemy,
+                Legal = true,
+                Semantics = new CombatActionSemantics { Damage = 5d }
+            }
+        }
+    });
+var isolatedSourceEngine = new CombatDecisionEngine();
+CombatStateObservation isolatedPreparedState;
+CombatDecisionEngine isolatedWorker;
+using (CombatAiRegistry.RegisterPreflightRule(
+           "Tests",
+           "IsolatedWorkerPreflight",
+           new RejectCandidateRule("isolated-reject"),
+           100))
+{
+    isolatedPreparedState =
+        isolatedSourceEngine.PrepareStateForIsolatedWorker(
+            isolatedSourceState);
+    isolatedWorker = isolatedSourceEngine.CreateIsolatedWorker(
+        isolatedSourceEngine.SnapshotSimulationRulesForIsolatedWorker());
+}
+var isolatedWorkerDecision = Task.Run(() => isolatedWorker.Choose(
+        isolatedPreparedState,
+        new CombatDecisionProfile
+        {
+            SearchBudgetMode = "fixed",
+            SearchSimulationBudget = 8,
+            SearchMinimumSimulations = 2,
+            SearchStabilityWindow = 2,
+            SearchStableChecks = 1,
+            SearchMaxPly = 3,
+            SearchNodeBudget = 256
+        }))
+    .GetAwaiter()
+    .GetResult();
+Assert(!isolatedPreparedState.Actions.Single(action =>
+           action.CandidateId == "isolated-reject").Legal
+       && isolatedWorkerDecision.Action?.CandidateId
+       == "isolated-fallback",
+    "isolated decision workers consume a main-thread-prepared snapshot without consulting mutable runtime registries");
 var earlyStopProfile = new CombatDecisionProfile
 {
     SearchBudgetMode = "fixed",
@@ -1738,6 +2086,74 @@ var targetVariantDecision = new CombatDecisionEngine().Choose(
     });
 Assert(targetVariantDecision.Plan.Count(step => step.CandidateId.StartsWith("same-card:", StringComparison.Ordinal)) <= 1,
     "target variants of one runtime card share a single-use group");
+
+var duplicateCardState = new CombatStateObservation
+{
+    Player = new CombatUnitObservation
+    {
+        RuntimeId = 951,
+        CurrentHp = 20,
+        MaxHp = 20
+    },
+    HandCount = 2,
+    HandCardIds = { "duplicate-strike", "duplicate-strike" },
+    Enemies =
+    {
+        new CombatUnitObservation
+        {
+            RuntimeId = 952,
+            Kind = CombatTargetKind.Enemy,
+            CurrentHp = 12,
+            MaxHp = 12
+        }
+    },
+    Actions =
+    {
+        new CombatActionObservation
+        {
+            CandidateId = "duplicate-strike:1",
+            SourceId = "duplicate-strike",
+            RuntimeId = 953,
+            Kind = CombatActionKind.PlayCard,
+            TargetRuntimeId = 952,
+            TargetKind = CombatTargetKind.Enemy,
+            Features = { ["handIndex"] = 0d },
+            Semantics = new CombatActionSemantics { Damage = 3d }
+        },
+        new CombatActionObservation
+        {
+            CandidateId = "duplicate-strike:2",
+            SourceId = "duplicate-strike",
+            RuntimeId = 954,
+            Kind = CombatActionKind.PlayCard,
+            TargetRuntimeId = 952,
+            TargetKind = CombatTargetKind.Enemy,
+            Features = { ["handIndex"] = 1d },
+            Semantics = new CombatActionSemantics { Damage = 3d }
+        },
+        new CombatActionObservation
+        {
+            CandidateId = "duplicate-end",
+            Kind = CombatActionKind.EndTurn
+        }
+    }
+};
+var duplicateCardDecision = new CombatDecisionEngine().Choose(
+    duplicateCardState,
+    new CombatDecisionProfile
+    {
+        SearchBudgetMode = "fixed",
+        SearchSimulationBudget = 96,
+        SearchMinimumSimulations = 16,
+        SearchNodeBudget = 512,
+        SearchMaxPly = 4
+    });
+Assert(duplicateCardDecision.SearchCandidateCount
+       < duplicateCardDecision.SearchOriginalCandidateCount
+       && duplicateCardDecision.Plan.Count(step =>
+           step.SourceId == "duplicate-strike") == 2,
+    "search candidate compression merges equivalent physical copies while preserving their total usable count"
+    + $" (compressed={duplicateCardDecision.SearchCandidateCount}, original={duplicateCardDecision.SearchOriginalCandidateCount}, plan={string.Join(",", duplicateCardDecision.Plan.Select(step => step.CandidateId))})");
 
 var transpositionState = new CombatStateObservation
 {
@@ -4478,6 +4894,12 @@ bundledRulesV2.Ruleset.TryGetCard(
 bundledRulesV2.Ruleset.TryGetCard(
     "timekeeper_16",
     out var bundledFrozenSearch);
+bundledRulesV2.Ruleset.TryGetCard(
+    "timekeeper_2",
+    out var bundledReturnEnergy);
+bundledRulesV2.Ruleset.TryGetCard(
+    "Crowdfundingcard_16",
+    out var bundledRestoreEnergy);
 bundledRulesV2.Ruleset.TryGetEnemy(
     "enemy_10005",
     out var bundledBloodWallEnemy);
@@ -4720,6 +5142,17 @@ Assert(bundledRulesV2.Success
         == CombatSimulationEffectKind.RetrieveCards
         && bundledFrozenSearch.Effects.Single().SourceZone
         == CombatCardZone.DiscardPile
+        && bundledReturnEnergy.Effects.Single().Kind
+        == CombatSimulationEffectKind.SetEnergy
+        && bundledReturnEnergy.Effects.Single().AmountExpression?.Operation
+        == CombatSimulationValueOperation.Maximum
+        && bundledRestoreEnergy.Effects.Any(effect =>
+            effect.Kind == CombatSimulationEffectKind.Draw
+            && effect.Amount == 5)
+        && bundledRestoreEnergy.Effects.Any(effect =>
+            effect.Kind == CombatSimulationEffectKind.SetEnergy
+            && effect.AmountExpression?.Operation
+            == CombatSimulationValueOperation.SourceMaxEnergy)
         && bundledBloodWallEnemy.InitialStatuses.Count == 2
         && bundledBloodWallEnemy.InitialStatuses.All(item =>
             item.ConditionExpression != null)
@@ -8022,7 +8455,8 @@ var budgetProfile = new CombatDecisionProfile
 {
     SearchBudgetMode = "dynamic",
     SearchQuality = "balanced",
-    SearchBudgetContext = "deployment"
+    SearchBudgetContext = "deployment",
+    SearchTimeBudgetMilliseconds = 125
 };
 var forcedBudget = CombatSearchBudgetPolicy.Resolve(
     budgetState,
@@ -8073,17 +8507,38 @@ var fakeLoopBudget = CombatSearchBudgetPolicy.Resolve(
         BudgetCandidate("escape")
     },
     budgetProfile);
+var resourceCycleBudget = CombatSearchBudgetPolicy.Resolve(
+    budgetState,
+    new[]
+    {
+        BudgetCandidate(
+            "resource-cycle",
+            new CombatActionSemantics
+            {
+                Draw = 1,
+                EnergyGain = 1,
+                CardGeneration = 1
+            }),
+        BudgetCandidate("ordinary-1"),
+        BudgetCandidate("ordinary-2"),
+        BudgetCandidate("ordinary-3"),
+        BudgetCandidate("ordinary-4")
+    },
+    budgetProfile);
 Assert(forcedBudget.Tier == "forced"
        && forcedBudget.SimulationBudget == 1
        && simpleBudget.Tier == "simple"
        && simpleBudget.SimulationBudget == 96
        && normalBudget.Tier == "normal"
-       && normalBudget.SimulationBudget == 224
+       && normalBudget.SimulationBudget == 128
+       && normalBudget.TimeBudgetMilliseconds == 125
        && difficultBudget.Tier == "difficult"
-       && difficultBudget.SimulationBudget == 384
+       && difficultBudget.SimulationBudget == 192
        && fakeLoopBudget.Tier == "complex"
+       && fakeLoopBudget.SimulationBudget == 256
+       && resourceCycleBudget.Tier == "normal"
        && fakeLoopBudget.MaxPly == 16,
-    "dynamic search spends one simulation on forced play and reserves deep budgets for bosses and fake-loop states");
+    "deployment search caps latency, reserves bounded deep budgets for true loop risk, and does not overclassify ordinary resource generation");
 var partitionedStatus = CombatPolicyValueEncoding.EncodeState(
     new Dictionary<string, double> { ["playerStatus:test"] = 1d },
     128,

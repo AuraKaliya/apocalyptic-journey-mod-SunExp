@@ -906,6 +906,118 @@ public static class AuraToolsSettingsRuntime
             }, 96f);
             AttachAutoBattleWorkLock(policyRow, unknownPolicyButton);
 
+            var searchQualityRow = CreateInlineRow(
+                content,
+                "AutoBattleSearchQualityRow");
+            AuraToolsUi.AddText(
+                searchQualityRow.transform,
+                "搜索质量",
+                AuraToolsUi.BodyFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.Text,
+                AuraToolsUi.TextMinHeight,
+                1f);
+            var searchQualityButton = AuraToolsUi.AddSelectButton(
+                searchQualityRow.transform,
+                new[] { "快速", "均衡", "深入" },
+                string.Equals(autoBattle.SearchQuality, "fast", StringComparison.Ordinal)
+                    ? 0
+                    : string.Equals(autoBattle.SearchQuality, "deep", StringComparison.Ordinal)
+                        ? 2
+                        : 1,
+                index =>
+                {
+                    autoBattle.SearchQuality = index switch
+                    {
+                        0 => "fast",
+                        2 => "deep",
+                        _ => "balanced"
+                    };
+                    autoBattle.Normalize();
+                    AuraToolsConfigService.SaveMatchExperience();
+                    AuraToolsAutoBattleRuntime.ReloadModels();
+                },
+                160f);
+            AttachAutoBattleWorkLock(searchQualityRow, searchQualityButton);
+
+            var timeBudgetRow = CreateInlineRow(
+                content,
+                "AutoBattleDecisionTimeBudgetRow");
+            AuraToolsUi.AddText(
+                timeBudgetRow.transform,
+                "单工作器时间预算",
+                AuraToolsUi.BodyFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.Text,
+                AuraToolsUi.TextMinHeight,
+                1f);
+            var timeBudgets = new[] { 100, 250, 400, 600 };
+            var timeBudgetIndex = Array.IndexOf(
+                timeBudgets,
+                autoBattle.DecisionTimeBudgetMs);
+            if (timeBudgetIndex < 0)
+            {
+                timeBudgetIndex = 1;
+            }
+            var timeBudgetButton = AuraToolsUi.AddSelectButton(
+                timeBudgetRow.transform,
+                new[] { "100 ms", "250 ms", "400 ms", "600 ms" },
+                timeBudgetIndex,
+                index =>
+                {
+                    autoBattle.DecisionTimeBudgetMs = timeBudgets[Math.Max(
+                        0,
+                        Math.Min(timeBudgets.Length - 1, index))];
+                    autoBattle.Normalize();
+                    AuraToolsConfigService.SaveMatchExperience();
+                    AuraToolsAutoBattleRuntime.ReloadModels();
+                },
+                160f);
+            AttachAutoBattleWorkLock(timeBudgetRow, timeBudgetButton);
+
+            var parallelRow = CreateInlineRow(
+                content,
+                "AutoBattleInferenceParallelismRow");
+            AuraToolsUi.AddText(
+                parallelRow.transform,
+                "并行推理工作器",
+                AuraToolsUi.BodyFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.Text,
+                AuraToolsUi.TextMinHeight,
+                1f);
+            var parallelButton = AuraToolsUi.AddSelectButton(
+                parallelRow.transform,
+                new[] { "1（省资源）", "2（推荐）" },
+                autoBattle.InferenceParallelism > 1 ? 1 : 0,
+                index =>
+                {
+                    autoBattle.InferenceParallelism = index > 0 ? 2 : 1;
+                    autoBattle.Normalize();
+                    AuraToolsConfigService.SaveMatchExperience();
+                    AuraToolsAutoBattleRuntime.ReloadModels();
+                },
+                160f);
+            AttachAutoBattleWorkLock(parallelRow, parallelButton);
+
+            CreateAutoBattleToggleRow(
+                content,
+                "低置信度时使用保守回退",
+                autoBattle.LowConfidenceFallback,
+                value =>
+                {
+                    autoBattle.LowConfidenceFallback = value;
+                    AuraToolsConfigService.SaveMatchExperience();
+                });
+            AuraToolsUi.AddText(
+                content,
+                "并行只用于后台纯推理；Unity 状态采集、动作校验与执行仍在主线程。时间预算耗尽且根证据不足时，保守回退会优先避开诅咒与高不确定动作。",
+                AuraToolsUi.HintFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.MutedText,
+                AuraToolsUi.TextMinHeight,
+                1f);
+
             CreateGameParametersSection(content);
             CreateSectionLabel(content, "底模训练 · ② 训练方案与运行");
             var optionalDataHost = CreateVerticalStack(

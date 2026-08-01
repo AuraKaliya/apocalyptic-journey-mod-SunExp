@@ -156,19 +156,28 @@ public enum CombatSelectionProgress
     Pending,
     Advanced,
     Complete,
+    AwaitingNativeClose,
     TimedOut
 }
 
 public sealed class CombatPromptSelectionTracker
 {
     private readonly double attemptTimeoutSeconds;
+    private readonly double nativeCloseTimeoutSeconds;
     private int selectedBeforeAttempt;
     private double attemptStartedAt;
+    private double confirmIssuedAt;
 
-    public CombatPromptSelectionTracker(int requiredCount, double attemptTimeoutSeconds = 0.8d)
+    public CombatPromptSelectionTracker(
+        int requiredCount,
+        double attemptTimeoutSeconds = 0.8d,
+        double nativeCloseTimeoutSeconds = 2d)
     {
         RequiredCount = Math.Max(1, requiredCount);
         this.attemptTimeoutSeconds = Math.Max(0.05d, attemptTimeoutSeconds);
+        this.nativeCloseTimeoutSeconds = Math.Max(
+            0.1d,
+            nativeCloseTimeoutSeconds);
     }
 
     public int RequiredCount { get; private set; }
@@ -184,6 +193,13 @@ public sealed class CombatPromptSelectionTracker
 
     public CombatSelectionProgress Observe(int selectedCount, double now)
     {
+        if (ConfirmIssued)
+        {
+            return now - confirmIssuedAt > nativeCloseTimeoutSeconds
+                ? CombatSelectionProgress.TimedOut
+                : CombatSelectionProgress.AwaitingNativeClose;
+        }
+
         if (selectedCount >= RequiredCount)
         {
             AttemptInFlight = false;
@@ -219,7 +235,7 @@ public sealed class CombatPromptSelectionTracker
         return true;
     }
 
-    public bool TryIssueConfirm(int selectedCount)
+    public bool TryIssueConfirm(int selectedCount, double now = 0d)
     {
         if (ConfirmIssued || AttemptInFlight || selectedCount < RequiredCount)
         {
@@ -227,6 +243,7 @@ public sealed class CombatPromptSelectionTracker
         }
 
         ConfirmIssued = true;
+        confirmIssuedAt = now;
         return true;
     }
 }

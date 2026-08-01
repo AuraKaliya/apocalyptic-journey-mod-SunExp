@@ -1014,6 +1014,91 @@ function Try-NewTaggedRetrievalCard(
     return $true
 }
 
+function Try-NewSetEnergyCard(
+    [object]$row,
+    [ref]$definition) {
+    $definition.Value = $null
+    $script = ([string]$row.UseScript) -replace '\s+', ''
+    if ([string]::IsNullOrWhiteSpace($script) `
+        -or $script -notmatch 'SetPower\(') {
+        return $false
+    }
+
+    $amountExpression = $null
+    $constantMatch = [regex]::Match(
+        $script,
+        'SetPower\(\"(?<amount>\d+)\"\)',
+        [Text.RegularExpressions.RegexOptions]::IgnoreCase)
+    $floorMatch = [regex]::Match(
+        $script,
+        'SetPower\([^?]+>(?<floor>\d+)\?[^:]+:\"(?<fallback>\d+)\"\)',
+        [Text.RegularExpressions.RegexOptions]::IgnoreCase)
+    if ($script -match 'SetPower\(PlayerInfo\.MaxPower\.ToString\(\)\)') {
+        $amountExpression = [ordered]@{
+            operation = "SourceMaxEnergy"
+            arguments = @()
+        }
+    } elseif ($floorMatch.Success `
+        -and $floorMatch.Groups["floor"].Value -eq $floorMatch.Groups["fallback"].Value) {
+        $amountExpression = [ordered]@{
+            operation = "Maximum"
+            arguments = @(
+                [ordered]@{
+                    operation = "SourceEnergy"
+                    arguments = @()
+                },
+                [ordered]@{
+                    operation = "Constant"
+                    constant = [double](Convert-ToInt $floorMatch.Groups["floor"].Value 0)
+                    arguments = @()
+                })
+        }
+    } elseif ($constantMatch.Success) {
+        $amountExpression = [ordered]@{
+            operation = "Constant"
+            constant = [double](Convert-ToInt $constantMatch.Groups["amount"].Value 0)
+            arguments = @()
+        }
+    } else {
+        return $false
+    }
+
+    $tags = @(([string]$row.Tag -split "\||,|，|;|；") |
+        ForEach-Object { $_.Trim() } |
+        Where-Object { -not [string]::IsNullOrWhiteSpace($_) } |
+        Select-Object -Unique)
+    $effects = [Collections.Generic.List[object]]::new()
+    $drawMatch = [regex]::Match(
+        $script,
+        'DrawCount\("(?<amount>\d+)"\)',
+        [Text.RegularExpressions.RegexOptions]::IgnoreCase)
+    if ($drawMatch.Success) {
+        $effects.Add([ordered]@{
+            kind = "Draw"
+            target = "Self"
+            amount = Convert-ToInt $drawMatch.Groups["amount"].Value 0
+        })
+    }
+    $effects.Add([ordered]@{
+        kind = "SetEnergy"
+        target = "Self"
+        amountExpression = $amountExpression
+    })
+    $definition.Value = [ordered]@{
+        ownerModId = "Witch"
+        cardId = [string]$row.Id
+        displayName = [string]$row.Name
+        cost = [Math]::Max(0, [Math]::Min(9, (Convert-ToInt $row.Expend 1)))
+        rarity = [Math]::Max(1, [Math]::Min(4, (Convert-ToInt $row.Rarity 1)))
+        exhaust = $tags -contains "Burnout" -or $tags -contains "Fragmented"
+        tags = $tags
+        requiresEnemyTarget = $false
+        fidelity = "Authoritative"
+        effects = @($effects)
+    }
+    return $true
+}
+
 function Get-ScriptInteger(
     [string]$script,
     [string]$pattern,
@@ -3540,6 +3625,8 @@ $rulesetCardRows = @($cards + $careerSkillCards + $generatedOnlyCards + @($table
 $rulesetCards = @($rulesetCardRows | ForEach-Object {
     $moneyCard = $null
     if (Try-NewAuthoritativeCurseCard $_ ([ref]$moneyCard)) {
+        $moneyCard
+    } elseif (Try-NewSetEnergyCard $_ ([ref]$moneyCard)) {
         $moneyCard
     } elseif (Try-NewAuthoritativeDeterministicCard $_ ([ref]$moneyCard)) {
         $moneyCard

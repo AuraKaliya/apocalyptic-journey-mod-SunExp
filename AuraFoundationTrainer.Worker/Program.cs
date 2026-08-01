@@ -1,4 +1,5 @@
 using System.Diagnostics;
+using System.IO.Compression;
 using System.Security.Cryptography;
 using System.Text;
 using AuraCombatAi.Shared;
@@ -357,33 +358,65 @@ try
     };
     var incrementallyArchivedCases =
         new HashSet<string>(StringComparer.Ordinal);
+    var capacityRejectedCaseIds =
+        new HashSet<string>(StringComparer.Ordinal);
+    var archiveCaseGate = new object();
     var incrementalArchiveErrors = new List<string>();
+    var archiveErrorGate = new object();
+    var archiveCapacityRejectedObservations = 0;
+    var archiveCapacityRejectedCases = 0;
     if (job.Request.EnableSuccessCaseArchive)
     {
         job.Request.ObservationRecorded = observation =>
         {
             try
             {
-                PersistObservation(job, observation);
+                if (!PersistObservation(job, observation))
+                {
+                    Interlocked.Increment(
+                        ref archiveCapacityRejectedObservations);
+                }
             }
             catch (Exception ex)
             {
-                incrementalArchiveErrors.Add(ex.ToString());
+                lock (archiveErrorGate)
+                {
+                    incrementalArchiveErrors.Add(ex.ToString());
+                }
             }
         };
         job.Request.SuccessCaseRecorded = successCase =>
         {
             try
             {
-                if (PersistSuccessCase(job, successCase))
+                if (PersistSuccessCase(
+                        job,
+                        successCase,
+                        out var capacityRejected))
                 {
-                    incrementallyArchivedCases.Add(
-                        successCase.Observation.CaseId);
+                    lock (archiveCaseGate)
+                    {
+                        incrementallyArchivedCases.Add(
+                            successCase.Observation.CaseId);
+                    }
+                }
+                if (capacityRejected)
+                {
+                    lock (archiveCaseGate)
+                    {
+                        capacityRejectedCaseIds.Add(
+                            successCase.Observation.CaseId);
+                    }
+                    Interlocked.Increment(
+                        ref archiveCapacityRejectedCases);
                 }
             }
             catch (Exception ex)
             {
-                incrementalArchiveErrors.Add(ex.ToString());
+                lock (archiveErrorGate)
+                {
+                    incrementalArchiveErrors.Add(ex.ToString());
+                }
             }
         };
     }
@@ -402,7 +435,10 @@ try
                 job,
                 training,
                 incrementallyArchivedCases,
-                incrementalArchiveErrors);
+                capacityRejectedCaseIds,
+                incrementalArchiveErrors,
+                archiveCapacityRejectedObservations,
+                archiveCapacityRejectedCases);
         }
     }
     catch (Exception ex)
@@ -413,6 +449,16 @@ try
         Console.Error.WriteLine(
             "Foundation success archive failed without invalidating training: "
             + ex);
+    }
+    try
+    {
+        PersistBuildLimitedSeeds(job, training);
+    }
+    catch (Exception ex)
+    {
+        Console.Error.WriteLine(
+            "Foundation build-limited seed index was skipped: "
+            + ex.Message);
     }
     var episodesPath = Path.Combine(
         job.ResultDirectory,
@@ -1070,8 +1116,9 @@ static List<string> EnumerateArchiveFiles(string directory, int limit)
     }
     return Directory.EnumerateFiles(
             directory,
-            "*.json",
+            "*",
             SearchOption.TopDirectoryOnly)
+        .Where(CombatFoundationCaseArchiveProtocol.IsArchiveJsonFile)
         .OrderByDescending(File.GetLastWriteTimeUtc)
         .Take(Math.Max(0, limit))
         .ToList();
@@ -1090,7 +1137,7 @@ static void LoadSuccessCasePaths(
             path.Length);
         try
         {
-            var json = File.ReadAllText(path);
+            var json = ReadArchiveText(path);
             var reference =
                 Deserialize<CombatFoundationExpertCaseReference>(json);
             if (reference != null
@@ -1123,7 +1170,7 @@ static void LoadSuccessCasePaths(
                     compatibilityDirectory,
                     CombatFoundationCaseArchiveProtocol.CaseDirectoryName,
                     reference.CanonicalFileName);
-                json = File.ReadAllText(canonicalPath);
+                json = ReadArchiveText(canonicalPath);
             }
             var successCase = Deserialize<CombatFoundationSuccessCase>(
                 json);
@@ -1177,7 +1224,7 @@ static void LoadObservationPaths(
         {
             var observation =
                 Deserialize<CombatFoundationCampaignObservation>(
-                    File.ReadAllText(path));
+                    ReadArchiveText(path));
             if (observation == null
                 || observation.SchemaVersion
                 != CombatFoundationCaseLearning.ArchiveSchemaVersion
@@ -1246,22 +1293,47 @@ static void RegisterArchiveRejection(
         (path ?? "").Length);
 }
 
-static void PersistObservation(
+static bool PersistObservation(
     CombatFoundationWorkerJob job,
     CombatFoundationCampaignObservation observation)
 {
     var path = ResolveObservationPath(job, observation);
-    if (!File.Exists(path))
+    if (File.Exists(path))
     {
-        WriteAtomic(path, Serialize(observation));
+        return true;
     }
+    if (!ArchiveWriteBudget.TryReserve(
+            Path.GetDirectoryName(path)!,
+            CombatFoundationCaseArchiveProtocol
+                .MaximumObservationsPerCompatibility))
+    {
+        return false;
+    }
+    WriteAtomicCompressed(path, SerializeCompact(observation));
+    return true;
 }
 
 static bool PersistSuccessCase(
     CombatFoundationWorkerJob job,
-    CombatFoundationSuccessCase successCase)
+    CombatFoundationSuccessCase successCase,
+    out bool capacityRejected)
 {
+    capacityRejected = false;
+    if (successCase.Episodes.Count == 0)
+    {
+        return false;
+    }
     var observation = successCase.Observation;
+    var expertCasePath = ResolveExpertReferencePath(job, successCase);
+    if (!File.Exists(expertCasePath)
+        && !ArchiveWriteBudget.TryReserve(
+            Path.GetDirectoryName(expertCasePath)!,
+            CombatFoundationCaseArchiveProtocol
+                .MaximumExpertCasesPerCompatibility))
+    {
+        capacityRejected = true;
+        return false;
+    }
     var casePath = ResolveSuccessCasePath(
         job,
         successCase,
@@ -1269,18 +1341,14 @@ static bool PersistSuccessCase(
     var added = !File.Exists(casePath);
     if (added)
     {
-        WriteAtomic(casePath, Serialize(successCase));
+        WriteAtomicCompressed(casePath, SerializeCompact(successCase));
     }
-    if (successCase.Episodes.Count > 0)
+    if (!File.Exists(expertCasePath))
     {
-        var expertCasePath = ResolveExpertReferencePath(job, successCase);
-        if (!File.Exists(expertCasePath))
-        {
-            WriteExpertReference(
-                expertCasePath,
-                successCase,
-                casePath);
-        }
+        WriteExpertReference(
+            expertCasePath,
+            successCase,
+            casePath);
     }
     return added;
 }
@@ -1325,7 +1393,17 @@ static string ResolveObservationPath(
     CombatFoundationWorkerJob job,
     CombatFoundationCampaignObservation observation)
 {
-    var path = CombatFoundationCaseArchiveProtocol.EntryPath(
+    var legacyPath = CombatFoundationCaseArchiveProtocol.EntryPath(
+        SuccessArchiveRoot(job),
+        observation.CompatibilityKey,
+        CombatFoundationCaseArchiveProtocol.ObservationDirectoryName,
+        observation.CaseId);
+    if (File.Exists(legacyPath)
+        && ExistingObservationMatches(legacyPath, observation.CaseId))
+    {
+        return legacyPath;
+    }
+    var path = CombatFoundationCaseArchiveProtocol.CompressedEntryPath(
         SuccessArchiveRoot(job),
         observation.CompatibilityKey,
         CombatFoundationCaseArchiveProtocol.ObservationDirectoryName,
@@ -1335,7 +1413,7 @@ static string ResolveObservationPath(
     {
         return path;
     }
-    return CombatFoundationCaseArchiveProtocol.EntryPath(
+    return CombatFoundationCaseArchiveProtocol.CompressedEntryPath(
         SuccessArchiveRoot(job),
         observation.CompatibilityKey,
         CombatFoundationCaseArchiveProtocol.ObservationDirectoryName,
@@ -1349,7 +1427,17 @@ static string ResolveSuccessCasePath(
     string directoryName)
 {
     var observation = successCase.Observation;
-    var path = CombatFoundationCaseArchiveProtocol.EntryPath(
+    var legacyPath = CombatFoundationCaseArchiveProtocol.EntryPath(
+        SuccessArchiveRoot(job),
+        observation.CompatibilityKey,
+        directoryName,
+        observation.CaseId);
+    if (File.Exists(legacyPath)
+        && ExistingSuccessCaseMatches(legacyPath, observation.CaseId))
+    {
+        return legacyPath;
+    }
+    var path = CombatFoundationCaseArchiveProtocol.CompressedEntryPath(
         SuccessArchiveRoot(job),
         observation.CompatibilityKey,
         directoryName,
@@ -1359,7 +1447,7 @@ static string ResolveSuccessCasePath(
     {
         return path;
     }
-    return CombatFoundationCaseArchiveProtocol.EntryPath(
+    return CombatFoundationCaseArchiveProtocol.CompressedEntryPath(
         SuccessArchiveRoot(job),
         observation.CompatibilityKey,
         directoryName,
@@ -1373,7 +1461,7 @@ static bool ExistingObservationMatches(string path, string caseId)
     {
         return string.Equals(
             Deserialize<CombatFoundationCampaignObservation>(
-                File.ReadAllText(path))?.CaseId,
+                ReadArchiveText(path))?.CaseId,
             caseId,
             StringComparison.Ordinal);
     }
@@ -1389,7 +1477,7 @@ static bool ExistingSuccessCaseMatches(string path, string caseId)
     {
         return string.Equals(
             Deserialize<CombatFoundationSuccessCase>(
-                File.ReadAllText(path))?.Observation?.CaseId,
+                ReadArchiveText(path))?.Observation?.CaseId,
             caseId,
             StringComparison.Ordinal);
     }
@@ -1419,7 +1507,10 @@ static void PersistSuccessCases(
     CombatFoundationWorkerJob job,
     CombatCampaignFoundationTrainingResult training,
     ISet<string> incrementallyArchivedCases,
-    IReadOnlyList<string> incrementalArchiveErrors)
+    ISet<string> capacityRejectedCaseIds,
+    IReadOnlyList<string> incrementalArchiveErrors,
+    int capacityRejectedObservations,
+    int capacityRejectedCases)
 {
     var archiveRoot = SuccessArchiveRoot(job);
     Directory.CreateDirectory(archiveRoot);
@@ -1432,9 +1523,15 @@ static void PersistSuccessCases(
     foreach (var observation in currentObservations)
     {
         var observationPath = ResolveObservationPath(job, observation);
-        if (!File.Exists(observationPath))
+        if (!File.Exists(observationPath)
+            && ArchiveWriteBudget.TryReserve(
+                Path.GetDirectoryName(observationPath)!,
+                CombatFoundationCaseArchiveProtocol
+                    .MaximumObservationsPerCompatibility))
         {
-            WriteAtomic(observationPath, Serialize(observation));
+            WriteAtomicCompressed(
+                observationPath,
+                SerializeCompact(observation));
         }
     }
     var cumulativeObservations =
@@ -1454,14 +1551,16 @@ static void PersistSuccessCases(
         }
         foreach (var path in Directory.EnumerateFiles(
                      observationDirectory,
-                     "*.json",
+                     "*",
                      SearchOption.TopDirectoryOnly)
+                 .Where(CombatFoundationCaseArchiveProtocol.IsArchiveJsonFile)
                  .OrderBy(item => item, StringComparer.Ordinal)
-                 .Take(20_000))
+                 .Take(CombatFoundationCaseArchiveProtocol
+                     .MaximumObservationsPerCompatibility))
         {
             var observation =
                 Deserialize<CombatFoundationCampaignObservation>(
-                    File.ReadAllText(path));
+                    ReadArchiveText(path));
             if (observation != null)
             {
                 cumulativeObservations.Add(observation);
@@ -1481,7 +1580,10 @@ static void PersistSuccessCases(
     var archived = 0;
     var duplicates = 0;
     foreach (var successCase in training.SuccessCases
-                 .Where(item => item?.Observation?.ArchiveEligible == true)
+                 .Where(item => item?.Observation?.ArchiveEligible == true
+                                && item.Episodes.Count > 0
+                                && !capacityRejectedCaseIds.Contains(
+                                    item.Observation.CaseId))
                  .GroupBy(
                      item => item.Observation.CaseId,
                      StringComparer.Ordinal)
@@ -1511,7 +1613,7 @@ static void PersistSuccessCases(
         }
         else
         {
-            WriteAtomic(casePath, Serialize(successCase));
+            WriteAtomicCompressed(casePath, SerializeCompact(successCase));
             archived++;
         }
         if (successCase.Episodes.Count > 0)
@@ -1546,6 +1648,10 @@ static void PersistSuccessCases(
         Serialize(training.CaseAnalysis));
     training.ArchivedSuccessCases = archived;
     training.DuplicateSuccessCases = duplicates;
+    training.ArchiveCapacityRejectedObservations =
+        Math.Max(0, capacityRejectedObservations);
+    training.ArchiveCapacityRejectedCases =
+        Math.Max(0, capacityRejectedCases);
     training.SuccessArchiveDirectory = archiveRoot;
     training.SuccessCaseIndexPath = indexPath;
     if (incrementalArchiveErrors.Count > 0)
@@ -1580,6 +1686,61 @@ static string ResolveArgument(string[] arguments, string name)
 static T? Deserialize<T>(string json)
 {
     return JsonConvert.DeserializeObject<T>(json);
+}
+
+static void PersistBuildLimitedSeeds(
+    CombatFoundationWorkerJob job,
+    CombatCampaignFoundationTrainingResult training)
+{
+    var routed = (training.HardSeedHistory
+                  ?? new List<CombatFoundationHardSeedHistoryEntry>())
+        .Where(item => item != null
+                       && !item.Resolved
+                       && (string.Equals(
+                               item.SolvabilityClass,
+                               "build-limited",
+                               StringComparison.OrdinalIgnoreCase)
+                           || string.Equals(
+                               item.SolvabilityClass,
+                               "build-limited-provisional",
+                               StringComparison.OrdinalIgnoreCase)))
+        .OrderBy(item => item.DifficultyId, StringComparer.Ordinal)
+        .ThenBy(item => item.WorldSeed)
+        .ToList();
+    var path = Path.Combine(
+        job.ResultDirectory,
+        "foundation-build-limited-seeds-v1.jsonl");
+    WriteJsonLines(path, routed);
+    training.BuildLimitedSeedIndexPath = path;
+    training.BuildLimitedSeedCases = routed.Count(item => string.Equals(
+        item.SolvabilityClass,
+        "build-limited",
+        StringComparison.OrdinalIgnoreCase));
+    training.ProvisionalBuildLimitedSeedCases = routed.Count(item =>
+        string.Equals(
+            item.SolvabilityClass,
+            "build-limited-provisional",
+            StringComparison.OrdinalIgnoreCase));
+}
+
+static string ReadArchiveText(string path)
+{
+    if (!path.EndsWith(
+            CombatFoundationCaseArchiveProtocol.CompressedJsonExtension,
+            StringComparison.OrdinalIgnoreCase))
+    {
+        return File.ReadAllText(path);
+    }
+    using var input = File.OpenRead(path);
+    using var gzip = new GZipStream(
+        input,
+        CompressionMode.Decompress,
+        leaveOpen: false);
+    using var reader = new StreamReader(
+        gzip,
+        Encoding.UTF8,
+        detectEncodingFromByteOrderMarks: true);
+    return reader.ReadToEnd();
 }
 
 static string Serialize(object value)
@@ -1690,6 +1851,26 @@ static void WriteAtomic(string path, string contents)
     CombatFoundationCheckpointStorage.WriteAtomicText(
         path,
         contents,
+        retainBackup: false);
+}
+
+static void WriteAtomicCompressed(string path, string contents)
+{
+    CombatFoundationCheckpointStorage.WriteAtomicStream(
+        path,
+        stream =>
+        {
+            using var gzip = new GZipStream(
+                stream,
+                CompressionLevel.Fastest,
+                leaveOpen: true);
+            using var writer = new StreamWriter(
+                gzip,
+                new UTF8Encoding(false),
+                64 * 1024,
+                leaveOpen: false);
+            writer.Write(contents);
+        },
         retainBackup: false);
 }
 
@@ -1821,4 +2002,42 @@ static string RuntimeDescription(int workers)
            + System.Runtime.GCSettings.IsServerGC
            + "; workers="
            + workers;
+}
+
+internal static class ArchiveWriteBudget
+{
+    private static readonly object Gate = new();
+
+    private static readonly Dictionary<string, int> Counts =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public static bool TryReserve(string directory, int maximumEntries)
+    {
+        if (maximumEntries <= 0)
+        {
+            return false;
+        }
+        var fullPath = Path.GetFullPath(directory);
+        lock (Gate)
+        {
+            if (!Counts.TryGetValue(fullPath, out var count))
+            {
+                count = Directory.Exists(fullPath)
+                    ? Directory.EnumerateFiles(
+                            fullPath,
+                            "*",
+                            SearchOption.TopDirectoryOnly)
+                        .Count(CombatFoundationCaseArchiveProtocol
+                            .IsArchiveJsonFile)
+                    : 0;
+            }
+            if (count >= maximumEntries)
+            {
+                Counts[fullPath] = count;
+                return false;
+            }
+            Counts[fullPath] = count + 1;
+            return true;
+        }
+    }
 }

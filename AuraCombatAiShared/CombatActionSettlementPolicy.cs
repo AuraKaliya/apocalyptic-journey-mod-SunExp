@@ -21,6 +21,10 @@ public static class CombatActionSettlementPolicy
             reason = "battle session advanced";
             return true;
         }
+        if (CombatActionExecutionPolicy.IsDivineChoice(action))
+        {
+            return HasDivineChoiceProgress(before, after, out reason);
+        }
         if (before.CurrentPower != after.CurrentPower
             || before.MaxPower != after.MaxPower
             || before.HandCount != after.HandCount)
@@ -54,6 +58,50 @@ public static class CombatActionSettlementPolicy
             return true;
         }
         reason = "no semantic game-state effect observed";
+        return false;
+    }
+
+    private static bool HasDivineChoiceProgress(
+        CombatStateObservation before,
+        CombatStateObservation after,
+        out string reason)
+    {
+        var drawPileDecreased =
+            (after.DeckKnowledge?.DrawPileCount ?? 0)
+            < (before.DeckKnowledge?.DrawPileCount ?? 0);
+        var handGainedCard = after.HandCount > before.HandCount
+                            || HasAddedCard(
+                                before.HandCardIds,
+                                after.HandCardIds);
+        if (drawPileDecreased && handGainedCard)
+        {
+            reason = "divine choice moved a draw-pile card into hand";
+            return true;
+        }
+
+        reason = "divine choice did not move a draw-pile card into hand";
+        return false;
+    }
+
+    private static bool HasAddedCard(
+        IReadOnlyList<string> before,
+        IReadOnlyList<string> after)
+    {
+        var remaining = before
+            .GroupBy(value => value ?? "", StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Count(),
+                StringComparer.OrdinalIgnoreCase);
+        foreach (var cardId in after)
+        {
+            var key = cardId ?? "";
+            if (!remaining.TryGetValue(key, out var count) || count <= 0)
+            {
+                return true;
+            }
+            remaining[key] = count - 1;
+        }
         return false;
     }
 

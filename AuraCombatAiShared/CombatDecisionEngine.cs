@@ -11,23 +11,84 @@ public sealed class CombatDecisionEngine
     private readonly ICombatSearchGuidanceModel searchGuidance;
     private readonly ICombatPolicyValueModel policyValueModel;
     private readonly bool useRuntimeRegistries;
+    private readonly ICombatSimulationRule[] isolatedSimulationRules;
     private readonly CombatRiskAwareRootSamplingPuctPlanner chancePuctPlanner;
 
     public CombatDecisionEngine(
         IDecisionResidualModel? residualModel = null,
         ICombatSearchGuidanceModel? searchGuidance = null,
         bool useRuntimeRegistries = true,
-        ICombatPolicyValueModel? policyValueModel = null)
+        ICombatPolicyValueModel? policyValueModel = null,
+        IReadOnlyList<ICombatSimulationRule>? simulationRules = null)
     {
         this.residualModel = residualModel ?? NullDecisionResidualModel.Instance;
         this.searchGuidance = searchGuidance ?? NullCombatSearchGuidanceModel.Instance;
         this.policyValueModel = policyValueModel ?? NullCombatPolicyValueModel.Instance;
         this.useRuntimeRegistries = useRuntimeRegistries;
+        isolatedSimulationRules = simulationRules?.Where(rule => rule != null).ToArray()
+                                  ?? Array.Empty<ICombatSimulationRule>();
         chancePuctPlanner = new CombatRiskAwareRootSamplingPuctPlanner(
             this.residualModel,
             this.searchGuidance,
             this.useRuntimeRegistries,
-            this.policyValueModel);
+            this.policyValueModel,
+            isolatedSimulationRules);
+    }
+
+    public CombatStateObservation PrepareStateForIsolatedWorker(
+        CombatStateObservation state)
+    {
+        if (state == null) throw new ArgumentNullException(nameof(state));
+        var prepared = CombatPlayerObservationBoundary.Normalize(state);
+        if (!useRuntimeRegistries)
+        {
+            return prepared;
+        }
+
+        foreach (var action in prepared.Actions)
+        {
+            if (action == null || !action.Legal)
+            {
+                continue;
+            }
+            if (!CombatAiRegistry.EvaluatePreflight(
+                    prepared,
+                    action,
+                    out var reason))
+            {
+                action.Legal = false;
+                action.RejectionReason = reason;
+                continue;
+            }
+            var observedMechanics =
+                CombatPlayerObservationBoundary.NormalizeSemantics(
+                    action.Semantics);
+            CombatAiRegistry.ApplySemantics(prepared, action);
+            MergeMechanicalSemantics(action.Semantics, observedMechanics);
+            action.Semantics =
+                CombatPlayerObservationBoundary.NormalizeSemantics(
+                    action.Semantics);
+        }
+        CombatArchetypePolicy.Enrich(prepared);
+        return CombatPlayerObservationBoundary.Normalize(prepared);
+    }
+
+    public ICombatSimulationRule[] SnapshotSimulationRulesForIsolatedWorker()
+    {
+        return useRuntimeRegistries
+            ? CombatAiRegistry.SnapshotSimulationRules()
+            : isolatedSimulationRules.ToArray();
+    }
+
+    public CombatDecisionEngine CreateIsolatedWorker(
+        IReadOnlyList<ICombatSimulationRule>? simulationRules)
+    {
+        return new CombatDecisionEngine(
+            residualModel,
+            searchGuidance,
+            useRuntimeRegistries: false,
+            policyValueModel,
+            simulationRules);
     }
 
     public CombatDecision Choose(
@@ -94,7 +155,13 @@ public sealed class CombatDecisionEngine
             }
             if (legal && useRuntimeRegistries)
             {
+                var observedMechanics =
+                    CombatPlayerObservationBoundary.NormalizeSemantics(
+                        action.Semantics);
                 CombatAiRegistry.ApplySemantics(state, action);
+                MergeMechanicalSemantics(
+                    action.Semantics,
+                    observedMechanics);
                 action.Semantics =
                     CombatPlayerObservationBoundary.NormalizeSemantics(
                         action.Semantics);
@@ -187,6 +254,40 @@ public sealed class CombatDecisionEngine
         var planScore = search.Score;
         var planSteps = search.Steps;
         var planSummary = search.Summary;
+        if (search.StoppedByTime
+            && selectedProfile.UseLowConfidenceFallback
+            && search.Confidence < Math.Max(
+                0d,
+                Math.Min(1d, selectedProfile.MinimumSearchConfidence)))
+        {
+            var fallback = SelectLowConfidenceFallback(
+                state,
+                evaluations,
+                selectedProfile);
+            if (fallback != null)
+            {
+                planAction = fallback.Action;
+                planScore = fallback.RuleScore;
+                planSteps = new List<CombatPlanStep>
+                {
+                    new()
+                    {
+                        CandidateId = fallback.Action.CandidateId,
+                        SourceId = fallback.Action.SourceId,
+                        DisplayName = fallback.Action.DisplayName,
+                        StepScore = fallback.RuleScore,
+                        CumulativeScore = fallback.RuleScore,
+                        RemainingPower = Math.Max(
+                            0,
+                            state.CurrentPower - fallback.Action.Cost),
+                        DeathRisk = fallback.SearchDeathRisk,
+                        Visits = fallback.SearchVisits
+                    }
+                };
+                planSummary += "; low-confidence-safe-fallback="
+                               + fallback.Action.DisplayName;
+            }
+        }
         if (hasPlanAction
             && planAction != null
             && planScore >= selectedProfile.MinimumActionScore)
@@ -207,6 +308,13 @@ public sealed class CombatDecisionEngine
                 SearchNodes = search.Nodes,
                 SearchTranspositionHits = search.TranspositionHits,
                 SearchStoppedEarly = search.StoppedEarly,
+                SearchStoppedByTime = search.StoppedByTime,
+                SearchConfidence = search.Confidence,
+                SearchValueGap = search.ValueGap,
+                SearchBestVisits = search.BestVisits,
+                SearchSecondBestVisits = search.SecondBestVisits,
+                SearchCandidateCount = search.CandidateCount,
+                SearchOriginalCandidateCount = search.OriginalCandidateCount,
                 SearchBudgetTier = search.BudgetTier,
                 CertifiedLoops = search.CertifiedLoops,
                 SustainableControlLoops =
@@ -235,6 +343,13 @@ public sealed class CombatDecisionEngine
                 SearchNodes = search.Nodes,
                 SearchTranspositionHits = search.TranspositionHits,
                 SearchStoppedEarly = search.StoppedEarly,
+                SearchStoppedByTime = search.StoppedByTime,
+                SearchConfidence = search.Confidence,
+                SearchValueGap = search.ValueGap,
+                SearchBestVisits = search.BestVisits,
+                SearchSecondBestVisits = search.SecondBestVisits,
+                SearchCandidateCount = search.CandidateCount,
+                SearchOriginalCandidateCount = search.OriginalCandidateCount,
                 SearchBudgetTier = search.BudgetTier,
                 CertifiedLoops = search.CertifiedLoops,
                 SustainableControlLoops =
@@ -273,6 +388,13 @@ public sealed class CombatDecisionEngine
                     SearchNodes = search.Nodes,
                     SearchTranspositionHits = search.TranspositionHits,
                     SearchStoppedEarly = search.StoppedEarly,
+                    SearchStoppedByTime = search.StoppedByTime,
+                    SearchConfidence = search.Confidence,
+                    SearchValueGap = search.ValueGap,
+                    SearchBestVisits = search.BestVisits,
+                    SearchSecondBestVisits = search.SecondBestVisits,
+                    SearchCandidateCount = search.CandidateCount,
+                    SearchOriginalCandidateCount = search.OriginalCandidateCount,
                     SearchBudgetTier = search.BudgetTier
                 };
             }
@@ -289,6 +411,13 @@ public sealed class CombatDecisionEngine
             SearchNodes = search.Nodes,
             SearchTranspositionHits = search.TranspositionHits,
             SearchStoppedEarly = search.StoppedEarly,
+            SearchStoppedByTime = search.StoppedByTime,
+            SearchConfidence = search.Confidence,
+            SearchValueGap = search.ValueGap,
+            SearchBestVisits = search.BestVisits,
+            SearchSecondBestVisits = search.SecondBestVisits,
+            SearchCandidateCount = search.CandidateCount,
+            SearchOriginalCandidateCount = search.OriginalCandidateCount,
             SearchBudgetTier = search.BudgetTier,
             CertifiedLoops = search.CertifiedLoops,
             SustainableControlLoops =
@@ -296,6 +425,98 @@ public sealed class CombatDecisionEngine
             FakeLoops = search.FakeLoops,
             BlockedLoops = search.BlockedLoops
         };
+    }
+
+    private static CombatCandidateEvaluation? SelectLowConfidenceFallback(
+        CombatStateObservation state,
+        IReadOnlyList<CombatCandidateEvaluation> candidates,
+        CombatDecisionProfile profile)
+    {
+        var legal = candidates
+            .Where(candidate => candidate.Legal
+                                && candidate.Action.Kind != CombatActionKind.EndTurn)
+            .ToList();
+        if (legal.Count == 0)
+        {
+            return null;
+        }
+        var minimumRisk = legal.Min(candidate => candidate.SearchDeathRisk);
+        var safe = legal
+            .Where(candidate =>
+                candidate.SearchDeathRisk <= profile.DeathRiskLimit
+                || candidate.SearchDeathRisk <= minimumRisk + 0.01d)
+            .Where(candidate =>
+                CombatEndTurnSafety.IsSafeAlternative(
+                    state,
+                    candidate,
+                    profile))
+            .ToList();
+        if (safe.Count == 0)
+        {
+            safe = legal
+                .Where(candidate =>
+                    candidate.SearchDeathRisk <= minimumRisk + 0.01d)
+                .ToList();
+        }
+        return safe
+            .OrderBy(candidate =>
+                candidate.Action.Features.TryGetValue("curse", out var curse)
+                && curse > 0d
+                    ? 1
+                    : 0)
+            .ThenBy(candidate => candidate.Action.Semantics.Uncertainty)
+            .ThenBy(candidate => candidate.SearchDeathRisk)
+            .ThenByDescending(candidate => candidate.RuleScore)
+            .ThenBy(
+                candidate => candidate.Action.CandidateId,
+                StringComparer.Ordinal)
+            .FirstOrDefault();
+    }
+
+    private static void MergeMechanicalSemantics(
+        CombatActionSemantics target,
+        CombatActionSemantics observed)
+    {
+        if (target == null || observed == null)
+        {
+            return;
+        }
+        if (target.CardRetrievals.Count == 0
+            && observed.CardRetrievals.Count > 0)
+        {
+            target.CardRetrievals = observed.CardRetrievals.Select(item =>
+                new CombatCardRetrievalSemantic
+                {
+                    SourceZone = item.SourceZone,
+                    DestinationZone = item.DestinationZone,
+                    Amount = item.Amount,
+                    RequiredCardTag = item.RequiredCardTag,
+                    CandidateBranchCount = item.CandidateBranchCount
+                }).ToList();
+            target.CardGeneration = 0d;
+            target.Draw = 0d;
+            target.DeckValue = Math.Max(
+                target.DeckValue,
+                observed.DeckValue);
+            target.OpensInteraction = true;
+        }
+        if (!target.EnergySetAmount.HasValue
+            && !target.EnergyMinimum.HasValue
+            && !target.RestoreEnergyToMaximum)
+        {
+            target.EnergySetAmount = observed.EnergySetAmount;
+            target.EnergyMinimum = observed.EnergyMinimum;
+            target.RestoreEnergyToMaximum =
+                observed.RestoreEnergyToMaximum;
+            if (target.EnergySetAmount.HasValue
+                || target.EnergyMinimum.HasValue
+                || target.RestoreEnergyToMaximum)
+            {
+                target.EnergyGain = Math.Max(
+                    target.EnergyGain,
+                    observed.EnergyGain);
+            }
+        }
     }
 
     public static DecisionUtility BuildUtility(

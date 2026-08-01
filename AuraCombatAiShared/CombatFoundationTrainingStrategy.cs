@@ -337,6 +337,10 @@ public sealed class CombatFoundationHardSeedPlan
 {
     public int SourceCampaigns { get; set; }
 
+    public int RoutedBuildLimitedCampaigns { get; set; }
+
+    public int RoutedProvisionalBuildLimitedCampaigns { get; set; }
+
     public List<CombatFoundationHardSeed> Seeds { get; set; } = new();
 
     public Dictionary<string, int> Clusters { get; set; } =
@@ -416,17 +420,12 @@ public static class CombatFoundationHardSeedCurriculum
             return plan;
         }
 
-        var campaigns = (source
-                         ?? Array.Empty<CombatFoundationHardSeedHistoryEntry>())
+        var sourceHistory = (source
+                             ?? Array.Empty<CombatFoundationHardSeedHistoryEntry>())
             .Where(item => item != null
                            && item.WorldSeed > 0UL
                            && !item.Resolved
-                           && !IsBuildLimited(item.SolvabilityClass)
-                           && item.FailureOccurrences > 0
-                           && (item.TrainingAttempts < 2
-                               || item.RecoverySuccesses > 0
-                               || item.LastTrainedIteration
-                                  < Math.Max(0, iteration - 1)))
+                           && item.FailureOccurrences > 0)
             .GroupBy(item => new
             {
                 item.WorldSeed,
@@ -436,6 +435,25 @@ public static class CombatFoundationHardSeedCurriculum
                 .OrderByDescending(item => item.LastSeenIteration)
                 .ThenByDescending(item => item.FailureOccurrences)
                 .First())
+            .ToList();
+        plan.RoutedBuildLimitedCampaigns = sourceHistory.Count(item =>
+            string.Equals(
+                item.SolvabilityClass,
+                "build-limited",
+                StringComparison.OrdinalIgnoreCase));
+        plan.RoutedProvisionalBuildLimitedCampaigns = sourceHistory.Count(item =>
+            string.Equals(
+                item.SolvabilityClass,
+                "build-limited-provisional",
+                StringComparison.OrdinalIgnoreCase));
+
+        var campaigns = sourceHistory
+            .Where(item => item != null
+                           && !IsBuildLimited(item.SolvabilityClass)
+                           && (item.TrainingAttempts < 2
+                               || item.RecoverySuccesses > 0
+                               || item.LastTrainedIteration
+                                  < Math.Max(0, iteration - 1)))
             .OrderBy(item => item.WorldSeed)
             .ThenBy(item => item.DifficultyId, StringComparer.Ordinal)
             .ToList();

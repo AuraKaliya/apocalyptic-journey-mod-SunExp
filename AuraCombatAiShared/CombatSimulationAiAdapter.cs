@@ -35,6 +35,8 @@ public sealed class CombatSearchExplorationOptions
     public double RootNoiseFraction { get; set; } = 0.25d;
 
     public int RandomSeed { get; set; }
+
+    public int DeterminizationOffset { get; set; }
 }
 
 public sealed class CombatDecisionSimulationPolicy :
@@ -936,6 +938,17 @@ public static class PlayerEquivalentSimulationObservationProjector
                     state.EndTurnPurposeValue > 0d ? 1d : 0d
             }
         };
+        foreach (var cardId in observation.DeckCardIds
+                     .Distinct(StringComparer.OrdinalIgnoreCase))
+        {
+            if (context.Ruleset.TryGetCard(cardId, out var knownCard))
+            {
+                observation.CardTagsById[cardId] = knownCard.Tags
+                    .Where(tag => !string.IsNullOrWhiteSpace(tag))
+                    .Distinct(StringComparer.OrdinalIgnoreCase)
+                    .ToList();
+            }
+        }
         ProjectLifecycleFeatures(
             context.Scenario,
             context.Ruleset,

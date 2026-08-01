@@ -520,6 +520,9 @@ public static class CombatPublicFeaturePolicy
         {
             "turn",
             "handLimit",
+            "pendingHandCards",
+            "availableHandSlots",
+            "cardCostMultiplier",
             "drawPile",
             "drawPileCount",
             "discardPile",
@@ -623,6 +626,12 @@ public static class CombatPublicFeaturePolicy
             "recycle",
             "ouroboros",
             "exhaustOnUse",
+            "cardBaseCost",
+            "cardCostMultiplier",
+            "cardTotalExCost",
+            "cardExCost",
+            "cardOnceExCost",
+            "cardCostCap",
             "cost",
             "ruleScore",
             "baseRuleScore",
@@ -722,6 +731,7 @@ public static class CombatPublicFeaturePolicy
             "categorySkill",
             "categoryOther",
             "mechanic:card-use-count",
+            "continuationHint",
             "mechanic:rebirth.phase",
             "mechanic:time-cage.count",
             "mechanic:time-cage.payload",
@@ -833,6 +843,7 @@ public static class CombatPlayerObservationBoundary
             ExhaustPileCardIds = source.DeckKnowledge?.ExhaustContentsVisible == true
                 ? CleanIds(source.ExhaustPileCardIds)
                 : new List<string>(),
+            CardTagsById = NormalizeCardTags(source.CardTagsById),
             DeferredEffects = (source.DeferredEffects
                                ?? new List<CombatDeferredEffectObservation>())
                 .Where(item => item != null
@@ -992,6 +1003,23 @@ public static class CombatPlayerObservationBoundary
             Heal = Finite(source.Heal),
             Draw = Finite(source.Draw),
             EnergyGain = Finite(source.EnergyGain),
+            EnergySetAmount = FiniteNullable(source.EnergySetAmount),
+            EnergyMinimum = FiniteNullable(source.EnergyMinimum),
+            RestoreEnergyToMaximum = source.RestoreEnergyToMaximum,
+            CardRetrievals = (source.CardRetrievals
+                              ?? new List<CombatCardRetrievalSemantic>())
+                .Where(item => item != null && item.Amount > 0)
+                .Select(item => new CombatCardRetrievalSemantic
+                {
+                    SourceZone = item.SourceZone,
+                    DestinationZone = item.DestinationZone,
+                    Amount = Math.Max(0, item.Amount),
+                    RequiredCardTag = item.RequiredCardTag?.Trim() ?? "",
+                    CandidateBranchCount = Math.Max(
+                        1,
+                        Math.Min(3, item.CandidateBranchCount))
+                })
+                .ToList(),
             Scaling = Finite(source.Scaling),
             DeckValue = Finite(source.DeckValue),
             Buff = Finite(source.Buff),
@@ -1075,6 +1103,27 @@ public static class CombatPlayerObservationBoundary
             .ToList();
     }
 
+    private static Dictionary<string, List<string>> NormalizeCardTags(
+        IReadOnlyDictionary<string, List<string>>? source)
+    {
+        var result = new Dictionary<string, List<string>>(
+            StringComparer.OrdinalIgnoreCase);
+        foreach (var pair in source
+                     ?? new Dictionary<string, List<string>>())
+        {
+            var cardId = pair.Key?.Trim() ?? "";
+            if (cardId.Length == 0)
+            {
+                continue;
+            }
+            result[cardId] = CleanIds(pair.Value)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .OrderBy(value => value, StringComparer.OrdinalIgnoreCase)
+                .ToList();
+        }
+        return result;
+    }
+
     private static List<string> CleanMultiset(IEnumerable<string>? values)
     {
         return CleanIds(values)
@@ -1102,6 +1151,15 @@ public static class CombatPlayerObservationBoundary
     private static double Finite(double value)
     {
         return double.IsNaN(value) || double.IsInfinity(value) ? 0d : value;
+    }
+
+    private static double? FiniteNullable(double? value)
+    {
+        return value.HasValue
+               && !double.IsNaN(value.Value)
+               && !double.IsInfinity(value.Value)
+            ? value.Value
+            : null;
     }
 }
 
@@ -1141,6 +1199,17 @@ public static class CombatPublicObservationHasher
         foreach (var id in state.ExhaustPileCardIds ?? new List<string>())
         {
             Append(builder, id);
+        }
+        foreach (var pair in (state.CardTagsById
+                              ?? new Dictionary<string, List<string>>())
+                     .OrderBy(item => item.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            Append(builder, pair.Key);
+            foreach (var tag in pair.Value
+                         .OrderBy(value => value, StringComparer.OrdinalIgnoreCase))
+            {
+                Append(builder, tag);
+            }
         }
         var deck = state.DeckKnowledge ?? new CombatDeckKnowledge();
         Append(builder, deck.DrawPileCount);

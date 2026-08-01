@@ -20,9 +20,30 @@ param(
 
 $ErrorActionPreference = "Stop"
 function Read-FoundationJson([string]$Path) {
-    $json = [System.IO.File]::ReadAllText(
-        $Path,
-        [System.Text.Encoding]::UTF8)
+    if ($Path.EndsWith(
+            ".json.gz",
+            [System.StringComparison]::OrdinalIgnoreCase)) {
+        $input = [System.IO.File]::OpenRead($Path)
+        try {
+            $gzip = [System.IO.Compression.GZipStream]::new(
+                $input,
+                [System.IO.Compression.CompressionMode]::Decompress)
+            try {
+                $reader = [System.IO.StreamReader]::new(
+                    $gzip,
+                    [System.Text.Encoding]::UTF8)
+                try { $json = $reader.ReadToEnd() }
+                finally { $reader.Dispose() }
+            }
+            finally { $gzip.Dispose() }
+        }
+        finally { $input.Dispose() }
+    }
+    else {
+        $json = [System.IO.File]::ReadAllText(
+            $Path,
+            [System.Text.Encoding]::UTF8)
+    }
     # Windows PowerShell 5 rejects otherwise valid JSON objects that contain
     # an empty property name. Native simulation state can legitimately expose
     # an empty runtime-variable key, so normalize only that property token in
@@ -153,6 +174,26 @@ try {
             + [int]$result.Training.SemanticAudit.SelectedInvalidActions `
             + ", selectedUnexplained=" `
             + [int]$result.Training.SemanticAudit.SelectedUnexplainedMismatchActions)
+    }
+    if (-not $PreflightOnly -and $null -ne $result.Training.Champion) {
+        $championMetricNames = @(
+            $result.Training.Champion.Metrics.PSObject.Properties.Name)
+        foreach ($requiredMetric in @(
+                "episodeCount",
+                "optimizerAdamW",
+                "stateFeatureCollisionRate",
+                "validationCompositeLoss",
+                "testCompositeLoss",
+                "candidateEpoch")) {
+            if ($championMetricNames -notcontains $requiredMetric) {
+                throw "Champion lost full model metric: $requiredMetric"
+            }
+        }
+        if ($championMetricNames.Count -lt 40) {
+            throw (
+                "Champion metric manifest is unexpectedly truncated: " `
+                + $championMetricNames.Count)
+        }
     }
     if (@($result.Training.ValidationRuns).Count -ne 0) {
         throw "Foundation worker result retained process-local validation run details."
@@ -426,9 +467,11 @@ try {
                 + ($archiveLoad | ConvertTo-Json -Depth 8 -Compress))
         }
         $currentObservation = Get-ChildItem -LiteralPath $archiveRoot `
-            -Filter "*.json" -File -Recurse |
+            -File -Recurse |
             Where-Object {
                 $_.Directory.Name -eq "o" `
+                -and ($_.Name.EndsWith(".json") `
+                      -or $_.Name.EndsWith(".json.gz")) `
                 -and $_.FullName.Contains(
                     [System.IO.Path]::DirectorySeparatorChar `
                     + "v4" `
@@ -447,7 +490,7 @@ try {
                 + ([string]$observation.CompatibilityKey).Substring(0, 16) `
                 + "\o\" `
                 + ([string]$observation.CaseId).Substring(0, 24) `
-                + ".json")
+                + ".json.gz")
             if ([int]$observation.SchemaVersion -ne 3 `
                 -or [string]::IsNullOrWhiteSpace(
                     [string]$observation.CompatibilityKey) `
@@ -457,6 +500,10 @@ try {
                     "Foundation archive v4 contract failed: " `
                     + ($archiveLoad | ConvertTo-Json -Depth 8 -Compress))
             }
+        }
+        if (-not (Test-Path -LiteralPath `
+                $result.Training.BuildLimitedSeedIndexPath -PathType Leaf)) {
+            throw "Foundation build-limited seed routing index is missing."
         }
         $expertReference = Get-ChildItem -LiteralPath $archiveRoot `
             -Filter "*.json" -File -Recurse |

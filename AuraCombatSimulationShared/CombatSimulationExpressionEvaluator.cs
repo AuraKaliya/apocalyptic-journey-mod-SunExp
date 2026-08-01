@@ -92,6 +92,10 @@ public static class CombatSimulationExpressionEvaluator
                 return source?.Block ?? 0d;
             case CombatSimulationValueOperation.TargetBlock:
                 return target?.Block ?? 0d;
+            case CombatSimulationValueOperation.SourceEnergy:
+                return source?.Energy ?? 0d;
+            case CombatSimulationValueOperation.SourceMaxEnergy:
+                return source?.BaseEnergy ?? 0d;
             case CombatSimulationValueOperation.LivingEnemyCount:
                 return state.LivingEnemies.Count();
         }

@@ -81,7 +81,19 @@ public sealed class WitchCombatRuntime :
         capturedExecutionContext.BindActor(observation.Player.RuntimeId, playerStatus);
         observation.CurrentPower = player.CurPowerCount;
         observation.MaxPower = player.MaxPowerCount;
+        observation.Features["cardCostMultiplier"] = ReadCardCostMultiplier();
         observation.HandCount = FightUI.cardItemList?.Count ?? 0;
+        WitchCombatCardCapacityApi.TryObserve(
+            fightUi,
+            out var visibleHandCount,
+            out var pendingCardCount,
+            out var configuredHandLimit);
+        observation.HandCount = visibleHandCount;
+        observation.Features["handLimit"] = configuredHandLimit;
+        observation.Features["pendingHandCards"] = pendingCardCount;
+        observation.Features["availableHandSlots"] = Math.Max(
+            0,
+            configuredHandLimit - visibleHandCount - pendingCardCount);
         observation.UiBusy = IsUiBusy(fightUi);
         observation.IsPlayerActionWindow = IsPlayerActionWindow(fightUi);
         AddEnemiesAndNativeThreat(observation, capturedExecutionContext);
@@ -501,6 +513,11 @@ public sealed class WitchCombatRuntime :
             card.dataConfig,
             card is AttackCardItem,
             target == null ? CombatTargetKind.None : CombatTargetKind.Enemy);
+        var baseCost = ReadCardBaseCost(card);
+        var costMultiplier = ReadCardCostMultiplier();
+        var totalExtraCost = ParseInt(card.Vars, "TotalExCost");
+        var extraCost = ParseInt(card.Vars, "ExCost");
+        var onceExtraCost = ParseInt(card.Vars, "OnceExCost");
         var features = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
         {
             ["handIndex"] = index,
@@ -512,6 +529,12 @@ public sealed class WitchCombatRuntime :
             ["inherent"] = HasAnyTag(card, "Inherent") ? 1d : 0d,
             ["recycle"] = HasAnyTag(card, "Recycle") ? 1d : 0d,
             ["ouroboros"] = HasAnyTag(card, "Ouroboros") ? 1d : 0d,
+            ["cardBaseCost"] = baseCost == int.MaxValue ? 0d : baseCost,
+            ["cardCostMultiplier"] = costMultiplier,
+            ["cardTotalExCost"] = totalExtraCost,
+            ["cardExCost"] = extraCost,
+            ["cardOnceExCost"] = onceExtraCost,
+            ["cardCostCap"] = 4d,
             ["exhaustOnUse"] = HasAnyTag(
                 card,
                 "Burnout",
@@ -650,21 +673,9 @@ public sealed class WitchCombatRuntime :
         var sourceId = WitchCombatValueEstimator.IdOf(skill.dataConfig);
         var requiresDeckCard = string.Equals(
             sourceId,
-            "careercard_1",
+            CombatActionExecutionPolicy.DivineChoiceSourceId,
             StringComparison.OrdinalIgnoreCase);
-        var availableDeckCards =
-            state.DeckKnowledge.DrawPileCount
-            + state.DeckKnowledge.DiscardPileCount;
-        if (legal && requiresDeckCard && availableDeckCards <= 0)
-        {
-            legal = false;
-            reason =
-                "skill requires a card in the draw or discard pile";
-        }
-        AddBoundAction(
-            state,
-            context,
-            new CombatActionObservation
+        var action = new CombatActionObservation
         {
             CandidateId = "skill:" + sourceId + ":" + publicSkillId + ":" + publicTargetId,
             SourceId = sourceId,
@@ -681,10 +692,23 @@ public sealed class WitchCombatRuntime :
                 ["isSkill"] = 1d,
                 ["requiresAvailableDeckCard"] =
                     requiresDeckCard ? 1d : 0d,
-                ["semanticUnavailable"] =
-                    requiresDeckCard && availableDeckCards <= 0 ? 1d : 0d
+                ["semanticUnavailable"] = 0d
             }
-        },
+        };
+        if (action.Legal
+            && !CombatActionExecutionPolicy.IsLiveEligible(
+                state,
+                action,
+                out var eligibilityReason))
+        {
+            action.Legal = false;
+            action.RejectionReason = eligibilityReason;
+            action.Features["semanticUnavailable"] = 1d;
+        }
+        AddBoundAction(
+            state,
+            context,
+            action,
             skill,
             target);
     }
@@ -785,30 +809,66 @@ public sealed class WitchCombatRuntime :
             return false;
         }
 
+        if (string.Equals(
+                id,
+                CombatActionExecutionPolicy.DivineChoiceSourceId,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            if (!WitchCombatCardCapacityApi.HasDrawPileCard())
+            {
+                reason = "divine choice requires a card in the native draw pile";
+                return false;
+            }
+            if (WitchCombatCardCapacityApi.IsAtNativeHandLimit(
+                    skill.dataConfig,
+                    WitchUiManager.Instance?.GetUI<FightUI>("FightUI"),
+                    out var capacitySource))
+            {
+                reason = "divine choice rejected by " + capacitySource;
+                return false;
+            }
+        }
+
         reason = "";
         return true;
     }
 
     private static int ComputeCardCost(CommonCardItem card)
     {
-        if (card.data == null
-            || !card.data.TryGetValue("Expend", out var raw)
-            || !int.TryParse(raw, out var baseCost))
+        var baseCost = ReadCardBaseCost(card);
+        if (baseCost == int.MaxValue)
         {
             return int.MaxValue;
         }
-
-        var multiplier = 1f;
-        var dynamicVariables = FightPlayer.Instance?.Status?.dynamicVariables;
-        if (dynamicVariables != null && dynamicVariables.TryGetValue("CardCost", out var configuredMultiplier))
-        {
-            multiplier = configuredMultiplier;
-        }
+        var multiplier = ReadCardCostMultiplier();
         var cost = Math.Min((int)(baseCost * multiplier), 4);
         cost += ParseInt(card.Vars, "TotalExCost");
         cost += ParseInt(card.Vars, "ExCost");
         cost += ParseInt(card.Vars, "OnceExCost");
         return Math.Max(0, cost);
+    }
+
+    private static int ReadCardBaseCost(CommonCardItem card)
+    {
+        return card.data != null
+               && card.data.TryGetValue("Expend", out var raw)
+               && int.TryParse(raw, out var baseCost)
+            ? Math.Max(0, baseCost)
+            : int.MaxValue;
+    }
+
+    private static double ReadCardCostMultiplier()
+    {
+        var multiplier = 1d;
+        var dynamicVariables = FightPlayer.Instance?.Status?.dynamicVariables;
+        if (dynamicVariables != null
+            && dynamicVariables.TryGetValue("CardCost", out var configuredMultiplier)
+            && !float.IsNaN(configuredMultiplier)
+            && !float.IsInfinity(configuredMultiplier))
+        {
+            multiplier = configuredMultiplier;
+        }
+        return Math.Max(0d, multiplier);
     }
 
     private static int ParseInt(IDictionary<string, string> values, string key)
@@ -866,6 +926,10 @@ public sealed class WitchCombatRuntime :
         }
         state.DeckCardIds = ReadCardIds(manager.FightcardList);
         state.DiscardPileCardIds = ReadCardIds(manager.usedCardList);
+        ObserveCardTags(state, manager.FightcardList);
+        ObserveCardTags(state, manager.cardList);
+        ObserveCardTags(state, manager.usedCardList);
+        ObserveCardTags(state, FightUI.cardItemList);
         state.HandCardIds = state.Actions
             .Where(action => action.Kind == CombatActionKind.PlayCard)
             .GroupBy(action => action.RuntimeId)
@@ -950,6 +1014,52 @@ public sealed class WitchCombatRuntime :
             }
         }
         return result;
+    }
+
+    private static void ObserveCardTags(
+        CombatStateObservation state,
+        IEnumerable? values)
+    {
+        if (values == null)
+        {
+            return;
+        }
+        foreach (var value in values)
+        {
+            var config = value as IDataConfig
+                         ?? ReadMember(value, "dataConfig", "DataConfig")
+                             as IDataConfig;
+            var cardId = WitchCombatValueEstimator.IdOf(config);
+            if (string.IsNullOrWhiteSpace(cardId) || config == null)
+            {
+                continue;
+            }
+            var raw = config.data != null
+                      && config.data.TryGetValue("Tag", out var dataTags)
+                ? dataTags
+                : config.Vars != null
+                  && config.Vars.TryGetValue("Tag", out var variableTags)
+                    ? variableTags
+                    : "";
+            var tags = (raw ?? "")
+                .Split(new[] { ',', '|', ';', '，', '；' })
+                .Select(tag => tag.Trim())
+                .Where(tag => tag.Length > 0)
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            if (!state.CardTagsById.TryGetValue(cardId, out var known))
+            {
+                state.CardTagsById[cardId] = tags;
+                continue;
+            }
+            foreach (var tag in tags)
+            {
+                if (!known.Contains(tag, StringComparer.OrdinalIgnoreCase))
+                {
+                    known.Add(tag);
+                }
+            }
+        }
     }
 
     private static int CountItems(IEnumerable? values)
@@ -1684,6 +1794,7 @@ public static class WitchCombatValueEstimator
         ReadDictionary(config.data, result);
         ReadDictionary(config.Vars, result);
         var script = CombinedScript(config);
+        ReadMechanicalSemantics(script, result);
         var descriptiveValue = LargestDescriptiveValue(config);
         var constantSelfHpLoss = ConstantSelfHpLoss(
             script,
@@ -1746,7 +1857,14 @@ public static class WitchCombatValueEstimator
             result.CostReduction = Math.Max(1d, descriptiveValue);
         }
 
-        if (result.CardGeneration <= 0d && ContainsAny(script, "CreateCard", "AddCard", "GetCard", "GenerateCard"))
+        if (result.CardRetrievals.Count == 0
+            && result.CardGeneration <= 0d
+            && ContainsAny(
+                script,
+                "CreateCard",
+                "AddCard",
+                "GetCard",
+                "GenerateCard"))
         {
             result.CardGeneration = Math.Max(1d, result.Draw > 0d ? result.Draw : descriptiveValue);
         }
@@ -1768,7 +1886,7 @@ public static class WitchCombatValueEstimator
             }
         }
 
-        result.OpensInteraction = ContainsAny(
+        result.OpensInteraction = result.OpensInteraction || ContainsAny(
             script,
             "SelectCard",
             "PackToDeck",
@@ -1802,6 +1920,10 @@ public static class WitchCombatValueEstimator
             && result.Heal == 0d
             && result.Draw == 0d
             && result.EnergyGain == 0d
+            && !result.EnergySetAmount.HasValue
+            && !result.EnergyMinimum.HasValue
+            && !result.RestoreEnergyToMaximum
+            && result.CardRetrievals.Count == 0
             && result.Scaling == 0d
             && result.DeckValue == 0d
             && result.Buff == 0d
@@ -1815,6 +1937,113 @@ public static class WitchCombatValueEstimator
         }
 
         return result;
+    }
+
+    private static void ReadMechanicalSemantics(
+        string script,
+        CombatActionSemantics result)
+    {
+        if (string.IsNullOrWhiteSpace(script))
+        {
+            return;
+        }
+
+        var floor = Regex.Match(
+            script,
+            "SetPower\\s*\\(\\s*[^?]+>\\s*(\\d+)\\s*\\?[^:]+:\\s*\\\"(\\d+)\\\"",
+            RegexOptions.IgnoreCase);
+        if (floor.Success
+            && floor.Groups[1].Value == floor.Groups[2].Value
+            && double.TryParse(floor.Groups[1].Value, out var floorValue))
+        {
+            result.EnergyMinimum = Math.Max(0d, floorValue);
+        }
+        else if (Regex.IsMatch(
+                     script,
+                     "SetPower\\s*\\(\\s*PlayerInfo\\.MaxPower\\.ToString\\(\\)",
+                     RegexOptions.IgnoreCase))
+        {
+            result.RestoreEnergyToMaximum = true;
+        }
+        else
+        {
+            var absolute = Regex.Match(
+                script,
+                "SetPower\\s*\\(\\s*\\\"(\\d+)\\\"",
+                RegexOptions.IgnoreCase);
+            if (absolute.Success
+                && double.TryParse(absolute.Groups[1].Value, out var amount))
+            {
+                result.EnergySetAmount = Math.Max(0d, amount);
+            }
+        }
+
+        AddRetrievalSemantics(
+            script,
+            "AddCardByUsedCardList",
+            CombatCardZoneKind.DiscardPile,
+            result);
+        AddRetrievalSemantics(
+            script,
+            "AddCardByCardList",
+            CombatCardZoneKind.DrawPile,
+            result);
+        if (result.CardRetrievals.Count == 0)
+        {
+            var deckSelection = Regex.Match(
+                script,
+                "PackToDeckAction\\s*\\(\\s*\\\"?(\\d+)\\\"?\\s*,\\s*DeckCard",
+                RegexOptions.IgnoreCase);
+            if (deckSelection.Success
+                && int.TryParse(deckSelection.Groups[1].Value, out var count)
+                && count > 0)
+            {
+                result.CardRetrievals.Add(new CombatCardRetrievalSemantic
+                {
+                    SourceZone = CombatCardZoneKind.DrawPile,
+                    DestinationZone = CombatCardZoneKind.Hand,
+                    Amount = count,
+                    CandidateBranchCount = 3
+                });
+            }
+        }
+        if (result.CardRetrievals.Count > 0)
+        {
+            result.OpensInteraction = true;
+        }
+    }
+
+    private static void AddRetrievalSemantics(
+        string script,
+        string method,
+        CombatCardZoneKind sourceZone,
+        CombatActionSemantics result)
+    {
+        var match = Regex.Match(
+            script,
+            Regex.Escape(method)
+            + "\\s*\\(\\s*\\\"?(\\d+)\\\"?\\s*,\\s*\\\"([^\\\"]*)\\\"",
+            RegexOptions.IgnoreCase);
+        if (!match.Success
+            || !int.TryParse(match.Groups[1].Value, out var count)
+            || count <= 0)
+        {
+            return;
+        }
+        var tag = match.Groups[2].Value.Trim();
+        result.CardRetrievals.Add(new CombatCardRetrievalSemantic
+        {
+            SourceZone = sourceZone,
+            DestinationZone = CombatCardZoneKind.Hand,
+            Amount = count,
+            RequiredCardTag = string.Equals(
+                tag,
+                "all",
+                StringComparison.OrdinalIgnoreCase)
+                ? ""
+                : tag,
+            CandidateBranchCount = 3
+        });
     }
 
     private static double ConstantSelfHpLoss(

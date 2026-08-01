@@ -2972,7 +2972,21 @@
       ],
       "requiresEnemyTarget": true,
       "fidelity": "Authoritative",
-      "effects": [],
+      "effects": [
+        {
+          "kind": "Draw",
+          "target": "Self",
+          "amount": 5
+        },
+        {
+          "kind": "SetEnergy",
+          "target": "Self",
+          "amountExpression": {
+            "operation": "SourceMaxEnergy",
+            "arguments": []
+          }
+        }
+      ],
       "drawEffects": [],
       "discardEffects": [],
       "metadata": {
@@ -9517,7 +9531,26 @@
       ],
       "requiresEnemyTarget": true,
       "fidelity": "Authoritative",
-      "effects": [],
+      "effects": [
+        {
+          "kind": "SetEnergy",
+          "target": "Self",
+          "amountExpression": {
+            "operation": "Maximum",
+            "arguments": [
+              {
+                "operation": "SourceEnergy",
+                "arguments": []
+              },
+              {
+                "operation": "Constant",
+                "constant": 2,
+                "arguments": []
+              }
+            ]
+          }
+        }
+      ],
       "drawEffects": [],
       "discardEffects": [],
       "metadata": {

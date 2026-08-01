@@ -429,6 +429,38 @@ public static class CombatArchetypePolicy
         var semantics = action.Semantics;
         var derived = false;
 
+        if (semantics.RestoreEnergyToMaximum)
+        {
+            semantics.EnergyGain = Math.Max(
+                0d,
+                state.MaxPower - state.CurrentPower);
+            derived = true;
+        }
+        else if (semantics.EnergyMinimum.HasValue)
+        {
+            semantics.EnergyGain = Math.Max(
+                0d,
+                semantics.EnergyMinimum.Value - state.CurrentPower);
+            derived = true;
+        }
+        else if (semantics.EnergySetAmount.HasValue)
+        {
+            semantics.EnergyGain = Math.Max(
+                0d,
+                semantics.EnergySetAmount.Value - state.CurrentPower);
+            derived = true;
+        }
+        if (semantics.CardRetrievals.Count > 0)
+        {
+            semantics.CardGeneration = 0d;
+            semantics.Draw = 0d;
+            semantics.DeckValue = Math.Max(
+                semantics.DeckValue,
+                RetrievalValue(state, semantics.CardRetrievals));
+            semantics.OpensInteraction = true;
+            derived = true;
+        }
+
         switch (id)
         {
             case "Crowdfundingcard_43":
@@ -614,11 +646,6 @@ public static class CombatArchetypePolicy
                 semantics.Debuff = 2d;
                 derived = true;
                 break;
-            case "timekeeper_2":
-                ResetTactical(semantics);
-                semantics.EnergyGain = Math.Max(0, 2 - state.CurrentPower);
-                derived = true;
-                break;
             case "timekeeper_3":
                 ResetTactical(semantics);
                 semantics.Defend = Math.Max(
@@ -689,18 +716,7 @@ public static class CombatArchetypePolicy
                 derived = true;
                 break;
             case "timekeeper_15":
-                ResetTactical(semantics);
-                semantics.CardGeneration = 3d;
-                semantics.DeckValue = 1.5d;
-                semantics.OpensInteraction = true;
-                derived = true;
-                break;
             case "timekeeper_16":
-                ResetTactical(semantics);
-                semantics.CardGeneration = 3d;
-                semantics.DeckValue = 1.5d;
-                semantics.OpensInteraction = true;
-                derived = true;
                 break;
             case "timekeeper_17":
                 ResetTactical(semantics);
@@ -709,12 +725,7 @@ public static class CombatArchetypePolicy
                 derived = true;
                 break;
             case "timekeeper_18":
-                ResetTactical(semantics);
-                semantics.Draw = 2d;
-                semantics.DeckValue = 1d;
-                semantics.OpensInteraction = true;
                 action.Features["mechanic:time-cage.payload"] = 1d;
-                derived = true;
                 break;
         }
 
@@ -983,6 +994,89 @@ public static class CombatArchetypePolicy
                     : 0d);
     }
 
+    private static double RetrievalValue(
+        CombatStateObservation state,
+        IReadOnlyList<CombatCardRetrievalSemantic> retrievals)
+    {
+        var handSlots = Math.Max(
+            0,
+            CombatActionExecutionPolicy.ResolveAvailableHandSlots(state));
+        var total = 0d;
+        foreach (var retrieval in retrievals)
+        {
+            IEnumerable<string> source = retrieval.SourceZone switch
+            {
+                CombatCardZoneKind.Hand => state.HandCardIds,
+                CombatCardZoneKind.DiscardPile => state.DiscardPileCardIds,
+                CombatCardZoneKind.ExhaustPile => state.ExhaustPileCardIds,
+                _ => state.DeckKnowledge?.KnownDeckCardIds
+                     ?? state.DeckCardIds
+            };
+            var amount = retrieval.DestinationZone == CombatCardZoneKind.Hand
+                ? Math.Min(Math.Max(0, retrieval.Amount), handSlots)
+                : Math.Max(0, retrieval.Amount);
+            total += source
+                .Where(cardId => HasKnownCardTag(
+                    state,
+                    cardId,
+                    retrieval.RequiredCardTag))
+                .Select(ContextualCardValue)
+                .OrderByDescending(value => value)
+                .Take(amount)
+                .Sum();
+        }
+        return Math.Max(0d, total * 0.35d);
+    }
+
+    private static bool HasKnownCardTag(
+        CombatStateObservation state,
+        string cardId,
+        string requiredTag)
+    {
+        return string.IsNullOrWhiteSpace(requiredTag)
+               || state.CardTagsById.TryGetValue(cardId ?? "", out var tags)
+               && tags.Contains(
+                   requiredTag,
+                   StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static double ContextualCardValue(string cardId)
+    {
+        if (IsDeadHandCard(cardId))
+        {
+            return -5d;
+        }
+        if (!CombatKnowledgeRegistry.TryDescribeAction(
+                new CombatActionObservation
+                {
+                    SourceId = cardId,
+                    Kind = CombatActionKind.PlayCard
+                },
+                out var semantics,
+                out var fidelity,
+                out _)
+            || fidelity == CombatKnowledgeFidelity.Unsupported)
+        {
+            return 0.25d;
+        }
+        var confidence = fidelity == CombatKnowledgeFidelity.Authoritative
+            ? 1d
+            : fidelity == CombatKnowledgeFidelity.Derived
+                ? 0.7d
+                : 0.4d;
+        return confidence * (semantics.Damage * 0.45d
+                             + semantics.TrueDamage * 0.6d
+                             + semantics.Defend * 0.3d
+                             + semantics.Heal * 0.35d
+                             + semantics.Draw * 0.7d
+                             + semantics.EnergyGain
+                             + semantics.Buff * 0.5d
+                             + semantics.Debuff * 0.45d
+                             + semantics.Scaling
+                             + semantics.PersistentValue
+                             + semantics.DamageMultiplierGain * 100d);
+    }
+
     private static void ResetTactical(CombatActionSemantics value)
     {
         value.Damage = 0d;
@@ -995,6 +1089,10 @@ public static class CombatArchetypePolicy
         value.Heal = 0d;
         value.Draw = 0d;
         value.EnergyGain = 0d;
+        value.EnergySetAmount = null;
+        value.EnergyMinimum = null;
+        value.RestoreEnergyToMaximum = false;
+        value.CardRetrievals.Clear();
         value.Scaling = 0d;
         value.DeckValue = 0d;
         value.Buff = 0d;

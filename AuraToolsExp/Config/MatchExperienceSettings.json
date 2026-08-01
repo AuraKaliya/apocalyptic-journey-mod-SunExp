@@ -56,6 +56,10 @@
     "evaluationModelId": "",
     "showPredictionMarkers": true,
     "searchQuality": "balanced",
+    "decisionTimeBudgetMs": 250,
+    "inferenceParallelism": 2,
+    "lowConfidenceFallback": true,
+    "minimumSearchConfidence": 0.35,
     "gameParameters": {
       "selectedPresetId": "standard",
       "presets": [

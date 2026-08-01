@@ -19,6 +19,14 @@ public static class CombatFoundationCaseArchiveProtocol
 
     public const string ObservationDirectoryName = "o";
 
+    public const string JsonExtension = ".json";
+
+    public const string CompressedJsonExtension = ".json.gz";
+
+    public const int MaximumExpertCasesPerCompatibility = 2048;
+
+    public const int MaximumObservationsPerCompatibility = 8192;
+
     public static string CompatibilityDirectory(
         string archiveRoot,
         string compatibilityKey,
@@ -64,7 +72,31 @@ public static class CombatFoundationCaseArchiveProtocol
         return Path.Combine(
             CompatibilityDirectory(archiveRoot, compatibilityKey),
             directoryName,
-            CompactIdentifier(entryId, identifierLength) + ".json");
+            CompactIdentifier(entryId, identifierLength) + JsonExtension);
+    }
+
+    public static string CompressedEntryPath(
+        string archiveRoot,
+        string compatibilityKey,
+        string directoryName,
+        string entryId,
+        int identifierLength = EntryKeyLength)
+    {
+        var legacyPath = EntryPath(
+            archiveRoot,
+            compatibilityKey,
+            directoryName,
+            entryId,
+            identifierLength);
+        return legacyPath + ".gz";
+    }
+
+    public static bool IsArchiveJsonFile(string path)
+    {
+        return path.EndsWith(JsonExtension, StringComparison.OrdinalIgnoreCase)
+               || path.EndsWith(
+                   CompressedJsonExtension,
+                   StringComparison.OrdinalIgnoreCase);
     }
 
     public static string CompactIdentifier(string value, int maximumLength)

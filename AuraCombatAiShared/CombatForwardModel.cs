@@ -24,6 +24,11 @@ public sealed class CombatSimulationState
 
     public int CostReduction { get; set; }
 
+    public double CardCostMultiplier { get; set; } = 1d;
+
+    public Dictionary<string, List<string>> KnownCardTags { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public List<double> HandCardValues { get; set; } = new();
 
     public List<double> RetainedHandCardValues { get; set; } = new();
@@ -69,6 +74,8 @@ public sealed class CombatSimulationState
     public CombatSimulationThreat[] Threats { get; set; } = Array.Empty<CombatSimulationThreat>();
 
     public ulong[] UsedActionWords { get; set; } = Array.Empty<ulong>();
+
+    public int[] UsedActionCounts { get; set; } = Array.Empty<int>();
 
     public int StepCount { get; set; }
 
@@ -137,6 +144,8 @@ public sealed class CombatSimulationState
             HandCount = HandCount,
             HandLimit = HandLimit,
             CostReduction = CostReduction,
+            CardCostMultiplier = CardCostMultiplier,
+            KnownCardTags = KnownCardTags,
             HandCardValues = cloneCardPiles
                 ? new List<double>(HandCardValues)
                 : HandCardValues,
@@ -184,6 +193,7 @@ public sealed class CombatSimulationState
             Enemies = enemies,
             Threats = threats,
             UsedActionWords = (ulong[])UsedActionWords.Clone(),
+            UsedActionCounts = (int[])UsedActionCounts.Clone(),
             StepCount = StepCount,
             Turn = Turn,
             TurnActionsTaken = TurnActionsTaken,
@@ -210,11 +220,39 @@ public sealed class CombatSimulationState
         return word < UsedActionWords.Length && (UsedActionWords[word] & (1UL << bit)) != 0UL;
     }
 
+    public int UseCount(int actionIndex)
+    {
+        return actionIndex >= 0 && actionIndex < UsedActionCounts.Length
+            ? UsedActionCounts[actionIndex]
+            : WasUsed(actionIndex) ? 1 : 0;
+    }
+
     public void MarkUsed(int actionIndex)
     {
         var word = actionIndex >> 6;
         var bit = actionIndex & 63;
         UsedActionWords[word] |= 1UL << bit;
+        if (actionIndex >= 0 && actionIndex < UsedActionCounts.Length)
+        {
+            UsedActionCounts[actionIndex]++;
+        }
+    }
+
+    public void UnmarkUsed(int actionIndex)
+    {
+        var word = actionIndex >> 6;
+        var bit = actionIndex & 63;
+        if (actionIndex >= 0 && actionIndex < UsedActionCounts.Length)
+        {
+            UsedActionCounts[actionIndex] = Math.Max(
+                0,
+                UsedActionCounts[actionIndex] - 1);
+        }
+        if (word < UsedActionWords.Length
+            && UseCount(actionIndex) == 0)
+        {
+            UsedActionWords[word] &= ~(1UL << bit);
+        }
     }
 
     public bool TargetAlive(int runtimeId)
@@ -322,6 +360,7 @@ public sealed class CombatSimulationState
             Mix(ref hash, Power);
             Mix(ref hash, HandCount);
             Mix(ref hash, CostReduction);
+            Mix(ref hash, Quantize(CardCostMultiplier));
             Mix(ref hash, StepCount);
             Mix(ref hash, Turn);
             Mix(ref hash, TurnActionsTaken);
@@ -414,6 +453,10 @@ public sealed class CombatSimulationState
                 hash ^= UsedActionWords[i];
                 hash *= 1099511628211UL;
             }
+            for (var i = 0; i < UsedActionCounts.Length; i++)
+            {
+                Mix(ref hash, UsedActionCounts[i]);
+            }
             return hash;
         }
     }
@@ -430,6 +473,7 @@ public sealed class CombatSimulationState
             Mix(ref hash, HandCount);
             Mix(ref hash, HandLimit);
             Mix(ref hash, CostReduction);
+            Mix(ref hash, Quantize(CardCostMultiplier));
             Mix(ref hash, DrawPileKnown ? 1 : 0);
             for (var i = 0; i < HandCardValues.Count; i++)
             {
@@ -637,6 +681,13 @@ public static class CombatForwardModel
             MaxPower = state.MaxPower,
             HandCount = state.HandCount,
             HandLimit = ResolveHandLimit(state),
+            CardCostMultiplier = Math.Max(
+                0d,
+                state.Features.TryGetValue(
+                    "cardCostMultiplier",
+                    out var cardCostMultiplier)
+                    ? cardCostMultiplier
+                    : 1d),
             HandCardValues = state.HandCardIds
                 .Select(KnowledgeValue)
                 .ToList(),
@@ -680,6 +731,10 @@ public static class CombatForwardModel
                     group => CombatSimulationState.CloneSemantics(
                         group.First().Semantics ?? new CombatActionSemantics()),
                     StringComparer.OrdinalIgnoreCase),
+            KnownCardTags = state.CardTagsById.ToDictionary(
+                pair => pair.Key,
+                pair => new List<string>(pair.Value),
+                StringComparer.OrdinalIgnoreCase),
             DrawPileKnown = drawPileKnown,
             Features = BuildStateFeatures(state),
             Enemies = state.Enemies.Select(enemy => new CombatSimulationUnit
@@ -721,7 +776,8 @@ public static class CombatForwardModel
                     CombatTurnFeatureNames.NoEffectActionAttemptsThisTurn))),
             DeterminizationSeed = determinizationSeed,
             ShuffleEpoch = 0,
-            UsedActionWords = new ulong[(Math.Max(0, actionCount) + 63) / 64]
+            UsedActionWords = new ulong[(Math.Max(0, actionCount) + 63) / 64],
+            UsedActionCounts = new int[Math.Max(0, actionCount)]
         };
     }
 
@@ -789,7 +845,38 @@ public static class CombatForwardModel
         Add(outcome, CombatEffectKind.GainDefend, action.TargetRuntimeId, semantics.Defend);
         Add(outcome, CombatEffectKind.Heal, action.TargetRuntimeId, semantics.Heal);
         Add(outcome, CombatEffectKind.Draw, 0, semantics.Draw);
-        Add(outcome, CombatEffectKind.GainEnergy, 0, semantics.EnergyGain);
+        if (!semantics.RestoreEnergyToMaximum
+            && !semantics.EnergyMinimum.HasValue
+            && !semantics.EnergySetAmount.HasValue)
+        {
+            Add(outcome, CombatEffectKind.GainEnergy, 0, semantics.EnergyGain);
+        }
+        if (semantics.RestoreEnergyToMaximum)
+        {
+            outcome.Effects.Add(new CombatEffectOperation
+            {
+                Kind = CombatEffectKind.SetEnergy,
+                SemanticId = "maximum"
+            });
+        }
+        else if (semantics.EnergyMinimum.HasValue)
+        {
+            outcome.Effects.Add(new CombatEffectOperation
+            {
+                Kind = CombatEffectKind.SetEnergy,
+                Magnitude = Math.Max(0d, semantics.EnergyMinimum.Value),
+                SemanticId = "minimum"
+            });
+        }
+        else if (semantics.EnergySetAmount.HasValue)
+        {
+            outcome.Effects.Add(new CombatEffectOperation
+            {
+                Kind = CombatEffectKind.SetEnergy,
+                Magnitude = Math.Max(0d, semantics.EnergySetAmount.Value),
+                SemanticId = "absolute"
+            });
+        }
         Add(outcome, CombatEffectKind.ReduceCost, 0, semantics.CostReduction);
         Add(outcome, CombatEffectKind.Buff, action.TargetRuntimeId, semantics.Buff);
         Add(outcome, CombatEffectKind.Debuff, action.TargetRuntimeId, semantics.Debuff);
@@ -798,10 +885,46 @@ public static class CombatForwardModel
         Add(outcome, CombatEffectKind.PersistentValue, 0, semantics.PersistentValue);
         Add(outcome, CombatEffectKind.Scaling, 0, semantics.Scaling);
         Add(outcome, CombatEffectKind.DamageMultiplier, 0, semantics.DamageMultiplierGain);
+        foreach (var retrieval in semantics.CardRetrievals)
+        {
+            AddRetrieval(outcome, retrieval, selectionRank: 0);
+        }
+        var randomCardCost = HasRandomCardCostStatus(root)
+                             && action.Kind == CombatActionKind.PlayCard;
+        if (randomCardCost)
+        {
+            outcome.Effects.Add(new CombatEffectOperation
+            {
+                Kind = CombatEffectKind.SetCardCostMultiplier,
+                Magnitude = 0d,
+                SemanticId = "post-action-random-cost"
+            });
+        }
+        var retrievalBranchCount = semantics.CardRetrievals.Count == 0
+            ? 1
+            : Math.Max(
+                1,
+                Math.Min(
+                    3,
+                    semantics.CardRetrievals.Max(item =>
+                        item.CandidateBranchCount)));
+        var branchCount = Math.Max(
+            retrievalBranchCount,
+            randomCardCost ? 3 : 1);
+        var outcomes = branchCount == 1
+            ? new List<CombatActionOutcome> { outcome }
+            : Enumerable.Range(0, branchCount)
+                .Select(rank => CloneBranchedOutcome(
+                    outcome,
+                    rank,
+                    randomCardCost
+                        ? rank == 0 ? 0.34d : 0.33d
+                        : 1d / branchCount))
+                .ToList();
         return new CombatActionModel
         {
             Confidence = Math.Max(0d, Math.Min(1d, 1d - semantics.Uncertainty / 3d)),
-            Outcomes = new List<CombatActionOutcome> { outcome }
+            Outcomes = outcomes
         };
     }
 
@@ -818,14 +941,15 @@ public static class CombatForwardModel
              !mutatesCardPiles && effectIndex < outcome.Effects.Count;
              effectIndex++)
         {
-            mutatesCardPiles =
-                outcome.Effects[effectIndex].Kind == CombatEffectKind.Draw;
+            mutatesCardPiles = outcome.Effects[effectIndex].Kind
+                is CombatEffectKind.Draw or CombatEffectKind.RetrieveCards;
         }
         var state = source.CloneForTransition(
             mutatesCardPiles,
             stateChanges != null && stateChanges.Count > 0);
-        var effectiveCost = Math.Max(0, action.Cost - state.CostReduction);
-        var reductionSpent = Math.Min(Math.Max(0, action.Cost), state.CostReduction);
+        var rawCost = RawDynamicCost(state, action);
+        var effectiveCost = Math.Max(0, rawCost - state.CostReduction);
+        var reductionSpent = Math.Min(rawCost, state.CostReduction);
         state.CostReduction = Math.Max(0, state.CostReduction - reductionSpent);
         state.Power = Math.Max(0, state.Power - effectiveCost);
         state.TurnActionsTaken++;
@@ -887,6 +1011,14 @@ public static class CombatForwardModel
                 continue;
             }
             ApplyEffect(state, outcome.Effects[i], action.TargetRuntimeId);
+        }
+        if (action.Kind == CombatActionKind.PlayCard
+            && action.Semantics?.CardRetrievals.Count > 0
+            && state.HandCardIds.Contains(
+                action.SourceId,
+                StringComparer.OrdinalIgnoreCase))
+        {
+            state.UnmarkUsed(actionIndex);
         }
         var selfHpLoss = Math.Max(
             0d,
@@ -1013,6 +1145,7 @@ public static class CombatForwardModel
             state.MaxPower);
         state.CostReduction = 0;
         state.UsedActionWords = new ulong[state.UsedActionWords.Length];
+        state.UsedActionCounts = new int[state.UsedActionCounts.Length];
         state.StepCount++;
         state.Turn++;
 
@@ -1196,7 +1329,35 @@ public static class CombatForwardModel
 
     public static int EffectiveCost(CombatSimulationState state, CombatActionObservation action)
     {
-        return Math.Max(0, action.Cost - state.CostReduction);
+        return Math.Max(0, RawDynamicCost(state, action) - state.CostReduction);
+    }
+
+    private static int RawDynamicCost(
+        CombatSimulationState state,
+        CombatActionObservation action)
+    {
+        if (action.Kind != CombatActionKind.PlayCard
+            || !action.Features.TryGetValue("cardBaseCost", out var rawBaseCost))
+        {
+            return Math.Max(0, action.Cost);
+        }
+        var baseCost = Math.Max(0, (int)Math.Round(rawBaseCost));
+        var cap = Math.Max(
+            0,
+            (int)Math.Round(action.Features.TryGetValue(
+                "cardCostCap",
+                out var configuredCap)
+                ? configuredCap
+                : 4d));
+        var scaledCost = Math.Min(
+            (int)(baseCost * Math.Max(0d, state.CardCostMultiplier)),
+            cap);
+        return Math.Max(
+            0,
+            scaledCost
+            + (int)Math.Round(Value(action.Features, "cardTotalExCost"))
+            + (int)Math.Round(Value(action.Features, "cardExCost"))
+            + (int)Math.Round(Value(action.Features, "cardOnceExCost")));
     }
 
     private static void ApplyEffect(
@@ -1244,8 +1405,27 @@ public static class CombatForwardModel
             case CombatEffectKind.GenerateCard:
                 state.HandCount = Math.Min(state.HandLimit, state.HandCount + magnitude);
                 break;
+            case CombatEffectKind.RetrieveCards:
+                RetrieveCards(state, effect, magnitude);
+                break;
             case CombatEffectKind.GainEnergy:
                 state.Power += magnitude;
+                break;
+            case CombatEffectKind.SetEnergy:
+                state.Power = string.Equals(
+                    effect.SemanticId,
+                    "maximum",
+                    StringComparison.OrdinalIgnoreCase)
+                    ? Math.Max(0, state.MaxPower)
+                    : string.Equals(
+                        effect.SemanticId,
+                        "minimum",
+                        StringComparison.OrdinalIgnoreCase)
+                        ? Math.Max(state.Power, magnitude)
+                        : magnitude;
+                break;
+            case CombatEffectKind.SetCardCostMultiplier:
+                state.CardCostMultiplier = Math.Max(0d, effect.Magnitude);
                 break;
             case CombatEffectKind.ReduceCost:
                 state.CostReduction += magnitude;
@@ -1265,6 +1445,188 @@ public static class CombatForwardModel
                     state.DamageMultiplier + Math.Max(0d, effect.Magnitude));
                 break;
         }
+    }
+
+    private static void AddRetrieval(
+        CombatActionOutcome outcome,
+        CombatCardRetrievalSemantic retrieval,
+        int selectionRank)
+    {
+        if (retrieval == null || retrieval.Amount <= 0)
+        {
+            return;
+        }
+        outcome.Effects.Add(new CombatEffectOperation
+        {
+            Kind = CombatEffectKind.RetrieveCards,
+            Magnitude = retrieval.Amount,
+            SemanticId = retrieval.RequiredCardTag ?? "",
+            SourceCardZone = retrieval.SourceZone,
+            DestinationCardZone = retrieval.DestinationZone,
+            SelectionRank = Math.Max(0, selectionRank)
+        });
+    }
+
+    private static CombatActionOutcome CloneBranchedOutcome(
+        CombatActionOutcome source,
+        int selectionRank,
+        double probability)
+    {
+        return new CombatActionOutcome
+        {
+            OutcomeId = "branch-rank-" + selectionRank,
+            Probability = probability,
+            Effects = source.Effects.Select(effect => new CombatEffectOperation
+            {
+                Kind = effect.Kind,
+                TargetRuntimeId = effect.TargetRuntimeId,
+                Magnitude = effect.Kind == CombatEffectKind.SetCardCostMultiplier
+                    ? selectionRank
+                    : effect.Magnitude,
+                SecondaryMagnitude = effect.SecondaryMagnitude,
+                SemanticId = effect.SemanticId,
+                SourceCardZone = effect.SourceCardZone,
+                DestinationCardZone = effect.DestinationCardZone,
+                SelectionRank = effect.Kind == CombatEffectKind.RetrieveCards
+                    ? selectionRank
+                    : effect.SelectionRank
+            }).ToList()
+        };
+    }
+
+    private static bool HasRandomCardCostStatus(CombatStateObservation root)
+    {
+        return root.Player?.Statuses?.Any(status =>
+            string.Equals(
+                status.StatusId,
+                "buff_chaos",
+                StringComparison.OrdinalIgnoreCase)
+            || status.DisplayName?.IndexOf(
+                "Chaos",
+                StringComparison.OrdinalIgnoreCase) >= 0
+            || status.DisplayName?.IndexOf(
+                "混乱",
+                StringComparison.OrdinalIgnoreCase) >= 0) == true;
+    }
+
+    private static void RetrieveCards(
+        CombatSimulationState state,
+        CombatEffectOperation effect,
+        int requestedAmount)
+    {
+        if (requestedAmount <= 0
+            || effect.SourceCardZone == effect.DestinationCardZone
+            || !TryGetCardZone(
+                state,
+                effect.SourceCardZone,
+                out var sourceIds,
+                out var sourceValues)
+            || !TryGetCardZone(
+                state,
+                effect.DestinationCardZone,
+                out var destinationIds,
+                out var destinationValues))
+        {
+            return;
+        }
+        var amount = effect.DestinationCardZone == CombatCardZoneKind.Hand
+            ? Math.Min(
+                requestedAmount,
+                Math.Max(0, state.HandLimit - state.HandCount))
+            : requestedAmount;
+        var candidates = Enumerable.Range(
+                0,
+                Math.Min(sourceIds.Count, sourceValues.Count))
+            .Where(index => HasCardTag(
+                state,
+                sourceIds[index],
+                effect.SemanticId))
+            .OrderByDescending(index => sourceValues[index])
+            .ThenBy(index => sourceIds[index], StringComparer.OrdinalIgnoreCase)
+            .ToList();
+        if (amount <= 0 || candidates.Count == 0)
+        {
+            return;
+        }
+        var rank = Math.Min(
+            Math.Max(0, effect.SelectionRank),
+            Math.Max(0, candidates.Count - 1));
+        var selected = candidates
+            .Skip(rank)
+            .Take(amount)
+            .ToList();
+        if (selected.Count < amount)
+        {
+            selected.AddRange(candidates
+                .Take(amount - selected.Count)
+                .Where(index => !selected.Contains(index)));
+        }
+        var moved = selected
+            .Distinct()
+            .Select(index => (
+                Index: index,
+                Id: sourceIds[index],
+                Value: sourceValues[index]))
+            .ToList();
+        foreach (var item in moved.OrderByDescending(item => item.Index))
+        {
+            sourceIds.RemoveAt(item.Index);
+            sourceValues.RemoveAt(item.Index);
+        }
+        foreach (var item in moved)
+        {
+            destinationIds.Add(item.Id);
+            destinationValues.Add(item.Value);
+        }
+        if (effect.SourceCardZone == CombatCardZoneKind.Hand)
+        {
+            state.HandCount = Math.Max(0, state.HandCount - moved.Count);
+        }
+        if (effect.DestinationCardZone == CombatCardZoneKind.Hand)
+        {
+            state.HandCount = Math.Min(
+                state.HandLimit,
+                state.HandCount + moved.Count);
+        }
+    }
+
+    private static bool TryGetCardZone(
+        CombatSimulationState state,
+        CombatCardZoneKind zone,
+        out List<string> ids,
+        out List<double> values)
+    {
+        switch (zone)
+        {
+            case CombatCardZoneKind.Hand:
+                ids = state.HandCardIds;
+                values = state.HandCardValues;
+                return true;
+            case CombatCardZoneKind.DiscardPile:
+                ids = state.DiscardPileCardIds;
+                values = state.DiscardPileValues;
+                return true;
+            case CombatCardZoneKind.ExhaustPile:
+                ids = state.ExhaustPileCardIds;
+                values = state.ExhaustPileValues;
+                return true;
+            default:
+                ids = state.DrawPileCardIds;
+                values = state.DrawPileValues;
+                return true;
+        }
+    }
+
+    private static bool HasCardTag(
+        CombatSimulationState state,
+        string cardId,
+        string requiredTag)
+    {
+        return string.IsNullOrWhiteSpace(requiredTag)
+               || state.KnownCardTags.TryGetValue(cardId ?? "", out var tags)
+               && tags.Contains(
+                   requiredTag,
+                   StringComparer.OrdinalIgnoreCase);
     }
 
     private static void ApplyArchetypeAction(

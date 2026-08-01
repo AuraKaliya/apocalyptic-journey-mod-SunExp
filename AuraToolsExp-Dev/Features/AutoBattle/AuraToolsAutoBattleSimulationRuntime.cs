@@ -1140,7 +1140,9 @@ internal static class AuraToolsAutoBattleSimulationRuntime
         var profile = new CombatDecisionProfile
         {
             SearchBudgetMode = "dynamic",
-            SearchQuality = settings.SearchQuality
+            SearchQuality = settings.SearchQuality,
+            UseLowConfidenceFallback = settings.LowConfidenceFallback,
+            MinimumSearchConfidence = settings.MinimumSearchConfidence
         };
         switch (settings.Profile)
         {

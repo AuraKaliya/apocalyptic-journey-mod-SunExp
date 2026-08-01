@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
+using System.Diagnostics;
 using System.Linq;
+using System.Text;
 using AuraDecision.Shared;
 
 namespace AuraCombatAi.Shared;
@@ -27,6 +29,20 @@ public sealed class CombatSearchResult
 
     public bool StoppedEarly { get; set; }
 
+    public bool StoppedByTime { get; set; }
+
+    public double Confidence { get; set; }
+
+    public double ValueGap { get; set; }
+
+    public int BestVisits { get; set; }
+
+    public int SecondBestVisits { get; set; }
+
+    public int CandidateCount { get; set; }
+
+    public int OriginalCandidateCount { get; set; }
+
     public string BudgetTier { get; set; } = "";
 
     public string BudgetReason { get; set; } = "";
@@ -46,6 +62,7 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
     private readonly ICombatSearchGuidanceModel guidanceModel;
     private readonly ICombatPolicyValueModel policyValueModel;
     private readonly bool useRuntimeRegistries;
+    private readonly ICombatSimulationRule[] isolatedSimulationRules;
     private readonly Dictionary<ulong, SearchNode> transpositions = new();
     private readonly Dictionary<ulong, CombatPolicyValuePrediction> policyValueCache = new();
     private SearchNode[] nodePathBuffer = Array.Empty<SearchNode>();
@@ -78,17 +95,21 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
     private CombatBeliefState rootBelief = new();
     private int determinizationIndex;
     private CombatSearchExplorationOptions? rootExploration;
+    private int originalCandidateCount;
 
     public CombatRiskAwareRootSamplingPuctPlanner(
         IDecisionResidualModel? residualModel = null,
         ICombatSearchGuidanceModel? guidanceModel = null,
         bool useRuntimeRegistries = true,
-        ICombatPolicyValueModel? policyValueModel = null)
+        ICombatPolicyValueModel? policyValueModel = null,
+        IReadOnlyList<ICombatSimulationRule>? simulationRules = null)
     {
         this.residualModel = residualModel ?? NullDecisionResidualModel.Instance;
         this.guidanceModel = guidanceModel ?? NullCombatSearchGuidanceModel.Instance;
         this.policyValueModel = policyValueModel ?? NullCombatPolicyValueModel.Instance;
         this.useRuntimeRegistries = useRuntimeRegistries;
+        isolatedSimulationRules = simulationRules?.Where(rule => rule != null).ToArray()
+                                  ?? Array.Empty<ICombatSimulationRule>();
     }
 
     public CombatSearchResult Choose(
@@ -107,7 +128,9 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
         sustainableControlLoops = 0;
         fakeLoops = 0;
         blockedLoops = 0;
-        determinizationIndex = 0;
+        determinizationIndex = Math.Max(
+            0,
+            exploration?.DeterminizationOffset ?? 0);
         rootExploration = exploration;
         rootBelief = CombatBeliefTracker.FromObservation(state);
         actions = BuildActions(state, candidates);
@@ -115,6 +138,7 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
             state,
             candidates,
             selectedProfile);
+        var searchStarted = Stopwatch.GetTimestamp();
         searchMaxPly = Math.Max(1, Math.Min(32, budget.MaxPly));
         var pathCapacity = Math.Max(2, searchMaxPly + 1);
         if (nodePathBuffer.Length < pathCapacity)
@@ -147,7 +171,7 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
         }
         simulationRules = useRuntimeRegistries
             ? CombatAiRegistry.SnapshotSimulationRules()
-            : Array.Empty<ICombatSimulationRule>();
+            : isolatedSimulationRules;
         nodeBudget = Math.Max(256, Math.Min(65536, budget.NodeBudget));
         if (actions.Count == 0)
         {
@@ -186,8 +210,17 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
         var lastBestAction = -1;
         var stableChecks = 0;
         var stoppedEarly = false;
+        var stoppedByTime = false;
         while (simulations < simulationBudget && nodeCount < nodeBudget)
         {
+            if (budget.TimeBudgetMilliseconds > 0
+                && ElapsedMilliseconds(searchStarted)
+                >= budget.TimeBudgetMilliseconds)
+            {
+                stoppedEarly = true;
+                stoppedByTime = true;
+                break;
+            }
             Simulate(root, null);
             simulations++;
             if (simulations < minimumSimulations
@@ -233,18 +266,32 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
                 Nodes = nodeCount,
                 TranspositionHits = transpositionHits,
                 BudgetTier = budget.Tier,
-                BudgetReason = budget.Reason
+                BudgetReason = budget.Reason,
+                StoppedEarly = stoppedEarly,
+                StoppedByTime = stoppedByTime,
+                CandidateCount = actions.Count,
+                OriginalCandidateCount = originalCandidateCount
             };
         }
 
-        var best = RankRootEdges(rootEdges).First();
+        var rankedRootEdges = RankRootEdges(rootEdges).ToList();
+        var best = rankedRootEdges[0];
+        var second = rankedRootEdges.Count > 1
+            ? rankedRootEdges[1]
+            : null;
+        var valueGap = second == null
+            ? Math.Abs(RootSelectionValue(best)) + 1d
+            : RootSelectionValue(best) - RootSelectionValue(second);
+        var confidence = RootConfidence(
+            rootEdges,
+            best,
+            second,
+            stoppedByTime);
         for (var i = 0; i < candidates.Count; i++)
         {
             var matching = rootEdges.FirstOrDefault(edge =>
-                string.Equals(
-                    actions[edge.ActionIndex].Action.CandidateId,
-                    candidates[i].Action.CandidateId,
-                    StringComparison.Ordinal));
+                actions[edge.ActionIndex].MemberCandidateIds.Contains(
+                    candidates[i].Action.CandidateId));
             candidates[i].PlanScore = matching == null ? 0d : RootSelectionValue(matching);
             candidates[i].SearchPrior = matching?.Prior ?? 0d;
             candidates[i].SearchVisits = matching?.Visits ?? 0;
@@ -263,6 +310,13 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
             Nodes = nodeCount,
             TranspositionHits = transpositionHits,
             StoppedEarly = stoppedEarly,
+            StoppedByTime = stoppedByTime,
+            Confidence = confidence,
+            ValueGap = valueGap,
+            BestVisits = best.Visits,
+            SecondBestVisits = second?.Visits ?? 0,
+            CandidateCount = actions.Count,
+            OriginalCandidateCount = originalCandidateCount,
             BudgetTier = budget.Tier,
             BudgetReason = budget.Reason,
             CertifiedLoops = certifiedLoops,
@@ -270,9 +324,56 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
             FakeLoops = fakeLoops,
             BlockedLoops = blockedLoops,
             Summary = BuildSummary(best, steps, simulations)
-                      + (stoppedEarly ? "; early-stop=stable" : "")
+                      + (stoppedEarly && !stoppedByTime
+                          ? "; early-stop=stable"
+                          : "")
+                      + (stoppedByTime ? "; time-budget-exhausted" : "")
+                      + "; budget=" + budget.Tier
+                      + "[" + budget.Reason + "]"
+                      + "; confidence=" + confidence.ToString("0.000")
+                      + "; root-candidates=" + actions.Count
+                      + "/" + originalCandidateCount
                       + BuildLoopSummary()
         };
+    }
+
+    private double RootConfidence(
+        IReadOnlyList<SearchEdge> rootEdges,
+        SearchEdge best,
+        SearchEdge? second,
+        bool stoppedByTime)
+    {
+        if (second == null)
+        {
+            return 1d;
+        }
+        var totalVisits = Math.Max(1, rootEdges.Sum(edge => edge.Visits));
+        var visitShare = best.Visits / (double)totalVisits;
+        var evidence = Math.Min(
+            1d,
+            best.Visits / (double)Math.Max(4, actions.Count * 2));
+        var gap = Math.Max(
+            0d,
+            RootSelectionValue(best) - RootSelectionValue(second));
+        var scale = 1d
+                    + Math.Abs(RootSelectionValue(best))
+                    + Math.Abs(RootSelectionValue(second));
+        var gapSignal = Math.Min(1d, gap / scale * 8d);
+        var confidence = 0.45d * evidence
+                         + 0.35d * visitShare
+                         + 0.20d * gapSignal;
+        if (stoppedByTime)
+        {
+            confidence *= 0.85d;
+        }
+        return Math.Max(0d, Math.Min(1d, confidence));
+    }
+
+    private static double ElapsedMilliseconds(long startedTimestamp)
+    {
+        return (Stopwatch.GetTimestamp() - startedTimestamp)
+               * 1000d
+               / Stopwatch.Frequency;
     }
 
     private int StableBestAction(SearchNode root)
@@ -745,6 +846,8 @@ CompleteSimulation:
             simulation,
             profile,
             rootObservation.Features);
+        scoreStateFeatures["cardCostMultiplier"] =
+            simulation.CardCostMultiplier;
         scoreObservation.BattleSessionId = rootObservation.BattleSessionId;
         scoreObservation.Sequence = rootObservation.Sequence;
         scoreObservation.CurrentPower = simulation.Power;
@@ -767,11 +870,30 @@ CompleteSimulation:
             .Where(candidate => candidate.Legal
                                 && candidate.Action != null)
             .ToList();
+        originalCandidateCount = legal.Count;
         if (legal.Count == 0)
         {
             return Array.Empty<SearchAction>();
         }
 
+        var groups = legal
+            .GroupBy(
+                candidate => CandidateEquivalenceKey(candidate.Action),
+                StringComparer.Ordinal)
+            .Select(group => new
+            {
+                Members = group
+                    .OrderByDescending(candidate => candidate.RuleScore)
+                    .ThenBy(candidate =>
+                        candidate.Action.CandidateId,
+                        StringComparer.Ordinal)
+                    .ToList()
+            })
+            .OrderBy(group =>
+                group.Members[0].Action.CandidateId,
+                StringComparer.Ordinal)
+            .ToList();
+        legal = groups.Select(group => group.Members[0]).ToList();
         var networkPrediction = ReferenceEquals(
                 policyValueModel,
                 NullCombatPolicyValueModel.Instance)
@@ -798,7 +920,8 @@ CompleteSimulation:
                     4d)
                 + NetworkPolicyLogit(
                     networkPrediction,
-                    candidate.Action.CandidateId))
+                    candidate.Action.CandidateId)
+                + ContinuationPriorLogit(candidate.Action))
             .Select(value => Math.Max(-30d, Math.Min(30d, value)))
             .ToArray();
         var maximum = logits.Max();
@@ -811,28 +934,118 @@ CompleteSimulation:
             .ToArray();
         ApplyRootExploration(priors);
         var result = new List<SearchAction>(legal.Count);
-        var useGroups = new Dictionary<string, int>(StringComparer.Ordinal);
+        var useGroupIndexes = new Dictionary<string, int>(StringComparer.Ordinal);
+        var useGroupMembers = new Dictionary<string, HashSet<string>>(StringComparer.Ordinal);
+        foreach (var group in groups)
+        {
+            var useKey = CandidateUseEquivalenceKey(group.Members[0].Action);
+            if (!useGroupIndexes.ContainsKey(useKey))
+            {
+                useGroupIndexes[useKey] = useGroupIndexes.Count;
+                useGroupMembers[useKey] = new HashSet<string>(StringComparer.Ordinal);
+            }
+            foreach (var member in group.Members)
+            {
+                useGroupMembers[useKey].Add(member.Action.RuntimeId != 0
+                    ? "runtime:" + member.Action.RuntimeId
+                    : "candidate:" + member.Action.CandidateId);
+            }
+        }
         for (var i = 0; i < legal.Count; i++)
         {
             var action = legal[i].Action;
-            var useKey = action.RuntimeId != 0
-                ? "runtime:" + action.RuntimeId
-                : "candidate:" + action.CandidateId;
-            if (!useGroups.TryGetValue(useKey, out var useGroupIndex))
-            {
-                useGroupIndex = useGroups.Count;
-                useGroups[useKey] = useGroupIndex;
-            }
+            var useKey = CandidateUseEquivalenceKey(action);
             result.Add(new SearchAction
             {
                 Action = action,
                 Evaluation = legal[i],
                 Model = CombatForwardModel.Resolve(state, action, useRuntimeRegistries),
                 Prior = priors[i],
-                UseGroupIndex = useGroupIndex
+                UseGroupIndex = useGroupIndexes[useKey],
+                UseLimit = Math.Max(1, useGroupMembers[useKey].Count),
+                MemberCandidateIds = groups[i].Members
+                    .Select(member => member.Action.CandidateId)
+                    .ToHashSet(StringComparer.Ordinal)
             });
         }
         return result;
+    }
+
+    private static string CandidateEquivalenceKey(
+        CombatActionObservation action)
+    {
+        var builder = new StringBuilder(384);
+        builder.Append((int)action.Kind).Append('|')
+            .Append(action.SourceId).Append('|')
+            .Append((int)action.TargetKind).Append('|')
+            .Append(action.TargetRuntimeId).Append('|')
+            .Append(action.Cost).Append('|');
+        foreach (var feature in action.Features
+                     .Where(pair => !string.Equals(
+                         pair.Key,
+                         "handIndex",
+                         StringComparison.OrdinalIgnoreCase))
+                     .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            builder.Append(feature.Key).Append('=')
+                .Append(feature.Value.ToString("R", System.Globalization.CultureInfo.InvariantCulture))
+                .Append(';');
+        }
+        var semantics = action.Semantics ?? new CombatActionSemantics();
+        builder.Append("|set=")
+            .Append(semantics.EnergySetAmount?.ToString("R", System.Globalization.CultureInfo.InvariantCulture))
+            .Append(',')
+            .Append(semantics.EnergyMinimum?.ToString("R", System.Globalization.CultureInfo.InvariantCulture))
+            .Append(',')
+            .Append(semantics.RestoreEnergyToMaximum ? '1' : '0');
+        foreach (var retrieval in semantics.CardRetrievals)
+        {
+            builder.Append("|get=")
+                .Append((int)retrieval.SourceZone).Append(',')
+                .Append((int)retrieval.DestinationZone).Append(',')
+                .Append(retrieval.Amount).Append(',')
+                .Append(retrieval.RequiredCardTag).Append(',')
+                .Append(retrieval.CandidateBranchCount);
+        }
+        foreach (var change in semantics.StateChanges
+                     .OrderBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase))
+        {
+            builder.Append("|change=").Append(change.Key).Append(',')
+                .Append(change.Value.ToString("R", System.Globalization.CultureInfo.InvariantCulture));
+        }
+        return builder.ToString();
+    }
+
+    private static string CandidateUseEquivalenceKey(
+        CombatActionObservation action)
+    {
+        var builder = new StringBuilder(160);
+        builder.Append((int)action.Kind).Append('|')
+            .Append(action.SourceId).Append('|')
+            .Append(action.Cost);
+        var keys = new[]
+        {
+            "retain",
+            "recycle",
+            "ouroboros",
+            "exhaustOnUse",
+            "cardBaseCost",
+            "cardTotalExCost",
+            "cardExCost",
+            "cardOnceExCost",
+            "mechanic:card-use-count"
+        };
+        foreach (var key in keys)
+        {
+            if (action.Features.TryGetValue(key, out var value))
+            {
+                builder.Append('|').Append(key).Append('=')
+                    .Append(value.ToString(
+                        "R",
+                        System.Globalization.CultureInfo.InvariantCulture));
+            }
+        }
+        return builder.ToString();
     }
 
     private void ApplyRootExploration(double[] priors)
@@ -1027,7 +1240,7 @@ CompleteSimulation:
         CombatSimulationState state,
         SearchAction searchAction)
     {
-        if (state.WasUsed(searchAction.UseGroupIndex)
+        if (state.UseCount(searchAction.UseGroupIndex) >= searchAction.UseLimit
             || !state.TargetAlive(searchAction.Action.TargetRuntimeId)
             || CombatForwardModel.EffectiveCost(state, searchAction.Action) > state.Power)
         {
@@ -1223,6 +1436,20 @@ CompleteSimulation:
         public double Prior { get; set; }
 
         public int UseGroupIndex { get; set; }
+
+        public int UseLimit { get; set; } = 1;
+
+        public HashSet<string> MemberCandidateIds { get; set; } =
+            new(StringComparer.Ordinal);
+    }
+
+    private static double ContinuationPriorLogit(
+        CombatActionObservation action)
+    {
+        return action.Features.TryGetValue("continuationHint", out var value)
+               && value > 0d
+            ? 0.45d * Math.Min(1d, value)
+            : 0d;
     }
 
     private sealed class SearchNode

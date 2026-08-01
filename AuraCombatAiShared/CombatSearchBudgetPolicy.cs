@@ -20,6 +20,8 @@ public sealed class CombatSearchBudget
 
     public int NodeBudget { get; set; }
 
+    public int TimeBudgetMilliseconds { get; set; }
+
     public string Reason { get; set; } = "";
 }
 
@@ -53,6 +55,8 @@ public static class CombatSearchBudgetPolicy
             SearchBudgetContext = string.IsNullOrWhiteSpace(context)
                 ? "deployment"
                 : context,
+            SearchTimeBudgetMilliseconds =
+                profile.SearchTimeBudgetMilliseconds,
             SearchExploration = profile.SearchExploration,
             DeathRiskLimit = profile.DeathRiskLimit,
             LoopMaximumCertifiedCycles = profile.LoopMaximumCertifiedCycles,
@@ -66,7 +70,13 @@ public static class CombatSearchBudgetPolicy
             UncertaintyPenalty = profile.UncertaintyPenalty,
             SetupValueWeight = profile.SetupValueWeight,
             PersistentValueWeight = profile.PersistentValueWeight,
-            PreferDominantFreeSetup = profile.PreferDominantFreeSetup
+            NextTurnThreatRetention = profile.NextTurnThreatRetention,
+            UnknownNextTurnThreatProbabilityFloor =
+                profile.UnknownNextTurnThreatProbabilityFloor,
+            EndTurnUncertainty = profile.EndTurnUncertainty,
+            PreferDominantFreeSetup = profile.PreferDominantFreeSetup,
+            UseLowConfidenceFallback = profile.UseLowConfidenceFallback,
+            MinimumSearchConfidence = profile.MinimumSearchConfidence
         };
     }
 
@@ -109,11 +119,14 @@ public static class CombatSearchBudgetPolicy
                         || HasStatusToken(state, "limitdamage")
                         || HasStatusToken(state, "限伤");
         var loop = HasToken(state, "loop")
+                   || HasStatusToken(state, "loop")
                    || legal.Any(candidate =>
-                       candidate.Action.Semantics?.EndOfCycleSelfHpLoss > 0d
-                       || candidate.Action.Semantics?.CardGeneration > 0d
-                          && candidate.Action.Semantics?.EnergyGain > 0d
-                          && candidate.Action.Semantics?.Draw > 0d);
+                       PositiveFeature(candidate.Action, "certifiedLoop")
+                       || PositiveFeature(candidate.Action, "repeatableLoop")
+                       || candidate.Action.Semantics?.EndOfCycleSelfHpLoss > 0d
+                          && (candidate.Action.Semantics?.CardGeneration > 0d
+                              || candidate.Action.Semantics?.EnergyGain > 0d
+                              || candidate.Action.Semantics?.Draw > 0d));
         var highRisk = incoming >= playerHp
                        || playerHp / (double)playerMaxHp <= 0.35d
                        || legal.Any(candidate =>
@@ -244,7 +257,7 @@ public static class CombatSearchBudgetPolicy
             : quality == "deep"
                 ? 4
                 : 0;
-        return Budget(
+        var resolved = Budget(
             tier,
             Math.Max(1, (int)Math.Ceiling(simulations * simulationScale)),
             Math.Max(1, (int)Math.Ceiling(minimum * simulationScale)),
@@ -253,6 +266,43 @@ public static class CombatSearchBudgetPolicy
             Math.Max(4, Math.Min(32, maxPly + plyAdjustment)),
             Math.Max(256, (int)Math.Ceiling(nodeBudget * nodeScale)),
             reason + "; quality=" + quality);
+        return ApplyDeploymentLimits(profile, resolved);
+    }
+
+    private static CombatSearchBudget ApplyDeploymentLimits(
+        CombatDecisionProfile profile,
+        CombatSearchBudget budget)
+    {
+        if (!ContainsToken(profile.SearchBudgetContext, "deployment"))
+        {
+            return budget;
+        }
+
+        var simulationCap = budget.Tier switch
+        {
+            "complex" => 256,
+            "difficult" => 192,
+            "normal" => 128,
+            "simple" => 96,
+            _ => budget.SimulationBudget
+        };
+        if (budget.SimulationBudget > simulationCap)
+        {
+            budget.SimulationBudget = simulationCap;
+            budget.MinimumSimulations = Math.Min(
+                budget.MinimumSimulations,
+                simulationCap);
+            budget.Reason += "; deployment-simulation-cap=" + simulationCap;
+        }
+        budget.TimeBudgetMilliseconds = Math.Max(
+            0,
+            profile.SearchTimeBudgetMilliseconds);
+        if (budget.TimeBudgetMilliseconds > 0)
+        {
+            budget.Reason += "; deployment-time-ms="
+                             + budget.TimeBudgetMilliseconds;
+        }
+        return budget;
     }
 
     private static string NormalizeQuality(string? value)
@@ -306,6 +356,15 @@ public static class CombatSearchBudgetPolicy
             .SelectMany(enemy =>
                 enemy.Statuses ?? new List<CombatStatusObservation>())
             .Any(status => ContainsToken(status.StatusId, token));
+    }
+
+    private static bool PositiveFeature(
+        CombatActionObservation action,
+        string key)
+    {
+        return action?.Features != null
+               && action.Features.TryGetValue(key, out var value)
+               && value > 0.0000001d;
     }
 
     private static bool ContainsToken(string? value, string token)

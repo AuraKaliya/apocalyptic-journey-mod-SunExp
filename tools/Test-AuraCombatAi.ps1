@@ -105,6 +105,8 @@ $authoritativeSeedPath = Join-Path $root "tools\combat-simulation\witch-base-aut
 $obsoleteRulesPath = Join-Path $root "AuraToolsExp\Config\combat-simulation\witch-base-evaluation-v1.ruleset.json"
 $obsoleteJourneyPath = Join-Path $root "AuraToolsExp\Config\combat-simulation\witch-world-simulation-v1.journey.json"
 $campaignGeneratorPath = Join-Path $root "tools\Build-AuraStandardCampaign.ps1"
+$frozenTournamentPath = Join-Path $root `
+    "tools\Run-AuraFoundationFrozenTournament.ps1"
 $controller = Get-Content -LiteralPath $controllerPath -Raw
 $presenter = Get-Content -LiteralPath $presenterPath -Raw
 $interaction = Get-Content -LiteralPath $interactionPath -Raw
@@ -160,6 +162,7 @@ $journeyUiRuntime = Get-Content -LiteralPath $journeyUiRuntimePath -Raw
 $settingsUiRuntime = Get-Content -LiteralPath $settingsUiRuntimePath -Raw
 $trainer = Get-Content -LiteralPath $trainerPath -Raw
 $campaignGenerator = Get-Content -LiteralPath $campaignGeneratorPath -Raw
+$frozenTournament = Get-Content -LiteralPath $frozenTournamentPath -Raw
 
 $requiredControllerAnchors = @(
     "FightUI.ThrowCardScript",
@@ -525,6 +528,8 @@ foreach ($anchor in @(
     "OutcomeClass",
     "FailureCluster",
     "FailureEncounterCheckpoint",
+    "RoutedBuildLimitedCampaigns",
+    "RoutedProvisionalBuildLimitedCampaigns",
     "AdvancedShare = 0.35d"
 )) {
     if (-not $foundationStrategy.Contains($anchor)) {
@@ -588,6 +593,8 @@ foreach ($anchor in @(
     "CombatPolicyValueFrameStratificationProtocol",
     "BuildStratifiedOrder",
     "SampleWeight",
+    "selectedModel.Metrics",
+    "candidateEpoch",
     "maximumFrameWeight"
 )) {
     if (-not $batchTrainer.Contains($anchor)) {
@@ -765,6 +772,9 @@ foreach ($anchor in @(
     "StorageVersion = 4",
     "CompatibilityKeyLength = 16",
     "EntryKeyLength = 24",
+    "CompressedJsonExtension",
+    "MaximumExpertCasesPerCompatibility",
+    "MaximumObservationsPerCompatibility",
     "CompactIdentifier"
 )) {
     if (-not $foundationCaseArchiveProtocol.Contains($anchor)) {
@@ -792,6 +802,9 @@ foreach ($anchor in @(
     "LoadObservationPaths",
     "ResolveSuccessCasePath",
     "ResolveObservationPath",
+    "WriteAtomicCompressed",
+    "ArchiveWriteBudget.TryReserve",
+    "PersistBuildLimitedSeeds",
     "ApplyRewardResiduals",
     "AcquireTrainingLease",
     "CombatFoundationModelPackageProtocol.Create",
@@ -1219,6 +1232,20 @@ if ($trainer.Contains("positive, negative = other, chosen")) {
     throw "Policy failures must not invent counterfactual preference labels."
 }
 
+foreach ($anchor in @(
+    "foundation-frozen-tournament-v1",
+    "CampaignsPerDifficulty",
+    "CompatibilityKey",
+    "ConclusivePairWins",
+    "AutomaticallyActivatesModel",
+    "ProvisionalWinner"
+)) {
+    if (-not $frozenTournament.Contains($anchor)) {
+        throw "Aura frozen multi-model tournament contract is missing: $anchor"
+    }
+}
+
 Write-Host "Aura combat AI source contracts passed."
 & (Join-Path $root "tools\Test-AuraCombatKnowledge.ps1")
+& (Join-Path $root "tools\Test-AuraFoundationArchiveMaintenance.ps1")
 $global:LASTEXITCODE = 0

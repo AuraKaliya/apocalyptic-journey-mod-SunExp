@@ -164,7 +164,9 @@ foreach ($anchor in @(
     "activeHandlerIds",
     "CausalChainId",
     "SourceRewardId",
-    "generated-only card leaked into reward pool"
+    "generated-only card leaked into reward pool",
+    "[ThreadStatic]",
+    "threadGlobals"
 )) {
     if (-not $nativeRuntime.Contains($anchor)) {
         throw "AuraTools causal-chain/card-acquisition contract is missing: $anchor"

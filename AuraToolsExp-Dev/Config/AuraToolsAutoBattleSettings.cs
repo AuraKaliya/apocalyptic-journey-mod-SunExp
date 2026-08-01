@@ -46,6 +46,18 @@ public sealed class AutoBattleSettings
     [JsonProperty("searchQuality")]
     public string SearchQuality { get; set; } = "balanced";
 
+    [JsonProperty("decisionTimeBudgetMs")]
+    public int DecisionTimeBudgetMs { get; set; } = 250;
+
+    [JsonProperty("inferenceParallelism")]
+    public int InferenceParallelism { get; set; } = 2;
+
+    [JsonProperty("lowConfidenceFallback")]
+    public bool LowConfidenceFallback { get; set; } = true;
+
+    [JsonProperty("minimumSearchConfidence")]
+    public double MinimumSearchConfidence { get; set; } = 0.35d;
+
     [JsonProperty("gameParameters")]
     public AutoBattleGameParameterSettings GameParameters { get; set; } = new();
 
@@ -83,6 +95,13 @@ public sealed class AutoBattleSettings
             "balanced",
             "fast",
             "deep");
+        DecisionTimeBudgetMs = Math.Max(
+            50,
+            Math.Min(1000, DecisionTimeBudgetMs));
+        InferenceParallelism = Math.Max(1, Math.Min(2, InferenceParallelism));
+        MinimumSearchConfidence = Math.Max(
+            0.1d,
+            Math.Min(0.8d, MinimumSearchConfidence));
         GameParameters.Normalize();
         Training.Normalize();
         FoundationTraining ??= new AutoBattleFoundationTrainingSettings();

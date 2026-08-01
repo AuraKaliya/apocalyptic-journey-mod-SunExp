@@ -1130,6 +1130,9 @@ void TestRuntimeArchitectureGuards()
         "shipped card refresh and foundation-training configuration are present");
 
     var autoBattleRuntime = ReadRepoText("AuraToolsExp-Dev/Features/AutoBattle/AuraToolsAutoBattleRuntime.cs");
+    var combatActionExecutionPolicy = ReadRepoText("AuraCombatAiShared/CombatActionExecutionPolicy.cs");
+    var witchCombatRuntime = ReadRepoText("AuraCombatAiShared/GameApi/WitchCombatRuntime.cs");
+    var witchCombatCardCapacityApi = ReadRepoText("AuraCombatAiShared/GameApi/WitchCombatCardCapacityApi.cs");
     var autoBattlePredictionPresenter = ReadRepoText("AuraToolsExp-Dev/Features/AutoBattle/AuraToolsAutoBattlePredictionPresenter.cs");
     var autoBattleModelRuntime = ReadRepoText("AuraToolsExp-Dev/Features/AutoBattle/AuraToolsAutoBattleModelRuntime.cs");
     var autoBattleSimulationRuntime = ReadRepoText("AuraToolsExp-Dev/Features/AutoBattle/AuraToolsAutoBattleSimulationRuntime.cs");
@@ -1161,6 +1164,16 @@ void TestRuntimeArchitectureGuards()
            && autoBattleRuntime.Contains("AutoBattle.LearnedShadow", StringComparison.Ordinal)
            && autoBattleRuntime.Contains("p95Ms=", StringComparison.Ordinal)
            && autoBattleRuntime.Contains("AuraToolsAutoBattleSimulationRuntime.CanActivateModel", StringComparison.Ordinal)
+           && autoBattleRuntime.Contains("AutoBattle.ActiveDecision", StringComparison.Ordinal)
+           && autoBattleRuntime.Contains("PrepareStateForIsolatedWorker", StringComparison.Ordinal)
+           && autoBattleRuntime.Contains("CombatDecisionFreshnessPolicy.TryBindCurrent", StringComparison.Ordinal)
+           && combatActionExecutionPolicy.Contains("DivineChoiceSourceId", StringComparison.Ordinal)
+           && combatActionExecutionPolicy.Contains("divine-choice:draw=", StringComparison.Ordinal)
+           && witchCombatRuntime.Contains("CombatActionExecutionPolicy.IsLiveEligible", StringComparison.Ordinal)
+           && witchCombatRuntime.Contains("WitchCombatCardCapacityApi.IsAtNativeHandLimit", StringComparison.Ordinal)
+           && witchCombatCardCapacityApi.Contains("RoleTable.Instance?.CardTopCount", StringComparison.Ordinal)
+           && witchCombatCardCapacityApi.Contains("CardTopCheck", StringComparison.Ordinal)
+           && !witchCombatRuntime.Contains("var availableDeckCards", StringComparison.Ordinal)
            && autoBattleModelRuntime.Contains("groupedValidationAccuracy", StringComparison.Ordinal)
            && autoBattleSimulationRuntime.Contains("\"results.jsonl\"", StringComparison.Ordinal)
            && autoBattleSimulationRuntime.Contains("\"summary.json\"", StringComparison.Ordinal)
@@ -1168,6 +1181,7 @@ void TestRuntimeArchitectureGuards()
            && autoBattleSimulationRuntime.Contains("CombatSimulationRegistry.SnapshotScenarios", StringComparison.Ordinal)
            && settingsRuntime.Contains("AuraToolsAutoBattleSimulationStatusView", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"searchQuality\": \"balanced\"", StringComparison.Ordinal)
+           && matchExperienceConfig.Contains("\"decisionTimeBudgetMs\": 250", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"simulation\"", StringComparison.Ordinal),
         "auto battle ships terminal attribution, bounded search, paired headless evaluation and active-model gates");
     Assert(autoBattleSimulationRuntime.Contains("CombatCampaignRunner", StringComparison.Ordinal)

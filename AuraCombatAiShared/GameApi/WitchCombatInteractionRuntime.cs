@@ -308,12 +308,20 @@ public static class WitchCombatInteractionRuntime
             var progress = prompt.Selection.Observe(selectedCount, Time.unscaledTime);
             if (progress == CombatSelectionProgress.TimedOut)
             {
+                var timeoutReason = prompt.Selection.ConfirmIssued
+                    ? "native hand prompt did not close after confirmation"
+                    : "card selection produced no progress";
                 CombatInteractionBroker.Transition(
                     prompt.Request.RequestId,
                     CombatInteractionState.Failed,
-                    "card selection produced no progress");
+                    timeoutReason);
                 handPrompt = null;
                 return WitchInteractionResolveResult.Failed;
+            }
+
+            if (progress == CombatSelectionProgress.AwaitingNativeClose)
+            {
+                return WitchInteractionResolveResult.Pending;
             }
 
             if (progress == CombatSelectionProgress.Complete)
@@ -329,7 +337,9 @@ public static class WitchCombatInteractionRuntime
                     return WitchInteractionResolveResult.Pending;
                 }
 
-                if (prompt.Selection.TryIssueConfirm(selectedCount))
+                if (prompt.Selection.TryIssueConfirm(
+                        selectedCount,
+                        Time.unscaledTime))
                 {
                     confirm.onClick.Invoke();
                     CombatInteractionBroker.Transition(
@@ -378,17 +388,38 @@ public static class WitchCombatInteractionRuntime
                 utilities,
                 1,
                 preferLowest: prompt.Request.Hint.PreferLowestValue);
-            if (selected.Count == 0
-                || HandleSelectModeClick == null
-                || EventSystem.current == null
-                || !prompt.Selection.TryBeginAttempt(selectedCount, Time.unscaledTime))
+            if (selected.Count == 0)
             {
                 CombatInteractionBroker.Transition(
                     prompt.Request.RequestId,
                     CombatInteractionState.Failed,
-                    "native card selection entry point is unavailable");
+                    "selection policy returned no eligible hand card");
                 handPrompt = null;
                 return WitchInteractionResolveResult.Failed;
+            }
+            if (HandleSelectModeClick == null)
+            {
+                CombatInteractionBroker.Transition(
+                    prompt.Request.RequestId,
+                    CombatInteractionState.Failed,
+                    "native CardItem.HandleSelectModeClick is unavailable");
+                handPrompt = null;
+                return WitchInteractionResolveResult.Failed;
+            }
+            if (EventSystem.current == null)
+            {
+                CombatInteractionBroker.Transition(
+                    prompt.Request.RequestId,
+                    CombatInteractionState.Failed,
+                    "Unity EventSystem is unavailable for card selection");
+                handPrompt = null;
+                return WitchInteractionResolveResult.Failed;
+            }
+            if (!prompt.Selection.TryBeginAttempt(
+                    selectedCount,
+                    Time.unscaledTime))
+            {
+                return WitchInteractionResolveResult.Pending;
             }
 
             var selectedCard = eligibleCards[selected[0]];

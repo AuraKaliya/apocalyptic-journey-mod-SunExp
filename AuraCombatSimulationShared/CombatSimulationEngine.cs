@@ -2514,6 +2514,16 @@ public sealed class CombatSimulationEngine
                         target.Energy - previousEnergy,
                         beforeHash);
 
+                case CombatSimulationEffectKind.SetEnergy:
+                    if (target == null || !target.Alive) return null;
+                    var energyBeforeSet = target.Energy;
+                    target.Energy = Math.Max(0, command.Amount);
+                    return EmitFromCommand(
+                        CombatSimulationEventKind.EnergyChanged,
+                        command,
+                        target.Energy - energyBeforeSet,
+                        beforeHash);
+
                 case CombatSimulationEffectKind.DrawToHandLimit:
                     DrawCards(
                         Math.Max(0, scenario.HandLimit - State.Hand.Count),

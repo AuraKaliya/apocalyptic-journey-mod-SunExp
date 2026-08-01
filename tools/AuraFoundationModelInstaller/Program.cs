@@ -1,0 +1,268 @@
+using System.Security.Cryptography;
+using System.Text;
+using AuraCombatAi.Shared;
+using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
+
+var packagePath = Argument(args, "--package");
+var sharedRoot = Argument(args, "--aura-shared-root");
+var displayName = Argument(args, "--display-name");
+var activate = Flag(args, "--activate");
+if (string.IsNullOrWhiteSpace(packagePath)
+    || string.IsNullOrWhiteSpace(sharedRoot)
+    || string.IsNullOrWhiteSpace(displayName))
+{
+    Console.Error.WriteLine(
+        "Usage: AuraFoundationModelInstaller "
+        + "--package <foundation-model-package-v2.json> "
+        + "--aura-shared-root <ModsData/AuraShared> "
+        + "--display-name <name> [--activate]");
+    return 2;
+}
+if (displayName.Trim().Length > 40)
+{
+    Console.Error.WriteLine("Display name must not exceed 40 characters.");
+    return 2;
+}
+
+packagePath = Path.GetFullPath(packagePath);
+sharedRoot = Path.GetFullPath(sharedRoot);
+if (!File.Exists(packagePath) || !Directory.Exists(sharedRoot))
+{
+    Console.Error.WriteLine("Package or AuraShared root does not exist.");
+    return 2;
+}
+
+var utf8 = new UTF8Encoding(false, true);
+var packageJson = File.ReadAllText(packagePath, utf8);
+var package = JsonConvert.DeserializeObject<CombatFoundationModelPackage>(
+    packageJson);
+if (!CombatFoundationModelPackageProtocol.TryValidate(
+        package,
+        out var diagnostic))
+{
+    Console.Error.WriteLine("Package validation failed: " + diagnostic);
+    return 3;
+}
+
+var packageNode = JObject.Parse(packageJson);
+var modelId = package!.Model!.ModelId;
+var modelLibraryDirectory = InsideRoot(
+    sharedRoot,
+    "Logs",
+    "AuraToolsExp",
+    "model-library");
+var manifestPath = InsideRoot(modelLibraryDirectory, "models.json");
+var settingsPath = InsideRoot(
+    sharedRoot,
+    "Config",
+    "Owners",
+    "AuraToolsExp",
+    "AuraTools",
+    "MatchExperienceSettings.json");
+if (!File.Exists(manifestPath) || !File.Exists(settingsPath))
+{
+    Console.Error.WriteLine(
+        "Existing model library or MatchExperience settings are missing.");
+    return 4;
+}
+
+var bundleFile = "model-"
+                 + Sha256(modelId)[..16].ToLowerInvariant()
+                 + ".json";
+var bundlePath = InsideRoot(modelLibraryDirectory, bundleFile);
+var settings = JObject.Parse(File.ReadAllText(settingsPath, utf8));
+var autoBattle = settings["data"]?["autoBattle"] as JObject
+                 ?? throw new InvalidDataException(
+                     "MatchExperience settings have no autoBattle object.");
+var oldSelectedModelId = (string?)autoBattle["selectedModelId"] ?? "";
+
+var bundle = new JObject
+{
+    ["SchemaVersion"] = 2,
+    ["BundleId"] = Clone(packageNode["PackageId"]),
+    ["Profile"] = Clone(packageNode["Profile"]),
+    ["RoleId"] = Clone(packageNode["RoleId"]),
+    ["CardPoolScope"] = Clone(packageNode["CardPoolScope"]),
+    ["PartnerId"] = Clone(packageNode["PartnerId"]),
+    ["EnabledRewardCardPackIds"] =
+        Clone(packageNode["EnabledRewardCardPackIds"]),
+    ["PreferredDeckSizeMinimum"] =
+        Clone(packageNode["PreferredDeckSizeMinimum"]),
+    ["PreferredDeckSizeMaximum"] =
+        Clone(packageNode["PreferredDeckSizeMaximum"]),
+    ["TrainingSubject"] = Clone(packageNode["TrainingSubject"]),
+    ["DeclaredCoverage"] = Clone(packageNode["DeclaredCoverage"]),
+    ["FoundationArtifactValidated"] = true,
+    ["FoundationPackageId"] = Clone(packageNode["PackageId"]),
+    ["FoundationWorkerSha256"] = Clone(packageNode["WorkerSha256"]),
+    ["FoundationRulesetHash"] = Clone(packageNode["RulesetHash"]),
+    ["ModelPurpose"] = "foundation",
+    ["ProjectionNormalWinRate"] =
+        Clone(packageNode["Validation"]?["NormalWinRate"]),
+    ["ProjectionAdvancedWinRate"] =
+        Clone(packageNode["Validation"]?["AdvancedWinRate"]),
+    ["TrainingReportDirectory"] =
+        Path.GetDirectoryName(packagePath) ?? "",
+    ["GeneratedUtc"] = Clone(packageNode["CreatedUtc"]),
+    ["TrainingSnapshotId"] = "",
+    ["TrainingSnapshotHash"] = "",
+    ["Residual"] = null,
+    ["SearchGuidance"] = null,
+    ["PolicyValue"] = Clone(packageNode["Model"])
+};
+
+var library = JObject.Parse(File.ReadAllText(manifestPath, utf8));
+var models = library["Models"] as JArray
+             ?? throw new InvalidDataException(
+                 "Model library manifest has no Models array.");
+foreach (var entry in models
+             .Children<JObject>()
+             .Where(entry =>
+                 string.Equals(
+                     (string?)entry["ModelId"],
+                     oldSelectedModelId,
+                     StringComparison.Ordinal)
+                 || string.Equals(
+                     (string?)entry["ModelId"],
+                     modelId,
+                     StringComparison.Ordinal))
+             .ToArray())
+{
+    entry.Remove();
+}
+models.Add(new JObject
+{
+    ["ModelId"] = modelId,
+    ["DisplayName"] = displayName.Trim(),
+    ["Profile"] = package.Profile,
+    ["RoleId"] = package.RoleId,
+    ["CardPoolScope"] = package.CardPoolScope,
+    ["PartnerId"] = package.PartnerId,
+    ["EnabledRewardCardPackIds"] =
+        Clone(packageNode["EnabledRewardCardPackIds"]),
+    ["PreferredDeckSizeMinimum"] = package.PreferredDeckSizeMinimum,
+    ["PreferredDeckSizeMaximum"] = package.PreferredDeckSizeMaximum,
+    ["CoverageLevel"] = "full",
+    ["CoverageSummary"] = "完全覆盖",
+    ["ModelPurpose"] = "foundation",
+    ["ProjectionNormalWinRate"] = package.Validation.NormalWinRate,
+    ["ProjectionAdvancedWinRate"] = package.Validation.AdvancedWinRate,
+    ["BundleFile"] = bundleFile,
+    ["CreatedUtc"] = Clone(packageNode["CreatedUtc"])
+});
+
+if (activate)
+{
+    autoBattle["profile"] = package.Profile;
+    autoBattle["selectedModelId"] = modelId;
+    autoBattle["trainedModelMode"] = "active";
+    settings["revision"] = ((int?)settings["revision"] ?? 0) + 1;
+    settings["updatedBy"] = "AuraToolsExp";
+    settings["updatedUtc"] = DateTime.UtcNow.ToString("o");
+}
+
+var timestamp = DateTime.UtcNow.ToString("yyyyMMdd-HHmmssfff");
+var bundleBackup = WriteAtomic(
+    bundlePath,
+    bundle.ToString(Formatting.Indented),
+    utf8,
+    timestamp);
+var manifestBackup = WriteAtomic(
+    manifestPath,
+    library.ToString(Formatting.Indented),
+    utf8,
+    timestamp);
+var settingsBackup = activate
+    ? WriteAtomic(
+        settingsPath,
+        settings.ToString(Formatting.Indented),
+        utf8,
+        timestamp)
+    : "";
+
+Console.WriteLine(JsonConvert.SerializeObject(new
+{
+    Success = true,
+    ModelId = modelId,
+    DisplayName = displayName.Trim(),
+    Profile = package.Profile,
+    BundlePath = bundlePath,
+    BundleBackup = bundleBackup,
+    ManifestPath = manifestPath,
+    ManifestBackup = manifestBackup,
+    SettingsPath = activate ? settingsPath : "",
+    SettingsBackup = settingsBackup,
+    Activated = activate
+}, Formatting.Indented));
+return 0;
+
+static JToken? Clone(JToken? value)
+{
+    return value?.DeepClone();
+}
+
+static string InsideRoot(string root, params string[] segments)
+{
+    var fullRoot = Path.GetFullPath(root)
+        .TrimEnd(Path.DirectorySeparatorChar)
+        + Path.DirectorySeparatorChar;
+    var result = Path.GetFullPath(
+        segments.Aggregate(root, Path.Combine));
+    if (!result.StartsWith(fullRoot, StringComparison.OrdinalIgnoreCase))
+    {
+        throw new InvalidOperationException(
+            "Resolved path escaped the intended root: " + result);
+    }
+    return result;
+}
+
+static string Sha256(string value)
+{
+    return Convert.ToHexString(
+        SHA256.HashData(Encoding.UTF8.GetBytes(value ?? "")));
+}
+
+static string WriteAtomic(
+    string path,
+    string value,
+    Encoding encoding,
+    string timestamp)
+{
+    Directory.CreateDirectory(
+        Path.GetDirectoryName(path)
+        ?? throw new InvalidOperationException("Path has no directory."));
+    var temporary = path + ".tmp-" + Guid.NewGuid().ToString("N");
+    File.WriteAllText(temporary, value, encoding);
+    if (!File.Exists(path))
+    {
+        File.Move(temporary, path);
+        return "";
+    }
+    var backup = path + ".bak-" + timestamp;
+    File.Replace(temporary, path, backup);
+    return backup;
+}
+
+static string Argument(string[] values, string name)
+{
+    for (var index = 0; index + 1 < values.Length; index++)
+    {
+        if (string.Equals(
+                values[index],
+                name,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return values[index + 1];
+        }
+    }
+    return "";
+}
+
+static bool Flag(string[] values, string name)
+{
+    return values.Any(value => string.Equals(
+        value,
+        name,
+        StringComparison.OrdinalIgnoreCase));
+}

@@ -27,7 +27,8 @@ if (string.IsNullOrWhiteSpace(resultAPath)
         + "--job <foundation-worker-job.json> "
         + "--output <directory> "
         + "[--ruleset <ruleset.json>] [--campaign <campaign.json>] "
-        + "[--campaigns 64] [--seed-start 2000000]");
+        + "[--campaigns 64] [--seed-start 3000000] "
+        + "[--parallelism 16]");
     return 2;
 }
 
@@ -84,23 +85,16 @@ CombatCampaignWorldPlanner.Validate(campaign);
 var campaignsPerDifficulty = Math.Max(
     1,
     Math.Min(512, IntArgument(args, "--campaigns", 64)));
-var seedStart = ULongArgument(args, "--seed-start", 2_000_000UL);
-var engine = new CombatSimulationEngine(
-    new AuraToolsNativeRewardExtensionFactory());
-var runner = new CombatCampaignRunner(engine);
-var modelA = new ManagedCombatPolicyValueModel(
-    championA,
-    allowDiagnosticLegacySchema: true);
-var modelB = new ManagedCombatPolicyValueModel(
-    championB,
-    allowDiagnosticLegacySchema: true);
+var seedStart = ULongArgument(args, "--seed-start", 3_000_000UL);
+var parallelism = Math.Max(
+    1,
+    Math.Min(
+        Environment.ProcessorCount,
+        IntArgument(
+            args,
+            "--parallelism",
+            Math.Max(1, Math.Min(16, Environment.ProcessorCount)))));
 var profile = job.Request.Profile ?? new CombatDecisionProfile();
-var factoryA = new CombatDecisionSimulationPolicyFactory(
-    CombatSearchBudgetPolicy.WithContext(profile, "deployment"),
-    policyValueModel: modelA);
-var factoryB = new CombatDecisionSimulationPolicyFactory(
-    CombatSearchBudgetPolicy.WithContext(profile, "deployment"),
-    policyValueModel: modelB);
 var comparison = new ChampionComparisonReport
 {
     CreatedUtc = DateTime.UtcNow,
@@ -110,54 +104,74 @@ var comparison = new ChampionComparisonReport
     CampaignId = campaign.CampaignId,
     CampaignVersion = campaign.CampaignVersion,
     CampaignsPerDifficulty = campaignsPerDifficulty,
+    EffectiveParallelism = parallelism,
     SeedStart = seedStart,
     ChampionA = artifactA.Manifest,
     ChampionB = artifactB.Manifest
 };
+var progressGate = new object();
 
 foreach (var difficulty in new[] { "normal", "advanced" })
 {
-    for (var index = 0; index < campaignsPerDifficulty; index++)
-    {
-        var seed = seedStart + (ulong)index;
-        var plan = CombatCampaignWorldPlanner.Build(
-            campaign,
-            difficulty,
-            seed);
-        var runA = runner.Run(
-            campaign,
-            plan,
-            build.Ruleset,
-            factoryA);
-        var runB = runner.Run(
-            campaign,
-            plan,
-            build.Ruleset,
-            factoryB);
-        comparison.Pairs.Add(new ChampionComparisonPair
+    var pairs = new ChampionComparisonPair[campaignsPerDifficulty];
+    var completed = 0;
+    Parallel.For(
+        0,
+        campaignsPerDifficulty,
+        new ParallelOptions
         {
-            DifficultyId = difficulty,
-            WorldSeed = seed,
-            ChampionAVictory = runA.FinalBossVictory,
-            ChampionBVictory = runB.FinalBossVictory,
-            ChampionAInvalid = runA.Invalid,
-            ChampionBInvalid = runB.Invalid,
-            ChampionACompletedBattles = runA.CompletedBattles,
-            ChampionBCompletedBattles = runB.CompletedBattles,
-            ChampionAFingerprint = Fingerprint(runA),
-            ChampionBFingerprint = Fingerprint(runB)
+            MaxDegreeOfParallelism = parallelism
+        },
+        index =>
+        {
+            var seed = seedStart + (ulong)index;
+            var plan = CombatCampaignWorldPlanner.Build(
+                campaign,
+                difficulty,
+                seed);
+            var runA = RunChampion(
+                campaign,
+                plan,
+                build.Ruleset,
+                profile,
+                championA);
+            var runB = RunChampion(
+                campaign,
+                plan,
+                build.Ruleset,
+                profile,
+                championB);
+            pairs[index] = new ChampionComparisonPair
+            {
+                DifficultyId = difficulty,
+                WorldSeed = seed,
+                ChampionAVictory = runA.FinalBossVictory,
+                ChampionBVictory = runB.FinalBossVictory,
+                ChampionAInvalid = runA.Invalid,
+                ChampionBInvalid = runB.Invalid,
+                ChampionACompletedBattles = runA.CompletedBattles,
+                ChampionBCompletedBattles = runB.CompletedBattles,
+                ChampionAInvalidReason = InvalidReason(runA),
+                ChampionBInvalidReason = InvalidReason(runB),
+                ChampionAFingerprint = Fingerprint(runA),
+                ChampionBFingerprint = Fingerprint(runB)
+            };
+            var progress = Interlocked.Increment(ref completed);
+            lock (progressGate)
+            {
+                Console.WriteLine(
+                    difficulty
+                    + " "
+                    + progress
+                    + "/"
+                    + campaignsPerDifficulty
+                    + ": A="
+                    + Outcome(runA)
+                    + ", B="
+                    + Outcome(runB));
+            }
         });
-        Console.WriteLine(
-            difficulty
-            + " "
-            + (index + 1)
-            + "/"
-            + campaignsPerDifficulty
-            + ": A="
-            + Outcome(runA)
-            + ", B="
-            + Outcome(runB));
-    }
+    comparison.Pairs.AddRange(pairs);
 }
 
 var firstPair = comparison.Pairs.First();
@@ -165,16 +179,18 @@ var repeatPlan = CombatCampaignWorldPlanner.Build(
     campaign,
     firstPair.DifficultyId,
     firstPair.WorldSeed);
-var repeatA = runner.Run(
+var repeatA = RunChampion(
     campaign,
     repeatPlan,
     build.Ruleset,
-    factoryA);
-var repeatB = runner.Run(
+    profile,
+    championA);
+var repeatB = RunChampion(
     campaign,
     repeatPlan,
     build.Ruleset,
-    factoryB);
+    profile,
+    championB);
 comparison.Deterministic =
     firstPair.ChampionAFingerprint == Fingerprint(repeatA)
     && firstPair.ChampionBFingerprint == Fingerprint(repeatB);
@@ -197,6 +213,25 @@ Console.WriteLine(
     + ", deterministic="
     + comparison.Deterministic);
 return comparison.Deterministic ? 0 : 3;
+
+static CombatCampaignResult RunChampion(
+    CombatCampaignDefinition campaign,
+    CombatCampaignWorldPlan plan,
+    CombatRuleset ruleset,
+    CombatDecisionProfile profile,
+    CombatPolicyValueNetworkDefinition champion)
+{
+    var runner = new CombatCampaignRunner(
+        new CombatSimulationEngine(
+            new AuraToolsNativeRewardExtensionFactory()));
+    var model = new ManagedCombatPolicyValueModel(
+        champion,
+        allowDiagnosticLegacySchema: true);
+    var factory = new CombatDecisionSimulationPolicyFactory(
+        CombatSearchBudgetPolicy.WithContext(profile, "deployment"),
+        policyValueModel: model);
+    return runner.Run(campaign, plan, ruleset, factory);
+}
 
 static ChampionArtifact Artifact(
     string label,
@@ -309,6 +344,36 @@ static string Outcome(CombatCampaignResult run)
             : "depth-" + run.CompletedBattles;
 }
 
+static string InvalidReason(CombatCampaignResult run)
+{
+    if (!run.Invalid) return "";
+    var invalidBattles = run.Battles
+        .Select((battle, index) => new { Battle = battle, Index = index })
+        .Where(item =>
+            item.Battle.Outcome == CombatSimulationOutcome.Invalid)
+        .Select(item =>
+            item.Index.ToString(CultureInfo.InvariantCulture)
+            + ":"
+            + item.Battle.ScenarioId
+            + ":"
+            + item.Battle.TerminationReason
+            + ":"
+            + item.Battle.FailureDiagnostics.LimitScope
+            + ":"
+            + item.Battle.FailureDiagnostics.ActionDefinitionId)
+        .ToList();
+    if (invalidBattles.Count > 0)
+    {
+        return string.Join(";", invalidBattles);
+    }
+    return run.UnsupportedDefinitions.Count > 0
+        ? "unsupported:" + string.Join(",", run.UnsupportedDefinitions)
+        : "semantic-coverage:battle="
+          + run.BattleSemanticCoverage.ToString("R", CultureInfo.InvariantCulture)
+          + ",progression="
+          + run.ProgressionSemanticCoverage.ToString("R", CultureInfo.InvariantCulture);
+}
+
 static double Median(IReadOnlyList<double> values)
 {
     if (values.Count == 0) return 0d;
@@ -346,7 +411,8 @@ static void WriteCsv(
     var rows = new List<string>
     {
         "difficulty,seed,a_victory,b_victory,a_invalid,b_invalid,"
-        + "a_depth,b_depth,a_fingerprint,b_fingerprint"
+        + "a_depth,b_depth,a_invalid_reason,b_invalid_reason,"
+        + "a_fingerprint,b_fingerprint"
     };
     rows.AddRange(pairs.Select(item => string.Join(
         ",",
@@ -360,9 +426,16 @@ static void WriteCsv(
             CultureInfo.InvariantCulture),
         item.ChampionBCompletedBattles.ToString(
             CultureInfo.InvariantCulture),
+        Csv(item.ChampionAInvalidReason),
+        Csv(item.ChampionBInvalidReason),
         item.ChampionAFingerprint,
         item.ChampionBFingerprint)));
     File.WriteAllLines(path, rows, new UTF8Encoding(false));
+}
+
+static string Csv(string value)
+{
+    return "\"" + (value ?? "").Replace("\"", "\"\"") + "\"";
 }
 
 static CombatPolicyValueNetworkDefinition RequiredChampion(
@@ -466,6 +539,10 @@ public sealed class ChampionComparisonPair
 
     public int ChampionBCompletedBattles { get; set; }
 
+    public string ChampionAInvalidReason { get; set; } = "";
+
+    public string ChampionBInvalidReason { get; set; } = "";
+
     public string ChampionAFingerprint { get; set; } = "";
 
     public string ChampionBFingerprint { get; set; } = "";
@@ -488,6 +565,8 @@ public sealed class ChampionComparisonReport
     public string CampaignVersion { get; set; } = "";
 
     public int CampaignsPerDifficulty { get; set; }
+
+    public int EffectiveParallelism { get; set; }
 
     public ulong SeedStart { get; set; }
 
