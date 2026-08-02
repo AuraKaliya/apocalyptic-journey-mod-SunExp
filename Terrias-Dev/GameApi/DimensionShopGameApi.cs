@@ -467,28 +467,6 @@ public static class DimensionShopGameApi
         return tooltip.isHover ? "" : "hover-ended";
     }
 
-    public static void CloseNativeBreakFallback()
-    {
-        try
-        {
-            var breakRoot = GameObject.Find("Breaks");
-            if (breakRoot != null)
-            {
-                UnityEngine.Object.Destroy(breakRoot);
-            }
-
-            var background = GameApp.Instance?.NowBackground;
-            if (background != null)
-            {
-                background.SetActive(true);
-            }
-        }
-        catch (Exception ex)
-        {
-            TerriasLog.Warn("[DimensionShopGameApi] native break fallback cleanup failed: " + ex.Message);
-        }
-    }
-
     public static void AdvanceMap()
     {
         try

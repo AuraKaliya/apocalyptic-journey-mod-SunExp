@@ -80,7 +80,7 @@ public static class FamiliarGrowthApi
         public FamiliarRosterDocument Load()
         {
             var current = ProfilePath();
-            var path = File.Exists(current) ? current : LegacyProfilePath();
+            var path = File.Exists(current) ? current : FirstExistingLegacyProfilePath();
             if (!File.Exists(path))
             {
                 return new FamiliarRosterDocument();
@@ -88,8 +88,10 @@ public static class FamiliarGrowthApi
 
             try
             {
-                return JsonConvert.DeserializeObject<FamiliarRosterDocument>(File.ReadAllText(path))
-                       ?? new FamiliarRosterDocument();
+                var document = JsonConvert.DeserializeObject<FamiliarRosterDocument>(File.ReadAllText(path))
+                               ?? new FamiliarRosterDocument();
+                MigrateLoadedProfile(path, current, document);
+                return document;
             }
             catch (Exception ex)
             {
@@ -97,6 +99,7 @@ public static class FamiliarGrowthApi
                 if (recovered != null)
                 {
                     TerriasLog.Warn("[FamiliarGrowth] repaired legacy profile " + path + ": " + ex.Message);
+                    MigrateLoadedProfile(path, current, recovered);
                     return recovered;
                 }
 
@@ -160,12 +163,71 @@ public static class FamiliarGrowthApi
             var dataRoot = string.IsNullOrWhiteSpace(AuraSharedPaths.ModsDataDirectory)
                 ? Path.Combine(gameDirectory, AuraSharedPaths.DefaultDataRootDirectoryName)
                 : AuraSharedPaths.ModsDataDirectory;
-            return Path.Combine(dataRoot, TerriasIds.ModId, TerriasIds.FamiliarProfileDirectory, ProfileKey() + ".json");
+            var sharedRoot = string.IsNullOrWhiteSpace(AuraSharedPaths.RootDirectory)
+                ? Path.Combine(dataRoot, AuraSharedPaths.DefaultSharedDirectoryName)
+                : AuraSharedPaths.RootDirectory;
+            var profileDirectory = string.IsNullOrWhiteSpace(AuraSharedPaths.RootDirectory)
+                ? Path.Combine(
+                    sharedRoot,
+                    "Data",
+                    "Owners",
+                    TerriasIds.ModId,
+                    TerriasIds.FamiliarProfileDirectory)
+                : AuraSharedPaths.OwnerSystemDataDirectory(
+                    TerriasIds.ModId,
+                    TerriasIds.FamiliarProfileDirectory);
+            return Path.Combine(profileDirectory, ProfileKey() + ".json");
         }
 
-        private string LegacyProfilePath()
+        private string FirstExistingLegacyProfilePath()
         {
-            return Path.Combine(legacyModDirectory, TerriasIds.FamiliarProfileDirectory, ProfileKey() + ".json");
+            var modsDirectory = Path.GetDirectoryName(legacyModDirectory) ?? legacyModDirectory;
+            var gameDirectory = Path.GetDirectoryName(modsDirectory) ?? modsDirectory;
+            var dataRoot = string.IsNullOrWhiteSpace(AuraSharedPaths.ModsDataDirectory)
+                ? Path.Combine(gameDirectory, AuraSharedPaths.DefaultDataRootDirectoryName)
+                : AuraSharedPaths.ModsDataDirectory;
+            var candidates = new[]
+            {
+                Path.Combine(dataRoot, TerriasIds.ModId, TerriasIds.FamiliarProfileDirectory, ProfileKey() + ".json"),
+                Path.Combine(legacyModDirectory, TerriasIds.FamiliarProfileDirectory, ProfileKey() + ".json")
+            };
+            foreach (var candidate in candidates)
+            {
+                if (File.Exists(candidate))
+                {
+                    return candidate;
+                }
+            }
+
+            return candidates[0];
+        }
+
+        private static void MigrateLoadedProfile(
+            string sourcePath,
+            string currentPath,
+            FamiliarRosterDocument document)
+        {
+            if (AuraSharedPaths.IsSamePath(sourcePath, currentPath))
+            {
+                return;
+            }
+
+            try
+            {
+                WriteAtomic(
+                    currentPath,
+                    JsonConvert.SerializeObject(document, Formatting.Indented));
+                TerriasLog.Info("[FamiliarGrowth] copied legacy profile into AuraShared owner data; source="
+                                + sourcePath
+                                + "; destination="
+                                + currentPath
+                                + ".");
+            }
+            catch (Exception ex)
+            {
+                TerriasLog.Warn("[FamiliarGrowth] legacy profile migration failed; continuing from source: "
+                               + ex.Message);
+            }
         }
 
         private static void WriteAtomic(string path, string contents)

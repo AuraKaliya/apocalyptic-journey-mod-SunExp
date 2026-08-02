@@ -1,5 +1,6 @@
 using System;
 using System.Collections.Generic;
+using System.Globalization;
 using System.Linq;
 using System.Text;
 using System.Threading;
@@ -524,6 +525,16 @@ public sealed class CombatJourneyRunner
                     SkillCooldownTurns = new Dictionary<string, int>(
                         definition.Player.SkillCooldownTurns,
                         StringComparer.OrdinalIgnoreCase),
+                    InitialSkillCooldownTurns = new Dictionary<string, int>(
+                        definition.Player.InitialSkillCooldownTurns,
+                        StringComparer.OrdinalIgnoreCase),
+                    NativeManagedSkillCooldownIds = new List<string>(
+                        definition.Player.NativeManagedSkillCooldownIds),
+                    RoleNativeScriptHash = definition.Player.RoleNativeScriptHash,
+                    RoleFightScript = definition.Player.RoleFightScript,
+                    RoleRuntimeForms = definition.Player.RoleRuntimeForms
+                        .Select(item => item.Clone())
+                        .ToList(),
                     FamiliarBlessingIds = new List<string>(
                         definition.Player.FamiliarBlessingIds),
                     MaxHp = definition.Player.MaxHp,
@@ -532,8 +543,16 @@ public sealed class CombatJourneyRunner
                     Deck = new List<string>(checkpoint.Deck),
                     InitialStatuses = definition.Player.InitialStatuses
                         .Select(CloneStatus)
-                        .ToList()
+                        .ToList(),
+                    Variables = new Dictionary<string, double>(
+                        definition.Player.Variables,
+                        StringComparer.OrdinalIgnoreCase)
                 },
+                CampaignVariables = definition.Player.Variables.ToDictionary(
+                    item => item.Key,
+                    item => item.Value.ToString(
+                        CultureInfo.InvariantCulture),
+                    StringComparer.OrdinalIgnoreCase),
                 Enemies =
                 {
                     new CombatEnemySetup

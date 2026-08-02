@@ -1386,6 +1386,9 @@ public static class CombatPolicyValueEncoding
         result["scaling"] = semantics.Scaling;
         result["risk"] = semantics.Risk;
         result["uncertainty"] = semantics.Uncertainty;
+        result["endsTurn"] = semantics.EndsTurn ? 1d : 0d;
+        result["damageToBlockSetup"] =
+            semantics.DamageToBlockSetup ? 1d : 0d;
         result["actionKindPlayCard"] =
             action.Kind == CombatActionKind.PlayCard ? 1d : 0d;
         result["actionKindUseSkill"] =

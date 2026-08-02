@@ -121,6 +121,7 @@ internal sealed class TrainingDiagnosticsPanel
         PresentData(training, latestIteration);
         PresentArena(training.Iterations);
         PresentSearch(training);
+        AppendNanaStrategySummary(result);
         PresentFailures(training);
     }
 
@@ -466,6 +467,49 @@ internal sealed class TrainingDiagnosticsPanel
             + $"终局一致性错误 {training.TerminalConsistencyViolations} · "
             + $"特征泄漏 {training.FeatureLeakageViolations} · "
             + $"无效训练战役 {training.InvalidTrainingCampaigns}";
+    }
+
+    private void AppendNanaStrategySummary(
+        ControllerWorkerResultSummary result)
+    {
+        var metrics = result.RoleStrategyMetrics;
+        if (metrics == null
+            || Metric(
+                metrics,
+                "nana.role-strategy-observed-frames") <= 0d)
+        {
+            return;
+        }
+        searchSummary.Text += "\r\n\r\n奈奈角色策略门禁 "
+                              + (result.RoleStrategyGatePassed
+                                  ? "通过"
+                                  : "未通过")
+                              + $"\r\n动作覆盖 {Metric(metrics, "nana.role-strategy-frame-coverage"):P1}"
+                              + $" · 安全成长窗口 {Metric(metrics, "nana.safe-growth-window-frames"):N0}"
+                              + $" · 成长铺垫 {Metric(metrics, "nana.selected-growth-builders"):N0}"
+                              + $"\r\n厄运解放 {Metric(metrics, "nana.devours"):N0}"
+                              + $" · 过早解放率 {Metric(metrics, "nana.premature-devour-rate"):P1}"
+                              + $" · 单次厄运中位数 {Metric(metrics, "nana.devour-doom-gain.median"):0.0}"
+                              + $" · 单次生命成长中位数 {Metric(metrics, "nana.devour-max-hp-gain.median"):0.0}"
+                              + $"\r\n首次化身厄运中位数 {Metric(metrics, "nana.first-transform-doom.median"):0.0}"
+                              + $" · 旅程最终生命均值/最大值 {Metric(metrics, "final-max-hp.mean"):0.0}/"
+                              + $"{Metric(metrics, "final-max-hp.maximum"):0.0}"
+                              + (string.IsNullOrWhiteSpace(
+                                      result.RoleStrategyGateFailureReason)
+                                  ? ""
+                                  : "\r\n"
+                                    + result.RoleStrategyGateFailureReason);
+    }
+
+    private static double Metric(
+        IReadOnlyDictionary<string, double> metrics,
+        string key)
+    {
+        return metrics.TryGetValue(key, out var value)
+               && !double.IsNaN(value)
+               && !double.IsInfinity(value)
+            ? value
+            : 0d;
     }
 
     private void PresentFailures(ControllerTrainingResultSummary training)

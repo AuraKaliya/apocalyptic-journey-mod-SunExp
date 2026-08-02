@@ -325,7 +325,40 @@ public static class CombatTrainingSampleBuilder
             Risk = Finite(value.Risk),
             Uncertainty = Finite(value.Uncertainty),
             OpensInteraction = value.OpensInteraction,
-            RandomOutcome = value.RandomOutcome
+            RandomOutcome = value.RandomOutcome,
+            EndsTurn = value.EndsTurn,
+            DamageToBlockSetup = value.DamageToBlockSetup,
+            HandTransform = value.HandTransform == null
+                ? null
+                : new CombatHandTransformSemantic
+                {
+                    TargetCardId = value.HandTransform.TargetCardId,
+                    TargetCardSemantics = SanitizeSemantics(
+                        value.HandTransform.TargetCardSemantics),
+                    TransformAllHandCards =
+                        value.HandTransform.TransformAllHandCards,
+                    PreserveInstances = value.HandTransform.PreserveInstances,
+                    ClearsEnhancements =
+                        value.HandTransform.ClearsEnhancements,
+                    ClearsVariables = value.HandTransform.ClearsVariables,
+                    TargetRetained = value.HandTransform.TargetRetained,
+                    TargetExhaustsOnUse =
+                        value.HandTransform.TargetExhaustsOnUse,
+                    GrowthStateKey = value.HandTransform.GrowthStateKey,
+                    GrowthPerExhaust = Finite(
+                        value.HandTransform.GrowthPerExhaust),
+                    CurrentGrowthValue = Finite(
+                        value.HandTransform.CurrentGrowthValue),
+                    TargetTier = Math.Max(0, value.HandTransform.TargetTier),
+                    NextTierThreshold = Math.Max(
+                        0,
+                        value.HandTransform.NextTierThreshold),
+                    CooldownProgressRequired = Math.Max(
+                        0d,
+                        Finite(value.HandTransform.CooldownProgressRequired)),
+                    CooldownProgressEvent =
+                        value.HandTransform.CooldownProgressEvent
+                }
         };
     }
 

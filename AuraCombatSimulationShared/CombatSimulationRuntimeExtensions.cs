@@ -59,6 +59,16 @@ public interface ICombatSimulationRuntimeContext
         CombatTerminationReason reason);
 }
 
+/// <summary>
+/// Optional campaign-progression sink exposed by the shared simulation engine.
+/// Runtime extensions use it to report authoritative player deltas without
+/// teaching the shared engine any content-specific meaning.
+/// </summary>
+public interface ICombatPersistentProgressionContext
+{
+    void RecordPersistentVariableDelta(string variableId, int amount);
+}
+
 public sealed class CombatScenarioRewardCatalogEntry
 {
     public string RewardId { get; set; } = "";

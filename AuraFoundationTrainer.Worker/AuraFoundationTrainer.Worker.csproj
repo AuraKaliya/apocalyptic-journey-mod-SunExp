@@ -23,6 +23,14 @@
              Link="Combat\%(Filename)%(Extension)" />
     <Compile Include="..\AuraToolsExp-Dev\Features\AutoBattle\AuraToolsNativeRewardSimulationRuntime.cs"
              Link="Native\AuraToolsNativeRewardSimulationRuntime.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAuthoritativeRoleSemantics.cs"
+             Link="Native\AuraToolsAuthoritativeRoleSemantics.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\AutoBattle\AuraToolsNanaRoleStrategy.cs"
+             Link="Native\AuraToolsNanaRoleStrategy.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\AutoBattle\AuraToolsRoleCampaignStrategy.cs"
+             Link="Native\AuraToolsRoleCampaignStrategy.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\AutoBattle\AuraToolsRoleTrainingDiagnostics.cs"
+             Link="Native\AuraToolsRoleTrainingDiagnostics.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\AutoBattle\Generated\AuraToolsNativePrograms.g.cs"
              Link="Native\AuraToolsNativePrograms.g.cs" />
   </ItemGroup>
@@ -37,6 +45,6 @@
   <Target Name="GenerateAuraNativePrograms"
           BeforeTargets="BeforeCompile"
           Condition="'$(DesignTimeBuild)' != 'true'">
-    <Exec Command="dotnet run --project &quot;$(MSBuildProjectDirectory)\..\tools\AuraNativeProgramCompiler\AuraNativeProgramCompiler.csproj&quot; -c Release -- --campaign &quot;$(MSBuildProjectDirectory)\..\AuraToolsExp\Config\combat-simulation\witch-world-simulation-v2.campaign.json&quot; --ruleset &quot;$(MSBuildProjectDirectory)\..\AuraToolsExp\Config\combat-simulation\witch-base-evaluation-v2.ruleset.json&quot; --output &quot;$(MSBuildProjectDirectory)\..\AuraToolsExp-Dev\Features\AutoBattle\Generated\AuraToolsNativePrograms.g.cs&quot; --manifest &quot;$(MSBuildProjectDirectory)\..\AuraToolsExp\Config\combat-programs.base-game.manifest.json&quot;" />
+    <Exec Command="dotnet run --project &quot;$(MSBuildProjectDirectory)\..\tools\AuraNativeProgramCompiler\AuraNativeProgramCompiler.csproj&quot; -c Release -- --campaign &quot;$(MSBuildProjectDirectory)\..\AuraToolsExp\Config\combat-simulation\witch-world-simulation-v2.campaign.json&quot; --ruleset &quot;$(MSBuildProjectDirectory)\..\AuraToolsExp\Config\combat-simulation\witch-base-evaluation-v2.ruleset.json&quot; --subjects &quot;$(MSBuildProjectDirectory)\..\AuraToolsExp\Config\combat-simulation\witch-game-subjects-v1.catalog.json&quot; --output &quot;$(MSBuildProjectDirectory)\..\AuraToolsExp-Dev\Features\AutoBattle\Generated\AuraToolsNativePrograms.g.cs&quot; --manifest &quot;$(MSBuildProjectDirectory)\..\AuraToolsExp\Config\combat-programs.base-game.manifest.json&quot;" />
   </Target>
 </Project>

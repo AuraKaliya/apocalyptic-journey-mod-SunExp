@@ -45,6 +45,7 @@ public static class AuraToolsAutoBattleRuntime
 
         initialized = true;
         AuraToolsCombatKnowledgeRuntime.Initialize();
+        AuraToolsBundledFoundationModelRuntime.Initialize(modConfig);
         AuraToolsAutoBattleJourneyRuntime.Initialize(modConfig);
         EnsureController();
         AuraToolsHookRegistry.After(
@@ -859,6 +860,8 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
             return;
         }
 
+        LogForcedEndTurnCandidateAudit(state, decision);
+
         AuraToolsAutoBattleGameValidationRuntime.RecordDecision(state, decision);
         beforeAction = state;
         pendingDecision = decision;
@@ -891,6 +894,78 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
             + " " + ScoreBreakdown(decision)
             + " " + decision.EndTurnTrace
             + " " + decision.PlanSummary);
+    }
+
+    private static void LogForcedEndTurnCandidateAudit(
+        CombatStateObservation state,
+        CombatDecision decision)
+    {
+        if (decision.Action?.Kind != CombatActionKind.EndTurn
+            || state.CurrentPower <= 0
+            || decision.EndTurnTrace.IndexOf(
+                "endTurnVerdict=Forced",
+                StringComparison.OrdinalIgnoreCase) < 0)
+        {
+            return;
+        }
+
+        var actionsBySource = state.Actions
+            .Where(action => action != null
+                             && action.Kind == CombatActionKind.PlayCard)
+            .GroupBy(action => action.SourceId ?? "", StringComparer.OrdinalIgnoreCase)
+            .ToDictionary(
+                group => group.Key,
+                group => group.ToList(),
+                StringComparer.OrdinalIgnoreCase);
+        var rows = new List<string>();
+        foreach (var cardId in state.HandCardIds ?? new List<string>())
+        {
+            if (!actionsBySource.TryGetValue(cardId ?? "", out var actions))
+            {
+                rows.Add((cardId ?? "<unknown>") + "{candidate=missing}");
+                continue;
+            }
+            foreach (var action in actions)
+            {
+                rows.Add(
+                    (cardId ?? "<unknown>")
+                    + "{cost=" + action.Cost
+                    + ",legal=" + (action.Legal ? 1 : 0)
+                    + ",rejection=" + CompactAuditText(action.RejectionReason)
+                    + ",energyGain="
+                    + action.Semantics.EnergyGain.ToString("0.###")
+                    + ",draw=" + action.Semantics.Draw.ToString("0.###")
+                    + ",usable=" + AuditFeature(action, "runtimeUsable")
+                    + ",unplayable=" + AuditFeature(action, "unplayable")
+                    + ",tags=" + CompactAuditText(string.Join(
+                        ",",
+                        state.CardTagsById.TryGetValue(cardId ?? "", out var tags)
+                            ? tags
+                            : new List<string>()))
+                    + "}");
+            }
+        }
+        AuraToolsLog.Warn(
+            "[AutoBattle][ForcedEndAudit] power=" + state.CurrentPower
+            + "/" + state.MaxPower
+            + " hand=" + string.Join(" | ", rows));
+    }
+
+    private static string AuditFeature(
+        CombatActionObservation action,
+        string key)
+    {
+        return action.Features.TryGetValue(key, out var value)
+            ? value.ToString("0.###")
+            : "n/a";
+    }
+
+    private static string CompactAuditText(string? value)
+    {
+        return (value ?? "")
+            .Replace("\r", " ")
+            .Replace("\n", " ")
+            .Replace("|", "/");
     }
 
     internal void CaptureTeacherAction(object? runtimeHandle)

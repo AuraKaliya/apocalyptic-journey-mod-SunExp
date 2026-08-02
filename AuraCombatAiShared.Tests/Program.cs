@@ -17,7 +17,22 @@ var gameSubjectCatalog = new CombatGameSubjectCatalog
             DisplayName = "Test Role",
             SkillCardIds = { "skill_test" },
             SkillCooldownTurns = { ["skill_test"] = 3 },
-            InitialStatuses = { ["status_test"] = 2 }
+            InitialSkillCooldownTurns = { ["skill_test"] = 2 },
+            MaximumHp = 60,
+            InitialVariables = { ["DoomPower"] = 0d },
+            InitialStatuses = { ["status_test"] = 2 },
+            NativeScriptHash = "native-role-hash",
+            FightScript = "AddEvent(\"StartRound\", () => { });",
+            NativeManagedSkillCooldownIds = { "skill_test" },
+            TransformRoleIds = { "career_test_form" }
+        },
+        new CombatGameSubjectRole
+        {
+            Id = "career_test_form",
+            DisplayName = "Test Role Form",
+            SkillCardIds = { "skill_test" },
+            SkillCooldownTurns = { ["skill_test"] = 1 },
+            MaximumHp = 40
         }
     },
     Familiars =
@@ -71,8 +86,21 @@ Assert(
     && gameSubjectCampaign.Player.SkillCardIds.SequenceEqual(
         new[] { "skill_test" })
     && gameSubjectCampaign.Player.SkillCooldownTurns["skill_test"] == 3
-    && gameSubjectCampaign.Player.InitialStatuses.Single().StatusId
-       == "status_test"
+    && gameSubjectCampaign.Player.InitialSkillCooldownTurns["skill_test"] == 2
+    && gameSubjectCampaign.Player.MaxHp == 60
+    && gameSubjectCampaign.Player.CurrentHp == 60
+    && gameSubjectCampaign.Player.Variables["DoomPower"] == 0d
+    && gameSubjectCampaign.Player.InitialStatuses.Count == 0
+    && gameSubject.ResolvedRoleInitialStatuses["status_test"] == 2
+    && gameSubjectCampaign.Player.RoleNativeScriptHash == "native-role-hash"
+    && gameSubjectCampaign.Player.NativeManagedSkillCooldownIds.SequenceEqual(
+        new[] { "skill_test" })
+    && gameSubjectCampaign.Player.RoleRuntimeForms.Count == 2
+    && gameSubjectCampaign.Player.RoleRuntimeForms.Any(item =>
+        item.RoleId == "career_test")
+    && gameSubjectCampaign.Player.RoleRuntimeForms.Single(item =>
+        item.RoleId == "career_test_form")
+       .SkillCooldownTurns["skill_test"] == 1
     && gameSubjectCampaign.Player.FamiliarBlessingIds.SequenceEqual(
         new[] { "blessing_test" })
     && gameSubjectCampaign.EnabledRewardCardPackIds.SequenceEqual(
@@ -82,6 +110,83 @@ Assert(
            gameSubject,
            gameSubjectCampaign.Player.Deck),
     "game subject preset resolves and applies one immutable campaign snapshot");
+
+var lowValueTransformState = BuildHandTransformFixture(valuableHand: false);
+var lowValueTransformAction = lowValueTransformState.Actions[0];
+CombatHandTransformPolicy.Enrich(
+    lowValueTransformState,
+    lowValueTransformAction);
+var lowValueTransform = CombatHandTransformPolicy.Assess(
+    lowValueTransformState,
+    lowValueTransformAction);
+var highValueTransformState = BuildHandTransformFixture(valuableHand: true);
+var highValueTransformAction = highValueTransformState.Actions[0];
+CombatHandTransformPolicy.Enrich(
+    highValueTransformState,
+    highValueTransformAction);
+var highValueTransform = CombatHandTransformPolicy.Assess(
+    highValueTransformState,
+    highValueTransformAction);
+Assert(
+    lowValueTransform.CleanupValue > 0d
+    && highValueTransform.EngineLoss > lowValueTransform.EngineLoss
+    && highValueTransform.EnhancementLoss > 0d
+    && lowValueTransform.NetValue > highValueTransform.NetValue
+    && lowValueTransform.DepletionRisk > 0d,
+    "whole-hand transform values cleanup, engine sacrifice, enhancements and depletion separately");
+var distributedLethalState = BuildHandTransformFixture(valuableHand: false);
+distributedLethalState.HandCount = 2;
+distributedLethalState.HandCardIds.RemoveAt(2);
+distributedLethalState.HandCards.RemoveAt(2);
+distributedLethalState.Enemies.Clear();
+distributedLethalState.Enemies.AddRange(new[]
+{
+    new CombatUnitObservation
+    {
+        RuntimeId = 2,
+        Kind = CombatTargetKind.Enemy,
+        CurrentHp = 100,
+        MaxHp = 100
+    },
+    new CombatUnitObservation
+    {
+        RuntimeId = 3,
+        Kind = CombatTargetKind.Enemy,
+        CurrentHp = 1,
+        MaxHp = 1
+    }
+});
+distributedLethalState.Actions[0].Semantics.HandTransform!
+    .TargetCardSemantics.Damage = 30d;
+distributedLethalState.Actions[0].Semantics.HandTransform!
+    .TargetCardSemantics.AffectedEnemyCount = 2;
+Assert(
+    !CombatHandTransformPolicy.Assess(
+        distributedLethalState,
+        distributedLethalState.Actions[0]).LethalCertified,
+    "whole-hand transform lethal certification is per enemy rather than aggregate damage");
+var transformSimulation = CombatForwardModel.Create(
+    lowValueTransformState,
+    lowValueTransformState.Actions.Count);
+var transformOutcome = CombatForwardModel.Resolve(
+        lowValueTransformState,
+        lowValueTransformAction,
+        useRegisteredResolvers: false)
+    .Outcomes.Single();
+var transformedSimulation = CombatForwardModel.Apply(
+    transformSimulation,
+    lowValueTransformAction,
+    0,
+    transformOutcome,
+    new CombatDecisionProfile());
+Assert(
+    transformedSimulation.HandCount == lowValueTransformState.HandCount
+    && transformedSimulation.HandCardIds.Count
+       == lowValueTransformState.HandCount
+    && transformedSimulation.HandCardIds.All(id => id == "nocard_1")
+    && transformedSimulation.RetainedHandCardIds.Count
+       == lowValueTransformState.HandCount,
+    "forward model replaces every hand instance and preserves transformed retain semantics");
 
 var graph = new DecisionGraph
 {
@@ -672,7 +777,7 @@ var trainingSample = CombatTrainingSampleBuilder.Create(
     gameBuild: "test-game",
     sharedBuild: "test-shared");
 Assert(trainingSample.ModelProtocol == "aura.combat-ai.sample.v6"
-       && trainingSample.FeatureSchemaVersion == 7
+       && trainingSample.FeatureSchemaVersion == 9
        && trainingSample.Candidates.Count == state.Actions.Count
        && trainingSample.Candidates.Single(candidate =>
            candidate.CandidateId == "attack").SourceId == "attack",
@@ -768,7 +873,7 @@ Assert(originalFeatures.All(pair =>
 
 var trained = CombatResidualTrainer.Train(new[] { humanSample }, "balanced");
 Assert(trained.Success
-       && trained.Model?.FeatureSchemaVersion == 7
+       && trained.Model?.FeatureSchemaVersion == 9
        && trained.Model.DecisionProfile == "balanced"
        && trained.Model.FeatureMinimums.Count > 0
        && trained.Model.CategoryObservationCounts.Count > 0,
@@ -1651,6 +1756,167 @@ Assert(certifiedCycleAssessment.Prohibited
        == CombatEndTurnVerdict.BlockedCycle
        && certifiedCycleAssessment.CertifiedCycleCount == 1,
     "deterministic executable infinite components block end turn even when the connector has no immediate numeric payoff");
+
+var terminalCardState = new CombatStateObservation
+{
+    Player = new CombatUnitObservation { CurrentHp = 20, MaxHp = 20 },
+    CurrentPower = 2,
+    MaxPower = 2,
+    Enemies =
+    {
+        new CombatUnitObservation
+        {
+            RuntimeId = 701,
+            Kind = CombatTargetKind.Enemy,
+            CurrentHp = 20,
+            MaxHp = 20
+        }
+    },
+    Actions =
+    {
+        new CombatActionObservation
+        {
+            CandidateId = "terminal-card",
+            SourceId = "terminal-card",
+            Kind = CombatActionKind.PlayCard,
+            Cost = 1,
+            Semantics = new CombatActionSemantics
+            {
+                Damage = 3d,
+                EndsTurn = true
+            }
+        },
+        new CombatActionObservation
+        {
+            CandidateId = "continue-attack",
+            SourceId = "continue-attack",
+            Kind = CombatActionKind.PlayCard,
+            TargetRuntimeId = 701,
+            TargetKind = CombatTargetKind.Enemy,
+            Cost = 1,
+            Semantics = new CombatActionSemantics { Damage = 4d }
+        },
+        new CombatActionObservation
+        {
+            CandidateId = "terminal-end",
+            Kind = CombatActionKind.EndTurn
+        }
+    }
+};
+var terminalCardDecision = new CombatDecisionEngine(
+        useRuntimeRegistries: false)
+    .Choose(terminalCardState, new CombatDecisionProfile());
+var terminalCardEvaluation = terminalCardDecision.Candidates.Single(item =>
+    item.Action.CandidateId == "terminal-card");
+Assert(terminalCardDecision.Action?.CandidateId == "continue-attack"
+       && !terminalCardEvaluation.Legal
+       && terminalCardEvaluation.Action.Features.TryGetValue(
+           CombatTurnFeatureNames.EndTurnDominated,
+           out var terminalDominated)
+       && terminalDominated == 1d,
+    "cards that end the turn pass through the same continuation safety gate as the end-turn button");
+
+var damageToBlockState = new CombatStateObservation
+{
+    Player = new CombatUnitObservation { CurrentHp = 20, MaxHp = 20 },
+    CurrentPower = 2,
+    MaxPower = 2,
+    Enemies =
+    {
+        new CombatUnitObservation
+        {
+            RuntimeId = 702,
+            Kind = CombatTargetKind.Enemy,
+            CurrentHp = 20,
+            MaxHp = 20
+        }
+    },
+    Actions =
+    {
+        new CombatActionObservation
+        {
+            CandidateId = "damage-to-block-setup",
+            SourceId = "damage-to-block-setup",
+            Kind = CombatActionKind.PlayCard,
+            Cost = 1,
+            Semantics = new CombatActionSemantics
+            {
+                DamageToBlockSetup = true,
+                Buff = 1d
+            }
+        },
+        new CombatActionObservation
+        {
+            CandidateId = "damage-payoff",
+            SourceId = "damage-payoff",
+            Kind = CombatActionKind.PlayCard,
+            TargetRuntimeId = 702,
+            TargetKind = CombatTargetKind.Enemy,
+            Cost = 1,
+            Semantics = new CombatActionSemantics { Damage = 5d }
+        },
+        new CombatActionObservation
+        {
+            CandidateId = "damage-to-block-end",
+            Kind = CombatActionKind.EndTurn
+        }
+    }
+};
+var damageToBlockDecision = new CombatDecisionEngine(
+        useRuntimeRegistries: false)
+    .Choose(damageToBlockState, new CombatDecisionProfile());
+Assert(damageToBlockDecision.Action?.CandidateId == "damage-to-block-setup"
+       && damageToBlockDecision.SearchAlgorithm == "dominance",
+    "damage-recording block setup strictly precedes an affordable damage payoff without card-name rules");
+
+var crossDefinitionPackage = new CombatKnowledgePackage
+{
+    OwnerId = "tests",
+    PackageId = "cross-definition-semantics",
+    GameBuild = "test",
+    SourceHash = "test-hash",
+    Actions =
+    {
+        new CombatKnowledgeActionDefinition
+        {
+            SourceId = "setup-from-status",
+            Fidelity = CombatKnowledgeFidelity.Authoritative,
+            Semantics = new CombatActionSemantics
+            {
+                StateChanges = { ["status:damage-recorder"] = 1d }
+            },
+            TableFields = { ["UseScript"] = "ChangeRound();" }
+        }
+    },
+    Statuses =
+    {
+        new CombatKnowledgeStatusDefinition
+        {
+            StatusId = "damage-recorder",
+            Fidelity = CombatKnowledgeFidelity.Authoritative,
+            Triggers = { "Hurt", "EndRound" },
+            Operations =
+            {
+                new CombatKnowledgeOperation { Api = "ChangeDefence" }
+            }
+        }
+    }
+};
+using (CombatKnowledgeRegistry.RegisterPackage(
+           crossDefinitionPackage,
+           out var crossDefinitionErrors))
+{
+    var foundCrossDefinition = CombatKnowledgeRegistry.TryDescribeAction(
+        new CombatActionObservation { SourceId = "setup-from-status" },
+        out var crossDefinitionSemantics,
+        out _,
+        out _);
+    Assert(crossDefinitionErrors.Count == 0
+           && foundCrossDefinition
+           && crossDefinitionSemantics.EndsTurn
+           && crossDefinitionSemantics.DamageToBlockSetup,
+        "knowledge registration derives terminal and damage-to-block setup semantics from scripts and status lifecycle definitions");
+}
 
 var limitedDamageState = new CombatStateObservation
 {
@@ -6910,6 +7176,56 @@ Assert(projectedStrategyAction.Features["synergy"] > 0d
        && projectedStrategyAction.Features["strategyInfinite"] == 1d,
     "completed deterministic strategy progress is projected into card-play ordering features");
 
+CombatDecisionSimulationPolicy frozenPreparationPolicy;
+using (CombatAiRegistry.RegisterSemanticProvider(
+           "Tests",
+           "frozen-preparation-semantic",
+           new FrozenPreparationSemanticProvider("cycle-a"),
+           10000))
+using (CombatAiRegistry.RegisterRoleStrategyProvider(
+           "Tests",
+           "frozen-preparation-role",
+           new FrozenPreparationRoleStrategyProvider(),
+           10000))
+{
+    frozenPreparationPolicy = new CombatDecisionSimulationPolicy(
+        new CombatDecisionProfile
+        {
+            SearchBudgetMode = "fixed",
+            SearchSimulationBudget = 1,
+            SearchNodeBudget = 8,
+            SearchMaxPly = 1,
+            SearchMinimumSimulations = 1
+        });
+}
+frozenPreparationPolicy.SelectAction(new CombatSimulationPolicyContext
+{
+    Scenario = new CombatScenarioDefinition(),
+    Ruleset = strategyProjectionRules.Ruleset,
+    State = strategyProjectionState.Clone(),
+    LegalActions = new List<CombatSimulationAction>
+    {
+        strategyProjectionAction,
+        new CombatSimulationAction
+        {
+            CandidateId = "end-turn-frozen",
+            Kind = CombatSimulationActionKind.EndTurn,
+            ActorId = 1
+        }
+    }
+});
+var frozenPreparedAction = frozenPreparationPolicy.LastDecision!.Candidates
+    .Single(item => item.Action.CandidateId
+                    == strategyProjectionAction.CandidateId)
+    .Action;
+Assert(
+    frozenPreparedAction.SemanticFidelity
+    == CombatKnowledgeFidelity.Authoritative
+    && frozenPreparedAction.Semantics.Buff == 17d
+    && frozenPreparedAction.Features[CombatRoleStrategyFeatureNames.Active]
+       == 1d,
+    "isolated simulation policies retain a frozen semantic and role-strategy snapshot after registry lifetimes end");
+
 var roleSkillRulesBuilder = new CombatRulesetBuilder("role-skill-rules");
 roleSkillRulesBuilder.RegisterCard(new CombatCardDefinition
 {
@@ -7507,6 +7823,22 @@ var phaseTruthRules = new CombatRulesetBuilder("phase-truth-v1")
     .RegisterCard(new CombatCardDefinition
     {
         OwnerModId = "Tests",
+        CardId = "phase-up",
+        Cost = 0,
+        Effects =
+        {
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.AddStatus,
+                Target = CombatSimulationTarget.Self,
+                DefinitionId = "phase-life",
+                Amount = 1
+            }
+        }
+    })
+    .RegisterCard(new CombatCardDefinition
+    {
+        OwnerModId = "Tests",
         CardId = "rotten-guard",
         Cost = 0,
         Effects =
@@ -7624,6 +7956,18 @@ var phaseRemoval = new CombatSimulationEngine().ForkAndApplyPlayerAction(
         CardInstanceId = 1,
         DefinitionId = "phase-down"
     });
+var phaseAtMaximum = new CombatSimulationEngine().ForkAndApplyPlayerAction(
+    phaseTruthScenario,
+    phaseTruthRules.Ruleset,
+    BuildPhaseTruthState("phase-up", 3),
+    new CombatSimulationAction
+    {
+        CandidateId = "card:1",
+        Kind = CombatSimulationActionKind.PlayCard,
+        ActorId = 1,
+        CardInstanceId = 1,
+        DefinitionId = "phase-up"
+    });
 var rottenState = BuildPhaseTruthState("rotten-guard");
 rottenState.Player!.Statuses.Add(new CombatStatusState
 {
@@ -7700,6 +8044,12 @@ Assert(phaseDecrement.Success
        && phaseRemoval.Events.Any(item =>
            item.Kind == CombatSimulationEventKind.StatusRemoved
            && item.DefinitionId == "phase-life")
+       && phaseAtMaximum.Success
+       && phaseAtMaximum.State.Player!.Statuses.Single(
+           item => item.StatusId == "phase-life").Stacks == 3
+       && phaseAtMaximum.Events.All(item =>
+           item.Kind != CombatSimulationEventKind.StatusAdded
+           || item.DefinitionId != "phase-life")
        && rottenGuard.Success
        && rottenGuard.State.Player!.Block == 0
        && filteredStrike.Success
@@ -7709,7 +8059,7 @@ Assert(phaseDecrement.Success
        && rottenProjection.IntrinsicDefend == 5d
        && rottenProjection.Defend == 0d
        && filteredProjection.Damage == 4d,
-    "signed status deltas consume phase lives, corrosion clears newly gained block after the action, and typed filters plus phase limits constrain authoritative damage");
+    "signed status deltas consume phase lives, capped statuses emit no false level change, corrosion clears newly gained block after the action, and typed filters plus phase limits constrain authoritative damage");
 var unsafeFinaleState = new CombatStateObservation
 {
     Player = new CombatUnitObservation
@@ -8239,6 +8589,60 @@ Assert(mechanicPlan.PrimaryArchetype == "rebirth"
            item.RewardId == "luckycard_4").RiskPenalty >= 100d
        && mechanicRewardScores[0].RewardId == "safe-card",
     "campaign planning recognizes mechanic archetypes and hard-demotes curse alchemy despite an inflated base value");
+var publicCampaignContext = new Dictionary<string, double>(
+    StringComparer.OrdinalIgnoreCase);
+CombatCampaignContextFeatureNames.ProjectScenario(
+    new CombatScenarioDefinition
+    {
+        Player = new CombatPlayerSetup
+        {
+            Variables =
+            {
+                [CombatCampaignPublicContextKeys.BattleIndex] = 8d,
+                [CombatCampaignPublicContextKeys.TotalBattles] = 37d,
+                [CombatCampaignPublicContextKeys.RemainingBattles] = 28d,
+                [CombatCampaignPublicContextKeys.Progress] = 8d / 36d,
+                [CombatCampaignPublicContextKeys.LayerNumber] = 2d,
+                [CombatCampaignPublicContextKeys.TotalLayers] = 4d,
+                [CombatCampaignPublicContextKeys.EncounterKind] = 1d,
+                [CombatCampaignPublicContextKeys.GameLevel] = 9d,
+                [CombatCampaignPublicContextKeys.FinalBoss] = 0d
+            }
+        }
+    },
+    publicCampaignContext);
+Assert(publicCampaignContext.GetValueOrDefault(
+           CombatCampaignContextFeatureNames.ContextKnown) == 1d
+       && publicCampaignContext.GetValueOrDefault(
+           CombatCampaignContextFeatureNames.BattleIndex) == 8d
+       && publicCampaignContext.GetValueOrDefault(
+           CombatCampaignContextFeatureNames.Progress) == 8d / 36d
+       && publicCampaignContext.GetValueOrDefault(
+           CombatCampaignContextFeatureNames.FinalBoss) == 0d,
+    "campaign context projection exposes current public progress without future encounter or reward data");
+var roleSpecificBuildDefinition = new CombatCampaignDefinition
+{
+    RolePrior = { ["doom-growth"] = 1d },
+    BuildTendency = { ["doom-growth"] = 0.5d },
+    Rewards =
+    {
+        new CombatCampaignRewardDefinition
+        {
+            RewardId = "doom-growth-card",
+            Kind = CombatCampaignRewardKind.Card,
+            Features = { ["doom-growth"] = 1d }
+        }
+    }
+};
+var roleSpecificPlan = CombatCampaignRewardSelector.RefreshBuildPlan(
+    roleSpecificBuildDefinition,
+    new CombatCampaignState
+    {
+        CurrentLayer = 1,
+        Deck = { "doom-growth-card" }
+    });
+Assert(roleSpecificPlan.PrimaryArchetype == "doom-growth",
+    "campaign build planning accepts role-owned archetypes declared through public campaign priors");
 var campaignPair = new CombatCampaignRunner().RunPaired(
     campaign,
     "normal",
@@ -9074,8 +9478,9 @@ Assert(stratifiedExpertSelection.Episodes.Count == 16
        && stratifiedExpertSelection.SelectedAdvancedEpisodes == 4
        && stratifiedExpertSelection.SelectedNormalEpisodes == 12
        && stratifiedExpertSelection.DistinctRuns == 8
-       && stratifiedExpertSelection.QuotaShortfalls["advanced"] == 2,
-    "expert replay is campaign-first, run-bounded, difficulty-stratified, and reports unavoidable quota shortfalls");
+       && stratifiedExpertSelection.QuotaShortfalls["advanced"] == 2
+       && !stratifiedExpertSelection.QuotaShortfalls.ContainsKey("normal"),
+    "expert replay preserves normal evidence and fills unused capacity while reporting scarce advanced success cases");
 Assert(CombatCampaignFoundationTrainer.EffectiveAdvancedTrainingFloor(
            0.35d,
            stratifiedExpertSelection) > 0.35d,
@@ -9772,6 +10177,15 @@ Assert(capabilityGateProbe.PassedBaselineGate
            "teacher-hard=normal 11/12, advanced 5/12",
            StringComparison.Ordinal),
     "capability probe preserves a tied paired result as inconclusive instead of rejecting the champion");
+capabilityGateProbe.Arms[1].NormalVictories = 9;
+CombatCampaignFoundationTrainer.EvaluateCapabilityBaselineGate(
+    capabilityGateRequest,
+    capabilityGateProbe);
+Assert(!capabilityGateProbe.PassedBaselineGate
+       && capabilityGateProbe.BaselineGateVerdict == "fail"
+       && capabilityGateProbe.ChampionVictoryGain == -1,
+    "capability probe rejects an aggregate victory regression even when the paired evidence is statistically inconclusive");
+capabilityGateProbe.Arms[1].NormalVictories = 10;
 capabilityGateProbe.Pairs.Clear();
 for (var pairedIndex = 0; pairedIndex < 24; pairedIndex++)
 {
@@ -10328,6 +10742,10 @@ var appendRequest = new CombatCampaignFoundationTrainingRequest
 Assert(
     CombatCampaignFoundationTrainer.ResolveIterationLimit(appendRequest) == 5,
     "terminal rejected checkpoints append configured iterations instead of rerunning validation at the old limit");
+appendRequest.Resume.Stage = "iteration-complete";
+Assert(
+    CombatCampaignFoundationTrainer.ResolveIterationLimit(appendRequest) == 5,
+    "iteration-complete checkpoints append configured iterations from their next iteration boundary");
 var continuationManifest = new CombatFoundationCompatibilityManifest
 {
     RulesetHash = "rules",
@@ -11246,6 +11664,130 @@ void Assert(bool condition, string name)
     }
 
     assertions++;
+}
+
+CombatStateObservation BuildHandTransformFixture(bool valuableHand)
+{
+    var handIds = valuableHand
+        ? new[] { "engine", "enhanced-strike", "cycle" }
+        : new[] { "curse", "blank", "risky" };
+    var state = new CombatStateObservation
+    {
+        Player = new CombatUnitObservation
+        {
+            RuntimeId = 1,
+            Kind = CombatTargetKind.Self,
+            CurrentHp = 35,
+            MaxHp = 40
+        },
+        Enemies =
+        {
+            new CombatUnitObservation
+            {
+                RuntimeId = 2,
+                Kind = CombatTargetKind.Enemy,
+                CurrentHp = 200,
+                MaxHp = 200
+            }
+        },
+        CurrentPower = 3,
+        MaxPower = 3,
+        HandCount = handIds.Length,
+        HandCardIds = handIds.ToList(),
+        DeckCardIds = handIds.ToList(),
+        DeckKnowledge = new CombatDeckKnowledge(),
+        IsPlayerActionWindow = true
+    };
+    var transform = new CombatActionObservation
+    {
+        CandidateId = "transform",
+        SourceId = "careercard_4",
+        Kind = CombatActionKind.UseSkill,
+        Semantics = new CombatActionSemantics
+        {
+            OpensInteraction = true,
+            HandTransform = new CombatHandTransformSemantic
+            {
+                TargetCardId = "nocard_1",
+                TargetCardSemantics = new CombatActionSemantics
+                {
+                    Damage = 10d,
+                    Defend = 10d,
+                    AffectedEnemyCount = 1
+                },
+                TransformAllHandCards = true,
+                PreserveInstances = true,
+                ClearsEnhancements = true,
+                ClearsVariables = true,
+                TargetRetained = true,
+                TargetExhaustsOnUse = true,
+                GrowthStateKey = "playerStatus:buff_Soul",
+                GrowthPerExhaust = 1d,
+                CurrentGrowthValue = 50d,
+                TargetTier = 1,
+                NextTierThreshold = 100,
+                CooldownProgressRequired = 12d
+            }
+        }
+    };
+    state.Actions.Add(transform);
+    for (var index = 0; index < handIds.Length; index++)
+    {
+        var semantics = valuableHand
+            ? index == 0
+                ? new CombatActionSemantics
+                {
+                    Draw = 3d,
+                    EnergyGain = 2d,
+                    CardGeneration = 1d
+                }
+                : index == 1
+                    ? new CombatActionSemantics { Damage = 30d }
+                    : new CombatActionSemantics
+                    {
+                        Draw = 2d,
+                        EnergyGain = 1d
+                    }
+            : index == 0
+                ? new CombatActionSemantics
+                {
+                    Risk = 8d,
+                    SelfHpLoss = 2d
+                }
+                : index == 1
+                    ? new CombatActionSemantics()
+                    : new CombatActionSemantics
+                    {
+                        Risk = 5d,
+                        EndOfCycleSelfHpLoss = 3d
+                    };
+        var action = new CombatActionObservation
+        {
+            CandidateId = "card-" + index,
+            SourceId = handIds[index],
+            RuntimeId = 100 + index,
+            Kind = CombatActionKind.PlayCard,
+            Semantics = semantics
+        };
+        if (valuableHand && index == 0)
+        {
+            action.Features["strategyInfinite"] = 1d;
+            action.Features["strategyExecutable"] = 1d;
+        }
+        state.Actions.Add(action);
+        state.HandCards.Add(new CombatCardInstanceObservation
+        {
+            RuntimeId = action.RuntimeId,
+            CardId = action.SourceId,
+            EnhancementCount = valuableHand && index == 1 ? 2 : 0
+        });
+    }
+    if (!valuableHand)
+    {
+        state.CardTagsById["curse"] = new List<string> { "Curse" };
+        state.CardTagsById["blank"] = new List<string> { "Unusable" };
+    }
+    return state;
 }
 
 CombatStateObservation BuildPlayerEquivalentFixture(bool reverseHiddenDrawOrder)
@@ -12189,6 +12731,41 @@ sealed class FixedThreatProvider : ICombatThreatProvider
         out CombatThreatForecast result)
     {
         result = forecast;
+        return true;
+    }
+}
+
+sealed class FrozenPreparationSemanticProvider : ICombatSemanticProvider
+{
+    private readonly string sourceId;
+
+    public FrozenPreparationSemanticProvider(string sourceId)
+    {
+        this.sourceId = sourceId;
+    }
+
+    public bool TryDescribe(
+        CombatStateObservation state,
+        CombatActionObservation action,
+        out CombatActionSemantics semantics)
+    {
+        semantics = new CombatActionSemantics { Buff = 17d };
+        return string.Equals(
+            action.SourceId,
+            sourceId,
+            StringComparison.OrdinalIgnoreCase);
+    }
+}
+
+sealed class FrozenPreparationRoleStrategyProvider :
+    ICombatRoleStrategyProvider
+{
+    public bool TryEnrich(CombatStateObservation state)
+    {
+        foreach (var action in state.Actions)
+        {
+            action.Features[CombatRoleStrategyFeatureNames.Active] = 1d;
+        }
         return true;
     }
 }

@@ -40,6 +40,10 @@ public static class AuraSharedPaths
 
     public static string RuntimeConfigDirectory => Path.Combine(ConfigRootDirectory, "Runtime");
 
+    public static string DataRootDirectory => Path.Combine(RootDirectory, "Data");
+
+    public static string OwnerDataRootDirectory => Path.Combine(DataRootDirectory, "Owners");
+
     public static string AudioDirectory => Path.Combine(RootDirectory, "Audio");
 
     public static string CgDirectory => Path.Combine(RootDirectory, "CG");
@@ -83,6 +87,8 @@ public static class AuraSharedPaths
         CreateDirectorySafe(SharedConfigDirectory);
         CreateDirectorySafe(OwnerConfigRootDirectory);
         CreateDirectorySafe(RuntimeConfigDirectory);
+        CreateDirectorySafe(DataRootDirectory);
+        CreateDirectorySafe(OwnerDataRootDirectory);
         CreateDirectorySafe(AudioDirectory);
         CreateDirectorySafe(CgDirectory);
         CreateDirectorySafe(SkinDirectory);
@@ -114,9 +120,24 @@ public static class AuraSharedPaths
         return Path.Combine(RuntimeConfigDirectory, SafeSegment(system, "General"));
     }
 
+    public static string OwnerDataDirectory(string ownerModId)
+    {
+        return Path.Combine(OwnerDataRootDirectory, SafeSegment(ownerModId, "UnknownOwner"));
+    }
+
+    public static string OwnerSystemDataDirectory(string ownerModId, string system)
+    {
+        return Path.Combine(OwnerDataDirectory(ownerModId), SafeSegment(system, "General"));
+    }
+
     public static string OwnerLogsDirectory(string ownerModId)
     {
         return Path.Combine(LogsRootDirectory, SafeSegment(ownerModId, "UnknownOwner"));
+    }
+
+    public static string OwnerSystemLogsDirectory(string ownerModId, string system)
+    {
+        return Path.Combine(OwnerLogsDirectory(ownerModId), SafeSegment(system, "General"));
     }
 
     public static string OwnerBackupsDirectory(string ownerModId)

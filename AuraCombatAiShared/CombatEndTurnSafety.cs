@@ -198,7 +198,7 @@ public static class CombatEndTurnSafety
         var opportunities = candidates
             .Where(candidate =>
                 candidate?.Action != null
-                && candidate.Action.Kind != CombatActionKind.EndTurn
+                && !IsEndTurnEquivalent(candidate.Action)
                 && candidate.Legal
                 && !IsVisibleFake(candidate.Action)
                 && candidate.Action.Cost <= state.CurrentPower)
@@ -351,7 +351,7 @@ public static class CombatEndTurnSafety
     {
         if (candidate?.Action == null
             || !candidate.Legal
-            || candidate.Action.Kind == CombatActionKind.EndTurn
+            || IsEndTurnEquivalent(candidate.Action)
             || IsVisibleFake(candidate.Action)
             || candidate.Action.Cost > state.CurrentPower)
         {
@@ -419,6 +419,13 @@ public static class CombatEndTurnSafety
             evaluation.RuleScore = -assessment.OpportunityCost;
             evaluation.RejectionReason = assessment.Reason;
         }
+    }
+
+    public static bool IsEndTurnEquivalent(CombatActionObservation? action)
+    {
+        return action != null
+               && (action.Kind == CombatActionKind.EndTurn
+                   || action.Semantics?.EndsTurn == true);
     }
 
     private static bool PreventsProjectedLethal(

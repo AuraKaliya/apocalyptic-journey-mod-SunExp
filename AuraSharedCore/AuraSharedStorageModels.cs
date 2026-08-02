@@ -56,6 +56,9 @@ public sealed class AuraSharedStorageResponse
     [JsonProperty("conflict")]
     public bool Conflict { get; set; }
 
+    [JsonProperty("changed")]
+    public bool Changed { get; set; }
+
     [JsonProperty("revision")]
     public long Revision { get; set; }
 
@@ -114,6 +117,8 @@ public sealed class AuraSharedConfigWriteResult
     public bool Success { get; set; }
 
     public bool Conflict { get; set; }
+
+    public bool Changed { get; set; }
 
     public long Revision { get; set; }
 

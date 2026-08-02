@@ -29,6 +29,8 @@ TerriasCardFrameDebug/*.user
 TerriasCardFrameDebug.create.log
 
 ModsData/Logs/*
+ModsData/AuraShared/Logs/*
+ModsData/*
 
 /Terrias/Scripts/*
 /AuraToolsExp/Scripts/*

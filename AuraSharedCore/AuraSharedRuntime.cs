@@ -353,7 +353,7 @@ public static class AuraSharedRuntime
             var response = request == null || storage == null
                 ? new AuraSharedStorageResponse { Success = false, Message = "Shared storage is unavailable." }
                 : storage.Write(request);
-            if (response.Success && request != null)
+            if (response.Success && response.Changed && request != null)
             {
                 PublishChange("Config", request.System, request.FileName, response.Revision);
             }

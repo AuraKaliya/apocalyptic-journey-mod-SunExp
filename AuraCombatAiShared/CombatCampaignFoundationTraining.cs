@@ -14,11 +14,11 @@ namespace AuraCombatAi.Shared;
 
 public static class CombatFoundationTrainingProtocol
 {
-    public const string TrainingPolicyVersion = "foundation-governance-v12";
+    public const string TrainingPolicyVersion = "foundation-governance-v14";
 
-    public const string SearchPolicyVersion = "dynamic-search-v6";
+    public const string SearchPolicyVersion = "dynamic-search-v7-role-strategy";
 
-    public const string CurriculumVersion = "curriculum-v8";
+    public const string CurriculumVersion = "curriculum-v9-role-stratified";
 }
 
 public static class CombatFoundationTerminalCreditProtocol
@@ -1328,7 +1328,7 @@ public sealed class CombatCampaignFoundationTrainer
         var preflightPerDifficulty = Math.Max(
             0,
             Math.Min(100, request.PreflightCampaignsPerDifficulty));
-        var seedPlan = request.RunSeed == 0UL
+        var requestedSeedPlan = request.RunSeed == 0UL
             ? new CombatFoundationSeedPlan
             {
                 RunSeed = 0UL,
@@ -1341,6 +1341,22 @@ public sealed class CombatCampaignFoundationTrainer
             : CombatFoundationSeedPlan.Create(
                 request.RunSeed,
                 request.ValidationSeedStart);
+        var resumeSeedSource = request.Resume?.SchemaVersion
+                                   == CombatFoundationWorkerProtocol.SchemaVersion
+                               && ResumeCompatible(request.Resume)
+            ? request.Resume
+            : null;
+        var seedPlan = resumeSeedSource == null
+            ? requestedSeedPlan
+            : new CombatFoundationSeedPlan
+            {
+                RunSeed = resumeSeedSource.RunSeed,
+                TrainingSeedStart = resumeSeedSource.TrainingSeedStart,
+                ArenaSeedStart = resumeSeedSource.ArenaSeedStart,
+                TuningSeedStart = resumeSeedSource.TuningSeedStart,
+                ValidationSeedStart = resumeSeedSource.ValidationSeedStart,
+                ModelRandomSeed = resumeSeedSource.ModelRandomSeed
+            };
         var foundationTrainingOptions = request.Training.Normalized();
         foundationTrainingOptions.RequireAuthoritativeEpisodes = true;
         foundationTrainingOptions.MaximumDegreeOfParallelism = parallelism;
@@ -1372,6 +1388,19 @@ public sealed class CombatCampaignFoundationTrainer
             ActionDimensions = foundationTrainingOptions.ActionDimensions,
             HiddenDimensions = foundationTrainingOptions.HiddenDimensions
         };
+        var resume = request.Resume?.SchemaVersion
+                         == CombatFoundationWorkerProtocol.SchemaVersion
+                     && ResumeCompatible(request.Resume)
+                     && ManifestCompatible(
+                         request.Resume.Compatibility,
+                         compatibility)
+            ? request.Resume
+            : null;
+        if (resume == null && resumeSeedSource != null)
+        {
+            seedPlan = requestedSeedPlan;
+            foundationTrainingOptions.RandomSeed = seedPlan.ModelRandomSeed;
+        }
         ValidateSeedPartitions(
             seedPlan.TrainingSeedStart,
             seedPlan.ArenaSeedStart,
@@ -1383,15 +1412,6 @@ public sealed class CombatCampaignFoundationTrainer
             tuningNormalCampaigns + tuningAdvancedCampaigns,
             normalValidationCampaigns,
             advancedValidationCampaigns);
-
-        var resume = request.Resume?.SchemaVersion
-                         == CombatFoundationWorkerProtocol.SchemaVersion
-                     && ResumeCompatible(request.Resume)
-                     && ManifestCompatible(
-                         request.Resume.Compatibility,
-                         compatibility)
-            ? request.Resume
-            : null;
         var compatibleInitialChampion =
             CombatPolicyValueNetworkValidator.TryValidate(
                 initialChampion,
@@ -4178,10 +4198,14 @@ public sealed class CombatCampaignFoundationTrainer
     {
         var iterations = Math.Max(1, Math.Min(20, request.Iterations));
         if (request.Resume == null
-            || !string.Equals(
-                request.Resume.Stage,
-                "validation",
-                StringComparison.Ordinal)
+            || !(string.Equals(
+                     request.Resume.Stage,
+                     "validation",
+                     StringComparison.Ordinal)
+                 || string.Equals(
+                     request.Resume.Stage,
+                     "iteration-complete",
+                     StringComparison.Ordinal))
             || request.AdditionalIterationsOnResume <= 0)
         {
             return iterations;
@@ -4343,7 +4367,12 @@ public sealed class CombatCampaignFoundationTrainer
             >= Math.Max(
                 1,
                 request.CapabilityProbeMinimumVictoryGain);
-        if (normalRegression || advancedRegression)
+        var aggregateRegression = report.ChampionVictoryGain < 0
+                                  || champion.NormalVictories
+                                     < baseline.NormalVictories
+                                  || champion.AdvancedVictories
+                                     < baseline.AdvancedVictories;
+        if (aggregateRegression || normalRegression || advancedRegression)
         {
             report.BaselineGateVerdict = "fail";
         }
@@ -4355,9 +4384,9 @@ public sealed class CombatCampaignFoundationTrainer
         {
             report.BaselineGateVerdict = "inconclusive";
         }
-        // Inconclusive evidence is explicitly allowed to continue to the
-        // larger probe stage or formal validation. Only credible regression
-        // and invalid campaigns block the candidate.
+        // A required gain gate never permits an observed aggregate regression.
+        // Statistically inconclusive non-regressions may continue to the
+        // larger formal validation stage.
         report.PassedBaselineGate = !string.Equals(
             report.BaselineGateVerdict,
             "fail",

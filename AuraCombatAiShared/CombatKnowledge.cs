@@ -215,6 +215,7 @@ public static class CombatKnowledgeRegistry
         }
 
         var key = Key(package.OwnerId, package.PackageId);
+        EnrichCrossDefinitionSemantics(package);
         lock (Gate)
         {
             Packages[key] = package;
@@ -466,8 +467,90 @@ public static class CombatKnowledgeRegistry
             Risk = source.Risk,
             Uncertainty = source.Uncertainty,
             OpensInteraction = source.OpensInteraction,
-            RandomOutcome = source.RandomOutcome
+            RandomOutcome = source.RandomOutcome,
+            EndsTurn = source.EndsTurn,
+            DamageToBlockSetup = source.DamageToBlockSetup,
+            HandTransform = source.HandTransform == null
+                ? null
+                : new CombatHandTransformSemantic
+                {
+                    TargetCardId = source.HandTransform.TargetCardId,
+                    TargetCardSemantics = CloneSemantics(
+                        source.HandTransform.TargetCardSemantics),
+                    TransformAllHandCards =
+                        source.HandTransform.TransformAllHandCards,
+                    PreserveInstances = source.HandTransform.PreserveInstances,
+                    ClearsEnhancements =
+                        source.HandTransform.ClearsEnhancements,
+                    ClearsVariables = source.HandTransform.ClearsVariables,
+                    TargetRetained = source.HandTransform.TargetRetained,
+                    TargetExhaustsOnUse =
+                        source.HandTransform.TargetExhaustsOnUse,
+                    GrowthStateKey = source.HandTransform.GrowthStateKey,
+                    GrowthPerExhaust = source.HandTransform.GrowthPerExhaust,
+                    CurrentGrowthValue =
+                        source.HandTransform.CurrentGrowthValue,
+                    TargetTier = source.HandTransform.TargetTier,
+                    NextTierThreshold =
+                        source.HandTransform.NextTierThreshold,
+                    CooldownProgressRequired =
+                        source.HandTransform.CooldownProgressRequired,
+                    CooldownProgressEvent =
+                        source.HandTransform.CooldownProgressEvent
+                }
         };
+    }
+
+    private static void EnrichCrossDefinitionSemantics(
+        CombatKnowledgePackage package)
+    {
+        var statuses = package.Statuses.ToDictionary(
+            item => item.StatusId,
+            StringComparer.OrdinalIgnoreCase);
+        foreach (var action in package.Actions)
+        {
+            action.Semantics ??= new CombatActionSemantics();
+            var script = string.Join(
+                "\n",
+                action.TableFields
+                    .Where(item => item.Key.EndsWith(
+                        "Script",
+                        StringComparison.OrdinalIgnoreCase))
+                    .Select(item => item.Value));
+            action.Semantics.EndsTurn = action.Semantics.EndsTurn
+                || script.IndexOf(
+                    "ChangeRound(",
+                    StringComparison.OrdinalIgnoreCase) >= 0;
+            foreach (var stateChange in action.Semantics.StateChanges.Keys)
+            {
+                const string prefix = "status:";
+                if (!stateChange.StartsWith(
+                        prefix,
+                        StringComparison.OrdinalIgnoreCase)
+                    || !statuses.TryGetValue(
+                        stateChange.Substring(prefix.Length),
+                        out var status))
+                {
+                    continue;
+                }
+                var recordsDamage = status.Triggers.Any(trigger =>
+                    trigger.IndexOf("Hurt", StringComparison.OrdinalIgnoreCase)
+                    >= 0);
+                var settlesAtTurnEnd = status.Triggers.Any(trigger =>
+                    trigger.IndexOf(
+                        "EndRound",
+                        StringComparison.OrdinalIgnoreCase) >= 0);
+                var grantsBlock = status.Operations.Any(operation =>
+                    string.Equals(
+                        operation.Api,
+                        "ChangeDefence",
+                        StringComparison.OrdinalIgnoreCase));
+                if (recordsDamage && settlesAtTurnEnd && grantsBlock)
+                {
+                    action.Semantics.DamageToBlockSetup = true;
+                }
+            }
+        }
     }
 
     private static string Key(string owner, string id)

@@ -52,8 +52,18 @@ $modsDataRoot = if ($ownerLogs.EndsWith(
             Split-Path -Parent $ownerLogs))
 }
 $modsDataRoot = [System.IO.Path]::GetFullPath($modsDataRoot)
+$sharedRoot = if ($ownerLogs.EndsWith(
+        $sharedSuffix,
+        [System.StringComparison]::OrdinalIgnoreCase)) {
+    Split-Path -Parent (Split-Path -Parent $ownerLogs)
+} else {
+    Join-Path $modsDataRoot "AuraShared"
+}
+$sharedRoot = [System.IO.Path]::GetFullPath($sharedRoot)
 $ownerConfigRoot = [System.IO.Path]::GetFullPath(
-    (Join-Path $modsDataRoot "Config\Owners\AuraToolsExp"))
+    (Join-Path $sharedRoot "Config\Owners\AuraToolsExp"))
+$ownerDataRoot = [System.IO.Path]::GetFullPath(
+    (Join-Path $sharedRoot "Data\Owners\AuraToolsExp"))
 
 function Test-PathInside {
     param(
@@ -76,10 +86,13 @@ $directoryTargets = @(
     "champion-history",
     "model-library",
     "training-batches",
-    "combat-simulation-results"
+    "combat-simulation-results",
+    "FoundationTrainer"
 ) | ForEach-Object {
     [System.IO.Path]::GetFullPath((Join-Path $ownerLogs $_))
 }
+$directoryTargets += [System.IO.Path]::GetFullPath(
+    (Join-Path $ownerDataRoot "FoundationModels"))
 $directoryTargets += @(
     [System.IO.Path]::GetFullPath(
         (Join-Path $ownerConfigRoot "AutoBattle"))
@@ -120,6 +133,7 @@ $fileTargets = @(
 
 foreach ($path in $directoryTargets) {
     if (-not (Test-PathInside $path $ownerLogs) `
+        -and -not (Test-PathInside $path $ownerDataRoot) `
         -and -not (Test-PathInside $path $ownerConfigRoot)) {
         throw "Refusing combat learning directory cleanup outside approved roots: $path"
     }

@@ -3,6 +3,7 @@
   "ArtifactKind": "aura.foundation-model-package",
   "PackageId": "foundation-package-20260801-164440908-b6633319",
   "DisplayName": "阿米莉娅-全卡包底模",
+  "ModelVersion": "1.0.0",
   "ModelPurpose": "foundation",
   "Profile": "balanced",
   "RoleId": "career_1",

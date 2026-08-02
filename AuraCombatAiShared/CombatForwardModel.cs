@@ -330,6 +330,15 @@ public sealed class CombatSimulationState
         var cycleAccess = cycleSize <= 0
             ? 0d
             : Math.Min(1d, (double)Math.Max(1, HandLimit) / cycleSize);
+        var handAssetValue = HandCardValues.Sum(value => Math.Max(0d, value));
+        var renewableAssetValue = DrawPileValues
+                                      .Concat(DiscardPileValues)
+                                      .Sum(value => Math.Max(0d, value));
+        var transformDepletionRisk = Features.TryGetValue(
+            "postTransformDepletionRisk",
+            out var observedTransformDepletionRisk)
+            ? observedTransformDepletionRisk
+            : 0d;
         var value = Ratio(PlayerHp, PlayerMaxHp) * 40d
                     - hpLoss * 1.8d
                     + enemyProgress * 35d
@@ -337,11 +346,14 @@ public sealed class CombatSimulationState
                     + immediateShield * 0.2d
                     + carriedShield * Math.Max(0d, profile.SurplusDefendRetention) * 0.2d
                     + cycleAccess * 2d
+                    + Math.Min(18d, handAssetValue * 0.08d)
+                    + Math.Min(12d, renewableAssetValue * 0.04d)
                     + SetupValue * Math.Max(0d, profile.SetupValueWeight)
                     + PersistentValue * Math.Max(0d, profile.PersistentValueWeight)
                     + DrawnCardPotential * 0.2d
                     - ConsecutiveNoProgressTurns * 8d
                     - NoEffectActionAttemptsThisTurn * 40d
+                    - transformDepletionRisk * 0.8d
                     - Uncertainty * profile.UncertaintyPenalty;
         return new CombatLeafEvaluation
         {
@@ -936,7 +948,9 @@ public static class CombatForwardModel
         CombatDecisionProfile profile)
     {
         var stateChanges = DynamicRebirthStateChanges(source, action);
-        var mutatesCardPiles = action.Kind == CombatActionKind.PlayCard;
+        var handTransform = action.Semantics?.HandTransform;
+        var mutatesCardPiles = action.Kind == CombatActionKind.PlayCard
+                               || handTransform != null;
         for (var effectIndex = 0;
              !mutatesCardPiles && effectIndex < outcome.Effects.Count;
              effectIndex++)
@@ -946,7 +960,8 @@ public static class CombatForwardModel
         }
         var state = source.CloneForTransition(
             mutatesCardPiles,
-            stateChanges != null && stateChanges.Count > 0);
+            stateChanges != null && stateChanges.Count > 0
+            || handTransform != null);
         var rawCost = RawDynamicCost(state, action);
         var effectiveCost = Math.Max(0, rawCost - state.CostReduction);
         var reductionSpent = Math.Min(rawCost, state.CostReduction);
@@ -997,6 +1012,10 @@ public static class CombatForwardModel
         if (!recycle)
         {
             state.MarkUsed(actionIndex);
+        }
+        if (handTransform != null)
+        {
+            ApplyHandTransform(state, action, handTransform);
         }
         state.StepCount++;
 
@@ -1069,6 +1088,76 @@ public static class CombatForwardModel
         state.Uncertainty += Math.Max(0d, 1d - Math.Min(1d, outcome.Probability))
                              * profile.UncertaintyPenalty;
         return state;
+    }
+
+    private static void ApplyHandTransform(
+        CombatSimulationState state,
+        CombatActionObservation action,
+        CombatHandTransformSemantic transform)
+    {
+        if (!transform.TransformAllHandCards
+            || string.IsNullOrWhiteSpace(transform.TargetCardId)
+            || state.HandCardIds.Count == 0)
+        {
+            return;
+        }
+        var count = state.HandCardIds.Count;
+        var targetValue = action.Features.TryGetValue(
+                "handTransformTargetCardValue",
+                out var configuredValue)
+            ? Math.Max(0d, configuredValue)
+            : KnowledgeValue(transform.TargetCardId);
+        state.HandCardIds = Enumerable.Repeat(
+                transform.TargetCardId,
+                count)
+            .ToList();
+        state.HandCardValues = Enumerable.Repeat(targetValue, count).ToList();
+        state.HandCount = count;
+        if (transform.TargetRetained)
+        {
+            state.RetainedHandCardIds = Enumerable.Repeat(
+                    transform.TargetCardId,
+                    count)
+                .ToList();
+            state.RetainedHandCardValues = Enumerable.Repeat(
+                    targetValue,
+                    count)
+                .ToList();
+        }
+        else
+        {
+            state.RetainedHandCardIds.Clear();
+            state.RetainedHandCardValues.Clear();
+        }
+        CopyFeature(
+            action.Features,
+            state.Features,
+            "postTransformDepletionRisk");
+        CopyFeature(
+            action.Features,
+            state.Features,
+            "handTransformRenewableDeckValue");
+        CopyFeature(
+            action.Features,
+            state.Features,
+            "handTransformRenewableCardCount");
+        CopyFeature(
+            action.Features,
+            state.Features,
+            "expectedGrowthFromTransform");
+    }
+
+    private static void CopyFeature(
+        IReadOnlyDictionary<string, double> source,
+        IDictionary<string, double> target,
+        string key)
+    {
+        if (source.TryGetValue(key, out var value)
+            && !double.IsNaN(value)
+            && !double.IsInfinity(value))
+        {
+            target[key] = value;
+        }
     }
 
     public static CombatSimulationState ApplyEndTurn(

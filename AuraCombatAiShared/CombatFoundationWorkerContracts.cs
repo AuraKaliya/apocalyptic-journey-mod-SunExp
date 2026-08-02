@@ -205,6 +205,19 @@ public sealed class CombatFoundationWorkerResult
 
     public string TrainingMetricWarning { get; set; } = "";
 
+    public Dictionary<string, double> RoleStrategyMetrics { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public bool RoleStrategyGatePassed { get; set; } = true;
+
+    public string RoleStrategyGateFailureReason { get; set; } = "";
+
+    public bool ResumeRequested { get; set; }
+
+    public bool ResumedFromCheckpoint { get; set; }
+
+    public string ResumeDiagnostic { get; set; } = "";
+
     public bool Resumable { get; set; }
 
     public int CheckpointWriteFailures { get; set; }
@@ -252,6 +265,13 @@ public sealed class CombatFoundationTrainingAnalysis
     public int BestIteration { get; set; }
 
     public int BestEpoch { get; set; }
+
+    public Dictionary<string, double> RoleStrategyMetrics { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public bool RoleStrategyGatePassed { get; set; } = true;
+
+    public string RoleStrategyGateFailureReason { get; set; } = "";
 
     public List<CombatFoundationTrainingAnalysisPoint> Points { get; set; } =
         new();

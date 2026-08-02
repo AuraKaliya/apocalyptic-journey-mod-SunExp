@@ -6,6 +6,35 @@ namespace AuraCombatAi.Shared;
 
 public static class CombatActionDominance
 {
+    public static CombatCandidateEvaluation? SelectDamageToBlockSetup(
+        CombatStateObservation state,
+        IReadOnlyList<CombatCandidateEvaluation> candidates)
+    {
+        return candidates
+            .Where(candidate => candidate?.Action != null
+                                && candidate.Legal
+                                && candidate.Action.Cost <= state.CurrentPower
+                                && candidate.Action.Semantics
+                                    ?.DamageToBlockSetup == true
+                                && candidate.Action.Semantics.Risk <= 0d
+                                && !candidate.Action.Semantics.RandomOutcome
+                                && !candidate.Action.Semantics.EndsTurn)
+            .Where(setup => candidates.Any(payoff =>
+                payoff?.Action != null
+                && payoff.Legal
+                && !ReferenceEquals(payoff, setup)
+                && !CombatEndTurnSafety.IsEndTurnEquivalent(payoff.Action)
+                && payoff.Action.Cost
+                   <= state.CurrentPower - setup.Action.Cost
+                && CombatActionSemanticMetrics.ImmediateHpDamage(
+                    payoff.Action.Semantics) > 0d))
+            .OrderByDescending(candidate => candidate.RuleScore)
+            .ThenBy(
+                candidate => candidate.Action.CandidateId,
+                StringComparer.Ordinal)
+            .FirstOrDefault();
+    }
+
     public static CombatCandidateEvaluation? SelectSafeFreeSetup(
         CombatStateObservation state,
         IReadOnlyList<CombatCandidateEvaluation> candidates,

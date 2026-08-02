@@ -104,6 +104,19 @@ internal sealed class ControllerWorkerResultSummary
 
     public string TrainingMetricWarning { get; set; } = "";
 
+    public Dictionary<string, double> RoleStrategyMetrics { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public bool RoleStrategyGatePassed { get; set; } = true;
+
+    public string RoleStrategyGateFailureReason { get; set; } = "";
+
+    public bool ResumeRequested { get; set; }
+
+    public bool ResumedFromCheckpoint { get; set; }
+
+    public string ResumeDiagnostic { get; set; } = "";
+
     public bool Resumable { get; set; }
 
     public int CheckpointWriteFailures { get; set; }

@@ -972,6 +972,14 @@ if ($null -eq $divineChoice `
     -or $divineChoice.actionContract.policyEligibleOnPreconditionFailure) {
     throw "Bundled Divine Choice action contract is missing or unsafe."
 }
+$nanaDevour = @($bundledRules.cards | Where-Object {
+    $_.cardId -eq "careercard_2"
+}) | Select-Object -First 1
+if ($null -eq $nanaDevour `
+    -or $nanaDevour.requiresEnemyTarget `
+    -or [int]$nanaDevour.targetScope -ne 7) {
+    throw "Bundled Nana devour target scope must include self, friendly and enemy actors."
+}
 
 foreach ($anchor in @(
     "CombatRiskAwareRootSamplingPuctPlanner",
@@ -1073,8 +1081,8 @@ foreach ($anchor in @(
 
 foreach ($anchor in @(
     "aura.combat-ai.episode.v4",
-    "public const int FeatureSchemaVersion = 16",
-    "end-turn-counterfactual-v5",
+    "public const int FeatureSchemaVersion = 22",
+    "nana-adventure-growth-context-and-actionable-coverage-v10",
     "frame-strata-v5-end-turn-counterfactual",
     "CombatCampaignEpisodeMetadata",
     "LongTermReturn",

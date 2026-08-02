@@ -41,7 +41,7 @@ public static class CombatActionProductivity
         }
         var action = candidate.Action;
         if (!candidate.Legal
-            || action.Kind == CombatActionKind.EndTurn
+            || CombatEndTurnSafety.IsEndTurnEquivalent(action)
             || action.Cost > state.CurrentPower)
         {
             return Rejected("action is not currently executable");
@@ -70,6 +70,8 @@ public static class CombatActionProductivity
             + Positive(action.Features, "effectiveHeal")
             + Positive(action.Features, "effectiveDraw")
             + Positive(action.Features, "marginalSetupValue")
+            + Positive(action.Features, "handTransformNetValue")
+            + Positive(action.Features, "postTransformLethalCertified") * 12d
             + Math.Max(0d, semantics.EnergyGain)
             + cycleConnectorValue;
         var marginalHarm =
@@ -154,7 +156,7 @@ public static class CombatActionProductivity
     {
         if (state == null
             || action == null
-            || action.Kind == CombatActionKind.EndTurn
+            || CombatEndTurnSafety.IsEndTurnEquivalent(action)
             || effectiveCost > state.Power
             || Flag(action.Features, "visibleFake")
             || Flag(action.Features, "curse")
@@ -210,7 +212,11 @@ public static class CombatActionProductivity
                       + Math.Min(handCapacity, Math.Max(0d, semantics.Draw))
                       + Math.Max(0d, semantics.EnergyGain)
                       + setup
-                      + cycleConnectorValue;
+                      + cycleConnectorValue
+                      + Positive(action.Features, "handTransformNetValue")
+                      + Positive(
+                          action.Features,
+                          "postTransformLethalCertified") * 12d;
         var harm = Math.Max(0d, semantics.SelfHpLoss) * 2d
                    + Math.Max(0d, semantics.EndOfCycleSelfHpLoss) * 1.5d
                    + Math.Max(0d, semantics.Risk);
@@ -295,7 +301,8 @@ public static class CombatActionProductivity
                + Math.Max(0d, semantics.Heal)
                + Math.Max(0d, semantics.Draw)
                + Math.Max(0d, semantics.EnergyGain)
-               + SetupValue(semantics) > Epsilon;
+               + SetupValue(semantics) > Epsilon
+               || semantics.HandTransform != null;
     }
 
     private static bool HasCleansableStatus(

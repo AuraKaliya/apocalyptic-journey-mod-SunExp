@@ -54,7 +54,53 @@ try
         ExpectedRevision = 0,
         PayloadJson = "{\"value\":1}"
     });
-    Assert(first.Success && first.Revision == 1, "first shared write");
+    Assert(first.Success && first.Changed && first.Revision == 1, "first shared write");
+
+    var unchanged = storage.Write(new AuraSharedStorageRequest
+    {
+        Scope = AuraSharedStorageScopes.Shared,
+        System = "Test",
+        FileName = "shared.json",
+        WriterId = "TestAuthority",
+        AuthorityId = "TestAuthority",
+        ExpectedRevision = 1,
+        PayloadJson = "{\"value\":1}"
+    });
+    Assert(unchanged.Success
+           && !unchanged.Changed
+           && unchanged.Revision == 1
+           && (!Directory.Exists(
+                   Path.Combine(tempRoot, "Backups", "Storage", "Versions"))
+               || !Directory.EnumerateFiles(
+                   Path.Combine(tempRoot, "Backups", "Storage", "Versions"),
+                   "*.bak",
+                   SearchOption.AllDirectories).Any()),
+        "semantic no-op write preserves revision and creates no backup");
+    Assert(!OperationLogContains(tempRoot, "StorageWrite", "Unchanged"),
+        "semantic no-op write creates no operation-log entry");
+
+    var retentionRevision = 0L;
+    for (var value = 0; value < 20; value++)
+    {
+        var retained = storage.Write(new AuraSharedStorageRequest
+        {
+            Scope = AuraSharedStorageScopes.Shared,
+            System = "Retention",
+            FileName = "bounded.json",
+            WriterId = "RetentionAuthority",
+            AuthorityId = "RetentionAuthority",
+            ExpectedRevision = retentionRevision,
+            PayloadJson = "{\"value\":" + value + "}"
+        });
+        Assert(retained.Success && retained.Changed, "retention write " + value);
+        retentionRevision = retained.Revision;
+    }
+    Assert(Directory.EnumerateFiles(
+               Path.Combine(tempRoot, "Backups", "Storage", "Versions"),
+               "*.bak",
+               SearchOption.AllDirectories).Count()
+           <= AuraSharedStorageCoordinator.MaximumBackupsPerDocument,
+        "per-document storage backup retention is bounded");
 
     var snapshot = storage.Read(new AuraSharedStorageRequest
     {

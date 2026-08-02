@@ -74,6 +74,7 @@ internal static class AuraToolsAutoBattleGameParameterRuntime
         CombatGameSubjectPresetRuntime.Apply(
             ToSharedPreset(preset),
             campaign);
+        AuraToolsRoleCampaignStrategy.Apply(campaign);
         return preset;
     }
 

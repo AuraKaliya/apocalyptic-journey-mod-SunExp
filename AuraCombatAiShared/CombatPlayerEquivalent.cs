@@ -680,6 +680,10 @@ public static class CombatPublicFeaturePolicy
             "targetHpRatio",
             "targetIsEnemy",
             "targetIsSelf",
+            "targetKindNone",
+            "targetKindSelf",
+            "targetKindFriendly",
+            "targetKindEnemy",
             "powerAfterCost",
             "power",
             "handCount",
@@ -739,7 +743,25 @@ public static class CombatPublicFeaturePolicy
             "mechanic:time-cage.reverse",
             "mechanic:time-cage.first-repeats",
             "mechanic:time-cage.package",
-            "mechanic:time-cage.last-repeats"
+            "mechanic:time-cage.last-repeats",
+            "handTransform",
+            "handTransformCount",
+            "handTransformTargetTier",
+            "handTransformOriginalValue",
+            "handTransformGrossValue",
+            "handTransformTargetCardValue",
+            "handTransformCleanupValue",
+            "handTransformEngineLoss",
+            "handTransformEnhancementLoss",
+            "handTransformRenewableDeckValue",
+            "handTransformRenewableCardCount",
+            "handTransformNetValue",
+            "postTransformDepletionRisk",
+            "postTransformLethalCertified",
+            "expectedGrowthFromTransform",
+            "growthToNextTransformTier",
+            "transformTierThresholdOpportunity",
+            "transformCooldownProgressRequired"
         };
 
     public static Dictionary<string, double> SanitizeState(
@@ -747,12 +769,19 @@ public static class CombatPublicFeaturePolicy
     {
         return Sanitize(values, key =>
             StateKeys.Contains(key)
+            || key.StartsWith(
+                CombatRoleStrategyFeatureNames.Prefix,
+                StringComparison.OrdinalIgnoreCase)
+            || key.StartsWith(
+                CombatCampaignContextFeatureNames.Prefix,
+                StringComparison.OrdinalIgnoreCase)
             || key.StartsWith("deck:", StringComparison.OrdinalIgnoreCase)
             || key.StartsWith("hand:", StringComparison.OrdinalIgnoreCase)
             || key.StartsWith("retainedHand:", StringComparison.OrdinalIgnoreCase)
             || key.StartsWith("discard:", StringComparison.OrdinalIgnoreCase)
             || key.StartsWith("exhaust:", StringComparison.OrdinalIgnoreCase)
             || key.StartsWith("playerStatus:", StringComparison.OrdinalIgnoreCase)
+            || key.StartsWith("playerRole:", StringComparison.OrdinalIgnoreCase)
             || key.StartsWith("enemyStatus:", StringComparison.OrdinalIgnoreCase)
             || key.StartsWith("enemy:", StringComparison.OrdinalIgnoreCase)
             || key.StartsWith("enemyHp:", StringComparison.OrdinalIgnoreCase)
@@ -777,7 +806,11 @@ public static class CombatPublicFeaturePolicy
     {
         return Sanitize(values, key =>
             ActionKeys.Contains(key)
+            || key.StartsWith(
+                CombatRoleStrategyFeatureNames.Prefix,
+                StringComparison.OrdinalIgnoreCase)
             || key.StartsWith("stateChange:", StringComparison.OrdinalIgnoreCase)
+            || key.StartsWith("nana:", StringComparison.OrdinalIgnoreCase)
             || CombatPublicFeatureRegistry.IsRegistered(
                 CombatPublicFeatureScope.Action,
                 key));
@@ -788,8 +821,23 @@ public static class CombatPublicFeaturePolicy
     {
         return Sanitize(values, key =>
             string.Equals(key, "player.hp", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(key, "playerMaxHp", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(key, "targetHp", StringComparison.OrdinalIgnoreCase)
+            || string.Equals(
+                key,
+                "targetNegativeStatusStacks",
+                StringComparison.OrdinalIgnoreCase)
+            || string.Equals(
+                key,
+                "playerTempStrength",
+                StringComparison.OrdinalIgnoreCase)
+            || string.Equals(
+                key,
+                "playerTempPerceive",
+                StringComparison.OrdinalIgnoreCase)
             || key.StartsWith("status:", StringComparison.OrdinalIgnoreCase)
             || key.StartsWith("playerStatus:", StringComparison.OrdinalIgnoreCase)
+            || key.StartsWith("playerRole:", StringComparison.OrdinalIgnoreCase)
             || key.StartsWith("enemyStatus:", StringComparison.OrdinalIgnoreCase)
             || CombatPublicFeatureRegistry.IsRegistered(
                 CombatPublicFeatureScope.StateChange,
@@ -835,6 +883,12 @@ public static class CombatPlayerObservationBoundary
             MaxPower = source.MaxPower,
             HandCount = source.HandCount,
             HandCardIds = CleanIds(source.HandCardIds),
+            HandCards = (source.HandCards
+                         ?? new List<CombatCardInstanceObservation>())
+                .Where(item => item != null
+                               && !string.IsNullOrWhiteSpace(item.CardId))
+                .Select(CloneCardInstance)
+                .ToList(),
             RetainedHandCardIds = CleanIds(source.RetainedHandCardIds),
             DeckCardIds = CleanMultiset(source.DeckCardIds),
             DiscardPileCardIds = source.DeckKnowledge?.DiscardContentsVisible == true
@@ -952,11 +1006,29 @@ public static class CombatPlayerObservationBoundary
             StatusId = source.StatusId ?? "",
             DisplayName = source.DisplayName ?? "",
             Level = source.Level,
+            Rarity = Math.Max(1, source.Rarity),
             UpperBound = source.UpperBound,
             ReducePerTurn = source.ReducePerTurn,
             ReducePerUse = source.ReducePerUse,
             ReducePerAttacked = source.ReducePerAttacked,
             Type = source.Type ?? ""
+        };
+    }
+
+    private static CombatCardInstanceObservation CloneCardInstance(
+        CombatCardInstanceObservation source)
+    {
+        return new CombatCardInstanceObservation
+        {
+            RuntimeId = source.RuntimeId,
+            CardId = source.CardId?.Trim() ?? "",
+            EffectiveCost = Math.Max(0, source.EffectiveCost),
+            Retained = source.Retained,
+            ExhaustsOnUse = source.ExhaustsOnUse,
+            CreatedThisBattle = source.CreatedThisBattle,
+            EnhancementCount = Math.Max(0, source.EnhancementCount),
+            Features = CombatPublicFeaturePolicy.SanitizeAction(
+                source.Features)
         };
     }
 
@@ -1058,7 +1130,40 @@ public static class CombatPlayerObservationBoundary
             Risk = Finite(source.Risk),
             Uncertainty = Finite(source.Uncertainty),
             OpensInteraction = source.OpensInteraction,
-            RandomOutcome = source.RandomOutcome
+            RandomOutcome = source.RandomOutcome,
+            EndsTurn = source.EndsTurn,
+            DamageToBlockSetup = source.DamageToBlockSetup,
+            HandTransform = NormalizeHandTransform(source.HandTransform)
+        };
+    }
+
+    private static CombatHandTransformSemantic? NormalizeHandTransform(
+        CombatHandTransformSemantic? source)
+    {
+        if (source == null || string.IsNullOrWhiteSpace(source.TargetCardId))
+        {
+            return null;
+        }
+        return new CombatHandTransformSemantic
+        {
+            TargetCardId = source.TargetCardId.Trim(),
+            TargetCardSemantics = NormalizeSemantics(
+                source.TargetCardSemantics),
+            TransformAllHandCards = source.TransformAllHandCards,
+            PreserveInstances = source.PreserveInstances,
+            ClearsEnhancements = source.ClearsEnhancements,
+            ClearsVariables = source.ClearsVariables,
+            TargetRetained = source.TargetRetained,
+            TargetExhaustsOnUse = source.TargetExhaustsOnUse,
+            GrowthStateKey = source.GrowthStateKey?.Trim() ?? "",
+            GrowthPerExhaust = Finite(source.GrowthPerExhaust),
+            CurrentGrowthValue = Finite(source.CurrentGrowthValue),
+            TargetTier = Math.Max(0, source.TargetTier),
+            NextTierThreshold = Math.Max(0, source.NextTierThreshold),
+            CooldownProgressRequired = Math.Max(
+                0d,
+                Finite(source.CooldownProgressRequired)),
+            CooldownProgressEvent = source.CooldownProgressEvent?.Trim() ?? ""
         };
     }
 

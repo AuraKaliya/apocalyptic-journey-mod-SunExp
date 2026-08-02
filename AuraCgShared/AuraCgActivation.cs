@@ -26,49 +26,17 @@ public static class AuraCgActivationRuntime
         {
             return false;
         }
-
-        for (var attempt = 0; attempt < 3; attempt++)
+        foreach (var entry in normalizedEntries)
         {
-            var snapshot = ReadDocument(useCache: false);
-            var document = snapshot.Value ?? new AuraCgActivationDocument();
-            document.Normalize();
-            var changed = false;
-            foreach (var entry in normalizedEntries)
-            {
-                entry.Normalize(ownerModId);
-                changed |= document.ApplyManifestDefault(entry);
-            }
-
-            if (!changed)
-            {
-                return true;
-            }
-
-            var result = AuraSharedConfigStore.WriteShared(
-                AuraCgRegistryRuntime.RegistryAuthorityId,
-                AuraSharedSystems.Cg,
-                ActivationFileName,
-                document,
-                snapshot.Found ? snapshot.Revision : 0,
-                CurrentActivationSchemaVersion);
-            if (result.Success)
-            {
-                InvalidateCache();
-                AuraCgLog.InfoOnce(
-                    "cg-activation-defaults:" + ownerModId,
-                    "CG activation defaults applied. owner=" + ownerModId + ", entries=" + normalizedEntries.Count);
-                return true;
-            }
-
-            if (!result.Conflict)
-            {
-                AuraCgLog.WarnOnce("cg-activation-write-failed:" + ownerModId, "CG activation write failed: " + result.Message);
-                return false;
-            }
+            entry.Normalize(ownerModId);
         }
-
-        AuraCgLog.WarnOnce("cg-activation-conflict:" + ownerModId, "CG activation write conflicted repeatedly for " + ownerModId + ".");
-        return false;
+        AuraCgLog.InfoOnce(
+            "cg-activation-defaults:" + ownerModId,
+            "CG activation defaults are resolved directly from manifests. owner="
+            + ownerModId
+            + ", entries="
+            + normalizedEntries.Count);
+        return true;
     }
 
     public static bool CanConsumerPlay(AuraCgRegistryEntry entry, string consumerModId)
@@ -239,7 +207,12 @@ public static class AuraCgActivationRuntime
         var document = snapshot.Value ?? new AuraCgActivationDocument();
         document.Normalize();
         return document.Entries.FirstOrDefault(entry =>
-            string.Equals(entry.QualifiedCgId, qualifiedCgId, StringComparison.OrdinalIgnoreCase));
+            string.Equals(entry.QualifiedCgId, qualifiedCgId, StringComparison.OrdinalIgnoreCase)
+            && (entry.UserOverridden
+                || string.Equals(
+                    entry.Source,
+                    SourceUserOverride,
+                    StringComparison.OrdinalIgnoreCase)));
     }
 
     private static bool CanConsumerPlayState(string ownerModId, AuraCgActivationEntryState state, string consumerModId)

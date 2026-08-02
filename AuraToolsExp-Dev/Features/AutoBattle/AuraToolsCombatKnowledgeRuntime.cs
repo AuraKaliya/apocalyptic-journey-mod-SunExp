@@ -24,6 +24,7 @@ internal static class AuraToolsCombatKnowledgeRuntime
         }
         initialized = true;
 
+        AuraToolsAuthoritativeRoleSemantics.Initialize();
         Register(BuildVerifiedBasePackage(), "verified base-game rules");
         Registrations.Add(CombatSimulationRegistry.RegisterProvider(
             "witch.base-game",

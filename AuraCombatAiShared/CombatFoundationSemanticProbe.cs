@@ -8,7 +8,7 @@ namespace AuraCombatAi.Shared;
 public sealed class CombatFoundationSemanticProbeResult
 {
     public const string CurrentCanaryVersion =
-        "targeted-phased-semantic-pipeline-v4";
+        "targeted-phased-semantic-pipeline-v6-frozen-role-preparation";
 
     public string Version { get; set; } =
         CombatPolicyValueProtocol.TrainingSemanticsVersion;

@@ -94,6 +94,20 @@ if ((-not $sharedPathsText.Contains("SkinDirectory => Path.Combine(RootDirectory
     $sharedPathsText.Contains('Path.Combine(RootDirectory, "Skins")')) {
     throw "AuraShared must expose only the canonical singular Skin module directory."
 }
+foreach ($required in @(
+    'DataRootDirectory => Path.Combine(RootDirectory, "Data")',
+    'OwnerDataRootDirectory => Path.Combine(DataRootDirectory, "Owners")',
+    "OwnerSystemDataDirectory",
+    "OwnerSystemLogsDirectory"
+)) {
+    if (-not $sharedPathsText.Contains($required)) {
+        throw "AuraShared canonical owner storage contract is missing: $required"
+    }
+}
+$storageCoordinatorText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraSharedStorageCoordinator.cs")
+if (-not $storageCoordinatorText.Contains('"Data/Owners"')) {
+    throw "AuraShared storage root initialization must include Data/Owners."
+}
 
 $identityText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraSharedIdentity.cs")
 foreach ($required in @("SelectRoleId", "IsRuntimeNumericId", "IsUsableRoleId", "RuntimeNumericIdLength")) {
@@ -165,10 +179,13 @@ if (-not $jsonText.Contains("public static class AuraSharedJson")) {
 }
 
 $storageText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraSharedStorageCoordinator.cs")
-foreach ($required in @("AuraSharedResourceLockTable", "File.Replace", "FileOptions.WriteThrough", "ExpectedRevision", "CreateWriteMutex", "StorageLockKey")) {
+foreach ($required in @("AuraSharedResourceLockTable", "File.Replace", "FileOptions.WriteThrough", "ExpectedRevision", "CreateWriteMutex", "StorageLockKey", "JToken.DeepEquals", "FileContentEquals", "MaximumBackupsPerDocument", "Payload is unchanged", "!response.Success || response.Conflict || response.Changed")) {
     if (-not $storageText.Contains($required)) {
         throw "AuraShared storage safety contract is missing: $required"
     }
+}
+if (-not $runtimeText.Contains("response.Success && response.Changed")) {
+    throw "AuraShared no-op config writes must not publish change-feed entries."
 }
 
 $packageText = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedCore\AuraSharedPackageCoordinator.cs")

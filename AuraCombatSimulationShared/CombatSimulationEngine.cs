@@ -143,7 +143,9 @@ public sealed class CombatSimulationEngine
         };
     }
 
-    private sealed class Session : ICombatSimulationRuntimeContext
+    private sealed class Session :
+        ICombatSimulationRuntimeContext,
+        ICombatPersistentProgressionContext
     {
         private readonly CombatScenarioDefinition scenario;
         private readonly CombatRuleset ruleset;
@@ -334,7 +336,12 @@ public sealed class CombatSimulationEngine
                 };
                 State.Cards.Add(instance);
                 State.SkillCards.Add(instance.InstanceId);
-                State.SkillCooldowns[instance.InstanceId] = 0;
+                State.SkillCooldowns[instance.InstanceId] =
+                    scenario.Player.InitialSkillCooldownTurns.TryGetValue(
+                        definition.CardId,
+                        out var initialCooldown)
+                        ? Math.Max(0, initialCooldown)
+                        : 0;
             }
             foreach (var cardId in scenario.InitialDiscardCards
                          ?? new List<string>())
@@ -412,6 +419,13 @@ public sealed class CombatSimulationEngine
             }
             foreach (var skillId in State.SkillCooldowns.Keys.ToList())
             {
+                var skillCardId = State.FindCard(skillId)?.CardId ?? "";
+                if (scenario.Player.NativeManagedSkillCooldownIds.Contains(
+                        skillCardId,
+                        StringComparer.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
                 State.SkillCooldowns[skillId] = Math.Max(
                     0,
                     State.SkillCooldowns[skillId] - 1);
@@ -1380,7 +1394,6 @@ public sealed class CombatSimulationEngine
             {
                 return result;
             }
-            var enemies = state.LivingEnemies.OrderBy(enemy => enemy.ActorId).ToList();
             foreach (var instanceId in state.Hand)
             {
                 var instance = state.FindCard(instanceId);
@@ -1398,28 +1411,10 @@ public sealed class CombatSimulationEngine
                 {
                     continue;
                 }
-                if (definition.RequiresEnemyTarget)
-                {
-                    foreach (var enemy in enemies)
-                    {
-                        AddInvocableAction(
-                            result,
-                            scenario,
-                            state,
-                            definition,
-                            new CombatSimulationAction
-                            {
-                                CandidateId = "card:" + instance.InstanceId + ":target:" + enemy.ActorId,
-                                Kind = CombatSimulationActionKind.PlayCard,
-                                ActorId = player.ActorId,
-                                CardInstanceId = instance.InstanceId,
-                                TargetActorId = enemy.ActorId,
-                                Cost = cost,
-                                DefinitionId = definition.CardId
-                            });
-                    }
-                }
-                else
+                foreach (var targetActorId in ResolveCardTargetActorIds(
+                             definition,
+                             state,
+                             player))
                 {
                     AddInvocableAction(
                         result,
@@ -1428,10 +1423,13 @@ public sealed class CombatSimulationEngine
                         definition,
                         new CombatSimulationAction
                         {
-                            CandidateId = "card:" + instance.InstanceId,
+                            CandidateId = TargetedCandidateId(
+                                "card:" + instance.InstanceId,
+                                targetActorId),
                             Kind = CombatSimulationActionKind.PlayCard,
                             ActorId = player.ActorId,
                             CardInstanceId = instance.InstanceId,
+                            TargetActorId = targetActorId,
                             Cost = cost,
                             DefinitionId = definition.CardId
                         });
@@ -1453,32 +1451,10 @@ public sealed class CombatSimulationEngine
                 {
                     continue;
                 }
-                if (definition.RequiresEnemyTarget)
-                {
-                    foreach (var enemy in enemies)
-                    {
-                        AddInvocableAction(
-                            result,
-                            scenario,
-                            state,
-                            definition,
-                            new CombatSimulationAction
-                            {
-                                CandidateId =
-                                    "skill:"
-                                    + instance.InstanceId
-                                    + ":target:"
-                                    + enemy.ActorId,
-                                Kind = CombatSimulationActionKind.UseSkill,
-                                ActorId = player.ActorId,
-                                CardInstanceId = instance.InstanceId,
-                                TargetActorId = enemy.ActorId,
-                                Cost = 0,
-                                DefinitionId = definition.CardId
-                            });
-                    }
-                }
-                else
+                foreach (var targetActorId in ResolveCardTargetActorIds(
+                             definition,
+                             state,
+                             player))
                 {
                     AddInvocableAction(
                         result,
@@ -1487,10 +1463,13 @@ public sealed class CombatSimulationEngine
                         definition,
                         new CombatSimulationAction
                         {
-                            CandidateId = "skill:" + instance.InstanceId,
+                            CandidateId = TargetedCandidateId(
+                                "skill:" + instance.InstanceId,
+                                targetActorId),
                             Kind = CombatSimulationActionKind.UseSkill,
                             ActorId = player.ActorId,
                             CardInstanceId = instance.InstanceId,
+                            TargetActorId = targetActorId,
                             Cost = 0,
                             DefinitionId = definition.CardId
                         });
@@ -1503,6 +1482,52 @@ public sealed class CombatSimulationEngine
                 ActorId = player.ActorId
             });
             return result;
+        }
+
+        private static IReadOnlyList<int> ResolveCardTargetActorIds(
+            CombatCardDefinition definition,
+            CombatBattleState state,
+            CombatActorState player)
+        {
+            var scope = definition.TargetScope;
+            if (scope == CombatCardTargetScope.None)
+            {
+                scope = definition.RequiresEnemyTarget
+                    ? CombatCardTargetScope.Enemy
+                    : CombatCardTargetScope.None;
+            }
+            if (scope == CombatCardTargetScope.None)
+            {
+                return new[] { 0 };
+            }
+
+            var result = new List<int>();
+            if ((scope & CombatCardTargetScope.Self) != 0)
+            {
+                result.Add(player.ActorId);
+            }
+            if ((scope & CombatCardTargetScope.Friendly) != 0)
+            {
+                result.AddRange(state.LivingFriendlies
+                    .OrderBy(actor => actor.ActorId)
+                    .Select(actor => actor.ActorId));
+            }
+            if ((scope & CombatCardTargetScope.Enemy) != 0)
+            {
+                result.AddRange(state.LivingEnemies
+                    .OrderBy(actor => actor.ActorId)
+                    .Select(actor => actor.ActorId));
+            }
+            return result;
+        }
+
+        private static string TargetedCandidateId(
+            string baseCandidateId,
+            int targetActorId)
+        {
+            return targetActorId > 0
+                ? baseCandidateId + ":target:" + targetActorId
+                : baseCandidateId;
         }
 
         private static void AddInvocableAction(
@@ -2845,6 +2870,7 @@ public sealed class CombatSimulationEngine
                     }
                     var existing = target.Statuses.FirstOrDefault(status =>
                         string.Equals(status.StatusId, command.DefinitionId, StringComparison.OrdinalIgnoreCase));
+                    var appliedStackDelta = 0;
                     if (existing == null)
                     {
                         if (command.Amount <= 0)
@@ -2863,6 +2889,7 @@ public sealed class CombatSimulationEngine
                             LastStackGainActionId = command.SourceActionId,
                             StacksGainedInLastAction = Math.Max(0, addedStacks)
                         });
+                        appliedStackDelta = addedStacks;
                     }
                     else
                     {
@@ -2880,6 +2907,7 @@ public sealed class CombatSimulationEngine
                                 beforeHash);
                         }
                         existing.Stacks = nextStacks;
+                        appliedStackDelta = nextStacks - previousStacks;
                         existing.Duration = Math.Max(existing.Duration, command.Duration);
                         var gainedStacks = Math.Max(0, nextStacks - previousStacks);
                         if (gainedStacks > 0)
@@ -2899,10 +2927,14 @@ public sealed class CombatSimulationEngine
                             }
                         }
                     }
+                    if (appliedStackDelta == 0)
+                    {
+                        return null;
+                    }
                     return EmitFromCommand(
                         CombatSimulationEventKind.StatusAdded,
                         command,
-                        command.Amount,
+                        appliedStackDelta,
                         beforeHash);
 
                 case CombatSimulationEffectKind.RemoveStatus:
@@ -4315,6 +4347,22 @@ public sealed class CombatSimulationEngine
             CombatTerminationReason reason)
         {
             TerminateCore(outcome, reason, explicitRule: true);
+        }
+
+        void ICombatPersistentProgressionContext.RecordPersistentVariableDelta(
+            string variableId,
+            int amount)
+        {
+            if (string.IsNullOrWhiteSpace(variableId) || amount == 0)
+            {
+                return;
+            }
+            persistentVariableDeltas[variableId] =
+                persistentVariableDeltas.TryGetValue(
+                    variableId,
+                    out var current)
+                    ? current + amount
+                    : amount;
         }
 
         private void NotifyExtension(CombatSimulationEvent sourceEvent)

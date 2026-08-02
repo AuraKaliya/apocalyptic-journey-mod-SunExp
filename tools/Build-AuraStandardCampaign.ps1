@@ -3752,6 +3752,18 @@ if(buff!=null)
                     -NotePropertyValue $actionContract -Force
         }
     }
+    if ([string]$cardRow.Id -eq "careercard_2") {
+        # Nana's devour skill accepts self, friendly and enemy actors. The
+        # legacy boolean cannot express this authoritative target contract.
+        $cardDefinition.requiresEnemyTarget = $false
+        if ($cardDefinition -is [Collections.Specialized.OrderedDictionary]) {
+            $cardDefinition["targetScope"] = 7
+        } else {
+            $cardDefinition |
+                Add-Member -NotePropertyName targetScope `
+                    -NotePropertyValue 7 -Force
+        }
+    }
     if ($cardDefinition -is [Collections.Specialized.OrderedDictionary]) {
         $cardDefinition["metadata"] = $metadata
     } else {

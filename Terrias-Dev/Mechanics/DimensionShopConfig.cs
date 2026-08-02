@@ -1,6 +1,7 @@
 using System;
 using System.IO;
 using System.Linq;
+using AuraShared.Core;
 using Newtonsoft.Json;
 using Terrias.Dll.Infrastructure;
 using Witch.Mod;
@@ -48,27 +49,64 @@ public static class DimensionShopConfigStore
     {
         lock (SyncRoot)
         {
-            var fallback = Normalize(new DimensionShopConfigDocument());
-            var path = Path.Combine(modConfig.DirectoryName, TerriasIds.DimensionShopConfigFile);
-            if (!File.Exists(path))
+            var bundled = LoadBundledDefaults(modConfig);
+            var snapshot = AuraSharedConfigStore.ReadOwner(
+                TerriasIds.ModId,
+                TerriasIds.DimensionShopConfigSystem,
+                TerriasIds.DimensionShopConfigFile,
+                bundled);
+            current = Normalize(snapshot.Value);
+            if (snapshot.Found)
             {
-                current = fallback;
-                TerriasLog.Warn("[DimensionShop] missing config; using built-in defaults.");
-                return;
+                TerriasLog.Info("[DimensionShop] loaded owner config from "
+                                + AuraSharedConfigStore.ConfigPath(
+                                    TerriasIds.ModId,
+                                    TerriasIds.DimensionShopConfigSystem,
+                                    TerriasIds.DimensionShopConfigFile)
+                                + ".");
             }
+            else
+            {
+                var write = AuraSharedConfigStore.WriteOwner(
+                    TerriasIds.ModId,
+                    TerriasIds.DimensionShopConfigSystem,
+                    TerriasIds.DimensionShopConfigFile,
+                    current,
+                    expectedRevision: 0,
+                    schemaVersion: current.SchemaVersion);
+                if (!write.Success)
+                {
+                    TerriasLog.Warn("[DimensionShop] could not seed owner config; using bundled defaults: "
+                                   + write.Message);
+                }
+            }
+        }
+    }
 
-            try
-            {
-                current = Normalize(
-                    JsonConvert.DeserializeObject<DimensionShopConfigDocument>(File.ReadAllText(path))
-                    ?? new DimensionShopConfigDocument());
-                TerriasLog.Info("[DimensionShop] loaded config from " + path);
-            }
-            catch (Exception ex)
-            {
-                current = fallback;
-                TerriasLog.Warn("[DimensionShop] failed to load config; using built-in defaults: " + ex.Message);
-            }
+    private static DimensionShopConfigDocument LoadBundledDefaults(ModConfig modConfig)
+    {
+        var fallback = Normalize(new DimensionShopConfigDocument());
+        var relative = TerriasIds.DimensionShopBundledConfigRelativePath
+            .Replace('/', Path.DirectorySeparatorChar);
+        var path = Path.Combine(modConfig.DirectoryName, relative);
+        if (!File.Exists(path))
+        {
+            TerriasLog.Warn("[DimensionShop] missing bundled defaults; using built-in defaults.");
+            return fallback;
+        }
+
+        try
+        {
+            var document = JsonConvert.DeserializeObject<DimensionShopConfigDocument>(
+                File.ReadAllText(path));
+            TerriasLog.Info("[DimensionShop] loaded bundled defaults from " + path + ".");
+            return Normalize(document ?? new DimensionShopConfigDocument());
+        }
+        catch (Exception ex)
+        {
+            TerriasLog.Warn("[DimensionShop] failed to load bundled defaults; using built-in defaults: "
+                           + ex.Message);
+            return fallback;
         }
     }
 

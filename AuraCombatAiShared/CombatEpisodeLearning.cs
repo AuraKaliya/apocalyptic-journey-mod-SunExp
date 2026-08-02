@@ -9,10 +9,10 @@ public static class CombatPolicyValueProtocol
 {
     public const string EpisodeProtocol = "aura.combat-ai.episode.v4";
 
-    public const int FeatureSchemaVersion = 16;
+    public const int FeatureSchemaVersion = 22;
 
     public const string TrainingSemanticsVersion =
-        "end-turn-counterfactual-v5";
+        "nana-adventure-growth-context-and-actionable-coverage-v10";
 }
 
 public static class CombatPolicyValueFrameStratificationProtocol

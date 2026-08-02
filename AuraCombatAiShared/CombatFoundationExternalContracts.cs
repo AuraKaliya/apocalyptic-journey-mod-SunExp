@@ -613,6 +613,8 @@ public static class CombatFoundationModelPackageProtocol
 
     public const string FileName = "foundation-model-package-v2.json";
 
+    public const string CurrentModelVersion = "2.0.0";
+
     public static CombatFoundationModelPackage Create(
         CombatFoundationWorkerJob job,
         CombatFoundationWorkerResult result,
@@ -673,6 +675,7 @@ public static class CombatFoundationModelPackageProtocol
                           + player.PartnerId
                           + " 外部底模 "
                           + DateTime.Now.ToString("yyyy-MM-dd HH:mm"),
+            ModelVersion = CurrentModelVersion,
             Profile = model.DecisionProfile,
             RoleId = player.RoleId ?? "",
             PartnerId = player.PartnerId ?? "",
@@ -721,6 +724,10 @@ public static class CombatFoundationModelPackageProtocol
         }
         if (string.IsNullOrWhiteSpace(package.PackageId)
             || string.IsNullOrWhiteSpace(package.JobId)
+            || !string.Equals(
+                package.ModelVersion,
+                CurrentModelVersion,
+                StringComparison.Ordinal)
             || !string.Equals(
                 package.CompletionKind,
                 "training-accepted",
@@ -955,6 +962,8 @@ public sealed class CombatFoundationModelPackage
     public string PackageId { get; set; } = "";
 
     public string DisplayName { get; set; } = "";
+
+    public string ModelVersion { get; set; } = "";
 
     public string ModelPurpose { get; set; } = "foundation";
 

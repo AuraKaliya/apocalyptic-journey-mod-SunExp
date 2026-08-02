@@ -12,6 +12,7 @@ public sealed class CombatDecisionEngine
     private readonly ICombatPolicyValueModel policyValueModel;
     private readonly bool useRuntimeRegistries;
     private readonly ICombatSimulationRule[] isolatedSimulationRules;
+    private readonly CombatDecisionPreparationSnapshot decisionPreparation;
     private readonly CombatRiskAwareRootSamplingPuctPlanner chancePuctPlanner;
 
     public CombatDecisionEngine(
@@ -19,12 +20,15 @@ public sealed class CombatDecisionEngine
         ICombatSearchGuidanceModel? searchGuidance = null,
         bool useRuntimeRegistries = true,
         ICombatPolicyValueModel? policyValueModel = null,
-        IReadOnlyList<ICombatSimulationRule>? simulationRules = null)
+        IReadOnlyList<ICombatSimulationRule>? simulationRules = null,
+        CombatDecisionPreparationSnapshot? decisionPreparation = null)
     {
         this.residualModel = residualModel ?? NullDecisionResidualModel.Instance;
         this.searchGuidance = searchGuidance ?? NullCombatSearchGuidanceModel.Instance;
         this.policyValueModel = policyValueModel ?? NullCombatPolicyValueModel.Instance;
         this.useRuntimeRegistries = useRuntimeRegistries;
+        this.decisionPreparation = decisionPreparation
+                                   ?? CombatDecisionPreparationSnapshot.Empty;
         isolatedSimulationRules = simulationRules?.Where(rule => rule != null).ToArray()
                                   ?? Array.Empty<ICombatSimulationRule>();
         chancePuctPlanner = new CombatRiskAwareRootSamplingPuctPlanner(
@@ -40,7 +44,7 @@ public sealed class CombatDecisionEngine
     {
         if (state == null) throw new ArgumentNullException(nameof(state));
         var prepared = CombatPlayerObservationBoundary.Normalize(state);
-        if (!useRuntimeRegistries)
+        if (!HasDecisionPreparation)
         {
             return prepared;
         }
@@ -51,10 +55,7 @@ public sealed class CombatDecisionEngine
             {
                 continue;
             }
-            if (!CombatAiRegistry.EvaluatePreflight(
-                    prepared,
-                    action,
-                    out var reason))
+            if (!EvaluatePreflight(prepared, action, out var reason))
             {
                 action.Legal = false;
                 action.RejectionReason = reason;
@@ -63,13 +64,18 @@ public sealed class CombatDecisionEngine
             var observedMechanics =
                 CombatPlayerObservationBoundary.NormalizeSemantics(
                     action.Semantics);
-            CombatAiRegistry.ApplySemantics(prepared, action);
+            ApplySemantics(prepared, action);
             MergeMechanicalSemantics(action.Semantics, observedMechanics);
             action.Semantics =
                 CombatPlayerObservationBoundary.NormalizeSemantics(
                     action.Semantics);
         }
+        EnrichRoleStrategies(prepared);
         CombatArchetypePolicy.Enrich(prepared);
+        foreach (var action in prepared.Actions)
+        {
+            CombatHandTransformPolicy.Enrich(prepared, action);
+        }
         return CombatPlayerObservationBoundary.Normalize(prepared);
     }
 
@@ -103,6 +109,27 @@ public sealed class CombatDecisionEngine
             return new CombatDecision { Reason = "no candidates" };
         }
         state = CombatPlayerObservationBoundary.Normalize(state);
+        if (HasDecisionPreparation)
+        {
+            foreach (var action in state.Actions.Where(action =>
+                         action != null
+                         && action.Legal
+                         && action.Kind != CombatActionKind.EndTurn))
+            {
+                var observedMechanics =
+                    CombatPlayerObservationBoundary.NormalizeSemantics(
+                        action.Semantics);
+                ApplySemantics(state, action);
+                MergeMechanicalSemantics(
+                    action.Semantics,
+                    observedMechanics);
+                action.Semantics =
+                    CombatPlayerObservationBoundary.NormalizeSemantics(
+                        action.Semantics);
+            }
+            EnrichRoleStrategies(state);
+            CombatArchetypePolicy.Enrich(state);
+        }
 
         var endTurn = (CombatActionObservation?)null;
         var endTurnEvaluation = (CombatCandidateEvaluation?)null;
@@ -149,16 +176,16 @@ public sealed class CombatDecisionEngine
                     action,
                     out rejectionReason);
             }
-            if (legal && useRuntimeRegistries)
+            if (legal && HasDecisionPreparation)
             {
-                legal = CombatAiRegistry.EvaluatePreflight(state, action, out rejectionReason);
+                legal = EvaluatePreflight(state, action, out rejectionReason);
             }
-            if (legal && useRuntimeRegistries)
+            if (legal && HasDecisionPreparation)
             {
                 var observedMechanics =
                     CombatPlayerObservationBoundary.NormalizeSemantics(
                         action.Semantics);
-                CombatAiRegistry.ApplySemantics(state, action);
+                ApplySemantics(state, action);
                 MergeMechanicalSemantics(
                     action.Semantics,
                     observedMechanics);
@@ -166,6 +193,8 @@ public sealed class CombatDecisionEngine
                     CombatPlayerObservationBoundary.NormalizeSemantics(
                         action.Semantics);
             }
+
+            CombatHandTransformPolicy.Enrich(state, action);
 
             var utility = BuildUtility(state, action, selectedProfile);
             var features = BuildFeatures(state, action, utility, selectedProfile);
@@ -210,11 +239,25 @@ public sealed class CombatDecisionEngine
                 endTurnEvaluation,
                 endTurnAssessment);
         }
+        foreach (var terminal in evaluations.Where(candidate =>
+                     candidate?.Action != null
+                     && candidate.Action.Kind != CombatActionKind.EndTurn
+                     && candidate.Action.Semantics?.EndsTurn == true
+                     && candidate.Utility.Lethal <= 0d))
+        {
+            CombatEndTurnSafety.Annotate(
+                terminal.Action,
+                terminal,
+                endTurnAssessment);
+        }
 
-        var dominantSetup = CombatActionDominance.SelectSafeFreeSetup(
-            state,
-            evaluations,
-            selectedProfile);
+        var dominantSetup = CombatActionDominance.SelectDamageToBlockSetup(
+                                state,
+                                evaluations)
+                            ?? CombatActionDominance.SelectSafeFreeSetup(
+                                state,
+                                evaluations,
+                                selectedProfile);
         if (dominantSetup != null)
         {
             dominantSetup.PlanScore = dominantSetup.RuleScore;
@@ -223,7 +266,9 @@ public sealed class CombatDecisionEngine
                 HasAction = true,
                 Action = dominantSetup.Action,
                 Score = dominantSetup.RuleScore,
-                Reason = "safe free setup dominance",
+                Reason = dominantSetup.Action.Semantics.DamageToBlockSetup
+                    ? "damage-to-block setup dominance"
+                    : "safe free setup dominance",
                 ProfileId = selectedProfile.Id,
                 Candidates = evaluations,
                 EndTurnTrace = endTurnAssessment.Trace.ToCompactString(),
@@ -290,6 +335,11 @@ public sealed class CombatDecisionEngine
         }
         if (hasPlanAction
             && planAction != null
+            && (!CombatEndTurnSafety.IsEndTurnEquivalent(planAction)
+                || !endTurnAssessment.Prohibited
+                || evaluations.Any(candidate =>
+                    ReferenceEquals(candidate.Action, planAction)
+                    && candidate.Utility.Lethal > 0d))
             && planScore >= selectedProfile.MinimumActionScore)
         {
             return new CombatDecision
@@ -434,7 +484,8 @@ public sealed class CombatDecisionEngine
     {
         var legal = candidates
             .Where(candidate => candidate.Legal
-                                && candidate.Action.Kind != CombatActionKind.EndTurn)
+                                && !CombatEndTurnSafety.IsEndTurnEquivalent(
+                                    candidate.Action))
             .ToList();
         if (legal.Count == 0)
         {
@@ -565,6 +616,12 @@ public sealed class CombatDecisionEngine
         var risk = semantics.Risk
                    + Math.Max(0d, semantics.SelfHpLoss) * 2d
                    + Math.Max(0d, semantics.EndOfCycleSelfHpLoss) * 1.5d;
+        risk += Math.Max(
+            0d,
+            Feature(
+                action,
+                CombatRoleStrategyFeatureNames.Risk,
+                0d));
         if (action.TargetKind == CombatTargetKind.Enemy)
         {
             risk += defend + heal;
@@ -624,6 +681,25 @@ public sealed class CombatDecisionEngine
         {
             risk += 0.1d;
         }
+        var transformNetValue = Feature(
+            action,
+            "handTransformNetValue",
+            0d);
+        var transformDepletionRisk = Feature(
+            action,
+            "postTransformDepletionRisk",
+            0d);
+        var transformExpectedGrowth = Feature(
+            action,
+            "expectedGrowthFromTransform",
+            0d);
+        var transformLethal = Feature(
+            action,
+            "postTransformLethalCertified",
+            0d) > 0.5d
+            ? 14d
+            : 0d;
+        risk += transformDepletionRisk;
         if (IsVisibleFake(action))
         {
             risk += 24d;
@@ -636,6 +712,7 @@ public sealed class CombatDecisionEngine
             && semantics.EnergyGain == 0d
             && semantics.Scaling == 0d
             && semantics.DeckValue == 0d
+            && semantics.HandTransform == null
             && setupValue == 0d)
         {
             unknown = Math.Max(unknown, profile.UnknownActionPenalty);
@@ -644,20 +721,45 @@ public sealed class CombatDecisionEngine
         return new DecisionUtility
         {
             Survival = emergency + effectiveDefend + heal * 1.15d,
-            Lethal = lethal,
+            Lethal = lethal + transformLethal,
             Tempo = effectiveDamage + effectiveDefend * 0.2d,
             Resource = semantics.EnergyGain * 1.5d
                        + semantics.CostReduction * 0.8d
                        - energyOpportunityCost
                        - cooldownCost,
-            DeckEconomy = semantics.DeckValue + semantics.CardGeneration * 0.5d,
-            Scaling = semantics.Scaling + setupValue,
-            Synergy = action.Features.TryGetValue("synergy", out var synergy) ? synergy : 0d,
-            Continuation = effectiveDraw + semantics.EnergyGain + semantics.CardGeneration * 0.5d,
+            DeckEconomy = semantics.DeckValue
+                          + semantics.CardGeneration * 0.5d
+                          + transformNetValue
+                          + transformExpectedGrowth * 0.15d,
+            Scaling = semantics.Scaling
+                      + setupValue
+                      + Feature(
+                          action,
+                          CombatRoleStrategyFeatureNames.Scaling,
+                          0d),
+            Synergy = (action.Features.TryGetValue("synergy", out var synergy)
+                ? synergy
+                : 0d)
+                      + Feature(
+                          action,
+                          CombatRoleStrategyFeatureNames.Synergy,
+                          0d),
+            Continuation = effectiveDraw
+                           + semantics.EnergyGain
+                           + semantics.CardGeneration * 0.5d
+                           + Math.Max(0d, transformNetValue) * 0.25d
+                           + Feature(
+                               action,
+                               CombatRoleStrategyFeatureNames.Continuation,
+                               0d),
             Risk = risk,
             Uncertainty = unknown,
             Coordination = freeActionOrderValue
                            + (action.Features.TryGetValue("coordination", out var coordination) ? coordination : 0d)
+                           + Feature(
+                               action,
+                               CombatRoleStrategyFeatureNames.Coordination,
+                               0d)
         };
     }
 
@@ -761,6 +863,14 @@ public sealed class CombatDecisionEngine
             action.Kind == CombatActionKind.UseSkill ? 1d : 0d;
         features["actionKindEndTurn"] =
             action.Kind == CombatActionKind.EndTurn ? 1d : 0d;
+        features["targetKindNone"] =
+            action.TargetKind == CombatTargetKind.None ? 1d : 0d;
+        features["targetKindSelf"] =
+            action.TargetKind == CombatTargetKind.Self ? 1d : 0d;
+        features["targetKindFriendly"] =
+            action.TargetKind == CombatTargetKind.Friendly ? 1d : 0d;
+        features["targetKindEnemy"] =
+            action.TargetKind == CombatTargetKind.Enemy ? 1d : 0d;
         features["uncertainty"] = semantics.Uncertainty;
         foreach (var pair in state.Features)
         {
@@ -854,7 +964,8 @@ public sealed class CombatDecisionEngine
                                   + heal
                                   + draw
                                   + Math.Max(0d, semantics.EnergyGain)
-                                  + setupValue > 0d;
+                                  + setupValue > 0d
+                                  || semantics.HandTransform != null;
         var semanticConfidence = recognizedSemantics
             ? 1d - Math.Min(1d, Math.Max(0d, semantics.Uncertainty) / 3d)
             : 0d;
@@ -906,6 +1017,41 @@ public sealed class CombatDecisionEngine
         features["categoryOther"] = category == "other" ? 1d : 0d;
     }
 
+    private bool HasDecisionPreparation => useRuntimeRegistries
+                                           || !decisionPreparation.IsEmpty;
+
+    private bool EvaluatePreflight(
+        CombatStateObservation state,
+        CombatActionObservation action,
+        out string reason)
+    {
+        return useRuntimeRegistries
+            ? CombatAiRegistry.EvaluatePreflight(state, action, out reason)
+            : decisionPreparation.EvaluatePreflight(state, action, out reason);
+    }
+
+    private void ApplySemantics(
+        CombatStateObservation state,
+        CombatActionObservation action)
+    {
+        if (useRuntimeRegistries)
+        {
+            CombatAiRegistry.ApplySemantics(state, action);
+            return;
+        }
+        decisionPreparation.ApplySemantics(state, action);
+    }
+
+    private void EnrichRoleStrategies(CombatStateObservation state)
+    {
+        if (useRuntimeRegistries)
+        {
+            CombatAiRegistry.EnrichRoleStrategies(state);
+            return;
+        }
+        decisionPreparation.EnrichRoleStrategies(state);
+    }
+
     private static bool IsVisibleFake(CombatActionObservation action)
     {
         return action?.Features != null
@@ -933,7 +1079,8 @@ public sealed class CombatDecisionEngine
             || semantics.CostReduction > 0d
             || semantics.CardGeneration > 0d
             || semantics.PersistentValue > 0d
-            || semantics.Scaling > 0d)
+            || semantics.Scaling > 0d
+            || semantics.HandTransform != null)
         {
             return "support";
         }

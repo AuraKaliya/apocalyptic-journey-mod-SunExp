@@ -2967,6 +2967,36 @@ public static class AuraToolsSettingsRuntime
             },
             66f);
         renameButton.interactable = selectedModelIndex >= 0;
+        var restoreNameButton = AuraToolsUi.AddButton(
+            renameRow.transform,
+            "自动命名",
+            () =>
+            {
+                if (AuraToolsAutoBattleModelRuntime
+                    .TryRestoreGeneratedLibraryModelName(
+                        autoBattle.SelectedModelId,
+                        out var restoreMessage))
+                {
+                    AuraToolsLog.Info(
+                        "[AutoBattle][ModelLibrary] " + restoreMessage);
+                }
+                else
+                {
+                    AuraToolsLog.Warn(
+                        "[AutoBattle][ModelLibrary] " + restoreMessage);
+                }
+                AuraToolsAutoBattleUiSnapshotRuntime.RequestRefresh(
+                    autoBattle.Profile,
+                    autoBattle.SelectedModelId,
+                    force: true);
+            },
+            88f);
+        restoreNameButton.interactable = selectedModelIndex >= 0
+                                         && string.Equals(
+                                             library[selectedModelIndex]
+                                                 .ModelPurpose,
+                                             "foundation",
+                                             StringComparison.Ordinal);
         renameRow.SetActive(selectedModelIndex >= 0);
         AuraToolsUi.AddText(
             parent,
@@ -2990,6 +3020,40 @@ public static class AuraToolsSettingsRuntime
             AuraToolsUi.MutedText,
             AuraToolsUi.TextMinHeight,
             1f);
+
+        var bundledStatus =
+            AuraToolsBundledFoundationModelRuntime.SnapshotStatus();
+        var bundledStatusText = AuraToolsUi.AddText(
+            parent,
+            "内置底模：" + bundledStatus.Message,
+            AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.MutedText,
+            AuraToolsUi.TextMinHeight,
+            1f);
+        var bundledRow = CreateInlineRow(
+            parent,
+            "AutoBattleBundledFoundationActions");
+        AuraToolsUi.AddButton(
+            bundledRow.transform,
+            "重新扫描内置底模",
+            () =>
+            {
+                if (AuraToolsBundledFoundationModelRuntime.TryQueueRescan(
+                        out var scanMessage))
+                {
+                    bundledStatusText.text = "内置底模：" + scanMessage;
+                    AuraToolsLog.Info(
+                        "[AutoBattle][BundledModels] " + scanMessage);
+                }
+                else
+                {
+                    bundledStatusText.text = "内置底模：" + scanMessage;
+                    AuraToolsLog.Warn(
+                        "[AutoBattle][BundledModels] " + scanMessage);
+                }
+            },
+            154f);
 
         var externalEntry =
             AuraToolsAutoBattleModelRuntime.SnapshotExternalValidationModel();

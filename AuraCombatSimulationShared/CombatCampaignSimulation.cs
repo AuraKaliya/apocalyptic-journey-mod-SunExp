@@ -1971,17 +1971,23 @@ public static class CombatCampaignRewardSelector
                 StringComparer.OrdinalIgnoreCase);
         var deckFeatures = AggregateBuildFeatures(state, lookup);
         var archetypes = new[]
-        {
-            "burst",
-            "sustained",
-            "defense",
-            "heal",
-            "aoe",
-            "cycling",
-            "energy",
-            "rebirth",
-            "time-cage"
-        };
+            {
+                "burst",
+                "sustained",
+                "defense",
+                "heal",
+                "aoe",
+                "cycling",
+                "energy",
+                "rebirth",
+                "time-cage"
+            }
+            .Concat(definition.RolePrior.Keys)
+            .Concat(definition.BuildTendency.Keys)
+            .Concat(definition.BossPreference.Keys)
+            .Where(key => !string.IsNullOrWhiteSpace(key))
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
         var weights = archetypes.ToDictionary(
             key => key,
             key => DictionaryValue(deckFeatures, key)
@@ -2969,7 +2975,8 @@ public sealed class CombatCampaignRunner
                 enemyLevels,
                 rewardLookup,
                 rewardCatalog,
-                plan.WorldSeed);
+                plan.WorldSeed,
+                plan.Encounters.Count);
             var battle = engine.Run(
                 scenario,
                 ruleset,
@@ -3308,7 +3315,8 @@ public sealed class CombatCampaignRunner
         IReadOnlyDictionary<string, int> enemyLevels,
         IReadOnlyDictionary<string, CombatCampaignRewardDefinition> rewardLookup,
         List<CombatScenarioRewardCatalogEntry> rewardCatalog,
-        ulong worldSeed)
+        ulong worldSeed,
+        int totalEncounters)
     {
         var scenario = new CombatScenarioDefinition
         {
@@ -3329,6 +3337,19 @@ public sealed class CombatCampaignRunner
                     definition.Player.SkillCooldownTurns
                     ?? new Dictionary<string, int>(),
                     StringComparer.OrdinalIgnoreCase),
+                InitialSkillCooldownTurns = new Dictionary<string, int>(
+                    definition.Player.InitialSkillCooldownTurns
+                    ?? new Dictionary<string, int>(),
+                    StringComparer.OrdinalIgnoreCase),
+                NativeManagedSkillCooldownIds = new List<string>(
+                    definition.Player.NativeManagedSkillCooldownIds
+                    ?? new List<string>()),
+                RoleNativeScriptHash = definition.Player.RoleNativeScriptHash,
+                RoleFightScript = definition.Player.RoleFightScript,
+                RoleRuntimeForms = (definition.Player.RoleRuntimeForms
+                                    ?? new List<CombatRoleRuntimeForm>())
+                    .Select(item => item.Clone())
+                    .ToList(),
                 FamiliarBlessingIds = new List<string>(
                     definition.Player.FamiliarBlessingIds
                     ?? new List<string>()),
@@ -3340,9 +3361,9 @@ public sealed class CombatCampaignRunner
                     .Concat(SelectedRewardStatuses(rewardLookup, state))
                     .Select(CloneStatus)
                     .ToList(),
-                Variables = state.Attributes.ToDictionary(
-                    item => item.Key,
-                    item => (double)item.Value,
+                Variables = new Dictionary<string, double>(
+                    definition.Player.Variables
+                    ?? new Dictionary<string, double>(),
                     StringComparer.OrdinalIgnoreCase)
             },
             InitialDraw = definition.InitialDraw,
@@ -3365,6 +3386,10 @@ public sealed class CombatCampaignRunner
                 : definition.TraceLevel,
             Limits = definition.Limits.Normalize()
         };
+        foreach (var attribute in state.Attributes)
+        {
+            scenario.Player.Variables[attribute.Key] = attribute.Value;
+        }
         var strategiesById = (definition.Strategies
                               ?? new List<CombatCampaignStrategyDefinition>())
             .Where(item => item != null
@@ -3404,7 +3429,6 @@ public sealed class CombatCampaignRunner
             state.SpecialVariables,
             StringComparer.OrdinalIgnoreCase);
         scenario.CampaignVariables["ResurrectionCount"] = "0";
-        scenario.Player.Variables["EncounterKind"] = (int)encounter.Kind;
         scenario.RewardCatalog = rewardCatalog;
         scenario.RewardRules = CombatCampaignRewardRuleProjector.Build(
             state,
@@ -3415,6 +3439,40 @@ public sealed class CombatCampaignRunner
             scenario.Player.Variables[pair.Key] = pair.Value;
         }
         scenario.Player.Variables["Money"] = state.Money;
+        var normalizedTotalEncounters = Math.Max(1, totalEncounters);
+        scenario.Player.Variables[
+            CombatCampaignPublicContextKeys.BattleIndex] =
+            Math.Max(0, encounter.Index);
+        scenario.Player.Variables[
+            CombatCampaignPublicContextKeys.TotalBattles] =
+            normalizedTotalEncounters;
+        scenario.Player.Variables[
+            CombatCampaignPublicContextKeys.RemainingBattles] =
+            Math.Max(0, normalizedTotalEncounters - encounter.Index - 1);
+        scenario.Player.Variables[
+            CombatCampaignPublicContextKeys.Progress] =
+            normalizedTotalEncounters <= 1
+                ? 1d
+                : Math.Max(
+                    0d,
+                    Math.Min(
+                        1d,
+                        encounter.Index / (double)(normalizedTotalEncounters - 1)));
+        scenario.Player.Variables[
+            CombatCampaignPublicContextKeys.LayerNumber] =
+            Math.Max(1, encounter.LayerNumber);
+        scenario.Player.Variables[
+            CombatCampaignPublicContextKeys.TotalLayers] =
+            Math.Max(1, definition.Layers.Count);
+        scenario.Player.Variables[
+            CombatCampaignPublicContextKeys.EncounterKind] =
+            (int)encounter.Kind;
+        scenario.Player.Variables[
+            CombatCampaignPublicContextKeys.GameLevel] =
+            Math.Max(0, encounter.GameLevel);
+        scenario.Player.Variables[
+            CombatCampaignPublicContextKeys.FinalBoss] =
+            encounter.Kind == CombatCampaignEncounterKind.FinalBoss ? 1d : 0d;
         for (var index = 0; index < encounter.EnemyIds.Count; index++)
         {
             var enemyId = encounter.EnemyIds[index];
@@ -3556,7 +3614,14 @@ public sealed class CombatCampaignRunner
                                   ?? new List<string>())
                 .Where(id => !string.IsNullOrWhiteSpace(id))
                 .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList()
+                .ToList(),
+            SpecialVariables = (definition.Player.Variables
+                                ?? new Dictionary<string, double>())
+                .ToDictionary(
+                    item => item.Key,
+                    item => item.Value.ToString(
+                        System.Globalization.CultureInfo.InvariantCulture),
+                    StringComparer.OrdinalIgnoreCase)
         };
         foreach (var attribute in definition.AttributeIds)
         {

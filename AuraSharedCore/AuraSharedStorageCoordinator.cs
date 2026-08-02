@@ -1,6 +1,7 @@
 using System;
 using System.Diagnostics;
 using System.IO;
+using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
@@ -12,6 +13,7 @@ namespace AuraShared.Core;
 public sealed class AuraSharedStorageCoordinator : IDisposable
 {
     public const int MaxPortablePathLength = 259;
+    public const int MaximumBackupsPerDocument = 12;
     private readonly object lifecycleGate = new();
     private readonly AuraSharedResourceLockTable locks = new();
     private string rootDirectory;
@@ -97,19 +99,22 @@ public sealed class AuraSharedStorageCoordinator : IDisposable
     {
         var started = Stopwatch.StartNew();
         var response = ExecuteWrite(StorageLockKey(request), () => WriteNoLock(request));
-        var owner = request == null || string.IsNullOrWhiteSpace(request.OwnerModId) ? request?.WriterId ?? "" : request.OwnerModId;
-        AuraSharedOperationLog.Write(rootDirectory, AuraSharedOperationLog.Create(
-            operationId: "",
-            transactionId: "",
-            ownerModId: owner,
-            system: request?.System ?? "",
-            logicalId: request?.FileName ?? "",
-            kind: "StorageWrite",
-            phase: response.Conflict ? "Conflict" : "Committed",
-            result: response.Success ? "Success" : response.Conflict ? "Conflict" : "Failure",
-            message: response.Message,
-            revision: response.Revision,
-            elapsedMs: started.ElapsedMilliseconds));
+        if (!response.Success || response.Conflict || response.Changed)
+        {
+            var owner = request == null || string.IsNullOrWhiteSpace(request.OwnerModId) ? request?.WriterId ?? "" : request.OwnerModId;
+            AuraSharedOperationLog.Write(rootDirectory, AuraSharedOperationLog.Create(
+                operationId: "",
+                transactionId: "",
+                ownerModId: owner,
+                system: request?.System ?? "",
+                logicalId: request?.FileName ?? "",
+                kind: "StorageWrite",
+                phase: response.Conflict ? "Conflict" : "Committed",
+                result: response.Success ? "Success" : response.Conflict ? "Conflict" : "Failure",
+                message: response.Message,
+                revision: response.Revision,
+                elapsedMs: started.ElapsedMilliseconds));
+        }
         return response;
     }
 
@@ -280,6 +285,12 @@ public sealed class AuraSharedStorageCoordinator : IDisposable
 
         var directory = Path.GetDirectoryName(fullPath) ?? rootDirectory;
         EnsurePortablePath(fullPath, "atomic-target");
+        var bytes = new UTF8Encoding(false).GetBytes(text ?? "");
+        if (File.Exists(fullPath) && FileContentEquals(fullPath, bytes))
+        {
+            return;
+        }
+
         var tempPath = Path.Combine(directory, ".aura-" + Guid.NewGuid().ToString("N").Substring(0, 12) + ".tmp");
         EnsurePortablePath(tempPath, "atomic-temporary");
         Directory.CreateDirectory(directory);
@@ -290,7 +301,6 @@ public sealed class AuraSharedStorageCoordinator : IDisposable
 
         try
         {
-            var bytes = new UTF8Encoding(false).GetBytes(text ?? "");
             using (var stream = new FileStream(
                        tempPath,
                        FileMode.CreateNew,
@@ -369,6 +379,25 @@ public sealed class AuraSharedStorageCoordinator : IDisposable
             var payload = string.IsNullOrWhiteSpace(request.PayloadJson)
                 ? JValue.CreateNull()
                 : JToken.Parse(request.PayloadJson);
+            if (current != null
+                && current.SchemaVersion == Math.Max(1, request.SchemaVersion)
+                && string.Equals(current.AuthorityId, authority, StringComparison.Ordinal)
+                && JToken.DeepEquals(current.Data, payload))
+            {
+                return new AuraSharedStorageResponse
+                {
+                    Success = true,
+                    Found = true,
+                    Changed = false,
+                    Revision = current.Revision,
+                    SchemaVersion = current.SchemaVersion,
+                    AuthorityId = current.AuthorityId,
+                    PayloadJson = current.Data.ToString(Formatting.None),
+                    Path = path,
+                    Message = "Payload is unchanged."
+                };
+            }
+
             var envelope = new AuraSharedStorageEnvelope
             {
                 SchemaVersion = Math.Max(1, request.SchemaVersion),
@@ -383,6 +412,7 @@ public sealed class AuraSharedStorageCoordinator : IDisposable
             {
                 Success = true,
                 Found = true,
+                Changed = true,
                 Revision = envelope.Revision,
                 SchemaVersion = envelope.SchemaVersion,
                 AuthorityId = envelope.AuthorityId,
@@ -466,6 +496,74 @@ public sealed class AuraSharedStorageCoordinator : IDisposable
         Directory.CreateDirectory(Path.GetDirectoryName(backupPath) ?? Path.Combine(rootDirectory, "Backups"));
         EnsurePortablePath(backupPath, "storage-backup");
         File.Copy(sourcePath, backupPath, false);
+        PruneDocumentBackups(backupPath);
+    }
+
+    private void PruneDocumentBackups(string newestBackupPath)
+    {
+        var directory = Path.GetDirectoryName(newestBackupPath);
+        if (string.IsNullOrWhiteSpace(directory) || !Directory.Exists(directory))
+        {
+            return;
+        }
+
+        var fileName = Path.GetFileName(newestBackupPath);
+        var timestampSeparator = fileName.IndexOf('.');
+        if (timestampSeparator <= 0)
+        {
+            return;
+        }
+
+        var prefix = fileName.Substring(0, timestampSeparator) + ".";
+        var backups = Directory.EnumerateFiles(directory, prefix + "*.bak", SearchOption.TopDirectoryOnly)
+            .OrderByDescending(Path.GetFileName, StringComparer.Ordinal)
+            .Skip(MaximumBackupsPerDocument)
+            .ToArray();
+        foreach (var stale in backups)
+        {
+            TryDeleteFile(stale);
+        }
+    }
+
+    private static bool FileContentEquals(string path, byte[] expected)
+    {
+        try
+        {
+            using var stream = new FileStream(
+                path,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete);
+            if (stream.Length != expected.LongLength)
+            {
+                return false;
+            }
+
+            var buffer = new byte[8192];
+            var offset = 0;
+            while (offset < expected.Length)
+            {
+                var read = stream.Read(buffer, 0, Math.Min(buffer.Length, expected.Length - offset));
+                if (read <= 0)
+                {
+                    return false;
+                }
+
+                for (var index = 0; index < read; index++)
+                {
+                    if (buffer[index] != expected[offset + index])
+                    {
+                        return false;
+                    }
+                }
+                offset += read;
+            }
+            return true;
+        }
+        catch (IOException)
+        {
+            return false;
+        }
     }
 
     private void ReplaceWithRollback(string tempPath, string destinationPath)
@@ -601,7 +699,7 @@ public sealed class AuraSharedStorageCoordinator : IDisposable
 
         foreach (var relative in new[]
                  {
-                     "Config/Shared", "Config/Owners", "Config/Runtime", "Registries", "Backups/Storage", "Cache", "Transactions", "Logs/Operations"
+                     "Config/Shared", "Config/Owners", "Config/Runtime", "Data/Owners", "Registries", "Backups/Storage", "Cache", "Transactions", "Logs/Operations"
                   })
         {
             Directory.CreateDirectory(Path.Combine(rootDirectory, relative.Replace('/', Path.DirectorySeparatorChar)));

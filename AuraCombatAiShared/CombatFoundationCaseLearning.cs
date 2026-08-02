@@ -144,6 +144,10 @@ public sealed class CombatFoundationExpertReplaySelection
 
 public sealed class CombatFoundationRewardResidualTrainingResult
 {
+    public bool Suppressed { get; set; }
+
+    public string SuppressionReason { get; set; } = "";
+
     public Dictionary<string, double> Residuals { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
 
@@ -648,16 +652,30 @@ public static class CombatFoundationCaseLearning
         var selectedCaseIds = new HashSet<string>(StringComparer.Ordinal);
         AddExpertDifficulty(
             result.Episodes,
-            compatible.Where(item => !IsAdvanced(item)).ToList(),
-            normalTarget,
-            Math.Max(1, maximumEpisodesPerRun),
-            selectedCaseIds);
-        AddExpertDifficulty(
-            result.Episodes,
             compatible.Where(IsAdvanced).ToList(),
             advancedTarget,
             Math.Max(1, maximumEpisodesPerRun),
             selectedCaseIds);
+        AddExpertDifficulty(
+            result.Episodes,
+            compatible.Where(item => !IsAdvanced(item)).ToList(),
+            normalTarget,
+            Math.Max(1, maximumEpisodesPerRun),
+            selectedCaseIds);
+        var selectedAdvanced = result.Episodes.Count(EpisodeIsAdvanced);
+        // Scarce advanced evidence is reported below, but it must not collapse
+        // the healthy normal replay window. Fill unused capacity with distinct
+        // normal success cases instead of shrinking both partitions.
+        if (selectedAdvanced < advancedTarget
+            && result.Episodes.Count < limit)
+        {
+            AddExpertDifficulty(
+                result.Episodes,
+                compatible.Where(item => !IsAdvanced(item)).ToList(),
+                limit - selectedAdvanced,
+                Math.Max(1, maximumEpisodesPerRun),
+                selectedCaseIds);
+        }
         RecordShortfall(
             result.QuotaShortfalls,
             "normal",
@@ -668,35 +686,6 @@ public static class CombatFoundationCaseLearning
             "advanced",
             advancedTarget - result.Episodes.Count(EpisodeIsAdvanced));
 
-        if (result.Episodes.Count < limit)
-        {
-            var seen = result.Episodes
-                .Select(EpisodeKey)
-                .ToHashSet(StringComparer.Ordinal);
-            foreach (var successCase in DiverseCases(compatible))
-            {
-                foreach (var episode in RepresentativeEpisodes(
-                             successCase,
-                             Math.Max(1, maximumEpisodesPerRun)))
-                {
-                    if (result.Episodes.Count >= limit)
-                    {
-                        break;
-                    }
-                    if (EligibleExpertEpisode(episode, rulesetHash)
-                        && seen.Add(EpisodeKey(episode)))
-                    {
-                        result.Episodes.Add(episode);
-                        selectedCaseIds.Add(
-                            successCase.Observation.CaseId);
-                    }
-                }
-                if (result.Episodes.Count >= limit)
-                {
-                    break;
-                }
-            }
-        }
         result.Episodes = result.Episodes
             .Take(limit)
             .OrderBy(EpisodeKey, StringComparer.Ordinal)

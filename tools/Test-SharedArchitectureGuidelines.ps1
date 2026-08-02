@@ -389,6 +389,7 @@ if ($auraCgRuntime -match "manager\?\.(upperCanvasTf|canvasTf)|GameUIManager|Gra
 
 $auraCgRegistryQuery = Read-RepoText "AuraCgShared\AuraCgRegistryQueryService.cs"
 $auraCgRegistry = Read-RepoText "AuraCgShared\AuraCgRegistry.cs"
+$auraCgActivation = Read-RepoText "AuraCgShared\AuraCgActivation.cs"
 $auraCgNetworkPolicy = Read-RepoText "AuraCgShared\AuraCgNetworkPolicy.cs"
 $auraCgNetworkSession = Read-RepoText "AuraCgShared\AuraCgNetworkSessionState.cs"
 $auraCgNetworkRuntime = Read-RepoText "AuraCgShared\AuraCgNetworkRuntime.cs"
@@ -412,6 +413,11 @@ Require-Text $auraCgRegistryQuery "internal static class AuraCgRegistryQueryServ
 Require-Text $auraCgRegistryQuery "MatchesTrigger" "AuraCg registry query service must own trigger matching."
 Require-Text $auraCgRegistry "cg-manifest-duplicate" "AuraCg registration must reject duplicate owner-qualified ids inside one contribution."
 Require-Text $auraCgRegistry "cg-contribution-identity-conflict" "AuraCg registration must reject one qualified id across multiple owner contributions."
+Require-Text $auraCgActivation "CG activation defaults are resolved directly from manifests" "AuraCg manifest defaults must be derived without one persistent activation write per contribution."
+Require-Text $auraCgActivation "entry\.UserOverridden" "AuraCg persisted activation state must be limited to explicit user overrides."
+if ($auraCgActivation.Contains("changed |= document.ApplyManifestDefault(entry)")) {
+    throw "AuraCg manifest registration must not persist default activation entries one contribution at a time."
+}
 Require-Text $auraCgNetworkPolicy "internal static class AuraCgNetworkPolicy" "AuraCg network validation must stay in its pure policy service."
 Require-Text $auraCgNetworkPolicy "HasValidPlaybackShape" "AuraCg network policy must own envelope shape validation."
 Require-Text $auraCgNetworkSession "internal sealed class AuraCgNetworkSessionState" "AuraCg transient network identity must stay in a dedicated session state."

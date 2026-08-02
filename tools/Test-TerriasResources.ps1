@@ -102,15 +102,15 @@ function Test-ModResourcePath {
 
 Push-Location $repoRoot
 try {
-    $modConfig = Get-Content -LiteralPath (Join-Path $modRoot "ModConfig.json") -Raw | ConvertFrom-Json
+    $modConfig = Get-Content -LiteralPath (Join-Path $modRoot "ModConfig.json") -Raw -Encoding UTF8 | ConvertFrom-Json
     Assert-True ($modConfig.ModName -eq "Terrias") "ModConfig.ModName must be Terrias."
     Assert-True ($modConfig.ModAuthor -eq "Aura") "ModConfig.ModAuthor must remain Aura."
     Assert-True (("{0}.{1}" -f $modConfig.ModName, $modConfig.ModAuthor) -eq "Terrias.Aura") "The game-loader ModId must resolve to Terrias.Aura."
 
-    $idsSource = Get-Content -LiteralPath (Join-Path $repoRoot "Terrias-Dev\Infrastructure\TerriasIds.cs") -Raw
+    $idsSource = Get-Content -LiteralPath (Join-Path $repoRoot "Terrias-Dev\Infrastructure\TerriasIds.cs") -Raw -Encoding UTF8
     Assert-True ($idsSource.Contains('public const string ModId = "Terrias";')) "Terrias shared owner id must remain Terrias."
 
-    [xml]$project = Get-Content -LiteralPath (Join-Path $repoRoot "Terrias-Dev\Terrias.Dll.csproj") -Raw
+    [xml]$project = Get-Content -LiteralPath (Join-Path $repoRoot "Terrias-Dev\Terrias.Dll.csproj") -Raw -Encoding UTF8
     $assemblyName = @($project.Project.PropertyGroup.AssemblyName | Where-Object { $_ })[0]
     $rootNamespace = @($project.Project.PropertyGroup.RootNamespace | Where-Object { $_ })[0]
     Assert-True ($assemblyName -eq "Terrias.Aura") "Terrias assembly name must be Terrias.Aura."
@@ -124,7 +124,7 @@ try {
 
     $modReferences = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     foreach ($jsonFile in Get-ChildItem -LiteralPath $modRoot -Recurse -File -Filter *.json) {
-        $document = Get-Content -LiteralPath $jsonFile.FullName -Raw | ConvertFrom-Json
+        $document = Get-Content -LiteralPath $jsonFile.FullName -Raw -Encoding UTF8 | ConvertFrom-Json
         Walk-JsonValue $document { param($value) Add-ModResourceReference $modReferences $value }
     }
     foreach ($csvFile in Get-ChildItem -LiteralPath $modRoot -Recurse -File -Filter *.csv) {
@@ -138,7 +138,7 @@ try {
         if ($sourceFile.FullName -match '\\(?:bin|obj|UnityProject\\(?:Library|Temp|Logs|Build))\\') {
             continue
         }
-        $source = Get-Content -LiteralPath $sourceFile.FullName -Raw
+        $source = Get-Content -LiteralPath $sourceFile.FullName -Raw -Encoding UTF8
         foreach ($match in [regex]::Matches($source, '["''](Mods/Terrias/[^"'']+)["'']')) {
             Add-ModResourceReference $modReferences $match.Groups[1].Value
         }
@@ -148,7 +148,7 @@ try {
     }
 
     $registrationPath = Join-Path $sharedRoot "aura.registration.json"
-    $registration = Get-Content -LiteralPath $registrationPath -Raw | ConvertFrom-Json
+    $registration = Get-Content -LiteralPath $registrationPath -Raw -Encoding UTF8 | ConvertFrom-Json
     Assert-True ($registration.ownerModId -eq "Terrias") "Shared package ownerModId must be Terrias."
     Assert-True ($registration.participantKind -eq "Content") "Terrias shared package must register as Content."
 
@@ -188,7 +188,7 @@ try {
     }
 
     $sharedReferences = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
-    $audioRegistry = Get-Content -LiteralPath (Join-Path $modRoot "audio.registry.json") -Raw | ConvertFrom-Json
+    $audioRegistry = Get-Content -LiteralPath (Join-Path $modRoot "audio.registry.json") -Raw -Encoding UTF8 | ConvertFrom-Json
     Assert-True ($audioRegistry.ownerModId -eq "Terrias") "Audio registry ownerModId must be Terrias."
     Walk-JsonValue $audioRegistry {
         param($value)
@@ -200,7 +200,7 @@ try {
         Assert-True ($installedResources.Contains($reference)) "Unresolved shared audio resource: Shared:$reference"
     }
 
-    $cgRegistry = Get-Content -LiteralPath (Join-Path $sharedRoot "cg.registry.json") -Raw | ConvertFrom-Json
+    $cgRegistry = Get-Content -LiteralPath (Join-Path $sharedRoot "cg.registry.json") -Raw -Encoding UTF8 | ConvertFrom-Json
     Assert-True ($cgRegistry.ownerModId -eq "Terrias") "CG registry ownerModId must be Terrias."
     $cgIds = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     foreach ($entry in $cgRegistry.entries) {
@@ -219,7 +219,7 @@ try {
         }
     }
 
-    $roleRegistry = Get-Content -LiteralPath (Join-Path $sharedRoot "role.registry.json") -Raw | ConvertFrom-Json
+    $roleRegistry = Get-Content -LiteralPath (Join-Path $sharedRoot "role.registry.json") -Raw -Encoding UTF8 | ConvertFrom-Json
     Assert-True ($roleRegistry.ownerModId -eq "Terrias") "Role registry ownerModId must be Terrias."
     $roleIds = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     foreach ($entry in $roleRegistry.entries) {
@@ -228,13 +228,13 @@ try {
     }
 
     $skinRoot = Join-Path $sharedRoot "Skins"
-    $skinPackage = Get-Content -LiteralPath (Join-Path $skinRoot "package.json") -Raw | ConvertFrom-Json
+    $skinPackage = Get-Content -LiteralPath (Join-Path $skinRoot "package.json") -Raw -Encoding UTF8 | ConvertFrom-Json
     Assert-True ($skinPackage.packageId -eq "Terrias.BundledSkins") "Skin package id must be Terrias.BundledSkins."
     foreach ($resource in $skinPackage.resources) {
         Assert-True (Test-Path -LiteralPath (Join-Path $skinRoot ([string]$resource.source).Replace('/', '\'))) "Skin package source is missing: $($resource.source)"
     }
 
-    $visualRegistry = Get-Content -LiteralPath (Join-Path $modRoot "visual.registry.json") -Raw | ConvertFrom-Json
+    $visualRegistry = Get-Content -LiteralPath (Join-Path $modRoot "visual.registry.json") -Raw -Encoding UTF8 | ConvertFrom-Json
     Assert-True ($visualRegistry.ownerModId -eq "Terrias") "Visual registry ownerModId must be Terrias."
     $shaderIds = [System.Collections.Generic.HashSet[string]]::new([StringComparer]::OrdinalIgnoreCase)
     foreach ($shader in $visualRegistry.shaders) {

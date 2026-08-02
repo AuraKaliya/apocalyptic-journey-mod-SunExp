@@ -31,6 +31,9 @@ try
         throw new InvalidOperationException(jobDiagnostic);
     }
     job = job ?? throw new InvalidOperationException("底模训练任务为空");
+    AuraToolsAuthoritativeRoleSemantics.Initialize();
+    AuraToolsRoleCampaignStrategy.Apply(job.Request.TrainingCampaign);
+    AuraToolsRoleCampaignStrategy.Apply(job.Request.ValidationCampaign);
     // The external worker persists validation aggregates and case artifacts.
     // Full validation battle graphs are process-local diagnostics and must not
     // accumulate across hundreds of validation campaigns.
@@ -121,6 +124,15 @@ try
         + semanticProbe.Version
         + ", canary="
         + semanticProbe.CanaryVersion);
+    var rolePreparationErrors =
+        AuraToolsAuthoritativeRoleSemantics.ValidateFrozenTrainingPreparation();
+    if (rolePreparationErrors.Count > 0)
+    {
+        throw new InvalidOperationException(
+            "Frozen role preparation probe failed: "
+            + string.Join("; ", rolePreparationErrors.Take(8)));
+    }
+    Console.WriteLine("Frozen role preparation probe passed.");
     var workerAssemblyPath = Environment.ProcessPath;
     var workerBinarySha256 =
         string.IsNullOrWhiteSpace(workerAssemblyPath)
@@ -427,6 +439,53 @@ try
         build.Ruleset,
         job.InitialChampion,
         cancellation.Token);
+    var roleStrategyMetrics =
+        AuraToolsRoleTrainingDiagnostics.Analyze(training.Replay);
+    var roleStrategyGateFailures = new List<string>();
+    var isNanaTraining = string.Equals(
+                             job.Request.TrainingCampaign.Player?.RoleId,
+                             "career_2",
+                             StringComparison.OrdinalIgnoreCase)
+                         || string.Equals(
+                             job.Request.TrainingCampaign.Player?.RoleId,
+                             "career_4",
+                             StringComparison.OrdinalIgnoreCase);
+    if (isNanaTraining
+        && roleStrategyMetrics.GetValueOrDefault(
+            "nana.role-strategy-eligible-frames") > 0d
+        && roleStrategyMetrics.GetValueOrDefault(
+            "nana.role-strategy-frame-coverage") < 0.999999d)
+    {
+        roleStrategyGateFailures.Add(
+            "Nana actionable-frame role-strategy coverage is incomplete.");
+    }
+    if (isNanaTraining
+        && roleStrategyMetrics.GetValueOrDefault(
+            "nana.selected-strategically-prohibited-actions") > 0d)
+    {
+        roleStrategyGateFailures.Add(
+            "Nana selected one or more strategically prohibited actions.");
+    }
+    if (isNanaTraining
+        && roleStrategyMetrics.GetValueOrDefault("nana.devours") >= 20d
+        && roleStrategyMetrics.GetValueOrDefault(
+            "nana.premature-devour-rate") > 0.05d)
+    {
+        roleStrategyGateFailures.Add(
+            "Nana premature Devour rate exceeded 5%.");
+    }
+    var roleStrategyGatePassed = roleStrategyGateFailures.Count == 0;
+    var roleStrategyGateFailureReason = string.Join(
+        " ",
+        roleStrategyGateFailures);
+    if (!roleStrategyGatePassed)
+    {
+        training.Success = false;
+        training.AcceptancePassed = false;
+        training.Message = string.IsNullOrWhiteSpace(training.Message)
+            ? roleStrategyGateFailureReason
+            : training.Message + " " + roleStrategyGateFailureReason;
+    }
     try
     {
         if (job.Request.EnableSuccessCaseArchive)
@@ -466,14 +525,13 @@ try
     training.GeneratedReplayEpisodes = Math.Max(
         training.GeneratedReplayEpisodes,
         training.Replay.Count);
-    training.PersistedReplayEpisodes = training.Success
-        ? training.Replay.Count
-        : 0;
-    WriteEpisodes(
-        episodesPath,
-        training.Success
-            ? training.Replay
-            : Array.Empty<CombatEpisode>());
+    training.PersistedReplayEpisodes = training.Replay.Count;
+    var trainingAnalysis = BuildTrainingAnalysis(job, training);
+    trainingAnalysis.RoleStrategyMetrics = roleStrategyMetrics;
+    trainingAnalysis.RoleStrategyGatePassed = roleStrategyGatePassed;
+    trainingAnalysis.RoleStrategyGateFailureReason =
+        roleStrategyGateFailureReason;
+    WriteEpisodes(episodesPath, training.Replay);
     training.Replay.Clear();
     training.CampaignObservations.Clear();
     training.SuccessCases.Clear();
@@ -529,6 +587,12 @@ try
         TrainingAnalysisPath = job.TrainingAnalysisPath,
         TrainingMetricWriteFailures = trainingMetricWriteFailures,
         TrainingMetricWarning = trainingMetricWarning,
+        RoleStrategyMetrics = roleStrategyMetrics,
+        RoleStrategyGatePassed = roleStrategyGatePassed,
+        RoleStrategyGateFailureReason = roleStrategyGateFailureReason,
+        ResumeRequested = job.ResumeFromCheckpoint,
+        ResumedFromCheckpoint = resumedFromCheckpoint,
+        ResumeDiagnostic = resumeDiagnostic,
         Training = training
     };
     if (string.Equals(
@@ -547,7 +611,7 @@ try
     }
     WriteAtomicJson(
         job.TrainingAnalysisPath,
-        BuildTrainingAnalysis(job, training));
+        trainingAnalysis);
     training.ValidationRuns.Clear();
     WriteAtomicJson(job.ResultPath, workerResult);
     Console.WriteLine(
@@ -690,23 +754,16 @@ static string Fingerprint(
     var training = request.Training;
     var payload = SerializeCompact(new
     {
-        Protocol = "foundation-continuation-v1",
+        Protocol = "foundation-continuation-v2-stable-budget",
         RulesetHash = rulesetHash,
         FeatureSchemaVersion =
             CombatPolicyValueProtocol.FeatureSchemaVersion,
-        request.RunSeed,
-        request.TrainingSeedStart,
-        request.ArenaSeedStart,
-        request.TuningSeedStart,
-        request.ValidationSeedStart,
         request.DecisionProfile,
         Profile = HashCompact(request.Profile),
         request.TrainingPolicyVersion,
         CombatPolicyValueProtocol.TrainingSemanticsVersion,
         SemanticCanaryVersion =
             CombatFoundationSemanticProbeResult.CurrentCanaryVersion,
-        request.Iterations,
-        request.AdditionalIterationsOnResume,
         request.TrainingCampaignsPerIteration,
         request.ArenaCampaignsPerDifficulty,
         request.ArenaConfirmationCampaignsPerDifficulty,
@@ -1064,9 +1121,32 @@ static void PrepareCaseArchive(
         var residuals =
             CombatFoundationCaseLearning.TrainRewardResiduals(
                 observations.Values);
+        var requestedAdvancedEpisodes = (int)Math.Round(
+            Math.Max(0, job.Request.ExpertReplayEpisodeLimit)
+            * selection.TargetAdvancedShare,
+            MidpointRounding.AwayFromZero);
+        var advancedReplayShortfall = Math.Max(
+            0,
+            requestedAdvancedEpisodes - selection.SelectedAdvancedEpisodes);
+        if (advancedReplayShortfall > 0)
+        {
+            residuals.Residuals.Clear();
+            residuals.CardResiduals = 0;
+            residuals.RelicResiduals = 0;
+            residuals.BlessingResiduals = 0;
+            residuals.Suppressed = true;
+            residuals.SuppressionReason =
+                "Reward residuals were suppressed because the expert "
+                + "replay window is missing "
+                + advancedReplayShortfall
+                + " advanced episodes.";
+        }
         job.Request.RewardResidualTraining = residuals;
-        ApplyRewardResiduals(job.Request.TrainingCampaign, residuals);
-        ApplyRewardResiduals(job.Request.ValidationCampaign, residuals);
+        if (!residuals.Suppressed)
+        {
+            ApplyRewardResiduals(job.Request.TrainingCampaign, residuals);
+            ApplyRewardResiduals(job.Request.ValidationCampaign, residuals);
+        }
         var rejected = diagnostics.RejectedCaseFiles
                        + diagnostics.RejectedObservationFiles;
         var loaded = diagnostics.LoadedCases

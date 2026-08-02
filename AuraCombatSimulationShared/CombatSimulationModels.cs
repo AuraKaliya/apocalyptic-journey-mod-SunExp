@@ -79,6 +79,16 @@ public enum CombatSimulationActionKind
     EndTurn
 }
 
+[Flags]
+public enum CombatCardTargetScope
+{
+    None = 0,
+    Self = 1,
+    Friendly = 2,
+    Enemy = 4,
+    AnyActor = Self | Friendly | Enemy
+}
+
 public enum CombatActionApplicationOutcome
 {
     Rejected,
@@ -343,6 +353,13 @@ public sealed class CombatCardDefinition
 
     public bool RequiresEnemyTarget { get; set; }
 
+    /// <summary>
+    /// Explicit actor targets supported by this card. A zero value preserves
+    /// the legacy <see cref="RequiresEnemyTarget"/> contract: enemy-only when
+    /// true and untargeted when false.
+    /// </summary>
+    public CombatCardTargetScope TargetScope { get; set; }
+
     public CombatRuleFidelity Fidelity { get; set; } = CombatRuleFidelity.Authoritative;
 
     public string VerificationSource { get; set; } = "";
@@ -370,6 +387,7 @@ public sealed class CombatCardDefinition
                 Metadata,
                 StringComparer.OrdinalIgnoreCase),
             RequiresEnemyTarget = RequiresEnemyTarget,
+            TargetScope = TargetScope,
             Fidelity = Fidelity,
             VerificationSource = VerificationSource,
             ActionContract = ActionContract?.Clone(),
@@ -658,6 +676,17 @@ public sealed class CombatPlayerSetup
     public Dictionary<string, int> SkillCooldownTurns { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
 
+    public Dictionary<string, int> InitialSkillCooldownTurns { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public List<string> NativeManagedSkillCooldownIds { get; set; } = new();
+
+    public string RoleNativeScriptHash { get; set; } = "";
+
+    public string RoleFightScript { get; set; } = "";
+
+    public List<CombatRoleRuntimeForm> RoleRuntimeForms { get; set; } = new();
+
     public List<string> FamiliarBlessingIds { get; set; } = new();
 
     public int MaxHp { get; set; } = 30;
@@ -672,6 +701,31 @@ public sealed class CombatPlayerSetup
 
     public Dictionary<string, double> Variables { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
+}
+
+public sealed class CombatRoleRuntimeForm
+{
+    public string RoleId { get; set; } = "";
+
+    public int MaximumHp { get; set; }
+
+    public List<string> SkillCardIds { get; set; } = new();
+
+    public Dictionary<string, int> SkillCooldownTurns { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public CombatRoleRuntimeForm Clone()
+    {
+        return new CombatRoleRuntimeForm
+        {
+            RoleId = RoleId,
+            MaximumHp = MaximumHp,
+            SkillCardIds = new List<string>(SkillCardIds),
+            SkillCooldownTurns = new Dictionary<string, int>(
+                SkillCooldownTurns,
+                StringComparer.OrdinalIgnoreCase)
+        };
+    }
 }
 
 public sealed class CombatEnemySetup
@@ -788,6 +842,32 @@ public sealed class CombatScenarioDefinition
     public CombatSimulationTraceLevel TraceLevel { get; set; } = CombatSimulationTraceLevel.Actions;
 
     public CombatSimulationLimits Limits { get; set; } = new();
+}
+
+/// <summary>
+/// Public, current-run context copied into a combat scenario. These values
+/// describe information already visible to the player; they never reveal
+/// future encounter identities, rewards, or outcomes.
+/// </summary>
+public static class CombatCampaignPublicContextKeys
+{
+    public const string BattleIndex = "CampaignBattleIndex";
+
+    public const string TotalBattles = "CampaignTotalBattles";
+
+    public const string RemainingBattles = "CampaignRemainingBattles";
+
+    public const string Progress = "CampaignProgress";
+
+    public const string LayerNumber = "CampaignLayerNumber";
+
+    public const string TotalLayers = "CampaignTotalLayers";
+
+    public const string EncounterKind = "EncounterKind";
+
+    public const string GameLevel = "CampaignGameLevel";
+
+    public const string FinalBoss = "CampaignFinalBoss";
 }
 
 public sealed class CombatScenarioStrategyProgress
@@ -1122,6 +1202,10 @@ public sealed class CombatBattleState
 
     public IEnumerable<CombatActorState> LivingEnemies =>
         Actors.Where(actor => actor.Kind == CombatSimulationActorKind.Enemy && actor.Alive);
+
+    public IEnumerable<CombatActorState> LivingFriendlies =>
+        Actors.Where(actor =>
+            actor.Kind == CombatSimulationActorKind.Friendly && actor.Alive);
 
     public CombatActorState? FindActor(int actorId)
     {

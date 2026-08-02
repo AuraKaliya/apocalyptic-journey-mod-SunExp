@@ -128,6 +128,39 @@ public sealed class CombatCardRetrievalSemantic
     public int CandidateBranchCount { get; set; } = 3;
 }
 
+public sealed class CombatHandTransformSemantic
+{
+    public string TargetCardId { get; set; } = "";
+
+    public CombatActionSemantics TargetCardSemantics { get; set; } = new();
+
+    public bool TransformAllHandCards { get; set; } = true;
+
+    public bool PreserveInstances { get; set; } = true;
+
+    public bool ClearsEnhancements { get; set; }
+
+    public bool ClearsVariables { get; set; }
+
+    public bool TargetRetained { get; set; }
+
+    public bool TargetExhaustsOnUse { get; set; }
+
+    public string GrowthStateKey { get; set; } = "";
+
+    public double GrowthPerExhaust { get; set; }
+
+    public double CurrentGrowthValue { get; set; }
+
+    public int TargetTier { get; set; }
+
+    public int NextTierThreshold { get; set; }
+
+    public double CooldownProgressRequired { get; set; }
+
+    public string CooldownProgressEvent { get; set; } = "";
+}
+
 public sealed class CombatActionOutcome
 {
     public string OutcomeId { get; set; } = "";
@@ -178,6 +211,8 @@ public sealed class CombatStatusObservation
     public string DisplayName { get; set; } = "";
 
     public int Level { get; set; }
+
+    public int Rarity { get; set; } = 1;
 
     public int UpperBound { get; set; }
 
@@ -367,6 +402,22 @@ public sealed class CombatActionSemantics
     public bool OpensInteraction { get; set; }
 
     public bool RandomOutcome { get; set; }
+
+    /// <summary>
+    /// Resolving this action immediately hands control to the turn lifecycle.
+    /// It is deliberately separate from <see cref="CombatActionKind.EndTurn"/>
+    /// because ordinary cards and skills may call the native ChangeRound API.
+    /// </summary>
+    public bool EndsTurn { get; set; }
+
+    /// <summary>
+    /// Damage dealt after this setup is recorded and converted into block by
+    /// the turn lifecycle. This makes setup-before-damage strictly dominate
+    /// the reverse order when both actions fit in the current energy budget.
+    /// </summary>
+    public bool DamageToBlockSetup { get; set; }
+
+    public CombatHandTransformSemantic? HandTransform { get; set; }
 }
 
 public static class CombatActionSemanticMetrics
@@ -458,6 +509,26 @@ public sealed class CombatActionObservation
     public Dictionary<string, double> Features { get; set; } = new(StringComparer.OrdinalIgnoreCase);
 }
 
+public sealed class CombatCardInstanceObservation
+{
+    public int RuntimeId { get; set; }
+
+    public string CardId { get; set; } = "";
+
+    public int EffectiveCost { get; set; }
+
+    public bool Retained { get; set; }
+
+    public bool ExhaustsOnUse { get; set; }
+
+    public bool CreatedThisBattle { get; set; }
+
+    public int EnhancementCount { get; set; }
+
+    public Dictionary<string, double> Features { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+}
+
 public sealed class CombatDeferredEffectObservation
 {
     public int Sequence { get; set; }
@@ -496,6 +567,8 @@ public sealed class CombatStateObservation
     public int HandCount { get; set; }
 
     public List<string> HandCardIds { get; set; } = new();
+
+    public List<CombatCardInstanceObservation> HandCards { get; set; } = new();
 
     public List<string> RetainedHandCardIds { get; set; } = new();
 
@@ -785,7 +858,7 @@ public static class CombatTrainingProtocol
 {
     public const string SampleProtocol = "aura.combat-ai.sample.v6";
 
-    public const int FeatureSchemaVersion = 7;
+    public const int FeatureSchemaVersion = 9;
 
     public static bool IsCompatible(CombatTrainingSample? sample)
     {

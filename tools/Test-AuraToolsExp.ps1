@@ -43,6 +43,8 @@ $foundationCheckpointStorage = Get-Content -LiteralPath (
     Join-Path $repoRoot "AuraCombatAiShared\CombatFoundationCheckpointStorage.cs") -Raw
 $modelRuntime = Get-Content -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleModelRuntime.cs") -Raw
+$bundledModelRuntime = Get-Content -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsBundledFoundationModelRuntime.cs") -Raw
 $simulationRuntime = Get-Content -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleSimulationRuntime.cs") -Raw
 $gameValidationRuntime = Get-Content -LiteralPath (
@@ -206,8 +208,10 @@ foreach ($anchor in @(
 }
 foreach ($anchor in @(
     "training.GeneratedReplayEpisodes = Math.Max(",
-    "training.PersistedReplayEpisodes = training.Success",
-    "Array.Empty<CombatEpisode>()",
+    "training.PersistedReplayEpisodes = training.Replay.Count",
+    "WriteEpisodes(episodesPath, training.Replay)",
+    "RoleStrategyGatePassed = roleStrategyGatePassed",
+    "ResumedFromCheckpoint = resumedFromCheckpoint",
     "AcquireTrainingLease",
     "CombatFoundationModelPackageProtocol.Create",
     "ModelPackagePath",
@@ -261,6 +265,8 @@ foreach ($anchor in @(
     "FlashTaskbar",
     "PlayCompletionSound",
     "ResultSummary",
+    "RoleStrategyGatePassed",
+    "ResumedFromCheckpoint",
     'SetToggle(',
     '"RequireCapabilityProbeBaselineGain"'
 )) {
@@ -298,6 +304,80 @@ if (-not $foundationControllerRuntime.Contains(
     throw "Foundation controller resumable-training settings migration is missing."
 }
 foreach ($anchor in @(
+    "AuraToolsBundledFoundationModelRuntime.Initialize(modConfig)",
+    "RegisterBundledFoundationPackages",
+    "ModelVersion",
+    "FoundationSourcePackageSha256",
+    "FoundationDistributionOrigin",
+    "SameFoundationRelease",
+    "ModelBundleFileName"
+)) {
+    if (-not $startupRuntime.Contains($anchor) `
+            -and -not $modelRuntime.Contains($anchor) `
+            -and -not $bundledModelRuntime.Contains($anchor)) {
+        throw "AuraTools bundled foundation-model registration contract is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
+    'SchemaVersion { get; set; } = 4',
+    'DisplayNameMode',
+    'GeneratedDisplayName',
+    'TryRestoreGeneratedLibraryModelName',
+    'ApplyFoundationDisplayName',
+    'IsLegacyGeneratedFoundationName',
+    'ShouldPreserveBundledRegistration',
+    'DisplayNameMode = "user"',
+    'DisplayNameMode = "generated"',
+    'SameIds('
+)) {
+    if (-not $modelRuntime.Contains($anchor)) {
+        throw "AuraTools foundation-model naming/provenance migration contract is missing: $anchor"
+    }
+}
+if (-not $settingsRuntime.Contains('"自动命名"') `
+        -or -not $bundledModelRuntime.Contains("BuildCanonicalDisplayName")) {
+    throw "AuraTools model UI and bundled/manual import paths must share canonical automatic naming."
+}
+foreach ($anchor in @(
+    'SearchOption.TopDirectoryOnly',
+    'MaximumPackageBytes',
+    'new UTF8Encoding(false, true)',
+    'CombatFoundationModelPackageProtocol.TryValidate',
+    'ModelVersionPattern',
+    'pendingLegacyPackages',
+    'result.Superseded++',
+    'witch-game-subjects-v1.catalog.json',
+    '重新扫描内置底模'
+)) {
+    if (-not $bundledModelRuntime.Contains($anchor) `
+            -and -not $settingsRuntime.Contains($anchor)) {
+        throw "AuraTools bundled model scanner/UI contract is missing: $anchor"
+    }
+}
+$bundledModelFiles = @(Get-ChildItem -LiteralPath (
+    Join-Path $repoRoot "AuraToolsExp\ModResource\Model") -Filter "*.json" -File)
+if ($bundledModelFiles.Count -lt 1) {
+    throw "AuraTools must ship at least one bundled foundation model."
+}
+foreach ($bundledModelFile in $bundledModelFiles) {
+    $bundledModel = Get-Content -Raw -Encoding UTF8 -LiteralPath $bundledModelFile.FullName | ConvertFrom-Json
+    if ([string]::IsNullOrWhiteSpace([string]$bundledModel.ModelVersion) `
+            -or ([string]$bundledModel.ModelVersion) -notmatch '^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$') {
+        throw "Bundled foundation model must declare a semantic ModelVersion: $($bundledModelFile.Name)"
+    }
+}
+foreach ($anchor in @(
+    "AuraSharedRoot(dataRoot)",
+    '"FoundationTrainer"',
+    "LegacySettingsPath",
+    "LegacySessionPath",
+    "TrainingResultsRoot(settings.DataRoot)"
+)) {
+    if (-not $foundationControllerRuntime.Contains($anchor)) {
+        throw "Foundation controller AuraShared path migration contract is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
     "BuildGameSubjectSection",
     "CombatGameSubjectPreset",
     "CombatGameSubjectPresetRuntime.Apply",
@@ -308,6 +388,16 @@ foreach ($anchor in @(
     if (-not $foundationControllerRuntime.Contains($anchor) `
             -and -not $foundationControllerModels.Contains($anchor)) {
         throw "Foundation controller game-subject persistence is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
+    "AuraSharedPaths.OwnerSystemDataDirectory",
+    '"FoundationModels"',
+    "EnsureModelLibraryMigrated",
+    '"model-library"'
+)) {
+    if (-not $modelRuntime.Contains($anchor)) {
+        throw "AuraTools model-library owner-data migration contract is missing: $anchor"
     }
 }
 if (-not (Test-Path -LiteralPath $gameSubjectCatalogPath -PathType Leaf)) {

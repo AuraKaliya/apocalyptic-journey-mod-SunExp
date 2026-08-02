@@ -8,16 +8,24 @@ consumer owns the persistent `AuraShared.Global` component; later consumers call
 - Shared configuration: `Config/Shared/<System>`
 - Owner-only configuration: `Config/Owners/<Owner>/<System>`
 - Rebuildable runtime state: `Config/Runtime/<System>`
+- Owner-only durable data: `Data/Owners/<Owner>/<System>`
 - Resource indexes: `Registries/<System>/resources.json`
 - Package staging: `Cache/Packages`
 - Transaction recovery: `Transactions`
-- Replaced payload backups: `Backups/<System>`
-- Owner-only logs: `Logs/<Owner>`
+- Replaced configuration backups: `Backups/Storage/Versions`
+- Owner-only logs: `Logs/<Owner>/<System>`
+
+Package defaults remain inside each Mod package. User-editable settings belong under `Config/Owners`; durable profiles,
+model libraries, and similar non-log payloads belong under `Data/Owners`; diagnostics and generated reports belong under
+`Logs`. Callers should use `AuraSharedPaths` instead of rebuilding these paths independently.
 
 Configuration documents are revisioned envelopes. Shared documents have one authority writer; owner documents can only be
 written by their owner. Reads use immutable snapshots, writes use an in-process reader/writer lock plus a cross-process
 named mutex, and JSON replacement is flushed before atomic replacement.
-After a write lock is released, the global component appends a revisioned change record. Cross-DLL consumers poll
+Semantically identical JSON is a no-op: it does not advance the revision or create a backup, operation-log entry, or
+change-feed entry. Raw atomic text writes likewise skip byte-identical replacements. Changed configuration documents retain
+at most 12 version backups per logical path.
+After a changed write lock is released, the global component appends a revisioned change record. Cross-DLL consumers poll
 `AuraSharedStorage.GetChanges` instead of attempting to share CLR event delegates between separately compiled assemblies.
 
 ## Resource model

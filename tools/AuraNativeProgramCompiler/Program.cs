@@ -8,6 +8,7 @@ var options = Options.Parse(args);
 var sources = new SortedSet<string>(StringComparer.Ordinal);
 CollectCampaign(options.CampaignPath, sources);
 CollectRuleset(options.RulesetPath, sources);
+CollectSubjects(options.SubjectCatalogPath, sources);
 
 var programs = sources
     .Select(Normalize)
@@ -30,6 +31,7 @@ var manifest = new
     programCount = programs.Count,
     campaignSha256 = FileHash(options.CampaignPath),
     rulesetSha256 = FileHash(options.RulesetPath),
+    subjectCatalogSha256 = FileHash(options.SubjectCatalogPath),
     programSetSha256 = Hash(string.Join("\n", programs.Select(item => item.Key)))
 };
 Directory.CreateDirectory(Path.GetDirectoryName(options.ManifestPath) ?? ".");
@@ -102,6 +104,19 @@ static void CollectRuleset(string path, ISet<string> target)
             "NativeClearScript"
         },
         target);
+}
+
+static void CollectSubjects(string path, ISet<string> target)
+{
+    using var document = JsonDocument.Parse(File.ReadAllText(path));
+    if (!document.RootElement.TryGetProperty("roles", out var roles))
+    {
+        return;
+    }
+    foreach (var role in roles.EnumerateArray())
+    {
+        AddString(role, "fightScript", target);
+    }
 }
 
 static void CollectMetadata(
@@ -339,6 +354,8 @@ internal sealed class Options
 
     public string RulesetPath { get; private set; } = "";
 
+    public string SubjectCatalogPath { get; private set; } = "";
+
     public string OutputPath { get; private set; } = "";
 
     public string ManifestPath { get; private set; } = "";
@@ -356,6 +373,9 @@ internal sealed class Options
                 case "--ruleset":
                     result.RulesetPath = args[i + 1];
                     break;
+                case "--subjects":
+                    result.SubjectCatalogPath = args[i + 1];
+                    break;
                 case "--output":
                     result.OutputPath = args[i + 1];
                     break;
@@ -366,11 +386,12 @@ internal sealed class Options
         }
         if (string.IsNullOrWhiteSpace(result.CampaignPath)
             || string.IsNullOrWhiteSpace(result.RulesetPath)
+            || string.IsNullOrWhiteSpace(result.SubjectCatalogPath)
             || string.IsNullOrWhiteSpace(result.OutputPath)
             || string.IsNullOrWhiteSpace(result.ManifestPath))
         {
             throw new ArgumentException(
-                "Usage: --campaign <path> --ruleset <path> "
+                "Usage: --campaign <path> --ruleset <path> --subjects <path> "
                 + "--output <path> --manifest <path>");
         }
         return result;

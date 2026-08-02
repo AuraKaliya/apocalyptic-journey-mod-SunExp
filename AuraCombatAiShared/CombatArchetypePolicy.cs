@@ -289,6 +289,13 @@ public static class CombatArchetypePolicy
     {
         var assessment = Assess(state);
         var id = action.SourceId ?? "";
+        if (CombatRoleStrategyFeatureNames.Value(
+                action,
+                CombatRoleStrategyFeatureNames.StrategicallyProhibited) > 0.5d)
+        {
+            reason = "role strategy marks candidate as strategically dominated";
+            return false;
+        }
         if (HardBanCards.Contains(id))
         {
             reason = "hard-banned card has unacceptable combat downside";
@@ -465,10 +472,17 @@ public static class CombatArchetypePolicy
         {
             case "Crowdfundingcard_43":
             {
+                var roleSafeContinuation =
+                    CombatRoleStrategyFeatureNames.Value(
+                        action,
+                        CombatRoleStrategyFeatureNames
+                            .SafeContinuationCertified) > 0.5d;
                 var protectedByChrysalis =
                     StatusLevel(state.Player, "buff_chrysalis") > 0
                     || Value(state.Features, "blessing:blessing_34") > 0d;
                 var certifiedTerminalFollowUp =
+                    roleSafeContinuation
+                    ||
                     Value(state.Features, TerminalLethalCertifiedFeature) > 0d
                     || HasImmediateTerminalFollowUp(
                         state,
@@ -483,9 +497,13 @@ public static class CombatArchetypePolicy
                     : 999d;
                 semantics.EndOfCycleSelfHpLoss = toxinSettlement;
                 semantics.Buff = Math.Max(semantics.Buff, 3d);
-                semantics.Risk = Math.Max(
-                    semantics.Risk,
-                    Math.Max(toxinSettlement, state.Player.CurrentHp * 0.5d));
+                semantics.Risk = roleSafeContinuation
+                    ? Math.Min(semantics.Risk, 2d)
+                    : Math.Max(
+                        semantics.Risk,
+                        Math.Max(
+                            toxinSettlement,
+                            state.Player.CurrentHp * 0.5d));
                 derived = true;
                 break;
             }
@@ -823,24 +841,30 @@ public static class CombatArchetypePolicy
             || assessment.TimeCageCommitment == CombatArchetypeCommitment.Committed
             || distinctContinuationCards >= 3
             && nonBasicDeckCards >= 6;
-        if (!committedEngine)
+        var roleSafeContinuation =
+            CombatRoleStrategyFeatureNames.Value(
+                action,
+                CombatRoleStrategyFeatureNames
+                    .SafeContinuationCertified) > 0.5d;
+        if (!committedEngine && !roleSafeContinuation)
         {
             reason = "high-risk engine starter requires a coherent deck engine";
             return false;
         }
-        if (remainingPower < 2)
+        if (remainingPower < 2 && !roleSafeContinuation)
         {
             reason = "high-risk engine starter leaves insufficient follow-up energy";
             return false;
         }
-        if (continuationCards.Count < 3)
+        if (continuationCards.Count < 3 && !roleSafeContinuation)
         {
             reason = "high-risk engine starter requires at least three actionable follow-up cards";
             return false;
         }
         if (IdEquals(id, "Crowdfundingcard_43"))
         {
-            if (StatusLevel(state.Player, "buff_toxin") > 0)
+            if (StatusLevel(state.Player, "buff_toxin") > 0
+                && !roleSafeContinuation)
             {
                 reason = "finale cannot safely stack another lethal toxin cycle";
                 return false;
@@ -853,12 +877,14 @@ public static class CombatArchetypePolicy
                     remainingPower);
             if (!terminalLethalCertified
                 && StatusLevel(state.Player, "buff_chrysalis") <= 0
-                && Value(state.Features, "blessing:blessing_34") <= 0d)
+                && Value(state.Features, "blessing:blessing_34") <= 0d
+                && !roleSafeContinuation)
             {
                 reason = "finale requires Solar/chrysalis protection unless a terminal line is already certified";
                 return false;
             }
             if (!terminalLethalCertified
+                && !roleSafeContinuation
                 && EstimatedSelfHpLoss(action)
                 >= Math.Max(1, state.Player.CurrentHp))
             {
@@ -1107,6 +1133,9 @@ public static class CombatArchetypePolicy
         value.Uncertainty = 0d;
         value.OpensInteraction = false;
         value.RandomOutcome = false;
+        value.EndsTurn = false;
+        value.DamageToBlockSetup = false;
+        value.HandTransform = null;
     }
 
     private static int Count(

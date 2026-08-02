@@ -55,7 +55,8 @@ public sealed class CombatDecisionSimulationPolicy :
         IDecisionResidualModel? residualModel = null,
         ICombatSearchGuidanceModel? guidanceModel = null,
         ICombatPolicyValueModel? policyValueModel = null,
-        CombatSelfPlayExplorationOptions? exploration = null)
+        CombatSelfPlayExplorationOptions? exploration = null,
+        CombatDecisionPreparationSnapshot? decisionPreparation = null)
     {
         this.profile = profile ?? new CombatDecisionProfile();
         this.exploration = Normalize(exploration);
@@ -66,7 +67,9 @@ public sealed class CombatDecisionSimulationPolicy :
             residualModel,
             guidanceModel,
             useRuntimeRegistries: false,
-            policyValueModel);
+            policyValueModel,
+            decisionPreparation: decisionPreparation
+                ?? CombatAiRegistry.SnapshotDecisionPreparation());
     }
 
     public string PolicyId => "aura-combat-decision:" + profile.Id;
@@ -791,6 +794,7 @@ public sealed class CombatDecisionSimulationPolicyFactory : ICombatSimulationPol
     private readonly IDecisionResidualModel residualModel;
     private readonly ICombatSearchGuidanceModel guidanceModel;
     private readonly ICombatPolicyValueModel policyValueModel;
+    private readonly CombatDecisionPreparationSnapshot decisionPreparation;
 
     public CombatDecisionSimulationPolicyFactory(
         CombatDecisionProfile? profile = null,
@@ -802,6 +806,7 @@ public sealed class CombatDecisionSimulationPolicyFactory : ICombatSimulationPol
         this.residualModel = residualModel ?? NullDecisionResidualModel.Instance;
         this.guidanceModel = guidanceModel ?? NullCombatSearchGuidanceModel.Instance;
         this.policyValueModel = policyValueModel ?? NullCombatPolicyValueModel.Instance;
+        decisionPreparation = CombatAiRegistry.SnapshotDecisionPreparation();
     }
 
     public string PolicyId => "aura-combat-decision:" + profile.Id;
@@ -812,7 +817,8 @@ public sealed class CombatDecisionSimulationPolicyFactory : ICombatSimulationPol
             profile,
             residualModel,
             guidanceModel,
-            policyValueModel);
+            policyValueModel,
+            decisionPreparation: decisionPreparation);
     }
 }
 
@@ -823,6 +829,7 @@ public sealed class CombatAuthoritativeTeacherPolicyFactory :
     private readonly ICombatPolicyValueModel policyValueModel;
     private readonly CombatAuthoritativeTeacherOptions options;
     private readonly CombatSimulationEngine? engine;
+    private readonly CombatDecisionPreparationSnapshot decisionPreparation;
 
     public CombatAuthoritativeTeacherPolicyFactory(
         CombatDecisionProfile? profile = null,
@@ -835,6 +842,7 @@ public sealed class CombatAuthoritativeTeacherPolicyFactory :
             policyValueModel ?? NullCombatPolicyValueModel.Instance;
         this.options = options ?? new CombatAuthoritativeTeacherOptions();
         this.engine = engine;
+        decisionPreparation = CombatAiRegistry.SnapshotDecisionPreparation();
     }
 
     public string PolicyId => "aura-combat-authoritative-teacher:"
@@ -845,7 +853,8 @@ public sealed class CombatAuthoritativeTeacherPolicyFactory :
         return new CombatAuthoritativeBranchTeacherPolicy(
             new CombatDecisionSimulationPolicy(
                 profile,
-                policyValueModel: policyValueModel),
+                policyValueModel: policyValueModel,
+                decisionPreparation: decisionPreparation),
             options,
             engine);
     }
@@ -868,11 +877,12 @@ public static class PlayerEquivalentSimulationObservationProjector
             ObservationId = CombatPlayerObservationBoundary.BuildObservationId(
                 battleSessionId,
                 state.ActionSequence),
-            Player = ProjectActor(player, CombatTargetKind.Self),
+            Player = ProjectActor(player, CombatTargetKind.Self, context.Ruleset),
             CurrentPower = player.Energy,
             MaxPower = player.BaseEnergy,
             HandCount = state.Hand.Count,
             HandCardIds = CardIds(state, state.Hand),
+            HandCards = ProjectHandCards(context),
             RetainedHandCardIds = CardIds(state, state.Hand)
                 .Where(cardId => context.Ruleset.TryGetCard(cardId, out var card)
                                  && HasTag(card, "Retain"))
@@ -938,6 +948,7 @@ public static class PlayerEquivalentSimulationObservationProjector
                     state.EndTurnPurposeValue > 0d ? 1d : 0d
             }
         };
+        observation.Features["playerRole:" + player.DefinitionId] = 1d;
         foreach (var cardId in observation.DeckCardIds
                      .Distinct(StringComparer.OrdinalIgnoreCase))
         {
@@ -949,6 +960,9 @@ public static class PlayerEquivalentSimulationObservationProjector
                     .ToList();
             }
         }
+        CombatCampaignContextFeatureNames.ProjectScenario(
+            context.Scenario,
+            observation.Features);
         ProjectLifecycleFeatures(
             context.Scenario,
             context.Ruleset,
@@ -964,9 +978,20 @@ public static class PlayerEquivalentSimulationObservationProjector
                 Math.Max(0, resurrectionCount);
         }
 
+        foreach (var friendly in state.LivingFriendlies
+                     .OrderBy(actor => actor.ActorId))
+        {
+            observation.Friendlies.Add(ProjectActor(
+                friendly,
+                CombatTargetKind.Friendly,
+                context.Ruleset));
+        }
         foreach (var enemy in state.LivingEnemies.OrderBy(enemy => enemy.ActorId))
         {
-            var projectedEnemy = ProjectActor(enemy, CombatTargetKind.Enemy);
+            var projectedEnemy = ProjectActor(
+                enemy,
+                CombatTargetKind.Enemy,
+                context.Ruleset);
             if (context.Ruleset.TryGetEnemy(enemy.DefinitionId, out var enemyDefinition))
             {
                 projectedEnemy.Attack = Math.Max(
@@ -1325,6 +1350,75 @@ public static class PlayerEquivalentSimulationObservationProjector
             .ToList();
     }
 
+    private static List<CombatCardInstanceObservation> ProjectHandCards(
+        CombatSimulationPolicyContext context)
+    {
+        var result = new List<CombatCardInstanceObservation>();
+        foreach (var instanceId in context.State.Hand)
+        {
+            var instance = context.State.FindCard(instanceId);
+            if (instance == null)
+            {
+                continue;
+            }
+            context.Ruleset.TryGetCard(instance.CardId, out var definition);
+            var tags = instance.Tags
+                .Concat(definition?.Tags ?? new List<string>())
+                .Distinct(StringComparer.OrdinalIgnoreCase)
+                .ToList();
+            result.Add(new CombatCardInstanceObservation
+            {
+                RuntimeId = instance.InstanceId,
+                CardId = instance.CardId,
+                EffectiveCost = Math.Max(
+                    0,
+                    (definition?.Cost ?? 0) + instance.CostModifier),
+                Retained = tags.Contains(
+                    "Retain",
+                    StringComparer.OrdinalIgnoreCase),
+                ExhaustsOnUse = definition?.Exhaust == true
+                                || tags.Any(tag => tag.Equals(
+                                    "Burnout",
+                                    StringComparison.OrdinalIgnoreCase)
+                                    || tag.Equals(
+                                        "Exhaust",
+                                        StringComparison.OrdinalIgnoreCase)
+                                    || tag.Equals(
+                                        "Fragmented",
+                                        StringComparison.OrdinalIgnoreCase)),
+                CreatedThisBattle = !string.IsNullOrWhiteSpace(
+                    instance.CreationSource)
+                                    && !string.Equals(
+                                        instance.CreationSource,
+                                        "starting-deck",
+                                        StringComparison.OrdinalIgnoreCase),
+                EnhancementCount = instance.EnchantmentIds.Count,
+                Features = new Dictionary<string, double>(
+                    StringComparer.OrdinalIgnoreCase)
+                {
+                    ["hasVisibleWarning"] =
+                        instance.EnchantmentIds.Count > 0 ? 1d : 0d,
+                    ["retain"] = tags.Contains(
+                        "Retain",
+                        StringComparer.OrdinalIgnoreCase) ? 1d : 0d,
+                    ["exhaustOnUse"] = definition?.Exhaust == true
+                                       || tags.Any(tag => tag.Equals(
+                                           "Burnout",
+                                           StringComparison.OrdinalIgnoreCase)
+                                           || tag.Equals(
+                                               "Exhaust",
+                                               StringComparison.OrdinalIgnoreCase)
+                                           || tag.Equals(
+                                               "Fragmented",
+                                               StringComparison.OrdinalIgnoreCase))
+                        ? 1d
+                        : 0d
+                }
+            });
+        }
+        return result;
+    }
+
     private static CombatActionObservation ProjectAction(
         CombatScenarioDefinition scenario,
         CombatRuleset ruleset,
@@ -1442,9 +1536,7 @@ public static class PlayerEquivalentSimulationObservationProjector
                 : CombatActionKind.PlayCard,
             RuntimeId = action.CardInstanceId,
             TargetRuntimeId = action.TargetActorId,
-            TargetKind = action.TargetActorId == 0
-                ? CombatTargetKind.None
-                : CombatTargetKind.Enemy,
+            TargetKind = ResolveTargetKind(state, action.TargetActorId),
             Cost = action.Cost,
             Legal = true,
             Semantics = semantics,
@@ -1553,13 +1645,44 @@ public static class PlayerEquivalentSimulationObservationProjector
 
     private static CombatUnitObservation ProjectActor(
         CombatActorState actor,
-        CombatTargetKind targetKind)
+        CombatTargetKind targetKind,
+        CombatRuleset ruleset)
     {
         var features = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
+        var statuses = new List<CombatStatusObservation>();
         foreach (var status in actor.Statuses)
         {
             features["status:" + status.StatusId] = status.Stacks;
             AddMechanicFeatures(features, status.StatusId, status.Stacks);
+            ruleset.TryGetStatus(status.StatusId, out var definition);
+            var type = definition?.Tags.Contains(
+                "Negative",
+                StringComparer.OrdinalIgnoreCase) == true
+                ? "Negative"
+                : definition?.Tags.Contains(
+                    "Positive",
+                    StringComparer.OrdinalIgnoreCase) == true
+                    ? "Positive"
+                    : definition?.Metadata.GetValueOrDefault("Type", "") ?? "";
+            var rarity = 1;
+            if (definition?.Metadata.TryGetValue("Rarity", out var rarityRaw)
+                == true)
+            {
+                int.TryParse(rarityRaw, out rarity);
+                rarity = Math.Max(1, rarity);
+            }
+            statuses.Add(new CombatStatusObservation
+            {
+                StatusId = status.StatusId,
+                DisplayName = definition?.DisplayName ?? status.StatusId,
+                Level = status.Stacks,
+                Rarity = rarity,
+                UpperBound = definition?.MaximumStacks ?? 0,
+                ReducePerTurn = definition?.ReducePerTurn ?? 0,
+                ReducePerUse = definition?.ReducePerUse ?? 0,
+                ReducePerAttacked = definition?.ReducePerAttacked ?? 0,
+                Type = type
+            });
         }
         return new CombatUnitObservation
         {
@@ -1570,13 +1693,26 @@ public static class PlayerEquivalentSimulationObservationProjector
             CurrentHp = actor.Hp,
             MaxHp = actor.MaxHp,
             Defend = actor.Block,
-            Statuses = actor.Statuses.Select(status => new CombatStatusObservation
-            {
-                StatusId = status.StatusId,
-                DisplayName = status.StatusId,
-                Level = status.Stacks
-            }).ToList(),
+            Statuses = statuses,
             Features = features
+        };
+    }
+
+    private static CombatTargetKind ResolveTargetKind(
+        CombatBattleState state,
+        int targetActorId)
+    {
+        if (targetActorId <= 0)
+        {
+            return CombatTargetKind.None;
+        }
+        var actor = state.FindActor(targetActorId);
+        return actor?.Kind switch
+        {
+            CombatSimulationActorKind.Player => CombatTargetKind.Self,
+            CombatSimulationActorKind.Friendly => CombatTargetKind.Friendly,
+            CombatSimulationActorKind.Enemy => CombatTargetKind.Enemy,
+            _ => CombatTargetKind.None
         };
     }
 

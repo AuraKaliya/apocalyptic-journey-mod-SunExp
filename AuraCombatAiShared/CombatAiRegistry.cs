@@ -4,11 +4,103 @@ using System.Linq;
 
 namespace AuraCombatAi.Shared;
 
+/// <summary>
+/// Immutable decision-preparation inputs for an isolated combat worker.
+/// The shared layer only freezes provider interfaces; all concrete semantics
+/// remain owned by the registering consumer.
+/// </summary>
+public sealed class CombatDecisionPreparationSnapshot
+{
+    private readonly ICombatSemanticProvider[] semanticProviders;
+    private readonly ICombatRoleStrategyProvider[] roleStrategyProviders;
+    private readonly ICombatPreflightRule[] preflightRules;
+
+    internal CombatDecisionPreparationSnapshot(
+        ICombatSemanticProvider[] semanticProviders,
+        ICombatRoleStrategyProvider[] roleStrategyProviders,
+        ICombatPreflightRule[] preflightRules)
+    {
+        this.semanticProviders = semanticProviders ??
+                                 Array.Empty<ICombatSemanticProvider>();
+        this.roleStrategyProviders = roleStrategyProviders ??
+                                     Array.Empty<ICombatRoleStrategyProvider>();
+        this.preflightRules = preflightRules ??
+                              Array.Empty<ICombatPreflightRule>();
+    }
+
+    public static CombatDecisionPreparationSnapshot Empty { get; } = new(
+        Array.Empty<ICombatSemanticProvider>(),
+        Array.Empty<ICombatRoleStrategyProvider>(),
+        Array.Empty<ICombatPreflightRule>());
+
+    public int SemanticProviderCount => semanticProviders.Length;
+
+    public int RoleStrategyProviderCount => roleStrategyProviders.Length;
+
+    public int PreflightRuleCount => preflightRules.Length;
+
+    public bool IsEmpty => SemanticProviderCount == 0
+                           && RoleStrategyProviderCount == 0
+                           && PreflightRuleCount == 0;
+
+    public bool EvaluatePreflight(
+        CombatStateObservation state,
+        CombatActionObservation action,
+        out string reason)
+    {
+        for (var i = 0; i < preflightRules.Length; i++)
+        {
+            if (!preflightRules[i].IsLegal(state, action, out reason))
+            {
+                return false;
+            }
+        }
+        reason = "";
+        return true;
+    }
+
+    public void ApplySemantics(
+        CombatStateObservation state,
+        CombatActionObservation action)
+    {
+        for (var i = 0; i < semanticProviders.Length; i++)
+        {
+            if (semanticProviders[i].TryDescribe(
+                    state,
+                    action,
+                    out var semantics)
+                && semantics != null)
+            {
+                action.Semantics = semantics;
+                action.SemanticSource = "provider";
+                action.SemanticFidelity = CombatKnowledgeFidelity.Authoritative;
+                return;
+            }
+        }
+    }
+
+    public bool EnrichRoleStrategies(CombatStateObservation state)
+    {
+        if (state == null)
+        {
+            return false;
+        }
+        var enriched = false;
+        for (var i = 0; i < roleStrategyProviders.Length; i++)
+        {
+            enriched |= roleStrategyProviders[i].TryEnrich(state);
+        }
+        return enriched;
+    }
+}
+
 public static class CombatAiRegistry
 {
     private static readonly object Gate = new();
     private static readonly Dictionary<string, SemanticRegistration> SemanticProviders =
         new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, RoleStrategyRegistration>
+        RoleStrategyProviders = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, PreflightRegistration> PreflightRules =
         new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, RuntimePreflightRegistration> RuntimePreflightRules =
@@ -44,6 +136,33 @@ public static class CombatAiRegistry
             lock (Gate)
             {
                 SemanticProviders.Remove(key);
+            }
+        });
+    }
+
+    public static IDisposable RegisterRoleStrategyProvider(
+        string ownerModId,
+        string providerId,
+        ICombatRoleStrategyProvider provider,
+        int priority = 0)
+    {
+        if (provider == null)
+        {
+            return EmptyDisposable.Instance;
+        }
+
+        var key = Key(ownerModId, providerId);
+        lock (Gate)
+        {
+            RoleStrategyProviders[key] =
+                new RoleStrategyRegistration(provider, priority);
+        }
+
+        return new Registration(() =>
+        {
+            lock (Gate)
+            {
+                RoleStrategyProviders.Remove(key);
             }
         });
     }
@@ -226,6 +345,26 @@ public static class CombatAiRegistry
         return true;
     }
 
+    public static CombatDecisionPreparationSnapshot SnapshotDecisionPreparation()
+    {
+        lock (Gate)
+        {
+            return new CombatDecisionPreparationSnapshot(
+                SemanticProviders.Values
+                    .OrderByDescending(item => item.Priority)
+                    .Select(item => item.Provider)
+                    .ToArray(),
+                RoleStrategyProviders.Values
+                    .OrderByDescending(item => item.Priority)
+                    .Select(item => item.Provider)
+                    .ToArray(),
+                PreflightRules.Values
+                    .OrderByDescending(item => item.Priority)
+                    .Select(item => item.Rule)
+                    .ToArray());
+        }
+    }
+
     public static bool EvaluateRuntimePreflight(
         CombatStateObservation state,
         CombatActionObservation action,
@@ -283,6 +422,27 @@ public static class CombatAiRegistry
             action.SemanticSource = source;
             action.SemanticFidelity = fidelity;
         }
+    }
+
+    public static bool EnrichRoleStrategies(CombatStateObservation state)
+    {
+        if (state == null)
+        {
+            return false;
+        }
+        RoleStrategyRegistration[] snapshot;
+        lock (Gate)
+        {
+            snapshot = RoleStrategyProviders.Values
+                .OrderByDescending(item => item.Priority)
+                .ToArray();
+        }
+        var enriched = false;
+        for (var i = 0; i < snapshot.Length; i++)
+        {
+            enriched |= snapshot[i].Provider.TryEnrich(state);
+        }
+        return enriched;
     }
 
     public static bool TryResolveThreat(
@@ -391,6 +551,21 @@ public static class CombatAiRegistry
         }
 
         public ICombatSemanticProvider Provider { get; }
+
+        public int Priority { get; }
+    }
+
+    private sealed class RoleStrategyRegistration
+    {
+        public RoleStrategyRegistration(
+            ICombatRoleStrategyProvider provider,
+            int priority)
+        {
+            Provider = provider;
+            Priority = priority;
+        }
+
+        public ICombatRoleStrategyProvider Provider { get; }
 
         public int Priority { get; }
     }

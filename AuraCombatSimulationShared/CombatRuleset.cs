@@ -142,13 +142,15 @@ public sealed class CombatRulesetBuilder
             return this;
         }
         if (definition!.Cost < 0
+            || (definition.TargetScope & ~CombatCardTargetScope.AnyActor) != 0
             || definition.Effects == null
             || definition.DrawEffects == null
             || definition.DiscardEffects == null
             || definition.Tags == null
             || !ValidateActionContract(definition, key))
         {
-            errors.Add("card " + key + " has invalid cost or effects");
+            errors.Add(
+                "card " + key + " has invalid cost, target scope, or effects");
             return this;
         }
         if (cards.ContainsKey(key))
@@ -456,7 +458,9 @@ internal static class CombatRulesetHasher
             builder.Append("c|").Append(card.OwnerModId).Append('|').Append(card.CardId)
                 .Append('|').Append(card.Cost).Append('|').Append(card.Rarity)
                 .Append('|').Append(card.Exhaust)
-                .Append('|').Append(card.RequiresEnemyTarget).Append('|').Append(card.Fidelity)
+                .Append('|').Append(card.RequiresEnemyTarget)
+                .Append('|').Append((int)card.TargetScope)
+                .Append('|').Append(card.Fidelity)
                 .Append('|').Append(card.VerificationSource)
                 .Append('|').Append(string.Join(
                     ",",

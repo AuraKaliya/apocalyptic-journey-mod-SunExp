@@ -211,10 +211,11 @@ public static class TerriasIds
     public const string SpiritIntentRegistryFile = "spirit.intent.registry.json";
     public const string SpiritCaptureRegistryFile = "spirit.capture.registry.json";
     public const string MoreDimensionsCardPackId = "Terrias_terrias_cardpack_more_dimensions";
-    public const string DimensionShopConfigFile = "dimension_shop.config.json";
+    public const string DimensionShopConfigSystem = "DimensionShop";
+    public const string DimensionShopConfigFile = "settings.json";
+    public const string DimensionShopBundledConfigRelativePath = "Config/DimensionShop/default.json";
     public const string DimensionShopMapShortId = "dimension_shop";
     public const string DimensionShopMapId = "Terrias_terrias_dimension_shop";
-    public const string DimensionShopTemplateNodeId = "Breaks_dimension_shop";
     public const string DimensionShopNodeId = "TerriasDimensionShop";
     public const string DimensionShopRunInitializedKey = "Terrias_DimensionShop_RunInitialized";
     public const string DimensionShopRunVersionKey = "Terrias_DimensionShop_RunVersion";

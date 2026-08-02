@@ -218,6 +218,16 @@ public static class CombatScenarioCloner
                 SkillCooldownTurns = new Dictionary<string, int>(
                     source.Player.SkillCooldownTurns,
                     StringComparer.OrdinalIgnoreCase),
+                InitialSkillCooldownTurns = new Dictionary<string, int>(
+                    source.Player.InitialSkillCooldownTurns,
+                    StringComparer.OrdinalIgnoreCase),
+                NativeManagedSkillCooldownIds = new List<string>(
+                    source.Player.NativeManagedSkillCooldownIds),
+                RoleNativeScriptHash = source.Player.RoleNativeScriptHash,
+                RoleFightScript = source.Player.RoleFightScript,
+                RoleRuntimeForms = source.Player.RoleRuntimeForms
+                    .Select(item => item.Clone())
+                    .ToList(),
                 FamiliarBlessingIds = new List<string>(
                     source.Player.FamiliarBlessingIds),
                 MaxHp = source.Player.MaxHp,

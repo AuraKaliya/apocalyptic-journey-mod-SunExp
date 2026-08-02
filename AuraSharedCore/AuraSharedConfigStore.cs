@@ -169,6 +169,7 @@ public static class AuraSharedConfigStore
         {
             Success = response.Success,
             Conflict = response.Conflict,
+            Changed = response.Changed,
             Revision = response.Revision,
             Message = response.Message
         };

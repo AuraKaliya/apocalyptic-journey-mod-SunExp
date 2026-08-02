@@ -9,7 +9,7 @@ namespace AuraCombatSimulation.Shared;
 
 public sealed class CombatGameSubjectPreset
 {
-    public const int CurrentSchemaVersion = 1;
+    public const int CurrentSchemaVersion = 3;
 
     public int SchemaVersion { get; set; } = CurrentSchemaVersion;
 
@@ -38,6 +38,24 @@ public sealed class CombatGameSubjectPreset
 
     public Dictionary<string, int> ResolvedRoleSkillCooldownTurns { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, int> ResolvedRoleInitialSkillCooldownTurns { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public int ResolvedRoleMaximumHp { get; set; }
+
+    public Dictionary<string, double> ResolvedRoleInitialVariables { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public string ResolvedRoleNativeScriptHash { get; set; } = "";
+
+    public string ResolvedRoleFightScript { get; set; } = "";
+
+    public List<string> ResolvedRoleNativeManagedSkillCooldownIds { get; set; } =
+        new();
+
+    public List<CombatRoleRuntimeForm> ResolvedRoleRuntimeForms { get; set; } =
+        new();
 
     public List<string> ResolvedFamiliarBlessingIds { get; set; } = new();
 
@@ -78,6 +96,21 @@ public sealed class CombatGameSubjectPreset
             ResolvedRoleInitialStatuses);
         ResolvedRoleSkillCooldownTurns = NormalizePositiveValues(
             ResolvedRoleSkillCooldownTurns);
+        ResolvedRoleInitialSkillCooldownTurns = NormalizePositiveValues(
+            ResolvedRoleInitialSkillCooldownTurns);
+        ResolvedRoleMaximumHp = Math.Max(0, Math.Min(1000000, ResolvedRoleMaximumHp));
+        ResolvedRoleInitialVariables = NormalizeFiniteValues(
+            ResolvedRoleInitialVariables);
+        ResolvedRoleNativeScriptHash = (ResolvedRoleNativeScriptHash ?? "").Trim();
+        ResolvedRoleFightScript = ResolvedRoleFightScript ?? "";
+        ResolvedRoleNativeManagedSkillCooldownIds = NormalizeIds(
+            ResolvedRoleNativeManagedSkillCooldownIds);
+        ResolvedRoleRuntimeForms = (ResolvedRoleRuntimeForms
+                                    ?? new List<CombatRoleRuntimeForm>())
+            .Where(item => item != null && !string.IsNullOrWhiteSpace(item.RoleId))
+            .GroupBy(item => item.RoleId, StringComparer.OrdinalIgnoreCase)
+            .Select(group => group.First().Clone())
+            .ToList();
         return this;
     }
 
@@ -102,6 +135,20 @@ public sealed class CombatGameSubjectPreset
             ResolvedRoleSkillCooldownTurns = new Dictionary<string, int>(
                 ResolvedRoleSkillCooldownTurns,
                 StringComparer.OrdinalIgnoreCase),
+            ResolvedRoleInitialSkillCooldownTurns = new Dictionary<string, int>(
+                ResolvedRoleInitialSkillCooldownTurns,
+                StringComparer.OrdinalIgnoreCase),
+            ResolvedRoleMaximumHp = ResolvedRoleMaximumHp,
+            ResolvedRoleInitialVariables = new Dictionary<string, double>(
+                ResolvedRoleInitialVariables,
+                StringComparer.OrdinalIgnoreCase),
+            ResolvedRoleNativeScriptHash = ResolvedRoleNativeScriptHash,
+            ResolvedRoleFightScript = ResolvedRoleFightScript,
+            ResolvedRoleNativeManagedSkillCooldownIds =
+                ResolvedRoleNativeManagedSkillCooldownIds.ToList(),
+            ResolvedRoleRuntimeForms = ResolvedRoleRuntimeForms
+                .Select(item => item.Clone())
+                .ToList(),
             ResolvedFamiliarBlessingIds =
                 ResolvedFamiliarBlessingIds.ToList()
         };
@@ -132,6 +179,24 @@ public sealed class CombatGameSubjectPreset
                     player.SkillCooldownTurns
                     ?? new Dictionary<string, int>(),
                     StringComparer.OrdinalIgnoreCase),
+            ResolvedRoleInitialSkillCooldownTurns =
+                new Dictionary<string, int>(
+                    player.InitialSkillCooldownTurns
+                    ?? new Dictionary<string, int>(),
+                    StringComparer.OrdinalIgnoreCase),
+            ResolvedRoleMaximumHp = player.MaxHp,
+            ResolvedRoleInitialVariables = new Dictionary<string, double>(
+                player.Variables ?? new Dictionary<string, double>(),
+                StringComparer.OrdinalIgnoreCase),
+            ResolvedRoleNativeScriptHash = player.RoleNativeScriptHash,
+            ResolvedRoleFightScript = player.RoleFightScript,
+            ResolvedRoleNativeManagedSkillCooldownIds =
+                (player.NativeManagedSkillCooldownIds
+                 ?? new List<string>()).ToList(),
+            ResolvedRoleRuntimeForms = (player.RoleRuntimeForms
+                                        ?? new List<CombatRoleRuntimeForm>())
+                .Select(item => item.Clone())
+                .ToList(),
             ResolvedRoleInitialStatuses =
                 (player.InitialStatuses ?? new List<CombatInitialStatus>())
                 .Where(item => item != null
@@ -171,6 +236,19 @@ public sealed class CombatGameSubjectPreset
             .ToDictionary(
                 group => group.Key,
                 group => group.Max(item => item.Value),
+                StringComparer.OrdinalIgnoreCase);
+    }
+
+    private static Dictionary<string, double> NormalizeFiniteValues(
+        IReadOnlyDictionary<string, double>? values)
+    {
+        return (values ?? new Dictionary<string, double>())
+            .Where(item => !string.IsNullOrWhiteSpace(item.Key)
+                           && !double.IsNaN(item.Value)
+                           && !double.IsInfinity(item.Value))
+            .ToDictionary(
+                item => item.Key.Trim(),
+                item => item.Value,
                 StringComparer.OrdinalIgnoreCase);
     }
 
@@ -223,14 +301,36 @@ public static class CombatGameSubjectPresetRuntime
             new Dictionary<string, int>(
                 effective.ResolvedRoleSkillCooldownTurns,
                 StringComparer.OrdinalIgnoreCase);
-        campaign.Player.InitialStatuses =
-            effective.ResolvedRoleInitialStatuses
+        campaign.Player.InitialSkillCooldownTurns =
+            new Dictionary<string, int>(
+                effective.ResolvedRoleInitialSkillCooldownTurns,
+                StringComparer.OrdinalIgnoreCase);
+        campaign.Player.NativeManagedSkillCooldownIds =
+            effective.ResolvedRoleNativeManagedSkillCooldownIds.ToList();
+        campaign.Player.RoleNativeScriptHash =
+            effective.ResolvedRoleNativeScriptHash;
+        campaign.Player.RoleFightScript = effective.ResolvedRoleFightScript;
+        campaign.Player.RoleRuntimeForms = effective.ResolvedRoleRuntimeForms
+            .Select(item => item.Clone())
+            .ToList();
+        if (effective.ResolvedRoleMaximumHp > 0)
+        {
+            campaign.Player.MaxHp = effective.ResolvedRoleMaximumHp;
+            campaign.Player.CurrentHp = effective.ResolvedRoleMaximumHp;
+        }
+        campaign.Player.Variables = new Dictionary<string, double>(
+            effective.ResolvedRoleInitialVariables,
+            StringComparer.OrdinalIgnoreCase);
+        campaign.Player.InitialStatuses = string.IsNullOrWhiteSpace(
+                effective.ResolvedRoleFightScript)
+            ? effective.ResolvedRoleInitialStatuses
                 .Select(item => new CombatInitialStatus
                 {
                     StatusId = item.Key,
                     Stacks = item.Value
                 })
-                .ToList();
+                .ToList()
+            : new List<CombatInitialStatus>();
         campaign.Player.FamiliarBlessingIds =
             effective.ResolvedFamiliarBlessingIds.ToList();
         campaign.Player.GameParameterPresetId = effective.Id;
@@ -270,6 +370,22 @@ public static class CombatGameSubjectPresetRuntime
                             item => item.Key,
                             StringComparer.OrdinalIgnoreCase)
                         .Select(item => item.Key + ":" + item.Value)),
+                "initialSkillCooldowns="
+                + string.Join(
+                    ",",
+                    effective.ResolvedRoleInitialSkillCooldownTurns
+                        .OrderBy(item => item.Key, StringComparer.OrdinalIgnoreCase)
+                        .Select(item => item.Key + ":" + item.Value)),
+                "maximumHp=" + effective.ResolvedRoleMaximumHp.ToString(
+                    CultureInfo.InvariantCulture),
+                "roleVariables="
+                + string.Join(
+                    ",",
+                    effective.ResolvedRoleInitialVariables
+                        .OrderBy(item => item.Key, StringComparer.OrdinalIgnoreCase)
+                        .Select(item => item.Key + ":" + item.Value.ToString(
+                            "R",
+                            CultureInfo.InvariantCulture))),
                 "roleStatuses="
                 + string.Join(
                     ",",
@@ -278,6 +394,26 @@ public static class CombatGameSubjectPresetRuntime
                             item => item.Key,
                             StringComparer.OrdinalIgnoreCase)
                         .Select(item => item.Key + ":" + item.Value)),
+                "roleNativeScriptHash=" + effective.ResolvedRoleNativeScriptHash,
+                "nativeManagedSkillCooldowns="
+                + JoinSorted(effective.ResolvedRoleNativeManagedSkillCooldownIds),
+                "roleForms="
+                + string.Join(
+                    ";",
+                    effective.ResolvedRoleRuntimeForms
+                        .OrderBy(item => item.RoleId, StringComparer.OrdinalIgnoreCase)
+                        .Select(item => item.RoleId
+                                        + ":" + item.MaximumHp
+                                        + ":" + JoinSorted(item.SkillCardIds)
+                                        + ":" + string.Join(
+                                            ",",
+                                            item.SkillCooldownTurns
+                                                .OrderBy(
+                                                    pair => pair.Key,
+                                                    StringComparer.OrdinalIgnoreCase)
+                                                .Select(pair => pair.Key
+                                                                + "="
+                                                                + pair.Value)))),
                 "familiarBlessings="
                 + JoinSorted(effective.ResolvedFamiliarBlessingIds),
                 "rewardPacks="
@@ -370,10 +506,40 @@ public sealed class CombatGameSubjectCatalog
                 new Dictionary<string, int>(
                     role.SkillCooldownTurns,
                     StringComparer.OrdinalIgnoreCase);
+            preset.ResolvedRoleInitialSkillCooldownTurns =
+                new Dictionary<string, int>(
+                    role.InitialSkillCooldownTurns,
+                    StringComparer.OrdinalIgnoreCase);
+            preset.ResolvedRoleMaximumHp = role.MaximumHp;
+            preset.ResolvedRoleInitialVariables =
+                new Dictionary<string, double>(
+                    role.InitialVariables,
+                    StringComparer.OrdinalIgnoreCase);
             preset.ResolvedRoleInitialStatuses =
                 new Dictionary<string, int>(
                     role.InitialStatuses,
                     StringComparer.OrdinalIgnoreCase);
+            preset.ResolvedRoleNativeScriptHash = role.NativeScriptHash;
+            preset.ResolvedRoleFightScript = role.FightScript;
+            preset.ResolvedRoleNativeManagedSkillCooldownIds =
+                role.NativeManagedSkillCooldownIds.ToList();
+            preset.ResolvedRoleRuntimeForms = new[] { role.Id }
+                .Concat(role.TransformRoleIds)
+                .Select(id => Roles.FirstOrDefault(item => string.Equals(
+                    item.Id,
+                    id,
+                    StringComparison.OrdinalIgnoreCase)))
+                .Where(item => item != null)
+                .Select(item => new CombatRoleRuntimeForm
+                {
+                    RoleId = item!.Id,
+                    MaximumHp = item.MaximumHp,
+                    SkillCardIds = item.SkillCardIds.ToList(),
+                    SkillCooldownTurns = new Dictionary<string, int>(
+                        item.SkillCooldownTurns,
+                        StringComparer.OrdinalIgnoreCase)
+                })
+                .ToList();
         }
         var familiar = Familiars.FirstOrDefault(item => string.Equals(
             item.Id,
@@ -408,8 +574,24 @@ public sealed class CombatGameSubjectRole
     public Dictionary<string, int> SkillCooldownTurns { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
 
+    public Dictionary<string, int> InitialSkillCooldownTurns { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public int MaximumHp { get; set; }
+
+    public Dictionary<string, double> InitialVariables { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public Dictionary<string, int> InitialStatuses { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
+
+    public string NativeScriptHash { get; set; } = "";
+
+    public string FightScript { get; set; } = "";
+
+    public List<string> NativeManagedSkillCooldownIds { get; set; } = new();
+
+    public List<string> TransformRoleIds { get; set; } = new();
 
     public CombatGameSubjectRole Normalize()
     {
@@ -423,8 +605,32 @@ public sealed class CombatGameSubjectRole
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToList();
         SkillCooldownTurns = NormalizeValues(SkillCooldownTurns);
+        InitialSkillCooldownTurns = NormalizeValues(InitialSkillCooldownTurns);
+        MaximumHp = Math.Max(0, Math.Min(1000000, MaximumHp));
+        InitialVariables = (InitialVariables ?? new Dictionary<string, double>())
+            .Where(item => !string.IsNullOrWhiteSpace(item.Key)
+                           && !double.IsNaN(item.Value)
+                           && !double.IsInfinity(item.Value))
+            .ToDictionary(
+                item => item.Key.Trim(),
+                item => item.Value,
+                StringComparer.OrdinalIgnoreCase);
         InitialStatuses = NormalizeValues(InitialStatuses);
+        NativeScriptHash = (NativeScriptHash ?? "").Trim();
+        FightScript = FightScript ?? "";
+        NativeManagedSkillCooldownIds = NormalizeIds(
+            NativeManagedSkillCooldownIds);
+        TransformRoleIds = NormalizeIds(TransformRoleIds);
         return this;
+    }
+
+    private static List<string> NormalizeIds(IEnumerable<string>? values)
+    {
+        return (values ?? Array.Empty<string>())
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .Select(item => item.Trim())
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToList();
     }
 
     private static Dictionary<string, int> NormalizeValues(

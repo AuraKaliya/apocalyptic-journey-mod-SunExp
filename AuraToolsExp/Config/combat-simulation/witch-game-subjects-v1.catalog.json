@@ -5,6 +5,7 @@
     "roles":  [
                   {
                       "id":  "career_1",
+                      "maximumHp":  100,
                       "displayName":  "阿米莉娅",
                       "skillCardIds":  [
                                            "careercard_1"
@@ -15,10 +16,19 @@
                       "initialStatuses":  {
                                               "buff_impregnable":  2,
                                               "buff_elements":  3
-                                          }
+                                          },
+                      "nativeScriptHash":  "8FA04956142556E2DF145E27AEC2846280689023AA680FE12EB1C0015F3969BD",
+                      "nativeManagedSkillCooldownIds":  [
+                                                              "careercard_1"
+                                                          ],
+                      "fightScript":  "SetStatus(\"Self\"); AddBuff(\"buff_impregnable\", \"2\"); AddBuff(\"buff_elements\",\"3\"); PlayerInfo.SkillTime[\"careercard_1\"] = 0; AddEvent(\"StartRound\", ()=> { PlayerInfo.SkillTime[\"careercard_1\"] = Math.Max(PlayerInfo.SkillTime[\"careercard_1\"] - 1, 0); });"
                   },
                   {
                       "id":  "career_2",
+                      "maximumHp":  60,
+                      "initialVariables":  {
+                                                 "DoomPower":  0
+                                             },
                       "displayName":  "奈奈",
                       "skillCardIds":  [
                                            "careercard_2",
@@ -29,11 +39,24 @@
                                                  "careercard_3":  2
                                              },
                       "initialStatuses":  {
-
-                                          }
+                                              "buff_DoomPower":  1
+                                          },
+                      "nativeScriptHash":  "2B5987E5331954DF5CE205B49D5098E41B9B212047EF2D6E0FBB37E845FABD6E",
+                      "nativeManagedSkillCooldownIds":  [
+                                                              "careercard_2",
+                                                              "careercard_3"
+                                                          ],
+                      "transformRoleIds":  [
+                                                "career_4"
+                                            ],
+                      "fightScript":  "PlayerInfo.SkillTime[\"careercard_2\"] = 0; PlayerInfo.SkillTime[\"careercard_3\"] = 0; if (!PlayerInfo.SpecialVars.ContainsKey(\"DoomPower\")) { PlayerInfo.SpecialVars[\"DoomPower\"] = \"0\"; } SetStatus(\"Self\"); AddBuff(\"buff_DoomPower\", PlayerInfo.SpecialVars[\"DoomPower\"]); AddEvent(\"StartRound\", () => { PlayerInfo.SkillTime[\"careercard_2\"] = Math.Max(0, PlayerInfo.SkillTime[\"careercard_2\"] - 1); PlayerInfo.SkillTime[\"careercard_3\"] = Math.Max(0, PlayerInfo.SkillTime[\"careercard_3\"] - 1); }); AddEvent(\"Win\",()=> { SetStatus(\"Self\"); ChangeCareer(\"career_2\");}); AddEvent(\"Escape\",()=> { ChangeCareer(\"career_2\");});"
                   },
                   {
                       "id":  "career_3",
+                      "maximumHp":  95,
+                      "initialVariables":  {
+                                                 "Soul":  1
+                                             },
                       "displayName":  "阿黛拉",
                       "skillCardIds":  [
                                            "careercard_4"
@@ -41,12 +64,24 @@
                       "skillCooldownTurns":  {
                                                  "careercard_4":  12
                                              },
+                      "initialSkillCooldownTurns":  {
+                                                        "careercard_4":  12
+                                                    },
                       "initialStatuses":  {
-
-                                          }
+                                              "buff_Soul":  1
+                                          },
+                      "nativeScriptHash":  "4A1161C3A3F12BC2809786FAE15260B246409277AEE11BD695EAD17F97C46718",
+                      "nativeManagedSkillCooldownIds":  [
+                                                              "careercard_4"
+                                                          ],
+                      "fightScript":  "SetStatus(\"Self\"); if (!PlayerInfo.SpecialVars.ContainsKey(\"Soul\")) { PlayerInfo.SpecialVars[\"Soul\"] = \"1\"; } PlayerInfo.SkillTime[\"careercard_4\"] = 12; AddEvent(\"ICreateCardItem\", () => { if (PlayerInfo.SkillTime[\"careercard_4\"] > 0) { PlayerInfo.SkillTime[\"careercard_4\"] -= 1; } }); AddEvent(\"Win\", () => { SetStatus(\"Self\"); if (PlayerInfo.enemylevel == 1) { PlayerInfo.SpecialVars[\"Soul\"] = (int.Parse(PlayerInfo.SpecialVars[\"Soul\"]) + 3).ToString(); } else if (PlayerInfo.enemylevel == 2) { PlayerInfo.SpecialVars[\"Soul\"] = (int.Parse(PlayerInfo.SpecialVars[\"Soul\"]) + 6).ToString(); } else if (PlayerInfo.enemylevel == 3) { PlayerInfo.SpecialVars[\"Soul\"] = (int.Parse(PlayerInfo.SpecialVars[\"Soul\"]) + 9).ToString(); } }); AddEvent(\"BurnCard\", () => { PlayerInfo.SpecialVars[\"Soul\"] = (int.Parse(PlayerInfo.SpecialVars[\"Soul\"]) + 1).ToString(); }); AddEvent(\"StartRound\", () => { if (PlayerInfo.SkillTime.ContainsKey(\"careercard_4\") && PlayerInfo.SkillTime[\"careercard_4\"] > 0) { } if (int.Parse(PlayerInfo.SpecialVars[\"Soul\"]) < 100) { AddCard(DataId.nocard_1); } else if (int.Parse(PlayerInfo.SpecialVars[\"Soul\"]) < 200) { AddCard(DataId.nocard_2); } else { AddCard(DataId.nocard_3); } DrawCount(\"1\"); }); AddBuff(\"buff_Soul\", PlayerInfo.SpecialVars[\"Soul\"]);"
                   },
                   {
                       "id":  "career_4",
+                      "maximumHp":  40,
+                      "initialVariables":  {
+                                                 "DoomPower":  0
+                                             },
                       "displayName":  "灾厄化身",
                       "skillCardIds":  [
                                            "careercard_2",
@@ -57,8 +92,14 @@
                                                  "careercard_3":  1
                                              },
                       "initialStatuses":  {
-
-                                          }
+                                              "buff_DoomPower":  1
+                                          },
+                      "nativeScriptHash":  "2B5987E5331954DF5CE205B49D5098E41B9B212047EF2D6E0FBB37E845FABD6E",
+                      "nativeManagedSkillCooldownIds":  [
+                                                              "careercard_2",
+                                                              "careercard_3"
+                                                          ],
+                      "fightScript":  "PlayerInfo.SkillTime[\"careercard_2\"] = 0; PlayerInfo.SkillTime[\"careercard_3\"] = 0; if (!PlayerInfo.SpecialVars.ContainsKey(\"DoomPower\")) { PlayerInfo.SpecialVars[\"DoomPower\"] = \"0\"; } SetStatus(\"Self\"); AddBuff(\"buff_DoomPower\", PlayerInfo.SpecialVars[\"DoomPower\"]); AddEvent(\"StartRound\", () => { PlayerInfo.SkillTime[\"careercard_2\"] = Math.Max(0, PlayerInfo.SkillTime[\"careercard_2\"] - 1); PlayerInfo.SkillTime[\"careercard_3\"] = Math.Max(0, PlayerInfo.SkillTime[\"careercard_3\"] - 1); }); AddEvent(\"Win\",()=> { SetStatus(\"Self\"); ChangeCareer(\"career_2\");}); AddEvent(\"Escape\",()=> { ChangeCareer(\"career_2\");});"
                   },
                   {
                       "id":  "career_5",

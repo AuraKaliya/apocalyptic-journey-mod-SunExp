@@ -47,11 +47,23 @@ if (!CombatFoundationModelPackageProtocol.TryValidate(
 
 var packageNode = JObject.Parse(packageJson);
 var modelId = package!.Model!.ModelId;
+var packageSha256 = Convert.ToHexString(
+        SHA256.HashData(utf8.GetBytes(packageJson)))
+    .ToLowerInvariant();
 var modelLibraryDirectory = InsideRoot(
+    sharedRoot,
+    "Data",
+    "Owners",
+    "AuraToolsExp",
+    "FoundationModels");
+var legacyModelLibraryDirectory = InsideRoot(
     sharedRoot,
     "Logs",
     "AuraToolsExp",
     "model-library");
+MigrateLegacyModelLibrary(
+    legacyModelLibraryDirectory,
+    modelLibraryDirectory);
 var manifestPath = InsideRoot(modelLibraryDirectory, "models.json");
 var settingsPath = InsideRoot(
     sharedRoot,
@@ -97,6 +109,10 @@ var bundle = new JObject
     ["FoundationPackageId"] = Clone(packageNode["PackageId"]),
     ["FoundationWorkerSha256"] = Clone(packageNode["WorkerSha256"]),
     ["FoundationRulesetHash"] = Clone(packageNode["RulesetHash"]),
+    ["FoundationModelVersion"] = Clone(packageNode["ModelVersion"]),
+    ["FoundationDistributionOrigin"] = "external-installer",
+    ["FoundationSourcePackageSha256"] = packageSha256,
+    ["FoundationSourcePackageFile"] = Path.GetFileName(packagePath),
     ["ModelPurpose"] = "foundation",
     ["ProjectionNormalWinRate"] =
         Clone(packageNode["Validation"]?["NormalWinRate"]),
@@ -113,6 +129,7 @@ var bundle = new JObject
 };
 
 var library = JObject.Parse(File.ReadAllText(manifestPath, utf8));
+library["SchemaVersion"] = Math.Max(3, (int?)library["SchemaVersion"] ?? 0);
 var models = library["Models"] as JArray
              ?? throw new InvalidDataException(
                  "Model library manifest has no Models array.");
@@ -149,6 +166,10 @@ models.Add(new JObject
     ["ProjectionNormalWinRate"] = package.Validation.NormalWinRate,
     ["ProjectionAdvancedWinRate"] = package.Validation.AdvancedWinRate,
     ["BundleFile"] = bundleFile,
+    ["ModelVersion"] = Clone(packageNode["ModelVersion"]),
+    ["DistributionOrigin"] = "external-installer",
+    ["SourcePackageSha256"] = packageSha256,
+    ["SourcePackageFile"] = Path.GetFileName(packagePath),
     ["CreatedUtc"] = Clone(packageNode["CreatedUtc"])
 });
 
@@ -242,6 +263,40 @@ static string WriteAtomic(
     var backup = path + ".bak-" + timestamp;
     File.Replace(temporary, path, backup);
     return backup;
+}
+
+static void MigrateLegacyModelLibrary(string source, string destination)
+{
+    var destinationManifest = Path.Combine(destination, "models.json");
+    var sourceManifest = Path.Combine(source, "models.json");
+    if (File.Exists(destinationManifest) || !File.Exists(sourceManifest))
+    {
+        return;
+    }
+
+    Directory.CreateDirectory(destination);
+    foreach (var sourcePath in Directory.EnumerateFiles(source)
+                 .OrderBy(path => string.Equals(
+                     Path.GetFileName(path),
+                     "models.json",
+                     StringComparison.OrdinalIgnoreCase)
+                     ? 1
+                     : 0))
+    {
+        var destinationPath = Path.Combine(
+            destination,
+            Path.GetFileName(sourcePath));
+        if (File.Exists(destinationPath))
+        {
+            continue;
+        }
+
+        var temporary = destinationPath
+                        + ".migration-"
+                        + Guid.NewGuid().ToString("N");
+        File.Copy(sourcePath, temporary, overwrite: false);
+        File.Move(temporary, destinationPath);
+    }
 }
 
 static string Argument(string[] values, string name)

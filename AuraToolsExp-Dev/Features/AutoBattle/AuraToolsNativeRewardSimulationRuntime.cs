@@ -31,7 +31,12 @@ public sealed class AuraToolsNativeRewardExtensionFactory :
                      AuraToolsNativeGameScriptAudit.UsesNativeScript)
                  || ruleset.SnapshotStatuses().Any(
                      AuraToolsNativeGameScriptAudit.UsesNativeScript));
-        return scenario.RewardRules.Count == 0 && !advanced && !nativeDefinitions
+        var nativeRole = !string.IsNullOrWhiteSpace(
+            scenario.Player?.RoleFightScript);
+        return scenario.RewardRules.Count == 0
+               && !advanced
+               && !nativeDefinitions
+               && !nativeRole
             ? null
             : new AuraToolsNativeRewardExtension();
     }
@@ -63,6 +68,7 @@ public static class AuraToolsNativeProgramPackageAudit
         {
             Add(scripts, reward.FightScript);
         }
+        Add(scripts, campaign.Player?.RoleFightScript ?? "");
         foreach (var card in ruleset.SnapshotCards()
                      .Where(AuraToolsNativeGameScriptAudit.UsesNativeScript))
         {
@@ -87,6 +93,7 @@ public static class AuraToolsNativeProgramPackageAudit
 
         var errors = AuraToolsNativeRewardScriptAudit.Validate(campaign);
         errors.AddRange(AuraToolsNativeGameScriptAudit.Validate(ruleset));
+        errors.AddRange(ValidateRoleProgram(campaign.Player));
         errors.AddRange(ValidateLiteralReferences(campaign, ruleset));
         return new AuraToolsNativeProgramPackageValidation
         {
@@ -138,6 +145,7 @@ public static class AuraToolsNativeProgramPackageAudit
         var errors = new HashSet<string>(StringComparer.Ordinal);
         var scripts = campaign.Rewards
             .Select(item => item.FightScript)
+            .Concat(new[] { campaign.Player?.RoleFightScript ?? "" })
             .Concat(ruleset.SnapshotCards().SelectMany(item => new[]
             {
                 item.Metadata.GetValueOrDefault("NativeInitScript", ""),
@@ -178,6 +186,43 @@ public static class AuraToolsNativeProgramPackageAudit
                 errors);
         }
         return errors.OrderBy(item => item, StringComparer.Ordinal);
+    }
+
+    private static IEnumerable<string> ValidateRoleProgram(
+        CombatPlayerSetup? player)
+    {
+        if (player == null || string.IsNullOrWhiteSpace(player.RoleFightScript))
+        {
+            yield break;
+        }
+        var key = NativeRewardProgramRegistry.Key(player.RoleFightScript);
+        if (!string.Equals(
+                key,
+                player.RoleNativeScriptHash,
+                StringComparison.OrdinalIgnoreCase))
+        {
+            yield return "native-role-script-hash:"
+                         + player.RoleId
+                         + ": expected="
+                         + player.RoleNativeScriptHash
+                         + ", actual="
+                         + key;
+        }
+        var validation = NativeRewardProgramRegistry.Validate(
+            new CombatScenarioRewardRule
+            {
+                RewardId = player.RoleId,
+                Kind = "Role",
+                NativeScriptHash = player.RoleNativeScriptHash,
+                FightScript = player.RoleFightScript
+            });
+        if (!validation.Success)
+        {
+            yield return "native-role-script:"
+                         + player.RoleId
+                         + ":"
+                         + validation.Message;
+        }
     }
 
     private static void ValidateReferences(
@@ -228,6 +273,7 @@ internal sealed class AuraToolsNativeRewardExtension :
 
     public void Initialize(ICombatSimulationRuntimeContext context)
     {
+        InitializeRoleProgram(context);
         ApplyHardAffixes(context);
         CombatScenarioRewardRule? previousRelicRule = null;
         foreach (var rule in context.Scenario.RewardRules.ToList())
@@ -289,6 +335,35 @@ internal sealed class AuraToolsNativeRewardExtension :
             }
         }
         AuditCrossRoleSkillCards(context);
+    }
+
+    private void InitializeRoleProgram(
+        ICombatSimulationRuntimeContext context)
+    {
+        var player = context.Scenario.Player;
+        if (player == null || string.IsNullOrWhiteSpace(player.RoleFightScript))
+        {
+            return;
+        }
+        var rule = new CombatScenarioRewardRule
+        {
+            RewardId = player.RoleId,
+            Kind = "Role",
+            NativeScriptHash = player.RoleNativeScriptHash,
+            FightScript = player.RoleFightScript
+        };
+        var globals = new NativeRewardScriptGlobals(
+            context,
+            rule,
+            registerProgram: RegisterProgram);
+        var result = globals.RunScript(rule, null);
+        if (!result.Success)
+        {
+            context.AddUnsupported(
+                "role-script:" + player.RoleId + ":" + result.Message);
+            return;
+        }
+        RegisterProgram(globals);
     }
 
     public void OnEvent(
@@ -384,24 +459,11 @@ internal sealed class AuraToolsNativeRewardExtension :
                     "drop");
                 break;
             case CombatSimulationEventKind.StatusAdded:
-                var statusProgramKey =
-                    sourceEvent.TargetActorId + "|" + sourceEvent.DefinitionId;
-                var statusProgramAlreadyExisted =
-                    statusPrograms.ContainsKey(statusProgramKey);
                 EnsureStatusProgram(
                     context,
                     sourceEvent.TargetActorId,
                     sourceEvent.DefinitionId,
                     sourceEvent);
-                if (statusProgramAlreadyExisted
-                    && statusPrograms.TryGetValue(
-                        statusProgramKey,
-                        out var changedStatusProgram))
-                {
-                    changedStatusProgram.DispatchNamedEvent(
-                        sourceEvent.DefinitionId + "OnLevelChange",
-                        sourceEvent);
-                }
                 break;
             case CombatSimulationEventKind.StatusRemoved:
                 ClearStatusProgram(context, sourceEvent);
@@ -1689,6 +1751,7 @@ public sealed partial class NativeRewardScriptGlobals
         var previousTarget = executionTargetActorId;
         try
         {
+            SynchronizeNativeSkillTimesFromState();
             currentEvent = sourceEvent;
             if (sourceEvent?.SourceActorId > 0)
             {
@@ -1702,6 +1765,7 @@ public sealed partial class NativeRewardScriptGlobals
         }
         finally
         {
+            SynchronizeStateSkillCooldownsFromNative();
             currentEvent = previousEvent;
             executionSourceActorId = previousSource;
             executionTargetActorId = previousTarget;
@@ -1998,13 +2062,49 @@ public sealed partial class NativeRewardScriptGlobals
 
     public void ChangeMaxHp(object amount)
     {
-        var value = Number(amount);
+        var requestedValue = Number(amount);
         foreach (var actorId in Targets())
         {
             var actor = context.State.FindActor(actorId);
             if (actor == null) continue;
+            var value = requestedValue;
+            if (actor.Kind == CombatSimulationActorKind.Player
+                && string.Equals(
+                    rule.RewardId,
+                    "buff_DoomPower",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                var previousLevel = 0;
+                if (context.Scenario.CampaignVariables.TryGetValue(
+                        "DoomPower",
+                        out var persistedLevel))
+                {
+                    _ = int.TryParse(persistedLevel, out previousLevel);
+                }
+                var currentLevel = actor.Statuses
+                    .Where(status => string.Equals(
+                        status.StatusId,
+                        "buff_DoomPower",
+                        StringComparison.OrdinalIgnoreCase))
+                    .Select(status => Math.Max(0, status.Stacks))
+                    .DefaultIfEmpty(0)
+                    .Max();
+                value = AuraToolsNanaDoomProgression.MaximumHpDelta(
+                    previousLevel,
+                    currentLevel);
+            }
+            var before = actor.MaxHp;
             actor.MaxHp = Math.Max(1, actor.MaxHp + value);
             actor.Hp = Math.Max(0, Math.Min(actor.Hp, actor.MaxHp));
+            var actualDelta = actor.MaxHp - before;
+            if (actualDelta != 0
+                && actor.Kind == CombatSimulationActorKind.Player
+                && context is ICombatPersistentProgressionContext progression)
+            {
+                progression.RecordPersistentVariableDelta(
+                    "MaxHp",
+                    actualDelta);
+            }
         }
     }
 
@@ -2440,14 +2540,58 @@ public sealed partial class NativeRewardScriptGlobals
 
     public void ChangeCareer(object definitionId)
     {
+        var roleId = Text(definitionId);
         foreach (var actorId in Targets())
         {
             var actor = context.State.FindActor(actorId);
             if (actor != null)
             {
-                actor.DefinitionId = Text(definitionId);
+                if (actor.ActorId == context.State.PlayerActorId)
+                {
+                    ApplyRoleRuntimeForm(
+                        actor,
+                        actor.DefinitionId,
+                        roleId);
+                }
+                actor.DefinitionId = roleId;
             }
         }
+    }
+
+    private void ApplyRoleRuntimeForm(
+        CombatActorState actor,
+        string previousRoleId,
+        string roleId)
+    {
+        var player = context.Scenario.Player;
+        var previousForm = player.RoleRuntimeForms.FirstOrDefault(item =>
+            string.Equals(
+                item.RoleId,
+                previousRoleId,
+                StringComparison.OrdinalIgnoreCase));
+        var form = player.RoleRuntimeForms.FirstOrDefault(item => string.Equals(
+            item.RoleId,
+            roleId,
+            StringComparison.OrdinalIgnoreCase));
+        if (form == null)
+        {
+            return;
+        }
+        player.RoleId = form.RoleId;
+        if (form.MaximumHp > 0)
+        {
+            var previousBaseMaximumHp = previousForm?.MaximumHp > 0
+                ? previousForm.MaximumHp
+                : form.MaximumHp;
+            actor.MaxHp = Math.Max(
+                1,
+                actor.MaxHp + form.MaximumHp - previousBaseMaximumHp);
+            actor.Hp = Math.Min(actor.Hp, actor.MaxHp);
+        }
+        player.SkillCardIds = form.SkillCardIds.ToList();
+        player.SkillCooldownTurns = new Dictionary<string, int>(
+            form.SkillCooldownTurns,
+            StringComparer.OrdinalIgnoreCase);
     }
 
     public void ChangeSummon(bool summon)
@@ -2989,6 +3133,7 @@ public sealed partial class NativeRewardScriptGlobals
         var previousEvent = currentEvent;
         try
         {
+            SynchronizeNativeSkillTimesFromState();
             currentEvent = sourceEvent;
             foreach (var name in EventNames(sourceEvent))
             {
@@ -2997,6 +3142,7 @@ public sealed partial class NativeRewardScriptGlobals
         }
         finally
         {
+            SynchronizeStateSkillCooldownsFromNative();
             currentEvent = previousEvent;
         }
     }
@@ -3005,7 +3151,48 @@ public sealed partial class NativeRewardScriptGlobals
         string eventName,
         CombatSimulationEvent? sourceEvent)
     {
-        DispatchNamed(eventName, sourceEvent);
+        try
+        {
+            SynchronizeNativeSkillTimesFromState();
+            DispatchNamed(eventName, sourceEvent);
+        }
+        finally
+        {
+            SynchronizeStateSkillCooldownsFromNative();
+        }
+    }
+
+    private void SynchronizeNativeSkillTimesFromState()
+    {
+        foreach (var instanceId in context.State.SkillCards)
+        {
+            var card = context.State.FindCard(instanceId);
+            if (card == null)
+            {
+                continue;
+            }
+            context.State.SkillUseCounts[card.CardId] =
+                context.State.SkillCooldowns.TryGetValue(
+                    instanceId,
+                    out var cooldown)
+                    ? cooldown
+                    : 0;
+        }
+    }
+
+    private void SynchronizeStateSkillCooldownsFromNative()
+    {
+        foreach (var instanceId in context.State.SkillCards)
+        {
+            var card = context.State.FindCard(instanceId);
+            if (card != null
+                && context.State.SkillUseCounts.TryGetValue(
+                    card.CardId,
+                    out var cooldown))
+            {
+                context.State.SkillCooldowns[instanceId] = Math.Max(0, cooldown);
+            }
+        }
     }
 
     internal void PrepareDiceCheck()

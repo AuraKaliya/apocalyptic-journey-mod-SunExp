@@ -668,12 +668,20 @@ internal sealed class MainWindow : Window
             var result = Deserialize<CombatFoundationWorkerResult>(
                 CombatFoundationCheckpointStorage.ReadAllTextShared(
                     resultPath));
-            var champion = result?.Training?.Champion;
-            if (champion == null
-                || !string.Equals(
-                    result!.CompletionKind,
-                    "training-accepted",
-                    StringComparison.Ordinal))
+            var accepted = string.Equals(
+                result?.CompletionKind,
+                "training-accepted",
+                StringComparison.Ordinal);
+            var rejectedResumable = result?.Resumable == true
+                                    && string.Equals(
+                                        result.CompletionKind,
+                                        "training-rejected-resumable",
+                                        StringComparison.Ordinal);
+            var champion = accepted
+                ? result?.Training?.Champion
+                : result?.Training?.WorkingChampion
+                  ?? result?.Training?.Champion;
+            if (champion == null || (!accepted && !rejectedResumable))
             {
                 throw new InvalidOperationException(
                     "只有已通过验收的上一轮 Champion 才能作为新一轮起点");
@@ -735,6 +743,7 @@ internal sealed class MainWindow : Window
         CombatGameSubjectPresetRuntime.Apply(
             settings.GameSubject,
             trainingCampaign);
+        AuraToolsRoleCampaignStrategy.Apply(trainingCampaign);
         var validationCampaign = Deserialize<CombatCampaignDefinition>(
                                      CombatFoundationCheckpointStorage
                                          .ReadAllTextShared(campaignPath))
@@ -745,6 +754,7 @@ internal sealed class MainWindow : Window
         CombatGameSubjectPresetRuntime.Apply(
             settings.GameSubject,
             validationCampaign);
+        AuraToolsRoleCampaignStrategy.Apply(validationCampaign);
         var rulesetDocument = Deserialize<CombatRulesetDocument>(
                                   CombatFoundationCheckpointStorage
                                       .ReadAllTextShared(rulesetPath))
@@ -782,16 +792,13 @@ internal sealed class MainWindow : Window
         }
         var jobId = "foundation-controller-"
                     + DateTime.UtcNow.ToString("yyyyMMdd-HHmmssfff");
-        var resultsRoot = Path.Combine(
-            settings.DataRoot,
-            "Logs",
-            "AuraToolsExp",
-            "combat-simulation-results");
+        var resultsRoot = TrainingResultsRoot(settings.DataRoot);
         var resultDirectory = Path.Combine(resultsRoot, jobId);
         Directory.CreateDirectory(resultDirectory);
         var checkpointRoot = Path.Combine(
             resultsRoot,
-            "foundation-controller-checkpoint");
+            "foundation-controller-checkpoint",
+            trainingCampaign.Player.GameParameterHash);
         Directory.CreateDirectory(checkpointRoot);
         var profile = BuildProfile(parameters.DecisionProfile);
         var job = CombatFoundationWorkerJobFactory.Create(
@@ -1189,12 +1196,15 @@ internal sealed class MainWindow : Window
         var dataRoot = ResolveArgument("--data-root")
                        ?? DiscoverDataRoot(modRoot);
         var settingsPath = SettingsPath(dataRoot);
+        var readPath = File.Exists(settingsPath)
+            ? settingsPath
+            : LegacySettingsPath(dataRoot);
         try
         {
-            settings = File.Exists(settingsPath)
+            settings = File.Exists(readPath)
                 ? Deserialize<ControllerSettings>(
                     CombatFoundationCheckpointStorage.ReadAllTextShared(
-                        settingsPath))
+                        readPath))
                   ?? new ControllerSettings()
                 : new ControllerSettings();
         }
@@ -1237,6 +1247,21 @@ internal sealed class MainWindow : Window
         gameSubjectCatalog.ResolveReferences(settings.GameSubject);
         settings.SchemaVersion = 6;
         settings.Parameters.Normalized();
+        if (File.Exists(readPath)
+            && !string.Equals(
+                Path.GetFullPath(readPath),
+                Path.GetFullPath(settingsPath),
+                StringComparison.OrdinalIgnoreCase))
+        {
+            try
+            {
+                WriteAtomic(settingsPath, Serialize(settings));
+            }
+            catch
+            {
+                // Migration is best-effort; the legacy settings remain readable.
+            }
+        }
     }
 
     private static CombatGameSubjectPreset LoadDefaultGameSubject(
@@ -1313,7 +1338,10 @@ internal sealed class MainWindow : Window
     {
         try
         {
-            var path = SessionPath(settings.DataRoot);
+            var currentPath = SessionPath(settings.DataRoot);
+            var path = File.Exists(currentPath)
+                ? currentPath
+                : LegacySessionPath(settings.DataRoot);
             if (!File.Exists(path))
             {
                 return;
@@ -1322,6 +1350,13 @@ internal sealed class MainWindow : Window
                 CombatFoundationCheckpointStorage.ReadAllTextShared(path));
             if (session != null)
             {
+                if (!string.Equals(
+                        Path.GetFullPath(path),
+                        Path.GetFullPath(currentPath),
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    WriteAtomic(currentPath, Serialize(session));
+                }
                 ResetPollingCache();
                 settings.LastRunDirectory = session.ResultDirectory;
                 completionNotificationArmed = IsWorkerRunning();
@@ -1984,6 +2019,40 @@ internal sealed class MainWindow : Window
                                                         CultureInfo.InvariantCulture)
                                                     ?? "";
                     break;
+                case nameof(ControllerWorkerResultSummary.RoleStrategyMetrics):
+                    summary.RoleStrategyMetrics =
+                        serializer.Deserialize<Dictionary<string, double>>(
+                            reader)
+                        ?? new Dictionary<string, double>(
+                            StringComparer.OrdinalIgnoreCase);
+                    break;
+                case nameof(ControllerWorkerResultSummary.RoleStrategyGatePassed):
+                    summary.RoleStrategyGatePassed = Convert.ToBoolean(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerWorkerResultSummary.RoleStrategyGateFailureReason):
+                    summary.RoleStrategyGateFailureReason = Convert.ToString(
+                                                                reader.Value,
+                                                                CultureInfo.InvariantCulture)
+                                                            ?? "";
+                    break;
+                case nameof(ControllerWorkerResultSummary.ResumeRequested):
+                    summary.ResumeRequested = Convert.ToBoolean(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerWorkerResultSummary.ResumedFromCheckpoint):
+                    summary.ResumedFromCheckpoint = Convert.ToBoolean(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerWorkerResultSummary.ResumeDiagnostic):
+                    summary.ResumeDiagnostic = Convert.ToString(
+                                                   reader.Value,
+                                                   CultureInfo.InvariantCulture)
+                                               ?? "";
+                    break;
                 case nameof(ControllerWorkerResultSummary.Resumable):
                     summary.Resumable = Convert.ToBoolean(
                         reader.Value,
@@ -2303,11 +2372,7 @@ internal sealed class MainWindow : Window
         var path = session?.ResultDirectory ?? settings.LastRunDirectory;
         if (string.IsNullOrWhiteSpace(path))
         {
-            path = Path.Combine(
-                settings.DataRoot,
-                "Logs",
-                "AuraToolsExp",
-                "combat-simulation-results");
+            path = TrainingResultsRoot(settings.DataRoot);
         }
         Directory.CreateDirectory(path);
         Process.Start(new ProcessStartInfo
@@ -2471,7 +2536,7 @@ internal sealed class MainWindow : Window
     private static string SettingsPath(string dataRoot)
     {
         return Path.Combine(
-            dataRoot,
+            AuraSharedRoot(dataRoot),
             "Config",
             "Owners",
             "AuraToolsExp",
@@ -2480,6 +2545,42 @@ internal sealed class MainWindow : Window
     }
 
     private static string SessionPath(string dataRoot)
+    {
+        return Path.Combine(
+            AuraSharedRoot(dataRoot),
+            "Logs",
+            "AuraToolsExp",
+            "FoundationTrainer",
+            "controller-session.json");
+    }
+
+    private static string TrainingResultsRoot(string dataRoot)
+    {
+        return Path.Combine(
+            AuraSharedRoot(dataRoot),
+            "Logs",
+            "AuraToolsExp",
+            "FoundationTrainer",
+            "combat-simulation-results");
+    }
+
+    private static string AuraSharedRoot(string dataRoot)
+    {
+        return Path.Combine(dataRoot, "AuraShared");
+    }
+
+    private static string LegacySettingsPath(string dataRoot)
+    {
+        return Path.Combine(
+            dataRoot,
+            "Config",
+            "Owners",
+            "AuraToolsExp",
+            "FoundationTrainer",
+            "controller-settings.json");
+    }
+
+    private static string LegacySessionPath(string dataRoot)
     {
         return Path.Combine(
             dataRoot,

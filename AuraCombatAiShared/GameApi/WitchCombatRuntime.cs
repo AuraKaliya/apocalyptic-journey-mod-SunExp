@@ -103,6 +103,7 @@ public sealed class WitchCombatRuntime :
         ObserveTurnEconomy(observation);
         ObserveEndTurnPurpose(playerStatus, observation);
         ObservePublicMechanicState(playerStatus, observation);
+        ObserveCampaignContext(observation);
         if (CombatAiRegistry.TryResolveThreat(observation, out var providedThreat))
         {
             observation.Threat = providedThreat;
@@ -525,6 +526,14 @@ public sealed class WitchCombatRuntime :
             ["visibleFake"] = IsVisibleFake(card) ? 1d : 0d,
             ["curse"] = HasAnyTag(card, "Curse") ? 1d : 0d,
             ["unplayable"] = HasAnyTag(card, "Unusable") ? 1d : 0d,
+            ["runtimeUsable"] = card.Vars != null
+                                 && card.Vars.TryGetValue(
+                                     "Usable",
+                                     out var runtimeUsable)
+                ? string.Equals(runtimeUsable, "0", StringComparison.Ordinal)
+                    ? 0d
+                    : 1d
+                : 1d,
             ["retain"] = HasAnyTag(card, "Retain", "RetainCard") ? 1d : 0d,
             ["inherent"] = HasAnyTag(card, "Inherent") ? 1d : 0d,
             ["recycle"] = HasAnyTag(card, "Recycle") ? 1d : 0d,
@@ -848,6 +857,66 @@ public sealed class WitchCombatRuntime :
         return Math.Max(0, cost);
     }
 
+    private static void ObserveCampaignContext(CombatStateObservation state)
+    {
+        double gameLevel;
+        double nativeEncounterLevel;
+        try
+        {
+            gameLevel = Math.Max(0d, ScriptExecutor.PlayerInfo.Level);
+            nativeEncounterLevel = Math.Max(
+                0d,
+                ScriptExecutor.PlayerInfo.enemylevel);
+        }
+        catch
+        {
+            return;
+        }
+        if (gameLevel <= 0d && nativeEncounterLevel <= 0d)
+        {
+            return;
+        }
+
+        // The standard adventure exposes 37 public combat levels. Runtime
+        // PlayerInfo has the current level but no stable public total-length
+        // member, so this projection deliberately carries reduced confidence.
+        var maximumGameLevel = gameLevel > 0d ? 37d : 0d;
+
+        state.Features[CombatCampaignContextFeatureNames.ContextKnown] = 1d;
+        state.Features[CombatCampaignContextFeatureNames.ContextConfidence] =
+            maximumGameLevel > 1d ? 0.75d : 0.5d;
+        if (gameLevel > 0d)
+        {
+            state.Features[CombatCampaignContextFeatureNames.GameLevel] =
+                gameLevel;
+            state.Features[CombatCampaignContextFeatureNames.BattleIndex] =
+                Math.Max(0d, gameLevel - 1d);
+            if (maximumGameLevel > 1d)
+            {
+                state.Features[
+                    CombatCampaignContextFeatureNames.TotalBattles] =
+                    maximumGameLevel;
+                state.Features[
+                    CombatCampaignContextFeatureNames.RemainingBattles] =
+                    Math.Max(0d, maximumGameLevel - gameLevel);
+                state.Features[CombatCampaignContextFeatureNames.Progress] =
+                    Math.Max(
+                        0d,
+                        Math.Min(
+                            1d,
+                            (gameLevel - 1d) / (maximumGameLevel - 1d)));
+            }
+        }
+        if (nativeEncounterLevel > 0d)
+        {
+            var encounterKind = Math.Max(0d, nativeEncounterLevel - 1d);
+            state.Features[CombatCampaignContextFeatureNames.EncounterKind] =
+                encounterKind;
+            state.Features[CombatCampaignContextFeatureNames.FinalBoss] =
+                encounterKind >= 3d ? 1d : 0d;
+        }
+    }
+
     private static int ReadCardBaseCost(CommonCardItem card)
     {
         return card.data != null
@@ -936,6 +1005,32 @@ public sealed class WitchCombatRuntime :
             .Select(group => group.First())
             .Select(action => action.SourceId)
             .Where(id => !string.IsNullOrWhiteSpace(id))
+            .ToList();
+        state.HandCards = state.Actions
+            .Where(action => action.Kind == CombatActionKind.PlayCard)
+            .GroupBy(action => action.RuntimeId)
+            .Select(group => group.First())
+            .Select(action => new CombatCardInstanceObservation
+            {
+                RuntimeId = action.RuntimeId,
+                CardId = action.SourceId,
+                EffectiveCost = Math.Max(0, action.Cost),
+                Retained = action.Features.TryGetValue(
+                    "retain",
+                    out var retain) && retain > 0.5d,
+                ExhaustsOnUse = action.Features.TryGetValue(
+                    "exhaustOnUse",
+                    out var exhaust) && exhaust > 0.5d,
+                EnhancementCount = action.Features.TryGetValue(
+                    "hasVisibleWarning",
+                    out var enhanced) && enhanced > 0.5d
+                    ? 1
+                    : 0,
+                Features = new Dictionary<string, double>(
+                    action.Features,
+                    StringComparer.OrdinalIgnoreCase)
+            })
+            .Where(card => !string.IsNullOrWhiteSpace(card.CardId))
             .ToList();
         state.RetainedHandCardIds = state.Actions
             .Where(action => action.Kind == CombatActionKind.PlayCard
@@ -1895,6 +1990,11 @@ public static class WitchCombatValueEstimator
             "ThrowCard",
             "Burning");
         result.RandomOutcome = ContainsAny(script, "Random", "Dice", "RandomRange");
+        result.EndsTurn = ContainsAny(
+            script,
+            "ChangeRound(",
+            "ChangeRound (",
+            "NativeEndTurnRequested");
         if (result.RandomOutcome)
         {
             result.Uncertainty += 0.7d;

@@ -445,11 +445,11 @@ try {
             -or [string]$checkpoint.Resume.Compatibility.ActionContractVersion `
                 -ne "action-contract-v2" `
             -or [string]$checkpoint.Resume.Compatibility.TrainingSemanticsVersion `
-                -ne "end-turn-counterfactual-v5" `
+                -ne "nana-adventure-growth-context-and-actionable-coverage-v10" `
             -or [string]$checkpoint.Resume.Compatibility.SearchPolicyVersion `
-                -ne "dynamic-search-v6" `
+                -ne "dynamic-search-v7-role-strategy" `
             -or [string]$checkpoint.Resume.Compatibility.TrainingPolicyVersion `
-                -ne "foundation-governance-v12") {
+                -ne "foundation-governance-v14") {
             throw "Foundation checkpoint compatibility manifest is incomplete."
         }
     }
