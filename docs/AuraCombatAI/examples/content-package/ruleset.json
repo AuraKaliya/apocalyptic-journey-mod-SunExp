@@ -1,0 +1,20 @@
+{
+  "Version": "example-content-v1",
+  "Cards": [
+    {
+      "OwnerModId": "ExampleContent",
+      "CardId": "example-content.card",
+      "DisplayName": "Example Content Card",
+      "Cost": 1,
+      "Rarity": 1,
+      "Tags": ["example"],
+      "Fidelity": "Authoritative",
+      "VerificationSource": "ExampleContent authoritative rules",
+      "Effects": [],
+      "DrawEffects": [],
+      "DiscardEffects": []
+    }
+  ],
+  "Enemies": [],
+  "Statuses": []
+}

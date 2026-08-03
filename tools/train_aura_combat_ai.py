@@ -49,7 +49,7 @@ def load_samples(path: Path) -> list[dict]:
             except json.JSONDecodeError as exc:
                 raise ValueError(f"{path}:{line_number}: invalid JSON: {exc}") from exc
             if (
-                sample.get("ModelProtocol") == "aura.combat-ai.sample.v6"
+                sample.get("ModelProtocol") == "aura.combat-ai.sample.v7"
                 and int(sample.get("FeatureSchemaVersion", 0)) == 6
                 and sample.get("CompletionState") == "Completed"
                 and (sample.get("Selection") or {}).get("Protocol")
@@ -282,7 +282,7 @@ def dataset_report(samples: list[dict], pairs: list[dict], gamma: float) -> dict
     human_total = human_agreements + human_disagreements
     return {
         "ReportProtocol": "aura.combat-ai.training-report.v1",
-        "SampleProtocol": "aura.combat-ai.sample.v6",
+        "SampleProtocol": "aura.combat-ai.sample.v7",
         "SelectionProtocol": "aura.combat-ai.selection.v1",
         "GeneratedUtc": datetime.now(timezone.utc).isoformat(),
         "SampleCount": len(samples),
@@ -449,7 +449,7 @@ def train(
 def self_test() -> int:
     samples = [
         {
-            "ModelProtocol": "aura.combat-ai.sample.v6",
+            "ModelProtocol": "aura.combat-ai.sample.v7",
             "FeatureSchemaVersion": 6,
             "CompletionState": "Completed",
             "BattleSessionId": index,
@@ -479,7 +479,7 @@ def self_test() -> int:
     ]
     samples.append(
         {
-            "ModelProtocol": "aura.combat-ai.sample.v6",
+            "ModelProtocol": "aura.combat-ai.sample.v7",
             "FeatureSchemaVersion": 6,
             "CompletionState": "Completed",
             "BattleSessionId": 99,

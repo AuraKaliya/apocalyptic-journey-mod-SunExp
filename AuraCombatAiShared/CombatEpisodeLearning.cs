@@ -7,12 +7,12 @@ namespace AuraCombatAi.Shared;
 
 public static class CombatPolicyValueProtocol
 {
-    public const string EpisodeProtocol = "aura.combat-ai.episode.v4";
+    public const string EpisodeProtocol = "aura.combat-ai.episode.v5";
 
-    public const int FeatureSchemaVersion = 22;
+    public const int FeatureSchemaVersion = 25;
 
     public const string TrainingSemanticsVersion =
-        "nana-adventure-growth-context-and-actionable-coverage-v10";
+        "content-set-quantile-q-registered-content-replay-v14";
 }
 
 public static class CombatPolicyValueFrameStratificationProtocol
@@ -47,6 +47,16 @@ public sealed class CombatEpisode
     public ulong Seed { get; set; }
 
     public string RulesetHash { get; set; } = "";
+
+    public string OwnerModSetHash { get; set; } =
+        CombatContentSetProtocol.EmptyOwnerModSetHash;
+
+    public string ContentSetHash { get; set; } =
+        CombatContentSetProtocol.EmptyContentSetHash;
+
+    public string BaseModelId { get; set; } = "";
+
+    public List<string> ActiveAdapterIds { get; set; } = new();
 
     public string PolicyId { get; set; } = "";
 
@@ -93,6 +103,16 @@ public sealed class CombatCampaignEpisodeMetadata
 
     public string OutcomeClass { get; set; } = "unknown";
 
+    public bool TerminalSnapshotKnown { get; set; }
+
+    public int TerminalBattleIndex { get; set; } = -1;
+
+    public int TerminalPlayerHp { get; set; }
+
+    public int TerminalPlayerMaxHp { get; set; }
+
+    public int TerminalDoomPower { get; set; }
+
     public string CurriculumStage { get; set; } = "";
 
     public int TrainingIteration { get; set; }
@@ -136,6 +156,8 @@ public sealed class CombatEpisodeCandidate
 
     public string SourceId { get; set; } = "";
 
+    public string OwnerModId { get; set; } = "";
+
     public bool Legal { get; set; }
 
     public int SearchVisits { get; set; }
@@ -145,6 +167,14 @@ public sealed class CombatEpisodeCandidate
     public double SearchValue { get; set; }
 
     public double SearchDeathRisk { get; set; }
+
+    public double SearchMeanReturn { get; set; }
+
+    public double SearchReturnStandardError { get; set; }
+
+    public double SearchLowerTailMean { get; set; }
+
+    public List<double> SearchReturnQuantiles { get; set; } = new();
 
     public Dictionary<string, double> Features { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
@@ -163,6 +193,12 @@ public sealed class CombatPolicyValueTrainingOptions
     public int ActionDimensions { get; set; } = 192;
 
     public int HiddenDimensions { get; set; } = 64;
+
+    public int ActionQuantileCount { get; set; } = 16;
+
+    public double ActionQuantileLossWeight { get; set; } = 0.50d;
+
+    public int MinimumSearchVisitsForActionQuantiles { get; set; } = 8;
 
     public string FeatureEncodingMode { get; set; } = "partitioned-v3";
 
@@ -219,6 +255,15 @@ public sealed class CombatPolicyValueTrainingOptions
             StateDimensions = Math.Max(16, Math.Min(512, StateDimensions)),
             ActionDimensions = Math.Max(16, Math.Min(512, ActionDimensions)),
             HiddenDimensions = Math.Max(8, Math.Min(256, HiddenDimensions)),
+            ActionQuantileCount = Math.Max(4, Math.Min(64, ActionQuantileCount)),
+            ActionQuantileLossWeight = Clamp(
+                ActionQuantileLossWeight,
+                0d,
+                2d,
+                0.50d),
+            MinimumSearchVisitsForActionQuantiles = Math.Max(
+                1,
+                Math.Min(128, MinimumSearchVisitsForActionQuantiles)),
             FeatureEncodingMode = "partitioned-v3",
             RandomSeed = RandomSeed,
             MinimumEpisodes = Math.Max(2, Math.Min(10000, MinimumEpisodes)),
@@ -307,6 +352,8 @@ public sealed class CombatPolicyValueTrainingResult
     public int TrainingFrameCount { get; set; }
 
     public int DroppedUnsafeEndTurnFrames { get; set; }
+
+    public int DroppedPolicyIntegrityFrames { get; set; }
 
     public CombatPolicyValueNetworkDefinition? Model { get; set; }
 
@@ -427,6 +474,12 @@ public sealed class CombatPolicyValueMetricSnapshot
     public double HpMae { get; set; }
 
     public double TurnHuber { get; set; }
+
+    public double ActionQuantilePinball { get; set; }
+
+    public double ActionQuantileMae { get; set; }
+
+    public int ActionQuantileLabelCount { get; set; }
 }
 
 public sealed class CombatPolicyValueEpochMetrics

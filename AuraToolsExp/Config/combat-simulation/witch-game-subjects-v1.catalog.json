@@ -89,7 +89,7 @@
                                        ],
                       "skillCooldownTurns":  {
                                                  "careercard_2":  5,
-                                                 "careercard_3":  1
+                                                  "careercard_3":  2
                                              },
                       "initialStatuses":  {
                                               "buff_DoomPower":  1

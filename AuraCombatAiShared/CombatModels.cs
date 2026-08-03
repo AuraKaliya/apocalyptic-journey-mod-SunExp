@@ -703,6 +703,14 @@ public sealed class CombatCandidateEvaluation
     public int SearchVisits { get; set; }
 
     public double SearchDeathRisk { get; set; }
+
+    public double SearchMeanReturn { get; set; }
+
+    public double SearchReturnStandardError { get; set; }
+
+    public double SearchLowerTailMean { get; set; }
+
+    public List<double> SearchReturnQuantiles { get; set; } = new();
 }
 
 public sealed class CombatPlanStep
@@ -856,9 +864,9 @@ public interface ICombatTrainingSampleSink
 
 public static class CombatTrainingProtocol
 {
-    public const string SampleProtocol = "aura.combat-ai.sample.v6";
+    public const string SampleProtocol = "aura.combat-ai.sample.v7";
 
-    public const int FeatureSchemaVersion = 9;
+    public const int FeatureSchemaVersion = 10;
 
     public static bool IsCompatible(CombatTrainingSample? sample)
     {
@@ -889,7 +897,15 @@ public sealed class CombatTrainingSample
 
     public string SharedBuild { get; set; } = "";
 
-    public string OwnerModSetHash { get; set; } = "";
+    public string OwnerModSetHash { get; set; } =
+        CombatContentSetProtocol.EmptyOwnerModSetHash;
+
+    public string ContentSetHash { get; set; } =
+        CombatContentSetProtocol.EmptyContentSetHash;
+
+    public string BaseModelId { get; set; } = "";
+
+    public List<string> ActiveAdapterIds { get; set; } = new();
 
     public long BattleSessionId { get; set; }
 
@@ -973,6 +989,8 @@ public sealed class CombatTrainingCandidate
 
     public string SourceId { get; set; } = "";
 
+    public string OwnerModId { get; set; } = "";
+
     public string DisplayName { get; set; } = "";
 
     public string ActionKind { get; set; } = "";
@@ -1014,6 +1032,14 @@ public sealed class CombatTrainingCandidate
     public int SearchVisits { get; set; }
 
     public double SearchDeathRisk { get; set; }
+
+    public double SearchMeanReturn { get; set; }
+
+    public double SearchReturnStandardError { get; set; }
+
+    public double SearchLowerTailMean { get; set; }
+
+    public List<double> SearchReturnQuantiles { get; set; } = new();
 }
 
 public sealed class CombatTrainingUtility

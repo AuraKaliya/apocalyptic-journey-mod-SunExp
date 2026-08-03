@@ -122,6 +122,29 @@ internal sealed class CombatSearchRiskStatistics
             standardError);
     }
 
+    public double[] Quantiles(int count)
+    {
+        var size = Math.Max(1, Math.Min(64, count));
+        var result = new double[size];
+        if (returnSamples.Count == 0)
+        {
+            return result;
+        }
+        EnsureOrderedSamples();
+        for (var index = 0; index < size; index++)
+        {
+            var tau = (index + 0.5d) / size;
+            var position = tau * (orderedSamples.Length - 1);
+            var lower = (int)Math.Floor(position);
+            var upper = Math.Min(orderedSamples.Length - 1, lower + 1);
+            var fraction = position - lower;
+            result[index] = orderedSamples[lower]
+                            + (orderedSamples[upper] - orderedSamples[lower])
+                            * fraction;
+        }
+        return result;
+    }
+
     private void EnsureOrderedSamples()
     {
         if (!orderedSamplesDirty)

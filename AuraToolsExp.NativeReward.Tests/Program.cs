@@ -85,6 +85,9 @@ try
         subjectCatalog,
         campaign,
         rulesetBuild.Ruleset));
+    failures.AddRange(ValidateNightmarePrototypeDuplication(
+        campaign,
+        rulesetBuild.Ruleset));
     failures.AddRange(ValidateAdelaWholeHandTransform(
         rulesetBuild.Ruleset));
     var dynamicPoolScenario = new CombatScenarioDefinition
@@ -666,8 +669,14 @@ static IEnumerable<string> ValidateAuthoritativeRoleSkillSemantics()
         || selfDevour.Semantics.Damage != 0d
         || selfDevour.Semantics.Cleanse != 5d
         || selfDevour.Semantics.Scaling != 2d
-        || selfDevour.Semantics.PersistentValue != 23d
+        || selfDevour.Semantics.Heal != 12d
+        || selfDevour.Semantics.PersistentValue != 12d
         || selfDevour.Semantics.CooldownTurns != 5d
+        || selfDevour.Semantics.StateChanges.GetValueOrDefault(
+            "player.hp") != 12d
+        || selfDevour.Semantics.TargetEffects.SingleOrDefault(effect =>
+               effect.Kind == CombatSemanticEffectKind.Heal)
+           ?.TargetRuntimeId != 1
         || selfDevour.Features.GetValueOrDefault(
             "nana:projected-doom-gain") != 2d)
     {
@@ -683,8 +692,12 @@ static IEnumerable<string> ValidateAuthoritativeRoleSkillSemantics()
     };
     CombatAiRegistry.ApplySemantics(nanaState, enemyDevour);
     if (enemyDevour.Semantics.Damage != 5d
+        || enemyDevour.Semantics.Heal != 12d
         || enemyDevour.Semantics.Cleanse != 0d
         || enemyDevour.Semantics.Risk != 12d
+        || enemyDevour.Semantics.TargetEffects.SingleOrDefault(effect =>
+               effect.Kind == CombatSemanticEffectKind.Heal)
+           ?.TargetRuntimeId != 1
         || enemyDevour.Features.GetValueOrDefault(
             "nana:enemy-cleanse-cost") != 12d)
     {
@@ -788,11 +801,34 @@ static IEnumerable<string> ValidateAuthoritativeRoleSkillSemantics()
     CombatAiRegistry.ApplySemantics(growthState, growthDevour);
     CombatAiRegistry.EnrichRoleStrategies(growthState);
     if (growthDevour.Features.GetValueOrDefault(
+            "nana:conservative-devour-target") != 0d
+        || growthDevour.Features.GetValueOrDefault(
+            CombatRoleStrategyFeatureNames.StrategicallyProhibited) != 1d)
+    {
+        failures.Add("nana-single-kind-enemy-devour-conservative-gate");
+    }
+    growthState.Enemies[0].Statuses.Add(new CombatStatusObservation
+    {
+        StatusId = "buff_toxin",
+        Level = 1,
+        Rarity = 1,
+        Type = "Negative"
+    });
+    growthDevour.Features.Clear();
+    CombatAiRegistry.ApplySemantics(growthState, growthDevour);
+    CombatAiRegistry.EnrichRoleStrategies(growthState);
+    if (growthDevour.Features.GetValueOrDefault(
+            "nana:projected-doom-gain") != 2d
+        || growthDevour.Features.GetValueOrDefault(
+            "nana:devour-event-max-hp-gain") != 42d
+        || growthDevour.Features.GetValueOrDefault(
             "roleStrategy:nana.preferred-harvest") != 1d
         || growthDevour.Features.GetValueOrDefault(
-            CombatRoleStrategyFeatureNames.Scaling) < 5d)
+            CombatRoleStrategyFeatureNames.StrategicallyProhibited) != 0d
+        || growthDevour.Features.GetValueOrDefault(
+            "nana:devour-net-value") <= 0d)
     {
-        failures.Add("nana-high-doom-single-layer-growth-value");
+        failures.Add("nana-two-kind-enemy-devour-net-value");
     }
     var firstTransform = new CombatActionObservation
     {
@@ -804,11 +840,11 @@ static IEnumerable<string> ValidateAuthoritativeRoleSkillSemantics()
     if (firstTransform.SemanticFidelity
         != CombatKnowledgeFidelity.Authoritative
         || firstTransform.Semantics.SelfHpLoss != 0d
-        || firstTransform.Semantics.Damage != 1d
+        || firstTransform.Semantics.Damage != 2d
         || firstTransform.Semantics.Buff != 20d
         || firstTransform.Semantics.Scaling != 10d
         || firstTransform.Semantics.StateChanges.GetValueOrDefault(
-            "playerMaxHp") != -20d
+            "playerMaxHp") != 0d
         || firstTransform.Features.GetValueOrDefault(
             "nana:first-transform") != 1d)
     {
@@ -833,6 +869,282 @@ static IEnumerable<string> ValidateAuthoritativeRoleSkillSemantics()
             "nana:repeat-transform") != 1d)
     {
         failures.Add("nana-repeat-transform-semantics");
+    }
+    nanaState.Actions.Add(repeatTransform);
+    CombatAiRegistry.EnrichRoleStrategies(nanaState);
+    if (repeatTransform.Features.GetValueOrDefault(
+            CombatRoleStrategyFeatureNames.StrategicallyProhibited) != 1d)
+    {
+        failures.Add("nana-repeat-transform-strategy-gate");
+    }
+
+    var nightmareState = new CombatStateObservation
+    {
+        Player = new CombatUnitObservation
+        {
+            RuntimeId = 1,
+            DefinitionId = "career_2",
+            Kind = CombatTargetKind.Self,
+            CurrentHp = 100,
+            MaxHp = 120,
+            Statuses =
+            {
+                new CombatStatusObservation
+                {
+                    StatusId = "buff_DoomPower",
+                    Level = 10,
+                    Type = "Special"
+                }
+            }
+        },
+        Enemies =
+        {
+            new CombatUnitObservation
+            {
+                RuntimeId = 2,
+                DefinitionId = "nightmare-fixture-enemy",
+                Kind = CombatTargetKind.Enemy,
+                CurrentHp = 80,
+                MaxHp = 80,
+                Statuses =
+                {
+                    new CombatStatusObservation
+                    {
+                        StatusId = "buff_burn",
+                        Level = 1,
+                        Rarity = 2,
+                        Type = "Negative"
+                    },
+                    new CombatStatusObservation
+                    {
+                        StatusId = "buff_toxin",
+                        Level = 1,
+                        Rarity = 1,
+                        Type = "Negative"
+                    }
+                }
+            }
+        },
+        CurrentPower = 2,
+        MaxPower = 3,
+        Features =
+        {
+            ["blessing:blessing_40"] = 1d
+        }
+    };
+    var nightmareBuilder = new CombatActionObservation
+    {
+        CandidateId = "nightmare-two-events",
+        SourceId = "fixture-two-debuffs",
+        Kind = CombatActionKind.PlayCard,
+        RuntimeId = 30,
+        TargetRuntimeId = 2,
+        TargetKind = CombatTargetKind.Enemy,
+        Cost = 1,
+        Semantics = new CombatActionSemantics
+        {
+            Debuff = 4d,
+            TargetEffects =
+            {
+                new CombatTargetedSemanticEffect
+                {
+                    Kind = CombatSemanticEffectKind.AddStatus,
+                    TargetRuntimeId = 2,
+                    DefinitionId = "buff_burn",
+                    RawAmount = 3d,
+                    EffectiveAmount = 3d,
+                    Probability = 1d
+                },
+                new CombatTargetedSemanticEffect
+                {
+                    Kind = CombatSemanticEffectKind.AddStatus,
+                    TargetRuntimeId = 2,
+                    DefinitionId = "buff_toxin",
+                    RawAmount = 1d,
+                    EffectiveAmount = 1d,
+                    Probability = 1d
+                }
+            }
+        }
+    };
+    var nightmareDevour = new CombatActionObservation
+    {
+        CandidateId = "nightmare-devour",
+        SourceId = "careercard_2",
+        Kind = CombatActionKind.UseSkill,
+        TargetRuntimeId = 2,
+        TargetKind = CombatTargetKind.Enemy
+    };
+    nightmareState.Actions.Add(nightmareBuilder);
+    nightmareState.Actions.Add(nightmareDevour);
+    CombatAiRegistry.ApplySemantics(nightmareState, nightmareDevour);
+    CombatAiRegistry.EnrichRoleStrategies(nightmareState);
+    if (nightmareBuilder.Features.GetValueOrDefault(
+            "nightmare:eligible-negative-events") != 2d
+        || Math.Abs(nightmareBuilder.Features.GetValueOrDefault(
+            "nightmare:expected-extra-stacks") - 0.4d) > 0.000001d
+        || Math.Abs(nightmareBuilder.Features.GetValueOrDefault(
+            "nightmare:expected-devour-threshold-gain") - 0.2d) > 0.000001d
+        || nightmareBuilder.Features.GetValueOrDefault(
+            "roleStrategy:nana.priority-builder") != 1d
+        || nightmareDevour.Features.GetValueOrDefault(
+            CombatRoleStrategyFeatureNames.StrategicallyProhibited) != 1d)
+    {
+        failures.Add(
+            "nana-nightmare-event-and-threshold-strategy:events="
+            + nightmareBuilder.Features.GetValueOrDefault(
+                "nightmare:eligible-negative-events")
+            + ",extra="
+            + nightmareBuilder.Features.GetValueOrDefault(
+                "nightmare:expected-extra-stacks")
+            + ",threshold="
+            + nightmareBuilder.Features.GetValueOrDefault(
+                "nightmare:expected-devour-threshold-gain")
+            + ",priority="
+            + nightmareBuilder.Features.GetValueOrDefault(
+                "roleStrategy:nana.priority-builder")
+            + ",devourProhibited="
+            + nightmareDevour.Features.GetValueOrDefault(
+                CombatRoleStrategyFeatureNames.StrategicallyProhibited));
+    }
+    nightmareBuilder.Semantics.RandomOutcome = true;
+    nightmareBuilder.Semantics.Uncertainty = 0.5d;
+    nightmareBuilder.Features.Clear();
+    nightmareDevour.Features.Clear();
+    CombatAiRegistry.ApplySemantics(nightmareState, nightmareDevour);
+    CombatAiRegistry.EnrichRoleStrategies(nightmareState);
+    if (nightmareDevour.Features.GetValueOrDefault(
+            "roleStrategy:nana.defer-harvest-random-builder") != 1d
+        || nightmareDevour.Features.GetValueOrDefault(
+            "roleStrategy:nana.defer-harvest-same-turn") != 0d
+        || nightmareDevour.Features.GetValueOrDefault(
+            CombatRoleStrategyFeatureNames.StrategicallyProhibited) != 0d)
+    {
+        failures.Add("nana-random-builder-remains-soft-guidance");
+    }
+
+    var burstState = new CombatStateObservation
+    {
+        Player = new CombatUnitObservation
+        {
+            RuntimeId = 1,
+            DefinitionId = "career_2",
+            Kind = CombatTargetKind.Self,
+            CurrentHp = 100,
+            MaxHp = 120,
+            Statuses =
+            {
+                new CombatStatusObservation
+                {
+                    StatusId = "buff_DoomPower",
+                    Level = 10,
+                    Type = "Special"
+                }
+            }
+        },
+        Enemies =
+        {
+            new CombatUnitObservation
+            {
+                RuntimeId = 2,
+                Kind = CombatTargetKind.Enemy,
+                CurrentHp = 100,
+                MaxHp = 100
+            }
+        },
+        CurrentPower = 2,
+        MaxPower = 3
+    };
+    var burstTransform = new CombatActionObservation
+    {
+        CandidateId = "burst-transform",
+        SourceId = "careercard_3",
+        Kind = CombatActionKind.UseSkill
+    };
+    burstState.Actions.Add(burstTransform);
+    burstState.Actions.Add(new CombatActionObservation
+    {
+        CandidateId = "burst-card-a",
+        SourceId = "fixture-a",
+        Kind = CombatActionKind.PlayCard,
+        RuntimeId = 31,
+        Cost = 1
+    });
+    burstState.Actions.Add(new CombatActionObservation
+    {
+        CandidateId = "burst-card-b",
+        SourceId = "fixture-b",
+        Kind = CombatActionKind.PlayCard,
+        RuntimeId = 32,
+        Cost = 1
+    });
+    CombatAiRegistry.ApplySemantics(burstState, burstTransform);
+    CombatAiRegistry.EnrichRoleStrategies(burstState);
+    if (burstTransform.Features.GetValueOrDefault(
+            "nana:post-transform-max-hp") != 120d
+        || burstTransform.Features.GetValueOrDefault(
+            "nana:post-transform-damage-per-action") != 2d
+        || burstTransform.Features.GetValueOrDefault(
+            "nana:executable-burst-actions") != 2d
+        || burstTransform.Features.GetValueOrDefault(
+            "roleStrategy:nana.transform-ready") != 1d
+        || burstTransform.Features.GetValueOrDefault(
+            CombatRoleStrategyFeatureNames.StrategicallyProhibited) != 0d)
+    {
+        failures.Add("nana-transform-threshold-and-executable-burst");
+    }
+
+    burstState.Player.MaxHp = 60;
+    burstState.Player.CurrentHp = 60;
+    burstTransform.Features.Clear();
+    CombatAiRegistry.ApplySemantics(burstState, burstTransform);
+    CombatAiRegistry.EnrichRoleStrategies(burstState);
+    if (burstTransform.Features.GetValueOrDefault(
+            "nana:post-transform-max-hp") != 60d
+        || burstTransform.Features.GetValueOrDefault(
+            "nana:post-transform-damage-per-action") != 1d
+        || burstTransform.Features.GetValueOrDefault(
+            "nana:next-transform-damage-threshold-max-hp") != 100d)
+    {
+        failures.Add("nana-transform-preserves-low-max-hp-threshold");
+    }
+
+    var survivalState = new CombatStateObservation
+    {
+        Player = new CombatUnitObservation
+        {
+            RuntimeId = 1,
+            DefinitionId = "career_2",
+            Kind = CombatTargetKind.Self,
+            CurrentHp = 10,
+            MaxHp = 100
+        },
+        CurrentPower = 1,
+        MaxPower = 3,
+        ExpectedIncomingDamage = 20d
+    };
+    var survivalAction = new CombatActionObservation
+    {
+        CandidateId = "nana-survival-block",
+        SourceId = "fixture-block",
+        Kind = CombatActionKind.PlayCard,
+        TargetRuntimeId = 1,
+        TargetKind = CombatTargetKind.Self,
+        Cost = 1,
+        Semantics = new CombatActionSemantics { Defend = 25d }
+    };
+    survivalState.Actions.Add(survivalAction);
+    CombatAiRegistry.EnrichRoleStrategies(survivalState);
+    if (survivalState.Features.GetValueOrDefault(
+            CombatRoleStrategyFeatureNames.Phase) != 4d
+        || survivalState.Features.GetValueOrDefault(
+            "roleStrategy:nana.survival-override") != 1d
+        || survivalAction.Features.GetValueOrDefault(
+            "roleStrategy:nana.survival-action") != 1d
+        || survivalAction.Features.GetValueOrDefault(
+            CombatRoleStrategyFeatureNames.Synergy) <= 6d)
+    {
+        failures.Add("nana-survival-override-priority");
     }
 
     var finaleState = new CombatStateObservation
@@ -938,7 +1250,7 @@ static IEnumerable<string> ValidateAuthoritativeRoleSkillSemantics()
             CombatRoleStrategyFeatureNames.Synergy) <= 0d
         || finaleTransform.Features.GetValueOrDefault(
             CombatRoleStrategyFeatureNames.Risk) <= 0d
-        || finaleTransformLegal)
+        || !finaleTransformLegal)
     {
         failures.Add(
             "nana-finale-role-strategy:legal="
@@ -968,10 +1280,16 @@ static IEnumerable<string> ValidateAuthoritativeRoleSkillSemantics()
     }
     var nanaCampaignDefaults = new CombatCampaignDefinition
     {
-        Player = new CombatPlayerSetup { RoleId = "career_2" }
+        Player = new CombatPlayerSetup
+        {
+            RoleId = "career_2",
+            FamiliarBlessingIds = { "blessing_40" }
+        }
     };
     AuraToolsRoleCampaignStrategy.Apply(nanaCampaignDefaults);
     if (nanaCampaignDefaults.RolePrior.GetValueOrDefault("cycling") <= 0d
+        || nanaCampaignDefaults.RolePrior.GetValueOrDefault(
+            "nightmare-debuff-events") <= 0d
         || nanaCampaignDefaults.RewardScoreBiases.GetValueOrDefault(
             "Crowdfundingcard_43") <= 0d
         || nanaCampaignDefaults.RewardScoreBiases.GetValueOrDefault(
@@ -987,6 +1305,16 @@ static IEnumerable<string> ValidateAuthoritativeRoleSkillSemantics()
             JourneyRunId = "nana-journey",
             JourneyBattleIndex = 2,
             FinalPlayerMaxHp = 1200,
+            Campaign = new CombatCampaignEpisodeMetadata
+            {
+                DifficultyId = "normal",
+                FinalBossVictory = true,
+                TerminalSnapshotKnown = true,
+                TerminalBattleIndex = 36,
+                TerminalPlayerHp = 140,
+                TerminalPlayerMaxHp = 180,
+                TerminalDoomPower = 12
+            },
             Frames =
             {
                 new CombatEpisodeFrame
@@ -1002,7 +1330,8 @@ static IEnumerable<string> ValidateAuthoritativeRoleSkillSemantics()
                             SourceId = "careercard_2",
                             Features =
                             {
-                                [CombatRoleStrategyFeatureNames.Active] = 1d
+                                [CombatRoleStrategyFeatureNames.Active] = 1d,
+                                ["nana:devour-net-value"] = 5d
                             }
                         }
                     }
@@ -1021,7 +1350,8 @@ static IEnumerable<string> ValidateAuthoritativeRoleSkillSemantics()
                             Features =
                             {
                                 [CombatRoleStrategyFeatureNames.Active] = 1d,
-                                ["nana:first-transform"] = 1d
+                                ["nana:first-transform"] = 1d,
+                                ["roleStrategy:nana.transform-ready"] = 1d
                             }
                         }
                     }
@@ -1065,10 +1395,36 @@ static IEnumerable<string> ValidateAuthoritativeRoleSkillSemantics()
             EpisodeId = "nana-journey-earlier",
             JourneyRunId = "nana-journey",
             JourneyBattleIndex = 1,
-            FinalPlayerMaxHp = 100
+            FinalPlayerMaxHp = 100,
+            Campaign = new CombatCampaignEpisodeMetadata
+            {
+                DifficultyId = "normal",
+                FinalBossVictory = true,
+                TerminalSnapshotKnown = true,
+                TerminalBattleIndex = 36,
+                TerminalPlayerHp = 140,
+                TerminalPlayerMaxHp = 180,
+                TerminalDoomPower = 12
+            }
+        }
+    }, new[]
+    {
+        new CombatFoundationCampaignObservation
+        {
+            SourceStage = "training",
+            DifficultyId = "normal",
+            FinalBossVictory = true,
+            FinalHp = 190,
+            FinalMaxHp = 222,
+            FinalDoomPower = 17
         }
     });
-    if (diagnostics.GetValueOrDefault("final-max-hp.maximum") != 1200d
+    if (diagnostics.GetValueOrDefault("final-max-hp.maximum") != 222d
+        || diagnostics.GetValueOrDefault("journey-final-doom.mean") != 17d
+        || diagnostics.GetValueOrDefault(
+            "journey-normal-victory-final-max-hp.mean") != 222d
+        || diagnostics.GetValueOrDefault(
+            "journey-normal-victory-final-doom.mean") != 17d
         || diagnostics.GetValueOrDefault(
             "nana.devour-transform-link-rate") != 1d
         || diagnostics.GetValueOrDefault("nana.first-transforms") != 1d
@@ -1080,7 +1436,11 @@ static IEnumerable<string> ValidateAuthoritativeRoleSkillSemantics()
         || diagnostics.GetValueOrDefault(
             "nana.role-strategy-eligible-frames") != 3d
         || diagnostics.GetValueOrDefault(
-            "nana.role-strategy-frame-coverage") != 1d)
+            "nana.role-strategy-frame-coverage") != 1d
+        || diagnostics.GetValueOrDefault(
+            "nana.selected-nonpositive-devours") != 0d
+        || diagnostics.GetValueOrDefault(
+            "nana.selected-underprepared-transforms") != 0d)
     {
         failures.Add("nana-training-diagnostics");
     }
@@ -1114,6 +1474,12 @@ static IEnumerable<string> ValidateNanaStatusDerivedMaximumHp(
             ["DoomPower"] = "1"
         }
     };
+    scenario.RewardRules.Add(new CombatScenarioRewardRule
+    {
+        RewardId = "blessing_40",
+        Kind = "Blessing",
+        Stacks = 1
+    });
     var context = new NativePoolTestContext(scenario, ruleset);
     context.State.PlayerActorId = 1;
     var actor = new CombatActorState
@@ -1149,7 +1515,7 @@ static IEnumerable<string> ValidateNanaStatusDerivedMaximumHp(
         DefinitionId = "buff_DoomPower",
         Amount = 1
     });
-    var firstGrowthCorrect = actor.MaxHp == 63;
+    var firstGrowthCorrect = actor.MaxHp == 63 && actor.Hp == 63;
     actor.Statuses.Single(status => string.Equals(
         status.StatusId,
         "buff_DoomPower",
@@ -1162,9 +1528,9 @@ static IEnumerable<string> ValidateNanaStatusDerivedMaximumHp(
         DefinitionId = "buff_DoomPower",
         Amount = 2
     });
-    var secondGrowthCorrect = actor.MaxHp == 70;
+    var secondGrowthCorrect = actor.MaxHp == 67 && actor.Hp == 67;
     var persistentGrowthCorrect =
-        context.PersistentVariableDeltas.GetValueOrDefault("MaxHp") == 9;
+        context.PersistentVariableDeltas.GetValueOrDefault("MaxHp") == 6;
     var globals = new NativeRewardScriptGlobals(
         context,
         new CombatScenarioRewardRule
@@ -1177,20 +1543,104 @@ static IEnumerable<string> ValidateNanaStatusDerivedMaximumHp(
     globals.SetStatus("Self");
     globals.ChangeCareer("career_4");
     var transformedCorrect = actor.DefinitionId == "career_4"
-                             && actor.MaxHp == 50
-                             && actor.Hp == 50;
+                             && actor.MaxHp == 67
+                             && actor.Hp == 67;
+    actor.Statuses.Add(new CombatStatusState
+    {
+        StatusId = "SpecialBuff_CalamityIncarnates",
+        Stacks = 1,
+        SourceActorId = 1
+    });
+    context.State.Actors.Add(new CombatActorState
+    {
+        ActorId = 2,
+        Kind = CombatSimulationActorKind.Enemy,
+        Hp = 100,
+        MaxHp = 100
+    });
+    context.State.Actors.Add(new CombatActorState
+    {
+        ActorId = 3,
+        Kind = CombatSimulationActorKind.Enemy,
+        Hp = 100,
+        MaxHp = 100
+    });
+    extension.OnEvent(context, new CombatSimulationEvent
+    {
+        Kind = CombatSimulationEventKind.StatusAdded,
+        SourceActorId = 1,
+        TargetActorId = 1,
+        DefinitionId = "SpecialBuff_CalamityIncarnates",
+        Amount = 1
+    });
+    context.AppliedEffects.Clear();
+    extension.OnEvent(context, new CombatSimulationEvent
+    {
+        Kind = CombatSimulationEventKind.ActionResolved,
+        SourceActorId = 1,
+        TargetActorId = 2,
+        DefinitionId = "fixture-action"
+    });
+    var calamityDamageCorrect = context.AppliedEffects.Count(item =>
+        item.Effect.Kind == CombatSimulationEffectKind.Damage
+        && item.Effect.Amount == 1) == 2;
     actor.Hp = 42;
-    globals.SetStatus("Self");
-    globals.ChangeCareer("career_2");
+    actor.Statuses.RemoveAll(status => string.Equals(
+        status.StatusId,
+        "SpecialBuff_CalamityIncarnates",
+        StringComparison.OrdinalIgnoreCase));
+    extension.OnEvent(context, new CombatSimulationEvent
+    {
+        Kind = CombatSimulationEventKind.StatusRemoved,
+        SourceActorId = 1,
+        TargetActorId = 1,
+        DefinitionId = "SpecialBuff_CalamityIncarnates",
+        Amount = 1
+    });
     var restoredCorrect = actor.DefinitionId == "career_2"
-                          && actor.MaxHp == 70
+                          && actor.MaxHp == 67
                           && actor.Hp == 42;
+    var nextScenario = new CombatScenarioDefinition
+    {
+        ScenarioId = "nana-doom-next-battle",
+        Player = scenario.Player,
+        CampaignVariables = new Dictionary<string, string>(
+            scenario.CampaignVariables,
+            StringComparer.OrdinalIgnoreCase)
+    };
+    var nextContext = new NativePoolTestContext(nextScenario, ruleset);
+    nextContext.State.PlayerActorId = 1;
+    nextContext.State.Actors.Add(new CombatActorState
+    {
+        ActorId = 1,
+        DefinitionId = "career_2",
+        Kind = CombatSimulationActorKind.Player,
+        Hp = 42,
+        MaxHp = 67,
+        Statuses =
+        {
+            new CombatStatusState
+            {
+                StatusId = "buff_DoomPower",
+                Stacks = 4,
+                SourceActorId = 1
+            }
+        }
+    });
+    new AuraToolsNativeRewardExtension().Initialize(nextContext);
+    var adventurePersistenceCorrect =
+        nextScenario.CampaignVariables.GetValueOrDefault("DoomPower") == "4"
+        && nextContext.State.Player?.MaxHp == 67
+        && nextContext.State.Player?.Hp == 42
+        && nextContext.PersistentVariableDeltas.Count == 0;
     if (!initialContributionCorrect
         || !firstGrowthCorrect
         || !secondGrowthCorrect
         || !persistentGrowthCorrect
         || !transformedCorrect
-        || !restoredCorrect)
+        || !calamityDamageCorrect
+        || !restoredCorrect
+        || !adventurePersistenceCorrect)
     {
         failures.Add(
             "nana-status-derived-maximum-hp: initial="
@@ -1203,8 +1653,12 @@ static IEnumerable<string> ValidateNanaStatusDerivedMaximumHp(
             + persistentGrowthCorrect
             + ", transformed="
             + transformedCorrect
+            + ", calamityDamage="
+            + calamityDamageCorrect
             + ", restored="
             + restoredCorrect
+            + ", adventurePersistence="
+            + adventurePersistenceCorrect
             + ", hp="
             + actor.Hp
             + ", maxHp="
@@ -1265,6 +1719,22 @@ static IEnumerable<string> ValidateNanaStatusDerivedMaximumHp(
                 "nana-devour-target-scope-actions:"
                 + string.Join(",", targetIds));
         }
+        if (!scenario.RewardRules.Any(item => string.Equals(
+                item.RewardId,
+                "blessing_40",
+                StringComparison.OrdinalIgnoreCase)
+            && string.Equals(
+                item.Kind,
+                "Blessing",
+                StringComparison.OrdinalIgnoreCase)))
+        {
+            scenario.RewardRules.Add(new CombatScenarioRewardRule
+            {
+                RewardId = "blessing_40",
+                Kind = "Blessing",
+                Stacks = 1
+            });
+        }
         var observation = PlayerEquivalentSimulationObservationProjector.Project(
             new CombatSimulationPolicyContext
             {
@@ -1288,9 +1758,11 @@ static IEnumerable<string> ValidateNanaStatusDerivedMaximumHp(
                 CombatTargetKind.Enemy
             })
             || observation.Friendlies.Count != 1
-            || observation.Features.GetValueOrDefault(
-                "playerRole:career_2") != 1d
-            || friendlyFeatures.GetValueOrDefault(
+             || observation.Features.GetValueOrDefault(
+                 "playerRole:career_2") != 1d
+             || observation.Features.GetValueOrDefault(
+                 "blessing:blessing_40") != 1d
+             || friendlyFeatures.GetValueOrDefault(
                 "targetKindFriendly") != 1d)
         {
             failures.Add(
@@ -1300,8 +1772,183 @@ static IEnumerable<string> ValidateNanaStatusDerivedMaximumHp(
                 + observation.Friendlies.Count
                 + ":role="
                 + observation.Features.GetValueOrDefault(
-                    "playerRole:career_2"));
+                    "playerRole:career_2")
+                + ":nightmare="
+                + observation.Features.GetValueOrDefault(
+                    "blessing:blessing_40"));
         }
+    }
+    var transformState = new CombatBattleState
+    {
+        Phase = CombatSimulationPhase.PlayerAction,
+        PlayerActorId = 1,
+        Actors =
+        {
+            new CombatActorState
+            {
+                ActorId = 1,
+                InstanceKey = "nana-transform-player",
+                DefinitionId = "career_2",
+                Kind = CombatSimulationActorKind.Player,
+                Hp = 61,
+                MaxHp = 61,
+                Energy = 3,
+                BaseEnergy = 3
+            },
+            new CombatActorState
+            {
+                ActorId = 2,
+                InstanceKey = "nana-transform-enemy",
+                DefinitionId = "enemy_1",
+                Kind = CombatSimulationActorKind.Enemy,
+                Hp = 100,
+                MaxHp = 100
+            }
+        },
+        Cards =
+        {
+            new CombatCardInstanceState
+            {
+                InstanceId = 1,
+                CardId = "careercard_3",
+                CreationSource = "role-skill",
+                CreationSourceId = "career_2"
+            }
+        },
+        SkillCards = { 1 },
+        SkillCooldowns = { [1] = 0 }
+    };
+    var transformEngine = new CombatSimulationEngine(
+        new AuraToolsNativeRewardExtensionFactory());
+    var transformAction = transformEngine.GetInvocablePlayerActions(
+            scenario,
+            ruleset,
+            transformState)
+        .Single(action => string.Equals(
+            action.DefinitionId,
+            "careercard_3",
+            StringComparison.OrdinalIgnoreCase));
+    var transformResult = transformEngine.ForkAndApplyPlayerAction(
+        scenario,
+        ruleset,
+        transformState,
+        transformAction,
+        allowPolicyIneligible: true);
+    if (!transformResult.Success
+        || transformResult.State.SkillCooldowns.GetValueOrDefault(1) != 2
+        || !string.Equals(
+            transformResult.State.Player?.DefinitionId,
+            "career_4",
+            StringComparison.OrdinalIgnoreCase))
+    {
+        failures.Add(
+            "nana-native-transform-cooldown: success="
+            + transformResult.Success
+            + ", cooldown="
+            + transformResult.State.SkillCooldowns.GetValueOrDefault(1)
+            + ", role="
+            + transformResult.State.Player?.DefinitionId);
+    }
+    return failures;
+}
+
+static IEnumerable<string> ValidateNightmarePrototypeDuplication(
+    CombatCampaignDefinition campaign,
+    CombatRuleset ruleset)
+{
+    var failures = new List<string>();
+    var blessing = campaign.Rewards.Single(item => string.Equals(
+        item.RewardId,
+        "blessing_40",
+        StringComparison.OrdinalIgnoreCase));
+    var scenario = new CombatScenarioDefinition
+    {
+        ScenarioId = "nightmare-prototype-one-layer",
+        Player = new CombatPlayerSetup
+        {
+            RoleId = "career_2"
+        },
+        RewardRules =
+        {
+            new CombatScenarioRewardRule
+            {
+                RewardId = blessing.RewardId,
+                Kind = blessing.Kind.ToString(),
+                NativeScriptHash = blessing.NativeScriptHash,
+                FightScript = blessing.FightScript
+            }
+        }
+    };
+    var context = new NativePoolTestContext(scenario, ruleset)
+    {
+        RandomValue = 99
+    };
+    context.State.PlayerActorId = 1;
+    context.State.Actors.Add(new CombatActorState
+    {
+        ActorId = 1,
+        InstanceKey = "nightmare-player",
+        DefinitionId = "career_2",
+        Kind = CombatSimulationActorKind.Player,
+        Hp = 60,
+        MaxHp = 60
+    });
+    context.State.Actors.Add(new CombatActorState
+    {
+        ActorId = 2,
+        InstanceKey = "nightmare-enemy",
+        DefinitionId = "enemy_1",
+        Kind = CombatSimulationActorKind.Enemy,
+        Hp = 100,
+        MaxHp = 100
+    });
+    var negativeStatus = ruleset.SnapshotStatuses().First(status =>
+        status.Tags.Contains("Negative", StringComparer.OrdinalIgnoreCase));
+    var extension = new AuraToolsNativeRewardExtension();
+    extension.Initialize(context);
+    extension.OnEvent(context, new CombatSimulationEvent
+    {
+        Kind = CombatSimulationEventKind.StatusAdded,
+        SourceActorId = 1,
+        TargetActorId = 2,
+        DefinitionId = negativeStatus.StatusId,
+        Amount = 3,
+        SourceRewardId = "fixture-debuff-card",
+        SourceActionId = 1
+    });
+    var duplicate = context.AppliedEffects.SingleOrDefault();
+    var duplicatedOneLayer = duplicate.Effect != null
+                             && duplicate.Effect.Kind
+                             == CombatSimulationEffectKind.AddStatus
+                             && duplicate.Effect.Amount == 1
+                             && string.Equals(
+                                 duplicate.Effect.DefinitionId,
+                                 negativeStatus.StatusId,
+                                 StringComparison.OrdinalIgnoreCase)
+                             && string.Equals(
+                                 duplicate.SourceEvent?.SourceRewardId,
+                                 "blessing_40",
+                                 StringComparison.OrdinalIgnoreCase);
+    if (duplicate.SourceEvent != null)
+    {
+        extension.OnEvent(context, new CombatSimulationEvent
+        {
+            Kind = CombatSimulationEventKind.StatusAdded,
+            SourceActorId = 1,
+            TargetActorId = 2,
+            DefinitionId = negativeStatus.StatusId,
+            Amount = 1,
+            SourceRewardId = duplicate.SourceEvent.SourceRewardId,
+            SourceActionId = 1
+        });
+    }
+    if (!duplicatedOneLayer || context.AppliedEffects.Count != 1)
+    {
+        failures.Add(
+            "nightmare-prototype-one-layer: duplicated="
+            + duplicatedOneLayer
+            + ", effects="
+            + context.AppliedEffects.Count);
     }
     return failures;
 }
@@ -3242,17 +3889,24 @@ sealed class NativePoolTestContext :
     public Dictionary<string, int> PersistentVariableDeltas { get; } =
         new(StringComparer.OrdinalIgnoreCase);
 
+    public List<(CombatSimulationEffectDefinition Effect,
+        CombatSimulationEvent? SourceEvent)> AppliedEffects { get; } = new();
+
+    public int RandomValue { get; set; }
+
     public void ApplyEffects(
         IEnumerable<CombatSimulationEffectDefinition> effects,
         int sourceActorId,
         int selectedTargetId,
         CombatSimulationEvent? sourceEvent = null)
     {
+        AppliedEffects.AddRange(effects.Select(effect =>
+            (effect, sourceEvent?.Clone())));
     }
 
     public int NextRandomInt(string streamId, int exclusiveMaximum)
     {
-        return 0;
+        return Math.Max(0, Math.Min(exclusiveMaximum - 1, RandomValue));
     }
 
     public void AddUnsupported(string definitionId)

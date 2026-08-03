@@ -345,7 +345,7 @@ void TestConfigModelSerializationCompatibility()
     var matchExperience = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
         "{\"schemaVersion\":1,\"starterDeck\":{\"preferRoleModProfile\":false},\"safeBox\":null,\"modSync\":null,\"feast\":null,\"damageMeter\":null,\"cardRefresh\":null,\"autoBattle\":null}")!;
     matchExperience.Normalize();
-    Assert(matchExperience.SchemaVersion == 24
+    Assert(matchExperience.SchemaVersion == 25
            && matchExperience.StarterDeck.PreferRoleModProfile
            && matchExperience.SafeBox != null
            && matchExperience.ModSync != null
@@ -531,7 +531,7 @@ void TestCardRefreshSettingsAndPoolPolicy()
         CardRefresh = null!
     };
     settings.Normalize();
-    Assert(settings.SchemaVersion == 24, "match-experience settings migrate to the game-parameter preset schema");
+    Assert(settings.SchemaVersion == 25, "match-experience settings migrate to the content-replay schema");
     Assert(settings.CardRefresh != null && !settings.CardRefresh.Enabled,
         "card refresh is restored with a disabled default during normalization");
     Assert(settings.AutoBattle.FoundationTraining.Iterations == 8
@@ -557,19 +557,23 @@ void TestCardRefreshSettingsAndPoolPolicy()
            && Math.Abs(settings.AutoBattle.FoundationTraining
                    .SuccessExpertReplayShare - 0.20d) < 0.0001d
            && Math.Abs(settings.AutoBattle.FoundationTraining
+                   .AuthoritativeContentReplayShare - 0.20d) < 0.0001d
+           && Math.Abs(settings.AutoBattle.FoundationTraining
                   .HardSeedReplayShare - 0.35d) < 0.0001d
            && settings.AutoBattle.FoundationTraining.Parallelism
               == Math.Max(1, Math.Min(16, Environment.ProcessorCount)),
         "foundation defaults use a substantial self-play curriculum and independent 200/500 holdouts");
     var boundedFoundation = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
-        "{\"schemaVersion\":22,\"autoBattle\":{\"foundationTraining\":{\"iterations\":0,\"trainingCampaignsPerIteration\":1,\"arenaCampaignsPerDifficulty\":0}}}")!;
+        "{\"schemaVersion\":22,\"autoBattle\":{\"foundationTraining\":{\"iterations\":0,\"trainingCampaignsPerIteration\":1,\"arenaCampaignsPerDifficulty\":0,\"authoritativeContentReplayShare\":2}}}")!;
     boundedFoundation.Normalize();
-    Assert(boundedFoundation.SchemaVersion == 24
+    Assert(boundedFoundation.SchemaVersion == 25
            && boundedFoundation.AutoBattle.FoundationTraining.Iterations == 1
            && boundedFoundation.AutoBattle.FoundationTraining.TrainingCampaignsPerIteration == 2
            && boundedFoundation.AutoBattle.FoundationTraining.ArenaCampaignsPerDifficulty == 1
            && boundedFoundation.AutoBattle.FoundationTraining.NormalValidationCampaigns == 200
            && boundedFoundation.AutoBattle.FoundationTraining.AdvancedValidationCampaigns == 500
+           && Math.Abs(boundedFoundation.AutoBattle.FoundationTraining
+                   .AuthoritativeContentReplayShare - 0.50d) < 0.0001d
            && boundedFoundation.AutoBattle.FoundationTraining.ExecutionMode == "external",
         "current foundation settings clamp invalid input without migration paths");
 
@@ -1111,7 +1115,7 @@ void TestRuntimeArchitectureGuards()
            && cardRefreshNativeApi.Contains("new RandomPool(pool, dice).DrawByRarity", StringComparison.Ordinal)
            && cardRefreshNativeApi.Contains("manager.CardPackCheck", StringComparison.Ordinal),
         "card refresh recreates clean choice items and uses a window-local clone of the native reward draw pipeline");
-    Assert(matchExperienceConfig.Contains("\"schemaVersion\": 24", StringComparison.Ordinal)
+    Assert(matchExperienceConfig.Contains("\"schemaVersion\": 25", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"cardRefresh\"", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"gameParameters\"", StringComparison.Ordinal)
            && matchExperienceConfig.Contains("\"partnerId\": \"Partner_10001\"", StringComparison.Ordinal)
@@ -1140,7 +1144,7 @@ void TestRuntimeArchitectureGuards()
     Assert(autoBattleRuntime.Contains("WitchCombatInteractionRuntime.ObserveDeckPrompt", StringComparison.Ordinal)
            && autoBattleRuntime.Contains("WitchCombatInteractionRuntime.ObserveHandPrompt", StringComparison.Ordinal)
            && autoBattleRuntime.Contains("CaptureTeacherAction", StringComparison.Ordinal)
-           && autoBattleRuntime.Contains("auto-battle-training-v6.jsonl", StringComparison.Ordinal)
+           && autoBattleRuntime.Contains("auto-battle-training-v7.jsonl", StringComparison.Ordinal)
            && autoBattleRuntime.Contains("[AutoBattle][Training] actor=", StringComparison.Ordinal)
            && autoBattleRuntime.Contains("PolicyPreselectedCandidateId", StringComparison.Ordinal)
            && autoBattleRuntime.Contains("UpdateShadowPrediction", StringComparison.Ordinal)

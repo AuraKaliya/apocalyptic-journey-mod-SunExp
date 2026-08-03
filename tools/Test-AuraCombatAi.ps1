@@ -86,6 +86,9 @@ $foundationStrategyPath = Join-Path $root "AuraCombatAiShared\CombatFoundationTr
 $foundationCaseLearningPath = Join-Path $root "AuraCombatAiShared\CombatFoundationCaseLearning.cs"
 $foundationCaseArchiveProtocolPath = Join-Path $root "AuraCombatAiShared\CombatFoundationCaseArchiveProtocol.cs"
 $modelCoveragePath = Join-Path $root "AuraCombatAiShared\CombatModelCoverage.cs"
+$contentPackagesPath = Join-Path $root "AuraCombatAiShared\CombatContentPackages.cs"
+$modelAdaptersPath = Join-Path $root "AuraCombatAiShared\CombatModelAdapters.cs"
+$contentRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsCombatContentRuntime.cs"
 $gameValidationProtocolPath = Join-Path $root "AuraCombatAiShared\CombatGameValidation.cs"
 $simulationUiRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleSimulationRuntime.cs"
 $gameValidationRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleGameValidationRuntime.cs"
@@ -148,6 +151,9 @@ $foundationStrategy = Get-Content -LiteralPath $foundationStrategyPath -Raw
 $foundationCaseLearning = Get-Content -LiteralPath $foundationCaseLearningPath -Raw
 $foundationCaseArchiveProtocol = Get-Content -LiteralPath $foundationCaseArchiveProtocolPath -Raw
 $modelCoverage = Get-Content -LiteralPath $modelCoveragePath -Raw
+$contentPackages = Get-Content -LiteralPath $contentPackagesPath -Raw
+$modelAdapters = Get-Content -LiteralPath $modelAdaptersPath -Raw
+$contentRuntime = Get-Content -LiteralPath $contentRuntimePath -Raw
 $gameValidationProtocol = Get-Content -LiteralPath $gameValidationProtocolPath -Raw
 $simulationUiRuntime = Get-Content -LiteralPath $simulationUiRuntimePath -Raw
 $gameValidationRuntime = Get-Content -LiteralPath $gameValidationRuntimePath -Raw
@@ -170,7 +176,7 @@ $requiredControllerAnchors = @(
     "CombatActionTransaction",
     "CombatActionTransactionState.HandedOff",
     "CombatActionTransactionState.TimedOut",
-    "auto-battle-training-v6.jsonl",
+    "auto-battle-training-v7.jsonl",
     "TryCapturePlayerObservation",
     "CaptureTeacherAction",
     "CaptureTeacherEndTurn",
@@ -626,7 +632,7 @@ foreach ($anchor in @(
     "ExpertReplayEpisodeLimit",
     "archive loading deferred to worker",
     "CombatFoundationModelPackageProtocol",
-    "foundation-model-package-v2.json",
+    "foundation-model-package-v3.json",
     "training-accepted",
     "CombatPolicyValueNetworkValidator.TryValidate"
 )) {
@@ -636,7 +642,7 @@ foreach ($anchor in @(
 }
 foreach ($anchor in @(
     "CombatFoundationWorkerProtocol",
-    "public const int SchemaVersion = 8",
+    "public const int SchemaVersion = 10",
     "CheckpointFileName",
     "CheckpointEpisodesFileName",
     "TryValidateJob",
@@ -1080,11 +1086,13 @@ foreach ($anchor in @(
 }
 
 foreach ($anchor in @(
-    "aura.combat-ai.episode.v4",
-    "public const int FeatureSchemaVersion = 22",
-    "nana-adventure-growth-context-and-actionable-coverage-v10",
+    "aura.combat-ai.episode.v5",
+    "public const int FeatureSchemaVersion = 25",
+    "content-set-quantile-q-registered-content-replay-v14",
     "frame-strata-v5-end-turn-counterfactual",
     "CombatCampaignEpisodeMetadata",
+    "TerminalSnapshotKnown",
+    "TerminalDoomPower",
     "LongTermReturn",
     "SearchVisits",
     "PolicyTargets",
@@ -1107,14 +1115,65 @@ foreach ($anchor in @(
 }
 
 foreach ($anchor in @(
-    "aura.combat-policy-value.mlp.v1",
+    "aura.combat-policy-value.mlp.v2",
     "ICombatPolicyValueModel",
     "EvaluateBatch",
     "ExpectedReturn",
-    "DeathProbability"
+    "DeathProbability",
+    "ActionReturnQuantiles",
+    "ActionQuantileWeights"
 )) {
     if (-not $policyValue.Contains($anchor)) {
         throw "Aura combat policy-value network contract is missing: $anchor"
+    }
+}
+
+foreach ($anchor in @(
+    "aura.combat-ai.content-package.v1",
+    "CombatTransitionAuditAnalyzer",
+    "CombatContentTrainingEpisodeProtocol",
+    "FoundationTrainingReady",
+    "ContentSetHash",
+    "escapes package root",
+    "lowercase SHA-256"
+)) {
+    if (-not $contentPackages.Contains($anchor)) {
+        throw "Aura combat content-package contract is missing: $anchor"
+    }
+}
+
+foreach ($anchor in @(
+    "AuraSharedResourceProtocol.QueryCatalog",
+    "AuraSharedResourceProtocol.ResolvePath",
+    "AuraSharedParticipantKinds.Content",
+    "AuraSharedResourceKinds.Directory",
+    "SnapshotPolicyAdapters",
+    "TryLoadAuthoritativeTrainingEpisodes",
+    "LiveDatasetDirectory"
+)) {
+    if (-not $contentRuntime.Contains($anchor)) {
+        throw "AuraTools content discovery contract is missing: $anchor"
+    }
+}
+foreach ($forbidden in @(
+    "ModsDirectory",
+    "ModsDataDirectory",
+    "Directory.EnumerateDirectories"
+)) {
+    if ($contentRuntime.Contains($forbidden)) {
+        throw "AuraTools content discovery must not scan private MOD directories: $forbidden"
+    }
+}
+
+foreach ($anchor in @(
+    "aura.combat-ai.adapter.v1",
+    "content-low-rank",
+    "personal-residual",
+    "玩家适配器不得修改动作 Q",
+    "AdaptedCombatPolicyValueModel"
+)) {
+    if (-not $modelAdapters.Contains($anchor)) {
+        throw "Aura combat model-adapter contract is missing: $anchor"
     }
 }
 
@@ -1219,7 +1278,7 @@ foreach ($anchor in @(
 }
 
 foreach ($anchor in @(
-    "aura.combat-ai.sample.v6",
+    "aura.combat-ai.sample.v7",
     "aura.combat-ai.selection.v1",
     "aura.combat-ai.training-report.v1",
     "aura.decision-residual.linear.v1",

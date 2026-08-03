@@ -1,5 +1,244 @@
 # Errors
 
+## [ERR-20260803-003] native-trigger-provenance-overwrite
+
+**Logged**: 2026-08-03T11:05:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: simulation
+
+### Summary
+The first `dataFromid` parity fix read the handler event's overwritten
+`SourceRewardId`, so Nightmare Prototype mistook every original debuff event
+for its own duplicate and never triggered.
+
+### Error
+```text
+nightmare-prototype-one-layer: duplicated=False, effects=0
+```
+
+### Context
+- `TryEnterHandler` changes handler-event provenance to the active reward so
+  effects emitted by that handler retain the correct source.
+- Native `AddBuffData.dataFromid` instead describes the event that triggered
+  the handler and must use the pre-handler source.
+
+### Suggested Fix
+Pass trigger provenance separately when constructing native event payloads;
+do not overload emitted-effect provenance for both meanings.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraToolsExp-Dev/Features/AutoBattle/AuraToolsNativeRewardSimulationRuntime.cs
+
+### Resolution
+- **Resolved**: 2026-08-03T11:08:00+08:00
+- **Notes**: `CreatePayload` now receives the original trigger source while
+  emitted effects still carry `blessing_40`; a targeted recursion test passes.
+
+---
+
+## [ERR-20260803-014] powershell-foreach-pipeline
+
+**Logged**: 2026-08-03T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+A PowerShell one-liner piped directly from a `foreach` statement without
+grouping it as an expression.
+
+### Error
+```text
+ParserError: An empty pipe element is not allowed.
+```
+
+### Context
+- The command was checking declared content-package hashes against `Get-FileHash`.
+- PowerShell requires `@(foreach (...) { ... }) | ...` when piping the loop output.
+
+### Suggested Fix
+Wrap statement output in an array subexpression before the formatting pipeline.
+
+### Metadata
+- Reproducible: yes
+- Related Files: docs/AuraCombatAI/examples/content-package/package.json
+- See Also: ERR-20260803-013
+
+### Resolution
+- **Resolved**: 2026-08-03T00:00:00+08:00
+- **Notes**: Re-ran the verification with `@(foreach (...) { ... })`.
+
+---
+
+## [ERR-20260803-015] auratools-v6-source-guard
+
+**Logged**: 2026-08-03T00:00:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The shared release gate retained an AuraTools source guard for the v6 live
+sample filename after the runtime protocol moved to v7.
+
+### Error
+```text
+Assertion failed: auto battle routes decisions and native prompt handling through shared runtimes
+```
+
+### Context
+- Runtime behavior and all other architecture anchors were present.
+- Only `auto-battle-training-v6.jsonl` was stale; the implementation correctly used v7.
+
+### Suggested Fix
+Update source-contract tests in the same change that bumps persisted protocol names.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraToolsExp-Dev.Tests/Program.cs
+
+### Resolution
+- **Resolved**: 2026-08-03T00:00:00+08:00
+- **Notes**: Updated the guard to `auto-battle-training-v7.jsonl` and reran the release gate.
+
+---
+
+## [ERR-20260803-016] content-coverage-patch-context
+
+**Logged**: 2026-08-03T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: backend
+
+### Summary
+A multi-hunk patch placed a new content-coverage validator against an imprecise
+class-boundary context.
+
+### Error
+```text
+apply_patch verification failed: Failed to find expected lines
+```
+
+### Context
+- The target loader had additional validation helpers between identity checks
+  and artifact readers.
+
+### Suggested Fix
+Read the exact nearby helper boundary and split insertion from call-site edits.
+
+### Metadata
+- Reproducible: no
+- Related Files: AuraCombatAiShared/CombatContentPackages.cs
+- See Also: ERR-20260803-013
+
+### Resolution
+- **Resolved**: 2026-08-03T00:00:00+08:00
+- **Notes**: Applied the call site and helper against exact local context.
+
+---
+
+## [ERR-20260803-017] malformed-workdir-path
+
+**Logged**: 2026-08-03T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+A read-only source inspection used a malformed Windows workspace path.
+
+### Error
+```text
+CreateProcess: 目录名称无效 (os error 267)
+```
+
+### Context
+- One path segment separator was omitted in the `workdir` argument.
+
+### Suggested Fix
+Reuse the exact absolute workspace root for every command invocation.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraCombatAiShared/CombatPolicyValueNetwork.cs
+
+### Resolution
+- **Resolved**: 2026-08-03T00:00:00+08:00
+- **Notes**: Re-ran the command with the canonical workspace path.
+
+---
+
+## [ERR-20260803-018] repeated-powershell-foreach-pipeline
+
+**Logged**: 2026-08-03T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tooling
+
+### Summary
+The final example-package hash check repeated the PowerShell parser error
+caused by piping directly from a `foreach` statement.
+
+### Error
+```text
+ParserError: An empty pipe element is not allowed.
+```
+
+### Context
+- The command constructed objects inside `foreach` and immediately appended
+  `| Format-Table` after the statement.
+- This repeats the pattern already recorded by ERR-20260803-014.
+
+### Suggested Fix
+Always assign the `foreach` output to a variable before formatting or piping.
+
+### Metadata
+- Reproducible: yes
+- Related Files: docs/AuraCombatAI/examples/content-package/package.json
+
+### Resolution
+- **Resolved**: 2026-08-03T00:00:00+08:00
+- **Notes**: Re-ran the check by assigning the loop output to `$results`.
+
+---
+
+## [ERR-20260803-004] oversized-multi-file-patch-context
+
+**Logged**: 2026-08-03T11:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tooling
+
+### Summary
+An oversized multi-file patch failed atomically because one PowerShell test
+hunk omitted the actual compatibility-property prefix.
+
+### Error
+```text
+apply_patch verification failed: Failed to find expected lines in
+tools/Test-AuraFoundationTrainer.ps1
+```
+
+### Context
+- The source edits were valid, but the unrelated stale hunk prevented every
+  file in the patch from being updated.
+
+### Suggested Fix
+Inspect exact local context and split patches at independently verifiable file
+boundaries when several modules are being changed together.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Test-AuraFoundationTrainer.ps1
+
+### Resolution
+- **Resolved**: 2026-08-03T11:02:00+08:00
+- **Notes**: Reapplied the source and test changes in smaller verified patches.
+
+---
+
 ## [ERR-20260731-015] undersized-project-test-timeout
 
 **Logged**: 2026-07-31T15:15:00+08:00
@@ -30,6 +269,80 @@ Give full project test wrappers a timeout of at least three minutes.
 ### Resolution
 - **Resolved**: 2026-07-31T15:15:00+08:00
 - **Notes**: Re-ran the wrapper with a 180-second timeout.
+
+---
+
+## [ERR-20260803-001] policy-integrity-fixture-default
+
+**Logged**: 2026-08-03T10:30:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The expert replay fixture did not opt into the newly required policy-integrity
+flag, so all manually constructed success cases were correctly rejected.
+
+### Error
+```text
+Assertion failed: expert replay preserves normal evidence and fills unused
+capacity while reporting scarce advanced success cases
+```
+
+### Context
+- `PolicyIntegrityValid` intentionally defaults to false for deserialized or
+  manually constructed archive records.
+- Production observations set the flag through policy-frame validation, while
+  the synthetic archive fixture set only `ArchiveEligible`.
+
+### Suggested Fix
+When adding a fail-closed archive field, update positive archive fixtures to
+declare the new invariant explicitly and retain negative fixtures for the
+default-rejection path.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraCombatAiShared.Tests/Program.cs, AuraCombatAiShared/CombatFoundationCaseLearning.cs
+
+### Resolution
+- **Resolved**: 2026-08-03T10:32:00+08:00
+- **Notes**: Marked the valid stratified fixture policy-valid; malformed and
+  legacy records remain rejected by default.
+
+---
+
+## [ERR-20260803-002] native-reward-test-entrypoint
+
+**Logged**: 2026-08-03T10:50:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The native reward test executable was invoked directly without its required
+campaign and ruleset arguments.
+
+### Error
+```text
+Expected the bundled campaign and ruleset JSON paths, plus an optional
+integrity sweep campaign count.
+```
+
+### Context
+- Direct `dotnet run` does not supply the fixture paths.
+- The repository test script owns argument construction and the build order.
+
+### Suggested Fix
+Use `tools/Test-AuraNativeRewards.ps1` as the canonical entrypoint.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Test-AuraNativeRewards.ps1, AuraToolsExp.NativeReward.Tests/Program.cs
+
+### Resolution
+- **Resolved**: 2026-08-03T10:52:00+08:00
+- **Notes**: The canonical script passed all semantic checks and a 64-campaign
+  integrity sweep with zero failures.
 
 ---
 
@@ -2029,11 +2342,15 @@ assert the new action-contract protocol in the same block.
 ### Metadata
 - Reproducible: yes
 - Related Files: tools/Test-AuraFoundationTrainer.ps1
+- Recurrence-Count: 2
+- Last-Seen: 2026-08-03
 
 ### Resolution
 - **Resolved**: 2026-07-31T12:20:00+08:00
 - **Notes**: Updated all three protocol literals and added the
-  `action-contract-v1` assertion; the 232-campaign smoke test passed.
+  `action-contract-v1` assertion; the 232-campaign smoke test passed. On
+  2026-08-03 the same fixture was also updated from archive schema 3 to 4
+  after policy-integrity admission became fail-closed.
 
 ---
 
@@ -2098,10 +2415,268 @@ Use `rg -F` with separate `-e` arguments for literal multi-pattern searches.
 ### Metadata
 - Reproducible: yes
 - Related Files: 开发参考资料/反编译文件夹v1.0.23816797/AllScripts/AllScripts.cs
+- Recurrence-Count: 5
+- Last-Seen: 2026-08-03
 
 ### Resolution
 - **Resolved**: 2026-07-31T12:40:00+08:00
 - **Notes**: The literal search located the Divine Choice script at line
-  20275 and its cooldown update at line 20293.
+  20275 and its cooldown update at line 20293. On 2026-08-03 a double-quoted
+  `Select-String` pattern expanded the decompiler's `$Rougamo` identifier and
+  failed similarly; single-quoted `-SimpleMatch` recovered the query.
+
+---
+## 2026-08-03 - net472 dictionary compatibility in production project
+
+- Error: `Dictionary.GetValueOrDefault(key)` compiled in the net8 test project but not in the AuraToolsExp net472 production target.
+- Cause: a validation-path edit used the newer one-argument convenience overload instead of the repository's established `TryGetValue` pattern.
+- Fix: use `TryGetValue` for production-target dictionary reads; keep test-only convenience calls inside net8 projects.
+- Prevention: compile the affected production project immediately after changing validation helpers, even when the same expression already appears in a net8 test file.
+## 2026-08-03 - public observation sanitizer removed owned-reward features
+
+- Error: simulation projection wrote `blessing:blessing_40`, but the normalized player-equivalent observation returned zero and Nana could not detect Nightmare Prototype.
+- Cause: `CombatPublicFeaturePolicy.SanitizeState` did not admit the already-established `blessing:` and `relic:` public feature prefixes; new `nana:` and `nightmare:` state features had the same persistence risk.
+- Fix: admit visible owned-reward, Nana, and Nightmare prefixes at the player observation boundary, and admit `nightmare:` on actions.
+- Prevention: every new observation feature family needs an explicit boundary-sanitizer test, not only a producer-side assertion.
+
+## [ERR-20260803-007] powershell-rg-windows-glob
+
+**Logged**: 2026-08-03T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+PowerShell passed Unix-style recursive glob arguments to `rg`, which Windows
+treated as invalid paths.
+
+### Error
+```text
+rg: AuraFoundationTrainer.ControlCenter/*.cs: 文件名、目录名或卷标语法不正确。 (os error 123)
+```
+
+### Context
+- The search supplied `directory/*.cs` and `directory/**/*.cs` as positional paths.
+- Ripgrep already traverses a directory recursively when given the directory itself.
+
+### Suggested Fix
+Pass the directory as the positional path and use `-g '*.cs'` when a file
+filter is needed.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraFoundationTrainer.ControlCenter/MainWindow.cs
+- Recurrence-Count: 2
+- Last-Seen: 2026-08-03
+
+### Resolution
+- **Resolved**: 2026-08-03T00:00:00+08:00
+- **Notes**: Re-ran the query against the directory without positional globs;
+  the same mistake later recurred with `AuraCombatAiShared/*.cs`.
+
+---
+
+## [ERR-20260803-008] result-directory-prefix-collision
+
+**Logged**: 2026-08-03T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+A result-directory query matched the shared checkpoint directory because both
+names begin with `foundation-controller-`.
+
+### Error
+```text
+Cannot find path '...\foundation-controller-checkpoint\foundation-worker-result.json'
+```
+
+### Context
+- The directory filter was `foundation-controller-*`.
+- The loop assumed every match was a run directory.
+
+### Suggested Fix
+Filter to directories containing `foundation-worker-result.json`, or match the
+timestamped run name with a stricter regular expression.
+
+### Metadata
+- Reproducible: yes
+- Related Files: ModsData/AuraShared/Logs/AuraToolsExp/FoundationTrainer/combat-simulation-results
+- Recurrence-Count: 2
+- Last-Seen: 2026-08-03
+
+### Resolution
+- **Resolved**: 2026-08-03T00:00:00+08:00
+- **Notes**: Subsequent analysis enumerates result files first and derives their parent directories.
+
+---
+
+## [ERR-20260803-009] powershell-inline-format-brace
+
+**Logged**: 2026-08-03T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+A dense PowerShell format expression had one extra closing brace and failed to parse.
+
+### Error
+```text
+ParserError: Unexpected token '}' in expression or statement.
+```
+
+### Context
+- The command nested `ForEach-Object`, a subexpression, `-join`, and `-f` in one line.
+
+### Suggested Fix
+Assign nested values such as the quota summary to a local variable before the
+format expression.
+
+### Metadata
+- Reproducible: yes
+- Related Files: ModsData/AuraShared/Logs/AuraToolsExp/FoundationTrainer/combat-simulation-results
+
+### Resolution
+- **Resolved**: 2026-08-03T00:00:00+08:00
+- **Notes**: Rewrote the diagnostic with an intermediate `$quota` variable;
+  a later compact parser also omitted whitespace after PowerShell's `in` token.
+
+---
+
+## [ERR-20260803-010] powershell-nested-array-wilson-probe
+
+**Logged**: 2026-08-03T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+A quick PowerShell Wilson-threshold probe used nested array literals that were
+flattened during pipeline enumeration and produced nonsensical counts.
+
+### Error
+```text
+200 target=0.8 required=114 raw=0.57 LB=1
+```
+
+### Context
+- The case list was represented as nested arrays and then iterated through the pipeline.
+- The result contradicted the monotonic Wilson lower-bound expectation.
+
+### Suggested Fix
+Represent parameter sets as named `PSCustomObject` values and invoke the
+function with named parameters; sanity-check that the returned lower bound is
+near the requested threshold.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraCombatAiShared/CombatCampaignFoundationTraining.cs
+
+### Resolution
+- **Resolved**: 2026-08-03T00:00:00+08:00
+- **Notes**: Correct counts are 172/200 for an 0.80 lower bound and 171/500 for an 0.30 lower bound.
+
+---
+
+## [ERR-20260803-011] powershell-double-quoted-regex
+
+**Logged**: 2026-08-03T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+A double-quoted PowerShell `rg` pattern containing escaped quotes and a
+literal closing parenthesis was parsed as PowerShell syntax.
+
+### Error
+```text
+ParserError: Unexpected token ')' in expression or statement.
+```
+
+### Context
+- The search pattern was embedded in a double-quoted PowerShell command.
+- Regex punctuation and quote escapes were interpreted by PowerShell first.
+
+### Suggested Fix
+Use a single-quoted PowerShell string for literal `rg` patterns.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Test-AuraCombatAi.ps1
+
+### Resolution
+- **Resolved**: 2026-08-03T00:00:00+08:00
+- **Notes**: Re-ran the search with a single-quoted pattern.
+
+---
+
+## [ERR-20260803-012] foundation-publish-running-control-center
+
+**Logged**: 2026-08-03T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+Foundation trainer publishing could not replace the running Control Center
+executable on Windows.
+
+### Error
+```text
+Foundation trainer binaries are currently running and Windows will not allow them to be replaced.
+```
+
+### Context
+- The Control Center was open but no training worker process was active.
+- The locked deployment executable blocked the full release build.
+
+### Suggested Fix
+Build and test the worker from its project output first, then gracefully close
+an idle Control Center before publishing deployment binaries.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Build-AuraFoundationTrainer.ps1
+
+### Resolution
+- **Resolved**: 2026-08-03T00:00:00+08:00
+- **Notes**: Verified no worker process was running, closed the responsive UI
+  through `CloseMainWindow()`, and published successfully.
+
+---
+
+## [ERR-20260803-013] apply-patch-long-markdown-context
+
+**Logged**: 2026-08-03T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: docs
+
+### Summary
+A documentation patch used a long expected line that did not exactly match
+the current edited paragraph.
+
+### Error
+```text
+apply_patch verification failed: Failed to find expected lines
+```
+
+### Context
+- The target document already contained edits from the current worktree.
+- The patch tried to replace several long Chinese paragraphs at once.
+
+### Suggested Fix
+Print the numbered local section and patch the exact current lines.
+
+### Metadata
+- Reproducible: no
+- Related Files: docs/AuraCombatAI/06-权威模拟与底模训练.md
+
+### Resolution
+- **Resolved**: 2026-08-03T00:00:00+08:00
+- **Notes**: Re-read lines 73-105 and applied exact replacements.
 
 ---

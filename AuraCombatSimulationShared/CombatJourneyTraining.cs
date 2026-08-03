@@ -28,6 +28,14 @@ public sealed class CombatJourneyTrainingEpisode
 
     public string RulesetHash { get; set; } = "";
 
+    public string OwnerModSetHash { get; set; } = "";
+
+    public string ContentSetHash { get; set; } = "";
+
+    public string BaseModelId { get; set; } = "";
+
+    public List<string> ActiveAdapterIds { get; set; } = new();
+
     public List<string> InitialDeck { get; set; } = new();
 
     public List<CombatJourneyBattleTrainingRecord> Battles { get; set; } = new();

@@ -1,0 +1,12 @@
+{
+  "Protocol": "aura.combat-ai.foundation-overlay.v1",
+  "SchemaVersion": 1,
+  "Enemies": [],
+  "Encounters": [],
+  "Rewards": [],
+  "Strategies": [],
+  "Difficulties": [],
+  "EnabledRewardCardPackIds": [],
+  "RolePrior": {},
+  "BuildTendency": {}
+}

@@ -1,0 +1,56 @@
+{
+  "Protocol": "aura.combat-ai.content-package.v1",
+  "SchemaVersion": 1,
+  "OwnerModId": "ExampleContent",
+  "PackageId": "example-content-combat-ai",
+  "PackageVersion": "1.0.0",
+  "GameBuild": "replace-with-exact-game-build",
+  "FoundationTrainingEnabled": true,
+  "Dependencies": [],
+  "Artifacts": {
+    "Ruleset": {
+      "Path": "ruleset.json",
+      "Sha256": "05331dde967f34d569e385ef42fe02be4a168a19368bbee111f98fbf05a80699"
+    },
+    "FoundationOverlay": {
+      "Path": "foundation-overlay.json",
+      "Sha256": "7c636db0a5cb1eb7645e411b3861aafab1fb69c7c51f7896e88d5f02e2c135bf"
+    },
+    "TransitionAudit": {
+      "Path": "transition-audit.json",
+      "Sha256": "4f496b64b61ba5937f0ab0319f5133bf2435d50ad2ff385c9b2f7d2fbf6cb42d"
+    },
+    "PolicyAdapter": {
+      "Path": "policy-adapter.json",
+      "Sha256": "f68519724d746fe0696b5d83276d8d90a74949cba4f0b250ee718469f59a5357"
+    },
+    "TrainingEpisodes": [
+      {
+        "Path": "training/authoritative-episodes-v5.jsonl",
+        "Sha256": "80a90512cffc9850760f0beb3191b56b79f77f59f96f36d0257fa20092365bbc"
+      }
+    ]
+  },
+  "DeclaredCoverage": {
+    "SchemaVersion": 1,
+    "Source": "content-package",
+    "EntityCoverageKnown": true,
+    "CardIds": ["example-content.card"],
+    "RoleSkillCardIds": [],
+    "EnemyIds": [],
+    "StatusIds": [],
+    "RelicIds": [],
+    "BlessingIds": []
+  },
+  "PublicFeatures": [
+    {
+      "Name": "example-content.charge",
+      "Scope": "state",
+      "ValueType": "number",
+      "Minimum": 0,
+      "Maximum": 10,
+      "DefaultValue": 0,
+      "PubliclyObservable": true
+    }
+  ]
+}

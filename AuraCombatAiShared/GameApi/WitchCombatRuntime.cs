@@ -102,6 +102,7 @@ public sealed class WitchCombatRuntime :
         AddSkills(observation, fightUi, capturedExecutionContext);
         ObserveTurnEconomy(observation);
         ObserveEndTurnPurpose(playerStatus, observation);
+        ObserveOwnedRewards(observation);
         ObservePublicMechanicState(playerStatus, observation);
         ObserveCampaignContext(observation);
         if (CombatAiRegistry.TryResolveThreat(observation, out var providedThreat))
@@ -291,6 +292,43 @@ public sealed class WitchCombatRuntime :
         state.Features[CombatTurnFeatureNames.EndTurnPurposeCount] =
             lastObservedEndTurnPurposeValue > 0d ? 1d : 0d;
         lifecycle.ProjectInto(state.Features);
+    }
+
+    private static void ObserveOwnedRewards(CombatStateObservation state)
+    {
+        try
+        {
+            foreach (var blessing in ScriptExecutor.PlayerInfo.BlessingList
+                         ?? new List<IDataConfig>())
+            {
+                AddOwnedRewardFeature(state, "blessing:", blessing);
+            }
+            foreach (var relic in ScriptExecutor.PlayerInfo.RelicList
+                         ?? new List<IDataConfig>())
+            {
+                AddOwnedRewardFeature(state, "relic:", relic);
+            }
+        }
+        catch
+        {
+            // Reward initialization can lag behind the first combat frame.
+        }
+    }
+
+    private static void AddOwnedRewardFeature(
+        CombatStateObservation state,
+        string prefix,
+        IDataConfig? config)
+    {
+        var id = WitchCombatValueEstimator.IdOf(config);
+        if (string.IsNullOrWhiteSpace(id))
+        {
+            return;
+        }
+        var key = prefix + id;
+        state.Features[key] = state.Features.TryGetValue(key, out var previous)
+            ? previous + 1d
+            : 1d;
     }
 
     private void RecordAcceptedAction(CombatActionObservation action)

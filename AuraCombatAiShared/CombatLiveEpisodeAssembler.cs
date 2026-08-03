@@ -88,6 +88,12 @@ public static class CombatLiveEpisodeAssembler
             ScenarioId = LiveScenarioId,
             BattleSessionId = battleSessionId,
             RulesetHash = "live-game:" + (terminal.GameBuild ?? ""),
+            OwnerModSetHash = terminal.OwnerModSetHash,
+            ContentSetHash = terminal.ContentSetHash,
+            BaseModelId = terminal.BaseModelId,
+            ActiveAdapterIds = (terminal.ActiveAdapterIds ?? new List<string>())
+                .Distinct(StringComparer.Ordinal)
+                .ToList(),
             PolicyId = policyIds.Count == 1 ? policyIds[0] : "mixed",
             DecisionProfile = profile,
             Outcome = victory ? "victory" : "defeat",
@@ -154,11 +160,20 @@ public static class CombatLiveEpisodeAssembler
             {
                 CandidateId = candidate.CandidateId,
                 SourceId = candidate.SourceId ?? "",
+                OwnerModId = candidate.OwnerModId ?? "",
                 Legal = candidate.Legal,
                 SearchVisits = Math.Max(0, candidate.SearchVisits),
                 SearchPrior = Finite(candidate.SearchPrior),
                 SearchValue = Finite(candidate.PlanScore),
                 SearchDeathRisk = Finite(candidate.SearchDeathRisk),
+                SearchMeanReturn = Finite(candidate.SearchMeanReturn),
+                SearchReturnStandardError =
+                    Finite(candidate.SearchReturnStandardError),
+                SearchLowerTailMean = Finite(candidate.SearchLowerTailMean),
+                SearchReturnQuantiles = candidate.SearchReturnQuantiles
+                    .Select(Finite)
+                    .Take(16)
+                    .ToList(),
                 Features = features
             });
         }

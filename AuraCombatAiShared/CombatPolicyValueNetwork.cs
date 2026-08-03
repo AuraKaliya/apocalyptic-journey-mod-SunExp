@@ -34,6 +34,9 @@ public sealed class CombatPolicyValuePrediction
     public Dictionary<string, double> PolicyLogits { get; set; } =
         new(StringComparer.Ordinal);
 
+    public Dictionary<string, List<double>> ActionReturnQuantiles { get; set; } =
+        new(StringComparer.Ordinal);
+
     public double ExpectedReturn { get; set; }
 
     public double WinProbability { get; set; }
@@ -292,9 +295,9 @@ public sealed class ConcurrentBatchedCombatPolicyValueModel :
 
 public sealed class CombatPolicyValueNetworkDefinition
 {
-    public string ModelProtocol { get; set; } = "aura.combat-policy-value.mlp.v1";
+    public string ModelProtocol { get; set; } = "aura.combat-policy-value.mlp.v2";
 
-    public int ProtocolVersion { get; set; } = 1;
+    public int ProtocolVersion { get; set; } = 2;
 
     public int FeatureSchemaVersion { get; set; } =
         CombatPolicyValueProtocol.FeatureSchemaVersion;
@@ -324,6 +327,12 @@ public sealed class CombatPolicyValueNetworkDefinition
     public double[] PolicyWeights { get; set; } = Array.Empty<double>();
 
     public double PolicyBias { get; set; }
+
+    public int ActionQuantileCount { get; set; } = 16;
+
+    public double[] ActionQuantileWeights { get; set; } = Array.Empty<double>();
+
+    public double[] ActionQuantileBias { get; set; } = Array.Empty<double>();
 
     public double[] ValueWeights { get; set; } = Array.Empty<double>();
 
@@ -430,6 +439,8 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
                     0,
                     definition.HiddenDimensions);
                 result.PolicyLogits[candidate.CandidateId ?? ""] = logit;
+                result.ActionReturnQuantiles[candidate.CandidateId ?? ""] =
+                    ActionQuantiles(hidden, 0, actionHidden, 0);
                 minimum = Math.Min(minimum, logit);
                 maximum = Math.Max(maximum, logit);
             }
@@ -546,6 +557,13 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
                     definition.HiddenDimensions);
                 results[owner].PolicyLogits[
                     candidates[candidateIndex].CandidateId ?? ""] = logit;
+                results[owner].ActionReturnQuantiles[
+                    candidates[candidateIndex].CandidateId ?? ""] =
+                    ActionQuantiles(
+                        hidden,
+                        owner * definition.HiddenDimensions,
+                        actionHidden,
+                        candidateIndex * definition.HiddenDimensions);
                 minimum[owner] = Math.Min(minimum[owner], logit);
                 maximum[owner] = Math.Max(maximum[owner], logit);
             }
@@ -637,6 +655,33 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
             / definition.PolicyTemperature,
             -30d,
             30d);
+    }
+
+    private List<double> ActionQuantiles(
+        double[] hidden,
+        int hiddenOffset,
+        double[] actionHidden,
+        int actionOffset)
+    {
+        var result = new List<double>(definition.ActionQuantileCount);
+        for (var quantile = 0;
+             quantile < definition.ActionQuantileCount;
+             quantile++)
+        {
+            result.Add(Clamp(
+                Interaction(
+                    hidden,
+                    hiddenOffset,
+                    actionHidden,
+                    actionOffset,
+                    definition.ActionQuantileWeights,
+                    quantile * definition.HiddenDimensions,
+                    definition.HiddenDimensions)
+                + definition.ActionQuantileBias[quantile],
+                -1d,
+                1d));
+        }
+        return result;
     }
 
     private static void DenseTanhBatch(
@@ -780,6 +825,25 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
         double[] weights,
         int length)
     {
+        return Interaction(
+            state,
+            stateOffset,
+            action,
+            actionOffset,
+            weights,
+            0,
+            length);
+    }
+
+    private static double Interaction(
+        double[] state,
+        int stateOffset,
+        double[] action,
+        int actionOffset,
+        double[] weights,
+        int weightOffset,
+        int length)
+    {
         var result = 0d;
         var index = 0;
 #if NET8_0_OR_GREATER
@@ -794,7 +858,7 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
                              * new Vector<double>(
                                  action,
                                  actionOffset + index)
-                             * new Vector<double>(weights, index);
+                             * new Vector<double>(weights, weightOffset + index);
             }
             for (var lane = 0; lane < Vector<double>.Count; lane++)
             {
@@ -806,7 +870,7 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
         {
             result += state[stateOffset + index]
                       * action[actionOffset + index]
-                      * weights[index];
+                      * weights[weightOffset + index];
         }
         return result;
     }
@@ -945,8 +1009,8 @@ public static class CombatPolicyValueNetworkValidator
         bool allowDiagnosticLegacySchema)
     {
         if (model == null
-            || model.ModelProtocol != "aura.combat-policy-value.mlp.v1"
-            || model.ProtocolVersion != 1
+            || model.ModelProtocol != "aura.combat-policy-value.mlp.v2"
+            || model.ProtocolVersion != 2
             || (!allowDiagnosticLegacySchema
                 && model.FeatureSchemaVersion
                    != CombatPolicyValueProtocol.FeatureSchemaVersion)
@@ -966,6 +1030,12 @@ public static class CombatPolicyValueNetworkValidator
             || model.HiddenDimensions > 512)
         {
             reason = "策略价值模型维度无效";
+            return false;
+        }
+        if (model.ActionQuantileCount < 4
+            || model.ActionQuantileCount > 64)
+        {
+            reason = "策略价值模型动作分位数数量无效";
             return false;
         }
         if (!Finite(model.PolicyTemperature)
@@ -988,6 +1058,10 @@ public static class CombatPolicyValueNetworkValidator
             || !Length(model.ActionWeights, model.ActionDimensions * model.HiddenDimensions)
             || !Length(model.ActionBias, model.HiddenDimensions)
             || !Length(model.PolicyWeights, model.HiddenDimensions)
+            || !Length(
+                model.ActionQuantileWeights,
+                model.HiddenDimensions * model.ActionQuantileCount)
+            || !Length(model.ActionQuantileBias, model.ActionQuantileCount)
             || !Length(model.ValueWeights, model.HiddenDimensions)
             || !Length(model.WinWeights, model.HiddenDimensions)
             || !Length(model.RiskWeights, model.HiddenDimensions)
@@ -1002,6 +1076,8 @@ public static class CombatPolicyValueNetworkValidator
             || !Finite(model.ActionWeights)
             || !Finite(model.ActionBias)
             || !Finite(model.PolicyWeights)
+            || !Finite(model.ActionQuantileWeights)
+            || !Finite(model.ActionQuantileBias)
             || !Finite(model.ValueWeights)
             || !Finite(model.WinWeights)
             || !Finite(model.RiskWeights)

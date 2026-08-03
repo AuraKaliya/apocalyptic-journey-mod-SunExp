@@ -1,5 +1,5 @@
 {
-  "schemaVersion": 24,
+  "schemaVersion": 25,
   "starterDeck": {
     "enabled": false,
     "mode": "Global",
@@ -154,6 +154,7 @@
         "normalAcceptanceRate": 0.8,
         "advancedAcceptanceRate": 0.3,
         "successExpertReplayShare": 0.2,
+        "authoritativeContentReplayShare": 0.2,
         "hardSeedReplayShare": 0.35,
         "hardEncounterWeights": {
           "level_10011": 0.25,

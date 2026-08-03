@@ -1,0 +1,26 @@
+{
+  "Manifest": {
+    "Protocol": "aura.combat-ai.adapter.v1",
+    "SchemaVersion": 1,
+    "AdapterId": "ExampleContent.policy-v1",
+    "AdapterKind": "content-low-rank",
+    "OwnerModId": "ExampleContent",
+    "PackageId": "example-content-combat-ai",
+    "BaseModelId": "replace-with-current-base-model-id",
+    "ContentSetHash": "68281d76979876df4d64a7a03a9675c4eca4bbd43999f32719924ab959900b36",
+    "OwnerModSetHash": "e912a92c1baf87aa6bd444e99f042782ae879590443232d42b88ff1ee6eb7b85",
+    "FeatureSchemaVersion": 25,
+    "AdjustsPolicy": true,
+    "AdjustsActionValue": false,
+    "MaximumPolicyDelta": 0.5,
+    "MaximumActionValueDelta": 0.0
+  },
+  "StateDimensions": 16,
+  "ActionDimensions": 16,
+  "Rank": 1,
+  "FeatureEncodingMode": "partitioned-v3",
+  "StateFactors": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  "ActionFactors": [0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
+  "RankWeights": [0],
+  "Bias": 0
+}

@@ -134,6 +134,9 @@ internal static class CombatPolicyValueBatchTrainer
                     ? trainingEpisodes
                     : validationEpisodes)
                 .Select(StableRunKey));
+        result.DroppedPolicyIntegrityFrames = trainingEpisodes.Sum(episode =>
+            SelectEpisodeFrames(episode, options.MaximumFramesPerEpisode)
+                .Count(frame => !PolicyIntegrityValidForTraining(frame)));
         var trainingFrames = Encode(
             trainingEpisodes,
             options,
@@ -597,12 +600,24 @@ internal static class CombatPolicyValueBatchTrainer
             ["trainingDeathBrier"] = trainingMetrics.DeathBrier,
             ["trainingHpMae"] = trainingMetrics.HpMae,
             ["trainingTurnHuber"] = trainingMetrics.TurnHuber,
+            ["trainingActionQuantilePinball"] =
+                trainingMetrics.ActionQuantilePinball,
+            ["trainingActionQuantileMae"] =
+                trainingMetrics.ActionQuantileMae,
             ["trainingCompositeLoss"] = calibratedTrainingLoss,
             ["validationValueMae"] = validationMetrics.ValueMae,
             ["validationBrier"] = validationMetrics.Brier,
             ["validationDeathBrier"] = validationMetrics.DeathBrier,
             ["validationHpMae"] = validationMetrics.HpMae,
             ["validationTurnHuber"] = validationMetrics.TurnHuber,
+            ["validationActionQuantilePinball"] =
+                validationMetrics.ActionQuantilePinball,
+            ["validationActionQuantileMae"] =
+                validationMetrics.ActionQuantileMae,
+            ["trainingActionQuantileLabelCount"] =
+                trainingMetrics.ActionQuantileLabelCount,
+            ["validationActionQuantileLabelCount"] =
+                validationMetrics.ActionQuantileLabelCount,
             ["validationCompositeLoss"] =
                 CompositeValidationLoss(validationMetrics),
             ["testCompositeLoss"] = testFrames.Length == 0
@@ -991,6 +1006,15 @@ internal static class CombatPolicyValueBatchTrainer
     {
         var allCandidates = frame.Candidates
                             ?? new List<CombatEpisodeCandidate>();
+        var executedCandidate = allCandidates.FirstOrDefault(candidate =>
+            string.Equals(
+                candidate.CandidateId,
+                frame.ExecutedCandidateId,
+                StringComparison.Ordinal));
+        if (executedCandidate == null)
+        {
+            return null;
+        }
         var legal = allCandidates
             .Where(candidate => candidate.Legal)
             .ToList();
@@ -1004,6 +1028,12 @@ internal static class CombatPolicyValueBatchTrainer
                                && Feature(
                                    endTurnCandidate.Features,
                                    CombatTurnFeatureNames.EndTurnDominated) > 0.5d;
+        if (!executedCandidate.Legal
+            && !(ReferenceEquals(executedCandidate, endTurnCandidate)
+                 && dominatedEndTurn))
+        {
+            return null;
+        }
         var policyCandidates = new List<CombatEpisodeCandidate>(legal);
         if (dominatedEndTurn
             && endTurnCandidate != null
@@ -1037,11 +1067,6 @@ internal static class CombatPolicyValueBatchTrainer
                           && orderedVisits[0] >= Math.Max(
                               4,
                               orderedVisits[1] * 2);
-        var executedCandidate = allCandidates.FirstOrDefault(candidate =>
-            string.Equals(
-                candidate.CandidateId,
-                frame.ExecutedCandidateId,
-                StringComparison.Ordinal));
         var executedEndTurn = executedCandidate != null
                               && IsEndTurnCandidate(executedCandidate);
         var hasPlayableAlternative = endTurnCandidate != null
@@ -1086,6 +1111,17 @@ internal static class CombatPolicyValueBatchTrainer
                         options.FeatureEncodingMode))
                 .ToArray(),
             PolicyTargets = targets,
+            ActionQuantileTargets = policyCandidates.Select(candidate =>
+                    candidate.SearchVisits
+                    >= options.MinimumSearchVisitsForActionQuantiles
+                    && candidate.SearchReturnQuantiles != null
+                    && candidate.SearchReturnQuantiles.Count >= 4
+                        ? ResampleQuantiles(
+                            candidate.SearchReturnQuantiles,
+                            options.ActionQuantileCount)
+                        : Array.Empty<double>())
+                .ToArray(),
+            ActionQuantileLossWeight = options.ActionQuantileLossWeight,
             PolicyTargetIndex = MaximumIndex(targets),
             LongTermReturn = Clamp(frame.LongTermReturn, -1d, 1d),
             WinTarget = Clamp(frame.WinTarget, 0d, 1d),
@@ -1107,6 +1143,32 @@ internal static class CombatPolicyValueBatchTrainer
         };
     }
 
+    private static double[] ResampleQuantiles(
+        IReadOnlyList<double> source,
+        int count)
+    {
+        var ordered = source
+            .Where(value => !double.IsNaN(value) && !double.IsInfinity(value))
+            .Select(value => Clamp(value, -1d, 1d))
+            .OrderBy(value => value)
+            .ToArray();
+        if (ordered.Length == 0)
+        {
+            return Array.Empty<double>();
+        }
+        var result = new double[count];
+        for (var index = 0; index < count; index++)
+        {
+            var position = (index + 0.5d) / count * ordered.Length - 0.5d;
+            var lower = Math.Max(0, Math.Min(ordered.Length - 1, (int)Math.Floor(position)));
+            var upper = Math.Max(0, Math.Min(ordered.Length - 1, lower + 1));
+            var fraction = Math.Max(0d, Math.Min(1d, position - Math.Floor(position)));
+            result[index] = ordered[lower]
+                            + (ordered[upper] - ordered[lower]) * fraction;
+        }
+        return result;
+    }
+
     private static bool IsEndTurnCandidate(CombatEpisodeCandidate candidate)
     {
         return string.Equals(
@@ -1118,6 +1180,29 @@ internal static class CombatPolicyValueBatchTrainer
                    "actionKindEndTurn",
                    out var value)
                && value > 0.5d;
+    }
+
+    internal static bool PolicyIntegrityValidForTraining(
+        CombatEpisodeFrame frame)
+    {
+        var candidates = frame?.Candidates
+                         ?? new List<CombatEpisodeCandidate>();
+        var executed = candidates.FirstOrDefault(candidate => string.Equals(
+            candidate.CandidateId,
+            frame?.ExecutedCandidateId,
+            StringComparison.Ordinal));
+        if (executed == null)
+        {
+            return false;
+        }
+        if (executed.Legal)
+        {
+            return true;
+        }
+        return IsEndTurnCandidate(executed)
+               && Feature(
+                   executed.Features,
+                   CombatTurnFeatureNames.EndTurnDominated) > 0.5d;
     }
 
     private static double Feature(
@@ -1319,6 +1404,9 @@ internal static class CombatPolicyValueBatchTrainer
         SoftmaxInto(logits, frame.Actions.Length, probabilities);
         var stateGradient = workspace.StateGradient;
         Array.Clear(stateGradient, 0, hiddenCount);
+        var actionQuantilePinball = 0d;
+        var actionQuantileMae = 0d;
+        var actionQuantileLabels = 0;
         for (var actionIndex = 0;
              actionIndex < frame.Actions.Length;
              actionIndex++)
@@ -1340,6 +1428,52 @@ internal static class CombatPolicyValueBatchTrainer
                 actionGradient[hidden] += outputGradient
                                           * weight
                                           * stateHidden[hidden];
+            }
+            var quantileTargets = actionIndex < frame.ActionQuantileTargets.Length
+                ? frame.ActionQuantileTargets[actionIndex]
+                : Array.Empty<double>();
+            for (var quantile = 0;
+                 quantile < quantileTargets.Length
+                 && quantile < model.ActionQuantileCount;
+                 quantile++)
+            {
+                var weightOffset = quantile * hiddenCount;
+                var prediction = Interaction(
+                    stateHidden,
+                    actionHidden[actionIndex],
+                    model.ActionQuantileWeights,
+                    weightOffset)
+                                 + model.ActionQuantileBias[quantile];
+                var error = prediction - quantileTargets[quantile];
+                var tau = (quantile + 0.5d) / model.ActionQuantileCount;
+                var asymmetry = error >= 0d ? 1d - tau : tau;
+                var huberGradient = Clamp(error, -1d, 1d);
+                var quantileGradient = frame.ActionQuantileLossWeight
+                                       * asymmetry
+                                       * huberGradient
+                                       / Math.Max(1, quantileTargets.Length);
+                gradient.ActionQuantileBias[quantile] += quantileGradient;
+                for (var hidden = 0; hidden < hiddenCount; hidden++)
+                {
+                    var weight = model.ActionQuantileWeights[weightOffset + hidden];
+                    gradient.ActionQuantileWeights[weightOffset + hidden] +=
+                        quantileGradient
+                        * stateHidden[hidden]
+                        * actionHidden[actionIndex][hidden];
+                    stateGradient[hidden] += quantileGradient
+                                             * weight
+                                             * actionHidden[actionIndex][hidden];
+                    actionGradient[hidden] += quantileGradient
+                                              * weight
+                                              * stateHidden[hidden];
+                }
+                var absolute = Math.Abs(error);
+                var huber = absolute <= 1d
+                    ? 0.5d * absolute * absolute
+                    : absolute - 0.5d;
+                actionQuantilePinball += asymmetry * huber;
+                actionQuantileMae += absolute;
+                actionQuantileLabels++;
             }
             BackpropDense(
                 frame.Actions[actionIndex],
@@ -1423,6 +1557,13 @@ internal static class CombatPolicyValueBatchTrainer
                 ? 0.5d * turnError * turnError
                 : turnError - 0.5d,
             PolicyCrossEntropy = crossEntropy,
+            ActionQuantilePinball = actionQuantileLabels == 0
+                ? 0d
+                : actionQuantilePinball / actionQuantileLabels,
+            ActionQuantileMae = actionQuantileLabels == 0
+                ? 0d
+                : actionQuantileMae / actionQuantileLabels,
+            ActionQuantileLabelCount = actionQuantileLabels,
             Critical = frame.Critical
         };
     }
@@ -1488,6 +1629,10 @@ internal static class CombatPolicyValueBatchTrainer
         Aggregate(aggregate, ref cursor, gradients, gradientCount, sampleCount,
             gradient => gradient.PolicyWeights);
         Aggregate(aggregate, ref cursor, gradients, gradientCount, sampleCount,
+            gradient => gradient.ActionQuantileWeights);
+        Aggregate(aggregate, ref cursor, gradients, gradientCount, sampleCount,
+            gradient => gradient.ActionQuantileBias);
+        Aggregate(aggregate, ref cursor, gradients, gradientCount, sampleCount,
             gradient => gradient.ValueWeights);
         Aggregate(aggregate, ref cursor, gradients, gradientCount, sampleCount,
             gradient => gradient.WinWeights);
@@ -1548,6 +1693,20 @@ internal static class CombatPolicyValueBatchTrainer
             learningRate, 0d);
         ApplyAdamW(model.PolicyWeights, aggregate, optimizer, ref cursor,
             learningRate, l2);
+        ApplyAdamW(
+            model.ActionQuantileWeights,
+            aggregate,
+            optimizer,
+            ref cursor,
+            learningRate,
+            l2);
+        ApplyAdamW(
+            model.ActionQuantileBias,
+            aggregate,
+            optimizer,
+            ref cursor,
+            learningRate,
+            0d);
         ApplyAdamW(model.ValueWeights, aggregate, optimizer, ref cursor,
             learningRate, l2);
         ApplyAdamW(model.WinWeights, aggregate, optimizer, ref cursor,
@@ -1672,6 +1831,8 @@ internal static class CombatPolicyValueBatchTrainer
                + model.ActionWeights.Length
                + model.ActionBias.Length
                + model.PolicyWeights.Length
+               + model.ActionQuantileWeights.Length
+               + model.ActionQuantileBias.Length
                + model.ValueWeights.Length
                + model.WinWeights.Length
                + model.RiskWeights.Length
@@ -1794,6 +1955,9 @@ internal static class CombatPolicyValueBatchTrainer
         var hpError = 0d;
         var turnHuber = 0d;
         var policyCrossEntropy = 0d;
+        var actionQuantilePinball = 0d;
+        var actionQuantileMae = 0d;
+        var actionQuantileLabels = 0;
         for (var offset = 0; offset < indexes.Count; offset++)
         {
             var index = indexes[offset];
@@ -1804,6 +1968,11 @@ internal static class CombatPolicyValueBatchTrainer
             hpError += results[index].HpError;
             turnHuber += results[index].TurnHuber;
             policyCrossEntropy += results[index].PolicyCrossEntropy;
+            actionQuantilePinball += results[index].ActionQuantilePinball
+                                     * results[index].ActionQuantileLabelCount;
+            actionQuantileMae += results[index].ActionQuantileMae
+                                 * results[index].ActionQuantileLabelCount;
+            actionQuantileLabels += results[index].ActionQuantileLabelCount;
             if (results[index].Critical)
             {
                 criticalCount++;
@@ -1819,6 +1988,13 @@ internal static class CombatPolicyValueBatchTrainer
             HpMae = hpError / indexes.Count,
             TurnHuber = turnHuber / indexes.Count,
             PolicyCrossEntropy = policyCrossEntropy / indexes.Count,
+            ActionQuantilePinball = actionQuantileLabels == 0
+                ? 0d
+                : actionQuantilePinball / actionQuantileLabels,
+            ActionQuantileMae = actionQuantileLabels == 0
+                ? 0d
+                : actionQuantileMae / actionQuantileLabels,
+            ActionQuantileLabelCount = actionQuantileLabels,
             CriticalPolicyAccuracy = criticalCount == 0
                 ? (double)correct / indexes.Count
                 : (double)criticalCorrect / criticalCount
@@ -1942,6 +2118,9 @@ internal static class CombatPolicyValueBatchTrainer
         var bestIndex = 0;
         var bestLogit = double.NegativeInfinity;
         var logits = new double[frame.Actions.Length];
+        var actionQuantilePinball = 0d;
+        var actionQuantileMae = 0d;
+        var actionQuantileLabels = 0;
         for (var index = 0; index < frame.Actions.Length; index++)
         {
             var actionHidden = DenseTanh(
@@ -1961,6 +2140,30 @@ internal static class CombatPolicyValueBatchTrainer
             {
                 bestLogit = logit;
                 bestIndex = index;
+            }
+            var quantileTargets = index < frame.ActionQuantileTargets.Length
+                ? frame.ActionQuantileTargets[index]
+                : Array.Empty<double>();
+            for (var quantile = 0;
+                 quantile < quantileTargets.Length
+                 && quantile < model.ActionQuantileCount;
+                 quantile++)
+            {
+                var prediction = Interaction(
+                    hidden,
+                    actionHidden,
+                    model.ActionQuantileWeights,
+                    quantile * model.HiddenDimensions)
+                                 + model.ActionQuantileBias[quantile];
+                var error = prediction - quantileTargets[quantile];
+                var absolute = Math.Abs(error);
+                var tau = (quantile + 0.5d) / model.ActionQuantileCount;
+                var asymmetry = error >= 0d ? 1d - tau : tau;
+                actionQuantilePinball += asymmetry * (absolute <= 1d
+                    ? 0.5d * absolute * absolute
+                    : absolute - 0.5d);
+                actionQuantileMae += absolute;
+                actionQuantileLabels++;
             }
         }
         var value = Clamp(
@@ -1993,6 +2196,13 @@ internal static class CombatPolicyValueBatchTrainer
                 ? 0.5d * turnError * turnError
                 : turnError - 0.5d,
             PolicyCrossEntropy = crossEntropy,
+            ActionQuantilePinball = actionQuantileLabels == 0
+                ? 0d
+                : actionQuantilePinball / actionQuantileLabels,
+            ActionQuantileMae = actionQuantileLabels == 0
+                ? 0d
+                : actionQuantileMae / actionQuantileLabels,
+            ActionQuantileLabelCount = actionQuantileLabels,
             Critical = frame.Critical
         };
     }
@@ -2022,6 +2232,12 @@ internal static class CombatPolicyValueBatchTrainer
             ActionBias = new double[options.HiddenDimensions],
             PolicyWeights = RandomWeights(
                 random, options.HiddenDimensions, options.HiddenDimensions),
+            ActionQuantileCount = options.ActionQuantileCount,
+            ActionQuantileWeights = RandomWeights(
+                random,
+                options.HiddenDimensions * options.ActionQuantileCount,
+                options.HiddenDimensions),
+            ActionQuantileBias = new double[options.ActionQuantileCount],
             ValueWeights = RandomWeights(
                 random, options.HiddenDimensions, options.HiddenDimensions),
             WinWeights = RandomWeights(
@@ -2037,13 +2253,14 @@ internal static class CombatPolicyValueBatchTrainer
 
     private static double CompositeValidationLoss(Metrics metrics)
     {
-        return metrics.PolicyCrossEntropy * 0.30d
+        return metrics.PolicyCrossEntropy * 0.25d
                + (1d - metrics.CriticalPolicyAccuracy) * 0.15d
-               + metrics.ValueMae * 0.15d
+               + metrics.ValueMae * 0.10d
                + metrics.Brier * 0.15d
                + metrics.DeathBrier * 0.15d
                + metrics.HpMae * 0.05d
-               + Math.Min(1d, metrics.TurnHuber / 10d) * 0.05d;
+               + Math.Min(1d, metrics.TurnHuber / 10d) * 0.05d
+               + metrics.ActionQuantilePinball * 0.10d;
     }
 
     private static CombatPolicyValueEpochMetrics EpochMetrics(
@@ -2085,7 +2302,10 @@ internal static class CombatPolicyValueBatchTrainer
             Brier = metrics.Brier,
             DeathBrier = metrics.DeathBrier,
             HpMae = metrics.HpMae,
-            TurnHuber = metrics.TurnHuber
+            TurnHuber = metrics.TurnHuber,
+            ActionQuantilePinball = metrics.ActionQuantilePinball,
+            ActionQuantileMae = metrics.ActionQuantileMae,
+            ActionQuantileLabelCount = metrics.ActionQuantileLabelCount
         };
     }
 
@@ -2136,7 +2356,10 @@ internal static class CombatPolicyValueBatchTrainer
             Brier = source.Brier,
             DeathBrier = source.DeathBrier,
             HpMae = source.HpMae,
-            TurnHuber = source.TurnHuber
+            TurnHuber = source.TurnHuber,
+            ActionQuantilePinball = source.ActionQuantilePinball,
+            ActionQuantileMae = source.ActionQuantileMae,
+            ActionQuantileLabelCount = source.ActionQuantileLabelCount
         };
     }
 
@@ -2166,6 +2389,7 @@ internal static class CombatPolicyValueBatchTrainer
                && model.StateDimensions == options.StateDimensions
                && model.ActionDimensions == options.ActionDimensions
                && model.HiddenDimensions == options.HiddenDimensions
+               && model.ActionQuantileCount == options.ActionQuantileCount
                && string.Equals(
                    model.FeatureEncodingMode,
                    options.FeatureEncodingMode,
@@ -2200,6 +2424,10 @@ internal static class CombatPolicyValueBatchTrainer
             ActionBias = (double[])source.ActionBias.Clone(),
             PolicyWeights = (double[])source.PolicyWeights.Clone(),
             PolicyBias = source.PolicyBias,
+            ActionQuantileCount = source.ActionQuantileCount,
+            ActionQuantileWeights =
+                (double[])source.ActionQuantileWeights.Clone(),
+            ActionQuantileBias = (double[])source.ActionQuantileBias.Clone(),
             ValueWeights = (double[])source.ValueWeights.Clone(),
             ValueBias = source.ValueBias,
             WinWeights = (double[])source.WinWeights.Clone(),
@@ -2396,6 +2624,15 @@ internal static class CombatPolicyValueBatchTrainer
         double[] action,
         double[] weights)
     {
+        return Interaction(state, action, weights, 0);
+    }
+
+    private static double Interaction(
+        double[] state,
+        double[] action,
+        double[] weights,
+        int weightOffset)
+    {
         var result = 0d;
         var index = 0;
 #if NET8_0_OR_GREATER
@@ -2409,7 +2646,7 @@ internal static class CombatPolicyValueBatchTrainer
             {
                 vectorSum += new Vector<double>(state, index)
                              * new Vector<double>(action, index)
-                             * new Vector<double>(weights, index);
+                             * new Vector<double>(weights, weightOffset + index);
             }
             for (var lane = 0; lane < Vector<double>.Count; lane++)
             {
@@ -2419,7 +2656,9 @@ internal static class CombatPolicyValueBatchTrainer
 #endif
         for (; index < state.Length; index++)
         {
-            result += state[index] * action[index] * weights[index];
+            result += state[index]
+                      * action[index]
+                      * weights[weightOffset + index];
         }
         return result;
     }
@@ -2564,6 +2803,11 @@ internal static class CombatPolicyValueBatchTrainer
 
         public double[] PolicyTargets { get; set; } = Array.Empty<double>();
 
+        public double[][] ActionQuantileTargets { get; set; } =
+            Array.Empty<double[]>();
+
+        public double ActionQuantileLossWeight { get; set; }
+
         public int PolicyTargetIndex { get; set; }
 
         public double LongTermReturn { get; set; }
@@ -2656,6 +2900,9 @@ internal static class CombatPolicyValueBatchTrainer
             ActionWeights = new double[model.ActionWeights.Length];
             ActionBias = new double[model.ActionBias.Length];
             PolicyWeights = new double[model.PolicyWeights.Length];
+            ActionQuantileWeights =
+                new double[model.ActionQuantileWeights.Length];
+            ActionQuantileBias = new double[model.ActionQuantileBias.Length];
             ValueWeights = new double[model.ValueWeights.Length];
             WinWeights = new double[model.WinWeights.Length];
             RiskWeights = new double[model.RiskWeights.Length];
@@ -2674,6 +2921,10 @@ internal static class CombatPolicyValueBatchTrainer
         public double[] PolicyWeights { get; }
 
         public double PolicyBias { get; set; }
+
+        public double[] ActionQuantileWeights { get; }
+
+        public double[] ActionQuantileBias { get; }
 
         public double[] ValueWeights { get; }
 
@@ -2702,6 +2953,11 @@ internal static class CombatPolicyValueBatchTrainer
             Array.Clear(ActionWeights, 0, ActionWeights.Length);
             Array.Clear(ActionBias, 0, ActionBias.Length);
             Array.Clear(PolicyWeights, 0, PolicyWeights.Length);
+            Array.Clear(
+                ActionQuantileWeights,
+                0,
+                ActionQuantileWeights.Length);
+            Array.Clear(ActionQuantileBias, 0, ActionQuantileBias.Length);
             Array.Clear(ValueWeights, 0, ValueWeights.Length);
             Array.Clear(WinWeights, 0, WinWeights.Length);
             Array.Clear(RiskWeights, 0, RiskWeights.Length);
@@ -2722,6 +2978,8 @@ internal static class CombatPolicyValueBatchTrainer
             Scale(ActionWeights, factor);
             Scale(ActionBias, factor);
             Scale(PolicyWeights, factor);
+            Scale(ActionQuantileWeights, factor);
+            Scale(ActionQuantileBias, factor);
             Scale(ValueWeights, factor);
             Scale(WinWeights, factor);
             Scale(RiskWeights, factor);
@@ -2742,6 +3000,14 @@ internal static class CombatPolicyValueBatchTrainer
             AddScaled(ActionWeights, source.ActionWeights, factor);
             AddScaled(ActionBias, source.ActionBias, factor);
             AddScaled(PolicyWeights, source.PolicyWeights, factor);
+            AddScaled(
+                ActionQuantileWeights,
+                source.ActionQuantileWeights,
+                factor);
+            AddScaled(
+                ActionQuantileBias,
+                source.ActionQuantileBias,
+                factor);
             AddScaled(ValueWeights, source.ValueWeights, factor);
             AddScaled(WinWeights, source.WinWeights, factor);
             AddScaled(RiskWeights, source.RiskWeights, factor);
@@ -2800,6 +3066,12 @@ internal static class CombatPolicyValueBatchTrainer
         public double PolicyCrossEntropy { get; set; }
 
         public double CriticalPolicyAccuracy { get; set; }
+
+        public double ActionQuantilePinball { get; set; }
+
+        public double ActionQuantileMae { get; set; }
+
+        public int ActionQuantileLabelCount { get; set; }
     }
 
     private readonly struct BatchUpdate
@@ -2830,6 +3102,12 @@ internal static class CombatPolicyValueBatchTrainer
         public double TurnHuber { get; set; }
 
         public double PolicyCrossEntropy { get; set; }
+
+        public double ActionQuantilePinball { get; set; }
+
+        public double ActionQuantileMae { get; set; }
+
+        public int ActionQuantileLabelCount { get; set; }
 
         public bool Critical { get; set; }
     }

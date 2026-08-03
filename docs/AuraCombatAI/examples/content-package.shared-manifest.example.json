@@ -1,0 +1,29 @@
+{
+  "schemaVersion": 4,
+  "ownerModId": "ExampleContent",
+  "participantKind": "Content",
+  "packageSourceKind": "ModPackage",
+  "packageId": "ExampleContent.SharedResources.V4",
+  "packageVersion": 1,
+  "resources": [
+    {
+      "moduleId": "CombatAI",
+      "featureId": "ContentPackage",
+      "scopeType": "Global",
+      "scopeId": "all",
+      "scopeOwnerModId": "ExampleContent",
+      "scopeAliases": [],
+      "resourceId": "example-content-combat-ai",
+      "kind": "Directory",
+      "source": "AuraCombatAI",
+      "originKind": "ContentRegistered",
+      "writerId": "ExampleContent",
+      "defaultEnabled": true,
+      "archived": false,
+      "priority": 0,
+      "effectMode": "Additive",
+      "missingPolicy": "Skip",
+      "tags": ["combat-ai", "authoritative-content"]
+    }
+  ]
+}

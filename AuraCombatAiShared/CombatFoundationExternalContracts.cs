@@ -85,6 +85,8 @@ public sealed class CombatFoundationTrainingParameters
 
     public double SuccessExpertReplayShare { get; set; } = 0.20d;
 
+    public double AuthoritativeContentReplayShare { get; set; } = 0.20d;
+
     public double HardSeedReplayShare { get; set; } = 0.35d;
 
     public Dictionary<string, double> HardEncounterWeights { get; set; } =
@@ -221,6 +223,11 @@ public sealed class CombatFoundationTrainingParameters
             SuccessExpertReplayShare,
             0d,
             0.40d,
+            0.20d);
+        AuthoritativeContentReplayShare = Clamp(
+            AuthoritativeContentReplayShare,
+            0d,
+            0.50d,
             0.20d);
         HardSeedReplayShare = Clamp(HardSeedReplayShare, 0d, 0.75d, 0.35d);
         MinimumAdvancedReplayShare = Clamp(
@@ -376,6 +383,12 @@ public sealed class CombatFoundationWorkerJobBuildRequest
 
     public string NativeProgramPackageHash { get; set; } = "";
 
+    public string ContentSetHash { get; set; } =
+        CombatContentSetProtocol.EmptyContentSetHash;
+
+    public string OwnerModSetHash { get; set; } =
+        CombatContentSetProtocol.EmptyOwnerModSetHash;
+
     public CombatFoundationTrainingParameters Parameters { get; set; } = new();
 
     public CombatDecisionProfile Profile { get; set; } = new();
@@ -387,6 +400,8 @@ public sealed class CombatFoundationWorkerJobBuildRequest
     public CombatRulesetDocument Ruleset { get; set; } = new();
 
     public CombatPolicyValueNetworkDefinition? InitialChampion { get; set; }
+
+    public List<CombatEpisode> AuthoritativeContentEpisodes { get; set; } = new();
 }
 
 public static class CombatFoundationWorkerJobFactory
@@ -450,6 +465,11 @@ public static class CombatFoundationWorkerJobFactory
                 CombatFoundationWorkerProtocol.TrainingAnalysisFileName),
             Request = new CombatCampaignFoundationTrainingRequest
             {
+                ContentSetHash = source.ContentSetHash,
+                OwnerModSetHash = source.OwnerModSetHash,
+                AuthoritativeContentEpisodes = new List<CombatEpisode>(
+                    source.AuthoritativeContentEpisodes
+                    ?? new List<CombatEpisode>()),
                 RunSeed = parameters.RunSeed,
                 DecisionProfile = parameters.DecisionProfile,
                 Iterations = parameters.Iterations,
@@ -518,6 +538,8 @@ public static class CombatFoundationWorkerJobFactory
                 NativeProgramPackageHash =
                     source.NativeProgramPackageHash ?? "",
                 ExpertReplayEpisodeLimit = expertEpisodeLimit,
+                AuthoritativeContentReplayShare =
+                    parameters.AuthoritativeContentReplayShare,
                 CaseArchiveLoad = new CombatFoundationCaseArchiveLoadDiagnostics
                 {
                     ProtocolVersion = CombatFoundationCaseArchiveProtocol.Version,
@@ -607,13 +629,13 @@ public static class CombatFoundationWorkerJobFactory
 
 public static class CombatFoundationModelPackageProtocol
 {
-    public const int SchemaVersion = 2;
+    public const int SchemaVersion = 3;
 
     public const string ArtifactKind = "aura.foundation-model-package";
 
-    public const string FileName = "foundation-model-package-v2.json";
+    public const string FileName = "foundation-model-package-v3.json";
 
-    public const string CurrentModelVersion = "2.0.0";
+    public const string CurrentModelVersion = "3.0.0";
 
     public static CombatFoundationModelPackage Create(
         CombatFoundationWorkerJob job,
@@ -696,6 +718,8 @@ public static class CombatFoundationModelPackageProtocol
             CompletionKind = result.CompletionKind,
             WorkerSha256 = workerSha256 ?? "",
             RulesetHash = result.RulesetHash,
+            ContentSetHash = job.Request.ContentSetHash,
+            OwnerModSetHash = job.Request.OwnerModSetHash,
             Compatibility = training.Compatibility,
             Validation = training.Validation,
             TrainingSubject = trainingSubject,
@@ -845,6 +869,20 @@ public static class CombatFoundationModelPackageProtocol
             diagnostic = "底模包规则集哈希不一致";
             return false;
         }
+        if (!ValidHash(package.ContentSetHash)
+            || !ValidHash(package.OwnerModSetHash)
+            || !string.Equals(
+                package.ContentSetHash,
+                package.Compatibility.ContentSetHash,
+                StringComparison.Ordinal)
+            || !string.Equals(
+                package.OwnerModSetHash,
+                package.Compatibility.OwnerModSetHash,
+                StringComparison.Ordinal))
+        {
+            diagnostic = "底模包内容集合绑定缺失或不一致";
+            return false;
+        }
         if (package.TrainingSubject != null)
         {
             var subject = CombatFoundationModelCoverageProtocol.Normalize(
@@ -940,6 +978,15 @@ public static class CombatFoundationModelPackageProtocol
             : "balanced";
     }
 
+    private static bool ValidHash(string value)
+    {
+        return !string.IsNullOrWhiteSpace(value)
+               && value.Length == 64
+               && value.All(character =>
+                   character >= '0' && character <= '9'
+                   || character >= 'a' && character <= 'f');
+    }
+
     private static bool SameIds(
         IEnumerable<string>? left,
         IEnumerable<string>? right)
@@ -994,6 +1041,12 @@ public sealed class CombatFoundationModelPackage
     public string WorkerSha256 { get; set; } = "";
 
     public string RulesetHash { get; set; } = "";
+
+    public string ContentSetHash { get; set; } =
+        CombatContentSetProtocol.EmptyContentSetHash;
+
+    public string OwnerModSetHash { get; set; } =
+        CombatContentSetProtocol.EmptyOwnerModSetHash;
 
     public DateTime CreatedUtc { get; set; } = DateTime.UtcNow;
 

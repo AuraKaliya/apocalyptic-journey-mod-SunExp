@@ -408,7 +408,12 @@ public static class CombatDecisionExecutionBindingProtocol
             PlanScore = source.PlanScore,
             SearchPrior = source.SearchPrior,
             SearchVisits = source.SearchVisits,
-            SearchDeathRisk = source.SearchDeathRisk
+            SearchDeathRisk = source.SearchDeathRisk,
+            SearchMeanReturn = source.SearchMeanReturn,
+            SearchReturnStandardError = source.SearchReturnStandardError,
+            SearchLowerTailMean = source.SearchLowerTailMean,
+            SearchReturnQuantiles = new List<double>(
+                source.SearchReturnQuantiles)
         };
     }
 }
@@ -448,14 +453,67 @@ public static class CombatPublicFeatureRegistry
         CombatPublicFeatureScope scope,
         string featureKey)
     {
+        return Register(
+            ownerId,
+            scope,
+            featureKey,
+            "number",
+            -1_000_000_000d,
+            1_000_000_000d,
+            0d);
+    }
+
+    public static IDisposable Register(
+        string ownerId,
+        CombatPublicFeatureScope scope,
+        string featureKey,
+        string valueType,
+        double minimum,
+        double maximum,
+        double defaultValue)
+    {
         if (string.IsNullOrWhiteSpace(featureKey))
         {
             throw new ArgumentException("feature key is required", nameof(featureKey));
         }
+        var normalizedValueType = (valueType ?? "").Trim().ToLowerInvariant();
+        if (normalizedValueType is not ("number" or "boolean")
+            || double.IsNaN(minimum)
+            || double.IsInfinity(minimum)
+            || double.IsNaN(maximum)
+            || double.IsInfinity(maximum)
+            || double.IsNaN(defaultValue)
+            || double.IsInfinity(defaultValue)
+            || maximum < minimum
+            || defaultValue < minimum
+            || defaultValue > maximum)
+        {
+            throw new ArgumentException("feature value contract is invalid", nameof(valueType));
+        }
         var key = (ownerId ?? "") + "|" + scope + "|" + featureKey.Trim();
+        var registration = new Registration(
+            scope,
+            featureKey.Trim(),
+            normalizedValueType,
+            minimum,
+            maximum,
+            defaultValue);
         lock (Gate)
         {
-            Registrations[key] = new Registration(scope, featureKey.Trim());
+            var conflict = Registrations.Values.FirstOrDefault(item =>
+                item.Scope == scope
+                && string.Equals(
+                    item.FeatureKey,
+                    featureKey,
+                    StringComparison.OrdinalIgnoreCase)
+                && !item.SameContract(registration));
+            if (conflict != null)
+            {
+                throw new InvalidOperationException(
+                    "public feature contract conflicts with an active owner: "
+                    + featureKey);
+            }
+            Registrations[key] = registration;
         }
         return new RegistrationLease(key);
     }
@@ -475,17 +533,74 @@ public static class CombatPublicFeatureRegistry
         }
     }
 
+    public static bool TryNormalize(
+        CombatPublicFeatureScope scope,
+        string featureKey,
+        double value,
+        out double normalized)
+    {
+        lock (Gate)
+        {
+            var registration = Registrations.Values.FirstOrDefault(item =>
+                item.Scope == scope
+                && string.Equals(
+                    item.FeatureKey,
+                    featureKey,
+                    StringComparison.OrdinalIgnoreCase));
+            if (registration == null)
+            {
+                normalized = value;
+                return false;
+            }
+            normalized = string.Equals(
+                registration.ValueType,
+                "boolean",
+                StringComparison.Ordinal)
+                ? value >= 0.5d ? 1d : 0d
+                : Math.Max(
+                    registration.Minimum,
+                    Math.Min(registration.Maximum, value));
+            return true;
+        }
+    }
+
     private sealed class Registration
     {
-        public Registration(CombatPublicFeatureScope scope, string featureKey)
+        public Registration(
+            CombatPublicFeatureScope scope,
+            string featureKey,
+            string valueType,
+            double minimum,
+            double maximum,
+            double defaultValue)
         {
             Scope = scope;
             FeatureKey = featureKey;
+            ValueType = valueType;
+            Minimum = minimum;
+            Maximum = maximum;
+            DefaultValue = defaultValue;
         }
 
         public CombatPublicFeatureScope Scope { get; }
 
         public string FeatureKey { get; }
+
+        public string ValueType { get; }
+
+        public double Minimum { get; }
+
+        public double Maximum { get; }
+
+        public double DefaultValue { get; }
+
+        public bool SameContract(Registration other)
+        {
+            return string.Equals(ValueType, other.ValueType, StringComparison.Ordinal)
+                   && Minimum.Equals(other.Minimum)
+                   && Maximum.Equals(other.Maximum)
+                   && DefaultValue.Equals(other.DefaultValue);
+        }
     }
 
     private sealed class RegistrationLease : IDisposable
@@ -764,6 +879,39 @@ public static class CombatPublicFeaturePolicy
             "transformCooldownProgressRequired"
         };
 
+    public static bool IsBuiltIn(
+        CombatPublicFeatureScope scope,
+        string featureKey)
+    {
+        var key = featureKey ?? "";
+        return scope switch
+        {
+            CombatPublicFeatureScope.State => StateKeys.Contains(key),
+            CombatPublicFeatureScope.Unit => UnitKeys.Contains(key),
+            CombatPublicFeatureScope.Action => ActionKeys.Contains(key),
+            CombatPublicFeatureScope.StateChange =>
+                string.Equals(key, "player.hp", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(
+                    key,
+                    "playerMaxHp",
+                    StringComparison.OrdinalIgnoreCase)
+                || string.Equals(key, "targetHp", StringComparison.OrdinalIgnoreCase)
+                || string.Equals(
+                    key,
+                    "targetNegativeStatusStacks",
+                    StringComparison.OrdinalIgnoreCase)
+                || string.Equals(
+                    key,
+                    "playerTempStrength",
+                    StringComparison.OrdinalIgnoreCase)
+                || string.Equals(
+                    key,
+                    "playerTempPerceive",
+                    StringComparison.OrdinalIgnoreCase),
+            _ => false
+        };
+    }
+
     public static Dictionary<string, double> SanitizeState(
         IReadOnlyDictionary<string, double>? values)
     {
@@ -782,12 +930,17 @@ public static class CombatPublicFeaturePolicy
             || key.StartsWith("exhaust:", StringComparison.OrdinalIgnoreCase)
             || key.StartsWith("playerStatus:", StringComparison.OrdinalIgnoreCase)
             || key.StartsWith("playerRole:", StringComparison.OrdinalIgnoreCase)
+            || key.StartsWith("relic:", StringComparison.OrdinalIgnoreCase)
+            || key.StartsWith("blessing:", StringComparison.OrdinalIgnoreCase)
+            || key.StartsWith("nana:", StringComparison.OrdinalIgnoreCase)
+            || key.StartsWith("nightmare:", StringComparison.OrdinalIgnoreCase)
             || key.StartsWith("enemyStatus:", StringComparison.OrdinalIgnoreCase)
             || key.StartsWith("enemy:", StringComparison.OrdinalIgnoreCase)
             || key.StartsWith("enemyHp:", StringComparison.OrdinalIgnoreCase)
             || CombatPublicFeatureRegistry.IsRegistered(
                 CombatPublicFeatureScope.State,
-                key));
+                key),
+            CombatPublicFeatureScope.State);
     }
 
     public static Dictionary<string, double> SanitizeUnit(
@@ -798,7 +951,8 @@ public static class CombatPublicFeaturePolicy
             || key.StartsWith("status:", StringComparison.OrdinalIgnoreCase)
             || CombatPublicFeatureRegistry.IsRegistered(
                 CombatPublicFeatureScope.Unit,
-                key));
+                key),
+            CombatPublicFeatureScope.Unit);
     }
 
     public static Dictionary<string, double> SanitizeAction(
@@ -811,9 +965,11 @@ public static class CombatPublicFeaturePolicy
                 StringComparison.OrdinalIgnoreCase)
             || key.StartsWith("stateChange:", StringComparison.OrdinalIgnoreCase)
             || key.StartsWith("nana:", StringComparison.OrdinalIgnoreCase)
+            || key.StartsWith("nightmare:", StringComparison.OrdinalIgnoreCase)
             || CombatPublicFeatureRegistry.IsRegistered(
                 CombatPublicFeatureScope.Action,
-                key));
+                key),
+            CombatPublicFeatureScope.Action);
     }
 
     public static Dictionary<string, double> SanitizeStateChanges(
@@ -841,12 +997,14 @@ public static class CombatPublicFeaturePolicy
             || key.StartsWith("enemyStatus:", StringComparison.OrdinalIgnoreCase)
             || CombatPublicFeatureRegistry.IsRegistered(
                 CombatPublicFeatureScope.StateChange,
-                key));
+                key),
+            CombatPublicFeatureScope.StateChange);
     }
 
     private static Dictionary<string, double> Sanitize(
         IReadOnlyDictionary<string, double>? values,
-        Func<string, bool> permitted)
+        Func<string, bool> permitted,
+        CombatPublicFeatureScope scope)
     {
         var result = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase);
         foreach (var pair in values ?? new Dictionary<string, double>())
@@ -856,7 +1014,13 @@ public static class CombatPublicFeaturePolicy
                 && !double.IsNaN(pair.Value)
                 && !double.IsInfinity(pair.Value))
             {
-                result[pair.Key] = pair.Value;
+                result[pair.Key] = CombatPublicFeatureRegistry.TryNormalize(
+                    scope,
+                    pair.Key,
+                    pair.Value,
+                    out var normalized)
+                    ? normalized
+                    : pair.Value;
             }
         }
         return result;

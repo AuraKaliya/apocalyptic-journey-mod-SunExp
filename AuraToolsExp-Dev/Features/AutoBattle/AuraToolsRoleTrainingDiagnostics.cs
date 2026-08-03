@@ -8,7 +8,8 @@ namespace AuraToolsExp.Dll.Features.AutoBattle;
 public static class AuraToolsRoleTrainingDiagnostics
 {
     public static Dictionary<string, double> Analyze(
-        IEnumerable<CombatEpisode> source)
+        IEnumerable<CombatEpisode> source,
+        IEnumerable<CombatFoundationCampaignObservation>? campaignObservations = null)
     {
         var episodes = (source ?? Array.Empty<CombatEpisode>())
             .Where(episode => episode != null)
@@ -16,16 +17,46 @@ public static class AuraToolsRoleTrainingDiagnostics
         var result = new Dictionary<string, double>(
             StringComparer.OrdinalIgnoreCase);
         var frames = episodes.SelectMany(episode => episode.Frames).ToList();
-        var terminalEpisodes = episodes
-            .GroupBy(episode => string.IsNullOrWhiteSpace(episode.JourneyRunId)
-                ? "episode:" + episode.EpisodeId
-                : "journey:" + episode.JourneyRunId,
-                StringComparer.OrdinalIgnoreCase)
-            .Select(group => group
-                .OrderByDescending(episode => episode.JourneyBattleIndex)
-                .ThenByDescending(episode => episode.CreatedUtc)
-                .First())
+        var terminalSnapshots = (campaignObservations
+                                 ?? Array.Empty<CombatFoundationCampaignObservation>())
+            .Where(observation => observation != null
+                                  && string.Equals(
+                                      observation.SourceStage,
+                                      "training",
+                                      StringComparison.OrdinalIgnoreCase))
+            .Select(observation => new TerminalSnapshot
+            {
+                DifficultyId = observation.DifficultyId,
+                Victory = observation.FinalBossVictory,
+                PlayerHp = Math.Max(0, observation.FinalHp),
+                PlayerMaxHp = Math.Max(1, observation.FinalMaxHp),
+                DoomPower = Math.Max(0, observation.FinalDoomPower)
+            })
             .ToList();
+        if (terminalSnapshots.Count == 0)
+        {
+            terminalSnapshots = episodes
+                .Where(episode =>
+                    episode.Campaign?.TerminalSnapshotKnown == true)
+                .GroupBy(episode => string.IsNullOrWhiteSpace(
+                        episode.JourneyRunId)
+                    ? "episode:" + episode.EpisodeId
+                    : "journey:" + episode.JourneyRunId,
+                    StringComparer.OrdinalIgnoreCase)
+                .Select(group => group
+                    .OrderByDescending(episode => episode.JourneyBattleIndex)
+                    .ThenByDescending(episode => episode.CreatedUtc)
+                    .First())
+                .Select(episode => new TerminalSnapshot
+                {
+                    DifficultyId = episode.Campaign.DifficultyId,
+                    Victory = episode.Campaign.FinalBossVictory,
+                    PlayerHp = episode.Campaign.TerminalPlayerHp,
+                    PlayerMaxHp = episode.Campaign.TerminalPlayerMaxHp,
+                    DoomPower = episode.Campaign.TerminalDoomPower
+                })
+                .ToList();
+        }
         result["episodes"] = episodes.Count;
         result["frames"] = frames.Count;
         result["battle-final-max-hp.mean"] = episodes.Count == 0
@@ -34,15 +65,36 @@ public static class AuraToolsRoleTrainingDiagnostics
         result["battle-final-max-hp.maximum"] = episodes.Count == 0
             ? 0d
             : episodes.Max(episode => episode.FinalPlayerMaxHp);
-        result["journey-terminal-episodes"] = terminalEpisodes.Count;
-        result["journey-final-max-hp.mean"] = terminalEpisodes.Count == 0
+        result["journey-terminal-episodes"] = terminalSnapshots.Count;
+        result["journey-terminal-snapshots"] = terminalSnapshots.Count;
+        result["journey-final-max-hp.mean"] = terminalSnapshots.Count == 0
             ? 0d
-            : terminalEpisodes.Average(episode => episode.FinalPlayerMaxHp);
-        result["journey-final-max-hp.maximum"] = terminalEpisodes.Count == 0
+            : terminalSnapshots.Average(snapshot => snapshot.PlayerMaxHp);
+        result["journey-final-max-hp.median"] = Median(
+            terminalSnapshots.Select(snapshot =>
+                    (double)snapshot.PlayerMaxHp)
+                .ToList());
+        result["journey-final-max-hp.maximum"] = terminalSnapshots.Count == 0
             ? 0d
-            : terminalEpisodes.Max(episode => episode.FinalPlayerMaxHp);
-        // Keep the established keys, but make their meaning match the UI label:
-        // final adventure health, not the average of every intermediate battle.
+            : terminalSnapshots.Max(snapshot => snapshot.PlayerMaxHp);
+        result["journey-final-hp.mean"] = terminalSnapshots.Count == 0
+            ? 0d
+            : terminalSnapshots.Average(snapshot => snapshot.PlayerHp);
+        result["journey-final-doom.mean"] = terminalSnapshots.Count == 0
+            ? 0d
+            : terminalSnapshots.Average(snapshot => snapshot.DoomPower);
+        result["journey-final-doom.median"] = Median(
+            terminalSnapshots.Select(snapshot =>
+                    (double)snapshot.DoomPower)
+                .ToList());
+        result["journey-final-doom.maximum"] = terminalSnapshots.Count == 0
+            ? 0d
+            : terminalSnapshots.Max(snapshot => snapshot.DoomPower);
+        AddTerminalBreakdown(result, terminalSnapshots, "normal", true);
+        AddTerminalBreakdown(result, terminalSnapshots, "normal", false);
+        AddTerminalBreakdown(result, terminalSnapshots, "advanced", true);
+        AddTerminalBreakdown(result, terminalSnapshots, "advanced", false);
+        // Established aliases now point only at exact campaign snapshots.
         result["final-max-hp.mean"] = result["journey-final-max-hp.mean"];
         result["final-max-hp.maximum"] =
             result["journey-final-max-hp.maximum"];
@@ -69,6 +121,13 @@ public static class AuraToolsRoleTrainingDiagnostics
         var prematureDevours = 0;
         var selectedGrowthBuilders = 0;
         var safeGrowthWindowFrames = 0;
+        var survivalOverrideFrames = 0;
+        var selectedSurvivalActions = 0;
+        var selectedNonPositiveDevours = 0;
+        var selectedUnderpreparedTransforms = 0;
+        var selectedNightmareBuilders = 0;
+        var selectedNightmareExpectedExtraStacks = 0d;
+        var selectedNightmareExpectedThresholdGain = 0d;
         var devourDoomGains = new List<double>();
         var devourMaximumHpGains = new List<double>();
         var firstTransformDoom = new List<double>();
@@ -87,6 +146,12 @@ public static class AuraToolsRoleTrainingDiagnostics
                             "roleStrategy:nana.safe-growth-window") > 0.5d)
                     {
                         safeGrowthWindowFrames++;
+                    }
+                    if (Value(
+                            frame.StateFeatures,
+                            "roleStrategy:nana.survival-override") > 0.5d)
+                    {
+                        survivalOverrideFrames++;
                     }
                     if (frame.Candidates.Count == 0)
                     {
@@ -146,6 +211,12 @@ public static class AuraToolsRoleTrainingDiagnostics
                     {
                         positiveBleedOpportunityDevours++;
                     }
+                    if (Value(
+                            selected.Features,
+                            "nana:devour-net-value") <= 0d)
+                    {
+                        selectedNonPositiveDevours++;
+                    }
                 }
                 else if (IdEquals(selected.SourceId, "careercard_3"))
                 {
@@ -173,6 +244,12 @@ public static class AuraToolsRoleTrainingDiagnostics
                             Value(
                                 frame.StateFeatures,
                                 "roleStrategy:nana.doom")));
+                        if (Value(
+                                selected.Features,
+                                "roleStrategy:nana.transform-ready") <= 0.5d)
+                        {
+                            selectedUnderpreparedTransforms++;
+                        }
                     }
                     if (Value(
                             selected.Features,
@@ -235,6 +312,24 @@ public static class AuraToolsRoleTrainingDiagnostics
                 {
                     selectedGrowthBuilders++;
                 }
+                if (Value(
+                        selected.Features,
+                        "roleStrategy:nana.survival-action") > 0.5d)
+                {
+                    selectedSurvivalActions++;
+                }
+                if (Value(
+                        selected.Features,
+                        "nightmare:eligible-negative-events") > 0d)
+                {
+                    selectedNightmareBuilders++;
+                    selectedNightmareExpectedExtraStacks += Value(
+                        selected.Features,
+                        "nightmare:expected-extra-stacks");
+                    selectedNightmareExpectedThresholdGain += Value(
+                        selected.Features,
+                        "nightmare:expected-devour-threshold-gain");
+                }
             }
         }
         result["nana.devours"] = devours;
@@ -257,12 +352,24 @@ public static class AuraToolsRoleTrainingDiagnostics
         result["nana.calamity-actions"] = calamityActions;
         result["nana.selected-growth-builders"] = selectedGrowthBuilders;
         result["nana.safe-growth-window-frames"] = safeGrowthWindowFrames;
+        result["nana.survival-override-frames"] = survivalOverrideFrames;
+        result["nana.selected-survival-actions"] = selectedSurvivalActions;
         result["nana.premature-devours"] = prematureDevours;
         result["nana.premature-devour-rate"] = devours == 0
             ? 0d
             : prematureDevours / (double)devours;
         result["nana.selected-strategically-prohibited-actions"] =
             selectedStrategicallyProhibitedActions;
+        result["nana.selected-nonpositive-devours"] =
+            selectedNonPositiveDevours;
+        result["nana.selected-underprepared-transforms"] =
+            selectedUnderpreparedTransforms;
+        result["nana.selected-nightmare-builders"] =
+            selectedNightmareBuilders;
+        result["nana.selected-nightmare-expected-extra-stacks"] =
+            selectedNightmareExpectedExtraStacks;
+        result["nana.selected-nightmare-expected-threshold-gain"] =
+            selectedNightmareExpectedThresholdGain;
         result["nana.devour-doom-gain.mean"] = Mean(devourDoomGains);
         result["nana.devour-doom-gain.median"] = Median(devourDoomGains);
         result["nana.devour-doom-gain.maximum"] = Maximum(devourDoomGains);
@@ -287,6 +394,9 @@ public static class AuraToolsRoleTrainingDiagnostics
         result["nana.early-transform-rate"] = transforms == 0
             ? 0d
             : earlyTransforms / (double)transforms;
+        result["nana.underprepared-transform-rate"] = firstTransforms == 0
+            ? 0d
+            : selectedUnderpreparedTransforms / (double)firstTransforms;
         result["nana.devour-transform-link-rate"] = firstTransforms == 0
             ? 0d
             : transformAfterRecentDevour / (double)firstTransforms;
@@ -294,6 +404,43 @@ public static class AuraToolsRoleTrainingDiagnostics
             ? 0d
             : certifiedFinales / (double)finales;
         return result;
+    }
+
+    private static void AddTerminalBreakdown(
+        IDictionary<string, double> result,
+        IReadOnlyCollection<TerminalSnapshot> terminalSnapshots,
+        string difficultyId,
+        bool victory)
+    {
+        var subset = terminalSnapshots.Where(snapshot =>
+                string.Equals(
+                    snapshot.DifficultyId,
+                    difficultyId,
+                    StringComparison.OrdinalIgnoreCase)
+                && snapshot.Victory == victory)
+            .ToList();
+        var outcome = victory ? "victory" : "failure";
+        var prefix = "journey-" + difficultyId + "-" + outcome;
+        result[prefix + "-terminal-snapshots"] = subset.Count;
+        result[prefix + "-final-max-hp.mean"] = subset.Count == 0
+            ? 0d
+            : subset.Average(snapshot => snapshot.PlayerMaxHp);
+        result[prefix + "-final-doom.mean"] = subset.Count == 0
+            ? 0d
+            : subset.Average(snapshot => snapshot.DoomPower);
+    }
+
+    private sealed class TerminalSnapshot
+    {
+        public string DifficultyId { get; set; } = "";
+
+        public bool Victory { get; set; }
+
+        public int PlayerHp { get; set; }
+
+        public int PlayerMaxHp { get; set; }
+
+        public int DoomPower { get; set; }
     }
 
     private static double Mean(IReadOnlyCollection<double> values)

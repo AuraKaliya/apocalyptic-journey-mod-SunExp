@@ -13,6 +13,7 @@
 7. [测试与发布验收](07-测试与发布验收.md)：自动门禁、实机验证和故障处置。
 8. [情景旅程评估](08-情景旅程评估.md)：同种子对照、普通/高级难度与结果解释。
 9. [训练与游戏主体验证分离](09-训练与游戏主体验证分离.md)：外部规模训练、隐藏实机验证与晋升回执。
+10. [内容 MOD 训练包与玩家适配器](10-内容MOD训练包与玩家适配器.md)：AuraShared 注册、内容集合、转移审计、数据目录和残差适配器。
 
 ## 当前合同
 
@@ -20,13 +21,15 @@
 |---|---|
 | 在线决策 | `risk-aware-root-sampling-puct-mpc` |
 | 搜索预算 | `dynamic`，质量档 `fast / balanced / deep` |
-| 在线样本 | `aura.combat-ai.sample.v6`，特征 6 |
+| 在线样本 | `aura.combat-ai.sample.v7`，特征 10 |
 | 选择轨迹 | `aura.combat-ai.selection.v1` |
-| 长期轨迹 | `aura.combat-ai.episode.v4`，特征 11 |
+| 长期轨迹 | `aura.combat-ai.episode.v5`，特征 25 |
 | 策略价值编码 | `partitioned-v3` |
-| 策略价值模型 | `aura.combat-policy-value.mlp.v1` |
-| Worker | schema 8 |
-| 外部模型包 | `foundation-model-package-v2` |
+| 策略价值模型 | `aura.combat-policy-value.mlp.v2`，16 分位动作 Q |
+| 内容包 | `aura.combat-ai.content-package.v1` |
+| 适配器 | `aura.combat-ai.adapter.v1` |
+| Worker | schema 10 |
+| 外部模型包 | `foundation-model-package-v3` |
 | CLI 搜索策略 | `risk-puct` |
 
 输入不满足这些合同会被拒绝。需要改变布局时，应同时切换写入、读取、测试、示例与文档，并删除被替代内容。

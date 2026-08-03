@@ -12,16 +12,29 @@ public sealed class CombatEpisodeRecordingPolicy :
 {
     private readonly ICombatSimulationPolicy inner;
     private readonly string decisionProfile;
+    private readonly string contentSetHash;
+    private readonly string ownerModSetHash;
+    private readonly string baseModelId;
     private readonly List<CombatEpisodeFrame> frames = new();
 
     public CombatEpisodeRecordingPolicy(
         ICombatSimulationPolicy inner,
-        string decisionProfile)
+        string decisionProfile,
+        string contentSetHash = "",
+        string ownerModSetHash = "",
+        string baseModelId = "")
     {
         this.inner = inner ?? throw new ArgumentNullException(nameof(inner));
         this.decisionProfile = string.IsNullOrWhiteSpace(decisionProfile)
             ? "balanced"
             : decisionProfile.Trim().ToLowerInvariant();
+        this.contentSetHash = string.IsNullOrWhiteSpace(contentSetHash)
+            ? CombatContentSetProtocol.EmptyContentSetHash
+            : contentSetHash;
+        this.ownerModSetHash = string.IsNullOrWhiteSpace(ownerModSetHash)
+            ? CombatContentSetProtocol.EmptyOwnerModSetHash
+            : ownerModSetHash;
+        this.baseModelId = baseModelId ?? "";
     }
 
     public string PolicyId => inner.PolicyId + ":episode";
@@ -86,6 +99,9 @@ public sealed class CombatEpisodeRecordingPolicy :
             ScenarioId = result.ScenarioId,
             Seed = result.Seed,
             RulesetHash = result.RulesetHash,
+            ContentSetHash = contentSetHash,
+            OwnerModSetHash = ownerModSetHash,
+            BaseModelId = baseModelId,
             PolicyId = inner.PolicyId,
             DecisionProfile = decisionProfile,
             Frames = new List<CombatEpisodeFrame>(frames),
@@ -133,6 +149,14 @@ public sealed class CombatEpisodeRecordingPolicy :
                 SearchPrior = Finite(candidate.SearchPrior),
                 SearchValue = Finite(candidate.PlanScore),
                 SearchDeathRisk = Finite(candidate.SearchDeathRisk),
+                SearchMeanReturn = Finite(candidate.SearchMeanReturn),
+                SearchReturnStandardError =
+                    Finite(candidate.SearchReturnStandardError),
+                SearchLowerTailMean = Finite(candidate.SearchLowerTailMean),
+                SearchReturnQuantiles = candidate.SearchReturnQuantiles
+                    .Select(Finite)
+                    .Take(16)
+                    .ToList(),
                 Features = CombatPolicyValueEncoding.BuildCandidateFeatures(candidate)
             });
         }

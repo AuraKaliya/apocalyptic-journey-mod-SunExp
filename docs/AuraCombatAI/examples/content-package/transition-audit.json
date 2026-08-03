@@ -1,0 +1,17 @@
+{
+  "Protocol": "aura.combat-ai.transition-audit.v1",
+  "SchemaVersion": 1,
+  "Cases": [
+    {
+      "CaseId": "example.end-turn.stable",
+      "CompactStateFingerprint": "public-state-v1:example",
+      "FullStateHash": "full-state-v1:example",
+      "ActionFingerprint": "end-turn",
+      "NextCompactStateFingerprint": "public-state-v1:example-next",
+      "NextFullStateHash": "full-state-v1:example-next",
+      "Outcome": "continue",
+      "RuntimeSettlementHash": "settlement-v1:example",
+      "SimulationSettlementHash": "settlement-v1:example"
+    }
+  ]
+}

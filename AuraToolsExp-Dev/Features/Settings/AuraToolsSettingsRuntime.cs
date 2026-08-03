@@ -1445,6 +1445,17 @@ public static class AuraToolsSettingsRuntime
                     value =>
                         foundationSettings.SuccessExpertReplayShare = value,
                     autoBattle);
+                var foundationContentReplayRow = CreateInlineRow(
+                    foundationAdvancedHost.transform,
+                    "AutoBattleFoundationContentReplayRow");
+                AddAutoBattleFoundationDouble(
+                    foundationContentReplayRow.transform,
+                    "内容 MOD 回放占比",
+                    foundationSettings.AuthoritativeContentReplayShare,
+                    0d,
+                    0.5d,
+                    value => foundationSettings.AuthoritativeContentReplayShare = value,
+                    autoBattle);
 
                 var foundationModelRow = CreateInlineRow(
                     foundationAdvancedHost.transform,
@@ -3081,7 +3092,7 @@ public static class AuraToolsSettingsRuntime
                     {
                         new OptionalFileDialogFilter(
                             "Aura 待验底模包",
-                            "foundation-model-package-v2.json;*.aura-model.json"),
+                            "foundation-model-package-v3.json;*.aura-model.json"),
                         new OptionalFileDialogFilter("JSON 文件", "*.json")
                     },
                     "json",

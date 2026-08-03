@@ -33,6 +33,17 @@ public static class AuraToolsRoleCampaignStrategy
         SetDefault(campaign.RolePrior, "finale", 0.30d);
         SetDefault(campaign.BuildTendency, "doom-growth", 0.65d);
         SetDefault(campaign.BuildTendency, "calamity-burst", 0.35d);
+        var nightmarePrototype = campaign.Player.FamiliarBlessingIds.Contains(
+            "blessing_40",
+            StringComparer.OrdinalIgnoreCase);
+        if (nightmarePrototype)
+        {
+            SetDefault(campaign.RolePrior, "nightmare-debuff-events", 0.60d);
+            SetDefault(
+                campaign.BuildTendency,
+                "nightmare-debuff-events",
+                0.30d);
+        }
 
         SetDefault(
             campaign.RewardScoreBiases,
@@ -61,6 +72,13 @@ public static class AuraToolsRoleCampaignStrategy
             {
                 SetDefault(reward.Features, "doom-growth", 0.90d);
                 SetDefault(reward.Features, "pig-farming", 0.65d);
+                if (nightmarePrototype)
+                {
+                    SetDefault(
+                        reward.Features,
+                        "nightmare-debuff-events",
+                        0.55d);
+                }
             }
             if (reward.RewardId.StartsWith(
                     "blood_",
@@ -68,6 +86,13 @@ public static class AuraToolsRoleCampaignStrategy
             {
                 SetDefault(reward.Features, "bleeding", 0.95d);
                 SetDefault(reward.Features, "doom-growth", 0.45d);
+                if (nightmarePrototype)
+                {
+                    SetDefault(
+                        reward.Features,
+                        "nightmare-debuff-events",
+                        0.35d);
+                }
             }
             if (string.Equals(
                     reward.RewardId,

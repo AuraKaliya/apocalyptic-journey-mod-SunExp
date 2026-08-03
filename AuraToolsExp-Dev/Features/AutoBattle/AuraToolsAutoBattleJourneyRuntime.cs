@@ -93,6 +93,8 @@ internal static class AuraToolsAutoBattleJourneyRuntime
         var activeMode = AuraModeRuntime.Current(AuraToolsIds.ModId, refresh: true);
         var modeId = activeMode?.ModeId ?? "Normal";
         var runId = activeMode?.Run?.RunId;
+        var content = AuraToolsCombatContentRuntime.SnapshotContentSet();
+        var autoBattle = AuraToolsConfigService.MatchExperience.AutoBattle;
         current = new CombatJourneyTrainingEpisode
         {
             JourneyRunId = string.IsNullOrWhiteSpace(runId)
@@ -102,6 +104,14 @@ internal static class AuraToolsAutoBattleJourneyRuntime
             ModeId = string.IsNullOrWhiteSpace(modeId) ? "Normal" : modeId,
             Source = "live-world-simulation",
             PolicyId = AuraToolsAutoBattleRuntime.Active ? "policy" : "human",
+            OwnerModSetHash = content.OwnerModSetHash,
+            ContentSetHash = content.ContentSetHash,
+            BaseModelId = autoBattle.SelectedModelId ?? "",
+            ActiveAdapterIds = AuraToolsAutoBattleModelRuntime
+                .SnapshotActiveAdapterIds(
+                    autoBattle.Profile,
+                    autoBattle.SelectedModelId ?? "")
+                .ToList(),
             StartedUtc = DateTime.UtcNow
         };
         settlementWritten = false;
@@ -404,8 +414,9 @@ internal static class AuraToolsAutoBattleJourneyRuntime
 
     private static void WriteJourney(CombatJourneyTrainingEpisode episode)
     {
-        var path = AuraSharedLogStore.OwnerLogPath(
-            AuraToolsIds.ModId,
+        var path = Path.Combine(
+            AuraToolsCombatContentRuntime.LiveDatasetDirectory(
+                episode.ContentSetHash),
             "journey-episodes-v1.jsonl");
         lock (WriteGate)
         {

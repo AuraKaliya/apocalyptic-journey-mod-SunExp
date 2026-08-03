@@ -88,8 +88,9 @@ public sealed class CombatDecisionSimulationPolicy :
         var decision = decisionEngine.Choose(
             observation,
             profile,
-            searchExploration);
-        LastObservation = observation;
+            searchExploration,
+            out var preparedObservation);
+        LastObservation = preparedObservation ?? observation;
         LastDecision = decision;
         LastDecisionMetrics.SearchSimulations = decision.SearchSimulations;
         LastDecisionMetrics.SearchNodes = decision.SearchNodes;
@@ -657,16 +658,25 @@ public sealed class CombatAuthoritativeBranchTeacherPolicy :
         CombatSimulationPolicyContext context,
         CombatSimulationAction? baseline)
     {
-        var visits = (LastDecision?.Candidates
-                      ?? new List<CombatCandidateEvaluation>())
+        var legalEvaluations = (LastDecision?.Candidates
+                                ?? new List<CombatCandidateEvaluation>())
             .Where(item => item?.Action != null && item.Legal)
-            .ToDictionary(
+            .ToList();
+        var legalCandidateIds = new HashSet<string>(
+            legalEvaluations.Select(item => item.Action.CandidateId),
+            StringComparer.Ordinal);
+        var visits = legalEvaluations
+            .GroupBy(
                 item => item.Action.CandidateId,
-                item => item.SearchVisits,
+                StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Max(item => item.SearchVisits),
                 StringComparer.Ordinal);
         return context.LegalActions
-            .Where(item => item.Kind is CombatSimulationActionKind.PlayCard
+            .Where(item => (item.Kind is CombatSimulationActionKind.PlayCard
                 or CombatSimulationActionKind.UseSkill)
+                && legalCandidateIds.Contains(item.CandidateId))
             .OrderByDescending(item => baseline != null
                                        && string.Equals(
                                            item.CandidateId,
@@ -963,6 +973,9 @@ public static class PlayerEquivalentSimulationObservationProjector
         CombatCampaignContextFeatureNames.ProjectScenario(
             context.Scenario,
             observation.Features);
+        ProjectOwnedRewardFeatures(
+            context.Scenario,
+            observation.Features);
         ProjectLifecycleFeatures(
             context.Scenario,
             context.Ruleset,
@@ -1027,6 +1040,34 @@ public static class PlayerEquivalentSimulationObservationProjector
             observation.Actions.Add(action);
         }
         return CombatPlayerObservationBoundary.Normalize(observation);
+    }
+
+    private static void ProjectOwnedRewardFeatures(
+        CombatScenarioDefinition scenario,
+        IDictionary<string, double> features)
+    {
+        foreach (var reward in scenario.RewardRules.Where(item =>
+                     item != null
+                     && !string.IsNullOrWhiteSpace(item.RewardId)))
+        {
+            var prefix = reward.Kind.Equals(
+                "Blessing",
+                StringComparison.OrdinalIgnoreCase)
+                ? "blessing:"
+                : reward.Kind.Equals(
+                    "Relic",
+                    StringComparison.OrdinalIgnoreCase)
+                    ? "relic:"
+                    : "";
+            if (prefix.Length == 0)
+            {
+                continue;
+            }
+            var key = prefix + reward.RewardId;
+            features[key] = features.TryGetValue(key, out var previous)
+                ? previous + Math.Max(1, reward.Stacks)
+                : Math.Max(1, reward.Stacks);
+        }
     }
 
     private static void ProjectLifecycleFeatures(

@@ -1,21 +1,22 @@
 using System;
 using System.Collections.Generic;
+using System.Linq;
 using AuraCombatSimulation.Shared;
 
 namespace AuraCombatAi.Shared;
 
 public static class CombatFoundationWorkerProtocol
 {
-    public const int SchemaVersion = 8;
+    public const int SchemaVersion = 10;
     public const int TrainingMetricsSchemaVersion = 1;
     public const string TrainingMetricsFileName =
         "foundation-training-metrics-v1.jsonl";
     public const string TrainingAnalysisFileName =
         "foundation-training-analysis-v1.json";
     public const string CheckpointFileName =
-        "foundation-training-checkpoint-v8.json";
+        "foundation-training-checkpoint-v10.json";
     public const string CheckpointEpisodesFileName =
-        "foundation-training-checkpoint-episodes-v8.jsonl";
+        "foundation-training-checkpoint-episodes-v10.jsonl";
 
     public static bool TryValidateJob(
         CombatFoundationWorkerJob? job,
@@ -34,8 +35,41 @@ public static class CombatFoundationWorkerProtocol
                          + SchemaVersion;
             return false;
         }
+        var request = job.Request;
+        if (request == null
+            || !ValidHash(request.ContentSetHash)
+            || !ValidHash(request.OwnerModSetHash))
+        {
+            diagnostic = "底模训练任务缺少有效的内容集合绑定";
+            return false;
+        }
+        var contentEpisodes = request.AuthoritativeContentEpisodes
+                              ?? new List<CombatEpisode>();
+        if (contentEpisodes.Count
+            > CombatContentTrainingEpisodeProtocol.MaximumEpisodesPerContentSet
+            || contentEpisodes.Any(episode =>
+                !CombatContentTrainingEpisodeProtocol.TryValidate(
+                    episode,
+                    request.ContentSetHash,
+                    request.OwnerModSetHash,
+                    job.ExpectedRulesetHash,
+                    out _)))
+        {
+            diagnostic = "底模训练任务包含无效的内容 MOD 权威 Episode";
+            return false;
+        }
         diagnostic = "";
         return true;
+    }
+
+    private static bool ValidHash(string? value)
+    {
+        return value != null
+               && !string.IsNullOrWhiteSpace(value)
+               && value.Length == 64
+               && value.All(character =>
+                   character >= '0' && character <= '9'
+                   || character >= 'a' && character <= 'f');
     }
 
     public static bool TryValidateProgress(
@@ -239,6 +273,12 @@ public sealed class CombatFoundationTrainingMetricRecord
     public string RulesetHash { get; set; } = "";
 
     public string NativeProgramPackageHash { get; set; } = "";
+
+    public string ContentSetHash { get; set; } =
+        CombatContentSetProtocol.EmptyContentSetHash;
+
+    public string OwnerModSetHash { get; set; } =
+        CombatContentSetProtocol.EmptyOwnerModSetHash;
 
     public CombatPolicyValueEpochMetrics Metrics { get; set; } = new();
 }

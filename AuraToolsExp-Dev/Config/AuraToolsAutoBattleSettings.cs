@@ -505,6 +505,9 @@ public sealed class AutoBattleFoundationTrainingSettings
     [JsonProperty("successExpertReplayShare")]
     public double SuccessExpertReplayShare { get; set; } = 0.20d;
 
+    [JsonProperty("authoritativeContentReplayShare")]
+    public double AuthoritativeContentReplayShare { get; set; } = 0.20d;
+
     [JsonProperty("hardSeedReplayShare")]
     public double HardSeedReplayShare { get; set; } = 0.35d;
 
@@ -736,6 +739,13 @@ public sealed class AutoBattleFoundationTrainingSettings
                 : Math.Max(
                     0d,
                     Math.Min(0.40d, SuccessExpertReplayShare));
+        AuthoritativeContentReplayShare =
+            double.IsNaN(AuthoritativeContentReplayShare)
+            || double.IsInfinity(AuthoritativeContentReplayShare)
+                ? 0.20d
+                : Math.Max(
+                    0d,
+                    Math.Min(0.50d, AuthoritativeContentReplayShare));
         var executionMode = (ExecutionMode ?? "").Trim().ToLowerInvariant();
         ExecutionMode = executionMode == "inprocess"
             ? "inprocess"

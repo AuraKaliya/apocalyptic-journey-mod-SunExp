@@ -44,6 +44,7 @@ public static class AuraToolsAutoBattleRuntime
         }
 
         initialized = true;
+        AuraToolsCombatContentRuntime.Initialize();
         AuraToolsCombatKnowledgeRuntime.Initialize();
         AuraToolsBundledFoundationModelRuntime.Initialize(modConfig);
         AuraToolsAutoBattleJourneyRuntime.Initialize(modConfig);
@@ -2220,6 +2221,24 @@ internal sealed class AuraToolsAutoBattleTrainingSink : ICombatTrainingSampleSin
             return;
         }
 
+        var content = AuraToolsCombatContentRuntime.SnapshotContentSet();
+        var settings = AuraToolsConfigService.MatchExperience.AutoBattle;
+        sample.ContentSetHash = content.ContentSetHash;
+        sample.OwnerModSetHash = content.OwnerModSetHash;
+        sample.BaseModelId = settings.SelectedModelId ?? "";
+        sample.ActiveAdapterIds = AuraToolsAutoBattleModelRuntime
+            .SnapshotActiveAdapterIds(
+                settings.Profile,
+                sample.BaseModelId)
+            .ToList();
+        foreach (var candidate in sample.Candidates
+                     ?? new List<CombatTrainingCandidate>())
+        {
+            candidate.OwnerModId =
+                AuraToolsCombatContentRuntime.ResolveOwnerModId(
+                    candidate.SourceId);
+        }
+
         if (!queue.TryAdd(new QueuedTrainingSample
             {
                 Generation = Volatile.Read(ref storageGeneration),
@@ -2252,13 +2271,10 @@ internal sealed class AuraToolsAutoBattleTrainingSink : ICombatTrainingSampleSin
     {
         try
         {
-            var path = AuraSharedLogStore.OwnerLogPath(
-                AuraToolsIds.ModId,
-                "auto-battle-training-v6.jsonl");
-            var episodesPath = AuraSharedLogStore.OwnerLogPath(
-                AuraToolsIds.ModId,
-                "live-combat-episodes-v4.jsonl");
-            var sessions = new Dictionary<long, List<CombatTrainingSample>>();
+            var sessionsByContentSet = new Dictionary<
+                string,
+                Dictionary<long, List<CombatTrainingSample>>>(
+                StringComparer.Ordinal);
             var sessionGeneration = Volatile.Read(ref storageGeneration);
             foreach (var queued in queue.GetConsumingEnumerable())
             {
@@ -2272,7 +2288,7 @@ internal sealed class AuraToolsAutoBattleTrainingSink : ICombatTrainingSampleSin
                     var currentGeneration = Volatile.Read(ref storageGeneration);
                     if (sessionGeneration != currentGeneration)
                     {
-                        sessions.Clear();
+                        sessionsByContentSet.Clear();
                         sessionGeneration = currentGeneration;
                     }
                     var currentBatch = batch
@@ -2282,12 +2298,41 @@ internal sealed class AuraToolsAutoBattleTrainingSink : ICombatTrainingSampleSin
                     {
                         continue;
                     }
-                    using var writer = new StreamWriter(path, append: true);
-                    using var episodeWriter = new StreamWriter(episodesPath, append: true);
-                    foreach (var item in currentBatch)
+                    foreach (var contentBatch in currentBatch.GroupBy(
+                                 item => string.IsNullOrWhiteSpace(
+                                     item.Sample.ContentSetHash)
+                                     ? CombatContentSetProtocol.EmptyContentSetHash
+                                     : item.Sample.ContentSetHash,
+                                 StringComparer.Ordinal))
                     {
-                        writer.WriteLine(AuraSharedJson.SerializeCompact(item.Sample));
-                        RecordLiveEpisode(item.Sample, sessions, episodeWriter);
+                        var directory = AuraToolsCombatContentRuntime
+                            .LiveDatasetDirectory(contentBatch.Key);
+                        var path = Path.Combine(
+                            directory,
+                            "auto-battle-training-v7.jsonl");
+                        var episodesPath = Path.Combine(
+                            directory,
+                            "live-combat-episodes-v5.jsonl");
+                        if (!sessionsByContentSet.TryGetValue(
+                                contentBatch.Key,
+                                out var sessions))
+                        {
+                            sessions = new Dictionary<long, List<CombatTrainingSample>>();
+                            sessionsByContentSet[contentBatch.Key] = sessions;
+                        }
+                        using var writer = new StreamWriter(path, append: true);
+                        using var episodeWriter = new StreamWriter(
+                            episodesPath,
+                            append: true);
+                        foreach (var item in contentBatch)
+                        {
+                            writer.WriteLine(
+                                AuraSharedJson.SerializeCompact(item.Sample));
+                            RecordLiveEpisode(
+                                item.Sample,
+                                sessions,
+                                episodeWriter);
+                        }
                     }
                 }
             }
@@ -2305,14 +2350,24 @@ internal sealed class AuraToolsAutoBattleTrainingSink : ICombatTrainingSampleSin
             Interlocked.Increment(ref storageGeneration);
             foreach (var fileName in new[]
                      {
-                         "auto-battle-training-v6.jsonl",
-                         "live-combat-episodes-v4.jsonl"
+                         "auto-battle-training-v7.jsonl",
+                         "live-combat-episodes-v5.jsonl"
                      })
             {
-                var path = AuraSharedLogStore.OwnerLogPath(
-                    AuraToolsIds.ModId,
-                    fileName);
-                if (File.Exists(path))
+                var root = Path.Combine(
+                    AuraSharedPaths.OwnerSystemDataDirectory(
+                        AuraToolsIds.ModId,
+                        "AuraCombatAI"),
+                    "Datasets",
+                    "Live");
+                if (!Directory.Exists(root))
+                {
+                    continue;
+                }
+                foreach (var path in Directory.EnumerateFiles(
+                             root,
+                             fileName,
+                             SearchOption.AllDirectories))
                 {
                     File.Delete(path);
                 }
@@ -2324,11 +2379,11 @@ internal sealed class AuraToolsAutoBattleTrainingSink : ICombatTrainingSampleSin
     {
         return string.Equals(
                    fileName,
-                   "auto-battle-training-v6.jsonl",
+                   "auto-battle-training-v7.jsonl",
                    StringComparison.OrdinalIgnoreCase)
                || string.Equals(
                    fileName,
-                   "live-combat-episodes-v4.jsonl",
+                   "live-combat-episodes-v5.jsonl",
                    StringComparison.OrdinalIgnoreCase);
     }
 

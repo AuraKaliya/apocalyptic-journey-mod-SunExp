@@ -292,10 +292,19 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
             var matching = rootEdges.FirstOrDefault(edge =>
                 actions[edge.ActionIndex].MemberCandidateIds.Contains(
                     candidates[i].Action.CandidateId));
+            var estimate = matching?.RiskEstimate(profile.TailRiskQuantile);
             candidates[i].PlanScore = matching == null ? 0d : RootSelectionValue(matching);
             candidates[i].SearchPrior = matching?.Prior ?? 0d;
             candidates[i].SearchVisits = matching?.Visits ?? 0;
             candidates[i].SearchDeathRisk = matching?.MeanRisk ?? 0d;
+            candidates[i].SearchMeanReturn = estimate?.Mean ?? 0d;
+            candidates[i].SearchReturnStandardError =
+                estimate?.StandardError ?? 0d;
+            candidates[i].SearchLowerTailMean =
+                estimate?.RawLowerTailMean ?? 0d;
+            candidates[i].SearchReturnQuantiles = matching?.ReturnQuantiles(16)
+                                                   .ToList()
+                                               ?? new List<double>();
         }
 
         var steps = BuildPrincipalVariation(root, best);
@@ -678,6 +687,24 @@ CompleteSimulation:
         CombatSimulationState? stateOverride = null)
     {
         var legalityState = stateOverride ?? node.State;
+        CombatPolicyValuePrediction? networkPrediction = null;
+        if (node.Edges.Count == 0
+            && !ReferenceEquals(
+                policyValueModel,
+                NullCombatPolicyValueModel.Instance))
+        {
+            var usable = actions
+                .Where(action => IsUsable(legalityState, action))
+                .Select(action => action.Evaluation)
+                .ToList();
+            if (usable.Count > 0)
+            {
+                networkPrediction = policyValueModel.Evaluate(
+                    CombatPolicyValueEncoding.BuildInput(
+                        ToObservation(legalityState),
+                        usable));
+            }
+        }
         var priorTotal = 0d;
         for (var i = 0; i < actions.Count; i++)
         {
@@ -690,7 +717,11 @@ CompleteSimulation:
                 edge = new SearchEdge
                 {
                     ActionIndex = i,
-                    Prior = actions[i].Prior
+                    Prior = actions[i].Prior,
+                    PredictedValue = NetworkActionValue(
+                        networkPrediction,
+                        actions[i].Action.CandidateId,
+                        profile.TailRiskQuantile)
                 };
                 for (var outcomeIndex = 0; outcomeIndex < actions[i].Model.Outcomes.Count; outcomeIndex++)
                 {
@@ -732,7 +763,7 @@ CompleteSimulation:
             }
 
             var exploitation = edge.Visits == 0
-                ? 0d
+                ? edge.PredictedValue
                 : RootSelectionValue(edge);
             var exploration = profile.SearchExploration
                               * edge.NormalizedPrior
@@ -1225,6 +1256,39 @@ CompleteSimulation:
             : 0d;
     }
 
+    private static double NetworkActionValue(
+        CombatPolicyValuePrediction? prediction,
+        string candidateId,
+        double tailQuantile)
+    {
+        if (prediction?.ActionReturnQuantiles == null
+            || !prediction.ActionReturnQuantiles.TryGetValue(
+                candidateId ?? "",
+                out var quantiles)
+            || quantiles == null
+            || quantiles.Count < 4)
+        {
+            return 0d;
+        }
+        var ordered = quantiles
+            .Where(value => !double.IsNaN(value) && !double.IsInfinity(value))
+            .OrderBy(value => value)
+            .ToArray();
+        if (ordered.Length < 4)
+        {
+            return 0d;
+        }
+        var tailCount = Math.Max(
+            1,
+            Math.Min(
+                ordered.Length,
+                (int)Math.Ceiling(
+                    ordered.Length * Math.Max(0.05d, Math.Min(0.5d, tailQuantile)))));
+        var mean = ordered.Average();
+        var lowerTail = ordered.Take(tailCount).Average();
+        return ClampFinite((mean * 0.70d + lowerTail * 0.30d) * 8d, -8d, 8d);
+    }
+
     private bool IsUsable(
         CombatSimulationState state,
         SearchAction searchAction)
@@ -1473,6 +1537,8 @@ CompleteSimulation:
 
         public double NormalizedPrior { get; set; }
 
+        public double PredictedValue { get; set; }
+
         private CombatSearchRiskStatistics Statistics { get; } = new();
 
         public bool Disabled { get; set; }
@@ -1493,6 +1559,11 @@ CompleteSimulation:
         public CombatSearchRiskEstimate RiskEstimate(double quantile)
         {
             return Statistics.Estimate(quantile);
+        }
+
+        public double[] ReturnQuantiles(int count)
+        {
+            return Statistics.Quantiles(count);
         }
     }
 

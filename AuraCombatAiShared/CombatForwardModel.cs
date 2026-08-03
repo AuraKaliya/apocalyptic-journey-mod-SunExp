@@ -853,9 +853,29 @@ public static class CombatForwardModel
                 action.TargetRuntimeId,
                 semantics.TrueDamage);
         }
+        var immediateHealEffects = semantics.TargetEffects
+            .Where(item =>
+                item.Phase == CombatSemanticEffectPhase.Immediate
+                && item.Kind == CombatSemanticEffectKind.Heal)
+            .ToList();
         Add(outcome, CombatEffectKind.DamageOverTime, action.TargetRuntimeId, semantics.DamageOverTime);
         Add(outcome, CombatEffectKind.GainDefend, action.TargetRuntimeId, semantics.Defend);
-        Add(outcome, CombatEffectKind.Heal, action.TargetRuntimeId, semantics.Heal);
+        if (immediateHealEffects.Count > 0)
+        {
+            foreach (var effect in immediateHealEffects)
+            {
+                Add(
+                    outcome,
+                    CombatEffectKind.Heal,
+                    effect.TargetRuntimeId,
+                    Math.Max(0d, effect.EffectiveAmount)
+                    * Math.Max(0d, Math.Min(1d, effect.Probability)));
+            }
+        }
+        else
+        {
+            Add(outcome, CombatEffectKind.Heal, action.TargetRuntimeId, semantics.Heal);
+        }
         Add(outcome, CombatEffectKind.Draw, 0, semantics.Draw);
         if (!semantics.RestoreEnergyToMaximum
             && !semantics.EnergyMinimum.HasValue
@@ -1018,6 +1038,16 @@ public static class CombatForwardModel
             ApplyHandTransform(state, action, handTransform);
         }
         state.StepCount++;
+
+        if (stateChanges != null
+            && stateChanges.TryGetValue("playerMaxHp", out var maximumHpDelta)
+            && Math.Abs(maximumHpDelta) > 0.000001d)
+        {
+            state.PlayerMaxHp = Math.Max(
+                1,
+                state.PlayerMaxHp + (int)Math.Round(maximumHpDelta));
+            state.PlayerHp = Math.Min(state.PlayerHp, state.PlayerMaxHp);
+        }
 
         for (var i = 0; i < outcome.Effects.Count; i++)
         {

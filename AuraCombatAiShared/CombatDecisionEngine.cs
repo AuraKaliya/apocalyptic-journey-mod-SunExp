@@ -102,6 +102,16 @@ public sealed class CombatDecisionEngine
         CombatDecisionProfile? profile = null,
         CombatSearchExplorationOptions? exploration = null)
     {
+        return Choose(state, profile, exploration, out _);
+    }
+
+    internal CombatDecision Choose(
+        CombatStateObservation state,
+        CombatDecisionProfile? profile,
+        CombatSearchExplorationOptions? exploration,
+        out CombatStateObservation? preparedState)
+    {
+        preparedState = null;
         var selectedProfile = profile ?? new CombatDecisionProfile();
         selectedProfile.Weights ??= new DecisionWeights();
         if (state == null || state.Actions == null || state.Actions.Count == 0)
@@ -109,6 +119,7 @@ public sealed class CombatDecisionEngine
             return new CombatDecision { Reason = "no candidates" };
         }
         state = CombatPlayerObservationBoundary.Normalize(state);
+        preparedState = state;
         if (HasDecisionPreparation)
         {
             foreach (var action in state.Actions.Where(action =>

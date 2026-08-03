@@ -14,7 +14,7 @@ if (string.IsNullOrWhiteSpace(packagePath)
 {
     Console.Error.WriteLine(
         "Usage: AuraFoundationModelInstaller "
-        + "--package <foundation-model-package-v2.json> "
+        + "--package <foundation-model-package-v3.json> "
         + "--aura-shared-root <ModsData/AuraShared> "
         + "--display-name <name> [--activate]");
     return 2;

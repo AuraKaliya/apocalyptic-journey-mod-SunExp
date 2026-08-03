@@ -223,6 +223,8 @@ try
                         RulesetHash = build.Ruleset.RulesetHash,
                         NativeProgramPackageHash =
                             job.Request.NativeProgramPackageHash,
+                        ContentSetHash = job.Request.ContentSetHash,
+                        OwnerModSetHash = job.Request.OwnerModSetHash,
                         Metrics = metrics
                     }));
                 trainingMetricWarning = "";
@@ -372,66 +374,9 @@ try
         new HashSet<string>(StringComparer.Ordinal);
     var capacityRejectedCaseIds =
         new HashSet<string>(StringComparer.Ordinal);
-    var archiveCaseGate = new object();
     var incrementalArchiveErrors = new List<string>();
-    var archiveErrorGate = new object();
     var archiveCapacityRejectedObservations = 0;
     var archiveCapacityRejectedCases = 0;
-    if (job.Request.EnableSuccessCaseArchive)
-    {
-        job.Request.ObservationRecorded = observation =>
-        {
-            try
-            {
-                if (!PersistObservation(job, observation))
-                {
-                    Interlocked.Increment(
-                        ref archiveCapacityRejectedObservations);
-                }
-            }
-            catch (Exception ex)
-            {
-                lock (archiveErrorGate)
-                {
-                    incrementalArchiveErrors.Add(ex.ToString());
-                }
-            }
-        };
-        job.Request.SuccessCaseRecorded = successCase =>
-        {
-            try
-            {
-                if (PersistSuccessCase(
-                        job,
-                        successCase,
-                        out var capacityRejected))
-                {
-                    lock (archiveCaseGate)
-                    {
-                        incrementallyArchivedCases.Add(
-                            successCase.Observation.CaseId);
-                    }
-                }
-                if (capacityRejected)
-                {
-                    lock (archiveCaseGate)
-                    {
-                        capacityRejectedCaseIds.Add(
-                            successCase.Observation.CaseId);
-                    }
-                    Interlocked.Increment(
-                        ref archiveCapacityRejectedCases);
-                }
-            }
-            catch (Exception ex)
-            {
-                lock (archiveErrorGate)
-                {
-                    incrementalArchiveErrors.Add(ex.ToString());
-                }
-            }
-        };
-    }
 
     var training = new CombatCampaignFoundationTrainer(
         new CombatCampaignRunner(simulationEngine)).Run(
@@ -440,7 +385,9 @@ try
         job.InitialChampion,
         cancellation.Token);
     var roleStrategyMetrics =
-        AuraToolsRoleTrainingDiagnostics.Analyze(training.Replay);
+        AuraToolsRoleTrainingDiagnostics.Analyze(
+            training.Replay,
+            training.CampaignObservations);
     var roleStrategyGateFailures = new List<string>();
     var isNanaTraining = string.Equals(
                              job.Request.TrainingCampaign.Player?.RoleId,
@@ -467,6 +414,13 @@ try
             "Nana selected one or more strategically prohibited actions.");
     }
     if (isNanaTraining
+        && roleStrategyMetrics.GetValueOrDefault(
+            "nana.selected-nonpositive-devours") > 0d)
+    {
+        roleStrategyGateFailures.Add(
+            "Nana selected one or more non-positive Devour lines.");
+    }
+    if (isNanaTraining
         && roleStrategyMetrics.GetValueOrDefault("nana.devours") >= 20d
         && roleStrategyMetrics.GetValueOrDefault(
             "nana.premature-devour-rate") > 0.05d)
@@ -488,7 +442,8 @@ try
     }
     try
     {
-        if (job.Request.EnableSuccessCaseArchive)
+        if (job.Request.EnableSuccessCaseArchive
+            && roleStrategyGatePassed)
         {
             PersistSuccessCases(
                 job,
@@ -535,7 +490,9 @@ try
     training.Replay.Clear();
     training.CampaignObservations.Clear();
     training.SuccessCases.Clear();
-    if (job.Request.PreflightOnly || training.AcceptancePassed)
+    if (job.Request.PreflightOnly
+        || training.AcceptancePassed
+        || !roleStrategyGatePassed)
     {
         CombatFoundationCheckpointStorage.DeleteCheckpointArtifacts(
             job.CheckpointPath,
@@ -756,6 +713,8 @@ static string Fingerprint(
     {
         Protocol = "foundation-continuation-v2-stable-budget",
         RulesetHash = rulesetHash,
+        request.ContentSetHash,
+        request.OwnerModSetHash,
         FeatureSchemaVersion =
             CombatPolicyValueProtocol.FeatureSchemaVersion,
         request.DecisionProfile,
@@ -798,6 +757,7 @@ static string Fingerprint(
         request.MinimumAdvancedReplayShare,
         request.MinimumAdvancedDefeatReplayShare,
         request.ExpertReplayEpisodeLimit,
+        request.AuthoritativeContentReplayShare,
         request.SelfPlayExplorationProbability,
         request.SelfPlayExplorationTemperature,
         CampaignId = request.TrainingCampaign?.CampaignId ?? "",
@@ -1373,66 +1333,6 @@ static void RegisterArchiveRejection(
         (path ?? "").Length);
 }
 
-static bool PersistObservation(
-    CombatFoundationWorkerJob job,
-    CombatFoundationCampaignObservation observation)
-{
-    var path = ResolveObservationPath(job, observation);
-    if (File.Exists(path))
-    {
-        return true;
-    }
-    if (!ArchiveWriteBudget.TryReserve(
-            Path.GetDirectoryName(path)!,
-            CombatFoundationCaseArchiveProtocol
-                .MaximumObservationsPerCompatibility))
-    {
-        return false;
-    }
-    WriteAtomicCompressed(path, SerializeCompact(observation));
-    return true;
-}
-
-static bool PersistSuccessCase(
-    CombatFoundationWorkerJob job,
-    CombatFoundationSuccessCase successCase,
-    out bool capacityRejected)
-{
-    capacityRejected = false;
-    if (successCase.Episodes.Count == 0)
-    {
-        return false;
-    }
-    var observation = successCase.Observation;
-    var expertCasePath = ResolveExpertReferencePath(job, successCase);
-    if (!File.Exists(expertCasePath)
-        && !ArchiveWriteBudget.TryReserve(
-            Path.GetDirectoryName(expertCasePath)!,
-            CombatFoundationCaseArchiveProtocol
-                .MaximumExpertCasesPerCompatibility))
-    {
-        capacityRejected = true;
-        return false;
-    }
-    var casePath = ResolveSuccessCasePath(
-        job,
-        successCase,
-        CombatFoundationCaseArchiveProtocol.CaseDirectoryName);
-    var added = !File.Exists(casePath);
-    if (added)
-    {
-        WriteAtomicCompressed(casePath, SerializeCompact(successCase));
-    }
-    if (!File.Exists(expertCasePath))
-    {
-        WriteExpertReference(
-            expertCasePath,
-            successCase,
-            casePath);
-    }
-    return added;
-}
-
 static string ResolveExpertReferencePath(
     CombatFoundationWorkerJob job,
     CombatFoundationSuccessCase successCase)
@@ -1603,8 +1503,11 @@ static void PersistSuccessCases(
     foreach (var observation in currentObservations)
     {
         var observationPath = ResolveObservationPath(job, observation);
-        if (!File.Exists(observationPath)
-            && ArchiveWriteBudget.TryReserve(
+        if (File.Exists(observationPath))
+        {
+            continue;
+        }
+        if (ArchiveWriteBudget.TryReserve(
                 Path.GetDirectoryName(observationPath)!,
                 CombatFoundationCaseArchiveProtocol
                     .MaximumObservationsPerCompatibility))
@@ -1612,7 +1515,9 @@ static void PersistSuccessCases(
             WriteAtomicCompressed(
                 observationPath,
                 SerializeCompact(observation));
+            continue;
         }
+        capacityRejectedObservations++;
     }
     var cumulativeObservations =
         new List<CombatFoundationCampaignObservation>();
@@ -1676,6 +1581,19 @@ static void PersistSuccessCases(
                      StringComparer.Ordinal))
     {
         var observation = successCase.Observation;
+        var expertCasePath = ResolveExpertReferencePath(
+            job,
+            successCase);
+        if (!File.Exists(expertCasePath)
+            && !ArchiveWriteBudget.TryReserve(
+                Path.GetDirectoryName(expertCasePath)!,
+                CombatFoundationCaseArchiveProtocol
+                    .MaximumExpertCasesPerCompatibility))
+        {
+            capacityRejectedCaseIds.Add(observation.CaseId);
+            capacityRejectedCases++;
+            continue;
+        }
         var casePath = ResolveSuccessCasePath(
             job,
             successCase,
@@ -1698,9 +1616,6 @@ static void PersistSuccessCases(
         }
         if (successCase.Episodes.Count > 0)
         {
-            var expertCasePath = ResolveExpertReferencePath(
-                job,
-                successCase);
             if (!File.Exists(expertCasePath))
             {
                 WriteExpertReference(

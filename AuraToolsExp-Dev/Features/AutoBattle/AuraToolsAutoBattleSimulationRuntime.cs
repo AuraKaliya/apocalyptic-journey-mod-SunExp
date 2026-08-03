@@ -552,7 +552,32 @@ internal static class AuraToolsAutoBattleSimulationRuntime
             message = "底模规则集构建失败：" + string.Join("；", build.Errors);
             return false;
         }
-        ruleset = build.Ruleset;
+        var baseDocument = new CombatRulesetDocument
+        {
+            Version = build.Ruleset.Version,
+            Cards = build.Ruleset.SnapshotCards().ToList(),
+            Enemies = build.Ruleset.SnapshotEnemies().ToList(),
+            Statuses = build.Ruleset.SnapshotStatuses().ToList()
+        };
+        if (!AuraToolsCombatContentRuntime.TryApplyFoundationContent(
+                campaign,
+                baseDocument,
+                out var mergedDocument,
+                out var contentDiagnostic))
+        {
+            ruleset = CombatRuleset.Empty;
+            message = contentDiagnostic;
+            return false;
+        }
+        var mergedBuild = CombatSimulationRegistry.BuildRuleset(mergedDocument);
+        if (!mergedBuild.Success)
+        {
+            ruleset = CombatRuleset.Empty;
+            message = "内容 MOD 合并规则集构建失败："
+                      + string.Join("；", mergedBuild.Errors);
+            return false;
+        }
+        ruleset = mergedBuild.Ruleset;
         var readinessProblems = FoundationReadinessProblems(campaign, ruleset);
         if (readinessProblems.Count > 0)
         {
@@ -2952,11 +2977,17 @@ internal static class AuraToolsAutoBattleSimulationRuntime
             AuraToolsPaths.BundledConfigDirectory,
             "combat-simulation");
         Directory.CreateDirectory(InputDirectory);
-        if (!Directory.Exists(bundled))
+        var directories = new List<string> { InputDirectory };
+        if (Directory.Exists(bundled))
         {
-            return new[] { InputDirectory };
+            directories.Add(bundled);
         }
-        return new[] { InputDirectory, bundled };
+        directories.AddRange(
+            AuraToolsCombatContentRuntime.SnapshotPackageDirectories());
+        return directories
+            .Where(Directory.Exists)
+            .Distinct(StringComparer.OrdinalIgnoreCase)
+            .ToArray();
     }
 
     private static void SetStatus(

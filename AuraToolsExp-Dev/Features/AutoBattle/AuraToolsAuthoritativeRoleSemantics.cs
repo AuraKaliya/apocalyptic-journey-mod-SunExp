@@ -7,35 +7,27 @@ namespace AuraToolsExp.Dll.Features.AutoBattle;
 
 internal static class AuraToolsNanaDoomProgression
 {
-    private const int TableMaximumLevel = 4096;
-    private static readonly int[] MaximumHpContributionByLevel = BuildTable();
-
-    public static int MaximumHpContribution(int level)
+    public static int MaximumHpGainAfterAdd(int currentLevel, int addedLevels)
     {
-        var normalized = Math.Max(0, level);
-        if (normalized <= TableMaximumLevel)
+        if (addedLevels <= 0)
         {
-            return MaximumHpContributionByLevel[normalized];
+            return 0;
         }
-        var contribution = (long)normalized * (normalized + 1L) / 2L;
-        return (int)Math.Min(int.MaxValue, contribution);
+        return ClampNonNegative((long)Math.Max(0, currentLevel) + addedLevels);
     }
 
-    public static int MaximumHpDelta(int previousLevel, int currentLevel)
+    public static int MaximumHpGainForLevelChange(
+        int persistedLevel,
+        int currentLevel)
     {
-        var delta = (long)MaximumHpContribution(currentLevel)
-                    - MaximumHpContribution(previousLevel);
-        return (int)Math.Max(int.MinValue, Math.Min(int.MaxValue, delta));
+        return currentLevel == persistedLevel
+            ? 0
+            : ClampNonNegative(currentLevel);
     }
 
-    private static int[] BuildTable()
+    private static int ClampNonNegative(long value)
     {
-        var table = new int[TableMaximumLevel + 1];
-        for (var level = 1; level < table.Length; level++)
-        {
-            table[level] = checked(table[level - 1] + level);
-        }
-        return table;
+        return (int)Math.Min(int.MaxValue, Math.Max(0L, value));
     }
 }
 
@@ -51,12 +43,12 @@ public static class AuraToolsAuthoritativeRoleSemantics
         {
             registration ??= CombatAiRegistry.RegisterSemanticProvider(
                 "AuraToolsExp",
-                "witch-authoritative-role-skills-v2",
+                "witch-authoritative-role-skills-v4",
                 new WitchAuthoritativeRoleSkillProvider(),
                 1000);
             strategyRegistration ??= CombatAiRegistry.RegisterRoleStrategyProvider(
                 "AuraToolsExp",
-                "witch-nana-role-strategy-v1",
+                "witch-nana-role-strategy-v4",
                 new AuraToolsNanaRoleStrategyProvider(),
                 1000);
         }
@@ -138,21 +130,33 @@ public static class AuraToolsAuthoritativeRoleSemantics
             "nana:projected-doom-gain",
             out var projectedDoomGain);
         devour.Features.TryGetValue(
+            "nana:projected-max-hp-gain",
+            out var projectedMaximumHpGain);
+        devour.Features.TryGetValue(
             CombatRoleStrategyFeatureNames.Active,
             out var roleStrategyActive);
         if (devour.SemanticFidelity
             != CombatKnowledgeFidelity.Authoritative
             || projectedDoomGain != 2d
+            || projectedMaximumHpGain != 12d
             || roleStrategyActive <= 0.5d)
         {
             errors.Add("frozen Nana semantic/strategy preparation was not applied");
         }
         transform.Features.TryGetValue(
+            CombatRoleStrategyFeatureNames.Risk,
+            out var transformRisk);
+        transform.Features.TryGetValue(
+            "nana:post-transform-max-hp",
+            out var postTransformMaximumHp);
+        transform.Features.TryGetValue(
             CombatRoleStrategyFeatureNames.StrategicallyProhibited,
             out var strategicallyProhibited);
-        if (strategicallyProhibited <= 0.5d)
+        if (transformRisk <= 0d
+            || postTransformMaximumHp != 115d
+            || strategicallyProhibited > 0.5d)
         {
-            errors.Add("frozen Nana phase constraint was not applied");
+            errors.Add("frozen Nana conditional transform strategy was not applied");
         }
         return errors;
     }
@@ -245,6 +249,7 @@ public static class AuraToolsAuthoritativeRoleSemantics
             CombatStateObservation state,
             CombatActionObservation action)
         {
+            var player = state.Player ?? new CombatUnitObservation();
             var target = FindTarget(state, action);
             var negativeStatuses = (target?.Statuses
                                     ?? Enumerable.Empty<CombatStatusObservation>())
@@ -266,15 +271,16 @@ public static class AuraToolsAuthoritativeRoleSemantics
             var friendlyTarget = action.TargetKind == CombatTargetKind.Friendly;
             var selfTarget = action.TargetKind == CombatTargetKind.Self;
             var maximumHpGain = doomGain > 0
-                ? AuraToolsNanaDoomProgression.MaximumHpDelta(
+                ? AuraToolsNanaDoomProgression.MaximumHpGainAfterAdd(
                     currentDoom,
-                    currentDoom + doomGain)
+                    doomGain)
                 : 0;
             action.Features["nana:negative-status-count"] =
                 negativeStatuses.Count;
             action.Features["nana:negative-status-stacks"] = negativeStacks;
             action.Features["nana:projected-doom-gain"] = doomGain;
             action.Features["nana:projected-max-hp-gain"] = maximumHpGain;
+            action.Features["nana:devour-event-max-hp-gain"] = maximumHpGain;
             action.Features["nana:enemy-cleanse-cost"] = enemyTarget
                 ? negativeStacks + doomGain
                 : 0d;
@@ -284,6 +290,7 @@ public static class AuraToolsAuthoritativeRoleSemantics
             return new CombatActionSemantics
             {
                 Damage = enemyTarget ? 5d : 0d,
+                Heal = maximumHpGain,
                 Cleanse = enemyTarget ? 0d : negativeStacks,
                 Scaling = doomGain,
                 PersistentValue = maximumHpGain,
@@ -298,8 +305,20 @@ public static class AuraToolsAuthoritativeRoleSemantics
                 {
                     ["playerStatus:buff_DoomPower"] = doomGain,
                     ["playerMaxHp"] = maximumHpGain,
+                    ["player.hp"] = maximumHpGain,
                     ["targetNegativeStatusStacks"] = -negativeStacks,
                     ["targetHp"] = selfTarget ? 0d : -5d
+                },
+                TargetEffects =
+                {
+                    new CombatTargetedSemanticEffect
+                    {
+                        Kind = CombatSemanticEffectKind.Heal,
+                        TargetRuntimeId = player.RuntimeId,
+                        RawAmount = maximumHpGain,
+                        EffectiveAmount = maximumHpGain,
+                        Probability = 1d
+                    }
                 }
             };
         }
@@ -319,12 +338,7 @@ public static class AuraToolsAuthoritativeRoleSemantics
                                              status.StatusId,
                                              "SpecialBuff_CalamityIncarnates",
                                              StringComparison.OrdinalIgnoreCase));
-            var maximumHpAfter = Math.Max(
-                1,
-                player.MaxHp - (alreadyTransformed ? 0 : 20));
-            var clampedHpLoss = alreadyTransformed
-                ? 0
-                : Math.Max(0, player.CurrentHp - maximumHpAfter);
+            var maximumHpAfter = Math.Max(1, player.MaxHp);
             var passiveDamage = Math.Max(0, maximumHpAfter / 50);
             var enemyCount = Math.Max(
                 0,
@@ -334,14 +348,17 @@ public static class AuraToolsAuthoritativeRoleSemantics
                 alreadyTransformed ? 0d : 1d;
             action.Features["nana:repeat-transform"] =
                 alreadyTransformed ? 1d : 0d;
-            action.Features["nana:transform-hp-clamp-loss"] = clampedHpLoss;
+            action.Features["nana:transform-hp-clamp-loss"] = 0d;
             action.Features["nana:calamity-action-damage"] = passiveDamage;
+            action.Features["nana:post-transform-max-hp"] = maximumHpAfter;
+            action.Features["nana:post-transform-damage-per-action"] =
+                passiveDamage;
 
             return new CombatActionSemantics
             {
                 Damage = passiveDamage,
                 AffectedEnemyCount = enemyCount,
-                SelfHpLoss = clampedHpLoss,
+                SelfHpLoss = 0d,
                 Buff = alreadyTransformed ? 0d : doom * 2d,
                 Scaling = alreadyTransformed ? 0d : doom,
                 PersistentValue = alreadyTransformed
@@ -352,7 +369,7 @@ public static class AuraToolsAuthoritativeRoleSemantics
                     StringComparer.OrdinalIgnoreCase)
                 {
                     ["playerRole:career_4"] = alreadyTransformed ? 0d : 1d,
-                    ["playerMaxHp"] = alreadyTransformed ? 0d : -20d,
+                    ["playerMaxHp"] = 0d,
                     ["playerTempStrength"] = alreadyTransformed ? 0d : doom,
                     ["playerTempPerceive"] = alreadyTransformed ? 0d : doom
                 }

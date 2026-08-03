@@ -4,6 +4,7 @@ using AuraDecision.Shared;
 using System.Text.Json;
 using System.Text.Json.Serialization;
 using System.Threading;
+using System.Security.Cryptography;
 
 var assertions = 0;
 
@@ -187,6 +188,68 @@ Assert(
     && transformedSimulation.RetainedHandCardIds.Count
        == lowValueTransformState.HandCount,
     "forward model replaces every hand instance and preserves transformed retain semantics");
+var selfGrowthRoot = new CombatStateObservation
+{
+    Player = new CombatUnitObservation
+    {
+        RuntimeId = 1,
+        Kind = CombatTargetKind.Self,
+        CurrentHp = 50,
+        MaxHp = 100
+    },
+    Enemies =
+    {
+        new CombatUnitObservation
+        {
+            RuntimeId = 2,
+            Kind = CombatTargetKind.Enemy,
+            CurrentHp = 100,
+            MaxHp = 100
+        }
+    }
+};
+var selfGrowthAction = new CombatActionObservation
+{
+    CandidateId = "self-growth",
+    SourceId = "self-growth",
+    TargetRuntimeId = 2,
+    TargetKind = CombatTargetKind.Enemy,
+    Semantics = new CombatActionSemantics
+    {
+        Damage = 5d,
+        Heal = 12d,
+        StateChanges =
+        {
+            ["playerMaxHp"] = 12d,
+            ["player.hp"] = 12d
+        },
+        TargetEffects =
+        {
+            new CombatTargetedSemanticEffect
+            {
+                Kind = CombatSemanticEffectKind.Heal,
+                TargetRuntimeId = 1,
+                RawAmount = 12d,
+                EffectiveAmount = 12d
+            }
+        }
+    }
+};
+var selfGrowthOutcome = CombatForwardModel.Resolve(
+        selfGrowthRoot,
+        selfGrowthAction,
+        useRegisteredResolvers: false)
+    .Outcomes.Single();
+var selfGrowthSimulation = CombatForwardModel.Apply(
+    CombatForwardModel.Create(selfGrowthRoot, 1),
+    selfGrowthAction,
+    0,
+    selfGrowthOutcome,
+    new CombatDecisionProfile());
+Assert(selfGrowthSimulation.PlayerMaxHp == 112
+       && selfGrowthSimulation.PlayerHp == 62
+       && selfGrowthSimulation.Enemies.Single().Hp == 95,
+    "forward model applies maximum-health growth before its paired self-heal without healing the Devour target");
 
 var graph = new DecisionGraph
 {
@@ -776,8 +839,8 @@ var trainingSample = CombatTrainingSampleBuilder.Create(
     terminal: true,
     gameBuild: "test-game",
     sharedBuild: "test-shared");
-Assert(trainingSample.ModelProtocol == "aura.combat-ai.sample.v6"
-       && trainingSample.FeatureSchemaVersion == 9
+Assert(trainingSample.ModelProtocol == "aura.combat-ai.sample.v7"
+       && trainingSample.FeatureSchemaVersion == 10
        && trainingSample.Candidates.Count == state.Actions.Count
        && trainingSample.Candidates.Single(candidate =>
            candidate.CandidateId == "attack").SourceId == "attack",
@@ -873,7 +936,7 @@ Assert(originalFeatures.All(pair =>
 
 var trained = CombatResidualTrainer.Train(new[] { humanSample }, "balanced");
 Assert(trained.Success
-       && trained.Model?.FeatureSchemaVersion == 9
+       && trained.Model?.FeatureSchemaVersion == 10
        && trained.Model.DecisionProfile == "balanced"
        && trained.Model.FeatureMinimums.Count > 0
        && trained.Model.CategoryObservationCounts.Count > 0,
@@ -2756,6 +2819,29 @@ var lifecycleRules = new CombatRulesetBuilder("card-lifecycle-v1")
         },
         RequiresEnemyTarget = true
     })
+    .RegisterCard(new CombatCardDefinition
+    {
+        OwnerModId = "Tests",
+        CardId = "clamped-set-hp",
+        Cost = 0,
+        Exhaust = true,
+        Effects =
+        {
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.SetHp,
+                Target = CombatSimulationTarget.Self,
+                Amount = 25
+            },
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.Damage,
+                Target = CombatSimulationTarget.SelectedEnemy,
+                Amount = 100
+            }
+        },
+        RequiresEnemyTarget = true
+    })
     .RegisterEnemy(new CombatEnemyDefinition
     {
         OwnerModId = "Tests",
@@ -2841,6 +2927,31 @@ Assert(burnoutSetHpResult.Outcome == CombatSimulationOutcome.Victory
        && !burnoutSetHpResult.Events.Any(item =>
            item.Kind == CombatSimulationEventKind.Healed),
     "SetHp assigns health directly and burnout bypasses native discard scripts");
+var clampedSetHpResult = simulationEngine.Run(
+    new CombatScenarioDefinition
+    {
+        ScenarioId = "clamped-set-hp",
+        RulesetVersion = "card-lifecycle-v1",
+        Seed = 3,
+        InitialDraw = 1,
+        DrawPerTurn = 0,
+        Player = new CombatPlayerSetup
+        {
+            RoleId = "tester",
+            MaxHp = 24,
+            CurrentHp = 20,
+            Deck = { "clamped-set-hp" }
+        },
+        Enemies =
+        {
+            new CombatEnemySetup { EnemyId = "lifecycle-dummy" }
+        }
+    },
+    lifecycleRules.Ruleset,
+    new GreedyCombatSimulationPolicy());
+Assert(clampedSetHpResult.Outcome == CombatSimulationOutcome.Victory
+       && clampedSetHpResult.FinalState.Player?.Hp == 24,
+    "SetHp clamps the assigned value to current maximum HP after role transformations");
 
 var fullHandCreationRules = new CombatRulesetBuilder("full-hand-creation-v1")
     .RegisterCard(new CombatCardDefinition
@@ -3736,6 +3847,117 @@ Assert(authoritativeTeacherSimulation.Metrics
               == authoritativeTeacherSimulation.Metrics
                   .AuthoritativeSelectedSemanticMismatches),
     "teacher policy audits projected choices through authoritative immutable action branches");
+
+var teacherLegalityRules = new CombatRulesetBuilder(
+        "authoritative-teacher-legality-v1")
+    .RegisterCard(new CombatCardDefinition
+    {
+        OwnerModId = "Tests",
+        CardId = "teacher-safe",
+        Cost = 0,
+        Effects =
+        {
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.Damage,
+                Target = CombatSimulationTarget.SelectedEnemy,
+                Amount = 1
+            }
+        },
+        RequiresEnemyTarget = true
+    })
+    .RegisterCard(new CombatCardDefinition
+    {
+        OwnerModId = "Tests",
+        CardId = "teacher-prohibited",
+        Cost = 0,
+        Effects =
+        {
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.Damage,
+                Target = CombatSimulationTarget.SelectedEnemy,
+                Amount = 100
+            }
+        },
+        RequiresEnemyTarget = true
+    })
+    .RegisterEnemy(new CombatEnemyDefinition
+    {
+        OwnerModId = "Tests",
+        EnemyId = "teacher-dummy",
+        MaxHp = 50,
+        Intents =
+        {
+            new CombatEnemyIntentDefinition
+            {
+                IntentId = "wait",
+                Weight = 1
+            }
+        }
+    })
+    .Freeze();
+CombatAuthoritativeBranchTeacherPolicy teacherLegalityPolicy;
+using (CombatAiRegistry.RegisterRoleStrategyProvider(
+           "Tests",
+           "teacher-legality",
+           new ProhibitSourceRoleStrategyProvider("teacher-prohibited"),
+           10000))
+{
+    teacherLegalityPolicy = new CombatAuthoritativeBranchTeacherPolicy(
+        new CombatDecisionSimulationPolicy(new CombatDecisionProfile
+        {
+            SearchBudgetMode = "fixed",
+            SearchSimulationBudget = 8,
+            SearchNodeBudget = 64,
+            SearchMaxPly = 2,
+            SearchMinimumSimulations = 1
+        }),
+        new CombatAuthoritativeTeacherOptions
+        {
+            AuditProbability = 1d,
+            MinimumOverrideGain = 0d,
+            RandomSeed = 46
+        });
+}
+var teacherLegalityResult = simulationEngine.Run(
+    new CombatScenarioDefinition
+    {
+        ScenarioId = "authoritative-teacher-legality",
+        RulesetVersion = "authoritative-teacher-legality-v1",
+        Seed = 46,
+        InitialDraw = 2,
+        DrawPerTurn = 0,
+        Player = new CombatPlayerSetup
+        {
+            RoleId = "tester",
+            MaxHp = 20,
+            CurrentHp = 20,
+            Deck = { "teacher-safe", "teacher-prohibited" }
+        },
+        Enemies =
+        {
+            new CombatEnemySetup { EnemyId = "teacher-dummy" }
+        },
+        Limits = new CombatSimulationLimits
+        {
+            MaximumTurns = 1,
+            MaximumActions = 10,
+            MaximumCommands = 100
+        },
+        TraceLevel = CombatSimulationTraceLevel.Full
+    },
+    teacherLegalityRules.Ruleset,
+    teacherLegalityPolicy);
+Assert(teacherLegalityRules.Success
+       && teacherLegalityPolicy.LastDecision!.Candidates.Any(item =>
+           item.Action.SourceId == "teacher-prohibited" && !item.Legal)
+       && teacherLegalityResult.Events.All(item =>
+           item.Kind != CombatSimulationEventKind.CardPlayed
+           || item.DefinitionId != "teacher-prohibited")
+       && teacherLegalityPolicy.LastObservation!.Features
+              .GetValueOrDefault("roleStrategy:test.prepared-state") == 1d,
+    "authoritative teacher intersects simulator actions with decision legality and exposes prepared role-state telemetry");
 
 var semanticAuditState = new CombatBattleState
 {
@@ -6613,6 +6835,14 @@ Assert(policyValueTraining.Success
            "validationCriticalPolicyAccuracy")
        && policyValueTraining.Model.Metrics.ContainsKey(
            "validationDeathBrier")
+       && policyValueTraining.Model.ModelProtocol
+          == "aura.combat-policy-value.mlp.v2"
+       && policyValueTraining.Model.ProtocolVersion == 2
+       && policyValueTraining.Model.ActionQuantileCount == 16
+       && policyValueTraining.Model.ActionQuantileWeights.Length
+          == policyValueTraining.Model.HiddenDimensions * 16
+       && policyValueTraining.Model.Metrics.ContainsKey(
+           "validationActionQuantilePinball")
        && policyValueTraining.Model.Metrics.ContainsKey(
            "validationCompositeLoss")
        && policyValueTraining.Model.Metrics.ContainsKey(
@@ -6829,6 +7059,11 @@ var policyValueInput = new CombatPolicyValueInput
 var policyValuePrediction = policyValueModel.Evaluate(policyValueInput);
 Assert(policyValuePrediction.PolicyLogits.Count
        == firstEpisodeFrame.Candidates.Count(candidate => candidate.Legal)
+       && policyValuePrediction.ActionReturnQuantiles.Count
+          == policyValuePrediction.PolicyLogits.Count
+       && policyValuePrediction.ActionReturnQuantiles.Values.All(values =>
+           values.Count == 16
+           && values.All(value => value is >= -1d and <= 1d))
        && policyValuePrediction.WinProbability is >= 0d and <= 1d
        && policyValuePrediction.DeathProbability is >= 0d and <= 1d,
     "managed policy-value inference returns masked action logits and calibrated probability ranges");
@@ -6844,6 +7079,11 @@ Assert(batchPolicyPredictions.Count == 2
                - policyValuePrediction.WinProbability) < 0.000000001d
            && prediction.PolicyLogits.Count
               == policyValuePrediction.PolicyLogits.Count
+           && prediction.ActionReturnQuantiles.All(pair =>
+               pair.Value.Zip(
+                       policyValuePrediction.ActionReturnQuantiles[pair.Key],
+                       (left, right) => Math.Abs(left - right))
+                   .All(delta => delta < 0.000000001d))
            && prediction.PolicyLogits.All(pair =>
                Math.Abs(
                    pair.Value
@@ -9095,6 +9335,32 @@ Assert(Math.Abs(concentratedPolicyTargets.Sum() - 1d) < 0.000001d
        && concentratedPolicyTargets.Max() <= 0.800001d
        && concentratedPolicyTargets.Min() >= 0.199999d,
     "policy target temperature and cap preserve probability mass without one-hot collapse");
+var illegalExecutedFrame = new CombatEpisodeFrame
+{
+    ExecutedCandidateId = "prohibited",
+    Candidates =
+    {
+        new CombatEpisodeCandidate
+        {
+            CandidateId = "safe",
+            Legal = true,
+            SearchVisits = 0
+        },
+        new CombatEpisodeCandidate
+        {
+            CandidateId = "prohibited",
+            Legal = false,
+            SearchVisits = 100,
+            Features =
+            {
+                [CombatRoleStrategyFeatureNames.StrategicallyProhibited] = 1d
+            }
+        }
+    }
+};
+Assert(!CombatPolicyValueBatchTrainer.PolicyIntegrityValidForTraining(
+           illegalExecutedFrame),
+    "batch training rejects frames whose executed action is outside the decision-legal policy set");
 var dominatedEndTurnTargets = new[] { 0.25d, 0.75d };
 CombatPolicyValueBatchTrainer.SuppressPolicyTarget(
     dominatedEndTurnTargets,
@@ -9369,16 +9635,46 @@ var failedObservation = CombatFoundationCaseLearning.Observe(
     CombatFoundationTrainingProtocol.TrainingPolicyVersion,
     "balanced",
     "model-failure");
+var policyInvalidCaseEpisode = new CombatEpisode
+{
+    EpisodeId = "case-policy-invalid-episode",
+    RulesetHash = "case-rules",
+    Authoritative = true,
+    SemanticCoverage = 1d,
+    Campaign = new CombatCampaignEpisodeMetadata
+    {
+        FinalBossVictory = true,
+        IntegrityValid = true,
+        DifficultyId = "normal",
+        OutcomeClass = "victory"
+    },
+    Frames = { illegalExecutedFrame }
+};
+var policyInvalidObservation = CombatFoundationCaseLearning.Observe(
+    successfulCaseCampaign,
+    "arena",
+    1,
+    "candidate",
+    "case-rules",
+    "case-campaign-fingerprint",
+    "case-native-package",
+    CombatFoundationTrainingProtocol.TrainingPolicyVersion,
+    "balanced",
+    "model-policy-invalid",
+    new[] { policyInvalidCaseEpisode });
 var caseAnalysis = CombatFoundationCaseLearning.Analyze(
     new[] { successfulObservation, failedObservation });
 Assert(successfulObservation.ArchiveEligible
+       && successfulObservation.PolicyIntegrityValid
+       && !policyInvalidObservation.PolicyIntegrityValid
+       && !policyInvalidObservation.ArchiveEligible
        && successfulObservation.RobustnessScore > 0d
        && caseAnalysis.SuccessfulCases == 1
        && caseAnalysis.FailedCases == 1
        && caseAnalysis.MatchedPairs == 1
        && caseAnalysis.Pairs[0].SuccessSeed
        == caseAnalysis.Pairs[0].FailureSeed,
-    "foundation success learning archives authoritative wins and builds same-seed comparisons");
+    "foundation success learning archives only policy-valid authoritative wins and builds same-seed comparisons");
 var archivedCase = CombatFoundationCaseLearning.CreateSuccessCase(
     successfulCaseCampaign,
     successfulObservation,
@@ -9432,6 +9728,7 @@ var stratifiedExpertCases = Enumerable.Range(0, 8)
             {
                 CaseId = "stratified-case-" + caseIndex,
                 ArchiveEligible = true,
+                PolicyIntegrityValid = true,
                 CampaignId = "case-learning",
                 CampaignVersion = "1",
                 RulesetHash = "case-rules",
@@ -9709,6 +10006,16 @@ var terminalCreditCampaign = new CombatCampaignResult
     DifficultyId = "normal",
     CompletedBattles = 3,
     TotalBattles = 37,
+    FinalState = new CombatCampaignState
+    {
+        CurrentHp = 77,
+        MaxHp = 143,
+        SpecialVariables = new Dictionary<string, string>(
+            StringComparer.OrdinalIgnoreCase)
+        {
+            ["DoomPower"] = "19"
+        }
+    },
     Battles =
     {
         new CombatSimulationResult
@@ -9738,7 +10045,13 @@ Assert(terminalCreditEpisodes[0].Frames[0].LongTermReturn > 0d
           == "battle-victory"
        && terminalCreditEpisodes[1].Frames[0].LongTermReturn
           > terminalCreditEpisodes[2].Frames[0].LongTermReturn
-       && terminalCreditEpisodes[2].Frames[^1].LongTermReturn == -1d,
+       && terminalCreditEpisodes[2].Frames[^1].LongTermReturn == -1d
+       && terminalCreditEpisodes.All(episode =>
+           episode.Campaign.TerminalSnapshotKnown
+           && episode.Campaign.TerminalBattleIndex == 2
+           && episode.Campaign.TerminalPlayerHp == 77
+           && episode.Campaign.TerminalPlayerMaxHp == 143
+           && episode.Campaign.TerminalDoomPower == 19),
     "terminal credit preserves local victories while assigning the strongest negative target to the actual failing encounter");
 Assert(CombatCampaignFoundationTrainer.ShouldRunCounterfactualHardEncounter(
            new CombatCampaignFoundationTrainingRequest
@@ -9867,7 +10180,7 @@ Assert(Math.Abs(
     "hard-seed replay share remains configured when the recent solve-rate floor is met");
 var stagnationIterations = new List<CombatCampaignFoundationIteration>
 {
-    new() { Promoted = true },
+    new() { Promoted = true, WorkingModelAccepted = true },
     new() { Promoted = false },
     new() { Promoted = false },
     new() { Promoted = false }
@@ -9922,7 +10235,7 @@ var workerProtocolResult = new CombatFoundationWorkerResult
 };
 Assert(workerProtocolJob.SchemaVersion
            == CombatFoundationWorkerProtocol.SchemaVersion
-       && CombatFoundationWorkerProtocol.SchemaVersion == 8
+       && CombatFoundationWorkerProtocol.SchemaVersion == 10
        && CombatFoundationTerminalCreditProtocol.Version
           == "terminal-credit-v2"
        && CombatFoundationCounterfactualProtocol.Version
@@ -10093,8 +10406,12 @@ Assert(!CombatFoundationWorkerProtocol.TryValidateProgress(
            workerProtocolProgress,
            workerProtocolJob.JobId,
            out var versionDiagnostic)
-       && versionDiagnostic.Contains("worker=7", StringComparison.Ordinal)
-       && versionDiagnostic.Contains("host=8", StringComparison.Ordinal),
+       && versionDiagnostic.Contains(
+           "worker=" + (CombatFoundationWorkerProtocol.SchemaVersion - 1),
+           StringComparison.Ordinal)
+       && versionDiagnostic.Contains(
+           "host=" + CombatFoundationWorkerProtocol.SchemaVersion,
+           StringComparison.Ordinal),
     "foundation worker host rejects stale progress with an actionable protocol diagnostic");
 workerProtocolProgress.SchemaVersion =
     CombatFoundationWorkerProtocol.SchemaVersion;
@@ -11260,13 +11577,17 @@ Assert(aiDtoTypes.All(type =>
 using (CombatPublicFeatureRegistry.Register(
            "Tests",
            CombatPublicFeatureScope.State,
-           "visibleModCounter"))
+           "visibleModCounter",
+           "number",
+           0d,
+           3d,
+           0d))
 {
     var registeredFeatureState = BuildPlayerEquivalentFixture(false);
     registeredFeatureState.Features["visibleModCounter"] = 4d;
     Assert(CombatPlayerObservationBoundary.Normalize(registeredFeatureState)
-               .Features["visibleModCounter"] == 4d,
-        "mods can explicitly register a player-visible derived feature");
+               .Features["visibleModCounter"] == 3d,
+        "registered public MOD features are admitted and clamped to their declared range");
 }
 var unregisteredFeatureState = BuildPlayerEquivalentFixture(false);
 unregisteredFeatureState.Features["visibleModCounter"] = 4d;
@@ -11653,6 +11974,393 @@ Assert(!CombatGameValidationProtocol.ValidateReport(
         out var staleGameValidationReason)
        && staleGameValidationReason.Contains("不匹配", StringComparison.Ordinal),
     "game-host receipt is invalidated by an authoritative ruleset change");
+
+var contentAudit = new CombatTransitionAuditCorpus
+{
+    Cases =
+    {
+        new CombatTransitionAuditCase
+        {
+            CaseId = "alias-a",
+            CompactStateFingerprint = "compact",
+            FullStateHash = "full-a",
+            ActionFingerprint = "play:test",
+            NextCompactStateFingerprint = "next-a",
+            NextFullStateHash = "next-full-a",
+            Outcome = "continue",
+            RuntimeSettlementHash = "settlement-a",
+            SimulationSettlementHash = "settlement-a"
+        },
+        new CombatTransitionAuditCase
+        {
+            CaseId = "alias-b",
+            CompactStateFingerprint = "compact",
+            FullStateHash = "full-b",
+            ActionFingerprint = "play:test",
+            NextCompactStateFingerprint = "next-b",
+            NextFullStateHash = "next-full-b",
+            Outcome = "continue",
+            RuntimeSettlementHash = "settlement-b",
+            SimulationSettlementHash = "settlement-c"
+        }
+    }
+};
+var contentAuditReport = CombatTransitionAuditAnalyzer.Analyze(contentAudit);
+Assert(contentAuditReport.AliasedStateCount == 1
+       && contentAuditReport.DivergentTransitionCount == 1
+       && contentAuditReport.RuntimeMismatchCount == 1
+       && !contentAuditReport.Passed,
+    "content package transition audit detects state alias divergence and settlement mismatch");
+var hiddenStateAuditReport = CombatTransitionAuditAnalyzer.Analyze(
+    new CombatTransitionAuditCorpus
+    {
+        Cases =
+        {
+            new CombatTransitionAuditCase
+            {
+                CaseId = "hidden-a",
+                CompactStateFingerprint = "same-compact",
+                FullStateHash = "full-a",
+                ActionFingerprint = "same-action",
+                NextCompactStateFingerprint = "same-next-compact",
+                NextFullStateHash = "next-full-a",
+                Outcome = "continue",
+                RuntimeSettlementHash = "same-settlement",
+                SimulationSettlementHash = "same-settlement"
+            },
+            new CombatTransitionAuditCase
+            {
+                CaseId = "hidden-b",
+                CompactStateFingerprint = "same-compact",
+                FullStateHash = "full-b",
+                ActionFingerprint = "same-action",
+                NextCompactStateFingerprint = "same-next-compact",
+                NextFullStateHash = "next-full-b",
+                Outcome = "continue",
+                RuntimeSettlementHash = "same-settlement",
+                SimulationSettlementHash = "same-settlement"
+            }
+        }
+    });
+Assert(hiddenStateAuditReport.DivergentTransitionCount == 1
+       && !hiddenStateAuditReport.Passed,
+    "transition audit rejects hidden-state divergence even when compact outcomes match");
+var contentTrainingEpisode = new CombatEpisode
+{
+    EpisodeId = "registered-content-episode",
+    Authoritative = true,
+    RulesetHash = "registered-ruleset",
+    ContentSetHash = CombatContentSetProtocol.EmptyContentSetHash,
+    OwnerModSetHash = CombatContentSetProtocol.EmptyOwnerModSetHash,
+    Frames =
+    {
+        new CombatEpisodeFrame
+        {
+            StateFingerprint = "content-state",
+            ExecutedCandidateId = "content-action",
+            Candidates =
+            {
+                new CombatEpisodeCandidate
+                {
+                    CandidateId = "content-action",
+                    SourceId = "content-card",
+                    OwnerModId = "Tests.Content",
+                    Legal = true
+                }
+            }
+        }
+    }
+};
+Assert(CombatContentTrainingEpisodeProtocol.TryValidate(
+        contentTrainingEpisode,
+        CombatContentSetProtocol.EmptyContentSetHash,
+        CombatContentSetProtocol.EmptyOwnerModSetHash,
+        "registered-ruleset",
+        out _),
+    "registered content episodes require authoritative finite policy-integrity frames");
+var contentEpisodeJob = new CombatFoundationWorkerJob
+{
+    ExpectedRulesetHash = "registered-ruleset",
+    Request = new CombatCampaignFoundationTrainingRequest
+    {
+        AuthoritativeContentEpisodes = { contentTrainingEpisode }
+    }
+};
+Assert(CombatFoundationWorkerProtocol.TryValidateJob(
+        contentEpisodeJob,
+        out _),
+    "worker schema carries validated content episodes into foundation replay");
+contentTrainingEpisode.Frames[0].Candidates[0].OwnerModId = "unregistered";
+Assert(!CombatContentTrainingEpisodeProtocol.TryValidate(
+        contentTrainingEpisode,
+        CombatContentSetProtocol.EmptyContentSetHash,
+        CombatContentSetProtocol.EmptyOwnerModSetHash,
+        "registered-ruleset",
+        out _),
+    "content episodes reject candidates omitted from authoritative owner registration");
+contentTrainingEpisode.Frames[0].Candidates[0].OwnerModId = "Tests.Content";
+var pinnedContentReplay = new CombatFoundationReplaySelection();
+CombatFoundationReplaySampler.PinEpisodes(
+    pinnedContentReplay,
+    new[] { contentTrainingEpisode },
+    episodeLimit: 8,
+    requestedShare: 0.20d);
+Assert(pinnedContentReplay.PinnedContentEpisodes == 1
+       && pinnedContentReplay.Episodes.Count == 1
+       && ReferenceEquals(
+           pinnedContentReplay.Episodes[0],
+           contentTrainingEpisode),
+    "registered content replay receives a configurable guaranteed training quota");
+
+var contentPackageRoot = Path.Combine(
+    Path.GetTempPath(),
+    "aura-combat-content-tests-" + Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(contentPackageRoot);
+try
+{
+    var auditPath = Path.Combine(contentPackageRoot, "transition-audit.json");
+    var passingAudit = new CombatTransitionAuditCorpus
+    {
+        Cases =
+        {
+            new CombatTransitionAuditCase
+            {
+                CaseId = "stable",
+                CompactStateFingerprint = "compact-stable",
+                FullStateHash = "full-stable",
+                ActionFingerprint = "end-turn",
+                NextCompactStateFingerprint = "next-stable",
+                NextFullStateHash = "next-full-stable",
+                Outcome = "continue",
+                RuntimeSettlementHash = "same",
+                SimulationSettlementHash = "same"
+            }
+        }
+    };
+    File.WriteAllText(auditPath, JsonSerializer.Serialize(passingAudit));
+    var auditHash = Convert.ToHexString(
+        SHA256.HashData(File.ReadAllBytes(auditPath))).ToLowerInvariant();
+    var contentManifest = new CombatContentPackage
+    {
+        OwnerModId = "Tests.Content",
+        PackageId = "tests-content",
+        PackageVersion = "1.0.0",
+        GameBuild = "2026.08",
+        Artifacts = new CombatContentPackageArtifacts
+        {
+            TransitionAudit = new CombatContentArtifactReference
+            {
+                Path = "transition-audit.json",
+                Sha256 = auditHash
+            }
+        },
+        PublicFeatures =
+        {
+            new CombatContentPublicFeatureDeclaration
+            {
+                Name = "tests.charge",
+                Scope = "state",
+                Minimum = 0d,
+                Maximum = 10d,
+                DefaultValue = 0d
+            }
+        }
+    };
+    var manifestPath = Path.Combine(contentPackageRoot, "package.json");
+    File.WriteAllText(manifestPath, JsonSerializer.Serialize(contentManifest));
+    var loadedContent = CombatContentPackageLoader.Load(
+        contentPackageRoot,
+        "Tests.Content",
+        "tests-content");
+    Assert(loadedContent.Success
+           && loadedContent.Loaded?.TransitionAuditReport.Passed == true,
+        "content package loader accepts exact owner id hash and passing audit");
+    var firstFingerprint = loadedContent.Loaded!.PackageFingerprint;
+    File.WriteAllText(
+        manifestPath,
+        JsonSerializer.Serialize(
+            contentManifest,
+            new JsonSerializerOptions { WriteIndented = true }));
+    var reformattedContent = CombatContentPackageLoader.Load(
+        contentPackageRoot,
+        "Tests.Content",
+        "tests-content");
+    Assert(reformattedContent.Success
+           && reformattedContent.Loaded!.PackageFingerprint == firstFingerprint,
+        "content package identity ignores JSON whitespace and property formatting");
+    contentManifest.PackageVersion = "1.0.1";
+    File.WriteAllText(manifestPath, JsonSerializer.Serialize(contentManifest));
+    var changedContent = CombatContentPackageLoader.Load(
+        contentPackageRoot,
+        "Tests.Content",
+        "tests-content");
+    Assert(changedContent.Success
+           && changedContent.Loaded!.PackageFingerprint != firstFingerprint,
+        "content package fingerprint binds the complete manifest");
+    contentManifest.FoundationTrainingEnabled = true;
+    File.WriteAllText(manifestPath, JsonSerializer.Serialize(contentManifest));
+    var unknownCoverageContent = CombatContentPackageLoader.Load(
+        contentPackageRoot,
+        "Tests.Content",
+        "tests-content");
+    Assert(!unknownCoverageContent.Success
+           && unknownCoverageContent.Errors.Any(error => error.Contains(
+               "authoritative entity coverage", StringComparison.Ordinal)),
+        "foundation content requires authoritative declared entity coverage");
+    contentManifest.FoundationTrainingEnabled = false;
+    contentManifest.Artifacts.TransitionAudit!.Sha256 = auditHash.ToUpperInvariant();
+    File.WriteAllText(manifestPath, JsonSerializer.Serialize(contentManifest));
+    var uppercaseDigestContent = CombatContentPackageLoader.Load(
+        contentPackageRoot,
+        "Tests.Content",
+        "tests-content");
+    Assert(!uppercaseDigestContent.Success
+           && uppercaseDigestContent.Errors.Any(error =>
+               error.Contains("lowercase SHA-256", StringComparison.Ordinal)),
+        "content package loader rejects non-canonical artifact digests");
+    contentManifest.Artifacts.TransitionAudit = new CombatContentArtifactReference
+    {
+        Path = "../outside.json",
+        Sha256 = auditHash
+    };
+    File.WriteAllText(manifestPath, JsonSerializer.Serialize(contentManifest));
+    var escapingContent = CombatContentPackageLoader.Load(
+        contentPackageRoot,
+        "Tests.Content",
+        "tests-content");
+    Assert(!escapingContent.Success
+           && escapingContent.Errors.Any(error => error.Contains(
+               "escapes package root", StringComparison.Ordinal)),
+        "content package loader rejects artifacts outside the canonical directory");
+
+    var packageA = loadedContent.Loaded!;
+    var packageB = new CombatContentLoadedPackage
+    {
+        Package = new CombatContentPackage
+        {
+            OwnerModId = "Tests.Second",
+            PackageId = "second",
+            PackageVersion = "2.0.0",
+            GameBuild = "2026.08"
+        },
+        PackageFingerprint = "bbbb"
+    };
+    var orderedContentSet = CombatContentSetProtocol.Create(
+        new[] { packageA, packageB }, "2026.08");
+    var reversedContentSet = CombatContentSetProtocol.Create(
+        new[] { packageB, packageA }, "2026.08");
+    Assert(orderedContentSet.ContentSetHash == reversedContentSet.ContentSetHash
+           && orderedContentSet.OwnerModSetHash == reversedContentSet.OwnerModSetHash,
+        "content set identity is deterministic across registration order");
+
+    var conflictingPackage = new CombatContentLoadedPackage
+    {
+        Package = new CombatContentPackage
+        {
+            OwnerModId = "Tests.Content",
+            FoundationTrainingEnabled = true
+        },
+        Ruleset = new CombatRulesetDocument
+        {
+            Cards =
+            {
+                new CombatCardDefinition
+                {
+                    CardId = "base-card",
+                    OwnerModId = "Tests.Content"
+                }
+            }
+        },
+        FoundationOverlay = new CombatContentFoundationOverlay(),
+        TransitionAuditReport = new CombatTransitionAuditReport { CaseCount = 1 }
+    };
+    var mergeRejected = false;
+    try
+    {
+        CombatContentFoundationMerger.MergeRulesets(
+            new CombatRulesetDocument
+            {
+                Cards = { new CombatCardDefinition { CardId = "base-card" } }
+            },
+            new[] { conflictingPackage });
+    }
+    catch (InvalidDataException)
+    {
+        mergeRejected = true;
+    }
+    Assert(mergeRejected,
+        "content foundation merge rejects identity collisions with the base ruleset");
+}
+finally
+{
+    Directory.Delete(contentPackageRoot, recursive: true);
+}
+
+var lowRankAdapter = new CombatLowRankPolicyAdapterDefinition
+{
+    Manifest = new CombatDecisionAdapterManifest
+    {
+        AdapterId = "tests-content-adapter",
+        AdapterKind = CombatModelAdapterProtocol.ContentKind,
+        OwnerModId = "Tests.Content",
+        PackageId = "tests-content",
+        BaseModelId = "recording-policy-value",
+        MaximumPolicyDelta = 0.5d
+    },
+    StateDimensions = 16,
+    ActionDimensions = 16,
+    Rank = 1,
+    StateFactors = new double[16],
+    ActionFactors = new double[16],
+    RankWeights = new[] { 1d },
+    Bias = 0.5d
+};
+Assert(CombatModelAdapterValidator.TryValidate(
+        lowRankAdapter,
+        "recording-policy-value",
+        CombatContentSetProtocol.EmptyContentSetHash,
+        out _),
+    "content low-rank adapter validates explicit package and base-model binding");
+var adaptedPolicyModel = new AdaptedCombatPolicyValueModel(
+    new RecordingPolicyValueModel(),
+    new[] { lowRankAdapter });
+var adaptedPrediction = adaptedPolicyModel.Evaluate(new CombatPolicyValueInput
+{
+    Candidates =
+    {
+        new CombatPolicyValueCandidate { CandidateId = "adapted-action" }
+    }
+});
+Assert(Math.Abs(adaptedPrediction.PolicyLogits["adapted-action"] - 2.5d)
+       < 0.000000001d
+       && adaptedPolicyModel.AdapterIds.SequenceEqual(
+           new[] { "tests-content-adapter" }),
+    "content low-rank adapter adds a bounded residual without replacing the base model");
+var personalAdapterBinding = new CombatDecisionAdapterManifest
+{
+    AdapterId = "tests-personal",
+    AdapterKind = CombatModelAdapterProtocol.PersonalKind,
+    OwnerModId = "AuraToolsExp",
+    BaseModelId = "recording-policy-value",
+    ContentSetHash = CombatContentSetProtocol.EmptyContentSetHash,
+    AdjustsActionValue = true,
+    MaximumActionValueDelta = 0.1d
+};
+Assert(!CombatModelAdapterValidator.TryValidate(
+        personalAdapterBinding,
+        "recording-policy-value",
+        CombatContentSetProtocol.EmptyContentSetHash,
+        out _),
+    "personal preference adapter cannot alter authoritative action Q outputs");
+personalAdapterBinding.AdapterKind = "unrecognized-adapter";
+personalAdapterBinding.AdjustsActionValue = false;
+personalAdapterBinding.MaximumActionValueDelta = 0d;
+Assert(!CombatModelAdapterValidator.TryValidate(
+        personalAdapterBinding,
+        "recording-policy-value",
+        CombatContentSetProtocol.EmptyContentSetHash,
+        out _),
+    "adapter protocol rejects unknown adapter kinds");
 
 Console.WriteLine($"AuraCombatAiShared.Tests passed: {assertions} assertions.");
 
@@ -12765,6 +13473,30 @@ sealed class FrozenPreparationRoleStrategyProvider :
         foreach (var action in state.Actions)
         {
             action.Features[CombatRoleStrategyFeatureNames.Active] = 1d;
+        }
+        return true;
+    }
+}
+
+sealed class ProhibitSourceRoleStrategyProvider : ICombatRoleStrategyProvider
+{
+    private readonly string sourceId;
+
+    public ProhibitSourceRoleStrategyProvider(string sourceId)
+    {
+        this.sourceId = sourceId;
+    }
+
+    public bool TryEnrich(CombatStateObservation state)
+    {
+        state.Features["roleStrategy:test.prepared-state"] = 1d;
+        foreach (var action in state.Actions.Where(action => string.Equals(
+                     action.SourceId,
+                     sourceId,
+                     StringComparison.OrdinalIgnoreCase)))
+        {
+            action.Features[
+                CombatRoleStrategyFeatureNames.StrategicallyProhibited] = 1d;
         }
         return true;
     }

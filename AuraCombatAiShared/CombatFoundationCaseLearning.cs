@@ -51,6 +51,8 @@ public sealed class CombatFoundationCampaignObservation
 
     public bool IntegrityValid { get; set; }
 
+    public bool PolicyIntegrityValid { get; set; }
+
     public bool ArchiveEligible { get; set; }
 
     public int CompletedBattles { get; set; }
@@ -60,6 +62,8 @@ public sealed class CombatFoundationCampaignObservation
     public int FinalHp { get; set; }
 
     public int FinalMaxHp { get; set; }
+
+    public int FinalDoomPower { get; set; }
 
     public int FinalDeckSize { get; set; }
 
@@ -300,7 +304,7 @@ public sealed class CombatFoundationCaseAnalysis
 
 public static class CombatFoundationCaseLearning
 {
-    public const int ArchiveSchemaVersion = 3;
+    public const int ArchiveSchemaVersion = 4;
 
     public static CombatFoundationCampaignObservation Observe(
         CombatCampaignResult campaign,
@@ -334,6 +338,9 @@ public static class CombatFoundationCaseLearning
                                         item.Authoritative
                                         && item.SemanticCoverage >= 0.999999d
                                         && item.Campaign?.IntegrityValid == true);
+        var policyIntegrityValid = episodeList.Count == 0
+                                   || episodeList.All(
+                                       EpisodePolicyIntegrityValid);
         var fullCoverage = campaign.BattleSemanticCoverage >= 0.999999d
                            && campaign.ProgressionSemanticCoverage >= 0.999999d
                            && battleCoverage >= 0.999999d;
@@ -427,14 +434,19 @@ public static class CombatFoundationCaseLearning
             PlanHash = campaign.PlanHash,
             FinalBossVictory = campaign.FinalBossVictory,
             IntegrityValid = integrityValid,
+            PolicyIntegrityValid = policyIntegrityValid,
             ArchiveEligible = campaign.FinalBossVictory
                               && integrityValid
                               && fullCoverage
-                              && authoritativeEpisodes,
+                              && authoritativeEpisodes
+                              && policyIntegrityValid,
             CompletedBattles = campaign.CompletedBattles,
             TotalBattles = campaign.TotalBattles,
             FinalHp = campaign.FinalState.CurrentHp,
             FinalMaxHp = campaign.FinalState.MaxHp,
+            FinalDoomPower = ResolveSpecialVariable(
+                campaign.FinalState,
+                "DoomPower"),
             FinalDeckSize = finalDeck.Count,
             TotalTurns = campaign.Battles.Sum(item => item.Turns),
             CardsPlayed = campaign.Battles.Sum(item => item.Metrics.CardsPlayed),
@@ -471,6 +483,51 @@ public static class CombatFoundationCaseLearning
         return observation;
     }
 
+    private static int ResolveSpecialVariable(
+        CombatCampaignState state,
+        string variableId)
+    {
+        return state.SpecialVariables.TryGetValue(variableId, out var value)
+               && int.TryParse(
+                   value,
+                   NumberStyles.Integer,
+                   CultureInfo.InvariantCulture,
+                   out var parsed)
+            ? Math.Max(0, parsed)
+            : 0;
+    }
+
+    internal static bool EpisodePolicyIntegrityValid(CombatEpisode episode)
+    {
+        return episode != null
+               && (episode.Frames ?? new List<CombatEpisodeFrame>()).All(frame =>
+               {
+                   var executed = (frame.Candidates
+                                   ?? new List<CombatEpisodeCandidate>())
+                       .FirstOrDefault(candidate => string.Equals(
+                           candidate.CandidateId,
+                           frame.ExecutedCandidateId,
+                           StringComparison.Ordinal));
+                   return executed?.Legal == true
+                          && Feature(
+                              executed.Features,
+                              CombatRoleStrategyFeatureNames
+                                  .StrategicallyProhibited) <= 0.5d;
+               });
+    }
+
+    private static double Feature(
+        IReadOnlyDictionary<string, double>? features,
+        string key)
+    {
+        return features != null
+               && features.TryGetValue(key, out var value)
+               && !double.IsNaN(value)
+               && !double.IsInfinity(value)
+            ? value
+            : 0d;
+    }
+
     public static CombatFoundationSuccessCase CreateSuccessCase(
         CombatCampaignResult campaign,
         CombatFoundationCampaignObservation observation,
@@ -501,7 +558,8 @@ public static class CombatFoundationCaseLearning
             .Select(group => group.First())
             .OrderBy(item => item.CaseId, StringComparer.Ordinal)
             .ToList();
-        var valid = observations.Where(item => item.IntegrityValid).ToList();
+        var valid = observations.Where(item =>
+            item.IntegrityValid && item.PolicyIntegrityValid).ToList();
         var successes = valid.Where(item => item.FinalBossVictory).ToList();
         var failures = valid.Where(item => !item.FinalBossVictory).ToList();
         var pairs = Match(successes, failures);
@@ -629,6 +687,9 @@ public static class CombatFoundationCaseLearning
             .Where(item =>
                 item?.Observation != null
                 && item.Observation.ArchiveEligible
+                && item.Observation.PolicyIntegrityValid
+                && item.Episodes.Count > 0
+                && item.Episodes.All(EpisodePolicyIntegrityValid)
                 && !(item.Observation.SourceStage ?? "").StartsWith(
                     "validation",
                     StringComparison.OrdinalIgnoreCase)

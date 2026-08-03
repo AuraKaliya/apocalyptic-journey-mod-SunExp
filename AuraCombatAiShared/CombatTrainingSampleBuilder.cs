@@ -252,7 +252,15 @@ public static class CombatTrainingSampleBuilder
             PlanScore = Finite(evaluation.PlanScore),
             SearchPrior = Finite(evaluation.SearchPrior),
             SearchVisits = Math.Max(0, evaluation.SearchVisits),
-            SearchDeathRisk = Finite(evaluation.SearchDeathRisk)
+            SearchDeathRisk = Finite(evaluation.SearchDeathRisk),
+            SearchMeanReturn = Finite(evaluation.SearchMeanReturn),
+            SearchReturnStandardError =
+                Finite(evaluation.SearchReturnStandardError),
+            SearchLowerTailMean = Finite(evaluation.SearchLowerTailMean),
+            SearchReturnQuantiles = evaluation.SearchReturnQuantiles
+                .Select(Finite)
+                .Take(16)
+                .ToList()
         };
     }
 

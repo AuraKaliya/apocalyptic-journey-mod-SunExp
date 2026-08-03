@@ -2089,14 +2089,16 @@ public sealed partial class NativeRewardScriptGlobals
                     .Select(status => Math.Max(0, status.Stacks))
                     .DefaultIfEmpty(0)
                     .Max();
-                value = AuraToolsNanaDoomProgression.MaximumHpDelta(
+                value = AuraToolsNanaDoomProgression.MaximumHpGainForLevelChange(
                     previousLevel,
                     currentLevel);
             }
             var before = actor.MaxHp;
             actor.MaxHp = Math.Max(1, actor.MaxHp + value);
-            actor.Hp = Math.Max(0, Math.Min(actor.Hp, actor.MaxHp));
             var actualDelta = actor.MaxHp - before;
+            actor.Hp = actualDelta > 0
+                ? Math.Min(actor.MaxHp, Math.Max(0, actor.Hp + actualDelta))
+                : Math.Max(0, Math.Min(actor.Hp, actor.MaxHp));
             if (actualDelta != 0
                 && actor.Kind == CombatSimulationActorKind.Player
                 && context is ICombatPersistentProgressionContext progression)
@@ -2550,7 +2552,6 @@ public sealed partial class NativeRewardScriptGlobals
                 {
                     ApplyRoleRuntimeForm(
                         actor,
-                        actor.DefinitionId,
                         roleId);
                 }
                 actor.DefinitionId = roleId;
@@ -2560,15 +2561,9 @@ public sealed partial class NativeRewardScriptGlobals
 
     private void ApplyRoleRuntimeForm(
         CombatActorState actor,
-        string previousRoleId,
         string roleId)
     {
         var player = context.Scenario.Player;
-        var previousForm = player.RoleRuntimeForms.FirstOrDefault(item =>
-            string.Equals(
-                item.RoleId,
-                previousRoleId,
-                StringComparison.OrdinalIgnoreCase));
         var form = player.RoleRuntimeForms.FirstOrDefault(item => string.Equals(
             item.RoleId,
             roleId,
@@ -2578,16 +2573,6 @@ public sealed partial class NativeRewardScriptGlobals
             return;
         }
         player.RoleId = form.RoleId;
-        if (form.MaximumHp > 0)
-        {
-            var previousBaseMaximumHp = previousForm?.MaximumHp > 0
-                ? previousForm.MaximumHp
-                : form.MaximumHp;
-            actor.MaxHp = Math.Max(
-                1,
-                actor.MaxHp + form.MaximumHp - previousBaseMaximumHp);
-            actor.Hp = Math.Min(actor.Hp, actor.MaxHp);
-        }
         player.SkillCardIds = form.SkillCardIds.ToList();
         player.SkillCooldownTurns = new Dictionary<string, int>(
             form.SkillCooldownTurns,
@@ -3504,7 +3489,8 @@ public sealed partial class NativeRewardScriptGlobals
                     {
                         handler.PayloadCallback(CreatePayload(
                             handler.PayloadType,
-                            handlerEvent));
+                            handlerEvent,
+                            sourceEvent?.SourceRewardId));
                     }
                     else
                     {
@@ -3729,7 +3715,10 @@ public sealed partial class NativeRewardScriptGlobals
         }
     }
 
-    private object CreatePayload(Type type, CombatSimulationEvent? item)
+    private object CreatePayload(
+        Type type,
+        CombatSimulationEvent? item,
+        string? triggerSourceRewardId = null)
     {
         var card = item?.CardInstanceId > 0
             ? CardConfig(item.CardInstanceId)
@@ -3798,6 +3787,7 @@ public sealed partial class NativeRewardScriptGlobals
                 data = statusData,
                 dataId = item?.DefinitionId ?? "",
                 fromId = Actor(item?.SourceActorId ?? 0)?.InstanceId ?? "",
+                dataFromid = triggerSourceRewardId ?? item?.SourceRewardId ?? "",
                 toId = Actor(item?.TargetActorId ?? 0)?.InstanceId ?? ""
             };
         }

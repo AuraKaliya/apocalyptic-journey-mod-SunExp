@@ -1108,7 +1108,10 @@ public sealed class CombatSimulationEngine
                 }
             }
             if (useSkill
-                && (definition.ActionContract?.CooldownOnApplied ?? true))
+                && (definition.ActionContract?.CooldownOnApplied ?? true)
+                && !scenario.Player.NativeManagedSkillCooldownIds.Contains(
+                    definition.CardId,
+                    StringComparer.OrdinalIgnoreCase))
             {
                 State.SkillCooldowns[instance.InstanceId] =
                     scenario.Player.SkillCooldownTurns.TryGetValue(
@@ -2492,11 +2495,12 @@ public sealed class CombatSimulationEngine
 
                 case CombatSimulationEffectKind.SetHp:
                     if (target == null || !target.Alive) return null;
-                    // Witch ScriptExecutor.SetHp assigns CurHp directly. It is
-                    // intentionally neither healing nor damage and therefore
-                    // must not emit either lifecycle event.
+                    // SetHp is neither healing nor damage, but the resulting
+                    // actor state must still respect the current HP domain.
                     var previousSetHp = target.Hp;
-                    target.Hp = command.Amount;
+                    target.Hp = Math.Max(
+                        0,
+                        Math.Min(target.MaxHp, command.Amount));
                     var setHpEvent = EmitFromCommand(
                         CombatSimulationEventKind.VariableChanged,
                         command,

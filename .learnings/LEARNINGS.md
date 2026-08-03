@@ -27,7 +27,7 @@ Keep the release test that checks the hidden game-host validation cases against 
 
 **Logged**: 2026-07-29T10:00:00+08:00
 **Priority**: high
-**Status**: pending
+**Status**: resolved
 **Area**: docs
 
 ### Summary
@@ -98,5 +98,46 @@ Keep eligibility tied to stable lifecycle state and unresolved pressure/reward g
 - Source: user_feedback
 - Related Files: Terrias-Dev/Hooks/EndlessAbyssEvacuationRuntime.cs, Terrias-Dev/Mechanics/EndlessAbyssEvacuationDepth.cs
 - Tags: endless-abyss, evacuation, multiplayer, settlement
+
+---
+
+## [LRN-20260803-001] correction
+
+**Logged**: 2026-08-03T00:00:00+08:00
+**Priority**: critical
+**Status**: resolved
+**Area**: backend
+
+### Summary
+Nana training conclusions must be based on exact base-game MaxHp, DoomPower,
+and transformation semantics, and the current `journey-final-max-hp` metric is
+not a true terminal-battle metric after replay sampling.
+
+### Details
+The base game heals current HP by the positive MaxHp delta in
+`StatusManager.set_MaxHp`. `DoomPower` persists through `PlayerInfo.SpecialVars`
+for the whole adventure. Calamity form deals `Self.MaxHp / 50` to all enemies
+on every action and changing from `career_2` to `career_4` does not itself
+modify MaxHp. The simulator currently omits the MaxHp-gain heal and applies a
+synthetic 20-MaxHp form delta. In addition, role diagnostics choose the highest
+battle index remaining in the sampled replay, which may not be the journey's
+actual terminal battle.
+
+### Suggested Action
+Repair semantic parity before retraining, persist exact terminal campaign
+MaxHp and DoomPower before replay sampling, invalidate incompatible training
+artifacts, and add focused lifecycle tests.
+
+### Metadata
+- Source: user_feedback
+- Related Files: AuraToolsExp-Dev/Features/AutoBattle/AuraToolsNativeRewardSimulationRuntime.cs, AuraToolsExp-Dev/Features/AutoBattle/AuraToolsAuthoritativeRoleSemantics.cs, AuraToolsExp-Dev/Features/AutoBattle/AuraToolsNanaRoleStrategy.cs, AuraToolsExp-Dev/Features/AutoBattle/AuraToolsRoleTrainingDiagnostics.cs
+- Tags: nana, doom-power, max-hp, transform, training-metrics
+
+### Resolution
+- **Resolved**: 2026-08-03T00:00:00+08:00
+- **Notes**: Implemented positive MaxHp-delta healing, removed synthetic form
+  MaxHp changes, preserved DoomPower across battles, modeled the 2%-MaxHp
+  all-enemy action trigger, and sourced terminal metrics from complete training
+  campaign observations before replay cleanup.
 
 ---

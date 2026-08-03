@@ -453,6 +453,20 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                 + string.Join("；", packageValidation.Errors.Take(5)),
                 TotalCampaigns(foundation));
         }
+        var contentSet = AuraToolsCombatContentRuntime.SnapshotContentSet();
+        if (!AuraToolsCombatContentRuntime.TryLoadAuthoritativeTrainingEpisodes(
+                contentSet.ContentSetHash,
+                contentSet.OwnerModSetHash,
+                ruleset.RulesetHash,
+                out var authoritativeContentEpisodes,
+                out var contentEpisodeDiagnostic))
+        {
+            return FoundationWorkResult.Failed(
+                "内容 MOD 权威训练语料校验失败：" + contentEpisodeDiagnostic,
+                TotalCampaigns(foundation));
+        }
+        AuraToolsLog.Info(
+            "[AutoBattle][Foundation][Content] " + contentEpisodeDiagnostic);
         var decisionProfile =
             AuraToolsAutoBattleSimulationRuntime.BuildDecisionProfile(settings);
         decisionProfile.SearchBudgetMode = "dynamic";
@@ -485,6 +499,9 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                 ExpectedRulesetHash = ruleset.RulesetHash,
                 NativeProgramPackageHash =
                     packageValidation.ProgramSetSha256,
+                ContentSetHash = contentSet.ContentSetHash,
+                OwnerModSetHash = contentSet.OwnerModSetHash,
+                AuthoritativeContentEpisodes = authoritativeContentEpisodes,
                 Parameters = ToSharedParameters(
                     foundation,
                     settings.Training.MinimumEpisodes,
@@ -2509,6 +2526,8 @@ internal static class AuraToolsAutoBattleFoundationRuntime
             AdvancedAcceptanceRate = source.AdvancedAcceptanceRate,
             SuccessExpertReplayShare =
                 source.SuccessExpertReplayShare,
+            AuthoritativeContentReplayShare =
+                source.AuthoritativeContentReplayShare,
             HardSeedReplayShare = source.HardSeedReplayShare,
             HardEncounterWeights = new Dictionary<string, double>(
                 source.HardEncounterWeights,

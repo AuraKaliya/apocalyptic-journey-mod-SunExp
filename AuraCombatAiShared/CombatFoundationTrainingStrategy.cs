@@ -949,6 +949,8 @@ public sealed class CombatFoundationReplaySelection
 
     public int SelectedHighPriorityEpisodes { get; set; }
 
+    public int PinnedContentEpisodes { get; set; }
+
     public Dictionary<string, int> QuotaShortfalls { get; set; } =
         new(StringComparer.Ordinal);
 }
@@ -970,6 +972,66 @@ public sealed class CombatFoundationReplayBalanceOptions
 
 public static class CombatFoundationReplaySampler
 {
+    public static void PinEpisodes(
+        CombatFoundationReplaySelection selection,
+        IEnumerable<CombatEpisode>? required,
+        int episodeLimit,
+        double requestedShare)
+    {
+        if (selection == null) throw new ArgumentNullException(nameof(selection));
+        var share = double.IsNaN(requestedShare)
+                    || double.IsInfinity(requestedShare)
+            ? 0.20d
+            : Math.Max(0d, Math.Min(0.50d, requestedShare));
+        var limit = Math.Max(1, episodeLimit);
+        var requiredEpisodes = (required ?? Array.Empty<CombatEpisode>())
+            .Where(episode => episode != null)
+            .GroupBy(StableKey, StringComparer.Ordinal)
+            .Select(group => group.First())
+            .OrderByDescending(EpisodePriority)
+            .ThenBy(StableKey, StringComparer.Ordinal)
+            .ToList();
+        if (share <= 0d || requiredEpisodes.Count == 0)
+        {
+            selection.PinnedContentEpisodes = 0;
+            return;
+        }
+        var quota = Math.Min(
+            requiredEpisodes.Count,
+            Math.Max(1, (int)Math.Round(
+                limit * share,
+                MidpointRounding.AwayFromZero)));
+        var pinned = requiredEpisodes.Take(quota).ToList();
+        var pinnedKeys = pinned.Select(StableKey)
+            .ToHashSet(StringComparer.Ordinal);
+        var merged = pinned.Concat((selection.Episodes
+                                    ?? new List<CombatEpisode>())
+                .Where(episode => !pinnedKeys.Contains(StableKey(episode))))
+            .Take(limit)
+            .OrderBy(StableKey, StringComparer.Ordinal)
+            .ToList();
+        selection.Episodes = merged;
+        selection.PinnedContentEpisodes = pinned.Count;
+        selection.NormalEpisodes = merged.Count(episode => !IsAdvanced(episode));
+        selection.AdvancedEpisodes = merged.Count(IsAdvanced);
+        selection.AdvancedDefeatEpisodes = merged.Count(episode =>
+            IsAdvanced(episode) && !IsSuccessful(episode));
+        selection.SuccessfulEpisodes = merged.Count(IsSuccessful);
+        selection.SelectedCampaigns = merged.Select(CampaignKey)
+            .Distinct(StringComparer.Ordinal)
+            .Count();
+        selection.SuccessfulCampaigns = merged.Where(IsSuccessful)
+            .Select(CampaignKey)
+            .Distinct(StringComparer.Ordinal)
+            .Count();
+        selection.SelectedPriorityMean = merged.Count == 0
+            ? 0d
+            : merged.Average(EpisodePriority);
+        selection.SelectedHighPriorityEpisodes = Math.Min(
+            selection.SelectedHighPriorityEpisodes,
+            merged.Count);
+    }
+
     public static CombatFoundationReplaySelection Select(
         IEnumerable<CombatEpisode> source,
         int episodeLimit,

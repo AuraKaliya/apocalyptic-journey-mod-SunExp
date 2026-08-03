@@ -101,6 +101,8 @@ try {
         SearchBudgetMode = "fixed"
     }
     $request = [ordered]@{
+        ContentSetHash = "68281d76979876df4d64a7a03a9675c4eca4bbd43999f32719924ab959900b36"
+        OwnerModSetHash = "e912a92c1baf87aa6bd444e99f042782ae879590443232d42b88ff1ee6eb7b85"
         DecisionProfile = "balanced"
         Iterations = 1
         TrainingCampaignsPerIteration = $effectiveTrainingCampaignsPerIteration
@@ -129,7 +131,7 @@ try {
         TrainingCampaign = $campaign
         ValidationCampaign = $campaign
     }
-    $protocolVersion = 8
+    $protocolVersion = 10
     $job = [ordered]@{
         SchemaVersion = $protocolVersion
         JobId = "worker-smoke"
@@ -285,6 +287,11 @@ try {
             Get-Content -LiteralPath $result.TrainingMetricsPath -Encoding UTF8
         )
         $trainingAnalysis = Read-FoundationJson $result.TrainingAnalysisPath
+        if ([double]$result.RoleStrategyMetrics."journey-terminal-snapshots" -le 0 `
+            -or [double]$result.RoleStrategyMetrics."journey-final-max-hp.mean" -le 0 `
+            -or [double]$trainingAnalysis.RoleStrategyMetrics."journey-terminal-snapshots" -le 0) {
+            throw "Foundation terminal campaign snapshots are missing from training diagnostics."
+        }
         if ($epochHistory.Count -lt 2 `
             -or $metricRecords.Count -lt 2 `
             -or [int]$trainingAnalysis.EpochCount -lt 1 `
@@ -386,7 +393,7 @@ try {
         }
         $modelPackage = Read-FoundationJson (
             [string]$result.ModelPackagePath)
-        if ([int]$modelPackage.SchemaVersion -ne 2 `
+        if ([int]$modelPackage.SchemaVersion -ne 3 `
             -or [string]$modelPackage.ArtifactKind `
                 -ne "aura.foundation-model-package" `
             -or [string]$modelPackage.CompletionKind `
@@ -394,6 +401,10 @@ try {
             -or [string]$modelPackage.JobId -ne [string]$job.JobId `
             -or [string]$modelPackage.RulesetHash `
                 -ne [string]$result.RulesetHash `
+            -or [string]$modelPackage.ContentSetHash `
+                -ne [string]$request.ContentSetHash `
+            -or [string]$modelPackage.OwnerModSetHash `
+                -ne [string]$request.OwnerModSetHash `
             -or [string]::IsNullOrWhiteSpace(
                 [string]$modelPackage.RoleId) `
             -or [string]::IsNullOrWhiteSpace(
@@ -438,6 +449,10 @@ try {
                 [string]$checkpoint.Resume.Compatibility.RulesetHash) `
             -or [string]::IsNullOrWhiteSpace(
                 [string]$checkpoint.Resume.Compatibility.NativeProgramPackageHash) `
+            -or [string]$checkpoint.Resume.Compatibility.ContentSetHash `
+                -ne [string]$request.ContentSetHash `
+            -or [string]$checkpoint.Resume.Compatibility.OwnerModSetHash `
+                -ne [string]$request.OwnerModSetHash `
             -or [string]::IsNullOrWhiteSpace(
                 [string]$checkpoint.Resume.Compatibility.TrainingCampaignHash) `
             -or [string]::IsNullOrWhiteSpace(
@@ -445,11 +460,11 @@ try {
             -or [string]$checkpoint.Resume.Compatibility.ActionContractVersion `
                 -ne "action-contract-v2" `
             -or [string]$checkpoint.Resume.Compatibility.TrainingSemanticsVersion `
-                -ne "nana-adventure-growth-context-and-actionable-coverage-v10" `
+                -ne "content-set-quantile-q-registered-content-replay-v14" `
             -or [string]$checkpoint.Resume.Compatibility.SearchPolicyVersion `
-                -ne "dynamic-search-v7-role-strategy" `
+                -ne "dynamic-search-v12-quantile-fpu" `
             -or [string]$checkpoint.Resume.Compatibility.TrainingPolicyVersion `
-                -ne "foundation-governance-v14") {
+                -ne "foundation-governance-v19-registered-content-replay") {
             throw "Foundation checkpoint compatibility manifest is incomplete."
         }
     }
@@ -491,7 +506,7 @@ try {
                 + "\o\" `
                 + ([string]$observation.CaseId).Substring(0, 24) `
                 + ".json.gz")
-            if ([int]$observation.SchemaVersion -ne 3 `
+            if ([int]$observation.SchemaVersion -ne 4 `
                 -or [string]::IsNullOrWhiteSpace(
                     [string]$observation.CompatibilityKey) `
                 -or -not (Test-Path -LiteralPath $expectedObservationPath `
