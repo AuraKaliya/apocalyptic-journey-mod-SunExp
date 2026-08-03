@@ -220,6 +220,13 @@ public static class CombatBattleStateHasher
             Mix(ref hash, cooldown.Key);
             Mix(ref hash, cooldown.Value);
         }
+        foreach (var activation in state.SkillActivationCounts.OrderBy(
+                     pair => pair.Key,
+                     StringComparer.OrdinalIgnoreCase))
+        {
+            Mix(ref hash, activation.Key);
+            Mix(ref hash, activation.Value);
+        }
         foreach (var useCount in state.SkillUseCounts.OrderBy(
                      pair => pair.Key,
                      StringComparer.OrdinalIgnoreCase))

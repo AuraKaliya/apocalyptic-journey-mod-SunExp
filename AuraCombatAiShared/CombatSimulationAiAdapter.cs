@@ -1407,13 +1407,17 @@ public static class PlayerEquivalentSimulationObservationProjector
                 .Concat(definition?.Tags ?? new List<string>())
                 .Distinct(StringComparer.OrdinalIgnoreCase)
                 .ToList();
+            var totalExtraCost = ParseCardVariable(instance, "TotalExCost");
+            var extraUseCount = ParseCardVariable(instance, "ExUseCount");
             result.Add(new CombatCardInstanceObservation
             {
                 RuntimeId = instance.InstanceId,
                 CardId = instance.CardId,
                 EffectiveCost = Math.Max(
                     0,
-                    (definition?.Cost ?? 0) + instance.CostModifier),
+                    (definition?.Cost ?? 0)
+                    + instance.CostModifier
+                    + (int)Math.Round(totalExtraCost)),
                 Retained = tags.Contains(
                     "Retain",
                     StringComparer.OrdinalIgnoreCase),
@@ -1437,6 +1441,10 @@ public static class PlayerEquivalentSimulationObservationProjector
                 Features = new Dictionary<string, double>(
                     StringComparer.OrdinalIgnoreCase)
                 {
+                    ["choice:cost"] = definition?.Cost ?? 0,
+                    ["choice:rarity"] = definition?.Rarity ?? 1,
+                    ["mechanic:total-extra-cost"] = totalExtraCost,
+                    ["mechanic:extra-use-count"] = extraUseCount,
                     ["hasVisibleWarning"] =
                         instance.EnchantmentIds.Count > 0 ? 1d : 0d,
                     ["retain"] = tags.Contains(
@@ -1458,6 +1466,22 @@ public static class PlayerEquivalentSimulationObservationProjector
             });
         }
         return result;
+    }
+
+    private static double ParseCardVariable(
+        CombatCardInstanceState instance,
+        string key)
+    {
+        return instance.Variables.TryGetValue(key, out var raw)
+               && double.TryParse(
+                   raw,
+                   System.Globalization.NumberStyles.Float,
+                   System.Globalization.CultureInfo.InvariantCulture,
+                   out var value)
+               && !double.IsNaN(value)
+               && !double.IsInfinity(value)
+            ? value
+            : 0d;
     }
 
     private static CombatActionObservation ProjectAction(
@@ -1510,6 +1534,28 @@ public static class PlayerEquivalentSimulationObservationProjector
                 ? 1d
                 : 0d
         };
+        if (action.Kind == CombatSimulationActionKind.UseSkill)
+        {
+            features[CombatSkillTimingFeatureNames.ResetsEachBattle] = 1d;
+            features[CombatSkillTimingFeatureNames.CurrentCooldown] =
+                state.SkillCooldowns.TryGetValue(
+                    action.CardInstanceId,
+                    out var currentCooldown)
+                    ? Math.Max(0, currentCooldown)
+                    : 0d;
+            features[CombatSkillTimingFeatureNames.CooldownAfterUse] =
+                scenario.Player.SkillCooldownTurns.TryGetValue(
+                    action.DefinitionId,
+                    out var cooldownAfterUse)
+                    ? Math.Max(0, cooldownAfterUse)
+                    : Math.Max(0d, semantics.CooldownTurns);
+            features[CombatSkillTimingFeatureNames.ActivationsThisBattle] =
+                state.SkillActivationCounts.TryGetValue(
+                    action.DefinitionId,
+                    out var activationCount)
+                    ? Math.Max(0, activationCount)
+                    : 0d;
+        }
         var strategyMatches = (scenario.StrategyProgress
                                ?? new List<CombatScenarioStrategyProgress>())
             .Where(item => item.ComponentCardIds.Contains(

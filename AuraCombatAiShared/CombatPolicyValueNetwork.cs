@@ -293,6 +293,63 @@ public sealed class ConcurrentBatchedCombatPolicyValueModel :
     }
 }
 
+/// <summary>
+/// Spreads synchronous campaign inference over independent batching queues.
+/// A managed thread always selects the same lane, which preserves coalescing
+/// while removing the single queue lock as parallel campaign counts grow.
+/// </summary>
+public sealed class ShardedBatchedCombatPolicyValueModel :
+    ICombatPolicyValueModel
+{
+    private readonly ConcurrentBatchedCombatPolicyValueModel[] lanes;
+
+    public ShardedBatchedCombatPolicyValueModel(
+        ICombatPolicyValueModel inner,
+        int laneCount,
+        int maximumBatchSizePerLane,
+        TimeSpan? coalescingWindow = null)
+    {
+        if (inner == null)
+        {
+            throw new ArgumentNullException(nameof(inner));
+        }
+        lanes = Enumerable.Range(0, Math.Max(1, laneCount))
+            .Select(_ => new ConcurrentBatchedCombatPolicyValueModel(
+                inner,
+                maximumBatchSizePerLane,
+                coalescingWindow))
+            .ToArray();
+    }
+
+    public string ModelId => lanes[0].ModelId;
+
+    public int LaneCount => lanes.Length;
+
+    public long BatchEvaluationCount => lanes.Sum(lane =>
+        lane.BatchEvaluationCount);
+
+    public long BatchedInputCount => lanes.Sum(lane =>
+        lane.BatchedInputCount);
+
+    public CombatPolicyValuePrediction Evaluate(
+        CombatPolicyValueInput input)
+    {
+        return CurrentLane().Evaluate(input);
+    }
+
+    public IReadOnlyList<CombatPolicyValuePrediction> EvaluateBatch(
+        IReadOnlyList<CombatPolicyValueInput> inputs)
+    {
+        return CurrentLane().EvaluateBatch(inputs);
+    }
+
+    private ConcurrentBatchedCombatPolicyValueModel CurrentLane()
+    {
+        var threadId = Environment.CurrentManagedThreadId & int.MaxValue;
+        return lanes[threadId % lanes.Length];
+    }
+}
+
 public sealed class CombatPolicyValueNetworkDefinition
 {
     public string ModelProtocol { get; set; } = "aura.combat-policy-value.mlp.v2";
@@ -693,46 +750,17 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
         double[] output,
         int outputDimensions)
     {
-        if (batchCount == 1)
+        for (var batch = 0; batch < batchCount; batch++)
         {
             DenseTanhInto(
                 input,
-                0,
+                batch * inputDimensions,
                 inputDimensions,
                 weights,
                 bias,
                 output,
-                0,
+                batch * outputDimensions,
                 outputDimensions);
-            return;
-        }
-        for (var outputIndex = 0;
-             outputIndex < outputDimensions;
-             outputIndex++)
-        {
-            var weightOffset = outputIndex * inputDimensions;
-            for (var batch = 0; batch < batchCount; batch++)
-            {
-                output[batch * outputDimensions + outputIndex] =
-                    bias[outputIndex];
-            }
-            for (var inputIndex = 0;
-                 inputIndex < inputDimensions;
-                 inputIndex++)
-            {
-                var weight = weights[weightOffset + inputIndex];
-                for (var batch = 0; batch < batchCount; batch++)
-                {
-                    output[batch * outputDimensions + outputIndex] +=
-                        input[batch * inputDimensions + inputIndex]
-                        * weight;
-                }
-            }
-            for (var batch = 0; batch < batchCount; batch++)
-            {
-                var offset = batch * outputDimensions + outputIndex;
-                output[offset] = Math.Tanh(output[offset]);
-            }
         }
     }
 

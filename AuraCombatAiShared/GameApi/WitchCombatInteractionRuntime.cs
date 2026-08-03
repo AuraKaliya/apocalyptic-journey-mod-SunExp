@@ -205,15 +205,17 @@ public static class WitchCombatInteractionRuntime
                 return WitchInteractionResolveResult.Pending;
             }
 
-            var utilities = buttons
-                .Select(button =>
+            var choices = buttons
+                .Select((button, index) =>
                 {
                     var card = button.GetComponentInChildren<DisplayCard>(true);
-                    return ToUtility(WitchCombatValueEstimator.Estimate(
-                        card?.dataConfig,
-                        false,
-                        CombatTargetKind.None));
+                    return card?.dataConfig is { } config
+                        ? CreateChoice(config, index)
+                        : new CombatActionObservation();
                 })
+                .ToList();
+            var utilities = choices
+                .Select(choice => ChoiceUtility(prompt.Request.Hint, choice))
                 .ToList();
             var selected = MultiSelectPlanner.ChooseIndices(
                 utilities,
@@ -378,11 +380,11 @@ public static class WitchCombatInteractionRuntime
             }
             prompt.NoEligibleSince = -1f;
 
-            var utilities = eligibleCards
-                .Select(card => ToUtility(WitchCombatValueEstimator.Estimate(
-                    card.dataConfig,
-                    card is AttackCardItem,
-                    CombatTargetKind.None)))
+            var choices = eligibleCards
+                .Select((card, index) => CreateChoice(card.dataConfig, index))
+                .ToList();
+            var utilities = choices
+                .Select(choice => ChoiceUtility(prompt.Request.Hint, choice))
                 .ToList();
             var selected = MultiSelectPlanner.ChooseIndices(
                 utilities,
@@ -483,7 +485,7 @@ public static class WitchCombatInteractionRuntime
         IDataConfig config,
         int index)
     {
-        return new CombatActionObservation
+        var choice = new CombatActionObservation
         {
             ObservationId = "prompt",
             ActionToken = "prompt:" + index,
@@ -494,6 +496,53 @@ public static class WitchCombatInteractionRuntime
             RuntimeId = index,
             Semantics = WitchCombatValueEstimator.Estimate(config, false, CombatTargetKind.None)
         };
+        AddNumericFeature(choice, config, "Expend", "choice:cost");
+        AddNumericFeature(choice, config, "Rarity", "choice:rarity");
+        AddNumericVariable(choice, config, "TotalExCost", "choice:total-extra-cost");
+        AddNumericVariable(choice, config, "ExUseCount", "choice:extra-use-count");
+        return choice;
+    }
+
+    private static DecisionUtility ChoiceUtility(
+        CombatInteractionHint hint,
+        CombatActionObservation choice)
+    {
+        if (hint?.ChoiceScorer != null
+            && hint.ChoiceScorer.TryScore(hint, choice, out var score)
+            && !double.IsNaN(score)
+            && !double.IsInfinity(score))
+        {
+            return new DecisionUtility { Scaling = score };
+        }
+        return ToUtility(choice.Semantics ?? new CombatActionSemantics());
+    }
+
+    private static void AddNumericFeature(
+        CombatActionObservation choice,
+        IDataConfig config,
+        string sourceKey,
+        string targetKey)
+    {
+        if (config?.data != null
+            && config.data.TryGetValue(sourceKey, out var raw)
+            && double.TryParse(raw, out var value))
+        {
+            choice.Features[targetKey] = value;
+        }
+    }
+
+    private static void AddNumericVariable(
+        CombatActionObservation choice,
+        IDataConfig config,
+        string sourceKey,
+        string targetKey)
+    {
+        if (config?.Vars != null
+            && config.Vars.TryGetValue(sourceKey, out var raw)
+            && double.TryParse(raw, out var value))
+        {
+            choice.Features[targetKey] = value;
+        }
     }
 
     private static DecisionUtility ToUtility(CombatActionSemantics semantics)

@@ -385,7 +385,20 @@ void TestConfigModelSerializationCompatibility()
            && matchExperience.AutoBattle.Simulation.Parallelism == 2
            && matchExperience.AutoBattle.FoundationTraining.ExecutionMode == "external"
            && matchExperience.AutoBattle.FoundationTraining.Parallelism
-              == Math.Max(1, Math.Min(16, Environment.ProcessorCount))
+              == (Environment.ProcessorCount >= 32
+                  ? 32
+                  : Environment.ProcessorCount >= 16
+                      ? 16
+                      : Math.Max(1, Environment.ProcessorCount))
+           && matchExperience.AutoBattle.FoundationTraining.ParallelismProfile
+              == AutoBattleFoundationExecutionProfileNames.Auto
+            && matchExperience.AutoBattle.FoundationTraining.InferenceExecutionMode
+               == AutoBattleFoundationExecutionProfileNames.DirectInference
+            && matchExperience.AutoBattle.FoundationTraining.ReuseAutoTuneCache
+            && matchExperience.AutoBattle.FoundationTraining.AutoTuneSampleCampaigns
+               == 32
+            && Math.Abs(matchExperience.AutoBattle.FoundationTraining
+                    .AutoTuneThroughputTolerance - 0.02d) < 0.0001d
            && matchExperience.AutoBattle.FoundationTraining.ModelEpochs == 40
            && matchExperience.AutoBattle.FoundationTraining.ModelBatchSize == 64
            && matchExperience.AutoBattle.FoundationTraining
@@ -560,11 +573,25 @@ void TestCardRefreshSettingsAndPoolPolicy()
                    .AuthoritativeContentReplayShare - 0.20d) < 0.0001d
            && Math.Abs(settings.AutoBattle.FoundationTraining
                   .HardSeedReplayShare - 0.35d) < 0.0001d
+           && settings.AutoBattle.FoundationTraining.ParallelismProfile
+              == AutoBattleFoundationExecutionProfileNames.Auto
+            && settings.AutoBattle.FoundationTraining.InferenceExecutionMode
+               == AutoBattleFoundationExecutionProfileNames.DirectInference
+            && settings.AutoBattle.FoundationTraining.ReuseAutoTuneCache
+            && settings.AutoBattle.FoundationTraining.AutoTuneSampleCampaigns == 32
+            && Math.Abs(settings.AutoBattle.FoundationTraining
+                    .AutoTuneThroughputTolerance - 0.02d) < 0.0001d
+           && settings.AutoBattle.FoundationTraining.InferenceParallelism
+              == settings.AutoBattle.FoundationTraining.Parallelism
            && settings.AutoBattle.FoundationTraining.Parallelism
-              == Math.Max(1, Math.Min(16, Environment.ProcessorCount)),
+              == (Environment.ProcessorCount >= 32
+                  ? 32
+                  : Environment.ProcessorCount >= 16
+                      ? 16
+                      : Math.Max(1, Environment.ProcessorCount)),
         "foundation defaults use a substantial self-play curriculum and independent 200/500 holdouts");
     var boundedFoundation = JsonConvert.DeserializeObject<AuraToolsMatchExperienceSettings>(
-        "{\"schemaVersion\":22,\"autoBattle\":{\"foundationTraining\":{\"iterations\":0,\"trainingCampaignsPerIteration\":1,\"arenaCampaignsPerDifficulty\":0,\"authoritativeContentReplayShare\":2}}}")!;
+        "{\"schemaVersion\":22,\"autoBattle\":{\"foundationTraining\":{\"iterations\":0,\"trainingCampaignsPerIteration\":1,\"arenaCampaignsPerDifficulty\":0,\"authoritativeContentReplayShare\":2,\"autoTuneSampleCampaigns\":999,\"autoTuneThroughputTolerance\":9}}}")!;
     boundedFoundation.Normalize();
     Assert(boundedFoundation.SchemaVersion == 25
            && boundedFoundation.AutoBattle.FoundationTraining.Iterations == 1
@@ -574,6 +601,10 @@ void TestCardRefreshSettingsAndPoolPolicy()
            && boundedFoundation.AutoBattle.FoundationTraining.AdvancedValidationCampaigns == 500
            && Math.Abs(boundedFoundation.AutoBattle.FoundationTraining
                    .AuthoritativeContentReplayShare - 0.50d) < 0.0001d
+           && boundedFoundation.AutoBattle.FoundationTraining
+                  .AutoTuneSampleCampaigns == 64
+           && Math.Abs(boundedFoundation.AutoBattle.FoundationTraining
+                   .AutoTuneThroughputTolerance - 0.20d) < 0.0001d
            && boundedFoundation.AutoBattle.FoundationTraining.ExecutionMode == "external",
         "current foundation settings clamp invalid input without migration paths");
 

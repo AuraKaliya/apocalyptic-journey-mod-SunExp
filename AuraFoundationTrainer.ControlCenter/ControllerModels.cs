@@ -27,6 +27,10 @@ internal sealed class ControllerSettings
     {
         return new CombatFoundationTrainingParameters
         {
+            ParallelismProfile =
+                CombatFoundationExecutionProfileNames.Auto,
+            InferenceExecutionMode =
+                CombatFoundationExecutionProfileNames.DirectInference,
             HardEncounterWeights = new Dictionary<string, double>(
                 StringComparer.OrdinalIgnoreCase)
             {

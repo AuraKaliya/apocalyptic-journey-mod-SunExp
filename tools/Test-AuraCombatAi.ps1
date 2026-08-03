@@ -1087,8 +1087,8 @@ foreach ($anchor in @(
 
 foreach ($anchor in @(
     "aura.combat-ai.episode.v5",
-    "public const int FeatureSchemaVersion = 25",
-    "content-set-quantile-q-registered-content-replay-v14",
+    "public const int FeatureSchemaVersion = 26",
+    "content-set-quantile-q-registered-content-replay-base-role-skill-timing-auto-tune-arena-v18",
     "frame-strata-v5-end-turn-counterfactual",
     "CombatCampaignEpisodeMetadata",
     "TerminalSnapshotKnown",

@@ -67,6 +67,8 @@ internal sealed class MainWindow : Window
     private ProgressBar progressBar = null!;
     private TextBox logBox = null!;
     private ComboBox gradientShardInput = null!;
+    private ComboBox parallelismProfileInput = null!;
+    private ComboBox inferenceModeInput = null!;
     private Button startButton = null!;
     private Button cancelButton = null!;
     private Button continueButton = null!;
@@ -269,6 +271,32 @@ internal sealed class MainWindow : Window
         AddNumber(panel, "ModelEarlyStoppingPatience", "早停耐心", 1, 30);
         AddDouble(panel, "ModelEarlyStoppingMinimumDelta", "早停最小增益");
         AddNumber(panel, "ModelBatchSize", "Minibatch", 8, 512);
+        AddExecutionProfileSelect(panel);
+        AddInferenceModeSelect(panel);
+        AddNumber(panel, "InferenceParallelism", "推理并行上下文", 0, 64);
+        AddNumber(
+            panel,
+            "ThreadPoolMinimumWorkerThreads",
+            "线程池最低工作线程",
+            0,
+            256);
+        AddNumber(
+            panel,
+            "CheckpointSerializationParallelism",
+            "Checkpoint 序列化线程",
+            0,
+            2);
+        AddToggle(panel, "ReuseAutoTuneCache", "复用 Auto-Tune 测量缓存");
+        AddNumber(
+            panel,
+            "AutoTuneSampleCampaigns",
+            "Auto-Tune 样本战役",
+            4,
+            64);
+        AddDouble(
+            panel,
+            "AutoTuneThroughputTolerance",
+            "Auto-Tune 吞吐容差");
         AddGradientShardSelect(panel);
         AddNumber(panel, "MinimumEpisodes", "最少训练 Episodes", 2, 1000);
         AddNumber(panel, "ModelReplayEpisodeLimit", "Replay 上限", 64, 20000);
@@ -992,7 +1020,25 @@ internal sealed class MainWindow : Window
             $"冒险 {telemetry.CompletedCampaigns}/{telemetry.RequestedCampaigns} · "
             + $"战斗 {telemetry.CompletedBattles} · 深度 "
             + $"{telemetry.MaximumActiveBattleDepth}/{telemetry.MaximumCompletedBattleDepth}/37";
+        var executionSummary =
+            $"{telemetry.ParallelismProfile}/{telemetry.InferenceExecutionMode}";
+        if (string.Equals(
+                telemetry.ParallelismProfile,
+                CombatFoundationExecutionProfileNames.Auto,
+                StringComparison.Ordinal)
+            && telemetry.AutoTune?.SelectedParallelism > 0)
+        {
+            executionSummary += " -> "
+                                + telemetry.AutoTune.SelectedParallelism
+                                + (telemetry.AutoTune.CacheHit
+                                    ? " (cached)"
+                                    : " (measured)");
+        }
         progressSecondary.Text =
+            executionSummary + " · "
+            + $"CPU {telemetry.CpuUtilizationPercent:0.0}% · "
+            + $"分配 {telemetry.AllocationMegabytesPerSecond:0} MB/s · "
+            +
             $"Epoch {telemetry.ModelEpoch}/{telemetry.ModelTotalEpochs} · "
             + $"训练损失 {FormatLoss(telemetry.ModelTrainingLoss)} · "
             + $"验证损失 {FormatLoss(telemetry.ModelValidationLoss)} · "
@@ -1397,6 +1443,24 @@ internal sealed class MainWindow : Window
         p.CapabilityProbeMinimumDepthGain =
             Double("CapabilityProbeMinimumDepthGain");
         p.MaximumDegreeOfParallelism = Int("MaximumDegreeOfParallelism");
+        p.ParallelismProfile = Convert.ToString(
+                                   parallelismProfileInput.SelectedItem,
+                                   CultureInfo.InvariantCulture)
+                               ?? CombatFoundationExecutionProfileNames.Auto;
+        p.InferenceExecutionMode = Convert.ToString(
+                                       inferenceModeInput.SelectedItem,
+                                       CultureInfo.InvariantCulture)
+                                   ?? CombatFoundationExecutionProfileNames
+                                       .DirectInference;
+        p.InferenceParallelism = Int("InferenceParallelism");
+        p.ThreadPoolMinimumWorkerThreads =
+            Int("ThreadPoolMinimumWorkerThreads");
+        p.CheckpointSerializationParallelism =
+            Int("CheckpointSerializationParallelism");
+        p.ReuseAutoTuneCache = Toggle("ReuseAutoTuneCache");
+        p.AutoTuneSampleCampaigns = Int("AutoTuneSampleCampaigns");
+        p.AutoTuneThroughputTolerance =
+            Double("AutoTuneThroughputTolerance");
         p.ModelEpochs = Int("ModelEpochs");
         p.ModelMinimumEpochs = Int("ModelMinimumEpochs");
         p.ModelEarlyStoppingPatience = Int("ModelEarlyStoppingPatience");
@@ -1511,6 +1575,24 @@ internal sealed class MainWindow : Window
             "CapabilityProbeMinimumDepthGain",
             p.CapabilityProbeMinimumDepthGain);
         Set("MaximumDegreeOfParallelism", p.MaximumDegreeOfParallelism);
+        parallelismProfileInput.SelectedItem =
+            CombatFoundationExecutionProfiles.NormalizeProfile(
+                p.ParallelismProfile);
+        inferenceModeInput.SelectedItem =
+            CombatFoundationExecutionProfiles.NormalizeInferenceMode(
+                p.InferenceExecutionMode);
+        Set("InferenceParallelism", p.InferenceParallelism);
+        Set(
+            "ThreadPoolMinimumWorkerThreads",
+            p.ThreadPoolMinimumWorkerThreads);
+        Set(
+            "CheckpointSerializationParallelism",
+            p.CheckpointSerializationParallelism);
+        SetToggle("ReuseAutoTuneCache", p.ReuseAutoTuneCache);
+        Set("AutoTuneSampleCampaigns", p.AutoTuneSampleCampaigns);
+        Set(
+            "AutoTuneThroughputTolerance",
+            p.AutoTuneThroughputTolerance);
         Set("ModelEpochs", p.ModelEpochs);
         Set("ModelMinimumEpochs", p.ModelMinimumEpochs);
         Set("ModelEarlyStoppingPatience", p.ModelEarlyStoppingPatience);
@@ -2730,6 +2812,67 @@ internal sealed class MainWindow : Window
         gradientShardInput.SelectedItem = GradientShardPresets.Contains(value)
             ? value
             : 12;
+    }
+
+    private void AddExecutionProfileSelect(Panel panel)
+    {
+        var row = NewRow();
+        row.Children.Add(Label("CPU 执行档位", 240));
+        parallelismProfileInput = new ComboBox
+        {
+            Width = 180,
+            Height = 30,
+            Margin = new Thickness(0, 0, 8, 0),
+            ItemsSource = new[]
+            {
+                CombatFoundationExecutionProfileNames.Auto,
+                CombatFoundationExecutionProfileNames.Cpu16,
+                CombatFoundationExecutionProfileNames.Cpu32,
+                CombatFoundationExecutionProfileNames.Custom
+            },
+            SelectedItem = CombatFoundationExecutionProfileNames.Auto,
+            ToolTip = "auto 根据逻辑处理器数选择 CPU-16 或 CPU-32"
+        };
+        parallelismProfileInput.SelectionChanged += (_, _) =>
+        {
+            ResetAutomaticExecutionOverride("InferenceParallelism");
+            ResetAutomaticExecutionOverride(
+                "ThreadPoolMinimumWorkerThreads");
+            ResetAutomaticExecutionOverride(
+                "CheckpointSerializationParallelism");
+        };
+        row.Children.Add(parallelismProfileInput);
+        panel.Children.Add(row);
+    }
+
+    private void ResetAutomaticExecutionOverride(string key)
+    {
+        if (inputs.TryGetValue(key, out var input))
+        {
+            input.Text = "0";
+        }
+    }
+
+    private void AddInferenceModeSelect(Panel panel)
+    {
+        var row = NewRow();
+        row.Children.Add(Label("推理执行模式", 240));
+        inferenceModeInput = new ComboBox
+        {
+            Width = 180,
+            Height = 30,
+            Margin = new Thickness(0, 0, 8, 0),
+            ItemsSource = new[]
+            {
+                CombatFoundationExecutionProfileNames.DirectInference,
+                CombatFoundationExecutionProfileNames.ShardedBatchInference
+            },
+            SelectedItem =
+                CombatFoundationExecutionProfileNames.DirectInference,
+            ToolTip = "direct 最大化 CPU；sharded-batch 为兼容回退"
+        };
+        row.Children.Add(inferenceModeInput);
+        panel.Children.Add(row);
     }
 
     private void AddUlong(Panel panel, string key, string label)

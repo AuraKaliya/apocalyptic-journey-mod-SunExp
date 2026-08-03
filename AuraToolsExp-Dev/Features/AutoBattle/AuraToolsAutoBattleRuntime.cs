@@ -842,9 +842,11 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
                     actionHoldSeconds: 0.45f);
             }
         }
+        AuraToolsWitchSkillInteraction.Prepare(state, decision.Action);
         var execution = runtime.Execute(decision.Action);
         if (!execution.Accepted)
         {
+            CombatInteractionBroker.ClearNextHint();
             AuraToolsAutoBattleGameValidationRuntime.RecordExecutionFailure(
                 execution.Message);
             transaction.Fail(execution.Message);

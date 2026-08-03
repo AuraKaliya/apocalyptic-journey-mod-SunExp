@@ -108,8 +108,17 @@ public sealed class CombatSimulationState
     internal CombatSimulationState CloneForTransition(
         bool cloneCardPiles,
         bool cloneFeatures,
-        bool cloneThreats = false)
+        bool cloneThreats = false,
+        CombatSimulationStateArena? arena = null)
     {
+        if (arena != null)
+        {
+            return arena.Clone(
+                this,
+                cloneCardPiles,
+                cloneFeatures,
+                cloneThreats);
+        }
         var enemies = new CombatSimulationUnit[Enemies.Length];
         for (var i = 0; i < enemies.Length; i++)
         {
@@ -675,6 +684,32 @@ public static class CombatForwardModel
             determinizationSeed);
     }
 
+    internal static void ResetRootDeterminization(
+        CombatSimulationState reusableRoot,
+        CombatBeliefState belief,
+        int determinizationSeed,
+        List<string> unknownWorkspace)
+    {
+        if (reusableRoot == null)
+        {
+            throw new ArgumentNullException(nameof(reusableRoot));
+        }
+        CombatRootDeterminizer.SampleDrawPileInto(
+            belief,
+            determinizationSeed,
+            reusableRoot.DrawPileCardIds,
+            unknownWorkspace);
+        reusableRoot.DrawPileValues.Clear();
+        for (var i = 0; i < reusableRoot.DrawPileCardIds.Count; i++)
+        {
+            reusableRoot.DrawPileValues.Add(
+                KnowledgeValue(reusableRoot.DrawPileCardIds[i]));
+        }
+        reusableRoot.DrawPileKnown = belief.DrawPileCount > 0;
+        reusableRoot.DeterminizationSeed = determinizationSeed;
+        reusableRoot.ShuffleEpoch = 0;
+    }
+
     private static CombatSimulationState CreateCore(
         CombatStateObservation state,
         int actionCount,
@@ -965,7 +1000,8 @@ public static class CombatForwardModel
         CombatActionObservation action,
         int actionIndex,
         CombatActionOutcome outcome,
-        CombatDecisionProfile profile)
+        CombatDecisionProfile profile,
+        CombatSimulationStateArena? arena = null)
     {
         var stateChanges = DynamicRebirthStateChanges(source, action);
         var handTransform = action.Semantics?.HandTransform;
@@ -981,7 +1017,8 @@ public static class CombatForwardModel
         var state = source.CloneForTransition(
             mutatesCardPiles,
             stateChanges != null && stateChanges.Count > 0
-            || handTransform != null);
+            || handTransform != null,
+            arena: arena);
         var rawCost = RawDynamicCost(state, action);
         var effectiveCost = Math.Max(0, rawCost - state.CostReduction);
         var reductionSpent = Math.Min(rawCost, state.CostReduction);
@@ -1192,11 +1229,13 @@ public static class CombatForwardModel
 
     public static CombatSimulationState ApplyEndTurn(
         CombatSimulationState source,
-        CombatDecisionProfile profile)
+        CombatDecisionProfile profile,
+        CombatSimulationStateArena? arena = null)
     {
         var state = source.CloneForTransition(
             cloneCardPiles: true,
-            cloneFeatures: true);
+            cloneFeatures: true,
+            arena: arena);
         var livingEnemyHpBeforeEnemyPhase = state.Enemies.Sum(enemy =>
             Math.Max(0, enemy.Hp));
         var enemyHpAtTurnStart = state.EnemyHpAtTurnStart > 0

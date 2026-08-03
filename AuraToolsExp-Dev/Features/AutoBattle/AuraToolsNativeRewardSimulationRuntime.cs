@@ -2712,8 +2712,7 @@ public sealed partial class NativeRewardScriptGlobals
         Action<List<NativeRewardDataConfig>>? action,
         object? _ = null)
     {
-        action?.Invoke(cards
-            .Take(Math.Max(0, Number(count)))
+        action?.Invoke(SelectSkillDataConfigs(cards, Math.Max(0, Number(count)))
             .Select(item => item.Clone())
             .ToList());
     }
@@ -2723,9 +2722,9 @@ public sealed partial class NativeRewardScriptGlobals
         List<NativeRewardDataConfig> cards,
         Action<List<NativeRewardDataConfig>>? action)
     {
-        action?.Invoke(cards
-            .Take(Math.Max(0, Number(count)))
-            .ToList());
+        action?.Invoke(SelectSkillDataConfigs(
+            cards,
+            Math.Max(0, Number(count))));
     }
 
     public void PackToDeckAction(
@@ -2873,10 +2872,85 @@ public sealed partial class NativeRewardScriptGlobals
         Action<List<NativeRewardCardItem>> action,
         object _)
     {
-        action(HandCard
-            .OrderBy(item => item.dataConfig.InstanceID, StringComparer.Ordinal)
-            .Take(Math.Max(0, Number(count)))
-            .ToList());
+        var selected = SelectSkillDataConfigs(
+                HandCard.Select(item => item.dataConfig).ToList(),
+                Math.Max(0, Number(count)))
+            .Select(item => HandCard.First(card =>
+                string.Equals(
+                    card.dataConfig.InstanceID,
+                    item.InstanceID,
+                    StringComparison.OrdinalIgnoreCase)))
+            .ToList();
+        action(selected);
+    }
+
+    private List<NativeRewardDataConfig> SelectSkillDataConfigs(
+        IEnumerable<NativeRewardDataConfig> source,
+        int count)
+    {
+        var cards = (source ?? Enumerable.Empty<NativeRewardDataConfig>())
+            .Where(item => item != null)
+            .ToList();
+        var skillId = dataConfig.data.GetValueOrDefault(
+            "Id",
+            dataConfig.InstanceID);
+        if (count <= 0 || cards.Count == 0)
+        {
+            return new List<NativeRewardDataConfig>();
+        }
+        if (!string.Equals(skillId, "careercard_1", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(skillId, "careercard_9", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(skillId, "careercard_12", StringComparison.OrdinalIgnoreCase)
+            && !string.Equals(skillId, "careercard_13", StringComparison.OrdinalIgnoreCase))
+        {
+            return cards.Take(count).ToList();
+        }
+
+        return cards
+            .OrderByDescending(card => NativeSkillChoiceScore(skillId, card))
+            .ThenBy(card => card.data.GetValueOrDefault("Id", card.InstanceID), StringComparer.Ordinal)
+            .Take(count)
+            .ToList();
+    }
+
+    private double NativeSkillChoiceScore(
+        string skillId,
+        NativeRewardDataConfig card)
+    {
+        var cardId = card.data.GetValueOrDefault("Id", card.InstanceID);
+        context.Ruleset.TryGetCard(cardId, out var definition);
+        var cost = Number(card.Vars.GetValueOrDefault(
+            "Expend",
+            card.data.GetValueOrDefault("Expend", definition?.Cost.ToString() ?? "0")));
+        var rarity = Math.Max(1, Number(card.data.GetValueOrDefault(
+            "Rarity",
+            definition?.Rarity.ToString() ?? "1")));
+        var extraCost = Number(card.Vars.GetValueOrDefault("TotalExCost", "0"));
+        var extraUses = Number(card.Vars.GetValueOrDefault("ExUseCount", "0"));
+        var baseValue = Math.Max(0d,
+            rarity * 1.5d
+            + Math.Max(0d, 3d - cost) * 0.5d
+            + (definition?.Effects.Sum(effect =>
+                Math.Max(0, effect.Amount)
+                * Math.Max(0d, Math.Min(1d, effect.Probability))) ?? 0d) * 0.2d);
+        if (string.Equals(skillId, "careercard_9", StringComparison.OrdinalIgnoreCase))
+        {
+            var blessingValue = (rarity >= 3 ? 4d : 2d) + Math.Max(0d, cost) * 0.75d;
+            return blessingValue - baseValue;
+        }
+        if (string.Equals(skillId, "careercard_13", StringComparison.OrdinalIgnoreCase))
+        {
+            var remainingBattles = context.Scenario.Player.Variables.TryGetValue(
+                CombatCampaignPublicContextKeys.RemainingBattles,
+                out var remaining)
+                ? Math.Max(0d, remaining)
+                : 0d;
+            return baseValue
+                   * (1d + Math.Min(10d, remainingBattles) * 0.18d)
+                   / (1d + Math.Max(0d, cost + extraCost) * 0.2d)
+                   / (1d + Math.Max(0d, extraUses) * 0.35d);
+        }
+        return baseValue;
     }
 
     public void OutFightSelectCardToAction(

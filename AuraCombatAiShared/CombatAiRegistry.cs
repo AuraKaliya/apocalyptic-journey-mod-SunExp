@@ -13,17 +13,21 @@ public sealed class CombatDecisionPreparationSnapshot
 {
     private readonly ICombatSemanticProvider[] semanticProviders;
     private readonly ICombatRoleStrategyProvider[] roleStrategyProviders;
+    private readonly ICombatSkillTimingProvider[] skillTimingProviders;
     private readonly ICombatPreflightRule[] preflightRules;
 
     internal CombatDecisionPreparationSnapshot(
         ICombatSemanticProvider[] semanticProviders,
         ICombatRoleStrategyProvider[] roleStrategyProviders,
+        ICombatSkillTimingProvider[] skillTimingProviders,
         ICombatPreflightRule[] preflightRules)
     {
         this.semanticProviders = semanticProviders ??
                                  Array.Empty<ICombatSemanticProvider>();
         this.roleStrategyProviders = roleStrategyProviders ??
                                      Array.Empty<ICombatRoleStrategyProvider>();
+        this.skillTimingProviders = skillTimingProviders ??
+                                    Array.Empty<ICombatSkillTimingProvider>();
         this.preflightRules = preflightRules ??
                               Array.Empty<ICombatPreflightRule>();
     }
@@ -31,16 +35,20 @@ public sealed class CombatDecisionPreparationSnapshot
     public static CombatDecisionPreparationSnapshot Empty { get; } = new(
         Array.Empty<ICombatSemanticProvider>(),
         Array.Empty<ICombatRoleStrategyProvider>(),
+        Array.Empty<ICombatSkillTimingProvider>(),
         Array.Empty<ICombatPreflightRule>());
 
     public int SemanticProviderCount => semanticProviders.Length;
 
     public int RoleStrategyProviderCount => roleStrategyProviders.Length;
 
+    public int SkillTimingProviderCount => skillTimingProviders.Length;
+
     public int PreflightRuleCount => preflightRules.Length;
 
     public bool IsEmpty => SemanticProviderCount == 0
                            && RoleStrategyProviderCount == 0
+                           && SkillTimingProviderCount == 0
                            && PreflightRuleCount == 0;
 
     public bool EvaluatePreflight(
@@ -92,6 +100,20 @@ public sealed class CombatDecisionPreparationSnapshot
         }
         return enriched;
     }
+
+    public bool EnrichSkillTimings(CombatStateObservation state)
+    {
+        if (state == null)
+        {
+            return false;
+        }
+        var enriched = false;
+        for (var i = 0; i < skillTimingProviders.Length; i++)
+        {
+            enriched |= skillTimingProviders[i].TryEnrich(state);
+        }
+        return enriched;
+    }
 }
 
 public static class CombatAiRegistry
@@ -101,6 +123,8 @@ public static class CombatAiRegistry
         new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, RoleStrategyRegistration>
         RoleStrategyProviders = new(StringComparer.OrdinalIgnoreCase);
+    private static readonly Dictionary<string, SkillTimingRegistration>
+        SkillTimingProviders = new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, PreflightRegistration> PreflightRules =
         new(StringComparer.OrdinalIgnoreCase);
     private static readonly Dictionary<string, RuntimePreflightRegistration> RuntimePreflightRules =
@@ -163,6 +187,33 @@ public static class CombatAiRegistry
             lock (Gate)
             {
                 RoleStrategyProviders.Remove(key);
+            }
+        });
+    }
+
+    public static IDisposable RegisterSkillTimingProvider(
+        string ownerModId,
+        string providerId,
+        ICombatSkillTimingProvider provider,
+        int priority = 0)
+    {
+        if (provider == null)
+        {
+            return EmptyDisposable.Instance;
+        }
+
+        var key = Key(ownerModId, providerId);
+        lock (Gate)
+        {
+            SkillTimingProviders[key] =
+                new SkillTimingRegistration(provider, priority);
+        }
+
+        return new Registration(() =>
+        {
+            lock (Gate)
+            {
+                SkillTimingProviders.Remove(key);
             }
         });
     }
@@ -358,6 +409,10 @@ public static class CombatAiRegistry
                     .OrderByDescending(item => item.Priority)
                     .Select(item => item.Provider)
                     .ToArray(),
+                SkillTimingProviders.Values
+                    .OrderByDescending(item => item.Priority)
+                    .Select(item => item.Provider)
+                    .ToArray(),
                 PreflightRules.Values
                     .OrderByDescending(item => item.Priority)
                     .Select(item => item.Rule)
@@ -434,6 +489,27 @@ public static class CombatAiRegistry
         lock (Gate)
         {
             snapshot = RoleStrategyProviders.Values
+                .OrderByDescending(item => item.Priority)
+                .ToArray();
+        }
+        var enriched = false;
+        for (var i = 0; i < snapshot.Length; i++)
+        {
+            enriched |= snapshot[i].Provider.TryEnrich(state);
+        }
+        return enriched;
+    }
+
+    public static bool EnrichSkillTimings(CombatStateObservation state)
+    {
+        if (state == null)
+        {
+            return false;
+        }
+        SkillTimingRegistration[] snapshot;
+        lock (Gate)
+        {
+            snapshot = SkillTimingProviders.Values
                 .OrderByDescending(item => item.Priority)
                 .ToArray();
         }
@@ -566,6 +642,21 @@ public static class CombatAiRegistry
         }
 
         public ICombatRoleStrategyProvider Provider { get; }
+
+        public int Priority { get; }
+    }
+
+    private sealed class SkillTimingRegistration
+    {
+        public SkillTimingRegistration(
+            ICombatSkillTimingProvider provider,
+            int priority)
+        {
+            Provider = provider;
+            Priority = priority;
+        }
+
+        public ICombatSkillTimingProvider Provider { get; }
 
         public int Priority { get; }
     }

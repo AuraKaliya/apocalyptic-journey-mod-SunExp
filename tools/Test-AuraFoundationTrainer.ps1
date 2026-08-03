@@ -11,6 +11,16 @@ param(
     [int]$SearchStabilityWindow = 16,
     [int]$SearchStableChecks = 1,
     [int]$MaximumDegreeOfParallelism = 4,
+    [ValidateSet("auto", "cpu-16", "cpu-32", "custom")]
+    [string]$ParallelismProfile = "custom",
+    [ValidateSet("direct", "sharded-batch")]
+    [string]$InferenceExecutionMode = "sharded-batch",
+    [int]$InferenceParallelism = 0,
+    [bool]$ReuseAutoTuneCache = $true,
+    [int]$AutoTuneSampleCampaigns = 32,
+    [double]$AutoTuneThroughputTolerance = 0.02,
+    [switch]$ExpectAutoTuneCacheHit,
+    [string]$SuccessArchiveDirectory = "",
     [int]$TrainingCampaignsPerIteration = 2,
     [int]$NormalValidationCampaigns = 5,
     [int]$AdvancedValidationCampaigns = 5,
@@ -89,7 +99,13 @@ try {
     $cancelPath = Join-Path $smokeRoot "cancel"
     $checkpointPath = Join-Path $smokeRoot "checkpoint.json"
     $checkpointEpisodesPath = Join-Path $smokeRoot "checkpoint-episodes.jsonl"
-    $archiveRoot = Join-Path $smokeRoot "foundation-success-cases"
+    $archiveRoot = if ([string]::IsNullOrWhiteSpace(
+            $SuccessArchiveDirectory)) {
+        Join-Path $smokeRoot "foundation-success-cases"
+    }
+    else {
+        [System.IO.Path]::GetFullPath($SuccessArchiveDirectory)
+    }
     $profile = [ordered]@{
         Id = "balanced"
         SearchSimulationBudget = $SearchSimulationBudget
@@ -114,6 +130,12 @@ try {
         PreflightSeedStart = $PreflightSeedStart
         PreflightOnly = [bool]$PreflightOnly
         MaximumDegreeOfParallelism = $MaximumDegreeOfParallelism
+        ParallelismProfile = $ParallelismProfile
+        InferenceExecutionMode = $InferenceExecutionMode
+        InferenceParallelism = $InferenceParallelism
+        ReuseAutoTuneCache = $ReuseAutoTuneCache
+        AutoTuneSampleCampaigns = $AutoTuneSampleCampaigns
+        AutoTuneThroughputTolerance = $AutoTuneThroughputTolerance
         EnableEarlyValidationStop = $true
         TrainingSeedStart = 4100000
         ArenaSeedStart = 4200000
@@ -310,27 +332,61 @@ try {
                 + "validation=$($result.Training.ModelValidationLoss).")
         }
     }
-    if (-not $PreflightOnly -and -not $semanticRejected) {
-        $expectedParallelism = [Math]::Max(
-            1,
-            [Math]::Min(
-                [Environment]::ProcessorCount,
-                $MaximumDegreeOfParallelism))
+    if (-not $semanticRejected) {
+        $expectedParallelism = switch ($ParallelismProfile) {
+            "cpu-16" { [Math]::Min(16, [Environment]::ProcessorCount) }
+            "cpu-32" { [Math]::Min(32, [Environment]::ProcessorCount) }
+            "auto" {
+                if ($null -eq $result.Training.AutoTune `
+                    -or [int]$result.Training.AutoTune.SelectedParallelism -le 0) {
+                    throw "Auto profile did not report measured parallelism."
+                }
+                [int]$result.Training.AutoTune.SelectedParallelism
+            }
+            default {
+                [Math]::Max(
+                    1,
+                    [Math]::Min(
+                        [Environment]::ProcessorCount,
+                        $MaximumDegreeOfParallelism))
+            }
+        }
         $expectedValidationPeak = [Math]::Min(
             $expectedParallelism,
-            [Math]::Max(
-                $effectiveNormalValidationCampaigns,
-                $effectiveAdvancedValidationCampaigns))
+            $(if ($PreflightOnly) {
+                $effectivePreflightCampaignsPerDifficulty * 2 + 3
+            }
+            else {
+                [Math]::Max(
+                    $effectiveNormalValidationCampaigns,
+                    $effectiveAdvancedValidationCampaigns)
+            }))
         if ([int]$result.Training.EffectiveParallelism `
                 -ne $expectedParallelism `
             -or [int]$result.Training.PeakConcurrentCampaigns `
-                -lt $expectedValidationPeak) {
+                -lt $expectedValidationPeak `
+            -or [string]$result.Training.InferenceExecutionMode `
+                -ne $InferenceExecutionMode) {
             throw (
                 "Foundation worker did not sustain configured parallelism: " `
                 + "effective=$($result.Training.EffectiveParallelism)/" `
                 + "$expectedParallelism, peak=" `
                 + "$($result.Training.PeakConcurrentCampaigns)/" `
                 + "$expectedValidationPeak.")
+        }
+        if ($ParallelismProfile -eq "auto") {
+            $measurements = @($result.Training.AutoTune.Measurements)
+            if ([string]$result.Training.AutoTune.Version `
+                    -ne "foundation-auto-tune-v1" `
+                -or $measurements.Count -lt 1 `
+                -or [string]::IsNullOrWhiteSpace(
+                    [string]$result.Training.AutoTune.CacheKey)) {
+                throw "Auto profile did not retain calibration evidence."
+            }
+            if ($ExpectAutoTuneCacheHit `
+                -and -not [bool]$result.Training.AutoTune.CacheHit) {
+                throw "Auto profile did not reuse the expected cache."
+            }
         }
     }
     $checkpoint = $null
@@ -460,7 +516,7 @@ try {
             -or [string]$checkpoint.Resume.Compatibility.ActionContractVersion `
                 -ne "action-contract-v2" `
             -or [string]$checkpoint.Resume.Compatibility.TrainingSemanticsVersion `
-                -ne "content-set-quantile-q-registered-content-replay-v14" `
+                -ne "content-set-quantile-q-registered-content-replay-base-role-skill-timing-auto-tune-arena-v18" `
             -or [string]$checkpoint.Resume.Compatibility.SearchPolicyVersion `
                 -ne "dynamic-search-v12-quantile-fpu" `
             -or [string]$checkpoint.Resume.Compatibility.TrainingPolicyVersion `
@@ -547,13 +603,27 @@ try {
         }
     }
 
-    Write-Host ("Aura foundation trainer smoke passed: campaigns={0}/{1}, battles={2}, semanticSelected={3}/{4}, runtime={5}" -f `
+    $autoTuneSummary = if ($ParallelismProfile -eq "auto") {
+        ", auto={0}/{1}, cacheHit={2}" -f `
+            $result.Training.AutoTune.SelectedParallelism, `
+            @($result.Training.AutoTune.Measurements).Count, `
+            [bool]$result.Training.AutoTune.CacheHit
+    }
+    else { "" }
+    Write-Host ("Aura foundation trainer smoke passed: campaigns={0}/{1}, battles={2}, semanticSelected={3}/{4}, runtime={5}, execution={6}/{7}, parallel={8}, peak={9}, cpu={10:N1}%, alloc={11:N0}MB/s{12}" -f `
         $result.Training.CompletedCampaigns, `
         $result.Training.RequestedCampaigns, `
         $result.Training.CompletedBattles, `
         $result.Training.SemanticAudit.SelectedInvalidActions, `
         $result.Training.SemanticAudit.SelectedUnexplainedMismatchActions, `
-        $result.Runtime)
+        $result.Runtime, `
+        $result.Training.ParallelismProfile, `
+        $result.Training.InferenceExecutionMode, `
+        $result.Training.EffectiveParallelism, `
+        $result.Training.PeakConcurrentCampaigns, `
+        $result.Training.CpuUtilizationPercent, `
+        $result.Training.AllocationMegabytesPerSecond, `
+        $autoTuneSummary)
 }
 catch {
     $smokeFailed = $true

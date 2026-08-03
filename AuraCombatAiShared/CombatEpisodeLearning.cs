@@ -9,10 +9,10 @@ public static class CombatPolicyValueProtocol
 {
     public const string EpisodeProtocol = "aura.combat-ai.episode.v5";
 
-    public const int FeatureSchemaVersion = 25;
+    public const int FeatureSchemaVersion = 26;
 
     public const string TrainingSemanticsVersion =
-        "content-set-quantile-q-registered-content-replay-v14";
+        "content-set-quantile-q-registered-content-replay-base-role-skill-timing-auto-tune-arena-v18";
 }
 
 public static class CombatPolicyValueFrameStratificationProtocol

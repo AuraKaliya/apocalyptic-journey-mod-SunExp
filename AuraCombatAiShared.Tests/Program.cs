@@ -7131,6 +7131,49 @@ Assert(concurrentErrors.All(error => error == null)
        && concurrentBatchModel.BatchedInputCount == 4
        && concurrentBatchModel.BatchEvaluationCount == 1,
     "parallel campaign inference coalesces synchronous calls into one true model batch");
+var shardedBatchModel = new ShardedBatchedCombatPolicyValueModel(
+    policyValueModel,
+    laneCount: 2,
+    maximumBatchSizePerLane: 2,
+    coalescingWindow: TimeSpan.FromMilliseconds(20));
+var shardedPredictions = new CombatPolicyValuePrediction?[8];
+var shardedErrors = new Exception?[8];
+using (var shardedBarrier = new Barrier(8))
+{
+    var shardedThreads = Enumerable.Range(0, 8)
+        .Select(index => new Thread(() =>
+        {
+            try
+            {
+                shardedBarrier.SignalAndWait();
+                shardedPredictions[index] =
+                    shardedBatchModel.Evaluate(policyValueInput);
+            }
+            catch (Exception exception)
+            {
+                shardedErrors[index] = exception;
+            }
+        }))
+        .ToArray();
+    foreach (var thread in shardedThreads)
+    {
+        thread.Start();
+    }
+    foreach (var thread in shardedThreads)
+    {
+        thread.Join();
+    }
+}
+Assert(shardedBatchModel.LaneCount == 2
+       && shardedErrors.All(error => error == null)
+       && shardedPredictions.All(prediction =>
+           prediction != null
+           && Math.Abs(
+               prediction.ExpectedReturn
+               - policyValuePrediction.ExpectedReturn) < 0.000000001d)
+       && shardedBatchModel.BatchedInputCount == 8
+       && shardedBatchModel.BatchEvaluationCount is >= 2 and <= 8,
+    "high campaign parallelism uses independent inference lanes without changing predictions");
 var evolution = new CombatPolicyEvolutionRunner().Run(
     new CombatPolicyEvolutionRequest
     {
@@ -7466,6 +7509,29 @@ Assert(
        == 1d,
     "isolated simulation policies retain a frozen semantic and role-strategy snapshot after registry lifetimes end");
 
+var countingSemanticProvider = new CountingSemanticProvider("cycle-a");
+using (CombatAiRegistry.RegisterSemanticProvider(
+           "Tests",
+           "single-pass-decision-semantics",
+           countingSemanticProvider,
+           20000))
+{
+    var countingState = CombatPlayerObservationBoundary.Normalize(
+        frozenPreparationPolicy.LastObservation!);
+    new CombatDecisionEngine().Choose(
+        countingState,
+        new CombatDecisionProfile
+        {
+            SearchBudgetMode = "fixed",
+            SearchSimulationBudget = 1,
+            SearchNodeBudget = 8,
+            SearchMaxPly = 1,
+            SearchMinimumSimulations = 1
+        });
+}
+Assert(countingSemanticProvider.CallCount == 1,
+    "decision preparation applies authoritative semantics once per legal candidate");
+
 var roleSkillRulesBuilder = new CombatRulesetBuilder("role-skill-rules");
 roleSkillRulesBuilder.RegisterCard(new CombatCardDefinition
 {
@@ -7535,8 +7601,72 @@ Assert(appliedRoleSkill.Success
        && appliedRoleSkill.State.DiscardPile.Count == 0
        && appliedRoleSkill.State.Player?.Block == 3
        && appliedRoleSkill.State.Player?.Energy == 0
-       && appliedRoleSkill.State.SkillCooldowns[1] == 5,
+       && appliedRoleSkill.State.SkillCooldowns[1] == 5
+       && appliedRoleSkill.State.SkillActivationCounts.GetValueOrDefault(
+           "careercard_test") == 1,
     "role skills remain outside the deck, ignore printed card energy cost, and use role-specific cooldowns");
+
+var projectedRoleSkillState = PlayerEquivalentSimulationObservationProjector.Project(
+    new CombatSimulationPolicyContext
+    {
+        Scenario = roleSkillScenario,
+        Ruleset = roleSkillRules.Ruleset,
+        State = roleSkillState,
+        LegalActions = new List<CombatSimulationAction> { legalRoleSkill }
+    });
+var projectedRoleSkill = projectedRoleSkillState.Actions.Single();
+Assert(projectedRoleSkill.Features.GetValueOrDefault(
+           CombatSkillTimingFeatureNames.ResetsEachBattle) == 1d
+       && projectedRoleSkill.Features.GetValueOrDefault(
+           CombatSkillTimingFeatureNames.CooldownAfterUse) == 5d
+       && projectedRoleSkill.Features.GetValueOrDefault(
+           CombatSkillTimingFeatureNames.CurrentCooldown) == 0d
+       && projectedRoleSkill.Features.GetValueOrDefault(
+           CombatSkillTimingFeatureNames.ActivationsThisBattle) == 0d,
+    "simulation observations expose generic per-battle role-skill lifecycle features");
+
+var waitForSkill = new CombatActionObservation
+{
+    SourceId = "timing-skill",
+    Kind = CombatActionKind.UseSkill,
+    Features =
+    {
+        [CombatSkillTimingFeatureNames.Active] = 1d,
+        [CombatSkillTimingFeatureNames.OngoingEffectValue] = 2d,
+        [CombatSkillTimingFeatureNames.DelayGain] = 5d
+    }
+};
+var waitTiming = CombatSkillTimingPolicy.Enrich(waitForSkill);
+var waitUtility = CombatDecisionEngine.BuildUtility(
+    new CombatStateObservation
+    {
+        Player = new CombatUnitObservation { CurrentHp = 20, MaxHp = 20 }
+    },
+    waitForSkill,
+    new CombatDecisionProfile());
+Assert(waitTiming.Active
+       && waitTiming.BetterToWait
+       && waitTiming.TimingAdvantage == -3d
+       && waitForSkill.Features.GetValueOrDefault(
+           CombatSkillTimingFeatureNames.PositiveOpportunity) == 0d
+       && waitUtility.Risk >= 3d
+       && waitForSkill.Features.GetValueOrDefault(
+           CombatRoleStrategyFeatureNames.StrategicallyProhibited) == 0d,
+    "generic skill timing can prefer waiting without turning non-use into a hard prohibition");
+
+waitForSkill.Features[CombatSkillTimingFeatureNames.ExpiryRisk] = 6d;
+var useNowTiming = CombatSkillTimingPolicy.Enrich(waitForSkill);
+var useNowUtility = CombatDecisionEngine.BuildUtility(
+    new CombatStateObservation
+    {
+        Player = new CombatUnitObservation { CurrentHp = 20, MaxHp = 20 }
+    },
+    waitForSkill,
+    new CombatDecisionProfile());
+Assert(useNowTiming.PositiveOpportunity
+       && useNowTiming.TimingAdvantage == 3d
+       && useNowUtility.Coordination >= 3d,
+    "generic skill timing favors activation when ongoing value and expiry risk exceed the value of waiting");
 
 var contractRulesBuilder = new CombatRulesetBuilder("action-contract-rules");
 contractRulesBuilder.RegisterCard(new CombatCardDefinition
@@ -10261,30 +10391,73 @@ var checkpointStorageRoot = Path.Combine(
 Directory.CreateDirectory(checkpointStorageRoot);
 try
 {
+    var persistedCheckpointVersions = new List<int>();
+    using (var checkpointWriteStarted = new ManualResetEventSlim(false))
+    using (var releaseCheckpointWrite = new ManualResetEventSlim(false))
+    using (var checkpointPipeline =
+           new CombatFoundationLatestWritePipeline<string>(value =>
+           {
+               if (value == "v1")
+               {
+                   checkpointWriteStarted.Set();
+                   releaseCheckpointWrite.Wait();
+               }
+               lock (persistedCheckpointVersions)
+               {
+                   persistedCheckpointVersions.Add(int.Parse(value[1..]));
+               }
+           }))
+    {
+        checkpointPipeline.Enqueue("v1");
+        checkpointWriteStarted.Wait();
+        checkpointPipeline.Enqueue("v2");
+        checkpointPipeline.Enqueue("v3");
+        releaseCheckpointWrite.Set();
+        checkpointPipeline.Drain();
+        Assert(checkpointPipeline.EnqueuedCount == 3
+               && checkpointPipeline.ExecutedCount == 2
+               && checkpointPipeline.CoalescedCount == 1
+               && persistedCheckpointVersions.SequenceEqual(
+                   new[] { 1, 3 }),
+            "foundation checkpoint pipeline overlaps one durable write and coalesces queued states without losing the latest state");
+    }
     var checkpointPointerPath = Path.Combine(
         checkpointStorageRoot,
         CombatFoundationWorkerProtocol.CheckpointFileName);
     var checkpointEpisodesBasePath = Path.Combine(
         checkpointStorageRoot,
         CombatFoundationWorkerProtocol.CheckpointEpisodesFileName);
+    var snapshotValues = Enumerable.Range(1, 64).ToArray();
+    var snapshotSerializerThreads =
+        new System.Collections.Concurrent.ConcurrentDictionary<int, byte>();
     var firstSnapshot =
         CombatFoundationCheckpointStorage.WriteEpisodeSnapshot(
             checkpointEpisodesBasePath,
-            new[] { "{\"episode\":1}", "{\"episode\":2}" },
-            "replay-a");
+            snapshotValues,
+            value =>
+            {
+                snapshotSerializerThreads.TryAdd(
+                    Environment.CurrentManagedThreadId,
+                    0);
+                Thread.SpinWait(2000);
+                return "{\"episode\":" + value + "}";
+            },
+            "replay-a",
+            maximumDegreeOfParallelism: 4);
     var loadedSnapshot =
         CombatFoundationCheckpointStorage.ReadAndValidateJsonLines(
             firstSnapshot,
             line => line);
     Assert(firstSnapshot.StorageVersion
                == CombatFoundationCheckpointStorage.SnapshotStorageVersion
-           && firstSnapshot.EpisodeCount == 2
+           && firstSnapshot.EpisodeCount == snapshotValues.Length
            && firstSnapshot.Length > 0
            && firstSnapshot.ContentSha256.Length == 64
            && File.Exists(firstSnapshot.Path)
-           && loadedSnapshot.SequenceEqual(
-               new[] { "{\"episode\":1}", "{\"episode\":2}" }),
-        "foundation checkpoint storage writes immutable snapshots with count, length and content-hash validation");
+           && loadedSnapshot.SequenceEqual(snapshotValues.Select(value =>
+               "{\"episode\":" + value + "}"))
+           && snapshotSerializerThreads.Count > 1,
+        "foundation checkpoint storage serializes bounded chunks in parallel while publishing immutable ordered snapshots");
 
     CombatFoundationCheckpointStorage.WriteAtomicText(
         checkpointPointerPath,
@@ -10338,7 +10511,9 @@ try
     var secondSnapshot =
         CombatFoundationCheckpointStorage.WriteEpisodeSnapshot(
             checkpointEpisodesBasePath,
-            new[] { "{\"episode\":1}", "{\"episode\":3}" },
+            snapshotValues.Select(value => value == snapshotValues.Length
+                ? "{\"episode\":999}"
+                : "{\"episode\":" + value + "}"),
             "replay-b");
     Assert(firstSnapshot.EpisodeCount == secondSnapshot.EpisodeCount
            && !string.Equals(
@@ -10679,6 +10854,8 @@ Assert(foundationTraining.Success
        && foundationTraining.Validation.NormalWilsonLowerBound > 0.56d
        && foundationTraining.Validation.AdvancedWilsonLowerBound > 0.56d
        && foundationTraining.EffectiveParallelism == 4
+       && foundationTraining.InferenceLaneCount == 1
+       && foundationTraining.InferenceBatchSizePerLane == 4
        && foundationTraining.PeakConcurrentCampaigns >= 1
        && foundationTraining.ObservedWorkerThreads >= 1
        && foundationTraining.CompletedBattles > 0
@@ -10694,6 +10871,10 @@ Assert(foundationTraining.Success
        && foundationTraining.PhaseElapsedSeconds.ContainsKey("self-play")
        && foundationTraining.PhaseElapsedSeconds.ContainsKey("model-training")
        && foundationTraining.PhaseElapsedSeconds.ContainsKey("validation")
+       && foundationTraining.PhaseCpuSeconds.ContainsKey("self-play")
+       && foundationTraining.PhaseCpuSeconds.Values.Sum() > 0d
+       && foundationTraining.PhaseAllocatedBytes.ContainsKey("self-play")
+       && foundationTraining.PhaseAllocatedBytes.Values.Sum() > 0L
        && foundationTraining.ModelTrainingLoss > 0d
        && foundationTraining.ModelValidationLoss > 0d
        && foundationTraining.ModelEpochHistory.Count > 0
@@ -11046,6 +11227,58 @@ Assert(sharedParameters.Iterations == 1
           <= Math.Max(1, Environment.ProcessorCount)
        && sharedParameters.EstimatedCampaigns() > 0,
     "shared foundation job parameters normalize identically for game and control-center adapters");
+var cpu16Execution = CombatFoundationExecutionProfiles.Resolve(
+    CombatFoundationExecutionProfileNames.Cpu16,
+    1,
+    CombatFoundationExecutionProfileNames.DirectInference,
+    0,
+    0,
+    0,
+    availableProcessorCount: 32);
+var cpu32Execution = CombatFoundationExecutionProfiles.Resolve(
+    CombatFoundationExecutionProfileNames.Cpu32,
+    1,
+    CombatFoundationExecutionProfileNames.DirectInference,
+    0,
+    0,
+    0,
+    availableProcessorCount: 32);
+Assert(cpu16Execution.CampaignParallelism == 16
+       && cpu16Execution.InferenceParallelism == 16
+       && cpu16Execution.InferenceBatchSize == 1
+       && cpu16Execution.ThreadPoolMinimumWorkerThreads == 24
+       && cpu16Execution.CheckpointSerializationParallelism == 1
+       && cpu32Execution.CampaignParallelism == 32
+       && cpu32Execution.InferenceParallelism == 32
+       && cpu32Execution.InferenceBatchSize == 1
+       && cpu32Execution.ThreadPoolMinimumWorkerThreads == 40
+       && cpu32Execution.CheckpointSerializationParallelism == 2,
+    "CPU-16 and CPU-32 profiles expose direct per-campaign inference and bounded background work");
+var autoTuneSelection = CombatFoundationAutoTuneSelector.Select(
+    new[]
+    {
+        new CombatFoundationAutoTuneMeasurement
+        {
+            Parallelism = 16,
+            EfficiencyScore = 980d
+        },
+        new CombatFoundationAutoTuneMeasurement
+        {
+            Parallelism = 32,
+            EfficiencyScore = 1000d
+        }
+    },
+    0.02d);
+Assert(autoTuneSelection == 16
+       && CombatFoundationAutoTuneSelector.Score(
+           1000d,
+           gen2CollectionsPerSecond: 0d,
+           allocationMegabytesPerSecond: 1024d) >
+          CombatFoundationAutoTuneSelector.Score(
+              1000d,
+              gen2CollectionsPerSecond: 8d,
+              allocationMegabytesPerSecond: 8192d),
+    "auto-tune selects the lowest near-maximum throughput profile and penalizes GC/allocation pressure");
 var appendRequest = new CombatCampaignFoundationTrainingRequest
 {
     Iterations = 3,
@@ -11471,6 +11704,25 @@ Assert(CombatRootDeterminizer.SampleDrawPile(hiddenBeliefA, hiddenSampleSeed)
                    hiddenBeliefB,
                    hiddenSampleSeed)),
     "belief determinization depends on public knowledge rather than authoritative order");
+var reusableDrawPile = new List<string>();
+var reusableUnknownCards = new List<string>();
+CombatRootDeterminizer.SampleDrawPileInto(
+    hiddenBeliefA,
+    hiddenSampleSeed,
+    reusableDrawPile,
+    reusableUnknownCards);
+var reusableDrawPileCapacity = reusableDrawPile.Capacity;
+CombatRootDeterminizer.SampleDrawPileInto(
+    hiddenBeliefA,
+    hiddenSampleSeed,
+    reusableDrawPile,
+    reusableUnknownCards);
+Assert(reusableDrawPile.SequenceEqual(
+           CombatRootDeterminizer.SampleDrawPile(
+               hiddenBeliefA,
+               hiddenSampleSeed))
+       && reusableDrawPile.Capacity == reusableDrawPileCapacity,
+    "root determinization reuses draw-pile storage without changing seeded order");
 var invariantProfile = new CombatDecisionProfile
 {
     SearchBudgetMode = "fixed",
@@ -12361,6 +12613,39 @@ Assert(!CombatModelAdapterValidator.TryValidate(
         CombatContentSetProtocol.EmptyContentSetHash,
         out _),
     "adapter protocol rejects unknown adapter kinds");
+
+using (CombatAiRegistry.RegisterSkillTimingProvider(
+           "tests",
+           "fixed-skill-timing",
+           new FixedSkillTimingProvider(),
+           10))
+{
+    var timingSnapshot = CombatAiRegistry.SnapshotDecisionPreparation();
+    var timingState = new CombatStateObservation
+    {
+        Player = new CombatUnitObservation
+        {
+            RuntimeId = 1,
+            DefinitionId = "career_test",
+            CurrentHp = 20,
+            MaxHp = 20
+        },
+        Actions =
+        {
+            new CombatActionObservation
+            {
+                CandidateId = "registered-skill",
+                SourceId = "skill_test",
+                Kind = CombatActionKind.UseSkill
+            }
+        }
+    };
+    Assert(timingSnapshot.SkillTimingProviderCount == 1
+           && timingSnapshot.EnrichSkillTimings(timingState)
+           && timingState.Actions[0].Features.GetValueOrDefault(
+               CombatSkillTimingFeatureNames.PositiveOpportunity) == 1d,
+        "isolated preparation snapshot freezes registered skill timing providers");
+}
 
 Console.WriteLine($"AuraCombatAiShared.Tests passed: {assertions} assertions.");
 
@@ -13465,6 +13750,32 @@ sealed class FrozenPreparationSemanticProvider : ICombatSemanticProvider
     }
 }
 
+sealed class CountingSemanticProvider : ICombatSemanticProvider
+{
+    private readonly string sourceId;
+    private int callCount;
+
+    public CountingSemanticProvider(string sourceId)
+    {
+        this.sourceId = sourceId;
+    }
+
+    public int CallCount => Volatile.Read(ref callCount);
+
+    public bool TryDescribe(
+        CombatStateObservation state,
+        CombatActionObservation action,
+        out CombatActionSemantics semantics)
+    {
+        Interlocked.Increment(ref callCount);
+        semantics = new CombatActionSemantics { Buff = 19d };
+        return string.Equals(
+            action.SourceId,
+            sourceId,
+            StringComparison.OrdinalIgnoreCase);
+    }
+}
+
 sealed class FrozenPreparationRoleStrategyProvider :
     ICombatRoleStrategyProvider
 {
@@ -13612,5 +13923,23 @@ sealed class RecordingPolicyValueModel : ICombatPolicyValueModel
         IReadOnlyList<CombatPolicyValueInput> inputs)
     {
         return inputs.Select(Evaluate).ToList();
+    }
+}
+
+sealed class FixedSkillTimingProvider : ICombatSkillTimingProvider
+{
+    public bool TryEnrich(CombatStateObservation state)
+    {
+        var action = state.Actions.FirstOrDefault(item =>
+            item.Kind == CombatActionKind.UseSkill
+            && item.SourceId == "skill_test");
+        if (action == null)
+        {
+            return false;
+        }
+        action.Features[CombatSkillTimingFeatureNames.Active] = 1d;
+        action.Features[CombatSkillTimingFeatureNames.OngoingEffectValue] = 2d;
+        CombatSkillTimingPolicy.Enrich(action);
+        return true;
     }
 }

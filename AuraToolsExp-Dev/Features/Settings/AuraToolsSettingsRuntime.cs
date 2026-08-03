@@ -1264,6 +1264,38 @@ public static class AuraToolsSettingsRuntime
                 cancelFoundationButton,
                 openFoundationButton);
             var foundationSettings = autoBattle.FoundationTraining;
+            var foundationProfileRow = CreateInlineRow(
+                content,
+                "AutoBattleFoundationCpuProfileRow");
+            AuraToolsUi.AddButton(
+                foundationProfileRow.transform,
+                "自动",
+                () => ApplyFoundationCpuProfile(
+                    autoBattle,
+                    AutoBattleFoundationExecutionProfileNames.Auto),
+                68f);
+            AuraToolsUi.AddButton(
+                foundationProfileRow.transform,
+                "CPU-16",
+                () => ApplyFoundationCpuProfile(
+                    autoBattle,
+                    AutoBattleFoundationExecutionProfileNames.Cpu16),
+                76f);
+            AuraToolsUi.AddButton(
+                foundationProfileRow.transform,
+                "CPU-32",
+                () => ApplyFoundationCpuProfile(
+                    autoBattle,
+                    AutoBattleFoundationExecutionProfileNames.Cpu32),
+                76f);
+            AuraToolsUi.AddText(
+                foundationProfileRow.transform,
+                "当前：" + foundationSettings.ParallelismProfile,
+                AuraToolsUi.HintFontSize,
+                TextAnchor.MiddleLeft,
+                AuraToolsUi.MutedText,
+                AuraToolsUi.TextMinHeight,
+                1f);
             var foundationPerformanceRow = CreateInlineRow(
                 content,
                 "AutoBattleFoundationPerformanceRow");
@@ -1273,11 +1305,16 @@ public static class AuraToolsSettingsRuntime
                 foundationSettings.Parallelism,
                 1,
                 32,
-                value => foundationSettings.Parallelism = value,
+                value =>
+                {
+                    foundationSettings.ParallelismProfile =
+                        CombatFoundationExecutionProfileNames.Custom;
+                    foundationSettings.Parallelism = value;
+                },
                 autoBattle);
             AuraToolsUi.AddText(
                 foundationPerformanceRow.transform,
-                "建议 24–32 · 支持断点续训",
+                "自动会实测 16/32 · 固定档用于复现",
                 AuraToolsUi.HintFontSize,
                 TextAnchor.MiddleLeft,
                 AuraToolsUi.MutedText,
@@ -1838,6 +1875,19 @@ public static class AuraToolsSettingsRuntime
             AuraToolsUi.AddText(row.transform, "\u5df2\u6ce8\u518c\uff1a" + registeredCount, AuraToolsUi.BodyFontSize, TextAnchor.MiddleLeft, AuraToolsUi.Text, AuraToolsUi.TextMinHeight, 1f);
             AuraToolsUi.AddButton(row.transform, "\u7ba1\u7406", () => AuraToolsSkillCgManager.Show(activePanel!.transform), 88f);
         });
+    }
+
+    private static void ApplyFoundationCpuProfile(
+        AutoBattleSettings autoBattle,
+        string profile)
+    {
+        var foundation = autoBattle.FoundationTraining;
+        foundation.ParallelismProfile = profile;
+        foundation.InferenceParallelism = 0;
+        foundation.ThreadPoolMinimumWorkerThreads = 0;
+        foundation.CheckpointSerializationParallelism = 0;
+        autoBattle.Normalize();
+        AuraToolsConfigService.SaveMatchExperience();
     }
 
     private static void CreateGameParametersSection(Transform parent)

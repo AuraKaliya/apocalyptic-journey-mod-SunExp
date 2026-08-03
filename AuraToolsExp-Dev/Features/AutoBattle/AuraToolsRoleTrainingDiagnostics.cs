@@ -128,6 +128,21 @@ public static class AuraToolsRoleTrainingDiagnostics
         var selectedNightmareBuilders = 0;
         var selectedNightmareExpectedExtraStacks = 0d;
         var selectedNightmareExpectedThresholdGain = 0d;
+        var skillTimingEvaluatedCandidates = 0;
+        var skillTimingPositiveOpportunityFrames = 0;
+        var skillTimingEpisodesWithPositiveOpportunity = 0;
+        var skillTimingPositiveSkillEpisodes = 0;
+        var skillTimingExpiredPositiveSkills = 0;
+        var skillTimingSelectedActivations = 0;
+        var skillTimingSelectedPositiveActivations = 0;
+        var skillTimingSelectedBetterToWait = 0;
+        var skillTimingSelectedRedundant = 0;
+        var selectedSkillTimingAdvantages = new List<double>();
+        var skillTimingBySkill = AuraToolsWitchSkillTimingProvider.Cooldowns.Keys
+            .ToDictionary(
+                id => id,
+                _ => new SkillTimingMetric(),
+                StringComparer.OrdinalIgnoreCase);
         var devourDoomGains = new List<double>();
         var devourMaximumHpGains = new List<double>();
         var firstTransformDoom = new List<double>();
@@ -135,9 +150,45 @@ public static class AuraToolsRoleTrainingDiagnostics
         {
             CombatEpisodeFrame? lastDevour = null;
             var nanaEpisode = IsNanaEpisode(episode);
+            var positiveSkillIds = new HashSet<string>(
+                StringComparer.OrdinalIgnoreCase);
+            var activatedSkillIds = new HashSet<string>(
+                StringComparer.OrdinalIgnoreCase);
             foreach (var frame in episode.Frames
                          .OrderBy(item => item.ActionSequence))
             {
+                var timingCandidates = frame.Candidates.Where(candidate =>
+                        Value(
+                            candidate.Features,
+                            CombatSkillTimingFeatureNames.Active) > 0.5d)
+                    .ToList();
+                skillTimingEvaluatedCandidates += timingCandidates.Count;
+                foreach (var group in timingCandidates.GroupBy(
+                             SkillIdentity,
+                             StringComparer.OrdinalIgnoreCase))
+                {
+                    var metric = GetSkillMetric(skillTimingBySkill, group.Key);
+                    metric.EvaluatedFrames++;
+                    metric.EvaluatedCandidates += group.Count();
+                }
+                var positiveTimingCandidates = timingCandidates.Where(candidate =>
+                        Value(
+                            candidate.Features,
+                            CombatSkillTimingFeatureNames.PositiveOpportunity) > 0.5d)
+                    .ToList();
+                if (positiveTimingCandidates.Count > 0)
+                {
+                    skillTimingPositiveOpportunityFrames++;
+                    foreach (var group in positiveTimingCandidates.GroupBy(
+                                 SkillIdentity,
+                                 StringComparer.OrdinalIgnoreCase))
+                    {
+                        var skillId = group.Key;
+                        positiveSkillIds.Add(skillId);
+                        GetSkillMetric(skillTimingBySkill, skillId)
+                            .PositiveOpportunityFrames++;
+                    }
+                }
                 if (nanaEpisode)
                 {
                     roleObservedFrames++;
@@ -179,6 +230,41 @@ public static class AuraToolsRoleTrainingDiagnostics
                 if (selected == null)
                 {
                     continue;
+                }
+                if (Value(
+                        selected.Features,
+                        CombatSkillTimingFeatureNames.Active) > 0.5d)
+                {
+                    skillTimingSelectedActivations++;
+                    var selectedSkillId = SkillIdentity(selected);
+                    activatedSkillIds.Add(selectedSkillId);
+                    var selectedMetric = GetSkillMetric(
+                        skillTimingBySkill,
+                        selectedSkillId);
+                    selectedMetric.SelectedActivations++;
+                    var timingAdvantage = Value(
+                        selected.Features,
+                        CombatSkillTimingFeatureNames.TimingAdvantage);
+                    selectedSkillTimingAdvantages.Add(timingAdvantage);
+                    if (timingAdvantage > 0d)
+                    {
+                        skillTimingSelectedPositiveActivations++;
+                        selectedMetric.SelectedPositiveActivations++;
+                    }
+                    if (Value(
+                            selected.Features,
+                            CombatSkillTimingFeatureNames.BetterToWait) > 0.5d)
+                    {
+                        skillTimingSelectedBetterToWait++;
+                        selectedMetric.SelectedBetterToWait++;
+                    }
+                    if (Value(
+                            selected.Features,
+                            CombatSkillTimingFeatureNames.RedundancyCost) > 0d)
+                    {
+                        skillTimingSelectedRedundant++;
+                        selectedMetric.SelectedRedundant++;
+                    }
                 }
                 if (Value(
                         selected.Features,
@@ -331,6 +417,19 @@ public static class AuraToolsRoleTrainingDiagnostics
                         "nightmare:expected-devour-threshold-gain");
                 }
             }
+            if (positiveSkillIds.Count > 0)
+            {
+                skillTimingEpisodesWithPositiveOpportunity++;
+                skillTimingPositiveSkillEpisodes += positiveSkillIds.Count;
+                skillTimingExpiredPositiveSkills += positiveSkillIds.Count(id =>
+                    !activatedSkillIds.Contains(id));
+                foreach (var skillId in positiveSkillIds.Where(id =>
+                             !activatedSkillIds.Contains(id)))
+                {
+                    GetSkillMetric(skillTimingBySkill, skillId)
+                        .ExpiredPositiveSkillEpisodes++;
+                }
+            }
         }
         result["nana.devours"] = devours;
         result["nana.transforms"] = transforms;
@@ -403,7 +502,75 @@ public static class AuraToolsRoleTrainingDiagnostics
         result["nana.finale-certification-rate"] = finales == 0
             ? 0d
             : certifiedFinales / (double)finales;
+        result["skill-timing.evaluated-candidates"] =
+            skillTimingEvaluatedCandidates;
+        result["skill-timing.positive-opportunity-frames"] =
+            skillTimingPositiveOpportunityFrames;
+        result["skill-timing.episodes-with-positive-opportunity"] =
+            skillTimingEpisodesWithPositiveOpportunity;
+        result["skill-timing.positive-skill-episodes"] =
+            skillTimingPositiveSkillEpisodes;
+        result["skill-timing.expired-positive-skills"] =
+            skillTimingExpiredPositiveSkills;
+        result["skill-timing.expired-positive-skill-rate"] =
+            skillTimingPositiveSkillEpisodes == 0
+                ? 0d
+                : skillTimingExpiredPositiveSkills
+                  / (double)skillTimingPositiveSkillEpisodes;
+        result["skill-timing.selected-activations"] =
+            skillTimingSelectedActivations;
+        result["skill-timing.selected-positive-activations"] =
+            skillTimingSelectedPositiveActivations;
+        result["skill-timing.selected-better-to-wait"] =
+            skillTimingSelectedBetterToWait;
+        result["skill-timing.selected-redundant"] =
+            skillTimingSelectedRedundant;
+        result["skill-timing.selected-advantage.mean"] =
+            Mean(selectedSkillTimingAdvantages);
+        foreach (var pair in skillTimingBySkill.OrderBy(
+                     pair => pair.Key,
+                     StringComparer.OrdinalIgnoreCase))
+        {
+            var prefix = "skill-timing.skill." + pair.Key + ".";
+            result[prefix + "evaluated-frames"] = pair.Value.EvaluatedFrames;
+            result[prefix + "evaluated-candidates"] =
+                pair.Value.EvaluatedCandidates;
+            result[prefix + "positive-opportunity-frames"] =
+                pair.Value.PositiveOpportunityFrames;
+            result[prefix + "expired-positive-skill-episodes"] =
+                pair.Value.ExpiredPositiveSkillEpisodes;
+            result[prefix + "selected-activations"] =
+                pair.Value.SelectedActivations;
+            result[prefix + "selected-positive-activations"] =
+                pair.Value.SelectedPositiveActivations;
+            result[prefix + "selected-better-to-wait"] =
+                pair.Value.SelectedBetterToWait;
+            result[prefix + "selected-redundant"] =
+                pair.Value.SelectedRedundant;
+        }
         return result;
+    }
+
+    private static SkillTimingMetric GetSkillMetric(
+        IDictionary<string, SkillTimingMetric> metrics,
+        string skillId)
+    {
+        var normalized = string.IsNullOrWhiteSpace(skillId)
+            ? "unknown"
+            : skillId.Trim();
+        if (!metrics.TryGetValue(normalized, out var metric))
+        {
+            metric = new SkillTimingMetric();
+            metrics[normalized] = metric;
+        }
+        return metric;
+    }
+
+    private static string SkillIdentity(CombatEpisodeCandidate candidate)
+    {
+        return string.IsNullOrWhiteSpace(candidate.SourceId)
+            ? candidate.CandidateId ?? ""
+            : candidate.SourceId;
     }
 
     private static void AddTerminalBreakdown(
@@ -441,6 +608,18 @@ public static class AuraToolsRoleTrainingDiagnostics
         public int PlayerMaxHp { get; set; }
 
         public int DoomPower { get; set; }
+    }
+
+    private sealed class SkillTimingMetric
+    {
+        public int EvaluatedFrames { get; set; }
+        public int EvaluatedCandidates { get; set; }
+        public int PositiveOpportunityFrames { get; set; }
+        public int ExpiredPositiveSkillEpisodes { get; set; }
+        public int SelectedActivations { get; set; }
+        public int SelectedPositiveActivations { get; set; }
+        public int SelectedBetterToWait { get; set; }
+        public int SelectedRedundant { get; set; }
     }
 
     private static double Mean(IReadOnlyCollection<double> values)

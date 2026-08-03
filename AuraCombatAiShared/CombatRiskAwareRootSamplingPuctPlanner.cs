@@ -93,6 +93,9 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
     private int searchMaxPly;
     private ICombatSimulationRule[] simulationRules = Array.Empty<ICombatSimulationRule>();
     private CombatBeliefState rootBelief = new();
+    private CombatSimulationState? reusableSimulationRoot;
+    private readonly List<string> determinizationUnknownWorkspace = new();
+    private readonly CombatSimulationStateArena stateArena = new();
     private int determinizationIndex;
     private CombatSearchExplorationOptions? rootExploration;
     private int originalCandidateCount;
@@ -133,6 +136,7 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
             exploration?.DeterminizationOffset ?? 0);
         rootExploration = exploration;
         rootBelief = CombatBeliefTracker.FromObservation(state);
+        stateArena.BeginSearch();
         actions = BuildActions(state, candidates);
         var budget = CombatSearchBudgetPolicy.Resolve(
             state,
@@ -184,6 +188,7 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
             useGroupCount,
             rootBelief,
             CombatPublicObservationHasher.Seed(state, determinizationIndex++));
+        reusableSimulationRoot = rootState.Clone();
         var root = NewNode(rootState);
         EnsureEdges(root);
 
@@ -441,16 +446,16 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
 
     private void Simulate(SearchNode root, SearchEdge? forcedRoot)
     {
-        var useGroupCount = actions.Count == 0
-            ? 0
-            : actions.Max(action => action.UseGroupIndex) + 1;
-        var currentState = CombatForwardModel.Create(
-            rootObservation,
-            useGroupCount,
+        var currentState = reusableSimulationRoot
+                           ?? throw new InvalidOperationException(
+                               "Search root was not initialized.");
+        CombatForwardModel.ResetRootDeterminization(
+            currentState,
             rootBelief,
             CombatPublicObservationHasher.Seed(
                 rootObservation,
-                determinizationIndex++));
+                determinizationIndex++),
+            determinizationUnknownWorkspace);
         var node = root;
         var nodePathCount = 1;
         var edgePathCount = 0;
@@ -501,7 +506,10 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
             edgePathCount++;
             if (searchAction.Action.Kind == CombatActionKind.EndTurn)
             {
-                var endState = CombatForwardModel.ApplyEndTurn(currentState, profile);
+                var endState = CombatForwardModel.ApplyEndTurn(
+                    currentState,
+                    profile,
+                    stateArena);
                 var endLeaf = EvaluateLeaf(endState);
                 terminalValue = endLeaf.Value;
                 risk = endLeaf.DeathRisk;
@@ -517,7 +525,8 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
                 searchAction.Action,
                 searchAction.UseGroupIndex,
                 outcome.Outcome,
-                profile);
+                profile,
+                stateArena);
             if (RequiresFreshObservation(searchAction.Action))
             {
                 var observationLeaf = EvaluateLeaf(nextState);

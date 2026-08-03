@@ -41,6 +41,24 @@ public sealed class CombatFoundationTrainingParameters
     public int MaximumDegreeOfParallelism { get; set; } =
         Math.Max(1, Math.Min(16, Environment.ProcessorCount));
 
+    public string ParallelismProfile { get; set; } =
+        CombatFoundationExecutionProfileNames.Auto;
+
+    public string InferenceExecutionMode { get; set; } =
+        CombatFoundationExecutionProfileNames.DirectInference;
+
+    public int InferenceParallelism { get; set; }
+
+    public int ThreadPoolMinimumWorkerThreads { get; set; }
+
+    public int CheckpointSerializationParallelism { get; set; }
+
+    public bool ReuseAutoTuneCache { get; set; } = true;
+
+    public int AutoTuneSampleCampaigns { get; set; } = 32;
+
+    public double AutoTuneThroughputTolerance { get; set; } = 0.02d;
+
     public bool EnableEarlyValidationStop { get; set; } = true;
 
     public int ValidationEarlyStopBatchSize { get; set; } = 32;
@@ -193,11 +211,29 @@ public sealed class CombatFoundationTrainingParameters
         PreflightCampaignsPerDifficulty = Math.Max(
             1,
             Math.Min(100, PreflightCampaignsPerDifficulty));
-        MaximumDegreeOfParallelism = Math.Max(
-            1,
-            Math.Min(
-                Math.Max(1, Environment.ProcessorCount),
-                MaximumDegreeOfParallelism));
+        var execution = CombatFoundationExecutionProfiles.Resolve(
+            ParallelismProfile,
+            MaximumDegreeOfParallelism,
+            InferenceExecutionMode,
+            InferenceParallelism,
+            ThreadPoolMinimumWorkerThreads,
+            CheckpointSerializationParallelism);
+        ParallelismProfile = execution.Profile;
+        MaximumDegreeOfParallelism = execution.CampaignParallelism;
+        InferenceExecutionMode = execution.InferenceMode;
+        InferenceParallelism = execution.InferenceParallelism;
+        ThreadPoolMinimumWorkerThreads =
+            execution.ThreadPoolMinimumWorkerThreads;
+        CheckpointSerializationParallelism =
+            execution.CheckpointSerializationParallelism;
+        AutoTuneSampleCampaigns = Math.Max(
+            4,
+            Math.Min(64, AutoTuneSampleCampaigns));
+        AutoTuneThroughputTolerance = Clamp(
+            AutoTuneThroughputTolerance,
+            0d,
+            0.20d,
+            0.02d);
         ValidationEarlyStopBatchSize = Math.Max(
             1,
             Math.Min(128, ValidationEarlyStopBatchSize));
@@ -498,6 +534,18 @@ public static class CombatFoundationWorkerJobFactory
                 PreflightSeedStart = parameters.TrainingSeedStart,
                 MaximumDegreeOfParallelism =
                     parameters.MaximumDegreeOfParallelism,
+                ParallelismProfile = parameters.ParallelismProfile,
+                InferenceExecutionMode = parameters.InferenceExecutionMode,
+                InferenceParallelism = parameters.InferenceParallelism,
+                ThreadPoolMinimumWorkerThreads =
+                    parameters.ThreadPoolMinimumWorkerThreads,
+                CheckpointSerializationParallelism =
+                    parameters.CheckpointSerializationParallelism,
+                ReuseAutoTuneCache = parameters.ReuseAutoTuneCache,
+                AutoTuneSampleCampaigns =
+                    parameters.AutoTuneSampleCampaigns,
+                AutoTuneThroughputTolerance =
+                    parameters.AutoTuneThroughputTolerance,
                 RetainValidationRunDetails = false,
                 EnableEarlyValidationStop =
                     parameters.EnableEarlyValidationStop,

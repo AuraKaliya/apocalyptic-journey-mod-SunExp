@@ -1128,6 +1128,14 @@ public sealed class CombatBattleState
 
     public Dictionary<int, int> SkillCooldowns { get; set; } = new();
 
+    /// <summary>
+    /// Successful activations keyed by role-skill card id for the current
+    /// battle. SkillUseCounts cannot serve this purpose because it is the
+    /// native PlayerInfo.SkillTime compatibility surface and stores cooldown.
+    /// </summary>
+    public Dictionary<string, int> SkillActivationCounts { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public Dictionary<string, int> SkillUseCounts { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
 
@@ -1176,6 +1184,9 @@ public sealed class CombatBattleState
             ExhaustPile = new List<int>(ExhaustPile),
             SkillCards = new List<int>(SkillCards),
             SkillCooldowns = new Dictionary<int, int>(SkillCooldowns),
+            SkillActivationCounts = new Dictionary<string, int>(
+                SkillActivationCounts,
+                StringComparer.OrdinalIgnoreCase),
             SkillUseCounts = new Dictionary<string, int>(
                 SkillUseCounts,
                 StringComparer.OrdinalIgnoreCase),

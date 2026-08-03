@@ -3,11 +3,21 @@ using System.Collections.Generic;
 
 namespace AuraCombatAi.Shared;
 
+public interface ICombatInteractionChoiceScorer
+{
+    bool TryScore(
+        CombatInteractionHint hint,
+        CombatActionObservation choice,
+        out double score);
+}
+
 public sealed class CombatInteractionHint
 {
     public string OwnerModId { get; set; } = "";
 
     public string Purpose { get; set; } = "";
+
+    public string SourceId { get; set; } = "";
 
     public CombatPromptKind Kind { get; set; }
 
@@ -16,6 +26,8 @@ public sealed class CombatInteractionHint
     public bool Forced { get; set; } = true;
 
     public bool PreferLowestValue { get; set; }
+
+    public ICombatInteractionChoiceScorer? ChoiceScorer { get; set; }
 }
 
 public sealed class CombatInteractionRequest

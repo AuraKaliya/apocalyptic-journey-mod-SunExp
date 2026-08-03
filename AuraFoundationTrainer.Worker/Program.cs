@@ -146,7 +146,11 @@ try
         Math.Min(Environment.ProcessorCount, job.Request.MaximumDegreeOfParallelism));
     ThreadPool.GetMinThreads(out var minimumWorkers, out var minimumIo);
     ThreadPool.SetMinThreads(
-        Math.Max(minimumWorkers, requestedWorkers + 2),
+        Math.Max(
+            minimumWorkers,
+            Math.Max(
+                requestedWorkers + 2,
+                job.Request.ThreadPoolMinimumWorkerThreads)),
         minimumIo);
     var requestFingerprint = Fingerprint(job, build.Ruleset.RulesetHash);
     var resume = new CombatCampaignFoundationResumeState();
@@ -311,7 +315,6 @@ try
         null,
         TimeSpan.FromSeconds(2),
         TimeSpan.FromSeconds(2));
-    var checkpointGate = new object();
     var checkpointReplayIdentity =
         checkpointSnapshot?.ReplayIdentity ?? "";
     if (string.IsNullOrWhiteSpace(checkpointReplayIdentity)
@@ -320,9 +323,18 @@ try
         checkpointReplayIdentity =
             ReplayIdentity(job.Request.Resume.Replay);
     }
-    job.Request.Checkpoint = state =>
-    {
-        lock (checkpointGate)
+    // Snapshot JSON conversion runs concurrently with campaign/model work.
+    // Reserve the majority of the worker budget for training itself.
+    var checkpointSerializationWorkers = Math.Max(
+        1,
+        Math.Min(
+            2,
+            job.Request.CheckpointSerializationParallelism <= 0
+                ? requestedWorkers >= 32 ? 2 : 1
+                : job.Request.CheckpointSerializationParallelism));
+    using var checkpointPipeline =
+        new CombatFoundationLatestWritePipeline<
+            CombatCampaignFoundationResumeState>(state =>
         {
             try
             {
@@ -338,8 +350,10 @@ try
                     nextSnapshot =
                         CombatFoundationCheckpointStorage.WriteEpisodeSnapshot(
                             job.CheckpointEpisodesPath,
-                            state.Replay.Select(SerializeCompact),
-                            replayIdentity);
+                            state.Replay,
+                            SerializeCompact,
+                            replayIdentity,
+                            checkpointSerializationWorkers);
                 }
                 CombatFoundationCheckpointStorage.WriteAtomicText(
                     job.CheckpointPath,
@@ -368,8 +382,8 @@ try
                     + ex.Message;
                 Console.Error.WriteLine(checkpointWarning);
             }
-        }
-    };
+        });
+    job.Request.Checkpoint = checkpointPipeline.Enqueue;
     var incrementallyArchivedCases =
         new HashSet<string>(StringComparer.Ordinal);
     var capacityRejectedCaseIds =
@@ -378,12 +392,49 @@ try
     var archiveCapacityRejectedObservations = 0;
     var archiveCapacityRejectedCases = 0;
 
+    var autoTuneCachePath = Path.Combine(
+        job.SuccessArchiveDirectory,
+        CombatFoundationAutoTuneProtocol.CacheFileName);
+    job.Request.AutoTuneHardwareKey = AutoTuneHardwareKey();
+    if (string.Equals(
+            job.Request.ParallelismProfile,
+            CombatFoundationExecutionProfileNames.Auto,
+            StringComparison.OrdinalIgnoreCase))
+    {
+        if (job.Request.ReuseAutoTuneCache
+            && File.Exists(autoTuneCachePath))
+        {
+            try
+            {
+                job.Request.AutoTuneCache =
+                    Deserialize<CombatFoundationAutoTuneResult>(
+                        CombatFoundationCheckpointStorage.ReadAllTextShared(
+                            autoTuneCachePath));
+            }
+            catch (Exception ex)
+            {
+                Console.Error.WriteLine(
+                    "Auto-tune cache ignored: " + ex.Message);
+            }
+        }
+        job.Request.AutoTuneCompleted = result =>
+        {
+            if (result == null || result.LowConfidence)
+            {
+                return;
+            }
+            Directory.CreateDirectory(job.SuccessArchiveDirectory);
+            WriteAtomicJson(autoTuneCachePath, result);
+        };
+    }
+
     var training = new CombatCampaignFoundationTrainer(
         new CombatCampaignRunner(simulationEngine)).Run(
         job.Request,
         build.Ruleset,
         job.InitialChampion,
         cancellation.Token);
+    checkpointPipeline.Drain();
     var roleStrategyMetrics =
         AuraToolsRoleTrainingDiagnostics.Analyze(
             training.Replay,
@@ -1997,6 +2048,21 @@ static string RuntimeDescription(int workers)
            + System.Runtime.GCSettings.IsServerGC
            + "; workers="
            + workers;
+}
+
+static string AutoTuneHardwareKey()
+{
+    var availableMemory = GC.GetGCMemoryInfo().TotalAvailableMemoryBytes;
+    return string.Join(
+        "|",
+        Environment.MachineName,
+        Environment.ProcessorCount,
+        System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture,
+        System.Runtime.GCSettings.IsServerGC
+            ? "server-gc"
+            : "workstation-gc",
+        availableMemory / (1024L * 1024L * 1024L),
+        Environment.Version);
 }
 
 internal static class ArchiveWriteBudget

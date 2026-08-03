@@ -76,6 +76,7 @@ public sealed class CombatDecisionEngine
         {
             CombatHandTransformPolicy.Enrich(prepared, action);
         }
+        EnrichSkillTimings(prepared);
         return CombatPlayerObservationBoundary.Normalize(prepared);
     }
 
@@ -140,6 +141,11 @@ public sealed class CombatDecisionEngine
             }
             EnrichRoleStrategies(state);
             CombatArchetypePolicy.Enrich(state);
+            foreach (var action in state.Actions)
+            {
+                CombatHandTransformPolicy.Enrich(state, action);
+            }
+            EnrichSkillTimings(state);
         }
 
         var endTurn = (CombatActionObservation?)null;
@@ -191,20 +197,6 @@ public sealed class CombatDecisionEngine
             {
                 legal = EvaluatePreflight(state, action, out rejectionReason);
             }
-            if (legal && HasDecisionPreparation)
-            {
-                var observedMechanics =
-                    CombatPlayerObservationBoundary.NormalizeSemantics(
-                        action.Semantics);
-                ApplySemantics(state, action);
-                MergeMechanicalSemantics(
-                    action.Semantics,
-                    observedMechanics);
-                action.Semantics =
-                    CombatPlayerObservationBoundary.NormalizeSemantics(
-                        action.Semantics);
-            }
-
             CombatHandTransformPolicy.Enrich(state, action);
 
             var utility = BuildUtility(state, action, selectedProfile);
@@ -672,7 +664,9 @@ public sealed class CombatDecisionEngine
             ? 1d
             : 1d - Math.Min(1d, (double)state.CurrentPower / state.MaxPower);
         var energyOpportunityCost = Math.Max(0, action.Cost) * (0.75d + scarcity * 0.5d);
+        var skillTiming = CombatSkillTimingPolicy.Enrich(action);
         var cooldownCost = action.Kind == CombatActionKind.UseSkill
+                            && !skillTiming.Active
             ? Math.Max(0d, semantics.CooldownTurns) * profile.SkillCooldownPenalty
             : 0d;
         var knownPositive = effectiveDamage + effectiveDefend + heal + effectiveDraw
@@ -692,6 +686,7 @@ public sealed class CombatDecisionEngine
         {
             risk += 0.1d;
         }
+        risk += Math.Max(0d, -skillTiming.TimingAdvantage);
         var transformNetValue = Feature(
             action,
             "handTransformNetValue",
@@ -766,6 +761,7 @@ public sealed class CombatDecisionEngine
             Risk = risk,
             Uncertainty = unknown,
             Coordination = freeActionOrderValue
+                           + Math.Max(0d, skillTiming.TimingAdvantage)
                            + (action.Features.TryGetValue("coordination", out var coordination) ? coordination : 0d)
                            + Feature(
                                action,
@@ -1061,6 +1057,16 @@ public sealed class CombatDecisionEngine
             return;
         }
         decisionPreparation.EnrichRoleStrategies(state);
+    }
+
+    private void EnrichSkillTimings(CombatStateObservation state)
+    {
+        if (useRuntimeRegistries)
+        {
+            CombatAiRegistry.EnrichSkillTimings(state);
+            return;
+        }
+        decisionPreparation.EnrichSkillTimings(state);
     }
 
     private static bool IsVisibleFake(CombatActionObservation action)

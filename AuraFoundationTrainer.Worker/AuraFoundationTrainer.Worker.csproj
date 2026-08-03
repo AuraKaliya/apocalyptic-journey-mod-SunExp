@@ -27,6 +27,8 @@
              Link="Native\AuraToolsAuthoritativeRoleSemantics.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\AutoBattle\AuraToolsNanaRoleStrategy.cs"
              Link="Native\AuraToolsNanaRoleStrategy.cs" />
+    <Compile Include="..\AuraToolsExp-Dev\Features\AutoBattle\AuraToolsWitchSkillTiming.cs"
+             Link="Native\AuraToolsWitchSkillTiming.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\AutoBattle\AuraToolsRoleCampaignStrategy.cs"
              Link="Native\AuraToolsRoleCampaignStrategy.cs" />
     <Compile Include="..\AuraToolsExp-Dev\Features\AutoBattle\AuraToolsRoleTrainingDiagnostics.cs"

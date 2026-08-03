@@ -6,6 +6,7 @@ using AuraCombatAi.Shared;
 using AuraCombatSimulation.Shared;
 using AuraToolsExp.Dll.Features.AutoBattle;
 using Newtonsoft.Json;
+using Newtonsoft.Json.Linq;
 
 if (args.Length is < 2 or > 3)
 {
@@ -51,6 +52,11 @@ try
     var authoritative = nonCardRewards.Count(item =>
         item.Fidelity == CombatRuleFidelity.Authoritative);
     var failures = AuraToolsNativeRewardScriptAudit.Validate(campaign);
+    failures.AddRange(ValidateSkillTimingCatalog(
+        Path.Combine(
+            Path.GetDirectoryName(args[0]) ?? "",
+            "witch-skill-timing-v1.catalog.json"),
+        subjectCatalog));
     failures.AddRange(
         AuraToolsNativeGameScriptAudit.Validate(rulesetBuild.Ruleset));
     var packageValidation = AuraToolsNativeProgramPackageAudit.Validate(
@@ -542,6 +548,204 @@ static IEnumerable<string> ValidateAuthoritativeRoleSkillSemantics()
         AuraToolsAuthoritativeRoleSemantics
             .ValidateFrozenTrainingPreparation()
             .Select(error => "frozen-role-preparation:" + error));
+    var coverageState = new CombatStateObservation
+    {
+        Player = new CombatUnitObservation
+        {
+            RuntimeId = 1,
+            DefinitionId = "career_1",
+            Kind = CombatTargetKind.Self,
+            CurrentHp = 70,
+            MaxHp = 100,
+            Statuses =
+            {
+                new CombatStatusObservation
+                {
+                    StatusId = "buff_bleeding",
+                    Level = 4,
+                    Rarity = 2,
+                    Type = "Negative"
+                },
+                new CombatStatusObservation
+                {
+                    StatusId = "buff_DoomPower",
+                    Level = 10,
+                    Rarity = 4,
+                    Type = "Special"
+                }
+            }
+        },
+        CurrentPower = 3,
+        MaxPower = 3,
+        HandCount = 1,
+        HandCards =
+        {
+            new CombatCardInstanceObservation
+            {
+                RuntimeId = 10,
+                CardId = "fixture-core-card",
+                EffectiveCost = 1,
+                Retained = true,
+                EnhancementCount = 1
+            }
+        },
+        DeckCardIds = { "fixture-core-card", "fixture-sacrifice-card" },
+        DeckKnowledge = new CombatDeckKnowledge { DrawPileCount = 2 },
+        Features =
+        {
+            ["handLimit"] = 10d,
+            ["drawPileCount"] = 2d,
+            [CombatCampaignContextFeatureNames.RemainingBattles] = 8d
+        },
+        Enemies =
+        {
+            new CombatUnitObservation
+            {
+                RuntimeId = 2,
+                DefinitionId = "fixture-enemy",
+                Kind = CombatTargetKind.Enemy,
+                CurrentHp = 120,
+                MaxHp = 120,
+                Features = { ["actionCount"] = 2d },
+                Statuses =
+                {
+                    new CombatStatusObservation
+                    {
+                        StatusId = "buff_bleeding",
+                        Level = 8,
+                        Rarity = 2,
+                        Type = "Negative"
+                    },
+                    new CombatStatusObservation
+                    {
+                        StatusId = "buff_fixture_positive",
+                        Level = 3,
+                        Rarity = 2,
+                        Type = "Positive"
+                    }
+                }
+            }
+        },
+        Threat = new CombatThreatForecast
+        {
+            CurrentIntentKnown = true,
+            Intents =
+            {
+                new CombatIntentObservation
+                {
+                    SourceRuntimeId = 2,
+                    Kind = CombatIntentKind.Attack,
+                    BlockableDamage = 18d,
+                    Probability = 1d,
+                    Current = true
+                }
+            }
+        },
+        ExpectedIncomingDamage = 18d
+    };
+    foreach (var pair in new Dictionary<string, int>(StringComparer.OrdinalIgnoreCase)
+             {
+                 ["careercard_1"] = 1,
+                 ["careercard_2"] = 5,
+                 ["careercard_3"] = 2,
+                 ["careercard_4"] = 12,
+                 ["careercard_5"] = 3,
+                 ["careercard_6"] = 3,
+                 ["careercard_7"] = 2,
+                 ["careercard_8"] = 5,
+                 ["careercard_9"] = 2,
+                 ["careercard_10"] = 2,
+                 ["careercard_11"] = 1,
+                 ["careercard_12"] = 2,
+                 ["careercard_13"] = 99
+             })
+    {
+        var action = new CombatActionObservation
+        {
+            CandidateId = "timing-coverage-" + pair.Key,
+            SourceId = pair.Key,
+            Kind = CombatActionKind.UseSkill,
+            TargetRuntimeId = pair.Key == "careercard_2" ? 1 : 2,
+            TargetKind = pair.Key == "careercard_2"
+                ? CombatTargetKind.Self
+                : CombatTargetKind.Enemy
+        };
+        coverageState.Actions.Clear();
+        coverageState.Actions.Add(action);
+        CombatAiRegistry.ApplySemantics(coverageState, action);
+        CombatAiRegistry.EnrichSkillTimings(coverageState);
+        if (action.SemanticFidelity != CombatKnowledgeFidelity.Authoritative
+            || action.Features.GetValueOrDefault(
+                CombatSkillTimingFeatureNames.Active) != 1d
+            || action.Features.GetValueOrDefault(
+                CombatSkillTimingFeatureNames.CooldownAfterUse) != pair.Value
+            || double.IsNaN(action.Features.GetValueOrDefault(
+                CombatSkillTimingFeatureNames.TimingAdvantage)))
+        {
+            failures.Add("base-skill-timing-coverage:" + pair.Key);
+        }
+    }
+    var lowChoice = new CombatActionObservation
+    {
+        SourceId = "fixture-low-card",
+        Semantics = new CombatActionSemantics { Damage = 1d },
+        Features =
+        {
+            ["choice:cost"] = 0d,
+            ["choice:rarity"] = 1d
+        }
+    };
+    var highChoice = new CombatActionObservation
+    {
+        SourceId = "fixture-high-card",
+        Semantics = new CombatActionSemantics
+        {
+            Damage = 18d,
+            Draw = 2d,
+            Scaling = 3d
+        },
+        Features =
+        {
+            ["choice:cost"] = 3d,
+            ["choice:rarity"] = 4d
+        }
+    };
+    foreach (var skillId in new[]
+             {
+                 "careercard_1",
+                 "careercard_9",
+                 "careercard_12",
+                 "careercard_13"
+             })
+    {
+        var skillAction = new CombatActionObservation
+        {
+            SourceId = skillId,
+            Kind = CombatActionKind.UseSkill
+        };
+        AuraToolsWitchSkillInteraction.Prepare(coverageState, skillAction);
+        var hint = CombatInteractionBroker.ConsumeNextHint(
+            new CombatInteractionHint());
+        var lowScore = 0d;
+        var highScore = 0d;
+        var hasLow = hint.ChoiceScorer?.TryScore(
+            hint,
+            lowChoice,
+            out lowScore) == true;
+        var hasHigh = hint.ChoiceScorer?.TryScore(
+            hint,
+            highChoice,
+            out highScore) == true;
+        var shouldPreferLow = skillId == "careercard_9";
+        if (hint.SourceId != skillId
+            || hint.ChoiceScorer == null
+            || !hasLow
+            || !hasHigh
+            || (shouldPreferLow ? lowScore <= highScore : highScore <= lowScore))
+        {
+            failures.Add("base-skill-choice-policy:" + skillId);
+        }
+    }
     foreach (var test in new[]
              {
                  (Soul: 99, Tier: 1, CardId: "nocard_1", Amount: 16d),
@@ -877,6 +1081,23 @@ static IEnumerable<string> ValidateAuthoritativeRoleSkillSemantics()
     {
         failures.Add("nana-repeat-transform-strategy-gate");
     }
+    nanaState.Player.DefinitionId = "transient-form";
+    nanaState.Player.Statuses.Add(new CombatStatusObservation
+    {
+        StatusId = "SpecialBuff_CalamityIncarnates",
+        Level = 1,
+        Type = "Special"
+    });
+    repeatTransform.Features.Clear();
+    CombatAiRegistry.ApplySemantics(nanaState, repeatTransform);
+    CombatAiRegistry.EnrichRoleStrategies(nanaState);
+    if (repeatTransform.Features.GetValueOrDefault(
+            CombatRoleStrategyFeatureNames.Active) != 1d
+        || repeatTransform.Features.GetValueOrDefault(
+            CombatRoleStrategyFeatureNames.StrategicallyProhibited) != 1d)
+    {
+        failures.Add("nana-calamity-status-preserves-role-identity");
+    }
 
     var nightmareState = new CombatStateObservation
     {
@@ -1086,9 +1307,13 @@ static IEnumerable<string> ValidateAuthoritativeRoleSkillSemantics()
             "nana:post-transform-damage-per-action") != 2d
         || burstTransform.Features.GetValueOrDefault(
             "nana:executable-burst-actions") != 2d
-        || burstTransform.Features.GetValueOrDefault(
-            "roleStrategy:nana.transform-ready") != 1d
-        || burstTransform.Features.GetValueOrDefault(
+         || burstTransform.Features.GetValueOrDefault(
+             "roleStrategy:nana.transform-ready") != 1d
+         || burstTransform.Features.GetValueOrDefault(
+             CombatSkillTimingFeatureNames.PositiveOpportunity) != 1d
+         || burstTransform.Features.GetValueOrDefault(
+             CombatSkillTimingFeatureNames.TimingAdvantage) <= 0d
+         || burstTransform.Features.GetValueOrDefault(
             CombatRoleStrategyFeatureNames.StrategicallyProhibited) != 0d)
     {
         failures.Add("nana-transform-threshold-and-executable-burst");
@@ -1249,7 +1474,9 @@ static IEnumerable<string> ValidateAuthoritativeRoleSkillSemantics()
         || finaleDevour.Features.GetValueOrDefault(
             CombatRoleStrategyFeatureNames.Synergy) <= 0d
         || finaleTransform.Features.GetValueOrDefault(
-            CombatRoleStrategyFeatureNames.Risk) <= 0d
+            CombatSkillTimingFeatureNames.Active) != 1d
+        || finaleTransform.Features.GetValueOrDefault(
+            CombatSkillTimingFeatureNames.WaitValue) <= 0d
         || !finaleTransformLegal)
     {
         failures.Add(
@@ -1349,9 +1576,12 @@ static IEnumerable<string> ValidateAuthoritativeRoleSkillSemantics()
                             SourceId = "careercard_3",
                             Features =
                             {
-                                [CombatRoleStrategyFeatureNames.Active] = 1d,
-                                ["nana:first-transform"] = 1d,
-                                ["roleStrategy:nana.transform-ready"] = 1d
+                                 [CombatRoleStrategyFeatureNames.Active] = 1d,
+                                 ["nana:first-transform"] = 1d,
+                                 ["roleStrategy:nana.transform-ready"] = 1d,
+                                 [CombatSkillTimingFeatureNames.Active] = 1d,
+                                 [CombatSkillTimingFeatureNames.PositiveOpportunity] = 1d,
+                                 [CombatSkillTimingFeatureNames.TimingAdvantage] = 3d
                             }
                         }
                     }
@@ -1373,8 +1603,12 @@ static IEnumerable<string> ValidateAuthoritativeRoleSkillSemantics()
                             SourceId = "careercard_3",
                             Features =
                             {
-                                [CombatRoleStrategyFeatureNames.Active] = 1d,
-                                ["nana:repeat-transform"] = 1d
+                                 [CombatRoleStrategyFeatureNames.Active] = 1d,
+                                 ["nana:repeat-transform"] = 1d,
+                                 [CombatSkillTimingFeatureNames.Active] = 1d,
+                                 [CombatSkillTimingFeatureNames.BetterToWait] = 1d,
+                                 [CombatSkillTimingFeatureNames.TimingAdvantage] = -40d,
+                                 [CombatSkillTimingFeatureNames.RedundancyCost] = 40d
                             }
                         }
                     }
@@ -1405,6 +1639,38 @@ static IEnumerable<string> ValidateAuthoritativeRoleSkillSemantics()
                 TerminalPlayerHp = 140,
                 TerminalPlayerMaxHp = 180,
                 TerminalDoomPower = 12
+            }
+        },
+        new CombatEpisode
+        {
+            EpisodeId = "generic-skill-expired",
+            Frames =
+            {
+                new CombatEpisodeFrame
+                {
+                    Turn = 1,
+                    ActionSequence = 1,
+                    ExecutedCandidateId = "end-turn",
+                    Candidates =
+                    {
+                        new CombatEpisodeCandidate
+                        {
+                            CandidateId = "generic-skill",
+                            SourceId = "generic-skill",
+                            Features =
+                            {
+                                [CombatSkillTimingFeatureNames.Active] = 1d,
+                                [CombatSkillTimingFeatureNames.PositiveOpportunity] = 1d,
+                                [CombatSkillTimingFeatureNames.TimingAdvantage] = 2d
+                            }
+                        },
+                        new CombatEpisodeCandidate
+                        {
+                            CandidateId = "end-turn",
+                            SourceId = "simulation:end-turn"
+                        }
+                    }
+                }
             }
         }
     }, new[]
@@ -1440,9 +1706,78 @@ static IEnumerable<string> ValidateAuthoritativeRoleSkillSemantics()
         || diagnostics.GetValueOrDefault(
             "nana.selected-nonpositive-devours") != 0d
         || diagnostics.GetValueOrDefault(
-            "nana.selected-underprepared-transforms") != 0d)
+            "nana.selected-underprepared-transforms") != 0d
+        || diagnostics.GetValueOrDefault(
+            "skill-timing.evaluated-candidates") != 3d
+        || diagnostics.GetValueOrDefault(
+            "skill-timing.positive-opportunity-frames") != 2d
+        || diagnostics.GetValueOrDefault(
+            "skill-timing.expired-positive-skills") != 1d
+        || diagnostics.GetValueOrDefault(
+            "skill-timing.selected-positive-activations") != 1d
+        || diagnostics.GetValueOrDefault(
+            "skill-timing.selected-better-to-wait") != 1d
+        || diagnostics.GetValueOrDefault(
+            "skill-timing.selected-redundant") != 1d
+        || diagnostics.GetValueOrDefault(
+            "skill-timing.skill.careercard_3.selected-activations") != 2d
+        || diagnostics.GetValueOrDefault(
+            "skill-timing.skill.careercard_3.selected-positive-activations") != 1d
+        || diagnostics.GetValueOrDefault(
+            "skill-timing.skill.careercard_3.selected-better-to-wait") != 1d
+        || !diagnostics.ContainsKey(
+            "skill-timing.skill.careercard_13.evaluated-candidates"))
     {
         failures.Add("nana-training-diagnostics");
+    }
+    return failures;
+}
+
+static IEnumerable<string> ValidateSkillTimingCatalog(
+    string path,
+    CombatGameSubjectCatalog subjectCatalog)
+{
+    var failures = new List<string>();
+    if (!File.Exists(path))
+    {
+        failures.Add("skill-timing-catalog: bundled catalog is missing");
+        return failures;
+    }
+
+    var root = JObject.Parse(File.ReadAllText(path));
+    var entries = (root["skills"] as JArray)?.OfType<JObject>().ToList()
+                  ?? new List<JObject>();
+    var expected = subjectCatalog.Roles
+        .SelectMany(role => role.SkillCooldownTurns)
+        .GroupBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+        .ToDictionary(
+            group => group.Key,
+            group => group.First().Value,
+            StringComparer.OrdinalIgnoreCase);
+    var actualIds = entries
+        .Select(entry => (string?)entry["skillId"] ?? "")
+        .Where(id => !string.IsNullOrWhiteSpace(id))
+        .ToList();
+    if ((int?)root["schemaVersion"] != 1
+        || (string?)root["gameBuild"] != subjectCatalog.GameBuild
+        || entries.Count != 13
+        || actualIds.Distinct(StringComparer.OrdinalIgnoreCase).Count() != 13
+        || expected.Count != 13
+        || expected.Keys.Any(id => !actualIds.Contains(
+            id,
+            StringComparer.OrdinalIgnoreCase))
+        || entries.Any(entry =>
+            string.IsNullOrWhiteSpace((string?)entry["evaluator"])
+            || string.IsNullOrWhiteSpace((string?)entry["choicePolicy"])
+            || (entry["roleIds"] as JArray)?.Count is not > 0)
+        || expected.Any(pair =>
+            !AuraToolsWitchSkillTimingProvider.Cooldowns.TryGetValue(
+                pair.Key,
+                out var cooldown)
+            || cooldown != pair.Value))
+    {
+        failures.Add(
+            "skill-timing-catalog: catalog, subject cooldowns, and runtime provider diverged");
     }
     return failures;
 }

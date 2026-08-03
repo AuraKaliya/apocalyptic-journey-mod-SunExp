@@ -1,0 +1,20 @@
+{
+  "schemaVersion": 1,
+  "catalogId": "witch-base-role-skill-timing-v1",
+  "gameBuild": "v1.0.23816797",
+  "skills": [
+    { "roleIds": ["career_1"], "skillId": "careercard_1", "evaluator": "deck-search", "choicePolicy": "highest-card-value" },
+    { "roleIds": ["career_2", "career_4"], "skillId": "careercard_2", "evaluator": "status-consume-growth", "choicePolicy": "highest-target-net-value" },
+    { "roleIds": ["career_2", "career_4"], "skillId": "careercard_3", "evaluator": "persistent-form", "choicePolicy": "none" },
+    { "roleIds": ["career_3"], "skillId": "careercard_4", "evaluator": "hand-transform", "choicePolicy": "all-hand" },
+    { "roleIds": ["career_5"], "skillId": "careercard_5", "evaluator": "draw-with-end-turn-burn", "choicePolicy": "highest-target-net-value" },
+    { "roleIds": ["career_5"], "skillId": "careercard_6", "evaluator": "intent-cancel", "choicePolicy": "highest-threat" },
+    { "roleIds": ["career_6"], "skillId": "careercard_7", "evaluator": "random-reroll", "choicePolicy": "none" },
+    { "roleIds": ["career_7"], "skillId": "careercard_8", "evaluator": "status-copy", "choicePolicy": "highest-target-net-value" },
+    { "roleIds": ["career_7"], "skillId": "careercard_9", "evaluator": "deck-sacrifice-blessing", "choicePolicy": "highest-blessing-minus-sacrifice" },
+    { "roleIds": ["career_8"], "skillId": "careercard_10", "evaluator": "ongoing-target-status", "choicePolicy": "highest-target-net-value" },
+    { "roleIds": ["career_8"], "skillId": "careercard_11", "evaluator": "stack-detonation", "choicePolicy": "all-enemies" },
+    { "roleIds": ["career_9"], "skillId": "careercard_12", "evaluator": "temporary-card-copy", "choicePolicy": "highest-card-value" },
+    { "roleIds": ["career_9"], "skillId": "careercard_13", "evaluator": "campaign-card-amplify", "choicePolicy": "highest-lifetime-card-value" }
+  ]
+}

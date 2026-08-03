@@ -1120,6 +1120,15 @@ public sealed class CombatSimulationEngine
                         ? Math.Max(1, configuredCooldown)
                         : 1;
             }
+            if (useSkill)
+            {
+                State.SkillActivationCounts[definition.CardId] =
+                    State.SkillActivationCounts.TryGetValue(
+                        definition.CardId,
+                        out var activationCount)
+                        ? activationCount + 1
+                        : 1;
+            }
             LastActionOutcome = CombatActionApplicationOutcome.Applied;
             return ValidateState();
         }

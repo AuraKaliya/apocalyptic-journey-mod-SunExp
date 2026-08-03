@@ -5,6 +5,16 @@ using Newtonsoft.Json;
 
 namespace AuraToolsExp.Dll.Config;
 
+public static class AutoBattleFoundationExecutionProfileNames
+{
+    public const string Auto = "auto";
+    public const string Cpu16 = "cpu-16";
+    public const string Cpu32 = "cpu-32";
+    public const string Custom = "custom";
+    public const string DirectInference = "direct";
+    public const string ShardedBatchInference = "sharded-batch";
+}
+
 public sealed class AutoBattleSettings
 {
     [JsonProperty("enabled")]
@@ -439,6 +449,32 @@ public sealed class AutoBattleFoundationTrainingSettings
     public int Parallelism { get; set; } =
         Math.Max(1, Math.Min(16, Environment.ProcessorCount));
 
+    [JsonProperty("parallelismProfile")]
+    public string ParallelismProfile { get; set; } =
+        AutoBattleFoundationExecutionProfileNames.Auto;
+
+    [JsonProperty("inferenceExecutionMode")]
+    public string InferenceExecutionMode { get; set; } =
+        AutoBattleFoundationExecutionProfileNames.DirectInference;
+
+    [JsonProperty("inferenceParallelism")]
+    public int InferenceParallelism { get; set; }
+
+    [JsonProperty("threadPoolMinimumWorkerThreads")]
+    public int ThreadPoolMinimumWorkerThreads { get; set; }
+
+    [JsonProperty("checkpointSerializationParallelism")]
+    public int CheckpointSerializationParallelism { get; set; }
+
+    [JsonProperty("reuseAutoTuneCache")]
+    public bool ReuseAutoTuneCache { get; set; } = true;
+
+    [JsonProperty("autoTuneSampleCampaigns")]
+    public int AutoTuneSampleCampaigns { get; set; } = 32;
+
+    [JsonProperty("autoTuneThroughputTolerance")]
+    public double AutoTuneThroughputTolerance { get; set; } = 0.02d;
+
     [JsonProperty("executionMode")]
     public string ExecutionMode { get; set; } = "external";
 
@@ -626,9 +662,42 @@ public sealed class AutoBattleFoundationTrainingSettings
         PreflightCampaignsPerDifficulty = Math.Max(
             1,
             Math.Min(100, PreflightCampaignsPerDifficulty));
-        Parallelism = Math.Max(
-            1,
-            Math.Min(Math.Max(1, Environment.ProcessorCount), Parallelism));
+        ParallelismProfile = NormalizeExecutionProfile(ParallelismProfile);
+        var processors = Math.Max(1, Environment.ProcessorCount);
+        Parallelism = ParallelismProfile switch
+        {
+            AutoBattleFoundationExecutionProfileNames.Cpu16 =>
+                Math.Min(16, processors),
+            AutoBattleFoundationExecutionProfileNames.Cpu32 =>
+                Math.Min(32, processors),
+            AutoBattleFoundationExecutionProfileNames.Auto =>
+                processors >= 32 ? 32 : processors >= 16 ? 16 : processors,
+            _ => Math.Max(1, Math.Min(processors, Parallelism))
+        };
+        InferenceExecutionMode = string.Equals(
+            InferenceExecutionMode,
+            AutoBattleFoundationExecutionProfileNames.ShardedBatchInference,
+            StringComparison.OrdinalIgnoreCase)
+            ? AutoBattleFoundationExecutionProfileNames.ShardedBatchInference
+            : AutoBattleFoundationExecutionProfileNames.DirectInference;
+        InferenceParallelism = InferenceParallelism <= 0
+            ? Parallelism
+            : Math.Max(1, Math.Min(Parallelism, InferenceParallelism));
+        ThreadPoolMinimumWorkerThreads = ThreadPoolMinimumWorkerThreads <= 0
+            ? Parallelism + 8
+            : Math.Max(Parallelism, Math.Min(256, ThreadPoolMinimumWorkerThreads));
+        CheckpointSerializationParallelism =
+            CheckpointSerializationParallelism <= 0
+                ? Parallelism >= 32 ? 2 : 1
+                : Math.Max(1, Math.Min(2, CheckpointSerializationParallelism));
+        AutoTuneSampleCampaigns = Math.Max(
+            4,
+            Math.Min(64, AutoTuneSampleCampaigns));
+        AutoTuneThroughputTolerance = ClampFinite(
+            AutoTuneThroughputTolerance,
+            0d,
+            0.20d,
+            0.02d);
         ValidationEarlyStopBatchSize = Math.Max(
             1,
             Math.Min(128, ValidationEarlyStopBatchSize));
@@ -770,6 +839,18 @@ public sealed class AutoBattleFoundationTrainingSettings
                 : Math.Max(
                     0.1d,
                     Math.Min(5d, SelfPlayExplorationTemperature));
+    }
+
+    private static string NormalizeExecutionProfile(string value)
+    {
+        var normalized = (value ?? "").Trim().ToLowerInvariant();
+        return normalized switch
+        {
+            AutoBattleFoundationExecutionProfileNames.Cpu16 => normalized,
+            AutoBattleFoundationExecutionProfileNames.Cpu32 => normalized,
+            AutoBattleFoundationExecutionProfileNames.Custom => normalized,
+            _ => AutoBattleFoundationExecutionProfileNames.Auto
+        };
     }
 
     private static double ClampFinite(

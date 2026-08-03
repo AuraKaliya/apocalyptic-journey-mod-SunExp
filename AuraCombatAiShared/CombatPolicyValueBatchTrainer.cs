@@ -137,24 +137,56 @@ internal static class CombatPolicyValueBatchTrainer
         result.DroppedPolicyIntegrityFrames = trainingEpisodes.Sum(episode =>
             SelectEpisodeFrames(episode, options.MaximumFramesPerEpisode)
                 .Count(frame => !PolicyIntegrityValidForTraining(frame)));
-        var trainingFrames = Encode(
-            trainingEpisodes,
-            options,
-            cancellationToken);
+        EncodedFrame[] encodedTraining = Array.Empty<EncodedFrame>();
+        EncodedFrame[]? encodedValidation = null;
+        EncodedFrame[] encodedTest = Array.Empty<EncodedFrame>();
+        var encodingActions = new List<Action>
+        {
+            () => encodedTraining = Encode(
+                trainingEpisodes,
+                options,
+                cancellationToken,
+                EncodingParallelism(
+                    options.MaximumDegreeOfParallelism,
+                    validationEpisodes.Count > 0,
+                    testEpisodes.Count > 0))
+        };
+        if (validationEpisodes.Count > 0)
+        {
+            encodingActions.Add(() => encodedValidation = Encode(
+                validationEpisodes,
+                options,
+                cancellationToken,
+                EncodingParallelism(
+                    options.MaximumDegreeOfParallelism,
+                    validationEpisodes.Count > 0,
+                    testEpisodes.Count > 0)));
+        }
+        if (testEpisodes.Count > 0)
+        {
+            encodingActions.Add(() => encodedTest = Encode(
+                testEpisodes,
+                options,
+                cancellationToken,
+                EncodingParallelism(
+                    options.MaximumDegreeOfParallelism,
+                    validationEpisodes.Count > 0,
+                    testEpisodes.Count > 0)));
+        }
+        Parallel.Invoke(
+            new ParallelOptions
+            {
+                CancellationToken = cancellationToken,
+                MaxDegreeOfParallelism = encodingActions.Count
+            },
+            encodingActions.ToArray());
+        var trainingFrames = encodedTraining;
         trainingFrames = CapUnsafeEndTurnFrames(
             trainingFrames,
             options.MaximumUnsafeEndTurnFrameShare,
             out var droppedUnsafeEndTurnFrames);
-        var validationFrames = Encode(
-            validationEpisodes.Count == 0
-                ? trainingEpisodes
-                : validationEpisodes,
-            options,
-            cancellationToken);
-        var testFrames = Encode(
-            testEpisodes,
-            options,
-            cancellationToken);
+        var validationFrames = encodedValidation ?? encodedTraining;
+        var testFrames = encodedTest;
         if (trainingFrames.Length == 0)
         {
             result.Message = "完整战斗轨迹没有可训练的合法决策帧";
@@ -506,23 +538,41 @@ internal static class CombatPolicyValueBatchTrainer
             validationFrames,
             options.MaximumDegreeOfParallelism,
             cancellationToken);
-        var trainingMetrics = Evaluate(
-            model,
-            trainingFrames,
-            options.MaximumDegreeOfParallelism,
-            cancellationToken);
-        var validationMetrics = Evaluate(
-            model,
-            validationFrames,
-            options.MaximumDegreeOfParallelism,
-            cancellationToken);
-        var testMetrics = testFrames.Length == 0
-            ? new Metrics()
-            : Evaluate(
+        var trainingMetrics = new Metrics();
+        var validationMetrics = new Metrics();
+        var testMetrics = new Metrics();
+        var evaluationJobCount = testFrames.Length == 0 ? 2 : 3;
+        var evaluationParallelism = Math.Max(
+            1,
+            options.MaximumDegreeOfParallelism / evaluationJobCount);
+        var evaluationActions = new List<Action>
+        {
+            () => trainingMetrics = Evaluate(
+                model,
+                trainingFrames,
+                evaluationParallelism,
+                cancellationToken),
+            () => validationMetrics = Evaluate(
+                model,
+                validationFrames,
+                evaluationParallelism,
+                cancellationToken)
+        };
+        if (testFrames.Length > 0)
+        {
+            evaluationActions.Add(() => testMetrics = Evaluate(
                 model,
                 testFrames,
-                options.MaximumDegreeOfParallelism,
-                cancellationToken);
+                evaluationParallelism,
+                cancellationToken));
+        }
+        Parallel.Invoke(
+            new ParallelOptions
+            {
+                CancellationToken = cancellationToken,
+                MaxDegreeOfParallelism = evaluationActions.Count
+            },
+            evaluationActions.ToArray());
         var calibratedTrainingLoss = CompositeValidationLoss(trainingMetrics);
         var calibratedValidationLoss =
             CompositeValidationLoss(validationMetrics);
@@ -721,10 +771,29 @@ internal static class CombatPolicyValueBatchTrainer
         int maximumCandidates,
         CancellationToken cancellationToken)
     {
-        var result = new List<CombatPolicyValueModelCandidate>();
-        foreach (var candidate in source
-                     ?? Array.Empty<CombatPolicyValueModelCandidate>())
+        var sourceCandidates = (source
+                                ?? Array.Empty<
+                                    CombatPolicyValueModelCandidate>())
+            .ToArray();
+        var calibratedResults =
+            new CombatPolicyValueModelCandidate?[sourceCandidates.Length];
+        var candidateParallelism = Math.Max(
+            1,
+            Math.Max(1, parallelism)
+            / Math.Max(1, sourceCandidates.Length));
+        Parallel.For(
+            0,
+            sourceCandidates.Length,
+            new ParallelOptions
+            {
+                CancellationToken = cancellationToken,
+                MaxDegreeOfParallelism = Math.Min(
+                    Math.Max(1, parallelism),
+                    Math.Max(1, sourceCandidates.Length))
+            },
+            candidateIndex =>
         {
+            var candidate = sourceCandidates[candidateIndex];
             cancellationToken.ThrowIfCancellationRequested();
             var calibrated = candidate.Epoch == selectedEpoch
                 ? Clone(selectedModel)
@@ -735,25 +804,25 @@ internal static class CombatPolicyValueBatchTrainer
                     CalibratePolicyTemperature(
                         calibrated,
                         validationFrames,
-                        parallelism,
+                        candidateParallelism,
                         cancellationToken);
             }
             var validation = Evaluate(
                 calibrated,
                 validationFrames,
-                parallelism,
+                candidateParallelism,
                 cancellationToken);
             var training = Evaluate(
                 calibrated,
                 trainingFrames,
-                parallelism,
+                candidateParallelism,
                 cancellationToken);
             var test = testFrames.Length == 0
                 ? new Metrics()
                 : Evaluate(
                     calibrated,
                     testFrames,
-                    parallelism,
+                    candidateParallelism,
                     cancellationToken);
             // Epoch snapshots are captured before the final full-evaluation
             // metric set is assembled. Start from the selected model's full
@@ -788,7 +857,8 @@ internal static class CombatPolicyValueBatchTrainer
             inherited["policyTemperature"] = calibrated.PolicyTemperature;
             inherited["candidateEpoch"] = candidate.Epoch;
             calibrated.Metrics = inherited;
-            result.Add(new CombatPolicyValueModelCandidate
+            calibratedResults[candidateIndex] =
+                new CombatPolicyValueModelCandidate
             {
                 Epoch = candidate.Epoch,
                 ValidationLoss = CompositeValidationLoss(validation),
@@ -797,8 +867,12 @@ internal static class CombatPolicyValueBatchTrainer
                     Snapshot(validation, validationFrames.Length),
                 TestMetrics = Snapshot(test, testFrames.Length),
                 Model = calibrated
-            });
-        }
+            };
+        });
+        var result = calibratedResults
+            .Where(item => item != null)
+            .Select(item => item!)
+            .ToList();
         if (result.All(item => item.Epoch != selectedEpoch))
         {
             result.Add(new CombatPolicyValueModelCandidate
@@ -951,7 +1025,8 @@ internal static class CombatPolicyValueBatchTrainer
     private static EncodedFrame[] Encode(
         IReadOnlyList<CombatEpisode> episodes,
         CombatPolicyValueTrainingOptions options,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        int? maximumDegreeOfParallelism = null)
     {
         var frames = episodes
             .SelectMany(episode =>
@@ -970,13 +1045,25 @@ internal static class CombatPolicyValueBatchTrainer
             {
                 CancellationToken = cancellationToken,
                 MaxDegreeOfParallelism =
-                    options.MaximumDegreeOfParallelism
+                    maximumDegreeOfParallelism
+                    ?? options.MaximumDegreeOfParallelism
             },
             index => encoded[index] = EncodeFrame(
                 frames[index].Episode,
                 frames[index].Frame,
                 options));
         return encoded.Where(item => item != null).Select(item => item!).ToArray();
+    }
+
+    private static int EncodingParallelism(
+        int parallelism,
+        bool hasValidationSplit,
+        bool hasTestSplit)
+    {
+        var jobs = 1
+                   + (hasValidationSplit ? 1 : 0)
+                   + (hasTestSplit ? 1 : 0);
+        return Math.Max(1, Math.Max(1, parallelism) / jobs);
     }
 
     private static IReadOnlyList<CombatEpisodeFrame> SelectEpisodeFrames(

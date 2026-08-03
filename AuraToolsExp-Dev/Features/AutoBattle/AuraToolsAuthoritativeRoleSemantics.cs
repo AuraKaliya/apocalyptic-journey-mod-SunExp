@@ -36,6 +36,7 @@ public static class AuraToolsAuthoritativeRoleSemantics
     private static readonly object Gate = new();
     private static IDisposable? registration;
     private static IDisposable? strategyRegistration;
+    private static IDisposable? skillTimingRegistration;
 
     public static void Initialize()
     {
@@ -51,6 +52,11 @@ public static class AuraToolsAuthoritativeRoleSemantics
                 "witch-nana-role-strategy-v4",
                 new AuraToolsNanaRoleStrategyProvider(),
                 1000);
+            skillTimingRegistration ??= CombatAiRegistry.RegisterSkillTimingProvider(
+                "AuraToolsExp",
+                "witch-base-role-skill-timing-v1",
+                new AuraToolsWitchSkillTimingProvider(),
+                900);
         }
     }
 
@@ -66,6 +72,10 @@ public static class AuraToolsAuthoritativeRoleSemantics
         if (snapshot.RoleStrategyProviderCount <= 0)
         {
             errors.Add("frozen decision preparation has no role strategy provider");
+        }
+        if (snapshot.SkillTimingProviderCount <= 0)
+        {
+            errors.Add("frozen decision preparation has no skill timing provider");
         }
 
         var state = new CombatStateObservation
@@ -144,15 +154,19 @@ public static class AuraToolsAuthoritativeRoleSemantics
             errors.Add("frozen Nana semantic/strategy preparation was not applied");
         }
         transform.Features.TryGetValue(
-            CombatRoleStrategyFeatureNames.Risk,
-            out var transformRisk);
+            CombatSkillTimingFeatureNames.Active,
+            out var skillTimingActive);
+        transform.Features.TryGetValue(
+            CombatSkillTimingFeatureNames.TimingAdvantage,
+            out var timingAdvantage);
         transform.Features.TryGetValue(
             "nana:post-transform-max-hp",
             out var postTransformMaximumHp);
         transform.Features.TryGetValue(
             CombatRoleStrategyFeatureNames.StrategicallyProhibited,
             out var strategicallyProhibited);
-        if (transformRisk <= 0d
+        if (skillTimingActive <= 0.5d
+            || Math.Abs(timingAdvantage) <= 0.000001d
             || postTransformMaximumHp != 115d
             || strategicallyProhibited > 0.5d)
         {
@@ -176,6 +190,14 @@ public static class AuraToolsAuthoritativeRoleSemantics
             }
             if (string.Equals(
                     action.SourceId,
+                    "careercard_1",
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                semantics = DescribeDivineSelection(state);
+                return true;
+            }
+            if (string.Equals(
+                    action.SourceId,
                     "careercard_2",
                     StringComparison.OrdinalIgnoreCase))
             {
@@ -188,6 +210,51 @@ public static class AuraToolsAuthoritativeRoleSemantics
                     StringComparison.OrdinalIgnoreCase))
             {
                 semantics = DescribeCalamityIncarnate(state, action);
+                return true;
+            }
+            if (string.Equals(action.SourceId, "careercard_5", StringComparison.OrdinalIgnoreCase))
+            {
+                semantics = DescribeWailingWall(state);
+                return true;
+            }
+            if (string.Equals(action.SourceId, "careercard_6", StringComparison.OrdinalIgnoreCase))
+            {
+                semantics = DescribeLightlessAegis(state, action);
+                return true;
+            }
+            if (string.Equals(action.SourceId, "careercard_7", StringComparison.OrdinalIgnoreCase))
+            {
+                semantics = DescribeChaosControl(state);
+                return true;
+            }
+            if (string.Equals(action.SourceId, "careercard_8", StringComparison.OrdinalIgnoreCase))
+            {
+                semantics = DescribeImitation(state, action);
+                return true;
+            }
+            if (string.Equals(action.SourceId, "careercard_9", StringComparison.OrdinalIgnoreCase))
+            {
+                semantics = DescribeSketchWorld(state);
+                return true;
+            }
+            if (string.Equals(action.SourceId, "careercard_10", StringComparison.OrdinalIgnoreCase))
+            {
+                semantics = DescribeSlaughterTime(state, action);
+                return true;
+            }
+            if (string.Equals(action.SourceId, "careercard_11", StringComparison.OrdinalIgnoreCase))
+            {
+                semantics = DescribeCrimson(state);
+                return true;
+            }
+            if (string.Equals(action.SourceId, "careercard_12", StringComparison.OrdinalIgnoreCase))
+            {
+                semantics = DescribeMirrorShade(state);
+                return true;
+            }
+            if (string.Equals(action.SourceId, "careercard_13", StringComparison.OrdinalIgnoreCase))
+            {
+                semantics = DescribeAbyssalCalling(state);
                 return true;
             }
             if (!string.Equals(
@@ -243,6 +310,227 @@ public static class AuraToolsAuthoritativeRoleSemantics
                 }
             };
             return true;
+        }
+
+        private static CombatActionSemantics DescribeDivineSelection(
+            CombatStateObservation state)
+        {
+            var handCapacity = Math.Max(0, 10 - state.HandCount);
+            var drawPile = state.Features.TryGetValue("drawPileCount", out var value)
+                ? Math.Max(0d, value)
+                : Math.Max(0, state.DeckKnowledge?.DrawPileCount ?? 0);
+            return new CombatActionSemantics
+            {
+                Draw = handCapacity > 0 && drawPile > 0 ? 1d : 0d,
+                DeckValue = handCapacity > 0 && drawPile > 0 ? 1.5d : 0d,
+                CooldownTurns = 1d,
+                OpensInteraction = true,
+                Risk = handCapacity <= 0 || drawPile <= 0 ? 3d : 0d
+            };
+        }
+
+        private static CombatActionSemantics DescribeWailingWall(
+            CombatStateObservation state)
+        {
+            var capacity = Math.Max(0, 10 - state.HandCount);
+            var effectiveDraw = Math.Min(5, capacity);
+            return new CombatActionSemantics
+            {
+                Draw = effectiveDraw,
+                Buff = 1d,
+                CooldownTurns = 3d,
+                PersistentValue = effectiveDraw * 0.25d,
+                Risk = Math.Max(0, 5 - effectiveDraw) * 0.8d
+            };
+        }
+
+        private static CombatActionSemantics DescribeLightlessAegis(
+            CombatStateObservation state,
+            CombatActionObservation action)
+        {
+            var targetThreat = (state.Threat?.Intents
+                                ?? new List<CombatIntentObservation>())
+                .Where(intent => intent.SourceRuntimeId == action.TargetRuntimeId
+                                 && intent.Kind == CombatIntentKind.Attack)
+                .Sum(intent =>
+                    Math.Max(0d, intent.BlockableDamage + intent.UnblockableDamage)
+                    * Math.Max(0d, Math.Min(1d, intent.Probability)));
+            if (targetThreat <= 0d && state.Threat?.CurrentIntentKnown == true)
+            {
+                targetThreat = Math.Max(0d, state.ExpectedIncomingDamage);
+            }
+            return new CombatActionSemantics
+            {
+                Defend = targetThreat,
+                CooldownTurns = 3d,
+                PersistentValue = targetThreat * 0.2d,
+                Risk = targetThreat <= 0d ? 3d : 0d
+            };
+        }
+
+        private static CombatActionSemantics DescribeChaosControl(
+            CombatStateObservation state)
+        {
+            var enemyCount = Math.Max(1, state.Enemies.Count(enemy => enemy.Alive));
+            var enemyTrueDamage = state.Enemies.Where(enemy => enemy.Alive)
+                .Sum(enemy => Math.Max(0, enemy.MaxHp) * 0.1d) / 6d;
+            var selfHeal = Math.Max(0, state.Player.MaxHp) * 0.3d / 6d;
+            var selfRisk = Math.Max(0, state.Player.MaxHp) * 0.2d / 6d;
+            return new CombatActionSemantics
+            {
+                TrueDamage = enemyTrueDamage,
+                Heal = selfHeal,
+                Draw = 2d / 6d,
+                EnergyGain = -1d / 6d,
+                Buff = 2d / 6d,
+                Debuff = 2d / 6d,
+                AffectedEnemyCount = enemyCount,
+                CooldownTurns = 2d,
+                RandomOutcome = true,
+                Uncertainty = 4d,
+                Risk = selfRisk
+            };
+        }
+
+        private static CombatActionSemantics DescribeImitation(
+            CombatStateObservation state,
+            CombatActionObservation action)
+        {
+            var target = FindTarget(state, action);
+            var positive = StatusValue(target, "Positive");
+            var negative = StatusValue(target, "Negative");
+            return new CombatActionSemantics
+            {
+                Buff = positive,
+                Debuff = negative,
+                PersistentValue = Math.Max(0d, positive - negative) * 0.5d,
+                CooldownTurns = 5d,
+                Risk = negative
+            };
+        }
+
+        private static CombatActionSemantics DescribeSketchWorld(
+            CombatStateObservation state)
+        {
+            var remaining = CampaignValue(
+                state,
+                CombatCampaignContextFeatureNames.RemainingBattles);
+            var available = (state.DeckKnowledge?.DrawPileCount ?? 0) > 0;
+            return new CombatActionSemantics
+            {
+                DeckValue = available ? 1d : 0d,
+                PersistentValue = available ? 2d + Math.Min(12d, remaining * 0.5d) : 0d,
+                CooldownTurns = 2d,
+                OpensInteraction = true,
+                Risk = available ? 1d : 4d
+            };
+        }
+
+        private static CombatActionSemantics DescribeSlaughterTime(
+            CombatStateObservation state,
+            CombatActionObservation action)
+        {
+            var target = FindTarget(state, action);
+            var actions = target?.Features.TryGetValue("actionCount", out var count) == true
+                ? Math.Max(1d, count)
+                : Math.Max(1d, state.CurrentPower);
+            var missingHp = target == null ? 0d : Math.Max(0, target.MaxHp - target.CurrentHp);
+            var projectedHeal = Math.Min(missingHp, actions * 4d);
+            var enemy = target?.Kind == CombatTargetKind.Enemy;
+            return new CombatActionSemantics
+            {
+                Heal = enemy ? 0d : projectedHeal,
+                Damage = enemy ? Math.Max(0d, 16d - projectedHeal) : 0d,
+                Buff = 1d,
+                EndOfCycleSelfHpLoss = enemy ? 0d : 16d,
+                CooldownTurns = 2d,
+                PersistentValue = Math.Max(0d, projectedHeal - 16d),
+                Risk = enemy ? projectedHeal : Math.Max(0d, 16d - projectedHeal)
+            };
+        }
+
+        private static CombatActionSemantics DescribeCrimson(
+            CombatStateObservation state)
+        {
+            var totalBleeding = state.Player.Statuses
+                .Concat(state.Friendlies.SelectMany(unit => unit.Statuses))
+                .Concat(state.Enemies.SelectMany(unit => unit.Statuses))
+                .Where(status => string.Equals(
+                    status.StatusId,
+                    "buff_bleeding",
+                    StringComparison.OrdinalIgnoreCase))
+                .Sum(status => Math.Max(0, status.Level));
+            return new CombatActionSemantics
+            {
+                Damage = totalBleeding,
+                AffectedEnemyCount = Math.Max(1, state.Enemies.Count(enemy => enemy.Alive)),
+                CooldownTurns = 1d,
+                Risk = totalBleeding <= 0 ? 2d : 0d
+            };
+        }
+
+        private static CombatActionSemantics DescribeMirrorShade(
+            CombatStateObservation state)
+        {
+            var best = BestHandCardValue(state);
+            return new CombatActionSemantics
+            {
+                CardGeneration = best > 0d ? 1d : 0d,
+                DeckValue = best * 0.5d,
+                PersistentValue = best * 0.25d,
+                CooldownTurns = 2d,
+                OpensInteraction = true,
+                Risk = best <= 0d ? 3d : 0d
+            };
+        }
+
+        private static CombatActionSemantics DescribeAbyssalCalling(
+            CombatStateObservation state)
+        {
+            var best = BestHandCardValue(state);
+            var remaining = CampaignValue(
+                state,
+                CombatCampaignContextFeatureNames.RemainingBattles);
+            return new CombatActionSemantics
+            {
+                Scaling = best,
+                DeckValue = best * 0.5d,
+                PersistentValue = best * (1d + Math.Min(10d, remaining) * 0.2d),
+                CooldownTurns = 99d,
+                OpensInteraction = true,
+                Risk = best <= 0d ? 4d : 1d
+            };
+        }
+
+        private static double StatusValue(
+            CombatUnitObservation? target,
+            string type)
+        {
+            return target?.Statuses
+                       .Where(status => string.Equals(status.Type, type, StringComparison.OrdinalIgnoreCase))
+                       .Sum(status => Math.Max(0, status.Level) * Math.Max(1, status.Rarity))
+                   ?? 0d;
+        }
+
+        private static double BestHandCardValue(CombatStateObservation state)
+        {
+            return state.HandCards
+                .Select(card => Math.Max(0d,
+                    1d
+                    + Math.Max(0d, 3d - card.EffectiveCost) * 0.5d
+                    + card.EnhancementCount * 0.5d
+                    + (card.Retained ? 0.5d : 0d)))
+                .DefaultIfEmpty(0d)
+                .Max();
+        }
+
+        private static double CampaignValue(
+            CombatStateObservation state,
+            string key)
+        {
+            return state.Features.TryGetValue(key, out var value)
+                ? Math.Max(0d, value)
+                : 0d;
         }
 
         private static CombatActionSemantics DescribeDoomDevour(

@@ -2497,6 +2497,17 @@ internal static class AuraToolsAutoBattleFoundationRuntime
             PreflightCampaignsPerDifficulty =
                 source.PreflightCampaignsPerDifficulty,
             MaximumDegreeOfParallelism = source.Parallelism,
+            ParallelismProfile = source.ParallelismProfile,
+            InferenceExecutionMode = source.InferenceExecutionMode,
+            InferenceParallelism = source.InferenceParallelism,
+            ThreadPoolMinimumWorkerThreads =
+                source.ThreadPoolMinimumWorkerThreads,
+            CheckpointSerializationParallelism =
+                source.CheckpointSerializationParallelism,
+            ReuseAutoTuneCache = source.ReuseAutoTuneCache,
+            AutoTuneSampleCampaigns = source.AutoTuneSampleCampaigns,
+            AutoTuneThroughputTolerance =
+                source.AutoTuneThroughputTolerance,
             EnableEarlyValidationStop = source.EarlyValidationStop,
             ValidationEarlyStopBatchSize =
                 source.ValidationEarlyStopBatchSize,

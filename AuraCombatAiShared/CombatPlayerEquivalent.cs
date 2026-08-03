@@ -163,15 +163,35 @@ public static class CombatRootDeterminizer
     public static List<string> SampleDrawPile(CombatBeliefState belief, int seed)
     {
         if (belief == null) throw new ArgumentNullException(nameof(belief));
+        var result = new List<string>(Math.Max(0, belief.DrawPileCount));
+        var unknown = new List<string>(belief.UnknownDrawCardIds.Count);
+        SampleDrawPileInto(belief, seed, result, unknown);
+        return result;
+    }
+
+    public static void SampleDrawPileInto(
+        CombatBeliefState belief,
+        int seed,
+        List<string> result,
+        List<string> unknownWorkspace)
+    {
+        if (belief == null) throw new ArgumentNullException(nameof(belief));
+        if (result == null) throw new ArgumentNullException(nameof(result));
+        if (unknownWorkspace == null)
+        {
+            throw new ArgumentNullException(nameof(unknownWorkspace));
+        }
+        result.Clear();
+        unknownWorkspace.Clear();
+        unknownWorkspace.AddRange(belief.UnknownDrawCardIds);
         var random = new Random(seed);
-        var unknown = new List<string>(belief.UnknownDrawCardIds);
+        var unknown = unknownWorkspace;
         for (var index = unknown.Count - 1; index > 0; index--)
         {
             var selected = random.Next(index + 1);
             (unknown[index], unknown[selected]) = (unknown[selected], unknown[index]);
         }
 
-        var result = new List<string>(Math.Max(0, belief.DrawPileCount));
         result.AddRange(belief.KnownBottomCardIds);
         result.AddRange(unknown);
         for (var index = belief.KnownTopCardIds.Count - 1; index >= 0; index--)
@@ -186,7 +206,6 @@ public static class CombatRootDeterminizer
         {
             result.Add("");
         }
-        return result;
     }
 }
 
@@ -921,6 +940,9 @@ public static class CombatPublicFeaturePolicy
                 CombatRoleStrategyFeatureNames.Prefix,
                 StringComparison.OrdinalIgnoreCase)
             || key.StartsWith(
+                CombatSkillTimingFeatureNames.Prefix,
+                StringComparison.OrdinalIgnoreCase)
+            || key.StartsWith(
                 CombatCampaignContextFeatureNames.Prefix,
                 StringComparison.OrdinalIgnoreCase)
             || key.StartsWith("deck:", StringComparison.OrdinalIgnoreCase)
@@ -962,6 +984,9 @@ public static class CombatPublicFeaturePolicy
             ActionKeys.Contains(key)
             || key.StartsWith(
                 CombatRoleStrategyFeatureNames.Prefix,
+                StringComparison.OrdinalIgnoreCase)
+            || key.StartsWith(
+                CombatSkillTimingFeatureNames.Prefix,
                 StringComparison.OrdinalIgnoreCase)
             || key.StartsWith("stateChange:", StringComparison.OrdinalIgnoreCase)
             || key.StartsWith("nana:", StringComparison.OrdinalIgnoreCase)

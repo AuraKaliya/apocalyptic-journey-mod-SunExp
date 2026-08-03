@@ -113,8 +113,7 @@ internal sealed class AuraToolsNanaRoleStrategyProvider :
             state,
             actions,
             transform,
-            doom,
-            finalBoss);
+            doom);
         var nextTurnPower = Math.Max(
             state.MaxPower,
             (int)Math.Round(StateFeature(
@@ -126,7 +125,6 @@ internal sealed class AuraToolsNanaRoleStrategyProvider :
             nextTurnPower);
         var bankForNextTurn = transform != null
                               && !transformed
-                              && !burst.Ready
                               && nextTurnBurstActions > burst.ExecutableActions
                               && nextTurnPower > state.CurrentPower
                               && safeToBank
@@ -232,16 +230,13 @@ internal sealed class AuraToolsNanaRoleStrategyProvider :
             else if (IdEquals(action.SourceId, "careercard_3"))
             {
                 EnrichTransform(
+                    state,
                     action,
                     burst,
                     bestDevour,
                     bankForNextTurn,
                     transformed,
-                    growthGap,
-                    growthOpportunityAdventure,
-                    safeToBank,
-                    survivalOverride,
-                    finalBoss);
+                    survivalOverride);
             }
             else if (IdEquals(action.SourceId, FinaleCardId))
             {
@@ -479,8 +474,7 @@ internal sealed class AuraToolsNanaRoleStrategyProvider :
         CombatStateObservation state,
         IReadOnlyList<CombatActionObservation> actions,
         CombatActionObservation? transform,
-        int doom,
-        bool finalBoss)
+        int doom)
     {
         var alreadyTransformed = string.Equals(
                                      state.Player.DefinitionId,
@@ -499,11 +493,6 @@ internal sealed class AuraToolsNanaRoleStrategyProvider :
             ? 0d
             : Feature(transform, "nana:transform-hp-clamp-loss");
         var burstValue = totalPassiveDamage + snapshotStatValue - hpClampLoss * 2d;
-        var ready = transform != null
-                    && !alreadyTransformed
-                    && executableActions >= (finalBoss ? 1 : 2)
-                    && (passiveDamage >= 1 || snapshotStatValue >= 4d)
-                    && burstValue > 0d;
         var nextPostThreshold = (passiveDamage + 1) * 50;
         var nextPreTransformThreshold = nextPostThreshold;
         return new BurstPlan
@@ -515,7 +504,6 @@ internal sealed class AuraToolsNanaRoleStrategyProvider :
             SnapshotStatValue = snapshotStatValue,
             HpClampLoss = hpClampLoss,
             BurstValue = burstValue,
-            Ready = ready,
             NextPreTransformThreshold = nextPreTransformThreshold,
             ThresholdDistance = Math.Max(
                 0,
@@ -524,16 +512,13 @@ internal sealed class AuraToolsNanaRoleStrategyProvider :
     }
 
     private static void EnrichTransform(
+        CombatStateObservation state,
         CombatActionObservation action,
         BurstPlan burst,
         DevourAssessment? bestDevour,
         bool bankForNextTurn,
         bool transformed,
-        int growthGap,
-        bool growthOpportunityAdventure,
-        bool safeToGrow,
-        bool survivalOverride,
-        bool finalBoss)
+        bool survivalOverride)
     {
         action.Features["roleStrategy:nana.burst-actions"] =
             burst.ExecutableActions;
@@ -541,8 +526,6 @@ internal sealed class AuraToolsNanaRoleStrategyProvider :
             !transformed && bestDevour?.Gain > 0d ? 1d : 0d;
         action.Features["roleStrategy:nana.bank-transform"] =
             bankForNextTurn ? 1d : 0d;
-        action.Features["roleStrategy:nana.transform-ready"] =
-            burst.Ready ? 1d : 0d;
         action.Features["nana:post-transform-max-hp"] = burst.PostTransformMaxHp;
         action.Features["nana:post-transform-damage-per-action"] =
             burst.PassiveDamagePerAction;
@@ -558,67 +541,68 @@ internal sealed class AuraToolsNanaRoleStrategyProvider :
         action.Features["nana:transform-threshold-distance"] =
             burst.ThresholdDistance;
 
+        action.Features[CombatSkillTimingFeatureNames.Active] = 1d;
+        action.Features[CombatSkillTimingFeatureNames.ResetsEachBattle] = 1d;
+        if (Feature(
+                action,
+                CombatSkillTimingFeatureNames.CooldownAfterUse) <= 0d)
+        {
+            action.Features[CombatSkillTimingFeatureNames.CooldownAfterUse] = 2d;
+        }
+
         if (transformed || Feature(action, "nana:repeat-transform") > 0.5d)
         {
+            action.Features[CombatSkillTimingFeatureNames.RedundancyCost] = 40d;
+            CombatSkillTimingPolicy.Enrich(action);
+            action.Features["roleStrategy:nana.transform-ready"] = 0d;
             Prohibit(action, 999d, -20d);
             return;
         }
-        if (bestDevour?.ReliableSameTurnBuilder == true)
+
+        var ongoingValue = Math.Max(0d, burst.BurstValue);
+        var devourDelayGain = bestDevour?.Gain > 0d
+                              && bestDevour.NetValue > 0d
+            ? Math.Min(
+                10d,
+                bestDevour.Gain * 0.45d
+                + PersistentGrowthUtility(bestDevour.MaximumHpGain) * 0.30d
+                + (bestDevour.ReliableSameTurnBuilder ? 1d : 0d))
+            : 0d;
+        var nextTurnDelayGain = bankForNextTurn
+            ? Math.Min(
+                6d,
+                Math.Max(1d, burst.PassiveDamagePerAction)
+                * Math.Max(1d, StateFeature(
+                    state,
+                    "nextTurnPowerOnEnd",
+                    state.MaxPower) - state.CurrentPower))
+            : 0d;
+        var turn = Math.Max(1d, StateFeature(state, "turn", 1d));
+        var expiryRisk = burst.ExecutableActions <= 0
+            ? 0d
+            : Math.Min(
+                5d,
+                0.5d
+                + Math.Max(0d, turn - 1d) * 0.35d
+                + (survivalOverride ? 1.5d : 0d));
+        action.Features[CombatSkillTimingFeatureNames.OngoingEffectValue] =
+            ongoingValue;
+        action.Features[CombatSkillTimingFeatureNames.DelayGain] =
+            Math.Max(devourDelayGain, nextTurnDelayGain);
+        action.Features[CombatSkillTimingFeatureNames.ReserveValue] = 0d;
+        action.Features[CombatSkillTimingFeatureNames.ExpiryRisk] = expiryRisk;
+        action.Features[CombatSkillTimingFeatureNames.OpportunityCost] =
+            Math.Max(0d, burst.HpClampLoss * 2d);
+
+        var timing = CombatSkillTimingPolicy.Enrich(action);
+        action.Features["roleStrategy:nana.transform-ready"] =
+            timing.PositiveOpportunity ? 1d : 0d;
+        if (timing.PositiveOpportunity)
         {
-            SetMax(action, CombatRoleStrategyFeatureNames.Risk, 6d);
-            SetMin(action, CombatRoleStrategyFeatureNames.Synergy, -4d);
-        }
-        else if (bestDevour?.NetValue >= PreferredDevourNetValue)
-        {
-            SetMax(
-                action,
-                CombatRoleStrategyFeatureNames.Risk,
-                2d + Math.Min(5d, bestDevour.NetValue * 0.35d));
-            SetMin(action, CombatRoleStrategyFeatureNames.Synergy, -2d);
-        }
-        if (bankForNextTurn)
-        {
-            SetMax(action, CombatRoleStrategyFeatureNames.Risk, 4d);
-            SetMin(action, CombatRoleStrategyFeatureNames.Synergy, -2d);
-        }
-        if (!finalBoss
-            && growthGap > 0
-            && growthOpportunityAdventure
-            && safeToGrow)
-        {
-            action.Features["roleStrategy:nana.transform-before-growth-target"] =
-                1d;
-            SetMax(
-                action,
-                CombatRoleStrategyFeatureNames.Risk,
-                Math.Min(4d, 1d + growthGap * 0.15d));
-            SetMin(
-                action,
-                CombatRoleStrategyFeatureNames.Synergy,
-                -Math.Min(3d, growthGap * 0.10d));
-        }
-        if (survivalOverride && burst.HpClampLoss > 0d)
-        {
-            SetMax(
-                action,
-                CombatRoleStrategyFeatureNames.Risk,
-                8d + burst.HpClampLoss * 2d);
-            SetMin(action, CombatRoleStrategyFeatureNames.Synergy, -6d);
-        }
-        if (burst.Ready)
-        {
-            SetMax(
-                action,
-                CombatRoleStrategyFeatureNames.Synergy,
-                4d + Math.Min(8d, burst.BurstValue * 0.25d));
             SetMax(
                 action,
                 CombatRoleStrategyFeatureNames.Continuation,
                 Math.Min(6d, burst.ExecutableActions));
-        }
-        else
-        {
-            SetMax(action, CombatRoleStrategyFeatureNames.Risk, 2d);
         }
     }
 
@@ -1160,7 +1144,12 @@ internal sealed class AuraToolsNanaRoleStrategyProvider :
         return IdEquals(state.Player?.DefinitionId, "career_2")
                || IdEquals(state.Player?.DefinitionId, "career_4")
                || StateFeature(state, "playerRole:career_2", 0d) > 0.5d
-               || StateFeature(state, "playerRole:career_4", 0d) > 0.5d;
+               || StateFeature(state, "playerRole:career_4", 0d) > 0.5d
+               || StatusLevel(state.Player, CalamityStatusId) > 0
+               || StateFeature(
+                   state,
+                   "playerStatus:" + CalamityStatusId,
+                   0d) > 0.5d;
     }
 
     private static bool IsBleedingCard(string? cardId)
@@ -1328,8 +1317,6 @@ internal sealed class AuraToolsNanaRoleStrategyProvider :
         public double HpClampLoss { get; set; }
 
         public double BurstValue { get; set; }
-
-        public bool Ready { get; set; }
 
         public int NextPreTransformThreshold { get; set; }
 

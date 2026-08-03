@@ -7,6 +7,7 @@ using System.Linq;
 using System.Security.Cryptography;
 using System.Text;
 using System.Threading;
+using System.Threading.Tasks;
 
 namespace AuraCombatAi.Shared;
 
@@ -20,6 +21,73 @@ public static class CombatFoundationCheckpointStorage
         string basePath,
         IEnumerable<string> serializedEpisodes,
         string replayIdentity)
+    {
+        if (serializedEpisodes == null)
+        {
+            throw new ArgumentNullException(nameof(serializedEpisodes));
+        }
+        return WriteEpisodeSnapshotCore(
+            basePath,
+            replayIdentity,
+            writeLine =>
+            {
+                foreach (var line in serializedEpisodes)
+                {
+                    writeLine(line ?? "");
+                }
+            });
+    }
+
+    public static CombatFoundationEpisodeSnapshot WriteEpisodeSnapshot<T>(
+        string basePath,
+        IReadOnlyList<T> episodes,
+        Func<T, string> serialize,
+        string replayIdentity,
+        int maximumDegreeOfParallelism)
+    {
+        if (episodes == null)
+        {
+            throw new ArgumentNullException(nameof(episodes));
+        }
+        if (serialize == null)
+        {
+            throw new ArgumentNullException(nameof(serialize));
+        }
+        var maximumDegree = Math.Max(1, maximumDegreeOfParallelism);
+        var chunkSize = Math.Max(16, Math.Min(128, maximumDegree * 4));
+        return WriteEpisodeSnapshotCore(
+            basePath,
+            replayIdentity,
+            writeLine =>
+            {
+                for (var start = 0; start < episodes.Count; start += chunkSize)
+                {
+                    var count = Math.Min(chunkSize, episodes.Count - start);
+                    var lines = new string[count];
+                    Parallel.For(
+                        0,
+                        count,
+                        new ParallelOptions
+                        {
+                            MaxDegreeOfParallelism = maximumDegree
+                        },
+                        index =>
+                        {
+                            lines[index] =
+                                serialize(episodes[start + index]) ?? "";
+                        });
+                    for (var index = 0; index < lines.Length; index++)
+                    {
+                        writeLine(lines[index]);
+                    }
+                }
+            });
+    }
+
+    private static CombatFoundationEpisodeSnapshot WriteEpisodeSnapshotCore(
+        string basePath,
+        string replayIdentity,
+        Action<Action<string>> produceLines)
     {
         var fullBasePath = Path.GetFullPath(basePath);
         var directory = Path.GetDirectoryName(fullBasePath)
@@ -52,7 +120,7 @@ public static class CombatFoundationCheckpointStorage
             using (var hash = SHA256.Create())
             {
                 var newline = Encoding.UTF8.GetBytes(Environment.NewLine);
-                foreach (var line in serializedEpisodes)
+                void WriteLine(string line)
                 {
                     var bytes = Encoding.UTF8.GetBytes(line ?? "");
                     stream.Write(bytes, 0, bytes.Length);
@@ -66,6 +134,7 @@ public static class CombatFoundationCheckpointStorage
                         0);
                     episodeCount++;
                 }
+                produceLines(WriteLine);
                 hash.TransformFinalBlock(Array.Empty<byte>(), 0, 0);
                 stream.Flush(true);
                 contentSha256 = ToHex(hash.Hash ?? Array.Empty<byte>());
@@ -478,5 +547,99 @@ public static class CombatFoundationCheckpointStorage
                 value.ToString("x2", CultureInfo.InvariantCulture));
         }
         return builder.ToString();
+    }
+}
+
+internal sealed class CombatFoundationLatestWritePipeline<T> : IDisposable
+    where T : class
+{
+    private readonly object gate = new();
+    private readonly Action<T> execute;
+    private T? pending;
+    private bool running;
+    private Task worker = Task.CompletedTask;
+    private long enqueuedCount;
+    private long executedCount;
+    private long coalescedCount;
+
+    public CombatFoundationLatestWritePipeline(Action<T> execute)
+    {
+        this.execute = execute
+                       ?? throw new ArgumentNullException(nameof(execute));
+    }
+
+    public long EnqueuedCount => Interlocked.Read(ref enqueuedCount);
+
+    public long ExecutedCount => Interlocked.Read(ref executedCount);
+
+    public long CoalescedCount => Interlocked.Read(ref coalescedCount);
+
+    public void Enqueue(T item)
+    {
+        if (item == null)
+        {
+            throw new ArgumentNullException(nameof(item));
+        }
+        Interlocked.Increment(ref enqueuedCount);
+        lock (gate)
+        {
+            if (pending != null)
+            {
+                Interlocked.Increment(ref coalescedCount);
+            }
+            pending = item;
+            if (running)
+            {
+                return;
+            }
+            running = true;
+            worker = Task.Run(Process);
+        }
+    }
+
+    public void Drain()
+    {
+        Task current;
+        lock (gate)
+        {
+            current = worker;
+        }
+        current.GetAwaiter().GetResult();
+    }
+
+    public void Dispose()
+    {
+        Drain();
+    }
+
+    private void Process()
+    {
+        try
+        {
+            while (true)
+            {
+                T? item;
+                lock (gate)
+                {
+                    item = pending;
+                    pending = null;
+                    if (item == null)
+                    {
+                        running = false;
+                        return;
+                    }
+                }
+                execute(item);
+                Interlocked.Increment(ref executedCount);
+            }
+        }
+        catch
+        {
+            lock (gate)
+            {
+                running = false;
+            }
+            throw;
+        }
     }
 }
