@@ -296,12 +296,39 @@ if (-not $foundationControllerRuntime.Contains(
         -or -not $foundationControllerRuntime.Contains(
             "loadedSchemaVersion < 6") `
         -or -not $foundationControllerRuntime.Contains(
+            "loadedSchemaVersion < 7") `
+        -or -not $foundationControllerRuntime.Contains(
+            "loadedSchemaVersion < 8") `
+        -or -not $foundationControllerRuntime.Contains(
+            "loadedSchemaVersion < 9") `
+        -or -not $foundationControllerRuntime.Contains(
             "AdditionalIterationsOnResume") `
         -or -not $foundationControllerRuntime.Contains(
             "MinimumAdvancedDefeatReplayShare") `
         -or -not $foundationControllerModels.Contains(
-            "SchemaVersion { get; set; } = 6")) {
+            "SchemaVersion { get; set; } = 9")) {
     throw "Foundation controller resumable-training settings migration is missing."
+}
+foreach ($anchor in @(
+    "AdditionalIterationsOnResume = 2",
+    "PreflightCampaignsPerDifficulty = 16",
+    "CombatFoundationExecutionProfileNames.ShardedBatchInference",
+    "CombatFoundationAutoTuneObjectiveNames.MaximumThroughput",
+    "SuccessExpertReplayShare = 0.10d",
+    "ModelGradientShardCount = 16",
+    "ModelMaximumUnsafeEndTurnFrameShare = 0.35d",
+    "ModelLearningRate = 0.004d",
+    "ModelL2 = 0.002d",
+    "ModelStateDimensions = 256",
+    "ModelActionDimensions = 256",
+    "ModelHiddenDimensions = 64",
+    "TransformerTeacherEpochs = 12",
+    "TransformerTeacherMinimumFrames = 1024",
+    "TransformerDistillationWeight = 0.35d"
+)) {
+    if (-not $foundationControllerModels.Contains($anchor)) {
+        throw "Foundation controller development preset is missing: $anchor"
+    }
 }
 foreach ($anchor in @(
     "AuraToolsBundledFoundationModelRuntime.Initialize(modConfig)",

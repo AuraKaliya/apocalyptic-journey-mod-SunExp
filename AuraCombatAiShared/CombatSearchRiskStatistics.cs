@@ -44,6 +44,7 @@ internal sealed class CombatSearchRiskStatistics
     private const int FullTailEvidence = 8;
     private readonly List<double> returnSamples = new();
     private double[] orderedSamples = Array.Empty<double>();
+    private int orderedSampleCount;
     private bool orderedSamplesDirty = true;
     private int count;
     private double mean;
@@ -75,6 +76,17 @@ internal sealed class CombatSearchRiskStatistics
         orderedSamplesDirty = true;
     }
 
+    public void Reset()
+    {
+        returnSamples.Clear();
+        orderedSampleCount = 0;
+        orderedSamplesDirty = true;
+        count = 0;
+        mean = 0d;
+        sumSquaredDeviation = 0d;
+        riskSum = 0d;
+    }
+
     public CombatSearchRiskEstimate Estimate(double quantile)
     {
         if (returnSamples.Count == 0)
@@ -93,7 +105,7 @@ internal sealed class CombatSearchRiskStatistics
         var normalized = Math.Max(0.01d, Math.Min(1d, quantile));
         var tailCount = Math.Max(
             1,
-            (int)Math.Ceiling(orderedSamples.Length * normalized));
+            (int)Math.Ceiling(orderedSampleCount * normalized));
         var tailSum = 0d;
         for (var i = 0; i < tailCount; i++)
         {
@@ -134,9 +146,9 @@ internal sealed class CombatSearchRiskStatistics
         for (var index = 0; index < size; index++)
         {
             var tau = (index + 0.5d) / size;
-            var position = tau * (orderedSamples.Length - 1);
+            var position = tau * (orderedSampleCount - 1);
             var lower = (int)Math.Floor(position);
-            var upper = Math.Min(orderedSamples.Length - 1, lower + 1);
+            var upper = Math.Min(orderedSampleCount - 1, lower + 1);
             var fraction = position - lower;
             result[index] = orderedSamples[lower]
                             + (orderedSamples[upper] - orderedSamples[lower])
@@ -151,8 +163,18 @@ internal sealed class CombatSearchRiskStatistics
         {
             return;
         }
-        orderedSamples = returnSamples.ToArray();
-        Array.Sort(orderedSamples);
+        if (orderedSamples.Length < returnSamples.Count)
+        {
+            var capacity = Math.Max(16, orderedSamples.Length);
+            while (capacity < returnSamples.Count)
+            {
+                capacity = Math.Min(MaximumReturnSamples, capacity * 2);
+            }
+            orderedSamples = new double[capacity];
+        }
+        returnSamples.CopyTo(orderedSamples, 0);
+        orderedSampleCount = returnSamples.Count;
+        Array.Sort(orderedSamples, 0, orderedSampleCount);
         orderedSamplesDirty = false;
     }
 }

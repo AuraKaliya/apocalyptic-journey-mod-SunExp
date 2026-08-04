@@ -12,6 +12,8 @@ $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $project = Join-Path $repoRoot "AuraFoundationTrainer.Worker\AuraFoundationTrainer.Worker.csproj"
 $controlCenterProject = Join-Path $repoRoot "AuraFoundationTrainer.ControlCenter\AuraFoundationTrainer.ControlCenter.csproj"
+$transformerTeacherSource = Join-Path $repoRoot "tools\transformer-teacher"
+$transformerSetupSource = Join-Path $repoRoot "tools\Setup-AuraTransformerTeacher.ps1"
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
     $OutputDirectory = Join-Path $repoRoot "AuraToolsExp\TrainingWorker"
 }
@@ -329,6 +331,28 @@ try {
             -Source $file.FullName `
             -Destination (Join-Path $resolvedOutput $file.Name)
     }
+    $transformerTeacherOutput = Join-Path `
+        $resolvedOutput `
+        "TransformerTeacher"
+    New-Item `
+        -ItemType Directory `
+        -Force `
+        -Path $transformerTeacherOutput |
+        Out-Null
+    foreach ($file in @(
+        Get-ChildItem `
+            -LiteralPath $transformerTeacherSource `
+            -Filter "*.py" `
+            -File
+    )) {
+        Copy-PublishedFileWithRetry `
+            -Source $file.FullName `
+            -Destination (Join-Path $transformerTeacherOutput $file.Name)
+    }
+    Copy-PublishedFileWithRetry `
+        -Source $transformerSetupSource `
+        -Destination (Join-Path $resolvedOutput (
+            Split-Path -Leaf $transformerSetupSource))
 }
 finally {
     $resolvedStageRoot = [System.IO.Path]::GetFullPath($stageRoot)
@@ -345,6 +369,12 @@ if (-not (Test-Path -LiteralPath $worker -PathType Leaf)) {
 }
 if (-not (Test-Path -LiteralPath $controlCenter -PathType Leaf)) {
     throw "Published foundation trainer control center is missing: $controlCenter"
+}
+$publishedTeacher = Join-Path `
+    $resolvedOutput `
+    "TransformerTeacher\train_teacher.py"
+if (-not (Test-Path -LiteralPath $publishedTeacher -PathType Leaf)) {
+    throw "Published Transformer teacher is missing: $publishedTeacher"
 }
 Write-Host "Aura foundation trainer published: $worker"
 Write-Host "Aura foundation trainer control center published: $controlCenter"

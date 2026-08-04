@@ -69,6 +69,9 @@ internal sealed class MainWindow : Window
     private ComboBox gradientShardInput = null!;
     private ComboBox parallelismProfileInput = null!;
     private ComboBox inferenceModeInput = null!;
+    private ComboBox autoTuneObjectiveInput = null!;
+    private ComboBox governanceProfileInput = null!;
+    private ComboBox transformerBackendInput = null!;
     private Button startButton = null!;
     private Button cancelButton = null!;
     private Button continueButton = null!;
@@ -223,6 +226,7 @@ internal sealed class MainWindow : Window
         BuildGameSubjectSection(panel);
 
         panel.Children.Add(Section("工作量与性能"));
+        AddGovernanceProfileSelect(panel);
         AddProfileSelect(panel);
         AddNumber(
             panel,
@@ -249,6 +253,13 @@ internal sealed class MainWindow : Window
             "能力探针/难度",
             0,
             128);
+        AddNumber(
+            panel,
+            "CapabilityProbeTeacherCampaignsPerDifficulty",
+            "教师诊断探针/难度",
+            0,
+            128);
+        AddNumber(panel, "CapabilityProbeBatchSize", "能力探针检查批次", 1, 128);
         AddToggle(
             panel,
             "RequireCapabilityProbeBaselineGain",
@@ -274,6 +285,8 @@ internal sealed class MainWindow : Window
         AddExecutionProfileSelect(panel);
         AddInferenceModeSelect(panel);
         AddNumber(panel, "InferenceParallelism", "推理并行上下文", 0, 64);
+        AddNumber(panel, "InferenceLaneCount", "推理 Lane 数（0 自动）", 0, 64);
+        AddNumber(panel, "InferenceBatchSize", "推理批大小（0 自动）", 0, 32);
         AddNumber(
             panel,
             "ThreadPoolMinimumWorkerThreads",
@@ -287,6 +300,7 @@ internal sealed class MainWindow : Window
             0,
             2);
         AddToggle(panel, "ReuseAutoTuneCache", "复用 Auto-Tune 测量缓存");
+        AddAutoTuneObjectiveSelect(panel);
         AddNumber(
             panel,
             "AutoTuneSampleCampaigns",
@@ -333,6 +347,21 @@ internal sealed class MainWindow : Window
         AddNumber(panel, "ModelActionDimensions", "动作维度", 16, 512);
         AddNumber(panel, "ModelHiddenDimensions", "隐藏维度", 8, 256);
 
+        panel.Children.Add(Section("Transformer 教师蒸馏"));
+        AddTransformerBackendSelect(panel);
+        AddText(panel, "TransformerPythonExecutable", "Python 可执行程序");
+        AddNumber(panel, "TransformerTeacherEpochs", "教师 Epoch", 1, 100);
+        AddNumber(panel, "TransformerTeacherBatchSize", "教师 Minibatch", 8, 512);
+        AddNumber(panel, "TransformerTeacherStateDimensions", "教师状态维度", 32, 256);
+        AddNumber(panel, "TransformerTeacherActionDimensions", "教师动作维度", 32, 256);
+        AddNumber(panel, "TransformerTeacherHiddenDimensions", "教师隐藏维度", 32, 256);
+        AddNumber(panel, "TransformerTeacherLayers", "Transformer 层数", 1, 6);
+        AddNumber(panel, "TransformerTeacherAttentionHeads", "注意力头数", 1, 8);
+        AddNumber(panel, "TransformerTeacherHistoryLength", "历史决策窗口", 1, 32);
+        AddNumber(panel, "TransformerTeacherMinimumFrames", "教师最少 Frames", 64, 100000);
+        AddNumber(panel, "TransformerTeacherCpuThreads", "教师 CPU 线程（0 自动）", 0, 64);
+        AddDouble(panel, "TransformerDistillationWeight", "教师蒸馏权重");
+
         panel.Children.Add(Section("课程、探索与验收"));
         AddToggle(panel, "EnableCurriculum", "启用课程难度");
         AddToggle(panel, "EnableStratifiedReplay", "启用分层回放");
@@ -346,6 +375,8 @@ internal sealed class MainWindow : Window
         AddToggle(panel, "EnableArenaRecovery", "启用竞技场恢复");
         AddToggle(panel, "EnableTuningArena", "启用 Top-K 调优竞技场");
         AddToggle(panel, "EnableProgressiveTuning", "启用渐进式调优筛选");
+        AddToggle(panel, "EnableOfflineTuningGate", "启用离线支配筛选");
+        AddToggle(panel, "EnableSequentialArenaStop", "启用竞技场提前拒绝");
         AddToggle(panel, "EnableEarlyValidationStop", "启用验证提前停止");
         AddNumber(panel, "ArenaInvalidRetryCount", "无效竞技场重试", 0, 3);
         AddDouble(panel, "ArenaInvalidRateLimit", "无效竞技场率上限");
@@ -364,6 +395,8 @@ internal sealed class MainWindow : Window
             0,
             64);
         AddNumber(panel, "TuningFinalistCount", "调优决选模型数", 1, 8);
+        AddNumber(panel, "TuningInterval", "调优间隔轮数", 1, 8);
+        AddNumber(panel, "ArenaEvaluationBatchSize", "竞技场检查批次", 1, 64);
         AddNumber(
             panel,
             "MaximumConsecutiveRejectedIterations",
@@ -1021,7 +1054,8 @@ internal sealed class MainWindow : Window
             + $"战斗 {telemetry.CompletedBattles} · 深度 "
             + $"{telemetry.MaximumActiveBattleDepth}/{telemetry.MaximumCompletedBattleDepth}/37";
         var executionSummary =
-            $"{telemetry.ParallelismProfile}/{telemetry.InferenceExecutionMode}";
+            $"{telemetry.GovernanceProfile} · "
+            + $"{telemetry.ParallelismProfile}/{telemetry.InferenceExecutionMode}";
         if (string.Equals(
                 telemetry.ParallelismProfile,
                 CombatFoundationExecutionProfileNames.Auto,
@@ -1054,6 +1088,13 @@ internal sealed class MainWindow : Window
             + $"线程：active={telemetry.ActiveCampaigns}，"
             + $"peak={telemetry.PeakConcurrentCampaigns}，"
             + $"observed={telemetry.ObservedWorkerThreads}\r\n"
+            + $"推理批处理：requests={telemetry.InferenceRequests:N0}，"
+            + $"batches={telemetry.InferenceBatchEvaluations:N0}，"
+            + $"avg={telemetry.InferenceAverageBatchSize:0.00}，"
+            + $"timeouts={telemetry.InferenceTimeoutFlushes:N0}，"
+            + $"fallback={telemetry.InferenceDirectFallbackRequests:N0}，"
+            + $"adaptive={telemetry.InferenceAdaptiveFallbackActivations:N0}，"
+            + $"wait={telemetry.InferenceAverageWaitMicroseconds:0.0}us\r\n"
             + $"GC：{telemetry.Gen0Collections}/"
             + $"{telemetry.Gen1Collections}/{telemetry.Gen2Collections}\r\n"
             + $"更新时间：{DateTime.Now:HH:mm:ss}";
@@ -1211,6 +1252,28 @@ internal sealed class MainWindow : Window
               + $"（计划 {validation.AdvancedPlannedCampaigns}，"
               + $"LB {validation.AdvancedWilsonLowerBound:P1}） · "
               + $"无效 {validation.InvalidCampaigns}";
+        var teacher = result.Training?.Iterations
+            .LastOrDefault(item => item.TransformerTeacher?.Requested == true)
+            ?.TransformerTeacher;
+        var teacherText = teacher == null
+            ? ""
+            : teacher.Applied
+                ? Environment.NewLine
+                  + "Transformer 教师 "
+                  + teacher.EffectiveBackend
+                  + " · 标注 "
+                  + teacher.AnnotatedFrames
+                  + "/"
+                  + teacher.FrameCount
+                  + " · CE "
+                  + FormatLoss(teacher.ValidationPolicyCrossEntropy)
+                  + "（均匀 "
+                  + FormatLoss(
+                      teacher.ValidationUniformPolicyCrossEntropy)
+                  + "）"
+                : Environment.NewLine
+                  + "Transformer 教师未应用 · "
+                  + teacher.Message;
         var recoveryText = result.Resumable
             ? "检查点已保存，可恢复训练。"
             : string.Equals(
@@ -1220,6 +1283,7 @@ internal sealed class MainWindow : Window
                 ? "底模已通过隔离验收。"
                 : "当前结果不可恢复。";
         return validationText
+               + teacherText
                + Environment.NewLine
                + result.Message
                + Environment.NewLine
@@ -1287,11 +1351,48 @@ internal sealed class MainWindow : Window
         {
             settings.Parameters.CapabilityProbeCampaignsPerDifficulty = 128;
         }
+        if (loadedSchemaVersion < 7)
+        {
+            settings.Parameters.GovernanceProfile =
+                CombatFoundationGovernanceProfileNames.Development;
+            settings.Parameters.TuningInterval = 2;
+            settings.Parameters.CapabilityProbeTeacherCampaignsPerDifficulty = 16;
+            settings.Parameters.AutoTuneSampleCampaigns = 16;
+        }
+        if (loadedSchemaVersion < 8)
+        {
+            settings.Parameters.AutoTuneObjective =
+                CombatFoundationAutoTuneObjectiveNames.MaximumThroughput;
+            settings.Parameters.InferenceParallelism = 0;
+            settings.Parameters.InferenceLaneCount = 0;
+            settings.Parameters.InferenceBatchSize = 0;
+        }
+        if (loadedSchemaVersion < 9)
+        {
+            settings.Parameters.TransformerTeacherBackend =
+                CombatTransformerTeacherBackendNames.Auto;
+            settings.Parameters.TransformerPythonExecutable = "python";
+            settings.Parameters.TransformerTeacherEpochs = 12;
+            settings.Parameters.TransformerTeacherBatchSize = 64;
+            settings.Parameters.TransformerTeacherStateDimensions = 128;
+            settings.Parameters.TransformerTeacherActionDimensions = 128;
+            settings.Parameters.TransformerTeacherHiddenDimensions = 64;
+            settings.Parameters.TransformerTeacherLayers = 2;
+            settings.Parameters.TransformerTeacherAttentionHeads = 4;
+            settings.Parameters.TransformerTeacherHistoryLength = 12;
+            settings.Parameters.TransformerTeacherMinimumFrames = 1024;
+            settings.Parameters.TransformerTeacherCpuThreads = 0;
+            settings.Parameters.TransformerDistillationWeight = 0.35d;
+            settings.Parameters.ModelMaximumUnsafeEndTurnFrameShare = 0.35d;
+            settings.Parameters.ModelStateDimensions = 256;
+            settings.Parameters.ModelActionDimensions = 256;
+            settings.Parameters.ModelHiddenDimensions = 64;
+        }
         settings.GameSubject ??= LoadDefaultGameSubject(modRoot);
         settings.GameSubject.Normalize();
         gameSubjectCatalog = LoadGameSubjectCatalog(modRoot);
         gameSubjectCatalog.ResolveReferences(settings.GameSubject);
-        settings.SchemaVersion = 6;
+        settings.SchemaVersion = 9;
         settings.Parameters.Normalized();
         if (File.Exists(readPath)
             && !string.Equals(
@@ -1421,6 +1522,10 @@ internal sealed class MainWindow : Window
         settings.DataRoot = Path.GetFullPath(dataRootInput.Text.Trim());
         PullGameSubjectFromUi();
         var p = settings.Parameters;
+        p.GovernanceProfile = Convert.ToString(
+                                  governanceProfileInput.SelectedItem,
+                                  CultureInfo.InvariantCulture)
+                              ?? CombatFoundationGovernanceProfileNames.Development;
         p.DecisionProfile = selectedProfile;
         p.Iterations = Int("Iterations");
         p.AdditionalIterationsOnResume =
@@ -1436,6 +1541,9 @@ internal sealed class MainWindow : Window
         p.ValidationEarlyStopBatchSize = Int("ValidationEarlyStopBatchSize");
         p.CapabilityProbeCampaignsPerDifficulty =
             Int("CapabilityProbeCampaignsPerDifficulty");
+        p.CapabilityProbeTeacherCampaignsPerDifficulty =
+            Int("CapabilityProbeTeacherCampaignsPerDifficulty");
+        p.CapabilityProbeBatchSize = Int("CapabilityProbeBatchSize");
         p.RequireCapabilityProbeBaselineGain =
             Toggle("RequireCapabilityProbeBaselineGain");
         p.CapabilityProbeMinimumVictoryGain =
@@ -1453,11 +1561,18 @@ internal sealed class MainWindow : Window
                                    ?? CombatFoundationExecutionProfileNames
                                        .DirectInference;
         p.InferenceParallelism = Int("InferenceParallelism");
+        p.InferenceLaneCount = Int("InferenceLaneCount");
+        p.InferenceBatchSize = Int("InferenceBatchSize");
         p.ThreadPoolMinimumWorkerThreads =
             Int("ThreadPoolMinimumWorkerThreads");
         p.CheckpointSerializationParallelism =
             Int("CheckpointSerializationParallelism");
         p.ReuseAutoTuneCache = Toggle("ReuseAutoTuneCache");
+        p.AutoTuneObjective = Convert.ToString(
+                                  autoTuneObjectiveInput.SelectedItem,
+                                  CultureInfo.InvariantCulture)
+                              ?? CombatFoundationAutoTuneObjectiveNames
+                                  .MaximumThroughput;
         p.AutoTuneSampleCampaigns = Int("AutoTuneSampleCampaigns");
         p.AutoTuneThroughputTolerance =
             Double("AutoTuneThroughputTolerance");
@@ -1496,6 +1611,31 @@ internal sealed class MainWindow : Window
         p.ModelStateDimensions = Int("ModelStateDimensions");
         p.ModelActionDimensions = Int("ModelActionDimensions");
         p.ModelHiddenDimensions = Int("ModelHiddenDimensions");
+        p.TransformerTeacherBackend = Convert.ToString(
+            transformerBackendInput.SelectedItem,
+            CultureInfo.InvariantCulture)
+            ?? CombatTransformerTeacherBackendNames.Disabled;
+        p.TransformerPythonExecutable =
+            inputs["TransformerPythonExecutable"].Text.Trim();
+        p.TransformerTeacherEpochs = Int("TransformerTeacherEpochs");
+        p.TransformerTeacherBatchSize = Int("TransformerTeacherBatchSize");
+        p.TransformerTeacherStateDimensions =
+            Int("TransformerTeacherStateDimensions");
+        p.TransformerTeacherActionDimensions =
+            Int("TransformerTeacherActionDimensions");
+        p.TransformerTeacherHiddenDimensions =
+            Int("TransformerTeacherHiddenDimensions");
+        p.TransformerTeacherLayers = Int("TransformerTeacherLayers");
+        p.TransformerTeacherAttentionHeads =
+            Int("TransformerTeacherAttentionHeads");
+        p.TransformerTeacherHistoryLength =
+            Int("TransformerTeacherHistoryLength");
+        p.TransformerTeacherMinimumFrames =
+            Int("TransformerTeacherMinimumFrames");
+        p.TransformerTeacherCpuThreads =
+            Int("TransformerTeacherCpuThreads");
+        p.TransformerDistillationWeight =
+            Double("TransformerDistillationWeight");
         p.EnableCurriculum = Toggle("EnableCurriculum");
         p.EnableStratifiedReplay = Toggle("EnableStratifiedReplay");
         p.EnablePrioritizedReplay = Toggle("EnablePrioritizedReplay");
@@ -1506,6 +1646,8 @@ internal sealed class MainWindow : Window
         p.EnableArenaRecovery = Toggle("EnableArenaRecovery");
         p.EnableTuningArena = Toggle("EnableTuningArena");
         p.EnableProgressiveTuning = Toggle("EnableProgressiveTuning");
+        p.EnableOfflineTuningGate = Toggle("EnableOfflineTuningGate");
+        p.EnableSequentialArenaStop = Toggle("EnableSequentialArenaStop");
         p.EnableEarlyValidationStop = Toggle("EnableEarlyValidationStop");
         p.ArenaInvalidRetryCount = Int("ArenaInvalidRetryCount");
         p.ArenaInvalidRateLimit = Double("ArenaInvalidRateLimit");
@@ -1516,6 +1658,8 @@ internal sealed class MainWindow : Window
         p.TuningScreeningAdvancedCampaigns =
             Int("TuningScreeningAdvancedCampaigns");
         p.TuningFinalistCount = Int("TuningFinalistCount");
+        p.TuningInterval = Int("TuningInterval");
+        p.ArenaEvaluationBatchSize = Int("ArenaEvaluationBatchSize");
         p.MaximumConsecutiveRejectedIterations =
             Int("MaximumConsecutiveRejectedIterations");
         p.NormalAcceptanceRate = Double("NormalAcceptanceRate");
@@ -1546,6 +1690,8 @@ internal sealed class MainWindow : Window
         dataRootInput.Text = settings.DataRoot;
         ApplyGameSubjectToUi();
         var p = settings.Parameters;
+        governanceProfileInput.SelectedItem =
+            CombatFoundationGovernanceProfiles.Normalize(p.GovernanceProfile);
         SelectProfile(p.DecisionProfile);
         Set("Iterations", p.Iterations);
         Set(
@@ -1565,6 +1711,10 @@ internal sealed class MainWindow : Window
         Set(
             "CapabilityProbeCampaignsPerDifficulty",
             p.CapabilityProbeCampaignsPerDifficulty);
+        Set(
+            "CapabilityProbeTeacherCampaignsPerDifficulty",
+            p.CapabilityProbeTeacherCampaignsPerDifficulty);
+        Set("CapabilityProbeBatchSize", p.CapabilityProbeBatchSize);
         SetToggle(
             "RequireCapabilityProbeBaselineGain",
             p.RequireCapabilityProbeBaselineGain);
@@ -1582,6 +1732,8 @@ internal sealed class MainWindow : Window
             CombatFoundationExecutionProfiles.NormalizeInferenceMode(
                 p.InferenceExecutionMode);
         Set("InferenceParallelism", p.InferenceParallelism);
+        Set("InferenceLaneCount", p.InferenceLaneCount);
+        Set("InferenceBatchSize", p.InferenceBatchSize);
         Set(
             "ThreadPoolMinimumWorkerThreads",
             p.ThreadPoolMinimumWorkerThreads);
@@ -1589,6 +1741,9 @@ internal sealed class MainWindow : Window
             "CheckpointSerializationParallelism",
             p.CheckpointSerializationParallelism);
         SetToggle("ReuseAutoTuneCache", p.ReuseAutoTuneCache);
+        autoTuneObjectiveInput.SelectedItem =
+            CombatFoundationAutoTuneObjectiveNames.Normalize(
+                p.AutoTuneObjective);
         Set("AutoTuneSampleCampaigns", p.AutoTuneSampleCampaigns);
         Set(
             "AutoTuneThroughputTolerance",
@@ -1629,6 +1784,37 @@ internal sealed class MainWindow : Window
         Set("ModelStateDimensions", p.ModelStateDimensions);
         Set("ModelActionDimensions", p.ModelActionDimensions);
         Set("ModelHiddenDimensions", p.ModelHiddenDimensions);
+        transformerBackendInput.SelectedItem =
+            CombatTransformerTeacherBackendNames.Normalize(
+                p.TransformerTeacherBackend);
+        Set("TransformerPythonExecutable", p.TransformerPythonExecutable);
+        Set("TransformerTeacherEpochs", p.TransformerTeacherEpochs);
+        Set("TransformerTeacherBatchSize", p.TransformerTeacherBatchSize);
+        Set(
+            "TransformerTeacherStateDimensions",
+            p.TransformerTeacherStateDimensions);
+        Set(
+            "TransformerTeacherActionDimensions",
+            p.TransformerTeacherActionDimensions);
+        Set(
+            "TransformerTeacherHiddenDimensions",
+            p.TransformerTeacherHiddenDimensions);
+        Set("TransformerTeacherLayers", p.TransformerTeacherLayers);
+        Set(
+            "TransformerTeacherAttentionHeads",
+            p.TransformerTeacherAttentionHeads);
+        Set(
+            "TransformerTeacherHistoryLength",
+            p.TransformerTeacherHistoryLength);
+        Set(
+            "TransformerTeacherMinimumFrames",
+            p.TransformerTeacherMinimumFrames);
+        Set(
+            "TransformerTeacherCpuThreads",
+            p.TransformerTeacherCpuThreads);
+        Set(
+            "TransformerDistillationWeight",
+            p.TransformerDistillationWeight);
         Set("NormalAcceptanceRate", p.NormalAcceptanceRate);
         Set("AdvancedAcceptanceRate", p.AdvancedAcceptanceRate);
         Set("SuccessExpertReplayShare", p.SuccessExpertReplayShare);
@@ -1652,6 +1838,8 @@ internal sealed class MainWindow : Window
             "TuningScreeningAdvancedCampaigns",
             p.TuningScreeningAdvancedCampaigns);
         Set("TuningFinalistCount", p.TuningFinalistCount);
+        Set("TuningInterval", p.TuningInterval);
+        Set("ArenaEvaluationBatchSize", p.ArenaEvaluationBatchSize);
         Set(
             "MaximumConsecutiveRejectedIterations",
             p.MaximumConsecutiveRejectedIterations);
@@ -1673,6 +1861,8 @@ internal sealed class MainWindow : Window
         SetToggle(
             "EnableProgressiveTuning",
             p.EnableProgressiveTuning);
+        SetToggle("EnableOfflineTuningGate", p.EnableOfflineTuningGate);
+        SetToggle("EnableSequentialArenaStop", p.EnableSequentialArenaStop);
         SetToggle("EnableEarlyValidationStop", p.EnableEarlyValidationStop);
         SetToggle("EnableFrameStratification", p.EnableFrameStratification);
         SetToggle(
@@ -2702,6 +2892,7 @@ internal sealed class MainWindow : Window
             "preflight" => "权威快检",
             "training" => "课程自博弈",
             "model-training" => "模型拟合",
+            "transformer-teacher" => "Transformer 教师",
             "arena" => "竞技场",
             "validation" => "隔离验证",
             _ => string.IsNullOrWhiteSpace(value) ? "准备中" : value
@@ -2755,6 +2946,28 @@ internal sealed class MainWindow : Window
         panel.Children.Add(row);
     }
 
+    private void AddGovernanceProfileSelect(Panel panel)
+    {
+        var row = NewRow();
+        row.Children.Add(Label("训练治理档位", 240));
+        governanceProfileInput = new ComboBox
+        {
+            Width = 180,
+            Height = 30,
+            Margin = new Thickness(0, 0, 8, 0),
+            ItemsSource = new[]
+            {
+                CombatFoundationGovernanceProfileNames.Development,
+                CombatFoundationGovernanceProfileNames.Release,
+                CombatFoundationGovernanceProfileNames.Custom
+            },
+            SelectedItem = CombatFoundationGovernanceProfileNames.Development,
+            ToolTip = "development 减少调优和教师诊断；release 保留完整治理预算"
+        };
+        row.Children.Add(governanceProfileInput);
+        panel.Children.Add(row);
+    }
+
     private void SelectProfile(string? profileId)
     {
         selectedProfile = profileButtons.ContainsKey(profileId ?? "")
@@ -2790,6 +3003,39 @@ internal sealed class MainWindow : Window
         AddNumber(panel, key, label, 0, 0);
     }
 
+    private void AddText(Panel panel, string key, string label)
+    {
+        var row = NewRow();
+        row.Children.Add(Label(label, 240));
+        var input = Input(360);
+        inputs[key] = input;
+        row.Children.Add(input);
+        panel.Children.Add(row);
+    }
+
+    private void AddTransformerBackendSelect(Panel panel)
+    {
+        var row = NewRow();
+        row.Children.Add(Label("教师计算后端", 240));
+        transformerBackendInput = new ComboBox
+        {
+            Width = 180,
+            Height = 30,
+            Margin = new Thickness(0, 0, 8, 0),
+            ItemsSource = new[]
+            {
+                CombatTransformerTeacherBackendNames.Disabled,
+                CombatTransformerTeacherBackendNames.Auto,
+                CombatTransformerTeacherBackendNames.Cpu,
+                CombatTransformerTeacherBackendNames.Cuda
+            },
+            SelectedItem = CombatTransformerTeacherBackendNames.Auto,
+            ToolTip = "auto 在安装 CUDA 版 PyTorch 时使用 GPU，否则使用 CPU"
+        };
+        row.Children.Add(transformerBackendInput);
+        panel.Children.Add(row);
+    }
+
     private void AddGradientShardSelect(Panel panel)
     {
         var row = NewRow();
@@ -2800,7 +3046,7 @@ internal sealed class MainWindow : Window
             Height = 30,
             Margin = new Thickness(0, 0, 8, 0),
             ItemsSource = GradientShardPresets,
-            SelectedItem = 12,
+            SelectedItem = 16,
             ToolTip = "可选 1、2、4、8、12、16、24、32"
         };
         row.Children.Add(gradientShardInput);
@@ -2811,7 +3057,7 @@ internal sealed class MainWindow : Window
     {
         gradientShardInput.SelectedItem = GradientShardPresets.Contains(value)
             ? value
-            : 12;
+            : 16;
     }
 
     private void AddExecutionProfileSelect(Panel panel)
@@ -2868,10 +3114,32 @@ internal sealed class MainWindow : Window
                 CombatFoundationExecutionProfileNames.ShardedBatchInference
             },
             SelectedItem =
-                CombatFoundationExecutionProfileNames.DirectInference,
-            ToolTip = "direct 最大化 CPU；sharded-batch 为兼容回退"
+                CombatFoundationExecutionProfileNames.ShardedBatchInference,
+            ToolTip = "sharded-batch 降低并发推理争用；direct 适合低并发诊断"
         };
         row.Children.Add(inferenceModeInput);
+        panel.Children.Add(row);
+    }
+
+    private void AddAutoTuneObjectiveSelect(Panel panel)
+    {
+        var row = NewRow();
+        row.Children.Add(Label("Auto-Tune 目标", 240));
+        autoTuneObjectiveInput = new ComboBox
+        {
+            Width = 180,
+            Height = 30,
+            Margin = new Thickness(0, 0, 8, 0),
+            ItemsSource = new[]
+            {
+                CombatFoundationAutoTuneObjectiveNames.MaximumThroughput,
+                CombatFoundationAutoTuneObjectiveNames.BalancedEfficiency
+            },
+            SelectedItem =
+                CombatFoundationAutoTuneObjectiveNames.MaximumThroughput,
+            ToolTip = "maximum-throughput 优先缩短训练墙钟时间"
+        };
+        row.Children.Add(autoTuneObjectiveInput);
         panel.Children.Add(row);
     }
 

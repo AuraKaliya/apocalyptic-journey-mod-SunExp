@@ -279,7 +279,7 @@ public sealed class CombatSimulationState
         {
             var threat = Threats[i];
             if (threat.SourceRuntimeId != 0
-                && !Enemies.Any(enemy => enemy.RuntimeId == threat.SourceRuntimeId && enemy.Hp > 0))
+                && !IsEnemyAlive(threat.SourceRuntimeId))
             {
                 continue;
             }
@@ -313,7 +313,7 @@ public sealed class CombatSimulationState
         {
             var threat = Threats[i];
             if (threat.SourceRuntimeId != 0
-                && !Enemies.Any(enemy => enemy.RuntimeId == threat.SourceRuntimeId && enemy.Hp > 0))
+                && !IsEnemyAlive(threat.SourceRuntimeId))
             {
                 continue;
             }
@@ -328,8 +328,13 @@ public sealed class CombatSimulationState
         var deathRisk = hpAfter <= 0d
             ? Math.Max(0.5d, attackProbability)
             : Math.Max(0d, Math.Min(1d, hpLoss / Math.Max(1d, PlayerHp) - 0.65d));
-        var livingMaxHp = Enemies.Sum(enemy => Math.Max(1, enemy.MaxHp));
-        var livingHp = Enemies.Sum(enemy => Math.Max(0, enemy.Hp));
+        var livingMaxHp = 0;
+        var livingHp = 0;
+        for (var i = 0; i < Enemies.Length; i++)
+        {
+            livingMaxHp += Math.Max(1, Enemies[i].MaxHp);
+            livingHp += Math.Max(0, Enemies[i].Hp);
+        }
         var enemyProgress = livingMaxHp <= 0
             ? 1d
             : 1d - Math.Min(1d, (double)livingHp / livingMaxHp);
@@ -339,10 +344,20 @@ public sealed class CombatSimulationState
         var cycleAccess = cycleSize <= 0
             ? 0d
             : Math.Min(1d, (double)Math.Max(1, HandLimit) / cycleSize);
-        var handAssetValue = HandCardValues.Sum(value => Math.Max(0d, value));
-        var renewableAssetValue = DrawPileValues
-                                      .Concat(DiscardPileValues)
-                                      .Sum(value => Math.Max(0d, value));
+        var handAssetValue = 0d;
+        for (var i = 0; i < HandCardValues.Count; i++)
+        {
+            handAssetValue += Math.Max(0d, HandCardValues[i]);
+        }
+        var renewableAssetValue = 0d;
+        for (var i = 0; i < DrawPileValues.Count; i++)
+        {
+            renewableAssetValue += Math.Max(0d, DrawPileValues[i]);
+        }
+        for (var i = 0; i < DiscardPileValues.Count; i++)
+        {
+            renewableAssetValue += Math.Max(0d, DiscardPileValues[i]);
+        }
         var transformDepletionRisk = Features.TryGetValue(
             "postTransformDepletionRisk",
             out var observedTransformDepletionRisk)
@@ -369,6 +384,19 @@ public sealed class CombatSimulationState
             Value = value,
             DeathRisk = Math.Max(0d, Math.Min(1d, deathRisk))
         };
+    }
+
+    private bool IsEnemyAlive(int runtimeId)
+    {
+        for (var index = 0; index < Enemies.Length; index++)
+        {
+            if (Enemies[index].RuntimeId == runtimeId
+                && Enemies[index].Hp > 0)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     public ulong Hash()
@@ -644,7 +672,7 @@ public sealed class CombatSimulationThreat
     }
 }
 
-public sealed class CombatLeafEvaluation
+public struct CombatLeafEvaluation
 {
     public double Value { get; set; }
 

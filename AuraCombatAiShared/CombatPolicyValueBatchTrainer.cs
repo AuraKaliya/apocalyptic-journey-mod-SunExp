@@ -589,6 +589,10 @@ internal static class CombatPolicyValueBatchTrainer
         calibratedMetrics.ElapsedSeconds = clock.Elapsed.TotalSeconds;
         calibratedMetrics.BestEpoch = bestEpoch;
         calibratedMetrics.BestValidationLoss = bestLoss;
+        var actionQuantileHeadReady =
+            trainingMetrics.ActionQuantileLabelCount > 0
+            && validationMetrics.ActionQuantileLabelCount > 0;
+        model.ActionQuantileHeadReady = actionQuantileHeadReady;
         calibratedMetrics.StaleEpochs = staleEpochs;
         calibratedMetrics.EarlyStopped = stoppedEarly;
         calibratedMetrics.TrainingSplitHash = trainingSplitHash;
@@ -636,6 +640,10 @@ internal static class CombatPolicyValueBatchTrainer
                 .Distinct(StringComparer.Ordinal)
                 .Count(),
             ["trainingPolicyAccuracy"] = trainingMetrics.PolicyAccuracy,
+            ["trainingTransformerTeacherFrames"] = trainingFrames.Count(frame =>
+                frame.TransformerTeacherApplied),
+            ["validationTransformerTeacherFrames"] = validationFrames.Count(frame =>
+                frame.TransformerTeacherApplied),
             ["trainingPolicyCrossEntropy"] =
                 trainingMetrics.PolicyCrossEntropy,
             ["trainingCriticalPolicyAccuracy"] =
@@ -710,6 +718,14 @@ internal static class CombatPolicyValueBatchTrainer
             options.MaximumDegreeOfParallelism,
             options.RetainedModelCandidates,
             cancellationToken);
+        foreach (var candidate in calibratedCandidates)
+        {
+            if (candidate?.Model != null)
+            {
+                candidate.Model.ActionQuantileHeadReady =
+                    actionQuantileHeadReady;
+            }
+        }
         result.Success = true;
         result.Model = model;
         result.CandidateModels = calibratedCandidates;
@@ -1133,6 +1149,11 @@ internal static class CombatPolicyValueBatchTrainer
             frame.ExecutedCandidateId,
             options.PolicyTargetTemperature,
             options.MaximumPolicyTargetProbability);
+        var transformerTeacherApplied = BlendTransformerTeacherTargets(
+            targets,
+            policyCandidates,
+            options.TransformerDistillationWeight,
+            options.MaximumPolicyTargetProbability);
         if (dominatedEndTurn && endTurnCandidate != null)
         {
             var dominatedIndex = policyCandidates.IndexOf(endTurnCandidate);
@@ -1198,6 +1219,7 @@ internal static class CombatPolicyValueBatchTrainer
                         options.FeatureEncodingMode))
                 .ToArray(),
             PolicyTargets = targets,
+            TransformerTeacherApplied = transformerTeacherApplied,
             ActionQuantileTargets = policyCandidates.Select(candidate =>
                     candidate.SearchVisits
                     >= options.MinimumSearchVisitsForActionQuantiles
@@ -2512,6 +2534,7 @@ internal static class CombatPolicyValueBatchTrainer
             PolicyWeights = (double[])source.PolicyWeights.Clone(),
             PolicyBias = source.PolicyBias,
             ActionQuantileCount = source.ActionQuantileCount,
+            ActionQuantileHeadReady = source.ActionQuantileHeadReady,
             ActionQuantileWeights =
                 (double[])source.ActionQuantileWeights.Clone(),
             ActionQuantileBias = (double[])source.ActionQuantileBias.Clone(),
@@ -2617,6 +2640,47 @@ internal static class CombatPolicyValueBatchTrainer
         }
         CapPolicyTarget(result, maximumProbability);
         return result;
+    }
+
+    internal static bool BlendTransformerTeacherTargets(
+        double[] targets,
+        IReadOnlyList<CombatEpisodeCandidate> candidates,
+        double weight,
+        double maximumProbability)
+    {
+        if (targets == null
+            || candidates == null
+            || targets.Length != candidates.Count
+            || targets.Length == 0
+            || weight <= 0d)
+        {
+            return false;
+        }
+        var teacherTotal = 0d;
+        for (var index = 0; index < candidates.Count; index++)
+        {
+            var probability = candidates[index].TransformerTeacherProbability;
+            if (double.IsNaN(probability)
+                || double.IsInfinity(probability)
+                || probability < 0d)
+            {
+                return false;
+            }
+            teacherTotal += probability;
+        }
+        if (teacherTotal <= 0d)
+        {
+            return false;
+        }
+        var blend = Math.Max(0d, Math.Min(0.75d, weight));
+        for (var index = 0; index < targets.Length; index++)
+        {
+            targets[index] = targets[index] * (1d - blend)
+                             + candidates[index].TransformerTeacherProbability
+                             / teacherTotal * blend;
+        }
+        CapPolicyTarget(targets, maximumProbability);
+        return true;
     }
 
     private static void CapPolicyTarget(
@@ -2889,6 +2953,8 @@ internal static class CombatPolicyValueBatchTrainer
         public double[][] Actions { get; set; } = Array.Empty<double[]>();
 
         public double[] PolicyTargets { get; set; } = Array.Empty<double>();
+
+        public bool TransformerTeacherApplied { get; set; }
 
         public double[][] ActionQuantileTargets { get; set; } =
             Array.Empty<double[]>();

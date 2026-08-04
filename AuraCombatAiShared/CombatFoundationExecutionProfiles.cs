@@ -25,6 +25,8 @@ public sealed class CombatFoundationExecutionPlan
 
     public int InferenceParallelism { get; set; }
 
+    public int InferenceLaneCount { get; set; }
+
     public int InferenceBatchSize { get; set; }
 
     public int ThreadPoolMinimumWorkerThreads { get; set; }
@@ -41,7 +43,9 @@ public static class CombatFoundationExecutionProfiles
         int requestedInferenceParallelism,
         int requestedThreadPoolMinimumWorkerThreads,
         int requestedCheckpointSerializationParallelism,
-        int? availableProcessorCount = null)
+        int? availableProcessorCount = null,
+        int requestedInferenceLaneCount = 0,
+        int requestedInferenceBatchSize = 0)
     {
         var processorCount = Math.Max(
             1,
@@ -54,11 +58,7 @@ public static class CombatFoundationExecutionProfiles
             CombatFoundationExecutionProfileNames.Cpu32 =>
                 Math.Min(32, processorCount),
             CombatFoundationExecutionProfileNames.Auto =>
-                processorCount >= 32
-                    ? 32
-                    : processorCount >= 16
-                        ? 16
-                        : processorCount,
+                Math.Min(32, processorCount),
             _ => Math.Min(
                 processorCount,
                 Math.Max(1, requestedCampaignParallelism))
@@ -79,12 +79,22 @@ public static class CombatFoundationExecutionProfiles
             : Math.Max(
                 1,
                 Math.Min(2, requestedCheckpointSerializationParallelism));
-        var inferenceBatchSize = string.Equals(
+        var directInference = string.Equals(
             normalizedInferenceMode,
             CombatFoundationExecutionProfileNames.DirectInference,
-            StringComparison.Ordinal)
+            StringComparison.Ordinal);
+        var inferenceLaneCount = directInference
+            ? inferenceParallelism
+            : requestedInferenceLaneCount <= 0
+                ? EffectiveLaneCount(inferenceParallelism)
+                : Math.Max(
+                    1,
+                    Math.Min(inferenceParallelism, requestedInferenceLaneCount));
+        var inferenceBatchSize = directInference
             ? 1
-            : EffectiveBatchSize(inferenceParallelism);
+            : requestedInferenceBatchSize <= 0
+                ? EffectiveBatchSize(inferenceParallelism, inferenceLaneCount)
+                : Math.Max(2, Math.Min(32, requestedInferenceBatchSize));
 
         return new CombatFoundationExecutionPlan
         {
@@ -92,6 +102,7 @@ public static class CombatFoundationExecutionProfiles
             CampaignParallelism = campaignParallelism,
             InferenceMode = normalizedInferenceMode,
             InferenceParallelism = inferenceParallelism,
+            InferenceLaneCount = inferenceLaneCount,
             InferenceBatchSize = inferenceBatchSize,
             ThreadPoolMinimumWorkerThreads = Math.Min(256, minimumWorkers),
             CheckpointSerializationParallelism = checkpointParallelism
@@ -120,11 +131,21 @@ public static class CombatFoundationExecutionProfiles
             : CombatFoundationExecutionProfileNames.DirectInference;
     }
 
-    private static int EffectiveBatchSize(int parallelism)
+    public static int EffectiveLaneCount(int parallelism)
     {
-        var laneCount = Math.Max(1, Math.Min(8, parallelism / 4));
+        // Keep enough callers on each queue for batching to be possible.
+        // The previous one-lane-per-four-callers rule fragmented a 12-way run
+        // into three mostly empty queues.
+        return Math.Max(1, Math.Min(2, Math.Max(1, parallelism) / 8));
+    }
+
+    public static int EffectiveBatchSize(int parallelism, int laneCount = 0)
+    {
+        var lanes = laneCount <= 0
+            ? EffectiveLaneCount(parallelism)
+            : Math.Max(1, Math.Min(Math.Max(1, parallelism), laneCount));
         return Math.Max(
             2,
-            Math.Min(8, (parallelism + laneCount - 1) / laneCount));
+            Math.Min(4, (parallelism + lanes - 1) / lanes));
     }
 }

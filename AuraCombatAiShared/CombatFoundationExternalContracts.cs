@@ -10,6 +10,9 @@ namespace AuraCombatAi.Shared;
 
 public sealed class CombatFoundationTrainingParameters
 {
+    public string GovernanceProfile { get; set; } =
+        CombatFoundationGovernanceProfileNames.Release;
+
     public ulong RunSeed { get; set; }
 
     public string DecisionProfile { get; set; } = "balanced";
@@ -30,6 +33,10 @@ public sealed class CombatFoundationTrainingParameters
 
     public int CapabilityProbeCampaignsPerDifficulty { get; set; } = 128;
 
+    public int CapabilityProbeTeacherCampaignsPerDifficulty { get; set; } = 128;
+
+    public int CapabilityProbeBatchSize { get; set; } = 16;
+
     public bool RequireCapabilityProbeBaselineGain { get; set; } = true;
 
     public int CapabilityProbeMinimumVictoryGain { get; set; } = 1;
@@ -49,6 +56,10 @@ public sealed class CombatFoundationTrainingParameters
 
     public int InferenceParallelism { get; set; }
 
+    public int InferenceLaneCount { get; set; }
+
+    public int InferenceBatchSize { get; set; }
+
     public int ThreadPoolMinimumWorkerThreads { get; set; }
 
     public int CheckpointSerializationParallelism { get; set; }
@@ -58,6 +69,9 @@ public sealed class CombatFoundationTrainingParameters
     public int AutoTuneSampleCampaigns { get; set; } = 32;
 
     public double AutoTuneThroughputTolerance { get; set; } = 0.02d;
+
+    public string AutoTuneObjective { get; set; } =
+        CombatFoundationAutoTuneObjectiveNames.MaximumThroughput;
 
     public bool EnableEarlyValidationStop { get; set; } = true;
 
@@ -89,11 +103,19 @@ public sealed class CombatFoundationTrainingParameters
 
     public bool EnableProgressiveTuning { get; set; } = true;
 
+    public int TuningInterval { get; set; } = 1;
+
+    public bool EnableOfflineTuningGate { get; set; } = true;
+
     public int TuningScreeningNormalCampaigns { get; set; } = 8;
 
     public int TuningScreeningAdvancedCampaigns { get; set; } = 16;
 
     public int TuningFinalistCount { get; set; } = 2;
+
+    public bool EnableSequentialArenaStop { get; set; } = true;
+
+    public int ArenaEvaluationBatchSize { get; set; } = 16;
 
     public int MaximumConsecutiveRejectedIterations { get; set; } = 3;
 
@@ -164,6 +186,33 @@ public sealed class CombatFoundationTrainingParameters
 
     public int ModelHiddenDimensions { get; set; } = 64;
 
+    public string TransformerTeacherBackend { get; set; } =
+        CombatTransformerTeacherBackendNames.Disabled;
+
+    public string TransformerPythonExecutable { get; set; } = "python";
+
+    public int TransformerTeacherEpochs { get; set; } = 12;
+
+    public int TransformerTeacherBatchSize { get; set; } = 64;
+
+    public int TransformerTeacherStateDimensions { get; set; } = 128;
+
+    public int TransformerTeacherActionDimensions { get; set; } = 128;
+
+    public int TransformerTeacherHiddenDimensions { get; set; } = 64;
+
+    public int TransformerTeacherLayers { get; set; } = 2;
+
+    public int TransformerTeacherAttentionHeads { get; set; } = 4;
+
+    public int TransformerTeacherHistoryLength { get; set; } = 12;
+
+    public int TransformerTeacherMinimumFrames { get; set; } = 1024;
+
+    public int TransformerTeacherCpuThreads { get; set; }
+
+    public double TransformerDistillationWeight { get; set; } = 0.35d;
+
     public string ModelFeatureEncodingMode { get; set; } = "partitioned-v3";
 
     public int MinimumEpisodes { get; set; } = 8;
@@ -178,6 +227,8 @@ public sealed class CombatFoundationTrainingParameters
 
     public CombatFoundationTrainingParameters Normalized()
     {
+        GovernanceProfile = CombatFoundationGovernanceProfiles.Normalize(
+            GovernanceProfile);
         Iterations = Math.Max(1, Math.Min(20, Iterations));
         AdditionalIterationsOnResume = Math.Max(
             0,
@@ -200,6 +251,12 @@ public sealed class CombatFoundationTrainingParameters
         CapabilityProbeCampaignsPerDifficulty = Math.Max(
             0,
             Math.Min(128, CapabilityProbeCampaignsPerDifficulty));
+        CapabilityProbeTeacherCampaignsPerDifficulty = Math.Max(
+            0,
+            Math.Min(128, CapabilityProbeTeacherCampaignsPerDifficulty));
+        CapabilityProbeBatchSize = Math.Max(
+            1,
+            Math.Min(128, CapabilityProbeBatchSize));
         CapabilityProbeMinimumVictoryGain = Math.Max(
             1,
             Math.Min(64, CapabilityProbeMinimumVictoryGain));
@@ -217,11 +274,16 @@ public sealed class CombatFoundationTrainingParameters
             InferenceExecutionMode,
             InferenceParallelism,
             ThreadPoolMinimumWorkerThreads,
-            CheckpointSerializationParallelism);
+            CheckpointSerializationParallelism,
+            null,
+            InferenceLaneCount,
+            InferenceBatchSize);
         ParallelismProfile = execution.Profile;
         MaximumDegreeOfParallelism = execution.CampaignParallelism;
         InferenceExecutionMode = execution.InferenceMode;
         InferenceParallelism = execution.InferenceParallelism;
+        InferenceLaneCount = execution.InferenceLaneCount;
+        InferenceBatchSize = execution.InferenceBatchSize;
         ThreadPoolMinimumWorkerThreads =
             execution.ThreadPoolMinimumWorkerThreads;
         CheckpointSerializationParallelism =
@@ -229,6 +291,8 @@ public sealed class CombatFoundationTrainingParameters
         AutoTuneSampleCampaigns = Math.Max(
             4,
             Math.Min(64, AutoTuneSampleCampaigns));
+        AutoTuneObjective = CombatFoundationAutoTuneObjectiveNames.Normalize(
+            AutoTuneObjective);
         AutoTuneThroughputTolerance = Clamp(
             AutoTuneThroughputTolerance,
             0d,
@@ -241,6 +305,7 @@ public sealed class CombatFoundationTrainingParameters
         ArenaInvalidRateLimit = Clamp(ArenaInvalidRateLimit, 0.0001d, 1d, 0.02d);
         TuningNormalCampaigns = Math.Max(0, Math.Min(64, TuningNormalCampaigns));
         TuningAdvancedCampaigns = Math.Max(0, Math.Min(64, TuningAdvancedCampaigns));
+        TuningInterval = Math.Max(1, Math.Min(8, TuningInterval));
         TuningScreeningNormalCampaigns = Math.Max(
             0,
             Math.Min(TuningNormalCampaigns, TuningScreeningNormalCampaigns));
@@ -250,6 +315,9 @@ public sealed class CombatFoundationTrainingParameters
         TuningFinalistCount = Math.Max(
             1,
             Math.Min(ModelRetainedCandidates, TuningFinalistCount));
+        ArenaEvaluationBatchSize = Math.Max(
+            1,
+            Math.Min(64, ArenaEvaluationBatchSize));
         MaximumConsecutiveRejectedIterations = Math.Max(
             0,
             Math.Min(8, MaximumConsecutiveRejectedIterations));
@@ -345,6 +413,35 @@ public sealed class CombatFoundationTrainingParameters
         ModelStateDimensions = Math.Max(16, Math.Min(512, ModelStateDimensions));
         ModelActionDimensions = Math.Max(16, Math.Min(512, ModelActionDimensions));
         ModelHiddenDimensions = Math.Max(8, Math.Min(256, ModelHiddenDimensions));
+        var transformer = new CombatTransformerTeacherOptions
+        {
+            Backend = TransformerTeacherBackend,
+            PythonExecutable = TransformerPythonExecutable,
+            Epochs = TransformerTeacherEpochs,
+            BatchSize = TransformerTeacherBatchSize,
+            StateDimensions = TransformerTeacherStateDimensions,
+            ActionDimensions = TransformerTeacherActionDimensions,
+            HiddenDimensions = TransformerTeacherHiddenDimensions,
+            Layers = TransformerTeacherLayers,
+            AttentionHeads = TransformerTeacherAttentionHeads,
+            HistoryLength = TransformerTeacherHistoryLength,
+            MinimumFrames = TransformerTeacherMinimumFrames,
+            CpuThreads = TransformerTeacherCpuThreads,
+            DistillationWeight = TransformerDistillationWeight
+        }.Normalized();
+        TransformerTeacherBackend = transformer.Backend;
+        TransformerPythonExecutable = transformer.PythonExecutable;
+        TransformerTeacherEpochs = transformer.Epochs;
+        TransformerTeacherBatchSize = transformer.BatchSize;
+        TransformerTeacherStateDimensions = transformer.StateDimensions;
+        TransformerTeacherActionDimensions = transformer.ActionDimensions;
+        TransformerTeacherHiddenDimensions = transformer.HiddenDimensions;
+        TransformerTeacherLayers = transformer.Layers;
+        TransformerTeacherAttentionHeads = transformer.AttentionHeads;
+        TransformerTeacherHistoryLength = transformer.HistoryLength;
+        TransformerTeacherMinimumFrames = transformer.MinimumFrames;
+        TransformerTeacherCpuThreads = transformer.CpuThreads;
+        TransformerDistillationWeight = transformer.DistillationWeight;
         ModelFeatureEncodingMode = "partitioned-v3";
         MinimumEpisodes = Math.Max(
             2,
@@ -362,25 +459,38 @@ public sealed class CombatFoundationTrainingParameters
     public int EstimatedCampaigns()
     {
         Normalized();
+        var governance = CombatFoundationGovernanceProfiles.Resolve(
+            GovernanceProfile,
+            TuningInterval,
+            TuningNormalCampaigns,
+            TuningAdvancedCampaigns,
+            TuningScreeningNormalCampaigns,
+            TuningScreeningAdvancedCampaigns,
+            TuningFinalistCount,
+            CapabilityProbeTeacherCampaignsPerDifficulty,
+            AutoTuneSampleCampaigns);
+        var tuningCampaigns = EnableTuningArena
+            ? CombatCampaignFoundationTrainer.EstimateTuningCampaigns(
+                ModelRetainedCandidates,
+                governance.TuningNormalCampaigns,
+                governance.TuningAdvancedCampaigns,
+                EnableProgressiveTuning,
+                governance.TuningScreeningNormalCampaigns,
+                governance.TuningScreeningAdvancedCampaigns,
+                governance.TuningFinalistCount)
+            : 0;
         return Iterations
                * (TrainingCampaignsPerIteration
                   + (ArenaCampaignsPerDifficulty
                      + (ArenaCampaignsPerDifficulty >= 32
                          ? ArenaConfirmationCampaignsPerDifficulty
-                         : 0)) * 4
-                  + (EnableTuningArena
-                      ? CombatCampaignFoundationTrainer.EstimateTuningCampaigns(
-                          ModelRetainedCandidates,
-                          TuningNormalCampaigns,
-                          TuningAdvancedCampaigns,
-                          EnableProgressiveTuning,
-                          TuningScreeningNormalCampaigns,
-                          TuningScreeningAdvancedCampaigns,
-                          TuningFinalistCount)
-                      : 0))
+                         : 0)) * 4)
+               + governance.ScheduledTuningIterations(Iterations)
+               * tuningCampaigns
                + NormalValidationCampaigns
                + AdvancedValidationCampaigns
-               + CapabilityProbeCampaignsPerDifficulty * 2 * 3;
+               + CapabilityProbeCampaignsPerDifficulty * 2 * 2
+               + governance.CapabilityProbeTeacherCampaignsPerDifficulty * 2;
     }
 
     private static string NormalizeProfile(string value)
@@ -501,6 +611,7 @@ public static class CombatFoundationWorkerJobFactory
                 CombatFoundationWorkerProtocol.TrainingAnalysisFileName),
             Request = new CombatCampaignFoundationTrainingRequest
             {
+                GovernanceProfile = parameters.GovernanceProfile,
                 ContentSetHash = source.ContentSetHash,
                 OwnerModSetHash = source.OwnerModSetHash,
                 AuthoritativeContentEpisodes = new List<CombatEpisode>(
@@ -523,6 +634,9 @@ public static class CombatFoundationWorkerJobFactory
                     parameters.AdvancedValidationCampaigns,
                 CapabilityProbeCampaignsPerDifficulty =
                     parameters.CapabilityProbeCampaignsPerDifficulty,
+                CapabilityProbeTeacherCampaignsPerDifficulty =
+                    parameters.CapabilityProbeTeacherCampaignsPerDifficulty,
+                CapabilityProbeBatchSize = parameters.CapabilityProbeBatchSize,
                 RequireCapabilityProbeBaselineGain =
                     parameters.RequireCapabilityProbeBaselineGain,
                 CapabilityProbeMinimumVictoryGain =
@@ -537,6 +651,8 @@ public static class CombatFoundationWorkerJobFactory
                 ParallelismProfile = parameters.ParallelismProfile,
                 InferenceExecutionMode = parameters.InferenceExecutionMode,
                 InferenceParallelism = parameters.InferenceParallelism,
+                InferenceLaneCount = parameters.InferenceLaneCount,
+                InferenceBatchSize = parameters.InferenceBatchSize,
                 ThreadPoolMinimumWorkerThreads =
                     parameters.ThreadPoolMinimumWorkerThreads,
                 CheckpointSerializationParallelism =
@@ -546,6 +662,7 @@ public static class CombatFoundationWorkerJobFactory
                     parameters.AutoTuneSampleCampaigns,
                 AutoTuneThroughputTolerance =
                     parameters.AutoTuneThroughputTolerance,
+                AutoTuneObjective = parameters.AutoTuneObjective,
                 RetainValidationRunDetails = false,
                 EnableEarlyValidationStop =
                     parameters.EnableEarlyValidationStop,
@@ -573,11 +690,16 @@ public static class CombatFoundationWorkerJobFactory
                     parameters.TuningAdvancedCampaigns,
                 EnableProgressiveTuning =
                     parameters.EnableProgressiveTuning,
+                TuningInterval = parameters.TuningInterval,
+                EnableOfflineTuningGate = parameters.EnableOfflineTuningGate,
                 TuningScreeningNormalCampaigns =
                     parameters.TuningScreeningNormalCampaigns,
                 TuningScreeningAdvancedCampaigns =
                     parameters.TuningScreeningAdvancedCampaigns,
                 TuningFinalistCount = parameters.TuningFinalistCount,
+                EnableSequentialArenaStop =
+                    parameters.EnableSequentialArenaStop,
+                ArenaEvaluationBatchSize = parameters.ArenaEvaluationBatchSize,
                 MaximumConsecutiveRejectedIterations =
                     parameters.MaximumConsecutiveRejectedIterations,
                 NormalAcceptanceRate = parameters.NormalAcceptanceRate,
@@ -666,6 +788,30 @@ public static class CombatFoundationWorkerJobFactory
                     RetainedModelCandidates =
                         parameters.ModelRetainedCandidates,
                     MinimumEpisodes = parameters.MinimumEpisodes
+                }.Normalized(),
+                TransformerTeacher = new CombatTransformerTeacherOptions
+                {
+                    Backend = parameters.TransformerTeacherBackend,
+                    PythonExecutable = parameters.TransformerPythonExecutable,
+                    Epochs = parameters.TransformerTeacherEpochs,
+                    BatchSize = parameters.TransformerTeacherBatchSize,
+                    StateDimensions =
+                        parameters.TransformerTeacherStateDimensions,
+                    ActionDimensions =
+                        parameters.TransformerTeacherActionDimensions,
+                    HiddenDimensions =
+                        parameters.TransformerTeacherHiddenDimensions,
+                    Layers = parameters.TransformerTeacherLayers,
+                    AttentionHeads =
+                        parameters.TransformerTeacherAttentionHeads,
+                    HistoryLength =
+                        parameters.TransformerTeacherHistoryLength,
+                    MinimumFrames =
+                        parameters.TransformerTeacherMinimumFrames,
+                    CpuThreads = parameters.TransformerTeacherCpuThreads,
+                    DistillationWeight =
+                        parameters.TransformerDistillationWeight,
+                    RandomSeed = unchecked((int)parameters.RunSeed)
                 }.Normalized()
             },
             Ruleset = source.Ruleset

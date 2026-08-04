@@ -19,6 +19,14 @@ param(
     [bool]$ReuseAutoTuneCache = $true,
     [int]$AutoTuneSampleCampaigns = 32,
     [double]$AutoTuneThroughputTolerance = 0.02,
+    [ValidateSet("balanced-efficiency", "maximum-throughput")]
+    [string]$AutoTuneObjective = "maximum-throughput",
+    [ValidateSet("disabled", "auto", "cpu", "cuda")]
+    [string]$TransformerTeacherBackend = "disabled",
+    [ValidateRange(1, 100)]
+    [int]$TransformerTeacherEpochs = 1,
+    [ValidateRange(64, 100000)]
+    [int]$TransformerTeacherMinimumFrames = 64,
     [switch]$ExpectAutoTuneCacheHit,
     [string]$SuccessArchiveDirectory = "",
     [int]$TrainingCampaignsPerIteration = 2,
@@ -136,11 +144,28 @@ try {
         ReuseAutoTuneCache = $ReuseAutoTuneCache
         AutoTuneSampleCampaigns = $AutoTuneSampleCampaigns
         AutoTuneThroughputTolerance = $AutoTuneThroughputTolerance
+        AutoTuneObjective = $AutoTuneObjective
         EnableEarlyValidationStop = $true
         TrainingSeedStart = 4100000
         ArenaSeedStart = 4200000
         ValidationSeedStart = 4300000
         Profile = $profile
+        TransformerTeacher = [ordered]@{
+            Backend = $TransformerTeacherBackend
+            PythonExecutable = "python"
+            Epochs = $TransformerTeacherEpochs
+            BatchSize = 64
+            StateDimensions = 128
+            ActionDimensions = 128
+            HiddenDimensions = 64
+            Layers = 2
+            AttentionHeads = 4
+            HistoryLength = 12
+            MinimumFrames = $TransformerTeacherMinimumFrames
+            CpuThreads = 0
+            DistillationWeight = 0.35
+            RandomSeed = 1701
+        }
         Training = [ordered]@{
             Epochs = 2
             HiddenDimensions = 8
@@ -198,6 +223,27 @@ try {
             + [int]$result.Training.SemanticAudit.SelectedInvalidActions `
             + ", selectedUnexplained=" `
             + [int]$result.Training.SemanticAudit.SelectedUnexplainedMismatchActions)
+    }
+    if (-not $PreflightOnly `
+        -and $TransformerTeacherBackend -ne "disabled") {
+        $teacherReports = @($result.Training.TransformerTeacherReports)
+        if ($teacherReports.Count -lt 1 `
+            -or -not [bool]$teacherReports[0].Requested) {
+            throw "Transformer teacher did not publish an iteration report."
+        }
+        $teacherReport = $teacherReports[0]
+        if ([int]$teacherReport.FrameCount `
+                -lt $TransformerTeacherMinimumFrames `
+            -or -not [bool]$teacherReport.Success `
+            -or -not [bool]$teacherReport.Applied `
+            -or [int]$teacherReport.AnnotatedFrames `
+                -lt $TransformerTeacherMinimumFrames `
+            -or -not (Test-Path -LiteralPath `
+                ([string]$teacherReport.ModelPath) -PathType Leaf)) {
+            throw (
+                "Transformer teacher annotation failed: " `
+                + ($teacherReport | ConvertTo-Json -Depth 8 -Compress))
+        }
     }
     if (-not $PreflightOnly -and $null -ne $result.Training.Champion) {
         $championMetricNames = @(
@@ -351,22 +397,35 @@ try {
                         $MaximumDegreeOfParallelism))
             }
         }
+        $availableValidationWork = if ($PreflightOnly) {
+            $effectivePreflightCampaignsPerDifficulty * 2 + 3
+        }
+        else {
+            [Math]::Max(
+                $effectiveNormalValidationCampaigns,
+                $effectiveAdvancedValidationCampaigns)
+        }
         $expectedValidationPeak = [Math]::Min(
             $expectedParallelism,
             $(if ($PreflightOnly) {
-                $effectivePreflightCampaignsPerDifficulty * 2 + 3
+                [Math]::Min(3, $availableValidationWork)
             }
             else {
-                [Math]::Max(
-                    $effectiveNormalValidationCampaigns,
-                    $effectiveAdvancedValidationCampaigns)
+                $availableValidationWork
             }))
+        $expectedInferenceMode = if ($ParallelismProfile -eq "auto" `
+            -and [bool]$result.Training.AutoTune.InferenceCalibrated) {
+            [string]$result.Training.AutoTune.SelectedInferenceMode
+        }
+        else {
+            $InferenceExecutionMode
+        }
         if ([int]$result.Training.EffectiveParallelism `
                 -ne $expectedParallelism `
             -or [int]$result.Training.PeakConcurrentCampaigns `
                 -lt $expectedValidationPeak `
             -or [string]$result.Training.InferenceExecutionMode `
-                -ne $InferenceExecutionMode) {
+                -ne $expectedInferenceMode) {
             throw (
                 "Foundation worker did not sustain configured parallelism: " `
                 + "effective=$($result.Training.EffectiveParallelism)/" `
@@ -377,7 +436,9 @@ try {
         if ($ParallelismProfile -eq "auto") {
             $measurements = @($result.Training.AutoTune.Measurements)
             if ([string]$result.Training.AutoTune.Version `
-                    -ne "foundation-auto-tune-v1" `
+                    -ne "foundation-auto-tune-v3" `
+                -or [string]$result.Training.AutoTune.Objective `
+                    -ne $AutoTuneObjective `
                 -or $measurements.Count -lt 1 `
                 -or [string]::IsNullOrWhiteSpace(
                     [string]$result.Training.AutoTune.CacheKey)) {
@@ -386,6 +447,21 @@ try {
             if ($ExpectAutoTuneCacheHit `
                 -and -not [bool]$result.Training.AutoTune.CacheHit) {
                 throw "Auto profile did not reuse the expected cache."
+            }
+            if (-not $PreflightOnly) {
+                $inferenceMeasurements = @($measurements | Where-Object {
+                    ([string]$_.MeasurementKind).StartsWith(
+                        "inference-end-to-end",
+                        [System.StringComparison]::Ordinal)
+                })
+                if (-not [bool]$result.Training.AutoTune.InferenceCalibrated `
+                    -or $inferenceMeasurements.Count -lt 2 `
+                    -or @($inferenceMeasurements | Where-Object {
+                        [int]$_.Campaigns -le 0 `
+                        -or [double]$_.UsefulWorkPerSecond -le 0
+                    }).Count -gt 0) {
+                    throw "Auto profile did not retain end-to-end inference calibration evidence."
+                }
             }
         }
     }

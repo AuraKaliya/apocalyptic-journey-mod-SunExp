@@ -7067,6 +7067,15 @@ Assert(policyValuePrediction.PolicyLogits.Count
        && policyValuePrediction.WinProbability is >= 0d and <= 1d
        && policyValuePrediction.DeathProbability is >= 0d and <= 1d,
     "managed policy-value inference returns masked action logits and calibrated probability ranges");
+var trainedQuantileHeadReady = policyValueTraining.Model!.ActionQuantileHeadReady;
+policyValueTraining.Model.ActionQuantileHeadReady = false;
+var unreadyQuantilePrediction =
+    new ManagedCombatPolicyValueModel(policyValueTraining.Model)
+        .Evaluate(policyValueInput);
+policyValueTraining.Model.ActionQuantileHeadReady = trainedQuantileHeadReady;
+Assert(trainedQuantileHeadReady
+       && unreadyQuantilePrediction.ActionReturnQuantiles.Count == 0,
+    "managed inference withholds randomly initialized action quantiles until supervised labels have trained and validated the head");
 var batchPolicyPredictions = policyValueModel.EvaluateBatch(
     new[] { policyValueInput, policyValueInput });
 Assert(batchPolicyPredictions.Count == 2
@@ -7090,6 +7099,41 @@ Assert(batchPolicyPredictions.Count == 2
                    - policyValuePrediction.PolicyLogits[pair.Key])
                < 0.000000001d)),
     "managed policy-value batch inference evaluates a shared state/action matrix with scalar-equivalent outputs");
+var encodingBuffer = new double[Math.Max(
+    policyValueTraining.Model!.StateDimensions,
+    policyValueTraining.Model.ActionDimensions)];
+CombatPolicyValueEncoding.EncodeStateInto(
+    policyValueInput.StateFeatures,
+    encodingBuffer,
+    policyValueTraining.Model.StateDimensions,
+    policyValueTraining.Model.FeatureEncodingMode);
+CombatPolicyValueEncoding.EncodeCandidateInto(
+    policyValueInput.Candidates[0],
+    encodingBuffer,
+    policyValueTraining.Model.ActionDimensions,
+    policyValueTraining.Model.FeatureEncodingMode);
+var encodingAllocationBefore = GC.GetAllocatedBytesForCurrentThread();
+for (var index = 0; index < 512; index++)
+{
+    CombatPolicyValueEncoding.EncodeStateInto(
+        policyValueInput.StateFeatures,
+        encodingBuffer,
+        policyValueTraining.Model.StateDimensions,
+        policyValueTraining.Model.FeatureEncodingMode);
+    CombatPolicyValueEncoding.EncodeCandidateInto(
+        policyValueInput.Candidates[index % policyValueInput.Candidates.Count],
+        encodingBuffer,
+        policyValueTraining.Model.ActionDimensions,
+        policyValueTraining.Model.FeatureEncodingMode);
+}
+var encodingAllocatedBytes =
+    GC.GetAllocatedBytesForCurrentThread() - encodingAllocationBefore;
+Console.WriteLine(
+    $"Encoding hot-path allocation: {encodingAllocatedBytes:N0} bytes / 512 state+action pairs");
+Assert(encodingAllocatedBytes < 64 * 1024,
+    "policy-value encoding keeps steady-state hot-path allocation bounded");
+Assert(typeof(CombatLeafEvaluation).IsValueType,
+    "leaf inference encoding avoids per-call dictionaries and leaf result objects");
 var concurrentBatchModel = new ConcurrentBatchedCombatPolicyValueModel(
     policyValueModel,
     4,
@@ -7174,6 +7218,21 @@ Assert(shardedBatchModel.LaneCount == 2
        && shardedBatchModel.BatchedInputCount == 8
        && shardedBatchModel.BatchEvaluationCount is >= 2 and <= 8,
     "high campaign parallelism uses independent inference lanes without changing predictions");
+var adaptiveBatchModel = new ConcurrentBatchedCombatPolicyValueModel(
+    NullCombatPolicyValueModel.Instance,
+    maximumBatchSize: 4,
+    coalescingWindow: TimeSpan.Zero);
+var adaptiveDiagnosticsBefore = CombatPolicyValueBatchDiagnostics.Capture();
+for (var index = 0; index < 2050; index++)
+{
+    _ = adaptiveBatchModel.Evaluate(policyValueInput);
+}
+var adaptiveDiagnostics = CombatPolicyValueBatchDiagnostics.Capture()
+    .DeltaFrom(adaptiveDiagnosticsBefore);
+Assert(adaptiveBatchModel.AdaptiveFallbackActive
+       && adaptiveDiagnostics.AdaptiveFallbackActivations == 1
+       && adaptiveDiagnostics.DirectFallbackRequests > 0,
+    "persistently empty inference batches switch to direct execution automatically");
 var evolution = new CombatPolicyEvolutionRunner().Run(
     new CombatPolicyEvolutionRequest
     {
@@ -9465,6 +9524,51 @@ Assert(Math.Abs(concentratedPolicyTargets.Sum() - 1d) < 0.000001d
        && concentratedPolicyTargets.Max() <= 0.800001d
        && concentratedPolicyTargets.Min() >= 0.199999d,
     "policy target temperature and cap preserve probability mass without one-hot collapse");
+var teacherCandidates = new[]
+{
+    new CombatEpisodeCandidate
+    {
+        CandidateId = "dominant",
+        TransformerTeacherProbability = 0.10d
+    },
+    new CombatEpisodeCandidate
+    {
+        CandidateId = "alternative",
+        TransformerTeacherProbability = 0.90d
+    }
+};
+var distilledPolicyTargets = concentratedPolicyTargets.ToArray();
+Assert(CombatPolicyValueBatchTrainer.BlendTransformerTeacherTargets(
+           distilledPolicyTargets,
+           teacherCandidates,
+           weight: 0.50d,
+           maximumProbability: 0.95d)
+       && Math.Abs(distilledPolicyTargets.Sum() - 1d) < 0.000001d
+       && Math.Abs(distilledPolicyTargets[0] - 0.45d) < 0.000001d
+       && Math.Abs(distilledPolicyTargets[1] - 0.55d) < 0.000001d,
+    "Transformer teacher probabilities distill into bounded tactical policy targets without replacing search supervision");
+teacherCandidates[1].TransformerTeacherProbability = -1d;
+var rejectedTeacherTargets = concentratedPolicyTargets.ToArray();
+Assert(!CombatPolicyValueBatchTrainer.BlendTransformerTeacherTargets(
+           rejectedTeacherTargets,
+           teacherCandidates,
+           weight: 0.50d,
+           maximumProbability: 0.95d)
+       && rejectedTeacherTargets.SequenceEqual(concentratedPolicyTargets),
+    "incomplete Transformer annotations are rejected instead of partially corrupting a policy target");
+var normalizedTeacherOptions = new CombatTransformerTeacherOptions
+{
+    Backend = "CUDA",
+    HiddenDimensions = 65,
+    AttentionHeads = 8,
+    DistillationWeight = 4d
+}.Normalized();
+Assert(normalizedTeacherOptions.Backend
+           == CombatTransformerTeacherBackendNames.Cuda
+       && normalizedTeacherOptions.HiddenDimensions
+          % normalizedTeacherOptions.AttentionHeads == 0
+       && normalizedTeacherOptions.DistillationWeight == 0.75d,
+    "Transformer teacher settings normalize portable CPU/CUDA configuration and attention dimensions");
 var illegalExecutedFrame = new CombatEpisodeFrame
 {
     ExecutedCandidateId = "prohibited",
@@ -10330,6 +10434,15 @@ Assert(CombatCampaignFoundationTrainer.ShouldStopForStagnation(
            stagnationIterations,
            hasChampion: false),
     "stagnation control stops only after the configured rejected-candidate streak and only when a usable champion exists");
+Assert(!CombatCampaignFoundationTrainer.ShouldStopForStagnation(
+           new CombatCampaignFoundationTrainingRequest
+           {
+               MaximumConsecutiveRejectedIterations = 3
+           },
+           stagnationIterations,
+           hasChampion: true,
+           startIndex: stagnationIterations.Count),
+    "a resumed training attempt resets its rejection streak instead of immediately inheriting historical stagnation");
 var longArchiveRoot =
     @"D:\Steam\steamapps\common\Witch's Apocalyptic Journey\Witch's Apocalyptic Journey_Data\ModsData\AuraShared\Logs\AuraToolsExp\combat-simulation-results\foundation-success-cases";
 var fullCompatibilityKey = new string('a', 64);
@@ -10673,10 +10786,10 @@ capabilityGateProbe.Arms[1].NormalVictories = 9;
 CombatCampaignFoundationTrainer.EvaluateCapabilityBaselineGate(
     capabilityGateRequest,
     capabilityGateProbe);
-Assert(!capabilityGateProbe.PassedBaselineGate
-       && capabilityGateProbe.BaselineGateVerdict == "fail"
+Assert(capabilityGateProbe.PassedBaselineGate
+       && capabilityGateProbe.BaselineGateVerdict == "inconclusive"
        && capabilityGateProbe.ChampionVictoryGain == -1,
-    "capability probe rejects an aggregate victory regression even when the paired evidence is statistically inconclusive");
+    "capability probe does not reject a champion from unpaired aggregate noise when paired evidence is statistically inconclusive");
 capabilityGateProbe.Arms[1].NormalVictories = 10;
 capabilityGateProbe.Pairs.Clear();
 for (var pairedIndex = 0; pairedIndex < 24; pairedIndex++)
@@ -11222,6 +11335,8 @@ Assert(sharedParameters.Iterations == 1
        && sharedParameters.ModelPolicyTargetTemperature == 1.25d
        && sharedParameters.ModelMaximumPolicyTargetProbability == 0.90d
        && sharedParameters.ModelGradientShardCount == 12
+       && sharedParameters.AutoTuneObjective
+          == CombatFoundationAutoTuneObjectiveNames.MaximumThroughput
        && sharedParameters.ValidationEarlyStopBatchSize == 32
        && sharedParameters.MaximumDegreeOfParallelism
           <= Math.Max(1, Environment.ProcessorCount)
@@ -11279,6 +11394,197 @@ Assert(autoTuneSelection == 16
               gen2CollectionsPerSecond: 8d,
               allocationMegabytesPerSecond: 8192d),
     "auto-tune selects the lowest near-maximum throughput profile and penalizes GC/allocation pressure");
+var maximumThroughputSelection = CombatFoundationAutoTuneSelector.Select(
+    new[]
+    {
+        new CombatFoundationAutoTuneMeasurement
+        {
+            Parallelism = 12,
+            UsefulWorkPerSecond = 1000d,
+            EfficiencyScore = 1000d
+        },
+        new CombatFoundationAutoTuneMeasurement
+        {
+            Parallelism = 20,
+            UsefulWorkPerSecond = 1010d,
+            EfficiencyScore = 1010d
+        }
+    },
+    0.02d,
+    CombatFoundationAutoTuneObjectiveNames.MaximumThroughput);
+Assert(maximumThroughputSelection == 20,
+    "maximum-throughput auto-tune chooses the fastest wall-clock candidate even inside the efficiency tolerance");
+var inferenceSelection = CombatFoundationAutoTuneSelector.SelectInference(
+    new[]
+    {
+        new CombatFoundationAutoTuneMeasurement
+        {
+            MeasurementKind = "inference",
+            InferenceMode = CombatFoundationExecutionProfileNames.DirectInference,
+            InferenceLaneCount = 16,
+            InferenceBatchSize = 1,
+            EfficiencyScore = 990d,
+            P95LatencyMicroseconds = 20d
+        },
+        new CombatFoundationAutoTuneMeasurement
+        {
+            MeasurementKind = "inference",
+            InferenceMode = CombatFoundationExecutionProfileNames.ShardedBatchInference,
+            InferenceLaneCount = 4,
+            InferenceBatchSize = 4,
+            EfficiencyScore = 1000d,
+            P95LatencyMicroseconds = 40d
+        }
+    },
+    0.02d);
+Assert(inferenceSelection?.InferenceMode
+       == CombatFoundationExecutionProfileNames.DirectInference,
+    "inference auto-tune prefers lower latency when throughput is within tolerance");
+Assert(CombatFoundationExecutionProfiles.EffectiveLaneCount(12) == 1
+       && CombatFoundationExecutionProfiles.EffectiveLaneCount(20) == 2
+       && CombatFoundationExecutionProfiles.EffectiveBatchSize(12) == 4
+       && CombatFoundationExecutionProfiles.EffectiveBatchSize(20) == 4,
+    "automatic inference plans keep enough campaign callers on each batch queue");
+Assert(CombatCampaignFoundationTrainer.BuildAutoTuneParallelismCandidates(20)
+        .SequenceEqual(new[] { 4, 8, 12, 16, 20 }),
+    "auto-tune benchmarks multiple bounded CPU parallelism candidates");
+var developmentGovernance = CombatFoundationGovernanceProfiles.Resolve(
+    CombatFoundationGovernanceProfileNames.Development,
+    tuningInterval: 1,
+    tuningNormalCampaigns: 32,
+    tuningAdvancedCampaigns: 64,
+    tuningScreeningNormalCampaigns: 8,
+    tuningScreeningAdvancedCampaigns: 16,
+    tuningFinalistCount: 2,
+    capabilityProbeTeacherCampaignsPerDifficulty: 128,
+    autoTuneSampleCampaigns: 32);
+Assert(developmentGovernance.TuningInterval == 2
+       && developmentGovernance.TuningNormalCampaigns == 16
+       && developmentGovernance.TuningAdvancedCampaigns == 32
+       && developmentGovernance.TuningScreeningNormalCampaigns == 4
+       && developmentGovernance.TuningScreeningAdvancedCampaigns == 8
+       && developmentGovernance.TuningFinalistCount == 1
+       && developmentGovernance.CapabilityProbeTeacherCampaignsPerDifficulty
+          == 16
+       && developmentGovernance.AutoTuneSampleCampaigns == 16
+       && developmentGovernance.ScheduledTuningIterations(8) == 5,
+    "development governance reduces iterative evaluation without weakening formal validation");
+var efficientCampaignEstimate = new CombatFoundationTrainingParameters
+{
+    GovernanceProfile = CombatFoundationGovernanceProfileNames.Development,
+    Iterations = 8,
+    TrainingCampaignsPerIteration = 64,
+    ArenaCampaignsPerDifficulty = 32,
+    ArenaConfirmationCampaignsPerDifficulty = 64,
+    NormalValidationCampaigns = 200,
+    AdvancedValidationCampaigns = 500,
+    CapabilityProbeCampaignsPerDifficulty = 128,
+    CapabilityProbeTeacherCampaignsPerDifficulty = 128,
+    ModelRetainedCandidates = 3,
+    EnableTuningArena = true,
+    EnableProgressiveTuning = true,
+    TuningNormalCampaigns = 32,
+    TuningAdvancedCampaigns = 64,
+    TuningScreeningNormalCampaigns = 8,
+    TuningScreeningAdvancedCampaigns = 16,
+    TuningFinalistCount = 2
+}.EstimatedCampaigns();
+Assert(efficientCampaignEstimate == 5188,
+    "development governance campaign estimate reflects scheduled tuning and diagnostic teacher caps");
+var arenaChampionRuns = new List<CombatCampaignResult>
+{
+    new() { DifficultyId = "normal", FinalBossVictory = true },
+    new() { DifficultyId = "advanced", FinalBossVictory = true }
+};
+var arenaCandidateRuns = new List<CombatCampaignResult>
+{
+    new() { DifficultyId = "normal", FinalBossVictory = false },
+    new() { DifficultyId = "advanced", FinalBossVictory = false }
+};
+Assert(!CombatCampaignFoundationTrainer.ArenaNoRegressionStillPossible(
+           arenaChampionRuns,
+           arenaCandidateRuns,
+           remainingPairsPerDifficulty: 0,
+           requireAdvancedStrictGain: false)
+       && CombatCampaignFoundationTrainer.ArenaNoRegressionStillPossible(
+           arenaChampionRuns,
+           arenaCandidateRuns,
+           remainingPairsPerDifficulty: 1,
+           requireAdvancedStrictGain: false),
+    "sequential arena stopping rejects only when remaining pairs cannot recover a no-regression result");
+Assert(CombatCampaignFoundationTrainer.ShouldAcceptWorkingModel(
+           workingCheckpoint: true,
+           bootstrapPromotion: false,
+           meaningfulWinGain: true,
+           meaningfulProgressGain: false)
+       && !CombatCampaignFoundationTrainer.ShouldAcceptWorkingModel(
+           workingCheckpoint: true,
+           bootstrapPromotion: false,
+           meaningfulWinGain: false,
+           meaningfulProgressGain: false)
+       && !CombatCampaignFoundationTrainer.ShouldAcceptWorkingModel(
+           workingCheckpoint: false,
+           bootstrapPromotion: false,
+           meaningfulWinGain: true,
+           meaningfulProgressGain: true),
+    "working models advance on current-window paired gains rather than incomparable historical arena scores");
+var capabilityBaselineRuns = new CombatCampaignResult?[]
+{
+    new() { DifficultyId = "normal", FinalBossVictory = true },
+    new() { DifficultyId = "normal", FinalBossVictory = true },
+    new() { DifficultyId = "advanced", FinalBossVictory = true },
+    new() { DifficultyId = "advanced", FinalBossVictory = true }
+};
+var capabilityChampionRuns = new CombatCampaignResult?[]
+{
+    new() { DifficultyId = "normal", FinalBossVictory = false },
+    new() { DifficultyId = "normal", FinalBossVictory = false },
+    new() { DifficultyId = "advanced", FinalBossVictory = false },
+    new() { DifficultyId = "advanced", FinalBossVictory = false }
+};
+Assert(CombatCampaignFoundationTrainer.CapabilityNoRegressionStillPossible(
+           capabilityBaselineRuns,
+           capabilityChampionRuns,
+           campaignsPerDifficulty: 2,
+           completedPerDifficulty: 1)
+       && !CombatCampaignFoundationTrainer.CapabilityNoRegressionStillPossible(
+           capabilityBaselineRuns,
+           capabilityChampionRuns,
+           campaignsPerDifficulty: 2,
+           completedPerDifficulty: 2),
+    "capability probe stops only after the remaining paired samples cannot recover baseline parity");
+var reusableRiskStatistics = new CombatSearchRiskStatistics();
+reusableRiskStatistics.Record(-2d, 0.8d);
+reusableRiskStatistics.Record(2d, 0.2d);
+var firstRiskEstimate = reusableRiskStatistics.Estimate(0.5d);
+reusableRiskStatistics.Reset();
+reusableRiskStatistics.Record(4d, 0.1d);
+var resetRiskEstimate = reusableRiskStatistics.Estimate(0.5d);
+Assert(firstRiskEstimate.SampleCount == 2
+       && resetRiskEstimate.SampleCount == 1
+       && Math.Abs(resetRiskEstimate.Mean - 4d) < 0.000000001d,
+    "search risk statistics reset reuses storage without retaining prior evidence");
+for (var index = 0; index < 2048; index++)
+{
+    reusableRiskStatistics.Record(index, 0.5d);
+}
+_ = reusableRiskStatistics.Estimate(0.1d);
+var riskAllocationBefore = GC.GetAllocatedBytesForCurrentThread();
+for (var index = 0; index < 128; index++)
+{
+    reusableRiskStatistics.Record(index, 0.5d);
+    _ = reusableRiskStatistics.Estimate(0.1d);
+}
+var riskAllocationBytes =
+    GC.GetAllocatedBytesForCurrentThread() - riskAllocationBefore;
+Assert(riskAllocationBytes < 64 * 1024,
+    "risk estimation reuses its ordered-sample buffer in the search hot path");
+var batchDiagnostics = CombatPolicyValueBatchDiagnostics.Capture();
+Assert(batchDiagnostics.Requests >= 12
+       && batchDiagnostics.BatchEvaluations > 0
+       && batchDiagnostics.AverageBatchSize >= 1d
+       && batchDiagnostics.AverageWaitMicroseconds >= 0d,
+    "batched inference exposes fill, flush, and wait diagnostics");
 var appendRequest = new CombatCampaignFoundationTrainingRequest
 {
     Iterations = 3,

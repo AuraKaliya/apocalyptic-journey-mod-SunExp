@@ -519,18 +519,19 @@ public static class CombatPublicFeatureRegistry
             defaultValue);
         lock (Gate)
         {
-            var conflict = Registrations.Values.FirstOrDefault(item =>
-                item.Scope == scope
-                && string.Equals(
-                    item.FeatureKey,
-                    featureKey,
-                    StringComparison.OrdinalIgnoreCase)
-                && !item.SameContract(registration));
-            if (conflict != null)
+            foreach (var item in Registrations.Values)
             {
-                throw new InvalidOperationException(
-                    "public feature contract conflicts with an active owner: "
-                    + featureKey);
+                if (item.Scope == scope
+                    && string.Equals(
+                        item.FeatureKey,
+                        featureKey,
+                        StringComparison.OrdinalIgnoreCase)
+                    && !item.SameContract(registration))
+                {
+                    throw new InvalidOperationException(
+                        "public feature contract conflicts with an active owner: "
+                        + featureKey);
+                }
             }
             Registrations[key] = registration;
         }
@@ -543,12 +544,18 @@ public static class CombatPublicFeatureRegistry
     {
         lock (Gate)
         {
-            return Registrations.Values.Any(item =>
-                item.Scope == scope
-                && string.Equals(
-                    item.FeatureKey,
-                    featureKey,
-                    StringComparison.OrdinalIgnoreCase));
+            foreach (var item in Registrations.Values)
+            {
+                if (item.Scope == scope
+                    && string.Equals(
+                        item.FeatureKey,
+                        featureKey,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    return true;
+                }
+            }
+            return false;
         }
     }
 
@@ -560,12 +567,19 @@ public static class CombatPublicFeatureRegistry
     {
         lock (Gate)
         {
-            var registration = Registrations.Values.FirstOrDefault(item =>
-                item.Scope == scope
-                && string.Equals(
-                    item.FeatureKey,
-                    featureKey,
-                    StringComparison.OrdinalIgnoreCase));
+            Registration? registration = null;
+            foreach (var item in Registrations.Values)
+            {
+                if (item.Scope == scope
+                    && string.Equals(
+                        item.FeatureKey,
+                        featureKey,
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    registration = item;
+                    break;
+                }
+            }
             if (registration == null)
             {
                 normalized = value;
@@ -934,35 +948,23 @@ public static class CombatPublicFeaturePolicy
     public static Dictionary<string, double> SanitizeState(
         IReadOnlyDictionary<string, double>? values)
     {
-        return Sanitize(values, key =>
-            StateKeys.Contains(key)
-            || key.StartsWith(
-                CombatRoleStrategyFeatureNames.Prefix,
-                StringComparison.OrdinalIgnoreCase)
-            || key.StartsWith(
-                CombatSkillTimingFeatureNames.Prefix,
-                StringComparison.OrdinalIgnoreCase)
-            || key.StartsWith(
-                CombatCampaignContextFeatureNames.Prefix,
-                StringComparison.OrdinalIgnoreCase)
-            || key.StartsWith("deck:", StringComparison.OrdinalIgnoreCase)
-            || key.StartsWith("hand:", StringComparison.OrdinalIgnoreCase)
-            || key.StartsWith("retainedHand:", StringComparison.OrdinalIgnoreCase)
-            || key.StartsWith("discard:", StringComparison.OrdinalIgnoreCase)
-            || key.StartsWith("exhaust:", StringComparison.OrdinalIgnoreCase)
-            || key.StartsWith("playerStatus:", StringComparison.OrdinalIgnoreCase)
-            || key.StartsWith("playerRole:", StringComparison.OrdinalIgnoreCase)
-            || key.StartsWith("relic:", StringComparison.OrdinalIgnoreCase)
-            || key.StartsWith("blessing:", StringComparison.OrdinalIgnoreCase)
-            || key.StartsWith("nana:", StringComparison.OrdinalIgnoreCase)
-            || key.StartsWith("nightmare:", StringComparison.OrdinalIgnoreCase)
-            || key.StartsWith("enemyStatus:", StringComparison.OrdinalIgnoreCase)
-            || key.StartsWith("enemy:", StringComparison.OrdinalIgnoreCase)
-            || key.StartsWith("enemyHp:", StringComparison.OrdinalIgnoreCase)
-            || CombatPublicFeatureRegistry.IsRegistered(
-                CombatPublicFeatureScope.State,
-                key),
+        return Sanitize(
+            values,
+            IsPermittedStateKey,
             CombatPublicFeatureScope.State);
+    }
+
+    public static bool TrySanitizeStateFeature(
+        string? key,
+        double value,
+        out double sanitized)
+    {
+        return TrySanitizeFeature(
+            CombatPublicFeatureScope.State,
+            key,
+            value,
+            IsPermittedStateKey,
+            out sanitized);
     }
 
     public static Dictionary<string, double> SanitizeUnit(
@@ -980,21 +982,23 @@ public static class CombatPublicFeaturePolicy
     public static Dictionary<string, double> SanitizeAction(
         IReadOnlyDictionary<string, double>? values)
     {
-        return Sanitize(values, key =>
-            ActionKeys.Contains(key)
-            || key.StartsWith(
-                CombatRoleStrategyFeatureNames.Prefix,
-                StringComparison.OrdinalIgnoreCase)
-            || key.StartsWith(
-                CombatSkillTimingFeatureNames.Prefix,
-                StringComparison.OrdinalIgnoreCase)
-            || key.StartsWith("stateChange:", StringComparison.OrdinalIgnoreCase)
-            || key.StartsWith("nana:", StringComparison.OrdinalIgnoreCase)
-            || key.StartsWith("nightmare:", StringComparison.OrdinalIgnoreCase)
-            || CombatPublicFeatureRegistry.IsRegistered(
-                CombatPublicFeatureScope.Action,
-                key),
+        return Sanitize(
+            values,
+            IsPermittedActionKey,
             CombatPublicFeatureScope.Action);
+    }
+
+    public static bool TrySanitizeActionFeature(
+        string? key,
+        double value,
+        out double sanitized)
+    {
+        return TrySanitizeFeature(
+            CombatPublicFeatureScope.Action,
+            key,
+            value,
+            IsPermittedActionKey,
+            out sanitized);
     }
 
     public static Dictionary<string, double> SanitizeStateChanges(
@@ -1049,6 +1053,87 @@ public static class CombatPublicFeaturePolicy
             }
         }
         return result;
+    }
+
+    private static bool IsPermittedStateKey(string key)
+    {
+        return StateKeys.Contains(key)
+               || key.StartsWith(
+                   CombatRoleStrategyFeatureNames.Prefix,
+                   StringComparison.OrdinalIgnoreCase)
+               || key.StartsWith(
+                   CombatSkillTimingFeatureNames.Prefix,
+                   StringComparison.OrdinalIgnoreCase)
+               || key.StartsWith(
+                   CombatCampaignContextFeatureNames.Prefix,
+                   StringComparison.OrdinalIgnoreCase)
+               || key.StartsWith("deck:", StringComparison.OrdinalIgnoreCase)
+               || key.StartsWith("hand:", StringComparison.OrdinalIgnoreCase)
+               || key.StartsWith(
+                   "retainedHand:",
+                   StringComparison.OrdinalIgnoreCase)
+               || key.StartsWith("discard:", StringComparison.OrdinalIgnoreCase)
+               || key.StartsWith("exhaust:", StringComparison.OrdinalIgnoreCase)
+               || key.StartsWith(
+                   "playerStatus:",
+                   StringComparison.OrdinalIgnoreCase)
+               || key.StartsWith("playerRole:", StringComparison.OrdinalIgnoreCase)
+               || key.StartsWith("relic:", StringComparison.OrdinalIgnoreCase)
+               || key.StartsWith("blessing:", StringComparison.OrdinalIgnoreCase)
+               || key.StartsWith("nana:", StringComparison.OrdinalIgnoreCase)
+               || key.StartsWith("nightmare:", StringComparison.OrdinalIgnoreCase)
+               || key.StartsWith(
+                   "enemyStatus:",
+                   StringComparison.OrdinalIgnoreCase)
+               || key.StartsWith("enemy:", StringComparison.OrdinalIgnoreCase)
+               || key.StartsWith("enemyHp:", StringComparison.OrdinalIgnoreCase)
+               || CombatPublicFeatureRegistry.IsRegistered(
+                   CombatPublicFeatureScope.State,
+                   key);
+    }
+
+    private static bool IsPermittedActionKey(string key)
+    {
+        return ActionKeys.Contains(key)
+               || key.StartsWith(
+                   CombatRoleStrategyFeatureNames.Prefix,
+                   StringComparison.OrdinalIgnoreCase)
+               || key.StartsWith(
+                   CombatSkillTimingFeatureNames.Prefix,
+                   StringComparison.OrdinalIgnoreCase)
+               || key.StartsWith(
+                   "stateChange:",
+                   StringComparison.OrdinalIgnoreCase)
+               || key.StartsWith("nana:", StringComparison.OrdinalIgnoreCase)
+               || key.StartsWith("nightmare:", StringComparison.OrdinalIgnoreCase)
+               || CombatPublicFeatureRegistry.IsRegistered(
+                   CombatPublicFeatureScope.Action,
+                   key);
+    }
+
+    private static bool TrySanitizeFeature(
+        CombatPublicFeatureScope scope,
+        string? key,
+        double value,
+        Func<string, bool> permitted,
+        out double sanitized)
+    {
+        sanitized = 0d;
+        if (string.IsNullOrWhiteSpace(key)
+            || !permitted(key!)
+            || double.IsNaN(value)
+            || double.IsInfinity(value))
+        {
+            return false;
+        }
+        sanitized = CombatPublicFeatureRegistry.TryNormalize(
+            scope,
+            key!,
+            value,
+            out var normalized)
+            ? normalized
+            : value;
+        return true;
     }
 }
 

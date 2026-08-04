@@ -176,6 +176,8 @@ public sealed class CombatEpisodeCandidate
 
     public List<double> SearchReturnQuantiles { get; set; } = new();
 
+    public double TransformerTeacherProbability { get; set; } = -1d;
+
     public Dictionary<string, double> Features { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
 }
@@ -239,6 +241,8 @@ public sealed class CombatPolicyValueTrainingOptions
     public double PolicyTargetTemperature { get; set; } = 1.25d;
 
     public double MaximumPolicyTargetProbability { get; set; } = 0.90d;
+
+    public double TransformerDistillationWeight { get; set; }
 
     public double MaximumFrameStratumWeight { get; set; } =
         CombatPolicyValueFrameStratificationProtocol.DefaultMaximumWeight;
@@ -318,6 +322,11 @@ public sealed class CombatPolicyValueTrainingOptions
                 0.55d,
                 1d,
                 0.90d),
+            TransformerDistillationWeight = Clamp(
+                TransformerDistillationWeight,
+                0d,
+                0.75d,
+                0d),
             MaximumFrameStratumWeight = Clamp(
                 MaximumFrameStratumWeight,
                 1d,

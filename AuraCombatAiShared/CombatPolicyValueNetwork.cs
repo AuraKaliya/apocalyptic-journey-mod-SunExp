@@ -31,11 +31,22 @@ public sealed class CombatPolicyValueInput
 
 public sealed class CombatPolicyValuePrediction
 {
-    public Dictionary<string, double> PolicyLogits { get; set; } =
-        new(StringComparer.Ordinal);
+    private Dictionary<string, double>? policyLogits;
+    private Dictionary<string, List<double>>? actionReturnQuantiles;
 
-    public Dictionary<string, List<double>> ActionReturnQuantiles { get; set; } =
-        new(StringComparer.Ordinal);
+    public Dictionary<string, double> PolicyLogits
+    {
+        get => policyLogits ??= new Dictionary<string, double>(
+            StringComparer.Ordinal);
+        set => policyLogits = value;
+    }
+
+    public Dictionary<string, List<double>> ActionReturnQuantiles
+    {
+        get => actionReturnQuantiles ??=
+            new Dictionary<string, List<double>>(StringComparer.Ordinal);
+        set => actionReturnQuantiles = value;
+    }
 
     public double ExpectedReturn { get; set; }
 
@@ -58,6 +69,130 @@ public interface ICombatPolicyValueModel
 
     IReadOnlyList<CombatPolicyValuePrediction> EvaluateBatch(
         IReadOnlyList<CombatPolicyValueInput> inputs);
+}
+
+public sealed class CombatPolicyValueBatchDiagnosticsSnapshot
+{
+    public long Requests { get; set; }
+
+    public long BatchEvaluations { get; set; }
+
+    public long BatchedInputs { get; set; }
+
+    public long FullBatchEvaluations { get; set; }
+
+    public long TimeoutFlushes { get; set; }
+
+    public long WaitStopwatchTicks { get; set; }
+
+    public long DirectFallbackRequests { get; set; }
+
+    public long AdaptiveFallbackActivations { get; set; }
+
+    public double AverageBatchSize => BatchEvaluations <= 0
+        ? 0d
+        : BatchedInputs / (double)BatchEvaluations;
+
+    public double AverageWaitMicroseconds => Requests <= 0
+        ? 0d
+        : WaitStopwatchTicks
+          * 1_000_000d
+          / Stopwatch.Frequency
+          / Requests;
+
+    public CombatPolicyValueBatchDiagnosticsSnapshot DeltaFrom(
+        CombatPolicyValueBatchDiagnosticsSnapshot? baseline)
+    {
+        baseline ??= new CombatPolicyValueBatchDiagnosticsSnapshot();
+        return new CombatPolicyValueBatchDiagnosticsSnapshot
+        {
+            Requests = Math.Max(0L, Requests - baseline.Requests),
+            BatchEvaluations = Math.Max(
+                0L,
+                BatchEvaluations - baseline.BatchEvaluations),
+            BatchedInputs = Math.Max(0L, BatchedInputs - baseline.BatchedInputs),
+            FullBatchEvaluations = Math.Max(
+                0L,
+                FullBatchEvaluations - baseline.FullBatchEvaluations),
+            TimeoutFlushes = Math.Max(0L, TimeoutFlushes - baseline.TimeoutFlushes),
+            WaitStopwatchTicks = Math.Max(
+                0L,
+                WaitStopwatchTicks - baseline.WaitStopwatchTicks),
+            DirectFallbackRequests = Math.Max(
+                0L,
+                DirectFallbackRequests - baseline.DirectFallbackRequests),
+            AdaptiveFallbackActivations = Math.Max(
+                0L,
+                AdaptiveFallbackActivations
+                - baseline.AdaptiveFallbackActivations)
+        };
+    }
+}
+
+public static class CombatPolicyValueBatchDiagnostics
+{
+    private static long requests;
+    private static long batchEvaluations;
+    private static long batchedInputs;
+    private static long fullBatchEvaluations;
+    private static long timeoutFlushes;
+    private static long waitStopwatchTicks;
+    private static long directFallbackRequests;
+    private static long adaptiveFallbackActivations;
+
+    public static CombatPolicyValueBatchDiagnosticsSnapshot Capture()
+    {
+        return new CombatPolicyValueBatchDiagnosticsSnapshot
+        {
+            Requests = Interlocked.Read(ref requests),
+            BatchEvaluations = Interlocked.Read(ref batchEvaluations),
+            BatchedInputs = Interlocked.Read(ref batchedInputs),
+            FullBatchEvaluations = Interlocked.Read(ref fullBatchEvaluations),
+            TimeoutFlushes = Interlocked.Read(ref timeoutFlushes),
+            WaitStopwatchTicks = Interlocked.Read(ref waitStopwatchTicks),
+            DirectFallbackRequests = Interlocked.Read(
+                ref directFallbackRequests),
+            AdaptiveFallbackActivations = Interlocked.Read(
+                ref adaptiveFallbackActivations)
+        };
+    }
+
+    internal static void RequestCompleted(long waitTicks)
+    {
+        Interlocked.Increment(ref requests);
+        Interlocked.Add(ref waitStopwatchTicks, Math.Max(0L, waitTicks));
+    }
+
+    internal static void BatchCompleted(
+        int count,
+        int maximumBatchSize,
+        bool timeoutFlush)
+    {
+        Interlocked.Increment(ref batchEvaluations);
+        Interlocked.Add(ref batchedInputs, Math.Max(0, count));
+        if (count >= maximumBatchSize)
+        {
+            Interlocked.Increment(ref fullBatchEvaluations);
+        }
+        if (timeoutFlush)
+        {
+            Interlocked.Increment(ref timeoutFlushes);
+        }
+    }
+
+    internal static void DirectFallbackCompleted(long elapsedTicks)
+    {
+        Interlocked.Increment(ref requests);
+        Interlocked.Increment(ref directFallbackRequests);
+        Interlocked.Add(
+            ref waitStopwatchTicks,
+            Math.Max(0L, elapsedTicks));
+    }
+
+    internal static void AdaptiveFallbackActivated()
+    {
+        Interlocked.Increment(ref adaptiveFallbackActivations);
+    }
 }
 
 public sealed class NullCombatPolicyValueModel : ICombatPolicyValueModel
@@ -95,6 +230,8 @@ public sealed class ConcurrentBatchedCombatPolicyValueModel :
     private readonly Stack<List<BatchRequest>> batchPool = new();
     private long batchEvaluationCount;
     private long batchedInputCount;
+    private long timeoutFlushCount;
+    private int adaptiveFallbackActive;
 
     public ConcurrentBatchedCombatPolicyValueModel(
         ICombatPolicyValueModel inner,
@@ -103,7 +240,7 @@ public sealed class ConcurrentBatchedCombatPolicyValueModel :
     {
         this.inner = inner ?? throw new ArgumentNullException(nameof(inner));
         this.maximumBatchSize = Math.Max(2, maximumBatchSize);
-        var window = coalescingWindow ?? TimeSpan.FromTicks(100);
+        var window = coalescingWindow ?? TimeSpan.FromTicks(1000);
         coalescingTicks = Math.Max(
             1L,
             (long)Math.Ceiling(
@@ -119,11 +256,24 @@ public sealed class ConcurrentBatchedCombatPolicyValueModel :
     public long BatchedInputCount =>
         Interlocked.Read(ref batchedInputCount);
 
+    public bool AdaptiveFallbackActive =>
+        Volatile.Read(ref adaptiveFallbackActive) != 0;
+
     public CombatPolicyValuePrediction Evaluate(
         CombatPolicyValueInput input)
     {
+        if (AdaptiveFallbackActive)
+        {
+            var directStarted = Stopwatch.GetTimestamp();
+            var directResult = inner.Evaluate(input);
+            CombatPolicyValueBatchDiagnostics.DirectFallbackCompleted(
+                Stopwatch.GetTimestamp() - directStarted);
+            return directResult;
+        }
+        var requestStarted = Stopwatch.GetTimestamp();
         BatchRequest request;
         List<BatchRequest>? batch = null;
+        var timeoutFlush = false;
         lock (gate)
         {
             request = RentRequest();
@@ -156,9 +306,10 @@ public sealed class ConcurrentBatchedCombatPolicyValueModel :
                 lock (gate)
                 {
                     if (!request.Completed.IsSet
-                        && pending.Contains(request))
+                         && pending.Contains(request))
                     {
                         batch = DrainPending();
+                        timeoutFlush = true;
                     }
                 }
             }
@@ -166,9 +317,11 @@ public sealed class ConcurrentBatchedCombatPolicyValueModel :
 
         if (batch != null)
         {
-            Execute(batch);
+            Execute(batch, timeoutFlush);
         }
         request.Completed.Wait();
+        CombatPolicyValueBatchDiagnostics.RequestCompleted(
+            Stopwatch.GetTimestamp() - requestStarted);
         var result = request.Result ?? new CombatPolicyValuePrediction();
         var error = request.Error;
         lock (gate)
@@ -196,6 +349,10 @@ public sealed class ConcurrentBatchedCombatPolicyValueModel :
         }
         Interlocked.Increment(ref batchEvaluationCount);
         Interlocked.Add(ref batchedInputCount, count);
+        CombatPolicyValueBatchDiagnostics.BatchCompleted(
+            count,
+            maximumBatchSize,
+            timeoutFlush: false);
         return inner.EvaluateBatch(inputs);
     }
 
@@ -228,7 +385,7 @@ public sealed class ConcurrentBatchedCombatPolicyValueModel :
         return batch;
     }
 
-    private void Execute(List<BatchRequest> batch)
+    private void Execute(List<BatchRequest> batch, bool timeoutFlush)
     {
         try
         {
@@ -255,10 +412,19 @@ public sealed class ConcurrentBatchedCombatPolicyValueModel :
             }
             Interlocked.Increment(ref batchEvaluationCount);
             Interlocked.Add(ref batchedInputCount, batch.Count);
+            if (timeoutFlush)
+            {
+                Interlocked.Increment(ref timeoutFlushCount);
+            }
+            CombatPolicyValueBatchDiagnostics.BatchCompleted(
+                batch.Count,
+                maximumBatchSize,
+                timeoutFlush);
             for (var i = 0; i < batch.Count; i++)
             {
                 batch[i].Result = results[i];
             }
+            TryEnableAdaptiveFallback();
         }
         catch (Exception exception)
         {
@@ -278,6 +444,32 @@ public sealed class ConcurrentBatchedCombatPolicyValueModel :
                 batch.Clear();
                 batchPool.Push(batch);
             }
+        }
+    }
+
+    private void TryEnableAdaptiveFallback()
+    {
+        const long minimumBatchEvaluations = 2048L;
+        var evaluations = Interlocked.Read(ref batchEvaluationCount);
+        if (evaluations < minimumBatchEvaluations
+            || AdaptiveFallbackActive)
+        {
+            return;
+        }
+        var averageBatchSize = Interlocked.Read(ref batchedInputCount)
+                               / (double)Math.Max(1L, evaluations);
+        var timeoutRate = Interlocked.Read(ref timeoutFlushCount)
+                          / (double)Math.Max(1L, evaluations);
+        if (averageBatchSize >= 1.15d || timeoutRate < 0.95d)
+        {
+            return;
+        }
+        if (Interlocked.CompareExchange(
+                ref adaptiveFallbackActive,
+                1,
+                0) == 0)
+        {
+            CombatPolicyValueBatchDiagnostics.AdaptiveFallbackActivated();
         }
     }
 
@@ -345,7 +537,7 @@ public sealed class ShardedBatchedCombatPolicyValueModel :
 
     private ConcurrentBatchedCombatPolicyValueModel CurrentLane()
     {
-        var threadId = Environment.CurrentManagedThreadId & int.MaxValue;
+        var threadId = Thread.CurrentThread.ManagedThreadId & int.MaxValue;
         return lanes[threadId % lanes.Length];
     }
 }
@@ -386,6 +578,8 @@ public sealed class CombatPolicyValueNetworkDefinition
     public double PolicyBias { get; set; }
 
     public int ActionQuantileCount { get; set; } = 16;
+
+    public bool ActionQuantileHeadReady { get; set; }
 
     public double[] ActionQuantileWeights { get; set; } = Array.Empty<double>();
 
@@ -496,8 +690,11 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
                     0,
                     definition.HiddenDimensions);
                 result.PolicyLogits[candidate.CandidateId ?? ""] = logit;
-                result.ActionReturnQuantiles[candidate.CandidateId ?? ""] =
-                    ActionQuantiles(hidden, 0, actionHidden, 0);
+                if (definition.ActionQuantileHeadReady)
+                {
+                    result.ActionReturnQuantiles[candidate.CandidateId ?? ""] =
+                        ActionQuantiles(hidden, 0, actionHidden, 0);
+                }
                 minimum = Math.Min(minimum, logit);
                 maximum = Math.Max(maximum, logit);
             }
@@ -614,13 +811,16 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
                     definition.HiddenDimensions);
                 results[owner].PolicyLogits[
                     candidates[candidateIndex].CandidateId ?? ""] = logit;
-                results[owner].ActionReturnQuantiles[
-                    candidates[candidateIndex].CandidateId ?? ""] =
-                    ActionQuantiles(
-                        hidden,
-                        owner * definition.HiddenDimensions,
-                        actionHidden,
-                        candidateIndex * definition.HiddenDimensions);
+                if (definition.ActionQuantileHeadReady)
+                {
+                    results[owner].ActionReturnQuantiles[
+                        candidates[candidateIndex].CandidateId ?? ""] =
+                        ActionQuantiles(
+                            hidden,
+                            owner * definition.HiddenDimensions,
+                            actionHidden,
+                            candidateIndex * definition.HiddenDimensions);
+                }
                 minimum[owner] = Math.Min(minimum[owner], logit);
                 maximum[owner] = Math.Max(maximum[owner], logit);
             }
@@ -1156,6 +1356,52 @@ public sealed class CombatFeatureCollisionTelemetry
 
 public static class CombatPolicyValueEncoding
 {
+    private static readonly Dictionary<string, int> CoreStateIndexes = new(
+        StringComparer.OrdinalIgnoreCase)
+    {
+        ["playerHp"] = 0,
+        ["playerMaxHp"] = 1,
+        ["playerDefend"] = 2,
+        ["power"] = 3,
+        ["maxPower"] = 4,
+        ["handCount"] = 5,
+        ["enemyCount"] = 6,
+        ["enemyHpTotal"] = 7,
+        ["expectedIncomingDamage"] = 8,
+        ["expectedBlockableDamage"] = 9,
+        ["expectedUnblockableDamage"] = 10,
+        ["expectedDamageOverTime"] = 11,
+        ["turn"] = 12
+    };
+
+    private static readonly Dictionary<string, int> CoreActionIndexes = new(
+        StringComparer.OrdinalIgnoreCase)
+    {
+        ["cost"] = 0,
+        ["ruleScore"] = 1,
+        ["baseRuleScore"] = 2,
+        ["planScore"] = 3,
+        ["damage"] = 4,
+        ["trueDamage"] = 5,
+        ["damageOverTime"] = 6,
+        ["selfHpLoss"] = 7,
+        ["endOfCycleSelfHpLoss"] = 8,
+        ["hitCount"] = 9,
+        ["defend"] = 10,
+        ["heal"] = 11,
+        ["draw"] = 12,
+        ["energyGain"] = 13,
+        ["buff"] = 14,
+        ["debuff"] = 15,
+        ["cleanse"] = 16,
+        ["costReduction"] = 17,
+        ["cardGeneration"] = 18,
+        ["persistentValue"] = 19,
+        ["scaling"] = 20,
+        ["risk"] = 21,
+        ["uncertainty"] = 22
+    };
+
     public static double[] Encode(
         IReadOnlyDictionary<string, double>? values,
         int dimensions,
@@ -1211,15 +1457,22 @@ public static class CombatPolicyValueEncoding
             1,
             Math.Min(dimensions, target.Length - offset));
         Array.Clear(target, offset, safeDimensions);
-        var sanitized = SanitizeStateFeatures(values);
-        foreach (var pair in sanitized)
+        foreach (var pair in values
+                 ?? (IReadOnlyDictionary<string, double>)EmptyFeatures.Instance)
         {
+            if (!CombatPublicFeaturePolicy.TrySanitizeStateFeature(
+                    pair.Key,
+                    pair.Value,
+                    out var sanitizedValue))
+            {
+                continue;
+            }
             if (TryCoreStateIndex(
                     pair.Key,
                     safeDimensions,
                     out var coreIndex))
             {
-                target[offset + coreIndex] += Normalize(pair.Value);
+                target[offset + coreIndex] += Normalize(sanitizedValue);
                 continue;
             }
             var range = StateRange(pair.Key, safeDimensions);
@@ -1227,8 +1480,9 @@ public static class CombatPolicyValueEncoding
                 target,
                 offset + range.Start,
                 range.Length,
-                "state:" + pair.Key,
-                Normalize(pair.Value),
+                "state",
+                pair.Key,
+                Normalize(sanitizedValue),
                 offset + safeDimensions);
         }
     }
@@ -1241,13 +1495,10 @@ public static class CombatPolicyValueEncoding
 
     public static bool IsPermittedStateFeature(string? key)
     {
-        return !string.IsNullOrWhiteSpace(key)
-               && CombatPublicFeaturePolicy
-                   .SanitizeState(new Dictionary<string, double>
-                   {
-                       [key!] = 1d
-                   })
-                   .Count == 1;
+        return CombatPublicFeaturePolicy.TrySanitizeStateFeature(
+            key,
+            1d,
+            out _);
     }
 
     public static CombatFeatureCollisionTelemetry MeasureStateCollisions(
@@ -1256,8 +1507,16 @@ public static class CombatPolicyValueEncoding
     {
         var buckets = new HashSet<int>();
         var count = 0;
-        foreach (var pair in SanitizeStateFeatures(values))
+        foreach (var pair in values
+                 ?? (IReadOnlyDictionary<string, double>)EmptyFeatures.Instance)
         {
+            if (!CombatPublicFeaturePolicy.TrySanitizeStateFeature(
+                    pair.Key,
+                    pair.Value,
+                    out _))
+            {
+                continue;
+            }
             count++;
             buckets.Add(StateIndex(pair.Key, Math.Max(1, dimensions)));
         }
@@ -1275,15 +1534,22 @@ public static class CombatPolicyValueEncoding
         var safeDimensions = Math.Max(1, dimensions);
         var buckets = new HashSet<int>();
         var count = 0;
-        foreach (var pair in CombatPublicFeaturePolicy.SanitizeAction(
-                     candidate.Features))
+        foreach (var pair in candidate.Features)
         {
+            if (!CombatPublicFeaturePolicy.TrySanitizeActionFeature(
+                    pair.Key,
+                    pair.Value,
+                    out _))
+            {
+                continue;
+            }
             count++;
             buckets.Add(ActionIndex(pair.Key, safeDimensions));
         }
         count++;
         buckets.Add(SparseActionIndex(
-            "source:" + (candidate.SourceId ?? ""),
+            "source",
+            candidate.SourceId ?? "",
             safeDimensions));
         return new CombatFeatureCollisionTelemetry
         {
@@ -1332,15 +1598,21 @@ public static class CombatPolicyValueEncoding
             1,
             Math.Min(dimensions, target.Length - offset));
         Array.Clear(target, offset, safeDimensions);
-        foreach (var pair in CombatPublicFeaturePolicy.SanitizeAction(
-                     candidate.Features))
+        foreach (var pair in candidate.Features)
         {
+            if (!CombatPublicFeaturePolicy.TrySanitizeActionFeature(
+                    pair.Key,
+                    pair.Value,
+                    out var sanitizedValue))
+            {
+                continue;
+            }
             if (TryCoreActionIndex(
                     pair.Key,
                     safeDimensions,
                     out var coreIndex))
             {
-                target[offset + coreIndex] += Normalize(pair.Value);
+                target[offset + coreIndex] += Normalize(sanitizedValue);
                 continue;
             }
             var sparseStart = Math.Min(24, safeDimensions - 1);
@@ -1348,8 +1620,9 @@ public static class CombatPolicyValueEncoding
                 target,
                 offset + sparseStart,
                 Math.Max(1, safeDimensions - sparseStart),
-                "action:" + pair.Key,
-                Normalize(pair.Value),
+                "action",
+                pair.Key,
+                Normalize(sanitizedValue),
                 offset + safeDimensions);
         }
         var sourceStart = Math.Min(24, safeDimensions - 1);
@@ -1357,7 +1630,8 @@ public static class CombatPolicyValueEncoding
             target,
             offset + sourceStart,
             Math.Max(1, safeDimensions - sourceStart),
-            "source:" + (candidate.SourceId ?? ""),
+            "source",
+            candidate.SourceId ?? "",
             1d,
             offset + safeDimensions);
     }
@@ -1372,6 +1646,16 @@ public static class CombatPolicyValueEncoding
             throw new ArgumentException(
                 "只接受当前策略价值特征编码 partitioned-v3",
                 nameof(encodingMode));
+        }
+    }
+
+    private sealed class EmptyFeatures : Dictionary<string, double>
+    {
+        public static readonly EmptyFeatures Instance = new();
+
+        private EmptyFeatures()
+            : base(StringComparer.OrdinalIgnoreCase)
+        {
         }
     }
 
@@ -1550,28 +1834,32 @@ public static class CombatPolicyValueEncoding
         values[index] += sign * amount;
     }
 
+    private static void AddRange(
+        double[] values,
+        int start,
+        int length,
+        string prefix,
+        string key,
+        double amount,
+        int exclusiveEnd)
+    {
+        var safeLength = Math.Max(
+            1,
+            Math.Min(length, exclusiveEnd - start));
+        var hash = Hash(prefix, key);
+        var index = start + (int)(hash % (uint)safeLength);
+        var sign = (hash & 0x80000000u) == 0u ? 1d : -1d;
+        values[index] += sign * amount;
+    }
+
     private static bool TryCoreStateIndex(
         string key,
         int dimensions,
         out int index)
     {
-        var slot = (key ?? "").ToLowerInvariant() switch
-        {
-            "playerhp" => 0,
-            "playermaxhp" => 1,
-            "playerdefend" => 2,
-            "power" => 3,
-            "maxpower" => 4,
-            "handcount" => 5,
-            "enemycount" => 6,
-            "enemyhptotal" => 7,
-            "expectedincomingdamage" => 8,
-            "expectedblockabledamage" => 9,
-            "expectedunblockabledamage" => 10,
-            "expecteddamageovertime" => 11,
-            "turn" => 12,
-            _ => -1
-        };
+        var slot = CoreStateIndexes.TryGetValue(key ?? "", out var value)
+            ? value
+            : -1;
         index = slot < 0 ? -1 : Math.Min(dimensions - 1, slot);
         return slot >= 0;
     }
@@ -1581,33 +1869,9 @@ public static class CombatPolicyValueEncoding
         int dimensions,
         out int index)
     {
-        var slot = (key ?? "").ToLowerInvariant() switch
-        {
-            "cost" => 0,
-            "rulescore" => 1,
-            "baserulescore" => 2,
-            "planscore" => 3,
-            "damage" => 4,
-            "truedamage" => 5,
-            "damageovertime" => 6,
-            "selfhploss" => 7,
-            "endofcycleselfhploss" => 8,
-            "hitcount" => 9,
-            "defend" => 10,
-            "heal" => 11,
-            "draw" => 12,
-            "energygain" => 13,
-            "buff" => 14,
-            "debuff" => 15,
-            "cleanse" => 16,
-            "costreduction" => 17,
-            "cardgeneration" => 18,
-            "persistentvalue" => 19,
-            "scaling" => 20,
-            "risk" => 21,
-            "uncertainty" => 22,
-            _ => -1
-        };
+        var slot = CoreActionIndexes.TryGetValue(key ?? "", out var value)
+            ? value
+            : -1;
         index = slot < 0 ? -1 : Math.Min(dimensions - 1, slot);
         return slot >= 0;
     }
@@ -1620,14 +1884,14 @@ public static class CombatPolicyValueEncoding
         }
         var range = StateRange(key, dimensions);
         return range.Start
-               + (int)(Hash("state:" + key) % (uint)range.Length);
+               + (int)(Hash("state", key) % (uint)range.Length);
     }
 
     private static int ActionIndex(string key, int dimensions)
     {
         return TryCoreActionIndex(key, dimensions, out var coreIndex)
             ? coreIndex
-            : SparseActionIndex("action:" + key, dimensions);
+            : SparseActionIndex("action", key, dimensions);
     }
 
     private static int SparseActionIndex(string key, int dimensions)
@@ -1635,6 +1899,16 @@ public static class CombatPolicyValueEncoding
         var start = Math.Min(24, dimensions - 1);
         var length = Math.Max(1, dimensions - start);
         return start + (int)(Hash(key) % (uint)length);
+    }
+
+    private static int SparseActionIndex(
+        string prefix,
+        string key,
+        int dimensions)
+    {
+        var start = Math.Min(24, dimensions - 1);
+        var length = Math.Max(1, dimensions - start);
+        return start + (int)(Hash(prefix, key) % (uint)length);
     }
 
     private static (int Start, int Length) StateRange(
@@ -1689,6 +1963,27 @@ public static class CombatPolicyValueEncoding
         unchecked
         {
             var hash = 2166136261u;
+            foreach (var character in value ?? "")
+            {
+                hash ^= character;
+                hash *= 16777619u;
+            }
+            return hash;
+        }
+    }
+
+    private static uint Hash(string prefix, string value)
+    {
+        unchecked
+        {
+            var hash = 2166136261u;
+            foreach (var character in prefix ?? "")
+            {
+                hash ^= character;
+                hash *= 16777619u;
+            }
+            hash ^= ':';
+            hash *= 16777619u;
             foreach (var character in value ?? "")
             {
                 hash ^= character;

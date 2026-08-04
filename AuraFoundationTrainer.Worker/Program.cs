@@ -4,6 +4,7 @@ using System.Security.Cryptography;
 using System.Text;
 using AuraCombatAi.Shared;
 using AuraCombatSimulation.Shared;
+using AuraFoundationTrainer.Worker;
 using AuraToolsExp.Dll.Features.AutoBattle;
 using Newtonsoft.Json;
 
@@ -428,8 +429,24 @@ try
         };
     }
 
+    ICombatTransformerTeacher? transformerTeacher = null;
+    var transformerOptions = (job.Request.TransformerTeacher
+                              ?? new CombatTransformerTeacherOptions())
+        .Normalized();
+    job.Request.TransformerTeacher = transformerOptions;
+    if (!string.Equals(
+            transformerOptions.Backend,
+            CombatTransformerTeacherBackendNames.Disabled,
+            StringComparison.OrdinalIgnoreCase))
+    {
+        transformerTeacher = new PythonCombatTransformerTeacher(
+            job.ResultDirectory,
+            ResolveTransformerTeacherScript());
+    }
+
     var training = new CombatCampaignFoundationTrainer(
-        new CombatCampaignRunner(simulationEngine)).Run(
+        new CombatCampaignRunner(simulationEngine),
+        transformerTeacher).Run(
         job.Request,
         build.Ruleset,
         job.InitialChampion,
@@ -1715,6 +1732,27 @@ static void WriteJsonLines<T>(
     CombatFoundationCheckpointStorage.WriteAtomicJsonLines(
         path,
         values.Select(value => SerializeCompact(value!)));
+}
+
+static string ResolveTransformerTeacherScript()
+{
+    var packaged = Path.Combine(
+        AppContext.BaseDirectory,
+        "TransformerTeacher",
+        "train_teacher.py");
+    if (File.Exists(packaged))
+    {
+        return packaged;
+    }
+    return Path.GetFullPath(Path.Combine(
+        AppContext.BaseDirectory,
+        "..",
+        "..",
+        "..",
+        "..",
+        "tools",
+        "transformer-teacher",
+        "train_teacher.py"));
 }
 
 static string ResolveArgument(string[] arguments, string name)
