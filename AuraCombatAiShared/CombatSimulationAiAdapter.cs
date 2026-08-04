@@ -96,6 +96,15 @@ public sealed class CombatDecisionSimulationPolicy :
         LastDecisionMetrics.SearchNodes = decision.SearchNodes;
         LastDecisionMetrics.SearchStoppedEarly = decision.SearchStoppedEarly;
         LastDecisionMetrics.SearchBudgetTier = decision.SearchBudgetTier;
+        LastDecisionMetrics.SearchMilliseconds = decision.Performance.TotalMilliseconds;
+        LastDecisionMetrics.ModelEvaluations = decision.Performance.ModelEvaluations;
+        LastDecisionMetrics.ModelCacheHits = decision.Performance.ModelCacheHits;
+        LastDecisionMetrics.OriginalCandidates = decision.Performance.OriginalCandidates;
+        LastDecisionMetrics.RetainedCandidates = decision.Performance.RetainedCandidates;
+        LastDecisionMetrics.SearchStoppedByTime = decision.Performance.StoppedByTime;
+        LastDecisionMetrics.SearchStoppedByModelBudget =
+            decision.Performance.StoppedByModelBudget;
+        LastDecisionMetrics.SearchStopReason = decision.Performance.StopReason;
         LastDecisionMetrics.CertifiedLoops = decision.CertifiedLoops;
         LastDecisionMetrics.SustainableControlLoops =
             decision.SustainableControlLoops;

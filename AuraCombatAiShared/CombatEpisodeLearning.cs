@@ -133,6 +133,8 @@ public sealed class CombatEpisodeFrame
     public Dictionary<string, double> StateFeatures { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
 
+    public CombatObservationEnvelope Observation { get; set; } = new();
+
     public List<CombatEpisodeCandidate> Candidates { get; set; } = new();
 
     public string ExecutedCandidateId { get; set; } = "";

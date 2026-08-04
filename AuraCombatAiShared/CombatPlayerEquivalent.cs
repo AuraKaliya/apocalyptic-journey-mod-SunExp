@@ -400,12 +400,23 @@ public static class CombatDecisionExecutionBindingProtocol
             SearchNodes = source.SearchNodes,
             SearchTranspositionHits = source.SearchTranspositionHits,
             SearchStoppedEarly = source.SearchStoppedEarly,
+            SearchStoppedByTime = source.SearchStoppedByTime,
+            SearchConfidence = source.SearchConfidence,
+            SearchValueGap = source.SearchValueGap,
+            SearchBestVisits = source.SearchBestVisits,
+            SearchSecondBestVisits = source.SearchSecondBestVisits,
+            SearchCandidateCount = source.SearchCandidateCount,
+            SearchOriginalCandidateCount = source.SearchOriginalCandidateCount,
             SearchBudgetTier = source.SearchBudgetTier,
+            Performance = source.Performance?.Clone()
+                          ?? new CombatDecisionPerformanceTelemetry(),
             CertifiedLoops = source.CertifiedLoops,
             SustainableControlLoops = source.SustainableControlLoops,
             FakeLoops = source.FakeLoops,
             BlockedLoops = source.BlockedLoops,
-            SearchAlgorithm = source.SearchAlgorithm
+            SearchAlgorithm = source.SearchAlgorithm,
+            InferenceWorkerCount = source.InferenceWorkerCount,
+            InferenceAgreement = source.InferenceAgreement
         };
     }
 

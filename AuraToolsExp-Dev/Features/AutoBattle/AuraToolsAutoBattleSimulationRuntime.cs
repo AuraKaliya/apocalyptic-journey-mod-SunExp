@@ -1167,7 +1167,14 @@ internal static class AuraToolsAutoBattleSimulationRuntime
             SearchBudgetMode = "dynamic",
             SearchQuality = settings.SearchQuality,
             UseLowConfidenceFallback = settings.LowConfidenceFallback,
-            MinimumSearchConfidence = settings.MinimumSearchConfidence
+            MinimumSearchConfidence = settings.MinimumSearchConfidence,
+            SearchModelEvaluationBudget =
+                settings.SearchModelEvaluationBudget,
+            EnableActorCandidatePruning =
+                settings.EnableActorCandidatePruning,
+            ActorCandidateTopK = settings.ActorCandidateTopK,
+            ActorCandidateProbabilityMass =
+                settings.ActorCandidateProbabilityMass
         };
         switch (settings.Profile)
         {
@@ -1179,6 +1186,7 @@ internal static class AuraToolsAutoBattleSimulationRuntime
                 profile.ThreatRiskTolerance = 0.35d;
                 profile.DeathRiskLimit = 0.12d;
                 profile.TailRiskPenalty = 22d;
+                profile.RiskPreference = 0.8d;
                 break;
             case "defensive":
                 profile.Id = "defensive";
@@ -1189,7 +1197,12 @@ internal static class AuraToolsAutoBattleSimulationRuntime
                 profile.SurplusDefendRetention = 0.1d;
                 profile.DeathRiskLimit = 0.02d;
                 profile.TailRiskPenalty = 55d;
+                profile.RiskPreference = 0.2d;
                 break;
+        }
+        if (settings.RiskPreference >= 0d)
+        {
+            profile.RiskPreference = settings.RiskPreference;
         }
         if (string.Equals(settings.UnknownActionPolicy, "allow", StringComparison.OrdinalIgnoreCase))
         {

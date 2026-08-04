@@ -60,6 +60,11 @@
     "inferenceParallelism": 2,
     "lowConfidenceFallback": true,
     "minimumSearchConfidence": 0.35,
+    "searchModelEvaluationBudget": 384,
+    "riskPreference": -1.0,
+    "enableActorCandidatePruning": false,
+    "actorCandidateTopK": 12,
+    "actorCandidateProbabilityMass": 0.995,
     "gameParameters": {
       "selectedPresetId": "standard",
       "presets": [

@@ -638,7 +638,9 @@ public sealed class CombatDecisionProfile
 
     public string SearchBudgetContext { get; set; } = "deployment";
 
-    public int SearchTimeBudgetMilliseconds { get; set; }
+    public int SearchTimeBudgetMilliseconds { get; set; } = 450;
+
+    public int SearchModelEvaluationBudget { get; set; } = 512;
 
     public double SearchExploration { get; set; } = 1.15d;
 
@@ -655,6 +657,8 @@ public sealed class CombatDecisionProfile
     public double TailRiskPenalty { get; set; } = 35d;
 
     public double TailRiskQuantile { get; set; } = 0.1d;
+
+    public double RiskPreference { get; set; } = 0.5d;
 
     public double UncertaintyPenalty { get; set; } = 0.75d;
 
@@ -673,6 +677,12 @@ public sealed class CombatDecisionProfile
     public bool UseLowConfidenceFallback { get; set; } = true;
 
     public double MinimumSearchConfidence { get; set; } = 0.35d;
+
+    public bool EnableActorCandidatePruning { get; set; }
+
+    public int ActorCandidateTopK { get; set; } = 12;
+
+    public double ActorCandidateProbabilityMass { get; set; } = 0.995d;
 
 }
 
@@ -789,6 +799,8 @@ public sealed class CombatDecision
     public int InferenceWorkerCount { get; set; } = 1;
 
     public double InferenceAgreement { get; set; } = 1d;
+
+    public CombatDecisionPerformanceTelemetry Performance { get; set; } = new();
 }
 
 public sealed class CombatExecutionResult
@@ -936,6 +948,8 @@ public sealed class CombatTrainingSample
     public int SearchTranspositionHits { get; set; }
 
     public string SearchBudgetTier { get; set; } = "";
+
+    public CombatDecisionPerformanceTelemetry Performance { get; set; } = new();
 
     public List<CombatTrainingCandidate> Candidates { get; set; } = new();
 

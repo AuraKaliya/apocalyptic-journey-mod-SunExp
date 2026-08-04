@@ -1,6 +1,8 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Security.Cryptography;
+using System.Text;
 
 namespace AuraCombatAi.Shared;
 
@@ -10,6 +12,472 @@ public static class CombatModelAdapterProtocol
     public const int SchemaVersion = 1;
     public const string ContentKind = "content-low-rank";
     public const string PersonalKind = "personal-residual";
+
+    public const string TransformerProtocol =
+        "aura.combat-ai.transformer-adapter.v2";
+
+    public const int TransformerSchemaVersion = 2;
+
+    public const string TransformerContentKind = "content-lora";
+
+    public const string TransformerCampaignKind = "campaign-lora";
+
+    public const string TransformerPreferenceKind = "preference-lora";
+}
+
+public sealed class CombatTransformerAdapterManifest
+{
+    public string Protocol { get; set; } =
+        CombatModelAdapterProtocol.TransformerProtocol;
+
+    public int SchemaVersion { get; set; } =
+        CombatModelAdapterProtocol.TransformerSchemaVersion;
+
+    public string AdapterId { get; set; } = "";
+
+    public string AdapterKind { get; set; } =
+        CombatModelAdapterProtocol.TransformerContentKind;
+
+    public string OwnerModId { get; set; } = "";
+
+    public string PackageId { get; set; } = "";
+
+    public string BaseModelId { get; set; } = "";
+
+    public string BaseModelHash { get; set; } = "";
+
+    public int TokenizerSchemaVersion { get; set; } =
+        CombatWorldModelProtocol.TokenSchemaVersion;
+
+    public int RuleIrSchemaVersion { get; set; } = 1;
+
+    public string ContentSetHash { get; set; } =
+        CombatContentSetProtocol.EmptyContentSetHash;
+
+    public string OwnerModSetHash { get; set; } =
+        CombatContentSetProtocol.EmptyOwnerModSetHash;
+
+    public string TrainingDataHash { get; set; } = "";
+
+    public string AdapterWeightHash { get; set; } = "";
+
+    public List<string> SupportedContentIds { get; set; } = new();
+
+    public List<string> QuantizationCompatibility { get; set; } = new();
+
+    public Dictionary<string, double> ValidationMetrics { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+}
+
+public sealed class CombatTransformerLoRAMatrix
+{
+    public string TargetModule { get; set; } = "";
+
+    public int InputDimensions { get; set; }
+
+    public int OutputDimensions { get; set; }
+
+    public int Rank { get; set; } = 8;
+
+    public double Alpha { get; set; } = 8d;
+
+    public double Dropout { get; set; } = 0.05d;
+
+    public double[] A { get; set; } = Array.Empty<double>();
+
+    public double[] B { get; set; } = Array.Empty<double>();
+
+    public int ParameterCount => A?.Length + B?.Length ?? 0;
+}
+
+public sealed class CombatTransformerLoRAAdapterDefinition
+{
+    public CombatTransformerAdapterManifest Manifest { get; set; } = new();
+
+    public List<CombatTransformerLoRAMatrix> Matrices { get; set; } = new();
+
+    public int TrainableParameterCount =>
+        (Matrices ?? new List<CombatTransformerLoRAMatrix>())
+        .Where(item => item != null)
+        .Sum(item => item.ParameterCount);
+}
+
+public static class CombatTransformerAdapterValidator
+{
+    public static bool TryValidate(
+        CombatTransformerLoRAAdapterDefinition? adapter,
+        string expectedBaseModelId,
+        string expectedBaseModelHash,
+        string expectedContentSetHash,
+        out string reason)
+    {
+        var manifest = adapter?.Manifest;
+        if (adapter == null
+            || manifest == null
+            || manifest.Protocol != CombatModelAdapterProtocol.TransformerProtocol
+            || manifest.SchemaVersion
+               != CombatModelAdapterProtocol.TransformerSchemaVersion
+            || string.IsNullOrWhiteSpace(manifest.AdapterId)
+            || string.IsNullOrWhiteSpace(manifest.OwnerModId)
+            || string.IsNullOrWhiteSpace(manifest.PackageId)
+            || string.IsNullOrWhiteSpace(manifest.BaseModelId)
+            || !CanonicalHash(manifest.BaseModelHash)
+            || !CanonicalHash(manifest.ContentSetHash)
+            || !CanonicalHash(manifest.OwnerModSetHash)
+            || !CanonicalHash(manifest.TrainingDataHash)
+            || !CanonicalHash(manifest.AdapterWeightHash)
+            || manifest.TokenizerSchemaVersion
+               != CombatWorldModelProtocol.TokenSchemaVersion
+            || manifest.RuleIrSchemaVersion <= 0
+            || !KnownKind(manifest.AdapterKind))
+        {
+            reason = "Transformer LoRA manifest is invalid";
+            return false;
+        }
+        if (!string.IsNullOrWhiteSpace(expectedBaseModelId)
+            && !string.Equals(
+                manifest.BaseModelId,
+                expectedBaseModelId,
+                StringComparison.Ordinal))
+        {
+            reason = "Transformer LoRA base model id does not match";
+            return false;
+        }
+        if (!string.IsNullOrWhiteSpace(expectedBaseModelHash)
+            && !string.Equals(
+                manifest.BaseModelHash,
+                expectedBaseModelHash,
+                StringComparison.Ordinal))
+        {
+            reason = "Transformer LoRA base model hash does not match";
+            return false;
+        }
+        if (!string.IsNullOrWhiteSpace(expectedContentSetHash)
+            && !string.Equals(
+                manifest.ContentSetHash,
+                expectedContentSetHash,
+                StringComparison.Ordinal))
+        {
+            reason = "Transformer LoRA content set does not match";
+            return false;
+        }
+
+        var matrices = adapter.Matrices
+                       ?? new List<CombatTransformerLoRAMatrix>();
+        if (matrices.Count == 0
+            || matrices.Count > 256
+            || matrices.Any(item => !ValidMatrix(item))
+            || matrices.GroupBy(
+                    item => item.TargetModule,
+                    StringComparer.Ordinal)
+                .Any(group => group.Count() > 1)
+            || adapter.TrainableParameterCount <= 0
+            || adapter.TrainableParameterCount > 10_000_000)
+        {
+            reason = "Transformer LoRA matrices are invalid";
+            return false;
+        }
+        if (matrices.Any(item => ForbiddenTarget(item.TargetModule)))
+        {
+            reason = "Transformer LoRA cannot target legality or exact chance modules";
+            return false;
+        }
+        if (string.Equals(
+                manifest.AdapterKind,
+                CombatModelAdapterProtocol.TransformerPreferenceKind,
+                StringComparison.Ordinal)
+            && matrices.Any(item => !item.TargetModule.StartsWith(
+                "actor.",
+                StringComparison.Ordinal)))
+        {
+            reason = "preference LoRA may target only actor modules";
+            return false;
+        }
+        var supportedContentIds = manifest.SupportedContentIds
+                                  ?? new List<string>();
+        if (supportedContentIds.Any(string.IsNullOrWhiteSpace)
+            || supportedContentIds.Distinct(
+                    StringComparer.OrdinalIgnoreCase).Count()
+               != supportedContentIds.Count
+            || (manifest.ValidationMetrics
+                ?? new Dictionary<string, double>()).Any(pair =>
+                    string.IsNullOrWhiteSpace(pair.Key)
+                    || !Finite(pair.Value)))
+        {
+            reason = "Transformer LoRA coverage or validation metrics are invalid";
+            return false;
+        }
+        reason = "";
+        return true;
+    }
+
+    public static string BuildMergeCacheKey(
+        string baseModelHash,
+        IEnumerable<CombatTransformerLoRAAdapterDefinition> adapters,
+        string backend,
+        string precision)
+    {
+        if (!CanonicalHash(baseModelHash))
+        {
+            throw new ArgumentException("base model hash is invalid", nameof(baseModelHash));
+        }
+        var identities = (adapters
+                          ?? Array.Empty<CombatTransformerLoRAAdapterDefinition>())
+            .Where(item => item?.Manifest != null)
+            .Select(item => item.Manifest.AdapterId + "#"
+                            + item.Manifest.AdapterWeightHash)
+            .OrderBy(item => item, StringComparer.Ordinal);
+        var canonical = baseModelHash + "\n"
+                        + string.Join("\n", identities) + "\n"
+                        + (backend ?? "").Trim().ToLowerInvariant() + "\n"
+                        + (precision ?? "").Trim().ToLowerInvariant();
+        using var sha = SHA256.Create();
+        return string.Concat(sha.ComputeHash(Encoding.UTF8.GetBytes(canonical))
+            .Select(value => value.ToString("x2")));
+    }
+
+    private static bool ValidMatrix(CombatTransformerLoRAMatrix? item)
+    {
+        return item != null
+               && !string.IsNullOrWhiteSpace(item.TargetModule)
+               && item.TargetModule.Length <= 160
+               && item.InputDimensions is >= 1 and <= 8192
+               && item.OutputDimensions is >= 1 and <= 8192
+               && item.Rank is >= 1 and <= 32
+               && Finite(item.Alpha)
+               && item.Alpha > 0d
+               && Finite(item.Dropout)
+               && item.Dropout is >= 0d and <= 0.5d
+               && item.A?.Length == item.Rank * item.InputDimensions
+               && item.B?.Length == item.OutputDimensions * item.Rank
+               && Finite(item.A)
+               && Finite(item.B);
+    }
+
+    private static bool ForbiddenTarget(string value)
+    {
+        var target = (value ?? "").Trim().ToLowerInvariant();
+        return target.Contains("legality")
+               || target.Contains("rule-kernel")
+               || target.Contains("exact-chance")
+               || target.Contains("execution");
+    }
+
+    private static bool KnownKind(string value)
+    {
+        return string.Equals(
+                   value,
+                   CombatModelAdapterProtocol.TransformerContentKind,
+                   StringComparison.Ordinal)
+               || string.Equals(
+                   value,
+                   CombatModelAdapterProtocol.TransformerCampaignKind,
+                   StringComparison.Ordinal)
+               || string.Equals(
+                   value,
+                   CombatModelAdapterProtocol.TransformerPreferenceKind,
+                   StringComparison.Ordinal);
+    }
+
+    private static bool CanonicalHash(string? value)
+    {
+        return value != null
+               && value.Length == 64
+               && value.All(character =>
+                   character is >= '0' and <= '9'
+                   || character is >= 'a' and <= 'f');
+    }
+
+    private static bool Finite(double value)
+    {
+        return !double.IsNaN(value) && !double.IsInfinity(value);
+    }
+
+    private static bool Finite(IEnumerable<double>? values)
+    {
+        return values != null && values.All(Finite);
+    }
+}
+
+public sealed class CombatTransformerAdapterComposition
+{
+    public List<CombatTransformerLoRAAdapterDefinition> ActiveAdapters {
+        get;
+        set;
+    } = new();
+
+    public Dictionary<string, string> RejectedAdapters { get; set; } =
+        new(StringComparer.Ordinal);
+
+    public string MergeCacheKey { get; set; } = "";
+
+    public static CombatTransformerAdapterComposition Compose(
+        IEnumerable<CombatTransformerLoRAAdapterDefinition>? adapters,
+        string baseModelId,
+        string baseModelHash,
+        string contentSetHash,
+        string ownerModSetHash,
+        string backend,
+        string precision,
+        int maximumActiveAdapters = 8)
+    {
+        var result = new CombatTransformerAdapterComposition();
+        var maximum = Math.Max(1, Math.Min(32, maximumActiveAdapters));
+        var candidates = (adapters
+                          ?? Array.Empty<CombatTransformerLoRAAdapterDefinition>())
+            .Where(item => item?.Manifest != null)
+            .ToList();
+        var duplicateIds = candidates
+            .GroupBy(item => item.Manifest.AdapterId, StringComparer.Ordinal)
+            .Where(group => group.Count() > 1)
+            .Select(group => group.Key)
+            .ToHashSet(StringComparer.Ordinal);
+        foreach (var adapter in candidates
+                     .OrderBy(item => item.Manifest.AdapterId, StringComparer.Ordinal))
+        {
+            var id = adapter.Manifest.AdapterId;
+            if (duplicateIds.Contains(id))
+            {
+                result.RejectedAdapters[id] =
+                    "duplicate Transformer LoRA adapter id";
+                continue;
+            }
+            if (!CombatTransformerAdapterValidator.TryValidate(
+                    adapter,
+                    baseModelId,
+                    baseModelHash,
+                    contentSetHash,
+                    out var reason))
+            {
+                result.RejectedAdapters[id] = reason;
+                continue;
+            }
+            if (!string.Equals(
+                    adapter.Manifest.OwnerModSetHash,
+                    ownerModSetHash,
+                    StringComparison.Ordinal))
+            {
+                result.RejectedAdapters[id] =
+                    "Transformer LoRA owner mod set does not match";
+                continue;
+            }
+            if (!SupportsPrecision(adapter.Manifest, backend, precision))
+            {
+                result.RejectedAdapters[id] =
+                    "Transformer LoRA does not declare the requested precision";
+                continue;
+            }
+            if (result.ActiveAdapters.Count >= maximum)
+            {
+                result.RejectedAdapters[id] =
+                    "active Transformer LoRA limit exceeded";
+                continue;
+            }
+            result.ActiveAdapters.Add(adapter);
+        }
+        result.MergeCacheKey = CombatTransformerAdapterValidator.BuildMergeCacheKey(
+            baseModelHash,
+            result.ActiveAdapters,
+            backend,
+            precision);
+        return result;
+    }
+
+    private static bool SupportsPrecision(
+        CombatTransformerAdapterManifest manifest,
+        string backend,
+        string precision)
+    {
+        var declared = manifest.QuantizationCompatibility
+                       ?? new List<string>();
+        if (declared.Count == 0)
+        {
+            return true;
+        }
+        var normalizedBackend = (backend ?? "").Trim().ToLowerInvariant();
+        var normalizedPrecision = (precision ?? "").Trim().ToLowerInvariant();
+        return declared.Any(item =>
+        {
+            var value = (item ?? "").Trim().ToLowerInvariant();
+            return value == normalizedPrecision
+                   || value == normalizedBackend + ":" + normalizedPrecision;
+        });
+    }
+}
+
+public static class CombatTransformerLoRAMerger
+{
+    public static double[] MergeModule(
+        IReadOnlyList<double> baseWeights,
+        int inputDimensions,
+        int outputDimensions,
+        string targetModule,
+        IEnumerable<CombatTransformerLoRAAdapterDefinition>? adapters,
+        IEnumerable<string>? activeContentIds = null)
+    {
+        if (baseWeights == null)
+        {
+            throw new ArgumentNullException(nameof(baseWeights));
+        }
+        if (inputDimensions <= 0
+            || outputDimensions <= 0
+            || baseWeights.Count != inputDimensions * outputDimensions)
+        {
+            throw new ArgumentException("base module dimensions are invalid");
+        }
+        var result = baseWeights.ToArray();
+        var activeContent = new HashSet<string>(
+            activeContentIds ?? Array.Empty<string>(),
+            StringComparer.OrdinalIgnoreCase);
+        foreach (var adapter in (adapters
+                                 ?? Array.Empty<CombatTransformerLoRAAdapterDefinition>())
+                     .Where(item => item?.Manifest != null)
+                     .Where(item => IsActive(item.Manifest, activeContent))
+                     .OrderBy(item => item.Manifest.AdapterId, StringComparer.Ordinal))
+        {
+            foreach (var matrix in (adapter.Matrices
+                                    ?? new List<CombatTransformerLoRAMatrix>())
+                         .Where(item => item != null
+                                        && string.Equals(
+                                            item.TargetModule,
+                                            targetModule,
+                                            StringComparison.Ordinal)))
+            {
+                if (matrix.InputDimensions != inputDimensions
+                    || matrix.OutputDimensions != outputDimensions
+                    || matrix.A.Length != matrix.Rank * inputDimensions
+                    || matrix.B.Length != outputDimensions * matrix.Rank)
+                {
+                    throw new InvalidOperationException(
+                        "LoRA matrix dimensions do not match " + targetModule);
+                }
+                var scale = matrix.Alpha / matrix.Rank;
+                for (var output = 0; output < outputDimensions; output++)
+                {
+                    for (var input = 0; input < inputDimensions; input++)
+                    {
+                        var delta = 0d;
+                        for (var rank = 0; rank < matrix.Rank; rank++)
+                        {
+                            delta += matrix.B[output * matrix.Rank + rank]
+                                     * matrix.A[rank * inputDimensions + input];
+                        }
+                        result[output * inputDimensions + input] += delta * scale;
+                    }
+                }
+            }
+        }
+        return result;
+    }
+
+    private static bool IsActive(
+        CombatTransformerAdapterManifest manifest,
+        HashSet<string> activeContent)
+    {
+        var supported = manifest.SupportedContentIds ?? new List<string>();
+        return supported.Count == 0
+               || supported.Any(activeContent.Contains);
+    }
 }
 
 public sealed class CombatDecisionAdapterManifest

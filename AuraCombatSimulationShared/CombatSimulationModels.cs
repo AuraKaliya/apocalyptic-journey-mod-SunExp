@@ -1294,6 +1294,22 @@ public sealed class CombatSimulationPolicyDecisionMetrics
 
     public string SearchBudgetTier { get; set; } = "";
 
+    public double SearchMilliseconds { get; set; }
+
+    public int ModelEvaluations { get; set; }
+
+    public int ModelCacheHits { get; set; }
+
+    public int OriginalCandidates { get; set; }
+
+    public int RetainedCandidates { get; set; }
+
+    public bool SearchStoppedByTime { get; set; }
+
+    public bool SearchStoppedByModelBudget { get; set; }
+
+    public string SearchStopReason { get; set; } = "";
+
     public int CertifiedLoops { get; set; }
 
     public int SustainableControlLoops { get; set; }
@@ -1641,6 +1657,20 @@ public sealed class CombatSimulationMetrics
     public long SearchSimulations { get; set; }
 
     public long SearchNodes { get; set; }
+
+    public double SearchMillisecondsTotal { get; set; }
+
+    public long ModelEvaluations { get; set; }
+
+    public long ModelCacheHits { get; set; }
+
+    public long OriginalSearchCandidates { get; set; }
+
+    public long RetainedSearchCandidates { get; set; }
+
+    public int SearchTimeBudgetStops { get; set; }
+
+    public int SearchModelBudgetStops { get; set; }
 
     public int SearchEarlyStops { get; set; }
 

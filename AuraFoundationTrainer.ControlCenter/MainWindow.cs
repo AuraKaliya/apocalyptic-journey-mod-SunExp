@@ -354,9 +354,10 @@ internal sealed class MainWindow : Window
         AddNumber(panel, "TransformerTeacherBatchSize", "教师 Minibatch", 8, 512);
         AddNumber(panel, "TransformerTeacherStateDimensions", "教师状态维度", 32, 256);
         AddNumber(panel, "TransformerTeacherActionDimensions", "教师动作维度", 32, 256);
-        AddNumber(panel, "TransformerTeacherHiddenDimensions", "教师隐藏维度", 32, 256);
+        AddNumber(panel, "TransformerTeacherHiddenDimensions", "教师隐藏维度", 32, 512);
         AddNumber(panel, "TransformerTeacherLayers", "Transformer 层数", 1, 6);
-        AddNumber(panel, "TransformerTeacherAttentionHeads", "注意力头数", 1, 8);
+        AddNumber(panel, "TransformerTeacherAttentionHeads", "注意力头数", 1, 16);
+        AddNumber(panel, "TransformerTeacherFeedForwardDimensions", "前馈网络维度", 32, 4096);
         AddNumber(panel, "TransformerTeacherHistoryLength", "历史决策窗口", 1, 32);
         AddNumber(panel, "TransformerTeacherMinimumFrames", "教师最少 Frames", 64, 100000);
         AddNumber(panel, "TransformerTeacherCpuThreads", "教师 CPU 线程（0 自动）", 0, 64);
@@ -1085,6 +1086,13 @@ internal sealed class MainWindow : Window
             + $"搜索：{telemetry.SearchSimulations:N0} 次，"
             + $"{telemetry.SearchSimulationsPerSecond:N0}/秒，"
             + $"提前停止 {telemetry.SearchEarlyStops}\r\n"
+            + $"决策：avg={AverageSearchMilliseconds(telemetry):0.00}ms，"
+            + $"model={telemetry.SearchModelEvaluations:N0}，"
+            + $"cache={telemetry.SearchModelCacheHits:N0}，"
+            + $"candidates={telemetry.SearchRetainedCandidates:N0}/"
+            + $"{telemetry.SearchOriginalCandidates:N0}，"
+            + $"deadline={telemetry.SearchTimeBudgetStops}，"
+            + $"modelBudget={telemetry.SearchModelBudgetStops}\r\n"
             + $"线程：active={telemetry.ActiveCampaigns}，"
             + $"peak={telemetry.PeakConcurrentCampaigns}，"
             + $"observed={telemetry.ObservedWorkerThreads}\r\n"
@@ -1099,6 +1107,14 @@ internal sealed class MainWindow : Window
             + $"{telemetry.Gen1Collections}/{telemetry.Gen2Collections}\r\n"
             + $"更新时间：{DateTime.Now:HH:mm:ss}";
         diagnostics.PresentTelemetry(telemetry);
+    }
+
+    private static double AverageSearchMilliseconds(
+        CombatCampaignFoundationTelemetry telemetry)
+    {
+        return telemetry.PolicyDecisions <= 0
+            ? 0d
+            : telemetry.SearchMillisecondsTotal / telemetry.PolicyDecisions;
     }
 
     private void PresentResult(ControllerWorkerResultSummary result)
@@ -1270,7 +1286,16 @@ internal sealed class MainWindow : Window
                   + "（均匀 "
                   + FormatLoss(
                       teacher.ValidationUniformPolicyCrossEntropy)
-                  + "）"
+                  + "） · Dynamics MSE "
+                  + FormatLoss(teacher.ValidationDynamicsMse)
+                  + " · Outcome MAE "
+                  + FormatLoss(teacher.ValidationOutcomeMae)
+                  + " · 模型 "
+                  + teacher.Layers
+                  + "x"
+                  + teacher.HiddenDimensions
+                  + " / "
+                  + FormatParameters(teacher.ParameterCount)
                 : Environment.NewLine
                   + "Transformer 教师未应用 · "
                   + teacher.Message;
@@ -1297,6 +1322,15 @@ internal sealed class MainWindow : Window
                || value >= double.MaxValue / 2d
             ? "待计算"
             : value.ToString("0.000000");
+    }
+
+    private static string FormatParameters(long value)
+    {
+        return value >= 1_000_000
+            ? (value / 1_000_000d).ToString("0.0") + "M"
+            : value >= 1_000
+                ? (value / 1_000d).ToString("0.0") + "K"
+                : Math.Max(0L, value).ToString();
     }
 
     private void LoadSettings()
@@ -1376,9 +1410,10 @@ internal sealed class MainWindow : Window
             settings.Parameters.TransformerTeacherBatchSize = 64;
             settings.Parameters.TransformerTeacherStateDimensions = 128;
             settings.Parameters.TransformerTeacherActionDimensions = 128;
-            settings.Parameters.TransformerTeacherHiddenDimensions = 64;
-            settings.Parameters.TransformerTeacherLayers = 2;
-            settings.Parameters.TransformerTeacherAttentionHeads = 4;
+            settings.Parameters.TransformerTeacherHiddenDimensions = 384;
+            settings.Parameters.TransformerTeacherLayers = 6;
+            settings.Parameters.TransformerTeacherAttentionHeads = 8;
+            settings.Parameters.TransformerTeacherFeedForwardDimensions = 1536;
             settings.Parameters.TransformerTeacherHistoryLength = 12;
             settings.Parameters.TransformerTeacherMinimumFrames = 1024;
             settings.Parameters.TransformerTeacherCpuThreads = 0;
@@ -1628,6 +1663,8 @@ internal sealed class MainWindow : Window
         p.TransformerTeacherLayers = Int("TransformerTeacherLayers");
         p.TransformerTeacherAttentionHeads =
             Int("TransformerTeacherAttentionHeads");
+        p.TransformerTeacherFeedForwardDimensions =
+            Int("TransformerTeacherFeedForwardDimensions");
         p.TransformerTeacherHistoryLength =
             Int("TransformerTeacherHistoryLength");
         p.TransformerTeacherMinimumFrames =
@@ -1803,6 +1840,9 @@ internal sealed class MainWindow : Window
         Set(
             "TransformerTeacherAttentionHeads",
             p.TransformerTeacherAttentionHeads);
+        Set(
+            "TransformerTeacherFeedForwardDimensions",
+            p.TransformerTeacherFeedForwardDimensions);
         Set(
             "TransformerTeacherHistoryLength",
             p.TransformerTeacherHistoryLength);

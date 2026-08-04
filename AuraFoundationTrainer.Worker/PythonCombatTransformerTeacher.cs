@@ -45,12 +45,12 @@ internal sealed class PythonCombatTransformerTeacher :
             "transformer-teacher",
             "iteration-" + Math.Max(1, context.Iteration).ToString("D2"));
         Directory.CreateDirectory(iterationDirectory);
-        var datasetPath = Path.Combine(iterationDirectory, "teacher-dataset-v1.jsonl");
+        var datasetPath = Path.Combine(iterationDirectory, "world-model-dataset-v2.jsonl");
         var annotationsPath = Path.Combine(
             iterationDirectory,
-            "teacher-annotations-v1.jsonl");
-        var modelPath = Path.Combine(iterationDirectory, "teacher-model-v1.pt");
-        var reportPath = Path.Combine(iterationDirectory, "teacher-report-v1.json");
+            "world-model-annotations-v2.jsonl");
+        var modelPath = Path.Combine(iterationDirectory, "world-model-v2.pt");
+        var reportPath = Path.Combine(iterationDirectory, "world-model-report-v2.json");
         report.DatasetPath = datasetPath;
         report.ModelPath = modelPath;
         report.ReportPath = reportPath;
@@ -104,12 +104,20 @@ internal sealed class PythonCombatTransformerTeacher :
             }
             ApplyAnnotations(annotationsPath, bindings, report);
             report.Success = report.Success && report.AnnotatedFrames > 0;
-            report.QualityGatePassed =
+            report.PolicyQualityGatePassed =
                 report.ValidationUniformPolicyCrossEntropy > 0d
                 && !double.IsNaN(report.ValidationPolicyCrossEntropy)
                 && !double.IsInfinity(report.ValidationPolicyCrossEntropy)
                 && report.ValidationPolicyCrossEntropy
                    <= report.ValidationUniformPolicyCrossEntropy + 0.000001d;
+            report.WorldModelQualityGatePassed =
+                report.DynamicsTrainingFrames > 0
+                && Finite(report.ValidationDynamicsMse)
+                && report.ValidationDynamicsMse <= 0.5d
+                && Finite(report.ValidationOutcomeMae)
+                && report.ValidationOutcomeMae <= 0.5d;
+            report.QualityGatePassed = report.PolicyQualityGatePassed
+                                       && report.WorldModelQualityGatePassed;
             report.Applied = report.Success
                              && report.QualityGatePassed
                              && report.AnnotatedFrames >= options.MinimumFrames;
@@ -117,10 +125,15 @@ internal sealed class PythonCombatTransformerTeacher :
             {
                 report.Message = "Transformer teacher annotations applied.";
             }
-            else if (report.Success && !report.QualityGatePassed)
+            else if (report.Success && !report.PolicyQualityGatePassed)
             {
                 report.Message =
                     "Transformer teacher withheld: validation policy loss did not beat the uniform baseline.";
+            }
+            else if (report.Success && !report.WorldModelQualityGatePassed)
+            {
+                report.Message =
+                    "Transformer world model withheld: dynamics or outcome validation gate failed.";
             }
             else if (string.IsNullOrWhiteSpace(report.Message))
             {
@@ -200,6 +213,13 @@ internal sealed class PythonCombatTransformerTeacher :
                     1.25d,
                     0.95d);
                 var rowIndex = bindings.Count;
+                var hasNextState = episodeFrameIndex + 1 < frames.Count;
+                var nextState = hasNextState
+                    ? CombatPolicyValueEncoding.EncodeState(
+                        frames[episodeFrameIndex + 1].StateFeatures,
+                        options.StateDimensions,
+                        "partitioned-v3")
+                    : new double[options.StateDimensions];
                 var row = new TeacherDatasetRow
                 {
                     I = rowIndex,
@@ -211,6 +231,9 @@ internal sealed class PythonCombatTransformerTeacher :
                         frame.StateFeatures,
                         options.StateDimensions,
                         "partitioned-v3"),
+                    O = CombatWorldModelTokenEncoding.Encode(
+                        frame.Observation,
+                        options.StateDimensions),
                     A = candidates.Select(candidate =>
                             CombatPolicyValueEncoding.EncodeCandidate(
                                 new CombatPolicyValueCandidate
@@ -225,7 +248,14 @@ internal sealed class PythonCombatTransformerTeacher :
                     P = policy,
                     X = executedIndex,
                     V = Math.Max(-1d, Math.Min(1d, frame.LongTermReturn)),
-                    G = StrategyStage(frame.StateFeatures)
+                    G = StrategyStage(frame.StateFeatures),
+                    N = nextState,
+                    M = hasNextState ? 1 : 0,
+                    W = Math.Max(0d, Math.Min(1d, frame.WinTarget)),
+                    R = Math.Max(0d, Math.Min(1d, frame.DeathTarget)),
+                    H = Math.Max(0d, Math.Min(1d, frame.RemainingHpRatioTarget)),
+                    U = Math.Max(0d, frame.RemainingTurnsTarget),
+                    Z = hasNextState ? 0 : 1
                 };
                 writer.WriteLine(JsonConvert.SerializeObject(row, Formatting.None));
                 bindings.Add(new FrameBinding(frame, candidates));
@@ -265,6 +295,7 @@ internal sealed class PythonCombatTransformerTeacher :
         Add(start, "--hidden", options.HiddenDimensions);
         Add(start, "--layers", options.Layers);
         Add(start, "--heads", options.AttentionHeads);
+        Add(start, "--ffn", options.FeedForwardDimensions);
         Add(start, "--history", options.HistoryLength);
         Add(start, "--cpu-threads", options.CpuThreads);
         Add(start, "--seed", options.RandomSeed);
@@ -389,6 +420,11 @@ internal sealed class PythonCombatTransformerTeacher :
         target.DeviceName = source.DeviceName;
         target.PythonVersion = source.PythonVersion;
         target.TorchVersion = source.TorchVersion;
+        target.ParameterCount = source.ParameterCount;
+        target.HiddenDimensions = source.HiddenDimensions;
+        target.Layers = source.Layers;
+        target.AttentionHeads = source.AttentionHeads;
+        target.FeedForwardDimensions = source.FeedForwardDimensions;
         target.TrainingFrames = source.TrainingFrames;
         target.ValidationFrames = source.ValidationFrames;
         target.EpochsExecuted = source.EpochsExecuted;
@@ -401,6 +437,11 @@ internal sealed class PythonCombatTransformerTeacher :
         target.ValidationValueMae = source.ValidationValueMae;
         target.ValidationStrategyAccuracy =
             source.ValidationStrategyAccuracy;
+        target.ValidationDynamicsMse = source.ValidationDynamicsMse;
+        target.DynamicsTrainingFrames = source.DynamicsTrainingFrames;
+        target.ValidationOutcomeMae = source.ValidationOutcomeMae;
+        target.ValidationDeathBrier = source.ValidationDeathBrier;
+        target.ValidationTerminalAccuracy = source.ValidationTerminalAccuracy;
         target.ElapsedSeconds = source.ElapsedSeconds;
         target.Message = source.Message;
     }
@@ -419,6 +460,11 @@ internal sealed class PythonCombatTransformerTeacher :
     {
         var safe = value ?? "";
         return safe.Length <= maximum ? safe : safe[^maximum..];
+    }
+
+    private static bool Finite(double value)
+    {
+        return !double.IsNaN(value) && !double.IsInfinity(value);
     }
 
     private static void TryKill(Process process)
@@ -448,11 +494,19 @@ internal sealed class PythonCombatTransformerTeacher :
         public int T { get; set; }
         public long Q { get; set; }
         public double[] S { get; set; } = Array.Empty<double>();
+        public double[][] O { get; set; } = Array.Empty<double[]>();
         public double[][] A { get; set; } = Array.Empty<double[]>();
         public double[] P { get; set; } = Array.Empty<double>();
         public int X { get; set; }
         public double V { get; set; }
         public int G { get; set; }
+        public double[] N { get; set; } = Array.Empty<double>();
+        public int M { get; set; }
+        public double W { get; set; }
+        public double R { get; set; }
+        public double H { get; set; }
+        public double U { get; set; }
+        public int Z { get; set; }
     }
 
     private sealed class TeacherAnnotation

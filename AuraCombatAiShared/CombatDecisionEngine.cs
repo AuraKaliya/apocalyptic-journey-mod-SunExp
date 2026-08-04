@@ -302,39 +302,49 @@ public sealed class CombatDecisionEngine
         var planScore = search.Score;
         var planSteps = search.Steps;
         var planSummary = search.Summary;
-        if (search.StoppedByTime
-            && selectedProfile.UseLowConfidenceFallback
-            && search.Confidence < Math.Max(
-                0d,
-                Math.Min(1d, selectedProfile.MinimumSearchConfidence)))
+        var governance = CombatDecisionGovernance.ReviewSearch(
+            state,
+            evaluations,
+            endTurnAssessment,
+            search,
+            selectedProfile);
+        var usingGovernanceFallback = false;
+        if (selectedProfile.UseLowConfidenceFallback
+            && governance.Decision
+               == CombatGovernanceDecision.UseSafeFallback
+            && governance.Candidate != null)
         {
-            var fallback = SelectLowConfidenceFallback(
-                state,
-                evaluations,
-                selectedProfile);
-            if (fallback != null)
+            var fallback = governance.Candidate;
+            usingGovernanceFallback = true;
+            hasPlanAction = true;
+            planAction = fallback.Action;
+            planScore = fallback.RuleScore;
+            planSteps = new List<CombatPlanStep>
             {
-                planAction = fallback.Action;
-                planScore = fallback.RuleScore;
-                planSteps = new List<CombatPlanStep>
+                new()
                 {
-                    new()
-                    {
-                        CandidateId = fallback.Action.CandidateId,
-                        SourceId = fallback.Action.SourceId,
-                        DisplayName = fallback.Action.DisplayName,
-                        StepScore = fallback.RuleScore,
-                        CumulativeScore = fallback.RuleScore,
-                        RemainingPower = Math.Max(
-                            0,
-                            state.CurrentPower - fallback.Action.Cost),
-                        DeathRisk = fallback.SearchDeathRisk,
-                        Visits = fallback.SearchVisits
-                    }
-                };
-                planSummary += "; low-confidence-safe-fallback="
-                               + fallback.Action.DisplayName;
-            }
+                    CandidateId = fallback.Action.CandidateId,
+                    SourceId = fallback.Action.SourceId,
+                    DisplayName = fallback.Action.DisplayName,
+                    StepScore = fallback.RuleScore,
+                    CumulativeScore = fallback.RuleScore,
+                    RemainingPower = Math.Max(
+                        0,
+                        state.CurrentPower - fallback.Action.Cost),
+                    DeathRisk = fallback.SearchDeathRisk,
+                    Visits = fallback.SearchVisits
+                }
+            };
+            planSummary += "; governance-safe-fallback="
+                           + fallback.Action.DisplayName;
+        }
+        else if (governance.Decision != CombatGovernanceDecision.Accept)
+        {
+            hasPlanAction = false;
+            planAction = null;
+            planSteps = new List<CombatPlanStep>();
+            planSummary += "; governance=" + governance.Decision
+                           + ":" + governance.Reason;
         }
         if (hasPlanAction
             && planAction != null
@@ -343,7 +353,8 @@ public sealed class CombatDecisionEngine
                 || evaluations.Any(candidate =>
                     ReferenceEquals(candidate.Action, planAction)
                     && candidate.Utility.Lethal > 0d))
-            && planScore >= selectedProfile.MinimumActionScore)
+            && (usingGovernanceFallback
+                || planScore >= selectedProfile.MinimumActionScore))
         {
             return new CombatDecision
             {
@@ -369,6 +380,7 @@ public sealed class CombatDecisionEngine
                 SearchCandidateCount = search.CandidateCount,
                 SearchOriginalCandidateCount = search.OriginalCandidateCount,
                 SearchBudgetTier = search.BudgetTier,
+                Performance = CombatDecisionPerformanceTelemetry.FromSearch(search),
                 CertifiedLoops = search.CertifiedLoops,
                 SustainableControlLoops =
                     search.SustainableControlLoops,
@@ -404,6 +416,7 @@ public sealed class CombatDecisionEngine
                 SearchCandidateCount = search.CandidateCount,
                 SearchOriginalCandidateCount = search.OriginalCandidateCount,
                 SearchBudgetTier = search.BudgetTier,
+                Performance = CombatDecisionPerformanceTelemetry.FromSearch(search),
                 CertifiedLoops = search.CertifiedLoops,
                 SustainableControlLoops =
                     search.SustainableControlLoops,
@@ -448,7 +461,8 @@ public sealed class CombatDecisionEngine
                     SearchSecondBestVisits = search.SecondBestVisits,
                     SearchCandidateCount = search.CandidateCount,
                     SearchOriginalCandidateCount = search.OriginalCandidateCount,
-                    SearchBudgetTier = search.BudgetTier
+                    SearchBudgetTier = search.BudgetTier,
+                    Performance = CombatDecisionPerformanceTelemetry.FromSearch(search)
                 };
             }
         }
@@ -472,59 +486,13 @@ public sealed class CombatDecisionEngine
             SearchCandidateCount = search.CandidateCount,
             SearchOriginalCandidateCount = search.OriginalCandidateCount,
             SearchBudgetTier = search.BudgetTier,
+            Performance = CombatDecisionPerformanceTelemetry.FromSearch(search),
             CertifiedLoops = search.CertifiedLoops,
             SustainableControlLoops =
                 search.SustainableControlLoops,
             FakeLoops = search.FakeLoops,
             BlockedLoops = search.BlockedLoops
         };
-    }
-
-    private static CombatCandidateEvaluation? SelectLowConfidenceFallback(
-        CombatStateObservation state,
-        IReadOnlyList<CombatCandidateEvaluation> candidates,
-        CombatDecisionProfile profile)
-    {
-        var legal = candidates
-            .Where(candidate => candidate.Legal
-                                && !CombatEndTurnSafety.IsEndTurnEquivalent(
-                                    candidate.Action))
-            .ToList();
-        if (legal.Count == 0)
-        {
-            return null;
-        }
-        var minimumRisk = legal.Min(candidate => candidate.SearchDeathRisk);
-        var safe = legal
-            .Where(candidate =>
-                candidate.SearchDeathRisk <= profile.DeathRiskLimit
-                || candidate.SearchDeathRisk <= minimumRisk + 0.01d)
-            .Where(candidate =>
-                CombatEndTurnSafety.IsSafeAlternative(
-                    state,
-                    candidate,
-                    profile))
-            .ToList();
-        if (safe.Count == 0)
-        {
-            safe = legal
-                .Where(candidate =>
-                    candidate.SearchDeathRisk <= minimumRisk + 0.01d)
-                .ToList();
-        }
-        return safe
-            .OrderBy(candidate =>
-                candidate.Action.Features.TryGetValue("curse", out var curse)
-                && curse > 0d
-                    ? 1
-                    : 0)
-            .ThenBy(candidate => candidate.Action.Semantics.Uncertainty)
-            .ThenBy(candidate => candidate.SearchDeathRisk)
-            .ThenByDescending(candidate => candidate.RuleScore)
-            .ThenBy(
-                candidate => candidate.Action.CandidateId,
-                StringComparer.Ordinal)
-            .FirstOrDefault();
     }
 
     private static void MergeMechanicalSemantics(

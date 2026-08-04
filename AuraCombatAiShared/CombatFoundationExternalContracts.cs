@@ -199,11 +199,13 @@ public sealed class CombatFoundationTrainingParameters
 
     public int TransformerTeacherActionDimensions { get; set; } = 128;
 
-    public int TransformerTeacherHiddenDimensions { get; set; } = 64;
+    public int TransformerTeacherHiddenDimensions { get; set; } = 384;
 
-    public int TransformerTeacherLayers { get; set; } = 2;
+    public int TransformerTeacherLayers { get; set; } = 6;
 
-    public int TransformerTeacherAttentionHeads { get; set; } = 4;
+    public int TransformerTeacherAttentionHeads { get; set; } = 8;
+
+    public int TransformerTeacherFeedForwardDimensions { get; set; } = 1536;
 
     public int TransformerTeacherHistoryLength { get; set; } = 12;
 
@@ -424,6 +426,8 @@ public sealed class CombatFoundationTrainingParameters
             HiddenDimensions = TransformerTeacherHiddenDimensions,
             Layers = TransformerTeacherLayers,
             AttentionHeads = TransformerTeacherAttentionHeads,
+            FeedForwardDimensions =
+                TransformerTeacherFeedForwardDimensions,
             HistoryLength = TransformerTeacherHistoryLength,
             MinimumFrames = TransformerTeacherMinimumFrames,
             CpuThreads = TransformerTeacherCpuThreads,
@@ -438,6 +442,8 @@ public sealed class CombatFoundationTrainingParameters
         TransformerTeacherHiddenDimensions = transformer.HiddenDimensions;
         TransformerTeacherLayers = transformer.Layers;
         TransformerTeacherAttentionHeads = transformer.AttentionHeads;
+        TransformerTeacherFeedForwardDimensions =
+            transformer.FeedForwardDimensions;
         TransformerTeacherHistoryLength = transformer.HistoryLength;
         TransformerTeacherMinimumFrames = transformer.MinimumFrames;
         TransformerTeacherCpuThreads = transformer.CpuThreads;
@@ -804,6 +810,8 @@ public static class CombatFoundationWorkerJobFactory
                     Layers = parameters.TransformerTeacherLayers,
                     AttentionHeads =
                         parameters.TransformerTeacherAttentionHeads,
+                    FeedForwardDimensions =
+                        parameters.TransformerTeacherFeedForwardDimensions,
                     HistoryLength =
                         parameters.TransformerTeacherHistoryLength,
                     MinimumFrames =

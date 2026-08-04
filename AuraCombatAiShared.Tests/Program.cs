@@ -12920,6 +12920,296 @@ Assert(!CombatModelAdapterValidator.TryValidate(
         out _),
     "adapter protocol rejects unknown adapter kinds");
 
+var worldState = new CombatStateObservation
+{
+    ObservationId = "world-observation",
+    BattleSessionId = 77,
+    Sequence = 9,
+    Fingerprint = "public-fingerprint",
+    CurrentPower = 2,
+    MaxPower = 3,
+    HandCount = 1,
+    Player = new CombatUnitObservation
+    {
+        RuntimeId = 1,
+        DefinitionId = "career_world",
+        CurrentHp = 18,
+        MaxHp = 24,
+        Defend = 3,
+        Statuses =
+        {
+            new CombatStatusObservation { StatusId = "buff_world", Level = 2 }
+        }
+    },
+    Friendlies =
+    {
+        new CombatUnitObservation
+        {
+            RuntimeId = 2,
+            DefinitionId = "familiar_world",
+            CurrentHp = 10,
+            MaxHp = 10
+        }
+    },
+    Enemies =
+    {
+        new CombatUnitObservation
+        {
+            RuntimeId = 3,
+            DefinitionId = "enemy_world",
+            CurrentHp = 12,
+            MaxHp = 20,
+            Defend = 1
+        }
+    },
+    HandCards =
+    {
+        new CombatCardInstanceObservation
+        {
+            RuntimeId = 101,
+            CardId = "card_world",
+            EffectiveCost = 1,
+            EnhancementCount = 1
+        }
+    },
+    HandCardIds = { "card_world" },
+    DiscardPileCardIds = { "card_discard", "card_discard" },
+    ExhaustPileCardIds = { "card_exhaust" },
+    DeckKnowledge = new CombatDeckKnowledge
+    {
+        DrawPileCount = 5,
+        KnownTopCardIds = { "card_top" },
+        KnownBottomCardIds = { "card_bottom" },
+        ShuffleEpoch = 2
+    },
+    Actions =
+    {
+        new CombatActionObservation
+        {
+            CandidateId = "play-world",
+            SourceId = "card_world",
+            RuntimeId = 101,
+            Kind = CombatActionKind.PlayCard,
+            TargetKind = CombatTargetKind.Enemy,
+            TargetRuntimeId = 3,
+            Cost = 1,
+            Legal = true,
+            SemanticFidelity = CombatKnowledgeFidelity.Authoritative,
+            Semantics = new CombatActionSemantics { Damage = 6d }
+        },
+        new CombatActionObservation
+        {
+            CandidateId = "skill-world",
+            SourceId = "skill_world",
+            Kind = CombatActionKind.UseSkill,
+            TargetKind = CombatTargetKind.Self,
+            TargetRuntimeId = 1,
+            Legal = true,
+            Semantics = new CombatActionSemantics { Buff = 1d }
+        }
+    }
+};
+var worldEnvelope = CombatWorldModelTokenizer.Build(worldState);
+Assert(worldEnvelope.Protocol == CombatWorldModelProtocol.ObservationProtocol
+       && worldEnvelope.Tokens.Any(item => item.Kind == CombatObjectTokenKind.Role)
+       && worldEnvelope.Tokens.Any(item => item.Kind == CombatObjectTokenKind.Familiar)
+       && worldEnvelope.Tokens.Any(item => item.Kind == CombatObjectTokenKind.Enemy)
+       && worldEnvelope.Tokens.Any(item => item.Kind == CombatObjectTokenKind.Status)
+       && worldEnvelope.Tokens.Any(item => item.Kind == CombatObjectTokenKind.HandCard)
+       && worldEnvelope.Tokens.Any(item => item.Kind == CombatObjectTokenKind.DrawBelief)
+       && worldEnvelope.Tokens.Any(item => item.Kind == CombatObjectTokenKind.Resource)
+       && worldEnvelope.Coverage.Stage("actions") == CombatCoverageStage.Encoded,
+    "world-model tokenizer emits typed public object tokens and coverage");
+var worldCardAction = worldEnvelope.LegalActions.Single(item =>
+    item.CandidateId == "play-world");
+var worldSkillAction = worldEnvelope.LegalActions.Single(item =>
+    item.CandidateId == "skill-world");
+Assert(worldCardAction.CardInstanceBound
+       && !worldCardAction.SkillLifecycleBound
+       && worldCardAction.SourceZone == "hand"
+       && worldSkillAction.SkillLifecycleBound
+       && !worldSkillAction.CardInstanceBound
+       && worldSkillAction.SourceZone == "skill",
+    "typed action envelope preserves separate card and skill lifecycles");
+var requiredWorldTokens = worldEnvelope.Tokens.Count(item => item.Kind is
+    CombatObjectTokenKind.Global
+    or CombatObjectTokenKind.Role
+    or CombatObjectTokenKind.Familiar
+    or CombatObjectTokenKind.Friendly
+    or CombatObjectTokenKind.Enemy
+    or CombatObjectTokenKind.EnemyIntent
+    or CombatObjectTokenKind.HandCard
+    or CombatObjectTokenKind.Resource
+    or CombatObjectTokenKind.DeferredEffect
+    or CombatObjectTokenKind.ActionCandidate);
+var encodedWorldTokens = CombatWorldModelTokenEncoding.Encode(
+    worldEnvelope,
+    48,
+    maximumTokens: 1);
+Assert(encodedWorldTokens.Length >= requiredWorldTokens
+       && encodedWorldTokens.All(item => item.Length == 48),
+    "object-token encoding never truncates decision-critical public objects");
+
+var campaignEnvelope = CombatCampaignWorldModelTokenizer.Build(
+    new CombatCampaignState
+    {
+        WorldSeed = 123,
+        CurrentLayer = 4,
+        CurrentGameLevel = 2,
+        CurrentHp = 31,
+        MaxHp = 40,
+        Money = 80,
+        Attributes = { ["Strength"] = 3 },
+        Deck = { "card_world", "card_world", "card_guard" },
+        ReserveCards = { "card_reserve" },
+        Relics = { "relic_world" },
+        Blessings = { "blessing_world" },
+        BuildPlan = new CombatCampaignBuildPlan
+        {
+            LayerNumber = 4,
+            FocusStrategyId = "doom-control",
+            FeatureWeights = { ["debuff"] = 1.5d }
+        }
+    });
+Assert(campaignEnvelope.Tokens.Any(item =>
+           item.Kind == CombatObjectTokenKind.CampaignDeckCard
+           && item.DefinitionId == "card_world"
+           && item.Count == 2)
+       && campaignEnvelope.Tokens.Any(item =>
+           item.Kind == CombatObjectTokenKind.CampaignRelic)
+       && campaignEnvelope.Tokens.Any(item =>
+           item.Kind == CombatObjectTokenKind.BuildGoal),
+    "campaign tokenizer preserves deck composition, relics and build goal");
+
+var governanceCandidate = new CombatCandidateEvaluation
+{
+    Action = worldState.Actions[0],
+    Legal = true,
+    RuleScore = 1d,
+    SearchDeathRisk = 0.01d
+};
+var governanceVerdict = CombatDecisionGovernance.ReviewSearch(
+    worldState,
+    new[] { governanceCandidate },
+    new CombatEndTurnAssessment { Prohibited = true },
+    new CombatSearchResult
+    {
+        StoppedByTime = true,
+        Confidence = 0.1d
+    },
+    new CombatDecisionProfile { MinimumSearchConfidence = 0.5d });
+Assert(governanceVerdict.Decision == CombatGovernanceDecision.UseSafeFallback
+       && ReferenceEquals(governanceVerdict.Candidate, governanceCandidate),
+    "governance returns a legal non-end-turn fallback on a low-confidence deadline");
+
+var transformerOptions = new CombatTransformerTeacherOptions().Normalized();
+Assert(transformerOptions.Layers == 6
+       && transformerOptions.HiddenDimensions == 384
+       && transformerOptions.AttentionHeads == 8
+       && transformerOptions.FeedForwardDimensions == 1536
+       && transformerOptions.EstimatedEncoderParameters() >= 10_000_000
+       && transformerOptions.EstimatedEncoderParameters() <= 100_000_000,
+    "six-layer Transformer defaults stay inside the approved parameter range");
+
+var transformerAdapter = new CombatTransformerLoRAAdapterDefinition
+{
+    Manifest = new CombatTransformerAdapterManifest
+    {
+        AdapterId = "tests-transformer-content",
+        AdapterKind = CombatModelAdapterProtocol.TransformerContentKind,
+        OwnerModId = "Tests.Content",
+        PackageId = "tests-content",
+        BaseModelId = "tests-world-model",
+        BaseModelHash = new string('a', 64),
+        ContentSetHash = CombatContentSetProtocol.EmptyContentSetHash,
+        OwnerModSetHash = CombatContentSetProtocol.EmptyOwnerModSetHash,
+        TrainingDataHash = new string('b', 64),
+        AdapterWeightHash = new string('c', 64),
+        SupportedContentIds = { "Tests.Content:card_world" },
+        ValidationMetrics = { ["base-regression"] = 0d }
+    },
+    Matrices =
+    {
+        new CombatTransformerLoRAMatrix
+        {
+            TargetModule = "battle.encoder.3.attention.q_proj",
+            InputDimensions = 4,
+            OutputDimensions = 4,
+            Rank = 2,
+            Alpha = 4d,
+            A = new[] { 1d, 0d, 0d, 0d, 0d, 0d, 0d, 0d },
+            B = new[] { 1d, 0d, 0d, 0d, 0d, 0d, 0d, 0d }
+        }
+    }
+};
+Assert(CombatTransformerAdapterValidator.TryValidate(
+        transformerAdapter,
+        "tests-world-model",
+        new string('a', 64),
+        CombatContentSetProtocol.EmptyContentSetHash,
+        out _),
+    "Transformer LoRA v2 validates base, content, schema, target and tensor binding");
+var transformerCacheKeyA = CombatTransformerAdapterValidator.BuildMergeCacheKey(
+    new string('a', 64),
+    new[] { transformerAdapter },
+    "cpu",
+    "int8");
+var transformerCacheKeyB = CombatTransformerAdapterValidator.BuildMergeCacheKey(
+    new string('a', 64),
+    new[] { transformerAdapter },
+    "CPU",
+    "INT8");
+Assert(transformerCacheKeyA == transformerCacheKeyB
+       && transformerCacheKeyA.Length == 64,
+    "Transformer LoRA merge cache identity is deterministic across backend casing");
+var transformerComposition = CombatTransformerAdapterComposition.Compose(
+    new[] { transformerAdapter },
+    "tests-world-model",
+    new string('a', 64),
+    CombatContentSetProtocol.EmptyContentSetHash,
+    CombatContentSetProtocol.EmptyOwnerModSetHash,
+    "cpu",
+    "int8");
+var mergedTransformerWeights = CombatTransformerLoRAMerger.MergeModule(
+    new double[16],
+    4,
+    4,
+    "battle.encoder.3.attention.q_proj",
+    transformerComposition.ActiveAdapters,
+    new[] { "Tests.Content:card_world" });
+Assert(transformerComposition.ActiveAdapters.Count == 1
+       && transformerComposition.RejectedAdapters.Count == 0
+       && transformerComposition.MergeCacheKey == transformerCacheKeyA
+       && Math.Abs(mergedTransformerWeights[0] - 2d) < 0.000001d,
+    "Transformer LoRA composition validates and premerges active content deterministically");
+transformerAdapter.Manifest.AdapterKind =
+    CombatModelAdapterProtocol.TransformerPreferenceKind;
+Assert(!CombatTransformerAdapterValidator.TryValidate(
+        transformerAdapter,
+        "tests-world-model",
+        new string('a', 64),
+        CombatContentSetProtocol.EmptyContentSetHash,
+        out _),
+    "preference LoRA cannot modify non-actor Transformer modules");
+
+var performanceTelemetry = CombatDecisionPerformanceTelemetry.FromSearch(
+    new CombatSearchResult
+    {
+        ElapsedMilliseconds = 123d,
+        Simulations = 64,
+        Nodes = 128,
+        ModelEvaluations = 32,
+        ModelCacheHits = 7,
+        OriginalCandidateCount = 18,
+        CandidateCount = 10,
+        StoppedByModelBudget = true
+    });
+Assert(performanceTelemetry.TotalMilliseconds == 123d
+       && performanceTelemetry.ModelEvaluations == 32
+       && performanceTelemetry.ModelCacheHits == 7
+       && performanceTelemetry.StopReason == "model-evaluation-budget",
+    "decision telemetry preserves model-call budget and cache diagnostics");
+
 using (CombatAiRegistry.RegisterSkillTimingProvider(
            "tests",
            "fixed-skill-timing",

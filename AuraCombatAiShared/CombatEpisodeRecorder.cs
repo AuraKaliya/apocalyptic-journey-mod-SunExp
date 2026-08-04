@@ -129,6 +129,7 @@ public sealed class CombatEpisodeRecordingPolicy :
             ActionSequence = context.State?.ActionSequence ?? 0,
             StateFingerprint = observation.Fingerprint,
             StateFeatures = CombatPolicyValueEncoding.BuildStateFeatures(observation),
+            Observation = CombatWorldModelTokenizer.Build(observation),
             ExecutedCandidateId = selected?.CandidateId
                                   ?? decision.Action?.CandidateId
                                   ?? "",

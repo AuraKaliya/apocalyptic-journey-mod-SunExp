@@ -29,6 +29,7 @@ AuraCombatAI/
   foundation-overlay.json
   transition-audit.json
   policy-adapter.json
+  transformer-adapter.json
   training/
     authoritative-episodes-v5.jsonl
 ```
@@ -60,6 +61,12 @@ AuraCombatAI/
 ### 内容低秩适配器
 
 `policy-adapter.json` 使用 `aura.combat-ai.adapter.v1`，类型为 `content-low-rank`。它必须绑定 owner、package 和明确的 `BaseModelId`，提供状态/动作低秩因子、rank 权重与有界策略 logit 修正。内容适配器可以由内容 MOD 的权威离线数据训练；不得代替规则集和转移审计。
+
+### Transformer LoRA v2
+
+`transformer-adapter.json` 是可选工件，使用 `aura.combat-ai.transformer-adapter.v2`。Manifest 必须绑定 owner/package、底模 ID 与 SHA-256、Tokenizer/规则 IR 版本、完整内容集合、训练数据和权重摘要。矩阵 rank 限制为 1 至 32，目标模块不得涉及合法性、权威规则、精确 Chance 或执行事务；个人偏好适配器只能修改 `actor.*`。
+
+CPU 发布先按规范 Adapter ID 顺序预合并，再量化。缓存键固定为 `{baseHash, adapterHashes, backend, precision}`；内容不激活时不合并对应增量。当前代码已提供严格校验、内容感知激活、确定性组合和稠密权重预合并，在线 Transformer Runtime 晋级前该工件只参与打包与 Shadow 门禁。
 
 ## 内容集合身份
 
@@ -98,7 +105,7 @@ MLP v2 为每个动作输出 16 个回报分位数。训练目标来自 PUCT 边
 1. AuraShared v4 manifest 能成功注册目录，catalog 显示 active/available/effective。
 2. 包 identity、游戏版本、依赖、路径和全部 SHA-256 通过。
 3. foundation 包通过转移一致性、状态混叠、owner 和 ID 冲突审计。
-4. 底模、内容适配器和玩家适配器绑定正确的 base/content identity。
+4. 底模、MLP 适配器、Transformer LoRA 和玩家适配器绑定正确的 base/content/owner identity，量化兼容性明确。
 5. `Test-AuraCombatAi.ps1`、`Test-AuraFoundationTrainer.ps1` 与共享发布门禁全部通过。
 
 参考文件：[内容包示例](examples/content-package/package.json) 与 [AuraShared 注册示例](examples/content-package.shared-manifest.example.json)。

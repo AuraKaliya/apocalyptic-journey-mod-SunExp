@@ -24,6 +24,15 @@ public static class CombatTransformerTeacherBackendNames
     }
 }
 
+public static class CombatTransformerWorldModelProtocol
+{
+    public const string Model =
+        "aura.combat-transformer-world-model.v2";
+
+    public const string Report =
+        "aura.combat-transformer-world-model-report.v2";
+}
+
 public sealed class CombatTransformerTeacherOptions
 {
     public string Backend { get; set; } =
@@ -39,11 +48,13 @@ public sealed class CombatTransformerTeacherOptions
 
     public int ActionDimensions { get; set; } = 128;
 
-    public int HiddenDimensions { get; set; } = 64;
+    public int HiddenDimensions { get; set; } = 384;
 
-    public int Layers { get; set; } = 2;
+    public int Layers { get; set; } = 6;
 
-    public int AttentionHeads { get; set; } = 4;
+    public int AttentionHeads { get; set; } = 8;
+
+    public int FeedForwardDimensions { get; set; } = 1536;
 
     public int HistoryLength { get; set; } = 12;
 
@@ -65,20 +76,34 @@ public sealed class CombatTransformerTeacherOptions
         BatchSize = Math.Max(8, Math.Min(512, BatchSize));
         StateDimensions = Math.Max(32, Math.Min(256, StateDimensions));
         ActionDimensions = Math.Max(32, Math.Min(256, ActionDimensions));
-        HiddenDimensions = Math.Max(32, Math.Min(256, HiddenDimensions));
+        HiddenDimensions = Math.Max(32, Math.Min(512, HiddenDimensions));
         Layers = Math.Max(1, Math.Min(6, Layers));
-        AttentionHeads = Math.Max(1, Math.Min(8, AttentionHeads));
+        AttentionHeads = Math.Max(1, Math.Min(16, AttentionHeads));
         while (HiddenDimensions % AttentionHeads != 0
                && AttentionHeads > 1)
         {
             AttentionHeads--;
         }
+        FeedForwardDimensions = Math.Max(
+            HiddenDimensions,
+            Math.Min(4096, FeedForwardDimensions));
         HistoryLength = Math.Max(1, Math.Min(32, HistoryLength));
         MinimumFrames = Math.Max(64, Math.Min(100000, MinimumFrames));
         CpuThreads = Math.Max(0, Math.Min(64, CpuThreads));
         DistillationWeight = Clamp(DistillationWeight, 0d, 0.75d, 0.35d);
         RandomSeed = RandomSeed == 0 ? 1701 : RandomSeed;
         return this;
+    }
+
+    public long EstimatedEncoderParameters()
+    {
+        var hidden = Math.Max(1, HiddenDimensions);
+        var feedForward = Math.Max(hidden, FeedForwardDimensions);
+        var perLayer = 4L * hidden * hidden
+                       + 2L * hidden * feedForward
+                       + 9L * hidden
+                       + feedForward;
+        return Math.Max(1, Layers) * perLayer;
     }
 
     private static double Clamp(
@@ -108,7 +133,7 @@ public sealed class CombatTransformerTeacherContext
 public sealed class CombatTransformerTeacherReport
 {
     public string Protocol { get; set; } =
-        "aura.combat-transformer-teacher-report.v1";
+        CombatTransformerWorldModelProtocol.Report;
 
     public int Iteration { get; set; }
 
@@ -127,6 +152,16 @@ public sealed class CombatTransformerTeacherReport
     public string PythonVersion { get; set; } = "";
 
     public string TorchVersion { get; set; } = "";
+
+    public long ParameterCount { get; set; }
+
+    public int HiddenDimensions { get; set; }
+
+    public int Layers { get; set; }
+
+    public int AttentionHeads { get; set; }
+
+    public int FeedForwardDimensions { get; set; }
 
     public int EpisodeCount { get; set; }
 
@@ -148,11 +183,25 @@ public sealed class CombatTransformerTeacherReport
 
     public bool QualityGatePassed { get; set; }
 
+    public bool PolicyQualityGatePassed { get; set; }
+
+    public bool WorldModelQualityGatePassed { get; set; }
+
     public double ValidationPolicyTop1Accuracy { get; set; }
 
     public double ValidationValueMae { get; set; }
 
     public double ValidationStrategyAccuracy { get; set; }
+
+    public double ValidationDynamicsMse { get; set; }
+
+    public int DynamicsTrainingFrames { get; set; }
+
+    public double ValidationOutcomeMae { get; set; }
+
+    public double ValidationDeathBrier { get; set; }
+
+    public double ValidationTerminalAccuracy { get; set; }
 
     public double ElapsedSeconds { get; set; }
 

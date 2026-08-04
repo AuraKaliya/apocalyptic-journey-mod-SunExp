@@ -549,6 +549,20 @@ public sealed class CombatCampaignFoundationTelemetry
 
     public long SearchNodes { get; set; }
 
+    public double SearchMillisecondsTotal { get; set; }
+
+    public long SearchModelEvaluations { get; set; }
+
+    public long SearchModelCacheHits { get; set; }
+
+    public long SearchOriginalCandidates { get; set; }
+
+    public long SearchRetainedCandidates { get; set; }
+
+    public int SearchTimeBudgetStops { get; set; }
+
+    public int SearchModelBudgetStops { get; set; }
+
     public int SearchEarlyStops { get; set; }
 
     public Dictionary<string, int> SearchBudgetTierCounts { get; set; } =
@@ -1298,6 +1312,20 @@ public sealed class CombatCampaignFoundationTrainingResult
     public long SearchSimulations { get; set; }
 
     public long SearchNodes { get; set; }
+
+    public double SearchMillisecondsTotal { get; set; }
+
+    public long SearchModelEvaluations { get; set; }
+
+    public long SearchModelCacheHits { get; set; }
+
+    public long SearchOriginalCandidates { get; set; }
+
+    public long SearchRetainedCandidates { get; set; }
+
+    public int SearchTimeBudgetStops { get; set; }
+
+    public int SearchModelBudgetStops { get; set; }
 
     public int SearchEarlyStops { get; set; }
 
@@ -7179,6 +7207,13 @@ public sealed class CombatCampaignFoundationTrainer
         private long policyDecisions;
         private long searchSimulations;
         private long searchNodes;
+        private long searchMicroseconds;
+        private long searchModelEvaluations;
+        private long searchModelCacheHits;
+        private long searchOriginalCandidates;
+        private long searchRetainedCandidates;
+        private int searchTimeBudgetStops;
+        private int searchModelBudgetStops;
         private int searchEarlyStops;
         private readonly Dictionary<string, int> searchBudgetTierCounts =
             new(StringComparer.OrdinalIgnoreCase);
@@ -7293,6 +7328,27 @@ public sealed class CombatCampaignFoundationTrainer
                 policyDecisions = Math.Max(0L, initial.PolicyDecisions);
                 searchSimulations = Math.Max(0L, initial.SearchSimulations);
                 searchNodes = Math.Max(0L, initial.SearchNodes);
+                searchMicroseconds = Math.Max(
+                    0L,
+                    (long)Math.Round(initial.SearchMillisecondsTotal * 1000d));
+                searchModelEvaluations = Math.Max(
+                    0L,
+                    initial.SearchModelEvaluations);
+                searchModelCacheHits = Math.Max(
+                    0L,
+                    initial.SearchModelCacheHits);
+                searchOriginalCandidates = Math.Max(
+                    0L,
+                    initial.SearchOriginalCandidates);
+                searchRetainedCandidates = Math.Max(
+                    0L,
+                    initial.SearchRetainedCandidates);
+                searchTimeBudgetStops = Math.Max(
+                    0,
+                    initial.SearchTimeBudgetStops);
+                searchModelBudgetStops = Math.Max(
+                    0,
+                    initial.SearchModelBudgetStops);
                 searchEarlyStops = Math.Max(0, initial.SearchEarlyStops);
                 foreach (var pair in initial.SearchBudgetTierCounts
                              ?? new Dictionary<string, int>())
@@ -7558,6 +7614,30 @@ public sealed class CombatCampaignFoundationTrainer
                     ref searchNodes,
                     Math.Max(0L, battle.Metrics.SearchNodes));
                 Interlocked.Add(
+                    ref searchMicroseconds,
+                    Math.Max(
+                        0L,
+                        (long)Math.Round(
+                            battle.Metrics.SearchMillisecondsTotal * 1000d)));
+                Interlocked.Add(
+                    ref searchModelEvaluations,
+                    Math.Max(0L, battle.Metrics.ModelEvaluations));
+                Interlocked.Add(
+                    ref searchModelCacheHits,
+                    Math.Max(0L, battle.Metrics.ModelCacheHits));
+                Interlocked.Add(
+                    ref searchOriginalCandidates,
+                    Math.Max(0L, battle.Metrics.OriginalSearchCandidates));
+                Interlocked.Add(
+                    ref searchRetainedCandidates,
+                    Math.Max(0L, battle.Metrics.RetainedSearchCandidates));
+                Interlocked.Add(
+                    ref searchTimeBudgetStops,
+                    Math.Max(0, battle.Metrics.SearchTimeBudgetStops));
+                Interlocked.Add(
+                    ref searchModelBudgetStops,
+                    Math.Max(0, battle.Metrics.SearchModelBudgetStops));
+                Interlocked.Add(
                     ref searchEarlyStops,
                     Math.Max(0, battle.Metrics.SearchEarlyStops));
                 lock (workerGate)
@@ -7771,6 +7851,13 @@ public sealed class CombatCampaignFoundationTrainer
             result.PolicyDecisions = snapshot.PolicyDecisions;
             result.SearchSimulations = snapshot.SearchSimulations;
             result.SearchNodes = snapshot.SearchNodes;
+            result.SearchMillisecondsTotal = snapshot.SearchMillisecondsTotal;
+            result.SearchModelEvaluations = snapshot.SearchModelEvaluations;
+            result.SearchModelCacheHits = snapshot.SearchModelCacheHits;
+            result.SearchOriginalCandidates = snapshot.SearchOriginalCandidates;
+            result.SearchRetainedCandidates = snapshot.SearchRetainedCandidates;
+            result.SearchTimeBudgetStops = snapshot.SearchTimeBudgetStops;
+            result.SearchModelBudgetStops = snapshot.SearchModelBudgetStops;
             result.SearchEarlyStops = snapshot.SearchEarlyStops;
             result.SearchBudgetTierCounts =
                 new Dictionary<string, int>(
@@ -8135,6 +8222,20 @@ public sealed class CombatCampaignFoundationTrainer
                 PolicyDecisions = Volatile.Read(ref policyDecisions),
                 SearchSimulations = simulationCount,
                 SearchNodes = Volatile.Read(ref searchNodes),
+                SearchMillisecondsTotal =
+                    Volatile.Read(ref searchMicroseconds) / 1000d,
+                SearchModelEvaluations =
+                    Volatile.Read(ref searchModelEvaluations),
+                SearchModelCacheHits =
+                    Volatile.Read(ref searchModelCacheHits),
+                SearchOriginalCandidates =
+                    Volatile.Read(ref searchOriginalCandidates),
+                SearchRetainedCandidates =
+                    Volatile.Read(ref searchRetainedCandidates),
+                SearchTimeBudgetStops =
+                    Volatile.Read(ref searchTimeBudgetStops),
+                SearchModelBudgetStops =
+                    Volatile.Read(ref searchModelBudgetStops),
                 SearchEarlyStops = Volatile.Read(ref searchEarlyStops),
                 SearchBudgetTierCounts =
                     new Dictionary<string, int>(

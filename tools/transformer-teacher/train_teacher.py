@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-"""Train an offline sequence Transformer and emit soft policy annotations."""
+"""Train an offline sequence Transformer world model and emit policy annotations."""
 
 from __future__ import annotations
 
@@ -36,9 +36,10 @@ def arguments() -> argparse.Namespace:
     parser.add_argument("--backend", choices=("auto", "cpu", "cuda"), default="auto")
     parser.add_argument("--epochs", type=int, default=12)
     parser.add_argument("--batch-size", type=int, default=64)
-    parser.add_argument("--hidden", type=int, default=64)
-    parser.add_argument("--layers", type=int, default=2)
-    parser.add_argument("--heads", type=int, default=4)
+    parser.add_argument("--hidden", type=int, default=384)
+    parser.add_argument("--layers", type=int, default=6)
+    parser.add_argument("--heads", type=int, default=8)
+    parser.add_argument("--ffn", type=int, default=1536)
     parser.add_argument("--history", type=int, default=12)
     parser.add_argument("--cpu-threads", type=int, default=0)
     parser.add_argument("--seed", type=int, default=1701)
@@ -61,7 +62,7 @@ def configure_runtime(args: argparse.Namespace) -> torch.device:
     torch.manual_seed(args.seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(args.seed)
-    threads = args.cpu_threads or max(1, min(16, os.cpu_count() or 1))
+    threads = args.cpu_threads or max(1, min(64, os.cpu_count() or 1))
     torch.set_num_threads(threads)
     try:
         torch.set_num_interop_threads(max(1, min(4, threads)))
@@ -88,6 +89,8 @@ def load_rows(path: Path, history_length: int) -> list[dict]:
             if len(row.get("A", [])) < 2:
                 continue
             row["P"] = normalized(row.get("P", []))
+            if not row.get("O"):
+                row["O"] = [row["S"]]
             row["_history"] = []
             rows.append(row)
     by_episode: dict[int, list[dict]] = {}
@@ -121,11 +124,25 @@ def synthetic_rows(count: int = 96) -> list[dict]:
                 "T": index % 8,
                 "Q": index,
                 "S": state,
+                "O": [
+                    [generator.uniform(-1.0, 1.0) for _ in range(32)]
+                    for _ in range(4 + index % 4)
+                ],
                 "A": actions,
                 "P": policy,
                 "X": chosen,
                 "V": math.tanh(state[0] + actions[chosen][0]),
                 "G": index % 5,
+                "N": [
+                    math.tanh(value + actions[chosen][slot % len(actions[chosen])] * 0.05)
+                    for slot, value in enumerate(state)
+                ],
+                "M": 1 if index % 8 != 7 else 0,
+                "W": 1.0 if state[0] > 0.0 else 0.0,
+                "R": 1.0 if state[0] < -0.5 else 0.0,
+                "H": max(0.0, min(1.0, (state[0] + 1.0) * 0.5)),
+                "U": float(7 - index % 8),
+                "Z": 1 if index % 8 == 7 else 0,
                 "_history": [],
             }
         )
@@ -167,9 +184,12 @@ def collate(rows: list[dict]) -> dict[str, torch.Tensor]:
     state_dimensions = len(rows[0]["S"])
     action_dimensions = len(rows[0]["A"][0])
     maximum_actions = max(len(row["A"]) for row in rows)
+    maximum_objects = max(max(1, len(row.get("O", []))) for row in rows)
     maximum_history = max(len(row["_history"]) for row in rows)
     states = torch.zeros(batch, state_dimensions)
     actions = torch.zeros(batch, maximum_actions, action_dimensions)
+    object_tokens = torch.zeros(batch, maximum_objects, state_dimensions)
+    object_mask = torch.zeros(batch, maximum_objects, dtype=torch.bool)
     action_mask = torch.zeros(batch, maximum_actions, dtype=torch.bool)
     policies = torch.zeros(batch, maximum_actions)
     history_states = torch.zeros(batch, maximum_history, state_dimensions)
@@ -177,9 +197,20 @@ def collate(rows: list[dict]) -> dict[str, torch.Tensor]:
     history_mask = torch.zeros(batch, maximum_history, dtype=torch.bool)
     values = torch.zeros(batch)
     strategies = torch.full((batch,), -1, dtype=torch.long)
+    executed_actions = torch.zeros(batch, dtype=torch.long)
+    next_states = torch.zeros(batch, state_dimensions)
+    transition_mask = torch.zeros(batch, dtype=torch.bool)
+    outcomes = torch.zeros(batch, 4)
+    terminals = torch.zeros(batch)
     row_ids = torch.zeros(batch, dtype=torch.long)
     for owner, row in enumerate(rows):
         states[owner] = torch.tensor(row["S"], dtype=torch.float32)
+        objects = row.get("O", []) or [row["S"]]
+        object_count = min(maximum_objects, len(objects))
+        object_tokens[owner, :object_count] = torch.tensor(
+            objects[:object_count], dtype=torch.float32
+        )
+        object_mask[owner, :object_count] = True
         action_count = len(row["A"])
         actions[owner, :action_count] = torch.tensor(row["A"], dtype=torch.float32)
         action_mask[owner, :action_count] = True
@@ -196,9 +227,25 @@ def collate(rows: list[dict]) -> dict[str, torch.Tensor]:
             history_mask[owner, slot] = True
         values[owner] = float(row["V"])
         strategies[owner] = int(row.get("G", -1))
+        executed_actions[owner] = max(0, min(action_count - 1, int(row["X"])))
+        if int(row.get("M", 0)) > 0 and len(row.get("N", [])) == state_dimensions:
+            next_states[owner] = torch.tensor(row["N"], dtype=torch.float32)
+            transition_mask[owner] = True
+        outcomes[owner] = torch.tensor(
+            [
+                float(row.get("W", 0.0)),
+                float(row.get("R", 0.0)),
+                float(row.get("H", 0.0)),
+                math.tanh(max(0.0, float(row.get("U", 0.0))) / 12.0),
+            ],
+            dtype=torch.float32,
+        )
+        terminals[owner] = 1.0 if int(row.get("Z", 0)) > 0 else 0.0
         row_ids[owner] = int(row["I"])
     return {
         "states": states,
+        "object_tokens": object_tokens,
+        "object_mask": object_mask,
         "actions": actions,
         "action_mask": action_mask,
         "policies": policies,
@@ -207,6 +254,11 @@ def collate(rows: list[dict]) -> dict[str, torch.Tensor]:
         "history_mask": history_mask,
         "values": values,
         "strategies": strategies,
+        "executed_actions": executed_actions,
+        "next_states": next_states,
+        "transition_mask": transition_mask,
+        "outcomes": outcomes,
+        "terminals": terminals,
         "row_ids": row_ids,
     }
 
@@ -219,6 +271,7 @@ class StrategyTransformer(nn.Module):
         hidden: int,
         layers: int,
         heads: int,
+        feedforward: int,
         history_length: int,
     ):
         super().__init__()
@@ -226,23 +279,33 @@ class StrategyTransformer(nn.Module):
         self.history_length = history_length
         self.cls = nn.Parameter(torch.zeros(1, 1, hidden))
         self.state_projection = nn.Linear(state_dimensions, hidden)
+        self.object_projection = nn.Linear(state_dimensions, hidden)
         self.action_projection = nn.Linear(action_dimensions, hidden)
         self.history_projection = nn.Linear(state_dimensions + action_dimensions, hidden)
-        self.type_embedding = nn.Embedding(4, hidden)
+        self.type_embedding = nn.Embedding(5, hidden)
         self.position_embedding = nn.Embedding(history_length + 2, hidden)
         layer = nn.TransformerEncoderLayer(
             d_model=hidden,
             nhead=heads,
-            dim_feedforward=hidden * 2,
-            dropout=0.10,
+            dim_feedforward=max(hidden, feedforward),
+            dropout=0.05,
             activation="gelu",
             batch_first=True,
-            norm_first=False,
+            norm_first=True,
         )
         self.encoder = nn.TransformerEncoder(layer, layers, norm=nn.LayerNorm(hidden))
         self.policy_head = nn.Linear(hidden, 1)
         self.value_head = nn.Sequential(nn.Linear(hidden, hidden), nn.GELU(), nn.Linear(hidden, 1))
         self.strategy_head = nn.Linear(hidden, 5)
+        self.dynamics_head = nn.Sequential(
+            nn.Linear(hidden * 2, hidden),
+            nn.GELU(),
+            nn.Linear(hidden, state_dimensions),
+        )
+        self.outcome_head = nn.Sequential(
+            nn.Linear(hidden, hidden), nn.GELU(), nn.Linear(hidden, 4), nn.Sigmoid()
+        )
+        self.terminal_head = nn.Linear(hidden * 2, 1)
         nn.init.normal_(self.cls, std=0.02)
 
     def forward(self, batch: dict[str, torch.Tensor]) -> tuple[torch.Tensor, ...]:
@@ -252,9 +315,12 @@ class StrategyTransformer(nn.Module):
         history_actions = batch["history_actions"]
         history_mask = batch["history_mask"]
         action_mask = batch["action_mask"]
+        object_tokens = batch["object_tokens"]
+        object_mask = batch["object_mask"]
         owners = states.shape[0]
         history_count = history_states.shape[1]
         action_count = actions.shape[1]
+        object_count = object_tokens.shape[1]
         cls = self.cls.expand(owners, -1, -1) + self.type_embedding.weight[0]
         if history_count:
             history = self.history_projection(
@@ -268,12 +334,14 @@ class StrategyTransformer(nn.Module):
             history = states.new_zeros((owners, 0, self.hidden))
         state_token = self.state_projection(states).unsqueeze(1)
         state_token = state_token + self.type_embedding.weight[2]
-        action_tokens = self.action_projection(actions) + self.type_embedding.weight[3]
-        tokens = torch.cat((cls, history, state_token, action_tokens), dim=1)
+        objects = self.object_projection(object_tokens) + self.type_embedding.weight[3]
+        action_tokens = self.action_projection(actions) + self.type_embedding.weight[4]
+        tokens = torch.cat((cls, history, objects, state_token, action_tokens), dim=1)
         padding = torch.cat(
             (
                 torch.zeros(owners, 1, dtype=torch.bool, device=states.device),
                 ~history_mask,
+                ~object_mask,
                 torch.zeros(owners, 1, dtype=torch.bool, device=states.device),
                 ~action_mask,
             ),
@@ -281,13 +349,21 @@ class StrategyTransformer(nn.Module):
         )
         encoded = self.encoder(tokens, src_key_padding_mask=padding)
         cls_encoded = encoded[:, 0]
-        action_start = 1 + history_count + 1
+        action_start = 1 + history_count + object_count + 1
         action_encoded = encoded[:, action_start : action_start + action_count]
         policy = self.policy_head(action_encoded).squeeze(-1)
         policy = policy.masked_fill(~action_mask, -1.0e9)
         value = torch.tanh(self.value_head(cls_encoded).squeeze(-1))
         strategy = self.strategy_head(cls_encoded)
-        return policy, value, strategy
+        executed = batch["executed_actions"].clamp(0, max(0, action_count - 1))
+        executed_encoded = action_encoded[
+            torch.arange(owners, device=states.device), executed
+        ]
+        transition_context = torch.cat((cls_encoded, executed_encoded), dim=-1)
+        next_state = self.dynamics_head(transition_context)
+        outcome = self.outcome_head(cls_encoded)
+        terminal = self.terminal_head(transition_context).squeeze(-1)
+        return policy, value, strategy, next_state, outcome, terminal
 
 
 def move(batch: dict[str, torch.Tensor], device: torch.device) -> dict[str, torch.Tensor]:
@@ -297,7 +373,14 @@ def move(batch: dict[str, torch.Tensor], device: torch.device) -> dict[str, torc
 def loss_for(
     model: StrategyTransformer, batch: dict[str, torch.Tensor]
 ) -> tuple[torch.Tensor, dict[str, float]]:
-    policy_logits, values, strategy_logits = model(batch)
+    (
+        policy_logits,
+        values,
+        strategy_logits,
+        predicted_next_states,
+        predicted_outcomes,
+        terminal_logits,
+    ) = model(batch)
     log_policy = torch.log_softmax(policy_logits, dim=-1)
     policy_loss = -(batch["policies"] * log_policy).sum(dim=-1).mean()
     value_loss = torch.nn.functional.mse_loss(values, batch["values"])
@@ -308,11 +391,35 @@ def loss_for(
         )
     else:
         strategy_loss = policy_loss.new_zeros(())
-    total = policy_loss + value_loss * 0.35 + strategy_loss * 0.20
+    transition_mask = batch["transition_mask"]
+    if transition_mask.any():
+        dynamics_loss = torch.nn.functional.mse_loss(
+            predicted_next_states[transition_mask],
+            batch["next_states"][transition_mask],
+        )
+    else:
+        dynamics_loss = policy_loss.new_zeros(())
+    outcome_loss = torch.nn.functional.mse_loss(
+        predicted_outcomes, batch["outcomes"]
+    )
+    terminal_loss = torch.nn.functional.binary_cross_entropy_with_logits(
+        terminal_logits, batch["terminals"]
+    )
+    total = (
+        policy_loss
+        + value_loss * 0.35
+        + strategy_loss * 0.20
+        + dynamics_loss * 0.15
+        + outcome_loss * 0.20
+        + terminal_loss * 0.10
+    )
     return total, {
         "policy": float(policy_loss.detach()),
         "value": float(value_loss.detach()),
         "strategy": float(strategy_loss.detach()),
+        "dynamics": float(dynamics_loss.detach()),
+        "outcome": float(outcome_loss.detach()),
+        "terminal": float(terminal_loss.detach()),
     }
 
 
@@ -328,9 +435,22 @@ def evaluate(
     value_error = 0.0
     strategy_count = 0
     strategy_correct = 0
+    dynamics_squared_error = 0.0
+    dynamics_elements = 0
+    outcome_absolute_error = 0.0
+    outcome_elements = 0
+    death_squared_error = 0.0
+    terminal_correct = 0
     for raw in loader:
         batch = move(raw, device)
-        policy_logits, values, strategy_logits = model(batch)
+        (
+            policy_logits,
+            values,
+            strategy_logits,
+            predicted_next_states,
+            predicted_outcomes,
+            terminal_logits,
+        ) = model(batch)
         log_policy = torch.log_softmax(policy_logits, dim=-1)
         size = batch["states"].shape[0]
         policy_cross_entropy += float(
@@ -352,6 +472,21 @@ def evaluate(
                     == batch["strategies"][valid]
                 ).sum()
             )
+        transition_mask = batch["transition_mask"]
+        if transition_mask.any():
+            difference = (
+                predicted_next_states[transition_mask]
+                - batch["next_states"][transition_mask]
+            )
+            dynamics_squared_error += float((difference * difference).sum())
+            dynamics_elements += difference.numel()
+        outcome_difference = predicted_outcomes - batch["outcomes"]
+        outcome_absolute_error += float(outcome_difference.abs().sum())
+        outcome_elements += outcome_difference.numel()
+        death_squared_error += float((outcome_difference[:, 1] ** 2).sum())
+        terminal_correct += int(
+            ((terminal_logits >= 0.0) == (batch["terminals"] >= 0.5)).sum()
+        )
         count += size
     return {
         "policy_ce": policy_cross_entropy / max(1, count),
@@ -359,6 +494,13 @@ def evaluate(
         "policy_accuracy": policy_correct / max(1, count),
         "value_mae": value_error / max(1, count),
         "strategy_accuracy": strategy_correct / max(1, strategy_count),
+        "dynamics_mse": dynamics_squared_error / max(1, dynamics_elements),
+        "dynamics_frames": sum(
+            int(row.get("M", 0)) > 0 for row in loader.dataset.rows
+        ),
+        "outcome_mae": outcome_absolute_error / max(1, outcome_elements),
+        "death_brier": death_squared_error / max(1, count),
+        "terminal_accuracy": terminal_correct / max(1, count),
     }
 
 
@@ -386,12 +528,18 @@ def train(
         args.hidden,
         args.layers,
         args.heads,
+        args.ffn,
         args.history,
     ).to(device)
     optimizer = torch.optim.AdamW(model.parameters(), lr=3.0e-4, weight_decay=1.0e-3)
     best_state = copy.deepcopy(model.state_dict())
     best_metrics = evaluate(model, validation_loader, device)
-    best_loss = best_metrics["policy_ce"] + best_metrics["value_mae"] * 0.35
+    best_loss = (
+        best_metrics["policy_ce"]
+        + best_metrics["value_mae"] * 0.35
+        + best_metrics["dynamics_mse"] * 0.15
+        + best_metrics["outcome_mae"] * 0.20
+    )
     stale = 0
     executed = 0
     for epoch in range(1, args.epochs + 1):
@@ -405,10 +553,16 @@ def train(
             optimizer.step()
         executed = epoch
         metrics = evaluate(model, validation_loader, device)
-        score = metrics["policy_ce"] + metrics["value_mae"] * 0.35
+        score = (
+            metrics["policy_ce"]
+            + metrics["value_mae"] * 0.35
+            + metrics["dynamics_mse"] * 0.15
+            + metrics["outcome_mae"] * 0.20
+        )
         print(
             f"epoch={epoch}/{args.epochs} policyCE={metrics['policy_ce']:.6f} "
-            f"top1={metrics['policy_accuracy']:.4f} valueMAE={metrics['value_mae']:.6f}",
+            f"top1={metrics['policy_accuracy']:.4f} valueMAE={metrics['value_mae']:.6f} "
+            f"dynamicsMSE={metrics['dynamics_mse']:.6f}",
             flush=True,
         )
         if score < best_loss - 1.0e-5:
@@ -439,7 +593,7 @@ def annotate(
     with path.open("w", encoding="utf-8", newline="\n") as stream:
         for raw in loader:
             batch = move(raw, device)
-            logits, _, _ = model(batch)
+            logits, _, _, _, _, _ = model(batch)
             probabilities = torch.softmax(logits, dim=-1).cpu()
             masks = raw["action_mask"]
             row_ids = raw["row_ids"]
@@ -462,11 +616,17 @@ def main() -> int:
     if args.self_test:
         args.epochs = min(args.epochs, 2)
         args.batch_size = min(args.batch_size, 16)
+        args.hidden = min(args.hidden, 64)
+        args.layers = min(args.layers, 2)
+        args.heads = min(args.heads, 4)
+        args.ffn = min(args.ffn, 128)
         rows = synthetic_rows()
         model, metrics, executed, training_count, validation_count = train(
             rows, args, device
         )
         assert math.isfinite(metrics["policy_ce"])
+        assert math.isfinite(metrics["dynamics_mse"])
+        assert math.isfinite(metrics["outcome_mae"])
         assert executed > 0 and training_count > 0 and validation_count > 0
         print(
             json.dumps(
@@ -476,6 +636,8 @@ def main() -> int:
                     "torch": torch.__version__,
                     "policyCE": metrics["policy_ce"],
                     "uniformPolicyCE": metrics["uniform_policy_ce"],
+                    "dynamicsMSE": metrics["dynamics_mse"],
+                    "outcomeMAE": metrics["outcome_mae"],
                 }
             )
         )
@@ -492,12 +654,13 @@ def main() -> int:
     )
     annotate(model, rows, args.batch_size, device, Path(args.annotations))
     checkpoint = {
-        "protocol": "aura.combat-transformer-teacher.v1",
+        "protocol": "aura.combat-transformer-world-model.v2",
         "state_dimensions": len(rows[0]["S"]),
         "action_dimensions": len(rows[0]["A"][0]),
         "hidden_dimensions": args.hidden,
         "layers": args.layers,
         "heads": args.heads,
+        "feedforward_dimensions": args.ffn,
         "history_length": args.history,
         "state_dict": model.state_dict(),
     }
@@ -506,12 +669,17 @@ def main() -> int:
         torch.cuda.get_device_name(device) if device.type == "cuda" else platform.processor()
     )
     report = {
-        "Protocol": "aura.combat-transformer-teacher-report.v1",
+        "Protocol": "aura.combat-transformer-world-model-report.v2",
         "Success": True,
         "EffectiveBackend": device.type,
         "DeviceName": device_name,
         "PythonVersion": platform.python_version(),
         "TorchVersion": torch.__version__,
+        "ParameterCount": sum(parameter.numel() for parameter in model.parameters()),
+        "HiddenDimensions": args.hidden,
+        "Layers": args.layers,
+        "AttentionHeads": args.heads,
+        "FeedForwardDimensions": args.ffn,
         "TrainingFrames": training_count,
         "ValidationFrames": validation_count,
         "EpochsExecuted": executed,
@@ -520,6 +688,11 @@ def main() -> int:
         "ValidationPolicyTop1Accuracy": metrics["policy_accuracy"],
         "ValidationValueMae": metrics["value_mae"],
         "ValidationStrategyAccuracy": metrics["strategy_accuracy"],
+        "ValidationDynamicsMse": metrics["dynamics_mse"],
+        "DynamicsTrainingFrames": metrics["dynamics_frames"],
+        "ValidationOutcomeMae": metrics["outcome_mae"],
+        "ValidationDeathBrier": metrics["death_brier"],
+        "ValidationTerminalAccuracy": metrics["terminal_accuracy"],
         "ElapsedSeconds": time.perf_counter() - started,
         "Message": "Transformer teacher training completed.",
     }

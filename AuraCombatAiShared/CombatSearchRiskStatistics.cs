@@ -186,9 +186,15 @@ internal static class CombatRiskAdjustedSearchValue
         double meanRisk,
         CombatDecisionProfile profile)
     {
-        return estimate.Mean * 0.65d
-               + estimate.EffectiveLowerTailMean * 0.35d
-               - profile.TailRiskPenalty * meanRisk
+        var preference = double.IsNaN(profile.RiskPreference)
+                         || double.IsInfinity(profile.RiskPreference)
+            ? 0.5d
+            : Math.Max(0d, Math.Min(1d, profile.RiskPreference));
+        var tailWeight = 0.5d - 0.3d * preference;
+        var riskScale = 1.5d - preference;
+        return estimate.Mean * (1d - tailWeight)
+               + estimate.EffectiveLowerTailMean * tailWeight
+               - profile.TailRiskPenalty * riskScale * meanRisk
                - profile.UncertaintyPenalty * estimate.StandardError;
     }
 }

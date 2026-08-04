@@ -31,6 +31,14 @@ public sealed class CombatSearchResult
 
     public bool StoppedByTime { get; set; }
 
+    public bool StoppedByModelBudget { get; set; }
+
+    public int ModelEvaluations { get; set; }
+
+    public int ModelCacheHits { get; set; }
+
+    public double ElapsedMilliseconds { get; set; }
+
     public double Confidence { get; set; }
 
     public double ValueGap { get; set; }
@@ -101,6 +109,10 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
     private int determinizationIndex;
     private CombatSearchExplorationOptions? rootExploration;
     private int originalCandidateCount;
+    private int modelEvaluations;
+    private int modelCacheHits;
+    private int modelEvaluationBudget;
+    private bool modelBudgetExhausted;
 
     public CombatRiskAwareRootSamplingPuctPlanner(
         IDecisionResidualModel? residualModel = null,
@@ -133,19 +145,32 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
         sustainableControlLoops = 0;
         fakeLoops = 0;
         blockedLoops = 0;
+        modelEvaluations = 0;
+        modelCacheHits = 0;
+        modelBudgetExhausted = false;
         determinizationIndex = Math.Max(
             0,
             exploration?.DeterminizationOffset ?? 0);
         rootExploration = exploration;
         rootBelief = CombatBeliefTracker.FromObservation(state);
         stateArena.BeginSearch();
-        actions = BuildActions(state, candidates);
-        searchObjectArena.BeginSearch(actions.Count);
         var budget = CombatSearchBudgetPolicy.Resolve(
             state,
             candidates,
             selectedProfile);
+        var requestedModelBudget = Math.Max(
+            1,
+            selectedProfile.SearchModelEvaluationBudget);
+        if ((selectedProfile.SearchBudgetContext ?? "").IndexOf(
+                "teacher",
+                StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            requestedModelBudget = Math.Max(4096, requestedModelBudget);
+        }
+        modelEvaluationBudget = Math.Min(65536, requestedModelBudget);
         var searchStarted = Stopwatch.GetTimestamp();
+        actions = BuildActions(state, candidates);
+        searchObjectArena.BeginSearch(actions.Count);
         searchMaxPly = Math.Max(1, Math.Min(32, budget.MaxPly));
         var pathCapacity = Math.Max(2, searchMaxPly + 1);
         if (nodePathBuffer.Length < pathCapacity)
@@ -230,6 +255,11 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
                 stoppedByTime = true;
                 break;
             }
+            if (modelBudgetExhausted)
+            {
+                stoppedEarly = true;
+                break;
+            }
             Simulate(root, null);
             simulations++;
             if (simulations < minimumSimulations
@@ -279,7 +309,11 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
                 StoppedEarly = stoppedEarly,
                 StoppedByTime = stoppedByTime,
                 CandidateCount = actions.Count,
-                OriginalCandidateCount = originalCandidateCount
+                OriginalCandidateCount = originalCandidateCount,
+                StoppedByModelBudget = modelBudgetExhausted,
+                ModelEvaluations = modelEvaluations,
+                ModelCacheHits = modelCacheHits,
+                ElapsedMilliseconds = ElapsedMilliseconds(searchStarted)
             };
         }
 
@@ -329,6 +363,10 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
             TranspositionHits = transpositionHits,
             StoppedEarly = stoppedEarly,
             StoppedByTime = stoppedByTime,
+            StoppedByModelBudget = modelBudgetExhausted,
+            ModelEvaluations = modelEvaluations,
+            ModelCacheHits = modelCacheHits,
+            ElapsedMilliseconds = ElapsedMilliseconds(searchStarted),
             Confidence = confidence,
             ValueGap = valueGap,
             BestVisits = best.Visits,
@@ -346,6 +384,9 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
                           ? "; early-stop=stable"
                           : "")
                       + (stoppedByTime ? "; time-budget-exhausted" : "")
+                      + (modelBudgetExhausted
+                          ? "; model-evaluation-budget-exhausted"
+                          : "")
                       + "; budget=" + budget.Tier
                       + "[" + budget.Reason + "]"
                       + "; confidence=" + confidence.ToString("0.000")
@@ -712,7 +753,7 @@ CompleteSimulation:
                 .ToList();
             if (usable.Count > 0)
             {
-                networkPrediction = policyValueModel.Evaluate(
+                networkPrediction = EvaluatePolicyValue(
                     CombatPolicyValueEncoding.BuildInput(
                         ToObservation(legalityState),
                         usable));
@@ -945,7 +986,7 @@ CompleteSimulation:
                 policyValueModel,
                 NullCombatPolicyValueModel.Instance)
             ? new CombatPolicyValuePrediction()
-            : policyValueModel.Evaluate(
+            : EvaluatePolicyValue(
                 CombatPolicyValueEncoding.BuildInput(state, legal));
         var ruleMean = legal.Average(candidate => candidate.RuleScore);
         var ruleVariance = legal.Average(candidate =>
@@ -1015,7 +1056,96 @@ CompleteSimulation:
                     .ToHashSet(StringComparer.Ordinal)
             });
         }
+        return PruneActorCandidates(result, state);
+    }
+
+    private IReadOnlyList<SearchAction> PruneActorCandidates(
+        List<SearchAction> candidates,
+        CombatStateObservation state)
+    {
+        if (!profile.EnableActorCandidatePruning
+            || candidates.Count <= 1
+            || ContainsContext(profile.SearchBudgetContext, "teacher")
+            || ContainsContext(profile.SearchBudgetContext, "training")
+            || ContainsContext(profile.SearchBudgetContext, "shadow"))
+        {
+            return candidates;
+        }
+
+        var topK = Math.Max(1, Math.Min(64, profile.ActorCandidateTopK));
+        if (candidates.Count <= topK)
+        {
+            return candidates;
+        }
+        var massTarget = double.IsNaN(profile.ActorCandidateProbabilityMass)
+                         || double.IsInfinity(profile.ActorCandidateProbabilityMass)
+            ? 0.995d
+            : Math.Max(
+                0.5d,
+                Math.Min(1d, profile.ActorCandidateProbabilityMass));
+        var ranked = candidates
+            .OrderByDescending(candidate => candidate.Prior)
+            .ThenBy(candidate => candidate.Action.CandidateId, StringComparer.Ordinal)
+            .ToList();
+        var retained = new HashSet<SearchAction>();
+        var cumulative = 0d;
+        for (var index = 0; index < ranked.Count; index++)
+        {
+            if (index < topK || cumulative < massTarget)
+            {
+                retained.Add(ranked[index]);
+                cumulative += Math.Max(0d, ranked[index].Prior);
+            }
+        }
+
+        foreach (var family in candidates.GroupBy(
+                     candidate => ((int)candidate.Action.Kind).ToString(
+                                      System.Globalization.CultureInfo.InvariantCulture)
+                                  + "|" + candidate.Action.SourceId,
+                     StringComparer.OrdinalIgnoreCase))
+        {
+            retained.Add(family
+                .OrderByDescending(candidate => candidate.Prior)
+                .ThenBy(candidate => candidate.Action.CandidateId, StringComparer.Ordinal)
+                .First());
+        }
+        foreach (var candidate in candidates.Where(candidate =>
+                     candidate.Action.Kind == CombatActionKind.EndTurn
+                     || CombatEndTurnSafety.IsSafeAlternative(
+                         state,
+                         candidate.Evaluation,
+                         profile)))
+        {
+            retained.Add(candidate);
+        }
+
+        var result = candidates
+            .Where(retained.Contains)
+            .OrderBy(candidate => candidate.Action.CandidateId, StringComparer.Ordinal)
+            .ToList();
+        var total = result.Sum(candidate => Math.Max(0d, candidate.Prior));
+        if (total <= 0d)
+        {
+            var uniform = 1d / result.Count;
+            foreach (var candidate in result)
+            {
+                candidate.Prior = uniform;
+            }
+        }
+        else
+        {
+            foreach (var candidate in result)
+            {
+                candidate.Prior = Math.Max(0d, candidate.Prior) / total;
+            }
+        }
         return result;
+    }
+
+    private static bool ContainsContext(string? value, string token)
+    {
+        return !string.IsNullOrWhiteSpace(value)
+               && value!.IndexOf(token, StringComparison.OrdinalIgnoreCase) >= 0;
     }
 
     private static string CandidateEquivalenceKey(
@@ -1234,8 +1364,12 @@ CompleteSimulation:
                     policyValueModel,
                     NullCombatPolicyValueModel.Instance)
                 ? new CombatPolicyValuePrediction()
-                : policyValueModel.Evaluate(PrepareLeafInput());
+                : EvaluatePolicyValue(PrepareLeafInput());
             policyValueCache[stateHash] = network;
+        }
+        else
+        {
+            modelCacheHits++;
         }
         return new CombatLeafEvaluation
         {
@@ -1259,6 +1393,18 @@ CompleteSimulation:
         leafInput.StateFeatures = leafFeatures;
         leafInput.Candidates.Clear();
         return leafInput;
+    }
+
+    private CombatPolicyValuePrediction EvaluatePolicyValue(
+        CombatPolicyValueInput input)
+    {
+        if (modelEvaluations >= modelEvaluationBudget)
+        {
+            modelBudgetExhausted = true;
+            return new CombatPolicyValuePrediction();
+        }
+        modelEvaluations++;
+        return policyValueModel.Evaluate(input);
     }
 
     private static double NetworkPolicyLogit(

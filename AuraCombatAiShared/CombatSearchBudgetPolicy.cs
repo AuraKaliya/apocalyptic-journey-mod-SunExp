@@ -57,6 +57,8 @@ public static class CombatSearchBudgetPolicy
                 : context,
             SearchTimeBudgetMilliseconds =
                 profile.SearchTimeBudgetMilliseconds,
+            SearchModelEvaluationBudget =
+                profile.SearchModelEvaluationBudget,
             SearchExploration = profile.SearchExploration,
             DeathRiskLimit = profile.DeathRiskLimit,
             LoopMaximumCertifiedCycles = profile.LoopMaximumCertifiedCycles,
@@ -67,6 +69,7 @@ public static class CombatSearchBudgetPolicy
             LoopMinimumHpReserveRatio = profile.LoopMinimumHpReserveRatio,
             TailRiskPenalty = profile.TailRiskPenalty,
             TailRiskQuantile = profile.TailRiskQuantile,
+            RiskPreference = profile.RiskPreference,
             UncertaintyPenalty = profile.UncertaintyPenalty,
             SetupValueWeight = profile.SetupValueWeight,
             PersistentValueWeight = profile.PersistentValueWeight,
@@ -76,7 +79,11 @@ public static class CombatSearchBudgetPolicy
             EndTurnUncertainty = profile.EndTurnUncertainty,
             PreferDominantFreeSetup = profile.PreferDominantFreeSetup,
             UseLowConfidenceFallback = profile.UseLowConfidenceFallback,
-            MinimumSearchConfidence = profile.MinimumSearchConfidence
+            MinimumSearchConfidence = profile.MinimumSearchConfidence,
+            EnableActorCandidatePruning = profile.EnableActorCandidatePruning,
+            ActorCandidateTopK = profile.ActorCandidateTopK,
+            ActorCandidateProbabilityMass =
+                profile.ActorCandidateProbabilityMass
         };
     }
 

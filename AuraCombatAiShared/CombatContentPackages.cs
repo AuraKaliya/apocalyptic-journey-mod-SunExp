@@ -74,6 +74,8 @@ public sealed class CombatContentPackageArtifacts
 
     public CombatContentArtifactReference? PolicyAdapter { get; set; }
 
+    public CombatContentArtifactReference? TransformerAdapter { get; set; }
+
     public List<CombatContentArtifactReference> TrainingEpisodes { get; set; } = new();
 }
 
@@ -404,6 +406,10 @@ public sealed class CombatContentLoadedPackage
 
     public CombatLowRankPolicyAdapterDefinition? PolicyAdapter { get; set; }
 
+    public string TransformerAdapterPath { get; set; } = "";
+
+    public CombatTransformerLoRAAdapterDefinition? TransformerAdapter { get; set; }
+
     public List<string> TrainingEpisodePaths { get; set; } = new();
 
     public bool FoundationTrainingReady => Package.FoundationTrainingEnabled
@@ -497,6 +503,39 @@ public static class CombatContentPackageLoader
                     result.Errors.Add(
                         "policy adapter owner/package binding is invalid: "
                         + adapterReason);
+                }
+            }
+            loaded.TransformerAdapterPath = ResolveArtifact(
+                root,
+                package.Artifacts?.TransformerAdapter,
+                "Transformer adapter",
+                result.Errors);
+            if (!string.IsNullOrWhiteSpace(loaded.TransformerAdapterPath))
+            {
+                loaded.TransformerAdapter =
+                    ReadRequired<CombatTransformerLoRAAdapterDefinition>(
+                        loaded.TransformerAdapterPath,
+                        "Transformer adapter",
+                        result.Errors);
+                if (loaded.TransformerAdapter != null
+                    && (!CombatTransformerAdapterValidator.TryValidate(
+                            loaded.TransformerAdapter,
+                            loaded.TransformerAdapter.Manifest.BaseModelId,
+                            loaded.TransformerAdapter.Manifest.BaseModelHash,
+                            "",
+                            out var transformerReason)
+                        || !string.Equals(
+                            loaded.TransformerAdapter.Manifest.OwnerModId,
+                            package.OwnerModId,
+                            StringComparison.OrdinalIgnoreCase)
+                        || !string.Equals(
+                            loaded.TransformerAdapter.Manifest.PackageId,
+                            package.PackageId,
+                            StringComparison.OrdinalIgnoreCase)))
+                {
+                    result.Errors.Add(
+                        "Transformer adapter owner/package binding is invalid: "
+                        + transformerReason);
                 }
             }
 
@@ -641,7 +680,8 @@ public static class CombatContentPackageLoader
                 package.Artifacts?.Ruleset,
                 package.Artifacts?.FoundationOverlay,
                 package.Artifacts?.TransitionAudit,
-                package.Artifacts?.PolicyAdapter
+                package.Artifacts?.PolicyAdapter,
+                package.Artifacts?.TransformerAdapter
             }
             .Concat(package.Artifacts?.TrainingEpisodes
                     ?? new List<CombatContentArtifactReference>())
@@ -860,7 +900,8 @@ public static class CombatContentPackageLoader
                 package.Artifacts?.Ruleset,
                 package.Artifacts?.FoundationOverlay,
                 package.Artifacts?.TransitionAudit,
-                package.Artifacts?.PolicyAdapter
+                package.Artifacts?.PolicyAdapter,
+                package.Artifacts?.TransformerAdapter
             }
             .Concat(package.Artifacts?.TrainingEpisodes
                     ?? new List<CombatContentArtifactReference>())
