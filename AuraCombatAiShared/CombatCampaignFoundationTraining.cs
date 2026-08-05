@@ -8342,6 +8342,7 @@ public sealed class CombatCampaignFoundationTrainer
             int snapshotModelBestEpoch;
             int snapshotModelStaleEpochs;
             bool snapshotModelEarlyStopped;
+            string snapshotCurrentPhase;
             double snapshotPhaseRemainingSeconds;
             CombatTransformerTeacherProgress snapshotTransformerTeacher;
             double snapshotRootMaximumVisitShareTotal;
@@ -8386,6 +8387,7 @@ public sealed class CombatCampaignFoundationTrainer
                 snapshotModelBestEpoch = modelBestEpoch;
                 snapshotModelStaleEpochs = modelStaleEpochs;
                 snapshotModelEarlyStopped = modelEarlyStopped;
+                snapshotCurrentPhase = currentPhase;
                 snapshotPhaseRemainingSeconds =
                     phaseEstimatedRemainingSeconds;
                 snapshotTransformerTeacher = new CombatTransformerTeacherProgress
@@ -8548,7 +8550,9 @@ public sealed class CombatCampaignFoundationTrainer
             var battleEstimatedRemainingSeconds = battleRate <= 0d
                 ? 0d
                 : remainingBattleWork / battleRate;
-            var phase = ResolvePhase(stage);
+            var phase = string.IsNullOrWhiteSpace(snapshotCurrentPhase)
+                ? ResolvePhase(stage)
+                : snapshotCurrentPhase;
             var execution = CombatFoundationExecutionProfiles.Resolve(
                 CombatFoundationExecutionProfileNames.Custom,
                 effectiveParallelism,
