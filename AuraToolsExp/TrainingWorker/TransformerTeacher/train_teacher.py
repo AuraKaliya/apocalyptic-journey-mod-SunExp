@@ -253,8 +253,11 @@ def normalized(values: list[float]) -> list[float]:
     return [value / total for value in finite]
 
 
-def load_rows(path: Path, history_length: int) -> list[dict]:
+def load_rows(
+    path: Path, history_length: int, progress: ProgressReporter | None = None
+) -> list[dict]:
     rows: list[dict] = []
+    started = time.perf_counter()
     with path.open("r", encoding="utf-8") as stream:
         for line in stream:
             if not line.strip():
@@ -266,7 +269,16 @@ def load_rows(path: Path, history_length: int) -> list[dict]:
             if not row.get("O"):
                 row["O"] = [row["S"]]
             row["_history"] = []
+            tensorize_row(row)
             rows.append(row)
+            if progress is not None and len(rows) % 64 == 0:
+                elapsed = max(1.0e-6, time.perf_counter() - started)
+                progress.update(
+                    emit=False,
+                    CompletedFrames=len(rows),
+                    FramesPerSecond=len(rows) / elapsed,
+                    Message=f"正在读取并张量化数据 {len(rows):,} 帧",
+                )
     by_episode: dict[int, list[dict]] = {}
     for row in rows:
         by_episode.setdefault(int(row["E"]), []).append(row)
@@ -274,6 +286,16 @@ def load_rows(path: Path, history_length: int) -> list[dict]:
         episode_rows.sort(key=lambda row: (int(row["T"]), int(row["Q"]), int(row["F"])))
         for index, row in enumerate(episode_rows):
             row["_history"] = episode_rows[max(0, index - history_length) : index]
+    if progress is not None:
+        progress.update(
+            Stage="indexing",
+            CompletedFrames=0,
+            TotalFrames=len(rows),
+            FramesPerSecond=0.0,
+            Message="正在建立 Transformer 序列历史",
+        )
+    attach_history_tensors(rows, by_episode, history_length, progress)
+    release_raw_arrays(rows)
     return rows
 
 
@@ -329,29 +351,51 @@ def synthetic_rows(count: int = 96) -> list[dict]:
     return rows
 
 
-def tensorize_rows(rows: list[dict]) -> None:
-    for row in rows:
-        state = torch.as_tensor(row["S"], dtype=torch.float32)
-        actions = torch.as_tensor(row["A"], dtype=torch.float32)
-        objects = torch.as_tensor(row.get("O") or [row["S"]], dtype=torch.float32)
-        policy = torch.as_tensor(row["P"], dtype=torch.float32)
-        next_state = torch.as_tensor(row.get("N", []), dtype=torch.float32)
-        row["_state_tensor"] = state
-        row["_action_tensor"] = actions
-        row["_object_tensor"] = objects
-        row["_policy_tensor"] = policy
-        row["_next_state_tensor"] = next_state
-        row["_sampling_repeats"] = max(1, min(3, int(round(float(row.get("K", 1.0))))))
-        row["_outcome_tensor"] = torch.tensor(
-            [
-                float(row.get("W", 0.0)),
-                float(row.get("R", 0.0)),
-                float(row.get("H", 0.0)),
-                math.tanh(max(0.0, float(row.get("U", 0.0))) / 12.0),
-            ],
-            dtype=torch.float32,
-        )
-    for row in rows:
+def tensorize_row(row: dict) -> None:
+    if "_state_tensor" in row:
+        return
+    # The persistent JSON remains float-compatible, while CPU-side feature
+    # storage uses fp16 until collation. This halves the resident replay tensor
+    # footprint without changing fp32 targets or the exported model format.
+    storage_dtype = torch.float16
+    state = torch.as_tensor(row["S"], dtype=storage_dtype)
+    actions = torch.as_tensor(row["A"], dtype=storage_dtype)
+    objects = torch.as_tensor(
+        row.get("O") or [row["S"]], dtype=storage_dtype
+    )
+    policy = torch.as_tensor(row["P"], dtype=torch.float32)
+    next_state = torch.as_tensor(row.get("N", []), dtype=torch.float32)
+    row["_state_tensor"] = state
+    row["_action_tensor"] = actions
+    row["_object_tensor"] = objects
+    row["_policy_tensor"] = policy
+    row["_next_state_tensor"] = next_state
+    row["_sampling_repeats"] = max(
+        1, min(3, int(round(float(row.get("K", 1.0)))))
+    )
+    row["_outcome_tensor"] = torch.tensor(
+        [
+            float(row.get("W", 0.0)),
+            float(row.get("R", 0.0)),
+            float(row.get("H", 0.0)),
+            math.tanh(max(0.0, float(row.get("U", 0.0))) / 12.0),
+        ],
+        dtype=torch.float32,
+    )
+
+
+def attach_history_tensors(
+    rows: list[dict],
+    by_episode: dict[int, list[dict]],
+    history_length: int,
+    progress: ProgressReporter | None = None,
+) -> None:
+    for episode_rows in by_episode.values():
+        episode_rows.sort(key=lambda row: (int(row["T"]), int(row["Q"]), int(row["F"])))
+        for index, row in enumerate(episode_rows):
+            row["_history"] = episode_rows[max(0, index - history_length) : index]
+    started = time.perf_counter()
+    for row_index, row in enumerate(rows, start=1):
         history = row.get("_history", [])
         if history:
             row["_history_state_tensor"] = torch.stack(
@@ -369,10 +413,10 @@ def tensorize_rows(rows: list[dict]) -> None:
             state_dimensions = row["_state_tensor"].shape[0]
             action_dimensions = row["_action_tensor"].shape[1]
             row["_history_state_tensor"] = torch.empty(
-                0, state_dimensions, dtype=torch.float32
+                0, state_dimensions, dtype=torch.float16
             )
             row["_history_action_tensor"] = torch.empty(
-                0, action_dimensions, dtype=torch.float32
+                0, action_dimensions, dtype=torch.float16
             )
         row["_history"] = []
         row["_bucket_cost"] = (
@@ -380,6 +424,40 @@ def tensorize_rows(rows: list[dict]) -> None:
             + int(row["_object_tensor"].shape[0])
             + int(row["_history_state_tensor"].shape[0]) * 2
         )
+        row["_tensorized_complete"] = True
+        if progress is not None and row_index % 64 == 0:
+            elapsed = max(1.0e-6, time.perf_counter() - started)
+            progress.update(
+                emit=False,
+                CompletedFrames=row_index,
+                TotalFrames=len(rows),
+                FramesPerSecond=row_index / elapsed,
+                EstimatedRemainingSeconds=(
+                    max(0, len(rows) - row_index)
+                    / max(1.0e-6, row_index / elapsed)
+                ),
+            )
+
+
+def release_raw_arrays(rows: list[dict]) -> None:
+    for row in rows:
+        for key in ("S", "A", "O", "P", "N"):
+            row.pop(key, None)
+
+
+def tensorize_rows(rows: list[dict]) -> None:
+    if rows and all(row.get("_tensorized_complete") for row in rows):
+        return
+    for row in rows:
+        tensorize_row(row)
+    by_episode: dict[int, list[dict]] = {}
+    for row in rows:
+        by_episode.setdefault(int(row["E"]), []).append(row)
+    history_length = max(
+        (len(row.get("_history", [])) for row in rows), default=0
+    )
+    attach_history_tensors(rows, by_episode, history_length)
+    release_raw_arrays(rows)
 
 
 class TeacherDataset(Dataset):
@@ -463,6 +541,11 @@ def write_anchor_rows(path: Path, rows: list[dict]) -> None:
     with temporary.open("w", encoding="utf-8") as stream:
         for row in rows:
             payload = {key: value for key, value in row.items() if not key.startswith("_")}
+            payload["S"] = row["_state_tensor"].float().tolist()
+            payload["A"] = row["_action_tensor"].float().tolist()
+            payload["O"] = row["_object_tensor"].float().tolist()
+            payload["P"] = row["_policy_tensor"].float().tolist()
+            payload["N"] = row["_next_state_tensor"].float().tolist()
             stream.write(json.dumps(payload, separators=(",", ":"), ensure_ascii=True))
             stream.write("\n")
     temporary.replace(path)
@@ -1606,7 +1689,7 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
     cpu_started = time.process_time()
     progress.update(Stage="loading", Message="正在读取 Transformer 数据集")
     loading_started = time.perf_counter()
-    rows = load_rows(Path(args.input), args.history)
+    rows = load_rows(Path(args.input), args.history, progress)
     loading_seconds = time.perf_counter() - loading_started
     if not rows:
         raise RuntimeError("Transformer teacher dataset contains no usable frames")

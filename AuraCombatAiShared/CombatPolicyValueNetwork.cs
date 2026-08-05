@@ -555,11 +555,11 @@ public sealed class CombatPolicyValueNetworkDefinition
 
     public string DecisionProfile { get; set; } = "balanced";
 
-    public int StateDimensions { get; set; } = 256;
+    public int StateDimensions { get; set; } = 1024;
 
-    public int ActionDimensions { get; set; } = 192;
+    public int ActionDimensions { get; set; } = 1024;
 
-    public int HiddenDimensions { get; set; } = 64;
+    public int HiddenDimensions { get; set; } = 512;
 
     public string FeatureEncodingMode { get; set; } = "partitioned-v3";
 
@@ -1253,9 +1253,9 @@ public static class CombatPolicyValueNetworkValidator
         if (model.StateDimensions < 16
             || model.ActionDimensions < 16
             || model.HiddenDimensions < 8
-            || model.StateDimensions > 512
-            || model.ActionDimensions > 512
-            || model.HiddenDimensions > 512)
+            || model.StateDimensions > 2048
+            || model.ActionDimensions > 2048
+            || model.HiddenDimensions > 1024)
         {
             reason = "策略价值模型维度无效";
             return false;

@@ -6,7 +6,7 @@ namespace AuraFoundationTrainer.ControlCenter;
 
 internal sealed class ControllerSettings
 {
-    public int SchemaVersion { get; set; } = 12;
+    public int SchemaVersion { get; set; } = 13;
 
     [JsonIgnore]
     public string ModRoot { get; set; } = "";
@@ -67,17 +67,19 @@ internal sealed class ControllerSettings
             ModelUnsafeEndTurnRiskAuxiliaryShare = 0.10d,
             MinimumArenaDiscordantPairs = 8,
             MaximumOfflineHeadRegression = 0.05d,
+            MaximumStateFeatureCollisionRate = 0.20d,
+            MaximumActionFeatureCollisionRate = 0.06d,
             ModelLearningRate = 0.004d,
             ModelL2 = 0.002d,
-            ModelStateDimensions = 256,
-            ModelActionDimensions = 256,
-            ModelHiddenDimensions = 64,
+            ModelStateDimensions = 1024,
+            ModelActionDimensions = 1024,
+            ModelHiddenDimensions = 512,
             TransformerTeacherBackend =
                 CombatTransformerTeacherBackendNames.Auto,
             TransformerTeacherEpochs = 12,
             TransformerTeacherBatchSize = 64,
-            TransformerTeacherStateDimensions = 128,
-            TransformerTeacherActionDimensions = 128,
+            TransformerTeacherStateDimensions = 1024,
+            TransformerTeacherActionDimensions = 1024,
             TransformerTeacherHiddenDimensions = 384,
             TransformerTeacherLayers = 6,
             TransformerTeacherAttentionHeads = 8,
@@ -193,6 +195,10 @@ internal sealed class ControllerWorkerResultSummary
     public bool ResumedFromCheckpoint { get; set; }
 
     public string ResumeDiagnostic { get; set; } = "";
+
+    public string RequestedStartMode { get; set; } = "";
+
+    public string EffectiveStartMode { get; set; } = "";
 
     public bool Resumable { get; set; }
 

@@ -1,5 +1,7 @@
 using System;
 using System.Collections.Generic;
+using System.Security.Cryptography;
+using System.Text;
 using System.Threading;
 
 namespace AuraCombatAi.Shared;
@@ -33,6 +35,66 @@ public static class CombatTransformerWorldModelProtocol
         "aura.combat-transformer-world-model-report.v2";
 }
 
+public static class CombatTransformerTeacherCorpusProtocol
+{
+    public const string Version = "transformer-teacher-corpus-v1";
+
+    public static string CorpusCompatibilityKey(
+        CombatFoundationCompatibilityManifest manifest,
+        string? decisionProfile,
+        CombatTransformerTeacherOptions options)
+    {
+        return Hash(string.Join("|", new[]
+        {
+            Version,
+            manifest.RulesetHash ?? "",
+            manifest.ContentSetHash ?? "",
+            manifest.OwnerModSetHash ?? "",
+            manifest.NativeProgramPackageHash ?? "",
+            manifest.TrainingCampaignHash ?? "",
+            manifest.ActionContractVersion ?? "",
+            manifest.TrainingSemanticsVersion ?? "",
+            manifest.TrainingPolicyVersion ?? "",
+            manifest.FeatureSchemaVersion.ToString(),
+            manifest.FeatureEncodingMode ?? "",
+            (decisionProfile ?? "").Trim().ToLowerInvariant(),
+            options.StateDimensions.ToString(),
+            options.ActionDimensions.ToString()
+        }));
+    }
+
+    public static string TeacherCompatibilityKey(
+        string corpusCompatibilityKey,
+        CombatTransformerTeacherOptions options)
+    {
+        return Hash(string.Join("|", new[]
+        {
+            CombatTransformerWorldModelProtocol.Model,
+            corpusCompatibilityKey ?? "",
+            options.HiddenDimensions.ToString(),
+            options.Layers.ToString(),
+            options.AttentionHeads.ToString(),
+            options.FeedForwardDimensions.ToString(),
+            options.HistoryLength.ToString()
+        }));
+    }
+
+    private static string Hash(string value)
+    {
+        byte[] digest;
+        using (var sha256 = SHA256.Create())
+        {
+            digest = sha256.ComputeHash(Encoding.UTF8.GetBytes(value));
+        }
+        var builder = new StringBuilder(digest.Length * 2);
+        foreach (var item in digest)
+        {
+            builder.Append(item.ToString("X2"));
+        }
+        return builder.ToString();
+    }
+}
+
 public sealed class CombatTransformerTeacherOptions
 {
     public string Backend { get; set; } =
@@ -45,9 +107,9 @@ public sealed class CombatTransformerTeacherOptions
 
     public int BatchSize { get; set; } = 64;
 
-    public int StateDimensions { get; set; } = 128;
+    public int StateDimensions { get; set; } = 1024;
 
-    public int ActionDimensions { get; set; } = 128;
+    public int ActionDimensions { get; set; } = 1024;
 
     public int HiddenDimensions { get; set; } = 384;
 
@@ -59,7 +121,7 @@ public sealed class CombatTransformerTeacherOptions
 
     public int HistoryLength { get; set; } = 12;
 
-    public int MinimumFrames { get; set; } = 1024;
+    public int MinimumFrames { get; set; } = 4096;
 
     public int MaximumFrames { get; set; } = 10000;
 
@@ -115,8 +177,8 @@ public sealed class CombatTransformerTeacherOptions
             : PythonExecutable.Trim();
         Epochs = Math.Max(1, Math.Min(100, Epochs));
         BatchSize = Math.Max(8, Math.Min(512, BatchSize));
-        StateDimensions = Math.Max(32, Math.Min(256, StateDimensions));
-        ActionDimensions = Math.Max(32, Math.Min(256, ActionDimensions));
+        StateDimensions = Math.Max(32, Math.Min(2048, StateDimensions));
+        ActionDimensions = Math.Max(32, Math.Min(2048, ActionDimensions));
         HiddenDimensions = Math.Max(32, Math.Min(512, HiddenDimensions));
         Layers = Math.Max(1, Math.Min(6, Layers));
         AttentionHeads = Math.Max(1, Math.Min(16, AttentionHeads));
@@ -196,6 +258,10 @@ public sealed class CombatTransformerTeacherContext
         Array.Empty<CombatEpisode>();
 
     public CombatTransformerTeacherOptions Options { get; set; } = new();
+
+    public string CorpusCompatibilityKey { get; set; } = "";
+
+    public string TeacherCompatibilityKey { get; set; } = "";
 
     public Action<CombatTransformerTeacherProgress>? Progress { get; set; }
 }
@@ -305,6 +371,18 @@ public sealed class CombatTransformerTeacherReport
 
     public int FrameCount { get; set; }
 
+    public int CurrentFrameCount { get; set; }
+
+    public int ReusedCorpusFrames { get; set; }
+
+    public int DeduplicatedCorpusFrames { get; set; }
+
+    public int DroppedCorpusFrames { get; set; }
+
+    public string CorpusCompatibilityKey { get; set; } = "";
+
+    public string TeacherCompatibilityKey { get; set; } = "";
+
     public int AnnotatedFrames { get; set; }
 
     public int AnnotatedCandidates { get; set; }
@@ -314,6 +392,12 @@ public sealed class CombatTransformerTeacherReport
     public int DistillationValidationFrames { get; set; }
 
     public double DistillationUtilization { get; set; }
+
+    public double EffectiveDistillationWeight { get; set; }
+
+    public bool DistillationStudentGuardApplied { get; set; }
+
+    public string DistillationStudentGuardReason { get; set; } = "";
 
     public int TrainingFrames { get; set; }
 

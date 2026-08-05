@@ -32,6 +32,13 @@ if (!File.Exists(packagePath) || !Directory.Exists(sharedRoot))
     Console.Error.WriteLine("Package or AuraShared root does not exist.");
     return 2;
 }
+if (!CombatFoundationModelPackageProtocol.TryValidateSerializedSize(
+        new FileInfo(packagePath).Length,
+        out var packageSizeDiagnostic))
+{
+    Console.Error.WriteLine("Package size validation failed: " + packageSizeDiagnostic);
+    return 3;
+}
 
 var utf8 = new UTF8Encoding(false, true);
 var packageJson = File.ReadAllText(packagePath, utf8);

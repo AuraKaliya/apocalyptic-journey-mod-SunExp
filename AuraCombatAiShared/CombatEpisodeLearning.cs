@@ -12,7 +12,7 @@ public static class CombatPolicyValueProtocol
     public const int FeatureSchemaVersion = 26;
 
     public const string TrainingSemanticsVersion =
-        "content-set-quantile-q-role-quota-risk-aux-fixed-anchor-promotion-v19";
+        "content-set-quantile-q-role-quota-risk-aux-fixed-anchor-promotion-v20";
 }
 
 public static class CombatPolicyValueFrameStratificationProtocol
@@ -192,11 +192,11 @@ public sealed class CombatPolicyValueTrainingOptions
 
     public double L2 { get; set; } = 0.0015d;
 
-    public int StateDimensions { get; set; } = 256;
+    public int StateDimensions { get; set; } = 1024;
 
-    public int ActionDimensions { get; set; } = 192;
+    public int ActionDimensions { get; set; } = 1024;
 
-    public int HiddenDimensions { get; set; } = 64;
+    public int HiddenDimensions { get; set; } = 512;
 
     public int ActionQuantileCount { get; set; } = 16;
 
@@ -273,9 +273,9 @@ public sealed class CombatPolicyValueTrainingOptions
             Epochs = Math.Max(5, Math.Min(500, Epochs)),
             LearningRate = Clamp(LearningRate, 0.0001d, 0.1d, 0.00625d),
             L2 = Clamp(L2, 0d, 0.05d, 0.0015d),
-            StateDimensions = Math.Max(16, Math.Min(512, StateDimensions)),
-            ActionDimensions = Math.Max(16, Math.Min(512, ActionDimensions)),
-            HiddenDimensions = Math.Max(8, Math.Min(256, HiddenDimensions)),
+            StateDimensions = Math.Max(16, Math.Min(2048, StateDimensions)),
+            ActionDimensions = Math.Max(16, Math.Min(2048, ActionDimensions)),
+            HiddenDimensions = Math.Max(8, Math.Min(1024, HiddenDimensions)),
             ActionQuantileCount = Math.Max(4, Math.Min(64, ActionQuantileCount)),
             ActionQuantileLossWeight = Clamp(
                 ActionQuantileLossWeight,

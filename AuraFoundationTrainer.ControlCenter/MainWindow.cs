@@ -75,6 +75,7 @@ internal sealed class MainWindow : Window
     private TextBlock transformerRuntimeStatus = null!;
     private CombatTransformerRuntimeProbe? transformerRuntimeProbe;
     private Button startButton = null!;
+    private Button freshStartButton = null!;
     private Button cancelButton = null!;
     private Button continueButton = null!;
     private Button openButton = null!;
@@ -351,9 +352,9 @@ internal sealed class MainWindow : Window
         AddDouble(panel, "ModelLearningRate", "学习率");
         AddNumber(panel, "ModelMaximumFramesPerEpisode", "Frames per episode", 8, 512);
         AddDouble(panel, "ModelL2", "L2");
-        AddNumber(panel, "ModelStateDimensions", "状态维度", 16, 512);
-        AddNumber(panel, "ModelActionDimensions", "动作维度", 16, 512);
-        AddNumber(panel, "ModelHiddenDimensions", "隐藏维度", 8, 256);
+        AddNumber(panel, "ModelStateDimensions", "状态维度", 16, 2048);
+        AddNumber(panel, "ModelActionDimensions", "动作维度", 16, 2048);
+        AddNumber(panel, "ModelHiddenDimensions", "隐藏维度", 8, 1024);
 
         panel.Children.Add(Section("Transformer 教师蒸馏"));
         AddTransformerBackendSelect(panel);
@@ -361,8 +362,8 @@ internal sealed class MainWindow : Window
         transformerRuntimeStatus = Hint(panel, "等待检测 Python/PyTorch 运行时……");
         AddNumber(panel, "TransformerTeacherEpochs", "教师 Epoch", 1, 100);
         AddNumber(panel, "TransformerTeacherBatchSize", "教师 Minibatch", 8, 512);
-        AddNumber(panel, "TransformerTeacherStateDimensions", "教师状态维度", 32, 256);
-        AddNumber(panel, "TransformerTeacherActionDimensions", "教师动作维度", 32, 256);
+        AddNumber(panel, "TransformerTeacherStateDimensions", "教师状态维度", 32, 2048);
+        AddNumber(panel, "TransformerTeacherActionDimensions", "教师动作维度", 32, 2048);
         AddNumber(panel, "TransformerTeacherHiddenDimensions", "教师隐藏维度", 32, 512);
         AddNumber(panel, "TransformerTeacherLayers", "Transformer 层数", 1, 6);
         AddNumber(panel, "TransformerTeacherAttentionHeads", "注意力头数", 1, 16);
@@ -496,6 +497,8 @@ internal sealed class MainWindow : Window
         AddDouble(panel, "AdvancedAcceptanceRate", "高级验收率");
         AddNumber(panel, "MinimumArenaDiscordantPairs", "竞技场最少分歧对", 1, 128);
         AddDouble(panel, "MaximumOfflineHeadRegression", "离线单头最大回退");
+        AddDouble(panel, "MaximumStateFeatureCollisionRate", "状态特征最大碰撞率");
+        AddDouble(panel, "MaximumActionFeatureCollisionRate", "动作特征最大碰撞率");
         AddDouble(panel, "SuccessExpertReplayShare", "成功教师回放占比");
         AddDouble(panel, "HardSeedReplayShare", "困难种子占比");
         AddDouble(
@@ -522,16 +525,20 @@ internal sealed class MainWindow : Window
             Margin = new Thickness(0, 16, 0, 20)
         };
         startButton = ActionButton(
-            "开始 / 恢复训练",
+            "恢复兼容训练",
             StartTraining,
             TrainerButtonTone.Primary);
-        continueButton = ActionButton("以上轮 Champion 继续", ContinueTraining);
+        freshStartButton = ActionButton("重新开始", FreshStartTraining);
+        continueButton = ActionButton(
+            "以上轮 Champion 开新一代",
+            ContinueTraining);
         cancelButton = ActionButton(
             "安全取消",
             CancelTraining,
             TrainerButtonTone.Danger);
         openButton = ActionButton("打开运行目录", OpenRunDirectory);
         actions.Children.Add(startButton);
+        actions.Children.Add(freshStartButton);
         actions.Children.Add(continueButton);
         actions.Children.Add(cancelButton);
         actions.Children.Add(openButton);
@@ -663,7 +670,13 @@ internal sealed class MainWindow : Window
             {
                 return;
             }
-            StartWorker(initialChampion: null, continueGeneration: false);
+            StartWorker(
+                initialChampion: null,
+                continueGeneration: false,
+                resumeFromCheckpoint: true,
+                requireCompatibleResume: true,
+                resetCheckpointOnFreshStart: false,
+                requestedStartMode: "resume-required");
         }
         catch (Exception ex)
         {
@@ -761,23 +774,60 @@ internal sealed class MainWindow : Window
             return true;
         }
 
-        var message =
-            "检测到上一轮可恢复检查点与当前训练参数不同。"
-            + Environment.NewLine
-            + "为避免把不同目标混入同一权重，本轮将从新模型开始，成功案例库仍会复用。"
+        MessageBox.Show(
+            this,
+            "检测到上一轮可恢复任务与当前训练参数不同，不能按恢复模式启动。"
             + Environment.NewLine
             + Environment.NewLine
             + string.Join(Environment.NewLine, differences.Take(8))
             + Environment.NewLine
             + Environment.NewLine
-            + "是否按当前参数开始全新训练？";
-        return MessageBox.Show(
-                   this,
-                   message,
-                   "训练参数已变化",
-                   MessageBoxButton.YesNo,
-                   MessageBoxImage.Warning)
-               == MessageBoxResult.Yes;
+            + "如需采用当前参数，请使用“重新开始”。",
+            "没有兼容的恢复任务",
+            MessageBoxButton.OK,
+            MessageBoxImage.Warning);
+        return false;
+    }
+
+    private void FreshStartTraining()
+    {
+        try
+        {
+            PullSettingsFromUi();
+            ValidateEnvironment(throwOnFailure: true);
+            var confirmed = MessageBox.Show(
+                this,
+                "将从随机初始化开始，并替换当前游戏主体的活动检查点。"
+                + Environment.NewLine
+                + "历史运行结果、累计教师语料和成功案例库不会删除。"
+                + Environment.NewLine
+                + Environment.NewLine
+                + "是否继续？",
+                "确认重新开始",
+                MessageBoxButton.YesNo,
+                MessageBoxImage.Warning);
+            if (confirmed != MessageBoxResult.Yes)
+            {
+                return;
+            }
+            StartWorker(
+                initialChampion: null,
+                continueGeneration: false,
+                resumeFromCheckpoint: false,
+                requireCompatibleResume: false,
+                resetCheckpointOnFreshStart: true,
+                requestedStartMode: "fresh");
+        }
+        catch (Exception ex)
+        {
+            AppendLog("无法重新开始训练：" + ex.Message);
+            MessageBox.Show(
+                this,
+                ex.Message,
+                "无法重新开始训练",
+                MessageBoxButton.OK,
+                MessageBoxImage.Error);
+        }
     }
 
     private static void AddDifference<T>(
@@ -858,7 +908,13 @@ internal sealed class MainWindow : Window
                 throw new InvalidOperationException(
                     "当前游戏主体与上一轮 Champion 不一致；请开始新的训练任务");
             }
-            StartWorker(champion, continueGeneration: true);
+            StartWorker(
+                champion,
+                continueGeneration: true,
+                resumeFromCheckpoint: false,
+                requireCompatibleResume: false,
+                resetCheckpointOnFreshStart: true,
+                requestedStartMode: "champion-seed");
         }
         catch (Exception ex)
         {
@@ -870,7 +926,11 @@ internal sealed class MainWindow : Window
 
     private void StartWorker(
         CombatPolicyValueNetworkDefinition? initialChampion,
-        bool continueGeneration)
+        bool continueGeneration,
+        bool resumeFromCheckpoint,
+        bool requireCompatibleResume,
+        bool resetCheckpointOnFreshStart,
+        string requestedStartMode)
     {
         if (IsWorkerRunning())
         {
@@ -975,6 +1035,10 @@ internal sealed class MainWindow : Window
                 Ruleset = rulesetDocument,
                 InitialChampion = initialChampion
             });
+        job.ResumeFromCheckpoint = resumeFromCheckpoint;
+        job.RequireCompatibleResume = requireCompatibleResume;
+        job.ResetCheckpointOnFreshStart = resetCheckpointOnFreshStart;
+        job.RequestedStartMode = requestedStartMode;
         var jobPath = Path.Combine(resultDirectory, "foundation-worker-job.json");
         WriteAtomic(jobPath, Serialize(job));
         TryDelete(job.CancellationPath);
@@ -1002,7 +1066,9 @@ internal sealed class MainWindow : Window
         SaveSession();
         SaveSettings();
         AppendLog(
-            "训练已启动："
+            "训练已启动：模式="
+            + requestedStartMode
+            + "，"
             + jobId
             + "，主体="
             + trainingCampaign.Player.RoleId
@@ -1060,6 +1126,7 @@ internal sealed class MainWindow : Window
             ? RunningRefreshInterval
             : IdleRefreshInterval;
         startButton.IsEnabled = !running;
+        freshStartButton.IsEnabled = !running;
         continueButton.IsEnabled = !running;
         cancelButton.IsEnabled = running;
         openButton.IsEnabled = Directory.Exists(session.ResultDirectory);
@@ -1109,7 +1176,7 @@ internal sealed class MainWindow : Window
                         job.ProgressPath));
                 if (progress?.Telemetry != null)
                 {
-                    PresentTelemetry(progress.Telemetry, running);
+                    PresentTelemetry(progress.Telemetry, running, progress);
                 }
             }
             catch (IOException)
@@ -1125,22 +1192,44 @@ internal sealed class MainWindow : Window
 
     private void PresentTelemetry(
         CombatCampaignFoundationTelemetry telemetry,
-        bool running)
+        bool running,
+        CombatFoundationWorkerProgress progress)
     {
+        var runIteration = telemetry.RunTotalIterations > 0
+            ? Math.Max(0, telemetry.RunIteration)
+            : Math.Max(0, telemetry.Iteration);
+        var runIterations = telemetry.RunTotalIterations > 0
+            ? telemetry.RunTotalIterations
+            : Math.Max(1, telemetry.TotalIterations);
+        var globalIterationText = telemetry.RunStartIteration > 1
+            ? "（模型全局第 "
+              + telemetry.Iteration
+              + "/"
+              + telemetry.TotalIterations
+              + " 轮）"
+            : "";
         runStatus.Text = (running ? "运行中 · " : "")
                          + FriendlyStage(telemetry.Stage)
-                         + " · 第 "
-                         + telemetry.Iteration
+                         + " · 本次第 "
+                         + runIteration
                          + "/"
-                         + telemetry.TotalIterations
-                         + " 轮";
+                         + runIterations
+                         + " 轮"
+                         + globalIterationText;
         runStatus.Foreground =
             running ? TrainerTheme.Accent : TrainerTheme.Text;
         var transformerTeacherPhase = string.Equals(
             telemetry.Phase,
             "transformer-teacher",
             StringComparison.Ordinal);
-        var total = Math.Max(1, telemetry.RequestedCampaigns);
+        var total = Math.Max(
+            1,
+            telemetry.RunRequestedCampaigns > 0
+                ? telemetry.RunRequestedCampaigns
+                : telemetry.RequestedCampaigns);
+        var completed = telemetry.RunRequestedCampaigns > 0
+            ? telemetry.RunCompletedCampaigns
+            : telemetry.CompletedCampaigns;
         progressBar.Value = Math.Max(
             0,
             Math.Min(
@@ -1149,7 +1238,7 @@ internal sealed class MainWindow : Window
                 && telemetry.TransformerTeacherTotalFrames > 0
                     ? telemetry.TransformerTeacherCompletedFrames * 100d
                       / telemetry.TransformerTeacherTotalFrames
-                    : telemetry.CompletedCampaigns * 100d / total));
+                    : completed * 100d / total));
         progressPrimary.Text = transformerTeacherPhase
             ? "教师阶段 "
               + FriendlyTeacherStage(telemetry.TransformerTeacherStage)
@@ -1159,8 +1248,10 @@ internal sealed class MainWindow : Window
               + telemetry.TransformerTeacherTotalFrames
               + " · "
               + telemetry.TransformerTeacherMessage
-            : $"冒险 {telemetry.CompletedCampaigns}/{telemetry.RequestedCampaigns} · "
-              + $"战斗 {telemetry.CompletedBattles} · 深度 "
+            : $"本次冒险 {completed}/{total} · "
+              + $"累计 {telemetry.CompletedCampaigns}/{telemetry.RequestedCampaigns} · "
+              + $"本次战斗 {telemetry.RunCompletedBattles}"
+              + $"/累计 {telemetry.CompletedBattles} · 深度 "
               + $"{telemetry.MaximumActiveBattleDepth}/{telemetry.MaximumCompletedBattleDepth}/37";
         var executionSummary =
             $"{telemetry.GovernanceProfile} · "
@@ -1210,7 +1301,8 @@ internal sealed class MainWindow : Window
               + $"ETA {FormatDuration(telemetry.EstimatedRemainingSeconds)}";
         logBox.Text =
             $"阶段：{telemetry.Stage} / {telemetry.Phase}\r\n"
-            + $"搜索：{telemetry.SearchSimulations:N0} 次，"
+            + $"搜索：本次 {telemetry.RunSearchSimulations:N0} / "
+            + $"累计 {telemetry.SearchSimulations:N0} 次，"
             + $"{telemetry.SearchSimulationsPerSecond:N0}/秒，"
             + $"提前停止 {telemetry.SearchEarlyStops}\r\n"
             + $"决策：avg={AverageSearchMilliseconds(telemetry):0.00}ms，"
@@ -1234,8 +1326,30 @@ internal sealed class MainWindow : Window
             + "\r\n"
             + $"GC：{telemetry.Gen0Collections}/"
             + $"{telemetry.Gen1Collections}/{telemetry.Gen2Collections}\r\n"
-            + $"更新时间：{DateTime.Now:HH:mm:ss}";
+            + ProgressFreshnessText(progress);
         diagnostics.PresentTelemetry(telemetry);
+    }
+
+    private static string ProgressFreshnessText(
+        CombatFoundationWorkerProgress progress)
+    {
+        var now = DateTime.UtcNow;
+        var telemetryUtc = progress.TelemetryUpdatedUtc == default
+            ? progress.UpdatedUtc
+            : progress.TelemetryUpdatedUtc;
+        var heartbeatUtc = progress.UpdatedUtc == default
+            ? telemetryUtc
+            : progress.UpdatedUtc;
+        var age = Math.Max(0d, (now - telemetryUtc).TotalSeconds);
+        return "数据更新："
+               + telemetryUtc.ToLocalTime().ToString("HH:mm:ss")
+               + "（"
+               + age.ToString("0.0")
+               + " 秒前，序号 "
+               + progress.TelemetrySequence
+               + "） · 心跳："
+               + heartbeatUtc.ToLocalTime().ToString("HH:mm:ss")
+               + (progress.HeartbeatOnly ? "（仅存活）" : "");
     }
 
     private static string PerformanceProbeSummary(
@@ -1328,6 +1442,7 @@ internal sealed class MainWindow : Window
         }
         logBox.Text =
             $"完成类型：{result.CompletionKind}\r\n"
+            + $"启动模式：{StartModeText(result)}\r\n"
             + $"Worker 已完成：{result.WorkerCompleted}\r\n"
             + $"训练成功：{result.TrainingSucceeded}\r\n"
             + $"模型已接受：{result.ModelAccepted}\r\n"
@@ -1513,6 +1628,13 @@ internal sealed class MainWindow : Window
                   + teacher.AnnotatedFrames
                   + "（"
                   + teacher.DistillationUtilization.ToString("P1")
+                  + " | DistillWeight "
+                  + teacher.EffectiveDistillationWeight.ToString("0.00")
+                  + (teacher.DistillationStudentGuardApplied
+                      ? " (student guard: "
+                        + teacher.DistillationStudentGuardReason
+                        + ")"
+                      : "")
                   + "） · 锚点 "
                   + teacher.AnchorValidationFrames
                   + " · 漂移 "
@@ -1548,13 +1670,45 @@ internal sealed class MainWindow : Window
               + " · "
               + result.CheckpointSerializationSeconds.ToString("0.0")
               + "s";
-        return validationText
+        return "启动模式 · "
+               + StartModeText(result)
+               + Environment.NewLine
+               + validationText
                + teacherText
                + checkpointText
                + Environment.NewLine
                + result.Message
                + Environment.NewLine
                + recoveryText;
+    }
+
+    private static string StartModeText(
+        ControllerWorkerResultSummary result)
+    {
+        var requested = result.RequestedStartMode switch
+        {
+            "resume-required" => "恢复兼容训练",
+            "fresh" => "重新开始",
+            "champion-seed" => "以上轮 Champion 开新一代",
+            "auto-resume" => "旧版自动恢复",
+            _ => string.IsNullOrWhiteSpace(result.RequestedStartMode)
+                ? "旧版未记录"
+                : result.RequestedStartMode
+        };
+        var effective = result.EffectiveStartMode switch
+        {
+            "checkpoint" => "活动检查点恢复",
+            "historical-working" => "历史 Working Model 恢复",
+            "fresh" => "全新初始化",
+            "cancelled" => "启动中取消",
+            "failed" => "启动失败",
+            _ => result.ResumedFromCheckpoint
+                ? "恢复训练"
+                : result.ResumeRequested
+                    ? "未能恢复"
+                    : "未记录"
+        };
+        return requested + " → " + effective;
     }
 
     private static string FormatLoss(double value)
@@ -1658,8 +1812,8 @@ internal sealed class MainWindow : Window
             settings.Parameters.TransformerPythonExecutable = "python";
             settings.Parameters.TransformerTeacherEpochs = 12;
             settings.Parameters.TransformerTeacherBatchSize = 64;
-            settings.Parameters.TransformerTeacherStateDimensions = 128;
-            settings.Parameters.TransformerTeacherActionDimensions = 128;
+            settings.Parameters.TransformerTeacherStateDimensions = 1024;
+            settings.Parameters.TransformerTeacherActionDimensions = 1024;
             settings.Parameters.TransformerTeacherHiddenDimensions = 384;
             settings.Parameters.TransformerTeacherLayers = 6;
             settings.Parameters.TransformerTeacherAttentionHeads = 8;
@@ -1669,9 +1823,9 @@ internal sealed class MainWindow : Window
             settings.Parameters.TransformerTeacherCpuThreads = 0;
             settings.Parameters.TransformerDistillationWeight = 0.35d;
             settings.Parameters.ModelMaximumUnsafeEndTurnFrameShare = 0.35d;
-            settings.Parameters.ModelStateDimensions = 256;
-            settings.Parameters.ModelActionDimensions = 256;
-            settings.Parameters.ModelHiddenDimensions = 64;
+            settings.Parameters.ModelStateDimensions = 1024;
+            settings.Parameters.ModelActionDimensions = 1024;
+            settings.Parameters.ModelHiddenDimensions = 512;
         }
         if (loadedSchemaVersion < 10)
         {
@@ -1723,6 +1877,8 @@ internal sealed class MainWindow : Window
             settings.Parameters.ModelUnsafeEndTurnRiskAuxiliaryShare = 0.10d;
             settings.Parameters.MinimumArenaDiscordantPairs = 8;
             settings.Parameters.MaximumOfflineHeadRegression = 0.05d;
+            settings.Parameters.MaximumStateFeatureCollisionRate = 0.20d;
+            settings.Parameters.MaximumActionFeatureCollisionRate = 0.06d;
             settings.Parameters.TransformerTeacherMaximumFrames = 10000;
             settings.Parameters.TransformerTeacherMinimumFrames = 4096;
             settings.Parameters.TransformerTeacherCpuRefreshInterval = 4;
@@ -1737,11 +1893,31 @@ internal sealed class MainWindow : Window
             settings.Parameters.TransformerTeacherMaximumHeadRegression =
                 0.05d;
         }
+        if (loadedSchemaVersion < 13)
+        {
+            settings.Parameters.ModelStateDimensions = 1024;
+            settings.Parameters.ModelActionDimensions = 1024;
+            settings.Parameters.ModelHiddenDimensions = 512;
+            settings.Parameters.TransformerTeacherStateDimensions = 1024;
+            settings.Parameters.TransformerTeacherActionDimensions = 1024;
+            settings.Parameters.TransformerTeacherHiddenDimensions = 384;
+            settings.Parameters.TransformerTeacherMinimumFrames = 4096;
+            settings.Parameters.TransformerTeacherMaximumFrames = 10000;
+            settings.Parameters.MinimumAdvancedReplayShare = Math.Max(
+                0.40d,
+                settings.Parameters.MinimumAdvancedReplayShare);
+            settings.Parameters.MinimumAdvancedDefeatReplayShare = Math.Max(
+                0.25d,
+                settings.Parameters.MinimumAdvancedDefeatReplayShare);
+            settings.Parameters.MinimumArenaDiscordantPairs = 8;
+            settings.Parameters.MaximumStateFeatureCollisionRate = 0.20d;
+            settings.Parameters.MaximumActionFeatureCollisionRate = 0.06d;
+        }
         settings.GameSubject ??= LoadDefaultGameSubject(modRoot);
         settings.GameSubject.Normalize();
         gameSubjectCatalog = LoadGameSubjectCatalog(modRoot);
         gameSubjectCatalog.ResolveReferences(settings.GameSubject);
-        settings.SchemaVersion = 12;
+        settings.SchemaVersion = 13;
         settings.Parameters.Normalized();
         if (File.Exists(readPath)
             && !string.Equals(
@@ -2056,6 +2232,10 @@ internal sealed class MainWindow : Window
         p.MinimumArenaDiscordantPairs = Int("MinimumArenaDiscordantPairs");
         p.MaximumOfflineHeadRegression =
             Double("MaximumOfflineHeadRegression");
+        p.MaximumStateFeatureCollisionRate =
+            Double("MaximumStateFeatureCollisionRate");
+        p.MaximumActionFeatureCollisionRate =
+            Double("MaximumActionFeatureCollisionRate");
         p.SuccessExpertReplayShare = Double("SuccessExpertReplayShare");
         p.HardSeedReplayShare = Double("HardSeedReplayShare");
         p.MinimumAdvancedReplayShare =
@@ -2271,6 +2451,12 @@ internal sealed class MainWindow : Window
         Set(
             "MaximumOfflineHeadRegression",
             p.MaximumOfflineHeadRegression);
+        Set(
+            "MaximumStateFeatureCollisionRate",
+            p.MaximumStateFeatureCollisionRate);
+        Set(
+            "MaximumActionFeatureCollisionRate",
+            p.MaximumActionFeatureCollisionRate);
         Set("SuccessExpertReplayShare", p.SuccessExpertReplayShare);
         Set("HardSeedReplayShare", p.HardSeedReplayShare);
         Set(
@@ -2801,6 +2987,18 @@ internal sealed class MainWindow : Window
                                                    reader.Value,
                                                    CultureInfo.InvariantCulture)
                                                ?? "";
+                    break;
+                case nameof(ControllerWorkerResultSummary.RequestedStartMode):
+                    summary.RequestedStartMode = Convert.ToString(
+                                                     reader.Value,
+                                                     CultureInfo.InvariantCulture)
+                                                 ?? "";
+                    break;
+                case nameof(ControllerWorkerResultSummary.EffectiveStartMode):
+                    summary.EffectiveStartMode = Convert.ToString(
+                                                     reader.Value,
+                                                     CultureInfo.InvariantCulture)
+                                                 ?? "";
                     break;
                 case nameof(ControllerWorkerResultSummary.Resumable):
                     summary.Resumable = Convert.ToBoolean(
@@ -3374,6 +3572,7 @@ internal sealed class MainWindow : Window
     private void SetIdleButtons()
     {
         startButton.IsEnabled = true;
+        freshStartButton.IsEnabled = true;
         continueButton.IsEnabled = !string.IsNullOrWhiteSpace(
             settings.LastRunDirectory);
         cancelButton.IsEnabled = false;
@@ -3423,7 +3622,10 @@ internal sealed class MainWindow : Window
             "launching" => "启动运行时",
             "configuring" => "配置运行时",
             "loading" => "读取数据",
+            "indexing" => "建立序列索引",
             "preparing" => "张量化",
+            "merging" => "合并累计语料",
+            "merged" => "累计语料就绪",
             "calibrating" => "自动调优",
             "training" => "模型训练",
             "evaluating" => "离线评估",

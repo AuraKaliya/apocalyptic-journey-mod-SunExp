@@ -110,6 +110,22 @@ public sealed class CombatFoundationCampaignObservation
     public List<string> Blessings { get; set; } = new();
 
     public List<string> SelectedCards { get; set; } = new();
+
+    public List<CombatFoundationRewardChoiceObservation> RewardChoices {
+        get;
+        set;
+    } = new();
+}
+
+public sealed class CombatFoundationRewardChoiceObservation
+{
+    public string RewardId { get; set; } = "";
+
+    public int EncounterIndex { get; set; }
+
+    public string DifficultyId { get; set; } = "normal";
+
+    public string PrimaryArchetype { get; set; } = "";
 }
 
 public sealed class CombatFoundationSuccessCase
@@ -155,6 +171,9 @@ public sealed class CombatFoundationRewardResidualTrainingResult
     public Dictionary<string, double> Residuals { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
 
+    public Dictionary<string, double> ConditionalResiduals { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public int EligibleObservations { get; set; }
 
     public int SuccessfulObservations { get; set; }
@@ -170,6 +189,12 @@ public sealed class CombatFoundationRewardResidualTrainingResult
     public int RelicResiduals { get; set; }
 
     public int BlessingResiduals { get; set; }
+
+    public int ConditionalResidualCount { get; set; }
+
+    public bool ConditionalCurriculumOnly { get; set; }
+
+    public string ConditionalCurriculumReason { get; set; } = "";
 }
 
 public sealed class CombatFoundationCaseArchiveLoadDiagnostics
@@ -304,7 +329,7 @@ public sealed class CombatFoundationCaseAnalysis
 
 public static class CombatFoundationCaseLearning
 {
-    public const int ArchiveSchemaVersion = 4;
+    public const int ArchiveSchemaVersion = 5;
 
     public static CombatFoundationCampaignObservation Observe(
         CombatCampaignResult campaign,
@@ -350,6 +375,19 @@ public static class CombatFoundationCaseLearning
                            && !string.IsNullOrWhiteSpace(item.SelectedId))
             .Select(item => item.SelectedId.Trim())
             .ToList();
+        var primaryArchetype = ResolveBuildArchetype(campaign.FinalState);
+        var rewardChoices = campaign.Rewards
+            .SelectMany(reward => reward.Cards
+                .Where(card => !card.Skipped
+                               && !string.IsNullOrWhiteSpace(card.SelectedId))
+                .Select(card => new CombatFoundationRewardChoiceObservation
+                {
+                    RewardId = card.SelectedId.Trim(),
+                    EncounterIndex = reward.EncounterIndex,
+                    DifficultyId = campaign.DifficultyId,
+                    PrimaryArchetype = primaryArchetype
+                }))
+            .ToList();
         var finalDeck = new List<string>(campaign.FinalState.Deck);
         var rulesHash = string.IsNullOrWhiteSpace(rulesetHash)
             ? campaign.Battles.FirstOrDefault()?.RulesetHash ?? ""
@@ -377,7 +415,7 @@ public static class CombatFoundationCaseLearning
             + "|reward-packs="
             + StableMultiset(campaign.EnabledRewardCardPackIds)
             + "|"
-            + campaign.FinalState.BuildPlan.PrimaryArchetype
+            + primaryArchetype
             + "|"
             + campaign.FinalState.BuildPlan.SecondaryArchetype
             + "|deck="
@@ -464,7 +502,7 @@ public static class CombatFoundationCaseLearning
             ProgressionSemanticCoverage = campaign.ProgressionSemanticCoverage,
             StrategyFingerprint = strategyFingerprint,
             PrimaryArchetype =
-                campaign.FinalState.BuildPlan.PrimaryArchetype ?? "",
+                primaryArchetype,
             SecondaryArchetype =
                 campaign.FinalState.BuildPlan.SecondaryArchetype ?? "",
             FinalDeck = finalDeck,
@@ -477,10 +515,57 @@ public static class CombatFoundationCaseLearning
                 new List<string>(campaign.EnabledRewardCardPackIds),
             Relics = new List<string>(campaign.FinalState.Relics),
             Blessings = new List<string>(campaign.FinalState.Blessings),
-            SelectedCards = selectedCards
+            SelectedCards = selectedCards,
+            RewardChoices = rewardChoices
         };
         observation.RobustnessScore = Robustness(observation);
         return observation;
+    }
+
+    internal static string ResolveBuildArchetype(CombatCampaignState state)
+    {
+        var configured = (state.BuildPlan?.PrimaryArchetype ?? "").Trim();
+        if (!string.IsNullOrWhiteSpace(configured)
+            && !string.Equals(
+                configured,
+                "reliability",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            return configured;
+        }
+        var families = (state.Deck ?? new List<string>())
+            .Concat(state.ReserveCards ?? new List<string>())
+            .Select(CardFamily)
+            .Where(item => !string.IsNullOrWhiteSpace(item))
+            .GroupBy(item => item, StringComparer.OrdinalIgnoreCase)
+            .Select(group => new { Family = group.Key, Count = group.Count() })
+            .OrderByDescending(item => item.Count)
+            .ThenBy(item => item.Family, StringComparer.Ordinal)
+            .FirstOrDefault();
+        if (families != null && families.Count >= 2)
+        {
+            return families.Family;
+        }
+        var secondary = (state.BuildPlan?.SecondaryArchetype ?? "").Trim();
+        return string.IsNullOrWhiteSpace(secondary) ? "reliability" : secondary;
+    }
+
+    private static string CardFamily(string? cardId)
+    {
+        var id = (cardId ?? "").Trim().ToLowerInvariant();
+        if (id.Contains("burningcard")) return "burning";
+        if (id.Contains("elementscard")) return "elements";
+        if (id.Contains("blood_")) return "blood";
+        if (id.Contains("ritualcard")) return "ritual";
+        if (id.Contains("crowdfundingcard")) return "economy";
+        if (id.Contains("counterattackcard")) return "counterattack";
+        if (id.Contains("timekeeper") || id.Contains("returnagain"))
+        {
+            return "tempo";
+        }
+        if (id.Contains("spellcard")) return "spell";
+        if (id.Contains("nocard")) return "empty-hand";
+        return "";
     }
 
     private static int ResolveSpecialVariable(
@@ -771,19 +856,22 @@ public static class CombatFoundationCaseLearning
             double maximumAbsoluteResidual = 0.20d)
     {
         var maximum = Math.Max(0d, Math.Min(0.50d, maximumAbsoluteResidual));
-        var eligible = (source
-                        ?? Array.Empty<CombatFoundationCampaignObservation>())
+        var observations = (source
+                            ?? Array.Empty<CombatFoundationCampaignObservation>())
             .Where(item =>
                 item != null
                 && item.IntegrityValid
                 && !(item.SourceStage ?? "").StartsWith(
                     "validation",
-                    StringComparison.OrdinalIgnoreCase)
-                && item.CompletedBattles >= Math.Max(
-                    1,
-                    minimumCompletedBattles))
+                    StringComparison.OrdinalIgnoreCase))
             .GroupBy(item => item.CaseId, StringComparer.Ordinal)
             .Select(group => group.First())
+            .ToList();
+        var eligible = observations
+            .Where(item =>
+                item.CompletedBattles >= Math.Max(
+                    1,
+                    minimumCompletedBattles))
             .ToList();
         var successes = eligible.Where(item => item.FinalBossVictory).ToList();
         var failures = eligible.Where(item => !item.FinalBossVictory).ToList();
@@ -797,6 +885,16 @@ public static class CombatFoundationCaseLearning
         };
         if (successes.Count == 0 || failures.Count == 0 || maximum <= 0d)
         {
+            if (maximum > 0d)
+            {
+                TrainConditionalRewardResiduals(
+                    observations,
+                    Math.Max(4, minimumSupport / 4),
+                    maximum,
+                    result.ConditionalResiduals);
+                result.ConditionalResidualCount =
+                    result.ConditionalResiduals.Count;
+            }
             return result;
         }
         var ids = successes.SelectMany(SelectedRewardIds)
@@ -836,7 +934,127 @@ public static class CombatFoundationCaseLearning
             result.Residuals.Count
             - result.CardResiduals
             - result.RelicResiduals;
+        TrainConditionalRewardResiduals(
+            observations,
+            Math.Max(4, minimumSupport / 4),
+            maximum,
+            result.ConditionalResiduals);
+        result.ConditionalResidualCount = result.ConditionalResiduals.Count;
         return result;
+    }
+
+    private static void TrainConditionalRewardResiduals(
+        IReadOnlyList<CombatFoundationCampaignObservation> observations,
+        int minimumSupport,
+        double maximum,
+        IDictionary<string, double> destination)
+    {
+        var records = observations
+            .SelectMany(observation => (observation.RewardChoices
+                                         ?? new List<
+                                             CombatFoundationRewardChoiceObservation>())
+                .Where(choice => !string.IsNullOrWhiteSpace(choice.RewardId))
+                .GroupBy(choice => new
+                {
+                    Reward = choice.RewardId.Trim().ToLowerInvariant(),
+                    choice.EncounterIndex,
+                    Archetype = (choice.PrimaryArchetype ?? "")
+                        .Trim()
+                        .ToLowerInvariant()
+                })
+                .Select(group => new ConditionalRewardRecord
+                {
+                    RewardId = group.Key.Reward,
+                    DifficultyId =
+                        CombatRewardConditionalResidualProtocol
+                            .NormalizeDifficulty(observation.DifficultyId),
+                    EncounterBucket =
+                        CombatRewardConditionalResidualProtocol.EncounterBucket(
+                            group.Key.EncounterIndex),
+                    Archetype = string.IsNullOrWhiteSpace(group.Key.Archetype)
+                        ? "*"
+                        : group.Key.Archetype,
+                    Outcome = CampaignOutcomeQuality(observation)
+                }))
+            .ToList();
+        foreach (var specificity in new[] { "exact", "generic-build" })
+        {
+            foreach (var condition in records.GroupBy(record =>
+                         record.DifficultyId
+                         + "|"
+                         + record.EncounterBucket
+                         + "|"
+                         + (specificity == "exact" ? record.Archetype : "*"),
+                         StringComparer.Ordinal))
+            {
+                var baseline = condition.Average(item => item.Outcome);
+                foreach (var reward in condition.GroupBy(
+                             item => item.RewardId,
+                             StringComparer.OrdinalIgnoreCase))
+                {
+                    var support = reward.Count();
+                    if (support < minimumSupport)
+                    {
+                        continue;
+                    }
+                    var shrinkage = support / (support + 20d);
+                    var residual = Math.Max(
+                        -maximum,
+                        Math.Min(
+                            maximum,
+                            (reward.Average(item => item.Outcome) - baseline)
+                            * shrinkage));
+                    if (Math.Abs(residual) < 0.005d)
+                    {
+                        continue;
+                    }
+                    var sample = reward.First();
+                    var archetype = specificity == "exact"
+                        ? sample.Archetype
+                        : "*";
+                    destination[
+                        sample.RewardId
+                        + "|"
+                        + sample.DifficultyId
+                        + "|"
+                        + sample.EncounterBucket
+                        + "|"
+                        + archetype] = residual;
+                }
+            }
+        }
+    }
+
+    private static double CampaignOutcomeQuality(
+        CombatFoundationCampaignObservation observation)
+    {
+        if (observation.FinalBossVictory)
+        {
+            return 1d;
+        }
+        var depth = observation.CompletedBattles
+                    / (double)Math.Max(1, observation.TotalBattles);
+        var hp = observation.FinalMaxHp <= 0
+            ? 0d
+            : Math.Max(
+                0d,
+                Math.Min(
+                    1d,
+                    observation.FinalHp / (double)observation.FinalMaxHp));
+        return Math.Max(0d, Math.Min(0.95d, depth * 0.85d + hp * 0.15d));
+    }
+
+    private sealed class ConditionalRewardRecord
+    {
+        public string RewardId { get; set; } = "";
+
+        public string DifficultyId { get; set; } = "normal";
+
+        public string EncounterBucket { get; set; } = "opening";
+
+        public string Archetype { get; set; } = "*";
+
+        public double Outcome { get; set; }
     }
 
     private static IEnumerable<string> SelectedRewardIds(

@@ -308,11 +308,13 @@ if (-not $foundationControllerRuntime.Contains(
         -or -not $foundationControllerRuntime.Contains(
             "loadedSchemaVersion < 12") `
         -or -not $foundationControllerRuntime.Contains(
+            "loadedSchemaVersion < 13") `
+        -or -not $foundationControllerRuntime.Contains(
             "AdditionalIterationsOnResume") `
         -or -not $foundationControllerRuntime.Contains(
             "MinimumAdvancedDefeatReplayShare") `
         -or -not $foundationControllerModels.Contains(
-            "SchemaVersion { get; set; } = 12")) {
+            "SchemaVersion { get; set; } = 13")) {
     throw "Foundation controller resumable-training settings migration is missing."
 }
 foreach ($anchor in @(
@@ -331,9 +333,11 @@ foreach ($anchor in @(
     "ModelMaximumUnsafeEndTurnFrameShare = 0.20d",
     "ModelLearningRate = 0.004d",
     "ModelL2 = 0.002d",
-    "ModelStateDimensions = 256",
-    "ModelActionDimensions = 256",
-    "ModelHiddenDimensions = 64",
+    "ModelStateDimensions = 1024",
+    "ModelActionDimensions = 1024",
+    "ModelHiddenDimensions = 512",
+    "MaximumStateFeatureCollisionRate = 0.20d",
+    "MaximumActionFeatureCollisionRate = 0.06d",
     "TransformerTeacherEpochs = 12",
     "TransformerTeacherMinimumFrames = 4096",
     "TransformerTeacherMaximumFrames = 10000",
@@ -581,7 +585,7 @@ foreach ($anchor in @(
     "StopRunningTrainer",
     "Request-WorkerCancellation",
     "CancellationPath",
-    "AuraFoundationTrainer.Publish",
+    ".publish-staging",
     "Copy-PublishedFileWithRetry"
 )) {
     if (-not $foundationWorkerBuild.Contains($anchor)) {

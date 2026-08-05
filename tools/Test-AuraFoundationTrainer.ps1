@@ -218,7 +218,7 @@ try {
         TrainingCampaign = $campaign
         ValidationCampaign = $campaign
     }
-    $protocolVersion = 10
+    $protocolVersion = 11
     $job = [ordered]@{
         SchemaVersion = $protocolVersion
         JobId = "worker-smoke"
@@ -400,19 +400,21 @@ try {
     ).Count
     $generatedEpisodes = [int]$result.Training.GeneratedReplayEpisodes
     $persistedEpisodes = [int]$result.Training.PersistedReplayEpisodes
-    if ($result.Training.Success -and -not $PreflightOnly) {
+    $hasContinuableWorkingModel = $null -ne $result.Training.WorkingChampion
+    if (($result.Training.Success -or $hasContinuableWorkingModel) `
+        -and -not $PreflightOnly) {
         if ($persistedEpisodes -gt $generatedEpisodes `
             -or $persistedEpisodes -le 0 `
             -or $episodeCount -ne $persistedEpisodes) {
             throw (
-                "Successful training replay persistence mismatch: " `
+                "Accepted or Working training replay persistence mismatch: " `
                 + "generated=$generatedEpisodes, " `
                 + "persisted=$persistedEpisodes, file=$episodeCount")
         }
     }
     elseif ($persistedEpisodes -ne 0 -or $episodeCount -ne 0) {
         throw (
-            "Failed or preflight-only training must omit full replay data: " `
+            "Non-continuable or preflight-only training must omit full replay data: " `
             + "generated=$generatedEpisodes, " `
             + "persisted=$persistedEpisodes, file=$episodeCount")
     }
@@ -504,11 +506,11 @@ try {
                 -and [int]$_.PeakConcurrentWork -gt 0 `
                 -and [int]$_.ObservedWorkerThreads -gt 0
             }).Count -ne 1 `
-            -or @($phaseHotspots | Where-Object {
-                [string]$_.Name -eq "validation" `
-                -and [double]$_.ElapsedSeconds -gt 0 `
-                -and [int]$_.PeakConcurrentWork -gt 0
-            }).Count -ne 1 `
+            -or ($result.Training.Success -and @($phaseHotspots | Where-Object {
+                    [string]$_.Name -eq "validation" `
+                    -and [double]$_.ElapsedSeconds -gt 0 `
+                    -and [int]$_.PeakConcurrentWork -gt 0
+                }).Count -ne 1) `
             -or [double]$result.Training.ModelTrainingLoss -le 0 `
             -or [double]$result.Training.ModelValidationLoss -le 0 `
             -or @($epochHistory | Where-Object {
@@ -736,11 +738,11 @@ try {
             -or [string]$checkpoint.Resume.Compatibility.ActionContractVersion `
                 -ne "action-contract-v2" `
             -or [string]$checkpoint.Resume.Compatibility.TrainingSemanticsVersion `
-                -ne "content-set-quantile-q-role-quota-risk-aux-fixed-anchor-promotion-v19" `
+                -ne "content-set-quantile-q-role-quota-risk-aux-fixed-anchor-promotion-v20" `
             -or [string]$checkpoint.Resume.Compatibility.SearchPolicyVersion `
                 -ne "dynamic-search-v12-quantile-fpu" `
             -or [string]$checkpoint.Resume.Compatibility.TrainingPolicyVersion `
-                -ne "foundation-governance-v21-teacher-student-quota-gates") {
+                -ne "foundation-governance-v23-generic-quota-repair-rare-replay") {
             throw "Foundation checkpoint compatibility manifest is incomplete."
         }
     }
@@ -782,7 +784,7 @@ try {
                 + "\o\" `
                 + ([string]$observation.CaseId).Substring(0, 24) `
                 + ".json.gz")
-            if ([int]$observation.SchemaVersion -ne 4 `
+            if ([int]$observation.SchemaVersion -ne 5 `
                 -or [string]::IsNullOrWhiteSpace(
                     [string]$observation.CompatibilityKey) `
                 -or -not (Test-Path -LiteralPath $expectedObservationPath `

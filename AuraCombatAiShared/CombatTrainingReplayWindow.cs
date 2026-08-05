@@ -67,10 +67,62 @@ public sealed class CombatTrainingReplayWindowResult
 
     public Dictionary<string, int> StrategyQuotaShortfalls { get; set; } =
         new(StringComparer.Ordinal);
+
+    public bool StrategyQuotaRepairAttempted { get; set; }
+
+    public int StrategyQuotaRepairSourceEpisodes { get; set; }
+
+    public int StrategyQuotaRepairAddedEpisodes { get; set; }
 }
 
 public static class CombatTrainingReplayWindowSelector
 {
+    public static CombatTrainingReplayWindowResult RepairStrategyQuota(
+        CombatTrainingReplayWindowResult initial,
+        IEnumerable<CombatEpisode> additionalSource,
+        CombatTrainingReplayWindowOptions? selectionOptions = null)
+    {
+        if (initial == null) throw new ArgumentNullException(nameof(initial));
+        if (!initial.StrategyQuotaActive
+            || initial.StrategyQuotaPassed
+            || initial.StrategyQuotaShortfalls.Count == 0)
+        {
+            return initial;
+        }
+        var missing = initial.StrategyQuotaShortfalls.Keys
+            .ToHashSet(StringComparer.Ordinal);
+        var existing = (initial.Episodes ?? new List<CombatEpisode>())
+            .Where(episode => (episode.Frames?.Count ?? 0) > 0)
+            .ToList();
+        var existingKeys = existing.Select(StableRunEpisodeKey)
+            .ToHashSet(StringComparer.Ordinal);
+        var targeted = (additionalSource ?? Array.Empty<CombatEpisode>())
+            .Where(episode => episode != null
+                              && !existingKeys.Contains(
+                                  StableRunEpisodeKey(episode))
+                              && (episode.Frames
+                                  ?? new List<CombatEpisodeFrame>())
+                              .Any(frame => missing.Contains(
+                                  CombatPolicyValueBatchTrainer
+                                      .StrategicFrameStratum(
+                                          frame.StateFeatures))))
+            .OrderByDescending(episode =>
+                (episode.Frames ?? new List<CombatEpisodeFrame>())
+                .Count(frame => missing.Contains(
+                    CombatPolicyValueBatchTrainer.StrategicFrameStratum(
+                        frame.StateFeatures))))
+            .ThenBy(StableRunEpisodeKey, StringComparer.Ordinal)
+            .ToList();
+        var repaired = Select(existing.Concat(targeted), selectionOptions);
+        repaired.StrategyQuotaRepairAttempted = true;
+        repaired.StrategyQuotaRepairSourceEpisodes = targeted.Count;
+        repaired.StrategyQuotaRepairAddedEpisodes = repaired.Episodes.Count(
+            episode => (episode.Frames?.Count ?? 0) > 0
+                       && !existingKeys.Contains(
+                           StableRunEpisodeKey(episode)));
+        return repaired;
+    }
+
     public static CombatTrainingReplayWindowResult Select(
         IEnumerable<CombatEpisode> source,
         CombatTrainingReplayWindowOptions? selectionOptions = null)
@@ -371,6 +423,17 @@ public static class CombatTrainingReplayWindowSelector
         string key)
     {
         return counts.TryGetValue(key, out var value) ? value : 0;
+    }
+
+    private static string StableRunEpisodeKey(CombatEpisode episode)
+    {
+        return StableRunKey(episode)
+               + ":"
+               + episode.JourneyBattleIndex
+               + ":"
+               + episode.Seed
+               + ":"
+               + (episode.EpisodeId ?? "");
     }
 
     private static bool Eligible(

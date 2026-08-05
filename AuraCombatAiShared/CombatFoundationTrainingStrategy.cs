@@ -1377,6 +1377,16 @@ public static class CombatFoundationReplaySampler
                 Add(episode);
             }
         }
+        if (campaign.Advanced)
+        {
+            foreach (var episode in campaign.Episodes
+                         .Where(item => item.JourneyBattleIndex is >= 1 and <= 3)
+                         .OrderByDescending(EpisodePriority)
+                         .ThenBy(item => item.JourneyBattleIndex))
+            {
+                Add(episode);
+            }
+        }
         foreach (var episode in campaign.Episodes
                      .OrderByDescending(item => item.JourneyBattleIndex)
                      .Take(3))
@@ -1482,16 +1492,53 @@ public static class CombatFoundationReplaySampler
         if (IsAdvanced(episode))
         {
             priority += 0.25d;
+            if (episode.JourneyBattleIndex is >= 1 and <= 3)
+            {
+                // The dominant Advanced failures occur in the first local
+                // build-check encounters. Preserve these episodes before broad
+                // late-run samples so tactical and reward residual learning
+                // receive a solvable stage 2-3 curriculum.
+                priority += 0.90d;
+            }
         }
         if (!IsSuccessful(episode))
         {
             priority += 0.50d;
+        }
+        var campaign = episode.Campaign;
+        if (campaign?.FinalBossVictory == true)
+        {
+            priority += 1.25d;
+        }
+        else if (campaign?.ReachedFinalBoss == true)
+        {
+            priority += 0.90d;
+        }
+        var totalBattles = Math.Max(0, campaign?.CampaignTotalBattles ?? 0);
+        var battleIndex = Math.Max(0, episode.JourneyBattleIndex);
+        if (totalBattles > 0
+            && (battleIndex + 1d) / totalBattles >= 0.75d)
+        {
+            priority += 0.65d;
+        }
+        if ((campaign?.CurriculumStage ?? "").IndexOf(
+                "local-curriculum",
+                StringComparison.OrdinalIgnoreCase) >= 0
+            || (episode.Provenance ?? "").IndexOf(
+                "counterfactual",
+                StringComparison.OrdinalIgnoreCase) >= 0)
+        {
+            priority += 0.45d;
         }
         var failureIndex = episode.Campaign?.FailureBattleIndex ?? -1;
         if (failureIndex >= 0
             && Math.Abs(failureIndex - episode.JourneyBattleIndex) <= 2)
         {
             priority += 0.40d;
+            if (IsAdvanced(episode) && failureIndex is >= 1 and <= 3)
+            {
+                priority += 0.50d;
+            }
         }
         var frames = episode.Frames ?? new List<CombatEpisodeFrame>();
         if (frames.Count == 0)
@@ -1566,6 +1613,32 @@ public static class CombatFoundationReplaySampler
             priority += 0.30d;
         }
         return Math.Max(0.10d, Math.Min(5d, priority));
+    }
+
+    /// <summary>
+    /// Shared, content-agnostic priority used when a persisted replay has to be
+    /// restored into a bounded memory window.  It intentionally depends only on
+    /// protocol metadata and provider-declared strategy strata; it never reads a
+    /// role, card, encounter or model identifier.
+    /// </summary>
+    public static double RecoveryPriority(CombatEpisode episode)
+    {
+        if (episode == null)
+        {
+            return double.NegativeInfinity;
+        }
+        var priority = EpisodePriority(episode);
+        var strategies = (episode.Frames ?? new List<CombatEpisodeFrame>())
+            .Select(frame => CombatPolicyValueBatchTrainer.StrategicFrameStratum(
+                frame.StateFeatures))
+            .Where(stratum => !string.Equals(
+                stratum,
+                "strategy-baseline",
+                StringComparison.Ordinal))
+            .Distinct(StringComparer.Ordinal)
+            .Count();
+        priority += Math.Min(0.75d, strategies * 0.25d);
+        return priority;
     }
 
     private static bool IsEndTurnCandidate(CombatEpisodeCandidate candidate)

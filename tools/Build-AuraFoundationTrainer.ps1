@@ -301,7 +301,7 @@ function Copy-PublishedFileWithRetry {
 }
 
 $stageBase = [System.IO.Path]::GetFullPath(
-    (Join-Path ([System.IO.Path]::GetTempPath()) "AuraFoundationTrainer.Publish"))
+    (Join-Path $resolvedOutput ".publish-staging"))
 $stageRoot = Join-Path $stageBase (
     [System.Guid]::NewGuid().ToString("N"))
 $workerStage = Join-Path $stageRoot "worker"

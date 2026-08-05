@@ -64,7 +64,8 @@ internal sealed class TrainingDiagnosticsPanel
         verdict.Text = "训练进行中 · " + FriendlyPhase(telemetry.Phase);
         verdict.Foreground = TrainerTheme.Accent;
         verdictDetail.Text =
-            $"已完成 {telemetry.CompletedCampaigns}/{telemetry.RequestedCampaigns} 场冒险，"
+            $"本次已完成 {telemetry.RunCompletedCampaigns}/{telemetry.RunRequestedCampaigns} 场冒险，"
+            + $"生命周期累计 {telemetry.CompletedCampaigns}/{telemetry.RequestedCampaigns}，"
             + $"模型 Epoch {telemetry.ModelEpoch}/{telemetry.ModelTotalEpochs}。";
         SetGate("data", "监测中", TrainerTheme.Accent);
         SetGate("arena", "等待候选", TrainerTheme.Muted);
@@ -422,6 +423,16 @@ internal sealed class TrainingDiagnosticsPanel
             + $"教师/学生帧池 {iteration.TeacherStudentPoolSelectedFrames:N0}/"
             + $"{iteration.TeacherStudentPoolSourceFrames:N0} · "
             + $"不安全结束回合 {iteration.TeacherStudentPoolUnsafeEndTurnFrames:N0}\r\n"
+            + (iteration.StrategyQuotaRepairAttempted
+                ? $"拟合前配额修复：候选 {iteration.StrategyQuotaRepairSourceEpisodes:N0} 条，"
+                  + $"补入 {iteration.StrategyQuotaRepairAddedEpisodes:N0} 条；"
+                  + $"定向采集 {iteration.StrategyQuotaCollectionCampaigns:N0} 场/"
+                  + $"{iteration.StrategyQuotaCollectionEpisodes:N0} 条\r\n"
+                : "拟合前配额修复：未触发\r\n")
+            + $"累计教师语料 {iteration.TransformerTeacher.FrameCount:N0} · "
+            + $"本轮 {iteration.TransformerTeacher.CurrentFrameCount:N0} · "
+            + $"复用 {iteration.TransformerTeacher.ReusedCorpusFrames:N0} · "
+            + $"去重 {iteration.TransformerTeacher.DeduplicatedCorpusFrames:N0}\r\n"
             + $"策略配额缺口：{strategyShortfall}";
     }
 
@@ -464,7 +475,9 @@ internal sealed class TrainingDiagnosticsPanel
                     + $"{PassMark(item.ArenaEvidenceGatePassed)}/"
                     + $"{PassMark(item.AbsoluteAdvancedGatePassed)}/"
                     + $"{PassMark(item.OfflineHeadRegressionGatePassed)}/"
-                    + $"{PassMark(item.StrategyQuotaGatePassed)} · "
+                    + $"{PassMark(item.StrategyQuotaGatePassed)}/"
+                    + $"{PassMark(item.FeatureCollisionGatePassed)} · "
+                    + $"碰撞 状态 {item.StateFeatureCollisionRate:P1} / 动作 {item.ActionFeatureCollisionRate:P1} · "
                     + (item.Promoted ? "已晋级" : item.PromotionReason),
                 Foreground = TrainerTheme.Text,
                 TextWrapping = TextWrapping.Wrap

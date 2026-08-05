@@ -293,9 +293,17 @@ internal static class CombatPolicyValueBatchTrainer
             .ToList();
         var order = Enumerable.Range(0, trainingFrames.Length).ToArray();
         var batchCapacity = Math.Min(options.BatchSize, trainingFrames.Length);
+        var parameterCount = Math.Max(1, ParameterCount(model));
+        const long gradientBufferBudgetBytes = 256L * 1024L * 1024L;
+        var memoryBoundGradientWorkers = Math.Max(
+            1,
+            (int)Math.Min(
+                int.MaxValue,
+                gradientBufferBudgetBytes
+                / Math.Max(1L, parameterCount * sizeof(double) * 2L)));
         var gradientWorkerCapacity = Math.Min(
-            batchCapacity,
-            options.GradientShardCount);
+            Math.Min(batchCapacity, options.GradientShardCount),
+            memoryBoundGradientWorkers);
         var gradients = Enumerable.Range(0, gradientWorkerCapacity)
             .Select(_ => new ModelGradient(model))
             .ToArray();
@@ -715,6 +723,9 @@ internal static class CombatPolicyValueBatchTrainer
             ["gradientShardCount"] = options.GradientShardCount,
             ["trainingParallelism"] = options.MaximumDegreeOfParallelism,
             ["gradientBufferCount"] = gradientWorkerCapacity * 2d,
+            ["gradientMemoryBoundWorkerLimit"] =
+                memoryBoundGradientWorkers,
+            ["gradientBufferBudgetBytes"] = gradientBufferBudgetBytes,
             ["optimizerAdamW"] = 1d,
             ["optimizerStep"] = optimizer.Step,
             ["gradientClipCount"] = gradientClipCount,

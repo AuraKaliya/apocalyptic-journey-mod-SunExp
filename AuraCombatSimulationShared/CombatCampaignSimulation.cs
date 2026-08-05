@@ -325,6 +325,11 @@ public sealed class CombatCampaignDefinition
     public Dictionary<string, double> RewardScoreResiduals { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
 
+    public Dictionary<string, double> RewardScoreConditionalResiduals {
+        get;
+        set;
+    } = new(StringComparer.OrdinalIgnoreCase);
+
     public double RewardScoreResidualMaximumAbsolute { get; set; } = 0.20d;
 
     public Dictionary<string, double> RewardScoreBiases { get; set; } =
@@ -428,6 +433,8 @@ public sealed class CombatCampaignRewardScore
     public double RiskPenalty { get; set; }
 
     public double LearnedResidual { get; set; }
+
+    public double ConditionalResidual { get; set; }
 
     public double ConfiguredBias { get; set; }
 
@@ -564,6 +571,8 @@ public sealed class CombatCampaignRewardDecision
 public sealed class CombatCampaignState
 {
     public ulong WorldSeed { get; set; }
+
+    public string DifficultyId { get; set; } = "normal";
 
     public int CurrentLayer { get; set; }
 
@@ -1896,7 +1905,7 @@ public static class CombatCampaignRewardSelector
                         item,
                         buildPlan)
                     : 0d;
-                var learnedResidual =
+                var globalResidual =
                     definition.RewardScoreResiduals.TryGetValue(
                         id,
                         out var configuredResidual)
@@ -1909,6 +1918,18 @@ public static class CombatCampaignRewardSelector
                                         .RewardScoreResidualMaximumAbsolute),
                                 configuredResidual))
                         : 0d;
+                var conditionalResidual =
+                    CombatRewardConditionalResidualProtocol.Resolve(
+                        definition.RewardScoreConditionalResiduals,
+                        id,
+                        state.DifficultyId,
+                        encounterIndex,
+                        buildPlan.PrimaryArchetype);
+                var learnedResidual = Math.Max(
+                    -Math.Abs(definition.RewardScoreResidualMaximumAbsolute),
+                    Math.Min(
+                        Math.Abs(definition.RewardScoreResidualMaximumAbsolute),
+                        globalResidual + conditionalResidual));
                 var configuredBias =
                     definition.RewardScoreBiases.TryGetValue(
                         id,
@@ -1944,6 +1965,7 @@ public static class CombatCampaignRewardSelector
                     DilutionPenalty = dilution,
                     RiskPenalty = riskPenalty,
                     LearnedResidual = learnedResidual,
+                    ConditionalResidual = conditionalResidual,
                     ConfiguredBias = configuredBias,
                     StrategyFit = strategyFit,
                     Total = baseValue + tierValue + systemFit + tendency + bossFit
@@ -3595,6 +3617,7 @@ public sealed class CombatCampaignRunner
             }
             var resumed = CloneCheckpoint(resumeFrom);
             resumed.State.WorldSeed = plan.WorldSeed;
+            resumed.State.DifficultyId = plan.DifficultyId;
             CombatCampaignAttributeThresholdRewardReconciler.Reconcile(
                 definition,
                 resumed.State);
@@ -3606,6 +3629,7 @@ public sealed class CombatCampaignRunner
         var state = new CombatCampaignState
         {
             WorldSeed = plan.WorldSeed,
+            DifficultyId = plan.DifficultyId,
             MaxHp = definition.Player.MaxHp,
             CurrentHp = definition.Player.CurrentHp,
             Money = Math.Max(0, definition.InitialMoney),
@@ -3676,6 +3700,7 @@ public sealed class CombatCampaignRunner
         return new CombatCampaignState
         {
             WorldSeed = source.WorldSeed,
+            DifficultyId = source.DifficultyId,
             CurrentLayer = source.CurrentLayer,
             CurrentGameLevel = source.CurrentGameLevel,
             MaxHp = source.MaxHp,

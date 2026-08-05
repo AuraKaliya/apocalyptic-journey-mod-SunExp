@@ -7,7 +7,7 @@ namespace AuraCombatAi.Shared;
 
 public static class CombatFoundationWorkerProtocol
 {
-    public const int SchemaVersion = 10;
+    public const int SchemaVersion = 11;
     public const int TrainingMetricsSchemaVersion = 1;
     public const string PerformanceProbeVersion =
         "foundation-performance-probe-v1";
@@ -16,9 +16,9 @@ public static class CombatFoundationWorkerProtocol
     public const string TrainingAnalysisFileName =
         "foundation-training-analysis-v1.json";
     public const string CheckpointFileName =
-        "foundation-training-checkpoint-v10.json";
+        "foundation-training-checkpoint-v11.json";
     public const string CheckpointEpisodesFileName =
-        "foundation-training-checkpoint-episodes-v10.jsonl";
+        "foundation-training-checkpoint-episodes-v11.jsonl";
 
     public static bool TryValidateJob(
         CombatFoundationWorkerJob? job,
@@ -175,6 +175,12 @@ public sealed class CombatFoundationWorkerJob
 
     public bool ResumeFromCheckpoint { get; set; } = true;
 
+    public bool RequireCompatibleResume { get; set; }
+
+    public bool ResetCheckpointOnFreshStart { get; set; }
+
+    public string RequestedStartMode { get; set; } = "auto-resume";
+
     public CombatCampaignFoundationTrainingRequest Request { get; set; } = new();
 
     public CombatRulesetDocument Ruleset { get; set; } = new();
@@ -190,6 +196,12 @@ public sealed class CombatFoundationWorkerProgress
     public string JobId { get; set; } = "";
 
     public DateTime UpdatedUtc { get; set; } = DateTime.UtcNow;
+
+    public DateTime TelemetryUpdatedUtc { get; set; } = DateTime.UtcNow;
+
+    public long TelemetrySequence { get; set; }
+
+    public bool HeartbeatOnly { get; set; }
 
     public CombatCampaignFoundationTelemetry Telemetry { get; set; } = new();
 }
@@ -233,6 +245,10 @@ public sealed class CombatFoundationWorkerResult
 
     public string ModelPackagePath { get; set; } = "";
 
+    public long ModelPackageBytes { get; set; }
+
+    public string ModelPackageSizeWarning { get; set; } = "";
+
     public string TrainingMetricsPath { get; set; } = "";
 
     public string TrainingAnalysisPath { get; set; } = "";
@@ -253,6 +269,10 @@ public sealed class CombatFoundationWorkerResult
     public bool ResumedFromCheckpoint { get; set; }
 
     public string ResumeDiagnostic { get; set; } = "";
+
+    public string RequestedStartMode { get; set; } = "auto-resume";
+
+    public string EffectiveStartMode { get; set; } = "";
 
     public bool Resumable { get; set; }
 

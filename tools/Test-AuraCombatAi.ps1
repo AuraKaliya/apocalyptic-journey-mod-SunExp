@@ -665,7 +665,7 @@ foreach ($anchor in @(
 }
 foreach ($anchor in @(
     "CombatFoundationWorkerProtocol",
-    "public const int SchemaVersion = 10",
+    "public const int SchemaVersion = 11",
     "CheckpointFileName",
     "CheckpointEpisodesFileName",
     "TryValidateJob",
@@ -1213,7 +1213,7 @@ foreach ($anchor in @(
 foreach ($anchor in @(
     "aura.combat-ai.episode.v5",
     "public const int FeatureSchemaVersion = 26",
-    "content-set-quantile-q-role-quota-risk-aux-fixed-anchor-promotion-v19",
+    "content-set-quantile-q-role-quota-risk-aux-fixed-anchor-promotion-v20",
     "frame-strata-v7-strategy-quota-risk-aux",
     "CombatCampaignEpisodeMetadata",
     "TerminalSnapshotKnown",

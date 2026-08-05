@@ -9596,6 +9596,28 @@ Assert(quotaWindow.StrategyQuotaActive
        && quotaWindow.StrategyFrames["strategy-finale"] == 5
        && quotaWindow.StrategyFrames["strategy-bank"] == 5,
     "teacher and student share a deterministic bounded replay window that enforces provider-declared strategy quotas");
+var quotaRepairInitial = CombatTrainingReplayWindowSelector.Select(
+    quotaReplay.Take(90),
+    new CombatTrainingReplayWindowOptions
+    {
+        MaximumFrames = 100,
+        MaximumUnsafeEndTurnShare = 0.30d
+    });
+var quotaRepairWindow =
+    CombatTrainingReplayWindowSelector.RepairStrategyQuota(
+        quotaRepairInitial,
+        quotaReplay,
+        new CombatTrainingReplayWindowOptions
+        {
+            MaximumFrames = 100,
+            MaximumUnsafeEndTurnShare = 0.30d
+        });
+Assert(!quotaRepairInitial.StrategyQuotaPassed
+       && quotaRepairWindow.StrategyQuotaRepairAttempted
+       && quotaRepairWindow.StrategyQuotaRepairSourceEpisodes == 10
+       && quotaRepairWindow.StrategyQuotaRepairAddedEpisodes == 10
+       && quotaRepairWindow.StrategyQuotaPassed,
+    "strategy quota shortfalls trigger targeted shared-corpus collection before fitting without lowering declared quotas");
 var forcedDecisionReplay = new[] { quotaReplay[0] };
 forcedDecisionReplay[0].Frames[0].Candidates.RemoveAt(1);
 var forcedDecisionWindow = CombatTrainingReplayWindowSelector.Select(
@@ -9714,6 +9736,61 @@ Assert(normalizedTeacherOptions.Backend
        && normalizedTeacherOptions.EnableWarmStart
        && normalizedTeacherOptions.DistillationWeight == 0.75d,
     "Transformer teacher settings normalize portable CPU/CUDA configuration and attention dimensions");
+var continuationRequestA = new CombatCampaignFoundationTrainingRequest
+{
+    ContentSetHash = "content",
+    OwnerModSetHash = "owners",
+    TransformerTeacher = new CombatTransformerTeacherOptions
+    {
+        Backend = CombatTransformerTeacherBackendNames.Cuda,
+        RandomSeed = 101
+    }
+};
+var continuationRequestB = new CombatCampaignFoundationTrainingRequest
+{
+    ContentSetHash = "content",
+    OwnerModSetHash = "owners",
+    TransformerTeacher = new CombatTransformerTeacherOptions
+    {
+        Backend = CombatTransformerTeacherBackendNames.Cpu,
+        RandomSeed = 202
+    }
+};
+Assert(CombatCampaignFoundationTrainer.ManifestCompatible(
+           CombatCampaignFoundationTrainer.BuildCompatibilityManifest(
+               continuationRequestA,
+               "rules"),
+           CombatCampaignFoundationTrainer.BuildCompatibilityManifest(
+               continuationRequestB,
+               "rules")),
+    "student continuation identity remains stable when only Transformer runtime backend or random seed changes");
+var teacherCorpusManifest = new CombatFoundationCompatibilityManifest
+{
+    RulesetHash = new string('a', 64),
+    ContentSetHash = new string('b', 64),
+    OwnerModSetHash = new string('c', 64),
+    NativeProgramPackageHash = new string('d', 64),
+    TrainingCampaignHash = new string('e', 64),
+    FeatureSchemaVersion = CombatPolicyValueProtocol.FeatureSchemaVersion,
+    FeatureEncodingMode = "partitioned-v3",
+    TrainingPolicyVersion = CombatFoundationTrainingProtocol.TrainingPolicyVersion
+};
+var corpusKeyA = CombatTransformerTeacherCorpusProtocol.CorpusCompatibilityKey(
+    teacherCorpusManifest,
+    "balanced",
+    new CombatTransformerTeacherOptions().Normalized());
+var corpusKeyB = CombatTransformerTeacherCorpusProtocol.CorpusCompatibilityKey(
+    teacherCorpusManifest,
+    "balanced",
+    new CombatTransformerTeacherOptions().Normalized());
+var teacherKey = CombatTransformerTeacherCorpusProtocol.TeacherCompatibilityKey(
+    corpusKeyA,
+    new CombatTransformerTeacherOptions().Normalized());
+Assert(corpusKeyA.Length == 64
+       && corpusKeyA == corpusKeyB
+       && teacherKey.Length == 64
+       && corpusKeyA != teacherKey,
+    "Transformer teacher corpus and warm-start identities are deterministic and separated");
 var runtimeDisplay = CombatTransformerRuntimeResolver.DisplayText(
     new CombatTransformerRuntimeProbe
     {
@@ -10197,6 +10274,21 @@ var rewardResidualObservations = Enumerable.Range(0, 60)
             index < 30
                 ? "blessing_learned_good"
                 : "blessing_learned_bad"
+        },
+        DifficultyId = "advanced",
+        TotalBattles = 37,
+        PrimaryArchetype = "control",
+        RewardChoices =
+        {
+            new CombatFoundationRewardChoiceObservation
+            {
+                RewardId = index < 30
+                    ? "learned-good-card"
+                    : "learned-bad-card",
+                EncounterIndex = 2,
+                DifficultyId = "advanced",
+                PrimaryArchetype = "control"
+            }
         }
     })
     .ToList();
@@ -10213,9 +10305,38 @@ Assert(rewardResidualTraining.EligibleObservations == 60
        && rewardResidualTraining.CardResiduals == 2
        && rewardResidualTraining.RelicResiduals == 2
        && rewardResidualTraining.BlessingResiduals == 2
+       && rewardResidualTraining.ConditionalResidualCount >= 2
+       && CombatRewardConditionalResidualProtocol.Resolve(
+              rewardResidualTraining.ConditionalResiduals,
+              "learned-good-card",
+              "advanced",
+              2,
+              "control") > 0d
+       && CombatRewardConditionalResidualProtocol.Resolve(
+              rewardResidualTraining.ConditionalResiduals,
+              "learned-bad-card",
+              "advanced",
+              2,
+              "control") < 0d
        && rewardResidualTraining.Residuals.Values.All(value =>
            Math.Abs(value) <= 0.20d),
     "reward residual learning uses late comparable outcomes and hard-bounds every learned adjustment");
+var archetypeFixture = new CombatCampaignState
+{
+    BuildPlan = new CombatCampaignBuildPlan
+    {
+        PrimaryArchetype = "reliability"
+    },
+    Deck =
+    {
+        "burningcard_1",
+        "burningcard_2",
+        "elementscard_1"
+    }
+};
+Assert(CombatFoundationCaseLearning.ResolveBuildArchetype(archetypeFixture)
+       == "burning",
+    "archived reward observations derive a concrete deck family instead of collapsing every build into reliability");
 
 var hardSeedEpisodes = Enumerable.Range(0, 5)
     .Select(index => new CombatEpisode
@@ -10532,6 +10653,125 @@ Assert(CombatCampaignFoundationTrainer.ClassifyCounterfactual(
            counterfactualNoGain)
        == CombatFoundationCounterfactualAdmission.Rejected,
     "counterfactual admission retains victories and measurable improvements while rejecting no-gain teacher defeats");
+var advancedCurriculumCheckpoint = new CombatCampaignCheckpoint
+{
+    CampaignId = "curriculum",
+    CampaignVersion = "1",
+    DifficultyId = "advanced",
+    NextEncounterIndex = 3,
+    State = new CombatCampaignState
+    {
+        DifficultyId = "advanced",
+        MaxHp = 100,
+        CurrentHp = 20,
+        Deck = { "burningcard_1" }
+    }
+};
+var advancedCurriculumCheckpoints =
+    CombatCampaignFoundationTrainer.BuildLocalCurriculumCheckpoints(
+        advancedCurriculumCheckpoint);
+Assert(advancedCurriculumCheckpoints.Count == 4
+       && advancedCurriculumCheckpoints[0].Checkpoint.State.CurrentHp == 20
+       && advancedCurriculumCheckpoints[1].Checkpoint.State.CurrentHp == 65
+       && advancedCurriculumCheckpoints[2].Checkpoint.State.CurrentHp == 85
+       && advancedCurriculumCheckpoints[3].Checkpoint.State.CurrentHp == 100
+       && advancedCurriculumCheckpoint.State.CurrentHp == 20,
+    "advanced local curriculum keeps the original encounter intact and adds bounded training-only HP recovery variants");
+advancedCurriculumCheckpoint.DifficultyId = "normal";
+Assert(CombatCampaignFoundationTrainer.BuildLocalCurriculumCheckpoints(
+           advancedCurriculumCheckpoint).Count == 1,
+    "local solvability repair never changes normal, arena, or formal validation encounters");
+advancedCurriculumCheckpoint.DifficultyId = "advanced";
+advancedCurriculumCheckpoint.NextEncounterIndex = 32;
+advancedCurriculumCheckpoint.State.CurrentLayer = 6;
+advancedCurriculumCheckpoint.State.CurrentHp = 20;
+var lateCurriculum =
+    CombatCampaignFoundationTrainer.BuildLocalCurriculumCheckpoints(
+        advancedCurriculumCheckpoint);
+advancedCurriculumCheckpoint.NextEncounterIndex = 36;
+advancedCurriculumCheckpoint.State.CurrentLayer = 7;
+var finaleCurriculum =
+    CombatCampaignFoundationTrainer.BuildLocalCurriculumCheckpoints(
+        advancedCurriculumCheckpoint);
+Assert(lateCurriculum.Count == 4
+       && lateCurriculum[1].HpFloorPercent == 75
+       && lateCurriculum[1].CurriculumBand == "late"
+       && finaleCurriculum.Count == 3
+       && finaleCurriculum[1].HpFloorPercent == 85
+       && finaleCurriculum[1].CurriculumBand == "finale",
+    "Advanced late and finale local curricula use generic campaign-position bands and bounded HP repair only");
+var bootstrapDistillation =
+    CombatCampaignFoundationTrainer.EffectiveTransformerDistillationWeight(
+        new CombatTransformerTeacherReport
+        {
+            Applied = true,
+            TeacherGeneration = 1
+        },
+        0.35d,
+        null,
+        Array.Empty<CombatCampaignFoundationIteration>());
+var regressedDistillation =
+    CombatCampaignFoundationTrainer.EffectiveTransformerDistillationWeight(
+        new CombatTransformerTeacherReport
+        {
+            Applied = true,
+            TeacherGeneration = 2
+        },
+        0.35d,
+        new CombatPolicyValueNetworkDefinition(),
+        new[]
+        {
+            new CombatCampaignFoundationIteration
+            {
+                OfflineHeadRegressionGatePassed = false,
+                TransformerTeacher = new CombatTransformerTeacherReport
+                {
+                    Applied = true
+                }
+            }
+        });
+Assert(Math.Abs(bootstrapDistillation.Weight - 0.10d) < 0.000001d
+       && bootstrapDistillation.Guarded
+       && Math.Abs(regressedDistillation.Weight - 0.15d) < 0.000001d
+       && regressedDistillation.Guarded,
+    "student-side distillation starts conservatively and backs off to the shared 0.10-0.15 band after a regression");
+var consecutiveRegressionDistillation =
+    CombatCampaignFoundationTrainer.EffectiveTransformerDistillationWeight(
+        new CombatTransformerTeacherReport
+        {
+            Applied = true,
+            TeacherGeneration = 3
+        },
+        0.35d,
+        new CombatPolicyValueNetworkDefinition(),
+        new[]
+        {
+            new CombatCampaignFoundationIteration
+            {
+                ModelValidationMetrics = new CombatPolicyValueMetricSnapshot
+                    { FrameCount = 100, CompositeLoss = 0.10d },
+                ModelTestMetrics = new CombatPolicyValueMetricSnapshot
+                    { FrameCount = 100, CompositeLoss = 0.10d }
+            },
+            new CombatCampaignFoundationIteration
+            {
+                ModelValidationMetrics = new CombatPolicyValueMetricSnapshot
+                    { FrameCount = 100, CompositeLoss = 0.12d },
+                ModelTestMetrics = new CombatPolicyValueMetricSnapshot
+                    { FrameCount = 100, CompositeLoss = 0.12d }
+            },
+            new CombatCampaignFoundationIteration
+            {
+                ModelValidationMetrics = new CombatPolicyValueMetricSnapshot
+                    { FrameCount = 100, CompositeLoss = 0.15d },
+                ModelTestMetrics = new CombatPolicyValueMetricSnapshot
+                    { FrameCount = 100, CompositeLoss = 0.15d }
+            }
+        });
+Assert(Math.Abs(consecutiveRegressionDistillation.Weight - 0.10d)
+       < 0.000001d
+       && consecutiveRegressionDistillation.Guarded,
+    "consecutive cross-iteration validation/test regression reduces distillation to 0.10 without model-specific rules");
 var ineffectiveHardIterations = new List<CombatCampaignFoundationIteration>
 {
     new()
@@ -10639,7 +10879,7 @@ var workerProtocolResult = new CombatFoundationWorkerResult
 };
 Assert(workerProtocolJob.SchemaVersion
            == CombatFoundationWorkerProtocol.SchemaVersion
-       && CombatFoundationWorkerProtocol.SchemaVersion == 10
+       && CombatFoundationWorkerProtocol.SchemaVersion == 11
        && CombatFoundationTerminalCreditProtocol.Version
           == "terminal-credit-v2"
        && CombatFoundationCounterfactualProtocol.Version
@@ -11067,8 +11307,8 @@ foundationRequest.Resume = new CombatCampaignFoundationResumeState
     Stage = "model-training",
     NextIteration = 1,
     CompletedCampaigns = 999,
-    Champion = legacyFeatureModel,
-    WorkingChampion = legacyFeatureModel,
+    Champion = policyValueTraining.Model,
+    WorkingChampion = policyValueTraining.Model,
     Replay =
     {
         new CombatEpisode
@@ -11082,12 +11322,15 @@ var incrementallyObservedFoundationCases = 0;
 var incrementallyArchivedFoundationCases = 0;
 var incrementallyRecordedModelMetrics =
     new List<CombatPolicyValueEpochMetrics>();
+CombatCampaignFoundationTelemetry? latestFoundationTelemetry = null;
 foundationRequest.ObservationRecorded = _ =>
     incrementallyObservedFoundationCases++;
 foundationRequest.SuccessCaseRecorded = _ =>
     incrementallyArchivedFoundationCases++;
 foundationRequest.ModelMetricRecorded = metrics =>
     incrementallyRecordedModelMetrics.Add(metrics);
+foundationRequest.Telemetry = telemetry =>
+    latestFoundationTelemetry = telemetry;
 var foundationTraining = new CombatCampaignFoundationTrainer().Run(
     foundationRequest,
     campaignRules.Ruleset);
@@ -11097,9 +11340,10 @@ var foundationDepthBucketCampaigns =
     + foundationTraining.Depth11To20Campaigns
     + foundationTraining.Depth21To30Campaigns
     + foundationTraining.Depth31To37Campaigns;
-Assert(foundationTraining.Success
-       && foundationTraining.AcceptancePassed
-       && foundationTraining.Champion != null
+Assert(!foundationTraining.Success
+       && !foundationTraining.AcceptancePassed
+       && foundationTraining.Champion == null
+       && foundationTraining.WorkingChampion != null
        && foundationTraining.Preflight.Passed
        && foundationTraining.Preflight.CompletedCampaigns
           == 2 + CombatFoundationIntegritySeedCorpus.KnownFailures.Count
@@ -11109,24 +11353,10 @@ Assert(foundationTraining.Success
        && foundationTraining.Preflight.InvalidCampaigns == 0
        && foundationTraining.Replay.Count is > 0 and <= 16
        && foundationTraining.Replay.All(episode => episode.Authoritative)
-       && foundationTraining.ValidationRuns.Count == 10
-       && foundationTraining.Validation.NormalCampaigns == 5
-       && foundationTraining.Validation.AdvancedCampaigns == 5
-       && foundationTraining.Validation.RequiredNormalVictories == 5
-       && foundationTraining.Validation.RequiredAdvancedVictories == 4
-       && Math.Abs(
-           foundationTraining.Validation.RequiredNormalWinRate - 0.8d)
-          < 0.0001d
-       && Math.Abs(
-           foundationTraining.Validation.RequiredAdvancedWinRate - 0.3d)
-          < 0.0001d
+       && foundationTraining.ValidationRuns.Count == 0
        && foundationTraining.CompletedCampaigns < 999
        && foundationTraining.CaseArchiveLoad.LoadedCases == 3
        && foundationTraining.CaseArchiveLoad.LoadedObservations == 9
-       && foundationTraining.Validation.NormalWinRate == 1d
-       && foundationTraining.Validation.AdvancedWinRate == 1d
-       && foundationTraining.Validation.NormalWilsonLowerBound > 0.56d
-       && foundationTraining.Validation.AdvancedWilsonLowerBound > 0.56d
        && foundationTraining.EffectiveParallelism == 4
        && foundationTraining.InferenceLaneCount == 1
        && foundationTraining.InferenceBatchSizePerLane == 4
@@ -11144,7 +11374,6 @@ Assert(foundationTraining.Success
        && foundationTraining.PhaseElapsedSeconds.Count > 0
        && foundationTraining.PhaseElapsedSeconds.ContainsKey("self-play")
        && foundationTraining.PhaseElapsedSeconds.ContainsKey("model-training")
-       && foundationTraining.PhaseElapsedSeconds.ContainsKey("validation")
        && foundationTraining.PhaseCpuSeconds.ContainsKey("self-play")
        && foundationTraining.PhaseCpuSeconds.Values.Sum() > 0d
        && foundationTraining.PhaseAllocatedBytes.ContainsKey("self-play")
@@ -11153,18 +11382,10 @@ Assert(foundationTraining.Success
            "self-play",
            out var selfPlayPeakWork)
        && selfPlayPeakWork >= 1
-       && foundationTraining.PhasePeakConcurrentWork.TryGetValue(
-           "validation",
-           out var validationPeakWork)
-       && validationPeakWork >= 1
        && foundationTraining.PhaseObservedWorkerThreads.TryGetValue(
            "self-play",
            out var selfPlayObservedThreads)
        && selfPlayObservedThreads >= 1
-       && foundationTraining.PhaseObservedWorkerThreads.TryGetValue(
-           "validation",
-           out var validationObservedThreads)
-       && validationObservedThreads >= 1
        && foundationTraining.ModelTrainingLoss > 0d
        && foundationTraining.ModelValidationLoss > 0d
        && foundationTraining.ModelEpochHistory.Count > 0
@@ -11183,11 +11404,7 @@ Assert(foundationTraining.Success
        && incrementallyRecordedModelMetrics.All(item =>
            item.Iteration > 0
            && item.Epoch > 0)
-       && foundationTraining.CapabilityProbe.Arms.Count == 3
-       && foundationTraining.CapabilityProbe.Arms.All(arm =>
-           arm.NormalCampaigns == 1
-           && arm.AdvancedCampaigns == 1
-           && arm.InvalidCampaigns == 0)
+       && foundationTraining.CapabilityProbe.Arms.Count == 0
        && incrementallyObservedFoundationCases
           == foundationTraining.CampaignObservations.Count
        && foundationTraining.CampaignObservations.All(item =>
@@ -11195,8 +11412,21 @@ Assert(foundationTraining.Success
        && incrementallyArchivedFoundationCases
           == foundationTraining.SuccessCases.Count
        && incrementallyArchivedFoundationCases > 0
+       && latestFoundationTelemetry != null
+       && latestFoundationTelemetry.RunStartIteration == 1
+       && latestFoundationTelemetry.RunIteration == 1
+       && latestFoundationTelemetry.RunTotalIterations == 1
+       && latestFoundationTelemetry.RunInitialCompletedCampaigns == 0
+       && latestFoundationTelemetry.RunCompletedCampaigns
+          == latestFoundationTelemetry.CompletedCampaigns
+       && latestFoundationTelemetry.RunRequestedCampaigns
+          == latestFoundationTelemetry.RequestedCampaigns
+       && latestFoundationTelemetry.RunCompletedBattles
+          == latestFoundationTelemetry.CompletedBattles
+       && latestFoundationTelemetry.RunSearchSimulations
+          == latestFoundationTelemetry.SearchSimulations
        && foundationTraining.ElapsedSeconds > 0d,
-    "foundation trainer reports telemetry and streams successful cases as campaigns complete"
+    "foundation trainer keeps a bootstrap result as Working while reporting telemetry and streaming successful cases"
     + $" (success={foundationTraining.Success}, acceptance={foundationTraining.AcceptancePassed},"
     + $" preflight={foundationTraining.Preflight.Passed}/{foundationTraining.Preflight.CompletedCampaigns}/"
     + $"{foundationTraining.Preflight.InvalidCampaigns}, replay={foundationTraining.Replay.Count},"
@@ -11244,6 +11474,14 @@ packageJob.Request.TrainingCampaign.EnabledRewardCardPackIds =
     new List<string> { "cardpack_1", "cardpack_2", "cardpack_3" };
 packageJob.Request.TrainingCampaign.TargetDeckSizeMinimum = 1;
 packageJob.Request.TrainingCampaign.TargetDeckSizeMaximum = 24;
+// Package-contract tests below use an explicitly accepted fixture. The live
+// one-iteration run above intentionally remains Working under the bootstrap
+// promotion gate and therefore cannot itself be exported.
+foundationTraining.Success = true;
+foundationTraining.AcceptancePassed = true;
+foundationTraining.Champion = foundationTraining.WorkingChampion;
+foundationTraining.Validation.Passed = true;
+foundationTraining.Validation.BehaviorPassed = true;
 var packageResult = new CombatFoundationWorkerResult
 {
     JobId = packageJob.JobId,
@@ -11517,6 +11755,14 @@ Assert(sharedParameters.Iterations == 1
        && sharedParameters.ModelUnsafeEndTurnRiskAuxiliaryShare == 0.10d
        && sharedParameters.MinimumArenaDiscordantPairs == 8
        && sharedParameters.MaximumOfflineHeadRegression == 0.05d
+       && sharedParameters.MaximumStateFeatureCollisionRate == 0.20d
+       && sharedParameters.MaximumActionFeatureCollisionRate == 0.06d
+       && sharedParameters.ModelStateDimensions == 1024
+       && sharedParameters.ModelActionDimensions == 1024
+       && sharedParameters.ModelHiddenDimensions == 512
+       && sharedParameters.TransformerTeacherStateDimensions == 1024
+       && sharedParameters.TransformerTeacherActionDimensions == 1024
+       && sharedParameters.TransformerTeacherMinimumFrames == 4096
        && sharedParameters.TransformerTeacherMaximumFrames == 10000
        && sharedParameters.TransformerTeacherCpuEpochs == 4
        && sharedParameters.TransformerTeacherCpuIncrementalEpochs == 1
@@ -11673,6 +11919,23 @@ Assert(stableAutoTuneKey
            stableAutoTuneRequest,
            CombatRuleset.Empty),
     "auto-tune cache identity excludes evolving learned campaign residuals when the Worker supplies a structural key");
+var residualIdentityCampaign = new CombatCampaignDefinition
+{
+    CampaignId = "residual-identity",
+    CampaignVersion = "1"
+};
+var residualIdentityBefore =
+    CombatCampaignFoundationTrainer.CampaignFingerprint(
+        residualIdentityCampaign);
+residualIdentityCampaign.RewardScoreResiduals["card:test"] = 0.15d;
+residualIdentityCampaign.RewardScoreConditionalResiduals[
+    "advanced|build:test"] = -0.11d;
+residualIdentityCampaign.RewardScoreResidualMaximumAbsolute = 0.45d;
+Assert(
+    residualIdentityBefore
+    == CombatCampaignFoundationTrainer.CampaignFingerprint(
+        residualIdentityCampaign),
+    "learned global and conditional reward residuals do not change structural campaign compatibility identity");
 var developmentGovernance = CombatFoundationGovernanceProfiles.Resolve(
     CombatFoundationGovernanceProfileNames.Development,
     tuningInterval: 1,
@@ -11776,6 +12039,92 @@ Assert(CombatCampaignFoundationTrainer.ShouldAcceptWorkingModel(
            meaningfulWinGain: true,
            meaningfulProgressGain: true),
     "working models advance on current-window paired gains rather than incomparable historical arena scores");
+var collisionGateModel = new CombatPolicyValueNetworkDefinition
+{
+    Metrics = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
+    {
+        ["stateFeatureCollisionRate"] = 0.19d,
+        ["actionFeatureCollisionRate"] = 0.05d
+    }
+};
+Assert(CombatCampaignFoundationTrainer.FeatureCollisionGatePassed(
+           collisionGateModel,
+           maximumStateRate: 0.20d,
+           maximumActionRate: 0.06d)
+       && !CombatCampaignFoundationTrainer.FeatureCollisionGatePassed(
+           new CombatPolicyValueNetworkDefinition
+           {
+               Metrics = new Dictionary<string, double>(StringComparer.OrdinalIgnoreCase)
+               {
+                   ["stateFeatureCollisionRate"] = 0.21d,
+                   ["actionFeatureCollisionRate"] = 0.05d
+               }
+           },
+           maximumStateRate: 0.20d,
+           maximumActionRate: 0.06d)
+       && CombatCampaignFoundationTrainer.FormalPromotionGatePassed(
+           bootstrap: false,
+           arenaEvidence: true,
+           absoluteAdvanced: true,
+           offlineHeads: true,
+           strategyQuota: true,
+           featureCollision: true)
+       && !CombatCampaignFoundationTrainer.FormalPromotionGatePassed(
+           bootstrap: true,
+           arenaEvidence: true,
+           absoluteAdvanced: true,
+           offlineHeads: true,
+           strategyQuota: true,
+           featureCollision: true),
+    "formal promotion requires explicit feature-collision evidence and never publishes a bootstrap candidate");
+var quantileMetricClone =
+    CombatCampaignFoundationTrainer.CloneMetricSnapshot(
+        new CombatPolicyValueMetricSnapshot
+        {
+            ActionQuantilePinball = 0.125d,
+            ActionQuantileMae = 0.25d,
+            ActionQuantileLabelCount = 4096
+        });
+Assert(Math.Abs(quantileMetricClone.ActionQuantilePinball - 0.125d) < 0.0000001d
+       && Math.Abs(quantileMetricClone.ActionQuantileMae - 0.25d) < 0.0000001d
+       && quantileMetricClone.ActionQuantileLabelCount == 4096,
+    "iteration metric cloning preserves action-quantile telemetry");
+const long expectedExpandedModelParameters = 1_060_886L;
+var expandedModelParameters =
+    (2L * 1024 * 512)
+    + (2L * 512)
+    + 512 + 1
+    + (16L * 512) + 16
+    + (5L * (512 + 1));
+var expandedModelSizeFixture = new CombatPolicyValueNetworkDefinition
+{
+    StateWeights = Enumerable.Repeat(0.123456789012345d, 1024 * 512).ToArray(),
+    StateBias = Enumerable.Repeat(0.123456789012345d, 512).ToArray(),
+    ActionWeights = Enumerable.Repeat(0.123456789012345d, 1024 * 512).ToArray(),
+    ActionBias = Enumerable.Repeat(0.123456789012345d, 512).ToArray(),
+    PolicyWeights = Enumerable.Repeat(0.123456789012345d, 512).ToArray(),
+    ActionQuantileWeights = Enumerable.Repeat(
+        0.123456789012345d,
+        16 * 512).ToArray(),
+    ActionQuantileBias = Enumerable.Repeat(0.123456789012345d, 16).ToArray(),
+    ValueWeights = Enumerable.Repeat(0.123456789012345d, 512).ToArray(),
+    WinWeights = Enumerable.Repeat(0.123456789012345d, 512).ToArray(),
+    RiskWeights = Enumerable.Repeat(0.123456789012345d, 512).ToArray(),
+    HpWeights = Enumerable.Repeat(0.123456789012345d, 512).ToArray(),
+    TurnWeights = Enumerable.Repeat(0.123456789012345d, 512).ToArray()
+};
+var expandedModelSerializedBytes = JsonSerializer.SerializeToUtf8Bytes(
+    expandedModelSizeFixture).LongLength;
+Assert(expandedModelParameters == expectedExpandedModelParameters
+       && expandedModelSerializedBytes
+          < CombatFoundationModelPackageProtocol.SoftMaximumUncompressedBytes
+       && CombatFoundationModelPackageProtocol.TryValidateSerializedSize(
+           49_999_999L,
+           out _)
+       && !CombatFoundationModelPackageProtocol.TryValidateSerializedSize(
+           50_000_001L,
+           out _),
+    "1024/1024/512 parameter and serialized-size budgets remain below the 50 MB package hard gate");
 Assert(CombatCampaignFoundationTrainer.OfflineHeadRegressionPassed(
            new CombatPolicyValueMetricSnapshot
            {
@@ -11883,6 +12232,14 @@ appendRequest.Resume.Stage = "iteration-complete";
 Assert(
     CombatCampaignFoundationTrainer.ResolveIterationLimit(appendRequest) == 5,
     "iteration-complete checkpoints append configured iterations from their next iteration boundary");
+appendRequest.Resume.Replay.Add(new CombatEpisode
+{
+    ModelProtocol = CombatPolicyValueProtocol.EpisodeProtocol,
+    FeatureSchemaVersion = -1
+});
+Assert(
+    CombatCampaignFoundationTrainer.ResolveIterationLimit(appendRequest) == 3,
+    "protocol-incompatible resume payloads cannot inflate a fresh run's iteration limit");
 var continuationManifest = new CombatFoundationCompatibilityManifest
 {
     RulesetHash = "rules",
@@ -11920,6 +12277,7 @@ Assert(
         continuationManifest),
     "iteration-boundary continuation tolerates a rebuilt worker while retaining ruleset, campaign, feature, and model compatibility gates");
 CombatCampaignFoundationResumeState? capturedFoundationCheckpoint = null;
+var baselineWorkingModel = foundationTraining.WorkingChampion!;
 var interruptedFoundationObserved = false;
 using (var interruptedFoundation = new CancellationTokenSource())
 {
@@ -11949,6 +12307,7 @@ foundationRequest.Resume = capturedFoundationCheckpoint;
 var resumedFoundationTraining = new CombatCampaignFoundationTrainer().Run(
     foundationRequest,
     campaignRules.Ruleset);
+var resumedWorkingModel = resumedFoundationTraining.WorkingChampion;
 Assert(interruptedFoundationObserved
        && capturedFoundationCheckpoint != null
        && capturedFoundationCheckpoint.SchemaVersion
@@ -11973,34 +12332,33 @@ Assert(interruptedFoundationObserved
        && capturedFoundationCheckpoint.CompletedCampaigns == 2
        && capturedFoundationCheckpoint.Replay.Count > 0
        && capturedFoundationCheckpoint.Replay.Count < 74
-       && resumedFoundationTraining.Success
-       && resumedFoundationTraining.Champion != null
-       && foundationTraining.Champion != null
-       && resumedFoundationTraining.Champion.StateWeights.SequenceEqual(
-           foundationTraining.Champion.StateWeights)
-       && resumedFoundationTraining.Champion.PolicyWeights.SequenceEqual(
-           foundationTraining.Champion.PolicyWeights),
+       && !resumedFoundationTraining.Success
+       && resumedWorkingModel != null
+       && resumedWorkingModel.StateWeights.SequenceEqual(
+            baselineWorkingModel.StateWeights)
+       && resumedWorkingModel.PolicyWeights.SequenceEqual(
+            baselineWorkingModel.PolicyWeights),
     "foundation checkpoints persist the sampled replay window and resume model training without replaying campaigns"
     + $" (interrupted={interruptedFoundationObserved}, captured={capturedFoundationCheckpoint != null},"
     + $" completed={capturedFoundationCheckpoint?.CompletedCampaigns}, replay={capturedFoundationCheckpoint?.Replay.Count},"
-    + $" resumedSuccess={resumedFoundationTraining.Success}, resumedChampion={resumedFoundationTraining.Champion != null},"
-    + $" baselineChampion={foundationTraining.Champion != null},"
-    + $" stateEqual={resumedFoundationTraining.Champion?.StateWeights.SequenceEqual(foundationTraining.Champion?.StateWeights ?? Array.Empty<double>())},"
-    + $" policyEqual={resumedFoundationTraining.Champion?.PolicyWeights.SequenceEqual(foundationTraining.Champion?.PolicyWeights ?? Array.Empty<double>())})");
+     + $" resumedSuccess={resumedFoundationTraining.Success}, resumedWorking={resumedWorkingModel != null},"
+     + $" baselineWorking={baselineWorkingModel != null},"
+     + $" stateEqual={resumedWorkingModel?.StateWeights.SequenceEqual(baselineWorkingModel!.StateWeights)},"
+     + $" policyEqual={resumedWorkingModel?.PolicyWeights.SequenceEqual(baselineWorkingModel!.PolicyWeights)})");
 foundationRequest.Resume = null;
 foundationRequest.MaximumDegreeOfParallelism = 1;
 var serialFoundationTraining = new CombatCampaignFoundationTrainer().Run(
     foundationRequest,
     campaignRules.Ruleset);
-Assert(serialFoundationTraining.Success
-       && serialFoundationTraining.Champion != null
+var serialWorkingModel = serialFoundationTraining.WorkingChampion;
+Assert(!serialFoundationTraining.Success
+       && serialWorkingModel != null
        && serialFoundationTraining.EffectiveParallelism == 1
        && serialFoundationTraining.PeakConcurrentCampaigns == 1
-       && foundationTraining.Champion != null
-       && serialFoundationTraining.Champion.StateWeights.SequenceEqual(
-           foundationTraining.Champion.StateWeights)
-       && serialFoundationTraining.Champion.PolicyWeights.SequenceEqual(
-           foundationTraining.Champion.PolicyWeights)
+       && serialWorkingModel.StateWeights.SequenceEqual(
+            baselineWorkingModel!.StateWeights)
+       && serialWorkingModel.PolicyWeights.SequenceEqual(
+            baselineWorkingModel.PolicyWeights)
        && serialFoundationTraining.ValidationRuns.Select(item =>
                item.DifficultyId + ":" + item.WorldSeed + ":" + item.PlanHash)
            .SequenceEqual(foundationTraining.ValidationRuns.Select(item =>

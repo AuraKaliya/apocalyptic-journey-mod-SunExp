@@ -127,6 +127,10 @@ public sealed class CombatFoundationTrainingParameters
 
     public double MaximumOfflineHeadRegression { get; set; } = 0.05d;
 
+    public double MaximumStateFeatureCollisionRate { get; set; } = 0.20d;
+
+    public double MaximumActionFeatureCollisionRate { get; set; } = 0.06d;
+
     public double SuccessExpertReplayShare { get; set; } = 0.20d;
 
     public double AuthoritativeContentReplayShare { get; set; } = 0.20d;
@@ -186,11 +190,11 @@ public sealed class CombatFoundationTrainingParameters
 
     public double ModelL2 { get; set; } = 0.0015d;
 
-    public int ModelStateDimensions { get; set; } = 256;
+    public int ModelStateDimensions { get; set; } = 1024;
 
-    public int ModelActionDimensions { get; set; } = 192;
+    public int ModelActionDimensions { get; set; } = 1024;
 
-    public int ModelHiddenDimensions { get; set; } = 64;
+    public int ModelHiddenDimensions { get; set; } = 512;
 
     public string TransformerTeacherBackend { get; set; } =
         CombatTransformerTeacherBackendNames.Disabled;
@@ -202,9 +206,9 @@ public sealed class CombatFoundationTrainingParameters
 
     public int TransformerTeacherBatchSize { get; set; } = 64;
 
-    public int TransformerTeacherStateDimensions { get; set; } = 128;
+    public int TransformerTeacherStateDimensions { get; set; } = 1024;
 
-    public int TransformerTeacherActionDimensions { get; set; } = 128;
+    public int TransformerTeacherActionDimensions { get; set; } = 1024;
 
     public int TransformerTeacherHiddenDimensions { get; set; } = 384;
 
@@ -216,7 +220,7 @@ public sealed class CombatFoundationTrainingParameters
 
     public int TransformerTeacherHistoryLength { get; set; } = 12;
 
-    public int TransformerTeacherMinimumFrames { get; set; } = 1024;
+    public int TransformerTeacherMinimumFrames { get; set; } = 4096;
 
     public int TransformerTeacherMaximumFrames { get; set; } = 10000;
 
@@ -405,6 +409,16 @@ public sealed class CombatFoundationTrainingParameters
             0d,
             0.50d,
             0.05d);
+        MaximumStateFeatureCollisionRate = Clamp(
+            MaximumStateFeatureCollisionRate,
+            0d,
+            1d,
+            0.20d);
+        MaximumActionFeatureCollisionRate = Clamp(
+            MaximumActionFeatureCollisionRate,
+            0d,
+            1d,
+            0.06d);
         SuccessExpertReplayShare = Clamp(
             SuccessExpertReplayShare,
             0d,
@@ -497,9 +511,9 @@ public sealed class CombatFoundationTrainingParameters
         ModelRetainedCandidates = Math.Max(1, Math.Min(5, ModelRetainedCandidates));
         ModelLearningRate = Clamp(ModelLearningRate, 0.0001d, 0.1d, 0.00625d);
         ModelL2 = Clamp(ModelL2, 0d, 0.05d, 0.0015d);
-        ModelStateDimensions = Math.Max(16, Math.Min(512, ModelStateDimensions));
-        ModelActionDimensions = Math.Max(16, Math.Min(512, ModelActionDimensions));
-        ModelHiddenDimensions = Math.Max(8, Math.Min(256, ModelHiddenDimensions));
+        ModelStateDimensions = Math.Max(16, Math.Min(2048, ModelStateDimensions));
+        ModelActionDimensions = Math.Max(16, Math.Min(2048, ModelActionDimensions));
+        ModelHiddenDimensions = Math.Max(8, Math.Min(1024, ModelHiddenDimensions));
         var transformer = new CombatTransformerTeacherOptions
         {
             Backend = TransformerTeacherBackend,
@@ -846,6 +860,10 @@ public static class CombatFoundationWorkerJobFactory
                     parameters.MinimumArenaDiscordantPairs,
                 MaximumOfflineHeadRegression =
                     parameters.MaximumOfflineHeadRegression,
+                MaximumStateFeatureCollisionRate =
+                    parameters.MaximumStateFeatureCollisionRate,
+                MaximumActionFeatureCollisionRate =
+                    parameters.MaximumActionFeatureCollisionRate,
                 NativeProgramPackageHash =
                     source.NativeProgramPackageHash ?? "",
                 ExpertReplayEpisodeLimit = expertEpisodeLimit,
@@ -1004,6 +1022,33 @@ public static class CombatFoundationWorkerJobFactory
 public static class CombatFoundationModelPackageProtocol
 {
     public const int SchemaVersion = 3;
+
+    public const long SoftMaximumUncompressedBytes = 45_000_000L;
+
+    public const long MaximumUncompressedBytes = 50_000_000L;
+
+    public static bool TryValidateSerializedSize(
+        long bytes,
+        out string diagnostic)
+    {
+        if (bytes <= 0L)
+        {
+            diagnostic = "底模包为空";
+            return false;
+        }
+        if (bytes > MaximumUncompressedBytes)
+        {
+            diagnostic = "底模包超过 50 MB 硬上限："
+                         + bytes
+                         + " > "
+                         + MaximumUncompressedBytes;
+            return false;
+        }
+        diagnostic = bytes > SoftMaximumUncompressedBytes
+            ? "底模包已超过 45 MB 预警线：" + bytes
+            : "";
+        return true;
+    }
 
     public const string ArtifactKind = "aura.foundation-model-package";
 

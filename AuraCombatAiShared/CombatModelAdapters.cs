@@ -651,9 +651,9 @@ public static class CombatModelAdapterValidator
             || adapter.Manifest.AdjustsActionValue
             || adapter.Manifest.MaximumActionValueDelta != 0d
             || adapter.StateDimensions < 16
-            || adapter.StateDimensions > 512
+            || adapter.StateDimensions > 2048
             || adapter.ActionDimensions < 16
-            || adapter.ActionDimensions > 512
+            || adapter.ActionDimensions > 2048
             || adapter.Rank < 1
             || adapter.Rank > 32
             || !string.Equals(
