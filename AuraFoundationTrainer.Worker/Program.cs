@@ -35,6 +35,12 @@ try
     AuraToolsAuthoritativeRoleSemantics.Initialize();
     AuraToolsRoleCampaignStrategy.Apply(job.Request.TrainingCampaign);
     AuraToolsRoleCampaignStrategy.Apply(job.Request.ValidationCampaign);
+    // Archive residuals are learned data and change after every accepted run.
+    // Capture the structural workload identity before those residuals are
+    // merged so an execution plan remains reusable across training rounds.
+    job.Request.AutoTuneCampaignKey =
+        CombatCampaignFoundationTrainer.CampaignFingerprint(
+            job.Request.TrainingCampaign);
     // The external worker persists validation aggregates and case artifacts.
     // Full validation battle graphs are process-local diagnostics and must not
     // accumulate across hundreds of validation campaigns.
@@ -333,10 +339,15 @@ try
             job.Request.CheckpointSerializationParallelism <= 0
                 ? requestedWorkers >= 32 ? 2 : 1
                 : job.Request.CheckpointSerializationParallelism));
+    var checkpointSerializationAutomatic =
+        job.Request.CheckpointSerializationParallelism <= 0;
+    var checkpointSerializationAutoScaled = false;
+    var checkpointSerializationSeconds = 0d;
     using var checkpointPipeline =
         new CombatFoundationLatestWritePipeline<
             CombatCampaignFoundationResumeState>(state =>
         {
+            var checkpointStarted = Stopwatch.StartNew();
             try
             {
                 var replayIdentity = ReplayIdentity(state.Replay);
@@ -374,6 +385,15 @@ try
                     job.CheckpointPath,
                     job.CheckpointEpisodesPath,
                     new[] { nextSnapshot.Path });
+                if (checkpointSerializationAutomatic
+                    && checkpointSerializationWorkers == 1
+                    && requestedWorkers >= 12
+                    && (state.Replay?.Count ?? 0) >= 512
+                    && checkpointStarted.Elapsed.TotalSeconds >= 1.5d)
+                {
+                    checkpointSerializationWorkers = 2;
+                    checkpointSerializationAutoScaled = true;
+                }
             }
             catch (Exception ex)
             {
@@ -382,6 +402,12 @@ try
                     "检查点暂时无法写入，训练继续使用上一份有效快照："
                     + ex.Message;
                 Console.Error.WriteLine(checkpointWarning);
+            }
+            finally
+            {
+                checkpointStarted.Stop();
+                checkpointSerializationSeconds +=
+                    checkpointStarted.Elapsed.TotalSeconds;
             }
         });
     job.Request.Checkpoint = checkpointPipeline.Enqueue;
@@ -441,7 +467,10 @@ try
     {
         transformerTeacher = new PythonCombatTransformerTeacher(
             job.ResultDirectory,
-            ResolveTransformerTeacherScript());
+            ResolveTransformerTeacherScript(),
+            Path.Combine(
+                job.SuccessArchiveDirectory,
+                "transformer-runtime-auto-tune-v1.json"));
     }
 
     var training = new CombatCampaignFoundationTrainer(
@@ -608,6 +637,14 @@ try
         Resumable = resumable,
         CheckpointWriteFailures = checkpointWriteFailures,
         CheckpointWarning = checkpointWarning,
+        EffectiveCheckpointSerializationParallelism =
+            checkpointSerializationWorkers,
+        CheckpointSerializationAutoScaled =
+            checkpointSerializationAutoScaled,
+        CheckpointSerializationSeconds = checkpointSerializationSeconds,
+        CheckpointWritesEnqueued = checkpointPipeline.EnqueuedCount,
+        CheckpointWritesExecuted = checkpointPipeline.ExecutedCount,
+        CheckpointWritesCoalesced = checkpointPipeline.CoalescedCount,
         TrainingMetricsPath = job.TrainingMetricsPath,
         TrainingAnalysisPath = job.TrainingAnalysisPath,
         TrainingMetricWriteFailures = trainingMetricWriteFailures,
@@ -2091,15 +2128,28 @@ static string RuntimeDescription(int workers)
 static string AutoTuneHardwareKey()
 {
     var availableMemory = GC.GetGCMemoryInfo().TotalAvailableMemoryBytes;
+    var availableMemoryGiB = Math.Max(
+        1L,
+        (availableMemory + (1L << 30) - 1L) >> 30);
+    var memoryTierGiB = 1L;
+    while (memoryTierGiB < availableMemoryGiB && memoryTierGiB < 1024L)
+    {
+        memoryTierGiB <<= 1;
+    }
     return string.Join(
         "|",
         Environment.MachineName,
         Environment.ProcessorCount,
+        Environment.GetEnvironmentVariable("PROCESSOR_IDENTIFIER") ?? "",
         System.Runtime.InteropServices.RuntimeInformation.ProcessArchitecture,
+        System.Runtime.InteropServices.RuntimeInformation.OSDescription,
         System.Runtime.GCSettings.IsServerGC
             ? "server-gc"
             : "workstation-gc",
-        availableMemory / (1024L * 1024L * 1024L),
+        // GC's available-memory estimate can move by a GiB under pressure.
+        // A capability tier keeps cache identity stable without sharing plans
+        // between materially different memory classes.
+        "memory-tier-" + memoryTierGiB.ToString() + "gib",
         Environment.Version);
 }
 

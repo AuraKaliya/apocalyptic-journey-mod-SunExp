@@ -38,7 +38,8 @@ public sealed class CombatTransformerTeacherOptions
     public string Backend { get; set; } =
         CombatTransformerTeacherBackendNames.Disabled;
 
-    public string PythonExecutable { get; set; } = "python";
+    public string PythonExecutable { get; set; } =
+        CombatTransformerRuntimeProtocol.AutomaticExecutable;
 
     public int Epochs { get; set; } = 12;
 
@@ -60,7 +61,27 @@ public sealed class CombatTransformerTeacherOptions
 
     public int MinimumFrames { get; set; } = 1024;
 
+    public bool EnableWarmStart { get; set; } = true;
+
+    public int CpuRefreshInterval { get; set; } = 2;
+
+    public int IncrementalEpochs { get; set; } = 4;
+
+    public int FinalEpochs { get; set; } = 12;
+
     public int CpuThreads { get; set; }
+
+    public int CpuInteropThreads { get; set; }
+
+    public int MicroBatchSize { get; set; }
+
+    public int DataLoaderWorkers { get; set; }
+
+    public int PrefetchBatches { get; set; } = 2;
+
+    public bool EnablePinnedMemory { get; set; } = true;
+
+    public bool EnableMixedPrecision { get; set; } = true;
 
     public double DistillationWeight { get; set; } = 0.35d;
 
@@ -70,7 +91,11 @@ public sealed class CombatTransformerTeacherOptions
     {
         Backend = CombatTransformerTeacherBackendNames.Normalize(Backend);
         PythonExecutable = string.IsNullOrWhiteSpace(PythonExecutable)
-            ? "python"
+                           || string.Equals(
+                               PythonExecutable.Trim(),
+                               "python",
+                               StringComparison.OrdinalIgnoreCase)
+            ? CombatTransformerRuntimeProtocol.AutomaticExecutable
             : PythonExecutable.Trim();
         Epochs = Math.Max(1, Math.Min(100, Epochs));
         BatchSize = Math.Max(8, Math.Min(512, BatchSize));
@@ -89,7 +114,14 @@ public sealed class CombatTransformerTeacherOptions
             Math.Min(4096, FeedForwardDimensions));
         HistoryLength = Math.Max(1, Math.Min(32, HistoryLength));
         MinimumFrames = Math.Max(64, Math.Min(100000, MinimumFrames));
+        CpuRefreshInterval = Math.Max(1, Math.Min(8, CpuRefreshInterval));
+        IncrementalEpochs = Math.Max(1, Math.Min(Epochs, IncrementalEpochs));
+        FinalEpochs = Math.Max(1, Math.Min(100, FinalEpochs));
         CpuThreads = Math.Max(0, Math.Min(64, CpuThreads));
+        CpuInteropThreads = Math.Max(0, Math.Min(8, CpuInteropThreads));
+        MicroBatchSize = Math.Max(0, Math.Min(BatchSize, MicroBatchSize));
+        DataLoaderWorkers = Math.Max(0, Math.Min(8, DataLoaderWorkers));
+        PrefetchBatches = Math.Max(1, Math.Min(8, PrefetchBatches));
         DistillationWeight = Clamp(DistillationWeight, 0d, 0.75d, 0.35d);
         RandomSeed = RandomSeed == 0 ? 1701 : RandomSeed;
         return this;
@@ -122,12 +154,49 @@ public sealed class CombatTransformerTeacherContext
 {
     public int Iteration { get; set; }
 
+    public int TotalIterations { get; set; } = 1;
+
     public string DecisionProfile { get; set; } = "balanced";
 
     public IReadOnlyList<CombatEpisode> Episodes { get; set; } =
         Array.Empty<CombatEpisode>();
 
     public CombatTransformerTeacherOptions Options { get; set; } = new();
+
+    public Action<CombatTransformerTeacherProgress>? Progress { get; set; }
+}
+
+public sealed class CombatTransformerTeacherProgress
+{
+    public int Iteration { get; set; }
+
+    public int TotalIterations { get; set; }
+
+    public string Stage { get; set; } = "starting";
+
+    public int Epoch { get; set; }
+
+    public int TotalEpochs { get; set; }
+
+    public int CompletedFrames { get; set; }
+
+    public int TotalFrames { get; set; }
+
+    public double FramesPerSecond { get; set; }
+
+    public double ElapsedSeconds { get; set; }
+
+    public double EstimatedRemainingSeconds { get; set; }
+
+    public double ProcessCpuPercent { get; set; }
+
+    public long WorkingSetBytes { get; set; }
+
+    public bool WarmStarted { get; set; }
+
+    public bool TrainingEnabled { get; set; } = true;
+
+    public string Message { get; set; } = "";
 }
 
 public sealed class CombatTransformerTeacherReport
@@ -153,6 +222,32 @@ public sealed class CombatTransformerTeacherReport
 
     public string TorchVersion { get; set; } = "";
 
+    public string NumpyVersion { get; set; } = "";
+
+    public string ResolvedPythonExecutable { get; set; } = "";
+
+    public string RuntimeResolutionSource { get; set; } = "";
+
+    public bool RuntimeAutoTuned { get; set; }
+
+    public bool RuntimeAutoTuneCacheHit { get; set; }
+
+    public int EffectiveCpuThreads { get; set; }
+
+    public int EffectiveCpuInteropThreads { get; set; }
+
+    public int EffectiveBatchSize { get; set; }
+
+    public int EffectiveMicroBatchSize { get; set; }
+
+    public int EffectiveDataLoaderWorkers { get; set; }
+
+    public int EffectivePrefetchBatches { get; set; }
+
+    public bool PinnedMemoryEnabled { get; set; }
+
+    public string NumericPrecision { get; set; } = "float32";
+
     public long ParameterCount { get; set; }
 
     public int HiddenDimensions { get; set; }
@@ -176,6 +271,14 @@ public sealed class CombatTransformerTeacherReport
     public int ValidationFrames { get; set; }
 
     public int EpochsExecuted { get; set; }
+
+    public int RequestedEpochs { get; set; }
+
+    public bool WarmStarted { get; set; }
+
+    public bool TrainingRefreshed { get; set; }
+
+    public string ResumeModelPath { get; set; } = "";
 
     public double ValidationPolicyCrossEntropy { get; set; }
 
@@ -204,6 +307,14 @@ public sealed class CombatTransformerTeacherReport
     public double ValidationTerminalAccuracy { get; set; }
 
     public double ElapsedSeconds { get; set; }
+
+    public double DataPreparationSeconds { get; set; }
+
+    public double RuntimeCalibrationSeconds { get; set; }
+
+    public double TrainingFramesPerSecond { get; set; }
+
+    public long PeakDeviceMemoryBytes { get; set; }
 
     public string DatasetPath { get; set; } = "";
 

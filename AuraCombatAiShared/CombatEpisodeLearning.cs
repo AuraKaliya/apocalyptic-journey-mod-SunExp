@@ -17,7 +17,7 @@ public static class CombatPolicyValueProtocol
 
 public static class CombatPolicyValueFrameStratificationProtocol
 {
-    public const string Version = "frame-strata-v5-end-turn-counterfactual";
+    public const string Version = "frame-strata-v6-strategy-archetype";
 
     public const double MinimumWeight = 0.50d;
 
@@ -253,6 +253,19 @@ public sealed class CombatPolicyValueTrainingOptions
 
     public CombatPolicyValueTrainingOptions Normalized()
     {
+        var normalizedBatchSize = Math.Max(8, Math.Min(512, BatchSize));
+        var normalizedParallelism = Math.Max(
+            1,
+            Math.Min(Environment.ProcessorCount, MaximumDegreeOfParallelism));
+        var normalizedGradientShards = GradientShardCount <= 0
+            ? Math.Max(
+                1,
+                Math.Min(
+                    32,
+                    Math.Min(
+                        normalizedParallelism,
+                        (normalizedBatchSize + 1) / 2)))
+            : Math.Max(1, Math.Min(32, GradientShardCount));
         return new CombatPolicyValueTrainingOptions
         {
             Epochs = Math.Max(5, Math.Min(500, Epochs)),
@@ -274,13 +287,9 @@ public sealed class CombatPolicyValueTrainingOptions
             RandomSeed = RandomSeed,
             MinimumEpisodes = Math.Max(2, Math.Min(10000, MinimumEpisodes)),
             RequireAuthoritativeEpisodes = RequireAuthoritativeEpisodes,
-            BatchSize = Math.Max(8, Math.Min(512, BatchSize)),
-            GradientShardCount = Math.Max(
-                1,
-                Math.Min(32, GradientShardCount)),
-            MaximumDegreeOfParallelism = Math.Max(
-                1,
-                Math.Min(Environment.ProcessorCount, MaximumDegreeOfParallelism)),
+            BatchSize = normalizedBatchSize,
+            GradientShardCount = normalizedGradientShards,
+            MaximumDegreeOfParallelism = normalizedParallelism,
             MinimumEpochs = Math.Max(1, Math.Min(Epochs, MinimumEpochs)),
             EarlyStoppingPatience = Math.Max(
                 1,

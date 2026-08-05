@@ -6,7 +6,7 @@ namespace AuraFoundationTrainer.ControlCenter;
 
 internal sealed class ControllerSettings
 {
-    public int SchemaVersion { get; set; } = 9;
+    public int SchemaVersion { get; set; } = 11;
 
     [JsonIgnore]
     public string ModRoot { get; set; } = "";
@@ -33,12 +33,12 @@ internal sealed class ControllerSettings
                 CombatFoundationGovernanceProfileNames.Development,
             Iterations = 8,
             AdditionalIterationsOnResume = 2,
-            TrainingCampaignsPerIteration = 64,
-            ArenaCampaignsPerDifficulty = 32,
-            ArenaConfirmationCampaignsPerDifficulty = 64,
-            NormalValidationCampaigns = 200,
-            AdvancedValidationCampaigns = 500,
-            CapabilityProbeCampaignsPerDifficulty = 128,
+            TrainingCampaignsPerIteration = 96,
+            ArenaCampaignsPerDifficulty = 16,
+            ArenaConfirmationCampaignsPerDifficulty = 48,
+            NormalValidationCampaigns = 100,
+            AdvancedValidationCampaigns = 200,
+            CapabilityProbeCampaignsPerDifficulty = 64,
             CapabilityProbeTeacherCampaignsPerDifficulty = 16,
             CapabilityProbeBatchSize = 16,
             PreflightCampaignsPerDifficulty = 16,
@@ -62,7 +62,7 @@ internal sealed class ControllerSettings
             SelfPlayExplorationProbability = 0.15d,
             ModelEpochs = 40,
             ModelBatchSize = 64,
-            ModelGradientShardCount = 16,
+            ModelGradientShardCount = 0,
             ModelMaximumUnsafeEndTurnFrameShare = 0.35d,
             ModelLearningRate = 0.004d,
             ModelL2 = 0.002d,
@@ -80,8 +80,18 @@ internal sealed class ControllerSettings
             TransformerTeacherAttentionHeads = 8,
             TransformerTeacherFeedForwardDimensions = 1536,
             TransformerTeacherHistoryLength = 12,
-            TransformerTeacherMinimumFrames = 1024,
+            TransformerTeacherMinimumFrames = 8192,
+            TransformerTeacherEnableWarmStart = true,
+            TransformerTeacherCpuRefreshInterval = 2,
+            TransformerTeacherIncrementalEpochs = 4,
+            TransformerTeacherFinalEpochs = 12,
             TransformerTeacherCpuThreads = 0,
+            TransformerTeacherCpuInteropThreads = 0,
+            TransformerTeacherMicroBatchSize = 0,
+            TransformerTeacherDataLoaderWorkers = 0,
+            TransformerTeacherPrefetchBatches = 2,
+            TransformerTeacherEnablePinnedMemory = true,
+            TransformerTeacherEnableMixedPrecision = true,
             TransformerDistillationWeight = 0.35d,
             HardEncounterWeights = new Dictionary<string, double>(
                 StringComparer.OrdinalIgnoreCase)
@@ -178,6 +188,18 @@ internal sealed class ControllerWorkerResultSummary
     public int CheckpointWriteFailures { get; set; }
 
     public string CheckpointWarning { get; set; } = "";
+
+    public int EffectiveCheckpointSerializationParallelism { get; set; }
+
+    public bool CheckpointSerializationAutoScaled { get; set; }
+
+    public double CheckpointSerializationSeconds { get; set; }
+
+    public long CheckpointWritesEnqueued { get; set; }
+
+    public long CheckpointWritesExecuted { get; set; }
+
+    public long CheckpointWritesCoalesced { get; set; }
 
     public ControllerTrainingResultSummary? Training { get; set; }
 }

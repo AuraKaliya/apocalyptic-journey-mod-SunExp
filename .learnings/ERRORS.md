@@ -1,5 +1,203 @@
 # Errors
 
+## [ERR-20260805-009] temp-validation-cleanup-rejected
+
+**Logged**: 2026-08-05T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tooling
+
+### Summary
+A post-test cleanup command for explicitly named temporary validation folders
+was rejected before execution by the command safety layer.
+
+### Resolution
+- **Resolved**: 2026-08-05T00:00:00+08:00
+- **Notes**: No repository file was affected and no retry was necessary; the
+  bounded temporary artifacts can be reclaimed by normal OS temp cleanup.
+
+---
+
+## [ERR-20260805-010] trainer-final-gate-audit
+
+**Logged**: 2026-08-05T13:00:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: tests
+
+### Summary
+Final trainer gates exposed a stale build, a net472-only API incompatibility,
+and an undersized one-Epoch teacher smoke configuration.
+
+### Error
+```text
+Foundation checkpoint compatibility manifest is incomplete.
+CS1501: Dictionary.Remove has no 2-argument overload.
+Transformer teacher withheld: policy loss did not beat uniform baseline.
+```
+
+### Context
+- The first Worker smoke used an apphost built before the training-policy
+  version bump.
+- `Dictionary.Remove(key, out value)` compiled for net8.0 but not net472.
+- One Epoch on a 66-frame fixture was intentionally rejected by the teacher
+  quality gate by a 0.00052 cross-entropy margin.
+
+### Suggested Fix
+Rebuild every target before smoke tests, keep shared code within the net472 API
+surface, and use the established two-Epoch minimum for the tiny CPU fixture.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraCombatAiShared/CombatCampaignFoundationTraining.cs,
+  tools/Test-AuraFoundationTrainer.ps1
+
+### Resolution
+- **Resolved**: 2026-08-05T13:00:00+08:00
+- **Notes**: Rebuilt both targets, replaced the API call with
+  `TryGetValue` plus `Remove`, and passed the CPU teacher smoke at two Epochs.
+
+---
+
+## [ERR-20260805-001] exec-command-computed-recursive-cleanup
+
+**Logged**: 2026-08-05T12:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+A combined PowerShell smoke-test command was rejected because it ended with a
+recursive delete against a computed temporary path.
+
+### Error
+```text
+CreateProcess rejected: blocked by policy
+```
+
+### Context
+- The command created a GUID-named directory under `$env:TEMP`, ran two model
+  tests, then called `Remove-Item -Recurse` in the same composed command.
+- Windows safety rules require verification of the resolved target before a
+  recursive delete.
+
+### Suggested Fix
+Run the smoke test without inline recursive cleanup. Inspect the resolved path,
+then delete explicitly named files with `System.IO.File.Delete` and remove the
+now-empty directories with `System.IO.Directory.Delete`.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/transformer-teacher/train_teacher.py
+
+### Resolution
+- **Resolved**: 2026-08-05T12:00:00+08:00
+- **Notes**: Split artifact creation/testing from cleanup; exact-path .NET file
+  and empty-directory deletion completed without a recursive command.
+
+---
+
+## [ERR-20260805-008] stale-controller-schema-10-source-contract
+
+**Logged**: 2026-08-05T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+AuraTools behavioral tests passed, but the source contract still required
+Control Center schema 9 and a fixed 16-way gradient shard preset.
+
+### Resolution
+- **Resolved**: 2026-08-05T00:00:00+08:00
+- **Notes**: Updated the contract for schema 10, automatic gradient shards and
+  the new Transformer runtime-plan defaults.
+
+---
+
+## [ERR-20260805-007] auto-tune-cache-key-included-learned-residuals
+
+**Logged**: 2026-08-05T00:00:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: training
+
+### Summary
+After stabilizing the hardware key, identical Auto-Tune runs still missed the
+cache because the campaign fingerprint changed after every accepted run.
+
+### Cause
+Success-archive reward residuals are merged into the campaign before training.
+The execution cache keyed the fully mutated campaign, so learned data changes
+invalidated a hardware execution plan even when structure and budgets matched.
+
+### Resolution
+- **Resolved**: 2026-08-05T00:00:00+08:00
+- **Notes**: The Worker now captures the structural campaign fingerprint after
+  deterministic role defaults but before archive residuals are merged. Auto-Tune
+  uses that key; checkpoint/model compatibility still uses the full campaign.
+
+---
+
+## [ERR-20260805-006] auto-tune-cache-key-used-volatile-memory
+
+**Logged**: 2026-08-05T00:00:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: training
+
+### Summary
+Repeated foundation Auto-Tune smoke runs did not reuse a valid v4 cache even
+with identical settings and hardware.
+
+### Cause
+The hardware key embedded GC's exact available-memory GiB value. That estimate
+can move by one GiB with system pressure, invalidating an otherwise compatible
+plan.
+
+### Resolution
+- **Resolved**: 2026-08-05T00:00:00+08:00
+- **Notes**: Cache identity now uses a stable power-of-two memory capability
+  tier while retaining machine, CPU, OS, architecture, GC mode and .NET version.
+
+---
+
+## [ERR-20260805-005] one-epoch-transformer-smoke-missed-policy-gate
+
+**Logged**: 2026-08-05T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The 66-frame CPU smoke used one Transformer epoch and finished correctly, but
+its validation policy cross-entropy was 0.00052 above the uniform baseline, so
+the production quality gate correctly withheld its annotations.
+
+### Resolution
+- **Resolved**: 2026-08-05T00:00:00+08:00
+- **Notes**: The release smoke default now uses two epochs. The repeated run
+  passed all gates and also exercised the persisted runtime-plan cache.
+
+---
+
+## [ERR-20260805-004] inventory-included-missing-root-readme
+
+**Logged**: 2026-08-05T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tooling
+
+### Summary
+An inventory-only `rg` command included a root `README.md` that this repository
+does not contain, so ripgrep returned a partial-result error.
+
+### Resolution
+- **Resolved**: 2026-08-05T00:00:00+08:00
+- **Notes**: Subsequent documentation searches enumerate existing files first.
+
+---
+
 ## [ERR-20260804-017] stale-controller-source-contract
 
 **Logged**: 2026-08-04T16:12:00+08:00
@@ -20,6 +218,107 @@ Foundation controller resumable-training settings migration is missing.
 - **Resolved**: 2026-08-04T16:14:00+08:00
 - **Notes**: Updated the contract to schema 9, the Transformer settings, and
   the 256/256/64 deployment preset; the suite then passed.
+
+---
+
+## [ERR-20260805-003] stale-auto-tune-candidate-assertion
+
+**Logged**: 2026-08-05T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The combat shared test still expected the previous five CPU Auto-Tune
+candidates after hybrid/high-core candidates were added.
+
+### Error
+```text
+Assertion failed: auto-tune benchmarks multiple bounded CPU parallelism candidates
+```
+
+### Context
+- Production candidate generation intentionally added 6, 14, 24, 48, and 64 worker cases.
+- The exact-sequence contract test needed to move with that behavioral change.
+
+### Suggested Fix
+Update the assertion to cover both a 20-thread hybrid CPU and a 64-thread host.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraCombatAiShared.Tests/Program.cs, AuraCombatAiShared/CombatCampaignFoundationTraining.cs
+
+### Resolution
+- **Resolved**: 2026-08-05T00:00:00+08:00
+- **Notes**: Updated the candidate assertions for 20 and 64 logical processors.
+
+---
+
+## [ERR-20260805-002] parallel-foundation-project-build-native-compiler-lock
+
+**Logged**: 2026-08-05T00:00:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: tests
+
+### Summary
+Building the Foundation Worker and Control Center concurrently caused their
+shared `AuraNativeProgramCompiler` build output to be locked.
+
+### Error
+```text
+CS2012: process cannot access AuraNativeProgramCompiler.dll because it is being used by another process
+```
+
+### Context
+- Both trainer projects invoke the same native-program compiler in a pre-build target.
+- The projects were launched in parallel even though their generated/tool outputs overlap.
+
+### Suggested Fix
+Build Foundation Trainer projects serially; only parallelize independent reads
+or builds without shared generated outputs.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraFoundationTrainer.Worker/AuraFoundationTrainer.Worker.csproj, AuraFoundationTrainer.ControlCenter/AuraFoundationTrainer.ControlCenter.csproj
+
+### Resolution
+- **Resolved**: 2026-08-05T00:00:00+08:00
+- **Notes**: Subsequent trainer builds are run serially.
+
+---
+
+## [ERR-20260805-001] powershell-rg-double-quote-pattern
+
+**Logged**: 2026-08-05T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+A PowerShell `rg` inventory command used a double-quoted regex containing an
+escaped quote, so PowerShell truncated the pattern before ripgrep parsed it.
+
+### Error
+```text
+regex parse error: unclosed group
+```
+
+### Context
+- The search combined protocol strings and a quoted C# assignment.
+- This was an inventory-only command and did not affect repository files.
+
+### Suggested Fix
+Use a single-quoted literal regex or split the searches into separate commands.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Test-AuraCombatAi.ps1
+- See Also: earlier PowerShell/ripgrep quoting entry in this file
+
+### Resolution
+- **Resolved**: 2026-08-05T00:00:00+08:00
+- **Notes**: Subsequent searches use single-quoted patterns.
 
 ---
 

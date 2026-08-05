@@ -9,15 +9,28 @@ namespace AuraFoundationTrainer.Worker;
 internal sealed class PythonCombatTransformerTeacher :
     ICombatTransformerTeacher
 {
+    private const string ProgressPrefix = "AURA_TEACHER_PROGRESS ";
     private readonly string resultDirectory;
     private readonly string scriptPath;
+    private readonly string runtimeCachePath;
+    private readonly object runtimeProbeGate = new();
+    private CombatTransformerRuntimeProbe? cachedRuntimeProbe;
+    private string cachedRuntimeKey = "";
 
     public PythonCombatTransformerTeacher(
         string resultDirectory,
-        string scriptPath)
+        string scriptPath,
+        string? runtimeCachePath = null)
     {
         this.resultDirectory = Path.GetFullPath(resultDirectory);
         this.scriptPath = Path.GetFullPath(scriptPath);
+        this.runtimeCachePath = Path.GetFullPath(
+            string.IsNullOrWhiteSpace(runtimeCachePath)
+                ? Path.Combine(
+                    this.resultDirectory,
+                    "transformer-teacher",
+                    "runtime-auto-tune-v1.json")
+                : runtimeCachePath);
     }
 
     public CombatTransformerTeacherReport TrainAndAnnotate(
@@ -39,6 +52,19 @@ internal sealed class PythonCombatTransformerTeacher :
             report.Message = "Transformer teacher script is missing: " + scriptPath;
             return report;
         }
+        var runtime = ResolveRuntime(options);
+        report.ResolvedPythonExecutable = runtime.ExecutablePath;
+        report.RuntimeResolutionSource = runtime.ResolutionSource;
+        report.PythonVersion = runtime.PythonVersion;
+        report.TorchVersion = runtime.TorchVersion;
+        report.NumpyVersion = runtime.NumpyVersion;
+        report.EffectiveBackend = runtime.EffectiveBackend;
+        report.DeviceName = runtime.DeviceName;
+        if (!runtime.Success)
+        {
+            report.Message = "Transformer runtime unavailable: " + runtime.Message;
+            return report;
+        }
 
         var iterationDirectory = Path.Combine(
             resultDirectory,
@@ -55,6 +81,12 @@ internal sealed class PythonCombatTransformerTeacher :
         report.ModelPath = modelPath;
         report.ReportPath = reportPath;
 
+        ReportProgress(context, new CombatTransformerTeacherProgress
+        {
+            Stage = "exporting",
+            Message = "正在导出冻结 Replay 数据集"
+        });
+
         var bindings = ExportDataset(
             context.Episodes ?? Array.Empty<CombatEpisode>(),
             options,
@@ -70,15 +102,69 @@ internal sealed class PythonCombatTransformerTeacher :
             return report;
         }
 
+        var previousModelPath = Path.Combine(
+            resultDirectory,
+            "transformer-teacher",
+            "iteration-"
+            + Math.Max(1, context.Iteration - 1).ToString("D2"),
+            "world-model-v2.pt");
+        var warmStarted = options.EnableWarmStart
+                          && context.Iteration > 1
+                          && File.Exists(previousModelPath);
+        var finalIteration = context.Iteration >= Math.Max(
+            1,
+            context.TotalIterations);
+        var cpuBackend = string.Equals(
+            runtime.EffectiveBackend,
+            CombatTransformerTeacherBackendNames.Cpu,
+            StringComparison.OrdinalIgnoreCase);
+        var trainingEnabled = !warmStarted
+                              || !cpuBackend
+                              || finalIteration
+                              || (context.Iteration - 1)
+                              % options.CpuRefreshInterval == 0;
+        var effectiveEpochs = finalIteration
+            ? options.FinalEpochs
+            : warmStarted
+                ? options.IncrementalEpochs
+                : options.Epochs;
+        report.RequestedEpochs = trainingEnabled ? effectiveEpochs : 0;
+        report.WarmStarted = warmStarted;
+        report.TrainingRefreshed = trainingEnabled;
+        report.ResumeModelPath = warmStarted ? previousModelPath : "";
+        ReportProgress(context, new CombatTransformerTeacherProgress
+        {
+            Stage = "launching",
+            TotalFrames = bindings.Count,
+            TotalEpochs = report.RequestedEpochs,
+            WarmStarted = warmStarted,
+            TrainingEnabled = trainingEnabled,
+            Message = trainingEnabled
+                ? warmStarted
+                    ? "正在增量刷新 Transformer 教师"
+                    : "正在初始化 Transformer 教师"
+                : "本轮复用教师权重并重新生成蒸馏标注"
+        });
+
         var process = StartTeacher(
             options,
+            runtime.ExecutablePath,
             datasetPath,
             annotationsPath,
             modelPath,
-            reportPath);
+            reportPath,
+            warmStarted ? previousModelPath : "",
+            trainingEnabled,
+            effectiveEpochs);
         try
         {
-            var stdout = process.StandardOutput.ReadToEndAsync();
+            var stdout = ReadTeacherOutputAsync(
+                process.StandardOutput,
+                context,
+                bindings.Count,
+                report.RequestedEpochs,
+                warmStarted,
+                trainingEnabled);
             var stderr = process.StandardError.ReadToEndAsync();
             process.WaitForExitAsync(cancellationToken).GetAwaiter().GetResult();
             Task.WhenAll(stdout, stderr).GetAwaiter().GetResult();
@@ -153,6 +239,31 @@ internal sealed class PythonCombatTransformerTeacher :
         finally
         {
             process.Dispose();
+        }
+    }
+
+    private CombatTransformerRuntimeProbe ResolveRuntime(
+        CombatTransformerTeacherOptions options)
+    {
+        var key = options.PythonExecutable + "\n" + options.Backend;
+        lock (runtimeProbeGate)
+        {
+            if (cachedRuntimeProbe != null
+                && string.Equals(cachedRuntimeKey, key, StringComparison.Ordinal))
+            {
+                return cachedRuntimeProbe;
+            }
+
+            cachedRuntimeProbe = CombatTransformerRuntimeResolver.Resolve(
+                options.PythonExecutable,
+                options.Backend,
+                new[]
+                {
+                    Path.GetDirectoryName(scriptPath) ?? "",
+                    AppContext.BaseDirectory
+                });
+            cachedRuntimeKey = key;
+            return cachedRuntimeProbe;
         }
     }
 
@@ -249,6 +360,13 @@ internal sealed class PythonCombatTransformerTeacher :
                     X = executedIndex,
                     V = Math.Max(-1d, Math.Min(1d, frame.LongTermReturn)),
                     G = StrategyStage(frame.StateFeatures),
+                    K = string.Equals(
+                        CombatPolicyValueBatchTrainer.StrategicFrameStratum(
+                            frame.StateFeatures),
+                        "strategy-baseline",
+                        StringComparison.Ordinal)
+                        ? 1d
+                        : 2d,
                     N = nextState,
                     M = hasNextState ? 1 : 0,
                     W = Math.Max(0d, Math.Min(1d, frame.WinTarget)),
@@ -266,16 +384,18 @@ internal sealed class PythonCombatTransformerTeacher :
 
     private Process StartTeacher(
         CombatTransformerTeacherOptions options,
+        string pythonExecutable,
         string datasetPath,
         string annotationsPath,
         string modelPath,
-        string reportPath)
+        string reportPath,
+        string resumeModelPath,
+        bool trainingEnabled,
+        int effectiveEpochs)
     {
         var start = new ProcessStartInfo
         {
-            FileName = ResolvePythonExecutable(
-                options.PythonExecutable,
-                options.Backend),
+            FileName = pythonExecutable,
             WorkingDirectory = Path.GetDirectoryName(scriptPath)!,
             UseShellExecute = false,
             CreateNoWindow = true,
@@ -290,7 +410,7 @@ internal sealed class PythonCombatTransformerTeacher :
         Add(start, "--model", modelPath);
         Add(start, "--report", reportPath);
         Add(start, "--backend", options.Backend);
-        Add(start, "--epochs", options.Epochs);
+        Add(start, "--epochs", trainingEnabled ? effectiveEpochs : 0);
         Add(start, "--batch-size", options.BatchSize);
         Add(start, "--hidden", options.HiddenDimensions);
         Add(start, "--layers", options.Layers);
@@ -298,59 +418,22 @@ internal sealed class PythonCombatTransformerTeacher :
         Add(start, "--ffn", options.FeedForwardDimensions);
         Add(start, "--history", options.HistoryLength);
         Add(start, "--cpu-threads", options.CpuThreads);
+        Add(start, "--cpu-interop-threads", options.CpuInteropThreads);
+        Add(start, "--micro-batch-size", options.MicroBatchSize);
+        Add(start, "--loader-workers", options.DataLoaderWorkers);
+        Add(start, "--prefetch-batches", options.PrefetchBatches);
+        Add(start, "--pin-memory", options.EnablePinnedMemory ? 1 : 0);
+        Add(start, "--mixed-precision", options.EnableMixedPrecision ? 1 : 0);
+        Add(start, "--runtime-cache", runtimeCachePath);
+        if (!string.IsNullOrWhiteSpace(resumeModelPath))
+        {
+            Add(start, "--resume-model", resumeModelPath);
+        }
+        Add(start, "--training-enabled", trainingEnabled ? 1 : 0);
         Add(start, "--seed", options.RandomSeed);
         return Process.Start(start)
                ?? throw new InvalidOperationException(
                    "Could not start Transformer teacher process.");
-    }
-
-    private static string ResolvePythonExecutable(
-        string configured,
-        string backend)
-    {
-        var executable = string.IsNullOrWhiteSpace(configured)
-            ? "python"
-            : configured.Trim();
-        if (!string.Equals(
-                executable,
-                "python",
-                StringComparison.OrdinalIgnoreCase))
-        {
-            return executable;
-        }
-        var registered = Environment.GetEnvironmentVariable(
-            "AURA_TRANSFORMER_PYTHON");
-        if (!string.IsNullOrWhiteSpace(registered))
-        {
-            return registered.Trim();
-        }
-        var local = Environment.GetFolderPath(
-            Environment.SpecialFolder.LocalApplicationData);
-        var runtimeNames = string.Equals(
-            backend,
-            CombatTransformerTeacherBackendNames.Cuda,
-            StringComparison.OrdinalIgnoreCase)
-            ? new[] { "cuda" }
-            : string.Equals(
-                backend,
-                CombatTransformerTeacherBackendNames.Cpu,
-                StringComparison.OrdinalIgnoreCase)
-                ? new[] { "cpu" }
-                : new[] { "cuda", "cpu" };
-        foreach (var runtimeName in runtimeNames)
-        {
-            var candidate = Path.Combine(
-                local,
-                "AuraTF",
-                runtimeName,
-                "Scripts",
-                "python.exe");
-            if (File.Exists(candidate))
-            {
-                return candidate;
-            }
-        }
-        return executable;
     }
 
     private static void ApplyAnnotations(
@@ -420,6 +503,18 @@ internal sealed class PythonCombatTransformerTeacher :
         target.DeviceName = source.DeviceName;
         target.PythonVersion = source.PythonVersion;
         target.TorchVersion = source.TorchVersion;
+        target.NumpyVersion = source.NumpyVersion;
+        target.RuntimeAutoTuned = source.RuntimeAutoTuned;
+        target.RuntimeAutoTuneCacheHit = source.RuntimeAutoTuneCacheHit;
+        target.EffectiveCpuThreads = source.EffectiveCpuThreads;
+        target.EffectiveCpuInteropThreads = source.EffectiveCpuInteropThreads;
+        target.EffectiveBatchSize = source.EffectiveBatchSize;
+        target.EffectiveMicroBatchSize = source.EffectiveMicroBatchSize;
+        target.EffectiveDataLoaderWorkers =
+            source.EffectiveDataLoaderWorkers;
+        target.EffectivePrefetchBatches = source.EffectivePrefetchBatches;
+        target.PinnedMemoryEnabled = source.PinnedMemoryEnabled;
+        target.NumericPrecision = source.NumericPrecision;
         target.ParameterCount = source.ParameterCount;
         target.HiddenDimensions = source.HiddenDimensions;
         target.Layers = source.Layers;
@@ -428,6 +523,10 @@ internal sealed class PythonCombatTransformerTeacher :
         target.TrainingFrames = source.TrainingFrames;
         target.ValidationFrames = source.ValidationFrames;
         target.EpochsExecuted = source.EpochsExecuted;
+        target.RequestedEpochs = source.RequestedEpochs;
+        target.WarmStarted = source.WarmStarted;
+        target.TrainingRefreshed = source.TrainingRefreshed;
+        target.ResumeModelPath = source.ResumeModelPath;
         target.ValidationPolicyCrossEntropy =
             source.ValidationPolicyCrossEntropy;
         target.ValidationUniformPolicyCrossEntropy =
@@ -443,7 +542,86 @@ internal sealed class PythonCombatTransformerTeacher :
         target.ValidationDeathBrier = source.ValidationDeathBrier;
         target.ValidationTerminalAccuracy = source.ValidationTerminalAccuracy;
         target.ElapsedSeconds = source.ElapsedSeconds;
+        target.DataPreparationSeconds = source.DataPreparationSeconds;
+        target.RuntimeCalibrationSeconds = source.RuntimeCalibrationSeconds;
+        target.TrainingFramesPerSecond = source.TrainingFramesPerSecond;
+        target.PeakDeviceMemoryBytes = source.PeakDeviceMemoryBytes;
         target.Message = source.Message;
+    }
+
+    private static async Task<string> ReadTeacherOutputAsync(
+        StreamReader reader,
+        CombatTransformerTeacherContext context,
+        int totalFrames,
+        int totalEpochs,
+        bool warmStarted,
+        bool trainingEnabled)
+    {
+        var tail = new StringBuilder();
+        while (await reader.ReadLineAsync().ConfigureAwait(false) is { } line)
+        {
+            if (line.StartsWith(ProgressPrefix, StringComparison.Ordinal))
+            {
+                try
+                {
+                    var progress = JsonConvert.DeserializeObject<
+                        CombatTransformerTeacherProgress>(
+                        line.Substring(ProgressPrefix.Length));
+                    if (progress != null)
+                    {
+                        if (progress.TotalFrames <= 0)
+                        {
+                            progress.TotalFrames = totalFrames;
+                        }
+                        if (progress.TotalEpochs <= 0
+                            && trainingEnabled
+                            && !string.Equals(
+                                progress.Stage,
+                                "annotating",
+                                StringComparison.OrdinalIgnoreCase)
+                            && !string.Equals(
+                                progress.Stage,
+                                "completed",
+                                StringComparison.OrdinalIgnoreCase))
+                        {
+                            progress.TotalEpochs = totalEpochs;
+                        }
+                        progress.WarmStarted = warmStarted;
+                        progress.TrainingEnabled = trainingEnabled;
+                        ReportProgress(context, progress);
+                    }
+                }
+                catch
+                {
+                    // A malformed diagnostic line must not abort training.
+                }
+                continue;
+            }
+            tail.AppendLine(line);
+            if (tail.Length > 8000)
+            {
+                tail.Remove(0, tail.Length - 8000);
+            }
+        }
+        return tail.ToString();
+    }
+
+    private static void ReportProgress(
+        CombatTransformerTeacherContext context,
+        CombatTransformerTeacherProgress progress)
+    {
+        progress.Iteration = Math.Max(1, context.Iteration);
+        progress.TotalIterations = Math.Max(
+            progress.Iteration,
+            context.TotalIterations);
+        try
+        {
+            context.Progress?.Invoke(progress);
+        }
+        catch
+        {
+            // Independent progress reporting must not abort the teacher.
+        }
     }
 
     private static void Add(ProcessStartInfo start, params object[] values)
@@ -500,6 +678,8 @@ internal sealed class PythonCombatTransformerTeacher :
         public int X { get; set; }
         public double V { get; set; }
         public int G { get; set; }
+
+        public double K { get; set; } = 1d;
         public double[] N { get; set; } = Array.Empty<double>();
         public int M { get; set; }
         public double W { get; set; }

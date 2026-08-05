@@ -5,19 +5,23 @@ from __future__ import annotations
 
 import argparse
 import copy
+import ctypes
+import hashlib
 import json
 import math
 import os
 import platform
 import random
 import sys
+import tempfile
+import threading
 import time
 from pathlib import Path
 
 try:
     import torch
     from torch import nn
-    from torch.utils.data import DataLoader, Dataset
+    from torch.utils.data import DataLoader, Dataset, Sampler
 except ImportError as exc:
     print(
         "PyTorch is required. Run tools/Setup-AuraTransformerTeacher.ps1 "
@@ -42,9 +46,122 @@ def arguments() -> argparse.Namespace:
     parser.add_argument("--ffn", type=int, default=1536)
     parser.add_argument("--history", type=int, default=12)
     parser.add_argument("--cpu-threads", type=int, default=0)
+    parser.add_argument("--cpu-interop-threads", type=int, default=0)
+    parser.add_argument("--micro-batch-size", type=int, default=0)
+    parser.add_argument("--loader-workers", type=int, default=0)
+    parser.add_argument("--prefetch-batches", type=int, default=2)
+    parser.add_argument("--pin-memory", type=int, choices=(0, 1), default=1)
+    parser.add_argument("--mixed-precision", type=int, choices=(0, 1), default=1)
+    parser.add_argument("--runtime-cache", default="")
+    parser.add_argument("--resume-model", default="")
+    parser.add_argument("--training-enabled", type=int, choices=(0, 1), default=1)
     parser.add_argument("--seed", type=int, default=1701)
     parser.add_argument("--self-test", action="store_true")
     return parser.parse_args()
+
+
+PROGRESS_PREFIX = "AURA_TEACHER_PROGRESS "
+
+
+def working_set_bytes() -> int:
+    if os.name != "nt":
+        try:
+            import resource
+
+            value = int(resource.getrusage(resource.RUSAGE_SELF).ru_maxrss)
+            return value if sys.platform == "darwin" else value * 1024
+        except (ImportError, OSError, ValueError):
+            return 0
+    try:
+        class ProcessMemoryCounters(ctypes.Structure):
+            _fields_ = [
+                ("cb", ctypes.c_ulong),
+                ("PageFaultCount", ctypes.c_ulong),
+                ("PeakWorkingSetSize", ctypes.c_size_t),
+                ("WorkingSetSize", ctypes.c_size_t),
+                ("QuotaPeakPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaPeakNonPagedPoolUsage", ctypes.c_size_t),
+                ("QuotaNonPagedPoolUsage", ctypes.c_size_t),
+                ("PagefileUsage", ctypes.c_size_t),
+                ("PeakPagefileUsage", ctypes.c_size_t),
+            ]
+
+        counters = ProcessMemoryCounters()
+        counters.cb = ctypes.sizeof(counters)
+        kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
+        psapi = ctypes.WinDLL("psapi", use_last_error=True)
+        kernel32.GetCurrentProcess.restype = ctypes.c_void_p
+        psapi.GetProcessMemoryInfo.argtypes = (
+            ctypes.c_void_p,
+            ctypes.POINTER(ProcessMemoryCounters),
+            ctypes.c_ulong,
+        )
+        psapi.GetProcessMemoryInfo.restype = ctypes.c_int
+        handle = kernel32.GetCurrentProcess()
+        if psapi.GetProcessMemoryInfo(
+            handle, ctypes.byref(counters), counters.cb
+        ):
+            return int(counters.WorkingSetSize)
+    except (AttributeError, OSError, ValueError):
+        pass
+    return 0
+
+
+class ProgressReporter:
+    def __init__(self, enabled: bool = True):
+        self.enabled = enabled
+        self.started = time.perf_counter()
+        self.cpu_started = time.process_time()
+        self.lock = threading.Lock()
+        self.stop_event = threading.Event()
+        self.state = {
+            "Stage": "starting",
+            "Epoch": 0,
+            "TotalEpochs": 0,
+            "CompletedFrames": 0,
+            "TotalFrames": 0,
+            "FramesPerSecond": 0.0,
+            "EstimatedRemainingSeconds": 0.0,
+            "WarmStarted": False,
+            "TrainingEnabled": True,
+            "Message": "",
+        }
+        self.thread = threading.Thread(target=self._heartbeat, daemon=True)
+        if enabled:
+            self.thread.start()
+
+    def update(self, emit: bool = True, **values) -> None:
+        if not self.enabled:
+            return
+        with self.lock:
+            self.state.update(values)
+        if emit:
+            self.emit()
+
+    def emit(self) -> None:
+        if not self.enabled:
+            return
+        elapsed = max(1.0e-6, time.perf_counter() - self.started)
+        cpu = max(0.0, time.process_time() - self.cpu_started)
+        with self.lock:
+            payload = dict(self.state)
+        payload["ElapsedSeconds"] = elapsed
+        payload["ProcessCpuPercent"] = (
+            cpu / elapsed / max(1, os.cpu_count() or 1) * 100.0
+        )
+        payload["WorkingSetBytes"] = working_set_bytes()
+        print(PROGRESS_PREFIX + json.dumps(payload, separators=(",", ":")), flush=True)
+
+    def _heartbeat(self) -> None:
+        while not self.stop_event.wait(2.0):
+            self.emit()
+
+    def close(self) -> None:
+        if not self.enabled:
+            return
+        self.stop_event.set()
+        self.thread.join(timeout=3.0)
 
 
 def choose_device(backend: str) -> torch.device:
@@ -57,18 +174,32 @@ def choose_device(backend: str) -> torch.device:
     return torch.device("cpu")
 
 
-def configure_runtime(args: argparse.Namespace) -> torch.device:
+def configure_runtime(args: argparse.Namespace) -> tuple[torch.device, dict]:
     random.seed(args.seed)
     torch.manual_seed(args.seed)
     if torch.cuda.is_available():
         torch.cuda.manual_seed_all(args.seed)
-    threads = args.cpu_threads or max(1, min(64, os.cpu_count() or 1))
+    default_threads = max(1, min(64, torch.get_num_threads()))
+    threads = max(1, min(64, args.cpu_threads)) if args.cpu_threads > 0 else default_threads
     torch.set_num_threads(threads)
+    interop = (
+        max(1, min(8, args.cpu_interop_threads))
+        if args.cpu_interop_threads > 0
+        else max(1, min(4, math.ceil(threads / 8)))
+    )
     try:
-        torch.set_num_interop_threads(max(1, min(4, threads)))
+        torch.set_num_interop_threads(interop)
     except RuntimeError:
-        pass
-    return choose_device(args.backend)
+        interop = torch.get_num_interop_threads()
+    device = choose_device(args.backend)
+    if device.type == "cuda":
+        torch.cuda.reset_peak_memory_stats(device)
+    return device, {
+        "cpu_threads": threads,
+        "cpu_interop_threads": interop,
+        "default_cpu_threads": default_threads,
+        "logical_processors": max(1, os.cpu_count() or 1),
+    }
 
 
 def normalized(values: list[float]) -> list[float]:
@@ -155,6 +286,59 @@ def synthetic_rows(count: int = 96) -> list[dict]:
     return rows
 
 
+def tensorize_rows(rows: list[dict]) -> None:
+    for row in rows:
+        state = torch.as_tensor(row["S"], dtype=torch.float32)
+        actions = torch.as_tensor(row["A"], dtype=torch.float32)
+        objects = torch.as_tensor(row.get("O") or [row["S"]], dtype=torch.float32)
+        policy = torch.as_tensor(row["P"], dtype=torch.float32)
+        next_state = torch.as_tensor(row.get("N", []), dtype=torch.float32)
+        row["_state_tensor"] = state
+        row["_action_tensor"] = actions
+        row["_object_tensor"] = objects
+        row["_policy_tensor"] = policy
+        row["_next_state_tensor"] = next_state
+        row["_sampling_repeats"] = max(1, min(3, int(round(float(row.get("K", 1.0))))))
+        row["_outcome_tensor"] = torch.tensor(
+            [
+                float(row.get("W", 0.0)),
+                float(row.get("R", 0.0)),
+                float(row.get("H", 0.0)),
+                math.tanh(max(0.0, float(row.get("U", 0.0))) / 12.0),
+            ],
+            dtype=torch.float32,
+        )
+    for row in rows:
+        history = row.get("_history", [])
+        if history:
+            row["_history_state_tensor"] = torch.stack(
+                [prior["_state_tensor"] for prior in history]
+            )
+            history_actions = []
+            for prior in history:
+                executed = max(
+                    0,
+                    min(prior["_action_tensor"].shape[0] - 1, int(prior["X"])),
+                )
+                history_actions.append(prior["_action_tensor"][executed])
+            row["_history_action_tensor"] = torch.stack(history_actions)
+        else:
+            state_dimensions = row["_state_tensor"].shape[0]
+            action_dimensions = row["_action_tensor"].shape[1]
+            row["_history_state_tensor"] = torch.empty(
+                0, state_dimensions, dtype=torch.float32
+            )
+            row["_history_action_tensor"] = torch.empty(
+                0, action_dimensions, dtype=torch.float32
+            )
+        row["_history"] = []
+        row["_bucket_cost"] = (
+            int(row["_action_tensor"].shape[0])
+            + int(row["_object_tensor"].shape[0])
+            + int(row["_history_state_tensor"].shape[0]) * 2
+        )
+
+
 class TeacherDataset(Dataset):
     def __init__(self, rows: list[dict]):
         self.rows = rows
@@ -164,6 +348,40 @@ class TeacherDataset(Dataset):
 
     def __getitem__(self, index: int) -> dict:
         return self.rows[index]
+
+
+class LengthBucketBatchSampler(Sampler[list[int]]):
+    def __init__(self, rows: list[dict], batch_size: int, seed: int):
+        self.rows = rows
+        self.batch_size = max(1, batch_size)
+        self.seed = seed
+        self.epoch = 0
+
+    def __len__(self) -> int:
+        samples = sum(int(row.get("_sampling_repeats", 1)) for row in self.rows)
+        return math.ceil(samples / self.batch_size)
+
+    def __iter__(self):
+        randomizer = random.Random(self.seed + self.epoch * 104729)
+        self.epoch += 1
+        indices = sorted(
+            (
+                index
+                for index, row in enumerate(self.rows)
+                for _ in range(int(row.get("_sampling_repeats", 1)))
+            ),
+            key=lambda index: self.rows[index]["_bucket_cost"],
+        )
+        bucket_size = self.batch_size * 8
+        buckets = [
+            indices[start : start + bucket_size]
+            for start in range(0, len(indices), bucket_size)
+        ]
+        randomizer.shuffle(buckets)
+        for bucket in buckets:
+            randomizer.shuffle(bucket)
+            for start in range(0, len(bucket), self.batch_size):
+                yield bucket[start : start + self.batch_size]
 
 
 def split_rows(rows: list[dict], seed: int) -> tuple[list[dict], list[dict]]:
@@ -181,11 +399,11 @@ def split_rows(rows: list[dict], seed: int) -> tuple[list[dict], list[dict]]:
 
 def collate(rows: list[dict]) -> dict[str, torch.Tensor]:
     batch = len(rows)
-    state_dimensions = len(rows[0]["S"])
-    action_dimensions = len(rows[0]["A"][0])
-    maximum_actions = max(len(row["A"]) for row in rows)
-    maximum_objects = max(max(1, len(row.get("O", []))) for row in rows)
-    maximum_history = max(len(row["_history"]) for row in rows)
+    state_dimensions = rows[0]["_state_tensor"].shape[0]
+    action_dimensions = rows[0]["_action_tensor"].shape[1]
+    maximum_actions = max(row["_action_tensor"].shape[0] for row in rows)
+    maximum_objects = max(row["_object_tensor"].shape[0] for row in rows)
+    maximum_history = max(row["_history_state_tensor"].shape[0] for row in rows)
     states = torch.zeros(batch, state_dimensions)
     actions = torch.zeros(batch, maximum_actions, action_dimensions)
     object_tokens = torch.zeros(batch, maximum_objects, state_dimensions)
@@ -204,42 +422,33 @@ def collate(rows: list[dict]) -> dict[str, torch.Tensor]:
     terminals = torch.zeros(batch)
     row_ids = torch.zeros(batch, dtype=torch.long)
     for owner, row in enumerate(rows):
-        states[owner] = torch.tensor(row["S"], dtype=torch.float32)
-        objects = row.get("O", []) or [row["S"]]
-        object_count = min(maximum_objects, len(objects))
-        object_tokens[owner, :object_count] = torch.tensor(
-            objects[:object_count], dtype=torch.float32
-        )
+        states[owner] = row["_state_tensor"]
+        objects = row["_object_tensor"]
+        object_count = min(maximum_objects, objects.shape[0])
+        object_tokens[owner, :object_count] = objects[:object_count]
         object_mask[owner, :object_count] = True
-        action_count = len(row["A"])
-        actions[owner, :action_count] = torch.tensor(row["A"], dtype=torch.float32)
+        action_count = row["_action_tensor"].shape[0]
+        actions[owner, :action_count] = row["_action_tensor"]
         action_mask[owner, :action_count] = True
-        policies[owner, :action_count] = torch.tensor(row["P"], dtype=torch.float32)
-        history = row["_history"]
-        offset = maximum_history - len(history)
-        for history_index, prior in enumerate(history):
-            slot = offset + history_index
-            history_states[owner, slot] = torch.tensor(prior["S"], dtype=torch.float32)
-            executed = max(0, min(len(prior["A"]) - 1, int(prior["X"])))
-            history_actions[owner, slot] = torch.tensor(
-                prior["A"][executed], dtype=torch.float32
-            )
-            history_mask[owner, slot] = True
+        policies[owner, :action_count] = row["_policy_tensor"]
+        history_states_for_row = row["_history_state_tensor"]
+        history_actions_for_row = row["_history_action_tensor"]
+        history_count = history_states_for_row.shape[0]
+        offset = maximum_history - history_count
+        if history_count > 0:
+            history_states[owner, offset:] = history_states_for_row
+            history_actions[owner, offset:] = history_actions_for_row
+            history_mask[owner, offset:] = True
         values[owner] = float(row["V"])
         strategies[owner] = int(row.get("G", -1))
         executed_actions[owner] = max(0, min(action_count - 1, int(row["X"])))
-        if int(row.get("M", 0)) > 0 and len(row.get("N", [])) == state_dimensions:
-            next_states[owner] = torch.tensor(row["N"], dtype=torch.float32)
+        if (
+            int(row.get("M", 0)) > 0
+            and row["_next_state_tensor"].numel() == state_dimensions
+        ):
+            next_states[owner] = row["_next_state_tensor"]
             transition_mask[owner] = True
-        outcomes[owner] = torch.tensor(
-            [
-                float(row.get("W", 0.0)),
-                float(row.get("R", 0.0)),
-                float(row.get("H", 0.0)),
-                math.tanh(max(0.0, float(row.get("U", 0.0))) / 12.0),
-            ],
-            dtype=torch.float32,
-        )
+        outcomes[owner] = row["_outcome_tensor"]
         terminals[owner] = 1.0 if int(row.get("Z", 0)) > 0 else 0.0
         row_ids[owner] = int(row["I"])
     return {
@@ -370,8 +579,262 @@ def move(batch: dict[str, torch.Tensor], device: torch.device) -> dict[str, torc
     return {key: value.to(device, non_blocking=device.type == "cuda") for key, value in batch.items()}
 
 
+def slice_batch(
+    batch: dict[str, torch.Tensor], start: int, end: int
+) -> dict[str, torch.Tensor]:
+    return {key: value[start:end] for key, value in batch.items()}
+
+
+def precision_context(device: torch.device, precision: str):
+    enabled = device.type == "cuda" and precision != "float32"
+    dtype = torch.bfloat16 if precision == "bfloat16" else torch.float16
+    return torch.autocast(device_type=device.type, dtype=dtype, enabled=enabled)
+
+
+def loader_options(plan: dict, device: torch.device) -> dict:
+    workers = max(0, int(plan["loader_workers"]))
+    result = {
+        "num_workers": workers,
+        "pin_memory": bool(plan["pinned_memory"] and device.type == "cuda"),
+        "persistent_workers": workers > 0,
+    }
+    if workers > 0:
+        result["prefetch_factor"] = max(1, int(plan["prefetch_batches"]))
+    return result
+
+
+def runtime_cache_key(
+    args: argparse.Namespace,
+    device: torch.device,
+    state_dimensions: int,
+    action_dimensions: int,
+) -> str:
+    device_name = (
+        torch.cuda.get_device_name(device)
+        if device.type == "cuda"
+        else platform.processor() or platform.machine()
+    )
+    payload = "|".join(
+        str(value)
+        for value in (
+            "transformer-runtime-auto-tune-v1",
+            platform.system(),
+            platform.machine(),
+            platform.processor(),
+            os.cpu_count(),
+            torch.__version__,
+            device.type,
+            device_name,
+            state_dimensions,
+            action_dimensions,
+            args.hidden,
+            args.layers,
+            args.heads,
+            args.ffn,
+            args.history,
+            args.batch_size,
+        )
+    )
+    return hashlib.sha256(payload.encode("utf-8")).hexdigest()
+
+
+def load_runtime_cache(path: str, key: str) -> dict | None:
+    if not path:
+        return None
+    try:
+        payload = json.loads(Path(path).read_text(encoding="utf-8"))
+        entry = payload.get("entries", {}).get(key)
+        return entry if isinstance(entry, dict) else None
+    except (OSError, ValueError, TypeError):
+        return None
+
+
+def save_runtime_cache(path: str, key: str, plan: dict) -> None:
+    if not path:
+        return
+    destination = Path(path)
+    try:
+        payload = json.loads(destination.read_text(encoding="utf-8")) if destination.exists() else {}
+    except (OSError, ValueError, TypeError):
+        payload = {}
+    entries = payload.setdefault("entries", {})
+    entries[key] = {
+        "cpu_threads": int(plan["cpu_threads"]),
+        "cpu_interop_threads": int(plan["cpu_interop_threads"]),
+        "micro_batch_size": int(plan["micro_batch_size"]),
+        "loader_workers": int(plan["loader_workers"]),
+        "prefetch_batches": int(plan["prefetch_batches"]),
+        "pinned_memory": bool(plan["pinned_memory"]),
+        "precision": str(plan["precision"]),
+        "measured_utc": time.time(),
+    }
+    payload["protocol"] = "transformer-runtime-auto-tune-v1"
+    destination.parent.mkdir(parents=True, exist_ok=True)
+    temporary = destination.with_suffix(destination.suffix + ".tmp")
+    temporary.write_text(json.dumps(payload, indent=2), encoding="utf-8")
+    temporary.replace(destination)
+
+
+def cpu_thread_candidates(default_threads: int, logical_processors: int) -> list[int]:
+    limit = max(1, min(64, logical_processors))
+    preferred = {
+        max(1, default_threads // 2),
+        default_threads,
+        limit,
+        4,
+        6,
+        8,
+        12,
+        14,
+        16,
+        24,
+        32,
+    }
+    available = sorted(value for value in preferred if value <= limit)
+    if len(available) <= 6:
+        return available
+    mandatory = {default_threads, limit, max(1, default_threads // 2)}
+    optional = sorted(
+        (value for value in available if value not in mandatory),
+        key=lambda value: (abs(value - default_threads), value),
+    )
+    return sorted(mandatory.union(optional[: max(0, 6 - len(mandatory))]))
+
+
+def benchmark_cpu_threads(
+    model: StrategyTransformer,
+    raw: dict[str, torch.Tensor],
+    runtime: dict,
+) -> int:
+    sample_size = min(8, raw["states"].shape[0])
+    sample = slice_batch(raw, 0, sample_size)
+    candidates = cpu_thread_candidates(
+        int(runtime["default_cpu_threads"]), int(runtime["logical_processors"])
+    )
+    best_threads = int(runtime["cpu_threads"])
+    best_rate = -1.0
+    model.eval()
+    for threads in candidates:
+        torch.set_num_threads(threads)
+        with torch.no_grad():
+            model(sample)
+            started = time.perf_counter()
+            repeats = 2
+            for _ in range(repeats):
+                model(sample)
+            elapsed = max(1.0e-6, time.perf_counter() - started)
+        rate = sample_size * repeats / elapsed
+        if rate > best_rate:
+            best_rate = rate
+            best_threads = threads
+    torch.set_num_threads(best_threads)
+    return best_threads
+
+
+def choose_gpu_micro_batch(
+    model: StrategyTransformer,
+    raw: dict[str, torch.Tensor],
+    device: torch.device,
+    precision: str,
+    maximum: int,
+) -> int:
+    candidate = max(1, min(maximum, raw["states"].shape[0]))
+    while candidate >= 1:
+        try:
+            sample = move(slice_batch(raw, 0, candidate), device)
+            model.zero_grad(set_to_none=True)
+            with precision_context(device, precision):
+                total, _ = loss_for(model, sample)
+            total.backward()
+            model.zero_grad(set_to_none=True)
+            torch.cuda.synchronize(device)
+            return candidate
+        except (torch.cuda.OutOfMemoryError, RuntimeError) as error:
+            if not isinstance(error, torch.cuda.OutOfMemoryError) and "out of memory" not in str(error).lower():
+                raise
+            model.zero_grad(set_to_none=True)
+            torch.cuda.empty_cache()
+            candidate //= 2
+    raise RuntimeError("Transformer teacher cannot fit a single frame in GPU memory")
+
+
+def resolve_runtime_plan(
+    model: StrategyTransformer,
+    sample_raw: dict[str, torch.Tensor],
+    args: argparse.Namespace,
+    device: torch.device,
+    runtime: dict,
+) -> dict:
+    started = time.perf_counter()
+    state_dimensions = sample_raw["states"].shape[1]
+    action_dimensions = sample_raw["actions"].shape[2]
+    key = runtime_cache_key(args, device, state_dimensions, action_dimensions)
+    cached = load_runtime_cache(args.runtime_cache, key)
+    precision = "float32"
+    if device.type == "cuda" and args.mixed_precision:
+        precision = "bfloat16" if torch.cuda.is_bf16_supported() else "float16"
+    plan = {
+        **runtime,
+        "micro_batch_size": args.micro_batch_size or args.batch_size,
+        "loader_workers": (
+            args.loader_workers
+            if args.loader_workers > 0
+            else (min(2, max(1, (os.cpu_count() or 1) // 4)) if device.type == "cuda" else 0)
+        ),
+        "prefetch_batches": max(1, min(8, args.prefetch_batches)),
+        "pinned_memory": bool(args.pin_memory and device.type == "cuda"),
+        "precision": precision,
+        "auto_tuned": False,
+        "cache_hit": cached is not None,
+    }
+    if cached is not None:
+        used_cache = False
+        if args.cpu_threads <= 0:
+            plan["cpu_threads"] = int(cached.get("cpu_threads", plan["cpu_threads"]))
+            torch.set_num_threads(plan["cpu_threads"])
+            used_cache = True
+        if args.micro_batch_size <= 0:
+            plan["micro_batch_size"] = int(
+                cached.get("micro_batch_size", plan["micro_batch_size"])
+            )
+            used_cache = True
+        if args.loader_workers <= 0:
+            plan["loader_workers"] = int(
+                cached.get("loader_workers", plan["loader_workers"])
+            )
+            used_cache = True
+        plan["cache_hit"] = used_cache
+        plan["auto_tuned"] = used_cache
+    elif not args.self_test:
+        if device.type == "cpu" and args.cpu_threads <= 0:
+            plan["cpu_threads"] = benchmark_cpu_threads(model, sample_raw, runtime)
+            plan["auto_tuned"] = True
+        if device.type == "cuda" and args.micro_batch_size <= 0:
+            plan["micro_batch_size"] = choose_gpu_micro_batch(
+                model,
+                sample_raw,
+                device,
+                precision,
+                args.batch_size,
+            )
+            plan["auto_tuned"] = True
+        save_runtime_cache(args.runtime_cache, key, plan)
+    plan["micro_batch_size"] = max(
+        1, min(args.batch_size, int(plan["micro_batch_size"]))
+    )
+    plan["prefetch_batches"] = (
+        max(1, int(plan["prefetch_batches"]))
+        if int(plan["loader_workers"]) > 0
+        else 0
+    )
+    plan["calibration_seconds"] = time.perf_counter() - started
+    return plan
+
+
 def loss_for(
-    model: StrategyTransformer, batch: dict[str, torch.Tensor]
+    model: StrategyTransformer,
+    batch: dict[str, torch.Tensor],
+    effective_counts: dict[str, int] | None = None,
 ) -> tuple[torch.Tensor, dict[str, float]]:
     (
         policy_logits,
@@ -405,13 +868,27 @@ def loss_for(
     terminal_loss = torch.nn.functional.binary_cross_entropy_with_logits(
         terminal_logits, batch["terminals"]
     )
+    if effective_counts is None:
+        sample_weight = 1.0
+        strategy_weight = 1.0
+        dynamics_weight = 1.0
+    else:
+        sample_weight = batch["states"].shape[0] / max(
+            1, effective_counts["samples"]
+        )
+        strategy_weight = int(valid_strategy.sum()) / max(
+            1, effective_counts["strategies"]
+        )
+        dynamics_weight = int(transition_mask.sum()) / max(
+            1, effective_counts["transitions"]
+        )
     total = (
-        policy_loss
-        + value_loss * 0.35
-        + strategy_loss * 0.20
-        + dynamics_loss * 0.15
-        + outcome_loss * 0.20
-        + terminal_loss * 0.10
+        policy_loss * sample_weight
+        + value_loss * 0.35 * sample_weight
+        + strategy_loss * 0.20 * strategy_weight
+        + dynamics_loss * 0.15 * dynamics_weight
+        + outcome_loss * 0.20 * sample_weight
+        + terminal_loss * 0.10 * sample_weight
     )
     return total, {
         "policy": float(policy_loss.detach()),
@@ -423,9 +900,51 @@ def loss_for(
     }
 
 
+def verify_micro_batch_accumulation(
+    model: StrategyTransformer,
+    raw: dict[str, torch.Tensor],
+    device: torch.device,
+) -> None:
+    full_model = copy.deepcopy(model).to(device).eval()
+    micro_model = copy.deepcopy(model).to(device).eval()
+    full_batch = move(raw, device)
+    full_loss, _ = loss_for(full_model, full_batch)
+    full_loss.backward()
+    effective_counts = {
+        "samples": int(raw["states"].shape[0]),
+        "strategies": int((raw["strategies"] >= 0).sum()),
+        "transitions": int(raw["transition_mask"].sum()),
+    }
+    for start in range(0, effective_counts["samples"], 3):
+        micro = move(
+            slice_batch(raw, start, min(effective_counts["samples"], start + 3)),
+            device,
+        )
+        micro_loss, _ = loss_for(micro_model, micro, effective_counts)
+        micro_loss.backward()
+    for full_parameter, micro_parameter in zip(
+        full_model.parameters(), micro_model.parameters()
+    ):
+        if full_parameter.grad is None and micro_parameter.grad is None:
+            continue
+        assert full_parameter.grad is not None and micro_parameter.grad is not None
+        if not torch.allclose(
+            full_parameter.grad,
+            micro_parameter.grad,
+            rtol=2.0e-4,
+            atol=2.0e-5,
+        ):
+            raise AssertionError(
+                "microbatch accumulation changed effective-batch gradients"
+            )
+
+
 @torch.no_grad()
 def evaluate(
-    model: StrategyTransformer, loader: DataLoader, device: torch.device
+    model: StrategyTransformer,
+    loader: DataLoader,
+    device: torch.device,
+    precision: str = "float32",
 ) -> dict[str, float]:
     model.eval()
     count = 0
@@ -443,14 +962,15 @@ def evaluate(
     terminal_correct = 0
     for raw in loader:
         batch = move(raw, device)
-        (
-            policy_logits,
-            values,
-            strategy_logits,
-            predicted_next_states,
-            predicted_outcomes,
-            terminal_logits,
-        ) = model(batch)
+        with precision_context(device, precision):
+            (
+                policy_logits,
+                values,
+                strategy_logits,
+                predicted_next_states,
+                predicted_outcomes,
+                terminal_logits,
+            ) = model(batch)
         log_policy = torch.log_softmax(policy_logits, dim=-1)
         size = batch["states"].shape[0]
         policy_cross_entropy += float(
@@ -504,36 +1024,94 @@ def evaluate(
     }
 
 
+def load_warm_start(
+    model: StrategyTransformer,
+    path: str,
+    args: argparse.Namespace,
+    device: torch.device,
+) -> bool:
+    if not path:
+        return False
+    source = Path(path)
+    if not source.exists():
+        return False
+    try:
+        checkpoint = torch.load(source, map_location=device, weights_only=True)
+    except TypeError:
+        checkpoint = torch.load(source, map_location=device)
+    expected = {
+        "hidden_dimensions": args.hidden,
+        "layers": args.layers,
+        "heads": args.heads,
+        "feedforward_dimensions": args.ffn,
+        "history_length": args.history,
+    }
+    incompatible = [
+        key
+        for key, value in expected.items()
+        if int(checkpoint.get(key, -1)) != int(value)
+    ]
+    if incompatible:
+        raise RuntimeError(
+            "Transformer warm-start checkpoint is incompatible: "
+            + ", ".join(incompatible)
+        )
+    model.load_state_dict(checkpoint["state_dict"], strict=True)
+    return True
+
+
 def train(
-    rows: list[dict], args: argparse.Namespace, device: torch.device
-) -> tuple[StrategyTransformer, dict[str, float], int, int, int]:
+    rows: list[dict],
+    args: argparse.Namespace,
+    device: torch.device,
+    runtime: dict,
+    progress: ProgressReporter,
+) -> tuple[StrategyTransformer, dict[str, float], int, int, int, dict, float, bool]:
     training_rows, validation_rows = split_rows(rows, args.seed)
-    generator = torch.Generator().manual_seed(args.seed)
-    training_loader = DataLoader(
-        TeacherDataset(training_rows),
-        batch_size=args.batch_size,
-        shuffle=True,
-        collate_fn=collate,
-        generator=generator,
-    )
-    validation_loader = DataLoader(
-        TeacherDataset(validation_rows),
-        batch_size=args.batch_size,
-        shuffle=False,
-        collate_fn=collate,
-    )
     model = StrategyTransformer(
-        len(rows[0]["S"]),
-        len(rows[0]["A"][0]),
+        rows[0]["_state_tensor"].shape[0],
+        rows[0]["_action_tensor"].shape[1],
         args.hidden,
         args.layers,
         args.heads,
         args.ffn,
         args.history,
     ).to(device)
+    warm_started = load_warm_start(model, args.resume_model, args, device)
+    progress.update(
+        Stage="calibrating",
+        TotalEpochs=max(0, args.epochs),
+        WarmStarted=warm_started,
+        TrainingEnabled=bool(args.training_enabled),
+        Message="正在校准 Transformer 执行计划",
+    )
+    sample_raw = collate(training_rows[: min(args.batch_size, len(training_rows))])
+    plan = resolve_runtime_plan(model, sample_raw, args, device, runtime)
+    worker_options = loader_options(plan, device)
+    training_dataset = TeacherDataset(training_rows)
+    training_loader = DataLoader(
+        training_dataset,
+        batch_sampler=LengthBucketBatchSampler(
+            training_rows, args.batch_size, args.seed
+        ),
+        collate_fn=collate,
+        **worker_options,
+    )
+    validation_loader = DataLoader(
+        TeacherDataset(validation_rows),
+        batch_size=plan["micro_batch_size"],
+        shuffle=False,
+        collate_fn=collate,
+        **worker_options,
+    )
     optimizer = torch.optim.AdamW(model.parameters(), lr=3.0e-4, weight_decay=1.0e-3)
+    use_scaler = device.type == "cuda" and plan["precision"] == "float16"
+    try:
+        scaler = torch.amp.GradScaler("cuda", enabled=use_scaler)
+    except (AttributeError, TypeError):
+        scaler = torch.cuda.amp.GradScaler(enabled=use_scaler)
     best_state = copy.deepcopy(model.state_dict())
-    best_metrics = evaluate(model, validation_loader, device)
+    best_metrics = evaluate(model, validation_loader, device, plan["precision"])
     best_loss = (
         best_metrics["policy_ce"]
         + best_metrics["value_mae"] * 0.35
@@ -542,17 +1120,76 @@ def train(
     )
     stale = 0
     executed = 0
+    processed_frames = 0
+    training_started = time.perf_counter()
+    total_frame_work = sum(
+        int(row.get("_sampling_repeats", 1)) for row in training_rows
+    ) * max(0, args.epochs)
+    if not args.training_enabled:
+        progress.update(
+            Stage="evaluating",
+            TotalEpochs=0,
+            TotalFrames=len(validation_rows),
+            Message="正在评估复用的 Transformer 教师",
+        )
+        return (
+            model,
+            best_metrics,
+            0,
+            len(training_rows),
+            len(validation_rows),
+            plan,
+            0.0,
+            warm_started,
+        )
     for epoch in range(1, args.epochs + 1):
+        progress.update(
+            Stage="training",
+            Epoch=epoch,
+            TotalEpochs=args.epochs,
+            CompletedFrames=processed_frames,
+            TotalFrames=total_frame_work,
+            Message=f"正在训练 Epoch {epoch}/{args.epochs}",
+        )
         model.train()
         for raw in training_loader:
-            batch = move(raw, device)
             optimizer.zero_grad(set_to_none=True)
-            total, _ = loss_for(model, batch)
-            total.backward()
+            batch_count = raw["states"].shape[0]
+            effective_counts = {
+                "samples": batch_count,
+                "strategies": int((raw["strategies"] >= 0).sum()),
+                "transitions": int(raw["transition_mask"].sum()),
+            }
+            micro_batch = max(1, int(plan["micro_batch_size"]))
+            for start in range(0, batch_count, micro_batch):
+                end = min(batch_count, start + micro_batch)
+                batch = move(slice_batch(raw, start, end), device)
+                with precision_context(device, plan["precision"]):
+                    total, _ = loss_for(model, batch, effective_counts)
+                scaler.scale(total).backward()
+            if use_scaler:
+                scaler.unscale_(optimizer)
             torch.nn.utils.clip_grad_norm_(model.parameters(), 1.0)
-            optimizer.step()
+            scaler.step(optimizer)
+            scaler.update()
+            processed_frames += batch_count
+            elapsed = max(1.0e-6, time.perf_counter() - training_started)
+            rate = processed_frames / elapsed
+            progress.update(
+                emit=False,
+                CompletedFrames=processed_frames,
+                FramesPerSecond=rate,
+                EstimatedRemainingSeconds=(
+                    max(0, total_frame_work - processed_frames) / max(1.0e-6, rate)
+                ),
+            )
         executed = epoch
-        metrics = evaluate(model, validation_loader, device)
+        progress.update(
+            Stage="evaluating",
+            Epoch=epoch,
+            Message=f"正在评估 Epoch {epoch}/{args.epochs}",
+        )
+        metrics = evaluate(model, validation_loader, device, plan["precision"])
         score = (
             metrics["policy_ce"]
             + metrics["value_mae"] * 0.35
@@ -575,25 +1212,52 @@ def train(
         if epoch >= 4 and stale >= 4:
             break
     model.load_state_dict(best_state)
-    return model, best_metrics, executed, len(training_rows), len(validation_rows)
+    training_seconds = max(1.0e-6, time.perf_counter() - training_started)
+    return (
+        model,
+        best_metrics,
+        executed,
+        len(training_rows),
+        len(validation_rows),
+        plan,
+        processed_frames / training_seconds,
+        warm_started,
+    )
 
 
 @torch.no_grad()
 def annotate(
     model: StrategyTransformer,
     rows: list[dict],
-    batch_size: int,
+    plan: dict,
     device: torch.device,
     path: Path,
+    progress: ProgressReporter,
 ) -> None:
     loader = DataLoader(
-        TeacherDataset(rows), batch_size=batch_size, shuffle=False, collate_fn=collate
+        TeacherDataset(rows),
+        batch_size=plan["micro_batch_size"],
+        shuffle=False,
+        collate_fn=collate,
+        **loader_options(plan, device),
     )
     model.eval()
+    completed = 0
+    progress.update(
+        Stage="annotating",
+        Epoch=0,
+        TotalEpochs=0,
+        CompletedFrames=0,
+        TotalFrames=len(rows),
+        EstimatedRemainingSeconds=0.0,
+        Message="正在生成 Transformer 蒸馏标注",
+    )
+    started = time.perf_counter()
     with path.open("w", encoding="utf-8", newline="\n") as stream:
         for raw in loader:
             batch = move(raw, device)
-            logits, _, _, _, _, _ = model(batch)
+            with precision_context(device, plan["precision"]):
+                logits, _, _, _, _, _ = model(batch)
             probabilities = torch.softmax(logits, dim=-1).cpu()
             masks = raw["action_mask"]
             row_ids = raw["row_ids"]
@@ -604,6 +1268,17 @@ def annotate(
                     "P": [float(value) for value in probabilities[owner, :count]],
                 }
                 stream.write(json.dumps(payload, separators=(",", ":")) + "\n")
+            completed += int(probabilities.shape[0])
+            elapsed = max(1.0e-6, time.perf_counter() - started)
+            rate = completed / elapsed
+            progress.update(
+                emit=False,
+                CompletedFrames=completed,
+                FramesPerSecond=rate,
+                EstimatedRemainingSeconds=(
+                    max(0, len(rows) - completed) / max(1.0e-6, rate)
+                ),
+            )
 
 
 def write_report(path: Path, payload: dict) -> None:
@@ -612,7 +1287,16 @@ def write_report(path: Path, payload: dict) -> None:
 
 def main() -> int:
     args = arguments()
-    device = configure_runtime(args)
+    progress = ProgressReporter(enabled=not args.self_test)
+    try:
+        return execute(args, progress)
+    finally:
+        progress.close()
+
+
+def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
+    progress.update(Stage="configuring", Message="正在配置 PyTorch 执行环境")
+    device, runtime = configure_runtime(args)
     if args.self_test:
         args.epochs = min(args.epochs, 2)
         args.batch_size = min(args.batch_size, 16)
@@ -621,13 +1305,71 @@ def main() -> int:
         args.heads = min(args.heads, 4)
         args.ffn = min(args.ffn, 128)
         rows = synthetic_rows()
-        model, metrics, executed, training_count, validation_count = train(
-            rows, args, device
+        rows[0]["K"] = 2.0
+        tensorize_rows(rows)
+        assert rows[0]["_sampling_repeats"] == 2
+        (
+            model,
+            metrics,
+            executed,
+            training_count,
+            validation_count,
+            plan,
+            throughput,
+            warm_started,
+        ) = train(
+            rows, args, device, runtime, progress
         )
         assert math.isfinite(metrics["policy_ce"])
         assert math.isfinite(metrics["dynamics_mse"])
         assert math.isfinite(metrics["outcome_mae"])
         assert executed > 0 and training_count > 0 and validation_count > 0
+        verify_micro_batch_accumulation(
+            model,
+            collate(rows[: min(8, len(rows))]),
+            device,
+        )
+        with tempfile.TemporaryDirectory(prefix="aura-teacher-self-test-") as root:
+            checkpoint_path = Path(root) / "warm.pt"
+            torch.save(
+                {
+                    "protocol": "aura.combat-transformer-world-model.v2",
+                    "state_dimensions": rows[0]["_state_tensor"].shape[0],
+                    "action_dimensions": rows[0]["_action_tensor"].shape[1],
+                    "hidden_dimensions": args.hidden,
+                    "layers": args.layers,
+                    "heads": args.heads,
+                    "feedforward_dimensions": args.ffn,
+                    "history_length": args.history,
+                    "state_dict": model.state_dict(),
+                },
+                checkpoint_path,
+            )
+            prior_resume = args.resume_model
+            prior_training_enabled = args.training_enabled
+            prior_epochs = args.epochs
+            try:
+                args.resume_model = str(checkpoint_path)
+                args.training_enabled = 0
+                args.epochs = 0
+                (
+                    _,
+                    warm_metrics,
+                    warm_executed,
+                    _,
+                    _,
+                    _,
+                    _,
+                    warm_started,
+                ) = train(rows, args, device, runtime, progress)
+                assert warm_started and warm_executed == 0
+                assert math.isfinite(warm_metrics["policy_ce"])
+            finally:
+                args.resume_model = prior_resume
+                args.training_enabled = prior_training_enabled
+                args.epochs = prior_epochs
+        if os.name == "nt":
+            assert working_set_bytes() > 0
         print(
             json.dumps(
                 {
@@ -638,6 +1380,9 @@ def main() -> int:
                     "uniformPolicyCE": metrics["uniform_policy_ce"],
                     "dynamicsMSE": metrics["dynamics_mse"],
                     "outcomeMAE": metrics["outcome_mae"],
+                    "cpuThreads": plan["cpu_threads"],
+                    "microBatch": plan["micro_batch_size"],
+                    "throughput": throughput,
                 }
             )
         )
@@ -646,17 +1391,36 @@ def main() -> int:
     if any(not value for value in required):
         raise RuntimeError("input, annotations, model, and report paths are required")
     started = time.perf_counter()
+    progress.update(Stage="loading", Message="正在读取 Transformer 数据集")
     rows = load_rows(Path(args.input), args.history)
     if not rows:
         raise RuntimeError("Transformer teacher dataset contains no usable frames")
-    model, metrics, executed, training_count, validation_count = train(
-        rows, args, device
+    preparation_started = time.perf_counter()
+    progress.update(
+        Stage="preparing",
+        TotalFrames=len(rows),
+        Message="正在张量化并建立序列历史",
     )
-    annotate(model, rows, args.batch_size, device, Path(args.annotations))
+    tensorize_rows(rows)
+    preparation_seconds = time.perf_counter() - preparation_started
+    (
+        model,
+        metrics,
+        executed,
+        training_count,
+        validation_count,
+        plan,
+        throughput,
+        warm_started,
+    ) = train(
+        rows, args, device, runtime, progress
+    )
+    annotate(model, rows, plan, device, Path(args.annotations), progress)
+    progress.update(Stage="saving", Message="正在写入模型和教师报告")
     checkpoint = {
         "protocol": "aura.combat-transformer-world-model.v2",
-        "state_dimensions": len(rows[0]["S"]),
-        "action_dimensions": len(rows[0]["A"][0]),
+        "state_dimensions": rows[0]["_state_tensor"].shape[0],
+        "action_dimensions": rows[0]["_action_tensor"].shape[1],
         "hidden_dimensions": args.hidden,
         "layers": args.layers,
         "heads": args.heads,
@@ -675,6 +1439,17 @@ def main() -> int:
         "DeviceName": device_name,
         "PythonVersion": platform.python_version(),
         "TorchVersion": torch.__version__,
+        "NumpyVersion": __import__("numpy").__version__,
+        "RuntimeAutoTuned": bool(plan["auto_tuned"]),
+        "RuntimeAutoTuneCacheHit": bool(plan["cache_hit"]),
+        "EffectiveCpuThreads": int(plan["cpu_threads"]),
+        "EffectiveCpuInteropThreads": int(plan["cpu_interop_threads"]),
+        "EffectiveBatchSize": int(args.batch_size),
+        "EffectiveMicroBatchSize": int(plan["micro_batch_size"]),
+        "EffectiveDataLoaderWorkers": int(plan["loader_workers"]),
+        "EffectivePrefetchBatches": int(plan["prefetch_batches"]),
+        "PinnedMemoryEnabled": bool(plan["pinned_memory"]),
+        "NumericPrecision": str(plan["precision"]),
         "ParameterCount": sum(parameter.numel() for parameter in model.parameters()),
         "HiddenDimensions": args.hidden,
         "Layers": args.layers,
@@ -683,6 +1458,10 @@ def main() -> int:
         "TrainingFrames": training_count,
         "ValidationFrames": validation_count,
         "EpochsExecuted": executed,
+        "RequestedEpochs": max(0, args.epochs),
+        "WarmStarted": warm_started,
+        "TrainingRefreshed": bool(args.training_enabled),
+        "ResumeModelPath": args.resume_model if warm_started else "",
         "ValidationPolicyCrossEntropy": metrics["policy_ce"],
         "ValidationUniformPolicyCrossEntropy": metrics["uniform_policy_ce"],
         "ValidationPolicyTop1Accuracy": metrics["policy_accuracy"],
@@ -694,9 +1473,24 @@ def main() -> int:
         "ValidationDeathBrier": metrics["death_brier"],
         "ValidationTerminalAccuracy": metrics["terminal_accuracy"],
         "ElapsedSeconds": time.perf_counter() - started,
+        "DataPreparationSeconds": preparation_seconds,
+        "RuntimeCalibrationSeconds": float(plan["calibration_seconds"]),
+        "TrainingFramesPerSecond": throughput,
+        "PeakDeviceMemoryBytes": (
+            int(torch.cuda.max_memory_allocated(device)) if device.type == "cuda" else 0
+        ),
         "Message": "Transformer teacher training completed.",
     }
     write_report(Path(args.report), report)
+    progress.update(
+        Stage="completed",
+        CompletedFrames=len(rows),
+        TotalFrames=len(rows),
+        EstimatedRemainingSeconds=0.0,
+        WarmStarted=warm_started,
+        TrainingEnabled=bool(args.training_enabled),
+        Message="Transformer 教师已完成",
+    )
     return 0
 
 

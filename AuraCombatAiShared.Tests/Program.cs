@@ -9490,6 +9490,20 @@ Assert(failedAdvancedJourneyStratum
        && successfulHardEncounterStratum
           == "advanced:opening:victory:regular",
     "frame stratification labels every stage of a failed journey as defeat while preserving local hard-encounter victories");
+Assert(CombatPolicyValueBatchTrainer.StrategicFrameStratum(
+           new Dictionary<string, double>
+           {
+               ["roleStrategy:nana.safe-growth-window"] = 1d
+           }) == "strategy-growth"
+       && CombatPolicyValueBatchTrainer.StrategicFrameStratum(
+           new Dictionary<string, double>
+           {
+               ["roleStrategy:any.survival-override"] = 1d,
+               ["roleStrategy:any.transform-ready"] = 1d
+           }) == "strategy-survival"
+       && CombatPolicyValueBatchTrainer.StrategicFrameStratum(null)
+          == "strategy-baseline",
+    "strategic frame strata preserve rare growth, transform and survival decisions without hard-coding a role-specific sampler");
 var replayWithDuplicate = replayFixture.Concat(new[] { replayFixture[7] }).ToList();
 var deduplicatedReplay = CombatFoundationReplaySampler.Select(
     replayWithDuplicate,
@@ -9559,16 +9573,49 @@ Assert(!CombatPolicyValueBatchTrainer.BlendTransformerTeacherTargets(
 var normalizedTeacherOptions = new CombatTransformerTeacherOptions
 {
     Backend = "CUDA",
+    PythonExecutable = "python",
     HiddenDimensions = 65,
     AttentionHeads = 8,
+    CpuInteropThreads = 99,
+    MicroBatchSize = 999,
+    DataLoaderWorkers = 99,
+    CpuRefreshInterval = 99,
+    IncrementalEpochs = 999,
+    FinalEpochs = 999,
     DistillationWeight = 4d
 }.Normalized();
 Assert(normalizedTeacherOptions.Backend
            == CombatTransformerTeacherBackendNames.Cuda
        && normalizedTeacherOptions.HiddenDimensions
           % normalizedTeacherOptions.AttentionHeads == 0
+       && normalizedTeacherOptions.PythonExecutable
+          == CombatTransformerRuntimeProtocol.AutomaticExecutable
+       && normalizedTeacherOptions.CpuInteropThreads == 8
+       && normalizedTeacherOptions.MicroBatchSize
+          == normalizedTeacherOptions.BatchSize
+       && normalizedTeacherOptions.DataLoaderWorkers == 8
+       && normalizedTeacherOptions.CpuRefreshInterval == 8
+       && normalizedTeacherOptions.IncrementalEpochs
+          == normalizedTeacherOptions.Epochs
+       && normalizedTeacherOptions.FinalEpochs == 100
+       && normalizedTeacherOptions.EnableWarmStart
        && normalizedTeacherOptions.DistillationWeight == 0.75d,
     "Transformer teacher settings normalize portable CPU/CUDA configuration and attention dimensions");
+var runtimeDisplay = CombatTransformerRuntimeResolver.DisplayText(
+    new CombatTransformerRuntimeProbe
+    {
+        Success = true,
+        ResolutionSource = "managed-cpu",
+        EffectiveBackend = "cpu",
+        PythonVersion = "3.14.3",
+        TorchVersion = "2.13.0+cpu",
+        DeviceName = "test-cpu",
+        ExecutablePath = "C:/AuraTF/python.exe"
+    });
+Assert(runtimeDisplay.Contains("managed-cpu", StringComparison.Ordinal)
+       && runtimeDisplay.Contains("Python 3.14.3", StringComparison.Ordinal)
+       && runtimeDisplay.Contains("C:/AuraTF/python.exe", StringComparison.Ordinal),
+    "Transformer runtime probes expose their resolved executable and capabilities to the controller");
 var illegalExecutedFrame = new CombatEpisodeFrame
 {
     ExecutedCandidateId = "prohibited",
@@ -10486,7 +10533,7 @@ Assert(workerProtocolJob.SchemaVersion
        && CombatFoundationStagnationProtocol.Version
           == "foundation-stagnation-v1"
        && CombatPolicyValueFrameStratificationProtocol.Version
-          == "frame-strata-v5-end-turn-counterfactual"
+          == "frame-strata-v6-strategy-archetype"
        && workerProtocolProgress.SchemaVersion
            == CombatFoundationWorkerProtocol.SchemaVersion
        && workerProtocolResult.SchemaVersion
@@ -11338,6 +11385,11 @@ Assert(sharedParameters.Iterations == 1
        && sharedParameters.AutoTuneObjective
           == CombatFoundationAutoTuneObjectiveNames.MaximumThroughput
        && sharedParameters.ValidationEarlyStopBatchSize == 32
+       && sharedParameters.InferenceParallelism == 0
+       && sharedParameters.InferenceLaneCount == 0
+       && sharedParameters.InferenceBatchSize == 0
+       && sharedParameters.ThreadPoolMinimumWorkerThreads == 0
+       && sharedParameters.CheckpointSerializationParallelism == 0
        && sharedParameters.MaximumDegreeOfParallelism
           <= Math.Max(1, Environment.ProcessorCount)
        && sharedParameters.EstimatedCampaigns() > 0,
@@ -11446,8 +11498,37 @@ Assert(CombatFoundationExecutionProfiles.EffectiveLaneCount(12) == 1
        && CombatFoundationExecutionProfiles.EffectiveBatchSize(20) == 4,
     "automatic inference plans keep enough campaign callers on each batch queue");
 Assert(CombatCampaignFoundationTrainer.BuildAutoTuneParallelismCandidates(20)
-        .SequenceEqual(new[] { 4, 8, 12, 16, 20 }),
-    "auto-tune benchmarks multiple bounded CPU parallelism candidates");
+        .SequenceEqual(new[] { 4, 6, 8, 12, 14, 16, 20 })
+       && CombatCampaignFoundationTrainer.BuildAutoTuneParallelismCandidates(64)
+           .SequenceEqual(new[] { 4, 6, 8, 12, 14, 16, 24, 32, 48, 64 }),
+    "auto-tune benchmarks hybrid-core and high-core-count CPU candidates");
+var stableAutoTuneCampaign = new CombatCampaignDefinition
+{
+    CampaignId = "cache-campaign",
+    CampaignVersion = "1"
+};
+var stableAutoTuneRequest = new CombatCampaignFoundationTrainingRequest
+{
+    TrainingCampaign = stableAutoTuneCampaign,
+    AutoTuneHardwareKey = "hardware",
+    AutoTuneCampaignKey = "structural-campaign",
+    DecisionProfile = "balanced",
+    AutoTuneObjective =
+        CombatFoundationAutoTuneObjectiveNames.MaximumThroughput,
+    InferenceExecutionMode =
+        CombatFoundationExecutionProfileNames.ShardedBatchInference,
+    Profile = new CombatDecisionProfile()
+};
+var stableAutoTuneKey =
+    CombatCampaignFoundationTrainer.BuildAutoTuneCacheKey(
+        stableAutoTuneRequest,
+        CombatRuleset.Empty);
+stableAutoTuneCampaign.RewardScoreResiduals["learned"] = 0.125d;
+Assert(stableAutoTuneKey
+       == CombatCampaignFoundationTrainer.BuildAutoTuneCacheKey(
+           stableAutoTuneRequest,
+           CombatRuleset.Empty),
+    "auto-tune cache identity excludes evolving learned campaign residuals when the Worker supplies a structural key");
 var developmentGovernance = CombatFoundationGovernanceProfiles.Resolve(
     CombatFoundationGovernanceProfileNames.Development,
     tuningInterval: 1,
@@ -11491,6 +11572,29 @@ var efficientCampaignEstimate = new CombatFoundationTrainingParameters
 }.EstimatedCampaigns();
 Assert(efficientCampaignEstimate == 5188,
     "development governance campaign estimate reflects scheduled tuning and diagnostic teacher caps");
+var rebalancedDevelopmentCampaignEstimate = new CombatFoundationTrainingParameters
+{
+    GovernanceProfile = CombatFoundationGovernanceProfileNames.Development,
+    Iterations = 8,
+    TrainingCampaignsPerIteration = 96,
+    ArenaCampaignsPerDifficulty = 16,
+    ArenaConfirmationCampaignsPerDifficulty = 48,
+    NormalValidationCampaigns = 100,
+    AdvancedValidationCampaigns = 200,
+    CapabilityProbeCampaignsPerDifficulty = 64,
+    CapabilityProbeTeacherCampaignsPerDifficulty = 16,
+    ModelRetainedCandidates = 3,
+    EnableTuningArena = true,
+    EnableProgressiveTuning = true,
+    TuningInterval = 2,
+    TuningNormalCampaigns = 32,
+    TuningAdvancedCampaigns = 64,
+    TuningScreeningNormalCampaigns = 8,
+    TuningScreeningAdvancedCampaigns = 16,
+    TuningFinalistCount = 2
+}.EstimatedCampaigns();
+Assert(rebalancedDevelopmentCampaignEstimate == 3764,
+    "development defaults increase self-play while reducing repeated evaluation campaigns");
 var arenaChampionRuns = new List<CombatCampaignResult>
 {
     new() { DifficultyId = "normal", FinalBossVictory = true },
@@ -11768,7 +11872,8 @@ Assert(earlyStoppedFoundationTraining.Success
            item.Battles.Count == 0
            && item.Rewards.Count == 0
            && !item.FinalBossVictory),
-    "foundation validation analyzes one deterministic configured batch and releases full battle graphs when the external worker retention policy is active");
+    "foundation validation analyzes one deterministic configured batch and releases full battle graphs when the external worker retention policy is active"
+    + $" (success={earlyStoppedFoundationTraining.Success}, accepted={earlyStoppedFoundationTraining.AcceptancePassed}, early={earlyStoppedFoundationTraining.Validation.EarlyStopped}, normal={earlyStoppedFoundationTraining.Validation.NormalCampaigns}, advanced={earlyStoppedFoundationTraining.Validation.AdvancedCampaigns}, completed={earlyStoppedFoundationTraining.CompletedCampaigns}/{earlyStoppedFoundationTraining.RequestedCampaigns}, retained={earlyStoppedFoundationTraining.ValidationRuns.Count}, compact={earlyStoppedFoundationTraining.ValidationRuns.Count(item => item.Battles.Count == 0 && item.Rewards.Count == 0 && !item.FinalBossVictory)})");
 foundationRequest.RetainValidationRunDetails = true;
 projectedStrike.Fidelity = CombatRuleFidelity.Approximate;
 var invalidPreflightTraining = new CombatCampaignFoundationTrainer().Run(

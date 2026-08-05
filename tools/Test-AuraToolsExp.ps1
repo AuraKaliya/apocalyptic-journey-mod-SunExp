@@ -267,6 +267,8 @@ foreach ($anchor in @(
     "ResultSummary",
     "RoleStrategyGatePassed",
     "ResumedFromCheckpoint",
+    "CheckpointSerializationAutoScaled",
+    "CheckpointWritesEnqueued = Convert.ToInt64",
     'SetToggle(',
     '"RequireCapabilityProbeBaselineGain"'
 )) {
@@ -302,20 +304,30 @@ if (-not $foundationControllerRuntime.Contains(
         -or -not $foundationControllerRuntime.Contains(
             "loadedSchemaVersion < 9") `
         -or -not $foundationControllerRuntime.Contains(
+            "loadedSchemaVersion < 10") `
+        -or -not $foundationControllerRuntime.Contains(
+            "loadedSchemaVersion < 11") `
+        -or -not $foundationControllerRuntime.Contains(
             "AdditionalIterationsOnResume") `
         -or -not $foundationControllerRuntime.Contains(
             "MinimumAdvancedDefeatReplayShare") `
         -or -not $foundationControllerModels.Contains(
-            "SchemaVersion { get; set; } = 9")) {
+            "SchemaVersion { get; set; } = 11")) {
     throw "Foundation controller resumable-training settings migration is missing."
 }
 foreach ($anchor in @(
     "AdditionalIterationsOnResume = 2",
+    "TrainingCampaignsPerIteration = 96",
+    "ArenaCampaignsPerDifficulty = 16",
+    "ArenaConfirmationCampaignsPerDifficulty = 48",
+    "NormalValidationCampaigns = 100",
+    "AdvancedValidationCampaigns = 200",
+    "CapabilityProbeCampaignsPerDifficulty = 64",
     "PreflightCampaignsPerDifficulty = 16",
     "CombatFoundationExecutionProfileNames.ShardedBatchInference",
     "CombatFoundationAutoTuneObjectiveNames.MaximumThroughput",
     "SuccessExpertReplayShare = 0.10d",
-    "ModelGradientShardCount = 16",
+    "ModelGradientShardCount = 0",
     "ModelMaximumUnsafeEndTurnFrameShare = 0.35d",
     "ModelLearningRate = 0.004d",
     "ModelL2 = 0.002d",
@@ -323,7 +335,15 @@ foreach ($anchor in @(
     "ModelActionDimensions = 256",
     "ModelHiddenDimensions = 64",
     "TransformerTeacherEpochs = 12",
-    "TransformerTeacherMinimumFrames = 1024",
+    "TransformerTeacherMinimumFrames = 8192",
+    "TransformerTeacherEnableWarmStart = true",
+    "TransformerTeacherCpuRefreshInterval = 2",
+    "TransformerTeacherIncrementalEpochs = 4",
+    "TransformerTeacherFinalEpochs = 12",
+    "TransformerTeacherCpuInteropThreads = 0",
+    "TransformerTeacherMicroBatchSize = 0",
+    "TransformerTeacherDataLoaderWorkers = 0",
+    "TransformerTeacherPrefetchBatches = 2",
     "TransformerDistillationWeight = 0.35d"
 )) {
     if (-not $foundationControllerModels.Contains($anchor)) {

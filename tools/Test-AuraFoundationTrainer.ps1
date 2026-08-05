@@ -24,7 +24,7 @@ param(
     [ValidateSet("disabled", "auto", "cpu", "cuda")]
     [string]$TransformerTeacherBackend = "disabled",
     [ValidateRange(1, 100)]
-    [int]$TransformerTeacherEpochs = 1,
+    [int]$TransformerTeacherEpochs = 2,
     [ValidateRange(64, 100000)]
     [int]$TransformerTeacherMinimumFrames = 64,
     [switch]$ExpectAutoTuneCacheHit,
@@ -152,7 +152,7 @@ try {
         Profile = $profile
         TransformerTeacher = [ordered]@{
             Backend = $TransformerTeacherBackend
-            PythonExecutable = "python"
+            PythonExecutable = "auto"
             Epochs = $TransformerTeacherEpochs
             BatchSize = 64
             StateDimensions = 128
@@ -162,7 +162,17 @@ try {
             AttentionHeads = 4
             HistoryLength = 12
             MinimumFrames = $TransformerTeacherMinimumFrames
+            EnableWarmStart = $true
+            CpuRefreshInterval = 2
+            IncrementalEpochs = [Math]::Min(4, $TransformerTeacherEpochs)
+            FinalEpochs = $TransformerTeacherEpochs
             CpuThreads = 0
+            CpuInteropThreads = 0
+            MicroBatchSize = 0
+            DataLoaderWorkers = 0
+            PrefetchBatches = 2
+            EnablePinnedMemory = $true
+            EnableMixedPrecision = $true
             DistillationWeight = 0.35
             RandomSeed = 1701
         }
@@ -236,6 +246,10 @@ try {
                 -lt $TransformerTeacherMinimumFrames `
             -or -not [bool]$teacherReport.Success `
             -or -not [bool]$teacherReport.Applied `
+            -or [bool]$teacherReport.WarmStarted `
+            -or -not [bool]$teacherReport.TrainingRefreshed `
+            -or [int]$teacherReport.RequestedEpochs `
+                -ne $TransformerTeacherEpochs `
             -or [int]$teacherReport.AnnotatedFrames `
                 -lt $TransformerTeacherMinimumFrames `
             -or -not (Test-Path -LiteralPath `
@@ -243,6 +257,43 @@ try {
             throw (
                 "Transformer teacher annotation failed: " `
                 + ($teacherReport | ConvertTo-Json -Depth 8 -Compress))
+        }
+        $teacherThroughput = [double]$teacherReport.TrainingFramesPerSecond
+        $teacherPreparation = [double]$teacherReport.DataPreparationSeconds
+        $teacherCalibration = [double]$teacherReport.RuntimeCalibrationSeconds
+        if (-not [System.IO.Path]::IsPathRooted(
+                [string]$teacherReport.ResolvedPythonExecutable) `
+            -or [string]::IsNullOrWhiteSpace(
+                [string]$teacherReport.RuntimeResolutionSource) `
+            -or [string]::IsNullOrWhiteSpace([string]$teacherReport.PythonVersion) `
+            -or [string]::IsNullOrWhiteSpace([string]$teacherReport.TorchVersion) `
+            -or [string]::IsNullOrWhiteSpace([string]$teacherReport.NumpyVersion) `
+            -or [int]$teacherReport.EffectiveCpuThreads -lt 1 `
+            -or [int]$teacherReport.EffectiveCpuInteropThreads -lt 1 `
+            -or [int]$teacherReport.EffectiveBatchSize -lt 1 `
+            -or [int]$teacherReport.EffectiveMicroBatchSize -lt 1 `
+            -or [int]$teacherReport.EffectiveMicroBatchSize `
+                -gt [int]$teacherReport.EffectiveBatchSize `
+            -or [string]::IsNullOrWhiteSpace(
+                [string]$teacherReport.NumericPrecision) `
+            -or [double]::IsNaN($teacherThroughput) `
+            -or [double]::IsInfinity($teacherThroughput) `
+            -or $teacherThroughput -le 0 `
+            -or [double]::IsNaN($teacherPreparation) `
+            -or [double]::IsInfinity($teacherPreparation) `
+            -or $teacherPreparation -lt 0 `
+            -or [double]::IsNaN($teacherCalibration) `
+            -or [double]::IsInfinity($teacherCalibration) `
+            -or $teacherCalibration -lt 0 `
+            -or (-not [bool]$teacherReport.RuntimeAutoTuned `
+                -and -not [bool]$teacherReport.RuntimeAutoTuneCacheHit)) {
+            throw (
+                "Transformer teacher runtime plan is incomplete: " `
+                + ($teacherReport | ConvertTo-Json -Depth 8 -Compress))
+        }
+        if ($TransformerTeacherBackend -eq "cuda" `
+            -and [string]$teacherReport.EffectiveBackend -ne "cuda") {
+            throw "Transformer teacher silently downgraded an explicit CUDA request."
         }
     }
     if (-not $PreflightOnly -and $null -ne $result.Training.Champion) {
@@ -318,6 +369,32 @@ try {
     }
     if (-not $PreflightOnly -and $generatedEpisodes -le 0) {
         throw "Foundation trainer smoke did not generate replay episodes."
+    }
+    if (-not $PreflightOnly) {
+        $checkpointSeconds = [double]$result.CheckpointSerializationSeconds
+        $checkpointEnqueued = [int64]$result.CheckpointWritesEnqueued
+        $checkpointExecuted = [int64]$result.CheckpointWritesExecuted
+        $checkpointCoalesced = [int64]$result.CheckpointWritesCoalesced
+        if ([int]$result.EffectiveCheckpointSerializationParallelism -lt 1 `
+            -or [double]::IsNaN($checkpointSeconds) `
+            -or [double]::IsInfinity($checkpointSeconds) `
+            -or $checkpointSeconds -lt 0 `
+            -or $checkpointEnqueued -lt 1 `
+            -or $checkpointExecuted -lt 1 `
+            -or $checkpointExecuted -gt $checkpointEnqueued `
+            -or $checkpointCoalesced -lt 0 `
+            -or $checkpointCoalesced -gt $checkpointEnqueued) {
+            throw (
+                "Foundation checkpoint execution telemetry is incomplete: " `
+                + ($result | Select-Object `
+                    EffectiveCheckpointSerializationParallelism, `
+                    CheckpointSerializationAutoScaled, `
+                    CheckpointSerializationSeconds, `
+                    CheckpointWritesEnqueued, `
+                    CheckpointWritesExecuted, `
+                    CheckpointWritesCoalesced | `
+                    ConvertTo-Json -Compress))
+        }
     }
     if (-not (Test-Path -LiteralPath $progressPath -PathType Leaf)) {
         throw "Foundation trainer progress artifact is missing."
@@ -436,7 +513,7 @@ try {
         if ($ParallelismProfile -eq "auto") {
             $measurements = @($result.Training.AutoTune.Measurements)
             if ([string]$result.Training.AutoTune.Version `
-                    -ne "foundation-auto-tune-v3" `
+                    -ne "foundation-auto-tune-v4" `
                 -or [string]$result.Training.AutoTune.Objective `
                     -ne $AutoTuneObjective `
                 -or $measurements.Count -lt 1 `
@@ -596,7 +673,7 @@ try {
             -or [string]$checkpoint.Resume.Compatibility.SearchPolicyVersion `
                 -ne "dynamic-search-v12-quantile-fpu" `
             -or [string]$checkpoint.Resume.Compatibility.TrainingPolicyVersion `
-                -ne "foundation-governance-v19-registered-content-replay") {
+                -ne "foundation-governance-v20-strategy-stratified-replay") {
             throw "Foundation checkpoint compatibility manifest is incomplete."
         }
     }

@@ -1242,6 +1242,8 @@ internal static class CombatPolicyValueBatchTrainer
             UnsafeEndTurn = unsafeEndTurn,
             Stratum = FrameStratum(episode, critical)
                       + ":"
+                      + StrategicFrameStratum(frame.StateFeatures)
+                      + ":"
                       + (unsafeEndTurn
                           ? "unsafe-end-turn"
                           : endTurnDecision
@@ -1398,6 +1400,55 @@ internal static class CombatPolicyValueBatchTrainer
                + outcome
                + ":"
                + (critical ? "critical" : "regular");
+    }
+
+    internal static string StrategicFrameStratum(
+        IReadOnlyDictionary<string, double>? features)
+    {
+        if (features == null || features.Count == 0)
+        {
+            return "strategy-baseline";
+        }
+        var active = features.Where(pair =>
+                pair.Value > 0.5d
+                && pair.Key.StartsWith(
+                    "roleStrategy:",
+                    StringComparison.OrdinalIgnoreCase))
+            .Select(pair => pair.Key)
+            .ToArray();
+        if (active.Any(key => key.IndexOf(
+                "survival",
+                StringComparison.OrdinalIgnoreCase) >= 0))
+        {
+            return "strategy-survival";
+        }
+        if (active.Any(key => key.IndexOf(
+                "finale",
+                StringComparison.OrdinalIgnoreCase) >= 0))
+        {
+            return "strategy-finale";
+        }
+        if (active.Any(key => key.IndexOf(
+                "transform",
+                StringComparison.OrdinalIgnoreCase) >= 0))
+        {
+            return "strategy-transform";
+        }
+        if (active.Any(key => key.IndexOf(
+                "growth",
+                StringComparison.OrdinalIgnoreCase) >= 0))
+        {
+            return "strategy-growth";
+        }
+        if (active.Any(key => key.IndexOf(
+                "bank",
+                StringComparison.OrdinalIgnoreCase) >= 0))
+        {
+            return "strategy-bank";
+        }
+        return active.Length == 0
+            ? "strategy-baseline"
+            : "strategy-other";
     }
 
     private static void ApplyFrameStratumWeights(

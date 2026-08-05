@@ -189,7 +189,8 @@ public sealed class CombatFoundationTrainingParameters
     public string TransformerTeacherBackend { get; set; } =
         CombatTransformerTeacherBackendNames.Disabled;
 
-    public string TransformerPythonExecutable { get; set; } = "python";
+    public string TransformerPythonExecutable { get; set; } =
+        CombatTransformerRuntimeProtocol.AutomaticExecutable;
 
     public int TransformerTeacherEpochs { get; set; } = 12;
 
@@ -211,7 +212,27 @@ public sealed class CombatFoundationTrainingParameters
 
     public int TransformerTeacherMinimumFrames { get; set; } = 1024;
 
+    public bool TransformerTeacherEnableWarmStart { get; set; } = true;
+
+    public int TransformerTeacherCpuRefreshInterval { get; set; } = 2;
+
+    public int TransformerTeacherIncrementalEpochs { get; set; } = 4;
+
+    public int TransformerTeacherFinalEpochs { get; set; } = 12;
+
     public int TransformerTeacherCpuThreads { get; set; }
+
+    public int TransformerTeacherCpuInteropThreads { get; set; }
+
+    public int TransformerTeacherMicroBatchSize { get; set; }
+
+    public int TransformerTeacherDataLoaderWorkers { get; set; }
+
+    public int TransformerTeacherPrefetchBatches { get; set; } = 2;
+
+    public bool TransformerTeacherEnablePinnedMemory { get; set; } = true;
+
+    public bool TransformerTeacherEnableMixedPrecision { get; set; } = true;
 
     public double TransformerDistillationWeight { get; set; } = 0.35d;
 
@@ -270,6 +291,13 @@ public sealed class CombatFoundationTrainingParameters
         PreflightCampaignsPerDifficulty = Math.Max(
             1,
             Math.Min(100, PreflightCampaignsPerDifficulty));
+        var requestedInferenceParallelism = InferenceParallelism;
+        var requestedInferenceLaneCount = InferenceLaneCount;
+        var requestedInferenceBatchSize = InferenceBatchSize;
+        var requestedThreadPoolMinimumWorkerThreads =
+            ThreadPoolMinimumWorkerThreads;
+        var requestedCheckpointSerializationParallelism =
+            CheckpointSerializationParallelism;
         var execution = CombatFoundationExecutionProfiles.Resolve(
             ParallelismProfile,
             MaximumDegreeOfParallelism,
@@ -283,13 +311,32 @@ public sealed class CombatFoundationTrainingParameters
         ParallelismProfile = execution.Profile;
         MaximumDegreeOfParallelism = execution.CampaignParallelism;
         InferenceExecutionMode = execution.InferenceMode;
-        InferenceParallelism = execution.InferenceParallelism;
-        InferenceLaneCount = execution.InferenceLaneCount;
-        InferenceBatchSize = execution.InferenceBatchSize;
-        ThreadPoolMinimumWorkerThreads =
-            execution.ThreadPoolMinimumWorkerThreads;
-        CheckpointSerializationParallelism =
-            execution.CheckpointSerializationParallelism;
+        var automaticExecution = string.Equals(
+            execution.Profile,
+            CombatFoundationExecutionProfileNames.Auto,
+            StringComparison.Ordinal);
+        InferenceParallelism = automaticExecution
+                               && requestedInferenceParallelism <= 0
+            ? 0
+            : execution.InferenceParallelism;
+        InferenceLaneCount = automaticExecution
+                             && requestedInferenceLaneCount <= 0
+            ? 0
+            : execution.InferenceLaneCount;
+        InferenceBatchSize = automaticExecution
+                             && requestedInferenceBatchSize <= 0
+            ? 0
+            : execution.InferenceBatchSize;
+        ThreadPoolMinimumWorkerThreads = automaticExecution
+                                         && requestedThreadPoolMinimumWorkerThreads
+                                         <= 0
+            ? 0
+            : execution.ThreadPoolMinimumWorkerThreads;
+        CheckpointSerializationParallelism = automaticExecution
+                                             && requestedCheckpointSerializationParallelism
+                                             <= 0
+            ? 0
+            : execution.CheckpointSerializationParallelism;
         AutoTuneSampleCampaigns = Math.Max(
             4,
             Math.Min(64, AutoTuneSampleCampaigns));
@@ -370,7 +417,7 @@ public sealed class CombatFoundationTrainingParameters
             0.0002d);
         ModelBatchSize = Math.Max(8, Math.Min(512, ModelBatchSize));
         ModelGradientShardCount = Math.Max(
-            1,
+            0,
             Math.Min(32, ModelGradientShardCount));
         ModelMaximumFrameStratumWeight = Clamp(
             ModelMaximumFrameStratumWeight,
@@ -430,7 +477,17 @@ public sealed class CombatFoundationTrainingParameters
                 TransformerTeacherFeedForwardDimensions,
             HistoryLength = TransformerTeacherHistoryLength,
             MinimumFrames = TransformerTeacherMinimumFrames,
+            EnableWarmStart = TransformerTeacherEnableWarmStart,
+            CpuRefreshInterval = TransformerTeacherCpuRefreshInterval,
+            IncrementalEpochs = TransformerTeacherIncrementalEpochs,
+            FinalEpochs = TransformerTeacherFinalEpochs,
             CpuThreads = TransformerTeacherCpuThreads,
+            CpuInteropThreads = TransformerTeacherCpuInteropThreads,
+            MicroBatchSize = TransformerTeacherMicroBatchSize,
+            DataLoaderWorkers = TransformerTeacherDataLoaderWorkers,
+            PrefetchBatches = TransformerTeacherPrefetchBatches,
+            EnablePinnedMemory = TransformerTeacherEnablePinnedMemory,
+            EnableMixedPrecision = TransformerTeacherEnableMixedPrecision,
             DistillationWeight = TransformerDistillationWeight
         }.Normalized();
         TransformerTeacherBackend = transformer.Backend;
@@ -446,7 +503,17 @@ public sealed class CombatFoundationTrainingParameters
             transformer.FeedForwardDimensions;
         TransformerTeacherHistoryLength = transformer.HistoryLength;
         TransformerTeacherMinimumFrames = transformer.MinimumFrames;
+        TransformerTeacherEnableWarmStart = transformer.EnableWarmStart;
+        TransformerTeacherCpuRefreshInterval = transformer.CpuRefreshInterval;
+        TransformerTeacherIncrementalEpochs = transformer.IncrementalEpochs;
+        TransformerTeacherFinalEpochs = transformer.FinalEpochs;
         TransformerTeacherCpuThreads = transformer.CpuThreads;
+        TransformerTeacherCpuInteropThreads = transformer.CpuInteropThreads;
+        TransformerTeacherMicroBatchSize = transformer.MicroBatchSize;
+        TransformerTeacherDataLoaderWorkers = transformer.DataLoaderWorkers;
+        TransformerTeacherPrefetchBatches = transformer.PrefetchBatches;
+        TransformerTeacherEnablePinnedMemory = transformer.EnablePinnedMemory;
+        TransformerTeacherEnableMixedPrecision = transformer.EnableMixedPrecision;
         TransformerDistillationWeight = transformer.DistillationWeight;
         ModelFeatureEncodingMode = "partitioned-v3";
         MinimumEpisodes = Math.Max(
@@ -488,7 +555,7 @@ public sealed class CombatFoundationTrainingParameters
         return Iterations
                * (TrainingCampaignsPerIteration
                   + (ArenaCampaignsPerDifficulty
-                     + (ArenaCampaignsPerDifficulty >= 32
+                     + (ArenaCampaignsPerDifficulty >= 16
                          ? ArenaConfirmationCampaignsPerDifficulty
                          : 0)) * 4)
                + governance.ScheduledTuningIterations(Iterations)
@@ -816,7 +883,27 @@ public static class CombatFoundationWorkerJobFactory
                         parameters.TransformerTeacherHistoryLength,
                     MinimumFrames =
                         parameters.TransformerTeacherMinimumFrames,
+                    EnableWarmStart =
+                        parameters.TransformerTeacherEnableWarmStart,
+                    CpuRefreshInterval =
+                        parameters.TransformerTeacherCpuRefreshInterval,
+                    IncrementalEpochs =
+                        parameters.TransformerTeacherIncrementalEpochs,
+                    FinalEpochs =
+                        parameters.TransformerTeacherFinalEpochs,
                     CpuThreads = parameters.TransformerTeacherCpuThreads,
+                    CpuInteropThreads =
+                        parameters.TransformerTeacherCpuInteropThreads,
+                    MicroBatchSize =
+                        parameters.TransformerTeacherMicroBatchSize,
+                    DataLoaderWorkers =
+                        parameters.TransformerTeacherDataLoaderWorkers,
+                    PrefetchBatches =
+                        parameters.TransformerTeacherPrefetchBatches,
+                    EnablePinnedMemory =
+                        parameters.TransformerTeacherEnablePinnedMemory,
+                    EnableMixedPrecision =
+                        parameters.TransformerTeacherEnableMixedPrecision,
                     DistillationWeight =
                         parameters.TransformerDistillationWeight,
                     RandomSeed = unchecked((int)parameters.RunSeed)

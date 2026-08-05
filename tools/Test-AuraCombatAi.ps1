@@ -54,6 +54,14 @@ $plannerPath = Join-Path $root "AuraCombatAiShared\CombatRiskAwareRootSamplingPu
 $worldModelContractsPath = Join-Path $root "AuraCombatAiShared\CombatWorldModelContracts.cs"
 $governancePath = Join-Path $root "AuraCombatAiShared\CombatDecisionGovernance.cs"
 $transformerTeacherPath = Join-Path $root "AuraCombatAiShared\CombatTransformerTeacher.cs"
+$transformerRuntimeResolverPath = Join-Path $root `
+    "AuraCombatAiShared\CombatTransformerRuntimeResolver.cs"
+$foundationAutoTuningPath = Join-Path $root `
+    "AuraCombatAiShared\CombatFoundationAutoTuning.cs"
+$transformerTeacherScriptPath = Join-Path $root `
+    "tools\transformer-teacher\train_teacher.py"
+$packagedTransformerTeacherScriptPath = Join-Path $root `
+    "AuraToolsExp\TrainingWorker\TransformerTeacher\train_teacher.py"
 $riskStatisticsPath = Join-Path $root "AuraCombatAiShared\CombatSearchRiskStatistics.cs"
 $searchBudgetPath = Join-Path $root "AuraCombatAiShared\CombatSearchBudgetPolicy.cs"
 $loopSafetyPath = Join-Path $root "AuraCombatAiShared\CombatLoopSafetyAnalyzer.cs"
@@ -122,6 +130,13 @@ $planner = Get-Content -LiteralPath $plannerPath -Raw
 $worldModelContracts = Get-Content -LiteralPath $worldModelContractsPath -Raw
 $governance = Get-Content -LiteralPath $governancePath -Raw
 $transformerTeacher = Get-Content -LiteralPath $transformerTeacherPath -Raw
+$transformerRuntimeResolver = Get-Content `
+    -LiteralPath $transformerRuntimeResolverPath -Raw
+$foundationAutoTuning = Get-Content -LiteralPath $foundationAutoTuningPath -Raw
+$transformerTeacherScript = Get-Content `
+    -LiteralPath $transformerTeacherScriptPath -Raw
+$packagedTransformerTeacherScript = Get-Content `
+    -LiteralPath $packagedTransformerTeacherScriptPath -Raw
 $riskStatistics = Get-Content -LiteralPath $riskStatisticsPath -Raw
 $searchBudget = Get-Content -LiteralPath $searchBudgetPath -Raw
 $loopSafety = Get-Content -LiteralPath $loopSafetyPath -Raw
@@ -526,6 +541,8 @@ foreach ($anchor in @(
     "TerminalConsistencyViolations",
     "FeatureLeakageViolations",
     "Math.Min(1024",
+    "AutoTuneCampaignKey",
+    "BuildAutoTuneParallelismCandidates",
     "RetainValidationRunDetails",
     "CompactValidationRun(campaign)"
 )) {
@@ -824,6 +841,8 @@ foreach ($anchor in @(
     "ReplayIdentity",
     "EpisodeSnapshot = nextSnapshot",
     "checkpointWriteFailures++",
+    "memory-tier-",
+    "AutoTuneCampaignKey",
     "TryGetResumableCheckpoint",
     "WriteAtomicJson",
     "training.ValidationRuns.Clear()"
@@ -1071,10 +1090,14 @@ foreach ($anchor in @(
 
 foreach ($anchor in @(
     "aura.combat-transformer-world-model.v2",
+    "AutomaticExecutable",
     "HiddenDimensions { get; set; } = 384",
     "Layers { get; set; } = 6",
     "AttentionHeads { get; set; } = 8",
     "FeedForwardDimensions { get; set; } = 1536",
+    "EnableWarmStart { get; set; } = true",
+    "CpuRefreshInterval { get; set; } = 2",
+    "CombatTransformerTeacherProgress",
     "ValidationDynamicsMse",
     "ValidationOutcomeMae",
     "WorldModelQualityGatePassed"
@@ -1082,6 +1105,45 @@ foreach ($anchor in @(
     if (-not $transformerTeacher.Contains($anchor)) {
         throw "Aura combat Transformer world-model teacher contract is missing: $anchor"
     }
+}
+foreach ($anchor in @(
+    "aura.transformer-runtime-probe.v1",
+    "AURA_TRANSFORMER_PYTHON",
+    "AuraTF",
+    "CudaAvailable",
+    "ResolutionSource"
+)) {
+    if (-not $transformerRuntimeResolver.Contains($anchor)) {
+        throw "Aura Transformer runtime discovery contract is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
+    "foundation-auto-tune-v4",
+    "foundation-auto-tune-v4.json"
+)) {
+    if (-not $foundationAutoTuning.Contains($anchor)) {
+        throw "Aura foundation auto-tune protocol is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
+    "--micro-batch-size",
+    "LengthBucketBatchSampler",
+    "tensorize_rows",
+    "runtime-auto-tune-v1",
+    "--resume-model",
+    "--training-enabled",
+    "AURA_TEACHER_PROGRESS",
+    "working_set_bytes",
+    '"_sampling_repeats"',
+    '"TrainingFramesPerSecond"',
+    "torch.autocast"
+)) {
+    if (-not $transformerTeacherScript.Contains($anchor)) {
+        throw "Aura Transformer teacher execution plan is missing: $anchor"
+    }
+}
+if ($transformerTeacherScript -cne $packagedTransformerTeacherScript) {
+    throw "Packaged Transformer teacher script differs from its source copy."
 }
 foreach ($anchor in @(
     "CombatLoopClassification",
@@ -1145,7 +1207,7 @@ foreach ($anchor in @(
     "aura.combat-ai.episode.v5",
     "public const int FeatureSchemaVersion = 26",
     "content-set-quantile-q-registered-content-replay-base-role-skill-timing-auto-tune-arena-v18",
-    "frame-strata-v5-end-turn-counterfactual",
+    "frame-strata-v6-strategy-archetype",
     "CombatCampaignEpisodeMetadata",
     "TerminalSnapshotKnown",
     "TerminalDoomPower",

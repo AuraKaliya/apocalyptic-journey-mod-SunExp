@@ -6,9 +6,9 @@ namespace AuraCombatAi.Shared;
 
 public static class CombatFoundationAutoTuneProtocol
 {
-    public const string Version = "foundation-auto-tune-v3";
+    public const string Version = "foundation-auto-tune-v4";
 
-    public const string CacheFileName = "foundation-auto-tune-v3.json";
+    public const string CacheFileName = "foundation-auto-tune-v4.json";
 }
 
 public static class CombatFoundationAutoTuneObjectiveNames

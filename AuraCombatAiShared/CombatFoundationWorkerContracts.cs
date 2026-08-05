@@ -258,6 +258,18 @@ public sealed class CombatFoundationWorkerResult
 
     public string CheckpointWarning { get; set; } = "";
 
+    public int EffectiveCheckpointSerializationParallelism { get; set; }
+
+    public bool CheckpointSerializationAutoScaled { get; set; }
+
+    public double CheckpointSerializationSeconds { get; set; }
+
+    public long CheckpointWritesEnqueued { get; set; }
+
+    public long CheckpointWritesExecuted { get; set; }
+
+    public long CheckpointWritesCoalesced { get; set; }
+
     public CombatCampaignFoundationTrainingResult? Training { get; set; }
 }
 
