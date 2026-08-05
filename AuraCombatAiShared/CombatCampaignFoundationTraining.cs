@@ -562,7 +562,13 @@ public sealed class CombatCampaignFoundationTelemetry
 
     public double TransformerTeacherCpuPercent { get; set; }
 
+    public double TransformerTeacherProcessCpuSeconds { get; set; }
+
     public long TransformerTeacherWorkingSetBytes { get; set; }
+
+    public long TransformerTeacherPeakWorkingSetBytes { get; set; }
+
+    public double TransformerTeacherStageElapsedSeconds { get; set; }
 
     public bool TransformerTeacherWarmStarted { get; set; }
 
@@ -669,6 +675,15 @@ public sealed class CombatCampaignFoundationTelemetry
         new(StringComparer.OrdinalIgnoreCase);
 
     public Dictionary<string, long> PhaseAllocatedBytes { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, double> PhaseExternalCpuSeconds { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, int> PhasePeakConcurrentWork { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, int> PhaseObservedWorkerThreads { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
 }
 
@@ -1441,6 +1456,15 @@ public sealed class CombatCampaignFoundationTrainingResult
         new(StringComparer.OrdinalIgnoreCase);
 
     public Dictionary<string, long> PhaseAllocatedBytes { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, double> PhaseExternalCpuSeconds { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, int> PhasePeakConcurrentWork { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
+    public Dictionary<string, int> PhaseObservedWorkerThreads { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
 }
 
@@ -7354,6 +7378,16 @@ public sealed class CombatCampaignFoundationTrainer
         private readonly object workerGate = new();
         private readonly HashSet<int> observedWorkerThreads = new();
         private readonly Dictionary<long, int> activeCampaignDepths = new();
+        private readonly Dictionary<long, string> activeCampaignPhases = new();
+        private readonly Dictionary<string, int> phaseActiveWork =
+            new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, int> phasePeakConcurrentWork =
+            new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, HashSet<int>> phaseWorkerThreads =
+            new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, int>
+            phaseObservedWorkerThreadOffsets =
+                new(StringComparer.OrdinalIgnoreCase);
         private readonly int[] completedDepthBuckets = new int[5];
         private readonly int initialGen0 = GC.CollectionCount(0);
         private readonly int initialGen1 = GC.CollectionCount(1);
@@ -7408,6 +7442,8 @@ public sealed class CombatCampaignFoundationTrainer
             new(StringComparer.OrdinalIgnoreCase);
         private readonly Dictionary<string, long> phaseAllocatedBytes =
             new(StringComparer.OrdinalIgnoreCase);
+        private readonly Dictionary<string, double> phaseExternalCpuSeconds =
+            new(StringComparer.OrdinalIgnoreCase);
         private string currentPhase = "setup";
         private double currentPhaseStartedSeconds;
         private double currentPhaseStartedCpuSeconds;
@@ -7435,7 +7471,12 @@ public sealed class CombatCampaignFoundationTrainer
         private double transformerTeacherFramesPerSecond;
         private double transformerTeacherElapsedSeconds;
         private double transformerTeacherCpuPercent;
+        private double transformerTeacherProcessCpuSeconds;
+        private double transformerTeacherAccumulatedCpuSeconds;
+        private int transformerTeacherCpuIteration;
         private long transformerTeacherWorkingSetBytes;
+        private long transformerTeacherPeakWorkingSetBytes;
+        private double transformerTeacherStageElapsedSeconds;
         private bool transformerTeacherWarmStarted;
         private bool transformerTeacherTrainingEnabled;
         private string transformerTeacherMessage = "";
@@ -7479,6 +7520,22 @@ public sealed class CombatCampaignFoundationTrainer
                                  ?? new Dictionary<string, long>())
             {
                 phaseAllocatedBytes[pair.Key] = Math.Max(0L, pair.Value);
+            }
+            foreach (var pair in initial?.PhaseExternalCpuSeconds
+                                 ?? new Dictionary<string, double>())
+            {
+                phaseExternalCpuSeconds[pair.Key] = Math.Max(0d, pair.Value);
+            }
+            foreach (var pair in initial?.PhasePeakConcurrentWork
+                                 ?? new Dictionary<string, int>())
+            {
+                phasePeakConcurrentWork[pair.Key] = Math.Max(0, pair.Value);
+            }
+            foreach (var pair in initial?.PhaseObservedWorkerThreads
+                                 ?? new Dictionary<string, int>())
+            {
+                phaseObservedWorkerThreadOffsets[pair.Key] =
+                    Math.Max(0, pair.Value);
             }
             completedCampaigns = Math.Max(
                 initialCompletedCampaigns,
@@ -7707,9 +7764,30 @@ public sealed class CombatCampaignFoundationTrainer
                 transformerTeacherCpuPercent = Math.Max(
                     0d,
                     progress.ProcessCpuPercent);
+                if (transformerTeacherCpuIteration > 0
+                    && transformerTeacherCpuIteration != progress.Iteration)
+                {
+                    transformerTeacherAccumulatedCpuSeconds +=
+                        transformerTeacherProcessCpuSeconds;
+                    transformerTeacherProcessCpuSeconds = 0d;
+                }
+                transformerTeacherCpuIteration = Math.Max(
+                    1,
+                    progress.Iteration);
+                transformerTeacherProcessCpuSeconds = Math.Max(
+                    transformerTeacherProcessCpuSeconds,
+                    Math.Max(0d, progress.ProcessCpuSeconds));
                 transformerTeacherWorkingSetBytes = Math.Max(
                     0L,
                     progress.WorkingSetBytes);
+                transformerTeacherPeakWorkingSetBytes = Math.Max(
+                    transformerTeacherPeakWorkingSetBytes,
+                    Math.Max(
+                        progress.WorkingSetBytes,
+                        progress.PeakWorkingSetBytes));
+                transformerTeacherStageElapsedSeconds = Math.Max(
+                    0d,
+                    progress.StageElapsedSeconds);
                 transformerTeacherWarmStarted = progress.WarmStarted;
                 transformerTeacherTrainingEnabled = progress.TrainingEnabled;
                 transformerTeacherMessage = progress.Message ?? "";
@@ -7777,8 +7855,32 @@ public sealed class CombatCampaignFoundationTrainer
             var workId = Interlocked.Increment(ref nextCampaignWorkId);
             lock (workerGate)
             {
-                observedWorkerThreads.Add(Thread.CurrentThread.ManagedThreadId);
+                var threadId = Thread.CurrentThread.ManagedThreadId;
+                var phase = currentPhase;
+                observedWorkerThreads.Add(threadId);
                 activeCampaignDepths[workId] = 0;
+                activeCampaignPhases[workId] = phase;
+                var phaseActive = phaseActiveWork.TryGetValue(
+                    phase,
+                    out var currentActive)
+                    ? currentActive + 1
+                    : 1;
+                phaseActiveWork[phase] = phaseActive;
+                phasePeakConcurrentWork[phase] = Math.Max(
+                    phasePeakConcurrentWork.TryGetValue(
+                        phase,
+                        out var currentPeak)
+                        ? currentPeak
+                        : 0,
+                    phaseActive);
+                if (!phaseWorkerThreads.TryGetValue(
+                        phase,
+                        out var workerThreads))
+                {
+                    workerThreads = new HashSet<int>();
+                    phaseWorkerThreads[phase] = workerThreads;
+                }
+                workerThreads.Add(threadId);
             }
             var active = Interlocked.Increment(ref activeCampaigns);
             UpdateMaximum(ref peakConcurrentCampaigns, active);
@@ -7794,6 +7896,19 @@ public sealed class CombatCampaignFoundationTrainer
             lock (workerGate)
             {
                 activeCampaignDepths.Remove(workId);
+                if (activeCampaignPhases.TryGetValue(
+                        workId,
+                        out var phase))
+                {
+                    activeCampaignPhases.Remove(workId);
+                    phaseActiveWork[phase] = Math.Max(
+                        0,
+                        (phaseActiveWork.TryGetValue(
+                            phase,
+                            out var active)
+                            ? active
+                            : 0) - 1);
+                }
                 if (result != null
                     && !stage.StartsWith(
                         "preflight",
@@ -8160,6 +8275,18 @@ public sealed class CombatCampaignFoundationTrainer
                 new Dictionary<string, long>(
                     snapshot.PhaseAllocatedBytes,
                     StringComparer.OrdinalIgnoreCase);
+            result.PhaseExternalCpuSeconds =
+                new Dictionary<string, double>(
+                    snapshot.PhaseExternalCpuSeconds,
+                    StringComparer.OrdinalIgnoreCase);
+            result.PhasePeakConcurrentWork =
+                new Dictionary<string, int>(
+                    snapshot.PhasePeakConcurrentWork,
+                    StringComparer.OrdinalIgnoreCase);
+            result.PhaseObservedWorkerThreads =
+                new Dictionary<string, int>(
+                    snapshot.PhaseObservedWorkerThreads,
+                    StringComparer.OrdinalIgnoreCase);
         }
 
         private void Report(string stage, bool force = false)
@@ -8226,6 +8353,9 @@ public sealed class CombatCampaignFoundationTrainer
             Dictionary<string, double> snapshotPhaseElapsedSeconds;
             Dictionary<string, double> snapshotPhaseCpuSeconds;
             Dictionary<string, long> snapshotPhaseAllocatedBytes;
+            Dictionary<string, double> snapshotPhaseExternalCpuSeconds;
+            Dictionary<string, int> snapshotPhasePeakConcurrentWork;
+            Dictionary<string, int> snapshotPhaseObservedWorkerThreads;
             List<CombatPolicyValueEpochMetrics> snapshotModelEpochHistory;
             var currentCpuSeconds = Math.Max(
                 0d,
@@ -8271,7 +8401,12 @@ public sealed class CombatCampaignFoundationTrainer
                     ElapsedSeconds = transformerTeacherElapsedSeconds,
                     EstimatedRemainingSeconds = phaseEstimatedRemainingSeconds,
                     ProcessCpuPercent = transformerTeacherCpuPercent,
+                    ProcessCpuSeconds = transformerTeacherProcessCpuSeconds,
                     WorkingSetBytes = transformerTeacherWorkingSetBytes,
+                    PeakWorkingSetBytes =
+                        transformerTeacherPeakWorkingSetBytes,
+                    StageElapsedSeconds =
+                        transformerTeacherStageElapsedSeconds,
                     WarmStarted = transformerTeacherWarmStarted,
                     TrainingEnabled = transformerTeacherTrainingEnabled,
                     Message = transformerTeacherMessage
@@ -8303,6 +8438,44 @@ public sealed class CombatCampaignFoundationTrainer
                     new Dictionary<string, long>(
                         phaseAllocatedBytes,
                         StringComparer.OrdinalIgnoreCase);
+                snapshotPhaseExternalCpuSeconds =
+                    new Dictionary<string, double>(
+                        phaseExternalCpuSeconds,
+                        StringComparer.OrdinalIgnoreCase);
+                var teacherCpuSeconds =
+                    transformerTeacherAccumulatedCpuSeconds
+                    + transformerTeacherProcessCpuSeconds;
+                if (teacherCpuSeconds > 0d)
+                {
+                    snapshotPhaseExternalCpuSeconds["transformer-teacher"] =
+                        snapshotPhaseExternalCpuSeconds.TryGetValue(
+                            "transformer-teacher",
+                            out var accumulatedTeacherCpu)
+                            ? accumulatedTeacherCpu + teacherCpuSeconds
+                            : teacherCpuSeconds;
+                }
+                snapshotPhasePeakConcurrentWork =
+                    new Dictionary<string, int>(
+                        phasePeakConcurrentWork,
+                        StringComparer.OrdinalIgnoreCase);
+                snapshotPhaseObservedWorkerThreads =
+                    phaseObservedWorkerThreadOffsets.Keys
+                        .Concat(phaseWorkerThreads.Keys)
+                        .Distinct(StringComparer.OrdinalIgnoreCase)
+                        .ToDictionary(
+                            key => key,
+                            key => Math.Max(
+                                phaseObservedWorkerThreadOffsets.TryGetValue(
+                                    key,
+                                    out var priorCount)
+                                    ? priorCount
+                                    : 0,
+                                phaseWorkerThreads.TryGetValue(
+                                    key,
+                                    out var currentThreads)
+                                    ? currentThreads.Count
+                                    : 0),
+                            StringComparer.OrdinalIgnoreCase);
                 snapshotModelEpochHistory = request
                     .IncludeMetricHistoryInTelemetry
                     ? modelEpochHistory
@@ -8477,8 +8650,18 @@ public sealed class CombatCampaignFoundationTrainer
                     snapshotTransformerTeacher.ElapsedSeconds,
                 TransformerTeacherCpuPercent =
                     snapshotTransformerTeacher.ProcessCpuPercent,
+                TransformerTeacherProcessCpuSeconds =
+                    snapshotPhaseExternalCpuSeconds.TryGetValue(
+                        "transformer-teacher",
+                        out var totalTeacherCpuSeconds)
+                        ? totalTeacherCpuSeconds
+                        : 0d,
                 TransformerTeacherWorkingSetBytes =
                     snapshotTransformerTeacher.WorkingSetBytes,
+                TransformerTeacherPeakWorkingSetBytes =
+                    snapshotTransformerTeacher.PeakWorkingSetBytes,
+                TransformerTeacherStageElapsedSeconds =
+                    snapshotTransformerTeacher.StageElapsedSeconds,
                 TransformerTeacherWarmStarted =
                     snapshotTransformerTeacher.WarmStarted,
                 TransformerTeacherTrainingEnabled =
@@ -8568,7 +8751,11 @@ public sealed class CombatCampaignFoundationTrainer
                     allocatedBytes / elapsedSeconds / (1024d * 1024d)),
                 PhaseElapsedSeconds = snapshotPhaseElapsedSeconds,
                 PhaseCpuSeconds = snapshotPhaseCpuSeconds,
-                PhaseAllocatedBytes = snapshotPhaseAllocatedBytes
+                PhaseAllocatedBytes = snapshotPhaseAllocatedBytes,
+                PhaseExternalCpuSeconds = snapshotPhaseExternalCpuSeconds,
+                PhasePeakConcurrentWork = snapshotPhasePeakConcurrentWork,
+                PhaseObservedWorkerThreads =
+                    snapshotPhaseObservedWorkerThreads
             };
         }
 

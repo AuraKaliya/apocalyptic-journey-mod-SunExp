@@ -11035,6 +11035,22 @@ Assert(foundationTraining.Success
        && foundationTraining.PhaseCpuSeconds.Values.Sum() > 0d
        && foundationTraining.PhaseAllocatedBytes.ContainsKey("self-play")
        && foundationTraining.PhaseAllocatedBytes.Values.Sum() > 0L
+       && foundationTraining.PhasePeakConcurrentWork.TryGetValue(
+           "self-play",
+           out var selfPlayPeakWork)
+       && selfPlayPeakWork >= 1
+       && foundationTraining.PhasePeakConcurrentWork.TryGetValue(
+           "validation",
+           out var validationPeakWork)
+       && validationPeakWork >= 1
+       && foundationTraining.PhaseObservedWorkerThreads.TryGetValue(
+           "self-play",
+           out var selfPlayObservedThreads)
+       && selfPlayObservedThreads >= 1
+       && foundationTraining.PhaseObservedWorkerThreads.TryGetValue(
+           "validation",
+           out var validationObservedThreads)
+       && validationObservedThreads >= 1
        && foundationTraining.ModelTrainingLoss > 0d
        && foundationTraining.ModelValidationLoss > 0d
        && foundationTraining.ModelEpochHistory.Count > 0

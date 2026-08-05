@@ -113,6 +113,9 @@ class ProgressReporter:
         self.enabled = enabled
         self.started = time.perf_counter()
         self.cpu_started = time.process_time()
+        self.stage_started = self.started
+        self.stage_seconds = {}
+        self.peak_working_set_bytes = 0
         self.lock = threading.Lock()
         self.stop_event = threading.Event()
         self.state = {
@@ -134,7 +137,16 @@ class ProgressReporter:
     def update(self, emit: bool = True, **values) -> None:
         if not self.enabled:
             return
+        now = time.perf_counter()
         with self.lock:
+            next_stage = values.get("Stage")
+            current_stage = str(self.state.get("Stage", "starting"))
+            if next_stage and str(next_stage) != current_stage:
+                self.stage_seconds[current_stage] = (
+                    self.stage_seconds.get(current_stage, 0.0)
+                    + max(0.0, now - self.stage_started)
+                )
+                self.stage_started = now
             self.state.update(values)
         if emit:
             self.emit()
@@ -142,16 +154,44 @@ class ProgressReporter:
     def emit(self) -> None:
         if not self.enabled:
             return
-        elapsed = max(1.0e-6, time.perf_counter() - self.started)
+        now = time.perf_counter()
+        elapsed = max(1.0e-6, now - self.started)
         cpu = max(0.0, time.process_time() - self.cpu_started)
+        working_set = working_set_bytes()
         with self.lock:
             payload = dict(self.state)
+            self.peak_working_set_bytes = max(
+                self.peak_working_set_bytes, working_set
+            )
+            current_stage = str(payload.get("Stage", "starting"))
+            stage_elapsed = max(0.0, now - self.stage_started)
+            stage_seconds = dict(self.stage_seconds)
+            stage_seconds[current_stage] = (
+                stage_seconds.get(current_stage, 0.0) + stage_elapsed
+            )
         payload["ElapsedSeconds"] = elapsed
+        payload["ProcessCpuSeconds"] = cpu
         payload["ProcessCpuPercent"] = (
             cpu / elapsed / max(1, os.cpu_count() or 1) * 100.0
         )
-        payload["WorkingSetBytes"] = working_set_bytes()
+        payload["WorkingSetBytes"] = working_set
+        payload["PeakWorkingSetBytes"] = self.peak_working_set_bytes
+        payload["StageElapsedSeconds"] = stage_elapsed
+        payload["StageSeconds"] = stage_seconds
         print(PROGRESS_PREFIX + json.dumps(payload, separators=(",", ":")), flush=True)
+
+    def snapshot_stage_seconds(self) -> dict:
+        if not self.enabled:
+            return {}
+        now = time.perf_counter()
+        with self.lock:
+            snapshot = dict(self.stage_seconds)
+            current_stage = str(self.state.get("Stage", "starting"))
+            snapshot[current_stage] = (
+                snapshot.get(current_stage, 0.0)
+                + max(0.0, now - self.stage_started)
+            )
+        return snapshot
 
     def _heartbeat(self) -> None:
         while not self.stop_event.wait(2.0):
@@ -1066,7 +1106,7 @@ def train(
     device: torch.device,
     runtime: dict,
     progress: ProgressReporter,
-) -> tuple[StrategyTransformer, dict[str, float], int, int, int, dict, float, bool]:
+) -> tuple[StrategyTransformer, dict[str, float], int, int, int, dict, float, bool, dict]:
     training_rows, validation_rows = split_rows(rows, args.seed)
     model = StrategyTransformer(
         rows[0]["_state_tensor"].shape[0],
@@ -1111,7 +1151,9 @@ def train(
     except (AttributeError, TypeError):
         scaler = torch.cuda.amp.GradScaler(enabled=use_scaler)
     best_state = copy.deepcopy(model.state_dict())
+    evaluation_started = time.perf_counter()
     best_metrics = evaluate(model, validation_loader, device, plan["precision"])
+    evaluation_seconds = time.perf_counter() - evaluation_started
     best_loss = (
         best_metrics["policy_ce"]
         + best_metrics["value_mae"] * 0.35
@@ -1141,7 +1183,12 @@ def train(
             plan,
             0.0,
             warm_started,
+            {
+                "training": 0.0,
+                "evaluating": evaluation_seconds,
+            },
         )
+    training_seconds = 0.0
     for epoch in range(1, args.epochs + 1):
         progress.update(
             Stage="training",
@@ -1152,6 +1199,7 @@ def train(
             Message=f"正在训练 Epoch {epoch}/{args.epochs}",
         )
         model.train()
+        epoch_training_started = time.perf_counter()
         for raw in training_loader:
             optimizer.zero_grad(set_to_none=True)
             batch_count = raw["states"].shape[0]
@@ -1183,13 +1231,16 @@ def train(
                     max(0, total_frame_work - processed_frames) / max(1.0e-6, rate)
                 ),
             )
+        training_seconds += time.perf_counter() - epoch_training_started
         executed = epoch
         progress.update(
             Stage="evaluating",
             Epoch=epoch,
             Message=f"正在评估 Epoch {epoch}/{args.epochs}",
         )
+        evaluation_started = time.perf_counter()
         metrics = evaluate(model, validation_loader, device, plan["precision"])
+        evaluation_seconds += time.perf_counter() - evaluation_started
         score = (
             metrics["policy_ce"]
             + metrics["value_mae"] * 0.35
@@ -1212,7 +1263,7 @@ def train(
         if epoch >= 4 and stale >= 4:
             break
     model.load_state_dict(best_state)
-    training_seconds = max(1.0e-6, time.perf_counter() - training_started)
+    training_seconds = max(1.0e-6, training_seconds)
     return (
         model,
         best_metrics,
@@ -1222,6 +1273,10 @@ def train(
         plan,
         processed_frames / training_seconds,
         warm_started,
+        {
+            "training": training_seconds,
+            "evaluating": evaluation_seconds,
+        },
     )
 
 
@@ -1233,7 +1288,7 @@ def annotate(
     device: torch.device,
     path: Path,
     progress: ProgressReporter,
-) -> None:
+) -> tuple[float, float]:
     loader = DataLoader(
         TeacherDataset(rows),
         batch_size=plan["micro_batch_size"],
@@ -1279,6 +1334,8 @@ def annotate(
                     max(0, len(rows) - completed) / max(1.0e-6, rate)
                 ),
             )
+    elapsed = max(1.0e-6, time.perf_counter() - started)
+    return elapsed, completed / elapsed
 
 
 def write_report(path: Path, payload: dict) -> None:
@@ -1317,6 +1374,7 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
             plan,
             throughput,
             warm_started,
+            _,
         ) = train(
             rows, args, device, runtime, progress
         )
@@ -1361,6 +1419,7 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
                     _,
                     _,
                     warm_started,
+                    _,
                 ) = train(rows, args, device, runtime, progress)
                 assert warm_started and warm_executed == 0
                 assert math.isfinite(warm_metrics["policy_ce"])
@@ -1391,8 +1450,11 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
     if any(not value for value in required):
         raise RuntimeError("input, annotations, model, and report paths are required")
     started = time.perf_counter()
+    cpu_started = time.process_time()
     progress.update(Stage="loading", Message="正在读取 Transformer 数据集")
+    loading_started = time.perf_counter()
     rows = load_rows(Path(args.input), args.history)
+    loading_seconds = time.perf_counter() - loading_started
     if not rows:
         raise RuntimeError("Transformer teacher dataset contains no usable frames")
     preparation_started = time.perf_counter()
@@ -1412,11 +1474,15 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
         plan,
         throughput,
         warm_started,
+        training_timings,
     ) = train(
         rows, args, device, runtime, progress
     )
-    annotate(model, rows, plan, device, Path(args.annotations), progress)
+    annotation_seconds, annotation_throughput = annotate(
+        model, rows, plan, device, Path(args.annotations), progress
+    )
     progress.update(Stage="saving", Message="正在写入模型和教师报告")
+    saving_started = time.perf_counter()
     checkpoint = {
         "protocol": "aura.combat-transformer-world-model.v2",
         "state_dimensions": rows[0]["_state_tensor"].shape[0],
@@ -1429,8 +1495,21 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
         "state_dict": model.state_dict(),
     }
     torch.save(checkpoint, args.model)
+    saving_seconds = time.perf_counter() - saving_started
     device_name = (
         torch.cuda.get_device_name(device) if device.type == "cuda" else platform.processor()
+    )
+    stage_seconds = progress.snapshot_stage_seconds()
+    stage_seconds.update(
+        {
+            "loading": loading_seconds,
+            "preparing": preparation_seconds,
+            "calibrating": float(plan["calibration_seconds"]),
+            "training": float(training_timings["training"]),
+            "evaluating": float(training_timings["evaluating"]),
+            "annotating": annotation_seconds,
+            "saving": saving_seconds,
+        }
     )
     report = {
         "Protocol": "aura.combat-transformer-world-model-report.v2",
@@ -1473,9 +1552,20 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
         "ValidationDeathBrier": metrics["death_brier"],
         "ValidationTerminalAccuracy": metrics["terminal_accuracy"],
         "ElapsedSeconds": time.perf_counter() - started,
+        "ProcessCpuSeconds": time.process_time() - cpu_started,
+        "PeakWorkingSetBytes": max(
+            progress.peak_working_set_bytes, working_set_bytes()
+        ),
+        "DataLoadingSeconds": loading_seconds,
         "DataPreparationSeconds": preparation_seconds,
         "RuntimeCalibrationSeconds": float(plan["calibration_seconds"]),
+        "TrainingSeconds": float(training_timings["training"]),
+        "EvaluationSeconds": float(training_timings["evaluating"]),
+        "AnnotationSeconds": annotation_seconds,
+        "SavingSeconds": saving_seconds,
+        "StageSeconds": stage_seconds,
         "TrainingFramesPerSecond": throughput,
+        "AnnotationFramesPerSecond": annotation_throughput,
         "PeakDeviceMemoryBytes": (
             int(torch.cuda.max_memory_allocated(device)) if device.type == "cuda" else 0
         ),

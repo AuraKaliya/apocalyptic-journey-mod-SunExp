@@ -2062,8 +2062,141 @@ static CombatFoundationTrainingAnalysis BuildTrainingAnalysis(
         IterationCount = epochs
             .Select(item => Math.Max(1, item.Iteration))
             .Distinct()
-            .Count()
+            .Count(),
+        LogicalProcessors = Math.Max(1, Environment.ProcessorCount),
+        TotalElapsedSeconds = Math.Max(0d, training.ElapsedSeconds),
+        WorkerCpuSeconds = Math.Max(0d, training.CpuSeconds),
+        ExternalCpuSeconds = (training.PhaseExternalCpuSeconds
+                              ?? new Dictionary<string, double>())
+            .Values
+            .Where(value => value > 0d)
+            .Sum(),
+        EnabledPerformanceProbes = new List<string>
+        {
+            "phase-wall-time",
+            "worker-cpu-time",
+            "external-process-cpu-time",
+            "managed-allocation",
+            "phase-peak-concurrency",
+            "phase-worker-threads",
+            "transformer-stage-time",
+            "transformer-peak-working-set"
+        }
     };
+    analysis.EffectiveCpuUtilizationPercent =
+        analysis.TotalElapsedSeconds <= 0d
+            ? 0d
+            : (analysis.WorkerCpuSeconds + analysis.ExternalCpuSeconds)
+              / analysis.TotalElapsedSeconds
+              / analysis.LogicalProcessors
+              * 100d;
+
+    var phaseElapsed = training.PhaseElapsedSeconds
+                       ?? new Dictionary<string, double>();
+    var phaseCpu = training.PhaseCpuSeconds
+                   ?? new Dictionary<string, double>();
+    var phaseExternalCpu = training.PhaseExternalCpuSeconds
+                           ?? new Dictionary<string, double>();
+    var phaseAllocated = training.PhaseAllocatedBytes
+                         ?? new Dictionary<string, long>();
+    var phasePeakWork = training.PhasePeakConcurrentWork
+                        ?? new Dictionary<string, int>();
+    var phaseThreads = training.PhaseObservedWorkerThreads
+                       ?? new Dictionary<string, int>();
+    var phaseHotspots = phaseElapsed.Keys
+        .Concat(phaseCpu.Keys)
+        .Concat(phaseExternalCpu.Keys)
+        .Concat(phaseAllocated.Keys)
+        .Distinct(StringComparer.OrdinalIgnoreCase)
+        .Select(name =>
+        {
+            var elapsed = phaseElapsed.TryGetValue(name, out var wall)
+                ? Math.Max(0d, wall)
+                : 0d;
+            var workerCpu = phaseCpu.TryGetValue(name, out var worker)
+                ? Math.Max(0d, worker)
+                : 0d;
+            var externalCpu = phaseExternalCpu.TryGetValue(
+                name,
+                out var external)
+                ? Math.Max(0d, external)
+                : 0d;
+            var allocated = phaseAllocated.TryGetValue(
+                name,
+                out var bytes)
+                ? Math.Max(0L, bytes)
+                : 0L;
+            var utilization = elapsed <= 0d
+                ? 0d
+                : (workerCpu + externalCpu)
+                  / elapsed
+                  / analysis.LogicalProcessors
+                  * 100d;
+            return new CombatFoundationPerformanceHotspot
+            {
+                Scope = "phase",
+                Name = name,
+                ElapsedSeconds = elapsed,
+                WallTimeSharePercent = analysis.TotalElapsedSeconds <= 0d
+                    ? 0d
+                    : elapsed / analysis.TotalElapsedSeconds * 100d,
+                WorkerCpuSeconds = workerCpu,
+                ExternalCpuSeconds = externalCpu,
+                EffectiveCpuUtilizationPercent = utilization,
+                AllocatedBytes = allocated,
+                AllocationMegabytesPerSecond = elapsed <= 0d
+                    ? 0d
+                    : allocated / elapsed / (1024d * 1024d),
+                PeakConcurrentWork = phasePeakWork.TryGetValue(
+                    name,
+                    out var peak)
+                    ? Math.Max(0, peak)
+                    : 0,
+                ObservedWorkerThreads = phaseThreads.TryGetValue(
+                    name,
+                    out var threads)
+                    ? Math.Max(0, threads)
+                    : 0,
+                UtilizationBand = PerformanceUtilizationBand(utilization)
+            };
+        })
+        .OrderByDescending(item => item.ElapsedSeconds)
+        .ThenBy(item => item.Name, StringComparer.Ordinal)
+        .ToList();
+    for (var index = 0; index < phaseHotspots.Count; index++)
+    {
+        phaseHotspots[index].Rank = index + 1;
+    }
+    analysis.PerformanceHotspots.AddRange(phaseHotspots);
+
+    var transformerStages = (training.TransformerTeacherReports
+                             ?? new List<CombatTransformerTeacherReport>())
+        .Where(report => report != null)
+        .SelectMany(report => report.StageSeconds
+            ?? new Dictionary<string, double>())
+        .Where(pair => pair.Value > 0.001d)
+        .GroupBy(pair => pair.Key, StringComparer.OrdinalIgnoreCase)
+        .Select(group => new CombatFoundationPerformanceHotspot
+        {
+            Scope = "transformer-stage",
+            Name = group.Key,
+            ElapsedSeconds = group.Sum(pair => Math.Max(0d, pair.Value)),
+            UtilizationBand = "stage-timing"
+        })
+        .OrderByDescending(item => item.ElapsedSeconds)
+        .ThenBy(item => item.Name, StringComparer.Ordinal)
+        .ToList();
+    for (var index = 0; index < transformerStages.Count; index++)
+    {
+        transformerStages[index].Rank = index + 1;
+        transformerStages[index].WallTimeSharePercent =
+            analysis.TotalElapsedSeconds <= 0d
+                ? 0d
+                : transformerStages[index].ElapsedSeconds
+                  / analysis.TotalElapsedSeconds
+                  * 100d;
+    }
+    analysis.PerformanceHotspots.AddRange(transformerStages);
     foreach (var iteration in epochs.GroupBy(item =>
                  Math.Max(1, item.Iteration)))
     {
@@ -2112,6 +2245,14 @@ static CombatFoundationTrainingAnalysis BuildTrainingAnalysis(
         analysis.BestEpoch = best.Epoch;
     }
     return analysis;
+}
+
+static string PerformanceUtilizationBand(double percent)
+{
+    if (percent >= 70d) return "high";
+    if (percent >= 40d) return "moderate";
+    if (percent > 0d) return "low";
+    return "not-observed";
 }
 
 static string RuntimeDescription(int workers)

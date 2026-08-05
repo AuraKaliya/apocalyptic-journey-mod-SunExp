@@ -9,6 +9,8 @@ public static class CombatFoundationWorkerProtocol
 {
     public const int SchemaVersion = 10;
     public const int TrainingMetricsSchemaVersion = 1;
+    public const string PerformanceProbeVersion =
+        "foundation-performance-probe-v1";
     public const string TrainingMetricsFileName =
         "foundation-training-metrics-v1.jsonl";
     public const string TrainingAnalysisFileName =
@@ -325,8 +327,57 @@ public sealed class CombatFoundationTrainingAnalysis
 
     public string RoleStrategyGateFailureReason { get; set; } = "";
 
+    public string PerformanceProbeVersion { get; set; } =
+        CombatFoundationWorkerProtocol.PerformanceProbeVersion;
+
+    public int LogicalProcessors { get; set; }
+
+    public double TotalElapsedSeconds { get; set; }
+
+    public double WorkerCpuSeconds { get; set; }
+
+    public double ExternalCpuSeconds { get; set; }
+
+    public double EffectiveCpuUtilizationPercent { get; set; }
+
+    public List<string> EnabledPerformanceProbes { get; set; } = new();
+
+    public List<CombatFoundationPerformanceHotspot> PerformanceHotspots {
+        get;
+        set;
+    } = new();
+
     public List<CombatFoundationTrainingAnalysisPoint> Points { get; set; } =
         new();
+}
+
+public sealed class CombatFoundationPerformanceHotspot
+{
+    public int Rank { get; set; }
+
+    public string Scope { get; set; } = "phase";
+
+    public string Name { get; set; } = "";
+
+    public double ElapsedSeconds { get; set; }
+
+    public double WallTimeSharePercent { get; set; }
+
+    public double WorkerCpuSeconds { get; set; }
+
+    public double ExternalCpuSeconds { get; set; }
+
+    public double EffectiveCpuUtilizationPercent { get; set; }
+
+    public long AllocatedBytes { get; set; }
+
+    public double AllocationMegabytesPerSecond { get; set; }
+
+    public int PeakConcurrentWork { get; set; }
+
+    public int ObservedWorkerThreads { get; set; }
+
+    public string UtilizationBand { get; set; } = "unknown";
 }
 
 public sealed class CombatFoundationTrainingAnalysisPoint

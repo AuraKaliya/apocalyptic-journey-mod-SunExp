@@ -1149,8 +1149,11 @@ internal sealed class MainWindow : Window
         progressSecondary.Text = transformerTeacherPhase
             ? executionSummary + " · "
               + $"Python CPU {telemetry.TransformerTeacherCpuPercent:0.0}% · "
+              + $"CPU时 {telemetry.TransformerTeacherProcessCpuSeconds:0}s · "
               + "内存 "
               + FormatBytes(telemetry.TransformerTeacherWorkingSetBytes)
+              + "/峰值 "
+              + FormatBytes(telemetry.TransformerTeacherPeakWorkingSetBytes)
               + " · Epoch "
               + telemetry.TransformerTeacherEpoch
               + "/"
@@ -1196,10 +1199,53 @@ internal sealed class MainWindow : Window
             + $"fallback={telemetry.InferenceDirectFallbackRequests:N0}，"
             + $"adaptive={telemetry.InferenceAdaptiveFallbackActivations:N0}，"
             + $"wait={telemetry.InferenceAverageWaitMicroseconds:0.0}us\r\n"
+            + PerformanceProbeSummary(telemetry)
+            + "\r\n"
             + $"GC：{telemetry.Gen0Collections}/"
             + $"{telemetry.Gen1Collections}/{telemetry.Gen2Collections}\r\n"
             + $"更新时间：{DateTime.Now:HH:mm:ss}";
         diagnostics.PresentTelemetry(telemetry);
+    }
+
+    private static string PerformanceProbeSummary(
+        CombatCampaignFoundationTelemetry telemetry)
+    {
+        var phase = string.IsNullOrWhiteSpace(telemetry.Phase)
+            ? "unknown"
+            : telemetry.Phase;
+        var elapsed = telemetry.PhaseElapsedSeconds.TryGetValue(
+            phase,
+            out var phaseElapsed)
+            ? Math.Max(0d, phaseElapsed)
+            : 0d;
+        var workerCpu = telemetry.PhaseCpuSeconds.TryGetValue(
+            phase,
+            out var phaseCpu)
+            ? Math.Max(0d, phaseCpu)
+            : 0d;
+        var externalCpu = telemetry.PhaseExternalCpuSeconds.TryGetValue(
+            phase,
+            out var phaseExternal)
+            ? Math.Max(0d, phaseExternal)
+            : 0d;
+        var utilization = elapsed <= 0d
+            ? 0d
+            : (workerCpu + externalCpu)
+              / elapsed
+              / Math.Max(1, Environment.ProcessorCount)
+              * 100d;
+        var peak = telemetry.PhasePeakConcurrentWork.TryGetValue(
+            phase,
+            out var phasePeak)
+            ? Math.Max(0, phasePeak)
+            : 0;
+        var threads = telemetry.PhaseObservedWorkerThreads.TryGetValue(
+            phase,
+            out var phaseThreads)
+            ? Math.Max(0, phaseThreads)
+            : 0;
+        return $"性能探针：{phase} wall={elapsed:0.0}s，"
+               + $"CPU={utilization:0.0}%，peak={peak}，threads={threads}";
     }
 
     private static double AverageSearchMilliseconds(

@@ -259,6 +259,8 @@ try {
                 + ($teacherReport | ConvertTo-Json -Depth 8 -Compress))
         }
         $teacherThroughput = [double]$teacherReport.TrainingFramesPerSecond
+        $annotationThroughput =
+            [double]$teacherReport.AnnotationFramesPerSecond
         $teacherPreparation = [double]$teacherReport.DataPreparationSeconds
         $teacherCalibration = [double]$teacherReport.RuntimeCalibrationSeconds
         if (-not [System.IO.Path]::IsPathRooted(
@@ -279,6 +281,17 @@ try {
             -or [double]::IsNaN($teacherThroughput) `
             -or [double]::IsInfinity($teacherThroughput) `
             -or $teacherThroughput -le 0 `
+            -or [double]::IsNaN($annotationThroughput) `
+            -or [double]::IsInfinity($annotationThroughput) `
+            -or $annotationThroughput -le 0 `
+            -or [double]$teacherReport.ProcessCpuSeconds -le 0 `
+            -or [long]$teacherReport.PeakWorkingSetBytes -le 0 `
+            -or [double]$teacherReport.DataLoadingSeconds -lt 0 `
+            -or [double]$teacherReport.TrainingSeconds -le 0 `
+            -or [double]$teacherReport.EvaluationSeconds -le 0 `
+            -or [double]$teacherReport.AnnotationSeconds -le 0 `
+            -or [double]$teacherReport.SavingSeconds -lt 0 `
+            -or @($teacherReport.StageSeconds.PSObject.Properties).Count -lt 6 `
             -or [double]::IsNaN($teacherPreparation) `
             -or [double]::IsInfinity($teacherPreparation) `
             -or $teacherPreparation -lt 0 `
@@ -432,6 +445,9 @@ try {
             Get-Content -LiteralPath $result.TrainingMetricsPath -Encoding UTF8
         )
         $trainingAnalysis = Read-FoundationJson $result.TrainingAnalysisPath
+        $phaseHotspots = @($trainingAnalysis.PerformanceHotspots | Where-Object {
+            [string]$_.Scope -eq "phase"
+        })
         if ([double]$result.RoleStrategyMetrics."journey-terminal-snapshots" -le 0 `
             -or [double]$result.RoleStrategyMetrics."journey-final-max-hp.mean" -le 0 `
             -or [double]$trainingAnalysis.RoleStrategyMetrics."journey-terminal-snapshots" -le 0) {
@@ -441,6 +457,22 @@ try {
             -or $metricRecords.Count -lt 2 `
             -or [int]$trainingAnalysis.EpochCount -lt 1 `
             -or @($trainingAnalysis.Points).Count -lt 1 `
+            -or [string]$trainingAnalysis.PerformanceProbeVersion `
+                -ne "foundation-performance-probe-v1" `
+            -or [int]$trainingAnalysis.LogicalProcessors -lt 1 `
+            -or @($trainingAnalysis.EnabledPerformanceProbes).Count -lt 8 `
+            -or $phaseHotspots.Count -lt 3 `
+            -or @($phaseHotspots | Where-Object {
+                [string]$_.Name -eq "self-play" `
+                -and [double]$_.ElapsedSeconds -gt 0 `
+                -and [int]$_.PeakConcurrentWork -gt 0 `
+                -and [int]$_.ObservedWorkerThreads -gt 0
+            }).Count -ne 1 `
+            -or @($phaseHotspots | Where-Object {
+                [string]$_.Name -eq "validation" `
+                -and [double]$_.ElapsedSeconds -gt 0 `
+                -and [int]$_.PeakConcurrentWork -gt 0
+            }).Count -ne 1 `
             -or [double]$result.Training.ModelTrainingLoss -le 0 `
             -or [double]$result.Training.ModelValidationLoss -le 0 `
             -or @($epochHistory | Where-Object {

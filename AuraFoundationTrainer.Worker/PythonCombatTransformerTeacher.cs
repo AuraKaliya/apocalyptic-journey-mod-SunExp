@@ -542,9 +542,22 @@ internal sealed class PythonCombatTransformerTeacher :
         target.ValidationDeathBrier = source.ValidationDeathBrier;
         target.ValidationTerminalAccuracy = source.ValidationTerminalAccuracy;
         target.ElapsedSeconds = source.ElapsedSeconds;
+        target.ProcessCpuSeconds = source.ProcessCpuSeconds;
+        target.PeakWorkingSetBytes = source.PeakWorkingSetBytes;
+        target.DataLoadingSeconds = source.DataLoadingSeconds;
         target.DataPreparationSeconds = source.DataPreparationSeconds;
         target.RuntimeCalibrationSeconds = source.RuntimeCalibrationSeconds;
+        target.TrainingSeconds = source.TrainingSeconds;
+        target.EvaluationSeconds = source.EvaluationSeconds;
+        target.AnnotationSeconds = source.AnnotationSeconds;
+        target.SavingSeconds = source.SavingSeconds;
+        target.StageSeconds = new Dictionary<string, double>(
+            source.StageSeconds
+            ?? new Dictionary<string, double>(),
+            StringComparer.OrdinalIgnoreCase);
         target.TrainingFramesPerSecond = source.TrainingFramesPerSecond;
+        target.AnnotationFramesPerSecond =
+            source.AnnotationFramesPerSecond;
         target.PeakDeviceMemoryBytes = source.PeakDeviceMemoryBytes;
         target.Message = source.Message;
     }

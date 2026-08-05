@@ -190,7 +190,16 @@ public sealed class CombatTransformerTeacherProgress
 
     public double ProcessCpuPercent { get; set; }
 
+    public double ProcessCpuSeconds { get; set; }
+
     public long WorkingSetBytes { get; set; }
+
+    public long PeakWorkingSetBytes { get; set; }
+
+    public double StageElapsedSeconds { get; set; }
+
+    public Dictionary<string, double> StageSeconds { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
 
     public bool WarmStarted { get; set; }
 
@@ -308,11 +317,30 @@ public sealed class CombatTransformerTeacherReport
 
     public double ElapsedSeconds { get; set; }
 
+    public double ProcessCpuSeconds { get; set; }
+
+    public long PeakWorkingSetBytes { get; set; }
+
+    public double DataLoadingSeconds { get; set; }
+
     public double DataPreparationSeconds { get; set; }
 
     public double RuntimeCalibrationSeconds { get; set; }
 
+    public double TrainingSeconds { get; set; }
+
+    public double EvaluationSeconds { get; set; }
+
+    public double AnnotationSeconds { get; set; }
+
+    public double SavingSeconds { get; set; }
+
+    public Dictionary<string, double> StageSeconds { get; set; } =
+        new(StringComparer.OrdinalIgnoreCase);
+
     public double TrainingFramesPerSecond { get; set; }
+
+    public double AnnotationFramesPerSecond { get; set; }
 
     public long PeakDeviceMemoryBytes { get; set; }
 
