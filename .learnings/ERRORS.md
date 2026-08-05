@@ -18,6 +18,38 @@ was rejected before execution by the command safety layer.
 
 ---
 
+## [ERR-20260805-011] powershell-rg-directory-wildcard
+
+**Logged**: 2026-08-05T14:06:21+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+`rg` received a Windows directory wildcard as a literal path and rejected it.
+
+### Error
+```text
+rg: AuraToolsExp-Dev/Features/AutoBattle/*.cs: The filename, directory name, or volume label syntax is incorrect. (os error 123)
+```
+
+### Context
+- A PowerShell command passed `AuraToolsExp-Dev/Features/AutoBattle/*.cs` in the positional path list.
+- Ripgrep does not expand that directory wildcard on Windows.
+
+### Suggested Fix
+Enumerate files with `Get-ChildItem` and pass the resulting paths to `rg`, or search the directory and use `-g '*.cs'`.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraToolsExp-Dev/Features/AutoBattle
+
+### Resolution
+- **Resolved**: 2026-08-05T14:06:21+08:00
+- **Notes**: Re-ran the search with paths enumerated by `Get-ChildItem`.
+
+---
+
 ## [ERR-20260805-010] trainer-final-gate-audit
 
 **Logged**: 2026-08-05T13:00:00+08:00
