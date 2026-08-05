@@ -12,12 +12,12 @@ public static class CombatPolicyValueProtocol
     public const int FeatureSchemaVersion = 26;
 
     public const string TrainingSemanticsVersion =
-        "content-set-quantile-q-registered-content-replay-base-role-skill-timing-auto-tune-arena-v18";
+        "content-set-quantile-q-role-quota-risk-aux-fixed-anchor-promotion-v19";
 }
 
 public static class CombatPolicyValueFrameStratificationProtocol
 {
-    public const string Version = "frame-strata-v6-strategy-archetype";
+    public const string Version = "frame-strata-v7-strategy-quota-risk-aux";
 
     public const double MinimumWeight = 0.50d;
 
@@ -234,7 +234,9 @@ public sealed class CombatPolicyValueTrainingOptions
 
     public double EndTurnFrameWeight { get; set; } = 1d;
 
-    public double MaximumUnsafeEndTurnFrameShare { get; set; } = 0.35d;
+    public double MaximumUnsafeEndTurnFrameShare { get; set; } = 0.20d;
+
+    public double UnsafeEndTurnRiskAuxiliaryShare { get; set; } = 0.10d;
 
     public int MinimumValidationRunGroups { get; set; } = 16;
 
@@ -316,7 +318,12 @@ public sealed class CombatPolicyValueTrainingOptions
                 MaximumUnsafeEndTurnFrameShare,
                 0.10d,
                 0.80d,
-                0.35d),
+                0.20d),
+            UnsafeEndTurnRiskAuxiliaryShare = Clamp(
+                UnsafeEndTurnRiskAuxiliaryShare,
+                0d,
+                0.40d,
+                0.10d),
             MinimumValidationRunGroups = Math.Max(
                 1,
                 Math.Min(256, MinimumValidationRunGroups)),
@@ -373,6 +380,14 @@ public sealed class CombatPolicyValueTrainingResult
 
     public int DroppedUnsafeEndTurnFrames { get; set; }
 
+    public int UnsafeEndTurnPolicyFrames { get; set; }
+
+    public int UnsafeEndTurnRiskAuxiliaryFrames { get; set; }
+
+    public int TransformerDistillationTrainingFrames { get; set; }
+
+    public int TransformerDistillationValidationFrames { get; set; }
+
     public int DroppedPolicyIntegrityFrames { get; set; }
 
     public CombatPolicyValueNetworkDefinition? Model { get; set; }
@@ -410,6 +425,11 @@ public sealed class CombatPolicyValueTrainingResult
 
     public CombatPolicyValueMetricSnapshot ValidationMetrics { get; set; } =
         new();
+
+    public CombatPolicyValueMetricSnapshot BaselineValidationMetrics {
+        get;
+        set;
+    } = new();
 
     public CombatPolicyValueMetricSnapshot TestMetrics { get; set; } =
         new();

@@ -61,9 +61,25 @@ public sealed class CombatTransformerTeacherOptions
 
     public int MinimumFrames { get; set; } = 1024;
 
+    public int MaximumFrames { get; set; } = 10000;
+
     public bool EnableWarmStart { get; set; } = true;
 
-    public int CpuRefreshInterval { get; set; } = 2;
+    public int CpuRefreshInterval { get; set; } = 4;
+
+    public int CpuEpochs { get; set; } = 4;
+
+    public int CpuIncrementalEpochs { get; set; } = 1;
+
+    public int CpuFinalEpochs { get; set; } = 4;
+
+    public bool EnableAdaptiveRefresh { get; set; } = true;
+
+    public double AdaptiveRefreshDriftThreshold { get; set; } = 0.15d;
+
+    public bool EnableFixedAnchorValidation { get; set; } = true;
+
+    public double MaximumHeadRegression { get; set; } = 0.05d;
 
     public int IncrementalEpochs { get; set; } = 4;
 
@@ -114,7 +130,15 @@ public sealed class CombatTransformerTeacherOptions
             Math.Min(4096, FeedForwardDimensions));
         HistoryLength = Math.Max(1, Math.Min(32, HistoryLength));
         MinimumFrames = Math.Max(64, Math.Min(100000, MinimumFrames));
+        MaximumFrames = Math.Max(
+            MinimumFrames,
+            Math.Min(100000, MaximumFrames));
         CpuRefreshInterval = Math.Max(1, Math.Min(8, CpuRefreshInterval));
+        CpuEpochs = Math.Max(1, Math.Min(Epochs, CpuEpochs));
+        CpuIncrementalEpochs = Math.Max(
+            1,
+            Math.Min(CpuEpochs, CpuIncrementalEpochs));
+        CpuFinalEpochs = Math.Max(1, Math.Min(100, CpuFinalEpochs));
         IncrementalEpochs = Math.Max(1, Math.Min(Epochs, IncrementalEpochs));
         FinalEpochs = Math.Max(1, Math.Min(100, FinalEpochs));
         CpuThreads = Math.Max(0, Math.Min(64, CpuThreads));
@@ -123,6 +147,16 @@ public sealed class CombatTransformerTeacherOptions
         DataLoaderWorkers = Math.Max(0, Math.Min(8, DataLoaderWorkers));
         PrefetchBatches = Math.Max(1, Math.Min(8, PrefetchBatches));
         DistillationWeight = Clamp(DistillationWeight, 0d, 0.75d, 0.35d);
+        AdaptiveRefreshDriftThreshold = Clamp(
+            AdaptiveRefreshDriftThreshold,
+            0.01d,
+            1d,
+            0.15d);
+        MaximumHeadRegression = Clamp(
+            MaximumHeadRegression,
+            0d,
+            0.50d,
+            0.05d);
         RandomSeed = RandomSeed == 0 ? 1701 : RandomSeed;
         return this;
     }
@@ -275,6 +309,12 @@ public sealed class CombatTransformerTeacherReport
 
     public int AnnotatedCandidates { get; set; }
 
+    public int DistillationTrainingFrames { get; set; }
+
+    public int DistillationValidationFrames { get; set; }
+
+    public double DistillationUtilization { get; set; }
+
     public int TrainingFrames { get; set; }
 
     public int ValidationFrames { get; set; }
@@ -286,6 +326,19 @@ public sealed class CombatTransformerTeacherReport
     public bool WarmStarted { get; set; }
 
     public bool TrainingRefreshed { get; set; }
+
+    public bool UpdateAccepted { get; set; }
+
+    public int TeacherGeneration { get; set; }
+
+    public double DatasetDriftScore { get; set; }
+
+    public string DatasetFingerprint { get; set; } = "";
+
+    public Dictionary<string, int> DatasetStrategyFrames { get; set; } =
+        new(StringComparer.Ordinal);
+
+    public string RefreshReason { get; set; } = "";
 
     public string ResumeModelPath { get; set; } = "";
 
@@ -314,6 +367,28 @@ public sealed class CombatTransformerTeacherReport
     public double ValidationDeathBrier { get; set; }
 
     public double ValidationTerminalAccuracy { get; set; }
+
+    public int AnchorValidationFrames { get; set; }
+
+    public bool AnchorCreated { get; set; }
+
+    public string AnchorPath { get; set; } = "";
+
+    public double BaselinePolicyCrossEntropy { get; set; }
+
+    public double BaselineValueMae { get; set; }
+
+    public double BaselineOutcomeMae { get; set; }
+
+    public double BaselineDeathBrier { get; set; }
+
+    public double ValidationCompositeScore { get; set; }
+
+    public double BaselineCompositeScore { get; set; }
+
+    public double CompositeImprovement { get; set; }
+
+    public bool HeadRegressionGatePassed { get; set; } = true;
 
     public double ElapsedSeconds { get; set; }
 

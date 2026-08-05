@@ -32,12 +32,13 @@
 | 内容包 | `aura.combat-ai.content-package.v1` |
 | 适配器 | `aura.combat-ai.adapter.v1` |
 | Transformer 对象协议 | `aura.combat-world-model.observation.v1` / action v1 / transition v1，Shadow |
-| Transformer 教师 | `aura.combat-transformer-world-model.v2`，6 层、384 hidden、8 heads、1536 FFN，跨轮热启动与 CPU 间隔刷新，Training |
+| Transformer 教师 | `aura.combat-transformer-world-model.v2`，6 层、384 hidden、8 heads、1536 FFN，共享有界训练窗、固定锚点、跨轮热启动与自适应 CPU 刷新，Training |
 | Transformer 运行时 | `aura.transformer-runtime-probe.v1`，自动发现/验证 Python、PyTorch、NumPy 与 CPU/CUDA |
 | Transformer 适配器 | `aura.combat-ai.transformer-adapter.v2`，可选内容工件，未取得在线控制权 |
 | 在线治理 | 墙钟截止、模型调用预算、风险偏好、安全回退；Actor 裁剪默认关闭 |
 | Worker | schema 10 |
-| 资源自动调优 | `foundation-auto-tune-v4` + `transformer-runtime-auto-tune-v1`，请求值与有效值分离 |
+| 训练治理 | `foundation-governance-v21-teacher-student-quota-gates` + `paired-incremental-v4-absolute-multihead-evidence` |
+| 资源自动调优 | `foundation-auto-tune-v4` + `transformer-runtime-auto-tune-v2`，请求值与有效值分离 |
 | 外部模型包 | `foundation-model-package-v3` |
 | CLI 搜索策略 | `risk-puct` |
 

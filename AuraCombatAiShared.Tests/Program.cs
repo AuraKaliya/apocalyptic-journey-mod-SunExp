@@ -9501,9 +9501,107 @@ Assert(CombatPolicyValueBatchTrainer.StrategicFrameStratum(
                ["roleStrategy:any.survival-override"] = 1d,
                ["roleStrategy:any.transform-ready"] = 1d
            }) == "strategy-survival"
+       && CombatPolicyValueBatchTrainer.StrategicFrameStratum(
+           new Dictionary<string, double>
+           {
+               ["roleStrategy:nana.growth-target-doom"] = 12d,
+               ["roleStrategy:nana.bank-for-next-turn"] = 1d,
+               [CombatRoleStrategyFeatureNames.MinimumTrainingShare(
+                   "growth")] = 0.15d
+           }) == "strategy-bank"
        && CombatPolicyValueBatchTrainer.StrategicFrameStratum(null)
           == "strategy-baseline",
-    "strategic frame strata preserve rare growth, transform and survival decisions without hard-coding a role-specific sampler");
+    "strategic frame strata use explicit role intents without treating numeric targets or quota declarations as active strategy phases");
+var quotaReplay = Enumerable.Range(0, 100)
+    .Select(index =>
+    {
+        var strategyFeature = index < 60
+            ? "roleStrategy:test.transformed"
+            : index < 75
+                ? "roleStrategy:test.safe-growth-window"
+                : index < 90
+                    ? "roleStrategy:test.survival-override"
+                    : index < 95
+                        ? "roleStrategy:test.finale-safe"
+                        : "roleStrategy:test.bank-for-next-turn";
+        return new CombatEpisode
+        {
+            EpisodeId = "quota-" + index,
+            JourneyRunId = "quota:" + index,
+            JourneyBattleIndex = index,
+            Authoritative = true,
+            DecisionProfile = "balanced",
+            Campaign = new CombatCampaignEpisodeMetadata
+            {
+                DifficultyId = index % 2 == 0 ? "normal" : "advanced",
+                OutcomeClass = index % 3 == 0 ? "victory" : "defeat"
+            },
+            Frames =
+            {
+                new CombatEpisodeFrame
+                {
+                    Turn = 1,
+                    ActionSequence = index,
+                    StateFingerprint = "quota-frame-" + index,
+                    ExecutedCandidateId = "play",
+                    StateFeatures =
+                    {
+                        [strategyFeature] = 1d,
+                        [CombatRoleStrategyFeatureNames.MaximumTrainingShare(
+                            "transform")] = 0.50d,
+                        [CombatRoleStrategyFeatureNames.MinimumTrainingShare(
+                            "growth")] = 0.15d,
+                        [CombatRoleStrategyFeatureNames.MinimumTrainingShare(
+                            "survival")] = 0.15d,
+                        [CombatRoleStrategyFeatureNames.MinimumTrainingShare(
+                            "finale")] = 0.05d,
+                        [CombatRoleStrategyFeatureNames.MinimumTrainingShare(
+                            "bank")] = 0.05d
+                    },
+                    Candidates =
+                    {
+                        new CombatEpisodeCandidate
+                        {
+                            CandidateId = "play",
+                            SourceId = "card:test",
+                            Legal = true,
+                            SearchVisits = 8
+                        },
+                        new CombatEpisodeCandidate
+                        {
+                            CandidateId = "end",
+                            SourceId = "simulation:end-turn",
+                            Legal = true,
+                            SearchVisits = 2
+                        }
+                    }
+                }
+            }
+        };
+    })
+    .ToList();
+var quotaWindow = CombatTrainingReplayWindowSelector.Select(
+    quotaReplay,
+    new CombatTrainingReplayWindowOptions
+    {
+        MaximumFrames = 100,
+        MaximumUnsafeEndTurnShare = 0.30d
+    });
+Assert(quotaWindow.StrategyQuotaActive
+       && quotaWindow.StrategyQuotaPassed
+       && quotaWindow.SelectedFrames == 80
+       && quotaWindow.StrategyFrames["strategy-transform"] == 40
+       && quotaWindow.StrategyFrames["strategy-growth"] == 15
+       && quotaWindow.StrategyFrames["strategy-survival"] == 15
+       && quotaWindow.StrategyFrames["strategy-finale"] == 5
+       && quotaWindow.StrategyFrames["strategy-bank"] == 5,
+    "teacher and student share a deterministic bounded replay window that enforces provider-declared strategy quotas");
+var forcedDecisionReplay = new[] { quotaReplay[0] };
+forcedDecisionReplay[0].Frames[0].Candidates.RemoveAt(1);
+var forcedDecisionWindow = CombatTrainingReplayWindowSelector.Select(
+    forcedDecisionReplay);
+Assert(forcedDecisionWindow.SelectedFrames == 1,
+    "the shared replay window retains forced decisions for dynamics, outcome, risk, and history supervision");
 var replayWithDuplicate = replayFixture.Concat(new[] { replayFixture[7] }).ToList();
 var deduplicatedReplay = CombatFoundationReplaySampler.Select(
     replayWithDuplicate,
@@ -9580,6 +9678,12 @@ var normalizedTeacherOptions = new CombatTransformerTeacherOptions
     MicroBatchSize = 999,
     DataLoaderWorkers = 99,
     CpuRefreshInterval = 99,
+    CpuEpochs = 999,
+    CpuIncrementalEpochs = 999,
+    CpuFinalEpochs = 999,
+    MaximumFrames = 1,
+    AdaptiveRefreshDriftThreshold = 9d,
+    MaximumHeadRegression = 9d,
     IncrementalEpochs = 999,
     FinalEpochs = 999,
     DistillationWeight = 4d
@@ -9595,6 +9699,15 @@ Assert(normalizedTeacherOptions.Backend
           == normalizedTeacherOptions.BatchSize
        && normalizedTeacherOptions.DataLoaderWorkers == 8
        && normalizedTeacherOptions.CpuRefreshInterval == 8
+       && normalizedTeacherOptions.CpuEpochs
+          == normalizedTeacherOptions.Epochs
+       && normalizedTeacherOptions.CpuIncrementalEpochs
+          == normalizedTeacherOptions.CpuEpochs
+       && normalizedTeacherOptions.CpuFinalEpochs == 100
+       && normalizedTeacherOptions.MaximumFrames
+          == normalizedTeacherOptions.MinimumFrames
+       && normalizedTeacherOptions.AdaptiveRefreshDriftThreshold == 1d
+       && normalizedTeacherOptions.MaximumHeadRegression == 0.50d
        && normalizedTeacherOptions.IncrementalEpochs
           == normalizedTeacherOptions.Epochs
        && normalizedTeacherOptions.FinalEpochs == 100
@@ -9747,10 +9860,11 @@ var balancedEndTurnTraining = CombatPolicyValueTrainer.Train(
     });
 Assert(balancedEndTurnTraining.Success
        && balancedEndTurnTraining.DroppedUnsafeEndTurnFrames > 0
+       && balancedEndTurnTraining.UnsafeEndTurnRiskAuxiliaryFrames > 0
        && balancedEndTurnTraining.TrainingFrameCount > 0
-       && (double)balancedEndTurnTraining.UnsafeEndTurnFrames
+       && (double)balancedEndTurnTraining.UnsafeEndTurnPolicyFrames
           / balancedEndTurnTraining.TrainingFrameCount <= 0.351d,
-    "large imbalanced training sets deterministically cap unsafe end-turn frames at the configured share");
+    "large imbalanced training sets cap policy-facing unsafe end turns while retaining a bounded risk-only auxiliary batch");
 var priorityReplayFixture = Enumerable.Range(0, 10)
     .Select(index => new CombatEpisode
     {
@@ -10533,7 +10647,7 @@ Assert(workerProtocolJob.SchemaVersion
        && CombatFoundationStagnationProtocol.Version
           == "foundation-stagnation-v1"
        && CombatPolicyValueFrameStratificationProtocol.Version
-          == "frame-strata-v6-strategy-archetype"
+          == "frame-strata-v7-strategy-quota-risk-aux"
        && workerProtocolProgress.SchemaVersion
            == CombatFoundationWorkerProtocol.SchemaVersion
        && workerProtocolResult.SchemaVersion
@@ -11060,8 +11174,11 @@ Assert(foundationTraining.Success
             && item.ModelValidationMetrics.FrameCount > 0
             && item.TuningCandidateCount >= 2
             && item.TuningFinalistCount == 1
-            && item.TuningCampaignsExecuted > 0
-            && item.TuningCampaignsSaved > 0)
+            && (item.TuningEvaluationRan
+                ? item.TuningCampaignsExecuted > 0
+                  && item.TuningCampaignsSaved > 0
+                : item.TuningOfflineRejectedCandidates > 0
+                  && item.TuningCampaignsExecuted == 0))
        && incrementallyRecordedModelMetrics.Count > 0
        && incrementallyRecordedModelMetrics.All(item =>
            item.Iteration > 0
@@ -11087,7 +11204,11 @@ Assert(foundationTraining.Success
     + $" depthBuckets={foundationDepthBucketCampaigns}, probeArms={foundationTraining.CapabilityProbe.Arms.Count},"
     + $" observations={incrementallyObservedFoundationCases}/{foundationTraining.CampaignObservations.Count},"
     + $" cases={incrementallyArchivedFoundationCases}/{foundationTraining.SuccessCases.Count},"
-    + $" elapsed={foundationTraining.ElapsedSeconds:F6})");
+    + $" elapsed={foundationTraining.ElapsedSeconds:F6},"
+    + $" epochs={foundationTraining.ModelEpochHistory.Count}/{incrementallyRecordedModelMetrics.Count},"
+    + $" iter={string.Join(";", foundationTraining.Iterations.Select(item => $"{item.ModelEpochHistory.Count}:{item.ModelTrainingMetrics.FrameCount}:{item.ModelValidationMetrics.FrameCount}:{item.TuningCandidateCount}:{item.TuningOfflineRejectedCandidates}:{item.TuningEvaluationRan}:{item.TuningFinalistCount}:{item.TuningCampaignsExecuted}:{item.TuningCampaignsSaved}"))},"
+    + $" phases={string.Join(",", foundationTraining.PhaseElapsedSeconds.Keys)},"
+    + $" message={foundationTraining.Message})");
 var packageJob = new CombatFoundationWorkerJob
 {
     JobId = "foundation-package-test",
@@ -11392,7 +11513,14 @@ Assert(sharedParameters.Iterations == 1
        && sharedParameters.EnablePrioritizedReplay
        && sharedParameters.EnableEndTurnSpecialization
        && sharedParameters.ModelEndTurnFrameWeight == 1d
-       && sharedParameters.ModelMaximumUnsafeEndTurnFrameShare == 0.35d
+       && sharedParameters.ModelMaximumUnsafeEndTurnFrameShare == 0.20d
+       && sharedParameters.ModelUnsafeEndTurnRiskAuxiliaryShare == 0.10d
+       && sharedParameters.MinimumArenaDiscordantPairs == 8
+       && sharedParameters.MaximumOfflineHeadRegression == 0.05d
+       && sharedParameters.TransformerTeacherMaximumFrames == 10000
+       && sharedParameters.TransformerTeacherCpuEpochs == 4
+       && sharedParameters.TransformerTeacherCpuIncrementalEpochs == 1
+       && sharedParameters.TransformerTeacherCpuFinalEpochs == 4
        && sharedParameters.ModelMinimumValidationRunGroups == 16
        && sharedParameters.ModelMinimumTestRunGroups == 16
        && sharedParameters.ModelPolicyTargetTemperature == 1.25d
@@ -11648,6 +11776,39 @@ Assert(CombatCampaignFoundationTrainer.ShouldAcceptWorkingModel(
            meaningfulWinGain: true,
            meaningfulProgressGain: true),
     "working models advance on current-window paired gains rather than incomparable historical arena scores");
+Assert(CombatCampaignFoundationTrainer.OfflineHeadRegressionPassed(
+           new CombatPolicyValueMetricSnapshot
+           {
+               CompositeLoss = 0.40d,
+               ValueMae = 0.30d,
+               Brier = 0.10d,
+               DeathBrier = 0.10d
+           },
+           new CombatPolicyValueMetricSnapshot
+           {
+               CompositeLoss = 0.39d,
+               ValueMae = 0.31d,
+               Brier = 0.10d,
+               DeathBrier = 0.104d
+           },
+           0.05d)
+       && !CombatCampaignFoundationTrainer.OfflineHeadRegressionPassed(
+           new CombatPolicyValueMetricSnapshot
+           {
+               CompositeLoss = 0.40d,
+               ValueMae = 0.30d,
+               Brier = 0.10d,
+               DeathBrier = 0.10d
+           },
+           new CombatPolicyValueMetricSnapshot
+           {
+               CompositeLoss = 0.39d,
+               ValueMae = 0.40d,
+               Brier = 0.10d,
+               DeathBrier = 0.12d
+           },
+           0.05d),
+    "formal promotion rejects candidates whose long-horizon value or death-risk heads regress on the same offline holdout");
 var capabilityBaselineRuns = new CombatCampaignResult?[]
 {
     new() { DifficultyId = "normal", FinalBossVictory = true },

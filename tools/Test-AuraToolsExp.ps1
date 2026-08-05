@@ -306,13 +306,13 @@ if (-not $foundationControllerRuntime.Contains(
         -or -not $foundationControllerRuntime.Contains(
             "loadedSchemaVersion < 10") `
         -or -not $foundationControllerRuntime.Contains(
-            "loadedSchemaVersion < 11") `
+            "loadedSchemaVersion < 12") `
         -or -not $foundationControllerRuntime.Contains(
             "AdditionalIterationsOnResume") `
         -or -not $foundationControllerRuntime.Contains(
             "MinimumAdvancedDefeatReplayShare") `
         -or -not $foundationControllerModels.Contains(
-            "SchemaVersion { get; set; } = 11")) {
+            "SchemaVersion { get; set; } = 12")) {
     throw "Foundation controller resumable-training settings migration is missing."
 }
 foreach ($anchor in @(
@@ -328,16 +328,19 @@ foreach ($anchor in @(
     "CombatFoundationAutoTuneObjectiveNames.MaximumThroughput",
     "SuccessExpertReplayShare = 0.10d",
     "ModelGradientShardCount = 0",
-    "ModelMaximumUnsafeEndTurnFrameShare = 0.35d",
+    "ModelMaximumUnsafeEndTurnFrameShare = 0.20d",
     "ModelLearningRate = 0.004d",
     "ModelL2 = 0.002d",
     "ModelStateDimensions = 256",
     "ModelActionDimensions = 256",
     "ModelHiddenDimensions = 64",
     "TransformerTeacherEpochs = 12",
-    "TransformerTeacherMinimumFrames = 8192",
+    "TransformerTeacherMinimumFrames = 4096",
+    "TransformerTeacherMaximumFrames = 10000",
+    "TransformerTeacherCpuEpochs = 4",
+    "TransformerTeacherCpuIncrementalEpochs = 1",
     "TransformerTeacherEnableWarmStart = true",
-    "TransformerTeacherCpuRefreshInterval = 2",
+    "TransformerTeacherCpuRefreshInterval = 4",
     "TransformerTeacherIncrementalEpochs = 4",
     "TransformerTeacherFinalEpochs = 12",
     "TransformerTeacherCpuInteropThreads = 0",

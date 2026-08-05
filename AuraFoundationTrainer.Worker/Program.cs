@@ -470,7 +470,7 @@ try
             ResolveTransformerTeacherScript(),
             Path.Combine(
                 job.SuccessArchiveDirectory,
-                "transformer-runtime-auto-tune-v1.json"));
+                "transformer-runtime-auto-tune-v2.json"));
     }
 
     var training = new CombatCampaignFoundationTrainer(
@@ -857,6 +857,8 @@ static string Fingerprint(
         request.TuningFinalistCount,
         request.NormalAcceptanceRate,
         request.AdvancedAcceptanceRate,
+        request.MinimumArenaDiscordantPairs,
+        request.MaximumOfflineHeadRegression,
         request.HardSeedReplayShare,
         HardEncounterWeights = HashCompact(request.HardEncounterWeights),
         request.MinimumAdvancedReplayShare,
@@ -885,12 +887,15 @@ static string Fingerprint(
         training.EnableFrameStratification,
         training.EnableEndTurnSpecialization,
         training.EndTurnFrameWeight,
+        training.MaximumUnsafeEndTurnFrameShare,
+        training.UnsafeEndTurnRiskAuxiliaryShare,
         training.PolicyTargetTemperature,
         training.MaximumPolicyTargetProbability,
         training.MaximumFrameStratumWeight,
         training.MaximumFramesPerEpisode,
         training.ReplayEpisodeLimit,
-        training.RetainedModelCandidates
+        training.RetainedModelCandidates,
+        TransformerTeacher = HashCompact(request.TransformerTeacher)
     });
     return Convert.ToHexString(
         SHA256.HashData(Encoding.UTF8.GetBytes(payload)));

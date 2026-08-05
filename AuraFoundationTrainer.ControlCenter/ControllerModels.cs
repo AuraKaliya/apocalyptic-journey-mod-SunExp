@@ -6,7 +6,7 @@ namespace AuraFoundationTrainer.ControlCenter;
 
 internal sealed class ControllerSettings
 {
-    public int SchemaVersion { get; set; } = 11;
+    public int SchemaVersion { get; set; } = 12;
 
     [JsonIgnore]
     public string ModRoot { get; set; } = "";
@@ -63,7 +63,10 @@ internal sealed class ControllerSettings
             ModelEpochs = 40,
             ModelBatchSize = 64,
             ModelGradientShardCount = 0,
-            ModelMaximumUnsafeEndTurnFrameShare = 0.35d,
+            ModelMaximumUnsafeEndTurnFrameShare = 0.20d,
+            ModelUnsafeEndTurnRiskAuxiliaryShare = 0.10d,
+            MinimumArenaDiscordantPairs = 8,
+            MaximumOfflineHeadRegression = 0.05d,
             ModelLearningRate = 0.004d,
             ModelL2 = 0.002d,
             ModelStateDimensions = 256,
@@ -80,9 +83,17 @@ internal sealed class ControllerSettings
             TransformerTeacherAttentionHeads = 8,
             TransformerTeacherFeedForwardDimensions = 1536,
             TransformerTeacherHistoryLength = 12,
-            TransformerTeacherMinimumFrames = 8192,
+            TransformerTeacherMinimumFrames = 4096,
+            TransformerTeacherMaximumFrames = 10000,
             TransformerTeacherEnableWarmStart = true,
-            TransformerTeacherCpuRefreshInterval = 2,
+            TransformerTeacherCpuRefreshInterval = 4,
+            TransformerTeacherCpuEpochs = 4,
+            TransformerTeacherCpuIncrementalEpochs = 1,
+            TransformerTeacherCpuFinalEpochs = 4,
+            TransformerTeacherEnableAdaptiveRefresh = true,
+            TransformerTeacherAdaptiveRefreshDriftThreshold = 0.15d,
+            TransformerTeacherEnableFixedAnchorValidation = true,
+            TransformerTeacherMaximumHeadRegression = 0.05d,
             TransformerTeacherIncrementalEpochs = 4,
             TransformerTeacherFinalEpochs = 12,
             TransformerTeacherCpuThreads = 0,

@@ -327,6 +327,10 @@ internal sealed class MainWindow : Window
             panel,
             "ModelMaximumUnsafeEndTurnFrameShare",
             "不安全结束回合最大占比");
+        AddDouble(
+            panel,
+            "ModelUnsafeEndTurnRiskAuxiliaryShare",
+            "结束回合风险辅助占比");
         AddNumber(
             panel,
             "ModelMinimumValidationRunGroups",
@@ -365,6 +369,7 @@ internal sealed class MainWindow : Window
         AddNumber(panel, "TransformerTeacherFeedForwardDimensions", "前馈网络维度", 32, 4096);
         AddNumber(panel, "TransformerTeacherHistoryLength", "历史决策窗口", 1, 32);
         AddNumber(panel, "TransformerTeacherMinimumFrames", "教师最少 Frames", 64, 100000);
+        AddNumber(panel, "TransformerTeacherMaximumFrames", "教师最多 Frames", 64, 100000);
         AddToggle(
             panel,
             "TransformerTeacherEnableWarmStart",
@@ -375,6 +380,30 @@ internal sealed class MainWindow : Window
             "CPU 教师刷新间隔",
             1,
             8);
+        AddNumber(panel, "TransformerTeacherCpuEpochs", "CPU 冷启动 Epoch", 1, 100);
+        AddNumber(
+            panel,
+            "TransformerTeacherCpuIncrementalEpochs",
+            "CPU 增量 Epoch",
+            1,
+            100);
+        AddNumber(panel, "TransformerTeacherCpuFinalEpochs", "CPU 最终 Epoch", 1, 100);
+        AddToggle(
+            panel,
+            "TransformerTeacherEnableAdaptiveRefresh",
+            "按数据漂移刷新教师");
+        AddDouble(
+            panel,
+            "TransformerTeacherAdaptiveRefreshDriftThreshold",
+            "教师数据漂移阈值");
+        AddToggle(
+            panel,
+            "TransformerTeacherEnableFixedAnchorValidation",
+            "启用固定锚点验证");
+        AddDouble(
+            panel,
+            "TransformerTeacherMaximumHeadRegression",
+            "教师单头最大回退");
         AddNumber(
             panel,
             "TransformerTeacherIncrementalEpochs",
@@ -465,6 +494,8 @@ internal sealed class MainWindow : Window
             8);
         AddDouble(panel, "NormalAcceptanceRate", "普通验收率");
         AddDouble(panel, "AdvancedAcceptanceRate", "高级验收率");
+        AddNumber(panel, "MinimumArenaDiscordantPairs", "竞技场最少分歧对", 1, 128);
+        AddDouble(panel, "MaximumOfflineHeadRegression", "离线单头最大回退");
         AddDouble(panel, "SuccessExpertReplayShare", "成功教师回放占比");
         AddDouble(panel, "HardSeedReplayShare", "困难种子占比");
         AddDouble(
@@ -1464,9 +1495,30 @@ internal sealed class MainWindow : Window
                   + "/"
                   + teacher.RequestedEpochs
                   + " Epoch"
+                  + " · 代次 "
+                  + teacher.TeacherGeneration
+                  + " · 更新 "
+                  + (teacher.TrainingRefreshed
+                      ? teacher.UpdateAccepted ? "接受" : "回滚"
+                      : "未请求")
                   + " · "
                   + teacher.TrainingFramesPerSecond.ToString("0.0")
                   + " frames/s"
+                  + Environment.NewLine
+                  + "教师闭环 · 蒸馏使用 "
+                  + teacher.DistillationTrainingFrames
+                  + "+"
+                  + teacher.DistillationValidationFrames
+                  + "/"
+                  + teacher.AnnotatedFrames
+                  + "（"
+                  + teacher.DistillationUtilization.ToString("P1")
+                  + "） · 锚点 "
+                  + teacher.AnchorValidationFrames
+                  + " · 漂移 "
+                  + teacher.DatasetDriftScore.ToString("P1")
+                  + " · "
+                  + teacher.RefreshReason
                   + (teacher.Applied
                       ? ""
                       : Environment.NewLine + teacher.Message);
@@ -1665,11 +1717,31 @@ internal sealed class MainWindow : Window
                 settings.Parameters.CapabilityProbeCampaignsPerDifficulty = 64;
             }
         }
+        if (loadedSchemaVersion < 12)
+        {
+            settings.Parameters.ModelMaximumUnsafeEndTurnFrameShare = 0.20d;
+            settings.Parameters.ModelUnsafeEndTurnRiskAuxiliaryShare = 0.10d;
+            settings.Parameters.MinimumArenaDiscordantPairs = 8;
+            settings.Parameters.MaximumOfflineHeadRegression = 0.05d;
+            settings.Parameters.TransformerTeacherMaximumFrames = 10000;
+            settings.Parameters.TransformerTeacherMinimumFrames = 4096;
+            settings.Parameters.TransformerTeacherCpuRefreshInterval = 4;
+            settings.Parameters.TransformerTeacherCpuEpochs = 4;
+            settings.Parameters.TransformerTeacherCpuIncrementalEpochs = 1;
+            settings.Parameters.TransformerTeacherCpuFinalEpochs = 4;
+            settings.Parameters.TransformerTeacherEnableAdaptiveRefresh = true;
+            settings.Parameters
+                .TransformerTeacherAdaptiveRefreshDriftThreshold = 0.15d;
+            settings.Parameters
+                .TransformerTeacherEnableFixedAnchorValidation = true;
+            settings.Parameters.TransformerTeacherMaximumHeadRegression =
+                0.05d;
+        }
         settings.GameSubject ??= LoadDefaultGameSubject(modRoot);
         settings.GameSubject.Normalize();
         gameSubjectCatalog = LoadGameSubjectCatalog(modRoot);
         gameSubjectCatalog.ResolveReferences(settings.GameSubject);
-        settings.SchemaVersion = 11;
+        settings.SchemaVersion = 12;
         settings.Parameters.Normalized();
         if (File.Exists(readPath)
             && !string.Equals(
@@ -1871,6 +1943,8 @@ internal sealed class MainWindow : Window
         p.ModelEndTurnFrameWeight = Double("ModelEndTurnFrameWeight");
         p.ModelMaximumUnsafeEndTurnFrameShare =
             Double("ModelMaximumUnsafeEndTurnFrameShare");
+        p.ModelUnsafeEndTurnRiskAuxiliaryShare =
+            Double("ModelUnsafeEndTurnRiskAuxiliaryShare");
         p.ModelMinimumValidationRunGroups =
             Int("ModelMinimumValidationRunGroups");
         p.ModelMinimumTestRunGroups =
@@ -1911,10 +1985,26 @@ internal sealed class MainWindow : Window
             Int("TransformerTeacherHistoryLength");
         p.TransformerTeacherMinimumFrames =
             Int("TransformerTeacherMinimumFrames");
+        p.TransformerTeacherMaximumFrames =
+            Int("TransformerTeacherMaximumFrames");
         p.TransformerTeacherEnableWarmStart =
             Toggle("TransformerTeacherEnableWarmStart");
         p.TransformerTeacherCpuRefreshInterval =
             Int("TransformerTeacherCpuRefreshInterval");
+        p.TransformerTeacherCpuEpochs =
+            Int("TransformerTeacherCpuEpochs");
+        p.TransformerTeacherCpuIncrementalEpochs =
+            Int("TransformerTeacherCpuIncrementalEpochs");
+        p.TransformerTeacherCpuFinalEpochs =
+            Int("TransformerTeacherCpuFinalEpochs");
+        p.TransformerTeacherEnableAdaptiveRefresh =
+            Toggle("TransformerTeacherEnableAdaptiveRefresh");
+        p.TransformerTeacherAdaptiveRefreshDriftThreshold =
+            Double("TransformerTeacherAdaptiveRefreshDriftThreshold");
+        p.TransformerTeacherEnableFixedAnchorValidation =
+            Toggle("TransformerTeacherEnableFixedAnchorValidation");
+        p.TransformerTeacherMaximumHeadRegression =
+            Double("TransformerTeacherMaximumHeadRegression");
         p.TransformerTeacherIncrementalEpochs =
             Int("TransformerTeacherIncrementalEpochs");
         p.TransformerTeacherFinalEpochs =
@@ -1963,6 +2053,9 @@ internal sealed class MainWindow : Window
             Int("MaximumConsecutiveRejectedIterations");
         p.NormalAcceptanceRate = Double("NormalAcceptanceRate");
         p.AdvancedAcceptanceRate = Double("AdvancedAcceptanceRate");
+        p.MinimumArenaDiscordantPairs = Int("MinimumArenaDiscordantPairs");
+        p.MaximumOfflineHeadRegression =
+            Double("MaximumOfflineHeadRegression");
         p.SuccessExpertReplayShare = Double("SuccessExpertReplayShare");
         p.HardSeedReplayShare = Double("HardSeedReplayShare");
         p.MinimumAdvancedReplayShare =
@@ -2062,6 +2155,9 @@ internal sealed class MainWindow : Window
             "ModelMaximumUnsafeEndTurnFrameShare",
             p.ModelMaximumUnsafeEndTurnFrameShare);
         Set(
+            "ModelUnsafeEndTurnRiskAuxiliaryShare",
+            p.ModelUnsafeEndTurnRiskAuxiliaryShare);
+        Set(
             "ModelMinimumValidationRunGroups",
             p.ModelMinimumValidationRunGroups);
         Set(
@@ -2111,12 +2207,34 @@ internal sealed class MainWindow : Window
         Set(
             "TransformerTeacherMinimumFrames",
             p.TransformerTeacherMinimumFrames);
+        Set(
+            "TransformerTeacherMaximumFrames",
+            p.TransformerTeacherMaximumFrames);
         SetToggle(
             "TransformerTeacherEnableWarmStart",
             p.TransformerTeacherEnableWarmStart);
         Set(
             "TransformerTeacherCpuRefreshInterval",
             p.TransformerTeacherCpuRefreshInterval);
+        Set("TransformerTeacherCpuEpochs", p.TransformerTeacherCpuEpochs);
+        Set(
+            "TransformerTeacherCpuIncrementalEpochs",
+            p.TransformerTeacherCpuIncrementalEpochs);
+        Set(
+            "TransformerTeacherCpuFinalEpochs",
+            p.TransformerTeacherCpuFinalEpochs);
+        SetToggle(
+            "TransformerTeacherEnableAdaptiveRefresh",
+            p.TransformerTeacherEnableAdaptiveRefresh);
+        Set(
+            "TransformerTeacherAdaptiveRefreshDriftThreshold",
+            p.TransformerTeacherAdaptiveRefreshDriftThreshold);
+        SetToggle(
+            "TransformerTeacherEnableFixedAnchorValidation",
+            p.TransformerTeacherEnableFixedAnchorValidation);
+        Set(
+            "TransformerTeacherMaximumHeadRegression",
+            p.TransformerTeacherMaximumHeadRegression);
         Set(
             "TransformerTeacherIncrementalEpochs",
             p.TransformerTeacherIncrementalEpochs);
@@ -2149,6 +2267,10 @@ internal sealed class MainWindow : Window
             p.TransformerDistillationWeight);
         Set("NormalAcceptanceRate", p.NormalAcceptanceRate);
         Set("AdvancedAcceptanceRate", p.AdvancedAcceptanceRate);
+        Set("MinimumArenaDiscordantPairs", p.MinimumArenaDiscordantPairs);
+        Set(
+            "MaximumOfflineHeadRegression",
+            p.MaximumOfflineHeadRegression);
         Set("SuccessExpertReplayShare", p.SuccessExpertReplayShare);
         Set("HardSeedReplayShare", p.HardSeedReplayShare);
         Set(

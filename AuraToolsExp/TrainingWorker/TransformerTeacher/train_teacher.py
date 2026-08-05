@@ -53,6 +53,9 @@ def arguments() -> argparse.Namespace:
     parser.add_argument("--pin-memory", type=int, choices=(0, 1), default=1)
     parser.add_argument("--mixed-precision", type=int, choices=(0, 1), default=1)
     parser.add_argument("--runtime-cache", default="")
+    parser.add_argument("--anchor", default="")
+    parser.add_argument("--fixed-anchor", type=int, choices=(0, 1), default=1)
+    parser.add_argument("--maximum-head-regression", type=float, default=0.05)
     parser.add_argument("--resume-model", default="")
     parser.add_argument("--training-enabled", type=int, choices=(0, 1), default=1)
     parser.add_argument("--seed", type=int, default=1701)
@@ -257,7 +260,7 @@ def load_rows(path: Path, history_length: int) -> list[dict]:
             if not line.strip():
                 continue
             row = json.loads(line)
-            if len(row.get("A", [])) < 2:
+            if len(row.get("A", [])) < 1:
                 continue
             row["P"] = normalized(row.get("P", []))
             if not row.get("O"):
@@ -424,17 +427,64 @@ class LengthBucketBatchSampler(Sampler[list[int]]):
                 yield bucket[start : start + self.batch_size]
 
 
+def run_key(row: dict) -> str:
+    return str(row.get("Y") or f"episode:{int(row['E'])}")
+
+
+def stable_partition_score(key: str, seed: int) -> int:
+    payload = f"{seed}|{key}".encode("utf-8")
+    return int.from_bytes(hashlib.sha256(payload).digest()[:8], "big")
+
+
 def split_rows(rows: list[dict], seed: int) -> tuple[list[dict], list[dict]]:
-    episodes = sorted({int(row["E"]) for row in rows})
-    random.Random(seed).shuffle(episodes)
-    validation_count = max(1, int(round(len(episodes) * 0.2)))
-    validation_ids = set(episodes[-validation_count:])
-    training = [row for row in rows if int(row["E"]) not in validation_ids]
-    validation = [row for row in rows if int(row["E"]) in validation_ids]
+    episodes = sorted({run_key(row) for row in rows})
+    validation_ids = {
+        key for key in episodes if stable_partition_score(key, seed) % 5 == 0
+    }
+    if not validation_ids:
+        validation_ids = {
+            min(episodes, key=lambda key: (stable_partition_score(key, seed), key))
+        }
+    if len(validation_ids) == len(episodes) and len(episodes) > 1:
+        validation_ids.remove(
+            max(validation_ids, key=lambda key: (stable_partition_score(key, seed), key))
+        )
+    training = [row for row in rows if run_key(row) not in validation_ids]
+    validation = [row for row in rows if run_key(row) in validation_ids]
     if not training:
         training = rows[:-1]
         validation = rows[-1:]
     return training, validation
+
+
+def write_anchor_rows(path: Path, rows: list[dict]) -> None:
+    path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = path.with_suffix(path.suffix + ".tmp")
+    with temporary.open("w", encoding="utf-8") as stream:
+        for row in rows:
+            payload = {key: value for key, value in row.items() if not key.startswith("_")}
+            stream.write(json.dumps(payload, separators=(",", ":"), ensure_ascii=True))
+            stream.write("\n")
+    temporary.replace(path)
+
+
+def training_and_anchor_rows(
+    rows: list[dict], args: argparse.Namespace
+) -> tuple[list[dict], list[dict], bool]:
+    if not args.fixed_anchor or not args.anchor:
+        training, validation = split_rows(rows, args.seed)
+        return training, validation, False
+    anchor_path = Path(args.anchor)
+    if anchor_path.exists():
+        validation = load_rows(anchor_path, args.history)
+        tensorize_rows(validation)
+        anchor_keys = {run_key(row) for row in validation}
+        training = [row for row in rows if run_key(row) not in anchor_keys]
+        if training and validation:
+            return training, validation, False
+    training, validation = split_rows(rows, args.seed)
+    write_anchor_rows(anchor_path, validation)
+    return training, validation, True
 
 
 def collate(rows: list[dict]) -> dict[str, torch.Tensor]:
@@ -449,6 +499,7 @@ def collate(rows: list[dict]) -> dict[str, torch.Tensor]:
     object_tokens = torch.zeros(batch, maximum_objects, state_dimensions)
     object_mask = torch.zeros(batch, maximum_objects, dtype=torch.bool)
     action_mask = torch.zeros(batch, maximum_actions, dtype=torch.bool)
+    policy_supervision_mask = torch.zeros(batch, dtype=torch.bool)
     policies = torch.zeros(batch, maximum_actions)
     history_states = torch.zeros(batch, maximum_history, state_dimensions)
     history_actions = torch.zeros(batch, maximum_history, action_dimensions)
@@ -470,6 +521,7 @@ def collate(rows: list[dict]) -> dict[str, torch.Tensor]:
         action_count = row["_action_tensor"].shape[0]
         actions[owner, :action_count] = row["_action_tensor"]
         action_mask[owner, :action_count] = True
+        policy_supervision_mask[owner] = action_count > 1
         policies[owner, :action_count] = row["_policy_tensor"]
         history_states_for_row = row["_history_state_tensor"]
         history_actions_for_row = row["_history_action_tensor"]
@@ -497,6 +549,7 @@ def collate(rows: list[dict]) -> dict[str, torch.Tensor]:
         "object_mask": object_mask,
         "actions": actions,
         "action_mask": action_mask,
+        "policy_supervision_mask": policy_supervision_mask,
         "policies": policies,
         "history_states": history_states,
         "history_actions": history_actions,
@@ -657,7 +710,7 @@ def runtime_cache_key(
     payload = "|".join(
         str(value)
         for value in (
-            "transformer-runtime-auto-tune-v1",
+            "transformer-runtime-auto-tune-v2-backprop",
             platform.system(),
             platform.machine(),
             platform.processor(),
@@ -708,7 +761,7 @@ def save_runtime_cache(path: str, key: str, plan: dict) -> None:
         "precision": str(plan["precision"]),
         "measured_utc": time.time(),
     }
-    payload["protocol"] = "transformer-runtime-auto-tune-v1"
+    payload["protocol"] = "transformer-runtime-auto-tune-v2-backprop"
     destination.parent.mkdir(parents=True, exist_ok=True)
     temporary = destination.with_suffix(destination.suffix + ".tmp")
     temporary.write_text(json.dumps(payload, indent=2), encoding="utf-8")
@@ -746,23 +799,27 @@ def benchmark_cpu_threads(
     raw: dict[str, torch.Tensor],
     runtime: dict,
 ) -> int:
-    sample_size = min(8, raw["states"].shape[0])
+    sample_size = min(32, raw["states"].shape[0])
     sample = slice_batch(raw, 0, sample_size)
     candidates = cpu_thread_candidates(
         int(runtime["default_cpu_threads"]), int(runtime["logical_processors"])
     )
     best_threads = int(runtime["cpu_threads"])
     best_rate = -1.0
-    model.eval()
+    model.train()
     for threads in candidates:
         torch.set_num_threads(threads)
-        with torch.no_grad():
-            model(sample)
-            started = time.perf_counter()
-            repeats = 2
-            for _ in range(repeats):
-                model(sample)
-            elapsed = max(1.0e-6, time.perf_counter() - started)
+        model.zero_grad(set_to_none=True)
+        warmup, _ = loss_for(model, sample)
+        warmup.backward()
+        model.zero_grad(set_to_none=True)
+        started = time.perf_counter()
+        repeats = 2
+        for _ in range(repeats):
+            total, _ = loss_for(model, sample)
+            total.backward()
+            model.zero_grad(set_to_none=True)
+        elapsed = max(1.0e-6, time.perf_counter() - started)
         rate = sample_size * repeats / elapsed
         if rate > best_rate:
             best_rate = rate
@@ -885,7 +942,13 @@ def loss_for(
         terminal_logits,
     ) = model(batch)
     log_policy = torch.log_softmax(policy_logits, dim=-1)
-    policy_loss = -(batch["policies"] * log_policy).sum(dim=-1).mean()
+    policy_supervision_mask = batch["policy_supervision_mask"]
+    policy_losses = -(batch["policies"] * log_policy).sum(dim=-1)
+    policy_loss = (
+        policy_losses[policy_supervision_mask].mean()
+        if policy_supervision_mask.any()
+        else policy_losses.sum() * 0.0
+    )
     value_loss = torch.nn.functional.mse_loss(values, batch["values"])
     valid_strategy = batch["strategies"] >= 0
     if valid_strategy.any():
@@ -909,10 +972,14 @@ def loss_for(
         terminal_logits, batch["terminals"]
     )
     if effective_counts is None:
+        policy_weight = 1.0
         sample_weight = 1.0
         strategy_weight = 1.0
         dynamics_weight = 1.0
     else:
+        policy_weight = int(policy_supervision_mask.sum()) / max(
+            1, effective_counts["policies"]
+        )
         sample_weight = batch["states"].shape[0] / max(
             1, effective_counts["samples"]
         )
@@ -923,7 +990,7 @@ def loss_for(
             1, effective_counts["transitions"]
         )
     total = (
-        policy_loss * sample_weight
+        policy_loss * policy_weight
         + value_loss * 0.35 * sample_weight
         + strategy_loss * 0.20 * strategy_weight
         + dynamics_loss * 0.15 * dynamics_weight
@@ -952,6 +1019,7 @@ def verify_micro_batch_accumulation(
     full_loss.backward()
     effective_counts = {
         "samples": int(raw["states"].shape[0]),
+        "policies": int(raw["policy_supervision_mask"].sum()),
         "strategies": int((raw["strategies"] >= 0).sum()),
         "transitions": int(raw["transition_mask"].sum()),
     }
@@ -988,6 +1056,7 @@ def evaluate(
 ) -> dict[str, float]:
     model.eval()
     count = 0
+    policy_count = 0
     policy_cross_entropy = 0.0
     uniform_policy_cross_entropy = 0.0
     policy_correct = 0
@@ -1013,15 +1082,21 @@ def evaluate(
             ) = model(batch)
         log_policy = torch.log_softmax(policy_logits, dim=-1)
         size = batch["states"].shape[0]
-        policy_cross_entropy += float(
-            (-(batch["policies"] * log_policy).sum(dim=-1)).sum()
-        )
-        policy_correct += int(
-            (policy_logits.argmax(dim=-1) == batch["policies"].argmax(dim=-1)).sum()
-        )
-        uniform_policy_cross_entropy += float(
-            batch["action_mask"].sum(dim=-1).float().log().sum()
-        )
+        policy_mask = batch["policy_supervision_mask"]
+        policy_count += int(policy_mask.sum())
+        if policy_mask.any():
+            policy_cross_entropy += float(
+                (-(batch["policies"] * log_policy).sum(dim=-1))[policy_mask].sum()
+            )
+            policy_correct += int(
+                (
+                    policy_logits[policy_mask].argmax(dim=-1)
+                    == batch["policies"][policy_mask].argmax(dim=-1)
+                ).sum()
+            )
+            uniform_policy_cross_entropy += float(
+                batch["action_mask"][policy_mask].sum(dim=-1).float().log().sum()
+            )
         value_error += float((values - batch["values"]).abs().sum())
         valid = batch["strategies"] >= 0
         strategy_count += int(valid.sum())
@@ -1049,9 +1124,9 @@ def evaluate(
         )
         count += size
     return {
-        "policy_ce": policy_cross_entropy / max(1, count),
-        "uniform_policy_ce": uniform_policy_cross_entropy / max(1, count),
-        "policy_accuracy": policy_correct / max(1, count),
+        "policy_ce": policy_cross_entropy / max(1, policy_count),
+        "uniform_policy_ce": uniform_policy_cross_entropy / max(1, policy_count),
+        "policy_accuracy": policy_correct / max(1, policy_count),
         "value_mae": value_error / max(1, count),
         "strategy_accuracy": strategy_correct / max(1, strategy_count),
         "dynamics_mse": dynamics_squared_error / max(1, dynamics_elements),
@@ -1069,12 +1144,12 @@ def load_warm_start(
     path: str,
     args: argparse.Namespace,
     device: torch.device,
-) -> bool:
+) -> tuple[bool, int]:
     if not path:
-        return False
+        return False, 0
     source = Path(path)
     if not source.exists():
-        return False
+        return False, 0
     try:
         checkpoint = torch.load(source, map_location=device, weights_only=True)
     except TypeError:
@@ -1097,6 +1172,30 @@ def load_warm_start(
             + ", ".join(incompatible)
         )
     model.load_state_dict(checkpoint["state_dict"], strict=True)
+    return True, max(0, int(checkpoint.get("teacher_generation", 0)))
+
+
+def composite_score(metrics: dict[str, float]) -> float:
+    return (
+        metrics["policy_ce"]
+        + metrics["value_mae"] * 0.35
+        + metrics["dynamics_mse"] * 0.15
+        + metrics["outcome_mae"] * 0.20
+        + metrics["death_brier"] * 0.20
+    )
+
+
+def head_regression_passed(
+    baseline: dict[str, float],
+    candidate: dict[str, float],
+    maximum_regression: float,
+) -> bool:
+    allowed = max(0.0, min(0.50, float(maximum_regression)))
+    for key in ("value_mae", "outcome_mae", "death_brier"):
+        reference = float(baseline[key])
+        tolerance = max(1.0e-6, abs(reference) * allowed)
+        if not math.isfinite(float(candidate[key])) or candidate[key] > reference + tolerance:
+            return False
     return True
 
 
@@ -1106,8 +1205,10 @@ def train(
     device: torch.device,
     runtime: dict,
     progress: ProgressReporter,
-) -> tuple[StrategyTransformer, dict[str, float], int, int, int, dict, float, bool, dict]:
-    training_rows, validation_rows = split_rows(rows, args.seed)
+) -> tuple[StrategyTransformer, dict[str, float], int, int, int, dict, float, bool, dict, dict]:
+    training_rows, validation_rows, anchor_created = training_and_anchor_rows(
+        rows, args
+    )
     model = StrategyTransformer(
         rows[0]["_state_tensor"].shape[0],
         rows[0]["_action_tensor"].shape[1],
@@ -1117,7 +1218,9 @@ def train(
         args.ffn,
         args.history,
     ).to(device)
-    warm_started = load_warm_start(model, args.resume_model, args, device)
+    warm_started, prior_generation = load_warm_start(
+        model, args.resume_model, args, device
+    )
     progress.update(
         Stage="calibrating",
         TotalEpochs=max(0, args.epochs),
@@ -1153,13 +1256,11 @@ def train(
     best_state = copy.deepcopy(model.state_dict())
     evaluation_started = time.perf_counter()
     best_metrics = evaluate(model, validation_loader, device, plan["precision"])
+    baseline_metrics = dict(best_metrics)
     evaluation_seconds = time.perf_counter() - evaluation_started
-    best_loss = (
-        best_metrics["policy_ce"]
-        + best_metrics["value_mae"] * 0.35
-        + best_metrics["dynamics_mse"] * 0.15
-        + best_metrics["outcome_mae"] * 0.20
-    )
+    best_loss = composite_score(best_metrics)
+    update_accepted = False
+    head_gate_passed = True
     stale = 0
     executed = 0
     processed_frames = 0
@@ -1187,6 +1288,16 @@ def train(
                 "training": 0.0,
                 "evaluating": evaluation_seconds,
             },
+            {
+                "baseline_metrics": baseline_metrics,
+                "baseline_score": best_loss,
+                "validation_score": best_loss,
+                "update_accepted": False,
+                "head_gate_passed": True,
+                "teacher_generation": prior_generation,
+                "anchor_frames": len(validation_rows),
+                "anchor_created": anchor_created,
+            },
         )
     training_seconds = 0.0
     for epoch in range(1, args.epochs + 1):
@@ -1205,6 +1316,7 @@ def train(
             batch_count = raw["states"].shape[0]
             effective_counts = {
                 "samples": batch_count,
+                "policies": int(raw["policy_supervision_mask"].sum()),
                 "strategies": int((raw["strategies"] >= 0).sum()),
                 "transitions": int(raw["transition_mask"].sum()),
             }
@@ -1241,11 +1353,14 @@ def train(
         evaluation_started = time.perf_counter()
         metrics = evaluate(model, validation_loader, device, plan["precision"])
         evaluation_seconds += time.perf_counter() - evaluation_started
-        score = (
-            metrics["policy_ce"]
-            + metrics["value_mae"] * 0.35
-            + metrics["dynamics_mse"] * 0.15
-            + metrics["outcome_mae"] * 0.20
+        score = composite_score(metrics)
+        epoch_head_gate = (
+            not warm_started
+            or head_regression_passed(
+                baseline_metrics,
+                metrics,
+                args.maximum_head_regression,
+            )
         )
         print(
             f"epoch={epoch}/{args.epochs} policyCE={metrics['policy_ce']:.6f} "
@@ -1253,16 +1368,28 @@ def train(
             f"dynamicsMSE={metrics['dynamics_mse']:.6f}",
             flush=True,
         )
-        if score < best_loss - 1.0e-5:
+        if score < best_loss - 1.0e-5 and epoch_head_gate:
             best_loss = score
             best_metrics = metrics
             best_state = copy.deepcopy(model.state_dict())
             stale = 0
+            update_accepted = True
+            head_gate_passed = True
         else:
             stale += 1
+            if score < best_loss - 1.0e-5 and not epoch_head_gate:
+                head_gate_passed = False
         if epoch >= 4 and stale >= 4:
             break
     model.load_state_dict(best_state)
+    head_gate_passed = (
+        not warm_started
+        or head_regression_passed(
+            baseline_metrics,
+            best_metrics,
+            args.maximum_head_regression,
+        )
+    )
     training_seconds = max(1.0e-6, training_seconds)
     return (
         model,
@@ -1276,6 +1403,16 @@ def train(
         {
             "training": training_seconds,
             "evaluating": evaluation_seconds,
+        },
+        {
+            "baseline_metrics": baseline_metrics,
+            "baseline_score": composite_score(baseline_metrics),
+            "validation_score": composite_score(best_metrics),
+            "update_accepted": update_accepted,
+            "head_gate_passed": head_gate_passed,
+            "teacher_generation": prior_generation + (1 if update_accepted else 0),
+            "anchor_frames": len(validation_rows),
+            "anchor_created": anchor_created,
         },
     )
 
@@ -1363,8 +1500,12 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
         args.ffn = min(args.ffn, 128)
         rows = synthetic_rows()
         rows[0]["K"] = 2.0
+        rows[-1]["A"] = rows[-1]["A"][:1]
+        rows[-1]["P"] = [1.0]
+        rows[-1]["X"] = 0
         tensorize_rows(rows)
         assert rows[0]["_sampling_repeats"] == 2
+        assert not bool(collate(rows[-1:])["policy_supervision_mask"][0])
         (
             model,
             metrics,
@@ -1375,6 +1516,7 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
             throughput,
             warm_started,
             _,
+            training_gate,
         ) = train(
             rows, args, device, runtime, progress
         )
@@ -1382,6 +1524,7 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
         assert math.isfinite(metrics["dynamics_mse"])
         assert math.isfinite(metrics["outcome_mae"])
         assert executed > 0 and training_count > 0 and validation_count > 0
+        assert training_gate["anchor_frames"] == validation_count
         verify_micro_batch_accumulation(
             model,
             collate(rows[: min(8, len(rows))]),
@@ -1406,10 +1549,14 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
             prior_resume = args.resume_model
             prior_training_enabled = args.training_enabled
             prior_epochs = args.epochs
+            prior_anchor = args.anchor
+            prior_fixed_anchor = args.fixed_anchor
             try:
                 args.resume_model = str(checkpoint_path)
                 args.training_enabled = 0
                 args.epochs = 0
+                args.anchor = str(Path(root) / "fixed-anchor.jsonl")
+                args.fixed_anchor = 1
                 (
                     _,
                     warm_metrics,
@@ -1420,13 +1567,19 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
                     _,
                     warm_started,
                     _,
+                    warm_gate,
                 ) = train(rows, args, device, runtime, progress)
                 assert warm_started and warm_executed == 0
+                assert not warm_gate["update_accepted"]
+                assert warm_gate["anchor_created"]
+                assert Path(args.anchor).exists()
                 assert math.isfinite(warm_metrics["policy_ce"])
             finally:
                 args.resume_model = prior_resume
                 args.training_enabled = prior_training_enabled
                 args.epochs = prior_epochs
+                args.anchor = prior_anchor
+                args.fixed_anchor = prior_fixed_anchor
         if os.name == "nt":
             assert working_set_bytes() > 0
         print(
@@ -1475,6 +1628,7 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
         throughput,
         warm_started,
         training_timings,
+        training_gate,
     ) = train(
         rows, args, device, runtime, progress
     )
@@ -1492,6 +1646,7 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
         "heads": args.heads,
         "feedforward_dimensions": args.ffn,
         "history_length": args.history,
+        "teacher_generation": int(training_gate["teacher_generation"]),
         "state_dict": model.state_dict(),
     }
     torch.save(checkpoint, args.model)
@@ -1540,6 +1695,8 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
         "RequestedEpochs": max(0, args.epochs),
         "WarmStarted": warm_started,
         "TrainingRefreshed": bool(args.training_enabled),
+        "UpdateAccepted": bool(training_gate["update_accepted"]),
+        "TeacherGeneration": int(training_gate["teacher_generation"]),
         "ResumeModelPath": args.resume_model if warm_started else "",
         "ValidationPolicyCrossEntropy": metrics["policy_ce"],
         "ValidationUniformPolicyCrossEntropy": metrics["uniform_policy_ce"],
@@ -1551,6 +1708,19 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
         "ValidationOutcomeMae": metrics["outcome_mae"],
         "ValidationDeathBrier": metrics["death_brier"],
         "ValidationTerminalAccuracy": metrics["terminal_accuracy"],
+        "AnchorValidationFrames": int(training_gate["anchor_frames"]),
+        "AnchorCreated": bool(training_gate["anchor_created"]),
+        "AnchorPath": args.anchor if args.fixed_anchor else "",
+        "BaselinePolicyCrossEntropy": training_gate["baseline_metrics"]["policy_ce"],
+        "BaselineValueMae": training_gate["baseline_metrics"]["value_mae"],
+        "BaselineOutcomeMae": training_gate["baseline_metrics"]["outcome_mae"],
+        "BaselineDeathBrier": training_gate["baseline_metrics"]["death_brier"],
+        "ValidationCompositeScore": training_gate["validation_score"],
+        "BaselineCompositeScore": training_gate["baseline_score"],
+        "CompositeImprovement": (
+            training_gate["baseline_score"] - training_gate["validation_score"]
+        ),
+        "HeadRegressionGatePassed": bool(training_gate["head_gate_passed"]),
         "ElapsedSeconds": time.perf_counter() - started,
         "ProcessCpuSeconds": time.process_time() - cpu_started,
         "PeakWorkingSetBytes": max(

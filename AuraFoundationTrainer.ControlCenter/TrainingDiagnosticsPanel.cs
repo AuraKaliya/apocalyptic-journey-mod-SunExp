@@ -402,6 +402,14 @@ internal sealed class TrainingDiagnosticsPanel
                 iteration.TrainingReplayQuotaShortfalls
                     .OrderBy(item => item.Key, StringComparer.Ordinal)
                     .Select(item => item.Key + " " + item.Value));
+        var strategyShortfall =
+            iteration.TeacherStudentPoolQuotaShortfalls.Count == 0
+                ? "无"
+                : string.Join(
+                    "，",
+                    iteration.TeacherStudentPoolQuotaShortfalls
+                        .OrderBy(item => item.Key, StringComparer.Ordinal)
+                        .Select(item => item.Key + " " + item.Value));
         dataSummary.Text =
             $"训练窗口 {iteration.TrainingReplayEpisodes:N0} 条\r\n"
             + $"高级难度 {advancedShare:P1} / 目标 "
@@ -410,7 +418,11 @@ internal sealed class TrainingDiagnosticsPanel
             + $"{iteration.TrainingReplayTargetAdvancedDefeatShare:P1}\r\n"
             + $"成功样本 {successShare:P1}\r\n"
             + $"专家回放 {training.LoadedExpertReplayEpisodes:N0}\r\n"
-            + $"配额缺口：{shortfall}";
+            + $"回放配额缺口：{shortfall}\r\n"
+            + $"教师/学生帧池 {iteration.TeacherStudentPoolSelectedFrames:N0}/"
+            + $"{iteration.TeacherStudentPoolSourceFrames:N0} · "
+            + $"不安全结束回合 {iteration.TeacherStudentPoolUnsafeEndTurnFrames:N0}\r\n"
+            + $"策略配额缺口：{strategyShortfall}";
     }
 
     private void PresentArena(
@@ -447,6 +459,12 @@ internal sealed class TrainingDiagnosticsPanel
                     + $"分数差 {item.CandidateScoreGain:+0.0;-0.0;0.0} · "
                     + $"深度差 {item.CandidateDepthGain:+0.000;-0.000;0.000} · "
                     + $"配对独占胜 {item.CandidateOnlyWins}:{item.ChampionOnlyWins} · "
+                    + $"分歧 {item.ArenaDiscordantPairs} · "
+                    + $"证据/高难/多头/配额 "
+                    + $"{PassMark(item.ArenaEvidenceGatePassed)}/"
+                    + $"{PassMark(item.AbsoluteAdvancedGatePassed)}/"
+                    + $"{PassMark(item.OfflineHeadRegressionGatePassed)}/"
+                    + $"{PassMark(item.StrategyQuotaGatePassed)} · "
                     + (item.Promoted ? "已晋级" : item.PromotionReason),
                 Foreground = TrainerTheme.Text,
                 TextWrapping = TextWrapping.Wrap
@@ -455,6 +473,11 @@ internal sealed class TrainingDiagnosticsPanel
             row.Children.Add(detail);
             arenaRows.Children.Add(row);
         }
+    }
+
+    private static string PassMark(bool passed)
+    {
+        return passed ? "通过" : "未过";
     }
 
     private void PresentSearch(ControllerTrainingResultSummary training)

@@ -16,7 +16,7 @@ namespace AuraCombatAi.Shared;
 public static class CombatFoundationTrainingProtocol
 {
     public const string TrainingPolicyVersion =
-        "foundation-governance-v20-strategy-stratified-replay";
+        "foundation-governance-v21-teacher-student-quota-gates";
 
     public const string SearchPolicyVersion =
         "dynamic-search-v12-quantile-fpu";
@@ -59,13 +59,18 @@ public static class CombatFoundationStagnationProtocol
 
 public static class CombatFoundationPromotionProtocol
 {
-    public const string Version = "paired-incremental-v3-working-window";
+    public const string Version =
+        "paired-incremental-v4-absolute-multihead-evidence";
 
     public const double MinimumPairedWinWilsonLowerBound = 0.20d;
 
     public const double MinimumScoreGain = 0.01d;
 
     public const double MinimumDepthGain = 0.25d;
+
+    public const int DefaultMinimumDiscordantPairs = 8;
+
+    public const double DefaultMaximumOfflineHeadRegression = 0.05d;
 }
 
 public static class CombatFoundationSemanticGateProtocol
@@ -246,6 +251,12 @@ public sealed class CombatCampaignFoundationTrainingRequest
     public double NormalAcceptanceRate { get; set; } = 0.80d;
 
     public double AdvancedAcceptanceRate { get; set; } = 0.30d;
+
+    public int MinimumArenaDiscordantPairs { get; set; } =
+        CombatFoundationPromotionProtocol.DefaultMinimumDiscordantPairs;
+
+    public double MaximumOfflineHeadRegression { get; set; } =
+        CombatFoundationPromotionProtocol.DefaultMaximumOfflineHeadRegression;
 
     public string NativeProgramPackageHash { get; set; } = "";
 
@@ -766,6 +777,28 @@ public sealed class CombatCampaignFoundationIteration
 
     public double SelfPlayExplorationProbability { get; set; }
 
+    public int TeacherStudentPoolSourceFrames { get; set; }
+
+    public int TeacherStudentPoolSelectedFrames { get; set; }
+
+    public int TeacherStudentPoolDroppedFrames { get; set; }
+
+    public int TeacherStudentPoolUnsafeEndTurnFrames { get; set; }
+
+    public bool TeacherStudentPoolStrategyQuotaActive { get; set; }
+
+    public bool TeacherStudentPoolStrategyQuotaPassed { get; set; } = true;
+
+    public Dictionary<string, int> TeacherStudentPoolStrategyFrames {
+        get;
+        set;
+    } = new(StringComparer.Ordinal);
+
+    public Dictionary<string, int> TeacherStudentPoolQuotaShortfalls {
+        get;
+        set;
+    } = new(StringComparer.Ordinal);
+
     public Dictionary<string, int> ModelFrameStrata { get; set; } =
         new(StringComparer.Ordinal);
 
@@ -784,6 +817,15 @@ public sealed class CombatCampaignFoundationIteration
     public int ModelEndTurnDecisionFrames { get; set; }
 
     public int ModelUnsafeEndTurnFrames { get; set; }
+
+    public int ModelUnsafeEndTurnPolicyFrames { get; set; }
+
+    public int ModelUnsafeEndTurnRiskAuxiliaryFrames { get; set; }
+
+    public CombatPolicyValueMetricSnapshot ModelBaselineValidationMetrics {
+        get;
+        set;
+    } = new();
 
     public double ModelMeanPolicyTargetMaximum { get; set; }
 
@@ -868,6 +910,16 @@ public sealed class CombatCampaignFoundationIteration
     public int ChampionOnlyWins { get; set; }
 
     public double PairedWinWilsonLowerBound { get; set; }
+
+    public int ArenaDiscordantPairs { get; set; }
+
+    public bool ArenaEvidenceGatePassed { get; set; }
+
+    public bool AbsoluteAdvancedGatePassed { get; set; }
+
+    public bool OfflineHeadRegressionGatePassed { get; set; }
+
+    public bool StrategyQuotaGatePassed { get; set; }
 
     public double CandidateScoreGain { get; set; }
 
@@ -1594,6 +1646,18 @@ public sealed class CombatCampaignFoundationTrainer
                 : Math.Max(
                     0d,
                     Math.Min(1d, request.AdvancedAcceptanceRate));
+        var minimumArenaDiscordantPairs = Math.Max(
+            1,
+            Math.Min(128, request.MinimumArenaDiscordantPairs));
+        var requestedOfflineHeadRegression =
+            request.MaximumOfflineHeadRegression;
+        var maximumOfflineHeadRegression =
+            double.IsNaN(requestedOfflineHeadRegression)
+            || double.IsInfinity(requestedOfflineHeadRegression)
+                ? CombatFoundationPromotionProtocol
+                    .DefaultMaximumOfflineHeadRegression
+                : Math.Max(0d, Math.Min(0.50d,
+                    requestedOfflineHeadRegression));
         var requiredNormalVictories = RequiredWilsonVictories(
             normalValidationCampaigns,
             normalAcceptanceRate);
@@ -2539,6 +2603,25 @@ public sealed class CombatCampaignFoundationTrainer
                 foundationTrainingOptions.ReplayEpisodeLimit,
                 request.AuthoritativeContentReplayShare);
             var replayWindow = replaySelection.Episodes;
+            var teacherStudentPool =
+                CombatTrainingReplayWindowSelector.Select(
+                    replayWindow,
+                    new CombatTrainingReplayWindowOptions
+                    {
+                        MaximumFrames = transformerTeacherOptions.MaximumFrames,
+                        MaximumFramesPerEpisode = foundationTrainingOptions
+                            .MaximumFramesPerEpisode,
+                        // Forced decisions still carry useful dynamics, outcome,
+                        // risk and history supervision for the world model.
+                        RequireMultipleCandidates = false,
+                        MaximumUnsafeEndTurnShare = Math.Min(
+                            0.80d,
+                            foundationTrainingOptions
+                                .MaximumUnsafeEndTurnFrameShare
+                            + foundationTrainingOptions
+                                .UnsafeEndTurnRiskAuxiliaryShare)
+                    });
+            var trainingReplayWindow = teacherStudentPool.Episodes;
             result.Replay = replayWindow;
             var transformerTeacherReport =
                 new CombatTransformerTeacherReport
@@ -2569,7 +2652,7 @@ public sealed class CombatCampaignFoundationTrainer
                                     Iteration = iterationNumber,
                                     TotalIterations = iterations,
                                     DecisionProfile = request.DecisionProfile,
-                                    Episodes = replayWindow,
+                                    Episodes = trainingReplayWindow,
                                     Options = transformerTeacherOptions,
                                     Progress = progress =>
                                         telemetry.TransformerTeacherProgress(
@@ -2649,7 +2732,7 @@ public sealed class CombatCampaignFoundationTrainer
                         trainingSchedule))
             };
             var trained = CombatPolicyValueTrainer.Train(
-                replayWindow,
+                trainingReplayWindow,
                 request.DecisionProfile,
                 foundationTrainingOptions,
                 cancellationToken,
@@ -2665,6 +2748,16 @@ public sealed class CombatCampaignFoundationTrainer
                 FinalizeCaseAnalysis(result);
                 return result;
             }
+            transformerTeacherReport.DistillationTrainingFrames =
+                trained.TransformerDistillationTrainingFrames;
+            transformerTeacherReport.DistillationValidationFrames =
+                trained.TransformerDistillationValidationFrames;
+            transformerTeacherReport.DistillationUtilization =
+                transformerTeacherReport.AnnotatedFrames <= 0
+                    ? 0d
+                    : (trained.TransformerDistillationTrainingFrames
+                       + trained.TransformerDistillationValidationFrames)
+                      / (double)transformerTeacherReport.AnnotatedFrames;
             if (parallelism > 1
                 && string.Equals(
                     executionPlan.Profile,
@@ -3223,7 +3316,8 @@ public sealed class CombatCampaignFoundationTrainer
                     candidateOnlyWins,
                     discordantPairs);
             var meaningfulWinGain =
-                candidateOnlyWins > championOnlyWins
+                discordantPairs >= minimumArenaDiscordantPairs
+                && candidateOnlyWins > championOnlyWins
                 && pairedWinWilsonLowerBound
                    >= CombatFoundationPromotionProtocol
                        .MinimumPairedWinWilsonLowerBound;
@@ -3237,13 +3331,33 @@ public sealed class CombatCampaignFoundationTrainer
             var iterativeGain =
                 meaningfulWinGain || meaningfulProgressGain;
             var bootstrapPromotion = result.Champion == null;
+            var arenaEvidenceGatePassed =
+                discordantPairs >= minimumArenaDiscordantPairs;
+            var absoluteAdvancedGatePassed =
+                candidateAdvanced + 0.0000001d >= advancedAcceptanceRate;
+            var offlineHeadRegressionGatePassed =
+                OfflineHeadRegressionPassed(
+                    trained.BaselineValidationMetrics,
+                    trained.ValidationMetrics,
+                    maximumOfflineHeadRegression);
+            var strategyQuotaGatePassed =
+                !teacherStudentPool.StrategyQuotaActive
+                || teacherStudentPool.StrategyQuotaPassed;
+            var formalPromotionGatePassed = bootstrapPromotion
+                                            || arenaEvidenceGatePassed
+                                            && absoluteAdvancedGatePassed
+                                            && offlineHeadRegressionGatePassed
+                                            && strategyQuotaGatePassed;
             var promoted = curriculumCheckpoint
-                           && (bootstrapPromotion || iterativeGain);
+                           && (bootstrapPromotion || iterativeGain)
+                           && formalPromotionGatePassed;
             var workingWindowAccepted = ShouldAcceptWorkingModel(
                 workingCheckpoint,
                 bootstrapPromotion,
                 meaningfulWinGain,
-                meaningfulProgressGain);
+                meaningfulProgressGain)
+                                       && (bootstrapPromotion
+                                           || offlineHeadRegressionGatePassed);
             var promotionReason = !curriculumCheckpoint
                 ? advancedRecoveryRequired
                   && candidateAdvanced
@@ -3254,6 +3368,14 @@ public sealed class CombatCampaignFoundationTrainer
                     ? "bootstrap-champion"
                 : !iterativeGain
                     ? "no-iterative-gain"
+                    : !arenaEvidenceGatePassed
+                        ? "insufficient-discordant-pairs"
+                    : !absoluteAdvancedGatePassed
+                        ? "absolute-advanced-gate"
+                    : !offlineHeadRegressionGatePassed
+                        ? "offline-head-regression"
+                    : !strategyQuotaGatePassed
+                        ? "strategy-quota-shortfall"
                     : promoted
                         ? meaningfulWinGain
                             ? "paired-win-gain"
@@ -3342,6 +3464,26 @@ public sealed class CombatCampaignFoundationTrainer
                     curriculumPlan.AdvancedWilsonLowerBound,
                 SelfPlayExplorationProbability =
                     effectiveExplorationProbability,
+                TeacherStudentPoolSourceFrames =
+                    teacherStudentPool.SourceFrames,
+                TeacherStudentPoolSelectedFrames =
+                    teacherStudentPool.SelectedFrames,
+                TeacherStudentPoolDroppedFrames =
+                    teacherStudentPool.DroppedFrames,
+                TeacherStudentPoolUnsafeEndTurnFrames =
+                    teacherStudentPool.UnsafeEndTurnFrames,
+                TeacherStudentPoolStrategyQuotaActive =
+                    teacherStudentPool.StrategyQuotaActive,
+                TeacherStudentPoolStrategyQuotaPassed =
+                    teacherStudentPool.StrategyQuotaPassed,
+                TeacherStudentPoolStrategyFrames =
+                    new Dictionary<string, int>(
+                        teacherStudentPool.StrategyFrames,
+                        StringComparer.Ordinal),
+                TeacherStudentPoolQuotaShortfalls =
+                    new Dictionary<string, int>(
+                        teacherStudentPool.StrategyQuotaShortfalls,
+                        StringComparer.Ordinal),
                 ModelFrameStrata =
                     new Dictionary<string, int>(
                         trained.FrameStrata,
@@ -3361,6 +3503,12 @@ public sealed class CombatCampaignFoundationTrainer
                     trained.EndTurnDecisionFrames,
                 ModelUnsafeEndTurnFrames =
                     trained.UnsafeEndTurnFrames,
+                ModelUnsafeEndTurnPolicyFrames =
+                    trained.UnsafeEndTurnPolicyFrames,
+                ModelUnsafeEndTurnRiskAuxiliaryFrames =
+                    trained.UnsafeEndTurnRiskAuxiliaryFrames,
+                ModelBaselineValidationMetrics =
+                    trained.BaselineValidationMetrics,
                 ModelMeanPolicyTargetMaximum =
                     trained.MeanPolicyTargetMaximum,
                 ModelTrainingMetrics = trained.TrainingMetrics,
@@ -3437,6 +3585,13 @@ public sealed class CombatCampaignFoundationTrainer
                 ChampionOnlyWins = championOnlyWins,
                 PairedWinWilsonLowerBound =
                     pairedWinWilsonLowerBound,
+                ArenaDiscordantPairs = discordantPairs,
+                ArenaEvidenceGatePassed = arenaEvidenceGatePassed,
+                AbsoluteAdvancedGatePassed =
+                    absoluteAdvancedGatePassed,
+                OfflineHeadRegressionGatePassed =
+                    offlineHeadRegressionGatePassed,
+                StrategyQuotaGatePassed = strategyQuotaGatePassed,
                 CandidateScoreGain =
                     candidateScore - championScore,
                 CandidateDepthGain =
@@ -7240,6 +7395,54 @@ public sealed class CombatCampaignFoundationTrainer
                && (bootstrapPromotion
                    || meaningfulWinGain
                    || meaningfulProgressGain);
+    }
+
+    internal static bool OfflineHeadRegressionPassed(
+        CombatPolicyValueMetricSnapshot? baseline,
+        CombatPolicyValueMetricSnapshot? candidate,
+        double maximumRegression)
+    {
+        if (baseline == null || candidate == null)
+        {
+            return false;
+        }
+        var allowed = double.IsNaN(maximumRegression)
+                      || double.IsInfinity(maximumRegression)
+            ? CombatFoundationPromotionProtocol
+                .DefaultMaximumOfflineHeadRegression
+            : Math.Max(0d, Math.Min(0.50d, maximumRegression));
+        return HeadNoRegression(
+                   baseline.CompositeLoss,
+                   candidate.CompositeLoss,
+                   allowed)
+               && HeadNoRegression(
+                   baseline.ValueMae,
+                   candidate.ValueMae,
+                   allowed)
+               && HeadNoRegression(
+                   baseline.Brier,
+                   candidate.Brier,
+                   allowed)
+               && HeadNoRegression(
+                   baseline.DeathBrier,
+                   candidate.DeathBrier,
+                   allowed);
+    }
+
+    private static bool HeadNoRegression(
+        double baseline,
+        double candidate,
+        double allowed)
+    {
+        if (double.IsNaN(baseline)
+            || double.IsInfinity(baseline)
+            || double.IsNaN(candidate)
+            || double.IsInfinity(candidate))
+        {
+            return false;
+        }
+        var tolerance = Math.Max(0.000001d, Math.Abs(baseline) * allowed);
+        return candidate <= baseline + tolerance;
     }
 
     internal static bool CapabilityNoRegressionStillPossible(

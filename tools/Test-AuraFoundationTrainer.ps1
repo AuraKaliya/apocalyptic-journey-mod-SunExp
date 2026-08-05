@@ -68,6 +68,18 @@ function Read-FoundationJson([string]$Path) {
     # the smoke-test reader.
     return $json.Replace('"":', '"__empty":') | ConvertFrom-Json
 }
+function Get-FoundationSha256([string]$Path) {
+    $algorithm = [System.Security.Cryptography.SHA256]::Create()
+    $stream = [System.IO.File]::OpenRead($Path)
+    try {
+        $hash = $algorithm.ComputeHash($stream)
+        return ([System.BitConverter]::ToString($hash)).Replace("-", "").ToLowerInvariant()
+    }
+    finally {
+        $stream.Dispose()
+        $algorithm.Dispose()
+    }
+}
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $effectivePreflightCampaignsPerDifficulty = [Math]::Max(
     0,
@@ -78,8 +90,13 @@ $effectiveNormalValidationCampaigns = [Math]::Max(
 $effectiveAdvancedValidationCampaigns = [Math]::Max(
     1,
     [Math]::Min(1000, $AdvancedValidationCampaigns))
+$minimumTrainingCampaigns = if ($TransformerTeacherBackend -eq "disabled") {
+    2
+} else {
+    40
+}
 $effectiveTrainingCampaignsPerIteration = [Math]::Max(
-    2,
+    $minimumTrainingCampaigns,
     [Math]::Min(1000, $TrainingCampaignsPerIteration))
 if (-not $SkipPublish) {
     & (Join-Path $repoRoot "tools\Build-AuraFoundationTrainer.ps1") -Configuration $Configuration
@@ -134,6 +151,11 @@ try {
         NormalValidationCampaigns = $effectiveNormalValidationCampaigns
         AdvancedValidationCampaigns = $effectiveAdvancedValidationCampaigns
         CapabilityProbeCampaignsPerDifficulty = 0
+        TuningNormalCampaigns = 2
+        TuningAdvancedCampaigns = 2
+        TuningScreeningNormalCampaigns = 1
+        TuningScreeningAdvancedCampaigns = 1
+        TuningFinalistCount = 1
         PreflightCampaignsPerDifficulty = $PreflightCampaignsPerDifficulty
         PreflightSeedStart = $PreflightSeedStart
         PreflightOnly = [bool]$PreflightOnly
@@ -162,10 +184,18 @@ try {
             AttentionHeads = 4
             HistoryLength = 12
             MinimumFrames = $TransformerTeacherMinimumFrames
+            MaximumFrames = 10000
             EnableWarmStart = $true
-            CpuRefreshInterval = 2
+            CpuRefreshInterval = 4
+            CpuEpochs = $TransformerTeacherEpochs
+            CpuIncrementalEpochs = [Math]::Min(1, $TransformerTeacherEpochs)
+            CpuFinalEpochs = $TransformerTeacherEpochs
             IncrementalEpochs = [Math]::Min(4, $TransformerTeacherEpochs)
             FinalEpochs = $TransformerTeacherEpochs
+            EnableAdaptiveRefresh = $true
+            AdaptiveRefreshDriftThreshold = 0.15
+            EnableFixedAnchorValidation = $true
+            MaximumHeadRegression = 0.05
             CpuThreads = 0
             CpuInteropThreads = 0
             MicroBatchSize = 0
@@ -248,10 +278,16 @@ try {
             -or -not [bool]$teacherReport.Applied `
             -or [bool]$teacherReport.WarmStarted `
             -or -not [bool]$teacherReport.TrainingRefreshed `
+            -or -not [bool]$teacherReport.UpdateAccepted `
             -or [int]$teacherReport.RequestedEpochs `
                 -ne $TransformerTeacherEpochs `
             -or [int]$teacherReport.AnnotatedFrames `
                 -lt $TransformerTeacherMinimumFrames `
+            -or [int]$teacherReport.AnchorValidationFrames -lt 1 `
+            -or -not [bool]$teacherReport.AnchorCreated `
+            -or [int]$teacherReport.TeacherGeneration -lt 1 `
+            -or -not [bool]$teacherReport.HeadRegressionGatePassed `
+            -or [string]$teacherReport.RefreshReason -ne "cold-start" `
             -or -not (Test-Path -LiteralPath `
                 ([string]$teacherReport.ModelPath) -PathType Leaf)) {
             throw (
@@ -684,8 +720,7 @@ try {
             -or [int64]$checkpoint.EpisodeSnapshot.Length -ne (
                 Get-Item -LiteralPath $checkpointSnapshotPath).Length `
             -or [string]$checkpoint.EpisodeSnapshot.ContentSha256 -ne (
-                Get-FileHash -LiteralPath $checkpointSnapshotPath `
-                    -Algorithm SHA256).Hash.ToLowerInvariant() `
+                Get-FoundationSha256 $checkpointSnapshotPath) `
             -or [string]::IsNullOrWhiteSpace(
                 [string]$checkpoint.Resume.Compatibility.RulesetHash) `
             -or [string]::IsNullOrWhiteSpace(
@@ -701,11 +736,11 @@ try {
             -or [string]$checkpoint.Resume.Compatibility.ActionContractVersion `
                 -ne "action-contract-v2" `
             -or [string]$checkpoint.Resume.Compatibility.TrainingSemanticsVersion `
-                -ne "content-set-quantile-q-registered-content-replay-base-role-skill-timing-auto-tune-arena-v18" `
+                -ne "content-set-quantile-q-role-quota-risk-aux-fixed-anchor-promotion-v19" `
             -or [string]$checkpoint.Resume.Compatibility.SearchPolicyVersion `
                 -ne "dynamic-search-v12-quantile-fpu" `
             -or [string]$checkpoint.Resume.Compatibility.TrainingPolicyVersion `
-                -ne "foundation-governance-v20-strategy-stratified-replay") {
+                -ne "foundation-governance-v21-teacher-student-quota-gates") {
             throw "Foundation checkpoint compatibility manifest is incomplete."
         }
     }

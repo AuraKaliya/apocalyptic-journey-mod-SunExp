@@ -36,6 +36,22 @@ public static class CombatRoleStrategyFeatureNames
     public const string SafeContinuationCertified =
         Prefix + "safe-continuation-certified";
 
+    public const string TrainingQuotaPrefix = Prefix + "training-quota:";
+
+    public static string MinimumTrainingShare(string strategy)
+    {
+        return TrainingQuotaPrefix
+               + NormalizeTrainingStrategy(strategy)
+               + ":minimum-share";
+    }
+
+    public static string MaximumTrainingShare(string strategy)
+    {
+        return TrainingQuotaPrefix
+               + NormalizeTrainingStrategy(strategy)
+               + ":maximum-share";
+    }
+
     public static double Value(
         CombatActionObservation? action,
         string key)
@@ -48,5 +64,15 @@ public static class CombatRoleStrategyFeatureNames
             return 0d;
         }
         return value;
+    }
+
+    private static string NormalizeTrainingStrategy(string strategy)
+    {
+        var normalized = (strategy ?? "")
+            .Trim()
+            .ToLowerInvariant();
+        return normalized.StartsWith("strategy-", StringComparison.Ordinal)
+            ? normalized
+            : "strategy-" + normalized;
     }
 }

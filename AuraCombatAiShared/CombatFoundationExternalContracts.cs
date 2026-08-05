@@ -123,6 +123,10 @@ public sealed class CombatFoundationTrainingParameters
 
     public double AdvancedAcceptanceRate { get; set; } = 0.30d;
 
+    public int MinimumArenaDiscordantPairs { get; set; } = 8;
+
+    public double MaximumOfflineHeadRegression { get; set; } = 0.05d;
+
     public double SuccessExpertReplayShare { get; set; } = 0.20d;
 
     public double AuthoritativeContentReplayShare { get; set; } = 0.20d;
@@ -158,7 +162,9 @@ public sealed class CombatFoundationTrainingParameters
 
     public double ModelEndTurnFrameWeight { get; set; } = 1d;
 
-    public double ModelMaximumUnsafeEndTurnFrameShare { get; set; } = 0.35d;
+    public double ModelMaximumUnsafeEndTurnFrameShare { get; set; } = 0.20d;
+
+    public double ModelUnsafeEndTurnRiskAuxiliaryShare { get; set; } = 0.10d;
 
     public int ModelMinimumValidationRunGroups { get; set; } = 16;
 
@@ -212,9 +218,28 @@ public sealed class CombatFoundationTrainingParameters
 
     public int TransformerTeacherMinimumFrames { get; set; } = 1024;
 
+    public int TransformerTeacherMaximumFrames { get; set; } = 10000;
+
     public bool TransformerTeacherEnableWarmStart { get; set; } = true;
 
-    public int TransformerTeacherCpuRefreshInterval { get; set; } = 2;
+    public int TransformerTeacherCpuRefreshInterval { get; set; } = 4;
+
+    public int TransformerTeacherCpuEpochs { get; set; } = 4;
+
+    public int TransformerTeacherCpuIncrementalEpochs { get; set; } = 1;
+
+    public int TransformerTeacherCpuFinalEpochs { get; set; } = 4;
+
+    public bool TransformerTeacherEnableAdaptiveRefresh { get; set; } = true;
+
+    public double TransformerTeacherAdaptiveRefreshDriftThreshold { get; set; } =
+        0.15d;
+
+    public bool TransformerTeacherEnableFixedAnchorValidation { get; set; } =
+        true;
+
+    public double TransformerTeacherMaximumHeadRegression { get; set; } =
+        0.05d;
 
     public int TransformerTeacherIncrementalEpochs { get; set; } = 4;
 
@@ -372,6 +397,14 @@ public sealed class CombatFoundationTrainingParameters
             Math.Min(8, MaximumConsecutiveRejectedIterations));
         NormalAcceptanceRate = Clamp(NormalAcceptanceRate, 0d, 1d, 0.80d);
         AdvancedAcceptanceRate = Clamp(AdvancedAcceptanceRate, 0d, 1d, 0.30d);
+        MinimumArenaDiscordantPairs = Math.Max(
+            1,
+            Math.Min(128, MinimumArenaDiscordantPairs));
+        MaximumOfflineHeadRegression = Clamp(
+            MaximumOfflineHeadRegression,
+            0d,
+            0.50d,
+            0.05d);
         SuccessExpertReplayShare = Clamp(
             SuccessExpertReplayShare,
             0d,
@@ -433,7 +466,12 @@ public sealed class CombatFoundationTrainingParameters
             ModelMaximumUnsafeEndTurnFrameShare,
             0.10d,
             0.80d,
-            0.35d);
+            0.20d);
+        ModelUnsafeEndTurnRiskAuxiliaryShare = Clamp(
+            ModelUnsafeEndTurnRiskAuxiliaryShare,
+            0d,
+            0.40d,
+            0.10d);
         ModelMinimumValidationRunGroups = Math.Max(
             1,
             Math.Min(256, ModelMinimumValidationRunGroups));
@@ -477,8 +515,21 @@ public sealed class CombatFoundationTrainingParameters
                 TransformerTeacherFeedForwardDimensions,
             HistoryLength = TransformerTeacherHistoryLength,
             MinimumFrames = TransformerTeacherMinimumFrames,
+            MaximumFrames = TransformerTeacherMaximumFrames,
             EnableWarmStart = TransformerTeacherEnableWarmStart,
             CpuRefreshInterval = TransformerTeacherCpuRefreshInterval,
+            CpuEpochs = TransformerTeacherCpuEpochs,
+            CpuIncrementalEpochs =
+                TransformerTeacherCpuIncrementalEpochs,
+            CpuFinalEpochs = TransformerTeacherCpuFinalEpochs,
+            EnableAdaptiveRefresh =
+                TransformerTeacherEnableAdaptiveRefresh,
+            AdaptiveRefreshDriftThreshold =
+                TransformerTeacherAdaptiveRefreshDriftThreshold,
+            EnableFixedAnchorValidation =
+                TransformerTeacherEnableFixedAnchorValidation,
+            MaximumHeadRegression =
+                TransformerTeacherMaximumHeadRegression,
             IncrementalEpochs = TransformerTeacherIncrementalEpochs,
             FinalEpochs = TransformerTeacherFinalEpochs,
             CpuThreads = TransformerTeacherCpuThreads,
@@ -503,8 +554,21 @@ public sealed class CombatFoundationTrainingParameters
             transformer.FeedForwardDimensions;
         TransformerTeacherHistoryLength = transformer.HistoryLength;
         TransformerTeacherMinimumFrames = transformer.MinimumFrames;
+        TransformerTeacherMaximumFrames = transformer.MaximumFrames;
         TransformerTeacherEnableWarmStart = transformer.EnableWarmStart;
         TransformerTeacherCpuRefreshInterval = transformer.CpuRefreshInterval;
+        TransformerTeacherCpuEpochs = transformer.CpuEpochs;
+        TransformerTeacherCpuIncrementalEpochs =
+            transformer.CpuIncrementalEpochs;
+        TransformerTeacherCpuFinalEpochs = transformer.CpuFinalEpochs;
+        TransformerTeacherEnableAdaptiveRefresh =
+            transformer.EnableAdaptiveRefresh;
+        TransformerTeacherAdaptiveRefreshDriftThreshold =
+            transformer.AdaptiveRefreshDriftThreshold;
+        TransformerTeacherEnableFixedAnchorValidation =
+            transformer.EnableFixedAnchorValidation;
+        TransformerTeacherMaximumHeadRegression =
+            transformer.MaximumHeadRegression;
         TransformerTeacherIncrementalEpochs = transformer.IncrementalEpochs;
         TransformerTeacherFinalEpochs = transformer.FinalEpochs;
         TransformerTeacherCpuThreads = transformer.CpuThreads;
@@ -778,6 +842,10 @@ public static class CombatFoundationWorkerJobFactory
                 NormalAcceptanceRate = parameters.NormalAcceptanceRate,
                 AdvancedAcceptanceRate =
                     parameters.AdvancedAcceptanceRate,
+                MinimumArenaDiscordantPairs =
+                    parameters.MinimumArenaDiscordantPairs,
+                MaximumOfflineHeadRegression =
+                    parameters.MaximumOfflineHeadRegression,
                 NativeProgramPackageHash =
                     source.NativeProgramPackageHash ?? "",
                 ExpertReplayEpisodeLimit = expertEpisodeLimit,
@@ -837,6 +905,8 @@ public static class CombatFoundationWorkerJobFactory
                         parameters.ModelEndTurnFrameWeight,
                     MaximumUnsafeEndTurnFrameShare =
                         parameters.ModelMaximumUnsafeEndTurnFrameShare,
+                    UnsafeEndTurnRiskAuxiliaryShare =
+                        parameters.ModelUnsafeEndTurnRiskAuxiliaryShare,
                     MinimumValidationRunGroups =
                         parameters.ModelMinimumValidationRunGroups,
                     MinimumTestRunGroups =
@@ -883,10 +953,25 @@ public static class CombatFoundationWorkerJobFactory
                         parameters.TransformerTeacherHistoryLength,
                     MinimumFrames =
                         parameters.TransformerTeacherMinimumFrames,
+                    MaximumFrames =
+                        parameters.TransformerTeacherMaximumFrames,
                     EnableWarmStart =
                         parameters.TransformerTeacherEnableWarmStart,
                     CpuRefreshInterval =
                         parameters.TransformerTeacherCpuRefreshInterval,
+                    CpuEpochs = parameters.TransformerTeacherCpuEpochs,
+                    CpuIncrementalEpochs =
+                        parameters.TransformerTeacherCpuIncrementalEpochs,
+                    CpuFinalEpochs =
+                        parameters.TransformerTeacherCpuFinalEpochs,
+                    EnableAdaptiveRefresh =
+                        parameters.TransformerTeacherEnableAdaptiveRefresh,
+                    AdaptiveRefreshDriftThreshold = parameters
+                        .TransformerTeacherAdaptiveRefreshDriftThreshold,
+                    EnableFixedAnchorValidation = parameters
+                        .TransformerTeacherEnableFixedAnchorValidation,
+                    MaximumHeadRegression = parameters
+                        .TransformerTeacherMaximumHeadRegression,
                     IncrementalEpochs =
                         parameters.TransformerTeacherIncrementalEpochs,
                     FinalEpochs =

@@ -184,7 +184,10 @@ internal static class CombatPolicyValueBatchTrainer
         trainingFrames = CapUnsafeEndTurnFrames(
             trainingFrames,
             options.MaximumUnsafeEndTurnFrameShare,
-            out var droppedUnsafeEndTurnFrames);
+            options.UnsafeEndTurnRiskAuxiliaryShare,
+            out var droppedUnsafeEndTurnFrames,
+            out var unsafeEndTurnPolicyFrames,
+            out var unsafeEndTurnRiskAuxiliaryFrames);
         var validationFrames = encodedValidation ?? encodedTraining;
         var testFrames = encodedTest;
         if (trainingFrames.Length == 0)
@@ -195,10 +198,18 @@ internal static class CombatPolicyValueBatchTrainer
         result.TrainingFrameCount = trainingFrames.Length;
         result.DroppedUnsafeEndTurnFrames =
             droppedUnsafeEndTurnFrames;
+        result.UnsafeEndTurnPolicyFrames = unsafeEndTurnPolicyFrames;
+        result.UnsafeEndTurnRiskAuxiliaryFrames =
+            unsafeEndTurnRiskAuxiliaryFrames;
         result.EndTurnDecisionFrames =
             trainingFrames.Count(frame => frame.EndTurnDecision);
         result.UnsafeEndTurnFrames =
             trainingFrames.Count(frame => frame.UnsafeEndTurn);
+        result.TransformerDistillationTrainingFrames =
+            trainingFrames.Count(frame =>
+                frame.TransformerTeacherApplied && !frame.AuxiliaryOnly);
+        result.TransformerDistillationValidationFrames =
+            validationFrames.Count(frame => frame.TransformerTeacherApplied);
         result.MeanPolicyTargetMaximum = trainingFrames.Average(frame =>
             frame.PolicyTargets.Length == 0
                 ? 0d
@@ -227,6 +238,13 @@ internal static class CombatPolicyValueBatchTrainer
         var model = Compatible(resume?.Model, profile, options)
             ? Clone(resume!.Model!)
             : Initialize(profile, options);
+        result.BaselineValidationMetrics = Snapshot(
+            Evaluate(
+                model,
+                validationFrames,
+                options.MaximumDegreeOfParallelism,
+                cancellationToken),
+            validationFrames.Length);
         var optimizer = CompatibleOptimizer(resume?.Optimizer, model)
             ? CloneOptimizer(resume!.Optimizer!)
             : NewOptimizer(model);
@@ -641,9 +659,13 @@ internal static class CombatPolicyValueBatchTrainer
                 .Count(),
             ["trainingPolicyAccuracy"] = trainingMetrics.PolicyAccuracy,
             ["trainingTransformerTeacherFrames"] = trainingFrames.Count(frame =>
-                frame.TransformerTeacherApplied),
+                frame.TransformerTeacherApplied && !frame.AuxiliaryOnly),
             ["validationTransformerTeacherFrames"] = validationFrames.Count(frame =>
                 frame.TransformerTeacherApplied),
+            ["unsafeEndTurnPolicyFrames"] =
+                result.UnsafeEndTurnPolicyFrames,
+            ["unsafeEndTurnRiskAuxiliaryFrames"] =
+                result.UnsafeEndTurnRiskAuxiliaryFrames,
             ["trainingPolicyCrossEntropy"] =
                 trainingMetrics.PolicyCrossEntropy,
             ["trainingCriticalPolicyAccuracy"] =
@@ -957,9 +979,14 @@ internal static class CombatPolicyValueBatchTrainer
     private static EncodedFrame[] CapUnsafeEndTurnFrames(
         EncodedFrame[] source,
         double maximumShare,
-        out int droppedFrames)
+        double auxiliaryShare,
+        out int droppedFrames,
+        out int policyFrames,
+        out int auxiliaryFrames)
     {
         droppedFrames = 0;
+        policyFrames = source.Count(frame => frame.UnsafeEndTurn);
+        auxiliaryFrames = 0;
         if (source.Length < 64)
         {
             return source;
@@ -993,11 +1020,49 @@ internal static class CombatPolicyValueBatchTrainer
             .Take(maximumUnsafeCount)
             .Select(item => item.Index)
             .ToHashSet();
+        var auxiliaryLimit = auxiliaryShare <= 0d
+            ? 0
+            : Math.Max(
+                1,
+                (int)Math.Floor(
+                    nonUnsafeCount
+                    * auxiliaryShare
+                    / Math.Max(0.000001d, 1d - auxiliaryShare)));
+        var auxiliaryIndices = source
+            .Select((frame, index) => new { Frame = frame, Index = index })
+            .Where(item => item.Frame.UnsafeEndTurn
+                           && !retainedUnsafeIndices.Contains(item.Index))
+            .OrderBy(item => StableSplitHash(
+                item.Frame.RunKey
+                + "|risk-auxiliary|"
+                + item.Frame.Stratum
+                + "|"
+                + item.Index))
+            .ThenBy(item => item.Index)
+            .Take(auxiliaryLimit)
+            .Select(item => item.Index)
+            .ToHashSet();
         var retained = source
             .Where((frame, index) =>
-                !frame.UnsafeEndTurn
-                || retainedUnsafeIndices.Contains(index))
+            {
+                if (!frame.UnsafeEndTurn
+                    || retainedUnsafeIndices.Contains(index))
+                {
+                    return true;
+                }
+                if (!auxiliaryIndices.Contains(index))
+                {
+                    return false;
+                }
+                frame.AuxiliaryOnly = true;
+                frame.BaseSampleWeight *= 0.50d;
+                frame.SampleWeight = frame.BaseSampleWeight;
+                frame.Stratum += ":risk-auxiliary";
+                return true;
+            })
             .ToArray();
+        policyFrames = retainedUnsafeIndices.Count;
+        auxiliaryFrames = auxiliaryIndices.Count;
         droppedFrames = source.Length - retained.Length;
         return retained;
     }
@@ -1412,43 +1477,58 @@ internal static class CombatPolicyValueBatchTrainer
         var active = features.Where(pair =>
                 pair.Value > 0.5d
                 && pair.Key.StartsWith(
-                    "roleStrategy:",
+                    CombatRoleStrategyFeatureNames.Prefix,
+                    StringComparison.OrdinalIgnoreCase)
+                && !pair.Key.StartsWith(
+                    CombatRoleStrategyFeatureNames.TrainingQuotaPrefix,
                     StringComparison.OrdinalIgnoreCase))
-            .Select(pair => pair.Key)
+            .Select(pair => pair.Key.ToLowerInvariant())
             .ToArray();
-        if (active.Any(key => key.IndexOf(
-                "survival",
-                StringComparison.OrdinalIgnoreCase) >= 0))
+        if (HasStrategySignal(
+                active,
+                "survival-override",
+                "survival-action"))
         {
             return "strategy-survival";
         }
-        if (active.Any(key => key.IndexOf(
-                "finale",
-                StringComparison.OrdinalIgnoreCase) >= 0))
+        if (HasStrategySignal(active, "finale-safe", "finale-line"))
         {
             return "strategy-finale";
         }
-        if (active.Any(key => key.IndexOf(
-                "transform",
-                StringComparison.OrdinalIgnoreCase) >= 0))
+        if (HasStrategySignal(
+                active,
+                "bank-for-next-turn",
+                "intent-bank",
+                "bank-transform"))
+        {
+            return "strategy-bank";
+        }
+        if (HasStrategySignal(
+                active,
+                "transformed",
+                "transform-ready",
+                "early-transform"))
         {
             return "strategy-transform";
         }
-        if (active.Any(key => key.IndexOf(
-                "growth",
-                StringComparison.OrdinalIgnoreCase) >= 0))
+        if (HasStrategySignal(
+                active,
+                "safe-growth-window",
+                "growth-builder"))
         {
             return "strategy-growth";
-        }
-        if (active.Any(key => key.IndexOf(
-                "bank",
-                StringComparison.OrdinalIgnoreCase) >= 0))
-        {
-            return "strategy-bank";
         }
         return active.Length == 0
             ? "strategy-baseline"
             : "strategy-other";
+    }
+
+    private static bool HasStrategySignal(
+        IEnumerable<string> keys,
+        params string[] signals)
+    {
+        return keys.Any(key => signals.Any(signal =>
+            key.EndsWith(signal, StringComparison.OrdinalIgnoreCase)));
     }
 
     private static void ApplyFrameStratumWeights(
@@ -1573,6 +1653,7 @@ internal static class CombatPolicyValueBatchTrainer
         {
             var outputGradient = probabilities[actionIndex]
                                  - frame.PolicyTargets[actionIndex];
+            outputGradient *= frame.AuxiliaryOnly ? 0d : 1d;
             gradient.PolicyBias += outputGradient;
             var actionGradient = workspace.ActionGradient;
             Array.Clear(actionGradient, 0, hiddenCount);
@@ -1609,6 +1690,7 @@ internal static class CombatPolicyValueBatchTrainer
                 var asymmetry = error >= 0d ? 1d - tau : tau;
                 var huberGradient = Clamp(error, -1d, 1d);
                 var quantileGradient = frame.ActionQuantileLossWeight
+                                       * (frame.AuxiliaryOnly ? 0d : 1d)
                                        * asymmetry
                                        * huberGradient
                                        / Math.Max(1, quantileTargets.Length);
@@ -1724,7 +1806,8 @@ internal static class CombatPolicyValueBatchTrainer
                 ? 0d
                 : actionQuantileMae / actionQuantileLabels,
             ActionQuantileLabelCount = actionQuantileLabels,
-            Critical = frame.Critical
+            Critical = frame.Critical,
+            PolicyIncluded = !frame.AuxiliaryOnly
         };
     }
 
@@ -2107,6 +2190,7 @@ internal static class CombatPolicyValueBatchTrainer
             return new Metrics();
         }
         var correct = 0;
+        var policyCount = 0;
         var criticalCorrect = 0;
         var criticalCount = 0;
         var valueError = 0d;
@@ -2121,33 +2205,41 @@ internal static class CombatPolicyValueBatchTrainer
         for (var offset = 0; offset < indexes.Count; offset++)
         {
             var index = indexes[offset];
-            correct += results[index].Correct;
+            if (results[index].PolicyIncluded)
+            {
+                policyCount++;
+                correct += results[index].Correct;
+                policyCrossEntropy += results[index].PolicyCrossEntropy;
+                actionQuantilePinball += results[index].ActionQuantilePinball
+                                         * results[index].ActionQuantileLabelCount;
+                actionQuantileMae += results[index].ActionQuantileMae
+                                     * results[index].ActionQuantileLabelCount;
+                actionQuantileLabels += results[index].ActionQuantileLabelCount;
+                if (results[index].Critical)
+                {
+                    criticalCount++;
+                    criticalCorrect += results[index].Correct;
+                }
+            }
             valueError += results[index].ValueError;
             brier += results[index].Brier;
             deathBrier += results[index].DeathBrier;
             hpError += results[index].HpError;
             turnHuber += results[index].TurnHuber;
-            policyCrossEntropy += results[index].PolicyCrossEntropy;
-            actionQuantilePinball += results[index].ActionQuantilePinball
-                                     * results[index].ActionQuantileLabelCount;
-            actionQuantileMae += results[index].ActionQuantileMae
-                                 * results[index].ActionQuantileLabelCount;
-            actionQuantileLabels += results[index].ActionQuantileLabelCount;
-            if (results[index].Critical)
-            {
-                criticalCount++;
-                criticalCorrect += results[index].Correct;
-            }
         }
         return new Metrics
         {
-            PolicyAccuracy = (double)correct / indexes.Count,
+            PolicyAccuracy = policyCount == 0
+                ? 0d
+                : (double)correct / policyCount,
             ValueMae = valueError / indexes.Count,
             Brier = brier / indexes.Count,
             DeathBrier = deathBrier / indexes.Count,
             HpMae = hpError / indexes.Count,
             TurnHuber = turnHuber / indexes.Count,
-            PolicyCrossEntropy = policyCrossEntropy / indexes.Count,
+            PolicyCrossEntropy = policyCount == 0
+                ? 0d
+                : policyCrossEntropy / policyCount,
             ActionQuantilePinball = actionQuantileLabels == 0
                 ? 0d
                 : actionQuantilePinball / actionQuantileLabels,
@@ -2156,7 +2248,9 @@ internal static class CombatPolicyValueBatchTrainer
                 : actionQuantileMae / actionQuantileLabels,
             ActionQuantileLabelCount = actionQuantileLabels,
             CriticalPolicyAccuracy = criticalCount == 0
-                ? (double)correct / indexes.Count
+                ? policyCount == 0
+                    ? 0d
+                    : (double)correct / policyCount
                 : (double)criticalCorrect / criticalCount
         };
     }
@@ -2363,7 +2457,8 @@ internal static class CombatPolicyValueBatchTrainer
                 ? 0d
                 : actionQuantileMae / actionQuantileLabels,
             ActionQuantileLabelCount = actionQuantileLabels,
-            Critical = frame.Critical
+            Critical = frame.Critical,
+            PolicyIncluded = !frame.AuxiliaryOnly
         };
     }
 
@@ -3030,6 +3125,8 @@ internal static class CombatPolicyValueBatchTrainer
 
         public bool UnsafeEndTurn { get; set; }
 
+        public bool AuxiliaryOnly { get; set; }
+
         public string Stratum { get; set; } = "";
 
         public double SampleWeight { get; set; } = 1d;
@@ -3314,5 +3411,7 @@ internal static class CombatPolicyValueBatchTrainer
         public int ActionQuantileLabelCount { get; set; }
 
         public bool Critical { get; set; }
+
+        public bool PolicyIncluded { get; set; }
     }
 }
