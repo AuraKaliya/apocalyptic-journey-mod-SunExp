@@ -68,6 +68,21 @@ public sealed class AutoBattleSettings
     [JsonProperty("minimumSearchConfidence")]
     public double MinimumSearchConfidence { get; set; } = 0.35d;
 
+    [JsonProperty("searchModelEvaluationBudget")]
+    public int SearchModelEvaluationBudget { get; set; } = 384;
+
+    [JsonProperty("riskPreference")]
+    public double RiskPreference { get; set; } = -1d;
+
+    [JsonProperty("enableActorCandidatePruning")]
+    public bool EnableActorCandidatePruning { get; set; }
+
+    [JsonProperty("actorCandidateTopK")]
+    public int ActorCandidateTopK { get; set; } = 12;
+
+    [JsonProperty("actorCandidateProbabilityMass")]
+    public double ActorCandidateProbabilityMass { get; set; } = 0.995d;
+
     [JsonProperty("gameParameters")]
     public AutoBattleGameParameterSettings GameParameters { get; set; } = new();
 
@@ -112,6 +127,20 @@ public sealed class AutoBattleSettings
         MinimumSearchConfidence = Math.Max(
             0.1d,
             Math.Min(0.8d, MinimumSearchConfidence));
+        SearchModelEvaluationBudget = Math.Max(
+            32,
+            Math.Min(4096, SearchModelEvaluationBudget));
+        RiskPreference = double.IsNaN(RiskPreference)
+                         || double.IsInfinity(RiskPreference)
+            ? -1d
+            : Math.Max(-1d, Math.Min(1d, RiskPreference));
+        ActorCandidateTopK = Math.Max(4, Math.Min(64, ActorCandidateTopK));
+        ActorCandidateProbabilityMass = double.IsNaN(
+                                                ActorCandidateProbabilityMass)
+                                            || double.IsInfinity(
+                                                ActorCandidateProbabilityMass)
+            ? 0.995d
+            : Math.Max(0.80d, Math.Min(1d, ActorCandidateProbabilityMass));
         GameParameters.Normalize();
         Training.Normalize();
         FoundationTraining ??= new AutoBattleFoundationTrainingSettings();

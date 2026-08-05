@@ -514,6 +514,30 @@ public sealed class CombatSimulationEngine
                         metrics.SearchNodes += Math.Max(
                             0,
                             metricsProvider.LastDecisionMetrics.SearchNodes);
+                        metrics.SearchMillisecondsTotal += Math.Max(
+                            0d,
+                            metricsProvider.LastDecisionMetrics.SearchMilliseconds);
+                        metrics.ModelEvaluations += Math.Max(
+                            0,
+                            metricsProvider.LastDecisionMetrics.ModelEvaluations);
+                        metrics.ModelCacheHits += Math.Max(
+                            0,
+                            metricsProvider.LastDecisionMetrics.ModelCacheHits);
+                        metrics.OriginalSearchCandidates += Math.Max(
+                            0,
+                            metricsProvider.LastDecisionMetrics.OriginalCandidates);
+                        metrics.RetainedSearchCandidates += Math.Max(
+                            0,
+                            metricsProvider.LastDecisionMetrics.RetainedCandidates);
+                        if (metricsProvider.LastDecisionMetrics.SearchStoppedByTime)
+                        {
+                            metrics.SearchTimeBudgetStops++;
+                        }
+                        if (metricsProvider.LastDecisionMetrics
+                            .SearchStoppedByModelBudget)
+                        {
+                            metrics.SearchModelBudgetStops++;
+                        }
                         if (metricsProvider.LastDecisionMetrics.SearchStoppedEarly)
                         {
                             metrics.SearchEarlyStops++;

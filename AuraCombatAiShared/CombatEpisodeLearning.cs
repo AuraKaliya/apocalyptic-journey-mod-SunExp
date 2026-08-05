@@ -12,12 +12,12 @@ public static class CombatPolicyValueProtocol
     public const int FeatureSchemaVersion = 26;
 
     public const string TrainingSemanticsVersion =
-        "content-set-quantile-q-registered-content-replay-base-role-skill-timing-auto-tune-arena-v18";
+        "content-set-quantile-q-role-quota-risk-aux-fixed-anchor-promotion-v19";
 }
 
 public static class CombatPolicyValueFrameStratificationProtocol
 {
-    public const string Version = "frame-strata-v5-end-turn-counterfactual";
+    public const string Version = "frame-strata-v7-strategy-quota-risk-aux";
 
     public const double MinimumWeight = 0.50d;
 
@@ -133,6 +133,8 @@ public sealed class CombatEpisodeFrame
     public Dictionary<string, double> StateFeatures { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
 
+    public CombatObservationEnvelope Observation { get; set; } = new();
+
     public List<CombatEpisodeCandidate> Candidates { get; set; } = new();
 
     public string ExecutedCandidateId { get; set; } = "";
@@ -175,6 +177,8 @@ public sealed class CombatEpisodeCandidate
     public double SearchLowerTailMean { get; set; }
 
     public List<double> SearchReturnQuantiles { get; set; } = new();
+
+    public double TransformerTeacherProbability { get; set; } = -1d;
 
     public Dictionary<string, double> Features { get; set; } =
         new(StringComparer.OrdinalIgnoreCase);
@@ -230,7 +234,9 @@ public sealed class CombatPolicyValueTrainingOptions
 
     public double EndTurnFrameWeight { get; set; } = 1d;
 
-    public double MaximumUnsafeEndTurnFrameShare { get; set; } = 0.35d;
+    public double MaximumUnsafeEndTurnFrameShare { get; set; } = 0.20d;
+
+    public double UnsafeEndTurnRiskAuxiliaryShare { get; set; } = 0.10d;
 
     public int MinimumValidationRunGroups { get; set; } = 16;
 
@@ -240,6 +246,8 @@ public sealed class CombatPolicyValueTrainingOptions
 
     public double MaximumPolicyTargetProbability { get; set; } = 0.90d;
 
+    public double TransformerDistillationWeight { get; set; }
+
     public double MaximumFrameStratumWeight { get; set; } =
         CombatPolicyValueFrameStratificationProtocol.DefaultMaximumWeight;
 
@@ -247,6 +255,19 @@ public sealed class CombatPolicyValueTrainingOptions
 
     public CombatPolicyValueTrainingOptions Normalized()
     {
+        var normalizedBatchSize = Math.Max(8, Math.Min(512, BatchSize));
+        var normalizedParallelism = Math.Max(
+            1,
+            Math.Min(Environment.ProcessorCount, MaximumDegreeOfParallelism));
+        var normalizedGradientShards = GradientShardCount <= 0
+            ? Math.Max(
+                1,
+                Math.Min(
+                    32,
+                    Math.Min(
+                        normalizedParallelism,
+                        (normalizedBatchSize + 1) / 2)))
+            : Math.Max(1, Math.Min(32, GradientShardCount));
         return new CombatPolicyValueTrainingOptions
         {
             Epochs = Math.Max(5, Math.Min(500, Epochs)),
@@ -268,13 +289,9 @@ public sealed class CombatPolicyValueTrainingOptions
             RandomSeed = RandomSeed,
             MinimumEpisodes = Math.Max(2, Math.Min(10000, MinimumEpisodes)),
             RequireAuthoritativeEpisodes = RequireAuthoritativeEpisodes,
-            BatchSize = Math.Max(8, Math.Min(512, BatchSize)),
-            GradientShardCount = Math.Max(
-                1,
-                Math.Min(32, GradientShardCount)),
-            MaximumDegreeOfParallelism = Math.Max(
-                1,
-                Math.Min(Environment.ProcessorCount, MaximumDegreeOfParallelism)),
+            BatchSize = normalizedBatchSize,
+            GradientShardCount = normalizedGradientShards,
+            MaximumDegreeOfParallelism = normalizedParallelism,
             MinimumEpochs = Math.Max(1, Math.Min(Epochs, MinimumEpochs)),
             EarlyStoppingPatience = Math.Max(
                 1,
@@ -301,7 +318,12 @@ public sealed class CombatPolicyValueTrainingOptions
                 MaximumUnsafeEndTurnFrameShare,
                 0.10d,
                 0.80d,
-                0.35d),
+                0.20d),
+            UnsafeEndTurnRiskAuxiliaryShare = Clamp(
+                UnsafeEndTurnRiskAuxiliaryShare,
+                0d,
+                0.40d,
+                0.10d),
             MinimumValidationRunGroups = Math.Max(
                 1,
                 Math.Min(256, MinimumValidationRunGroups)),
@@ -318,6 +340,11 @@ public sealed class CombatPolicyValueTrainingOptions
                 0.55d,
                 1d,
                 0.90d),
+            TransformerDistillationWeight = Clamp(
+                TransformerDistillationWeight,
+                0d,
+                0.75d,
+                0d),
             MaximumFrameStratumWeight = Clamp(
                 MaximumFrameStratumWeight,
                 1d,
@@ -352,6 +379,14 @@ public sealed class CombatPolicyValueTrainingResult
     public int TrainingFrameCount { get; set; }
 
     public int DroppedUnsafeEndTurnFrames { get; set; }
+
+    public int UnsafeEndTurnPolicyFrames { get; set; }
+
+    public int UnsafeEndTurnRiskAuxiliaryFrames { get; set; }
+
+    public int TransformerDistillationTrainingFrames { get; set; }
+
+    public int TransformerDistillationValidationFrames { get; set; }
 
     public int DroppedPolicyIntegrityFrames { get; set; }
 
@@ -390,6 +425,11 @@ public sealed class CombatPolicyValueTrainingResult
 
     public CombatPolicyValueMetricSnapshot ValidationMetrics { get; set; } =
         new();
+
+    public CombatPolicyValueMetricSnapshot BaselineValidationMetrics {
+        get;
+        set;
+    } = new();
 
     public CombatPolicyValueMetricSnapshot TestMetrics { get; set; } =
         new();

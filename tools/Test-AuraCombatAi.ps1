@@ -51,6 +51,17 @@ $interactionPath = Join-Path $root "AuraCombatAiShared\GameApi\WitchCombatIntera
 $runtimePath = Join-Path $root "AuraCombatAiShared\GameApi\WitchCombatRuntime.cs"
 $playerEquivalentPath = Join-Path $root "AuraCombatAiShared\CombatPlayerEquivalent.cs"
 $plannerPath = Join-Path $root "AuraCombatAiShared\CombatRiskAwareRootSamplingPuctPlanner.cs"
+$worldModelContractsPath = Join-Path $root "AuraCombatAiShared\CombatWorldModelContracts.cs"
+$governancePath = Join-Path $root "AuraCombatAiShared\CombatDecisionGovernance.cs"
+$transformerTeacherPath = Join-Path $root "AuraCombatAiShared\CombatTransformerTeacher.cs"
+$transformerRuntimeResolverPath = Join-Path $root `
+    "AuraCombatAiShared\CombatTransformerRuntimeResolver.cs"
+$foundationAutoTuningPath = Join-Path $root `
+    "AuraCombatAiShared\CombatFoundationAutoTuning.cs"
+$transformerTeacherScriptPath = Join-Path $root `
+    "tools\transformer-teacher\train_teacher.py"
+$packagedTransformerTeacherScriptPath = Join-Path $root `
+    "AuraToolsExp\TrainingWorker\TransformerTeacher\train_teacher.py"
 $riskStatisticsPath = Join-Path $root "AuraCombatAiShared\CombatSearchRiskStatistics.cs"
 $searchBudgetPath = Join-Path $root "AuraCombatAiShared\CombatSearchBudgetPolicy.cs"
 $loopSafetyPath = Join-Path $root "AuraCombatAiShared\CombatLoopSafetyAnalyzer.cs"
@@ -116,6 +127,16 @@ $interaction = Get-Content -LiteralPath $interactionPath -Raw
 $runtime = Get-Content -LiteralPath $runtimePath -Raw
 $playerEquivalent = Get-Content -LiteralPath $playerEquivalentPath -Raw
 $planner = Get-Content -LiteralPath $plannerPath -Raw
+$worldModelContracts = Get-Content -LiteralPath $worldModelContractsPath -Raw
+$governance = Get-Content -LiteralPath $governancePath -Raw
+$transformerTeacher = Get-Content -LiteralPath $transformerTeacherPath -Raw
+$transformerRuntimeResolver = Get-Content `
+    -LiteralPath $transformerRuntimeResolverPath -Raw
+$foundationAutoTuning = Get-Content -LiteralPath $foundationAutoTuningPath -Raw
+$transformerTeacherScript = Get-Content `
+    -LiteralPath $transformerTeacherScriptPath -Raw
+$packagedTransformerTeacherScript = Get-Content `
+    -LiteralPath $packagedTransformerTeacherScriptPath -Raw
 $riskStatistics = Get-Content -LiteralPath $riskStatisticsPath -Raw
 $searchBudget = Get-Content -LiteralPath $searchBudgetPath -Raw
 $loopSafety = Get-Content -LiteralPath $loopSafetyPath -Raw
@@ -520,6 +541,8 @@ foreach ($anchor in @(
     "TerminalConsistencyViolations",
     "FeatureLeakageViolations",
     "Math.Min(1024",
+    "AutoTuneCampaignKey",
+    "BuildAutoTuneParallelismCandidates",
     "RetainValidationRunDetails",
     "CompactValidationRun(campaign)"
 )) {
@@ -818,6 +841,8 @@ foreach ($anchor in @(
     "ReplayIdentity",
     "EpisodeSnapshot = nextSnapshot",
     "checkpointWriteFailures++",
+    "memory-tier-",
+    "AutoTuneCampaignKey",
     "TryGetResumableCheckpoint",
     "WriteAtomicJson",
     "training.ValidationRuns.Clear()"
@@ -998,7 +1023,10 @@ foreach ($anchor in @(
     "BuildPrincipalVariation",
     "RootLeadIsStable",
     "CombatLoopSafetyAnalyzer",
-    "BuildLoopSummary"
+    "BuildLoopSummary",
+    "SearchModelEvaluationBudget",
+    "StoppedByModelBudget",
+    "PruneActorCandidates"
 )) {
     if (-not $planner.Contains($anchor)) {
         throw "Aura combat AI risk-aware root-sampling PUCT contract is missing: $anchor"
@@ -1009,7 +1037,8 @@ foreach ($anchor in @(
     "EffectiveLowerTailMean",
     "TailRiskPenalty",
     "UncertaintyPenalty",
-    "StandardError"
+    "StandardError",
+    "RiskPreference"
 )) {
     if (-not $riskStatistics.Contains($anchor)) {
         throw "Aura combat AI risk statistics contract is missing: $anchor"
@@ -1020,12 +1049,108 @@ foreach ($anchor in @(
     "SearchSimulationBudget",
     "SearchNodeBudget",
     "SearchMaxPly",
+    "SearchModelEvaluationBudget",
+    "EnableActorCandidatePruning",
     "damage-cap-or-limit",
     "loop-or-fake-loop"
 )) {
     if (-not $searchBudget.Contains($anchor)) {
         throw "Aura combat AI dynamic search budget contract is missing: $anchor"
     }
+}
+
+foreach ($anchor in @(
+    "aura.combat-world-model.observation.v1",
+    "CombatObjectTokenKind",
+    "CombatTypedActionEnvelope",
+    "CombatTransitionEnvelope",
+    "CardInstanceBound",
+    "SkillLifecycleBound",
+    "CombatWorldModelCoverageManifest",
+    "CombatCampaignWorldModelTokenizer",
+    "CombatWorldModelTokenEncoding"
+)) {
+    if (-not $worldModelContracts.Contains($anchor)) {
+        throw "Aura combat Transformer object protocol is missing: $anchor"
+    }
+}
+
+foreach ($anchor in @(
+    "CombatDecisionGovernance",
+    "CombatGovernanceDecision",
+    "SelectSafeFallback",
+    "StoppedByModelBudget",
+    "ModelEvaluations",
+    "ModelCacheHits"
+)) {
+    if (-not $governance.Contains($anchor)) {
+        throw "Aura combat decision governance contract is missing: $anchor"
+    }
+}
+
+foreach ($anchor in @(
+    "aura.combat-transformer-world-model.v2",
+    "AutomaticExecutable",
+    "HiddenDimensions { get; set; } = 384",
+    "Layers { get; set; } = 6",
+    "AttentionHeads { get; set; } = 8",
+    "FeedForwardDimensions { get; set; } = 1536",
+    "EnableWarmStart { get; set; } = true",
+    "MaximumFrames { get; set; } = 10000",
+    "CpuRefreshInterval { get; set; } = 4",
+    "CpuEpochs { get; set; } = 4",
+    "CpuIncrementalEpochs { get; set; } = 1",
+    "CpuFinalEpochs { get; set; } = 4",
+    "EnableFixedAnchorValidation { get; set; } = true",
+    "CombatTransformerTeacherProgress",
+    "ValidationDynamicsMse",
+    "ValidationOutcomeMae",
+    "WorldModelQualityGatePassed"
+)) {
+    if (-not $transformerTeacher.Contains($anchor)) {
+        throw "Aura combat Transformer world-model teacher contract is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
+    "aura.transformer-runtime-probe.v1",
+    "AURA_TRANSFORMER_PYTHON",
+    "AuraTF",
+    "CudaAvailable",
+    "ResolutionSource"
+)) {
+    if (-not $transformerRuntimeResolver.Contains($anchor)) {
+        throw "Aura Transformer runtime discovery contract is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
+    "foundation-auto-tune-v4",
+    "foundation-auto-tune-v4.json"
+)) {
+    if (-not $foundationAutoTuning.Contains($anchor)) {
+        throw "Aura foundation auto-tune protocol is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
+    "--micro-batch-size",
+    "LengthBucketBatchSampler",
+    "tensorize_rows",
+    "runtime-auto-tune-v2",
+    "fixed-anchor",
+    "maximum-head-regression",
+    "--resume-model",
+    "--training-enabled",
+    "AURA_TEACHER_PROGRESS",
+    "working_set_bytes",
+    '"_sampling_repeats"',
+    '"TrainingFramesPerSecond"',
+    "torch.autocast"
+)) {
+    if (-not $transformerTeacherScript.Contains($anchor)) {
+        throw "Aura Transformer teacher execution plan is missing: $anchor"
+    }
+}
+if ($transformerTeacherScript -cne $packagedTransformerTeacherScript) {
+    throw "Packaged Transformer teacher script differs from its source copy."
 }
 foreach ($anchor in @(
     "CombatLoopClassification",
@@ -1088,13 +1213,14 @@ foreach ($anchor in @(
 foreach ($anchor in @(
     "aura.combat-ai.episode.v5",
     "public const int FeatureSchemaVersion = 26",
-    "content-set-quantile-q-registered-content-replay-base-role-skill-timing-auto-tune-arena-v18",
-    "frame-strata-v5-end-turn-counterfactual",
+    "content-set-quantile-q-role-quota-risk-aux-fixed-anchor-promotion-v19",
+    "frame-strata-v7-strategy-quota-risk-aux",
     "CombatCampaignEpisodeMetadata",
     "TerminalSnapshotKnown",
     "TerminalDoomPower",
     "LongTermReturn",
     "SearchVisits",
+    "CombatObservationEnvelope Observation",
     "PolicyTargets",
     "CancellationToken cancellationToken"
 )) {
@@ -1107,10 +1233,24 @@ foreach ($anchor in @(
     "SemanticCoverage >= 1d",
     "Math.Pow(0.99d",
     "CombatEpisodeFrame",
-    "SearchDeathRisk"
+    "SearchDeathRisk",
+    "CombatWorldModelTokenizer.Build"
 )) {
     if (-not $episodeRecorder.Contains($anchor)) {
         throw "Aura combat episode recorder contract is missing: $anchor"
+    }
+}
+
+foreach ($anchor in @(
+    "aura.combat-ai.transformer-adapter.v2",
+    "CombatTransformerAdapterComposition",
+    "CombatTransformerLoRAMerger",
+    "BuildMergeCacheKey",
+    "preference LoRA may target only actor modules",
+    "TransformerAdapter"
+)) {
+    if (-not ($modelAdapters.Contains($anchor) -or $contentPackages.Contains($anchor))) {
+        throw "Aura combat Transformer LoRA v2 contract is missing: $anchor"
     }
 }
 

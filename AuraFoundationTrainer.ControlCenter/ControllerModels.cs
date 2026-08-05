@@ -6,7 +6,7 @@ namespace AuraFoundationTrainer.ControlCenter;
 
 internal sealed class ControllerSettings
 {
-    public int SchemaVersion { get; set; } = 6;
+    public int SchemaVersion { get; set; } = 12;
 
     [JsonIgnore]
     public string ModRoot { get; set; } = "";
@@ -25,12 +25,85 @@ internal sealed class ControllerSettings
 
     private static CombatFoundationTrainingParameters CreateDefaultParameters()
     {
+        // Keep the independent trainer's vetted development preset explicit.
+        // Persisted controller settings still take precedence over these defaults.
         return new CombatFoundationTrainingParameters
         {
+            GovernanceProfile =
+                CombatFoundationGovernanceProfileNames.Development,
+            Iterations = 8,
+            AdditionalIterationsOnResume = 2,
+            TrainingCampaignsPerIteration = 96,
+            ArenaCampaignsPerDifficulty = 16,
+            ArenaConfirmationCampaignsPerDifficulty = 48,
+            NormalValidationCampaigns = 100,
+            AdvancedValidationCampaigns = 200,
+            CapabilityProbeCampaignsPerDifficulty = 64,
+            CapabilityProbeTeacherCampaignsPerDifficulty = 16,
+            CapabilityProbeBatchSize = 16,
+            PreflightCampaignsPerDifficulty = 16,
+            TuningInterval = 2,
             ParallelismProfile =
                 CombatFoundationExecutionProfileNames.Auto,
             InferenceExecutionMode =
-                CombatFoundationExecutionProfileNames.DirectInference,
+                CombatFoundationExecutionProfileNames.ShardedBatchInference,
+            InferenceParallelism = 0,
+            InferenceLaneCount = 0,
+            InferenceBatchSize = 0,
+            AutoTuneSampleCampaigns = 16,
+            AutoTuneObjective =
+                CombatFoundationAutoTuneObjectiveNames.MaximumThroughput,
+            EnableOfflineTuningGate = true,
+            EnableSequentialArenaStop = true,
+            ArenaEvaluationBatchSize = 16,
+            SuccessExpertReplayShare = 0.10d,
+            MinimumAdvancedReplayShare = 0.40d,
+            MinimumAdvancedDefeatReplayShare = 0.25d,
+            SelfPlayExplorationProbability = 0.15d,
+            ModelEpochs = 40,
+            ModelBatchSize = 64,
+            ModelGradientShardCount = 0,
+            ModelMaximumUnsafeEndTurnFrameShare = 0.20d,
+            ModelUnsafeEndTurnRiskAuxiliaryShare = 0.10d,
+            MinimumArenaDiscordantPairs = 8,
+            MaximumOfflineHeadRegression = 0.05d,
+            ModelLearningRate = 0.004d,
+            ModelL2 = 0.002d,
+            ModelStateDimensions = 256,
+            ModelActionDimensions = 256,
+            ModelHiddenDimensions = 64,
+            TransformerTeacherBackend =
+                CombatTransformerTeacherBackendNames.Auto,
+            TransformerTeacherEpochs = 12,
+            TransformerTeacherBatchSize = 64,
+            TransformerTeacherStateDimensions = 128,
+            TransformerTeacherActionDimensions = 128,
+            TransformerTeacherHiddenDimensions = 384,
+            TransformerTeacherLayers = 6,
+            TransformerTeacherAttentionHeads = 8,
+            TransformerTeacherFeedForwardDimensions = 1536,
+            TransformerTeacherHistoryLength = 12,
+            TransformerTeacherMinimumFrames = 4096,
+            TransformerTeacherMaximumFrames = 10000,
+            TransformerTeacherEnableWarmStart = true,
+            TransformerTeacherCpuRefreshInterval = 4,
+            TransformerTeacherCpuEpochs = 4,
+            TransformerTeacherCpuIncrementalEpochs = 1,
+            TransformerTeacherCpuFinalEpochs = 4,
+            TransformerTeacherEnableAdaptiveRefresh = true,
+            TransformerTeacherAdaptiveRefreshDriftThreshold = 0.15d,
+            TransformerTeacherEnableFixedAnchorValidation = true,
+            TransformerTeacherMaximumHeadRegression = 0.05d,
+            TransformerTeacherIncrementalEpochs = 4,
+            TransformerTeacherFinalEpochs = 12,
+            TransformerTeacherCpuThreads = 0,
+            TransformerTeacherCpuInteropThreads = 0,
+            TransformerTeacherMicroBatchSize = 0,
+            TransformerTeacherDataLoaderWorkers = 0,
+            TransformerTeacherPrefetchBatches = 2,
+            TransformerTeacherEnablePinnedMemory = true,
+            TransformerTeacherEnableMixedPrecision = true,
+            TransformerDistillationWeight = 0.35d,
             HardEncounterWeights = new Dictionary<string, double>(
                 StringComparer.OrdinalIgnoreCase)
             {
@@ -126,6 +199,18 @@ internal sealed class ControllerWorkerResultSummary
     public int CheckpointWriteFailures { get; set; }
 
     public string CheckpointWarning { get; set; } = "";
+
+    public int EffectiveCheckpointSerializationParallelism { get; set; }
+
+    public bool CheckpointSerializationAutoScaled { get; set; }
+
+    public double CheckpointSerializationSeconds { get; set; }
+
+    public long CheckpointWritesEnqueued { get; set; }
+
+    public long CheckpointWritesExecuted { get; set; }
+
+    public long CheckpointWritesCoalesced { get; set; }
 
     public ControllerTrainingResultSummary? Training { get; set; }
 }

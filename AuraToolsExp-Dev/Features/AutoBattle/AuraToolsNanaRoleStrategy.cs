@@ -159,6 +159,7 @@ internal sealed class AuraToolsNanaRoleStrategyProvider :
 
         state.Features[CombatRoleStrategyFeatureNames.Active] = 1d;
         state.Features[CombatRoleStrategyFeatureNames.Phase] = (double)phase;
+        DeclareTrainingQuotas(state.Features);
         state.Features["roleStrategy:nana.doom"] = doom;
         state.Features["roleStrategy:nana.next-doom-stack-max-hp-gain"] =
             AuraToolsNanaDoomProgression.MaximumHpGainAfterAdd(doom, 1);
@@ -283,6 +284,21 @@ internal sealed class AuraToolsNanaRoleStrategyProvider :
             }
         }
         return true;
+    }
+
+    private static void DeclareTrainingQuotas(
+        IDictionary<string, double> features)
+    {
+        features[CombatRoleStrategyFeatureNames.MaximumTrainingShare(
+            "transform")] = 0.50d;
+        features[CombatRoleStrategyFeatureNames.MinimumTrainingShare(
+            "growth")] = 0.15d;
+        features[CombatRoleStrategyFeatureNames.MinimumTrainingShare(
+            "survival")] = 0.15d;
+        features[CombatRoleStrategyFeatureNames.MinimumTrainingShare(
+            "finale")] = 0.05d;
+        features[CombatRoleStrategyFeatureNames.MinimumTrainingShare(
+            "bank")] = 0.05d;
     }
 
     private static NanaPhase ResolvePhase(

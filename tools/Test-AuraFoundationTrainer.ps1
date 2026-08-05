@@ -19,6 +19,14 @@ param(
     [bool]$ReuseAutoTuneCache = $true,
     [int]$AutoTuneSampleCampaigns = 32,
     [double]$AutoTuneThroughputTolerance = 0.02,
+    [ValidateSet("balanced-efficiency", "maximum-throughput")]
+    [string]$AutoTuneObjective = "maximum-throughput",
+    [ValidateSet("disabled", "auto", "cpu", "cuda")]
+    [string]$TransformerTeacherBackend = "disabled",
+    [ValidateRange(1, 100)]
+    [int]$TransformerTeacherEpochs = 2,
+    [ValidateRange(64, 100000)]
+    [int]$TransformerTeacherMinimumFrames = 64,
     [switch]$ExpectAutoTuneCacheHit,
     [string]$SuccessArchiveDirectory = "",
     [int]$TrainingCampaignsPerIteration = 2,
@@ -60,6 +68,18 @@ function Read-FoundationJson([string]$Path) {
     # the smoke-test reader.
     return $json.Replace('"":', '"__empty":') | ConvertFrom-Json
 }
+function Get-FoundationSha256([string]$Path) {
+    $algorithm = [System.Security.Cryptography.SHA256]::Create()
+    $stream = [System.IO.File]::OpenRead($Path)
+    try {
+        $hash = $algorithm.ComputeHash($stream)
+        return ([System.BitConverter]::ToString($hash)).Replace("-", "").ToLowerInvariant()
+    }
+    finally {
+        $stream.Dispose()
+        $algorithm.Dispose()
+    }
+}
 $repoRoot = Split-Path -Parent $PSScriptRoot
 $effectivePreflightCampaignsPerDifficulty = [Math]::Max(
     0,
@@ -70,8 +90,13 @@ $effectiveNormalValidationCampaigns = [Math]::Max(
 $effectiveAdvancedValidationCampaigns = [Math]::Max(
     1,
     [Math]::Min(1000, $AdvancedValidationCampaigns))
+$minimumTrainingCampaigns = if ($TransformerTeacherBackend -eq "disabled") {
+    2
+} else {
+    40
+}
 $effectiveTrainingCampaignsPerIteration = [Math]::Max(
-    2,
+    $minimumTrainingCampaigns,
     [Math]::Min(1000, $TrainingCampaignsPerIteration))
 if (-not $SkipPublish) {
     & (Join-Path $repoRoot "tools\Build-AuraFoundationTrainer.ps1") -Configuration $Configuration
@@ -126,6 +151,11 @@ try {
         NormalValidationCampaigns = $effectiveNormalValidationCampaigns
         AdvancedValidationCampaigns = $effectiveAdvancedValidationCampaigns
         CapabilityProbeCampaignsPerDifficulty = 0
+        TuningNormalCampaigns = 2
+        TuningAdvancedCampaigns = 2
+        TuningScreeningNormalCampaigns = 1
+        TuningScreeningAdvancedCampaigns = 1
+        TuningFinalistCount = 1
         PreflightCampaignsPerDifficulty = $PreflightCampaignsPerDifficulty
         PreflightSeedStart = $PreflightSeedStart
         PreflightOnly = [bool]$PreflightOnly
@@ -136,11 +166,46 @@ try {
         ReuseAutoTuneCache = $ReuseAutoTuneCache
         AutoTuneSampleCampaigns = $AutoTuneSampleCampaigns
         AutoTuneThroughputTolerance = $AutoTuneThroughputTolerance
+        AutoTuneObjective = $AutoTuneObjective
         EnableEarlyValidationStop = $true
         TrainingSeedStart = 4100000
         ArenaSeedStart = 4200000
         ValidationSeedStart = 4300000
         Profile = $profile
+        TransformerTeacher = [ordered]@{
+            Backend = $TransformerTeacherBackend
+            PythonExecutable = "auto"
+            Epochs = $TransformerTeacherEpochs
+            BatchSize = 64
+            StateDimensions = 128
+            ActionDimensions = 128
+            HiddenDimensions = 64
+            Layers = 2
+            AttentionHeads = 4
+            HistoryLength = 12
+            MinimumFrames = $TransformerTeacherMinimumFrames
+            MaximumFrames = 10000
+            EnableWarmStart = $true
+            CpuRefreshInterval = 4
+            CpuEpochs = $TransformerTeacherEpochs
+            CpuIncrementalEpochs = [Math]::Min(1, $TransformerTeacherEpochs)
+            CpuFinalEpochs = $TransformerTeacherEpochs
+            IncrementalEpochs = [Math]::Min(4, $TransformerTeacherEpochs)
+            FinalEpochs = $TransformerTeacherEpochs
+            EnableAdaptiveRefresh = $true
+            AdaptiveRefreshDriftThreshold = 0.15
+            EnableFixedAnchorValidation = $true
+            MaximumHeadRegression = 0.05
+            CpuThreads = 0
+            CpuInteropThreads = 0
+            MicroBatchSize = 0
+            DataLoaderWorkers = 0
+            PrefetchBatches = 2
+            EnablePinnedMemory = $true
+            EnableMixedPrecision = $true
+            DistillationWeight = 0.35
+            RandomSeed = 1701
+        }
         Training = [ordered]@{
             Epochs = 2
             HiddenDimensions = 8
@@ -198,6 +263,87 @@ try {
             + [int]$result.Training.SemanticAudit.SelectedInvalidActions `
             + ", selectedUnexplained=" `
             + [int]$result.Training.SemanticAudit.SelectedUnexplainedMismatchActions)
+    }
+    if (-not $PreflightOnly `
+        -and $TransformerTeacherBackend -ne "disabled") {
+        $teacherReports = @($result.Training.TransformerTeacherReports)
+        if ($teacherReports.Count -lt 1 `
+            -or -not [bool]$teacherReports[0].Requested) {
+            throw "Transformer teacher did not publish an iteration report."
+        }
+        $teacherReport = $teacherReports[0]
+        if ([int]$teacherReport.FrameCount `
+                -lt $TransformerTeacherMinimumFrames `
+            -or -not [bool]$teacherReport.Success `
+            -or -not [bool]$teacherReport.Applied `
+            -or [bool]$teacherReport.WarmStarted `
+            -or -not [bool]$teacherReport.TrainingRefreshed `
+            -or -not [bool]$teacherReport.UpdateAccepted `
+            -or [int]$teacherReport.RequestedEpochs `
+                -ne $TransformerTeacherEpochs `
+            -or [int]$teacherReport.AnnotatedFrames `
+                -lt $TransformerTeacherMinimumFrames `
+            -or [int]$teacherReport.AnchorValidationFrames -lt 1 `
+            -or -not [bool]$teacherReport.AnchorCreated `
+            -or [int]$teacherReport.TeacherGeneration -lt 1 `
+            -or -not [bool]$teacherReport.HeadRegressionGatePassed `
+            -or [string]$teacherReport.RefreshReason -ne "cold-start" `
+            -or -not (Test-Path -LiteralPath `
+                ([string]$teacherReport.ModelPath) -PathType Leaf)) {
+            throw (
+                "Transformer teacher annotation failed: " `
+                + ($teacherReport | ConvertTo-Json -Depth 8 -Compress))
+        }
+        $teacherThroughput = [double]$teacherReport.TrainingFramesPerSecond
+        $annotationThroughput =
+            [double]$teacherReport.AnnotationFramesPerSecond
+        $teacherPreparation = [double]$teacherReport.DataPreparationSeconds
+        $teacherCalibration = [double]$teacherReport.RuntimeCalibrationSeconds
+        if (-not [System.IO.Path]::IsPathRooted(
+                [string]$teacherReport.ResolvedPythonExecutable) `
+            -or [string]::IsNullOrWhiteSpace(
+                [string]$teacherReport.RuntimeResolutionSource) `
+            -or [string]::IsNullOrWhiteSpace([string]$teacherReport.PythonVersion) `
+            -or [string]::IsNullOrWhiteSpace([string]$teacherReport.TorchVersion) `
+            -or [string]::IsNullOrWhiteSpace([string]$teacherReport.NumpyVersion) `
+            -or [int]$teacherReport.EffectiveCpuThreads -lt 1 `
+            -or [int]$teacherReport.EffectiveCpuInteropThreads -lt 1 `
+            -or [int]$teacherReport.EffectiveBatchSize -lt 1 `
+            -or [int]$teacherReport.EffectiveMicroBatchSize -lt 1 `
+            -or [int]$teacherReport.EffectiveMicroBatchSize `
+                -gt [int]$teacherReport.EffectiveBatchSize `
+            -or [string]::IsNullOrWhiteSpace(
+                [string]$teacherReport.NumericPrecision) `
+            -or [double]::IsNaN($teacherThroughput) `
+            -or [double]::IsInfinity($teacherThroughput) `
+            -or $teacherThroughput -le 0 `
+            -or [double]::IsNaN($annotationThroughput) `
+            -or [double]::IsInfinity($annotationThroughput) `
+            -or $annotationThroughput -le 0 `
+            -or [double]$teacherReport.ProcessCpuSeconds -le 0 `
+            -or [long]$teacherReport.PeakWorkingSetBytes -le 0 `
+            -or [double]$teacherReport.DataLoadingSeconds -lt 0 `
+            -or [double]$teacherReport.TrainingSeconds -le 0 `
+            -or [double]$teacherReport.EvaluationSeconds -le 0 `
+            -or [double]$teacherReport.AnnotationSeconds -le 0 `
+            -or [double]$teacherReport.SavingSeconds -lt 0 `
+            -or @($teacherReport.StageSeconds.PSObject.Properties).Count -lt 6 `
+            -or [double]::IsNaN($teacherPreparation) `
+            -or [double]::IsInfinity($teacherPreparation) `
+            -or $teacherPreparation -lt 0 `
+            -or [double]::IsNaN($teacherCalibration) `
+            -or [double]::IsInfinity($teacherCalibration) `
+            -or $teacherCalibration -lt 0 `
+            -or (-not [bool]$teacherReport.RuntimeAutoTuned `
+                -and -not [bool]$teacherReport.RuntimeAutoTuneCacheHit)) {
+            throw (
+                "Transformer teacher runtime plan is incomplete: " `
+                + ($teacherReport | ConvertTo-Json -Depth 8 -Compress))
+        }
+        if ($TransformerTeacherBackend -eq "cuda" `
+            -and [string]$teacherReport.EffectiveBackend -ne "cuda") {
+            throw "Transformer teacher silently downgraded an explicit CUDA request."
+        }
     }
     if (-not $PreflightOnly -and $null -ne $result.Training.Champion) {
         $championMetricNames = @(
@@ -273,6 +419,32 @@ try {
     if (-not $PreflightOnly -and $generatedEpisodes -le 0) {
         throw "Foundation trainer smoke did not generate replay episodes."
     }
+    if (-not $PreflightOnly) {
+        $checkpointSeconds = [double]$result.CheckpointSerializationSeconds
+        $checkpointEnqueued = [int64]$result.CheckpointWritesEnqueued
+        $checkpointExecuted = [int64]$result.CheckpointWritesExecuted
+        $checkpointCoalesced = [int64]$result.CheckpointWritesCoalesced
+        if ([int]$result.EffectiveCheckpointSerializationParallelism -lt 1 `
+            -or [double]::IsNaN($checkpointSeconds) `
+            -or [double]::IsInfinity($checkpointSeconds) `
+            -or $checkpointSeconds -lt 0 `
+            -or $checkpointEnqueued -lt 1 `
+            -or $checkpointExecuted -lt 1 `
+            -or $checkpointExecuted -gt $checkpointEnqueued `
+            -or $checkpointCoalesced -lt 0 `
+            -or $checkpointCoalesced -gt $checkpointEnqueued) {
+            throw (
+                "Foundation checkpoint execution telemetry is incomplete: " `
+                + ($result | Select-Object `
+                    EffectiveCheckpointSerializationParallelism, `
+                    CheckpointSerializationAutoScaled, `
+                    CheckpointSerializationSeconds, `
+                    CheckpointWritesEnqueued, `
+                    CheckpointWritesExecuted, `
+                    CheckpointWritesCoalesced | `
+                    ConvertTo-Json -Compress))
+        }
+    }
     if (-not (Test-Path -LiteralPath $progressPath -PathType Leaf)) {
         throw "Foundation trainer progress artifact is missing."
     }
@@ -309,6 +481,9 @@ try {
             Get-Content -LiteralPath $result.TrainingMetricsPath -Encoding UTF8
         )
         $trainingAnalysis = Read-FoundationJson $result.TrainingAnalysisPath
+        $phaseHotspots = @($trainingAnalysis.PerformanceHotspots | Where-Object {
+            [string]$_.Scope -eq "phase"
+        })
         if ([double]$result.RoleStrategyMetrics."journey-terminal-snapshots" -le 0 `
             -or [double]$result.RoleStrategyMetrics."journey-final-max-hp.mean" -le 0 `
             -or [double]$trainingAnalysis.RoleStrategyMetrics."journey-terminal-snapshots" -le 0) {
@@ -318,6 +493,22 @@ try {
             -or $metricRecords.Count -lt 2 `
             -or [int]$trainingAnalysis.EpochCount -lt 1 `
             -or @($trainingAnalysis.Points).Count -lt 1 `
+            -or [string]$trainingAnalysis.PerformanceProbeVersion `
+                -ne "foundation-performance-probe-v1" `
+            -or [int]$trainingAnalysis.LogicalProcessors -lt 1 `
+            -or @($trainingAnalysis.EnabledPerformanceProbes).Count -lt 8 `
+            -or $phaseHotspots.Count -lt 3 `
+            -or @($phaseHotspots | Where-Object {
+                [string]$_.Name -eq "self-play" `
+                -and [double]$_.ElapsedSeconds -gt 0 `
+                -and [int]$_.PeakConcurrentWork -gt 0 `
+                -and [int]$_.ObservedWorkerThreads -gt 0
+            }).Count -ne 1 `
+            -or @($phaseHotspots | Where-Object {
+                [string]$_.Name -eq "validation" `
+                -and [double]$_.ElapsedSeconds -gt 0 `
+                -and [int]$_.PeakConcurrentWork -gt 0
+            }).Count -ne 1 `
             -or [double]$result.Training.ModelTrainingLoss -le 0 `
             -or [double]$result.Training.ModelValidationLoss -le 0 `
             -or @($epochHistory | Where-Object {
@@ -351,22 +542,35 @@ try {
                         $MaximumDegreeOfParallelism))
             }
         }
+        $availableValidationWork = if ($PreflightOnly) {
+            $effectivePreflightCampaignsPerDifficulty * 2 + 3
+        }
+        else {
+            [Math]::Max(
+                $effectiveNormalValidationCampaigns,
+                $effectiveAdvancedValidationCampaigns)
+        }
         $expectedValidationPeak = [Math]::Min(
             $expectedParallelism,
             $(if ($PreflightOnly) {
-                $effectivePreflightCampaignsPerDifficulty * 2 + 3
+                [Math]::Min(3, $availableValidationWork)
             }
             else {
-                [Math]::Max(
-                    $effectiveNormalValidationCampaigns,
-                    $effectiveAdvancedValidationCampaigns)
+                $availableValidationWork
             }))
+        $expectedInferenceMode = if ($ParallelismProfile -eq "auto" `
+            -and [bool]$result.Training.AutoTune.InferenceCalibrated) {
+            [string]$result.Training.AutoTune.SelectedInferenceMode
+        }
+        else {
+            $InferenceExecutionMode
+        }
         if ([int]$result.Training.EffectiveParallelism `
                 -ne $expectedParallelism `
             -or [int]$result.Training.PeakConcurrentCampaigns `
                 -lt $expectedValidationPeak `
             -or [string]$result.Training.InferenceExecutionMode `
-                -ne $InferenceExecutionMode) {
+                -ne $expectedInferenceMode) {
             throw (
                 "Foundation worker did not sustain configured parallelism: " `
                 + "effective=$($result.Training.EffectiveParallelism)/" `
@@ -377,7 +581,9 @@ try {
         if ($ParallelismProfile -eq "auto") {
             $measurements = @($result.Training.AutoTune.Measurements)
             if ([string]$result.Training.AutoTune.Version `
-                    -ne "foundation-auto-tune-v1" `
+                    -ne "foundation-auto-tune-v4" `
+                -or [string]$result.Training.AutoTune.Objective `
+                    -ne $AutoTuneObjective `
                 -or $measurements.Count -lt 1 `
                 -or [string]::IsNullOrWhiteSpace(
                     [string]$result.Training.AutoTune.CacheKey)) {
@@ -386,6 +592,21 @@ try {
             if ($ExpectAutoTuneCacheHit `
                 -and -not [bool]$result.Training.AutoTune.CacheHit) {
                 throw "Auto profile did not reuse the expected cache."
+            }
+            if (-not $PreflightOnly) {
+                $inferenceMeasurements = @($measurements | Where-Object {
+                    ([string]$_.MeasurementKind).StartsWith(
+                        "inference-end-to-end",
+                        [System.StringComparison]::Ordinal)
+                })
+                if (-not [bool]$result.Training.AutoTune.InferenceCalibrated `
+                    -or $inferenceMeasurements.Count -lt 2 `
+                    -or @($inferenceMeasurements | Where-Object {
+                        [int]$_.Campaigns -le 0 `
+                        -or [double]$_.UsefulWorkPerSecond -le 0
+                    }).Count -gt 0) {
+                    throw "Auto profile did not retain end-to-end inference calibration evidence."
+                }
             }
         }
     }
@@ -499,8 +720,7 @@ try {
             -or [int64]$checkpoint.EpisodeSnapshot.Length -ne (
                 Get-Item -LiteralPath $checkpointSnapshotPath).Length `
             -or [string]$checkpoint.EpisodeSnapshot.ContentSha256 -ne (
-                Get-FileHash -LiteralPath $checkpointSnapshotPath `
-                    -Algorithm SHA256).Hash.ToLowerInvariant() `
+                Get-FoundationSha256 $checkpointSnapshotPath) `
             -or [string]::IsNullOrWhiteSpace(
                 [string]$checkpoint.Resume.Compatibility.RulesetHash) `
             -or [string]::IsNullOrWhiteSpace(
@@ -516,11 +736,11 @@ try {
             -or [string]$checkpoint.Resume.Compatibility.ActionContractVersion `
                 -ne "action-contract-v2" `
             -or [string]$checkpoint.Resume.Compatibility.TrainingSemanticsVersion `
-                -ne "content-set-quantile-q-registered-content-replay-base-role-skill-timing-auto-tune-arena-v18" `
+                -ne "content-set-quantile-q-role-quota-risk-aux-fixed-anchor-promotion-v19" `
             -or [string]$checkpoint.Resume.Compatibility.SearchPolicyVersion `
                 -ne "dynamic-search-v12-quantile-fpu" `
             -or [string]$checkpoint.Resume.Compatibility.TrainingPolicyVersion `
-                -ne "foundation-governance-v19-registered-content-replay") {
+                -ne "foundation-governance-v21-teacher-student-quota-gates") {
             throw "Foundation checkpoint compatibility manifest is incomplete."
         }
     }

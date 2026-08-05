@@ -87,6 +87,8 @@ public static class CombatTrainingSampleBuilder
             SearchNodes = decision.SearchNodes,
             SearchTranspositionHits = decision.SearchTranspositionHits,
             SearchBudgetTier = decision.SearchBudgetTier,
+            Performance = decision.Performance?.Clone()
+                          ?? new CombatDecisionPerformanceTelemetry(),
             StateFeatures = BuildStateFeatures(before),
             Features = CombatPublicFeaturePolicy.SanitizeAction(
                 decision.Action.Features),

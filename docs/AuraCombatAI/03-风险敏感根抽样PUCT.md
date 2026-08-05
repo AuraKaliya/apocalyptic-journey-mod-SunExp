@@ -61,6 +61,8 @@ Qrisk = 0.65 * mean
       - uncertaintyPenalty * standardError
 ```
 
+`RiskPreference=0.5` 保持上式。向 0 调整会提高下尾权重、死亡惩罚和不确定性惩罚；向 1 调整会更偏向均值，但不会绕过 `DeathRiskLimit` 硬约束。运行档默认 defensive=0.2、balanced=0.5、aggressive=0.8，也可以由配置显式覆盖。
+
 最终选择先应用生存约束：
 
 1. 若存在 `meanDeathRisk <= DeathRiskLimit` 的动作，只在这些动作中排序；
@@ -105,3 +107,11 @@ Qrisk = 0.65 * mean
 | `deep` | 1.75 倍 | 2.0 倍 | 基线加 4 |
 
 强制动作始终只做最小验证。生产不接受手填固定搜索数字；固定模式仅供确定性测试。
+
+## Anytime、模型预算与治理
+
+部署默认墙钟截止来自 `decisionTimeBudgetMs`，并同时限制 `searchModelEvaluationBudget`。搜索先覆盖全部保留的根动作，每完成一次模拟都保留当前证据；达到时间、模型调用、节点或模拟预算时返回当前结果和结构化停止原因。模型缓存命中不消耗模型调用预算。
+
+`CombatDecisionGovernance` 在执行前复核搜索置信度、结束回合安全和死亡风险。超时或模型预算耗尽时优先选择合法、低风险的非结束回合动作；只有结束回合已经通过反事实安全评估时才可把它作为回退。关闭旧“低置信回退”开关也不会让未通过治理的搜索动作重新获得执行权。
+
+Actor 候选裁剪由 `enableActorCandidatePruning` 控制，默认关闭。开启时仍强制保留动作来源族、结束回合安全替代以及训练/教师/Shadow 的全候选；`actorCandidateTopK` 和累计概率质量只用于已经通过候选召回门禁的部署模型。裁剪前后数量、模型调用、缓存、决策耗时和预算停止都进入 Episode 与训练遥测。
