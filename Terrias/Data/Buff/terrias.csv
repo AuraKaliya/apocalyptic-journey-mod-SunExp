@@ -41,7 +41,7 @@
 "abyss_gaze_ii","","","","20","0","0","20","Icon/Buff/易怒","负面","3","","","","FALSE"
 "abyss_gaze_iii","","","","20","0","0","20","Icon/Buff/易怒","负面","3","","","","FALSE"
 "abyss_blessing","","CS.Terrias.Dll.Scripting.BuffScripts.Apply(self, ""abyss_blessing"");","CS.Terrias.Dll.Scripting.BuffScripts.Clear(self, ""abyss_blessing"");","0","0","0","999","Icon/Buff/易怒","特性","4","","","","FALSE"
-"moonlight","","CS.Terrias.Dll.Scripting.BuffScripts.Apply(self, ""moonlight"");","CS.Terrias.Dll.Scripting.BuffScripts.Clear(self, ""moonlight"");","0","0","0","5","Icon/Blessing/月亮","正面","3","","","","FALSE"
+"moonlight","","CS.Terrias.Dll.Scripting.BuffScripts.Apply(self, ""moonlight"");","CS.Terrias.Dll.Scripting.BuffScripts.Clear(self, ""moonlight"");","0","0","0","5","Mods/Terrias/ModResource/Images/Buff/Terrias/moonlight","正面","3","","","","FALSE"
 "gravity_ripple","","","","0","0","0","20","Mods/Terrias/ModResource/Images/Buff/GenshinImpact/引力涟漪","能力","3","","","","FALSE"
 "gravity_value","","","","0","0","0","100","Mods/Terrias/ModResource/Images/Buff/GenshinImpact/引力值","能力","3","","","","FALSE"
 "moon_domain","","","","0","0","0","1","Mods/Terrias/ModResource/Images/Buff/Area/月之领域","场地","4","","","","FALSE"
