@@ -966,6 +966,12 @@ public sealed class CombatFoundationReplaySelection
 
     public int PinnedContentEpisodes { get; set; }
 
+    public int SelectedFrames { get; set; }
+
+    public long EstimatedResidentBytes { get; set; }
+
+    public int ResourceBudgetDroppedEpisodes { get; set; }
+
     public Dictionary<string, int> QuotaShortfalls { get; set; } =
         new(StringComparer.Ordinal);
 }
@@ -987,6 +993,98 @@ public sealed class CombatFoundationReplayBalanceOptions
 
 public static class CombatFoundationReplaySampler
 {
+    public static void ApplyResourceBudget(
+        CombatFoundationReplaySelection selection,
+        IEnumerable<CombatEpisode>? required,
+        int minimumEpisodes,
+        int frameLimit,
+        long estimatedBytesLimit)
+    {
+        if (selection == null) throw new ArgumentNullException(nameof(selection));
+        var episodes = (selection.Episodes ?? new List<CombatEpisode>())
+            .Where(episode => episode != null)
+            .ToList();
+        var requiredKeys = (required ?? Array.Empty<CombatEpisode>())
+            .Where(episode => episode != null)
+            .Select(StableKey)
+            .ToHashSet(StringComparer.Ordinal);
+        var minimum = Math.Min(episodes.Count, Math.Max(1, minimumEpisodes));
+        var maximumFrames = Math.Max(minimum, frameLimit);
+        var maximumBytes = Math.Max(64L * 1024L * 1024L, estimatedBytesLimit);
+        var selected = new List<CombatEpisode>(episodes.Count);
+        var frames = 0;
+        var bytes = 0L;
+        foreach (var episode in episodes
+                     .OrderByDescending(episode =>
+                         requiredKeys.Contains(StableKey(episode)))
+                     .ThenByDescending(RecoveryPriority)
+                     .ThenBy(StableKey, StringComparer.Ordinal))
+        {
+            var episodeFrames = episode.Frames?.Count ?? 0;
+            var episodeBytes = EstimateResidentBytes(episode);
+            if (selected.Count >= minimum
+                && (frames + episodeFrames > maximumFrames
+                    || bytes + episodeBytes > maximumBytes))
+            {
+                continue;
+            }
+            selected.Add(episode);
+            frames += episodeFrames;
+            bytes += episodeBytes;
+        }
+        selection.ResourceBudgetDroppedEpisodes =
+            Math.Max(0, episodes.Count - selected.Count);
+        selection.Episodes = selected
+            .OrderBy(StableKey, StringComparer.Ordinal)
+            .ToList();
+        selection.SelectedFrames = frames;
+        selection.EstimatedResidentBytes = bytes;
+        selection.NormalEpisodes = selected.Count(episode => !IsAdvanced(episode));
+        selection.AdvancedEpisodes = selected.Count(IsAdvanced);
+        selection.AdvancedDefeatEpisodes = selected.Count(episode =>
+            IsAdvanced(episode) && !IsSuccessful(episode));
+        selection.SuccessfulEpisodes = selected.Count(IsSuccessful);
+        selection.SelectedCampaigns = selected.Select(CampaignKey)
+            .Distinct(StringComparer.Ordinal)
+            .Count();
+        selection.SuccessfulCampaigns = selected.Where(IsSuccessful)
+            .Select(CampaignKey)
+            .Distinct(StringComparer.Ordinal)
+            .Count();
+        selection.SelectedPriorityMean = selected.Count == 0
+            ? 0d
+            : selected.Average(EpisodePriority);
+    }
+
+    public static long EstimateResidentBytes(CombatEpisode episode)
+    {
+        if (episode == null)
+        {
+            return 0L;
+        }
+        // Conservative object-graph estimate. It intentionally accounts for
+        // dictionary/list/node overhead, not only primitive payload bytes.
+        var bytes = 2048L;
+        foreach (var frame in episode.Frames ?? new List<CombatEpisodeFrame>())
+        {
+            bytes += 2560L;
+            bytes += frame.CompactStateFeatures != null
+                ? frame.CompactStateFeatures.Count * 8L
+                : (frame.StateFeatures?.Count ?? 0) * 112L;
+            foreach (var candidate in frame.Candidates
+                         ?? new List<CombatEpisodeCandidate>())
+            {
+                bytes += 768L;
+                bytes += candidate.CompactFeatures != null
+                    ? candidate.CompactFeatures.Count * 8L
+                    : (candidate.Features?.Count ?? 0) * 112L;
+                bytes += (candidate.SearchReturnQuantiles?.Count ?? 0)
+                         * sizeof(double);
+            }
+        }
+        return bytes;
+    }
+
     public static void PinEpisodes(
         CombatFoundationReplaySelection selection,
         IEnumerable<CombatEpisode>? required,
@@ -1662,10 +1760,7 @@ public static class CombatFoundationReplaySampler
                    candidate.SourceId,
                    "simulation:end-turn",
                    StringComparison.OrdinalIgnoreCase)
-               || candidate.Features != null
-               && candidate.Features.TryGetValue(
-                   "actionKindEndTurn",
-                   out var value)
+               || candidate.TryGetFeature("actionKindEndTurn", out var value)
                && value > 0.5d;
     }
 

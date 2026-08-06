@@ -95,7 +95,20 @@ public sealed class CombatSimulationState
 
     public int ShuffleEpoch { get; set; }
 
-    public bool AllEnemiesDefeated => Enemies.All(enemy => enemy.Hp <= 0);
+    public bool AllEnemiesDefeated
+    {
+        get
+        {
+            for (var index = 0; index < Enemies.Length; index++)
+            {
+                if (Enemies[index].Hp > 0)
+                {
+                    return false;
+                }
+            }
+            return true;
+        }
+    }
 
     public CombatSimulationState Clone()
     {
@@ -266,9 +279,19 @@ public sealed class CombatSimulationState
 
     public bool TargetAlive(int runtimeId)
     {
-        return runtimeId == 0
-               || runtimeId == PlayerRuntimeId
-               || Enemies.Any(enemy => enemy.RuntimeId == runtimeId && enemy.Hp > 0);
+        if (runtimeId == 0 || runtimeId == PlayerRuntimeId)
+        {
+            return true;
+        }
+        for (var index = 0; index < Enemies.Length; index++)
+        {
+            if (Enemies[index].RuntimeId == runtimeId
+                && Enemies[index].Hp > 0)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     public double ActiveBlockableThreat(double riskTolerance)
@@ -482,14 +505,7 @@ public sealed class CombatSimulationState
                 Mix(ref hash, DeferredEffects[i].SourceId);
                 Mix(ref hash, DeferredEffects[i].TargetRuntimeId);
             }
-            foreach (var pair in Features.OrderBy(pair => pair.Key, StringComparer.Ordinal))
-            {
-                foreach (var character in pair.Key)
-                {
-                    Mix(ref hash, character);
-                }
-                Mix(ref hash, Quantize(pair.Value));
-            }
+            MixFeatures(ref hash, Features);
             for (var i = 0; i < Enemies.Length; i++)
             {
                 Mix(ref hash, Enemies[i].RuntimeId);
@@ -558,15 +574,35 @@ public sealed class CombatSimulationState
         ref ulong hash,
         IReadOnlyDictionary<string, double> features)
     {
-        foreach (var pair in features.OrderBy(
-                     pair => pair.Key,
-                     StringComparer.Ordinal))
+        unchecked
         {
-            foreach (var character in pair.Key)
+            // Search-state feature maps are logically unordered. Combining
+            // two independently avalanched commutative accumulators keeps the
+            // hash stable across dictionary implementations without sorting
+            // and allocating an OrderedEnumerable for every visited node.
+            ulong sum = 0UL;
+            ulong xor = 0UL;
+            var count = 0;
+            foreach (var pair in features)
             {
-                Mix(ref hash, character);
+                var entry = 1469598103934665603UL;
+                Mix(ref entry, pair.Key);
+                Mix(ref entry, Quantize(pair.Value));
+                entry ^= entry >> 30;
+                entry *= 0xbf58476d1ce4e5b9UL;
+                entry ^= entry >> 27;
+                entry *= 0x94d049bb133111ebUL;
+                entry ^= entry >> 31;
+                sum += entry;
+                var shift = (int)(entry & 63UL);
+                xor ^= shift == 0
+                    ? entry
+                    : entry << shift | entry >> (64 - shift);
+                count++;
             }
-            Mix(ref hash, Quantize(pair.Value));
+            Mix(ref hash, count);
+            Mix(ref hash, sum);
+            Mix(ref hash, xor);
         }
     }
 
@@ -584,6 +620,15 @@ public sealed class CombatSimulationState
         foreach (var character in value ?? "")
         {
             Mix(ref hash, character);
+        }
+    }
+
+    private static void Mix(ref ulong hash, ulong value)
+    {
+        unchecked
+        {
+            hash ^= value;
+            hash *= 1099511628211UL;
         }
     }
 
@@ -681,6 +726,16 @@ public struct CombatLeafEvaluation
 
 public static class CombatForwardModel
 {
+    [ThreadStatic]
+    private static List<CombatDeferredEffectSimulation>?
+        threadDeferredEffectSnapshot;
+
+    [ThreadStatic]
+    private static List<double>? threadUnretainedValues;
+
+    [ThreadStatic]
+    private static List<string>? threadUnretainedIds;
+
     public static CombatSimulationState Create(
         CombatStateObservation state,
         int actionCount)
@@ -716,7 +771,8 @@ public static class CombatForwardModel
         CombatSimulationState reusableRoot,
         CombatBeliefState belief,
         int determinizationSeed,
-        List<string> unknownWorkspace)
+        List<string> unknownWorkspace,
+        IReadOnlyDictionary<string, double>? knowledgeValues = null)
     {
         if (reusableRoot == null)
         {
@@ -730,8 +786,12 @@ public static class CombatForwardModel
         reusableRoot.DrawPileValues.Clear();
         for (var i = 0; i < reusableRoot.DrawPileCardIds.Count; i++)
         {
+            var cardId = reusableRoot.DrawPileCardIds[i];
             reusableRoot.DrawPileValues.Add(
-                KnowledgeValue(reusableRoot.DrawPileCardIds[i]));
+                knowledgeValues != null
+                && knowledgeValues.TryGetValue(cardId, out var cached)
+                    ? cached
+                    : KnowledgeValue(cardId));
         }
         reusableRoot.DrawPileKnown = belief.DrawPileCount > 0;
         reusableRoot.DeterminizationSeed = determinizationSeed;
@@ -861,6 +921,15 @@ public static class CombatForwardModel
         CombatActionObservation action,
         bool useRegisteredResolvers = true)
     {
+        return Resolve(root, action, useRegisteredResolvers, arena: null);
+    }
+
+    internal static CombatActionModel Resolve(
+        CombatStateObservation root,
+        CombatActionObservation action,
+        bool useRegisteredResolvers,
+        CombatActionModelArena? arena)
+    {
         if (useRegisteredResolvers
             && CombatAiRegistry.TryResolveEffects(root, action, out var provided)
             && provided != null
@@ -871,129 +940,122 @@ public static class CombatForwardModel
         }
 
         var semantics = action.Semantics ?? new CombatActionSemantics();
-        var outcome = new CombatActionOutcome
+        var outcome = arena?.RentOutcome() ?? new CombatActionOutcome();
+        outcome.OutcomeId = "expected";
+        var hasImmediateTargetEffects = false;
+        foreach (var effect in semantics.TargetEffects)
         {
-            OutcomeId = "expected"
-        };
-        var immediateTargetEffects = semantics.TargetEffects
-            .Where(item =>
-                item.Phase == CombatSemanticEffectPhase.Immediate
-                && item.Kind is CombatSemanticEffectKind.Damage
+            if (effect.Phase != CombatSemanticEffectPhase.Immediate
+                || effect.Kind is not (CombatSemanticEffectKind.Damage
                     or CombatSemanticEffectKind.TrueDamage
-                    or CombatSemanticEffectKind.DirectHpLoss)
-            .ToList();
-        if (immediateTargetEffects.Count > 0)
-        {
-            foreach (var effect in immediateTargetEffects)
+                    or CombatSemanticEffectKind.DirectHpLoss))
             {
-                var magnitude = Math.Max(
-                    0d,
-                    effect.Kind == CombatSemanticEffectKind.Damage
-                        ? effect.EffectiveDurabilityAmount
-                        : effect.EffectiveAmount);
-                Add(
-                    outcome,
-                    effect.Kind == CombatSemanticEffectKind.Damage
-                        ? CombatEffectKind.Damage
-                        : CombatEffectKind.TrueDamage,
-                    effect.TargetRuntimeId,
-                    magnitude
-                    * Math.Max(
-                        0d,
-                        Math.Min(1d, effect.Probability)));
+                continue;
             }
+            hasImmediateTargetEffects = true;
+            var magnitude = Math.Max(
+                0d,
+                effect.Kind == CombatSemanticEffectKind.Damage
+                    ? effect.EffectiveDurabilityAmount
+                    : effect.EffectiveAmount);
+            Add(
+                outcome,
+                effect.Kind == CombatSemanticEffectKind.Damage
+                    ? CombatEffectKind.Damage
+                    : CombatEffectKind.TrueDamage,
+                effect.TargetRuntimeId,
+                magnitude
+                * Math.Max(0d, Math.Min(1d, effect.Probability)),
+                arena);
         }
-        else
+        if (!hasImmediateTargetEffects)
         {
             Add(
                 outcome,
                 CombatEffectKind.Damage,
                 action.TargetRuntimeId,
-                semantics.Damage * Math.Max(1d, semantics.HitCount));
+                semantics.Damage * Math.Max(1d, semantics.HitCount),
+                arena);
             Add(
                 outcome,
                 CombatEffectKind.TrueDamage,
                 action.TargetRuntimeId,
-                semantics.TrueDamage);
+                semantics.TrueDamage,
+                arena);
         }
-        var immediateHealEffects = semantics.TargetEffects
-            .Where(item =>
-                item.Phase == CombatSemanticEffectPhase.Immediate
-                && item.Kind == CombatSemanticEffectKind.Heal)
-            .ToList();
-        Add(outcome, CombatEffectKind.DamageOverTime, action.TargetRuntimeId, semantics.DamageOverTime);
-        Add(outcome, CombatEffectKind.GainDefend, action.TargetRuntimeId, semantics.Defend);
-        if (immediateHealEffects.Count > 0)
+        Add(outcome, CombatEffectKind.DamageOverTime, action.TargetRuntimeId, semantics.DamageOverTime, arena);
+        Add(outcome, CombatEffectKind.GainDefend, action.TargetRuntimeId, semantics.Defend, arena);
+        var hasImmediateHealEffects = false;
+        foreach (var effect in semantics.TargetEffects)
         {
-            foreach (var effect in immediateHealEffects)
+            if (effect.Phase != CombatSemanticEffectPhase.Immediate
+                || effect.Kind != CombatSemanticEffectKind.Heal)
             {
-                Add(
-                    outcome,
-                    CombatEffectKind.Heal,
-                    effect.TargetRuntimeId,
-                    Math.Max(0d, effect.EffectiveAmount)
-                    * Math.Max(0d, Math.Min(1d, effect.Probability)));
+                continue;
             }
+            hasImmediateHealEffects = true;
+            Add(
+                outcome,
+                CombatEffectKind.Heal,
+                effect.TargetRuntimeId,
+                Math.Max(0d, effect.EffectiveAmount)
+                * Math.Max(0d, Math.Min(1d, effect.Probability)),
+                arena);
         }
-        else
+        if (!hasImmediateHealEffects)
         {
-            Add(outcome, CombatEffectKind.Heal, action.TargetRuntimeId, semantics.Heal);
+            Add(outcome, CombatEffectKind.Heal, action.TargetRuntimeId, semantics.Heal, arena);
         }
-        Add(outcome, CombatEffectKind.Draw, 0, semantics.Draw);
+        Add(outcome, CombatEffectKind.Draw, 0, semantics.Draw, arena);
         if (!semantics.RestoreEnergyToMaximum
             && !semantics.EnergyMinimum.HasValue
             && !semantics.EnergySetAmount.HasValue)
         {
-            Add(outcome, CombatEffectKind.GainEnergy, 0, semantics.EnergyGain);
+            Add(outcome, CombatEffectKind.GainEnergy, 0, semantics.EnergyGain, arena);
         }
         if (semantics.RestoreEnergyToMaximum)
         {
-            outcome.Effects.Add(new CombatEffectOperation
-            {
-                Kind = CombatEffectKind.SetEnergy,
-                SemanticId = "maximum"
-            });
+            var effect = RentEffect(arena);
+            effect.Kind = CombatEffectKind.SetEnergy;
+            effect.SemanticId = "maximum";
+            outcome.Effects.Add(effect);
         }
         else if (semantics.EnergyMinimum.HasValue)
         {
-            outcome.Effects.Add(new CombatEffectOperation
-            {
-                Kind = CombatEffectKind.SetEnergy,
-                Magnitude = Math.Max(0d, semantics.EnergyMinimum.Value),
-                SemanticId = "minimum"
-            });
+            var effect = RentEffect(arena);
+            effect.Kind = CombatEffectKind.SetEnergy;
+            effect.Magnitude = Math.Max(0d, semantics.EnergyMinimum.Value);
+            effect.SemanticId = "minimum";
+            outcome.Effects.Add(effect);
         }
         else if (semantics.EnergySetAmount.HasValue)
         {
-            outcome.Effects.Add(new CombatEffectOperation
-            {
-                Kind = CombatEffectKind.SetEnergy,
-                Magnitude = Math.Max(0d, semantics.EnergySetAmount.Value),
-                SemanticId = "absolute"
-            });
+            var effect = RentEffect(arena);
+            effect.Kind = CombatEffectKind.SetEnergy;
+            effect.Magnitude = Math.Max(0d, semantics.EnergySetAmount.Value);
+            effect.SemanticId = "absolute";
+            outcome.Effects.Add(effect);
         }
-        Add(outcome, CombatEffectKind.ReduceCost, 0, semantics.CostReduction);
-        Add(outcome, CombatEffectKind.Buff, action.TargetRuntimeId, semantics.Buff);
-        Add(outcome, CombatEffectKind.Debuff, action.TargetRuntimeId, semantics.Debuff);
-        Add(outcome, CombatEffectKind.Cleanse, action.TargetRuntimeId, semantics.Cleanse);
-        Add(outcome, CombatEffectKind.GenerateCard, 0, semantics.CardGeneration);
-        Add(outcome, CombatEffectKind.PersistentValue, 0, semantics.PersistentValue);
-        Add(outcome, CombatEffectKind.Scaling, 0, semantics.Scaling);
-        Add(outcome, CombatEffectKind.DamageMultiplier, 0, semantics.DamageMultiplierGain);
+        Add(outcome, CombatEffectKind.ReduceCost, 0, semantics.CostReduction, arena);
+        Add(outcome, CombatEffectKind.Buff, action.TargetRuntimeId, semantics.Buff, arena);
+        Add(outcome, CombatEffectKind.Debuff, action.TargetRuntimeId, semantics.Debuff, arena);
+        Add(outcome, CombatEffectKind.Cleanse, action.TargetRuntimeId, semantics.Cleanse, arena);
+        Add(outcome, CombatEffectKind.GenerateCard, 0, semantics.CardGeneration, arena);
+        Add(outcome, CombatEffectKind.PersistentValue, 0, semantics.PersistentValue, arena);
+        Add(outcome, CombatEffectKind.Scaling, 0, semantics.Scaling, arena);
+        Add(outcome, CombatEffectKind.DamageMultiplier, 0, semantics.DamageMultiplierGain, arena);
         foreach (var retrieval in semantics.CardRetrievals)
         {
-            AddRetrieval(outcome, retrieval, selectionRank: 0);
+            AddRetrieval(outcome, retrieval, selectionRank: 0, arena);
         }
         var randomCardCost = HasRandomCardCostStatus(root)
                              && action.Kind == CombatActionKind.PlayCard;
         if (randomCardCost)
         {
-            outcome.Effects.Add(new CombatEffectOperation
-            {
-                Kind = CombatEffectKind.SetCardCostMultiplier,
-                Magnitude = 0d,
-                SemanticId = "post-action-random-cost"
-            });
+            var effect = RentEffect(arena);
+            effect.Kind = CombatEffectKind.SetCardCostMultiplier;
+            effect.SemanticId = "post-action-random-cost";
+            outcome.Effects.Add(effect);
         }
         var retrievalBranchCount = semantics.CardRetrievals.Count == 0
             ? 1
@@ -1006,21 +1068,28 @@ public static class CombatForwardModel
         var branchCount = Math.Max(
             retrievalBranchCount,
             randomCardCost ? 3 : 1);
-        var outcomes = branchCount == 1
-            ? new List<CombatActionOutcome> { outcome }
-            : Enumerable.Range(0, branchCount)
-                .Select(rank => CloneBranchedOutcome(
+        var model = arena?.RentModel() ?? new CombatActionModel();
+        model.Confidence = Math.Max(
+            0d,
+            Math.Min(1d, 1d - semantics.Uncertainty / 3d));
+        if (branchCount == 1)
+        {
+            model.Outcomes.Add(outcome);
+        }
+        else
+        {
+            for (var rank = 0; rank < branchCount; rank++)
+            {
+                model.Outcomes.Add(CloneBranchedOutcome(
                     outcome,
                     rank,
                     randomCardCost
                         ? rank == 0 ? 0.34d : 0.33d
-                        : 1d / branchCount))
-                .ToList();
-        return new CombatActionModel
-        {
-            Confidence = Math.Max(0d, Math.Min(1d, 1d - semantics.Uncertainty / 3d)),
-            Outcomes = outcomes
-        };
+                        : 1d / branchCount,
+                    arena));
+            }
+        }
+        return model;
     }
 
     public static CombatSimulationState Apply(
@@ -1264,8 +1333,7 @@ public static class CombatForwardModel
             cloneCardPiles: true,
             cloneFeatures: true,
             arena: arena);
-        var livingEnemyHpBeforeEnemyPhase = state.Enemies.Sum(enemy =>
-            Math.Max(0, enemy.Hp));
+        var livingEnemyHpBeforeEnemyPhase = LivingEnemyHp(state.Enemies);
         var enemyHpAtTurnStart = state.EnemyHpAtTurnStart > 0
             ? state.EnemyHpAtTurnStart
             : livingEnemyHpBeforeEnemyPhase;
@@ -1275,19 +1343,27 @@ public static class CombatForwardModel
         state.ConsecutiveNoProgressTurns = madeProgress || hasEndTurnPurpose
             ? 0
             : state.ConsecutiveNoProgressTurns + 1;
-        ResolveDeferredEffects(state, state.DeferredEffects.ToList(), 1d);
+        var deferredSnapshot = threadDeferredEffectSnapshot ??= new List<
+            CombatDeferredEffectSimulation>();
+        deferredSnapshot.Clear();
+        deferredSnapshot.AddRange(state.DeferredEffects);
+        ResolveDeferredEffects(state, deferredSnapshot, 1d);
         state.DeferredEffects.Clear();
         state.Features[CombatArchetypePolicy.TimeCageCountFeature] = 0d;
         ApplyProjectedLifecycle(state, startTurn: false);
         ApplyRebirthIfNeeded(state);
 
-        var unretained = new List<double>(state.HandCardValues);
+        var unretained = threadUnretainedValues ??= new List<double>();
+        unretained.Clear();
+        unretained.AddRange(state.HandCardValues);
         foreach (var retainedValue in state.RetainedHandCardValues)
         {
             RemoveClosestIfPresent(unretained, retainedValue);
         }
         state.DiscardPileValues.AddRange(unretained);
-        var unretainedIds = new List<string>(state.HandCardIds);
+        var unretainedIds = threadUnretainedIds ??= new List<string>();
+        unretainedIds.Clear();
+        unretainedIds.AddRange(state.HandCardIds);
         foreach (var retainedId in state.RetainedHandCardIds)
         {
             RemoveFirst(unretainedIds, retainedId);
@@ -1297,8 +1373,10 @@ public static class CombatForwardModel
         {
             ApplyTimeCageLifecycle(state, cardId, drawn: false);
         }
-        state.HandCardValues = new List<double>(state.RetainedHandCardValues);
-        state.HandCardIds = new List<string>(state.RetainedHandCardIds);
+        state.HandCardValues.Clear();
+        state.HandCardValues.AddRange(state.RetainedHandCardValues);
+        state.HandCardIds.Clear();
+        state.HandCardIds.AddRange(state.RetainedHandCardIds);
         state.HandCount = state.HandCardValues.Count;
 
         var blockable = state.ActiveBlockableThreat(profile.ThreatRiskTolerance);
@@ -1307,8 +1385,7 @@ public static class CombatForwardModel
         {
             var threat = state.Threats[i];
             if (threat.SourceRuntimeId != 0
-                && !state.Enemies.Any(enemy =>
-                    enemy.RuntimeId == threat.SourceRuntimeId && enemy.Hp > 0))
+                && !state.TargetAlive(threat.SourceRuntimeId))
             {
                 continue;
             }
@@ -1330,8 +1407,14 @@ public static class CombatForwardModel
             state.Power,
             state.MaxPower);
         state.CostReduction = 0;
-        state.UsedActionWords = new ulong[state.UsedActionWords.Length];
-        state.UsedActionCounts = new int[state.UsedActionCounts.Length];
+        Array.Clear(
+            state.UsedActionWords,
+            0,
+            state.UsedActionWords.Length);
+        Array.Clear(
+            state.UsedActionCounts,
+            0,
+            state.UsedActionCounts.Length);
         state.StepCount++;
         state.Turn++;
 
@@ -1345,8 +1428,7 @@ public static class CombatForwardModel
         state.TurnActionsTaken = 0;
         state.TurnEnergySpent = 0;
         state.NoEffectActionAttemptsThisTurn = 0;
-        state.EnemyHpAtTurnStart = state.Enemies.Sum(enemy =>
-            Math.Max(0, enemy.Hp));
+        state.EnemyHpAtTurnStart = LivingEnemyHp(state.Enemies);
         state.Features[CombatTurnFeatureNames.ActionsTakenThisTurn] = 0d;
         state.Features[CombatTurnFeatureNames.EnergySpentThisTurn] = 0d;
         state.Features[CombatTurnFeatureNames.EnemyHpAtTurnStart] =
@@ -1357,6 +1439,16 @@ public static class CombatForwardModel
             0d;
         state.Uncertainty += Math.Max(0d, profile.EndTurnUncertainty);
         return state;
+    }
+
+    private static int LivingEnemyHp(CombatSimulationUnit[] enemies)
+    {
+        var total = 0;
+        for (var index = 0; index < enemies.Length; index++)
+        {
+            total += Math.Max(0, enemies[index].Hp);
+        }
+        return total;
     }
 
     private static void ApplyProjectedLifecycle(
@@ -1636,48 +1728,50 @@ public static class CombatForwardModel
     private static void AddRetrieval(
         CombatActionOutcome outcome,
         CombatCardRetrievalSemantic retrieval,
-        int selectionRank)
+        int selectionRank,
+        CombatActionModelArena? arena = null)
     {
         if (retrieval == null || retrieval.Amount <= 0)
         {
             return;
         }
-        outcome.Effects.Add(new CombatEffectOperation
-        {
-            Kind = CombatEffectKind.RetrieveCards,
-            Magnitude = retrieval.Amount,
-            SemanticId = retrieval.RequiredCardTag ?? "",
-            SourceCardZone = retrieval.SourceZone,
-            DestinationCardZone = retrieval.DestinationZone,
-            SelectionRank = Math.Max(0, selectionRank)
-        });
+        var effect = RentEffect(arena);
+        effect.Kind = CombatEffectKind.RetrieveCards;
+        effect.Magnitude = retrieval.Amount;
+        effect.SemanticId = retrieval.RequiredCardTag ?? "";
+        effect.SourceCardZone = retrieval.SourceZone;
+        effect.DestinationCardZone = retrieval.DestinationZone;
+        effect.SelectionRank = Math.Max(0, selectionRank);
+        outcome.Effects.Add(effect);
     }
 
     private static CombatActionOutcome CloneBranchedOutcome(
         CombatActionOutcome source,
         int selectionRank,
-        double probability)
+        double probability,
+        CombatActionModelArena? arena = null)
     {
-        return new CombatActionOutcome
+        var clone = arena?.RentOutcome() ?? new CombatActionOutcome();
+        clone.OutcomeId = "branch-rank-" + selectionRank;
+        clone.Probability = probability;
+        foreach (var sourceEffect in source.Effects)
         {
-            OutcomeId = "branch-rank-" + selectionRank,
-            Probability = probability,
-            Effects = source.Effects.Select(effect => new CombatEffectOperation
-            {
-                Kind = effect.Kind,
-                TargetRuntimeId = effect.TargetRuntimeId,
-                Magnitude = effect.Kind == CombatEffectKind.SetCardCostMultiplier
+            var effect = RentEffect(arena);
+            effect.Kind = sourceEffect.Kind;
+            effect.TargetRuntimeId = sourceEffect.TargetRuntimeId;
+            effect.Magnitude = sourceEffect.Kind == CombatEffectKind.SetCardCostMultiplier
                     ? selectionRank
-                    : effect.Magnitude,
-                SecondaryMagnitude = effect.SecondaryMagnitude,
-                SemanticId = effect.SemanticId,
-                SourceCardZone = effect.SourceCardZone,
-                DestinationCardZone = effect.DestinationCardZone,
-                SelectionRank = effect.Kind == CombatEffectKind.RetrieveCards
+                    : sourceEffect.Magnitude;
+            effect.SecondaryMagnitude = sourceEffect.SecondaryMagnitude;
+            effect.SemanticId = sourceEffect.SemanticId;
+            effect.SourceCardZone = sourceEffect.SourceCardZone;
+            effect.DestinationCardZone = sourceEffect.DestinationCardZone;
+            effect.SelectionRank = sourceEffect.Kind == CombatEffectKind.RetrieveCards
                     ? selectionRank
-                    : effect.SelectionRank
-            }).ToList()
-        };
+                    : sourceEffect.SelectionRank;
+            clone.Effects.Add(effect);
+        }
+        return clone;
     }
 
     private static bool HasRandomCardCostStatus(CombatStateObservation root)
@@ -2520,18 +2614,24 @@ public static class CombatForwardModel
         CombatActionOutcome outcome,
         CombatEffectKind kind,
         int targetRuntimeId,
-        double magnitude)
+        double magnitude,
+        CombatActionModelArena? arena = null)
     {
         if (magnitude <= 0d)
         {
             return;
         }
-        outcome.Effects.Add(new CombatEffectOperation
-        {
-            Kind = kind,
-            TargetRuntimeId = targetRuntimeId,
-            Magnitude = magnitude
-        });
+        var effect = RentEffect(arena);
+        effect.Kind = kind;
+        effect.TargetRuntimeId = targetRuntimeId;
+        effect.Magnitude = magnitude;
+        outcome.Effects.Add(effect);
+    }
+
+    private static CombatEffectOperation RentEffect(
+        CombatActionModelArena? arena)
+    {
+        return arena?.RentEffect() ?? new CombatEffectOperation();
     }
 
     private static void NormalizeOutcomes(CombatActionModel model)

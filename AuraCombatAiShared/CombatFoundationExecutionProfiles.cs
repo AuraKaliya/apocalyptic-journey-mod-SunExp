@@ -58,7 +58,11 @@ public static class CombatFoundationExecutionProfiles
             CombatFoundationExecutionProfileNames.Cpu32 =>
                 Math.Min(32, processorCount),
             CombatFoundationExecutionProfileNames.Auto =>
-                Math.Min(64, processorCount),
+                Math.Min(
+                    Math.Min(64, processorCount),
+                    requestedCampaignParallelism <= 0
+                        ? processorCount
+                        : requestedCampaignParallelism),
             _ => Math.Max(
                 1,
                 Math.Min(64, requestedCampaignParallelism))

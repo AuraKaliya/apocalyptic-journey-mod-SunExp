@@ -14,7 +14,7 @@ if (string.IsNullOrWhiteSpace(packagePath)
 {
     Console.Error.WriteLine(
         "Usage: AuraFoundationModelInstaller "
-        + "--package <foundation-model-package-v3.json> "
+        + "--package <foundation-model-package-v4.json> "
         + "--aura-shared-root <ModsData/AuraShared> "
         + "--display-name <name> [--activate]");
     return 2;
@@ -96,9 +96,11 @@ var autoBattle = settings["data"]?["autoBattle"] as JObject
                      "MatchExperience settings have no autoBattle object.");
 var oldSelectedModelId = (string?)autoBattle["selectedModelId"] ?? "";
 
+var normalizedAcceptance = CombatFoundationModelPackageProtocol
+    .NormalizeAcceptance(package);
 var bundle = new JObject
 {
-    ["SchemaVersion"] = 2,
+    ["SchemaVersion"] = 4,
     ["BundleId"] = Clone(packageNode["PackageId"]),
     ["Profile"] = Clone(packageNode["Profile"]),
     ["RoleId"] = Clone(packageNode["RoleId"]),
@@ -117,6 +119,12 @@ var bundle = new JObject
     ["FoundationWorkerSha256"] = Clone(packageNode["WorkerSha256"]),
     ["FoundationRulesetHash"] = Clone(packageNode["RulesetHash"]),
     ["FoundationModelVersion"] = Clone(packageNode["ModelVersion"]),
+    ["FoundationAcceptanceKind"] = normalizedAcceptance.Classification,
+    ["FoundationPromotionProtocolVersion"] =
+        normalizedAcceptance.PromotionProtocolVersion,
+    ["FoundationPairedRegressionUpperBound"] =
+        normalizedAcceptance.PairedRegressionWilsonUpperBound,
+    ["FoundationAcceptance"] = JObject.FromObject(normalizedAcceptance),
     ["FoundationDistributionOrigin"] = "external-installer",
     ["FoundationSourcePackageSha256"] = packageSha256,
     ["FoundationSourcePackageFile"] = Path.GetFileName(packagePath),
@@ -136,7 +144,7 @@ var bundle = new JObject
 };
 
 var library = JObject.Parse(File.ReadAllText(manifestPath, utf8));
-library["SchemaVersion"] = Math.Max(3, (int?)library["SchemaVersion"] ?? 0);
+library["SchemaVersion"] = Math.Max(5, (int?)library["SchemaVersion"] ?? 0);
 var models = library["Models"] as JArray
              ?? throw new InvalidDataException(
                  "Model library manifest has no Models array.");
@@ -174,6 +182,7 @@ models.Add(new JObject
     ["ProjectionAdvancedWinRate"] = package.Validation.AdvancedWinRate,
     ["BundleFile"] = bundleFile,
     ["ModelVersion"] = Clone(packageNode["ModelVersion"]),
+    ["AcceptanceKind"] = normalizedAcceptance.Classification,
     ["DistributionOrigin"] = "external-installer",
     ["SourcePackageSha256"] = packageSha256,
     ["SourcePackageFile"] = Path.GetFileName(packagePath),

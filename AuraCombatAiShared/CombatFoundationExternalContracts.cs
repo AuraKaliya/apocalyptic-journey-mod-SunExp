@@ -46,6 +46,9 @@ public sealed class CombatFoundationTrainingParameters
     public int PreflightCampaignsPerDifficulty { get; set; } = 32;
 
     public int MaximumDegreeOfParallelism { get; set; } =
+        Math.Max(1, Math.Min(32, Environment.ProcessorCount));
+
+    public int ModelTrainingParallelism { get; set; } =
         Math.Max(1, Math.Min(16, Environment.ProcessorCount));
 
     public string ParallelismProfile { get; set; } =
@@ -64,7 +67,13 @@ public sealed class CombatFoundationTrainingParameters
 
     public int CheckpointSerializationParallelism { get; set; }
 
-    public bool ReuseAutoTuneCache { get; set; } = true;
+    public bool EnableMemoryCapacityParallelism { get; set; } = true;
+
+    public long ParallelismPerLaneBytes { get; set; }
+
+    public long ParallelismMemoryReserveBytes { get; set; }
+
+    public bool ReuseAutoTuneCache { get; set; }
 
     public int AutoTuneSampleCampaigns { get; set; } = 32;
 
@@ -183,6 +192,11 @@ public sealed class CombatFoundationTrainingParameters
     public int ModelMaximumFramesPerEpisode { get; set; } = 96;
 
     public int ModelReplayEpisodeLimit { get; set; } = 8000;
+
+    public int ModelReplayFrameLimit { get; set; } = 384000;
+
+    public long ModelReplayEstimatedBytesLimit { get; set; } =
+        3L * 1024L * 1024L * 1024L;
 
     public int ModelRetainedCandidates { get; set; } = 3;
 
@@ -320,6 +334,13 @@ public sealed class CombatFoundationTrainingParameters
         PreflightCampaignsPerDifficulty = Math.Max(
             1,
             Math.Min(100, PreflightCampaignsPerDifficulty));
+        ModelTrainingParallelism = Math.Max(
+            1,
+            Math.Min(64, ModelTrainingParallelism));
+        ParallelismPerLaneBytes = Math.Max(0L, ParallelismPerLaneBytes);
+        ParallelismMemoryReserveBytes = Math.Max(
+            0L,
+            ParallelismMemoryReserveBytes);
         var requestedInferenceParallelism = InferenceParallelism;
         var requestedInferenceLaneCount = InferenceLaneCount;
         var requestedInferenceBatchSize = InferenceBatchSize;
@@ -508,6 +529,14 @@ public sealed class CombatFoundationTrainingParameters
         ModelReplayEpisodeLimit = Math.Max(
             64,
             Math.Min(20000, ModelReplayEpisodeLimit));
+        ModelReplayFrameLimit = Math.Max(
+            4096,
+            Math.Min(2_000_000, ModelReplayFrameLimit));
+        ModelReplayEstimatedBytesLimit = Math.Max(
+            256L * 1024L * 1024L,
+            Math.Min(
+                16L * 1024L * 1024L * 1024L,
+                ModelReplayEstimatedBytesLimit));
         ModelRetainedCandidates = Math.Max(1, Math.Min(5, ModelRetainedCandidates));
         ModelLearningRate = Clamp(ModelLearningRate, 0.0001d, 0.1d, 0.00625d);
         ModelL2 = Clamp(ModelL2, 0d, 0.05d, 0.0015d);
@@ -799,6 +828,8 @@ public static class CombatFoundationWorkerJobFactory
                 PreflightSeedStart = parameters.TrainingSeedStart,
                 MaximumDegreeOfParallelism =
                     parameters.MaximumDegreeOfParallelism,
+                ModelTrainingParallelism =
+                    parameters.ModelTrainingParallelism,
                 ParallelismProfile = parameters.ParallelismProfile,
                 InferenceExecutionMode = parameters.InferenceExecutionMode,
                 InferenceParallelism = parameters.InferenceParallelism,
@@ -808,6 +839,12 @@ public static class CombatFoundationWorkerJobFactory
                     parameters.ThreadPoolMinimumWorkerThreads,
                 CheckpointSerializationParallelism =
                     parameters.CheckpointSerializationParallelism,
+                EnableMemoryCapacityParallelism =
+                    parameters.EnableMemoryCapacityParallelism,
+                ParallelismPerLaneBytes =
+                    parameters.ParallelismPerLaneBytes,
+                ParallelismMemoryReserveBytes =
+                    parameters.ParallelismMemoryReserveBytes,
                 ReuseAutoTuneCache = parameters.ReuseAutoTuneCache,
                 AutoTuneSampleCampaigns =
                     parameters.AutoTuneSampleCampaigns,
@@ -938,7 +975,7 @@ public static class CombatFoundationWorkerJobFactory
                     MaximumFramesPerEpisode =
                         parameters.ModelMaximumFramesPerEpisode,
                     MaximumDegreeOfParallelism =
-                        parameters.MaximumDegreeOfParallelism,
+                        parameters.ModelTrainingParallelism,
                     MinimumEpochs = parameters.ModelMinimumEpochs,
                     EarlyStoppingPatience =
                         parameters.ModelEarlyStoppingPatience,
@@ -946,6 +983,10 @@ public static class CombatFoundationWorkerJobFactory
                         parameters.ModelEarlyStoppingMinimumDelta,
                     ReplayEpisodeLimit =
                         parameters.ModelReplayEpisodeLimit,
+                    ReplayFrameLimit =
+                        parameters.ModelReplayFrameLimit,
+                    ReplayEstimatedBytesLimit =
+                        parameters.ModelReplayEstimatedBytesLimit,
                     RetainedModelCandidates =
                         parameters.ModelRetainedCandidates,
                     MinimumEpisodes = parameters.MinimumEpisodes
@@ -1021,7 +1062,9 @@ public static class CombatFoundationWorkerJobFactory
 
 public static class CombatFoundationModelPackageProtocol
 {
-    public const int SchemaVersion = 3;
+    public const int SchemaVersion = 4;
+
+    public const int LegacySchemaVersion = 3;
 
     public const long SoftMaximumUncompressedBytes = 45_000_000L;
 
@@ -1052,9 +1095,11 @@ public static class CombatFoundationModelPackageProtocol
 
     public const string ArtifactKind = "aura.foundation-model-package";
 
-    public const string FileName = "foundation-model-package-v3.json";
+    public const string FileName = "foundation-model-package-v4.json";
 
-    public const string CurrentModelVersion = "3.0.0";
+    public const string CurrentModelVersion = "4.0.0";
+
+    public const string LegacyModelVersion = "3.0.0";
 
     public static CombatFoundationModelPackage Create(
         CombatFoundationWorkerJob job,
@@ -1141,6 +1186,7 @@ public static class CombatFoundationModelPackageProtocol
             OwnerModSetHash = job.Request.OwnerModSetHash,
             Compatibility = training.Compatibility,
             Validation = training.Validation,
+            Acceptance = CreateAcceptance(training),
             TrainingSubject = trainingSubject,
             DeclaredCoverage = declaredCoverage,
             Model = model
@@ -1156,7 +1202,8 @@ public static class CombatFoundationModelPackageProtocol
             diagnostic = "底模包为空";
             return false;
         }
-        if (package.SchemaVersion != SchemaVersion
+        var legacy = package.SchemaVersion == LegacySchemaVersion;
+        if ((!legacy && package.SchemaVersion != SchemaVersion)
             || !string.Equals(
                 package.ArtifactKind,
                 ArtifactKind,
@@ -1169,7 +1216,7 @@ public static class CombatFoundationModelPackageProtocol
             || string.IsNullOrWhiteSpace(package.JobId)
             || !string.Equals(
                 package.ModelVersion,
-                CurrentModelVersion,
+                legacy ? LegacyModelVersion : CurrentModelVersion,
                 StringComparison.Ordinal)
             || !string.Equals(
                 package.CompletionKind,
@@ -1177,6 +1224,11 @@ public static class CombatFoundationModelPackageProtocol
                 StringComparison.Ordinal))
         {
             diagnostic = "底模包缺少已验收训练来源";
+            return false;
+        }
+        if (!legacy && !ValidAcceptance(package.Acceptance))
+        {
+            diagnostic = "底模包缺少有效的配对证据验收证明";
             return false;
         }
         if (string.IsNullOrWhiteSpace(package.RoleId)
@@ -1344,6 +1396,101 @@ public static class CombatFoundationModelPackageProtocol
         return true;
     }
 
+    public static CombatFoundationModelAcceptance NormalizeAcceptance(
+        CombatFoundationModelPackage package)
+    {
+        if (package.Acceptance != null
+            && package.Acceptance.SchemaVersion == 1)
+        {
+            return package.Acceptance;
+        }
+        return new CombatFoundationModelAcceptance
+        {
+            Classification = "legacy-formal-acceptance",
+            PromotionProtocolVersion = "legacy-v3",
+            FormalIsolationPassed = package.Validation?.Passed == true
+        };
+    }
+
+    public static bool IsValidAcceptance(
+        CombatFoundationModelAcceptance? acceptance)
+    {
+        return ValidAcceptance(acceptance);
+    }
+
+    private static CombatFoundationModelAcceptance CreateAcceptance(
+        CombatCampaignFoundationTrainingResult training)
+    {
+        var evidence = training.Iterations.LastOrDefault(item =>
+                           item.ProvisionalChampionSelected || item.Promoted)
+                       ?? training.Iterations.LastOrDefault();
+        return new CombatFoundationModelAcceptance
+        {
+            Classification = string.IsNullOrWhiteSpace(training.AcceptanceKind)
+                ? "retained-champion"
+                : training.AcceptanceKind,
+            PromotionProtocolVersion = evidence?.PromotionProtocolVersion
+                                       ?? CombatFoundationPromotionProtocol.Version,
+            SourceIteration = evidence?.Iteration ?? 0,
+            SignificantImprovement = evidence?.Promoted == true,
+            EquivalentNonInferior = evidence?.NonInferiorityGatePassed == true,
+            ProvisionalChampionSelected =
+                evidence?.ProvisionalChampionSelected == true,
+            ValidPairedCampaigns = evidence?.ValidArenaPairs ?? 0,
+            ValidNormalPairs = evidence?.ValidNormalArenaPairs ?? 0,
+            ValidAdvancedPairs = evidence?.ValidAdvancedArenaPairs ?? 0,
+            CandidateOnlyWins = evidence?.CandidateOnlyWins ?? 0,
+            ChampionOnlyWins = evidence?.ChampionOnlyWins ?? 0,
+            PairedRegressionWilsonUpperBound =
+                evidence?.PairedRegressionWilsonUpperBound ?? 0d,
+            FormalIsolationPassed = training.Validation.Passed
+        };
+    }
+
+    private static bool ValidAcceptance(
+        CombatFoundationModelAcceptance? acceptance)
+    {
+        if (acceptance == null
+            || acceptance.SchemaVersion != 1
+            || !acceptance.FormalIsolationPassed
+            || string.IsNullOrWhiteSpace(acceptance.Classification)
+            || string.IsNullOrWhiteSpace(
+                acceptance.PromotionProtocolVersion))
+        {
+            return false;
+        }
+        if (string.Equals(
+                acceptance.Classification,
+                CombatFoundationPromotionProtocol.SignificantImprovement,
+                StringComparison.Ordinal))
+        {
+            return acceptance.SignificantImprovement;
+        }
+        if (string.Equals(
+                acceptance.Classification,
+                CombatFoundationPromotionProtocol.EquivalentNonInferior,
+                StringComparison.Ordinal))
+        {
+            return acceptance.EquivalentNonInferior
+                   && acceptance.ValidNormalPairs
+                      >= CombatFoundationPromotionProtocol
+                          .MinimumNonInferiorityPairsPerDifficulty
+                   && acceptance.ValidAdvancedPairs
+                      >= CombatFoundationPromotionProtocol
+                          .MinimumNonInferiorityPairsPerDifficulty
+                   && acceptance.CandidateOnlyWins
+                      >= acceptance.ChampionOnlyWins
+                   && acceptance.PairedRegressionWilsonUpperBound
+                      <= CombatFoundationPromotionProtocol
+                             .MaximumPairedRegressionWilsonUpperBound
+                         + 0.0000001d;
+        }
+        return string.Equals(
+            acceptance.Classification,
+            "retained-champion",
+            StringComparison.Ordinal);
+    }
+
     public static string BuildCardPoolScope(
         string partnerId,
         IEnumerable<string>? enabledRewardCardPackIds,
@@ -1417,6 +1564,37 @@ public static class CombatFoundationModelPackageProtocol
     }
 }
 
+public sealed class CombatFoundationModelAcceptance
+{
+    public int SchemaVersion { get; set; } = 1;
+
+    public string Classification { get; set; } = "";
+
+    public string PromotionProtocolVersion { get; set; } = "";
+
+    public int SourceIteration { get; set; }
+
+    public bool SignificantImprovement { get; set; }
+
+    public bool EquivalentNonInferior { get; set; }
+
+    public bool ProvisionalChampionSelected { get; set; }
+
+    public int ValidPairedCampaigns { get; set; }
+
+    public int ValidNormalPairs { get; set; }
+
+    public int ValidAdvancedPairs { get; set; }
+
+    public int CandidateOnlyWins { get; set; }
+
+    public int ChampionOnlyWins { get; set; }
+
+    public double PairedRegressionWilsonUpperBound { get; set; }
+
+    public bool FormalIsolationPassed { get; set; }
+}
+
 public sealed class CombatFoundationModelPackage
 {
     public int SchemaVersion { get; set; } =
@@ -1473,6 +1651,8 @@ public sealed class CombatFoundationModelPackage
         new();
 
     public CombatCampaignFoundationValidation Validation { get; set; } = new();
+
+    public CombatFoundationModelAcceptance? Acceptance { get; set; }
 
     public CombatFoundationTrainingSubject? TrainingSubject { get; set; }
 

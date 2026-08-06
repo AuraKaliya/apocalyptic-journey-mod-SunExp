@@ -110,8 +110,10 @@ public sealed class CombatDecisionEngine
         CombatStateObservation state,
         CombatDecisionProfile? profile,
         CombatSearchExplorationOptions? exploration,
-        out CombatStateObservation? preparedState)
+        out CombatStateObservation? preparedState,
+        bool stateIsNormalizedAndOwned = false)
     {
+        var allocationStart = ReadThreadAllocatedBytes();
         preparedState = null;
         var selectedProfile = profile ?? new CombatDecisionProfile();
         selectedProfile.Weights ??= new DecisionWeights();
@@ -119,7 +121,10 @@ public sealed class CombatDecisionEngine
         {
             return new CombatDecision { Reason = "no candidates" };
         }
-        state = CombatPlayerObservationBoundary.Normalize(state);
+        if (!stateIsNormalizedAndOwned)
+        {
+            state = CombatPlayerObservationBoundary.Normalize(state);
+        }
         preparedState = state;
         if (HasDecisionPreparation)
         {
@@ -167,7 +172,16 @@ public sealed class CombatDecisionEngine
             if (action.Kind == CombatActionKind.EndTurn)
             {
                 endTurn = action;
-                action.Features = BuildFeatures(state, action);
+                var endTurnUtility = BuildUtility(
+                    state,
+                    action,
+                    selectedProfile);
+                BuildFeaturesInto(
+                    action.Features,
+                    state,
+                    action,
+                    endTurnUtility,
+                    selectedProfile);
                 endTurnEvaluation = new CombatCandidateEvaluation
                 {
                     Action = action,
@@ -200,8 +214,13 @@ public sealed class CombatDecisionEngine
             CombatHandTransformPolicy.Enrich(state, action);
 
             var utility = BuildUtility(state, action, selectedProfile);
-            var features = BuildFeatures(state, action, utility, selectedProfile);
-            action.Features = features;
+            BuildFeaturesInto(
+                action.Features,
+                state,
+                action,
+                utility,
+                selectedProfile);
+            var features = action.Features;
             var evaluatedUtility = utility.Clone();
             var graphEvaluation = DecisionGraphEvaluator.Evaluate(selectedProfile.Graph, features);
             evaluatedUtility.Add(graphEvaluation.UtilityDelta);
@@ -292,11 +311,16 @@ public sealed class CombatDecisionEngine
             };
         }
 
+        var searchStart = ReadThreadAllocatedBytes();
         var search = chancePuctPlanner.Choose(
             state,
             evaluations,
             selectedProfile,
             exploration);
+        var searchEnd = ReadThreadAllocatedBytes();
+        CombatDecisionAllocationDiagnostics.Record(
+            searchStart - allocationStart,
+            searchEnd - searchStart);
         var hasPlanAction = search.HasAction;
         var planAction = search.Action;
         var planScore = search.Score;
@@ -493,6 +517,15 @@ public sealed class CombatDecisionEngine
             FakeLoops = search.FakeLoops,
             BlockedLoops = search.BlockedLoops
         };
+    }
+
+    private static long ReadThreadAllocatedBytes()
+    {
+#if NET8_0_OR_GREATER
+        return GC.GetAllocatedBytesForCurrentThread();
+#else
+        return 0L;
+#endif
     }
 
     private static void MergeMechanicalSemantics(
@@ -780,10 +813,13 @@ public sealed class CombatDecisionEngine
     {
         if (features == null) throw new ArgumentNullException(nameof(features));
         var semantics = action.Semantics ?? new CombatActionSemantics();
-        features.Clear();
-        foreach (var pair in action.Features)
+        if (!ReferenceEquals(features, action.Features))
         {
-            features[pair.Key] = pair.Value;
+            features.Clear();
+            foreach (var pair in action.Features)
+            {
+                features[pair.Key] = pair.Value;
+            }
         }
         features["power"] = state.CurrentPower;
         features["handCount"] = state.HandCount;

@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -33,19 +34,76 @@ public sealed class CombatPolicyValuePrediction
 {
     private Dictionary<string, double>? policyLogits;
     private Dictionary<string, List<double>>? actionReturnQuantiles;
+    private string[]? denseCandidateIds;
+    private double[]? densePolicyLogits;
+    private double[]? denseActionReturnQuantiles;
+    private int denseCandidateCount;
+    private int denseActionQuantileCount;
 
     public Dictionary<string, double> PolicyLogits
     {
-        get => policyLogits ??= new Dictionary<string, double>(
-            StringComparer.Ordinal);
-        set => policyLogits = value;
+        get
+        {
+            if (policyLogits != null)
+            {
+                return policyLogits;
+            }
+            policyLogits = new Dictionary<string, double>(
+                Math.Max(0, denseCandidateCount),
+                StringComparer.Ordinal);
+            for (var index = 0; index < denseCandidateCount; index++)
+            {
+                policyLogits[denseCandidateIds![index] ?? ""] =
+                    densePolicyLogits![index];
+            }
+            return policyLogits;
+        }
+        set
+        {
+            policyLogits = value;
+            ClearDenseStorage();
+        }
     }
 
     public Dictionary<string, List<double>> ActionReturnQuantiles
     {
-        get => actionReturnQuantiles ??=
-            new Dictionary<string, List<double>>(StringComparer.Ordinal);
-        set => actionReturnQuantiles = value;
+        get
+        {
+            if (actionReturnQuantiles != null)
+            {
+                return actionReturnQuantiles;
+            }
+            actionReturnQuantiles = new Dictionary<string, List<double>>(
+                Math.Max(0, denseCandidateCount),
+                StringComparer.Ordinal);
+            if (denseActionQuantileCount <= 0
+                || denseActionReturnQuantiles == null)
+            {
+                return actionReturnQuantiles;
+            }
+            for (var candidateIndex = 0;
+                 candidateIndex < denseCandidateCount;
+                 candidateIndex++)
+            {
+                var quantiles = new List<double>(denseActionQuantileCount);
+                var offset = candidateIndex * denseActionQuantileCount;
+                for (var quantileIndex = 0;
+                     quantileIndex < denseActionQuantileCount;
+                     quantileIndex++)
+                {
+                    quantiles.Add(denseActionReturnQuantiles[
+                        offset + quantileIndex]);
+                }
+                actionReturnQuantiles[
+                    denseCandidateIds![candidateIndex] ?? ""] = quantiles;
+            }
+            return actionReturnQuantiles;
+        }
+        set
+        {
+            actionReturnQuantiles = value;
+            ClearDenseStorage();
+        }
     }
 
     public double ExpectedReturn { get; set; }
@@ -59,6 +117,154 @@ public sealed class CombatPolicyValuePrediction
     public double ExpectedRemainingTurns { get; set; }
 
     public double Uncertainty { get; set; }
+
+    internal void PrepareCandidates(int count, int actionQuantileCount)
+    {
+        denseCandidateCount = Math.Max(0, count);
+        denseActionQuantileCount = Math.Max(0, actionQuantileCount);
+        denseCandidateIds = denseCandidateCount == 0
+            ? Array.Empty<string>()
+            : new string[denseCandidateCount];
+        densePolicyLogits = denseCandidateCount == 0
+            ? Array.Empty<double>()
+            : new double[denseCandidateCount];
+        denseActionReturnQuantiles =
+            denseCandidateCount == 0 || denseActionQuantileCount == 0
+                ? Array.Empty<double>()
+                : new double[checked(
+                    denseCandidateCount * denseActionQuantileCount)];
+        policyLogits = null;
+        actionReturnQuantiles = null;
+    }
+
+    internal void SetCandidate(int index, string candidateId, double policyLogit)
+    {
+        denseCandidateIds![index] = candidateId ?? "";
+        densePolicyLogits![index] = policyLogit;
+    }
+
+    internal void SetActionQuantile(int candidateIndex, int quantileIndex,
+        double value)
+    {
+        denseActionReturnQuantiles![
+            candidateIndex * denseActionQuantileCount + quantileIndex] = value;
+    }
+
+    internal bool TryGetPolicyLogit(string candidateId, out double value)
+    {
+        if (policyLogits != null
+            && policyLogits.TryGetValue(candidateId ?? "", out value))
+        {
+            return true;
+        }
+        var index = DenseCandidateIndex(candidateId);
+        if (index >= 0)
+        {
+            value = densePolicyLogits![index];
+            return true;
+        }
+        value = 0d;
+        return false;
+    }
+
+    internal void SetPolicyLogit(string candidateId, double value)
+    {
+        var index = DenseCandidateIndex(candidateId);
+        if (index >= 0)
+        {
+            densePolicyLogits![index] = value;
+        }
+        if (policyLogits != null || index < 0)
+        {
+            PolicyLogits[candidateId ?? ""] = value;
+        }
+    }
+
+    internal bool TryGetActionQuantiles(
+        string candidateId,
+        out CombatPolicyValueQuantileView quantiles)
+    {
+        if (actionReturnQuantiles != null
+            && actionReturnQuantiles.TryGetValue(
+                candidateId ?? "",
+                out var materialized)
+            && materialized != null)
+        {
+            quantiles = new CombatPolicyValueQuantileView(materialized);
+            return true;
+        }
+        var index = DenseCandidateIndex(candidateId);
+        if (index >= 0
+            && denseActionQuantileCount > 0
+            && denseActionReturnQuantiles != null)
+        {
+            quantiles = new CombatPolicyValueQuantileView(
+                denseActionReturnQuantiles,
+                index * denseActionQuantileCount,
+                denseActionQuantileCount);
+            return true;
+        }
+        quantiles = default;
+        return false;
+    }
+
+    private int DenseCandidateIndex(string? candidateId)
+    {
+        if (denseCandidateIds == null)
+        {
+            return -1;
+        }
+        var id = candidateId ?? "";
+        for (var index = 0; index < denseCandidateCount; index++)
+        {
+            if (string.Equals(
+                    denseCandidateIds[index],
+                    id,
+                    StringComparison.Ordinal))
+            {
+                return index;
+            }
+        }
+        return -1;
+    }
+
+    private void ClearDenseStorage()
+    {
+        denseCandidateIds = null;
+        densePolicyLogits = null;
+        denseActionReturnQuantiles = null;
+        denseCandidateCount = 0;
+        denseActionQuantileCount = 0;
+    }
+}
+
+internal readonly struct CombatPolicyValueQuantileView
+{
+    private readonly double[]? buffer;
+    private readonly List<double>? list;
+    private readonly int offset;
+
+    public CombatPolicyValueQuantileView(double[] buffer, int offset, int count)
+    {
+        this.buffer = buffer;
+        list = null;
+        this.offset = offset;
+        Count = count;
+    }
+
+    public CombatPolicyValueQuantileView(List<double> list)
+    {
+        buffer = null;
+        this.list = list;
+        offset = 0;
+        Count = list?.Count ?? 0;
+    }
+
+    public int Count { get; }
+
+    public double this[int index] => list != null
+        ? list[index]
+        : buffer![offset + index];
 }
 
 public interface ICombatPolicyValueModel
@@ -89,6 +295,35 @@ public sealed class CombatPolicyValueBatchDiagnosticsSnapshot
 
     public long AdaptiveFallbackActivations { get; set; }
 
+    public long DirectEvaluations { get; set; }
+
+    public long DirectInputs { get; set; }
+
+    public long DirectStopwatchTicks { get; set; }
+
+    public long DirectAllocatedBytes { get; set; }
+
+    public long SparseInputs { get; set; }
+
+    public long SparseNonZeroFeatures { get; set; }
+
+    public long SparseDenseEquivalentFeatures { get; set; }
+
+    public long SparseWeightMultiplications { get; set; }
+
+    public long DenseEquivalentWeightMultiplications { get; set; }
+
+    public double AverageDirectEvaluationMicroseconds => DirectEvaluations <= 0
+        ? 0d
+        : DirectStopwatchTicks
+          * 1_000_000d
+          / Stopwatch.Frequency
+          / DirectEvaluations;
+
+    public double AverageDirectAllocatedBytes => DirectInputs <= 0
+        ? 0d
+        : DirectAllocatedBytes / (double)DirectInputs;
+
     public double AverageBatchSize => BatchEvaluations <= 0
         ? 0d
         : BatchedInputs / (double)BatchEvaluations;
@@ -99,6 +334,22 @@ public sealed class CombatPolicyValueBatchDiagnosticsSnapshot
           * 1_000_000d
           / Stopwatch.Frequency
           / Requests;
+
+    public double AverageSparseFeatureCount => SparseInputs <= 0
+        ? 0d
+        : SparseNonZeroFeatures / (double)SparseInputs;
+
+    public double SparseFeatureDensity => SparseDenseEquivalentFeatures <= 0
+        ? 0d
+        : SparseNonZeroFeatures
+          / (double)SparseDenseEquivalentFeatures;
+
+    public double WeightMultiplicationReduction =>
+        DenseEquivalentWeightMultiplications <= 0
+            ? 0d
+            : 1d
+              - SparseWeightMultiplications
+              / (double)DenseEquivalentWeightMultiplications;
 
     public CombatPolicyValueBatchDiagnosticsSnapshot DeltaFrom(
         CombatPolicyValueBatchDiagnosticsSnapshot? baseline)
@@ -124,7 +375,37 @@ public sealed class CombatPolicyValueBatchDiagnosticsSnapshot
             AdaptiveFallbackActivations = Math.Max(
                 0L,
                 AdaptiveFallbackActivations
-                - baseline.AdaptiveFallbackActivations)
+                - baseline.AdaptiveFallbackActivations),
+            DirectEvaluations = Math.Max(
+                0L,
+                DirectEvaluations - baseline.DirectEvaluations),
+            DirectInputs = Math.Max(
+                0L,
+                DirectInputs - baseline.DirectInputs),
+            DirectStopwatchTicks = Math.Max(
+                0L,
+                DirectStopwatchTicks - baseline.DirectStopwatchTicks),
+            DirectAllocatedBytes = Math.Max(
+                0L,
+                DirectAllocatedBytes - baseline.DirectAllocatedBytes),
+            SparseInputs = Math.Max(
+                0L,
+                SparseInputs - baseline.SparseInputs),
+            SparseNonZeroFeatures = Math.Max(
+                0L,
+                SparseNonZeroFeatures - baseline.SparseNonZeroFeatures),
+            SparseDenseEquivalentFeatures = Math.Max(
+                0L,
+                SparseDenseEquivalentFeatures
+                - baseline.SparseDenseEquivalentFeatures),
+            SparseWeightMultiplications = Math.Max(
+                0L,
+                SparseWeightMultiplications
+                - baseline.SparseWeightMultiplications),
+            DenseEquivalentWeightMultiplications = Math.Max(
+                0L,
+                DenseEquivalentWeightMultiplications
+                - baseline.DenseEquivalentWeightMultiplications)
         };
     }
 }
@@ -139,12 +420,22 @@ public static class CombatPolicyValueBatchDiagnostics
     private static long waitStopwatchTicks;
     private static long directFallbackRequests;
     private static long adaptiveFallbackActivations;
+    private static long directEvaluations;
+    private static long directInputs;
+    private static long directStopwatchTicks;
+    private static long directAllocatedBytes;
+    private static long sparseInputs;
+    private static long sparseNonZeroFeatures;
+    private static long sparseDenseEquivalentFeatures;
+    private static long sparseWeightMultiplications;
+    private static long denseEquivalentWeightMultiplications;
 
     public static CombatPolicyValueBatchDiagnosticsSnapshot Capture()
     {
         return new CombatPolicyValueBatchDiagnosticsSnapshot
         {
-            Requests = Interlocked.Read(ref requests),
+            Requests = Interlocked.Read(ref requests)
+                       + Interlocked.Read(ref directInputs),
             BatchEvaluations = Interlocked.Read(ref batchEvaluations),
             BatchedInputs = Interlocked.Read(ref batchedInputs),
             FullBatchEvaluations = Interlocked.Read(ref fullBatchEvaluations),
@@ -153,7 +444,20 @@ public static class CombatPolicyValueBatchDiagnostics
             DirectFallbackRequests = Interlocked.Read(
                 ref directFallbackRequests),
             AdaptiveFallbackActivations = Interlocked.Read(
-                ref adaptiveFallbackActivations)
+                ref adaptiveFallbackActivations),
+            DirectEvaluations = Interlocked.Read(ref directEvaluations),
+            DirectInputs = Interlocked.Read(ref directInputs),
+            DirectStopwatchTicks = Interlocked.Read(ref directStopwatchTicks),
+            DirectAllocatedBytes = Interlocked.Read(ref directAllocatedBytes),
+            SparseInputs = Interlocked.Read(ref sparseInputs),
+            SparseNonZeroFeatures = Interlocked.Read(
+                ref sparseNonZeroFeatures),
+            SparseDenseEquivalentFeatures = Interlocked.Read(
+                ref sparseDenseEquivalentFeatures),
+            SparseWeightMultiplications = Interlocked.Read(
+                ref sparseWeightMultiplications),
+            DenseEquivalentWeightMultiplications = Interlocked.Read(
+                ref denseEquivalentWeightMultiplications)
         };
     }
 
@@ -187,6 +491,42 @@ public static class CombatPolicyValueBatchDiagnostics
         Interlocked.Add(
             ref waitStopwatchTicks,
             Math.Max(0L, elapsedTicks));
+    }
+
+    internal static void DirectEvaluationCompleted(
+        int count,
+        long elapsedTicks,
+        long allocatedBytes = 0L)
+    {
+        Interlocked.Increment(ref directEvaluations);
+        Interlocked.Add(ref directInputs, Math.Max(0, count));
+        Interlocked.Add(
+            ref directStopwatchTicks,
+            Math.Max(0L, elapsedTicks));
+        Interlocked.Add(
+            ref directAllocatedBytes,
+            Math.Max(0L, allocatedBytes));
+    }
+
+    internal static void SparseInputCompleted(
+        int denseFeatures,
+        int sparseFeatures,
+        int outputDimensions)
+    {
+        var safeDenseFeatures = Math.Max(0, denseFeatures);
+        var safeSparseFeatures = Math.Max(0, sparseFeatures);
+        var safeOutputDimensions = Math.Max(0, outputDimensions);
+        Interlocked.Increment(ref sparseInputs);
+        Interlocked.Add(ref sparseNonZeroFeatures, safeSparseFeatures);
+        Interlocked.Add(
+            ref sparseDenseEquivalentFeatures,
+            safeDenseFeatures);
+        Interlocked.Add(
+            ref sparseWeightMultiplications,
+            (long)safeSparseFeatures * safeOutputDimensions);
+        Interlocked.Add(
+            ref denseEquivalentWeightMultiplications,
+            (long)safeDenseFeatures * safeOutputDimensions);
     }
 
     internal static void AdaptiveFallbackActivated()
@@ -616,6 +956,8 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
     private const int ActionTowerCacheCapacity = 256;
 
     private readonly CombatPolicyValueNetworkDefinition definition;
+    private readonly double[] stateWeightsByInput;
+    private readonly double[] actionWeightsByInput;
     private long actionTowerCacheHits;
     private long actionTowerCacheMisses;
     [ThreadStatic]
@@ -624,6 +966,8 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
     private static BatchInferenceWorkspace? threadBatchWorkspace;
     [ThreadStatic]
     private static ActionTowerCacheSet? threadActionTowerCaches;
+    [ThreadStatic]
+    private static int[]? threadSparseIndexes;
 
     public ManagedCombatPolicyValueModel(
         CombatPolicyValueNetworkDefinition definition,
@@ -637,6 +981,14 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
         {
             throw new ArgumentException(reason, nameof(definition));
         }
+        stateWeightsByInput = TransposeInputWeights(
+            definition.StateWeights,
+            definition.StateDimensions,
+            definition.HiddenDimensions);
+        actionWeightsByInput = TransposeInputWeights(
+            definition.ActionWeights,
+            definition.ActionDimensions,
+            definition.HiddenDimensions);
     }
 
     public string ModelId => string.IsNullOrWhiteSpace(definition.ModelId)
@@ -651,6 +1003,8 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
 
     public CombatPolicyValuePrediction Evaluate(CombatPolicyValueInput input)
     {
+        var evaluationStarted = Stopwatch.GetTimestamp();
+        var evaluationAllocatedBytes = CurrentThreadAllocatedBytes();
         input ??= new CombatPolicyValueInput();
         var workspace = threadWorkspace ??= new InferenceWorkspace();
         workspace.Prepare(
@@ -667,16 +1021,23 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
                 state,
                 definition.StateDimensions,
                 definition.FeatureEncodingMode);
-            DenseTanhInto(
+            SparseTanhInto(
                 state,
+                0,
                 definition.StateDimensions,
-                definition.StateWeights,
+                stateWeightsByInput,
                 definition.StateBias,
                 hidden,
+                0,
                 definition.HiddenDimensions);
             var result = PredictionFromHidden(
                 hidden,
                 0);
+            result.PrepareCandidates(
+                input.Candidates.Count,
+                definition.ActionQuantileHeadReady
+                    ? definition.ActionQuantileCount
+                    : 0);
             var minimum = double.PositiveInfinity;
             var maximum = double.NegativeInfinity;
             for (var i = 0; i < input.Candidates.Count; i++)
@@ -695,11 +1056,16 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
                     actionHidden,
                     0,
                     definition.HiddenDimensions);
-                result.PolicyLogits[candidate.CandidateId ?? ""] = logit;
+                result.SetCandidate(i, candidate.CandidateId ?? "", logit);
                 if (definition.ActionQuantileHeadReady)
                 {
-                    result.ActionReturnQuantiles[candidate.CandidateId ?? ""] =
-                        ActionQuantiles(hidden, 0, actionHidden, 0);
+                    ActionQuantilesInto(
+                        hidden,
+                        0,
+                        actionHidden,
+                        0,
+                        result,
+                        i);
                 }
                 minimum = Math.Min(minimum, logit);
                 maximum = Math.Max(maximum, logit);
@@ -707,6 +1073,10 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
             result.Uncertainty = input.Candidates.Count <= 1
                 ? 0d
                 : 1d / (1d + Math.Max(0d, maximum - minimum));
+            CombatPolicyValueBatchDiagnostics.DirectEvaluationCompleted(
+                1,
+                Stopwatch.GetTimestamp() - evaluationStarted,
+                CurrentThreadAllocatedBytes() - evaluationAllocatedBytes);
             return result;
         }
     }
@@ -719,6 +1089,8 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
         {
             return Array.Empty<CombatPolicyValuePrediction>();
         }
+        var evaluationStarted = Stopwatch.GetTimestamp();
+        var evaluationAllocatedBytes = CurrentThreadAllocatedBytes();
         var stateCount = checked(count * definition.StateDimensions);
         var hiddenCount = checked(count * definition.HiddenDimensions);
         var candidateCount = 0;
@@ -746,6 +1118,7 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
         {
             var results = new CombatPolicyValuePrediction[count];
             var candidateOwners = workspace.CandidateOwners;
+            var candidateIndexes = workspace.CandidateIndexes;
             var candidates = workspace.Candidates;
             var cursor = 0;
             for (var inputIndex = 0; inputIndex < count; inputIndex++)
@@ -758,10 +1131,14 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
                     inputIndex * definition.StateDimensions,
                     definition.StateDimensions,
                     definition.FeatureEncodingMode);
-                foreach (var source in input.Candidates)
+                for (var inputCandidateIndex = 0;
+                     inputCandidateIndex < input.Candidates.Count;
+                     inputCandidateIndex++)
                 {
+                    var source = input.Candidates[inputCandidateIndex];
                     var candidate = source ?? new CombatPolicyValueCandidate();
                     candidateOwners[cursor] = inputIndex;
+                    candidateIndexes[cursor] = inputCandidateIndex;
                     candidates[cursor] = candidate;
                     ResolveActionHidden(
                         candidate,
@@ -772,19 +1149,28 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
                     cursor++;
                 }
             }
-            DenseTanhBatch(
-                states,
-                count,
-                definition.StateDimensions,
-                definition.StateWeights,
-                definition.StateBias,
-                hidden,
-                definition.HiddenDimensions);
+            for (var inputIndex = 0; inputIndex < count; inputIndex++)
+            {
+                SparseTanhInto(
+                    states,
+                    inputIndex * definition.StateDimensions,
+                    definition.StateDimensions,
+                    stateWeightsByInput,
+                    definition.StateBias,
+                    hidden,
+                    inputIndex * definition.HiddenDimensions,
+                    definition.HiddenDimensions);
+            }
             for (var inputIndex = 0; inputIndex < count; inputIndex++)
             {
                 results[inputIndex] = PredictionFromHidden(
                     hidden,
                     inputIndex * definition.HiddenDimensions);
+                results[inputIndex].PrepareCandidates(
+                    inputs![inputIndex]?.Candidates.Count ?? 0,
+                    definition.ActionQuantileHeadReady
+                        ? definition.ActionQuantileCount
+                        : 0);
             }
             var minimum = workspace.Minimum;
             var maximum = workspace.Maximum;
@@ -804,17 +1190,20 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
                     actionHidden,
                     candidateIndex * definition.HiddenDimensions,
                     definition.HiddenDimensions);
-                results[owner].PolicyLogits[
-                    candidates[candidateIndex].CandidateId ?? ""] = logit;
+                var ownerCandidateIndex = candidateIndexes[candidateIndex];
+                results[owner].SetCandidate(
+                    ownerCandidateIndex,
+                    candidates[candidateIndex].CandidateId ?? "",
+                    logit);
                 if (definition.ActionQuantileHeadReady)
                 {
-                    results[owner].ActionReturnQuantiles[
-                        candidates[candidateIndex].CandidateId ?? ""] =
-                        ActionQuantiles(
-                            hidden,
-                            owner * definition.HiddenDimensions,
-                            actionHidden,
-                            candidateIndex * definition.HiddenDimensions);
+                    ActionQuantilesInto(
+                        hidden,
+                        owner * definition.HiddenDimensions,
+                        actionHidden,
+                        candidateIndex * definition.HiddenDimensions,
+                        results[owner],
+                        ownerCandidateIndex);
                 }
                 minimum[owner] = Math.Min(minimum[owner], logit);
                 maximum[owner] = Math.Max(maximum[owner], logit);
@@ -831,6 +1220,10 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
                             maximum[inputIndex] - minimum[inputIndex]));
             }
             Array.Clear(candidates, 0, candidateCount);
+            CombatPolicyValueBatchDiagnostics.DirectEvaluationCompleted(
+                count,
+                Stopwatch.GetTimestamp() - evaluationStarted,
+                CurrentThreadAllocatedBytes() - evaluationAllocatedBytes);
             return results;
         }
     }
@@ -915,11 +1308,11 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
             actionOffset,
             definition.ActionDimensions,
             definition.FeatureEncodingMode);
-        DenseTanhInto(
+        SparseTanhInto(
             encodedAction,
             actionOffset,
             definition.ActionDimensions,
-            definition.ActionWeights,
+            actionWeightsByInput,
             definition.ActionBias,
             actionHidden,
             hiddenOffset,
@@ -952,18 +1345,19 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
             30d);
     }
 
-    private List<double> ActionQuantiles(
+    private void ActionQuantilesInto(
         double[] hidden,
         int hiddenOffset,
         double[] actionHidden,
-        int actionOffset)
+        int actionOffset,
+        CombatPolicyValuePrediction prediction,
+        int candidateIndex)
     {
-        var result = new List<double>(definition.ActionQuantileCount);
         for (var quantile = 0;
              quantile < definition.ActionQuantileCount;
              quantile++)
         {
-            result.Add(Clamp(
+            prediction.SetActionQuantile(candidateIndex, quantile, Clamp(
                 Interaction(
                     hidden,
                     hiddenOffset,
@@ -976,7 +1370,6 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
                 -1d,
                 1d));
         }
-        return result;
     }
 
     private static void DenseTanhBatch(
@@ -1019,6 +1412,108 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
             output,
             0,
             outputDimensions);
+    }
+
+    private static void SparseTanhInto(
+        double[] input,
+        int inputOffset,
+        int inputDimensions,
+        double[] weightsByInput,
+        double[] bias,
+        double[] output,
+        int outputOffset,
+        int outputDimensions)
+    {
+        Array.Copy(bias, 0, output, outputOffset, outputDimensions);
+        var sparseIndexes = threadSparseIndexes;
+        if (sparseIndexes == null || sparseIndexes.Length < inputDimensions)
+        {
+            sparseIndexes = new int[inputDimensions];
+            threadSparseIndexes = sparseIndexes;
+        }
+        var sparseCount = 0;
+        for (var inputIndex = 0; inputIndex < inputDimensions; inputIndex++)
+        {
+            if (input[inputOffset + inputIndex] != 0d)
+            {
+                sparseIndexes[sparseCount++] = inputIndex;
+            }
+        }
+        for (var sparseIndex = 0; sparseIndex < sparseCount; sparseIndex++)
+        {
+            var inputIndex = sparseIndexes[sparseIndex];
+            var value = input[inputOffset + inputIndex];
+            var weightOffset = inputIndex * outputDimensions;
+            var outputIndex = 0;
+#if NET8_0_OR_GREATER
+            if (Vector.IsHardwareAccelerated
+                && outputDimensions >= Vector<double>.Count)
+            {
+                var inputVector = new Vector<double>(value);
+                var vectorEnd = outputDimensions
+                                - outputDimensions % Vector<double>.Count;
+                for (; outputIndex < vectorEnd;
+                     outputIndex += Vector<double>.Count)
+                {
+                    var accumulated = new Vector<double>(
+                        output,
+                        outputOffset + outputIndex);
+                    accumulated += new Vector<double>(
+                                       weightsByInput,
+                                       weightOffset + outputIndex)
+                                   * inputVector;
+                    accumulated.CopyTo(output, outputOffset + outputIndex);
+                }
+            }
+#endif
+            for (; outputIndex < outputDimensions; outputIndex++)
+            {
+                output[outputOffset + outputIndex] +=
+                    weightsByInput[weightOffset + outputIndex] * value;
+            }
+        }
+        for (var outputIndex = 0;
+             outputIndex < outputDimensions;
+             outputIndex++)
+        {
+            output[outputOffset + outputIndex] = Math.Tanh(
+                output[outputOffset + outputIndex]);
+        }
+        CombatPolicyValueBatchDiagnostics.SparseInputCompleted(
+            inputDimensions,
+            sparseCount,
+            outputDimensions);
+    }
+
+    private static double[] TransposeInputWeights(
+        double[] outputMajorWeights,
+        int inputDimensions,
+        int outputDimensions)
+    {
+        var result = new double[checked(inputDimensions * outputDimensions)];
+        for (var outputIndex = 0;
+             outputIndex < outputDimensions;
+             outputIndex++)
+        {
+            var sourceOffset = outputIndex * inputDimensions;
+            for (var inputIndex = 0;
+                 inputIndex < inputDimensions;
+                 inputIndex++)
+            {
+                result[inputIndex * outputDimensions + outputIndex] =
+                    outputMajorWeights[sourceOffset + inputIndex];
+            }
+        }
+        return result;
+    }
+
+    private static long CurrentThreadAllocatedBytes()
+    {
+#if NET8_0_OR_GREATER
+        return GC.GetAllocatedBytesForCurrentThread();
+#else
+        return 0L;
+#endif
     }
 
     private static void DenseTanhInto(
@@ -1185,6 +1680,8 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
 
         public int[] CandidateOwners = Array.Empty<int>();
 
+        public int[] CandidateIndexes = Array.Empty<int>();
+
         public CombatPolicyValueCandidate[] Candidates =
             Array.Empty<CombatPolicyValueCandidate>();
 
@@ -1205,6 +1702,7 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
             Ensure(ref Actions, actionCount);
             Ensure(ref ActionHidden, actionHiddenCount);
             Ensure(ref CandidateOwners, Math.Max(1, candidateCount));
+            Ensure(ref CandidateIndexes, Math.Max(1, candidateCount));
             Ensure(ref Candidates, Math.Max(1, candidateCount));
             Ensure(ref Minimum, inputCount);
             Ensure(ref Maximum, inputCount);
@@ -1622,6 +2120,61 @@ public sealed class CombatFeatureCollisionTelemetry
 
 public static class CombatPolicyValueEncoding
 {
+    [ThreadStatic]
+    private static CombatCompactFeatureBuilder? threadCompactStateBuilder;
+
+    [ThreadStatic]
+    private static CombatCompactFeatureBuilder? threadCompactCandidateBuilder;
+
+    private static class FeatureKeys
+    {
+        private static readonly ConcurrentDictionary<string, string>
+            PlayerStatuses = new(StringComparer.Ordinal);
+        private static readonly ConcurrentDictionary<string, string>
+            Enemies = new(StringComparer.Ordinal);
+        private static readonly ConcurrentDictionary<string, string>
+            EnemyHp = new(StringComparer.Ordinal);
+        private static readonly ConcurrentDictionary<string, string>
+            EnemyStatuses = new(StringComparer.Ordinal);
+        private static readonly ConcurrentDictionary<string, string>
+            Deck = new(StringComparer.Ordinal);
+        private static readonly ConcurrentDictionary<string, string>
+            Hand = new(StringComparer.Ordinal);
+        private static readonly ConcurrentDictionary<string, string>
+            RetainedHand = new(StringComparer.Ordinal);
+        private static readonly ConcurrentDictionary<string, string>
+            Discard = new(StringComparer.Ordinal);
+        private static readonly ConcurrentDictionary<string, string>
+            Exhaust = new(StringComparer.Ordinal);
+
+        public static string PlayerStatus(string id) =>
+            PlayerStatuses.GetOrAdd(id ?? "", value => "playerStatus:" + value);
+
+        public static string Enemy(string id) =>
+            Enemies.GetOrAdd(id ?? "", value => "enemy:" + value);
+
+        public static string EnemyHealth(string id) =>
+            EnemyHp.GetOrAdd(id ?? "", value => "enemyHp:" + value);
+
+        public static string EnemyStatus(string id) =>
+            EnemyStatuses.GetOrAdd(id ?? "", value => "enemyStatus:" + value);
+
+        public static string DeckCard(string id) =>
+            Deck.GetOrAdd(id ?? "", value => "deck:" + value);
+
+        public static string HandCard(string id) =>
+            Hand.GetOrAdd(id ?? "", value => "hand:" + value);
+
+        public static string RetainedHandCard(string id) =>
+            RetainedHand.GetOrAdd(id ?? "", value => "retainedHand:" + value);
+
+        public static string DiscardCard(string id) =>
+            Discard.GetOrAdd(id ?? "", value => "discard:" + value);
+
+        public static string ExhaustCard(string id) =>
+            Exhaust.GetOrAdd(id ?? "", value => "exhaust:" + value);
+    }
+
     private static readonly Dictionary<string, int> CoreStateIndexes = new(
         StringComparer.OrdinalIgnoreCase)
     {
@@ -1753,6 +2306,44 @@ public static class CombatPolicyValueEncoding
         }
     }
 
+    internal static void EncodeStateInto(
+        CombatCompactFeatureVector values,
+        double[] target,
+        int dimensions,
+        string encodingMode)
+    {
+        RequireCurrentEncoding(encodingMode);
+        var safeDimensions = Math.Max(1, Math.Min(dimensions, target.Length));
+        Array.Clear(target, 0, safeDimensions);
+        for (var index = 0; index < values.Count; index++)
+        {
+            if (!CombatFeatureTokenRegistry.TryResolve(
+                    values.TokenIds[index],
+                    out var key)
+                || !CombatPublicFeaturePolicy.TrySanitizeStateFeature(
+                    key,
+                    values.Values[index],
+                    out var sanitizedValue))
+            {
+                continue;
+            }
+            if (TryCoreStateIndex(key, safeDimensions, out var coreIndex))
+            {
+                target[coreIndex] += Normalize(sanitizedValue);
+                continue;
+            }
+            var range = StateRange(key, safeDimensions);
+            AddRange(
+                target,
+                range.Start,
+                range.Length,
+                "state",
+                key,
+                Normalize(sanitizedValue),
+                safeDimensions);
+        }
+    }
+
     public static Dictionary<string, double> SanitizeStateFeatures(
         IReadOnlyDictionary<string, double>? values)
     {
@@ -1793,6 +2384,39 @@ public static class CombatPolicyValueEncoding
         };
     }
 
+    internal static CombatFeatureCollisionTelemetry MeasureStateCollisionsForFrame(
+        CombatEpisodeFrame frame,
+        int dimensions)
+    {
+        if (frame.CompactStateFeatures == null)
+        {
+            return MeasureStateCollisions(frame.StateFeatures, dimensions);
+        }
+        var buckets = new HashSet<int>();
+        var count = 0;
+        var values = frame.CompactStateFeatures;
+        for (var index = 0; index < values.Count; index++)
+        {
+            if (!CombatFeatureTokenRegistry.TryResolve(
+                    values.TokenIds[index],
+                    out var key)
+                || !CombatPublicFeaturePolicy.TrySanitizeStateFeature(
+                    key,
+                    values.Values[index],
+                    out _))
+            {
+                continue;
+            }
+            count++;
+            buckets.Add(StateIndex(key, Math.Max(1, dimensions)));
+        }
+        return new CombatFeatureCollisionTelemetry
+        {
+            FeatureCount = count,
+            UniqueBucketCount = buckets.Count
+        };
+    }
+
     public static CombatFeatureCollisionTelemetry MeasureCandidateCollisions(
         CombatPolicyValueCandidate candidate,
         int dimensions)
@@ -1811,6 +2435,52 @@ public static class CombatPolicyValueEncoding
             }
             count++;
             buckets.Add(ActionIndex(pair.Key, safeDimensions));
+        }
+        count++;
+        buckets.Add(SparseActionIndex(
+            "source",
+            candidate.SourceId ?? "",
+            safeDimensions));
+        return new CombatFeatureCollisionTelemetry
+        {
+            FeatureCount = count,
+            UniqueBucketCount = buckets.Count
+        };
+    }
+
+    internal static CombatFeatureCollisionTelemetry MeasureCandidateCollisions(
+        CombatEpisodeCandidate candidate,
+        int dimensions)
+    {
+        if (candidate.CompactFeatures == null)
+        {
+            return MeasureCandidateCollisions(
+                new CombatPolicyValueCandidate
+                {
+                    CandidateId = candidate.CandidateId,
+                    SourceId = candidate.SourceId,
+                    Features = candidate.Features
+                },
+                dimensions);
+        }
+        var safeDimensions = Math.Max(1, dimensions);
+        var buckets = new HashSet<int>();
+        var count = 0;
+        var values = candidate.CompactFeatures;
+        for (var index = 0; index < values.Count; index++)
+        {
+            if (!CombatFeatureTokenRegistry.TryResolve(
+                    values.TokenIds[index],
+                    out var key)
+                || !CombatPublicFeaturePolicy.TrySanitizeActionFeature(
+                    key,
+                    values.Values[index],
+                    out _))
+            {
+                continue;
+            }
+            count++;
+            buckets.Add(ActionIndex(key, safeDimensions));
         }
         count++;
         buckets.Add(SparseActionIndex(
@@ -1900,6 +2570,54 @@ public static class CombatPolicyValueEncoding
             candidate.SourceId ?? "",
             1d,
             offset + safeDimensions);
+    }
+
+    internal static void EncodeCandidateInto(
+        CombatCompactFeatureVector values,
+        string sourceId,
+        double[] target,
+        int dimensions,
+        string encodingMode)
+    {
+        RequireCurrentEncoding(encodingMode);
+        var safeDimensions = Math.Max(1, Math.Min(dimensions, target.Length));
+        Array.Clear(target, 0, safeDimensions);
+        for (var index = 0; index < values.Count; index++)
+        {
+            if (!CombatFeatureTokenRegistry.TryResolve(
+                    values.TokenIds[index],
+                    out var key)
+                || !CombatPublicFeaturePolicy.TrySanitizeActionFeature(
+                    key,
+                    values.Values[index],
+                    out var sanitizedValue))
+            {
+                continue;
+            }
+            if (TryCoreActionIndex(key, safeDimensions, out var coreIndex))
+            {
+                target[coreIndex] += Normalize(sanitizedValue);
+                continue;
+            }
+            var sparseStart = Math.Min(24, safeDimensions - 1);
+            AddRange(
+                target,
+                sparseStart,
+                Math.Max(1, safeDimensions - sparseStart),
+                "action",
+                key,
+                Normalize(sanitizedValue),
+                safeDimensions);
+        }
+        var sourceStart = Math.Min(24, safeDimensions - 1);
+        AddRange(
+            target,
+            sourceStart,
+            Math.Max(1, safeDimensions - sourceStart),
+            "source",
+            sourceId ?? "",
+            1d,
+            safeDimensions);
     }
 
     private static void RequireCurrentEncoding(string encodingMode)
@@ -2037,42 +2755,152 @@ public static class CombatPolicyValueEncoding
         result["enemyHpTotal"] = enemyHpTotal;
         result["expectedIncomingDamage"] = state.ExpectedIncomingDamage;
         result["turn"] = Value(state.Features, "turn");
-        foreach (var status in state.Player?.Statuses ?? new List<CombatStatusObservation>())
+        foreach (var status in (IReadOnlyList<CombatStatusObservation>?)
+                     state.Player?.Statuses
+                 ?? Array.Empty<CombatStatusObservation>())
         {
-            Add(result, "playerStatus:" + status.StatusId, status.Level);
+            Add(result, FeatureKeys.PlayerStatus(status.StatusId), status.Level);
         }
-        foreach (var enemy in state.Enemies ?? new List<CombatUnitObservation>())
+        foreach (var enemy in (IReadOnlyList<CombatUnitObservation>?)
+                     state.Enemies
+                 ?? Array.Empty<CombatUnitObservation>())
         {
             if (!string.IsNullOrWhiteSpace(enemy.DefinitionId))
             {
-                Add(result, "enemy:" + enemy.DefinitionId, 1d);
-                Add(result, "enemyHp:" + enemy.DefinitionId, enemy.CurrentHp);
+                Add(result, FeatureKeys.Enemy(enemy.DefinitionId), 1d);
+                Add(
+                    result,
+                    FeatureKeys.EnemyHealth(enemy.DefinitionId),
+                    enemy.CurrentHp);
             }
-            foreach (var status in enemy.Statuses ?? new List<CombatStatusObservation>())
+            foreach (var status in (IReadOnlyList<CombatStatusObservation>?)
+                         enemy.Statuses
+                     ?? Array.Empty<CombatStatusObservation>())
             {
-                Add(result, "enemyStatus:" + status.StatusId, status.Level);
+                Add(
+                    result,
+                    FeatureKeys.EnemyStatus(status.StatusId),
+                    status.Level);
             }
         }
-        foreach (var id in state.DeckCardIds ?? new List<string>())
+        foreach (var id in (IReadOnlyList<string>?)state.DeckCardIds
+                 ?? Array.Empty<string>())
         {
-            Add(result, "deck:" + id, 1d);
+            Add(result, FeatureKeys.DeckCard(id), 1d);
         }
-        foreach (var id in state.HandCardIds ?? new List<string>())
+        foreach (var id in (IReadOnlyList<string>?)state.HandCardIds
+                 ?? Array.Empty<string>())
         {
-            Add(result, "hand:" + id, 1d);
+            Add(result, FeatureKeys.HandCard(id), 1d);
         }
-        foreach (var id in state.RetainedHandCardIds ?? new List<string>())
+        foreach (var id in (IReadOnlyList<string>?)state.RetainedHandCardIds
+                 ?? Array.Empty<string>())
         {
-            Add(result, "retainedHand:" + id, 1d);
+            Add(result, FeatureKeys.RetainedHandCard(id), 1d);
         }
-        foreach (var id in state.DiscardPileCardIds ?? new List<string>())
+        foreach (var id in (IReadOnlyList<string>?)state.DiscardPileCardIds
+                 ?? Array.Empty<string>())
         {
-            Add(result, "discard:" + id, 1d);
+            Add(result, FeatureKeys.DiscardCard(id), 1d);
         }
-        foreach (var id in state.ExhaustPileCardIds ?? new List<string>())
+        foreach (var id in (IReadOnlyList<string>?)state.ExhaustPileCardIds
+                 ?? Array.Empty<string>())
         {
-            Add(result, "exhaust:" + id, 1d);
+            Add(result, FeatureKeys.ExhaustCard(id), 1d);
         }
+    }
+
+    internal static CombatCompactFeatureVector BuildCompactStateFeatures(
+        CombatStateObservation state)
+    {
+        var builder = threadCompactStateBuilder ??=
+            new CombatCompactFeatureBuilder();
+        builder.Clear();
+        foreach (var pair in state?.Features
+                 ?? (IReadOnlyDictionary<string, double>)EmptyFeatures.Instance)
+        {
+            if (CombatPublicFeaturePolicy.TrySanitizeStateFeature(
+                    pair.Key,
+                    pair.Value,
+                    out var sanitized))
+            {
+                builder.Set(pair.Key, sanitized);
+            }
+        }
+        if (state == null)
+        {
+            return builder.Build();
+        }
+        builder.Set("playerHp", state.Player?.CurrentHp ?? 0);
+        builder.Set("playerMaxHp", state.Player?.MaxHp ?? 0);
+        builder.Set("playerDefend", state.Player?.Defend ?? 0);
+        builder.Set("power", state.CurrentPower);
+        builder.Set("maxPower", state.MaxPower);
+        builder.Set("handCount", state.HandCount);
+        builder.Set("enemyCount", state.Enemies?.Count ?? 0);
+        var enemyHpTotal = 0;
+        if (state.Enemies != null)
+        {
+            for (var index = 0; index < state.Enemies.Count; index++)
+            {
+                enemyHpTotal += Math.Max(0, state.Enemies[index].CurrentHp);
+            }
+        }
+        builder.Set("enemyHpTotal", enemyHpTotal);
+        builder.Set("expectedIncomingDamage", state.ExpectedIncomingDamage);
+        builder.Set("turn", Value(state.Features, "turn"));
+        foreach (var status in (IReadOnlyList<CombatStatusObservation>?)
+                     state.Player?.Statuses
+                 ?? Array.Empty<CombatStatusObservation>())
+        {
+            builder.Add(FeatureKeys.PlayerStatus(status.StatusId), status.Level);
+        }
+        foreach (var enemy in (IReadOnlyList<CombatUnitObservation>?)
+                     state.Enemies
+                 ?? Array.Empty<CombatUnitObservation>())
+        {
+            if (!string.IsNullOrWhiteSpace(enemy.DefinitionId))
+            {
+                builder.Add(FeatureKeys.Enemy(enemy.DefinitionId), 1d);
+                builder.Add(
+                    FeatureKeys.EnemyHealth(enemy.DefinitionId),
+                    enemy.CurrentHp);
+            }
+            foreach (var status in (IReadOnlyList<CombatStatusObservation>?)
+                         enemy.Statuses
+                     ?? Array.Empty<CombatStatusObservation>())
+            {
+                builder.Add(
+                    FeatureKeys.EnemyStatus(status.StatusId),
+                    status.Level);
+            }
+        }
+        foreach (var id in (IReadOnlyList<string>?)state.DeckCardIds
+                 ?? Array.Empty<string>())
+        {
+            builder.Add(FeatureKeys.DeckCard(id), 1d);
+        }
+        foreach (var id in (IReadOnlyList<string>?)state.HandCardIds
+                 ?? Array.Empty<string>())
+        {
+            builder.Add(FeatureKeys.HandCard(id), 1d);
+        }
+        foreach (var id in (IReadOnlyList<string>?)state.RetainedHandCardIds
+                 ?? Array.Empty<string>())
+        {
+            builder.Add(FeatureKeys.RetainedHandCard(id), 1d);
+        }
+        foreach (var id in (IReadOnlyList<string>?)state.DiscardPileCardIds
+                 ?? Array.Empty<string>())
+        {
+            builder.Add(FeatureKeys.DiscardCard(id), 1d);
+        }
+        foreach (var id in (IReadOnlyList<string>?)state.ExhaustPileCardIds
+                 ?? Array.Empty<string>())
+        {
+            builder.Add(FeatureKeys.ExhaustCard(id), 1d);
+        }
+        return builder.Build();
     }
 
     public static Dictionary<string, double> BuildCandidateFeatures(
@@ -2143,6 +2971,74 @@ public static class CombatPolicyValueEncoding
             action.Kind == CombatActionKind.UseSkill ? 1d : 0d;
         result["actionKindEndTurn"] =
             action.Kind == CombatActionKind.EndTurn ? 1d : 0d;
+    }
+
+    internal static CombatCompactFeatureVector BuildCompactCandidateFeatures(
+        CombatCandidateEvaluation candidate)
+    {
+        var builder = threadCompactCandidateBuilder ??=
+            new CombatCompactFeatureBuilder();
+        builder.Clear();
+        var action = candidate?.Action ?? new CombatActionObservation();
+        foreach (var pair in action.Features
+                 ?? (IReadOnlyDictionary<string, double>)EmptyFeatures.Instance)
+        {
+            if (CombatPublicFeaturePolicy.TrySanitizeActionFeature(
+                    pair.Key,
+                    pair.Value,
+                    out var sanitized))
+            {
+                builder.Set(pair.Key, sanitized);
+            }
+        }
+        builder.Set("cost", action.Cost);
+        builder.Set("ruleScore", candidate?.RuleScore ?? 0d);
+        builder.Set("baseRuleScore", candidate?.BaseRuleScore ?? 0d);
+        builder.Set("planScore", candidate?.PlanScore ?? 0d);
+        var semantics = action.Semantics ?? new CombatActionSemantics();
+        builder.Set("damage", semantics.Damage);
+        builder.Set("trueDamage", semantics.TrueDamage);
+        builder.Set("damageOverTime", semantics.DamageOverTime);
+        builder.Set(
+            "immediateHpDamage",
+            CombatActionSemanticMetrics.ImmediateHpDamage(semantics));
+        builder.Set(
+            "immediateDurabilityDamage",
+            semantics.ImmediateDurabilityDamage);
+        builder.Set(
+            "deferredHpDamage",
+            CombatActionSemanticMetrics.DeferredHpDamage(semantics));
+        builder.Set("affectedEnemyCount", semantics.AffectedEnemyCount);
+        builder.Set("selfHpLoss", semantics.SelfHpLoss);
+        builder.Set("endOfCycleSelfHpLoss", semantics.EndOfCycleSelfHpLoss);
+        builder.Set("hitCount", semantics.HitCount);
+        builder.Set("defend", semantics.Defend);
+        builder.Set("heal", semantics.Heal);
+        builder.Set("draw", semantics.Draw);
+        builder.Set("energyGain", semantics.EnergyGain);
+        builder.Set("buff", semantics.Buff);
+        builder.Set("debuff", semantics.Debuff);
+        builder.Set("cleanse", semantics.Cleanse);
+        builder.Set("costReduction", semantics.CostReduction);
+        builder.Set("cardGeneration", semantics.CardGeneration);
+        builder.Set("persistentValue", semantics.PersistentValue);
+        builder.Set("scaling", semantics.Scaling);
+        builder.Set("risk", semantics.Risk);
+        builder.Set("uncertainty", semantics.Uncertainty);
+        builder.Set("endsTurn", semantics.EndsTurn ? 1d : 0d);
+        builder.Set(
+            "damageToBlockSetup",
+            semantics.DamageToBlockSetup ? 1d : 0d);
+        builder.Set(
+            "actionKindPlayCard",
+            action.Kind == CombatActionKind.PlayCard ? 1d : 0d);
+        builder.Set(
+            "actionKindUseSkill",
+            action.Kind == CombatActionKind.UseSkill ? 1d : 0d);
+        builder.Set(
+            "actionKindEndTurn",
+            action.Kind == CombatActionKind.EndTurn ? 1d : 0d);
+        return builder.Build();
     }
 
     private static string ActionKindName(CombatActionKind kind)

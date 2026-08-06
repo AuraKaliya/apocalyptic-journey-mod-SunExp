@@ -674,6 +674,9 @@ public static class CombatPublicFeatureRegistry
 
 public static class CombatPublicFeaturePolicy
 {
+    [ThreadStatic]
+    private static List<string>? threadSanitizeKeys;
+
     private static readonly HashSet<string> StateKeys =
         new(StringComparer.OrdinalIgnoreCase)
         {
@@ -965,6 +968,15 @@ public static class CombatPublicFeaturePolicy
             CombatPublicFeatureScope.State);
     }
 
+    internal static void SanitizeStateInPlace(
+        Dictionary<string, double> values)
+    {
+        SanitizeInPlace(
+            values,
+            IsPermittedStateKey,
+            CombatPublicFeatureScope.State);
+    }
+
     public static bool TrySanitizeStateFeature(
         string? key,
         double value,
@@ -990,10 +1002,31 @@ public static class CombatPublicFeaturePolicy
             CombatPublicFeatureScope.Unit);
     }
 
+    internal static void SanitizeUnitInPlace(
+        Dictionary<string, double> values)
+    {
+        SanitizeInPlace(values, key =>
+            UnitKeys.Contains(key)
+            || key.StartsWith("status:", StringComparison.OrdinalIgnoreCase)
+            || CombatPublicFeatureRegistry.IsRegistered(
+                CombatPublicFeatureScope.Unit,
+                key),
+            CombatPublicFeatureScope.Unit);
+    }
+
     public static Dictionary<string, double> SanitizeAction(
         IReadOnlyDictionary<string, double>? values)
     {
         return Sanitize(
+            values,
+            IsPermittedActionKey,
+            CombatPublicFeatureScope.Action);
+    }
+
+    internal static void SanitizeActionInPlace(
+        Dictionary<string, double> values)
+    {
+        SanitizeInPlace(
             values,
             IsPermittedActionKey,
             CombatPublicFeatureScope.Action);
@@ -1064,6 +1097,36 @@ public static class CombatPublicFeaturePolicy
             }
         }
         return result;
+    }
+
+    private static void SanitizeInPlace(
+        Dictionary<string, double> values,
+        Func<string, bool> permitted,
+        CombatPublicFeatureScope scope)
+    {
+        var keys = threadSanitizeKeys ??= new List<string>();
+        keys.Clear();
+        keys.AddRange(values.Keys);
+        foreach (var key in keys)
+        {
+            var value = values[key];
+            if (string.IsNullOrWhiteSpace(key)
+                || !permitted(key)
+                || double.IsNaN(value)
+                || double.IsInfinity(value))
+            {
+                values.Remove(key);
+                continue;
+            }
+            if (CombatPublicFeatureRegistry.TryNormalize(
+                    scope,
+                    key,
+                    value,
+                    out var normalized))
+            {
+                values[key] = normalized;
+            }
+        }
     }
 
     private static bool IsPermittedStateKey(string key)
@@ -1150,6 +1213,101 @@ public static class CombatPublicFeaturePolicy
 
 public static class CombatPlayerObservationBoundary
 {
+    internal static CombatStateObservation FinalizeOwnedSimulationProjection(
+        CombatStateObservation source)
+    {
+        if (source == null) throw new ArgumentNullException(nameof(source));
+        source.InformationBoundaryVersion = 2;
+        source.ObservationId = string.IsNullOrWhiteSpace(source.ObservationId)
+            ? BuildObservationId(source.BattleSessionId, source.Sequence)
+            : source.ObservationId;
+        source.ExpectedIncomingDamage = Finite(
+            source.ExpectedIncomingDamage);
+        CombatPublicFeaturePolicy.SanitizeStateInPlace(source.Features);
+        SanitizeProjectedUnit(source.Player);
+        foreach (var unit in source.Friendlies)
+        {
+            SanitizeProjectedUnit(unit);
+        }
+        foreach (var unit in source.Enemies)
+        {
+            SanitizeProjectedUnit(unit);
+        }
+        CleanIdsInPlace(source.HandCardIds, sort: false);
+        CleanIdsInPlace(source.RetainedHandCardIds, sort: false);
+        CleanIdsInPlace(source.DeckCardIds, sort: true);
+        CleanIdsInPlace(source.DiscardPileCardIds, sort: false);
+        CleanIdsInPlace(source.ExhaustPileCardIds, sort: false);
+        CleanIdsInPlace(source.DeckKnowledge.KnownDeckCardIds, sort: true);
+        CleanIdsInPlace(source.DeckKnowledge.KnownTopCardIds, sort: false);
+        CleanIdsInPlace(source.DeckKnowledge.KnownBottomCardIds, sort: false);
+        source.DeckKnowledge.DrawPileCount = Math.Max(
+            0,
+            source.DeckKnowledge.DrawPileCount);
+        source.DeckKnowledge.DiscardPileCount = Math.Max(
+            0,
+            source.DeckKnowledge.DiscardPileCount);
+        source.DeckKnowledge.ExhaustPileCount = Math.Max(
+            0,
+            source.DeckKnowledge.ExhaustPileCount);
+        source.DeckKnowledge.ShuffleEpoch = Math.Max(
+            0,
+            source.DeckKnowledge.ShuffleEpoch);
+        foreach (var action in source.Actions)
+        {
+            action.ObservationId = source.ObservationId;
+            if (string.IsNullOrWhiteSpace(action.ActionToken))
+            {
+                action.ActionToken = action.CandidateId ?? "";
+            }
+            action.Semantics = NormalizeSemantics(action.Semantics);
+            CombatPublicFeaturePolicy.SanitizeActionInPlace(action.Features);
+        }
+        foreach (var card in source.HandCards)
+        {
+            card.EffectiveCost = Math.Max(0, card.EffectiveCost);
+            card.EnhancementCount = Math.Max(0, card.EnhancementCount);
+            CombatPublicFeaturePolicy.SanitizeActionInPlace(card.Features);
+        }
+        foreach (var deferred in source.DeferredEffects)
+        {
+            deferred.Sequence = Math.Max(0, deferred.Sequence);
+            deferred.Semantics = NormalizeSemantics(deferred.Semantics);
+        }
+        CombatArchetypePolicy.Enrich(source);
+        source.Fingerprint = CombatPublicObservationHasher.Hash(source);
+        return source;
+    }
+
+    private static void SanitizeProjectedUnit(CombatUnitObservation? unit)
+    {
+        if (unit == null)
+        {
+            return;
+        }
+        unit.Attack = Finite(unit.Attack);
+        CombatPublicFeaturePolicy.SanitizeUnitInPlace(unit.Features);
+    }
+
+    private static void CleanIdsInPlace(List<string> values, bool sort)
+    {
+        for (var index = values.Count - 1; index >= 0; index--)
+        {
+            if (string.IsNullOrWhiteSpace(values[index]))
+            {
+                values.RemoveAt(index);
+            }
+            else
+            {
+                values[index] = values[index].Trim();
+            }
+        }
+        if (sort)
+        {
+            values.Sort(StringComparer.OrdinalIgnoreCase);
+        }
+    }
+
     public static CombatStateObservation Normalize(CombatStateObservation source)
     {
         if (source == null) throw new ArgumentNullException(nameof(source));
@@ -1652,9 +1810,19 @@ public static class CombatPublicObservationHasher
 
     public static int Seed(CombatStateObservation state, int sampleIndex)
     {
+        return Seed(CreateSeedBasis(state), sampleIndex);
+    }
+
+    public static ulong CreateSeedBasis(CombatStateObservation state)
+    {
+        return Fnv1A(Hash(state));
+    }
+
+    public static int Seed(ulong seedBasis, int sampleIndex)
+    {
         unchecked
         {
-            var hash = Fnv1A(Hash(state));
+            var hash = seedBasis;
             hash ^= (ulong)(uint)sampleIndex;
             hash *= 1099511628211UL;
             return (int)(hash ^ (hash >> 32));

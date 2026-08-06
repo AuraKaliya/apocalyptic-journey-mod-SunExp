@@ -7,8 +7,10 @@ changes.
 
 ## Current Decompile Snapshot
 
-- Current root: `开发参考资料\反编译文件夹v1.0.23816797`
-- Status: current local decompile snapshot as of 2026-07-09.
+- Current root: `开发参考资料\反编译文件夹v1.0.24591395`
+- Status: current local decompile snapshot as of 2026-08-07. `AllScripts.dll`
+  was decompiled with `ilspycmd 9.1.0.7988`; input and output hashes are recorded
+  in the snapshot README.
 - Use for: game flow, official script shape, UI manager behavior, map/event
   generation, card use flow, event listener APIs, Mirror/network types, and
   comparable official implementation patterns.
@@ -24,14 +26,14 @@ matches the game build being investigated. Move old folder notes to
 Script executor and official CSV script shape:
 
 ```powershell
-rg -n "ScriptExecutor|RunImmediately|AddBuff|AddDescription" "开发参考资料\反编译文件夹v1.0.23816797\AllScripts" "开发参考资料\反编译文件夹v1.0.23816797\Witch"
+rg -n "ScriptExecutor|RunImmediately|AddBuff|AddDescription" "开发参考资料\反编译文件夹v1.0.24591395\AllScripts"
 rg -n "class ScriptExecutor|class VisualScriptExecutor|IScriptExecutor" "开发参考资料\反编译文件夹v1.0.23816797\Witch" "开发参考资料\反编译文件夹v1.0.23816797\Witch.Core"
 ```
 
 Card use, card UI, and action flow:
 
 ```powershell
-rg -n "class CommonCardItem|class AttackCardItem|TrueUse|RunScript|ActionAfter" "开发参考资料\反编译文件夹v1.0.23816797"
+rg -n "class CommonCardItem|class AttackCardItem|TrueUse|RunScript|ActionAfter" "开发参考资料\反编译文件夹v1.0.24591395\AllScripts" "开发参考资料\反编译文件夹v1.0.23816797\Witch"
 ```
 
 EventList fields and official option scripts:

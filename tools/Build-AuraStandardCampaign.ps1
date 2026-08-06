@@ -112,6 +112,91 @@ function Get-CareerInitialStatuses([object]$row) {
     return $result
 }
 
+function Get-CareerInitialVariables([object]$row) {
+    $result = [ordered]@{}
+    $script = [string]$row.SkillScript
+    foreach ($match in [regex]::Matches(
+        $script,
+        'PlayerInfo\.SpecialVars\s*\[\s*"([^"]+)"\s*\]\s*=\s*"(-?\d+(?:\.\d+)?)"\s*;')) {
+        $result[$match.Groups[1].Value] = [double]::Parse(
+            $match.Groups[2].Value,
+            [Globalization.CultureInfo]::InvariantCulture)
+    }
+    return $result
+}
+
+function Get-CareerInitialSkillCooldowns([object]$row) {
+    $result = [ordered]@{}
+    $script = [string]$row.SkillScript
+    $eventIndex = $script.IndexOf(
+        "AddEvent",
+        [StringComparison]::OrdinalIgnoreCase)
+    if ($eventIndex -ge 0) {
+        $script = $script.Substring(0, $eventIndex)
+    }
+    foreach ($match in [regex]::Matches(
+        $script,
+        'PlayerInfo\.SkillTime\s*\[\s*"([^"]+)"\s*\]\s*=\s*(\d+)\s*;')) {
+        $cooldown = Convert-ToInt $match.Groups[2].Value 0
+        if ($cooldown -gt 0) {
+            $result[$match.Groups[1].Value] = $cooldown
+        }
+    }
+    return $result
+}
+
+function Get-TextSha256([string]$text) {
+    $bytes = [Text.Encoding]::UTF8.GetBytes(
+        $(if ($null -eq $text) { "" } else { $text }))
+    $sha = [Security.Cryptography.SHA256]::Create()
+    try {
+        return ([BitConverter]::ToString(
+            $sha.ComputeHash($bytes))).Replace("-", "")
+    } finally {
+        $sha.Dispose()
+    }
+}
+
+function Get-NativeRoleScriptHash([string]$script) {
+    # Keep this role-script subset aligned with the native compiler's DataId
+    # lowering. Package validation recomputes the full normalized hash and
+    # fails closed if a future role script needs another lowering rule.
+    $normalized = [regex]::Replace(
+        $(if ($null -eq $script) { "" } else { $script }),
+        '\bDataId\.([A-Za-z_][A-Za-z0-9_]*)',
+        { param($match) '"' + $match.Groups[1].Value + '"' })
+    return Get-TextSha256 $normalized
+}
+
+function Get-CareerTransformRoleIds(
+    [object]$row,
+    [Collections.Generic.Dictionary[string, object]]$cardLookup) {
+    $result = [Collections.Generic.List[string]]::new()
+    $scripts = [Collections.Generic.List[string]]::new()
+    $scripts.Add([string]$row.SkillScript)
+    foreach ($skillId in @(Get-CareerSkillIds $row)) {
+        if ($cardLookup.ContainsKey($skillId)) {
+            $scripts.Add([string]$cardLookup[$skillId].UseScript)
+        }
+    }
+    foreach ($script in $scripts) {
+        foreach ($match in [regex]::Matches(
+            $script,
+            'ChangeCareer\(\s*(?:DataId\.)?"?([A-Za-z0-9_]+)"?\s*\)',
+            [Text.RegularExpressions.RegexOptions]::IgnoreCase)) {
+            $roleId = $match.Groups[1].Value
+            if (-not [string]::Equals(
+                    $roleId,
+                    [string]$row.Id,
+                    [StringComparison]::OrdinalIgnoreCase) `
+                -and -not $result.Contains($roleId)) {
+                $result.Add($roleId)
+            }
+        }
+    }
+    return ,$result
+}
+
 function Test-GeneratedOnlyCard([object]$row) {
     $id = ([string]$row.Id).Trim()
     $type = [string]$row.Type
@@ -2053,21 +2138,6 @@ function Try-NewAuthoritativeTriggeredStatus(
         (New-SourceStatusExpression "buff_ritualechostaff"))
 
     switch ($id) {
-        "buff_elements" {
-            $elementsTrigger = New-StatusTrigger `
-                "elements-action-after" `
-                "ActionResolved" `
-                "EventSource" `
-                @([ordered]@{
-                    kind = "AddStatus"
-                    target = "Self"
-                    definitionId = "buff_extraordinary"
-                    amount = 2
-                    scaleWithStatusStacks = $true
-                })
-            $elementsTrigger.excludeStacksAcquiredFromSameAction = $true
-            $status.triggers = @($elementsTrigger)
-        }
         "buff_elementalBody" {
             $reset = New-StatusTrigger `
                 "elemental-body-round-start" `
@@ -2252,13 +2322,15 @@ function Try-NewAuthoritativeTriggeredStatus(
                 }))
         }
         "buff_elements" {
-            $status.triggers = @(New-StatusTrigger "elements-action-after" "ActionResolved" "EventSource" @(
+            $elementsTrigger = New-StatusTrigger "elements-action-after" "ActionResolved" "EventSource" @(
                 [ordered]@{
                     kind = "AddStatus"; target = "Self"; definitionId = "buff_extraordinary"
                     amountExpression = New-ValueExpression "Multiply" @(
                         $stacks,
                         (New-ConstantExpression 2))
-                }))
+                })
+            $elementsTrigger.excludeStacksAcquiredFromSameAction = $true
+            $status.triggers = @($elementsTrigger)
         }
         "buff_EnergyOverload" {
             $status.dynamicModifiersPerStack = [ordered]@{
@@ -2944,6 +3016,16 @@ $resolvedExport = (Resolve-Path -LiteralPath $TableExport).Path
 $tableDocument = Get-Content -Raw -Encoding UTF8 -LiteralPath $resolvedExport |
     ConvertFrom-Json
 $tables = $tableDocument.tables
+$foreignRows = @($tables.PSObject.Properties | ForEach-Object {
+    $tableName = $_.Name
+    @($_.Value) | Where-Object {
+        [string]$_.Id -match '^(?i:Terrias_|Saya_|RonoveEmberOfTheEnd_)'
+    } | ForEach-Object { "$tableName`:$([string]$_.Id)" }
+})
+if ($foreignRows.Count -gt 0) {
+    $foreignSummary = (($foreignRows | Select-Object -First 16) -join ", ")
+    throw "Base-game table export contains foreign MOD rows: $foreignSummary"
+}
 $levels = @($tables.Level | Where-Object { Test-BaseGameId ([string]$_.Id) })
 $enemies = @($tables.Enemy | Where-Object { Test-BaseGameId ([string]$_.Id) })
 $enemyCards = @($tables.EnemyCard | Where-Object { Test-BaseGameId ([string]$_.Id) })
@@ -3130,9 +3212,28 @@ foreach ($card in $baseCards) {
         features = Get-RewardFeatures $card "Card"
     }
 }
+$moonRelicSetParts = @(
+    "CrowdFundingRelic_64",
+    "CrowdFundingRelic_66",
+    "CrowdFundingRelic_67")
 foreach ($relic in $relics) {
     $tier = [Math]::Max(1, [Math]::Min(4, (Convert-ToInt $relic.Rarity 1)))
     $relicId = [string]$relic.Id
+    $grantedRelicIds = [Collections.Generic.List[string]]::new()
+    $relicSetRequiredIds = [Collections.Generic.List[string]]::new()
+    $relicSetConsumedIds = [Collections.Generic.List[string]]::new()
+    $relicSetGrantedIds = [Collections.Generic.List[string]]::new()
+    if ($relicId -in $moonRelicSetParts) {
+        foreach ($partId in $moonRelicSetParts) {
+            $relicSetRequiredIds.Add($partId)
+            $relicSetConsumedIds.Add($partId)
+        }
+        $relicSetGrantedIds.Add("CrowdFundingRelic_69")
+    } else {
+        foreach ($grantedId in (Get-RewardGrantedIds $relic "AddRelic")) {
+            $grantedRelicIds.Add($grantedId)
+        }
+    }
     $rewardDefinitions += [ordered]@{
         rewardId = $relicId
         kind = "Relic"
@@ -3163,7 +3264,10 @@ foreach ($relic in $relics) {
         replacementRelicTier = Get-ReplacementRelicTier $relic
         grantedCardIds = Get-RewardGrantedIds $relic "AddCard"
         grantedBlessingIds = Get-RewardGrantedIds $relic "AddBless"
-        grantedRelicIds = Get-RewardGrantedIds $relic "AddRelic"
+        grantedRelicIds = $grantedRelicIds
+        relicSetRequiredIds = $relicSetRequiredIds
+        relicSetConsumedIds = $relicSetConsumedIds
+        relicSetGrantedIds = $relicSetGrantedIds
     }
 }
 foreach ($blessing in $blessings) {
@@ -3383,6 +3487,11 @@ if ($generatedRewardLeak.Count -gt 0) {
         ($generatedRewardLeak | ForEach-Object { $_['rewardId'] }) -join ', ')"
 }
 
+$careerCardLookup = [Collections.Generic.Dictionary[string, object]]::new(
+    [StringComparer]::OrdinalIgnoreCase)
+foreach ($cardRow in @($tables.Card)) {
+    $careerCardLookup[[string]$cardRow.Id] = $cardRow
+}
 $gameSubjectCatalog = [ordered]@{
     schemaVersion = 1
     catalogId = "witch-base-game-subjects-v1"
@@ -3390,17 +3499,41 @@ $gameSubjectCatalog = [ordered]@{
     roles = @($tables.Career |
         Where-Object { Test-BaseGameId ([string]$_.Id) } |
         ForEach-Object {
+            $skillScript = [string]$_.SkillScript
+            $skillIds = @(Get-CareerSkillIds $_)
+            $nativeManagedSkillCooldownIds =
+                [Collections.Generic.List[string]]::new()
+            if (-not [string]::IsNullOrWhiteSpace($skillScript)) {
+                foreach ($skillId in $skillIds) {
+                    $nativeManagedSkillCooldownIds.Add($skillId)
+                }
+            }
             [ordered]@{
                 id = [string]$_.Id
+                maximumHp = [Math]::Max(
+                    1,
+                    (Convert-ToInt $_.SanMax 100))
+                initialVariables = Get-CareerInitialVariables $_
                 displayName = if ([string]::IsNullOrWhiteSpace(
                     [string]$_.Name)) {
                     [string]$_.Id
                 } else {
                     [string]$_.Name
                 }
-                skillCardIds = @(Get-CareerSkillIds $_)
+                skillCardIds = $skillIds
                 skillCooldownTurns = Get-CareerSkillCooldowns $_
+                initialSkillCooldownTurns =
+                    Get-CareerInitialSkillCooldowns $_
                 initialStatuses = Get-CareerInitialStatuses $_
+                nativeScriptHash = if ([string]::IsNullOrWhiteSpace(
+                    $skillScript)) { "" } else {
+                    Get-NativeRoleScriptHash $skillScript
+                }
+                nativeManagedSkillCooldownIds =
+                    $nativeManagedSkillCooldownIds
+                transformRoleIds = Get-CareerTransformRoleIds `
+                    $_ $careerCardLookup
+                fightScript = $skillScript
             }
         })
     familiars = @($tables.Partner |
@@ -3720,6 +3853,16 @@ if(buff!=null)
 }
 '@
         }
+        if ([string]$cardRow.Id -match '^careercard_\d+$') {
+            # Skill cards are invoked through a separate action surface. Only
+            # scripts that explicitly select Target require an enemy choice;
+            # self, ally, whole-field and deck/hand skills remain invocable
+            # when no enemy actor is present.
+            $cardDefinition.requiresEnemyTarget = [regex]::IsMatch(
+                [string]$cardRow.UseScript,
+                'SetStatus\(\s*"Target"\s*\)',
+                [Text.RegularExpressions.RegexOptions]::IgnoreCase)
+        }
     }
     if ([string]$cardRow.Id -eq "careercard_1") {
         $cardDefinition.requiresEnemyTarget = $false
@@ -3741,12 +3884,13 @@ if(buff!=null)
         }
         if ($cardDefinition -is [Collections.Specialized.OrderedDictionary]) {
             $cardDefinition["verificationSource"] =
-                "Decompiler:v1.0.23816797"
+                "Decompiler:" + [string]$tableDocument.GameBuild
             $cardDefinition["actionContract"] = $actionContract
         } else {
             $cardDefinition |
                 Add-Member -NotePropertyName verificationSource `
-                    -NotePropertyValue "Decompiler:v1.0.23816797" -Force
+                    -NotePropertyValue (
+                        "Decompiler:" + [string]$tableDocument.GameBuild) -Force
             $cardDefinition |
                 Add-Member -NotePropertyName actionContract `
                     -NotePropertyValue $actionContract -Force

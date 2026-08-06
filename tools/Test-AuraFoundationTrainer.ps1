@@ -10,9 +10,9 @@ param(
     [int]$SearchMinimumSimulations = 8,
     [int]$SearchStabilityWindow = 16,
     [int]$SearchStableChecks = 1,
-    [int]$MaximumDegreeOfParallelism = 4,
+    [int]$MaximumDegreeOfParallelism = 8,
     [ValidateSet("auto", "cpu-16", "cpu-32", "custom")]
-    [string]$ParallelismProfile = "custom",
+    [string]$ParallelismProfile = "auto",
     [ValidateSet("direct", "sharded-batch")]
     [string]$InferenceExecutionMode = "sharded-batch",
     [int]$InferenceParallelism = 0,
@@ -582,18 +582,35 @@ try {
         }
         if ($ParallelismProfile -eq "auto") {
             $measurements = @($result.Training.AutoTune.Measurements)
+            $capacityDecision = $result.Training.ParallelismDecision
             if ([string]$result.Training.AutoTune.Version `
-                    -ne "foundation-auto-tune-v6-steady-state" `
+                    -ne "foundation-auto-tune-v10-memory-capacity-only" `
                 -or [string]$result.Training.AutoTune.Objective `
                     -ne $AutoTuneObjective `
-                -or $measurements.Count -lt 1 `
+                -or $null -eq $capacityDecision `
+                -or [string]$capacityDecision.ProtocolVersion `
+                    -ne "foundation-parallelism-v1-memory-capacity-8-16-32" `
+                -or [int]$capacityDecision.SelectedParallelism `
+                    -ne [int]$result.Training.EffectiveParallelism `
+                -or [int64]$capacityDecision.PredictedPerLaneBytes -le 0 `
+                -or [int64]$capacityDecision.MemoryReserveBytes -le 0 `
+                -or [string]::IsNullOrWhiteSpace(
+                    [string]$capacityDecision.Reason) `
                 -or [string]::IsNullOrWhiteSpace(
                     [string]$result.Training.AutoTune.CacheKey)) {
-                throw "Auto profile did not retain calibration evidence."
+                throw "Auto profile did not retain memory-capacity evidence."
             }
-            if ($ExpectAutoTuneCacheHit `
-                -and -not [bool]$result.Training.AutoTune.CacheHit) {
-                throw "Auto profile did not reuse the expected cache."
+            if ([bool]$result.Training.AutoTune.CacheHit) {
+                throw "Memory-capacity parallelism unexpectedly reused a throughput cache."
+            }
+            $actualCampaignPoints = @($measurements | Where-Object {
+                    ([string]$_.MeasurementKind).StartsWith(
+                        "campaign",
+                        [System.StringComparison]::Ordinal)
+                } | ForEach-Object { [int]$_.Parallelism } `
+                  | Sort-Object -Unique)
+            if ($actualCampaignPoints.Count -ne 0) {
+                throw "Memory-capacity parallelism unexpectedly ran throughput campaign probes."
             }
             if (-not $PreflightOnly) {
                 $inferenceMeasurements = @($measurements | Where-Object {
@@ -614,6 +631,17 @@ try {
         elseif ([bool]$result.Training.AutoTune.CacheHit `
                 -or @($result.Training.AutoTune.Measurements).Count -ne 0) {
             throw "Fixed parallelism unexpectedly used auto-tune measurements or cache."
+        }
+        if (-not $PreflightOnly `
+            -and [int64]$result.Training.EpisodeCompactStateVectors -le 0) {
+            throw "Foundation worker did not record compact episode state vectors."
+        }
+        if (-not $PreflightOnly `
+            -and [string]$TransformerTeacherBackend -eq "disabled" `
+            -and ([int64]$result.Training.WorldModelObservationsBuilt -ne 0 `
+                 -or [int64]$result.Training.WorldModelObservationsSkipped `
+                    -ne [int64]$result.Training.EpisodeCompactStateVectors)) {
+            throw "Disabled Transformer teacher still built WorldModel observations."
         }
     }
     $checkpoint = $null
@@ -676,9 +704,10 @@ try {
         }
         $modelPackage = Read-FoundationJson (
             [string]$result.ModelPackagePath)
-        if ([int]$modelPackage.SchemaVersion -ne 3 `
+        if ([int]$modelPackage.SchemaVersion -ne 4 `
             -or [string]$modelPackage.ArtifactKind `
                 -ne "aura.foundation-model-package" `
+            -or [string]$modelPackage.ModelVersion -ne "4.0.0" `
             -or [string]$modelPackage.CompletionKind `
                 -ne "training-accepted" `
             -or [string]$modelPackage.JobId -ne [string]$job.JobId `
@@ -698,6 +727,10 @@ try {
                 [string]$modelPackage.GameParameterHash) `
             -or @($modelPackage.EnabledRewardCardPackIds |
                 Group-Object | Where-Object Count -gt 1).Count -ne 0 `
+            -or $null -eq $modelPackage.Acceptance `
+            -or -not [bool]$modelPackage.Acceptance.FormalIsolationPassed `
+            -or [string]::IsNullOrWhiteSpace(
+                [string]$modelPackage.Acceptance.Classification) `
             -or $null -eq $modelPackage.Model) {
             throw (
                 "Accepted foundation model package is invalid: " `
@@ -719,10 +752,20 @@ try {
     if (-not $PreflightOnly `
         -and -not $semanticRejected `
         -and -not $result.Training.AcceptancePassed) {
+        $checkpointFirstEpisode = Get-Content `
+            -LiteralPath $checkpointSnapshotPath `
+            -Encoding UTF8 `
+            -TotalCount 1
         if ([int]$checkpoint.SchemaVersion -ne $protocolVersion `
             -or [int]$checkpoint.Resume.SchemaVersion -ne $protocolVersion `
-            -or [int]$checkpoint.EpisodeSnapshot.StorageVersion -ne 2 `
+            -or [int]$checkpoint.EpisodeSnapshot.StorageVersion -ne 3 `
             -or [int]$checkpoint.EpisodeSnapshot.EpisodeCount -le 0 `
+            -or $null -eq $checkpoint.EpisodeSnapshot.FeatureTokenCatalog `
+            -or -not $checkpointFirstEpisode.Contains(
+                '"CompactStateFeatureTokenIds"') `
+            -or -not $checkpointFirstEpisode.Contains(
+                '"CompactFeatureTokenIds"') `
+            -or $checkpointFirstEpisode.Contains('"StateFeatures"') `
             -or [int64]$checkpoint.EpisodeSnapshot.Length -ne (
                 Get-Item -LiteralPath $checkpointSnapshotPath).Length `
             -or [string]$checkpoint.EpisodeSnapshot.ContentSha256 -ne (

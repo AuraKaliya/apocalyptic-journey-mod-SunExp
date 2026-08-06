@@ -274,6 +274,31 @@ public static class SkinRuntime
         }
     }
 
+    public static Sprite? LoadSelectedSprite(DataConfig? career, string field, string instanceId = "")
+    {
+        if (!FeatureEnabled || career == null)
+        {
+            return null;
+        }
+
+        var skin = GetSelectedSkin(CareerId(career), instanceId);
+        var assetPath = skin?.Assets.Get(field) ?? "";
+        if (string.IsNullOrWhiteSpace(assetPath))
+        {
+            return null;
+        }
+
+        try
+        {
+            return ResourceLoader.Load<Sprite>(SkinPaths.ToRawResourcePath(assetPath), true);
+        }
+        catch (Exception ex)
+        {
+            SkinLog.Warn("Failed to load selected " + field + " for " + CareerId(career) + ": " + ex.Message);
+            return null;
+        }
+    }
+
     public static Sprite? LoadPreview(DataConfig? career)
     {
         if (career == null)

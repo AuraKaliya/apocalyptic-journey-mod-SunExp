@@ -507,13 +507,127 @@ try
             }
         });
     job.Request.Checkpoint = checkpointPipeline.Enqueue;
+    job.Request.IterationResourceBarrier = checkpointPipeline.Drain;
     var incrementallyArchivedCases =
         new HashSet<string>(StringComparer.Ordinal);
+    var incrementallyDuplicateCases =
+        new HashSet<string>(StringComparer.Ordinal);
     var capacityRejectedCaseIds =
+        new HashSet<string>(StringComparer.Ordinal);
+    var capacityRejectedObservationIds =
         new HashSet<string>(StringComparer.Ordinal);
     var incrementalArchiveErrors = new List<string>();
     var archiveCapacityRejectedObservations = 0;
     var archiveCapacityRejectedCases = 0;
+    var incrementalExpertReferenceBytes = 0L;
+    var incrementalDeduplicatedExpertBytes = 0L;
+    var archiveSinkGate = new object();
+    if (job.Request.EnableSuccessCaseArchive)
+    {
+        var priorObservationRecorded = job.Request.ObservationRecorded;
+        job.Request.ObservationRecorded = observation =>
+        {
+            priorObservationRecorded?.Invoke(observation);
+            lock (archiveSinkGate)
+            {
+                try
+                {
+                    var path = ResolveObservationPath(job, observation);
+                    if (File.Exists(path))
+                    {
+                        return;
+                    }
+                    if (!ArchiveWriteBudget.TryReserve(
+                            Path.GetDirectoryName(path)!,
+                            CombatFoundationCaseArchiveProtocol
+                                .MaximumObservationsPerCompatibility))
+                    {
+                        archiveCapacityRejectedObservations++;
+                        capacityRejectedObservationIds.Add(
+                            observation.CaseId);
+                        return;
+                    }
+                    WriteAtomicCompressed(path, SerializeCompact(observation));
+                }
+                catch (Exception ex)
+                {
+                    incrementalArchiveErrors.Add(
+                        "Observation " + observation.CaseId + ": "
+                        + ex.Message);
+                }
+            }
+        };
+        job.Request.SuccessCaseSink = successCase =>
+        {
+            lock (archiveSinkGate)
+            {
+                try
+                {
+                    var observation = successCase.Observation;
+                    if (!RoleStrategyArchiveEligible(job, successCase))
+                    {
+                        return true;
+                    }
+                    if (incrementallyArchivedCases.Contains(observation.CaseId)
+                        || incrementallyDuplicateCases.Contains(
+                            observation.CaseId))
+                    {
+                        return true;
+                    }
+                    var expertPath = ResolveExpertReferencePath(job, successCase);
+                    if (!File.Exists(expertPath)
+                        && !ArchiveWriteBudget.TryReserve(
+                            Path.GetDirectoryName(expertPath)!,
+                            CombatFoundationCaseArchiveProtocol
+                                .MaximumExpertCasesPerCompatibility))
+                    {
+                        capacityRejectedCaseIds.Add(observation.CaseId);
+                        archiveCapacityRejectedCases++;
+                        return true;
+                    }
+                    var casePath = ResolveSuccessCasePath(
+                        job,
+                        successCase,
+                        CombatFoundationCaseArchiveProtocol.CaseDirectoryName);
+                    var caseAlreadyExisted = File.Exists(casePath);
+                    if (!caseAlreadyExisted)
+                    {
+                        WriteAtomicCompressed(
+                            casePath,
+                            SerializeCompact(successCase));
+                    }
+                    if (!File.Exists(expertPath))
+                    {
+                        WriteExpertReference(expertPath, successCase, casePath);
+                    }
+                    incrementalExpertReferenceBytes +=
+                        new FileInfo(expertPath).Length;
+                    incrementalDeduplicatedExpertBytes += Math.Max(
+                        0L,
+                        new FileInfo(casePath).Length
+                        - new FileInfo(expertPath).Length);
+                    if (caseAlreadyExisted)
+                    {
+                        incrementallyDuplicateCases.Add(observation.CaseId);
+                    }
+                    else
+                    {
+                        incrementallyArchivedCases.Add(observation.CaseId);
+                    }
+                    return true;
+                }
+                catch (Exception ex)
+                {
+                    incrementalArchiveErrors.Add(
+                        "Success case "
+                        + successCase.Observation.CaseId
+                        + ": "
+                        + ex.Message);
+                    return false;
+                }
+            }
+        };
+    }
 
     var autoTuneCachePath = Path.Combine(
         job.SuccessArchiveDirectory,
@@ -644,10 +758,14 @@ try
                 job,
                 training,
                 incrementallyArchivedCases,
+                incrementallyDuplicateCases,
+                capacityRejectedObservationIds,
                 capacityRejectedCaseIds,
                 incrementalArchiveErrors,
                 archiveCapacityRejectedObservations,
-                archiveCapacityRejectedCases);
+                archiveCapacityRejectedCases,
+                incrementalExpertReferenceBytes,
+                incrementalDeduplicatedExpertBytes);
         }
     }
     catch (Exception ex)
@@ -1038,6 +1156,8 @@ static string Fingerprint(
         training.MaximumFrameStratumWeight,
         training.MaximumFramesPerEpisode,
         training.ReplayEpisodeLimit,
+        training.ReplayFrameLimit,
+        training.ReplayEstimatedBytesLimit,
         training.RetainedModelCandidates
     });
     return Convert.ToHexString(
@@ -1674,8 +1794,9 @@ static IReadOnlyList<string> WriteCheckpointCatalogEntry(
             retainBackup: false);
     }
     var risk = CombatFoundationCheckpointCatalogProtocol.Risk(
-        trainingMetrics.CompositeLoss,
-        validationMetrics.CompositeLoss,
+        trainingMetrics,
+        validationMetrics,
+        testMetrics,
         iteration?.ModelEpochHistory ?? modelTraining?.EpochHistory,
         out var riskReason);
     var entry = new CombatFoundationCheckpointCatalogEntry
@@ -2354,10 +2475,14 @@ static void PersistSuccessCases(
     CombatFoundationWorkerJob job,
     CombatCampaignFoundationTrainingResult training,
     ISet<string> incrementallyArchivedCases,
+    ISet<string> incrementallyDuplicateCases,
+    ISet<string> capacityRejectedObservationIds,
     ISet<string> capacityRejectedCaseIds,
     IReadOnlyList<string> incrementalArchiveErrors,
     int capacityRejectedObservations,
-    int capacityRejectedCases)
+    int capacityRejectedCases,
+    long incrementalExpertReferenceBytes,
+    long incrementalDeduplicatedExpertBytes)
 {
     var archiveRoot = SuccessArchiveRoot(job);
     Directory.CreateDirectory(archiveRoot);
@@ -2369,6 +2494,10 @@ static void PersistSuccessCases(
         .ToList();
     foreach (var observation in currentObservations)
     {
+        if (capacityRejectedObservationIds.Contains(observation.CaseId))
+        {
+            continue;
+        }
         var observationPath = ResolveObservationPath(job, observation);
         if (File.Exists(observationPath))
         {
@@ -2428,9 +2557,12 @@ static void PersistSuccessCases(
             job.ResultDirectory,
             "foundation-case-observations-v1.jsonl"),
         currentObservations);
-    var observations = new List<CombatFoundationCampaignObservation>();
-    var archived = 0;
-    var duplicates = 0;
+    var observations = currentObservations
+        .Where(item => incrementallyArchivedCases.Contains(item.CaseId)
+                       || incrementallyDuplicateCases.Contains(item.CaseId))
+        .ToList();
+    var archived = incrementallyArchivedCases.Count;
+    var duplicates = incrementallyDuplicateCases.Count;
     foreach (var successCase in training.SuccessCases
                  .Where(item => item?.Observation?.ArchiveEligible == true
                                 && item.Episodes.Count > 0
@@ -2511,6 +2643,8 @@ static void PersistSuccessCases(
         Serialize(training.CaseAnalysis));
     training.ArchivedSuccessCases = archived;
     training.DuplicateSuccessCases = duplicates;
+    training.ExpertReferenceBytes += incrementalExpertReferenceBytes;
+    training.DeduplicatedExpertBytes += incrementalDeduplicatedExpertBytes;
     training.ArchiveCapacityRejectedObservations =
         Math.Max(0, capacityRejectedObservations);
     training.ArchiveCapacityRejectedCases =
@@ -2671,7 +2805,8 @@ static string Serialize(object value)
         Formatting.Indented,
         new JsonSerializerSettings
         {
-            NullValueHandling = NullValueHandling.Ignore
+            NullValueHandling = NullValueHandling.Ignore,
+            ContractResolver = WorkerCompactEpisodeContractResolver.Instance
         });
 }
 
@@ -2683,7 +2818,8 @@ static string SerializeCompact(object value)
         new JsonSerializerSettings
         {
             NullValueHandling = NullValueHandling.Ignore,
-            FloatFormatHandling = FloatFormatHandling.DefaultValue
+            FloatFormatHandling = FloatFormatHandling.DefaultValue,
+            ContractResolver = WorkerCompactEpisodeContractResolver.Instance
         });
 }
 

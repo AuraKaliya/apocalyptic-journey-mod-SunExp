@@ -1,6 +1,7 @@
-param(
+﻿param(
     [string]$TableExport = "",
-    [string]$RepoRoot = ""
+    [string]$RepoRoot = "",
+    [switch]$BaseGameOnly
 )
 
 $ErrorActionPreference = "Stop"
@@ -170,7 +171,8 @@ function Write-Utf8NoBom {
 
     $directory = Split-Path -Parent $Path
     [System.IO.Directory]::CreateDirectory($directory) | Out-Null
-    $content = ($Lines -join [Environment]::NewLine) + [Environment]::NewLine
+    # Keep generated Markdown stable across PowerShell hosts and Git autocrlf settings.
+    $content = ($Lines -join "`n") + "`n"
     [System.IO.File]::WriteAllText($Path, $content, [System.Text.UTF8Encoding]::new($false))
 }
 
@@ -250,6 +252,7 @@ $gameOutput = Join-Path $RepoRoot "docs\游戏主体内容\角色技能与使魔
 Write-Utf8NoBom -Path $gameOutput -Lines $gameLines
 
 # Terrias: player-facing content catalog from the same merged runtime snapshot.
+if (-not $BaseGameOnly) {
 $terriasPrefix = "Terrias_"
 $terriasCards = @($tables.Card | Where-Object { $_.Id -like "$terriasPrefix*" } | Sort-Object Id)
 $terriasPacks = @($tables.CardPack | Where-Object { $_.Id -like "$terriasPrefix*" })
@@ -469,6 +472,7 @@ $terriasLines.Add("- 技术文档中的旧数量可能早于本次运行时导�
 
 $terriasOutput = Join-Path $RepoRoot "docs\Terrias扩展内容\Terrias扩展内容总览.md"
 Write-Utf8NoBom -Path $terriasOutput -Lines $terriasLines
+}
 
 Write-Host "Generated:"
 Write-Host "  $gameOutput"

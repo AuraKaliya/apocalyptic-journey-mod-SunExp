@@ -517,6 +517,14 @@ public sealed class CombatSimulationEngine
                         metrics.SearchMillisecondsTotal += Math.Max(
                             0d,
                             metricsProvider.LastDecisionMetrics.SearchMilliseconds);
+                        metrics.ObservationProjectionAllocatedBytes += Math.Max(
+                            0L,
+                            metricsProvider.LastDecisionMetrics
+                                .ObservationProjectionAllocatedBytes);
+                        metrics.DecisionEngineAllocatedBytes += Math.Max(
+                            0L,
+                            metricsProvider.LastDecisionMetrics
+                                .DecisionEngineAllocatedBytes);
                         metrics.ModelEvaluations += Math.Max(
                             0,
                             metricsProvider.LastDecisionMetrics.ModelEvaluations);

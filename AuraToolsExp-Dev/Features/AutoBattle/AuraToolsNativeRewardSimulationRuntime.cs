@@ -972,6 +972,8 @@ internal static class NativeRewardProgramRegistry
             "EventType.ScriptExecute.ToString()",
             "\"ScriptExecute\"");
         result = Regex.Replace(result, @"\bHurtData\b", "NativeRewardHurtData");
+        result = Regex.Replace(result, @"\bTrueData\b", "NativeRewardTrueData");
+        result = Regex.Replace(result, @"\bHealData\b", "NativeRewardHealData");
         result = Regex.Replace(result, @"\bActionData\b", "NativeRewardActionData");
         result = Regex.Replace(result, @"\bCreateData\b", "NativeRewardCreateData");
         result = Regex.Replace(result, @"\bBurnData\b", "NativeRewardBurnData");
@@ -995,6 +997,12 @@ internal static class NativeRewardProgramRegistry
             "NativeRewardActor.State",
             "NativeRewardActorState");
         result = result.Replace("Dice.State", "NativeRewardDiceState");
+        result = result.Replace(
+            "FightPlayer.Instance.MaxPowerCount",
+            "PlayerInfo.MaxPower");
+        result = result.Replace(
+            "FightPlayer.Instance.CurPowerCount",
+            "PlayerInfo.Power");
         result = Regex.Replace(
             result,
             @"\bFightCardManager\b",
@@ -1184,11 +1192,15 @@ public static class AuraToolsNativeRewardScriptAudit
             {
                 "PlayerInfo.AddBless",
                 "PlayerInfo.AddCard",
+                "PlayerInfo.AddRelic",
                 "PlayerInfo.DelayAddBless",
                 "PlayerInfo.DelayAddCard",
                 "PlayerInfo.DelayAddRelic",
                 "PlayerInfo.ChangeSelected",
                 "PlayerInfo.RandomRemoveCard",
+                "PlayerInfo.RelicList.Find",
+                "PlayerInfo.WithoutArmedRelicList.Find",
+                "PlayerInfo.RemoveRelic",
                 "PlayerInfo.SpecialVars.ContainsKey",
                 "ReplaceSelfRelicWithRandomRelic"
             },
@@ -1230,6 +1242,28 @@ public static class AuraToolsNativeRewardScriptAudit
             && reward.ReplacementRelicTier <= 0)
         {
             failures.Add(reward.RewardId + ": relic replacement not modeled");
+        }
+        if (script.IndexOf(
+                "RelicList.Find",
+                StringComparison.Ordinal) >= 0
+            && reward.RelicSetRequiredIds.Count == 0)
+        {
+            failures.Add(reward.RewardId + ": relic set prerequisites not modeled");
+        }
+        if (script.IndexOf(
+                "RemoveRelic",
+                StringComparison.Ordinal) >= 0
+            && reward.RelicSetConsumedIds.Count == 0)
+        {
+            failures.Add(reward.RewardId + ": relic set consumption not modeled");
+        }
+        if (script.IndexOf(
+                "AddRelic",
+                StringComparison.Ordinal) >= 0
+            && reward.GrantedRelicIds.Count == 0
+            && reward.RelicSetGrantedIds.Count == 0)
+        {
+            failures.Add(reward.RewardId + ": relic grant not modeled");
         }
         if (script.IndexOf(
                 "SpecialVars.ContainsKey",
@@ -1357,6 +1391,7 @@ public sealed partial class NativeRewardScriptGlobals
             "AddDescription",
             "ClearAllDharmasSpellList",
             "UpdateAllDharmasSpellList",
+            "UpdateCardMsg",
             "UpdateRelicShow",
             "UpdateAch"
         };
@@ -1389,6 +1424,8 @@ public sealed partial class NativeRewardScriptGlobals
     private readonly Dictionary<string, NativeRewardDataConfig>
         statusConfigurations;
     private readonly Dictionary<int, NativeRewardDataConfig> cardConfigurations;
+    private readonly Dictionary<int, Dictionary<string, double>>
+        dynamicPercentContributions = new();
     private readonly Action<NativeRewardScriptGlobals>? registerProgram;
     private CombatSimulationEvent? currentEvent;
     private List<int> selectedActorIds = new();
@@ -2131,10 +2168,46 @@ public sealed partial class NativeRewardScriptGlobals
 
     public void ChangeDynamicVarPercent(object key, object amount)
     {
+        var name = Text(key);
+        var value = Number(amount);
+        var actorIds = Targets().ToArray();
         Apply(
             CombatSimulationEffectKind.ModifyVariablePercent,
-            Text(key),
-            Number(amount));
+            name,
+            value);
+        foreach (var actorId in actorIds)
+        {
+            if (!dynamicPercentContributions.TryGetValue(
+                    actorId,
+                    out var contributions))
+            {
+                contributions = new Dictionary<string, double>(
+                    StringComparer.OrdinalIgnoreCase);
+                dynamicPercentContributions[actorId] = contributions;
+            }
+            contributions[name] = contributions.GetValueOrDefault(name, 0d) + value;
+        }
+    }
+
+    internal void ClearDynamicPercentContributions(int actorId)
+    {
+        if (!dynamicPercentContributions.TryGetValue(
+                actorId,
+                out var contributions))
+        {
+            return;
+        }
+        var actor = context.State.FindActor(actorId);
+        if (actor != null)
+        {
+            foreach (var contribution in contributions)
+            {
+                actor.Variables[contribution.Key] =
+                    actor.Variables.GetValueOrDefault(contribution.Key, 1d)
+                    - contribution.Value / 100d;
+            }
+        }
+        dynamicPercentContributions.Remove(actorId);
     }
 
     public void CreateCard(object id)
@@ -2540,6 +2613,15 @@ public sealed partial class NativeRewardScriptGlobals
             : null;
     }
 
+    public NativeRewardPartner? GetPartner(NativeRewardActor? actor)
+    {
+        return actor != null
+               && context.State.FindActor(actor.ActorId)?.Kind
+               == CombatSimulationActorKind.Friendly
+            ? new NativeRewardPartner(this, actor.ActorId)
+            : null;
+    }
+
     public void ChangeCareer(object definitionId)
     {
         var roleId = Text(definitionId);
@@ -2855,6 +2937,78 @@ public sealed partial class NativeRewardScriptGlobals
     public void UpdateRelicShow()
     {
         IgnoreCosmeticApi("UpdateRelicShow");
+    }
+
+    public void AddPartner(object definitionId)
+    {
+        var id = Text(definitionId);
+        var nextActorId = Math.Max(
+            context.State.NextActorId,
+            context.State.Actors.Count == 0
+                ? 1
+                : context.State.Actors.Max(item => item.ActorId) + 1);
+        context.State.NextActorId = nextActorId + 1;
+        context.State.Actors.Add(new CombatActorState
+        {
+            ActorId = nextActorId,
+            InstanceKey = "partner:" + id + ":" + nextActorId,
+            DefinitionId = id,
+            Kind = CombatSimulationActorKind.Friendly,
+            Hp = 1,
+            MaxHp = 1
+        });
+    }
+
+    public void UpdateCardMsg()
+    {
+        IgnoreCosmeticApi("UpdateCardMsg");
+    }
+
+    public void MoonUse(bool isNew)
+    {
+        SetStatus("Self");
+        if (isNew)
+        {
+            var eclipsedStacks = Self?.GetBuff("buff_eclipsedmoon")
+                ?.buffConfig.Level ?? 0;
+            if (eclipsedStacks != 0)
+            {
+                ChangePower("1");
+            }
+            RemoveBuff("buff_eclipsedmoon");
+            AddBuff("buff_newmoon", 1 + eclipsedStacks);
+            return;
+        }
+
+        var newMoonStacks = Self?.GetBuff("buff_newmoon")
+            ?.buffConfig.Level ?? 0;
+        AddBuff("buff_eclipsedmoon", 1 + newMoonStacks);
+        RemoveBuff("buff_newmoon");
+    }
+
+    internal void ExecuteCurrentActionOnly(int actorId)
+    {
+        var actor = context.State.FindActor(actorId);
+        if (actor == null
+            || !context.Ruleset.TryGetEnemy(actor.DefinitionId, out var definition))
+        {
+            return;
+        }
+        var intentId = actor.CurrentIntentIds.FirstOrDefault()
+                       ?? actor.CurrentIntentId;
+        var intent = definition.Intents.FirstOrDefault(item => string.Equals(
+                         item.IntentId,
+                         intentId,
+                         StringComparison.OrdinalIgnoreCase))
+                     ?? definition.Intents.FirstOrDefault();
+        if (intent != null)
+        {
+            context.ApplyEffects(
+                intent.Effects,
+                actorId,
+                context.State.PlayerActorId,
+                currentEvent);
+        }
     }
 
     public void RunImmediately(object definitionId, object eventName)
@@ -3762,6 +3916,13 @@ public sealed partial class NativeRewardScriptGlobals
             case CombatSimulationEventKind.DamageDealt:
                 yield return "Damage";
                 yield return "Hurt";
+                if (string.Equals(
+                        item.Message,
+                        "TrueDamage",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    yield return "TrueDamage";
+                }
                 break;
             case CombatSimulationEventKind.Healed:
                 yield return "Heal";
@@ -3813,6 +3974,25 @@ public sealed partial class NativeRewardScriptGlobals
                           StringComparison.OrdinalIgnoreCase)
                         ? "Dot"
                         : "Normal"
+            };
+        }
+        if (type == typeof(NativeRewardTrueData))
+        {
+            return new NativeRewardTrueData
+            {
+                Value = (item?.Amount ?? 0).ToString(
+                    CultureInfo.InvariantCulture),
+                fromDataId = item?.DefinitionId ?? "",
+                ToId = Actor(item?.TargetActorId ?? 0)?.InstanceId ?? ""
+            };
+        }
+        if (type == typeof(NativeRewardHealData))
+        {
+            return new NativeRewardHealData
+            {
+                val = (item?.Amount ?? 0).ToString(
+                    CultureInfo.InvariantCulture),
+                Id = Actor(item?.TargetActorId ?? 0)?.InstanceId ?? ""
             };
         }
         if (type == typeof(NativeRewardActionData))
@@ -4265,6 +4445,11 @@ public sealed class NativeRewardActor
             Convert.ToString(id, CultureInfo.InvariantCulture) ?? "");
     }
 
+    public void ClearBuffById(object _)
+    {
+        globals.ClearDynamicPercentContributions(actorId);
+    }
+
     public override bool Equals(object? obj)
     {
         return obj is NativeRewardActor other && other.actorId == actorId;
@@ -4281,6 +4466,48 @@ public sealed class NativeRewardActor
         Idle,
         Hit,
         Dead
+    }
+}
+
+public sealed class NativeRewardPartner
+{
+    private readonly NativeRewardScriptGlobals globals;
+    private readonly int actorId;
+
+    public NativeRewardPartner(NativeRewardScriptGlobals globals, int actorId)
+    {
+        this.globals = globals;
+        this.actorId = actorId;
+    }
+
+    private CombatActorState State =>
+        globals.Context.State.FindActor(actorId) ?? new CombatActorState();
+
+    public int Attack
+    {
+        get => (int)State.Variables.GetValueOrDefault("BaseAttack", 0d);
+        set => State.Variables["BaseAttack"] = value;
+    }
+
+    public int Defend
+    {
+        get => (int)State.Variables.GetValueOrDefault("BaseDefense", 0d);
+        set => State.Variables["BaseDefense"] = value;
+    }
+
+    public int MaxHp
+    {
+        get => State.MaxHp;
+        set
+        {
+            State.MaxHp = Math.Max(1, value);
+            State.Hp = Math.Min(State.Hp, State.MaxHp);
+        }
+    }
+
+    public void ExecuteCurrentActionOnly()
+    {
+        globals.ExecuteCurrentActionOnly(actorId);
     }
 }
 
@@ -4616,6 +4843,9 @@ public sealed class NativeRewardPlayerInfo
         set => Player.Energy = Math.Max(0, value);
     }
 
+    public int PowerCost =>
+        globals.Context.State.PlayerEnergySpentThisTurn;
+
     public int MaxPower
     {
         get => Player.BaseEnergy;
@@ -4637,7 +4867,10 @@ public sealed class NativeRewardPlayerInfo
 
     public int CardTotalCount => globals.Context.State.Cards.Count;
 
-    public int PlayerCount => 1;
+    public int PlayerCount => globals.Context.State.Actors.Count(item =>
+        item.Alive
+        && item.Kind is CombatSimulationActorKind.Player
+            or CombatSimulationActorKind.Friendly);
 
     public int Reward
     {
@@ -4653,7 +4886,18 @@ public sealed class NativeRewardPlayerInfo
 
     public List<NativeRewardDataConfig> RelicList => globals.Context.Scenario.RewardRules
         .Where(item => item.Kind.Equals("Relic", StringComparison.OrdinalIgnoreCase))
-        .Select(item => new NativeRewardDataConfig(item.RewardId))
+        .Select(item =>
+        {
+            var config = new NativeRewardDataConfig(item.RewardId);
+            var tier = globals.Context.Scenario.RewardCatalog.FirstOrDefault(
+                entry => string.Equals(
+                    entry.RewardId,
+                    item.RewardId,
+                    StringComparison.OrdinalIgnoreCase))?.Tier ?? 1;
+            config.data["Rarity"] = tier.ToString(
+                CultureInfo.InvariantCulture);
+            return config;
+        })
         .ToList();
 
     public List<NativeRewardDataConfig> BlessingList => globals.Context.Scenario.RewardRules
@@ -4698,6 +4942,11 @@ public sealed class NativeRewardPlayerInfo
         globals.Context.Terminate(
             CombatSimulationOutcome.Victory,
             CombatTerminationReason.Victory);
+    }
+
+    public void GiveWin()
+    {
+        WinTheFight();
     }
 
     public void ChangeSelected(object amount)
@@ -4845,6 +5094,32 @@ public sealed class NativeRewardPlayerInfo
         RandomAddRelic(
             NativeRewardExtensions.ToInt(
                 Convert.ToString(count, CultureInfo.InvariantCulture)));
+    }
+
+    public void RandomrelicByRarity(object rarity)
+    {
+        var tier = Math.Max(
+            1,
+            NativeRewardExtensions.ToInt(
+                Convert.ToString(rarity, CultureInfo.InvariantCulture)));
+        var candidates = globals.Context.Scenario.RewardCatalog
+            .Where(item => item.Kind.Equals(
+                               "Relic",
+                               StringComparison.OrdinalIgnoreCase)
+                           && item.Tier == tier)
+            .OrderBy(item => item.RewardId, StringComparer.Ordinal)
+            .ToList();
+        if (candidates.Count == 0)
+        {
+            return;
+        }
+        var selected = candidates[globals.Context.NextRandomInt(
+            "reward:random-relic-tier:" + tier,
+            candidates.Count)];
+        globals.Context.RecordRewardMutation(
+            "Add",
+            "Relic",
+            selected.RewardId);
     }
 
     public void RandomRemoveCard(object count)
@@ -5298,6 +5573,19 @@ public sealed class NativeRewardHurtData
     public string sourceId = "";
     public string toId = "";
     public string fromDataId = "";
+}
+
+public sealed class NativeRewardTrueData
+{
+    public string Value = "0";
+    public string fromDataId = "";
+    public string ToId = "";
+}
+
+public sealed class NativeRewardHealData
+{
+    public string val = "0";
+    public string Id = "";
 }
 
 public sealed class NativeRewardActionData

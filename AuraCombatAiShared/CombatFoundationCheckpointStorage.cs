@@ -13,7 +13,7 @@ namespace AuraCombatAi.Shared;
 
 public static class CombatFoundationCheckpointStorage
 {
-    public const int SnapshotStorageVersion = 2;
+    public const int SnapshotStorageVersion = 3;
 
     private const int MaximumFileAttempts = 8;
 
@@ -54,7 +54,9 @@ public static class CombatFoundationCheckpointStorage
             throw new ArgumentNullException(nameof(serialize));
         }
         var maximumDegree = Math.Max(1, maximumDegreeOfParallelism);
-        var chunkSize = Math.Max(16, Math.Min(128, maximumDegree * 4));
+        // Keep transient JSON strings bounded. Large replay snapshots are
+        // throughput-insensitive here but previously doubled peak memory.
+        var chunkSize = Math.Max(4, Math.Min(16, maximumDegree * 2));
         return WriteEpisodeSnapshotCore(
             basePath,
             replayIdentity,
@@ -153,7 +155,8 @@ public static class CombatFoundationCheckpointStorage
                 ReplayIdentity = replayIdentity ?? "",
                 EpisodeCount = episodeCount,
                 Length = length,
-                CreatedUtc = DateTime.UtcNow
+                CreatedUtc = DateTime.UtcNow,
+                FeatureTokenCatalog = CombatFeatureTokenRegistry.CaptureCatalog()
             };
         }
         finally
@@ -318,6 +321,7 @@ public static class CombatFoundationCheckpointStorage
         }
 
         var result = new List<T>();
+        CombatFeatureTokenRegistry.RegisterCatalog(snapshot.FeatureTokenCatalog);
         ExecuteWithRetry(
             () =>
             {

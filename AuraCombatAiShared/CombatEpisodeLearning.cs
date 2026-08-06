@@ -124,16 +124,145 @@ public sealed class CombatCampaignEpisodeMetadata
 
 public sealed class CombatEpisodeFrame
 {
+    private Dictionary<string, double>? stateFeatures;
+    private CombatObservationEnvelope? observation;
+
     public int Turn { get; set; }
 
     public long ActionSequence { get; set; }
 
     public string StateFingerprint { get; set; } = "";
 
-    public Dictionary<string, double> StateFeatures { get; set; } =
-        new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, double> StateFeatures
+    {
+        get
+        {
+            if (stateFeatures == null)
+            {
+                if (CompactStateFeatures != null)
+                {
+                    CombatEpisodeStorageDiagnostics.StateDictionaryMaterialized();
+                    return CompactStateFeatures.Materialize();
+                }
+                stateFeatures = new Dictionary<string, double>(
+                    StringComparer.OrdinalIgnoreCase);
+                CombatEpisodeStorageDiagnostics.StateDictionaryMaterialized();
+            }
+            return stateFeatures;
+        }
+        set
+        {
+            stateFeatures = value ?? new Dictionary<string, double>(
+                StringComparer.OrdinalIgnoreCase);
+            CompactStateFeatures = null;
+        }
+    }
 
-    public CombatObservationEnvelope Observation { get; set; } = new();
+    public CombatObservationEnvelope Observation
+    {
+        get => observation ??= new CombatObservationEnvelope();
+        set => observation = value;
+    }
+
+    internal CombatCompactFeatureVector? CompactStateFeatures { get; private set; }
+
+    internal bool HasMaterializedStateFeatures => stateFeatures != null;
+
+    internal bool HasObservation => observation != null;
+
+    public int[]? CompactStateFeatureTokenIds
+    {
+        get => CompactStateFeatures?.TokenIds;
+        set
+        {
+            if (value == null)
+            {
+                return;
+            }
+            pendingCompactStateTokenIds = value;
+            RestoreCompactStateFeatures();
+        }
+    }
+
+    public float[]? CompactStateFeatureValues
+    {
+        get => CompactStateFeatures?.Values;
+        set
+        {
+            if (value == null)
+            {
+                return;
+            }
+            pendingCompactStateValues = value;
+            RestoreCompactStateFeatures();
+        }
+    }
+
+    private int[]? pendingCompactStateTokenIds;
+    private float[]? pendingCompactStateValues;
+
+    internal void SetCompactStateFeatures(CombatCompactFeatureVector features)
+    {
+        CompactStateFeatures = features ?? CombatCompactFeatureVector.Empty;
+        stateFeatures = null;
+        CombatEpisodeStorageDiagnostics.CompactStateVector(
+            CompactStateFeatures.Count);
+    }
+
+    private void RestoreCompactStateFeatures()
+    {
+        if (pendingCompactStateTokenIds == null
+            || pendingCompactStateValues == null)
+        {
+            return;
+        }
+        SetCompactStateFeatures(new CombatCompactFeatureVector(
+            pendingCompactStateTokenIds,
+            pendingCompactStateValues));
+        pendingCompactStateTokenIds = null;
+        pendingCompactStateValues = null;
+    }
+
+    internal bool TryGetStateFeature(string key, out double value)
+    {
+        if (stateFeatures != null)
+        {
+            return stateFeatures.TryGetValue(key, out value);
+        }
+        if (CompactStateFeatures != null)
+        {
+            return CompactStateFeatures.TryGetValue(key, out value);
+        }
+        value = 0d;
+        return false;
+    }
+
+    internal IEnumerable<KeyValuePair<string, double>> EnumerateStateFeatures()
+    {
+        if (stateFeatures != null)
+        {
+            foreach (var pair in stateFeatures)
+            {
+                yield return pair;
+            }
+            yield break;
+        }
+        if (CompactStateFeatures == null)
+        {
+            yield break;
+        }
+        for (var index = 0; index < CompactStateFeatures.Count; index++)
+        {
+            if (CombatFeatureTokenRegistry.TryResolve(
+                    CompactStateFeatures.TokenIds[index],
+                    out var key))
+            {
+                yield return new KeyValuePair<string, double>(
+                    key,
+                    CompactStateFeatures.Values[index]);
+            }
+        }
+    }
 
     public List<CombatEpisodeCandidate> Candidates { get; set; } = new();
 
@@ -154,6 +283,8 @@ public sealed class CombatEpisodeFrame
 
 public sealed class CombatEpisodeCandidate
 {
+    private Dictionary<string, double>? features;
+
     public string CandidateId { get; set; } = "";
 
     public string SourceId { get; set; } = "";
@@ -180,8 +311,129 @@ public sealed class CombatEpisodeCandidate
 
     public double TransformerTeacherProbability { get; set; } = -1d;
 
-    public Dictionary<string, double> Features { get; set; } =
-        new(StringComparer.OrdinalIgnoreCase);
+    public Dictionary<string, double> Features
+    {
+        get
+        {
+            if (features == null)
+            {
+                if (CompactFeatures != null)
+                {
+                    CombatEpisodeStorageDiagnostics
+                        .CandidateDictionaryMaterialized();
+                    return CompactFeatures.Materialize();
+                }
+                features = new Dictionary<string, double>(
+                    StringComparer.OrdinalIgnoreCase);
+                CombatEpisodeStorageDiagnostics
+                    .CandidateDictionaryMaterialized();
+            }
+            return features;
+        }
+        set
+        {
+            features = value ?? new Dictionary<string, double>(
+                StringComparer.OrdinalIgnoreCase);
+            CompactFeatures = null;
+        }
+    }
+
+    internal CombatCompactFeatureVector? CompactFeatures { get; private set; }
+
+    internal bool HasMaterializedFeatures => features != null;
+
+    public int[]? CompactFeatureTokenIds
+    {
+        get => CompactFeatures?.TokenIds;
+        set
+        {
+            if (value == null)
+            {
+                return;
+            }
+            pendingCompactTokenIds = value;
+            RestoreCompactFeatures();
+        }
+    }
+
+    public float[]? CompactFeatureValues
+    {
+        get => CompactFeatures?.Values;
+        set
+        {
+            if (value == null)
+            {
+                return;
+            }
+            pendingCompactValues = value;
+            RestoreCompactFeatures();
+        }
+    }
+
+    private int[]? pendingCompactTokenIds;
+    private float[]? pendingCompactValues;
+
+    internal void SetCompactFeatures(CombatCompactFeatureVector compact)
+    {
+        CompactFeatures = compact ?? CombatCompactFeatureVector.Empty;
+        features = null;
+        CombatEpisodeStorageDiagnostics.CompactCandidateVector(
+            CompactFeatures.Count);
+    }
+
+    private void RestoreCompactFeatures()
+    {
+        if (pendingCompactTokenIds == null || pendingCompactValues == null)
+        {
+            return;
+        }
+        SetCompactFeatures(new CombatCompactFeatureVector(
+            pendingCompactTokenIds,
+            pendingCompactValues));
+        pendingCompactTokenIds = null;
+        pendingCompactValues = null;
+    }
+
+    internal bool TryGetFeature(string key, out double value)
+    {
+        if (features != null)
+        {
+            return features.TryGetValue(key, out value);
+        }
+        if (CompactFeatures != null)
+        {
+            return CompactFeatures.TryGetValue(key, out value);
+        }
+        value = 0d;
+        return false;
+    }
+
+    internal IEnumerable<KeyValuePair<string, double>> EnumerateFeatures()
+    {
+        if (features != null)
+        {
+            foreach (var pair in features)
+            {
+                yield return pair;
+            }
+            yield break;
+        }
+        if (CompactFeatures == null)
+        {
+            yield break;
+        }
+        for (var index = 0; index < CompactFeatures.Count; index++)
+        {
+            if (CombatFeatureTokenRegistry.TryResolve(
+                    CompactFeatures.TokenIds[index],
+                    out var key))
+            {
+                yield return new KeyValuePair<string, double>(
+                    key,
+                    CompactFeatures.Values[index]);
+            }
+        }
+    }
 }
 
 public sealed class CombatPolicyValueTrainingOptions
@@ -225,6 +477,11 @@ public sealed class CombatPolicyValueTrainingOptions
     public double EarlyStoppingMinimumDelta { get; set; } = 0.0002d;
 
     public int ReplayEpisodeLimit { get; set; } = 8000;
+
+    public int ReplayFrameLimit { get; set; } = 384000;
+
+    public long ReplayEstimatedBytesLimit { get; set; } =
+        3L * 1024L * 1024L * 1024L;
 
     public int RetainedModelCandidates { get; set; } = 3;
 
@@ -304,6 +561,14 @@ public sealed class CombatPolicyValueTrainingOptions
             ReplayEpisodeLimit = Math.Max(
                 64,
                 Math.Min(20000, ReplayEpisodeLimit)),
+            ReplayFrameLimit = Math.Max(
+                4096,
+                Math.Min(2_000_000, ReplayFrameLimit)),
+            ReplayEstimatedBytesLimit = Math.Max(
+                256L * 1024L * 1024L,
+                Math.Min(
+                    16L * 1024L * 1024L * 1024L,
+                    ReplayEstimatedBytesLimit)),
             RetainedModelCandidates = Math.Max(
                 1,
                 Math.Min(5, RetainedModelCandidates)),
@@ -904,10 +1169,19 @@ public static class CombatPolicyValueTrainer
                 }).ToList()
             };
             var prediction = model.Evaluate(input);
-            var predicted = prediction.PolicyLogits
-                .OrderByDescending(pair => pair.Value)
-                .First()
-                .Key;
+            var predicted = legal[0].CandidateId;
+            var predictedLogit = double.NegativeInfinity;
+            foreach (var candidate in legal)
+            {
+                if (prediction.TryGetPolicyLogit(
+                        candidate.CandidateId,
+                        out var candidateLogit)
+                    && candidateLogit > predictedLogit)
+                {
+                    predicted = candidate.CandidateId;
+                    predictedLogit = candidateLogit;
+                }
+            }
             var target = legal
                 .OrderByDescending(candidate => candidate.SearchVisits)
                 .ThenByDescending(candidate =>

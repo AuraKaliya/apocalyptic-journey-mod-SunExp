@@ -538,11 +538,41 @@ internal static class BaseGameTableEnricher
     public static void Enrich(CombatKnowledgePackage package, string path)
     {
         using var document = JsonDocument.Parse(File.ReadAllText(path));
+        if (TryProperty(document.RootElement, "GameBuild", out var buildElement))
+        {
+            var tableBuild = buildElement.GetString() ?? "";
+            if (!string.Equals(
+                    NormalizeBuild(tableBuild),
+                    NormalizeBuild(package.GameBuild),
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                throw new InvalidDataException(
+                    "table export build does not match script build: table="
+                    + tableBuild
+                    + ", scripts="
+                    + package.GameBuild);
+            }
+        }
+        if (TryProperty(
+                document.RootElement,
+                "ExportedAtUtc",
+                out var exportedAtElement)
+            && DateTime.TryParse(
+                exportedAtElement.GetString(),
+                CultureInfo.InvariantCulture,
+                DateTimeStyles.AssumeUniversal | DateTimeStyles.AdjustToUniversal,
+                out var exportedAtUtc))
+        {
+            package.GeneratedAtUtc = DateTime.SpecifyKind(
+                exportedAtUtc,
+                DateTimeKind.Utc);
+        }
         if (!document.RootElement.TryGetProperty("tables", out var tables)
             && !document.RootElement.TryGetProperty("Tables", out tables))
         {
             throw new InvalidDataException("table export has no tables object");
         }
+        ValidateBaseGameOnly(tables);
         EnrichActions(package, Rows(tables, "Card").Concat(Rows(tables, "PartnerCard")));
         EnrichStatuses(package, Rows(tables, "Buff"));
         EnrichEnemies(package, Rows(tables, "Enemy"));
@@ -551,6 +581,77 @@ internal static class BaseGameTableEnricher
         package.Inventory.DiscoveredStatuses = package.Statuses.Count;
         package.Inventory.DiscoveredEnemies = package.Enemies.Count;
         package.Inventory.DiscoveredEncounters = package.Encounters.Count;
+    }
+
+    private static void ValidateBaseGameOnly(JsonElement tables)
+    {
+        var foreign = new List<string>();
+        foreach (var table in tables.EnumerateObject())
+        {
+            if (table.Value.ValueKind != JsonValueKind.Array)
+            {
+                continue;
+            }
+            foreach (var row in table.Value.EnumerateArray())
+            {
+                if (!TryProperty(row, "Id", out var idElement))
+                {
+                    continue;
+                }
+                var id = idElement.GetString() ?? "";
+                if (id.StartsWith("Terrias_", StringComparison.OrdinalIgnoreCase)
+                    || id.StartsWith("Saya_", StringComparison.OrdinalIgnoreCase)
+                    || id.StartsWith(
+                        "RonoveEmberOfTheEnd_",
+                        StringComparison.OrdinalIgnoreCase))
+                {
+                    foreign.Add(table.Name + ":" + id);
+                    if (foreign.Count >= 16)
+                    {
+                        break;
+                    }
+                }
+            }
+        }
+        if (foreign.Count > 0)
+        {
+            throw new InvalidDataException(
+                "base-game table export contains foreign MOD rows: "
+                + string.Join(", ", foreign));
+        }
+    }
+
+    private static bool TryProperty(
+        JsonElement element,
+        string name,
+        out JsonElement value)
+    {
+        if (element.TryGetProperty(name, out value))
+        {
+            return true;
+        }
+        foreach (var property in element.EnumerateObject())
+        {
+            if (string.Equals(
+                    property.Name,
+                    name,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                value = property.Value;
+                return true;
+            }
+        }
+        value = default;
+        return false;
+    }
+
+    private static string NormalizeBuild(string value)
+    {
+        var normalized = (value ?? "").Trim();
+        return normalized.Length > 1
+               && (normalized[0] == 'v' || normalized[0] == 'V')
+            ? normalized.Substring(1)
+            : normalized;
     }
 
     private static void EnrichActions(

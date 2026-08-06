@@ -14,6 +14,12 @@ internal static class CombatPolicyValueBatchTrainer
 {
     internal const int TrainingCheckpointEpochInterval = 8;
 
+    [ThreadStatic]
+    private static double[]? threadStateEncodingBuffer;
+
+    [ThreadStatic]
+    private static double[]? threadActionEncodingBuffer;
+
     internal static CombatPolicyValueMetricSnapshot EvaluateFrozenAnchor(
         IEnumerable<CombatEpisode> source,
         CombatPolicyValueNetworkDefinition model,
@@ -383,6 +389,10 @@ internal static class CombatPolicyValueBatchTrainer
         var completedEpochsActual = startEpoch;
         var gradientClipCount = 0;
         var maximumGradientNorm = 0d;
+        var gradientComputeSeconds = 0d;
+        var gradientAggregationSeconds = 0d;
+        var optimizerUpdateSeconds = 0d;
+        var trainingBatchCount = 0;
         var lastBatchProgressMilliseconds = -1000L;
         for (var epoch = startEpoch; epoch < options.Epochs; epoch++)
         {
@@ -418,6 +428,7 @@ internal static class CombatPolicyValueBatchTrainer
                 var workerCount = Math.Min(
                     gradientWorkerCapacity,
                     usefulWorkerCount);
+                var gradientStarted = Stopwatch.GetTimestamp();
                 Parallel.For(
                     0,
                     workerCount,
@@ -445,6 +456,7 @@ internal static class CombatPolicyValueBatchTrainer
                                 frame.SampleWeight);
                         }
                     });
+                gradientComputeSeconds += ElapsedSeconds(gradientStarted);
                 var update = ApplyBatch(
                     model,
                     optimizer,
@@ -453,7 +465,12 @@ internal static class CombatPolicyValueBatchTrainer
                     count,
                     rate,
                     options.L2,
-                    aggregateGradient);
+                    aggregateGradient,
+                    options.MaximumDegreeOfParallelism,
+                    cancellationToken);
+                gradientAggregationSeconds += update.AggregationSeconds;
+                optimizerUpdateSeconds += update.OptimizerSeconds;
+                trainingBatchCount++;
                 maximumGradientNorm = Math.Max(
                     maximumGradientNorm,
                     update.GradientNorm);
@@ -690,8 +707,8 @@ internal static class CombatPolicyValueBatchTrainer
             .SelectMany(episode => episode.Frames
                                   ?? new List<CombatEpisodeFrame>())
             .Select(frame => CombatPolicyValueEncoding
-                .MeasureStateCollisions(
-                    frame.StateFeatures,
+                .MeasureStateCollisionsForFrame(
+                    frame,
                     options.StateDimensions)));
         var actionCollision = CollisionRate(episodes
             .SelectMany(episode => episode.Frames
@@ -700,13 +717,16 @@ internal static class CombatPolicyValueBatchTrainer
                                 ?? new List<CombatEpisodeCandidate>())
             .Select(candidate => CombatPolicyValueEncoding
                 .MeasureCandidateCollisions(
-                    new CombatPolicyValueCandidate
-                    {
-                        CandidateId = candidate.CandidateId,
-                        SourceId = candidate.SourceId,
-                        Features = candidate.Features
-                    },
+                    candidate,
                     options.ActionDimensions)));
+        var sparseVectorCount = trainingFrames.Sum(frame =>
+            1L + frame.Actions.LongLength);
+        var sparseNonZeroValues = trainingFrames.Sum(frame =>
+            (long)frame.State.Indices.Length
+            + frame.Actions.Sum(action => (long)action.Indices.Length));
+        var sparseDenseEquivalentValues = trainingFrames.Sum(frame =>
+            (long)frame.State.Dimension
+            + frame.Actions.Sum(action => (long)action.Dimension));
         model.Metrics = new Dictionary<string, double>(
             StringComparer.OrdinalIgnoreCase)
         {
@@ -781,10 +801,30 @@ internal static class CombatPolicyValueBatchTrainer
             ["batchSize"] = options.BatchSize,
             ["gradientShardCount"] = options.GradientShardCount,
             ["trainingParallelism"] = options.MaximumDegreeOfParallelism,
+            ["sparseTrainingVectorCount"] = sparseVectorCount,
+            ["sparseTrainingNonZeroValues"] = sparseNonZeroValues,
+            ["sparseTrainingDenseEquivalentValues"] =
+                sparseDenseEquivalentValues,
+            ["sparseTrainingDensity"] = sparseDenseEquivalentValues <= 0L
+                ? 0d
+                : sparseNonZeroValues
+                  / (double)sparseDenseEquivalentValues,
+            ["sparseTrainingPayloadReduction"] =
+                sparseDenseEquivalentValues <= 0L
+                    ? 0d
+                    : 1d
+                      - sparseNonZeroValues * 12d
+                      / (sparseDenseEquivalentValues * sizeof(double)),
             ["gradientBufferCount"] = gradientWorkerCapacity * 2d,
             ["gradientMemoryBoundWorkerLimit"] =
                 memoryBoundGradientWorkers,
             ["gradientBufferBudgetBytes"] = gradientBufferBudgetBytes,
+            ["gradientComputeSeconds"] = gradientComputeSeconds,
+            ["gradientAggregationSeconds"] = gradientAggregationSeconds,
+            ["optimizerUpdateSeconds"] = optimizerUpdateSeconds,
+            ["trainingBatchCount"] = trainingBatchCount,
+            ["parallelParameterUpdate"] =
+                options.MaximumDegreeOfParallelism > 1 ? 1d : 0d,
             ["optimizerAdamW"] = 1d,
             ["optimizerStep"] = optimizer.Step,
             ["gradientClipCount"] = gradientClipCount,
@@ -1276,6 +1316,135 @@ internal static class CombatPolicyValueBatchTrainer
                    StringComparison.Ordinal);
     }
 
+    private static SparseFeatureVector EncodeSparseState(
+        IReadOnlyDictionary<string, double>? features,
+        int dimensions,
+        string encodingMode)
+    {
+        var safeDimensions = Math.Max(1, dimensions);
+        var buffer = threadStateEncodingBuffer;
+        if (buffer == null || buffer.Length < safeDimensions)
+        {
+            buffer = new double[safeDimensions];
+            threadStateEncodingBuffer = buffer;
+        }
+        CombatPolicyValueEncoding.EncodeStateInto(
+            features,
+            buffer,
+            safeDimensions,
+            encodingMode);
+        return Compact(buffer, safeDimensions);
+    }
+
+    private static SparseFeatureVector EncodeSparseState(
+        CombatCompactFeatureVector features,
+        int dimensions,
+        string encodingMode)
+    {
+        var safeDimensions = Math.Max(1, dimensions);
+        var buffer = threadStateEncodingBuffer;
+        if (buffer == null || buffer.Length < safeDimensions)
+        {
+            buffer = new double[safeDimensions];
+            threadStateEncodingBuffer = buffer;
+        }
+        CombatPolicyValueEncoding.EncodeStateInto(
+            features,
+            buffer,
+            safeDimensions,
+            encodingMode);
+        return Compact(buffer, safeDimensions);
+    }
+
+    private static SparseFeatureVector EncodeSparseCandidate(
+        CombatPolicyValueCandidate candidate,
+        int dimensions,
+        string encodingMode)
+    {
+        var safeDimensions = Math.Max(1, dimensions);
+        var buffer = threadActionEncodingBuffer;
+        if (buffer == null || buffer.Length < safeDimensions)
+        {
+            buffer = new double[safeDimensions];
+            threadActionEncodingBuffer = buffer;
+        }
+        CombatPolicyValueEncoding.EncodeCandidateInto(
+            candidate,
+            buffer,
+            safeDimensions,
+            encodingMode);
+        return Compact(buffer, safeDimensions);
+    }
+
+    private static SparseFeatureVector EncodeSparseCandidate(
+        CombatEpisodeCandidate candidate,
+        int dimensions,
+        string encodingMode)
+    {
+        if (candidate.CompactFeatures == null)
+        {
+            return EncodeSparseCandidate(
+                new CombatPolicyValueCandidate
+                {
+                    CandidateId = candidate.CandidateId,
+                    SourceId = candidate.SourceId,
+                    Features = candidate.Features
+                },
+                dimensions,
+                encodingMode);
+        }
+        var safeDimensions = Math.Max(1, dimensions);
+        var buffer = threadActionEncodingBuffer;
+        if (buffer == null || buffer.Length < safeDimensions)
+        {
+            buffer = new double[safeDimensions];
+            threadActionEncodingBuffer = buffer;
+        }
+        CombatPolicyValueEncoding.EncodeCandidateInto(
+            candidate.CompactFeatures,
+            candidate.SourceId,
+            buffer,
+            safeDimensions,
+            encodingMode);
+        return Compact(buffer, safeDimensions);
+    }
+
+    private static SparseFeatureVector Compact(
+        double[] dense,
+        int dimensions)
+    {
+        var count = 0;
+        for (var index = 0; index < dimensions; index++)
+        {
+            if (dense[index] != 0d)
+            {
+                count++;
+            }
+        }
+        if (count == 0)
+        {
+            return new SparseFeatureVector(
+                dimensions,
+                Array.Empty<int>(),
+                Array.Empty<double>());
+        }
+        var indices = new int[count];
+        var values = new double[count];
+        var cursor = 0;
+        for (var index = 0; index < dimensions; index++)
+        {
+            var value = dense[index];
+            if (value == 0d)
+            {
+                continue;
+            }
+            indices[cursor] = index;
+            values[cursor] = value;
+            cursor++;
+        }
+        return new SparseFeatureVector(dimensions, indices, values);
+    }
+
     private static EncodedFrame? EncodeFrame(
         CombatEpisode episode,
         CombatEpisodeFrame frame,
@@ -1303,7 +1472,7 @@ internal static class CombatPolicyValueBatchTrainer
             IsEndTurnCandidate);
         var dominatedEndTurn = endTurnCandidate != null
                                && Feature(
-                                   endTurnCandidate.Features,
+                                   endTurnCandidate,
                                    CombatTurnFeatureNames.EndTurnDominated) > 0.5d;
         if (!executedCandidate.Legal
             && !(ReferenceEquals(executedCandidate, endTurnCandidate)
@@ -1355,11 +1524,8 @@ internal static class CombatPolicyValueBatchTrainer
                                      && legal.Any(candidate =>
                                          !IsEndTurnCandidate(candidate));
         var endTurnDecision = hasPlayableAlternative;
-        var unusedEnergy = frame.StateFeatures != null
-                           && frame.StateFeatures.TryGetValue(
-                               "power",
-                               out var power)
-            && power > 0.5d;
+        var unusedEnergy = frame.TryGetStateFeature("power", out var power)
+                           && power > 0.5d;
         var unsafeEndTurn = dominatedEndTurn
                             || (executedEndTurn
                                 && hasPlayableAlternative
@@ -1378,18 +1544,18 @@ internal static class CombatPolicyValueBatchTrainer
         return new EncodedFrame
         {
             RunKey = StableRunKey(episode),
-            State = CombatPolicyValueEncoding.EncodeState(
-                frame.StateFeatures,
-                options.StateDimensions,
-                options.FeatureEncodingMode),
+            State = frame.CompactStateFeatures != null
+                ? EncodeSparseState(
+                    frame.CompactStateFeatures,
+                    options.StateDimensions,
+                    options.FeatureEncodingMode)
+                : EncodeSparseState(
+                    frame.StateFeatures,
+                    options.StateDimensions,
+                    options.FeatureEncodingMode),
             Actions = policyCandidates.Select(candidate =>
-                    CombatPolicyValueEncoding.EncodeCandidate(
-                        new CombatPolicyValueCandidate
-                        {
-                            CandidateId = candidate.CandidateId,
-                            SourceId = candidate.SourceId,
-                            Features = candidate.Features
-                        },
+                    EncodeSparseCandidate(
+                        candidate,
                         options.ActionDimensions,
                         options.FeatureEncodingMode))
                 .ToArray(),
@@ -1462,10 +1628,7 @@ internal static class CombatPolicyValueBatchTrainer
                    candidate.SourceId,
                    "simulation:end-turn",
                    StringComparison.OrdinalIgnoreCase)
-               || candidate.Features != null
-               && candidate.Features.TryGetValue(
-                   "actionKindEndTurn",
-                   out var value)
+               || candidate.TryGetFeature("actionKindEndTurn", out var value)
                && value > 0.5d;
     }
 
@@ -1488,8 +1651,20 @@ internal static class CombatPolicyValueBatchTrainer
         }
         return IsEndTurnCandidate(executed)
                && Feature(
-                   executed.Features,
+                   executed,
                    CombatTurnFeatureNames.EndTurnDominated) > 0.5d;
+    }
+
+    private static double Feature(
+        CombatEpisodeCandidate candidate,
+        string key)
+    {
+        return candidate != null
+               && candidate.TryGetFeature(key, out var value)
+               && !double.IsNaN(value)
+               && !double.IsInfinity(value)
+            ? value
+            : 0d;
     }
 
     private static double Feature(
@@ -1590,10 +1765,14 @@ internal static class CombatPolicyValueBatchTrainer
                 candidate.CandidateId,
                 frame.ExecutedCandidateId,
                 StringComparison.Ordinal));
-        var actionFeatures = executed?.Features;
-        var actionAligned = StrategicFrameStratum(actionFeatures);
-        var hasActionStrategySignal = (actionFeatures
-                                       ?? new Dictionary<string, double>())
+        var actionFeatures = executed?.CompactFeatures;
+        var actionAligned = actionFeatures != null
+            ? StrategicFrameStratum(actionFeatures)
+            : StrategicFrameStratum(executed?.Features);
+        var hasActionStrategySignal = actionFeatures != null
+            ? HasActionStrategySignal(actionFeatures)
+            : (executed?.Features
+               ?? new Dictionary<string, double>())
             .Any(pair => pair.Value > 0.5d
                          && pair.Key.StartsWith(
                              CombatRoleStrategyFeatureNames.Prefix,
@@ -1611,7 +1790,88 @@ internal static class CombatPolicyValueBatchTrainer
                 ? "strategy-baseline"
                 : actionAligned;
         }
-        return StrategicFrameStratum(frame.StateFeatures);
+        return frame.CompactStateFeatures != null
+            ? StrategicFrameStratum(frame.CompactStateFeatures)
+            : StrategicFrameStratum(frame.StateFeatures);
+    }
+
+    private static bool HasActionStrategySignal(
+        CombatCompactFeatureVector features)
+    {
+        for (var index = 0; index < features.Count; index++)
+        {
+            if (features.Values[index] <= 0.5d
+                || !CombatFeatureTokenRegistry.TryResolve(
+                    features.TokenIds[index],
+                    out var key))
+            {
+                continue;
+            }
+            if (key.StartsWith(
+                    CombatRoleStrategyFeatureNames.Prefix,
+                    StringComparison.OrdinalIgnoreCase)
+                && !string.Equals(
+                    key,
+                    CombatRoleStrategyFeatureNames.Active,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return true;
+            }
+        }
+        return false;
+    }
+
+    private static string StrategicFrameStratum(
+        CombatCompactFeatureVector features)
+    {
+        if (features.Count == 0)
+        {
+            return "strategy-baseline";
+        }
+        var active = new List<string>();
+        for (var index = 0; index < features.Count; index++)
+        {
+            if (features.Values[index] <= 0.5d
+                || !CombatFeatureTokenRegistry.TryResolve(
+                    features.TokenIds[index],
+                    out var key)
+                || !key.StartsWith(
+                    CombatRoleStrategyFeatureNames.Prefix,
+                    StringComparison.OrdinalIgnoreCase)
+                || key.StartsWith(
+                    CombatRoleStrategyFeatureNames.TrainingQuotaPrefix,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                continue;
+            }
+            active.Add(key.ToLowerInvariant());
+        }
+        return StrategicFrameStratum(active);
+    }
+
+    private static string StrategicFrameStratum(IReadOnlyList<string> active)
+    {
+        if (HasStrategySignal(active, "survival-override", "survival-action"))
+        {
+            return "strategy-survival";
+        }
+        if (HasStrategySignal(active, "finale-safe", "finale-line"))
+        {
+            return "strategy-finale";
+        }
+        if (HasStrategySignal(active, "bank-for-next-turn", "intent-bank", "bank-transform"))
+        {
+            return "strategy-bank";
+        }
+        if (HasStrategySignal(active, "transformed", "transform-ready", "early-transform"))
+        {
+            return "strategy-transform";
+        }
+        if (HasStrategySignal(active, "safe-growth-window", "growth-builder"))
+        {
+            return "strategy-growth";
+        }
+        return active.Count == 0 ? "strategy-baseline" : "strategy-other";
     }
 
     internal static string StrategicFrameStratum(
@@ -1763,7 +2023,7 @@ internal static class CombatPolicyValueBatchTrainer
         var hiddenCount = model.HiddenDimensions;
         workspace.Prepare(frame.Actions.Length);
         var stateHidden = workspace.StateHidden;
-        DenseTanhInto(
+        SparseTanhInto(
             frame.State,
             model.StateWeights,
             model.StateBias,
@@ -1775,7 +2035,7 @@ internal static class CombatPolicyValueBatchTrainer
              actionIndex < frame.Actions.Length;
              actionIndex++)
         {
-            DenseTanhInto(
+            SparseTanhInto(
                 frame.Actions[actionIndex],
                 model.ActionWeights,
                 model.ActionBias,
@@ -1864,11 +2124,10 @@ internal static class CombatPolicyValueBatchTrainer
                 actionQuantileMae += absolute;
                 actionQuantileLabels++;
             }
-            BackpropDense(
+            BackpropSparse(
                 frame.Actions[actionIndex],
                 actionHidden[actionIndex],
                 actionGradient,
-                model.ActionWeights,
                 gradient.ActionWeights,
                 gradient.ActionBias);
         }
@@ -1909,11 +2168,10 @@ internal static class CombatPolicyValueBatchTrainer
             (turns - frame.TurnsTarget) * Sigmoid(turnsRaw) * 0.1d,
             gradient.TurnWeights,
             stateGradient);
-        BackpropDense(
+        BackpropSparse(
             frame.State,
             stateHidden,
             stateGradient,
-            model.StateWeights,
             gradient.StateWeights,
             gradient.StateBias);
         var bestIndex = 0;
@@ -1973,30 +2231,6 @@ internal static class CombatPolicyValueBatchTrainer
         return outputGradient;
     }
 
-    private static void BackpropDense(
-        IReadOnlyList<double> input,
-        IReadOnlyList<double> hidden,
-        IReadOnlyList<double> hiddenGradient,
-        IReadOnlyList<double> weights,
-        double[] weightGradient,
-        double[] biasGradient)
-    {
-        for (var output = 0; output < hidden.Count; output++)
-        {
-            var outputGradient = hiddenGradient[output]
-                                 * (1d - hidden[output] * hidden[output]);
-            biasGradient[output] += outputGradient;
-            var offset = output * input.Count;
-            for (var inputIndex = 0;
-                 inputIndex < input.Count;
-                 inputIndex++)
-            {
-                weightGradient[offset + inputIndex] +=
-                    outputGradient * input[inputIndex];
-            }
-        }
-    }
-
     private static BatchUpdate ApplyBatch(
         CombatPolicyValueNetworkDefinition model,
         CombatPolicyValueOptimizerState optimizer,
@@ -2005,33 +2239,36 @@ internal static class CombatPolicyValueBatchTrainer
         int sampleCount,
         double learningRate,
         double l2,
-        double[] aggregate)
+        double[] aggregate,
+        int parallelism,
+        CancellationToken cancellationToken)
     {
+        var aggregationStarted = Stopwatch.GetTimestamp();
         var cursor = 0;
         Aggregate(aggregate, ref cursor, gradients, gradientCount, sampleCount,
-            gradient => gradient.StateWeights);
+            gradient => gradient.StateWeights, parallelism, cancellationToken);
         Aggregate(aggregate, ref cursor, gradients, gradientCount, sampleCount,
-            gradient => gradient.StateBias);
+            gradient => gradient.StateBias, parallelism, cancellationToken);
         Aggregate(aggregate, ref cursor, gradients, gradientCount, sampleCount,
-            gradient => gradient.ActionWeights);
+            gradient => gradient.ActionWeights, parallelism, cancellationToken);
         Aggregate(aggregate, ref cursor, gradients, gradientCount, sampleCount,
-            gradient => gradient.ActionBias);
+            gradient => gradient.ActionBias, parallelism, cancellationToken);
         Aggregate(aggregate, ref cursor, gradients, gradientCount, sampleCount,
-            gradient => gradient.PolicyWeights);
+            gradient => gradient.PolicyWeights, parallelism, cancellationToken);
         Aggregate(aggregate, ref cursor, gradients, gradientCount, sampleCount,
-            gradient => gradient.ActionQuantileWeights);
+            gradient => gradient.ActionQuantileWeights, parallelism, cancellationToken);
         Aggregate(aggregate, ref cursor, gradients, gradientCount, sampleCount,
-            gradient => gradient.ActionQuantileBias);
+            gradient => gradient.ActionQuantileBias, parallelism, cancellationToken);
         Aggregate(aggregate, ref cursor, gradients, gradientCount, sampleCount,
-            gradient => gradient.ValueWeights);
+            gradient => gradient.ValueWeights, parallelism, cancellationToken);
         Aggregate(aggregate, ref cursor, gradients, gradientCount, sampleCount,
-            gradient => gradient.WinWeights);
+            gradient => gradient.WinWeights, parallelism, cancellationToken);
         Aggregate(aggregate, ref cursor, gradients, gradientCount, sampleCount,
-            gradient => gradient.RiskWeights);
+            gradient => gradient.RiskWeights, parallelism, cancellationToken);
         Aggregate(aggregate, ref cursor, gradients, gradientCount, sampleCount,
-            gradient => gradient.HpWeights);
+            gradient => gradient.HpWeights, parallelism, cancellationToken);
         Aggregate(aggregate, ref cursor, gradients, gradientCount, sampleCount,
-            gradient => gradient.TurnWeights);
+            gradient => gradient.TurnWeights, parallelism, cancellationToken);
         aggregate[cursor++] = Average(
             gradients, gradientCount, sampleCount,
             gradient => gradient.PolicyBias);
@@ -2051,62 +2288,69 @@ internal static class CombatPolicyValueBatchTrainer
             gradients, gradientCount, sampleCount,
             gradient => gradient.TurnBias);
 
-        var squaredNorm = 0d;
-        foreach (var value in aggregate)
-        {
-            if (!Finite(value))
-            {
-                throw new InvalidOperationException(
-                    "策略价值网络梯度包含非有限值");
-            }
-            squaredNorm += value * value;
-        }
+        var squaredNorm = ParallelSquaredNorm(
+            aggregate,
+            parallelism,
+            cancellationToken);
         var norm = Math.Sqrt(squaredNorm);
         var clipScale = norm > 1d ? 1d / norm : 1d;
         if (clipScale < 1d)
         {
-            for (var index = 0; index < aggregate.Length; index++)
-            {
-                aggregate[index] *= clipScale;
-            }
+            ParallelRanges(
+                aggregate.Length,
+                parallelism,
+                cancellationToken,
+                (start, end) =>
+                {
+                    for (var index = start; index < end; index++)
+                    {
+                        aggregate[index] *= clipScale;
+                    }
+                });
         }
 
+        var aggregationSeconds = ElapsedSeconds(aggregationStarted);
+        var optimizerStarted = Stopwatch.GetTimestamp();
         optimizer.Step++;
         cursor = 0;
         ApplyAdamW(model.StateWeights, aggregate, optimizer, ref cursor,
-            learningRate, l2);
+            learningRate, l2, parallelism, cancellationToken);
         ApplyAdamW(model.StateBias, aggregate, optimizer, ref cursor,
-            learningRate, 0d);
+            learningRate, 0d, parallelism, cancellationToken);
         ApplyAdamW(model.ActionWeights, aggregate, optimizer, ref cursor,
-            learningRate, l2);
+            learningRate, l2, parallelism, cancellationToken);
         ApplyAdamW(model.ActionBias, aggregate, optimizer, ref cursor,
-            learningRate, 0d);
+            learningRate, 0d, parallelism, cancellationToken);
         ApplyAdamW(model.PolicyWeights, aggregate, optimizer, ref cursor,
-            learningRate, l2);
+            learningRate, l2, parallelism, cancellationToken);
         ApplyAdamW(
             model.ActionQuantileWeights,
             aggregate,
             optimizer,
             ref cursor,
             learningRate,
-            l2);
+            l2,
+            parallelism,
+            cancellationToken);
         ApplyAdamW(
             model.ActionQuantileBias,
             aggregate,
             optimizer,
             ref cursor,
             learningRate,
-            0d);
+            0d,
+            parallelism,
+            cancellationToken);
         ApplyAdamW(model.ValueWeights, aggregate, optimizer, ref cursor,
-            learningRate, l2);
+            learningRate, l2, parallelism, cancellationToken);
         ApplyAdamW(model.WinWeights, aggregate, optimizer, ref cursor,
-            learningRate, l2);
+            learningRate, l2, parallelism, cancellationToken);
         ApplyAdamW(model.RiskWeights, aggregate, optimizer, ref cursor,
-            learningRate, l2);
+            learningRate, l2, parallelism, cancellationToken);
         ApplyAdamW(model.HpWeights, aggregate, optimizer, ref cursor,
-            learningRate, l2);
+            learningRate, l2, parallelism, cancellationToken);
         ApplyAdamW(model.TurnWeights, aggregate, optimizer, ref cursor,
-            learningRate, l2);
+            learningRate, l2, parallelism, cancellationToken);
         model.PolicyBias = ApplyAdam(
             model.PolicyBias, aggregate[cursor], optimizer, cursor++, learningRate);
         model.ValueBias = ApplyAdam(
@@ -2119,7 +2363,40 @@ internal static class CombatPolicyValueBatchTrainer
             model.HpBias, aggregate[cursor], optimizer, cursor++, learningRate);
         model.TurnBias = ApplyAdam(
             model.TurnBias, aggregate[cursor], optimizer, cursor, learningRate);
-        return new BatchUpdate(norm, clipScale < 1d);
+        return new BatchUpdate(
+            norm,
+            clipScale < 1d,
+            aggregationSeconds,
+            ElapsedSeconds(optimizerStarted));
+    }
+
+    private static void BackpropSparse(
+        SparseFeatureVector input,
+        IReadOnlyList<double> hidden,
+        IReadOnlyList<double> hiddenGradient,
+        double[] weightGradient,
+        double[] biasGradient)
+    {
+        for (var output = 0; output < hidden.Count; output++)
+        {
+            var outputGradient = hiddenGradient[output]
+                                 * (1d - hidden[output] * hidden[output]);
+            biasGradient[output] += outputGradient;
+            var offset = output * input.Dimension;
+            for (var sparseIndex = 0;
+                 sparseIndex < input.Indices.Length;
+                 sparseIndex++)
+            {
+                weightGradient[offset + input.Indices[sparseIndex]] +=
+                    outputGradient * input.Values[sparseIndex];
+            }
+        }
+    }
+
+    private static double ElapsedSeconds(long startedTimestamp)
+    {
+        return (Stopwatch.GetTimestamp() - startedTimestamp)
+               / (double)Stopwatch.Frequency;
     }
 
     private static void Aggregate(
@@ -2128,18 +2405,35 @@ internal static class CombatPolicyValueBatchTrainer
         IReadOnlyList<ModelGradient> gradients,
         int gradientCount,
         int sampleCount,
-        Func<ModelGradient, double[]> select)
+        Func<ModelGradient, double[]> select,
+        int parallelism,
+        CancellationToken cancellationToken)
     {
         var sourceLength = select(gradients[0]).Length;
-        for (var index = 0; index < sourceLength; index++)
+        var targetOffset = cursor;
+        cursor += sourceLength;
+        var sources = new double[gradientCount][];
+        for (var frame = 0; frame < gradientCount; frame++)
         {
-            var sum = 0d;
-            for (var frame = 0; frame < gradientCount; frame++)
-            {
-                sum += select(gradients[frame])[index];
-            }
-            target[cursor++] = sum / Math.Max(1, sampleCount);
+            sources[frame] = select(gradients[frame]);
         }
+        ParallelRanges(
+            sourceLength,
+            parallelism,
+            cancellationToken,
+            (start, end) =>
+            {
+                for (var index = start; index < end; index++)
+                {
+                    var sum = 0d;
+                    for (var frame = 0; frame < gradientCount; frame++)
+                    {
+                        sum += sources[frame][index];
+                    }
+                    target[targetOffset + index] =
+                        sum / Math.Max(1, sampleCount);
+                }
+            });
     }
 
     private static double Average(
@@ -2162,24 +2456,126 @@ internal static class CombatPolicyValueBatchTrainer
         CombatPolicyValueOptimizerState optimizer,
         ref int cursor,
         double learningRate,
-        double weightDecay)
+        double weightDecay,
+        int parallelism,
+        CancellationToken cancellationToken)
     {
-        for (var index = 0; index < target.Length; index++)
-        {
-            if (weightDecay > 0d)
+        var gradientOffset = cursor;
+        cursor += target.Length;
+        ParallelRanges(
+            target.Length,
+            parallelism,
+            cancellationToken,
+            (start, end) =>
             {
-                target[index] *= Math.Max(
-                    0d,
-                    1d - learningRate * weightDecay);
-            }
-            target[index] = ApplyAdam(
-                target[index],
-                gradient[cursor],
-                optimizer,
-                cursor,
-                learningRate);
-            cursor++;
+                for (var index = start; index < end; index++)
+                {
+                    if (weightDecay > 0d)
+                    {
+                        target[index] *= Math.Max(
+                            0d,
+                            1d - learningRate * weightDecay);
+                    }
+                    var optimizerIndex = gradientOffset + index;
+                    target[index] = ApplyAdam(
+                        target[index],
+                        gradient[optimizerIndex],
+                        optimizer,
+                        optimizerIndex,
+                        learningRate);
+                }
+            });
+    }
+
+    private static double ParallelSquaredNorm(
+        IReadOnlyList<double> values,
+        int parallelism,
+        CancellationToken cancellationToken)
+    {
+        // Keep reduction partitions independent of the requested worker count
+        // so serial and parallel execution use the same floating-point order.
+        var ranges = DeterministicReductionRangeCount(values.Count);
+        var partials = new double[ranges];
+        Parallel.For(
+            0,
+            ranges,
+            new ParallelOptions
+            {
+                MaxDegreeOfParallelism = Math.Max(1, parallelism),
+                CancellationToken = cancellationToken
+            },
+            range =>
+            {
+                var start = range * values.Count / ranges;
+                var end = (range + 1) * values.Count / ranges;
+                var sum = 0d;
+                for (var index = start; index < end; index++)
+                {
+                    var value = values[index];
+                    if (!Finite(value))
+                    {
+                        throw new InvalidOperationException(
+                            "Policy-value gradient contains a non-finite value.");
+                    }
+                    sum += value * value;
+                }
+                partials[range] = sum;
+            });
+        var total = 0d;
+        for (var range = 0; range < partials.Length; range++)
+        {
+            total += partials[range];
         }
+        return total;
+    }
+
+    private static void ParallelRanges(
+        int length,
+        int parallelism,
+        CancellationToken cancellationToken,
+        Action<int, int> body)
+    {
+        var ranges = RangeCount(length, parallelism);
+        if (ranges <= 1)
+        {
+            cancellationToken.ThrowIfCancellationRequested();
+            body(0, length);
+            return;
+        }
+        Parallel.For(
+            0,
+            ranges,
+            new ParallelOptions
+            {
+                MaxDegreeOfParallelism = Math.Max(1, parallelism),
+                CancellationToken = cancellationToken
+            },
+            range => body(
+                range * length / ranges,
+                (range + 1) * length / ranges));
+    }
+
+    private static int RangeCount(int length, int parallelism)
+    {
+        const int minimumParametersPerRange = 16 * 1024;
+        return Math.Max(
+            1,
+            Math.Min(
+                Math.Max(1, parallelism),
+                (Math.Max(0, length) + minimumParametersPerRange - 1)
+                / minimumParametersPerRange));
+    }
+
+    private static int DeterministicReductionRangeCount(int length)
+    {
+        const int minimumParametersPerRange = 16 * 1024;
+        const int maximumRanges = 64;
+        return Math.Max(
+            1,
+            Math.Min(
+                maximumRanges,
+                (Math.Max(0, length) + minimumParametersPerRange - 1)
+                / minimumParametersPerRange));
     }
 
     private static double ApplyAdam(
@@ -2462,7 +2858,7 @@ internal static class CombatPolicyValueBatchTrainer
         double[] losses,
         int lossOffset)
     {
-        var hidden = DenseTanh(
+        var hidden = SparseTanh(
             frame.State,
             model.StateWeights,
             model.StateBias,
@@ -2470,7 +2866,7 @@ internal static class CombatPolicyValueBatchTrainer
         var logits = new double[frame.Actions.Length];
         for (var index = 0; index < frame.Actions.Length; index++)
         {
-            var actionHidden = DenseTanh(
+            var actionHidden = SparseTanh(
                 frame.Actions[index],
                 model.ActionWeights,
                 model.ActionBias,
@@ -2511,7 +2907,7 @@ internal static class CombatPolicyValueBatchTrainer
         CombatPolicyValueNetworkDefinition model,
         EncodedFrame frame)
     {
-        var hidden = DenseTanh(
+        var hidden = SparseTanh(
             frame.State,
             model.StateWeights,
             model.StateBias,
@@ -2524,7 +2920,7 @@ internal static class CombatPolicyValueBatchTrainer
         var actionQuantileLabels = 0;
         for (var index = 0; index < frame.Actions.Length; index++)
         {
-            var actionHidden = DenseTanh(
+            var actionHidden = SparseTanh(
                 frame.Actions[index],
                 model.ActionWeights,
                 model.ActionBias,
@@ -3031,19 +3427,19 @@ internal static class CombatPolicyValueBatchTrainer
         return result;
     }
 
-    private static double[] DenseTanh(
-        double[] input,
+    private static double[] SparseTanh(
+        SparseFeatureVector input,
         double[] weights,
         double[] bias,
         int outputs)
     {
         var result = new double[outputs];
-        DenseTanhInto(input, weights, bias, result, outputs);
+        SparseTanhInto(input, weights, bias, result, outputs);
         return result;
     }
 
-    private static void DenseTanhInto(
-        double[] input,
+    private static void SparseTanhInto(
+        SparseFeatureVector input,
         double[] weights,
         double[] bias,
         double[] result,
@@ -3052,13 +3448,14 @@ internal static class CombatPolicyValueBatchTrainer
         for (var output = 0; output < outputs; output++)
         {
             var value = bias[output];
-            var offset = output * input.Length;
-            value += Dot(
-                input,
-                0,
-                weights,
-                offset,
-                input.Length);
+            var offset = output * input.Dimension;
+            for (var sparseIndex = 0;
+                 sparseIndex < input.Indices.Length;
+                 sparseIndex++)
+            {
+                value += weights[offset + input.Indices[sparseIndex]]
+                         * input.Values[sparseIndex];
+            }
             result[output] = Math.Tanh(value);
         }
     }
@@ -3241,9 +3638,11 @@ internal static class CombatPolicyValueBatchTrainer
     {
         public string RunKey { get; set; } = "";
 
-        public double[] State { get; set; } = Array.Empty<double>();
+        public SparseFeatureVector State { get; set; } =
+            SparseFeatureVector.Empty;
 
-        public double[][] Actions { get; set; } = Array.Empty<double[]>();
+        public SparseFeatureVector[] Actions { get; set; } =
+            Array.Empty<SparseFeatureVector>();
 
         public double[] PolicyTargets { get; set; } = Array.Empty<double>();
 
@@ -3281,6 +3680,30 @@ internal static class CombatPolicyValueBatchTrainer
         public double SampleWeight { get; set; } = 1d;
 
         public double BaseSampleWeight { get; set; } = 1d;
+    }
+
+    private sealed class SparseFeatureVector
+    {
+        public static readonly SparseFeatureVector Empty = new(
+            1,
+            Array.Empty<int>(),
+            Array.Empty<double>());
+
+        public SparseFeatureVector(
+            int dimension,
+            int[] indices,
+            double[] values)
+        {
+            Dimension = Math.Max(1, dimension);
+            Indices = indices ?? Array.Empty<int>();
+            Values = values ?? Array.Empty<double>();
+        }
+
+        public int Dimension { get; }
+
+        public int[] Indices { get; }
+
+        public double[] Values { get; }
     }
 
     private sealed class FrameSource
@@ -3526,15 +3949,25 @@ internal static class CombatPolicyValueBatchTrainer
 
     private readonly struct BatchUpdate
     {
-        public BatchUpdate(double gradientNorm, bool clipped)
+        public BatchUpdate(
+            double gradientNorm,
+            bool clipped,
+            double aggregationSeconds,
+            double optimizerSeconds)
         {
             GradientNorm = gradientNorm;
             Clipped = clipped;
+            AggregationSeconds = aggregationSeconds;
+            OptimizerSeconds = optimizerSeconds;
         }
 
         public double GradientNorm { get; }
 
         public bool Clipped { get; }
+
+        public double AggregationSeconds { get; }
+
+        public double OptimizerSeconds { get; }
     }
 
     private struct FrameMetrics

@@ -482,8 +482,11 @@ internal sealed class TrainingDiagnosticsPanel
                     + $"深度差 {item.CandidateDepthGain:+0.000;-0.000;0.000} · "
                     + $"配对独占胜 {item.CandidateOnlyWins}:{item.ChampionOnlyWins} · "
                     + $"分歧 {item.ArenaDiscordantPairs} · "
-                    + $"证据/高难/多头/配额 "
+                    + $"证据分类 {item.PairedEvidenceKind} · 退化上界 {item.PairedRegressionWilsonUpperBound:P1} · "
+                    + $"不劣 {PassMark(item.NonInferiorityGatePassed)} · "
+                    + $"门禁(显著/普通/高难/离线头/配额/碰撞) "
                     + $"{PassMark(item.ArenaEvidenceGatePassed)}/"
+                    + $"{PassMark(item.AbsoluteNormalGatePassed)}/"
                     + $"{PassMark(item.AbsoluteAdvancedGatePassed)}/"
                     + $"{PassMark(item.OfflineHeadRegressionGatePassed)}/"
                     + $"{PassMark(item.StrategyQuotaGatePassed)}/"
@@ -814,22 +817,28 @@ internal sealed class TrainingDiagnosticsPanel
 
     private static string OfflineGate(CombatPolicyValueEpochMetrics metrics)
     {
-        var training = Math.Max(0.000001d, metrics.Training.CompositeLoss);
-        var relativeGap =
-            (metrics.Validation.CompositeLoss - training) / training;
-        return relativeGap <= 0.05d
-            ? "健康"
-            : relativeGap <= 0.15d
-                ? "观察"
-                : "过拟合风险";
+        var assessment = CombatGeneralizationAssessmentProtocol.Assess(
+            metrics.Training,
+            metrics.Validation);
+        return assessment.Level switch
+        {
+            CombatGeneralizationRiskLevels.Healthy => "健康",
+            CombatGeneralizationRiskLevels.Watch => "观察",
+            CombatGeneralizationRiskLevels.Overfit => "过拟合风险",
+            CombatGeneralizationRiskLevels.Underfit => "欠拟合风险",
+            _ => "证据不足"
+        };
     }
 
     private static Brush OfflineBrush(CombatPolicyValueEpochMetrics metrics)
     {
-        return OfflineGate(metrics) switch
+        return CombatGeneralizationAssessmentProtocol.Assess(
+            metrics.Training,
+            metrics.Validation).Level switch
         {
-            "健康" => TrainerTheme.Success,
-            "观察" => TrainerTheme.Warning,
+            CombatGeneralizationRiskLevels.Healthy => TrainerTheme.Success,
+            CombatGeneralizationRiskLevels.Watch => TrainerTheme.Warning,
+            CombatGeneralizationRiskLevels.Insufficient => TrainerTheme.Muted,
             _ => TrainerTheme.Danger
         };
     }

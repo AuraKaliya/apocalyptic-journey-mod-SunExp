@@ -12,6 +12,19 @@ public sealed class CombatSimulationStateArena
 
     public int ReusedStates { get; private set; }
 
+    public long EstimatedRetainedBytes
+    {
+        get
+        {
+            long total = 0;
+            foreach (var slot in slots)
+            {
+                total += slot.EstimatedRetainedBytes;
+            }
+            return total;
+        }
+    }
+
     internal void BeginSearch()
     {
         cursor = 0;
@@ -43,6 +56,16 @@ public sealed class CombatSimulationStateArena
             cloneThreats);
     }
 
+    internal long Trim()
+    {
+        var retained = EstimatedRetainedBytes;
+        slots.Clear();
+        slots.TrimExcess();
+        cursor = 0;
+        ReusedStates = 0;
+        return retained;
+    }
+
     private sealed class Slot
     {
         private readonly CombatSimulationState state = new();
@@ -65,6 +88,25 @@ public sealed class CombatSimulationStateArena
             Array.Empty<CombatSimulationThreat>();
         private ulong[] usedWords = Array.Empty<ulong>();
         private int[] usedCounts = Array.Empty<int>();
+
+        public long EstimatedRetainedBytes =>
+            512L
+            + (handValues.Capacity
+               + retainedValues.Capacity
+               + drawValues.Capacity
+               + discardValues.Capacity
+               + exhaustValues.Capacity) * sizeof(double)
+            + (handIds.Capacity
+               + retainedIds.Capacity
+               + drawIds.Capacity
+               + discardIds.Capacity
+               + exhaustIds.Capacity) * IntPtr.Size
+            + deferred.Capacity * 64L
+            + features.Count * 64L
+            + enemies.LongLength * 128L
+            + threats.LongLength * 64L
+            + usedWords.LongLength * sizeof(ulong)
+            + usedCounts.LongLength * sizeof(int);
 
         public CombatSimulationState CopyFrom(
             CombatSimulationState source,

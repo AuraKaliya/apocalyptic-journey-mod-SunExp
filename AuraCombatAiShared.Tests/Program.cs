@@ -5544,13 +5544,13 @@ Assert(
 var firstBand = bundledCampaign.Encounters.Where(item =>
     item.NativeBand is 0 or -1).ToList();
 Assert(bundledRulesV2.Success
-       && bundledRulesV2.Ruleset.CardCount == 273
+       && bundledRulesV2.Ruleset.CardCount == 297
        && bundledRulesV2.Ruleset.EnemyCount == 55
-        && bundledRulesV2.Ruleset.StatusCount == 129
+        && bundledRulesV2.Ruleset.StatusCount == 137
         && bundledRulesV2.Ruleset.SnapshotCards().Count(item =>
-            item.Fidelity == CombatRuleFidelity.Authoritative) == 273
+            item.Fidelity == CombatRuleFidelity.Authoritative) == 297
         && bundledRulesV2.Ruleset.SnapshotStatuses().Count(item =>
-            item.Fidelity == CombatRuleFidelity.Authoritative) == 129
+            item.Fidelity == CombatRuleFidelity.Authoritative) == 137
         && bundledRulesV2.Ruleset.SnapshotEnemies().Count(item =>
             item.Fidelity == CombatRuleFidelity.Authoritative) == 55
         && bundledImpregnable.Fidelity == CombatRuleFidelity.Authoritative
@@ -5681,14 +5681,14 @@ Assert(bundledRulesV2.Success
            "") == "Script"
        && !bundledDivineChoice.RequiresEnemyTarget
        && bundledDivineChoice.VerificationSource
-          == "Decompiler:v1.0.23816797"
+          == "Decompiler:v1.0.24591395"
        && bundledDivineChoice.ActionContract?.Version
           == CombatActionContractProtocol.Version
        && bundledDivineChoice.ActionContract.Preconditions.Count == 2
        && bundledDivineChoice.ActionContract
               .MinimumCardsMovedFromDrawPileToHandOnApplied == 1
         && bundledCampaign.Encounters.Count == 48
-       && bundledCampaign.Rewards.Count == 514
+       && bundledCampaign.Rewards.Count == 553
        && bundledCampaign.Rewards
            .Where(item => item.RewardId is
                "SpellCard_1"
@@ -6946,6 +6946,57 @@ Assert(cappedFrameTraining.Success
        && cappedFrameTraining.DroppedFramesByEpisodeCap
           == episodes.Count * 12,
     "frame-balanced training uniformly caps each episode so long opening battles cannot dominate a minibatch");
+var serialParameterTraining = CombatPolicyValueTrainer.Train(
+    episodes,
+    "balanced",
+    new CombatPolicyValueTrainingOptions
+    {
+        Epochs = 5,
+        MinimumEpochs = 5,
+        EarlyStoppingPatience = 5,
+        BatchSize = 8,
+        GradientShardCount = 4,
+        MaximumDegreeOfParallelism = 1,
+        StateDimensions = 256,
+        ActionDimensions = 256,
+        HiddenDimensions = 128,
+        MaximumFramesPerEpisode = 8,
+        MinimumEpisodes = 4,
+        RandomSeed = 119
+    });
+var parallelParameterTraining = CombatPolicyValueTrainer.Train(
+    episodes,
+    "balanced",
+    new CombatPolicyValueTrainingOptions
+    {
+        Epochs = 5,
+        MinimumEpochs = 5,
+        EarlyStoppingPatience = 5,
+        BatchSize = 8,
+        GradientShardCount = 4,
+        MaximumDegreeOfParallelism = 4,
+        StateDimensions = 256,
+        ActionDimensions = 256,
+        HiddenDimensions = 128,
+        MaximumFramesPerEpisode = 8,
+        MinimumEpisodes = 4,
+        RandomSeed = 119
+    });
+Assert(serialParameterTraining.Success
+       && parallelParameterTraining.Success
+       && serialParameterTraining.Model!.StateWeights.SequenceEqual(
+           parallelParameterTraining.Model!.StateWeights)
+       && serialParameterTraining.Model.ActionWeights.SequenceEqual(
+           parallelParameterTraining.Model.ActionWeights)
+       && serialParameterTraining.Model.ActionQuantileWeights.SequenceEqual(
+           parallelParameterTraining.Model.ActionQuantileWeights)
+       && parallelParameterTraining.Model.Metrics.GetValueOrDefault(
+           "parallelParameterUpdate") == 1d
+       && parallelParameterTraining.Model.Metrics.GetValueOrDefault(
+           "gradientAggregationSeconds") >= 0d
+       && parallelParameterTraining.Model.Metrics.GetValueOrDefault(
+           "optimizerUpdateSeconds") >= 0d,
+    "parallel gradient aggregation and AdamW preserve serial parameter results and expose hot-path timing");
 var trainingCancellationObserved = false;
 using (var cancelledTraining = new CancellationTokenSource())
 {
@@ -7044,6 +7095,15 @@ Assert(resumedBatchTraining.Success
            uninterruptedBatchTraining.Model.PolicyWeights),
     "resumed deterministic minibatch training produces the uninterrupted model weights");
 var policyValueModel = new ManagedCombatPolicyValueModel(policyValueTraining.Model!);
+Assert(policyValueTraining.Model!.Metrics.TryGetValue(
+           "sparseTrainingDensity",
+           out var sparseTrainingDensity)
+       && sparseTrainingDensity is > 0d and < 0.25d
+       && policyValueTraining.Model.Metrics.TryGetValue(
+           "sparseTrainingPayloadReduction",
+           out var sparseTrainingPayloadReduction)
+       && sparseTrainingPayloadReduction > 0.60d,
+    "policy-value training stores encoded state and action features as compact sparse columns");
 var firstEpisodeFrame = episodes[0].Frames[0];
 var policyValueInput = new CombatPolicyValueInput
 {
@@ -7058,7 +7118,22 @@ var policyValueInput = new CombatPolicyValueInput
         })
         .ToList()
 };
+// Exclude first-use JIT, thread-local workspace growth and cache population
+// from the steady-state direct inference diagnostics below.
+policyValueModel.Evaluate(policyValueInput);
+var directInferenceDiagnosticsStart =
+    CombatPolicyValueBatchDiagnostics.Capture();
 var policyValuePrediction = policyValueModel.Evaluate(policyValueInput);
+var firstPolicyCandidateId = policyValueInput.Candidates[0].CandidateId;
+Assert(policyValuePrediction.TryGetPolicyLogit(
+           firstPolicyCandidateId,
+           out var densePolicyLogit)
+       && !double.IsNaN(densePolicyLogit)
+       && policyValuePrediction.TryGetActionQuantiles(
+           firstPolicyCandidateId,
+           out var denseActionQuantiles)
+       && denseActionQuantiles.Count == 16,
+    "managed inference exposes allocation-light dense policy and quantile views before compatibility dictionaries are materialized");
 Assert(policyValuePrediction.PolicyLogits.Count
        == firstEpisodeFrame.Candidates.Count(candidate => candidate.Legal)
        && policyValuePrediction.ActionReturnQuantiles.Count
@@ -7080,6 +7155,9 @@ Assert(trainedQuantileHeadReady
     "managed inference withholds randomly initialized action quantiles until supervised labels have trained and validated the head");
 var batchPolicyPredictions = policyValueModel.EvaluateBatch(
     new[] { policyValueInput, policyValueInput });
+var directInferenceDiagnostics = CombatPolicyValueBatchDiagnostics
+    .Capture()
+    .DeltaFrom(directInferenceDiagnosticsStart);
 Assert(batchPolicyPredictions.Count == 2
        && batchPolicyPredictions.All(prediction =>
            Math.Abs(
@@ -7101,6 +7179,37 @@ Assert(batchPolicyPredictions.Count == 2
                    - policyValuePrediction.PolicyLogits[pair.Key])
                < 0.000000001d)),
     "managed policy-value batch inference evaluates a shared state/action matrix with scalar-equivalent outputs");
+Assert(directInferenceDiagnostics.Requests == 4
+       && directInferenceDiagnostics.DirectEvaluations == 3
+       && directInferenceDiagnostics.DirectInputs == 4
+       && directInferenceDiagnostics.AverageDirectEvaluationMicroseconds >= 0d
+       && directInferenceDiagnostics.AverageDirectAllocatedBytes >= 0d,
+    "direct managed inference contributes request counts and latency diagnostics without requiring the batching wrapper");
+Assert(directInferenceDiagnostics.SparseInputs >= 4
+       && directInferenceDiagnostics.AverageSparseFeatureCount > 0d
+       && directInferenceDiagnostics.SparseFeatureDensity < 0.25d
+       && directInferenceDiagnostics.WeightMultiplicationReduction > 0.75d,
+    "managed inference traverses only populated feature columns and reports the avoided dense weight work");
+Console.WriteLine(
+    $"Sparse inference mixed-path: {directInferenceDiagnostics.AverageDirectEvaluationMicroseconds:0.0} us/evaluation, "
+    + $"{directInferenceDiagnostics.AverageDirectAllocatedBytes:0} B/input, "
+    + $"density={directInferenceDiagnostics.SparseFeatureDensity:P1}, "
+    + $"multiplications saved={directInferenceDiagnostics.WeightMultiplicationReduction:P1}");
+var steadyInferenceStart = CombatPolicyValueBatchDiagnostics.Capture();
+for (var index = 0; index < 64; index++)
+{
+    policyValueModel.Evaluate(policyValueInput);
+}
+var steadyInferenceDiagnostics = CombatPolicyValueBatchDiagnostics
+    .Capture()
+    .DeltaFrom(steadyInferenceStart);
+Console.WriteLine(
+    $"Sparse inference steady-state: {steadyInferenceDiagnostics.AverageDirectEvaluationMicroseconds:0.0} us/evaluation, "
+    + $"{steadyInferenceDiagnostics.AverageDirectAllocatedBytes:0} B/input");
+Assert(steadyInferenceDiagnostics.DirectInputs == 64
+       && steadyInferenceDiagnostics.SparseFeatureDensity < 0.25d
+       && steadyInferenceDiagnostics.WeightMultiplicationReduction > 0.75d,
+    "steady-state sparse inference keeps the warmed model on the compact execution path");
 Assert(policyValueModel.ActionTowerCacheHits
        >= policyValueInput.Candidates.Count * 2,
     "managed inference reuses immutable action-tower embeddings across scalar and batch evaluations");
@@ -9572,6 +9681,35 @@ Assert(replaySelectionFixture.Episodes.Count == 7
            out var advancedDefeatShortfall)
        && advancedDefeatShortfall == 1,
     "foundation replay stratification preserves the advanced quota, reports scarcity, and never silently backfills it with normal episodes");
+var resourceBoundReplayA = CombatFoundationReplaySampler.Select(
+    replayFixture,
+    8,
+    enabled: true);
+var resourceBoundReplayB = CombatFoundationReplaySampler.Select(
+    replayFixture,
+    8,
+    enabled: true);
+CombatFoundationReplaySampler.ApplyResourceBudget(
+    resourceBoundReplayA,
+    replayFixture.Where(item => item.EpisodeId == "replay-7"),
+    minimumEpisodes: 2,
+    frameLimit: 3,
+    estimatedBytesLimit: 64L * 1024L * 1024L);
+CombatFoundationReplaySampler.ApplyResourceBudget(
+    resourceBoundReplayB,
+    replayFixture.Where(item => item.EpisodeId == "replay-7"),
+    minimumEpisodes: 2,
+    frameLimit: 3,
+    estimatedBytesLimit: 64L * 1024L * 1024L);
+Assert(resourceBoundReplayA.Episodes.Count == 3
+       && resourceBoundReplayA.SelectedFrames == 3
+       && resourceBoundReplayA.ResourceBudgetDroppedEpisodes == 4
+       && resourceBoundReplayA.Episodes.Any(item =>
+           item.EpisodeId == "replay-7")
+       && resourceBoundReplayA.Episodes.Select(item => item.EpisodeId)
+           .SequenceEqual(resourceBoundReplayB.Episodes.Select(item =>
+               item.EpisodeId)),
+    "replay resource budgets deterministically retain required content while bounding total frames");
 var failedAdvancedJourneyStratum =
     CombatPolicyValueBatchTrainer.FrameStratum(
         new CombatEpisode
@@ -11745,6 +11883,64 @@ Assert(new CombatPolicyValueTrainingOptions
            GradientShardCount = 32
        }.Normalized().GradientShardCount == 32,
     "policy-value training preserves 24 and 32 gradient shard presets for high-parallelism hosts");
+var rollingValidationStarted = 0;
+using (var slowValidationGate = new ManualResetEventSlim(false))
+{
+    var rollingValidationTask = Task.Run(() =>
+        CombatCampaignFoundationTrainer.RunRollingValidation(
+            requestedCampaigns: 8,
+            parallelism: 4,
+            decisionInterval: 8,
+            cancellationToken: CancellationToken.None,
+            run: index =>
+            {
+                Interlocked.Increment(ref rollingValidationStarted);
+                if (index == 0)
+                {
+                    slowValidationGate.Wait(TimeSpan.FromSeconds(5));
+                }
+                return new CombatCampaignResult
+                {
+                    CampaignId = index.ToString(),
+                    FinalBossVictory = true
+                };
+            },
+            shouldStop: (_, _, _) => false,
+            complete: (_, campaign) => campaign));
+    var refilledPastSlowHead = SpinWait.SpinUntil(
+        () => Volatile.Read(ref rollingValidationStarted) == 8,
+        TimeSpan.FromSeconds(2));
+    slowValidationGate.Set();
+    var rollingValidationRuns = rollingValidationTask.GetAwaiter().GetResult();
+    Assert(refilledPastSlowHead
+           && rollingValidationRuns.Select(item => item.CampaignId)
+               .SequenceEqual(Enumerable.Range(0, 8).Select(item =>
+                   item.ToString())),
+        "rolling validation refills completed worker slots past a slow head while committing results in deterministic order");
+}
+var speculativeSchedulerRun = CombatFoundationWorkScheduler.RunOrdered(
+    count: 12,
+    parallelism: 4,
+    decisionInterval: 4,
+    cancellationToken: CancellationToken.None,
+    run: index =>
+    {
+        if (index == 0)
+        {
+            Thread.Sleep(75);
+        }
+        return index;
+    },
+    commit: (_, value) => value,
+    shouldStop: committed => committed >= 4,
+    maximumLookAhead: 8);
+Assert(speculativeSchedulerRun.StoppedEarly
+       && speculativeSchedulerRun.Items.SequenceEqual(
+           Enumerable.Range(0, 4))
+       && speculativeSchedulerRun.Metrics.PeakRunningWork == 4
+       && speculativeSchedulerRun.Metrics.RefillCount > 0
+       && speculativeSchedulerRun.Metrics.TailIdleCoreSeconds >= 0d,
+    "load-balanced scheduler continuously refills workers, commits a deterministic prefix, and exposes tail diagnostics at decision boundaries");
 Assert(CombatCampaignFoundationTrainer.EstimateTuningCampaigns(
            3,
            32,
@@ -11839,9 +12035,16 @@ foundationRequest.ModelMetricRecorded = metrics =>
     incrementallyRecordedModelMetrics.Add(metrics);
 foundationRequest.Telemetry = telemetry =>
     latestFoundationTelemetry = telemetry;
+var foundationDecisionAllocationStart =
+    CombatDecisionAllocationDiagnostics.Capture();
+CombatDecisionAllocationDiagnostics.DetailedEnabled = true;
 var foundationTraining = new CombatCampaignFoundationTrainer().Run(
     foundationRequest,
     campaignRules.Ruleset);
+var foundationDecisionAllocation = CombatDecisionAllocationDiagnostics
+    .Capture()
+    .DeltaFrom(foundationDecisionAllocationStart);
+CombatDecisionAllocationDiagnostics.DetailedEnabled = false;
 var foundationDepthBucketCampaigns =
     foundationTraining.Depth1To5Campaigns
     + foundationTraining.Depth6To10Campaigns
@@ -12016,8 +12219,46 @@ Assert(CombatFoundationModelPackageProtocol.TryValidate(
        && foundationPackage.TrainingSubject.EnabledRewardCardPackIds
            .Contains("cardpack_3")
        && foundationPackage.DeclaredCoverage?.EntityCoverageKnown == true
+       && foundationPackage.SchemaVersion == 4
+       && foundationPackage.Acceptance?.FormalIsolationPassed == true
+       && foundationPackage.Acceptance.Classification == "retained-champion"
        && foundationPackage.Validation.Passed,
     "accepted worker results export a self-contained foundation model package");
+var packageSchema = foundationPackage.SchemaVersion;
+var packageVersion = foundationPackage.ModelVersion;
+var packageAcceptance = foundationPackage.Acceptance;
+foundationPackage.SchemaVersion =
+    CombatFoundationModelPackageProtocol.LegacySchemaVersion;
+foundationPackage.ModelVersion =
+    CombatFoundationModelPackageProtocol.LegacyModelVersion;
+foundationPackage.Acceptance = null;
+Assert(CombatFoundationModelPackageProtocol.TryValidate(
+           foundationPackage,
+           out var legacyV3PackageDiagnostic)
+       && string.IsNullOrEmpty(legacyV3PackageDiagnostic)
+       && CombatFoundationModelPackageProtocol.NormalizeAcceptance(
+              foundationPackage).Classification
+          == "legacy-formal-acceptance",
+    "v4 readers retain compatibility with formally accepted v3 model packages");
+foundationPackage.SchemaVersion = packageSchema;
+foundationPackage.ModelVersion = packageVersion;
+foundationPackage.Acceptance = packageAcceptance;
+foundationPackage.Acceptance!.Classification =
+    CombatFoundationPromotionProtocol.EquivalentNonInferior;
+foundationPackage.Acceptance.EquivalentNonInferior = true;
+foundationPackage.Acceptance.ValidNormalPairs = 8;
+foundationPackage.Acceptance.ValidAdvancedPairs = 8;
+Assert(!CombatFoundationModelPackageProtocol.TryValidate(
+           foundationPackage,
+           out var weakNonInferiorityPackageDiagnostic)
+       && weakNonInferiorityPackageDiagnostic.Contains(
+           "验收证明",
+           StringComparison.Ordinal),
+    "v4 model packages reject non-inferiority claims without the required paired evidence");
+foundationPackage.Acceptance.Classification = "retained-champion";
+foundationPackage.Acceptance.EquivalentNonInferior = false;
+foundationPackage.Acceptance.ValidNormalPairs = 0;
+foundationPackage.Acceptance.ValidAdvancedPairs = 0;
 var avoidableEndTurnGateRejected = false;
 foundationTraining.Validation.AvoidableEndTurnsWithUnusedEnergy = 1;
 try
@@ -12250,6 +12491,7 @@ var sharedParameters = new CombatFoundationTrainingParameters
     Iterations = 0,
     TrainingCampaignsPerIteration = 1,
     MaximumDegreeOfParallelism = int.MaxValue,
+    ModelTrainingParallelism = int.MaxValue,
     ModelEpochs = 1
 }.Normalized();
 Assert(sharedParameters.Iterations == 1
@@ -12290,6 +12532,7 @@ Assert(sharedParameters.Iterations == 1
        && sharedParameters.CheckpointSerializationParallelism == 0
        && sharedParameters.MaximumDegreeOfParallelism
           <= Math.Max(1, Environment.ProcessorCount)
+       && sharedParameters.ModelTrainingParallelism == 64
        && sharedParameters.EstimatedCampaigns() > 0,
     "shared foundation job parameters normalize identically for game and control-center adapters");
 var cpu16Execution = CombatFoundationExecutionProfiles.Resolve(
@@ -12332,6 +12575,17 @@ Assert(fixedExecution.CampaignParallelism == 48
        && fixedExecution.ThreadPoolMinimumWorkerThreads == 56
        && fixedExecution.CheckpointSerializationParallelism == 2,
     "custom execution honors the explicit CPU parallelism without hardware auto-tuning or processor-count clamping");
+var boundedAutoExecution = CombatFoundationExecutionProfiles.Resolve(
+    CombatFoundationExecutionProfileNames.Auto,
+    20,
+    CombatFoundationExecutionProfileNames.DirectInference,
+    0,
+    0,
+    0,
+    availableProcessorCount: 32);
+Assert(boundedAutoExecution.CampaignParallelism == 20
+       && boundedAutoExecution.InferenceParallelism == 20,
+    "auto execution treats the requested CPU parallelism as a calibration ceiling");
 var autoTuneSelection = CombatFoundationAutoTuneSelector.Select(
     new[]
     {
@@ -12469,10 +12723,10 @@ Assert(CombatFoundationExecutionProfiles.EffectiveLaneCount(12) == 1
        && CombatFoundationExecutionProfiles.EffectiveBatchSize(20) == 4,
     "automatic inference plans keep enough campaign callers on each batch queue");
 Assert(CombatCampaignFoundationTrainer.BuildAutoTuneParallelismCandidates(20)
-        .SequenceEqual(new[] { 4, 8, 12, 16, 20 })
+        .SequenceEqual(new[] { 8, 16 })
        && CombatCampaignFoundationTrainer.BuildAutoTuneParallelismCandidates(64)
-           .SequenceEqual(new[] { 4, 8, 12, 16, 24, 32, 48, 64 }),
-    "auto-tune keeps representative scaling knees for successive-halving calibration");
+           .SequenceEqual(new[] { 8, 16, 32 }),
+    "auto-tune calibrates only the approved 8/16/32 scaling points");
 var directInferenceMeasurement = new CombatFoundationAutoTuneMeasurement
 {
     MeasurementKind = "inference-end-to-end",
@@ -12838,6 +13092,31 @@ Assert(CombatCampaignFoundationTrainer.FeatureCollisionGatePassed(
            strategyQuota: true,
            featureCollision: true),
     "formal promotion requires explicit feature-collision evidence and never publishes a bootstrap candidate");
+Assert(CombatCampaignFoundationTrainer.NonInferiorityGatePassed(
+           workingCheckpoint: true,
+           validNormalPairs: 64,
+           validAdvancedPairs: 64,
+           candidateOnlyWins: 2,
+           championOnlyWins: 0,
+           pairedRegressionWilsonUpperBound: 0.03d,
+           absoluteNormal: true,
+           absoluteAdvanced: true,
+           offlineHeads: true,
+           strategyQuota: true,
+           featureCollision: true)
+       && !CombatCampaignFoundationTrainer.NonInferiorityGatePassed(
+           workingCheckpoint: true,
+           validNormalPairs: 64,
+           validAdvancedPairs: 64,
+           candidateOnlyWins: 2,
+           championOnlyWins: 0,
+           pairedRegressionWilsonUpperBound: 0.06d,
+           absoluteNormal: true,
+           absoluteAdvanced: true,
+           offlineHeads: true,
+           strategyQuota: true,
+           featureCollision: true),
+    "equivalent candidates use a dedicated paired non-inferiority gate without lowering the significant-gain discordance threshold");
 var quantileMetricClone =
     CombatCampaignFoundationTrainer.CloneMetricSnapshot(
         new CombatPolicyValueMetricSnapshot
@@ -13125,6 +13404,15 @@ Assert(!serialFoundationTraining.Success
            .SequenceEqual(foundationTraining.ValidationRuns.Select(item =>
                 item.DifficultyId + ":" + item.WorldSeed + ":" + item.PlanHash)),
     "foundation CPU parallelism preserves deterministic seed-order replay, model weights, and validation plans");
+Assert(foundationTraining.EpisodeCompactStateVectors > 0
+       && foundationTraining.EpisodeCompactCandidateVectors
+          >= foundationTraining.EpisodeCompactStateVectors
+       && foundationTraining.WorldModelObservationsBuilt == 0
+       && foundationTraining.WorldModelObservationsSkipped
+          == foundationTraining.EpisodeCompactStateVectors
+       && foundationTraining.EpisodeStateDictionaryMaterializations
+          < foundationTraining.EpisodeCompactStateVectors,
+    "foundation telemetry confirms compact episode recording, lazy dictionaries, and disabled world-model payloads");
 Console.WriteLine(
     "Foundation telemetry fixture: parallel peak="
     + foundationTraining.PeakConcurrentCampaigns
@@ -13138,6 +13426,83 @@ Console.WriteLine(
     + (foundationTraining.AllocatedBytes / 1048576d).ToString("F1")
     + ", elapsed="
     + foundationTraining.ElapsedSeconds.ToString("F3")
+    + "s, phaseAlloc="
+    + string.Join(
+        ",",
+        foundationTraining.PhaseAllocatedBytes
+            .OrderByDescending(pair => pair.Value)
+            .Select(pair => pair.Key + ":" + (pair.Value / 1048576d).ToString("F0")))
+    + ", compact="
+    + foundationTraining.EpisodeCompactStateVectors
+    + "/"
+    + foundationTraining.EpisodeCompactCandidateVectors
+    + ", materialized="
+    + foundationTraining.EpisodeStateDictionaryMaterializations
+    + "/"
+    + foundationTraining.EpisodeCandidateDictionaryMaterializations
+    + ", decisionAllocMB="
+    + (foundationTraining.ObservationProjectionAllocatedBytes / 1048576d)
+        .ToString("F0")
+    + "/"
+    + (foundationTraining.DecisionEngineAllocatedBytes / 1048576d)
+        .ToString("F0")
+    + ", prep/searchMB="
+    + (foundationDecisionAllocation.PreparationAllocatedBytes / 1048576d)
+        .ToString("F0")
+    + "/"
+    + (foundationDecisionAllocation.SearchAllocatedBytes / 1048576d)
+        .ToString("F0")
+    + "["
+    + (foundationDecisionAllocation.SearchSetupAllocatedBytes / 1048576d)
+        .ToString("F0")
+    + "/"
+    + (foundationDecisionAllocation.SearchSimulationAllocatedBytes / 1048576d)
+        .ToString("F0")
+    + "/"
+    + (foundationDecisionAllocation.SearchResultAllocatedBytes / 1048576d)
+        .ToString("F0")
+    + "]"
+    + " sim[apply/leaf/score/expand/transposition/backprop/select/determinize/cycle/other]="
+    + (foundationDecisionAllocation.ForwardApplyAllocatedBytes / 1048576d)
+        .ToString("F0")
+    + "/"
+    + (foundationDecisionAllocation.LeafEvaluationAllocatedBytes / 1048576d)
+        .ToString("F0")
+    + "/"
+    + (foundationDecisionAllocation.ScoreEvaluationAllocatedBytes / 1048576d)
+        .ToString("F0")
+    + "/"
+    + (foundationDecisionAllocation.SearchExpansionAllocatedBytes / 1048576d)
+        .ToString("F0")
+    + "/"
+    + (foundationDecisionAllocation.SearchTranspositionAllocatedBytes / 1048576d)
+        .ToString("F0")
+    + "/"
+    + (foundationDecisionAllocation.SearchBackpropagationAllocatedBytes / 1048576d)
+        .ToString("F0")
+    + "/"
+    + (foundationDecisionAllocation.SearchSelectionAllocatedBytes / 1048576d)
+        .ToString("F0")
+    + "/"
+    + (foundationDecisionAllocation.RootDeterminizationAllocatedBytes / 1048576d)
+        .ToString("F0")
+    + "/"
+    + (foundationDecisionAllocation.CycleAnalysisAllocatedBytes / 1048576d)
+        .ToString("F0")
+    + "/"
+    + (Math.Max(
+            0L,
+            foundationDecisionAllocation.SimulationTrackedAllocatedBytes
+            - foundationDecisionAllocation.ForwardApplyAllocatedBytes
+            - foundationDecisionAllocation.LeafEvaluationAllocatedBytes
+            - foundationDecisionAllocation.ScoreEvaluationAllocatedBytes
+            - foundationDecisionAllocation.SearchExpansionAllocatedBytes
+            - foundationDecisionAllocation.SearchTranspositionAllocatedBytes
+            - foundationDecisionAllocation.SearchBackpropagationAllocatedBytes
+            - foundationDecisionAllocation.SearchSelectionAllocatedBytes
+            - foundationDecisionAllocation.RootDeterminizationAllocatedBytes
+            - foundationDecisionAllocation.CycleAnalysisAllocatedBytes)
+       / 1048576d).ToString("F0")
     + "s; serial elapsed="
     + serialFoundationTraining.ElapsedSeconds.ToString("F3")
     + "s");
@@ -13405,6 +13770,11 @@ Assert(hiddenFeaturesA.OrderBy(pair => pair.Key)
 var hiddenBeliefA = CombatBeliefTracker.FromObservation(hiddenOrderA);
 var hiddenBeliefB = CombatBeliefTracker.FromObservation(hiddenOrderB);
 var hiddenSampleSeed = CombatPublicObservationHasher.Seed(hiddenOrderA, 7);
+var hiddenSeedBasis =
+    CombatPublicObservationHasher.CreateSeedBasis(hiddenOrderA);
+Assert(hiddenSampleSeed
+       == CombatPublicObservationHasher.Seed(hiddenSeedBasis, 7),
+    "cached public-observation seed basis preserves determinization seeds");
 Assert(CombatRootDeterminizer.SampleDrawPile(hiddenBeliefA, hiddenSampleSeed)
            .SequenceEqual(
                CombatRootDeterminizer.SampleDrawPile(
@@ -14728,6 +15098,196 @@ Assert(CombatFoundationCheckpointCatalogProtocol.Risk(
        && CombatFoundationCheckpointResumeModes.Normalize("model-branch")
           == CombatFoundationCheckpointResumeModes.ModelBranch,
     "checkpoint catalog classifies fit risk and normalizes resume modes");
+var moderateGeneralization = CombatGeneralizationAssessmentProtocol.Assess(
+    new CombatPolicyValueMetricSnapshot
+    {
+        FrameCount = 3186,
+        CompositeLoss = 0.09738d,
+        CompositeLossCiLower = 0.09085d,
+        CompositeLossCiUpper = 0.10391d
+    },
+    new CombatPolicyValueMetricSnapshot
+    {
+        FrameCount = 501,
+        CompositeLoss = 0.15951d,
+        CompositeLossCiLower = 0.13118d,
+        CompositeLossCiUpper = 0.18784d
+    },
+    new CombatPolicyValueMetricSnapshot
+    {
+        FrameCount = 447,
+        CompositeLoss = 0.20211d,
+        CompositeLossCiLower = 0.16595d,
+        CompositeLossCiUpper = 0.23827d
+    });
+Assert(moderateGeneralization.Level == CombatGeneralizationRiskLevels.Watch,
+    "generalization assessment classifies the prior run as watch rather than a relative-gap overfit false positive");
+
+var compactState = CombatPolicyValueEncoding.BuildCompactStateFeatures(
+    reusableState);
+var eagerState = CombatPolicyValueEncoding.BuildStateFeatures(reusableState);
+var compactCandidate = CombatPolicyValueEncoding
+    .BuildCompactCandidateFeatures(reusableCandidates[0]);
+var eagerCandidate = CombatPolicyValueEncoding.BuildCandidateFeatures(
+    reusableCandidates[0]);
+Assert(compactState.Materialize().OrderBy(pair => pair.Key)
+           .SequenceEqual(eagerState.OrderBy(pair => pair.Key))
+       && compactCandidate.Materialize().OrderBy(pair => pair.Key)
+           .SequenceEqual(eagerCandidate.OrderBy(pair => pair.Key)),
+    "compact numeric state and candidate columns preserve the public feature dictionary exactly");
+var compactStateEncoding = new double[257];
+var eagerStateEncoding = new double[257];
+var compactCandidateEncoding = new double[263];
+var eagerCandidateEncoding = new double[263];
+CombatPolicyValueEncoding.EncodeStateInto(
+    compactState,
+    compactStateEncoding,
+    compactStateEncoding.Length,
+    "partitioned-v3");
+CombatPolicyValueEncoding.EncodeStateInto(
+    eagerState,
+    eagerStateEncoding,
+    eagerStateEncoding.Length,
+    "partitioned-v3");
+CombatPolicyValueEncoding.EncodeCandidateInto(
+    compactCandidate,
+    reusableCandidates[0].Action.SourceId,
+    compactCandidateEncoding,
+    compactCandidateEncoding.Length,
+    "partitioned-v3");
+CombatPolicyValueEncoding.EncodeCandidateInto(
+    new CombatPolicyValueCandidate
+    {
+        CandidateId = reusableCandidates[0].Action.CandidateId,
+        SourceId = reusableCandidates[0].Action.SourceId,
+        Features = eagerCandidate
+    },
+    eagerCandidateEncoding,
+    eagerCandidateEncoding.Length,
+    "partitioned-v3");
+Assert(compactStateEncoding.SequenceEqual(eagerStateEncoding)
+       && compactCandidateEncoding.SequenceEqual(eagerCandidateEncoding),
+    "compact numeric feature columns hash to the same model inputs as compatibility dictionaries");
+var lazyFrame = new CombatEpisodeFrame();
+lazyFrame.SetCompactStateFeatures(compactState);
+var lazyCandidate = new CombatEpisodeCandidate();
+lazyCandidate.SetCompactFeatures(compactCandidate);
+var storageBeforeMaterialization = CombatEpisodeStorageDiagnostics.Capture();
+Assert(!lazyFrame.HasMaterializedStateFeatures
+       && !lazyCandidate.HasMaterializedFeatures
+       && lazyFrame.TryGetStateFeature("power", out var lazyPower)
+       && lazyPower == reusableState.CurrentPower
+       && lazyCandidate.TryGetFeature("cost", out var lazyCost)
+       && lazyCost == reusableCandidates[0].Action.Cost,
+    "compact episode columns support hot-path feature lookup without materializing dictionaries");
+_ = lazyFrame.StateFeatures;
+_ = lazyCandidate.Features;
+var storageAfterMaterialization = CombatEpisodeStorageDiagnostics.Capture();
+Assert(storageAfterMaterialization.StateDictionaryMaterializations
+           == storageBeforeMaterialization.StateDictionaryMaterializations + 1
+       && storageAfterMaterialization.CandidateDictionaryMaterializations
+          == storageBeforeMaterialization.CandidateDictionaryMaterializations + 1
+       && !lazyFrame.HasMaterializedStateFeatures
+       && !lazyCandidate.HasMaterializedFeatures,
+    "compatibility dictionaries are temporary and are not retained beside compact columns");
+var normalizedReusableState = CombatPlayerObservationBoundary.Normalize(
+    reusableState);
+Assert(JsonSerializer.Serialize(
+           CombatWorldModelTokenizer.Build(reusableState))
+       == JsonSerializer.Serialize(
+           CombatWorldModelTokenizer.BuildNormalizedOwned(
+               normalizedReusableState)),
+    "owned normalized world-model tokenization is protocol-equivalent to the public normalization boundary");
+var actionArena = new CombatActionModelArena();
+var arenaAction = reusableCandidates[0].Action;
+var eagerActionModel = CombatForwardModel.Resolve(
+    reusableState,
+    arenaAction,
+    useRegisteredResolvers: false);
+actionArena.BeginSearch();
+var pooledActionModel = CombatForwardModel.Resolve(
+    reusableState,
+    arenaAction,
+    useRegisteredResolvers: false,
+    arena: actionArena);
+var pooledActionJson = JsonSerializer.Serialize(pooledActionModel);
+Assert(pooledActionJson == JsonSerializer.Serialize(eagerActionModel)
+       && actionArena.ModelCapacity == 1
+       && actionArena.OutcomeCapacity >= 1
+       && actionArena.EffectCapacity >= pooledActionModel.Outcomes
+           .Sum(outcome => outcome.Effects.Count),
+    "reusable action semantic slots preserve forward-model outcomes and effects");
+actionArena.BeginSearch();
+var reusedActionModel = CombatForwardModel.Resolve(
+    reusableState,
+    arenaAction,
+    useRegisteredResolvers: false,
+    arena: actionArena);
+Assert(ReferenceEquals(pooledActionModel, reusedActionModel)
+       && pooledActionJson == JsonSerializer.Serialize(reusedActionModel),
+    "action semantic arena reuses its compiled model graph on the next search");
+
+const long gib = 1024L * 1024L * 1024L;
+var capacity32 = CombatFoundationParallelismPlanner.Select(
+    1,
+    32,
+    new CombatFoundationResourceSnapshot
+    {
+        TotalPhysicalMemoryBytes = 64L * gib,
+        AvailablePhysicalMemoryBytes = 48L * gib,
+        ProcessPrivateMemoryBytes = 10L * gib
+    },
+    configuredPerLaneBytes: gib,
+    configuredReserveBytes: 4L * gib);
+var capacity16 = CombatFoundationParallelismPlanner.Select(
+    2,
+    32,
+    new CombatFoundationResourceSnapshot
+    {
+        TotalPhysicalMemoryBytes = 64L * gib,
+        AvailablePhysicalMemoryBytes = 22L * gib,
+        ProcessPrivateMemoryBytes = 12L * gib
+    },
+    configuredPerLaneBytes: gib,
+    configuredReserveBytes: 4L * gib);
+var capacity8 = CombatFoundationParallelismPlanner.Select(
+    3,
+    32,
+    new CombatFoundationResourceSnapshot
+    {
+        TotalPhysicalMemoryBytes = 64L * gib,
+        AvailablePhysicalMemoryBytes = 11L * gib,
+        ProcessPrivateMemoryBytes = 14L * gib
+    },
+    configuredPerLaneBytes: gib,
+    configuredReserveBytes: 4L * gib);
+Assert(capacity32.SelectedParallelism == 32
+       && capacity16.SelectedParallelism == 16
+       && capacity8.SelectedParallelism == 8,
+    "memory-capacity planner selects only the highest fitting 8/16/32 tier");
+var arenaBoundCapacity = CombatFoundationParallelismPlanner.Select(
+    4,
+    32,
+    new CombatFoundationResourceSnapshot
+    {
+        TotalPhysicalMemoryBytes = 64L * gib,
+        AvailablePhysicalMemoryBytes = 25L * gib
+    },
+    new CombatSearchMemoryTrimReport
+    {
+        PlannerCount = 8,
+        ReleasedEstimatedBytes = 8L * gib
+    },
+    configuredPerLaneBytes: 384L * 1024L * 1024L,
+    configuredReserveBytes: 4L * gib);
+Assert(arenaBoundCapacity.SelectedParallelism == 8
+       && arenaBoundCapacity.PredictedPerLaneBytes > gib,
+    "released search-arena high-water cost participates in the next iteration capacity prediction");
+var searchTrim = CombatRiskAwareRootSamplingPuctPlanner
+    .TrimRetainedSearchMemory();
+Assert(searchTrim.PlannerCount >= 0
+       && searchTrim.ReleasedEstimatedBytes >= 0L,
+    "search memory trim reports releasable arena capacity safely");
 
 Console.WriteLine($"AuraCombatAiShared.Tests passed: {assertions} assertions.");
 

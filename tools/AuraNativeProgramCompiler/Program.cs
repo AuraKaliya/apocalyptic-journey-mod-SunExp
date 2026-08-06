@@ -246,6 +246,8 @@ static string Normalize(string script)
         "EventType.ScriptExecute.ToString()",
         "\"ScriptExecute\"");
     result = Regex.Replace(result, @"\bHurtData\b", "NativeRewardHurtData");
+    result = Regex.Replace(result, @"\bTrueData\b", "NativeRewardTrueData");
+    result = Regex.Replace(result, @"\bHealData\b", "NativeRewardHealData");
     result = Regex.Replace(result, @"\bActionData\b", "NativeRewardActionData");
     result = Regex.Replace(result, @"\bCreateData\b", "NativeRewardCreateData");
     result = Regex.Replace(result, @"\bBurnData\b", "NativeRewardBurnData");
@@ -269,6 +271,12 @@ static string Normalize(string script)
         "NativeRewardActor.State",
         "NativeRewardActorState");
     result = result.Replace("Dice.State", "NativeRewardDiceState");
+    result = result.Replace(
+        "FightPlayer.Instance.MaxPowerCount",
+        "PlayerInfo.MaxPower");
+    result = result.Replace(
+        "FightPlayer.Instance.CurPowerCount",
+        "PlayerInfo.Power");
     result = Regex.Replace(
         result,
         @"\bFightCardManager\b",

@@ -23,7 +23,11 @@ internal sealed class AuraToolsWitchSkillTimingProvider :
             ["careercard_10"] = 2,
             ["careercard_11"] = 1,
             ["careercard_12"] = 2,
-            ["careercard_13"] = 99
+            ["careercard_13"] = 99,
+            ["careercard_14"] = 2,
+            ["careercard_15"] = 5,
+            ["careercard_16"] = 1,
+            ["careercard_17"] = 2
         };
 
     public bool TryEnrich(CombatStateObservation state)
@@ -117,6 +121,18 @@ internal sealed class AuraToolsWitchSkillTimingProvider :
                 break;
             case "careercard_13":
                 EnrichAbyssalCalling(action, summary);
+                break;
+            case "careercard_14":
+                EnrichCurrentRoleUtility(action, summary, 4d);
+                break;
+            case "careercard_15":
+                EnrichCurrentRoleUtility(action, summary, 5d);
+                break;
+            case "careercard_16":
+                EnrichCurrentRoleUtility(action, summary, 3d);
+                break;
+            case "careercard_17":
+                EnrichCurrentRoleUtility(action, summary, 6d);
                 break;
         }
     }
@@ -364,6 +380,24 @@ internal sealed class AuraToolsWitchSkillTimingProvider :
             summary.HandCount <= 0 ? 12d : 0d);
         Set(action, CombatSkillTimingFeatureNames.ExpiryRisk,
             summary.BestHandCardValue >= 3d && summary.BattleHorizon <= 1.5d ? 5d : 0d);
+    }
+
+    private static void EnrichCurrentRoleUtility(
+        CombatActionObservation action,
+        SkillTimingStateSummary summary,
+        double baseValue)
+    {
+        var semanticValue = Math.Max(
+            0d,
+            (action.Semantics?.Buff ?? 0d)
+            + (action.Semantics?.Heal ?? 0d) * 0.35d
+            + (action.Semantics?.Draw ?? 0d) * 1.5d);
+        var value = Math.Max(baseValue, semanticValue);
+        Set(action, CombatSkillTimingFeatureNames.OngoingEffectValue, value);
+        Set(action, CombatSkillTimingFeatureNames.CooldownCycleValue,
+            summary.BattleHorizon > 2d ? Math.Min(3d, value * 0.25d) : 0d);
+        Set(action, CombatSkillTimingFeatureNames.ExpiryRisk,
+            summary.BattleHorizon <= 1.5d ? Math.Min(5d, value) : 0d);
     }
 
     private static void ResetComponents(CombatActionObservation action)

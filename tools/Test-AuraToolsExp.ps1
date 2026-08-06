@@ -239,8 +239,12 @@ if (-not $foundationControllerRuntime.Contains(
         -or -not $foundationControllerRuntime.Contains(
             "ApplyIndependentTrainerExecutionContract") `
         -or -not $foundationControllerModels.Contains(
-            "CurrentSchemaVersion = 16")) {
-    throw "Foundation controller fixed-parallelism settings reset contract is missing."
+            "CurrentSchemaVersion = 16") `
+        -or -not $foundationControllerRuntime.Contains(
+            "parameters.EnableMemoryCapacityParallelism = true") `
+        -or -not $foundationControllerRuntime.Contains(
+            "parameters.ReuseAutoTuneCache = false")) {
+    throw "Foundation controller memory-capacity parallelism settings contract is missing."
 }
 foreach ($removedAnchor in @(
     "AddExecutionProfileSelect(panel)",
@@ -262,7 +266,7 @@ foreach ($anchor in @(
     "AdvancedValidationCampaigns = 200",
     "CapabilityProbeCampaignsPerDifficulty = 64",
     "PreflightCampaignsPerDifficulty = 16",
-    "CombatFoundationExecutionProfileNames.Custom",
+    "CombatFoundationExecutionProfileNames.Auto",
     "CombatFoundationExecutionProfileNames.DirectInference",
     "ReuseAutoTuneCache = false",
     "SuccessExpertReplayShare = 0.10d",
@@ -286,7 +290,7 @@ foreach ($anchor in @(
     "TransformerTeacherFinalEpochs = 12",
     "TransformerTeacherCpuInteropThreads = 0",
     "TransformerTeacherMicroBatchSize = 0",
-    "TransformerTeacherDataLoaderWorkers = 0",
+    "TransformerTeacherDataLoaderWorkers = 2",
     "TransformerTeacherPrefetchBatches = 2",
     "TransformerDistillationWeight = 0.35d"
 )) {
@@ -395,9 +399,9 @@ if (-not (Test-Path -LiteralPath $gameSubjectCatalogPath -PathType Leaf)) {
 $gameSubjectCatalog = Get-Content -Raw -Encoding UTF8 `
     -LiteralPath $gameSubjectCatalogPath | ConvertFrom-Json
 if ($gameSubjectCatalog.schemaVersion -ne 1 `
-        -or @($gameSubjectCatalog.roles).Count -lt 9 `
+        -or @($gameSubjectCatalog.roles).Count -lt 13 `
         -or @($gameSubjectCatalog.familiars).Count -lt 5 `
-        -or @($gameSubjectCatalog.cardPacks).Count -ne 18 `
+        -or @($gameSubjectCatalog.cardPacks).Count -ne 19 `
         -or @($gameSubjectCatalog.cardPacks | Where-Object {
             $_.id -eq "cardpack_13"
         }).Count -ne 0) {
@@ -439,7 +443,10 @@ foreach ($anchor in @(
     "ResolvePackageCoverage",
     "CoverageAwareCombatPolicyValueModel",
     "FoundationArtifactValidated",
-    "PortableFoundationMeetsActivationGate"
+    "PortableFoundationMeetsActivationGate",
+    "NormalizeAcceptance",
+    "FoundationAcceptanceKind",
+    "ValidFoundationAcceptance"
 )) {
     if (-not $modelRuntime.Contains($anchor)) {
         throw "AuraTools external foundation staging contract is missing: $anchor"
@@ -521,8 +528,10 @@ foreach ($anchor in @(
     "AuraFoundationTrainer.ControlCenter",
     "controlCenterProject",
     "StopRunningTrainer",
+    "Get-NormalizedTrainerPath",
     "Request-WorkerCancellation",
     "CancellationPath",
+    "Regex]::Unescape",
     ".publish-staging",
     "Copy-PublishedFileWithRetry"
 )) {

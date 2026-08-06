@@ -1,6 +1,6 @@
 # 自动战斗 AI 当前方案
 
-这里是自动战斗 AI 的唯一权威文档集。01 至 10 号文档描述当前生产合同；11 号文档同时记录下一代目标架构和阶段落地状态。对象 IR、类型化动作、Shadow Token、6 层 Transformer 世界模型教师、通用治理、模型调用预算和 Transformer LoRA v2 已进入代码；游戏内主动决策仍以 MLP + 权威前向模型 PUCT 为 Champion。当前实现不提供旧数据读取、旧配置转换或旧搜索器回退。
+这里是自动战斗 AI 的唯一权威文档集。01 至 10 号文档描述当前生产合同；11 号文档同时记录下一代目标架构和阶段落地状态。对象 IR、类型化动作、Shadow Token、6 层 Transformer 世界模型教师、通用治理、模型调用预算和 Transformer LoRA v2 已进入代码；游戏内主动决策仍以 MLP + 权威前向模型 PUCT 为 Champion。除显式声明兼容的 v3 正式底模包外，当前实现不提供旧数据读取、旧配置转换或旧搜索器回退。
 
 ## 文档导航
 
@@ -37,9 +37,9 @@
 | Transformer 适配器 | `aura.combat-ai.transformer-adapter.v2`，可选内容工件，未取得在线控制权 |
 | 在线治理 | 墙钟截止、模型调用预算、风险偏好、安全回退；Actor 裁剪默认关闭 |
 | Worker | schema 12 |
-| 训练治理 | `foundation-governance-v26-productive-progress-pareto-arena` + `foundation-stagnation-v2-productive-progress` + `paired-incremental-v4-absolute-multihead-evidence` |
-| 资源自动调优 | `foundation-auto-tune-v6-steady-state` + `transformer-runtime-auto-tune-v2`，请求值与有效值分离 |
-| 外部模型包 | `foundation-model-package-v3` |
+| 训练治理 | `foundation-governance-v26-productive-progress-pareto-arena` + `foundation-stagnation-v2-productive-progress` + `paired-evidence-v5-noninferiority` |
+| 资源容量规划 | `foundation-parallelism-v1-memory-capacity-8-16-32` + `foundation-auto-tune-v10-memory-capacity-only`；每轮边界等待检查点落盘、释放搜索 Arena 并回收后，按可用物理内存、固定进程占用、每通道高水位成本和安全余量，从 8/16/32 中选择最高可承载档位；旧吞吐 Auto-Tune 缓存不再决定冒险并行度，模型训练并行度仍独立 |
+| 外部模型包 | 写入 `foundation-model-package-v4`；读取兼容正式验收的 v3 |
 | CLI 搜索策略 | `risk-puct` |
 
 输入不满足这些合同会被拒绝。需要改变布局时，应同时切换写入、读取、测试、示例与文档，并删除被替代内容。

@@ -1,11 +1,14 @@
 {
     "schemaVersion":  1,
     "catalogId":  "witch-base-game-subjects-v1",
-    "gameBuild":  "v1.0.23816797",
+    "gameBuild":  "v1.0.24591395",
     "roles":  [
                   {
                       "id":  "career_1",
                       "maximumHp":  100,
+                      "initialVariables":  {
+
+                                           },
                       "displayName":  "阿米莉娅",
                       "skillCardIds":  [
                                            "careercard_1"
@@ -13,22 +16,28 @@
                       "skillCooldownTurns":  {
                                                  "careercard_1":  1
                                              },
+                      "initialSkillCooldownTurns":  {
+
+                                                    },
                       "initialStatuses":  {
                                               "buff_impregnable":  2,
                                               "buff_elements":  3
                                           },
-                      "nativeScriptHash":  "8FA04956142556E2DF145E27AEC2846280689023AA680FE12EB1C0015F3969BD",
+                      "nativeScriptHash":  "8354208D5648AC938BAA12EBAE4F48C484825219B60D8CECC3805720CC534A30",
                       "nativeManagedSkillCooldownIds":  [
-                                                              "careercard_1"
-                                                          ],
-                      "fightScript":  "SetStatus(\"Self\"); AddBuff(\"buff_impregnable\", \"2\"); AddBuff(\"buff_elements\",\"3\"); PlayerInfo.SkillTime[\"careercard_1\"] = 0; AddEvent(\"StartRound\", ()=> { PlayerInfo.SkillTime[\"careercard_1\"] = Math.Max(PlayerInfo.SkillTime[\"careercard_1\"] - 1, 0); });"
+                                                            "careercard_1"
+                                                        ],
+                      "transformRoleIds":  [
+
+                                           ],
+                      "fightScript":  "SetStatus(\"Self\"); AddBuff(\"buff_impregnable\", \"2\");\n            AddBuff(\"buff_elements\",\"3\");\n            PlayerInfo.SkillTime[\"careercard_1\"] = 0;\n        AddEvent(\"StartRound\", ()=\u003e { PlayerInfo.SkillTime[\"careercard_1\"] = Math.Max(PlayerInfo.SkillTime[\"careercard_1\"] - 1, 0); });"
                   },
                   {
                       "id":  "career_2",
                       "maximumHp":  60,
                       "initialVariables":  {
-                                                 "DoomPower":  0
-                                             },
+                                               "DoomPower":  0
+                                           },
                       "displayName":  "奈奈",
                       "skillCardIds":  [
                                            "careercard_2",
@@ -38,25 +47,28 @@
                                                  "careercard_2":  5,
                                                  "careercard_3":  2
                                              },
+                      "initialSkillCooldownTurns":  {
+
+                                                    },
                       "initialStatuses":  {
-                                              "buff_DoomPower":  1
+
                                           },
-                      "nativeScriptHash":  "2B5987E5331954DF5CE205B49D5098E41B9B212047EF2D6E0FBB37E845FABD6E",
+                      "nativeScriptHash":  "69ECBF74906FE634DDA012B2BE74DB4F2D1AC493428A9A8E1A988A9537568C23",
                       "nativeManagedSkillCooldownIds":  [
-                                                              "careercard_2",
-                                                              "careercard_3"
-                                                          ],
+                                                            "careercard_2",
+                                                            "careercard_3"
+                                                        ],
                       "transformRoleIds":  [
-                                                "career_4"
-                                            ],
-                      "fightScript":  "PlayerInfo.SkillTime[\"careercard_2\"] = 0; PlayerInfo.SkillTime[\"careercard_3\"] = 0; if (!PlayerInfo.SpecialVars.ContainsKey(\"DoomPower\")) { PlayerInfo.SpecialVars[\"DoomPower\"] = \"0\"; } SetStatus(\"Self\"); AddBuff(\"buff_DoomPower\", PlayerInfo.SpecialVars[\"DoomPower\"]); AddEvent(\"StartRound\", () => { PlayerInfo.SkillTime[\"careercard_2\"] = Math.Max(0, PlayerInfo.SkillTime[\"careercard_2\"] - 1); PlayerInfo.SkillTime[\"careercard_3\"] = Math.Max(0, PlayerInfo.SkillTime[\"careercard_3\"] - 1); }); AddEvent(\"Win\",()=> { SetStatus(\"Self\"); ChangeCareer(\"career_2\");}); AddEvent(\"Escape\",()=> { ChangeCareer(\"career_2\");});"
+                                               "career_4"
+                                           ],
+                      "fightScript":  "PlayerInfo.SkillTime[\"careercard_2\"] = 0;\n        PlayerInfo.SkillTime[\"careercard_3\"] = 0;\n        if (!PlayerInfo.SpecialVars.ContainsKey(\"DoomPower\"))\n        {\n            PlayerInfo.SpecialVars[\"DoomPower\"] = \"0\";\n        }\n        SetStatus(\"Self\"); AddBuff(\"buff_DoomPower\", PlayerInfo.SpecialVars[\"DoomPower\"]);\n        AddEvent(\"StartRound\", () =\u003e\n        {\n            PlayerInfo.SkillTime[\"careercard_2\"] = Math.Max(0, PlayerInfo.SkillTime[\"careercard_2\"] - 1);\n            PlayerInfo.SkillTime[\"careercard_3\"] = Math.Max(0, PlayerInfo.SkillTime[\"careercard_3\"] - 1); \n        });\n        AddEvent(\"Win\",()=\u003e { SetStatus(\"Self\"); ChangeCareer(\"career_2\");});AddEvent(\"Escape\",()=\u003e { ChangeCareer(\"career_2\");});"
                   },
                   {
                       "id":  "career_3",
                       "maximumHp":  95,
                       "initialVariables":  {
-                                                 "Soul":  1
-                                             },
+                                               "Soul":  1
+                                           },
                       "displayName":  "阿黛拉",
                       "skillCardIds":  [
                                            "careercard_4"
@@ -68,20 +80,23 @@
                                                         "careercard_4":  12
                                                     },
                       "initialStatuses":  {
-                                              "buff_Soul":  1
+
                                           },
-                      "nativeScriptHash":  "4A1161C3A3F12BC2809786FAE15260B246409277AEE11BD695EAD17F97C46718",
+                      "nativeScriptHash":  "EF02881933019EECABF216DFB1F7ED53464661C73F503674E535B27EC1C79CD7",
                       "nativeManagedSkillCooldownIds":  [
-                                                              "careercard_4"
-                                                          ],
-                      "fightScript":  "SetStatus(\"Self\"); if (!PlayerInfo.SpecialVars.ContainsKey(\"Soul\")) { PlayerInfo.SpecialVars[\"Soul\"] = \"1\"; } PlayerInfo.SkillTime[\"careercard_4\"] = 12; AddEvent(\"ICreateCardItem\", () => { if (PlayerInfo.SkillTime[\"careercard_4\"] > 0) { PlayerInfo.SkillTime[\"careercard_4\"] -= 1; } }); AddEvent(\"Win\", () => { SetStatus(\"Self\"); if (PlayerInfo.enemylevel == 1) { PlayerInfo.SpecialVars[\"Soul\"] = (int.Parse(PlayerInfo.SpecialVars[\"Soul\"]) + 3).ToString(); } else if (PlayerInfo.enemylevel == 2) { PlayerInfo.SpecialVars[\"Soul\"] = (int.Parse(PlayerInfo.SpecialVars[\"Soul\"]) + 6).ToString(); } else if (PlayerInfo.enemylevel == 3) { PlayerInfo.SpecialVars[\"Soul\"] = (int.Parse(PlayerInfo.SpecialVars[\"Soul\"]) + 9).ToString(); } }); AddEvent(\"BurnCard\", () => { PlayerInfo.SpecialVars[\"Soul\"] = (int.Parse(PlayerInfo.SpecialVars[\"Soul\"]) + 1).ToString(); }); AddEvent(\"StartRound\", () => { if (PlayerInfo.SkillTime.ContainsKey(\"careercard_4\") && PlayerInfo.SkillTime[\"careercard_4\"] > 0) { } if (int.Parse(PlayerInfo.SpecialVars[\"Soul\"]) < 100) { AddCard(DataId.nocard_1); } else if (int.Parse(PlayerInfo.SpecialVars[\"Soul\"]) < 200) { AddCard(DataId.nocard_2); } else { AddCard(DataId.nocard_3); } DrawCount(\"1\"); }); AddBuff(\"buff_Soul\", PlayerInfo.SpecialVars[\"Soul\"]);"
+                                                            "careercard_4"
+                                                        ],
+                      "transformRoleIds":  [
+
+                                           ],
+                      "fightScript":  "SetStatus(\"Self\");\n        if (!PlayerInfo.SpecialVars.ContainsKey(\"Soul\"))\n        {\n            PlayerInfo.SpecialVars[\"Soul\"] = \"1\";\n        }\n        PlayerInfo.SkillTime[\"careercard_4\"] = 12;\n        AddEvent(\"ICreateCardItem\", () =\u003e\n              {\n                  if (PlayerInfo.SkillTime[\"careercard_4\"] \u003e 0)\n                  {\n                      PlayerInfo.SkillTime[\"careercard_4\"] -= 1;\n                  }\n              });\n        AddEvent(\"Win\", () =\u003e\n        {\n            SetStatus(\"Self\");\n            if (PlayerInfo.enemylevel == 1)\n            {\n                PlayerInfo.SpecialVars[\"Soul\"] = (int.Parse(PlayerInfo.SpecialVars[\"Soul\"]) + 3).ToString();\n            }\n            else if (PlayerInfo.enemylevel == 2)\n            {\n                PlayerInfo.SpecialVars[\"Soul\"] = (int.Parse(PlayerInfo.SpecialVars[\"Soul\"]) + 6).ToString();\n            }\n            else if (PlayerInfo.enemylevel == 3)\n            {\n                PlayerInfo.SpecialVars[\"Soul\"] = (int.Parse(PlayerInfo.SpecialVars[\"Soul\"]) + 9).ToString();\n            }\n        });\n        AddEvent(\"BurnCard\", () =\u003e\n        {\n            PlayerInfo.SpecialVars[\"Soul\"] = (int.Parse(PlayerInfo.SpecialVars[\"Soul\"]) + 1).ToString();\n        });\n        AddEvent(\"StartRound\", () =\u003e\n        {\n            if (PlayerInfo.SkillTime.ContainsKey(\"careercard_4\") \u0026\u0026 PlayerInfo.SkillTime[\"careercard_4\"] \u003e 0)\n            {\n                //PlayerInfo.SkillTime[\"careercard_4\"] += 1;\n            }\n            if (int.Parse(PlayerInfo.SpecialVars[\"Soul\"]) \u003c100)\n            {\n                AddCard(DataId.nocard_1);\n            }\n            else if (int.Parse(PlayerInfo.SpecialVars[\"Soul\"]) \u003c200)\n            {\n                AddCard(DataId.nocard_2);\n            }\n            else\n            {\n                AddCard(DataId.nocard_3);\n            }\n            DrawCount(\"1\");\n        });\n        AddBuff(\"buff_Soul\", PlayerInfo.SpecialVars[\"Soul\"]);"
                   },
                   {
                       "id":  "career_4",
-                      "maximumHp":  40,
+                      "maximumHp":  60,
                       "initialVariables":  {
-                                                 "DoomPower":  0
-                                             },
+                                               "DoomPower":  0
+                                           },
                       "displayName":  "灾厄化身",
                       "skillCardIds":  [
                                            "careercard_2",
@@ -89,20 +104,30 @@
                                        ],
                       "skillCooldownTurns":  {
                                                  "careercard_2":  5,
-                                                  "careercard_3":  2
+                                                 "careercard_3":  1
                                              },
+                      "initialSkillCooldownTurns":  {
+
+                                                    },
                       "initialStatuses":  {
-                                              "buff_DoomPower":  1
+
                                           },
-                      "nativeScriptHash":  "2B5987E5331954DF5CE205B49D5098E41B9B212047EF2D6E0FBB37E845FABD6E",
+                      "nativeScriptHash":  "01D7EB83C1B45D93942B70FAC8060B594579363046F00A769AB729E15D335910",
                       "nativeManagedSkillCooldownIds":  [
-                                                              "careercard_2",
-                                                              "careercard_3"
-                                                          ],
-                      "fightScript":  "PlayerInfo.SkillTime[\"careercard_2\"] = 0; PlayerInfo.SkillTime[\"careercard_3\"] = 0; if (!PlayerInfo.SpecialVars.ContainsKey(\"DoomPower\")) { PlayerInfo.SpecialVars[\"DoomPower\"] = \"0\"; } SetStatus(\"Self\"); AddBuff(\"buff_DoomPower\", PlayerInfo.SpecialVars[\"DoomPower\"]); AddEvent(\"StartRound\", () => { PlayerInfo.SkillTime[\"careercard_2\"] = Math.Max(0, PlayerInfo.SkillTime[\"careercard_2\"] - 1); PlayerInfo.SkillTime[\"careercard_3\"] = Math.Max(0, PlayerInfo.SkillTime[\"careercard_3\"] - 1); }); AddEvent(\"Win\",()=> { SetStatus(\"Self\"); ChangeCareer(\"career_2\");}); AddEvent(\"Escape\",()=> { ChangeCareer(\"career_2\");});"
+                                                            "careercard_2",
+                                                            "careercard_3"
+                                                        ],
+                      "transformRoleIds":  [
+                                               "career_2"
+                                           ],
+                      "fightScript":  "PlayerInfo.SkillTime[\"careercard_2\"] = 0;\n        PlayerInfo.SkillTime[\"careercard_3\"] = 0;\n        if (!PlayerInfo.SpecialVars.ContainsKey(\"DoomPower\"))\n        {\n            PlayerInfo.SpecialVars[\"DoomPower\"] = \"0\";\n        }\n        SetStatus(\"Self\"); AddBuff(\"buff_DoomPower\", PlayerInfo.SpecialVars[\"DoomPower\"]);\n        AddEvent(\"StartRound\", () =\u003e\n        {\n            PlayerInfo.SkillTime[\"careercard_2\"] = Math.Max(0, PlayerInfo.SkillTime[\"careercard_2\"] - 1);\n            PlayerInfo.SkillTime[\"careercard_3\"] = Math.Max(0, PlayerInfo.SkillTime[\"careercard_3\"] - 1); \n        });\n        AddEvent(\"Win\",()=\u003e { SetStatus(\"Self\");ChangeCareer(\"career_2\");});AddEvent(\"Escape\",()=\u003e { ChangeCareer(\"career_2\");});"
                   },
                   {
                       "id":  "career_5",
+                      "maximumHp":  100,
+                      "initialVariables":  {
+
+                                           },
                       "displayName":  "卡洛琳",
                       "skillCardIds":  [
                                            "careercard_5",
@@ -112,12 +137,28 @@
                                                  "careercard_5":  3,
                                                  "careercard_6":  3
                                              },
+                      "initialSkillCooldownTurns":  {
+
+                                                    },
                       "initialStatuses":  {
 
-                                          }
+                                          },
+                      "nativeScriptHash":  "5211F4109A6F9176AAA2250131E87F9BFE9475DA1F6D0BB55D7C522EF7CF27C4",
+                      "nativeManagedSkillCooldownIds":  [
+                                                            "careercard_5",
+                                                            "careercard_6"
+                                                        ],
+                      "transformRoleIds":  [
+
+                                           ],
+                      "fightScript":  "void CalAdd()\n        {\n\n            int count=0;\n            count+=Self.Defend;\n            var buff=Self.GetBuff(\"buff_counterattack\");\n            if (buff!=null)\n            {\n                count+=buff.buffConfig.Level;\n            }\n            Self.ClearBuffById(Self.InstanceId+dataConfig.data[\"Id\"]);\n            ChangeDynamicVarPercent(\"PercentDamage\",count.ToString());\n        }PlayerInfo.SkillTime[\"careercard_6\"] = 0;PlayerInfo.SkillTime[\"careercard_5\"] = 0;\n        AddEvent(\"Hurt\",()=\u003e{CalAdd();});\n        AddEvent(\"Action\",()=\u003e{CalAdd();}); AddEvent(\"StartRound\", () =\u003e\n        {\n            PlayerInfo.SkillTime[\"careercard_5\"] = Math.Max(0, PlayerInfo.SkillTime[\"careercard_5\"] - 1);\n            PlayerInfo.SkillTime[\"careercard_6\"] = Math.Max(0, PlayerInfo.SkillTime[\"careercard_6\"] - 1); \n        });"
                   },
                   {
                       "id":  "career_6",
+                      "maximumHp":  150,
+                      "initialVariables":  {
+
+                                           },
                       "displayName":  "厄米娅",
                       "skillCardIds":  [
                                            "careercard_7"
@@ -125,12 +166,27 @@
                       "skillCooldownTurns":  {
                                                  "careercard_7":  2
                                              },
+                      "initialSkillCooldownTurns":  {
+
+                                                    },
                       "initialStatuses":  {
 
-                                          }
+                                          },
+                      "nativeScriptHash":  "78BB5E0570FD1FAFC6EA6EA3549B52B0F45FDE92C7146C81FF1F925F3F2108D9",
+                      "nativeManagedSkillCooldownIds":  [
+                                                            "careercard_7"
+                                                        ],
+                      "transformRoleIds":  [
+
+                                           ],
+                      "fightScript":  "SetStatus(\"AllFriends\");PlayerInfo.SkillTime[\"careercard_7\"] = 0;\n        AddEvent(\"FightStart\",()=\u003e{AddBuff(\"buff_ChaosMark\",\"1\");});\n        SetStatus(\"Self\");\n        ChangeDynamicVarPercent(\"HealMultiplier\",\"50\");\n        int lastCount=0;\n        AddEvent(\"Attack\", () =\u003e\n        {\n            int count=DefaultDice.WithRange(-20,100).Roll().Value;\n            ChangeDynamicVarPercent(\"PercentDamage\",(count-lastCount).ToString());\n            lastCount=count;\n        }); AddEvent(\"StartRound\", () =\u003e\n        {\n            PlayerInfo.SkillTime[\"careercard_7\"] = Math.Max(0, PlayerInfo.SkillTime[\"careercard_7\"] - 1);        });"
                   },
                   {
                       "id":  "career_7",
+                      "maximumHp":  85,
+                      "initialVariables":  {
+
+                                           },
                       "displayName":  "可可",
                       "skillCardIds":  [
                                            "careercard_8",
@@ -140,13 +196,29 @@
                                                  "careercard_8":  5,
                                                  "careercard_9":  2
                                              },
+                      "initialSkillCooldownTurns":  {
+
+                                                    },
                       "initialStatuses":  {
                                               "buff_impregnable":  2,
                                               "buff_degrade":  2
-                                          }
+                                          },
+                      "nativeScriptHash":  "F29378F38FDD0FE127FEC71FAEFDA6AAE8B445E6EF551CBB49B48C16BC232F83",
+                      "nativeManagedSkillCooldownIds":  [
+                                                            "careercard_8",
+                                                            "careercard_9"
+                                                        ],
+                      "transformRoleIds":  [
+
+                                           ],
+                      "fightScript":  "SetStatus(\"Self\");\n AddBuff(DataId.buff_impregnable, \"2\");\n AddBuff(DataId.buff_degrade, \"2\");\n PlayerInfo.SkillTime[\"careercard_8\"] = 0;\n PlayerInfo.SkillTime[\"careercard_9\"] = 0;\n AddEvent(\"StartRound\", () =\u003e\n {\n PlayerInfo.SkillTime[\"careercard_8\"] = Math.Max(0, PlayerInfo.SkillTime[\"careercard_8\"] - 1);\n PlayerInfo.SkillTime[\"careercard_9\"] = Math.Max(0, PlayerInfo.SkillTime[\"careercard_9\"] - 1);\n });"
                   },
                   {
                       "id":  "career_8",
+                      "maximumHp":  100,
+                      "initialVariables":  {
+
+                                           },
                       "displayName":  "薇薇安",
                       "skillCardIds":  [
                                            "careercard_10",
@@ -156,12 +228,28 @@
                                                  "careercard_10":  2,
                                                  "careercard_11":  1
                                              },
+                      "initialSkillCooldownTurns":  {
+
+                                                    },
                       "initialStatuses":  {
 
-                                          }
+                                          },
+                      "nativeScriptHash":  "982057D89E5A5F3B8AB023C394B835C1087B86C3A0B3D85F75AE73B969C23F2E",
+                      "nativeManagedSkillCooldownIds":  [
+                                                            "careercard_10",
+                                                            "careercard_11"
+                                                        ],
+                      "transformRoleIds":  [
+
+                                           ],
+                      "fightScript":  "SetStatus(\"Self\");\n\n PlayerInfo.SkillTime[\"careercard_10\"] = 0;\n PlayerInfo.SkillTime[\"careercard_11\"] = 0;\n AddEvent(\"AttackDone\", () =\u003e\n {\n SetStatus(\"AllTarget\");\n AddBuff(DataId.buff_bleeding, \"1\");\n });\n AddEvent(\"StartRound\", () =\u003e\n { Self.DamageFilter[DataId.buff_bleeding] = 100f;\n PlayerInfo.SkillTime[\"careercard_10\"] = Math.Max(0, PlayerInfo.SkillTime[\"careercard_10\"] - 1);\n PlayerInfo.SkillTime[\"careercard_11\"] = Math.Max(0, PlayerInfo.SkillTime[\"careercard_11\"] - 1);\n });"
                   },
                   {
                       "id":  "career_9",
+                      "maximumHp":  100,
+                      "initialVariables":  {
+
+                                           },
                       "displayName":  "失心躯壳",
                       "skillCardIds":  [
                                            "careercard_12",
@@ -171,9 +259,136 @@
                                                  "careercard_12":  2,
                                                  "careercard_13":  99
                                              },
+                      "initialSkillCooldownTurns":  {
+
+                                                    },
                       "initialStatuses":  {
 
-                                          }
+                                          },
+                      "nativeScriptHash":  "5A12FC51F536CEB839596C3F611C753E6CBB0FA8469DFBD03E8BEED741F08B35",
+                      "nativeManagedSkillCooldownIds":  [
+                                                            "careercard_12",
+                                                            "careercard_13"
+                                                        ],
+                      "transformRoleIds":  [
+
+                                           ],
+                      "fightScript":  "SetStatus(\"Self\");\n        PlayerInfo.SkillTime[\"careercard_12\"] = 0;PlayerInfo.SkillTime[\"careercard_13\"] = 0;\n        AddEvent(\"FightStart\", () =\u003e\n        {\n            ChangeMaxPower(\"1\");\n        });\n       \n        AddEvent(\"StartRound\", ()=\u003e { PlayerInfo.SkillTime[\"careercard_12\"] = Math.Max(PlayerInfo.SkillTime[\"careercard_12\"] - 1, 0); });"
+                  },
+                  {
+                      "id":  "career_10",
+                      "maximumHp":  65,
+                      "initialVariables":  {
+
+                                           },
+                      "displayName":  "权天使 可可",
+                      "skillCardIds":  [
+                                           "careercard_14"
+                                       ],
+                      "skillCooldownTurns":  {
+                                                 "careercard_14":  2
+                                             },
+                      "initialSkillCooldownTurns":  {
+
+                                                    },
+                      "initialStatuses":  {
+
+                                          },
+                      "nativeScriptHash":  "E652447AFBA31E8589587CBCE988AEF28D1E23A1FAB8DEED9332BBBC8997BB5E",
+                      "nativeManagedSkillCooldownIds":  [
+                                                            "careercard_14"
+                                                        ],
+                      "transformRoleIds":  [
+
+                                           ],
+                      "fightScript":  "SetStatus(\"Self\");\n\n        PlayerInfo.SkillTime[\"careercard_14\"] = 0;for (int i = 0; i \u003c 4-PlayerInfo.PlayerCount; i++)\n            {\n                AddPartner(\"FightPartner_10001\");\n            }AddEvent(\"StartRound\", ()=\u003e {\n        PlayerInfo.SkillTime[\"careercard_14\"] = Math.Max(PlayerInfo.SkillTime[\"careercard_14\"] - 1, 0);\n         });\n        AddEvent(\"FightStart\", () =\u003e\n        {\n            SetStatus(\"AllFriendsExSelf\");\n        int count=(PlayerInfo.Strength+PlayerInfo.Wisdom+PlayerInfo.Lucky+PlayerInfo.Perceive)/2;\n        AddBuff(\"buff_Demonization\",count.ToString());\n        });\n        \n        "
+                  },
+                  {
+                      "id":  "career_11",
+                      "maximumHp":  100,
+                      "initialVariables":  {
+
+                                           },
+                      "displayName":  "启明天使 卡洛琳",
+                      "skillCardIds":  [
+                                           "careercard_15",
+                                           "careercard_16"
+                                       ],
+                      "skillCooldownTurns":  {
+                                                 "careercard_15":  5,
+                                                 "careercard_16":  1
+                                             },
+                      "initialSkillCooldownTurns":  {
+
+                                                    },
+                      "initialStatuses":  {
+
+                                          },
+                      "nativeScriptHash":  "7E32F52D939E970A6C8CCB278B2E159206C0FB1C112C859F1D93CB18B4398002",
+                      "nativeManagedSkillCooldownIds":  [
+                                                            "careercard_15",
+                                                            "careercard_16"
+                                                        ],
+                      "transformRoleIds":  [
+
+                                           ],
+                      "fightScript":  "SetStatus(\"Self\");\n        PlayerInfo.SkillTime[\"careercard_15\"] = 0;PlayerInfo.SkillTime[\"careercard_16\"] = 0;\n        AddEvent(\"buff_ReturnAgainOnLevelChange\", () =\u003e\n        {\n            AddBuff(\"buff_keenedge\",\"1\");\n            AddBuff(\"buff_poised\",\"1\");\n            AddBuff(DataId.buff_extraordinary,\"10\");\n            ChangeDefence(\"5\");\n        });\n       \n        AddEvent(\"StartRound\", ()=\u003e { PlayerInfo.SkillTime[\"careercard_15\"] = Math.Max(PlayerInfo.SkillTime[\"careercard_15\"] - 1, 0);\n        PlayerInfo.SkillTime[\"careercard_16\"] = Math.Max(PlayerInfo.SkillTime[\"careercard_16\"] - 1, 0); }); "
+                  },
+                  {
+                      "id":  "career_12",
+                      "maximumHp":  150,
+                      "initialVariables":  {
+
+                                           },
+                      "displayName":  "混沌天使  厄米娅",
+                      "skillCardIds":  [
+                                           "careercard_17"
+                                       ],
+                      "skillCooldownTurns":  {
+                                                 "careercard_17":  2
+                                             },
+                      "initialSkillCooldownTurns":  {
+
+                                                    },
+                      "initialStatuses":  {
+
+                                          },
+                      "nativeScriptHash":  "15DCF0FD1915C94A420D8A0CF8ED50A3CD4690663EC8B0D06EEAADD49FEF9FB5",
+                      "nativeManagedSkillCooldownIds":  [
+                                                            "careercard_17"
+                                                        ],
+                      "transformRoleIds":  [
+                                               "career_13"
+                                           ],
+                      "fightScript":  "PlayerInfo.SkillTime[\"careercard_17\"] = 0;\n        if (PlayerInfo.enemylevel !=1)\n        {\n            PlayerInfo.Reward +=1;\n        }\n        AddEvent(\"StartRound\", () =\u003e\n       {\n           PlayerInfo.SkillTime[\"careercard_17\"] = Math.Max(0, PlayerInfo.SkillTime[\"careercard_17\"] - 1);\n           if (Self != null \u0026\u0026 Self.GetBuff(\"buff_resilient\") != null)\n           {\n               AddBuff(\"buff_keenedge\", (Self.GetBuff(\"buff_resilient\").buffConfig.Level / 5).ToString());\n           }\n           if (Self != null \u0026\u0026 Self.GetBuff(\"buff_keenedge\") != null)\n           {\n               AddBuff(\"buff_resilient\", (Self.GetBuff(\"buff_keenedge\").buffConfig.Level / 5).ToString());\n           }\n       });"
+                  },
+                  {
+                      "id":  "career_13",
+                      "maximumHp":  150,
+                      "initialVariables":  {
+
+                                           },
+                      "displayName":  "混沌天使  厄米娅",
+                      "skillCardIds":  [
+                                           "careercard_17"
+                                       ],
+                      "skillCooldownTurns":  {
+                                                 "careercard_17":  2
+                                             },
+                      "initialSkillCooldownTurns":  {
+
+                                                    },
+                      "initialStatuses":  {
+
+                                          },
+                      "nativeScriptHash":  "A0793BC2F35E6DA968781024E7D5FF2F7B2D2A6D7E47D7B24BD635E5685D8173",
+                      "nativeManagedSkillCooldownIds":  [
+                                                            "careercard_17"
+                                                        ],
+                      "transformRoleIds":  [
+                                               "career_12"
+                                           ],
+                      "fightScript":  "PlayerInfo.SkillTime[\"careercard_17\"] = 0;\n        if (PlayerInfo.enemylevel !=1)\n        {\n            PlayerInfo.Reward +=1;\n        }\n        AddEvent(\"StartRound\", () =\u003e\n       {\n           PlayerInfo.SkillTime[\"careercard_17\"] = Math.Max(0, PlayerInfo.SkillTime[\"careercard_17\"] - 1);\n           if (Self != null \u0026\u0026 Self.GetBuff(\"buff_resilient\") != null)\n           {\n               AddBuff(\"buff_keenedge\", (Self.GetBuff(\"buff_resilient\").buffConfig.Level / 5).ToString());\n           }\n           if (Self != null \u0026\u0026 Self.GetBuff(\"buff_keenedge\") != null)\n           {\n               AddBuff(\"buff_resilient\", (Self.GetBuff(\"buff_keenedge\").buffConfig.Level / 5).ToString());\n           }\n       });ChangeCareer(DataId.career_12);"
                   }
               ],
     "familiars":  [
@@ -302,6 +517,11 @@
                       {
                           "id":  "cardpack_19",
                           "displayName":  "超位仪式",
+                          "required":  false
+                      },
+                      {
+                          "id":  "cardpack_20",
+                          "displayName":  "无终之国的新月",
                           "required":  false
                       }
                   ]

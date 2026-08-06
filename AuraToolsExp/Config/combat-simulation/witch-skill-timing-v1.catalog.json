@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "catalogId": "witch-base-role-skill-timing-v1",
-  "gameBuild": "v1.0.23816797",
+  "gameBuild": "v1.0.24591395",
   "skills": [
     { "roleIds": ["career_1"], "skillId": "careercard_1", "evaluator": "deck-search", "choicePolicy": "highest-card-value" },
     { "roleIds": ["career_2", "career_4"], "skillId": "careercard_2", "evaluator": "status-consume-growth", "choicePolicy": "highest-target-net-value" },
@@ -15,6 +15,10 @@
     { "roleIds": ["career_8"], "skillId": "careercard_10", "evaluator": "ongoing-target-status", "choicePolicy": "highest-target-net-value" },
     { "roleIds": ["career_8"], "skillId": "careercard_11", "evaluator": "stack-detonation", "choicePolicy": "all-enemies" },
     { "roleIds": ["career_9"], "skillId": "careercard_12", "evaluator": "temporary-card-copy", "choicePolicy": "highest-card-value" },
-    { "roleIds": ["career_9"], "skillId": "careercard_13", "evaluator": "campaign-card-amplify", "choicePolicy": "highest-lifetime-card-value" }
+    { "roleIds": ["career_9"], "skillId": "careercard_13", "evaluator": "campaign-card-amplify", "choicePolicy": "highest-lifetime-card-value" },
+    { "roleIds": ["career_10"], "skillId": "careercard_14", "evaluator": "ally-immediate-action", "choicePolicy": "all-allies" },
+    { "roleIds": ["career_11"], "skillId": "careercard_15", "evaluator": "delayed-damage-conversion", "choicePolicy": "none" },
+    { "roleIds": ["career_11"], "skillId": "careercard_16", "evaluator": "hand-exhaust-return", "choicePolicy": "highest-exhaust-net-value" },
+    { "roleIds": ["career_12", "career_13"], "skillId": "careercard_17", "evaluator": "temporary-transcendence-form", "choicePolicy": "none" }
   ]
 }

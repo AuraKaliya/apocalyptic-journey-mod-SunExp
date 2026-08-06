@@ -429,13 +429,7 @@ try
 
 catch (Exception ex)
 {
-    Console.Error.WriteLine(ex.GetType().FullName);
-    Console.Error.WriteLine(ex.Message);
-    if (ex.InnerException != null)
-    {
-        Console.Error.WriteLine(ex.InnerException.GetType().FullName);
-        Console.Error.WriteLine(ex.InnerException.Message);
-    }
+    Console.Error.WriteLine(ex);
     return 3;
 }
 
@@ -657,7 +651,11 @@ static IEnumerable<string> ValidateAuthoritativeRoleSkillSemantics()
                  ["careercard_10"] = 2,
                  ["careercard_11"] = 1,
                  ["careercard_12"] = 2,
-                 ["careercard_13"] = 99
+                 ["careercard_13"] = 99,
+                 ["careercard_14"] = 2,
+                 ["careercard_15"] = 5,
+                 ["careercard_16"] = 1,
+                 ["careercard_17"] = 2
              })
     {
         var action = new CombatActionObservation
@@ -1760,9 +1758,9 @@ static IEnumerable<string> ValidateSkillTimingCatalog(
         .ToList();
     if ((int?)root["schemaVersion"] != 1
         || (string?)root["gameBuild"] != subjectCatalog.GameBuild
-        || entries.Count != 13
-        || actualIds.Distinct(StringComparer.OrdinalIgnoreCase).Count() != 13
-        || expected.Count != 13
+        || entries.Count != 17
+        || actualIds.Distinct(StringComparer.OrdinalIgnoreCase).Count() != 17
+        || expected.Count != 17
         || expected.Keys.Any(id => !actualIds.Contains(
             id,
             StringComparer.OrdinalIgnoreCase))
@@ -2406,7 +2404,7 @@ static IEnumerable<string> ValidateDivineChoiceActionContract(
         || divineChoice.ActionContract.Version
            != CombatActionContractProtocol.Version
         || divineChoice.VerificationSource
-           != "Decompiler:v1.0.23816797")
+           != "Decompiler:v1.0.24591395")
     {
         failures.Add(
             "divine-choice-contract: bundled semantic contract is missing or invalid");
@@ -2824,6 +2822,32 @@ static IEnumerable<string> ValidateProgressionSemantics(
     if (removalState.Deck.Count != beforeRemoval - 4)
     {
         failures.Add("progression:random-card-removal");
+    }
+
+    var moonSetState = NewState();
+    Acquire(moonSetState, "CrowdFundingRelic_64", 5);
+    Acquire(moonSetState, "CrowdFundingRelic_66", 6);
+    if (moonSetState.Relics.Contains(
+            "CrowdFundingRelic_69",
+            StringComparer.OrdinalIgnoreCase))
+    {
+        failures.Add("progression:moon-relic-set-triggered-early");
+    }
+    Acquire(moonSetState, "CrowdFundingRelic_67", 7);
+    var moonParts = new[]
+    {
+        "CrowdFundingRelic_64",
+        "CrowdFundingRelic_66",
+        "CrowdFundingRelic_67"
+    };
+    if (!moonSetState.Relics.Contains(
+            "CrowdFundingRelic_69",
+            StringComparer.OrdinalIgnoreCase)
+        || moonParts.Any(part => moonSetState.Relics.Contains(
+            part,
+            StringComparer.OrdinalIgnoreCase)))
+    {
+        failures.Add("progression:moon-relic-set-transformation");
     }
     return failures;
 }

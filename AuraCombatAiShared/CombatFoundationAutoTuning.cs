@@ -6,13 +6,16 @@ namespace AuraCombatAi.Shared;
 
 public static class CombatFoundationAutoTuneProtocol
 {
-    public const string Version = "foundation-auto-tune-v6-steady-state";
+    public const string Version =
+        "foundation-auto-tune-v10-memory-capacity-only";
 
-    public const string CacheFileName = "foundation-auto-tune-v6.json";
+    public const string CacheFileName = "foundation-auto-tune-v10.json";
 
-    public const string CampaignKernelVersion = "campaign-kernel-v2";
+    public const string CampaignKernelVersion =
+        "campaign-kernel-v6-determinization-value-cache";
 
-    public const string InferenceKernelVersion = "managed-double-action-cache-v2";
+    public const string InferenceKernelVersion =
+        "managed-double-sparse-transposed-v4";
 
     public const int MinimumCampaignWaves = 2;
 

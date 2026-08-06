@@ -257,6 +257,51 @@ public static class AuraToolsAuthoritativeRoleSemantics
                 semantics = DescribeAbyssalCalling(state);
                 return true;
             }
+            if (string.Equals(action.SourceId, "careercard_14", StringComparison.OrdinalIgnoreCase))
+            {
+                semantics = new CombatActionSemantics
+                {
+                    Buff = 2d,
+                    EnergyGain = 1d,
+                    Scaling = Math.Max(
+                        1d,
+                        state.Features.GetValueOrDefault(
+                            "friendlyActorCount",
+                            1d))
+                };
+                return true;
+            }
+            if (string.Equals(action.SourceId, "careercard_15", StringComparison.OrdinalIgnoreCase))
+            {
+                semantics = new CombatActionSemantics
+                {
+                    Buff = 4d,
+                    Heal = 2d,
+                    EndOfCycleSelfHpLoss = 2d,
+                    Risk = 1d
+                };
+                return true;
+            }
+            if (string.Equals(action.SourceId, "careercard_16", StringComparison.OrdinalIgnoreCase))
+            {
+                semantics = new CombatActionSemantics
+                {
+                    Buff = 3d,
+                    DeckValue = 2d,
+                    OpensInteraction = true
+                };
+                return true;
+            }
+            if (string.Equals(action.SourceId, "careercard_17", StringComparison.OrdinalIgnoreCase))
+            {
+                semantics = new CombatActionSemantics
+                {
+                    Buff = 5d,
+                    EnergyGain = 2d,
+                    PersistentValue = 2d
+                };
+                return true;
+            }
             if (!string.Equals(
                     action.SourceId,
                     "careercard_4",

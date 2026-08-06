@@ -1,6 +1,7 @@
 using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Threading;
 using AuraCombatSimulation.Shared;
 using AuraDecision.Shared;
 
@@ -72,6 +73,20 @@ public sealed class CombatDecisionSimulationPolicy :
                 ?? CombatAiRegistry.SnapshotDecisionPreparation());
     }
 
+    internal CombatDecisionSimulationPolicy(
+        CombatDecisionEngine reusableDecisionEngine,
+        CombatDecisionProfile profile,
+        CombatSelfPlayExplorationOptions? exploration = null)
+    {
+        decisionEngine = reusableDecisionEngine
+            ?? throw new ArgumentNullException(nameof(reusableDecisionEngine));
+        this.profile = profile ?? new CombatDecisionProfile();
+        this.exploration = Normalize(exploration);
+        explorationRandom = this.exploration == null
+            ? null
+            : new Random(this.exploration.RandomSeed);
+    }
+
     public string PolicyId => "aura-combat-decision:" + profile.Id;
 
     public CombatDecision? LastDecision { get; private set; }
@@ -83,13 +98,22 @@ public sealed class CombatDecisionSimulationPolicy :
 
     public CombatSimulationAction? SelectAction(CombatSimulationPolicyContext context)
     {
+        var allocationStart = ReadThreadAllocatedBytes();
         var observation = PlayerEquivalentSimulationObservationProjector.Project(context);
+        var projectionAllocated = Math.Max(
+            0L,
+            ReadThreadAllocatedBytes() - allocationStart);
+        var decisionStart = ReadThreadAllocatedBytes();
         var searchExploration = BeginExploration();
         var decision = decisionEngine.Choose(
             observation,
             profile,
             searchExploration,
-            out var preparedObservation);
+            out var preparedObservation,
+            stateIsNormalizedAndOwned: true);
+        var decisionAllocated = Math.Max(
+            0L,
+            ReadThreadAllocatedBytes() - decisionStart);
         LastObservation = preparedObservation ?? observation;
         LastDecision = decision;
         LastDecisionMetrics.SearchSimulations = decision.SearchSimulations;
@@ -97,6 +121,9 @@ public sealed class CombatDecisionSimulationPolicy :
         LastDecisionMetrics.SearchStoppedEarly = decision.SearchStoppedEarly;
         LastDecisionMetrics.SearchBudgetTier = decision.SearchBudgetTier;
         LastDecisionMetrics.SearchMilliseconds = decision.Performance.TotalMilliseconds;
+        LastDecisionMetrics.ObservationProjectionAllocatedBytes =
+            projectionAllocated;
+        LastDecisionMetrics.DecisionEngineAllocatedBytes = decisionAllocated;
         LastDecisionMetrics.ModelEvaluations = decision.Performance.ModelEvaluations;
         LastDecisionMetrics.ModelCacheHits = decision.Performance.ModelCacheHits;
         LastDecisionMetrics.OriginalCandidates = decision.Performance.OriginalCandidates;
@@ -196,6 +223,15 @@ public sealed class CombatDecisionSimulationPolicy :
                 endTurnAssessment.Projection.UnknownLifecycleEffectCount;
         }
         return resolved;
+    }
+
+    private static long ReadThreadAllocatedBytes()
+    {
+#if NET8_0_OR_GREATER
+        return GC.GetAllocatedBytesForCurrentThread();
+#else
+        return 0L;
+#endif
     }
 
     private CombatSimulationAction? SelectExplorationAction(
@@ -578,6 +614,15 @@ public sealed class CombatAuthoritativeBranchTeacherPolicy :
         return selected;
     }
 
+    private static long ReadThreadAllocatedBytes()
+    {
+#if NET8_0_OR_GREATER
+        return GC.GetAllocatedBytesForCurrentThread();
+#else
+        return 0L;
+#endif
+    }
+
     private static void RecordAudit(
         CombatSimulationPolicyDecisionMetrics metrics,
         CombatSemanticAuditResult audit,
@@ -814,6 +859,7 @@ public sealed class CombatDecisionSimulationPolicyFactory : ICombatSimulationPol
     private readonly ICombatSearchGuidanceModel guidanceModel;
     private readonly ICombatPolicyValueModel policyValueModel;
     private readonly CombatDecisionPreparationSnapshot decisionPreparation;
+    private readonly ThreadLocal<CombatDecisionEngine> decisionEngines;
 
     public CombatDecisionSimulationPolicyFactory(
         CombatDecisionProfile? profile = null,
@@ -826,6 +872,13 @@ public sealed class CombatDecisionSimulationPolicyFactory : ICombatSimulationPol
         this.guidanceModel = guidanceModel ?? NullCombatSearchGuidanceModel.Instance;
         this.policyValueModel = policyValueModel ?? NullCombatPolicyValueModel.Instance;
         decisionPreparation = CombatAiRegistry.SnapshotDecisionPreparation();
+        decisionEngines = new ThreadLocal<CombatDecisionEngine>(() =>
+            new CombatDecisionEngine(
+                this.residualModel,
+                this.guidanceModel,
+                useRuntimeRegistries: false,
+                this.policyValueModel,
+                decisionPreparation: decisionPreparation));
     }
 
     public string PolicyId => "aura-combat-decision:" + profile.Id;
@@ -833,11 +886,8 @@ public sealed class CombatDecisionSimulationPolicyFactory : ICombatSimulationPol
     public ICombatSimulationPolicy Create()
     {
         return new CombatDecisionSimulationPolicy(
-            profile,
-            residualModel,
-            guidanceModel,
-            policyValueModel,
-            decisionPreparation: decisionPreparation);
+            decisionEngines.Value!,
+            profile);
     }
 }
 
@@ -849,6 +899,7 @@ public sealed class CombatAuthoritativeTeacherPolicyFactory :
     private readonly CombatAuthoritativeTeacherOptions options;
     private readonly CombatSimulationEngine? engine;
     private readonly CombatDecisionPreparationSnapshot decisionPreparation;
+    private readonly ThreadLocal<CombatDecisionEngine> decisionEngines;
 
     public CombatAuthoritativeTeacherPolicyFactory(
         CombatDecisionProfile? profile = null,
@@ -862,6 +913,11 @@ public sealed class CombatAuthoritativeTeacherPolicyFactory :
         this.options = options ?? new CombatAuthoritativeTeacherOptions();
         this.engine = engine;
         decisionPreparation = CombatAiRegistry.SnapshotDecisionPreparation();
+        decisionEngines = new ThreadLocal<CombatDecisionEngine>(() =>
+            new CombatDecisionEngine(
+                useRuntimeRegistries: false,
+                policyValueModel: this.policyValueModel,
+                decisionPreparation: decisionPreparation));
     }
 
     public string PolicyId => "aura-combat-authoritative-teacher:"
@@ -871,9 +927,8 @@ public sealed class CombatAuthoritativeTeacherPolicyFactory :
     {
         return new CombatAuthoritativeBranchTeacherPolicy(
             new CombatDecisionSimulationPolicy(
-                profile,
-                policyValueModel: policyValueModel,
-                decisionPreparation: decisionPreparation),
+                decisionEngines.Value!,
+                profile),
             options,
             engine);
     }
@@ -1048,7 +1103,8 @@ public static class PlayerEquivalentSimulationObservationProjector
             action.ActionToken = "a" + actionIndex++;
             observation.Actions.Add(action);
         }
-        return CombatPlayerObservationBoundary.Normalize(observation);
+        return CombatPlayerObservationBoundary
+            .FinalizeOwnedSimulationProjection(observation);
     }
 
     private static void ProjectOwnedRewardFeatures(

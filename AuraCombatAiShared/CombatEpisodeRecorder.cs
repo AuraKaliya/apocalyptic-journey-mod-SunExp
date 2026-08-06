@@ -15,6 +15,7 @@ public sealed class CombatEpisodeRecordingPolicy :
     private readonly string contentSetHash;
     private readonly string ownerModSetHash;
     private readonly string baseModelId;
+    private readonly bool recordWorldModelObservation;
     private readonly List<CombatEpisodeFrame> frames = new();
 
     public CombatEpisodeRecordingPolicy(
@@ -22,7 +23,8 @@ public sealed class CombatEpisodeRecordingPolicy :
         string decisionProfile,
         string contentSetHash = "",
         string ownerModSetHash = "",
-        string baseModelId = "")
+        string baseModelId = "",
+        bool recordWorldModelObservation = true)
     {
         this.inner = inner ?? throw new ArgumentNullException(nameof(inner));
         this.decisionProfile = string.IsNullOrWhiteSpace(decisionProfile)
@@ -35,6 +37,7 @@ public sealed class CombatEpisodeRecordingPolicy :
             ? CombatContentSetProtocol.EmptyOwnerModSetHash
             : ownerModSetHash;
         this.baseModelId = baseModelId ?? "";
+        this.recordWorldModelObservation = recordWorldModelObservation;
     }
 
     public string PolicyId => inner.PolicyId + ":episode";
@@ -116,7 +119,7 @@ public sealed class CombatEpisodeRecordingPolicy :
         };
     }
 
-    private static CombatEpisodeFrame CreateFrame(
+    private CombatEpisodeFrame CreateFrame(
         CombatSimulationPolicyContext context,
         CombatStateObservation observation,
         CombatDecision decision,
@@ -128,20 +131,32 @@ public sealed class CombatEpisodeRecordingPolicy :
             Turn = context.State?.Turn ?? 0,
             ActionSequence = context.State?.ActionSequence ?? 0,
             StateFingerprint = observation.Fingerprint,
-            StateFeatures = CombatPolicyValueEncoding.BuildStateFeatures(observation),
-            Observation = CombatWorldModelTokenizer.Build(observation),
             ExecutedCandidateId = selected?.CandidateId
                                   ?? decision.Action?.CandidateId
                                   ?? "",
             TrainingWeight = authoritativeTeacherOverride ? 1.5d : 1d
         };
-        foreach (var candidate in decision.Candidates ?? new List<CombatCandidateEvaluation>())
+        frame.SetCompactStateFeatures(
+            CombatPolicyValueEncoding.BuildCompactStateFeatures(observation));
+        if (recordWorldModelObservation)
+        {
+            frame.Observation =
+                CombatWorldModelTokenizer.BuildNormalizedOwned(observation);
+            CombatEpisodeStorageDiagnostics.WorldModelObservation(built: true);
+        }
+        else
+        {
+            CombatEpisodeStorageDiagnostics.WorldModelObservation(built: false);
+        }
+        foreach (var candidate in (IReadOnlyList<CombatCandidateEvaluation>?)
+                     decision.Candidates
+                 ?? Array.Empty<CombatCandidateEvaluation>())
         {
             if (candidate?.Action == null)
             {
                 continue;
             }
-            frame.Candidates.Add(new CombatEpisodeCandidate
+            var episodeCandidate = new CombatEpisodeCandidate
             {
                 CandidateId = candidate.Action.CandidateId,
                 SourceId = candidate.Action.SourceId,
@@ -157,9 +172,11 @@ public sealed class CombatEpisodeRecordingPolicy :
                 SearchReturnQuantiles = candidate.SearchReturnQuantiles
                     .Select(Finite)
                     .Take(16)
-                    .ToList(),
-                Features = CombatPolicyValueEncoding.BuildCandidateFeatures(candidate)
-            });
+                    .ToList()
+            };
+            episodeCandidate.SetCompactFeatures(
+                CombatPolicyValueEncoding.BuildCompactCandidateFeatures(candidate));
+            frame.Candidates.Add(episodeCandidate);
         }
         return frame;
     }

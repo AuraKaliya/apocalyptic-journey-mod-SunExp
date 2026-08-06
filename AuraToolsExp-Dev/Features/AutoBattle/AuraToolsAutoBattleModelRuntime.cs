@@ -65,7 +65,7 @@ internal sealed class AutoBattleTrainingStatus
 
 internal sealed class AutoBattleCandidateBundle
 {
-    public int SchemaVersion { get; set; } = 3;
+    public int SchemaVersion { get; set; } = 4;
 
     public string BundleId { get; set; } = "";
 
@@ -96,6 +96,14 @@ internal sealed class AutoBattleCandidateBundle
     public string FoundationRulesetHash { get; set; } = "";
 
     public string FoundationModelVersion { get; set; } = "";
+
+    public string FoundationAcceptanceKind { get; set; } = "";
+
+    public string FoundationPromotionProtocolVersion { get; set; } = "";
+
+    public double FoundationPairedRegressionUpperBound { get; set; }
+
+    public CombatFoundationModelAcceptance? FoundationAcceptance { get; set; }
 
     public string FoundationDistributionOrigin { get; set; } = "";
 
@@ -172,6 +180,8 @@ internal sealed class AutoBattleModelLibraryEntry
 
     public string ModelVersion { get; set; } = "";
 
+    public string AcceptanceKind { get; set; } = "";
+
     public string DistributionOrigin { get; set; } = "";
 
     public string SourcePackageSha256 { get; set; } = "";
@@ -183,7 +193,7 @@ internal sealed class AutoBattleModelLibraryEntry
 
 internal sealed class AutoBattleModelLibraryDocument
 {
-    public int SchemaVersion { get; set; } = 4;
+    public int SchemaVersion { get; set; } = 5;
 
     public List<AutoBattleModelLibraryEntry> Models { get; set; } = new();
 }
@@ -213,6 +223,10 @@ internal sealed class AutoBattleExternalValidationEntry
     public CombatModelCoverageAssessment? CoverageAssessment { get; set; }
 
     public string WorkerProvenance { get; set; } = "";
+
+    public string AcceptanceKind { get; set; } = "";
+
+    public string PromotionProtocolVersion { get; set; } = "";
 }
 
 internal sealed class AutoBattleTrainingSnapshotManifest
@@ -557,6 +571,8 @@ internal static class AuraToolsAutoBattleModelRuntime
                     trainingSubject,
                     declaredCoverage,
                     CurrentRuntimeContext());
+            var acceptance = CombatFoundationModelPackageProtocol
+                .NormalizeAcceptance(package!);
             modelId = package!.Model!.ModelId;
             if (string.IsNullOrWhiteSpace(modelId)
                 || string.Equals(modelId, "none", StringComparison.Ordinal))
@@ -602,7 +618,10 @@ internal static class AuraToolsAutoBattleModelRuntime
                             DeclaredCoverage = declaredCoverage,
                             CoverageAssessment = coverageAssessment,
                             WorkerProvenance =
-                                DescribeWorkerProvenance(package)
+                                DescribeWorkerProvenance(package),
+                            AcceptanceKind = acceptance.Classification,
+                            PromotionProtocolVersion =
+                                acceptance.PromotionProtocolVersion
                         }),
                     createBackup: true);
             }
@@ -727,7 +746,8 @@ internal static class AuraToolsAutoBattleModelRuntime
                 "foundation",
                 StringComparison.Ordinal)
             || !bundle.FoundationArtifactValidated
-            || bundle.PolicyValue == null)
+            || bundle.PolicyValue == null
+            || !ValidFoundationAcceptance(bundle))
         {
             reason = "所选模型不是已通过正确性验证的可移植底模";
             return false;
@@ -803,6 +823,14 @@ internal static class AuraToolsAutoBattleModelRuntime
         bundle.ContentSetHash = package.ContentSetHash;
         bundle.OwnerModSetHash = package.OwnerModSetHash;
         bundle.FoundationModelVersion = (package.ModelVersion ?? "").Trim().TrimStart('v', 'V');
+        var acceptance = CombatFoundationModelPackageProtocol
+            .NormalizeAcceptance(package);
+        bundle.FoundationAcceptanceKind = acceptance.Classification;
+        bundle.FoundationPromotionProtocolVersion =
+            acceptance.PromotionProtocolVersion;
+        bundle.FoundationPairedRegressionUpperBound =
+            acceptance.PairedRegressionWilsonUpperBound;
+        bundle.FoundationAcceptance = acceptance;
         bundle.FoundationDistributionOrigin = "external";
         bundle.ProjectionNormalWinRate =
             package.Validation.NormalWinRate;
@@ -1654,7 +1682,8 @@ internal static class AuraToolsAutoBattleModelRuntime
         {
             var bundle = ReadCandidateBundle(profile);
             if (bundle == null
-                || bundle.SchemaVersion != 3
+                || bundle.SchemaVersion < 3
+                || bundle.SchemaVersion > 4
                 || !string.Equals(
                     NormalizeProfile(bundle.Profile),
                     profile,
@@ -2460,7 +2489,7 @@ internal static class AuraToolsAutoBattleModelRuntime
         try
         {
             bundle = ReadCandidateBundle(profile) ?? new AutoBattleCandidateBundle();
-            if (bundle.SchemaVersion != 3
+            if ((bundle.SchemaVersion < 3 || bundle.SchemaVersion > 4)
                 || string.IsNullOrWhiteSpace(bundle.BundleId)
                 || !string.Equals(
                     NormalizeProfile(bundle.Profile),
@@ -2507,6 +2536,15 @@ internal static class AuraToolsAutoBattleModelRuntime
                         profile,
                         StringComparison.Ordinal)))
             {
+                return false;
+            }
+            if (string.Equals(
+                    bundle.ModelPurpose,
+                    "foundation",
+                    StringComparison.Ordinal)
+                && !ValidFoundationAcceptance(bundle))
+            {
+                reason = "底模验收证明与模型库协议不兼容";
                 return false;
             }
             reason = "";
@@ -2673,6 +2711,7 @@ internal static class AuraToolsAutoBattleModelRuntime
             existing.ProjectionAdvancedWinRate = bundle.ProjectionAdvancedWinRate;
             existing.BundleFile = fileName;
             existing.ModelVersion = bundle.FoundationModelVersion;
+            existing.AcceptanceKind = bundle.FoundationAcceptanceKind;
             existing.DistributionOrigin = bundle.FoundationDistributionOrigin;
             existing.SourcePackageSha256 = bundle.FoundationSourcePackageSha256;
             existing.SourcePackageFile = bundle.FoundationSourcePackageFile;
@@ -2999,6 +3038,14 @@ internal static class AuraToolsAutoBattleModelRuntime
         bundle.ContentSetHash = package.ContentSetHash;
         bundle.OwnerModSetHash = package.OwnerModSetHash;
         bundle.FoundationModelVersion = candidate.ModelVersion;
+        var acceptance = CombatFoundationModelPackageProtocol
+            .NormalizeAcceptance(package);
+        bundle.FoundationAcceptanceKind = acceptance.Classification;
+        bundle.FoundationPromotionProtocolVersion =
+            acceptance.PromotionProtocolVersion;
+        bundle.FoundationPairedRegressionUpperBound =
+            acceptance.PairedRegressionWilsonUpperBound;
+        bundle.FoundationAcceptance = acceptance;
         bundle.FoundationDistributionOrigin = "bundled";
         bundle.FoundationSourcePackageSha256 = candidate.SourceSha256;
         bundle.FoundationSourcePackageFile = candidate.SourceFileName;
@@ -3100,6 +3147,7 @@ internal static class AuraToolsAutoBattleModelRuntime
         entry.ProjectionAdvancedWinRate = bundle.ProjectionAdvancedWinRate;
         entry.BundleFile = fileName;
         entry.ModelVersion = bundle.FoundationModelVersion;
+        entry.AcceptanceKind = bundle.FoundationAcceptanceKind;
         entry.DistributionOrigin = bundle.FoundationDistributionOrigin;
         entry.SourcePackageSha256 = bundle.FoundationSourcePackageSha256;
         entry.SourcePackageFile = bundle.FoundationSourcePackageFile;
@@ -3151,7 +3199,7 @@ internal static class AuraToolsAutoBattleModelRuntime
             bundle = AuraSharedJson.Deserialize<AutoBattleCandidateBundle>(
                          File.ReadAllText(path))
                      ?? new AutoBattleCandidateBundle();
-            if (bundle.SchemaVersion != 3
+            if ((bundle.SchemaVersion < 3 || bundle.SchemaVersion > 4)
                 || !string.Equals(CandidateModelId(bundle), id, StringComparison.Ordinal)
                 || !string.Equals(
                     NormalizeProfile(bundle.Profile),
@@ -3290,6 +3338,33 @@ internal static class AuraToolsAutoBattleModelRuntime
                 subject);
     }
 
+    private static bool ValidFoundationAcceptance(
+        AutoBattleCandidateBundle bundle)
+    {
+        if (bundle.SchemaVersion < 4)
+        {
+            return true;
+        }
+        var acceptance = bundle.FoundationAcceptance;
+        if (acceptance == null
+            || !string.Equals(
+                bundle.FoundationAcceptanceKind,
+                acceptance.Classification,
+                StringComparison.Ordinal))
+        {
+            return false;
+        }
+        if (string.Equals(
+                acceptance.Classification,
+                "legacy-formal-acceptance",
+                StringComparison.Ordinal))
+        {
+            return acceptance.FormalIsolationPassed;
+        }
+        return CombatFoundationModelPackageProtocol.IsValidAcceptance(
+            acceptance);
+    }
+
     private static CombatModelCoverageAssessment? AssessBundleCoverage(
         AutoBattleCandidateBundle bundle)
     {
@@ -3354,7 +3429,7 @@ internal static class AuraToolsAutoBattleModelRuntime
         var library = AuraSharedJson.Deserialize<AutoBattleModelLibraryDocument>(
                           File.ReadAllText(path))
                       ?? new AutoBattleModelLibraryDocument();
-        library.SchemaVersion = Math.Max(4, library.SchemaVersion);
+        library.SchemaVersion = Math.Max(5, library.SchemaVersion);
         library.Models ??= new List<AutoBattleModelLibraryEntry>();
         return library;
     }
@@ -3362,7 +3437,7 @@ internal static class AuraToolsAutoBattleModelRuntime
     private static void WriteLibrary(AutoBattleModelLibraryDocument library)
     {
         EnsureModelLibraryMigrated();
-        library.SchemaVersion = Math.Max(4, library.SchemaVersion);
+        library.SchemaVersion = Math.Max(5, library.SchemaVersion);
         Directory.CreateDirectory(ModelLibraryDirectory());
         using var storage = new AuraSharedStorageCoordinator(AuraSharedPaths.RootDirectory);
         storage.WriteTextAtomic(
@@ -3395,6 +3470,7 @@ internal static class AuraToolsAutoBattleModelRuntime
             ProjectionAdvancedWinRate = source.ProjectionAdvancedWinRate,
             BundleFile = source.BundleFile,
             ModelVersion = source.ModelVersion,
+            AcceptanceKind = source.AcceptanceKind,
             DistributionOrigin = source.DistributionOrigin,
             SourcePackageSha256 = source.SourcePackageSha256,
             SourcePackageFile = source.SourcePackageFile,

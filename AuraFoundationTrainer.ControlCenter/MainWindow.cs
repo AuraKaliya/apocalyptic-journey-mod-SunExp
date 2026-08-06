@@ -283,6 +283,7 @@ internal sealed class MainWindow : Window
             "CapabilityProbeMinimumDepthGain",
             "能力探针深度诊断阈值（不用于晋级）");
         AddNumber(panel, "MaximumDegreeOfParallelism", "CPU 并行度", 1, 64);
+        AddNumber(panel, "ModelTrainingParallelism", "模型训练并行度", 1, 64);
 
         panel.Children.Add(Section("模型训练"));
         AddNumber(panel, "ModelEpochs", "最大 Epoch", 5, 200);
@@ -309,6 +310,13 @@ internal sealed class MainWindow : Window
         AddGradientShardSelect(panel);
         AddNumber(panel, "MinimumEpisodes", "最少训练 Episodes", 2, 1000);
         AddNumber(panel, "ModelReplayEpisodeLimit", "Replay 上限", 64, 20000);
+        AddNumber(panel, "ModelReplayFrameLimit", "Replay 总帧上限", 4096, 2000000);
+        AddNumber(
+            panel,
+            "ModelReplayEstimatedMemoryMegabytes",
+            "Replay 估算内存上限（MiB）",
+            256,
+            16384);
         AddNumber(panel, "ModelRetainedCandidates", "Top-K 候选", 1, 5);
         AddToggle(panel, "EnableFrameStratification", "启用帧分层再平衡");
         AddDouble(panel, "ModelMaximumFrameStratumWeight", "帧分层最大权重");
@@ -798,6 +806,9 @@ internal sealed class MainWindow : Window
     {
         return risk switch
         {
+            "healthy" => "泛化状态健康",
+            "watch" => "泛化状态观察",
+            "insufficient" => "泛化证据不足",
             "overfit" => "过拟合风险",
             "underfit" => "欠拟合风险",
             "balanced" => "拟合状态平衡",
@@ -1462,7 +1473,9 @@ internal sealed class MainWindow : Window
               + $"{telemetry.MaximumActiveBattleDepth}/{telemetry.MaximumCompletedBattleDepth}/37";
         var executionSummary =
             $"{telemetry.GovernanceProfile} · "
-            + $"固定 CPU {telemetry.EffectiveParallelism}/"
+            + $"冒险 CPU {telemetry.EffectiveParallelism}"
+            + $"/容量 {telemetry.ParallelismDecision?.CapacityParallelism ?? 0} · "
+            + $"训练 CPU {telemetry.ModelTrainingParallelism}/"
             + telemetry.InferenceExecutionMode;
         progressSecondary.Text = transformerTeacherPhase
             ? executionSummary + " · "
@@ -1508,16 +1521,30 @@ internal sealed class MainWindow : Window
             + $"{telemetry.SearchOriginalCandidates:N0}，"
             + $"deadline={telemetry.SearchTimeBudgetStops}，"
             + $"modelBudget={telemetry.SearchModelBudgetStops}\r\n"
-            + $"线程：active={telemetry.ActiveCampaigns}，"
-            + $"peak={telemetry.PeakConcurrentCampaigns}，"
-            + $"observed={telemetry.ObservedWorkerThreads}\r\n"
-            + $"推理批处理：requests={telemetry.InferenceRequests:N0}，"
+             + $"线程：active={telemetry.ActiveCampaigns}，"
+             + $"peak={telemetry.PeakConcurrentCampaigns}，"
+             + $"observed={telemetry.ObservedWorkerThreads}\r\n"
+             + $"调度：queued={telemetry.SchedulerQueuedWork}，"
+             + $"running={telemetry.SchedulerRunningWork}，"
+             + $"committed={telemetry.SchedulerCommittedWork}/"
+             + $"{telemetry.SchedulerCompletedWork}，"
+             + $"refill={telemetry.SchedulerRefillCount:N0}，"
+             + $"tailIdle={telemetry.SchedulerTailIdleCoreSeconds:0.0}核秒，"
+             + $"discard={telemetry.SchedulerSpeculativeDiscardedWork}\r\n"
+             + $"推理批处理：requests={telemetry.InferenceRequests:N0}，"
             + $"batches={telemetry.InferenceBatchEvaluations:N0}，"
             + $"avg={telemetry.InferenceAverageBatchSize:0.00}，"
             + $"timeouts={telemetry.InferenceTimeoutFlushes:N0}，"
             + $"fallback={telemetry.InferenceDirectFallbackRequests:N0}，"
             + $"adaptive={telemetry.InferenceAdaptiveFallbackActivations:N0}，"
-            + $"wait={telemetry.InferenceAverageWaitMicroseconds:0.0}us\r\n"
+             + $"wait={telemetry.InferenceAverageWaitMicroseconds:0.0}us，"
+             + $"direct={telemetry.InferenceDirectEvaluations:N0}，"
+             + $"directAvg="
+             + $"{telemetry.InferenceAverageDirectEvaluationMicroseconds:0.0}us，"
+             + $"directAlloc={telemetry.InferenceAverageDirectAllocatedBytes:0}B，"
+             + $"sparse={telemetry.InferenceAverageSparseFeatureCount:0.0}，"
+             + $"density={telemetry.InferenceSparseFeatureDensity:P1}，"
+             + $"mulSaved={telemetry.InferenceWeightMultiplicationReduction:P1}\r\n"
             + PerformanceProbeSummary(telemetry)
             + "\r\n"
             + $"GC：{telemetry.Gen0Collections}/"
@@ -1981,7 +2008,11 @@ internal sealed class MainWindow : Window
         CombatFoundationTrainingParameters parameters)
     {
         parameters.ParallelismProfile =
-            CombatFoundationExecutionProfileNames.Custom;
+            CombatFoundationExecutionProfileNames.Auto;
+        parameters.MaximumDegreeOfParallelism = Math.Max(
+            1,
+            Math.Min(32, Environment.ProcessorCount));
+        parameters.EnableMemoryCapacityParallelism = true;
         parameters.ReuseAutoTuneCache = false;
     }
 
@@ -2125,6 +2156,7 @@ internal sealed class MainWindow : Window
         p.CapabilityProbeMinimumDepthGain =
             Double("CapabilityProbeMinimumDepthGain");
         p.MaximumDegreeOfParallelism = Int("MaximumDegreeOfParallelism");
+        p.ModelTrainingParallelism = Int("ModelTrainingParallelism");
         p.InferenceExecutionMode = Convert.ToString(
                                        inferenceModeInput.SelectedItem,
                                        CultureInfo.InvariantCulture)
@@ -2168,6 +2200,11 @@ internal sealed class MainWindow : Window
         p.ModelMaximumFramesPerEpisode =
             Int("ModelMaximumFramesPerEpisode");
         p.ModelReplayEpisodeLimit = Int("ModelReplayEpisodeLimit");
+        p.ModelReplayFrameLimit = Int("ModelReplayFrameLimit");
+        p.ModelReplayEstimatedBytesLimit =
+            (long)Int("ModelReplayEstimatedMemoryMegabytes")
+            * 1024L
+            * 1024L;
         p.ModelRetainedCandidates = Int("ModelRetainedCandidates");
         p.ModelLearningRate = Double("ModelLearningRate");
         p.ModelL2 = Double("ModelL2");
@@ -2334,6 +2371,7 @@ internal sealed class MainWindow : Window
             "CapabilityProbeMinimumDepthGain",
             p.CapabilityProbeMinimumDepthGain);
         Set("MaximumDegreeOfParallelism", p.MaximumDegreeOfParallelism);
+        Set("ModelTrainingParallelism", p.ModelTrainingParallelism);
         inferenceModeInput.SelectedItem =
             CombatFoundationExecutionProfiles.NormalizeInferenceMode(
                 p.InferenceExecutionMode);
@@ -2379,6 +2417,12 @@ internal sealed class MainWindow : Window
             "ModelMaximumFramesPerEpisode",
             p.ModelMaximumFramesPerEpisode);
         Set("ModelReplayEpisodeLimit", p.ModelReplayEpisodeLimit);
+        Set("ModelReplayFrameLimit", p.ModelReplayFrameLimit);
+        Set(
+            "ModelReplayEstimatedMemoryMegabytes",
+            Math.Max(
+                256L,
+                p.ModelReplayEstimatedBytesLimit / (1024L * 1024L)));
         Set("ModelRetainedCandidates", p.ModelRetainedCandidates);
         Set("ModelLearningRate", p.ModelLearningRate);
         Set("ModelL2", p.ModelL2);

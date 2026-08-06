@@ -225,7 +225,17 @@ public static class CombatWorldModelTokenizer
     public static CombatObservationEnvelope Build(CombatStateObservation state)
     {
         if (state == null) throw new ArgumentNullException(nameof(state));
-        var normalized = CombatPlayerObservationBoundary.Normalize(state);
+        return BuildNormalizedOwned(
+            CombatPlayerObservationBoundary.Normalize(state));
+    }
+
+    internal static CombatObservationEnvelope BuildNormalizedOwned(
+        CombatStateObservation normalized)
+    {
+        if (normalized == null)
+        {
+            throw new ArgumentNullException(nameof(normalized));
+        }
         var result = new CombatObservationEnvelope
         {
             ObservationId = normalized.ObservationId,

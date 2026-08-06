@@ -24,12 +24,26 @@ if (-not $resolvedOutput.StartsWith($expectedRoot, [System.StringComparison]::Or
     throw "Foundation trainer output must stay inside $expectedRoot"
 }
 
+function Get-NormalizedTrainerPath {
+    param([string]$Path)
+
+    $fullPath = [System.IO.Path]::GetFullPath($Path)
+    if ($fullPath.StartsWith("\\?\UNC\", [System.StringComparison]::OrdinalIgnoreCase)) {
+        return "\\" + $fullPath.Substring(8)
+    }
+    if ($fullPath.StartsWith("\\?\", [System.StringComparison]::OrdinalIgnoreCase) -or
+        $fullPath.StartsWith("\??\", [System.StringComparison]::OrdinalIgnoreCase)) {
+        return $fullPath.Substring(4)
+    }
+    return $fullPath
+}
+
 function Get-RunningTrainerProcesses {
     param([string[]]$TargetPaths)
 
     $targets = @{}
     foreach ($path in $TargetPaths) {
-        $targets[[System.IO.Path]::GetFullPath($path)] = $true
+        $targets[(Get-NormalizedTrainerPath -Path $path)] = $true
     }
     $candidates = @(
         Get-CimInstance Win32_Process -ErrorAction SilentlyContinue |
@@ -43,7 +57,7 @@ function Get-RunningTrainerProcesses {
             Where-Object {
                 -not [string]::IsNullOrWhiteSpace($_.ExecutablePath) -and
                 $targets.ContainsKey(
-                    [System.IO.Path]::GetFullPath($_.ExecutablePath))
+                    (Get-NormalizedTrainerPath -Path $_.ExecutablePath))
             } |
             Sort-Object ProcessId
     )
@@ -113,9 +127,25 @@ function Request-WorkerCancellation {
         return $false
     }
     try {
-        $job = Get-Content -LiteralPath $jobPath -Raw |
-            ConvertFrom-Json
-        $cancellationPath = [string]$job.CancellationPath
+        $jobText = Get-Content -LiteralPath $jobPath -Raw
+        $cancellationPath = ""
+        try {
+            $job = $jobText | ConvertFrom-Json
+            $cancellationPath = [string]$job.CancellationPath
+        }
+        catch {
+            # Cancellation must remain available even when a legacy or
+            # concurrently produced large job document cannot be fully parsed.
+            # The path is a top-level scalar written near the document header.
+            $pathMatch = [System.Text.RegularExpressions.Regex]::Match(
+                $jobText,
+                '"CancellationPath"\s*:\s*"((?:\\.|[^"\\])*)"')
+            if ($pathMatch.Success) {
+                $cancellationPath =
+                    [System.Text.RegularExpressions.Regex]::Unescape(
+                        $pathMatch.Groups[1].Value)
+            }
+        }
         if ([string]::IsNullOrWhiteSpace($cancellationPath)) {
             return $false
         }

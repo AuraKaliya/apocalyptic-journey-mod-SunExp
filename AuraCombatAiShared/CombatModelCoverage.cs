@@ -344,6 +344,9 @@ public static class CombatFoundationModelCoverageProtocol
             }
             AddIds(cardIds, reward.GrantedCardIds);
             AddIds(relicIds, reward.GrantedRelicIds);
+            AddIds(relicIds, reward.RelicSetRequiredIds);
+            AddIds(relicIds, reward.RelicSetConsumedIds);
+            AddIds(relicIds, reward.RelicSetGrantedIds);
             AddIds(blessingIds, reward.GrantedBlessingIds);
             AddStatuses(statusIds, reward.InitialStatuses);
         }

@@ -21,25 +21,29 @@ public static class DecisionGraphEvaluator
         IReadOnlyDictionary<string, double> features)
     {
         var result = new DecisionGraphEvaluation();
+        EvaluateInto(graph, features, result);
+        return result;
+    }
+
+    public static void EvaluateInto(
+        DecisionGraph? graph,
+        IReadOnlyDictionary<string, double> features,
+        DecisionGraphEvaluation result)
+    {
+        if (result == null) throw new ArgumentNullException(nameof(result));
+        result.Rejected = false;
+        result.TerminalNodeId = "";
+        Reset(result.UtilityDelta);
         if (graph == null || graph.Nodes == null || graph.Nodes.Count == 0)
         {
-            return result;
-        }
-
-        var nodes = new Dictionary<string, DecisionGraphNode>(StringComparer.OrdinalIgnoreCase);
-        for (var i = 0; i < graph.Nodes.Count; i++)
-        {
-            var node = graph.Nodes[i];
-            if (node != null && !string.IsNullOrWhiteSpace(node.Id))
-            {
-                nodes[node.Id] = node;
-            }
+            return;
         }
 
         var currentId = graph.RootNodeId;
         for (var step = 0; step < MaxSteps && !string.IsNullOrWhiteSpace(currentId); step++)
         {
-            if (!nodes.TryGetValue(currentId, out var node))
+            var node = FindLastNode(graph.Nodes, currentId);
+            if (node == null)
             {
                 break;
             }
@@ -49,13 +53,13 @@ public static class DecisionGraphEvaluator
             {
                 result.Rejected = true;
                 result.TerminalNodeId = node.Id;
-                return result;
+                return;
             }
 
             if (node.Terminal)
             {
                 result.TerminalNodeId = node.Id;
-                return result;
+                return;
             }
 
             currentId = Matches(node.Condition, features)
@@ -64,7 +68,41 @@ public static class DecisionGraphEvaluator
         }
 
         result.TerminalNodeId = currentId ?? "";
-        return result;
+    }
+
+    private static DecisionGraphNode? FindLastNode(
+        IReadOnlyList<DecisionGraphNode> nodes,
+        string id)
+    {
+        for (var index = nodes.Count - 1; index >= 0; index--)
+        {
+            var node = nodes[index];
+            if (node != null
+                && !string.IsNullOrWhiteSpace(node.Id)
+                && string.Equals(
+                    node.Id,
+                    id,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                return node;
+            }
+        }
+        return null;
+    }
+
+    private static void Reset(DecisionUtility utility)
+    {
+        utility.Survival = 0d;
+        utility.Lethal = 0d;
+        utility.Tempo = 0d;
+        utility.Resource = 0d;
+        utility.DeckEconomy = 0d;
+        utility.Scaling = 0d;
+        utility.Synergy = 0d;
+        utility.Continuation = 0d;
+        utility.Risk = 0d;
+        utility.Uncertainty = 0d;
+        utility.Coordination = 0d;
     }
 
     private static bool Matches(

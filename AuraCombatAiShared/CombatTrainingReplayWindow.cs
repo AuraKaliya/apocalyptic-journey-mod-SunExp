@@ -340,8 +340,8 @@ public static class CombatTrainingReplayWindowSelector
         CombatTrainingReplayWindowResult result)
     {
         foreach (var pair in entries
-                     .SelectMany(entry => entry.Frame.StateFeatures
-                                         ?? new Dictionary<string, double>())
+                     .SelectMany(entry =>
+                         entry.Frame.EnumerateStateFeatures())
                      .Where(pair => pair.Key.StartsWith(
                          CombatRoleStrategyFeatureNames.TrainingQuotaPrefix,
                          StringComparison.OrdinalIgnoreCase)))
@@ -440,7 +440,7 @@ public static class CombatTrainingReplayWindowSelector
                 Finite(candidate.SearchReturnStandardError))));
         var stateUncertainty = Math.Min(
             1d,
-            Math.Max(0d, Feature(frame.StateFeatures, "uncertainty")));
+            Math.Max(0d, Feature(frame, "uncertainty")));
         var critical = Math.Max(
             frame.DeathTarget,
             riskSpread >= 0.20d ? 1d : 0d);
@@ -592,12 +592,12 @@ public static class CombatTrainingReplayWindowSelector
             return false;
         }
         var dominated = Feature(
-            endTurn.Features,
+            endTurn,
             CombatTurnFeatureNames.EndTurnDominated) > 0.5d;
         var executedEndTurn = IsEndTurn(executed);
         var playableAlternative = candidates.Any(candidate =>
             candidate.Legal && !IsEndTurn(candidate));
-        var unusedPower = Feature(frame.StateFeatures, "power") > 0.5d;
+        var unusedPower = Feature(frame, "power") > 0.5d;
         return dominated
                || executedEndTurn && playableAlternative && unusedPower;
     }
@@ -608,7 +608,29 @@ public static class CombatTrainingReplayWindowSelector
                    candidate.SourceId,
                    "simulation:end-turn",
                    StringComparison.OrdinalIgnoreCase)
-               || Feature(candidate.Features, "actionKindEndTurn") > 0.5d;
+               || Feature(candidate, "actionKindEndTurn") > 0.5d;
+    }
+
+    private static double Feature(CombatEpisodeFrame frame, string key)
+    {
+        return frame != null
+               && frame.TryGetStateFeature(key, out var value)
+               && !double.IsNaN(value)
+               && !double.IsInfinity(value)
+            ? value
+            : 0d;
+    }
+
+    private static double Feature(
+        CombatEpisodeCandidate candidate,
+        string key)
+    {
+        return candidate != null
+               && candidate.TryGetFeature(key, out var value)
+               && !double.IsNaN(value)
+               && !double.IsInfinity(value)
+            ? value
+            : 0d;
     }
 
     private static double Feature(

@@ -196,6 +196,12 @@ public sealed class CombatCampaignRewardDefinition
 
     public List<string> GrantedRelicIds { get; set; } = new();
 
+    public List<string> RelicSetRequiredIds { get; set; } = new();
+
+    public List<string> RelicSetConsumedIds { get; set; } = new();
+
+    public List<string> RelicSetGrantedIds { get; set; } = new();
+
     public List<CombatInitialStatus> InitialStatuses { get; set; } = new();
 }
 
@@ -2735,6 +2741,51 @@ public static class CombatCampaignRewardSelector
                     && string.Equals(
                         item.RewardId,
                         relicId,
+                        StringComparison.OrdinalIgnoreCase));
+                if (granted != null)
+                {
+                    ApplyProgressionEffect(definition, state, granted);
+                }
+            }
+        }
+        if (reward.RelicSetRequiredIds.Count > 0
+            && reward.RelicSetRequiredIds.All(requiredId =>
+                state.Relics.Contains(
+                    requiredId,
+                    StringComparer.OrdinalIgnoreCase)))
+        {
+            foreach (var consumedId in reward.RelicSetConsumedIds)
+            {
+                var consumed = definition.Rewards.FirstOrDefault(item =>
+                    item.Kind == CombatCampaignRewardKind.Relic
+                    && string.Equals(
+                        item.RewardId,
+                        consumedId,
+                        StringComparison.OrdinalIgnoreCase));
+                if (consumed != null)
+                {
+                    RemoveProgressionEffect(definition, state, consumed);
+                }
+                state.Relics.RemoveAll(item => string.Equals(
+                    item,
+                    consumedId,
+                    StringComparison.OrdinalIgnoreCase));
+            }
+            foreach (var grantedId in reward.RelicSetGrantedIds)
+            {
+                if (state.Relics.Count >= definition.RelicLimit
+                    || state.Relics.Contains(
+                        grantedId,
+                        StringComparer.OrdinalIgnoreCase))
+                {
+                    continue;
+                }
+                state.Relics.Add(grantedId);
+                var granted = definition.Rewards.FirstOrDefault(item =>
+                    item.Kind == CombatCampaignRewardKind.Relic
+                    && string.Equals(
+                        item.RewardId,
+                        grantedId,
                         StringComparison.OrdinalIgnoreCase));
                 if (granted != null)
                 {

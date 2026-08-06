@@ -17,7 +17,7 @@ public static class AuraSkinRuntime
     private const string GlobalObjectName = "AuraSkin.Global";
     private const string ComponentFullName = "AuraSkin.Shared.AuraSkinRuntime+AuraSkinComponent";
 
-    public const string CurrentBuildId = "aura-skin-shared-2026-07-20-v7";
+    public const string CurrentBuildId = "aura-skin-shared-2026-08-07-v9";
     public const int CurrentProtocolVersion = 7;
     public const int MinimumSupportedProtocolVersion = 7;
 

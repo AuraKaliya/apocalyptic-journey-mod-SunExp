@@ -28,8 +28,8 @@ internal sealed class ControllerSettings
     private static CombatFoundationTrainingParameters CreateDefaultParameters()
     {
         // Keep the independent trainer's vetted development preset explicit.
-        // Persisted controller settings take precedence except for the fixed
-        // CPU execution contract enforced by the control center.
+        // Persisted controller settings take precedence except for the
+        // independently calibrated CPU execution contract.
         return new CombatFoundationTrainingParameters
         {
             GovernanceProfile =
@@ -47,7 +47,7 @@ internal sealed class ControllerSettings
             PreflightCampaignsPerDifficulty = 16,
             TuningInterval = 2,
             ParallelismProfile =
-                CombatFoundationExecutionProfileNames.Custom,
+                CombatFoundationExecutionProfileNames.Auto,
             InferenceExecutionMode =
                 CombatFoundationExecutionProfileNames.DirectInference,
             InferenceParallelism = 0,
@@ -102,7 +102,7 @@ internal sealed class ControllerSettings
             TransformerTeacherCpuThreads = 0,
             TransformerTeacherCpuInteropThreads = 0,
             TransformerTeacherMicroBatchSize = 0,
-            TransformerTeacherDataLoaderWorkers = 0,
+            TransformerTeacherDataLoaderWorkers = 2,
             TransformerTeacherPrefetchBatches = 2,
             TransformerTeacherEnablePinnedMemory = true,
             TransformerTeacherEnableMixedPrecision = true,

@@ -492,7 +492,7 @@ foreach ($anchor in @(
 
 foreach ($anchor in @(
     "MaximumDegreeOfParallelism",
-    "Parallel.For",
+    "CombatFoundationWorkScheduler",
     "Interlocked.Increment",
     "EnableEarlyValidationStop",
     "EarlyStopReason",
@@ -633,7 +633,7 @@ foreach ($anchor in @(
     "ExpertReplayEpisodeLimit",
     "archive loading deferred to worker",
     "CombatFoundationModelPackageProtocol",
-    "foundation-model-package-v3.json",
+    "foundation-model-package-v4.json",
     "training-accepted",
     "CombatPolicyValueNetworkValidator.TryValidate"
 )) {
@@ -957,12 +957,13 @@ if (-not (Test-Path -LiteralPath $bundledRulesPath -PathType Leaf) `
 $bundledRules = Get-Content -LiteralPath $bundledRulesPath -Raw -Encoding UTF8 | ConvertFrom-Json
 $bundledCampaign = Get-Content -LiteralPath $bundledCampaignV2Path -Raw -Encoding UTF8 | ConvertFrom-Json
 $authoritativeSeed = Get-Content -LiteralPath $authoritativeSeedPath -Raw -Encoding UTF8 | ConvertFrom-Json
+$bundledRulesRaw = Get-Content -LiteralPath $bundledRulesPath -Raw -Encoding UTF8
 if ($bundledRules.version -ne "witch-base-evaluation-v2" `
     -or $bundledCampaign.rulesetVersion -ne $bundledRules.version `
     -or $bundledCampaign.player.roleId -ne "career_1" `
     -or $bundledCampaign.PSObject.Properties.Name -contains "retainBlockBetweenTurns" `
     -or $authoritativeSeed.seedId -ne "witch-base-authoritative-seed" `
-    -or (Get-Content -LiteralPath $bundledRulesPath -Raw -Encoding UTF8).Contains("Terrias")) {
+    -or $bundledRulesRaw -match '(?i)(Terrias_|Saya_|RonoveEmberOfTheEnd_)') {
     throw "Bundled standard evaluation package does not satisfy the base-game-only contract."
 }
 $divineChoice = @($bundledRules.cards | Where-Object {
@@ -970,7 +971,7 @@ $divineChoice = @($bundledRules.cards | Where-Object {
 }) | Select-Object -First 1
 if ($null -eq $divineChoice `
     -or $divineChoice.requiresEnemyTarget `
-    -or $divineChoice.verificationSource -ne "Decompiler:v1.0.23816797" `
+    -or $divineChoice.verificationSource -ne "Decompiler:v1.0.24591395" `
     -or $divineChoice.actionContract.version -ne "action-contract-v2" `
     -or @($divineChoice.actionContract.preconditions).Count -ne 2 `
     -or $divineChoice.actionContract.preconditionFailureOutcome -ne "NoEffect" `
@@ -1097,8 +1098,8 @@ foreach ($anchor in @(
     }
 }
 foreach ($anchor in @(
-    "foundation-auto-tune-v6-steady-state",
-    "foundation-auto-tune-v6.json"
+    "foundation-auto-tune-v10-memory-capacity-only",
+    "foundation-auto-tune-v10.json"
 )) {
     if (-not $foundationAutoTuning.Contains($anchor)) {
         throw "Aura foundation auto-tune protocol is missing: $anchor"

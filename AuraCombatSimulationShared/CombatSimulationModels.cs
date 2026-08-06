@@ -1296,6 +1296,10 @@ public sealed class CombatSimulationPolicyDecisionMetrics
 
     public double SearchMilliseconds { get; set; }
 
+    public long ObservationProjectionAllocatedBytes { get; set; }
+
+    public long DecisionEngineAllocatedBytes { get; set; }
+
     public int ModelEvaluations { get; set; }
 
     public int ModelCacheHits { get; set; }
@@ -1659,6 +1663,10 @@ public sealed class CombatSimulationMetrics
     public long SearchNodes { get; set; }
 
     public double SearchMillisecondsTotal { get; set; }
+
+    public long ObservationProjectionAllocatedBytes { get; set; }
+
+    public long DecisionEngineAllocatedBytes { get; set; }
 
     public long ModelEvaluations { get; set; }
 

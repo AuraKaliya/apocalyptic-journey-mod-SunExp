@@ -37,30 +37,36 @@ public static class CombatFoundationCheckpointCatalogProtocol
         IReadOnlyList<CombatPolicyValueEpochMetrics>? history,
         out string reason)
     {
-        var gap = validationLoss - trainingLoss;
-        var points = history ?? Array.Empty<CombatPolicyValueEpochMetrics>();
-        var best = points.Count == 0
-            ? validationLoss
-            : points.Min(item => item.Validation?.CompositeLoss
-                                 ?? double.MaxValue);
-        var last = points.Count == 0
-            ? validationLoss
-            : points[points.Count - 1].Validation?.CompositeLoss
-              ?? validationLoss;
-        if (gap >= 0.08d || last - best >= 0.05d)
-        {
-            reason = "训练/验证泛化差距或验证损失回升明显";
-            return "overfit";
-        }
-        if (trainingLoss >= 0.25d
-            && validationLoss >= 0.25d
-            && Math.Abs(gap) <= 0.05d)
-        {
-            reason = "训练与验证损失同时偏高且相近";
-            return "underfit";
-        }
-        reason = "未发现明确的过拟合或欠拟合信号";
-        return "balanced";
+        return Risk(
+            new CombatPolicyValueMetricSnapshot
+            {
+                FrameCount = trainingLoss > 0d ? 1 : 0,
+                CompositeLoss = trainingLoss
+            },
+            new CombatPolicyValueMetricSnapshot
+            {
+                FrameCount = validationLoss > 0d ? 1 : 0,
+                CompositeLoss = validationLoss
+            },
+            null,
+            history,
+            out reason);
+    }
+
+    public static string Risk(
+        CombatPolicyValueMetricSnapshot? training,
+        CombatPolicyValueMetricSnapshot? validation,
+        CombatPolicyValueMetricSnapshot? test,
+        IReadOnlyList<CombatPolicyValueEpochMetrics>? history,
+        out string reason)
+    {
+        var assessment = CombatGeneralizationAssessmentProtocol.Assess(
+            training,
+            validation,
+            test,
+            history);
+        reason = assessment.Reason;
+        return assessment.Level;
     }
 
     public static CombatFoundationCheckpointCatalogEntry? Recommend(
@@ -91,18 +97,31 @@ public static class CombatFoundationCheckpointCatalogProtocol
                 .Where(item => item.SelectionAnchorMetrics.CompositeLoss
                                <= best + bestStandardError)
                 .OrderByDescending(item => item.QualityGatesPassed)
-                .ThenBy(item => item.Risk == "balanced" ? 0 : 1)
+                .ThenBy(item => RiskPriority(item.Risk))
                 .ThenBy(item => item.CompletedEpochs)
                 .ThenByDescending(item => item.CreatedUtc)
                 .First();
         }
         return candidates
             .OrderByDescending(item => item.QualityGatesPassed)
-            .ThenBy(item => item.Risk == "balanced" ? 0 : 1)
+            .ThenBy(item => RiskPriority(item.Risk))
             .ThenBy(item => item.ValidationLoss)
             .ThenBy(item => Math.Max(0d, item.GeneralizationGap))
             .ThenBy(item => item.CompletedEpochs)
             .First();
+    }
+
+    private static int RiskPriority(string risk)
+    {
+        return risk switch
+        {
+            CombatGeneralizationRiskLevels.Healthy => 0,
+            "balanced" => 0,
+            CombatGeneralizationRiskLevels.Watch => 1,
+            CombatGeneralizationRiskLevels.Underfit => 2,
+            CombatGeneralizationRiskLevels.Overfit => 3,
+            _ => 4
+        };
     }
 }
 

@@ -71,7 +71,7 @@ public static class SkinUiRuntime
 
             var career = context.Arguments[0] as DataConfig;
             var parent = context.Arguments[1] as Transform;
-            ApplyImage(parent, "RoleBack", career, "CareerImage", true, "");
+            ApplyCareerImage(parent, career, false);
             var controller = EnsureController(entry);
             controller?.RefreshState();
             controller?.QueueRefresh();
@@ -87,7 +87,7 @@ public static class SkinUiRuntime
                 return;
             }
 
-            ApplyImage(item.transform, "Image", context.Arguments[0] as DataConfig, "ChoiceIcon", true, "");
+            ApplyImage(item.transform, "Image", context.Arguments[0] as DataConfig, "ChoiceIcon", true, "", false);
         });
     }
 
@@ -97,7 +97,7 @@ public static class SkinUiRuntime
         {
             if (context.Target is UnityEngine.Component component)
             {
-                ApplyImage(component.transform, "Content/PlayerStatus/Avatar", RoleTable.Instance?.Career, "Avatar", false, RoleTable.Instance?.Id ?? "");
+                ApplyImage(component.transform, "Content/PlayerStatus/Avatar", RoleTable.Instance?.Career, "Avatar", false, RoleTable.Instance?.Id ?? "", false);
             }
         });
     }
@@ -109,7 +109,7 @@ public static class SkinUiRuntime
             if (context.Target is UnityEngine.Component component && context.Arguments is { Length: > 0 })
             {
                 var role = context.Arguments[0] as RoleTable;
-                ApplyImage(component.transform, "Avatar", role?.Career, "Avatar", false, role?.Id ?? "");
+                ApplyImage(component.transform, "Avatar", role?.Career, "Avatar", false, role?.Id ?? "", false);
             }
         });
     }
@@ -122,7 +122,7 @@ public static class SkinUiRuntime
                 && context.Arguments is { Length: > 0 }
                 && context.Arguments[0] is StatusUIData data)
             {
-                ApplyImage(component.transform, "Avatar", data.career, "Avatar", false, data.instanceId);
+                ApplyImage(component.transform, "Avatar", data.career, "Avatar", false, data.instanceId, false);
             }
         });
     }
@@ -139,8 +139,8 @@ public static class SkinUiRuntime
                 return;
             }
 
-            ApplyImage(component.transform, "Content/RoleMsg/Avatar", data.career, "DollIcon", true, data.instanceId);
-            ApplyImage(component.transform, "Background", data.career, "Character", false, data.instanceId);
+            ApplyImage(component.transform, "Content/RoleMsg/Avatar", data.career, "DollIcon", true, data.instanceId, false);
+            ApplyImage(component.transform, "Background", data.career, "Character", false, data.instanceId, false);
         });
     }
 
@@ -153,10 +153,10 @@ public static class SkinUiRuntime
 
         SkinRuntime.EnsureAnimation(career);
         var careerWindow = FindCareerWindow(entry);
-        ApplyImage(careerWindow, "RoleBack", career, "CareerImage", true, "");
-        ApplyCareerChoiceIcons(entry);
-
         var careerId = SkinRuntime.CareerId(career);
+        ApplyCareerImage(careerWindow, career, true);
+        ApplyCareerChoiceIcons(entry, careerId);
+
         foreach (var animatorRole in entry.GetComponentsInChildren<AnimatorRole>(true))
         {
             if (animatorRole == null
@@ -221,18 +221,41 @@ public static class SkinUiRuntime
         return entry.careerChoiceParent ?? entry.transform.Find("Window Manager/Windows/职业选择");
     }
 
-    private static void ApplyCareerChoiceIcons(GameEntryUI entry)
+    private static void ApplyCareerChoiceIcons(GameEntryUI entry, string refreshCareerId = "")
     {
         foreach (var showCareer in entry.showCareers)
         {
             if (showCareer != null)
             {
-                ApplyImage(showCareer.transform, "Image", showCareer.dataConfig, "ChoiceIcon", true, "");
+                var applyDefault = !string.IsNullOrWhiteSpace(refreshCareerId)
+                                   && string.Equals(
+                                       SkinRuntime.CareerId(showCareer.dataConfig),
+                                       refreshCareerId,
+                                       StringComparison.OrdinalIgnoreCase);
+                ApplyImage(showCareer.transform, "Image", showCareer.dataConfig, "ChoiceIcon", true, "", applyDefault);
             }
         }
     }
 
-    private static void ApplyImage(Transform? root, string childPath, DataConfig? career, string field, bool nativeSize, string instanceId)
+    private static void ApplyCareerImage(Transform? root, DataConfig? career, bool fallbackToDefault)
+    {
+        var image = root?.Find("RoleBack")?.GetComponent<Image>();
+        if (image != null)
+        {
+            image.preserveAspect = true;
+        }
+
+        ApplyImage(root, "RoleBack", career, "CareerImage", false, "", fallbackToDefault);
+    }
+
+    private static void ApplyImage(
+        Transform? root,
+        string childPath,
+        DataConfig? career,
+        string field,
+        bool nativeSize,
+        string instanceId,
+        bool fallbackToDefault)
     {
         if (root == null || career == null)
         {
@@ -241,7 +264,9 @@ public static class SkinUiRuntime
 
         var target = string.IsNullOrWhiteSpace(childPath) ? root : root.Find(childPath);
         var image = target?.GetComponent<Image>();
-        var sprite = SkinRuntime.LoadSprite(career, field, instanceId);
+        var sprite = fallbackToDefault
+            ? SkinRuntime.LoadSprite(career, field, instanceId)
+            : SkinRuntime.LoadSelectedSprite(career, field, instanceId);
         if (image == null || sprite == null)
         {
             return;

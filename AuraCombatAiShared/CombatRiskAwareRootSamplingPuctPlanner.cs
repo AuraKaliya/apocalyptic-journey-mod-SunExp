@@ -1,4 +1,5 @@
 using System;
+using System.Collections.Concurrent;
 using System.Collections.Generic;
 using System.Diagnostics;
 using System.Linq;
@@ -66,6 +67,9 @@ public sealed class CombatSearchResult
 
 public sealed class CombatRiskAwareRootSamplingPuctPlanner
 {
+    private static readonly ConcurrentBag<WeakReference<
+        CombatRiskAwareRootSamplingPuctPlanner>> Instances = new();
+    private static readonly CombatPolicyValuePrediction EmptyPrediction = new();
     private readonly IDecisionResidualModel residualModel;
     private readonly ICombatSearchGuidanceModel guidanceModel;
     private readonly ICombatPolicyValueModel policyValueModel;
@@ -87,6 +91,7 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
         new(StringComparer.OrdinalIgnoreCase);
     private readonly Dictionary<string, double> leafFeatures =
         new(StringComparer.OrdinalIgnoreCase);
+    private readonly DecisionGraphEvaluation scoreGraphEvaluation = new();
     private readonly CombatPolicyValueInput leafInput = new();
     private readonly CombatPolicyValueInput rootPolicyInput = new();
     private readonly CombatPolicyValueInput edgePolicyInput = new();
@@ -107,10 +112,14 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
     private CombatBeliefState rootBelief = new();
     private CombatSimulationState? reusableSimulationRoot;
     private readonly List<string> determinizationUnknownWorkspace = new();
+    private readonly Dictionary<string, double> determinizationKnowledgeValues =
+        new(StringComparer.OrdinalIgnoreCase);
     private readonly CombatSimulationStateArena stateArena = new();
     private readonly SearchObjectArena searchObjectArena = new();
+    private readonly CombatActionModelArena actionModelArena = new();
     private double[] networkQuantileScratch = new double[16];
     private int determinizationIndex;
+    private ulong rootDeterminizationSeedBasis;
     private CombatSearchExplorationOptions? rootExploration;
     private int originalCandidateCount;
     private int modelEvaluations;
@@ -131,6 +140,46 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
         this.useRuntimeRegistries = useRuntimeRegistries;
         isolatedSimulationRules = simulationRules?.Where(rule => rule != null).ToArray()
                                   ?? Array.Empty<ICombatSimulationRule>();
+        Instances.Add(new WeakReference<CombatRiskAwareRootSamplingPuctPlanner>(
+            this));
+    }
+
+    public static CombatSearchMemoryTrimReport TrimRetainedSearchMemory()
+    {
+        long retained = 0;
+        var planners = 0;
+        foreach (var weak in Instances)
+        {
+            if (!weak.TryGetTarget(out var planner))
+            {
+                continue;
+            }
+            retained += planner.TrimRetainedMemory();
+            planners++;
+        }
+        return new CombatSearchMemoryTrimReport
+        {
+            PlannerCount = planners,
+            ReleasedEstimatedBytes = retained
+        };
+    }
+
+    private long TrimRetainedMemory()
+    {
+        long retained = stateArena.Trim();
+        retained += searchObjectArena.Trim();
+        retained += actionModelArena.Trim();
+        retained += transpositions.Count * 64L;
+        retained += policyValueCache.Count * 128L;
+        transpositions.Clear();
+        policyValueCache.Clear();
+#if NET8_0_OR_GREATER
+        transpositions.TrimExcess();
+        policyValueCache.TrimExcess();
+#endif
+        actions = Array.Empty<SearchAction>();
+        reusableSimulationRoot = null;
+        return retained;
     }
 
     public CombatSearchResult Choose(
@@ -139,6 +188,7 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
         CombatDecisionProfile selectedProfile,
         CombatSearchExplorationOptions? exploration = null)
     {
+        var allocationStart = ReadThreadAllocatedBytes();
         rootObservation = state;
         profile = selectedProfile;
         transpositions.Clear();
@@ -157,7 +207,10 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
             exploration?.DeterminizationOffset ?? 0);
         rootExploration = exploration;
         rootBelief = CombatBeliefTracker.FromObservation(state);
+        rootDeterminizationSeedBasis =
+            CombatPublicObservationHasher.CreateSeedBasis(state);
         stateArena.BeginSearch();
+        actionModelArena.BeginSearch();
         var budget = CombatSearchBudgetPolicy.Resolve(
             state,
             candidates,
@@ -220,10 +273,26 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
             state,
             useGroupCount,
             rootBelief,
-            CombatPublicObservationHasher.Seed(state, determinizationIndex++));
-        reusableSimulationRoot = rootState.Clone();
+            CombatPublicObservationHasher.Seed(
+                rootDeterminizationSeedBasis,
+                determinizationIndex++));
+        determinizationKnowledgeValues.Clear();
+        for (var index = 0;
+             index < rootState.DrawPileCardIds.Count
+             && index < rootState.DrawPileValues.Count;
+             index++)
+        {
+            determinizationKnowledgeValues[rootState.DrawPileCardIds[index]] =
+                rootState.DrawPileValues[index];
+        }
+        reusableSimulationRoot = rootState.CloneForTransition(
+            cloneCardPiles: true,
+            cloneFeatures: true,
+            cloneThreats: true,
+            stateArena);
         var root = NewNode(rootState);
         EnsureEdges(root);
+        var simulationAllocationStart = ReadThreadAllocatedBytes();
 
         var simulations = 0;
         // Every legal root action receives evidence before PUCT may concentrate the budget.
@@ -297,6 +366,7 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
             }
             lastBestAction = currentBest;
         }
+        var resultAllocationStart = ReadThreadAllocatedBytes();
 
         var rootEdges = PresentEdges(root)
             .Where(edge => edge.ActionIndex >= 0 && edge.Visits > 0)
@@ -356,7 +426,7 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
         }
 
         var steps = BuildPrincipalVariation(root, best);
-        return new CombatSearchResult
+        var result = new CombatSearchResult
         {
             HasAction = true,
             Action = actions[best.ActionIndex].Action,
@@ -399,6 +469,21 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
                       + "/" + originalCandidateCount
                       + BuildLoopSummary()
         };
+        var allocationEnd = ReadThreadAllocatedBytes();
+        CombatDecisionAllocationDiagnostics.RecordSearchBreakdown(
+            simulationAllocationStart - allocationStart,
+            resultAllocationStart - simulationAllocationStart,
+            allocationEnd - resultAllocationStart);
+        return result;
+    }
+
+    private static long ReadThreadAllocatedBytes()
+    {
+#if NET8_0_OR_GREATER
+        return GC.GetAllocatedBytesForCurrentThread();
+#else
+        return 0L;
+#endif
     }
 
     private double RootConfidence(
@@ -496,16 +581,30 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
 
     private void Simulate(SearchNode root, SearchEdge? forcedRoot)
     {
+        var detailedAllocations =
+            CombatDecisionAllocationDiagnostics.DetailedEnabled;
+        var simulationAllocationStart = detailedAllocations
+            ? ReadThreadAllocatedBytes()
+            : 0L;
         var currentState = reusableSimulationRoot
                            ?? throw new InvalidOperationException(
                                "Search root was not initialized.");
+        var determinizationStart = detailedAllocations
+            ? ReadThreadAllocatedBytes()
+            : 0L;
         CombatForwardModel.ResetRootDeterminization(
             currentState,
             rootBelief,
             CombatPublicObservationHasher.Seed(
-                rootObservation,
+                rootDeterminizationSeedBasis,
                 determinizationIndex++),
-            determinizationUnknownWorkspace);
+            determinizationUnknownWorkspace,
+            determinizationKnowledgeValues);
+        if (detailedAllocations)
+        {
+            CombatDecisionAllocationDiagnostics.RecordRootDeterminization(
+                ReadThreadAllocatedBytes() - determinizationStart);
+        }
         var node = root;
         var nodePathCount = 1;
         var edgePathCount = 0;
@@ -528,10 +627,26 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
                 break;
             }
 
+            var expansionStart = detailedAllocations
+                ? ReadThreadAllocatedBytes()
+                : 0L;
             EnsureEdges(node, currentState);
+            if (detailedAllocations)
+            {
+                CombatDecisionAllocationDiagnostics.RecordSearchExpansion(
+                    ReadThreadAllocatedBytes() - expansionStart);
+            }
+            var selectionStart = detailedAllocations
+                ? ReadThreadAllocatedBytes()
+                : 0L;
             var edge = ply == 0 && forcedRoot != null
                 ? forcedRoot
                 : SelectEdge(node, currentState);
+            if (detailedAllocations)
+            {
+                CombatDecisionAllocationDiagnostics.RecordSearchSelection(
+                    ReadThreadAllocatedBytes() - selectionStart);
+            }
             if (edge == null)
             {
                 var leaf = EvaluateLeaf(currentState);
@@ -556,10 +671,18 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
             edgePathCount++;
             if (searchAction.Action.Kind == CombatActionKind.EndTurn)
             {
+                var applyAllocationStart = detailedAllocations
+                    ? ReadThreadAllocatedBytes()
+                    : 0L;
                 var endState = CombatForwardModel.ApplyEndTurn(
                     currentState,
                     profile,
                     stateArena);
+                if (detailedAllocations)
+                {
+                    CombatDecisionAllocationDiagnostics.RecordForwardApply(
+                        ReadThreadAllocatedBytes() - applyAllocationStart);
+                }
                 var endLeaf = EvaluateLeaf(endState);
                 terminalValue = endLeaf.Value;
                 risk = endLeaf.DeathRisk;
@@ -570,6 +693,9 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
             var outcome = SelectOutcome(edge);
             var immediate = Score(currentState, searchAction.Action);
             rewardPathBuffer[edgePathCount - 1] = immediate;
+            var applyStart = detailedAllocations
+                ? ReadThreadAllocatedBytes()
+                : 0L;
             var nextState = CombatForwardModel.Apply(
                 currentState,
                 searchAction.Action,
@@ -577,6 +703,11 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
                 outcome.Outcome,
                 profile,
                 stateArena);
+            if (detailedAllocations)
+            {
+                CombatDecisionAllocationDiagnostics.RecordForwardApply(
+                    ReadThreadAllocatedBytes() - applyStart);
+            }
             if (RequiresFreshObservation(searchAction.Action))
             {
                 var observationLeaf = EvaluateLeaf(nextState);
@@ -591,10 +722,18 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
                 cyclePathCount);
             if (cycleStartIndex >= 0)
             {
+                var cycleAnalysisStart = detailedAllocations
+                    ? ReadThreadAllocatedBytes()
+                    : 0L;
                 var assessment = CombatLoopSafetyAnalyzer.Analyze(
                     cycleStatePathBuffer[cycleStartIndex],
                     nextState,
                     profile);
+                if (detailedAllocations)
+                {
+                    CombatDecisionAllocationDiagnostics.RecordCycleAnalysis(
+                        ReadThreadAllocatedBytes() - cycleAnalysisStart);
+                }
                 var leaf = EvaluateLeaf(nextState);
                 switch (assessment.Classification)
                 {
@@ -633,6 +772,9 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
                 cycleStatePathBuffer[cyclePathCount] = nextState;
                 cyclePathCount++;
             }
+            var transpositionStart = detailedAllocations
+                ? ReadThreadAllocatedBytes()
+                : 0L;
             var hash = nextState.Hash();
             SearchNode child;
             if (transpositions.TryGetValue(hash, out var existing))
@@ -655,6 +797,11 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
             }
 
             outcome.RecordChild(hash, child, searchObjectArena);
+            if (detailedAllocations)
+            {
+                CombatDecisionAllocationDiagnostics.RecordSearchTransposition(
+                    ReadThreadAllocatedBytes() - transpositionStart);
+            }
             outcome.Visits++;
             node = child;
             currentState = child.State;
@@ -691,6 +838,9 @@ CompleteSimulation:
             leafNode.ValueSum += terminalValue;
             leafNode.RiskSum += risk;
         }
+        var backpropagationStart = detailedAllocations
+            ? ReadThreadAllocatedBytes()
+            : 0L;
         var value = terminalValue;
         for (var i = edgePathCount - 1; i >= 0; i--)
         {
@@ -699,6 +849,16 @@ CompleteSimulation:
             nodePathBuffer[i].Visits++;
             nodePathBuffer[i].ValueSum += value;
             nodePathBuffer[i].RiskSum += risk;
+        }
+        if (detailedAllocations)
+        {
+            CombatDecisionAllocationDiagnostics.RecordSearchBackpropagation(
+                ReadThreadAllocatedBytes() - backpropagationStart);
+        }
+        if (detailedAllocations)
+        {
+            CombatDecisionAllocationDiagnostics.RecordSimulation(
+                ReadThreadAllocatedBytes() - simulationAllocationStart);
         }
     }
 
@@ -770,8 +930,9 @@ CompleteSimulation:
                         stateHash,
                         out var cached)
                     && usablePolicyCandidates.All(candidate =>
-                        cached.PolicyLogits.ContainsKey(
-                            candidate.Action.CandidateId ?? "")))
+                        cached.TryGetPolicyLogit(
+                            candidate.Action.CandidateId ?? "",
+                            out _)))
                 {
                     networkPrediction = cached;
                     modelCacheHits++;
@@ -819,8 +980,15 @@ CompleteSimulation:
         {
             return;
         }
-        foreach (var edge in PresentEdges(node))
+        for (var edgeIndex = 0;
+             edgeIndex < node.Edges.Length;
+             edgeIndex++)
         {
+            var edge = node.Edges[edgeIndex];
+            if (edge == null)
+            {
+                continue;
+            }
             edge.NormalizedPrior = edge.Prior / priorTotal;
         }
     }
@@ -870,15 +1038,37 @@ CompleteSimulation:
         {
             return edge.Outcomes[0];
         }
-        return edge.Outcomes
-            .OrderBy(outcome =>
-                outcome.Visits / Math.Max(0.000001d, outcome.Outcome.Probability))
-            .ThenByDescending(outcome => outcome.Outcome.Probability)
-            .First();
+        var selected = edge.Outcomes[0];
+        var selectedRatio = selected.Visits
+                            / Math.Max(
+                                0.000001d,
+                                selected.Outcome.Probability);
+        for (var index = 1; index < edge.Outcomes.Count; index++)
+        {
+            var candidate = edge.Outcomes[index];
+            var ratio = candidate.Visits
+                        / Math.Max(
+                            0.000001d,
+                            candidate.Outcome.Probability);
+            if (ratio < selectedRatio
+                || ratio.Equals(selectedRatio)
+                && candidate.Outcome.Probability
+                > selected.Outcome.Probability)
+            {
+                selected = candidate;
+                selectedRatio = ratio;
+            }
+        }
+        return selected;
     }
 
     private double Score(CombatSimulationState simulation, CombatActionObservation source)
     {
+        var detailedAllocations =
+            CombatDecisionAllocationDiagnostics.DetailedEnabled;
+        var allocationStart = detailedAllocations
+            ? ReadThreadAllocatedBytes()
+            : 0L;
         var state = ToObservation(simulation);
         var effectiveCost = CombatForwardModel.EffectiveCost(simulation, source);
         PrepareScoreAction(source, effectiveCost);
@@ -889,18 +1079,32 @@ CompleteSimulation:
             scoreAction,
             utility,
             profile);
-        var graph = DecisionGraphEvaluator.Evaluate(
-            profile.Graph,
-            scoreActionFeatures);
-        if (graph.Rejected)
+        if (profile.Graph?.Nodes?.Count > 0)
         {
-            return -1000d;
+            DecisionGraphEvaluator.EvaluateInto(
+                profile.Graph,
+                scoreActionFeatures,
+                scoreGraphEvaluation);
+            if (scoreGraphEvaluation.Rejected)
+            {
+                return -1000d;
+            }
+            utility.Add(scoreGraphEvaluation.UtilityDelta);
         }
-        utility.Add(graph.UtilityDelta);
-        var residual = CombatDecisionEngine.EvaluateResidual(
-            residualModel,
-            scoreActionFeatures);
-        return profile.Weights.Score(utility) + residual.AppliedCorrection;
+        var residualCorrection = ReferenceEquals(
+                residualModel,
+                NullDecisionResidualModel.Instance)
+            ? 0d
+            : CombatDecisionEngine.EvaluateResidual(
+                residualModel,
+                scoreActionFeatures).AppliedCorrection;
+        var score = profile.Weights.Score(utility) + residualCorrection;
+        if (detailedAllocations)
+        {
+            CombatDecisionAllocationDiagnostics.RecordScoreEvaluation(
+                ReadThreadAllocatedBytes() - allocationStart);
+        }
+        return score;
     }
 
     private CombatStateObservation ToObservation(CombatSimulationState simulation)
@@ -918,8 +1122,16 @@ CompleteSimulation:
         for (var i = 0; i < simulation.Threats.Length; i++)
         {
             var item = simulation.Threats[i];
-            if (item.SourceRuntimeId != 0
-                && !simulation.Enemies.Any(enemy => enemy.RuntimeId == item.SourceRuntimeId && enemy.Hp > 0))
+            var sourceAlive = item.SourceRuntimeId == 0;
+            for (var enemyIndex = 0;
+                 !sourceAlive && enemyIndex < simulation.Enemies.Length;
+                 enemyIndex++)
+            {
+                var enemy = simulation.Enemies[enemyIndex];
+                sourceAlive = enemy.RuntimeId == item.SourceRuntimeId
+                              && enemy.Hp > 0;
+            }
+            if (!sourceAlive)
             {
                 continue;
             }
@@ -1015,7 +1227,7 @@ CompleteSimulation:
                 policyValueModel,
                 NullCombatPolicyValueModel.Instance))
         {
-            networkPrediction = new CombatPolicyValuePrediction();
+            networkPrediction = EmptyPrediction;
         }
         else
         {
@@ -1084,7 +1296,11 @@ CompleteSimulation:
             {
                 Action = action,
                 Evaluation = legal[i],
-                Model = CombatForwardModel.Resolve(state, action, useRuntimeRegistries),
+                Model = CombatForwardModel.Resolve(
+                    state,
+                    action,
+                    useRuntimeRegistries,
+                    actionModelArena),
                 Prior = priors[i],
                 UseGroupIndex = useGroupIndexes[useKey],
                 UseLimit = Math.Max(1, useGroupMembers[useKey].Count),
@@ -1384,9 +1600,19 @@ CompleteSimulation:
 
     private CombatLeafEvaluation EvaluateLeaf(CombatSimulationState state)
     {
+        var detailedAllocations =
+            CombatDecisionAllocationDiagnostics.DetailedEnabled;
+        var allocationStart = detailedAllocations
+            ? ReadThreadAllocatedBytes()
+            : 0L;
         var baseline = state.EvaluateLeaf(profile);
         if (state.AllEnemiesDefeated)
         {
+            if (detailedAllocations)
+            {
+                CombatDecisionAllocationDiagnostics.RecordLeafEvaluation(
+                    ReadThreadAllocatedBytes() - allocationStart);
+            }
             return baseline;
         }
         CombatSearchFeatureProjector.ProjectLeafInto(
@@ -1394,21 +1620,27 @@ CompleteSimulation:
             state,
             profile,
             rootObservation.Features);
-        var stateHash = state.Hash();
-        if (!policyValueCache.TryGetValue(stateHash, out var network))
+        CombatPolicyValuePrediction network;
+        if (ReferenceEquals(
+                policyValueModel,
+                NullCombatPolicyValueModel.Instance))
         {
-            network = ReferenceEquals(
-                    policyValueModel,
-                    NullCombatPolicyValueModel.Instance)
-                ? new CombatPolicyValuePrediction()
-                : EvaluatePolicyValue(PrepareLeafInput());
-            policyValueCache[stateHash] = network;
+            network = EmptyPrediction;
         }
         else
         {
-            modelCacheHits++;
+            var stateHash = state.Hash();
+            if (!policyValueCache.TryGetValue(stateHash, out network!))
+            {
+                network = EvaluatePolicyValue(PrepareLeafInput());
+                policyValueCache[stateHash] = network;
+            }
+            else
+            {
+                modelCacheHits++;
+            }
         }
-        return new CombatLeafEvaluation
+        var result = new CombatLeafEvaluation
         {
             Value = baseline.Value
                     + guidanceModel.LeafValue(leafFeatures)
@@ -1423,6 +1655,12 @@ CompleteSimulation:
                         network.DeathProbability - baseline.DeathRisk)
                     * 0.25d))
         };
+        if (detailedAllocations)
+        {
+            CombatDecisionAllocationDiagnostics.RecordLeafEvaluation(
+                ReadThreadAllocatedBytes() - allocationStart);
+        }
+        return result;
     }
 
     private CombatPolicyValueInput PrepareLeafInput()
@@ -1450,7 +1688,7 @@ CompleteSimulation:
         if (modelEvaluations >= modelEvaluationBudget)
         {
             modelBudgetExhausted = true;
-            return new CombatPolicyValuePrediction();
+            return EmptyPrediction;
         }
         modelEvaluations++;
         return policyValueModel.Evaluate(input);
@@ -1460,7 +1698,7 @@ CompleteSimulation:
         CombatPolicyValuePrediction prediction,
         string candidateId)
     {
-        return prediction.PolicyLogits.TryGetValue(candidateId ?? "", out var value)
+        return prediction.TryGetPolicyLogit(candidateId ?? "", out var value)
                && !double.IsNaN(value)
                && !double.IsInfinity(value)
             ? Math.Max(-4d, Math.Min(4d, value))
@@ -1472,11 +1710,10 @@ CompleteSimulation:
         string candidateId,
         double tailQuantile)
     {
-        if (prediction?.ActionReturnQuantiles == null
-            || !prediction.ActionReturnQuantiles.TryGetValue(
+        if (prediction == null
+            || !prediction.TryGetActionQuantiles(
                 candidateId ?? "",
                 out var quantiles)
-            || quantiles == null
             || quantiles.Count < 4)
         {
             return 0d;
@@ -1922,6 +2159,12 @@ CompleteSimulation:
         private int outcomeCursor;
         private int evidenceCursor;
 
+        public long EstimatedRetainedBytes =>
+            nodes.Count * 128L
+            + edges.Count * 192L
+            + outcomes.Count * 128L
+            + evidence.Count * 48L;
+
         public void BeginSearch(int currentActionCount)
         {
             actionCount = Math.Max(0, currentActionCount);
@@ -1974,10 +2217,35 @@ CompleteSimulation:
             return item;
         }
 
+        public long Trim()
+        {
+            var retained = EstimatedRetainedBytes;
+            nodes.Clear();
+            edges.Clear();
+            outcomes.Clear();
+            evidence.Clear();
+            nodes.TrimExcess();
+            edges.TrimExcess();
+            outcomes.TrimExcess();
+            evidence.TrimExcess();
+            nodeCursor = 0;
+            edgeCursor = 0;
+            outcomeCursor = 0;
+            evidenceCursor = 0;
+            return retained;
+        }
+
         private static T Add<T>(ICollection<T> target, T item)
         {
             target.Add(item);
             return item;
         }
     }
+}
+
+public sealed class CombatSearchMemoryTrimReport
+{
+    public int PlannerCount { get; set; }
+
+    public long ReleasedEstimatedBytes { get; set; }
 }

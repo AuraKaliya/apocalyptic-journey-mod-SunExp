@@ -762,11 +762,11 @@ public sealed class AdaptedCombatPolicyValueModel : ICombatPolicyValueModel
                     adapter.FeatureEncodingMode);
                 var delta = LowRankDelta(adapter, state, action);
                 var key = candidate.CandidateId ?? "";
-                result.PolicyLogits.TryGetValue(key, out var basisLogit);
-                result.PolicyLogits[key] = Clamp(
+                result.TryGetPolicyLogit(key, out var basisLogit);
+                result.SetPolicyLogit(key, Clamp(
                     basisLogit + delta,
                     -30d,
-                    30d);
+                    30d));
             }
         }
     }
