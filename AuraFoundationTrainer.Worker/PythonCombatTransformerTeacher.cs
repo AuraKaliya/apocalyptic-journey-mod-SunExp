@@ -11,6 +11,8 @@ internal sealed class PythonCombatTransformerTeacher :
     ICombatTransformerTeacher
 {
     private const string ProgressPrefix = "AURA_TEACHER_PROGRESS ";
+    private const string CorpusIdentityIndexFileName =
+        "corpus-identities-v1.txt";
     private readonly string resultDirectory;
     private readonly string scriptPath;
     private readonly string runtimeCachePath;
@@ -95,6 +97,9 @@ internal sealed class PythonCombatTransformerTeacher :
         var datasetPath = Path.Combine(
             corpusDirectory,
             "world-model-corpus-v3.jsonl");
+        var corpusManifestPath = Path.Combine(
+            corpusDirectory,
+            "corpus-manifest-v1.json");
         var annotationsPath = Path.Combine(
             iterationDirectory,
             "world-model-annotations-v2.jsonl");
@@ -112,12 +117,35 @@ internal sealed class PythonCombatTransformerTeacher :
 
         report.CorpusCompatibilityKey = corpusCompatibilityKey;
         report.TeacherCompatibilityKey = teacherCompatibilityKey;
+        var existingManifest = ReadCorpusManifest(
+            corpusManifestPath,
+            corpusCompatibilityKey);
+        var sourceFrameUpperBound = (context.Episodes
+                                     ?? Array.Empty<CombatEpisode>())
+            .Where(episode => episode?.Authoritative == true)
+            .Sum(episode => episode.Frames?.Count ?? 0);
+        var incrementalUpdate = existingManifest != null
+                                && CombatTransformerTeacherCorpusProtocol
+                                    .ShouldUseIncrementalExport(
+                                        existingManifest.FrameCount,
+                                        sourceFrameUpperBound);
+        var existingIdentities = incrementalUpdate
+            ? ReadCorpusIdentities(
+                datasetPath,
+                corpusDirectory,
+                existingManifest!,
+                cancellationToken)
+            : null;
+        report.IncrementalCorpusUpdate = incrementalUpdate;
         var bindings = ExportDataset(
             context.Episodes ?? Array.Empty<CombatEpisode>(),
             options,
             currentDatasetPath,
             context,
-            cancellationToken);
+            cancellationToken,
+            existingIdentities,
+            out var skippedExistingFrames);
+        report.SkippedExistingCorpusFrames = skippedExistingFrames;
         ReportProgress(context, new CombatTransformerTeacherProgress
         {
             Stage = "merging",
@@ -125,14 +153,22 @@ internal sealed class PythonCombatTransformerTeacher :
             TotalFrames = Math.Max(1, bindings.Count),
             Message = "正在去重并合并累计 Transformer 语料"
         });
-        var corpus = MergeCorpus(
-            datasetPath,
-            currentDatasetPath,
-            corpusDirectory,
-            corpusCompatibilityKey,
-            bindings,
-            options.MaximumFrames,
-            cancellationToken);
+        var exportedFrames = Math.Max(
+            0,
+            bindings.Count - skippedExistingFrames);
+        var corpus = incrementalUpdate
+                     && exportedFrames == 0
+                     && existingManifest != null
+            ? CorpusFromManifest(existingManifest)
+            : MergeCorpus(
+                datasetPath,
+                currentDatasetPath,
+                corpusDirectory,
+                corpusCompatibilityKey,
+                bindings,
+                options.MaximumFrames,
+                cancellationToken);
+        BindCorpusRows(datasetPath, bindings, cancellationToken);
         ReportProgress(context, new CombatTransformerTeacherProgress
         {
             Stage = "merged",
@@ -141,6 +177,19 @@ internal sealed class PythonCombatTransformerTeacher :
             Message = "累计 Transformer 语料已就绪"
         });
         report.FrameCount = corpus.FrameCount;
+        report.CorpusMaturity = CombatTransformerTeacherCorpusProtocol
+            .CorpusMaturity(corpus.FrameCount, options.MinimumFrames);
+        report.CorpusDistillationWeightCap =
+            CombatTransformerTeacherCorpusProtocol.DistillationWeightCap(
+                corpus.FrameCount,
+                options.MinimumFrames);
+        report.CorpusGrowthFrames = Math.Max(
+            0,
+            corpus.FrameCount - (existingManifest?.FrameCount ?? 0));
+        report.CorpusGrowthRatio = report.CorpusGrowthFrames
+                                   / (double)Math.Max(
+                                       1,
+                                       existingManifest?.FrameCount ?? 0);
         report.CurrentFrameCount = corpus.CurrentFrames;
         report.ReusedCorpusFrames = corpus.ReusedFrames;
         report.DeduplicatedCorpusFrames = corpus.DeduplicatedFrames;
@@ -202,18 +251,24 @@ internal sealed class PythonCombatTransformerTeacher :
         var driftRefresh = options.EnableAdaptiveRefresh
                            && report.DatasetDriftScore
                               >= options.AdaptiveRefreshDriftThreshold;
+        var corpusGrowthRefresh = report.CorpusGrowthFrames >= 256
+                                  || report.CorpusGrowthRatio >= 0.20d;
+        report.RefreshTriggeredByCorpusGrowth = corpusGrowthRefresh;
         var trainingEnabled = !warmStarted
                               || !cpuBackend
                               || finalIteration
                               || intervalRefresh
-                              || driftRefresh;
+                              || driftRefresh
+                              || corpusGrowthRefresh;
         report.RefreshReason = !warmStarted
             ? "cold-start"
             : !cpuBackend
                 ? "accelerator-refresh"
                 : finalIteration
                     ? "final-refresh"
-                    : driftRefresh
+                    : corpusGrowthRefresh
+                        ? "corpus-growth"
+                        : driftRefresh
                         ? "dataset-drift"
                         : intervalRefresh
                             ? "maximum-staleness"
@@ -306,8 +361,15 @@ internal sealed class PythonCombatTransformerTeacher :
                 && report.ValidationDynamicsMse <= 0.5d
                 && Finite(report.ValidationOutcomeMae)
                 && report.ValidationOutcomeMae <= 0.5d;
+            var requiredAnchorFrames = Math.Min(
+                192,
+                Math.Max(64, report.FrameCount / 5));
+            report.AnchorCoverageGatePassed =
+                !options.EnableFixedAnchorValidation
+                || report.AnchorValidationFrames >= requiredAnchorFrames;
             report.QualityGatePassed = report.PolicyQualityGatePassed
-                                       && report.WorldModelQualityGatePassed;
+                                       && report.WorldModelQualityGatePassed
+                                       && report.AnchorCoverageGatePassed;
             report.Applied = report.Success
                              && report.QualityGatePassed
                              && report.FrameCount >= options.MinimumFrames
@@ -328,6 +390,11 @@ internal sealed class PythonCombatTransformerTeacher :
             {
                 report.Message =
                     "Transformer world model withheld: dynamics or outcome validation gate failed.";
+            }
+            else if (report.Success && !report.AnchorCoverageGatePassed)
+            {
+                report.Message =
+                    "Transformer teacher withheld: fixed-anchor validation coverage is too small.";
             }
             else if (string.IsNullOrWhiteSpace(report.Message))
             {
@@ -385,12 +452,16 @@ internal sealed class PythonCombatTransformerTeacher :
         CombatTransformerTeacherOptions options,
         string path,
         CombatTransformerTeacherContext context,
-        CancellationToken cancellationToken)
+        CancellationToken cancellationToken,
+        HashSet<string>? excludedIdentities,
+        out int skippedExistingFrames)
     {
         var bindings = new List<FrameBinding>();
+        skippedExistingFrames = 0;
         var totalFrames = episodes.Sum(episode =>
             episode?.Frames?.Count ?? 0);
         var completedFrames = 0;
+        var exportedRowIndex = 0;
         var started = Stopwatch.StartNew();
         using var writer = new StreamWriter(
             path,
@@ -457,12 +528,6 @@ internal sealed class PythonCombatTransformerTeacher :
                 {
                     continue;
                 }
-                var policy = CombatPolicyValueBatchTrainer.PolicyTargets(
-                    candidates,
-                    frame.ExecutedCandidateId,
-                    1.25d,
-                    0.95d);
-                var rowIndex = bindings.Count;
                 var runKey = StableRunKey(episode);
                 var identity = runKey
                                + "|"
@@ -473,8 +538,25 @@ internal sealed class PythonCombatTransformerTeacher :
                                + frame.ActionSequence
                                + "|"
                                + frame.StateFingerprint;
+                var policy = CombatPolicyValueBatchTrainer.PolicyTargets(
+                    candidates,
+                    frame.ExecutedCandidateId,
+                    1.25d,
+                    0.95d);
                 var strategy = CombatPolicyValueBatchTrainer
                     .StrategicFrameStratum(frame.StateFeatures);
+                bindings.Add(new FrameBinding
+                {
+                    Frame = frame,
+                    Candidates = candidates,
+                    Strategy = strategy,
+                    Identity = identity
+                });
+                if (excludedIdentities?.Contains(identity) == true)
+                {
+                    skippedExistingFrames++;
+                    continue;
+                }
                 var hasNextState = episodeFrameIndex + 1 < frames.Count;
                 var nextState = hasNextState
                     ? CombatPolicyValueEncoding.EncodeState(
@@ -484,7 +566,7 @@ internal sealed class PythonCombatTransformerTeacher :
                     : new double[options.StateDimensions];
                 var row = new TeacherDatasetRow
                 {
-                    I = rowIndex,
+                    I = exportedRowIndex++,
                     E = episodeIndex,
                     Y = runKey,
                     F = episodeFrameIndex,
@@ -533,13 +615,6 @@ internal sealed class PythonCombatTransformerTeacher :
                     Z = hasNextState ? 0 : 1
                 };
                 writer.WriteLine(JsonConvert.SerializeObject(row, Formatting.None));
-                bindings.Add(new FrameBinding
-                {
-                    Frame = frame,
-                    Candidates = candidates,
-                    Strategy = strategy,
-                    Identity = identity
-                });
             }
         }
         ReportProgress(context, new CombatTransformerTeacherProgress
@@ -550,6 +625,96 @@ internal sealed class PythonCombatTransformerTeacher :
             Message = "冻结 Replay 数据集已导出"
         });
         return bindings;
+    }
+
+    private static TeacherCorpusManifest? ReadCorpusManifest(
+        string path,
+        string compatibilityKey)
+    {
+        if (!File.Exists(path))
+        {
+            return null;
+        }
+        try
+        {
+            var manifest = JsonConvert.DeserializeObject<TeacherCorpusManifest>(
+                File.ReadAllText(path, Encoding.UTF8));
+            return manifest != null
+                   && string.Equals(
+                       manifest.Protocol,
+                       CombatTransformerTeacherCorpusProtocol.Version,
+                       StringComparison.Ordinal)
+                   && string.Equals(
+                       manifest.CompatibilityKey,
+                       compatibilityKey,
+                       StringComparison.Ordinal)
+                ? manifest
+                : null;
+        }
+        catch
+        {
+            return null;
+        }
+    }
+
+    private static HashSet<string> ReadCorpusIdentities(
+        string path,
+        string corpusDirectory,
+        TeacherCorpusManifest manifest,
+        CancellationToken cancellationToken)
+    {
+        var indexPath = Path.Combine(
+            corpusDirectory,
+            CorpusIdentityIndexFileName);
+        if (File.Exists(indexPath))
+        {
+            try
+            {
+                var indexed = File.ReadLines(indexPath, Encoding.UTF8)
+                    .Select(line => line.Trim())
+                    .Where(line => line.Length > 0)
+                    .ToList();
+                if (indexed.Count == manifest.FrameCount
+                    && string.Equals(
+                        DatasetFingerprint(indexed),
+                        manifest.Fingerprint,
+                        StringComparison.Ordinal))
+                {
+                    return indexed.ToHashSet(StringComparer.Ordinal);
+                }
+            }
+            catch
+            {
+                // Fall back to the authoritative JSONL corpus below.
+            }
+        }
+        var descriptors = new Dictionary<string, CorpusFrameDescriptor>(
+            StringComparer.Ordinal);
+        if (File.Exists(path))
+        {
+            ReadCorpusDescriptors(
+                path,
+                current: false,
+                descriptors,
+                cancellationToken);
+        }
+        return descriptors.Keys.ToHashSet(StringComparer.Ordinal);
+    }
+
+    private static CorpusMergeResult CorpusFromManifest(
+        TeacherCorpusManifest manifest)
+    {
+        return new CorpusMergeResult
+        {
+            FrameCount = Math.Max(0, manifest.FrameCount),
+            CurrentFrames = 0,
+            ReusedFrames = Math.Max(0, manifest.FrameCount),
+            Fingerprint = manifest.Fingerprint ?? "",
+            StrategyFrames = new Dictionary<string, int>(
+                manifest.StrategyFrames
+                ?? new Dictionary<string, int>(StringComparer.Ordinal),
+                StringComparer.Ordinal)
+        };
     }
 
     private static CorpusMergeResult MergeCorpus(
@@ -650,6 +815,9 @@ internal sealed class PythonCombatTransformerTeacher :
                     group => group.Count(),
                     StringComparer.Ordinal)
         };
+        WriteCorpusIdentityIndex(
+            Path.Combine(corpusDirectory, CorpusIdentityIndexFileName),
+            selected.Select(item => item.Identity));
         var manifest = new TeacherCorpusManifest
         {
             CompatibilityKey = compatibilityKey,
@@ -663,6 +831,25 @@ internal sealed class PythonCombatTransformerTeacher :
             JsonConvert.SerializeObject(manifest, Formatting.Indented),
             new UTF8Encoding(false));
         return result;
+    }
+
+    private static void WriteCorpusIdentityIndex(
+        string path,
+        IEnumerable<string> identities)
+    {
+        var temporaryPath = path + ".tmp-" + Guid.NewGuid().ToString("N");
+        try
+        {
+            File.WriteAllLines(
+                temporaryPath,
+                identities.OrderBy(item => item, StringComparer.Ordinal),
+                new UTF8Encoding(false));
+            File.Move(temporaryPath, path, overwrite: true);
+        }
+        finally
+        {
+            TryDelete(temporaryPath);
+        }
     }
 
     private static int ReadCorpusDescriptors(
@@ -872,6 +1059,39 @@ internal sealed class PythonCombatTransformerTeacher :
               + line.Substring(comma);
     }
 
+    private static void BindCorpusRows(
+        string corpusPath,
+        IReadOnlyList<FrameBinding> bindings,
+        CancellationToken cancellationToken)
+    {
+        foreach (var binding in bindings)
+        {
+            binding.RowIndex = -1;
+        }
+        if (!File.Exists(corpusPath) || bindings.Count == 0)
+        {
+            return;
+        }
+        var descriptors = new Dictionary<string, CorpusFrameDescriptor>(
+            StringComparer.Ordinal);
+        ReadCorpusDescriptors(
+            corpusPath,
+            current: false,
+            descriptors,
+            cancellationToken);
+        var rowByIdentity = descriptors.Values.ToDictionary(
+            item => item.Identity,
+            item => item.SourceLine,
+            StringComparer.Ordinal);
+        foreach (var binding in bindings)
+        {
+            if (rowByIdentity.TryGetValue(binding.Identity, out var rowIndex))
+            {
+                binding.RowIndex = rowIndex;
+            }
+        }
+    }
+
     private static string CorpusStratum(CorpusFrameDescriptor item)
     {
         return item.Difficulty
@@ -941,8 +1161,10 @@ internal sealed class PythonCombatTransformerTeacher :
     {
         var start = new ProcessStartInfo
         {
-            FileName = pythonExecutable,
-            WorkingDirectory = Path.GetDirectoryName(scriptPath)!,
+            FileName = CombatFoundationPathRuntime.ForExternalProcess(
+                pythonExecutable),
+            WorkingDirectory = CombatFoundationPathRuntime.ForFileSystem(
+                Path.GetDirectoryName(scriptPath)!),
             UseShellExecute = false,
             CreateNoWindow = true,
             RedirectStandardOutput = true,
@@ -950,11 +1172,34 @@ internal sealed class PythonCombatTransformerTeacher :
             StandardOutputEncoding = Encoding.UTF8,
             StandardErrorEncoding = Encoding.UTF8
         };
-        Add(start, scriptPath);
-        Add(start, "--input", datasetPath);
-        Add(start, "--annotations", annotationsPath);
-        Add(start, "--model", modelPath);
-        Add(start, "--report", reportPath);
+        if (!CombatFoundationPathRuntime.FileExists(datasetPath))
+        {
+            throw new FileNotFoundException(
+                "Transformer corpus is unavailable before process launch "
+                + "(logicalLength="
+                + CombatFoundationPathRuntime.Normalize(datasetPath).Length
+                + ", externalPath="
+                + CombatFoundationPathRuntime.ForExternalProcess(datasetPath)
+                + ").",
+                datasetPath);
+        }
+        Add(start, CombatFoundationPathRuntime.ForExternalProcess(scriptPath));
+        Add(
+            start,
+            "--input",
+            CombatFoundationPathRuntime.ForExternalProcess(datasetPath));
+        Add(
+            start,
+            "--annotations",
+            CombatFoundationPathRuntime.ForExternalProcess(annotationsPath));
+        Add(
+            start,
+            "--model",
+            CombatFoundationPathRuntime.ForExternalProcess(modelPath));
+        Add(
+            start,
+            "--report",
+            CombatFoundationPathRuntime.ForExternalProcess(reportPath));
         Add(start, "--backend", options.Backend);
         Add(start, "--epochs", trainingEnabled ? effectiveEpochs : 0);
         Add(start, "--batch-size", options.BatchSize);
@@ -970,11 +1215,14 @@ internal sealed class PythonCombatTransformerTeacher :
         Add(start, "--prefetch-batches", options.PrefetchBatches);
         Add(start, "--pin-memory", options.EnablePinnedMemory ? 1 : 0);
         Add(start, "--mixed-precision", options.EnableMixedPrecision ? 1 : 0);
-        Add(start, "--runtime-cache", runtimeCachePath);
+        Add(
+            start,
+            "--runtime-cache",
+            CombatFoundationPathRuntime.ForExternalProcess(runtimeCachePath));
         Add(
             start,
             "--anchor",
-            anchorPath);
+            CombatFoundationPathRuntime.ForExternalProcess(anchorPath));
         Add(
             start,
             "--fixed-anchor",
@@ -985,7 +1233,11 @@ internal sealed class PythonCombatTransformerTeacher :
             options.MaximumHeadRegression);
         if (!string.IsNullOrWhiteSpace(resumeModelPath))
         {
-            Add(start, "--resume-model", resumeModelPath);
+            Add(
+                start,
+                "--resume-model",
+                CombatFoundationPathRuntime.ForExternalProcess(
+                    resumeModelPath));
         }
         Add(start, "--training-enabled", trainingEnabled ? 1 : 0);
         Add(start, "--seed", options.RandomSeed);
@@ -1002,7 +1254,7 @@ internal sealed class PythonCombatTransformerTeacher :
         var byRowIndex = bindings
             .Where(binding => binding.RowIndex >= 0)
             .GroupBy(binding => binding.RowIndex)
-            .ToDictionary(group => group.Key, group => group.First());
+            .ToDictionary(group => group.Key, group => group.ToList());
         foreach (var line in File.ReadLines(path, Encoding.UTF8))
         {
             if (string.IsNullOrWhiteSpace(line))
@@ -1012,12 +1264,11 @@ internal sealed class PythonCombatTransformerTeacher :
             var annotation = JsonConvert.DeserializeObject<TeacherAnnotation>(line);
             if (annotation == null
                 || annotation.I < 0
-                || !byRowIndex.TryGetValue(annotation.I, out var binding))
+                || !byRowIndex.TryGetValue(annotation.I, out var rowBindings))
             {
                 continue;
             }
             if (annotation.P == null
-                || annotation.P.Length != binding.Candidates.Count
                 || annotation.P.Any(value =>
                     double.IsNaN(value)
                     || double.IsInfinity(value)
@@ -1030,13 +1281,17 @@ internal sealed class PythonCombatTransformerTeacher :
             {
                 continue;
             }
-            for (var index = 0; index < annotation.P.Length; index++)
+            foreach (var binding in rowBindings.Where(binding =>
+                         annotation.P.Length == binding.Candidates.Count))
             {
-                binding.Candidates[index].TransformerTeacherProbability =
-                    annotation.P[index] / total;
+                for (var index = 0; index < annotation.P.Length; index++)
+                {
+                    binding.Candidates[index].TransformerTeacherProbability =
+                        annotation.P[index] / total;
+                }
+                report.AnnotatedFrames++;
+                report.AnnotatedCandidates += annotation.P.Length;
             }
-            report.AnnotatedFrames++;
-            report.AnnotatedCandidates += annotation.P.Length;
         }
     }
 

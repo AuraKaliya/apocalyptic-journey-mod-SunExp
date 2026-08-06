@@ -665,7 +665,7 @@ foreach ($anchor in @(
 }
 foreach ($anchor in @(
     "CombatFoundationWorkerProtocol",
-    "public const int SchemaVersion = 11",
+    "public const int SchemaVersion = 12",
     "CheckpointFileName",
     "CheckpointEpisodesFileName",
     "TryValidateJob",
@@ -1123,8 +1123,8 @@ foreach ($anchor in @(
     }
 }
 foreach ($anchor in @(
-    "foundation-auto-tune-v4",
-    "foundation-auto-tune-v4.json"
+    "foundation-auto-tune-v6-steady-state",
+    "foundation-auto-tune-v6.json"
 )) {
     if (-not $foundationAutoTuning.Contains($anchor)) {
         throw "Aura foundation auto-tune protocol is missing: $anchor"
@@ -1213,8 +1213,8 @@ foreach ($anchor in @(
 foreach ($anchor in @(
     "aura.combat-ai.episode.v5",
     "public const int FeatureSchemaVersion = 26",
-    "content-set-quantile-q-role-quota-risk-aux-fixed-anchor-promotion-v20",
-    "frame-strata-v7-strategy-quota-risk-aux",
+    "content-set-quantile-q-action-aligned-role-quota-fixed-anchor-promotion-v21",
+    "frame-strata-v8-action-aligned-strategy-quota",
     "CombatCampaignEpisodeMetadata",
     "TerminalSnapshotKnown",
     "TerminalDoomPower",

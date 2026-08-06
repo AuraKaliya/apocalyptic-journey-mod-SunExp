@@ -6,9 +6,19 @@ namespace AuraCombatAi.Shared;
 
 public static class CombatFoundationAutoTuneProtocol
 {
-    public const string Version = "foundation-auto-tune-v4";
+    public const string Version = "foundation-auto-tune-v6-steady-state";
 
-    public const string CacheFileName = "foundation-auto-tune-v4.json";
+    public const string CacheFileName = "foundation-auto-tune-v6.json";
+
+    public const string CampaignKernelVersion = "campaign-kernel-v2";
+
+    public const string InferenceKernelVersion = "managed-double-action-cache-v2";
+
+    public const int MinimumCampaignWaves = 2;
+
+    public const double UnderutilizedCpuPercent = 60d;
+
+    public const double HighParallelismExplorationTolerance = 0.05d;
 }
 
 public static class CombatFoundationAutoTuneObjectiveNames
@@ -70,6 +80,14 @@ public sealed class CombatFoundationAutoTuneMeasurement
     public long InferenceTimeoutFlushes { get; set; }
 
     public int InvalidCampaigns { get; set; }
+
+    public int TrialCount { get; set; } = 1;
+
+    public double MinimumUsefulWorkPerSecond { get; set; }
+
+    public double MaximumUsefulWorkPerSecond { get; set; }
+
+    public double UsefulWorkStandardDeviation { get; set; }
 }
 
 public sealed class CombatFoundationAutoTuneResult
@@ -77,6 +95,10 @@ public sealed class CombatFoundationAutoTuneResult
     public string Version { get; set; } = CombatFoundationAutoTuneProtocol.Version;
 
     public string CacheKey { get; set; } = "";
+
+    public string CampaignCacheKey { get; set; } = "";
+
+    public string InferenceCacheKey { get; set; } = "";
 
     public string HardwareKey { get; set; } = "";
 
@@ -102,12 +124,36 @@ public sealed class CombatFoundationAutoTuneResult
     public string Objective { get; set; } =
         CombatFoundationAutoTuneObjectiveNames.MaximumThroughput;
 
+    public int MeasurementCampaignsPerTrial { get; set; }
+
+    public int MinimumCampaignWaves { get; set; } =
+        CombatFoundationAutoTuneProtocol.MinimumCampaignWaves;
+
     public List<CombatFoundationAutoTuneMeasurement> Measurements { get; set; } =
         new();
 }
 
 public static class CombatFoundationAutoTuneSelector
 {
+    public static bool HasCampaignConfidence(
+        IReadOnlyList<CombatFoundationAutoTuneMeasurement> measurements,
+        int maximumParallelism,
+        int minimumCampaignWaves =
+            CombatFoundationAutoTuneProtocol.MinimumCampaignWaves)
+    {
+        var maximum = Math.Max(1, maximumParallelism);
+        var requiredCampaigns = maximum * Math.Max(1, minimumCampaignWaves);
+        return (measurements
+                ?? Array.Empty<CombatFoundationAutoTuneMeasurement>())
+            .Where(item => item != null
+                           && !IsInferenceMeasurement(item.MeasurementKind)
+                           && item.InvalidCampaigns == 0)
+            .Any(item => item.Parallelism == maximum
+                         && item.TrialCount >= Math.Max(1, minimumCampaignWaves)
+                         && item.Campaigns >= requiredCampaigns
+                         && item.UsefulWorkPerSecond > 0d);
+    }
+
     public static CombatFoundationAutoTuneMeasurement? SelectInference(
         IReadOnlyList<CombatFoundationAutoTuneMeasurement> measurements,
         double throughputTolerance)
@@ -227,11 +273,34 @@ public static class CombatFoundationAutoTuneSelector
                 CombatFoundationAutoTuneObjectiveNames.MaximumThroughput,
                 StringComparison.Ordinal))
         {
-            return usable
+            var ordered = usable
                 .OrderByDescending(item => SelectionScore(item, normalizedObjective))
                 .ThenByDescending(item => item.Parallelism)
-                .First()
-                .Parallelism;
+                .ToList();
+            var best = ordered[0];
+            var bestScore = SelectionScore(best, normalizedObjective);
+            var nearMaximumThreshold = bestScore * (1d - tolerance);
+            var nearMaximum = usable
+                .Where(item => SelectionScore(item, normalizedObjective)
+                               >= nearMaximumThreshold)
+                .OrderByDescending(item => item.Parallelism)
+                .First();
+            var highest = usable
+                .OrderByDescending(item => item.Parallelism)
+                .First();
+            var explorationThreshold = bestScore
+                                       * (1d - Math.Max(
+                                           tolerance,
+                                           CombatFoundationAutoTuneProtocol
+                                               .HighParallelismExplorationTolerance));
+            if (highest.CpuUtilizationPercent
+                < CombatFoundationAutoTuneProtocol.UnderutilizedCpuPercent
+                && SelectionScore(highest, normalizedObjective)
+                   >= explorationThreshold)
+            {
+                return highest.Parallelism;
+            }
+            return nearMaximum.Parallelism;
         }
         var maximum = usable.Max(item => SelectionScore(item, normalizedObjective));
         var threshold = maximum * (1d - tolerance);

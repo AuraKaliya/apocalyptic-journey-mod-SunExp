@@ -12,12 +12,12 @@ public static class CombatPolicyValueProtocol
     public const int FeatureSchemaVersion = 26;
 
     public const string TrainingSemanticsVersion =
-        "content-set-quantile-q-role-quota-risk-aux-fixed-anchor-promotion-v20";
+        "content-set-quantile-q-action-aligned-role-quota-fixed-anchor-promotion-v21";
 }
 
 public static class CombatPolicyValueFrameStratificationProtocol
 {
-    public const string Version = "frame-strata-v7-strategy-quota-risk-aux";
+    public const string Version = "frame-strata-v8-action-aligned-strategy-quota";
 
     public const double MinimumWeight = 0.50d;
 
@@ -606,6 +606,19 @@ public sealed class CombatPolicyValueTrainingSession
 
 public static class CombatPolicyValueTrainer
 {
+    public static CombatPolicyValueMetricSnapshot EvaluateFrozenAnchor(
+        IEnumerable<CombatEpisode> source,
+        CombatPolicyValueNetworkDefinition model,
+        CombatPolicyValueTrainingOptions? trainingOptions = null,
+        CancellationToken cancellationToken = default)
+    {
+        return CombatPolicyValueBatchTrainer.EvaluateFrozenAnchor(
+            source,
+            model,
+            trainingOptions,
+            cancellationToken);
+    }
+
     public static CombatPolicyValueTrainingResult Train(
         IEnumerable<CombatEpisode> source,
         string decisionProfile,

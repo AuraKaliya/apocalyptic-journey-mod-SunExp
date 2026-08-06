@@ -78,7 +78,11 @@ internal sealed class MainWindow : Window
     private Button freshStartButton = null!;
     private Button cancelButton = null!;
     private Button continueButton = null!;
+    private Button selectedCheckpointButton = null!;
     private Button openButton = null!;
+    private ComboBox checkpointInput = null!;
+    private ComboBox checkpointResumeModeInput = null!;
+    private TextBlock checkpointDetails = null!;
     private TrainingDiagnosticsPanel diagnostics = null!;
     private string cachedJobPath = "";
     private long cachedJobLength = -1;
@@ -105,6 +109,7 @@ internal sealed class MainWindow : Window
         {
             parametersScroll.ScrollToTop();
             await RefreshTransformerRuntimeStatusAsync();
+            RefreshCheckpointCatalog();
         };
         LoadSettings();
         ApplySettingsToUi();
@@ -519,6 +524,54 @@ internal sealed class MainWindow : Window
         AddUlong(panel, "TuningSeedStart", "调优种子起点");
         AddUlong(panel, "ValidationSeedStart", "验证种子起点");
 
+        panel.Children.Add(Section("检查点续训"));
+        var checkpointRow = NewRow();
+        checkpointRow.Children.Add(Label("检查点", 100));
+        checkpointInput = new ComboBox
+        {
+            Width = 540,
+            Height = 30,
+            Margin = new Thickness(0, 0, 8, 0),
+            DisplayMemberPath = nameof(ControllerCheckpointChoice.Label)
+        };
+        checkpointInput.SelectionChanged += (_, _) =>
+            UpdateCheckpointDetails();
+        checkpointRow.Children.Add(checkpointInput);
+        checkpointRow.Children.Add(ActionButton("刷新", RefreshCheckpointCatalog));
+        panel.Children.Add(checkpointRow);
+        var checkpointModeRow = NewRow();
+        checkpointModeRow.Children.Add(Label("恢复方式", 100));
+        checkpointResumeModeInput = new ComboBox
+        {
+            Width = 260,
+            Height = 30,
+            Margin = new Thickness(0, 0, 8, 0),
+            DisplayMemberPath = nameof(ControllerResumeModeChoice.Label),
+            SelectedValuePath = nameof(ControllerResumeModeChoice.Id),
+            ItemsSource = new[]
+            {
+                new ControllerResumeModeChoice
+                {
+                    Id = CombatFoundationCheckpointResumeModes.Exact,
+                    Label = "精确续训（保留优化器与 epoch）"
+                },
+                new ControllerResumeModeChoice
+                {
+                    Id = CombatFoundationCheckpointResumeModes.ModelBranch,
+                    Label = "模型分支（重置优化器与 epoch）"
+                }
+            },
+            SelectedIndex = 0
+        };
+        checkpointModeRow.Children.Add(checkpointResumeModeInput);
+        selectedCheckpointButton = ActionButton(
+            "从所选检查点继续",
+            StartSelectedCheckpointTraining,
+            TrainerButtonTone.Primary);
+        checkpointModeRow.Children.Add(selectedCheckpointButton);
+        panel.Children.Add(checkpointModeRow);
+        checkpointDetails = Hint(panel, "尚未发现可选检查点");
+
         var actions = new StackPanel
         {
             Orientation = Orientation.Horizontal,
@@ -658,6 +711,142 @@ internal sealed class MainWindow : Window
         Grid.SetRow(logBox, 5);
         panel.Children.Add(logBox);
         return panel;
+    }
+
+    private void RefreshCheckpointCatalog()
+    {
+        try
+        {
+            var path = ResolveCheckpointCatalogPath();
+            var catalog = !string.IsNullOrWhiteSpace(path)
+                          && CombatFoundationPathRuntime.FileExists(path)
+                ? Deserialize<CombatFoundationCheckpointCatalog>(
+                    CombatFoundationCheckpointStorage.ReadAllTextShared(path))
+                : null;
+            var choices = (catalog?.Entries
+                           ?? new List<CombatFoundationCheckpointCatalogEntry>())
+                .Where(item => item != null
+                               && CombatFoundationPathRuntime.FileExists(
+                                   item.CheckpointPath)
+                               && CombatFoundationPathRuntime.FileExists(
+                                   item.EpisodeSnapshotPath))
+                .OrderByDescending(item => item.Recommended)
+                .ThenByDescending(item => item.CreatedUtc)
+                .Select(item => new ControllerCheckpointChoice
+                {
+                    Entry = item,
+                    Label = (item.Recommended ? "推荐 · " : "")
+                            + item.CreatedUtc.ToLocalTime().ToString("MM-dd HH:mm")
+                            + " · 迭代 " + item.NextIteration
+                            + " · epoch " + item.BestEpoch
+                            + " · val " + item.ValidationLoss.ToString("0.0000")
+                })
+                .ToList();
+            checkpointInput.ItemsSource = choices;
+            checkpointInput.SelectedIndex = choices.Count == 0 ? -1 : 0;
+            selectedCheckpointButton.IsEnabled = choices.Count > 0
+                                                 && !IsWorkerRunning();
+            UpdateCheckpointDetails();
+        }
+        catch (Exception ex)
+        {
+            checkpointInput.ItemsSource = null;
+            selectedCheckpointButton.IsEnabled = false;
+            checkpointDetails.Text = "检查点目录读取失败：" + ex.Message;
+        }
+    }
+
+    private string ResolveCheckpointCatalogPath()
+    {
+        if (string.IsNullOrWhiteSpace(settings.LastRunDirectory))
+        {
+            return "";
+        }
+        var priorJobPath = Path.Combine(
+            settings.LastRunDirectory,
+            "foundation-worker-job.json");
+        if (!CombatFoundationPathRuntime.FileExists(priorJobPath))
+        {
+            return "";
+        }
+        var prior = Deserialize<CombatFoundationWorkerJob>(
+            CombatFoundationCheckpointStorage.ReadAllTextShared(priorJobPath));
+        if (!string.IsNullOrWhiteSpace(prior?.CheckpointCatalogPath))
+        {
+            return prior.CheckpointCatalogPath;
+        }
+        return string.IsNullOrWhiteSpace(prior?.CheckpointPath)
+            ? ""
+            : Path.Combine(
+                Path.GetDirectoryName(prior.CheckpointPath)!,
+                CombatFoundationCheckpointCatalogProtocol.CatalogFileName);
+    }
+
+    private void UpdateCheckpointDetails()
+    {
+        if (checkpointInput.SelectedItem is not ControllerCheckpointChoice choice)
+        {
+            checkpointDetails.Text = "尚未发现可选检查点";
+            return;
+        }
+        var item = choice.Entry;
+        var anchor = item.SelectionAnchorMetrics?.FrameCount > 0
+            ? item.SelectionAnchorMetrics.CompositeLoss.ToString("0.0000")
+            : "尚无固定锚点结果";
+        checkpointDetails.Text =
+            "训练 " + item.TrainingLoss.ToString("0.0000")
+            + " · 验证 " + item.ValidationLoss.ToString("0.0000")
+            + " · 泛化差 " + item.GeneralizationGap.ToString("+0.0000;-0.0000;0.0000")
+            + " · 固定锚点 " + anchor
+            + " · " + CheckpointRiskLabel(item.Risk)
+            + " · " + (item.QualityGatesPassed ? "质量门禁通过" : "质量门禁未完整通过");
+    }
+
+    private static string CheckpointRiskLabel(string risk)
+    {
+        return risk switch
+        {
+            "overfit" => "过拟合风险",
+            "underfit" => "欠拟合风险",
+            "balanced" => "拟合状态平衡",
+            _ => "拟合证据不足"
+        };
+    }
+
+    private void StartSelectedCheckpointTraining()
+    {
+        try
+        {
+            if (checkpointInput.SelectedItem is not ControllerCheckpointChoice choice)
+            {
+                throw new InvalidOperationException("请先选择一个检查点");
+            }
+            PullSettingsFromUi();
+            ValidateEnvironment(throwOnFailure: true);
+            var mode = Convert.ToString(
+                           checkpointResumeModeInput.SelectedValue,
+                           CultureInfo.InvariantCulture)
+                       ?? CombatFoundationCheckpointResumeModes.Exact;
+            StartWorker(
+                initialChampion: null,
+                continueGeneration: false,
+                resumeFromCheckpoint: true,
+                requireCompatibleResume: true,
+                resetCheckpointOnFreshStart: false,
+                requestedStartMode: "selected-" + mode,
+                resumeCheckpointPath: choice.Entry.CheckpointPath,
+                resumeMode: mode);
+        }
+        catch (Exception ex)
+        {
+            AppendLog("无法从所选检查点启动：" + ex.Message);
+            MessageBox.Show(
+                this,
+                ex.Message,
+                "无法从检查点启动",
+                MessageBoxButton.OK,
+                MessageBoxImage.Warning);
+        }
     }
 
     private void StartTraining()
@@ -930,7 +1119,9 @@ internal sealed class MainWindow : Window
         bool resumeFromCheckpoint,
         bool requireCompatibleResume,
         bool resetCheckpointOnFreshStart,
-        string requestedStartMode)
+        string requestedStartMode,
+        string resumeCheckpointPath = "",
+        string resumeMode = CombatFoundationCheckpointResumeModes.Exact)
     {
         if (IsWorkerRunning())
         {
@@ -1039,18 +1230,32 @@ internal sealed class MainWindow : Window
         job.RequireCompatibleResume = requireCompatibleResume;
         job.ResetCheckpointOnFreshStart = resetCheckpointOnFreshStart;
         job.RequestedStartMode = requestedStartMode;
+        job.CheckpointCatalogPath = Path.Combine(
+            checkpointRoot,
+            CombatFoundationCheckpointCatalogProtocol.CatalogFileName);
+        job.ModelSelectionAnchorPath = Path.Combine(
+            checkpointRoot,
+            CombatFoundationCheckpointCatalogProtocol.SelectionAnchorFileName);
+        job.ResumeCheckpointPath = resumeCheckpointPath;
+        job.ResumeMode = CombatFoundationCheckpointResumeModes.Normalize(
+            resumeMode);
         var jobPath = Path.Combine(resultDirectory, "foundation-worker-job.json");
         WriteAtomic(jobPath, Serialize(job));
         TryDelete(job.CancellationPath);
 
-        workerProcess = Process.Start(new ProcessStartInfo
+        var startInfo = new ProcessStartInfo
         {
-            FileName = workerPath,
-            Arguments = "--job \"" + jobPath.Replace("\"", "\\\"") + "\"",
-            WorkingDirectory = Path.GetDirectoryName(workerPath)!,
+            FileName = CombatFoundationPathRuntime.ForExternalProcess(workerPath),
+            WorkingDirectory = CombatFoundationPathRuntime.ForFileSystem(
+                Path.GetDirectoryName(workerPath)!),
             UseShellExecute = false,
             CreateNoWindow = true
-        }) ?? throw new InvalidOperationException("Worker 进程未能启动");
+        };
+        startInfo.ArgumentList.Add("--job");
+        startInfo.ArgumentList.Add(
+            CombatFoundationPathRuntime.ForExternalProcess(jobPath));
+        workerProcess = Process.Start(startInfo)
+                        ?? throw new InvalidOperationException("Worker 进程未能启动");
         session = new ControllerSession
         {
             JobId = jobId,
@@ -1128,6 +1333,8 @@ internal sealed class MainWindow : Window
         startButton.IsEnabled = !running;
         freshStartButton.IsEnabled = !running;
         continueButton.IsEnabled = !running;
+        selectedCheckpointButton.IsEnabled = !running
+            && checkpointInput.Items.Count > 0;
         cancelButton.IsEnabled = running;
         openButton.IsEnabled = Directory.Exists(session.ResultDirectory);
         if (TryGetFileIdentity(
@@ -1469,6 +1676,7 @@ internal sealed class MainWindow : Window
         recentResultStatus.Foreground = runStatus.Foreground;
         recentResultDetails.Text = ResultSummary(result);
         diagnostics.PresentResult(result);
+        RefreshCheckpointCatalog();
     }
 
     private void TryShowCompletionNotification(bool running)
@@ -1913,11 +2121,41 @@ internal sealed class MainWindow : Window
             settings.Parameters.MaximumStateFeatureCollisionRate = 0.20d;
             settings.Parameters.MaximumActionFeatureCollisionRate = 0.06d;
         }
+        if (loadedSchemaVersion < 14)
+        {
+            if (string.Equals(
+                    settings.Parameters.ParallelismProfile,
+                    CombatFoundationExecutionProfileNames.Auto,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                settings.Parameters.InferenceExecutionMode =
+                    CombatFoundationExecutionProfileNames.DirectInference;
+                settings.Parameters.InferenceParallelism = 0;
+                settings.Parameters.InferenceLaneCount = 0;
+                settings.Parameters.InferenceBatchSize = 0;
+                settings.Parameters.ThreadPoolMinimumWorkerThreads = 0;
+                settings.Parameters.CheckpointSerializationParallelism = 0;
+            }
+            settings.Parameters.ReuseAutoTuneCache = true;
+            settings.Parameters.AutoTuneSampleCampaigns = Math.Max(
+                16,
+                settings.Parameters.AutoTuneSampleCampaigns);
+            settings.Parameters.AutoTuneObjective =
+                CombatFoundationAutoTuneObjectiveNames.MaximumThroughput;
+            settings.Parameters.EnableSequentialArenaStop = true;
+            settings.Parameters.ArenaEvaluationBatchSize = Math.Max(
+                16,
+                settings.Parameters.ArenaEvaluationBatchSize);
+        }
+        if (loadedSchemaVersion < 15)
+        {
+            settings.Parameters.TransformerTeacherMinimumFrames = 1024;
+        }
         settings.GameSubject ??= LoadDefaultGameSubject(modRoot);
         settings.GameSubject.Normalize();
         gameSubjectCatalog = LoadGameSubjectCatalog(modRoot);
         gameSubjectCatalog.ResolveReferences(settings.GameSubject);
-        settings.SchemaVersion = 13;
+        settings.SchemaVersion = 15;
         settings.Parameters.Normalized();
         if (File.Exists(readPath)
             && !string.Equals(
@@ -3575,6 +3813,7 @@ internal sealed class MainWindow : Window
         freshStartButton.IsEnabled = true;
         continueButton.IsEnabled = !string.IsNullOrWhiteSpace(
             settings.LastRunDirectory);
+        selectedCheckpointButton.IsEnabled = checkpointInput.Items.Count > 0;
         cancelButton.IsEnabled = false;
         openButton.IsEnabled = !string.IsNullOrWhiteSpace(
             settings.LastRunDirectory);

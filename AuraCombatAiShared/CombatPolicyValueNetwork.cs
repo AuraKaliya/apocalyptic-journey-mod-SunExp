@@ -613,11 +613,17 @@ public sealed class CombatPolicyValueNetworkDefinition
 
 public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
 {
+    private const int ActionTowerCacheCapacity = 256;
+
     private readonly CombatPolicyValueNetworkDefinition definition;
+    private long actionTowerCacheHits;
+    private long actionTowerCacheMisses;
     [ThreadStatic]
     private static InferenceWorkspace? threadWorkspace;
     [ThreadStatic]
     private static BatchInferenceWorkspace? threadBatchWorkspace;
+    [ThreadStatic]
+    private static ActionTowerCacheSet? threadActionTowerCaches;
 
     public ManagedCombatPolicyValueModel(
         CombatPolicyValueNetworkDefinition definition,
@@ -636,6 +642,12 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
     public string ModelId => string.IsNullOrWhiteSpace(definition.ModelId)
         ? "combat-policy-value"
         : definition.ModelId;
+
+    public long ActionTowerCacheHits => Interlocked.Read(
+        ref actionTowerCacheHits);
+
+    public long ActionTowerCacheMisses => Interlocked.Read(
+        ref actionTowerCacheMisses);
 
     public CombatPolicyValuePrediction Evaluate(CombatPolicyValueInput input)
     {
@@ -671,18 +683,12 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
             {
                 var candidate = input.Candidates[i]
                                 ?? new CombatPolicyValueCandidate();
-                CombatPolicyValueEncoding.EncodeCandidateInto(
+                ResolveActionHidden(
                     candidate,
                     action,
-                    definition.ActionDimensions,
-                    definition.FeatureEncodingMode);
-                DenseTanhInto(
-                    action,
-                    definition.ActionDimensions,
-                    definition.ActionWeights,
-                    definition.ActionBias,
+                    0,
                     actionHidden,
-                    definition.HiddenDimensions);
+                    0);
                 var logit = PolicyLogit(
                     hidden,
                     0,
@@ -757,12 +763,12 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
                     var candidate = source ?? new CombatPolicyValueCandidate();
                     candidateOwners[cursor] = inputIndex;
                     candidates[cursor] = candidate;
-                    CombatPolicyValueEncoding.EncodeCandidateInto(
+                    ResolveActionHidden(
                         candidate,
                         actions,
                         cursor * definition.ActionDimensions,
-                        definition.ActionDimensions,
-                        definition.FeatureEncodingMode);
+                        actionHidden,
+                        cursor * definition.HiddenDimensions);
                     cursor++;
                 }
             }
@@ -774,17 +780,6 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
                 definition.StateBias,
                 hidden,
                 definition.HiddenDimensions);
-            if (candidateCount > 0)
-            {
-                DenseTanhBatch(
-                    actions,
-                    candidateCount,
-                    definition.ActionDimensions,
-                    definition.ActionWeights,
-                    definition.ActionBias,
-                    actionHidden,
-                    definition.HiddenDimensions);
-            }
             for (var inputIndex = 0; inputIndex < count; inputIndex++)
             {
                 results[inputIndex] = PredictionFromHidden(
@@ -891,6 +886,49 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
                         definition.HiddenDimensions)
                     + definition.TurnBias))
         };
+    }
+
+    private void ResolveActionHidden(
+        CombatPolicyValueCandidate candidate,
+        double[] encodedAction,
+        int actionOffset,
+        double[] actionHidden,
+        int hiddenOffset)
+    {
+        var cache = (threadActionTowerCaches ??= new ActionTowerCacheSet())
+            .For(this, definition.HiddenDimensions);
+        var key = ActionTowerCacheKey.Create(candidate);
+        if (cache.TryCopyTo(
+                key,
+                actionHidden,
+                hiddenOffset,
+                definition.HiddenDimensions))
+        {
+            Interlocked.Increment(ref actionTowerCacheHits);
+            return;
+        }
+
+        Interlocked.Increment(ref actionTowerCacheMisses);
+        CombatPolicyValueEncoding.EncodeCandidateInto(
+            candidate,
+            encodedAction,
+            actionOffset,
+            definition.ActionDimensions,
+            definition.FeatureEncodingMode);
+        DenseTanhInto(
+            encodedAction,
+            actionOffset,
+            definition.ActionDimensions,
+            definition.ActionWeights,
+            definition.ActionBias,
+            actionHidden,
+            hiddenOffset,
+            definition.HiddenDimensions);
+        cache.Store(
+            key,
+            actionHidden,
+            hiddenOffset,
+            definition.HiddenDimensions);
     }
 
     private double PolicyLogit(
@@ -1195,6 +1233,234 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
             if (values.Length < length)
             {
                 values = new CombatPolicyValueCandidate[length];
+            }
+        }
+    }
+
+    private sealed class ActionTowerCache
+    {
+        private readonly ActionTowerCacheKey[] keys;
+        private readonly double[][] values;
+        private readonly Dictionary<ActionTowerCacheKey, int> indexes = new();
+        private ManagedCombatPolicyValueModel? owner;
+        private int hiddenDimensions;
+        private int count;
+        private int replacementCursor;
+
+        public ActionTowerCache(int capacity)
+        {
+            keys = new ActionTowerCacheKey[Math.Max(1, capacity)];
+            values = new double[Math.Max(1, capacity)][];
+        }
+
+        public void Prepare(
+            ManagedCombatPolicyValueModel model,
+            int dimensions)
+        {
+            if (ReferenceEquals(owner, model)
+                && hiddenDimensions == dimensions)
+            {
+                return;
+            }
+            owner = model;
+            hiddenDimensions = dimensions;
+            indexes.Clear();
+            count = 0;
+            replacementCursor = 0;
+        }
+
+        public bool TryCopyTo(
+            ActionTowerCacheKey key,
+            double[] target,
+            int offset,
+            int dimensions)
+        {
+            if (!indexes.TryGetValue(key, out var index)
+                || values[index] == null
+                || values[index].Length < dimensions)
+            {
+                return false;
+            }
+            Array.Copy(values[index], 0, target, offset, dimensions);
+            return true;
+        }
+
+        public void Store(
+            ActionTowerCacheKey key,
+            double[] source,
+            int offset,
+            int dimensions)
+        {
+            int index;
+            if (indexes.TryGetValue(key, out var existing))
+            {
+                index = existing;
+            }
+            else if (count < keys.Length)
+            {
+                index = count++;
+            }
+            else
+            {
+                index = replacementCursor;
+                indexes.Remove(keys[index]);
+                replacementCursor = (replacementCursor + 1) % keys.Length;
+            }
+            keys[index] = key;
+            indexes[key] = index;
+            if (values[index] == null || values[index].Length != dimensions)
+            {
+                values[index] = new double[dimensions];
+            }
+            Array.Copy(source, offset, values[index], 0, dimensions);
+        }
+    }
+
+    private sealed class ActionTowerCacheSet
+    {
+        private const int MaximumModelsPerThread = 4;
+        private readonly ManagedCombatPolicyValueModel?[] owners =
+            new ManagedCombatPolicyValueModel?[MaximumModelsPerThread];
+        private readonly ActionTowerCache?[] caches =
+            new ActionTowerCache?[MaximumModelsPerThread];
+        private int count;
+        private int replacementCursor;
+
+        public ActionTowerCache For(
+            ManagedCombatPolicyValueModel owner,
+            int hiddenDimensions)
+        {
+            for (var index = 0; index < count; index++)
+            {
+                if (!ReferenceEquals(owners[index], owner))
+                {
+                    continue;
+                }
+                var existing = caches[index]!;
+                existing.Prepare(owner, hiddenDimensions);
+                return existing;
+            }
+            int slot;
+            if (count < MaximumModelsPerThread)
+            {
+                slot = count++;
+            }
+            else
+            {
+                slot = replacementCursor;
+                replacementCursor =
+                    (replacementCursor + 1) % MaximumModelsPerThread;
+            }
+            owners[slot] = owner;
+            var cache = caches[slot] ??= new ActionTowerCache(
+                ActionTowerCacheCapacity);
+            cache.Prepare(owner, hiddenDimensions);
+            return cache;
+        }
+    }
+
+    private readonly struct ActionTowerCacheKey : IEquatable<ActionTowerCacheKey>
+    {
+        private ActionTowerCacheKey(ulong first, ulong second, int featureCount)
+        {
+            First = first;
+            Second = second;
+            FeatureCount = featureCount;
+        }
+
+        private ulong First { get; }
+
+        private ulong Second { get; }
+
+        private int FeatureCount { get; }
+
+        public static ActionTowerCacheKey Create(
+            CombatPolicyValueCandidate candidate)
+        {
+            const ulong offset = 14695981039346656037UL;
+            var sourceHash = HashText(candidate?.SourceId ?? "", offset);
+            var xor = 0UL;
+            var sum = 0UL;
+            var count = 0;
+            foreach (var pair in candidate?.Features
+                     ?? (IReadOnlyDictionary<string, double>)EmptyFeatureMap.Instance)
+            {
+                if (!CombatPublicFeaturePolicy.TrySanitizeActionFeature(
+                        pair.Key,
+                        pair.Value,
+                        out var sanitized))
+                {
+                    continue;
+                }
+                var pairHash = HashText(pair.Key ?? "", offset);
+                pairHash = Mix(
+                    pairHash
+                    ^ unchecked((ulong)BitConverter.DoubleToInt64Bits(sanitized)));
+                xor ^= RotateLeft(pairHash, count & 31);
+                sum += pairHash * 0x9E3779B185EBCA87UL;
+                count++;
+            }
+            return new ActionTowerCacheKey(
+                Mix(sourceHash ^ xor ^ (ulong)count),
+                Mix(sourceHash + sum + (ulong)count * 0xC2B2AE3D27D4EB4FUL),
+                count);
+        }
+
+        public bool Equals(ActionTowerCacheKey other)
+        {
+            return First == other.First
+                   && Second == other.Second
+                   && FeatureCount == other.FeatureCount;
+        }
+
+        public override bool Equals(object? obj)
+        {
+            return obj is ActionTowerCacheKey other && Equals(other);
+        }
+
+        public override int GetHashCode()
+        {
+            unchecked
+            {
+                var hash = (int)(First ^ (First >> 32));
+                hash = (hash * 397) ^ (int)(Second ^ (Second >> 32));
+                return (hash * 397) ^ FeatureCount;
+            }
+        }
+
+        private static ulong HashText(string value, ulong seed)
+        {
+            var hash = seed;
+            foreach (var character in value ?? "")
+            {
+                hash ^= character;
+                hash *= 1099511628211UL;
+            }
+            return hash;
+        }
+
+        private static ulong Mix(ulong value)
+        {
+            value ^= value >> 30;
+            value *= 0xBF58476D1CE4E5B9UL;
+            value ^= value >> 27;
+            value *= 0x94D049BB133111EBUL;
+            return value ^ (value >> 31);
+        }
+
+        private static ulong RotateLeft(ulong value, int offset)
+        {
+            return offset == 0
+                ? value
+                : (value << offset) | (value >> (64 - offset));
+        }
+
+        private sealed class EmptyFeatureMap : Dictionary<string, double>
+        {
+            public static readonly EmptyFeatureMap Instance = new();
+
+            private EmptyFeatureMap()
+            {
             }
         }
     }
@@ -1663,33 +1929,95 @@ public static class CombatPolicyValueEncoding
         CombatStateObservation state,
         IReadOnlyList<CombatCandidateEvaluation>? candidates = null)
     {
-        var input = new CombatPolicyValueInput
+        var input = new CombatPolicyValueInput();
+        BuildInputInto(input, state, candidates);
+        return input;
+    }
+
+    public static void BuildInputInto(
+        CombatPolicyValueInput input,
+        CombatStateObservation state,
+        IReadOnlyList<CombatCandidateEvaluation>? candidates = null)
+    {
+        if (input == null) throw new ArgumentNullException(nameof(input));
+        input.StateFeatures ??= new Dictionary<string, double>(
+            StringComparer.OrdinalIgnoreCase);
+        input.Candidates ??= new List<CombatPolicyValueCandidate>();
+        BuildStateFeaturesInto(input.StateFeatures, state);
+        BuildCandidatesInto(input.Candidates, candidates);
+    }
+
+    public static void BuildCandidatesInto(
+        List<CombatPolicyValueCandidate> targetCandidates,
+        IReadOnlyList<CombatCandidateEvaluation>? candidates)
+    {
+        if (targetCandidates == null)
         {
-            StateFeatures = BuildStateFeatures(state)
-        };
+            throw new ArgumentNullException(nameof(targetCandidates));
+        }
+        var writeIndex = 0;
         foreach (var candidate in candidates ?? Array.Empty<CombatCandidateEvaluation>())
         {
             if (candidate == null || !candidate.Legal || candidate.Action == null)
             {
                 continue;
             }
-            input.Candidates.Add(new CombatPolicyValueCandidate
+            CombatPolicyValueCandidate target;
+            if (writeIndex < targetCandidates.Count)
             {
-                CandidateId = candidate.Action.CandidateId,
-                SourceId = candidate.Action.SourceId,
-                ActionKind = candidate.Action.Kind.ToString(),
-                Features = BuildCandidateFeatures(candidate)
-            });
+                target = targetCandidates[writeIndex]
+                         ?? new CombatPolicyValueCandidate();
+                targetCandidates[writeIndex] = target;
+            }
+            else
+            {
+                target = new CombatPolicyValueCandidate();
+                targetCandidates.Add(target);
+            }
+            target.CandidateId = candidate.Action.CandidateId;
+            target.SourceId = candidate.Action.SourceId;
+            target.ActionKind = ActionKindName(candidate.Action.Kind);
+            target.Features ??= new Dictionary<string, double>(
+                StringComparer.OrdinalIgnoreCase);
+            BuildCandidateFeaturesInto(target.Features, candidate);
+            writeIndex++;
         }
-        return input;
+        if (targetCandidates.Count > writeIndex)
+        {
+            targetCandidates.RemoveRange(
+                writeIndex,
+                targetCandidates.Count - writeIndex);
+        }
     }
 
     public static Dictionary<string, double> BuildStateFeatures(CombatStateObservation state)
     {
-        var result = SanitizeStateFeatures(state?.Features);
+        var result = new Dictionary<string, double>(
+            StringComparer.OrdinalIgnoreCase);
+        BuildStateFeaturesInto(result, state);
+        return result;
+    }
+
+    public static void BuildStateFeaturesInto(
+        Dictionary<string, double> result,
+        CombatStateObservation state)
+    {
+        if (result == null) throw new ArgumentNullException(nameof(result));
+        result.Clear();
+        foreach (var pair in state?.Features
+                 ?? (IReadOnlyDictionary<string, double>)EmptyFeatures.Instance)
+        {
+            if (CombatPublicFeaturePolicy.TrySanitizeStateFeature(
+                    pair.Key,
+                    pair.Value,
+                    out var sanitized))
+            {
+                result[pair.Key] = sanitized;
+            }
+        }
         if (state == null)
         {
-            return result;
+            return;
         }
         result["playerHp"] = state.Player?.CurrentHp ?? 0;
         result["playerMaxHp"] = state.Player?.MaxHp ?? 0;
@@ -1698,7 +2026,15 @@ public static class CombatPolicyValueEncoding
         result["maxPower"] = state.MaxPower;
         result["handCount"] = state.HandCount;
         result["enemyCount"] = state.Enemies?.Count ?? 0;
-        result["enemyHpTotal"] = state.Enemies?.Sum(enemy => Math.Max(0, enemy.CurrentHp)) ?? 0;
+        var enemyHpTotal = 0;
+        if (state.Enemies != null)
+        {
+            for (var index = 0; index < state.Enemies.Count; index++)
+            {
+                enemyHpTotal += Math.Max(0, state.Enemies[index].CurrentHp);
+            }
+        }
+        result["enemyHpTotal"] = enemyHpTotal;
         result["expectedIncomingDamage"] = state.ExpectedIncomingDamage;
         result["turn"] = Value(state.Features, "turn");
         foreach (var status in state.Player?.Statuses ?? new List<CombatStatusObservation>())
@@ -1707,8 +2043,11 @@ public static class CombatPolicyValueEncoding
         }
         foreach (var enemy in state.Enemies ?? new List<CombatUnitObservation>())
         {
-            Add(result, "enemy:" + enemy.DefinitionId, 1d);
-            Add(result, "enemyHp:" + enemy.DefinitionId, enemy.CurrentHp);
+            if (!string.IsNullOrWhiteSpace(enemy.DefinitionId))
+            {
+                Add(result, "enemy:" + enemy.DefinitionId, 1d);
+                Add(result, "enemyHp:" + enemy.DefinitionId, enemy.CurrentHp);
+            }
             foreach (var status in enemy.Statuses ?? new List<CombatStatusObservation>())
             {
                 Add(result, "enemyStatus:" + status.StatusId, status.Level);
@@ -1734,18 +2073,39 @@ public static class CombatPolicyValueEncoding
         {
             Add(result, "exhaust:" + id, 1d);
         }
-        return result;
     }
 
     public static Dictionary<string, double> BuildCandidateFeatures(
         CombatCandidateEvaluation candidate)
     {
-        var action = candidate.Action ?? new CombatActionObservation();
-        var result = CombatPublicFeaturePolicy.SanitizeAction(action.Features);
+        var result = new Dictionary<string, double>(
+            StringComparer.OrdinalIgnoreCase);
+        BuildCandidateFeaturesInto(result, candidate);
+        return result;
+    }
+
+    public static void BuildCandidateFeaturesInto(
+        Dictionary<string, double> result,
+        CombatCandidateEvaluation candidate)
+    {
+        if (result == null) throw new ArgumentNullException(nameof(result));
+        result.Clear();
+        var action = candidate?.Action ?? new CombatActionObservation();
+        foreach (var pair in action.Features
+                 ?? (IReadOnlyDictionary<string, double>)EmptyFeatures.Instance)
+        {
+            if (CombatPublicFeaturePolicy.TrySanitizeActionFeature(
+                    pair.Key,
+                    pair.Value,
+                    out var sanitized))
+            {
+                result[pair.Key] = sanitized;
+            }
+        }
         result["cost"] = action.Cost;
-        result["ruleScore"] = candidate.RuleScore;
-        result["baseRuleScore"] = candidate.BaseRuleScore;
-        result["planScore"] = candidate.PlanScore;
+        result["ruleScore"] = candidate?.RuleScore ?? 0d;
+        result["baseRuleScore"] = candidate?.BaseRuleScore ?? 0d;
+        result["planScore"] = candidate?.PlanScore ?? 0d;
         var semantics = action.Semantics ?? new CombatActionSemantics();
         result["damage"] = semantics.Damage;
         result["trueDamage"] = semantics.TrueDamage;
@@ -1783,7 +2143,18 @@ public static class CombatPolicyValueEncoding
             action.Kind == CombatActionKind.UseSkill ? 1d : 0d;
         result["actionKindEndTurn"] =
             action.Kind == CombatActionKind.EndTurn ? 1d : 0d;
-        return result;
+    }
+
+    private static string ActionKindName(CombatActionKind kind)
+    {
+        return kind switch
+        {
+            CombatActionKind.PlayCard => "PlayCard",
+            CombatActionKind.UseSkill => "UseSkill",
+            CombatActionKind.EndTurn => "EndTurn",
+            CombatActionKind.ResolvePrompt => "ResolvePrompt",
+            _ => "PlayCard"
+        };
     }
 
     private static void Add(IDictionary<string, double> values, string key, double amount)

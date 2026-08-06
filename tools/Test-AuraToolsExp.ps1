@@ -308,13 +308,15 @@ if (-not $foundationControllerRuntime.Contains(
         -or -not $foundationControllerRuntime.Contains(
             "loadedSchemaVersion < 12") `
         -or -not $foundationControllerRuntime.Contains(
-            "loadedSchemaVersion < 13") `
+            "loadedSchemaVersion < 14") `
+        -or -not $foundationControllerRuntime.Contains(
+            "loadedSchemaVersion < 15") `
         -or -not $foundationControllerRuntime.Contains(
             "AdditionalIterationsOnResume") `
         -or -not $foundationControllerRuntime.Contains(
             "MinimumAdvancedDefeatReplayShare") `
         -or -not $foundationControllerModels.Contains(
-            "SchemaVersion { get; set; } = 13")) {
+            "SchemaVersion { get; set; } = 15")) {
     throw "Foundation controller resumable-training settings migration is missing."
 }
 foreach ($anchor in @(
@@ -326,7 +328,7 @@ foreach ($anchor in @(
     "AdvancedValidationCampaigns = 200",
     "CapabilityProbeCampaignsPerDifficulty = 64",
     "PreflightCampaignsPerDifficulty = 16",
-    "CombatFoundationExecutionProfileNames.ShardedBatchInference",
+    "CombatFoundationExecutionProfileNames.DirectInference",
     "CombatFoundationAutoTuneObjectiveNames.MaximumThroughput",
     "SuccessExpertReplayShare = 0.10d",
     "ModelGradientShardCount = 0",
@@ -339,7 +341,7 @@ foreach ($anchor in @(
     "MaximumStateFeatureCollisionRate = 0.20d",
     "MaximumActionFeatureCollisionRate = 0.06d",
     "TransformerTeacherEpochs = 12",
-    "TransformerTeacherMinimumFrames = 4096",
+    "TransformerTeacherMinimumFrames = 1024",
     "TransformerTeacherMaximumFrames = 10000",
     "TransformerTeacherCpuEpochs = 4",
     "TransformerTeacherCpuIncrementalEpochs = 1",

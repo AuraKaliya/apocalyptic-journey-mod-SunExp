@@ -88,6 +88,10 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
     private readonly Dictionary<string, double> leafFeatures =
         new(StringComparer.OrdinalIgnoreCase);
     private readonly CombatPolicyValueInput leafInput = new();
+    private readonly CombatPolicyValueInput rootPolicyInput = new();
+    private readonly CombatPolicyValueInput edgePolicyInput = new();
+    private readonly List<CombatCandidateEvaluation> usablePolicyCandidates =
+        new();
     private IReadOnlyList<SearchAction> actions = Array.Empty<SearchAction>();
     private CombatStateObservation rootObservation = new();
     private CombatDecisionProfile profile = new();
@@ -170,6 +174,7 @@ public sealed class CombatRiskAwareRootSamplingPuctPlanner
         modelEvaluationBudget = Math.Min(65536, requestedModelBudget);
         var searchStarted = Stopwatch.GetTimestamp();
         actions = BuildActions(state, candidates);
+        PrepareLeafCandidates();
         searchObjectArena.BeginSearch(actions.Count);
         searchMaxPly = Math.Max(1, Math.Min(32, budget.MaxPly));
         var pathCapacity = Math.Max(2, searchMaxPly + 1);
@@ -747,16 +752,39 @@ CompleteSimulation:
                 policyValueModel,
                 NullCombatPolicyValueModel.Instance))
         {
-            var usable = actions
-                .Where(action => IsUsable(legalityState, action))
-                .Select(action => action.Evaluation)
-                .ToList();
-            if (usable.Count > 0)
+            usablePolicyCandidates.Clear();
+            for (var actionIndex = 0;
+                 actionIndex < actions.Count;
+                 actionIndex++)
             {
-                networkPrediction = EvaluatePolicyValue(
-                    CombatPolicyValueEncoding.BuildInput(
+                if (IsUsable(legalityState, actions[actionIndex]))
+                {
+                    usablePolicyCandidates.Add(
+                        actions[actionIndex].Evaluation);
+                }
+            }
+            if (usablePolicyCandidates.Count > 0)
+            {
+                var stateHash = legalityState.Hash();
+                if (policyValueCache.TryGetValue(
+                        stateHash,
+                        out var cached)
+                    && usablePolicyCandidates.All(candidate =>
+                        cached.PolicyLogits.ContainsKey(
+                            candidate.Action.CandidateId ?? "")))
+                {
+                    networkPrediction = cached;
+                    modelCacheHits++;
+                }
+                else
+                {
+                    CombatPolicyValueEncoding.BuildInputInto(
+                        edgePolicyInput,
                         ToObservation(legalityState),
-                        usable));
+                        usablePolicyCandidates);
+                    networkPrediction = EvaluatePolicyValue(edgePolicyInput);
+                    policyValueCache[stateHash] = networkPrediction;
+                }
             }
         }
         var priorTotal = 0d;
@@ -982,12 +1010,21 @@ CompleteSimulation:
                 StringComparer.Ordinal)
             .ToList();
         legal = groups.Select(group => group.Members[0]).ToList();
-        var networkPrediction = ReferenceEquals(
+        CombatPolicyValuePrediction networkPrediction;
+        if (ReferenceEquals(
                 policyValueModel,
-                NullCombatPolicyValueModel.Instance)
-            ? new CombatPolicyValuePrediction()
-            : EvaluatePolicyValue(
-                CombatPolicyValueEncoding.BuildInput(state, legal));
+                NullCombatPolicyValueModel.Instance))
+        {
+            networkPrediction = new CombatPolicyValuePrediction();
+        }
+        else
+        {
+            CombatPolicyValueEncoding.BuildInputInto(
+                rootPolicyInput,
+                state,
+                legal);
+            networkPrediction = EvaluatePolicyValue(rootPolicyInput);
+        }
         var ruleMean = legal.Average(candidate => candidate.RuleScore);
         var ruleVariance = legal.Average(candidate =>
         {
@@ -1391,8 +1428,20 @@ CompleteSimulation:
     private CombatPolicyValueInput PrepareLeafInput()
     {
         leafInput.StateFeatures = leafFeatures;
-        leafInput.Candidates.Clear();
         return leafInput;
+    }
+
+    private void PrepareLeafCandidates()
+    {
+        usablePolicyCandidates.Clear();
+        for (var index = 0; index < actions.Count; index++)
+        {
+            usablePolicyCandidates.Add(actions[index].Evaluation);
+        }
+        CombatPolicyValueEncoding.BuildCandidatesInto(
+            leafInput.Candidates,
+            usablePolicyCandidates);
+        leafInput.StateFeatures = leafFeatures;
     }
 
     private CombatPolicyValuePrediction EvaluatePolicyValue(

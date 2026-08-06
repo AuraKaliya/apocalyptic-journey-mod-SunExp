@@ -7,7 +7,7 @@ namespace AuraCombatAi.Shared;
 
 public static class CombatFoundationWorkerProtocol
 {
-    public const int SchemaVersion = 11;
+    public const int SchemaVersion = 12;
     public const int TrainingMetricsSchemaVersion = 1;
     public const string PerformanceProbeVersion =
         "foundation-performance-probe-v1";
@@ -167,6 +167,15 @@ public sealed class CombatFoundationWorkerJob
 
     public string CheckpointEpisodesPath { get; set; } = "";
 
+    public string CheckpointCatalogPath { get; set; } = "";
+
+    public string ModelSelectionAnchorPath { get; set; } = "";
+
+    public string ResumeCheckpointPath { get; set; } = "";
+
+    public string ResumeMode { get; set; } =
+        CombatFoundationCheckpointResumeModes.Exact;
+
     public string SuccessArchiveDirectory { get; set; } = "";
 
     public string TrainingMetricsPath { get; set; } = "";
@@ -242,6 +251,13 @@ public sealed class CombatFoundationWorkerResult
     public string EpisodesPath { get; set; } = "";
 
     public string CheckpointPath { get; set; } = "";
+
+    public string CheckpointCatalogPath { get; set; } = "";
+
+    public string SelectedCheckpointPath { get; set; } = "";
+
+    public string ResumeMode { get; set; } =
+        CombatFoundationCheckpointResumeModes.Exact;
 
     public string ModelPackagePath { get; set; } = "";
 

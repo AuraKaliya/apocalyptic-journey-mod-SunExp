@@ -52,6 +52,12 @@ public sealed class CombatTrainingReplayWindowResult
 
     public int DroppedFrames { get; set; }
 
+    public double SourcePriorityMean { get; set; }
+
+    public double SelectedPriorityMean { get; set; }
+
+    public int SelectedHighPriorityFrames { get; set; }
+
     public bool StrategyQuotaActive { get; set; }
 
     public bool StrategyQuotaPassed { get; set; } = true;
@@ -104,13 +110,12 @@ public static class CombatTrainingReplayWindowSelector
                                   ?? new List<CombatEpisodeFrame>())
                               .Any(frame => missing.Contains(
                                   CombatPolicyValueBatchTrainer
-                                      .StrategicFrameStratum(
-                                          frame.StateFeatures))))
+                                      .StrategicFrameStratumForFrame(frame))))
             .OrderByDescending(episode =>
                 (episode.Frames ?? new List<CombatEpisodeFrame>())
                 .Count(frame => missing.Contains(
-                    CombatPolicyValueBatchTrainer.StrategicFrameStratum(
-                        frame.StateFeatures))))
+                    CombatPolicyValueBatchTrainer.StrategicFrameStratumForFrame(
+                        frame))))
             .ThenBy(StableRunEpisodeKey, StringComparer.Ordinal)
             .ToList();
         var repaired = Select(existing.Concat(targeted), selectionOptions);
@@ -145,16 +150,36 @@ public static class CombatTrainingReplayWindowSelector
                 .Select(frame => new FrameEntry(
                     episode,
                     frame,
-                    CombatPolicyValueBatchTrainer.StrategicFrameStratum(
-                        frame.StateFeatures),
+                    CombatPolicyValueBatchTrainer.StrategicFrameStratumForFrame(
+                        frame),
                     UnsafeEndTurn(frame))))
             .Where(entry => Eligible(
                 entry.Frame,
                 options.RequireMultipleCandidates))
             .ToList();
+        var fingerprintCounts = entries
+            .GroupBy(entry => entry.Frame.StateFingerprint ?? "",
+                StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Count(),
+                StringComparer.Ordinal);
+        foreach (var entry in entries)
+        {
+            entry.PriorityScore = InformationPriority(
+                entry.Frame,
+                fingerprintCounts.TryGetValue(
+                    entry.Frame.StateFingerprint ?? "",
+                    out var frequency)
+                    ? frequency
+                    : 1);
+        }
         var result = new CombatTrainingReplayWindowResult
         {
-            SourceFrames = entries.Count
+            SourceFrames = entries.Count,
+            SourcePriorityMean = entries.Count == 0
+                ? 0d
+                : entries.Average(entry => entry.PriorityScore)
         };
         if (entries.Count == 0)
         {
@@ -258,6 +283,11 @@ public static class CombatTrainingReplayWindowSelector
                 .ToList()))
             .ToList();
         result.SelectedFrames = selected.Count;
+        result.SelectedPriorityMean = selected.Count == 0
+            ? 0d
+            : selected.Average(entry => entry.PriorityScore);
+        result.SelectedHighPriorityFrames = selected.Count(entry =>
+            entry.PriorityScore >= 2d);
         result.UnsafeEndTurnFrames = CountUnsafe(selected);
         result.DroppedFrames = Math.Max(0, result.SourceFrames - selected.Count);
         result.StrategyFrames = selected
@@ -333,9 +363,88 @@ public static class CombatTrainingReplayWindowSelector
     private static IEnumerable<FrameEntry> Ranked(IEnumerable<FrameEntry> source)
     {
         return source
-            .OrderBy(item => item.UnsafeEndTurn ? 1 : 0)
+            .OrderByDescending(item => item.PriorityScore)
+            .ThenBy(item => item.UnsafeEndTurn ? 1 : 0)
             .ThenBy(item => StableHash(item.Identity))
             .ThenBy(item => item.Identity, StringComparer.Ordinal);
+    }
+
+    internal static double InformationPriority(
+        CombatEpisodeFrame frame,
+        int stateFrequency = 1)
+    {
+        if (frame == null)
+        {
+            return 0d;
+        }
+        var legal = (frame.Candidates ?? new List<CombatEpisodeCandidate>())
+            .Where(candidate => candidate != null && candidate.Legal)
+            .ToList();
+        if (legal.Count == 0)
+        {
+            return 0d;
+        }
+        var totalVisits = legal.Sum(candidate => Math.Max(0, candidate.SearchVisits));
+        var entropy = 0d;
+        if (totalVisits > 0 && legal.Count > 1)
+        {
+            foreach (var candidate in legal)
+            {
+                var probability = Math.Max(0, candidate.SearchVisits)
+                                  / (double)totalVisits;
+                if (probability > 0d)
+                {
+                    entropy -= probability * Math.Log(probability);
+                }
+            }
+            entropy /= Math.Log(legal.Count);
+        }
+        var searchBest = legal
+            .OrderByDescending(candidate => candidate.SearchVisits)
+            .ThenByDescending(candidate => candidate.SearchValue)
+            .ThenBy(candidate => candidate.CandidateId, StringComparer.Ordinal)
+            .First();
+        var disagreement = string.IsNullOrWhiteSpace(frame.ExecutedCandidateId)
+                           || string.Equals(
+                               frame.ExecutedCandidateId,
+                               searchBest.CandidateId,
+                               StringComparison.Ordinal)
+            ? 0d
+            : 1d;
+        var minimumRisk = legal.Min(candidate => Finite(candidate.SearchDeathRisk));
+        var maximumRisk = legal.Max(candidate => Finite(candidate.SearchDeathRisk));
+        var riskSpread = Math.Max(0d, Math.Min(1d, maximumRisk - minimumRisk));
+        var returnUncertainty = Math.Min(
+            1d,
+            legal.Max(candidate => Math.Max(
+                0d,
+                Finite(candidate.SearchReturnStandardError))));
+        var stateUncertainty = Math.Min(
+            1d,
+            Math.Max(0d, Feature(frame.StateFeatures, "uncertainty")));
+        var critical = Math.Max(
+            frame.DeathTarget,
+            riskSpread >= 0.20d ? 1d : 0d);
+        var terminalProximity =
+            frame.RemainingTurnsTarget is >= 0d and <= 2d
+            ? 1d
+            : 0d;
+        var novelty = 1d / Math.Sqrt(Math.Max(1, stateFrequency));
+        var forcedPenalty = legal.Count <= 1 ? 0.35d : 1d;
+        return forcedPenalty * (
+            disagreement * 2.5d
+            + entropy * 1.5d
+            + riskSpread * 1.5d
+            + returnUncertainty
+            + stateUncertainty
+            + critical
+            + terminalProximity * 0.5d
+            + novelty * 0.75d);
+    }
+
+    private static double Finite(double value)
+    {
+        return double.IsNaN(value) || double.IsInfinity(value) ? 0d : value;
     }
 
     private static bool WouldExceedMaximumQuota(
@@ -374,7 +483,8 @@ public static class CombatTrainingReplayWindowSelector
                         item.Strategy,
                         quota.Key,
                         StringComparison.Ordinal))
-                    .OrderByDescending(item => StableHash(item.Identity))
+                    .OrderBy(item => item.PriorityScore)
+                    .ThenByDescending(item => StableHash(item.Identity))
                     .ToList();
                 if (matching.Count / (double)selected.Count
                     <= quota.Value + 0.0000001d)
@@ -393,7 +503,8 @@ public static class CombatTrainingReplayWindowSelector
         while (selected.Count > 1)
         {
             var unsafeFrames = selected.Where(item => item.UnsafeEndTurn)
-                .OrderByDescending(item => StableHash(item.Identity))
+                .OrderBy(item => item.PriorityScore)
+                .ThenByDescending(item => StableHash(item.Identity))
                 .ToList();
             if (unsafeFrames.Count / (double)selected.Count
                 <= maximumShare + 0.0000001d)
@@ -611,6 +722,8 @@ public static class CombatTrainingReplayWindowSelector
         public string Strategy { get; }
 
         public bool UnsafeEndTurn { get; }
+
+        public double PriorityScore { get; set; }
 
         public string Identity { get; }
     }

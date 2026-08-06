@@ -1291,6 +1291,7 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                 result.FeatureLeakageViolations,
                 result.StoppedForStagnation,
                 result.ConsecutiveRejectedIterations,
+                result.ConsecutiveUnproductiveIterations,
                 result.IterationStopReason,
                 result.Compatibility,
                 result.HardSeedHistory,
@@ -2011,8 +2012,12 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                                 + "；有效配对 "
                                 + iteration.ValidArenaPairs
                                 + "（筛选/确认 "
-                                + iteration.ArenaScreeningPairs
-                                + "/"
+                                 + iteration.ArenaScreeningPairs
+                                + (iteration.ArenaScreeningDiagnosticOnly
+                                    ? " diagnostic, saved "
+                                      + iteration.ArenaScreeningPairsSaved
+                                    : "")
+                                 + "/"
                                 + iteration.ArenaConfirmationPairs
                                 + "；候选独赢/冠军独赢 "
                                 + iteration.CandidateOnlyWins
@@ -2038,8 +2043,23 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                                 + "；"
                                 + iteration.PromotionKind
                                 + " ("
-                                + iteration.PromotionReason
-                                + ")");
+                                 + iteration.PromotionReason
+                                 + ")"
+                                 + "；有效进展 "
+                                 + (iteration.ProductiveProgress
+                                     ? string.Join(
+                                         ",",
+                                         iteration.ProductiveProgressReasons)
+                                     : "none")
+                                 + "；Pareto 槽 "
+                                 + (string.IsNullOrWhiteSpace(
+                                     iteration.WorkingModelBankSlot)
+                                     ? "none"
+                                     : iteration.WorkingModelBankSlot)
+                                 + "；连续拒绝/无进展 "
+                                 + iteration.ConsecutiveRejectedIterations
+                                 + "/"
+                                 + iteration.ConsecutiveUnproductiveIterations);
             markdown.AppendLine("  - 调参候选 "
                                 + iteration.TuningCandidateCount
                                 + "，选中 epoch "

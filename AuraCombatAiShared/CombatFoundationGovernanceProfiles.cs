@@ -36,10 +36,14 @@ public sealed class CombatFoundationGovernancePlan
     {
         var iteration = Math.Max(0, iterationIndex);
         var total = Math.Max(1, totalIterations);
-        return TuningInterval <= 1
-               || iteration == 0
-               || iteration == total - 1
-               || iteration % TuningInterval == 0;
+        if (TuningInterval <= 1
+            || iteration == 0
+            || iteration == total - 1)
+        {
+            return true;
+        }
+        return iteration % TuningInterval == 0
+               && total - 1 - iteration >= TuningInterval;
     }
 
     public int ScheduledTuningIterations(int totalIterations)

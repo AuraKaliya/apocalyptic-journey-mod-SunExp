@@ -6,7 +6,7 @@ namespace AuraFoundationTrainer.ControlCenter;
 
 internal sealed class ControllerSettings
 {
-    public int SchemaVersion { get; set; } = 13;
+    public int SchemaVersion { get; set; } = 15;
 
     [JsonIgnore]
     public string ModRoot { get; set; } = "";
@@ -46,10 +46,11 @@ internal sealed class ControllerSettings
             ParallelismProfile =
                 CombatFoundationExecutionProfileNames.Auto,
             InferenceExecutionMode =
-                CombatFoundationExecutionProfileNames.ShardedBatchInference,
+                CombatFoundationExecutionProfileNames.DirectInference,
             InferenceParallelism = 0,
             InferenceLaneCount = 0,
             InferenceBatchSize = 0,
+            ReuseAutoTuneCache = true,
             AutoTuneSampleCampaigns = 16,
             AutoTuneObjective =
                 CombatFoundationAutoTuneObjectiveNames.MaximumThroughput,
@@ -85,7 +86,7 @@ internal sealed class ControllerSettings
             TransformerTeacherAttentionHeads = 8,
             TransformerTeacherFeedForwardDimensions = 1536,
             TransformerTeacherHistoryLength = 12,
-            TransformerTeacherMinimumFrames = 4096,
+            TransformerTeacherMinimumFrames = 1024,
             TransformerTeacherMaximumFrames = 10000,
             TransformerTeacherEnableWarmStart = true,
             TransformerTeacherCpuRefreshInterval = 4,
@@ -135,6 +136,20 @@ internal sealed class ControllerSession
     public int ProcessId { get; set; }
 
     public DateTime StartedUtc { get; set; }
+}
+
+internal sealed class ControllerCheckpointChoice
+{
+    public string Label { get; set; } = "";
+
+    public CombatFoundationCheckpointCatalogEntry Entry { get; set; } = new();
+}
+
+internal sealed class ControllerResumeModeChoice
+{
+    public string Id { get; set; } = "";
+
+    public string Label { get; set; } = "";
 }
 
 internal sealed class ControllerWorkerResultSummary

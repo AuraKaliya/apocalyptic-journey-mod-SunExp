@@ -220,7 +220,7 @@ public sealed class CombatFoundationTrainingParameters
 
     public int TransformerTeacherHistoryLength { get; set; } = 12;
 
-    public int TransformerTeacherMinimumFrames { get; set; } = 4096;
+    public int TransformerTeacherMinimumFrames { get; set; } = 1024;
 
     public int TransformerTeacherMaximumFrames { get; set; } = 10000;
 

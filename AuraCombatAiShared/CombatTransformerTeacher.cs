@@ -37,7 +37,66 @@ public static class CombatTransformerWorldModelProtocol
 
 public static class CombatTransformerTeacherCorpusProtocol
 {
-    public const string Version = "transformer-teacher-corpus-v1";
+    public const string Version = "transformer-teacher-corpus-v2-semantic-key";
+
+    public const string CollectingMaturity = "collecting";
+
+    public const string BootstrapMaturity = "bootstrap";
+
+    public const string ProvisionalMaturity = "provisional";
+
+    public const string MatureMaturity = "mature";
+
+    public static bool ShouldUseIncrementalExport(
+        int existingFrames,
+        int sourceFrameUpperBound)
+    {
+        return Math.Max(0, existingFrames) > 0
+               && Math.Max(0, sourceFrameUpperBound) > 0;
+    }
+
+    public static bool ShouldUseIncrementalColdStartExport(
+        int existingFrames,
+        int sourceFrameUpperBound,
+        int minimumTrainingFrames)
+    {
+        var existing = Math.Max(0, existingFrames);
+        var source = Math.Max(0, sourceFrameUpperBound);
+        var minimum = Math.Max(1, minimumTrainingFrames);
+        return existing > 0
+               && existing < minimum
+               && (long)existing + source < minimum;
+    }
+
+    public static string CorpusMaturity(int frames, int minimumTrainingFrames)
+    {
+        var count = Math.Max(0, frames);
+        var minimum = Math.Max(1, minimumTrainingFrames);
+        if (count < minimum)
+        {
+            return CollectingMaturity;
+        }
+        if (count < minimum * 2L)
+        {
+            return BootstrapMaturity;
+        }
+        return count < minimum * 4L
+            ? ProvisionalMaturity
+            : MatureMaturity;
+    }
+
+    public static double DistillationWeightCap(
+        int frames,
+        int minimumTrainingFrames)
+    {
+        return CorpusMaturity(frames, minimumTrainingFrames) switch
+        {
+            CollectingMaturity => 0d,
+            BootstrapMaturity => 0.10d,
+            ProvisionalMaturity => 0.20d,
+            _ => 1d
+        };
+    }
 
     public static string CorpusCompatibilityKey(
         CombatFoundationCompatibilityManifest manifest,
@@ -51,10 +110,8 @@ public static class CombatTransformerTeacherCorpusProtocol
             manifest.ContentSetHash ?? "",
             manifest.OwnerModSetHash ?? "",
             manifest.NativeProgramPackageHash ?? "",
-            manifest.TrainingCampaignHash ?? "",
             manifest.ActionContractVersion ?? "",
             manifest.TrainingSemanticsVersion ?? "",
-            manifest.TrainingPolicyVersion ?? "",
             manifest.FeatureSchemaVersion.ToString(),
             manifest.FeatureEncodingMode ?? "",
             (decisionProfile ?? "").Trim().ToLowerInvariant(),
@@ -121,7 +178,7 @@ public sealed class CombatTransformerTeacherOptions
 
     public int HistoryLength { get; set; } = 12;
 
-    public int MinimumFrames { get; set; } = 4096;
+    public int MinimumFrames { get; set; } = 1024;
 
     public int MaximumFrames { get; set; } = 10000;
 
@@ -371,7 +428,22 @@ public sealed class CombatTransformerTeacherReport
 
     public int FrameCount { get; set; }
 
+    public string CorpusMaturity { get; set; } =
+        CombatTransformerTeacherCorpusProtocol.CollectingMaturity;
+
+    public double CorpusDistillationWeightCap { get; set; }
+
+    public int CorpusGrowthFrames { get; set; }
+
+    public double CorpusGrowthRatio { get; set; }
+
+    public bool RefreshTriggeredByCorpusGrowth { get; set; }
+
     public int CurrentFrameCount { get; set; }
+
+    public bool IncrementalCorpusUpdate { get; set; }
+
+    public int SkippedExistingCorpusFrames { get; set; }
 
     public int ReusedCorpusFrames { get; set; }
 
@@ -473,6 +545,8 @@ public sealed class CombatTransformerTeacherReport
     public double CompositeImprovement { get; set; }
 
     public bool HeadRegressionGatePassed { get; set; } = true;
+
+    public bool AnchorCoverageGatePassed { get; set; } = true;
 
     public double ElapsedSeconds { get; set; }
 

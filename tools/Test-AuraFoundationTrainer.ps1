@@ -218,7 +218,7 @@ try {
         TrainingCampaign = $campaign
         ValidationCampaign = $campaign
     }
-    $protocolVersion = 11
+    $protocolVersion = 12
     $job = [ordered]@{
         SchemaVersion = $protocolVersion
         JobId = "worker-smoke"
@@ -583,7 +583,7 @@ try {
         if ($ParallelismProfile -eq "auto") {
             $measurements = @($result.Training.AutoTune.Measurements)
             if ([string]$result.Training.AutoTune.Version `
-                    -ne "foundation-auto-tune-v4" `
+                    -ne "foundation-auto-tune-v6-steady-state" `
                 -or [string]$result.Training.AutoTune.Objective `
                     -ne $AutoTuneObjective `
                 -or $measurements.Count -lt 1 `
@@ -738,11 +738,11 @@ try {
             -or [string]$checkpoint.Resume.Compatibility.ActionContractVersion `
                 -ne "action-contract-v2" `
             -or [string]$checkpoint.Resume.Compatibility.TrainingSemanticsVersion `
-                -ne "content-set-quantile-q-role-quota-risk-aux-fixed-anchor-promotion-v20" `
+                -ne "content-set-quantile-q-action-aligned-role-quota-fixed-anchor-promotion-v21" `
             -or [string]$checkpoint.Resume.Compatibility.SearchPolicyVersion `
-                -ne "dynamic-search-v12-quantile-fpu" `
+                -ne "dynamic-search-v13-entropy-budget" `
             -or [string]$checkpoint.Resume.Compatibility.TrainingPolicyVersion `
-                -ne "foundation-governance-v23-generic-quota-repair-rare-replay") {
+                -ne "foundation-governance-v26-productive-progress-pareto-arena") {
             throw "Foundation checkpoint compatibility manifest is incomplete."
         }
     }

@@ -18,6 +18,342 @@ was rejected before execution by the command safety layer.
 
 ---
 
+## [ERR-20260806-014] transformer-self-test-wrong-python
+
+**Logged**: 2026-08-06T13:20:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The Transformer self-test was first launched with the system Python rather
+than the managed AuraTF runtime.
+
+### Error
+```text
+PyTorch is required. Run tools/Setup-AuraTransformerTeacher.ps1 for the CPU or CUDA backend.
+```
+
+### Context
+- The system Python 3.14 executable does not own the trainer's PyTorch packages.
+- The configured CPU runtime is `C:\Users\75601\AppData\Local\AuraTF\cpu\Scripts\python.exe`.
+
+### Suggested Fix
+Resolve the AuraTF runtime before directly invoking Transformer self-tests.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/transformer-teacher/train_teacher.py
+
+### Resolution
+- **Resolved**: 2026-08-06T13:21:00+08:00
+- **Notes**: Re-ran with AuraTF CPU; the two-epoch self-test passed.
+
+---
+
+## [ERR-20260806-015] shared-source-used-net8-only-apis
+
+**Logged**: 2026-08-06T13:23:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: build
+
+### Summary
+New shared checkpoint code compiled in the net8 trainer but initially used APIs
+that are unavailable in the legacy Aura.Shared target.
+
+### Error
+```text
+System.Index is not defined; OperatingSystem does not contain IsWindows
+```
+
+### Suggested Fix
+Shared linked sources must use the lowest common target API surface. Use an
+integer `Count - 1` index and `Path.DirectorySeparatorChar` for OS detection.
+
+### Resolution
+- **Resolved**: 2026-08-06T13:24:00+08:00
+- **Notes**: Replaced both net8-only constructs before rerunning the release gate.
+
+---
+
+## [ERR-20260806-002] auto-tune-protocol-test-anchor-stale
+
+**Logged**: 2026-08-06T08:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The shared regression suite passed, but its source-contract anchors still
+expected the previous auto-tune v5 protocol after the implementation moved to
+the v6 steady-state protocol.
+
+### Resolution
+Update both PowerShell contract checks to the v6 protocol and cache filename,
+then rerun the complete suites.
+
+---
+
+## [ERR-20260806-003] idle-control-center-locked-publish
+
+**Logged**: 2026-08-06T08:32:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: build
+
+### Summary
+The foundation trainer integration test could not replace deployment binaries
+because an idle Control Center process still held them open.
+
+### Resolution
+Verify that no Worker or Transformer process and no current job are active,
+then close the idle window gracefully before rebuilding.
+
+---
+
+## [ERR-20260806-004] controller-schema-contract-stale
+
+**Logged**: 2026-08-06T08:35:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The controller source-contract test still expected settings schema 14 after the
+1024-frame default introduced schema 15 migration.
+
+### Resolution
+Require both the schema-15 declaration and migration anchor in the contract.
+
+---
+
+## [ERR-20260806-005] transformer-self-test-wrong-python
+
+**Logged**: 2026-08-06T08:38:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The system Python 3.14 environment did not contain PyTorch, so the Transformer
+self-test exited before running.
+
+### Resolution
+Read the resolved runtime from the latest teacher report and run the self-test
+with `C:\Users\75601\AppData\Local\AuraTF\cpu\Scripts\python.exe`.
+
+---
+
+## [ERR-20260806-001] powershell-token-spacing-in-inline-monitor
+
+**Logged**: 2026-08-06T15:44:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+An aggressively compacted inline PowerShell monitor command omitted required token spacing.
+
+### Error
+```text
+The term 'Join-Path$dfoundation-worker-result.json' is not recognized.
+A parameter cannot be found that matches parameter name 'LiteralPath$m'.
+```
+
+### Context
+- The five-minute read-only training snapshot compressed cmdlet names, variables, and arguments onto one line.
+- PowerShell parsed `Join-Path$d` and `-LiteralPath$m` as single tokens.
+
+### Suggested Fix
+Keep spaces around cmdlet arguments and variables even in compact inline monitoring scripts.
+
+### Metadata
+- Reproducible: yes
+- Related Files: none
+- Recurrence-Count: 2
+- Last-Seen: 2026-08-06T16:05:00+08:00
+
+### Resolution
+- **Resolved**: 2026-08-06T15:44:00+08:00
+- **Notes**: Re-ran both affected read-only commands with explicit PowerShell token spacing; training was unaffected.
+
+---
+
+## [ERR-20260806-016] shared-dll-consumer-rebuild-order
+
+**Logged**: 2026-08-06T15:51:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: infra
+
+### Summary
+Building AuraToolsExp alone updated its packaged shared DLL but left Terrias
+and SanGuoShaExp on the prior hash.
+
+### Error
+```text
+Packaged Aura.Shared.dll hash mismatch: Terrias\Scripts\Aura.Shared.dll
+```
+
+### Context
+- Shared AI sources are compiled into `Aura.Shared.dll` for multiple consumers.
+- The first build targeted AuraToolsExp and the foundation trainer only.
+
+### Suggested Fix
+After shared-source changes, run `tools/Build-MainSharedConsumers.ps1` before
+the shared DLL packaging gate.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Build-MainSharedConsumers.ps1
+
+### Resolution
+- **Resolved**: 2026-08-06T15:52:00+08:00
+- **Notes**: Rebuilt all three main consumers serially; packaging hashes now
+  match.
+
+---
+
+## [ERR-20260806-015] trainer-smoke-schema-fixture
+
+**Logged**: 2026-08-06T15:42:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The trainer smoke fixture still emitted worker schema 11 after the production
+worker protocol advanced to schema 12.
+
+### Error
+```text
+底模训练任务协议不兼容：job=11，worker=12
+```
+
+### Context
+- The packaged worker was rebuilt successfully with schema 12.
+- `tools/Test-AuraFoundationTrainer.ps1` used a separate hard-coded fixture
+  version.
+
+### Suggested Fix
+Update worker smoke fixtures and source-contract assertions whenever the worker
+protocol schema changes.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Test-AuraFoundationTrainer.ps1
+
+### Resolution
+- **Resolved**: 2026-08-06T15:43:00+08:00
+- **Notes**: Updated the smoke job and validation fixture to schema 12.
+
+---
+
+## [ERR-20260806-014] overloaded-null-strategy-stratum
+
+**Logged**: 2026-08-06T15:20:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: backend
+
+### Summary
+Adding a frame overload beside the existing nullable feature-map overload made
+an existing `null` test call ambiguous at compile time.
+
+### Error
+```text
+CS0121: call is ambiguous between StrategicFrameStratum(CombatEpisodeFrame?)
+and StrategicFrameStratum(IReadOnlyDictionary<string, double>?)
+```
+
+### Context
+- The compile probe caught the ambiguity before the full test run.
+- Both overloads accepted nullable reference arguments.
+
+### Suggested Fix
+Use a distinct method name when overloads accept unrelated nullable reference
+types and existing callers intentionally pass `null`.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraCombatAiShared/CombatPolicyValueBatchTrainer.cs
+
+### Resolution
+- **Resolved**: 2026-08-06T15:21:00+08:00
+- **Notes**: Renamed the frame-aware API to
+  `StrategicFrameStratumForFrame` and updated frame callers.
+
+---
+
+## [ERR-20260806-001] shared-runtime-net472-hashcode
+
+**Logged**: 2026-08-06T12:00:00+08:00
+**Priority**: high
+**Status**: resolved
+**Area**: backend
+
+### Summary
+The net8 trainer tests passed, but the net472 shared runtime consumer could not
+compile a cache key that used `System.HashCode`.
+
+### Error
+```text
+CS0103: The name 'HashCode' does not exist in the current context.
+```
+
+### Context
+- `AuraCombatAiShared` is compiled into both net8 trainer projects and the
+  net472 `Aura.Shared.dll`.
+- The fast unit-test build therefore did not exercise the oldest target API.
+
+### Suggested Fix
+Use an explicit unchecked integer hash mix for shared structs and keep the
+main shared-consumer build in the release validation sequence.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraCombatAiShared/CombatPolicyValueNetwork.cs
+
+### Resolution
+- **Resolved**: 2026-08-06T12:00:00+08:00
+- **Notes**: Replaced `HashCode.Combine` with a deterministic net472-compatible
+  mix and rebuilt all shared consumers.
+
+---
+
+## [ERR-20260806-001] powershell-rg-wildcard-path
+
+**Logged**: 2026-08-06T10:20:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+PowerShell passed a Windows wildcard path directly to `rg`, which rejected the path syntax.
+
+### Error
+```text
+rg: AuraCombatAiShared/*.cs: IO error ... 文件名、目录名或卷标语法不正确。
+```
+
+### Context
+- The read-only source inventory used `rg ... AuraCombatAiShared/*.cs`.
+- Ripgrep on this Windows invocation expected a directory plus a `-g` glob.
+
+### Suggested Fix
+Use `rg <pattern> AuraCombatAiShared -g '*.cs'` for PowerShell-compatible recursive filtering.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraCombatAiShared
+
+### Resolution
+- **Resolved**: 2026-08-06T10:20:00+08:00
+- **Notes**: Re-ran the inventory with a directory argument and `-g '*.cs'`.
+
+---
+
 ## [ERR-20260805-011] powershell-rg-directory-wildcard
 
 **Logged**: 2026-08-05T14:06:21+08:00

@@ -12,6 +12,57 @@ namespace AuraCombatAi.Shared;
 
 internal static class CombatPolicyValueBatchTrainer
 {
+    internal const int TrainingCheckpointEpochInterval = 8;
+
+    internal static CombatPolicyValueMetricSnapshot EvaluateFrozenAnchor(
+        IEnumerable<CombatEpisode> source,
+        CombatPolicyValueNetworkDefinition model,
+        CombatPolicyValueTrainingOptions? trainingOptions,
+        CancellationToken cancellationToken)
+    {
+        if (model == null)
+        {
+            throw new ArgumentNullException(nameof(model));
+        }
+        var options = (trainingOptions ?? new CombatPolicyValueTrainingOptions())
+            .Normalized();
+        var profile = NormalizeProfile(model.DecisionProfile);
+        var episodes = (source ?? Array.Empty<CombatEpisode>())
+            .Where(episode => episode != null
+                              && episode.ModelProtocol
+                              == CombatPolicyValueProtocol.EpisodeProtocol
+                              && episode.FeatureSchemaVersion
+                              == CombatPolicyValueProtocol.FeatureSchemaVersion
+                              && (episode.Campaign?.IntegrityValid ?? true)
+                              && (!options.RequireAuthoritativeEpisodes
+                                  || episode.Authoritative)
+                              && string.Equals(
+                                  NormalizeProfile(episode.DecisionProfile),
+                                  profile,
+                                  StringComparison.Ordinal))
+            .OrderBy(StableRunKey, StringComparer.Ordinal)
+            .ThenBy(episode => episode.JourneyBattleIndex)
+            .ThenBy(episode => episode.Seed)
+            .ThenBy(episode => episode.EpisodeId, StringComparer.Ordinal)
+            .ToList();
+        if (episodes.Count == 0)
+        {
+            return new CombatPolicyValueMetricSnapshot();
+        }
+        var frames = Encode(
+            episodes,
+            options,
+            cancellationToken,
+            Math.Max(1, options.MaximumDegreeOfParallelism));
+        return Snapshot(
+            Evaluate(
+                model,
+                frames,
+                Math.Max(1, options.MaximumDegreeOfParallelism),
+                cancellationToken),
+            frames.Length);
+    }
+
     public static CombatPolicyValueTrainingResult Train(
         IEnumerable<CombatEpisode> source,
         string decisionProfile,
@@ -529,7 +580,8 @@ internal static class CombatPolicyValueBatchTrainer
             session?.EpochCompleted?.Invoke(CloneEpochMetrics(epochMetrics));
             var shouldCheckpoint = shouldStop
                                    || completedEpochs == options.Epochs
-                                   || completedEpochs % 4 == 0;
+                                   || completedEpochs
+                                      % TrainingCheckpointEpochInterval == 0;
             if (shouldCheckpoint)
             {
                 session?.Checkpoint?.Invoke(
@@ -1318,7 +1370,7 @@ internal static class CombatPolicyValueBatchTrainer
             UnsafeEndTurn = unsafeEndTurn,
             Stratum = FrameStratum(episode, critical)
                       + ":"
-                      + StrategicFrameStratum(frame.StateFeatures)
+                      + StrategicFrameStratumForFrame(frame)
                       + ":"
                       + (unsafeEndTurn
                           ? "unsafe-end-turn"
@@ -1476,6 +1528,42 @@ internal static class CombatPolicyValueBatchTrainer
                + outcome
                + ":"
                + (critical ? "critical" : "regular");
+    }
+
+    internal static string StrategicFrameStratumForFrame(
+        CombatEpisodeFrame? frame)
+    {
+        if (frame == null)
+        {
+            return "strategy-baseline";
+        }
+        var executed = (frame.Candidates ?? new List<CombatEpisodeCandidate>())
+            .FirstOrDefault(candidate => string.Equals(
+                candidate.CandidateId,
+                frame.ExecutedCandidateId,
+                StringComparison.Ordinal));
+        var actionFeatures = executed?.Features;
+        var actionAligned = StrategicFrameStratum(actionFeatures);
+        var hasActionStrategySignal = (actionFeatures
+                                       ?? new Dictionary<string, double>())
+            .Any(pair => pair.Value > 0.5d
+                         && pair.Key.StartsWith(
+                             CombatRoleStrategyFeatureNames.Prefix,
+                             StringComparison.OrdinalIgnoreCase)
+                         && !string.Equals(
+                             pair.Key,
+                             CombatRoleStrategyFeatureNames.Active,
+                             StringComparison.OrdinalIgnoreCase));
+        if (hasActionStrategySignal)
+        {
+            return string.Equals(
+                actionAligned,
+                "strategy-other",
+                StringComparison.Ordinal)
+                ? "strategy-baseline"
+                : actionAligned;
+        }
+        return StrategicFrameStratum(frame.StateFeatures);
     }
 
     internal static string StrategicFrameStratum(

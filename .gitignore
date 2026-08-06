@@ -36,3 +36,5 @@ ModsData/*
 /AuraToolsExp/Scripts/*
 /SanGuoShaExp/Scripts/*
 /TestMods/*.dll
+
+/AuraToolsExp/TrainingWorker/*.exe

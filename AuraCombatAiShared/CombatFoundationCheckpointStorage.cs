@@ -89,11 +89,11 @@ public static class CombatFoundationCheckpointStorage
         string replayIdentity,
         Action<Action<string>> produceLines)
     {
-        var fullBasePath = Path.GetFullPath(basePath);
+        var fullBasePath = CombatFoundationPathRuntime.Normalize(basePath);
         var directory = Path.GetDirectoryName(fullBasePath)
                         ?? throw new InvalidOperationException(
                             "Checkpoint episode directory is missing.");
-        Directory.CreateDirectory(directory);
+        CombatFoundationPathRuntime.CreateDirectory(directory);
         var baseName = Path.GetFileNameWithoutExtension(fullBasePath);
         var snapshotPath = Path.Combine(
             directory,
@@ -111,7 +111,7 @@ public static class CombatFoundationCheckpointStorage
         try
         {
             using (var stream = new FileStream(
-                       temporaryPath,
+                       CombatFoundationPathRuntime.ForFileSystem(temporaryPath),
                        FileMode.CreateNew,
                        FileAccess.Write,
                        FileShare.Read,
@@ -140,9 +140,11 @@ public static class CombatFoundationCheckpointStorage
                 contentSha256 = ToHex(hash.Hash ?? Array.Empty<byte>());
             }
             ExecuteWithRetry(
-                () => File.Move(temporaryPath, snapshotPath),
+                () => File.Move(
+                    CombatFoundationPathRuntime.ForFileSystem(temporaryPath),
+                    CombatFoundationPathRuntime.ForFileSystem(snapshotPath)),
                 snapshotPath);
-            var length = new FileInfo(snapshotPath).Length;
+            var length = CombatFoundationPathRuntime.FileLength(snapshotPath);
             return new CombatFoundationEpisodeSnapshot
             {
                 StorageVersion = SnapshotStorageVersion,
@@ -193,8 +195,8 @@ public static class CombatFoundationCheckpointStorage
         {
             throw new ArgumentNullException(nameof(write));
         }
-        var fullPath = Path.GetFullPath(path);
-        Directory.CreateDirectory(
+        var fullPath = CombatFoundationPathRuntime.Normalize(path);
+        CombatFoundationPathRuntime.CreateDirectory(
             Path.GetDirectoryName(fullPath)
             ?? throw new InvalidOperationException(
                 "Output directory is missing."));
@@ -202,7 +204,7 @@ public static class CombatFoundationCheckpointStorage
         try
         {
             using (var stream = new FileStream(
-                       temporaryPath,
+                       CombatFoundationPathRuntime.ForFileSystem(temporaryPath),
                        FileMode.CreateNew,
                        FileAccess.Write,
                        FileShare.Read,
@@ -227,8 +229,8 @@ public static class CombatFoundationCheckpointStorage
         string path,
         IEnumerable<string> lines)
     {
-        var fullPath = Path.GetFullPath(path);
-        Directory.CreateDirectory(
+        var fullPath = CombatFoundationPathRuntime.Normalize(path);
+        CombatFoundationPathRuntime.CreateDirectory(
             Path.GetDirectoryName(fullPath)
             ?? throw new InvalidOperationException(
                 "JSONL output directory is missing."));
@@ -236,7 +238,7 @@ public static class CombatFoundationCheckpointStorage
         try
         {
             using (var stream = new FileStream(
-                       temporaryPath,
+                       CombatFoundationPathRuntime.ForFileSystem(temporaryPath),
                        FileMode.CreateNew,
                        FileAccess.Write,
                        FileShare.Read,
@@ -271,7 +273,7 @@ public static class CombatFoundationCheckpointStorage
             () =>
             {
                 using var stream = new FileStream(
-                    path,
+                    CombatFoundationPathRuntime.ForFileSystem(path),
                     FileMode.Open,
                     FileAccess.Read,
                     FileShare.ReadWrite | FileShare.Delete);
@@ -292,13 +294,13 @@ public static class CombatFoundationCheckpointStorage
     {
         if (snapshot == null
             || string.IsNullOrWhiteSpace(snapshot.Path)
-            || !File.Exists(snapshot.Path))
+            || !CombatFoundationPathRuntime.FileExists(snapshot.Path))
         {
             throw new InvalidDataException(
                 "Checkpoint episode snapshot is missing.");
         }
-        var fullPath = Path.GetFullPath(snapshot.Path);
-        var actualLength = new FileInfo(fullPath).Length;
+        var fullPath = CombatFoundationPathRuntime.Normalize(snapshot.Path);
+        var actualLength = CombatFoundationPathRuntime.FileLength(fullPath);
         if (snapshot.Length > 0 && actualLength != snapshot.Length)
         {
             throw new InvalidDataException(
@@ -321,7 +323,7 @@ public static class CombatFoundationCheckpointStorage
             {
                 result.Clear();
                 using var stream = new FileStream(
-                    fullPath,
+                    CombatFoundationPathRuntime.ForFileSystem(fullPath),
                     FileMode.Open,
                     FileAccess.Read,
                     FileShare.ReadWrite | FileShare.Delete);
@@ -363,24 +365,24 @@ public static class CombatFoundationCheckpointStorage
         var retained = new HashSet<string>(
             (retainedSnapshotPaths ?? Array.Empty<string>())
             .Where(item => !string.IsNullOrWhiteSpace(item))
-            .Select(Path.GetFullPath),
+            .Select(CombatFoundationPathRuntime.Normalize),
             StringComparer.OrdinalIgnoreCase);
-        var fullBasePath = Path.GetFullPath(baseEpisodesPath);
+        var fullBasePath = CombatFoundationPathRuntime.Normalize(baseEpisodesPath);
         var directory = Path.GetDirectoryName(fullBasePath);
         if (string.IsNullOrWhiteSpace(directory)
-            || !Directory.Exists(directory))
+            || !CombatFoundationPathRuntime.DirectoryExists(directory))
         {
             return;
         }
         var baseName = Path.GetFileNameWithoutExtension(fullBasePath);
         foreach (var path in Directory
                      .EnumerateFiles(
-                         directory,
+                         CombatFoundationPathRuntime.ForFileSystem(directory),
                          baseName + ".snapshot-*.jsonl")
                      .OrderByDescending(File.GetLastWriteTimeUtc)
                      .Skip(Math.Max(0, retainNewestSnapshots)))
         {
-            if (!retained.Contains(Path.GetFullPath(path)))
+            if (!retained.Contains(CombatFoundationPathRuntime.Normalize(path)))
             {
                 TryDelete(path);
             }
@@ -388,7 +390,8 @@ public static class CombatFoundationCheckpointStorage
         CleanupTemporaryFiles(directory, baseName + "*");
         CleanupTemporaryFiles(
             directory,
-            Path.GetFileName(Path.GetFullPath(checkpointPath)));
+            Path.GetFileName(
+                CombatFoundationPathRuntime.Normalize(checkpointPath)));
     }
 
     public static void DeleteCheckpointArtifacts(
@@ -396,18 +399,18 @@ public static class CombatFoundationCheckpointStorage
         string baseEpisodesPath)
     {
         TryDelete(checkpointPath);
-        TryDelete(BackupPath(Path.GetFullPath(checkpointPath)));
+        TryDelete(BackupPath(CombatFoundationPathRuntime.Normalize(checkpointPath)));
         TryDelete(baseEpisodesPath);
-        var fullBasePath = Path.GetFullPath(baseEpisodesPath);
+        var fullBasePath = CombatFoundationPathRuntime.Normalize(baseEpisodesPath);
         var directory = Path.GetDirectoryName(fullBasePath);
         if (string.IsNullOrWhiteSpace(directory)
-            || !Directory.Exists(directory))
+            || !CombatFoundationPathRuntime.DirectoryExists(directory))
         {
             return;
         }
         var baseName = Path.GetFileNameWithoutExtension(fullBasePath);
         foreach (var path in Directory.EnumerateFiles(
-                     directory,
+                     CombatFoundationPathRuntime.ForFileSystem(directory),
                      baseName + ".snapshot-*.jsonl"))
         {
             TryDelete(path);
@@ -417,7 +420,7 @@ public static class CombatFoundationCheckpointStorage
 
     public static string BackupPath(string checkpointPath)
     {
-        return Path.GetFullPath(checkpointPath) + ".bak";
+        return CombatFoundationPathRuntime.Normalize(checkpointPath) + ".bak";
     }
 
     private static string ComputeFileSha256(string path)
@@ -426,7 +429,7 @@ public static class CombatFoundationCheckpointStorage
             () =>
             {
                 using var stream = new FileStream(
-                    path,
+                    CombatFoundationPathRuntime.ForFileSystem(path),
                     FileMode.Open,
                     FileAccess.Read,
                     FileShare.ReadWrite | FileShare.Delete,
@@ -443,7 +446,7 @@ public static class CombatFoundationCheckpointStorage
         string prefix)
     {
         foreach (var path in Directory.EnumerateFiles(
-                     directory,
+                     CombatFoundationPathRuntime.ForFileSystem(directory),
                      prefix + ".tmp-*"))
         {
             TryDelete(path);
@@ -468,17 +471,22 @@ public static class CombatFoundationCheckpointStorage
         ExecuteWithRetry(
             () =>
             {
-                if (File.Exists(fullPath))
+                if (CombatFoundationPathRuntime.FileExists(fullPath))
                 {
                     File.Replace(
-                        temporaryPath,
-                        fullPath,
-                        retainBackup ? BackupPath(fullPath) : null,
+                        CombatFoundationPathRuntime.ForFileSystem(temporaryPath),
+                        CombatFoundationPathRuntime.ForFileSystem(fullPath),
+                        retainBackup
+                            ? CombatFoundationPathRuntime.ForFileSystem(
+                                BackupPath(fullPath))
+                            : null,
                         true);
                 }
                 else
                 {
-                    File.Move(temporaryPath, fullPath);
+                    File.Move(
+                        CombatFoundationPathRuntime.ForFileSystem(temporaryPath),
+                        CombatFoundationPathRuntime.ForFileSystem(fullPath));
                 }
             },
             fullPath);
@@ -527,9 +535,13 @@ public static class CombatFoundationCheckpointStorage
     {
         try
         {
-            if (!string.IsNullOrWhiteSpace(path) && File.Exists(path))
+            if (!string.IsNullOrWhiteSpace(path)
+                && CombatFoundationPathRuntime.FileExists(path))
             {
-                ExecuteWithRetry(() => File.Delete(path), path);
+                ExecuteWithRetry(
+                    () => File.Delete(
+                        CombatFoundationPathRuntime.ForFileSystem(path)),
+                    path);
             }
         }
         catch

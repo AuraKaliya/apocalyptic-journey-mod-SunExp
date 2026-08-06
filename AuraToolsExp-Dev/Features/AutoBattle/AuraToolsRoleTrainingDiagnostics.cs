@@ -111,6 +111,7 @@ public static class AuraToolsRoleTrainingDiagnostics
         var transformAfterDevourNextTurn = 0;
         var firstTransforms = 0;
         var repeatTransforms = 0;
+        var bankOpportunityFrames = 0;
         var bankIntents = 0;
         var calamityActions = 0;
         var roleEligibleFrames = 0;
@@ -157,6 +158,12 @@ public static class AuraToolsRoleTrainingDiagnostics
             foreach (var frame in episode.Frames
                          .OrderBy(item => item.ActionSequence))
             {
+                if (Value(
+                        frame.StateFeatures,
+                        "roleStrategy:nana.bank-for-next-turn") > 0.5d)
+                {
+                    bankOpportunityFrames++;
+                }
                 var timingCandidates = frame.Candidates.Where(candidate =>
                         Value(
                             candidate.Features,
@@ -447,7 +454,12 @@ public static class AuraToolsRoleTrainingDiagnostics
         result["nana.bleeding-actions"] = bleedingActions;
         result["nana.enemy-bleed-opportunity-devours"] =
             positiveBleedOpportunityDevours;
+        result["nana.bank-opportunity-frames"] = bankOpportunityFrames;
         result["nana.bank-intents"] = bankIntents;
+        result["nana.bank-intent-conversion-rate"] =
+            bankOpportunityFrames == 0
+                ? 0d
+                : bankIntents / (double)bankOpportunityFrames;
         result["nana.calamity-actions"] = calamityActions;
         result["nana.selected-growth-builders"] = selectedGrowthBuilders;
         result["nana.safe-growth-window-frames"] = safeGrowthWindowFrames;

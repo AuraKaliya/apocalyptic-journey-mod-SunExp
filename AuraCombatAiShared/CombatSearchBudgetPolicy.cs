@@ -138,7 +138,9 @@ public static class CombatSearchBudgetPolicy
                        || playerHp / (double)playerMaxHp <= 0.35d
                        || legal.Any(candidate =>
                            candidate.Action.Semantics?.Risk >= 0.65d);
-        var uncertain = legal.Count >= 8
+        var ruleEntropy = NormalizedRuleEntropy(legal);
+        var lowRuleEntropy = legal.Count >= 4 && ruleEntropy <= 0.35d;
+        var uncertain = legal.Count >= 8 && !lowRuleEntropy
                         || enemyCount >= 3
                         || legal.Any(candidate =>
                             candidate.Action.Semantics?.Uncertainty >= 0.5d);
@@ -186,7 +188,7 @@ public static class CombatSearchBudgetPolicy
                             ? "branching-or-chance"
                             : "hard-seed-teacher");
         }
-        if (lethal || legal.Count <= 3)
+        if (lethal || legal.Count <= 3 || lowRuleEntropy)
         {
             return QualityBudget(
                 profile,
@@ -197,7 +199,11 @@ public static class CombatSearchBudgetPolicy
                 2,
                 lethal ? 8 : 6,
                 1024,
-                lethal ? "visible-lethal" : "low-branching");
+                lethal
+                    ? "visible-lethal"
+                    : lowRuleEntropy
+                        ? "low-rule-entropy"
+                        : "low-branching");
         }
         return QualityBudget(
             profile,
@@ -348,6 +354,68 @@ public static class CombatSearchBudgetPolicy
         return (state?.Features ?? new Dictionary<string, double>())
             .Any(item => Math.Abs(item.Value) > 0.0000001d
                          && ContainsToken(item.Key, token));
+    }
+
+    internal static double NormalizedRuleEntropy(
+        IReadOnlyList<CombatCandidateEvaluation> candidates)
+    {
+        var legal = (candidates ?? Array.Empty<CombatCandidateEvaluation>())
+            .Where(candidate => candidate?.Legal == true
+                                && candidate.Action != null)
+            .ToList();
+        if (legal.Count <= 1)
+        {
+            return 0d;
+        }
+        var mean = legal.Average(candidate => Finite(candidate.RuleScore));
+        var variance = legal.Average(candidate =>
+        {
+            var delta = Finite(candidate.RuleScore) - mean;
+            return delta * delta;
+        });
+        var deviation = Math.Sqrt(Math.Max(0.0000001d, variance));
+        var maximum = double.NegativeInfinity;
+        for (var index = 0; index < legal.Count; index++)
+        {
+            maximum = Math.Max(
+                maximum,
+                Math.Max(
+                    -30d,
+                    Math.Min(
+                        30d,
+                        (Finite(legal[index].RuleScore) - mean) / deviation)));
+        }
+        var total = 0d;
+        for (var index = 0; index < legal.Count; index++)
+        {
+            var normalized = Math.Max(
+                -30d,
+                Math.Min(
+                    30d,
+                    (Finite(legal[index].RuleScore) - mean) / deviation));
+            total += Math.Exp(normalized - maximum);
+        }
+        var entropy = 0d;
+        for (var index = 0; index < legal.Count; index++)
+        {
+            var normalized = Math.Max(
+                -30d,
+                Math.Min(
+                    30d,
+                    (Finite(legal[index].RuleScore) - mean) / deviation));
+            var probability = Math.Exp(normalized - maximum)
+                              / Math.Max(0.0000001d, total);
+            if (probability > 0d)
+            {
+                entropy -= probability * Math.Log(probability);
+            }
+        }
+        return Math.Max(0d, Math.Min(1d, entropy / Math.Log(legal.Count)));
+    }
+
+    private static double Finite(double value)
+    {
+        return double.IsNaN(value) || double.IsInfinity(value) ? 0d : value;
     }
 
     private static bool HasStatusToken(

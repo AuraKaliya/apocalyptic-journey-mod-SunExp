@@ -514,19 +514,44 @@ def stable_partition_score(key: str, seed: int) -> int:
     return int.from_bytes(hashlib.sha256(payload).digest()[:8], "big")
 
 
-def split_rows(rows: list[dict], seed: int) -> tuple[list[dict], list[dict]]:
+def validation_run_ids(
+    rows: list[dict], seed: int, initial_ids: set[str] | None = None
+) -> set[str]:
     episodes = sorted({run_key(row) for row in rows})
-    validation_ids = {
-        key for key in episodes if stable_partition_score(key, seed) % 5 == 0
-    }
+    validation_ids = set(initial_ids or ()).intersection(episodes)
+    if not validation_ids:
+        validation_ids = {
+            key for key in episodes if stable_partition_score(key, seed) % 5 == 0
+        }
     if not validation_ids:
         validation_ids = {
             min(episodes, key=lambda key: (stable_partition_score(key, seed), key))
         }
+    strata: dict[tuple[str, str, int], set[str]] = {}
+    for row in rows:
+        stratum = (
+            str(row.get("C", "normal")),
+            str(row.get("L", "general")),
+            int(row.get("J", 0)),
+        )
+        strata.setdefault(stratum, set()).add(run_key(row))
+    for stratum_ids in strata.values():
+        if len(stratum_ids) < 2 or validation_ids.intersection(stratum_ids):
+            continue
+        candidates = stratum_ids.difference(validation_ids)
+        if candidates and len(validation_ids) < len(episodes) - 1:
+            validation_ids.add(
+                min(candidates, key=lambda key: (stable_partition_score(key, seed), key))
+            )
     if len(validation_ids) == len(episodes) and len(episodes) > 1:
         validation_ids.remove(
             max(validation_ids, key=lambda key: (stable_partition_score(key, seed), key))
         )
+    return validation_ids
+
+
+def split_rows(rows: list[dict], seed: int) -> tuple[list[dict], list[dict]]:
+    validation_ids = validation_run_ids(rows, seed)
     training = [row for row in rows if run_key(row) not in validation_ids]
     validation = [row for row in rows if run_key(row) in validation_ids]
     if not training:
@@ -562,6 +587,14 @@ def training_and_anchor_rows(
         validation = load_rows(anchor_path, args.history)
         tensorize_rows(validation)
         anchor_keys = {run_key(row) for row in validation}
+        expanded_keys = validation_run_ids(rows, args.seed, anchor_keys)
+        added_keys = expanded_keys.difference(anchor_keys)
+        if added_keys:
+            validation.extend(
+                row for row in rows if run_key(row) in added_keys
+            )
+            anchor_keys.update(added_keys)
+            write_anchor_rows(anchor_path, validation)
         training = [row for row in rows if run_key(row) not in anchor_keys]
         if training and validation:
             return training, validation, False

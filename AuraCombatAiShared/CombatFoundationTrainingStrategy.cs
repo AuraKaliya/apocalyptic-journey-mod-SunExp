@@ -64,6 +64,8 @@ public sealed class CombatFoundationSeedPlan
 
 public static class CombatFoundationCurriculum
 {
+    public const int RecentEvidenceWindow = 3;
+
     public sealed class Plan
     {
         public string Stage { get; set; } = "normal-focus";
@@ -145,6 +147,18 @@ public static class CombatFoundationCurriculum
                 MaximumAdvancedShare = 0.25d
             };
         }
+        if (normalLower < 0.75d && advancedLower < 0.25d)
+        {
+            return new Plan
+            {
+                Stage = "dual-deficit-recovery",
+                NormalWilsonLowerBound = normalLower,
+                AdvancedWilsonLowerBound = advancedLower,
+                AdvancedShare = 0.45d,
+                MinimumAdvancedShare = 0.40d,
+                MaximumAdvancedShare = 0.50d
+            };
+        }
         if (normalLower < 0.75d)
         {
             return new Plan
@@ -164,9 +178,9 @@ public static class CombatFoundationCurriculum
                 Stage = "advanced-recovery",
                 NormalWilsonLowerBound = normalLower,
                 AdvancedWilsonLowerBound = advancedLower,
-                AdvancedShare = 0.35d,
-                MinimumAdvancedShare = 0.15d,
-                MaximumAdvancedShare = 0.35d
+                AdvancedShare = 0.50d,
+                MinimumAdvancedShare = 0.45d,
+                MaximumAdvancedShare = 0.60d
             };
         }
         if (advancedLower < 0.50d)
@@ -305,10 +319,11 @@ public static class CombatFoundationCurriculum
         return plan.Stage switch
         {
             "normal-foundation" => Math.Max(0.20d, value),
+            "dual-deficit-recovery" => Math.Max(0.20d, value),
             "normal-recovery-with-advanced-floor" => Math.Max(0.18d, value),
             "advanced-introduction" => Math.Max(0.15d, value),
             "mixed-mastery" => Math.Min(0.12d, value),
-            "advanced-recovery" => Math.Min(0.12d, value),
+            "advanced-recovery" => Math.Max(0.20d, value),
             "advanced-strengthening" => Math.Min(0.10d, value),
             "balanced-maintenance" => Math.Min(0.08d, value),
             _ => value
@@ -1629,8 +1644,8 @@ public static class CombatFoundationReplaySampler
         }
         var priority = EpisodePriority(episode);
         var strategies = (episode.Frames ?? new List<CombatEpisodeFrame>())
-            .Select(frame => CombatPolicyValueBatchTrainer.StrategicFrameStratum(
-                frame.StateFeatures))
+            .Select(frame => CombatPolicyValueBatchTrainer
+                .StrategicFrameStratumForFrame(frame))
             .Where(stratum => !string.Equals(
                 stratum,
                 "strategy-baseline",

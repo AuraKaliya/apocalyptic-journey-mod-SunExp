@@ -36,8 +36,7 @@ public static class CombatSearchFeatureProjector
         {
             var threat = state.Threats[i];
             if (threat.SourceRuntimeId != 0
-                && !state.Enemies.Any(enemy =>
-                    enemy.RuntimeId == threat.SourceRuntimeId && enemy.Hp > 0))
+                && !HasLivingEnemy(state, threat.SourceRuntimeId))
             {
                 continue;
             }
@@ -73,13 +72,17 @@ public static class CombatSearchFeatureProjector
         result["discardPileCount"] = state.DiscardPileValues.Count;
         result["exhaustPileCount"] = state.ExhaustPileValues.Count;
         result["mechanic:time-cage.count"] = state.DeferredEffects.Count;
-        result["mechanic:time-cage.payload-value"] =
-            state.DeferredEffects.Sum(item =>
-                Math.Max(0d, item.Semantics.Damage)
-                * Math.Max(1d, item.Semantics.HitCount)
-                + Math.Max(0d, item.Semantics.Defend)
-                + Math.Max(0d, item.Semantics.Draw) * 2d
-                + Math.Max(0d, item.Semantics.EnergyGain) * 2d);
+        var deferredPayloadValue = 0d;
+        for (var index = 0; index < state.DeferredEffects.Count; index++)
+        {
+            var semantics = state.DeferredEffects[index].Semantics;
+            deferredPayloadValue += Math.Max(0d, semantics.Damage)
+                                    * Math.Max(1d, semantics.HitCount)
+                                    + Math.Max(0d, semantics.Defend)
+                                    + Math.Max(0d, semantics.Draw) * 2d
+                                    + Math.Max(0d, semantics.EnergyGain) * 2d;
+        }
+        result["mechanic:time-cage.payload-value"] = deferredPayloadValue;
         var retainedCount = Math.Min(
             state.HandCount,
             state.RetainedHandCardValues.Count);
@@ -120,8 +123,18 @@ public static class CombatSearchFeatureProjector
             : Math.Min(
                 1d,
                 effectiveNextDraw / recyclableCount);
-        result["enemyCount"] = state.Enemies.Count(enemy => enemy.Hp > 0);
-        result["enemyHpTotal"] = state.Enemies.Sum(enemy => Math.Max(0, enemy.Hp));
+        var livingEnemies = 0;
+        var enemyHpTotal = 0;
+        for (var index = 0; index < state.Enemies.Length; index++)
+        {
+            if (state.Enemies[index].Hp > 0)
+            {
+                livingEnemies++;
+            }
+            enemyHpTotal += Math.Max(0, state.Enemies[index].Hp);
+        }
+        result["enemyCount"] = livingEnemies;
+        result["enemyHpTotal"] = enemyHpTotal;
         result["expectedBlockableDamage"] = expectedBlockable;
         result["maximumBlockableDamage"] = maximumBlockable;
         result["expectedUnblockableDamage"] = expectedUnblockable;
@@ -145,6 +158,22 @@ public static class CombatSearchFeatureProjector
         result["persistentValue"] = state.PersistentValue;
         result["damageMultiplier"] = state.DamageMultiplier;
         result["uncertainty"] = state.Uncertainty;
+        result["cardCostMultiplier"] = state.CardCostMultiplier;
+    }
+
+    private static bool HasLivingEnemy(
+        CombatSimulationState state,
+        long runtimeId)
+    {
+        for (var index = 0; index < state.Enemies.Length; index++)
+        {
+            if (state.Enemies[index].RuntimeId == runtimeId
+                && state.Enemies[index].Hp > 0)
+            {
+                return true;
+            }
+        }
+        return false;
     }
 
     private static double Value(
