@@ -265,6 +265,13 @@ internal static class CombatPolicyValueBatchTrainer
             frame.PolicyTargets.Length == 0
                 ? 0d
                 : frame.PolicyTargets.Max());
+        result.EncodedStrategyFrames = trainingFrames
+            .GroupBy(frame => frame.Strategy, StringComparer.Ordinal)
+            .OrderBy(group => group.Key, StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Count(),
+                StringComparer.Ordinal);
         if (options.EnableFrameStratification)
         {
             ApplyFrameStratumWeights(
@@ -1219,15 +1226,54 @@ internal static class CombatPolicyValueBatchTrainer
         {
             return frames;
         }
-        var selected = new List<CombatEpisodeFrame>(maximumFrames);
-        for (var index = 0; index < maximumFrames; index++)
+        var pinned = frames.Where(frame =>
+                IsScarceStrategy(StrategicFrameStratumForFrame(frame)))
+            .ToList();
+        var selected = EvenlySpaced(
+            pinned,
+            Math.Min(maximumFrames, pinned.Count));
+        var selectedSet = selected.ToHashSet();
+        var remaining = frames.Where(frame => !selectedSet.Contains(frame))
+            .ToList();
+        selected.AddRange(EvenlySpaced(
+            remaining,
+            maximumFrames - selected.Count));
+        return selected
+            .OrderBy(frame => frames.IndexOf(frame))
+            .ToList();
+    }
+
+    private static List<CombatEpisodeFrame> EvenlySpaced(
+        IReadOnlyList<CombatEpisodeFrame> frames,
+        int count)
+    {
+        var take = Math.Max(0, Math.Min(count, frames.Count));
+        if (take == 0)
+        {
+            return new List<CombatEpisodeFrame>();
+        }
+        if (take == frames.Count)
+        {
+            return frames.ToList();
+        }
+        var selected = new List<CombatEpisodeFrame>(take);
+        for (var index = 0; index < take; index++)
         {
             var sourceIndex = (int)Math.Round(
-                index * (frames.Count - 1d) / (maximumFrames - 1d),
+                index * (frames.Count - 1d) / Math.Max(1d, take - 1d),
                 MidpointRounding.AwayFromZero);
             selected.Add(frames[sourceIndex]);
         }
         return selected;
+    }
+
+    private static bool IsScarceStrategy(string strategy)
+    {
+        return string.Equals(strategy, "strategy-finale", StringComparison.Ordinal)
+               || string.Equals(
+                   strategy,
+                   "strategy-bank",
+                   StringComparison.Ordinal);
     }
 
     private static EncodedFrame? EncodeFrame(
@@ -1328,6 +1374,7 @@ internal static class CombatPolicyValueBatchTrainer
             * endTurnWeight,
             0.10d,
             5d);
+        var strategy = StrategicFrameStratumForFrame(frame);
         return new EncodedFrame
         {
             RunKey = StableRunKey(episode),
@@ -1368,9 +1415,10 @@ internal static class CombatPolicyValueBatchTrainer
             Critical = critical,
             EndTurnDecision = endTurnDecision,
             UnsafeEndTurn = unsafeEndTurn,
+            Strategy = strategy,
             Stratum = FrameStratum(episode, critical)
                       + ":"
-                      + StrategicFrameStratumForFrame(frame)
+                      + strategy
                       + ":"
                       + (unsafeEndTurn
                           ? "unsafe-end-turn"
@@ -3227,6 +3275,8 @@ internal static class CombatPolicyValueBatchTrainer
         public bool AuxiliaryOnly { get; set; }
 
         public string Stratum { get; set; } = "";
+
+        public string Strategy { get; set; } = "strategy-baseline";
 
         public double SampleWeight { get; set; } = 1d;
 

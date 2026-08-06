@@ -9749,6 +9749,62 @@ Assert(quotaWindow.StrategyQuotaActive
        && quotaWindow.StrategyFrames["strategy-finale"] == 5
        && quotaWindow.StrategyFrames["strategy-bank"] == 5,
     "teacher and student share a deterministic bounded replay window that enforces provider-declared strategy quotas");
+var scarceStrategyEpisode = new CombatEpisode
+{
+    EpisodeId = "scarce-strategy-cap",
+    JourneyRunId = "scarce-strategy-cap",
+    Authoritative = true,
+    Campaign = new CombatCampaignEpisodeMetadata
+    {
+        DifficultyId = "advanced"
+    },
+    Frames = Enumerable.Range(0, 40)
+        .Select(index => new CombatEpisodeFrame
+        {
+            Turn = index + 1,
+            ActionSequence = index,
+            StateFingerprint = "scarce-" + index,
+            ExecutedCandidateId = "play",
+            StateFeatures = index == 5
+                ? new Dictionary<string, double>
+                {
+                    ["roleStrategy:test.bank-for-next-turn"] = 1d
+                }
+                : index == 12
+                    ? new Dictionary<string, double>
+                    {
+                        ["roleStrategy:test.finale-safe"] = 1d
+                    }
+                    : new Dictionary<string, double>(),
+            Candidates = new List<CombatEpisodeCandidate>
+            {
+                new()
+                {
+                    CandidateId = "play",
+                    SourceId = "card:test",
+                    Legal = true,
+                    SearchVisits = 1
+                }
+            }
+        })
+        .ToList()
+};
+var scarceStrategyWindow = CombatTrainingReplayWindowSelector.Select(
+    new[] { scarceStrategyEpisode },
+    new CombatTrainingReplayWindowOptions
+    {
+        MaximumFrames = 64,
+        MaximumFramesPerEpisode = 8
+    });
+Assert(scarceStrategyWindow.AvailableSourceFrames == 40
+       && scarceStrategyWindow.SourceFrames == 8
+       && scarceStrategyWindow.AvailableStrategyFrames["strategy-bank"] == 1
+       && scarceStrategyWindow.AvailableStrategyFrames["strategy-finale"] == 1
+       && scarceStrategyWindow.SourceStrategyFrames["strategy-bank"] == 1
+       && scarceStrategyWindow.SourceStrategyFrames["strategy-finale"] == 1
+       && scarceStrategyWindow.StrategyFrames["strategy-bank"] == 1
+       && scarceStrategyWindow.StrategyFrames["strategy-finale"] == 1,
+    "per-episode caps pin scarce bank/finale frames and report available, capped and selected strategy supply separately");
 var agreementFrame = new CombatEpisodeFrame
 {
     ExecutedCandidateId = "best",
@@ -11209,6 +11265,93 @@ Assert(!CombatCampaignFoundationTrainer.ParetoFrontierProgress(
            productiveHistory[0],
            productiveHistory),
     "an equal candidate does not refresh the Pareto frontier or mask true stagnation");
+var teacherOnlyHistory = new List<CombatCampaignFoundationIteration>
+{
+    new()
+    {
+        TransformerTeacher = new CombatTransformerTeacherReport
+        {
+            Applied = true,
+            TeacherGeneration = 1
+        }
+    }
+};
+var teacherOnlyCandidate = new CombatCampaignFoundationIteration
+{
+    TransformerTeacher = new CombatTransformerTeacherReport
+    {
+        Applied = true,
+        TeacherGeneration = 2
+    }
+};
+var teacherBehaviorReasons = CombatCampaignFoundationTrainer
+    .ProductiveProgressReasons(teacherOnlyCandidate, teacherOnlyHistory);
+var teacherDataReasons = CombatCampaignFoundationTrainer
+    .DataPipelineProgressReasons(teacherOnlyCandidate, teacherOnlyHistory);
+Assert(!teacherBehaviorReasons.Contains("teacher-generation-advanced")
+       && teacherDataReasons.Contains("teacher-generation-advanced"),
+    "teacher generation advances the data pipeline without masquerading as behavioral model progress");
+var dataOnlyIterations = Enumerable.Range(0, 2)
+    .Select(_ => new CombatCampaignFoundationIteration
+    {
+        DataPipelineProgress = true,
+        BehavioralProductiveProgress = false,
+        ProductiveProgress = false
+    })
+    .ToList();
+Assert(CombatCampaignFoundationTrainer.ShouldStopForStagnation(
+        new CombatCampaignFoundationTrainingRequest
+        {
+            MaximumConsecutiveRejectedIterations = 3
+        },
+        dataOnlyIterations,
+        hasChampion: true),
+    "data-only progress receives one grace iteration but cannot reset behavioral stagnation indefinitely");
+Assert(!CombatCampaignFoundationTrainer.ShouldStopForStagnation(
+        new CombatCampaignFoundationTrainingRequest
+        {
+            MaximumConsecutiveRejectedIterations = 0
+        },
+        dataOnlyIterations,
+        hasChampion: true),
+    "disabling stagnation control also disables the data-only grace limit");
+Assert(!CombatTransformerTeacherRefreshProtocol.IsFinalRefresh(
+           new CombatTransformerTeacherContext
+           {
+               Iteration = 8,
+               TotalIterations = 8,
+               FinalRefreshRequested = false
+           })
+       && CombatTransformerTeacherRefreshProtocol.IsFinalRefresh(
+           new CombatTransformerTeacherContext
+           {
+               Iteration = 8,
+               TotalIterations = 8,
+               FinalRefreshRequested = true
+           }),
+    "continuation boundaries do not force a Transformer final refresh unless the run explicitly requests finalization");
+var unhealthyInference = CombatFoundationInferenceHealthProtocol.Evaluate(
+    new CombatCampaignFoundationTelemetry
+    {
+        InferenceExecutionMode =
+            CombatFoundationExecutionProfileNames.ShardedBatchInference,
+        InferenceBatchSizePerLane = 2
+    },
+    new CombatCampaignFoundationTelemetry
+    {
+        InferenceExecutionMode =
+            CombatFoundationExecutionProfileNames.ShardedBatchInference,
+        InferenceBatchSizePerLane = 2,
+        InferenceRequests = 100_000,
+        InferenceBatchEvaluations = 65_000,
+        InferenceTimeoutFlushes = 40_000,
+        InferenceDirectFallbackRequests = 20_000
+    });
+Assert(unhealthyInference.RevalidationRequired
+       && unhealthyInference.AverageBatchFill < 0.70d
+       && unhealthyInference.TimeoutFlushRate > 0.50d
+       && unhealthyInference.DirectFallbackRate > 0.15d,
+    "live per-iteration inference deltas invalidate a low-fill, timeout-heavy batch plan");
 var longArchiveRoot =
     @"D:\Steam\steamapps\common\Witch's Apocalyptic Journey\Witch's Apocalyptic Journey_Data\ModsData\AuraShared\Logs\AuraToolsExp\combat-simulation-results\foundation-success-cases";
 var fullCompatibilityKey = new string('a', 64);
@@ -11250,7 +11393,7 @@ Assert(workerProtocolJob.SchemaVersion
        && CombatFoundationCounterfactualProtocol.Version
           == "hard-encounter-counterfactual-v2"
        && CombatFoundationStagnationProtocol.Version
-          == "foundation-stagnation-v2-productive-progress"
+          == "foundation-stagnation-v3-behavior-vs-pipeline-progress"
        && CombatPolicyValueFrameStratificationProtocol.Version
           == "frame-strata-v8-action-aligned-strategy-quota"
        && workerProtocolProgress.SchemaVersion

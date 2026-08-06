@@ -239,9 +239,8 @@ internal sealed class PythonCombatTransformerTeacher :
         report.DatasetDriftScore = DatasetDrift(report, previousReport);
         var warmStarted = options.EnableWarmStart
                           && File.Exists(previousModelPath);
-        var finalIteration = context.Iteration >= Math.Max(
-            1,
-            context.TotalIterations);
+        var finalRefresh =
+            CombatTransformerTeacherRefreshProtocol.IsFinalRefresh(context);
         var cpuBackend = string.Equals(
             runtime.EffectiveBackend,
             CombatTransformerTeacherBackendNames.Cpu,
@@ -256,7 +255,7 @@ internal sealed class PythonCombatTransformerTeacher :
         report.RefreshTriggeredByCorpusGrowth = corpusGrowthRefresh;
         var trainingEnabled = !warmStarted
                               || !cpuBackend
-                              || finalIteration
+                              || finalRefresh
                               || intervalRefresh
                               || driftRefresh
                               || corpusGrowthRefresh;
@@ -264,7 +263,7 @@ internal sealed class PythonCombatTransformerTeacher :
             ? "cold-start"
             : !cpuBackend
                 ? "accelerator-refresh"
-                : finalIteration
+                : finalRefresh
                     ? "final-refresh"
                     : corpusGrowthRefresh
                         ? "corpus-growth"
@@ -274,12 +273,12 @@ internal sealed class PythonCombatTransformerTeacher :
                             ? "maximum-staleness"
                             : "stable-teacher-reuse";
         var effectiveEpochs = cpuBackend
-            ? finalIteration
+            ? finalRefresh
                 ? options.CpuFinalEpochs
                 : warmStarted
                     ? options.CpuIncrementalEpochs
                     : options.CpuEpochs
-            : finalIteration
+            : finalRefresh
                 ? options.FinalEpochs
                 : warmStarted
                     ? options.IncrementalEpochs

@@ -46,6 +46,8 @@ public sealed class CombatTrainingReplayWindowResult
 
     public int SourceFrames { get; set; }
 
+    public int AvailableSourceFrames { get; set; }
+
     public int SelectedFrames { get; set; }
 
     public int UnsafeEndTurnFrames { get; set; }
@@ -63,6 +65,12 @@ public sealed class CombatTrainingReplayWindowResult
     public bool StrategyQuotaPassed { get; set; } = true;
 
     public Dictionary<string, int> StrategyFrames { get; set; } =
+        new(StringComparer.Ordinal);
+
+    public Dictionary<string, int> AvailableStrategyFrames { get; set; } =
+        new(StringComparer.Ordinal);
+
+    public Dictionary<string, int> SourceStrategyFrames { get; set; } =
         new(StringComparer.Ordinal);
 
     public Dictionary<string, double> MinimumStrategyShares { get; set; } =
@@ -157,6 +165,13 @@ public static class CombatTrainingReplayWindowSelector
                 entry.Frame,
                 options.RequireMultipleCandidates))
             .ToList();
+        var availableFrames = episodes
+            .SelectMany(episode => episode.Frames
+                                   ?? new List<CombatEpisodeFrame>())
+            .Where(frame => Eligible(
+                frame,
+                options.RequireMultipleCandidates))
+            .ToList();
         var fingerprintCounts = entries
             .GroupBy(entry => entry.Frame.StateFingerprint ?? "",
                 StringComparer.Ordinal)
@@ -177,6 +192,10 @@ public static class CombatTrainingReplayWindowSelector
         var result = new CombatTrainingReplayWindowResult
         {
             SourceFrames = entries.Count,
+            AvailableSourceFrames = availableFrames.Count,
+            AvailableStrategyFrames = StrategyCounts(availableFrames),
+            SourceStrategyFrames = StrategyCounts(
+                entries.Select(item => item.Frame)),
             SourcePriorityMean = entries.Count == 0
                 ? 0d
                 : entries.Average(entry => entry.PriorityScore)
@@ -613,15 +632,70 @@ public static class CombatTrainingReplayWindowSelector
         {
             return frames;
         }
-        var selected = new List<CombatEpisodeFrame>(maximumFrames);
-        for (var index = 0; index < maximumFrames; index++)
+        var pinned = frames.Where(frame =>
+                IsScarceStrategy(
+                    CombatPolicyValueBatchTrainer
+                        .StrategicFrameStratumForFrame(frame)))
+            .ToList();
+        var selected = EvenlySpaced(
+            pinned,
+            Math.Min(maximumFrames, pinned.Count));
+        var selectedSet = selected.ToHashSet();
+        var remaining = frames.Where(frame => !selectedSet.Contains(frame))
+            .ToList();
+        selected.AddRange(EvenlySpaced(
+            remaining,
+            maximumFrames - selected.Count));
+        return selected
+            .OrderBy(frame => frames.IndexOf(frame))
+            .ToList();
+    }
+
+    private static List<CombatEpisodeFrame> EvenlySpaced(
+        IReadOnlyList<CombatEpisodeFrame> frames,
+        int count)
+    {
+        var take = Math.Max(0, Math.Min(count, frames.Count));
+        if (take == 0)
+        {
+            return new List<CombatEpisodeFrame>();
+        }
+        if (take == frames.Count)
+        {
+            return frames.ToList();
+        }
+        var selected = new List<CombatEpisodeFrame>(take);
+        for (var index = 0; index < take; index++)
         {
             var sourceIndex = (int)Math.Round(
-                index * (frames.Count - 1d) / (maximumFrames - 1d),
+                index * (frames.Count - 1d) / Math.Max(1d, take - 1d),
                 MidpointRounding.AwayFromZero);
             selected.Add(frames[sourceIndex]);
         }
         return selected;
+    }
+
+    private static bool IsScarceStrategy(string strategy)
+    {
+        return string.Equals(strategy, "strategy-finale", StringComparison.Ordinal)
+               || string.Equals(
+                   strategy,
+                   "strategy-bank",
+                   StringComparison.Ordinal);
+    }
+
+    private static Dictionary<string, int> StrategyCounts(
+        IEnumerable<CombatEpisodeFrame> frames)
+    {
+        return (frames ?? Array.Empty<CombatEpisodeFrame>())
+            .GroupBy(
+                CombatPolicyValueBatchTrainer.StrategicFrameStratumForFrame,
+                StringComparer.Ordinal)
+            .OrderBy(group => group.Key, StringComparer.Ordinal)
+            .ToDictionary(
+                group => group.Key,
+                group => group.Count(),
+                StringComparer.Ordinal);
     }
 
     private static CombatEpisode CloneEpisode(

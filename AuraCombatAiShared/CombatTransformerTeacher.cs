@@ -309,6 +309,8 @@ public sealed class CombatTransformerTeacherContext
 
     public int TotalIterations { get; set; } = 1;
 
+    public bool FinalRefreshRequested { get; set; }
+
     public string DecisionProfile { get; set; } = "balanced";
 
     public IReadOnlyList<CombatEpisode> Episodes { get; set; } =
@@ -321,6 +323,16 @@ public sealed class CombatTransformerTeacherContext
     public string TeacherCompatibilityKey { get; set; } = "";
 
     public Action<CombatTransformerTeacherProgress>? Progress { get; set; }
+}
+
+public static class CombatTransformerTeacherRefreshProtocol
+{
+    public static bool IsFinalRefresh(CombatTransformerTeacherContext context)
+    {
+        return context != null
+               && context.FinalRefreshRequested
+               && context.Iteration >= Math.Max(1, context.TotalIterations);
+    }
 }
 
 public sealed class CombatTransformerTeacherProgress

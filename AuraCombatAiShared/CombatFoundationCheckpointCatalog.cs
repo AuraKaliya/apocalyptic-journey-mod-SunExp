@@ -151,6 +151,10 @@ public sealed class CombatFoundationCheckpointCatalogEntry
 
     public int BestEpoch { get; set; }
 
+    public int BestValidationEpoch { get; set; }
+
+    public int DeploymentSelectedEpoch { get; set; }
+
     public string ModelId { get; set; } = "";
 
     public string CheckpointPath { get; set; } = "";

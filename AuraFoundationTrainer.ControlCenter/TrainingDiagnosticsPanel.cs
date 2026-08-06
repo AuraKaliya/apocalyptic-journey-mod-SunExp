@@ -420,8 +420,10 @@ internal sealed class TrainingDiagnosticsPanel
             + $"成功样本 {successShare:P1}\r\n"
             + $"专家回放 {training.LoadedExpertReplayEpisodes:N0}\r\n"
             + $"回放配额缺口：{shortfall}\r\n"
-            + $"教师/学生帧池 {iteration.TeacherStudentPoolSelectedFrames:N0}/"
-            + $"{iteration.TeacherStudentPoolSourceFrames:N0} · "
+            + $"教师/学生帧池 选中/封顶后/原始 "
+            + $"{iteration.TeacherStudentPoolSelectedFrames:N0}/"
+            + $"{iteration.TeacherStudentPoolSourceFrames:N0}/"
+            + $"{iteration.TeacherStudentPoolAvailableSourceFrames:N0} · "
             + $"不安全结束回合 {iteration.TeacherStudentPoolUnsafeEndTurnFrames:N0}\r\n"
             + (iteration.StrategyQuotaRepairAttempted
                 ? $"拟合前配额修复：候选 {iteration.StrategyQuotaRepairSourceEpisodes:N0} 条，"
@@ -433,7 +435,16 @@ internal sealed class TrainingDiagnosticsPanel
             + $"本轮 {iteration.TransformerTeacher.CurrentFrameCount:N0} · "
             + $"复用 {iteration.TransformerTeacher.ReusedCorpusFrames:N0} · "
             + $"去重 {iteration.TransformerTeacher.DeduplicatedCorpusFrames:N0}\r\n"
-            + $"策略配额缺口：{strategyShortfall}";
+            + $"策略配额缺口：{strategyShortfall}\r\n"
+            + $"行为进展：{(iteration.BehavioralProductiveProgress ? "是" : "否")} · "
+            + $"数据管线进展：{(iteration.DataPipelineProgress ? "是" : "否")} · "
+            + $"仅数据连续轮：{iteration.ConsecutiveDataOnlyIterations}\r\n"
+            + $"推理 batch 填充 {iteration.InferenceHealth.AverageBatchFill:P1} · "
+            + $"超时 flush {iteration.InferenceHealth.TimeoutFlushRate:P1} · "
+            + $"直接回退 {iteration.InferenceHealth.DirectFallbackRate:P1}"
+            + (iteration.InferenceHealth.RevalidationRequired
+                ? $" · 下轮重测（{iteration.InferenceHealth.Reason}）"
+                : "");
     }
 
     private void PresentArena(

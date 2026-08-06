@@ -738,7 +738,14 @@ internal sealed class MainWindow : Window
                     Label = (item.Recommended ? "推荐 · " : "")
                             + item.CreatedUtc.ToLocalTime().ToString("MM-dd HH:mm")
                             + " · 迭代 " + item.NextIteration
-                            + " · epoch " + item.BestEpoch
+                            + " · val-best "
+                            + (item.BestValidationEpoch > 0
+                                ? item.BestValidationEpoch
+                                : item.BestEpoch)
+                            + " · deploy "
+                            + (item.DeploymentSelectedEpoch > 0
+                                ? item.DeploymentSelectedEpoch
+                                : item.BestEpoch)
                             + " · val " + item.ValidationLoss.ToString("0.0000")
                 })
                 .ToList();
@@ -1653,7 +1660,9 @@ internal sealed class MainWindow : Window
             + $"Worker 已完成：{result.WorkerCompleted}\r\n"
             + $"训练成功：{result.TrainingSucceeded}\r\n"
             + $"模型已接受：{result.ModelAccepted}\r\n"
-            + $"执行/选中 epoch：{result.EpochsExecuted}/{result.SelectedEpoch}\r\n"
+            + $"执行 epoch：{result.EpochsExecuted}\r\n"
+            + $"验证最优 epoch：{(result.BestValidationEpoch > 0 ? result.BestValidationEpoch : result.SelectedEpoch)}\r\n"
+            + $"部署选择 epoch：{(result.DeploymentSelectedEpoch > 0 ? result.DeploymentSelectedEpoch : result.SelectedEpoch)}\r\n"
             + $"持久化回放：{result.PersistedReplayEpisodes}\r\n"
             + $"检查点大小：{result.CheckpointBytes:N0} bytes\r\n"
             + $"运行时：{result.Runtime}\r\n"
@@ -3109,6 +3118,16 @@ internal sealed class MainWindow : Window
                     break;
                 case nameof(ControllerWorkerResultSummary.SelectedEpoch):
                     summary.SelectedEpoch = Convert.ToInt32(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerWorkerResultSummary.BestValidationEpoch):
+                    summary.BestValidationEpoch = Convert.ToInt32(
+                        reader.Value,
+                        CultureInfo.InvariantCulture);
+                    break;
+                case nameof(ControllerWorkerResultSummary.DeploymentSelectedEpoch):
+                    summary.DeploymentSelectedEpoch = Convert.ToInt32(
                         reader.Value,
                         CultureInfo.InvariantCulture);
                     break;

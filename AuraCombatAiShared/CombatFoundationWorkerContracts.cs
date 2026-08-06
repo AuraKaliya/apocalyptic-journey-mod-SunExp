@@ -234,6 +234,10 @@ public sealed class CombatFoundationWorkerResult
 
     public int SelectedEpoch { get; set; }
 
+    public int BestValidationEpoch { get; set; }
+
+    public int DeploymentSelectedEpoch { get; set; }
+
     public int PersistedReplayEpisodes { get; set; }
 
     public long CheckpointBytes { get; set; }

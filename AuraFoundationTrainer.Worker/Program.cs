@@ -713,6 +713,15 @@ try
             : resumable
                 ? "training-rejected-resumable"
                 : "training-rejected";
+    var finalIteration = training.Iterations.LastOrDefault();
+    var bestValidationEpoch = finalIteration?.ModelEpochHistory
+        .Where(item => !item.Calibrated)
+        .OrderBy(item => item.Validation?.CompositeLoss ?? double.MaxValue)
+        .ThenBy(item => item.Epoch)
+        .Select(item => item.Epoch)
+        .FirstOrDefault() ?? training.ModelBestEpoch;
+    var deploymentSelectedEpoch = finalIteration?.TuningSelectedEpoch
+                                  ?? training.ModelBestEpoch;
     var workerResult = new CombatFoundationWorkerResult
     {
         JobId = job.JobId,
@@ -722,7 +731,9 @@ try
         ModelAccepted = training.AcceptancePassed,
         EpochsExecuted = training.ModelEpochHistory.Count(item =>
             !item.Calibrated),
-        SelectedEpoch = training.ModelBestEpoch,
+        SelectedEpoch = deploymentSelectedEpoch,
+        BestValidationEpoch = bestValidationEpoch,
+        DeploymentSelectedEpoch = deploymentSelectedEpoch,
         PersistedReplayEpisodes = training.PersistedReplayEpisodes,
         CheckpointBytes = resumable
             ? new[] { job.CheckpointPath, resumableEpisodesPath }
@@ -1576,7 +1587,14 @@ static IReadOnlyList<string> WriteCheckpointCatalogEntry(
 {
     var state = checkpoint.Resume;
     var modelTraining = state.ModelTraining;
-    var iteration = state.Iterations?.LastOrDefault();
+    var iteration = string.Equals(
+            state.Stage,
+            "iteration-complete",
+            StringComparison.Ordinal)
+        ? state.Iterations?.LastOrDefault(item =>
+              item.Iteration == state.NextIteration)
+          ?? state.Iterations?.LastOrDefault()
+        : null;
     var shouldCatalog = string.Equals(
                             state.Stage,
                             "iteration-complete",
@@ -1595,8 +1613,23 @@ static IReadOnlyList<string> WriteCheckpointCatalogEntry(
             .Where(path => !string.IsNullOrWhiteSpace(path))
             .ToArray();
     }
+    var bestValidationEpoch = iteration == null
+        ? modelTraining?.BestValidationEpoch > 0
+            ? modelTraining.BestValidationEpoch
+            : modelTraining?.BestEpoch ?? 0
+        : iteration.ModelEpochHistory
+            .Where(item => !item.Calibrated)
+            .OrderBy(item => item.Validation?.CompositeLoss
+                             ?? double.MaxValue)
+            .ThenBy(item => item.Epoch)
+            .Select(item => item.Epoch)
+            .FirstOrDefault();
+    var deploymentSelectedEpoch = iteration?.TuningSelectedEpoch
+                                  ?? modelTraining?.DeploymentSelectedEpoch
+                                  ?? 0;
     var epochMetrics = modelTraining?.EpochHistory?
-        .FirstOrDefault(item => item.Epoch == modelTraining.BestEpoch)
+        .FirstOrDefault(item => item.Epoch == bestValidationEpoch
+                                && !item.Calibrated)
         ?? modelTraining?.EpochHistory?.LastOrDefault();
     var trainingMetrics = iteration?.ModelTrainingMetrics
                           ?? epochMetrics?.Training
@@ -1617,7 +1650,9 @@ static IReadOnlyList<string> WriteCheckpointCatalogEntry(
         requestFingerprint,
         state.Stage,
         state.NextIteration,
-        Epoch = modelTraining?.CompletedEpochs ?? iteration?.TuningSelectedEpoch ?? 0,
+        Epoch = iteration?.TuningSelectedEpoch
+                ?? modelTraining?.CompletedEpochs
+                ?? 0,
         ModelId = model?.ModelId ?? "",
         Replay = checkpoint.EpisodeSnapshot?.ReplayIdentity ?? ""
     });
@@ -1653,12 +1688,15 @@ static IReadOnlyList<string> WriteCheckpointCatalogEntry(
         Stage = state.Stage,
         NextIteration = state.NextIteration,
         CompletedCampaigns = state.CompletedCampaigns,
-        CompletedEpochs = modelTraining?.CompletedEpochs
-                          ?? iteration?.TuningSelectedEpoch
+        CompletedEpochs = iteration?.ModelEpochHistory.Count(item =>
+                              !item.Calibrated)
+                          ?? modelTraining?.CompletedEpochs
                           ?? 0,
-        BestEpoch = modelTraining?.BestEpoch
-                    ?? iteration?.TuningSelectedEpoch
-                    ?? 0,
+        BestEpoch = deploymentSelectedEpoch > 0
+            ? deploymentSelectedEpoch
+            : bestValidationEpoch,
+        BestValidationEpoch = bestValidationEpoch,
+        DeploymentSelectedEpoch = deploymentSelectedEpoch,
         ModelId = model?.ModelId ?? "",
         CheckpointPath = immutablePath,
         EpisodeSnapshotPath = checkpoint.EpisodeSnapshot?.Path

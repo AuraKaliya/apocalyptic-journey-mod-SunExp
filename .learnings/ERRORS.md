@@ -1,5 +1,39 @@
 # Errors
 
+## [ERR-20260806-017] analysis-epoch-values-cross-method-scope
+
+**Logged**: 2026-08-06T18:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: backend
+
+### Summary
+Final-epoch locals were added to the Markdown report method but were also
+referenced from the separate HTML report method.
+
+### Error
+```text
+CS0103: finalBestValidationEpoch/finalDeploymentEpoch do not exist in the current context
+```
+
+### Context
+- `dotnet build AuraToolsExp-Dev/AuraToolsExp.Dll.csproj -c Release`
+- Markdown and HTML reporting are separate methods in the same source file.
+
+### Suggested Fix
+Derive report-local values inside each report method or move the derivation to
+a shared helper before referencing them.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraToolsExp-Dev/Features/AutoBattle/AuraToolsAutoBattleFoundationRuntime.cs
+
+### Resolution
+- **Resolved**: 2026-08-06T18:00:00+08:00
+- **Notes**: Added the derivation inside `BuildFoundationHtml`; the net472 build passed.
+
+---
+
 ## [ERR-20260805-009] temp-validation-cleanup-rejected
 
 **Logged**: 2026-08-05T00:00:00+08:00

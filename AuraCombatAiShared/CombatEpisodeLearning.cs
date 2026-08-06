@@ -410,6 +410,9 @@ public sealed class CombatPolicyValueTrainingResult
     public Dictionary<string, int> FrameStrata { get; set; } =
         new(StringComparer.Ordinal);
 
+    public Dictionary<string, int> EncodedStrategyFrames { get; set; } =
+        new(StringComparer.Ordinal);
+
     public double MinimumFrameWeight { get; set; } = 1d;
 
     public double MaximumFrameWeight { get; set; } = 1d;
@@ -572,6 +575,10 @@ public sealed class CombatPolicyValueTrainingResumeState
     public double BestValidationLoss { get; set; } = double.MaxValue;
 
     public int BestEpoch { get; set; }
+
+    public int BestValidationEpoch { get; set; }
+
+    public int DeploymentSelectedEpoch { get; set; }
 
     public int StaleEpochs { get; set; }
 

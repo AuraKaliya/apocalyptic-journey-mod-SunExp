@@ -47,7 +47,8 @@ public static class CombatFoundationCounterfactualProtocol
 
 public static class CombatFoundationStagnationProtocol
 {
-    public const string Version = "foundation-stagnation-v2-productive-progress";
+    public const string Version =
+        "foundation-stagnation-v3-behavior-vs-pipeline-progress";
 
     public const int DefaultMaximumConsecutiveRejectedIterations = 3;
 
@@ -57,9 +58,109 @@ public static class CombatFoundationStagnationProtocol
 
     public const int HardSeedSolveRateWindow = 2;
 
+    public const int MaximumConsecutiveDataOnlyIterations = 2;
+
     public const double MinimumHardSeedSolveRate = 0.05d;
 
     public const double ReducedHardSeedReplayShare = 0.12d;
+}
+
+public static class CombatFoundationInferenceHealthProtocol
+{
+    public const long MinimumRequests = 10_000L;
+
+    public const double MinimumAverageBatchFill = 0.70d;
+
+    public const double MaximumTimeoutFlushRate = 0.50d;
+
+    public const double MaximumDirectFallbackRate = 0.15d;
+
+    public static CombatFoundationInferenceHealth Evaluate(
+        CombatCampaignFoundationTelemetry start,
+        CombatCampaignFoundationTelemetry end)
+    {
+        var requests = Math.Max(
+            0L,
+            (end?.InferenceRequests ?? 0L)
+            - (start?.InferenceRequests ?? 0L));
+        var batches = Math.Max(
+            0L,
+            (end?.InferenceBatchEvaluations ?? 0L)
+            - (start?.InferenceBatchEvaluations ?? 0L));
+        var timeouts = Math.Max(
+            0L,
+            (end?.InferenceTimeoutFlushes ?? 0L)
+            - (start?.InferenceTimeoutFlushes ?? 0L));
+        var fallbacks = Math.Max(
+            0L,
+            (end?.InferenceDirectFallbackRequests ?? 0L)
+            - (start?.InferenceDirectFallbackRequests ?? 0L));
+        var batchSize = Math.Max(1, end?.InferenceBatchSizePerLane ?? 1);
+        var averageBatchSize = batches <= 0
+            ? 0d
+            : Math.Max(0L, requests - fallbacks) / (double)batches;
+        var averageBatchFill = batchSize <= 1
+            ? 1d
+            : averageBatchSize / batchSize;
+        var timeoutRate = batches <= 0 ? 0d : timeouts / (double)batches;
+        var fallbackRate = requests <= 0 ? 0d : fallbacks / (double)requests;
+        var batchMode = string.Equals(
+            end?.InferenceExecutionMode,
+            CombatFoundationExecutionProfileNames.ShardedBatchInference,
+            StringComparison.Ordinal);
+        var reasons = new List<string>();
+        if (requests >= MinimumRequests && batchMode)
+        {
+            if (averageBatchFill < MinimumAverageBatchFill)
+            {
+                reasons.Add("low-batch-fill");
+            }
+            if (timeoutRate > MaximumTimeoutFlushRate)
+            {
+                reasons.Add("high-timeout-flush-rate");
+            }
+            if (fallbackRate > MaximumDirectFallbackRate)
+            {
+                reasons.Add("high-direct-fallback-rate");
+            }
+        }
+        return new CombatFoundationInferenceHealth
+        {
+            Requests = requests,
+            BatchEvaluations = batches,
+            TimeoutFlushes = timeouts,
+            DirectFallbackRequests = fallbacks,
+            AverageBatchSize = averageBatchSize,
+            AverageBatchFill = averageBatchFill,
+            TimeoutFlushRate = timeoutRate,
+            DirectFallbackRate = fallbackRate,
+            RevalidationRequired = reasons.Count > 0,
+            Reason = string.Join(",", reasons)
+        };
+    }
+}
+
+public sealed class CombatFoundationInferenceHealth
+{
+    public long Requests { get; set; }
+
+    public long BatchEvaluations { get; set; }
+
+    public long TimeoutFlushes { get; set; }
+
+    public long DirectFallbackRequests { get; set; }
+
+    public double AverageBatchSize { get; set; }
+
+    public double AverageBatchFill { get; set; }
+
+    public double TimeoutFlushRate { get; set; }
+
+    public double DirectFallbackRate { get; set; }
+
+    public bool RevalidationRequired { get; set; }
+
+    public string Reason { get; set; } = "";
 }
 
 public static class CombatFoundationPromotionProtocol
@@ -336,6 +437,8 @@ public sealed class CombatCampaignFoundationTrainingRequest
 
     public CombatTransformerTeacherOptions TransformerTeacher { get; set; } =
         new();
+
+    public bool FinalizeTransformerTeacher { get; set; }
 
     public CombatCampaignDefinition TrainingCampaign { get; set; } = new();
 
@@ -821,6 +924,8 @@ public sealed class CombatCampaignFoundationIteration
 
     public int TeacherStudentPoolSourceFrames { get; set; }
 
+    public int TeacherStudentPoolAvailableSourceFrames { get; set; }
+
     public int TeacherStudentPoolSelectedFrames { get; set; }
 
     public int TeacherStudentPoolDroppedFrames { get; set; }
@@ -838,6 +943,16 @@ public sealed class CombatCampaignFoundationIteration
     public bool TeacherStudentPoolStrategyQuotaPassed { get; set; } = true;
 
     public Dictionary<string, int> TeacherStudentPoolStrategyFrames {
+        get;
+        set;
+    } = new(StringComparer.Ordinal);
+
+    public Dictionary<string, int> TeacherStudentPoolAvailableStrategyFrames {
+        get;
+        set;
+    } = new(StringComparer.Ordinal);
+
+    public Dictionary<string, int> TeacherStudentPoolSourceStrategyFrames {
         get;
         set;
     } = new(StringComparer.Ordinal);
@@ -869,6 +984,12 @@ public sealed class CombatCampaignFoundationIteration
 
     public Dictionary<string, int> ModelFrameStrata { get; set; } =
         new(StringComparer.Ordinal);
+
+    public Dictionary<string, int> ModelEncodedStrategyFrames { get; set; } =
+        new(StringComparer.Ordinal);
+
+    public CombatFoundationInferenceHealth InferenceHealth { get; set; } =
+        new();
 
     public double ModelMinimumFrameWeight { get; set; } = 1d;
 
@@ -1044,7 +1165,18 @@ public sealed class CombatCampaignFoundationIteration
 
     public List<string> ProductiveProgressReasons { get; set; } = new();
 
+    public bool BehavioralProductiveProgress { get; set; }
+
+    public List<string> BehavioralProductiveProgressReasons { get; set; } =
+        new();
+
+    public bool DataPipelineProgress { get; set; }
+
+    public List<string> DataPipelineProgressReasons { get; set; } = new();
+
     public int ConsecutiveUnproductiveIterations { get; set; }
+
+    public int ConsecutiveDataOnlyIterations { get; set; }
 
     public bool StagnationStopTriggered { get; set; }
 }
@@ -1400,6 +1532,8 @@ public sealed class CombatCampaignFoundationTrainingResult
     public int ConsecutiveRejectedIterations { get; set; }
 
     public int ConsecutiveUnproductiveIterations { get; set; }
+
+    public int ConsecutiveDataOnlyIterations { get; set; }
 
     public string IterationStopReason { get; set; } = "";
 
@@ -2231,6 +2365,10 @@ public sealed class CombatCampaignFoundationTrainer
             ConsecutiveUnproductiveIterations(
                 result.Iterations,
                 stagnationAttemptStartIndex);
+        result.ConsecutiveDataOnlyIterations =
+            ConsecutiveDataOnlyIterations(
+                result.Iterations,
+                stagnationAttemptStartIndex);
         if (ShouldStopForStagnation(
                 request,
                 result.Iterations,
@@ -2260,6 +2398,8 @@ public sealed class CombatCampaignFoundationTrainer
             cancellationToken.ThrowIfCancellationRequested();
             var iterationNumber = iteration + 1;
             telemetry.BeginIteration(iterationNumber);
+            var inferenceIterationStart = telemetry.Current(
+                "iteration:inference-baseline");
             var curriculumEvidence = result.Iterations
                 .Skip(Math.Max(
                     0,
@@ -3040,6 +3180,9 @@ public sealed class CombatCampaignFoundationTrainer
                                 {
                                     Iteration = iterationNumber,
                                     TotalIterations = iterations,
+                                    FinalRefreshRequested =
+                                        request.Resume == null
+                                        || request.FinalizeTransformerTeacher,
                                     DecisionProfile = request.DecisionProfile,
                                     Episodes = trainingReplayWindow,
                                     Options = transformerTeacherOptions,
@@ -3875,6 +4018,10 @@ public sealed class CombatCampaignFoundationTrainer
                             ? "paired-win-gain"
                             : "score-depth-gain"
                         : "no-meaningful-gain";
+            var inferenceIterationEnd = telemetry.Current(
+                "iteration:inference-completed");
+            var inferenceHealth = CombatFoundationInferenceHealthProtocol
+                .Evaluate(inferenceIterationStart, inferenceIterationEnd);
             var completedIteration = new CombatCampaignFoundationIteration
             {
                 Iteration = iteration + 1,
@@ -3964,6 +4111,8 @@ public sealed class CombatCampaignFoundationTrainer
                     effectiveExplorationProbability,
                 TeacherStudentPoolSourceFrames =
                     teacherStudentPool.SourceFrames,
+                TeacherStudentPoolAvailableSourceFrames =
+                    teacherStudentPool.AvailableSourceFrames,
                 TeacherStudentPoolSelectedFrames =
                     teacherStudentPool.SelectedFrames,
                 TeacherStudentPoolDroppedFrames =
@@ -3983,6 +4132,14 @@ public sealed class CombatCampaignFoundationTrainer
                 TeacherStudentPoolStrategyFrames =
                     new Dictionary<string, int>(
                         teacherStudentPool.StrategyFrames,
+                        StringComparer.Ordinal),
+                TeacherStudentPoolAvailableStrategyFrames =
+                    new Dictionary<string, int>(
+                        teacherStudentPool.AvailableStrategyFrames,
+                        StringComparer.Ordinal),
+                TeacherStudentPoolSourceStrategyFrames =
+                    new Dictionary<string, int>(
+                        teacherStudentPool.SourceStrategyFrames,
                         StringComparer.Ordinal),
                 TeacherStudentPoolQuotaShortfalls =
                     new Dictionary<string, int>(
@@ -4019,6 +4176,11 @@ public sealed class CombatCampaignFoundationTrainer
                     new Dictionary<string, int>(
                         trained.FrameStrata,
                         StringComparer.Ordinal),
+                ModelEncodedStrategyFrames =
+                    new Dictionary<string, int>(
+                        trained.EncodedStrategyFrames,
+                        StringComparer.Ordinal),
+                InferenceHealth = inferenceHealth,
                 ModelMinimumFrameWeight =
                     trained.MinimumFrameWeight,
                 ModelMaximumFrameWeight =
@@ -4172,20 +4334,41 @@ public sealed class CombatCampaignFoundationTrainer
             completedIteration.ParetoProgress = ParetoFrontierProgress(
                 completedIteration,
                 result.Iterations);
-            completedIteration.ProductiveProgressReasons =
+            completedIteration.BehavioralProductiveProgressReasons =
                 ProductiveProgressReasons(
                         completedIteration,
                         result.Iterations)
                     .ToList();
+            completedIteration.BehavioralProductiveProgress =
+                completedIteration.BehavioralProductiveProgressReasons.Count
+                > 0;
+            completedIteration.ProductiveProgressReasons =
+                new List<string>(
+                    completedIteration.BehavioralProductiveProgressReasons);
             completedIteration.ProductiveProgress =
-                completedIteration.ProductiveProgressReasons.Count > 0;
+                completedIteration.BehavioralProductiveProgress;
+            completedIteration.DataPipelineProgressReasons =
+                DataPipelineProgressReasons(
+                        completedIteration,
+                        result.Iterations)
+                    .ToList();
+            completedIteration.DataPipelineProgress =
+                completedIteration.DataPipelineProgressReasons.Count > 0;
             completedIteration.ConsecutiveUnproductiveIterations =
-                completedIteration.ProductiveProgress
+                completedIteration.BehavioralProductiveProgress
                 || completedIteration.WorkingModelAccepted
                     ? 0
                     : ConsecutiveUnproductiveIterations(
                           result.Iterations,
                           stagnationAttemptStartIndex) + 1;
+            completedIteration.ConsecutiveDataOnlyIterations =
+                completedIteration.DataPipelineProgress
+                && !completedIteration.BehavioralProductiveProgress
+                && !completedIteration.WorkingModelAccepted
+                    ? ConsecutiveDataOnlyIterations(
+                          result.Iterations,
+                          stagnationAttemptStartIndex) + 1
+                    : 0;
             var updatedWorkingSlots = workingModelBank.AddCandidate(
                 trained.Model,
                 completedIteration);
@@ -4237,12 +4420,46 @@ public sealed class CombatCampaignFoundationTrainer
                 latestIteration.ConsecutiveRejectedIterations;
             result.ConsecutiveUnproductiveIterations =
                 latestIteration.ConsecutiveUnproductiveIterations;
+            result.ConsecutiveDataOnlyIterations =
+                latestIteration.ConsecutiveDataOnlyIterations;
+            if (inferenceHealth.RevalidationRequired
+                && string.Equals(
+                    executionPlan.Profile,
+                    CombatFoundationExecutionProfileNames.Auto,
+                    StringComparison.Ordinal))
+            {
+                autoTune.InferenceCalibrated = false;
+                result.AutoTune = autoTune;
+                request.AutoTuneCache = autoTune;
+                request.AutoTuneCompleted?.Invoke(autoTune);
+            }
             var stagnationStop = ShouldStopForStagnation(
                 request,
                 result.Iterations,
                 workingChampion != null,
                 stagnationAttemptStartIndex);
             latestIteration.StagnationStopTriggered = stagnationStop;
+            var selectedCheckpointTraining =
+                new CombatPolicyValueTrainingResumeState
+                {
+                    CompletedEpochs = trained.CompletedEpochs,
+                    Model = CombatPolicyValueBatchTrainer.Clone(trained.Model),
+                    BestModel = CombatPolicyValueBatchTrainer.Clone(trained.Model),
+                    BestValidationLoss = trained.EpochHistory
+                        .Where(item => !item.Calibrated)
+                        .Select(item => item.Validation?.CompositeLoss
+                                        ?? double.MaxValue)
+                        .DefaultIfEmpty(trained.ValidationMetrics.CompositeLoss)
+                        .Min(),
+                    BestEpoch = tuning.Epoch,
+                    BestValidationEpoch = trained.BestEpoch,
+                    DeploymentSelectedEpoch = tuning.Epoch,
+                    EpochHistory = trained.EpochHistory
+                        .Select(item => CloneEpochMetrics(
+                            item,
+                            iterationNumber))
+                        .ToList()
+                };
             PublishCheckpoint(
                 request,
                 CreateResumeState(
@@ -4252,7 +4469,7 @@ public sealed class CombatCampaignFoundationTrainer
                     result,
                     telemetry,
                     workingChampion,
-                    modelTraining: null));
+                    modelTraining: selectedCheckpointTraining));
             resume = null;
             if (stagnationStop)
             {
@@ -7991,6 +8208,26 @@ public sealed class CombatCampaignFoundationTrainer
         return count;
     }
 
+    private static int ConsecutiveDataOnlyIterations(
+        IReadOnlyList<CombatCampaignFoundationIteration> iterations,
+        int startIndex = 0)
+    {
+        var count = 0;
+        var floor = Math.Max(0, Math.Min(iterations.Count, startIndex));
+        for (var index = iterations.Count - 1; index >= floor; index--)
+        {
+            var iteration = iterations[index];
+            if (iteration.WorkingModelAccepted
+                || iteration.BehavioralProductiveProgress
+                || !iteration.DataPipelineProgress)
+            {
+                break;
+            }
+            count++;
+        }
+        return count;
+    }
+
     internal static IReadOnlyList<string> ProductiveProgressReasons(
         CombatCampaignFoundationIteration current,
         IReadOnlyList<CombatCampaignFoundationIteration>? previous)
@@ -8067,6 +8304,20 @@ public sealed class CombatCampaignFoundationTrainer
             reasons.Add("validation-loss-improved");
         }
 
+        return reasons.Distinct(StringComparer.Ordinal).ToArray();
+    }
+
+    internal static IReadOnlyList<string> DataPipelineProgressReasons(
+        CombatCampaignFoundationIteration current,
+        IReadOnlyList<CombatCampaignFoundationIteration>? previous)
+    {
+        if (current == null)
+        {
+            return Array.Empty<string>();
+        }
+        var history = previous
+                      ?? Array.Empty<CombatCampaignFoundationIteration>();
+        var reasons = new List<string>();
         var priorTeacherGeneration = history.Count == 0
             ? 0
             : history.Max(item => item.TransformerTeacher?.TeacherGeneration
@@ -8166,12 +8417,20 @@ public sealed class CombatCampaignFoundationTrainer
         var limit = Math.Max(
             0,
             request.MaximumConsecutiveRejectedIterations);
-        return limit > 0
-               && ConsecutiveUnproductiveIterations(
-                   iterations
-                   ?? Array.Empty<CombatCampaignFoundationIteration>(),
-                   startIndex)
-               >= limit;
+        if (limit <= 0)
+        {
+            return false;
+        }
+        var history = iterations
+                      ?? Array.Empty<CombatCampaignFoundationIteration>();
+        var dataOnlyLimitReached = ConsecutiveDataOnlyIterations(
+                                       history,
+                                       startIndex)
+                                   >= CombatFoundationStagnationProtocol
+                                       .MaximumConsecutiveDataOnlyIterations;
+        return dataOnlyLimitReached
+               || ConsecutiveUnproductiveIterations(history, startIndex)
+                  >= limit;
     }
 
     private static bool TrainingObjectiveVictory(

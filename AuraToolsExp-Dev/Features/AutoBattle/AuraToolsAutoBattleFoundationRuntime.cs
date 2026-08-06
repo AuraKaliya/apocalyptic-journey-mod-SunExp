@@ -1292,6 +1292,7 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                 result.StoppedForStagnation,
                 result.ConsecutiveRejectedIterations,
                 result.ConsecutiveUnproductiveIterations,
+                result.ConsecutiveDataOnlyIterations,
                 result.IterationStopReason,
                 result.Compatibility,
                 result.HardSeedHistory,
@@ -1518,6 +1519,16 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                 }));
         }
 
+        var finalModelIteration = result.Iterations.LastOrDefault();
+        var finalBestValidationEpoch = finalModelIteration?.ModelEpochHistory
+            .Where(item => !item.Calibrated)
+            .OrderBy(item => item.Validation?.CompositeLoss
+                             ?? double.MaxValue)
+            .ThenBy(item => item.Epoch)
+            .Select(item => item.Epoch)
+            .FirstOrDefault() ?? result.ModelBestEpoch;
+        var finalDeploymentEpoch = finalModelIteration?.TuningSelectedEpoch
+                                   ?? result.ModelBestEpoch;
         var markdown = new StringBuilder();
         markdown.AppendLine("# 成功案例学习摘要");
         markdown.AppendLine();
@@ -1857,8 +1868,10 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                             + result.ModelCompletedEpochs
                             + "/"
                             + result.ModelConfiguredEpochs
-                            + " epochs; best "
-                            + result.ModelBestEpoch
+                            + " epochs; validation best "
+                            + finalBestValidationEpoch
+                            + "; deployment selected "
+                            + finalDeploymentEpoch
                             + "; validation loss "
                             + result.ModelBestValidationLoss.ToString("F5")
                             + "; early stopped "
@@ -1988,6 +2001,24 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                                 + iteration.ModelMaximumFrameWeight
                                     .ToString("F2")
                                 + ")"
+                                + "；策略帧 原始/封顶后/选中/编码 "
+                                + FormatTopCounts(
+                                    iteration
+                                        .TeacherStudentPoolAvailableStrategyFrames,
+                                    8)
+                                + " / "
+                                + FormatTopCounts(
+                                    iteration
+                                        .TeacherStudentPoolSourceStrategyFrames,
+                                    8)
+                                + " / "
+                                + FormatTopCounts(
+                                    iteration.TeacherStudentPoolStrategyFrames,
+                                    8)
+                                + " / "
+                                + FormatTopCounts(
+                                    iteration.ModelEncodedStrategyFrames,
+                                    8)
                                 + "，簇 "
                                 + (iteration.HardSeedClusters.Count == 0
                                     ? "none"
@@ -2045,21 +2076,43 @@ internal static class AuraToolsAutoBattleFoundationRuntime
                                 + " ("
                                  + iteration.PromotionReason
                                  + ")"
-                                 + "；有效进展 "
-                                 + (iteration.ProductiveProgress
+                                 + "；行为进展 "
+                                 + (iteration.BehavioralProductiveProgress
                                      ? string.Join(
                                          ",",
-                                         iteration.ProductiveProgressReasons)
+                                         iteration.BehavioralProductiveProgressReasons)
+                                     : "none")
+                                 + "；数据管线进展 "
+                                 + (iteration.DataPipelineProgress
+                                     ? string.Join(
+                                         ",",
+                                         iteration.DataPipelineProgressReasons)
                                      : "none")
                                  + "；Pareto 槽 "
                                  + (string.IsNullOrWhiteSpace(
                                      iteration.WorkingModelBankSlot)
                                      ? "none"
                                      : iteration.WorkingModelBankSlot)
-                                 + "；连续拒绝/无进展 "
+                                 + "；连续拒绝/行为无进展/仅数据 "
                                  + iteration.ConsecutiveRejectedIterations
                                  + "/"
-                                 + iteration.ConsecutiveUnproductiveIterations);
+                                 + iteration.ConsecutiveUnproductiveIterations
+                                 + "/"
+                                 + iteration.ConsecutiveDataOnlyIterations
+                                 + "；推理 fill/timeout/fallback "
+                                 + iteration.InferenceHealth.AverageBatchFill
+                                     .ToString("P1")
+                                 + "/"
+                                 + iteration.InferenceHealth.TimeoutFlushRate
+                                     .ToString("P1")
+                                 + "/"
+                                 + iteration.InferenceHealth.DirectFallbackRate
+                                     .ToString("P1")
+                                 + (iteration.InferenceHealth
+                                         .RevalidationRequired
+                                     ? " revalidate="
+                                       + iteration.InferenceHealth.Reason
+                                     : ""));
             markdown.AppendLine("  - 调参候选 "
                                 + iteration.TuningCandidateCount
                                 + "，选中 epoch "
@@ -2116,6 +2169,16 @@ internal static class AuraToolsAutoBattleFoundationRuntime
         CombatCampaignFoundationTrainingResult result,
         AutoBattleFoundationTrainingSettings settings)
     {
+        var finalModelIteration = result.Iterations.LastOrDefault();
+        var finalBestValidationEpoch = finalModelIteration?.ModelEpochHistory
+            .Where(item => !item.Calibrated)
+            .OrderBy(item => item.Validation?.CompositeLoss
+                             ?? double.MaxValue)
+            .ThenBy(item => item.Epoch)
+            .Select(item => item.Epoch)
+            .FirstOrDefault() ?? result.ModelBestEpoch;
+        var finalDeploymentEpoch = finalModelIteration?.TuningSelectedEpoch
+                                   ?? result.ModelBestEpoch;
         var html = new StringBuilder();
         html.AppendLine("<!doctype html><html lang=\"zh-CN\"><head><meta charset=\"utf-8\">");
         html.AppendLine("<title>世界推演底模训练报告</title>");
@@ -2310,8 +2373,10 @@ internal static class AuraToolsAutoBattleFoundationRuntime
             result.ModelCompletedEpochs
             + "/"
             + result.ModelConfiguredEpochs
-            + " epochs · best "
-            + result.ModelBestEpoch
+            + " epochs · validation best "
+            + finalBestValidationEpoch
+            + " · deployment "
+            + finalDeploymentEpoch
             + " · loss "
             + result.ModelBestValidationLoss.ToString("F5"),
             result.ModelCompletedEpochs > 0);
