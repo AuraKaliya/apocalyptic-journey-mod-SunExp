@@ -36,8 +36,6 @@ internal sealed class BundledFoundationImportStatus
 
     public int Deduplicated { get; set; }
 
-    public int Superseded { get; set; }
-
     public int Conflicts { get; set; }
 
     public int Failed { get; set; }
@@ -191,7 +189,6 @@ internal static class AuraToolsBundledFoundationModelRuntime
         }
 
         var catalog = LoadSubjectCatalog(root);
-        var pendingLegacyPackages = new List<PendingLegacyPackage>();
         foreach (var path in Directory.EnumerateFiles(
                      directory,
                      "*.json",
@@ -221,13 +218,8 @@ internal static class AuraToolsBundledFoundationModelRuntime
                 var version = NormalizeVersion(package!.ModelVersion);
                 if (string.IsNullOrWhiteSpace(version))
                 {
-                    pendingLegacyPackages.Add(new PendingLegacyPackage
-                    {
-                        SourceFileName = Path.GetFileName(path),
-                        PackageId = package.PackageId,
-                        ModelId = package.Model?.ModelId ?? ""
-                    });
-                    continue;
+                    throw new InvalidDataException(
+                        "内置底模必须声明当前语义版本 ModelVersion");
                 }
 
                 if (!ModelVersionPattern.IsMatch(version))
@@ -258,32 +250,6 @@ internal static class AuraToolsBundledFoundationModelRuntime
             }
         }
 
-        foreach (var legacy in pendingLegacyPackages)
-        {
-            var replacement = result.Candidates.FirstOrDefault(candidate =>
-                string.Equals(
-                    candidate.Package.PackageId,
-                    legacy.PackageId,
-                    StringComparison.Ordinal)
-                && string.Equals(
-                    candidate.Package.Model?.ModelId,
-                    legacy.ModelId,
-                    StringComparison.Ordinal));
-            if (replacement != null)
-            {
-                result.Superseded++;
-                result.InformationalDiagnostics.Add(
-                    legacy.SourceFileName
-                    + "：已忽略被版本化文件取代的旧部署副本；替代文件="
-                    + replacement.SourceFileName);
-                continue;
-            }
-
-            result.Failed++;
-            result.Diagnostics.Add(
-                legacy.SourceFileName
-                + "：内置底模必须声明语义版本 ModelVersion，例如 1.0.0");
-        }
         return result;
     }
 
@@ -298,8 +264,6 @@ internal static class AuraToolsBundledFoundationModelRuntime
                       + registration.Installed
                       + "，已存在 "
                       + registration.Deduplicated
-                      + "，旧版副本 "
-                      + scan.Superseded
                       + "，冲突 "
                       + registration.Conflicts
                       + "，失败 "
@@ -315,7 +279,6 @@ internal static class AuraToolsBundledFoundationModelRuntime
                 Scanned = scan.Scanned,
                 Installed = registration.Installed,
                 Deduplicated = registration.Deduplicated,
-                Superseded = scan.Superseded,
                 Conflicts = registration.Conflicts,
                 Failed = failed,
                 UpdatedUtc = DateTime.UtcNow
@@ -325,10 +288,6 @@ internal static class AuraToolsBundledFoundationModelRuntime
         foreach (var diagnostic in scan.Diagnostics.Concat(registration.Diagnostics))
         {
             AuraToolsLog.Warn("[AutoBattle][BundledModels] " + diagnostic);
-        }
-        foreach (var diagnostic in scan.InformationalDiagnostics)
-        {
-            AuraToolsLog.Info("[AutoBattle][BundledModels] " + diagnostic);
         }
         (failed == 0 && registration.Conflicts == 0
             ? (Action<string>)AuraToolsLog.Info
@@ -435,22 +394,10 @@ internal static class AuraToolsBundledFoundationModelRuntime
 
         public int Failed { get; set; }
 
-        public int Superseded { get; set; }
-
         public List<BundledFoundationPackageCandidate> Candidates { get; } = new();
 
         public List<string> Diagnostics { get; } = new();
 
-        public List<string> InformationalDiagnostics { get; } = new();
-    }
-
-    private sealed class PendingLegacyPackage
-    {
-        public string SourceFileName { get; set; } = "";
-
-        public string PackageId { get; set; } = "";
-
-        public string ModelId { get; set; } = "";
     }
 
 }

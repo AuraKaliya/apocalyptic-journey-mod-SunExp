@@ -581,7 +581,7 @@ internal static class AuraToolsAutoBattleSimulationRuntime
         var readinessProblems = FoundationReadinessProblems(campaign, ruleset);
         if (readinessProblems.Count > 0)
         {
-            message = "底模训练尚未就绪：" + string.Join("；", readinessProblems);
+            message = "底模评估尚未就绪：" + string.Join("；", readinessProblems);
             return false;
         }
         lock (FoundationPackageCacheGate)

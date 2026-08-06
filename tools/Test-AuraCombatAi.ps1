@@ -103,8 +103,6 @@ $contentRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\Aura
 $gameValidationProtocolPath = Join-Path $root "AuraCombatAiShared\CombatGameValidation.cs"
 $simulationUiRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleSimulationRuntime.cs"
 $gameValidationRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleGameValidationRuntime.cs"
-$foundationRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleFoundationRuntime.cs"
-$foundationWorkerRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsFoundationWorkerRuntime.cs"
 $foundationWorkerProjectPath = Join-Path $root "AuraFoundationTrainer.Worker\AuraFoundationTrainer.Worker.csproj"
 $foundationWorkerProgramPath = Join-Path $root "AuraFoundationTrainer.Worker\Program.cs"
 $nativeRuntimePath = Join-Path $root "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsNativeRewardSimulationRuntime.cs"
@@ -178,8 +176,6 @@ $contentRuntime = Get-Content -LiteralPath $contentRuntimePath -Raw
 $gameValidationProtocol = Get-Content -LiteralPath $gameValidationProtocolPath -Raw
 $simulationUiRuntime = Get-Content -LiteralPath $simulationUiRuntimePath -Raw
 $gameValidationRuntime = Get-Content -LiteralPath $gameValidationRuntimePath -Raw
-$foundationRuntime = Get-Content -LiteralPath $foundationRuntimePath -Raw
-$foundationWorkerRuntime = Get-Content -LiteralPath $foundationWorkerRuntimePath -Raw
 $foundationWorkerProject = Get-Content -LiteralPath $foundationWorkerProjectPath -Raw
 $foundationWorkerProgram = Get-Content -LiteralPath $foundationWorkerProgramPath -Raw
 $nativeRuntime = Get-Content -LiteralPath $nativeRuntimePath -Raw
@@ -631,24 +627,6 @@ foreach ($anchor in @(
     }
 }
 foreach ($anchor in @(
-    "AuraToolsNativeRewardExtensionFactory",
-    "AuraToolsNativeProgramPackageAudit.Validate",
-    "BeginReadinessRefresh",
-    "TryGetCachedFoundationPackage",
-    "foundation.ExecutionMode",
-    "AuraToolsFoundationWorkerRuntime.Run",
-    "CombatFoundationWorkerJobFactory.Create",
-    "ToSharedParameters",
-    "result.TrainingFailures",
-    "EnableCounterfactualHardEncounters",
-    "EnableFrameStratification",
-    "CombatFoundationCaseArchiveProtocol"
-)) {
-    if (-not $foundationRuntime.Contains($anchor)) {
-        throw "AuraTools authoritative foundation runtime contract is missing: $anchor"
-    }
-}
-foreach ($anchor in @(
     "CombatFoundationTrainingParameters",
     "CombatFoundationWorkerJobFactory",
     "PreflightSeedStart = parameters.TrainingSeedStart",
@@ -684,18 +662,14 @@ foreach ($anchor in @(
         throw "Aura foundation worker protocol is missing: $anchor"
     }
 }
-foreach ($anchor in @(
-    "TrainingWorker",
-    "CancellationPath",
-    "ExpectedRulesetHash",
-    "CreateNoWindow",
-    "Kill",
-    "CombatFoundationWorkerProtocol.TryValidateProgress",
-    "progressDiagnostic",
-    "[Worker][Progress]"
-)) {
-    if (-not $foundationWorkerRuntime.Contains($anchor)) {
-        throw "AuraTools external foundation worker runtime is missing: $anchor"
+
+$removedGameFoundationRuntimes = @(
+    "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleFoundationRuntime.cs",
+    "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsFoundationWorkerRuntime.cs"
+)
+foreach ($removedRuntime in $removedGameFoundationRuntimes) {
+    if (Test-Path -LiteralPath (Join-Path $root $removedRuntime)) {
+        throw "Removed in-game foundation runtime was restored: $removedRuntime"
     }
 }
 
@@ -1405,10 +1379,10 @@ foreach ($anchor in @(
     "AuraToolsAutoBattleWorkLockView",
     "InputField.ContentType.IntegerNumber",
     "EnsureContentBuilt",
-    "CPU 并行线程",
-    "CampaignsPerSecond",
-    "FormatDuration(status.EstimatedRemainingSeconds)",
-    "status.ProgressDiagnostic",
+    "CreateAutoBattlePlayerAdaptationSection",
+    "AutoBattle.PlayerResidualParameters",
+    "SnapshotPolicyAdapters",
+    "QueueGenerateCandidate",
     "AuraToolsAutoBattleGameValidationStatusView",
     "隐藏战斗画面"
 )) {

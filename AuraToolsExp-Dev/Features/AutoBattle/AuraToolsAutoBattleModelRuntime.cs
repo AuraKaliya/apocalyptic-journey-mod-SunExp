@@ -1506,8 +1506,7 @@ internal static class AuraToolsAutoBattleModelRuntime
     {
         lock (StatusGate)
         {
-            return StatusByProfile.Values.Any(item => item.Busy)
-                   || AuraToolsAutoBattleFoundationRuntime.GetStatus().Busy;
+            return StatusByProfile.Values.Any(item => item.Busy);
         }
     }
 
@@ -1607,7 +1606,6 @@ internal static class AuraToolsAutoBattleModelRuntime
                 StatusByProfile.Clear();
             }
             AuraToolsAutoBattleSimulationRuntime.ResetAfterDataClear();
-            AuraToolsAutoBattleFoundationRuntime.ResetAfterDataClear();
             var settings = AuraToolsConfigService.MatchExperience.AutoBattle;
             settings.SelectedModelId = "";
             settings.TrainedModelMode = "off";
@@ -3314,7 +3312,10 @@ internal static class AuraToolsAutoBattleModelRuntime
     private static string DescribeWorkerProvenance(
         CombatFoundationModelPackage package)
     {
-        var workerPath = AuraToolsFoundationWorkerRuntime.ExecutablePath;
+        var workerPath = Path.Combine(
+            AuraToolsConfigService.ModDirectory,
+            "TrainingWorker",
+            "AuraFoundationTrainer.Worker.exe");
         if (string.IsNullOrWhiteSpace(package.WorkerSha256))
         {
             return "训练 Worker 未记录；模型语义协议已验证";

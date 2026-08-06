@@ -67,9 +67,7 @@ internal sealed class MainWindow : Window
     private ProgressBar progressBar = null!;
     private TextBox logBox = null!;
     private ComboBox gradientShardInput = null!;
-    private ComboBox parallelismProfileInput = null!;
     private ComboBox inferenceModeInput = null!;
-    private ComboBox autoTuneObjectiveInput = null!;
     private ComboBox governanceProfileInput = null!;
     private ComboBox transformerBackendInput = null!;
     private TextBlock transformerRuntimeStatus = null!;
@@ -292,7 +290,6 @@ internal sealed class MainWindow : Window
         AddNumber(panel, "ModelEarlyStoppingPatience", "早停耐心", 1, 30);
         AddDouble(panel, "ModelEarlyStoppingMinimumDelta", "早停最小增益");
         AddNumber(panel, "ModelBatchSize", "Minibatch", 8, 512);
-        AddExecutionProfileSelect(panel);
         AddInferenceModeSelect(panel);
         AddNumber(panel, "InferenceParallelism", "推理并行上下文", 0, 64);
         AddNumber(panel, "InferenceLaneCount", "推理 Lane 数（0 自动）", 0, 64);
@@ -309,18 +306,6 @@ internal sealed class MainWindow : Window
             "Checkpoint 序列化线程",
             0,
             2);
-        AddToggle(panel, "ReuseAutoTuneCache", "复用 Auto-Tune 测量缓存");
-        AddAutoTuneObjectiveSelect(panel);
-        AddNumber(
-            panel,
-            "AutoTuneSampleCampaigns",
-            "Auto-Tune 样本战役",
-            4,
-            64);
-        AddDouble(
-            panel,
-            "AutoTuneThroughputTolerance",
-            "Auto-Tune 吞吐容差");
         AddGradientShardSelect(panel);
         AddNumber(panel, "MinimumEpisodes", "最少训练 Episodes", 2, 1000);
         AddNumber(panel, "ModelReplayEpisodeLimit", "Replay 上限", 64, 20000);
@@ -1185,7 +1170,15 @@ internal sealed class MainWindow : Window
                 + string.Join("；", packageAudit.Errors.Take(5)));
         }
 
+        ApplyIndependentTrainerExecutionContract(settings.Parameters);
         var parameters = settings.Parameters.Normalized();
+        if (parameters.MaximumDegreeOfParallelism > Environment.ProcessorCount)
+        {
+            AppendLog(
+                $"CPU 并行度 {parameters.MaximumDegreeOfParallelism} 超过当前 "
+                + $"{Environment.ProcessorCount} 个逻辑处理器；将按配置值执行，"
+                + "可能发生过量订阅。");
+        }
         if (parameters.RunSeed == 0UL || continueGeneration)
         {
             parameters.RunSeed = GenerateRunSeed();
@@ -1469,19 +1462,8 @@ internal sealed class MainWindow : Window
               + $"{telemetry.MaximumActiveBattleDepth}/{telemetry.MaximumCompletedBattleDepth}/37";
         var executionSummary =
             $"{telemetry.GovernanceProfile} · "
-            + $"{telemetry.ParallelismProfile}/{telemetry.InferenceExecutionMode}";
-        if (string.Equals(
-                telemetry.ParallelismProfile,
-                CombatFoundationExecutionProfileNames.Auto,
-                StringComparison.Ordinal)
-            && telemetry.AutoTune?.SelectedParallelism > 0)
-        {
-            executionSummary += " -> "
-                                + telemetry.AutoTune.SelectedParallelism
-                                + (telemetry.AutoTune.CacheHit
-                                    ? " (cached)"
-                                    : " (measured)");
-        }
+            + $"固定 CPU {telemetry.EffectiveParallelism}/"
+            + telemetry.InferenceExecutionMode;
         progressSecondary.Text = transformerTeacherPhase
             ? executionSummary + " · "
               + $"Python CPU {telemetry.TransformerTeacherCpuPercent:0.0}% · "
@@ -1961,15 +1943,12 @@ internal sealed class MainWindow : Window
         var dataRoot = ResolveArgument("--data-root")
                        ?? DiscoverDataRoot(modRoot);
         var settingsPath = SettingsPath(dataRoot);
-        var readPath = File.Exists(settingsPath)
-            ? settingsPath
-            : LegacySettingsPath(dataRoot);
         try
         {
-            settings = File.Exists(readPath)
+            settings = File.Exists(settingsPath)
                 ? Deserialize<ControllerSettings>(
                     CombatFoundationCheckpointStorage.ReadAllTextShared(
-                        readPath))
+                        settingsPath))
                   ?? new ControllerSettings()
                 : new ControllerSettings();
         }
@@ -1977,7 +1956,10 @@ internal sealed class MainWindow : Window
         {
             settings = new ControllerSettings();
         }
-        var loadedSchemaVersion = settings.SchemaVersion;
+        if (settings.SchemaVersion != ControllerSettings.CurrentSchemaVersion)
+        {
+            settings = new ControllerSettings();
+        }
         settings.ModRoot = modRoot;
         settings.DataRoot = dataRoot;
         if (!string.IsNullOrWhiteSpace(settings.LastRunDirectory)
@@ -1986,201 +1968,21 @@ internal sealed class MainWindow : Window
             settings.LastRunDirectory = "";
         }
         settings.Parameters ??= new CombatFoundationTrainingParameters();
-        if (loadedSchemaVersion < 3)
-        {
-            settings.Parameters.RequireCapabilityProbeBaselineGain = true;
-        }
-        if (loadedSchemaVersion < 4)
-        {
-            settings.Parameters.AdditionalIterationsOnResume = 3;
-            settings.Parameters.MinimumAdvancedReplayShare = 0.40d;
-            settings.Parameters.MinimumAdvancedDefeatReplayShare = 0.25d;
-        }
-        if (loadedSchemaVersion < 5)
-        {
-            settings.GameSubject = LoadDefaultGameSubject(modRoot);
-            settings.LastRunDirectory = "";
-            settings.ContinueGeneration = 0;
-        }
-        if (loadedSchemaVersion < 6)
-        {
-            settings.Parameters.CapabilityProbeCampaignsPerDifficulty = 128;
-        }
-        if (loadedSchemaVersion < 7)
-        {
-            settings.Parameters.GovernanceProfile =
-                CombatFoundationGovernanceProfileNames.Development;
-            settings.Parameters.TuningInterval = 2;
-            settings.Parameters.CapabilityProbeTeacherCampaignsPerDifficulty = 16;
-            settings.Parameters.AutoTuneSampleCampaigns = 16;
-        }
-        if (loadedSchemaVersion < 8)
-        {
-            settings.Parameters.AutoTuneObjective =
-                CombatFoundationAutoTuneObjectiveNames.MaximumThroughput;
-            settings.Parameters.InferenceParallelism = 0;
-            settings.Parameters.InferenceLaneCount = 0;
-            settings.Parameters.InferenceBatchSize = 0;
-        }
-        if (loadedSchemaVersion < 9)
-        {
-            settings.Parameters.TransformerTeacherBackend =
-                CombatTransformerTeacherBackendNames.Auto;
-            settings.Parameters.TransformerPythonExecutable = "python";
-            settings.Parameters.TransformerTeacherEpochs = 12;
-            settings.Parameters.TransformerTeacherBatchSize = 64;
-            settings.Parameters.TransformerTeacherStateDimensions = 1024;
-            settings.Parameters.TransformerTeacherActionDimensions = 1024;
-            settings.Parameters.TransformerTeacherHiddenDimensions = 384;
-            settings.Parameters.TransformerTeacherLayers = 6;
-            settings.Parameters.TransformerTeacherAttentionHeads = 8;
-            settings.Parameters.TransformerTeacherFeedForwardDimensions = 1536;
-            settings.Parameters.TransformerTeacherHistoryLength = 12;
-            settings.Parameters.TransformerTeacherMinimumFrames = 1024;
-            settings.Parameters.TransformerTeacherCpuThreads = 0;
-            settings.Parameters.TransformerDistillationWeight = 0.35d;
-            settings.Parameters.ModelMaximumUnsafeEndTurnFrameShare = 0.35d;
-            settings.Parameters.ModelStateDimensions = 1024;
-            settings.Parameters.ModelActionDimensions = 1024;
-            settings.Parameters.ModelHiddenDimensions = 512;
-        }
-        if (loadedSchemaVersion < 10)
-        {
-            if (string.Equals(
-                    settings.Parameters.ParallelismProfile,
-                    CombatFoundationExecutionProfileNames.Auto,
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                settings.Parameters.InferenceParallelism = 0;
-                settings.Parameters.InferenceLaneCount = 0;
-                settings.Parameters.InferenceBatchSize = 0;
-                settings.Parameters.ThreadPoolMinimumWorkerThreads = 0;
-                settings.Parameters.CheckpointSerializationParallelism = 0;
-            }
-            settings.Parameters.TransformerPythonExecutable =
-                CombatTransformerRuntimeProtocol.AutomaticExecutable;
-            settings.Parameters.TransformerTeacherCpuThreads = 0;
-            settings.Parameters.TransformerTeacherCpuInteropThreads = 0;
-            settings.Parameters.TransformerTeacherMicroBatchSize = 0;
-            settings.Parameters.TransformerTeacherDataLoaderWorkers = 0;
-            settings.Parameters.TransformerTeacherPrefetchBatches = 2;
-            settings.Parameters.TransformerTeacherEnablePinnedMemory = true;
-            settings.Parameters.TransformerTeacherEnableMixedPrecision = true;
-            settings.Parameters.ModelGradientShardCount = 0;
-        }
-        if (loadedSchemaVersion < 11)
-        {
-            settings.Parameters.TransformerTeacherMinimumFrames = 8192;
-            settings.Parameters.TransformerTeacherEnableWarmStart = true;
-            settings.Parameters.TransformerTeacherCpuRefreshInterval = 2;
-            settings.Parameters.TransformerTeacherIncrementalEpochs = 4;
-            settings.Parameters.TransformerTeacherFinalEpochs = 12;
-            if (string.Equals(
-                    settings.Parameters.GovernanceProfile,
-                    CombatFoundationGovernanceProfileNames.Development,
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                settings.Parameters.TrainingCampaignsPerIteration = 96;
-                settings.Parameters.ArenaCampaignsPerDifficulty = 16;
-                settings.Parameters.ArenaConfirmationCampaignsPerDifficulty = 48;
-                settings.Parameters.NormalValidationCampaigns = 100;
-                settings.Parameters.AdvancedValidationCampaigns = 200;
-                settings.Parameters.CapabilityProbeCampaignsPerDifficulty = 64;
-            }
-        }
-        if (loadedSchemaVersion < 12)
-        {
-            settings.Parameters.ModelMaximumUnsafeEndTurnFrameShare = 0.20d;
-            settings.Parameters.ModelUnsafeEndTurnRiskAuxiliaryShare = 0.10d;
-            settings.Parameters.MinimumArenaDiscordantPairs = 8;
-            settings.Parameters.MaximumOfflineHeadRegression = 0.05d;
-            settings.Parameters.MaximumStateFeatureCollisionRate = 0.20d;
-            settings.Parameters.MaximumActionFeatureCollisionRate = 0.06d;
-            settings.Parameters.TransformerTeacherMaximumFrames = 10000;
-            settings.Parameters.TransformerTeacherMinimumFrames = 4096;
-            settings.Parameters.TransformerTeacherCpuRefreshInterval = 4;
-            settings.Parameters.TransformerTeacherCpuEpochs = 4;
-            settings.Parameters.TransformerTeacherCpuIncrementalEpochs = 1;
-            settings.Parameters.TransformerTeacherCpuFinalEpochs = 4;
-            settings.Parameters.TransformerTeacherEnableAdaptiveRefresh = true;
-            settings.Parameters
-                .TransformerTeacherAdaptiveRefreshDriftThreshold = 0.15d;
-            settings.Parameters
-                .TransformerTeacherEnableFixedAnchorValidation = true;
-            settings.Parameters.TransformerTeacherMaximumHeadRegression =
-                0.05d;
-        }
-        if (loadedSchemaVersion < 13)
-        {
-            settings.Parameters.ModelStateDimensions = 1024;
-            settings.Parameters.ModelActionDimensions = 1024;
-            settings.Parameters.ModelHiddenDimensions = 512;
-            settings.Parameters.TransformerTeacherStateDimensions = 1024;
-            settings.Parameters.TransformerTeacherActionDimensions = 1024;
-            settings.Parameters.TransformerTeacherHiddenDimensions = 384;
-            settings.Parameters.TransformerTeacherMinimumFrames = 4096;
-            settings.Parameters.TransformerTeacherMaximumFrames = 10000;
-            settings.Parameters.MinimumAdvancedReplayShare = Math.Max(
-                0.40d,
-                settings.Parameters.MinimumAdvancedReplayShare);
-            settings.Parameters.MinimumAdvancedDefeatReplayShare = Math.Max(
-                0.25d,
-                settings.Parameters.MinimumAdvancedDefeatReplayShare);
-            settings.Parameters.MinimumArenaDiscordantPairs = 8;
-            settings.Parameters.MaximumStateFeatureCollisionRate = 0.20d;
-            settings.Parameters.MaximumActionFeatureCollisionRate = 0.06d;
-        }
-        if (loadedSchemaVersion < 14)
-        {
-            if (string.Equals(
-                    settings.Parameters.ParallelismProfile,
-                    CombatFoundationExecutionProfileNames.Auto,
-                    StringComparison.OrdinalIgnoreCase))
-            {
-                settings.Parameters.InferenceExecutionMode =
-                    CombatFoundationExecutionProfileNames.DirectInference;
-                settings.Parameters.InferenceParallelism = 0;
-                settings.Parameters.InferenceLaneCount = 0;
-                settings.Parameters.InferenceBatchSize = 0;
-                settings.Parameters.ThreadPoolMinimumWorkerThreads = 0;
-                settings.Parameters.CheckpointSerializationParallelism = 0;
-            }
-            settings.Parameters.ReuseAutoTuneCache = true;
-            settings.Parameters.AutoTuneSampleCampaigns = Math.Max(
-                16,
-                settings.Parameters.AutoTuneSampleCampaigns);
-            settings.Parameters.AutoTuneObjective =
-                CombatFoundationAutoTuneObjectiveNames.MaximumThroughput;
-            settings.Parameters.EnableSequentialArenaStop = true;
-            settings.Parameters.ArenaEvaluationBatchSize = Math.Max(
-                16,
-                settings.Parameters.ArenaEvaluationBatchSize);
-        }
-        if (loadedSchemaVersion < 15)
-        {
-            settings.Parameters.TransformerTeacherMinimumFrames = 1024;
-        }
         settings.GameSubject ??= LoadDefaultGameSubject(modRoot);
         settings.GameSubject.Normalize();
         gameSubjectCatalog = LoadGameSubjectCatalog(modRoot);
         gameSubjectCatalog.ResolveReferences(settings.GameSubject);
-        settings.SchemaVersion = 15;
+        settings.SchemaVersion = ControllerSettings.CurrentSchemaVersion;
+        ApplyIndependentTrainerExecutionContract(settings.Parameters);
         settings.Parameters.Normalized();
-        if (File.Exists(readPath)
-            && !string.Equals(
-                Path.GetFullPath(readPath),
-                Path.GetFullPath(settingsPath),
-                StringComparison.OrdinalIgnoreCase))
-        {
-            try
-            {
-                WriteAtomic(settingsPath, Serialize(settings));
-            }
-            catch
-            {
-                // Migration is best-effort; the legacy settings remain readable.
-            }
-        }
+    }
+
+    private static void ApplyIndependentTrainerExecutionContract(
+        CombatFoundationTrainingParameters parameters)
+    {
+        parameters.ParallelismProfile =
+            CombatFoundationExecutionProfileNames.Custom;
+        parameters.ReuseAutoTuneCache = false;
     }
 
     private static CombatGameSubjectPreset LoadDefaultGameSubject(
@@ -2323,10 +2125,6 @@ internal sealed class MainWindow : Window
         p.CapabilityProbeMinimumDepthGain =
             Double("CapabilityProbeMinimumDepthGain");
         p.MaximumDegreeOfParallelism = Int("MaximumDegreeOfParallelism");
-        p.ParallelismProfile = Convert.ToString(
-                                   parallelismProfileInput.SelectedItem,
-                                   CultureInfo.InvariantCulture)
-                               ?? CombatFoundationExecutionProfileNames.Auto;
         p.InferenceExecutionMode = Convert.ToString(
                                        inferenceModeInput.SelectedItem,
                                        CultureInfo.InvariantCulture)
@@ -2339,15 +2137,6 @@ internal sealed class MainWindow : Window
             Int("ThreadPoolMinimumWorkerThreads");
         p.CheckpointSerializationParallelism =
             Int("CheckpointSerializationParallelism");
-        p.ReuseAutoTuneCache = Toggle("ReuseAutoTuneCache");
-        p.AutoTuneObjective = Convert.ToString(
-                                  autoTuneObjectiveInput.SelectedItem,
-                                  CultureInfo.InvariantCulture)
-                              ?? CombatFoundationAutoTuneObjectiveNames
-                                  .MaximumThroughput;
-        p.AutoTuneSampleCampaigns = Int("AutoTuneSampleCampaigns");
-        p.AutoTuneThroughputTolerance =
-            Double("AutoTuneThroughputTolerance");
         p.ModelEpochs = Int("ModelEpochs");
         p.ModelMinimumEpochs = Int("ModelMinimumEpochs");
         p.ModelEarlyStoppingPatience = Int("ModelEarlyStoppingPatience");
@@ -2498,6 +2287,7 @@ internal sealed class MainWindow : Window
         p.ArenaSeedStart = Ulong("ArenaSeedStart");
         p.TuningSeedStart = Ulong("TuningSeedStart");
         p.ValidationSeedStart = Ulong("ValidationSeedStart");
+        ApplyIndependentTrainerExecutionContract(p);
         p.Normalized();
         SaveSettings();
         ApplySettingsToUi();
@@ -2544,9 +2334,6 @@ internal sealed class MainWindow : Window
             "CapabilityProbeMinimumDepthGain",
             p.CapabilityProbeMinimumDepthGain);
         Set("MaximumDegreeOfParallelism", p.MaximumDegreeOfParallelism);
-        parallelismProfileInput.SelectedItem =
-            CombatFoundationExecutionProfiles.NormalizeProfile(
-                p.ParallelismProfile);
         inferenceModeInput.SelectedItem =
             CombatFoundationExecutionProfiles.NormalizeInferenceMode(
                 p.InferenceExecutionMode);
@@ -2559,14 +2346,6 @@ internal sealed class MainWindow : Window
         Set(
             "CheckpointSerializationParallelism",
             p.CheckpointSerializationParallelism);
-        SetToggle("ReuseAutoTuneCache", p.ReuseAutoTuneCache);
-        autoTuneObjectiveInput.SelectedItem =
-            CombatFoundationAutoTuneObjectiveNames.Normalize(
-                p.AutoTuneObjective);
-        Set("AutoTuneSampleCampaigns", p.AutoTuneSampleCampaigns);
-        Set(
-            "AutoTuneThroughputTolerance",
-            p.AutoTuneThroughputTolerance);
         Set("ModelEpochs", p.ModelEpochs);
         Set("ModelMinimumEpochs", p.ModelMinimumEpochs);
         Set("ModelEarlyStoppingPatience", p.ModelEarlyStoppingPatience);
@@ -3806,17 +3585,6 @@ internal sealed class MainWindow : Window
         return Path.Combine(dataRoot, "AuraShared");
     }
 
-    private static string LegacySettingsPath(string dataRoot)
-    {
-        return Path.Combine(
-            dataRoot,
-            "Config",
-            "Owners",
-            "AuraToolsExp",
-            "FoundationTrainer",
-            "controller-settings.json");
-    }
-
     private static string LegacySessionPath(string dataRoot)
     {
         return Path.Combine(
@@ -4150,45 +3918,6 @@ internal sealed class MainWindow : Window
             : 0;
     }
 
-    private void AddExecutionProfileSelect(Panel panel)
-    {
-        var row = NewRow();
-        row.Children.Add(Label("CPU 执行档位", 240));
-        parallelismProfileInput = new ComboBox
-        {
-            Width = 180,
-            Height = 30,
-            Margin = new Thickness(0, 0, 8, 0),
-            ItemsSource = new[]
-            {
-                CombatFoundationExecutionProfileNames.Auto,
-                CombatFoundationExecutionProfileNames.Cpu16,
-                CombatFoundationExecutionProfileNames.Cpu32,
-                CombatFoundationExecutionProfileNames.Custom
-            },
-            SelectedItem = CombatFoundationExecutionProfileNames.Auto,
-            ToolTip = "auto 根据逻辑处理器数选择 CPU-16 或 CPU-32"
-        };
-        parallelismProfileInput.SelectionChanged += (_, _) =>
-        {
-            ResetAutomaticExecutionOverride("InferenceParallelism");
-            ResetAutomaticExecutionOverride(
-                "ThreadPoolMinimumWorkerThreads");
-            ResetAutomaticExecutionOverride(
-                "CheckpointSerializationParallelism");
-        };
-        row.Children.Add(parallelismProfileInput);
-        panel.Children.Add(row);
-    }
-
-    private void ResetAutomaticExecutionOverride(string key)
-    {
-        if (inputs.TryGetValue(key, out var input))
-        {
-            input.Text = "0";
-        }
-    }
-
     private void AddInferenceModeSelect(Panel panel)
     {
         var row = NewRow();
@@ -4208,28 +3937,6 @@ internal sealed class MainWindow : Window
             ToolTip = "sharded-batch 降低并发推理争用；direct 适合低并发诊断"
         };
         row.Children.Add(inferenceModeInput);
-        panel.Children.Add(row);
-    }
-
-    private void AddAutoTuneObjectiveSelect(Panel panel)
-    {
-        var row = NewRow();
-        row.Children.Add(Label("Auto-Tune 目标", 240));
-        autoTuneObjectiveInput = new ComboBox
-        {
-            Width = 180,
-            Height = 30,
-            Margin = new Thickness(0, 0, 8, 0),
-            ItemsSource = new[]
-            {
-                CombatFoundationAutoTuneObjectiveNames.MaximumThroughput,
-                CombatFoundationAutoTuneObjectiveNames.BalancedEfficiency
-            },
-            SelectedItem =
-                CombatFoundationAutoTuneObjectiveNames.MaximumThroughput,
-            ToolTip = "maximum-throughput 优先缩短训练墙钟时间"
-        };
-        row.Children.Add(autoTuneObjectiveInput);
         panel.Children.Add(row);
     }
 

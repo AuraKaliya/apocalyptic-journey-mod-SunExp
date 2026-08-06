@@ -611,6 +611,10 @@ try {
                 }
             }
         }
+        elseif ([bool]$result.Training.AutoTune.CacheHit `
+                -or @($result.Training.AutoTune.Measurements).Count -ne 0) {
+            throw "Fixed parallelism unexpectedly used auto-tune measurements or cache."
+        }
     }
     $checkpoint = $null
     $checkpointSnapshotPath = ""

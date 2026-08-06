@@ -6,7 +6,9 @@ namespace AuraFoundationTrainer.ControlCenter;
 
 internal sealed class ControllerSettings
 {
-    public int SchemaVersion { get; set; } = 15;
+    public const int CurrentSchemaVersion = 16;
+
+    public int SchemaVersion { get; set; } = CurrentSchemaVersion;
 
     [JsonIgnore]
     public string ModRoot { get; set; } = "";
@@ -26,7 +28,8 @@ internal sealed class ControllerSettings
     private static CombatFoundationTrainingParameters CreateDefaultParameters()
     {
         // Keep the independent trainer's vetted development preset explicit.
-        // Persisted controller settings still take precedence over these defaults.
+        // Persisted controller settings take precedence except for the fixed
+        // CPU execution contract enforced by the control center.
         return new CombatFoundationTrainingParameters
         {
             GovernanceProfile =
@@ -44,16 +47,13 @@ internal sealed class ControllerSettings
             PreflightCampaignsPerDifficulty = 16,
             TuningInterval = 2,
             ParallelismProfile =
-                CombatFoundationExecutionProfileNames.Auto,
+                CombatFoundationExecutionProfileNames.Custom,
             InferenceExecutionMode =
                 CombatFoundationExecutionProfileNames.DirectInference,
             InferenceParallelism = 0,
             InferenceLaneCount = 0,
             InferenceBatchSize = 0,
-            ReuseAutoTuneCache = true,
-            AutoTuneSampleCampaigns = 16,
-            AutoTuneObjective =
-                CombatFoundationAutoTuneObjectiveNames.MaximumThroughput,
+            ReuseAutoTuneCache = false,
             EnableOfflineTuningGate = true,
             EnableSequentialArenaStop = true,
             ArenaEvaluationBatchSize = 16,

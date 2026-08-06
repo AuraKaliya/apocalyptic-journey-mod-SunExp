@@ -29,10 +29,6 @@ $uiSnapshotRuntime = Get-Content -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleUiSnapshotRuntime.cs") -Raw
 $knowledgeRuntime = Get-Content -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsCombatKnowledgeRuntime.cs") -Raw
-$foundationRuntime = Get-Content -LiteralPath (
-    Join-Path $repoRoot "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleFoundationRuntime.cs") -Raw
-$foundationWorkerRuntime = Get-Content -LiteralPath (
-    Join-Path $repoRoot "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsFoundationWorkerRuntime.cs") -Raw
 $foundationControllerRuntime = Get-Content -LiteralPath (
     Join-Path $repoRoot "AuraFoundationTrainer.ControlCenter\MainWindow.cs") -Raw
 $foundationControllerModels = Get-Content -LiteralPath (
@@ -129,36 +125,11 @@ foreach ($anchor in @(
 }
 foreach ($anchor in @(
     "AutoBattleDatasetExportRow",
-    "一键导出游戏数据集",
     "TryExportBaseGameTables",
     "OpenBaseGameTableExportDirectory"
 )) {
     if (-not $settingsRuntime.Contains($anchor)) {
         throw "AuraTools game dataset export UI contract is missing: $anchor"
-    }
-}
-foreach ($anchor in @(
-    "foundation-training-summary.html",
-    "foundation-training-report.md",
-    "foundation-training-report.json",
-    "BuildFoundationHtml",
-    "<!doctype html>",
-    "result.TrainingFailureCounts",
-    "result.TrainingFailures",
-    "fullReplayWritten = writeFullReplay",
-    "generatedEpisodes = generatedReplayEpisodes",
-    "computationSucceeded = result.Success",
-    "generatedOnlyDeckViolations",
-    "cardAcquisition = new",
-    "bounded-prioritized-diverse-replay",
-    "foundation-training-failure-repro-v1.json",
-    "if (!writeFullReplay",
-    "if (writeFullReplay)",
-    "CombatFoundationWorkerJobFactory.Create",
-    "ToSharedParameters"
-)) {
-    if (-not $foundationRuntime.Contains($anchor)) {
-        throw "AuraTools readable foundation report contract is missing: $anchor"
     }
 }
 foreach ($anchor in @(
@@ -195,18 +166,6 @@ if (-not $nativeRuntime.Contains(
     throw "AuraTools copied relic must execute inside its own script globals."
 }
 foreach ($anchor in @(
-    "AuraToolsFoundationWorkerRuntime.Run",
-    "MaximumCompletedBattleDepth",
-    "SearchSimulationsPerSecond",
-    "EstimatedRemainingSeconds",
-    "CheckpointPath",
-    "CheckpointEpisodesPath"
-)) {
-    if (-not $foundationRuntime.Contains($anchor)) {
-        throw "AuraTools external foundation integration contract is missing: $anchor"
-    }
-}
-foreach ($anchor in @(
     "training.GeneratedReplayEpisodes = Math.Max(",
     "training.PersistedReplayEpisodes = training.Replay.Count",
     "WriteEpisodes(episodesPath, training.Replay)",
@@ -233,20 +192,6 @@ foreach ($anchor in @(
 )) {
     if (-not $foundationCheckpointStorage.Contains($anchor)) {
         throw "Aura foundation checkpoint durability contract is missing: $anchor"
-    }
-}
-foreach ($anchor in @(
-    "TrainingWorker",
-    "ExpectedRulesetHash",
-    "CancellationPath",
-    "CreateNoWindow",
-    "BeginOutputReadLine",
-    "LaunchControlCenter",
-    "ExternalTrainingActive",
-    "AuraFoundationTrainer.ControlCenter.exe"
-)) {
-    if (-not $foundationWorkerRuntime.Contains($anchor)) {
-        throw "AuraTools foundation worker process contract is missing: $anchor"
     }
 }
 foreach ($anchor in @(
@@ -290,34 +235,23 @@ if ($resultPollingIndex -lt 0 `
     throw "Foundation controller must prioritize final results over stale progress snapshots."
 }
 if (-not $foundationControllerRuntime.Contains(
-        "loadedSchemaVersion < 3") `
+        "settings.SchemaVersion != ControllerSettings.CurrentSchemaVersion") `
         -or -not $foundationControllerRuntime.Contains(
-            "loadedSchemaVersion < 4") `
-        -or -not $foundationControllerRuntime.Contains(
-            "loadedSchemaVersion < 5") `
-        -or -not $foundationControllerRuntime.Contains(
-            "loadedSchemaVersion < 6") `
-        -or -not $foundationControllerRuntime.Contains(
-            "loadedSchemaVersion < 7") `
-        -or -not $foundationControllerRuntime.Contains(
-            "loadedSchemaVersion < 8") `
-        -or -not $foundationControllerRuntime.Contains(
-            "loadedSchemaVersion < 9") `
-        -or -not $foundationControllerRuntime.Contains(
-            "loadedSchemaVersion < 10") `
-        -or -not $foundationControllerRuntime.Contains(
-            "loadedSchemaVersion < 12") `
-        -or -not $foundationControllerRuntime.Contains(
-            "loadedSchemaVersion < 14") `
-        -or -not $foundationControllerRuntime.Contains(
-            "loadedSchemaVersion < 15") `
-        -or -not $foundationControllerRuntime.Contains(
-            "AdditionalIterationsOnResume") `
-        -or -not $foundationControllerRuntime.Contains(
-            "MinimumAdvancedDefeatReplayShare") `
+            "ApplyIndependentTrainerExecutionContract") `
         -or -not $foundationControllerModels.Contains(
-            "SchemaVersion { get; set; } = 15")) {
-    throw "Foundation controller resumable-training settings migration is missing."
+            "CurrentSchemaVersion = 16")) {
+    throw "Foundation controller fixed-parallelism settings reset contract is missing."
+}
+foreach ($removedAnchor in @(
+    "AddExecutionProfileSelect(panel)",
+    'AddToggle(panel, "ReuseAutoTuneCache"',
+    "AddAutoTuneObjectiveSelect(panel)",
+    '"AutoTuneSampleCampaigns"',
+    '"AutoTuneThroughputTolerance"'
+)) {
+    if ($foundationControllerRuntime.Contains($removedAnchor)) {
+        throw "Foundation controller still exposes obsolete auto-tune UI: $removedAnchor"
+    }
 }
 foreach ($anchor in @(
     "AdditionalIterationsOnResume = 2",
@@ -328,8 +262,9 @@ foreach ($anchor in @(
     "AdvancedValidationCampaigns = 200",
     "CapabilityProbeCampaignsPerDifficulty = 64",
     "PreflightCampaignsPerDifficulty = 16",
+    "CombatFoundationExecutionProfileNames.Custom",
     "CombatFoundationExecutionProfileNames.DirectInference",
-    "CombatFoundationAutoTuneObjectiveNames.MaximumThroughput",
+    "ReuseAutoTuneCache = false",
     "SuccessExpertReplayShare = 0.10d",
     "ModelGradientShardCount = 0",
     "ModelMaximumUnsafeEndTurnFrameShare = 0.20d",
@@ -390,7 +325,7 @@ foreach ($anchor in @(
         throw "AuraTools foundation-model naming/provenance migration contract is missing: $anchor"
     }
 }
-if (-not $settingsRuntime.Contains('"自动命名"') `
+if (-not $settingsRuntime.Contains("TryRestoreGeneratedLibraryModelName") `
         -or -not $bundledModelRuntime.Contains("BuildCanonicalDisplayName")) {
     throw "AuraTools model UI and bundled/manual import paths must share canonical automatic naming."
 }
@@ -400,10 +335,7 @@ foreach ($anchor in @(
     'new UTF8Encoding(false, true)',
     'CombatFoundationModelPackageProtocol.TryValidate',
     'ModelVersionPattern',
-    'pendingLegacyPackages',
-    'result.Superseded++',
-    'witch-game-subjects-v1.catalog.json',
-    '重新扫描内置底模'
+    'witch-game-subjects-v1.catalog.json'
 )) {
     if (-not $bundledModelRuntime.Contains($anchor) `
             -and -not $settingsRuntime.Contains($anchor)) {
@@ -412,20 +344,21 @@ foreach ($anchor in @(
 }
 $bundledModelFiles = @(Get-ChildItem -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp\ModResource\Model") -Filter "*.json" -File)
-if ($bundledModelFiles.Count -lt 1) {
-    throw "AuraTools must ship at least one bundled foundation model."
-}
 foreach ($bundledModelFile in $bundledModelFiles) {
     $bundledModel = Get-Content -Raw -Encoding UTF8 -LiteralPath $bundledModelFile.FullName | ConvertFrom-Json
-    if ([string]::IsNullOrWhiteSpace([string]$bundledModel.ModelVersion) `
-            -or ([string]$bundledModel.ModelVersion) -notmatch '^v?\d+\.\d+\.\d+(?:-[0-9A-Za-z.-]+)?$') {
-        throw "Bundled foundation model must declare a semantic ModelVersion: $($bundledModelFile.Name)"
+    if ($bundledModel.SchemaVersion -ne 3 `
+            -or $bundledModel.ArtifactKind -ne "aura.foundation-model-package" `
+            -or $bundledModel.ModelVersion -ne "3.0.0" `
+            -or $bundledModel.Model.ModelProtocol -ne "aura.combat-policy-value.mlp.v2" `
+            -or $bundledModel.Model.ProtocolVersion -ne 2 `
+            -or $bundledModel.Model.FeatureSchemaVersion -ne 26 `
+            -or $bundledModel.Compatibility.FeatureSchemaVersion -ne 26) {
+        throw "Bundled foundation model is incompatible with the current trainer protocol: $($bundledModelFile.Name)"
     }
 }
 foreach ($anchor in @(
     "AuraSharedRoot(dataRoot)",
     '"FoundationTrainer"',
-    "LegacySettingsPath",
     "LegacySessionPath",
     "TrainingResultsRoot(settings.DataRoot)"
 )) {
@@ -470,31 +403,8 @@ if ($gameSubjectCatalog.schemaVersion -ne 1 `
         }).Count -ne 0) {
     throw "Foundation controller game-subject catalog is incomplete or unsafe."
 }
-if ($foundationWorkerRuntime.Contains("--mod-root") -or
-    $foundationWorkerRuntime.Contains("--data-root") -or
-    -not $foundationControllerModels.Contains("[JsonIgnore]")) {
+if (-not $foundationControllerModels.Contains("[JsonIgnore]")) {
     throw "Foundation controller must derive runtime roots from its EXE instead of persisted absolute paths."
-}
-foreach ($anchor in @(
-    '[JsonProperty("executionMode")]',
-    '"external"',
-    '"partitioned-v3"',
-    "Environment.ProcessorCount",
-    "ModelEpochs",
-    "ModelBatchSize",
-    "EnableFrameStratification",
-    "ModelMaximumFrameStratumWeight",
-    "EnableCounterfactualHardEncounters",
-    "MaximumConsecutiveRejectedIterations",
-    "CapabilityProbeCampaignsPerDifficulty",
-    "TuningNormalCampaigns",
-    "TuningAdvancedCampaigns",
-    "ModelEarlyStoppingPatience",
-    "ModelReplayEpisodeLimit"
-)) {
-    if (-not $autoBattleSettings.Contains($anchor)) {
-        throw "AuraTools foundation worker settings contract is missing: $anchor"
-    }
 }
 foreach ($anchor in @(
     "TryStageExternalFoundationPackage",
@@ -503,14 +413,17 @@ foreach ($anchor in @(
     "CreateGameParametersSection(content)",
     "CreateAutoBattleModelManagementSection",
     "CreateAutoBattleModelApplicationRows",
+    "CreateAutoBattlePlayerAdaptationSection",
+    "CreateAutoBattleAdvancedDiagnosticsSection",
+    "AutoBattle.PlayerResidualParameters",
+    "SnapshotPolicyAdapters",
     "AuraToolsLocalSectionRefreshView",
     "AuraToolsScrollRestoreDriver",
     "CreateVerticalStack",
     "CreateCompactFoldout",
-    "AutoBattle.ValidationAndDiagnostics",
+    "AutoBattle.AdvancedAndDiagnostics",
     "LayoutRebuilder.ForceRebuildLayoutImmediate",
     "AutoBattleExternalFoundationValidationActions",
-    "AutoBattleFoundationTrainingActions",
     "AutoBattleGameValidationActions"
 )) {
     if (-not $settingsRuntime.Contains($anchor)) {
@@ -531,6 +444,29 @@ foreach ($anchor in @(
     if (-not $modelRuntime.Contains($anchor)) {
         throw "AuraTools external foundation staging contract is missing: $anchor"
     }
+}
+foreach ($removedAnchor in @(
+    "AutoBattleFoundationTrainingActions",
+    "AuraToolsAutoBattleFoundationRuntime",
+    "AutoBattleFoundationTrainingSettings",
+    'JsonProperty("foundationTraining")',
+    "AutoBattleFoundationCpuProfileRow",
+    "ApplyFoundationCpuProfile",
+    "LaunchControlCenter"
+)) {
+    if ($settingsRuntime.Contains($removedAnchor) `
+            -or $autoBattleSettings.Contains($removedAnchor) `
+            -or $modelRuntime.Contains($removedAnchor)) {
+        throw "AuraTools still exposes removed in-game foundation training: $removedAnchor"
+    }
+}
+if (Test-Path -LiteralPath (Join-Path $repoRoot (
+        "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsAutoBattleFoundationRuntime.cs"))) {
+    throw "AuraTools in-game foundation training runtime must be removed."
+}
+if (Test-Path -LiteralPath (Join-Path $repoRoot (
+        "AuraToolsExp-Dev\Features\AutoBattle\AuraToolsFoundationWorkerRuntime.cs"))) {
+    throw "AuraTools in-game foundation worker launcher must be removed."
 }
 if ($settingsRuntime.Contains("NextAutoBattleModelMode")) {
     throw "AuraTools battle strategy laboratory must use the compact explicit model-application flow."

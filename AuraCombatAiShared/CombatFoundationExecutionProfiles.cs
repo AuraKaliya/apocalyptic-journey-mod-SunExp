@@ -59,9 +59,9 @@ public static class CombatFoundationExecutionProfiles
                 Math.Min(32, processorCount),
             CombatFoundationExecutionProfileNames.Auto =>
                 Math.Min(64, processorCount),
-            _ => Math.Min(
-                processorCount,
-                Math.Max(1, requestedCampaignParallelism))
+            _ => Math.Max(
+                1,
+                Math.Min(64, requestedCampaignParallelism))
         };
         var normalizedInferenceMode = NormalizeInferenceMode(inferenceMode);
         var inferenceParallelism = requestedInferenceParallelism <= 0

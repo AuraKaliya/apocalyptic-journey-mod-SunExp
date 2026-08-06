@@ -12319,6 +12319,19 @@ Assert(cpu16Execution.CampaignParallelism == 16
        && cpu32Execution.ThreadPoolMinimumWorkerThreads == 40
        && cpu32Execution.CheckpointSerializationParallelism == 2,
     "CPU-16 and CPU-32 profiles expose direct per-campaign inference and bounded background work");
+var fixedExecution = CombatFoundationExecutionProfiles.Resolve(
+    CombatFoundationExecutionProfileNames.Custom,
+    48,
+    CombatFoundationExecutionProfileNames.DirectInference,
+    0,
+    0,
+    0,
+    availableProcessorCount: 8);
+Assert(fixedExecution.CampaignParallelism == 48
+       && fixedExecution.InferenceParallelism == 48
+       && fixedExecution.ThreadPoolMinimumWorkerThreads == 56
+       && fixedExecution.CheckpointSerializationParallelism == 2,
+    "custom execution honors the explicit CPU parallelism without hardware auto-tuning or processor-count clamping");
 var autoTuneSelection = CombatFoundationAutoTuneSelector.Select(
     new[]
     {

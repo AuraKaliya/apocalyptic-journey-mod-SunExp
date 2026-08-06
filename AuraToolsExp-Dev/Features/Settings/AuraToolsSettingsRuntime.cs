@@ -45,7 +45,6 @@ public static class AuraToolsSettingsRuntime
     private static bool panelBuilding;
     private static bool autoBattleSnapshotSubscribed;
     private static long autoBattleSnapshotRevisionBuilt = -1;
-    private static bool AutoBattleAdvancedTrainingExpanded;
     private static bool AutoBattleEvolutionView;
     private static readonly Dictionary<string, bool> FoldoutStates = new(StringComparer.Ordinal);
     private static bool loggedHookRegistration;
@@ -597,7 +596,6 @@ public static class AuraToolsSettingsRuntime
         AuraToolsAutoBattleUiSnapshotRuntime.RequestRefresh(
             autoBattle.Profile,
             autoBattle.SelectedModelId);
-        AuraToolsAutoBattleFoundationRuntime.BeginReadinessRefresh();
         if (!panelBuilt)
         {
             BeginInitialPanelBuild(activePanel);
@@ -848,19 +846,40 @@ public static class AuraToolsSettingsRuntime
             AuraToolsConfigService.SaveMatchExperience();
         }, content =>
         {
-            CreateSectionLabel(content, "模型使用");
+            CreateSectionLabel(content, "底模配置");
             CreateAutoBattleModelManagementSection(content, autoBattle);
-            CreateAutoBattleModelApplicationRows(content);
+            CreateGameParametersSection(content);
             AuraToolsUi.AddText(
                 content,
-                "导入校验后入库；运行方式需手动选择。",
+                "底模只在独立训练器中生成；游戏内负责选择、导入、兼容校验与内容范围绑定。",
                 AuraToolsUi.HintFontSize,
                 TextAnchor.MiddleLeft,
                 AuraToolsUi.MutedText,
                 AuraToolsUi.TextMinHeight,
                 1f);
 
-            CreateSectionLabel(content, "决策偏好");
+            CreateSectionLabel(content, "自动战斗");
+            CreateAutoBattleModelApplicationRows(content);
+            CreateAutoBattleToggleRow(
+                content,
+                "进入战斗时自动接管",
+                autoBattle.StartActive,
+                value =>
+                {
+                    autoBattle.StartActive = value;
+                    AuraToolsConfigService.SaveMatchExperience();
+                });
+            CreateAutoBattleToggleRow(
+                content,
+                "显示 AI 预测标记",
+                autoBattle.ShowPredictionMarkers,
+                value =>
+                {
+                    autoBattle.ShowPredictionMarkers = value;
+                    AuraToolsConfigService.SaveMatchExperience();
+                });
+
+            CreateSectionLabel(content, "自动战斗类型与决策");
             var profileRow = CreateInlineRow(content, "AutoBattleProfileRow");
             var profileText = AuraToolsUi.AddText(
                 profileRow.transform,
@@ -1018,757 +1037,15 @@ public static class AuraToolsSettingsRuntime
                 AuraToolsUi.TextMinHeight,
                 1f);
 
-            CreateGameParametersSection(content);
-            CreateSectionLabel(content, "底模训练 · ② 训练方案与运行");
-            var optionalDataHost = CreateVerticalStack(
+            CreateSectionLabel(content, "玩家适配");
+            CreateAutoBattlePlayerAdaptationSection(content, autoBattle);
+            var diagnostics = CreateCompactFoldout(
                 content,
-                "AutoBattleOptionalDataAndCapture");
-            var optionalDataContent = optionalDataHost.transform;
-            var datasetRow = CreateInlineRow(
-                optionalDataContent,
-                "AutoBattleDatasetExportRow");
-            var datasetStatus = AuraToolsUi.AddText(
-                optionalDataContent,
-                "导出当前游戏版本已加载的卡牌、Buff、敌人、关卡、遗物与祝福",
-                AuraToolsUi.HintFontSize,
-                TextAnchor.MiddleLeft,
-                AuraToolsUi.MutedText,
-                AuraToolsUi.TextMinHeight,
-                1f);
-            AuraToolsUi.AddText(
-                datasetRow.transform,
-                "游戏数据集",
-                AuraToolsUi.BodyFontSize,
-                TextAnchor.MiddleLeft,
-                AuraToolsUi.Text,
-                AuraToolsUi.TextMinHeight,
-                1f);
-            AuraToolsUi.AddButton(
-                datasetRow.transform,
-                "一键导出游戏数据集",
-                () =>
-                {
-                    if (AuraToolsCombatKnowledgeRuntime.TryExportBaseGameTables(
-                            out var exportedPath,
-                            out var exportMessage))
-                    {
-                        datasetStatus.text = exportMessage + "："
-                                             + Path.GetFileName(exportedPath);
-                        datasetStatus.color = AuraToolsUi.SuccessText;
-                    }
-                    else
-                    {
-                        datasetStatus.text = exportMessage;
-                        datasetStatus.color = AuraToolsUi.WarningText;
-                    }
-                },
-                172f);
-            AuraToolsUi.AddButton(
-                datasetRow.transform,
-                "打开目录",
-                AuraToolsCombatKnowledgeRuntime.OpenBaseGameTableExportDirectory,
-                88f);
-
-            AuraToolsUi.AddText(
-                optionalDataContent,
-                "可选实战采集：正常完成【世界推演】后，每场战斗、奖励选择、卡组成长和最终结局会自动归入同一次旅程。",
-                AuraToolsUi.BodyFontSize,
-                TextAnchor.MiddleLeft,
-                AuraToolsUi.Text,
-                AuraToolsUi.TextMinHeight,
-                1f);
-            CreateAutoBattleToggleRow(optionalDataContent, "进入战斗时自动接管", autoBattle.StartActive, value =>
-            {
-                autoBattle.StartActive = value;
-                AuraToolsConfigService.SaveMatchExperience();
-            });
-            CreateAutoBattleToggleRow(optionalDataContent, "自动记录实战与完整旅程", autoBattle.CaptureTrainingSamples, value =>
-            {
-                autoBattle.CaptureTrainingSamples = value;
-                AuraToolsConfigService.SaveMatchExperience();
-            });
-            var journeyCaptureText = AuraToolsUi.AddText(
-                optionalDataContent,
-                "",
-                AuraToolsUi.HintFontSize,
-                TextAnchor.MiddleLeft,
-                AuraToolsUi.MutedText,
-                AuraToolsUi.TextMinHeight,
-                1f);
-            journeyCaptureText.gameObject
-                .AddComponent<AuraToolsAutoBattleJourneyStatusView>()
-                .Configure(journeyCaptureText);
-            CreateAutoBattleToggleRow(optionalDataContent, "显示 AI 预测标记", autoBattle.ShowPredictionMarkers, value =>
-            {
-                autoBattle.ShowPredictionMarkers = value;
-                AuraToolsConfigService.SaveMatchExperience();
-            });
-            var trainingModeRow = CreateInlineRow(
-                optionalDataContent,
-                "AutoBattleTrainingModeRow");
-            var trainingModeText = AuraToolsUi.AddText(
-                trainingModeRow.transform,
-                "训练采集：" + AutoBattleTrainingModeLabel(autoBattle.TrainingMode),
-                AuraToolsUi.BodyFontSize,
-                TextAnchor.MiddleLeft,
-                AuraToolsUi.Text,
-                AuraToolsUi.TextMinHeight,
-                1f);
-            var trainingModeButton = AuraToolsUi.AddButton(trainingModeRow.transform, "切换模式", () =>
-            {
-                autoBattle.TrainingMode = NextAutoBattleTrainingMode(autoBattle.TrainingMode);
-                autoBattle.Normalize();
-                AuraToolsConfigService.SaveMatchExperience();
-                trainingModeText.text =
-                    "训练采集："
-                    + AutoBattleTrainingModeLabel(autoBattle.TrainingMode);
-            }, 96f);
-            AttachAutoBattleWorkLock(trainingModeRow, trainingModeButton);
-            optionalDataHost.SetActive(
-                AutoBattleAdvancedTrainingExpanded);
-
-            var trainingPresetRow = CreateInlineRow(content, "AutoBattleTrainingPresetRow");
-            AuraToolsUi.AddText(
-                trainingPresetRow.transform,
-                "训练预设",
-                AuraToolsUi.BodyFontSize,
-                TextAnchor.MiddleLeft,
-                AuraToolsUi.Text,
-                AuraToolsUi.TextMinHeight,
-                0f,
-                96f);
-            Text? trainingPresetSummary = null;
-            var trainingPresetButton = AuraToolsUi.AddSelectButton(
-                trainingPresetRow.transform,
-                new[] { "稳健", "标准", "强适应", "自定义" },
-                AutoBattleTrainingPresetIndex(autoBattle.Training.Preset),
-                index =>
-                {
-                    if (index < 3)
-                    {
-                        autoBattle.Training.ApplyPreset(index switch
-                        {
-                            1 => AutoBattleTrainingSettings.StandardPreset,
-                            2 => AutoBattleTrainingSettings.AdaptivePreset,
-                            _ => AutoBattleTrainingSettings.SteadyPreset
-                        });
-                        AuraToolsConfigService.SaveMatchExperience();
-                    }
-                    else
-                    {
-                        autoBattle.Training.MarkCustom();
-                        AuraToolsConfigService.SaveMatchExperience();
-                    }
-                    if (trainingPresetSummary != null)
-                    {
-                        trainingPresetSummary.text =
-                            AutoBattleTrainingPresetSummary(
-                                autoBattle.Training);
-                    }
-                },
-                160f);
-            AttachAutoBattleWorkLock(trainingPresetRow, trainingPresetButton);
-            trainingPresetSummary = AuraToolsUi.AddText(
-                trainingPresetRow.transform,
-                AutoBattleTrainingPresetSummary(autoBattle.Training),
-                AuraToolsUi.HintFontSize,
-                TextAnchor.MiddleLeft,
-                AuraToolsUi.MutedText,
-                AuraToolsUi.TextMinHeight,
-                1f);
-
-            GameObject? trainingAdvancedHost = null;
-            GameObject? foundationAdvancedHost = null;
-            var advancedToggleRow = CreateInlineRow(content, "AutoBattleAdvancedTrainingToggleRow");
-            AuraToolsUi.AddToggle(advancedToggleRow.transform, AutoBattleAdvancedTrainingExpanded, value =>
-            {
-                AutoBattleAdvancedTrainingExpanded = value;
-                optionalDataHost.SetActive(value);
-                trainingAdvancedHost?.SetActive(value);
-                foundationAdvancedHost?.SetActive(value);
-            });
-            AuraToolsUi.AddText(
-                advancedToggleRow.transform,
-                "高级选项",
-                AuraToolsUi.BodyFontSize,
-                TextAnchor.MiddleLeft,
-                AuraToolsUi.Text,
-                AuraToolsUi.TextMinHeight,
-                1f);
-            trainingAdvancedHost = CreateVerticalStack(
-                content,
-                "AutoBattleAdvancedTrainingParameters");
-            CreateAutoBattleTrainingParameterRows(
-                trainingAdvancedHost.transform,
+                "高级与诊断",
+                "AutoBattle.AdvancedAndDiagnostics");
+            CreateAutoBattleAdvancedDiagnosticsSection(
+                diagnostics,
                 autoBattle);
-            trainingAdvancedHost.SetActive(
-                AutoBattleAdvancedTrainingExpanded);
-
-            var foundationStatusText = AuraToolsUi.AddText(
-                content,
-                "",
-                AuraToolsUi.HintFontSize,
-                TextAnchor.MiddleLeft,
-                AuraToolsUi.MutedText,
-                AuraToolsUi.TextMinHeight,
-                1f);
-            var foundationRow = CreateInlineRow(
-                content,
-                "AutoBattleFoundationTrainingActions");
-            var foundationButton = AuraToolsUi.AddButton(
-                foundationRow.transform,
-                "训练底模",
-                () =>
-                {
-                    if (!AuraToolsAutoBattleFoundationRuntime.Queue(
-                            autoBattle,
-                            out var foundationMessage))
-                    {
-                        AuraToolsLog.Warn("[AutoBattle][Foundation] " + foundationMessage);
-                    }
-                },
-                104f);
-            var cancelFoundationButton = AuraToolsUi.AddButton(
-                foundationRow.transform,
-                "取消",
-                AuraToolsAutoBattleFoundationRuntime.Cancel,
-                66f);
-            var openFoundationButton = AuraToolsUi.AddButton(
-                foundationRow.transform,
-                "报告",
-                AuraToolsAutoBattleFoundationRuntime.OpenResultDirectory,
-                88f);
-            AuraToolsUi.AddButton(
-                foundationRow.transform,
-                "独立控制台",
-                () =>
-                {
-                    if (AuraToolsFoundationWorkerRuntime.LaunchControlCenter(
-                            out var controllerMessage))
-                    {
-                        AuraToolsLog.Info(
-                            "[AutoBattle][FoundationController] "
-                            + controllerMessage);
-                    }
-                    else
-                    {
-                        AuraToolsLog.Warn(
-                            "[AutoBattle][FoundationController] "
-                            + controllerMessage);
-                    }
-                },
-                112f);
-            foundationRow.AddComponent<AuraToolsAutoBattleFoundationStatusView>().Configure(
-                foundationStatusText,
-                foundationButton,
-                cancelFoundationButton,
-                openFoundationButton);
-            var foundationSettings = autoBattle.FoundationTraining;
-            var foundationProfileRow = CreateInlineRow(
-                content,
-                "AutoBattleFoundationCpuProfileRow");
-            AuraToolsUi.AddButton(
-                foundationProfileRow.transform,
-                "自动",
-                () => ApplyFoundationCpuProfile(
-                    autoBattle,
-                    AutoBattleFoundationExecutionProfileNames.Auto),
-                68f);
-            AuraToolsUi.AddButton(
-                foundationProfileRow.transform,
-                "CPU-16",
-                () => ApplyFoundationCpuProfile(
-                    autoBattle,
-                    AutoBattleFoundationExecutionProfileNames.Cpu16),
-                76f);
-            AuraToolsUi.AddButton(
-                foundationProfileRow.transform,
-                "CPU-32",
-                () => ApplyFoundationCpuProfile(
-                    autoBattle,
-                    AutoBattleFoundationExecutionProfileNames.Cpu32),
-                76f);
-            AuraToolsUi.AddText(
-                foundationProfileRow.transform,
-                "当前：" + foundationSettings.ParallelismProfile,
-                AuraToolsUi.HintFontSize,
-                TextAnchor.MiddleLeft,
-                AuraToolsUi.MutedText,
-                AuraToolsUi.TextMinHeight,
-                1f);
-            var foundationPerformanceRow = CreateInlineRow(
-                content,
-                "AutoBattleFoundationPerformanceRow");
-            AddAutoBattleSimulationInt(
-                foundationPerformanceRow.transform,
-                "CPU 并行线程",
-                foundationSettings.Parallelism,
-                1,
-                32,
-                value =>
-                {
-                    foundationSettings.ParallelismProfile =
-                        CombatFoundationExecutionProfileNames.Custom;
-                    foundationSettings.Parallelism = value;
-                },
-                autoBattle);
-            AuraToolsUi.AddText(
-                foundationPerformanceRow.transform,
-                "自动会实测 16/32 · 固定档用于复现",
-                AuraToolsUi.HintFontSize,
-                TextAnchor.MiddleLeft,
-                AuraToolsUi.MutedText,
-                AuraToolsUi.TextMinHeight,
-                1f);
-            foundationAdvancedHost = CreateVerticalStack(
-                content,
-                "AutoBattleAdvancedFoundationParameters");
-            foundationAdvancedHost.SetActive(
-                AutoBattleAdvancedTrainingExpanded);
-            {
-                var foundationSeedRow = CreateInlineRow(
-                    foundationAdvancedHost.transform,
-                    "AutoBattleFoundationSeedRow");
-                AuraToolsUi.AddToggle(
-                    foundationSeedRow.transform,
-                    foundationSettings.RandomizeRunSeed,
-                    value =>
-                    {
-                        foundationSettings.RandomizeRunSeed = value;
-                        autoBattle.Normalize();
-                        AuraToolsConfigService.SaveMatchExperience();
-                    });
-                AuraToolsUi.AddText(
-                    foundationSeedRow.transform,
-                    "每次训练生成新 RunSeed",
-                    AuraToolsUi.HintFontSize,
-                    TextAnchor.MiddleLeft,
-                    AuraToolsUi.Text,
-                    AuraToolsUi.TextMinHeight,
-                    0f,
-                    146f);
-                AddAutoBattleFoundationUlong(
-                    foundationSeedRow.transform,
-                    "复现 RunSeed",
-                    foundationSettings.RunSeed,
-                    value => foundationSettings.RunSeed = value,
-                    autoBattle);
-
-                var foundationStrategyRow = CreateInlineRow(
-                    foundationAdvancedHost.transform,
-                    "AutoBattleFoundationStrategyRow");
-                AuraToolsUi.AddToggle(
-                    foundationStrategyRow.transform,
-                    foundationSettings.EnableCurriculum,
-                    value =>
-                    {
-                        foundationSettings.EnableCurriculum = value;
-                        autoBattle.Normalize();
-                        AuraToolsConfigService.SaveMatchExperience();
-                    });
-                AuraToolsUi.AddText(
-                    foundationStrategyRow.transform,
-                    "课程难度",
-                    AuraToolsUi.HintFontSize,
-                    TextAnchor.MiddleLeft,
-                    AuraToolsUi.Text,
-                    AuraToolsUi.TextMinHeight,
-                    0f,
-                    78f);
-                AuraToolsUi.AddToggle(
-                    foundationStrategyRow.transform,
-                    foundationSettings.EnableStratifiedReplay,
-                    value =>
-                    {
-                        foundationSettings.EnableStratifiedReplay = value;
-                        autoBattle.Normalize();
-                        AuraToolsConfigService.SaveMatchExperience();
-                    });
-                AuraToolsUi.AddText(
-                    foundationStrategyRow.transform,
-                    "普通/高级分层回放",
-                    AuraToolsUi.HintFontSize,
-                    TextAnchor.MiddleLeft,
-                    AuraToolsUi.Text,
-                    AuraToolsUi.TextMinHeight,
-                    1f);
-
-                var foundationAdaptiveRow = CreateInlineRow(
-                    foundationAdvancedHost.transform,
-                    "AutoBattleFoundationAdaptiveRow");
-                AuraToolsUi.AddToggle(
-                    foundationAdaptiveRow.transform,
-                    foundationSettings.EnableArenaRecovery,
-                    value =>
-                    {
-                        foundationSettings.EnableArenaRecovery = value;
-                        autoBattle.Normalize();
-                        AuraToolsConfigService.SaveMatchExperience();
-                    });
-                AuraToolsUi.AddText(
-                    foundationAdaptiveRow.transform,
-                    "竞技场恢复",
-                    AuraToolsUi.HintFontSize,
-                    TextAnchor.MiddleLeft,
-                    AuraToolsUi.Text,
-                    AuraToolsUi.TextMinHeight,
-                    0f,
-                    90f);
-                AuraToolsUi.AddToggle(
-                    foundationAdaptiveRow.transform,
-                    foundationSettings.EnableTuningArena,
-                    value =>
-                    {
-                        foundationSettings.EnableTuningArena = value;
-                        autoBattle.Normalize();
-                        AuraToolsConfigService.SaveMatchExperience();
-                    });
-                AuraToolsUi.AddText(
-                    foundationAdaptiveRow.transform,
-                    "Top-K 调参",
-                    AuraToolsUi.HintFontSize,
-                    TextAnchor.MiddleLeft,
-                    AuraToolsUi.Text,
-                    AuraToolsUi.TextMinHeight,
-                    1f);
-
-                var foundationAcceptanceRow = CreateInlineRow(
-                    foundationAdvancedHost.transform,
-                    "AutoBattleFoundationAcceptanceRow");
-                AddAutoBattleFoundationDouble(
-                    foundationAcceptanceRow.transform,
-                    "普通验收率",
-                    foundationSettings.NormalAcceptanceRate,
-                    0.5d,
-                    1d,
-                    value => foundationSettings.NormalAcceptanceRate = value,
-                    autoBattle);
-                AddAutoBattleFoundationDouble(
-                    foundationAcceptanceRow.transform,
-                    "高级验收率",
-                    foundationSettings.AdvancedAcceptanceRate,
-                    0.1d,
-                    1d,
-                    value => foundationSettings.AdvancedAcceptanceRate = value,
-                    autoBattle);
-
-                var foundationSuccessArchiveRow = CreateInlineRow(
-                    foundationAdvancedHost.transform,
-                    "AutoBattleFoundationSuccessArchiveRow");
-                AuraToolsUi.AddToggle(
-                    foundationSuccessArchiveRow.transform,
-                    foundationSettings.EnableSuccessCaseArchive,
-                    value =>
-                    {
-                        foundationSettings.EnableSuccessCaseArchive = value;
-                        autoBattle.Normalize();
-                        AuraToolsConfigService.SaveMatchExperience();
-                    });
-                AuraToolsUi.AddText(
-                    foundationSuccessArchiveRow.transform,
-                    "成功案例库",
-                    AuraToolsUi.HintFontSize,
-                    TextAnchor.MiddleLeft,
-                    AuraToolsUi.Text,
-                    AuraToolsUi.TextMinHeight,
-                    0f,
-                    90f);
-                AddAutoBattleFoundationDouble(
-                    foundationSuccessArchiveRow.transform,
-                    "教师回放占比",
-                    foundationSettings.SuccessExpertReplayShare,
-                    0d,
-                    0.4d,
-                    value =>
-                        foundationSettings.SuccessExpertReplayShare = value,
-                    autoBattle);
-                var foundationContentReplayRow = CreateInlineRow(
-                    foundationAdvancedHost.transform,
-                    "AutoBattleFoundationContentReplayRow");
-                AddAutoBattleFoundationDouble(
-                    foundationContentReplayRow.transform,
-                    "内容 MOD 回放占比",
-                    foundationSettings.AuthoritativeContentReplayShare,
-                    0d,
-                    0.5d,
-                    value => foundationSettings.AuthoritativeContentReplayShare = value,
-                    autoBattle);
-
-                var foundationModelRow = CreateInlineRow(
-                    foundationAdvancedHost.transform,
-                    "AutoBattleFoundationModelTrainingRow");
-                AddAutoBattleSimulationInt(
-                    foundationModelRow.transform,
-                    "底模最大 Epoch",
-                    foundationSettings.ModelEpochs,
-                    5,
-                    200,
-                    value => foundationSettings.ModelEpochs = value,
-                    autoBattle);
-                AddAutoBattleSimulationInt(
-                    foundationModelRow.transform,
-                    "提前停止耐心",
-                    foundationSettings.ModelEarlyStoppingPatience,
-                    1,
-                    30,
-                    value =>
-                        foundationSettings.ModelEarlyStoppingPatience = value,
-                    autoBattle);
-                var foundationBatchRow = CreateInlineRow(
-                    foundationAdvancedHost.transform,
-                    "AutoBattleFoundationBatchTrainingRow");
-                AddAutoBattleSimulationInt(
-                    foundationBatchRow.transform,
-                    "Minibatch",
-                    foundationSettings.ModelBatchSize,
-                    8,
-                    512,
-                    value => foundationSettings.ModelBatchSize = value,
-                    autoBattle);
-                AddAutoBattleSimulationInt(
-                    foundationBatchRow.transform,
-                    "Replay 战斗上限",
-                    foundationSettings.ModelReplayEpisodeLimit,
-                    64,
-                    20000,
-                    value =>
-                        foundationSettings.ModelReplayEpisodeLimit = value,
-                    autoBattle);
-                var foundationExplorationRow = CreateInlineRow(
-                    foundationAdvancedHost.transform,
-                    "AutoBattleFoundationExplorationRow");
-                AddAutoBattleFoundationDouble(
-                    foundationExplorationRow.transform,
-                    "自博弈探索率",
-                    foundationSettings.SelfPlayExplorationProbability,
-                    0d,
-                    0.5d,
-                    value =>
-                        foundationSettings.SelfPlayExplorationProbability = value,
-                    autoBattle);
-                AddAutoBattleFoundationDouble(
-                    foundationExplorationRow.transform,
-                    "探索温度",
-                    foundationSettings.SelfPlayExplorationTemperature,
-                    0.1d,
-                    5d,
-                    value =>
-                        foundationSettings.SelfPlayExplorationTemperature = value,
-                    autoBattle);
-            }
-            AuraToolsUi.AddText(
-                content,
-                "验收：普通 "
-                + (int)Math.Ceiling(
-                    foundationSettings.NormalValidationCampaigns
-                    * foundationSettings.NormalAcceptanceRate)
-                + "/"
-                + foundationSettings.NormalValidationCampaigns
-                + " · 高级 "
-                + (int)Math.Ceiling(
-                    foundationSettings.AdvancedValidationCampaigns
-                    * foundationSettings.AdvancedAcceptanceRate)
-                + "/"
-                + foundationSettings.AdvancedValidationCampaigns
-                + " · 达标后入库",
-                AuraToolsUi.HintFontSize,
-                TextAnchor.MiddleLeft,
-                AuraToolsUi.MutedText,
-                AuraToolsUi.TextMinHeight,
-                1f);
-
-            AuraToolsUi.AddText(
-                foundationAdvancedHost.transform,
-                "可选：用实战样本训练玩家候选",
-                AuraToolsUi.BodyFontSize,
-                TextAnchor.MiddleLeft,
-                AuraToolsUi.Text,
-                AuraToolsUi.TextMinHeight,
-                1f);
-            var modelRow = CreateInlineRow(
-                foundationAdvancedHost.transform,
-                "AutoBattleModelActionRow");
-            var trainingStatusText = AuraToolsUi.AddText(
-                modelRow.transform,
-                "",
-                AuraToolsUi.HintFontSize,
-                TextAnchor.MiddleLeft,
-                AuraToolsUi.MutedText,
-                AuraToolsUi.TextMinHeight,
-                1f);
-            var generateButton = AuraToolsUi.AddButton(modelRow.transform, "训练候选", () =>
-            {
-                if (!AuraToolsAutoBattleModelRuntime.QueueGenerateCandidate(autoBattle.Profile))
-                {
-                    AuraToolsLog.Warn("[AutoBattle][Training] 本地训练任务正在运行或未能提交");
-                }
-            }, 112f);
-            var cancelTrainingButton = AuraToolsUi.AddButton(
-                modelRow.transform,
-                "取消",
-                () => AuraToolsAutoBattleModelRuntime.CancelTraining(autoBattle.Profile),
-                66f);
-            AuraToolsUi.AddText(
-                foundationAdvancedHost.transform,
-                "候选仅保存在本机，评估结果不回流训练。",
-                AuraToolsUi.HintFontSize,
-                TextAnchor.MiddleLeft,
-                AuraToolsUi.MutedText,
-                AuraToolsUi.TextMinHeight,
-                1f);
-            var clearDataRow = CreateInlineRow(
-                foundationAdvancedHost.transform,
-                "AutoBattleClearDataRow");
-            AuraToolsUi.AddText(
-                clearDataRow.transform,
-                "危险操作：清空训练数据（不可恢复）",
-                AuraToolsUi.HintFontSize,
-                TextAnchor.MiddleLeft,
-                AuraToolsUi.WarningText,
-                AuraToolsUi.TextMinHeight,
-                1f);
-            AuraToolsUi.AddButton(clearDataRow.transform, "清空全部训练数据", () =>
-            {
-                if (AuraToolsAutoBattleModelRuntime.TryClearAllCombatLearningData(
-                        out var clearMessage))
-                {
-                    AuraToolsLog.Info("[AutoBattle][Clear] " + clearMessage);
-                }
-                else
-                {
-                    AuraToolsLog.Warn("[AutoBattle][Clear] " + clearMessage);
-                }
-            }, 142f);
-            var validationContent = CreateCompactFoldout(
-                content,
-                "验证与诊断（可选）",
-                "AutoBattle.ValidationAndDiagnostics");
-            CreateAutoBattleEvaluationSection(validationContent, autoBattle);
-
-            AuraToolsUi.AddText(
-                validationContent,
-                "实机验证（不影响便携底模使用）",
-                AuraToolsUi.HintFontSize,
-                TextAnchor.MiddleLeft,
-                AuraToolsUi.MutedText,
-                AuraToolsUi.TextMinHeight,
-                1f);
-            var gameValidationStatusText = AuraToolsUi.AddText(
-                validationContent,
-                "",
-                AuraToolsUi.HintFontSize,
-                TextAnchor.MiddleLeft,
-                AuraToolsUi.MutedText,
-                AuraToolsUi.TextMinHeight,
-                1f);
-            var gameValidationRow = CreateInlineRow(
-                validationContent,
-                "AutoBattleGameValidationActions");
-            var runGameValidationButton = AuraToolsUi.AddButton(
-                gameValidationRow.transform,
-                "实机验证",
-                () =>
-                {
-                    if (!AuraToolsAutoBattleGameValidationRuntime.Queue(
-                            autoBattle,
-                            out var validationMessage))
-                    {
-                        AuraToolsLog.Warn(
-                            "[AutoBattle][GameValidation] " + validationMessage);
-                    }
-                },
-                92f);
-            var cancelGameValidationButton = AuraToolsUi.AddButton(
-                gameValidationRow.transform,
-                "取消",
-                AuraToolsAutoBattleGameValidationRuntime.Cancel,
-                66f);
-            var openGameValidationButton = AuraToolsUi.AddButton(
-                gameValidationRow.transform,
-                "打开回执",
-                AuraToolsAutoBattleGameValidationRuntime.OpenResultDirectory,
-                88f);
-            gameValidationRow
-                .AddComponent<AuraToolsAutoBattleGameValidationStatusView>()
-                .Configure(
-                    gameValidationStatusText,
-                    runGameValidationButton,
-                    cancelGameValidationButton,
-                    openGameValidationButton);
-
-            var gameValidationSettings = autoBattle.GameValidation;
-            var gameValidationOptionsRow = CreateInlineRow(
-                validationContent,
-                "AutoBattleGameValidationOptionsRow");
-            AuraToolsUi.AddToggle(
-                gameValidationOptionsRow.transform,
-                gameValidationSettings.HidePresentation,
-                value =>
-                {
-                    gameValidationSettings.HidePresentation = value;
-                    autoBattle.Normalize();
-                    AuraToolsConfigService.SaveMatchExperience();
-                });
-            AuraToolsUi.AddText(
-                gameValidationOptionsRow.transform,
-                "隐藏战斗画面",
-                AuraToolsUi.HintFontSize,
-                TextAnchor.MiddleLeft,
-                AuraToolsUi.Text,
-                AuraToolsUi.TextMinHeight,
-                0f,
-                112f);
-            AddAutoBattleSimulationInt(
-                gameValidationOptionsRow.transform,
-                "每名最终首领场次",
-                gameValidationSettings.RepetitionsPerFinalBoss,
-                1,
-                20,
-                value => gameValidationSettings.RepetitionsPerFinalBoss = value,
-                autoBattle);
-            AuraToolsUi.AddText(
-                validationContent,
-                "结果不回流训练；环境变化后需重新验证。",
-                AuraToolsUi.HintFontSize,
-                TextAnchor.MiddleLeft,
-                AuraToolsUi.MutedText,
-                AuraToolsUi.TextMinHeight,
-                1f);
-
-            AuraToolsUi.AddText(
-                validationContent,
-                "本地候选晋级",
-                AuraToolsUi.HintFontSize,
-                TextAnchor.MiddleLeft,
-                AuraToolsUi.Text,
-                AuraToolsUi.TextMinHeight,
-                1f);
-            var promotionRow = CreateInlineRow(
-                validationContent,
-                "AutoBattlePromotionActionRow");
-            var importButton = AuraToolsUi.AddButton(promotionRow.transform, "保存新冠军", () =>
-            {
-                if (!AuraToolsAutoBattleModelRuntime.QueueImportCandidate(autoBattle.Profile))
-                {
-                    AuraToolsLog.Warn("[AutoBattle][Import] 保存任务正在运行或候选尚未通过门禁");
-                }
-            }, 112f);
-            var rollbackButton = AuraToolsUi.AddButton(promotionRow.transform, "回退上一冠军", () =>
-            {
-                if (!AuraToolsAutoBattleModelRuntime.QueueRollbackChampion(autoBattle.Profile))
-                {
-                    AuraToolsLog.Warn("[AutoBattle][Rollback] 回退任务正在运行或未能提交");
-                }
-            }, 112f);
-            content.gameObject
-                .AddComponent<AuraToolsAutoBattleTrainingStatusView>()
-                .Configure(
-                autoBattle.Profile,
-                trainingStatusText,
-                generateButton,
-                importButton,
-                rollbackButton,
-                cancelTrainingButton);
         }, autoBattle.Enabled ? AuraToolsUi.SuccessText : AuraToolsUi.MutedText);
 
         var feast = AuraToolsConfigService.MatchExperience.Feast;
@@ -1877,17 +1154,379 @@ public static class AuraToolsSettingsRuntime
         });
     }
 
-    private static void ApplyFoundationCpuProfile(
-        AutoBattleSettings autoBattle,
-        string profile)
+    private static void CreateAutoBattlePlayerAdaptationSection(
+        Transform parent,
+        AutoBattleSettings autoBattle)
     {
-        var foundation = autoBattle.FoundationTraining;
-        foundation.ParallelismProfile = profile;
-        foundation.InferenceParallelism = 0;
-        foundation.ThreadPoolMinimumWorkerThreads = 0;
-        foundation.CheckpointSerializationParallelism = 0;
-        autoBattle.Normalize();
-        AuraToolsConfigService.SaveMatchExperience();
+        AuraToolsUi.AddText(
+            parent,
+            "记录实战决策并在已选底模之上训练玩家偏好残差；底模始终保持冻结。",
+            AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.MutedText,
+            AuraToolsUi.TextMinHeight,
+            1f);
+
+        var contentAdapterIds = AuraToolsCombatContentRuntime
+            .SnapshotPolicyAdapters(autoBattle.SelectedModelId)
+            .Select(item => item.Manifest.AdapterId)
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        var activeAdapterIds = AuraToolsAutoBattleModelRuntime
+            .SnapshotActiveAdapterIds(
+                autoBattle.Profile,
+                autoBattle.SelectedModelId);
+        var personalAdapterCount = activeAdapterIds.Count(id =>
+            !contentAdapterIds.Contains(id, StringComparer.Ordinal));
+        AuraToolsUi.AddText(
+            parent,
+            "适配器链：内容 LoRA/低秩 "
+            + contentAdapterIds.Length
+            + " · 玩家残差 "
+            + personalAdapterCount,
+            AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.Text,
+            AuraToolsUi.TextMinHeight,
+            1f);
+
+        CreateAutoBattleToggleRow(
+            parent,
+            "自动记录实战与完整旅程",
+            autoBattle.CaptureTrainingSamples,
+            value =>
+            {
+                autoBattle.CaptureTrainingSamples = value;
+                AuraToolsConfigService.SaveMatchExperience();
+            });
+        var journeyCaptureText = AuraToolsUi.AddText(
+            parent,
+            "",
+            AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.MutedText,
+            AuraToolsUi.TextMinHeight,
+            1f);
+        journeyCaptureText.gameObject
+            .AddComponent<AuraToolsAutoBattleJourneyStatusView>()
+            .Configure(journeyCaptureText);
+
+        var trainingModeRow = CreateInlineRow(
+            parent,
+            "AutoBattleTrainingModeRow");
+        var trainingModeText = AuraToolsUi.AddText(
+            trainingModeRow.transform,
+            "采集模式：" + AutoBattleTrainingModeLabel(autoBattle.TrainingMode),
+            AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.Text,
+            AuraToolsUi.TextMinHeight,
+            1f);
+        var trainingModeButton = AuraToolsUi.AddButton(
+            trainingModeRow.transform,
+            "切换模式",
+            () =>
+            {
+                autoBattle.TrainingMode =
+                    NextAutoBattleTrainingMode(autoBattle.TrainingMode);
+                autoBattle.Normalize();
+                AuraToolsConfigService.SaveMatchExperience();
+                trainingModeText.text =
+                    "采集模式："
+                    + AutoBattleTrainingModeLabel(autoBattle.TrainingMode);
+            },
+            96f);
+        AttachAutoBattleWorkLock(trainingModeRow, trainingModeButton);
+
+        var trainingPresetRow = CreateInlineRow(
+            parent,
+            "AutoBattleTrainingPresetRow");
+        AuraToolsUi.AddText(
+            trainingPresetRow.transform,
+            "残差训练预设",
+            AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.MutedText,
+            AuraToolsUi.TextMinHeight,
+            0f,
+            112f);
+        Text? trainingPresetSummary = null;
+        var trainingPresetButton = AuraToolsUi.AddSelectButton(
+            trainingPresetRow.transform,
+            new[] { "稳健", "标准", "强适应", "自定义" },
+            AutoBattleTrainingPresetIndex(autoBattle.Training.Preset),
+            index =>
+            {
+                if (index < 3)
+                {
+                    autoBattle.Training.ApplyPreset(index switch
+                    {
+                        1 => AutoBattleTrainingSettings.StandardPreset,
+                        2 => AutoBattleTrainingSettings.AdaptivePreset,
+                        _ => AutoBattleTrainingSettings.SteadyPreset
+                    });
+                }
+                else
+                {
+                    autoBattle.Training.MarkCustom();
+                }
+                AuraToolsConfigService.SaveMatchExperience();
+                if (trainingPresetSummary != null)
+                {
+                    trainingPresetSummary.text =
+                        AutoBattleTrainingPresetSummary(autoBattle.Training);
+                }
+            },
+            144f);
+        AttachAutoBattleWorkLock(trainingPresetRow, trainingPresetButton);
+        trainingPresetSummary = AuraToolsUi.AddText(
+            trainingPresetRow.transform,
+            AutoBattleTrainingPresetSummary(autoBattle.Training),
+            AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.MutedText,
+            AuraToolsUi.TextMinHeight,
+            1f);
+
+        var parameterContent = CreateCompactFoldout(
+            parent,
+            "残差训练参数",
+            "AutoBattle.PlayerResidualParameters");
+        CreateAutoBattleTrainingParameterRows(parameterContent, autoBattle);
+
+        var modelRow = CreateInlineRow(parent, "AutoBattleModelActionRow");
+        var trainingStatusText = AuraToolsUi.AddText(
+            modelRow.transform,
+            "",
+            AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.MutedText,
+            AuraToolsUi.TextMinHeight,
+            1f);
+        var generateButton = AuraToolsUi.AddButton(
+            modelRow.transform,
+            "训练玩家残差",
+            () =>
+            {
+                if (!AuraToolsAutoBattleModelRuntime.QueueGenerateCandidate(
+                        autoBattle.Profile))
+                {
+                    AuraToolsLog.Warn(
+                        "[AutoBattle][Training] 玩家残差任务正在运行或未能提交");
+                }
+            },
+            128f);
+        var cancelTrainingButton = AuraToolsUi.AddButton(
+            modelRow.transform,
+            "取消",
+            () => AuraToolsAutoBattleModelRuntime.CancelTraining(
+                autoBattle.Profile),
+            66f);
+
+        var promotionRow = CreateInlineRow(
+            parent,
+            "AutoBattlePromotionActionRow");
+        AuraToolsUi.AddText(
+            promotionRow.transform,
+            "玩家残差版本",
+            AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.MutedText,
+            AuraToolsUi.TextMinHeight,
+            1f);
+        var importButton = AuraToolsUi.AddButton(
+            promotionRow.transform,
+            "保存已验证版本",
+            () =>
+            {
+                if (!AuraToolsAutoBattleModelRuntime.QueueImportCandidate(
+                        autoBattle.Profile))
+                {
+                    AuraToolsLog.Warn(
+                        "[AutoBattle][Import] 候选尚未通过门禁或保存任务正在运行");
+                }
+            },
+            128f);
+        var rollbackButton = AuraToolsUi.AddButton(
+            promotionRow.transform,
+            "回退上一版本",
+            () =>
+            {
+                if (!AuraToolsAutoBattleModelRuntime.QueueRollbackChampion(
+                        autoBattle.Profile))
+                {
+                    AuraToolsLog.Warn(
+                        "[AutoBattle][Rollback] 没有可回退版本或任务未能提交");
+                }
+            },
+            112f);
+        parent.gameObject
+            .AddComponent<AuraToolsAutoBattleTrainingStatusView>()
+            .Configure(
+                autoBattle.Profile,
+                trainingStatusText,
+                generateButton,
+                importButton,
+                rollbackButton,
+                cancelTrainingButton);
+    }
+
+    private static void CreateAutoBattleAdvancedDiagnosticsSection(
+        Transform parent,
+        AutoBattleSettings autoBattle)
+    {
+        var datasetRow = CreateInlineRow(parent, "AutoBattleDatasetExportRow");
+        var datasetStatus = AuraToolsUi.AddText(
+            parent,
+            "导出当前游戏版本已加载的卡牌、Buff、敌人、关卡、遗物与祝福。",
+            AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.MutedText,
+            AuraToolsUi.TextMinHeight,
+            1f);
+        AuraToolsUi.AddText(
+            datasetRow.transform,
+            "游戏数据集",
+            AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.Text,
+            AuraToolsUi.TextMinHeight,
+            1f);
+        AuraToolsUi.AddButton(
+            datasetRow.transform,
+            "导出",
+            () =>
+            {
+                if (AuraToolsCombatKnowledgeRuntime.TryExportBaseGameTables(
+                        out var exportedPath,
+                        out var exportMessage))
+                {
+                    datasetStatus.text = exportMessage + "："
+                                         + Path.GetFileName(exportedPath);
+                    datasetStatus.color = AuraToolsUi.SuccessText;
+                }
+                else
+                {
+                    datasetStatus.text = exportMessage;
+                    datasetStatus.color = AuraToolsUi.WarningText;
+                }
+            },
+            88f);
+        AuraToolsUi.AddButton(
+            datasetRow.transform,
+            "打开导出目录",
+            AuraToolsCombatKnowledgeRuntime.OpenBaseGameTableExportDirectory,
+            112f);
+
+        CreateAutoBattleEvaluationSection(parent, autoBattle);
+
+        AuraToolsUi.AddText(
+            parent,
+            "实机验证",
+            AuraToolsUi.BodyFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.Text,
+            AuraToolsUi.TextMinHeight,
+            1f);
+        var gameValidationStatusText = AuraToolsUi.AddText(
+            parent,
+            "",
+            AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.MutedText,
+            AuraToolsUi.TextMinHeight,
+            1f);
+        var gameValidationRow = CreateInlineRow(
+            parent,
+            "AutoBattleGameValidationActions");
+        var runGameValidationButton = AuraToolsUi.AddButton(
+            gameValidationRow.transform,
+            "开始验证",
+            () =>
+            {
+                if (!AuraToolsAutoBattleGameValidationRuntime.Queue(
+                        autoBattle,
+                        out var validationMessage))
+                {
+                    AuraToolsLog.Warn(
+                        "[AutoBattle][GameValidation] " + validationMessage);
+                }
+            },
+            96f);
+        var cancelGameValidationButton = AuraToolsUi.AddButton(
+            gameValidationRow.transform,
+            "取消",
+            AuraToolsAutoBattleGameValidationRuntime.Cancel,
+            66f);
+        var openGameValidationButton = AuraToolsUi.AddButton(
+            gameValidationRow.transform,
+            "打开回执目录",
+            AuraToolsAutoBattleGameValidationRuntime.OpenResultDirectory,
+            112f);
+        gameValidationRow
+            .AddComponent<AuraToolsAutoBattleGameValidationStatusView>()
+            .Configure(
+                gameValidationStatusText,
+                runGameValidationButton,
+                cancelGameValidationButton,
+                openGameValidationButton);
+
+        var gameValidationSettings = autoBattle.GameValidation;
+        var gameValidationOptionsRow = CreateInlineRow(
+            parent,
+            "AutoBattleGameValidationOptionsRow");
+        AuraToolsUi.AddToggle(
+            gameValidationOptionsRow.transform,
+            gameValidationSettings.HidePresentation,
+            value =>
+            {
+                gameValidationSettings.HidePresentation = value;
+                autoBattle.Normalize();
+                AuraToolsConfigService.SaveMatchExperience();
+            });
+        AuraToolsUi.AddText(
+            gameValidationOptionsRow.transform,
+            "隐藏战斗画面",
+            AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.Text,
+            AuraToolsUi.TextMinHeight,
+            0f,
+            112f);
+        AddAutoBattleSimulationInt(
+            gameValidationOptionsRow.transform,
+            "每名最终首领场次",
+            gameValidationSettings.RepetitionsPerFinalBoss,
+            1,
+            20,
+            value => gameValidationSettings.RepetitionsPerFinalBoss = value,
+            autoBattle);
+
+        var clearDataRow = CreateInlineRow(parent, "AutoBattleClearDataRow");
+        AuraToolsUi.AddText(
+            clearDataRow.transform,
+            "危险操作：永久清空实战样本、玩家残差与评估结果",
+            AuraToolsUi.HintFontSize,
+            TextAnchor.MiddleLeft,
+            AuraToolsUi.WarningText,
+            AuraToolsUi.TextMinHeight,
+            1f);
+        AuraToolsUi.AddButton(
+            clearDataRow.transform,
+            "清空玩家训练数据",
+            () =>
+            {
+                if (AuraToolsAutoBattleModelRuntime
+                        .TryClearAllCombatLearningData(out var clearMessage))
+                {
+                    AuraToolsLog.Info("[AutoBattle][Clear] " + clearMessage);
+                }
+                else
+                {
+                    AuraToolsLog.Warn("[AutoBattle][Clear] " + clearMessage);
+                }
+            },
+            144f);
     }
 
     private static void CreateGameParametersSection(Transform parent)
@@ -1906,7 +1545,7 @@ public static class AuraToolsSettingsRuntime
 
     private static void BuildGameParametersSection(Transform parent)
     {
-        CreateSectionLabel(parent, "底模训练 · ① 游戏主体");
+        CreateSectionLabel(parent, "适用游戏主体");
         var autoBattle = AuraToolsConfigService.MatchExperience.AutoBattle;
         autoBattle.Normalize();
         var parameters = autoBattle.GameParameters;
@@ -2906,8 +2545,6 @@ public static class AuraToolsSettingsRuntime
                        + "|"
                        + autoBattle.Simulation.DifficultyId
                        + "|"
-                       + AutoBattleAdvancedTrainingExpanded
-                       + "|"
                        + AutoBattleEvolutionView;
             },
             Build);
@@ -2932,10 +2569,6 @@ public static class AuraToolsSettingsRuntime
                 autoBattle.Profile,
                 evaluationModelId);
         }
-        if (!AutoBattleAdvancedTrainingExpanded)
-        {
-            AutoBattleEvolutionView = false;
-        }
         var fixedCampaignSelected = string.Equals(
             autoBattle.Simulation.ScenarioId,
             "witch.world-simulation.standard-v2",
@@ -2947,7 +2580,12 @@ public static class AuraToolsSettingsRuntime
         var lockedControls = new List<Selectable>();
         if (includeModelManagement)
         {
-        var library = uiSnapshot.Models.ToList();
+        var library = uiSnapshot.Models
+            .Where(item => string.Equals(
+                item.ModelPurpose,
+                "foundation",
+                StringComparison.Ordinal))
+            .ToList();
         var modelRow = CreateInlineRow(parent, "AutoBattleModelLibraryRow");
         AuraToolsUi.AddText(
             modelRow.transform,
@@ -2958,7 +2596,7 @@ public static class AuraToolsSettingsRuntime
             AuraToolsUi.TextMinHeight,
             0f,
             64f);
-        var modelLabels = new List<string> { "自动（最新候选）" };
+        var modelLabels = new List<string> { "未选择底模" };
         modelLabels.AddRange(library.Select(item => item.DisplayName));
         var selectedModelIndex = library.FindIndex(item => string.Equals(
             item.ModelId,
@@ -3288,7 +2926,7 @@ public static class AuraToolsSettingsRuntime
             },
             92f);
         Button? evolutionModeButton = null;
-        if (AutoBattleAdvancedTrainingExpanded && !fixedCampaignSelected)
+        if (!fixedCampaignSelected)
         {
             evolutionModeButton = AuraToolsUi.AddButton(
                 modeRow.transform,
@@ -3360,14 +2998,11 @@ public static class AuraToolsSettingsRuntime
                 evaluationModelId,
                 force: true),
             66f);
-        if (AutoBattleAdvancedTrainingExpanded)
-        {
-            AuraToolsUi.AddButton(
-                scenarioRow.transform,
-                "高级输入目录",
-                AuraToolsAutoBattleSimulationRuntime.OpenInputDirectory,
-                112f);
-        }
+        AuraToolsUi.AddButton(
+            scenarioRow.transform,
+            "高级输入目录",
+            AuraToolsAutoBattleSimulationRuntime.OpenInputDirectory,
+            112f);
         AuraToolsUi.AddText(
             parent,
             scenarios.Count == 0
@@ -3380,7 +3015,7 @@ public static class AuraToolsSettingsRuntime
                 : AuraToolsUi.MutedText,
             AuraToolsUi.TextMinHeight,
             1f);
-        if (AutoBattleAdvancedTrainingExpanded && fixedCampaignSelected)
+        if (fixedCampaignSelected)
         {
             AuraToolsUi.AddText(
                 parent,
@@ -3650,96 +3285,6 @@ public static class AuraToolsSettingsRuntime
         return input;
     }
 
-    private static InputField AddAutoBattleFoundationUlong(
-        Transform parent,
-        string label,
-        ulong value,
-        Action<ulong> apply,
-        AutoBattleSettings autoBattle)
-    {
-        AuraToolsUi.AddText(
-            parent,
-            label,
-            AuraToolsUi.HintFontSize,
-            TextAnchor.MiddleLeft,
-            AuraToolsUi.Text,
-            AuraToolsUi.TextMinHeight,
-            0f,
-            92f);
-        InputField? input = null;
-        input = AuraToolsUi.AddInput(
-            parent,
-            value.ToString(CultureInfo.InvariantCulture),
-            raw =>
-            {
-                var parsed = ulong.TryParse(
-                    raw,
-                    NumberStyles.Integer,
-                    CultureInfo.InvariantCulture,
-                    out var configured)
-                    ? configured
-                    : value;
-                apply(parsed);
-                autoBattle.Normalize();
-                AuraToolsConfigService.SaveMatchExperience();
-                if (input != null)
-                {
-                    input.text = parsed.ToString(
-                        CultureInfo.InvariantCulture);
-                }
-            },
-            150f);
-        input.contentType = InputField.ContentType.IntegerNumber;
-        return input;
-    }
-
-    private static InputField AddAutoBattleFoundationDouble(
-        Transform parent,
-        string label,
-        double value,
-        double minimum,
-        double maximum,
-        Action<double> apply,
-        AutoBattleSettings autoBattle)
-    {
-        AuraToolsUi.AddText(
-            parent,
-            label,
-            AuraToolsUi.HintFontSize,
-            TextAnchor.MiddleLeft,
-            AuraToolsUi.Text,
-            AuraToolsUi.TextMinHeight,
-            0f,
-            92f);
-        InputField? input = null;
-        input = AuraToolsUi.AddInput(
-            parent,
-            value.ToString("0.###", CultureInfo.InvariantCulture),
-            raw =>
-            {
-                var parsed = double.TryParse(
-                    raw,
-                    NumberStyles.Float,
-                    CultureInfo.InvariantCulture,
-                    out var configured)
-                    ? configured
-                    : value;
-                parsed = Math.Max(minimum, Math.Min(maximum, parsed));
-                apply(parsed);
-                autoBattle.Normalize();
-                AuraToolsConfigService.SaveMatchExperience();
-                if (input != null)
-                {
-                    input.text = parsed.ToString(
-                        "0.###",
-                        CultureInfo.InvariantCulture);
-                }
-            },
-            72f);
-        input.contentType = InputField.ContentType.DecimalNumber;
-        return input;
-    }
-
     private static void AddAutoBattleTrainingInt(
         Transform parent,
         string label,
@@ -3965,196 +3510,6 @@ internal sealed class AuraToolsAutoBattleJourneyStatusView : MonoBehaviour
     }
 }
 
-internal sealed class AuraToolsAutoBattleFoundationStatusView : MonoBehaviour
-{
-    private Text? statusText;
-    private Button? trainButton;
-    private Button? cancelButton;
-    private Button? openButton;
-    private float nextRefreshAt;
-    private bool foundationReady;
-    private string readinessMessage = "";
-
-    public void Configure(
-        Text text,
-        Button train,
-        Button cancel,
-        Button open)
-    {
-        statusText = text;
-        trainButton = train;
-        cancelButton = cancel;
-        openButton = open;
-        foundationReady = AuraToolsAutoBattleFoundationRuntime.CheckReadiness(
-            out readinessMessage);
-        Refresh();
-    }
-
-    private void Update()
-    {
-        if (Time.unscaledTime < nextRefreshAt)
-        {
-            return;
-        }
-        nextRefreshAt = Time.unscaledTime + 0.2f;
-        Refresh();
-    }
-
-    private void Refresh()
-    {
-        if (!foundationReady)
-        {
-            foundationReady = AuraToolsAutoBattleFoundationRuntime.CheckReadiness(
-                out readinessMessage);
-        }
-        var status = AuraToolsAutoBattleFoundationRuntime.GetStatus();
-        var otherBusy = AuraToolsAutoBattleSimulationRuntime.GetStatus().Busy
-                        || AuraToolsAutoBattleModelRuntime.GetTrainingStatus(
-                            AuraToolsConfigService.MatchExperience.AutoBattle.Profile).Busy;
-        if (statusText != null)
-        {
-            var progress = status.RequestedCampaigns <= 0
-                ? ""
-                : " · "
-                  + status.CompletedCampaigns
-                  + "/"
-                  + status.RequestedCampaigns
-                  + " 冒险";
-            var modelProgress = !string.Equals(
-                    status.Phase,
-                    "model-training",
-                    StringComparison.Ordinal)
-                ? ""
-                : " · Epoch "
-                  + status.ModelEpoch
-                  + "/"
-                  + status.ModelTotalEpochs
-                  + " · Loss "
-                  + status.ModelValidationLoss.ToString("F4");
-            statusText.text = status.Stage switch
-            {
-                AutoBattleFoundationStage.Idle =>
-                    CompactStatus(readinessMessage, 42),
-                AutoBattleFoundationStage.Queued => "底模训练已排队",
-                AutoBattleFoundationStage.Training =>
-                    CompactStatus(status.Message, 16)
-                                                       + progress
-                                                       + modelProgress
-                                                       + " · 线程 "
-                                                       + Math.Max(
-                                                           0,
-                                                           status.ActiveWorkerCount)
-                                                       + "/"
-                                                       + Math.Max(
-                                                           1,
-                                                           status.WorkerCount)
-                                                       + (status.CampaignsPerSecond <= 0d
-                                                           ? ""
-                                                           : " · "
-                                                             + status.BattlesPerSecond.ToString("F1")
-                                                             + " 战/秒 · ETA "
-                                                             + FormatDuration(status.EstimatedRemainingSeconds)),
-                AutoBattleFoundationStage.Writing => "正在写入底模与报告",
-                AutoBattleFoundationStage.Completed => status.AcceptancePassed
-                    ? "底模已达标 · 普通 "
-                      + status.NormalWinRate.ToString("P1")
-                      + " · 高级 "
-                      + status.AdvancedWinRate.ToString("P1")
-                    : "底模未达标 · 普通 "
-                      + status.NormalWinRate.ToString("P1")
-                      + " / 高级 "
-                      + status.AdvancedWinRate.ToString("P1"),
-                AutoBattleFoundationStage.Cancelling => "正在取消底模训练",
-                AutoBattleFoundationStage.Cancelled => "底模训练已取消",
-                AutoBattleFoundationStage.Failed =>
-                    CompactStatus(status.Message, 42),
-                _ => CompactStatus(status.Message, 42)
-            };
-            statusText.color = status.Stage == AutoBattleFoundationStage.Failed
-                               || !string.IsNullOrWhiteSpace(
-                                   status.ProgressDiagnostic)
-                               || (status.Stage == AutoBattleFoundationStage.Idle
-                                   && !foundationReady)
-                               || (status.Stage == AutoBattleFoundationStage.Completed
-                                   && !status.AcceptancePassed)
-                ? AuraToolsUi.WarningText
-                : status.AcceptancePassed
-                    ? AuraToolsUi.SuccessText
-                    : AuraToolsUi.MutedText;
-        }
-        if (trainButton != null)
-        {
-            var externalBusy =
-                AuraToolsFoundationWorkerRuntime.ExternalTrainingActive();
-            trainButton.interactable = foundationReady
-                                       && !status.Busy
-                                       && !otherBusy
-                                       && !externalBusy;
-            SetButtonLabel(
-                trainButton,
-                status.Busy
-                    ? "训练中..."
-                    : externalBusy
-                        ? "外部训练中"
-                    : foundationReady
-                        ? "训练底模"
-                        : "知识未就绪");
-        }
-        if (cancelButton != null)
-        {
-            cancelButton.interactable = status.Busy
-                                        && status.Stage
-                                        != AutoBattleFoundationStage.Cancelling;
-        }
-        if (openButton != null)
-        {
-            openButton.interactable = !string.IsNullOrWhiteSpace(status.ResultDirectory)
-                                      || Directory.Exists(
-                                          AuraToolsAutoBattleSimulationRuntime.ResultsRootDirectory);
-        }
-    }
-
-    private static string FormatDuration(double seconds)
-    {
-        if (double.IsNaN(seconds)
-            || double.IsInfinity(seconds)
-            || seconds <= 0d)
-        {
-            return "--";
-        }
-        var span = TimeSpan.FromSeconds(seconds);
-        return span.TotalHours >= 1d
-            ? ((int)span.TotalHours).ToString("00")
-              + ":"
-              + span.Minutes.ToString("00")
-              + ":"
-              + span.Seconds.ToString("00")
-            : span.Minutes.ToString("00")
-              + ":"
-              + span.Seconds.ToString("00");
-    }
-
-    private static string CompactStatus(string value, int maximumLength)
-    {
-        if (string.IsNullOrWhiteSpace(value))
-        {
-            return "就绪";
-        }
-        return value.Length <= maximumLength
-            ? value
-            : value.Substring(0, maximumLength - 3) + "...";
-    }
-
-    private static void SetButtonLabel(Button button, string value)
-    {
-        var label = button.GetComponentInChildren<Text>(true);
-        if (label != null)
-        {
-            label.text = value;
-        }
-    }
-}
-
 internal sealed class AuraToolsLocalSectionRefreshView : MonoBehaviour
 {
     private Func<string>? signatureProvider;
@@ -4253,7 +3608,6 @@ internal sealed class AuraToolsAutoBattleModelApplicationStatusView :
         var status =
             AuraToolsAutoBattleRuntime.SnapshotModelApplicationStatus();
         var busy = AuraToolsAutoBattleModelRuntime.AnyTrainingBusy()
-                   || AuraToolsAutoBattleFoundationRuntime.GetStatus().Busy
                    || AuraToolsAutoBattleSimulationRuntime.GetStatus().Busy
                    || AuraToolsAutoBattleGameValidationRuntime.GetStatus().Busy;
         if (statusText != null)
@@ -4388,8 +3742,7 @@ internal sealed class AuraToolsAutoBattleExternalValidationStatusView :
         var entry =
             AuraToolsAutoBattleModelRuntime.SnapshotExternalValidationModel();
         var settings = AuraToolsConfigService.MatchExperience.AutoBattle;
-        var busy = AuraToolsAutoBattleFoundationRuntime.GetStatus().Busy
-                   || AuraToolsAutoBattleSimulationRuntime.GetStatus().Busy
+        var busy = AuraToolsAutoBattleSimulationRuntime.GetStatus().Busy
                    || AuraToolsAutoBattleGameValidationRuntime.GetStatus().Busy
                    || AuraToolsAutoBattleModelRuntime.AnyTrainingBusy();
         var selected = entry != null
@@ -4514,8 +3867,7 @@ internal sealed class AuraToolsAutoBattleGameValidationStatusView : MonoBehaviou
     private void Refresh()
     {
         var status = AuraToolsAutoBattleGameValidationRuntime.GetStatus();
-        var otherBusy = AuraToolsAutoBattleFoundationRuntime.GetStatus().Busy
-                        || AuraToolsAutoBattleSimulationRuntime.GetStatus().Busy
+        var otherBusy = AuraToolsAutoBattleSimulationRuntime.GetStatus().Busy
                         || AuraToolsAutoBattleModelRuntime.GetTrainingStatus(
                             AuraToolsConfigService.MatchExperience.AutoBattle.Profile).Busy;
         var startReady =
@@ -4621,8 +3973,8 @@ internal sealed class AuraToolsAutoBattleTrainingStatusView : MonoBehaviour
     {
         profile = AuraToolsConfigService.MatchExperience.AutoBattle.Profile;
         var status = AuraToolsAutoBattleModelRuntime.GetTrainingStatus(profile);
-        var simulationBusy = AuraToolsAutoBattleSimulationRuntime.GetStatus().Busy
-                             || AuraToolsAutoBattleFoundationRuntime.GetStatus().Busy;
+        var simulationBusy =
+            AuraToolsAutoBattleSimulationRuntime.GetStatus().Busy;
         var candidateExists =
             AuraToolsAutoBattleModelRuntime.CandidateExists(profile);
         var candidateModelId = candidateExists
