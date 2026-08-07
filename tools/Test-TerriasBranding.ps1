@@ -40,6 +40,17 @@ function Test-ByteSequence {
     return $false
 }
 
+function Test-BrandingTextPath {
+    param([string]$RelativePath)
+
+    $normalized = ([string]$RelativePath).Replace('\', '/')
+    return -not $normalized.StartsWith("artifacts/", [StringComparison]::OrdinalIgnoreCase) `
+        -and -not $normalized.StartsWith("开发参考资料/", [StringComparison]::OrdinalIgnoreCase) `
+        -and -not $normalized.Equals(
+            "docs/AuraCombatAI/combat-knowledge.base-game.report.json",
+            [StringComparison]::OrdinalIgnoreCase)
+}
+
 Push-Location $repoRoot
 try {
     $trackedPaths = @(& git -c core.quotepath=false ls-files)
@@ -48,7 +59,11 @@ try {
     $legacyPaths = @($trackedPaths | Where-Object { $_ -match [regex]::Escape($legacyToken) })
     Assert-True ($legacyPaths.Count -eq 0) ("Legacy brand remains in tracked paths:`n" + ($legacyPaths -join "`n"))
 
-    $legacyText = @(& git grep -I -i -n -- $legacyToken 2>$null)
+    $legacyText = @(& git -c core.quotepath=false grep -I -i -n -- $legacyToken -- `
+        . `
+        ':(exclude)artifacts/**' `
+        ':(exclude)开发参考资料/**' `
+        ':(exclude)docs/AuraCombatAI/combat-knowledge.base-game.report.json' 2>$null)
     $grepExitCode = $LASTEXITCODE
     Assert-True ($grepExitCode -in @(0, 1)) "git grep failed while checking legacy brand text."
     Assert-True ($legacyText.Count -eq 0) ("Legacy brand remains in tracked text:`n" + ($legacyText -join "`n"))
@@ -60,6 +75,9 @@ try {
     $base64Pattern = '(?<![A-Za-z0-9+/])(?:[A-Za-z0-9+/]{4}){2,}(?:[A-Za-z0-9+/]{2}==|[A-Za-z0-9+/]{3}=)?(?![A-Za-z0-9+/])'
     $legacyBase64Locations = [System.Collections.Generic.List[string]]::new()
     foreach ($relativePath in $trackedPaths) {
+        if (-not (Test-BrandingTextPath $relativePath)) {
+            continue
+        }
         $extension = [IO.Path]::GetExtension($relativePath)
         if ($extension -notin $textExtensions) {
             continue

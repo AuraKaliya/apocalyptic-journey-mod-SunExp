@@ -245,7 +245,9 @@ server-bound RPC 必须从服务器接收上下文绑定 sender。payload budget
 3. 运行共享架构、核心、RPC authority 和发布门禁；
 4. 运行 `Test-SharedDllPackaging.ps1` 检查哈希。
 
-顶层验证入口是 `tools/Test-SharedReleaseGate.ps1`。只验证 `Terrias.Aura.dll` 能编译，不能证明共享发布完成。
+顶层验证入口是 `tools/Test-SharedReleaseGate.ps1`，但必须按影响显式选择
+`-Profile`、`-Tag` 或 `-StepId`；只有正式发布候选才选择
+`-Profile full-release`。只验证 `Terrias.Aura.dll` 能编译，不能证明共享发布完成。
 
 ## 11. 判断能力应放在哪里
 

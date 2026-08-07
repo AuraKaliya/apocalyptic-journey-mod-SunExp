@@ -14,46 +14,63 @@ Important consumers include:
 - `Terrias-Dev/Terrias.Dll.csproj`
 - `AuraToolsExp-Dev/AuraToolsExp.Dll.csproj`
 - `SanGuoShaExp-Dev/SanGuoShaExp.Dll.csproj`
-- test/prototype consumers listed in `tools/Test-SharedDllPackaging.ps1`
 
 After shared runtime changes, all packaged `Aura.Shared.dll` copies should have
 the same hash as the built shared runtime DLL.
 
 ## Release Matrix
 
-`tools/shared-release-matrix.json` is the shared gate inventory. Keep it aligned
-with real shared contracts and run `tools/Test-SharedReleaseGate.ps1` when
-shared surfaces change.
+`tools/shared-release-matrix.json` is the schema-v2 shared gate inventory. Each
+enabled step must declare a unique id, owner, category, cost, impact tags, and
+profiles. Keep it aligned with real shared contracts and select the narrowest
+profile, tag, or explicit step that covers the changed surface.
 
 Current gate families include:
 
 - core contract and raw shared write scans;
 - architecture guideline checks;
-- network RPC authority checks;
+- network behavior for Core, CG, and Audio plus a generic RPC boundary scan;
+- Combat AI behavior, knowledge, training artifacts, and simulation acceptance;
+- Foundation worker integration and release-only archive maintenance;
 - AuraTools feature tests;
 - main shared consumer tests;
 - shared DLL packaging validation.
 
 ## RPC Authority Gate
 
-`tools/Test-NetworkRpcAuthority.ps1` guards the cross-mod authority model:
+The `network` profile guards the cross-mod authority model in two layers:
 
-- server-bound commands receive sender context from receive hooks;
-- Terrias Solar Memory role commit validates sender and role identity;
-- AuraTools DamageMeter control/snapshot/report paths do not trust payload
-  issuer or reporter fields;
-- oversized payloads are blocked or chunked before network serialization.
+- Core, CG, and Audio behavior suites prove sender scoping/authority, payload
+  guards, bounded duplicate suppression, and lifecycle cleanup;
+- `tools/Test-NetworkRpcAuthority.ps1` rejects payload identity authorization,
+  raw transport outside approved adapters, server `CmdExecute` entries without
+  a server-bound marker, and markers not registered through
+  `AuraRpcAuthorityRuntime`.
 
 ## Validation
 
-Use the broad gate for shared protocol or packaging changes:
+Choose the narrowest gate that proves the affected contract:
 
 ```powershell
-tools\Build-TerriasDll.ps1
-tools\Build-AuraToolsExpDll.ps1
-tools\Test-NetworkRpcAuthority.ps1
-tools\Test-SharedArchitectureGuidelines.ps1
-tools\Test-AuraSharedCore.ps1
-tools\Test-SharedReleaseGate.ps1
-tools\Test-SharedDllPackaging.ps1
+tools\Test-AuraSharedCore.ps1 # Core storage or resource protocol
+tools\Build-AuraSharedRuntime.ps1 # production shared assembly
+tools\Test-SharedRuntimeCompatibility.ps1 # public shared API
+tools\Build-MainSharedConsumers.ps1 # public surface consumed by product MODs
+tools\Test-SharedReleaseGate.ps1 -Profile network # RPC behavior or authority changes
+tools\Test-NetworkRpcAuthority.ps1 # generic RPC boundary scanner changes
+tools\Test-SharedDllPackaging.ps1 # project references or DLL distribution
+tools\Test-SharedReleaseGate.ps1 -List # inspect profiles and impact tags
+tools\Test-SharedReleaseGate.ps1 -Profile domain # all shared domain behavior
+tools\Test-SharedReleaseGate.ps1 -Tag public-api # tag-selected validation
+tools\Test-SharedReleaseGate.ps1 -Profile full-release # comprehensive release validation
 ```
+
+The runner executes selected steps serially because multiple builds may write
+the same shared DLL outputs. Do not restore hidden child calls inside matrix
+steps; an invariant or suite should appear once in the explicit matrix.
+`Test-AuraSharedCore.ps1` proves behavior; `Build-AuraSharedRuntime.ps1` proves
+the production assembly. The compatibility baseline records reflected public
+API only and must not contain source snippets.
+
+Archived `TestMods` projects are excluded from product consumer builds and the
+shared release matrix. Their isolated entry is `tools/Test-TestMods.ps1`.

@@ -1,0 +1,205 @@
+{
+  "schemaVersion": 1,
+  "ruleSets": {
+    "shared": {
+      "scanRules": [
+        {
+          "id": "shared-product-independence",
+          "description": "Shared runtime source must not depend on product or prototype semantics.",
+          "roots": [
+            "AuraSharedCore",
+            "AuraAudioShared",
+            "AuraCgShared",
+            "AuraCardUseFxShared",
+            "AuraDecisionShared",
+            "AuraCombatSimulationShared",
+            "AuraCombatAiShared",
+            "AuraDirectorShared",
+            "AuraLogShared",
+            "AuraJourneyShared",
+            "AuraModeShared",
+            "AuraSkinShared",
+            "AuraOnlineShared",
+            "AuraRoleShared",
+            "AuraGameDataShared",
+            "AudioArbiterShared",
+            "BattleBgmArbiterShared",
+            "StarterDeckArbiterShared",
+            "AuraUiShared",
+            "UiRaycastSafetyShared",
+            "UiTransitionGuardShared"
+          ],
+          "filePattern": "*.cs",
+          "deny": [
+            "\\bTerrias\\b",
+            "\\bAuraToolsExp\\b",
+            "\\bSanGuoShaExp\\b",
+            "\\bTestMods\\b"
+          ]
+        },
+        {
+          "id": "core-domain-direction",
+          "description": "AuraSharedCore must not reference a shared domain namespace.",
+          "roots": ["AuraSharedCore"],
+          "filePattern": "*.cs",
+          "deny": [
+            "\\bAuraCg\\.Shared\\b",
+            "\\bAuraSkin\\.Shared\\b",
+            "\\bAudioArbiter\\.Shared\\b",
+            "\\bBattleBgmArbiter\\.Shared\\b",
+            "\\bStarterDeckArbiter\\.Shared\\b",
+            "\\bAuraCombatAi\\.Shared\\b",
+            "\\bAuraJourney\\.Shared\\b",
+            "\\bAuraMode\\.Shared\\b",
+            "\\bAuraOnline\\.Shared\\b",
+            "\\bAuraRole\\.Shared\\b",
+            "\\bAuraGameData\\.Shared\\b",
+            "\\bAuraDecision\\.Shared\\b",
+            "\\bAuraDirector\\.Shared\\b"
+          ]
+        }
+      ]
+    },
+    "shared-write": {
+      "scanRules": [
+        {
+          "id": "shared-write-entrypoint",
+          "description": "Shared and consumer runtime writes must stay behind an approved storage owner.",
+          "roots": [
+            "AuraAudioShared",
+            "AuraCardUseFxShared",
+            "AuraCgShared",
+            "AuraDirectorShared",
+            "AuraDirectorDetour-Dev",
+            "AuraJourneyShared",
+            "AuraLogShared",
+            "AuraModeShared",
+            "AuraSkinShared",
+            "AuraToolsExp-Dev",
+            "SanGuoShaExp-Dev",
+            "Terrias-Dev"
+          ],
+          "filePattern": "*.cs",
+          "excludePathRegex": [
+            "^AuraLogShared/AuraLogRuntime\\.cs$",
+            "^AuraToolsExp-Dev/Features/Logging/AuraToolsLogFileWriter\\.cs$",
+            "^Terrias-Dev/GameApi/FamiliarGrowthApi\\.cs$",
+            "^Terrias-Dev/Mechanics/EndlessAbyssRunLedger\\.cs$",
+            "^Terrias-Dev/Mechanics/EndlessAbyssShockService\\.cs$",
+            "^Terrias-Dev/Mechanics/EndlessSeaFloorPlanStore\\.cs$"
+          ],
+          "deny": [
+            "File\\s*\\.\\s*WriteAll(?:Text|Bytes)\\s*\\(",
+            "File\\s*\\.\\s*(?:OpenWrite|Create|Move|Replace)\\s*\\(",
+            "Directory\\s*\\.\\s*Move\\s*\\(",
+            "(?s)new\\s+FileStream\\s*\\([^;]*?FileMode\\.(?:Create|CreateNew|OpenOrCreate|Append|Truncate)"
+          ]
+        }
+      ]
+    },
+    "content-tool": {
+      "scanRules": [
+        {
+          "id": "tool-content-independence",
+          "description": "AuraToolsExp must not depend on Terrias implementation or content semantics.",
+          "roots": ["AuraToolsExp-Dev"],
+          "filePattern": "*.cs",
+          "deny": [
+            "Terrias-Dev",
+            "Terrias\\.Dll",
+            "using\\s+Terrias",
+            "CS\\.Terrias",
+            "\\bTerriasIds\\b",
+            "\\bSolarMemory\\b"
+          ]
+        },
+        {
+          "id": "content-tool-independence",
+          "description": "Terrias must not depend on AuraToolsExp implementation.",
+          "roots": ["Terrias-Dev"],
+          "filePattern": "*.cs",
+          "deny": [
+            "AuraToolsExp-Dev",
+            "AuraToolsExp\\.Dll",
+            "using\\s+AuraToolsExp",
+            "CS\\.AuraToolsExp"
+          ]
+        },
+        {
+          "id": "tool-hook-entrypoint",
+          "description": "AuraToolsExp feature hooks must route through AuraToolsHookRegistry.",
+          "roots": ["AuraToolsExp-Dev"],
+          "filePattern": "*.cs",
+          "excludePathRegex": ["/AuraToolsHookRegistry\\.cs$"],
+          "deny": ["AuraSharedHooks\\.(?:RegisterBefore|RegisterAfter)"]
+        },
+        {
+          "id": "content-hook-entrypoint",
+          "description": "Terrias feature hooks must route through TerriasHookRegistry.",
+          "roots": ["Terrias-Dev"],
+          "filePattern": "*.cs",
+          "excludePathRegex": ["/TerriasHookRegistry\\.cs$"],
+          "deny": ["AuraSharedHooks\\.(?:RegisterBefore|RegisterAfter)"]
+        }
+      ]
+    },
+    "terrias": {
+      "namespaceRules": [
+        { "root": "Terrias-Dev/Infrastructure", "prefix": "Terrias.Dll.Infrastructure" },
+        { "root": "Terrias-Dev/GameApi", "prefix": "Terrias.Dll.GameApi" },
+        { "root": "Terrias-Dev/Mechanics", "prefix": "Terrias.Dll.Mechanics" },
+        { "root": "Terrias-Dev/Hooks", "prefix": "Terrias.Dll.Hooks" },
+        { "root": "Terrias-Dev/Features", "prefix": "Terrias.Dll.Features" },
+        { "root": "Terrias-Dev/Scripting", "prefix": "Terrias.Dll.Scripting" }
+      ],
+      "scanRules": [
+        {
+          "id": "terrias-sibling-independence",
+          "description": "Terrias must remain independent from sibling product and prototype implementations.",
+          "roots": ["Terrias-Dev"],
+          "filePattern": "*.cs",
+          "deny": ["\\bAuraToolsExp\\b", "\\bSanGuoShaExp\\b", "\\bTestMods\\b"]
+        },
+        {
+          "id": "scripting-entry-boundary",
+          "description": "CSV-callable scripting code must not own hooks, schedulers, or raw event registration.",
+          "roots": ["Terrias-Dev/Scripting"],
+          "filePattern": "*.cs",
+          "deny": [
+            "using\\s+Terrias\\.Dll\\.Hooks",
+            "\\bTerriasFrameScheduler\\b",
+            "\\.\\s*Add(?:Temp)?Event\\s*\\("
+          ]
+        },
+        {
+          "id": "hook-registration-isolation",
+          "description": "Raw Terrias hook registration must stay under Hooks or the composition entry point.",
+          "roots": ["Terrias-Dev"],
+          "filePattern": "*.cs",
+          "excludePathRegex": ["^Terrias-Dev/Hooks/", "^Terrias-Dev/Entry\\.cs$"],
+          "deny": [
+            "TerriasHookRegistry\\.(?:Before|After|Register)",
+            "\\bModHook\\.Add",
+            "\\bAddMethodHook(?:Before|After)\\b"
+          ]
+        },
+        {
+          "id": "resource-loader-boundary",
+          "description": "Terrias resource loads must be centralized in TerriasResourceCache.",
+          "roots": ["Terrias-Dev"],
+          "filePattern": "*.cs",
+          "excludePathRegex": ["/TerriasResourceCache\\.cs$"],
+          "deny": ["ResourceLoader\\.Load(?:All)?(?:<|\\s*\\()"]
+        },
+        {
+          "id": "config-index-boundary",
+          "description": "Table scans outside GameApi must be centralized in TerriasConfigIndex.",
+          "roots": ["Terrias-Dev"],
+          "filePattern": "*.cs",
+          "excludePathRegex": ["^Terrias-Dev/GameApi/", "/TerriasConfigIndex\\.cs$"],
+          "deny": ["\\bGetTable\\s*\\("]
+        }
+      ]
+    }
+  }
+}

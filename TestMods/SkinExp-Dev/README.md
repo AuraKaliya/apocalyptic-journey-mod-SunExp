@@ -13,9 +13,12 @@ provider being loaded again.
 ## Build and validation
 
 ```powershell
-tools\Build-SkinExpDll.ps1
-tools\Test-SkinExp.ps1
+tools\Test-TestMods.ps1
 ```
+
+`Test-SkinExp.ps1` is an archived prototype/content check invoked by that
+isolated TestMods entry. Shared Skin behavior is validated separately by
+`tools\Test-AuraSkinShared.ps1`.
 
 Manual game verification should cover first install, duplicate registration, provider-only load, default restoration,
 career switching, preparation/status UI refresh, animation fallback, package update, and conflict logging.

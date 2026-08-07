@@ -139,8 +139,11 @@ public static class AuraSkinRuntime
         var buildId = AuraSharedReflection.ReadString(existing, "BuildId");
         var methodsPresent = new[] { "InitializeOwner", "RegisterPackage", "Reload", "GetOwners" }
             .All(name => type.GetMethod(name, BindingFlags.Instance | BindingFlags.Public) != null);
-        var compatible = protocolVersion >= MinimumSupportedProtocolVersion
-                         && minimumSupported <= CurrentProtocolVersion
+        var compatible = SkinProtocolCompatibility.IsCompatible(
+                             CurrentProtocolVersion,
+                             MinimumSupportedProtocolVersion,
+                             protocolVersion,
+                             minimumSupported)
                          && methodsPresent;
 
         if (!compatible && CompatibilityErrorsShown.Add(ownerModId + ":" + type.AssemblyQualifiedName))

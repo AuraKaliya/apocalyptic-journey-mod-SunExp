@@ -3,6 +3,25 @@ using System.Collections.Generic;
 
 namespace AuraCg.Shared;
 
+internal readonly struct AuraCgNetworkSenderSnapshot
+{
+    public AuraCgNetworkSenderSnapshot(
+        bool isAvailable,
+        bool isLobbyMember,
+        string playerId)
+    {
+        IsAvailable = isAvailable;
+        IsLobbyMember = isLobbyMember;
+        PlayerId = (playerId ?? "").Trim();
+    }
+
+    public bool IsAvailable { get; }
+
+    public bool IsLobbyMember { get; }
+
+    public string PlayerId { get; }
+}
+
 internal static class AuraCgNetworkPolicy
 {
     public static bool HasBoundedIdentifier(string? value, int maximumLength)
@@ -63,5 +82,50 @@ internal static class AuraCgNetworkPolicy
         return string.IsNullOrWhiteSpace(issuerPlayerId) || string.IsNullOrWhiteSpace(playId)
             ? ""
             : issuerPlayerId + "|" + playId;
+    }
+
+    public static string ValidateServerPlaybackIdentity(
+        SkillCgPlaybackSnapshot? playback,
+        AuraCgNetworkSenderSnapshot sender,
+        bool isMultiplayer,
+        Func<string, string, bool> senderOwnsStatus)
+    {
+        if (playback == null)
+        {
+            return "missing payload";
+        }
+
+        if (!sender.IsAvailable)
+        {
+            return isMultiplayer ? "missing sender" : "";
+        }
+
+        if (!sender.IsLobbyMember)
+        {
+            return "sender outside lobby: " + sender.PlayerId;
+        }
+
+        if (!string.IsNullOrWhiteSpace(playback.IssuerPlayerId)
+            && !string.Equals(
+                playback.IssuerPlayerId,
+                sender.PlayerId,
+                StringComparison.Ordinal))
+        {
+            return "issuer mismatch: issuer=" + playback.IssuerPlayerId
+                   + ", sender=" + sender.PlayerId;
+        }
+
+        if (string.IsNullOrWhiteSpace(playback.OwnerStatusId))
+        {
+            return "missing owner status";
+        }
+
+        if (!senderOwnsStatus(sender.PlayerId, playback.OwnerStatusId))
+        {
+            return "owner mismatch: owner=" + playback.OwnerStatusId
+                   + ", sender=" + sender.PlayerId;
+        }
+
+        return "";
     }
 }

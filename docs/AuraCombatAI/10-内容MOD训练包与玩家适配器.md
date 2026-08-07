@@ -1,5 +1,9 @@
 # 内容 MOD 训练包与玩家适配器
 
+> 本文描述当前 `aura.combat-ai.content-package.v1` 生产合同。下一版将实机 C# 保持为
+> MOD 运行事实源，把 Rule IR 定位为绑定 MOD 当前版本、经过差分认证的独立训练语义合同；
+> 详见 [MOD 底模训练 Rule IR 合同与导出认证](12-MOD底模训练Rule-IR合同与导出认证.md)。
+
 ## 权责边界
 
 内容 MOD 是新增规则、定义、权威结算和训练语料的唯一所有者。它把可共享目录注册到 AuraShared；AuraTools 只查询 AuraShared 当前激活目录、校验副本并消费，不枚举其他 MOD 的安装目录或私有数据目录。
@@ -45,6 +49,11 @@ AuraCombatAI/
 `PublicFeatures` 是可观测特征的 allowlist 和数值契约，不是取值脚本。内容 MOD 仍须在自身权威观察、声明式 ruleset/overlay 或注册 Episode 中产出相同 key 的实际数值，并保证实机与模拟侧含义一致；AuraTools 不调用内容 MOD 私有回调来猜测这些值。未实际产出的声明特征不会凭空进入模型。运行时会按声明范围裁剪 number、把 boolean 规范为 `0/1`；内建精确 key 不得重定义，多个包对同一 scope/key 给出不同契约时，相关包全部拒绝。
 
 ### 权威底模训练
+
+当前 v1 的 `FoundationTrainingEnabled`、`DeclaredCoverage` 和
+`Authoritative=true` 是协议字段与准入信号，不单独证明 Rule IR 与 MOD 实机 C# 等价。
+目标 v2 还要求状态合同、实机 Runtime Receipt、训练侧 Receipt、版本绑定和封存认证；
+在 v2 正式切换前，不把 v1 包隐式标记为 `Certified`。
 
 启用 `FoundationTrainingEnabled` 时必须同时提供：
 
@@ -106,6 +115,7 @@ MLP v2 为每个动作输出 16 个回报分位数。训练目标来自 PUCT 边
 2. 包 identity、游戏版本、依赖、路径和全部 SHA-256 通过。
 3. foundation 包通过转移一致性、状态混叠、owner 和 ID 冲突审计。
 4. 底模、MLP 适配器、Transformer LoRA 和玩家适配器绑定正确的 base/content/owner identity，量化兼容性明确。
-5. `Test-AuraCombatAi.ps1`、`Test-AuraFoundationTrainer.ps1` 与共享发布门禁全部通过。
+5. `Test-SharedReleaseGate.ps1 -Profile combat-ai` 通过；Worker 发生变更时再运行
+   `-Profile foundation`，发布候选运行 `-Profile full-release`。
 
 参考文件：[内容包示例](examples/content-package/package.json) 与 [AuraShared 注册示例](examples/content-package.shared-manifest.example.json)。

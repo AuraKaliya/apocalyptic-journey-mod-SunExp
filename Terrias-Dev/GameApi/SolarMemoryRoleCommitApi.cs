@@ -2,7 +2,6 @@ using System;
 using System.Collections.Generic;
 using Terrias.Dll.Infrastructure;
 using Terrias.Dll.Network;
-using Witch;
 
 namespace Terrias.Dll.GameApi;
 
@@ -28,19 +27,7 @@ public static class SolarMemoryRoleCommitApi
         role.SpecialVarMap[TerriasIds.SolarMemorySetupCommitTokenKey] = token;
         try
         {
-            var playerManager = PlayerManager.Instance;
-            if (playerManager != null && playerManager.isClient && !playerManager.isServer)
-            {
-                playerManager.SendRpcCommand(new RpcSolarMemoryRoleCommit(role, source));
-                TerriasLog.Info("[SolarMemoryRoleCommit] submitted final role to host. role=" + role.Id + ", token=" + token + ", source=" + source);
-                return true;
-            }
-
-            if (RpcSolarMemoryRoleCommit.ApplyOnServer(
-                    role,
-                    source,
-                    TerriasRpcAuthorityRuntime.CreateLocalServerSender(source),
-                    remoteRpc: false))
+            if (RpcSolarMemoryRoleCommit.Submit(role, source))
             {
                 return true;
             }

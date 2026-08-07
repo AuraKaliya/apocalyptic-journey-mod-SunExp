@@ -19,6 +19,8 @@ public sealed class CombatFoundationTrainingParameters
 
     public int Iterations { get; set; } = 8;
 
+    public bool EnableIterationProcessIsolation { get; set; } = true;
+
     public int AdditionalIterationsOnResume { get; set; } = 3;
 
     public int TrainingCampaignsPerIteration { get; set; } = 64;
@@ -94,6 +96,19 @@ public sealed class CombatFoundationTrainingParameters
     public bool EnableStratifiedReplay { get; set; } = true;
 
     public bool EnablePrioritizedReplay { get; set; } = true;
+
+    public bool EnableReplayWarehouse { get; set; } = true;
+
+    public int ReplayHotWindowEpisodeLimit { get; set; } = 2048;
+
+    public int ReplayHotWindowFrameLimit { get; set; } = 96_000;
+
+    public long ReplayHotWindowEstimatedBytesLimit { get; set; } =
+        768L * 1024L * 1024L;
+
+    public double ReplayCurrentIterationShare { get; set; } = 0.60d;
+
+    public double ReplayHistoricalShare { get; set; } = 0.40d;
 
     public bool EnableHardSeedCurriculum { get; set; } = true;
 
@@ -276,6 +291,13 @@ public sealed class CombatFoundationTrainingParameters
 
     public int TransformerTeacherPrefetchBatches { get; set; } = 2;
 
+    public bool TransformerTeacherEnableShardedDataset { get; set; } = true;
+
+    public int TransformerTeacherDatasetShardFrames { get; set; } = 64;
+
+    public long TransformerTeacherMemoryReserveBytes { get; set; } =
+        2L * 1024L * 1024L * 1024L;
+
     public bool TransformerTeacherEnablePinnedMemory { get; set; } = true;
 
     public bool TransformerTeacherEnableMixedPrecision { get; set; } = true;
@@ -344,6 +366,35 @@ public sealed class CombatFoundationTrainingParameters
         ParallelismMemoryReserveBytes = Math.Max(
             0L,
             ParallelismMemoryReserveBytes);
+        ReplayHotWindowEpisodeLimit = Math.Max(
+            64,
+            Math.Min(8000, ReplayHotWindowEpisodeLimit));
+        ReplayHotWindowFrameLimit = Math.Max(
+            4096,
+            Math.Min(384000, ReplayHotWindowFrameLimit));
+        ReplayHotWindowEstimatedBytesLimit = Math.Max(
+            128L * 1024L * 1024L,
+            Math.Min(
+                3L * 1024L * 1024L * 1024L,
+                ReplayHotWindowEstimatedBytesLimit));
+        ReplayCurrentIterationShare = Clamp(
+            ReplayCurrentIterationShare,
+            0.40d,
+            0.80d,
+            0.60d);
+        ReplayHistoricalShare = Clamp(
+            ReplayHistoricalShare,
+            0.20d,
+            0.60d,
+            0.40d);
+        var replayShareTotal = ReplayCurrentIterationShare
+                               + ReplayHistoricalShare;
+        if (replayShareTotal > 1d)
+        {
+            ReplayHistoricalShare = Math.Max(
+                0.20d,
+                1d - ReplayCurrentIterationShare);
+        }
         var requestedInferenceParallelism = InferenceParallelism;
         var requestedInferenceLaneCount = InferenceLaneCount;
         var requestedInferenceBatchSize = InferenceBatchSize;
@@ -583,6 +634,10 @@ public sealed class CombatFoundationTrainingParameters
             MicroBatchSize = TransformerTeacherMicroBatchSize,
             DataLoaderWorkers = TransformerTeacherDataLoaderWorkers,
             PrefetchBatches = TransformerTeacherPrefetchBatches,
+            EnableShardedDataset =
+                TransformerTeacherEnableShardedDataset,
+            DatasetShardFrames = TransformerTeacherDatasetShardFrames,
+            MemoryReserveBytes = TransformerTeacherMemoryReserveBytes,
             EnablePinnedMemory = TransformerTeacherEnablePinnedMemory,
             EnableMixedPrecision = TransformerTeacherEnableMixedPrecision,
             DistillationWeight = TransformerDistillationWeight
@@ -622,6 +677,10 @@ public sealed class CombatFoundationTrainingParameters
         TransformerTeacherMicroBatchSize = transformer.MicroBatchSize;
         TransformerTeacherDataLoaderWorkers = transformer.DataLoaderWorkers;
         TransformerTeacherPrefetchBatches = transformer.PrefetchBatches;
+        TransformerTeacherEnableShardedDataset =
+            transformer.EnableShardedDataset;
+        TransformerTeacherDatasetShardFrames = transformer.DatasetShardFrames;
+        TransformerTeacherMemoryReserveBytes = transformer.MemoryReserveBytes;
         TransformerTeacherEnablePinnedMemory = transformer.EnablePinnedMemory;
         TransformerTeacherEnableMixedPrecision = transformer.EnableMixedPrecision;
         TransformerDistillationWeight = transformer.DistillationWeight;
@@ -803,6 +862,8 @@ public static class CombatFoundationWorkerJobFactory
                 RunSeed = parameters.RunSeed,
                 DecisionProfile = parameters.DecisionProfile,
                 Iterations = parameters.Iterations,
+                EnableIterationProcessIsolation =
+                    parameters.EnableIterationProcessIsolation,
                 AdditionalIterationsOnResume =
                     parameters.AdditionalIterationsOnResume,
                 TrainingCampaignsPerIteration =
@@ -864,6 +925,16 @@ public static class CombatFoundationWorkerJobFactory
                     parameters.EnableStratifiedReplay,
                 EnablePrioritizedReplay =
                     parameters.EnablePrioritizedReplay,
+                EnableReplayWarehouse = parameters.EnableReplayWarehouse,
+                ReplayHotWindowEpisodeLimit =
+                    parameters.ReplayHotWindowEpisodeLimit,
+                ReplayHotWindowFrameLimit =
+                    parameters.ReplayHotWindowFrameLimit,
+                ReplayHotWindowEstimatedBytesLimit =
+                    parameters.ReplayHotWindowEstimatedBytesLimit,
+                ReplayCurrentIterationShare =
+                    parameters.ReplayCurrentIterationShare,
+                ReplayHistoricalShare = parameters.ReplayHistoricalShare,
                 EnableHardSeedCurriculum =
                     parameters.EnableHardSeedCurriculum,
                 EnableCounterfactualHardEncounters =
@@ -1047,6 +1118,12 @@ public static class CombatFoundationWorkerJobFactory
                         parameters.TransformerTeacherDataLoaderWorkers,
                     PrefetchBatches =
                         parameters.TransformerTeacherPrefetchBatches,
+                    EnableShardedDataset = parameters
+                        .TransformerTeacherEnableShardedDataset,
+                    DatasetShardFrames = parameters
+                        .TransformerTeacherDatasetShardFrames,
+                    MemoryReserveBytes = parameters
+                        .TransformerTeacherMemoryReserveBytes,
                     EnablePinnedMemory =
                         parameters.TransformerTeacherEnablePinnedMemory,
                     EnableMixedPrecision =
@@ -1454,6 +1531,8 @@ public static class CombatFoundationModelPackageProtocol
         CombatCampaignFoundationTrainingResult training)
     {
         var evidence = training.Iterations.LastOrDefault(item =>
+                           item.QualifiedCandidateSelected)
+                       ?? training.Iterations.LastOrDefault(item =>
                            item.ProvisionalChampionSelected || item.Promoted)
                        ?? training.Iterations.LastOrDefault();
         return new CombatFoundationModelAcceptance
@@ -1466,6 +1545,16 @@ public static class CombatFoundationModelPackageProtocol
             SourceIteration = evidence?.Iteration ?? 0,
             SignificantImprovement = evidence?.Promoted == true,
             EquivalentNonInferior = evidence?.NonInferiorityGatePassed == true,
+            AbsoluteQualified =
+                evidence?.AbsoluteQualificationGatePassed == true,
+            AbsoluteNormalPassed = evidence?.AbsoluteNormalGatePassed == true,
+            AbsoluteAdvancedPassed =
+                evidence?.AbsoluteAdvancedGatePassed == true,
+            OfflineHeadRegressionPassed =
+                evidence?.OfflineHeadRegressionGatePassed == true,
+            StrategyQuotaPassed = evidence?.StrategyQuotaGatePassed == true,
+            FeatureCollisionPassed =
+                evidence?.FeatureCollisionGatePassed == true,
             ProvisionalChampionSelected =
                 evidence?.ProvisionalChampionSelected == true,
             ValidPairedCampaigns = evidence?.ValidArenaPairs ?? 0,
@@ -1515,7 +1604,24 @@ public static class CombatFoundationModelPackageProtocol
                    && acceptance.PairedRegressionWilsonUpperBound
                       <= CombatFoundationPromotionProtocol
                              .MaximumPairedRegressionWilsonUpperBound
-                         + 0.0000001d;
+                          + 0.0000001d;
+        }
+        if (string.Equals(
+                acceptance.Classification,
+                CombatFoundationPromotionProtocol.AbsoluteQualifiedBest,
+                StringComparison.Ordinal))
+        {
+            return acceptance.AbsoluteQualified
+                   && acceptance.AbsoluteNormalPassed
+                   && acceptance.AbsoluteAdvancedPassed
+                   && acceptance.OfflineHeadRegressionPassed
+                   && acceptance.StrategyQuotaPassed
+                   && acceptance.FeatureCollisionPassed
+                   && acceptance.ValidNormalPairs > 0
+                   && acceptance.ValidAdvancedPairs > 0
+                   && acceptance.ValidPairedCampaigns
+                      == acceptance.ValidNormalPairs
+                         + acceptance.ValidAdvancedPairs;
         }
         return string.Equals(
             acceptance.Classification,
@@ -1609,6 +1715,18 @@ public sealed class CombatFoundationModelAcceptance
     public bool SignificantImprovement { get; set; }
 
     public bool EquivalentNonInferior { get; set; }
+
+    public bool AbsoluteQualified { get; set; }
+
+    public bool AbsoluteNormalPassed { get; set; }
+
+    public bool AbsoluteAdvancedPassed { get; set; }
+
+    public bool OfflineHeadRegressionPassed { get; set; }
+
+    public bool StrategyQuotaPassed { get; set; }
+
+    public bool FeatureCollisionPassed { get; set; }
 
     public bool ProvisionalChampionSelected { get; set; }
 

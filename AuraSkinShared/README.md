@@ -4,7 +4,8 @@
 
 ## Runtime model
 
-- Every consumer compiles the same shared source into its own DLL.
+- Product consumers reference `AuraSharedRuntime-Dev/Aura.Shared.csproj` and
+  package the same built `Aura.Shared.dll`.
 - The first consumer creates the persistent `AuraSkin.Global` component; later consumers use its reflected protocol.
 - Native UI refresh hooks replace an image only when the selected skin explicitly overrides that image field. The default
   skin leaves the game's native image and layout untouched.
@@ -53,3 +54,10 @@ Registration always refreshes the skin catalog after a package is successfully
 activated, including a deduplicated package on a new process session. Failures
 log expected and processed resource counts plus the structured Core failure,
 path, and path length instead of reporting an unexplained rejection.
+
+## Validation
+
+Shared behavior is covered by `tools/Test-AuraSkinShared.ps1`. Product-owned
+skin packages are validated by their owning MOD suites. Archived prototypes
+under `TestMods` are isolated behind `tools/Test-TestMods.ps1` and are not part
+of shared or product release gates.

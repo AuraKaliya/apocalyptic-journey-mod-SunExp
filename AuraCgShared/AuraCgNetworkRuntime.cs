@@ -305,35 +305,22 @@ internal sealed class AuraCgNetworkRuntime
 
     private string ValidateServerPlaybackRequest(SkillCgPlaybackSnapshot? playback, AuraCgRpcSender sender)
     {
+        var identityRejection = AuraCgNetworkPolicy.ValidateServerPlaybackIdentity(
+            playback,
+            new AuraCgNetworkSenderSnapshot(
+                sender.IsAvailable,
+                sender.IsLobbyMember,
+                sender.PlayerId),
+            IsMultiplayerSession(),
+            SenderOwnsStatus);
+        if (!string.IsNullOrWhiteSpace(identityRejection))
+        {
+            return identityRejection;
+        }
+
         if (playback == null)
         {
             return "missing payload";
-        }
-
-        if (!sender.IsAvailable)
-        {
-            return IsMultiplayerSession() ? "missing sender" : "";
-        }
-
-        if (!sender.IsLobbyMember)
-        {
-            return "sender outside lobby: " + sender.PlayerId;
-        }
-
-        if (!string.IsNullOrWhiteSpace(playback.IssuerPlayerId)
-            && !string.Equals(playback.IssuerPlayerId, sender.PlayerId, StringComparison.Ordinal))
-        {
-            return "issuer mismatch: issuer=" + playback.IssuerPlayerId + ", sender=" + sender.PlayerId;
-        }
-
-        if (string.IsNullOrWhiteSpace(playback.OwnerStatusId))
-        {
-            return "missing owner status";
-        }
-
-        if (!SenderOwnsStatus(sender.PlayerId, playback.OwnerStatusId))
-        {
-            return "owner mismatch: owner=" + playback.OwnerStatusId + ", sender=" + sender.PlayerId;
         }
 
         if (string.IsNullOrWhiteSpace(playback.SkillCgPlayId))

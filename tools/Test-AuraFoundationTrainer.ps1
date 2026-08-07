@@ -29,6 +29,8 @@ param(
     [int]$TransformerTeacherMinimumFrames = 64,
     [switch]$ExpectAutoTuneCacheHit,
     [string]$SuccessArchiveDirectory = "",
+    [ValidateRange(1, 20)]
+    [int]$Iterations = 1,
     [int]$TrainingCampaignsPerIteration = 2,
     [int]$NormalValidationCampaigns = 5,
     [int]$AdvancedValidationCampaigns = 5,
@@ -146,7 +148,7 @@ try {
         ContentSetHash = "68281d76979876df4d64a7a03a9675c4eca4bbd43999f32719924ab959900b36"
         OwnerModSetHash = "e912a92c1baf87aa6bd444e99f042782ae879590443232d42b88ff1ee6eb7b85"
         DecisionProfile = "balanced"
-        Iterations = 1
+        Iterations = $Iterations
         TrainingCampaignsPerIteration = $effectiveTrainingCampaignsPerIteration
         ArenaCampaignsPerDifficulty = 1
         NormalValidationCampaigns = $effectiveNormalValidationCampaigns
@@ -372,6 +374,31 @@ try {
     if ([string]::IsNullOrWhiteSpace($result.RulesetHash)) {
         throw "Foundation trainer did not return a ruleset hash."
     }
+    if (-not $PreflightOnly -and $Iterations -gt 1) {
+        $completedIterations = @($result.Training.Iterations)
+        $warehouseIndex = Join-Path $smokeRoot `
+            "foundation-replay-warehouse-v1\replay-index-v1.jsonl"
+        $segmentFiles = @(Get-ChildItem -LiteralPath `
+            (Join-Path $smokeRoot ".iteration-processes") `
+            -File -ErrorAction SilentlyContinue)
+        $iterationProcessIds = @($completedIterations | ForEach-Object {
+            [int]$_.WorkerProcessId
+        } | Sort-Object -Unique)
+        if ($completedIterations.Count -lt $Iterations `
+            -or -not [bool]$result.Training.IterationProcessIsolationEnabled `
+            -or $iterationProcessIds.Count -lt $Iterations `
+            -or -not (Test-Path -LiteralPath $warehouseIndex -PathType Leaf) `
+            -or $segmentFiles.Count -ne 0 `
+            -or [int]$completedIterations[1].ReplayLoadedHistoricalEpisodes -lt 1) {
+            throw (
+                "Iteration process isolation or Replay warehouse failed: " `
+                + "iterations=$($completedIterations.Count)/$Iterations, " `
+                + "processes=$($iterationProcessIds -join ','), " `
+                + "warehouse=$(Test-Path -LiteralPath $warehouseIndex), " `
+                + "segmentFiles=$($segmentFiles.Count), " `
+                + "historical=$([int]$completedIterations[1].ReplayLoadedHistoricalEpisodes)")
+        }
+    }
     if (-not (Test-Path -LiteralPath $result.EpisodesPath -PathType Leaf)) {
         throw "Foundation trainer episodes artifact is missing."
     }
@@ -592,7 +619,7 @@ try {
                     -ne $AutoTuneObjective `
                 -or $null -eq $capacityDecision `
                 -or [string]$capacityDecision.ProtocolVersion `
-                    -ne "foundation-parallelism-v2-adaptive-exact-capacity" `
+                    -ne "foundation-parallelism-v3-phase-aware-fixed-reserve" `
                 -or [int]$capacityDecision.SelectedParallelism `
                     -ne [int]$result.Training.EffectiveParallelism `
                 -or [int64]$capacityDecision.PredictedPerLaneBytes -le 0 `
@@ -603,8 +630,13 @@ try {
                     [string]$result.Training.AutoTune.CacheKey)) {
                 throw "Auto profile did not retain memory-capacity evidence."
             }
-            if ([bool]$result.Training.AutoTune.CacheHit) {
+            if ($Iterations -le 1 `
+                -and [bool]$result.Training.AutoTune.CacheHit) {
                 throw "Memory-capacity parallelism unexpectedly reused a throughput cache."
+            }
+            if ($Iterations -gt 1 `
+                -and -not [bool]$result.Training.AutoTune.CacheHit) {
+                throw "Iteration child did not reuse the first round's stable auto-tune plan."
             }
             $actualCampaignPoints = @($measurements | Where-Object {
                     ([string]$_.MeasurementKind).StartsWith(
@@ -631,7 +663,7 @@ try {
                     + "actual=$($actualCampaignPoints -join ','), " `
                     + "expected=$($expectedCampaignPoints -join ',').")
             }
-            if (-not $PreflightOnly) {
+            if (-not $PreflightOnly -and $Iterations -le 1) {
                 $inferenceMeasurements = @($measurements | Where-Object {
                     ([string]$_.MeasurementKind).StartsWith(
                         "inference-end-to-end",
@@ -723,10 +755,10 @@ try {
         }
         $modelPackage = Read-FoundationJson (
             [string]$result.ModelPackagePath)
-        if ([int]$modelPackage.SchemaVersion -ne 4 `
+        if ([int]$modelPackage.SchemaVersion -ne 5 `
             -or [string]$modelPackage.ArtifactKind `
                 -ne "aura.foundation-model-package" `
-            -or [string]$modelPackage.ModelVersion -ne "4.0.0" `
+            -or [string]$modelPackage.ModelVersion -ne "5.0.0" `
             -or [string]$modelPackage.CompletionKind `
                 -ne "training-accepted" `
             -or [string]$modelPackage.JobId -ne [string]$job.JobId `
@@ -750,7 +782,13 @@ try {
             -or -not [bool]$modelPackage.Acceptance.FormalIsolationPassed `
             -or [string]::IsNullOrWhiteSpace(
                 [string]$modelPackage.Acceptance.Classification) `
-            -or $null -eq $modelPackage.Model) {
+            -or $null -ne $modelPackage.Model `
+            -or $null -eq $modelPackage.ModelArtifact `
+            -or [string]::IsNullOrWhiteSpace(
+                [string]$modelPackage.ModelArtifact.WeightsFile) `
+            -or -not (Test-Path -LiteralPath (Join-Path (
+                    Split-Path -Parent ([string]$result.ModelPackagePath)) (
+                    [string]$modelPackage.ModelArtifact.WeightsFile)) -PathType Leaf)) {
             throw (
                 "Accepted foundation model package is invalid: " `
                 + "schema=$($modelPackage.SchemaVersion), " `
@@ -758,7 +796,7 @@ try {
                 + "completion=$($modelPackage.CompletionKind), " `
                 + "job=$($modelPackage.JobId)/$($job.JobId), " `
                 + "ruleset=$($modelPackage.RulesetHash)/$($result.RulesetHash), " `
-                + "modelPresent=$($null -ne $modelPackage.Model), " `
+                + "artifactPresent=$($null -ne $modelPackage.ModelArtifact), " `
                 + "path=$($result.ModelPackagePath)")
         }
     }

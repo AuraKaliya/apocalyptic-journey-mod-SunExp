@@ -243,6 +243,10 @@ internal sealed class MainWindow : Window
             0,
             20);
         AddNumber(panel, "Iterations", "训练轮数", 1, 20);
+        AddToggle(
+            panel,
+            "EnableIterationProcessIsolation",
+            "每轮使用独立训练进程");
         AddNumber(panel, "TrainingCampaignsPerIteration", "每轮训练冒险", 2, 1000);
         AddNumber(panel, "PreflightCampaignsPerDifficulty", "预检冒险/难度", 1, 100);
         AddNumber(panel, "ArenaCampaignsPerDifficulty", "竞技场/难度", 1, 100);
@@ -314,6 +318,27 @@ internal sealed class MainWindow : Window
             "Replay 估算内存上限（MiB）",
             256,
             16384);
+        AddToggle(panel, "EnableReplayWarehouse", "启用 Replay 磁盘仓库");
+        AddNumber(
+            panel,
+            "ReplayHotWindowEpisodeLimit",
+            "Replay 热窗口 Episodes",
+            64,
+            8000);
+        AddNumber(
+            panel,
+            "ReplayHotWindowFrameLimit",
+            "Replay 热窗口 Frames",
+            4096,
+            384000);
+        AddNumber(
+            panel,
+            "ReplayHotWindowMemoryMegabytes",
+            "Replay 热窗口内存（MiB）",
+            128,
+            3072);
+        AddDouble(panel, "ReplayCurrentIterationShare", "本轮 Replay 最低占比");
+        AddDouble(panel, "ReplayHistoricalShare", "历史 Replay 载入占比");
         AddNumber(panel, "ModelRetainedCandidates", "Top-K 候选", 1, 5);
         AddToggle(panel, "EnableFrameStratification", "启用帧分层再平衡");
         AddDouble(panel, "ModelMaximumFrameStratumWeight", "帧分层最大权重");
@@ -437,6 +462,22 @@ internal sealed class MainWindow : Window
             "教师预取批次",
             1,
             8);
+        AddToggle(
+            panel,
+            "TransformerTeacherEnableShardedDataset",
+            "教师数据使用磁盘分片");
+        AddNumber(
+            panel,
+            "TransformerTeacherDatasetShardFrames",
+            "教师每分片 Frames",
+            16,
+            512);
+        AddNumber(
+            panel,
+            "TransformerTeacherMemoryReserveMegabytes",
+            "教师启动保留内存（MiB）",
+            512,
+            16384);
         AddToggle(
             panel,
             "TransformerTeacherEnablePinnedMemory",
@@ -1489,20 +1530,20 @@ internal sealed class MainWindow : Window
               + " · ETA "
               + FormatDuration(telemetry.EstimatedRemainingSeconds)
             : executionSummary + " · "
-              + $"CPU {telemetry.CpuUtilizationPercent:0.0}% · "
-              + $"分配 {telemetry.AllocationMegabytesPerSecond:0} MB/s · "
+              + $"阶段 CPU {telemetry.CurrentPhaseCpuUtilizationPercent:0.0}% · "
+              + $"阶段分配 {telemetry.CurrentPhaseAllocationMegabytesPerSecond:0} MB/s · "
               + $"Epoch {telemetry.ModelEpoch}/{telemetry.ModelTotalEpochs} · "
               + $"训练损失 {FormatLoss(telemetry.ModelTrainingLoss)} · "
               + $"验证损失 {FormatLoss(telemetry.ModelValidationLoss)} · "
               + $"最佳 {FormatLoss(telemetry.ModelBestValidationLoss)} · "
               + $"并行 {telemetry.ActiveCampaigns}/{telemetry.EffectiveParallelism} · "
-              + $"{telemetry.CampaignsPerSecond:0.00} 冒险/秒 · "
+              + $"{telemetry.CurrentPhaseCampaignsPerSecond:0.00} 冒险/秒 · "
               + $"ETA {FormatDuration(telemetry.EstimatedRemainingSeconds)}";
         logBox.Text =
             $"阶段：{telemetry.Stage} / {telemetry.Phase}\r\n"
             + $"搜索：本次 {telemetry.RunSearchSimulations:N0} / "
             + $"累计 {telemetry.SearchSimulations:N0} 次，"
-            + $"{telemetry.SearchSimulationsPerSecond:N0}/秒，"
+            + $"{telemetry.CurrentPhaseSearchSimulationsPerSecond:N0}/秒，"
             + $"提前停止 {telemetry.SearchEarlyStops}\r\n"
             + $"决策：avg={AverageSearchMilliseconds(telemetry):0.00}ms，"
             + $"model={telemetry.SearchModelEvaluations:N0}，"
@@ -1836,6 +1877,18 @@ internal sealed class MainWindow : Window
                   + teacher.TrainingFramesPerSecond.ToString("0.0")
                   + " frames/s"
                   + Environment.NewLine
+                  + "教师内存 · "
+                  + teacher.DatasetStorageMode
+                  + (teacher.DatasetShardFrames > 0
+                      ? "/" + teacher.DatasetShardFrames + " frames"
+                      : "")
+                  + " · 峰值 "
+                  + FormatBytes(teacher.PeakWorkingSetBytes)
+                  + " · 预测 "
+                  + FormatBytes(teacher.PredictedPeakWorkingSetBytes)
+                  + " · 保留 "
+                  + FormatBytes(teacher.MemoryReserveBytes)
+                  + Environment.NewLine
                   + "教师闭环 · 蒸馏使用 "
                   + teacher.DistillationTrainingFrames
                   + "+"
@@ -2126,6 +2179,8 @@ internal sealed class MainWindow : Window
                               ?? CombatFoundationGovernanceProfileNames.Development;
         p.DecisionProfile = selectedProfile;
         p.Iterations = Int("Iterations");
+        p.EnableIterationProcessIsolation =
+            Toggle("EnableIterationProcessIsolation");
         p.AdditionalIterationsOnResume =
             Int("AdditionalIterationsOnResume");
         p.TrainingCampaignsPerIteration = Int("TrainingCampaignsPerIteration");
@@ -2202,6 +2257,17 @@ internal sealed class MainWindow : Window
             (long)Int("ModelReplayEstimatedMemoryMegabytes")
             * 1024L
             * 1024L;
+        p.EnableReplayWarehouse = Toggle("EnableReplayWarehouse");
+        p.ReplayHotWindowEpisodeLimit =
+            Int("ReplayHotWindowEpisodeLimit");
+        p.ReplayHotWindowFrameLimit = Int("ReplayHotWindowFrameLimit");
+        p.ReplayHotWindowEstimatedBytesLimit =
+            (long)Int("ReplayHotWindowMemoryMegabytes")
+            * 1024L
+            * 1024L;
+        p.ReplayCurrentIterationShare =
+            Double("ReplayCurrentIterationShare");
+        p.ReplayHistoricalShare = Double("ReplayHistoricalShare");
         p.ModelRetainedCandidates = Int("ModelRetainedCandidates");
         p.ModelLearningRate = Double("ModelLearningRate");
         p.ModelL2 = Double("ModelL2");
@@ -2265,6 +2331,14 @@ internal sealed class MainWindow : Window
             Int("TransformerTeacherDataLoaderWorkers");
         p.TransformerTeacherPrefetchBatches =
             Int("TransformerTeacherPrefetchBatches");
+        p.TransformerTeacherEnableShardedDataset =
+            Toggle("TransformerTeacherEnableShardedDataset");
+        p.TransformerTeacherDatasetShardFrames =
+            Int("TransformerTeacherDatasetShardFrames");
+        p.TransformerTeacherMemoryReserveBytes =
+            (long)Int("TransformerTeacherMemoryReserveMegabytes")
+            * 1024L
+            * 1024L;
         p.TransformerTeacherEnablePinnedMemory =
             Toggle("TransformerTeacherEnablePinnedMemory");
         p.TransformerTeacherEnableMixedPrecision =
@@ -2337,6 +2411,9 @@ internal sealed class MainWindow : Window
             CombatFoundationGovernanceProfiles.Normalize(p.GovernanceProfile);
         SelectProfile(p.DecisionProfile);
         Set("Iterations", p.Iterations);
+        SetToggle(
+            "EnableIterationProcessIsolation",
+            p.EnableIterationProcessIsolation);
         Set(
             "AdditionalIterationsOnResume",
             p.AdditionalIterationsOnResume);
@@ -2418,6 +2495,16 @@ internal sealed class MainWindow : Window
             Math.Max(
                 256L,
                 p.ModelReplayEstimatedBytesLimit / (1024L * 1024L)));
+        SetToggle("EnableReplayWarehouse", p.EnableReplayWarehouse);
+        Set("ReplayHotWindowEpisodeLimit", p.ReplayHotWindowEpisodeLimit);
+        Set("ReplayHotWindowFrameLimit", p.ReplayHotWindowFrameLimit);
+        Set(
+            "ReplayHotWindowMemoryMegabytes",
+            Math.Max(
+                128L,
+                p.ReplayHotWindowEstimatedBytesLimit / (1024L * 1024L)));
+        Set("ReplayCurrentIterationShare", p.ReplayCurrentIterationShare);
+        Set("ReplayHistoricalShare", p.ReplayHistoricalShare);
         Set("ModelRetainedCandidates", p.ModelRetainedCandidates);
         Set("ModelLearningRate", p.ModelLearningRate);
         Set("ModelL2", p.ModelL2);
@@ -2501,6 +2588,18 @@ internal sealed class MainWindow : Window
         Set(
             "TransformerTeacherPrefetchBatches",
             p.TransformerTeacherPrefetchBatches);
+        SetToggle(
+            "TransformerTeacherEnableShardedDataset",
+            p.TransformerTeacherEnableShardedDataset);
+        Set(
+            "TransformerTeacherDatasetShardFrames",
+            p.TransformerTeacherDatasetShardFrames);
+        Set(
+            "TransformerTeacherMemoryReserveMegabytes",
+            Math.Max(
+                512L,
+                p.TransformerTeacherMemoryReserveBytes
+                / (1024L * 1024L)));
         SetToggle(
             "TransformerTeacherEnablePinnedMemory",
             p.TransformerTeacherEnablePinnedMemory);

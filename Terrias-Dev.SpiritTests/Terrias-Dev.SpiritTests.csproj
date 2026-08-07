@@ -1,0 +1,31 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Reference Include="Aura.Shared">
+      <HintPath>..\Terrias\Scripts\Aura.Shared.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Terrias.Aura">
+      <HintPath>..\Terrias-Dev\bin\Release\net472\Terrias.Aura.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="UnityEngine.CoreModule">
+      <HintPath>..\Managed\UnityEngine.CoreModule.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Witch">
+      <HintPath>..\Managed\Witch.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+    <Reference Include="Witch.Core">
+      <HintPath>..\Managed\Witch.Core.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+</Project>

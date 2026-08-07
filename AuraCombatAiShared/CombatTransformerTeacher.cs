@@ -214,6 +214,12 @@ public sealed class CombatTransformerTeacherOptions
 
     public int PrefetchBatches { get; set; } = 2;
 
+    public bool EnableShardedDataset { get; set; } = true;
+
+    public int DatasetShardFrames { get; set; } = 64;
+
+    public long MemoryReserveBytes { get; set; } = 2L * 1024L * 1024L * 1024L;
+
     public bool EnablePinnedMemory { get; set; } = true;
 
     public bool EnableMixedPrecision { get; set; } = true;
@@ -265,6 +271,10 @@ public sealed class CombatTransformerTeacherOptions
         MicroBatchSize = Math.Max(0, Math.Min(BatchSize, MicroBatchSize));
         DataLoaderWorkers = Math.Max(0, Math.Min(8, DataLoaderWorkers));
         PrefetchBatches = Math.Max(1, Math.Min(8, PrefetchBatches));
+        DatasetShardFrames = Math.Max(16, Math.Min(512, DatasetShardFrames));
+        MemoryReserveBytes = Math.Max(
+            512L * 1024L * 1024L,
+            Math.Min(16L * 1024L * 1024L * 1024L, MemoryReserveBytes));
         DistillationWeight = Clamp(DistillationWeight, 0d, 0.75d, 0.35d);
         AdaptiveRefreshDriftThreshold = Clamp(
             AdaptiveRefreshDriftThreshold,
@@ -565,6 +575,18 @@ public sealed class CombatTransformerTeacherReport
     public double ProcessCpuSeconds { get; set; }
 
     public long PeakWorkingSetBytes { get; set; }
+
+    public bool MemoryAdmissionPassed { get; set; } = true;
+
+    public long AvailablePhysicalMemoryBytes { get; set; }
+
+    public long MemoryReserveBytes { get; set; }
+
+    public long PredictedPeakWorkingSetBytes { get; set; }
+
+    public string DatasetStorageMode { get; set; } = "resident";
+
+    public int DatasetShardFrames { get; set; }
 
     public double DataLoadingSeconds { get; set; }
 

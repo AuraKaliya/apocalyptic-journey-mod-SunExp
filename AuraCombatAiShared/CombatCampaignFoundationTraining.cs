@@ -166,11 +166,13 @@ public sealed class CombatFoundationInferenceHealth
 public static class CombatFoundationPromotionProtocol
 {
     public const string Version =
-        "paired-evidence-v5-noninferiority";
+        "paired-evidence-v6-absolute-qualified-best";
 
     public const string SignificantImprovement = "significant-improvement";
 
     public const string EquivalentNonInferior = "equivalent-noninferior";
+
+    public const string AbsoluteQualifiedBest = "absolute-qualified-best";
 
     public const string Regressed = "regressed";
 
@@ -245,6 +247,27 @@ public enum CombatFoundationCounterfactualAdmission
     Victory = 2
 }
 
+public sealed class CombatFoundationReplayArchiveReport
+{
+    public int Iteration { get; set; }
+
+    public int SourceEpisodes { get; set; }
+
+    public int ArchivedEpisodes { get; set; }
+
+    public int DuplicateEpisodes { get; set; }
+
+    public long ArchivedBytes { get; set; }
+
+    public int LoadedHistoricalEpisodes { get; set; }
+
+    public long LoadedHistoricalBytes { get; set; }
+
+    public string WarehousePath { get; set; } = "";
+
+    public string Error { get; set; } = "";
+}
+
 public sealed class CombatCampaignFoundationTrainingRequest
 {
     public string GovernanceProfile { get; set; } =
@@ -261,6 +284,10 @@ public sealed class CombatCampaignFoundationTrainingRequest
     public string DecisionProfile { get; set; } = "balanced";
 
     public int Iterations { get; set; } = 8;
+
+    public bool EnableIterationProcessIsolation { get; set; } = true;
+
+    public int MaximumIterationsPerProcess { get; set; }
 
     public int AdditionalIterationsOnResume { get; set; } = 3;
 
@@ -351,6 +378,19 @@ public sealed class CombatCampaignFoundationTrainingRequest
     public bool EnableStratifiedReplay { get; set; } = true;
 
     public bool EnablePrioritizedReplay { get; set; } = true;
+
+    public bool EnableReplayWarehouse { get; set; } = true;
+
+    public int ReplayHotWindowEpisodeLimit { get; set; } = 2048;
+
+    public int ReplayHotWindowFrameLimit { get; set; } = 96_000;
+
+    public long ReplayHotWindowEstimatedBytesLimit { get; set; } =
+        768L * 1024L * 1024L;
+
+    public double ReplayCurrentIterationShare { get; set; } = 0.60d;
+
+    public double ReplayHistoricalShare { get; set; } = 0.40d;
 
     public bool EnableHardSeedCurriculum { get; set; } = true;
 
@@ -515,6 +555,18 @@ public sealed class CombatCampaignFoundationTrainingRequest
     /// </summary>
     public Action? IterationResourceBarrier { get; set; }
 
+    public Func<
+        int,
+        IReadOnlyCollection<string>,
+        int,
+        long,
+        IReadOnlyList<CombatEpisode>>? HistoricalReplaySource { get; set; }
+
+    public Func<
+        int,
+        IReadOnlyList<CombatEpisode>,
+        CombatFoundationReplayArchiveReport>? ReplayArchiveSink { get; set; }
+
     public List<CombatEpisode> ModelSelectionAnchorEpisodes { get; set; } = new();
 
     public Action<IReadOnlyList<CombatEpisode>>? ModelSelectionAnchorCreated {
@@ -555,6 +607,9 @@ public sealed class CombatCampaignFoundationResumeState
     public List<CombatEpisode> Replay { get; set; } = new();
 
     public List<CombatCampaignFoundationIteration> Iterations { get; set; } =
+        new();
+
+    public CombatCampaignFoundationIntegrityReport Preflight { get; set; } =
         new();
 
     public CombatPolicyValueTrainingResumeState? ModelTraining { get; set; }
@@ -889,6 +944,14 @@ public sealed class CombatCampaignFoundationTelemetry
 
     public double CampaignsPerSecond { get; set; }
 
+    public double CurrentPhaseCampaignsPerSecond { get; set; }
+
+    public double CurrentPhaseSearchSimulationsPerSecond { get; set; }
+
+    public double CurrentPhaseCpuUtilizationPercent { get; set; }
+
+    public double CurrentPhaseAllocationMegabytesPerSecond { get; set; }
+
     public double BattlesPerSecond { get; set; }
 
     public int Gen0Collections { get; set; }
@@ -952,6 +1015,8 @@ public sealed class CombatCampaignFoundationIteration
 {
     public int Iteration { get; set; }
 
+    public int WorkerProcessId { get; set; }
+
     public CombatFoundationParallelismDecision ParallelismDecision {
         get;
         set;
@@ -992,6 +1057,18 @@ public sealed class CombatCampaignFoundationIteration
     public int TrainingReplayFrames { get; set; }
 
     public long TrainingReplayEstimatedResidentBytes { get; set; }
+
+    public int ReplayArchivedEpisodes { get; set; }
+
+    public int ReplayArchiveDuplicates { get; set; }
+
+    public long ReplayArchivedBytes { get; set; }
+
+    public int ReplayLoadedHistoricalEpisodes { get; set; }
+
+    public long ReplayLoadedHistoricalBytes { get; set; }
+
+    public int ReplayPinnedCurrentIterationEpisodes { get; set; }
 
     public int TrainingReplayResourceBudgetDroppedEpisodes { get; set; }
 
@@ -1269,6 +1346,10 @@ public sealed class CombatCampaignFoundationIteration
     public bool AbsoluteNormalGatePassed { get; set; }
 
     public bool AbsoluteAdvancedGatePassed { get; set; }
+
+    public bool AbsoluteQualificationGatePassed { get; set; }
+
+    public bool QualifiedCandidateSelected { get; set; }
 
     public bool OfflineHeadRegressionGatePassed { get; set; }
 
@@ -1583,6 +1664,14 @@ public sealed class CombatCampaignFoundationTrainingResult
 
     public bool AcceptancePassed { get; set; }
 
+    public bool ContinuationRequired { get; set; }
+
+    public bool IterationProcessIsolationEnabled { get; set; }
+
+    public int NextIteration { get; set; }
+
+    public int ResolvedIterationLimit { get; set; }
+
     public string AcceptanceKind { get; set; } = "";
 
     public string Message { get; set; } = "";
@@ -1591,11 +1680,31 @@ public sealed class CombatCampaignFoundationTrainingResult
 
     public CombatPolicyValueNetworkDefinition? WorkingChampion { get; set; }
 
+    public int QualifiedCandidateCount { get; set; }
+
+    public int SelectedQualifiedCandidateIteration { get; set; }
+
+    public string SelectedQualifiedCandidateModelId { get; set; } = "";
+
     public List<CombatEpisode> Replay { get; set; } = new();
 
     public int GeneratedReplayEpisodes { get; set; }
 
     public int PersistedReplayEpisodes { get; set; }
+
+    public int ReplayArchivedEpisodes { get; set; }
+
+    public int ReplayArchiveDuplicates { get; set; }
+
+    public long ReplayArchivedBytes { get; set; }
+
+    public int LoadedHistoricalReplayEpisodes { get; set; }
+
+    public long LoadedHistoricalReplayBytes { get; set; }
+
+    public string ReplayWarehousePath { get; set; } = "";
+
+    public string ReplayWarehouseError { get; set; } = "";
 
     public int DiscardedCounterfactualEpisodes { get; set; }
 
@@ -2313,6 +2422,33 @@ public sealed class CombatCampaignFoundationTrainer
                 ModelRandomSeed = resumeSeedSource.ModelRandomSeed
             };
         var foundationTrainingOptions = request.Training.Normalized();
+        var replayHotEpisodeLimit = Math.Max(
+            foundationTrainingOptions.MinimumEpisodes,
+            Math.Min(
+                foundationTrainingOptions.ReplayEpisodeLimit,
+                Math.Max(64, request.ReplayHotWindowEpisodeLimit)));
+        var replayHotFrameLimit = Math.Max(
+            foundationTrainingOptions.MinimumEpisodes,
+            Math.Min(
+                foundationTrainingOptions.ReplayFrameLimit,
+                Math.Max(4096, request.ReplayHotWindowFrameLimit)));
+        var replayHotBytesLimit = Math.Max(
+            128L * 1024L * 1024L,
+            Math.Min(
+                foundationTrainingOptions.ReplayEstimatedBytesLimit,
+                request.ReplayHotWindowEstimatedBytesLimit > 0L
+                    ? request.ReplayHotWindowEstimatedBytesLimit
+                    : 768L * 1024L * 1024L));
+        var replayCurrentIterationShare = Clamp01(
+            double.IsNaN(request.ReplayCurrentIterationShare)
+            || double.IsInfinity(request.ReplayCurrentIterationShare)
+                ? 0.60d
+                : request.ReplayCurrentIterationShare);
+        var replayHistoricalShare = Clamp01(
+            double.IsNaN(request.ReplayHistoricalShare)
+            || double.IsInfinity(request.ReplayHistoricalShare)
+                ? 0.40d
+                : request.ReplayHistoricalShare);
         var transformerTeacherOptions =
             (request.TransformerTeacher ?? new CombatTransformerTeacherOptions())
             .Normalized();
@@ -2362,6 +2498,8 @@ public sealed class CombatCampaignFoundationTrainer
                 : null;
         var result = new CombatCampaignFoundationTrainingResult
         {
+            IterationProcessIsolationEnabled =
+                request.EnableIterationProcessIsolation,
             Champion = resume?.Champion ?? compatibleInitialChampion,
             WorkingChampion = resume?.WorkingChampion
                               ?? resume?.Champion
@@ -2384,6 +2522,7 @@ public sealed class CombatCampaignFoundationTrainer
             AutoTune = autoTune,
             Compatibility = compatibility
         };
+        result.ResolvedIterationLimit = iterations;
         if (resume != null)
         {
             result.GeneratedReplayEpisodes = Math.Max(
@@ -2396,6 +2535,18 @@ public sealed class CombatCampaignFoundationTrainer
             result.HardSeedHistory.AddRange(
                 resume.HardSeedHistory
                 ?? new List<CombatFoundationHardSeedHistoryEntry>());
+            result.Preflight = resume.Preflight
+                               ?? new CombatCampaignFoundationIntegrityReport();
+            result.ReplayArchivedEpisodes = result.Iterations.Sum(item =>
+                item.ReplayArchivedEpisodes);
+            result.ReplayArchiveDuplicates = result.Iterations.Sum(item =>
+                item.ReplayArchiveDuplicates);
+            result.ReplayArchivedBytes = result.Iterations.Sum(item =>
+                item.ReplayArchivedBytes);
+            result.LoadedHistoricalReplayEpisodes = result.Iterations.Sum(
+                item => item.ReplayLoadedHistoricalEpisodes);
+            result.LoadedHistoricalReplayBytes = result.Iterations.Sum(item =>
+                item.ReplayLoadedHistoricalBytes);
         }
         var expertReplay = (request.ExpertReplayEpisodes
                             ?? new List<CombatEpisode>())
@@ -2472,14 +2623,59 @@ public sealed class CombatCampaignFoundationTrainer
             ?? new CombatFoundationCaseArchiveLoadDiagnostics();
         result.Replay.AddRange(contentReplay);
         result.Replay.AddRange(expertReplay);
+        var loadedHistoricalThisInvocationEpisodes = 0;
+        var loadedHistoricalThisInvocationBytes = 0L;
+        if (request.EnableReplayWarehouse
+            && request.HistoricalReplaySource != null)
+        {
+            try
+            {
+                var existingKeys = result.Replay
+                    .Select(ReplayEpisodeKey)
+                    .Where(key => key.Length > 0)
+                    .ToHashSet(StringComparer.Ordinal);
+                var historicalLimit = Math.Max(
+                    1,
+                    (int)Math.Round(
+                        replayHotEpisodeLimit * replayHistoricalShare,
+                        MidpointRounding.AwayFromZero));
+                var historicalBytesLimit = Math.Max(
+                    64L * 1024L * 1024L,
+                    (long)Math.Round(
+                        replayHotBytesLimit * replayHistoricalShare,
+                        MidpointRounding.AwayFromZero));
+                var historical = request.HistoricalReplaySource(
+                    Math.Max(1, (resume?.NextIteration ?? 0) + 1),
+                    existingKeys,
+                    historicalLimit,
+                    historicalBytesLimit)
+                    ?? Array.Empty<CombatEpisode>();
+                result.Replay.AddRange(historical.Where(episode =>
+                    episode != null));
+                loadedHistoricalThisInvocationEpisodes = historical.Count;
+                loadedHistoricalThisInvocationBytes = historical.Sum(
+                    CombatFoundationReplaySampler.EstimateResidentBytes);
+                result.LoadedHistoricalReplayEpisodes +=
+                    loadedHistoricalThisInvocationEpisodes;
+                result.LoadedHistoricalReplayBytes +=
+                    loadedHistoricalThisInvocationBytes;
+            }
+            catch (Exception ex)
+            {
+                result.ReplayWarehouseError = ex.Message;
+            }
+        }
+        var calibratedParallelismCeiling = CalibratedParallelismCeiling(
+            maximumCampaignParallelism,
+            autoTune.SelectedParallelism);
         var parallelismDecision = request.EnableMemoryCapacityParallelism
             ? PrepareParallelismDecision(
                 request,
                 Math.Max(1, resume?.NextIteration + 1 ?? 1),
-                maximumCampaignParallelism)
+                calibratedParallelismCeiling)
             : CombatFoundationParallelismPlanner.Select(
                 Math.Max(1, resume?.NextIteration + 1 ?? 1),
-                maximumCampaignParallelism,
+                calibratedParallelismCeiling,
                 new CombatFoundationResourceSnapshot
                 {
                     AvailablePhysicalMemoryBytes = long.MaxValue,
@@ -2497,11 +2693,31 @@ public sealed class CombatCampaignFoundationTrainer
             configuredInferenceLaneCount,
             configuredInferenceBatchSize);
         EnsureThreadPoolCapacity(request.ThreadPoolMinimumWorkerThreads);
-        autoTune.SelectedParallelism = parallelism;
         result.EffectiveParallelism = parallelism;
         result.ParallelismDecision = parallelismDecision;
         var workingChampion = resume?.WorkingChampion ?? result.Champion;
-        var workingModelBank = new FoundationWorkingModelBank(workingChampion);
+        foreach (var priorIteration in result.Iterations)
+        {
+            priorIteration.AbsoluteQualificationGatePassed |=
+                AbsoluteQualificationGatePassed(
+                    priorIteration.ValidArenaPairs,
+                    priorIteration.ArenaScreeningPairs
+                    + priorIteration.ArenaConfirmationPairs,
+                    priorIteration.AbsoluteNormalGatePassed,
+                    priorIteration.AbsoluteAdvancedGatePassed,
+                    priorIteration.OfflineHeadRegressionGatePassed,
+                    priorIteration.StrategyQuotaGatePassed,
+                    priorIteration.FeatureCollisionGatePassed);
+        }
+        var workingChampionEvidence = result.Iterations
+            .LastOrDefault(item => workingChampion != null
+                                   && string.Equals(
+                                       item.CandidateModelId,
+                                       workingChampion.ModelId,
+                                       StringComparison.Ordinal));
+        var workingModelBank = new FoundationWorkingModelBank(
+            workingChampion,
+            workingChampionEvidence);
         ICombatPolicyValueModel championModel = result.Champion == null
             ? NullCombatPolicyValueModel.Instance
             : CreateParallelPolicyValueModel(
@@ -2581,7 +2797,7 @@ public sealed class CombatCampaignFoundationTrainer
         telemetry.BeginPhase("setup");
         telemetry.ReportStage(resume == null ? "starting" : "resumed");
 
-        if (preflightPerDifficulty > 0)
+        if (preflightPerDifficulty > 0 && startIteration == 0)
         {
             result.Preflight = RunIntegrityPreflight(
                 request,
@@ -2719,8 +2935,13 @@ public sealed class CombatCampaignFoundationTrainer
         var strategyQuotaYieldProfiles =
             new Dictionary<string, FoundationStrategyQuotaYieldProfile>(
                 StringComparer.Ordinal);
+        var iterationInvocationLimit = request.MaximumIterationsPerProcess > 0
+            ? Math.Min(
+                iterations,
+                startIteration + Math.Max(1, request.MaximumIterationsPerProcess))
+            : iterations;
         for (var iteration = startIteration;
-             iteration < iterations;
+             iteration < iterationInvocationLimit;
              iteration++)
         {
             if (result.StoppedForStagnation)
@@ -2729,13 +2950,16 @@ public sealed class CombatCampaignFoundationTrainer
             }
             cancellationToken.ThrowIfCancellationRequested();
             var iterationNumber = iteration + 1;
-            var adaptiveParallelismCeiling = Math.Max(
-                1,
-                Math.Min(
-                    maximumCampaignParallelism,
-                    autoTune.SelectedParallelism > 0
-                        ? autoTune.SelectedParallelism
-                        : maximumCampaignParallelism));
+            var replayArchiveReport = new CombatFoundationReplayArchiveReport
+            {
+                Iteration = iterationNumber,
+                LoadedHistoricalEpisodes =
+                    loadedHistoricalThisInvocationEpisodes,
+                LoadedHistoricalBytes = loadedHistoricalThisInvocationBytes
+            };
+            var adaptiveParallelismCeiling = CalibratedParallelismCeiling(
+                maximumCampaignParallelism,
+                autoTune.SelectedParallelism);
             parallelismDecision = request.EnableMemoryCapacityParallelism
                 ? PrepareParallelismDecision(
                     request,
@@ -2763,7 +2987,6 @@ public sealed class CombatCampaignFoundationTrainer
             EnsureThreadPoolCapacity(request.ThreadPoolMinimumWorkerThreads);
             result.EffectiveParallelism = parallelism;
             result.ParallelismDecision = parallelismDecision;
-            autoTune.SelectedParallelism = parallelism;
             telemetry.SetParallelismDecision(parallelismDecision);
             championModel = result.Champion == null
                 ? NullCombatPolicyValueModel.Instance
@@ -3296,10 +3519,46 @@ public sealed class CombatCampaignFoundationTrainer
             }
 
             telemetry.BeginPhase("replay-selection");
+            if (request.EnableReplayWarehouse
+                && request.ReplayArchiveSink != null)
+            {
+                try
+                {
+                    replayArchiveReport = request.ReplayArchiveSink(
+                        iterationNumber,
+                        result.Replay)
+                        ?? replayArchiveReport;
+                    result.ReplayArchivedEpisodes +=
+                        replayArchiveReport.ArchivedEpisodes;
+                    result.ReplayArchiveDuplicates +=
+                        replayArchiveReport.DuplicateEpisodes;
+                    result.ReplayArchivedBytes +=
+                        replayArchiveReport.ArchivedBytes;
+                    if (!string.IsNullOrWhiteSpace(
+                            replayArchiveReport.WarehousePath))
+                    {
+                        result.ReplayWarehousePath =
+                            replayArchiveReport.WarehousePath;
+                    }
+                    if (!string.IsNullOrWhiteSpace(replayArchiveReport.Error))
+                    {
+                        result.ReplayWarehouseError = replayArchiveReport.Error;
+                    }
+                }
+                catch (Exception ex)
+                {
+                    replayArchiveReport.Error = ex.Message;
+                    result.ReplayWarehouseError = ex.Message;
+                }
+            }
             var allCollectedReplay = result.Replay.ToList();
+            var currentIterationReplay = result.Replay
+                .Where(episode => episode?.Campaign?.TrainingIteration
+                                  == iterationNumber)
+                .ToList();
             var replaySelection = CombatFoundationReplaySampler.Select(
                 result.Replay,
-                foundationTrainingOptions.ReplayEpisodeLimit,
+                replayHotEpisodeLimit,
                 request.EnableStratifiedReplay,
                 new CombatFoundationReplayBalanceOptions
                 {
@@ -3316,14 +3575,19 @@ public sealed class CombatCampaignFoundationTrainer
             CombatFoundationReplaySampler.PinEpisodes(
                 replaySelection,
                 contentReplay,
-                foundationTrainingOptions.ReplayEpisodeLimit,
+                replayHotEpisodeLimit,
                 request.AuthoritativeContentReplayShare);
+            CombatFoundationReplaySampler.PinCurrentIterationEpisodes(
+                replaySelection,
+                currentIterationReplay,
+                replayHotEpisodeLimit,
+                replayCurrentIterationShare);
             CombatFoundationReplaySampler.ApplyResourceBudget(
                 replaySelection,
-                contentReplay,
+                contentReplay.Concat(currentIterationReplay),
                 foundationTrainingOptions.MinimumEpisodes,
-                foundationTrainingOptions.ReplayFrameLimit,
-                foundationTrainingOptions.ReplayEstimatedBytesLimit);
+                replayHotFrameLimit,
+                replayHotBytesLimit);
             var replayWindow = replaySelection.Episodes;
             var replayWindowOptions =
                 new CombatTrainingReplayWindowOptions
@@ -3507,7 +3771,7 @@ public sealed class CombatCampaignFoundationTrainer
             {
                 var repairPinLimit = Math.Max(
                     1,
-                    foundationTrainingOptions.ReplayEpisodeLimit / 4);
+                    replayHotEpisodeLimit / 4);
                 var repairPins = trainingReplayWindow
                     .Where(episode => (episode.Frames?.Count ?? 0) > 0)
                     .OrderByDescending(
@@ -3519,17 +3783,17 @@ public sealed class CombatCampaignFoundationTrainer
                     .ToHashSet(StringComparer.Ordinal);
                 replayWindow = repairPins.Concat(replayWindow.Where(episode =>
                         !pinnedIds.Contains(episode.EpisodeId)))
-                    .Take(foundationTrainingOptions.ReplayEpisodeLimit)
+                    .Take(replayHotEpisodeLimit)
                     .OrderBy(episode => episode.EpisodeId, StringComparer.Ordinal)
                     .ToList();
             }
             replaySelection.Episodes = replayWindow;
             CombatFoundationReplaySampler.ApplyResourceBudget(
                 replaySelection,
-                contentReplay,
+                contentReplay.Concat(currentIterationReplay),
                 foundationTrainingOptions.MinimumEpisodes,
-                foundationTrainingOptions.ReplayFrameLimit,
-                foundationTrainingOptions.ReplayEstimatedBytesLimit);
+                replayHotFrameLimit,
+                replayHotBytesLimit);
             replayWindow = replaySelection.Episodes;
             result.Replay = replayWindow;
             var transformerTeacherReport =
@@ -4383,6 +4647,15 @@ public sealed class CombatCampaignFoundationTrainer
                 || teacherStudentPool.StrategyQuotaPassed;
             var featureCollisionGatePassed =
                 preArenaFeatureCollisionGatePassed;
+            var absoluteQualificationGatePassed =
+                AbsoluteQualificationGatePassed(
+                    validPairIndexes.Count,
+                    expectedArenaPairs,
+                    absoluteNormalGatePassed,
+                    absoluteAdvancedGatePassed,
+                    offlineHeadRegressionGatePassed,
+                    strategyQuotaGatePassed,
+                    featureCollisionGatePassed);
             var nonInferiorityGatePassed = NonInferiorityGatePassed(
                 workingCheckpoint,
                 validNormalPairs,
@@ -4430,6 +4703,8 @@ public sealed class CombatCampaignFoundationTrainer
                                        && (bootstrapPromotion
                                            || offlineHeadRegressionGatePassed)
                                        && featureCollisionGatePassed;
+            workingWindowAccepted = workingWindowAccepted
+                                    || absoluteQualificationGatePassed;
             var promotionReason = !curriculumCheckpoint
                 ? advancedRecoveryRequired
                   && candidateAdvanced
@@ -4468,6 +4743,7 @@ public sealed class CombatCampaignFoundationTrainer
             var completedIteration = new CombatCampaignFoundationIteration
             {
                 Iteration = iteration + 1,
+                WorkerProcessId = Environment.ProcessId,
                 ParallelismDecision = parallelismDecision,
                 ReplayEpisodes = result.Replay.Count,
                 TrainingReplayEpisodes = replaySelection.Episodes.Count,
@@ -4502,6 +4778,21 @@ public sealed class CombatCampaignFoundationTrainer
                 TrainingReplayFrames = replaySelection.SelectedFrames,
                 TrainingReplayEstimatedResidentBytes =
                     replaySelection.EstimatedResidentBytes,
+                ReplayArchivedEpisodes =
+                    replayArchiveReport.ArchivedEpisodes,
+                ReplayArchiveDuplicates =
+                    replayArchiveReport.DuplicateEpisodes,
+                ReplayArchivedBytes = replayArchiveReport.ArchivedBytes,
+                ReplayLoadedHistoricalEpisodes =
+                    iteration == startIteration
+                        ? loadedHistoricalThisInvocationEpisodes
+                        : 0,
+                ReplayLoadedHistoricalBytes =
+                    iteration == startIteration
+                        ? loadedHistoricalThisInvocationBytes
+                        : 0L,
+                ReplayPinnedCurrentIterationEpisodes =
+                    replaySelection.PinnedCurrentIterationEpisodes,
                 TrainingReplayResourceBudgetDroppedEpisodes =
                     replaySelection.ResourceBudgetDroppedEpisodes,
                 ResourceElapsedSeconds = Math.Max(
@@ -4780,6 +5071,8 @@ public sealed class CombatCampaignFoundationTrainer
                 AbsoluteNormalGatePassed = absoluteNormalGatePassed,
                 AbsoluteAdvancedGatePassed =
                     absoluteAdvancedGatePassed,
+                AbsoluteQualificationGatePassed =
+                    absoluteQualificationGatePassed,
                 OfflineHeadRegressionGatePassed =
                     offlineHeadRegressionGatePassed,
                 StrategyQuotaGatePassed = strategyQuotaGatePassed,
@@ -4810,13 +5103,18 @@ public sealed class CombatCampaignFoundationTrainer
                     ? "formal-champion"
                     : provisionalChampionSelected
                         ? "provisional-champion"
-                    : workingWindowAccepted
-                        ? "working-window"
-                        : curriculumCheckpoint
-                            ? "checkpoint-only"
-                            : "rejected",
-                PromotionReason = promotionReason,
+                        : absoluteQualificationGatePassed
+                            ? "qualified-candidate"
+                            : workingWindowAccepted
+                                ? "working-window"
+                                : curriculumCheckpoint
+                                    ? "checkpoint-only"
+                                    : "rejected",
+                PromotionReason = absoluteQualificationGatePassed
+                    ? "absolute-qualified"
+                    : promotionReason,
                 ConsecutiveRejectedIterations = workingWindowAccepted
+                                                || absoluteQualificationGatePassed
                     ? 0
                     : ConsecutiveRejectedIterations(
                           result.Iterations,
@@ -4848,6 +5146,7 @@ public sealed class CombatCampaignFoundationTrainer
             completedIteration.ConsecutiveUnproductiveIterations =
                 completedIteration.BehavioralProductiveProgress
                 || completedIteration.WorkingModelAccepted
+                || completedIteration.AbsoluteQualificationGatePassed
                     ? 0
                     : ConsecutiveUnproductiveIterations(
                           result.Iterations,
@@ -4856,6 +5155,7 @@ public sealed class CombatCampaignFoundationTrainer
                 completedIteration.DataPipelineProgress
                 && !completedIteration.BehavioralProductiveProgress
                 && !completedIteration.WorkingModelAccepted
+                && !completedIteration.AbsoluteQualificationGatePassed
                     ? ConsecutiveDataOnlyIterations(
                           result.Iterations,
                           stagnationAttemptStartIndex) + 1
@@ -4895,8 +5195,10 @@ public sealed class CombatCampaignFoundationTrainer
                 workingChampion = trained.Model;
             }
             workingChampion = workingModelBank.Select(
-                PreferredWorkingModelSlot(curriculumPlan.Stage),
-                workingChampion);
+                CombatFoundationPromotionProtocol.AbsoluteQualifiedBest,
+                workingModelBank.Select(
+                    PreferredWorkingModelSlot(curriculumPlan.Stage),
+                    workingChampion));
             result.WorkingChampion = workingChampion;
             if (promoted || provisionalChampionSelected)
             {
@@ -4933,27 +5235,6 @@ public sealed class CombatCampaignFoundationTrainer
                 workingChampion != null,
                 stagnationAttemptStartIndex);
             latestIteration.StagnationStopTriggered = stagnationStop;
-            var selectedCheckpointTraining =
-                new CombatPolicyValueTrainingResumeState
-                {
-                    CompletedEpochs = trained.CompletedEpochs,
-                    Model = CombatPolicyValueBatchTrainer.Clone(trained.Model),
-                    BestModel = CombatPolicyValueBatchTrainer.Clone(trained.Model),
-                    BestValidationLoss = trained.EpochHistory
-                        .Where(item => !item.Calibrated)
-                        .Select(item => item.Validation?.CompositeLoss
-                                        ?? double.MaxValue)
-                        .DefaultIfEmpty(trained.ValidationMetrics.CompositeLoss)
-                        .Min(),
-                    BestEpoch = tuning.Epoch,
-                    BestValidationEpoch = trained.BestEpoch,
-                    DeploymentSelectedEpoch = tuning.Epoch,
-                    EpochHistory = trained.EpochHistory
-                        .Select(item => CloneEpochMetrics(
-                            item,
-                            iterationNumber))
-                        .ToList()
-                };
             PublishCheckpoint(
                 request,
                 CreateResumeState(
@@ -4963,7 +5244,7 @@ public sealed class CombatCampaignFoundationTrainer
                     result,
                     telemetry,
                     workingChampion,
-                    modelTraining: selectedCheckpointTraining));
+                    modelTraining: null));
             resume = null;
             if (stagnationStop)
             {
@@ -4976,6 +5257,54 @@ public sealed class CombatCampaignFoundationTrainer
                     + result.ConsecutiveRejectedIterations;
                 break;
             }
+        }
+
+        var nextIteration = result.Iterations.LastOrDefault()?.Iteration
+                            ?? startIteration;
+        result.NextIteration = nextIteration;
+        if (!result.StoppedForStagnation
+            && nextIteration >= iterationInvocationLimit
+            && nextIteration < iterations)
+        {
+            result.ContinuationRequired = true;
+            result.Success = true;
+            result.AcceptancePassed = false;
+            result.Message = "第 "
+                             + nextIteration
+                             + " 轮已完成并持久化；正在通过独立进程继续第 "
+                             + (nextIteration + 1)
+                             + "/"
+                             + iterations
+                             + " 轮。";
+            result.CompletedCampaigns = Volatile.Read(ref completedCampaigns);
+            telemetry.ApplyTo(result);
+            FinalizeCaseAnalysis(result);
+            return result;
+        }
+
+        var qualifiedBest = workingModelBank.QualifiedBest;
+        result.QualifiedCandidateCount = result.Iterations.Count(item =>
+            item.AbsoluteQualificationGatePassed);
+        foreach (var item in result.Iterations)
+        {
+            item.QualifiedCandidateSelected = false;
+        }
+        if (qualifiedBest != null)
+        {
+            result.Champion = qualifiedBest.Model;
+            result.WorkingChampion = qualifiedBest.Model;
+            workingChampion = qualifiedBest.Model;
+            result.AcceptanceKind =
+                CombatFoundationPromotionProtocol.AbsoluteQualifiedBest;
+            result.SelectedQualifiedCandidateIteration =
+                qualifiedBest.Evidence.Iteration;
+            result.SelectedQualifiedCandidateModelId =
+                qualifiedBest.Model.ModelId;
+            qualifiedBest.Evidence.QualifiedCandidateSelected = true;
+            championModel = CreateParallelPolicyValueModel(
+                qualifiedBest.Model,
+                request,
+                parallelism);
         }
 
         if (result.Champion == null)
@@ -5010,6 +5339,10 @@ public sealed class CombatCampaignFoundationTrainer
                 totalCampaigns,
                 cancellationToken);
             if (request.RequireCapabilityProbeBaselineGain
+                && !string.Equals(
+                    result.AcceptanceKind,
+                    CombatFoundationPromotionProtocol.AbsoluteQualifiedBest,
+                    StringComparison.Ordinal)
                 && !result.CapabilityProbe.PassedBaselineGate)
             {
                 result.CompletedCampaigns =
@@ -5802,6 +6135,7 @@ public sealed class CombatCampaignFoundationTrainer
             Replay = new List<CombatEpisode>(result.Replay),
             Iterations = new List<CombatCampaignFoundationIteration>(
                 result.Iterations),
+            Preflight = result.Preflight,
             ModelTraining = modelTraining,
             Telemetry = telemetry.Current(stage),
             HardSeedHistory =
@@ -7140,6 +7474,20 @@ public sealed class CombatCampaignFoundationTrainer
             .Distinct()
             .OrderBy(value => value)
             .ToArray();
+    }
+
+    internal static int CalibratedParallelismCeiling(
+        int maximumParallelism,
+        int calibratedParallelism)
+    {
+        var maximum = Math.Max(1, maximumParallelism);
+        return Math.Max(
+            1,
+            Math.Min(
+                maximum,
+                calibratedParallelism > 0
+                    ? calibratedParallelism
+                    : maximum));
     }
 
     private static long PredictedPeakPrivateBytes(
@@ -9794,6 +10142,28 @@ public sealed class CombatCampaignFoundationTrainer
             : 0;
     }
 
+    private static double Clamp01(double value)
+    {
+        return Math.Max(0d, Math.Min(1d, value));
+    }
+
+    private static string ReplayEpisodeKey(CombatEpisode episode)
+    {
+        if (episode == null)
+        {
+            return "";
+        }
+        return (episode.JourneyRunId ?? "")
+               + "|"
+               + episode.JourneyBattleIndex.ToString("D4")
+               + "|"
+               + episode.Seed.ToString("D20")
+               + "|"
+               + (episode.ScenarioId ?? "")
+               + "|"
+               + (episode.EpisodeId ?? "");
+    }
+
     private static double SequentialWilsonLowerBound(int successes, int total)
     {
         if (total <= 0)
@@ -9946,6 +10316,24 @@ public sealed class CombatCampaignFoundationTrainer
     {
         return !bootstrap
                && arenaEvidence
+               && absoluteAdvanced
+               && offlineHeads
+               && strategyQuota
+               && featureCollision;
+    }
+
+    internal static bool AbsoluteQualificationGatePassed(
+        int validArenaPairs,
+        int expectedArenaPairs,
+        bool absoluteNormal,
+        bool absoluteAdvanced,
+        bool offlineHeads,
+        bool strategyQuota,
+        bool featureCollision)
+    {
+        return expectedArenaPairs > 0
+               && validArenaPairs == expectedArenaPairs
+               && absoluteNormal
                && absoluteAdvanced
                && offlineHeads
                && strategyQuota
@@ -10128,10 +10516,22 @@ public sealed class CombatCampaignFoundationTrainer
         private readonly CombatPolicyValueNetworkDefinition? fallback;
 
         public FoundationWorkingModelBank(
-            CombatPolicyValueNetworkDefinition? fallbackModel)
+            CombatPolicyValueNetworkDefinition? fallbackModel,
+            CombatCampaignFoundationIteration? fallbackEvidence = null)
         {
             fallback = fallbackModel;
+            if (fallbackModel != null && fallbackEvidence != null)
+            {
+                AddCandidate(fallbackModel, fallbackEvidence);
+            }
         }
+
+        public FoundationWorkingModelEntry? QualifiedBest =>
+            slots.TryGetValue(
+                CombatFoundationPromotionProtocol.AbsoluteQualifiedBest,
+                out var qualified)
+                ? qualified
+                : null;
 
         public IReadOnlyList<string> AddCandidate(
             CombatPolicyValueNetworkDefinition model,
@@ -10142,13 +10542,15 @@ public sealed class CombatCampaignFoundationTrainer
                 || !iteration.OfflineHeadRegressionGatePassed
                 || !iteration.FeatureCollisionGatePassed
                 || !iteration.ParetoProgress
-                   && !iteration.WorkingModelAccepted)
+                   && !iteration.WorkingModelAccepted
+                   && !iteration.AbsoluteQualificationGatePassed)
             {
                 return Array.Empty<string>();
             }
             var candidate = new FoundationWorkingModelEntry
             {
                 Model = model,
+                Evidence = iteration,
                 NormalWinRate = iteration.CandidateNormalWinRate,
                 AdvancedWinRate = iteration.CandidateAdvancedWinRate,
                 ValidationLoss = MetricAvailable(iteration.ModelValidationMetrics)
@@ -10159,6 +10561,13 @@ public sealed class CombatCampaignFoundationTrainer
             TryUpdate("normal-best", candidate, updated);
             TryUpdate("advanced-best", candidate, updated);
             TryUpdate("balanced-best", candidate, updated);
+            if (iteration.AbsoluteQualificationGatePassed)
+            {
+                TryUpdate(
+                    CombatFoundationPromotionProtocol.AbsoluteQualifiedBest,
+                    candidate,
+                    updated);
+            }
             return updated;
         }
 
@@ -10183,13 +10592,86 @@ public sealed class CombatCampaignFoundationTrainer
             ICollection<string> updated)
         {
             if (slots.TryGetValue(slot, out var existing)
-                && CompareWorkingModelSlot(slot, candidate, existing) <= 0)
+                && (string.Equals(
+                        slot,
+                        CombatFoundationPromotionProtocol.AbsoluteQualifiedBest,
+                        StringComparison.Ordinal)
+                    ? CompareAbsoluteQualifiedCandidates(
+                        candidate.Evidence,
+                        existing.Evidence)
+                    : CompareWorkingModelSlot(slot, candidate, existing)) <= 0)
             {
                 return;
             }
             slots[slot] = candidate;
             updated.Add(slot);
         }
+    }
+
+    internal static int CompareAbsoluteQualifiedCandidates(
+        CombatCampaignFoundationIteration candidate,
+        CombatCampaignFoundationIteration existing)
+    {
+        if (candidate == null) return -1;
+        if (existing == null) return 1;
+        if (candidate.AbsoluteQualificationGatePassed
+            != existing.AbsoluteQualificationGatePassed)
+        {
+            return candidate.AbsoluteQualificationGatePassed ? 1 : -1;
+        }
+
+        var candidateScore = QualifiedCandidateArenaScore(candidate);
+        var existingScore = QualifiedCandidateArenaScore(existing);
+        var comparison = CompareHigher(candidateScore, existingScore);
+        if (comparison != 0) return comparison;
+        comparison = CompareHigher(
+            candidate.CandidateAdvancedWinRate,
+            existing.CandidateAdvancedWinRate);
+        if (comparison != 0) return comparison;
+        comparison = CompareHigher(
+            candidate.CandidateNormalWinRate,
+            existing.CandidateNormalWinRate);
+        if (comparison != 0) return comparison;
+        comparison = CompareHigher(
+            candidate.CandidateArenaScore,
+            existing.CandidateArenaScore);
+        if (comparison != 0) return comparison;
+        comparison = CompareHigher(
+            candidate.CandidateAverageCompletedBattles,
+            existing.CandidateAverageCompletedBattles);
+        if (comparison != 0) return comparison;
+
+        var candidateLoss = MetricAvailable(candidate.ModelValidationMetrics)
+            ? candidate.ModelValidationMetrics.CompositeLoss
+            : double.PositiveInfinity;
+        var existingLoss = MetricAvailable(existing.ModelValidationMetrics)
+            ? existing.ModelValidationMetrics.CompositeLoss
+            : double.PositiveInfinity;
+        if (candidateLoss + 0.0000001d < existingLoss) return 1;
+        if (existingLoss + 0.0000001d < candidateLoss) return -1;
+        return string.CompareOrdinal(
+                   existing.CandidateModelId ?? "",
+                   candidate.CandidateModelId ?? "") > 0
+            ? 1
+            : 0;
+    }
+
+    internal static double QualifiedCandidateArenaScore(
+        CombatCampaignFoundationIteration iteration)
+    {
+        if (iteration == null) return double.NegativeInfinity;
+        return Math.Min(
+                   iteration.CandidateNormalWinRate,
+                   iteration.CandidateAdvancedWinRate) * 2d
+               + (iteration.CandidateNormalWinRate
+                  + iteration.CandidateAdvancedWinRate) * 0.25d;
+    }
+
+    private static int CompareHigher(double candidate, double existing)
+    {
+        if (candidate > existing + 0.0000001d) return 1;
+        if (candidate + 0.0000001d < existing) return -1;
+        return 0;
     }
 
     private static int CompareWorkingModelSlot(
@@ -10231,6 +10713,8 @@ public sealed class CombatCampaignFoundationTrainer
     private sealed class FoundationWorkingModelEntry
     {
         public CombatPolicyValueNetworkDefinition Model { get; set; } = new();
+
+        public CombatCampaignFoundationIteration Evidence { get; set; } = new();
 
         public double NormalWinRate { get; set; }
 
@@ -10345,6 +10829,8 @@ public sealed class CombatCampaignFoundationTrainer
         private double currentPhaseStartedSeconds;
         private double currentPhaseStartedCpuSeconds;
         private long currentPhaseStartedAllocatedBytes;
+        private int currentPhaseStartedCampaigns;
+        private long currentPhaseStartedSearchSimulations;
         private long nextCampaignWorkId;
         private long lastReportMilliseconds = -1000L;
         private int modelIteration;
@@ -10572,6 +11058,8 @@ public sealed class CombatCampaignFoundationTrainer
                      ?? new List<CombatPolicyValueEpochMetrics>())
                     .Select(item => CloneEpochMetrics(item)));
             }
+            currentPhaseStartedCampaigns = completedCampaigns;
+            currentPhaseStartedSearchSimulations = searchSimulations;
         }
 
         public CombatCampaignFoundationTelemetry Current(string stage)
@@ -11067,6 +11555,10 @@ public sealed class CombatCampaignFoundationTrainer
                     currentPhaseStartedSeconds = elapsed;
                     currentPhaseStartedCpuSeconds = cpu;
                     currentPhaseStartedAllocatedBytes = allocated;
+                    currentPhaseStartedCampaigns = Volatile.Read(
+                        ref completedCampaigns);
+                    currentPhaseStartedSearchSimulations = Volatile.Read(
+                        ref searchSimulations);
                 }
             }
             Report(normalized, force: true);
@@ -11382,6 +11874,11 @@ public sealed class CombatCampaignFoundationTrainer
             Dictionary<string, int> snapshotPhasePeakConcurrentWork;
             Dictionary<string, int> snapshotPhaseObservedWorkerThreads;
             List<CombatPolicyValueEpochMetrics> snapshotModelEpochHistory;
+            double snapshotCurrentPhaseElapsedSeconds;
+            double snapshotCurrentPhaseCpuSeconds;
+            long snapshotCurrentPhaseAllocatedBytes;
+            int snapshotCurrentPhaseStartedCampaigns;
+            long snapshotCurrentPhaseStartedSearchSimulations;
             var currentCpuSeconds = Math.Max(
                 0d,
                 (process.TotalProcessorTime - initialCpuTime).TotalSeconds);
@@ -11540,6 +12037,13 @@ public sealed class CombatCampaignFoundationTrainer
                         out var accumulatedAllocated)
                         ? accumulatedAllocated + phaseAllocated
                         : phaseAllocated;
+                snapshotCurrentPhaseElapsedSeconds = phaseElapsed;
+                snapshotCurrentPhaseCpuSeconds = phaseCpu;
+                snapshotCurrentPhaseAllocatedBytes = phaseAllocated;
+                snapshotCurrentPhaseStartedCampaigns =
+                    currentPhaseStartedCampaigns;
+                snapshotCurrentPhaseStartedSearchSimulations =
+                    currentPhaseStartedSearchSimulations;
             }
             var elapsedSeconds = Math.Max(
                 0.001d,
@@ -11571,6 +12075,16 @@ public sealed class CombatCampaignFoundationTrainer
                 remainingCampaigns * projectedDepth
                 - activeDepthCount);
             var simulationCount = Volatile.Read(ref searchSimulations);
+            var currentPhaseElapsedSeconds = Math.Max(
+                0.001d,
+                snapshotCurrentPhaseElapsedSeconds);
+            var currentPhaseCampaigns = Math.Max(
+                0,
+                campaigns - snapshotCurrentPhaseStartedCampaigns);
+            var currentPhaseSearchSimulations = Math.Max(
+                0L,
+                simulationCount
+                - snapshotCurrentPhaseStartedSearchSimulations);
             var battleEstimatedRemainingSeconds = battleRate <= 0d
                 ? 0d
                 : remainingBattleWork / battleRate;
@@ -11820,8 +12334,13 @@ public sealed class CombatCampaignFoundationTrainer
                     snapshotMismatchScenarios,
                 SemanticAudit = snapshotSemanticAudit,
                 SearchSimulationsPerSecond = simulationCount / elapsedSeconds,
+                CurrentPhaseSearchSimulationsPerSecond =
+                    currentPhaseSearchSimulations
+                    / currentPhaseElapsedSeconds,
                 ElapsedSeconds = elapsedSeconds,
                 CampaignsPerSecond = campaigns / elapsedSeconds,
+                CurrentPhaseCampaignsPerSecond =
+                    currentPhaseCampaigns / currentPhaseElapsedSeconds,
                 BattlesPerSecond = battleRate,
                 Gen0Collections = Math.Max(0, GC.CollectionCount(0) - initialGen0),
                 Gen1Collections = Math.Max(0, GC.CollectionCount(1) - initialGen1),
@@ -11870,9 +12389,20 @@ public sealed class CombatCampaignFoundationTrainer
                           / elapsedSeconds
                           / Math.Max(1, Environment.ProcessorCount)
                           * 100d),
+                CurrentPhaseCpuUtilizationPercent = Math.Max(
+                    0d,
+                    snapshotCurrentPhaseCpuSeconds
+                    / currentPhaseElapsedSeconds
+                    / Math.Max(1, Environment.ProcessorCount)
+                    * 100d),
                 AllocationMegabytesPerSecond = Math.Max(
                     0d,
                     allocatedBytes / elapsedSeconds / (1024d * 1024d)),
+                CurrentPhaseAllocationMegabytesPerSecond = Math.Max(
+                    0d,
+                    snapshotCurrentPhaseAllocatedBytes
+                    / currentPhaseElapsedSeconds
+                    / (1024d * 1024d)),
                 PhaseElapsedSeconds = snapshotPhaseElapsedSeconds,
                 PhaseCpuSeconds = snapshotPhaseCpuSeconds,
                 PhaseAllocatedBytes = snapshotPhaseAllocatedBytes,

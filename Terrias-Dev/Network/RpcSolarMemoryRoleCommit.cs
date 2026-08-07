@@ -42,6 +42,28 @@ public sealed class RpcSolarMemoryRoleCommit : RpcCommandBase, ITerriasServerBou
         // The authoritative role has already been committed by the server.
     }
 
+    internal static bool Submit(RoleTable role, string source)
+    {
+        var playerManager = PlayerManager.Instance;
+        if (playerManager != null && playerManager.isClient && !playerManager.isServer)
+        {
+            playerManager.SendRpcCommand(new RpcSolarMemoryRoleCommit(role, source));
+            TerriasLog.Info("[SolarMemoryRoleCommit] submitted final role to host. role="
+                           + role.Id
+                           + ", token="
+                           + role.SpecialVarMap[TerriasIds.SolarMemorySetupCommitTokenKey]
+                           + ", source="
+                           + source);
+            return true;
+        }
+
+        return ApplyOnServer(
+            role,
+            source,
+            TerriasRpcAuthorityRuntime.CreateLocalServerSender(source),
+            remoteRpc: false);
+    }
+
     internal static bool ApplyOnServer(RoleTable? role, string source)
     {
         return ApplyOnServer(role, source, TerriasRpcSender.Unbound, remoteRpc: false);

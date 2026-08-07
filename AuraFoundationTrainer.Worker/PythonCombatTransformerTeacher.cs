@@ -287,6 +287,39 @@ internal sealed class PythonCombatTransformerTeacher :
         report.WarmStarted = warmStarted;
         report.TrainingRefreshed = trainingEnabled;
         report.ResumeModelPath = warmStarted ? previousModelPath : "";
+        var memory = CombatFoundationResourceSnapshot.Capture();
+        var previousPeak = Math.Max(
+            0L,
+            previousReport?.PeakWorkingSetBytes ?? 0L);
+        var predictedPeak = previousPeak > 0L
+            ? Math.Max(
+                1024L * 1024L * 1024L,
+                (long)Math.Ceiling(previousPeak * 1.15d))
+            : options.EnableShardedDataset
+                ? 3L * 1024L * 1024L * 1024L
+                : 5L * 1024L * 1024L * 1024L;
+        report.AvailablePhysicalMemoryBytes =
+            memory.AvailablePhysicalMemoryBytes;
+        report.MemoryReserveBytes = options.MemoryReserveBytes;
+        report.PredictedPeakWorkingSetBytes = predictedPeak;
+        report.DatasetStorageMode = options.EnableShardedDataset
+            ? "sharded-disk-v1"
+            : "resident";
+        report.DatasetShardFrames = options.DatasetShardFrames;
+        report.MemoryAdmissionPassed =
+            memory.AvailablePhysicalMemoryBytes
+            >= options.MemoryReserveBytes + predictedPeak;
+        if (!report.MemoryAdmissionPassed)
+        {
+            report.Message = "Transformer teacher deferred by memory gate: "
+                             + "available="
+                             + memory.AvailablePhysicalMemoryBytes
+                             + ", predictedPeak="
+                             + predictedPeak
+                             + ", reserve="
+                             + options.MemoryReserveBytes;
+            return report;
+        }
         ReportProgress(context, new CombatTransformerTeacherProgress
         {
             Stage = "launching",
@@ -1212,6 +1245,11 @@ internal sealed class PythonCombatTransformerTeacher :
         Add(start, "--micro-batch-size", options.MicroBatchSize);
         Add(start, "--loader-workers", options.DataLoaderWorkers);
         Add(start, "--prefetch-batches", options.PrefetchBatches);
+        Add(
+            start,
+            "--dataset-storage",
+            options.EnableShardedDataset ? "sharded" : "resident");
+        Add(start, "--dataset-shard-frames", options.DatasetShardFrames);
         Add(start, "--pin-memory", options.EnablePinnedMemory ? 1 : 0);
         Add(start, "--mixed-precision", options.EnableMixedPrecision ? 1 : 0);
         Add(
@@ -1374,6 +1412,8 @@ internal sealed class PythonCombatTransformerTeacher :
         target.ElapsedSeconds = source.ElapsedSeconds;
         target.ProcessCpuSeconds = source.ProcessCpuSeconds;
         target.PeakWorkingSetBytes = source.PeakWorkingSetBytes;
+        target.DatasetStorageMode = source.DatasetStorageMode;
+        target.DatasetShardFrames = source.DatasetShardFrames;
         target.DataLoadingSeconds = source.DataLoadingSeconds;
         target.DataPreparationSeconds = source.DataPreparationSeconds;
         target.RuntimeCalibrationSeconds = source.RuntimeCalibrationSeconds;

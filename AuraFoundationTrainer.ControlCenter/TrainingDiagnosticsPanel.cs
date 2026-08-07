@@ -469,6 +469,7 @@ internal sealed class TrainingDiagnosticsPanel
                 Text = "第 " + item.Iteration + " 轮",
                 FontWeight = FontWeights.SemiBold,
                 Foreground = item.Promoted
+                             || item.AbsoluteQualificationGatePassed
                     ? TrainerTheme.Success
                     : TrainerTheme.Warning
             };
@@ -476,15 +477,16 @@ internal sealed class TrainingDiagnosticsPanel
             var detail = new TextBlock
             {
                 Text =
-                    $"普通 候选 {item.CandidateNormalWinRate:P1} / Champion {item.ChampionNormalWinRate:P1} · "
-                    + $"高级 候选 {item.CandidateAdvancedWinRate:P1} / Champion {item.ChampionAdvancedWinRate:P1}\r\n"
+                    $"普通 候选 {item.CandidateNormalWinRate:P1} / 对照 {item.ChampionNormalWinRate:P1} · "
+                    + $"高级 候选 {item.CandidateAdvancedWinRate:P1} / 对照 {item.ChampionAdvancedWinRate:P1}\r\n"
                     + $"分数差 {item.CandidateScoreGain:+0.0;-0.0;0.0} · "
                     + $"深度差 {item.CandidateDepthGain:+0.000;-0.000;0.000} · "
                     + $"配对独占胜 {item.CandidateOnlyWins}:{item.ChampionOnlyWins} · "
                     + $"分歧 {item.ArenaDiscordantPairs} · "
                     + $"证据分类 {item.PairedEvidenceKind} · 退化上界 {item.PairedRegressionWilsonUpperBound:P1} · "
                     + $"不劣 {PassMark(item.NonInferiorityGatePassed)} · "
-                    + $"门禁(显著/普通/高难/离线头/配额/碰撞) "
+                    + $"绝对合格 {PassMark(item.AbsoluteQualificationGatePassed)} · "
+                    + $"门禁(相对证据/普通/高难/离线头/配额/碰撞) "
                     + $"{PassMark(item.ArenaEvidenceGatePassed)}/"
                     + $"{PassMark(item.AbsoluteNormalGatePassed)}/"
                     + $"{PassMark(item.AbsoluteAdvancedGatePassed)}/"
@@ -492,7 +494,13 @@ internal sealed class TrainingDiagnosticsPanel
                     + $"{PassMark(item.StrategyQuotaGatePassed)}/"
                     + $"{PassMark(item.FeatureCollisionGatePassed)} · "
                     + $"碰撞 状态 {item.StateFeatureCollisionRate:P1} / 动作 {item.ActionFeatureCollisionRate:P1} · "
-                    + (item.Promoted ? "已晋级" : item.PromotionReason),
+                    + (item.QualifiedCandidateSelected
+                        ? "已选为合格最佳模型"
+                        : item.AbsoluteQualificationGatePassed
+                            ? "已进入合格候选池"
+                            : item.Promoted
+                                ? "已晋级"
+                                : item.PromotionReason),
                 Foreground = TrainerTheme.Text,
                 TextWrapping = TextWrapping.Wrap
             };

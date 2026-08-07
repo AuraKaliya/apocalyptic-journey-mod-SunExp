@@ -35,11 +35,11 @@ does not justify treating the whole wrapper as byte-for-byte unchanged.
 
 ## Gate Decision
 
-The signature and static method-body review passes. The AuraDirector hash gate
-has deliberately not been updated because this machine cannot run the game
-smoke tests. `tools/Test-AuraDirectorDetour.ps1` therefore fails against the
-current `Managed/` at the allowlisted capability probe, which is the intended
-fail-closed behavior.
+The signature and static method-body review passes. The AuraDirector production
+hash gate has deliberately not been updated because this machine cannot run the
+game smoke tests. `tools/Test-AuraDirectorDetour.ps1` verifies that the current
+`Managed/` is rejected as `detour-target-build-unverified` and remains unpatched;
+the test passes by proving the intended fail-closed behavior.
 
 Before changing the verified hash, run the game-machine checks for single-player
 fight start, multiplayer readiness, disconnect recovery, and detour release.

@@ -58,6 +58,10 @@ visual resources.
    release gates, or consumer compatibility are involved.
 4. Add or adjust shared release checks when a new cross-mod boundary must stay
    stable.
+5. Select validation from the impact matrix in
+   `../terrias-mod-dev/references/validation-rules.md`. Do not treat every
+   shared edit as a reason to run every consumer, network, packaging, and
+   release gate.
 
 ## Hard Rules
 
@@ -100,21 +104,38 @@ visual resources.
   duplicate suppression.
 - Keep all packaged `Aura.Shared.dll` copies hash-identical after shared runtime
   builds.
+- Keep archived prototypes under `TestMods` outside product and shared release
+  validation. Run `tools/Test-TestMods.ps1` only when a task explicitly targets
+  those prototypes.
 
 ## Validation
 
-Run affected consumer builds and shared gates serially:
+Choose checks by affected contract:
 
 ```powershell
-tools\Build-TerriasDll.ps1
-tools\Test-TerriasCSharp.ps1
-tools\Test-NetworkRpcAuthority.ps1
-tools\Test-SharedArchitectureGuidelines.ps1
-tools\Test-AuraSharedCore.ps1
-tools\Test-SharedReleaseGate.ps1
-tools\Test-SharedDllPackaging.ps1
+tools\Test-AuraSkinShared.ps1 # selection, path, package preflight, and protocol behavior
+tools\Test-AuraCgShared.ps1 # AuraCgShared behavior
+tools\Test-AuraSharedCore.ps1 # Core storage/protocol behavior
+tools\Build-AuraSharedRuntime.ps1 # production Aura.Shared build
+tools\Test-SharedRuntimeCompatibility.ps1 # public shared API/protocol shape
+tools\Build-MainSharedConsumers.ps1 # public shared API changed
+tools\Test-SharedReleaseGate.ps1 -Profile network # RPC behavior or authority changed
+tools\Test-NetworkRpcAuthority.ps1 # generic command registration/transport scan
+tools\Test-SharedDllPackaging.ps1 # project references or packaged DLL changed
+tools\Test-SharedReleaseGate.ps1 -Profile skin # focused shared domain
+tools\Test-SharedReleaseGate.ps1 -Tag public-api # impact-tag selection
+tools\Test-SharedReleaseGate.ps1 -Profile full-release # release candidate
 ```
 
-When a shared source is consumed by multiple mods, also run the relevant
-consumer build script, such as `tools\Build-MainSharedConsumers.ps1` or
-`tools\Build-SharedRuntimeConsumers.ps1`.
+Run commands serially when they write shared DLL outputs. Internal domain
+changes need the focused domain suite and shared build; add consumer builds
+only when a public surface changes. The full release gate is a release-level
+check, not the default response to every shared source edit.
+The `network` profile runs Core, CG, and Audio network behavior before the
+generic RPC registration/transport scan. Do not replace those behavior suites
+with source-token assertions.
+Keep compatibility baselines limited to reflected public API data. Private
+class names and implementation snippets belong neither in compatibility nor
+architecture gates.
+Use `tools\Test-SharedReleaseGate.ps1 -List` to inspect the current owner,
+category, cost, profile, and impact-tag inventory before selecting a gate.

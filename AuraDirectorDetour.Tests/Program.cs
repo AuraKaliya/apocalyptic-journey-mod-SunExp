@@ -22,7 +22,7 @@ internal static class Program
             TestImmediateReleaseReentry();
             TestRejectedAndFailedSinksRunOriginal();
             TestReleaseAll();
-            TestCurrentGameTargetInstallAndUninstall();
+            TestCurrentGameTargetCapabilityGate();
             Console.WriteLine("AuraDirector detour tests passed: " + assertions + " assertions.");
             return 0;
         }
@@ -140,12 +140,25 @@ internal static class Program
         Assert(registry.Intercept(new FixtureTarget()), "stopped registry no longer accepts new holds");
     }
 
-    private static void TestCurrentGameTargetInstallAndUninstall()
+    private static void TestCurrentGameTargetCapabilityGate()
     {
         var probe = AuraDirectorReadyToStartDetourBackend.Probe();
-        Assert(probe.Supported && probe.Code == "detour-compatible", "current Witch.dll target passes the allowlisted capability probe");
-
         using var backend = new AuraDirectorReadyToStartDetourBackend();
+        if (!probe.Supported)
+        {
+            Assert(probe.Code == "detour-target-build-unverified",
+                "unknown Witch.dll builds fail closed at the capability probe");
+            var rejected = backend.Install(new RejectingSink());
+            Assert(!rejected.Supported
+                   && rejected.Code == "detour-target-build-unverified"
+                   && !backend.IsInstalled,
+                "unverified game builds cannot install the detour backend");
+            Assert(!AuraDirectorReadyToStartDetourBackend.IsOwnedPrefixInstalled(),
+                "an unverified target never receives the Harmony prefix");
+            return;
+        }
+
+        Assert(probe.Code == "detour-compatible", "allowlisted Witch.dll builds pass the capability probe");
         var installed = backend.Install(new RejectingSink());
         Assert(installed.Supported && installed.Code == "detour-installed" && backend.IsInstalled,
             "Harmony prefix installs on the current ReadyToStart method");

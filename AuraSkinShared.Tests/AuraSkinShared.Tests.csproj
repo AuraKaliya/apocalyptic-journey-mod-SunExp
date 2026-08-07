@@ -1,0 +1,27 @@
+<Project Sdk="Microsoft.NET.Sdk">
+  <PropertyGroup>
+    <OutputType>Exe</OutputType>
+    <TargetFramework>net8.0</TargetFramework>
+    <LangVersion>latest</LangVersion>
+    <Nullable>enable</Nullable>
+    <ImplicitUsings>enable</ImplicitUsings>
+  </PropertyGroup>
+
+  <ItemGroup>
+    <Compile Include="..\AuraSharedCore\AuraSharedIdentity.cs" Link="Core\AuraSharedIdentity.cs" />
+    <Compile Include="..\AuraSkinShared\Models\SkinManifest.cs" Link="Shared\SkinManifest.cs" />
+    <Compile Include="..\AuraSkinShared\Models\SkinPackageManifest.cs" Link="Shared\SkinPackageManifest.cs" />
+    <Compile Include="..\AuraSkinShared\Infrastructure\SkinPaths.cs" Link="Shared\SkinPaths.cs" />
+    <Compile Include="..\AuraSkinShared\Infrastructure\SkinProtocolCompatibility.cs" Link="Shared\SkinProtocolCompatibility.cs" />
+    <Compile Include="..\AuraSkinShared\Services\SkinRegistry.cs" Link="Shared\SkinRegistry.cs" />
+    <Compile Include="..\AuraSkinShared\Services\SkinSelectionStore.cs" Link="Shared\SkinSelectionStore.cs" />
+    <Compile Include="..\AuraSkinShared\Services\SkinPackageValidationPolicy.cs" Link="Shared\SkinPackageValidationPolicy.cs" />
+  </ItemGroup>
+
+  <ItemGroup>
+    <Reference Include="Newtonsoft.Json">
+      <HintPath>..\Managed\Newtonsoft.Json.dll</HintPath>
+      <Private>true</Private>
+    </Reference>
+  </ItemGroup>
+</Project>

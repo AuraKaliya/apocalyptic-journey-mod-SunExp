@@ -20,6 +20,8 @@ references for detailed context.
    - changed files and tests from relevant commits;
    - current validation failures or manual debugging notes;
    - user corrections and repeated assistant mistakes.
+   - test ownership, call graph, duplicate coverage, source-snapshot assertions,
+     and whether a test belongs to a product or an archived prototype.
 2. Classify each lesson:
    - Trigger: frontmatter description or skill split.
    - Rule: concise SKILL.md hard rule.
@@ -63,6 +65,23 @@ references for detailed context.
   corrections out of operational skills. Record them only in evolution
   references or deterministic validation scripts.
 - Put brittle invariants in tests where possible.
+- Put behavior harnesses in stable `*Tests` projects rather than generating
+  temporary projects from PowerShell here-strings. Keep architecture gates
+  declarative and limited to real namespace, dependency, hook, and entrypoint
+  boundaries.
+- Keep expensive worker integration, simulation acceptance, artifact, and
+  archive maintenance checks as explicit matrix steps. Do not hide them behind
+  ordinary product or shared behavior entrypoints.
+- Let RPC security scripts enforce generic authority-registration and transport
+  boundaries only. Sender scope, payload guards, duplicate suppression, and
+  lifecycle cleanup belong in the owning domain's behavior tests.
+- Keep only tests that prove a current behavior, public contract, boundary,
+  release artifact, or owned content requirement. Replace source snapshots when
+  the semantic contract remains; delete completed migrations and duplicated
+  historical constraints.
+- Keep `TestMods` validation isolated behind `tools/Test-TestMods.ps1`. Do not
+  add prototype consumers to product/shared default validation or release
+  matrices after their functionality has moved into a product MOD.
 - Put detailed domain explanation in references, not in top-level `SKILL.md`.
 - Keep old skill names stable unless the user explicitly approves a migration
   or the old directory can remain as a compatibility route.

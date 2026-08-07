@@ -6,6 +6,7 @@ $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot "..")).Path
 $modRoot = Join-Path $repoRoot "Terrias"
 $sharedRoot = Join-Path $modRoot "SharedResources"
 $failures = [System.Collections.Generic.List[string]]::new()
+Import-Module (Join-Path $repoRoot "tools\modules\SkinPackageValidation.psm1") -Force
 
 function Add-Failure {
     param([string]$Message)
@@ -106,9 +107,6 @@ try {
     Assert-True ($modConfig.ModName -eq "Terrias") "ModConfig.ModName must be Terrias."
     Assert-True ($modConfig.ModAuthor -eq "Aura") "ModConfig.ModAuthor must remain Aura."
     Assert-True (("{0}.{1}" -f $modConfig.ModName, $modConfig.ModAuthor) -eq "Terrias.Aura") "The game-loader ModId must resolve to Terrias.Aura."
-
-    $idsSource = Get-Content -LiteralPath (Join-Path $repoRoot "Terrias-Dev\Infrastructure\TerriasIds.cs") -Raw -Encoding UTF8
-    Assert-True ($idsSource.Contains('public const string ModId = "Terrias";')) "Terrias shared owner id must remain Terrias."
 
     [xml]$project = Get-Content -LiteralPath (Join-Path $repoRoot "Terrias-Dev\Terrias.Dll.csproj") -Raw -Encoding UTF8
     $assemblyName = @($project.Project.PropertyGroup.AssemblyName | Where-Object { $_ })[0]
@@ -228,11 +226,18 @@ try {
     }
 
     $skinRoot = Join-Path $sharedRoot "Skins"
-    $skinPackage = Get-Content -LiteralPath (Join-Path $skinRoot "package.json") -Raw -Encoding UTF8 | ConvertFrom-Json
+    $skinValidation = Test-SkinPackageContent -PackagePath (Join-Path $skinRoot "package.json")
+    $skinPackage = $skinValidation.Package
     Assert-True ($skinPackage.packageId -eq "Terrias.BundledSkins") "Skin package id must be Terrias.BundledSkins."
-    foreach ($resource in $skinPackage.resources) {
-        Assert-True (Test-Path -LiteralPath (Join-Path $skinRoot ([string]$resource.source).Replace('/', '\'))) "Skin package source is missing: $($resource.source)"
-    }
+    Assert-True ([int64]$skinPackage.packageVersion -ge 3) "Terrias bundled skin package version must preserve the current published generation."
+    $wunaSkin = @($skinValidation.Skins | Where-Object {
+        $_.TargetCareerId -eq "Terrias_wuna_wuna" -and $_.SkinId -eq "Terrias.Terrias_wuna_wuna.summer_cool"
+    })
+    $columbinaSkin = @($skinValidation.Skins | Where-Object {
+        $_.TargetCareerId -eq "Terrias_columbina_columbina" -and $_.SkinId -eq "Terrias.Terrias_columbina_columbina.restore_colors"
+    })
+    Assert-True ($wunaSkin.Count -eq 1) "Terrias must publish the WuNa summer skin exactly once."
+    Assert-True ($columbinaSkin.Count -eq 1) "Terrias must publish the Columbina Restore Colors skin exactly once."
 
     $visualRegistry = Get-Content -LiteralPath (Join-Path $modRoot "visual.registry.json") -Raw -Encoding UTF8 | ConvertFrom-Json
     Assert-True ($visualRegistry.ownerModId -eq "Terrias") "Visual registry ownerModId must be Terrias."
@@ -260,7 +265,7 @@ try {
         $sharedReferences.Count,
         $cgRegistry.entries.Count,
         $roleRegistry.entries.Count,
-        $skinPackage.resources.Count)
+        $skinValidation.Skins.Count)
     $global:LASTEXITCODE = 0
 }
 finally {

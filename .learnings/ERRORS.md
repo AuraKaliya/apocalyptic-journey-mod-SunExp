@@ -33,6 +33,58 @@ a shared helper before referencing them.
 - **Notes**: Added the derivation inside `BuildFoundationHtml`; the net472 build passed.
 
 ---
+## [ERR-20260807-027] functions-exec-parallel-inspection
+
+**Logged**: 2026-08-07T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+A parallel repository-inspection script failed as a whole when one read-only `rg` command returned exit code 1 for no matches.
+
+### Error
+```text
+Script failed: Exit code: 1
+```
+
+### Context
+- The script combined skill reads, an optional `AGENTS.md` search, and project inspection with `Promise.all`.
+- `rg --files -g AGENTS.md` uses exit code 1 when no matching file exists, which was expected rather than exceptional.
+
+### Suggested Fix
+Run optional searches with an explicit no-match success branch, or keep them out of a fail-fast parallel inspection batch.
+
+### Metadata
+- Reproducible: yes
+- Related Files: .learnings/ERRORS.md
+
+---
+
+## [ERR-20260807-023] transformer-self-test-device-argument
+
+**Logged**: 2026-08-07T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The Transformer teacher self-test was invoked with an unsupported `--device`
+argument instead of its declared `--backend` option.
+
+### Error
+```text
+train_teacher.py: error: unrecognized arguments: --device cpu
+```
+
+### Suggested Fix
+Use `--backend cpu` when selecting the CPU runtime for the teacher self-test.
+
+### Resolution
+- **Resolved**: 2026-08-07T00:00:00+08:00
+- **Notes**: Re-ran the canonical teacher self-test with `--backend cpu`.
+
+---
 
 ## [ERR-20260807-003] conditional-interface-inference
 
@@ -317,6 +369,8 @@ with PowerShell first.
 ### Metadata
 - Reproducible: yes
 - Related Files: none
+- Recurrence-Count: 4
+- Last-Seen: 2026-08-07
 - Pattern-Key: powershell.rg_glob_filter
 
 ### Resolution
@@ -325,7 +379,7 @@ with PowerShell first.
 
 ---
 
-## [ERR-20260807-001] relative-cmd-script-directory
+## [ERR-20260807-011] relative-cmd-script-directory
 
 **Logged**: 2026-08-07T00:00:00+08:00
 **Priority**: low
@@ -4139,7 +4193,7 @@ Print the numbered local section and patch the exact current lines.
 
 ---
 
-## [ERR-20260807-002] powershell-pipeline-after-foreach
+## [ERR-20260807-012] powershell-pipeline-after-foreach
 
 **Logged**: 2026-08-07T00:00:00+08:00
 **Priority**: low
@@ -4166,9 +4220,579 @@ Collect the objects into an array, then pipe the completed array to
 ### Metadata
 - Reproducible: yes
 - Related Files: none
+- Recurrence-Count: 6
+- Last-Seen: 2026-08-07
 
 ### Resolution
 - **Resolved**: 2026-08-07T00:00:00+08:00
-- **Notes**: Re-ran the diagnostics with an explicit `$phaseRows` array.
+- **Notes**: Re-ran the diagnostics with an explicit `$phaseRows` array. The
+  pattern recurred during the P2/P3 test inventory; all subsequent tables
+  collect rows before formatting. It recurred once more while checking
+  cross-segment C# variable usage and was corrected with a `$rows` accumulator.
+
+---
+
+## [ERR-20260807-013] assumed-baseline-filename
+
+**Logged**: 2026-08-07T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+A compatibility audit assumed the baseline filename instead of locating it.
+
+### Error
+```text
+Cannot find path 'tools/shared-runtime-api-baseline.json' because it does not exist.
+```
+
+### Context
+- The actual file is `tools/shared-runtime-compatibility-baseline.json`.
+
+### Suggested Fix
+Use `rg --files -g '*baseline*.json'` before reading an uncertain repository
+path.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/shared-runtime-compatibility-baseline.json
+
+### Resolution
+- **Resolved**: 2026-08-07T00:00:00+08:00
+- **Notes**: Located the baseline and completed the source-contract audit.
+
+---
+
+## [ERR-20260807-014] matrix-runner-strict-mode-leak
+
+**Logged**: 2026-08-07T00:00:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The schema-v2 matrix runner's strict mode leaked into invoked legacy test
+scripts and converted optional JSON property reads into failures.
+
+### Error
+```text
+The property 'relicIds' cannot be found on this object.
+```
+
+### Context
+- `Test-TerriasGate.ps1 -Profile architecture` invoked the architecture script
+  from inside the strict-mode matrix module.
+- The existing test intentionally accepts manifests without optional fields.
+
+### Suggested Fix
+Keep strict mode for matrix parsing, but invoke each selected test in a child
+scope with strict mode disabled so the runner does not change suite semantics.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/modules/TestMatrixRunner.psm1
+
+### Resolution
+- **Resolved**: 2026-08-07T00:00:00+08:00
+- **Notes**: Added an invocation scope with `Set-StrictMode -Off`; reran the
+  focused architecture profile successfully.
+
+---
+
+## [ERR-20260807-015] extracted-source-output-truncated
+
+**Logged**: 2026-08-07T00:00:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: tests
+
+### Summary
+Extracting a large PowerShell here-string through shell tool output inserted a
+truncation marker into the generated C# file.
+
+### Error
+```text
+Program.cs contained "…6744 tokens truncated…" and failed C# compilation.
+```
+
+### Context
+- The Terrias temporary test harness was being migrated into a formal project.
+- A single 40 KB shell result exceeded the nested output budget.
+- The first extraction attempt also over-escaped the PowerShell regex.
+
+### Suggested Fix
+Read large source ranges in bounded chunks, validate line counts and anchors,
+then apply the assembled content through `apply_patch`.
+
+### Metadata
+- Reproducible: yes
+- Related Files: Terrias-Dev.Tests/Program.cs, tools/Test-TerriasCSharp.ps1
+
+### Resolution
+- **Resolved**: 2026-08-07T00:00:00+08:00
+- **Notes**: Re-extracted 1,173 lines in 220-line chunks; 316 behavior
+  assertions then passed.
+
+---
+
+## [ERR-20260807-016] shared-write-entrypoint-existing-violation
+
+**Logged**: 2026-08-07T00:00:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The shared architecture profile is blocked by a direct FileStream use in the
+current AuraTools auto-battle model runtime.
+
+### Error
+```text
+AuraToolsExp-Dev/Features/AutoBattle/AuraToolsAutoBattleModelRuntime.cs: uses new FileStream
+```
+
+### Context
+- `Test-SharedReleaseGate.ps1 -Profile architecture` selected the existing
+  `write-entrypoint-scan` before the newly rewritten architecture rule step.
+- The violation is outside the P1 test-governance implementation and was not
+  modified during this task.
+
+### Suggested Fix
+Route the model write through the approved shared/Core write entrypoint, then
+rerun the shared architecture profile.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraToolsExp-Dev/Features/AutoBattle/AuraToolsAutoBattleModelRuntime.cs, tools/Test-SharedWriteEntrypoints.ps1
+
+### Resolution
+- **Resolved**: 2026-08-07T00:00:00+08:00
+- **Notes**: The flagged `FileStream` is read-only input copied into
+  `CombatFoundationCheckpointStorage.WriteAtomicStream`. The declarative rule
+  now targets write-capable `FileMode` values instead of banning all streams.
+
+---
+
+## [ERR-20260807-017] director-current-target-capability-probe
+
+**Logged**: 2026-08-07T00:00:00+08:00
+**Priority**: medium
+**Status**: pending
+**Area**: tests
+
+### Summary
+AuraDirector behavior tests reject the current Managed/Witch.dll target during
+the allowlisted capability probe.
+
+### Error
+```text
+Assertion failed: current Witch.dll target passes the allowlisted capability probe
+```
+
+### Context
+- The formal net472 behavior project builds successfully.
+- Failure occurs in `TestCurrentGameTargetInstallAndUninstall` before the P1
+  packaging assertions run.
+
+### Suggested Fix
+Audit the current Witch.dll signature/hash against the detour backend's
+capability allowlist without weakening fail-open behavior.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraDirectorDetour.Tests/Program.cs, AuraDirectorDetour-Dev/AuraDirectorReadyToStartDetourBackend.cs
+
+---
+
+## [ERR-20260807-018] mechanical-test-split-dropped-method-signature
+
+**Logged**: 2026-08-07T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+A mechanical C# test split replaced the first helper signature instead of
+wrapping the complete helper block.
+
+### Error
+```text
+CombatAiTestFixtures.cs: error CS1002 / CS1519
+```
+
+### Context
+- The split script replaced the first source line (`void Assert(...)`) with the
+  fixture class declaration.
+- A broad follow-up patch then matched the `ResetAssertions` opening brace.
+
+### Suggested Fix
+Keep the full helper slice, add the class wrapper separately, and inspect the
+first numbered lines before compiling.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraCombatAiShared.Tests/CombatAiTestFixtures.cs
+- Recurrence-Count: 2
+
+### Resolution
+- **Resolved**: 2026-08-07T00:00:00+08:00
+- **Notes**: Restored both method signatures with an exact-context patch. A
+  later domain split duplicated context-local declarations; inspecting the new
+  file header and removing the duplicate restored the build.
+
+---
+
+## [ERR-20260807-019] network-scan-found-gameapi-transport-bypass
+
+**Logged**: 2026-08-07T00:00:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: architecture
+
+### Summary
+The new generic RPC scan found a direct network send in the Terrias GameApi
+layer.
+
+### Error
+```text
+Terrias-Dev/GameApi/SolarMemoryRoleCommitApi.cs: raw RPC transport bypasses an approved network adapter
+```
+
+### Context
+- `SolarMemoryRoleCommitApi` constructed and sent the RPC directly.
+- The corresponding command and authority behavior already belonged to
+  `Terrias-Dev/Network/RpcSolarMemoryRoleCommit.cs`.
+
+### Suggested Fix
+Keep transport selection and sending in the network adapter; let GameApi call a
+transport-neutral submission method.
+
+### Metadata
+- Reproducible: yes
+- Related Files: Terrias-Dev/GameApi/SolarMemoryRoleCommitApi.cs, Terrias-Dev/Network/RpcSolarMemoryRoleCommit.cs
+
+### Resolution
+- **Resolved**: 2026-08-07T00:00:00+08:00
+- **Notes**: Moved client RPC submission into `RpcSolarMemoryRoleCommit.Submit`.
+
+---
+
+## [ERR-20260807-020] network-scan-found-private-cg-authority
+
+**Logged**: 2026-08-07T00:00:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: architecture
+
+### Summary
+The generic server-bound marker scan found that AuraCg still owned a private
+receive-hook authority runtime.
+
+### Error
+```text
+server-bound marker is not registered through AuraRpcAuthorityRuntime: IAuraCgServerBoundRpcCommand
+```
+
+### Suggested Fix
+Delegate sender binding to the shared `AuraRpcAuthorityRuntime` and keep only a
+domain sender adapter in AuraCg.
+
+### Resolution
+- **Resolved**: 2026-08-07T00:00:00+08:00
+- **Notes**: AuraCg now maps `AuraRpcSender` through `AuraCgRpcSender.FromAura`.
+
+---
+
+## [ERR-20260807-021] matrix-list-scalar-count
+
+**Logged**: 2026-08-07T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tooling
+
+### Summary
+The matrix list command accessed `.Count` on unrolled scalar function output
+under strict mode.
+
+### Error
+```text
+PropertyNotFoundException: The property 'Count' cannot be found on this object.
+```
+
+### Suggested Fix
+Wrap function invocation output in `@(...)` before reading `.Count`.
+
+### Resolution
+- **Resolved**: 2026-08-07T00:00:00+08:00
+- **Notes**: Matrix metadata validation now uses array-subexpression counts;
+  `Test-SharedReleaseGate.ps1 -List` completes cleanly.
+
+---
+
+## [ERR-20260807-024] accepted-training-retained-checkpoint-snapshots
+
+**Logged**: 2026-08-07T00:00:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: backend
+
+### Summary
+The first newly accepted absolute-qualified smoke run retained catalog-referenced
+checkpoint episode snapshots after the active checkpoint was reset.
+
+### Error
+```text
+Accepted foundation training must remove resume checkpoints.
+```
+
+### Suggested Fix
+Use the complete checkpoint-artifact deletion path and clear its catalog,
+selection anchor, and immutable checkpoint directory on terminal acceptance.
+
+### Resolution
+- **Resolved**: 2026-08-07T00:00:00+08:00
+- **Notes**: `ResetActiveCheckpoint` now removes the complete resume lineage.
+
+---
+
+## [ERR-20260807-025] foundation-smoke-expected-v4-inline-model
+
+**Logged**: 2026-08-07T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The accepted-path smoke assertion still expected a v4 package with inline model
+weights after production publishing had moved to the v5 external FP32 artifact.
+
+### Error
+```text
+Accepted foundation model package is invalid: schema=5, modelPresent=False
+```
+
+### Suggested Fix
+Validate schema/model version 5 and require the referenced model artifact file
+instead of an inline `Model` object.
+
+### Resolution
+- **Resolved**: 2026-08-07T00:00:00+08:00
+- **Notes**: Updated the Worker smoke assertion to the v5 package contract.
+
+---
+
+## [ERR-20260807-022] skill-validator-default-codepage
+
+**Logged**: 2026-08-07T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tooling
+
+### Summary
+The skill validator used the Windows default code page and failed to read a
+UTF-8 skill containing Chinese text.
+
+### Error
+```text
+UnicodeDecodeError: 'gbk' codec can't decode byte 0xa5
+```
+
+### Suggested Fix
+Set `PYTHONUTF8=1` when invoking the repository skill validator on Windows.
+
+### Resolution
+- **Resolved**: 2026-08-07T00:00:00+08:00
+- **Notes**: Re-ran all changed-skill validation with Python UTF-8 mode.
+
+---
+
+## [ERR-20260807-032] new-test-project-missing-system-usings
+
+**Logged**: 2026-08-07T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: testing
+
+### Summary
+New executable test projects assumed implicit framework usings that were not
+enabled by their project files.
+
+### Error
+```text
+CS0246: List<> could not be found
+CS0103: Console does not exist in the current context
+```
+
+### Suggested Fix
+Add explicit `System`, collection, and LINQ imports to small test executables,
+or explicitly enable implicit usings in their project file.
+
+### Resolution
+- **Resolved**: 2026-08-07T00:00:00+08:00
+- **Notes**: Added explicit imports to the Spirit and Columbina behavior tests.
+
+---
+## [ERR-20260807-028] functions_exec_javascript
+
+**Logged**: 2026-08-07T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+PowerShell array syntax was accidentally placed in the JavaScript orchestration body.
+
+### Error
+```text
+SyntaxError: Invalid or unexpected token
+```
+
+### Context
+- Attempted to compose a multi-step shared release-gate invocation inside `functions.exec`.
+- The outer tool input is JavaScript even when the generated command targets PowerShell.
+
+### Suggested Fix
+Build the step-id list with a JavaScript array, then serialize it into the PowerShell command string.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Test-SharedReleaseGate.ps1
+
+---
+## [ERR-20260807-029] Test-AuraDirectorDetour
+
+**Logged**: 2026-08-07T00:00:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The director test assumed the current Managed/Witch.dll was allowlisted even though the reviewed current build is intentionally unverified.
+
+### Error
+```text
+Assertion failed: current Witch.dll target passes the allowlisted capability probe
+```
+
+### Context
+- `Managed/Witch.dll` is build `1.0.24591395` with SHA-256 `88613C...36F60`.
+- The production detour deliberately allowlists only the game-smoke-tested `1.0.23816797` hash.
+- The test encoded a local-environment assumption instead of the fail-closed capability contract.
+
+### Suggested Fix
+Accept either verified installation behavior or explicit `detour-target-build-unverified` rejection, and always assert that an unverified target remains unpatched.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraDirectorDetour.Tests/Program.cs, artifacts/game-reference/1.0.24591395/ready-to-start-review.md
+
+---
+## [ERR-20260807-030] Test-TerriasBranding
+
+**Logged**: 2026-08-07T00:00:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The branding gate treated absolute paths preserved in generated reference artifacts as live product branding.
+
+### Error
+```text
+Legacy brand remains in tracked text: artifacts/game-reference/.../managed.manifest.json
+```
+
+### Context
+- Game-reference manifests and a generated Combat AI report record the workspace path used to create them.
+- These files are diagnostic provenance, not shipped Terrias text or an operational brand surface.
+
+### Suggested Fix
+Keep the repository-wide tracked-path check, but exclude reference artifacts and the generated report from textual/Base64 brand scans.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Test-TerriasBranding.ps1
+
+---
+## [ERR-20260807-031] git-diff-check-line-endings
+
+**Logged**: 2026-08-07T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+Normalizing one C# file to CRLF caused `git diff --check` to report carriage returns as trailing whitespace on changed lines.
+
+### Error
+```text
+AuraSkinShared/AuraSkinRuntime.cs: trailing whitespace
+```
+
+### Context
+- The repository index and current edits use LF for this source tree.
+- A mechanical rewrite selected the file's pre-existing majority line ending instead of the repository diff convention.
+
+### Suggested Fix
+Normalize the touched file to LF and rerun `git diff --check`.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraSkinShared/AuraSkinRuntime.cs
+
+---
+## [ERR-20260807-033] ripgrep-lookahead
+
+**Logged**: 2026-08-07T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+A repository audit used a negative lookahead without enabling ripgrep's PCRE2 engine.
+
+### Error
+```text
+regex parse error: look-around is not supported
+```
+
+### Context
+- The audit was looking for unscoped `Test-SharedReleaseGate.ps1` documentation.
+
+### Suggested Fix
+Use a simple literal search and inspect the small result set, or pass `--pcre2` when lookaround is necessary.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Test-SharedReleaseGate.ps1
+
+---
+## [ERR-20260807-034] parallel-rg-no-match
+
+**Logged**: 2026-08-07T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+A parallel read-only audit treated ripgrep's normal no-match exit code as a failed orchestration batch.
+
+### Error
+```text
+Script error: Exit code: 1
+```
+
+### Context
+- One of several independent `rg` searches had no matches.
+- `Promise.all` rejected the whole batch before the successful search output could be reported.
+
+### Suggested Fix
+For exploratory searches that may legitimately find nothing, normalize ripgrep exit code 1 to success inside each shell command before running them in parallel.
+
+### Metadata
+- Reproducible: yes
+- Related Files: none
+- Recurrence-Count: 2
 
 ---

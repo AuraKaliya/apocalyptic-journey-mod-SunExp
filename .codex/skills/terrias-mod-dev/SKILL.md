@@ -85,19 +85,19 @@ Use the smallest specialist set that covers the task:
 5. Prefer existing Terrias C# helpers over inline CSV logic. Add a shared helper only when multiple scripts need the same behavior or nil-safe wrapper.
 6. Treat the repository `Managed/` assemblies as the current compile contract. Use the decompiled reference to understand behavior, then verify signatures against current assemblies when APIs may have changed.
 7. Check authoring boundaries before validation when edits touch new C# entry points, hooks, CSV script columns, resource paths, or localized descriptions.
-8. Run validation before finishing. Build and test commands that write
-   `Terrias.Aura.dll` must be serial:
+8. Select validation from `references/validation-rules.md` according to the
+   changed contract. Build and test commands that write `Terrias.Aura.dll`
+   must be serial. A typical Terrias C# behavior change uses:
 
 ```powershell
 tools\Build-TerriasDll.ps1
-tools\Test-TerriasArchitecture.ps1
 tools\Test-TerriasCSharp.ps1
-.\tools\Test-TerriasBranding.ps1
-.\tools\Test-TerriasResources.ps1
-.codex\skills\terrias-event-dev\scripts\validate-terrias-events.ps1 # when events or maps change
-tools\Build-TerriasVisualBundle.ps1 # when VisualAssets or VisualBundles change
-.codex\skills\terrias-mod-dev\scripts\validate-terrias.ps1
 ```
+
+Add architecture, resource, event, visual, shared, network, packaging, or full
+release checks only when the impact matrix selects them. Specialist Terrias
+profiles are independent; `csharp` does not silently include Columbina,
+Elemental, Familiar, or Spirit validation.
 
 ## Hard Rules
 
@@ -124,6 +124,13 @@ tools\Build-TerriasVisualBundle.ps1 # when VisualAssets or VisualBundles change
   duplicating the protocol rules here.
 - Leave `Text/Relic.Tag` blank unless a visible relic label is intentionally needed; it is separate from `Data/Relic.PackBelong`.
 - Do not run `tools\Build-TerriasDll.ps1` and `tools\Test-TerriasCSharp.ps1` in parallel; both can write the same DLL output.
+- Do not run archived `TestMods` validation for Terrias, AuraToolsExp, Core, or
+  shared-runtime changes. Use `tools\Test-TestMods.ps1` only for an explicit
+  prototype-maintenance task.
+- Retire tests that no longer map to a current behavior, public contract,
+  boundary, release artifact, or owned content requirement. Replace brittle
+  source snapshots with behavior tests instead of preserving implementation
+  history indefinitely.
 
 ## Authoring Checks
 
@@ -161,6 +168,21 @@ Run architecture assertions:
 
 ```powershell
 tools\Test-TerriasArchitecture.ps1
+```
+
+List the machine-readable Terrias validation inventory or run a focused
+profile:
+
+```powershell
+tools\Test-TerriasGate.ps1 -List
+tools\Test-TerriasGate.ps1 -Profile elemental
+tools\Test-TerriasGate.ps1 -Tag resources
+```
+
+Run the comprehensive Terrias gate only for release-level validation:
+
+```powershell
+tools\Test-TerriasGate.ps1 -Profile full-release
 ```
 
 Run Terrias CSV/resource validation:

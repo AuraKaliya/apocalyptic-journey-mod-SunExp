@@ -33,15 +33,11 @@ Installation failure leaves the original method enabled.
 
 The automated gate verifies suppression and one-shot re-entry, duplicate hold
 and release handling, sink failure-open behavior, teardown release, patch owner
-installation and removal, target fingerprinting, runtime timeout and cleanup
-contracts, local cast construction, silhouette fallback, and Terrias-only binary
-packaging. The source contract also rejects legacy `UnityEngine.Input` polling
-and requires the Input System skip path, cue-driven letterbox playback, and the
-10-pixel mesh-bound portrait layout. The gates also require the side-portrait
-v2 strategy, its 0.3-second pre-roll, transparent input shield, and playback-
-relative skip debounce. Pure assertions cover friendly-first stable grouping,
-mirrored one-third routes, legacy alternating-v1 compatibility, asymmetric
-sprite bounds, and height-priority wide portraits.
+installation/removal for an allowlisted build, target fingerprint fail-closed
+behavior, and Terrias-only binary packaging. It does not preserve UI layout,
+private method order, or input implementation as source-string snapshots;
+runtime presentation changes require the focused Terrias behavior checks and
+in-game verification appropriate to their impact.
 
 ## Packaging
 

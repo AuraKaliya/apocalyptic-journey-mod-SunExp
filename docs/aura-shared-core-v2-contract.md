@@ -281,9 +281,9 @@ Resource -> Registry -> cross-process write mutex
 ## Release Gate（发布门禁）
 
 顶层门禁为 `tools/Test-SharedReleaseGate.ps1`，由
-`tools/shared-release-matrix.json` 驱动。当前覆盖：Core 契约、共享写入口扫描、架构
-边界、内容/工具边界、网络 RPC authority、AuraTools 功能、主要消费者构建和共享 DLL
-打包一致性。
+`tools/shared-release-matrix.json` 驱动，并要求显式指定 `-Profile`、`-Tag` 或
+`-StepId`。当前覆盖：Core 契约、共享写入口扫描、架构边界、内容/工具边界、
+网络 RPC authority、AuraTools 功能、主要消费者构建和共享 DLL 打包一致性。
 
 `tools/Test-SharedDllPackaging.ps1` 校验：
 
@@ -293,8 +293,8 @@ Resource -> Registry -> cross-process write mutex
 - 消费者项目不私自链接共享源码。
 
 共享源码变更后的发布顺序为：构建共享运行时与受影响消费者、刷新所有打包 DLL、运行
-领域测试、运行 `Test-SharedDllPackaging.ps1`，最后关闭
-`Test-SharedReleaseGate.ps1`。仅编译 Terrias 不能证明共享发布完成。
+领域测试、运行 `Test-SharedDllPackaging.ps1`；只有正式发布候选才运行
+`Test-SharedReleaseGate.ps1 -Profile full-release`。仅编译 Terrias 不能证明共享发布完成。
 
 Terrias 当前接入全景见 `docs/Terrias/04-Aura共享层与核心层接入.md`；同步、authority、
 payload 和去重的细化规则见

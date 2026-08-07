@@ -60,17 +60,13 @@ public static class SkinPackageInstaller
                 throw new InvalidDataException("Skin package owner or manifest path is invalid: " + packageManifestPath);
             }
 
-            var package = JsonConvert.DeserializeObject<SkinPackageManifest>(File.ReadAllText(manifestPath));
-            if (package == null
-                || package.SchemaVersion != 1
-                || string.IsNullOrWhiteSpace(package.PackageId)
-                || package.PackageVersion < 1
-                || package.Resources == null
-                || package.Resources.Count == 0)
+            var parsedPackage = JsonConvert.DeserializeObject<SkinPackageManifest>(File.ReadAllText(manifestPath));
+            if (!SkinPackageValidationPolicy.TryValidateManifest(parsedPackage, out var manifestError))
             {
-                throw new InvalidDataException("Invalid skin package manifest: " + manifestPath);
+                throw new InvalidDataException(manifestError + " Path: " + manifestPath);
             }
 
+            var package = parsedPackage!;
             package.PackageId = package.PackageId.Trim();
             package.ParticipantKind = AuraSharedParticipantKinds.Normalize(package.ParticipantKind);
             var packageDirectory = Path.GetDirectoryName(manifestPath) ?? "";
@@ -179,18 +175,14 @@ public static class SkinPackageInstaller
 
     private static PreparedSkinResource PrepareResource(string packageDirectory, SkinPackageResource? resource)
     {
-        var relativeSource = AuraSharedPaths.NormalizeRelativePath(resource?.Source ?? "");
-        if (string.IsNullOrWhiteSpace(relativeSource) || Path.IsPathRooted(relativeSource))
+        if (!SkinPackageValidationPolicy.TryResolveSourceDirectory(
+                packageDirectory,
+                resource?.Source,
+                out var relativeSource,
+                out var sourceDirectory,
+                out var sourceError))
         {
-            throw new InvalidDataException("Skin package resource source must be relative.");
-        }
-
-        var sourceDirectory = Path.GetFullPath(Path.Combine(
-            packageDirectory,
-            relativeSource.Replace('/', Path.DirectorySeparatorChar)));
-        if (!AuraSharedPaths.IsInsideDirectory(sourceDirectory, packageDirectory) || !Directory.Exists(sourceDirectory))
-        {
-            throw new InvalidDataException("Skin package source is missing or escapes its package: " + relativeSource);
+            throw new InvalidDataException(sourceError);
         }
 
         var skinManifestPath = Path.Combine(sourceDirectory, "skin.json");

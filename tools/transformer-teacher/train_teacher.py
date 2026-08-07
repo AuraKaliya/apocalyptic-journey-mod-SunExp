@@ -4,8 +4,10 @@
 from __future__ import annotations
 
 import argparse
+from collections import OrderedDict, deque
 import copy
 import ctypes
+import gc
 import hashlib
 import json
 import math
@@ -50,6 +52,10 @@ def arguments() -> argparse.Namespace:
     parser.add_argument("--micro-batch-size", type=int, default=0)
     parser.add_argument("--loader-workers", type=int, default=0)
     parser.add_argument("--prefetch-batches", type=int, default=2)
+    parser.add_argument(
+        "--dataset-storage", choices=("resident", "sharded"), default="sharded"
+    )
+    parser.add_argument("--dataset-shard-frames", type=int, default=64)
     parser.add_argument("--pin-memory", type=int, choices=(0, 1), default=1)
     parser.add_argument("--mixed-precision", type=int, choices=(0, 1), default=1)
     parser.add_argument("--runtime-cache", default="")
@@ -471,6 +477,192 @@ class TeacherDataset(Dataset):
         return self.rows[index]
 
 
+class ShardedTeacherDataset(Dataset):
+    def __init__(
+        self,
+        source_path: Path,
+        root_owner: tempfile.TemporaryDirectory,
+        shard_paths: list[Path],
+        locations: list[tuple[int, int]],
+        metadata: list[dict],
+    ):
+        self.source_path = source_path
+        self.root_owner = root_owner
+        self.shard_paths = shard_paths
+        self.locations = locations
+        self.rows = metadata
+        self.cache: OrderedDict[int, list[dict]] = OrderedDict()
+
+    @classmethod
+    def build(
+        cls,
+        path: Path,
+        history_length: int,
+        shard_frames: int,
+        progress: ProgressReporter | None = None,
+    ) -> "ShardedTeacherDataset":
+        owner = tempfile.TemporaryDirectory(prefix="aura-teacher-shards-")
+        root = Path(owner.name)
+        shard_paths: list[Path] = []
+        locations: list[tuple[int, int]] = []
+        metadata: list[dict] = []
+        shard: list[dict] = []
+        histories: OrderedDict[str, deque] = OrderedDict()
+        started = time.perf_counter()
+        limit = max(16, min(512, int(shard_frames)))
+
+        def flush() -> None:
+            if not shard:
+                return
+            shard_index = len(shard_paths)
+            shard_path = root / f"shard-{shard_index:05d}.pt"
+            torch.save(shard, shard_path)
+            shard_paths.append(shard_path)
+            shard.clear()
+
+        try:
+            with path.open("r", encoding="utf-8") as stream:
+                for line in stream:
+                    if not line.strip():
+                        continue
+                    row = json.loads(line)
+                    if len(row.get("A", [])) < 1:
+                        continue
+                    row["P"] = normalized(row.get("P", []))
+                    if not row.get("O"):
+                        row["O"] = [row["S"]]
+                    tensorize_row(row)
+                    key = str(
+                        row.get("Y")
+                        or f"episode:{int(row.get('E', 0))}"
+                    ) + f"|battle:{int(row.get('B', -1))}"
+                    history = histories.pop(key, deque(maxlen=history_length))
+                    histories[key] = history
+                    if history:
+                        row["_history_state_tensor"] = torch.stack(
+                            [item[0] for item in history]
+                        )
+                        row["_history_action_tensor"] = torch.stack(
+                            [item[1] for item in history]
+                        )
+                    else:
+                        row["_history_state_tensor"] = torch.empty(
+                            0,
+                            row["_state_tensor"].shape[0],
+                            dtype=torch.float16,
+                        )
+                        row["_history_action_tensor"] = torch.empty(
+                            0,
+                            row["_action_tensor"].shape[1],
+                            dtype=torch.float16,
+                        )
+                    executed = max(
+                        0,
+                        min(row["_action_tensor"].shape[0] - 1, int(row["X"])),
+                    )
+                    history.append(
+                        (
+                            row["_state_tensor"],
+                            row["_action_tensor"][executed],
+                        )
+                    )
+                    while len(histories) > 512:
+                        histories.popitem(last=False)
+                    row["_bucket_cost"] = (
+                        int(row["_action_tensor"].shape[0])
+                        + int(row["_object_tensor"].shape[0])
+                        + int(row["_history_state_tensor"].shape[0]) * 2
+                    )
+                    row["_tensorized_complete"] = True
+                    row["_history"] = []
+                    release_raw_arrays([row])
+                    shard_index = len(shard_paths)
+                    locations.append((shard_index, len(shard)))
+                    metadata.append(
+                        {
+                            "Y": row.get("Y"),
+                            "E": int(row.get("E", 0)),
+                            "C": row.get("C", "normal"),
+                            "L": row.get("L", "general"),
+                            "J": int(row.get("J", 0)),
+                            "M": int(row.get("M", 0)),
+                            "_sampling_repeats": int(
+                                row.get("_sampling_repeats", 1)
+                            ),
+                            "_bucket_cost": int(row["_bucket_cost"]),
+                        }
+                    )
+                    shard.append(row)
+                    if len(shard) >= limit:
+                        flush()
+                    if progress is not None and len(metadata) % 64 == 0:
+                        elapsed = max(1.0e-6, time.perf_counter() - started)
+                        progress.update(
+                            emit=False,
+                            CompletedFrames=len(metadata),
+                            FramesPerSecond=len(metadata) / elapsed,
+                            Message=f"正在分片张量化数据 {len(metadata):,} 帧",
+                        )
+            flush()
+            histories.clear()
+            gc.collect()
+            return cls(path, owner, shard_paths, locations, metadata)
+        except Exception:
+            owner.cleanup()
+            raise
+
+    def __len__(self) -> int:
+        return len(self.locations)
+
+    def __getitem__(self, index: int) -> dict:
+        shard_index, local_index = self.locations[index]
+        rows = self.cache.pop(shard_index, None)
+        if rows is None:
+            try:
+                rows = torch.load(
+                    self.shard_paths[shard_index],
+                    map_location="cpu",
+                    weights_only=False,
+                )
+            except TypeError:
+                rows = torch.load(
+                    self.shard_paths[shard_index], map_location="cpu"
+                )
+        self.cache[shard_index] = rows
+        while len(self.cache) > 2:
+            self.cache.popitem(last=False)
+        return rows[local_index]
+
+    def clear_cache(self) -> None:
+        self.cache.clear()
+        gc.collect()
+
+    def close(self) -> None:
+        self.clear_cache()
+        if self.root_owner is not None:
+            self.root_owner.cleanup()
+            self.root_owner = None
+
+    def __getstate__(self) -> dict:
+        state = dict(self.__dict__)
+        state["cache"] = OrderedDict()
+        state["root_owner"] = None
+        return state
+
+
+class ShardedDatasetView(Dataset):
+    def __init__(self, source: ShardedTeacherDataset, indices: list[int]):
+        self.source = source
+        self.indices = indices
+        self.rows = [source.rows[index] for index in indices]
+
+    def __len__(self) -> int:
+        return len(self.indices)
+
+    def __getitem__(self, index: int) -> dict:
+        return self.source[self.indices[index]]
+
+
 class LengthBucketBatchSampler(Sampler[list[int]]):
     def __init__(self, rows: list[dict], batch_size: int, seed: int):
         self.rows = rows
@@ -543,6 +735,21 @@ def validation_run_ids(
             validation_ids.add(
                 min(candidates, key=lambda key: (stable_partition_score(key, seed), key))
             )
+    required_frames = min(192, max(64, len(rows) // 5))
+    frames_by_run: dict[str, int] = {}
+    for row in rows:
+        key = run_key(row)
+        frames_by_run[key] = frames_by_run.get(key, 0) + 1
+    selected_frames = sum(frames_by_run.get(key, 0) for key in validation_ids)
+    remaining_ids = sorted(
+        set(episodes).difference(validation_ids),
+        key=lambda key: (stable_partition_score(key, seed), key),
+    )
+    for key in remaining_ids:
+        if selected_frames >= required_frames or len(validation_ids) >= len(episodes) - 1:
+            break
+        validation_ids.add(key)
+        selected_frames += frames_by_run.get(key, 0)
     if len(validation_ids) == len(episodes) and len(episodes) > 1:
         validation_ids.remove(
             max(validation_ids, key=lambda key: (stable_partition_score(key, seed), key))
@@ -579,6 +786,8 @@ def write_anchor_rows(path: Path, rows: list[dict]) -> None:
 def training_and_anchor_rows(
     rows: list[dict], args: argparse.Namespace
 ) -> tuple[list[dict], list[dict], bool]:
+    if isinstance(rows, ShardedTeacherDataset):
+        return sharded_training_and_anchor_rows(rows, args)
     if not args.fixed_anchor or not args.anchor:
         training, validation = split_rows(rows, args.seed)
         return training, validation, False
@@ -601,6 +810,66 @@ def training_and_anchor_rows(
     training, validation = split_rows(rows, args.seed)
     write_anchor_rows(anchor_path, validation)
     return training, validation, True
+
+
+def sharded_training_and_anchor_rows(
+    rows: ShardedTeacherDataset, args: argparse.Namespace
+) -> tuple[ShardedDatasetView, ShardedDatasetView, bool]:
+    metadata = rows.rows
+    anchor_created = False
+    initial_ids: set[str] = set()
+    anchor_path = Path(args.anchor) if args.anchor else None
+    if args.fixed_anchor and anchor_path is not None and anchor_path.exists():
+        with anchor_path.open("r", encoding="utf-8") as stream:
+            for line in stream:
+                if not line.strip():
+                    continue
+                payload = json.loads(line)
+                initial_ids.add(run_key(payload))
+    validation_ids = validation_run_ids(metadata, args.seed, initial_ids)
+    if args.fixed_anchor and anchor_path is not None:
+        if not initial_ids:
+            anchor_created = True
+        if anchor_created or validation_ids.difference(initial_ids):
+            write_anchor_from_source(
+                rows.source_path, anchor_path, validation_ids
+            )
+    training_indices = [
+        index
+        for index, row in enumerate(metadata)
+        if run_key(row) not in validation_ids
+    ]
+    validation_indices = [
+        index
+        for index, row in enumerate(metadata)
+        if run_key(row) in validation_ids
+    ]
+    if not training_indices:
+        training_indices = list(range(max(0, len(metadata) - 1)))
+        validation_indices = [max(0, len(metadata) - 1)]
+    return (
+        ShardedDatasetView(rows, training_indices),
+        ShardedDatasetView(rows, validation_indices),
+        anchor_created,
+    )
+
+
+def write_anchor_from_source(
+    source_path: Path, anchor_path: Path, validation_ids: set[str]
+) -> None:
+    anchor_path.parent.mkdir(parents=True, exist_ok=True)
+    temporary = anchor_path.with_suffix(anchor_path.suffix + ".tmp")
+    with source_path.open("r", encoding="utf-8") as source, temporary.open(
+        "w", encoding="utf-8", newline="\n"
+    ) as destination:
+        for line in source:
+            if not line.strip():
+                continue
+            payload = json.loads(line)
+            if run_key(payload) in validation_ids:
+                destination.write(line.rstrip("\r\n"))
+                destination.write("\n")
+    temporary.replace(anchor_path)
 
 
 def collate(rows: list[dict]) -> dict[str, torch.Tensor]:
@@ -1316,7 +1585,7 @@ def head_regression_passed(
 
 
 def train(
-    rows: list[dict],
+    rows,
     args: argparse.Namespace,
     device: torch.device,
     runtime: dict,
@@ -1344,20 +1613,35 @@ def train(
         TrainingEnabled=bool(args.training_enabled),
         Message="正在校准 Transformer 执行计划",
     )
-    sample_raw = collate(training_rows[: min(args.batch_size, len(training_rows))])
+    training_metadata = getattr(training_rows, "rows", training_rows)
+    validation_metadata = getattr(validation_rows, "rows", validation_rows)
+    sample_raw = collate(
+        [
+            training_rows[index]
+            for index in range(min(args.batch_size, len(training_rows)))
+        ]
+    )
     plan = resolve_runtime_plan(model, sample_raw, args, device, runtime)
     worker_options = loader_options(plan, device)
-    training_dataset = TeacherDataset(training_rows)
+    if isinstance(rows, ShardedTeacherDataset):
+        rows.clear_cache()
+    training_dataset = (
+        training_rows
+        if isinstance(training_rows, Dataset)
+        else TeacherDataset(training_rows)
+    )
     training_loader = DataLoader(
         training_dataset,
         batch_sampler=LengthBucketBatchSampler(
-            training_rows, args.batch_size, args.seed
+            training_metadata, args.batch_size, args.seed
         ),
         collate_fn=collate,
         **worker_options,
     )
     validation_loader = DataLoader(
-        TeacherDataset(validation_rows),
+        validation_rows
+        if isinstance(validation_rows, Dataset)
+        else TeacherDataset(validation_rows),
         batch_size=plan["micro_batch_size"],
         shuffle=False,
         collate_fn=collate,
@@ -1382,21 +1666,21 @@ def train(
     processed_frames = 0
     training_started = time.perf_counter()
     total_frame_work = sum(
-        int(row.get("_sampling_repeats", 1)) for row in training_rows
+        int(row.get("_sampling_repeats", 1)) for row in training_metadata
     ) * max(0, args.epochs)
     if not args.training_enabled:
         progress.update(
             Stage="evaluating",
             TotalEpochs=0,
-            TotalFrames=len(validation_rows),
+            TotalFrames=len(validation_metadata),
             Message="正在评估复用的 Transformer 教师",
         )
         return (
             model,
             best_metrics,
             0,
-            len(training_rows),
-            len(validation_rows),
+            len(training_metadata),
+            len(validation_metadata),
             plan,
             0.0,
             warm_started,
@@ -1411,7 +1695,7 @@ def train(
                 "update_accepted": False,
                 "head_gate_passed": True,
                 "teacher_generation": prior_generation,
-                "anchor_frames": len(validation_rows),
+                "anchor_frames": len(validation_metadata),
                 "anchor_created": anchor_created,
             },
         )
@@ -1511,8 +1795,8 @@ def train(
         model,
         best_metrics,
         executed,
-        len(training_rows),
-        len(validation_rows),
+        len(training_metadata),
+        len(validation_metadata),
         plan,
         processed_frames / training_seconds,
         warm_started,
@@ -1527,7 +1811,7 @@ def train(
             "update_accepted": update_accepted,
             "head_gate_passed": head_gate_passed,
             "teacher_generation": prior_generation + (1 if update_accepted else 0),
-            "anchor_frames": len(validation_rows),
+            "anchor_frames": len(validation_metadata),
             "anchor_created": anchor_created,
         },
     )
@@ -1536,14 +1820,14 @@ def train(
 @torch.no_grad()
 def annotate(
     model: StrategyTransformer,
-    rows: list[dict],
+    rows,
     plan: dict,
     device: torch.device,
     path: Path,
     progress: ProgressReporter,
 ) -> tuple[float, float]:
     loader = DataLoader(
-        TeacherDataset(rows),
+        rows if isinstance(rows, Dataset) else TeacherDataset(rows),
         batch_size=plan["micro_batch_size"],
         shuffle=False,
         collate_fn=collate,
@@ -1619,7 +1903,66 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
         rows[-1]["A"] = rows[-1]["A"][:1]
         rows[-1]["P"] = [1.0]
         rows[-1]["X"] = 0
+        with tempfile.TemporaryDirectory(
+            prefix="aura-teacher-sharded-self-test-"
+        ) as sharded_root:
+            sharded_input = Path(sharded_root) / "input.jsonl"
+            with sharded_input.open("w", encoding="utf-8") as stream:
+                for row in rows:
+                    payload = {
+                        key: value
+                        for key, value in row.items()
+                        if not key.startswith("_")
+                    }
+                    stream.write(json.dumps(payload, separators=(",", ":")))
+                    stream.write("\n")
+            sharded = ShardedTeacherDataset.build(
+                sharded_input, args.history, 16, progress
+            )
+            assert len(sharded) == len(rows)
+            assert collate([sharded[0]])["states"].shape[0] == 1
+            prior_anchor = args.anchor
+            prior_fixed_anchor = args.fixed_anchor
+            try:
+                args.anchor = str(Path(sharded_root) / "anchor.jsonl")
+                args.fixed_anchor = 1
+                (
+                    _,
+                    sharded_metrics,
+                    sharded_executed,
+                    sharded_training_count,
+                    sharded_validation_count,
+                    _,
+                    _,
+                    _,
+                    _,
+                    _,
+                ) = train(sharded, args, device, runtime, progress)
+                assert math.isfinite(sharded_metrics["policy_ce"])
+                assert sharded_metrics["dynamics_frames"] > 0
+                assert sharded_executed > 0
+                assert sharded_training_count > 0
+                assert sharded_validation_count > 0
+                assert Path(args.anchor).exists()
+            finally:
+                args.anchor = prior_anchor
+                args.fixed_anchor = prior_fixed_anchor
+                sharded.close()
         tensorize_rows(rows)
+        coverage_rows = [
+            {"Y": f"coverage:{index // 20}", "E": index // 20}
+            for index in range(400)
+        ]
+        coverage_ids = validation_run_ids(
+            coverage_rows,
+            args.seed,
+            {"coverage:0"},
+        )
+        coverage_frames = sum(
+            1 for row in coverage_rows if run_key(row) in coverage_ids
+        )
+        assert coverage_frames >= min(192, max(64, len(coverage_rows) // 5))
+        assert len(coverage_ids) < 20
         assert rows[0]["_sampling_repeats"] == 2
         assert not bool(collate(rows[-1:])["policy_supervision_mask"][0])
         (
@@ -1722,7 +2065,15 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
     cpu_started = time.process_time()
     progress.update(Stage="loading", Message="正在读取 Transformer 数据集")
     loading_started = time.perf_counter()
-    rows = load_rows(Path(args.input), args.history, progress)
+    if args.dataset_storage == "sharded":
+        rows = ShardedTeacherDataset.build(
+            Path(args.input),
+            args.history,
+            args.dataset_shard_frames,
+            progress,
+        )
+    else:
+        rows = load_rows(Path(args.input), args.history, progress)
     loading_seconds = time.perf_counter() - loading_started
     if not rows:
         raise RuntimeError("Transformer teacher dataset contains no usable frames")
@@ -1732,7 +2083,8 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
         TotalFrames=len(rows),
         Message="正在张量化并建立序列历史",
     )
-    tensorize_rows(rows)
+    if not isinstance(rows, ShardedTeacherDataset):
+        tensorize_rows(rows)
     preparation_seconds = time.perf_counter() - preparation_started
     (
         model,
@@ -1842,6 +2194,16 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
         "PeakWorkingSetBytes": max(
             progress.peak_working_set_bytes, working_set_bytes()
         ),
+        "DatasetStorageMode": (
+            "sharded-disk-v1"
+            if isinstance(rows, ShardedTeacherDataset)
+            else "resident"
+        ),
+        "DatasetShardFrames": (
+            max(16, min(512, int(args.dataset_shard_frames)))
+            if isinstance(rows, ShardedTeacherDataset)
+            else 0
+        ),
         "DataLoadingSeconds": loading_seconds,
         "DataPreparationSeconds": preparation_seconds,
         "RuntimeCalibrationSeconds": float(plan["calibration_seconds"]),
@@ -1867,6 +2229,8 @@ def execute(args: argparse.Namespace, progress: ProgressReporter) -> int:
         TrainingEnabled=bool(args.training_enabled),
         Message="Transformer 教师已完成",
     )
+    if isinstance(rows, ShardedTeacherDataset):
+        rows.close()
     return 0
 
 

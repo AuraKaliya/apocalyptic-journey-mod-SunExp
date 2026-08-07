@@ -1,67 +1,106 @@
 # Validation Rules
 
-Use this reference before finishing any Terrias content change.
+Select validation from the changed contract and its blast radius. Do not run a
+fixed repository-wide chain for every Terrias or shared edit.
 
-## Required automated checks
+## Impact Matrix
 
-Run the base chain serially:
+| Change | Required validation |
+| --- | --- |
+| Terrias Data/Text only | `validate-terrias.ps1` plus the affected domain validator |
+| Terrias resources or registries | `tools/Test-TerriasResources.ps1` |
+| Terrias C# behavior | `tools/Build-TerriasDll.ps1` plus the focused C# or domain tests |
+| Terrias architecture, hooks, or CSV entry boundaries | add `tools/Test-TerriasArchitecture.ps1` |
+| One Terrias feature domain | `tools/Test-TerriasGate.ps1 -Profile <domain>` |
+| One shared domain's internal behavior | `tools/Build-AuraSharedRuntime.ps1` plus that domain's behavior suite |
+| Shared public API, schema, or compatibility range | add `tools/Test-SharedRuntimeCompatibility.ps1` and affected main-consumer builds |
+| Shared Core storage or resource protocol | `tools/Test-AuraSharedCore.ps1` and the focused domain suite |
+| Shared RPC sender authority, payload, dedupe, or lifecycle | `tools/Test-SharedReleaseGate.ps1 -Profile network` |
+| RPC command registration or transport boundary scanner | `tools/Test-NetworkRpcAuthority.ps1` |
+| Combat AI shared behavior | `tools/Test-SharedReleaseGate.ps1 -Profile combat-ai` |
+| Foundation worker implementation | `tools/Test-SharedReleaseGate.ps1 -Profile foundation` |
+| Consumer project references or packaged shared DLLs | `tools/Test-SharedDllPackaging.ps1` after affected builds |
+| Broad shared cross-domain change or release candidate | `tools/Test-SharedReleaseGate.ps1 -Profile full-release` |
+| Terrias release candidate | `tools/Test-TerriasGate.ps1 -Profile full-release` |
+| Skill-only change | skill quick validation and Terrias skill staleness audit |
+| TestMods prototype maintenance | `tools/Test-TestMods.ps1` only |
+
+Commands that write `Terrias.Aura.dll`, `Entry.dll`, or `Aura.Shared.dll` must
+run serially when they share an output path.
+
+## Ownership
+
+- Shared behavior belongs to a focused shared-domain test project.
+- Core storage, path, transaction, and registry behavior belongs to Core tests.
+- Terrias content ids, assets, and presentation declarations belong to Terrias
+  validators.
+- AuraToolsExp-owned content and effective tool configuration belong to the
+  AuraToolsExp suite.
+- Cross-mod packaging and ownership boundaries have one authoritative shared
+  gate; consumer suites should keep only a focused integration smoke test.
+- `TestMods` contains archived prototypes. It is never a release consumer and
+  must not be pulled into shared/core, AuraToolsExp, or Terrias validation.
+
+## Test Retirement
+
+A test may remain only when it maps to at least one current contract:
+
+- observable behavior;
+- public schema or compatibility promise;
+- security, path, multiplayer authority, or ownership boundary;
+- build/package/release artifact invariant;
+- current product content owned by the suite.
+
+Replace a test when the contract is current but the assertion only scans source
+tokens, private method names, exact implementation structure, or file layout.
+Delete a test when it only preserves a completed migration, retired id, old
+protocol number, removed file, duplicate invariant, or one-time implementation
+snapshot. Migration tests must declare an exit condition and must not become
+permanent negative source scans.
+
+Keep one authoritative test for each invariant. Other layers may prove that
+they integrate with the contract, but must not copy its full assertion set.
+
+## Manual Checks
+
+Automated checks do not prove Unity runtime semantics. Manually reason through
+changed hooks, UI layout/raycast behavior, animation fallback, multiplayer
+timing, and Managed signature compatibility. Run in-game verification when the
+change depends on Unity objects or host lifecycle order.
+
+## Focused Commands
 
 ```powershell
 tools\Build-TerriasDll.ps1
-tools\Test-TerriasArchitecture.ps1
 tools\Test-TerriasCSharp.ps1
+tools\Test-TerriasArchitecture.ps1
+tools\Test-TerriasResources.ps1
+tools\Test-TerriasGate.ps1 -List
+tools\Test-TerriasGate.ps1 -Profile elemental
+tools\Test-TerriasGate.ps1 -Profile spirit
 .codex\skills\terrias-mod-dev\scripts\validate-terrias.ps1
+.codex\skills\terrias-event-dev\scripts\validate-terrias-events.ps1
+tools\Test-AuraSharedCore.ps1
+tools\Build-AuraSharedRuntime.ps1
+tools\Test-AuraSkinShared.ps1
+tools\Test-AuraCgShared.ps1
+tools\Test-AuraCombatAi.ps1
+tools\Test-AuraCombatTrainingArtifacts.ps1
+tools\Test-AuraCombatSimulationAcceptance.ps1
+tools\Test-SharedRuntimeCompatibility.ps1
+tools\Build-MainSharedConsumers.ps1
+tools\Test-NetworkRpcAuthority.ps1
+tools\Test-SharedDllPackaging.ps1
+tools\Test-SharedReleaseGate.ps1 -Profile network
+tools\Test-SharedReleaseGate.ps1 -Profile combat-ai
+tools\Test-SharedReleaseGate.ps1 -Profile full-release
 ```
 
-Run these serially. `Build-TerriasDll.ps1` and `Test-TerriasCSharp.ps1` can both
-write `Terrias-Dev/obj/Release/net472/Terrias.Aura.dll` and should not be
-parallelized.
+`tools/terrias-test-matrix.json` is the authoritative Terrias validation
+inventory. Every enabled step declares its owner, category, cost, impact tags,
+and profiles. Select by `-Profile`, `-Tag`, or `-StepId`; do not add hidden
+child-suite calls to feature or architecture scripts.
 
-Add scenario checks as needed:
-
-```powershell
-.codex\skills\terrias-event-dev\scripts\validate-terrias-events.ps1 # EventList or Map
-tools\Build-TerriasVisualBundle.ps1 # VisualAssets, shaders, bundled CG, or VisualBundles
-tools\Test-NetworkRpcAuthority.ps1 # Terrias or AuraTools server-bound RPC authority
-tools\Test-SharedArchitectureGuidelines.ps1 # shared runtime contract or docs
-tools\Test-AuraSharedCore.ps1 # AuraSharedCore or shared protocol
-tools\Test-SharedReleaseGate.ps1 # broad shared release compatibility
-tools\Test-SharedDllPackaging.ps1 # packaged Aura.Shared.dll references or hashes
-tools\Build-AuraToolsExpDll.ps1 # AuraTools shared consumer or Skill CG tool changes
-.codex\skills\terrias-skill-evolution\scripts\audit-terrias-skill-staleness.ps1 # skill or architecture-boundary updates
-```
-
-This checks:
-
-- C# compile, architecture assertions, and focused Terrias C# regression tests.
-- Old dynamic helper calls, inline script blocks, or production `.lua` files.
-- Data/Text ID pairing for matching Terrias CSV files under `Data/` and `Text/`, including role-specific files such as `wuna.csv`.
-- Data/Text ID pairing for Map when present. Tables with no Text side, such as current `Data/Level`, are allowed.
-- EventList text shape for `TotalDescribe` and scripted option descriptions.
-- Removed historical event ids guarded by the validation script.
-- `PackBelong` references for cards and relics.
-- Mod resource paths that point to missing files.
-- Enemy animation folders that need `Map/*.png` or `Map/*.jpg` frames for map icons.
-- Supported `Text/Map.Note` values used by map UI.
-- Basic `{0}` style placeholder consistency for card descriptions.
-
-## Manual checks
-
-Automated checks do not prove Unity runtime semantics. Manually reason through:
-
-- Does every target effect set the intended status first?
-- Does dynamic display match runtime behavior?
-- Does every event listener avoid duplicated hooks?
-- Does every changed behavior update player-facing text?
-- Does any changed hook, audio provider, BGM provider, animated icon runtime, or game API wrapper need in-game verification?
-- Does a compatibility wrapper support the current Managed signature, known legacy signature, and a deterministic fallback?
-- Does each custom map node have `NodeDice`, and are shared run/map mutations host-authoritative?
-- Can one failed lifecycle step prevent unrelated setup from running?
-- Does visual runtime work need VisualBundle rebuild, shader/material checks, or
-  in-game overlay/raycast verification?
-- Does shared runtime work require packaged `Aura.Shared.dll` hash validation
-  across all consumers?
-
-## Known limitations
-
-The local validation script cannot load the Unity runtime, instantiate `ScriptExecutor`, or prove UI/DLL hook behavior. Treat any UI hook, card-pack selection rule, or Managed-layer behavior as needing in-game verification.
+The `spirit` profile explicitly selects three independent contracts: structured
+content, registry schema behavior, and runtime behavior. Keep those entries
+separate rather than rebuilding a hidden Spirit aggregate inside any script.

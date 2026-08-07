@@ -966,6 +966,8 @@ public sealed class CombatFoundationReplaySelection
 
     public int PinnedContentEpisodes { get; set; }
 
+    public int PinnedCurrentIterationEpisodes { get; set; }
+
     public int SelectedFrames { get; set; }
 
     public long EstimatedResidentBytes { get; set; }
@@ -1125,6 +1127,70 @@ public static class CombatFoundationReplaySampler
             .ToList();
         selection.Episodes = merged;
         selection.PinnedContentEpisodes = pinned.Count;
+        selection.NormalEpisodes = merged.Count(episode => !IsAdvanced(episode));
+        selection.AdvancedEpisodes = merged.Count(IsAdvanced);
+        selection.AdvancedDefeatEpisodes = merged.Count(episode =>
+            IsAdvanced(episode) && !IsSuccessful(episode));
+        selection.SuccessfulEpisodes = merged.Count(IsSuccessful);
+        selection.SelectedCampaigns = merged.Select(CampaignKey)
+            .Distinct(StringComparer.Ordinal)
+            .Count();
+        selection.SuccessfulCampaigns = merged.Where(IsSuccessful)
+            .Select(CampaignKey)
+            .Distinct(StringComparer.Ordinal)
+            .Count();
+        selection.SelectedPriorityMean = merged.Count == 0
+            ? 0d
+            : merged.Average(EpisodePriority);
+        selection.SelectedHighPriorityEpisodes = Math.Min(
+            selection.SelectedHighPriorityEpisodes,
+            merged.Count);
+    }
+
+    public static void PinCurrentIterationEpisodes(
+        CombatFoundationReplaySelection selection,
+        IEnumerable<CombatEpisode>? current,
+        int episodeLimit,
+        double requestedShare)
+    {
+        if (selection == null) throw new ArgumentNullException(nameof(selection));
+        var share = double.IsNaN(requestedShare)
+                    || double.IsInfinity(requestedShare)
+            ? 0.60d
+            : Math.Max(0d, Math.Min(0.80d, requestedShare));
+        var limit = Math.Max(1, episodeLimit);
+        var currentEpisodes = (current ?? Array.Empty<CombatEpisode>())
+            .Where(episode => episode != null)
+            .GroupBy(StableKey, StringComparer.Ordinal)
+            .Select(group => group.First())
+            .OrderByDescending(EpisodePriority)
+            .ThenBy(StableKey, StringComparer.Ordinal)
+            .ToList();
+        if (share <= 0d || currentEpisodes.Count == 0)
+        {
+            selection.PinnedCurrentIterationEpisodes = 0;
+            return;
+        }
+        var selectedCount = selection.Episodes?.Count ?? 0;
+        var windowSize = selectedCount > 0
+            ? Math.Min(limit, selectedCount)
+            : Math.Min(limit, currentEpisodes.Count);
+        var quota = Math.Min(
+            currentEpisodes.Count,
+            Math.Max(1, (int)Math.Round(
+                windowSize * share,
+                MidpointRounding.AwayFromZero)));
+        var pinned = currentEpisodes.Take(quota).ToList();
+        var pinnedKeys = pinned.Select(StableKey)
+            .ToHashSet(StringComparer.Ordinal);
+        var merged = pinned.Concat((selection.Episodes
+                                    ?? new List<CombatEpisode>())
+                .Where(episode => !pinnedKeys.Contains(StableKey(episode))))
+            .Take(windowSize)
+            .OrderBy(StableKey, StringComparer.Ordinal)
+            .ToList();
+        selection.Episodes = merged;
+        selection.PinnedCurrentIterationEpisodes = pinned.Count;
         selection.NormalEpisodes = merged.Count(episode => !IsAdvanced(episode));
         selection.AdvancedEpisodes = merged.Count(IsAdvanced);
         selection.AdvancedDefeatEpisodes = merged.Count(episode =>

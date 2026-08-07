@@ -7,8 +7,6 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $project = Join-Path $repoRoot "Terrias-Dev.ElementalTests\Terrias-Dev.ElementalTests.csproj"
 $dataPath = Join-Path $repoRoot "Terrias\Data\Buff\terrias.csv"
 $textPath = Join-Path $repoRoot "Terrias\Text\Buff\terrias.csv"
-$runtimePath = Join-Path $repoRoot "Terrias-Dev\Hooks\RuntimeHooks.cs"
-$rpcPath = Join-Path $repoRoot "Terrias-Dev\Network\RpcElementalMechanics.cs"
 
 dotnet run --project $project -c $Configuration
 if ($LASTEXITCODE -ne 0) {
@@ -55,32 +53,4 @@ foreach ($id in $expectedAttachmentDescriptions.Keys) {
     }
 }
 
-$runtime = [System.IO.File]::ReadAllText($runtimePath)
-if (-not $runtime.Contains('ElementalMechanicsRuntime.Initialize(modConfig)')) {
-    throw "Elemental mechanics runtime is not registered."
-}
-
-$rpc = [System.IO.File]::ReadAllText($rpcPath)
-if (-not $rpc.Contains('RpcElementalCrystalCreateRequest : RpcCommandBase, ITerriasServerBoundRpcCommand')) {
-    throw "Elemental crystal creation must remain sender-bound."
-}
-if (-not $rpc.Contains('RpcElementalCrystalClaim : RpcCommandBase, ITerriasServerBoundRpcCommand')) {
-    throw "Elemental crystal claim must remain sender-bound."
-}
-
-$damageApi = [System.IO.File]::ReadAllText((Join-Path $repoRoot "Terrias-Dev\GameApi\DamageApi.cs"))
-if (-not $damageApi.Contains('CreateCardSourceExecutor')) {
-    throw "Status-triggered elemental damage must have a configured native source executor path."
-}
-if (-not $damageApi.Contains('HasNativeDamageIdentity')) {
-    throw "Native damage must validate its source data Id."
-}
-
-$reactionService = [System.IO.File]::ReadAllText((Join-Path $repoRoot "Terrias-Dev\Mechanics\ElementalReactionService.cs"))
-$validateIndex = $reactionService.IndexOf('if (!CanCommit(plan))')
-$consumeIndex = $reactionService.IndexOf('CommitConsumedAttachment(plan);')
-if ($validateIndex -lt 0 -or $consumeIndex -lt 0 -or $validateIndex -gt $consumeIndex) {
-    throw "Elemental resolution must validate its damage source before consuming an attachment."
-}
-
-Write-Host "Terrias elemental mechanics assertions passed."
+Write-Host "Terrias elemental content and behavior assertions passed."

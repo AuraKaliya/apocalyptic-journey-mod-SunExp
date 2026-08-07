@@ -277,6 +277,37 @@ Assert(networkEvent.EventToken == "play" && networkEvent.ActionSequence == 91, "
 Assert(AuraCgNetworkPolicy.PlaybackKey(" player ", " play ") == "player|play", "playback key normalized");
 Assert(AuraCgNetworkPolicy.PlaybackKey("", "play") == "", "incomplete playback key rejected");
 
+var sender = new AuraCgNetworkSenderSnapshot(
+    isAvailable: true,
+    isLobbyMember: true,
+    playerId: "player");
+Assert(AuraCgNetworkPolicy.ValidateServerPlaybackIdentity(
+        playback,
+        sender,
+        isMultiplayer: true,
+        (playerId, statusId) => playerId == "player" && statusId == "status") == "",
+    "server playback identity accepts the bound sender and owned status");
+playback.IssuerPlayerId = "spoofed";
+Assert(AuraCgNetworkPolicy.ValidateServerPlaybackIdentity(
+        playback,
+        sender,
+        isMultiplayer: true,
+        (_, _) => true).StartsWith("issuer mismatch", StringComparison.Ordinal),
+    "server playback identity rejects a payload issuer that differs from the bound sender");
+playback.IssuerPlayerId = "player";
+Assert(AuraCgNetworkPolicy.ValidateServerPlaybackIdentity(
+        playback,
+        sender,
+        isMultiplayer: true,
+        (_, _) => false).StartsWith("owner mismatch", StringComparison.Ordinal),
+    "server playback identity verifies sender ownership of the status");
+Assert(AuraCgNetworkPolicy.ValidateServerPlaybackIdentity(
+        playback,
+        new AuraCgNetworkSenderSnapshot(false, false, ""),
+        isMultiplayer: true,
+        (_, _) => true) == "missing sender",
+    "server playback identity rejects an unbound multiplayer sender");
+
 var claims = new AuraCgPlaybackClaimStore(2);
 Assert(claims.TryClaim("p", "1", out var firstKey) && firstKey == "p|1", "first playback claim");
 Assert(claims.TryClaim("p", "2", out _), "second playback claim");

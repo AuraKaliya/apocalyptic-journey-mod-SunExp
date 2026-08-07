@@ -1,7 +1,6 @@
 using System;
 using System.Collections;
 using System.Collections.Generic;
-using System.Linq;
 using System.Reflection;
 using AuraShared.Core;
 using Network.Command;
@@ -42,6 +41,22 @@ public sealed class AuraCgRpcSender
     public string SourceHook { get; }
 
     public bool IsAvailable { get; }
+
+    internal static AuraCgRpcSender FromAura(AuraRpcSender sender)
+    {
+        if (sender == null || !sender.IsAvailable)
+        {
+            return Unbound;
+        }
+
+        return new AuraCgRpcSender(
+            sender.PlayerId,
+            sender.PlayerName,
+            sender.IsLobbyMember,
+            sender.IsLobbyHost,
+            sender.SourceHook,
+            sender.IsAvailable);
+    }
 }
 
 public interface IAuraCgServerBoundRpcCommand
@@ -60,91 +75,25 @@ public static class AuraCgRpcAuthorityRuntime
             return;
         }
 
-        Register(modConfig, "PlayerManager.UserCode_CmdReceiveRpcCommand__RpcCommandBase");
-        Register(modConfig, "PlayerManager.UserCode_CmdReceiveRpcCommandExcludeOwner__RpcCommandBase");
-        Register(modConfig, "PlayerManager.CmdReceiveRpcCommand");
-        Register(modConfig, "PlayerManager.CmdReceiveRpcCommandExcludeOwner");
+        AuraRpcAuthorityRuntime.Register(
+            modConfig,
+            "AuraCg",
+            command => command is IAuraCgServerBoundRpcCommand,
+            (command, sender) =>
+                ((IAuraCgServerBoundRpcCommand)command).BindServerSender(
+                    AuraCgRpcSender.FromAura(sender)),
+            message => AuraCgLog.InfoOnce(
+                "rpc-authority:" + message,
+                "[RpcAuthority] " + message),
+            message => AuraCgLog.WarnOnce(
+                "rpc-authority-warn:" + message,
+                "[RpcAuthority] " + message));
     }
 
     internal static AuraCgRpcSender CreateLocalServerSender(string sourceHook)
     {
-        return CreateSender(PlayerManager.Instance, sourceHook);
-    }
-
-    private static void Register(ModConfig modConfig, string target)
-    {
-        AuraSharedHooks.RegisterBefore(
-            modConfig,
-            target,
-            context => BindSender(context, target),
-            message => AuraCgLog.InfoOnce("rpc-authority:" + target + ":" + message, "[RpcAuthority] " + message),
-            message => AuraCgLog.WarnOnce("rpc-authority-warn:" + target + ":" + message, "[RpcAuthority] " + message),
-            safeInvoke: true);
-    }
-
-    private static void BindSender(ModHookContext context, string sourceHook)
-    {
-        var command = FindCommand(context.Arguments);
-        if (command is not IAuraCgServerBoundRpcCommand bound)
-        {
-            return;
-        }
-
-        bound.BindServerSender(CreateSender(context.Target, sourceHook));
-    }
-
-    private static RpcCommandBase? FindCommand(object[]? args)
-    {
-        return args?.OfType<RpcCommandBase>().FirstOrDefault();
-    }
-
-    private static AuraCgRpcSender CreateSender(object? target, string sourceHook)
-    {
-        try
-        {
-            var playerManager = target as PlayerManager;
-            var playerId = (playerManager?.PlayerId ?? "").Trim();
-            var playerName = (playerManager?.playerInfo?.Name ?? "").Trim();
-            var isMember = LobbyContains(playerId);
-            return new AuraCgRpcSender(
-                playerId,
-                playerName,
-                isMember,
-                isMember && IsLobbyHost(playerId),
-                sourceHook,
-                playerId.Length > 0);
-        }
-        catch (Exception ex)
-        {
-            AuraCgLog.WarnOnce("rpc-authority-sender-failed", "[RpcAuthority] failed to resolve server sender: " + ex.Message);
-            return AuraCgRpcSender.Unbound;
-        }
-    }
-
-    private static bool LobbyContains(string playerId)
-    {
-        if (string.IsNullOrWhiteSpace(playerId))
-        {
-            return false;
-        }
-
-        var players = GameServer.Instance?.LobbyInfo?.AddedPlayers;
-        return players == null
-               || players.Count == 0
-               || players.Any(player => player != null && player.Id == playerId);
-    }
-
-    private static bool IsLobbyHost(string playerId)
-    {
-        if (string.IsNullOrWhiteSpace(playerId))
-        {
-            return false;
-        }
-
-        var players = GameServer.Instance?.LobbyInfo?.AddedPlayers;
-        return players == null
-               || players.Count == 0
-               || string.Equals(players[0].Id, playerId, StringComparison.Ordinal);
+        return AuraCgRpcSender.FromAura(
+            AuraRpcAuthorityRuntime.CreateLocalServerSender(sourceHook));
     }
 }
 

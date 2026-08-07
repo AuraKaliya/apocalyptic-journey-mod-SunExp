@@ -9,151 +9,7 @@ if ([string]::IsNullOrWhiteSpace($ManagedPath)) {
     $ManagedPath = Join-Path $repoRoot "Managed"
 }
 
-$backendProject = Join-Path $repoRoot "AuraDirectorDetour-Dev\Aura.Director.DetourBackend.csproj"
 $testProject = Join-Path $repoRoot "AuraDirectorDetour.Tests\AuraDirectorDetour.Tests.csproj"
-$backendProjectText = Get-Content -Raw -LiteralPath $backendProject
-$backendSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraDirectorDetour-Dev\AuraDirectorReadyToStartDetourBackend.cs")
-$registrySource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraDirectorDetour-Dev\AuraDirectorOneShotHoldRegistry.cs")
-$sharedProject = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraSharedRuntime-Dev\Aura.Shared.csproj")
-$runtimeSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraDirectorShared\AuraDirectorRuntime.cs")
-$modelsSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraDirectorShared\AuraDirectorModels.cs")
-$compilerSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "AuraDirectorShared\AuraDirectorPlanCompiler.cs")
-$terriasSource = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "Terrias-Dev\Features\Director\TerriasDirectorRuntime.cs")
-$terriasEntry = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "Terrias-Dev\Entry.cs")
-$terriasProject = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "Terrias-Dev\Terrias.Dll.csproj")
-
-foreach ($required in @(
-    "FightManager.ReadyToStart",
-    "VerifiedWitchSha256",
-    "detour-target-build-unverified",
-    "harmony.UnpatchAll(HarmonyId)",
-    "return true"
-)) {
-    if (-not $backendSource.Contains($required)) {
-        throw "AuraDirector detour backend contract is missing: $required"
-    }
-}
-
-foreach ($required in @("bypass", "StopAndReleaseAll", "TryRelease", "failed open")) {
-    if (-not $registrySource.Contains($required)) {
-        throw "AuraDirector one-shot hold registry contract is missing: $required"
-    }
-}
-
-foreach ($forbidden in @("readyCount", "fightType", "ActionQueue", "Time.timeScale", "UserCode_ReadyToStart", "DOAllAction")) {
-    if ($backendSource.Contains($forbidden) -or $registrySource.Contains($forbidden)) {
-        throw "AuraDirector detour backend uses a rejected private/progression surface: $forbidden"
-    }
-}
-
-if ($sharedProject.Contains("Lib.Harmony") -or $sharedProject.Contains("AuraDirectorDetour-Dev")) {
-    throw "Aura.Shared must not take a production dependency on the optional detour backend or Harmony."
-}
-if (-not $backendProjectText.Contains('PackageReference Include="Lib.Harmony" Version="2.4.2"')) {
-    throw "The isolated detour backend must pin its reviewed Harmony version."
-}
-
-foreach ($required in @(
-    "IAuraDirectorNativeStartHoldSink",
-    "Time.unscaledTime",
-    'Finish(session, "hard-timeout")',
-    "session.Hold.TryRelease",
-    "NativeBattleSpriteProviderId",
-    "SilhouetteSprite",
-    "MinimumSupportedRuntimeProtocolVersion",
-    "Keyboard.current",
-    "Mouse.current",
-    "AuraDirectorPortraitLayout.Calculate",
-    "AuraDirectorPortraitGraphic",
-    "FocusBarRatio",
-    "AuraDirectorCueKind.Wait",
-    "PrepareInputBlock",
-    "PlaybackStartedAt"
-)) {
-    if (-not $runtimeSource.Contains($required)) {
-        throw "AuraDirector local runtime contract is missing: $required"
-    }
-}
-foreach ($required in @(
-    "AuraDirectorProtocol",
-    "MinimumReaderSchemaVersion",
-    "AuraDirectorPlanEnvelope",
-    "Extensions"
-)) {
-    if (-not $modelsSource.Contains($required)) {
-        throw "AuraDirector versioned plan envelope contract is missing: $required"
-    }
-}
-foreach ($required in @(
-    "contract-id-unsupported",
-    "schema-version-unsupported",
-    "reader-version-unsupported",
-    "NormalizeExtensions",
-    "AppendExtensions",
-    "SidePortraitStrategyId",
-    "OpeningDelaySeconds"
-)) {
-    if (-not $compilerSource.Contains($required)) {
-        throw "AuraDirector compiler compatibility contract is missing: $required"
-    }
-}
-if ($runtimeSource.Contains("Time.timeScale")) {
-    throw "AuraDirector local runtime must not mutate global time scale."
-}
-foreach ($forbidden in @("Input.GetKeyDown", "Input.GetMouseButtonDown", "preserveAspect = true")) {
-    if ($runtimeSource.Contains($forbidden)) {
-        throw "AuraDirector local runtime regressed to rejected input/layout behavior: $forbidden"
-    }
-}
-
-foreach ($required in @(
-    "CompanionFriendlyRosterService.Snapshot(includeControlled: false)",
-    "EnemyManager.Instance?.enemyList",
-    "Battle.OpeningDirector",
-    "InputAndProgression",
-    "NativeBattleSpriteProviderId",
-    "SidePortraitStrategyId"
-)) {
-    if (-not $terriasSource.Contains($required)) {
-        throw "Terrias director request-source contract is missing: $required"
-    }
-}
-if ($terriasSource.Contains("CreateActor(localPlayer")) {
-    throw "Terrias director request source must not collapse the friendly roster to the local player."
-}
-if (-not $terriasEntry.Contains('RunStep("director runtime"')) {
-    throw "Terrias must initialize the local director runtime."
-}
-foreach ($required in @(
-    "AuraDirectorDetour-Dev\Aura.Director.DetourBackend.csproj",
-    "Aura.Director.DetourBackend.dll",
-    "0Harmony.dll"
-)) {
-    if (-not $terriasProject.Contains($required)) {
-        throw "Terrias director packaging contract is missing: $required"
-    }
-}
-
-$shippedScriptRoots = @(
-    "SanGuoShaExp\Scripts",
-    "AuraToolsExp\Scripts"
-)
-foreach ($relative in $shippedScriptRoots) {
-    $scriptsPath = Join-Path $repoRoot $relative
-    foreach ($technicalBinary in @("0Harmony.dll", "Aura.Director.DetourBackend.dll")) {
-        if (Test-Path -LiteralPath (Join-Path $scriptsPath $technicalBinary) -PathType Leaf) {
-            throw "AuraDirector provider must remain scoped to Terrias: $relative\$technicalBinary"
-        }
-    }
-}
-
-$terriasScripts = Join-Path $repoRoot "Terrias\Scripts"
-foreach ($runtimeBinary in @("0Harmony.dll", "Aura.Director.DetourBackend.dll")) {
-    if (-not (Test-Path -LiteralPath (Join-Path $terriasScripts $runtimeBinary) -PathType Leaf)) {
-        throw "Terrias director runtime binary is missing: Terrias\Scripts\$runtimeBinary"
-    }
-}
-
 dotnet build $testProject -c $Configuration /p:ManagedPath="$ManagedPath" /v:minimal
 if ($LASTEXITCODE -ne 0) {
     throw "AuraDirector detour test build failed."
@@ -162,7 +18,25 @@ if ($LASTEXITCODE -ne 0) {
 $testExe = Join-Path $repoRoot "AuraDirectorDetour.Tests\bin\$Configuration\net472\AuraDirectorDetour.Tests.exe"
 & $testExe $ManagedPath
 if ($LASTEXITCODE -ne 0) {
-    throw "AuraDirector detour tests failed."
+    throw "AuraDirector detour behavior tests failed."
 }
 
-Write-Host "AuraDirector local runtime and scoped detour validation passed."
+[xml]$terriasProject = Get-Content -Raw -LiteralPath (Join-Path $repoRoot "Terrias-Dev\Terrias.Dll.csproj")
+$projectReferences = @($terriasProject.Project.ItemGroup.ProjectReference | ForEach-Object { [string]$_.Include })
+if ($projectReferences -notcontains "..\AuraDirectorDetour-Dev\Aura.Director.DetourBackend.csproj") {
+    throw "Terrias must reference the optional AuraDirector detour backend project."
+}
+
+$terriasScripts = Join-Path $repoRoot "Terrias\Scripts"
+foreach ($binary in @("0Harmony.dll", "Aura.Director.DetourBackend.dll")) {
+    if (-not (Test-Path -LiteralPath (Join-Path $terriasScripts $binary) -PathType Leaf)) {
+        throw "Terrias director runtime binary is missing: Terrias\Scripts\$binary"
+    }
+    foreach ($sibling in @("SanGuoShaExp\Scripts", "AuraToolsExp\Scripts")) {
+        if (Test-Path -LiteralPath (Join-Path (Join-Path $repoRoot $sibling) $binary) -PathType Leaf) {
+            throw "AuraDirector technical binary must remain scoped to Terrias: $sibling\$binary"
+        }
+    }
+}
+
+Write-Host "AuraDirector behavior and packaging validation passed."

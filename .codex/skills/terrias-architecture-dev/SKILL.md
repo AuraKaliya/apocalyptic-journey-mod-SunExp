@@ -21,7 +21,9 @@ content workflow and validation.
    - Network/RPC code under `Network`.
 2. Inspect the local architecture gate before editing:
    - `tools/Test-TerriasArchitecture.ps1`
+   - `tools/architecture-boundary-rules.json`
    - `tools/Test-TerriasCSharp.ps1`
+   - `Terrias-Dev.Tests/`
    - affected files under `Terrias-Dev/`
 3. Load `references/architecture-boundaries.md` for placement and dependency
    rules. Load `references/compatibility-and-hooks.md` when Managed signatures,
@@ -31,8 +33,10 @@ content workflow and validation.
    timing, or duplicate suppression are involved.
    Load `references/performance-runtime.md` when touching frame scheduling,
    resource/config caches, repeated listeners, UI pools, or hot-path visuals.
-4. Add or adjust architecture assertions when the task creates a new boundary
-   that future edits must preserve.
+4. Add or adjust a declarative rule when the task creates a namespace,
+   dependency-direction, hook-registration, resource-loading, or CSV entry
+   boundary. Put observable feature behavior in a C# test project, not in a
+   PowerShell source-token assertion.
 
 ## Hard Rules
 
@@ -62,6 +66,9 @@ content workflow and validation.
   content and tool mods, mark the semantic-free part as a shared-runtime
   candidate and use `terrias-shared-runtime-dev`.
 - Rebuild `Terrias/Scripts/Entry.dll` after C# changes.
+- Keep `Test-TerriasArchitecture.ps1` free of private class, method-order, and
+  feature-algorithm snapshots. The authoritative Terrias behavior harness is
+  `Terrias-Dev.Tests/Terrias-Dev.Tests.csproj`.
 
 ## Validation
 

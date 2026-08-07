@@ -80,10 +80,8 @@ For Skill CG or shared resource protocol changes, run:
 ```powershell
 tools\Build-TerriasDll.ps1
 tools\Build-AuraToolsExpDll.ps1
-tools\Test-AuraSharedCore.ps1
-tools\Test-NetworkRpcAuthority.ps1
+tools\Test-SharedReleaseGate.ps1 -Profile network
 tools\Test-SharedArchitectureGuidelines.ps1
-tools\Test-SharedReleaseGate.ps1
 tools\Test-SharedDllPackaging.ps1
 ```
 

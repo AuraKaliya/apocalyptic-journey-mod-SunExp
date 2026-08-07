@@ -35,6 +35,7 @@ resource loads, repeated table scans, UI rebuilds, or visual hot paths.
 
 ## Validation
 
-`tools/Test-TerriasArchitecture.ps1` should guard cache boundaries, router
-ownership, and direct `ResourceLoader.Load/LoadAll` bypasses. Give
+`tools/Test-TerriasArchitecture.ps1` should guard cache choke points, raw hook
+registration ownership, and direct `ResourceLoader.Load/LoadAll` bypasses
+through the declarative architecture rule set. Give
 `tools/Test-TerriasCSharp.ps1` a longer timeout for this repository.

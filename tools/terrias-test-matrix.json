@@ -1,0 +1,156 @@
+{
+  "schemaVersion": 2,
+  "name": "Terrias validation gate",
+  "steps": [
+    {
+      "id": "build-terrias",
+      "kind": "script",
+      "path": "tools/Build-TerriasDll.ps1",
+      "owner": "Terrias",
+      "category": "build",
+      "cost": "slow",
+      "impactTags": ["csharp", "shipped-dll"],
+      "profiles": ["csharp", "release-artifact", "full-release"],
+      "enabled": true,
+      "passConfiguration": true
+    },
+    {
+      "id": "terrias-csharp",
+      "kind": "script",
+      "path": "tools/Test-TerriasCSharp.ps1",
+      "owner": "Terrias",
+      "category": "behavior",
+      "cost": "slow",
+      "impactTags": ["csharp", "behavior", "runtime-contract"],
+      "profiles": ["csharp", "full-release"],
+      "enabled": true,
+      "passConfiguration": true,
+      "arguments": { "SkipBuild": true }
+    },
+    {
+      "id": "terrias-architecture",
+      "kind": "script",
+      "path": "tools/Test-TerriasArchitecture.ps1",
+      "owner": "Terrias",
+      "category": "architecture",
+      "cost": "medium",
+      "impactTags": ["architecture", "dependency-direction", "csv-entry"],
+      "profiles": ["architecture", "full-release"],
+      "enabled": true
+    },
+    {
+      "id": "terrias-content",
+      "kind": "script",
+      "path": ".codex/skills/terrias-mod-dev/scripts/validate-terrias.ps1",
+      "owner": "Terrias",
+      "category": "content",
+      "cost": "fast",
+      "impactTags": ["content", "csv", "localization"],
+      "profiles": ["content", "full-release"],
+      "enabled": true
+    },
+    {
+      "id": "terrias-resources",
+      "kind": "script",
+      "path": "tools/Test-TerriasResources.ps1",
+      "owner": "Terrias",
+      "category": "content",
+      "cost": "fast",
+      "impactTags": ["content", "resources", "registry"],
+      "profiles": ["content", "resources", "full-release"],
+      "enabled": true
+    },
+    {
+      "id": "terrias-events",
+      "kind": "script",
+      "path": ".codex/skills/terrias-event-dev/scripts/validate-terrias-events.ps1",
+      "owner": "Terrias",
+      "category": "content",
+      "cost": "fast",
+      "impactTags": ["events", "map", "localization"],
+      "profiles": ["events", "full-release"],
+      "enabled": true
+    },
+    {
+      "id": "terrias-spirit",
+      "kind": "script",
+      "path": "tools/Test-SpiritCapture.ps1",
+      "owner": "Terrias",
+      "category": "content",
+      "cost": "fast",
+      "impactTags": ["spirit", "capture", "content"],
+      "profiles": ["spirit", "full-release"],
+      "enabled": true
+    },
+    {
+      "id": "terrias-spirit-registry",
+      "kind": "script",
+      "path": "tools/Test-SpiritRegistry.ps1",
+      "owner": "Terrias",
+      "category": "content-contract",
+      "cost": "fast",
+      "impactTags": ["spirit", "registry", "schema"],
+      "profiles": ["spirit", "full-release"],
+      "enabled": true,
+      "passConfiguration": true
+    },
+    {
+      "id": "terrias-spirit-runtime",
+      "kind": "script",
+      "path": "tools/Test-SpiritRuntime.ps1",
+      "owner": "Terrias",
+      "category": "behavior",
+      "cost": "fast",
+      "impactTags": ["spirit", "runtime", "authority"],
+      "profiles": ["spirit", "full-release"],
+      "enabled": true,
+      "passConfiguration": true
+    },
+    {
+      "id": "terrias-columbina",
+      "kind": "script",
+      "path": "tools/Test-TerriasColumbina.ps1",
+      "owner": "Terrias",
+      "category": "domain",
+      "cost": "fast",
+      "impactTags": ["columbina", "role", "content"],
+      "profiles": ["columbina", "full-release"],
+      "enabled": true,
+      "passConfiguration": true
+    },
+    {
+      "id": "terrias-elemental",
+      "kind": "script",
+      "path": "tools/Test-TerriasElemental.ps1",
+      "owner": "Terrias",
+      "category": "domain",
+      "cost": "fast",
+      "impactTags": ["elemental", "buff", "rpc"],
+      "profiles": ["elemental", "full-release"],
+      "enabled": true,
+      "passConfiguration": true
+    },
+    {
+      "id": "terrias-familiar",
+      "kind": "script",
+      "path": "tools/Test-FamiliarGrowth.ps1",
+      "owner": "Terrias",
+      "category": "domain",
+      "cost": "fast",
+      "impactTags": ["familiar", "growth", "registry"],
+      "profiles": ["familiar", "full-release"],
+      "enabled": true
+    },
+    {
+      "id": "terrias-branding",
+      "kind": "script",
+      "path": "tools/Test-TerriasBranding.ps1",
+      "owner": "Terrias",
+      "category": "release",
+      "cost": "medium",
+      "impactTags": ["branding", "workshop", "release-artifact"],
+      "profiles": ["branding", "release-artifact", "full-release"],
+      "enabled": true
+    }
+  ]
+}

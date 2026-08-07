@@ -7,15 +7,19 @@ namespace AuraCombatAi.Shared;
 public static class CombatFoundationParallelismProtocol
 {
     public const string Version =
-        "foundation-parallelism-v2-adaptive-exact-capacity";
+        "foundation-parallelism-v3-phase-aware-fixed-reserve";
 
     public const long DefaultPerLaneBytes = 384L * 1024L * 1024L;
 
     public const long DefaultTransientPerLaneBytes = 128L * 1024L * 1024L;
 
-    public const long MinimumReserveBytes = 4L * 1024L * 1024L * 1024L;
+    public const long MinimumReserveBytes = 3L * 1024L * 1024L * 1024L;
 
-    public const double ReserveFraction = 0.15d;
+    public const long DefaultTeacherReserveBytes =
+        2L * 1024L * 1024L * 1024L;
+
+    public const long DefaultTeacherPeakBytes =
+        3L * 1024L * 1024L * 1024L;
 
     public const int MaximumSupportedParallelism = 64;
 }
@@ -33,6 +37,10 @@ public sealed class CombatFoundationResourceSnapshot
     public long GcHeapSizeBytes { get; set; }
 
     public long GcFragmentedBytes { get; set; }
+
+    public long GcTotalCommittedBytes { get; set; }
+
+    public long GcLiveMemoryBytes { get; set; }
 
     public static CombatFoundationResourceSnapshot Capture()
     {
@@ -66,6 +74,10 @@ public sealed class CombatFoundationResourceSnapshot
         var memory = GC.GetGCMemoryInfo();
         result.GcHeapSizeBytes = Math.Max(0L, memory.HeapSizeBytes);
         result.GcFragmentedBytes = Math.Max(0L, memory.FragmentedBytes);
+        result.GcTotalCommittedBytes = Math.Max(
+            0L,
+            memory.TotalCommittedBytes);
+        result.GcLiveMemoryBytes = Math.Max(0L, GC.GetTotalMemory(false));
         if (result.TotalPhysicalMemoryBytes <= 0L)
         {
             result.TotalPhysicalMemoryBytes = Math.Max(
@@ -79,7 +91,8 @@ public sealed class CombatFoundationResourceSnapshot
                 memory.TotalAvailableMemoryBytes - memory.MemoryLoadBytes);
         }
 #else
-        result.GcHeapSizeBytes = Math.Max(0L, GC.GetTotalMemory(false));
+        result.GcLiveMemoryBytes = Math.Max(0L, GC.GetTotalMemory(false));
+        result.GcHeapSizeBytes = result.GcLiveMemoryBytes;
 #endif
         return result;
     }
@@ -124,6 +137,16 @@ public sealed class CombatFoundationParallelismDecision
 
     public long FixedProcessBytes { get; set; }
 
+    public long ProcessWorkingSetBytes { get; set; }
+
+    public long GcHeapSizeBytes { get; set; }
+
+    public long GcFragmentedBytes { get; set; }
+
+    public long GcTotalCommittedBytes { get; set; }
+
+    public long GcLiveMemoryBytes { get; set; }
+
     public long AvailablePhysicalMemoryBytes { get; set; }
 
     public long MemoryReserveBytes { get; set; }
@@ -160,11 +183,7 @@ public static class CombatFoundationParallelismPlanner
                 requestedMaximumParallelism));
         var reserve = configuredReserveBytes > 0L
             ? configuredReserveBytes
-            : Math.Max(
-                CombatFoundationParallelismProtocol.MinimumReserveBytes,
-                (long)Math.Ceiling(
-                    Math.Max(0L, resources.TotalPhysicalMemoryBytes)
-                    * CombatFoundationParallelismProtocol.ReserveFraction));
+            : CombatFoundationParallelismProtocol.MinimumReserveBytes;
         var observedPerPlanner = trim.PlannerCount <= 0
             ? 0L
             : trim.ReleasedEstimatedBytes / trim.PlannerCount;
@@ -195,6 +214,15 @@ public static class CombatFoundationParallelismPlanner
             FixedProcessBytes = Math.Max(
                 0L,
                 resources.ProcessPrivateMemoryBytes),
+            ProcessWorkingSetBytes = Math.Max(
+                0L,
+                resources.ProcessWorkingSetBytes),
+            GcHeapSizeBytes = Math.Max(0L, resources.GcHeapSizeBytes),
+            GcFragmentedBytes = Math.Max(0L, resources.GcFragmentedBytes),
+            GcTotalCommittedBytes = Math.Max(
+                0L,
+                resources.GcTotalCommittedBytes),
+            GcLiveMemoryBytes = Math.Max(0L, resources.GcLiveMemoryBytes),
             AvailablePhysicalMemoryBytes = available,
             MemoryReserveBytes = reserve,
             MemoryHeadroomBytes = headroom,

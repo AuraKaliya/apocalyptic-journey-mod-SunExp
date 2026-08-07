@@ -1,5 +1,6 @@
 param(
     [string]$Configuration = "Release",
+    [switch]$SkipBuild,
     [switch]$Capture
 )
 
@@ -38,28 +39,10 @@ if ($baseline.schemaVersion -ne 1) {
     throw "Unsupported shared runtime compatibility schemaVersion: $($baseline.schemaVersion)"
 }
 
-foreach ($contract in $baseline.sourceContracts) {
-    $directory = Join-Path $repoRoot $contract.directory
-    if (-not (Test-Path -LiteralPath $directory -PathType Container)) {
-        throw "Compatibility source directory is missing: $($contract.directory)"
-    }
-
-    $files = @(Get-ChildItem -LiteralPath $directory -Recurse -Filter "*.cs" -File | Sort-Object FullName)
-    if ($files.Count -eq 0) {
-        throw "Compatibility source directory has no C# files: $($contract.directory)"
-    }
-
-    $sourceText = (($files | ForEach-Object { Get-Content -Raw -LiteralPath $_.FullName }) -join [Environment]::NewLine)
-    foreach ($snippet in $contract.requiredSnippets) {
-        if (-not $sourceText.Contains([string]$snippet)) {
-            throw "Shared source contract '$($contract.name)' is missing: $snippet"
-        }
-    }
-}
-
-dotnet build $sharedProject -c $Configuration /p:ManagedPath="$managedPath" /v:minimal
-if ($LASTEXITCODE -ne 0) {
-    throw "Aura.Shared build failed before compatibility verification."
+if (-not $SkipBuild) {
+    & (Join-Path $repoRoot "tools\Build-AuraSharedRuntime.ps1") `
+        -Configuration $Configuration `
+        -ManagedPath $managedPath
 }
 
 $testArguments = @($sharedDll, $baselinePath)

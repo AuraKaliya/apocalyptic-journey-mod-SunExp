@@ -163,6 +163,12 @@ deck gameplay RPC when the native role-table submission already carries it.
 If a dedupe set can grow across fights, modes, or lobbies, add an explicit
 bounded retention policy before shipping the feature.
 
+For validation, prove sender authority, payload rejection, duplicate handling,
+and lifecycle cleanup in the owning shared-domain behavior project. The shared
+`network` profile runs the Core, CG, and Audio suites before the generic RPC
+registration/transport scan; do not move these semantics back into PowerShell
+source snapshots.
+
 ## Review Checklist
 
 - Name the scenario before implementation.

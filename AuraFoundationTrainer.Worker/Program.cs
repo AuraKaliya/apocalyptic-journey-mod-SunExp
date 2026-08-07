@@ -11,6 +11,10 @@ using Newtonsoft.Json;
 Console.OutputEncoding = Encoding.UTF8;
 var jobPath = ResolveArgument(args, "--job");
 var replaySeedArgument = ResolveOptionValue(args, "--replay-seed");
+var roundChild = args.Any(argument => string.Equals(
+    argument,
+    "--round-child",
+    StringComparison.OrdinalIgnoreCase));
 if (string.IsNullOrWhiteSpace(jobPath)
     || !CombatFoundationPathRuntime.FileExists(jobPath))
 {
@@ -39,6 +43,13 @@ try
         throw new InvalidOperationException(jobDiagnostic);
     }
     job = job ?? throw new InvalidOperationException("底模训练任务为空");
+    if (!roundChild
+        && string.IsNullOrWhiteSpace(replaySeedArgument)
+        && job.Request.EnableIterationProcessIsolation
+        && !job.Request.PreflightOnly)
+    {
+        return RunIterationSupervisor(job);
+    }
     AuraToolsAuthoritativeRoleSemantics.Initialize();
     AuraToolsRoleCampaignStrategy.Apply(job.Request.TrainingCampaign);
     AuraToolsRoleCampaignStrategy.Apply(job.Request.ValidationCampaign);
@@ -690,6 +701,16 @@ try
         };
     }
 
+    if (job.Request.EnableReplayWarehouse)
+    {
+        var replayWarehouse = new CombatFoundationReplayWarehouse(
+            Path.Combine(
+                checkpointDirectory,
+                "foundation-replay-warehouse-v1"));
+        job.Request.ReplayArchiveSink = replayWarehouse.Archive;
+        job.Request.HistoricalReplaySource = replayWarehouse.Load;
+    }
+
     ICombatTransformerTeacher? transformerTeacher = null;
     var transformerOptions = (job.Request.TransformerTeacher
                               ?? new CombatTransformerTeacherOptions())
@@ -851,6 +872,8 @@ try
         ? training.Success
             ? "preflight-passed"
             : "preflight-failed"
+        : training.ContinuationRequired && resumable
+            ? "iteration-boundary"
         : training.AcceptancePassed
             ? "training-accepted"
             : resumable
@@ -1690,6 +1713,7 @@ static bool TryRecoverPriorWorkingResult(
                 Replay = episodes,
                 Iterations = new List<CombatCampaignFoundationIteration>(
                     training.Iterations),
+                Preflight = training.Preflight,
                 HardSeedHistory =
                     new List<CombatFoundationHardSeedHistoryEntry>(
                         training.HardSeedHistory),
@@ -1866,6 +1890,7 @@ static CombatCampaignFoundationResumeState WithoutReplay(
         WorkingChampion = source.WorkingChampion,
         Iterations = new List<CombatCampaignFoundationIteration>(
             source.Iterations),
+        Preflight = source.Preflight,
         ModelTraining = source.ModelTraining,
         Telemetry = source.Telemetry,
         HardSeedHistory =
@@ -2127,19 +2152,27 @@ static CombatFoundationCheckpointCatalog? ReadCheckpointCatalog(string path)
 
 static void ResetActiveCheckpoint(CombatFoundationWorkerJob job)
 {
-    CombatFoundationPathRuntime.DeleteFile(job.CheckpointPath);
-    CombatFoundationPathRuntime.DeleteFile(
-        CombatFoundationCheckpointStorage.BackupPath(job.CheckpointPath));
-    var retained = ReadCheckpointCatalog(job.CheckpointCatalogPath)?.Entries
-        .Select(item => item.EpisodeSnapshotPath)
-        .Where(path => !string.IsNullOrWhiteSpace(path))
-        .ToArray()
-        ?? Array.Empty<string>();
-    CombatFoundationCheckpointStorage.CleanupArtifacts(
+    CombatFoundationCheckpointStorage.DeleteCheckpointArtifacts(
         job.CheckpointPath,
-        job.CheckpointEpisodesPath,
-        retained,
-        retainNewestSnapshots: 0);
+        job.CheckpointEpisodesPath);
+    CombatFoundationPathRuntime.DeleteFile(job.CheckpointCatalogPath);
+    CombatFoundationPathRuntime.DeleteFile(
+        CombatFoundationCheckpointStorage.BackupPath(job.CheckpointCatalogPath));
+    CombatFoundationPathRuntime.DeleteFile(job.ModelSelectionAnchorPath);
+    var checkpointDirectory = Path.GetDirectoryName(
+        CombatFoundationPathRuntime.Normalize(job.CheckpointCatalogPath));
+    var immutableDirectory = string.IsNullOrWhiteSpace(checkpointDirectory)
+        ? ""
+        : Path.Combine(
+            checkpointDirectory,
+            CombatFoundationCheckpointCatalogProtocol.ImmutableDirectoryName);
+    if (!string.IsNullOrWhiteSpace(immutableDirectory)
+        && CombatFoundationPathRuntime.DirectoryExists(immutableDirectory))
+    {
+        Directory.Delete(
+            CombatFoundationPathRuntime.ForFileSystem(immutableDirectory),
+            recursive: true);
+    }
 }
 
 static string SuccessArchiveRoot(CombatFoundationWorkerJob job)
@@ -2944,6 +2977,172 @@ static string ResolveTransformerTeacherScript()
         "train_teacher.py"));
 }
 
+static int RunIterationSupervisor(
+    CombatFoundationWorkerJob sourceJob)
+{
+    CombatFoundationPathRuntime.CreateDirectory(sourceJob.ResultDirectory);
+    var finalResultPath = sourceJob.ResultPath;
+    if (string.IsNullOrWhiteSpace(finalResultPath))
+    {
+        throw new InvalidOperationException(
+            "轮次进程隔离需要有效的最终结果路径。");
+    }
+
+    var supervisorDirectory = Path.Combine(
+        sourceJob.ResultDirectory,
+        ".iteration-processes");
+    CombatFoundationPathRuntime.CreateDirectory(supervisorDirectory);
+    var segmentJobPath = Path.Combine(
+        supervisorDirectory,
+        sourceJob.JobId + ".job.json");
+    var segmentResultPath = Path.Combine(
+        supervisorDirectory,
+        sourceJob.JobId + ".result.json");
+    var segment = 0;
+    var resolvedIterationLimit = 0;
+    try
+    {
+        while (true)
+        {
+            segment++;
+            if (segment > 10_000)
+            {
+                throw new InvalidOperationException(
+                    "轮次进程隔离超过安全的进程重启次数。");
+            }
+
+            var childJob = Deserialize<CombatFoundationWorkerJob>(
+                               Serialize(sourceJob))
+                           ?? throw new InvalidOperationException(
+                               "无法创建轮次子进程任务。");
+            childJob.ResultPath = segmentResultPath;
+            childJob.Request.EnableIterationProcessIsolation = true;
+            childJob.Request.MaximumIterationsPerProcess = 1;
+            if (segment > 1)
+            {
+                childJob.ResumeFromCheckpoint = true;
+                childJob.RequireCompatibleResume = true;
+                childJob.ResetCheckpointOnFreshStart = false;
+                childJob.ResumeCheckpointPath = "";
+                childJob.ResumeMode =
+                    CombatFoundationCheckpointResumeModes.Exact;
+                childJob.Request.AdditionalIterationsOnResume = 0;
+                childJob.Request.PreflightCampaignsPerDifficulty = 0;
+                childJob.Request.Iterations = resolvedIterationLimit;
+                childJob.InitialChampion = null;
+                childJob.RequestedStartMode = "iteration-boundary-resume";
+            }
+
+            CombatFoundationPathRuntime.DeleteFile(segmentResultPath);
+            CombatFoundationCheckpointStorage.WriteAtomicText(
+                segmentJobPath,
+                Serialize(childJob),
+                retainBackup: false);
+            var startInfo = CreateRoundChildStartInfo(segmentJobPath);
+            using var child = Process.Start(startInfo)
+                              ?? throw new InvalidOperationException(
+                                  "无法启动轮次训练子进程。");
+            child.WaitForExit();
+            if (!CombatFoundationPathRuntime.FileExists(segmentResultPath))
+            {
+                throw new InvalidOperationException(
+                    "轮次训练子进程未生成结果，退出码="
+                    + child.ExitCode);
+            }
+
+            var status = Deserialize<IterationSegmentStatus>(
+                             CombatFoundationCheckpointStorage
+                                 .ReadAllTextShared(segmentResultPath))
+                         ?? throw new InvalidOperationException(
+                             "无法读取轮次训练子进程结果。");
+            var continueAtBoundary = child.ExitCode == 0
+                                     && string.Equals(
+                                         status.CompletionKind,
+                                         "iteration-boundary",
+                                         StringComparison.Ordinal)
+                                     && status.Training
+                                         ?.ContinuationRequired == true;
+            if (!continueAtBoundary)
+            {
+                CopyAtomic(segmentResultPath, finalResultPath);
+                return child.ExitCode;
+            }
+
+            var nextIteration = status.Training?.NextIteration ?? 0;
+            resolvedIterationLimit = status.Training
+                                         ?.ResolvedIterationLimit
+                                     ?? 0;
+            if (nextIteration <= 0
+                || resolvedIterationLimit <= nextIteration)
+            {
+                throw new InvalidOperationException(
+                    "轮次子进程请求继续，但没有提供有效的下一轮边界。"
+                    + " next=" + nextIteration
+                    + ", limit=" + resolvedIterationLimit);
+            }
+        }
+    }
+    finally
+    {
+        CombatFoundationPathRuntime.DeleteFile(segmentJobPath);
+        CombatFoundationPathRuntime.DeleteFile(segmentResultPath);
+        CombatFoundationPathRuntime.DeleteFile(
+            CombatFoundationCheckpointStorage.BackupPath(segmentJobPath));
+        CombatFoundationPathRuntime.DeleteFile(
+            CombatFoundationCheckpointStorage.BackupPath(segmentResultPath));
+    }
+}
+
+static ProcessStartInfo CreateRoundChildStartInfo(string childJobPath)
+{
+    var executable = Environment.ProcessPath
+                     ?? throw new InvalidOperationException(
+                         "无法确定训练 Worker 可执行文件。");
+    var startInfo = new ProcessStartInfo
+    {
+        FileName = executable,
+        WorkingDirectory = AppContext.BaseDirectory,
+        UseShellExecute = false,
+        CreateNoWindow = true
+    };
+    if (string.Equals(
+            Path.GetFileNameWithoutExtension(executable),
+            "dotnet",
+            StringComparison.OrdinalIgnoreCase))
+    {
+        var entryAssembly = Environment.GetCommandLineArgs()
+            .FirstOrDefault();
+        if (string.IsNullOrWhiteSpace(entryAssembly))
+        {
+            throw new InvalidOperationException(
+                "dotnet 托管启动模式缺少 Worker 程序集路径。");
+        }
+        startInfo.ArgumentList.Add(entryAssembly);
+    }
+    startInfo.ArgumentList.Add("--job");
+    startInfo.ArgumentList.Add(childJobPath);
+    startInfo.ArgumentList.Add("--round-child");
+    return startInfo;
+}
+
+static void CopyAtomic(string sourcePath, string destinationPath)
+{
+    CombatFoundationCheckpointStorage.WriteAtomicStream(
+        destinationPath,
+        output =>
+        {
+            using var input = new FileStream(
+                sourcePath,
+                FileMode.Open,
+                FileAccess.Read,
+                FileShare.ReadWrite | FileShare.Delete,
+                128 * 1024,
+                FileOptions.SequentialScan);
+            input.CopyTo(output, 128 * 1024);
+        },
+        retainBackup: false);
+}
+
 static string ResolveArgument(string[] arguments, string name)
 {
     for (var index = 0; index < arguments.Length - 1; index++)
@@ -3499,4 +3698,20 @@ internal static class ArchiveWriteBudget
             return true;
         }
     }
+}
+
+internal sealed class IterationSegmentStatus
+{
+    public string CompletionKind { get; set; } = "";
+
+    public IterationSegmentTrainingStatus? Training { get; set; }
+}
+
+internal sealed class IterationSegmentTrainingStatus
+{
+    public bool ContinuationRequired { get; set; }
+
+    public int NextIteration { get; set; }
+
+    public int ResolvedIterationLimit { get; set; }
 }

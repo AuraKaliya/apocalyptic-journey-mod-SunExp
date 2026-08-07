@@ -1,4 +1,6 @@
-param()
+param(
+    [string]$Configuration = "Release"
+)
 
 $ErrorActionPreference = "Stop"
 $repoRoot = Split-Path -Parent $PSScriptRoot
@@ -131,110 +133,10 @@ foreach ($providerId in $expectedVoiceCounts.Keys) {
 $lowHealthVoice = $audioRegistry.providers | Where-Object { $_.providerId -eq "Terrias.Columbina.LowHealth" } | Select-Object -First 1
 Assert-True ([double]$lowHealthVoice.match.hpRatioCrossDown -eq 0.2 -and $lowHealthVoice.match.localOwnerOnly) "Columbina low-health voice must use the local-owner 20% crossing rule."
 
-$reaction = [System.IO.File]::ReadAllText((Join-Path $repoRoot "Terrias-Dev\Mechanics\LunarReactionService.cs"))
-Assert-True ($reaction.Contains("LunarReactionRules.ElectroChargedDamage")) "Lunar Electro-Charged is not wired."
-Assert-True ($reaction.Contains("StatusApi.Defence(source)")) "Lunar Crystallize must snapshot current shield."
+$behaviorProject = Join-Path $repoRoot "Terrias-Dev.ColumbinaTests\Terrias-Dev.ColumbinaTests.csproj"
+dotnet run --project $behaviorProject -c $Configuration
+if ($LASTEXITCODE -ne 0) {
+    throw "Terrias Columbina behavior tests failed."
+}
 
-$cardScripts = [System.IO.File]::ReadAllText((Join-Path $repoRoot "Terrias-Dev\Scripting\CardScripts.cs"))
-Assert-True ($cardScripts.Contains('[TerriasIds.FateStarCardShortId] = InitFateStar')) "Fate Star must use its annihilating initializer."
-Assert-True ($cardScripts.Contains('private static void InitFateStar')) "Fate Star initializer is missing."
-Assert-True ($cardScripts.Contains('CardApi.MarkForAdventureRemoval(self?.dataConfig);')) "Fate Star must set the native adventure-removal marker."
-
-$columbinaMechanics = [System.IO.File]::ReadAllText((Join-Path $repoRoot "Terrias-Dev\Mechanics\ColumbinaMechanics.cs"))
-Assert-True ($columbinaMechanics.Contains('DamageApi.CreateCardSourceExecutor')) "Status-triggered Columbina damage must use a configured native source executor."
-Assert-True (-not $columbinaMechanics.Contains('actor!.MirrorSc as ScriptExecutor')) "Columbina damage must not borrow the career MirrorSc executor."
-Assert-True ($columbinaMechanics.Contains('BuffApi.Level(actor, TerriasIds.GravityRipple) <= 0')) "Gravity Ripple must be gated by its Buff state."
-Assert-True (-not $columbinaMechanics.Contains('ColumbinaPassiveService.IsActive(actor)')) "Gravity Ripple must remain active while its owner is Polymorphed away from Columbina."
-
-$passiveService = [System.IO.File]::ReadAllText((Join-Path $repoRoot "Terrias-Dev\Mechanics\ColumbinaPassiveService.cs"))
-Assert-True ($passiveService.Contains('PolymorphStateStore.EffectiveCombatRoleIdFor(status)')) "Columbina passive identity must resolve from the effective Polymorph combat form."
-Assert-True (-not $passiveService.Contains('StatusApi.RoleId(status)')) "Columbina passive identity must not remain bound to the immutable adventure-role father object during Polymorph."
-
-$columbinaScripts = [System.IO.File]::ReadAllText((Join-Path $repoRoot "Terrias-Dev\Scripting\ColumbinaScripts.cs"))
-Assert-True (-not $columbinaScripts.Contains('NewMoonLaw')) "Columbina career initialization must not add a New Moon Law Buff."
-Assert-True ($columbinaScripts.Contains('PolymorphStateStore.IsEffectiveCombatRoleFor(self.Self, "columbina")')) "Columbina active skills must use the same effective combat-form identity as her passive."
-Assert-True ($columbinaScripts.Contains('AudioApi.PlayColumbinaEternalTide();')) "Eternal Tide must play its voice after a successful cooldown check."
-Assert-True ($columbinaScripts.Contains('AudioApi.PlayColumbinaHomesickness();')) "Homesickness must play its voice after a successful cooldown check."
-
-$actionPresentationCatalog = [System.IO.File]::ReadAllText((Join-Path $repoRoot "Terrias-Dev\Mechanics\RoleActionPresentationCatalog.cs"))
-Assert-True ($actionPresentationCatalog.Contains('columbina_homesickness') -and $actionPresentationCatalog.Contains('RoleActionTargetMode.AllOpponents')) "Homesickness must be registered as an all-opponent presentation action."
-Assert-True ($actionPresentationCatalog.Contains('columbina_eternal_tide') -and $actionPresentationCatalog.Contains('RoleActionTargetMode.SelfOnly')) "Eternal Tide must be registered as a self-only presentation action."
-Assert-True ($actionPresentationCatalog.Contains('IsColumbinaRole')) "The shared role presentation catalog must recognize Columbina."
-Assert-True ($actionPresentationCatalog.Contains("TerriasContentIdCompatibility.LocalId(value).TrimStart('*')")) "Action card ids must normalize current or legacy full mod prefixes before generated-card asterisks."
-
-$actionAnimationRuntime = [System.IO.File]::ReadAllText((Join-Path $repoRoot "Terrias-Dev\Hooks\RoleActionAnimationRuntime.cs"))
-$allOpponentBranch = $actionAnimationRuntime.IndexOf('targetMode == RoleActionTargetMode.AllOpponents', [StringComparison]::Ordinal)
-$existingTargetFastPath = $actionAnimationRuntime.IndexOf('var hasNonSelfTarget', [StringComparison]::Ordinal)
-Assert-True ($allOpponentBranch -ge 0 -and $allOpponentBranch -lt $existingTargetFastPath) "All-opponent presentation rules must run before the existing-target fast path."
-Assert-True ($actionAnimationRuntime.Contains('executor.SetStatus("AllTarget")')) "All-opponent actions must restore the native enemy target set before presentation."
-Assert-True ($actionAnimationRuntime.Contains('currentTargets.Add(executor.Target)')) "Single-target actions must restore the selected native target before presentation."
-Assert-True ($actionAnimationRuntime.Contains('currentTargets.RemoveAll(target => !IsValidNonSelfTarget(self, target))')) "Target-side effects must remove the actor from mixed presentation target sets."
-Assert-True ($actionAnimationRuntime.Contains('targetMode == RoleActionTargetMode.SelfOnly') -and $actionAnimationRuntime.Contains('currentTargets.Clear();')) "Self-only actions must not target their own hit effect."
-
-$runtimeHooks = [System.IO.File]::ReadAllText((Join-Path $repoRoot "Terrias-Dev\Hooks\RuntimeHooks.cs"))
-Assert-True ($runtimeHooks.Contains('RoleActionAnimationRuntime.Initialize(modConfig)')) "The shared role action animation runtime must be initialized."
-
-$audioApi = [System.IO.File]::ReadAllText((Join-Path $repoRoot "Terrias-Dev\GameApi\AudioApi.cs"))
-Assert-True ($audioApi.Contains('public static void PlayColumbinaEternalTide()')) "AudioApi must expose Columbina Eternal Tide playback."
-Assert-True ($audioApi.Contains('public static void PlayColumbinaHomesickness()')) "AudioApi must expose Columbina Homesickness playback."
-
-$constellation = [System.IO.File]::ReadAllText((Join-Path $repoRoot "Terrias-Dev\Mechanics\ConstellationService.cs"))
-Assert-True ($constellation.Contains('SetExactLevelWithNativeRefresh')) "Constellation levels must use the native refresh path."
-Assert-True (-not $constellation.Contains('ColumbinaPassiveService.IsActive(status)')) "Columbina constellation effects must follow the bound adventure role, not the temporary Polymorph role."
-Assert-True ($constellation.Contains('BindAdventureRole(status, roleId, overwrite: false)')) "Constellation application must bind the adventure role before native Buff creation."
-Assert-True ($constellation.Contains('PolymorphStateStore.ActiveFor(status)')) "Constellation identity must recover the original role from an active Polymorph."
-Assert-True ($constellation.Contains('activePolymorph?.OriginalCareerId')) "Constellation identity must not bind to the temporary Polymorph role."
-Assert-True ($constellation.Contains('StorageKeyForPool(poolId)')) "Constellation persistence must be keyed by pool rather than the current combat role."
-Assert-True ($constellation.Contains('LegacyStorageKeyForRole(roleId)')) "Constellation persistence must migrate valid legacy role progress."
-Assert-True ($constellation.Contains('ConstellationPoolCatalog.ColumbinaPoolId')) "Columbina constellation effects must verify the bound adventure pool."
-Assert-True ($constellation.Contains('MatchesAdventureRole')) "Constellation identity must expose an authoritative snapshot-role check."
-Assert-True ($constellation.Contains('TerriasStatusOwnershipPolicy.SenderOwnsStatus')) "Constellation requests must validate the bound sender against the submitted status."
-Assert-True ($constellation.Contains('SyncDomain.TryClaimToken(sender.PlayerId, token)')) "Constellation requests must suppress duplicate command tokens per sender."
-Assert-True ($constellation.Contains('PlayerApi.SetScopedGameVarForScope')) "The host must persist remote constellation progress in the owning status scope."
-Assert-True ($constellation.Contains('OriginCapService.TryIncrease') -and $constellation.Contains('OriginCapsResolution')) "A maxed Fate Star must resolve into an authoritative origin-cap increase."
-Assert-True ($constellation.Contains('OriginCapService.ApplyAuthoritativeCurrent') -and $constellation.Contains('IsLocalOwner(snapshot)')) "Only the owning player may apply synchronized Fate Star origin caps locally."
-Assert-True ($constellation.Contains('ApplyRoundReward')) "Traveler constellation six must be applied by each player's local owner."
-Assert-True ($constellation.Contains('local!.AddBuff(TerriasIds.Extraordinary, 300)')) "Traveler constellation six must grant 300 Extraordinary to the local player."
-Assert-True ($constellation.Contains('BuffApi.ApplyRuntimePresentation')) "Constellation application must update its live Buff instance presentation."
-Assert-True ($constellation.Contains('BuffApi.PrepareRuntimePresentation')) "Constellation creation must prepare a per-instance native Buff presentation."
-
-$constellationIdentity = [System.IO.File]::ReadAllText((Join-Path $repoRoot "Terrias-Dev\Mechanics\ConstellationIdentityRules.cs"))
-Assert-True ($constellationIdentity.Contains('boundAdventureRole')) "Constellation identity rules must prefer an immutable adventure-role binding."
-Assert-True ($constellationIdentity.Contains('polymorphOriginalRole')) "Constellation identity rules must expose the original Polymorph role fallback."
-
-$elementalReaction = [System.IO.File]::ReadAllText((Join-Path $repoRoot "Terrias-Dev\Mechanics\ElementalReactionService.cs"))
-Assert-True ($elementalReaction.Contains('ShouldAttachIncomingElement(plan.HasReaction)')) "Elemental hits must use the post-hit attachment rule."
-Assert-True (-not $elementalReaction.Contains('if (!plan.HasReaction && StatusApi.IsAlive(target))')) "Lethal elemental hits must not lose attachment before native Rebirth."
-
-$constellationRpc = [System.IO.File]::ReadAllText((Join-Path $repoRoot "Terrias-Dev\Network\RpcConstellationStateCommit.cs"))
-Assert-True ($constellationRpc.Contains('ConstellationService.TryResolveLightUpRequest')) "Fate Star must submit a host-resolved increment request."
-Assert-True (-not $constellationRpc.Contains('snapshot.Level > ConstellationService.Level')) "Fate Star RPC must not trust a client-provided absolute constellation level."
-Assert-True ($constellationRpc.Contains('RpcConstellationRosterSnapshot')) "Constellation must expose a battle-start roster repair snapshot."
-Assert-True ($constellationRpc.Contains('RpcConstellationRoundReward')) "Traveler constellation six must use a host-authorized round reward event."
-
-$ownershipPolicy = [System.IO.File]::ReadAllText((Join-Path $repoRoot "Terrias-Dev\Network\TerriasStatusOwnershipPolicy.cs"))
-Assert-True ($ownershipPolicy.Contains('string.Equals(playerId, ownerStatusId, StringComparison.Ordinal)')) "Player status ids that equal the bound sender id must be accepted directly."
-Assert-True ($ownershipPolicy.Contains('RoleStatusMap')) "Status ownership must retain the native ownership-map fallback."
-
-$directorRuntime = [System.IO.File]::ReadAllText((Join-Path $repoRoot "Terrias-Dev\Features\Director\TerriasDirectorRuntime.cs"))
-Assert-True ($directorRuntime.Contains('CompanionFriendlyRosterService.Snapshot(includeControlled: false)')) "Battle opening must enumerate the complete player roster without controlled companions."
-Assert-True (-not $directorRuntime.Contains('CreateActor(localPlayer')) "Battle opening must not render only the local player."
-
-$constellationCatalog = [System.IO.File]::ReadAllText((Join-Path $repoRoot "Terrias-Dev\Mechanics\ConstellationPoolCatalog.cs"))
-Assert-True ($constellationCatalog.Contains('RoleToPoolId')) "Constellation pools must be anchored by an explicit role lookup table."
-Assert-True ($constellationCatalog.Contains('TravelerPoolId = "traveler"')) "The generic constellation fallback must use the Traveler pool."
-Assert-True ($constellationCatalog.Contains('ColumbinaPoolId = "columbina"')) "Columbina must have a dedicated constellation pool."
-Assert-True ($constellationCatalog.Contains('Constellation - Traveler') -and $constellationCatalog.Contains('Constellation - Lunar Dove')) "Constellation Buff names must include both localized pool names."
-Assert-True ($constellationCatalog.Contains('Name_zh-Hant') -and $constellationCatalog.Contains('Description_en') -and $constellationCatalog.Contains('Description_ja')) "Constellation pool presentation must cover all shipped locales."
-Assert-True ($constellationCatalog.Contains('string.Join(Environment.NewLine')) "Constellation tier descriptions must render one tier per line."
-Assert-True (-not $constellationCatalog.Contains('IndexOf("columbina"')) "Constellation role matching must not use substring identity checks."
-
-$buffApiSource = [System.IO.File]::ReadAllText((Join-Path $repoRoot "Terrias-Dev\GameApi\BuffApi.cs"))
-Assert-True ($buffApiSource.Contains('ApplyRuntimePresentation(')) "BuffApi must own live Buff presentation mutation."
-Assert-True ($buffApiSource.Contains('mergedVars[field.Key] = field.Value ?? ""') -and $buffApiSource.Contains('CopyRuntimeExecutorContext(config, replacement)')) "Dynamic live Buff presentation must refresh immutable data and preserve the initialized executor context through the same per-instance clone."
-Assert-True ($buffApiSource.Contains('AuraGameDataHostApi.CloneWritable(source, mergedData, mergedVars, preCompile: false)')) "Dynamic Buff names must use the shared per-instance clone API instead of mutating base data."
-
-$columbinaRuntime = [System.IO.File]::ReadAllText((Join-Path $repoRoot "Terrias-Dev\Hooks\ColumbinaRuntime.cs"))
-Assert-True ($columbinaRuntime.Contains('TerriasHookRegistry.Before(') -and $columbinaRuntime.Contains('"BuffItem.Init"') -and $columbinaRuntime.Contains('ConstellationService.PreparePresentation')) "Constellation presentation must be prepared before native Buff UI initialization."
-
-Write-Host "Terrias Columbina assertions passed."
+Write-Host "Terrias Columbina content and behavior assertions passed."
