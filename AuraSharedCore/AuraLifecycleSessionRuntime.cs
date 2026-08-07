@@ -17,6 +17,17 @@ public static class AuraLifecycleSessionRuntime
         }
     }
 
+    public static bool IsBattleSessionActive
+    {
+        get
+        {
+            lock (Gate)
+            {
+                return battleSessionActive;
+            }
+        }
+    }
+
     public static long EnsureBattleSession()
     {
         lock (Gate)
@@ -68,6 +79,21 @@ public static class AuraLifecycleSessionRuntime
 
             battleSessionActive = true;
             return battleSessionId;
+        }
+    }
+
+    public static bool TryBeginBattleRestart(out long interruptedSessionId)
+    {
+        lock (Gate)
+        {
+            interruptedSessionId = battleSessionId;
+            if (!battleSessionActive)
+            {
+                return false;
+            }
+
+            battleSessionActive = false;
+            return true;
         }
     }
 

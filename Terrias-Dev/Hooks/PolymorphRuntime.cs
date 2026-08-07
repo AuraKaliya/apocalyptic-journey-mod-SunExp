@@ -22,6 +22,7 @@ public static class PolymorphRuntime
         {
             AdventureStarting = context => ClearAdventure("AdventureStarting"),
             FightStarted = context => ClearBattle("Fight_Start.Init"),
+            FightRestarting = context => ClearBattle("FightRestarting"),
             FightEnding = context => ClearBattle("FightEnding")
         });
         RegisterBefore(modConfig, TerriasHookTargets.FightWinInit, context => ClearBattle("Fight_Win.Init:before"));

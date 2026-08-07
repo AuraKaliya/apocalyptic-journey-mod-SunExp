@@ -21,6 +21,10 @@ public sealed class TerriasBattleLifecycleSubscription
 
     public Action<ModHookContext>? PlayerRoundStarted { get; set; }
 
+    public Action<ModHookContext>? FightRestarting { get; set; }
+
+    public Action<ModHookContext>? FightRestarted { get; set; }
+
     public Action<ModHookContext>? FightEnding { get; set; }
 
     public Action<ModHookContext>? FightEnded { get; set; }
@@ -53,6 +57,8 @@ public static class TerriasBattleLifecycleRouter
                 FightOpening = context => DispatchFightOpening(context, AuraBattleLifecycleRouter.FightStartInit),
                 FightStarted = context => DispatchFightStarted(context, "Fight lifecycle start"),
                 PlayerRoundStarted = context => DispatchPlayerRoundStarted(context, AuraBattleLifecycleRouter.FightPlayerTurnInit),
+                FightRestarting = context => DispatchFightRestarting(context, AuraBattleLifecycleRouter.FightManagerClearFightUi),
+                FightRestarted = context => DispatchFightRestarted(context, "Fight lifecycle restarted"),
                 FightEnding = context => DispatchFightEnding(context, "Fight lifecycle ending"),
                 FightEnded = context => DispatchFightEnded(context, "Fight lifecycle ended")
             },
@@ -104,6 +110,16 @@ public static class TerriasBattleLifecycleRouter
     private static void DispatchPlayerRoundStarted(ModHookContext context, string source)
     {
         Dispatch(context, source, subscription => subscription.PlayerRoundStarted);
+    }
+
+    private static void DispatchFightRestarting(ModHookContext context, string source)
+    {
+        Dispatch(context, source, subscription => subscription.FightRestarting);
+    }
+
+    private static void DispatchFightRestarted(ModHookContext context, string source)
+    {
+        Dispatch(context, source, subscription => subscription.FightRestarted);
     }
 
     private static void DispatchFightEnding(ModHookContext context, string source)

@@ -142,18 +142,53 @@ public static class SolarMemoryPreparationRuntime
         SolarMemoryPlayerSetupState.SetFlag(TerriasIds.SolarMemoryBlessConfiguredKey, true);
         SolarMemoryPlayerSetupState.SetFlag(TerriasIds.SolarMemorySetupFinishedKey, true);
         WriteStep(SolarMemoryPrepStep.Complete);
-        if (!SolarMemoryRoleCommitApi.CommitFinal(RoleTable.Instance, "Terrias.SolarMemory.SetupFinished"))
+        var submission = SolarMemoryRoleCommitApi.SubmitFinal(
+            RoleTable.Instance,
+            "Terrias.SolarMemory.SetupFinished",
+            OnRoleCommitResolved);
+        if (submission == SolarMemoryRoleCommitSubmission.Rejected)
         {
-            SolarMemoryPlayerSetupState.SetFlag(TerriasIds.SolarMemorySetupFinishedKey, false);
-            SolarMemoryPlayerSetupState.SetValue(TerriasIds.SolarMemorySetupCommitTokenKey, "");
-            TerriasLog.Warn("[SolarMemoryPrep] final role commit failed; setup completion is pending retry. snapshot=" + StateSnapshot());
-            UIManager.Instance?.ShowTip("日耀回忆整备提交失败，请重试", null);
+            RejectRoleCommit("submission rejected");
             return;
         }
 
+        if (submission == SolarMemoryRoleCommitSubmission.Pending)
+        {
+            UIManager.Instance?.ShowTip("日耀回忆整备已提交，等待主机确认", null);
+            TerriasLog.Info("[SolarMemoryPrep] final role commit is awaiting host acknowledgement. snapshot=" + StateSnapshot());
+            return;
+        }
+
+        CompleteAfterRoleCommit();
+    }
+
+    private static void OnRoleCommitResolved(bool accepted, string rejectionReason)
+    {
+        if (!accepted)
+        {
+            RejectRoleCommit(rejectionReason);
+            return;
+        }
+
+        CompleteAfterRoleCommit();
+    }
+
+    private static void CompleteAfterRoleCommit()
+    {
         SolarMemorySetupFlowRuntime.ClosePreparationWindows();
         UIManager.Instance?.ShowTip("日耀回忆整备完成", null);
         TerriasLog.Info("[SolarMemoryPrep] Complete; setupFinished=1; snapshot=" + StateSnapshot());
+    }
+
+    private static void RejectRoleCommit(string reason)
+    {
+        SolarMemoryPlayerSetupState.SetFlag(TerriasIds.SolarMemorySetupFinishedKey, false);
+        SolarMemoryPlayerSetupState.SetValue(TerriasIds.SolarMemorySetupCommitTokenKey, "");
+        TerriasLog.Warn("[SolarMemoryPrep] final role commit failed; setup completion is pending retry. reason="
+                        + reason
+                        + ", snapshot="
+                        + StateSnapshot());
+        UIManager.Instance?.ShowTip("日耀回忆整备提交失败，请重试", null);
     }
 
     private static SolarMemoryPrepStep ReadOrInferStep()

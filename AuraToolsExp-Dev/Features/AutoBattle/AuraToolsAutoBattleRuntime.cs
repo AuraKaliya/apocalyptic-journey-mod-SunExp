@@ -96,6 +96,7 @@ public static class AuraToolsAutoBattleRuntime
             new AuraBattleLifecycleSubscription
             {
                 FightStarting = _ => ResetForBattle(),
+                FightRestarting = _ => EndBattle(),
                 FightEnding = _ => EndBattle(),
                 FightEnded = _ => EndBattle()
             },

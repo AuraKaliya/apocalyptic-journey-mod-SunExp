@@ -104,6 +104,7 @@ internal static class DamageMeterHookAdapter
                     FightStarted = _ => DamageMeterLifecycleCoordinator.OnFightStartFallback(),
                     PlayerRoundStarted = context => DamageMeterLifecycleCoordinator.OnPlayerRoundStart(
                         DamageMeterHookContextMapper.MapRoundUnit(context)),
+                    FightRestarting = _ => DamageMeterLifecycleCoordinator.OnFightRestarting(),
                     FightEnding = context => DamageMeterLifecycleCoordinator.OnFightEnding(
                         DamageMeterSettlementRuntime.FightResult(context)),
                     FightEnded = _ => DamageMeterLifecycleCoordinator.OnFightEnded()

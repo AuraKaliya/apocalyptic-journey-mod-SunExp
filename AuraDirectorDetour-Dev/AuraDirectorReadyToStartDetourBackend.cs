@@ -1,4 +1,6 @@
 using System;
+using System.Collections.Generic;
+using System.Collections.ObjectModel;
 using System.IO;
 using System.Linq;
 using System.Reflection;
@@ -13,6 +15,15 @@ public sealed class AuraDirectorReadyToStartDetourBackend : IAuraDirectorStartGa
     public const string BackendId = "AuraDirector.ReadyToStart.Harmony.v1";
     public const string HarmonyId = "AuraDirector.Shared.ReadyToStart.Harmony.v1";
     public const string VerifiedWitchSha256 = "8D87696341625B19F63059B6D91262FF5738F3C0B5ABB7598A05C7640727790A";
+    public const string VerifiedWitchSha256V24591395 = "88613CF3E1F0F4A493FE722FBFB63E36A6C97CBF098F9F406F6AC2A28C136F60";
+
+    public static IReadOnlyDictionary<string, string> VerifiedWitchBuilds { get; } =
+        new ReadOnlyDictionary<string, string>(
+            new Dictionary<string, string>(StringComparer.OrdinalIgnoreCase)
+            {
+                [VerifiedWitchSha256] = "1.0.23816797",
+                [VerifiedWitchSha256V24591395] = "1.0.24591395"
+            });
 
     private static readonly object ActiveGate = new();
     private static AuraDirectorReadyToStartDetourBackend? active;
@@ -84,7 +95,7 @@ public sealed class AuraDirectorReadyToStartDetourBackend : IAuraDirectorStartGa
         }
 
         var hash = ComputeSha256(location);
-        if (!string.Equals(hash, VerifiedWitchSha256, StringComparison.OrdinalIgnoreCase))
+        if (!VerifiedWitchBuilds.TryGetValue(hash, out var verifiedBuild))
         {
             return Unsupported("detour-target-build-unverified", "Witch.dll SHA-256 is not in the verified build allowlist: " + hash);
         }
@@ -93,7 +104,7 @@ public sealed class AuraDirectorReadyToStartDetourBackend : IAuraDirectorStartGa
         {
             Supported = true,
             Code = "detour-compatible",
-            Detail = "Verified public ReadyToStart target on Witch.dll " + hash
+            Detail = "Verified public ReadyToStart target on Witch.dll " + hash + " (game " + verifiedBuild + ")"
         };
     }
 

@@ -18,6 +18,7 @@ internal static class Program
 
         try
         {
+            TestVerifiedBuildCatalog();
             TestHarmonyHoldAndResume();
             TestImmediateReleaseReentry();
             TestRejectedAndFailedSinksRunOriginal();
@@ -31,6 +32,26 @@ internal static class Program
             Console.Error.WriteLine(ex);
             return 1;
         }
+    }
+
+    private static void TestVerifiedBuildCatalog()
+    {
+        Assert(
+            AuraDirectorReadyToStartDetourBackend.VerifiedWitchBuilds.TryGetValue(
+                AuraDirectorReadyToStartDetourBackend.VerifiedWitchSha256,
+                out var legacyBuild)
+            && legacyBuild == "1.0.23816797",
+            "the previous verified Witch build remains allowlisted");
+        Assert(
+            AuraDirectorReadyToStartDetourBackend.VerifiedWitchBuilds.TryGetValue(
+                AuraDirectorReadyToStartDetourBackend.VerifiedWitchSha256V24591395,
+                out var currentBuild)
+            && currentBuild == "1.0.24591395",
+            "the current Witch build is allowlisted");
+        Assert(
+            !AuraDirectorReadyToStartDetourBackend.VerifiedWitchBuilds.ContainsKey(
+                new string('0', 64)),
+            "unknown Witch hashes remain outside the allowlist");
     }
 
     private static Assembly? ResolveManagedAssembly(string managedPath, ResolveEventArgs eventArgs)
@@ -159,6 +180,7 @@ internal static class Program
         }
 
         Assert(probe.Code == "detour-compatible", "allowlisted Witch.dll builds pass the capability probe");
+        Assert(probe.Detail.Contains("1.0.24591395"), "the current capability probe reports its verified game build");
         var installed = backend.Install(new RejectingSink());
         Assert(installed.Supported && installed.Code == "detour-installed" && backend.IsInstalled,
             "Harmony prefix installs on the current ReadyToStart method");

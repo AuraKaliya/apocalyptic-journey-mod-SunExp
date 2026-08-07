@@ -72,6 +72,18 @@
       "enabled": true
     },
     {
+      "id": "witch-event-data-contracts",
+      "kind": "script",
+      "path": "tools/Test-WitchEventDataContracts.ps1",
+      "owner": "Witch",
+      "category": "compatibility",
+      "cost": "medium",
+      "impactTags": ["events", "network", "runtime-contract"],
+      "profiles": ["events", "full-release"],
+      "enabled": true,
+      "passConfiguration": true
+    },
+    {
       "id": "terrias-spirit",
       "kind": "script",
       "path": "tools/Test-SpiritCapture.ps1",

@@ -28,6 +28,7 @@ public static class ProjectionRuntime
         TerriasBattleLifecycleRouter.Register("Projection", new TerriasBattleLifecycleSubscription
         {
             FightStarted = context => BeginBattle("Fight_Start.Init"),
+            FightRestarting = context => ClearBattle("FightRestarting"),
             FightEnding = context => ClearBattle("FightEnding")
         });
         RegisterBefore(modConfig, TerriasHookTargets.FightWinInit, context => ClearBattle("Fight_Win.Init:before"));

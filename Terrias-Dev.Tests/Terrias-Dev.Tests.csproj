@@ -48,6 +48,8 @@
     <Compile Include="..\Terrias-Dev\Mechanics\MapNodeTextureFitService.cs" Link="Source\MapNodeTextureFitService.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\ModeChoiceDragRange.cs" Link="Source\ModeChoiceDragRange.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\SpiritProfileIdentityResolver.cs" Link="Source\SpiritProfileIdentityResolver.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\ProjectionTurnQueuePolicy.cs" Link="Source\ProjectionTurnQueuePolicy.cs" />
+    <Compile Include="..\Terrias-Dev\Mechanics\SolarMemoryRoleCommitPendingState.cs" Link="Source\SolarMemoryRoleCommitPendingState.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\DimensionShopRandom.cs" Link="Source\DimensionShopRandom.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\EndlessSeaNodeKind.cs" Link="Source\EndlessSeaNodeKind.cs" />
     <Compile Include="..\Terrias-Dev\Mechanics\EndlessAbyssEnemyScalingService.cs" Link="Source\EndlessAbyssEnemyScalingService.cs" />

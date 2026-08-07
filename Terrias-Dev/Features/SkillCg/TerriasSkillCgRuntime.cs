@@ -35,6 +35,7 @@ public static class TerriasSkillCgRuntime
         {
             AdventureStarting = OnAdventureStart,
             FightStarted = OnFightStart,
+            FightRestarting = OnFightEnding,
             FightEnding = OnFightEnding,
             FightEnded = OnFightEnded
         });

@@ -22,6 +22,7 @@ public static class DuskPartnerRuntime
         TerriasBattleLifecycleRouter.Register("DuskPartner", new TerriasBattleLifecycleSubscription
         {
             FightStarted = GrantTraitOnFightStart,
+            FightRestarting = _ => DuskAfterheatRecoveryService.Deactivate(null, "FightRestarting"),
             FightEnding = _ => DuskAfterheatRecoveryService.Deactivate(null, "FightEnding")
         });
         TerriasStatusLifecycleRouter.Register("DuskPartner", new TerriasStatusLifecycleSubscription

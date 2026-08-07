@@ -4743,7 +4743,7 @@ public sealed class CombatCampaignFoundationTrainer
             var completedIteration = new CombatCampaignFoundationIteration
             {
                 Iteration = iteration + 1,
-                WorkerProcessId = Environment.ProcessId,
+                WorkerProcessId = System.Diagnostics.Process.GetCurrentProcess().Id,
                 ParallelismDecision = parallelismDecision,
                 ReplayEpisodes = result.Replay.Count,
                 TrainingReplayEpisodes = replaySelection.Episodes.Count,

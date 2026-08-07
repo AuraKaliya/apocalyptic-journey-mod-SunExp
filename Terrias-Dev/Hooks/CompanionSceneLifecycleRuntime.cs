@@ -35,6 +35,7 @@ public static class CompanionSceneLifecycleRuntime
             FightStarted = _ => CompanionSceneApi.TrackBattleScene(
                 SceneManager.GetActiveScene(),
                 "FightStarted"),
+            FightRestarting = _ => CleanupAfterSceneBoundary("FightRestarting"),
             FightEnded = _ => CleanupAfterSceneBoundary("FightEnded")
         });
         TerriasLog.Info("Companion scene lifecycle runtime initialized");

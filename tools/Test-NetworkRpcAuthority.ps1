@@ -136,6 +136,38 @@ foreach ($marker in $registeredMarkers) {
     }
 }
 
+$solarCommit = $records | Where-Object {
+    $_.RelativePath -eq "Terrias-Dev/Network/RpcSolarMemoryRoleCommit.cs"
+} | Select-Object -First 1
+if ($null -eq $solarCommit) {
+    $violations.Add("Terrias-Dev/Network/RpcSolarMemoryRoleCommit.cs: Solar Memory role commit RPC is missing")
+} else {
+    $solarAckContracts = @(
+        "public bool Accepted { get; set; }",
+        "public string RejectionReason { get; set; }",
+        "PlayerId = serverSender.PlayerId;",
+        "Accepted = ApplyOnServer(",
+        "SolarMemoryRoleCommitApi.ReceiveAuthoritativeResult("
+    )
+    foreach ($contract in $solarAckContracts) {
+        if (-not $solarCommit.Text.Contains($contract, [StringComparison]::Ordinal)) {
+            $violations.Add(
+                "$($solarCommit.RelativePath): authoritative role commit acknowledgement contract is missing: $contract")
+        }
+    }
+}
+
+$solarPreparation = $records | Where-Object {
+    $_.RelativePath -eq "Terrias-Dev/Hooks/SolarMemoryPreparationRuntime.cs"
+} | Select-Object -First 1
+if ($null -eq $solarPreparation `
+        -or -not $solarPreparation.Text.Contains(
+            "submission == SolarMemoryRoleCommitSubmission.Pending",
+            [StringComparison]::Ordinal)) {
+    $violations.Add(
+        "Terrias-Dev/Hooks/SolarMemoryPreparationRuntime.cs: preparation UI must remain pending until the host acknowledges the final role")
+}
+
 if ($violations.Count -gt 0) {
     throw "Network RPC authority scan failed:`n - $($violations -join "`n - ")"
 }

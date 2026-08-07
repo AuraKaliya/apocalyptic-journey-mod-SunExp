@@ -14,6 +14,7 @@ public static class ProjectionTurnCoordinator
     private static readonly HashSet<string> ExecutedThisRound = new(StringComparer.Ordinal);
     private static ProjectionTurnAnchorObj? anchor;
     private static int roundSequence;
+    private static string lastAnchorExecutionToken = "";
 
     public static void BeginBattle(string source)
     {
@@ -76,6 +77,26 @@ public static class ProjectionTurnCoordinator
         }
 
         var activeRound = Math.Max(1, roundSequence);
+        var anchorExecutionToken = CompanionAuthorityService.BattleEpoch + ":" + activeRound;
+        var duplicateAnchorExecution = false;
+        lock (SyncRoot)
+        {
+            if (string.Equals(lastAnchorExecutionToken, anchorExecutionToken, StringComparison.Ordinal))
+            {
+                duplicateAnchorExecution = true;
+            }
+            else
+            {
+                lastAnchorExecutionToken = anchorExecutionToken;
+            }
+        }
+
+        if (duplicateAnchorExecution)
+        {
+            TerriasPerformanceCounters.Record("ProjectionTurnCoordinator.AnchorDuplicateSkipped");
+            yield break;
+        }
+
         var projections = ProjectionStateStore.Active()
             .Select(state => new CompanionTurnEntry(state.OwnerPlayerId, state.StatusId, state.SlotIndex, state.Projection))
             .Concat(SpiritStateStore.Active().Select(state => new CompanionTurnEntry(state.OwnerPlayerId, state.StatusId, state.SlotIndex, state.Spirit)))
@@ -113,6 +134,7 @@ public static class ProjectionTurnCoordinator
         {
             roundSequence = 0;
             ExecutedThisRound.Clear();
+            lastAnchorExecutionToken = "";
         }
 
         var manager = FightManager.Instance;
@@ -163,7 +185,9 @@ public static class ProjectionTurnCoordinator
 
         if (anchor != null)
         {
-            manager.ActionQueue.RemoveAll(item => item is ProjectionOtherObj || item is SpiritOtherObj);
+            manager.ActionQueue.RemoveAll(item => item == null
+                || (!ReferenceEquals(item, anchor)
+                    && ProjectionTurnQueuePolicy.ShouldRemoveWhenInstallingAnchor(ClassifyQueueItem(item))));
             if (!manager.ActionQueue.Contains(anchor))
             {
                 if (anchor.Status != null && anchor.Status.state == IStatusManager.State.NoAction)
@@ -177,6 +201,7 @@ public static class ProjectionTurnCoordinator
                 TerriasLog.Debug("[ProjectionTurn] anchor requeued from " + source + ".");
             }
 
+            RecordQueueDiagnostics(manager.ActionQueue, source);
             return;
         }
 
@@ -207,7 +232,8 @@ public static class ProjectionTurnCoordinator
                 return;
             }
 
-            manager.ActionQueue.RemoveAll(item => item == null || item is ProjectionTurnAnchorObj || item is ProjectionOtherObj || item is SpiritOtherObj);
+            manager.ActionQueue.RemoveAll(item => item == null
+                || ProjectionTurnQueuePolicy.ShouldRemoveWhenInstallingAnchor(ClassifyQueueItem(item)));
             manager.ActionQueue.Add(created);
             anchor = created;
             pendingRoot = null;
@@ -216,6 +242,7 @@ public static class ProjectionTurnCoordinator
                 + CompanionAuthorityService.BattleEpoch
                 + ", source="
                 + source);
+            RecordQueueDiagnostics(manager.ActionQueue, source);
         }
         catch (Exception ex)
         {
@@ -230,6 +257,50 @@ public static class ProjectionTurnCoordinator
                 UnityEngine.Object.Destroy(pendingRoot);
             }
         }
+    }
+
+    private static ProjectionTurnQueueKind ClassifyQueueItem(FightObject item)
+    {
+        if (item is ProjectionTurnAnchorObj)
+        {
+            return ProjectionTurnQueueKind.TerriasAnchor;
+        }
+
+        if (item is ProjectionOtherObj)
+        {
+            return ProjectionTurnQueueKind.TerriasProjection;
+        }
+
+        if (item is SpiritOtherObj)
+        {
+            return ProjectionTurnQueueKind.TerriasSpirit;
+        }
+
+        return item is Partner
+            ? ProjectionTurnQueueKind.NativePartner
+            : ProjectionTurnQueueKind.Other;
+    }
+
+    private static void RecordQueueDiagnostics(IEnumerable<FightObject> queue, string source)
+    {
+        var snapshot = ProjectionTurnQueuePolicy.Analyze(queue.Select(ClassifyQueueItem));
+        if (!snapshot.IsIsolated)
+        {
+            TerriasPerformanceCounters.Record("ProjectionTurnCoordinator.QueueInvariantViolation");
+            TerriasLog.Warn("[ProjectionTurn] queue invariant failed: source="
+                + source
+                + ", nativePartners="
+                + snapshot.NativePartnerCount
+                + ", anchors="
+                + snapshot.AnchorCount
+                + ", directProjections="
+                + snapshot.DirectProjectionCount
+                + ", directSpirits="
+                + snapshot.DirectSpiritCount);
+            return;
+        }
+
+        TerriasPerformanceCounters.Record("ProjectionTurnCoordinator.QueueInvariantPassed");
     }
 
     private static IDictionary<string, string>? ResolveAnchorTemplateData()

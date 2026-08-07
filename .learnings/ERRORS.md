@@ -587,7 +587,7 @@ Keep spaces around cmdlet arguments and variables even in compact inline monitor
 ### Metadata
 - Reproducible: yes
 - Related Files: none
-- Recurrence-Count: 2
+- Recurrence-Count: 3
 - Last-Seen: 2026-08-06T16:05:00+08:00
 
 ### Resolution

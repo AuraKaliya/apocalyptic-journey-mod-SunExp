@@ -33,6 +33,8 @@ internal static class Program
         TestMapNodeTextureFitService();
         TestModeChoiceDragRange();
         TestSpiritProfileIdentityResolver();
+        TestProjectionTurnQueuePolicy();
+        TestSolarMemoryRoleCommitPendingState();
         TestLoneerStateOwnership();
         TestStarScoreWindow();
         TestStarScoreArrivalCueService();
@@ -58,6 +60,65 @@ internal static class Program
 
         True(DictionaryUtil.ContainsToken("Burnout, " + WhiteRadiance + " ,Froze", TerriasIds.WhiteRadianceTag), "ContainsToken trims comma-separated tokens");
         False(DictionaryUtil.ContainsToken(WhiteRadiance + "\u5316", TerriasIds.WhiteRadianceTag), "ContainsToken requires exact token matches");
+    }
+
+    private static void TestProjectionTurnQueuePolicy()
+    {
+        var nativePartner = ProjectionTurnQueueKind.NativePartner;
+        False(ProjectionTurnQueuePolicy.ShouldRemoveWhenInstallingAnchor(nativePartner),
+            "Terrias anchor installation never removes a native Partner action unit");
+        True(ProjectionTurnQueuePolicy.ShouldRemoveWhenInstallingAnchor(ProjectionTurnQueueKind.TerriasProjection),
+            "Terrias projections execute through the anchor instead of the native queue");
+        True(ProjectionTurnQueuePolicy.ShouldRemoveWhenInstallingAnchor(ProjectionTurnQueueKind.TerriasSpirit),
+            "Terrias spirits execute through the anchor instead of the native queue");
+        True(ProjectionTurnQueuePolicy.ShouldRemoveWhenInstallingAnchor(ProjectionTurnQueueKind.TerriasAnchor),
+            "anchor installation replaces stale Terrias anchors");
+
+        var isolated = ProjectionTurnQueuePolicy.Analyze(new[]
+        {
+            ProjectionTurnQueueKind.Other,
+            ProjectionTurnQueueKind.NativePartner,
+            ProjectionTurnQueueKind.NativePartner,
+            ProjectionTurnQueueKind.Other,
+            ProjectionTurnQueueKind.TerriasAnchor
+        });
+        True(isolated.IsIsolated, "one Terrias anchor can coexist with native partners without queue ownership overlap");
+        Equal(2, isolated.NativePartnerCount, "queue diagnostics preserve all native Partner action units");
+
+        var conflicted = ProjectionTurnQueuePolicy.Analyze(new[]
+        {
+            ProjectionTurnQueueKind.NativePartner,
+            ProjectionTurnQueueKind.TerriasAnchor,
+            ProjectionTurnQueueKind.TerriasProjection,
+            ProjectionTurnQueueKind.TerriasSpirit,
+            ProjectionTurnQueueKind.TerriasAnchor
+        });
+        False(conflicted.IsIsolated, "duplicate anchors and directly queued Terrias actors are reported as conflicts");
+        Equal(1, conflicted.NativePartnerCount, "conflict diagnostics do not classify native Partner as a Terrias actor");
+        Equal(2, conflicted.AnchorCount, "conflict diagnostics expose duplicate Terrias anchors");
+    }
+
+    private static void TestSolarMemoryRoleCommitPendingState()
+    {
+        var state = new SolarMemoryRoleCommitPendingState();
+        False(state.TryBegin("", "token"), "Solar Memory role commit rejects an empty player identity");
+        True(state.TryBegin("player-a", "token-a"), "Solar Memory role commit tracks the first pending request");
+        True(state.TryBegin("player-a", "token-a"), "Solar Memory role commit treats a repeated local submission as idempotent");
+        False(state.TryBegin("player-b", "token-b"), "Solar Memory role commit keeps one unambiguous local request pending");
+
+        var mismatchedPlayer = state.Resolve("player-b", "token-a", accepted: true);
+        False(mismatchedPlayer.Matched, "Solar Memory role commit ignores an acknowledgement for another player");
+        var mismatchedToken = state.Resolve("player-a", "token-b", accepted: true);
+        False(mismatchedToken.Matched, "Solar Memory role commit ignores an acknowledgement for another token");
+        True(state.IsPending("player-a", "token-a"), "unmatched acknowledgements leave the request pending");
+
+        var accepted = state.Resolve("player-a", "token-a", accepted: true);
+        True(accepted.Matched && accepted.Accepted, "matching host acceptance resolves the pending role commit");
+        False(state.IsPending("player-a", "token-a"), "accepted role commit cannot be completed twice");
+
+        True(state.TryBegin("player-a", "token-rejected"), "a resolved role commit permits a later retry");
+        var rejected = state.Resolve("player-a", "token-rejected", accepted: false);
+        True(rejected.Matched && !rejected.Accepted, "matching host rejection resolves the pending role commit as rejected");
     }
 
     private static void TestEndlessAbyssEnemyScaling()

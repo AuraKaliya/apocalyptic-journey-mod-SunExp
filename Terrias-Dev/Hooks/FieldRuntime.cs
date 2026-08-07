@@ -30,6 +30,7 @@ public static class FieldRuntime
         {
             FightInitializing = context => ResetFightState("FightInitializing"),
             FightOpening = OnFightOpening,
+            FightRestarting = context => ResetFightState("FightRestarting"),
             FightEnding = context => ResetFightState("FightEnding"),
             FightEnded = context => ResetFightState("FightEnded")
         });

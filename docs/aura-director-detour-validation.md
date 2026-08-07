@@ -17,12 +17,11 @@ The backend lives in `AuraDirectorDetour-Dev` and pins Lib.Harmony 2.4.2.
 source, session, compiler, and presentation contracts without referencing
 Harmony or the optional backend assembly.
 
-## Verified Build
+## Verified Builds
 
-- game reference snapshot: `v1.0.23816797`;
 - target assembly: `Managed/Witch.dll`;
-- assembly SHA-256:
-  `8D87696341625B19F63059B6D91262FF5738F3C0B5ABB7598A05C7640727790A`;
+- game reference `v1.0.23816797`: `8D87696341625B19F63059B6D91262FF5738F3C0B5ABB7598A05C7640727790A`;
+- game reference `v1.0.24591395`: `88613CF3E1F0F4A493FE722FBFB63E36A6C97CBF098F9F406F6AC2A28C136F60`;
 - target shape: public instance `void ReadyToStart()` with no arguments;
 - patch owner: `AuraDirector.Shared.ReadyToStart.Harmony.v1`.
 
@@ -31,7 +30,7 @@ Installation failure leaves the original method enabled.
 
 ## Verified Behavior
 
-The automated gate verifies suppression and one-shot re-entry, duplicate hold
+The automated gate verifies the known-build catalog, suppression and one-shot re-entry, duplicate hold
 and release handling, sink failure-open behavior, teardown release, patch owner
 installation/removal for an allowlisted build, target fingerprint fail-closed
 behavior, and Terrias-only binary packaging. It does not preserve UI layout,

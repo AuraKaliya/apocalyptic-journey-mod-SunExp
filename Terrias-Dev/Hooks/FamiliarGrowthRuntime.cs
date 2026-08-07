@@ -63,6 +63,7 @@ public static class FamiliarGrowthRuntime
             AdventureStarting = MarkActiveForRun,
             FightInitialized = ApplySelectedCombatStartEffects,
             PlayerRoundStarted = context => FamiliarBlessingEffectRuntime.BeginPlayerRound(),
+            FightRestarting = context => FamiliarBlessingEffectRuntime.EndEpoch(),
             FightEnding = context => FamiliarBlessingEffectRuntime.EndEpoch()
         });
         TerriasLog.Info(LogPrefix + " runtime initialized.");

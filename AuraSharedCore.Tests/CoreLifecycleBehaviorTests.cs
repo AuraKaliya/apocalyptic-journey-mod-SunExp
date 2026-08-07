@@ -24,6 +24,17 @@ internal static partial class CoreTestSuite
         var secondEpoch = AuraLifecycleSessionRuntime.RestartBattleSession();
         Assert(secondEpoch > firstEpoch,
             "RestartBattleSession should advance the epoch even while the previous battle session is active");
+        Assert(AuraLifecycleSessionRuntime.IsBattleSessionActive,
+            "restarted battle session should remain active");
+        Assert(AuraLifecycleSessionRuntime.TryBeginBattleRestart(out var interruptedEpoch)
+               && interruptedEpoch == secondEpoch,
+            "battle restart boundary should atomically interrupt the current session");
+        Assert(!AuraLifecycleSessionRuntime.IsBattleSessionActive
+               && !AuraLifecycleSessionRuntime.TryBeginBattleRestart(out _),
+            "battle restart boundary should be emitted once per active session");
+        var rebuiltEpoch = AuraLifecycleSessionRuntime.RestartBattleSession();
+        Assert(rebuiltEpoch == interruptedEpoch + 1 && AuraLifecycleSessionRuntime.IsBattleSessionActive,
+            "rebuilt battle should receive exactly one new session epoch");
         AuraLifecycleSessionRuntime.EndBattleSession();
         Assert(AuraLifecycleOperationLedger.TryClaim("test-battle:1", "OwnerA", "FeatureA", "AddStartBuff", "Status1", "buff", "BuffA"),
             "first lifecycle operation claim");

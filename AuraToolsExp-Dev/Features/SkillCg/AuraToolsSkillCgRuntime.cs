@@ -97,6 +97,7 @@ public static class AuraToolsSkillCgRuntime
             {
                 AdventureStarting = OnAdventureStart,
                 FightStarted = OnFightStart,
+                FightRestarting = OnFightEnding,
                 FightEnding = OnFightEnding,
                 FightEnded = OnFightEnded
             },

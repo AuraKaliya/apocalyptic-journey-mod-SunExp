@@ -106,6 +106,17 @@ internal static class DamageMeterLifecycleCoordinator
         });
     }
 
+    internal static void OnFightRestarting()
+    {
+        DamageMeterHookAdapter.RunHook("fight restarting", () =>
+        {
+            ResetCaptureServices();
+            endingSent = false;
+            AuraToolsDamageMeterUi.CloseDetails();
+            AuraToolsDamageMeterRuntime.NotifyLedgerChanged();
+        });
+    }
+
     internal static void OnFightEnded()
     {
         DamageMeterHookAdapter.RunHook("fight ended", () =>

@@ -13,6 +13,7 @@ public static class HeartChangeControlRuntime
         TerriasBattleLifecycleRouter.Register("HeartChange", new TerriasBattleLifecycleSubscription
         {
             FightStarted = context => ClearBattle("Fight_Start.Init"),
+            FightRestarting = context => ClearBattle("FightRestarting"),
             FightEnding = context => ClearBattle("FightEnding")
         });
         RegisterBefore(modConfig, TerriasHookTargets.FightWinInit, context => ClearBattle("Fight_Win.Init:before"));

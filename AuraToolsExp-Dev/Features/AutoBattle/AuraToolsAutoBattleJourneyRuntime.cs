@@ -40,6 +40,7 @@ internal static class AuraToolsAutoBattleJourneyRuntime
             {
                 AdventureStarting = _ => BeginAdventure(),
                 FightStarting = _ => BeginBattle(),
+                FightRestarting = MarkBattleRestarting,
                 FightEnding = MarkBattleEnding,
                 FightEnded = FinishBattle
             },
@@ -163,6 +164,17 @@ internal static class AuraToolsAutoBattleJourneyRuntime
     private static void MarkBattleEnding(ModHookContext context)
     {
         UpdateBattleOutcome(context);
+    }
+
+    private static void MarkBattleRestarting(ModHookContext context)
+    {
+        var run = current;
+        var sessionId = AuraBattleLifecycleRouter.CurrentBattleSessionId;
+        var battle = run?.Battles.LastOrDefault(item => item.BattleSessionId == sessionId);
+        if (battle != null && string.Equals(battle.Outcome, "in-progress", StringComparison.Ordinal))
+        {
+            battle.Outcome = "interrupted-restart";
+        }
     }
 
     private static void FinishBattle(ModHookContext context)

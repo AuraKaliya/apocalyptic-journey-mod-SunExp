@@ -36,10 +36,11 @@ does not justify treating the whole wrapper as byte-for-byte unchanged.
 ## Gate Decision
 
 The signature and static method-body review passes. The AuraDirector production
-hash gate has deliberately not been updated because this machine cannot run the
-game smoke tests. `tools/Test-AuraDirectorDetour.ps1` verifies that the current
-`Managed/` is rejected as `detour-target-build-unverified` and remains unpatched;
-the test passes by proving the intended fail-closed behavior.
+hash gate now allowlists both reviewed builds, including `1.0.24591395`.
+`tools/Test-AuraDirectorDetour.ps1` verifies that the current `Managed/` target
+accepts the capability probe and that the isolated Harmony prefix installs and
+uninstalls without leaving an owned patch behind. Unknown hashes continue to
+fail closed as `detour-target-build-unverified`.
 
-Before changing the verified hash, run the game-machine checks for single-player
-fight start, multiplayer readiness, disconnect recovery, and detour release.
+The remaining game-machine checks are single-player fight start, multiplayer
+readiness, disconnect recovery, repeated battles, and detour release.

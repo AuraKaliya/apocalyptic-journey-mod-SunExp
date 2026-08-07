@@ -34,6 +34,7 @@ public static class SpiritRuntime
         {
             FightStarted = _ => ClearBattle("FightStarted"),
             PlayerRoundStarted = _ => SpiritSummonService.FlushPendingCardReturns("PlayerRoundStarted"),
+            FightRestarting = _ => ClearBattle("FightRestarting"),
             FightEnding = _ => ClearBattle("FightEnding")
         });
         RegisterBefore(modConfig, TerriasHookTargets.FightWinInit, _ => ClearBattle("Fight_Win.Init:before"));

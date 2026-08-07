@@ -2,6 +2,8 @@ using System;
 using System.Collections.Generic;
 using Witch.Core;
 using Witch.Mod;
+using Witch.UI;
+using Witch.UI.Window;
 
 namespace AuraShared.Core;
 
@@ -21,6 +23,10 @@ public sealed class AuraBattleLifecycleSubscription
 
     public Action<ModHookContext>? PlayerRoundStarted { get; set; }
 
+    public Action<ModHookContext>? FightRestarting { get; set; }
+
+    public Action<ModHookContext>? FightRestarted { get; set; }
+
     public Action<ModHookContext>? FightEnding { get; set; }
 
     public Action<ModHookContext>? FightEnded { get; set; }
@@ -32,6 +38,7 @@ public static class AuraBattleLifecycleRouter
     public const string FightStartInit = "Fight_Start.Init";
     public const string FightInitInit = "FightInit.Init";
     public const string FightPlayerTurnInit = "Fight_PlayerTurn.Init";
+    public const string FightManagerClearFightUi = "FightManager.UserCode_ClearFightui";
     public const string FightWinResetStates = "Fight_Win.ResetStates";
     public const string FightEscapeResetStates = "Fight_Escape.ResetStates";
     public const string FightLossInit = "Fight_Loss.Init";
@@ -39,6 +46,7 @@ public static class AuraBattleLifecycleRouter
     private static readonly object Gate = new();
     private static readonly Dictionary<string, Handler> Handlers = new(StringComparer.OrdinalIgnoreCase);
     private static bool initialized;
+    private static long pendingRestartSessionId;
 
     public static long CurrentBattleSessionId => AuraLifecycleSessionRuntime.CurrentBattleSessionId;
 
@@ -82,6 +90,7 @@ public static class AuraBattleLifecycleRouter
         initialized = true;
         var registry = new AuraHookRegistry(modConfig, "AuraBattleLifecycle", info, warn);
         registry.BeforeRouted(GameEntryStartGame, context => Dispatch(context, GameEntryStartGame, h => h.Subscription.AdventureStarting), "AdventureStarting");
+        registry.BeforeRouted(FightManagerClearFightUi, BeginNativeFightRestart, "FightRestarting");
         registry.BeforeRouted(FightInitInit, context =>
         {
             BeginBattleSession();
@@ -99,6 +108,7 @@ public static class AuraBattleLifecycleRouter
             EnsureBattleSession();
             Dispatch(context, FightInitInit, h => h.Subscription.FightInitialized);
             Dispatch(context, FightInitInit, h => h.Subscription.FightStarted);
+            DispatchRestarted(context);
         }, "FightInitialized");
         registry.AfterRouted(FightPlayerTurnInit, context => Dispatch(context, FightPlayerTurnInit, h => h.Subscription.PlayerRoundStarted), "PlayerRoundStarted");
         registry.BeforeRouted(FightWinResetStates, context => Dispatch(context, FightWinResetStates, h => h.Subscription.FightEnding), "FightEnding");
@@ -113,6 +123,52 @@ public static class AuraBattleLifecycleRouter
     {
         AuraLifecycleSessionRuntime.RestartBattleSession();
         AuraLifecycleOperationLedger.ClearScopePrefix("battle:");
+    }
+
+    private static void BeginNativeFightRestart(ModHookContext context)
+    {
+        if (context.Target is not FightManager
+            || UIManager.Instance?.GetUI<FightUI>("FightUI") == null
+            || !AuraLifecycleSessionRuntime.TryBeginBattleRestart(out var interruptedSessionId))
+        {
+            return;
+        }
+
+        lock (Gate)
+        {
+            pendingRestartSessionId = interruptedSessionId;
+        }
+
+        Dispatch(context, FightManagerClearFightUi, h => h.Subscription.FightRestarting);
+        AuraLifecycleOperationLedger.ClearScopePrefix("battle:");
+        AuraSharedLog.Info(
+            "AuraBattleLifecycle",
+            "[BattleRestart] restarting interruptedSession=" + interruptedSessionId,
+            mirrorCommands: false);
+    }
+
+    private static void DispatchRestarted(ModHookContext context)
+    {
+        long interruptedSessionId;
+        lock (Gate)
+        {
+            if (pendingRestartSessionId <= 0)
+            {
+                return;
+            }
+
+            interruptedSessionId = pendingRestartSessionId;
+            pendingRestartSessionId = 0;
+        }
+
+        Dispatch(context, FightInitInit, h => h.Subscription.FightRestarted);
+        AuraSharedLog.Info(
+            "AuraBattleLifecycle",
+            "[BattleRestart] restarted interruptedSession="
+            + interruptedSessionId
+            + ", rebuiltSession="
+            + CurrentBattleSessionId,
+            mirrorCommands: false);
     }
 
     private static void DispatchEnded(ModHookContext context, string source)

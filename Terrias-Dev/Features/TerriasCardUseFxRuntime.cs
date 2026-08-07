@@ -33,6 +33,7 @@ public static class TerriasCardUseFxRuntime
         TerriasBattleLifecycleRouter.Register("CardUseFx", new TerriasBattleLifecycleSubscription
         {
             FightStarted = _ => Clear("fight-start"),
+            FightRestarting = _ => Clear("fight-restarting"),
             FightEnding = _ => Clear("fight-end")
         });
         TerriasLog.Info("[CardUseFx] Stellar Overture card-use FX runtime initialized.");
