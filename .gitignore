@@ -5,8 +5,7 @@ obj/
 
 # Rebuildable binary outputs. Existing tracked game reference assemblies
 # remain tracked; this prevents new DLL/EXE artifacts from being added.
-*.dll
-*.exe
+
 *.pdb
 
 # External trainer runtime state is local to each machine.
