@@ -34,6 +34,334 @@ a shared helper before referencing them.
 
 ---
 
+## [ERR-20260807-003] conditional-interface-inference
+
+**Logged**: 2026-08-07T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: backend
+
+### Summary
+A conditional expression between two concrete policy-value model types did not
+infer their shared interface during the first build.
+
+### Error
+```text
+CS0173: Cannot determine type of conditional expression because there is no
+implicit conversion between NullCombatPolicyValueModel and
+ManagedCombatPolicyValueModel.
+```
+
+### Context
+- Added the foundation campaign replay API.
+- Both branches implement `ICombatPolicyValueModel`, but `var` conditional
+  inference did not select that interface.
+
+### Suggested Fix
+Declare the conditional target explicitly as `ICombatPolicyValueModel`.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraCombatAiShared/CombatCampaignFoundationTraining.cs
+
+### Resolution
+- **Resolved**: 2026-08-07T00:00:00+08:00
+- **Notes**: Replaced `var` with the shared interface type.
+
+---
+
+## [ERR-20260807-004] simulation-card-target-property
+
+**Logged**: 2026-08-07T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+A new simulation regression fixture used a non-existent generic target flag.
+
+### Error
+```text
+CS0117: CombatCardDefinition does not contain a definition for RequiresTarget.
+```
+
+### Context
+- Added a focused dynamic-variable mutation battle fixture.
+- The simulation contract names the compatibility flag
+  `RequiresEnemyTarget` and separately supports `TargetScope`.
+
+### Suggested Fix
+Use `RequiresEnemyTarget` for enemy-only fixtures and inspect the shared model
+before assuming runtime UI property names.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraCombatAiShared.Tests/Program.cs
+
+### Resolution
+- **Resolved**: 2026-08-07T00:00:00+08:00
+- **Notes**: Switched the fixture to `RequiresEnemyTarget`.
+
+---
+
+## [ERR-20260807-005] worker-path-parser-used-for-scalars
+
+**Logged**: 2026-08-07T00:00:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: backend
+
+### Summary
+The Worker's existing argument resolver canonicalized every value as a file
+path, so newly added scalar replay options could not be parsed.
+
+### Error
+```text
+InvalidDataException: Invalid --replay-seed value.
+```
+
+### Context
+- `ResolveArgument` historically served only `--job` and returned
+  `Path.GetFullPath(value)`.
+- Reusing it for a seed, difficulty, trace level, and probabilities turned the
+  scalar into a path before parsing.
+
+### Suggested Fix
+Keep path resolution for path options and use a raw option-value resolver for
+scalar arguments.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraFoundationTrainer.Worker/Program.cs
+- Pattern-Key: cli.path_vs_scalar_arguments
+
+### Resolution
+- **Resolved**: 2026-08-07T00:00:00+08:00
+- **Notes**: Added `ResolveOptionValue` and routed all scalar replay options
+  through it.
+
+---
+
+## [ERR-20260807-006] trainer-smoke-used-stale-package
+
+**Logged**: 2026-08-07T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The first packaged trainer smoke was run with `-SkipPublish`, so it exercised
+the previous self-contained Worker rather than the newly built project DLL.
+
+### Error
+```text
+Auto profile did not retain memory-capacity evidence.
+```
+
+### Context
+- Project builds and direct tests were current.
+- `Test-AuraFoundationTrainer.ps1 -SkipPublish` intentionally reuses the
+  executable already present under `AuraToolsExp/TrainingWorker`.
+- Protocol assertions expected v11 while that packaged executable still
+  emitted v10 evidence.
+
+### Suggested Fix
+After Worker protocol changes, run `Build-AuraFoundationTrainer.ps1` before
+using the smoke test with `-SkipPublish`.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Test-AuraFoundationTrainer.ps1
+- Pattern-Key: test.stale_packaged_binary
+
+### Resolution
+- **Resolved**: 2026-08-07T00:00:00+08:00
+- **Notes**: Republished the Worker and Control Center before rerunning smoke.
+
+---
+
+## [ERR-20260807-007] preflight-smoke-seed-count-contract
+
+**Logged**: 2026-08-07T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tests
+
+### Summary
+The trainer smoke still expected three regression seeds after the newly fixed
+campaign was added as the fourth integrity seed.
+
+### Error
+```text
+Foundation trainer preflight-only result is incomplete.
+```
+
+### Context
+- The Worker correctly ran the configured preflight plus four known failures.
+- The PowerShell smoke had two duplicated `+ 3` expectations.
+
+### Suggested Fix
+Keep a named regression-seed count in the smoke contract and update it with the
+integrity corpus.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Test-AuraFoundationTrainer.ps1
+- Pattern-Key: test.integrity_seed_count
+
+### Resolution
+- **Resolved**: 2026-08-07T00:00:00+08:00
+- **Notes**: Added `$integrityRegressionSeedCount = 4` and reused it in both
+  preflight expectations.
+
+---
+
+## [ERR-20260807-008] autotune-decision-evidence-not-updated
+
+**Logged**: 2026-08-07T00:00:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: backend
+
+### Summary
+Campaign auto-tune changed effective parallelism but left the published memory
+decision at its pre-calibration selection.
+
+### Error
+```text
+Auto profile did not retain memory-capacity evidence.
+```
+
+### Context
+- Auto-tune selected parallelism 2 from measured throughput.
+- `Training.EffectiveParallelism` and `AutoTune.SelectedParallelism` were 2,
+  while `ParallelismDecision.SelectedParallelism` still reported the initial
+  memory-safe ceiling of 4.
+
+### Suggested Fix
+When campaign calibration selects a lane count, update the published decision,
+predicted peak memory, reason, result, and telemetry together.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraCombatAiShared/CombatCampaignFoundationTraining.cs
+- Pattern-Key: telemetry.effective_configuration_propagation
+
+### Resolution
+- **Resolved**: 2026-08-07T00:00:00+08:00
+- **Notes**: Synchronized the decision object and added a throughput selection
+  reason before applying the effective execution plan.
+
+---
+
+## [ERR-20260807-009] preflight-smoke-assumed-no-campaign-probes
+
+**Logged**: 2026-08-07T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tooling
+
+### Summary
+The trainer preflight still enforced the v10 behavior that automatic
+parallelism must not run campaign throughput probes.
+
+### Error
+```text
+Memory-capacity parallelism unexpectedly ran throughput campaign probes.
+```
+
+### Context
+- The v11 scheduler intentionally calibrates normalized 50%, 75%, and 100%
+  points below the memory-safe and hardware-safe ceiling.
+- The implementation was correct, but the smoke assertion was stale.
+
+### Suggested Fix
+Derive the expected normalized probe points from the effective calibration
+ceiling and compare them with the reported campaign measurements.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Test-AuraFoundationTrainer.ps1
+- Pattern-Key: test.autotune_protocol_version
+
+### Resolution
+- **Resolved**: 2026-08-07T00:00:00+08:00
+- **Notes**: Updated the smoke to require the v11 normalized probe set.
+
+---
+
+## [ERR-20260807-010] ripgrep-windows-wildcard-path
+
+**Logged**: 2026-08-07T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tooling
+
+### Summary
+A diagnostic `rg` command passed PowerShell wildcard paths as literal search
+roots, which are invalid Windows path names.
+
+### Error
+```text
+文件名、目录名或卷标语法不正确。 (os error 123)
+```
+
+### Context
+- The command used `tools\\Build-*.ps1` and `*.ps1` as positional paths.
+- Ripgrep accepts glob filters through `-g`, not wildcard root paths on Windows.
+
+### Suggested Fix
+Search a real directory root and use `-g 'Build-*.ps1'` or enumerate files
+with PowerShell first.
+
+### Metadata
+- Reproducible: yes
+- Related Files: none
+- Pattern-Key: powershell.rg_glob_filter
+
+### Resolution
+- **Resolved**: 2026-08-07T00:00:00+08:00
+- **Notes**: Used concrete paths and treated the wildcard error as diagnostic-only.
+
+---
+
+## [ERR-20260807-001] relative-cmd-script-directory
+
+**Logged**: 2026-08-07T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+A CMD launcher duplicated its relative script directory after changing the
+working directory.
+
+### Error
+```text
+The argument '...\TrainingWorker\AuraToolsExp\TrainingWorker\Setup-AuraTransformerTeacher.ps1'
+to the -File parameter does not exist.
+```
+
+### Context
+- The launcher was invoked from the repository root through a relative path.
+- `%~dp0` remained relative, then `cd /d "%~dp0"` changed the base used to
+  resolve it a second time.
+
+### Suggested Fix
+Use `pushd "%~dp0"`, capture the resulting absolute `%CD%`, and build sibling
+paths from that captured directory.
+
+### Metadata
+- Reproducible: yes
+- Related Files: tools/Install-AuraPyTorch.cmd
+
+### Resolution
+- **Resolved**: 2026-08-07T00:00:00+08:00
+- **Notes**: The launcher now resolves its directory once and was retested
+  through a relative invocation path.
+
+---
+
 ## [ERR-20260805-009] temp-validation-cleanup-rejected
 
 **Logged**: 2026-08-05T00:00:00+08:00
@@ -3808,5 +4136,39 @@ Print the numbered local section and patch the exact current lines.
 ### Resolution
 - **Resolved**: 2026-08-03T00:00:00+08:00
 - **Notes**: Re-read lines 73-105 and applied exact replacements.
+
+---
+
+## [ERR-20260807-002] powershell-pipeline-after-foreach
+
+**Logged**: 2026-08-07T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: tooling
+
+### Summary
+An inline PowerShell diagnostics command piped directly after a `foreach`
+statement and failed to parse.
+
+### Error
+```text
+ParserError: An empty pipe element is not allowed.
+```
+
+### Context
+- The command assembled phase summary objects in a `foreach` statement.
+- A pipeline was placed immediately after the closing brace.
+
+### Suggested Fix
+Collect the objects into an array, then pipe the completed array to
+`Sort-Object` and `Format-Table`.
+
+### Metadata
+- Reproducible: yes
+- Related Files: none
+
+### Resolution
+- **Resolved**: 2026-08-07T00:00:00+08:00
+- **Notes**: Re-ran the diagnostics with an explicit `$phaseRows` array.
 
 ---

@@ -364,14 +364,11 @@ internal static class CombatPolicyValueBatchTrainer
             (int)Math.Min(
                 int.MaxValue,
                 gradientBufferBudgetBytes
-                / Math.Max(1L, parameterCount * sizeof(double) * 2L)));
+                / Math.Max(1L, parameterCount * sizeof(double))));
         var gradientWorkerCapacity = Math.Min(
             Math.Min(batchCapacity, options.GradientShardCount),
             memoryBoundGradientWorkers);
         var gradients = Enumerable.Range(0, gradientWorkerCapacity)
-            .Select(_ => new ModelGradient(model))
-            .ToArray();
-        var scratchGradients = Enumerable.Range(0, gradientWorkerCapacity)
             .Select(_ => new ModelGradient(model))
             .ToArray();
         var gradientWorkspaces = Enumerable
@@ -436,7 +433,6 @@ internal static class CombatPolicyValueBatchTrainer
                     worker =>
                     {
                         var aggregate = gradients[worker];
-                        var scratch = scratchGradients[worker];
                         aggregate.Clear();
                         for (var offset = worker;
                              offset < count;
@@ -444,16 +440,13 @@ internal static class CombatPolicyValueBatchTrainer
                         {
                             var frameIndex = order[batchStart + offset];
                             var frame = trainingFrames[frameIndex];
-                            scratch.Clear();
                             onlineTrainingFrameMetrics[frameIndex] =
                                 AccumulateGradient(
                                     model,
                                     frame,
-                                    scratch,
-                                    gradientWorkspaces[worker]);
-                            aggregate.AddScaled(
-                                scratch,
-                                frame.SampleWeight);
+                                    aggregate,
+                                    gradientWorkspaces[worker],
+                                    frame.SampleWeight);
                         }
                     });
                 gradientComputeSeconds += ElapsedSeconds(gradientStarted);
@@ -815,9 +808,10 @@ internal static class CombatPolicyValueBatchTrainer
                     : 1d
                       - sparseNonZeroValues * 12d
                       / (sparseDenseEquivalentValues * sizeof(double)),
-            ["gradientBufferCount"] = gradientWorkerCapacity * 2d,
+            ["gradientBufferCount"] = gradientWorkerCapacity,
             ["gradientMemoryBoundWorkerLimit"] =
                 memoryBoundGradientWorkers,
+            ["directWeightedGradientAccumulation"] = 1d,
             ["gradientBufferBudgetBytes"] = gradientBufferBudgetBytes,
             ["gradientComputeSeconds"] = gradientComputeSeconds,
             ["gradientAggregationSeconds"] = gradientAggregationSeconds,
@@ -2018,7 +2012,8 @@ internal static class CombatPolicyValueBatchTrainer
         CombatPolicyValueNetworkDefinition model,
         EncodedFrame frame,
         ModelGradient gradient,
-        ModelWorkspace workspace)
+        ModelWorkspace workspace,
+        double sampleWeight)
     {
         var hiddenCount = model.HiddenDimensions;
         workspace.Prepare(frame.Actions.Length);
@@ -2060,7 +2055,8 @@ internal static class CombatPolicyValueBatchTrainer
         {
             var outputGradient = probabilities[actionIndex]
                                  - frame.PolicyTargets[actionIndex];
-            outputGradient *= frame.AuxiliaryOnly ? 0d : 1d;
+            outputGradient *= (frame.AuxiliaryOnly ? 0d : 1d)
+                              * sampleWeight;
             gradient.PolicyBias += outputGradient;
             var actionGradient = workspace.ActionGradient;
             Array.Clear(actionGradient, 0, hiddenCount);
@@ -2098,6 +2094,7 @@ internal static class CombatPolicyValueBatchTrainer
                 var huberGradient = Clamp(error, -1d, 1d);
                 var quantileGradient = frame.ActionQuantileLossWeight
                                        * (frame.AuxiliaryOnly ? 0d : 1d)
+                                       * sampleWeight
                                        * asymmetry
                                        * huberGradient
                                        / Math.Max(1, quantileTargets.Length);
@@ -2136,28 +2133,28 @@ internal static class CombatPolicyValueBatchTrainer
         gradient.ValueBias += AccumulateHead(
             stateHidden,
             model.ValueWeights,
-            value - frame.LongTermReturn,
+            (value - frame.LongTermReturn) * sampleWeight,
             gradient.ValueWeights,
             stateGradient);
         var win = Sigmoid(Dot(stateHidden, model.WinWeights) + model.WinBias);
         gradient.WinBias += AccumulateHead(
             stateHidden,
             model.WinWeights,
-            win - frame.WinTarget,
+            (win - frame.WinTarget) * sampleWeight,
             gradient.WinWeights,
             stateGradient);
         var risk = Sigmoid(Dot(stateHidden, model.RiskWeights) + model.RiskBias);
         gradient.RiskBias += AccumulateHead(
             stateHidden,
             model.RiskWeights,
-            risk - frame.DeathTarget,
+            (risk - frame.DeathTarget) * sampleWeight,
             gradient.RiskWeights,
             stateGradient);
         var hp = Sigmoid(Dot(stateHidden, model.HpWeights) + model.HpBias);
         gradient.HpBias += AccumulateHead(
             stateHidden,
             model.HpWeights,
-            (hp - frame.HpTarget) * hp * (1d - hp),
+            (hp - frame.HpTarget) * hp * (1d - hp) * sampleWeight,
             gradient.HpWeights,
             stateGradient);
         var turnsRaw = Dot(stateHidden, model.TurnWeights) + model.TurnBias;
@@ -2165,7 +2162,10 @@ internal static class CombatPolicyValueBatchTrainer
         gradient.TurnBias += AccumulateHead(
             stateHidden,
             model.TurnWeights,
-            (turns - frame.TurnsTarget) * Sigmoid(turnsRaw) * 0.1d,
+            (turns - frame.TurnsTarget)
+            * Sigmoid(turnsRaw)
+            * 0.1d
+            * sampleWeight,
             gradient.TurnWeights,
             stateGradient);
         BackpropSparse(
@@ -3866,34 +3866,6 @@ internal static class CombatPolicyValueBatchTrainer
             TurnBias *= factor;
         }
 
-        public void AddScaled(ModelGradient source, double factor)
-        {
-            AddScaled(StateWeights, source.StateWeights, factor);
-            AddScaled(StateBias, source.StateBias, factor);
-            AddScaled(ActionWeights, source.ActionWeights, factor);
-            AddScaled(ActionBias, source.ActionBias, factor);
-            AddScaled(PolicyWeights, source.PolicyWeights, factor);
-            AddScaled(
-                ActionQuantileWeights,
-                source.ActionQuantileWeights,
-                factor);
-            AddScaled(
-                ActionQuantileBias,
-                source.ActionQuantileBias,
-                factor);
-            AddScaled(ValueWeights, source.ValueWeights, factor);
-            AddScaled(WinWeights, source.WinWeights, factor);
-            AddScaled(RiskWeights, source.RiskWeights, factor);
-            AddScaled(HpWeights, source.HpWeights, factor);
-            AddScaled(TurnWeights, source.TurnWeights, factor);
-            PolicyBias += source.PolicyBias * factor;
-            ValueBias += source.ValueBias * factor;
-            WinBias += source.WinBias * factor;
-            RiskBias += source.RiskBias * factor;
-            HpBias += source.HpBias * factor;
-            TurnBias += source.TurnBias * factor;
-        }
-
         private static void Scale(double[] values, double factor)
         {
             for (var index = 0; index < values.Length; index++)
@@ -3902,16 +3874,6 @@ internal static class CombatPolicyValueBatchTrainer
             }
         }
 
-        private static void AddScaled(
-            double[] target,
-            IReadOnlyList<double> source,
-            double factor)
-        {
-            for (var index = 0; index < target.Length; index++)
-            {
-                target[index] += source[index] * factor;
-            }
-        }
     }
 
     private sealed class Metrics

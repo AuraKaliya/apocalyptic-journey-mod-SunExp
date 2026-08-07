@@ -209,7 +209,7 @@ public sealed class CombatFoundationIntegritySeed
 
 public static class CombatFoundationIntegritySeedCorpus
 {
-    public const string Version = "integrity-seeds-v1";
+    public const string Version = "integrity-seeds-v2-dynamic-variable-base";
 
     public static IReadOnlyList<CombatFoundationIntegritySeed> KnownFailures {
         get;
@@ -229,6 +229,11 @@ public static class CombatFoundationIntegritySeedCorpus
         {
             DifficultyId = "advanced",
             WorldSeed = 1465699506046447325UL
+        },
+        new CombatFoundationIntegritySeed
+        {
+            DifficultyId = "advanced",
+            WorldSeed = 2049918757947132046UL
         }
     };
 }
@@ -290,7 +295,11 @@ public sealed class CombatCampaignFoundationTrainingRequest
     public int MaximumDegreeOfParallelism { get; set; } = 1;
 
     public int ModelTrainingParallelism { get; set; } =
-        Math.Max(1, Math.Min(16, Environment.ProcessorCount));
+        Math.Max(
+            1,
+            Math.Min(
+                CombatFoundationParallelismProtocol.MaximumSupportedParallelism,
+                Environment.ProcessorCount));
 
     public string ParallelismProfile { get; set; } =
         CombatFoundationExecutionProfileNames.Custom;
@@ -1982,6 +1991,57 @@ public sealed class CombatCampaignFoundationTrainer
         this.transformerTeacher = transformerTeacher;
     }
 
+    public CombatCampaignResult ReplayTrainingCampaign(
+        CombatCampaignFoundationTrainingRequest request,
+        CombatRuleset ruleset,
+        CombatPolicyValueNetworkDefinition? model,
+        string difficultyId,
+        ulong worldSeed,
+        double? explorationProbability = null,
+        double? exactBranchProbability = null,
+        CancellationToken cancellationToken = default)
+    {
+        if (request == null) throw new ArgumentNullException(nameof(request));
+        if (ruleset == null) throw new ArgumentNullException(nameof(ruleset));
+        ICombatPolicyValueModel policyValue = model == null
+            ? NullCombatPolicyValueModel.Instance
+            : new ManagedCombatPolicyValueModel(model);
+        var factory = new RecordingCampaignPolicyFactory(
+            CombatSearchBudgetPolicy.WithContext(request.Profile, "teacher"),
+            policyValue,
+            request.DecisionProfile,
+            Math.Max(
+                0d,
+                Math.Min(
+                    1d,
+                    explorationProbability
+                    ?? request.SelfPlayExplorationProbability)),
+            request.SelfPlayExplorationTemperature,
+            worldSeed,
+            Math.Max(
+                0d,
+                Math.Min(
+                    1d,
+                    exactBranchProbability
+                    ?? request.TeacherExactBranchProbability)),
+            campaignRunner.SimulationEngine,
+            request.ContentSetHash,
+            request.OwnerModSetHash,
+            recordWorldModelObservations: false);
+        var plan = CombatCampaignWorldPlanner.Build(
+            request.TrainingCampaign,
+            string.IsNullOrWhiteSpace(difficultyId)
+                ? "advanced"
+                : difficultyId,
+            worldSeed);
+        return campaignRunner.Run(
+            request.TrainingCampaign,
+            plan,
+            ruleset,
+            factory,
+            cancellationToken: cancellationToken);
+    }
+
     public CombatCampaignFoundationTrainingResult Run(
         CombatCampaignFoundationTrainingRequest request,
         CombatRuleset ruleset,
@@ -2534,7 +2594,11 @@ public sealed class CombatCampaignFoundationTrainer
                     : seedPlan.TrainingSeedStart,
                 parallelism,
                 autoTuneCacheKey,
-                false,
+                string.Equals(
+                    executionPlan.Profile,
+                    CombatFoundationExecutionProfileNames.Auto,
+                    StringComparison.Ordinal)
+                && !autoTune.CacheHit,
                 out var measuredAutoTune,
                 cancellationToken);
             if (measuredAutoTune != null)
@@ -2547,6 +2611,16 @@ public sealed class CombatCampaignFoundationTrainer
                     Math.Min(
                         executionPlan.CampaignParallelism,
                         autoTune.SelectedParallelism));
+                parallelismDecision.SelectedParallelism = parallelism;
+                parallelismDecision.PredictedPeakPrivateBytes =
+                    PredictedPeakPrivateBytes(
+                        parallelismDecision.FixedProcessBytes,
+                        parallelismDecision.PredictedPerLaneBytes,
+                        parallelism);
+                parallelismDecision.Reason +=
+                    "; throughput-auto-tune selected=" + parallelism;
+                result.ParallelismDecision = parallelismDecision;
+                telemetry.SetParallelismDecision(parallelismDecision);
                 ApplyEffectiveExecutionPlan(
                     executionPlan,
                     request,
@@ -2655,14 +2729,21 @@ public sealed class CombatCampaignFoundationTrainer
             }
             cancellationToken.ThrowIfCancellationRequested();
             var iterationNumber = iteration + 1;
+            var adaptiveParallelismCeiling = Math.Max(
+                1,
+                Math.Min(
+                    maximumCampaignParallelism,
+                    autoTune.SelectedParallelism > 0
+                        ? autoTune.SelectedParallelism
+                        : maximumCampaignParallelism));
             parallelismDecision = request.EnableMemoryCapacityParallelism
                 ? PrepareParallelismDecision(
                     request,
                     iterationNumber,
-                    maximumCampaignParallelism)
+                    adaptiveParallelismCeiling)
                 : CombatFoundationParallelismPlanner.Select(
                     iterationNumber,
-                    maximumCampaignParallelism,
+                    adaptiveParallelismCeiling,
                     new CombatFoundationResourceSnapshot
                     {
                         AvailablePhysicalMemoryBytes = long.MaxValue,
@@ -3631,6 +3712,25 @@ public sealed class CombatCampaignFoundationTrainer
                     parallelism,
                     telemetry,
                     cancellationToken);
+                if (autoTune.InferenceCalibrated)
+                {
+                    configuredInferenceMode = autoTune.SelectedInferenceMode;
+                    configuredInferenceParallelism = parallelism;
+                    configuredInferenceLaneCount =
+                        autoTune.SelectedInferenceLaneCount;
+                    configuredInferenceBatchSize =
+                        autoTune.SelectedInferenceBatchSize;
+                    ApplyEffectiveExecutionPlan(
+                        executionPlan,
+                        request,
+                        parallelism,
+                        configuredInferenceMode,
+                        configuredInferenceParallelism,
+                        configuredThreadPoolMinimumWorkerThreads,
+                        configuredCheckpointSerializationParallelism,
+                        configuredInferenceLaneCount,
+                        configuredInferenceBatchSize);
+                }
                 result.AutoTune = autoTune;
                 request.AutoTuneCache = autoTune;
                 result.InferenceExecutionMode = request.InferenceExecutionMode;
@@ -7025,11 +7125,37 @@ public sealed class CombatCampaignFoundationTrainer
 
     internal static int[] BuildAutoTuneParallelismCandidates(int maximum)
     {
-        var limit = Math.Max(1, Math.Min(32, maximum));
-        var candidates = new[] { 8, 16, 32 }
-            .Where(value => value <= limit)
+        var limit = Math.Max(
+            1,
+            Math.Min(
+                CombatFoundationParallelismProtocol.MaximumSupportedParallelism,
+                maximum));
+        return new[]
+            {
+                (int)Math.Ceiling(limit * 0.50d),
+                (int)Math.Ceiling(limit * 0.75d),
+                limit
+            }
+            .Select(value => Math.Max(1, Math.Min(limit, value)))
+            .Distinct()
+            .OrderBy(value => value)
             .ToArray();
-        return candidates.Length == 0 ? new[] { limit } : candidates;
+    }
+
+    private static long PredictedPeakPrivateBytes(
+        long fixedBytes,
+        long perLaneBytes,
+        int parallelism)
+    {
+        fixedBytes = Math.Max(0L, fixedBytes);
+        perLaneBytes = Math.Max(0L, perLaneBytes);
+        parallelism = Math.Max(0, parallelism);
+        if (parallelism > 0
+            && perLaneBytes > (long.MaxValue - fixedBytes) / parallelism)
+        {
+            return long.MaxValue;
+        }
+        return fixedBytes + perLaneBytes * parallelism;
     }
 
     private static double AutoTuneObjectiveScore(

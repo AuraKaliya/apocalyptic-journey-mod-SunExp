@@ -471,6 +471,7 @@ internal static class AuraToolsAutoBattleGameValidationRuntime
                     runIndex,
                     runs.Count);
                 ResetSession(keepStatus: true);
+                QueueConfiguredModelRestore();
                 return;
             }
             if (cleanupPending)
@@ -655,6 +656,19 @@ internal static class AuraToolsAutoBattleGameValidationRuntime
             runs.Count,
             runs.Count);
         ResetSession(keepStatus: true);
+        QueueConfiguredModelRestore();
+    }
+
+    private static void QueueConfiguredModelRestore()
+    {
+        AuraSharedFrameScheduler.RunOnceNextFrame(
+            new AuraSharedFrameActionRequest
+            {
+                OwnerId = AuraToolsIds.ModId,
+                Key = "AutoBattle.GameValidation.RestoreModels",
+                Source = "AutoBattle.GameValidation.RestoreModels",
+                Action = AuraToolsAutoBattleRuntime.ReloadModels
+            });
     }
 
     private static CombatGameValidationReport NewReport(

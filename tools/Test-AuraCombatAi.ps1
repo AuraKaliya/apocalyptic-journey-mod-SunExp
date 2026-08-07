@@ -618,6 +618,7 @@ foreach ($anchor in @(
     "CombatPolicyValueFrameStratificationProtocol",
     "BuildStratifiedOrder",
     "SampleWeight",
+    "directWeightedGradientAccumulation",
     "selectedModel.Metrics",
     "candidateEpoch",
     "maximumFrameWeight"
@@ -626,6 +627,10 @@ foreach ($anchor in @(
         throw "Aura deterministic minibatch trainer contract is missing: $anchor"
     }
 }
+if ($batchTrainer.Contains("scratchGradients") `
+        -or $batchTrainer.Contains("aggregate.AddScaled")) {
+    throw "Aura minibatch trainer must accumulate SampleWeight directly into each worker gradient."
+}
 foreach ($anchor in @(
     "CombatFoundationTrainingParameters",
     "CombatFoundationWorkerJobFactory",
@@ -633,7 +638,9 @@ foreach ($anchor in @(
     "ExpertReplayEpisodeLimit",
     "archive loading deferred to worker",
     "CombatFoundationModelPackageProtocol",
-    "foundation-model-package-v4.json",
+    "foundation-model-package-v5.json",
+    "foundation-model-weights-v5.bin",
+    "CombatPolicyValueArtifactManifest",
     "training-accepted",
     "CombatPolicyValueNetworkValidator.TryValidate"
 )) {
@@ -1098,8 +1105,8 @@ foreach ($anchor in @(
     }
 }
 foreach ($anchor in @(
-    "foundation-auto-tune-v10-memory-capacity-only",
-    "foundation-auto-tune-v10.json"
+    "foundation-auto-tune-v11-adaptive-exact-capacity",
+    "foundation-auto-tune-v11.json"
 )) {
     if (-not $foundationAutoTuning.Contains($anchor)) {
         throw "Aura foundation auto-tune protocol is missing: $anchor"

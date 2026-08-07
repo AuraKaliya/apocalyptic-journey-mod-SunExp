@@ -2780,7 +2780,7 @@ public static class AuraToolsSettingsRuntime
                     {
                         new OptionalFileDialogFilter(
                             "Aura 待验底模包",
-                            "foundation-model-package-v4.json;foundation-model-package-v3.json;*.aura-model.json"),
+                            "foundation-model-package-v5.json;foundation-model-package-v4.json;foundation-model-package-v3.json;*.aura-model.json"),
                         new OptionalFileDialogFilter("JSON 文件", "*.json")
                     },
                     "json",

@@ -63,9 +63,25 @@ internal sealed class AutoBattleTrainingStatus
     }
 }
 
+internal sealed class AutoBattleResidentModelSet
+{
+    public IDecisionResidualModel Residual { get; set; } =
+        NullDecisionResidualModel.Instance;
+
+    public ICombatSearchGuidanceModel SearchGuidance { get; set; } =
+        NullCombatSearchGuidanceModel.Instance;
+
+    public ICombatPolicyValueModel PolicyValue { get; set; } =
+        NullCombatPolicyValueModel.Instance;
+
+    public string ModelId { get; set; } = "none";
+
+    public string Diagnostic { get; set; } = "";
+}
+
 internal sealed class AutoBattleCandidateBundle
 {
-    public int SchemaVersion { get; set; } = 4;
+    public int SchemaVersion { get; set; } = 5;
 
     public string BundleId { get; set; } = "";
 
@@ -140,6 +156,8 @@ internal sealed class AutoBattleCandidateBundle
     public CombatSearchGuidanceDefinition? SearchGuidance { get; set; }
 
     public CombatPolicyValueNetworkDefinition? PolicyValue { get; set; }
+
+    public CombatPolicyValueArtifactManifest? PolicyValueArtifact { get; set; }
 }
 
 internal sealed class AutoBattleModelLibraryEntry
@@ -317,6 +335,10 @@ internal static class AuraToolsAutoBattleModelRuntime
     }
     private static readonly object StatusGate = new();
     private static readonly object LibraryGate = new();
+    private static readonly object ResidentGate = new();
+    private static string residentKey = "";
+    private static AutoBattleResidentModelSet? residentModels;
+    private static long residentGeneration;
     private static readonly Dictionary<string, AutoBattleTrainingStatus> StatusByProfile =
         new(StringComparer.Ordinal);
     private static readonly Dictionary<string, CancellationTokenSource> CancellationByProfile =
@@ -351,6 +373,128 @@ internal static class AuraToolsAutoBattleModelRuntime
             }
         }
         return result.Distinct(StringComparer.Ordinal).ToArray();
+    }
+
+    public static AutoBattleResidentModelSet LoadResidentModels(
+        string decisionProfile,
+        string selectedModelId)
+    {
+        var profile = NormalizeProfile(decisionProfile);
+        var selected = (selectedModelId ?? "").Trim();
+        var key = profile + "\n" + selected;
+        long generation;
+        lock (ResidentGate)
+        {
+            if (string.Equals(residentKey, key, StringComparison.Ordinal)
+                && residentModels != null)
+            {
+                return residentModels;
+            }
+            if (!string.Equals(residentKey, key, StringComparison.Ordinal))
+            {
+                residentGeneration++;
+                residentKey = key;
+                residentModels = null;
+            }
+            generation = residentGeneration;
+        }
+
+        var residual = Load(
+            profile,
+            enabled: true,
+            out var residualDiagnostic,
+            selected);
+        var guidance = (ICombatSearchGuidanceModel)
+            NullCombatSearchGuidanceModel.Instance;
+        var policyValue = (ICombatPolicyValueModel)
+            NullCombatPolicyValueModel.Instance;
+        var libraryDiagnostic = "所选模型库底模没有可加载模型";
+        if (TryReadLibraryBundle(
+                profile,
+                selected,
+                out var bundle,
+                out libraryDiagnostic))
+        {
+            if (bundle.SearchGuidance != null
+                && TryValidateSearchGuidance(
+                    bundle.SearchGuidance,
+                    profile,
+                    out _))
+            {
+                guidance = new BoundedTreeCombatSearchGuidanceModel(
+                    bundle.SearchGuidance);
+            }
+            if (bundle.PolicyValue != null
+                && CombatPolicyValueNetworkValidator.TryValidate(
+                    bundle.PolicyValue,
+                    out _))
+            {
+                policyValue = CreateCoverageAwarePolicyValue(
+                    bundle.PolicyValue,
+                    bundle);
+            }
+            else if (bundle.PolicyValueArtifact != null
+                     && CombatPolicyValueArtifactProtocol.TryLoad(
+                         ModelLibraryDirectory(),
+                         bundle.PolicyValueArtifact,
+                         out var runtime,
+                         out libraryDiagnostic))
+            {
+                policyValue = CreateCoverageAwarePolicyValue(runtime, bundle);
+            }
+            if (!string.Equals(
+                    guidance.ModelId,
+                    "none",
+                    StringComparison.Ordinal)
+                || !string.Equals(
+                    policyValue.ModelId,
+                    "none",
+                    StringComparison.Ordinal))
+            {
+                libraryDiagnostic = "已加载驻留模型库="
+                                    + CandidateModelId(bundle);
+            }
+        }
+
+        var ids = new[]
+            {
+                residual.ModelId,
+                guidance.ModelId,
+                policyValue.ModelId
+            }
+            .Where(id => !string.IsNullOrWhiteSpace(id)
+                         && !string.Equals(
+                             id,
+                             "none",
+                             StringComparison.Ordinal))
+            .Distinct(StringComparer.Ordinal)
+            .ToArray();
+        var loaded = new AutoBattleResidentModelSet
+        {
+            Residual = residual,
+            SearchGuidance = guidance,
+            PolicyValue = policyValue,
+            ModelId = ids.Length == 0 ? "none" : string.Join("+", ids),
+            Diagnostic = residualDiagnostic + "；" + libraryDiagnostic
+        };
+        lock (ResidentGate)
+        {
+            if (residentGeneration == generation)
+            {
+                residentModels = loaded;
+            }
+        }
+        return loaded;
+    }
+
+    public static void UnloadResidentModels()
+    {
+        lock (ResidentGate)
+        {
+            residentGeneration++;
+            residentKey = "";
+            residentModels = null;
+        }
     }
 
     public static IDecisionResidualModel Load(
@@ -434,21 +578,43 @@ internal static class AuraToolsAutoBattleModelRuntime
             diagnostic = "长期策略价值网络已关闭";
             return NullCombatPolicyValueModel.Instance;
         }
-        if (TryReadLibraryBundle(profile, selectedModelId, out var libraryBundle, out _)
-            && libraryBundle.PolicyValue != null
-            && CombatPolicyValueNetworkValidator.TryValidate(
-                libraryBundle.PolicyValue,
-                out diagnostic))
+        if (TryReadLibraryBundle(
+                profile,
+                selectedModelId,
+                out var libraryBundle,
+                out _))
         {
             var assessment = AssessBundleCoverage(libraryBundle);
-            diagnostic = "已加载模型库策略价值="
-                         + libraryBundle.PolicyValue.ModelId
-                         + (assessment == null
-                             ? ""
-                             : "；" + assessment.Summary);
-            return CreateCoverageAwarePolicyValue(
-                libraryBundle.PolicyValue,
-                libraryBundle);
+            if (libraryBundle.PolicyValue != null
+                && CombatPolicyValueNetworkValidator.TryValidate(
+                    libraryBundle.PolicyValue,
+                    out diagnostic))
+            {
+                diagnostic = "已加载模型库策略价值="
+                             + libraryBundle.PolicyValue.ModelId
+                             + (assessment == null
+                                 ? ""
+                                 : "；" + assessment.Summary);
+                return CreateCoverageAwarePolicyValue(
+                    libraryBundle.PolicyValue,
+                    libraryBundle);
+            }
+            if (libraryBundle.PolicyValueArtifact != null
+                && CombatPolicyValueArtifactProtocol.TryLoad(
+                    ModelLibraryDirectory(),
+                    libraryBundle.PolicyValueArtifact,
+                    out var runtimeModel,
+                    out diagnostic))
+            {
+                diagnostic = "已加载 FP32 模型库策略价值="
+                             + runtimeModel.ModelId
+                             + (assessment == null
+                                 ? ""
+                                 : "；" + assessment.Summary);
+                return CreateCoverageAwarePolicyValue(
+                    runtimeModel,
+                    libraryBundle);
+            }
         }
 
         diagnostic = "所选模型库底模没有当前 v2 策略价值网络";
@@ -460,13 +626,29 @@ internal static class AuraToolsAutoBattleModelRuntime
         string selectedModelId = "")
     {
         var profile = NormalizeProfile(decisionProfile);
-        if (TryReadLibraryBundle(profile, selectedModelId, out var libraryBundle, out _)
-            && libraryBundle.PolicyValue != null
-            && CombatPolicyValueNetworkValidator.TryValidate(
-                libraryBundle.PolicyValue,
+        if (TryReadLibraryBundle(
+                profile,
+                selectedModelId,
+                out var libraryBundle,
                 out _))
         {
-            return libraryBundle.PolicyValue;
+            if (libraryBundle.PolicyValue != null
+                && CombatPolicyValueNetworkValidator.TryValidate(
+                    libraryBundle.PolicyValue,
+                    out _))
+            {
+                return libraryBundle.PolicyValue;
+            }
+            if (libraryBundle.PolicyValueArtifact != null
+                && CombatPolicyValueArtifactProtocol.TryLoad(
+                    ModelLibraryDirectory(),
+                    libraryBundle.PolicyValueArtifact,
+                    out var runtimeModel,
+                    out _))
+            {
+                return CombatPolicyValueArtifactProtocol.ToTrainingDefinition(
+                    runtimeModel);
+            }
         }
         return null;
     }
@@ -562,6 +744,15 @@ internal static class AuraToolsAutoBattleModelRuntime
             {
                 return false;
             }
+            var sourceDirectory = Path.GetDirectoryName(path) ?? "";
+            if (package!.ModelArtifact != null
+                && !CombatPolicyValueArtifactProtocol.TryValidatePayload(
+                    sourceDirectory,
+                    package.ModelArtifact,
+                    out message))
+            {
+                return false;
+            }
             ResolvePackageCoverage(
                 package!,
                 out var trainingSubject,
@@ -573,7 +764,9 @@ internal static class AuraToolsAutoBattleModelRuntime
                     CurrentRuntimeContext());
             var acceptance = CombatFoundationModelPackageProtocol
                 .NormalizeAcceptance(package!);
-            modelId = package!.Model!.ModelId;
+            modelId = package.Model?.ModelId
+                      ?? package.ModelArtifact?.ModelId
+                      ?? "";
             if (string.IsNullOrWhiteSpace(modelId)
                 || string.Equals(modelId, "none", StringComparison.Ordinal))
             {
@@ -602,6 +795,29 @@ internal static class AuraToolsAutoBattleModelRuntime
                     destination,
                     json,
                     createBackup: false);
+                if (package.ModelArtifact != null)
+                {
+                    var sourceWeights = Path.Combine(
+                        sourceDirectory,
+                        package.ModelArtifact.WeightsFile);
+                    var stagedWeights = Path.Combine(
+                        ExternalValidationDirectory(),
+                        package.ModelArtifact.WeightsFile);
+                    CombatFoundationCheckpointStorage.WriteAtomicStream(
+                        stagedWeights,
+                        output =>
+                        {
+                            using var input = new FileStream(
+                                sourceWeights,
+                                FileMode.Open,
+                                FileAccess.Read,
+                                FileShare.Read,
+                                64 * 1024,
+                                FileOptions.SequentialScan);
+                            input.CopyTo(output, 64 * 1024);
+                        },
+                        retainBackup: false);
+                }
                 storage.WriteTextAtomic(
                     ExternalValidationManifestPath(),
                     AuraSharedJson.Serialize(
@@ -680,10 +896,28 @@ internal static class AuraToolsAutoBattleModelRuntime
         {
             return false;
         }
-        policyValue = CreateCoverageAwarePolicyValue(
-            package.Model!,
-            package);
-        modelId = package.Model!.ModelId;
+        if (package.Model != null)
+        {
+            policyValue = CreateCoverageAwarePolicyValue(
+                package.Model,
+                package);
+            modelId = package.Model.ModelId;
+        }
+        else if (CombatPolicyValueArtifactProtocol.TryLoad(
+                     ExternalValidationDirectory(),
+                     package.ModelArtifact,
+                     out var runtimeModel,
+                     out diagnostic))
+        {
+            policyValue = CreateCoverageAwarePolicyValue(
+                runtimeModel,
+                package);
+            modelId = runtimeModel.ModelId;
+        }
+        else
+        {
+            return false;
+        }
         ResolvePackageCoverage(
             package,
             out var subject,
@@ -747,6 +981,7 @@ internal static class AuraToolsAutoBattleModelRuntime
                 StringComparison.Ordinal)
             || !bundle.FoundationArtifactValidated
             || bundle.PolicyValue == null
+               && bundle.PolicyValueArtifact == null
             || !ValidFoundationAcceptance(bundle))
         {
             reason = "所选模型不是已通过正确性验证的可移植底模";
@@ -848,6 +1083,18 @@ internal static class AuraToolsAutoBattleModelRuntime
                 ? ""
                 : Path.GetDirectoryName(sourcePath) ?? "";
         bundle.PolicyValue = package.Model;
+        if (package.ModelArtifact != null)
+        {
+            bundle.PolicyValueArtifact = InstallPolicyValueArtifact(
+                new BundledFoundationPackageCandidate
+                {
+                    Package = package,
+                    SourceDirectory = ExternalValidationDirectory(),
+                    SourceFileName = stagedEntry?.PackageFile ?? ""
+                },
+                package.ModelArtifact.ModelId);
+            bundle.PolicyValue = null;
+        }
         promotedModelId = CandidateModelId(bundle);
         RegisterLibraryBundle(bundle, promotedModelId);
         message = "外部底模已加入模型库，默认保持关闭；"
@@ -868,6 +1115,29 @@ internal static class AuraToolsAutoBattleModelRuntime
                 var packagePath = Path.Combine(
                     ExternalValidationDirectory(),
                     Path.GetFileName(entry.PackageFile));
+                if (File.Exists(packagePath))
+                {
+                    try
+                    {
+                        var package = AuraSharedJson.Deserialize<
+                            CombatFoundationModelPackage>(
+                            File.ReadAllText(packagePath));
+                        var weightsFile = package?.ModelArtifact?.WeightsFile;
+                        if (!string.IsNullOrWhiteSpace(weightsFile))
+                        {
+                            var weightsPath = Path.Combine(
+                                ExternalValidationDirectory(),
+                                Path.GetFileName(weightsFile));
+                            if (File.Exists(weightsPath))
+                            {
+                                File.Delete(weightsPath);
+                            }
+                        }
+                    }
+                    catch
+                    {
+                    }
+                }
                 if (File.Exists(packagePath))
                 {
                     File.Delete(packagePath);
@@ -1683,7 +1953,7 @@ internal static class AuraToolsAutoBattleModelRuntime
             var bundle = ReadCandidateBundle(profile);
             if (bundle == null
                 || bundle.SchemaVersion < 3
-                || bundle.SchemaVersion > 4
+                || bundle.SchemaVersion > 5
                 || !string.Equals(
                     NormalizeProfile(bundle.Profile),
                     profile,
@@ -1691,7 +1961,8 @@ internal static class AuraToolsAutoBattleModelRuntime
                 || !MatchesCurrentRoleScope(bundle)
                 || (bundle.Residual == null
                     && bundle.SearchGuidance == null
-                    && bundle.PolicyValue == null))
+                    && bundle.PolicyValue == null
+                    && bundle.PolicyValueArtifact == null))
             {
                 message = "候选包协议、风格或组件无效";
                 SetStatus(profile, AutoBattleTrainingStage.Failed, message);
@@ -2489,7 +2760,7 @@ internal static class AuraToolsAutoBattleModelRuntime
         try
         {
             bundle = ReadCandidateBundle(profile) ?? new AutoBattleCandidateBundle();
-            if ((bundle.SchemaVersion < 3 || bundle.SchemaVersion > 4)
+            if ((bundle.SchemaVersion < 3 || bundle.SchemaVersion > 5)
                 || string.IsNullOrWhiteSpace(bundle.BundleId)
                 || !string.Equals(
                     NormalizeProfile(bundle.Profile),
@@ -2498,7 +2769,8 @@ internal static class AuraToolsAutoBattleModelRuntime
                 || !MatchesCurrentRoleScope(bundle)
                 || (bundle.Residual == null
                     && bundle.SearchGuidance == null
-                    && bundle.PolicyValue == null))
+                    && bundle.PolicyValue == null
+                    && bundle.PolicyValueArtifact == null))
             {
                 reason = "候选包协议、标识、风格或组件无效";
                 return false;
@@ -2564,7 +2836,8 @@ internal static class AuraToolsAutoBattleModelRuntime
             {
                 bundle.Residual?.ModelId,
                 bundle.SearchGuidance?.ModelId,
-                bundle.PolicyValue?.ModelId
+                bundle.PolicyValue?.ModelId,
+                bundle.PolicyValueArtifact?.ModelId
             }
             .Where(id => !string.IsNullOrWhiteSpace(id)
                          && !string.Equals(id, "none", StringComparison.Ordinal))
@@ -2584,13 +2857,44 @@ internal static class AuraToolsAutoBattleModelRuntime
         guidance = bundle.SearchGuidance == null
             ? NullCombatSearchGuidanceModel.Instance
             : new BoundedTreeCombatSearchGuidanceModel(bundle.SearchGuidance);
-        policyValue = bundle.PolicyValue == null
-            ? NullCombatPolicyValueModel.Instance
-            : CreateCoverageAwarePolicyValue(bundle.PolicyValue, bundle);
+        if (bundle.PolicyValue != null)
+        {
+            policyValue = CreateCoverageAwarePolicyValue(
+                bundle.PolicyValue,
+                bundle);
+        }
+        else if (bundle.PolicyValueArtifact != null
+                 && CombatPolicyValueArtifactProtocol.TryLoad(
+                     ModelLibraryDirectory(),
+                     bundle.PolicyValueArtifact,
+                     out var runtime,
+                     out _))
+        {
+            policyValue = CreateCoverageAwarePolicyValue(runtime, bundle);
+        }
+        else
+        {
+            policyValue = NullCombatPolicyValueModel.Instance;
+        }
     }
 
     private static ICombatPolicyValueModel CreateCoverageAwarePolicyValue(
         CombatPolicyValueNetworkDefinition definition,
+        CombatFoundationModelPackage package)
+    {
+        ResolvePackageCoverage(
+            package,
+            out var subject,
+            out var coverage);
+        return ApplyContentPolicyAdapters(new CoverageAwareCombatPolicyValueModel(
+            new ManagedCombatPolicyValueModel(definition),
+            subject,
+            coverage,
+            CurrentRuntimeContext()));
+    }
+
+    private static ICombatPolicyValueModel CreateCoverageAwarePolicyValue(
+        CombatPolicyValueRuntimeDefinition definition,
         CombatFoundationModelPackage package)
     {
         ResolvePackageCoverage(
@@ -2619,6 +2923,28 @@ internal static class AuraToolsAutoBattleModelRuntime
         }
         return ApplyContentPolicyAdapters(new CoverageAwareCombatPolicyValueModel(
             new ManagedCombatPolicyValueModel(definition),
+            bundle.TrainingSubject,
+            bundle.DeclaredCoverage
+            ?? CombatFoundationModelCoverageProtocol.LegacyUnknownCoverage(
+                bundle.TrainingSubject),
+            CurrentRuntimeContext()));
+    }
+
+    private static ICombatPolicyValueModel CreateCoverageAwarePolicyValue(
+        CombatPolicyValueRuntimeDefinition definition,
+        AutoBattleCandidateBundle bundle)
+    {
+        var model = new ManagedCombatPolicyValueModel(definition);
+        if (!string.Equals(
+                bundle.ModelPurpose,
+                "foundation",
+                StringComparison.Ordinal)
+            || bundle.TrainingSubject == null)
+        {
+            return ApplyContentPolicyAdapters(model);
+        }
+        return ApplyContentPolicyAdapters(new CoverageAwareCombatPolicyValueModel(
+            model,
             bundle.TrainingSubject,
             bundle.DeclaredCoverage
             ?? CombatFoundationModelCoverageProtocol.LegacyUnknownCoverage(
@@ -2724,6 +3050,8 @@ internal static class AuraToolsAutoBattleModelRuntime
             }
             WriteLibrary(library);
         }
+        UnloadResidentModels();
+        AuraToolsAutoBattleRuntime.NotifyModelLibraryChanged();
     }
 
     private static string FoundationDisplayName(AutoBattleCandidateBundle bundle)
@@ -2851,8 +3179,7 @@ internal static class AuraToolsAutoBattleModelRuntime
                     var package = candidate.Package;
                     if (!CombatFoundationModelPackageProtocol.TryValidate(
                             package,
-                            out var validationDiagnostic)
-                        || package.Model == null)
+                            out var validationDiagnostic))
                     {
                         summary.Failed++;
                         summary.Diagnostics.Add(
@@ -2862,7 +3189,16 @@ internal static class AuraToolsAutoBattleModelRuntime
                         continue;
                     }
 
-                    var modelId = package.Model.ModelId;
+                    var modelId = package.Model?.ModelId
+                                  ?? package.ModelArtifact?.ModelId
+                                  ?? "";
+                    if (string.IsNullOrWhiteSpace(modelId))
+                    {
+                        summary.Failed++;
+                        summary.Diagnostics.Add(
+                            candidate.SourceFileName + "：模型 ID 为空");
+                        continue;
+                    }
                     var existing = library.Models.FirstOrDefault(item =>
                         string.Equals(
                             item.ModelId,
@@ -2927,6 +3263,10 @@ internal static class AuraToolsAutoBattleModelRuntime
                     }
 
                     var bundle = CreateBundledFoundationBundle(candidate);
+                    bundle.PolicyValueArtifact = InstallPolicyValueArtifact(
+                        candidate,
+                        modelId);
+                    bundle.PolicyValue = null;
                     var fileName = ModelBundleFileName(modelId);
                     var bundlePath = Path.Combine(
                         ModelLibraryDirectory(),
@@ -2940,6 +3280,8 @@ internal static class AuraToolsAutoBattleModelRuntime
                                                        "bundled",
                                                        StringComparison.OrdinalIgnoreCase)
                                                    || existingBundle == null
+                                                   || existingBundle.SchemaVersion < 5
+                                                   || existingBundle.PolicyValueArtifact == null
                                                    || !string.Equals(
                                                        existingBundle.FoundationDistributionOrigin,
                                                        "bundled",
@@ -2998,6 +3340,11 @@ internal static class AuraToolsAutoBattleModelRuntime
             {
                 WriteLibrary(library);
             }
+            summary.LibraryChanged = libraryTouched;
+        }
+        if (summary.LibraryChanged)
+        {
+            UnloadResidentModels();
         }
         return summary;
     }
@@ -3054,6 +3401,90 @@ internal static class AuraToolsAutoBattleModelRuntime
         bundle.GeneratedUtc = package.CreatedUtc;
         bundle.PolicyValue = package.Model;
         return bundle;
+    }
+
+    private static CombatPolicyValueArtifactManifest InstallPolicyValueArtifact(
+        BundledFoundationPackageCandidate candidate,
+        string modelId)
+    {
+        var package = candidate.Package;
+        var sourceArtifact = package.ModelArtifact;
+        var fileName = "weights-"
+                       + HashBytes(Encoding.UTF8.GetBytes(modelId))
+                           .Substring(0, 16)
+                           .ToLowerInvariant()
+                       + ".bin";
+        var targetPath = Path.Combine(ModelLibraryDirectory(), fileName);
+        if (sourceArtifact == null)
+        {
+            return CombatPolicyValueArtifactProtocol.Write(
+                targetPath,
+                package.Model
+                ?? throw new InvalidDataException("底模网络为空"));
+        }
+
+        var sourcePath = Path.Combine(
+            candidate.SourceDirectory,
+            sourceArtifact.WeightsFile);
+        var installed = CloneArtifact(sourceArtifact, fileName);
+        if (!CombatPolicyValueArtifactProtocol.TryValidatePayload(
+                ModelLibraryDirectory(),
+                installed,
+                out _))
+        {
+            CombatFoundationCheckpointStorage.WriteAtomicStream(
+                targetPath,
+                output =>
+                {
+                    using var input = new FileStream(
+                        sourcePath,
+                        FileMode.Open,
+                        FileAccess.Read,
+                        FileShare.Read,
+                        64 * 1024,
+                        FileOptions.SequentialScan);
+                    input.CopyTo(output, 64 * 1024);
+                },
+                retainBackup: false);
+        }
+        if (!CombatPolicyValueArtifactProtocol.TryValidatePayload(
+                ModelLibraryDirectory(),
+                installed,
+                out var diagnostic))
+        {
+            throw new InvalidDataException(diagnostic);
+        }
+        return installed;
+    }
+
+    private static CombatPolicyValueArtifactManifest CloneArtifact(
+        CombatPolicyValueArtifactManifest source,
+        string weightsFile)
+    {
+        return new CombatPolicyValueArtifactManifest
+        {
+            SchemaVersion = source.SchemaVersion,
+            ArtifactKind = source.ArtifactKind,
+            Precision = source.Precision,
+            WeightLayout = source.WeightLayout,
+            WeightsFile = weightsFile,
+            WeightsSha256 = source.WeightsSha256,
+            WeightsByteLength = source.WeightsByteLength,
+            WeightValueCount = source.WeightValueCount,
+            ModelProtocol = source.ModelProtocol,
+            ProtocolVersion = source.ProtocolVersion,
+            FeatureSchemaVersion = source.FeatureSchemaVersion,
+            ModelId = source.ModelId,
+            DecisionProfile = source.DecisionProfile,
+            StateDimensions = source.StateDimensions,
+            ActionDimensions = source.ActionDimensions,
+            HiddenDimensions = source.HiddenDimensions,
+            FeatureEncodingMode = source.FeatureEncodingMode,
+            PolicyTemperature = source.PolicyTemperature,
+            ActionQuantileCount = source.ActionQuantileCount,
+            ActionQuantileHeadReady = source.ActionQuantileHeadReady,
+            CreatedUtc = source.CreatedUtc
+        };
     }
 
     private static bool SameFoundationRelease(
@@ -3199,7 +3630,7 @@ internal static class AuraToolsAutoBattleModelRuntime
             bundle = AuraSharedJson.Deserialize<AutoBattleCandidateBundle>(
                          File.ReadAllText(path))
                      ?? new AutoBattleCandidateBundle();
-            if ((bundle.SchemaVersion < 3 || bundle.SchemaVersion > 4)
+            if ((bundle.SchemaVersion < 3 || bundle.SchemaVersion > 5)
                 || !string.Equals(CandidateModelId(bundle), id, StringComparison.Ordinal)
                 || !string.Equals(
                     NormalizeProfile(bundle.Profile),
@@ -3227,6 +3658,18 @@ internal static class AuraToolsAutoBattleModelRuntime
                         out reason)
                     || !string.Equals(
                         NormalizeProfile(bundle.PolicyValue.DecisionProfile),
+                        profile,
+                        StringComparison.Ordinal)))
+            {
+                return false;
+            }
+            if (bundle.PolicyValueArtifact != null
+                && (!CombatPolicyValueArtifactProtocol.TryValidateManifest(
+                        bundle.PolicyValueArtifact,
+                        out reason)
+                    || !string.Equals(
+                        NormalizeProfile(
+                            bundle.PolicyValueArtifact.DecisionProfile),
                         profile,
                         StringComparison.Ordinal)))
             {
@@ -3290,8 +3733,14 @@ internal static class AuraToolsAutoBattleModelRuntime
             if (!CombatFoundationModelPackageProtocol.TryValidate(
                     package,
                     out reason)
+                || package.ModelArtifact != null
+                   && !CombatPolicyValueArtifactProtocol.TryValidatePayload(
+                       ExternalValidationDirectory(),
+                       package.ModelArtifact,
+                       out reason)
                 || !string.Equals(
-                    package.Model!.ModelId,
+                    package.Model?.ModelId
+                    ?? package.ModelArtifact?.ModelId,
                     entry.ModelId,
                     StringComparison.Ordinal))
             {

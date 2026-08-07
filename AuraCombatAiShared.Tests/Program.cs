@@ -12219,14 +12219,84 @@ Assert(CombatFoundationModelPackageProtocol.TryValidate(
        && foundationPackage.TrainingSubject.EnabledRewardCardPackIds
            .Contains("cardpack_3")
        && foundationPackage.DeclaredCoverage?.EntityCoverageKnown == true
-       && foundationPackage.SchemaVersion == 4
+       && foundationPackage.SchemaVersion
+          == CombatFoundationModelPackageProtocol.SchemaVersion
        && foundationPackage.Acceptance?.FormalIsolationPassed == true
        && foundationPackage.Acceptance.Classification == "retained-champion"
        && foundationPackage.Validation.Passed,
-    "accepted worker results export a self-contained foundation model package");
+    "accepted worker results create a validated v5 foundation package draft");
+var artifactModel = foundationPackage.Model!;
+var artifactDirectory = Path.Combine(
+    Path.GetTempPath(),
+    "aura-fp32-artifact-" + Guid.NewGuid().ToString("N"));
+Directory.CreateDirectory(artifactDirectory);
+try
+{
+    var artifactPath = Path.Combine(
+        artifactDirectory,
+        CombatFoundationModelPackageProtocol.WeightsFileName);
+    var artifact = CombatPolicyValueArtifactProtocol.Write(
+        artifactPath,
+        artifactModel);
+    foundationPackage.ModelArtifact = artifact;
+    foundationPackage.Model = null;
+    Assert(CombatFoundationModelPackageProtocol.TryValidate(
+               foundationPackage,
+               out var compactPackageDiagnostic)
+           && string.IsNullOrEmpty(compactPackageDiagnostic)
+           && CombatPolicyValueArtifactProtocol.TryValidatePayload(
+               artifactDirectory,
+               artifact,
+               out var payloadDiagnostic)
+           && string.IsNullOrEmpty(payloadDiagnostic),
+        "v5 foundation packages publish a validated FP32 payload");
+    Assert(CombatPolicyValueArtifactProtocol.TryLoad(
+               artifactDirectory,
+               artifact,
+               out var runtimeDefinition,
+               out var runtimeDiagnostic)
+           && string.IsNullOrEmpty(runtimeDiagnostic)
+           && runtimeDefinition.ModelId == artifactModel.ModelId
+           && runtimeDefinition.StateWeightsByInput.Length
+              == artifactModel.StateWeights.Length
+           && new ManagedCombatPolicyValueModel(runtimeDefinition).ModelId
+              == artifactModel.ModelId,
+        "v5 foundation packages use validated little-endian FP32 binary weights");
+    var maximumFp32Error = 0d;
+    for (var output = 0; output < artifactModel.HiddenDimensions; output++)
+    {
+        for (var input = 0; input < artifactModel.StateDimensions; input++)
+        {
+            maximumFp32Error = Math.Max(
+                maximumFp32Error,
+                Math.Abs(
+                    artifactModel.StateWeights[
+                        output * artifactModel.StateDimensions + input]
+                    - runtimeDefinition.StateWeightsByInput[
+                        input * artifactModel.HiddenDimensions + output]));
+        }
+    }
+    Assert(maximumFp32Error < 0.000001d,
+        "FP32 publication keeps state-weight quantization error below 1e-6");
+}
+finally
+{
+    foundationPackage.Model = artifactModel;
+    foundationPackage.ModelArtifact = null;
+    Directory.Delete(artifactDirectory, recursive: true);
+}
 var packageSchema = foundationPackage.SchemaVersion;
 var packageVersion = foundationPackage.ModelVersion;
 var packageAcceptance = foundationPackage.Acceptance;
+foundationPackage.SchemaVersion =
+    CombatFoundationModelPackageProtocol.PreviousSchemaVersion;
+foundationPackage.ModelVersion =
+    CombatFoundationModelPackageProtocol.PreviousModelVersion;
+Assert(CombatFoundationModelPackageProtocol.TryValidate(
+           foundationPackage,
+           out var previousV4PackageDiagnostic)
+       && string.IsNullOrEmpty(previousV4PackageDiagnostic),
+    "v5 readers retain compatibility with accepted v4 model packages");
 foundationPackage.SchemaVersion =
     CombatFoundationModelPackageProtocol.LegacySchemaVersion;
 foundationPackage.ModelVersion =
@@ -12239,7 +12309,7 @@ Assert(CombatFoundationModelPackageProtocol.TryValidate(
        && CombatFoundationModelPackageProtocol.NormalizeAcceptance(
               foundationPackage).Classification
           == "legacy-formal-acceptance",
-    "v4 readers retain compatibility with formally accepted v3 model packages");
+    "v5 readers retain compatibility with formally accepted v3 model packages");
 foundationPackage.SchemaVersion = packageSchema;
 foundationPackage.ModelVersion = packageVersion;
 foundationPackage.Acceptance = packageAcceptance;
@@ -12723,10 +12793,10 @@ Assert(CombatFoundationExecutionProfiles.EffectiveLaneCount(12) == 1
        && CombatFoundationExecutionProfiles.EffectiveBatchSize(20) == 4,
     "automatic inference plans keep enough campaign callers on each batch queue");
 Assert(CombatCampaignFoundationTrainer.BuildAutoTuneParallelismCandidates(20)
-        .SequenceEqual(new[] { 8, 16 })
+        .SequenceEqual(new[] { 10, 15, 20 })
        && CombatCampaignFoundationTrainer.BuildAutoTuneParallelismCandidates(64)
-           .SequenceEqual(new[] { 8, 16, 32 }),
-    "auto-tune calibrates only the approved 8/16/32 scaling points");
+           .SequenceEqual(new[] { 32, 48, 64 }),
+    "auto-tune derives normalized half, three-quarter, and full hardware scaling points");
 var directInferenceMeasurement = new CombatFoundationAutoTuneMeasurement
 {
     MeasurementKind = "inference-end-to-end",
@@ -12756,6 +12826,24 @@ var promisingBatchMeasurement = new CombatFoundationAutoTuneMeasurement
     InferenceRequests = 100,
     InferenceTimeoutFlushes = 5
 };
+var unhealthyBatchMeasurement = new CombatFoundationAutoTuneMeasurement
+{
+    MeasurementKind = "inference-end-to-end",
+    InferenceMode = CombatFoundationExecutionProfileNames.ShardedBatchInference,
+    InferenceLaneCount = 1,
+    InferenceBatchSize = 8,
+    UsefulWorkPerSecond = 1200d,
+    EfficiencyScore = 1200d,
+    AverageBatchFill = 0.80d,
+    InferenceRequests = 100,
+    InferenceTimeoutFlushes = 63
+};
+Assert(CombatFoundationAutoTuneSelector.SelectInference(
+           new[] { directInferenceMeasurement, unhealthyBatchMeasurement },
+           0.02d,
+           CombatFoundationAutoTuneObjectiveNames.MaximumThroughput)
+       == directInferenceMeasurement,
+    "inference auto-tune rejects batching plans dominated by timeout flushes even when their raw throughput is higher");
 Assert(!CombatCampaignFoundationTrainer.ShouldExpandInferenceCandidate(
            weakBatchMeasurement,
            directInferenceMeasurement,
@@ -13752,6 +13840,130 @@ Assert(advancedDynamicEnemy.FinalState.LivingEnemies.Single().Statuses.Single(st
            advancedDynamicEnemy.FinalState.Player!.Variables["HealMultiplier"] - 0.8d)
        < 0.000001d,
     "enemy definitions apply opening statuses, status copying, and percent variables");
+
+var dynamicVariableMutationRules = new CombatRulesetBuilder(
+        "dynamic-variable-mutation-v1")
+    .RegisterStatus(new CombatStatusDefinition
+    {
+        OwnerModId = "Tests",
+        StatusId = "dynamic-variable-offset",
+        MaximumStacks = 99,
+        Fidelity = CombatRuleFidelity.Authoritative,
+        DynamicModifiersPerStack =
+        {
+            ["AttackedPercentDamage"] = -0.2d,
+            ["TestVariable"] = -3d
+        }
+    })
+    .RegisterCard(new CombatCardDefinition
+    {
+        OwnerModId = "Tests",
+        CardId = "mutate-base-variables",
+        Cost = 0,
+        RequiresEnemyTarget = true,
+        Fidelity = CombatRuleFidelity.Authoritative,
+        Effects =
+        {
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.ModifyVariable,
+                Target = CombatSimulationTarget.SelectedEnemy,
+                DefinitionId = "TestVariable",
+                Amount = 5
+            },
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.ModifyVariablePercent,
+                Target = CombatSimulationTarget.SelectedEnemy,
+                DefinitionId = "AttackedPercentDamage",
+                Amount = 10
+            },
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.DeferVariableUntilVictory,
+                Target = CombatSimulationTarget.Player,
+                DefinitionId = "TestVariable",
+                Amount = 5
+            },
+            new CombatSimulationEffectDefinition
+            {
+                Kind = CombatSimulationEffectKind.Damage,
+                Target = CombatSimulationTarget.SelectedEnemy,
+                Amount = 100
+            }
+        }
+    })
+    .RegisterEnemy(new CombatEnemyDefinition
+    {
+        OwnerModId = "Tests",
+        EnemyId = "dynamic-variable-target",
+        MaxHp = 80,
+        Fidelity = CombatRuleFidelity.Authoritative,
+        InitialStatuses =
+        {
+            new CombatInitialStatus
+            {
+                StatusId = "dynamic-variable-offset",
+                Stacks = 1
+            }
+        },
+        Intents =
+        {
+            new CombatEnemyIntentDefinition
+            {
+                IntentId = "wait",
+                Priority = 1,
+                Weight = 1
+            }
+        }
+    })
+    .Freeze();
+var dynamicVariableMutation = new CombatSimulationEngine().Run(
+    new CombatScenarioDefinition
+    {
+        ScenarioId = "dynamic-variable-mutation",
+        RulesetVersion = "dynamic-variable-mutation-v1",
+        Seed = 91,
+        Player = new CombatPlayerSetup
+        {
+            RoleId = "tests",
+            MaxHp = 20,
+            CurrentHp = 20,
+            Deck = { "mutate-base-variables" },
+            InitialStatuses =
+            {
+                new CombatInitialStatus
+                {
+                    StatusId = "dynamic-variable-offset",
+                    Stacks = 1
+                }
+            }
+        },
+        Enemies =
+        {
+            new CombatEnemySetup { EnemyId = "dynamic-variable-target" }
+        },
+        Limits = new CombatSimulationLimits
+        {
+            MaximumTurns = 1,
+            MaximumActions = 10,
+            MaximumCommands = 100
+        }
+    },
+    dynamicVariableMutationRules.Ruleset,
+    FirstLegalCombatSimulationPolicy.Instance);
+var dynamicVariableTarget = dynamicVariableMutation.FinalState.Actors.Single(
+    actor => actor.DefinitionId == "dynamic-variable-target");
+Assert(dynamicVariableMutation.Outcome == CombatSimulationOutcome.Victory
+       && Math.Abs(dynamicVariableTarget.Variables["TestVariable"] - 5d)
+          < 0.000001d
+       && Math.Abs(
+           dynamicVariableTarget.Variables["AttackedPercentDamage"] - 1.1d)
+          < 0.000001d
+       && Math.Abs(
+           dynamicVariableMutation.FinalState.Player!.Variables["TestVariable"]
+           - 5d) < 0.000001d,
+    "variable mutations update stored base values without baking status-derived dynamic modifiers into the base");
 
 var hiddenOrderA = CombatPlayerObservationBoundary.Normalize(
     BuildPlayerEquivalentFixture(reverseHiddenDrawOrder: false));
@@ -15262,9 +15474,9 @@ var capacity8 = CombatFoundationParallelismPlanner.Select(
     configuredPerLaneBytes: gib,
     configuredReserveBytes: 4L * gib);
 Assert(capacity32.SelectedParallelism == 32
-       && capacity16.SelectedParallelism == 16
-       && capacity8.SelectedParallelism == 8,
-    "memory-capacity planner selects only the highest fitting 8/16/32 tier");
+       && capacity16.SelectedParallelism == 18
+       && capacity8.SelectedParallelism == 7,
+    "memory-capacity planner uses every fitting lane instead of rounding down to fixed tiers");
 var arenaBoundCapacity = CombatFoundationParallelismPlanner.Select(
     4,
     32,
@@ -15280,7 +15492,7 @@ var arenaBoundCapacity = CombatFoundationParallelismPlanner.Select(
     },
     configuredPerLaneBytes: 384L * 1024L * 1024L,
     configuredReserveBytes: 4L * gib);
-Assert(arenaBoundCapacity.SelectedParallelism == 8
+Assert(arenaBoundCapacity.SelectedParallelism == 15
        && arenaBoundCapacity.PredictedPerLaneBytes > gib,
     "released search-arena high-water cost participates in the next iteration capacity prediction");
 var searchTrim = CombatRiskAwareRootSamplingPuctPlanner

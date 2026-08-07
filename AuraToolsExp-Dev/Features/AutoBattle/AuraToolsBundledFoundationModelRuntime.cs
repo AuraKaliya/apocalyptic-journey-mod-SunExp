@@ -62,10 +62,14 @@ internal sealed class BundledFoundationPackageCandidate
     public string ModelVersion { get; set; } = "";
 
     public string DisplayName { get; set; } = "";
+
+    public string SourceDirectory { get; set; } = "";
 }
 
 internal sealed class BundledFoundationRegistrationSummary
 {
+    public bool LibraryChanged { get; set; }
+
     public int Installed { get; set; }
 
     public int Deduplicated { get; set; }
@@ -214,6 +218,14 @@ internal static class AuraToolsBundledFoundationModelRuntime
                 {
                     throw new InvalidDataException(diagnostic);
                 }
+                if (package!.ModelArtifact != null
+                    && !CombatPolicyValueArtifactProtocol.TryValidatePayload(
+                        directory,
+                        package.ModelArtifact,
+                        out diagnostic))
+                {
+                    throw new InvalidDataException(diagnostic);
+                }
 
                 var version = NormalizeVersion(package!.ModelVersion);
                 if (string.IsNullOrWhiteSpace(version))
@@ -234,6 +246,7 @@ internal static class AuraToolsBundledFoundationModelRuntime
                     SourceFileName = Path.GetFileName(path),
                     SourceSha256 = Hash(bytes),
                     ModelVersion = version,
+                    SourceDirectory = directory,
                     DisplayName = BuildCanonicalDisplayName(
                         catalog,
                         package.RoleId,
@@ -292,6 +305,10 @@ internal static class AuraToolsBundledFoundationModelRuntime
         (failed == 0 && registration.Conflicts == 0
             ? (Action<string>)AuraToolsLog.Info
             : AuraToolsLog.Warn)("[AutoBattle][BundledModels] " + message);
+        if (registration.LibraryChanged)
+        {
+            AuraToolsAutoBattleRuntime.NotifyModelLibraryChanged();
+        }
         var settings = AuraToolsConfigService.MatchExperience.AutoBattle;
         AuraToolsAutoBattleUiSnapshotRuntime.RequestRefresh(
             settings.Profile,

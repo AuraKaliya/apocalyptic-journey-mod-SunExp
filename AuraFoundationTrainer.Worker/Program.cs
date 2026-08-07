@@ -10,10 +10,16 @@ using Newtonsoft.Json;
 
 Console.OutputEncoding = Encoding.UTF8;
 var jobPath = ResolveArgument(args, "--job");
+var replaySeedArgument = ResolveOptionValue(args, "--replay-seed");
 if (string.IsNullOrWhiteSpace(jobPath)
     || !CombatFoundationPathRuntime.FileExists(jobPath))
 {
-    Console.Error.WriteLine("Usage: AuraFoundationTrainer.Worker --job <job.json>");
+    Console.Error.WriteLine(
+        "Usage: AuraFoundationTrainer.Worker --job <job.json> "
+        + "[--replay-seed <ulong> --difficulty <id> "
+        + "--checkpoint <checkpoint.json> --output <result.json> "
+        + "--trace none|summary|full --exploration <0..1> "
+        + "--exact-branch <0..1>]");
     return 2;
 }
 
@@ -36,6 +42,15 @@ try
     AuraToolsAuthoritativeRoleSemantics.Initialize();
     AuraToolsRoleCampaignStrategy.Apply(job.Request.TrainingCampaign);
     AuraToolsRoleCampaignStrategy.Apply(job.Request.ValidationCampaign);
+    if (!string.IsNullOrWhiteSpace(replaySeedArgument))
+    {
+        job.ResultPath = "";
+        return ReplayCampaign(
+            job,
+            jobPath,
+            replaySeedArgument,
+            args);
+    }
     // Archive residuals are learned data and change after every accepted run.
     // Capture the structural workload identity before those residuals are
     // merged so an execution plan remains reusable across training rounds.
@@ -47,6 +62,12 @@ try
     // accumulate across hundreds of validation campaigns.
     job.Request.RetainValidationRunDetails = false;
     CombatFoundationPathRuntime.CreateDirectory(job.ResultDirectory);
+    File.Delete(Path.Combine(
+        job.ResultDirectory,
+        CombatFoundationModelPackageProtocol.FileName));
+    File.Delete(Path.Combine(
+        job.ResultDirectory,
+        CombatFoundationModelPackageProtocol.WeightsFileName));
     if (string.IsNullOrWhiteSpace(job.TrainingMetricsPath))
     {
         job.TrainingMetricsPath = Path.Combine(
@@ -169,7 +190,11 @@ try
 
     var requestedWorkers = Math.Max(
         1,
-        Math.Min(Environment.ProcessorCount, job.Request.MaximumDegreeOfParallelism));
+        Math.Min(
+            Environment.ProcessorCount,
+            job.Request.MaximumDegreeOfParallelism <= 0
+                ? Environment.ProcessorCount
+                : job.Request.MaximumDegreeOfParallelism));
     ThreadPool.GetMinThreads(out var minimumWorkers, out var minimumIo);
     ThreadPool.SetMinThreads(
         Math.Max(
@@ -906,18 +931,57 @@ try
         workerResult.ModelPackagePath = Path.Combine(
             job.ResultDirectory,
             CombatFoundationModelPackageProtocol.FileName);
-        WriteAtomicJson(workerResult.ModelPackagePath, modelPackage);
-        workerResult.ModelPackageBytes = new FileInfo(
-            workerResult.ModelPackagePath).Length;
-        if (!CombatFoundationModelPackageProtocol.TryValidateSerializedSize(
-                workerResult.ModelPackageBytes,
-                out var packageSizeDiagnostic))
+        var weightsPath = Path.Combine(
+            job.ResultDirectory,
+            CombatFoundationModelPackageProtocol.WeightsFileName);
+        try
+        {
+            var trainingModel = modelPackage.Model
+                                ?? throw new InvalidOperationException(
+                                    "待发布底模网络为空");
+            modelPackage.ModelArtifact = CombatPolicyValueArtifactProtocol.Write(
+                weightsPath,
+                trainingModel);
+            modelPackage.Model = null;
+            WriteAtomicJson(
+                workerResult.ModelPackagePath,
+                modelPackage,
+                Formatting.None);
+
+            var reloaded = JsonConvert.DeserializeObject<
+                CombatFoundationModelPackage>(
+                File.ReadAllText(workerResult.ModelPackagePath));
+            if (!CombatFoundationModelPackageProtocol.TryValidate(
+                    reloaded,
+                    out var artifactDiagnostic)
+                || !CombatPolicyValueArtifactProtocol.TryLoad(
+                    job.ResultDirectory,
+                    reloaded?.ModelArtifact,
+                    out var runtimeModel,
+                    out artifactDiagnostic))
+            {
+                throw new InvalidDataException(
+                    "发布后底模复验失败：" + artifactDiagnostic);
+            }
+            _ = new ManagedCombatPolicyValueModel(runtimeModel);
+            workerResult.ModelPackageBytes = checked(
+                new FileInfo(workerResult.ModelPackagePath).Length
+                + new FileInfo(weightsPath).Length);
+            if (!CombatFoundationModelPackageProtocol.TryValidateSerializedSize(
+                    workerResult.ModelPackageBytes,
+                    out var packageSizeDiagnostic))
+            {
+                throw new InvalidOperationException(packageSizeDiagnostic);
+            }
+            workerResult.ModelPackageSizeWarning = packageSizeDiagnostic;
+        }
+        catch
         {
             File.Delete(workerResult.ModelPackagePath);
+            File.Delete(weightsPath);
             workerResult.ModelPackagePath = "";
-            throw new InvalidOperationException(packageSizeDiagnostic);
+            throw;
         }
-        workerResult.ModelPackageSizeWarning = packageSizeDiagnostic;
     }
     WriteAtomicJson(
         job.TrainingAnalysisPath,
@@ -1022,6 +1086,160 @@ catch (Exception ex)
             });
     }
     return 1;
+}
+
+static int ReplayCampaign(
+    CombatFoundationWorkerJob job,
+    string jobPath,
+    string seedArgument,
+    string[] arguments)
+{
+    if (!ulong.TryParse(seedArgument, out var worldSeed))
+    {
+        throw new InvalidDataException("Invalid --replay-seed value.");
+    }
+    var difficulty = ResolveOptionValue(arguments, "--difficulty");
+    if (string.IsNullOrWhiteSpace(difficulty))
+    {
+        difficulty = "advanced";
+    }
+    var trace = ResolveOptionValue(arguments, "--trace");
+    if (!Enum.TryParse<CombatSimulationTraceLevel>(
+            string.IsNullOrWhiteSpace(trace) ? "Full" : trace,
+            ignoreCase: true,
+            out var traceLevel))
+    {
+        throw new InvalidDataException("Invalid --trace value.");
+    }
+    var exploration = OptionalProbability(arguments, "--exploration");
+    var exactBranch = OptionalProbability(arguments, "--exact-branch");
+    var build = CombatSimulationRegistry.BuildRuleset(job.Ruleset);
+    if (!build.Success)
+    {
+        throw new InvalidOperationException(
+            "Ruleset build failed: " + string.Join("; ", build.Errors.Take(8)));
+    }
+    var package = AuraToolsNativeProgramPackageAudit.Validate(
+        job.Request.TrainingCampaign,
+        build.Ruleset);
+    if (!package.Success)
+    {
+        throw new InvalidOperationException(
+            "Native program package validation failed: "
+            + string.Join("; ", package.Errors.Take(8)));
+    }
+    job.Request.TrainingCampaign.TraceLevel = traceLevel;
+    job.Request.TrainingCampaign.FullTraceFinalEncounterOnly = false;
+    var checkpointPath = ResolveReplayCheckpoint(
+        job,
+        jobPath,
+        ResolveArgument(arguments, "--checkpoint"));
+    CombatPolicyValueNetworkDefinition? model = job.InitialChampion;
+    if (!string.IsNullOrWhiteSpace(checkpointPath))
+    {
+        var checkpoint = Deserialize<CombatFoundationWorkerCheckpoint>(
+            CombatFoundationCheckpointStorage.ReadAllTextShared(checkpointPath));
+        model = checkpoint?.Resume?.ModelTraining?.BestModel
+                ?? checkpoint?.Resume?.ModelTraining?.Model
+                ?? checkpoint?.Resume?.WorkingChampion
+                ?? checkpoint?.Resume?.Champion
+                ?? model;
+    }
+    var engine = new CombatSimulationEngine(
+        new AuraToolsNativeRewardExtensionFactory());
+    var result = new CombatCampaignFoundationTrainer(
+            new CombatCampaignRunner(engine))
+        .ReplayTrainingCampaign(
+            job.Request,
+            build.Ruleset,
+            model,
+            difficulty,
+            worldSeed,
+            exploration,
+            exactBranch);
+    var outputPath = ResolveArgument(arguments, "--output");
+    if (string.IsNullOrWhiteSpace(outputPath))
+    {
+        outputPath = Path.Combine(
+            Path.GetDirectoryName(Path.GetFullPath(jobPath)) ?? ".",
+            "foundation-replay-"
+            + difficulty
+            + "-"
+            + worldSeed
+            + ".json");
+    }
+    CombatFoundationCheckpointStorage.WriteAtomicText(
+        outputPath,
+        Serialize(result));
+    Console.WriteLine(
+        "Replay completed: seed="
+        + worldSeed
+        + ", difficulty="
+        + difficulty
+        + ", battles="
+        + result.CompletedBattles
+        + ", invalid="
+        + result.Invalid
+        + ", finalBossVictory="
+        + result.FinalBossVictory
+        + ", model="
+        + (model?.ModelId ?? "none"));
+    Console.WriteLine("Replay result written to " + Path.GetFullPath(outputPath));
+    return 0;
+}
+
+static double? OptionalProbability(
+    string[] arguments,
+    string option)
+{
+    var raw = ResolveOptionValue(arguments, option);
+    if (string.IsNullOrWhiteSpace(raw))
+    {
+        return null;
+    }
+    if (!double.TryParse(
+            raw,
+            System.Globalization.NumberStyles.Float,
+            System.Globalization.CultureInfo.InvariantCulture,
+            out var value)
+        || value < 0d
+        || value > 1d)
+    {
+        throw new InvalidDataException("Invalid " + option + " value.");
+    }
+    return value;
+}
+
+static string ResolveReplayCheckpoint(
+    CombatFoundationWorkerJob job,
+    string jobPath,
+    string requestedPath)
+{
+    if (!string.IsNullOrWhiteSpace(requestedPath))
+    {
+        if (!CombatFoundationPathRuntime.FileExists(requestedPath))
+        {
+            throw new FileNotFoundException(
+                "Replay checkpoint does not exist.",
+                requestedPath);
+        }
+        return requestedPath;
+    }
+    if (!string.IsNullOrWhiteSpace(job.CheckpointPath)
+        && CombatFoundationPathRuntime.FileExists(job.CheckpointPath))
+    {
+        return job.CheckpointPath;
+    }
+    var jobDirectory = Path.GetDirectoryName(Path.GetFullPath(jobPath)) ?? ".";
+    var resultsDirectory = Directory.GetParent(jobDirectory)?.FullName
+                           ?? jobDirectory;
+    return Directory.EnumerateFiles(
+            resultsDirectory,
+            CombatFoundationWorkerProtocol.CheckpointFileName,
+            SearchOption.AllDirectories)
+        .OrderByDescending(File.GetLastWriteTimeUtc)
+        .FirstOrDefault()
+        ?? "";
 }
 
 static FileStream AcquireTrainingLease(CombatFoundationWorkerJob job)
@@ -2738,6 +2956,18 @@ static string ResolveArgument(string[] arguments, string name)
     return "";
 }
 
+static string ResolveOptionValue(string[] arguments, string name)
+{
+    for (var index = 0; index < arguments.Length - 1; index++)
+    {
+        if (string.Equals(arguments[index], name, StringComparison.Ordinal))
+        {
+            return arguments[index + 1];
+        }
+    }
+    return "";
+}
+
 static T? Deserialize<T>(string json)
 {
     return JsonConvert.DeserializeObject<T>(json);
@@ -2931,7 +3161,10 @@ static void WriteAtomicCompressed(string path, string contents)
         retainBackup: false);
 }
 
-static void WriteAtomicJson(string path, object value)
+static void WriteAtomicJson(
+    string path,
+    object value,
+    Formatting formatting = Formatting.Indented)
 {
     CombatFoundationCheckpointStorage.WriteAtomicStream(
         path,
@@ -2945,7 +3178,7 @@ static void WriteAtomicJson(string path, object value)
             using var jsonWriter = new JsonTextWriter(textWriter)
             {
                 CloseOutput = false,
-                Formatting = Formatting.Indented
+                Formatting = formatting
             };
             var serializer = JsonSerializer.Create(
                 new JsonSerializerSettings

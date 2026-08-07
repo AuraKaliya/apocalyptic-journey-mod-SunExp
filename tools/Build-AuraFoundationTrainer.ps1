@@ -14,6 +14,7 @@ $project = Join-Path $repoRoot "AuraFoundationTrainer.Worker\AuraFoundationTrain
 $controlCenterProject = Join-Path $repoRoot "AuraFoundationTrainer.ControlCenter\AuraFoundationTrainer.ControlCenter.csproj"
 $transformerTeacherSource = Join-Path $repoRoot "tools\transformer-teacher"
 $transformerSetupSource = Join-Path $repoRoot "tools\Setup-AuraTransformerTeacher.ps1"
+$transformerInstallerSource = Join-Path $repoRoot "tools\Install-AuraPyTorch.cmd"
 if ([string]::IsNullOrWhiteSpace($OutputDirectory)) {
     $OutputDirectory = Join-Path $repoRoot "AuraToolsExp\TrainingWorker"
 }
@@ -383,6 +384,10 @@ try {
         -Source $transformerSetupSource `
         -Destination (Join-Path $resolvedOutput (
             Split-Path -Leaf $transformerSetupSource))
+    Copy-PublishedFileWithRetry `
+        -Source $transformerInstallerSource `
+        -Destination (Join-Path $resolvedOutput (
+            Split-Path -Leaf $transformerInstallerSource))
 }
 finally {
     $resolvedStageRoot = [System.IO.Path]::GetFullPath($stageRoot)
@@ -405,6 +410,10 @@ $publishedTeacher = Join-Path `
     "TransformerTeacher\train_teacher.py"
 if (-not (Test-Path -LiteralPath $publishedTeacher -PathType Leaf)) {
     throw "Published Transformer teacher is missing: $publishedTeacher"
+}
+$publishedInstaller = Join-Path $resolvedOutput "Install-AuraPyTorch.cmd"
+if (-not (Test-Path -LiteralPath $publishedInstaller -PathType Leaf)) {
+    throw "Published PyTorch installer is missing: $publishedInstaller"
 }
 Write-Host "Aura foundation trainer published: $worker"
 Write-Host "Aura foundation trainer control center published: $controlCenter"

@@ -1426,6 +1426,7 @@ public sealed partial class NativeRewardScriptGlobals
     private readonly Dictionary<int, NativeRewardDataConfig> cardConfigurations;
     private readonly Dictionary<int, Dictionary<string, double>>
         dynamicPercentContributions = new();
+    private readonly int[] executionSourceTarget = new int[1];
     private readonly Action<NativeRewardScriptGlobals>? registerProgram;
     private CombatSimulationEvent? currentEvent;
     private List<int> selectedActorIds = new();
@@ -2170,13 +2171,14 @@ public sealed partial class NativeRewardScriptGlobals
     {
         var name = Text(key);
         var value = Number(amount);
-        var actorIds = Targets().ToArray();
-        Apply(
-            CombatSimulationEffectKind.ModifyVariablePercent,
-            name,
-            value);
+        var actorIds = Targets();
         foreach (var actorId in actorIds)
         {
+            ApplyTo(
+                actorId,
+                CombatSimulationEffectKind.ModifyVariablePercent,
+                name,
+                value);
             if (!dynamicPercentContributions.TryGetValue(
                     actorId,
                     out var contributions))
@@ -4106,11 +4108,14 @@ public sealed partial class NativeRewardScriptGlobals
         return ids.Select(id => new NativeRewardCardItem(this, id)).ToList();
     }
 
-    private IEnumerable<int> Targets()
+    private IReadOnlyList<int> Targets()
     {
-        return selectedActorIds.Count == 0
-            ? new[] { executionSourceActorId }
-            : selectedActorIds.ToArray();
+        if (selectedActorIds.Count > 0)
+        {
+            return selectedActorIds;
+        }
+        executionSourceTarget[0] = executionSourceActorId;
+        return executionSourceTarget;
     }
 
     private void Apply(

@@ -49,6 +49,10 @@ $autoBattleSettings = Get-Content -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp-Dev\Config\AuraToolsAutoBattleSettings.cs") -Raw
 $foundationWorkerBuild = Get-Content -LiteralPath (
     Join-Path $repoRoot "tools\Build-AuraFoundationTrainer.ps1") -Raw
+$transformerSetup = Get-Content -LiteralPath (
+    Join-Path $repoRoot "tools\Setup-AuraTransformerTeacher.ps1") -Raw
+$transformerInstaller = Get-Content -LiteralPath (
+    Join-Path $repoRoot "tools\Install-AuraPyTorch.cmd") -Raw
 $generatedProgramsPath = Join-Path $repoRoot (
     "AuraToolsExp-Dev\Features\AutoBattle\Generated\AuraToolsNativePrograms.g.cs")
 $manifestPath = Join-Path $repoRoot (
@@ -301,6 +305,7 @@ foreach ($anchor in @(
 foreach ($anchor in @(
     "AuraToolsBundledFoundationModelRuntime.Initialize(modConfig)",
     "RegisterBundledFoundationPackages",
+    "CombatPolicyValueArtifactProtocol.TryValidatePayload",
     "ModelVersion",
     "FoundationSourcePackageSha256",
     "FoundationDistributionOrigin",
@@ -314,7 +319,22 @@ foreach ($anchor in @(
     }
 }
 foreach ($anchor in @(
-    'SchemaVersion { get; set; } = 4',
+    'LoadResidentModels',
+    'UnloadResidentModels',
+    'AutoBattle.ModelResidency',
+    'modelConfigurationKey',
+    'FightStarting = _ => ResetForBattle()'
+)) {
+    if (-not $modelRuntime.Contains($anchor) `
+            -and -not $startupRuntime.Contains($anchor)) {
+        throw "AuraTools resident model lifecycle contract is missing: $anchor"
+    }
+}
+if ($startupRuntime.Contains('FightStarted = _ => ResetForBattle()')) {
+    throw "AuraTools must not reset or reload the model twice for the same battle start."
+}
+foreach ($anchor in @(
+    'SchemaVersion { get; set; } = 5',
     'DisplayNameMode',
     'GeneratedDisplayName',
     'TryRestoreGeneratedLibraryModelName',
@@ -350,12 +370,23 @@ $bundledModelFiles = @(Get-ChildItem -LiteralPath (
     Join-Path $repoRoot "AuraToolsExp\ModResource\Model") -Filter "*.json" -File)
 foreach ($bundledModelFile in $bundledModelFiles) {
     $bundledModel = Get-Content -Raw -Encoding UTF8 -LiteralPath $bundledModelFile.FullName | ConvertFrom-Json
-    if ($bundledModel.SchemaVersion -ne 3 `
+    $modelMetadata = if ($null -ne $bundledModel.Model) {
+        $bundledModel.Model
+    } else {
+        $bundledModel.ModelArtifact
+    }
+    $expectedVersion = switch ([int]$bundledModel.SchemaVersion) {
+        3 { "3.0.0" }
+        4 { "4.0.0" }
+        5 { "5.0.0" }
+        default { "" }
+    }
+    if ([string]::IsNullOrWhiteSpace($expectedVersion) `
             -or $bundledModel.ArtifactKind -ne "aura.foundation-model-package" `
-            -or $bundledModel.ModelVersion -ne "3.0.0" `
-            -or $bundledModel.Model.ModelProtocol -ne "aura.combat-policy-value.mlp.v2" `
-            -or $bundledModel.Model.ProtocolVersion -ne 2 `
-            -or $bundledModel.Model.FeatureSchemaVersion -ne 26 `
+            -or $bundledModel.ModelVersion -ne $expectedVersion `
+            -or $modelMetadata.ModelProtocol -ne "aura.combat-policy-value.mlp.v2" `
+            -or $modelMetadata.ProtocolVersion -ne 2 `
+            -or $modelMetadata.FeatureSchemaVersion -ne 26 `
             -or $bundledModel.Compatibility.FeatureSchemaVersion -ne 26) {
         throw "Bundled foundation model is incompatible with the current trainer protocol: $($bundledModelFile.Name)"
     }
@@ -533,10 +564,37 @@ foreach ($anchor in @(
     "CancellationPath",
     "Regex]::Unescape",
     ".publish-staging",
-    "Copy-PublishedFileWithRetry"
+    "Copy-PublishedFileWithRetry",
+    "Install-AuraPyTorch.cmd"
 )) {
     if (-not $foundationWorkerBuild.Contains($anchor)) {
         throw "Aura foundation worker packaging contract is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
+    '[ValidateSet("auto", "cpu", "cuda")]',
+    'Python.Python.3.11',
+    'AURA_TRANSFORMER_PYTHON',
+    'Test-NvidiaGpu',
+    'NvidiaCudaVersion',
+    'whl/cu126',
+    'whl/cu130',
+    'Falling back to CPU',
+    'torch.cuda.is_available()',
+    'Transformer teacher self-test'
+)) {
+    if (-not $transformerSetup.Contains($anchor)) {
+        throw "Aura PyTorch setup contract is missing: $anchor"
+    }
+}
+foreach ($anchor in @(
+    'Setup-AuraTransformerTeacher.ps1',
+    'ExecutionPolicy Bypass',
+    'AURA_INSTALL_NO_PAUSE',
+    'exit /b %INSTALL_EXIT_CODE%'
+)) {
+    if (-not $transformerInstaller.Contains($anchor)) {
+        throw "Aura PyTorch one-click installer is missing: $anchor"
     }
 }
 if (-not $runtimeProject.Contains("StopRunningFoundationTrainer") `

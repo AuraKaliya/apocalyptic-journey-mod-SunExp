@@ -282,9 +282,6 @@ internal sealed class MainWindow : Window
             panel,
             "CapabilityProbeMinimumDepthGain",
             "能力探针深度诊断阈值（不用于晋级）");
-        AddNumber(panel, "MaximumDegreeOfParallelism", "CPU 并行度", 1, 64);
-        AddNumber(panel, "ModelTrainingParallelism", "模型训练并行度", 1, 64);
-
         panel.Children.Add(Section("模型训练"));
         AddNumber(panel, "ModelEpochs", "最大 Epoch", 5, 200);
         AddNumber(panel, "ModelMinimumEpochs", "最小 Epoch", 1, 200);
@@ -1183,13 +1180,6 @@ internal sealed class MainWindow : Window
 
         ApplyIndependentTrainerExecutionContract(settings.Parameters);
         var parameters = settings.Parameters.Normalized();
-        if (parameters.MaximumDegreeOfParallelism > Environment.ProcessorCount)
-        {
-            AppendLog(
-                $"CPU 并行度 {parameters.MaximumDegreeOfParallelism} 超过当前 "
-                + $"{Environment.ProcessorCount} 个逻辑处理器；将按配置值执行，"
-                + "可能发生过量订阅。");
-        }
         if (parameters.RunSeed == 0UL || continueGeneration)
         {
             parameters.RunSeed = GenerateRunSeed();
@@ -2009,9 +1999,12 @@ internal sealed class MainWindow : Window
     {
         parameters.ParallelismProfile =
             CombatFoundationExecutionProfileNames.Auto;
-        parameters.MaximumDegreeOfParallelism = Math.Max(
+        parameters.MaximumDegreeOfParallelism = 0;
+        parameters.ModelTrainingParallelism = Math.Max(
             1,
-            Math.Min(32, Environment.ProcessorCount));
+            Math.Min(
+                CombatFoundationParallelismProtocol.MaximumSupportedParallelism,
+                Environment.ProcessorCount));
         parameters.EnableMemoryCapacityParallelism = true;
         parameters.ReuseAutoTuneCache = false;
     }
@@ -2155,8 +2148,12 @@ internal sealed class MainWindow : Window
             Int("CapabilityProbeMinimumVictoryGain");
         p.CapabilityProbeMinimumDepthGain =
             Double("CapabilityProbeMinimumDepthGain");
-        p.MaximumDegreeOfParallelism = Int("MaximumDegreeOfParallelism");
-        p.ModelTrainingParallelism = Int("ModelTrainingParallelism");
+        p.MaximumDegreeOfParallelism = 0;
+        p.ModelTrainingParallelism = Math.Max(
+            1,
+            Math.Min(
+                CombatFoundationParallelismProtocol.MaximumSupportedParallelism,
+                Environment.ProcessorCount));
         p.InferenceExecutionMode = Convert.ToString(
                                        inferenceModeInput.SelectedItem,
                                        CultureInfo.InvariantCulture)
@@ -2370,8 +2367,6 @@ internal sealed class MainWindow : Window
         Set(
             "CapabilityProbeMinimumDepthGain",
             p.CapabilityProbeMinimumDepthGain);
-        Set("MaximumDegreeOfParallelism", p.MaximumDegreeOfParallelism);
-        Set("ModelTrainingParallelism", p.ModelTrainingParallelism);
         inferenceModeInput.SelectedItem =
             CombatFoundationExecutionProfiles.NormalizeInferenceMode(
                 p.InferenceExecutionMode);

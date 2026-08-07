@@ -45,11 +45,14 @@ public sealed class CombatFoundationTrainingParameters
 
     public int PreflightCampaignsPerDifficulty { get; set; } = 32;
 
-    public int MaximumDegreeOfParallelism { get; set; } =
-        Math.Max(1, Math.Min(32, Environment.ProcessorCount));
+    public int MaximumDegreeOfParallelism { get; set; }
 
     public int ModelTrainingParallelism { get; set; } =
-        Math.Max(1, Math.Min(16, Environment.ProcessorCount));
+        Math.Max(
+            1,
+            Math.Min(
+                CombatFoundationParallelismProtocol.MaximumSupportedParallelism,
+                Environment.ProcessorCount));
 
     public string ParallelismProfile { get; set; } =
         CombatFoundationExecutionProfileNames.Auto;
@@ -1062,7 +1065,9 @@ public static class CombatFoundationWorkerJobFactory
 
 public static class CombatFoundationModelPackageProtocol
 {
-    public const int SchemaVersion = 4;
+    public const int SchemaVersion = 5;
+
+    public const int PreviousSchemaVersion = 4;
 
     public const int LegacySchemaVersion = 3;
 
@@ -1095,9 +1100,13 @@ public static class CombatFoundationModelPackageProtocol
 
     public const string ArtifactKind = "aura.foundation-model-package";
 
-    public const string FileName = "foundation-model-package-v4.json";
+    public const string FileName = "foundation-model-package-v5.json";
 
-    public const string CurrentModelVersion = "4.0.0";
+    public const string WeightsFileName = "foundation-model-weights-v5.bin";
+
+    public const string CurrentModelVersion = "5.0.0";
+
+    public const string PreviousModelVersion = "4.0.0";
 
     public const string LegacyModelVersion = "3.0.0";
 
@@ -1203,7 +1212,8 @@ public static class CombatFoundationModelPackageProtocol
             return false;
         }
         var legacy = package.SchemaVersion == LegacySchemaVersion;
-        if ((!legacy && package.SchemaVersion != SchemaVersion)
+        var previous = package.SchemaVersion == PreviousSchemaVersion;
+        if ((!legacy && !previous && package.SchemaVersion != SchemaVersion)
             || !string.Equals(
                 package.ArtifactKind,
                 ArtifactKind,
@@ -1216,7 +1226,11 @@ public static class CombatFoundationModelPackageProtocol
             || string.IsNullOrWhiteSpace(package.JobId)
             || !string.Equals(
                 package.ModelVersion,
-                legacy ? LegacyModelVersion : CurrentModelVersion,
+                legacy
+                    ? LegacyModelVersion
+                    : previous
+                        ? PreviousModelVersion
+                        : CurrentModelVersion,
                 StringComparison.Ordinal)
             || !string.Equals(
                 package.CompletionKind,
@@ -1275,21 +1289,39 @@ public static class CombatFoundationModelPackageProtocol
             diagnostic = "底模包没有通过正式隔离验证";
             return false;
         }
-        if (package.Model == null)
+        var model = package.Model;
+        var artifact = package.ModelArtifact;
+        if (model == null
+            && !CombatPolicyValueArtifactProtocol.TryValidateManifest(
+                artifact,
+                out diagnostic))
         {
-            diagnostic = "底模网络为空";
+            diagnostic = "底模网络为空或 FP32 权重清单无效：" + diagnostic;
             return false;
         }
-        if (!CombatPolicyValueNetworkValidator.TryValidate(
-                package.Model,
+        if (model != null
+            && !CombatPolicyValueNetworkValidator.TryValidate(
+                model,
                 out diagnostic))
         {
             diagnostic = "底模网络无效：" + diagnostic;
             return false;
         }
+        var modelProfile = model?.DecisionProfile
+                           ?? artifact!.DecisionProfile;
+        var featureSchemaVersion = model?.FeatureSchemaVersion
+                                   ?? artifact!.FeatureSchemaVersion;
+        var featureEncodingMode = model?.FeatureEncodingMode
+                                  ?? artifact!.FeatureEncodingMode;
+        var stateDimensions = model?.StateDimensions
+                              ?? artifact!.StateDimensions;
+        var actionDimensions = model?.ActionDimensions
+                               ?? artifact!.ActionDimensions;
+        var hiddenDimensions = model?.HiddenDimensions
+                               ?? artifact!.HiddenDimensions;
         if (!string.Equals(
                 NormalizeProfile(package.Profile),
-                NormalizeProfile(package.Model.DecisionProfile),
+                NormalizeProfile(modelProfile),
                 StringComparison.Ordinal))
         {
             diagnostic = "底模包风格与模型风格不一致";
@@ -1297,12 +1329,12 @@ public static class CombatFoundationModelPackageProtocol
         }
         if (package.Compatibility == null
             || package.Compatibility.FeatureSchemaVersion
-               != package.Model.FeatureSchemaVersion
+               != featureSchemaVersion
             || package.Compatibility.FeatureSchemaVersion
                != CombatPolicyValueProtocol.FeatureSchemaVersion
             || !string.Equals(
                 package.Compatibility.FeatureEncodingMode,
-                package.Model.FeatureEncodingMode,
+                featureEncodingMode,
                 StringComparison.Ordinal)
             || !string.Equals(
                 package.Compatibility.TrainingSemanticsVersion,
@@ -1321,11 +1353,11 @@ public static class CombatFoundationModelPackageProtocol
                 CombatFoundationTrainingProtocol.TrainingPolicyVersion,
                 StringComparison.Ordinal)
             || package.Compatibility.StateDimensions
-               != package.Model.StateDimensions
+               != stateDimensions
             || package.Compatibility.ActionDimensions
-               != package.Model.ActionDimensions
+               != actionDimensions
             || package.Compatibility.HiddenDimensions
-               != package.Model.HiddenDimensions)
+               != hiddenDimensions)
         {
             diagnostic =
                 "底模包兼容清单与当前特征、搜索、动作契约或模型维度不一致";
@@ -1657,6 +1689,8 @@ public sealed class CombatFoundationModelPackage
     public CombatFoundationTrainingSubject? TrainingSubject { get; set; }
 
     public CombatFoundationDeclaredCoverage? DeclaredCoverage { get; set; }
+
+    public CombatPolicyValueArtifactManifest? ModelArtifact { get; set; }
 
     public CombatPolicyValueNetworkDefinition? Model { get; set; }
 }

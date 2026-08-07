@@ -160,6 +160,8 @@ public sealed class CombatSimulationEngine
         private readonly List<CombatSimulationRewardMutation> rewardMutations =
             new();
         private readonly List<CombatTurnSummary> turnSummaries = new();
+        private readonly Stack<Queue<CombatSimulationCommand>> commandQueuePool =
+            new();
         private int currentActionCommandCount;
         private string currentActionDefinitionId = "";
         private readonly Queue<string> recentCommands = new();
@@ -293,7 +295,8 @@ public sealed class CombatSimulationEngine
                     Variables = enemyVariables
                 };
                 actor.Variables["PercentDamage"] =
-                    Variable(actor, "PercentDamage", 1d) * Math.Max(0d, setup.AttackScale);
+                    StoredVariable(actor, "PercentDamage", 1d)
+                    * Math.Max(0d, setup.AttackScale);
                 actor.Variables["AttackScale"] = Math.Max(0d, setup.AttackScale);
                 State.Actors.Add(actor);
                 AddInitialStatuses(actor, definition.InitialStatuses);
@@ -1048,7 +1051,7 @@ public sealed class CombatSimulationEngine
                 instance.InstanceId,
                 definition.CardId,
                 cost);
-            var queue = new Queue<CombatSimulationCommand>();
+            var queue = RentCommandQueue();
             EnqueueTriggers(played, queue, 1);
             var actionStarted = Emit(
                 CombatSimulationEventKind.ActionStarted,
@@ -1083,7 +1086,9 @@ public sealed class CombatSimulationEngine
                 null,
                 0,
                 queue);
-            if (!ExecuteQueue(queue))
+            var actionCommandsExecuted = ExecuteQueue(queue);
+            ReturnCommandQueue(queue);
+            if (!actionCommandsExecuted)
             {
                 return false;
             }
@@ -1132,9 +1137,11 @@ public sealed class CombatSimulationEngine
             }
             if (playedCardZoneEvent != null)
             {
-                var zoneEventQueue = new Queue<CombatSimulationCommand>();
+                var zoneEventQueue = RentCommandQueue();
                 EnqueueTriggers(playedCardZoneEvent, zoneEventQueue, 1);
-                if (!ExecuteQueue(zoneEventQueue))
+                var zoneCommandsExecuted = ExecuteQueue(zoneEventQueue);
+                ReturnCommandQueue(zoneEventQueue);
+                if (!zoneCommandsExecuted)
                 {
                     return false;
                 }
@@ -1838,7 +1845,7 @@ public sealed class CombatSimulationEngine
             ResetHpLossWindow();
             currentActionCommandCount = 0;
             currentActionDefinitionId = intent.IntentId;
-            var queue = new Queue<CombatSimulationCommand>();
+            var queue = RentCommandQueue();
             var actionStarted = Emit(
                 CombatSimulationEventKind.ActionStarted,
                 enemy.ActorId,
@@ -1856,7 +1863,9 @@ public sealed class CombatSimulationEngine
                 null,
                 0,
                 queue);
-            if (!ExecuteQueue(queue))
+            var enemyCommandsExecuted = ExecuteQueue(queue);
+            ReturnCommandQueue(queue);
+            if (!enemyCommandsExecuted)
             {
                 return false;
             }
@@ -1897,7 +1906,9 @@ public sealed class CombatSimulationEngine
             Queue<CombatSimulationCommand> queue,
             int statusStacks = 1)
         {
-            var effectList = effects.ToList();
+            IReadOnlyList<CombatSimulationEffectDefinition> effectList =
+                effects as IReadOnlyList<CombatSimulationEffectDefinition>
+                ?? effects.ToList();
             var selectedChoices =
                 new Dictionary<string, CombatSimulationEffectDefinition>(
                     StringComparer.OrdinalIgnoreCase);
@@ -3060,7 +3071,10 @@ public sealed class CombatSimulationEngine
                     {
                         return null;
                     }
-                    var variableBefore = Variable(target, command.DefinitionId, 0d);
+                    var variableBefore = StoredVariable(
+                        target,
+                        command.DefinitionId,
+                        0d);
                     var variableAfter = Math.Max(
                         command.MinimumVariableValue,
                         Math.Min(
@@ -3089,8 +3103,10 @@ public sealed class CombatSimulationEngine
                     {
                         return null;
                     }
-                    target.Variables[command.DefinitionId] =
-                        Variable(target, command.DefinitionId, 1d)
+                    target.Variables[command.DefinitionId] = StoredVariable(
+                            target,
+                            command.DefinitionId,
+                            1d)
                         + command.Amount / 100d;
                     return EmitFromCommand(
                         CombatSimulationEventKind.VariableChanged,
@@ -3908,6 +3924,30 @@ public sealed class CombatSimulationEngine
                 fallback);
         }
 
+        private static double StoredVariable(
+            CombatActorState? actor,
+            string key,
+            double fallback)
+        {
+            return actor != null
+                   && actor.Variables.TryGetValue(key, out var value)
+                ? value
+                : fallback;
+        }
+
+        private Queue<CombatSimulationCommand> RentCommandQueue()
+        {
+            return commandQueuePool.Count > 0
+                ? commandQueuePool.Pop()
+                : new Queue<CombatSimulationCommand>();
+        }
+
+        private void ReturnCommandQueue(Queue<CombatSimulationCommand> queue)
+        {
+            queue.Clear();
+            commandQueuePool.Push(queue);
+        }
+
         private static bool ConsumeTurnSkip(CombatActorState actor)
         {
             if (!actor.Variables.TryGetValue("SkipCurrentTurn", out var value)
@@ -4025,7 +4065,7 @@ public sealed class CombatSimulationEngine
                 {
                     continue;
                 }
-                var before = Variable(target, deferred.DefinitionId, 0d);
+                var before = StoredVariable(target, deferred.DefinitionId, 0d);
                 var after = Math.Max(
                     deferred.MinimumVariableValue,
                     Math.Min(
@@ -4076,10 +4116,12 @@ public sealed class CombatSimulationEngine
                 definitionId,
                 amount,
                 parentSequence);
-            var queue = new Queue<CombatSimulationCommand>();
+            var queue = RentCommandQueue();
             EnqueueCardLifecycleEffects(item, queue, 1);
             EnqueueTriggers(item, queue, 1);
-            return ExecuteQueue(queue);
+            var executed = ExecuteQueue(queue);
+            ReturnCommandQueue(queue);
+            return executed;
         }
 
         private bool ValidateState()
@@ -4337,7 +4379,7 @@ public sealed class CombatSimulationEngine
             {
                 return;
             }
-            var queue = new Queue<CombatSimulationCommand>();
+            var queue = RentCommandQueue();
             CompileEffects(
                 effects,
                 sourceActorId,
@@ -4348,6 +4390,7 @@ public sealed class CombatSimulationEngine
                 1,
                 queue);
             ExecuteQueue(queue);
+            ReturnCommandQueue(queue);
         }
 
         int ICombatSimulationRuntimeContext.NextRandomInt(

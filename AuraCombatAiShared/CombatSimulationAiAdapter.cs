@@ -944,6 +944,17 @@ public static class PlayerEquivalentSimulationObservationProjector
         var battleSessionId = StableSessionId(
             context.Scenario.ScenarioId,
             context.Scenario.Seed);
+        var handCardIds = CardIds(state, state.Hand);
+        var deckCardIds = CardIds(
+            state,
+            state.DrawPile.Count
+            + state.Hand.Count
+            + state.DiscardPile.Count
+            + state.ExhaustPile.Count,
+            state.DrawPile,
+            state.Hand,
+            state.DiscardPile,
+            state.ExhaustPile);
         var observation = new CombatStateObservation
         {
             BattleSessionId = battleSessionId,
@@ -955,19 +966,13 @@ public static class PlayerEquivalentSimulationObservationProjector
             CurrentPower = player.Energy,
             MaxPower = player.BaseEnergy,
             HandCount = state.Hand.Count,
-            HandCardIds = CardIds(state, state.Hand),
+            HandCardIds = handCardIds,
             HandCards = ProjectHandCards(context),
-            RetainedHandCardIds = CardIds(state, state.Hand)
+            RetainedHandCardIds = handCardIds
                 .Where(cardId => context.Ruleset.TryGetCard(cardId, out var card)
                                  && HasTag(card, "Retain"))
                 .ToList(),
-            DeckCardIds = CardIds(
-                state,
-                state.DrawPile
-                    .Concat(state.Hand)
-                    .Concat(state.DiscardPile)
-                    .Concat(state.ExhaustPile)
-                    .ToList()),
+            DeckCardIds = deckCardIds,
             DiscardPileCardIds = CardIds(state, state.DiscardPile),
             ExhaustPileCardIds = CardIds(state, state.ExhaustPile),
             DeferredEffects = state.DeferredEffects
@@ -1449,17 +1454,49 @@ public static class PlayerEquivalentSimulationObservationProjector
         CombatBattleState state,
         IEnumerable<int> instanceIds)
     {
-        return instanceIds
-            .Select(state.FindCard)
-            .Where(card => card != null)
-            .Select(card => card!.CardId)
-            .ToList();
+        var result = instanceIds is ICollection<int> collection
+            ? new List<string>(collection.Count)
+            : new List<string>();
+        AppendCardIds(state, instanceIds, result);
+        return result;
+    }
+
+    private static List<string> CardIds(
+        CombatBattleState state,
+        int capacity,
+        IEnumerable<int> first,
+        IEnumerable<int> second,
+        IEnumerable<int> third,
+        IEnumerable<int> fourth)
+    {
+        var result = new List<string>(Math.Max(0, capacity));
+        AppendCardIds(state, first, result);
+        AppendCardIds(state, second, result);
+        AppendCardIds(state, third, result);
+        AppendCardIds(state, fourth, result);
+        return result;
+    }
+
+    private static void AppendCardIds(
+        CombatBattleState state,
+        IEnumerable<int> instanceIds,
+        ICollection<string> destination)
+    {
+        foreach (var instanceId in instanceIds)
+        {
+            var card = state.FindCard(instanceId);
+            if (card != null)
+            {
+                destination.Add(card.CardId);
+            }
+        }
     }
 
     private static List<CombatCardInstanceObservation> ProjectHandCards(
         CombatSimulationPolicyContext context)
     {
-        var result = new List<CombatCardInstanceObservation>();
+        var result = new List<CombatCardInstanceObservation>(
+            context.State.Hand.Count);
         foreach (var instanceId in context.State.Hand)
         {
             var instance = context.State.FindCard(instanceId);
@@ -1468,10 +1505,11 @@ public static class PlayerEquivalentSimulationObservationProjector
                 continue;
             }
             context.Ruleset.TryGetCard(instance.CardId, out var definition);
-            var tags = instance.Tags
-                .Concat(definition?.Tags ?? new List<string>())
-                .Distinct(StringComparer.OrdinalIgnoreCase)
-                .ToList();
+            var retained = HasCardTag(instance, definition, "Retain");
+            var exhaustsOnUse = definition?.Exhaust == true
+                                || HasCardTag(instance, definition, "Burnout")
+                                || HasCardTag(instance, definition, "Exhaust")
+                                || HasCardTag(instance, definition, "Fragmented");
             var totalExtraCost = ParseCardVariable(instance, "TotalExCost");
             var extraUseCount = ParseCardVariable(instance, "ExUseCount");
             result.Add(new CombatCardInstanceObservation
@@ -1483,19 +1521,8 @@ public static class PlayerEquivalentSimulationObservationProjector
                     (definition?.Cost ?? 0)
                     + instance.CostModifier
                     + (int)Math.Round(totalExtraCost)),
-                Retained = tags.Contains(
-                    "Retain",
-                    StringComparer.OrdinalIgnoreCase),
-                ExhaustsOnUse = definition?.Exhaust == true
-                                || tags.Any(tag => tag.Equals(
-                                    "Burnout",
-                                    StringComparison.OrdinalIgnoreCase)
-                                    || tag.Equals(
-                                        "Exhaust",
-                                        StringComparison.OrdinalIgnoreCase)
-                                    || tag.Equals(
-                                        "Fragmented",
-                                        StringComparison.OrdinalIgnoreCase)),
+                Retained = retained,
+                ExhaustsOnUse = exhaustsOnUse,
                 CreatedThisBattle = !string.IsNullOrWhiteSpace(
                     instance.CreationSource)
                                     && !string.Equals(
@@ -1512,25 +1539,28 @@ public static class PlayerEquivalentSimulationObservationProjector
                     ["mechanic:extra-use-count"] = extraUseCount,
                     ["hasVisibleWarning"] =
                         instance.EnchantmentIds.Count > 0 ? 1d : 0d,
-                    ["retain"] = tags.Contains(
-                        "Retain",
-                        StringComparer.OrdinalIgnoreCase) ? 1d : 0d,
-                    ["exhaustOnUse"] = definition?.Exhaust == true
-                                       || tags.Any(tag => tag.Equals(
-                                           "Burnout",
-                                           StringComparison.OrdinalIgnoreCase)
-                                           || tag.Equals(
-                                               "Exhaust",
-                                               StringComparison.OrdinalIgnoreCase)
-                                           || tag.Equals(
-                                               "Fragmented",
-                                               StringComparison.OrdinalIgnoreCase))
-                        ? 1d
-                        : 0d
+                    ["retain"] = retained ? 1d : 0d,
+                    ["exhaustOnUse"] = exhaustsOnUse ? 1d : 0d
                 }
             });
         }
         return result;
+    }
+
+    private static bool HasCardTag(
+        CombatCardInstanceState instance,
+        CombatCardDefinition? definition,
+        string tag)
+    {
+        return instance.Tags.Any(value => string.Equals(
+                   value,
+                   tag,
+                   StringComparison.OrdinalIgnoreCase))
+               || (definition?.Tags.Any(value => string.Equals(
+                       value,
+                       tag,
+                       StringComparison.OrdinalIgnoreCase))
+                   ?? false);
     }
 
     private static double ParseCardVariable(

@@ -38,7 +38,7 @@
 | 在线治理 | 墙钟截止、模型调用预算、风险偏好、安全回退；Actor 裁剪默认关闭 |
 | Worker | schema 12 |
 | 训练治理 | `foundation-governance-v26-productive-progress-pareto-arena` + `foundation-stagnation-v2-productive-progress` + `paired-evidence-v5-noninferiority` |
-| 资源容量规划 | `foundation-parallelism-v1-memory-capacity-8-16-32` + `foundation-auto-tune-v10-memory-capacity-only`；每轮边界等待检查点落盘、释放搜索 Arena 并回收后，按可用物理内存、固定进程占用、每通道高水位成本和安全余量，从 8/16/32 中选择最高可承载档位；旧吞吐 Auto-Tune 缓存不再决定冒险并行度，模型训练并行度仍独立 |
+| 自动并发规划 | `foundation-parallelism-v2-adaptive-exact-capacity` + `foundation-auto-tune-v11-adaptive-exact-capacity`；控制台不再暴露 CPU 并行度，按逻辑处理器数生成 50%/75%/100% 实测点，以稳定吞吐自动选取并跨迭代保持；内存预测仅作为安全上限，不再把并发向下取整到固定档位，模型训练并行度自动使用可用逻辑处理器 |
 | 外部模型包 | 写入 `foundation-model-package-v4`；读取兼容正式验收的 v3 |
 | CLI 搜索策略 | `risk-puct` |
 

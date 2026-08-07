@@ -14,7 +14,7 @@ if (string.IsNullOrWhiteSpace(packagePath)
 {
     Console.Error.WriteLine(
         "Usage: AuraFoundationModelInstaller "
-        + "--package <foundation-model-package-v4.json> "
+        + "--package <foundation-model-package-v5.json> "
         + "--aura-shared-root <ModsData/AuraShared> "
         + "--display-name <name> [--activate]");
     return 2;
@@ -32,8 +32,10 @@ if (!File.Exists(packagePath) || !Directory.Exists(sharedRoot))
     Console.Error.WriteLine("Package or AuraShared root does not exist.");
     return 2;
 }
+var packageDirectory = Path.GetDirectoryName(packagePath) ?? "";
+var initialPackageBytes = new FileInfo(packagePath).Length;
 if (!CombatFoundationModelPackageProtocol.TryValidateSerializedSize(
-        new FileInfo(packagePath).Length,
+        initialPackageBytes,
         out var packageSizeDiagnostic))
 {
     Console.Error.WriteLine("Package size validation failed: " + packageSizeDiagnostic);
@@ -51,9 +53,29 @@ if (!CombatFoundationModelPackageProtocol.TryValidate(
     Console.Error.WriteLine("Package validation failed: " + diagnostic);
     return 3;
 }
+if (package!.ModelArtifact != null
+    && !CombatPolicyValueArtifactProtocol.TryValidatePayload(
+        packageDirectory,
+        package.ModelArtifact,
+        out diagnostic))
+{
+    Console.Error.WriteLine("Package payload validation failed: " + diagnostic);
+    return 3;
+}
+if (package.ModelArtifact != null
+    && !CombatFoundationModelPackageProtocol.TryValidateSerializedSize(
+        checked(initialPackageBytes
+                + package.ModelArtifact.WeightsByteLength),
+        out packageSizeDiagnostic))
+{
+    Console.Error.WriteLine("Package size validation failed: " + packageSizeDiagnostic);
+    return 3;
+}
 
 var packageNode = JObject.Parse(packageJson);
-var modelId = package!.Model!.ModelId;
+var modelId = package.Model?.ModelId
+              ?? package.ModelArtifact?.ModelId
+              ?? "";
 var packageSha256 = Convert.ToHexString(
         SHA256.HashData(utf8.GetBytes(packageJson)))
     .ToLowerInvariant();
@@ -90,6 +112,44 @@ var bundleFile = "model-"
                  + Sha256(modelId)[..16].ToLowerInvariant()
                  + ".json";
 var bundlePath = InsideRoot(modelLibraryDirectory, bundleFile);
+var weightsFile = "weights-"
+                  + Sha256(modelId)[..16].ToLowerInvariant()
+                  + ".bin";
+var weightsPath = InsideRoot(modelLibraryDirectory, weightsFile);
+CombatPolicyValueArtifactManifest installedArtifact;
+if (package.ModelArtifact != null)
+{
+    CopyFileAtomic(
+        Path.Combine(packageDirectory, package.ModelArtifact.WeightsFile),
+        weightsPath);
+    package.ModelArtifact.WeightsFile = weightsFile;
+    installedArtifact = package.ModelArtifact;
+}
+else
+{
+    installedArtifact = CombatPolicyValueArtifactProtocol.Write(
+        weightsPath,
+        package.Model
+        ?? throw new InvalidDataException("Foundation package has no model."));
+}
+if (!CombatPolicyValueArtifactProtocol.TryValidatePayload(
+        modelLibraryDirectory,
+        installedArtifact,
+        out diagnostic))
+{
+    Console.Error.WriteLine("Installed FP32 payload validation failed: " + diagnostic);
+    return 3;
+}
+if (!CombatPolicyValueArtifactProtocol.TryLoad(
+        modelLibraryDirectory,
+        installedArtifact,
+        out var installedRuntime,
+        out diagnostic))
+{
+    Console.Error.WriteLine("Installed FP32 payload reload failed: " + diagnostic);
+    return 3;
+}
+_ = new ManagedCombatPolicyValueModel(installedRuntime);
 var settings = JObject.Parse(File.ReadAllText(settingsPath, utf8));
 var autoBattle = settings["data"]?["autoBattle"] as JObject
                  ?? throw new InvalidDataException(
@@ -100,7 +160,7 @@ var normalizedAcceptance = CombatFoundationModelPackageProtocol
     .NormalizeAcceptance(package);
 var bundle = new JObject
 {
-    ["SchemaVersion"] = 4,
+    ["SchemaVersion"] = 5,
     ["BundleId"] = Clone(packageNode["PackageId"]),
     ["Profile"] = Clone(packageNode["Profile"]),
     ["RoleId"] = Clone(packageNode["RoleId"]),
@@ -140,7 +200,8 @@ var bundle = new JObject
     ["TrainingSnapshotHash"] = "",
     ["Residual"] = null,
     ["SearchGuidance"] = null,
-    ["PolicyValue"] = Clone(packageNode["Model"])
+    ["PolicyValue"] = null,
+    ["PolicyValueArtifact"] = JObject.FromObject(installedArtifact)
 };
 
 var library = JObject.Parse(File.ReadAllText(manifestPath, utf8));
@@ -279,6 +340,23 @@ static string WriteAtomic(
     var backup = path + ".bak-" + timestamp;
     File.Replace(temporary, path, backup);
     return backup;
+}
+
+static void CopyFileAtomic(string source, string destination)
+{
+    Directory.CreateDirectory(
+        Path.GetDirectoryName(destination)
+        ?? throw new InvalidOperationException("Path has no directory."));
+    var temporary = destination + ".tmp-" + Guid.NewGuid().ToString("N");
+    File.Copy(source, temporary, overwrite: false);
+    if (File.Exists(destination))
+    {
+        File.Replace(temporary, destination, null);
+    }
+    else
+    {
+        File.Move(temporary, destination);
+    }
 }
 
 static void MigrateLegacyModelLibrary(string source, string destination)

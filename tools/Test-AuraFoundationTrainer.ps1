@@ -84,6 +84,7 @@ $repoRoot = Split-Path -Parent $PSScriptRoot
 $effectivePreflightCampaignsPerDifficulty = [Math]::Max(
     0,
     [Math]::Min(100, $PreflightCampaignsPerDifficulty))
+$integrityRegressionSeedCount = 4
 $effectiveNormalValidationCampaigns = [Math]::Max(
     1,
     [Math]::Min(1000, $NormalValidationCampaigns))
@@ -466,7 +467,8 @@ try {
     if ($PreflightOnly) {
         if (-not $result.Training.Success `
             -or $result.Training.Preflight.CompletedCampaigns `
-                -ne ($effectivePreflightCampaignsPerDifficulty * 2 + 3) `
+                -ne ($effectivePreflightCampaignsPerDifficulty * 2 `
+                     + $integrityRegressionSeedCount) `
             -or $result.Training.CompletedCampaigns -ne 0) {
             throw "Foundation trainer preflight-only result is incomplete."
         }
@@ -545,7 +547,8 @@ try {
             }
         }
         $availableValidationWork = if ($PreflightOnly) {
-            $effectivePreflightCampaignsPerDifficulty * 2 + 3
+            $effectivePreflightCampaignsPerDifficulty * 2 `
+            + $integrityRegressionSeedCount
         }
         else {
             [Math]::Max(
@@ -584,12 +587,12 @@ try {
             $measurements = @($result.Training.AutoTune.Measurements)
             $capacityDecision = $result.Training.ParallelismDecision
             if ([string]$result.Training.AutoTune.Version `
-                    -ne "foundation-auto-tune-v10-memory-capacity-only" `
+                    -ne "foundation-auto-tune-v11-adaptive-exact-capacity" `
                 -or [string]$result.Training.AutoTune.Objective `
                     -ne $AutoTuneObjective `
                 -or $null -eq $capacityDecision `
                 -or [string]$capacityDecision.ProtocolVersion `
-                    -ne "foundation-parallelism-v1-memory-capacity-8-16-32" `
+                    -ne "foundation-parallelism-v2-adaptive-exact-capacity" `
                 -or [int]$capacityDecision.SelectedParallelism `
                     -ne [int]$result.Training.EffectiveParallelism `
                 -or [int64]$capacityDecision.PredictedPerLaneBytes -le 0 `
@@ -609,8 +612,24 @@ try {
                         [System.StringComparison]::Ordinal)
                 } | ForEach-Object { [int]$_.Parallelism } `
                   | Sort-Object -Unique)
-            if ($actualCampaignPoints.Count -ne 0) {
-                throw "Memory-capacity parallelism unexpectedly ran throughput campaign probes."
+            $calibrationMaximum = [Math]::Max(
+                1,
+                [Math]::Min(
+                    64,
+                    [Math]::Min(
+                        [Environment]::ProcessorCount,
+                        $MaximumDegreeOfParallelism)))
+            $expectedCampaignPoints = @(
+                [Math]::Ceiling($calibrationMaximum * 0.50),
+                [Math]::Ceiling($calibrationMaximum * 0.75),
+                $calibrationMaximum
+            ) | ForEach-Object { [int]$_ } | Sort-Object -Unique
+            if (($actualCampaignPoints -join ",") `
+                    -ne ($expectedCampaignPoints -join ",")) {
+                throw (
+                    "Adaptive parallelism campaign probes are incomplete: " `
+                    + "actual=$($actualCampaignPoints -join ','), " `
+                    + "expected=$($expectedCampaignPoints -join ',').")
             }
             if (-not $PreflightOnly) {
                 $inferenceMeasurements = @($measurements | Where-Object {

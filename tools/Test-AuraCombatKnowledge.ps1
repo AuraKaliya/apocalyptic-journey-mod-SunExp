@@ -3,7 +3,7 @@ param()
 $ErrorActionPreference = "Stop"
 $root = Split-Path -Parent $PSScriptRoot
 $scripts = Get-ChildItem -LiteralPath $root -Filter "AllScripts.cs" -File -Recurse |
-    Where-Object { $_.FullName -match 'v1\.0\.24591395[\\/]AllScripts[\\/]AllScripts\.cs$' } |
+    Where-Object { $_.FullName -match 'v1\.0\.24591395[\\/]AllScripts[\\/](?:AllScripts[\\/])?AllScripts\.cs$' } |
     Select-Object -First 1 -ExpandProperty FullName
 $tables = Get-ChildItem -LiteralPath (Join-Path $root "docs") -Filter "witch-tables-20260806-172142.json" -File -Recurse |
     Select-Object -First 1 -ExpandProperty FullName
@@ -17,7 +17,7 @@ if ([string]::IsNullOrWhiteSpace($scripts) -or -not (Test-Path -LiteralPath $scr
     }
     $package = Get-Content -LiteralPath $bundled -Raw | ConvertFrom-Json
     if ($package.gameBuild -ne "1.0.24591395" `
-        -or $package.sourceHash -ne "cca6f6b862743baa17f55b032f7971165f1b1ddd57cd9af76bae1cdd6277a5bd" `
+        -or $package.sourceHash -ne "1e4859af3d987bccb1019d85619dbeb9c1e0c23379275c4ebd5e48b0b94906f2" `
         -or $package.actions.Count -ne 932 `
         -or $package.statuses.Count -ne 137 `
         -or $package.enemies.Count -ne 56 `
@@ -49,7 +49,7 @@ $encounter = $package.encounters | Where-Object encounterId -eq "level_10001" | 
 $expectedCardName = -join @([char]0x6D77, [char]0x6D0B, [char]0x4E4B, [char]0x68A6)
 
 if ($compilerReport.gameBuild -ne "1.0.24591395" `
-    -or $compilerReport.sourceHash -ne "cca6f6b862743baa17f55b032f7971165f1b1ddd57cd9af76bae1cdd6277a5bd" `
+    -or $compilerReport.sourceHash -ne "1e4859af3d987bccb1019d85619dbeb9c1e0c23379275c4ebd5e48b0b94906f2" `
     -or $compilerReport.registeredScriptCount -ne 3187 `
     -or $compilerReport.operationCount -ne 3444 `
     -or $compilerReport.unsupportedOperationCount -ne 535 `

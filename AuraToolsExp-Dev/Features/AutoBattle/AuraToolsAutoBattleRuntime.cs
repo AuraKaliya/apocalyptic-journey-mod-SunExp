@@ -96,7 +96,6 @@ public static class AuraToolsAutoBattleRuntime
             new AuraBattleLifecycleSubscription
             {
                 FightStarting = _ => ResetForBattle(),
-                FightStarted = _ => ResetForBattle(),
                 FightEnding = _ => EndBattle(),
                 FightEnded = _ => EndBattle()
             },
@@ -123,6 +122,11 @@ public static class AuraToolsAutoBattleRuntime
     public static void ReloadModels()
     {
         controller?.ApplyConfiguration();
+    }
+
+    internal static void NotifyModelLibraryChanged()
+    {
+        controller?.NotifyModelLibraryChanged();
     }
 
     public static bool TrySetModelApplicationMode(
@@ -320,6 +324,9 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
     private long continuationBattleSessionId;
     private string continuationCandidateId = "";
     private string continuationSourceId = "";
+    private string modelConfigurationKey = "";
+    private long modelLoadGeneration;
+    private long lastResetBattleSessionId;
 
     public bool Active { get; private set; }
 
@@ -341,7 +348,7 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
     {
         predictionPresenter = gameObject.GetComponent<AuraToolsAutoBattlePredictionPresenter>()
                               ?? gameObject.AddComponent<AuraToolsAutoBattlePredictionPresenter>();
-        ReloadDecisionEngine();
+        ApplyConfiguration();
     }
 
     public void SetActive(bool active)
@@ -373,6 +380,13 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
 
     public void ResetForBattle(bool startActive)
     {
+        var battleSessionId = AuraBattleLifecycleRouter.CurrentBattleSessionId;
+        if (battleSessionId > 0
+            && battleSessionId == lastResetBattleSessionId)
+        {
+            return;
+        }
+        lastResetBattleSessionId = battleSessionId;
         decisionIndex = 0;
         pendingSampleRecorded = false;
         ClearTeacherAction();
@@ -381,7 +395,6 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         transaction.Reset();
         failedActionStateKeys.Clear();
         ClearContinuationHint();
-        ReloadDecisionEngine();
         SetActive(startActive);
         DestroyButton();
         nextUiProbeAt = 0f;
@@ -434,9 +447,16 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         UpdateButtonLabel();
     }
 
+    internal void NotifyModelLibraryChanged()
+    {
+        modelConfigurationKey = "";
+        AuraToolsAutoBattleModelRuntime.UnloadResidentModels();
+        ReloadDecisionEngine(force: true);
+    }
+
     internal void BeginGameValidationBattle()
     {
-        ReloadDecisionEngine();
+        ReloadDecisionEngine(force: true);
         SetActive(true);
         DestroyButton();
     }
@@ -1441,9 +1461,8 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         return false;
     }
 
-    private void ReloadDecisionEngine()
+    private void ReloadDecisionEngine(bool force = false)
     {
-        InvalidateDecisionWork();
         var settings = AuraToolsConfigService.MatchExperience.AutoBattle;
         if (AuraToolsAutoBattleGameValidationRuntime.TryGetValidationModels(
                 out var validationResidual,
@@ -1451,6 +1470,18 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
                 out var validationPolicyValue,
                 out var validationModelId))
         {
+            var validationKey = "validation\n" + validationModelId;
+            if (!force
+                && string.Equals(
+                    modelConfigurationKey,
+                    validationKey,
+                    StringComparison.Ordinal))
+            {
+                return;
+            }
+            modelConfigurationKey = validationKey;
+            modelLoadGeneration++;
+            InvalidateDecisionWork();
             trainedModelMode = "active";
             baselineDecisionEngine = new CombatDecisionEngine();
             trainedDecisionEngine = new CombatDecisionEngine(
@@ -1465,39 +1496,120 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
             AuraToolsLog.Info("[AutoBattle] " + lastModelDiagnostic);
             return;
         }
-        trainedModelMode = settings.TrainedModelMode;
-        var model = AuraToolsAutoBattleModelRuntime.Load(
-            settings.Profile,
-            !string.Equals(trainedModelMode, "off", StringComparison.OrdinalIgnoreCase),
-            out var diagnostic,
-            settings.SelectedModelId);
-        var searchGuidance = AuraToolsAutoBattleModelRuntime.LoadSearchGuidance(
-            settings.Profile,
-            !string.Equals(trainedModelMode, "off", StringComparison.OrdinalIgnoreCase),
-            out var guidanceDiagnostic,
-            settings.SelectedModelId);
-        var policyValue = AuraToolsAutoBattleModelRuntime.LoadPolicyValue(
-            settings.Profile,
-            !string.Equals(trainedModelMode, "off", StringComparison.OrdinalIgnoreCase),
-            out var policyValueDiagnostic,
-            settings.SelectedModelId);
-        baselineDecisionEngine = new CombatDecisionEngine();
-        trainedDecisionEngine = new CombatDecisionEngine(
-            model,
-            searchGuidance,
-            policyValueModel: policyValue);
-        trainedModelId = string.Join(
-            "+",
-            new[] { model.ModelId, searchGuidance.ModelId, policyValue.ModelId }
-                .Where(id => !string.Equals(id, "none", StringComparison.Ordinal)));
-        if (string.IsNullOrWhiteSpace(trainedModelId))
+        var configuredMode = AuraToolsAutoBattleRuntime.ModuleEnabled
+            ? settings.TrainedModelMode
+            : "off";
+        var profile = settings.Profile;
+        var selectedModelId = settings.SelectedModelId ?? "";
+        var configurationKey = configuredMode
+                               + "\n"
+                               + profile
+                               + "\n"
+                               + selectedModelId;
+        if (!force
+            && string.Equals(
+                modelConfigurationKey,
+                configurationKey,
+                StringComparison.Ordinal))
         {
-            trainedModelId = "none";
+            return;
         }
-        if (string.Equals(trainedModelMode, "active", StringComparison.OrdinalIgnoreCase)
+        modelConfigurationKey = configurationKey;
+        var loadGeneration = ++modelLoadGeneration;
+        InvalidateDecisionWork();
+        baselineDecisionEngine = new CombatDecisionEngine();
+        trainedDecisionEngine = new CombatDecisionEngine();
+        trainedModelId = "none";
+        lastModelComparisonFingerprint = "";
+        pendingShadowFingerprint = "";
+        ClearDecisionCache();
+        if (string.Equals(
+                configuredMode,
+                "off",
+                StringComparison.OrdinalIgnoreCase))
+        {
+            trainedModelMode = "off";
+            AuraToolsAutoBattleModelRuntime.UnloadResidentModels();
+            lastModelDiagnostic = "模型应用已关闭，驻留权重已卸载";
+            AuraToolsLog.Info("[AutoBattle] " + lastModelDiagnostic);
+            return;
+        }
+        trainedModelMode = "off";
+        lastModelDiagnostic = "模型正在后台加载";
+        var queued = AuraSharedBackgroundWorkScheduler.Queue(
+            new AuraSharedBackgroundWorkRequest<AutoBattleResidentModelSet>
+            {
+                OwnerId = AuraToolsIds.ModId,
+                Key = "AutoBattle.ModelResidency",
+                Source = "AutoBattle.ModelResidency",
+                Kind = AuraSharedBackgroundWorkKind.Io,
+                CompletionPriority = 90,
+                Work = cancellation =>
+                {
+                    cancellation.ThrowIfCancellationRequested();
+                    return AuraToolsAutoBattleModelRuntime.LoadResidentModels(
+                        profile,
+                        selectedModelId);
+                },
+                IsStillCurrent = () =>
+                    modelLoadGeneration == loadGeneration
+                    && string.Equals(
+                        modelConfigurationKey,
+                        configurationKey,
+                        StringComparison.Ordinal),
+                ApplyOnMainThread = loaded => ApplyResidentModels(
+                    configuredMode,
+                    profile,
+                    configurationKey,
+                    loadGeneration,
+                    loaded),
+                OnFailedOnMainThread = ex =>
+                {
+                    if (modelLoadGeneration != loadGeneration)
+                    {
+                        return;
+                    }
+                    lastModelDiagnostic = "模型后台加载失败：" + ex.Message;
+                    AuraToolsLog.Warn("[AutoBattle] " + lastModelDiagnostic);
+                }
+            });
+        if (!queued)
+        {
+            lastModelDiagnostic = "模型后台加载任务未能提交";
+            AuraToolsLog.Warn("[AutoBattle] " + lastModelDiagnostic);
+        }
+    }
+
+    private void ApplyResidentModels(
+        string configuredMode,
+        string profile,
+        string configurationKey,
+        long loadGeneration,
+        AutoBattleResidentModelSet loaded)
+    {
+        if (modelLoadGeneration != loadGeneration
+            || !string.Equals(
+                modelConfigurationKey,
+                configurationKey,
+                StringComparison.Ordinal))
+        {
+            return;
+        }
+        InvalidateDecisionWork();
+        trainedModelMode = configuredMode;
+        trainedDecisionEngine = new CombatDecisionEngine(
+            loaded.Residual,
+            loaded.SearchGuidance,
+            policyValueModel: loaded.PolicyValue);
+        trainedModelId = loaded.ModelId;
+        var diagnostic = loaded.Diagnostic;
+        if (string.Equals(
+                trainedModelMode,
+                "active",
+                StringComparison.OrdinalIgnoreCase)
             && !string.Equals(trainedModelId, "none", StringComparison.Ordinal)
             && !AuraToolsAutoBattleSimulationRuntime.CanActivateModel(
-                settings.Profile,
+                profile,
                 trainedModelId,
                 out var gateReason))
         {
@@ -1507,7 +1619,6 @@ internal sealed class AuraToolsAutoBattleController : MonoBehaviour
         lastModelComparisonFingerprint = "";
         pendingShadowFingerprint = "";
         ClearDecisionCache();
-        diagnostic += "；" + guidanceDiagnostic + "；" + policyValueDiagnostic;
         if (!string.Equals(lastModelDiagnostic, diagnostic, StringComparison.Ordinal))
         {
             lastModelDiagnostic = diagnostic;

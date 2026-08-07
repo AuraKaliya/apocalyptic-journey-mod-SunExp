@@ -955,9 +955,9 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
 {
     private const int ActionTowerCacheCapacity = 256;
 
-    private readonly CombatPolicyValueNetworkDefinition definition;
-    private readonly double[] stateWeightsByInput;
-    private readonly double[] actionWeightsByInput;
+    private static long nextCacheIdentity;
+    private readonly CombatPolicyValueRuntimeDefinition definition;
+    private readonly long cacheIdentity;
     private long actionTowerCacheHits;
     private long actionTowerCacheMisses;
     [ThreadStatic]
@@ -972,23 +972,24 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
     public ManagedCombatPolicyValueModel(
         CombatPolicyValueNetworkDefinition definition,
         bool allowDiagnosticLegacySchema = false)
+        : this(CombatPolicyValueArtifactProtocol.FromTrainingDefinition(
+            definition,
+            allowDiagnosticLegacySchema))
     {
-        this.definition = definition ?? throw new ArgumentNullException(nameof(definition));
-        if (!CombatPolicyValueNetworkValidator.TryValidate(
+    }
+
+    public ManagedCombatPolicyValueModel(
+        CombatPolicyValueRuntimeDefinition definition)
+    {
+        this.definition = definition
+                          ?? throw new ArgumentNullException(nameof(definition));
+        if (!CombatPolicyValueArtifactProtocol.TryValidateRuntime(
                 definition,
-                out var reason,
-                allowDiagnosticLegacySchema))
+                out var reason))
         {
             throw new ArgumentException(reason, nameof(definition));
         }
-        stateWeightsByInput = TransposeInputWeights(
-            definition.StateWeights,
-            definition.StateDimensions,
-            definition.HiddenDimensions);
-        actionWeightsByInput = TransposeInputWeights(
-            definition.ActionWeights,
-            definition.ActionDimensions,
-            definition.HiddenDimensions);
+        cacheIdentity = Interlocked.Increment(ref nextCacheIdentity);
     }
 
     public string ModelId => string.IsNullOrWhiteSpace(definition.ModelId)
@@ -1025,7 +1026,7 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
                 state,
                 0,
                 definition.StateDimensions,
-                stateWeightsByInput,
+                definition.StateWeightsByInput,
                 definition.StateBias,
                 hidden,
                 0,
@@ -1155,7 +1156,7 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
                     states,
                     inputIndex * definition.StateDimensions,
                     definition.StateDimensions,
-                    stateWeightsByInput,
+                    definition.StateWeightsByInput,
                     definition.StateBias,
                     hidden,
                     inputIndex * definition.HiddenDimensions,
@@ -1289,7 +1290,7 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
         int hiddenOffset)
     {
         var cache = (threadActionTowerCaches ??= new ActionTowerCacheSet())
-            .For(this, definition.HiddenDimensions);
+            .For(cacheIdentity, definition.HiddenDimensions);
         var key = ActionTowerCacheKey.Create(candidate);
         if (cache.TryCopyTo(
                 key,
@@ -1312,7 +1313,7 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
             encodedAction,
             actionOffset,
             definition.ActionDimensions,
-            actionWeightsByInput,
+            definition.ActionWeightsByInput,
             definition.ActionBias,
             actionHidden,
             hiddenOffset,
@@ -1418,13 +1419,18 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
         double[] input,
         int inputOffset,
         int inputDimensions,
-        double[] weightsByInput,
-        double[] bias,
+        float[] weightsByInput,
+        float[] bias,
         double[] output,
         int outputOffset,
         int outputDimensions)
     {
-        Array.Copy(bias, 0, output, outputOffset, outputDimensions);
+        for (var outputIndex = 0;
+             outputIndex < outputDimensions;
+             outputIndex++)
+        {
+            output[outputOffset + outputIndex] = bias[outputIndex];
+        }
         var sparseIndexes = threadSparseIndexes;
         if (sparseIndexes == null || sparseIndexes.Length < inputDimensions)
         {
@@ -1445,27 +1451,6 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
             var value = input[inputOffset + inputIndex];
             var weightOffset = inputIndex * outputDimensions;
             var outputIndex = 0;
-#if NET8_0_OR_GREATER
-            if (Vector.IsHardwareAccelerated
-                && outputDimensions >= Vector<double>.Count)
-            {
-                var inputVector = new Vector<double>(value);
-                var vectorEnd = outputDimensions
-                                - outputDimensions % Vector<double>.Count;
-                for (; outputIndex < vectorEnd;
-                     outputIndex += Vector<double>.Count)
-                {
-                    var accumulated = new Vector<double>(
-                        output,
-                        outputOffset + outputIndex);
-                    accumulated += new Vector<double>(
-                                       weightsByInput,
-                                       weightOffset + outputIndex)
-                                   * inputVector;
-                    accumulated.CopyTo(output, outputOffset + outputIndex);
-                }
-            }
-#endif
             for (; outputIndex < outputDimensions; outputIndex++)
             {
                 output[outputOffset + outputIndex] +=
@@ -1483,28 +1468,6 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
             inputDimensions,
             sparseCount,
             outputDimensions);
-    }
-
-    private static double[] TransposeInputWeights(
-        double[] outputMajorWeights,
-        int inputDimensions,
-        int outputDimensions)
-    {
-        var result = new double[checked(inputDimensions * outputDimensions)];
-        for (var outputIndex = 0;
-             outputIndex < outputDimensions;
-             outputIndex++)
-        {
-            var sourceOffset = outputIndex * inputDimensions;
-            for (var inputIndex = 0;
-                 inputIndex < inputDimensions;
-                 inputIndex++)
-            {
-                result[inputIndex * outputDimensions + outputIndex] =
-                    outputMajorWeights[sourceOffset + inputIndex];
-            }
-        }
-        return result;
     }
 
     private static long CurrentThreadAllocatedBytes()
@@ -1545,32 +1508,29 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
     private static double Dot(
         double[] left,
         int leftOffset,
-        double[] right,
+        float[] right,
         int rightOffset,
         int length)
     {
         var result = 0d;
         var index = 0;
-#if NET8_0_OR_GREATER
-        if (Vector.IsHardwareAccelerated
-            && length >= Vector<double>.Count)
-        {
-            var vectorSum = Vector<double>.Zero;
-            var vectorEnd = length - length % Vector<double>.Count;
-            for (; index < vectorEnd; index += Vector<double>.Count)
-            {
-                vectorSum += new Vector<double>(left, leftOffset + index)
-                             * new Vector<double>(
-                                 right,
-                                 rightOffset + index);
-            }
-            for (var lane = 0; lane < Vector<double>.Count; lane++)
-            {
-                result += vectorSum[lane];
-            }
-        }
-#endif
         for (; index < length; index++)
+        {
+            result += left[leftOffset + index]
+                      * right[rightOffset + index];
+        }
+        return result;
+    }
+
+    private static double Dot(
+        double[] left,
+        int leftOffset,
+        double[] right,
+        int rightOffset,
+        int length)
+    {
+        var result = 0d;
+        for (var index = 0; index < length; index++)
         {
             result += left[leftOffset + index]
                       * right[rightOffset + index];
@@ -1583,7 +1543,7 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
         int stateOffset,
         double[] action,
         int actionOffset,
-        double[] weights,
+        float[] weights,
         int length)
     {
         return Interaction(
@@ -1601,32 +1561,12 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
         int stateOffset,
         double[] action,
         int actionOffset,
-        double[] weights,
+        float[] weights,
         int weightOffset,
         int length)
     {
         var result = 0d;
         var index = 0;
-#if NET8_0_OR_GREATER
-        if (Vector.IsHardwareAccelerated
-            && length >= Vector<double>.Count)
-        {
-            var vectorSum = Vector<double>.Zero;
-            var vectorEnd = length - length % Vector<double>.Count;
-            for (; index < vectorEnd; index += Vector<double>.Count)
-            {
-                vectorSum += new Vector<double>(state, stateOffset + index)
-                             * new Vector<double>(
-                                 action,
-                                 actionOffset + index)
-                             * new Vector<double>(weights, weightOffset + index);
-            }
-            for (var lane = 0; lane < Vector<double>.Count; lane++)
-            {
-                result += vectorSum[lane];
-            }
-        }
-#endif
         for (; index < length; index++)
         {
             result += state[stateOffset + index]
@@ -1740,7 +1680,7 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
         private readonly ActionTowerCacheKey[] keys;
         private readonly double[][] values;
         private readonly Dictionary<ActionTowerCacheKey, int> indexes = new();
-        private ManagedCombatPolicyValueModel? owner;
+        private long ownerIdentity;
         private int hiddenDimensions;
         private int count;
         private int replacementCursor;
@@ -1752,15 +1692,15 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
         }
 
         public void Prepare(
-            ManagedCombatPolicyValueModel model,
+            long identity,
             int dimensions)
         {
-            if (ReferenceEquals(owner, model)
+            if (ownerIdentity == identity
                 && hiddenDimensions == dimensions)
             {
                 return;
             }
-            owner = model;
+            ownerIdentity = identity;
             hiddenDimensions = dimensions;
             indexes.Clear();
             count = 0;
@@ -1817,25 +1757,25 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
     private sealed class ActionTowerCacheSet
     {
         private const int MaximumModelsPerThread = 4;
-        private readonly ManagedCombatPolicyValueModel?[] owners =
-            new ManagedCombatPolicyValueModel?[MaximumModelsPerThread];
+        private readonly long[] ownerIdentities =
+            new long[MaximumModelsPerThread];
         private readonly ActionTowerCache?[] caches =
             new ActionTowerCache?[MaximumModelsPerThread];
         private int count;
         private int replacementCursor;
 
         public ActionTowerCache For(
-            ManagedCombatPolicyValueModel owner,
+            long ownerIdentity,
             int hiddenDimensions)
         {
             for (var index = 0; index < count; index++)
             {
-                if (!ReferenceEquals(owners[index], owner))
+                if (ownerIdentities[index] != ownerIdentity)
                 {
                     continue;
                 }
                 var existing = caches[index]!;
-                existing.Prepare(owner, hiddenDimensions);
+                existing.Prepare(ownerIdentity, hiddenDimensions);
                 return existing;
             }
             int slot;
@@ -1849,10 +1789,10 @@ public sealed class ManagedCombatPolicyValueModel : ICombatPolicyValueModel
                 replacementCursor =
                     (replacementCursor + 1) % MaximumModelsPerThread;
             }
-            owners[slot] = owner;
+            ownerIdentities[slot] = ownerIdentity;
             var cache = caches[slot] ??= new ActionTowerCache(
                 ActionTowerCacheCapacity);
-            cache.Prepare(owner, hiddenDimensions);
+            cache.Prepare(ownerIdentity, hiddenDimensions);
             return cache;
         }
     }

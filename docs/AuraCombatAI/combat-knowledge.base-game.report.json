@@ -1,7 +1,7 @@
 {
   "gameBuild": "1.0.24591395",
-  "sourceHash": "cca6f6b862743baa17f55b032f7971165f1b1ddd57cd9af76bae1cdd6277a5bd",
-  "tableExportPath": "D:\\Project\\Apocalypic-journey-mods-creator\\ModExp\\docs\\\u6E38\u620F\u4E3B\u4F53\u5185\u5BB9\\combat-knowledge\\table-exports\\witch-tables-20260806-172142.json",
+  "sourceHash": "1e4859af3d987bccb1019d85619dbeb9c1e0c23379275c4ebd5e48b0b94906f2",
+  "tableExportPath": "D:\\workfile\\project\\Mod_1\\apocalyptic-journey-mod-SunExp\\docs\\\u6E38\u620F\u4E3B\u4F53\u5185\u5BB9\\combat-knowledge\\table-exports\\witch-tables-20260806-172142.json",
   "entityCount": 1076,
   "registeredScriptCount": 3187,
   "operationCount": 3444,
@@ -11,2912 +11,2968 @@
       "entityId": "Hard_19",
       "stage": "Fight",
       "api": "AddCardToDeckById",
-      "sourceLocation": "AllScripts.cs:699",
+      "sourceLocation": "AllScripts.cs:667",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Hard_22",
       "stage": "Fight",
       "api": "PureChangeHp",
-      "sourceLocation": "AllScripts.cs:802",
+      "sourceLocation": "AllScripts.cs:770",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "PartnerCard_AswiftBlow",
       "stage": "Init",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:1454",
+      "sourceLocation": "AllScripts.cs:1422",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "PartnerCard_AswiftBlow",
       "stage": "Use",
       "api": "ChangeMoney",
-      "sourceLocation": "AllScripts.cs:1494",
+      "sourceLocation": "AllScripts.cs:1462",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "PartnerCard_AswiftBlow",
       "stage": "Use",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:1497",
+      "sourceLocation": "AllScripts.cs:1465",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "PartnerCard_Combing",
       "stage": "Init",
       "api": "def",
-      "sourceLocation": "AllScripts.cs:1516",
+      "sourceLocation": "AllScripts.cs:1484",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "PartnerCard_Combing",
       "stage": "Init",
       "api": "def",
-      "sourceLocation": "AllScripts.cs:1517",
+      "sourceLocation": "AllScripts.cs:1485",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "PartnerCard_Combing",
       "stage": "Use",
       "api": "def",
-      "sourceLocation": "AllScripts.cs:1552",
+      "sourceLocation": "AllScripts.cs:1520",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "PartnerCard_Combing",
       "stage": "Use",
       "api": "def",
-      "sourceLocation": "AllScripts.cs:1553",
+      "sourceLocation": "AllScripts.cs:1521",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "PartnerCard_FuneralBell",
       "stage": "Init",
       "api": "def",
-      "sourceLocation": "AllScripts.cs:1572",
+      "sourceLocation": "AllScripts.cs:1540",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "PartnerCard_FuneralBell",
       "stage": "Use",
       "api": "def",
-      "sourceLocation": "AllScripts.cs:1609",
+      "sourceLocation": "AllScripts.cs:1577",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "PartnerCard_DeepGrows",
       "stage": "Init",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:1630",
+      "sourceLocation": "AllScripts.cs:1598",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "PartnerCard_DeepGrows",
       "stage": "Use",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:1665",
+      "sourceLocation": "AllScripts.cs:1633",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "event_3_",
       "stage": "1",
       "api": "OutFightSelectCardToAction",
-      "sourceLocation": "AllScripts.cs:2305",
+      "sourceLocation": "AllScripts.cs:2273",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "event_15_",
       "stage": "1",
       "api": "EndTheGame",
-      "sourceLocation": "AllScripts.cs:3606",
+      "sourceLocation": "AllScripts.cs:3574",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "event_2010_",
       "stage": "1",
       "api": "GetcardsOutLock",
-      "sourceLocation": "AllScripts.cs:6555",
+      "sourceLocation": "AllScripts.cs:6523",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "event_2012_",
       "stage": "2",
       "api": "OutFightSelectCardToAction",
-      "sourceLocation": "AllScripts.cs:6999",
+      "sourceLocation": "AllScripts.cs:6967",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_1",
       "stage": "Use",
       "api": "Resentment",
-      "sourceLocation": "AllScripts.cs:8537",
+      "sourceLocation": "AllScripts.cs:8505",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_3",
       "stage": "Use",
       "api": "Resentment",
-      "sourceLocation": "AllScripts.cs:8718",
+      "sourceLocation": "AllScripts.cs:8686",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_3",
       "stage": "Use",
       "api": "AddCardToDeckById",
-      "sourceLocation": "AllScripts.cs:8720",
+      "sourceLocation": "AllScripts.cs:8688",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_4",
       "stage": "Use",
       "api": "Resentment",
-      "sourceLocation": "AllScripts.cs:8815",
+      "sourceLocation": "AllScripts.cs:8783",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_5",
       "stage": "Use",
       "api": "Resentment",
-      "sourceLocation": "AllScripts.cs:8884",
+      "sourceLocation": "AllScripts.cs:8852",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_6",
       "stage": "Use",
       "api": "BurnCardByData",
-      "sourceLocation": "AllScripts.cs:8985",
+      "sourceLocation": "AllScripts.cs:8953",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_7",
       "stage": "Use",
       "api": "CopyCardWare",
-      "sourceLocation": "AllScripts.cs:9053",
+      "sourceLocation": "AllScripts.cs:9021",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_8",
       "stage": "Init",
       "api": "TagCheck",
-      "sourceLocation": "AllScripts.cs:9091",
+      "sourceLocation": "AllScripts.cs:9059",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_9",
       "stage": "Use",
       "api": "ChangeMoney",
-      "sourceLocation": "AllScripts.cs:9202",
+      "sourceLocation": "AllScripts.cs:9170",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_13",
       "stage": "Use",
       "api": "GetcardsOutLock",
-      "sourceLocation": "AllScripts.cs:9453",
+      "sourceLocation": "AllScripts.cs:9421",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_13",
       "stage": "Use",
       "api": "AddCardToFightManager",
-      "sourceLocation": "AllScripts.cs:9459",
+      "sourceLocation": "AllScripts.cs:9427",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_14",
       "stage": "Use",
       "api": "GetcardsOutLock",
-      "sourceLocation": "AllScripts.cs:9529",
+      "sourceLocation": "AllScripts.cs:9497",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_15",
       "stage": "Use",
       "api": "GetcardsOutLock",
-      "sourceLocation": "AllScripts.cs:9602",
+      "sourceLocation": "AllScripts.cs:9570",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_15",
       "stage": "Use",
       "api": "RandomAddCard",
-      "sourceLocation": "AllScripts.cs:9612",
+      "sourceLocation": "AllScripts.cs:9580",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_16",
       "stage": "Use",
       "api": "ShuffleHand",
-      "sourceLocation": "AllScripts.cs:9686",
+      "sourceLocation": "AllScripts.cs:9654",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_16",
       "stage": "Use",
       "api": "ShuffleDeck",
-      "sourceLocation": "AllScripts.cs:9687",
+      "sourceLocation": "AllScripts.cs:9655",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_16",
       "stage": "Use",
       "api": "SetPower",
-      "sourceLocation": "AllScripts.cs:9692",
+      "sourceLocation": "AllScripts.cs:9660",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_17",
       "stage": "Use",
       "api": "TagCheck",
-      "sourceLocation": "AllScripts.cs:9760",
+      "sourceLocation": "AllScripts.cs:9728",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_17",
       "stage": "Use",
       "api": "ComboCheck",
-      "sourceLocation": "AllScripts.cs:9766",
+      "sourceLocation": "AllScripts.cs:9734",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_18",
       "stage": "Use",
       "api": "ComboCheck",
-      "sourceLocation": "AllScripts.cs:9847",
+      "sourceLocation": "AllScripts.cs:9815",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_18",
       "stage": "Use",
       "api": "DesEnemyAllAction",
-      "sourceLocation": "AllScripts.cs:9853",
+      "sourceLocation": "AllScripts.cs:9821",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_23",
       "stage": "Use",
       "api": "UseCard",
-      "sourceLocation": "AllScripts.cs:10143",
+      "sourceLocation": "AllScripts.cs:10111",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_23",
       "stage": "Use",
       "api": "BurnCardByData",
-      "sourceLocation": "AllScripts.cs:10144",
+      "sourceLocation": "AllScripts.cs:10112",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_25",
       "stage": "Use",
       "api": "SetHp",
-      "sourceLocation": "AllScripts.cs:10286",
+      "sourceLocation": "AllScripts.cs:10254",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_28",
       "stage": "Use",
       "api": "AddCardById",
-      "sourceLocation": "AllScripts.cs:10526",
+      "sourceLocation": "AllScripts.cs:10494",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_28",
       "stage": "Drop",
       "api": "RandomAddGoodBuff",
-      "sourceLocation": "AllScripts.cs:10544",
+      "sourceLocation": "AllScripts.cs:10512",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_28",
       "stage": "Drop",
       "api": "BurnCardByData",
-      "sourceLocation": "AllScripts.cs:10545",
+      "sourceLocation": "AllScripts.cs:10513",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_28",
       "stage": "Drop",
       "api": "AddCardById",
-      "sourceLocation": "AllScripts.cs:10547",
+      "sourceLocation": "AllScripts.cs:10515",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_32",
       "stage": "Use",
       "api": "RandomAddGoodBuff",
-      "sourceLocation": "AllScripts.cs:10844",
+      "sourceLocation": "AllScripts.cs:10812",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_32",
       "stage": "Use",
       "api": "RandomAddGoodBuff",
-      "sourceLocation": "AllScripts.cs:10849",
+      "sourceLocation": "AllScripts.cs:10817",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_41",
       "stage": "Use",
       "api": "BurnCardByData",
-      "sourceLocation": "AllScripts.cs:11249",
+      "sourceLocation": "AllScripts.cs:11217",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_42",
       "stage": "Use",
       "api": "BurnCardByData",
-      "sourceLocation": "AllScripts.cs:11352",
+      "sourceLocation": "AllScripts.cs:11320",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_44",
       "stage": "Use",
       "api": "ChangeMoney",
-      "sourceLocation": "AllScripts.cs:11499",
+      "sourceLocation": "AllScripts.cs:11467",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_44",
       "stage": "Use",
       "api": "ChangeMoney",
-      "sourceLocation": "AllScripts.cs:11506",
+      "sourceLocation": "AllScripts.cs:11474",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_46",
       "stage": "Use",
       "api": "GetcardsByRarity",
-      "sourceLocation": "AllScripts.cs:11645",
+      "sourceLocation": "AllScripts.cs:11613",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_47",
       "stage": "Use",
       "api": "ChooseCardToAction",
-      "sourceLocation": "AllScripts.cs:11738",
+      "sourceLocation": "AllScripts.cs:11706",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_51",
       "stage": "Use",
       "api": "ThrowCard",
-      "sourceLocation": "AllScripts.cs:12026",
+      "sourceLocation": "AllScripts.cs:11994",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_52",
       "stage": "Use",
       "api": "MoonUse",
-      "sourceLocation": "AllScripts.cs:12109",
+      "sourceLocation": "AllScripts.cs:12077",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_53",
       "stage": "Use",
       "api": "OutFightSelectCardToAction",
-      "sourceLocation": "AllScripts.cs:12177",
+      "sourceLocation": "AllScripts.cs:12145",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_53",
       "stage": "Use",
       "api": "BurnCardByData",
-      "sourceLocation": "AllScripts.cs:12181",
+      "sourceLocation": "AllScripts.cs:12149",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_53",
       "stage": "Use",
       "api": "MoonUse",
-      "sourceLocation": "AllScripts.cs:12185",
+      "sourceLocation": "AllScripts.cs:12153",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_54",
       "stage": "Use",
       "api": "UseCard",
-      "sourceLocation": "AllScripts.cs:12260",
+      "sourceLocation": "AllScripts.cs:12228",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_54",
       "stage": "Use",
       "api": "MoonUse",
-      "sourceLocation": "AllScripts.cs:12262",
+      "sourceLocation": "AllScripts.cs:12230",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_55",
       "stage": "Use",
       "api": "CopyCardWare",
-      "sourceLocation": "AllScripts.cs:12330",
+      "sourceLocation": "AllScripts.cs:12298",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_55",
       "stage": "Use",
       "api": "ThrowCard",
-      "sourceLocation": "AllScripts.cs:12331",
+      "sourceLocation": "AllScripts.cs:12299",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_55",
       "stage": "Use",
       "api": "MoonUse",
-      "sourceLocation": "AllScripts.cs:12332",
+      "sourceLocation": "AllScripts.cs:12300",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_56",
       "stage": "Use",
       "api": "SetHp",
-      "sourceLocation": "AllScripts.cs:12401",
+      "sourceLocation": "AllScripts.cs:12369",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_56",
       "stage": "Use",
       "api": "MoonUse",
-      "sourceLocation": "AllScripts.cs:12403",
+      "sourceLocation": "AllScripts.cs:12371",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_57",
       "stage": "Use",
       "api": "MoonUse",
-      "sourceLocation": "AllScripts.cs:12477",
+      "sourceLocation": "AllScripts.cs:12445",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_58",
       "stage": "Use",
       "api": "MoonUse",
-      "sourceLocation": "AllScripts.cs:12548",
+      "sourceLocation": "AllScripts.cs:12516",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_59",
       "stage": "Use",
       "api": "MoonUse",
-      "sourceLocation": "AllScripts.cs:12620",
+      "sourceLocation": "AllScripts.cs:12588",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_60",
       "stage": "Use",
       "api": "MoonUse",
-      "sourceLocation": "AllScripts.cs:12689",
+      "sourceLocation": "AllScripts.cs:12657",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_61",
       "stage": "Use",
       "api": "BurnCardByData",
-      "sourceLocation": "AllScripts.cs:12764",
+      "sourceLocation": "AllScripts.cs:12732",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_61",
       "stage": "Use",
       "api": "MoonUse",
-      "sourceLocation": "AllScripts.cs:12767",
+      "sourceLocation": "AllScripts.cs:12735",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_62",
       "stage": "Use",
       "api": "MoonUse",
-      "sourceLocation": "AllScripts.cs:12836",
+      "sourceLocation": "AllScripts.cs:12804",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_63",
       "stage": "Use",
       "api": "MoonUse",
-      "sourceLocation": "AllScripts.cs:12919",
+      "sourceLocation": "AllScripts.cs:12887",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_65",
       "stage": "Use",
       "api": "MoonUse",
-      "sourceLocation": "AllScripts.cs:13073",
+      "sourceLocation": "AllScripts.cs:13041",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_68",
       "stage": "Use",
       "api": "SetHp",
-      "sourceLocation": "AllScripts.cs:13299",
+      "sourceLocation": "AllScripts.cs:13267",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingcard_69",
       "stage": "Use",
       "api": "RemoveAllBadBuff",
-      "sourceLocation": "AllScripts.cs:13380",
+      "sourceLocation": "AllScripts.cs:13348",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "healcard_5",
       "stage": "Use",
       "api": "RandomAddCard",
-      "sourceLocation": "AllScripts.cs:13874",
+      "sourceLocation": "AllScripts.cs:13842",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "healcard_7",
       "stage": "Use",
       "api": "ChangeRound",
-      "sourceLocation": "AllScripts.cs:14017",
+      "sourceLocation": "AllScripts.cs:13985",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "ritualcard_1",
       "stage": "Use",
       "api": "AddCardByCardList",
-      "sourceLocation": "AllScripts.cs:14221",
+      "sourceLocation": "AllScripts.cs:14189",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "ritualcard_2",
       "stage": "Use",
       "api": "TagCheck",
-      "sourceLocation": "AllScripts.cs:14293",
+      "sourceLocation": "AllScripts.cs:14261",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "ritualcard_2",
       "stage": "Use",
       "api": "TagCheck",
-      "sourceLocation": "AllScripts.cs:14306",
+      "sourceLocation": "AllScripts.cs:14274",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "ritualcard_3",
       "stage": "Use",
       "api": "ThrowCard",
-      "sourceLocation": "AllScripts.cs:14382",
+      "sourceLocation": "AllScripts.cs:14350",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "ritualcard_4",
       "stage": "Use",
       "api": "UseCard",
-      "sourceLocation": "AllScripts.cs:14455",
+      "sourceLocation": "AllScripts.cs:14423",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "careercard_1",
       "stage": "Use",
       "api": "CardTopCheck",
-      "sourceLocation": "AllScripts.cs:15610",
+      "sourceLocation": "AllScripts.cs:15578",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "careercard_1",
       "stage": "Use",
       "api": "PackToDeckAction",
-      "sourceLocation": "AllScripts.cs:15616",
+      "sourceLocation": "AllScripts.cs:15584",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "careercard_1",
       "stage": "Use",
       "api": "UpdateSkillTime",
-      "sourceLocation": "AllScripts.cs:15621",
+      "sourceLocation": "AllScripts.cs:15589",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "careercard_1",
       "stage": "Use",
       "api": "GetCardFromDeck",
-      "sourceLocation": "AllScripts.cs:15625",
+      "sourceLocation": "AllScripts.cs:15593",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "careercard_2",
       "stage": "Use",
       "api": "Log",
-      "sourceLocation": "AllScripts.cs:15700",
+      "sourceLocation": "AllScripts.cs:15668",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "careercard_2",
       "stage": "Use",
       "api": "RemoveAllBadBuff",
-      "sourceLocation": "AllScripts.cs:15717",
+      "sourceLocation": "AllScripts.cs:15685",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "careercard_3",
       "stage": "Use",
       "api": "ChangeCareer",
-      "sourceLocation": "AllScripts.cs:15799",
+      "sourceLocation": "AllScripts.cs:15767",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "careercard_6",
       "stage": "Use",
       "api": "DesEnemyAction",
-      "sourceLocation": "AllScripts.cs:16024",
+      "sourceLocation": "AllScripts.cs:15992",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "careercard_9",
       "stage": "Use",
       "api": "PackToDeckAction",
-      "sourceLocation": "AllScripts.cs:16268",
+      "sourceLocation": "AllScripts.cs:16236",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "careercard_9",
       "stage": "Use",
       "api": "UpdateSkillTime",
-      "sourceLocation": "AllScripts.cs:16273",
+      "sourceLocation": "AllScripts.cs:16241",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "careercard_9",
       "stage": "Use",
       "api": "UpdateSkillTime",
-      "sourceLocation": "AllScripts.cs:16278",
+      "sourceLocation": "AllScripts.cs:16246",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "careercard_9",
       "stage": "Use",
       "api": "BurnCardByData",
-      "sourceLocation": "AllScripts.cs:16285",
+      "sourceLocation": "AllScripts.cs:16253",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "careercard_12",
       "stage": "Use",
       "api": "CopyCardWare",
-      "sourceLocation": "AllScripts.cs:16525",
+      "sourceLocation": "AllScripts.cs:16493",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "careercard_12",
       "stage": "Use",
       "api": "UpdateSkillTime",
-      "sourceLocation": "AllScripts.cs:16530",
+      "sourceLocation": "AllScripts.cs:16498",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "careercard_13",
       "stage": "Use",
       "api": "ChooseCardToAction",
-      "sourceLocation": "AllScripts.cs:16609",
+      "sourceLocation": "AllScripts.cs:16577",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "careercard_13",
       "stage": "Use",
       "api": "UpdateSkillTime",
-      "sourceLocation": "AllScripts.cs:16614",
+      "sourceLocation": "AllScripts.cs:16582",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "careercard_14",
       "stage": "Use",
       "api": "GetPartner",
-      "sourceLocation": "AllScripts.cs:16691",
+      "sourceLocation": "AllScripts.cs:16659",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "careercard_16",
       "stage": "Use",
       "api": "ChooseCardToAction",
-      "sourceLocation": "AllScripts.cs:16839",
+      "sourceLocation": "AllScripts.cs:16807",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "careercard_16",
       "stage": "Use",
       "api": "BurnCardByData",
-      "sourceLocation": "AllScripts.cs:16844",
+      "sourceLocation": "AllScripts.cs:16812",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "careercard_17",
       "stage": "Use",
       "api": "UpdateCardMsg",
-      "sourceLocation": "AllScripts.cs:16917",
+      "sourceLocation": "AllScripts.cs:16885",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "careercard_17",
       "stage": "Use",
       "api": "ChangeCareer",
-      "sourceLocation": "AllScripts.cs:16918",
+      "sourceLocation": "AllScripts.cs:16886",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "card_5",
       "stage": "Use",
       "api": "ChangeMoney",
-      "sourceLocation": "AllScripts.cs:17256",
+      "sourceLocation": "AllScripts.cs:17224",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "card_8",
       "stage": "Use",
       "api": "ChangeRound",
-      "sourceLocation": "AllScripts.cs:17459",
+      "sourceLocation": "AllScripts.cs:17427",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "card_9",
       "stage": "Init",
       "api": "GetDesValue",
-      "sourceLocation": "AllScripts.cs:17496",
+      "sourceLocation": "AllScripts.cs:17464",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "card_9",
       "stage": "Use",
       "api": "ChangeMoney",
-      "sourceLocation": "AllScripts.cs:17533",
+      "sourceLocation": "AllScripts.cs:17501",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "card_9",
       "stage": "Use",
       "api": "ChangeRound",
-      "sourceLocation": "AllScripts.cs:17534",
+      "sourceLocation": "AllScripts.cs:17502",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "card_12",
       "stage": "Use",
       "api": "RemoveBadBuff",
-      "sourceLocation": "AllScripts.cs:17735",
+      "sourceLocation": "AllScripts.cs:17703",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "card_13",
       "stage": "Use",
       "api": "RemoveAllBadBuff",
-      "sourceLocation": "AllScripts.cs:17803",
+      "sourceLocation": "AllScripts.cs:17771",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "luckycard_1",
       "stage": "Use",
       "api": "ChangeRound",
-      "sourceLocation": "AllScripts.cs:18219",
+      "sourceLocation": "AllScripts.cs:18187",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "luckycard_1",
       "stage": "Use",
       "api": "ChangeMoney",
-      "sourceLocation": "AllScripts.cs:18220",
+      "sourceLocation": "AllScripts.cs:18188",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "luckycard_4",
       "stage": "Use",
       "api": "DiceCheck",
-      "sourceLocation": "AllScripts.cs:18456",
+      "sourceLocation": "AllScripts.cs:18424",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "luckycard_4",
       "stage": "Use",
       "api": "ChangeMoney",
-      "sourceLocation": "AllScripts.cs:18462",
+      "sourceLocation": "AllScripts.cs:18430",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "luckycard_4",
       "stage": "Use",
       "api": "ChangeMoney",
-      "sourceLocation": "AllScripts.cs:18466",
+      "sourceLocation": "AllScripts.cs:18434",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "luckycard_5",
       "stage": "Use",
       "api": "GetcardsByRarity",
-      "sourceLocation": "AllScripts.cs:18542",
+      "sourceLocation": "AllScripts.cs:18510",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "luckycard_5",
       "stage": "Use",
       "api": "AddCard",
-      "sourceLocation": "AllScripts.cs:18547",
+      "sourceLocation": "AllScripts.cs:18515",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "luckycard_7",
       "stage": "Draw",
       "api": "GetcardsByRarity",
-      "sourceLocation": "AllScripts.cs:18667",
+      "sourceLocation": "AllScripts.cs:18635",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "cursecard_13",
       "stage": "Drop",
       "api": "RandomAddCard",
-      "sourceLocation": "AllScripts.cs:19809",
+      "sourceLocation": "AllScripts.cs:19777",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "universalcard_3",
       "stage": "Use",
       "api": "ChangeRound",
-      "sourceLocation": "AllScripts.cs:20144",
+      "sourceLocation": "AllScripts.cs:20112",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "universalcard_10",
       "stage": "Use",
       "api": "SetHp",
-      "sourceLocation": "AllScripts.cs:20624",
+      "sourceLocation": "AllScripts.cs:20592",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "universalcard_14",
       "stage": "Use",
       "api": "SetHp",
-      "sourceLocation": "AllScripts.cs:20905",
+      "sourceLocation": "AllScripts.cs:20873",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "universalcard_15",
       "stage": "Use",
       "api": "SetHp",
-      "sourceLocation": "AllScripts.cs:20977",
+      "sourceLocation": "AllScripts.cs:20945",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "nocard_3",
       "stage": "Use",
       "api": "RandomAddGoodBuff",
-      "sourceLocation": "AllScripts.cs:21561",
+      "sourceLocation": "AllScripts.cs:21529",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "nocard_5",
       "stage": "Use",
       "api": "ChangeMoney",
-      "sourceLocation": "AllScripts.cs:21707",
+      "sourceLocation": "AllScripts.cs:21675",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "timekeeper_2",
       "stage": "Use",
       "api": "SetPower",
-      "sourceLocation": "AllScripts.cs:21846",
+      "sourceLocation": "AllScripts.cs:21814",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "timekeeper_3",
       "stage": "Draw",
       "api": "RunScript",
-      "sourceLocation": "AllScripts.cs:21906",
+      "sourceLocation": "AllScripts.cs:21874",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "timekeeper_9",
       "stage": "Draw",
       "api": "RunScript",
-      "sourceLocation": "AllScripts.cs:22371",
+      "sourceLocation": "AllScripts.cs:22339",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "timekeeper_10",
       "stage": "Draw",
       "api": "RunScript",
-      "sourceLocation": "AllScripts.cs:22445",
+      "sourceLocation": "AllScripts.cs:22413",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "timekeeper_10",
       "stage": "Drop",
       "api": "RunScript",
-      "sourceLocation": "AllScripts.cs:22483",
+      "sourceLocation": "AllScripts.cs:22451",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "timekeeper_14",
       "stage": "Draw",
       "api": "RunScript",
-      "sourceLocation": "AllScripts.cs:22743",
+      "sourceLocation": "AllScripts.cs:22711",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "timekeeper_15",
       "stage": "Use",
       "api": "AddCardByCardList",
-      "sourceLocation": "AllScripts.cs:22833",
+      "sourceLocation": "AllScripts.cs:22801",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "timekeeper_16",
       "stage": "Use",
       "api": "AddCardByUsedCardList",
-      "sourceLocation": "AllScripts.cs:22899",
+      "sourceLocation": "AllScripts.cs:22867",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "timekeeper_17",
       "stage": "Draw",
       "api": "RunScript",
-      "sourceLocation": "AllScripts.cs:22952",
+      "sourceLocation": "AllScripts.cs:22920",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "timekeeper_17",
       "stage": "Drop",
       "api": "RunScript",
-      "sourceLocation": "AllScripts.cs:22996",
+      "sourceLocation": "AllScripts.cs:22964",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "timekeeper_18",
       "stage": "Draw",
       "api": "RunScript",
-      "sourceLocation": "AllScripts.cs:23035",
+      "sourceLocation": "AllScripts.cs:23003",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "timekeeper_18",
       "stage": "Use",
       "api": "AddCardByCardList",
-      "sourceLocation": "AllScripts.cs:23054",
+      "sourceLocation": "AllScripts.cs:23022",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpellCard_21",
       "stage": "Use",
       "api": "ChangeRound",
-      "sourceLocation": "AllScripts.cs:24606",
+      "sourceLocation": "AllScripts.cs:24574",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "elementscard_8",
       "stage": "Use",
       "api": "RunImmediately",
-      "sourceLocation": "AllScripts.cs:25314",
+      "sourceLocation": "AllScripts.cs:25282",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "ReturnAgain_1",
       "stage": "Use",
       "api": "ChooseCardToAction",
-      "sourceLocation": "AllScripts.cs:25765",
+      "sourceLocation": "AllScripts.cs:25733",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "ReturnAgain_5",
       "stage": "Use",
       "api": "ThrowCard",
-      "sourceLocation": "AllScripts.cs:26094",
+      "sourceLocation": "AllScripts.cs:26062",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "ReturnAgain_6",
       "stage": "Use",
       "api": "ThrowCard",
-      "sourceLocation": "AllScripts.cs:26164",
+      "sourceLocation": "AllScripts.cs:26132",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "ReturnAgain_7",
       "stage": "Use",
       "api": "ChooseCardToAction",
-      "sourceLocation": "AllScripts.cs:26243",
+      "sourceLocation": "AllScripts.cs:26211",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "ReturnAgain_8",
       "stage": "Use",
       "api": "ChooseCardToAction",
-      "sourceLocation": "AllScripts.cs:26322",
+      "sourceLocation": "AllScripts.cs:26290",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "ReturnAgain_12",
       "stage": "Use",
       "api": "RunImmediately",
-      "sourceLocation": "AllScripts.cs:26646",
+      "sourceLocation": "AllScripts.cs:26614",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "ReturnAgain_12",
       "stage": "Use",
       "api": "RunImmediately",
-      "sourceLocation": "AllScripts.cs:26650",
+      "sourceLocation": "AllScripts.cs:26618",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "ReturnAgain_12",
       "stage": "Use",
       "api": "ThrowCard",
-      "sourceLocation": "AllScripts.cs:26653",
+      "sourceLocation": "AllScripts.cs:26621",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "ReturnAgain_14",
       "stage": "Use",
       "api": "ThrowCard",
-      "sourceLocation": "AllScripts.cs:26805",
+      "sourceLocation": "AllScripts.cs:26773",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "ReturnAgain_15",
       "stage": "Use",
       "api": "ShuffleDeck",
-      "sourceLocation": "AllScripts.cs:26883",
+      "sourceLocation": "AllScripts.cs:26851",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "ReturnAgain_15",
       "stage": "Use",
       "api": "ShuffleHand",
-      "sourceLocation": "AllScripts.cs:26884",
+      "sourceLocation": "AllScripts.cs:26852",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "blood_7",
       "stage": "Use",
       "api": "RunImmediately",
-      "sourceLocation": "AllScripts.cs:28635",
+      "sourceLocation": "AllScripts.cs:28603",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "blood_9",
       "stage": "Use",
       "api": "RunImmediately",
-      "sourceLocation": "AllScripts.cs:28783",
+      "sourceLocation": "AllScripts.cs:28751",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "blood_9",
       "stage": "Use",
       "api": "RunImmediately",
-      "sourceLocation": "AllScripts.cs:28784",
+      "sourceLocation": "AllScripts.cs:28752",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "blood_10",
       "stage": "Use",
       "api": "RandomAddBuff",
-      "sourceLocation": "AllScripts.cs:28864",
+      "sourceLocation": "AllScripts.cs:28832",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "combo_1",
       "stage": "Use",
       "api": "ComboCheck",
-      "sourceLocation": "AllScripts.cs:29152",
+      "sourceLocation": "AllScripts.cs:29120",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "combo_2",
       "stage": "Use",
       "api": "ComboCheck",
-      "sourceLocation": "AllScripts.cs:29224",
+      "sourceLocation": "AllScripts.cs:29192",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "combo_4",
       "stage": "Use",
       "api": "ComboCheck",
-      "sourceLocation": "AllScripts.cs:29368",
+      "sourceLocation": "AllScripts.cs:29336",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "combo_5",
       "stage": "Use",
       "api": "ComboCheck",
-      "sourceLocation": "AllScripts.cs:29438",
+      "sourceLocation": "AllScripts.cs:29406",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "combo_6",
       "stage": "Use",
       "api": "ComboCheck",
-      "sourceLocation": "AllScripts.cs:29510",
+      "sourceLocation": "AllScripts.cs:29478",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "combo_7",
       "stage": "Use",
       "api": "ComboCheck",
-      "sourceLocation": "AllScripts.cs:29590",
+      "sourceLocation": "AllScripts.cs:29558",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "combo_8",
       "stage": "Use",
       "api": "ComboCheck",
-      "sourceLocation": "AllScripts.cs:29662",
+      "sourceLocation": "AllScripts.cs:29630",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "combo_9",
       "stage": "Use",
       "api": "ComboCheck",
-      "sourceLocation": "AllScripts.cs:29734",
+      "sourceLocation": "AllScripts.cs:29702",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "combo_10",
       "stage": "Use",
       "api": "ComboCheck",
-      "sourceLocation": "AllScripts.cs:29812",
+      "sourceLocation": "AllScripts.cs:29780",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "combo_12",
       "stage": "Use",
       "api": "ComboCheck",
-      "sourceLocation": "AllScripts.cs:29960",
+      "sourceLocation": "AllScripts.cs:29928",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "combo_13",
       "stage": "Use",
       "api": "ComboCheck",
-      "sourceLocation": "AllScripts.cs:30032",
+      "sourceLocation": "AllScripts.cs:30000",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "combo_14",
       "stage": "Use",
       "api": "ComboCheck",
-      "sourceLocation": "AllScripts.cs:30114",
+      "sourceLocation": "AllScripts.cs:30082",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "combo_15",
       "stage": "Use",
       "api": "ComboCheck",
-      "sourceLocation": "AllScripts.cs:30184",
+      "sourceLocation": "AllScripts.cs:30152",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "combo_16",
       "stage": "Use",
       "api": "ComboCheck",
-      "sourceLocation": "AllScripts.cs:30264",
+      "sourceLocation": "AllScripts.cs:30232",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "onlinecard_1",
       "stage": "Use",
       "api": "AddCardById",
-      "sourceLocation": "AllScripts.cs:30349",
+      "sourceLocation": "AllScripts.cs:30317",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "onlinecard_3",
       "stage": "Use",
       "api": "ChooseCardToAction",
-      "sourceLocation": "AllScripts.cs:30495",
+      "sourceLocation": "AllScripts.cs:30463",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "onlinecard_3",
       "stage": "Use",
       "api": "AddCardById",
-      "sourceLocation": "AllScripts.cs:30500",
+      "sourceLocation": "AllScripts.cs:30468",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "onlinecard_11",
       "stage": "Use",
       "api": "ChangeSkill",
-      "sourceLocation": "AllScripts.cs:31051",
+      "sourceLocation": "AllScripts.cs:31019",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "onlinecard_13",
       "stage": "Use",
       "api": "ChangeMoney",
-      "sourceLocation": "AllScripts.cs:31207",
+      "sourceLocation": "AllScripts.cs:31175",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "onlinecard_16",
       "stage": "Use",
       "api": "Resurrection",
-      "sourceLocation": "AllScripts.cs:31413",
+      "sourceLocation": "AllScripts.cs:31381",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "onlinecard_17",
       "stage": "Use",
       "api": "AddCardById",
-      "sourceLocation": "AllScripts.cs:31488",
+      "sourceLocation": "AllScripts.cs:31456",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemy_10015",
       "stage": "Init",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:31971",
+      "sourceLocation": "AllScripts.cs:31939",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_defence",
       "stage": "Init",
       "api": "def",
-      "sourceLocation": "AllScripts.cs:32768",
+      "sourceLocation": "AllScripts.cs:32736",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_defence",
       "stage": "Use",
       "api": "def",
-      "sourceLocation": "AllScripts.cs:32802",
+      "sourceLocation": "AllScripts.cs:32770",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_OrdinaryHit",
       "stage": "Init",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:32821",
+      "sourceLocation": "AllScripts.cs:32789",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_OrdinaryHit",
       "stage": "Use",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:32855",
+      "sourceLocation": "AllScripts.cs:32823",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_QuadrupleHits",
       "stage": "Init",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:32872",
+      "sourceLocation": "AllScripts.cs:32840",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_QuadrupleHits",
       "stage": "Use",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:32910",
+      "sourceLocation": "AllScripts.cs:32878",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_rejuvenation",
       "stage": "Init",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:32928",
+      "sourceLocation": "AllScripts.cs:32896",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_rejuvenation",
       "stage": "Use",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:32964",
+      "sourceLocation": "AllScripts.cs:32932",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_OverrunWorkouts",
       "stage": "Init",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:33036",
+      "sourceLocation": "AllScripts.cs:33004",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_OverrunWorkouts",
       "stage": "Use",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:33070",
+      "sourceLocation": "AllScripts.cs:33038",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_foraging",
       "stage": "Init",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:33475",
+      "sourceLocation": "AllScripts.cs:33443",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_foraging",
       "stage": "Use",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:33509",
+      "sourceLocation": "AllScripts.cs:33477",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_SuperFireBall",
       "stage": "Init",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:33634",
+      "sourceLocation": "AllScripts.cs:33602",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_SuperFireBall",
       "stage": "Use",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:33670",
+      "sourceLocation": "AllScripts.cs:33638",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_OrdinaryFiveHit",
       "stage": "Init",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:33743",
+      "sourceLocation": "AllScripts.cs:33711",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_OrdinaryFiveHit",
       "stage": "Init",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:33744",
+      "sourceLocation": "AllScripts.cs:33712",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_Weak",
       "stage": "Init",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:33800",
+      "sourceLocation": "AllScripts.cs:33768",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_Weak",
       "stage": "Use",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:33834",
+      "sourceLocation": "AllScripts.cs:33802",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_thief",
       "stage": "Use",
       "api": "ChangeMoney",
-      "sourceLocation": "AllScripts.cs:33887",
+      "sourceLocation": "AllScripts.cs:33855",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_Thieves",
       "stage": "Use",
       "api": "ChangeMoney",
-      "sourceLocation": "AllScripts.cs:33940",
+      "sourceLocation": "AllScripts.cs:33908",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_specialAttack",
       "stage": "Init",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:34239",
+      "sourceLocation": "AllScripts.cs:34207",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_specialAttack",
       "stage": "Init",
       "api": "def",
-      "sourceLocation": "AllScripts.cs:34240",
+      "sourceLocation": "AllScripts.cs:34208",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_specialAttack",
       "stage": "Use",
       "api": "def",
-      "sourceLocation": "AllScripts.cs:34275",
+      "sourceLocation": "AllScripts.cs:34243",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_specialAttack",
       "stage": "Use",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:34277",
+      "sourceLocation": "AllScripts.cs:34245",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_MakeIneffectiveRays1",
       "stage": "Init",
       "api": "def",
-      "sourceLocation": "AllScripts.cs:34296",
+      "sourceLocation": "AllScripts.cs:34264",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_MakeIneffectiveRays1",
       "stage": "Use",
       "api": "def",
-      "sourceLocation": "AllScripts.cs:34332",
+      "sourceLocation": "AllScripts.cs:34300",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_PlugCards1",
       "stage": "Use",
       "api": "RandomAddCard",
-      "sourceLocation": "AllScripts.cs:34388",
+      "sourceLocation": "AllScripts.cs:34356",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_PlugCards2",
       "stage": "Use",
       "api": "RandomAddCard",
-      "sourceLocation": "AllScripts.cs:34443",
+      "sourceLocation": "AllScripts.cs:34411",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_PlugCards2",
       "stage": "Use",
       "api": "RandomAddCard",
-      "sourceLocation": "AllScripts.cs:34444",
+      "sourceLocation": "AllScripts.cs:34412",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_PlugCards3",
       "stage": "Use",
       "api": "RandomAddCard",
-      "sourceLocation": "AllScripts.cs:34563",
+      "sourceLocation": "AllScripts.cs:34531",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_MakeIneffectiveRays2",
       "stage": "Init",
       "api": "def",
-      "sourceLocation": "AllScripts.cs:34636",
+      "sourceLocation": "AllScripts.cs:34604",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_MakeIneffectiveRays2",
       "stage": "Use",
       "api": "def",
-      "sourceLocation": "AllScripts.cs:34671",
+      "sourceLocation": "AllScripts.cs:34639",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_SpreadWings",
       "stage": "Init",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:34691",
+      "sourceLocation": "AllScripts.cs:34659",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_SpreadWings",
       "stage": "Use",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:34726",
+      "sourceLocation": "AllScripts.cs:34694",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_HighFly",
       "stage": "Init",
       "api": "def",
-      "sourceLocation": "AllScripts.cs:34746",
+      "sourceLocation": "AllScripts.cs:34714",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_HighFly",
       "stage": "Use",
       "api": "def",
-      "sourceLocation": "AllScripts.cs:34780",
+      "sourceLocation": "AllScripts.cs:34748",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_HighFly",
       "stage": "Use",
       "api": "def",
-      "sourceLocation": "AllScripts.cs:34787",
+      "sourceLocation": "AllScripts.cs:34755",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_Come",
       "stage": "Use",
       "api": "AddEnemy",
-      "sourceLocation": "AllScripts.cs:34849",
+      "sourceLocation": "AllScripts.cs:34817",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_Dragon_sMajesty",
       "stage": "Use",
       "api": "AddCardToDeckById",
-      "sourceLocation": "AllScripts.cs:34915",
+      "sourceLocation": "AllScripts.cs:34883",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_EvilCurse",
       "stage": "Use",
       "api": "RandomAddCard",
-      "sourceLocation": "AllScripts.cs:35186",
+      "sourceLocation": "AllScripts.cs:35154",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_GiantClawStrike",
       "stage": "Init",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:35258",
+      "sourceLocation": "AllScripts.cs:35226",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_GiantClawStrike",
       "stage": "Use",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:35293",
+      "sourceLocation": "AllScripts.cs:35261",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_PowerlessCurse",
       "stage": "Use",
       "api": "RandomAddCard",
-      "sourceLocation": "AllScripts.cs:35347",
+      "sourceLocation": "AllScripts.cs:35315",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_MT2",
       "stage": "Use",
       "api": "AddAction",
-      "sourceLocation": "AllScripts.cs:35465",
+      "sourceLocation": "AllScripts.cs:35433",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_FullSupport",
       "stage": "Init",
       "api": "def",
-      "sourceLocation": "AllScripts.cs:35543",
+      "sourceLocation": "AllScripts.cs:35511",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_FullSupport",
       "stage": "Use",
       "api": "def",
-      "sourceLocation": "AllScripts.cs:35578",
+      "sourceLocation": "AllScripts.cs:35546",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_VenomSpray",
       "stage": "Init",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:35596",
+      "sourceLocation": "AllScripts.cs:35564",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_VenomSpray",
       "stage": "Use",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:35638",
+      "sourceLocation": "AllScripts.cs:35606",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_VenomSpray",
       "stage": "Use",
       "api": "RandomAddCard",
-      "sourceLocation": "AllScripts.cs:35639",
+      "sourceLocation": "AllScripts.cs:35607",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_psychologicalShock",
       "stage": "Init",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:35657",
+      "sourceLocation": "AllScripts.cs:35625",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_psychologicalShock",
       "stage": "Use",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:35699",
+      "sourceLocation": "AllScripts.cs:35667",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_psychologicalShock",
       "stage": "Use",
       "api": "RandomAddCard",
-      "sourceLocation": "AllScripts.cs:35700",
+      "sourceLocation": "AllScripts.cs:35668",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_obtainMoney",
       "stage": "Init",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:35718",
+      "sourceLocation": "AllScripts.cs:35686",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_obtainMoney",
       "stage": "Use",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:35760",
+      "sourceLocation": "AllScripts.cs:35728",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_obtainMoney",
       "stage": "Use",
       "api": "ChangeMoney",
-      "sourceLocation": "AllScripts.cs:35761",
+      "sourceLocation": "AllScripts.cs:35729",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_obtainMoney",
       "stage": "Use",
       "api": "ChangeMoney",
-      "sourceLocation": "AllScripts.cs:35764",
+      "sourceLocation": "AllScripts.cs:35732",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_FiveHit",
       "stage": "Init",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:35784",
+      "sourceLocation": "AllScripts.cs:35752",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_FiveHit",
       "stage": "Use",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:35821",
+      "sourceLocation": "AllScripts.cs:35789",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_OriginalSinCard",
       "stage": "Use",
       "api": "RandomAddCard",
-      "sourceLocation": "AllScripts.cs:35877",
+      "sourceLocation": "AllScripts.cs:35845",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_Despair",
       "stage": "Init",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:35896",
+      "sourceLocation": "AllScripts.cs:35864",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_Despair",
       "stage": "Use",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:35939",
+      "sourceLocation": "AllScripts.cs:35907",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_RoyalBarrier",
       "stage": "Init",
       "api": "def",
-      "sourceLocation": "AllScripts.cs:35959",
+      "sourceLocation": "AllScripts.cs:35927",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_RoyalBarrier",
       "stage": "Use",
       "api": "def",
-      "sourceLocation": "AllScripts.cs:35993",
+      "sourceLocation": "AllScripts.cs:35961",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_CAR_Spear",
       "stage": "Init",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:36165",
+      "sourceLocation": "AllScripts.cs:36133",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_CAR_Spear",
       "stage": "Use",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:36200",
+      "sourceLocation": "AllScripts.cs:36168",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_CAR_Hammer",
       "stage": "Init",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:36220",
+      "sourceLocation": "AllScripts.cs:36188",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_CAR_Hammer",
       "stage": "Use",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:36255",
+      "sourceLocation": "AllScripts.cs:36223",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_CAR_Shield",
       "stage": "Init",
       "api": "def",
-      "sourceLocation": "AllScripts.cs:36279",
+      "sourceLocation": "AllScripts.cs:36247",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_CAR_Shield",
       "stage": "Use",
       "api": "def",
-      "sourceLocation": "AllScripts.cs:36315",
+      "sourceLocation": "AllScripts.cs:36283",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_CAR_Sword",
       "stage": "Init",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:36336",
+      "sourceLocation": "AllScripts.cs:36304",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_CAR_Sword",
       "stage": "Use",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:36370",
+      "sourceLocation": "AllScripts.cs:36338",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_Seduce",
       "stage": "Init",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:36394",
+      "sourceLocation": "AllScripts.cs:36362",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enemycard_Seduce",
       "stage": "Use",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:36429",
+      "sourceLocation": "AllScripts.cs:36397",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "blessing_35",
       "stage": "Fight",
       "api": "Resurrection",
-      "sourceLocation": "AllScripts.cs:37977",
+      "sourceLocation": "AllScripts.cs:37945",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "blessing_35",
       "stage": "Fight",
       "api": "EscapeFight",
-      "sourceLocation": "AllScripts.cs:37979",
+      "sourceLocation": "AllScripts.cs:37947",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "blessing_37",
       "stage": "Fight",
       "api": "EscapeFight",
-      "sourceLocation": "AllScripts.cs:38088",
+      "sourceLocation": "AllScripts.cs:38056",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "blessing_41",
       "stage": "Fight",
       "api": "AddCard",
-      "sourceLocation": "AllScripts.cs:38242",
+      "sourceLocation": "AllScripts.cs:38210",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "blessing_42",
       "stage": "Fight",
       "api": "GetcardsByRarity",
-      "sourceLocation": "AllScripts.cs:38279",
+      "sourceLocation": "AllScripts.cs:38247",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "blessing_49",
       "stage": "Fight",
       "api": "GetcardsByRarity",
-      "sourceLocation": "AllScripts.cs:38545",
+      "sourceLocation": "AllScripts.cs:38513",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "blessing_49",
       "stage": "Fight",
       "api": "AddCardToDeckById",
-      "sourceLocation": "AllScripts.cs:38548",
+      "sourceLocation": "AllScripts.cs:38516",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdfundingBlessing_1",
       "stage": "Fight",
       "api": "AddCardToFightManager",
-      "sourceLocation": "AllScripts.cs:38628",
+      "sourceLocation": "AllScripts.cs:38596",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdfundingBlessing_4",
       "stage": "Fight",
       "api": "SetHp",
-      "sourceLocation": "AllScripts.cs:38767",
+      "sourceLocation": "AllScripts.cs:38735",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdfundingBlessing_5",
       "stage": "Fight",
       "api": "Resentment",
-      "sourceLocation": "AllScripts.cs:38808",
+      "sourceLocation": "AllScripts.cs:38776",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdfundingBlessing_7",
       "stage": "Fight",
       "api": "RunImmediately",
-      "sourceLocation": "AllScripts.cs:38858",
+      "sourceLocation": "AllScripts.cs:38826",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdfundingBlessing_7",
       "stage": "Fight",
       "api": "RunImmediately",
-      "sourceLocation": "AllScripts.cs:38862",
+      "sourceLocation": "AllScripts.cs:38830",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdfundingBlessing_15",
       "stage": "Fight",
       "api": "SetHp",
-      "sourceLocation": "AllScripts.cs:39204",
+      "sourceLocation": "AllScripts.cs:39172",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdfundingBlessing_15",
       "stage": "Fight",
       "api": "SetHp",
-      "sourceLocation": "AllScripts.cs:39212",
+      "sourceLocation": "AllScripts.cs:39180",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdfundingBlessing_16",
       "stage": "Fight",
       "api": "SetHp",
-      "sourceLocation": "AllScripts.cs:39260",
+      "sourceLocation": "AllScripts.cs:39228",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdfundingBlessing_16",
       "stage": "Fight",
       "api": "SetHp",
-      "sourceLocation": "AllScripts.cs:39269",
+      "sourceLocation": "AllScripts.cs:39237",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdfundingBlessing_24",
       "stage": "Fight",
       "api": "Resentment",
-      "sourceLocation": "AllScripts.cs:39621",
+      "sourceLocation": "AllScripts.cs:39589",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdfundingBlessing_32",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:39909",
+      "sourceLocation": "AllScripts.cs:39877",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdfundingBlessing_33",
       "stage": "Fight",
       "api": "SetDamageFilter",
-      "sourceLocation": "AllScripts.cs:39955",
+      "sourceLocation": "AllScripts.cs:39923",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingenchtag_2",
       "stage": "PreUse",
       "api": "EnchGetCard",
-      "sourceLocation": "AllScripts.cs:40238",
+      "sourceLocation": "AllScripts.cs:40206",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingenchtag_2",
       "stage": "PreUse",
       "api": "RandomAddCard",
-      "sourceLocation": "AllScripts.cs:40243",
+      "sourceLocation": "AllScripts.cs:40211",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingenchtag_3",
       "stage": "Draw",
       "api": "EnchGetCard",
-      "sourceLocation": "AllScripts.cs:40309",
+      "sourceLocation": "AllScripts.cs:40277",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingenchtag_3",
       "stage": "Draw",
       "api": "RandomAddCard",
-      "sourceLocation": "AllScripts.cs:40316",
+      "sourceLocation": "AllScripts.cs:40284",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingenchtag_4",
       "stage": "Use",
       "api": "AddCardToDeckById",
-      "sourceLocation": "AllScripts.cs:40465",
+      "sourceLocation": "AllScripts.cs:40433",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingenchtag_5",
       "stage": "Load",
       "api": "EnchGetCard",
-      "sourceLocation": "AllScripts.cs:40498",
+      "sourceLocation": "AllScripts.cs:40466",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingenchtag_5",
       "stage": "Use",
       "api": "GetcardsOutLock",
-      "sourceLocation": "AllScripts.cs:40575",
+      "sourceLocation": "AllScripts.cs:40543",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingenchtag_5",
       "stage": "Use",
       "api": "AddCard",
-      "sourceLocation": "AllScripts.cs:40578",
+      "sourceLocation": "AllScripts.cs:40546",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingenchtag_8",
       "stage": "PreUse",
       "api": "EnchGetCard",
-      "sourceLocation": "AllScripts.cs:40761",
+      "sourceLocation": "AllScripts.cs:40729",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingenchtag_9",
       "stage": "Use",
       "api": "EnchGetCard",
-      "sourceLocation": "AllScripts.cs:40877",
+      "sourceLocation": "AllScripts.cs:40845",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingenchtag_10",
       "stage": "Use",
       "api": "EnchGetCard",
-      "sourceLocation": "AllScripts.cs:40986",
+      "sourceLocation": "AllScripts.cs:40954",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingenchtag_10",
       "stage": "Use",
       "api": "AddCardByData",
-      "sourceLocation": "AllScripts.cs:40991",
+      "sourceLocation": "AllScripts.cs:40959",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingenchtag_15",
       "stage": "Load",
       "api": "EnchGetCard",
-      "sourceLocation": "AllScripts.cs:41417",
+      "sourceLocation": "AllScripts.cs:41385",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingenchtag_16",
       "stage": "Load",
       "api": "EnchGetCard",
-      "sourceLocation": "AllScripts.cs:41522",
+      "sourceLocation": "AllScripts.cs:41490",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingenchtag_17",
       "stage": "Use",
       "api": "EnchGetCard",
-      "sourceLocation": "AllScripts.cs:41691",
+      "sourceLocation": "AllScripts.cs:41659",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingenchtag_18",
       "stage": "Use",
       "api": "Resentment",
-      "sourceLocation": "AllScripts.cs:41796",
+      "sourceLocation": "AllScripts.cs:41764",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingenchtag_20",
       "stage": "Drop",
       "api": "EnchGetCard",
-      "sourceLocation": "AllScripts.cs:41960",
+      "sourceLocation": "AllScripts.cs:41928",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingenchtag_23",
       "stage": "Use",
       "api": "ComboCheck",
-      "sourceLocation": "AllScripts.cs:42306",
+      "sourceLocation": "AllScripts.cs:42274",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingenchtag_24",
       "stage": "Use",
       "api": "EnchGetCard",
-      "sourceLocation": "AllScripts.cs:42408",
+      "sourceLocation": "AllScripts.cs:42376",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingenchtag_24",
       "stage": "Use",
       "api": "MoonUse",
-      "sourceLocation": "AllScripts.cs:42410",
+      "sourceLocation": "AllScripts.cs:42378",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingenchtag_25",
       "stage": "Use",
       "api": "EnchGetCard",
-      "sourceLocation": "AllScripts.cs:42508",
+      "sourceLocation": "AllScripts.cs:42476",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingenchtag_25",
       "stage": "Use",
       "api": "MoonUse",
-      "sourceLocation": "AllScripts.cs:42510",
+      "sourceLocation": "AllScripts.cs:42478",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingenchtag_26",
       "stage": "Use",
       "api": "EnchGetCard",
-      "sourceLocation": "AllScripts.cs:42609",
+      "sourceLocation": "AllScripts.cs:42577",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingenchtag_27",
       "stage": "Load",
       "api": "EnchGetCard",
-      "sourceLocation": "AllScripts.cs:42648",
+      "sourceLocation": "AllScripts.cs:42616",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "Crowdfundingenchtag_31",
       "stage": "Load",
       "api": "EnchGetCard",
-      "sourceLocation": "AllScripts.cs:43065",
+      "sourceLocation": "AllScripts.cs:43033",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enchtag_2",
       "stage": "Load",
       "api": "EnchGetCard",
-      "sourceLocation": "AllScripts.cs:43271",
+      "sourceLocation": "AllScripts.cs:43239",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enchtag_4",
       "stage": "Load",
       "api": "EnchGetCard",
-      "sourceLocation": "AllScripts.cs:43472",
+      "sourceLocation": "AllScripts.cs:43440",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enchtag_6",
       "stage": "Use",
       "api": "ComboCheck",
-      "sourceLocation": "AllScripts.cs:43733",
+      "sourceLocation": "AllScripts.cs:43701",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enchtag_10",
       "stage": "Use",
       "api": "ChangeMoney",
-      "sourceLocation": "AllScripts.cs:44128",
+      "sourceLocation": "AllScripts.cs:44096",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enchtag_11",
       "stage": "Use",
       "api": "EnchGetCard",
-      "sourceLocation": "AllScripts.cs:44225",
+      "sourceLocation": "AllScripts.cs:44193",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enchtag_12",
       "stage": "Use",
       "api": "EnchGetCard",
-      "sourceLocation": "AllScripts.cs:44327",
+      "sourceLocation": "AllScripts.cs:44295",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enchtag_13",
       "stage": "Use",
       "api": "EnchGetCard",
-      "sourceLocation": "AllScripts.cs:44429",
+      "sourceLocation": "AllScripts.cs:44397",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "enchtag_14",
       "stage": "Use",
       "api": "EnchGetCard",
-      "sourceLocation": "AllScripts.cs:44531",
+      "sourceLocation": "AllScripts.cs:44499",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "career_2",
       "stage": "Skill",
       "api": "ChangeCareer",
-      "sourceLocation": "AllScripts.cs:44801",
+      "sourceLocation": "AllScripts.cs:44769",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "career_2",
       "stage": "Skill",
       "api": "ChangeCareer",
-      "sourceLocation": "AllScripts.cs:44805",
+      "sourceLocation": "AllScripts.cs:44773",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "career_3",
       "stage": "Skill",
       "api": "AddCard",
-      "sourceLocation": "AllScripts.cs:44865",
+      "sourceLocation": "AllScripts.cs:44833",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "career_3",
       "stage": "Skill",
       "api": "AddCard",
-      "sourceLocation": "AllScripts.cs:44869",
+      "sourceLocation": "AllScripts.cs:44837",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "career_3",
       "stage": "Skill",
       "api": "AddCard",
-      "sourceLocation": "AllScripts.cs:44873",
+      "sourceLocation": "AllScripts.cs:44841",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "career_4",
       "stage": "Skill",
       "api": "ChangeCareer",
-      "sourceLocation": "AllScripts.cs:44910",
+      "sourceLocation": "AllScripts.cs:44878",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "career_4",
       "stage": "Skill",
       "api": "ChangeCareer",
-      "sourceLocation": "AllScripts.cs:44914",
+      "sourceLocation": "AllScripts.cs:44882",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "career_8",
       "stage": "Skill",
       "api": "SetDamageFilter",
-      "sourceLocation": "AllScripts.cs:45046",
+      "sourceLocation": "AllScripts.cs:45014",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "career_10",
       "stage": "Skill",
       "api": "AddPartner",
-      "sourceLocation": "AllScripts.cs:45097",
+      "sourceLocation": "AllScripts.cs:45065",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "career_13",
       "stage": "Skill",
       "api": "ChangeCareer",
-      "sourceLocation": "AllScripts.cs:45206",
+      "sourceLocation": "AllScripts.cs:45174",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_Law_Supreme",
       "stage": "Apply",
       "api": "RemoveAllBadBuff",
-      "sourceLocation": "AllScripts.cs:45368",
+      "sourceLocation": "AllScripts.cs:45336",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_ImmortalGodhead",
       "stage": "Apply",
       "api": "Resurrection",
-      "sourceLocation": "AllScripts.cs:45484",
+      "sourceLocation": "AllScripts.cs:45452",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_ThievesKing",
       "stage": "Apply",
       "api": "ChangeMoney",
-      "sourceLocation": "AllScripts.cs:45643",
+      "sourceLocation": "AllScripts.cs:45611",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_ThievesKing",
       "stage": "Apply",
       "api": "EscapeFight",
-      "sourceLocation": "AllScripts.cs:45658",
+      "sourceLocation": "AllScripts.cs:45626",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_ThievesKing",
       "stage": "Apply",
       "api": "ChangeMoney",
-      "sourceLocation": "AllScripts.cs:45666",
+      "sourceLocation": "AllScripts.cs:45634",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_ThievesKing",
       "stage": "Apply",
       "api": "EscapeFight",
-      "sourceLocation": "AllScripts.cs:45681",
+      "sourceLocation": "AllScripts.cs:45649",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_ThievesKing",
       "stage": "Apply",
       "api": "ChangeMoney",
-      "sourceLocation": "AllScripts.cs:45689",
+      "sourceLocation": "AllScripts.cs:45657",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_UnparalleledPower",
       "stage": "Apply",
       "api": "GetEnemy",
-      "sourceLocation": "AllScripts.cs:45747",
+      "sourceLocation": "AllScripts.cs:45715",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_believer",
       "stage": "Apply",
       "api": "GetEnemy",
-      "sourceLocation": "AllScripts.cs:45804",
+      "sourceLocation": "AllScripts.cs:45772",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_believer",
       "stage": "Apply",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:45805",
+      "sourceLocation": "AllScripts.cs:45773",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_believer",
       "stage": "Apply",
       "api": "def",
-      "sourceLocation": "AllScripts.cs:45806",
+      "sourceLocation": "AllScripts.cs:45774",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_BackToBasics",
       "stage": "Apply",
       "api": "RemoveBadBuff",
-      "sourceLocation": "AllScripts.cs:45869",
+      "sourceLocation": "AllScripts.cs:45837",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_BackToBasics",
       "stage": "Apply",
       "api": "RemoveBadBuff",
-      "sourceLocation": "AllScripts.cs:45874",
+      "sourceLocation": "AllScripts.cs:45842",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_hunting",
       "stage": "Apply",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:45931",
+      "sourceLocation": "AllScripts.cs:45899",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_hunting",
       "stage": "Apply",
       "api": "def",
-      "sourceLocation": "AllScripts.cs:45935",
+      "sourceLocation": "AllScripts.cs:45903",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_AllogeneicConcentric",
       "stage": "Apply",
       "api": "GetEnemy",
-      "sourceLocation": "AllScripts.cs:45990",
+      "sourceLocation": "AllScripts.cs:45958",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_AllogeneicConcentric",
       "stage": "Apply",
       "api": "GetEnemy",
-      "sourceLocation": "AllScripts.cs:45990",
+      "sourceLocation": "AllScripts.cs:45958",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_AllogeneicConcentric",
       "stage": "Apply",
       "api": "GetEnemy",
-      "sourceLocation": "AllScripts.cs:45991",
+      "sourceLocation": "AllScripts.cs:45959",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_AllogeneicConcentric",
       "stage": "Apply",
       "api": "GetEnemy",
-      "sourceLocation": "AllScripts.cs:45991",
+      "sourceLocation": "AllScripts.cs:45959",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_TrialsOfWisdom",
       "stage": "Apply",
       "api": "ChangeVars",
-      "sourceLocation": "AllScripts.cs:46050",
+      "sourceLocation": "AllScripts.cs:46018",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_TrialsOfWisdom",
       "stage": "Apply",
       "api": "ChangeVars",
-      "sourceLocation": "AllScripts.cs:46053",
+      "sourceLocation": "AllScripts.cs:46021",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_TrialsOfWisdom",
       "stage": "Apply",
       "api": "ChangeVars",
-      "sourceLocation": "AllScripts.cs:46056",
+      "sourceLocation": "AllScripts.cs:46024",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_TrialsOfWisdom",
       "stage": "Apply",
       "api": "ChangeVars",
-      "sourceLocation": "AllScripts.cs:46059",
+      "sourceLocation": "AllScripts.cs:46027",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_TrialsOfWisdom",
       "stage": "Apply",
       "api": "SetDamageFilter",
-      "sourceLocation": "AllScripts.cs:46067",
+      "sourceLocation": "AllScripts.cs:46035",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_TrialsOfWisdom",
       "stage": "Apply",
       "api": "AddDamageFilter",
-      "sourceLocation": "AllScripts.cs:46069",
+      "sourceLocation": "AllScripts.cs:46037",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_TrialsOfWisdom",
       "stage": "Apply",
       "api": "ClearDamageFilter",
-      "sourceLocation": "AllScripts.cs:46073",
+      "sourceLocation": "AllScripts.cs:46041",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_ManInTheMirror",
       "stage": "Apply",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:46204",
+      "sourceLocation": "AllScripts.cs:46172",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_ManInTheMirror",
       "stage": "Apply",
       "api": "def",
-      "sourceLocation": "AllScripts.cs:46209",
+      "sourceLocation": "AllScripts.cs:46177",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_Phoenix",
       "stage": "Apply",
       "api": "SetDamageFilter",
-      "sourceLocation": "AllScripts.cs:46264",
+      "sourceLocation": "AllScripts.cs:46232",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_Phoenix",
       "stage": "Apply",
       "api": "SetDamageFilter",
-      "sourceLocation": "AllScripts.cs:46275",
+      "sourceLocation": "AllScripts.cs:46243",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_Phoenix",
       "stage": "Apply",
       "api": "AddDamageFilter",
-      "sourceLocation": "AllScripts.cs:46280",
+      "sourceLocation": "AllScripts.cs:46248",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_Snitch",
       "stage": "Apply",
       "api": "DoAction",
-      "sourceLocation": "AllScripts.cs:46341",
+      "sourceLocation": "AllScripts.cs:46309",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_Priest",
       "stage": "Apply",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:46410",
+      "sourceLocation": "AllScripts.cs:46378",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_Priest",
       "stage": "Apply",
       "api": "RandomAddCard",
-      "sourceLocation": "AllScripts.cs:46423",
+      "sourceLocation": "AllScripts.cs:46391",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_Musician",
       "stage": "Apply",
       "api": "ThrowCard",
-      "sourceLocation": "AllScripts.cs:46543",
+      "sourceLocation": "AllScripts.cs:46511",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_FortuneBoy",
       "stage": "Apply",
       "api": "ChangeMoney",
-      "sourceLocation": "AllScripts.cs:46723",
+      "sourceLocation": "AllScripts.cs:46691",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_Hysteresis",
       "stage": "Apply",
       "api": "RandomAddCard",
-      "sourceLocation": "AllScripts.cs:46962",
+      "sourceLocation": "AllScripts.cs:46930",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_CalamityIncarnates",
       "stage": "Clear",
       "api": "ChangeCareer",
-      "sourceLocation": "AllScripts.cs:47039",
+      "sourceLocation": "AllScripts.cs:47007",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_GiantDollBear",
       "stage": "Apply",
       "api": "SetDamageFilter",
-      "sourceLocation": "AllScripts.cs:47072",
+      "sourceLocation": "AllScripts.cs:47040",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_GiantDollBear",
       "stage": "Apply",
       "api": "ChangeRound",
-      "sourceLocation": "AllScripts.cs:47084",
+      "sourceLocation": "AllScripts.cs:47052",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_WitchCultists",
       "stage": "Apply",
       "api": "RandomAddBuff",
-      "sourceLocation": "AllScripts.cs:47137",
+      "sourceLocation": "AllScripts.cs:47105",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_fluster",
       "stage": "Apply",
       "api": "ThrowCard",
-      "sourceLocation": "AllScripts.cs:47253",
+      "sourceLocation": "AllScripts.cs:47221",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_OriginalSin",
       "stage": "Apply",
       "api": "Resurrection",
-      "sourceLocation": "AllScripts.cs:47323",
+      "sourceLocation": "AllScripts.cs:47291",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_OriginalSin",
       "stage": "Apply",
       "api": "ChangeCareer",
-      "sourceLocation": "AllScripts.cs:47358",
+      "sourceLocation": "AllScripts.cs:47326",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_OriginalSin",
       "stage": "Apply",
       "api": "ChangeCareer",
-      "sourceLocation": "AllScripts.cs:47363",
+      "sourceLocation": "AllScripts.cs:47331",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_EndlessDesire",
       "stage": "Apply",
       "api": "ThrowCard",
-      "sourceLocation": "AllScripts.cs:47600",
+      "sourceLocation": "AllScripts.cs:47568",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_meowFamiliar",
       "stage": "Apply",
       "api": "GetEnemy",
-      "sourceLocation": "AllScripts.cs:47652",
+      "sourceLocation": "AllScripts.cs:47620",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_meowFamiliar",
       "stage": "Apply",
       "api": "ChangeCareer",
-      "sourceLocation": "AllScripts.cs:47657",
+      "sourceLocation": "AllScripts.cs:47625",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_meowFamiliar",
       "stage": "Apply",
       "api": "GetEnemy",
-      "sourceLocation": "AllScripts.cs:47662",
+      "sourceLocation": "AllScripts.cs:47630",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_meowFamiliar",
       "stage": "Apply",
       "api": "ChangeCareer",
-      "sourceLocation": "AllScripts.cs:47664",
+      "sourceLocation": "AllScripts.cs:47632",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_meowFamiliar",
       "stage": "Apply",
       "api": "ChangeSummon",
-      "sourceLocation": "AllScripts.cs:47665",
+      "sourceLocation": "AllScripts.cs:47633",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_meowFamiliar",
       "stage": "Clear",
       "api": "GetEnemy",
-      "sourceLocation": "AllScripts.cs:47683",
+      "sourceLocation": "AllScripts.cs:47651",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_meowFamiliar",
       "stage": "Clear",
       "api": "ChangeCareer",
-      "sourceLocation": "AllScripts.cs:47685",
+      "sourceLocation": "AllScripts.cs:47653",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_meowFamiliar",
       "stage": "Clear",
       "api": "ChangeSummon",
-      "sourceLocation": "AllScripts.cs:47686",
+      "sourceLocation": "AllScripts.cs:47654",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_HolyJudgementEngine",
       "stage": "Apply",
       "api": "AddEnemyAction",
-      "sourceLocation": "AllScripts.cs:47751",
+      "sourceLocation": "AllScripts.cs:47719",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_HolyJudgementEngine",
       "stage": "Apply",
       "api": "atk",
-      "sourceLocation": "AllScripts.cs:47779",
+      "sourceLocation": "AllScripts.cs:47747",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_HolyJudgementEngine",
       "stage": "Apply",
       "api": "RandomAddCard",
-      "sourceLocation": "AllScripts.cs:47784",
+      "sourceLocation": "AllScripts.cs:47752",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_HJE_FateDawn",
       "stage": "Apply",
       "api": "ChangeMoney",
-      "sourceLocation": "AllScripts.cs:47955",
+      "sourceLocation": "AllScripts.cs:47923",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_HJE_AbsoluteShield",
       "stage": "Apply",
       "api": "Resurrection",
-      "sourceLocation": "AllScripts.cs:48147",
+      "sourceLocation": "AllScripts.cs:48115",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_CAR_HeroBlessing",
       "stage": "Apply",
       "api": "Resurrection",
-      "sourceLocation": "AllScripts.cs:48305",
+      "sourceLocation": "AllScripts.cs:48273",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_CAR_HeroBlessing",
       "stage": "Apply",
       "api": "SetDamageFilter",
-      "sourceLocation": "AllScripts.cs:48313",
+      "sourceLocation": "AllScripts.cs:48281",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_CAR_HeroBlessing",
       "stage": "Apply",
       "api": "SetDamageFilter",
-      "sourceLocation": "AllScripts.cs:48317",
+      "sourceLocation": "AllScripts.cs:48285",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_CAR_HeroBlessing",
       "stage": "Apply",
       "api": "SetDamageFilter",
-      "sourceLocation": "AllScripts.cs:48321",
+      "sourceLocation": "AllScripts.cs:48289",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_CAR_HeroBlessing",
       "stage": "Apply",
       "api": "SetDamageFilter",
-      "sourceLocation": "AllScripts.cs:48322",
+      "sourceLocation": "AllScripts.cs:48290",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_CAR_Deadline",
       "stage": "Apply",
       "api": "BurnCardByData",
-      "sourceLocation": "AllScripts.cs:48411",
+      "sourceLocation": "AllScripts.cs:48379",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_Joker_King",
       "stage": "Apply",
       "api": "AddFakeCard",
-      "sourceLocation": "AllScripts.cs:48601",
+      "sourceLocation": "AllScripts.cs:48569",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_Joker_King",
       "stage": "Apply",
       "api": "AddFakeCard",
-      "sourceLocation": "AllScripts.cs:48602",
+      "sourceLocation": "AllScripts.cs:48570",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "SpecialBuff_Joker_King",
       "stage": "Apply",
       "api": "AddFakeCard",
-      "sourceLocation": "AllScripts.cs:48605",
+      "sourceLocation": "AllScripts.cs:48573",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_timestop",
       "stage": "Apply",
       "api": "ChangeRound",
-      "sourceLocation": "AllScripts.cs:48959",
+      "sourceLocation": "AllScripts.cs:48927",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_toxin",
       "stage": "Apply",
       "api": "ProcessEffect",
-      "sourceLocation": "AllScripts.cs:49318",
+      "sourceLocation": "AllScripts.cs:49286",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_toxin",
       "stage": "Apply",
       "api": "ProcessEffect",
-      "sourceLocation": "AllScripts.cs:49321",
+      "sourceLocation": "AllScripts.cs:49289",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_oblivion",
       "stage": "Apply",
       "api": "ThrowCard",
-      "sourceLocation": "AllScripts.cs:49378",
+      "sourceLocation": "AllScripts.cs:49346",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_bleeding",
       "stage": "Apply",
       "api": "ProcessEffect",
-      "sourceLocation": "AllScripts.cs:49441",
+      "sourceLocation": "AllScripts.cs:49409",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_bleeding",
       "stage": "Apply",
       "api": "ProcessEffect",
-      "sourceLocation": "AllScripts.cs:49444",
+      "sourceLocation": "AllScripts.cs:49412",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_rebirth",
       "stage": "Apply",
       "api": "Resurrection",
-      "sourceLocation": "AllScripts.cs:49574",
+      "sourceLocation": "AllScripts.cs:49542",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_burn",
       "stage": "Apply",
       "api": "ProcessEffect",
-      "sourceLocation": "AllScripts.cs:49708",
+      "sourceLocation": "AllScripts.cs:49676",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_burn",
       "stage": "Apply",
       "api": "ProcessEffect",
-      "sourceLocation": "AllScripts.cs:49713",
+      "sourceLocation": "AllScripts.cs:49681",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_counterattack",
       "stage": "Apply",
       "api": "SetDamageFilter",
-      "sourceLocation": "AllScripts.cs:50376",
+      "sourceLocation": "AllScripts.cs:50344",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_reverie",
       "stage": "Apply",
       "api": "GetcardsByRarity",
-      "sourceLocation": "AllScripts.cs:50813",
+      "sourceLocation": "AllScripts.cs:50781",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_reverie",
       "stage": "Apply",
       "api": "RandomAddCard",
-      "sourceLocation": "AllScripts.cs:50816",
+      "sourceLocation": "AllScripts.cs:50784",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_lifelink",
       "stage": "Apply",
       "api": "ForAllStatus",
-      "sourceLocation": "AllScripts.cs:51056",
+      "sourceLocation": "AllScripts.cs:51024",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_lifelink",
       "stage": "Apply",
       "api": "SetHp",
-      "sourceLocation": "AllScripts.cs:51077",
+      "sourceLocation": "AllScripts.cs:51045",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_revelation",
       "stage": "Apply",
       "api": "CardGetEnch",
-      "sourceLocation": "AllScripts.cs:51276",
+      "sourceLocation": "AllScripts.cs:51244",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_LilithsPact",
       "stage": "Apply",
       "api": "SetDamageFilter",
-      "sourceLocation": "AllScripts.cs:51836",
+      "sourceLocation": "AllScripts.cs:51804",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_LilithsPact",
       "stage": "Apply",
       "api": "AddDamageFilter",
-      "sourceLocation": "AllScripts.cs:51838",
+      "sourceLocation": "AllScripts.cs:51806",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_LilithsPact",
       "stage": "Clear",
       "api": "AddDamageFilter",
-      "sourceLocation": "AllScripts.cs:51857",
+      "sourceLocation": "AllScripts.cs:51825",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualbountymana",
       "stage": "Apply",
       "api": "RepeatByBuffLevel",
-      "sourceLocation": "AllScripts.cs:52319",
+      "sourceLocation": "AllScripts.cs:52287",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualbountygold",
       "stage": "Apply",
       "api": "ChangeMoney",
-      "sourceLocation": "AllScripts.cs:52376",
+      "sourceLocation": "AllScripts.cs:52344",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualbountygold",
       "stage": "Apply",
       "api": "RepeatByBuffLevel",
-      "sourceLocation": "AllScripts.cs:52380",
+      "sourceLocation": "AllScripts.cs:52348",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualenlightenment",
       "stage": "Apply",
       "api": "RepeatByBuffLevel",
-      "sourceLocation": "AllScripts.cs:52464",
+      "sourceLocation": "AllScripts.cs:52432",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualenlightenment",
       "stage": "Apply",
       "api": "RunImmediately",
-      "sourceLocation": "AllScripts.cs:52465",
+      "sourceLocation": "AllScripts.cs:52433",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualenlightenment",
       "stage": "Apply",
       "api": "RunImmediately",
-      "sourceLocation": "AllScripts.cs:52482",
+      "sourceLocation": "AllScripts.cs:52450",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualcourage",
       "stage": "Apply",
       "api": "RepeatByBuffLevel",
-      "sourceLocation": "AllScripts.cs:52548",
+      "sourceLocation": "AllScripts.cs:52516",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualcourage",
       "stage": "Apply",
       "api": "RunImmediately",
-      "sourceLocation": "AllScripts.cs:52549",
+      "sourceLocation": "AllScripts.cs:52517",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualcourage",
       "stage": "Apply",
       "api": "RunImmediately",
-      "sourceLocation": "AllScripts.cs:52565",
+      "sourceLocation": "AllScripts.cs:52533",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualasceticism",
       "stage": "Apply",
       "api": "RepeatByBuffLevel",
-      "sourceLocation": "AllScripts.cs:52630",
+      "sourceLocation": "AllScripts.cs:52598",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualasceticism",
       "stage": "Apply",
       "api": "RunImmediately",
-      "sourceLocation": "AllScripts.cs:52631",
+      "sourceLocation": "AllScripts.cs:52599",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualasceticism",
       "stage": "Apply",
       "api": "RunImmediately",
-      "sourceLocation": "AllScripts.cs:52647",
+      "sourceLocation": "AllScripts.cs:52615",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualoverload",
       "stage": "Apply",
       "api": "RepeatByBuffLevel",
-      "sourceLocation": "AllScripts.cs:52712",
+      "sourceLocation": "AllScripts.cs:52680",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualoverload",
       "stage": "Apply",
       "api": "RunImmediately",
-      "sourceLocation": "AllScripts.cs:52713",
+      "sourceLocation": "AllScripts.cs:52681",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualoverload",
       "stage": "Apply",
       "api": "RunImmediately",
-      "sourceLocation": "AllScripts.cs:52724",
+      "sourceLocation": "AllScripts.cs:52692",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualcatalyst",
       "stage": "Apply",
       "api": "RepeatByBuffLevel",
-      "sourceLocation": "AllScripts.cs:52799",
+      "sourceLocation": "AllScripts.cs:52767",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualcatalyst",
       "stage": "Apply",
       "api": "RunImmediately",
-      "sourceLocation": "AllScripts.cs:52800",
+      "sourceLocation": "AllScripts.cs:52768",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualcatalyst",
       "stage": "Apply",
       "api": "RunImmediately",
-      "sourceLocation": "AllScripts.cs:52815",
+      "sourceLocation": "AllScripts.cs:52783",
+      "reason": "unsupported ScriptExecutor API"
+    },
+    {
+      "entityId": "buff_ritualechostaff",
+      "stage": "Apply",
+      "api": "RepeatRitualEcho",
+      "sourceLocation": "AllScripts.cs:52841",
+      "reason": "unsupported ScriptExecutor API"
+    },
+    {
+      "entityId": "buff_ritualechostaff",
+      "stage": "Apply",
+      "api": "RepeatRitualEcho",
+      "sourceLocation": "AllScripts.cs:52845",
+      "reason": "unsupported ScriptExecutor API"
+    },
+    {
+      "entityId": "buff_ritualechostaff",
+      "stage": "Apply",
+      "api": "RepeatRitualEcho",
+      "sourceLocation": "AllScripts.cs:52849",
+      "reason": "unsupported ScriptExecutor API"
+    },
+    {
+      "entityId": "buff_ritualechostaff",
+      "stage": "Apply",
+      "api": "RepeatRitualEcho",
+      "sourceLocation": "AllScripts.cs:52853",
+      "reason": "unsupported ScriptExecutor API"
+    },
+    {
+      "entityId": "buff_ritualechostaff",
+      "stage": "Apply",
+      "api": "RepeatRitualEcho",
+      "sourceLocation": "AllScripts.cs:52857",
+      "reason": "unsupported ScriptExecutor API"
+    },
+    {
+      "entityId": "buff_ritualechostaff",
+      "stage": "Apply",
+      "api": "RepeatRitualEcho",
+      "sourceLocation": "AllScripts.cs:52861",
+      "reason": "unsupported ScriptExecutor API"
+    },
+    {
+      "entityId": "buff_ritualechostaff",
+      "stage": "Apply",
+      "api": "RepeatRitualEcho",
+      "sourceLocation": "AllScripts.cs:52865",
+      "reason": "unsupported ScriptExecutor API"
+    },
+    {
+      "entityId": "buff_ritualechostaff",
+      "stage": "Apply",
+      "api": "RepeatRitualEcho",
+      "sourceLocation": "AllScripts.cs:52869",
       "reason": "unsupported ScriptExecutor API"
     },
     {
@@ -2941,815 +2997,759 @@
       "reason": "unsupported ScriptExecutor API"
     },
     {
-      "entityId": "buff_ritualechostaff",
-      "stage": "Apply",
-      "api": "RepeatRitualEcho",
-      "sourceLocation": "AllScripts.cs:52885",
-      "reason": "unsupported ScriptExecutor API"
-    },
-    {
-      "entityId": "buff_ritualechostaff",
-      "stage": "Apply",
-      "api": "RepeatRitualEcho",
-      "sourceLocation": "AllScripts.cs:52889",
-      "reason": "unsupported ScriptExecutor API"
-    },
-    {
-      "entityId": "buff_ritualechostaff",
-      "stage": "Apply",
-      "api": "RepeatRitualEcho",
-      "sourceLocation": "AllScripts.cs:52893",
-      "reason": "unsupported ScriptExecutor API"
-    },
-    {
-      "entityId": "buff_ritualechostaff",
-      "stage": "Apply",
-      "api": "RepeatRitualEcho",
-      "sourceLocation": "AllScripts.cs:52897",
-      "reason": "unsupported ScriptExecutor API"
-    },
-    {
-      "entityId": "buff_ritualechostaff",
-      "stage": "Apply",
-      "api": "RepeatRitualEcho",
-      "sourceLocation": "AllScripts.cs:52901",
-      "reason": "unsupported ScriptExecutor API"
-    },
-    {
-      "entityId": "buff_ritualechostaff",
-      "stage": "Apply",
-      "api": "RepeatRitualEcho",
-      "sourceLocation": "AllScripts.cs:52905",
-      "reason": "unsupported ScriptExecutor API"
-    },
-    {
-      "entityId": "buff_ritualechostaff",
-      "stage": "Apply",
-      "api": "RepeatRitualEcho",
-      "sourceLocation": "AllScripts.cs:52909",
-      "reason": "unsupported ScriptExecutor API"
-    },
-    {
-      "entityId": "buff_ritualechostaff",
-      "stage": "Apply",
-      "api": "RepeatRitualEcho",
-      "sourceLocation": "AllScripts.cs:52913",
-      "reason": "unsupported ScriptExecutor API"
-    },
-    {
       "entityId": "buff_ritualcycle",
       "stage": "Apply",
       "api": "RepeatByBuffLevel",
-      "sourceLocation": "AllScripts.cs:52977",
+      "sourceLocation": "AllScripts.cs:52945",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualcycle",
       "stage": "Apply",
       "api": "RunImmediately",
-      "sourceLocation": "AllScripts.cs:52978",
+      "sourceLocation": "AllScripts.cs:52946",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualcycle",
       "stage": "Apply",
       "api": "RunImmediately",
-      "sourceLocation": "AllScripts.cs:52989",
+      "sourceLocation": "AllScripts.cs:52957",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualbloodsacrifice",
       "stage": "Apply",
       "api": "RepeatByBuffLevel",
-      "sourceLocation": "AllScripts.cs:53054",
+      "sourceLocation": "AllScripts.cs:53022",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualbloodsacrifice",
       "stage": "Apply",
       "api": "RunImmediately",
-      "sourceLocation": "AllScripts.cs:53055",
+      "sourceLocation": "AllScripts.cs:53023",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualbloodsacrifice",
       "stage": "Apply",
       "api": "TagCheck",
-      "sourceLocation": "AllScripts.cs:53062",
+      "sourceLocation": "AllScripts.cs:53030",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualbloodsacrifice",
       "stage": "Apply",
       "api": "RunImmediately",
-      "sourceLocation": "AllScripts.cs:53076",
+      "sourceLocation": "AllScripts.cs:53044",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualsublimation",
       "stage": "Apply",
       "api": "RepeatByBuffLevel",
-      "sourceLocation": "AllScripts.cs:53140",
+      "sourceLocation": "AllScripts.cs:53108",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualsublimation",
       "stage": "Apply",
       "api": "RunImmediately",
-      "sourceLocation": "AllScripts.cs:53141",
+      "sourceLocation": "AllScripts.cs:53109",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualsublimation",
       "stage": "Apply",
       "api": "RunImmediately",
-      "sourceLocation": "AllScripts.cs:53157",
+      "sourceLocation": "AllScripts.cs:53125",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualpyre",
       "stage": "Apply",
       "api": "RunImmediately",
-      "sourceLocation": "AllScripts.cs:53222",
+      "sourceLocation": "AllScripts.cs:53190",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualpyre",
       "stage": "Apply",
       "api": "RepeatByBuffLevel",
-      "sourceLocation": "AllScripts.cs:53228",
+      "sourceLocation": "AllScripts.cs:53196",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualpyre",
       "stage": "Apply",
       "api": "RunImmediately",
-      "sourceLocation": "AllScripts.cs:53229",
+      "sourceLocation": "AllScripts.cs:53197",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualpyre",
       "stage": "Apply",
       "api": "RunImmediately",
-      "sourceLocation": "AllScripts.cs:53244",
+      "sourceLocation": "AllScripts.cs:53212",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualtimeprison",
       "stage": "Apply",
       "api": "AddCardByCardList",
-      "sourceLocation": "AllScripts.cs:53306",
+      "sourceLocation": "AllScripts.cs:53274",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualtimeprison",
       "stage": "Apply",
       "api": "RepeatByBuffLevel",
-      "sourceLocation": "AllScripts.cs:53310",
+      "sourceLocation": "AllScripts.cs:53278",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualtimeprison",
       "stage": "Apply",
       "api": "RunImmediately",
-      "sourceLocation": "AllScripts.cs:53311",
+      "sourceLocation": "AllScripts.cs:53279",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualtimeprison",
       "stage": "Apply",
       "api": "RunImmediately",
-      "sourceLocation": "AllScripts.cs:53330",
+      "sourceLocation": "AllScripts.cs:53298",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualsolidify",
       "stage": "Apply",
       "api": "RepeatByBuffLevel",
-      "sourceLocation": "AllScripts.cs:53395",
+      "sourceLocation": "AllScripts.cs:53363",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualsolidify",
       "stage": "Apply",
       "api": "RunImmediately",
-      "sourceLocation": "AllScripts.cs:53396",
+      "sourceLocation": "AllScripts.cs:53364",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ritualsolidify",
       "stage": "Apply",
       "api": "RunImmediately",
-      "sourceLocation": "AllScripts.cs:53415",
+      "sourceLocation": "AllScripts.cs:53383",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ReturnAgain",
       "stage": "Apply",
       "api": "CardGetEnch",
-      "sourceLocation": "AllScripts.cs:53602",
+      "sourceLocation": "AllScripts.cs:53570",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ReturnAgain",
       "stage": "Apply",
       "api": "CardGetEnch",
-      "sourceLocation": "AllScripts.cs:53602",
+      "sourceLocation": "AllScripts.cs:53570",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ReturnAgain",
       "stage": "Apply",
       "api": "UseCard",
-      "sourceLocation": "AllScripts.cs:53652",
+      "sourceLocation": "AllScripts.cs:53620",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_ReturnAgainDoubleNext",
       "stage": "Apply",
       "api": "AddTempEvent",
-      "sourceLocation": "AllScripts.cs:53722",
+      "sourceLocation": "AllScripts.cs:53690",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_AllDharmas",
       "stage": "Apply",
       "api": "ClearAllDharmasSpellList",
-      "sourceLocation": "AllScripts.cs:53809",
+      "sourceLocation": "AllScripts.cs:53777",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_AllDharmas",
       "stage": "Apply",
       "api": "UpdateAllDharmasSpellList",
-      "sourceLocation": "AllScripts.cs:53848",
+      "sourceLocation": "AllScripts.cs:53816",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_AllDharmas",
       "stage": "Apply",
       "api": "DiceCheck",
-      "sourceLocation": "AllScripts.cs:53901",
+      "sourceLocation": "AllScripts.cs:53869",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_Demonization",
       "stage": "Apply",
       "api": "GetPartner",
-      "sourceLocation": "AllScripts.cs:54461",
+      "sourceLocation": "AllScripts.cs:54429",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "buff_Anticristo",
       "stage": "Apply",
       "api": "ChangeCareer",
-      "sourceLocation": "AllScripts.cs:54658",
+      "sourceLocation": "AllScripts.cs:54626",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "relic_5",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:54872",
+      "sourceLocation": "AllScripts.cs:54840",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "relic_21",
       "stage": "Fight",
       "api": "ChangeMoney",
-      "sourceLocation": "AllScripts.cs:55515",
+      "sourceLocation": "AllScripts.cs:55483",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "relic_28",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:55792",
+      "sourceLocation": "AllScripts.cs:55760",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "relic_28",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:55796",
+      "sourceLocation": "AllScripts.cs:55764",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "relic_29",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:55843",
+      "sourceLocation": "AllScripts.cs:55811",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "relic_29",
       "stage": "Fight",
       "api": "ChangeMoney",
-      "sourceLocation": "AllScripts.cs:55844",
+      "sourceLocation": "AllScripts.cs:55812",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "relic_29",
       "stage": "Fight",
       "api": "EscapeFight",
-      "sourceLocation": "AllScripts.cs:55848",
+      "sourceLocation": "AllScripts.cs:55816",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "relic_35",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:56081",
+      "sourceLocation": "AllScripts.cs:56049",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "relic_35",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:56088",
+      "sourceLocation": "AllScripts.cs:56056",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "relic_39",
       "stage": "Fight",
       "api": "ChangeMoney",
-      "sourceLocation": "AllScripts.cs:56237",
+      "sourceLocation": "AllScripts.cs:56205",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "relic_39",
       "stage": "Fight",
       "api": "SetHp",
-      "sourceLocation": "AllScripts.cs:56240",
+      "sourceLocation": "AllScripts.cs:56208",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "relic_41",
       "stage": "Fight",
       "api": "SetDamageFilter",
-      "sourceLocation": "AllScripts.cs:56334",
+      "sourceLocation": "AllScripts.cs:56302",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "relic_52",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:56758",
+      "sourceLocation": "AllScripts.cs:56726",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "relic_53",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:56814",
+      "sourceLocation": "AllScripts.cs:56782",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "relic_54",
       "stage": "Fight",
       "api": "CardTopCheck",
-      "sourceLocation": "AllScripts.cs:56857",
+      "sourceLocation": "AllScripts.cs:56825",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "relic_56",
       "stage": "Fight",
       "api": "ChangeCardTop",
-      "sourceLocation": "AllScripts.cs:56942",
+      "sourceLocation": "AllScripts.cs:56910",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "relic_58",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:57031",
+      "sourceLocation": "AllScripts.cs:56999",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "relic_59",
       "stage": "Fight",
       "api": "ChangeMoney",
-      "sourceLocation": "AllScripts.cs:57092",
+      "sourceLocation": "AllScripts.cs:57060",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "relic_59",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:57098",
+      "sourceLocation": "AllScripts.cs:57066",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "relic_61",
       "stage": "Fight",
       "api": "ChangeMoney",
-      "sourceLocation": "AllScripts.cs:57173",
+      "sourceLocation": "AllScripts.cs:57141",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "relic_64",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:57282",
+      "sourceLocation": "AllScripts.cs:57250",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "relic_64",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:57286",
+      "sourceLocation": "AllScripts.cs:57254",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "relic_65",
       "stage": "Fight",
       "api": "returnFightType",
-      "sourceLocation": "AllScripts.cs:57327",
+      "sourceLocation": "AllScripts.cs:57295",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "relic_67",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:57404",
+      "sourceLocation": "AllScripts.cs:57372",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "relic_70",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:57537",
+      "sourceLocation": "AllScripts.cs:57505",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "relic_79",
       "stage": "Fight",
       "api": "RandomAddGoodBuff",
-      "sourceLocation": "AllScripts.cs:57886",
+      "sourceLocation": "AllScripts.cs:57854",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_1",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:57968",
+      "sourceLocation": "AllScripts.cs:57936",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_2",
       "stage": "Fight",
       "api": "AddBaseEvent",
-      "sourceLocation": "AllScripts.cs:58013",
+      "sourceLocation": "AllScripts.cs:57981",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_4",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:58110",
+      "sourceLocation": "AllScripts.cs:58078",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_4",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:58118",
+      "sourceLocation": "AllScripts.cs:58086",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_6",
       "stage": "Fight",
       "api": "Resentment",
-      "sourceLocation": "AllScripts.cs:58218",
+      "sourceLocation": "AllScripts.cs:58186",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_7",
       "stage": "Fight",
       "api": "Resentment",
-      "sourceLocation": "AllScripts.cs:58253",
+      "sourceLocation": "AllScripts.cs:58221",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_10",
       "stage": "Fight",
       "api": "RandomAddGoodBuff",
-      "sourceLocation": "AllScripts.cs:58404",
+      "sourceLocation": "AllScripts.cs:58372",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_11",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:58451",
+      "sourceLocation": "AllScripts.cs:58419",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_12",
       "stage": "Fight",
       "api": "RandomAddGoodBuff",
-      "sourceLocation": "AllScripts.cs:58514",
+      "sourceLocation": "AllScripts.cs:58482",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_12",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:58535",
+      "sourceLocation": "AllScripts.cs:58503",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_14",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:58633",
+      "sourceLocation": "AllScripts.cs:58601",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_16",
       "stage": "Fight",
       "api": "TagCheck",
-      "sourceLocation": "AllScripts.cs:58720",
+      "sourceLocation": "AllScripts.cs:58688",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_23",
       "stage": "Fight",
       "api": "SetHp",
-      "sourceLocation": "AllScripts.cs:59012",
+      "sourceLocation": "AllScripts.cs:58980",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_23",
       "stage": "Fight",
       "api": "SetHp",
-      "sourceLocation": "AllScripts.cs:59028",
+      "sourceLocation": "AllScripts.cs:58996",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_26",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:59186",
+      "sourceLocation": "AllScripts.cs:59154",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_27",
       "stage": "Fight",
       "api": "ChooseCardToAction",
-      "sourceLocation": "AllScripts.cs:59230",
+      "sourceLocation": "AllScripts.cs:59198",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_27",
       "stage": "Fight",
       "api": "ChooseCardToAction",
-      "sourceLocation": "AllScripts.cs:59243",
+      "sourceLocation": "AllScripts.cs:59211",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_29",
       "stage": "Own",
       "api": "ReplaceSelfRelicWithRandomRelic",
-      "sourceLocation": "AllScripts.cs:59325",
+      "sourceLocation": "AllScripts.cs:59293",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_30",
       "stage": "Fight",
       "api": "FightRelicCheck",
-      "sourceLocation": "AllScripts.cs:59376",
+      "sourceLocation": "AllScripts.cs:59344",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_31",
       "stage": "Fight",
       "api": "FightRelicCheck",
-      "sourceLocation": "AllScripts.cs:59420",
+      "sourceLocation": "AllScripts.cs:59388",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_32",
       "stage": "Fight",
       "api": "FightRelicCheck",
-      "sourceLocation": "AllScripts.cs:59464",
+      "sourceLocation": "AllScripts.cs:59432",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_33",
       "stage": "Fight",
       "api": "FightRelicCheck",
-      "sourceLocation": "AllScripts.cs:59508",
+      "sourceLocation": "AllScripts.cs:59476",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_34",
       "stage": "Fight",
       "api": "FightRelicCheck",
-      "sourceLocation": "AllScripts.cs:59551",
+      "sourceLocation": "AllScripts.cs:59519",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_35",
       "stage": "Fight",
       "api": "FightRelicCheck",
-      "sourceLocation": "AllScripts.cs:59594",
+      "sourceLocation": "AllScripts.cs:59562",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_41",
       "stage": "Fight",
       "api": "RunImmediately",
-      "sourceLocation": "AllScripts.cs:59884",
+      "sourceLocation": "AllScripts.cs:59852",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_41",
       "stage": "Fight",
       "api": "RunImmediately",
-      "sourceLocation": "AllScripts.cs:59885",
+      "sourceLocation": "AllScripts.cs:59853",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_42",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:59927",
+      "sourceLocation": "AllScripts.cs:59895",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_42",
       "stage": "Fight",
       "api": "Resurrection",
-      "sourceLocation": "AllScripts.cs:59937",
+      "sourceLocation": "AllScripts.cs:59905",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_42",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:59938",
+      "sourceLocation": "AllScripts.cs:59906",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_43",
       "stage": "Fight",
       "api": "BurnCardByData",
-      "sourceLocation": "AllScripts.cs:59979",
+      "sourceLocation": "AllScripts.cs:59947",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_47",
       "stage": "Fight",
       "api": "FightRelicCheck",
-      "sourceLocation": "AllScripts.cs:60138",
+      "sourceLocation": "AllScripts.cs:60106",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_54",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:60432",
+      "sourceLocation": "AllScripts.cs:60400",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_55",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:60498",
+      "sourceLocation": "AllScripts.cs:60466",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_55",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:60508",
+      "sourceLocation": "AllScripts.cs:60476",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_55",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:60517",
+      "sourceLocation": "AllScripts.cs:60485",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_56",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:60551",
+      "sourceLocation": "AllScripts.cs:60519",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_56",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:60559",
+      "sourceLocation": "AllScripts.cs:60527",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_56",
       "stage": "Fight",
       "api": "AddCard",
-      "sourceLocation": "AllScripts.cs:60563",
+      "sourceLocation": "AllScripts.cs:60531",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_58",
       "stage": "Fight",
       "api": "GetcardsByRarity",
-      "sourceLocation": "AllScripts.cs:60599",
+      "sourceLocation": "AllScripts.cs:60567",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_58",
       "stage": "Fight",
       "api": "AddCardById",
-      "sourceLocation": "AllScripts.cs:60609",
+      "sourceLocation": "AllScripts.cs:60577",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_59",
       "stage": "Fight",
       "api": "OutFightSelectCardToAction",
-      "sourceLocation": "AllScripts.cs:60669",
+      "sourceLocation": "AllScripts.cs:60637",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_59",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:60691",
+      "sourceLocation": "AllScripts.cs:60659",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_61",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:60782",
+      "sourceLocation": "AllScripts.cs:60750",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_62",
       "stage": "Fight",
       "api": "GetcardsOutLock",
-      "sourceLocation": "AllScripts.cs:60818",
+      "sourceLocation": "AllScripts.cs:60786",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_62",
       "stage": "Fight",
       "api": "AddCard",
-      "sourceLocation": "AllScripts.cs:60824",
+      "sourceLocation": "AllScripts.cs:60792",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_62",
       "stage": "Fight",
       "api": "AddCard",
-      "sourceLocation": "AllScripts.cs:60828",
+      "sourceLocation": "AllScripts.cs:60796",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_66",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:61034",
+      "sourceLocation": "AllScripts.cs:61002",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "CrowdFundingRelic_76",
       "stage": "Fight",
       "api": "UpdateRelicShow",
-      "sourceLocation": "AllScripts.cs:61375",
+      "sourceLocation": "AllScripts.cs:61343",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "destiny_6",
       "stage": "Fight",
       "api": "AddAction",
-      "sourceLocation": "AllScripts.cs:61691",
+      "sourceLocation": "AllScripts.cs:61659",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "destiny_7",
       "stage": "Fight",
       "api": "AddCardToFightManager",
-      "sourceLocation": "AllScripts.cs:61729",
+      "sourceLocation": "AllScripts.cs:61697",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "destiny_8",
       "stage": "Fight",
       "api": "GetcardsOutLock",
-      "sourceLocation": "AllScripts.cs:61773",
+      "sourceLocation": "AllScripts.cs:61741",
       "reason": "unsupported ScriptExecutor API"
     },
     {
       "entityId": "destiny_8",
       "stage": "Fight",
       "api": "AddCardToFightManager",
-      "sourceLocation": "AllScripts.cs:61779",
+      "sourceLocation": "AllScripts.cs:61747",
       "reason": "unsupported ScriptExecutor API"
     }
   ],

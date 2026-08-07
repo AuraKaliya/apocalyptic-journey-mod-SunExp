@@ -7,7 +7,7 @@ namespace AuraCombatAi.Shared;
 public static class CombatFoundationParallelismProtocol
 {
     public const string Version =
-        "foundation-parallelism-v1-memory-capacity-8-16-32";
+        "foundation-parallelism-v2-adaptive-exact-capacity";
 
     public const long DefaultPerLaneBytes = 384L * 1024L * 1024L;
 
@@ -17,7 +17,7 @@ public static class CombatFoundationParallelismProtocol
 
     public const double ReserveFraction = 0.15d;
 
-    public static readonly int[] CandidateParallelism = { 8, 16, 32 };
+    public const int MaximumSupportedParallelism = 64;
 }
 
 public sealed class CombatFoundationResourceSnapshot
@@ -153,7 +153,11 @@ public static class CombatFoundationParallelismPlanner
     {
         resources ??= new CombatFoundationResourceSnapshot();
         trim ??= new CombatSearchMemoryTrimReport();
-        var requested = Math.Max(1, Math.Min(32, requestedMaximumParallelism));
+        var requested = Math.Max(
+            1,
+            Math.Min(
+                CombatFoundationParallelismProtocol.MaximumSupportedParallelism,
+                requestedMaximumParallelism));
         var reserve = configuredReserveBytes > 0L
             ? configuredReserveBytes
             : Math.Max(
@@ -177,9 +181,10 @@ public static class CombatFoundationParallelismPlanner
         var headroom = Math.Max(0L, available - reserve);
         var rawCapacity = perLane <= 0L
             ? requested
-            : (int)Math.Min(32L, headroom / perLane);
-        var capacityCandidate = SelectCandidate(rawCapacity, requested);
-        var selected = Math.Max(1, Math.Min(requested, capacityCandidate));
+            : (int)Math.Min(
+                CombatFoundationParallelismProtocol.MaximumSupportedParallelism,
+                headroom / perLane);
+        var selected = Math.Max(1, Math.Min(requested, rawCapacity));
         var predictedLanes = SaturatingMultiply(perLane, selected);
         return new CombatFoundationParallelismDecision
         {
@@ -207,22 +212,6 @@ public static class CombatFoundationParallelismPlanner
                      + ", rawCapacity=" + rawCapacity
                      + ", selected=" + selected
         };
-    }
-
-    private static int SelectCandidate(int capacity, int requested)
-    {
-        var limit = Math.Max(1, Math.Min(capacity, requested));
-        var selected = Math.Min(8, requested);
-        foreach (var candidate in CombatFoundationParallelismProtocol
-                     .CandidateParallelism)
-        {
-            if (candidate > limit)
-            {
-                break;
-            }
-            selected = candidate;
-        }
-        return selected;
     }
 
     private static long SaturatingAdd(long left, long right)

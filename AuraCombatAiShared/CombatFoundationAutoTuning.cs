@@ -7,21 +7,23 @@ namespace AuraCombatAi.Shared;
 public static class CombatFoundationAutoTuneProtocol
 {
     public const string Version =
-        "foundation-auto-tune-v10-memory-capacity-only";
+        "foundation-auto-tune-v11-adaptive-exact-capacity";
 
-    public const string CacheFileName = "foundation-auto-tune-v10.json";
+    public const string CacheFileName = "foundation-auto-tune-v11.json";
 
     public const string CampaignKernelVersion =
-        "campaign-kernel-v6-determinization-value-cache";
+        "campaign-kernel-v7-adaptive-parallelism";
 
     public const string InferenceKernelVersion =
-        "managed-double-sparse-transposed-v4";
+        "managed-fp32-sparse-transposed-v5";
 
     public const int MinimumCampaignWaves = 2;
 
     public const double UnderutilizedCpuPercent = 60d;
 
     public const double HighParallelismExplorationTolerance = 0.05d;
+
+    public const double MaximumHealthyInferenceTimeoutRate = 0.50d;
 }
 
 public static class CombatFoundationAutoTuneObjectiveNames
@@ -177,6 +179,14 @@ public static class CombatFoundationAutoTuneSelector
             .Where(item => item != null
                            && IsInferenceMeasurement(item.MeasurementKind)
                            && item.InvalidCampaigns == 0
+                           && (string.Equals(
+                                   item.InferenceMode,
+                                   CombatFoundationExecutionProfileNames
+                                       .DirectInference,
+                                   StringComparison.Ordinal)
+                               || InferenceTimeoutRate(item)
+                               <= CombatFoundationAutoTuneProtocol
+                                   .MaximumHealthyInferenceTimeoutRate)
                            && SelectionScore(item, objective) > 0d)
             .ToList();
         if (usable.Count == 0)
@@ -317,6 +327,14 @@ public static class CombatFoundationAutoTuneSelector
         return (kind ?? "").StartsWith(
             "inference",
             StringComparison.Ordinal);
+    }
+
+    private static double InferenceTimeoutRate(
+        CombatFoundationAutoTuneMeasurement item)
+    {
+        return item.InferenceRequests <= 0L
+            ? 0d
+            : item.InferenceTimeoutFlushes / (double)item.InferenceRequests;
     }
 
     private static double SelectionScore(

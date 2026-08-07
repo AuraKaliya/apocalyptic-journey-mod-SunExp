@@ -1,0 +1,58 @@
+{
+  "schemaVersion": 1,
+  "appId": "3709430",
+  "steamBuildId": "23816797",
+  "runtimeVersion": "v1.0.23816797",
+  "unityVersion": "6000.0.46f1",
+  "sourcePath": "D:\\workfile\\project\\Mod_1\\apocalyptic-journey-mod-SunExp\\开发参考资料\\RecoveredManaged-v1.0.23816797",
+  "inventoryPath": "D:\\workfile\\project\\Mod_1\\apocalyptic-journey-mod-SunExp\\开发参考资料\\Managed快照\\v1.0.23816797.partial",
+  "capturedAtUtc": "2026-08-07T02:48:02.7873386+00:00",
+  "expectedAssemblyCount": 252,
+  "requiredAssemblies": [
+    "AllScripts.dll",
+    "Witch.Core.dll",
+    "Witch.dll"
+  ],
+  "assemblyCount": 3,
+  "complete": false,
+  "missingAssemblies": [],
+  "metadataFailures": [],
+  "assemblies": [
+    {
+      "fileName": "AllScripts.dll",
+      "size": 923136,
+      "sha256": "C65E573F6BBF35CEE4D623CEA16E0F8A033FA9068E9E52304781D47C6665AC37",
+      "mvid": "26d98fea-6286-41b9-9a39-524314b3228c",
+      "assemblyName": "AllScripts",
+      "assemblyVersion": "0.0.0.0",
+      "typeCount": 3446,
+      "publicTypeCount": 2993,
+      "methodCount": 4167,
+      "publicMemberCount": 2993
+    },
+    {
+      "fileName": "Witch.Core.dll",
+      "size": 182784,
+      "sha256": "CA6E937ABEE1C6C0DDBD51005A2831684A141B0F6342B2350F922E76C2DD1EE4",
+      "mvid": "3fb5d52a-ed80-48e2-b223-3fa64cea0813",
+      "assemblyName": "Witch.Core",
+      "assemblyVersion": "0.0.0.0",
+      "typeCount": 135,
+      "publicTypeCount": 85,
+      "methodCount": 831,
+      "publicMemberCount": 923
+    },
+    {
+      "fileName": "Witch.dll",
+      "size": 3038208,
+      "sha256": "8D87696341625B19F63059B6D91262FF5738F3C0B5ABB7598A05C7640727790A",
+      "mvid": "ff273283-2339-4da9-ac09-c6a6df0aee08",
+      "assemblyName": "Witch",
+      "assemblyVersion": "0.0.0.0",
+      "typeCount": 1174,
+      "publicTypeCount": 566,
+      "methodCount": 14268,
+      "publicMemberCount": 8987
+    }
+  ]
+}
