@@ -218,7 +218,8 @@ public sealed class CombatTransformerTeacherOptions
 
     public int DatasetShardFrames { get; set; } = 64;
 
-    public long MemoryReserveBytes { get; set; } = 2L * 1024L * 1024L * 1024L;
+    public long MemoryReserveBytes { get; set; } =
+        CombatFoundationParallelismProtocol.DefaultTeacherReserveBytes;
 
     public bool EnablePinnedMemory { get; set; } = true;
 
@@ -273,7 +274,7 @@ public sealed class CombatTransformerTeacherOptions
         PrefetchBatches = Math.Max(1, Math.Min(8, PrefetchBatches));
         DatasetShardFrames = Math.Max(16, Math.Min(512, DatasetShardFrames));
         MemoryReserveBytes = Math.Max(
-            512L * 1024L * 1024L,
+            128L * 1024L * 1024L,
             Math.Min(16L * 1024L * 1024L * 1024L, MemoryReserveBytes));
         DistillationWeight = Clamp(DistillationWeight, 0d, 0.75d, 0.35d);
         AdaptiveRefreshDriftThreshold = Clamp(

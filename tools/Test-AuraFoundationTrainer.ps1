@@ -619,11 +619,12 @@ try {
                     -ne $AutoTuneObjective `
                 -or $null -eq $capacityDecision `
                 -or [string]$capacityDecision.ProtocolVersion `
-                    -ne "foundation-parallelism-v3-phase-aware-fixed-reserve" `
+                    -ne "foundation-parallelism-v4-phase-aware-128m-reserve" `
                 -or [int]$capacityDecision.SelectedParallelism `
                     -ne [int]$result.Training.EffectiveParallelism `
                 -or [int64]$capacityDecision.PredictedPerLaneBytes -le 0 `
-                -or [int64]$capacityDecision.MemoryReserveBytes -le 0 `
+                -or [int64]$capacityDecision.MemoryReserveBytes `
+                    -ne [int64](128 * 1024 * 1024) `
                 -or [string]::IsNullOrWhiteSpace(
                     [string]$capacityDecision.Reason) `
                 -or [string]::IsNullOrWhiteSpace(
@@ -815,14 +816,20 @@ try {
             -TotalCount 1
         if ([int]$checkpoint.SchemaVersion -ne $protocolVersion `
             -or [int]$checkpoint.Resume.SchemaVersion -ne $protocolVersion `
-            -or [int]$checkpoint.EpisodeSnapshot.StorageVersion -ne 3 `
+            -or [int]$checkpoint.EpisodeSnapshot.StorageVersion -ne 4 `
             -or [int]$checkpoint.EpisodeSnapshot.EpisodeCount -le 0 `
+            -or [int]$checkpoint.EpisodeSnapshot.SourceEpisodeCount `
+                -lt [int]$checkpoint.EpisodeSnapshot.EpisodeCount `
+            -or [string]::IsNullOrWhiteSpace(
+                [string]$checkpoint.EpisodeSnapshot.SourceReplayIdentity) `
+            -or @($checkpoint.EpisodeSnapshot.WarehouseReplayKeys).Count -le 0 `
             -or $null -eq $checkpoint.EpisodeSnapshot.FeatureTokenCatalog `
             -or -not $checkpointFirstEpisode.Contains(
                 '"CompactStateFeatureTokenIds"') `
             -or -not $checkpointFirstEpisode.Contains(
                 '"CompactFeatureTokenIds"') `
             -or $checkpointFirstEpisode.Contains('"StateFeatures"') `
+            -or $checkpointFirstEpisode.Contains('"Observation"') `
             -or [int64]$checkpoint.EpisodeSnapshot.Length -ne (
                 Get-Item -LiteralPath $checkpointSnapshotPath).Length `
             -or [string]$checkpoint.EpisodeSnapshot.ContentSha256 -ne (

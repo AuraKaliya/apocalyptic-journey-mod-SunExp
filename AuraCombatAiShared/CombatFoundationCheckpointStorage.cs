@@ -13,7 +13,7 @@ namespace AuraCombatAi.Shared;
 
 public static class CombatFoundationCheckpointStorage
 {
-    public const int SnapshotStorageVersion = 3;
+    public const int SnapshotStorageVersion = 4;
 
     private const int MaximumFileAttempts = 8;
 

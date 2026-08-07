@@ -33,6 +33,116 @@ a shared helper before referencing them.
 - **Notes**: Added the derivation inside `BuildFoundationHtml`; the net472 build passed.
 
 ---
+## [ERR-20260807-035] powershell-foreach-pipeline
+
+**Logged**: 2026-08-07T19:45:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+Two diagnostic commands attempted to pipe directly from a PowerShell `foreach` statement and failed parsing.
+
+### Error
+```text
+ParserError: An empty pipe element is not allowed.
+```
+
+### Context
+- The commands were building compact training telemetry summaries.
+- PowerShell requires the statement to be grouped, or its output to be accumulated before piping.
+
+### Suggested Fix
+Accumulate rows in an explicit array and pipe the array after the loop.
+
+### Metadata
+- Reproducible: yes
+- Related Files: none
+- Recurrence-Count: 2
+
+---
+
+## [ERR-20260807-037] resume-replay-ownership
+
+**Logged**: 2026-08-07T00:00:00+08:00
+**Priority**: medium
+**Status**: resolved
+**Area**: tests
+
+### Summary
+Cross-round cleanup initially cleared the caller-owned resume replay list and broke the checkpoint API's non-mutating behavior.
+
+### Error
+```text
+Assertion failed: foundation checkpoints persist the sampled replay window and resume model training without replaying campaigns
+```
+
+### Context
+- The isolated Worker needs an ownership transfer so dropped hot-window episodes are not pinned by the request.
+- General library callers and tests may retain the resume object for diagnostics and must not observe it being emptied.
+
+### Suggested Fix
+Keep ownership transfer opt-in on the training request and enable it only in the isolated Worker after loading a checkpoint.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraCombatAiShared/CombatCampaignFoundationTraining.cs, AuraFoundationTrainer.Worker/Program.cs
+
+---
+
+## [ERR-20260807-038] null-coalescing-collection-types
+
+**Logged**: 2026-08-07T00:00:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: build
+
+### Summary
+A null-coalescing expression combined `List<string>` with `string[]` without first converting them to their shared interface type.
+
+### Error
+```text
+CS0019: operator '??' cannot be applied to operands of type 'List<string>' and 'string[]'
+```
+
+### Context
+- The replay warehouse loader accepts `IReadOnlyCollection<string>`.
+- Both operands implement that interface, but `??` requires a direct implicit conversion between its operand types.
+
+### Suggested Fix
+Cast the nullable left operand to `IReadOnlyCollection<string>?` before coalescing with `Array.Empty<string>()`.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraFoundationTrainer.Worker/Program.cs
+
+---
+## [ERR-20260807-036] rg-mixed-existing-paths
+
+**Logged**: 2026-08-07T19:45:00+08:00
+**Priority**: low
+**Status**: resolved
+**Area**: infra
+
+### Summary
+A diagnostic `rg` command included a guessed source filename that does not exist, so the otherwise useful search returned exit code 1.
+
+### Error
+```text
+rg: AuraCombatAiShared/CombatFoundationReplaySampler.cs: The system cannot find the file specified. (os error 2)
+```
+
+### Context
+- `CombatFoundationReplaySampler` is declared in `CombatFoundationTrainingStrategy.cs`, not a same-named file.
+
+### Suggested Fix
+Resolve declarations with `rg --files` or search the known source directory without appending a guessed path.
+
+### Metadata
+- Reproducible: yes
+- Related Files: AuraCombatAiShared/CombatFoundationTrainingStrategy.cs
+
+---
 ## [ERR-20260807-027] functions-exec-parallel-inspection
 
 **Logged**: 2026-08-07T00:00:00+08:00

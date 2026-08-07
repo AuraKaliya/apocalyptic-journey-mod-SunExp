@@ -6,6 +6,7 @@ using System.Diagnostics;
 using System.Globalization;
 using System.Linq;
 using System.Reflection;
+using System.Runtime;
 using System.Text;
 using System.Threading;
 using System.Threading.Tasks;
@@ -546,6 +547,13 @@ public sealed class CombatCampaignFoundationTrainingRequest
     }
 
     public CombatCampaignFoundationResumeState? Resume { get; set; }
+
+    /// <summary>
+    /// Allows the isolated Worker to transfer ownership of resume replay into
+    /// the result instead of retaining a second cross-round reference graph.
+    /// Library callers keep the non-mutating default.
+    /// </summary>
+    public bool ReleaseResumeReplayAfterTransfer { get; set; }
 
     public Action<CombatCampaignFoundationResumeState>? Checkpoint { get; set; }
 
@@ -2525,10 +2533,18 @@ public sealed class CombatCampaignFoundationTrainer
         result.ResolvedIterationLimit = iterations;
         if (resume != null)
         {
+            var resumedReplay = resume.Replay ?? new List<CombatEpisode>();
             result.GeneratedReplayEpisodes = Math.Max(
                 resume.GeneratedReplayEpisodes,
-                resume.Replay?.Count ?? 0);
-            result.Replay.AddRange(resume.Replay ?? new List<CombatEpisode>());
+                resumedReplay.Count);
+            ReleaseTransientEpisodeStorage(resumedReplay);
+            result.Replay.AddRange(resumedReplay);
+            // Result now owns the live hot set. Do not let the request-level
+            // resume payload pin episodes that are dropped later this round.
+            if (request.ReleaseResumeReplayAfterTransfer)
+            {
+                resumedReplay.Clear();
+            }
             result.Iterations.AddRange(
                 resume.Iterations
                 ?? new List<CombatCampaignFoundationIteration>());
@@ -3796,6 +3812,12 @@ public sealed class CombatCampaignFoundationTrainer
                 replayHotBytesLimit);
             replayWindow = replaySelection.Episodes;
             result.Replay = replayWindow;
+            var teacherReplayEpisodes = new HashSet<CombatEpisode>(
+                trainingReplayWindow);
+            ReleaseTransientEpisodeStorage(allCollectedReplay.Where(episode =>
+                !teacherReplayEpisodes.Contains(episode)));
+            CombatRiskAwareRootSamplingPuctPlanner.TrimRetainedSearchMemory();
+            CompactManagedHeap();
             var transformerTeacherReport =
                 new CombatTransformerTeacherReport
                 {
@@ -3864,6 +3886,12 @@ public sealed class CombatCampaignFoundationTrainer
                 }
                 result.TransformerTeacherReports.Add(transformerTeacherReport);
             }
+            // Observation envelopes are needed only through teacher export.
+            // Compact state/action columns and teacher annotations remain for
+            // the MLP trainer and the cross-process checkpoint.
+            ReleaseTransientEpisodeStorage(trainingReplayWindow);
+            ReleaseTransientEpisodeStorage(replayWindow);
+            CompactManagedHeap();
             var effectiveDistillation =
                 EffectiveTransformerDistillationWeight(
                     transformerTeacherReport,
@@ -6973,7 +7001,7 @@ public sealed class CombatCampaignFoundationTrainer
             .TrimRetainedSearchMemory();
         if (iteration > 1 || trim.ReleasedEstimatedBytes > 0L)
         {
-            GC.Collect(2, GCCollectionMode.Forced, blocking: true);
+            CompactManagedHeap();
         }
         var resources = CombatFoundationResourceSnapshot.Capture();
         return CombatFoundationParallelismPlanner.Select(
@@ -6983,6 +7011,17 @@ public sealed class CombatCampaignFoundationTrainer
             trim,
             request.ParallelismPerLaneBytes,
             request.ParallelismMemoryReserveBytes);
+    }
+
+    private static void CompactManagedHeap()
+    {
+        GCSettings.LargeObjectHeapCompactionMode =
+            GCLargeObjectHeapCompactionMode.CompactOnce;
+        GC.Collect(
+            2,
+            GCCollectionMode.Forced,
+            blocking: true,
+            compacting: true);
     }
 
     private static bool AutoTuneCacheCompatible(
@@ -8161,6 +8200,18 @@ public sealed class CombatCampaignFoundationTrainer
             }
         }
         return removed;
+    }
+
+    private static void ReleaseTransientEpisodeStorage(
+        IEnumerable<CombatEpisode>? episodes)
+    {
+        foreach (var frame in (episodes ?? Array.Empty<CombatEpisode>())
+                     .Where(episode => episode != null)
+                     .SelectMany(episode =>
+                         episode.Frames ?? new List<CombatEpisodeFrame>()))
+        {
+            frame?.ReleaseTransientStorage();
+        }
     }
 
     private static void AddIntegrityFailure(

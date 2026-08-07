@@ -476,7 +476,7 @@ internal sealed class MainWindow : Window
             panel,
             "TransformerTeacherMemoryReserveMegabytes",
             "教师启动保留内存（MiB）",
-            512,
+            128,
             16384);
         AddToggle(
             panel,
@@ -2597,7 +2597,7 @@ internal sealed class MainWindow : Window
         Set(
             "TransformerTeacherMemoryReserveMegabytes",
             Math.Max(
-                512L,
+                128L,
                 p.TransformerTeacherMemoryReserveBytes
                 / (1024L * 1024L)));
         SetToggle(

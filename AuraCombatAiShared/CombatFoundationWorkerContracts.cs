@@ -60,6 +60,12 @@ public static class CombatFoundationWorkerProtocol
             diagnostic = "底模训练任务包含无效的内容 MOD 权威 Episode";
             return false;
         }
+        if (!string.IsNullOrWhiteSpace(job.RequiredCheckpointFingerprint)
+            && !ValidFingerprint(job.RequiredCheckpointFingerprint))
+        {
+            diagnostic = "底模训练任务包含无效的轮次断点指纹";
+            return false;
+        }
         diagnostic = "";
         return true;
     }
@@ -72,6 +78,11 @@ public static class CombatFoundationWorkerProtocol
                && value.All(character =>
                    character >= '0' && character <= '9'
                    || character >= 'a' && character <= 'f');
+    }
+
+    private static bool ValidFingerprint(string value)
+    {
+        return value.Length == 64 && value.All(Uri.IsHexDigit);
     }
 
     public static bool TryValidateProgress(
@@ -185,6 +196,8 @@ public sealed class CombatFoundationWorkerJob
     public bool ResumeFromCheckpoint { get; set; } = true;
 
     public bool RequireCompatibleResume { get; set; }
+
+    public string RequiredCheckpointFingerprint { get; set; } = "";
 
     public bool ResetCheckpointOnFreshStart { get; set; }
 
@@ -456,7 +469,15 @@ public sealed class CombatFoundationEpisodeSnapshot
 
     public string ReplayIdentity { get; set; } = "";
 
+    public string SourceReplayIdentity { get; set; } = "";
+
     public int EpisodeCount { get; set; } = -1;
+
+    public int SourceEpisodeCount { get; set; } = -1;
+
+    public bool ProcessBoundaryCompacted { get; set; }
+
+    public List<string> WarehouseReplayKeys { get; set; } = new();
 
     public long Length { get; set; }
 

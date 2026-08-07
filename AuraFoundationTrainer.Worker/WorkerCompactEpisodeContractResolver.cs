@@ -21,6 +21,16 @@ internal sealed class WorkerCompactEpisodeContractResolver :
         {
             if (string.Equals(
                     property.PropertyName,
+                    nameof(CombatEpisodeFrame.Observation),
+                    StringComparison.Ordinal))
+            {
+                // The projected compact features are the durable training
+                // payload. Keeping the source observation duplicates the
+                // largest object graph across process-boundary checkpoints.
+                property.Ignored = true;
+            }
+            else if (string.Equals(
+                    property.PropertyName,
                     nameof(CombatEpisodeFrame.StateFeatures),
                     StringComparison.Ordinal))
             {

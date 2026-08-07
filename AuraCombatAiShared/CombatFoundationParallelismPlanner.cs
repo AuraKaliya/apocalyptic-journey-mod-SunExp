@@ -7,16 +7,16 @@ namespace AuraCombatAi.Shared;
 public static class CombatFoundationParallelismProtocol
 {
     public const string Version =
-        "foundation-parallelism-v3-phase-aware-fixed-reserve";
+        "foundation-parallelism-v4-phase-aware-128m-reserve";
 
     public const long DefaultPerLaneBytes = 384L * 1024L * 1024L;
 
     public const long DefaultTransientPerLaneBytes = 128L * 1024L * 1024L;
 
-    public const long MinimumReserveBytes = 3L * 1024L * 1024L * 1024L;
+    public const long MinimumReserveBytes = 128L * 1024L * 1024L;
 
     public const long DefaultTeacherReserveBytes =
-        2L * 1024L * 1024L * 1024L;
+        128L * 1024L * 1024L;
 
     public const long DefaultTeacherPeakBytes =
         3L * 1024L * 1024L * 1024L;

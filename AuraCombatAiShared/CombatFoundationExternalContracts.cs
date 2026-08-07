@@ -296,7 +296,7 @@ public sealed class CombatFoundationTrainingParameters
     public int TransformerTeacherDatasetShardFrames { get; set; } = 64;
 
     public long TransformerTeacherMemoryReserveBytes { get; set; } =
-        2L * 1024L * 1024L * 1024L;
+        CombatFoundationParallelismProtocol.DefaultTeacherReserveBytes;
 
     public bool TransformerTeacherEnablePinnedMemory { get; set; } = true;
 

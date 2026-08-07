@@ -43,6 +43,23 @@ internal sealed class CombatCompactFeatureVector
                 return true;
             }
         }
+        // Snapshot v3 may contain aliases created by the former concurrent
+        // token allocator. Resolve those ids only when the canonical id was
+        // not present in this vector.
+        for (var index = 0; index < TokenIds.Length; index++)
+        {
+            if (CombatFeatureTokenRegistry.TryResolve(
+                    TokenIds[index],
+                    out var candidate)
+                && string.Equals(
+                    candidate,
+                    key,
+                    StringComparison.OrdinalIgnoreCase))
+            {
+                value = Values[index];
+                return true;
+            }
+        }
         return false;
     }
 
@@ -74,12 +91,20 @@ internal static class CombatFeatureTokenRegistry
     public static int GetToken(string? key)
     {
         var normalized = key ?? "";
-        return Tokens.GetOrAdd(normalized, value =>
+        if (Tokens.TryGetValue(normalized, out var existing))
         {
-            var token = Interlocked.Increment(ref nextToken);
-            Names[token] = value;
+            return existing;
+        }
+
+        var token = Interlocked.Increment(ref nextToken);
+        Names[token] = normalized;
+        if (Tokens.TryAdd(normalized, token))
+        {
             return token;
-        });
+        }
+
+        Names.TryRemove(token, out _);
+        return Tokens[normalized];
     }
 
     public static bool TryGetToken(string? key, out int token)
@@ -119,14 +144,11 @@ internal static class CombatFeatureTokenRegistry
                 throw new InvalidOperationException(
                     "Feature token catalog conflict for token " + pair.Key);
             }
-            if (Tokens.TryGetValue(pair.Value, out var existingToken)
-                && existingToken != pair.Key)
-            {
-                throw new InvalidOperationException(
-                    "Feature token catalog conflict for key " + pair.Value);
-            }
             Names[pair.Key] = pair.Value;
-            Tokens[pair.Value] = pair.Key;
+            // Older parallel snapshots can legitimately contain more than
+            // one token id for the same feature name. Retain every reverse
+            // alias while keeping the first forward token canonical.
+            Tokens.TryAdd(pair.Value, pair.Key);
             var observed = Volatile.Read(ref nextToken);
             while (observed < pair.Key)
             {

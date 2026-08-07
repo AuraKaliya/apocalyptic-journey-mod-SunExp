@@ -39,7 +39,7 @@
 | 在线治理 | 墙钟截止、模型调用预算、风险偏好、安全回退；Actor 裁剪默认关闭 |
 | Worker | schema 12 |
 | 训练治理 | `foundation-governance-v26-productive-progress-pareto-arena` + `foundation-stagnation-v3-behavior-vs-pipeline-progress` + `paired-evidence-v6-absolute-qualified-best` |
-| 自动并发规划 | `foundation-parallelism-v3-phase-aware-fixed-reserve` + `foundation-auto-tune-v11-adaptive-exact-capacity`；常规阶段固定保留 3 GiB，每轮由独立 Worker 子进程执行并在轮末退出，Replay 使用压缩磁盘仓库与固定热窗口；内存预测只收紧当前轮并发，不把上一轮已退出进程的占用重复扣除 |
+| 自动并发规划 | `foundation-parallelism-v4-phase-aware-128m-reserve` + `foundation-auto-tune-v11-adaptive-exact-capacity`；常规阶段固定保留 128 MiB，Transformer 阶段按预测峰值另保留 128 MiB；每轮由独立 Worker 子进程执行并在轮末退出，跨进程 Replay 检查点最多携带 512 Episodes / 48000 Frames / 256 MiB 估算常驻量，其余进入压缩磁盘仓库；后续轮复用本次训练的有效 Auto-Tune，内存预测不把上一轮已退出进程的占用重复扣除 |
 | 外部模型包 | 写入 `foundation-model-package-v4`；读取兼容正式验收的 v3 |
 | CLI 搜索策略 | `risk-puct` |
 

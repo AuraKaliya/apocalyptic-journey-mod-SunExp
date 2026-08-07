@@ -995,6 +995,43 @@ public sealed class CombatFoundationReplayBalanceOptions
 
 public static class CombatFoundationReplaySampler
 {
+    public const int ProcessBoundaryEpisodeLimit = 512;
+
+    public const int ProcessBoundaryFrameLimit = 48_000;
+
+    public const long ProcessBoundaryEstimatedBytesLimit =
+        256L * 1024L * 1024L;
+
+    public static CombatFoundationReplaySelection SelectProcessBoundary(
+        IEnumerable<CombatEpisode> source,
+        IEnumerable<CombatEpisode>? required,
+        int configuredEpisodeLimit,
+        int configuredFrameLimit,
+        long configuredEstimatedBytesLimit,
+        int minimumEpisodes,
+        bool stratified,
+        CombatFoundationReplayBalanceOptions? balance = null)
+    {
+        var episodeLimit = Math.Max(
+            minimumEpisodes,
+            Math.Min(
+                ProcessBoundaryEpisodeLimit,
+                Math.Max(1, configuredEpisodeLimit)));
+        var selection = Select(source, episodeLimit, stratified, balance);
+        ApplyResourceBudget(
+            selection,
+            required,
+            minimumEpisodes,
+            Math.Min(
+                ProcessBoundaryFrameLimit,
+                Math.Max(minimumEpisodes, configuredFrameLimit)),
+            Math.Min(
+                ProcessBoundaryEstimatedBytesLimit,
+                Math.Max(64L * 1024L * 1024L,
+                    configuredEstimatedBytesLimit)));
+        return selection;
+    }
+
     public static void ApplyResourceBudget(
         CombatFoundationReplaySelection selection,
         IEnumerable<CombatEpisode>? required,

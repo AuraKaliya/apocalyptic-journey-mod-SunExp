@@ -593,11 +593,15 @@ public static class CombatFoundationCaseLearning
                            candidate.CandidateId,
                            frame.ExecutedCandidateId,
                            StringComparison.Ordinal));
-                   return executed?.Legal == true
-                          && Feature(
-                              executed.Features,
+                   if (executed?.Legal != true)
+                   {
+                       return false;
+                   }
+                   return !executed.TryGetFeature(
                               CombatRoleStrategyFeatureNames
-                                  .StrategicallyProhibited) <= 0.5d;
+                                  .StrategicallyProhibited,
+                              out var prohibited)
+                          || prohibited <= 0.5d;
                });
     }
 

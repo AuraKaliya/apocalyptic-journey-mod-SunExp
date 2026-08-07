@@ -170,6 +170,19 @@ public sealed class CombatEpisodeFrame
 
     internal bool HasObservation => observation != null;
 
+    internal void ReleaseTransientStorage()
+    {
+        observation = null;
+        if (CompactStateFeatures != null)
+        {
+            stateFeatures = null;
+        }
+        foreach (var candidate in Candidates ?? new List<CombatEpisodeCandidate>())
+        {
+            candidate?.ReleaseTransientStorage();
+        }
+    }
+
     public int[]? CompactStateFeatureTokenIds
     {
         get => CompactStateFeatures?.TokenIds;
@@ -341,6 +354,14 @@ public sealed class CombatEpisodeCandidate
     internal CombatCompactFeatureVector? CompactFeatures { get; private set; }
 
     internal bool HasMaterializedFeatures => features != null;
+
+    internal void ReleaseTransientStorage()
+    {
+        if (CompactFeatures != null)
+        {
+            features = null;
+        }
+    }
 
     public int[]? CompactFeatureTokenIds
     {

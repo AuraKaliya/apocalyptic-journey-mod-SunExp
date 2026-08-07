@@ -253,6 +253,12 @@ try
                 : resumeDiagnostic + " | current checkpoint: "
                   + checkpointDiagnostic;
         }
+        else if (!string.IsNullOrWhiteSpace(checkpointDiagnostic))
+        {
+            resumeDiagnostic = checkpointDiagnostic
+                               + " | historical recovery: "
+                               + resumeDiagnostic;
+        }
     }
     if (resumedFromCheckpoint)
     {
@@ -268,6 +274,7 @@ try
                   + " | 已创建模型分支；优化器与 epoch 已重置";
         }
         job.Request.Resume = resume;
+        job.Request.ReleaseResumeReplayAfterTransfer = true;
         Console.WriteLine(
             "Foundation worker resumed: stage="
             + resume.Stage
@@ -317,6 +324,14 @@ try
                 : new[] { checkpointSnapshot.Path })
             .Distinct(StringComparer.OrdinalIgnoreCase)
             .ToArray());
+    CombatFoundationReplayWarehouse? replayWarehouse = null;
+    if (job.Request.EnableReplayWarehouse)
+    {
+        replayWarehouse = new CombatFoundationReplayWarehouse(
+            Path.Combine(
+                checkpointDirectory,
+                "foundation-replay-warehouse-v1"));
+    }
     var metricGate = new object();
     using var metricStream = new FileStream(
         job.TrainingMetricsPath,
@@ -445,12 +460,17 @@ try
         null,
         TimeSpan.FromSeconds(2),
         TimeSpan.FromSeconds(2));
-    var checkpointReplayIdentity =
-        checkpointSnapshot?.ReplayIdentity ?? "";
-    if (string.IsNullOrWhiteSpace(checkpointReplayIdentity)
+    var checkpointSourceReplayIdentity =
+        checkpointSnapshot?.SourceReplayIdentity ?? "";
+    if (string.IsNullOrWhiteSpace(checkpointSourceReplayIdentity))
+    {
+        checkpointSourceReplayIdentity =
+            checkpointSnapshot?.ReplayIdentity ?? "";
+    }
+    if (string.IsNullOrWhiteSpace(checkpointSourceReplayIdentity)
         && job.Request.Resume?.Replay != null)
     {
-        checkpointReplayIdentity =
+        checkpointSourceReplayIdentity =
             ReplayIdentity(job.Request.Resume.Replay);
     }
     // Snapshot JSON conversion runs concurrently with campaign/model work.
@@ -473,22 +493,89 @@ try
             var checkpointStarted = Stopwatch.StartNew();
             try
             {
-                var replayIdentity = ReplayIdentity(state.Replay);
+                var sourceReplayIdentity = ReplayIdentity(state.Replay);
                 var nextSnapshot = checkpointSnapshot;
                 if (nextSnapshot == null
                     || !CombatFoundationPathRuntime.FileExists(nextSnapshot.Path)
                     || !string.Equals(
-                        checkpointReplayIdentity,
-                        replayIdentity,
+                        checkpointSourceReplayIdentity,
+                        sourceReplayIdentity,
                         StringComparison.Ordinal))
                 {
+                    IReadOnlyList<CombatEpisode> snapshotReplay = state.Replay;
+                    var warehouseReplayKeys = nextSnapshot?.WarehouseReplayKeys
+                                                  ?.Where(key =>
+                                                      !string.IsNullOrWhiteSpace(
+                                                          key))
+                                                  .ToHashSet(StringComparer.Ordinal)
+                                              ?? new HashSet<string>(
+                                                  StringComparer.Ordinal);
+                    if (job.Request.EnableIterationProcessIsolation
+                        && replayWarehouse != null
+                        && state.Replay.Count > 0)
+                    {
+                        var archiveReport = replayWarehouse.Archive(
+                            Math.Max(1, state.NextIteration),
+                            state.Replay);
+                        var archivedSourceEpisodes =
+                            archiveReport.ArchivedEpisodes
+                            + archiveReport.DuplicateEpisodes;
+                        if (string.IsNullOrWhiteSpace(archiveReport.Error)
+                            && archivedSourceEpisodes
+                            >= archiveReport.SourceEpisodes)
+                        {
+                            foreach (var episode in state.Replay.Where(
+                                         episode => episode != null))
+                            {
+                                warehouseReplayKeys.Add(
+                                    CombatFoundationReplayWarehouse.StableKey(
+                                        episode));
+                            }
+                            var trainingOptions = job.Request.Training.Normalized();
+                            var requiredReplay = (job.Request
+                                                      .AuthoritativeContentEpisodes
+                                                  ?? new List<CombatEpisode>())
+                                .Concat(job.Request.ExpertReplayEpisodes
+                                        ?? new List<CombatEpisode>())
+                                .ToList();
+                            snapshotReplay = CombatFoundationReplaySampler
+                                .SelectProcessBoundary(
+                                    state.Replay,
+                                    requiredReplay,
+                                    job.Request.ReplayHotWindowEpisodeLimit,
+                                    job.Request.ReplayHotWindowFrameLimit,
+                                    job.Request
+                                        .ReplayHotWindowEstimatedBytesLimit,
+                                    trainingOptions.MinimumEpisodes,
+                                    job.Request.EnableStratifiedReplay,
+                                    new CombatFoundationReplayBalanceOptions
+                                    {
+                                        MinimumAdvancedShare = job.Request
+                                            .MinimumAdvancedReplayShare,
+                                        MinimumAdvancedDefeatShare = job.Request
+                                            .MinimumAdvancedDefeatReplayShare,
+                                        EnablePrioritySampling = job.Request
+                                            .EnablePrioritizedReplay,
+                                        AllowCrossDifficultyBackfill = false
+                                    })
+                                .Episodes;
+                        }
+                    }
+                    var snapshotReplayIdentity = ReplayIdentity(snapshotReplay);
                     nextSnapshot =
                         CombatFoundationCheckpointStorage.WriteEpisodeSnapshot(
                             job.CheckpointEpisodesPath,
-                            state.Replay,
+                            snapshotReplay,
                             SerializeCompact,
-                            replayIdentity,
+                            snapshotReplayIdentity,
                             checkpointSerializationWorkers);
+                    nextSnapshot.SourceReplayIdentity = sourceReplayIdentity;
+                    nextSnapshot.SourceEpisodeCount = state.Replay.Count;
+                    nextSnapshot.ProcessBoundaryCompacted =
+                        snapshotReplay.Count < state.Replay.Count;
+                    nextSnapshot.WarehouseReplayKeys = warehouseReplayKeys
+                        .OrderBy(key => key, StringComparer.Ordinal)
+                        .ToList();
                 }
                 var checkpoint = new CombatFoundationWorkerCheckpoint
                 {
@@ -508,7 +595,7 @@ try
                     requestFingerprint,
                     build.Ruleset.RulesetHash);
                 checkpointSnapshot = nextSnapshot;
-                checkpointReplayIdentity = replayIdentity;
+                checkpointSourceReplayIdentity = sourceReplayIdentity;
                 checkpointWarning = "";
                 CombatFoundationCheckpointStorage.CleanupArtifacts(
                     job.CheckpointPath,
@@ -701,14 +788,21 @@ try
         };
     }
 
-    if (job.Request.EnableReplayWarehouse)
+    if (replayWarehouse != null)
     {
-        var replayWarehouse = new CombatFoundationReplayWarehouse(
-            Path.Combine(
-                checkpointDirectory,
-                "foundation-replay-warehouse-v1"));
         job.Request.ReplayArchiveSink = replayWarehouse.Archive;
-        job.Request.HistoricalReplaySource = replayWarehouse.Load;
+        job.Request.HistoricalReplaySource = (
+            iteration,
+            excludedKeys,
+            episodeLimit,
+            bytesLimit) => replayWarehouse.Load(
+            iteration,
+            excludedKeys,
+            episodeLimit,
+            bytesLimit,
+            (IReadOnlyCollection<string>?)checkpointSnapshot
+                ?.WarehouseReplayKeys
+            ?? Array.Empty<string>());
     }
 
     ICombatTransformerTeacher? transformerTeacher = null;
@@ -1461,7 +1555,20 @@ static bool TryLoadCheckpoint(
                     rulesetHash))
             {
                 throw new InvalidDataException(
-                    "checkpoint identity does not match this job");
+                    "checkpoint identity does not match this job"
+                    + "; checkpointFingerprint="
+                    + checkpoint.RequestFingerprint
+                    + ", requestFingerprint="
+                    + requestFingerprint
+                    + ", checkpointRuleset="
+                    + checkpoint.RulesetHash
+                    + ", requestRuleset="
+                    + rulesetHash
+                    + ", supervisorContinuation="
+                    + SupervisorContinuationDiagnostic(
+                        job,
+                        checkpoint,
+                        rulesetHash));
             }
             var snapshot = checkpoint.EpisodeSnapshot
                            ?? new CombatFoundationEpisodeSnapshot
@@ -1506,6 +1613,19 @@ static bool TryLoadCheckpoint(
                     StringComparison.OrdinalIgnoreCase)
                     ? ""
                     : "已从检查点备份恢复";
+            if (!string.Equals(
+                    checkpoint.RequestFingerprint,
+                    requestFingerprint,
+                    StringComparison.Ordinal)
+                && SupervisorContinuationIdentityCompatible(
+                    job,
+                    checkpoint,
+                    rulesetHash))
+            {
+                diagnostic = string.IsNullOrWhiteSpace(diagnostic)
+                    ? "已按轮次监督器交接指纹恢复检查点"
+                    : diagnostic + "；已验证轮次监督器交接指纹";
+            }
             return true;
         }
         catch (Exception ex)
@@ -1535,10 +1655,11 @@ static bool CheckpointIdentityCompatible(
     {
         return false;
     }
-    if (string.Equals(
-            checkpoint.RequestFingerprint,
-            requestFingerprint,
-            StringComparison.Ordinal))
+    var exactRequestIdentity = string.Equals(
+        checkpoint.RequestFingerprint,
+        requestFingerprint,
+        StringComparison.Ordinal);
+    if (exactRequestIdentity)
     {
         return !string.Equals(
                    checkpoint.Resume?.Stage,
@@ -1549,6 +1670,13 @@ static bool CheckpointIdentityCompatible(
                        ?.NativeProgramPackageHash,
                    job.Request.NativeProgramPackageHash,
                    StringComparison.Ordinal);
+    }
+    if (SupervisorContinuationIdentityCompatible(
+            job,
+            checkpoint,
+            rulesetHash))
+    {
+        return true;
     }
     if (!string.Equals(
             job.ResumeMode,
@@ -1568,6 +1696,155 @@ static bool CheckpointIdentityCompatible(
                checkpoint.Resume?.Compatibility,
                current)
            && ModelArchitectureCompatible(candidate, job.Request.Training);
+}
+
+static bool SupervisorManifestCompatible(
+    CombatFoundationCompatibilityManifest? checkpoint,
+    CombatFoundationCompatibilityManifest current)
+{
+    return checkpoint != null
+           && checkpoint.SchemaVersion == current.SchemaVersion
+           && checkpoint.FeatureSchemaVersion == current.FeatureSchemaVersion
+           && checkpoint.StateDimensions == current.StateDimensions
+           && checkpoint.ActionDimensions == current.ActionDimensions
+           && checkpoint.HiddenDimensions == current.HiddenDimensions
+           && string.Equals(
+               checkpoint.RulesetHash,
+               current.RulesetHash,
+               StringComparison.Ordinal)
+           && string.Equals(
+               checkpoint.ContentSetHash,
+               current.ContentSetHash,
+               StringComparison.Ordinal)
+           && string.Equals(
+               checkpoint.OwnerModSetHash,
+               current.OwnerModSetHash,
+               StringComparison.Ordinal)
+           && string.Equals(
+               checkpoint.ActionContractVersion,
+               current.ActionContractVersion,
+               StringComparison.Ordinal)
+           && string.Equals(
+               checkpoint.SemanticGateVersion,
+               current.SemanticGateVersion,
+               StringComparison.Ordinal)
+           && string.Equals(
+               checkpoint.IntegritySeedCorpusVersion,
+               current.IntegritySeedCorpusVersion,
+               StringComparison.Ordinal)
+           && string.Equals(
+               checkpoint.NativeProgramPackageHash,
+               current.NativeProgramPackageHash,
+               StringComparison.Ordinal)
+           && string.Equals(
+               checkpoint.CampaignId,
+               current.CampaignId,
+               StringComparison.Ordinal)
+           && string.Equals(
+               checkpoint.CampaignVersion,
+               current.CampaignVersion,
+               StringComparison.Ordinal)
+           && string.Equals(
+               checkpoint.FeatureEncodingMode,
+               current.FeatureEncodingMode,
+               StringComparison.Ordinal)
+           && string.Equals(
+               checkpoint.SearchPolicyVersion,
+               current.SearchPolicyVersion,
+               StringComparison.Ordinal)
+           && string.Equals(
+               checkpoint.CurriculumVersion,
+               current.CurriculumVersion,
+               StringComparison.Ordinal)
+           && string.Equals(
+               checkpoint.TrainingPolicyVersion,
+               current.TrainingPolicyVersion,
+               StringComparison.Ordinal)
+           && string.Equals(
+               checkpoint.TrainingSemanticsVersion,
+               current.TrainingSemanticsVersion,
+               StringComparison.Ordinal);
+}
+
+static bool SupervisorContinuationIdentityCompatible(
+    CombatFoundationWorkerJob job,
+    CombatFoundationWorkerCheckpoint checkpoint,
+    string rulesetHash)
+{
+    if (!job.ResumeFromCheckpoint
+        || !job.RequireCompatibleResume
+        || !string.Equals(
+            job.RequestedStartMode,
+            "iteration-boundary-resume",
+            StringComparison.Ordinal)
+        || !string.Equals(
+            job.ResumeMode,
+            CombatFoundationCheckpointResumeModes.Exact,
+            StringComparison.Ordinal)
+        || string.IsNullOrWhiteSpace(job.RequiredCheckpointFingerprint)
+        || !string.Equals(
+            checkpoint.RequestFingerprint,
+            job.RequiredCheckpointFingerprint,
+            StringComparison.Ordinal)
+        || !string.Equals(
+            checkpoint.Resume?.Stage,
+            "iteration-complete",
+            StringComparison.Ordinal))
+    {
+        return false;
+    }
+
+    var current = CombatCampaignFoundationTrainer.BuildCompatibilityManifest(
+        job.Request,
+        rulesetHash);
+    var candidate = checkpoint.Resume?.WorkingChampion
+                    ?? checkpoint.Resume?.Champion;
+    return SupervisorManifestCompatible(
+               checkpoint.Resume?.Compatibility,
+               current)
+           && ModelArchitectureCompatible(candidate, job.Request.Training);
+}
+
+static string SupervisorContinuationDiagnostic(
+    CombatFoundationWorkerJob job,
+    CombatFoundationWorkerCheckpoint checkpoint,
+    string rulesetHash)
+{
+    if (!string.Equals(
+            job.RequestedStartMode,
+            "iteration-boundary-resume",
+            StringComparison.Ordinal))
+    {
+        return "not-requested";
+    }
+    var current = CombatCampaignFoundationTrainer.BuildCompatibilityManifest(
+        job.Request,
+        rulesetHash);
+    var stored = checkpoint.Resume?.Compatibility;
+    var candidate = checkpoint.Resume?.WorkingChampion
+                    ?? checkpoint.Resume?.Champion;
+    return "requiredFingerprint="
+           + job.RequiredCheckpointFingerprint
+           + ", stage="
+           + checkpoint.Resume?.Stage
+           + ", manifestCompatible="
+           + CombatCampaignFoundationTrainer.ManifestCompatible(stored, current)
+           + ", supervisorManifestCompatible="
+           + SupervisorManifestCompatible(stored, current)
+           + ", architectureCompatible="
+           + ModelArchitectureCompatible(candidate, job.Request.Training)
+           + ", trainingCampaign="
+           + stored?.TrainingCampaignHash
+           + "/"
+           + current.TrainingCampaignHash
+           + ", validationCampaign="
+           + stored?.ValidationCampaignHash
+           + "/"
+           + current.ValidationCampaignHash
+           + ", nativePackage="
+           + stored?.NativeProgramPackageHash
+           + "/"
+           + current.NativeProgramPackageHash;
 }
 
 static bool ModelArchitectureCompatible(
@@ -3000,6 +3277,22 @@ static int RunIterationSupervisor(
         sourceJob.JobId + ".result.json");
     var segment = 0;
     var resolvedIterationLimit = 0;
+    var requiredCheckpointFingerprint =
+        sourceJob.ResumeFromCheckpoint
+        && sourceJob.RequireCompatibleResume
+        && string.IsNullOrWhiteSpace(sourceJob.ResumeCheckpointPath)
+        && string.Equals(
+            CombatFoundationCheckpointResumeModes.Normalize(
+                sourceJob.ResumeMode),
+            CombatFoundationCheckpointResumeModes.Exact,
+            StringComparison.Ordinal)
+        && string.Equals(
+            sourceJob.RequestedStartMode,
+            "resume-required",
+            StringComparison.Ordinal)
+        && CombatFoundationPathRuntime.FileExists(sourceJob.CheckpointPath)
+            ? ReadCheckpointRequestFingerprint(sourceJob.CheckpointPath)
+            : "";
     try
     {
         while (true)
@@ -3016,6 +3309,7 @@ static int RunIterationSupervisor(
                            ?? throw new InvalidOperationException(
                                "无法创建轮次子进程任务。");
             childJob.ResultPath = segmentResultPath;
+            childJob.RequiredCheckpointFingerprint = "";
             childJob.Request.EnableIterationProcessIsolation = true;
             childJob.Request.MaximumIterationsPerProcess = 1;
             if (segment > 1)
@@ -3027,10 +3321,24 @@ static int RunIterationSupervisor(
                 childJob.ResumeMode =
                     CombatFoundationCheckpointResumeModes.Exact;
                 childJob.Request.AdditionalIterationsOnResume = 0;
+                // The first isolated segment establishes fresh measurements.
+                // Later segments share the same hardware and model shape, so
+                // reusing that validated cache avoids minutes of low-CPU
+                // inference calibration on every process boundary.
+                childJob.Request.ReuseAutoTuneCache = true;
                 childJob.Request.PreflightCampaignsPerDifficulty = 0;
                 childJob.Request.Iterations = resolvedIterationLimit;
                 childJob.InitialChampion = null;
                 childJob.RequestedStartMode = "iteration-boundary-resume";
+                childJob.RequiredCheckpointFingerprint =
+                    requiredCheckpointFingerprint;
+            }
+            else if (!string.IsNullOrWhiteSpace(
+                         requiredCheckpointFingerprint))
+            {
+                childJob.RequestedStartMode = "iteration-boundary-resume";
+                childJob.RequiredCheckpointFingerprint =
+                    requiredCheckpointFingerprint;
             }
 
             CombatFoundationPathRuntime.DeleteFile(segmentResultPath);
@@ -3080,6 +3388,8 @@ static int RunIterationSupervisor(
                     + " next=" + nextIteration
                     + ", limit=" + resolvedIterationLimit);
             }
+            requiredCheckpointFingerprint =
+                ReadCheckpointRequestFingerprint(sourceJob.CheckpointPath);
         }
     }
     finally
@@ -3091,6 +3401,44 @@ static int RunIterationSupervisor(
         CombatFoundationPathRuntime.DeleteFile(
             CombatFoundationCheckpointStorage.BackupPath(segmentResultPath));
     }
+}
+
+static string ReadCheckpointRequestFingerprint(string checkpointPath)
+{
+    using var stream = new FileStream(
+        CombatFoundationPathRuntime.ForFileSystem(checkpointPath),
+        FileMode.Open,
+        FileAccess.Read,
+        FileShare.ReadWrite | FileShare.Delete,
+        64 * 1024,
+        FileOptions.SequentialScan);
+    using var textReader = new StreamReader(
+        stream,
+        Encoding.UTF8,
+        detectEncodingFromByteOrderMarks: true,
+        64 * 1024,
+        leaveOpen: false);
+    using var jsonReader = new JsonTextReader(textReader);
+    while (jsonReader.Read())
+    {
+        if (jsonReader.TokenType != JsonToken.PropertyName
+            || !string.Equals(
+                Convert.ToString(jsonReader.Value),
+                nameof(CombatFoundationWorkerCheckpoint.RequestFingerprint),
+                StringComparison.Ordinal)
+            || !jsonReader.Read())
+        {
+            continue;
+        }
+        var fingerprint = Convert.ToString(jsonReader.Value) ?? "";
+        if (!string.IsNullOrWhiteSpace(fingerprint))
+        {
+            return fingerprint;
+        }
+        break;
+    }
+    throw new InvalidDataException(
+        "轮次断点缺少请求指纹：" + checkpointPath);
 }
 
 static ProcessStartInfo CreateRoundChildStartInfo(string childJobPath)

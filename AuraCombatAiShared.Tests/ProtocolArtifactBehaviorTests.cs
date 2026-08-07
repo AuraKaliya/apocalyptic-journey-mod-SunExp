@@ -11,6 +11,50 @@ internal static class CombatAiProtocolArtifactBehaviorTests
 {
     public static void Run(CombatAiTrainingTestContext context)
     {
+        var concurrentFeatureName = "checkpoint-concurrent-feature-"
+                                    + Guid.NewGuid().ToString("N");
+        System.Threading.Tasks.Parallel.For(
+            0,
+            512,
+            _ => CombatFeatureTokenRegistry.GetToken(concurrentFeatureName));
+        Assert(CombatFeatureTokenRegistry.CaptureCatalog().Values.Count(name =>
+                   string.Equals(
+                       name,
+                       concurrentFeatureName,
+                       StringComparison.OrdinalIgnoreCase)) == 1,
+            "concurrent compact feature allocation publishes exactly one token");
+
+        var existingFeatureTokens =
+            CombatFeatureTokenRegistry.CaptureCatalog();
+        var aliasToken = existingFeatureTokens.Count == 0
+            ? 1
+            : existingFeatureTokens.Keys.Max() + 1;
+        var aliasFeatureName = "checkpoint-alias-feature-"
+                               + Guid.NewGuid().ToString("N");
+        CombatFeatureTokenRegistry.RegisterCatalog(
+            new Dictionary<int, string>
+            {
+                [aliasToken] = aliasFeatureName,
+                [aliasToken + 1] = aliasFeatureName
+            });
+        var aliasVector = new CombatCompactFeatureVector(
+            new[] { aliasToken + 1 },
+            new[] { 7.5f });
+        Assert(CombatFeatureTokenRegistry.TryGetToken(
+                   aliasFeatureName,
+                   out var canonicalAliasToken)
+               && canonicalAliasToken == aliasToken
+               && CombatFeatureTokenRegistry.TryResolve(
+                   aliasToken + 1,
+                   out var resolvedAliasName)
+               && string.Equals(
+                   resolvedAliasName,
+                   aliasFeatureName,
+                   StringComparison.OrdinalIgnoreCase)
+               && aliasVector.TryGetValue(aliasFeatureName, out var aliasValue)
+               && Math.Abs(aliasValue - 7.5d) < 1e-6d,
+            "checkpoint feature catalogs retain duplicate-name token aliases without losing compact values");
+
         var simulationEngine = context.Simulation.Engine;
         var simulationRules = context.Simulation.Rules;
         var bundledRulesV2 = context.Simulation.BundledRules;
@@ -689,6 +733,17 @@ internal static class CombatAiProtocolArtifactBehaviorTests
                 contentEpisodeJob,
                 out _),
             "worker schema carries validated content episodes into foundation replay");
+        contentEpisodeJob.RequiredCheckpointFingerprint = "invalid";
+        Assert(!CombatFoundationWorkerProtocol.TryValidateJob(
+                contentEpisodeJob,
+                out _),
+            "iteration-boundary checkpoint handoff rejects malformed fingerprints");
+        contentEpisodeJob.RequiredCheckpointFingerprint = new string('A', 64);
+        Assert(CombatFoundationWorkerProtocol.TryValidateJob(
+                contentEpisodeJob,
+                out _),
+            "iteration-boundary checkpoint handoff accepts a complete hexadecimal fingerprint");
+        contentEpisodeJob.RequiredCheckpointFingerprint = "";
         contentTrainingEpisode.Frames[0].Candidates[0].OwnerModId = "unregistered";
         Assert(!CombatContentTrainingEpisodeProtocol.TryValidate(
                 contentTrainingEpisode,
@@ -710,6 +765,41 @@ internal static class CombatAiProtocolArtifactBehaviorTests
                    pinnedContentReplay.Episodes[0],
                    contentTrainingEpisode),
             "registered content replay receives a configurable guaranteed training quota");
+        var processBoundaryReplay = Enumerable.Range(0, 600)
+            .Select(index => new CombatEpisode
+            {
+                EpisodeId = "process-boundary-" + index.ToString("D4"),
+                Seed = (ulong)(1000 + index),
+                ScenarioId = "process-boundary",
+                Campaign = new CombatCampaignEpisodeMetadata
+                {
+                    DifficultyId = index % 2 == 0 ? "normal" : "advanced"
+                },
+                Frames = Enumerable.Repeat(
+                        new CombatEpisodeFrame(),
+                        100)
+                    .ToList()
+            })
+            .ToList();
+        var boundedProcessReplay = CombatFoundationReplaySampler
+            .SelectProcessBoundary(
+                processBoundaryReplay,
+                required: Array.Empty<CombatEpisode>(),
+                configuredEpisodeLimit: 2048,
+                configuredFrameLimit: 96_000,
+                configuredEstimatedBytesLimit: 768L * 1024L * 1024L,
+                minimumEpisodes: 64,
+                stratified: true);
+        Assert(boundedProcessReplay.Episodes.Count
+                   <= CombatFoundationReplaySampler.ProcessBoundaryEpisodeLimit
+               && boundedProcessReplay.Episodes.Sum(episode =>
+                   episode.Frames.Count)
+               <= CombatFoundationReplaySampler.ProcessBoundaryFrameLimit
+               && boundedProcessReplay.Episodes.Sum(
+                   CombatFoundationReplaySampler.EstimateResidentBytes)
+               <= CombatFoundationReplaySampler
+                   .ProcessBoundaryEstimatedBytesLimit,
+            "cross-process replay snapshots enforce independent episode, frame and resident-memory caps");
 
         var contentPackageRoot = Path.Combine(
             Path.GetTempPath(),
@@ -1144,13 +1234,22 @@ internal static class CombatAiProtocolArtifactBehaviorTests
             "governance returns a legal non-end-turn fallback on a low-confidence deadline");
 
         var transformerOptions = new CombatTransformerTeacherOptions().Normalized();
+        var minimumTransformerReserve =
+            new CombatTransformerTeacherOptions
+            {
+                MemoryReserveBytes = 1L
+            }.Normalized();
         Assert(transformerOptions.Layers == 6
                && transformerOptions.HiddenDimensions == 384
                && transformerOptions.AttentionHeads == 8
                && transformerOptions.FeedForwardDimensions == 1536
+               && transformerOptions.MemoryReserveBytes
+               == 128L * 1024L * 1024L
+               && minimumTransformerReserve.MemoryReserveBytes
+               == 128L * 1024L * 1024L
                && transformerOptions.EstimatedEncoderParameters() >= 10_000_000
                && transformerOptions.EstimatedEncoderParameters() <= 100_000_000,
-            "six-layer Transformer defaults stay inside the approved parameter range");
+            "Transformer defaults retain the approved model size and an independent 128 MiB stage reserve");
 
         var transformerAdapter = new CombatTransformerLoRAAdapterDefinition
         {
@@ -1460,6 +1559,15 @@ internal static class CombatAiProtocolArtifactBehaviorTests
                && !lazyFrame.HasMaterializedStateFeatures
                && !lazyCandidate.HasMaterializedFeatures,
             "compatibility dictionaries are temporary and are not retained beside compact columns");
+        lazyFrame.Observation = new CombatObservationEnvelope();
+        lazyFrame.Candidates.Add(lazyCandidate);
+        lazyFrame.ReleaseTransientStorage();
+        Assert(!lazyFrame.HasObservation
+               && !lazyFrame.HasMaterializedStateFeatures
+               && !lazyCandidate.HasMaterializedFeatures
+               && lazyFrame.TryGetStateFeature("power", out _)
+               && lazyCandidate.TryGetFeature("cost", out _),
+            "cross-round cleanup drops observation graphs while preserving compact training columns");
         var normalizedReusableState = CombatPlayerObservationBoundary.Normalize(
             reusableState);
         Assert(JsonSerializer.Serialize(
@@ -1557,10 +1665,11 @@ internal static class CombatAiProtocolArtifactBehaviorTests
                     ProcessPrivateMemoryBytes = 9L * gib
                 },
                 configuredPerLaneBytes: gib);
-        Assert(defaultReserveFirstRound.MemoryReserveBytes == 3L * gib
-               && defaultReserveFirstRound.SelectedParallelism == 12
-               && defaultReserveLaterRound.SelectedParallelism == 12,
-            "the default 3 GiB reserve is fixed and prior-round private memory is diagnostic, not deducted twice");
+        Assert(defaultReserveFirstRound.MemoryReserveBytes
+                   == 128L * 1024L * 1024L
+               && defaultReserveFirstRound.SelectedParallelism == 14
+               && defaultReserveLaterRound.SelectedParallelism == 14,
+            "the default 128 MiB reserve is fixed and prior-round private memory is diagnostic, not deducted twice");
         var arenaBoundCapacity = CombatFoundationParallelismPlanner.Select(
             4,
             32,

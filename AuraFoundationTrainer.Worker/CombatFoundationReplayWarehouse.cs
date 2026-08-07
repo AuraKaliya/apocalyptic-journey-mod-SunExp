@@ -10,6 +10,8 @@ internal sealed class CombatFoundationReplayWarehouse
 {
     private const string IndexFileName = "replay-index-v1.jsonl";
 
+    private const long StoredToResidentMultiplier = 96L;
+
     private readonly object gate = new();
     private readonly string rootPath;
     private readonly string episodeRootPath;
@@ -33,6 +35,7 @@ internal sealed class CombatFoundationReplayWarehouse
         var report = new CombatFoundationReplayArchiveReport
         {
             Iteration = iteration,
+            SourceEpisodes = episodes?.Count(episode => episode != null) ?? 0,
             WarehousePath = rootPath
         };
         lock (gate)
@@ -103,6 +106,21 @@ internal sealed class CombatFoundationReplayWarehouse
         int episodeLimit,
         long bytesLimit)
     {
+        return Load(
+            iteration,
+            excludedKeys,
+            episodeLimit,
+            bytesLimit,
+            Array.Empty<string>());
+    }
+
+    public IReadOnlyList<CombatEpisode> Load(
+        int iteration,
+        IReadOnlyCollection<string> excludedKeys,
+        int episodeLimit,
+        long bytesLimit,
+        IReadOnlyCollection<string> preferredKeys)
+    {
         if (episodeLimit <= 0 || bytesLimit <= 0L)
         {
             return Array.Empty<CombatEpisode>();
@@ -111,6 +129,9 @@ internal sealed class CombatFoundationReplayWarehouse
         {
             var excluded = new HashSet<string>(
                 excludedKeys ?? Array.Empty<string>(),
+                StringComparer.Ordinal);
+            var preferred = new HashSet<string>(
+                preferredKeys ?? Array.Empty<string>(),
                 StringComparer.Ordinal);
             var candidates = entries.Values
                 .Where(entry => !excluded.Contains(entry.Key))
@@ -127,13 +148,15 @@ internal sealed class CombatFoundationReplayWarehouse
                 hardQuota,
                 iteration,
                 selected,
-                selectedKeys);
+                selectedKeys,
+                preferred);
             AddCandidates(
                 candidates.Where(entry => entry.Successful),
                 successQuota,
                 iteration,
                 selected,
-                selectedKeys);
+                selectedKeys,
+                preferred);
             var diverse = candidates
                 .GroupBy(
                     entry => entry.DifficultyId + "|" + entry.ScenarioId,
@@ -146,21 +169,23 @@ internal sealed class CombatFoundationReplayWarehouse
                 diversityQuota,
                 iteration,
                 selected,
-                selectedKeys);
+                selectedKeys,
+                preferred);
             AddCandidates(
                 candidates,
                 episodeLimit - selected.Count,
                 iteration,
                 selected,
-                selectedKeys);
+                selectedKeys,
+                preferred);
 
             var result = new List<CombatEpisode>(selected.Count);
             var residentBytes = 0L;
             foreach (var entry in selected)
             {
+                var estimatedResidentBytes = EffectiveResidentBytes(entry);
                 if (result.Count >= episodeLimit
-                    || residentBytes + entry.EstimatedResidentBytes
-                       > bytesLimit)
+                    || residentBytes + estimatedResidentBytes > bytesLimit)
                 {
                     continue;
                 }
@@ -171,7 +196,7 @@ internal sealed class CombatFoundationReplayWarehouse
                 }
                 result.Add(episode);
                 residentBytes += Math.Max(
-                    entry.EstimatedResidentBytes,
+                    estimatedResidentBytes,
                     CombatFoundationReplaySampler.EstimateResidentBytes(
                         episode));
             }
@@ -278,8 +303,9 @@ internal sealed class CombatFoundationReplayWarehouse
                 iteration,
                 campaign.TrainingIteration),
             Frames = episode.Frames?.Count ?? 0,
-            EstimatedResidentBytes = CombatFoundationReplaySampler
-                .EstimateResidentBytes(episode),
+            EstimatedResidentBytes = Math.Max(
+                CombatFoundationReplaySampler.EstimateResidentBytes(episode),
+                Math.Max(0L, storedBytes) * StoredToResidentMultiplier),
             StoredBytes = Math.Max(0L, storedBytes),
             CurriculumStage = campaign.CurriculumStage ?? "",
             CreatedUtc = DateTime.UtcNow
@@ -291,14 +317,16 @@ internal sealed class CombatFoundationReplayWarehouse
         int count,
         int iteration,
         ICollection<ReplayWarehouseEntry> selected,
-        ISet<string> selectedKeys)
+        ISet<string> selectedKeys,
+        ISet<string> preferredKeys)
     {
         if (count <= 0)
         {
             return;
         }
         foreach (var entry in source
-                     .OrderByDescending(item => item.TrainingIteration)
+                     .OrderByDescending(item => preferredKeys.Contains(item.Key))
+                     .ThenByDescending(item => item.TrainingIteration)
                      .ThenBy(item => StableOrder(item.Key, iteration)))
         {
             if (!selectedKeys.Add(entry.Key))
@@ -314,7 +342,7 @@ internal sealed class CombatFoundationReplayWarehouse
         }
     }
 
-    private static string StableKey(CombatEpisode episode)
+    internal static string StableKey(CombatEpisode episode)
     {
         return (episode.JourneyRunId ?? "")
                + "|"
@@ -337,6 +365,18 @@ internal sealed class CombatFoundationReplayWarehouse
         return Convert.ToHexString(
             SHA256.HashData(Encoding.UTF8.GetBytes(value)))
             .ToLowerInvariant();
+    }
+
+    private static long EffectiveResidentBytes(ReplayWarehouseEntry entry)
+    {
+        var storedBytes = Math.Max(0L, entry.StoredBytes);
+        var expandedStoredBytes = storedBytes
+                                  > long.MaxValue / StoredToResidentMultiplier
+            ? long.MaxValue
+            : storedBytes * StoredToResidentMultiplier;
+        return Math.Max(
+            Math.Max(0L, entry.EstimatedResidentBytes),
+            expandedStoredBytes);
     }
 
     private static string SerializeCompact(object value)

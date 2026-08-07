@@ -104,6 +104,8 @@ internal sealed class ControllerSettings
             TransformerTeacherMicroBatchSize = 0,
             TransformerTeacherDataLoaderWorkers = 2,
             TransformerTeacherPrefetchBatches = 2,
+            TransformerTeacherMemoryReserveBytes =
+                CombatFoundationParallelismProtocol.DefaultTeacherReserveBytes,
             TransformerTeacherEnablePinnedMemory = true,
             TransformerTeacherEnableMixedPrecision = true,
             TransformerDistillationWeight = 0.35d,
